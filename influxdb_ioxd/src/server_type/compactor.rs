@@ -8,13 +8,14 @@ use compactor::{
     handler::{CompactorHandler, CompactorHandlerImpl},
     server::CompactorServer,
 };
-use data_types2::SequencerId;
+use data_types2::KafkaPartition;
 use hyper::{Body, Request, Response};
 use iox_catalog::interface::Catalog;
 use metric::Registry;
 use object_store::DynObjectStore;
 use query::exec::Executor;
 use time::TimeProvider;
+use tokio_util::sync::CancellationToken;
 use trace::TraceCollector;
 
 use crate::{
@@ -22,10 +23,27 @@ use crate::{
     rpc::{add_service, serve_builder, setup_builder, RpcBuilderInput},
     server_type::{common_state::CommonServerState, RpcError, ServerType},
 };
+use clap_blocks::compactor::CompactorConfig;
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum Error {
+    #[error("Catalog error: {0}")]
+    Catalog(#[from] iox_catalog::interface::Error),
+
+    #[error("Kafka topic {0} not found in the catalog")]
+    KafkaTopicNotFound(String),
+
+    #[error("kafka_partition_range_start must be <= kafka_partition_range_end")]
+    KafkaRange,
+}
+
+pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug)]
 pub struct CompactorServerType<C: CompactorHandler> {
     server: CompactorServer<C>,
+    shutdown: CancellationToken,
     trace_collector: Option<Arc<dyn TraceCollector>>,
 }
 
@@ -33,6 +51,7 @@ impl<C: CompactorHandler> CompactorServerType<C> {
     pub fn new(server: CompactorServer<C>, common_state: &CommonServerState) -> Self {
         Self {
             server,
+            shutdown: CancellationToken::new(),
             trace_collector: common_state.trace_collector(),
         }
     }
@@ -68,11 +87,11 @@ impl<C: CompactorHandler + std::fmt::Debug + 'static> ServerType for CompactorSe
     }
 
     async fn join(self: Arc<Self>) {
-        self.server.join().await;
+        self.shutdown.cancelled().await;
     }
 
     fn shutdown(&self) {
-        self.server.shutdown();
+        self.shutdown.cancel();
     }
 }
 
@@ -112,8 +131,33 @@ pub async fn create_compactor_server_type(
     object_store: Arc<DynObjectStore>,
     exec: Arc<Executor>,
     time_provider: Arc<dyn TimeProvider>,
-    sequencers: Vec<SequencerId>,
-) -> Arc<dyn ServerType> {
+    compactor_config: CompactorConfig,
+) -> Result<Arc<dyn ServerType>> {
+    if compactor_config.write_buffer_partition_range_start
+        > compactor_config.write_buffer_partition_range_end
+    {
+        return Err(Error::KafkaRange);
+    }
+
+    let mut txn = catalog.start_transaction().await?;
+    let kafka_topic = txn
+        .kafka_topics()
+        .get_by_name(&compactor_config.topic)
+        .await?
+        .ok_or(Error::KafkaTopicNotFound(compactor_config.topic))?;
+
+    let kafka_partitions: Vec<_> = (compactor_config.write_buffer_partition_range_start
+        ..=compactor_config.write_buffer_partition_range_end)
+        .map(KafkaPartition::new)
+        .collect();
+
+    let mut sequencers = Vec::with_capacity(kafka_partitions.len());
+    for k in kafka_partitions {
+        let s = txn.sequencers().create_or_get(&kafka_topic, k).await?;
+        sequencers.push(s.id);
+    }
+    txn.commit().await?;
+
     let compactor_handler = Arc::new(CompactorHandlerImpl::new(
         sequencers,
         catalog,
@@ -124,5 +168,5 @@ pub async fn create_compactor_server_type(
     ));
 
     let compactor = CompactorServer::new(metric_registry, compactor_handler);
-    Arc::new(CompactorServerType::new(compactor, common_state))
+    Ok(Arc::new(CompactorServerType::new(compactor, common_state)))
 }

@@ -44,8 +44,9 @@ use parquet_catalog::{
 };
 use persistence_windows::{checkpoint::ReplayPlan, persistence_windows::PersistenceWindows};
 use predicate::{rpc_predicate::QueryDatabaseMeta, Predicate};
+use query::QueryChunk;
 use query::{
-    exec::{ExecutionContextProvider, Executor, ExecutorType, IOxExecutionContext},
+    exec::{ExecutionContextProvider, Executor, ExecutorType, IOxSessionContext},
     QueryCompletedToken, QueryDatabase, QueryText,
 };
 use rand_distr::{Distribution, Poisson};
@@ -1228,20 +1229,22 @@ impl Db {
 /// can just use Db as a `Database` even though the implementation
 /// lives in `catalog_access`
 impl QueryDatabase for Db {
-    type Chunk = DbChunk;
-
-    async fn chunks(&self, table_name: &str, predicate: &Predicate) -> Vec<Arc<Self::Chunk>> {
+    async fn chunks(&self, table_name: &str, predicate: &Predicate) -> Vec<Arc<dyn QueryChunk>> {
         self.catalog_access.chunks(table_name, predicate).await
     }
 
     fn record_query(
         &self,
-        ctx: &IOxExecutionContext,
-        query_type: impl Into<String>,
+        ctx: &IOxSessionContext,
+        query_type: &str,
         query_text: QueryText,
     ) -> QueryCompletedToken {
         self.catalog_access
             .record_query(ctx, query_type, query_text)
+    }
+
+    fn as_meta(&self) -> &dyn QueryDatabaseMeta {
+        self
     }
 }
 
@@ -1256,10 +1259,10 @@ impl QueryDatabaseMeta for Db {
 }
 
 impl ExecutionContextProvider for Db {
-    fn new_query_context(self: &Arc<Self>, span_ctx: Option<SpanContext>) -> IOxExecutionContext {
+    fn new_query_context(&self, span_ctx: Option<SpanContext>) -> IOxSessionContext {
         self.exec
             .new_execution_config(ExecutorType::Query)
-            .with_default_catalog(Arc::<Self>::clone(self))
+            .with_default_catalog(Arc::clone(&self.catalog_access) as _)
             .with_span_context(span_ctx)
             .build()
     }
@@ -1279,6 +1282,15 @@ impl CatalogProvider for Db {
 
     fn schema(&self, name: &str) -> Option<Arc<dyn SchemaProvider>> {
         self.catalog_access.schema(name)
+    }
+
+    fn register_schema(
+        &self,
+        _name: &str,
+        _schema: Arc<dyn SchemaProvider>,
+    ) -> Option<Arc<dyn SchemaProvider>> {
+        // https://github.com/apache/arrow-datafusion/issues/2051
+        unimplemented!("Schemas can not be registered in IOx");
     }
 }
 
@@ -1988,7 +2000,7 @@ mod tests {
     async fn collect_read_filter(chunk: &DbChunk) -> Vec<RecordBatch> {
         chunk
             .read_filter(
-                IOxExecutionContext::default(),
+                IOxSessionContext::default(),
                 &Default::default(),
                 Selection::All,
             )

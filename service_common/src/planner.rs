@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use datafusion::physical_plan::ExecutionPlan;
 use query::{
-    exec::IOxExecutionContext,
+    exec::IOxSessionContext,
     frontend::{influxrpc::InfluxRpcPlanner, sql::SqlQueryPlanner},
     group_by::{Aggregate, WindowDuration},
     plan::{fieldlist::FieldListPlan, seriesset::SeriesSetPlans, stringset::StringSetPlan},
@@ -21,12 +21,12 @@ use predicate::rpc_predicate::InfluxRpcPredicate;
 /// pool.
 pub struct Planner {
     /// Executors (whose threadpool to use)
-    ctx: IOxExecutionContext,
+    ctx: IOxSessionContext,
 }
 
 impl Planner {
     /// Create a new planner that will plan queries using the provided context
-    pub fn new(ctx: &IOxExecutionContext) -> Self {
+    pub fn new(ctx: &IOxSessionContext) -> Self {
         Self {
             ctx: ctx.child_ctx("Planner"),
         }

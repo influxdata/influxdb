@@ -6,7 +6,7 @@ use arrow::datatypes::SchemaRef;
 use data_types::partition_metadata::TableSummary;
 use datafusion::{
     error::DataFusionError,
-    execution::runtime_env::RuntimeEnv,
+    execution::context::TaskContext,
     physical_plan::{
         expressions::PhysicalSortExpr,
         metrics::{BaselineMetrics, ExecutionPlanMetricsSet, MetricsSet},
@@ -16,7 +16,7 @@ use datafusion::{
 use schema::selection::Selection;
 use schema::Schema;
 
-use crate::{exec::IOxExecutionContext, QueryChunk};
+use crate::{exec::IOxSessionContext, QueryChunk};
 use predicate::Predicate;
 
 use async_trait::async_trait;
@@ -25,29 +25,29 @@ use super::adapter::SchemaAdapterStream;
 
 /// Implements the DataFusion physical plan interface
 #[derive(Debug)]
-pub(crate) struct IOxReadFilterNode<C: QueryChunk + 'static> {
+pub(crate) struct IOxReadFilterNode {
     table_name: Arc<str>,
     /// The desired output schema (includes selection)
     /// note that the chunk may not have all these columns.
     iox_schema: Arc<Schema>,
-    chunks: Vec<Arc<C>>,
+    chunks: Vec<Arc<dyn QueryChunk>>,
     predicate: Predicate,
     /// Execution metrics
     metrics: ExecutionPlanMetricsSet,
 
     // execution context used for tracing
-    ctx: IOxExecutionContext,
+    ctx: IOxSessionContext,
 }
 
-impl<C: QueryChunk + 'static> IOxReadFilterNode<C> {
+impl IOxReadFilterNode {
     /// Create a execution plan node that reads data from `chunks` producing
     /// output according to schema, while applying `predicate` and
     /// returns
     pub fn new(
-        ctx: IOxExecutionContext,
+        ctx: IOxSessionContext,
         table_name: Arc<str>,
         iox_schema: Arc<Schema>,
-        chunks: Vec<Arc<C>>,
+        chunks: Vec<Arc<dyn QueryChunk>>,
         predicate: Predicate,
     ) -> Self {
         Self {
@@ -62,7 +62,7 @@ impl<C: QueryChunk + 'static> IOxReadFilterNode<C> {
 }
 
 #[async_trait]
-impl<C: QueryChunk + 'static> ExecutionPlan for IOxReadFilterNode<C> {
+impl ExecutionPlan for IOxReadFilterNode {
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
@@ -91,12 +91,12 @@ impl<C: QueryChunk + 'static> ExecutionPlan for IOxReadFilterNode<C> {
     ) -> datafusion::error::Result<Arc<dyn ExecutionPlan>> {
         assert!(children.is_empty(), "no children expected in iox plan");
 
-        let chunks: Vec<Arc<C>> = self.chunks.to_vec();
+        let chunks: Vec<Arc<dyn QueryChunk>> = self.chunks.to_vec();
 
         // For some reason when I used an automatically derived `Clone` implementation
         // the compiler didn't recognize the trait implementation
         let new_self = Self {
-            ctx: IOxExecutionContext::default(), // FIXME: we can't clone context because we shouldn't clone span recorder bits
+            ctx: IOxSessionContext::default(), // FIXME: we can't clone context because we shouldn't clone span recorder bits
             table_name: Arc::clone(&self.table_name),
             iox_schema: Arc::clone(&self.iox_schema),
             chunks,
@@ -110,7 +110,7 @@ impl<C: QueryChunk + 'static> ExecutionPlan for IOxReadFilterNode<C> {
     async fn execute(
         &self,
         partition: usize,
-        _runtime: Arc<RuntimeEnv>,
+        _context: Arc<TaskContext>,
     ) -> datafusion::error::Result<SendableRecordBatchStream> {
         let baseline_metrics = BaselineMetrics::new(&self.metrics, partition);
         let timer = baseline_metrics.elapsed_compute().timer();

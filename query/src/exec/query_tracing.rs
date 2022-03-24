@@ -315,7 +315,7 @@ mod tests {
     use async_trait::async_trait;
     use chrono::TimeZone;
     use datafusion::{
-        execution::runtime_env::RuntimeEnv,
+        execution::context::TaskContext,
         physical_plan::{
             expressions::PhysicalSortExpr,
             metrics::{Count, Time, Timestamp},
@@ -651,7 +651,7 @@ mod tests {
         async fn execute(
             &self,
             _partition: usize,
-            _runtime: Arc<RuntimeEnv>,
+            _context: Arc<TaskContext>,
         ) -> datafusion::error::Result<datafusion::physical_plan::SendableRecordBatchStream>
         {
             unimplemented!()

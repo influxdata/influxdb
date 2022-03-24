@@ -13,7 +13,7 @@
 
 pub use client_util::connection;
 
-mod cache;
+pub mod cache;
 mod cache_system;
 mod chunk;
 pub mod database;
@@ -23,3 +23,5 @@ pub mod handler;
 pub mod namespace;
 mod poison;
 pub mod server;
+mod table;
+mod tombstone;

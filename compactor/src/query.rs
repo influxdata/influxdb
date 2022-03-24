@@ -11,8 +11,8 @@ use observability_deps::tracing::trace;
 use parquet_file::{chunk::ParquetChunk, metadata::IoxMetadata};
 use predicate::{Predicate, PredicateMatch};
 use query::{
-    exec::{stringset::StringSet, IOxExecutionContext},
-    QueryChunk, QueryChunkMeta,
+    exec::{stringset::StringSet, IOxSessionContext},
+    QueryChunk, QueryChunkError, QueryChunkMeta,
 };
 use schema::{merge::SchemaMerger, selection::Selection, sort::SortKey, Schema};
 use snafu::{ResultExt, Snafu};
@@ -62,12 +62,10 @@ impl QueryableParquetChunk {
     }
 
     /// Merge schema of the given chunks
-    pub fn merge_schemas(chunks: &[Self]) -> Arc<Schema> {
+    pub fn merge_schemas(chunks: &[Arc<dyn QueryChunk>]) -> Arc<Schema> {
         let mut merger = SchemaMerger::new();
         for chunk in chunks {
-            merger = merger
-                .merge(&chunk.data.schema())
-                .expect("schemas compatible");
+            merger = merger.merge(&chunk.schema()).expect("schemas compatible");
         }
         Arc::new(merger.build())
     }
@@ -80,6 +78,16 @@ impl QueryableParquetChunk {
     /// Return max sequence number
     pub fn max_sequence_number(&self) -> SequenceNumber {
         self.iox_metadata.max_sequence_number
+    }
+
+    /// Return min time
+    pub fn min_time(&self) -> i64 {
+        self.iox_metadata.time_of_first_write.timestamp_nanos()
+    }
+
+    /// Return max time
+    pub fn max_time(&self) -> i64 {
+        self.iox_metadata.time_of_last_write.timestamp_nanos()
     }
 }
 
@@ -102,8 +110,6 @@ impl QueryChunkMeta for QueryableParquetChunk {
 }
 
 impl QueryChunk for QueryableParquetChunk {
-    type Error = Error;
-
     // Todo: This function should not be used in this NG chunk context
     // For now, since we also use scan for both OG and NG, the chunk id
     // is used as second key in build_deduplicate_plan_for_overlapped_chunks
@@ -141,7 +147,7 @@ impl QueryChunk for QueryableParquetChunk {
     fn apply_predicate_to_metadata(
         &self,
         _predicate: &Predicate,
-    ) -> Result<PredicateMatch, Self::Error> {
+    ) -> Result<PredicateMatch, QueryChunkError> {
         Ok(PredicateMatch::Unknown)
     }
 
@@ -151,10 +157,10 @@ impl QueryChunk for QueryableParquetChunk {
     /// this Chunk. Returns `None` otherwise
     fn column_names(
         &self,
-        _ctx: IOxExecutionContext,
+        _ctx: IOxSessionContext,
         _predicate: &Predicate,
         _columns: Selection<'_>,
-    ) -> Result<Option<StringSet>, Self::Error> {
+    ) -> Result<Option<StringSet>, QueryChunkError> {
         Ok(None)
     }
 
@@ -165,10 +171,10 @@ impl QueryChunk for QueryableParquetChunk {
     /// The requested columns must all have String type.
     fn column_values(
         &self,
-        _ctx: IOxExecutionContext,
+        _ctx: IOxSessionContext,
         _column_name: &str,
         _predicate: &Predicate,
-    ) -> Result<Option<StringSet>, Self::Error> {
+    ) -> Result<Option<StringSet>, QueryChunkError> {
         Ok(None)
     }
 
@@ -187,10 +193,10 @@ impl QueryChunk for QueryableParquetChunk {
     /// streams from several different `QueryChunk`s.
     fn read_filter(
         &self,
-        mut ctx: IOxExecutionContext,
+        mut ctx: IOxSessionContext,
         predicate: &Predicate,
         selection: Selection<'_>,
-    ) -> Result<SendableRecordBatchStream, Self::Error> {
+    ) -> Result<SendableRecordBatchStream, QueryChunkError> {
         ctx.set_metadata("storage", "compactor");
         ctx.set_metadata("projection", format!("{}", selection));
         trace!(?selection, "selection");
@@ -198,6 +204,7 @@ impl QueryChunk for QueryableParquetChunk {
         self.data
             .read_filter(predicate, selection)
             .context(ReadParquetSnafu)
+            .map_err(|e| Box::new(e) as _)
     }
 
     /// Returns chunk type

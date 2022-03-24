@@ -23,9 +23,9 @@ use schema::{merge::SchemaMerger, sort::SortKey, InfluxColumnType, Schema};
 
 use crate::{
     chunks_have_stats, compute_sort_key_for_chunks,
-    exec::IOxExecutionContext,
+    exec::IOxSessionContext,
     util::{arrow_sort_key_exprs, df_physical_expr},
-    QueryChunk, QueryChunkMeta,
+    QueryChunk,
 };
 
 use snafu::{ResultExt, Snafu};
@@ -86,33 +86,33 @@ impl From<Error> for DataFusionError {
 }
 
 /// Something that can prune chunks based on their metadata
-pub trait ChunkPruner<C: QueryChunk>: Sync + Send + std::fmt::Debug {
+pub trait ChunkPruner: Sync + Send + std::fmt::Debug {
     /// prune `chunks`, if possible, based on predicate.
     fn prune_chunks(
         &self,
         table_name: &str,
         table_schema: Arc<Schema>,
-        chunks: Vec<Arc<C>>,
+        chunks: Vec<Arc<dyn QueryChunk>>,
         predicate: &Predicate,
-    ) -> Vec<Arc<C>>;
+    ) -> Vec<Arc<dyn QueryChunk>>;
 }
 
 /// Builds a `ChunkTableProvider` from a series of `QueryChunk`s
 /// and ensures the schema across the chunks is compatible and
 /// consistent.
 #[derive(Debug)]
-pub struct ProviderBuilder<C: QueryChunk + 'static> {
+pub struct ProviderBuilder {
     table_name: Arc<str>,
     schema: Arc<Schema>,
-    chunk_pruner: Option<Arc<dyn ChunkPruner<C>>>,
-    chunks: Vec<Arc<C>>,
+    chunk_pruner: Option<Arc<dyn ChunkPruner>>,
+    chunks: Vec<Arc<dyn QueryChunk>>,
     sort_key: Option<SortKey>,
 
     // execution context used for tracing
-    ctx: IOxExecutionContext,
+    ctx: IOxSessionContext,
 }
 
-impl<C: QueryChunk> ProviderBuilder<C> {
+impl ProviderBuilder {
     pub fn new(table_name: impl AsRef<str>, schema: Arc<Schema>) -> Self {
         Self {
             table_name: Arc::from(table_name.as_ref()),
@@ -120,11 +120,11 @@ impl<C: QueryChunk> ProviderBuilder<C> {
             chunk_pruner: None,
             chunks: Vec::new(),
             sort_key: None,
-            ctx: IOxExecutionContext::default(),
+            ctx: IOxSessionContext::default(),
         }
     }
 
-    pub fn with_execution_context(self, ctx: IOxExecutionContext) -> Self {
+    pub fn with_execution_context(self, ctx: IOxSessionContext) -> Self {
         Self { ctx, ..self }
     }
 
@@ -137,14 +137,14 @@ impl<C: QueryChunk> ProviderBuilder<C> {
     }
 
     /// Add a new chunk to this provider
-    pub fn add_chunk(mut self, chunk: Arc<C>) -> Self {
+    pub fn add_chunk(mut self, chunk: Arc<dyn QueryChunk>) -> Self {
         self.chunks.push(chunk);
         self
     }
 
     /// Specify a `ChunkPruner` for the provider that will apply
     /// additional chunk level pruning based on pushed down predicates
-    pub fn add_pruner(mut self, chunk_pruner: Arc<dyn ChunkPruner<C>>) -> Self {
+    pub fn add_pruner(mut self, chunk_pruner: Arc<dyn ChunkPruner>) -> Self {
         assert!(
             self.chunk_pruner.is_none(),
             "Chunk pruner already specified"
@@ -165,7 +165,7 @@ impl<C: QueryChunk> ProviderBuilder<C> {
     }
 
     /// Create the Provider
-    pub fn build(self) -> Result<ChunkTableProvider<C>> {
+    pub fn build(self) -> Result<ChunkTableProvider> {
         let chunk_pruner = match self.chunk_pruner {
             Some(chunk_pruner) => chunk_pruner,
             None => {
@@ -192,22 +192,22 @@ impl<C: QueryChunk> ProviderBuilder<C> {
 /// This allows DataFusion to see data from Chunks as a single table, as well as
 /// push predicates and selections down to chunks
 #[derive(Debug)]
-pub struct ChunkTableProvider<C: QueryChunk + 'static> {
+pub struct ChunkTableProvider {
     table_name: Arc<str>,
     /// The IOx schema (wrapper around Arrow Schemaref) for this table
     iox_schema: Arc<Schema>,
     /// Something that can prune chunks
-    chunk_pruner: Arc<dyn ChunkPruner<C>>,
+    chunk_pruner: Arc<dyn ChunkPruner>,
     /// The chunks
-    chunks: Vec<Arc<C>>,
+    chunks: Vec<Arc<dyn QueryChunk>>,
     /// The sort key if any
     sort_key: Option<SortKey>,
 
     // execution context
-    ctx: IOxExecutionContext,
+    ctx: IOxSessionContext,
 }
 
-impl<C: QueryChunk + 'static> ChunkTableProvider<C> {
+impl ChunkTableProvider {
     /// Return the IOx schema view for the data provided by this provider
     pub fn iox_schema(&self) -> Arc<Schema> {
         Arc::clone(&self.iox_schema)
@@ -225,7 +225,7 @@ impl<C: QueryChunk + 'static> ChunkTableProvider<C> {
 }
 
 #[async_trait]
-impl<C: QueryChunk + 'static> TableProvider for ChunkTableProvider<C> {
+impl TableProvider for ChunkTableProvider {
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
@@ -252,7 +252,7 @@ impl<C: QueryChunk + 'static> TableProvider for ChunkTableProvider<C> {
 
         // Now we have a second attempt to prune out chunks based on
         // metadata using the pushed down predicate (e.g. in SQL).
-        let chunks: Vec<Arc<C>> = self.chunks.to_vec();
+        let chunks: Vec<Arc<dyn QueryChunk>> = self.chunks.to_vec();
         let num_initial_chunks = chunks.len();
         let chunks = self.chunk_pruner.prune_chunks(
             self.table_name(),
@@ -301,31 +301,31 @@ impl<C: QueryChunk + 'static> TableProvider for ChunkTableProvider<C> {
 
 #[derive(Debug)]
 /// A deduplicater that deduplicate the duplicated data during scan execution
-pub(crate) struct Deduplicater<C: QueryChunk + 'static> {
+pub(crate) struct Deduplicater {
     /// a vector of a vector of overlapped chunks
-    pub overlapped_chunks_set: Vec<Vec<Arc<C>>>,
+    pub overlapped_chunks_set: Vec<Vec<Arc<dyn QueryChunk>>>,
 
     /// a vector of non-overlapped chunks each have duplicates in itself
-    pub in_chunk_duplicates_chunks: Vec<Arc<C>>,
+    pub in_chunk_duplicates_chunks: Vec<Arc<dyn QueryChunk>>,
 
     /// a vector of non-overlapped and non-duplicates chunks
-    pub no_duplicates_chunks: Vec<Arc<C>>,
+    pub no_duplicates_chunks: Vec<Arc<dyn QueryChunk>>,
 
     // execution context
-    ctx: IOxExecutionContext,
+    ctx: IOxSessionContext,
 }
 
-impl<C: QueryChunk + 'static> Deduplicater<C> {
+impl Deduplicater {
     pub(crate) fn new() -> Self {
         Self {
             overlapped_chunks_set: vec![],
             in_chunk_duplicates_chunks: vec![],
             no_duplicates_chunks: vec![],
-            ctx: IOxExecutionContext::default(),
+            ctx: IOxSessionContext::default(),
         }
     }
 
-    pub(crate) fn with_execution_context(self, ctx: IOxExecutionContext) -> Self {
+    pub(crate) fn with_execution_context(self, ctx: IOxSessionContext) -> Self {
         Self { ctx, ..self }
     }
 
@@ -405,7 +405,7 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
         &mut self,
         table_name: Arc<str>,
         output_schema: Arc<Schema>,
-        chunks: Vec<Arc<C>>,
+        chunks: Vec<Arc<dyn QueryChunk>>,
         predicate: Predicate,
         output_sort_key: Option<SortKey>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
@@ -518,7 +518,7 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
     ///  1. vector of vector of overlapped chunks
     ///  2. vector of non-overlapped chunks, each have duplicates in itself
     ///  3. vectors of non-overlapped chunks without duplicates
-    fn split_overlapped_chunks(&mut self, chunks: Vec<Arc<C>>) -> Result<()> {
+    fn split_overlapped_chunks(&mut self, chunks: Vec<Arc<dyn QueryChunk>>) -> Result<()> {
         if !chunks_have_stats(&chunks) {
             // no statistics, consider all chunks overlap
             self.overlapped_chunks_set.push(chunks);
@@ -587,10 +587,10 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
     ///  └─────────────────┘        └─────────────────┘
     ///```
     fn build_deduplicate_plan_for_overlapped_chunks(
-        ctx: IOxExecutionContext,
+        ctx: IOxSessionContext,
         table_name: Arc<str>,
         output_schema: Arc<Schema>,
-        chunks: Vec<Arc<C>>, // These chunks are identified overlapped
+        chunks: Vec<Arc<dyn QueryChunk>>, // These chunks are identified overlapped
         predicate: Predicate,
         sort_key: &SortKey,
     ) -> Result<Arc<dyn ExecutionPlan>> {
@@ -676,10 +676,10 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
     ///                └─────────────────┘
     ///```
     fn build_deduplicate_plan_for_chunk_with_duplicates(
-        ctx: IOxExecutionContext,
+        ctx: IOxSessionContext,
         table_name: Arc<str>,
         output_schema: Arc<Schema>,
-        chunk: Arc<C>, // This chunk is identified having duplicates
+        chunk: Arc<dyn QueryChunk>, // This chunk is identified having duplicates
         predicate: Predicate,
         sort_key: &SortKey,
     ) -> Result<Arc<dyn ExecutionPlan>> {
@@ -804,11 +804,11 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
     ///                └─────────────────┘
     ///```
     fn build_sort_plan_for_read_filter(
-        ctx: IOxExecutionContext,
+        ctx: IOxSessionContext,
         table_name: Arc<str>,
         output_schema: Arc<Schema>,
-        chunk: Arc<C>,        // This chunk is identified having duplicates
-        predicate: Predicate, // This is the select predicate of the query
+        chunk: Arc<dyn QueryChunk>, // This chunk is identified having duplicates
+        predicate: Predicate,       // This is the select predicate of the query
         sort_key: Option<&SortKey>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         // Add columns of sort key and delete predicates in the schema of to-be-scanned IOxReadFilterNode
@@ -898,7 +898,7 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
     /// Add SortExec operator on top of the input plan of the given chunk
     /// The plan will be sorted on the chunk's primary key
     fn build_sort_plan(
-        chunk: Arc<C>,
+        chunk: Arc<dyn QueryChunk>,
         input: Arc<dyn ExecutionPlan>,
         output_sort_key: &SortKey,
     ) -> Result<Arc<dyn ExecutionPlan>> {
@@ -949,10 +949,10 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
     /// Return the simplest IOx scan plan of a given chunk which is IOxReadFilterNode
     // And some optional operators on top such as applying delete predicates or sort the chunk
     fn build_plan_for_non_duplicates_chunk(
-        ctx: IOxExecutionContext,
+        ctx: IOxSessionContext,
         table_name: Arc<str>,
         output_schema: Arc<Schema>,
-        chunk: Arc<C>, // This chunk is identified having no duplicates
+        chunk: Arc<dyn QueryChunk>, // This chunk is identified having no duplicates
         predicate: Predicate,
         sort_key: Option<&SortKey>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
@@ -998,10 +998,10 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
     ///   └─────────────────┘                   └─────────────────┘
     ///```
     fn build_plans_for_non_duplicates_chunks(
-        ctx: IOxExecutionContext,
+        ctx: IOxSessionContext,
         table_name: Arc<str>,
         output_schema: Arc<Schema>,
-        chunks: Vec<Arc<C>>, // These chunks is identified having no duplicates
+        chunks: Vec<Arc<dyn QueryChunk>>, // These chunks is identified having no duplicates
         predicate: Predicate,
         output_sort_key: Option<&SortKey>,
     ) -> Result<Vec<Arc<dyn ExecutionPlan>>> {
@@ -1039,14 +1039,14 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
         sorted_chunk_plans
     }
 
-    fn no_delete_predicates(chunks: &[Arc<C>]) -> bool {
+    fn no_delete_predicates(chunks: &[Arc<dyn QueryChunk>]) -> bool {
         chunks
             .iter()
             .all(|chunk| chunk.delete_predicates().is_empty())
     }
 
     /// Find the columns needed in chunks' primary keys across schemas
-    fn compute_pk_schema(chunks: &[Arc<C>]) -> Arc<Schema> {
+    fn compute_pk_schema(chunks: &[Arc<dyn QueryChunk>]) -> Arc<Schema> {
         let mut schema_merger = SchemaMerger::new();
         for chunk in chunks {
             let chunk_schema = chunk.schema();
@@ -1081,14 +1081,14 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
 #[derive(Debug)]
 /// A pruner that does not do pruning (suitable if no additional pruning is possible)
 struct NoOpPruner {}
-impl<C: QueryChunk> ChunkPruner<C> for NoOpPruner {
+impl ChunkPruner for NoOpPruner {
     fn prune_chunks(
         &self,
         _table_name: &str,
         _table_schema: Arc<Schema>,
-        chunks: Vec<Arc<C>>,
+        chunks: Vec<Arc<dyn QueryChunk>>,
         _predicate: &Predicate,
-    ) -> Vec<Arc<C>> {
+    ) -> Vec<Arc<dyn QueryChunk>> {
         chunks
     }
 }
@@ -1102,10 +1102,7 @@ mod test {
     use datafusion_util::test_collect;
     use schema::{builder::SchemaBuilder, TIME_COLUMN_NAME};
 
-    use crate::{
-        test::{raw_data, TestChunk},
-        QueryChunkMeta,
-    };
+    use crate::test::{raw_data, TestChunk};
 
     use super::*;
 
@@ -1174,13 +1171,13 @@ mod test {
                 .with_tag_column("tag1")
                 .with_i64_field_column("field_int")
                 .with_five_rows_of_data(),
-        );
+        ) as Arc<dyn QueryChunk>;
 
         let sort_key = SortKey::from_columns(vec!["tag1", TIME_COLUMN_NAME]);
 
         // IOx scan operator
         let input: Arc<dyn ExecutionPlan> = Arc::new(IOxReadFilterNode::new(
-            IOxExecutionContext::default(),
+            IOxSessionContext::default(),
             Arc::from("t"),
             chunk.schema(),
             vec![Arc::clone(&chunk)],
@@ -1248,13 +1245,13 @@ mod test {
                 )
                 .with_i64_field_column("field_int")
                 .with_five_rows_of_data(),
-        );
+        ) as Arc<dyn QueryChunk>;
 
         let sort_key = SortKey::from_columns(vec!["tag1", "tag2", "tag3", TIME_COLUMN_NAME]);
 
         // IOx scan operator
         let input: Arc<dyn ExecutionPlan> = Arc::new(IOxReadFilterNode::new(
-            IOxExecutionContext::default(),
+            IOxSessionContext::default(),
             Arc::from("t"),
             chunk.schema(),
             vec![Arc::clone(&chunk)],
@@ -1322,7 +1319,7 @@ mod test {
                 )
                 .with_i64_field_column("field_int")
                 .with_five_rows_of_data(),
-        );
+        ) as Arc<dyn QueryChunk>;
 
         let sort_key = SortKey::from_columns(vec!["tag1", "tag2", TIME_COLUMN_NAME]);
 
@@ -1330,7 +1327,7 @@ mod test {
         let schema = chunk.schema();
 
         let sort_plan = Deduplicater::build_sort_plan_for_read_filter(
-            IOxExecutionContext::default(),
+            IOxSessionContext::default(),
             Arc::from("t"),
             schema,
             Arc::clone(&chunk),
@@ -1367,7 +1364,7 @@ mod test {
                 .with_tag_column("tag2")
                 .with_i64_field_column("field_int")
                 .with_five_rows_of_data(),
-        );
+        ) as Arc<dyn QueryChunk>;
 
         // Chunk 2 exactly the same with Chunk 1
         let chunk2 = Arc::new(
@@ -1378,7 +1375,7 @@ mod test {
                 .with_tag_column("tag2")
                 .with_i64_field_column("field_int")
                 .with_five_rows_of_data(),
-        );
+        ) as Arc<dyn QueryChunk>;
         // Datafusion schema of the chunk
         // the same for 2 chunks
         let schema = chunk1.schema();
@@ -1405,7 +1402,7 @@ mod test {
 
         let output_sort_key = SortKey::from_columns(vec!["tag1", "tag2", "time"]);
         let sort_plan = Deduplicater::build_deduplicate_plan_for_overlapped_chunks(
-            IOxExecutionContext::default(), //TODO(edd): address this.
+            IOxSessionContext::default(), //TODO(edd): address this.
             Arc::from("t"),
             schema,
             chunks,
@@ -1443,7 +1440,7 @@ mod test {
                 .with_tag_column("tag2")
                 .with_i64_field_column("field_int")
                 .with_five_rows_of_data(),
-        );
+        ) as Arc<dyn QueryChunk>;
 
         // Chunk 2 exactly the same with Chunk 1
         let chunk2 = Arc::new(
@@ -1454,7 +1451,7 @@ mod test {
                 .with_tag_column("tag2")
                 .with_i64_field_column("field_int")
                 .with_five_rows_of_data(),
-        );
+        ) as Arc<dyn QueryChunk>;
         let chunks = vec![chunk1, chunk2];
 
         // data in its original form
@@ -1485,7 +1482,7 @@ mod test {
 
         let output_sort_key = SortKey::from_columns(vec!["tag1", "tag2", "time"]);
         let sort_plan = Deduplicater::build_deduplicate_plan_for_overlapped_chunks(
-            IOxExecutionContext::default(), //TODO(edd): address this.
+            IOxSessionContext::default(), //TODO(edd): address this.
             Arc::from("t"),
             Arc::new(schema),
             chunks,
@@ -1523,7 +1520,7 @@ mod test {
                 .with_tag_column("tag2")
                 .with_i64_field_column("field_int")
                 .with_five_rows_of_data(),
-        );
+        ) as Arc<dyn QueryChunk>;
 
         // Chunk 2 same tags, but different fields
         let chunk2 = Arc::new(
@@ -1533,7 +1530,7 @@ mod test {
                 .with_tag_column("tag1")
                 .with_i64_field_column("other_field_int")
                 .with_five_rows_of_data(),
-        );
+        ) as Arc<dyn QueryChunk>;
 
         // Chunk 3 exactly the same with Chunk 2
         let chunk3 = Arc::new(
@@ -1543,7 +1540,7 @@ mod test {
                 .with_tag_column("tag1")
                 .with_i64_field_column("other_field_int")
                 .with_five_rows_of_data(),
-        );
+        ) as Arc<dyn QueryChunk>;
 
         let chunks = vec![chunk1, chunk2, chunk3];
         // data in its original form
@@ -1579,7 +1576,7 @@ mod test {
 
         let output_sort_key = SortKey::from_columns(vec!["tag2", "tag1", "time"]);
         let sort_plan = Deduplicater::build_deduplicate_plan_for_overlapped_chunks(
-            IOxExecutionContext::default(), //TODO(edd): address this.
+            IOxSessionContext::default(), //TODO(edd): address this.
             Arc::from("t"),
             Arc::new(schema),
             chunks,
@@ -1621,7 +1618,7 @@ mod test {
                 .with_tag_column("tag2")
                 .with_i64_field_column("field_int")
                 .with_five_rows_of_data(),
-        );
+        ) as Arc<dyn QueryChunk>;
 
         // Chunk 2 has two different tags
         let chunk2 = Arc::new(
@@ -1632,7 +1629,7 @@ mod test {
                 .with_tag_column("tag1")
                 .with_i64_field_column("field_int")
                 .with_five_rows_of_data(),
-        );
+        ) as Arc<dyn QueryChunk>;
 
         // Chunk 3 has just tag3
         let chunk3 = Arc::new(
@@ -1643,7 +1640,7 @@ mod test {
                 .with_i64_field_column("field_int")
                 .with_i64_field_column("field_int2")
                 .with_five_rows_of_data(),
-        );
+        ) as Arc<dyn QueryChunk>;
 
         // With provided stats, the computed key will be (tag2, tag1, tag3, time)
         // Requested output schema == the schema for all three
@@ -1683,7 +1680,7 @@ mod test {
 
         let output_sort_key = SortKey::from_columns(vec!["tag2", "tag1", "time"]);
         let sort_plan = Deduplicater::build_deduplicate_plan_for_overlapped_chunks(
-            IOxExecutionContext::default(), //TODO(edd): address this.
+            IOxSessionContext::default(), //TODO(edd): address this.
             Arc::from("t"),
             Arc::new(schema),
             chunks,
@@ -1739,7 +1736,7 @@ mod test {
                 )
                 .with_i64_field_column("field_int")
                 .with_five_rows_of_data(),
-        );
+        ) as Arc<dyn QueryChunk>;
 
         // Datafusion schema of the chunk
         let schema = chunk.schema();
@@ -1791,7 +1788,7 @@ mod test {
                 .with_i64_field_column("field_int")
                 .with_may_contain_pk_duplicates(true)
                 .with_ten_rows_of_data_some_duplicates(),
-        );
+        ) as Arc<dyn QueryChunk>;
 
         // Datafusion schema of the chunk
         let schema = chunk.schema();
@@ -1861,7 +1858,7 @@ mod test {
                 .with_i64_field_column("field_int")
                 .with_may_contain_pk_duplicates(true)
                 .with_ten_rows_of_data_some_duplicates(),
-        );
+        ) as Arc<dyn QueryChunk>;
 
         let chunks = vec![chunk];
         // data in its original form
@@ -1941,7 +1938,7 @@ mod test {
                 )
                 .with_i64_field_column("field_int")
                 .with_ten_rows_of_data_some_duplicates(),
-        );
+        ) as Arc<dyn QueryChunk>;
 
         let chunk2 = Arc::new(
             TestChunk::new("t")
@@ -1960,7 +1957,7 @@ mod test {
                 )
                 .with_i64_field_column("field_int")
                 .with_five_rows_of_data(),
-        );
+        ) as Arc<dyn QueryChunk>;
 
         // Datafusion schema of the chunk
         let schema = chunk1.schema();
@@ -2036,7 +2033,7 @@ mod test {
                 )
                 .with_i64_field_column("field_int")
                 .with_ten_rows_of_data_some_duplicates(),
-        );
+        ) as Arc<dyn QueryChunk>;
 
         // chunk2 overlaps with chunk 1
         let chunk2 = Arc::new(
@@ -2057,7 +2054,7 @@ mod test {
                 )
                 .with_i64_field_column("field_int")
                 .with_five_rows_of_data(),
-        );
+        ) as Arc<dyn QueryChunk>;
 
         // chunk3 no overlap, no duplicates within
         let chunk3 = Arc::new(
@@ -2078,7 +2075,7 @@ mod test {
                 )
                 .with_i64_field_column("field_int")
                 .with_three_rows_of_data(),
-        );
+        ) as Arc<dyn QueryChunk>;
 
         // chunk4 no overlap, duplicates within
         let chunk4 = Arc::new(
@@ -2100,7 +2097,7 @@ mod test {
                 .with_i64_field_column("field_int")
                 .with_may_contain_pk_duplicates(true)
                 .with_four_rows_of_data(),
-        );
+        ) as Arc<dyn QueryChunk>;
 
         // Datafusion schema of the chunk
         let schema = chunk1.schema();
@@ -2195,7 +2192,7 @@ mod test {
                 )
                 .with_i64_field_column("field_int")
                 .with_ten_rows_of_data_some_duplicates(),
-        );
+        ) as Arc<dyn QueryChunk>;
 
         // chunk2 overlaps with chunk 1
         let chunk2 = Arc::new(
@@ -2216,7 +2213,7 @@ mod test {
                 )
                 .with_i64_field_column("field_int")
                 .with_five_rows_of_data(),
-        );
+        ) as Arc<dyn QueryChunk>;
 
         // chunk3 no overlap, no duplicates within
         let chunk3 = Arc::new(
@@ -2237,7 +2234,7 @@ mod test {
                 )
                 .with_i64_field_column("field_int")
                 .with_three_rows_of_data(),
-        );
+        ) as Arc<dyn QueryChunk>;
 
         // chunk3 no overlap, duplicates within
         let chunk4 = Arc::new(
@@ -2259,7 +2256,7 @@ mod test {
                 .with_i64_field_column("field_int")
                 .with_may_contain_pk_duplicates(true)
                 .with_four_rows_of_data(),
-        );
+        ) as Arc<dyn QueryChunk>;
 
         // Datafusion schema of the chunk
         let schema = chunk1.schema();
@@ -2333,7 +2330,7 @@ mod test {
         assert_batches_eq!(&expected, &batch);
     }
 
-    fn chunk_ids(group: &[Arc<TestChunk>]) -> String {
+    fn chunk_ids(group: &[Arc<dyn QueryChunk>]) -> String {
         let ids = group
             .iter()
             .map(|c| c.id().get().to_string())
@@ -2341,7 +2338,7 @@ mod test {
         ids.join(", ")
     }
 
-    fn chunk_group_ids(groups: &[Vec<Arc<TestChunk>>]) -> Vec<String> {
+    fn chunk_group_ids(groups: &[Vec<Arc<dyn QueryChunk>>]) -> Vec<String> {
         groups
             .iter()
             .enumerate()

@@ -546,11 +546,25 @@ pub struct IoxMetadata {
 
     /// number of rows of data
     pub row_count: i64,
+
+    /// Sort key of this chunk
+    pub sort_key: Option<SortKey>,
 }
 
 impl IoxMetadata {
     /// Convert to protobuf v3 message.
     pub(crate) fn to_protobuf(&self) -> std::result::Result<Vec<u8>, prost::EncodeError> {
+        let sort_key = self.sort_key.as_ref().map(|key| proto::SortKey {
+            expressions: key
+                .iter()
+                .map(|(name, options)| proto::sort_key::Expr {
+                    column: name.to_string(),
+                    descending: options.descending,
+                    nulls_first: options.nulls_first,
+                })
+                .collect(),
+        });
+
         let proto_msg = proto::IoxMetadata {
             object_store_id: self.object_store_id.as_bytes().to_vec(),
             creation_timestamp: Some(self.creation_timestamp.date_time().into()),
@@ -566,6 +580,7 @@ impl IoxMetadata {
             min_sequence_number: self.min_sequence_number.get(),
             max_sequence_number: self.max_sequence_number.get(),
             row_count: self.row_count,
+            sort_key,
         };
 
         let mut buf = Vec::new();
@@ -596,6 +611,15 @@ impl IoxMetadata {
         let table_name = Arc::from(proto_msg.table_name.as_ref());
         let partition_key = Arc::from(proto_msg.partition_key.as_ref());
 
+        // sort key
+        let sort_key = proto_msg.sort_key.map(|proto_key| {
+            let mut builder = SortKeyBuilder::with_capacity(proto_key.expressions.len());
+            for expr in proto_key.expressions {
+                builder = builder.with_col_opts(expr.column, expr.descending, expr.nulls_first)
+            }
+            builder.build()
+        });
+
         Ok(Self {
             object_store_id: parse_uuid(&proto_msg.object_store_id)?.ok_or_else(|| {
                 Error::IoxMetadataFieldMissing {
@@ -621,6 +645,7 @@ impl IoxMetadata {
             min_sequence_number: SequenceNumber::new(proto_msg.min_sequence_number),
             max_sequence_number: SequenceNumber::new(proto_msg.max_sequence_number),
             row_count: proto_msg.row_count,
+            sort_key,
         })
     }
 
@@ -1266,6 +1291,9 @@ mod tests {
     #[test]
     fn iox_metadata_protobuf_round_trip() {
         let object_store_id = Uuid::new_v4();
+
+        let sort_key = SortKeyBuilder::new().with_col("sort_col").build();
+
         let iox_metadata = IoxMetadata {
             object_store_id,
             creation_timestamp: Time::from_timestamp(3234, 0),
@@ -1281,6 +1309,7 @@ mod tests {
             min_sequence_number: SequenceNumber::new(5),
             max_sequence_number: SequenceNumber::new(6),
             row_count: 3,
+            sort_key: Some(sort_key),
         };
 
         let proto = iox_metadata.to_protobuf().unwrap();

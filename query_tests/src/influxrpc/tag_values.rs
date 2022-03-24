@@ -2,10 +2,7 @@ use datafusion::logical_plan::{col, lit};
 use predicate::rpc_predicate::InfluxRpcPredicate;
 use predicate::PredicateBuilder;
 use query::{
-    exec::{
-        stringset::{IntoStringSet, StringSetRef},
-        ExecutionContextProvider,
-    },
+    exec::stringset::{IntoStringSet, StringSetRef},
     frontend::influxrpc::InfluxRpcPlanner,
 };
 
@@ -33,7 +30,7 @@ async fn run_tag_values_test_case<D>(
         let ctx = db.new_query_context(None);
 
         let plan = planner
-            .tag_values(db.as_ref(), tag_name, predicate.clone())
+            .tag_values(db.as_query_database(), tag_name, predicate.clone())
             .await
             .expect("built plan successfully");
         let names = ctx
@@ -328,7 +325,11 @@ async fn list_tag_values_field_col_on_tag() {
         // Test: temp is a field, not a tag
         let tag_name = "temp";
         let plan_result = planner
-            .tag_values(db.as_ref(), tag_name, InfluxRpcPredicate::default())
+            .tag_values(
+                db.as_query_database(),
+                tag_name,
+                InfluxRpcPredicate::default(),
+            )
             .await;
 
         assert_eq!(

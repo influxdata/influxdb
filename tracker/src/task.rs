@@ -190,16 +190,16 @@ impl TaskResult {
     /// return a human readable name for this result
     pub fn name(&self) -> &'static str {
         match self {
-            TaskResult::Success => "Success",
-            TaskResult::Cancelled => "Cancelled",
-            TaskResult::Dropped => "Dropped",
-            TaskResult::Error => "Error",
+            Self::Success => "Success",
+            Self::Cancelled => "Cancelled",
+            Self::Dropped => "Dropped",
+            Self::Error => "Error",
         }
     }
 
     /// Returns true if `self == TaskResult::Success`
     pub fn success(&self) -> bool {
-        matches!(self, TaskResult::Success)
+        matches!(self, Self::Success)
     }
 }
 
@@ -249,10 +249,10 @@ pub enum TaskStatus {
 impl std::fmt::Display for TaskStatus {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            TaskStatus::Creating => {
+            Self::Creating => {
                 write!(f, "TaskStatus(status=creating)")
             }
-            TaskStatus::Running {
+            Self::Running {
                 total_count,
                 pending_count,
                 cpu_nanos,
@@ -265,7 +265,7 @@ impl std::fmt::Display for TaskStatus {
                     (*cpu_nanos as f64) / 1_000_000_000_f64
                 )
             }
-            TaskStatus::Complete {
+            Self::Complete {
                 total_count,
                 success_count,
                 error_count,
@@ -323,9 +323,9 @@ impl TaskStatus {
     /// Returns the result of the job if it has completed, otherwise None
     pub fn result(&self) -> Option<TaskResult> {
         match self {
-            TaskStatus::Creating => None,
-            TaskStatus::Running { .. } => None,
-            TaskStatus::Complete {
+            Self::Creating => None,
+            Self::Running { .. } => None,
+            Self::Complete {
                 total_count,
                 success_count,
                 error_count,

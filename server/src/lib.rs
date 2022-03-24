@@ -242,6 +242,16 @@ impl Drop for Server {
     }
 }
 
+impl service_common::QueryDatabaseProvider for Server {
+    type Db = Db;
+
+    fn db(&self, name: &str) -> Option<Arc<Self::Db>> {
+        DatabaseName::new(name)
+            .ok()
+            .and_then(|name| self.db(&name).ok())
+    }
+}
+
 /// A [`metric::Instrument`] that reports on the state of the server and its databases
 ///
 /// This internally stores a weak reference to a [`ServerShared`] and is designed

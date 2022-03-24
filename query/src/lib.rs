@@ -15,7 +15,7 @@ use data_types::{
     partition_metadata::{InfluxDbType, TableSummary},
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
-use exec::{stringset::StringSet, IOxExecutionContext};
+use exec::{stringset::StringSet, IOxSessionContext};
 use observability_deps::tracing::{debug, trace};
 use predicate::{rpc_predicate::QueryDatabaseMeta, Predicate, PredicateMatch};
 use schema::selection::Selection;
@@ -39,7 +39,7 @@ use schema::sort::SortKeyBuilder;
 
 /// Trait for an object (designed to be a Chunk) which can provide
 /// metadata
-pub trait QueryChunkMeta: Sized {
+pub trait QueryChunkMeta {
     /// Return a reference to the summary of the data
     fn summary(&self) -> Option<&TableSummary>;
 
@@ -137,26 +137,30 @@ pub type QueryText = Box<dyn std::fmt::Display + Send + Sync>;
 /// data in Chunks.
 #[async_trait]
 pub trait QueryDatabase: QueryDatabaseMeta + Debug + Send + Sync {
-    type Chunk: QueryChunk;
-
     /// Returns a set of chunks within the partition with data that may match
     /// the provided predicate. If possible, chunks which have no rows that can
     /// possibly match the predicate may be omitted.
-    async fn chunks(&self, table_name: &str, predicate: &Predicate) -> Vec<Arc<Self::Chunk>>;
+    async fn chunks(&self, table_name: &str, predicate: &Predicate) -> Vec<Arc<dyn QueryChunk>>;
 
     /// Record that particular type of query was run / planned
     fn record_query(
         &self,
-        ctx: &IOxExecutionContext,
-        query_type: impl Into<String>,
+        ctx: &IOxSessionContext,
+        query_type: &str,
         query_text: QueryText,
     ) -> QueryCompletedToken;
+
+    /// Upcast to [`QueryDatabaseMeta`].
+    ///
+    /// This is required until <https://github.com/rust-lang/rust/issues/65991> is fixed.
+    fn as_meta(&self) -> &dyn QueryDatabaseMeta;
 }
 
-/// Collection of data that shares the same partition key
-pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync {
-    type Error: std::error::Error + Send + Sync + 'static;
+/// Error type for [`QueryChunk`] operations.
+pub type QueryChunkError = Box<dyn std::error::Error + Send + Sync + 'static>;
 
+/// Collection of data that shares the same partition key
+pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync + 'static {
     /// returns the Id of this chunk. Ids are unique within a
     /// particular partition.
     fn id(&self) -> ChunkId;
@@ -180,7 +184,7 @@ pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync {
     fn apply_predicate_to_metadata(
         &self,
         predicate: &Predicate,
-    ) -> Result<PredicateMatch, Self::Error>;
+    ) -> Result<PredicateMatch, QueryChunkError>;
 
     /// Returns a set of Strings with column names from the specified
     /// table that have at least one row that matches `predicate`, if
@@ -188,10 +192,10 @@ pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync {
     /// this Chunk. Returns `None` otherwise
     fn column_names(
         &self,
-        ctx: IOxExecutionContext,
+        ctx: IOxSessionContext,
         predicate: &Predicate,
         columns: Selection<'_>,
-    ) -> Result<Option<StringSet>, Self::Error>;
+    ) -> Result<Option<StringSet>, QueryChunkError>;
 
     /// Return a set of Strings containing the distinct values in the
     /// specified columns. If the predicate can be evaluated entirely
@@ -200,10 +204,10 @@ pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync {
     /// The requested columns must all have String type.
     fn column_values(
         &self,
-        ctx: IOxExecutionContext,
+        ctx: IOxSessionContext,
         column_name: &str,
         predicate: &Predicate,
-    ) -> Result<Option<StringSet>, Self::Error>;
+    ) -> Result<Option<StringSet>, QueryChunkError>;
 
     /// Provides access to raw `QueryChunk` data as an
     /// asynchronous stream of `RecordBatch`es filtered by a *required*
@@ -220,10 +224,10 @@ pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync {
     /// streams from several different `QueryChunk`s.
     fn read_filter(
         &self,
-        ctx: IOxExecutionContext,
+        ctx: IOxSessionContext,
         predicate: &Predicate,
         selection: Selection<'_>,
-    ) -> Result<SendableRecordBatchStream, Self::Error>;
+    ) -> Result<SendableRecordBatchStream, QueryChunkError>;
 
     /// Returns chunk type which is either MUB, RUB, OS
     fn chunk_type(&self) -> &str;
@@ -257,20 +261,14 @@ where
 }
 
 /// return true if all the chunks inlcude statistics
-pub fn chunks_have_stats<C>(chunks: &[C]) -> bool
-where
-    C: QueryChunkMeta,
-{
+pub fn chunks_have_stats(chunks: &[Arc<dyn QueryChunk>]) -> bool {
     // If at least one of the provided chunk cannot provide stats,
     // do not need to compute potential duplicates. We will treat
     // as all of them have duplicates
     chunks.iter().all(|c| c.summary().is_some())
 }
 
-pub fn compute_sort_key_for_chunks<C>(schema: &Schema, chunks: &[C]) -> SortKey
-where
-    C: QueryChunkMeta,
-{
+pub fn compute_sort_key_for_chunks(schema: &Schema, chunks: &[Arc<dyn QueryChunk>]) -> SortKey {
     if !chunks_have_stats(chunks) {
         // chunks have not enough stats, return its  pk that is
         // sorted lexicographically but time column always last

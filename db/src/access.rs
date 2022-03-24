@@ -14,11 +14,11 @@ use metric::{Attributes, DurationCounter, Metric, U64Counter};
 use observability_deps::tracing::debug;
 use parking_lot::Mutex;
 use predicate::{rpc_predicate::QueryDatabaseMeta, Predicate};
-use query::exec::IOxExecutionContext;
+use query::{exec::IOxSessionContext, QueryChunk};
 use query::{
     provider::{ChunkPruner, ProviderBuilder},
     pruning::{prune_chunks, PruningObserver},
-    QueryChunkMeta, QueryCompletedToken, QueryDatabase, QueryText, DEFAULT_SCHEMA,
+    QueryCompletedToken, QueryDatabase, QueryText, DEFAULT_SCHEMA,
 };
 use schema::Schema;
 use std::time::Instant;
@@ -207,11 +207,15 @@ impl ChunkAccess {
     /// Returns all chunks from `table_name` that may have data that passes the
     /// specified predicates. The chunks are pruned as aggressively as
     /// possible based on metadata.
-    fn candidate_chunks(&self, table_name: &str, predicate: &Predicate) -> Vec<Arc<DbChunk>> {
+    fn candidate_chunks(
+        &self,
+        table_name: &str,
+        predicate: &Predicate,
+    ) -> Vec<Arc<dyn QueryChunk>> {
         let start = Instant::now();
 
         // Get chunks and schema as a single transaction
-        let (mut chunks, schema) = {
+        let (chunks, schema) = {
             let table = match self.catalog.table(table_name).ok() {
                 Some(table) => table,
                 None => return vec![],
@@ -226,6 +230,11 @@ impl ChunkAccess {
 
             (chunks, schema)
         };
+
+        let mut chunks: Vec<_> = chunks
+            .into_iter()
+            .map(|c| c as Arc<dyn QueryChunk>)
+            .collect();
 
         self.access_metrics.catalog_snapshot_count.inc(1);
         self.access_metrics
@@ -249,14 +258,14 @@ impl ChunkAccess {
     }
 }
 
-impl ChunkPruner<DbChunk> for ChunkAccess {
+impl ChunkPruner for ChunkAccess {
     fn prune_chunks(
         &self,
         table_name: &str,
         table_schema: Arc<Schema>,
-        chunks: Vec<Arc<DbChunk>>,
+        chunks: Vec<Arc<dyn QueryChunk>>,
         predicate: &Predicate,
-    ) -> Vec<Arc<DbChunk>> {
+    ) -> Vec<Arc<dyn QueryChunk>> {
         let start = Instant::now();
 
         debug!(num_chunks=chunks.len(), %predicate, "Attempting to prune chunks");
@@ -271,9 +280,7 @@ impl ChunkPruner<DbChunk> for ChunkAccess {
 }
 
 impl PruningObserver for TableAccessMetrics {
-    type Observed = DbChunk;
-
-    fn was_pruned(&self, chunk: &Self::Observed) {
+    fn was_pruned(&self, chunk: &dyn QueryChunk) {
         let chunk_summary = chunk.summary().expect("Chunk should have summary");
         self.pruned_chunks.inc(1);
         self.pruned_rows.inc(chunk_summary.total_count())
@@ -282,17 +289,15 @@ impl PruningObserver for TableAccessMetrics {
 
 #[async_trait]
 impl QueryDatabase for QueryCatalogAccess {
-    type Chunk = DbChunk;
-
     /// Return a covering set of chunks for a particular table and predicate
-    async fn chunks(&self, table_name: &str, predicate: &Predicate) -> Vec<Arc<Self::Chunk>> {
+    async fn chunks(&self, table_name: &str, predicate: &Predicate) -> Vec<Arc<dyn QueryChunk>> {
         self.chunk_access.candidate_chunks(table_name, predicate)
     }
 
     fn record_query(
         &self,
-        ctx: &IOxExecutionContext,
-        query_type: impl Into<String>,
+        ctx: &IOxSessionContext,
+        query_type: &str,
         query_text: QueryText,
     ) -> QueryCompletedToken {
         // When the query token is dropped the query entry's completion time
@@ -301,6 +306,10 @@ impl QueryDatabase for QueryCatalogAccess {
         let trace_id = ctx.span().map(|s| s.ctx.trace_id);
         let entry = query_log.push(query_type, query_text, trace_id);
         QueryCompletedToken::new(move |success| query_log.set_completed(entry, success))
+    }
+
+    fn as_meta(&self) -> &dyn QueryDatabaseMeta {
+        self
     }
 }
 
@@ -336,6 +345,15 @@ impl CatalogProvider for QueryCatalogAccess {
             SYSTEM_SCHEMA => Some(Arc::clone(&self.system_tables) as Arc<dyn SchemaProvider>),
             _ => None,
         }
+    }
+
+    fn register_schema(
+        &self,
+        _name: &str,
+        _schema: Arc<dyn SchemaProvider>,
+    ) -> Option<Arc<dyn SchemaProvider>> {
+        // https://github.com/apache/arrow-datafusion/issues/2051
+        unimplemented!("Schemas can not be registered in IOx");
     }
 }
 
@@ -376,8 +394,7 @@ impl SchemaProvider for DbSchemaProvider {
         };
 
         let mut builder = ProviderBuilder::new(table_name, schema);
-        builder =
-            builder.add_pruner(Arc::clone(&self.chunk_access) as Arc<dyn ChunkPruner<DbChunk>>);
+        builder = builder.add_pruner(Arc::clone(&self.chunk_access) as Arc<dyn ChunkPruner>);
 
         // TODO: Better chunk pruning (#3570)
         for chunk in self

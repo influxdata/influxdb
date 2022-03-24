@@ -20,6 +20,7 @@ SELECT count(*) from cpu;
 
 SELECT min(bar) from cpu;
 
+-- IOX_COMPARE: sorted
 SELECT foo from cpu;
 
 SELECT min(foo) as min_foo from cpu order by min_foo;
@@ -41,7 +42,7 @@ SELECT bar, min(time) as min_time from cpu group by bar order by bar, min_time;
 SELECT max(time) as max_time from cpu group by foo order by max_time;
 SELECT foo, max(time) as max_time from cpu group by foo order by foo, max_time;
 
-
+-- IOX_COMPARE: sorted
 SELECT time from cpu;
 
 SELECT max(bar) from cpu order by 1;

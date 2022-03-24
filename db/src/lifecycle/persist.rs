@@ -11,7 +11,8 @@ use data_types::{chunk_metadata::ChunkOrder, delete_predicate::DeletePredicate, 
 use lifecycle::{LifecycleWriteGuard, LockableChunk, LockablePartition};
 use observability_deps::tracing::info;
 use persistence_windows::persistence_windows::FlushHandle;
-use query::{compute_sort_key, exec::ExecutorType, frontend::reorg::ReorgPlanner, QueryChunkMeta};
+use query::QueryChunk;
+use query::{compute_sort_key, exec::ExecutorType, frontend::reorg::ReorgPlanner};
 use std::{collections::HashSet, future::Future, sync::Arc};
 use time::Time;
 use tracker::{TaskTracker, TrackedFuture, TrackedFutureExt};
@@ -75,7 +76,7 @@ pub fn persist_chunks(
         max_order = max_order.max(chunk.order());
 
         chunk.set_writing_to_object_store(&registration)?;
-        query_chunks.push(DbChunk::snapshot(&*chunk));
+        query_chunks.push(DbChunk::snapshot(&*chunk) as Arc<dyn QueryChunk>);
     }
 
     // drop partition lock guard

@@ -2,7 +2,7 @@
 //! needed by DataFusion
 use arrow::{datatypes::SchemaRef, error::Result as ArrowResult, record_batch::RecordBatch};
 use datafusion::physical_plan::RecordBatchStream;
-use query::exec::IOxExecutionContext;
+use query::exec::IOxSessionContext;
 use read_buffer::ReadFilterResults;
 
 use std::{
@@ -14,15 +14,11 @@ use std::{
 pub struct ReadFilterResultsStream {
     read_results: ReadFilterResults,
     schema: SchemaRef,
-    ctx: IOxExecutionContext,
+    ctx: IOxSessionContext,
 }
 
 impl ReadFilterResultsStream {
-    pub fn new(
-        ctx: IOxExecutionContext,
-        read_results: ReadFilterResults,
-        schema: SchemaRef,
-    ) -> Self {
+    pub fn new(ctx: IOxSessionContext, read_results: ReadFilterResults, schema: SchemaRef) -> Self {
         Self {
             ctx,
             read_results,

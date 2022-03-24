@@ -1,5 +1,5 @@
 use datafusion::error::DataFusionError;
-use query::exec::IOxExecutionContext;
+use query::exec::IOxSessionContext;
 use query::plan::seriesset::SeriesSetPlans;
 
 /// Run a series set plan to completion and produce a Vec<String> representation
@@ -9,7 +9,7 @@ use query::plan::seriesset::SeriesSetPlans;
 /// Panics if there is an error executing a plan, or if unexpected series set
 /// items are returned.
 #[cfg(test)]
-pub async fn run_series_set_plan(ctx: &IOxExecutionContext, plans: SeriesSetPlans) -> Vec<String> {
+pub async fn run_series_set_plan(ctx: &IOxSessionContext, plans: SeriesSetPlans) -> Vec<String> {
     run_series_set_plan_maybe_error(ctx, plans)
         .await
         .expect("running plans")
@@ -18,7 +18,7 @@ pub async fn run_series_set_plan(ctx: &IOxExecutionContext, plans: SeriesSetPlan
 /// Run a series set plan to completion and produce a Result<Vec<String>> representation
 #[cfg(test)]
 pub async fn run_series_set_plan_maybe_error(
-    ctx: &IOxExecutionContext,
+    ctx: &IOxSessionContext,
     plans: SeriesSetPlans,
 ) -> Result<Vec<String>, DataFusionError> {
     Ok(ctx

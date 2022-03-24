@@ -1,19 +1,25 @@
 //! Utils of the tests
 
-use arrow::record_batch::RecordBatch;
+use arrow::{
+    compute::{lexsort, SortColumn, SortOptions},
+    record_batch::RecordBatch,
+};
 use bytes::Bytes;
 use data_types2::{
-    ColumnType, InfluxDbType, KafkaPartition, KafkaTopic, Namespace, ParquetFile,
-    ParquetFileParams, Partition, QueryPool, SequenceNumber, Sequencer, Table, Timestamp,
-    Tombstone,
+    ColumnType, KafkaPartition, KafkaTopic, Namespace, ParquetFile, ParquetFileParams, Partition,
+    QueryPool, SequenceNumber, Sequencer, Table, Timestamp, Tombstone,
 };
 use iox_catalog::{interface::Catalog, mem::MemCatalog};
 use iox_object_store::{IoxObjectStore, ParquetFilePath};
+use mutable_batch::MutableBatch;
 use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
 use object_store::{DynObjectStore, ObjectStoreImpl};
 use parquet_file::metadata::{IoxMetadata, IoxParquetMetaData};
 use query::exec::Executor;
-use schema::selection::Selection;
+use schema::{
+    selection::Selection,
+    sort::{SortKey, SortKeyBuilder},
+};
 use std::sync::Arc;
 use time::{MockProvider, Time, TimeProvider};
 use uuid::Uuid;
@@ -268,23 +274,31 @@ pub struct TestPartition {
 impl TestPartition {
     /// Create a parquet for the partition
     pub async fn create_parquet_file(self: &Arc<Self>, lp: &str) -> Arc<TestParquetFile> {
-        self.create_parquet_file_with_sequence_numbers(lp, 1, 100)
-            .await
+        self.create_parquet_file_with_min_max(
+            lp,
+            1,
+            100,
+            now().timestamp_nanos(),
+            now().timestamp_nanos(),
+        )
+        .await
     }
 
     /// Create a parquet for the partition
-    pub async fn create_parquet_file_with_sequence_numbers(
+    pub async fn create_parquet_file_with_min_max(
         self: &Arc<Self>,
         lp: &str,
         min_seq: i64,
         max_seq: i64,
+        min_time: i64,
+        max_time: i64,
     ) -> Arc<TestParquetFile> {
         let mut repos = self.catalog.catalog.repositories().await;
 
         let (table, batch) = lp_to_mutable_batch(lp);
         assert_eq!(table, self.table.table.name);
         let row_count = batch.rows();
-        let record_batch = batch.to_arrow(Selection::All).unwrap();
+        let (record_batch, sort_key) = sort_mutable_batch(batch);
 
         let object_store_id = Uuid::new_v4();
         let min_sequence_number = SequenceNumber::new(min_seq);
@@ -299,29 +313,15 @@ impl TestPartition {
             table_name: self.table.table.name.clone().into(),
             partition_id: self.partition.id,
             partition_key: self.partition.partition_key.clone().into(),
-            time_of_first_write: now(),
-            time_of_last_write: now(),
+            time_of_first_write: Time::from_timestamp_nanos(min_time),
+            time_of_last_write: Time::from_timestamp_nanos(max_time),
             min_sequence_number,
             max_sequence_number,
             row_count: row_count as i64,
+            sort_key: Some(sort_key),
         };
         let (parquet_metadata_bin, file_size_bytes) =
             create_parquet_file(&self.catalog.object_store, &metadata, record_batch).await;
-
-        // decode metadata because we need to store them within the catalog
-        let parquet_metadata = Arc::new(IoxParquetMetaData::from_thrift_bytes(
-            parquet_metadata_bin.clone(),
-        ));
-        let decoded_metadata = parquet_metadata.decode().unwrap();
-        let schema = decoded_metadata.read_schema().unwrap();
-        let stats = decoded_metadata.read_statistics(&schema).unwrap();
-        let ts_min_max = stats
-            .iter()
-            .find_map(|stat| {
-                (stat.influxdb_type == Some(InfluxDbType::Timestamp))
-                    .then(|| stat.stats.timestamp_min_max().unwrap())
-            })
-            .unwrap();
 
         let parquet_file_params = ParquetFileParams {
             sequencer_id: self.sequencer.sequencer.id,
@@ -330,8 +330,8 @@ impl TestPartition {
             object_store_id,
             min_sequence_number,
             max_sequence_number,
-            min_time: Timestamp::new(ts_min_max.min),
-            max_time: Timestamp::new(ts_min_max.max),
+            min_time: Timestamp::new(min_time),
+            max_time: Timestamp::new(max_time),
             file_size_bytes: file_size_bytes as i64,
             parquet_metadata: parquet_metadata_bin,
             row_count: row_count as i64,
@@ -439,6 +439,64 @@ impl TestTombstone {
     }
 }
 
-fn now() -> Time {
+/// Return the current time
+pub fn now() -> Time {
     Time::from_timestamp(0, 0)
+}
+
+/// Sort mutable batch into arrow record batch and sort key.
+fn sort_mutable_batch(batch: MutableBatch) -> (RecordBatch, SortKey) {
+    // build dummy sort key
+    let mut sort_key_builder = SortKeyBuilder::new();
+    let schema = batch.schema(Selection::All).unwrap();
+    for field in schema.tags_iter() {
+        sort_key_builder = sort_key_builder.with_col(field.name().clone());
+    }
+    for field in schema.time_iter() {
+        sort_key_builder = sort_key_builder.with_col(field.name().clone());
+    }
+    let sort_key = sort_key_builder.build();
+
+    // create record batch
+    let record_batch = batch.to_arrow(Selection::All).unwrap();
+
+    // set up sorting
+    let mut sort_columns = Vec::with_capacity(record_batch.num_columns());
+    let mut reverse_index: Vec<_> = (0..record_batch.num_columns()).map(|_| None).collect();
+    for (column_name, _options) in sort_key.iter() {
+        let index = record_batch
+            .schema()
+            .column_with_name(column_name.as_ref())
+            .unwrap()
+            .0;
+        reverse_index[index] = Some(sort_columns.len());
+        sort_columns.push(SortColumn {
+            values: Arc::clone(record_batch.column(index)),
+            options: Some(SortOptions::default()),
+        });
+    }
+    for (index, reverse_index) in reverse_index.iter_mut().enumerate() {
+        if reverse_index.is_none() {
+            *reverse_index = Some(sort_columns.len());
+            sort_columns.push(SortColumn {
+                values: Arc::clone(record_batch.column(index)),
+                options: None,
+            });
+        }
+    }
+
+    // execute sorting
+    let arrays = lexsort(&sort_columns, None).unwrap();
+
+    // re-create record batch
+    let arrays: Vec<_> = reverse_index
+        .into_iter()
+        .map(|index| {
+            let index = index.unwrap();
+            Arc::clone(&arrays[index])
+        })
+        .collect();
+    let record_batch = RecordBatch::try_new(record_batch.schema(), arrays).unwrap();
+
+    (record_batch, sort_key)
 }

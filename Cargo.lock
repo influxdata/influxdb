@@ -742,6 +742,7 @@ dependencies = [
  "arrow_util",
  "async-trait",
  "backoff 0.1.0",
+ "bytes",
  "data_types2",
  "datafusion 0.1.0",
  "futures",
@@ -1092,7 +1093,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "7.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=ca952bd33402816dbb1550debb9b8cac3b13e8f2#ca952bd33402816dbb1550debb9b8cac3b13e8f2"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=5936edc2a94d5fb20702a41eab2b80695961b9dc#5936edc2a94d5fb20702a41eab2b80695961b9dc"
 dependencies = [
  "ahash",
  "arrow",
@@ -1117,12 +1118,13 @@ dependencies = [
  "tempfile",
  "tokio",
  "tokio-stream",
+ "uuid",
 ]
 
 [[package]]
 name = "datafusion-common"
 version = "7.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=ca952bd33402816dbb1550debb9b8cac3b13e8f2#ca952bd33402816dbb1550debb9b8cac3b13e8f2"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=5936edc2a94d5fb20702a41eab2b80695961b9dc#5936edc2a94d5fb20702a41eab2b80695961b9dc"
 dependencies = [
  "arrow",
  "ordered-float 2.10.0",
@@ -1133,7 +1135,7 @@ dependencies = [
 [[package]]
 name = "datafusion-expr"
 version = "7.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=ca952bd33402816dbb1550debb9b8cac3b13e8f2#ca952bd33402816dbb1550debb9b8cac3b13e8f2"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=5936edc2a94d5fb20702a41eab2b80695961b9dc#5936edc2a94d5fb20702a41eab2b80695961b9dc"
 dependencies = [
  "ahash",
  "arrow",
@@ -1144,7 +1146,7 @@ dependencies = [
 [[package]]
 name = "datafusion-physical-expr"
 version = "7.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=ca952bd33402816dbb1550debb9b8cac3b13e8f2#ca952bd33402816dbb1550debb9b8cac3b13e8f2"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=5936edc2a94d5fb20702a41eab2b80695961b9dc#5936edc2a94d5fb20702a41eab2b80695961b9dc"
 dependencies = [
  "ahash",
  "arrow",
@@ -1933,9 +1935,9 @@ checksum = "9a3a5bfb195931eeb336b2a7b4d761daec841b97f947d34394601737a7bba5e4"
 
 [[package]]
 name = "hyper"
-version = "0.14.17"
+version = "0.14.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "043f0e083e9901b6cc658a77d1eb86f4fc650bbb977a4337dd63192826aa85dd"
+checksum = "b26ae0a80afebe130861d90abf98e3814a4f28a4c6ffeb5ab8ebb2be311e0ef2"
 dependencies = [
  "bytes",
  "futures-channel",
@@ -1984,7 +1986,7 @@ dependencies = [
  "rustls 0.20.4",
  "rustls-native-certs 0.6.1",
  "tokio",
- "tokio-rustls 0.23.2",
+ "tokio-rustls 0.23.3",
  "webpki-roots 0.22.2",
 ]
 
@@ -2237,7 +2239,6 @@ dependencies = [
  "csv",
  "data_types",
  "data_types2",
- "datafusion 0.1.0",
  "db",
  "dml",
  "flate2",
@@ -2293,6 +2294,10 @@ dependencies = [
  "serde_json",
  "serde_urlencoded",
  "server",
+ "service_common",
+ "service_grpc_flight",
+ "service_grpc_influxrpc",
+ "service_grpc_testing",
  "snafu",
  "tempfile",
  "test_helpers",
@@ -2567,6 +2572,7 @@ dependencies = [
  "iox_catalog",
  "iox_object_store",
  "metric",
+ "mutable_batch",
  "mutable_batch_lp",
  "object_store",
  "parquet_file",
@@ -2688,9 +2694,9 @@ dependencies = [
 
 [[package]]
 name = "kube"
-version = "0.69.1"
+version = "0.70.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "86835e9147615457c1edc2b11c723acd1d21372e9cefa80a9d2742f6d69042d0"
+checksum = "4dcc72fdf0c491160a34d4a1bfb03f96da8a5054288d61c816d514b5c2fa49ea"
 dependencies = [
  "k8s-openapi",
  "kube-client",
@@ -2700,9 +2706,9 @@ dependencies = [
 
 [[package]]
 name = "kube-client"
-version = "0.69.1"
+version = "0.70.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "71f8aa916ee8290fbd0af76b3a28093a8786fccb6286902095a5243484447971"
+checksum = "94b01c722d55ffedec74cbc259b4508d8a59bf19540006ec87618f76ab156579"
 dependencies = [
  "base64 0.13.0",
  "bytes",
@@ -2721,14 +2727,14 @@ dependencies = [
  "pem 1.0.2",
  "pin-project",
  "rustls 0.20.4",
- "rustls-pemfile 0.2.1",
+ "rustls-pemfile 0.3.0",
  "secrecy",
  "serde",
  "serde_json",
  "serde_yaml",
  "thiserror",
  "tokio",
- "tokio-util 0.6.9",
+ "tokio-util 0.7.0",
  "tower",
  "tower-http",
  "tracing",
@@ -2736,9 +2742,9 @@ dependencies = [
 
 [[package]]
 name = "kube-core"
-version = "0.69.1"
+version = "0.70.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "da41f98f213796a68fcd4510c88b5fd36de131c1ea30d152474c3f2e1bef1a72"
+checksum = "7dd9e3535777edd122cc26fe3fe6357066b33eff63d8b919862edbe7a956a679"
 dependencies = [
  "chrono",
  "form_urlencoded",
@@ -2754,9 +2760,9 @@ dependencies = [
 
 [[package]]
 name = "kube-derive"
-version = "0.69.1"
+version = "0.70.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9cd6fdc2e1615a3aecd7e90fe4bda3ba32379e38193251d4ddaccba26579fe22"
+checksum = "1322e25c20dd6f18ca6baecc88bb130331e99d988df9d7a9a207f15819e05bff"
 dependencies = [
  "darling",
  "proc-macro2",
@@ -2767,9 +2773,9 @@ dependencies = [
 
 [[package]]
 name = "kube-runtime"
-version = "0.69.1"
+version = "0.70.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "32e8bf2258850dbc0a062b561656a1d7020fa8040d552e149f0a0361f0d6794e"
+checksum = "816c8c086f8bbcf9a4db0b7a68db90b784ef6292a57de35c64cccb90d5edfbe5"
 dependencies = [
  "ahash",
  "backoff 0.4.0",
@@ -2778,14 +2784,14 @@ dependencies = [
  "json-patch",
  "k8s-openapi",
  "kube-client",
- "parking_lot 0.11.2",
+ "parking_lot 0.12.0",
  "pin-project",
  "serde",
  "serde_json",
  "smallvec",
  "thiserror",
  "tokio",
- "tokio-util 0.6.9",
+ "tokio-util 0.7.0",
  "tracing",
 ]
 
@@ -2867,9 +2873,9 @@ dependencies = [
 
 [[package]]
 name = "libc"
-version = "0.2.120"
+version = "0.2.121"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ad5c14e80759d0939d013e6ca49930e59fc53dd8e5009132f76240c179380c09"
+checksum = "efaa7b300f3b5fe8eb6bf21ce3895e1751d9665086af2d64b42f19701015ff4f"
 
 [[package]]
 name = "libloading"
@@ -2926,9 +2932,9 @@ dependencies = [
 
 [[package]]
 name = "log"
-version = "0.4.14"
+version = "0.4.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "51b9bbe6c47d51fc3e1a9b945965946b4c44142ab8792c50835a980d362c2710"
+checksum = "6389c490849ff5bc16be905ae24bc913a9c8892e19b2341dbc175e14c341c2b8"
 dependencies = [
  "cfg-if",
 ]
@@ -4164,14 +4170,12 @@ dependencies = [
  "client_util",
  "data_types2",
  "datafusion 0.1.0",
- "db",
  "futures",
  "generated_types",
  "hyper",
  "iox_catalog",
  "iox_object_store",
  "iox_tests",
- "job_registry",
  "metric",
  "mutable_batch_lp",
  "object_store",
@@ -4185,6 +4189,8 @@ dependencies = [
  "query",
  "rand",
  "schema",
+ "service_common",
+ "snafu",
  "thiserror",
  "time 0.1.0",
  "tokio",
@@ -4236,10 +4242,13 @@ dependencies = [
  "data_types",
  "datafusion 0.1.0",
  "db",
+ "iox_tests",
  "metric",
+ "mutable_batch_lp",
  "object_store",
  "once_cell",
  "predicate",
+ "querier",
  "query",
  "schema",
  "snafu",
@@ -4477,7 +4486,7 @@ dependencies = [
  "serde_json",
  "serde_urlencoded",
  "tokio",
- "tokio-rustls 0.23.2",
+ "tokio-rustls 0.23.3",
  "tokio-util 0.6.9",
  "url",
  "wasm-bindgen",
@@ -5083,6 +5092,7 @@ dependencies = [
  "rand",
  "regex",
  "router",
+ "service_common",
  "snafu",
  "test_helpers",
  "time 0.1.0",
@@ -5116,6 +5126,81 @@ dependencies = [
  "rand",
  "test_helpers",
  "tokio",
+]
+
+[[package]]
+name = "service_common"
+version = "0.1.0"
+dependencies = [
+ "datafusion 0.1.0",
+ "predicate",
+ "query",
+ "workspace-hack",
+]
+
+[[package]]
+name = "service_grpc_flight"
+version = "0.1.0"
+dependencies = [
+ "arrow",
+ "arrow-flight",
+ "data_types",
+ "datafusion 0.1.0",
+ "futures",
+ "observability_deps",
+ "pin-project",
+ "query",
+ "serde",
+ "serde_json",
+ "service_common",
+ "snafu",
+ "tokio",
+ "tonic",
+ "workspace-hack",
+]
+
+[[package]]
+name = "service_grpc_influxrpc"
+version = "0.1.0"
+dependencies = [
+ "arrow",
+ "async-trait",
+ "data_types",
+ "datafusion 0.1.0",
+ "futures",
+ "generated_types",
+ "influxdb_storage_client",
+ "metric",
+ "observability_deps",
+ "panic_logging",
+ "parking_lot 0.12.0",
+ "predicate",
+ "prost",
+ "query",
+ "regex",
+ "schema",
+ "serde",
+ "serde_json",
+ "serde_urlencoded",
+ "service_common",
+ "service_grpc_testing",
+ "snafu",
+ "test_helpers",
+ "tokio",
+ "tokio-stream",
+ "tonic",
+ "trace_http",
+ "workspace-hack",
+]
+
+[[package]]
+name = "service_grpc_testing"
+version = "0.1.0"
+dependencies = [
+ "generated_types",
+ "observability_deps",
+ "tonic",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -5512,9 +5597,9 @@ dependencies = [
 
 [[package]]
 name = "synchronized-writer"
-version = "1.1.10"
+version = "1.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f886607578031fffb0996a24a5e5b73313f36dca63416b9d1c1004f7cb6084d"
+checksum = "d3543ca0810e71767052bdcdd5653f23998b192642a22c5164bfa6581e40a4a2"
 
 [[package]]
 name = "tempfile"
@@ -5754,9 +5839,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-rustls"
-version = "0.23.2"
+version = "0.23.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a27d5f2b839802bd8267fa19b0530f5a08b9c08cd417976be2a65d130fe1c11b"
+checksum = "4151fda0cf2798550ad0b34bcfc9b9dcc2a9d2471c895c68f3a8818e54f2389e"
 dependencies = [
  "rustls 0.20.4",
  "tokio",
@@ -5785,7 +5870,6 @@ dependencies = [
  "futures-sink",
  "log",
  "pin-project-lite",
- "slab",
  "tokio",
 ]
 
@@ -5800,6 +5884,7 @@ dependencies = [
  "futures-sink",
  "log",
  "pin-project-lite",
+ "slab",
  "tokio",
 ]
 
@@ -6550,6 +6635,8 @@ dependencies = [
  "num-traits",
  "once_cell",
  "parquet",
+ "prost",
+ "prost-types",
  "rand",
  "regex",
  "regex-automata",
@@ -6566,9 +6653,8 @@ dependencies = [
  "sqlx-macros",
  "syn",
  "tokio",
- "tokio-rustls 0.23.2",
+ "tokio-rustls 0.23.3",
  "tokio-stream",
- "tokio-util 0.6.9",
  "tokio-util 0.7.0",
  "tower",
  "tracing",

@@ -2,12 +2,17 @@
 
 use std::sync::Arc;
 
-use generated_types::{google::FieldViolation, influxdata::pbdata::v1::*};
+use generated_types::{
+    google::FieldViolation,
+    influxdata::{iox::schema::v1::*, pbdata::v1::*},
+};
 use hashbrown::HashMap;
+use iox_catalog::interface::{get_schema_by_name, Catalog};
 use metric::U64Counter;
 use mutable_batch::MutableBatch;
 use observability_deps::tracing::*;
 use schema::selection::Selection;
+use std::ops::DerefMut;
 use tonic::{Request, Response, Status};
 use trace::ctx::SpanContext;
 
@@ -15,18 +20,24 @@ use crate::dml_handlers::{DmlError, DmlHandler, PartitionError};
 
 /// This type is responsible for managing all gRPC services exposed by
 /// `router2`.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct GrpcDelegate<D> {
     dml_handler: Arc<D>,
+    catalog: Arc<dyn Catalog>,
     metrics: Arc<metric::Registry>,
 }
 
 impl<D> GrpcDelegate<D> {
     /// Initialise a new gRPC handler, dispatching DML operations to
     /// `dml_handler`.
-    pub fn new(dml_handler: Arc<D>, metrics: Arc<metric::Registry>) -> Self {
+    pub fn new(
+        dml_handler: Arc<D>,
+        catalog: Arc<dyn Catalog>,
+        metrics: Arc<metric::Registry>,
+    ) -> Self {
         Self {
             dml_handler,
+            catalog,
             metrics,
         }
     }
@@ -46,6 +57,17 @@ where
             Arc::clone(&self.dml_handler),
             &*self.metrics,
         ))
+    }
+
+    /// Acquire a [`SchemaService`] gRPC service implementation.
+    ///
+    /// [`SchemaService`]: generated_types::influxdata::iox::schema::v1::schema_service_server::SchemaService.
+    pub fn schema_service(
+        &self,
+    ) -> schema_service_server::SchemaServiceServer<impl schema_service_server::SchemaService> {
+        schema_service_server::SchemaServiceServer::new(SchemaService::new(Arc::clone(
+            &self.catalog,
+        )))
     }
 }
 
@@ -160,11 +182,84 @@ where
     }
 }
 
+#[derive(Debug)]
+struct SchemaService {
+    /// Catalog.
+    catalog: Arc<dyn Catalog>,
+}
+
+impl SchemaService {
+    fn new(catalog: Arc<dyn Catalog>) -> Self {
+        Self { catalog }
+    }
+}
+
+#[tonic::async_trait]
+impl schema_service_server::SchemaService for SchemaService {
+    async fn get_schema(
+        &self,
+        request: Request<GetSchemaRequest>,
+    ) -> Result<Response<GetSchemaResponse>, Status> {
+        let mut repos = self.catalog.repositories().await;
+
+        let req = request.into_inner();
+        let schema = get_schema_by_name(&req.namespace, repos.deref_mut())
+            .await
+            .map_err(|e| {
+                warn!(error=%e, %req.namespace, "failed to retrieve namespace schema");
+                Status::not_found(e.to_string())
+            })
+            .map(Arc::new)?;
+        Ok(Response::new(schema_to_proto(schema)))
+    }
+}
+
+fn schema_to_proto(schema: Arc<data_types2::NamespaceSchema>) -> GetSchemaResponse {
+    let response = GetSchemaResponse {
+        schema: Some(NamespaceSchema {
+            id: schema.id.get(),
+            kafka_topic_id: schema.kafka_topic_id.get(),
+            query_pool_id: schema.query_pool_id.get() as i32,
+            tables: schema
+                .tables
+                .iter()
+                .map(|(name, t)| {
+                    (
+                        name.clone(),
+                        TableSchema {
+                            id: t.id.get(),
+                            columns: t
+                                .columns
+                                .iter()
+                                .map(|(name, c)| {
+                                    (
+                                        name.clone(),
+                                        ColumnSchema {
+                                            id: c.id.get(),
+                                            column_type: c.column_type as i32,
+                                        },
+                                    )
+                                })
+                                .collect(),
+                        },
+                    )
+                })
+                .collect(),
+        }),
+    };
+    response
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
 
-    use generated_types::influxdata::pbdata::v1::write_service_server::WriteService;
+    use data_types2::ColumnType;
+    use generated_types::influxdata::{
+        iox::schema::v1::schema_service_server::SchemaService,
+        pbdata::v1::write_service_server::WriteService,
+    };
+    use iox_catalog::mem::MemCatalog;
 
     use crate::dml_handlers::{mock::MockDmlHandler, DmlError};
 
@@ -250,5 +345,60 @@ mod tests {
 
         assert_eq!(err.code(), tonic::Code::NotFound);
         assert!(err.message().contains("nope"));
+    }
+
+    #[tokio::test]
+    async fn test_schema() {
+        // create a catalog and populate it with some test data, then drop the write lock
+        let catalog = {
+            let metrics = Arc::new(metric::Registry::default());
+            let catalog = Arc::new(MemCatalog::new(metrics));
+            let mut repos = catalog.repositories().await;
+            let kafka = repos.kafka_topics().create_or_get("franz").await.unwrap();
+            let pool = repos.query_pools().create_or_get("franz").await.unwrap();
+            let namespace = repos
+                .namespaces()
+                .create("namespace_schema_test", "inf", kafka.id, pool.id)
+                .await
+                .unwrap();
+            let table = repos
+                .tables()
+                .create_or_get("schema_test_table", namespace.id)
+                .await
+                .unwrap();
+            repos
+                .columns()
+                .create_or_get("schema_test_column", table.id, ColumnType::Tag)
+                .await
+                .unwrap();
+            Arc::clone(&catalog)
+        };
+
+        // create grpc schema service
+        let grpc = super::SchemaService::new(catalog);
+        let request = GetSchemaRequest {
+            namespace: "namespace_schema_test".to_string(),
+        };
+
+        let tonic_response = grpc
+            .get_schema(Request::new(request))
+            .await
+            .expect("rpc request should succeed");
+        let response = tonic_response.into_inner();
+        let schema = response.schema.expect("schema should be Some()");
+        assert_eq!(
+            schema.tables.keys().collect::<Vec<&String>>(),
+            vec![&"schema_test_table".to_string()]
+        );
+        assert_eq!(
+            schema
+                .tables
+                .get(&"schema_test_table".to_string())
+                .expect("test table should exist")
+                .columns
+                .keys()
+                .collect::<Vec<&String>>(),
+            vec![&"schema_test_column".to_string()]
+        );
     }
 }

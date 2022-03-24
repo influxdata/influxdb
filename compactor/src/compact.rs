@@ -2,27 +2,31 @@
 
 use crate::{
     query::QueryableParquetChunk,
-    utils::{CompactedData, ParquetFileWithTombstone},
+    utils::{CatalogUpdate, CompactedData, GroupWithTombstones, ParquetFileWithTombstone},
 };
-use backoff::BackoffConfig;
+use arrow::record_batch::RecordBatch;
+use backoff::{Backoff, BackoffConfig};
+use bytes::Bytes;
 use data_types2::{
     ParquetFile, ParquetFileId, PartitionId, SequencerId, TableId, TablePartition, Timestamp,
     TombstoneId,
 };
 use datafusion::error::DataFusionError;
-use iox_catalog::interface::Catalog;
+use iox_catalog::interface::{Catalog, Transaction};
+use iox_object_store::ParquetFilePath;
 use object_store::DynObjectStore;
 use observability_deps::tracing::warn;
-use parquet_file::metadata::IoxMetadata;
-use query::exec::Executor;
+use parquet_file::metadata::{IoxMetadata, IoxParquetMetaData};
 use query::{
     compute_sort_key_for_chunks, exec::ExecutorType, frontend::reorg::ReorgPlanner,
     util::compute_timenanosecond_min_max,
 };
+use query::{exec::Executor, QueryChunk};
 use snafu::{ensure, ResultExt, Snafu};
 use std::{
     cmp::{max, min},
     collections::{BTreeMap, HashSet},
+    ops::DerefMut,
     sync::Arc,
 };
 use time::{Time, TimeProvider};
@@ -30,7 +34,12 @@ use uuid::Uuid;
 
 /// 24 hours in nanoseconds
 // TODO: make this a config parameter
-pub const LEVEL_UPGRADE_THRESHOLD_NANO: u64 = 60 * 60 * 24 * 1000000000;
+pub const LEVEL_UPGRADE_THRESHOLD_NANO: i64 = 60 * 60 * 24 * 1000000000;
+
+/// Percentage of least recent data we want to split to reduce compacting non-overlapped data
+/// Must be between 0 and 100
+// TODO: make this a config parameter
+pub const SPLIT_PERCENTAGE: i64 = 90;
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
@@ -95,6 +104,21 @@ pub enum Error {
     #[snafu(display("Error computing min and max for record batches: {}", source))]
     MinMax { source: query::util::Error },
 
+    #[snafu(display("Error while starting catalog transaction {}", source))]
+    Transaction {
+        source: iox_catalog::interface::Error,
+    },
+
+    #[snafu(display("Error while committing catalog transaction {}", source))]
+    TransactionCommit {
+        source: iox_catalog::interface::Error,
+    },
+
+    #[snafu(display("Error while flagging a parquet file for deletion {}", source))]
+    FlagForDelete {
+        source: iox_catalog::interface::Error,
+    },
+
     #[snafu(display("Error while requesting level 0 parquet files {}", source))]
     Level0 {
         source: iox_catalog::interface::Error,
@@ -105,8 +129,21 @@ pub enum Error {
         source: iox_catalog::interface::Error,
     },
 
+    #[snafu(display("Error converting the parquet stream to bytes: {}", source))]
+    ConvertingToBytes {
+        source: parquet_file::storage::Error,
+    },
+
+    #[snafu(display("Error writing to object store: {}", source))]
+    WritingToObjectStore { source: object_store::Error },
+
     #[snafu(display("Error updating catalog {}", source))]
     Update {
+        source: iox_catalog::interface::Error,
+    },
+
+    #[snafu(display("Error querying for tombstones for a parquet file {}", source))]
+    QueryingTombstones {
         source: iox_catalog::interface::Error,
     },
 }
@@ -237,50 +274,80 @@ impl Compactor {
             val.extend(level_1_files);
         }
 
-        // Each partition may contain non-overlapped files,
-        // groups overlapped files in each partition
-        let overlapped_file_groups: Vec<_> = partitions
+        // Each partition may contain non-overlapped files. Group overlapped files in each
+        // partition. Once the groups are created, the partitions aren't needed.
+        let overlapped_file_groups: Vec<Vec<ParquetFile>> = partitions
             .into_iter()
-            .map(|(_key, parquet_files)| Self::overlapped_groups(parquet_files))
+            .flat_map(|(_key, parquet_files)| Self::overlapped_groups(parquet_files))
             .collect();
 
-        // Find and attach tombstones to each parquet file
-        let mut overlapped_file_with_tombstones_groups = vec![];
-        for _files in overlapped_file_groups {
-            let overlapped_file_with_tombstones: Vec<ParquetFileWithTombstone> = vec![]; // TODO: #3948
-            overlapped_file_with_tombstones_groups.push(overlapped_file_with_tombstones);
-        }
+        let groups_with_tombstones = self
+            .add_tombstones_to_groups(overlapped_file_groups)
+            .await?;
 
         // Compact, persist,and update catalog accordingly for each overlaped file
         let mut tombstones: HashSet<TombstoneId> = HashSet::new();
         let mut upgrade_level_list: Vec<ParquetFileId> = vec![];
-        for overlapped_files in overlapped_file_with_tombstones_groups {
+        for group in groups_with_tombstones {
             // keep tombstone ids
-            tombstones = Self::union_tombstone_ids(tombstones, &overlapped_files);
+            tombstones = Self::union_tombstone_ids(tombstones, &group);
 
             // Only one file without tombstones, no need to compact
-            if overlapped_files.len() == 1 && overlapped_files[0].no_tombstones() {
+            if group.parquet_files.len() == 1 && group.tombstones.is_empty() {
                 // If the file is old enough, it would not have any overlaps. Add it
                 // to the list to be upgraded to level 1
-                if overlapped_files[0].level_upgradable() {
-                    upgrade_level_list.push(overlapped_files[0].parquet_file_id());
+                if group.parquet_files[0].level_upgradable(Arc::clone(&self.time_provider)) {
+                    upgrade_level_list.push(group.parquet_files[0].parquet_file_id());
                 }
                 continue;
             }
 
+            // Collect all the parquet file IDs, to be able to set their catalog records to be
+            // deleted. These should already be unique, no need to dedupe.
+            let original_parquet_file_ids: Vec<_> =
+                group.parquet_files.iter().map(|f| f.data.id).collect();
+
             // compact
-            let _compacted_data = self.compact(overlapped_files).await;
+            let split_compacted_files = self.compact(group.parquet_files).await?;
+            let mut catalog_update_info = Vec::with_capacity(split_compacted_files.len());
 
-            // split the compacted data into 2 files 90/10
-            let output_parquet_files: Vec<ParquetFile> = vec![]; // TODO: #3999
+            for split_file in split_compacted_files {
+                let CompactedData {
+                    data,
+                    meta,
+                    tombstone_ids,
+                } = split_file;
 
-            for _file in output_parquet_files {
-                // persist the file
-                // TODO: #3951
+                let file_size_and_md = Backoff::new(&self.backoff_config)
+                    .retry_all_errors("persist to object store", || {
+                        Self::persist(&meta, data.clone(), Arc::clone(&self.object_store))
+                    })
+                    .await
+                    .expect("retry forever");
 
-                // update the catalog
-                // TODO: #3952
+                if let Some((file_size, md)) = file_size_and_md {
+                    catalog_update_info.push(CatalogUpdate::new(
+                        meta,
+                        file_size,
+                        md,
+                        tombstone_ids,
+                    ));
+                }
             }
+            let mut txn = self
+                .catalog
+                .start_transaction()
+                .await
+                .context(TransactionSnafu)?;
+
+            self.update_catalog(
+                catalog_update_info,
+                original_parquet_file_ids,
+                txn.deref_mut(),
+            )
+            .await?;
+
+            txn.commit().await.context(TransactionCommitSnafu)?;
         }
 
         // Remove fully processed tombstones
@@ -312,12 +379,10 @@ impl Compactor {
     // Extract tombstones id
     fn union_tombstone_ids(
         mut tombstones: HashSet<TombstoneId>,
-        parquet_with_tombstones: &[ParquetFileWithTombstone],
+        group_with_tombstones: &GroupWithTombstones,
     ) -> HashSet<TombstoneId> {
-        for file in parquet_with_tombstones {
-            for id in file.tombstone_ids() {
-                tombstones.insert(id);
-            }
+        for id in group_with_tombstones.tombstone_ids() {
+            tombstones.insert(id);
         }
         tombstones
     }
@@ -325,19 +390,31 @@ impl Compactor {
     // Compact given files. Assume the given files are overlaped in time.
     // If the assumption does not meet, we will spend time not to compact anything but put data
     // together
+    // The output will include 2 CompactedData sets, one contains a large amount of data of
+    // least recent time and the other has a small amount of data of most recent time. Each
+    // will be persisted in its own file. The idea is when new writes come, they will
+    // mostly overlap with the most recent data only.
     async fn compact(
         &self,
         overlapped_files: Vec<ParquetFileWithTombstone>,
-    ) -> Result<Option<CompactedData>> {
+    ) -> Result<Vec<CompactedData>> {
+        let mut compacted = vec![];
         // Nothing to compact
         if overlapped_files.is_empty() {
-            return Ok(None);
+            return Ok(compacted);
         }
 
         // One file without tombstone, no need to compact
         if overlapped_files.len() == 1 && overlapped_files[0].tombstones.is_empty() {
-            return Ok(None);
+            return Ok(compacted);
         }
+
+        // Collect all the tombstone IDs. One tombstone might be relevant to multiple parquet
+        // files in this set, so dedupe here.
+        let tombstone_ids: HashSet<_> = overlapped_files
+            .iter()
+            .flat_map(|f| f.tombstone_ids())
+            .collect();
 
         // Keep the fist IoxMetadata to reuse same IDs and names
         let iox_metadata = overlapped_files[0].iox_metadata();
@@ -376,84 +453,196 @@ impl Compactor {
             })
             .collect();
 
-        // Compute min & max sequence numbers
+        // Compute min & max sequence numbers and time
         // unwrap here will work becasue the len of the query_chunks already >= 1
         let (head, tail) = query_chunks.split_first().unwrap();
         let mut min_sequence_number = head.min_sequence_number();
         let mut max_sequence_number = head.max_sequence_number();
+        let mut min_time = head.min_time();
+        let mut max_time = head.max_time();
         for c in tail {
             min_sequence_number = min(min_sequence_number, c.min_sequence_number());
             max_sequence_number = max(max_sequence_number, c.max_sequence_number());
+            min_time = min(min_time, c.min_time());
+            max_time = max(max_time, c.max_time());
         }
 
         // Merge schema of the compacting chunks
+        let query_chunks: Vec<_> = query_chunks
+            .into_iter()
+            .map(|c| Arc::new(c) as Arc<dyn QueryChunk>)
+            .collect();
         let merged_schema = QueryableParquetChunk::merge_schemas(&query_chunks);
 
         // Compute the sorted output of the compacting result
         let sort_key = compute_sort_key_for_chunks(&merged_schema, &query_chunks);
 
-        // Build compact query plan
+        // Identify split time
+        let split_time = Self::compute_split_time(min_time, max_time);
+
+        // Build compact & split query plan
         let plan = ReorgPlanner::new()
-            .compact_plan(
+            .split_plan(
                 Arc::clone(&merged_schema),
-                query_chunks.into_iter().map(Arc::new),
+                query_chunks,
                 sort_key.clone(),
+                split_time,
             )
             .context(CompactLogicalPlanSnafu)?;
+
         let ctx = self.exec.new_context(ExecutorType::Reorg);
         let physical_plan = ctx
             .prepare_plan(&plan)
             .await
             .context(CompactPhysicalPlanSnafu)?;
 
-        // Run the plan
-        let stream = ctx
-            .execute_stream(physical_plan)
+        // Run to collect each stream of the plan
+        let stream_count = physical_plan.output_partitioning().partition_count();
+        for i in 0..stream_count {
+            let stream = ctx
+                .execute_stream_partitioned(Arc::clone(&physical_plan), i)
+                .await
+                .context(ExecuteCompactPlanSnafu)?;
+
+            // Collect compacted data into record batches for computing statistics
+            let output_batches = datafusion::physical_plan::common::collect(stream)
+                .await
+                .context(CollectStreamSnafu)?;
+
+            // Filter empty record batches
+            let output_batches: Vec<_> = output_batches
+                .into_iter()
+                .filter(|b| b.num_rows() != 0)
+                .collect();
+
+            let row_count: usize = output_batches.iter().map(|b| b.num_rows()).sum();
+            let row_count = row_count.try_into().context(RowCountTypeConversionSnafu)?;
+
+            if row_count == 0 {
+                continue;
+            }
+
+            // Compute min and max of the `time` column
+            let (min_time, max_time) =
+                compute_timenanosecond_min_max(&output_batches).context(MinMaxSnafu)?;
+
+            let meta = IoxMetadata {
+                object_store_id: Uuid::new_v4(),
+                creation_timestamp: self.time_provider.now(),
+                sequencer_id: iox_metadata.sequencer_id,
+                namespace_id: iox_metadata.namespace_id,
+                namespace_name: Arc::<str>::clone(&iox_metadata.namespace_name),
+                table_id: iox_metadata.table_id,
+                table_name: Arc::<str>::clone(&iox_metadata.table_name),
+                partition_id: iox_metadata.partition_id,
+                partition_key: Arc::<str>::clone(&iox_metadata.partition_key),
+                time_of_first_write: Time::from_timestamp_nanos(min_time),
+                time_of_last_write: Time::from_timestamp_nanos(max_time),
+                min_sequence_number,
+                max_sequence_number,
+                row_count,
+                sort_key: None,
+            };
+
+            let compacted_data = CompactedData::new(output_batches, meta, tombstone_ids.clone());
+            compacted.push(compacted_data);
+        }
+
+        Ok(compacted)
+    }
+
+    /// Write the given data to the given location in the given object storage.
+    ///
+    /// Returns the persisted file size (in bytes) and metadata if a file was created.
+    async fn persist(
+        metadata: &IoxMetadata,
+        record_batches: Vec<RecordBatch>,
+        object_store: Arc<DynObjectStore>,
+    ) -> Result<Option<(usize, IoxParquetMetaData)>> {
+        if record_batches.is_empty() {
+            return Ok(None);
+        }
+        // All record batches have the same schema.
+        let schema = record_batches
+            .first()
+            .expect("record_batches.is_empty was just checked")
+            .schema();
+
+        // Make a fake IOx object store to conform to the parquet file
+        // interface, but note this isn't actually used to find parquet
+        // paths to write to
+        use iox_object_store::IoxObjectStore;
+        let iox_object_store = Arc::new(IoxObjectStore::existing(
+            Arc::clone(&object_store),
+            IoxObjectStore::root_path_for(&*object_store, uuid::Uuid::new_v4()),
+        ));
+
+        let data = parquet_file::storage::Storage::new(Arc::clone(&iox_object_store))
+            .parquet_bytes(record_batches, schema, metadata)
             .await
-            .context(ExecuteCompactPlanSnafu)?;
+            .context(ConvertingToBytesSnafu)?;
 
-        // Collect compacted data into record batches for computing statistics
-        let output_batches = datafusion::physical_plan::common::collect(stream)
-            .await
-            .context(CollectStreamSnafu)?;
-
-        // Filter empty record batches
-        let output_batches: Vec<_> = output_batches
-            .into_iter()
-            .filter(|b| b.num_rows() != 0)
-            .collect();
-
-        let row_count: usize = output_batches.iter().map(|b| b.num_rows()).sum();
-        let row_count = row_count.try_into().context(RowCountTypeConversionSnafu)?;
-
-        if row_count == 0 {
+        if data.is_empty() {
             return Ok(None);
         }
 
-        // Compute min and max of the `time` column
-        let (min_time, max_time) =
-            compute_timenanosecond_min_max(&output_batches).context(MinMaxSnafu)?;
+        // extract metadata
+        let data = Arc::new(data);
+        let md = IoxParquetMetaData::from_file_bytes(Arc::clone(&data))
+            .expect("cannot read parquet file metadata")
+            .expect("no metadata in parquet file");
+        let data = Arc::try_unwrap(data).expect("dangling reference to data");
 
-        let meta = IoxMetadata {
-            object_store_id: Uuid::new_v4(),
-            creation_timestamp: self.time_provider.now(),
-            sequencer_id: iox_metadata.sequencer_id,
-            namespace_id: iox_metadata.namespace_id,
-            namespace_name: iox_metadata.namespace_name,
-            table_id: iox_metadata.table_id,
-            table_name: iox_metadata.table_name,
-            partition_id: iox_metadata.partition_id,
-            partition_key: iox_metadata.partition_key,
-            time_of_first_write: Time::from_timestamp_nanos(min_time),
-            time_of_last_write: Time::from_timestamp_nanos(max_time),
-            min_sequence_number,
-            max_sequence_number,
-            row_count,
-        };
+        let file_size = data.len();
+        let bytes = Bytes::from(data);
 
-        let compacted_data = CompactedData::new(output_batches, meta);
+        let path = ParquetFilePath::new_new_gen(
+            metadata.namespace_id,
+            metadata.table_id,
+            metadata.sequencer_id,
+            metadata.partition_id,
+            metadata.object_store_id,
+        );
 
-        Ok(Some(compacted_data))
+        iox_object_store
+            .put_parquet_file(&path, bytes)
+            .await
+            .context(WritingToObjectStoreSnafu)?;
+
+        Ok(Some((file_size, md)))
+    }
+
+    async fn update_catalog(
+        &self,
+        catalog_update_info: Vec<CatalogUpdate>,
+        original_parquet_file_ids: Vec<ParquetFileId>,
+        txn: &mut dyn Transaction,
+    ) -> Result<()> {
+        for catalog_update in catalog_update_info {
+            // create a parquet file in the catalog first
+            let parquet = txn
+                .parquet_files()
+                .create(catalog_update.parquet_file)
+                .await
+                .context(UpdateSnafu)?;
+
+            // Now that the parquet file is available, create its processed tombstones
+            for tombstone_id in catalog_update.tombstone_ids {
+                txn.processed_tombstones()
+                    .create(parquet.id, tombstone_id)
+                    .await
+                    .context(UpdateSnafu)?;
+            }
+        }
+
+        for original_parquet_file_id in original_parquet_file_ids {
+            txn.parquet_files()
+                .flag_for_delete(original_parquet_file_id)
+                .await
+                .context(FlagForDeleteSnafu)?;
+        }
+
+        Ok(())
     }
 
     /// Given a list of parquet files that come from the same Table Partition, group files together
@@ -490,14 +679,106 @@ impl Compactor {
 
         groups
     }
+
+    // Compute time to split data
+    fn compute_split_time(min_time: i64, max_time: i64) -> i64 {
+        min_time + (max_time - min_time) * SPLIT_PERCENTAGE / 100
+    }
+
+    async fn add_tombstones_to_groups(
+        &self,
+        groups: Vec<Vec<ParquetFile>>,
+    ) -> Result<Vec<GroupWithTombstones>> {
+        let mut repo = self.catalog.repositories().await;
+        let tombstone_repo = repo.tombstones();
+
+        let mut overlapped_file_with_tombstones_groups = Vec::with_capacity(groups.len());
+
+        // For each group of overlapping parquet files,
+        for parquet_files in groups {
+            // Skip over any empty groups
+            if parquet_files.is_empty() {
+                continue;
+            }
+
+            // Find the time range of the group
+            let overall_min_time = parquet_files
+                .iter()
+                .map(|pf| pf.min_time)
+                .min()
+                .expect("The group was checked for emptiness above");
+            let overall_max_time = parquet_files
+                .iter()
+                .map(|pf| pf.max_time)
+                .max()
+                .expect("The group was checked for emptiness above");
+            // For a tombstone to be relevant to any parquet file, the tombstone must have a
+            // sequence number greater than the parquet file's max_sequence_number. If we query
+            // for all tombstones with a sequence number greater than the smallest parquet file
+            // max_sequence_number in the group, we'll get all tombstones that could possibly
+            // be relevant for this group.
+            let overall_min_max_sequence_number = parquet_files
+                .iter()
+                .map(|pf| pf.max_sequence_number)
+                .min()
+                .expect("The group was checked for emptiness above");
+
+            // Query the catalog for the tombstones that could be relevant to any parquet files
+            // in this group.
+            let tombstones = tombstone_repo
+                .list_tombstones_for_time_range(
+                    // We've previously grouped the parquet files by sequence and table IDs, so
+                    // these values will be the same for all parquet files in the group.
+                    parquet_files[0].sequencer_id,
+                    parquet_files[0].table_id,
+                    overall_min_max_sequence_number,
+                    overall_min_time,
+                    overall_max_time,
+                )
+                .await
+                .context(QueryingTombstonesSnafu)?;
+
+            let parquet_files = parquet_files
+                .into_iter()
+                .map(|data| {
+                    // Filter the set of tombstones relevant to any file in the group to just those
+                    // relevant to this particular parquet file.
+                    let relevant_tombstones = tombstones
+                        .iter()
+                        .cloned()
+                        .filter(|t| {
+                            t.sequence_number > data.max_sequence_number
+                                && ((t.min_time <= data.min_time && t.max_time >= data.min_time)
+                                    || (t.min_time > data.min_time && t.min_time <= data.max_time))
+                        })
+                        .collect();
+
+                    ParquetFileWithTombstone {
+                        data: Arc::new(data),
+                        tombstones: relevant_tombstones,
+                    }
+                })
+                .collect();
+
+            overlapped_file_with_tombstones_groups.push(GroupWithTombstones {
+                parquet_files,
+                tombstones,
+            });
+        }
+
+        Ok(overlapped_file_with_tombstones_groups)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use arrow_util::assert_batches_sorted_eq;
-    use data_types2::SequenceNumber;
+    use data_types2::{KafkaPartition, NamespaceId, ParquetFileParams, SequenceNumber};
+    use futures::{stream, StreamExt, TryStreamExt};
     use iox_tests::util::TestCatalog;
+    use object_store::path::Path;
+    use query::test::{raw_data, TestChunk};
     use time::SystemProvider;
 
     #[tokio::test]
@@ -517,7 +798,7 @@ mod tests {
             .with_sequencer(&sequencer)
             .create_partition("part")
             .await
-            .create_parquet_file(&lp)
+            .create_parquet_file_with_min_max(&lp, 1, 1, 8000, 20000)
             .await
             .parquet_file
             .clone();
@@ -534,7 +815,7 @@ mod tests {
         // ------------------------------------------------
         // no files provided
         let result = compactor.compact(vec![]).await.unwrap();
-        assert!(result.is_none());
+        assert!(result.is_empty());
 
         // ------------------------------------------------
         // File without tombstones
@@ -544,7 +825,7 @@ mod tests {
         };
         // Nothing compacted for one file without tombstones
         let result = compactor.compact(vec![pf.clone()]).await.unwrap();
-        assert!(result.is_none());
+        assert!(result.is_empty());
 
         // ------------------------------------------------
         // Let add a tombstone
@@ -554,18 +835,31 @@ mod tests {
             .await;
         pf.add_tombstones(vec![tombstone.tombstone.clone()]);
         // should have compacted data
-        let batches = compactor.compact(vec![pf]).await.unwrap().unwrap().data;
-        // one row tag1=VT was removed
+        let batches = compactor.compact(vec![pf]).await.unwrap();
+        // 2 sets based on the split rule
+        assert_eq!(batches.len(), 2);
+        // Data: row tag1=VT was removed
+        // first set contains least recent data
+        assert_batches_sorted_eq!(
+            &[
+                "+-----------+------+-----------------------------+",
+                "| field_int | tag1 | time                        |",
+                "+-----------+------+-----------------------------+",
+                "| 1000      | WA   | 1970-01-01T00:00:00.000008Z |",
+                "+-----------+------+-----------------------------+",
+            ],
+            &batches[0].data
+        );
+        // second set contains most recent data
         assert_batches_sorted_eq!(
             &[
                 "+-----------+------+-----------------------------+",
                 "| field_int | tag1 | time                        |",
                 "+-----------+------+-----------------------------+",
                 "| 70        | UT   | 1970-01-01T00:00:00.000020Z |",
-                "| 1000      | WA   | 1970-01-01T00:00:00.000008Z |",
                 "+-----------+------+-----------------------------+",
             ],
-            &batches
+            &batches[1].data
         );
     }
 
@@ -595,12 +889,12 @@ mod tests {
             .create_partition("part")
             .await;
         let parquet_file1 = partition
-            .create_parquet_file_with_sequence_numbers(&lp1, 1, 5)
+            .create_parquet_file_with_min_max(&lp1, 1, 5, 8000, 20000)
             .await
             .parquet_file
             .clone();
         let parquet_file2 = partition
-            .create_parquet_file_with_sequence_numbers(&lp2, 10, 15)
+            .create_parquet_file_with_min_max(&lp2, 10, 15, 6000, 25000)
             .await
             .parquet_file
             .clone();
@@ -630,13 +924,12 @@ mod tests {
         };
 
         // Compact them
-        let batches = compactor
-            .compact(vec![pf1, pf2])
-            .await
-            .unwrap()
-            .unwrap()
-            .data;
-        // Should have 4 rows left
+        let batches = compactor.compact(vec![pf1, pf2]).await.unwrap();
+        // 2 sets based on the split rule
+        assert_eq!(batches.len(), 2);
+
+        // Data: Should have 4 rows left
+        // first set contains least recent 3 rows
         assert_batches_sorted_eq!(
             &[
                 "+-----------+------+-----------------------------+",
@@ -644,11 +937,21 @@ mod tests {
                 "+-----------+------+-----------------------------+",
                 "| 10        | VT   | 1970-01-01T00:00:00.000006Z |",
                 "| 1500      | WA   | 1970-01-01T00:00:00.000008Z |",
-                "| 270       | UT   | 1970-01-01T00:00:00.000025Z |",
                 "| 70        | UT   | 1970-01-01T00:00:00.000020Z |",
                 "+-----------+------+-----------------------------+",
             ],
-            &batches
+            &batches[0].data
+        );
+        // second set contains most recent one row
+        assert_batches_sorted_eq!(
+            &[
+                "+-----------+------+-----------------------------+",
+                "| field_int | tag1 | time                        |",
+                "+-----------+------+-----------------------------+",
+                "| 270       | UT   | 1970-01-01T00:00:00.000025Z |",
+                "+-----------+------+-----------------------------+",
+            ],
+            &batches[1].data
         );
     }
 
@@ -686,17 +989,17 @@ mod tests {
         // Sequence numbers are important here.
         // Time/sequence order from small to large: parquet_file_1, parquet_file_2, parquet_file_3
         let parquet_file1 = partition
-            .create_parquet_file_with_sequence_numbers(&lp1, 1, 5)
+            .create_parquet_file_with_min_max(&lp1, 1, 5, 8000, 20000)
             .await
             .parquet_file
             .clone();
         let parquet_file2 = partition
-            .create_parquet_file_with_sequence_numbers(&lp2, 10, 15)
+            .create_parquet_file_with_min_max(&lp2, 10, 15, 6000, 25000)
             .await
             .parquet_file
             .clone();
         let parquet_file3 = partition
-            .create_parquet_file_with_sequence_numbers(&lp3, 20, 25)
+            .create_parquet_file_with_min_max(&lp3, 20, 25, 6000, 8000)
             .await
             .parquet_file
             .clone();
@@ -734,40 +1037,51 @@ mod tests {
         let batches = compactor
             .compact(vec![pf1.clone(), pf2.clone(), pf3.clone()])
             .await
-            .unwrap()
-            .unwrap()
-            .data;
-        // Should have 6 rows
-        let expected = vec![
-            "+-----------+------+------+------+-----------------------------+",
-            "| field_int | tag1 | tag2 | tag3 | time                        |",
-            "+-----------+------+------+------+-----------------------------+",
-            "| 10        |      | VT   | 20   | 1970-01-01T00:00:00.000006Z |",
-            "| 10        | VT   |      |      | 1970-01-01T00:00:00.000006Z |",
-            "| 1500      |      | WA   | 10   | 1970-01-01T00:00:00.000008Z |",
-            "| 1500      | WA   |      |      | 1970-01-01T00:00:00.000008Z |",
-            "| 270       | UT   |      |      | 1970-01-01T00:00:00.000025Z |",
-            "| 70        | UT   |      |      | 1970-01-01T00:00:00.000020Z |",
-            "+-----------+------+------+------+-----------------------------+",
-        ];
-        assert_batches_sorted_eq!(&expected, &batches);
+            .unwrap();
 
-        // Make a vector of different file order but the result is still the same
-        // becasue the actual order for deduplication does not rely on their order in the vector
-        // Compact them
-        let batches = compactor
-            .compact(vec![pf2, pf3, pf1]) // different order in the vector
-            .await
-            .unwrap()
-            .unwrap()
-            .data;
-        // Should have 6 rows
-        assert_batches_sorted_eq!(&expected, &batches);
+        // 2 sets based on the split rule
+        assert_eq!(batches.len(), 2);
+
+        // Data: Should have 6 rows left
+        // first set contains least recent 5 rows
+        assert_batches_sorted_eq!(
+            &[
+                "+-----------+------+------+------+-----------------------------+",
+                "| field_int | tag1 | tag2 | tag3 | time                        |",
+                "+-----------+------+------+------+-----------------------------+",
+                "| 10        |      | VT   | 20   | 1970-01-01T00:00:00.000006Z |",
+                "| 10        | VT   |      |      | 1970-01-01T00:00:00.000006Z |",
+                "| 1500      |      | WA   | 10   | 1970-01-01T00:00:00.000008Z |",
+                "| 1500      | WA   |      |      | 1970-01-01T00:00:00.000008Z |",
+                "| 70        | UT   |      |      | 1970-01-01T00:00:00.000020Z |",
+                "+-----------+------+------+------+-----------------------------+",
+            ],
+            &batches[0].data
+        );
+        // second set contains most recent one row
+        assert_batches_sorted_eq!(
+            &[
+                "+-----------+------+------+------+-----------------------------+",
+                "| field_int | tag1 | tag2 | tag3 | time                        |",
+                "+-----------+------+------+------+-----------------------------+",
+                "| 270       | UT   |      |      | 1970-01-01T00:00:00.000025Z |",
+                "+-----------+------+------+------+-----------------------------+",
+            ],
+            &batches[1].data
+        );
     }
 
     /// A test utility function to make minimially-viable ParquetFile records with particular
     /// min/max times. Does not involve the catalog at all.
     fn arbitrary_parquet_file(min_time: i64, max_time: i64) -> ParquetFile {
+        arbitrary_parquet_file_with_creation_time(min_time, max_time, 1)
+    }
+
+    fn arbitrary_parquet_file_with_creation_time(
+        min_time: i64,
+        max_time: i64,
+        created_at: i64,
+    ) -> ParquetFile {
         ParquetFile {
             id: ParquetFileId::new(0),
             sequencer_id: SequencerId::new(0),
@@ -778,13 +1092,35 @@ mod tests {
             max_sequence_number: SequenceNumber::new(1),
             min_time: Timestamp::new(min_time),
             max_time: Timestamp::new(max_time),
-            to_delete: false,
+            to_delete: None,
             file_size_bytes: 0,
             parquet_metadata: vec![],
             row_count: 0,
             compaction_level: 0,
-            created_at: Timestamp::new(1),
+            created_at: Timestamp::new(created_at),
         }
+    }
+
+    #[test]
+    fn test_level_upgradable() {
+        let time = Arc::new(SystemProvider::new());
+        // file older than one day
+        let pf_old = arbitrary_parquet_file_with_creation_time(1, 10, 1);
+        let pt_old = ParquetFileWithTombstone {
+            data: Arc::new(pf_old),
+            tombstones: vec![],
+        };
+        // upgradable
+        assert!(pt_old.level_upgradable(Arc::<time::SystemProvider>::clone(&time)));
+
+        // file is created today
+        let pf_new = arbitrary_parquet_file_with_creation_time(1, 10, time.now().timestamp_nanos());
+        let pt_new = ParquetFileWithTombstone {
+            data: Arc::new(pf_new),
+            tombstones: vec![],
+        };
+        // not upgradable
+        assert!(!pt_new.level_upgradable(Arc::<time::SystemProvider>::clone(&time)));
     }
 
     #[test]
@@ -894,5 +1230,492 @@ mod tests {
             "Actually contains: {:#?}",
             many_group
         );
+    }
+
+    #[tokio::test]
+    async fn add_tombstones_to_parquet_files_in_groups() {
+        let catalog = TestCatalog::new();
+
+        let compactor = Compactor {
+            sequencers: vec![],
+            object_store: Arc::clone(&catalog.object_store),
+            catalog: Arc::clone(&catalog.catalog),
+            exec: Arc::new(Executor::new(1)),
+            time_provider: Arc::new(SystemProvider::new()),
+            backoff_config: BackoffConfig::default(),
+        };
+
+        let mut txn = catalog.catalog.start_transaction().await.unwrap();
+
+        let kafka = txn.kafka_topics().create_or_get("foo").await.unwrap();
+        let pool = txn.query_pools().create_or_get("foo").await.unwrap();
+        let namespace = txn
+            .namespaces()
+            .create(
+                "namespace_add_tombstones_to_parquet_files_in_groups",
+                "inf",
+                kafka.id,
+                pool.id,
+            )
+            .await
+            .unwrap();
+        let table = txn
+            .tables()
+            .create_or_get("test_table", namespace.id)
+            .await
+            .unwrap();
+        let sequencer = txn
+            .sequencers()
+            .create_or_get(&kafka, KafkaPartition::new(1))
+            .await
+            .unwrap();
+        let partition = txn
+            .partitions()
+            .create_or_get("one", sequencer.id, table.id)
+            .await
+            .unwrap();
+
+        let p1 = ParquetFileParams {
+            sequencer_id: sequencer.id,
+            table_id: table.id,
+            partition_id: partition.id,
+            object_store_id: Uuid::new_v4(),
+            min_sequence_number: SequenceNumber::new(4),
+            max_sequence_number: SequenceNumber::new(100),
+            min_time: Timestamp::new(1),
+            max_time: Timestamp::new(5),
+            file_size_bytes: 1337,
+            parquet_metadata: b"md1".to_vec(),
+            row_count: 0,
+            created_at: Timestamp::new(1),
+        };
+
+        let p2 = ParquetFileParams {
+            object_store_id: Uuid::new_v4(),
+            max_sequence_number: SequenceNumber::new(200),
+            min_time: Timestamp::new(4),
+            max_time: Timestamp::new(7),
+
+            ..p1.clone()
+        };
+        let pf1 = txn.parquet_files().create(p1).await.unwrap();
+        let pf2 = txn.parquet_files().create(p2).await.unwrap();
+
+        let parquet_files = vec![pf1.clone(), pf2.clone()];
+        let groups = vec![
+            vec![], // empty group should get filtered out
+            parquet_files,
+        ];
+
+        // Tombstone with a sequence number that's too low for both files, even though it overlaps
+        // with the time range. Shouldn't be included in the group
+        let _t1 = txn
+            .tombstones()
+            .create_or_get(
+                table.id,
+                sequencer.id,
+                SequenceNumber::new(1),
+                Timestamp::new(3),
+                Timestamp::new(6),
+                "whatevs",
+            )
+            .await
+            .unwrap();
+
+        // Tombstone with a sequence number too low for one file but not the other, time range
+        // overlaps both files
+        let t2 = txn
+            .tombstones()
+            .create_or_get(
+                table.id,
+                sequencer.id,
+                SequenceNumber::new(150),
+                Timestamp::new(3),
+                Timestamp::new(6),
+                "whatevs",
+            )
+            .await
+            .unwrap();
+
+        // Tombstone with a time range that only overlaps with one file
+        let t3 = txn
+            .tombstones()
+            .create_or_get(
+                table.id,
+                sequencer.id,
+                SequenceNumber::new(300),
+                Timestamp::new(6),
+                Timestamp::new(8),
+                "whatevs",
+            )
+            .await
+            .unwrap();
+
+        // Tombstone with a time range that overlaps both files and has a sequence number large
+        // enough for both files
+        let t4 = txn
+            .tombstones()
+            .create_or_get(
+                table.id,
+                sequencer.id,
+                SequenceNumber::new(400),
+                Timestamp::new(1),
+                Timestamp::new(10),
+                "whatevs",
+            )
+            .await
+            .unwrap();
+        txn.commit().await.unwrap();
+
+        let groups_with_tombstones = compactor.add_tombstones_to_groups(groups).await.unwrap();
+
+        assert_eq!(groups_with_tombstones.len(), 1);
+        let group_with_tombstones = &groups_with_tombstones[0];
+
+        let actual_group_tombstone_ids = group_with_tombstones.tombstone_ids();
+        assert_eq!(
+            actual_group_tombstone_ids,
+            HashSet::from([t2.id, t3.id, t4.id])
+        );
+
+        let actual_pf1 = group_with_tombstones
+            .parquet_files
+            .iter()
+            .find(|pf| pf.parquet_file_id() == pf1.id)
+            .unwrap();
+        let mut actual_pf1_tombstones: Vec<_> =
+            actual_pf1.tombstones.iter().map(|t| t.id).collect();
+        actual_pf1_tombstones.sort();
+        assert_eq!(actual_pf1_tombstones, &[t2.id, t4.id]);
+
+        let actual_pf2 = group_with_tombstones
+            .parquet_files
+            .iter()
+            .find(|pf| pf.parquet_file_id() == pf2.id)
+            .unwrap();
+        let mut actual_pf2_tombstones: Vec<_> =
+            actual_pf2.tombstones.iter().map(|t| t.id).collect();
+        actual_pf2_tombstones.sort();
+        assert_eq!(actual_pf2_tombstones, &[t3.id, t4.id]);
+    }
+
+    async fn list_all(object_store: &DynObjectStore) -> Result<Vec<Path>, object_store::Error> {
+        object_store
+            .list(None)
+            .await?
+            .map_ok(|v| stream::iter(v).map(Ok))
+            .try_flatten()
+            .try_collect()
+            .await
+    }
+
+    #[tokio::test]
+    async fn persist_adds_to_object_store() {
+        let catalog = TestCatalog::new();
+
+        let compactor = Compactor {
+            sequencers: vec![],
+            object_store: Arc::clone(&catalog.object_store),
+            catalog: Arc::clone(&catalog.catalog),
+            exec: Arc::new(Executor::new(1)),
+            time_provider: Arc::new(SystemProvider::new()),
+            backoff_config: BackoffConfig::default(),
+        };
+
+        let table_id = TableId::new(3);
+        let sequencer_id = SequencerId::new(2);
+
+        let meta = IoxMetadata {
+            object_store_id: Uuid::new_v4(),
+            creation_timestamp: compactor.time_provider.now(),
+            namespace_id: NamespaceId::new(1),
+            namespace_name: "mydata".into(),
+            sequencer_id,
+            table_id,
+            table_name: "temperature".into(),
+            partition_id: PartitionId::new(4),
+            partition_key: "somehour".into(),
+            time_of_first_write: compactor.time_provider.now(),
+            time_of_last_write: compactor.time_provider.now(),
+            min_sequence_number: SequenceNumber::new(5),
+            max_sequence_number: SequenceNumber::new(6),
+            row_count: 3,
+            sort_key: None,
+        };
+
+        let chunk1 = Arc::new(
+            TestChunk::new("t")
+                .with_id(1)
+                .with_time_column() //_with_full_stats(
+                .with_tag_column("tag1")
+                .with_i64_field_column("field_int")
+                .with_three_rows_of_data(),
+        );
+        let data = raw_data(&[chunk1]).await;
+
+        let t1 = catalog
+            .catalog
+            .repositories()
+            .await
+            .tombstones()
+            .create_or_get(
+                table_id,
+                sequencer_id,
+                SequenceNumber::new(1),
+                Timestamp::new(1),
+                Timestamp::new(1),
+                "whatevs",
+            )
+            .await
+            .unwrap();
+
+        let compacted_data = CompactedData::new(data, meta, HashSet::from([t1.id]));
+
+        Compactor::persist(
+            &compacted_data.meta,
+            compacted_data.data,
+            Arc::clone(&compactor.object_store),
+        )
+        .await
+        .unwrap();
+
+        let object_store_files = list_all(&*compactor.object_store).await.unwrap();
+        assert_eq!(object_store_files.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_add_parquet_file_with_tombstones() {
+        let catalog = TestCatalog::new();
+
+        let compactor = Compactor {
+            sequencers: vec![],
+            object_store: Arc::clone(&catalog.object_store),
+            catalog: Arc::clone(&catalog.catalog),
+            exec: Arc::new(Executor::new(1)),
+            time_provider: Arc::new(SystemProvider::new()),
+            backoff_config: BackoffConfig::default(),
+        };
+
+        let mut txn = catalog.catalog.start_transaction().await.unwrap();
+        let kafka = txn.kafka_topics().create_or_get("foo").await.unwrap();
+        let pool = txn.query_pools().create_or_get("foo").await.unwrap();
+        let namespace = txn
+            .namespaces()
+            .create(
+                "namespace_parquet_file_with_tombstones_test",
+                "inf",
+                kafka.id,
+                pool.id,
+            )
+            .await
+            .unwrap();
+        let table = txn
+            .tables()
+            .create_or_get("test_table", namespace.id)
+            .await
+            .unwrap();
+        let sequencer = txn
+            .sequencers()
+            .create_or_get(&kafka, KafkaPartition::new(1))
+            .await
+            .unwrap();
+        let partition = txn
+            .partitions()
+            .create_or_get("one", sequencer.id, table.id)
+            .await
+            .unwrap();
+
+        // Add tombstones
+        let min_time = Timestamp::new(1);
+        let max_time = Timestamp::new(10);
+        let t1 = txn
+            .tombstones()
+            .create_or_get(
+                table.id,
+                sequencer.id,
+                SequenceNumber::new(1),
+                min_time,
+                max_time,
+                "whatevs",
+            )
+            .await
+            .unwrap();
+        let t2 = txn
+            .tombstones()
+            .create_or_get(
+                table.id,
+                sequencer.id,
+                SequenceNumber::new(2),
+                min_time,
+                max_time,
+                "bleh",
+            )
+            .await
+            .unwrap();
+        let t3 = txn
+            .tombstones()
+            .create_or_get(
+                table.id,
+                sequencer.id,
+                SequenceNumber::new(3),
+                min_time,
+                max_time,
+                "meh",
+            )
+            .await
+            .unwrap();
+
+        let meta = IoxMetadata {
+            object_store_id: Uuid::new_v4(),
+            creation_timestamp: compactor.time_provider.now(),
+            namespace_id: NamespaceId::new(1),
+            namespace_name: "mydata".into(),
+            sequencer_id: sequencer.id,
+            table_id: table.id,
+            table_name: "temperature".into(),
+            partition_id: PartitionId::new(4),
+            partition_key: "somehour".into(),
+            time_of_first_write: compactor.time_provider.now(),
+            time_of_last_write: compactor.time_provider.now(),
+            min_sequence_number: SequenceNumber::new(5),
+            max_sequence_number: SequenceNumber::new(6),
+            row_count: 3,
+            sort_key: None,
+        };
+
+        // Prepare metadata in form of ParquetFileParams to get added with tombstone
+        let parquet = ParquetFileParams {
+            sequencer_id: sequencer.id,
+            table_id: table.id,
+            partition_id: partition.id,
+            object_store_id: Uuid::new_v4(),
+            min_sequence_number: SequenceNumber::new(4),
+            max_sequence_number: SequenceNumber::new(10),
+            min_time,
+            max_time,
+            file_size_bytes: 1337,
+            parquet_metadata: b"md1".to_vec(),
+            row_count: 0,
+            created_at: Timestamp::new(1),
+        };
+        let other_parquet = ParquetFileParams {
+            object_store_id: Uuid::new_v4(),
+            min_sequence_number: SequenceNumber::new(11),
+            max_sequence_number: SequenceNumber::new(20),
+            ..parquet.clone()
+        };
+        let another_parquet = ParquetFileParams {
+            object_store_id: Uuid::new_v4(),
+            min_sequence_number: SequenceNumber::new(21),
+            max_sequence_number: SequenceNumber::new(30),
+            ..parquet.clone()
+        };
+
+        let parquet_file_count_before = txn.parquet_files().count().await.unwrap();
+        let pt_count_before = txn.processed_tombstones().count().await.unwrap();
+        txn.commit().await.unwrap();
+
+        // Add parquet and processed tombstone in one transaction
+        let mut txn = catalog.catalog.start_transaction().await.unwrap();
+        let catalog_updates = vec![CatalogUpdate {
+            meta: meta.clone(),
+            tombstone_ids: HashSet::from([t1.id, t2.id]),
+            parquet_file: parquet.clone(),
+        }];
+        compactor
+            .update_catalog(catalog_updates, vec![], txn.deref_mut())
+            .await
+            .unwrap();
+        txn.commit().await.unwrap();
+
+        // verify the catalog
+        let mut txn = catalog.catalog.start_transaction().await.unwrap();
+        let parquet_file_count_after = txn.parquet_files().count().await.unwrap();
+        let pt_count_after = txn.processed_tombstones().count().await.unwrap();
+        let catalog_parquet_files = txn
+            .parquet_files()
+            .list_by_namespace_not_to_delete(namespace.id)
+            .await
+            .unwrap();
+        assert_eq!(catalog_parquet_files.len(), 1);
+
+        assert_eq!(pt_count_after - pt_count_before, 2);
+        assert_eq!(parquet_file_count_after - parquet_file_count_before, 1);
+        let pt_count_before = pt_count_after;
+        let parquet_file_count_before = parquet_file_count_after;
+        txn.commit().await.unwrap();
+
+        // Error due to duplicate parquet file
+        let mut txn = catalog.catalog.start_transaction().await.unwrap();
+        let catalog_updates = vec![CatalogUpdate {
+            meta: meta.clone(),
+            tombstone_ids: HashSet::from([t3.id, t1.id]),
+            parquet_file: parquet.clone(),
+        }];
+        compactor
+            .update_catalog(catalog_updates, vec![], txn.deref_mut())
+            .await
+            .unwrap_err();
+        txn.abort().await.unwrap();
+
+        // Since the transaction is rolled back, t3 is not yet added
+        let mut txn = catalog.catalog.start_transaction().await.unwrap();
+        let pt_count_after = txn.processed_tombstones().count().await.unwrap();
+        assert_eq!(pt_count_after, pt_count_before);
+
+        // Add new parquet and new tombstone, plus pretend this file was compacted from the first
+        // parquet file so that one should now be deleted. Should go through
+        let catalog_updates = vec![CatalogUpdate {
+            meta: meta.clone(),
+            tombstone_ids: HashSet::from([t3.id]),
+            parquet_file: other_parquet.clone(),
+        }];
+        compactor
+            .update_catalog(
+                catalog_updates,
+                vec![catalog_parquet_files[0].id],
+                txn.deref_mut(),
+            )
+            .await
+            .unwrap();
+
+        let pt_count_after = txn.processed_tombstones().count().await.unwrap();
+        let parquet_file_count_after = txn.parquet_files().count().await.unwrap();
+        assert_eq!(pt_count_after - pt_count_before, 1);
+        assert_eq!(parquet_file_count_after - parquet_file_count_before, 1);
+        let pt_count_before = pt_count_after;
+        let parquet_file_count_before = parquet_file_count_after;
+        let catalog_parquet_files = txn
+            .parquet_files()
+            .list_by_namespace_not_to_delete(namespace.id)
+            .await
+            .unwrap();
+        // There should still only be one non-deleted file because we added one new one and marked
+        // the existing one as deleted
+        assert_eq!(catalog_parquet_files.len(), 1);
+        txn.commit().await.unwrap();
+
+        // Add non-exist tombstone t4 and should fail
+        let mut txn = catalog.catalog.start_transaction().await.unwrap();
+        let mut t4 = t3.clone();
+        t4.id = TombstoneId::new(t4.id.get() + 10);
+        let catalog_updates = vec![CatalogUpdate {
+            meta: meta.clone(),
+            tombstone_ids: HashSet::from([t4.id]),
+            parquet_file: another_parquet.clone(),
+        }];
+        compactor
+            .update_catalog(catalog_updates, vec![], txn.deref_mut())
+            .await
+            .unwrap_err();
+        txn.abort().await.unwrap();
+
+        // Still same count as before
+        let mut txn = catalog.catalog.start_transaction().await.unwrap();
+        let pt_count_after = txn.processed_tombstones().count().await.unwrap();
+        let parquet_file_count_after = txn.parquet_files().count().await.unwrap();
+        assert_eq!(pt_count_after - pt_count_before, 0);
+        assert_eq!(parquet_file_count_after - parquet_file_count_before, 0);
+        txn.commit().await.unwrap();
     }
 }

@@ -10,7 +10,8 @@ use crate::{
 use data_types::{chunk_metadata::ChunkOrder, delete_predicate::DeletePredicate, job::Job};
 use lifecycle::LifecycleWriteGuard;
 use observability_deps::tracing::*;
-use query::{compute_sort_key, exec::ExecutorType, frontend::reorg::ReorgPlanner, QueryChunkMeta};
+use query::QueryChunk;
+use query::{compute_sort_key, exec::ExecutorType, frontend::reorg::ReorgPlanner};
 use std::{collections::HashSet, future::Future, sync::Arc};
 use time::Time;
 use tracker::{TaskTracker, TrackedFuture, TrackedFutureExt};
@@ -73,7 +74,7 @@ pub(crate) fn compact_chunks(
             max_order = max_order.max(chunk.order());
 
             chunk.set_compacting(&registration)?;
-            Ok(DbChunk::snapshot(&*chunk))
+            Ok(DbChunk::snapshot(&*chunk) as Arc<dyn QueryChunk>)
         })
         .collect::<Result<Vec<_>>>()?;
 

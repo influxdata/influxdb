@@ -4,10 +4,7 @@ use datafusion::logical_plan::{col, lit};
 use predicate::rpc_predicate::InfluxRpcPredicate;
 use predicate::PredicateBuilder;
 use query::{
-    exec::{
-        fieldlist::{Field, FieldList},
-        ExecutionContextProvider,
-    },
+    exec::fieldlist::{Field, FieldList},
     frontend::influxrpc::InfluxRpcPlanner,
 };
 
@@ -37,7 +34,7 @@ async fn run_field_columns_test_case<D>(
         let ctx = db.new_query_context(None);
 
         let plan = planner
-            .field_columns(db.as_ref(), predicate.clone())
+            .field_columns(db.as_query_database(), predicate.clone())
             .await
             .expect("built plan successfully");
         let fields = ctx

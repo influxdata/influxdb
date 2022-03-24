@@ -1,0 +1,44 @@
+[package]
+name = "service_grpc_influxrpc"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# Workspace dependencies, in alphabetical order
+datafusion = { path = "../datafusion" }
+data_types = { path = "../data_types" }
+generated_types = { path = "../generated_types" }
+observability_deps = { path = "../observability_deps" }
+predicate = { path = "../predicate" }
+query = { path = "../query" }
+schema = { path = "../schema" }
+service_common = { path = "../service_common" }
+
+# Crates.io dependencies, in alphabetical order
+arrow = { version = "10", features = ["prettyprint"] }
+async-trait = "0.1"
+futures = "0.3"
+prost = "0.9"
+regex = "1.5.4"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0.79"
+snafu = "0.7"
+tokio = { version = "1.17", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
+tokio-stream = { version = "0.1", features = ["net"] }
+tonic = "0.6"
+workspace-hack = { path = "../workspace-hack"}
+
+[dev-dependencies]
+# Workspace dependencies, in alphabetical order
+influxdb_storage_client = { path = "../influxdb_storage_client" }
+metric = { path = "../metric" }
+panic_logging = { path = "../panic_logging" }
+test_helpers = { path = "../test_helpers" }
+trace_http = { path = "../trace_http" }
+service_grpc_testing = { path = "../service_grpc_testing" }
+
+# Crates.io dependencies, in alphabetical order
+parking_lot = "0.12"
+serde_urlencoded = "0.7.0"

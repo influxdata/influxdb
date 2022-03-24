@@ -10,6 +10,7 @@ use async_trait::async_trait;
 use backoff::BackoffConfig;
 use data_types2::{IngesterQueryRequest, KafkaPartition, KafkaTopic, Sequencer, SequencerId};
 use db::write_buffer::metrics::{SequencerMetrics, WriteBufferIngestMetrics};
+use dml::DmlOperation;
 use futures::{
     future::{BoxFuture, Shared},
     pin_mut,
@@ -17,7 +18,9 @@ use futures::{
     FutureExt, StreamExt, TryFutureExt,
 };
 use iox_catalog::interface::Catalog;
+use metric::Attributes;
 use metric::U64Counter;
+use metric::U64Gauge;
 use object_store::DynObjectStore;
 use observability_deps::tracing::{debug, error, info, warn};
 use query::exec::Executor;
@@ -27,7 +30,7 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
-use time::SystemProvider;
+use time::{SystemProvider, TimeProvider};
 use tokio::task::{JoinError, JoinHandle};
 use tokio_util::sync::CancellationToken;
 use trace::span::SpanRecorder;
@@ -119,6 +122,7 @@ impl IngestHandlerImpl {
         write_buffer: Arc<dyn WriteBufferReading>,
         exec: Arc<Executor>,
         metric_registry: Arc<metric::Registry>,
+        time_provider: Arc<dyn TimeProvider>,
     ) -> Result<Self> {
         // build the initial ingester data state
         let mut sequencers = BTreeMap::new();
@@ -190,6 +194,7 @@ impl IngestHandlerImpl {
                 metric_registry,
                 shutdown.clone(),
                 Arc::clone(&poison_cabinet),
+                Arc::clone(&time_provider),
             ));
             join_handles.push((worker_name, shared_handle(handle)));
         }
@@ -277,6 +282,7 @@ async fn stream_in_sequenced_entries(
     metric_registry: Arc<metric::Registry>,
     shutdown: CancellationToken,
     poison_cabinet: Arc<PoisonCabinet>,
+    time_provider: Arc<dyn TimeProvider>,
 ) {
     let mut watermark_last_updated: Option<Instant> = None;
     let mut watermark = 0_u64;
@@ -296,6 +302,18 @@ async fn stream_in_sequenced_entries(
             "Duration of time ingestion has been paused by the lifecycle manager in milliseconds",
         )
         .recorder(&[]);
+
+    // using the kafka partition number to keep metrics consistent with write buffer which calls
+    // the sequencer_id the kafka partition number.
+    let sequencer_id_attr = format!("{}", kafka_partition.get());
+    let attributes = Attributes::from([
+        ("sequencer_id", sequencer_id_attr.into()),
+        ("kafka_topic", kafka_topic.clone().into()),
+    ]);
+    let time_to_be_readable_ms = metric_registry.register_metric::<U64Gauge>(
+        "ingester_ttbr_ms",
+        "Duration of time between producer writing to consumer putting into queryable cache in milliseconds",
+    ).recorder(attributes);
 
     pin_mut!(shutdown_cancelled);
     pin_mut!(poison_wait_panic);
@@ -363,7 +381,7 @@ async fn stream_in_sequenced_entries(
         let ingest_recorder = metrics.recorder(watermark);
 
         // get entry from sequencer
-        let dml_operation = match db_write_result {
+        let dml_operation: DmlOperation = match db_write_result {
             Ok(db_write) => db_write,
             // skip over invalid data in the write buffer so recovery can succeed
             Err(e) => {
@@ -411,6 +429,12 @@ async fn stream_in_sequenced_entries(
                     }
                     info!(%sequencer_id, "resuming ingest");
                 }
+
+                if let Some(ts) = dml_operation.meta().producer_ts() {
+                    if let Some(ttbr) = time_provider.now().checked_duration_since(ts) {
+                        time_to_be_readable_ms.set(ttbr.as_millis() as u64);
+                    }
+                }
             }
             Err(e) => {
                 // skip over invalid data in the write buffer so recovery can succeed
@@ -437,12 +461,13 @@ mod tests {
     use mutable_batch_lp::lines_to_batches;
     use object_store::ObjectStoreImpl;
     use std::{num::NonZeroU32, ops::DerefMut};
-    use time::Time;
+    use time::{MockProvider, Time};
     use write_buffer::mock::{MockBufferForReading, MockBufferSharedState};
 
     #[tokio::test]
     async fn read_from_write_buffer_write_to_mutable_buffer() {
-        let ingester = TestIngester::new().await;
+        let start_time = Time::from_timestamp_millis(1340);
+        let ingester = TestIngester::new(start_time).await;
 
         let schema = NamespaceSchema::new(
             ingester.namespace.id,
@@ -612,11 +637,30 @@ mod tests {
             .unwrap()
             .fetch();
         assert_eq!(observation, ingest_ts2.timestamp_nanos() as u64);
+
+        let observation = ingester
+            .metrics
+            .get_instrument::<Metric<U64Gauge>>("ingester_ttbr_ms")
+            .unwrap()
+            .get_observer(&Attributes::from(&[
+                ("kafka_topic", "whatevs"),
+                ("sequencer_id", "0"),
+            ]))
+            .unwrap()
+            .fetch();
+        assert_eq!(
+            observation,
+            (start_time.timestamp_nanos() as u64 - ingest_ts2.timestamp_nanos() as u64)
+                / 1000
+                / 1000
+        );
     }
 
     #[tokio::test]
     async fn test_shutdown() {
-        let ingester = TestIngester::new().await.ingester;
+        let ingester = TestIngester::new(Time::from_timestamp_millis(10000))
+            .await
+            .ingester;
 
         // does not exit w/o shutdown
         tokio::select! {
@@ -634,7 +678,9 @@ mod tests {
     #[tokio::test]
     #[should_panic(expected = "Background worker 'lifecycle manager' exited early!")]
     async fn test_supervise_lifecycle_manager_early_exit() {
-        let ingester = TestIngester::new().await.ingester;
+        let ingester = TestIngester::new(Time::from_timestamp_millis(10000))
+            .await
+            .ingester;
         ingester.poison_cabinet.add(PoisonPill::LifecycleExit);
         tokio::time::timeout(Duration::from_millis(1000), ingester.join())
             .await
@@ -644,7 +690,9 @@ mod tests {
     #[tokio::test]
     #[should_panic(expected = "JoinError::Panic")]
     async fn test_supervise_lifecycle_manager_panic() {
-        let ingester = TestIngester::new().await.ingester;
+        let ingester = TestIngester::new(Time::from_timestamp_millis(10000))
+            .await
+            .ingester;
         ingester.poison_cabinet.add(PoisonPill::LifecyclePanic);
         tokio::time::timeout(Duration::from_millis(1000), ingester.join())
             .await
@@ -654,7 +702,7 @@ mod tests {
     #[tokio::test]
     #[should_panic(expected = "Background worker 'stream handler for partition 0' exited early!")]
     async fn test_supervise_stream_early_exit() {
-        let ingester = TestIngester::new().await;
+        let ingester = TestIngester::new(Time::from_timestamp_millis(10000)).await;
         ingester
             .ingester
             .poison_cabinet
@@ -667,7 +715,7 @@ mod tests {
     #[tokio::test]
     #[should_panic(expected = "JoinError::Panic")]
     async fn test_supervise_stream_panic() {
-        let ingester = TestIngester::new().await;
+        let ingester = TestIngester::new(Time::from_timestamp_millis(10000)).await;
         ingester
             .ingester
             .poison_cabinet
@@ -751,6 +799,7 @@ mod tests {
             reading,
             Arc::new(Executor::new(1)),
             Arc::clone(&metrics),
+            Arc::new(SystemProvider::new()),
         )
         .await
         .unwrap();
@@ -806,7 +855,7 @@ mod tests {
     }
 
     impl TestIngester {
-        async fn new() -> Self {
+        async fn new(start_time: Time) -> Self {
             let metrics: Arc<metric::Registry> = Default::default();
             let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
 
@@ -835,6 +884,8 @@ mod tests {
                 Arc::new(MockBufferForReading::new(write_buffer_state.clone(), None).unwrap());
             let object_store = Arc::new(ObjectStoreImpl::new_in_memory());
 
+            let time_provider = Arc::new(MockProvider::new(start_time));
+
             let lifecycle_config = LifecycleConfig::new(
                 1000000,
                 1000,
@@ -851,6 +902,7 @@ mod tests {
                 reading,
                 Arc::new(Executor::new(1)),
                 Arc::clone(&metrics),
+                time_provider,
             )
             .await
             .unwrap();

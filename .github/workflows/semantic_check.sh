@@ -16,7 +16,7 @@
 set -e -o pipefail
 
 shopt -s nocasematch
-semantic_pattern='^(Merge .*branch '\''.+'\'' into|(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([^)]+\))?: +[^ ])'
+semantic_pattern='^(Merge .*branch '\''.+'\'' into|Revert ".+"|(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([^)]+\))?: +[^ ])'
 
 if [[ $1 == "test" ]]; then
   exit_code=0
@@ -25,6 +25,7 @@ if [[ $1 == "test" ]]; then
   expect_ok="chore: foo
 chore(hello): foo
 CHORE: foo
+Revert \"fix: certain this fix is correct!\"
 Merge remote-tracking branch 'origin/main' into alamb/update_df_101
 Merge branch 'main' into foo"
   while read -r s; do
@@ -41,6 +42,7 @@ chore : foo
 chore:
 chore:
 chore:foo
+Revert my thing
 Merge this is not a legit merge
 "
   while read -r s; do

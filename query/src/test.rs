@@ -3,12 +3,12 @@
 //!
 //! AKA it is a Mock
 
-use crate::exec::{ExecutionContextProvider, Executor, ExecutorType, IOxExecutionContext};
+use crate::exec::{ExecutionContextProvider, Executor, ExecutorType, IOxSessionContext};
 use crate::{
     exec::stringset::{StringSet, StringSetRef},
     Predicate, PredicateMatch, QueryChunk, QueryChunkMeta, QueryDatabase,
 };
-use crate::{QueryCompletedToken, QueryText};
+use crate::{QueryChunkError, QueryCompletedToken, QueryText};
 use arrow::array::UInt64Array;
 use arrow::{
     array::{ArrayRef, DictionaryArray, Int64Array, StringArray, TimestampNanosecondArray},
@@ -32,7 +32,6 @@ use schema::selection::Selection;
 use schema::{
     builder::SchemaBuilder, merge::SchemaMerger, sort::SortKey, InfluxColumnType, Schema,
 };
-use snafu::Snafu;
 use std::num::NonZeroU64;
 use std::{collections::BTreeMap, fmt, sync::Arc};
 use trace::ctx::SpanContext;
@@ -51,19 +50,6 @@ pub struct TestDatabase {
     /// The predicate passed to the most recent call to `chunks()`
     chunks_predicate: Mutex<Predicate>,
 }
-
-#[derive(Snafu, Debug)]
-pub enum TestError {
-    #[snafu(display("Test database error: {}", message))]
-    General { message: String },
-
-    #[snafu(display("Test error writing to database: {}", source))]
-    DatabaseWrite {
-        source: Box<dyn std::error::Error + Send + Sync + 'static>,
-    },
-}
-
-pub type Result<T, E = TestError> = std::result::Result<T, E>;
 
 impl TestDatabase {
     pub fn new(executor: Arc<Executor>) -> Self {
@@ -116,9 +102,7 @@ impl TestDatabase {
 
 #[async_trait]
 impl QueryDatabase for TestDatabase {
-    type Chunk = TestChunk;
-
-    async fn chunks(&self, table_name: &str, predicate: &Predicate) -> Vec<Arc<Self::Chunk>> {
+    async fn chunks(&self, table_name: &str, predicate: &Predicate) -> Vec<Arc<dyn QueryChunk>> {
         // save last predicate
         *self.chunks_predicate.lock() = predicate.clone();
 
@@ -127,17 +111,21 @@ impl QueryDatabase for TestDatabase {
             .values()
             .flat_map(|x| x.values())
             .filter(|x| x.table_name == table_name)
-            .cloned()
+            .map(|x| Arc::clone(x) as _)
             .collect()
     }
 
     fn record_query(
         &self,
-        _ctx: &IOxExecutionContext,
-        _query_type: impl Into<String>,
+        _ctx: &IOxSessionContext,
+        _query_type: &str,
         _query_text: QueryText,
     ) -> QueryCompletedToken {
         QueryCompletedToken::new(|_| {})
+    }
+
+    fn as_meta(&self) -> &dyn QueryDatabaseMeta {
+        self
     }
 }
 
@@ -173,7 +161,7 @@ impl QueryDatabaseMeta for TestDatabase {
 }
 
 impl ExecutionContextProvider for TestDatabase {
-    fn new_query_context(self: &Arc<Self>, span_ctx: Option<SpanContext>) -> IOxExecutionContext {
+    fn new_query_context(&self, span_ctx: Option<SpanContext>) -> IOxSessionContext {
         // Note: unlike Db this does not register a catalog provider
         self.executor
             .new_execution_config(ExecutorType::Query)
@@ -316,9 +304,9 @@ impl TestChunk {
     }
 
     /// Checks the saved error, and returns it if any, otherwise returns OK
-    fn check_error(&self) -> Result<()> {
+    fn check_error(&self) -> Result<(), QueryChunkError> {
         if let Some(message) = self.saved_error.as_ref() {
-            GeneralSnafu { message }.fail()
+            Err(message.clone().into())
         } else {
             Ok(())
         }
@@ -874,8 +862,6 @@ impl fmt::Display for TestChunk {
 }
 
 impl QueryChunk for TestChunk {
-    type Error = TestError;
-
     fn id(&self) -> ChunkId {
         self.id
     }
@@ -899,10 +885,10 @@ impl QueryChunk for TestChunk {
 
     fn read_filter(
         &self,
-        _ctx: IOxExecutionContext,
+        _ctx: IOxSessionContext,
         predicate: &Predicate,
         _selection: Selection<'_>,
-    ) -> Result<SendableRecordBatchStream, Self::Error> {
+    ) -> Result<SendableRecordBatchStream, QueryChunkError> {
         self.check_error()?;
 
         // save the predicate
@@ -916,7 +902,10 @@ impl QueryChunk for TestChunk {
         "Test Chunk"
     }
 
-    fn apply_predicate_to_metadata(&self, predicate: &Predicate) -> Result<PredicateMatch> {
+    fn apply_predicate_to_metadata(
+        &self,
+        predicate: &Predicate,
+    ) -> Result<PredicateMatch, QueryChunkError> {
         self.check_error()?;
 
         // save the predicate
@@ -932,20 +921,20 @@ impl QueryChunk for TestChunk {
 
     fn column_values(
         &self,
-        _ctx: IOxExecutionContext,
+        _ctx: IOxSessionContext,
         _column_name: &str,
         _predicate: &Predicate,
-    ) -> Result<Option<StringSet>, Self::Error> {
+    ) -> Result<Option<StringSet>, QueryChunkError> {
         // Model not being able to get column values from metadata
         Ok(None)
     }
 
     fn column_names(
         &self,
-        _ctx: IOxExecutionContext,
+        _ctx: IOxSessionContext,
         predicate: &Predicate,
         selection: Selection<'_>,
-    ) -> Result<Option<StringSet>, Self::Error> {
+    ) -> Result<Option<StringSet>, QueryChunkError> {
         self.check_error()?;
 
         // save the predicate
@@ -988,13 +977,13 @@ impl QueryChunkMeta for TestChunk {
 }
 
 /// Return the raw data from the list of chunks
-pub async fn raw_data(chunks: &[Arc<TestChunk>]) -> Vec<RecordBatch> {
+pub async fn raw_data(chunks: &[Arc<dyn QueryChunk>]) -> Vec<RecordBatch> {
     let mut batches = vec![];
     for c in chunks {
         let pred = Predicate::default();
         let selection = Selection::All;
         let mut stream = c
-            .read_filter(IOxExecutionContext::default(), &pred, selection)
+            .read_filter(IOxSessionContext::default(), &pred, selection)
             .expect("Error in read_filter");
         while let Some(b) = stream.next().await {
             let b = b.expect("Error in stream");

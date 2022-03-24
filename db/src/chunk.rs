@@ -16,7 +16,8 @@ use observability_deps::tracing::debug;
 use parquet_file::chunk::ParquetChunk;
 use partition_metadata::TableSummary;
 use predicate::{Predicate, PredicateMatch};
-use query::exec::IOxExecutionContext;
+use query::exec::IOxSessionContext;
+use query::QueryChunkError;
 use query::{exec::stringset::StringSet, QueryChunk, QueryChunkMeta};
 use read_buffer::RBChunk;
 use schema::InfluxColumnType;
@@ -290,8 +291,6 @@ impl DbChunk {
 }
 
 impl QueryChunk for DbChunk {
-    type Error = Error;
-
     fn id(&self) -> ChunkId {
         self.addr.chunk_id
     }
@@ -313,7 +312,10 @@ impl QueryChunk for DbChunk {
         matches!(self.state, State::MutableBuffer { .. })
     }
 
-    fn apply_predicate_to_metadata(&self, predicate: &Predicate) -> Result<PredicateMatch> {
+    fn apply_predicate_to_metadata(
+        &self,
+        predicate: &Predicate,
+    ) -> Result<PredicateMatch, QueryChunkError> {
         let pred_result = match &self.state {
             State::MutableBuffer { chunk, .. } => {
                 if predicate.has_exprs() || chunk.has_timerange(&predicate.range) {
@@ -370,10 +372,10 @@ impl QueryChunk for DbChunk {
 
     fn read_filter(
         &self,
-        mut ctx: IOxExecutionContext,
+        mut ctx: IOxSessionContext,
         predicate: &Predicate,
         selection: Selection<'_>,
-    ) -> Result<SendableRecordBatchStream, Self::Error> {
+    ) -> Result<SendableRecordBatchStream, QueryChunkError> {
         // Predicate is not required to be applied for correctness. We only pushed it down
         // when possible for performance gain
 
@@ -451,16 +453,17 @@ impl QueryChunk for DbChunk {
                     .context(ParquetFileChunkSnafu {
                         chunk_id: self.id(),
                     })
+                    .map_err(|e| Box::new(e) as _)
             }
         }
     }
 
     fn column_names(
         &self,
-        mut ctx: IOxExecutionContext,
+        mut ctx: IOxSessionContext,
         predicate: &Predicate,
         columns: Selection<'_>,
-    ) -> Result<Option<StringSet>, Self::Error> {
+    ) -> Result<Option<StringSet>, QueryChunkError> {
         ctx.set_metadata("storage", self.state.state_name());
         ctx.set_metadata("projection", format!("{}", columns));
         ctx.set_metadata("predicate", format!("{}", &predicate));
@@ -510,10 +513,10 @@ impl QueryChunk for DbChunk {
 
     fn column_values(
         &self,
-        mut ctx: IOxExecutionContext,
+        mut ctx: IOxSessionContext,
         column_name: &str,
         predicate: &Predicate,
-    ) -> Result<Option<StringSet>, Self::Error> {
+    ) -> Result<Option<StringSet>, QueryChunkError> {
         ctx.set_metadata("storage", self.state.state_name());
         ctx.set_metadata("column_name", column_name.to_string());
         ctx.set_metadata("predicate", format!("{}", &predicate));
@@ -625,7 +628,7 @@ mod tests {
         let t1 = time.inc(Duration::from_secs(1));
         snapshot
             .read_filter(
-                IOxExecutionContext::default(),
+                IOxSessionContext::default(),
                 &Default::default(),
                 Selection::All,
             )
@@ -635,7 +638,7 @@ mod tests {
         let t2 = time.inc(Duration::from_secs(1));
         let column_names = snapshot
             .column_names(
-                IOxExecutionContext::default(),
+                IOxSessionContext::default(),
                 &Default::default(),
                 Selection::All,
             )
@@ -645,7 +648,7 @@ mod tests {
 
         let t3 = time.inc(Duration::from_secs(1));
         let column_values = snapshot
-            .column_values(IOxExecutionContext::default(), "tag", &Default::default())
+            .column_values(IOxSessionContext::default(), "tag", &Default::default())
             .unwrap()
             .is_some();
         let m5 = chunk.access_recorder().get_metrics();

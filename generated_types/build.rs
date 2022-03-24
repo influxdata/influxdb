@@ -25,6 +25,7 @@ fn main() -> Result<()> {
 /// - `influxdata.iox.preserved_catalog.v1.rs`
 /// - `influxdata.iox.remote.v1.rs`
 /// - `influxdata.iox.router.v1.rs`
+/// - `influxdata.iox.schema.v1.rs`
 /// - `influxdata.iox.write.v1.rs`
 /// - `influxdata.iox.write_buffer.v1.rs`
 /// - `influxdata.platform.storage.rs`
@@ -37,6 +38,7 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
     let preserved_catalog_path = root.join("influxdata/iox/preserved_catalog/v1");
     let remote_path = root.join("influxdata/iox/remote/v1");
     let router_path = root.join("influxdata/iox/router/v1");
+    let schema_path = root.join("influxdata/iox/schema/v1");
     let storage_path = root.join("influxdata/platform/storage");
     let write_buffer_path = root.join("influxdata/iox/write_buffer/v1");
 
@@ -65,6 +67,7 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
         router_path.join("router.proto"),
         router_path.join("service.proto"),
         router_path.join("shard.proto"),
+        schema_path.join("service.proto"),
         storage_path.join("predicate.proto"),
         storage_path.join("service.proto"),
         storage_path.join("source.proto"),

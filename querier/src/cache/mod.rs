@@ -1,3 +1,4 @@
+//! Caches used by the querier.
 use backoff::BackoffConfig;
 use iox_catalog::interface::Catalog;
 use std::sync::Arc;
@@ -41,7 +42,11 @@ impl CatalogCache {
         let backoff_config = BackoffConfig::default();
 
         let namespace_cache = NamespaceCache::new(Arc::clone(&catalog), backoff_config.clone());
-        let table_cache = TableCache::new(Arc::clone(&catalog), backoff_config.clone());
+        let table_cache = TableCache::new(
+            Arc::clone(&catalog),
+            backoff_config.clone(),
+            Arc::clone(&time_provider),
+        );
         let partition_cache = PartitionCache::new(Arc::clone(&catalog), backoff_config.clone());
         let processed_tombstones =
             ProcessedTombstonesCache::new(Arc::clone(&catalog), backoff_config, time_provider);

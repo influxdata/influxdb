@@ -32,7 +32,7 @@ use parquet_file::{
     storage::Storage,
 };
 use persistence_windows::checkpoint::{DatabaseCheckpoint, PartitionCheckpoint};
-use query::{compute_sort_key, exec::ExecutorType, frontend::reorg::ReorgPlanner, QueryChunkMeta};
+use query::{compute_sort_key, exec::ExecutorType, frontend::reorg::ReorgPlanner, QueryChunk};
 use schema::sort::SortKey;
 use schema::Schema;
 use snafu::{OptionExt, ResultExt};
@@ -281,7 +281,7 @@ fn mark_chunks_to_compact(
             // Get the parquet dbchunk snapshot and also keep its file path to remove later
             let dbchunk = DbChunk::parquet_file_snapshot(&*chunk);
             compacted_parquet_file_paths.push(dbchunk.object_store_path().unwrap().clone());
-            Ok(dbchunk)
+            Ok(dbchunk as Arc<dyn QueryChunk>)
         })
         .collect::<Result<Vec<_>>>()?;
 
@@ -322,7 +322,7 @@ struct CompactingOsChunks {
     input_rows: u64,
     delete_predicates: HashSet<Arc<DeletePredicate>>,
     compacted_parquet_file_paths: Vec<ParquetFilePath>,
-    os_chunks: Vec<Arc<DbChunk>>,
+    os_chunks: Vec<Arc<dyn QueryChunk>>,
     max_order: ChunkOrder,
     database_checkpoint: DatabaseCheckpoint,
     partition_checkpoint: PartitionCheckpoint,
@@ -335,7 +335,7 @@ struct CompactingOsChunks {
 ///        Deleted and duplicated data will be eliminated during the scan
 ///    . Output schema of the compact plan
 ///    . Sort Key of the output data
-async fn compact_chunks(db: &Db, query_chunks: &[Arc<DbChunk>]) -> Result<CompactedStream> {
+async fn compact_chunks(db: &Db, query_chunks: &[Arc<dyn QueryChunk>]) -> Result<CompactedStream> {
     // Tracking metric
     let ctx = db.exec.new_context(ExecutorType::Reorg);
 

@@ -167,8 +167,8 @@ enum TransactionFileSuffix {
 impl TransactionFileSuffix {
     fn as_str(&self) -> &'static str {
         match self {
-            TransactionFileSuffix::Transaction => TRANSACTION_FILE_SUFFIX,
-            TransactionFileSuffix::Checkpoint => CHECKPOINT_FILE_SUFFIX,
+            Self::Transaction => TRANSACTION_FILE_SUFFIX,
+            Self::Checkpoint => CHECKPOINT_FILE_SUFFIX,
         }
     }
 }

@@ -691,7 +691,7 @@ mod test {
         inputs: Vec<RecordBatch>,
     ) -> Vec<String> {
         let provider = MemTable::try_new(Arc::clone(&schema), vec![inputs]).unwrap();
-        let mut ctx = ExecutionContext::new();
+        let mut ctx = SessionContext::new();
         ctx.register_table("t", Arc::new(provider)).unwrap();
 
         let df = ctx.table("t").unwrap();

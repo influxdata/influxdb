@@ -24,15 +24,13 @@ use observability_deps::tracing::{debug, error};
 use serde::Deserialize;
 use snafu::{OptionExt, ResultExt, Snafu};
 
-use crate::{
-    http::{
-        dml::{HttpDrivenDml, InnerDmlError, RequestOrResponse},
-        error::{HttpApiError, HttpApiErrorExt, HttpApiErrorSource},
-        metrics::LineProtocolMetrics,
-    },
-    planner::Planner,
+use crate::http::{
+    dml::{HttpDrivenDml, InnerDmlError, RequestOrResponse},
+    error::{HttpApiError, HttpApiErrorExt, HttpApiErrorSource},
+    metrics::LineProtocolMetrics,
 };
 use dml::DmlOperation;
+use service_common::planner::Planner;
 use std::{
     fmt::Debug,
     str::{self, FromStr},
@@ -97,7 +95,9 @@ pub enum ApplicationError {
     },
 
     #[snafu(display("Error while planning query: {}", source))]
-    Planning { source: crate::planner::Error },
+    Planning {
+        source: service_common::planner::Error,
+    },
 
     #[snafu(display("Server id not set"))]
     ServerIdNotSet,

@@ -1,0 +1,26 @@
+[package]
+name = "service_grpc_flight"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# Workspace dependencies, in alphabetical order
+data_types = { path = "../data_types" }
+datafusion = { path = "../datafusion" }
+observability_deps = { path = "../observability_deps" }
+query = { path = "../query" }
+service_common = { path = "../service_common" }
+
+# Crates.io dependencies, in alphabetical order
+arrow = { version = "10", features = ["prettyprint"] }
+arrow-flight = "10"
+futures = "0.3"
+pin-project = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0.79"
+snafu = "0.7"
+tokio = { version = "1.17", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
+tonic = "0.6"
+workspace-hack = { path = "../workspace-hack"}

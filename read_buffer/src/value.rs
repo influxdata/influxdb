@@ -1179,24 +1179,24 @@ impl OwnedValue {
 
     pub fn as_string(&self) -> Option<String> {
         match self {
-            OwnedValue::Null => None,
-            OwnedValue::String(s) => Some(s.clone()),
+            Self::Null => None,
+            Self::String(s) => Some(s.clone()),
             v => panic!("{:?} cannot be unwrapped as string", v),
         }
     }
 
     pub fn as_byte_array(&self) -> Option<Vec<u8>> {
         match self {
-            OwnedValue::Null => None,
-            OwnedValue::ByteArray(arr) => Some(arr.clone()),
+            Self::Null => None,
+            Self::ByteArray(arr) => Some(arr.clone()),
             v => panic!("{:?} cannot be unwrapped as byte array", v),
         }
     }
 
     pub fn as_bool(&self) -> Option<bool> {
         match self {
-            OwnedValue::Null => None,
-            OwnedValue::Boolean(b) => Some(*b),
+            Self::Null => None,
+            Self::Boolean(b) => Some(*b),
             v => panic!("{:?} cannot be unwrapped as string", v),
         }
     }
@@ -1237,8 +1237,8 @@ macro_rules! owned_value_as_impls {
             impl OwnedValue {
                 pub fn $name(&self) -> Option<$type> {
                     match self {
-                        OwnedValue::Null => None,
-                        OwnedValue::Scalar(s) => {
+                        Self::Null => None,
+                        Self::Scalar(s) => {
                             (!s.is_null()).then(|| s.$name())
                         }
                         v => panic!("{:?} cannot be unwrapped as {:?}", v, stringify!($type)),

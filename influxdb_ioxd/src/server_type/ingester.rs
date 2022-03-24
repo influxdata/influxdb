@@ -27,6 +27,7 @@ use crate::{
 };
 use ingester::handler::IngestHandler;
 use thiserror::Error;
+use time::SystemProvider;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -187,6 +188,7 @@ pub async fn create_ingester_server_type(
             write_buffer,
             exec,
             Arc::clone(&metric_registry),
+            Arc::new(SystemProvider::new()),
         )
         .await?,
     );

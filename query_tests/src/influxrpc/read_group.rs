@@ -16,9 +16,7 @@ use datafusion::{
 };
 use predicate::rpc_predicate::InfluxRpcPredicate;
 use predicate::PredicateBuilder;
-use query::{
-    exec::ExecutionContextProvider, frontend::influxrpc::InfluxRpcPlanner, group_by::Aggregate,
-};
+use query::{frontend::influxrpc::InfluxRpcPlanner, group_by::Aggregate};
 
 /// runs read_group(predicate) and compares it to the expected
 /// output
@@ -43,7 +41,12 @@ async fn run_read_group_test_case<D>(
         let ctx = db.new_query_context(None);
 
         let plans = planner
-            .read_group(db.as_ref(), predicate.clone(), agg, &group_columns)
+            .read_group(
+                db.as_query_database(),
+                predicate.clone(),
+                agg,
+                &group_columns,
+            )
             .await
             .expect("built plan successfully");
 

@@ -11,6 +11,7 @@ use hashbrown::HashMap;
 use hyper::{header::CONTENT_ENCODING, Body, Method, Request, Response, StatusCode};
 use metric::U64Counter;
 use mutable_batch::MutableBatch;
+use mutable_batch_lp::LinesConverter;
 use observability_deps::tracing::*;
 use predicate::delete_predicate::{parse_delete_predicate, parse_http_delete_request};
 use serde::Deserialize;
@@ -111,7 +112,7 @@ pub enum OrgBucketError {
     NotSpecified,
 
     /// The request contains invalid parameters.
-    #[error("failed to deserialise org/bucket in request: {0}")]
+    #[error("failed to deserialise org/bucket/precision in request: {0}")]
     DecodeFail(#[from] serde::de::value::Error),
 
     /// The provided org/bucket could not be converted into a database name.
@@ -120,18 +121,51 @@ pub enum OrgBucketError {
 }
 
 #[derive(Debug, Deserialize)]
-/// Org & bucket identifiers for a DML operation.
-pub struct OrgBucketInfo {
-    org: String,
-    bucket: String,
+enum Precision {
+    #[serde(rename = "s")]
+    Seconds,
+    #[serde(rename = "ms")]
+    Milliseconds,
+    #[serde(rename = "us")]
+    Microseconds,
+    #[serde(rename = "ns")]
+    Nanoseconds,
 }
 
-impl<T> TryFrom<&Request<T>> for OrgBucketInfo {
+impl Default for Precision {
+    fn default() -> Self {
+        Self::Nanoseconds
+    }
+}
+
+impl Precision {
+    /// Returns the multiplier to convert to nanosecond timestamps
+    fn timestamp_base(&self) -> i64 {
+        match self {
+            Precision::Seconds => 1_000_000_000,
+            Precision::Milliseconds => 1_000_000,
+            Precision::Microseconds => 1_000,
+            Precision::Nanoseconds => 1,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+/// Org & bucket identifiers for a DML operation.
+pub struct WriteInfo {
+    org: String,
+    bucket: String,
+
+    #[serde(default)]
+    precision: Precision,
+}
+
+impl<T> TryFrom<&Request<T>> for WriteInfo {
     type Error = OrgBucketError;
 
     fn try_from(req: &Request<T>) -> Result<Self, Self::Error> {
         let query = req.uri().query().ok_or(OrgBucketError::NotSpecified)?;
-        let got: OrgBucketInfo = serde_urlencoded::from_str(query)?;
+        let got: WriteInfo = serde_urlencoded::from_str(query)?;
 
         // An empty org or bucket is not acceptable.
         if got.org.is_empty() || got.bucket.is_empty() {
@@ -231,11 +265,11 @@ where
     async fn write_handler(&self, req: Request<Body>) -> Result<(), Error> {
         let span_ctx: Option<SpanContext> = req.extensions().get().cloned();
 
-        let account = OrgBucketInfo::try_from(&req)?;
-        let namespace = org_and_bucket_to_database(&account.org, &account.bucket)
+        let write_info = WriteInfo::try_from(&req)?;
+        let namespace = org_and_bucket_to_database(&write_info.org, &write_info.bucket)
             .map_err(OrgBucketError::MappingFail)?;
 
-        trace!(org=%account.org, bucket=%account.bucket, %namespace, "processing write request");
+        trace!(org=%write_info.org, bucket=%write_info.bucket, %namespace, "processing write request");
 
         // Read the HTTP body and convert it to a str.
         let body = self.read_body(req).await?;
@@ -245,7 +279,9 @@ where
         // contain a timestamp
         let default_time = self.time_provider.now().timestamp_nanos();
 
-        let (batches, stats) = match mutable_batch_lp::lines_to_batches_stats(body, default_time) {
+        let mut converter = LinesConverter::new(default_time);
+        converter.set_timestamp_base(write_info.precision.timestamp_base());
+        let (batches, stats) = match converter.write_lp(body).and_then(|_| converter.finish()) {
             Ok(v) => v,
             Err(mutable_batch_lp::Error::EmptyPayload) => {
                 debug!("nothing to write");
@@ -259,10 +295,11 @@ where
             num_lines=stats.num_lines,
             num_fields=stats.num_fields,
             num_tables,
+            precision=?write_info.precision,
             body_size=body.len(),
             %namespace,
-            org=%account.org,
-            bucket=%account.bucket,
+            org=%write_info.org,
+            bucket=%write_info.bucket,
             "routing write",
         );
 
@@ -282,7 +319,7 @@ where
     async fn delete_handler(&self, req: Request<Body>) -> Result<(), Error> {
         let span_ctx: Option<SpanContext> = req.extensions().get().cloned();
 
-        let account = OrgBucketInfo::try_from(&req)?;
+        let account = WriteInfo::try_from(&req)?;
         let namespace = org_and_bucket_to_database(&account.org, &account.bucket)
             .map_err(OrgBucketError::MappingFail)?;
 
@@ -592,6 +629,76 @@ mod tests {
         want_dml_calls = [MockDmlHandlerCall::Write{namespace, ..}] => {
             assert_eq!(namespace, "bananas_test");
         }
+    );
+
+    test_write_handler!(
+        ok_precision_s,
+        query_string = "?org=bananas&bucket=test&precision=s",
+        body = "platanos,tag1=A,tag2=B val=42i 1647622847".as_bytes(),
+        dml_handler = [Ok(())],
+        want_result = Ok(_),
+        want_dml_calls = [MockDmlHandlerCall::Write{namespace, write_input}] => {
+            assert_eq!(namespace, "bananas_test");
+
+            let table = write_input.get("platanos").expect("table not found");
+            let ts = table.timestamp_summary().expect("no timestamp summary");
+            assert_eq!(Some(1647622847000000000), ts.stats.min);
+        }
+    );
+
+    test_write_handler!(
+        ok_precision_ms,
+        query_string = "?org=bananas&bucket=test&precision=ms",
+        body = "platanos,tag1=A,tag2=B val=42i 1647622847000".as_bytes(),
+        dml_handler = [Ok(())],
+        want_result = Ok(_),
+        want_dml_calls = [MockDmlHandlerCall::Write{namespace, write_input}] => {
+            assert_eq!(namespace, "bananas_test");
+
+            let table = write_input.get("platanos").expect("table not found");
+            let ts = table.timestamp_summary().expect("no timestamp summary");
+            assert_eq!(Some(1647622847000000000), ts.stats.min);
+        }
+    );
+
+    test_write_handler!(
+        ok_precision_us,
+        query_string = "?org=bananas&bucket=test&precision=us",
+        body = "platanos,tag1=A,tag2=B val=42i 1647622847000000".as_bytes(),
+        dml_handler = [Ok(())],
+        want_result = Ok(_),
+        want_dml_calls = [MockDmlHandlerCall::Write{namespace, write_input}] => {
+            assert_eq!(namespace, "bananas_test");
+
+            let table = write_input.get("platanos").expect("table not found");
+            let ts = table.timestamp_summary().expect("no timestamp summary");
+            assert_eq!(Some(1647622847000000000), ts.stats.min);
+        }
+    );
+
+    test_write_handler!(
+        ok_precision_ns,
+        query_string = "?org=bananas&bucket=test&precision=ns",
+        body = "platanos,tag1=A,tag2=B val=42i 1647622847000000000".as_bytes(),
+        dml_handler = [Ok(())],
+        want_result = Ok(_),
+        want_dml_calls = [MockDmlHandlerCall::Write{namespace, write_input}] => {
+            assert_eq!(namespace, "bananas_test");
+
+            let table = write_input.get("platanos").expect("table not found");
+            let ts = table.timestamp_summary().expect("no timestamp summary");
+            assert_eq!(Some(1647622847000000000), ts.stats.min);
+        }
+    );
+
+    test_write_handler!(
+        precision_overflow,
+        // SECONDS, so multiplies the provided timestamp by 1,000,000,000
+        query_string = "?org=bananas&bucket=test&precision=s",
+        body = "platanos,tag1=A,tag2=B val=42i 1647622847000000000".as_bytes(),
+        dml_handler = [Ok(())],
+        want_result = Err(Error::ParseLineProtocol(_)),
+        want_dml_calls = []
     );
 
     test_write_handler!(

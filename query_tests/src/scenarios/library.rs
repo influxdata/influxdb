@@ -1,7 +1,4 @@
 //! Library of test scenarios that can be used in query_tests
-
-use std::sync::Arc;
-
 use async_trait::async_trait;
 use data_types::{
     delete_predicate::{DeleteExpr, DeletePredicate},
@@ -16,12 +13,10 @@ use db::{
 };
 use query::QueryChunk;
 
-use crate::db::AbstractDb;
-
 use super::{
     util::{
-        all_scenarios_for_one_chunk, make_one_chunk_mub_scenario, make_one_chunk_rub_scenario,
-        make_one_rub_or_parquet_chunk_scenario, make_two_chunk_scenarios, rollover_and_load,
+        all_scenarios_for_one_chunk, make_one_rub_or_parquet_chunk_scenario,
+        make_two_chunk_scenarios, rollover_and_load,
     },
     DbScenario, DbSetup,
 };
@@ -97,7 +92,6 @@ impl DbSetup for ChunkOrder {
         //
         // So the query engine must use `order` as a primary key to sort chunks, NOT `id`.
 
-        let db = Arc::new(AbstractDb::create_old(db));
         let scenario = DbScenario {
             scenario_name: "chunks where chunk ID alone cannot be used for ordering".into(),
             db,
@@ -137,7 +131,6 @@ impl DbSetup for NoData {
         // Scenario 1: No data in the DB yet
         //
         let db = make_db().await.db;
-        let db = Arc::new(AbstractDb::create_old(db));
         let scenario1 = DbScenario {
             scenario_name: "New, Empty Database".into(),
             db,
@@ -150,7 +143,6 @@ impl DbSetup for NoData {
         assert_eq!(count_mutable_buffer_chunks(&db), 0);
         assert_eq!(count_read_buffer_chunks(&db), 0);
         assert_eq!(count_object_store_chunks(&db), 0);
-        let db = Arc::new(AbstractDb::create_old(db));
         let scenario2 = DbScenario {
             scenario_name: "New, Empty Database after partitions are listed".into(),
             db,
@@ -189,7 +181,6 @@ impl DbSetup for NoData {
         assert_eq!(count_read_buffer_chunks(&db), 0); // nothing after dropping chunk 0
         assert_eq!(count_object_store_chunks(&db), 0); // still nothing
 
-        let db = Arc::new(AbstractDb::create_old(db));
         let scenario3 = DbScenario {
             scenario_name: "Empty Database after drop chunk that is in read buffer".into(),
             db,
@@ -236,7 +227,6 @@ impl DbSetup for NoData {
         assert_eq!(count_read_buffer_chunks(&db), 0);
         assert_eq!(count_object_store_chunks(&db), 0);
 
-        let db = Arc::new(AbstractDb::create_old(db));
         let scenario4 = DbScenario {
             scenario_name:
                 "Empty Database after drop chunk that is in both read buffer and object store"
@@ -383,40 +373,6 @@ impl DbSetup for OneMeasurementManyNullTagsWithDeleteAll {
     }
 }
 
-/// Two measurements data in a single mutable buffer chunk
-#[derive(Debug)]
-pub struct TwoMeasurementsMubScenario {}
-#[async_trait]
-impl DbSetup for TwoMeasurementsMubScenario {
-    async fn make(&self) -> Vec<DbScenario> {
-        let lp_lines = vec![
-            "cpu,region=west user=23.2 100",
-            "cpu,region=west user=21.0 150",
-            "disk,region=east bytes=99i 200",
-        ];
-
-        make_one_chunk_mub_scenario(&lp_lines.join("\n")).await
-    }
-}
-
-/// Two measurements data in a single read buffer chunk
-#[derive(Debug)]
-pub struct TwoMeasurementsRubScenario {}
-#[async_trait]
-impl DbSetup for TwoMeasurementsRubScenario {
-    async fn make(&self) -> Vec<DbScenario> {
-        let partition_key = "1970-01-01T00";
-
-        let lp_lines = vec![
-            "cpu,region=west user=23.2 100",
-            "cpu,region=west user=21.0 150",
-            "disk,region=east bytes=99i 200",
-        ];
-
-        make_one_chunk_rub_scenario(partition_key, &lp_lines.join("\n")).await
-    }
-}
-
 /// Two measurements data in different chunk scenarios
 #[derive(Debug)]
 pub struct TwoMeasurements {}
@@ -514,22 +470,6 @@ impl DbSetup for TwoMeasurementsWithDeleteAll {
 }
 
 #[derive(Debug)]
-pub struct TwoMeasurementsUnsignedTypeMubScenario {}
-#[async_trait]
-impl DbSetup for TwoMeasurementsUnsignedTypeMubScenario {
-    async fn make(&self) -> Vec<DbScenario> {
-        let lp_lines = vec![
-            "restaurant,town=andover count=40000u 100",
-            "restaurant,town=reading count=632u 120",
-            "school,town=reading count=17u 150",
-            "school,town=andover count=25u 160",
-        ];
-
-        make_one_chunk_mub_scenario(&lp_lines.join("\n")).await
-    }
-}
-
-#[derive(Debug)]
 pub struct TwoMeasurementsUnsignedType {}
 #[async_trait]
 impl DbSetup for TwoMeasurementsUnsignedType {
@@ -604,7 +544,7 @@ impl DbSetup for TwoMeasurementsManyNulls {
             "h2o,state=CA,city=LA,county=LA temp=70.4 100",
             "h2o,state=MA,city=Boston,county=Suffolk temp=72.4 250",
             "o2,state=MA,city=Boston temp=50.4 200",
-            "o2,state=CA temp=79.0 300\n",
+            "o2,state=CA temp=79.0 300",
         ];
         let lp_lines2 = [
             "o2,state=NY temp=60.8 400",
@@ -642,7 +582,7 @@ pub struct TwoMeasurementsManyFieldsOneChunk {}
 #[async_trait]
 impl DbSetup for TwoMeasurementsManyFieldsOneChunk {
     async fn make(&self) -> Vec<DbScenario> {
-        let db = make_db().await.db;
+        let partition_key = "1970-01-01T00";
 
         let lp_lines = vec![
             "h2o,state=MA,city=Boston temp=70.4 50",
@@ -652,20 +592,17 @@ impl DbSetup for TwoMeasurementsManyFieldsOneChunk {
             "o2,state=CA temp=79.0 300",
         ];
 
-        write_lp(&db, &lp_lines.join("\n"));
-        let db = Arc::new(AbstractDb::create_old(db));
-        vec![DbScenario {
-            scenario_name: "Data in open chunk of mutable buffer".into(),
-            db,
-        }]
+        all_scenarios_for_one_chunk(vec![], vec![], lp_lines, "h2o", partition_key).await
     }
 }
 
 #[derive(Debug)]
 /// This has a single chunk for queries that check the state of the system
-pub struct TwoMeasurementsManyFieldsOneRubChunk {}
+///
+/// This scenario is OG-specific and can be used for `EXPLAIN` plans and system tables.
+pub struct OldTwoMeasurementsManyFieldsOneRubChunk {}
 #[async_trait]
-impl DbSetup for TwoMeasurementsManyFieldsOneRubChunk {
+impl DbSetup for OldTwoMeasurementsManyFieldsOneRubChunk {
     async fn make(&self) -> Vec<DbScenario> {
         let db = make_db().await.db;
         let partition_key = "1970-01-01T00";
@@ -683,7 +620,6 @@ impl DbSetup for TwoMeasurementsManyFieldsOneRubChunk {
         // move all data to RUB
         db.compact_open_chunk("h2o", partition_key).await.unwrap();
 
-        let db = Arc::new(AbstractDb::create_old(db));
         vec![DbScenario {
             scenario_name: "Data in single chunk of read buffer".into(),
             db,
@@ -719,7 +655,6 @@ impl DbSetup for TwoMeasurementsManyFieldsTwoChunks {
         assert_eq!(count_read_buffer_chunks(&db), 1);
         assert_eq!(count_object_store_chunks(&db), 0);
 
-        let db = Arc::new(AbstractDb::create_old(db));
         vec![DbScenario {
             scenario_name: "Data in two open mutable buffer chunks per table and read buffer"
                 .into(),
@@ -758,7 +693,6 @@ impl DbSetup for OneMeasurementTwoChunksDifferentTagSet {
         assert_eq!(count_read_buffer_chunks(&db), 2);
         assert_eq!(count_object_store_chunks(&db), 0);
 
-        let db = Arc::new(AbstractDb::create_old(db));
         vec![DbScenario {
             scenario_name: "2 chunks in read buffer".into(),
             db,
@@ -834,7 +768,6 @@ impl DbSetup for OneMeasurementFourChunksWithDuplicates {
         assert_eq!(count_read_buffer_chunks(&db), 4);
         assert_eq!(count_object_store_chunks(&db), 0);
 
-        let db = Arc::new(AbstractDb::create_old(db));
         vec![DbScenario {
             scenario_name: "Data in four chunks with duplicates".into(),
             db,
@@ -877,7 +810,6 @@ impl DbSetup for TwoMeasurementsManyFieldsLifecycle {
         assert_eq!(count_read_buffer_chunks(&db), 1);
         assert_eq!(count_object_store_chunks(&db), 1);
 
-        let db = Arc::new(AbstractDb::create_old(db));
         vec![DbScenario {
             scenario_name: "Data in parquet, RUB, and MUB".into(),
             db,
@@ -1032,7 +964,6 @@ impl DbSetup for OneMeasurementAllChunksDropped {
             .await
             .unwrap();
 
-        let db = Arc::new(AbstractDb::create_old(db));
         vec![DbScenario {
             scenario_name: "one measurement but all chunks are dropped".into(),
             db,
@@ -1531,7 +1462,6 @@ impl DbSetup for MeasurementForWindowAggregateMonths {
         let db = make_db().await.db;
         let data = lp_lines.join("\n");
         write_lp(&db, &data);
-        let db = Arc::new(AbstractDb::create_old(db));
         let scenario1 = DbScenario {
             scenario_name: "Data in 4 partitions, open chunks of mutable buffer".into(),
             db,
@@ -1542,7 +1472,6 @@ impl DbSetup for MeasurementForWindowAggregateMonths {
         write_lp(&db, &data);
         db.rollover_partition("h2o", "2020-03-01T00").await.unwrap();
         db.rollover_partition("h2o", "2020-03-02T00").await.unwrap();
-        let db = Arc::new(AbstractDb::create_old(db));
         let scenario2 = DbScenario {
             scenario_name:
                 "Data in 4 partitions, two open chunk and two closed chunks of mutable buffer"
@@ -1558,7 +1487,6 @@ impl DbSetup for MeasurementForWindowAggregateMonths {
         rollover_and_load(&db, "2020-03-02T00", "h2o").await;
         rollover_and_load(&db, "2020-04-01T00", "h2o").await;
         rollover_and_load(&db, "2020-04-02T00", "h2o").await;
-        let db = Arc::new(AbstractDb::create_old(db));
         let scenario3 = DbScenario {
             scenario_name: "Data in 4 partitions, 4 closed chunks in mutable buffer".into(),
             db,

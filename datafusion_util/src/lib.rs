@@ -4,10 +4,11 @@
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-use datafusion::execution::runtime_env::{RuntimeConfig, RuntimeEnv};
+use datafusion::execution::context::TaskContext;
 use datafusion::physical_plan::common::SizedRecordBatchStream;
 use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MemTrackingMetrics};
 use datafusion::physical_plan::{collect, ExecutionPlan};
+use datafusion::prelude::SessionContext;
 use datafusion::{
     arrow::{datatypes::SchemaRef, error::Result as ArrowResult, record_batch::RecordBatch},
     logical_plan::{binary_expr, col, lit, Expr, Operator},
@@ -224,18 +225,19 @@ pub fn stream_from_schema(schema: SchemaRef) -> SendableRecordBatchStream {
     Box::pin(stream)
 }
 
-/// Execute the [ExecutionPlan] with a default [RuntimeEnv] and
+/// Execute the [ExecutionPlan] with a default [SessionContext] and
 /// collect the results in memory.
 ///
 /// # Panics
 /// If an an error occurs
 pub async fn test_collect(plan: Arc<dyn ExecutionPlan>) -> Vec<RecordBatch> {
-    let runtime = Arc::new(RuntimeEnv::new(RuntimeConfig::default()).unwrap());
-    collect(plan, runtime).await.unwrap()
+    let session_ctx = SessionContext::new();
+    let task_ctx = Arc::new(TaskContext::from(&session_ctx));
+    collect(plan, task_ctx).await.unwrap()
 }
 
 /// Execute the specified partition of the [ExecutionPlan] with a
-/// default [RuntimeEnv] returning the resulting stream.
+/// default [SessionContext] returning the resulting stream.
 ///
 /// # Panics
 /// If an an error occurs
@@ -243,12 +245,13 @@ pub async fn test_execute_partition(
     plan: Arc<dyn ExecutionPlan>,
     partition: usize,
 ) -> SendableRecordBatchStream {
-    let runtime = Arc::new(RuntimeEnv::new(RuntimeConfig::default()).unwrap());
-    plan.execute(partition, runtime).await.unwrap()
+    let session_ctx = SessionContext::new();
+    let task_ctx = Arc::new(TaskContext::from(&session_ctx));
+    plan.execute(partition, task_ctx).await.unwrap()
 }
 
 /// Execute the specified partition of the [ExecutionPlan] with a
-/// default [RuntimeEnv] and collect the results in memory.
+/// default [SessionContext] and collect the results in memory.
 ///
 /// # Panics
 /// If an an error occurs

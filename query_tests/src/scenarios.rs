@@ -21,7 +21,7 @@ use crate::db::AbstractDb;
 #[derive(Debug)]
 pub struct DbScenario {
     pub scenario_name: String,
-    pub db: Arc<AbstractDb>,
+    pub db: Arc<dyn AbstractDb>,
 }
 
 #[async_trait]
@@ -53,7 +53,7 @@ pub fn get_all_setups() -> &'static HashMap<String, Arc<dyn DbSetup>> {
             register_setup!(TwoMeasurementsPredicatePushDown),
             register_setup!(TwoMeasurementsManyFieldsOneChunk),
             register_setup!(TwoMeasurementsManyFieldsTwoChunks),
-            register_setup!(TwoMeasurementsManyFieldsOneRubChunk),
+            register_setup!(OldTwoMeasurementsManyFieldsOneRubChunk),
             register_setup!(OneMeasurementFourChunksWithDuplicates),
             register_setup!(OneMeasurementAllChunksDropped),
             register_setup!(ChunkOrder),

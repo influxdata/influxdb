@@ -6,6 +6,7 @@ use std::{
     sync::Arc,
 };
 
+use service_common::QueryDatabaseProvider;
 use snafu::{OptionExt, ResultExt, Snafu};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
@@ -24,7 +25,7 @@ use generated_types::{
     TimestampRange,
 };
 use observability_deps::tracing::{error, info, trace};
-use query::exec::IOxExecutionContext;
+use query::exec::IOxSessionContext;
 use query::{
     exec::{
         fieldlist::FieldList, seriesset::converter::Error as SeriesSetError,
@@ -34,18 +35,15 @@ use query::{
 };
 
 use crate::{
-    planner::Planner,
-    rpc::common::QueryDatabaseProvider,
-    rpc::storage::{
-        data::{
-            fieldlist_to_measurement_fields_response, series_or_groups_to_read_response,
-            tag_keys_to_byte_vecs,
-        },
-        expr::{self, GroupByAndAggregate, InfluxRpcPredicateBuilder, Loggable, SpecialTagKeys},
-        input::GrpcInputs,
-        StorageService,
+    data::{
+        fieldlist_to_measurement_fields_response, series_or_groups_to_read_response,
+        tag_keys_to_byte_vecs,
     },
+    expr::{self, GroupByAndAggregate, InfluxRpcPredicateBuilder, Loggable, SpecialTagKeys},
+    input::GrpcInputs,
+    StorageService,
 };
+use service_common::planner::Planner;
 
 use super::{TAG_KEY_FIELD, TAG_KEY_MEASUREMENT};
 
@@ -836,7 +834,7 @@ async fn measurement_name_impl<D>(
     db_name: DatabaseName<'static>,
     range: Option<TimestampRange>,
     rpc_predicate: Option<Predicate>,
-    ctx: &IOxExecutionContext,
+    ctx: &IOxSessionContext,
 ) -> Result<StringValuesResponse>
 where
     D: QueryDatabase + ExecutionContextProvider + 'static,
@@ -882,7 +880,7 @@ async fn tag_keys_impl<D>(
     measurement: Option<String>,
     range: Option<TimestampRange>,
     rpc_predicate: Option<Predicate>,
-    ctx: &IOxExecutionContext,
+    ctx: &IOxSessionContext,
 ) -> Result<StringValuesResponse>
 where
     D: QueryDatabase + ExecutionContextProvider + 'static,
@@ -927,7 +925,7 @@ async fn tag_values_impl<D>(
     measurement: Option<String>,
     range: Option<TimestampRange>,
     rpc_predicate: Option<Predicate>,
-    ctx: &IOxExecutionContext,
+    ctx: &IOxSessionContext,
 ) -> Result<StringValuesResponse>
 where
     D: QueryDatabase + ExecutionContextProvider + 'static,
@@ -974,7 +972,7 @@ async fn tag_values_grouped_by_measurement_and_tag_key_impl<D>(
     db: Arc<D>,
     db_name: DatabaseName<'static>,
     req: TagValuesGroupedByMeasurementAndTagKeyRequest,
-    ctx: &IOxExecutionContext,
+    ctx: &IOxSessionContext,
 ) -> Result<Vec<TagValuesResponse>, Error>
 where
     D: QueryDatabase + ExecutionContextProvider + 'static,
@@ -1048,7 +1046,7 @@ async fn read_filter_impl<D>(
     db: Arc<D>,
     db_name: DatabaseName<'static>,
     req: ReadFilterRequest,
-    ctx: &IOxExecutionContext,
+    ctx: &IOxSessionContext,
 ) -> Result<Vec<ReadResponse>, Error>
 where
     D: QueryDatabase + ExecutionContextProvider + 'static,
@@ -1097,7 +1095,7 @@ async fn query_group_impl<D>(
     range: Option<TimestampRange>,
     rpc_predicate: Option<Predicate>,
     gby_agg: GroupByAndAggregate,
-    ctx: &IOxExecutionContext,
+    ctx: &IOxSessionContext,
 ) -> Result<Vec<ReadResponse>, Error>
 where
     D: QueryDatabase + ExecutionContextProvider + 'static,
@@ -1156,7 +1154,7 @@ async fn field_names_impl<D>(
     measurement: Option<String>,
     range: Option<TimestampRange>,
     rpc_predicate: Option<Predicate>,
-    ctx: &IOxExecutionContext,
+    ctx: &IOxSessionContext,
 ) -> Result<FieldList>
 where
     D: QueryDatabase + ExecutionContextProvider + 'static,
@@ -1196,7 +1194,7 @@ async fn materialise_measurement_names<D>(
     db: Arc<D>,
     db_name: DatabaseName<'static>,
     measurement_exprs: Vec<LiteralOrRegex>,
-    ctx: &IOxExecutionContext,
+    ctx: &IOxSessionContext,
 ) -> Result<BTreeSet<String>, Error>
 where
     D: QueryDatabase + ExecutionContextProvider + 'static,
@@ -1275,7 +1273,7 @@ async fn materialise_tag_keys<D>(
     db_name: DatabaseName<'static>,
     measurement_name: String,
     tag_key_predicate: tag_key_predicate::Value,
-    ctx: &IOxExecutionContext,
+    ctx: &IOxSessionContext,
 ) -> Result<BTreeSet<String>, Error>
 where
     D: QueryDatabase + ExecutionContextProvider + 'static,
@@ -1369,6 +1367,7 @@ mod tests {
     use data_types::chunk_metadata::ChunkId;
     use generated_types::{i_ox_testing_client::IOxTestingClient, tag_key_predicate::Value};
     use parking_lot::Mutex;
+    use service_common::QueryDatabaseProvider;
     use tokio_stream::wrappers::TcpListenerStream;
 
     use datafusion::logical_plan::{col, lit, Expr};
@@ -1381,7 +1380,7 @@ mod tests {
     use predicate::{PredicateBuilder, PredicateMatch};
     use query::{
         exec::Executor,
-        test::{TestChunk, TestDatabase, TestError},
+        test::{TestChunk, TestDatabase},
     };
     use test_helpers::{assert_contains, tracing::TracingCapture};
 
@@ -1465,7 +1464,6 @@ mod tests {
             .test_storage
             .db_or_create(db_info.db_name())
             .await
-            .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk0))
             .add_chunk("my_partition_key", Arc::new(chunk1));
 
@@ -1567,7 +1565,6 @@ mod tests {
             .test_storage
             .db_or_create(db_info.db_name())
             .await
-            .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk0))
             .add_chunk("my_partition_key", Arc::new(chunk1));
 
@@ -1617,7 +1614,6 @@ mod tests {
             .test_storage
             .db_or_create(db_info.db_name())
             .await
-            .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
 
         let source = Some(StorageClient::read_source(&db_info, 1));
@@ -1662,7 +1658,6 @@ mod tests {
             .test_storage
             .db_or_create(db_info.db_name())
             .await
-            .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk0))
             .add_chunk("my_partition_key", Arc::new(chunk1));
 
@@ -1724,7 +1719,6 @@ mod tests {
             .test_storage
             .db_or_create(db_info.db_name())
             .await
-            .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
 
         let source = Some(StorageClient::read_source(&db_info, 1));
@@ -1766,7 +1760,6 @@ mod tests {
             .test_storage
             .db_or_create(db_info.db_name())
             .await
-            .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
 
         let source = Some(StorageClient::read_source(&db_info, 1));
@@ -1816,7 +1809,6 @@ mod tests {
             .test_storage
             .db_or_create(db_info.db_name())
             .await
-            .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
 
         let tag_values = vec!["h2o"];
@@ -1848,7 +1840,6 @@ mod tests {
             .test_storage
             .db_or_create(db_info.db_name())
             .await
-            .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
 
         let source = Some(StorageClient::read_source(&db_info, 1));
@@ -1887,7 +1878,6 @@ mod tests {
             .test_storage
             .db_or_create(db_info.db_name())
             .await
-            .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
 
         let source = Some(StorageClient::read_source(&db_info, 1));
@@ -1956,7 +1946,6 @@ mod tests {
             .test_storage
             .db_or_create(db_info.db_name())
             .await
-            .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk1))
             .add_chunk("my_partition_key", Arc::new(chunk2));
 
@@ -2173,7 +2162,6 @@ mod tests {
             .test_storage
             .db_or_create(db_info.db_name())
             .await
-            .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
 
         let source = Some(StorageClient::read_source(&db_info, 1));
@@ -2216,7 +2204,6 @@ mod tests {
             .test_storage
             .db_or_create(db_info.db_name())
             .await
-            .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
 
         let source = Some(StorageClient::read_source(&db_info, 1));
@@ -2257,7 +2244,6 @@ mod tests {
             .test_storage
             .db_or_create(db_info.db_name())
             .await
-            .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
 
         let source = Some(StorageClient::read_source(&db_info, 1));
@@ -2322,7 +2308,7 @@ mod tests {
         // Note we don't include the actual line / column in the
         // expected panic message to avoid needing to update the test
         // whenever the source code file changed.
-        let expected_error = "'This is a test panic', influxdb_ioxd/src/rpc/testing.rs:18:9";
+        let expected_error = "'This is a test panic', service_grpc_testing/src/lib.rs:18:9";
         assert_contains!(captured_logs, expected_error);
 
         // Ensure that panics don't exhaust the tokio executor by
@@ -2359,7 +2345,6 @@ mod tests {
             .test_storage
             .db_or_create(db_info.db_name())
             .await
-            .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
 
         let source = Some(StorageClient::read_source(&db_info, 1));
@@ -2424,7 +2409,6 @@ mod tests {
             .test_storage
             .db_or_create(db_info.db_name())
             .await
-            .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
 
         let source = Some(StorageClient::read_source(&db_info, 1));
@@ -2476,7 +2460,6 @@ mod tests {
             .test_storage
             .db_or_create(db_info.db_name())
             .await
-            .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
 
         let source = Some(StorageClient::read_source(&db_info, 1));
@@ -2516,7 +2499,6 @@ mod tests {
             .test_storage
             .db_or_create(db_info.db_name())
             .await
-            .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
 
         let source = Some(StorageClient::read_source(&db_info, 1));
@@ -2559,7 +2541,6 @@ mod tests {
             .test_storage
             .db_or_create(db_info.db_name())
             .await
-            .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
 
         let source = Some(StorageClient::read_source(&db_info, 1));
@@ -2610,7 +2591,6 @@ mod tests {
             .test_storage
             .db_or_create(db_info.db_name())
             .await
-            .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
 
         let source = Some(StorageClient::read_source(&db_info, 1));
@@ -2664,7 +2644,6 @@ mod tests {
             .test_storage
             .db_or_create(db_info.db_name())
             .await
-            .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
 
         let source = Some(StorageClient::read_source(&db_info, 1));
@@ -2724,7 +2703,6 @@ mod tests {
             .test_storage
             .db_or_create(db_info.db_name())
             .await
-            .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
 
         let source = Some(StorageClient::read_source(&db_info, 1));
@@ -2778,7 +2756,6 @@ mod tests {
             .test_storage
             .db_or_create(db_info.db_name())
             .await
-            .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
 
         let source = Some(StorageClient::read_source(&db_info, 1));
@@ -2819,7 +2796,6 @@ mod tests {
             .test_storage
             .db_or_create(db_info.db_name())
             .await
-            .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
 
         let source = Some(StorageClient::read_source(&db_info, 1));
@@ -2955,8 +2931,8 @@ mod tests {
                     None,
                     true,
                 ))
-                .add_service(crate::rpc::testing::make_server())
-                .add_service(crate::rpc::storage::make_server(Arc::clone(&test_storage)));
+                .add_service(service_grpc_testing::make_server())
+                .add_service(crate::make_server(Arc::clone(&test_storage)));
 
             let server = async move {
                 let stream = TcpListenerStream::new(socket);
@@ -2999,7 +2975,6 @@ mod tests {
                 .test_storage
                 .db_or_create(db_name)
                 .await
-                .expect("getting db")
                 .get_chunk(partition_key, ChunkId::new_test(chunk_id))
                 .unwrap()
                 .predicates();
@@ -3025,15 +3000,15 @@ mod tests {
             Self::default()
         }
 
-        async fn db_or_create(&self, name: &str) -> Result<Arc<TestDatabase>, TestError> {
+        async fn db_or_create(&self, name: &str) -> Arc<TestDatabase> {
             let mut databases = self.databases.lock();
 
             if let Some(db) = databases.get(name) {
-                Ok(Arc::clone(db))
+                Arc::clone(db)
             } else {
                 let new_db = Arc::new(TestDatabase::new(Arc::clone(&self.executor)));
                 databases.insert(name.to_string(), Arc::clone(&new_db));
-                Ok(new_db)
+                new_db
             }
         }
     }

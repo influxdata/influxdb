@@ -1,5 +1,5 @@
 -- Demonstrate plans that are optimized using statistics
--- IOX_SETUP: TwoMeasurementsManyFieldsOneRubChunk
+-- IOX_SETUP: OldTwoMeasurementsManyFieldsOneRubChunk
 
 -- This plan should not scan data as it reads from a RUB chunk (no duplicate) and no soft deleted data
 EXPLAIN SELECT count(*) from h2o;

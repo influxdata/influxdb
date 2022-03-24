@@ -9,8 +9,10 @@ use arrow::record_batch::RecordBatch;
 
 use datafusion::{
     catalog::catalog::CatalogProvider,
-    execution::context::{ExecutionContextState, QueryPlanner},
-    execution::{DiskManager, MemoryManager},
+    execution::{
+        context::{QueryPlanner, SessionState, TaskContext},
+        runtime_env::RuntimeEnv,
+    },
     logical_plan::{LogicalPlan, UserDefinedLogicalNode},
     physical_plan::{
         coalesce_partitions::CoalescePartitionsExec,
@@ -70,7 +72,7 @@ impl QueryPlanner for IOxQueryPlanner {
     async fn create_physical_plan(
         &self,
         logical_plan: &LogicalPlan,
-        ctx_state: &ExecutionContextState,
+        session_state: &SessionState,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         // Teach the default physical planner how to plan SchemaPivot
         // and StreamSplit nodes.
@@ -78,7 +80,7 @@ impl QueryPlanner for IOxQueryPlanner {
             DefaultPhysicalPlanner::with_extension_planners(vec![Arc::new(IOxExtensionPlanner {})]);
         // Delegate most work of physical planning to the default physical planner
         physical_planner
-            .create_physical_plan(logical_plan, ctx_state)
+            .create_physical_plan(logical_plan, session_state)
             .await
     }
 }
@@ -94,7 +96,7 @@ impl ExtensionPlanner for IOxExtensionPlanner {
         node: &dyn UserDefinedLogicalNode,
         logical_inputs: &[&LogicalPlan],
         physical_inputs: &[Arc<dyn ExecutionPlan>],
-        ctx_state: &ExecutionContextState,
+        session_state: &SessionState,
     ) -> Result<Option<Arc<dyn ExecutionPlan>>> {
         let any = node.as_any();
         let plan = if let Some(schema_pivot) = any.downcast_ref::<SchemaPivotNode>() {
@@ -126,7 +128,7 @@ impl ExtensionPlanner for IOxExtensionPlanner {
                 stream_split.split_expr(),
                 logical_inputs[0].schema(),
                 &physical_inputs[0].schema(),
-                ctx_state,
+                session_state,
             )?;
 
             Some(Arc::new(StreamSplitExec::new(
@@ -144,12 +146,15 @@ impl ExtensionPlanner for IOxExtensionPlanner {
 ///
 /// Created from an Executor
 #[derive(Clone)]
-pub struct IOxExecutionConfig {
+pub struct IOxSessionConfig {
     /// Executor to run on
     exec: DedicatedExecutor,
 
-    /// DataFusion configuration
-    execution_config: ExecutionConfig,
+    /// DataFusion session configuration
+    session_config: SessionConfig,
+
+    /// Shared DataFusion runtime
+    runtime: Arc<RuntimeEnv>,
 
     /// Default catalog
     default_catalog: Option<Arc<dyn CatalogProvider>>,
@@ -158,26 +163,26 @@ pub struct IOxExecutionConfig {
     span_ctx: Option<SpanContext>,
 }
 
-impl fmt::Debug for IOxExecutionConfig {
+impl fmt::Debug for IOxSessionConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "IOxExecutionConfig ...")
+        write!(f, "IOxSessionConfig ...")
     }
 }
 
 const BATCH_SIZE: usize = 1000;
 
-impl IOxExecutionConfig {
-    pub(super) fn new(exec: DedicatedExecutor) -> Self {
-        let execution_config = ExecutionConfig::new()
+impl IOxSessionConfig {
+    pub(super) fn new(exec: DedicatedExecutor, runtime: Arc<RuntimeEnv>) -> Self {
+        let session_config = SessionConfig::new()
             .with_batch_size(BATCH_SIZE)
             .create_default_catalog_and_schema(true)
             .with_information_schema(true)
-            .with_default_catalog_and_schema(DEFAULT_CATALOG, DEFAULT_SCHEMA)
-            .with_query_planner(Arc::new(IOxQueryPlanner {}));
+            .with_default_catalog_and_schema(DEFAULT_CATALOG, DEFAULT_SCHEMA);
 
         Self {
             exec,
-            execution_config,
+            session_config,
+            runtime,
             default_catalog: None,
             span_ctx: None,
         }
@@ -185,25 +190,9 @@ impl IOxExecutionConfig {
 
     /// Set execution concurrency
     pub fn with_target_partitions(mut self, target_partitions: usize) -> Self {
-        self.execution_config = self
-            .execution_config
+        self.session_config = self
+            .session_config
             .with_target_partitions(target_partitions);
-        self
-    }
-
-    /// Set the [MemoryManager]
-    pub fn with_memory_manager(mut self, memory_manager: Arc<MemoryManager>) -> Self {
-        self.execution_config = self
-            .execution_config
-            .with_existing_memory_manager(memory_manager);
-        self
-    }
-
-    /// Set the [DiskManager]
-    pub fn with_disk_manager(mut self, disk_manager: Arc<DiskManager>) -> Self {
-        self.execution_config = self
-            .execution_config
-            .with_existing_disk_manager(disk_manager);
         self
     }
 
@@ -221,8 +210,11 @@ impl IOxExecutionConfig {
     }
 
     /// Create an ExecutionContext suitable for executing DataFusion plans
-    pub fn build(self) -> IOxExecutionContext {
-        let inner = ExecutionContext::with_config(self.execution_config);
+    pub fn build(self) -> IOxSessionContext {
+        let state = SessionState::with_config(self.session_config, self.runtime)
+            .with_query_planner(Arc::new(IOxQueryPlanner {}));
+
+        let inner = SessionContext::with_state(state);
 
         if let Some(default_catalog) = self.default_catalog {
             inner.register_catalog(DEFAULT_CATALOG, default_catalog);
@@ -230,7 +222,7 @@ impl IOxExecutionConfig {
 
         let maybe_span = self.span_ctx.map(|ctx| ctx.child("Query Execution"));
 
-        IOxExecutionContext {
+        IOxSessionContext {
             inner,
             exec: Some(self.exec),
             recorder: SpanRecorder::new(maybe_span),
@@ -248,11 +240,11 @@ impl IOxExecutionConfig {
 /// types such as Memory and providing visibility into what plans are
 /// running
 ///
-/// An IOxExecutionContext is created directly from an Executor, or from
-/// an IOxExecutionConfig created by an Executor
+/// An IOxSessionContext is created directly from an Executor, or from
+/// an IOxSessionConfig created by an Executor
 #[derive(Default)]
-pub struct IOxExecutionContext {
-    inner: ExecutionContext,
+pub struct IOxSessionContext {
+    inner: SessionContext,
 
     /// Optional dedicated executor for query execution.
     ///
@@ -266,17 +258,17 @@ pub struct IOxExecutionContext {
     recorder: SpanRecorder,
 }
 
-impl fmt::Debug for IOxExecutionContext {
+impl fmt::Debug for IOxSessionContext {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("IOxExecutionContext")
+        f.debug_struct("IOxSessionContext")
             .field("inner", &"<DataFusion ExecutionContext>")
             .finish()
     }
 }
 
-impl IOxExecutionContext {
+impl IOxSessionContext {
     /// returns a reference to the inner datafusion execution context
-    pub fn inner(&self) -> &ExecutionContext {
+    pub fn inner(&self) -> &SessionContext {
         &self.inner
     }
 
@@ -363,10 +355,10 @@ impl IOxExecutionContext {
             .span()
             .map(|span| span.child("execute_stream_partitioned"));
 
-        let runtime = self.inner.runtime_env();
+        let task_context = Arc::new(TaskContext::from(self.inner()));
 
         self.run(async move {
-            let stream = physical_plan.execute(partition, runtime).await?;
+            let stream = physical_plan.execute(partition, task_context).await?;
             let stream = TracedStream::new(stream, span, physical_plan);
             Ok(Box::pin(stream) as _)
         })
@@ -563,7 +555,7 @@ impl IOxExecutionContext {
         }
     }
 
-    /// Returns a IOxExecutionContext with a SpanRecorder that is a child of the current
+    /// Returns a IOxSessionContext with a SpanRecorder that is a child of the current
     pub fn child_ctx(&self, name: &'static str) -> Self {
         Self {
             inner: self.inner.clone(),

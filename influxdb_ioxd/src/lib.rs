@@ -10,7 +10,6 @@ use tokio_util::sync::CancellationToken;
 use trace_http::ctx::TraceHeaderParser;
 
 mod http;
-mod planner;
 
 #[cfg(all(not(feature = "heappy"), feature = "jemalloc_replacing_malloc"))]
 mod jemalloc;

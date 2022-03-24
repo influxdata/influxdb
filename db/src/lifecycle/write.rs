@@ -27,7 +27,7 @@ use persistence_windows::{
     checkpoint::{DatabaseCheckpoint, PartitionCheckpoint, PersistCheckpointBuilder},
     persistence_windows::FlushHandle,
 };
-use query::{exec::IOxExecutionContext, QueryChunk};
+use query::{exec::IOxSessionContext, QueryChunk};
 use schema::selection::Selection;
 use snafu::ResultExt;
 use std::time::Duration;
@@ -97,10 +97,10 @@ pub(super) fn write_chunk_to_object_store(
             collect_checkpoints(flush_handle.checkpoint(), &db.catalog);
 
         // Get RecordBatchStream of data from the read buffer chunk
-        // TODO: If we want to trace this we need to wire an IOxExecutionContext through.
+        // TODO: If we want to trace this we need to wire an IOxSessionContext through.
         let stream = db_chunk
             .read_filter(
-                IOxExecutionContext::default(),
+                IOxSessionContext::default(),
                 &Default::default(),
                 Selection::All,
             )
