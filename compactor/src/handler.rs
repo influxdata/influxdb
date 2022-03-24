@@ -5,8 +5,7 @@ use backoff::BackoffConfig;
 use data_types2::SequencerId;
 use futures::{
     future::{BoxFuture, Shared},
-    stream::FuturesUnordered,
-    FutureExt, StreamExt, TryFutureExt,
+    FutureExt, TryFutureExt,
 };
 use iox_catalog::interface::Catalog;
 use object_store::DynObjectStore;
@@ -47,9 +46,6 @@ fn shared_handle(handle: JoinHandle<()>) -> SharedJoinHandle {
 /// Implementation of the `CompactorHandler` trait (that currently does nothing)
 #[derive(Debug)]
 pub struct CompactorHandlerImpl {
-    /// Future that resolves when the background worker exits
-    join_handles: Vec<(String, SharedJoinHandle)>,
-
     /// Data to compact
     compactor_data: Arc<Compactor>,
 
@@ -69,8 +65,6 @@ impl CompactorHandlerImpl {
     ) -> Self {
         let shutdown = CancellationToken::new();
 
-        let join_handles = vec![];
-
         let compactor_data = Arc::new(Compactor::new(
             sequencers,
             catalog,
@@ -81,7 +75,6 @@ impl CompactorHandlerImpl {
         ));
 
         Self {
-            join_handles,
             compactor_data,
             shutdown,
         }
@@ -91,21 +84,11 @@ impl CompactorHandlerImpl {
 #[async_trait]
 impl CompactorHandler for CompactorHandlerImpl {
     async fn join(&self) {
-        // Need to poll handlers unordered to detect early exists of any worker in the list.
-        let mut unordered: FuturesUnordered<_> = self
-            .join_handles
-            .iter()
-            .cloned()
-            .map(|(name, handle)| async move { handle.await.map(|_| name) })
-            .collect();
-
-        while let Some(e) = unordered.next().await {
-            let name = e.unwrap();
-
-            if !self.shutdown.is_cancelled() {
-                panic!("Background worker '{name}' exited early!");
-            }
-        }
+        // TODO: this should block on the compactor background loop exiting, not
+        // this token being cancelled.
+        //
+        // This fires immediately when shutdown() is called.
+        self.shutdown.cancelled().await
     }
 
     fn shutdown(&self) {
