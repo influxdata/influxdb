@@ -15,8 +15,8 @@ use query::QueryChunk;
 
 use super::{
     util::{
-        all_scenarios_for_one_chunk, make_one_chunk_mub_scenario, make_one_chunk_rub_scenario,
-        make_one_rub_or_parquet_chunk_scenario, make_two_chunk_scenarios, rollover_and_load,
+        all_scenarios_for_one_chunk, make_one_rub_or_parquet_chunk_scenario,
+        make_two_chunk_scenarios, rollover_and_load,
     },
     DbScenario, DbSetup,
 };
@@ -373,40 +373,6 @@ impl DbSetup for OneMeasurementManyNullTagsWithDeleteAll {
     }
 }
 
-/// Two measurements data in a single mutable buffer chunk
-#[derive(Debug)]
-pub struct TwoMeasurementsMubScenario {}
-#[async_trait]
-impl DbSetup for TwoMeasurementsMubScenario {
-    async fn make(&self) -> Vec<DbScenario> {
-        let lp_lines = vec![
-            "cpu,region=west user=23.2 100",
-            "cpu,region=west user=21.0 150",
-            "disk,region=east bytes=99i 200",
-        ];
-
-        make_one_chunk_mub_scenario(&lp_lines.join("\n")).await
-    }
-}
-
-/// Two measurements data in a single read buffer chunk
-#[derive(Debug)]
-pub struct TwoMeasurementsRubScenario {}
-#[async_trait]
-impl DbSetup for TwoMeasurementsRubScenario {
-    async fn make(&self) -> Vec<DbScenario> {
-        let partition_key = "1970-01-01T00";
-
-        let lp_lines = vec![
-            "cpu,region=west user=23.2 100",
-            "cpu,region=west user=21.0 150",
-            "disk,region=east bytes=99i 200",
-        ];
-
-        make_one_chunk_rub_scenario(partition_key, &lp_lines.join("\n")).await
-    }
-}
-
 /// Two measurements data in different chunk scenarios
 #[derive(Debug)]
 pub struct TwoMeasurements {}
@@ -500,22 +466,6 @@ impl DbSetup for TwoMeasurementsWithDeleteAll {
             partition_key,
         )
         .await
-    }
-}
-
-#[derive(Debug)]
-pub struct TwoMeasurementsUnsignedTypeMubScenario {}
-#[async_trait]
-impl DbSetup for TwoMeasurementsUnsignedTypeMubScenario {
-    async fn make(&self) -> Vec<DbScenario> {
-        let lp_lines = vec![
-            "restaurant,town=andover count=40000u 100",
-            "restaurant,town=reading count=632u 120",
-            "school,town=reading count=17u 150",
-            "school,town=andover count=25u 160",
-        ];
-
-        make_one_chunk_mub_scenario(&lp_lines.join("\n")).await
     }
 }
 

@@ -951,45 +951,6 @@ pub async fn make_contiguous_os_chunks(
     (db, chunk_ids)
 }
 
-/// This function loads one chunk of lp data into MUB only
-///
-pub(crate) async fn make_one_chunk_mub_scenario(data: &str) -> Vec<DbScenario> {
-    // Scenario 1: One open chunk in MUB
-    let db = make_db().await.db;
-    write_lp(&db, data);
-    let scenario = DbScenario {
-        scenario_name: "Data in open chunk of mutable buffer".into(),
-        db,
-    };
-
-    vec![scenario]
-}
-
-/// This function loads one chunk of lp data into RUB only
-///
-pub(crate) async fn make_one_chunk_rub_scenario(
-    partition_key: &str,
-    data: &str,
-) -> Vec<DbScenario> {
-    // Scenario 1: One closed chunk in RUB
-    let db = make_db().await.db;
-    let table_names = write_lp(&db, data);
-    for table_name in &table_names {
-        db.rollover_partition(table_name, partition_key)
-            .await
-            .unwrap();
-        db.compact_partition(table_name, partition_key)
-            .await
-            .unwrap();
-    }
-    let scenario = DbScenario {
-        scenario_name: "Data in read buffer".into(),
-        db,
-    };
-
-    vec![scenario]
-}
-
 /// This function loads two chunks of lp data into 4 different scenarios
 ///
 /// Data in single open mutable buffer chunk

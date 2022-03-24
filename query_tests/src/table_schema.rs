@@ -1,6 +1,7 @@
 //! Tests for the table_names implementation
 
 use arrow::datatypes::DataType;
+use query::QueryChunk;
 use schema::selection::Selection;
 use schema::{builder::SchemaBuilder, sort::SortKey, Schema, TIME_COLUMN_NAME};
 
@@ -49,7 +50,13 @@ async fn run_table_schema_test_case<D>(
                     actual_schema
                 );
 
-                assert_eq!(chunk.sort_key(), expected_sort_key);
+                // There are a few cases where we don't care about the sort key:
+                // - no "expected" value was provided which is interpreted as "don't care"; some chunk representations
+                //   (like parquet files in OG) are always sorted
+                // - the chunk is in some known-to-be-always-unsorted stage (e.g. MUBs in OG are never sorted)
+                if expected_sort_key.is_some() && !is_unsorted_chunk_type(chunk.as_ref()) {
+                    assert_eq!(chunk.sort_key(), expected_sort_key);
+                }
             }
         }
         assert!(
@@ -59,28 +66,12 @@ async fn run_table_schema_test_case<D>(
     }
 }
 
-#[tokio::test]
-async fn list_schema_cpu_all_mub() {
-    // we expect columns to come out in lexicographic order by name
-    let expected_schema = SchemaBuilder::new()
-        .tag("region")
-        .timestamp()
-        .field("user", DataType::Float64)
-        .build()
-        .unwrap();
-
-    run_table_schema_test_case(
-        TwoMeasurementsMubScenario {},
-        Selection::All,
-        "cpu",
-        expected_schema,
-        None,
-    )
-    .await;
+fn is_unsorted_chunk_type(chunk: &dyn QueryChunk) -> bool {
+    chunk.chunk_type() == "MUB"
 }
 
 #[tokio::test]
-async fn list_schema_cpu_all_rub() {
+async fn list_schema_cpu_all() {
     // we expect columns to come out in lexicographic order by name
     // The schema of RUB includes sort key
     let sort_key = SortKey::from_columns(vec!["region", TIME_COLUMN_NAME]);
@@ -93,7 +84,7 @@ async fn list_schema_cpu_all_rub() {
         .unwrap();
 
     run_table_schema_test_case(
-        TwoMeasurementsRubScenario {},
+        TwoMeasurements {},
         Selection::All,
         "cpu",
         expected_schema,
@@ -103,7 +94,7 @@ async fn list_schema_cpu_all_rub() {
 }
 
 #[tokio::test]
-async fn list_schema_cpu_all_rub_set_sort_key() {
+async fn list_schema_cpu_all_set_sort_key() {
     // The schema of RUB includes sort key
     let sort_key = SortKey::from_columns(vec!["region", TIME_COLUMN_NAME]);
 
@@ -115,7 +106,7 @@ async fn list_schema_cpu_all_rub_set_sort_key() {
         .unwrap();
 
     run_table_schema_test_case(
-        TwoMeasurementsRubScenario {},
+        TwoMeasurements {},
         Selection::All,
         "cpu",
         expected_schema,
@@ -137,7 +128,7 @@ async fn list_schema_disk_all() {
         .unwrap();
 
     run_table_schema_test_case(
-        TwoMeasurementsMubScenario {},
+        TwoMeasurements {},
         Selection::All,
         "disk",
         expected_schema,
@@ -157,14 +148,7 @@ async fn list_schema_cpu_selection() {
     // Pick an order that is not lexographic
     let selection = Selection::Some(&["user", "region"]);
 
-    run_table_schema_test_case(
-        TwoMeasurementsMubScenario {},
-        selection,
-        "cpu",
-        expected_schema,
-        None,
-    )
-    .await;
+    run_table_schema_test_case(TwoMeasurements {}, selection, "cpu", expected_schema, None).await;
 }
 
 #[tokio::test]
@@ -179,14 +163,7 @@ async fn list_schema_disk_selection() {
     // Pick an order that is not lexicographic
     let selection = Selection::Some(&["time", "bytes"]);
 
-    run_table_schema_test_case(
-        TwoMeasurementsMubScenario {},
-        selection,
-        "disk",
-        expected_schema,
-        None,
-    )
-    .await;
+    run_table_schema_test_case(TwoMeasurements {}, selection, "disk", expected_schema, None).await;
 }
 
 #[tokio::test]
@@ -200,7 +177,7 @@ async fn list_schema_location_all() {
         .unwrap();
 
     run_table_schema_test_case(
-        TwoMeasurementsUnsignedTypeMubScenario {},
+        TwoMeasurementsUnsignedType {},
         Selection::All,
         "restaurant",
         expected_schema,
