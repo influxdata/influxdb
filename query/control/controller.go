@@ -27,6 +27,7 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/codes"
+	"github.com/influxdata/flux/dependency"
 	"github.com/influxdata/flux/execute/table"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/flux/memory"
@@ -230,11 +231,10 @@ func (c *Controller) Query(ctx context.Context, compiler flux.Compiler) (flux.Qu
 	defer span.Finish()
 
 	// The controller injects the dependencies for each incoming request.
-	for _, dep := range c.dependencies {
-		ctx = dep.Inject(ctx)
-	}
-	q, err := c.query(ctx, compiler)
+	ctx, deps := dependency.Inject(ctx, c.dependencies...)
+	q, err := c.query(ctx, compiler, deps)
 	if err != nil {
+		deps.Finish()
 		return q, err
 	}
 
@@ -243,8 +243,8 @@ func (c *Controller) Query(ctx context.Context, compiler flux.Compiler) (flux.Qu
 
 // query submits a query for execution returning immediately.
 // Done must be called on any returned Query objects.
-func (c *Controller) query(ctx context.Context, compiler flux.Compiler) (flux.Query, error) {
-	q, err := c.createQuery(ctx, compiler.CompilerType())
+func (c *Controller) query(ctx context.Context, compiler flux.Compiler, deps *dependency.Span) (flux.Query, error) {
+	q, err := c.createQuery(ctx, compiler, deps)
 	if err != nil {
 		return nil, handleFluxError(err)
 	}
@@ -264,7 +264,7 @@ func (c *Controller) query(ctx context.Context, compiler flux.Compiler) (flux.Qu
 	return q, nil
 }
 
-func (c *Controller) createQuery(ctx context.Context, ct flux.CompilerType) (*Query, error) {
+func (c *Controller) createQuery(ctx context.Context, compiler flux.Compiler, deps *dependency.Span) (*Query, error) {
 	c.queriesMu.RLock()
 	if c.shutdown {
 		c.queriesMu.RUnlock()
@@ -287,7 +287,7 @@ func (c *Controller) createQuery(ctx context.Context, ct flux.CompilerType) (*Qu
 		labelValues[i] = str
 		compileLabelValues[i] = str
 	}
-	compileLabelValues[len(compileLabelValues)-1] = string(ct)
+	compileLabelValues[len(compileLabelValues)-1] = string(compiler.CompilerType())
 
 	cctx, cancel := context.WithCancel(ctx)
 	parentSpan, parentCtx := tracing.StartSpanFromContextWithPromMetrics(
@@ -307,6 +307,8 @@ func (c *Controller) createQuery(ctx context.Context, ct flux.CompilerType) (*Qu
 		parentSpan:         parentSpan,
 		cancel:             cancel,
 		doneCh:             make(chan struct{}),
+		deps:               deps,
+		compiler:           compiler,
 	}
 
 	// Lock the queries mutex for the rest of this method.
@@ -593,12 +595,14 @@ type Query struct {
 	done   sync.Once
 	doneCh chan struct{}
 
-	program flux.Program
-	exec    flux.Query
-	results chan flux.Result
+	program  flux.Program
+	exec     flux.Query
+	results  chan flux.Result
+	compiler flux.Compiler
 
 	memoryManager *queryMemoryManager
 	alloc         *memory.ResourceAllocator
+	deps          *dependency.Span
 }
 
 func (q *Query) ProfilerResults() (flux.ResultIterator, error) {
@@ -693,6 +697,9 @@ func (q *Query) Done() {
 			errMsgs = append(errMsgs, e.Error())
 		}
 		q.stats.RuntimeErrors = errMsgs
+
+		// Clean up the dependencies.
+		q.deps.Finish()
 
 		// Mark the query as finished so it is removed from the query map.
 		q.c.finish(q)
