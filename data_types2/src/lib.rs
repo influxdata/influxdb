@@ -513,13 +513,13 @@ impl ColumnType {
     /// the short string description of the type
     pub fn as_str(&self) -> &'static str {
         match self {
-            ColumnType::I64 => "i64",
-            ColumnType::U64 => "u64",
-            ColumnType::F64 => "f64",
-            ColumnType::Bool => "bool",
-            ColumnType::String => "string",
-            ColumnType::Time => "time",
-            ColumnType::Tag => "tag",
+            Self::I64 => "i64",
+            Self::U64 => "u64",
+            Self::F64 => "f64",
+            Self::Bool => "bool",
+            Self::String => "string",
+            Self::Time => "time",
+            Self::Tag => "tag",
         }
     }
 }

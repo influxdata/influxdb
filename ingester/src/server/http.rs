@@ -18,7 +18,7 @@ impl Error {
     /// the end user.
     pub fn as_status_code(&self) -> StatusCode {
         match self {
-            Error::NotFound => StatusCode::NOT_FOUND,
+            Self::NotFound => StatusCode::NOT_FOUND,
         }
     }
 }
