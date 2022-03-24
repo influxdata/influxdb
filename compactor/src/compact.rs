@@ -1499,6 +1499,7 @@ mod tests {
         ParquetFile {
             id: ParquetFileId::new(0),
             sequencer_id: SequencerId::new(0),
+            namespace_id: NamespaceId::new(0),
             table_id: TableId::new(0),
             partition_id: PartitionId::new(0),
             object_store_id: Uuid::new_v4(),
@@ -1691,6 +1692,7 @@ mod tests {
 
         let p1 = ParquetFileParams {
             sequencer_id: sequencer.id,
+            namespace_id: namespace.id,
             table_id: table.id,
             partition_id: partition.id,
             object_store_id: Uuid::new_v4(),
@@ -1993,6 +1995,7 @@ mod tests {
         // Prepare metadata in form of ParquetFileParams to get added with tombstone
         let parquet = ParquetFileParams {
             sequencer_id: sequencer.id,
+            namespace_id: namespace.id,
             table_id: table.id,
             partition_id: partition.id,
             object_store_id: Uuid::new_v4(),

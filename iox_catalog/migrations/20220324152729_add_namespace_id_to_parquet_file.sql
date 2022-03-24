@@ -1,0 +1,10 @@
+ALTER TABLE
+  IF EXISTS parquet_file
+  ADD COLUMN namespace_id INT NOT NULL;
+ALTER TABLE
+  IF EXISTS parquet_file
+  ADD FOREIGN KEY (namespace_id)
+  REFERENCES namespace (id) MATCH SIMPLE
+  ON UPDATE NO ACTION
+  ON DELETE NO ACTION
+  NOT VALID;

@@ -1897,6 +1897,7 @@ mod tests {
             .unwrap();
         let parquet_file_params = ParquetFileParams {
             sequencer_id: sequencer.id,
+            namespace_id: namespace.id,
             table_id: table.id,
             partition_id: partition.id,
             object_store_id: Uuid::new_v4(),

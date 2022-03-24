@@ -662,6 +662,7 @@ impl IoxMetadata {
     ) -> ParquetFileParams {
         ParquetFileParams {
             sequencer_id: self.sequencer_id,
+            namespace_id: self.namespace_id,
             table_id: self.table_id,
             partition_id: self.partition_id,
             object_store_id: self.object_store_id,

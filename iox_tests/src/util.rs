@@ -438,6 +438,7 @@ impl TestPartition {
 
         let parquet_file_params = ParquetFileParams {
             sequencer_id: self.sequencer.sequencer.id,
+            namespace_id: self.namespace.namespace.id,
             table_id: self.table.table.id,
             partition_id: self.partition.id,
             object_store_id,

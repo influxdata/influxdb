@@ -1377,6 +1377,7 @@ impl ParquetFileRepo for PostgresTxn {
     async fn create(&mut self, parquet_file_params: ParquetFileParams) -> Result<ParquetFile> {
         let ParquetFileParams {
             sequencer_id,
+            namespace_id,
             table_id,
             partition_id,
             object_store_id,
@@ -1395,8 +1396,8 @@ impl ParquetFileRepo for PostgresTxn {
 INSERT INTO parquet_file (
     sequencer_id, table_id, partition_id, object_store_id, min_sequence_number,
     max_sequence_number, min_time, max_time, file_size_bytes, parquet_metadata,
-    row_count, compaction_level, created_at )
-VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13 )
+    row_count, compaction_level, created_at, namespace_id )
+VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14 )
 RETURNING *;
         "#,
         )
@@ -1413,6 +1414,7 @@ RETURNING *;
         .bind(row_count) // $11
         .bind(INITIAL_COMPACTION_LEVEL) // $12
         .bind(created_at) // $13
+        .bind(namespace_id) // $14
         .fetch_one(&mut self.inner)
         .await
         .map_err(|e| {

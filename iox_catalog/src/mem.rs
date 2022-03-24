@@ -902,6 +902,7 @@ impl ParquetFileRepo for MemTxn {
 
         let ParquetFileParams {
             sequencer_id,
+            namespace_id,
             table_id,
             partition_id,
             object_store_id,
@@ -926,6 +927,7 @@ impl ParquetFileRepo for MemTxn {
         let parquet_file = ParquetFile {
             id: ParquetFileId::new(stage.parquet_files.len() as i64 + 1),
             sequencer_id,
+            namespace_id,
             table_id,
             partition_id,
             object_store_id,
