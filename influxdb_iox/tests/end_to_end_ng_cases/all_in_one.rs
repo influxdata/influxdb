@@ -36,14 +36,18 @@ async fn smoke() {
     // Write some data into the v2 HTTP API ==============
     let lp = format!("{},tag1=A,tag2=B val=42i 123456", table_name);
 
-    let response = write_to_router(lp, org, bucket, all_in_one.server.router_http_base()).await;
+    let response = write_to_router(lp, org, bucket, all_in_one.server().router_http_base()).await;
 
     assert_eq!(response.status(), StatusCode::NO_CONTENT);
 
     // run query in a loop until the data becomes available
     let sql = format!("select * from {}", table_name);
-    let batches =
-        query_until_results(sql, namespace, all_in_one.server.querier_grpc_connection()).await;
+    let batches = query_until_results(
+        sql,
+        namespace,
+        all_in_one.server().querier_grpc_connection(),
+    )
+    .await;
 
     let expected = [
         "+------+------+--------------------------------+-----+",

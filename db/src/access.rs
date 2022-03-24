@@ -346,15 +346,6 @@ impl CatalogProvider for QueryCatalogAccess {
             _ => None,
         }
     }
-
-    fn register_schema(
-        &self,
-        _name: &str,
-        _schema: Arc<dyn SchemaProvider>,
-    ) -> Option<Arc<dyn SchemaProvider>> {
-        // https://github.com/apache/arrow-datafusion/issues/2051
-        unimplemented!("Schemas can not be registered in IOx");
-    }
 }
 
 /// Implement the DataFusion schema provider API

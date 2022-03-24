@@ -14,7 +14,7 @@ publish = false
 ### BEGIN HAKARI SECTION
 [dependencies]
 ahash = { version = "0.7", features = ["std"] }
-arrow = { version = "10", features = ["comfy-table", "csv", "csv_crate", "flatbuffers", "ipc", "prettyprint", "rand", "test_utils"] }
+arrow = { version = "11", features = ["comfy-table", "csv", "csv_crate", "flatbuffers", "ipc", "prettyprint", "rand", "test_utils"] }
 base64 = { version = "0.13", features = ["alloc", "std"] }
 bitflags = { version = "1" }
 byteorder = { version = "1", features = ["std"] }
@@ -41,7 +41,7 @@ num-bigint = { version = "0.4", features = ["std"] }
 num-integer = { version = "0.1", default-features = false, features = ["i128", "std"] }
 num-traits = { version = "0.2", features = ["i128", "libm", "std"] }
 once_cell = { version = "1", features = ["alloc", "parking_lot", "race", "std"] }
-parquet = { version = "10", features = ["arrow", "base64", "brotli", "experimental", "flate2", "lz4", "snap", "zstd"] }
+parquet = { version = "11", features = ["arrow", "base64", "brotli", "experimental", "flate2", "lz4", "snap", "zstd"] }
 predicates = { version = "2", features = ["diff", "difflib", "float-cmp", "normalize-line-endings", "regex"] }
 prost = { version = "0.9", features = ["prost-derive", "std"] }
 prost-types = { version = "0.9", features = ["std"] }
@@ -67,6 +67,9 @@ tracing-core = { version = "0.1", features = ["lazy_static", "std"] }
 tracing-log = { version = "0.1", features = ["log-tracer", "std", "trace-logger"] }
 tracing-subscriber = { version = "0.3", features = ["alloc", "ansi", "ansi_term", "env-filter", "fmt", "json", "lazy_static", "matchers", "regex", "registry", "serde", "serde_json", "sharded-slab", "smallvec", "std", "thread_local", "tracing", "tracing-log", "tracing-serde"] }
 uuid = { version = "0.8", features = ["getrandom", "std", "v4"] }
+zstd = { version = "0.11", features = ["arrays", "legacy", "zdict_builder"] }
+zstd-safe = { version = "5", default-features = false, features = ["arrays", "legacy", "std", "zdict_builder"] }
+zstd-sys = { version = "2", default-features = false, features = ["legacy", "std", "zdict_builder"] }
 
 [build-dependencies]
 ahash = { version = "0.7", features = ["std"] }

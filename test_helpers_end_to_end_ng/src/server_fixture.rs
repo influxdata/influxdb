@@ -18,7 +18,7 @@ use super::{addrs::BindAddresses, ServerType, TestConfig};
 /// Represents a server that has been started and is available for
 /// testing.
 pub struct ServerFixture {
-    pub server: Arc<TestServer>,
+    server: Arc<TestServer>,
 }
 
 impl ServerFixture {
@@ -65,6 +65,12 @@ impl ServerFixture {
     /// Directory used for data storage.
     pub fn dir(&self) -> &Path {
         self.server.dir.path()
+    }
+
+    /// Get a reference to the underlying server.
+    #[must_use]
+    pub fn server(&self) -> &TestServer {
+        self.server.as_ref()
     }
 }
 
@@ -277,26 +283,6 @@ impl TestServer {
         let run_command = server_type.run_command();
 
         initialize_db(dsn).await;
-
-        // Set up the catalog
-        Command::cargo_bin("influxdb_iox")
-            .unwrap()
-            .arg("catalog")
-            .arg("setup")
-            .env("INFLUXDB_IOX_CATALOG_DSN", &dsn)
-            .ok()
-            .unwrap();
-
-        // Create the shared Kafka topic in the catalog
-        Command::cargo_bin("influxdb_iox")
-            .unwrap()
-            .arg("catalog")
-            .arg("topic")
-            .arg("update")
-            .arg("iox-shared")
-            .env("INFLUXDB_IOX_CATALOG_DSN", &dsn)
-            .ok()
-            .unwrap();
 
         // This will inherit environment from the test runner
         // in particular `LOG_FILTER`

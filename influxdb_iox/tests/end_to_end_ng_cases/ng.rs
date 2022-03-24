@@ -35,7 +35,7 @@ async fn router2_through_ingester() {
     // Write some data into the v2 HTTP API ==============
     let lp = format!("{},tag1=A,tag2=B val=42i 123456", table_name);
 
-    let response = write_to_router(lp, org, bucket, router2.server.router_http_base()).await;
+    let response = write_to_router(lp, org, bucket, router2.server().router_http_base()).await;
 
     assert_eq!(response.status(), StatusCode::NO_CONTENT);
 
@@ -56,7 +56,7 @@ async fn router2_through_ingester() {
     let ingester = ServerFixture::create_single_use_with_config(test_config).await;
 
     let mut querier_flight =
-        querier::flight::Client::new(ingester.server.ingester_grpc_connection());
+        querier::flight::Client::new(ingester.server().ingester_grpc_connection());
 
     let query = IngesterQueryRequest::new(
         namespace,
