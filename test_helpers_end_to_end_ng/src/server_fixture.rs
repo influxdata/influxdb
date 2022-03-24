@@ -25,14 +25,7 @@ impl ServerFixture {
     /// Create a new server fixture and wait for it to be ready. This
     /// is called "create" rather than new because it is async and
     /// waits. The server is not shared with any other tests.
-    pub async fn create_single_use(server_type: ServerType) -> Self {
-        let test_config = TestConfig::new(server_type);
-        Self::create_single_use_with_config(test_config).await
-    }
-
-    /// Create a new server fixture with the provided additional environment variables
-    /// and wait for it to be ready. The server is not shared with any other tests.
-    pub async fn create_single_use_with_config(test_config: TestConfig) -> Self {
+    pub async fn create(test_config: TestConfig) -> Self {
         let mut server = TestServer::new(test_config).await;
 
         // ensure the server is ready
@@ -123,14 +116,7 @@ impl TestServer {
         let dir = test_helpers::tmp_dir().unwrap();
 
         let server_process = Arc::new(Mutex::new(
-            Self::create_server_process(
-                &addrs,
-                &dir,
-                test_config.dsn(),
-                test_config.env(),
-                test_config.server_type(),
-            )
-            .await,
+            Self::create_server_process(&addrs, &dir, &test_config).await,
         ));
 
         Self {
@@ -243,23 +229,15 @@ impl TestServer {
         let mut server_process = self.server_process.lock().await;
         server_process.child.kill().unwrap();
         server_process.child.wait().unwrap();
-        *server_process = Self::create_server_process(
-            &self.addrs,
-            &self.dir,
-            self.test_config.dsn(),
-            self.test_config.env(),
-            self.test_config.server_type(),
-        )
-        .await;
+        *server_process =
+            Self::create_server_process(&self.addrs, &self.dir, &self.test_config).await;
         *ready_guard = ServerState::Started;
     }
 
     async fn create_server_process(
         addrs: &BindAddresses,
-        dir: &TempDir,
-        dsn: &str,
-        env: &[(String, String)],
-        server_type: ServerType,
+        object_store_dir: &TempDir,
+        test_config: &TestConfig,
     ) -> Process {
         // Create a new file each time and keep it around to aid debugging
         let (log_file, log_path) = NamedTempFile::new()
@@ -272,6 +250,8 @@ impl TestServer {
             .expect("cloning file handle for stdout");
         let stderr_log_file = log_file;
 
+        let server_type = test_config.server_type();
+
         println!("****************");
         println!("Server {:?} Logging to {:?}", server_type, log_path);
         println!("****************");
@@ -282,6 +262,7 @@ impl TestServer {
 
         let run_command = server_type.run_command();
 
+        let dsn = test_config.dsn();
         initialize_db(dsn).await;
 
         // This will inherit environment from the test runner
@@ -293,10 +274,10 @@ impl TestServer {
             .env("LOG_FILTER", log_filter)
             .env("INFLUXDB_IOX_CATALOG_DSN", &dsn)
             .env("INFLUXDB_IOX_OBJECT_STORE", "file")
-            .env("INFLUXDB_IOX_DB_DIR", dir.path())
+            .env("INFLUXDB_IOX_DB_DIR", object_store_dir.path())
             // add http/grpc address information
             .add_addr_env(server_type, addrs)
-            .envs(env.iter().map(|(a, b)| (a.as_str(), b.as_str())))
+            .envs(test_config.env())
             // redirect output to log file
             .stdout(stdout_log_file)
             .stderr(stderr_log_file)
