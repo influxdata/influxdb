@@ -120,6 +120,14 @@ func MustCreateUsers(ctx context.Context, svc influxdb.UserService, us ...*influ
 	}
 }
 
+func MustNewPermission(a influxdb.Action, rt influxdb.ResourceType, orgID platform.ID) *influxdb.Permission {
+	perm, err := influxdb.NewPermission(a, rt, orgID)
+	if err != nil {
+		panic(err)
+	}
+	return perm
+}
+
 func MustNewPermissionAtID(id platform.ID, a influxdb.Action, rt influxdb.ResourceType, orgID platform.ID) *influxdb.Permission {
 	perm, err := influxdb.NewPermissionAtID(id, a, rt, orgID)
 	if err != nil {
