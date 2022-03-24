@@ -5,6 +5,7 @@ use data_types::timestamp::TimestampRange;
 
 use async_trait::async_trait;
 
+use super::util::{make_n_chunks_scenario_new, ChunkDataNew, PredNew};
 use super::{DbScenario, DbSetup};
 use crate::scenarios::util::{
     all_scenarios_for_one_chunk, make_different_stage_chunks_with_deletes_scenario_old,
@@ -422,6 +423,32 @@ impl DbSetup for ThreeDeleteThreeChunks {
         ];
 
         scenarios.extend(compact_os_scenarios.into_iter());
+        scenarios.append(
+            &mut make_n_chunks_scenario_new(&[
+                ChunkDataNew {
+                    lp_lines: lp_lines_1,
+                    preds: vec![PredNew::end(&pred1)],
+                    delete_table_name: table_name,
+                    partition_key,
+                    ..Default::default()
+                },
+                ChunkDataNew {
+                    lp_lines: lp_lines_2,
+                    preds: vec![PredNew::end(&pred2)],
+                    delete_table_name: table_name,
+                    partition_key,
+                    ..Default::default()
+                },
+                ChunkDataNew {
+                    lp_lines: lp_lines_3,
+                    preds: vec![PredNew::end(&pred3)],
+                    delete_table_name: table_name,
+                    partition_key,
+                    ..Default::default()
+                },
+            ])
+            .await,
+        );
 
         scenarios
     }

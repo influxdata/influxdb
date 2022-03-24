@@ -8,6 +8,7 @@ use db::{
     Db,
 };
 use iox_tests::util::{TestCatalog, TestNamespace};
+use itertools::Itertools;
 use querier::namespace::QuerierNamespace;
 use query::QueryChunk;
 use schema::merge::SchemaMerger;
@@ -29,17 +30,42 @@ pub struct ChunkDataOld<'a> {
 }
 
 #[derive(Debug, Clone)]
-pub struct ChunkDataNew<'a> {
+pub struct ChunkDataNew<'a, 'b> {
     /// Line protocol data of this chunk
     pub lp_lines: Vec<&'a str>,
+
     /// which stage this chunk will be created
     pub chunk_stage: ChunkStageNew,
+
+    /// Delete predicates
+    pub preds: Vec<PredNew<'b>>,
+
+    /// Table that should be deleted.
+    pub delete_table_name: &'a str,
+
+    /// Partition key
+    pub partition_key: &'a str,
 }
 
-#[derive(Debug, Clone)]
-pub enum ChunkData<'a> {
-    Old(ChunkDataOld<'a>),
-    New(ChunkDataNew<'a>),
+impl<'a, 'b> ChunkDataNew<'a, 'b> {
+    fn with_chunk_stage(self, chunk_stage: ChunkStageNew) -> Self {
+        Self {
+            chunk_stage,
+            ..self
+        }
+    }
+}
+
+impl<'a, 'b> Default for ChunkDataNew<'a, 'b> {
+    fn default() -> Self {
+        Self {
+            lp_lines: Default::default(),
+            chunk_stage: ChunkStageNew::Parquet,
+            preds: Default::default(),
+            delete_table_name: "",
+            partition_key: "",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -136,6 +162,22 @@ pub struct PredNew<'a> {
     predicate: &'a DeletePredicate,
     /// At which chunk stage this predicate is applied
     delete_time: DeleteTimeNew,
+}
+
+impl<'a> PredNew<'a> {
+    pub fn begin(predicate: &'a DeletePredicate) -> Self {
+        Self {
+            predicate,
+            delete_time: DeleteTimeNew::begin(),
+        }
+    }
+
+    pub fn end(predicate: &'a DeletePredicate) -> Self {
+        Self {
+            predicate,
+            delete_time: DeleteTimeNew::end(),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -615,15 +657,14 @@ async fn make_chunk_with_deletes_at_different_stages_new(
     let catalog = TestCatalog::new();
     let ns = catalog.create_namespace("test_db").await;
 
-    let scenario_name = make_ng_chunk(
-        Arc::clone(&ns),
-        &lp_lines,
+    let chunk_data = ChunkDataNew {
+        lp_lines,
         chunk_stage,
-        &preds,
+        preds,
         delete_table_name,
         partition_key,
-    )
-    .await;
+    };
+    let scenario_name = make_ng_chunk(Arc::clone(&ns), chunk_data).await;
 
     let db = make_querier_namespace(ns).await;
 
@@ -636,16 +677,6 @@ async fn make_chunk_with_deletes_at_different_stages_new(
 //  this function tests different-stage chunks in various stages when one or many deletes happen.
 //  Even though these 2 functions have some overlapped code, merging them in one
 //  function will created a much more complicated cases to handle
-pub async fn make_different_stage_chunks_with_deletes_scenario(
-    _data: Vec<ChunkData<'_>>,
-    _preds: Vec<&DeletePredicate>,
-    _table_name: &str,
-    _partition_key: &str,
-) -> DbScenario {
-    // this is used by `delete.rs` but currently that only generates OG data
-    unimplemented!()
-}
-
 pub async fn make_different_stage_chunks_with_deletes_scenario_old(
     data: Vec<ChunkDataOld<'_>>,
     preds: Vec<&DeletePredicate>,
@@ -796,7 +827,7 @@ pub async fn make_os_chunks_and_then_compact_with_different_scenarios_with_delet
     vec![scenario_1, scenario_2, scenario_3, scenario_4]
 }
 
-pub async fn make_contiguous_os_chunks(
+async fn make_contiguous_os_chunks(
     lp_lines_vec: Vec<Vec<&str>>,
     table_name: &str,
     partition_key: &str,
@@ -998,49 +1029,44 @@ async fn make_two_chunk_scenarios_new(
     data1: &str,
     data2: &str,
 ) -> Vec<DbScenario> {
-    let mut scenarios = vec![];
-
     let lp_lines1: Vec<_> = data1.split('\n').collect();
     let lp_lines2: Vec<_> = data2.split('\n').collect();
 
-    for chunk_stage1 in ChunkStageNew::all() {
-        for chunk_stage2 in ChunkStageNew::all() {
-            let catalog = TestCatalog::new();
-            let ns = catalog.create_namespace("test_db").await;
+    make_n_chunks_scenario_new(&[
+        ChunkDataNew {
+            lp_lines: lp_lines1,
+            partition_key,
+            ..Default::default()
+        },
+        ChunkDataNew {
+            lp_lines: lp_lines2,
+            partition_key,
+            ..Default::default()
+        },
+    ])
+    .await
+}
 
-            let name1 = make_ng_chunk(
-                Arc::clone(&ns),
-                &lp_lines1,
-                chunk_stage1,
-                &[],
-                "not_important",
-                partition_key,
-            )
-            .await;
-            let name2 = make_ng_chunk(
-                Arc::clone(&ns),
-                &lp_lines2,
-                chunk_stage2,
-                &[],
-                "not_important",
-                partition_key,
-            )
-            .await;
+pub async fn make_n_chunks_scenario_new(chunks: &[ChunkDataNew<'_, '_>]) -> Vec<DbScenario> {
+    let mut scenarios = vec![];
 
-            let db = make_querier_namespace(ns).await;
-            let scenario_name = format!("Two chunks: {}; {}", name1, name2);
-            scenarios.push(DbScenario { scenario_name, db });
+    for stages in ChunkStageNew::all().into_iter().permutations(chunks.len()) {
+        let catalog = TestCatalog::new();
+        let ns = catalog.create_namespace("test_db").await;
+        let mut scenario_name = format!("{} chunks:", chunks.len());
+
+        for (chunk_stage, chunk_data) in stages.into_iter().zip(chunks) {
+            let chunk_data = chunk_data.clone().with_chunk_stage(chunk_stage);
+            let name = make_ng_chunk(Arc::clone(&ns), chunk_data).await;
+
+            write!(&mut scenario_name, "{}", name).unwrap();
         }
+
+        let db = make_querier_namespace(ns).await;
+        scenarios.push(DbScenario { scenario_name, db });
     }
 
     scenarios
-}
-
-/// Rollover the mutable buffer and load chunk 0 to the read buffer and object store
-pub async fn rollover_and_load(db: &Arc<Db>, partition_key: &str, table_name: &str) {
-    db.persist_partition(table_name, partition_key, true)
-        .await
-        .unwrap();
 }
 
 // // This function loads one chunk of lp data into RUB for testing predicate pushdown
@@ -1082,14 +1108,7 @@ pub(crate) async fn make_one_rub_or_parquet_chunk_scenario(
     vec![scenario1, scenario2]
 }
 
-async fn make_ng_chunk(
-    ns: Arc<TestNamespace>,
-    lp_lines: &[&str],
-    chunk_stage: ChunkStageNew,
-    preds: &[PredNew<'_>],
-    delete_table_name: &str,
-    partition_key: &str,
-) -> String {
+async fn make_ng_chunk(ns: Arc<TestNamespace>, chunk: ChunkDataNew<'_, '_>) -> String {
     use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
 
     // detect table names and schemas from LP lines
@@ -1097,9 +1116,7 @@ async fn make_ng_chunk(
         let mut lp_lines_grouped: BTreeMap<_, Vec<_>> = BTreeMap::new();
         let mut schemas: BTreeMap<_, SchemaMerger> = BTreeMap::new();
 
-        for lp in lp_lines {
-            let lp = *lp;
-
+        for lp in chunk.lp_lines {
             let (table_name, batch) = lp_to_mutable_batch(lp);
 
             lp_lines_grouped
@@ -1141,7 +1158,7 @@ async fn make_ng_chunk(
         for table in tables {
             let partition = table
                 .with_sequencer(&sequencer)
-                .create_partition(partition_key)
+                .create_partition(chunk.partition_key)
                 .await;
             partitions.insert(table.table.name.clone(), partition);
         }
@@ -1157,7 +1174,7 @@ async fn make_ng_chunk(
     }
 
     // create chunk
-    match chunk_stage {
+    match chunk.chunk_stage {
         ChunkStageNew::Parquet => {
             // need to use a temporary vector because BTree iterators ain't `Send`
             let lp_lines_grouped: Vec<_> = lp_lines_grouped.into_iter().collect();
@@ -1182,9 +1199,9 @@ async fn make_ng_chunk(
     }
 
     // attach delete predicates
-    let n_preds = preds.len();
-    if let Some(table) = tables.get(delete_table_name) {
-        for (i, pred) in preds.iter().enumerate() {
+    let n_preds = chunk.preds.len();
+    if let Some(table) = tables.get(chunk.delete_table_name) {
+        for (i, pred) in chunk.preds.iter().enumerate() {
             match pred.delete_time {
                 DeleteTimeNew::Parquet => {
                     // parquet files got created w/ sequence number = 1
@@ -1202,7 +1219,7 @@ async fn make_ng_chunk(
         }
     }
 
-    let mut name = format!("NG Chunk {}", chunk_stage);
+    let mut name = format!("NG Chunk {}", chunk.chunk_stage);
     if n_preds > 0 {
         write!(name, " with {} deletes", n_preds).unwrap();
     }

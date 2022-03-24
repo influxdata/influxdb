@@ -139,7 +139,7 @@ async fn sql_select_from_system_operations() {
     // Check that the cpu time used reported is greater than zero as it isn't
     // repeatable
     run_sql_test_case(
-        TwoMeasurementsManyFieldsLifecycle {},
+        OldTwoMeasurementsManyFieldsLifecycle {},
         "SELECT id, status, CAST(start_time as BIGINT) > 0 as start_time, CAST(cpu_time_used AS BIGINT) > 0 as took_cpu_time, CAST(wall_time_used AS BIGINT) > 0 as took_wall_time, table_name, partition_key, description from system.operations",
         &expected
     ).await;

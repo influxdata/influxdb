@@ -4244,6 +4244,7 @@ dependencies = [
  "datafusion 0.1.0",
  "db",
  "iox_tests",
+ "itertools",
  "metric",
  "mutable_batch_lp",
  "object_store",

@@ -13,6 +13,7 @@ data_types = { path = "../data_types" }
 datafusion = { path = "../datafusion" }
 db = { path = "../db" }
 iox_tests = { path = "../iox_tests" }
+itertools = "0.10"
 mutable_batch_lp = { path = "../mutable_batch_lp" }
 once_cell = { version = "1.10.0", features = ["parking_lot"] }
 predicate = { path = "../predicate" }

@@ -1,4 +1,4 @@
--- IOX_SETUP: TwoMeasurementsManyFieldsTwoChunks
+-- IOX_SETUP: OldTwoMeasurementsManyFieldsTwoChunks
 
 --
 -- system tables reflect the state of chunks, so don't run them

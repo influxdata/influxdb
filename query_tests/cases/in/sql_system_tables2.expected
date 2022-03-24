@@ -1,4 +1,4 @@
--- Test Setup: TwoMeasurementsManyFieldsTwoChunks
+-- Test Setup: OldTwoMeasurementsManyFieldsTwoChunks
 -- SQL: SELECT partition_key, table_name, column_name, storage, row_count, null_count, min_value, max_value, memory_bytes from system.chunk_columns;
 -- Results After Sorting
 +---------------+------------+-------------+-------------------+-----------+------------+-----------+-----------+--------------+
