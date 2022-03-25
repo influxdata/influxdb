@@ -2,7 +2,7 @@
 
 use std::{str::Utf8Error, sync::Arc};
 
-use crate::dml_handlers::{DmlError, DmlHandler, PartitionError};
+use crate::dml_handlers::{DmlError, DmlHandler, PartitionError, SchemaError};
 
 use bytes::{Bytes, BytesMut};
 use data_types2::{org_and_bucket_to_database, OrgBucketMappingError};
@@ -94,6 +94,16 @@ impl From<&DmlError> for StatusCode {
     fn from(e: &DmlError) -> Self {
         match e {
             DmlError::DatabaseNotFound(_) => StatusCode::NOT_FOUND,
+
+            // Service limit errors
+            DmlError::Schema(SchemaError::Validate(
+                iox_catalog::interface::Error::TableCreateLimitError { .. }
+                | iox_catalog::interface::Error::ColumnCreateLimitError { .. },
+            )) => {
+                // https://docs.influxdata.com/influxdb/cloud/account-management/limits/#api-error-responses
+                StatusCode::TOO_MANY_REQUESTS
+            }
+
             DmlError::Schema(_) => StatusCode::BAD_REQUEST,
             DmlError::Internal(_) | DmlError::WriteBuffer(_) | DmlError::NamespaceCreation(_) => {
                 StatusCode::INTERNAL_SERVER_ERROR

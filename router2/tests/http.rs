@@ -8,8 +8,9 @@ use metric::{Attributes, Metric, Registry, U64Counter, U64Histogram};
 use mutable_batch::MutableBatch;
 use router2::{
     dml_handlers::{
-        Chain, DmlHandlerChainExt, FanOutAdaptor, InstrumentationDecorator, NamespaceAutocreation,
-        Partitioned, Partitioner, SchemaValidator, ShardedWriteBuffer,
+        Chain, DmlError, DmlHandlerChainExt, FanOutAdaptor, InstrumentationDecorator,
+        NamespaceAutocreation, Partitioned, Partitioner, SchemaError, SchemaValidator,
+        ShardedWriteBuffer,
     },
     namespace_cache::{MemoryNamespaceCache, ShardedCache},
     sequencer::Sequencer,
@@ -230,4 +231,112 @@ async fn test_write_ok() {
         .fetch();
     let hit_count = histogram.buckets.iter().fold(0, |acc, v| acc + v.count);
     assert_eq!(hit_count, 1);
+}
+
+#[tokio::test]
+async fn test_schema_conflict() {
+    let ctx = TestContext::new();
+
+    let request = Request::builder()
+        .uri("https://bananas.example/api/v2/write?org=bananas&bucket=test")
+        .method("POST")
+        .body(Body::from("platanos,tag1=A,tag2=B val=42i 123456"))
+        .expect("failed to construct HTTP request");
+
+    let response = ctx
+        .delegate()
+        .route(request)
+        .await
+        .expect("LP write request failed");
+
+    assert_eq!(response.status(), StatusCode::NO_CONTENT);
+
+    let request = Request::builder()
+        .uri("https://bananas.example/api/v2/write?org=bananas&bucket=test")
+        .method("POST")
+        .body(Body::from("platanos,tag1=A,tag2=B val=42.0 123457"))
+        .expect("failed to construct HTTP request");
+
+    let err = ctx
+        .delegate()
+        .route(request)
+        .await
+        .expect_err("LP write request should fail");
+
+    assert_matches!(
+        &err,
+        router2::server::http::Error::DmlHandler(
+            DmlError::Schema(
+                SchemaError::Validate(
+                    iox_catalog::interface::Error::ColumnTypeMismatch {
+                        name,
+                        existing,
+                        new,
+                    }
+                )
+            )
+        ) => {
+            assert_eq!(name, "val");
+            assert_eq!(existing, "i64");
+            assert_eq!(new, "iox::column_type::field::float");
+        }
+    );
+    assert_eq!(err.as_status_code(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn test_schema_limit() {
+    let ctx = TestContext::new();
+
+    // Drive the creation of the namespace
+    let request = Request::builder()
+        .uri("https://bananas.example/api/v2/write?org=bananas&bucket=test")
+        .method("POST")
+        .body(Body::from("platanos,tag1=A,tag2=B val=42i 123456"))
+        .expect("failed to construct HTTP request");
+    let response = ctx
+        .delegate()
+        .route(request)
+        .await
+        .expect("LP write request failed");
+    assert_eq!(response.status(), StatusCode::NO_CONTENT);
+
+    // Update the table limit
+    ctx.catalog()
+        .repositories()
+        .await
+        .namespaces()
+        .update_table_limit("bananas_test", 1)
+        .await
+        .expect("failed to update table limit");
+
+    // Attempt to create another table
+    let request = Request::builder()
+        .uri("https://bananas.example/api/v2/write?org=bananas&bucket=test")
+        .method("POST")
+        .body(Body::from("platanos2,tag1=A,tag2=B val=42i 123456"))
+        .expect("failed to construct HTTP request");
+    let err = ctx
+        .delegate()
+        .route(request)
+        .await
+        .expect_err("LP write request should fail");
+
+    assert_matches!(
+        &err,
+        router2::server::http::Error::DmlHandler(
+            DmlError::Schema(
+                SchemaError::Validate(
+                    iox_catalog::interface::Error::TableCreateLimitError {
+                        table_name,
+                        namespace_id,
+                    }
+                )
+            )
+        ) => {
+            assert_eq!(table_name, "platanos2");
+            assert_eq!(namespace_id.to_string(), "1");
+        }
+    );
+    assert_eq!(err.as_status_code(), StatusCode::TOO_MANY_REQUESTS);
 }
