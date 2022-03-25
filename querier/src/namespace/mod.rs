@@ -55,31 +55,46 @@ impl QuerierNamespace {
     ///
     /// You may call [`sync`](Self::sync) to fill the namespace with chunks.
     pub fn new(
-        catalog_cache: Arc<CatalogCache>,
+        backoff_config: BackoffConfig,
+        chunk_adapter: Arc<ParquetChunkAdapter>,
         name: Arc<str>,
         id: NamespaceId,
-        metric_registry: Arc<metric::Registry>,
-        object_store: Arc<DynObjectStore>,
-        time_provider: Arc<dyn TimeProvider>,
         exec: Arc<Executor>,
     ) -> Self {
+        let catalog_cache = Arc::clone(chunk_adapter.catalog_cache());
         let catalog = catalog_cache.catalog();
 
         Self {
-            backoff_config: BackoffConfig::default(),
+            backoff_config,
             catalog,
             catalog_cache: Arc::clone(&catalog_cache),
             tables: RwLock::new(Arc::new(HashMap::new())),
-            chunk_adapter: Arc::new(ParquetChunkAdapter::new(
-                catalog_cache,
-                object_store,
-                metric_registry,
-                time_provider,
-            )),
+            chunk_adapter,
             id,
             name,
             exec,
         }
+    }
+
+    /// Create new empty namespace for testing.
+    pub fn new_testing(
+        catalog: Arc<dyn Catalog>,
+        object_store: Arc<DynObjectStore>,
+        metric_registry: Arc<metric::Registry>,
+        time_provider: Arc<dyn TimeProvider>,
+        name: Arc<str>,
+        id: NamespaceId,
+        exec: Arc<Executor>,
+    ) -> Self {
+        let catalog_cache = Arc::new(CatalogCache::new(catalog, Arc::clone(&time_provider)));
+        let chunk_adapter = Arc::new(ParquetChunkAdapter::new(
+            catalog_cache,
+            object_store,
+            metric_registry,
+            time_provider,
+        ));
+
+        Self::new(BackoffConfig::default(), chunk_adapter, name, id, exec)
     }
 
     /// Namespace name.
@@ -155,16 +170,21 @@ mod tests {
     async fn test_sync_namespace_gone() {
         let catalog = TestCatalog::new();
 
+        let catalog_cache = Arc::new(CatalogCache::new(
+            catalog.catalog(),
+            catalog.time_provider(),
+        ));
+        let chunk_adapter = Arc::new(ParquetChunkAdapter::new(
+            catalog_cache,
+            catalog.object_store(),
+            catalog.metric_registry(),
+            catalog.time_provider(),
+        ));
         let querier_namespace = QuerierNamespace::new(
-            Arc::new(CatalogCache::new(
-                catalog.catalog(),
-                catalog.time_provider(),
-            )),
+            BackoffConfig::default(),
+            chunk_adapter,
             "ns".into(),
             NamespaceId::new(1),
-            catalog.metric_registry(),
-            catalog.object_store(),
-            catalog.time_provider(),
             catalog.exec(),
         );
 
@@ -179,7 +199,7 @@ mod tests {
 
         let ns = catalog.create_namespace("ns").await;
 
-        let querier_namespace = querier_namespace(&catalog, &ns);
+        let querier_namespace = querier_namespace(&ns);
 
         querier_namespace.sync().await;
         assert_eq!(tables(&querier_namespace), Vec::<String>::new());
@@ -211,7 +231,7 @@ mod tests {
         let ns = catalog.create_namespace("ns").await;
         let table = ns.create_table("table").await;
 
-        let querier_namespace = querier_namespace(&catalog, &ns);
+        let querier_namespace = querier_namespace(&ns);
 
         querier_namespace.sync().await;
         let expected_schema = SchemaBuilder::new().build().unwrap();

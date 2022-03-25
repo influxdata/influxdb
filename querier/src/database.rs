@@ -2,6 +2,7 @@
 
 use crate::{
     cache::CatalogCache,
+    chunk::ParquetChunkAdapter,
     namespace::QuerierNamespace,
     poison::{PoisonCabinet, PoisonPill},
 };
@@ -36,6 +37,9 @@ pub struct QuerierDatabase {
 
     /// Catalog cache.
     catalog_cache: Arc<CatalogCache>,
+
+    /// Adapter to create chunks.
+    chunk_adapter: Arc<ParquetChunkAdapter>,
 
     /// Metric registry
     metric_registry: Arc<metric::Registry>,
@@ -76,11 +80,18 @@ impl QuerierDatabase {
             Arc::clone(&catalog),
             Arc::clone(&time_provider),
         ));
+        let chunk_adapter = Arc::new(ParquetChunkAdapter::new(
+            Arc::clone(&catalog_cache),
+            Arc::clone(&object_store),
+            Arc::clone(&metric_registry),
+            Arc::clone(&time_provider),
+        ));
 
         Self {
             backoff_config: BackoffConfig::default(),
             catalog,
             catalog_cache,
+            chunk_adapter,
             metric_registry,
             namespaces: RwLock::new(HashMap::new()),
             object_store,
@@ -146,12 +157,10 @@ impl QuerierDatabase {
                 namespaces_guard.insert(
                     Arc::clone(&name),
                     Arc::new(QuerierNamespace::new(
-                        Arc::clone(&self.catalog_cache),
+                        self.backoff_config.clone(),
+                        Arc::clone(&self.chunk_adapter),
                         name,
                         id,
-                        Arc::clone(&self.metric_registry),
-                        Arc::clone(&self.object_store),
-                        Arc::clone(&self.time_provider),
                         Arc::clone(&self.exec),
                     )),
                 );

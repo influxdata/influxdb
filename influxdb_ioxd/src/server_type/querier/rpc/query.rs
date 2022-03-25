@@ -4,7 +4,7 @@ use arrow_flight::flight_service_server::{
     FlightService as Flight, FlightServiceServer as FlightServer,
 };
 use generated_types::storage_server::{Storage, StorageServer};
-use querier::database::QuerierDatabase;
+use querier::QuerierDatabase;
 
 pub fn make_flight_server(server: Arc<QuerierDatabase>) -> FlightServer<impl Flight> {
     service_grpc_flight::make_server(server)

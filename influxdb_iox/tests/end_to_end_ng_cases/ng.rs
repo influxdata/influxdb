@@ -34,7 +34,7 @@ async fn router2_through_ingester() {
     let ingester = ServerFixture::create(ingester_config).await;
 
     let mut querier_flight =
-        querier::flight::Client::new(ingester.server().ingester_grpc_connection());
+        querier::QuerierFlightClient::new(ingester.server().ingester_grpc_connection());
 
     let query = IngesterQueryRequest::new(
         namespace,
