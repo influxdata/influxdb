@@ -626,6 +626,9 @@ fn from_expr(expr: Expr) -> Result<proto::LogicalExprNode, FieldViolation> {
                 AggregateFunction::StddevPop => proto::AggregateFunction::StddevPop,
                 AggregateFunction::Correlation => proto::AggregateFunction::Correlation,
                 AggregateFunction::ApproxMedian => proto::AggregateFunction::ApproxMedian,
+                // need to complete https://github.com/influxdata/influxdb_iox/pull/3997
+                // rather than trying to keep up
+                AggregateFunction::ApproxPercentileContWithWeight => unimplemented!(),
             };
 
             let aggregate_expr = proto::AggregateExprNode {
@@ -1200,6 +1203,9 @@ fn from_aggr_function(fun: aggregates::AggregateFunction) -> proto::AggregateFun
         AggregateFunction::StddevPop => proto::AggregateFunction::StddevPop,
         AggregateFunction::Correlation => proto::AggregateFunction::Correlation,
         AggregateFunction::ApproxMedian => proto::AggregateFunction::ApproxMedian,
+        // need to complete https://github.com/influxdata/influxdb_iox/pull/3997
+        // rather than trying to keep up
+        AggregateFunction::ApproxPercentileContWithWeight => unimplemented!(),
     }
 }
 
