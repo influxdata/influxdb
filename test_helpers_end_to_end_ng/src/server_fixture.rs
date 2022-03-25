@@ -8,7 +8,7 @@ use std::{
     sync::Arc,
     time::Duration,
 };
-use tempfile::{NamedTempFile, TempDir};
+use tempfile::NamedTempFile;
 use tokio::sync::Mutex;
 
 use crate::{database::initialize_db, server_type::AddAddrEnv};
@@ -55,11 +55,6 @@ impl ServerFixture {
         }
     }
 
-    /// Directory used for data storage.
-    pub fn dir(&self) -> &Path {
-        self.server.dir.path()
-    }
-
     /// Get a reference to the underlying server.
     #[must_use]
     pub fn server(&self) -> &TestServer {
@@ -86,10 +81,6 @@ pub struct TestServer {
     /// Which ports this server should use
     addrs: BindAddresses,
 
-    /// The temporary directory **must** be last so that it is
-    /// dropped after the database closes.
-    dir: TempDir,
-
     /// Configuration values for starting the test server
     test_config: TestConfig,
 
@@ -113,17 +104,14 @@ impl TestServer {
         let addrs = BindAddresses::default();
         let ready = Mutex::new(ServerState::Started);
 
-        let dir = test_helpers::tmp_dir().unwrap();
-
         let server_process = Arc::new(Mutex::new(
-            Self::create_server_process(&addrs, &dir, &test_config).await,
+            Self::create_server_process(&addrs, &test_config).await,
         ));
 
         Self {
             ready,
             server_process,
             addrs,
-            dir,
             test_config,
             router_grpc_connection: None,
             ingester_grpc_connection: None,
@@ -234,16 +222,11 @@ impl TestServer {
         let mut server_process = self.server_process.lock().await;
         server_process.child.kill().unwrap();
         server_process.child.wait().unwrap();
-        *server_process =
-            Self::create_server_process(&self.addrs, &self.dir, &self.test_config).await;
+        *server_process = Self::create_server_process(&self.addrs, &self.test_config).await;
         *ready_guard = ServerState::Started;
     }
 
-    async fn create_server_process(
-        addrs: &BindAddresses,
-        object_store_dir: &TempDir,
-        test_config: &TestConfig,
-    ) -> Process {
+    async fn create_server_process(addrs: &BindAddresses, test_config: &TestConfig) -> Process {
         // Create a new file each time and keep it around to aid debugging
         let (log_file, log_path) = NamedTempFile::new()
             .expect("opening log file")
@@ -278,8 +261,6 @@ impl TestServer {
             .arg(run_command)
             .env("LOG_FILTER", log_filter)
             .env("INFLUXDB_IOX_CATALOG_DSN", &dsn)
-            .env("INFLUXDB_IOX_OBJECT_STORE", "file")
-            .env("INFLUXDB_IOX_DB_DIR", object_store_dir.path())
             // add http/grpc address information
             .add_addr_env(server_type, addrs)
             .envs(test_config.env())

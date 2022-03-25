@@ -22,6 +22,9 @@ pub struct TestConfig {
 
     /// Write buffer directory, if needed
     write_buffer_dir: Option<Arc<TempDir>>,
+
+    /// Object store directory, if needed.
+    object_store_dir: Option<Arc<TempDir>>,
 }
 
 impl TestConfig {
@@ -34,12 +37,15 @@ impl TestConfig {
             server_type,
             dsn: dsn.into(),
             write_buffer_dir: None,
+            object_store_dir: None,
         }
     }
 
     /// Create a minimal router2 configuration
     pub fn new_router2(dsn: impl Into<String>) -> Self {
-        Self::new(ServerType::Router2, dsn).with_new_write_buffer()
+        Self::new(ServerType::Router2, dsn)
+            .with_new_write_buffer()
+            .with_new_object_store()
     }
 
     /// Create a minimal ingester configuration, using the dsn and
@@ -47,6 +53,7 @@ impl TestConfig {
     pub fn new_ingester(other: &TestConfig) -> Self {
         Self::new(ServerType::Ingester, other.dsn())
             .with_existing_write_buffer(other)
+            .with_existing_object_store(other)
             .with_default_ingester_options()
     }
 
@@ -54,6 +61,7 @@ impl TestConfig {
     pub fn new_all_in_one(dsn: impl Into<String>) -> Self {
         Self::new(ServerType::AllInOne, dsn)
             .with_new_write_buffer()
+            .with_new_object_store()
             .with_default_ingester_options()
             // Aggressive expulsion of parquet files
             .with_env("INFLUXDB_IOX_PAUSE_INGEST_SIZE_BYTES", "2")
@@ -116,10 +124,8 @@ impl TestConfig {
 
     /// Configures this TestConfig to use the same write buffer as other
     pub fn with_existing_write_buffer(mut self, other: &TestConfig) -> Self {
-        // get the directory, if any
+        // copy the the directory, if any
         self.write_buffer_dir = other.write_buffer_dir.clone();
-
-        // copy the environment variables
         self.copy_env("INFLUXDB_IOX_WRITE_BUFFER_TYPE", other)
             .copy_env("INFLUXDB_IOX_WRITE_BUFFER_AUTO_CREATE_TOPICS", other)
             .copy_env("INFLUXDB_IOX_WRITE_BUFFER_ADDR", other)
@@ -132,6 +138,24 @@ impl TestConfig {
             value.as_ref().parse().expect("valid header value"),
         ));
         self
+    }
+
+    /// Configures a new objct store
+    pub fn with_new_object_store(mut self) -> Self {
+        let tmpdir = TempDir::new().expect("can not create tmp dir");
+
+        let object_store_string = tmpdir.path().display().to_string();
+        self.object_store_dir = Some(Arc::new(tmpdir));
+        self.with_env("INFLUXDB_IOX_OBJECT_STORE", "file")
+            .with_env("INFLUXDB_IOX_DB_DIR", &object_store_string)
+    }
+
+    /// Configures this TestConfig to use the same object store as other
+    pub fn with_existing_object_store(mut self, other: &TestConfig) -> Self {
+        // copy a reference to the temp dir, if any
+        self.object_store_dir = other.object_store_dir.clone();
+        self.copy_env("INFLUXDB_IOX_OBJECT_STORE", other)
+            .copy_env("INFLUXDB_IOX_DB_DIR", other)
     }
 
     /// Get the test config's server type.
