@@ -15,16 +15,16 @@ use uuid::Uuid;
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
 pub enum Error {
-    #[snafu(display("Name {} already exists", name))]
+    #[snafu(display("name {} already exists", name))]
     NameExists { name: String },
 
-    #[snafu(display("Unhandled sqlx error: {}", source))]
+    #[snafu(display("unhandled sqlx error: {}", source))]
     SqlxError { source: sqlx::Error },
 
-    #[snafu(display("Foreign key violation: {}", source))]
+    #[snafu(display("foreign key violation: {}", source))]
     ForeignKeyViolation { source: sqlx::Error },
 
-    #[snafu(display("Column {} is type {} but write has type {}", name, existing, new))]
+    #[snafu(display("column {} is type {} but write has type {}", name, existing, new))]
     ColumnTypeMismatch {
         name: String,
         existing: String,
@@ -32,7 +32,7 @@ pub enum Error {
     },
 
     #[snafu(display(
-        "Column type {} is in the db for column {}, which is unknown",
+        "column type {} is in the db for column {}, which is unknown",
         data_type,
         name
     ))]
@@ -82,10 +82,10 @@ pub enum Error {
         name: String,
     },
 
-    #[snafu(display("Cannot start a transaction: {}", source))]
+    #[snafu(display("cannot start a transaction: {}", source))]
     StartTransaction { source: sqlx::Error },
 
-    #[snafu(display("No transaction provided"))]
+    #[snafu(display("no transaction provided"))]
     NoTransaction,
 
     #[snafu(display(
@@ -98,10 +98,10 @@ pub enum Error {
         parquet_file_id: i64,
     },
 
-    #[snafu(display("Error while converting usize {} to i64", value))]
+    #[snafu(display("error while converting usize {} to i64", value))]
     InvalidValue { value: usize },
 
-    #[snafu(display("Datbase setup error: {}", source))]
+    #[snafu(display("database setup error: {}", source))]
     Setup { source: sqlx::Error },
 }
 
