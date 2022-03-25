@@ -606,12 +606,19 @@ async fn maybe_auto_create_directories(
                 directories.insert(sequencer_id, sequencer_path_in_active);
             }
 
+            // A symlink target is resolved relative to the parent directory of
+            // the link itself.
+            let target = version
+                .strip_prefix(&root)
+                .expect("symlink target not in root workspace");
+
             // symlink active->version
-            if tokio::fs::symlink(&version, active).await.is_ok() {
+            if tokio::fs::symlink(target, active).await.is_ok() {
                 // linking worked
                 return Ok(directories);
             } else {
-                // linking did not work, assuming a concurrent initialization process. Remove version and and try again.
+                // linking did not work, assuming a concurrent initialization
+                // process. Remove version and and try again.
                 tokio::fs::remove_dir_all(&version).await?;
                 continue;
             }
@@ -699,7 +706,7 @@ pub mod test_utils {
 
 #[cfg(test)]
 mod tests {
-    use std::num::NonZeroU32;
+    use std::{num::NonZeroU32, time::Duration};
 
     use dml::test_util::assert_write_op_eq;
     use tempfile::TempDir;
@@ -859,5 +866,26 @@ mod tests {
         let mut stream = handler.stream().await;
 
         assert_write_op_eq(&stream.next().await.unwrap().unwrap(), &w2);
+    }
+
+    #[tokio::test]
+    async fn test_maybe_auto_create_dirs() {
+        let path = Path::new("./test-file-write-buffer");
+        let config = WriteBufferCreationConfig::default();
+
+        tokio::time::timeout(Duration::from_secs(5), async {
+            maybe_auto_create_directories(path, Some(&config))
+                .await
+                .expect("failed to create new dir");
+            maybe_auto_create_directories(path, Some(&config))
+                .await
+                .expect("failed to use existing dir");
+        })
+        .await
+        .expect("timeout");
+
+        tokio::fs::remove_dir_all(path)
+            .await
+            .expect("failed to clean up test dir")
     }
 }
