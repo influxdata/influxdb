@@ -128,6 +128,7 @@ impl QuerierNamespace {
                 let schema = Schema::try_from(table_schema).expect("cannot build schema");
 
                 let table = Arc::new(QuerierTable::new(
+                    self.backoff_config.clone(),
                     id,
                     Arc::clone(&name),
                     Arc::new(schema),
