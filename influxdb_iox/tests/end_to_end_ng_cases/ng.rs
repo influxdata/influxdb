@@ -1,4 +1,6 @@
+use assert_cmd::Command;
 use http::StatusCode;
+use predicates::prelude::*;
 use test_helpers_end_to_end_ng::{
     maybe_skip_integration, rand_name, write_to_router, ServerFixture, TestConfig,
 };
@@ -37,11 +39,11 @@ async fn router2_through_ingester() {
         querier::QuerierFlightClient::new(ingester.server().ingester_grpc_connection());
 
     let query = IngesterQueryRequest::new(
-        namespace,
+        namespace.clone(),
         sequencer_id,
         table_name.into(),
         vec![],
-        Some(predicate::EMPTY_PREDICATE),
+        Some(::predicate::EMPTY_PREDICATE),
     );
 
     let mut performed_query = querier_flight.perform_query(query).await.unwrap();
@@ -58,4 +60,20 @@ async fn router2_through_ingester() {
         "+------+------+--------------------------------+-----+",
     ];
     assert_batches_sorted_eq!(&expected, &query_results);
+
+    // Validate the output of the schema CLI command
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("-h")
+        .arg(router2.server().router_grpc_base().as_ref())
+        .arg("schema")
+        .arg("get")
+        .arg(namespace)
+        .assert()
+        .success()
+        .stdout(
+            predicate::str::contains("mytable")
+                .and(predicate::str::contains("tag1"))
+                .and(predicate::str::contains("val")),
+        );
 }

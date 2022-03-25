@@ -160,6 +160,11 @@ impl TestServer {
         self.addrs.router_http_api().client_base()
     }
 
+    /// Return the http base URL for the router gRPC API
+    pub fn router_grpc_base(&self) -> Arc<str> {
+        self.addrs.router_grpc_api().client_base()
+    }
+
     /// Create a connection channel to the specified gRPC endpoint
     async fn grpc_channel(
         &self,
