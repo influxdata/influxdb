@@ -95,16 +95,21 @@ impl From<&DmlError> for StatusCode {
         match e {
             DmlError::DatabaseNotFound(_) => StatusCode::NOT_FOUND,
 
-            // Service limit errors
-            DmlError::Schema(SchemaError::Validate(
-                iox_catalog::interface::Error::TableCreateLimitError { .. }
-                | iox_catalog::interface::Error::ColumnCreateLimitError { .. },
-            )) => {
+            // Schema validation error cases
+            DmlError::Schema(SchemaError::NamespaceLookup(_)) => {
+                // While the [`NamespaceAutocreation`] layer is in use, this is
+                // an internal error as the namespace should always exist.
+                StatusCode::INTERNAL_SERVER_ERROR
+            }
+            DmlError::Schema(SchemaError::ServiceLimit(_)) => {
                 // https://docs.influxdata.com/influxdb/cloud/account-management/limits/#api-error-responses
                 StatusCode::TOO_MANY_REQUESTS
             }
+            DmlError::Schema(SchemaError::Conflict(_)) => StatusCode::BAD_REQUEST,
+            DmlError::Schema(SchemaError::UnexpectedCatalogError(_)) => {
+                StatusCode::INTERNAL_SERVER_ERROR
+            }
 
-            DmlError::Schema(_) => StatusCode::BAD_REQUEST,
             DmlError::Internal(_) | DmlError::WriteBuffer(_) | DmlError::NamespaceCreation(_) => {
                 StatusCode::INTERNAL_SERVER_ERROR
             }

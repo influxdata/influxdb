@@ -267,7 +267,7 @@ async fn test_schema_conflict() {
         &err,
         router2::server::http::Error::DmlHandler(
             DmlError::Schema(
-                SchemaError::Validate(
+                SchemaError::Conflict(
                     iox_catalog::interface::Error::ColumnTypeMismatch {
                         name,
                         existing,
@@ -326,7 +326,7 @@ async fn test_schema_limit() {
         &err,
         router2::server::http::Error::DmlHandler(
             DmlError::Schema(
-                SchemaError::Validate(
+                SchemaError::ServiceLimit(
                     iox_catalog::interface::Error::TableCreateLimitError {
                         table_name,
                         namespace_id,
