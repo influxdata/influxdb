@@ -301,7 +301,7 @@ mod tests {
             seq_num_end,
             3,
             INITIAL_COMPACTION_LEVEL,
-            None, // todo: this  will have value when #3968 is done
+            None, // todo: this will have value when #3968 is done
         );
         assert_eq!(expected_meta, meta);
     }

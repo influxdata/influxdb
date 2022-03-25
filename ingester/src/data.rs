@@ -1153,8 +1153,8 @@ impl DataBuffer {
     }
 }
 
-/// BufferBatch is a MutauableBatch with its ingesting order, sequencer_number, that
-/// helps the ingester keep the batches of data in thier ingesting order
+/// BufferBatch is a MutableBatch with its ingesting order, sequencer_number, that helps the
+/// ingester keep the batches of data in their ingesting order
 #[derive(Debug)]
 pub struct BufferBatch {
     /// Sequence number of the first write in this batch
@@ -1172,7 +1172,7 @@ pub struct SnapshotBatch {
     pub(crate) min_sequencer_number: SequenceNumber,
     /// Max sequencer number of its combined BufferBatches
     pub(crate) max_sequencer_number: SequenceNumber,
-    /// Data of its comebined BufferBatches kept in one RecordBatch
+    /// Data of its combined BufferBatches kept in one RecordBatch
     pub(crate) data: Arc<RecordBatch>,
 }
 
@@ -1209,13 +1209,13 @@ impl SnapshotBatch {
 /// a parquet file for given set of SnapshotBatches
 #[derive(Debug, PartialEq, Clone)]
 pub struct PersistingBatch {
-    /// Sesquencer id of the data
+    /// Sequencer id of the data
     pub(crate) sequencer_id: SequencerId,
 
     /// Table id of the data
     pub(crate) table_id: TableId,
 
-    /// Parittion Id of the data
+    /// Partition Id of the data
     pub(crate) partition_id: PartitionId,
 
     /// Id of to-be-created parquet file of this data
