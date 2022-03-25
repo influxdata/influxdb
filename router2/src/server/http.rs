@@ -2,7 +2,7 @@
 
 use std::{str::Utf8Error, sync::Arc};
 
-use crate::dml_handlers::{DmlError, DmlHandler, PartitionError};
+use crate::dml_handlers::{DmlError, DmlHandler, PartitionError, SchemaError};
 
 use bytes::{Bytes, BytesMut};
 use data_types2::{org_and_bucket_to_database, OrgBucketMappingError};
@@ -94,7 +94,22 @@ impl From<&DmlError> for StatusCode {
     fn from(e: &DmlError) -> Self {
         match e {
             DmlError::DatabaseNotFound(_) => StatusCode::NOT_FOUND,
-            DmlError::Schema(_) => StatusCode::BAD_REQUEST,
+
+            // Schema validation error cases
+            DmlError::Schema(SchemaError::NamespaceLookup(_)) => {
+                // While the [`NamespaceAutocreation`] layer is in use, this is
+                // an internal error as the namespace should always exist.
+                StatusCode::INTERNAL_SERVER_ERROR
+            }
+            DmlError::Schema(SchemaError::ServiceLimit(_)) => {
+                // https://docs.influxdata.com/influxdb/cloud/account-management/limits/#api-error-responses
+                StatusCode::TOO_MANY_REQUESTS
+            }
+            DmlError::Schema(SchemaError::Conflict(_)) => StatusCode::BAD_REQUEST,
+            DmlError::Schema(SchemaError::UnexpectedCatalogError(_)) => {
+                StatusCode::INTERNAL_SERVER_ERROR
+            }
+
             DmlError::Internal(_) | DmlError::WriteBuffer(_) | DmlError::NamespaceCreation(_) => {
                 StatusCode::INTERNAL_SERVER_ERROR
             }

@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use data_types2::{DatabaseName, DeletePredicate};
 use hashbrown::HashMap;
 use iox_catalog::{
-    interface::{get_schema_by_name, Catalog},
+    interface::{get_schema_by_name, Catalog, Error as CatalogError},
     validate_or_insert_schema,
 };
 use mutable_batch::MutableBatch;
@@ -20,13 +20,21 @@ pub enum SchemaError {
     #[error("failed to read namespace schema from catalog: {0}")]
     NamespaceLookup(iox_catalog::interface::Error),
 
-    /// The request failed during schema validation.
+    /// The user has hit their column/table limit.
+    #[error("service limit reached: {0}")]
+    ServiceLimit(iox_catalog::interface::Error),
+
+    /// The request schema conflicts with the existing namespace schema.
+    #[error("schema conflict: {0}")]
+    Conflict(iox_catalog::interface::Error),
+
+    /// A catalog error during schema validation.
     ///
     /// NOTE: this may be due to transient I/O errors while interrogating the
     /// global catalog - the caller should inspect the inner error to determine
     /// the failure reason.
     #[error(transparent)]
-    Validate(iox_catalog::interface::Error),
+    UnexpectedCatalogError(iox_catalog::interface::Error),
 }
 
 /// A [`SchemaValidator`] checks the schema of incoming writes against a
@@ -112,9 +120,11 @@ where
     /// If `namespace` does not exist, [`SchemaError::NamespaceLookup`] is
     /// returned.
     ///
-    /// If the schema validation fails, [`SchemaError::Validate`] is returned.
-    /// Callers should inspect the inner error to determine if the failure was
-    /// caused by catalog I/O, or a schema conflict.
+    /// If the schema validation fails due to a schema conflict in the request,
+    /// [`SchemaError::Conflict`] is returned.
+    ///
+    /// If the schema validation fails due to a service limit being reached,
+    /// [`SchemaError::ServiceLimit`] is returned.
     ///
     /// A request that fails validation on one or more tables fails the request
     /// as a whole - calling this method has "all or nothing" semantics.
@@ -157,8 +167,33 @@ where
         )
         .await
         .map_err(|e| {
-            warn!(error=%e, %namespace, "schema validation failed");
-            SchemaError::Validate(e)
+            match e {
+                // Schema conflicts
+                CatalogError::ColumnTypeMismatch {
+                    ref name,
+                    ref existing,
+                    ref new,
+                } => {
+                    warn!(
+                        %namespace,
+                        column_name=%name,
+                        existing_column_type=%existing,
+                        request_column_type=%new,
+                        "schema conflict"
+                    );
+                    SchemaError::Conflict(e)
+                }
+                // Service limits
+                CatalogError::ColumnCreateLimitError { .. }
+                | CatalogError::TableCreateLimitError { .. } => {
+                    warn!(%namespace, error=%e, "service protection limit reached");
+                    SchemaError::ServiceLimit(e)
+                }
+                e => {
+                    error!(%namespace, error=%e, "schema validation failed");
+                    SchemaError::UnexpectedCatalogError(e)
+                }
+            }
         })?
         .map(Arc::new);
 
@@ -314,13 +349,83 @@ mod tests {
             .await
             .expect_err("request should fail");
 
-        assert_matches!(err, SchemaError::Validate(_));
+        assert_matches!(err, SchemaError::Conflict(_));
 
         // The cache should retain the original schema.
         assert_cache(&handler, "bananas", "tag1", ColumnType::Tag);
         assert_cache(&handler, "bananas", "tag2", ColumnType::Tag);
         assert_cache(&handler, "bananas", "val", ColumnType::I64); // original type
         assert_cache(&handler, "bananas", "time", ColumnType::Time);
+    }
+
+    #[tokio::test]
+    async fn test_write_table_service_limit() {
+        let catalog = create_catalog().await;
+        let handler = SchemaValidator::new(
+            Arc::clone(&catalog),
+            Arc::new(MemoryNamespaceCache::default()),
+        );
+
+        // First write sets the schema
+        let writes = lp_to_writes("bananas,tag1=A,tag2=B val=42i 123456");
+        let got = handler
+            .write(&*NAMESPACE, writes.clone(), None)
+            .await
+            .expect("request should succeed");
+        assert_eq!(writes.len(), got.len());
+
+        // Configure the service limit to be hit next request
+        catalog
+            .repositories()
+            .await
+            .namespaces()
+            .update_table_limit(NAMESPACE.as_str(), 1)
+            .await
+            .expect("failed to set table limit");
+
+        // Second write attempts to violate limits, causing an error
+        let writes = lp_to_writes("bananas2,tag1=A,tag2=B val=42i 123456");
+        let err = handler
+            .write(&*NAMESPACE, writes, None)
+            .await
+            .expect_err("request should fail");
+
+        assert_matches!(err, SchemaError::ServiceLimit(_));
+    }
+
+    #[tokio::test]
+    async fn test_write_column_service_limit() {
+        let catalog = create_catalog().await;
+        let handler = SchemaValidator::new(
+            Arc::clone(&catalog),
+            Arc::new(MemoryNamespaceCache::default()),
+        );
+
+        // First write sets the schema
+        let writes = lp_to_writes("bananas,tag1=A,tag2=B val=42i 123456");
+        let got = handler
+            .write(&*NAMESPACE, writes.clone(), None)
+            .await
+            .expect("request should succeed");
+        assert_eq!(writes.len(), got.len());
+
+        // Configure the service limit to be hit next request
+        catalog
+            .repositories()
+            .await
+            .namespaces()
+            .update_column_limit(NAMESPACE.as_str(), 1)
+            .await
+            .expect("failed to set column limit");
+
+        // Second write attempts to violate limits, causing an error
+        let writes = lp_to_writes("bananas,tag1=A,tag2=B val=42i,val2=42i 123456");
+        let err = handler
+            .write(&*NAMESPACE, writes, None)
+            .await
+            .expect_err("request should fail");
+
+        assert_matches!(err, SchemaError::ServiceLimit(_));
     }
 
     #[tokio::test]
