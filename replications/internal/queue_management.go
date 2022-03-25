@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"sync"
@@ -19,10 +20,12 @@ import (
 
 const (
 	scannerAdvanceInterval = 10 * time.Second
+	purgeInterval          = 60 * time.Second
+	defaultMaxAge          = 168 * time.Hour / time.Second
 )
 
 type remoteWriter interface {
-	Write([]byte) error
+	Write(data []byte, attempt int) (time.Duration, bool, error)
 }
 
 type replicationQueue struct {
@@ -36,6 +39,8 @@ type replicationQueue struct {
 	logger        *zap.Logger
 	metrics       *metrics.ReplicationsMetrics
 	remoteWriter  remoteWriter
+	failedWrites  int
+	maxAge        time.Duration
 }
 
 type durableQueueManager struct {
@@ -67,7 +72,7 @@ func NewDurableQueueManager(log *zap.Logger, queuePath string, metrics *metrics.
 }
 
 // InitializeQueue creates and opens a new durable queue which is associated with a replication stream.
-func (qm *durableQueueManager) InitializeQueue(replicationID platform.ID, maxQueueSizeBytes int64, orgID platform.ID, localBucketID platform.ID) error {
+func (qm *durableQueueManager) InitializeQueue(replicationID platform.ID, maxQueueSizeBytes int64, orgID platform.ID, localBucketID platform.ID, maxAge int64) error {
 	qm.mutex.Lock()
 	defer qm.mutex.Unlock()
 
@@ -107,7 +112,7 @@ func (qm *durableQueueManager) InitializeQueue(replicationID platform.ID, maxQue
 	}
 
 	// Map new durable queue and scanner to its corresponding replication stream via replication ID
-	rq := qm.newReplicationQueue(replicationID, orgID, localBucketID, newQueue)
+	rq := qm.newReplicationQueue(replicationID, orgID, localBucketID, newQueue, maxAge)
 	qm.replicationQueues[replicationID] = rq
 	rq.Open()
 
@@ -131,6 +136,24 @@ func (rq *replicationQueue) Close() error {
 
 func (rq *replicationQueue) run() {
 	defer rq.wg.Done()
+	retry := time.NewTimer(math.MaxInt64)
+	purgeTicker := time.NewTicker(purgeInterval)
+
+	sendWrite := func() {
+		for {
+			waitForRetry, shouldRetry := rq.SendWrite()
+			if shouldRetry && waitForRetry == 0 {
+				continue
+			}
+			if shouldRetry {
+				if !retry.Stop() {
+					<-retry.C
+				}
+				retry.Reset(waitForRetry)
+			}
+			break
+		}
+	}
 
 	for {
 		select {
@@ -144,7 +167,12 @@ func (rq *replicationQueue) run() {
 			// that rq.SendWrite will be called again in this situation and not leave data in the queue. Outside of this
 			// specific scenario, the buffer might result in an extra call to rq.SendWrite that will immediately return on
 			// EOF.
-			for rq.SendWrite() {
+			sendWrite()
+		case <-retry.C:
+			sendWrite()
+		case <-purgeTicker.C:
+			if rq.maxAge != 0 {
+				rq.queue.PurgeOlderThan(time.Now().Add(-rq.maxAge))
 			}
 		}
 	}
@@ -152,8 +180,7 @@ func (rq *replicationQueue) run() {
 
 // SendWrite processes data enqueued into the durablequeue.Queue.
 // SendWrite is responsible for processing all data in the queue at the time of calling.
-// Network errors will be handled by the remote writer.
-func (rq *replicationQueue) SendWrite() bool {
+func (rq *replicationQueue) SendWrite() (waitForRetry time.Duration, shouldRetry bool) {
 	// Any error in creating the scanner should exit the loop in run()
 	// Either it is io.EOF indicating no data, or some other failure in making
 	// the Scanner object that we don't know how to handle.
@@ -162,7 +189,7 @@ func (rq *replicationQueue) SendWrite() bool {
 		if !errors.Is(err, io.EOF) {
 			rq.logger.Error("Error creating replications queue scanner", zap.Error(err))
 		}
-		return false
+		return 0, false
 	}
 
 	advanceScanner := func() error {
@@ -183,34 +210,38 @@ func (rq *replicationQueue) SendWrite() bool {
 		if err := scan.Err(); err != nil {
 			if errors.Is(err, io.EOF) {
 				// An io.EOF error here indicates that there is no more data left to process, and is an expected error.
-				return false
+				return 0, false
 			}
 			// Any other error here indicates a problem reading the data from the queue, so we log the error and drop the data
 			// with a call to scan.Advance() later.
 			rq.logger.Info("Segment read error.", zap.Error(scan.Err()))
 		}
 
-		if err = rq.remoteWriter.Write(scan.Bytes()); err != nil {
-			// An error here indicates an unhandleable remote write error. The scanner will not be advanced.
-			rq.logger.Error("Error in replication stream", zap.Error(err))
-			return false
+		if waitForRetry, shouldRetry, err := rq.remoteWriter.Write(scan.Bytes(), rq.failedWrites); err != nil {
+			rq.failedWrites++
+			// We failed the remote write. Do not advance the scanner
+			rq.logger.Error("Error in replication stream", zap.Error(err), zap.Int("retries", rq.failedWrites))
+			return waitForRetry, shouldRetry
 		}
+
+		// a successful write resets the number of failed write attempts to zero
+		rq.failedWrites = 0
 
 		// Advance the scanner periodically to prevent extended runs of local writes without updating the underlying queue
 		// position.
 		select {
 		case <-ticker.C:
 			if err := advanceScanner(); err != nil {
-				return false
+				return 0, false
 			}
 		default:
 		}
 	}
 
 	if err := advanceScanner(); err != nil {
-		return false
+		return 0, false
 	}
-	return true
+	return 0, true
 }
 
 // DeleteQueue deletes a durable queue and its associated data on disk.
@@ -309,7 +340,7 @@ func (qm *durableQueueManager) StartReplicationQueues(trackedReplications map[pl
 			errOccurred = true
 			continue
 		} else {
-			qm.replicationQueues[id] = qm.newReplicationQueue(id, repl.OrgID, repl.LocalBucketID, queue)
+			qm.replicationQueues[id] = qm.newReplicationQueue(id, repl.OrgID, repl.LocalBucketID, queue, repl.MaxAgeSeconds)
 			qm.replicationQueues[id].Open()
 			qm.logger.Info("Opened replication stream", zap.String("id", id.String()), zap.String("path", queue.Dir()))
 		}
@@ -403,9 +434,16 @@ func (qm *durableQueueManager) EnqueueData(replicationID platform.ID, data []byt
 	return nil
 }
 
-func (qm *durableQueueManager) newReplicationQueue(id platform.ID, orgID platform.ID, localBucketID platform.ID, queue *durablequeue.Queue) *replicationQueue {
+func (qm *durableQueueManager) newReplicationQueue(id platform.ID, orgID platform.ID, localBucketID platform.ID, queue *durablequeue.Queue, maxAge int64) *replicationQueue {
 	logger := qm.logger.With(zap.String("replication_id", id.String()))
 	done := make(chan struct{})
+	// check for max age minimum
+	var maxAgeTime time.Duration
+	if maxAge < 0 {
+		maxAgeTime = defaultMaxAge
+	} else {
+		maxAgeTime = time.Duration(maxAge)
+	}
 
 	return &replicationQueue{
 		id:            id,
@@ -417,6 +455,7 @@ func (qm *durableQueueManager) newReplicationQueue(id platform.ID, orgID platfor
 		logger:        logger,
 		metrics:       qm.metrics,
 		remoteWriter:  remotewrite.NewWriter(id, qm.configStore, qm.metrics, logger, done),
+		maxAge:        maxAgeTime,
 	}
 }
 

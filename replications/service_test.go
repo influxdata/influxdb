@@ -227,7 +227,7 @@ func TestCreateReplication(t *testing.T) {
 			mocks.bucketSvc.EXPECT().FindBucketByID(gomock.Any(), tt.create.LocalBucketID).Return(nil, tt.bucketErr)
 
 			if tt.bucketErr == nil {
-				mocks.durableQueueManager.EXPECT().InitializeQueue(id1, tt.create.MaxQueueSizeBytes, tt.create.OrgID, tt.create.LocalBucketID).Return(tt.queueManagerErr)
+				mocks.durableQueueManager.EXPECT().InitializeQueue(id1, tt.create.MaxQueueSizeBytes, tt.create.OrgID, tt.create.LocalBucketID, tt.create.MaxAgeSeconds).Return(tt.queueManagerErr)
 			}
 
 			if tt.queueManagerErr == nil && tt.bucketErr == nil {
@@ -817,11 +817,13 @@ func TestOpen(t *testing.T) {
 			replicationsMap: map[platform.ID]*influxdb.TrackedReplication{
 				replication1.ID: {
 					MaxQueueSizeBytes: replication1.MaxQueueSizeBytes,
+					MaxAgeSeconds:     replication1.MaxAgeSeconds,
 					OrgID:             replication1.OrgID,
 					LocalBucketID:     replication1.LocalBucketID,
 				},
 				replication2.ID: {
 					MaxQueueSizeBytes: replication2.MaxQueueSizeBytes,
+					MaxAgeSeconds:     replication2.MaxAgeSeconds,
 					OrgID:             replication2.OrgID,
 					LocalBucketID:     replication2.LocalBucketID,
 				},
@@ -835,6 +837,7 @@ func TestOpen(t *testing.T) {
 			replicationsMap: map[platform.ID]*influxdb.TrackedReplication{
 				replication1.ID: {
 					MaxQueueSizeBytes: replication1.MaxQueueSizeBytes,
+					MaxAgeSeconds:     replication1.MaxAgeSeconds,
 					OrgID:             replication1.OrgID,
 					LocalBucketID:     replication1.LocalBucketID,
 				},
@@ -852,6 +855,7 @@ func TestOpen(t *testing.T) {
 			replicationsMap: map[platform.ID]*influxdb.TrackedReplication{
 				replication1.ID: {
 					MaxQueueSizeBytes: replication1.MaxQueueSizeBytes,
+					MaxAgeSeconds:     replication1.MaxAgeSeconds,
 					OrgID:             replication1.OrgID,
 					LocalBucketID:     replication1.LocalBucketID,
 				},

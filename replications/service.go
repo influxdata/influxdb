@@ -71,7 +71,7 @@ type BucketService interface {
 }
 
 type DurableQueueManager interface {
-	InitializeQueue(replicationID platform.ID, maxQueueSizeBytes int64, orgID platform.ID, localBucketID platform.ID) error
+	InitializeQueue(replicationID platform.ID, maxQueueSizeBytes int64, orgID platform.ID, localBucketID platform.ID, maxAge int64) error
 	DeleteQueue(replicationID platform.ID) error
 	UpdateMaxQueueSize(replicationID platform.ID, maxQueueSizeBytes int64) error
 	CurrentQueueSizes(ids []platform.ID) (map[platform.ID]int64, error)
@@ -143,7 +143,7 @@ func (s *service) CreateReplication(ctx context.Context, request influxdb.Create
 	}
 
 	newID := s.idGenerator.ID()
-	if err := s.durableQueueManager.InitializeQueue(newID, request.MaxQueueSizeBytes, request.OrgID, request.LocalBucketID); err != nil {
+	if err := s.durableQueueManager.InitializeQueue(newID, request.MaxQueueSizeBytes, request.OrgID, request.LocalBucketID, request.MaxAgeSeconds); err != nil {
 		return nil, err
 	}
 
@@ -404,6 +404,7 @@ func (s *service) Open(ctx context.Context) error {
 	for _, r := range trackedReplications.Replications {
 		trackedReplicationsMap[r.ID] = &influxdb.TrackedReplication{
 			MaxQueueSizeBytes: r.MaxQueueSizeBytes,
+			MaxAgeSeconds:     r.MaxAgeSeconds,
 			OrgID:             r.OrgID,
 			LocalBucketID:     r.LocalBucketID,
 		}

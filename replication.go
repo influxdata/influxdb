@@ -10,6 +10,7 @@ import (
 const (
 	MinReplicationMaxQueueSizeBytes     int64 = 33554430 // 32 MiB
 	DefaultReplicationMaxQueueSizeBytes       = 2 * MinReplicationMaxQueueSizeBytes
+	DefaultReplicationMaxAge            int64 = 604800 // 1 week, in seconds
 )
 
 var ErrMaxQueueSizeTooSmall = errors.Error{
@@ -31,6 +32,7 @@ type Replication struct {
 	LatestResponseCode    *int32      `json:"latestResponseCode,omitempty" db:"latest_response_code"`
 	LatestErrorMessage    *string     `json:"latestErrorMessage,omitempty" db:"latest_error_message"`
 	DropNonRetryableData  bool        `json:"dropNonRetryableData" db:"drop_non_retryable_data"`
+	MaxAgeSeconds         int64       `json:"maxAgeSeconds" db:"max_age_seconds"`
 }
 
 // ReplicationListFilter is a selection filter for listing replications.
@@ -49,6 +51,7 @@ type Replications struct {
 // TrackedReplication defines a replication stream which is currently being tracked via sqlite.
 type TrackedReplication struct {
 	MaxQueueSizeBytes int64
+	MaxAgeSeconds     int64
 	OrgID             platform.ID
 	LocalBucketID     platform.ID
 }
@@ -64,6 +67,7 @@ type CreateReplicationRequest struct {
 	RemoteBucketID       platform.ID `json:"remoteBucketID"`
 	MaxQueueSizeBytes    int64       `json:"maxQueueSizeBytes,omitempty"`
 	DropNonRetryableData bool        `json:"dropNonRetryableData,omitempty"`
+	MaxAgeSeconds        int64       `json:"maxAgeSeconds,omitempty"`
 }
 
 func (r *CreateReplicationRequest) OK() error {
@@ -82,6 +86,7 @@ type UpdateReplicationRequest struct {
 	RemoteBucketID       *platform.ID `json:"remoteBucketID,omitempty"`
 	MaxQueueSizeBytes    *int64       `json:"maxQueueSizeBytes,omitempty"`
 	DropNonRetryableData *bool        `json:"dropNonRetryableData,omitempty"`
+	MaxAgeSeconds        *int64       `json:"maxAgeSeconds,omitempty"`
 }
 
 func (r *UpdateReplicationRequest) OK() error {

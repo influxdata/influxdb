@@ -107,17 +107,17 @@ func (mr *MockDurableQueueManagerMockRecorder) GetReplications(arg0, arg1 interf
 }
 
 // InitializeQueue mocks base method.
-func (m *MockDurableQueueManager) InitializeQueue(arg0 platform.ID, arg1 int64, arg2, arg3 platform.ID) error {
+func (m *MockDurableQueueManager) InitializeQueue(arg0 platform.ID, arg1 int64, arg2, arg3 platform.ID, arg4 int64) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InitializeQueue", arg0, arg1, arg2, arg3)
+	ret := m.ctrl.Call(m, "InitializeQueue", arg0, arg1, arg2, arg3, arg4)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // InitializeQueue indicates an expected call of InitializeQueue.
-func (mr *MockDurableQueueManagerMockRecorder) InitializeQueue(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+func (mr *MockDurableQueueManagerMockRecorder) InitializeQueue(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InitializeQueue", reflect.TypeOf((*MockDurableQueueManager)(nil).InitializeQueue), arg0, arg1, arg2, arg3)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InitializeQueue", reflect.TypeOf((*MockDurableQueueManager)(nil).InitializeQueue), arg0, arg1, arg2, arg3, arg4)
 }
 
 // StartReplicationQueues mocks base method.
