@@ -9,7 +9,7 @@ use db::{
 };
 use iox_tests::util::{TestCatalog, TestNamespace};
 use itertools::Itertools;
-use querier::namespace::QuerierNamespace;
+use querier::QuerierNamespace;
 use query::QueryChunk;
 use schema::merge::SchemaMerger;
 use schema::selection::Selection;
@@ -1227,19 +1227,13 @@ async fn make_ng_chunk(ns: Arc<TestNamespace>, chunk: ChunkDataNew<'_, '_>) -> S
 }
 
 async fn make_querier_namespace(ns: Arc<TestNamespace>) -> Arc<QuerierNamespace> {
-    use querier::cache::CatalogCache;
-
-    let catalog_cache = Arc::new(CatalogCache::new(
+    let db = Arc::new(QuerierNamespace::new_testing(
         ns.catalog.catalog(),
+        ns.catalog.object_store(),
+        ns.catalog.metric_registry(),
         ns.catalog.time_provider(),
-    ));
-    let db = Arc::new(QuerierNamespace::new(
-        catalog_cache,
         ns.namespace.name.clone().into(),
         ns.namespace.id,
-        ns.catalog.metric_registry(),
-        ns.catalog.object_store(),
-        ns.catalog.time_provider(),
         ns.catalog.exec(),
     ));
     db.sync().await;

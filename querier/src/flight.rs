@@ -1,4 +1,3 @@
-use crate::connection::Connection;
 use arrow::{
     array::Array,
     datatypes::Schema,
@@ -9,6 +8,7 @@ use arrow_flight::{
     flight_service_client::FlightServiceClient, utils::flight_data_to_arrow_batch, FlightData,
     HandshakeRequest, Ticket,
 };
+use client_util::connection::Connection;
 use data_types2::{IngesterQueryRequest, SequenceNumber};
 use futures::{stream, StreamExt};
 use generated_types::influxdata::iox::ingester::v1 as proto;
@@ -23,7 +23,7 @@ pub enum Error {
     /// An unknown server error occurred. Contains the `tonic::Status` returned
     /// from the server.
     #[error(transparent)]
-    GrpcError(#[from] tonic::Status),
+    Grpc(#[from] tonic::Status),
 
     /// Arrow Flight handshake failed.
     #[error("Handshake failed")]
@@ -36,7 +36,7 @@ pub enum Error {
 
     /// An error involving an Arrow operation occurred.
     #[error(transparent)]
-    ArrowError(#[from] arrow::error::ArrowError),
+    Arrow(#[from] arrow::error::ArrowError),
 
     /// The data contained invalid Flatbuffers.
     #[error("Invalid Flatbuffer: `{0}`")]
