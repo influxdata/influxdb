@@ -2,7 +2,7 @@ use std::{any::Any, sync::Arc};
 
 use datafusion::catalog::catalog::CatalogProvider;
 use db::Db;
-use querier::namespace::QuerierNamespace;
+use querier::QuerierNamespace;
 use query::{exec::ExecutionContextProvider, QueryDatabase};
 
 /// Abstract database used during testing.

@@ -17,21 +17,33 @@ mod test_util;
 /// Table representation for the querier.
 #[derive(Debug)]
 pub struct QuerierTable {
+    /// Backoff config for IO operations.
+    backoff_config: BackoffConfig,
+
+    /// Table name.
     name: Arc<str>,
+
+    /// Table ID.
     id: TableId,
+
+    /// Table schema.
     schema: Arc<Schema>,
+
+    /// Interface to create chunks for this table.
     chunk_adapter: Arc<ParquetChunkAdapter>,
 }
 
 impl QuerierTable {
     /// Create new table.
     pub fn new(
+        backoff_config: BackoffConfig,
         id: TableId,
         name: Arc<str>,
         schema: Arc<Schema>,
         chunk_adapter: Arc<ParquetChunkAdapter>,
     ) -> Self {
         Self {
+            backoff_config,
             name,
             id,
             schema,
@@ -60,8 +72,7 @@ impl QuerierTable {
     pub async fn chunks(&self) -> Vec<Arc<dyn QueryChunk>> {
         // get parquet files and tombstones in a single catalog transaction
         // TODO: figure out some form of caching
-        let backoff_config = BackoffConfig::default();
-        let (parquet_files, tombstones) = Backoff::new(&backoff_config)
+        let (parquet_files, tombstones) = Backoff::new(&self.backoff_config)
             .retry_all_errors::<_, _, _, iox_catalog::interface::Error>(
                 "get parquet files and tombstones for table",
                 || async {

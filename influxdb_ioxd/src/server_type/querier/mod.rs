@@ -8,11 +8,7 @@ use hyper::{Body, Request, Response};
 use iox_catalog::interface::Catalog;
 use metric::Registry;
 use object_store::DynObjectStore;
-use querier::{
-    database::QuerierDatabase,
-    handler::{QuerierHandler, QuerierHandlerImpl},
-    server::QuerierServer,
-};
+use querier::{QuerierDatabase, QuerierHandler, QuerierHandlerImpl, QuerierServer};
 use query::exec::Executor;
 use time::TimeProvider;
 use trace::TraceCollector;

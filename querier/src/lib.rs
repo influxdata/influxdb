@@ -1,5 +1,4 @@
 //! IOx Query Server Implementation.
-
 #![deny(rustdoc::broken_intra_doc_links, rust_2018_idioms)]
 #![warn(
     missing_copy_implementations,
@@ -11,17 +10,21 @@
 )]
 #![allow(dead_code)]
 
-pub use client_util::connection;
-
-pub mod cache;
+mod cache;
 mod cache_system;
 mod chunk;
-pub mod database;
+mod database;
 /// Flight client to the ingester to request in-memory data.
-pub mod flight;
-pub mod handler;
-pub mod namespace;
+mod flight;
+mod handler;
+mod namespace;
 mod poison;
-pub mod server;
+mod server;
 mod table;
 mod tombstone;
+
+pub use database::QuerierDatabase;
+pub use flight::Client as QuerierFlightClient;
+pub use handler::{QuerierHandler, QuerierHandlerImpl};
+pub use namespace::QuerierNamespace;
+pub use server::QuerierServer;

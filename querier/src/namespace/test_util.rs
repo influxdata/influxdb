@@ -1,21 +1,18 @@
 use std::sync::Arc;
 
-use crate::cache::CatalogCache;
-use iox_tests::util::{TestCatalog, TestNamespace};
+use iox_tests::util::TestNamespace;
 
 use super::QuerierNamespace;
 
-pub fn querier_namespace(catalog: &Arc<TestCatalog>, ns: &Arc<TestNamespace>) -> QuerierNamespace {
-    QuerierNamespace::new(
-        Arc::new(CatalogCache::new(
-            catalog.catalog(),
-            catalog.time_provider(),
-        )),
+/// Create [`QuerierNamespace`] for testing.
+pub fn querier_namespace(ns: &Arc<TestNamespace>) -> QuerierNamespace {
+    QuerierNamespace::new_testing(
+        ns.catalog.catalog(),
+        ns.catalog.object_store(),
+        ns.catalog.metric_registry(),
+        ns.catalog.time_provider(),
         ns.namespace.name.clone().into(),
         ns.namespace.id,
-        catalog.metric_registry(),
-        catalog.object_store(),
-        catalog.time_provider(),
-        catalog.exec(),
+        ns.catalog.exec(),
     )
 }

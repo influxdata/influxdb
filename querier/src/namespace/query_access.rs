@@ -249,7 +249,7 @@ mod tests {
             .create_tombstone(1, 1, 13, "host=d")
             .await;
 
-        let querier_namespace = Arc::new(querier_namespace(&catalog, &ns));
+        let querier_namespace = Arc::new(querier_namespace(&ns));
         querier_namespace.sync().await;
 
         assert_query(
