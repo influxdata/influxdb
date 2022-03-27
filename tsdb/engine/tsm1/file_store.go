@@ -395,8 +395,12 @@ func (f *FileStore) WalkKeys(seek []byte, fn func(key []byte, typ byte) error) e
 	// Ensure files are not unmapped while we're iterating over them.
 	for _, r := range f.files {
 		r.Ref()
-		defer r.Unref()
 	}
+	defer func() {
+		for _, r := range f.files {
+			r.Unref()
+		}
+	}()
 
 	ki := newMergeKeyIterator(f.files, seek)
 	f.mu.RUnlock()
