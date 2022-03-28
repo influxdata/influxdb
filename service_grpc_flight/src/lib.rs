@@ -175,10 +175,10 @@ where
         let database =
             DatabaseName::new(&read_info.database_name).context(InvalidDatabaseNameSnafu)?;
 
-        let db = self
-            .server
-            .db(&database)
-            .ok_or_else(|| tonic::Status::not_found(format!("Unknown namespace: {database}")))?;
+        let db =
+            self.server.db(&database).await.ok_or_else(|| {
+                tonic::Status::not_found(format!("Unknown namespace: {database}"))
+            })?;
 
         let ctx = db.new_query_context(span_ctx);
         let query_completed_token =

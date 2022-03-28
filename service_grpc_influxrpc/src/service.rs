@@ -240,6 +240,7 @@ where
         let db = self
             .db_store
             .db(&db_name)
+            .await
             .context(DatabaseNotFoundSnafu { db_name: &db_name })?;
 
         let ctx = db.new_query_context(span_ctx);
@@ -271,6 +272,7 @@ where
         let db = self
             .db_store
             .db(&db_name)
+            .await
             .context(DatabaseNotFoundSnafu { db_name: &db_name })?;
 
         let ctx = db.new_query_context(span_ctx);
@@ -327,6 +329,7 @@ where
         let db = self
             .db_store
             .db(&db_name)
+            .await
             .context(DatabaseNotFoundSnafu { db_name: &db_name })?;
 
         let ctx = db.new_query_context(span_ctx);
@@ -382,6 +385,7 @@ where
         let db = self
             .db_store
             .db(&db_name)
+            .await
             .context(DatabaseNotFoundSnafu { db_name: &db_name })?;
 
         let ctx = db.new_query_context(span_ctx);
@@ -434,6 +438,7 @@ where
         let db = self
             .db_store
             .db(&db_name)
+            .await
             .context(DatabaseNotFoundSnafu { db_name: &db_name })?;
 
         let ctx = db.new_query_context(span_ctx);
@@ -519,6 +524,7 @@ where
         let db = self
             .db_store
             .db(&db_name)
+            .await
             .context(DatabaseNotFoundSnafu { db_name: &db_name })?;
 
         let ctx = db.new_query_context(span_ctx);
@@ -606,6 +612,7 @@ where
         let db = self
             .db_store
             .db(&db_name)
+            .await
             .context(DatabaseNotFoundSnafu { db_name: &db_name })?;
 
         let ctx = db.new_query_context(span_ctx);
@@ -650,6 +657,7 @@ where
         let db = self
             .db_store
             .db(&db_name)
+            .await
             .context(DatabaseNotFoundSnafu { db_name: &db_name })?;
 
         let ctx = db.new_query_context(span_ctx);
@@ -704,6 +712,7 @@ where
         let db = self
             .db_store
             .db(&db_name)
+            .await
             .context(DatabaseNotFoundSnafu { db_name: &db_name })?;
 
         let ctx = db.new_query_context(span_ctx);
@@ -760,6 +769,7 @@ where
         let db = self
             .db_store
             .db(&db_name)
+            .await
             .context(DatabaseNotFoundSnafu { db_name: &db_name })?;
 
         let ctx = db.new_query_context(span_ctx);
@@ -1364,6 +1374,7 @@ mod tests {
         sync::Arc,
     };
 
+    use async_trait::async_trait;
     use data_types::chunk_metadata::ChunkId;
     use generated_types::{i_ox_testing_client::IOxTestingClient, tag_key_predicate::Value};
     use parking_lot::Mutex;
@@ -3023,11 +3034,12 @@ mod tests {
         }
     }
 
+    #[async_trait]
     impl QueryDatabaseProvider for TestDatabaseStore {
         type Db = TestDatabase;
 
         /// Retrieve the database specified name
-        fn db(&self, name: &str) -> Option<Arc<Self::Db>> {
+        async fn db(&self, name: &str) -> Option<Arc<Self::Db>> {
             let databases = self.databases.lock();
 
             databases.get(name).cloned()

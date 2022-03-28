@@ -6,6 +6,7 @@ use crate::{
     namespace::QuerierNamespace,
     poison::{PoisonCabinet, PoisonPill},
 };
+use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig};
 use data_types2::NamespaceId;
 use iox_catalog::interface::Catalog;
@@ -57,10 +58,11 @@ pub struct QuerierDatabase {
     exec: Arc<Executor>,
 }
 
+#[async_trait]
 impl QueryDatabaseProvider for QuerierDatabase {
     type Db = QuerierNamespace;
 
-    fn db(&self, name: &str) -> Option<Arc<Self::Db>> {
+    async fn db(&self, name: &str) -> Option<Arc<Self::Db>> {
         self.namespace(name)
     }
 }

@@ -68,6 +68,7 @@
     clippy::future_not_send
 )]
 
+use async_trait::async_trait;
 use data_types::{
     chunk_metadata::ChunkId,
     error::ErrorLogger,
@@ -242,10 +243,11 @@ impl Drop for Server {
     }
 }
 
+#[async_trait]
 impl service_common::QueryDatabaseProvider for Server {
     type Db = Db;
 
-    fn db(&self, name: &str) -> Option<Arc<Self::Db>> {
+    async fn db(&self, name: &str) -> Option<Arc<Self::Db>> {
         DatabaseName::new(name)
             .ok()
             .and_then(|name| self.db(&name).ok())
