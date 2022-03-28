@@ -1,15 +1,20 @@
+//! Querier Chunk
+
 use crate::cache::CatalogCache;
+use arrow::record_batch::RecordBatch;
 use data_types2::{
     ChunkAddr, ChunkId, ChunkOrder, DeletePredicate, ParquetFile, ParquetFileId, SequenceNumber,
     SequencerId,
 };
+use futures::StreamExt;
 use iox_catalog::interface::Catalog;
 use iox_object_store::IoxObjectStore;
 use object_store::DynObjectStore;
 use parquet_file::chunk::{
     new_parquet_chunk, ChunkMetrics as ParquetChunkMetrics, DecodedParquetFile, ParquetChunk,
 };
-use schema::sort::SortKey;
+use query::{exec::IOxSessionContext, QueryChunk};
+use schema::{selection::Selection, sort::SortKey};
 use std::sync::Arc;
 use time::TimeProvider;
 use uuid::Uuid;
@@ -75,7 +80,9 @@ impl ChunkMeta {
 pub enum ChunkStorage {
     /// Data is currently available via parquet file within the object store.
     Parquet {
+        /// ID of the parquet file if the chunk
         parquet_file_id: ParquetFileId,
+        /// Chunk of the parquet file
         chunk: Arc<ParquetChunk>,
     },
 }
@@ -285,15 +292,30 @@ impl ParquetChunkAdapter {
     }
 }
 
+/// collect data for the given chunk
+pub async fn collect_read_filter(chunk: &QuerierChunk) -> Vec<RecordBatch> {
+    chunk
+        .read_filter(
+            IOxSessionContext::default(),
+            &Default::default(),
+            Selection::All,
+        )
+        .unwrap()
+        .collect::<Vec<_>>()
+        .await
+        .into_iter()
+        .map(Result::unwrap)
+        .collect()
+}
+
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use super::*;
-    use arrow::{datatypes::DataType, record_batch::RecordBatch};
+    use arrow::datatypes::DataType;
     use arrow_util::assert_batches_eq;
-    use futures::StreamExt;
     use iox_tests::util::TestCatalog;
-    use query::{exec::IOxSessionContext, QueryChunk, QueryChunkMeta};
-    use schema::{builder::SchemaBuilder, selection::Selection, sort::SortKeyBuilder};
+    use query::QueryChunkMeta;
+    use schema::{builder::SchemaBuilder, sort::SortKeyBuilder};
 
     #[tokio::test]
     async fn test_create_record() {
@@ -369,20 +391,5 @@ mod tests {
             ],
             &batches
         );
-    }
-
-    async fn collect_read_filter(chunk: &QuerierChunk) -> Vec<RecordBatch> {
-        chunk
-            .read_filter(
-                IOxSessionContext::default(),
-                &Default::default(),
-                Selection::All,
-            )
-            .unwrap()
-            .collect::<Vec<_>>()
-            .await
-            .into_iter()
-            .map(Result::unwrap)
-            .collect()
     }
 }

@@ -756,6 +756,7 @@ dependencies = [
  "parking_lot 0.12.0",
  "parquet_file",
  "predicate",
+ "querier",
  "query",
  "schema",
  "snafu",

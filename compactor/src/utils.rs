@@ -9,7 +9,10 @@ use parquet_file::{
     chunk::{new_parquet_chunk, ChunkMetrics, DecodedParquetFile},
     metadata::{IoxMetadata, IoxParquetMetaData},
 };
-use std::{collections::HashSet, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashSet},
+    sync::Arc,
+};
 use time::TimeProvider;
 
 /// Wrapper of a group of parquet files and their tombstones that overlap in time and should be
@@ -63,6 +66,14 @@ impl ParquetFileWithTombstone {
         self.data.id
     }
 
+    /// Return all tombstones in btree map format
+    pub fn tombstones(&self) -> BTreeMap<TombstoneId, Tombstone> {
+        self.tombstones
+            .iter()
+            .map(|ts| (ts.id, ts.clone()))
+            .collect()
+    }
+
     /// Add more tombstones
     pub fn add_tombstones(&mut self, tombstones: Vec<Tombstone>) {
         self.tombstones.extend(tombstones);
@@ -105,7 +116,7 @@ impl ParquetFileWithTombstone {
 pub struct CompactedData {
     pub(crate) data: Vec<RecordBatch>,
     pub(crate) meta: IoxMetadata,
-    pub(crate) tombstone_ids: HashSet<TombstoneId>,
+    pub(crate) tombstones: BTreeMap<TombstoneId, Tombstone>,
 }
 
 impl CompactedData {
@@ -113,12 +124,12 @@ impl CompactedData {
     pub fn new(
         data: Vec<RecordBatch>,
         meta: IoxMetadata,
-        tombstone_ids: HashSet<TombstoneId>,
+        tombstones: BTreeMap<TombstoneId, Tombstone>,
     ) -> Self {
         Self {
             data,
             meta,
-            tombstone_ids,
+            tombstones,
         }
     }
 }
@@ -127,7 +138,7 @@ impl CompactedData {
 #[derive(Debug)]
 pub struct CatalogUpdate {
     pub(crate) meta: IoxMetadata,
-    pub(crate) tombstone_ids: HashSet<TombstoneId>,
+    pub(crate) tombstones: BTreeMap<TombstoneId, Tombstone>,
     pub(crate) parquet_file: ParquetFileParams,
 }
 
@@ -137,12 +148,12 @@ impl CatalogUpdate {
         meta: IoxMetadata,
         file_size: usize,
         md: IoxParquetMetaData,
-        tombstone_ids: HashSet<TombstoneId>,
+        tombstones: BTreeMap<TombstoneId, Tombstone>,
     ) -> Self {
         let parquet_file = meta.to_parquet_file(file_size, &md);
         Self {
             meta,
-            tombstone_ids,
+            tombstones,
             parquet_file,
         }
     }

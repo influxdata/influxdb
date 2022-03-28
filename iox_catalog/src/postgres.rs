@@ -1263,6 +1263,27 @@ ORDER BY id;
         .map_err(|e| Error::SqlxError { source: e })
     }
 
+    async fn get_by_id(&mut self, id: TombstoneId) -> Result<Option<Tombstone>> {
+        let rec = sqlx::query_as::<_, Tombstone>(
+            r#"
+SELECT *
+FROM tombstone
+WHERE id = $1;
+        "#,
+        )
+        .bind(&id) // $1
+        .fetch_one(&mut self.inner)
+        .await;
+
+        if let Err(sqlx::Error::RowNotFound) = rec {
+            return Ok(None);
+        }
+
+        let tombstone = rec.map_err(|e| Error::SqlxError { source: e })?;
+
+        Ok(Some(tombstone))
+    }
+
     async fn list_tombstones_by_sequencer_greater_than(
         &mut self,
         sequencer_id: SequencerId,
@@ -1282,6 +1303,38 @@ ORDER BY id;
         .fetch_all(&mut self.inner)
         .await
         .map_err(|e| Error::SqlxError { source: e })
+    }
+
+    async fn remove(&mut self, tombstone_ids: &[TombstoneId]) -> Result<()> {
+        let ids: Vec<_> = tombstone_ids.iter().map(|t| t.get()).collect();
+
+        // Remove processed tombstones first
+        sqlx::query(
+            r#"
+DELETE
+FROM processed_tombstone
+WHERE tombstone_id = ANY($1);
+            "#,
+        )
+        .bind(&ids[..]) // $1
+        .fetch_all(&mut self.inner)
+        .await
+        .map_err(|e| Error::SqlxError { source: e })?;
+
+        // Remove tombstones
+        sqlx::query(
+            r#"
+DELETE
+FROM tombstone
+WHERE id = ANY($1);
+            "#,
+        )
+        .bind(&ids[..]) // $1
+        .fetch_all(&mut self.inner)
+        .await
+        .map_err(|e| Error::SqlxError { source: e })?;
+
+        Ok(())
     }
 
     async fn list_tombstones_for_time_range(
@@ -1469,8 +1522,8 @@ WHERE parquet_file.sequencer_id = $1
   AND parquet_file.partition_id = $3
   AND parquet_file.compaction_level = 1
   AND parquet_file.to_delete IS NULL
-  AND ((parquet_file.min_time <= $5 AND parquet_file.max_time >= $4)
-      OR (parquet_file.min_time > $5 AND parquet_file.min_time <= $5));
+  AND ((parquet_file.min_time <= $4 AND parquet_file.max_time >= $4)
+      OR (parquet_file.min_time > $4 AND parquet_file.min_time <= $5));
         "#,
         )
         .bind(&table_partition.sequencer_id) // $1
@@ -1525,6 +1578,38 @@ RETURNING id;
                 .fetch_one(&mut self.inner)
                 .await
                 .map_err(|e| Error::SqlxError { source: e })?;
+
+        Ok(read_result.count)
+    }
+
+    async fn count_by_overlaps(
+        &mut self,
+        table_id: TableId,
+        sequencer_id: SequencerId,
+        min_time: Timestamp,
+        max_time: Timestamp,
+        sequence_number: SequenceNumber,
+    ) -> Result<i64> {
+        let read_result = sqlx::query_as::<_, Count>(
+            r#"
+SELECT count(*) as count
+FROM parquet_file
+WHERE table_id = $1
+  AND sequencer_id = $2
+  AND min_sequence_number < $3
+  AND parquet_file.to_delete IS NULL
+  AND ((parquet_file.min_time <= $4 AND parquet_file.max_time >= $4)
+  OR (parquet_file.min_time > $4 AND parquet_file.min_time <= $5));
+            "#,
+        )
+        .bind(&table_id) // $1
+        .bind(&sequencer_id) // $2
+        .bind(sequence_number) // $3
+        .bind(min_time) // $4
+        .bind(max_time) // $5
+        .fetch_one(&mut self.inner)
+        .await
+        .map_err(|e| Error::SqlxError { source: e })?;
 
         Ok(read_result.count)
     }
@@ -1590,6 +1675,18 @@ WHERE parquet_file_id = $1
                 .fetch_one(&mut self.inner)
                 .await
                 .map_err(|e| Error::SqlxError { source: e })?;
+
+        Ok(read_result.count)
+    }
+
+    async fn count_by_tombstone_id(&mut self, tombstone_id: TombstoneId) -> Result<i64> {
+        let read_result = sqlx::query_as::<_, Count>(
+            r#"SELECT count(*) as count FROM processed_tombstone WHERE tombstone_id = $1;"#,
+        )
+        .bind(&tombstone_id) // $1
+        .fetch_one(&mut self.inner)
+        .await
+        .map_err(|e| Error::SqlxError { source: e })?;
 
         Ok(read_result.count)
     }

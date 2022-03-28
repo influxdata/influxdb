@@ -10,9 +10,9 @@
 )]
 #![allow(dead_code)]
 
-mod cache;
+pub mod cache;
 mod cache_system;
-mod chunk;
+pub mod chunk;
 mod database;
 /// Flight client to the ingester to request in-memory data.
 mod flight;

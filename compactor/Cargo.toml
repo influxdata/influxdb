@@ -33,4 +33,5 @@ workspace-hack = { path = "../workspace-hack"}
 [dev-dependencies]
 arrow_util = { path = "../arrow_util" }
 iox_tests = { path = "../iox_tests" }
+querier = { path = "../querier"}
 test_helpers = { path = "../test_helpers" }

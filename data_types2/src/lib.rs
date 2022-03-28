@@ -228,6 +228,12 @@ impl TombstoneId {
     }
 }
 
+impl std::fmt::Display for TombstoneId {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 /// A sequence number from a `Sequencer` (kafka partition)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
 #[sqlx(transparent)]
@@ -658,7 +664,7 @@ pub struct PartitionInfo {
 }
 
 /// Data object for a tombstone.
-#[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, sqlx::FromRow)]
 pub struct Tombstone {
     /// the id of the tombstone
     pub id: TombstoneId,
