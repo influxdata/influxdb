@@ -6,7 +6,7 @@ edition = "2021"
 
 [dependencies] # In alphabetical order
 assert_matches = "1.5.0"
-async-trait = "0.1.42"
+async-trait = "0.1.53"
 data_types2 = { path = "../data_types2" }
 futures = "0.3"
 metric = { version = "0.1.0", path = "../metric" }

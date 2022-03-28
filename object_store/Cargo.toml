@@ -5,7 +5,7 @@ authors = ["Paul Dix <paul@pauldix.net>"]
 edition = "2021"
 
 [dependencies] # In alphabetical order
-async-trait = "0.1.42"
+async-trait = "0.1.53"
 # Microsoft Azure Blob storage integration
 # In order to support tokio 1.0 and delimiters, needed to pull in unreleased azure sdk
 azure_core = { git = "https://github.com/Azure/azure-sdk-for-rust.git", rev = "15de10cb58cf5cb271334a20e35fa9fbedd10244", optional = true, default-features = false, features = ["enable_reqwest_rustls"] }
