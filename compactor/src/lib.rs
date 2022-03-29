@@ -13,6 +13,7 @@
 #![allow(dead_code)]
 
 pub mod compact;
+pub mod garbage_collector;
 pub mod handler;
 pub mod query;
 pub mod server;

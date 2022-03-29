@@ -87,8 +87,7 @@ pub async fn persist(
 mod tests {
     use super::*;
     use data_types2::{NamespaceId, PartitionId, SequenceNumber, SequencerId, TableId};
-    use futures::{stream, StreamExt, TryStreamExt};
-    use object_store::{path::Path, ObjectStoreImpl};
+    use object_store::{ObjectStoreImpl, ObjectStoreTestConvenience};
     use query::test::{raw_data, TestChunk};
     use std::sync::Arc;
     use time::Time;
@@ -100,16 +99,6 @@ mod tests {
 
     fn object_store() -> Arc<DynObjectStore> {
         Arc::new(ObjectStoreImpl::new_in_memory())
-    }
-
-    async fn list_all(object_store: &DynObjectStore) -> Result<Vec<Path>, object_store::Error> {
-        object_store
-            .list(None)
-            .await?
-            .map_ok(|v| stream::iter(v).map(Ok))
-            .try_flatten()
-            .try_collect()
-            .await
     }
 
     #[tokio::test]
@@ -135,7 +124,7 @@ mod tests {
 
         persist(&metadata, vec![], &object_store).await.unwrap();
 
-        assert!(list_all(&*object_store).await.unwrap().is_empty());
+        assert!(object_store.list_all().await.unwrap().is_empty());
     }
 
     #[tokio::test]
@@ -173,7 +162,7 @@ mod tests {
 
         persist(&metadata, batches, &object_store).await.unwrap();
 
-        let obj_store_paths = list_all(&*object_store).await.unwrap();
+        let obj_store_paths = object_store.list_all().await.unwrap();
         assert_eq!(obj_store_paths.len(), 1);
     }
 }

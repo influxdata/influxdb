@@ -10,6 +10,7 @@ use data_types2::{
 };
 use snafu::{OptionExt, Snafu};
 use std::{collections::BTreeMap, convert::TryFrom, fmt::Debug, sync::Arc};
+use time::TimeProvider;
 use uuid::Uuid;
 
 #[derive(Debug, Snafu)]
@@ -126,6 +127,9 @@ pub trait Catalog: Send + Sync + Debug {
 
     /// Get metric registry associated w/ this catalog.
     fn metrics(&self) -> Arc<metric::Registry>;
+
+    /// Get the time provider associated w/ this catalog.
+    fn time_provider(&self) -> Arc<dyn TimeProvider>;
 }
 
 /// Secret module for [sealed traits].
@@ -484,14 +488,20 @@ pub trait ParquetFileRepo: Send + Sync {
         sequence_number: SequenceNumber,
     ) -> Result<Vec<ParquetFile>>;
 
-    /// List all parquet files within a given namespace that are NOT marked as [`to_delete`](ParquetFile::to_delete).
+    /// List all parquet files within a given namespace that are NOT marked as
+    /// [`to_delete`](ParquetFile::to_delete).
     async fn list_by_namespace_not_to_delete(
         &mut self,
         namespace_id: NamespaceId,
     ) -> Result<Vec<ParquetFile>>;
 
-    /// List all parquet files within a given table that are NOT marked as [`to_delete`](ParquetFile::to_delete).
+    /// List all parquet files within a given table that are NOT marked as
+    /// [`to_delete`](ParquetFile::to_delete).
     async fn list_by_table_not_to_delete(&mut self, table_id: TableId) -> Result<Vec<ParquetFile>>;
+
+    /// Delete all parquet files that were marked to be deleted earlier than the specified time.
+    /// Returns the deleted records.
+    async fn delete_old(&mut self, older_than: Timestamp) -> Result<Vec<ParquetFile>>;
 
     /// List parquet files for a given sequencer with compaction level 0 and other criteria that
     /// define a file as a candidate for compaction
@@ -892,6 +902,7 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         let parquet_file_params = ParquetFileParams {
+            namespace_id: namespace.id,
             sequencer_id: seq.id,
             table_id: t.id,
             partition_id: partition.id,
@@ -1493,6 +1504,7 @@ pub(crate) mod test_helpers {
 
         let parquet_file_params = ParquetFileParams {
             sequencer_id: sequencer.id,
+            namespace_id: namespace.id,
             table_id: partition.table_id,
             partition_id: partition.id,
             object_store_id: Uuid::new_v4(),
@@ -1702,6 +1714,7 @@ pub(crate) mod test_helpers {
 
         let parquet_file_params = ParquetFileParams {
             sequencer_id: sequencer.id,
+            namespace_id: namespace.id,
             table_id: partition.table_id,
             partition_id: partition.id,
             object_store_id: Uuid::new_v4(),
@@ -1760,8 +1773,16 @@ pub(crate) mod test_helpers {
             .unwrap();
         assert_eq!(vec![other_file.clone()], files);
 
-        // verify that to_delete is initially set to null and that it can be updated to a timestamp
+        // verify that to_delete is initially set to null and the file does not get deleted
         assert!(parquet_file.to_delete.is_none());
+        let older_than = Timestamp::new(
+            (catalog.time_provider().now() + Duration::from_secs(100)).timestamp_nanos(),
+        );
+        let deleted_files = repos.parquet_files().delete_old(older_than).await.unwrap();
+        assert!(deleted_files.is_empty());
+        assert!(repos.parquet_files().exist(parquet_file.id).await.unwrap());
+
+        // verify to_delete can be updated to a timestamp
         repos
             .parquet_files()
             .flag_for_delete(parquet_file.id)
@@ -1772,7 +1793,26 @@ pub(crate) mod test_helpers {
             .list_by_sequencer_greater_than(sequencer.id, SequenceNumber::new(1))
             .await
             .unwrap();
-        assert!(files.first().unwrap().to_delete.is_some());
+        let marked_deleted = files.first().unwrap();
+        assert!(marked_deleted.to_delete.is_some());
+
+        // File is not deleted if it was marked to be deleted after the specified time
+        let before_deleted = Timestamp::new(
+            (catalog.time_provider().now() - Duration::from_secs(100)).timestamp_nanos(),
+        );
+        let deleted_files = repos
+            .parquet_files()
+            .delete_old(before_deleted)
+            .await
+            .unwrap();
+        assert!(deleted_files.is_empty());
+        assert!(repos.parquet_files().exist(parquet_file.id).await.unwrap());
+
+        // File is deleted if it was marked to be deleted before the specified time
+        let deleted_files = repos.parquet_files().delete_old(older_than).await.unwrap();
+        assert_eq!(deleted_files.len(), 1);
+        assert_eq!(marked_deleted, &deleted_files[0]);
+        assert!(!repos.parquet_files().exist(parquet_file.id).await.unwrap());
 
         // test list_by_table_not_to_delete
         let files = repos
@@ -2001,6 +2041,7 @@ pub(crate) mod test_helpers {
 
         let parquet_file_params = ParquetFileParams {
             sequencer_id: sequencer.id,
+            namespace_id: namespace.id,
             table_id: partition.table_id,
             partition_id: partition.id,
             object_store_id: Uuid::new_v4(),
@@ -2129,6 +2170,7 @@ pub(crate) mod test_helpers {
         // Create a file with times entirely within the window
         let parquet_file_params = ParquetFileParams {
             sequencer_id: sequencer.id,
+            namespace_id: namespace.id,
             table_id: partition.table_id,
             partition_id: partition.id,
             object_store_id: Uuid::new_v4(),
@@ -2329,6 +2371,7 @@ pub(crate) mod test_helpers {
         // Create a file with times entirely within the window
         let parquet_file_params = ParquetFileParams {
             sequencer_id: sequencer.id,
+            namespace_id: namespace.id,
             table_id: partition.table_id,
             partition_id: partition.id,
             object_store_id: Uuid::new_v4(),
@@ -2443,6 +2486,7 @@ pub(crate) mod test_helpers {
 
         // parquet files
         let parquet_file_params = ParquetFileParams {
+            namespace_id: namespace.id,
             sequencer_id: sequencer.id,
             table_id: partition.table_id,
             partition_id: partition.id,

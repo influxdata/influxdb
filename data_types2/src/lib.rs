@@ -710,6 +710,8 @@ pub struct ParquetFile {
     pub id: ParquetFileId,
     /// the sequencer that sequenced writes that went into this file
     pub sequencer_id: SequencerId,
+    /// the namespace
+    pub namespace_id: NamespaceId,
     /// the table
     pub table_id: TableId,
     /// the partition
@@ -743,6 +745,8 @@ pub struct ParquetFile {
 pub struct ParquetFileParams {
     /// the sequencer that sequenced writes that went into this file
     pub sequencer_id: SequencerId,
+    /// the namespace
+    pub namespace_id: NamespaceId,
     /// the table
     pub table_id: TableId,
     /// the partition

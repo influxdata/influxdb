@@ -748,7 +748,7 @@ impl Compactor {
             Ok(count_pf) => count_pf,
             _ => {
                 warn!(
-                    "Error getting parquet file count for table ID {}, sequencer ID {}, min time {:?}, max time {:?}. 
+                    "Error getting parquet file count for table ID {}, sequencer ID {}, min time {:?}, max time {:?}.
                     Won't be able to verify whether its tombstone is fully processed",
                     tombstone.table_id, tombstone.sequencer_id, tombstone.min_time, tombstone.max_time
                 );
@@ -765,7 +765,7 @@ impl Compactor {
             Ok(count_pt) => count_pt,
             _ => {
                 warn!(
-                    "Error getting processed tombstone count for tombstone ID {}. 
+                    "Error getting processed tombstone count for tombstone ID {}.
                     Won't be able to verify whether the tombstone is fully processed",
                     tombstone.id
                 );
@@ -867,9 +867,8 @@ mod tests {
     use super::*;
     use arrow_util::assert_batches_sorted_eq;
     use data_types2::{KafkaPartition, NamespaceId, ParquetFileParams, SequenceNumber};
-    use futures::{stream, StreamExt, TryStreamExt};
     use iox_tests::util::TestCatalog;
-    use object_store::path::Path;
+    use object_store::ObjectStoreTestConvenience;
     use querier::{
         cache::CatalogCache,
         chunk::{collect_read_filter, ParquetChunkAdapter},
@@ -1500,6 +1499,7 @@ mod tests {
         ParquetFile {
             id: ParquetFileId::new(0),
             sequencer_id: SequencerId::new(0),
+            namespace_id: NamespaceId::new(0),
             table_id: TableId::new(0),
             partition_id: PartitionId::new(0),
             object_store_id: Uuid::new_v4(),
@@ -1692,6 +1692,7 @@ mod tests {
 
         let p1 = ParquetFileParams {
             sequencer_id: sequencer.id,
+            namespace_id: namespace.id,
             table_id: table.id,
             partition_id: partition.id,
             object_store_id: Uuid::new_v4(),
@@ -1814,16 +1815,6 @@ mod tests {
         assert_eq!(actual_pf2_tombstones, &[t3.id, t4.id]);
     }
 
-    async fn list_all(object_store: &DynObjectStore) -> Result<Vec<Path>, object_store::Error> {
-        object_store
-            .list(None)
-            .await?
-            .map_ok(|v| stream::iter(v).map(Ok))
-            .try_flatten()
-            .try_collect()
-            .await
-    }
-
     #[tokio::test]
     async fn persist_adds_to_object_store() {
         let catalog = TestCatalog::new();
@@ -1897,7 +1888,7 @@ mod tests {
         .await
         .unwrap();
 
-        let object_store_files = list_all(&*compactor.object_store).await.unwrap();
+        let object_store_files = compactor.object_store.list_all().await.unwrap();
         assert_eq!(object_store_files.len(), 1);
     }
 
@@ -2004,6 +1995,7 @@ mod tests {
         // Prepare metadata in form of ParquetFileParams to get added with tombstone
         let parquet = ParquetFileParams {
             sequencer_id: sequencer.id,
+            namespace_id: namespace.id,
             table_id: table.id,
             partition_id: partition.id,
             object_store_id: Uuid::new_v4(),
