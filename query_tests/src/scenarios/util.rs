@@ -30,13 +30,17 @@ pub struct ChunkDataOld<'a> {
     pub chunk_stage: ChunkStageOld,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ChunkDataNew<'a, 'b> {
     /// Line protocol data of this chunk
     pub lp_lines: Vec<&'a str>,
 
-    /// which stage this chunk will be created
-    pub chunk_stage: ChunkStageNew,
+    /// which stage this chunk will be created.
+    ///
+    /// If not set, this chunk will be created in [all](ChunkStageNew::all) stages. This can be helpful when the test
+    /// scenario is not specific to the chunk stage. If this is used for multiple chunks, then all stage permutations
+    /// will be generated.
+    pub chunk_stage: Option<ChunkStageNew>,
 
     /// Delete predicates
     pub preds: Vec<PredNew<'b>>,
@@ -50,21 +54,11 @@ pub struct ChunkDataNew<'a, 'b> {
 
 impl<'a, 'b> ChunkDataNew<'a, 'b> {
     fn with_chunk_stage(self, chunk_stage: ChunkStageNew) -> Self {
-        Self {
-            chunk_stage,
-            ..self
-        }
-    }
-}
+        assert!(self.chunk_stage.is_none());
 
-impl<'a, 'b> Default for ChunkDataNew<'a, 'b> {
-    fn default() -> Self {
         Self {
-            lp_lines: Default::default(),
-            chunk_stage: ChunkStageNew::Parquet,
-            preds: Default::default(),
-            delete_table_name: "",
-            partition_key: "",
+            chunk_stage: Some(chunk_stage),
+            ..self
         }
     }
 }
@@ -660,7 +654,7 @@ async fn make_chunk_with_deletes_at_different_stages_new(
 
     let chunk_data = ChunkDataNew {
         lp_lines,
-        chunk_stage,
+        chunk_stage: Some(chunk_stage),
         preds,
         delete_table_name,
         partition_key,
@@ -1049,19 +1043,36 @@ async fn make_two_chunk_scenarios_new(
 }
 
 pub async fn make_n_chunks_scenario_new(chunks: &[ChunkDataNew<'_, '_>]) -> Vec<DbScenario> {
+    let n_stages_unset = chunks
+        .iter()
+        .filter(|chunk| chunk.chunk_stage.is_none())
+        .count();
+
     let mut scenarios = vec![];
 
-    for stages in ChunkStageNew::all().into_iter().permutations(chunks.len()) {
+    for stages in ChunkStageNew::all()
+        .into_iter()
+        .permutations(n_stages_unset)
+    {
         let catalog = TestCatalog::new();
         let ns = catalog.create_namespace("test_db").await;
         let mut scenario_name = format!("{} chunks:", chunks.len());
+        let mut stages_it = stages.iter();
 
-        for (chunk_stage, chunk_data) in stages.into_iter().zip(chunks) {
-            let chunk_data = chunk_data.clone().with_chunk_stage(chunk_stage);
+        for chunk_data in chunks {
+            let mut chunk_data = chunk_data.clone();
+
+            if chunk_data.chunk_stage.is_none() {
+                let chunk_stage = stages_it.next().expect("generated enough stages");
+                chunk_data = chunk_data.with_chunk_stage(*chunk_stage);
+            }
+
             let name = make_ng_chunk(Arc::clone(&ns), chunk_data).await;
 
             write!(&mut scenario_name, "{}", name).unwrap();
         }
+
+        assert!(stages_it.next().is_none(), "generated too many stages");
 
         let db = make_querier_namespace(ns).await;
         scenarios.push(DbScenario { scenario_name, db });
@@ -1111,6 +1122,8 @@ pub(crate) async fn make_one_rub_or_parquet_chunk_scenario(
 
 async fn make_ng_chunk(ns: Arc<TestNamespace>, chunk: ChunkDataNew<'_, '_>) -> String {
     use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
+
+    let chunk_stage = chunk.chunk_stage.expect("chunk stage should be set");
 
     // detect table names and schemas from LP lines
     let (lp_lines_grouped, schemas) = {
@@ -1175,7 +1188,7 @@ async fn make_ng_chunk(ns: Arc<TestNamespace>, chunk: ChunkDataNew<'_, '_>) -> S
     }
 
     // create chunk
-    match chunk.chunk_stage {
+    match chunk_stage {
         ChunkStageNew::Parquet => {
             // need to use a temporary vector because BTree iterators ain't `Send`
             let lp_lines_grouped: Vec<_> = lp_lines_grouped.into_iter().collect();
@@ -1220,7 +1233,7 @@ async fn make_ng_chunk(ns: Arc<TestNamespace>, chunk: ChunkDataNew<'_, '_>) -> S
         }
     }
 
-    let mut name = format!("NG Chunk {}", chunk.chunk_stage);
+    let mut name = format!("NG Chunk {}", chunk_stage);
     if n_preds > 0 {
         write!(name, " with {} deletes", n_preds).unwrap();
     }
