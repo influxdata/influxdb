@@ -224,7 +224,6 @@ fn assemble_chunk_columns(
     let null_count = rows
         .iter()
         .map(|each| each.column_summary.null_count())
-        .map(Some)
         .collect::<UInt64Array>();
 
     let min_values = rows
@@ -385,14 +384,19 @@ mod tests {
                                 Some("bar".to_string()),
                                 Some("foo".to_string()),
                                 55,
-                                0,
+                                Some(0),
                                 Some(NonZeroU64::new(23).unwrap()),
                             )),
                         },
                         ColumnSummary {
                             name: "c2".to_string(),
                             influxdb_type: Some(InfluxDbType::Field),
-                            stats: Statistics::F64(StatValues::new(Some(11.0), Some(43.0), 66, 0)),
+                            stats: Statistics::F64(StatValues::new(
+                                Some(11.0),
+                                Some(43.0),
+                                66,
+                                Some(0),
+                            )),
                         },
                     ],
                 }),
@@ -430,7 +434,12 @@ mod tests {
                     columns: vec![ColumnSummary {
                         name: "c1".to_string(),
                         influxdb_type: Some(InfluxDbType::Field),
-                        stats: Statistics::F64(StatValues::new(Some(110.0), Some(430.0), 667, 99)),
+                        stats: Statistics::F64(StatValues::new(
+                            Some(110.0),
+                            Some(430.0),
+                            667,
+                            Some(99),
+                        )),
                     }],
                 }),
                 DetailedChunkSummary {
@@ -461,7 +470,7 @@ mod tests {
                     columns: vec![ColumnSummary {
                         name: "c3".to_string(),
                         influxdb_type: Some(InfluxDbType::Field),
-                        stats: Statistics::F64(StatValues::new(Some(-1.0), Some(2.0), 4, 0)),
+                        stats: Statistics::F64(StatValues::new(Some(-1.0), Some(2.0), 4, Some(0))),
                     }],
                 }),
                 DetailedChunkSummary {

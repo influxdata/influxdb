@@ -102,23 +102,23 @@ fn test_basic() {
     let expected_stats = vec![
         (
             "b1",
-            Statistics::Bool(StatValues::new(Some(false), Some(true), 5, 0)),
+            Statistics::Bool(StatValues::new(Some(false), Some(true), 5, Some(0))),
         ),
         (
             "b2",
-            Statistics::Bool(StatValues::new(Some(false), Some(true), 5, 1)),
+            Statistics::Bool(StatValues::new(Some(false), Some(true), 5, Some(1))),
         ),
         (
             "f64",
-            Statistics::F64(StatValues::new(Some(-24.), Some(477.), 5, 1)),
+            Statistics::F64(StatValues::new(Some(-24.), Some(477.), 5, Some(1))),
         ),
         (
             "i64",
-            Statistics::I64(StatValues::new(Some(-3), Some(234), 5, 0)),
+            Statistics::I64(StatValues::new(Some(-3), Some(234), 5, Some(0))),
         ),
         (
             "i64_2",
-            Statistics::I64(StatValues::new(Some(-8), Some(-8), 5, 4)),
+            Statistics::I64(StatValues::new(Some(-8), Some(-8), 5, Some(4))),
         ),
         (
             "tag1",
@@ -126,7 +126,7 @@ fn test_basic() {
                 Some("v1".to_string()),
                 Some("v2".to_string()),
                 5,
-                0,
+                Some(0),
                 Some(NonZeroU64::new(2).unwrap()),
             )),
         ),
@@ -136,7 +136,7 @@ fn test_basic() {
                 Some("v1".to_string()),
                 Some("v2".to_string()),
                 5,
-                2,
+                Some(2),
                 Some(NonZeroU64::new(3).unwrap()),
             )),
         ),
@@ -146,17 +146,17 @@ fn test_basic() {
                 Some("v1".to_string()),
                 Some("v2".to_string()),
                 5,
-                1,
+                Some(1),
                 Some(NonZeroU64::new(3).unwrap()),
             )),
         ),
         (
             "time",
-            Statistics::I64(StatValues::new(Some(3), Some(7), 5, 0)),
+            Statistics::I64(StatValues::new(Some(3), Some(7), 5, Some(0))),
         ),
         (
             "u64",
-            Statistics::U64(StatValues::new(Some(5), Some(23), 5, 3)),
+            Statistics::U64(StatValues::new(Some(5), Some(23), 5, Some(3))),
         ),
     ];
 
@@ -274,23 +274,23 @@ fn test_basic() {
     let expected_stats = vec![
         (
             "b1",
-            Statistics::Bool(StatValues::new(Some(false), Some(true), 22, 17)),
+            Statistics::Bool(StatValues::new(Some(false), Some(true), 22, Some(17))),
         ),
         (
             "b2",
-            Statistics::Bool(StatValues::new(Some(false), Some(true), 22, 18)),
+            Statistics::Bool(StatValues::new(Some(false), Some(true), 22, Some(18))),
         ),
         (
             "f64",
-            Statistics::F64(StatValues::new(Some(-222.), Some(945.), 22, 13)),
+            Statistics::F64(StatValues::new(Some(-222.), Some(945.), 22, Some(13))),
         ),
         (
             "i64",
-            Statistics::I64(StatValues::new(Some(-3), Some(234), 22, 17)),
+            Statistics::I64(StatValues::new(Some(-3), Some(234), 22, Some(17))),
         ),
         (
             "i64_2",
-            Statistics::I64(StatValues::new(Some(-8), Some(-8), 22, 21)),
+            Statistics::I64(StatValues::new(Some(-8), Some(-8), 22, Some(21))),
         ),
         (
             "tag1",
@@ -298,7 +298,7 @@ fn test_basic() {
                 Some("v1".to_string()),
                 Some("v2".to_string()),
                 22,
-                17,
+                Some(17),
                 Some(NonZeroU64::new(3).unwrap()),
             )),
         ),
@@ -308,7 +308,7 @@ fn test_basic() {
                 Some("v1".to_string()),
                 Some("v4".to_string()),
                 22,
-                6,
+                Some(6),
                 Some(NonZeroU64::new(4).unwrap()),
             )),
         ),
@@ -318,17 +318,17 @@ fn test_basic() {
                 Some("v1".to_string()),
                 Some("v2".to_string()),
                 22,
-                1,
+                Some(1),
                 Some(NonZeroU64::new(3).unwrap()),
             )),
         ),
         (
             "time",
-            Statistics::I64(StatValues::new(Some(0), Some(16), 22, 0)),
+            Statistics::I64(StatValues::new(Some(0), Some(16), 22, Some(0))),
         ),
         (
             "u64",
-            Statistics::U64(StatValues::new(Some(5), Some(23), 22, 20)),
+            Statistics::U64(StatValues::new(Some(5), Some(23), 22, Some(20))),
         ),
     ];
 

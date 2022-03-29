@@ -218,7 +218,7 @@ impl Column {
             ColumnData::String(_, stats) => Statistics::String(stats.clone()),
             ColumnData::Tag(_, dictionary, stats) => {
                 let mut distinct_count = dictionary.values().len() as u64;
-                if stats.null_count > 0 {
+                if stats.null_count.expect("mutable batch keeps null counts") > 0 {
                     distinct_count += 1;
                 }
 

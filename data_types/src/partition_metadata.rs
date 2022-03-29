@@ -194,7 +194,7 @@ impl ColumnSummary {
     }
 
     /// Returns the number of null values in this column
-    pub fn null_count(&self) -> u64 {
+    pub fn null_count(&self) -> Option<u64> {
         self.stats.null_count()
     }
 
@@ -267,7 +267,7 @@ impl Column {
     }
 
     /// Returns the number of nulls in this column
-    pub fn null_count(&self) -> u64 {
+    pub fn null_count(&self) -> Option<u64> {
         self.stats.null_count()
     }
 }
@@ -295,7 +295,7 @@ impl Statistics {
     }
 
     /// Returns the number of null rows in this column
-    pub fn null_count(&self) -> u64 {
+    pub fn null_count(&self) -> Option<u64> {
         match self {
             Self::I64(s) => s.null_count,
             Self::U64(s) => s.null_count,
@@ -401,7 +401,7 @@ pub struct StatValues<T> {
     pub total_count: u64,
 
     /// number of null values in this column
-    pub null_count: u64,
+    pub null_count: Option<u64>,
 
     /// number of distinct values in this column if known
     ///
@@ -415,7 +415,7 @@ impl<T> Default for StatValues<T> {
             min: None,
             max: None,
             total_count: 0,
-            null_count: 0,
+            null_count: None,
             distinct_count: None,
         }
     }
@@ -428,7 +428,7 @@ impl<T> StatValues<T> {
             min: None,
             max: None,
             total_count: 0,
-            null_count: 0,
+            null_count: Some(0),
             distinct_count: None,
         }
     }
@@ -448,13 +448,13 @@ where
         let min = starting_value.clone();
         let max = starting_value;
         let total_count = 1;
-        let null_count = 0;
+        let null_count = Some(0);
         let distinct_count = None;
         Self::new_with_distinct(min, max, total_count, null_count, distinct_count)
     }
 
     /// Create new statistics with the specified count and null count
-    pub fn new(min: Option<T>, max: Option<T>, total_count: u64, null_count: u64) -> Self {
+    pub fn new(min: Option<T>, max: Option<T>, total_count: u64, null_count: Option<u64>) -> Self {
         let distinct_count = None;
         Self::new_with_distinct(min, max, total_count, null_count, distinct_count)
     }
@@ -464,7 +464,7 @@ where
         min: Option<T>,
         max: Option<T>,
         total_count: u64,
-        null_count: u64,
+        null_count: Option<u64>,
         distinct_count: Option<NonZeroU64>,
     ) -> Self {
         if let Some(min) = &min {
@@ -488,7 +488,7 @@ where
 
     /// Create statistics for a column with zero nulls and unknown distinct count
     pub fn new_non_null(min: Option<T>, max: Option<T>, total_count: u64) -> Self {
-        let null_count = 0;
+        let null_count = Some(0);
         let distinct_count = None;
         Self::new_with_distinct(min, max, total_count, null_count, distinct_count)
     }
@@ -497,7 +497,7 @@ where
     pub fn new_all_null(total_count: u64, distinct_count: Option<u64>) -> Self {
         let min = None;
         let max = None;
-        let null_count = total_count;
+        let null_count = Some(total_count);
 
         if let Some(count) = distinct_count {
             assert!(count > 0);
@@ -513,7 +513,7 @@ where
 
     pub fn update_from(&mut self, other: &Self) {
         self.total_count += other.total_count;
-        self.null_count += other.null_count;
+        self.null_count = self.null_count.zip(other.null_count).map(|(a, b)| a + b);
 
         // No way to accurately aggregate counts
         self.distinct_count = None;
@@ -583,7 +583,7 @@ impl<T> StatValues<T> {
     /// Update the statistics values to account for `num_nulls` additional null values
     pub fn update_for_nulls(&mut self, num_nulls: u64) {
         self.total_count += num_nulls;
-        self.null_count += num_nulls;
+        self.null_count = self.null_count.map(|x| x + num_nulls);
     }
 }
 
@@ -680,7 +680,7 @@ mod tests {
             min: Some(-1i64),
             max: Some(1i64),
             total_count: 3,
-            null_count: 0,
+            null_count: Some(0),
             distinct_count: None,
         };
         assert_eq!(actual, expected);
@@ -694,7 +694,7 @@ mod tests {
             min: None,
             max: None,
             total_count: 3,
-            null_count: 3,
+            null_count: Some(3),
             distinct_count: None,
         };
         assert_eq!(actual, expected);
@@ -705,7 +705,7 @@ mod tests {
             min: None,
             max: None,
             total_count: 3,
-            null_count: 3,
+            null_count: Some(3),
             distinct_count: Some(NonZeroU64::try_from(1_u64).unwrap()),
         };
         assert_eq!(actual, expected);
@@ -1041,7 +1041,7 @@ mod tests {
         let col = table_a.column("float").unwrap();
         assert_eq!(
             col.stats,
-            Statistics::F64(StatValues::new(Some(1.3), Some(9.1), 4, 2))
+            Statistics::F64(StatValues::new(Some(1.3), Some(9.1), 4, Some(2)))
         );
 
         table_b.update_from(&table_c);
@@ -1064,7 +1064,7 @@ mod tests {
         let col = table_b.column("float").unwrap();
         assert_eq!(
             col.stats,
-            Statistics::F64(StatValues::new(Some(1.3), Some(9.1), 4, 2))
+            Statistics::F64(StatValues::new(Some(1.3), Some(9.1), 4, Some(2)))
         );
     }
 
@@ -1101,15 +1101,15 @@ mod tests {
         let expected_string_stats = Statistics::String(StatValues::new(
             Some("bar".to_string()),
             Some("bar".to_string()),
-            2, // total count is 2 even though did not appear in the update
-            1, // 1 null
+            2,       // total count is 2 even though did not appear in the update
+            Some(1), // 1 null
         ));
 
         let expected_int_stats = Statistics::I64(StatValues::new(
             Some(5),
             Some(5),
             2,
-            0, // no nulls
+            Some(0), // no nulls
         ));
 
         // update table 1 with table 2
@@ -1176,7 +1176,7 @@ mod tests {
                 Some("bar".to_string()),
                 Some("foo".to_string()),
                 3, // no entry for "string" column in table_a_2
-                1,
+                Some(1),
             ))
         );
         let col = t.column("int").unwrap();
@@ -1191,15 +1191,15 @@ mod tests {
         let bool_false = ColumnSummary {
             name: "b".to_string(),
             influxdb_type: None,
-            stats: Statistics::Bool(StatValues::new(Some(false), Some(false), 1, 1)),
+            stats: Statistics::Bool(StatValues::new(Some(false), Some(false), 1, Some(1))),
         };
         let bool_true = ColumnSummary {
             name: "b".to_string(),
             influxdb_type: None,
-            stats: Statistics::Bool(StatValues::new(Some(true), Some(true), 1, 2)),
+            stats: Statistics::Bool(StatValues::new(Some(true), Some(true), 1, Some(2))),
         };
 
-        let expected_stats = Statistics::Bool(StatValues::new(Some(false), Some(true), 2, 3));
+        let expected_stats = Statistics::Bool(StatValues::new(Some(false), Some(true), 2, Some(3)));
 
         let mut b = bool_false.clone();
         b.update_from(&bool_true);
@@ -1215,18 +1215,18 @@ mod tests {
         let mut min = ColumnSummary {
             name: "foo".to_string(),
             influxdb_type: None,
-            stats: Statistics::U64(StatValues::new(Some(5), Some(23), 1, 1)),
+            stats: Statistics::U64(StatValues::new(Some(5), Some(23), 1, Some(1))),
         };
 
         let max = ColumnSummary {
             name: "foo".to_string(),
             influxdb_type: None,
-            stats: Statistics::U64(StatValues::new(Some(6), Some(506), 43, 2)),
+            stats: Statistics::U64(StatValues::new(Some(6), Some(506), 43, Some(2))),
         };
 
         min.update_from(&max);
 
-        let expected = Statistics::U64(StatValues::new(Some(5), Some(506), 44, 3));
+        let expected = Statistics::U64(StatValues::new(Some(5), Some(506), 44, Some(3)));
         assert_eq!(min.stats, expected);
     }
 

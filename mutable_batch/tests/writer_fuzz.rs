@@ -167,8 +167,9 @@ impl Expected {
 
         // Null counts as a distinct value
         match tag_stats.null_count {
-            0 => tag_stats.distinct_count = NonZeroU64::new(tags.len() as u64),
-            _ => tag_stats.distinct_count = NonZeroU64::new(tags.len() as u64 + 1),
+            None => unreachable!("mutable batch keeps null counts"),
+            Some(0) => tag_stats.distinct_count = NonZeroU64::new(tags.len() as u64),
+            Some(_) => tag_stats.distinct_count = NonZeroU64::new(tags.len() as u64 + 1),
         }
 
         stats.insert("t1".to_string(), Statistics::String(tag_stats));

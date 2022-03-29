@@ -703,8 +703,9 @@ impl<'a> Writer<'a> {
                         assert_eq!(col_data.len(), final_rows);
                         stats.update_from(new);
                         stats.distinct_count = match stats.null_count {
-                            0 => NonZeroU64::new(dict.values().len() as u64),
-                            _ => NonZeroU64::new(dict.values().len() as u64 + 1),
+                            Some(0) => NonZeroU64::new(dict.values().len() as u64),
+                            Some(_) => NonZeroU64::new(dict.values().len() as u64 + 1),
+                            None => unreachable!("mutable batch keeps null counts"),
                         }
                     }
                     _ => unreachable!("column: {}, statistics: {}", col.data, stats.type_name()),

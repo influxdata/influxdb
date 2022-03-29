@@ -67,7 +67,7 @@ pub enum Error {
 
     #[snafu(display("Error while performing query: {}", source))]
     Query {
-        source: crate::querier_handler::Error,
+        source: Box<crate::querier_handler::Error>,
     },
 
     #[snafu(display("Error while streaming query results: {}", source))]
@@ -158,6 +158,7 @@ impl<I: IngestHandler + Send + Sync + 'static> Flight for FlightService<I> {
             .ingest_handler
             .query(query_request)
             .await
+            .map_err(Box::new)
             .context(QuerySnafu)?;
 
         let output = GetStream::new(query_response).await?;

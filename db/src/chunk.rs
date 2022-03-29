@@ -272,10 +272,15 @@ impl DbChunk {
             if matches!(influx_column_type, Some(InfluxColumnType::Field(_)))
                 && predicate.should_include_field(field.name())
             {
-                match self.meta.table_summary.column(field.name()) {
-                    Some(column_summary) => {
+                match self
+                    .meta
+                    .table_summary
+                    .column(field.name())
+                    .and_then(|column_summary| column_summary.null_count())
+                {
+                    Some(null_count) => {
                         // only if this is false can we return false
-                        column_summary.null_count() > 0
+                        null_count > 0
                     }
                     None => {
                         // don't know the stats for this column, so assume there can be nulls

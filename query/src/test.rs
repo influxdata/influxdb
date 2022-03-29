@@ -380,7 +380,7 @@ impl TestChunk {
             min: min.map(ToString::to_string),
             max: max.map(ToString::to_string),
             total_count: count,
-            null_count,
+            null_count: Some(null_count),
             distinct_count,
         });
 
@@ -419,7 +419,7 @@ impl TestChunk {
             min,
             max,
             total_count: count,
-            null_count,
+            null_count: Some(null_count),
             distinct_count,
         });
 

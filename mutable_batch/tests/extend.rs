@@ -126,7 +126,7 @@ fn test_extend() {
             min: Some("v1".to_string()),
             max: Some("v3".to_string()),
             total_count: 13,
-            null_count: 6,
+            null_count: Some(6),
             distinct_count: Some(NonZeroU64::new(4).unwrap())
         })
     );
@@ -137,7 +137,7 @@ fn test_extend() {
             min: Some("v1".to_string()),
             max: Some("v2".to_string()),
             total_count: 13,
-            null_count: 10,
+            null_count: Some(10),
             distinct_count: Some(NonZeroU64::new(3).unwrap())
         })
     );
@@ -148,7 +148,7 @@ fn test_extend() {
             min: Some("v1".to_string()),
             max: Some("v5".to_string()),
             total_count: 13,
-            null_count: 5,
+            null_count: Some(5),
             distinct_count: Some(NonZeroU64::new(5).unwrap())
         })
     );
@@ -159,7 +159,7 @@ fn test_extend() {
             min: Some(0),
             max: Some(12),
             total_count: 13,
-            null_count: 0,
+            null_count: Some(0),
             distinct_count: None
         })
     )

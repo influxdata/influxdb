@@ -1039,7 +1039,7 @@ fn extract_iox_statistics(
                 distinct_count: parquet_stats
                     .distinct_count()
                     .and_then(|x| x.try_into().ok()),
-                null_count,
+                null_count: Some(null_count),
                 total_count,
             }))
         }
@@ -1050,7 +1050,7 @@ fn extract_iox_statistics(
                 distinct_count: parquet_stats
                     .distinct_count()
                     .and_then(|x| x.try_into().ok()),
-                null_count,
+                null_count: Some(null_count),
                 total_count,
             }))
         }
@@ -1061,7 +1061,7 @@ fn extract_iox_statistics(
                 distinct_count: parquet_stats
                     .distinct_count()
                     .and_then(|x| x.try_into().ok()),
-                null_count,
+                null_count: Some(null_count),
                 total_count,
             }))
         }
@@ -1072,7 +1072,7 @@ fn extract_iox_statistics(
                 distinct_count: parquet_stats
                     .distinct_count()
                     .and_then(|x| x.try_into().ok()),
-                null_count,
+                null_count: Some(null_count),
                 total_count,
             }))
         }
@@ -1083,7 +1083,7 @@ fn extract_iox_statistics(
                 distinct_count: parquet_stats
                     .distinct_count()
                     .and_then(|x| x.try_into().ok()),
-                null_count,
+                null_count: Some(null_count),
                 total_count,
             }))
         }
@@ -1117,7 +1117,7 @@ fn extract_iox_statistics(
                 distinct_count: parquet_stats
                     .distinct_count()
                     .and_then(|x| x.try_into().ok()),
-                null_count,
+                null_count: Some(null_count),
                 total_count,
             }))
         }
@@ -1229,8 +1229,8 @@ mod tests {
 
             assert_eq!(summary.total_count(), num_values as u64);
             assert_eq!(summary.total_count(), n_rows);
-            assert_eq!(summary.null_count(), null_count);
-            assert!(summary.null_count() <= summary.total_count());
+            assert_eq!(summary.null_count(), Some(null_count));
+            assert!(summary.null_count().unwrap() <= summary.total_count());
         }
 
         // check column names

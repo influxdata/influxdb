@@ -1638,7 +1638,7 @@ mod tests {
         assert_storage_gauge(registry, "catalog_loaded_rows", "object_store", 0);
 
         // verify chunk size updated
-        catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 796);
+        catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 812);
 
         // write into same chunk again.
         time.inc(Duration::from_secs(1));
@@ -1654,7 +1654,7 @@ mod tests {
         write_lp(db.as_ref(), "cpu bar=5 50");
 
         // verify chunk size updated
-        catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 860);
+        catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 876);
 
         // Still only one chunk open
         assert_storage_gauge(registry, "catalog_loaded_chunks", "mutable_buffer", 1);
@@ -1674,7 +1674,7 @@ mod tests {
         assert_storage_gauge(registry, "catalog_loaded_rows", "read_buffer", 0);
         assert_storage_gauge(registry, "catalog_loaded_rows", "object_store", 0);
 
-        catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 1295);
+        catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 1327);
 
         db.compact_partition("cpu", "1970-01-01T00").await.unwrap();
 
@@ -1701,7 +1701,7 @@ mod tests {
             .id();
 
         // A chunk is now in the object store and still in read buffer
-        let expected_parquet_size = 1258;
+        let expected_parquet_size = 1290;
         catalog_chunk_size_bytes_metric_eq(registry, "read_buffer", expected_read_buffer_size);
         // now also in OS
         catalog_chunk_size_bytes_metric_eq(registry, "object_store", expected_parquet_size);
@@ -2026,7 +2026,7 @@ mod tests {
 
         let registry = test_db.metric_registry.as_ref();
         // MUB chunk size
-        catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 3607);
+        catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 3671);
 
         // With the above data, cardinality of tag2 is 2 and tag1 is 5. Hence, RUB is sorted on (tag2, tag1)
         let rb_chunk = db
@@ -2136,7 +2136,7 @@ mod tests {
         // Read buffer + Parquet chunk size
         catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 0);
         catalog_chunk_size_bytes_metric_eq(registry, "read_buffer", 1700);
-        catalog_chunk_size_bytes_metric_eq(registry, "object_store", 1259);
+        catalog_chunk_size_bytes_metric_eq(registry, "object_store", 1291);
 
         // All the chunks should have different IDs
         assert_ne!(mb_chunk.id(), rb_chunk.id());
@@ -2253,7 +2253,7 @@ mod tests {
         let registry = test_db.metric_registry.as_ref();
 
         // Read buffer + Parquet chunk size
-        let object_store_bytes = 1259;
+        let object_store_bytes = 1291;
         catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 0);
         catalog_chunk_size_bytes_metric_eq(registry, "read_buffer", 1700);
         catalog_chunk_size_bytes_metric_eq(registry, "object_store", object_store_bytes);
@@ -2503,7 +2503,7 @@ mod tests {
             id: ChunkId::new_test(0),
             storage: ChunkStorage::OpenMutableBuffer,
             lifecycle_action: None,
-            memory_bytes: 1134,    // memory_size
+            memory_bytes: 1158,    // memory_size
             object_store_bytes: 0, // os_size
             row_count: 1,
             time_of_last_access: None,
@@ -2733,7 +2733,7 @@ mod tests {
                 id: chunk_summaries[0].id,
                 storage: ChunkStorage::ReadBufferAndObjectStore,
                 lifecycle_action,
-                memory_bytes: 4103,       // size of RB and OS chunks
+                memory_bytes: 4151,       // size of RB and OS chunks
                 object_store_bytes: 1574, // size of parquet file
                 row_count: 2,
                 time_of_last_access: None,
@@ -2747,7 +2747,7 @@ mod tests {
                 id: chunk_summaries[1].id,
                 storage: ChunkStorage::ClosedMutableBuffer,
                 lifecycle_action,
-                memory_bytes: 2486,
+                memory_bytes: 2550,
                 object_store_bytes: 0, // no OS chunks
                 row_count: 1,
                 time_of_last_access: None,
@@ -2761,7 +2761,7 @@ mod tests {
                 id: chunk_summaries[2].id,
                 storage: ChunkStorage::OpenMutableBuffer,
                 lifecycle_action,
-                memory_bytes: 1463,
+                memory_bytes: 1495,
                 object_store_bytes: 0, // no OS chunks
                 row_count: 1,
                 time_of_last_access: None,
@@ -2782,9 +2782,9 @@ mod tests {
             );
         }
 
-        assert_eq!(db.catalog.metrics().memory().mutable_buffer(), 2486 + 1463);
+        assert_eq!(db.catalog.metrics().memory().mutable_buffer(), 2550 + 1495);
         assert_eq!(db.catalog.metrics().memory().read_buffer(), 2550);
-        assert_eq!(db.catalog.metrics().memory().object_store(), 1553);
+        assert_eq!(db.catalog.metrics().memory().object_store(), 1601);
     }
 
     #[tokio::test]
@@ -2830,17 +2830,27 @@ mod tests {
                         ColumnSummary {
                             name: "bar".into(),
                             influxdb_type: Some(InfluxDbType::Field),
-                            stats: Statistics::F64(StatValues::new(Some(1.0), Some(2.0), 2, 0)),
+                            stats: Statistics::F64(StatValues::new(
+                                Some(1.0),
+                                Some(2.0),
+                                2,
+                                Some(0),
+                            )),
                         },
                         ColumnSummary {
                             name: "baz".into(),
                             influxdb_type: Some(InfluxDbType::Field),
-                            stats: Statistics::F64(StatValues::new(Some(3.0), Some(3.0), 2, 1)),
+                            stats: Statistics::F64(StatValues::new(
+                                Some(3.0),
+                                Some(3.0),
+                                2,
+                                Some(1),
+                            )),
                         },
                         ColumnSummary {
                             name: "time".into(),
                             influxdb_type: Some(InfluxDbType::Timestamp),
-                            stats: Statistics::I64(StatValues::new(Some(1), Some(2), 2, 0)),
+                            stats: Statistics::I64(StatValues::new(Some(1), Some(2), 2, Some(0))),
                         },
                     ],
                 },
@@ -2853,12 +2863,17 @@ mod tests {
                         ColumnSummary {
                             name: "foo".into(),
                             influxdb_type: Some(InfluxDbType::Field),
-                            stats: Statistics::F64(StatValues::new(Some(1.0), Some(1.0), 1, 0)),
+                            stats: Statistics::F64(StatValues::new(
+                                Some(1.0),
+                                Some(1.0),
+                                1,
+                                Some(0),
+                            )),
                         },
                         ColumnSummary {
                             name: "time".into(),
                             influxdb_type: Some(InfluxDbType::Timestamp),
-                            stats: Statistics::I64(StatValues::new(Some(1), Some(1), 1, 0)),
+                            stats: Statistics::I64(StatValues::new(Some(1), Some(1), 1, Some(0))),
                         },
                     ],
                 },
@@ -2871,7 +2886,12 @@ mod tests {
                         ColumnSummary {
                             name: "bar".into(),
                             influxdb_type: Some(InfluxDbType::Field),
-                            stats: Statistics::F64(StatValues::new(Some(1.0), Some(1.0), 1, 0)),
+                            stats: Statistics::F64(StatValues::new(
+                                Some(1.0),
+                                Some(1.0),
+                                1,
+                                Some(0),
+                            )),
                         },
                         ColumnSummary {
                             name: "time".into(),
@@ -2880,7 +2900,7 @@ mod tests {
                                 Some(400000000000000),
                                 Some(400000000000000),
                                 1,
-                                0,
+                                Some(0),
                             )),
                         },
                     ],
@@ -2894,7 +2914,12 @@ mod tests {
                         ColumnSummary {
                             name: "frob".into(),
                             influxdb_type: Some(InfluxDbType::Field),
-                            stats: Statistics::F64(StatValues::new(Some(3.0), Some(3.0), 1, 0)),
+                            stats: Statistics::F64(StatValues::new(
+                                Some(3.0),
+                                Some(3.0),
+                                1,
+                                Some(0),
+                            )),
                         },
                         ColumnSummary {
                             name: "time".into(),
@@ -2903,7 +2928,7 @@ mod tests {
                                 Some(400000000000001),
                                 Some(400000000000001),
                                 1,
-                                0,
+                                Some(0),
                             )),
                         },
                     ],

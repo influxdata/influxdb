@@ -129,7 +129,7 @@ fn create_column_tag(
                 .max()
                 .map(|x| x.to_string()),
             total_count,
-            null_count,
+            null_count: Some(null_count),
             distinct_count: None,
         }),
     });
@@ -414,7 +414,7 @@ fn create_column_field_f64(
                 .max_by(|a, b| a.partial_cmp(b).unwrap())
                 .cloned(),
             total_count,
-            null_count,
+            null_count: Some(null_count),
             distinct_count: None,
         }),
     });
@@ -601,7 +601,7 @@ fn create_column_field_generic<A, T, F>(
                 .max()
                 .cloned(),
             total_count,
-            null_count,
+            null_count: Some(null_count),
             distinct_count: None,
         }),
     });
@@ -636,7 +636,7 @@ fn create_column_timestamp(
             min,
             max,
             total_count,
-            null_count,
+            null_count: Some(null_count),
             distinct_count: None,
         }),
     });

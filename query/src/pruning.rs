@@ -148,7 +148,7 @@ impl<'a> PruningStatistics for ChunkPruningStatistics<'a> {
     fn null_counts(&self, column: &Column) -> Option<ArrayRef> {
         let null_counts = self
             .column_summaries(column)
-            .map(|x| x.map(|s| s.null_count()));
+            .map(|x| x.and_then(|s| s.null_count()));
 
         Some(Arc::new(UInt64Array::from_iter(null_counts)))
     }

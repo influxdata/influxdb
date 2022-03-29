@@ -119,7 +119,7 @@ fn test_extend_range() {
             min: Some(false),
             max: Some(false),
             total_count: 8,
-            null_count: 7,
+            null_count: Some(7),
             distinct_count: None
         })
     );
@@ -130,7 +130,7 @@ fn test_extend_range() {
             min: Some(5.),
             max: Some(23.),
             total_count: 8,
-            null_count: 5,
+            null_count: Some(5),
             distinct_count: None
         })
     );
@@ -141,7 +141,7 @@ fn test_extend_range() {
             min: Some("v1".to_string()),
             max: Some("v2".to_string()),
             total_count: 8,
-            null_count: 4,
+            null_count: Some(4),
             distinct_count: Some(NonZeroU64::new(3).unwrap())
         })
     );
@@ -152,7 +152,7 @@ fn test_extend_range() {
             min: Some("v1".to_string()),
             max: Some("v3".to_string()),
             total_count: 8,
-            null_count: 5,
+            null_count: Some(5),
             distinct_count: Some(NonZeroU64::new(3).unwrap())
         })
     );
@@ -163,7 +163,7 @@ fn test_extend_range() {
             min: Some(0),
             max: Some(8),
             total_count: 8,
-            null_count: 0,
+            null_count: Some(0),
             distinct_count: None
         })
     )

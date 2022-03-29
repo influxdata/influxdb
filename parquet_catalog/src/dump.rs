@@ -561,7 +561,9 @@ File {
                                                 "foo",
                                             ),
                                             total_count: 4,
-                                            null_count: 0,
+                                            null_count: Some(
+                                                0,
+                                            ),
                                             distinct_count: None,
                                         },
                                     ),
@@ -580,7 +582,9 @@ File {
                                                 4,
                                             ),
                                             total_count: 4,
-                                            null_count: 0,
+                                            null_count: Some(
+                                                0,
+                                            ),
                                             distinct_count: None,
                                         },
                                     ),
@@ -599,7 +603,9 @@ File {
                                                 4000,
                                             ),
                                             total_count: 4,
-                                            null_count: 0,
+                                            null_count: Some(
+                                                0,
+                                            ),
                                             distinct_count: None,
                                         },
                                     ),

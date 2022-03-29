@@ -93,7 +93,7 @@ fn df_from_iox_col(col: &ColumnSummary) -> ColumnStatistics {
         v as usize
     });
 
-    let null_count = Some(stats.null_count() as usize);
+    let null_count = stats.null_count().map(|x| x as usize);
 
     ColumnStatistics {
         null_count,
@@ -117,7 +117,7 @@ mod test {
             min: Some(11),
             max: Some(11),
             total_count: 3,
-            null_count: 1,
+            null_count: Some(1),
             distinct_count: None,
         };
         let c1_summary = ColumnSummary {
@@ -130,7 +130,7 @@ mod test {
             min: Some(-5),
             max: Some(6),
             total_count: 3,
-            null_count: 0,
+            null_count: Some(0),
             distinct_count: Some(NonZeroU64::new(33).unwrap()),
         };
         let c2_summary = ColumnSummary {
@@ -168,7 +168,7 @@ mod test {
 
         let expected = DFStatistics {
             num_rows: Some(3),
-            total_byte_size: Some(438),
+            total_byte_size: Some(470),
             column_statistics: Some(vec![df_c1_stats.clone(), df_c2_stats.clone()]),
             is_exact: true,
         };
