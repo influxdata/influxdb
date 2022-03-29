@@ -868,7 +868,7 @@ mod tests {
     use arrow_util::assert_batches_sorted_eq;
     use data_types2::{KafkaPartition, NamespaceId, ParquetFileParams, SequenceNumber};
     use iox_tests::util::TestCatalog;
-    use object_store::{path::Path, ObjectStoreTestConvenience};
+    use object_store::ObjectStoreTestConvenience;
     use querier::{
         cache::CatalogCache,
         chunk::{collect_read_filter, ParquetChunkAdapter},
