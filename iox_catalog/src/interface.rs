@@ -2486,6 +2486,7 @@ pub(crate) mod test_helpers {
 
         // parquet files
         let parquet_file_params = ParquetFileParams {
+            namespace_id: namespace.id,
             sequencer_id: sequencer.id,
             table_id: partition.table_id,
             partition_id: partition.id,
