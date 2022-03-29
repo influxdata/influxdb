@@ -1,8 +1,8 @@
 //! Namespace within the whole database.
 use crate::{cache::CatalogCache, chunk::ParquetChunkAdapter, table::QuerierTable};
-use backoff::{Backoff, BackoffConfig};
+use backoff::BackoffConfig;
 use data_types2::NamespaceId;
-use iox_catalog::interface::{get_schema_by_name, Catalog};
+use iox_catalog::interface::Catalog;
 use object_store::DynObjectStore;
 use observability_deps::tracing::warn;
 use parking_lot::RwLock;
@@ -112,18 +112,12 @@ impl QuerierNamespace {
     ///
     /// Should be called regularly.
     pub async fn sync(&self) {
-        let catalog_schema_desired = Backoff::new(&self.backoff_config)
-            .retry_all_errors("get schema", || async {
-                let mut repos = self.catalog.repositories().await;
-                match get_schema_by_name(&self.name, repos.as_mut()).await {
-                    Ok(schema) => Ok(Some(schema)),
-                    Err(iox_catalog::interface::Error::NamespaceNotFound { .. }) => Ok(None),
-                    Err(e) => Err(e),
-                }
-            })
+        let catalog_schema_desired = match self
+            .catalog_cache
+            .namespace()
+            .schema(Arc::clone(&self.name))
             .await
-            .expect("retry forever");
-        let catalog_schema_desired = match catalog_schema_desired {
+        {
             Some(schema) => schema,
             None => {
                 warn!(
@@ -136,11 +130,11 @@ impl QuerierNamespace {
 
         let tables: HashMap<_, _> = catalog_schema_desired
             .tables
-            .into_iter()
+            .iter()
             .map(|(name, table_schema)| {
-                let name = Arc::from(name);
+                let name = Arc::from(name.clone());
                 let id = table_schema.id;
-                let schema = Schema::try_from(table_schema).expect("cannot build schema");
+                let schema = Schema::try_from(table_schema.clone()).expect("cannot build schema");
 
                 let table = Arc::new(QuerierTable::new(
                     self.backoff_config.clone(),
@@ -161,7 +155,7 @@ impl QuerierNamespace {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::namespace::test_util::querier_namespace;
+    use crate::{cache::namespace::TTL_EXISTING, namespace::test_util::querier_namespace};
     use data_types2::ColumnType;
     use iox_tests::util::TestCatalog;
     use schema::{builder::SchemaBuilder, InfluxColumnType, InfluxFieldType};
@@ -206,6 +200,7 @@ mod tests {
 
         ns.create_table("table1").await;
         ns.create_table("table2").await;
+        catalog.mock_time_provider().inc(TTL_EXISTING);
         querier_namespace.sync().await;
         assert_eq!(
             tables(&querier_namespace),
@@ -213,6 +208,7 @@ mod tests {
         );
 
         ns.create_table("table3").await;
+        catalog.mock_time_provider().inc(TTL_EXISTING);
         querier_namespace.sync().await;
         assert_eq!(
             tables(&querier_namespace),
@@ -241,6 +237,7 @@ mod tests {
         table.create_column("col1", ColumnType::I64).await;
         table.create_column("col2", ColumnType::Bool).await;
         table.create_column("col3", ColumnType::Tag).await;
+        catalog.mock_time_provider().inc(TTL_EXISTING);
         querier_namespace.sync().await;
         let expected_schema = SchemaBuilder::new()
             .influx_column("col1", InfluxColumnType::Field(InfluxFieldType::Integer))
@@ -253,6 +250,7 @@ mod tests {
 
         table.create_column("col4", ColumnType::Tag).await;
         table.create_column("col5", ColumnType::Time).await;
+        catalog.mock_time_provider().inc(TTL_EXISTING);
         querier_namespace.sync().await;
         let expected_schema = SchemaBuilder::new()
             .influx_column("col1", InfluxColumnType::Field(InfluxFieldType::Integer))

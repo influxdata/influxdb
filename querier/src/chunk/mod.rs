@@ -276,7 +276,7 @@ impl ParquetChunkAdapter {
                         .namespace_id(parquet_file.table_id)
                         .await?,
                 )
-                .await,
+                .await?,
             table_name: self
                 .catalog_cache
                 .table()

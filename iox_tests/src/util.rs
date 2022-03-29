@@ -6,9 +6,9 @@ use arrow::{
 };
 use bytes::Bytes;
 use data_types2::{
-    ColumnType, KafkaPartition, KafkaTopic, Namespace, ParquetFile, ParquetFileParams, Partition,
-    QueryPool, SequenceNumber, Sequencer, SequencerId, Table, TableId, Timestamp, Tombstone,
-    TombstoneId,
+    Column, ColumnType, KafkaPartition, KafkaTopic, Namespace, ParquetFile, ParquetFileParams,
+    Partition, QueryPool, SequenceNumber, Sequencer, SequencerId, Table, TableId, Timestamp,
+    Tombstone, TombstoneId,
 };
 use iox_catalog::{interface::Catalog, mem::MemCatalog};
 use iox_object_store::{IoxObjectStore, ParquetFilePath};
@@ -267,15 +267,35 @@ impl TestTable {
     }
 
     /// Create a column for the table
-    pub async fn create_column(self: &Arc<Self>, name: &str, column_type: ColumnType) {
+    pub async fn create_column(
+        self: &Arc<Self>,
+        name: &str,
+        column_type: ColumnType,
+    ) -> Arc<TestColumn> {
         let mut repos = self.catalog.catalog.repositories().await;
 
-        repos
+        let column = repos
             .columns()
             .create_or_get(name, self.table.id, column_type)
             .await
             .unwrap();
+
+        Arc::new(TestColumn {
+            catalog: Arc::clone(&self.catalog),
+            namespace: Arc::clone(&self.namespace),
+            table: Arc::clone(self),
+            column,
+        })
     }
+}
+
+/// A test column.
+#[allow(missing_docs)]
+pub struct TestColumn {
+    pub catalog: Arc<TestCatalog>,
+    pub namespace: Arc<TestNamespace>,
+    pub table: Arc<TestTable>,
+    pub column: Column,
 }
 
 /// A test catalog with specified namespace, sequencer, and table

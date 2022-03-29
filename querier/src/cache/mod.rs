@@ -41,7 +41,11 @@ impl CatalogCache {
     pub fn new(catalog: Arc<dyn Catalog>, time_provider: Arc<dyn TimeProvider>) -> Self {
         let backoff_config = BackoffConfig::default();
 
-        let namespace_cache = NamespaceCache::new(Arc::clone(&catalog), backoff_config.clone());
+        let namespace_cache = NamespaceCache::new(
+            Arc::clone(&catalog),
+            backoff_config.clone(),
+            Arc::clone(&time_provider),
+        );
         let table_cache = TableCache::new(
             Arc::clone(&catalog),
             backoff_config.clone(),
