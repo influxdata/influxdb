@@ -8,10 +8,7 @@ use parking_lot::{RwLock, RwLockUpgradableReadGuard};
 use pin_project::pin_project;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PoisonPill {
-    DatabaseSyncPanic,
-    DatabaseSyncExit,
-}
+pub enum PoisonPill {}
 
 #[derive(Debug)]
 struct PoisonCabinetInner {

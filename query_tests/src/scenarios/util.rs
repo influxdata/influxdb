@@ -7,6 +7,7 @@ use db::{
     utils::{count_mub_table_chunks, count_os_table_chunks, count_rub_table_chunks, make_db},
     Db,
 };
+use iox_catalog::interface::get_schema_by_name;
 use iox_tests::util::{TestCatalog, TestNamespace};
 use itertools::Itertools;
 use querier::QuerierNamespace;
@@ -1227,16 +1228,20 @@ async fn make_ng_chunk(ns: Arc<TestNamespace>, chunk: ChunkDataNew<'_, '_>) -> S
 }
 
 async fn make_querier_namespace(ns: Arc<TestNamespace>) -> Arc<QuerierNamespace> {
-    let db = Arc::new(QuerierNamespace::new_testing(
+    let mut repos = ns.catalog.catalog.repositories().await;
+    let schema = Arc::new(
+        get_schema_by_name(&ns.namespace.name, repos.as_mut())
+            .await
+            .unwrap(),
+    );
+
+    Arc::new(QuerierNamespace::new_testing(
         ns.catalog.catalog(),
         ns.catalog.object_store(),
         ns.catalog.metric_registry(),
         ns.catalog.time_provider(),
         ns.namespace.name.clone().into(),
-        ns.namespace.id,
+        schema,
         ns.catalog.exec(),
-    ));
-    db.sync().await;
-
-    db
+    ))
 }

@@ -12,10 +12,7 @@ use thiserror::Error;
 use tokio::task::{JoinError, JoinHandle};
 use tokio_util::sync::CancellationToken;
 
-use crate::{
-    database::{database_sync_loop, QuerierDatabase},
-    poison::PoisonCabinet,
-};
+use crate::{database::QuerierDatabase, poison::PoisonCabinet};
 
 #[derive(Debug, Error)]
 #[allow(missing_copy_implementations, missing_docs)]
@@ -63,14 +60,7 @@ impl QuerierHandlerImpl {
         let shutdown = CancellationToken::new();
         let poison_cabinet = Arc::new(PoisonCabinet::new());
 
-        let join_handles = vec![(
-            String::from("database sync"),
-            shared_handle(tokio::spawn(database_sync_loop(
-                Arc::clone(&database),
-                shutdown.clone(),
-                Arc::clone(&poison_cabinet),
-            ))),
-        )];
+        let join_handles = vec![];
         Self {
             database,
             join_handles,
@@ -98,6 +88,8 @@ impl QuerierHandler for QuerierHandlerImpl {
                 panic!("Background worker '{name}' exited early!");
             }
         }
+
+        self.shutdown.cancelled().await;
     }
 
     fn shutdown(&self) {
@@ -123,8 +115,6 @@ mod tests {
     use query::exec::Executor;
     use time::{MockProvider, Time};
 
-    use crate::poison::PoisonPill;
-
     use super::*;
 
     #[tokio::test]
@@ -140,26 +130,6 @@ mod tests {
         querier.shutdown();
 
         tokio::time::timeout(Duration::from_millis(1000), querier.join())
-            .await
-            .unwrap();
-    }
-
-    #[tokio::test]
-    #[should_panic(expected = "Background worker 'database sync' exited early!")]
-    async fn test_supervise_database_sync_early_exit() {
-        let querier = TestQuerier::new().querier;
-        querier.poison_cabinet.add(PoisonPill::DatabaseSyncExit);
-        tokio::time::timeout(Duration::from_millis(2000), querier.join())
-            .await
-            .unwrap();
-    }
-
-    #[tokio::test]
-    #[should_panic(expected = "JoinError::Panic")]
-    async fn test_supervise_database_sync_panic() {
-        let querier = TestQuerier::new().querier;
-        querier.poison_cabinet.add(PoisonPill::DatabaseSyncPanic);
-        tokio::time::timeout(Duration::from_millis(2000), querier.join())
             .await
             .unwrap();
     }

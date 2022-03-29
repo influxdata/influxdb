@@ -17,16 +17,13 @@ use crate::{namespace::QuerierNamespace, table::QuerierTable};
 
 impl QueryDatabaseMeta for QuerierNamespace {
     fn table_names(&self) -> Vec<String> {
-        let mut names: Vec<_> = self.tables.read().keys().map(|s| s.to_string()).collect();
+        let mut names: Vec<_> = self.tables.keys().map(|s| s.to_string()).collect();
         names.sort();
         names
     }
 
     fn table_schema(&self, table_name: &str) -> Option<Arc<Schema>> {
-        self.tables
-            .read()
-            .get(table_name)
-            .map(|t| Arc::clone(t.schema()))
+        self.tables.get(table_name).map(|t| Arc::clone(t.schema()))
     }
 }
 
@@ -34,7 +31,7 @@ impl QueryDatabaseMeta for QuerierNamespace {
 impl QueryDatabase for QuerierNamespace {
     async fn chunks(&self, table_name: &str, predicate: &Predicate) -> Vec<Arc<dyn QueryChunk>> {
         // get table metadata
-        let table = match self.tables.read().get(table_name).map(Arc::clone) {
+        let table = match self.tables.get(table_name).map(Arc::clone) {
             Some(table) => table,
             None => {
                 // table gone
@@ -85,7 +82,7 @@ pub struct QuerierCatalogProvider {
 impl QuerierCatalogProvider {
     fn from_namespace(namespace: &QuerierNamespace) -> Self {
         Self {
-            tables: Arc::clone(&namespace.tables.read()),
+            tables: Arc::clone(&namespace.tables),
         }
     }
 }
@@ -249,8 +246,7 @@ mod tests {
             .create_tombstone(1, 1, 13, "host=d")
             .await;
 
-        let querier_namespace = Arc::new(querier_namespace(&ns));
-        querier_namespace.sync().await;
+        let querier_namespace = Arc::new(querier_namespace(&ns).await);
 
         assert_query(
             &querier_namespace,
