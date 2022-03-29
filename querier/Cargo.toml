@@ -33,7 +33,7 @@ snafu = "0.7"
 thiserror = "1.0"
 time = { path = "../time" }
 tokio = { version = "1.17", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
-tokio-util = { version = "0.7.0" }
+tokio-util = { version = "0.7.1" }
 tonic = { version = "0.6" }
 trace = { path = "../trace" }
 uuid = { version = "0.8", features = ["v4"] }
