@@ -866,7 +866,7 @@ impl Compactor {
 mod tests {
     use super::*;
     use arrow_util::assert_batches_sorted_eq;
-    use data_types2::{KafkaPartition, NamespaceId, ParquetFileParams, SequenceNumber};
+    use data_types2::{ChunkId, KafkaPartition, NamespaceId, ParquetFileParams, SequenceNumber};
     use iox_tests::util::TestCatalog;
     use object_store::ObjectStoreTestConvenience;
     use querier::{
@@ -1514,6 +1514,77 @@ mod tests {
             compaction_level: 0,
             created_at: Timestamp::new(created_at),
         }
+    }
+
+    #[tokio::test]
+    async fn test_sort_queryable_parquet_chunk() {
+        let catalog = TestCatalog::new();
+
+        let lp1 = vec![
+            "table,tag1=WA field_int=1000 8000",
+            "table,tag1=VT field_int=10 10000",
+            "table,tag1=UT field_int=70 20000",
+        ]
+        .join("\n");
+
+        let lp2 = vec![
+            "table,tag1=WA field_int=1500 28000",
+            "table,tag1=UT field_int=270 35000",
+        ]
+        .join("\n");
+
+        let ns = catalog.create_namespace("ns").await;
+        let sequencer = ns.create_sequencer(1).await;
+        let table = ns.create_table("table").await;
+        let partition = table
+            .with_sequencer(&sequencer)
+            .create_partition("part")
+            .await;
+        // 2 files with same min_sequence_number
+        let pf1 = partition
+            .create_parquet_file_with_min_max(&lp1, 1, 5, 8000, 20000)
+            .await
+            .parquet_file
+            .clone();
+        let pf2 = partition
+            .create_parquet_file_with_min_max(&lp2, 1, 5, 28000, 35000)
+            .await
+            .parquet_file
+            .clone();
+
+        // Build 2 QueryableParquetChunks
+        let pt1 = ParquetFileWithTombstone {
+            data: Arc::new(pf1),
+            tombstones: vec![],
+        };
+        let pt2 = ParquetFileWithTombstone {
+            data: Arc::new(pf2),
+            tombstones: vec![],
+        };
+        let pc1 = pt1.to_queryable_parquet_chunk(
+            Arc::clone(&catalog.object_store),
+            table.table.name.clone(),
+            partition.partition.partition_key.clone(),
+        );
+        let pc2 = pt2.to_queryable_parquet_chunk(
+            Arc::clone(&catalog.object_store),
+            table.table.name.clone(),
+            partition.partition.partition_key.clone(),
+        );
+
+        // Vector of chunks
+        let mut chunks = vec![pc2, pc1];
+        // must same order/min_sequnce_number
+        assert_eq!(chunks[0].order(), chunks[1].order());
+        // different id/min_time
+        assert_eq!(chunks[0].id(), ChunkId::new_test(28000));
+        assert_eq!(chunks[1].id(), ChunkId::new_test(8000));
+
+        // Sort the chunk per order(min_sequnce_number) and id (min_time)
+        chunks.sort_unstable_by_key(|c| (c.order(), c.id()));
+        // now the location of the chunk in the vector is reversed
+        assert_eq!(chunks[0].id(), ChunkId::new_test(8000));
+        assert_eq!(chunks[1].id(), ChunkId::new_test(28000));
     }
 
     #[test]

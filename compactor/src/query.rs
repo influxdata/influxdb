@@ -110,15 +110,22 @@ impl QueryChunkMeta for QueryableParquetChunk {
 }
 
 impl QueryChunk for QueryableParquetChunk {
-    // Todo: This function should not be used in this NG chunk context
-    // For now, since we also use scan for both OG and NG, the chunk id
-    // is used as second key in build_deduplicate_plan_for_overlapped_chunks
-    // to sort the chunk to deduplicate them correctly.
-    // Since we make the first key, order, always different, it is fine
-    // to have the second key the sames and always 0
+    // In NG, this function is needed to distinguish the ParquetChunks further if they happen to have the same creation order.
+    // Ref: chunks.sort_unstable_by_key(|c| (c.order(), c.id())); in provider.rs
+    // Note: The order of this QueryableParquetChunk is the parquet file's min_sequence_number which
+    // will be the same for parquet files of splitted compacted data.
+    //
+    // This function returns the parquet file's min_time which will be always different for the parquet files of
+    // same order/min_sequence_number and is good to order the parquet file
+    //
+    // Note: parquet_file's id is an uuid which is also the datatype of the ChunkId. However,
+    // it is not safe to use it for sorting chunk
     fn id(&self) -> ChunkId {
-        // always return id 0 for debugging mode and with reason above
-        ChunkId::new_test(0)
+        let timestamp_nano = self.iox_metadata.time_of_first_write.timestamp_nanos();
+        let timestamp_nano_u128 =
+            u128::try_from(timestamp_nano).expect("Cannot convert timestamp nano to u128 ");
+
+        ChunkId::new_id_for_ng(timestamp_nano_u128)
     }
 
     // This function should not be used in this context

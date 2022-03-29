@@ -238,6 +238,12 @@ impl ChunkId {
         Self(Uuid::from_u128(id))
     }
 
+    /// NG's chunk id is only effective in case the chunk's order is the same
+    /// with another chunk. Hence collisions are safe in that context
+    pub fn new_id_for_ng(id: u128) -> Self {
+        Self(Uuid::from_u128(id))
+    }
+
     /// Get inner UUID.
     pub fn get(&self) -> Uuid {
         self.0
