@@ -4,14 +4,8 @@ use clap_blocks::{
     catalog_dsn::CatalogDsnConfig, ingester::IngesterConfig, run_config::RunConfig,
     write_buffer::WriteBufferConfig,
 };
-use influxdb_ioxd::{
-    self,
-    server_type::{
-        common_state::{CommonServerState, CommonServerStateError},
-        ingester::create_ingester_server_type,
-    },
-    Service,
-};
+use influxdb_ioxd::{self, server_type::ingester::create_ingester_server_type, Service};
+use ioxd_common::server_type::{CommonServerState, CommonServerStateError};
 use object_store::{instrumentation::ObjectStoreMetrics, DynObjectStore, ObjectStoreImpl};
 use observability_deps::tracing::*;
 use query::exec::Executor;

@@ -7,10 +7,10 @@ use router::server::RouterServer;
 use tokio_util::sync::CancellationToken;
 use trace::TraceCollector;
 
-use crate::{
+use ioxd_common::{
     http::{error::HttpApiErrorSource, metrics::LineProtocolMetrics},
     rpc::RpcBuilderInput,
-    server_type::{common_state::CommonServerState, RpcError, ServerType},
+    server_type::{CommonServerState, RpcError, ServerType},
 };
 
 mod http;

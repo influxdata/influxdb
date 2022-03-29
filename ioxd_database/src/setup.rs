@@ -8,7 +8,7 @@ use server::{ApplicationState, Server, ServerConfig};
 use snafu::{ResultExt, Snafu};
 use trace::TraceCollector;
 
-use crate::server_type::database::config::ServerConfigFile;
+use crate::config::ServerConfigFile;
 use clap_blocks::object_store::{check_object_store, warn_about_inmem_store};
 
 #[derive(Debug, Snafu)]

@@ -6,7 +6,7 @@ use dml::DmlOperation;
 use hyper::{Body, Method, Request, Response};
 use snafu::{ResultExt, Snafu};
 
-use crate::http::{
+use ioxd_common::http::{
     dml::{HttpDrivenDml, InnerDmlError, RequestOrResponse},
     error::{HttpApiError, HttpApiErrorExt, HttpApiErrorSource},
     metrics::LineProtocolMetrics,
@@ -21,7 +21,7 @@ pub enum ApplicationError {
 
     #[snafu(display("Cannot write data: {}", source))]
     WriteError {
-        source: crate::http::dml::HttpDmlError,
+        source: ioxd_common::http::dml::HttpDmlError,
     },
 }
 
@@ -98,7 +98,7 @@ mod tests {
     use time::SystemProvider;
     use trace::RingBufferTraceCollector;
 
-    use crate::{
+    use ioxd_common::{
         http::{
             dml::test_utils::{
                 assert_delete_bad_request, assert_delete_unknown_database, assert_gzip_write,
@@ -109,7 +109,7 @@ mod tests {
                 assert_health, assert_metrics, assert_tracing, check_response, TestServer,
             },
         },
-        server_type::common_state::CommonServerState,
+        server_type::CommonServerState,
     };
 
     use super::*;

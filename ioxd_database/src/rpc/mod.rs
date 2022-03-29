@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
-use crate::{
-    rpc::{add_service, serve_builder, setup_builder, RpcBuilderInput},
-    server_type::{database::DatabaseServerType, RpcError},
+use crate::DatabaseServerType;
+use ioxd_common::{
+    add_service, rpc::RpcBuilderInput, serve_builder, server_type::RpcError, setup_builder,
 };
 
 mod delete;

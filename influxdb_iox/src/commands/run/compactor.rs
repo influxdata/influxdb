@@ -10,14 +10,8 @@ use time::SystemProvider;
 use clap_blocks::{
     catalog_dsn::CatalogDsnConfig, compactor::CompactorConfig, run_config::RunConfig,
 };
-use influxdb_ioxd::{
-    self,
-    server_type::{
-        common_state::{CommonServerState, CommonServerStateError},
-        compactor::create_compactor_server_type,
-    },
-    Service,
-};
+use influxdb_ioxd::{self, server_type::compactor::create_compactor_server_type, Service};
+use ioxd_common::server_type::{CommonServerState, CommonServerStateError};
 
 #[derive(Debug, Error)]
 pub enum Error {

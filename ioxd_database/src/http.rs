@@ -24,12 +24,12 @@ use observability_deps::tracing::{debug, error};
 use serde::Deserialize;
 use snafu::{OptionExt, ResultExt, Snafu};
 
-use crate::http::{
+use dml::DmlOperation;
+use ioxd_common::http::{
     dml::{HttpDrivenDml, InnerDmlError, RequestOrResponse},
     error::{HttpApiError, HttpApiErrorExt, HttpApiErrorSource},
     metrics::LineProtocolMetrics,
 };
-use dml::DmlOperation;
 use service_common::planner::Planner;
 use std::{
     fmt::Debug,
@@ -113,7 +113,7 @@ pub enum ApplicationError {
 
     #[snafu(display("Cannot perform DML operation: {}", source))]
     DmlError {
-        source: crate::http::dml::HttpDmlError,
+        source: ioxd_common::http::dml::HttpDmlError,
     },
 }
 
@@ -282,27 +282,24 @@ async fn query(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::http::dml::test_utils::assert_write_precision;
-    use crate::{
-        http::{
-            dml::test_utils::{
-                assert_delete_bad_request, assert_delete_unknown_database,
-                assert_delete_unknown_table, assert_gzip_write, assert_write, assert_write_metrics,
-                assert_write_to_invalid_database,
-            },
-            test_utils::{
-                assert_health, assert_metrics, assert_tracing, check_response, get_content_type,
-                TestServer,
-            },
-        },
-        server_type::common_state::CommonServerState,
-    };
     use arrow::record_batch::RecordBatch;
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use data_types::{database_rules::DatabaseRules, server_id::ServerId, DatabaseName};
     use db::Db;
     use dml::DmlWrite;
     use http::StatusCode;
+    use ioxd_common::http::{
+        dml::test_utils::{
+            assert_delete_bad_request, assert_delete_unknown_database, assert_delete_unknown_table,
+            assert_gzip_write, assert_write, assert_write_metrics, assert_write_precision,
+            assert_write_to_invalid_database,
+        },
+        test_utils::{
+            assert_health, assert_metrics, assert_tracing, check_response, get_content_type,
+            TestServer,
+        },
+    };
+    use ioxd_common::server_type::CommonServerState;
     use object_store::ObjectStoreImpl;
     use reqwest::Client;
     use schema::selection::Selection;

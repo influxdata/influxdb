@@ -1,17 +1,18 @@
 use std::sync::Arc;
 
-use crate::{
-    http::error::{HttpApiError, HttpApiErrorExt, HttpApiErrorSource},
-    rpc::{serve_builder, setup_builder, RpcBuilderInput},
-};
 use async_trait::async_trait;
 use hyper::{Body, Method, Request, Response};
+use ioxd_common::{
+    http::error::{HttpApiError, HttpApiErrorExt, HttpApiErrorSource},
+    rpc::RpcBuilderInput,
+    serve_builder, setup_builder,
+};
 use metric::Registry;
 use snafu::Snafu;
 use tokio_util::sync::CancellationToken;
 use trace::TraceCollector;
 
-use super::{RpcError, ServerType};
+use ioxd_common::server_type::{RpcError, ServerType};
 
 #[derive(Debug, Snafu)]
 pub enum ApplicationError {

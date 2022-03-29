@@ -28,7 +28,6 @@ impl CommonServerState {
         })
     }
 
-    #[cfg(test)]
     pub fn for_testing() -> Self {
         use clap::Parser;
 

@@ -8,14 +8,8 @@ use thiserror::Error;
 use time::SystemProvider;
 
 use clap_blocks::{catalog_dsn::CatalogDsnConfig, run_config::RunConfig};
-use influxdb_ioxd::{
-    self,
-    server_type::{
-        common_state::{CommonServerState, CommonServerStateError},
-        querier::create_querier_server_type,
-    },
-    Service,
-};
+use influxdb_ioxd::{self, server_type::querier::create_querier_server_type, Service};
+use ioxd_common::server_type::{CommonServerState, CommonServerStateError};
 
 #[derive(Debug, Error)]
 pub enum Error {

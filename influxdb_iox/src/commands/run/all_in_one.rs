@@ -9,14 +9,13 @@ use clap_blocks::{
     socket_addr::SocketAddr,
     write_buffer::WriteBufferConfig,
 };
+use ioxd_common::server_type::{CommonServerState, CommonServerStateError};
+
 use influxdb_ioxd::{
     self,
     server_type::{
-        common_state::{CommonServerState, CommonServerStateError},
-        compactor::create_compactor_server_type,
-        ingester::create_ingester_server_type,
-        querier::create_querier_server_type,
-        router2::create_router2_server_type,
+        compactor::create_compactor_server_type, ingester::create_ingester_server_type,
+        querier::create_querier_server_type, router2::create_router2_server_type,
     },
     Service,
 };

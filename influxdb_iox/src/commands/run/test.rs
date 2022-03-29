@@ -5,12 +5,10 @@ use std::sync::Arc;
 use clap_blocks::run_config::RunConfig;
 use influxdb_ioxd::{
     self,
-    server_type::{
-        common_state::{CommonServerState, CommonServerStateError},
-        test::{TestAction, TestServerType},
-    },
+    server_type::test::{TestAction, TestServerType},
     Service,
 };
+use ioxd_common::server_type::{CommonServerState, CommonServerStateError};
 use metric::Registry;
 use thiserror::Error;
 

@@ -1,11 +1,11 @@
-use crate::{
-    http::{error::HttpApiErrorSource, metrics::LineProtocolMetrics},
-    rpc::RpcBuilderInput,
-    server_type::{RpcError, ServerType},
-};
 use async_trait::async_trait;
 use futures::{future::FusedFuture, FutureExt};
 use hyper::{Body, Request, Response};
+use ioxd_common::{
+    http::{error::HttpApiErrorSource, metrics::LineProtocolMetrics},
+    rpc::RpcBuilderInput,
+    server_type::{CommonServerState, RpcError, ServerType},
+};
 use metric::Registry;
 use observability_deps::tracing::{error, info};
 use server::{ApplicationState, Server};
@@ -19,7 +19,6 @@ mod rpc;
 pub mod setup;
 
 pub use self::http::ApplicationError;
-use super::common_state::CommonServerState;
 
 #[derive(Debug)]
 pub struct DatabaseServerType {
@@ -109,10 +108,9 @@ impl ServerType for DatabaseServerType {
 mod tests {
     use clap_blocks::run_config::RunConfig;
 
-    use crate::{
-        grpc_listener, http_listener, serve,
-        server_type::database::setup::{make_application, make_server},
-    };
+    use ioxd_common::{grpc_listener, http_listener, serve};
+
+    use crate::setup::{make_application, make_server};
 
     use super::*;
     use ::http::{header::HeaderName, HeaderValue};
@@ -204,7 +202,7 @@ mod tests {
         run_config: RunConfig,
         application: Arc<ApplicationState>,
         server: Arc<Server>,
-    ) -> Result<(), crate::Error> {
+    ) -> Result<(), ioxd_common::Error> {
         let grpc_listener = grpc_listener(run_config.grpc_bind_address.into())
             .await
             .unwrap();
@@ -393,7 +391,7 @@ mod tests {
 
     async fn tracing_server<T: TraceCollector + 'static>(
         collector: &Arc<T>,
-    ) -> (SocketAddr, Arc<Server>, JoinHandle<crate::Result<()>>) {
+    ) -> (SocketAddr, Arc<Server>, JoinHandle<ioxd_common::Result<()>>) {
         // Create a server and wait for it to initialize
         let (application, server, run_config) = TestServerBuilder::new()
             .with_server_id(Some(23))
@@ -503,7 +501,7 @@ mod tests {
         // shutdown server early
         server.shutdown();
         let res = join.await.unwrap();
-        assert_error!(res, crate::Error::LostServer);
+        assert_error!(res, ioxd_common::Error::LostServer);
     }
 
     /// Ensure that query is fully executed.
@@ -574,7 +572,7 @@ mod tests {
         // early shutdown
         server.shutdown();
         let res = join.await.unwrap();
-        assert_error!(res, crate::Error::LostServer);
+        assert_error!(res, ioxd_common::Error::LostServer);
 
         // Check generated traces
 
@@ -645,7 +643,7 @@ mod tests {
         // early shutdown
         server.shutdown();
         let res = join.await.unwrap();
-        assert_error!(res, crate::Error::LostServer);
+        assert_error!(res, ioxd_common::Error::LostServer);
 
         let span = receiver.recv().await.unwrap();
         assert_eq!(span.ctx.trace_id.get(), 0x34f8495);

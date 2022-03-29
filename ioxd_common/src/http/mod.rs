@@ -28,7 +28,6 @@ pub mod error;
 pub mod metrics;
 pub mod utils;
 
-#[cfg(test)]
 pub mod test_utils;
 
 #[allow(clippy::large_enum_variant)]

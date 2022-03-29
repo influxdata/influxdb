@@ -24,6 +24,9 @@ internal_types = { path = "../internal_types" }
 influxrpc_parser = { path = "../influxrpc_parser"}
 iox_catalog = { path = "../iox_catalog" }
 iox_object_store = { path = "../iox_object_store" }
+ioxd_common = { path = "../ioxd_common"}
+ioxd_database = { path = "../ioxd_database"}
+ioxd_router = { path = "../ioxd_router"}
 job_registry = { path = "../job_registry" }
 logfmt = { path = "../logfmt" }
 metric = { path = "../metric" }
@@ -107,7 +110,6 @@ workspace-hack = { path = "../workspace-hack"}
 [dev-dependencies]
 # Workspace dependencies, in alphabetical order
 arrow_util = { path = "../arrow_util" }
-influxdb_storage_client = { path = "../influxdb_storage_client" }
 iox_tests = { path = "../iox_tests" }
 test_helpers = { path = "../test_helpers" }
 test_helpers_end_to_end_ng = { path = "../test_helpers_end_to_end_ng" }

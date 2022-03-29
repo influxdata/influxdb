@@ -7,14 +7,9 @@ use clap_blocks::run_config::RunConfig;
 
 use data_types::router::Router as RouterConfig;
 use generated_types::{google::FieldViolation, influxdata::iox::router::v1::RouterConfigFile};
-use influxdb_ioxd::{
-    self,
-    server_type::{
-        common_state::{CommonServerState, CommonServerStateError},
-        router::RouterServerType,
-    },
-    Service,
-};
+use influxdb_ioxd::{self, Service};
+use ioxd_common::server_type::{CommonServerState, CommonServerStateError};
+use ioxd_router::RouterServerType;
 use observability_deps::tracing::warn;
 use router::{resolver::RemoteTemplate, server::RouterServer};
 use thiserror::Error;
@@ -26,7 +21,7 @@ pub enum Error {
     Run(#[from] influxdb_ioxd::Error),
 
     #[error("Cannot setup server: {0}")]
-    Setup(#[from] influxdb_ioxd::server_type::database::setup::Error),
+    Setup(#[from] ioxd_database::setup::Error),
 
     #[error("Invalid config: {0}")]
     InvalidConfig(#[from] CommonServerStateError),

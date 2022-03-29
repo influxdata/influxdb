@@ -30,6 +30,7 @@ pub struct RpcBuilder<T> {
 
 /// Adds a gRPC service to the builder, and registers it with the
 /// health reporter
+#[macro_export]
 macro_rules! add_service {
     ($builder:ident, $svc:expr) => {
         let $builder = {
@@ -66,19 +67,15 @@ macro_rules! add_service {
     };
 }
 
-pub(crate) use add_service;
-
 /// Creates a [`RpcBuilder`] from [`RpcBuilderInput`].
 ///
 /// The resulting builder can be used w/ [`add_service`]. After adding all services it should
 /// be used w/ [`serve_builder`].
+#[macro_export]
 macro_rules! setup_builder {
     ($input:ident, $server_type:ident) => {{
         #[allow(unused_imports)]
-        use $crate::{
-            rpc::{add_service, RpcBuilder},
-            server_type::ServerType,
-        };
+        use ioxd_common::{add_service, rpc::RpcBuilder, server_type::ServerType};
 
         let RpcBuilderInput {
             socket,
@@ -115,9 +112,8 @@ macro_rules! setup_builder {
     }};
 }
 
-pub(crate) use setup_builder;
-
 /// Serve a server constructed using [`RpcBuilder`].
+#[macro_export]
 macro_rules! serve_builder {
     ($builder:ident) => {{
         use tokio_stream::wrappers::TcpListenerStream;
@@ -136,8 +132,6 @@ macro_rules! serve_builder {
             .await?;
     }};
 }
-
-pub(crate) use serve_builder;
 
 /// Instantiate a server listening on the specified address
 /// implementing the IOx, Storage, and Flight gRPC interfaces, the

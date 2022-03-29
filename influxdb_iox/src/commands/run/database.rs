@@ -4,17 +4,13 @@ use std::sync::Arc;
 
 use clap_blocks::run_config::RunConfig;
 use data_types::boolean_flag::BooleanFlag;
-use influxdb_ioxd::{
-    self,
-    server_type::{
-        common_state::{CommonServerState, CommonServerStateError},
-        database::{
-            setup::{make_application, make_server},
-            DatabaseServerType,
-        },
-    },
-    Service,
+use influxdb_ioxd::{self, Service};
+use ioxd_common::server_type::{CommonServerState, CommonServerStateError};
+use ioxd_database::{
+    setup::{make_application, make_server},
+    DatabaseServerType,
 };
+
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -23,7 +19,7 @@ pub enum Error {
     Run(#[from] influxdb_ioxd::Error),
 
     #[error("Cannot setup server: {0}")]
-    Setup(#[from] influxdb_ioxd::server_type::database::setup::Error),
+    Setup(#[from] ioxd_database::setup::Error),
 
     #[error("Invalid config: {0}")]
     InvalidConfig(#[from] CommonServerStateError),

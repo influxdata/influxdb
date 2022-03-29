@@ -1,0 +1,65 @@
+[package]
+name = "ioxd_database"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# Workspace dependencies, in alphabetical order
+clap_blocks = { path = "../clap_blocks" }
+data_types = { path = "../data_types" }
+db = { path = "../db" }
+dml = { path = "../dml" }
+generated_types = { path = "../generated_types" }
+influxdb_iox_client = { path = "../influxdb_iox_client", features = ["flight", "format", "write_lp"] }
+ioxd_common = { path = "../ioxd_common" }
+job_registry = { path = "../job_registry" }
+metric = { path = "../metric" }
+mutable_batch_pb = { path = "../mutable_batch_pb" }
+object_store = { path = "../object_store" }
+observability_deps = { path = "../observability_deps" }
+query = { path = "../query" }
+server = { path = "../server" }
+service_common = { path = "../service_common" }
+service_grpc_flight = { path = "../service_grpc_flight" }
+service_grpc_influxrpc = { path = "../service_grpc_influxrpc" }
+service_grpc_testing = { path = "../service_grpc_testing" }
+trace = { path = "../trace" }
+trace_http = { path = "../trace_http" }
+tracker = { path = "../tracker" }
+uuid = { version = "0.8", features = ["v4"] }
+
+# Crates.io dependencies, in alphabetical order
+arrow-flight = "11"
+async-trait = "0.1"
+bytes = "1.0"
+futures = "0.3"
+http = "0.2.0"
+hyper = "0.14"
+prost = "0.9"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0.79"
+serde_urlencoded = "0.7.0"
+snafu = "0.7"
+
+tokio = { version = "1.17", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
+tokio-stream = { version = "0.1", features = ["net"] }
+tokio-util = { version = "0.7.0" }
+tonic = "0.6"
+tonic-health = "0.5.0"
+tonic-reflection = "0.3.0"
+workspace-hack = { path = "../workspace-hack"}
+
+[dev-dependencies]
+# Workspace dependencies, in alphabetical order
+arrow_util = { path = "../arrow_util" }
+influxdb_storage_client = { path = "../influxdb_storage_client" }
+test_helpers = { path = "../test_helpers" }
+trace_exporters = { path = "../trace_exporters" }
+schema = { path = "../schema" }
+
+# Crates.io dependencies, in alphabetical order
+arrow = "11"
+clap = { version = "3", features = ["derive", "env"] }
+reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls"] }

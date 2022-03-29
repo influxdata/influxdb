@@ -1,0 +1,51 @@
+[package]
+name = "ioxd_common"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# Workspace dependencies, in alphabetical order
+clap_blocks = { path = "../clap_blocks" }
+data_types = { path = "../data_types" }
+dml = { path = "../dml" }
+metric = { path = "../metric" }
+observability_deps = { path = "../observability_deps" }
+predicate = { path = "../predicate" }
+metric_exporters = { path = "../metric_exporters" }
+mutable_batch_lp = { path = "../mutable_batch_lp" }
+trace = { path = "../trace" }
+trace_exporters = { path = "../trace_exporters" }
+trace_http = { path = "../trace_http" }
+
+# Crates.io dependencies, in alphabetical order
+async-trait = "0.1"
+bytes = "1.0"
+clap = { version = "3", features = ["derive", "env"] }
+chrono = { version = "0.4", default-features = false }
+flate2 = "1.0"
+futures = "0.3"
+hashbrown = "0.12"
+http = "0.2.0"
+hyper = "0.14"
+log = "0.4"
+parking_lot = "0.12"
+prost = "0.9"
+reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0.79"
+serde_urlencoded = "0.7.0"
+snafu = "0.7"
+tokio = { version = "1.17", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
+tokio-util = { version = "0.7.0" }
+tokio-stream = { version = "0.1", features = ["net"] }
+tonic = "0.6"
+tonic-health = "0.5.0"
+tower = "0.4"
+workspace-hack = { path = "../workspace-hack"}
+
+
+[dev-dependencies]
+# Workspace dependencies, in alphabetical order
+# Crates.io dependencies, in alphabetical order

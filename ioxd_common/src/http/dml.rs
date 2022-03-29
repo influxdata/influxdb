@@ -410,7 +410,6 @@ struct WriteInfo {
     precision: Precision,
 }
 
-#[cfg(test)]
 pub mod test_utils {
     use http::{header::CONTENT_ENCODING, StatusCode};
     use reqwest::Client;

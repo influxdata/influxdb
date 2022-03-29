@@ -5,14 +5,8 @@ use std::sync::Arc;
 use clap_blocks::{
     catalog_dsn::CatalogDsnConfig, run_config::RunConfig, write_buffer::WriteBufferConfig,
 };
-use influxdb_ioxd::{
-    self,
-    server_type::{
-        common_state::{CommonServerState, CommonServerStateError},
-        router2::create_router2_server_type,
-    },
-    Service,
-};
+use influxdb_ioxd::{self, server_type::router2::create_router2_server_type, Service};
+use ioxd_common::server_type::{CommonServerState, CommonServerStateError};
 use observability_deps::tracing::*;
 use thiserror::Error;
 
