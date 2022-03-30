@@ -1,7 +1,7 @@
 //! Compactor handler
 
 use async_trait::async_trait;
-use backoff::BackoffConfig;
+use backoff::{Backoff, BackoffConfig};
 use data_types2::SequencerId;
 use futures::{
     future::{BoxFuture, Shared},
@@ -9,7 +9,7 @@ use futures::{
 };
 use iox_catalog::interface::Catalog;
 use object_store::DynObjectStore;
-use observability_deps::tracing::warn;
+use observability_deps::tracing::{info, warn};
 use query::exec::Executor;
 use std::sync::Arc;
 use thiserror::Error;
@@ -18,6 +18,7 @@ use tokio::task::{JoinError, JoinHandle};
 use tokio_util::sync::CancellationToken;
 
 use crate::compact::Compactor;
+use std::time::Duration;
 
 #[derive(Debug, Error)]
 #[allow(missing_copy_implementations, missing_docs)]
@@ -51,6 +52,9 @@ pub struct CompactorHandlerImpl {
 
     /// A token that is used to trigger shutdown of the background worker
     shutdown: CancellationToken,
+
+    /// Runner to check for compaction work and kick it off
+    runner_handle: SharedJoinHandle,
 }
 
 impl CompactorHandlerImpl {
@@ -61,10 +65,9 @@ impl CompactorHandlerImpl {
         object_store: Arc<DynObjectStore>,
         exec: Arc<Executor>,
         time_provider: Arc<dyn TimeProvider>,
-        _registry: &metric::Registry,
+        registry: Arc<metric::Registry>,
+        config: CompactorConfig,
     ) -> Self {
-        let shutdown = CancellationToken::new();
-
         let compactor_data = Arc::new(Compactor::new(
             sequencers,
             catalog,
@@ -72,11 +75,103 @@ impl CompactorHandlerImpl {
             exec,
             time_provider,
             BackoffConfig::default(),
+            config,
+            registry,
         ));
+
+        let shutdown = CancellationToken::new();
+        let runner_handle = tokio::task::spawn(run_compactor(
+            Arc::clone(&compactor_data),
+            shutdown.child_token(),
+        ));
+        let runner_handle = shared_handle(runner_handle);
+        info!("compactor started with config {:?}", config);
 
         Self {
             compactor_data,
             shutdown,
+            runner_handle,
+        }
+    }
+}
+
+/// The configuration options for the compactor.
+#[derive(Debug, Clone, Copy)]
+pub struct CompactorConfig {
+    /// Percentage of least recent data we want to split to reduce compacting non-overlapped data
+    /// Must be between 0 and 100.
+    split_percentage: i64,
+    /// The compactor will limit the number of simultaneous compaction jobs based on the
+    /// size of the input files to be compacted. Currently this only takes into account the
+    /// level 0 files, but should later also consider the level 1 files to be compacted. This
+    /// number should be less than 1/10th of the available memory to ensure compactions have
+    /// enough space to run.
+    max_concurrent_compaction_size_bytes: i64,
+}
+
+impl CompactorConfig {
+    /// Initialize a valid config
+    pub fn new(split_percentage: i64, max_concurrent_compaction_size_bytes: i64) -> Self {
+        assert!(split_percentage > 0 && split_percentage <= 100);
+
+        Self {
+            split_percentage,
+            max_concurrent_compaction_size_bytes,
+        }
+    }
+
+    /// Percentage of least recent data we want to split to reduce compacting non-overlapped data
+    pub fn split_percentage(&self) -> i64 {
+        self.split_percentage
+    }
+
+    /// The compactor will limit the number of simultaneous compaction jobs based on the
+    /// size of the input files to be compacted. Currently this only takes into account the
+    /// level 0 files, but should later also consider the level 1 files to be compacted. This
+    /// number should be less than 1/10th of the available memory to ensure compactions have
+    /// enough space to run.
+    pub fn max_concurrent_compaction_size_bytes(&self) -> i64 {
+        self.max_concurrent_compaction_size_bytes
+    }
+}
+
+/// Checks for candidate partitions to compact and spawns tokio tasks to compact as many
+/// as the configuration will allow. Once those are done it rechecks the catalog for the
+/// next top partitions to compact.
+async fn run_compactor(compactor: Arc<Compactor>, shutdown: CancellationToken) {
+    while !shutdown.is_cancelled() {
+        let candidates = Backoff::new(&compactor.backoff_config)
+            .retry_all_errors("partitions_to_compact", || async {
+                compactor.partitions_to_compact().await
+            })
+            .await
+            .expect("retry forever");
+
+        let mut used_size = 0;
+        let max_size = compactor.config.max_concurrent_compaction_size_bytes();
+        let mut handles = vec![];
+
+        for c in &candidates {
+            let compactor = Arc::clone(&compactor);
+            let partition_id = c.partition_id;
+            let handle =
+                tokio::task::spawn(async move { compactor.compact_partition(partition_id).await });
+            used_size += c.file_size_bytes;
+            handles.push(handle);
+            if used_size > max_size {
+                break;
+            }
+        }
+
+        let compactions_run = handles.len();
+
+        if let Err(e) = futures::future::try_join_all(handles).await {
+            warn!("error compacting: {}", e);
+        }
+
+        // if all candidate partitions have been compacted, wait a bit before checking again
+        if compactions_run == candidates.len() {
+            tokio::time::sleep(Duration::from_secs(5)).await;
         }
     }
 }
@@ -84,11 +179,10 @@ impl CompactorHandlerImpl {
 #[async_trait]
 impl CompactorHandler for CompactorHandlerImpl {
     async fn join(&self) {
-        // TODO: this should block on the compactor background loop exiting, not
-        // this token being cancelled.
-        //
-        // This fires immediately when shutdown() is called.
-        self.shutdown.cancelled().await
+        self.runner_handle
+            .clone()
+            .await
+            .expect("compactor task failed");
     }
 
     fn shutdown(&self) {

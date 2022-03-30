@@ -23,4 +23,24 @@ pub struct CompactorConfig {
         env = "INFLUXDB_IOX_WRITE_BUFFER_PARTITION_RANGE_END"
     )]
     pub write_buffer_partition_range_end: i32,
+
+    /// Percentage of least recent data we want to split to reduce compacting non-overlapped data
+    /// Must be between 0 and 100. Default is 100, which won't split the resulting file.
+    #[clap(
+        long = "--compaction-split-percentage",
+        env = "INFLUXDB_IOX_COMPACTION_SPLIT_PERCENTAGE",
+        default_value = "100"
+    )]
+    pub split_percentage: i64,
+    /// The compactor will limit the number of simultaneous compaction jobs based on the
+    /// size of the input files to be compacted. Currently this only takes into account the
+    /// level 0 files, but should later also consider the level 1 files to be compacted. This
+    /// number should be less than 1/10th of the available memory to ensure compactions have
+    /// enough space to run. Default is 100,000,000 (100MB).
+    #[clap(
+        long = "--compaction-concurrent-size-bytes",
+        env = "INFLUXDB_IOX_COMPACTION_CONCURRENT_SIZE_BYTES",
+        default_value = "100000000"
+    )]
+    pub max_concurrent_compaction_size_bytes: i64,
 }

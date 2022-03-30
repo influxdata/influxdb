@@ -517,6 +517,12 @@ pub trait ParquetFileRepo: Send + Sync {
         max_time: Timestamp,
     ) -> Result<Vec<ParquetFile>>;
 
+    /// List parquet files for a given partition that are NOT marked as [`to_delete`](ParquetFile::to_delete).
+    async fn list_by_partition_not_to_delete(
+        &mut self,
+        partition_id: PartitionId,
+    ) -> Result<Vec<ParquetFile>>;
+
     /// Update the compaction level of the specified parquet files to level 1. Returns the IDs
     /// of the files that were successfully updated.
     async fn update_to_level_1(
@@ -645,6 +651,7 @@ pub(crate) mod test_helpers {
         test_parquet_file_compaction_level_1(Arc::clone(&catalog)).await;
         test_update_to_compaction_level_1(Arc::clone(&catalog)).await;
         test_processed_tombstones(Arc::clone(&catalog)).await;
+        test_list_by_partiton_not_to_delete(Arc::clone(&catalog)).await;
         test_txn_isolation(Arc::clone(&catalog)).await;
         test_txn_drop(Arc::clone(&catalog)).await;
 
@@ -2332,6 +2339,115 @@ pub(crate) mod test_helpers {
             "\nlevel 1: {:#?}\nexpected: {:#?}",
             level_1, expected,
         );
+    }
+
+    async fn test_list_by_partiton_not_to_delete(catalog: Arc<dyn Catalog>) {
+        let mut repos = catalog.repositories().await;
+        let kafka = repos.kafka_topics().create_or_get("foo").await.unwrap();
+        let pool = repos.query_pools().create_or_get("foo").await.unwrap();
+        let namespace = repos
+            .namespaces()
+            .create(
+                "namespace_parquet_file_test_list_by_partiton_not_to_delete",
+                "inf",
+                kafka.id,
+                pool.id,
+            )
+            .await
+            .unwrap();
+        let table = repos
+            .tables()
+            .create_or_get("test_table", namespace.id)
+            .await
+            .unwrap();
+        let sequencer = repos
+            .sequencers()
+            .create_or_get(&kafka, KafkaPartition::new(100))
+            .await
+            .unwrap();
+
+        let partition = repos
+            .partitions()
+            .create_or_get("one", sequencer.id, table.id)
+            .await
+            .unwrap();
+        let partition2 = repos
+            .partitions()
+            .create_or_get("two", sequencer.id, table.id)
+            .await
+            .unwrap();
+
+        let min_time = Timestamp::new(1);
+        let max_time = Timestamp::new(10);
+
+        let parquet_file_params = ParquetFileParams {
+            sequencer_id: sequencer.id,
+            namespace_id: namespace.id,
+            table_id: partition.table_id,
+            partition_id: partition.id,
+            object_store_id: Uuid::new_v4(),
+            min_sequence_number: SequenceNumber::new(10),
+            max_sequence_number: SequenceNumber::new(140),
+            min_time,
+            max_time,
+            file_size_bytes: 1337,
+            parquet_metadata: b"md1".to_vec(),
+            row_count: 0,
+            created_at: Timestamp::new(1),
+        };
+
+        let parquet_file = repos
+            .parquet_files()
+            .create(parquet_file_params.clone())
+            .await
+            .unwrap();
+        let delete_file_params = ParquetFileParams {
+            object_store_id: Uuid::new_v4(),
+            ..parquet_file_params.clone()
+        };
+        let delete_file = repos
+            .parquet_files()
+            .create(delete_file_params)
+            .await
+            .unwrap();
+        repos
+            .parquet_files()
+            .flag_for_delete(delete_file.id)
+            .await
+            .unwrap();
+        let level1_file_params = ParquetFileParams {
+            object_store_id: Uuid::new_v4(),
+            ..parquet_file_params.clone()
+        };
+        let mut level1_file = repos
+            .parquet_files()
+            .create(level1_file_params)
+            .await
+            .unwrap();
+        repos
+            .parquet_files()
+            .update_to_level_1(&[level1_file.id])
+            .await
+            .unwrap();
+        level1_file.compaction_level = 1;
+
+        let other_partition_params = ParquetFileParams {
+            partition_id: partition2.id,
+            object_store_id: Uuid::new_v4(),
+            ..parquet_file_params.clone()
+        };
+        let _partition2_file = repos
+            .parquet_files()
+            .create(other_partition_params)
+            .await
+            .unwrap();
+
+        let files = repos
+            .parquet_files()
+            .list_by_partition_not_to_delete(partition.id)
+            .await
+            .unwrap();
+        assert_eq!(files, vec![parquet_file, level1_file]);
     }
 
     async fn test_update_to_compaction_level_1(catalog: Arc<dyn Catalog>) {

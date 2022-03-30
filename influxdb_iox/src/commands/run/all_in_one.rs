@@ -236,6 +236,8 @@ impl Config {
             topic: write_buffer_config.topic().to_string(),
             write_buffer_partition_range_start: ingester_config.write_buffer_partition_range_start,
             write_buffer_partition_range_end: ingester_config.write_buffer_partition_range_end,
+            split_percentage: 90,
+            max_concurrent_compaction_size_bytes: 100000,
         };
 
         SpecializedConfig {

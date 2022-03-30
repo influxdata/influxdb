@@ -1556,6 +1556,24 @@ WHERE parquet_file.sequencer_id = $1
         .map_err(|e| Error::SqlxError { source: e })
     }
 
+    async fn list_by_partition_not_to_delete(
+        &mut self,
+        partition_id: PartitionId,
+    ) -> Result<Vec<ParquetFile>> {
+        sqlx::query_as::<_, ParquetFile>(
+            r#"
+SELECT *
+FROM parquet_file
+WHERE parquet_file.partition_id = $1
+  AND parquet_file.to_delete IS NULL;
+        "#,
+        )
+        .bind(&partition_id) // $1
+        .fetch_all(&mut self.inner)
+        .await
+        .map_err(|e| Error::SqlxError { source: e })
+    }
+
     async fn update_to_level_1(
         &mut self,
         parquet_file_ids: &[ParquetFileId],

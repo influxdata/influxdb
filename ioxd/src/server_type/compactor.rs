@@ -158,13 +158,18 @@ pub async fn create_compactor_server_type(
     }
     txn.commit().await?;
 
+    let compactor_config = compactor::handler::CompactorConfig::new(
+        compactor_config.split_percentage,
+        compactor_config.max_concurrent_compaction_size_bytes,
+    );
     let compactor_handler = Arc::new(CompactorHandlerImpl::new(
         sequencers,
         catalog,
         object_store,
         exec,
         time_provider,
-        &metric_registry,
+        Arc::clone(&metric_registry),
+        compactor_config,
     ));
 
     let compactor = CompactorServer::new(metric_registry, compactor_handler);

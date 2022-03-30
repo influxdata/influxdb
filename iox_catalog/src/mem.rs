@@ -1055,6 +1055,20 @@ impl ParquetFileRepo for MemTxn {
             .collect())
     }
 
+    async fn list_by_partition_not_to_delete(
+        &mut self,
+        partition_id: PartitionId,
+    ) -> Result<Vec<ParquetFile>> {
+        let stage = self.stage();
+
+        Ok(stage
+            .parquet_files
+            .iter()
+            .filter(|f| f.partition_id == partition_id && f.to_delete.is_none())
+            .cloned()
+            .collect())
+    }
+
     async fn update_to_level_1(
         &mut self,
         parquet_file_ids: &[ParquetFileId],

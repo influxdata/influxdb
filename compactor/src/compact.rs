@@ -1,5 +1,6 @@
 //! Data Points for the lifecycle of the Compactor
 
+use crate::handler::CompactorConfig;
 use crate::{
     query::QueryableParquetChunk,
     utils::{CatalogUpdate, CompactedData, GroupWithTombstones, ParquetFileWithTombstone},
@@ -14,6 +15,7 @@ use data_types2::{
 use datafusion::error::DataFusionError;
 use iox_catalog::interface::{Catalog, Transaction};
 use iox_object_store::ParquetFilePath;
+use metric::{Attributes, Metric, U64Counter, U64Gauge, U64Histogram, U64HistogramOptions};
 use object_store::DynObjectStore;
 use observability_deps::tracing::warn;
 use parquet_file::metadata::{IoxMetadata, IoxParquetMetaData};
@@ -23,6 +25,7 @@ use query::{
 };
 use query::{exec::Executor, QueryChunk};
 use snafu::{ensure, ResultExt, Snafu};
+use std::cmp::Ordering;
 use std::{
     cmp::{max, min},
     collections::{BTreeMap, HashSet},
@@ -31,15 +34,6 @@ use std::{
 };
 use time::{Time, TimeProvider};
 use uuid::Uuid;
-
-/// 24 hours in nanoseconds
-// TODO: make this a config parameter
-pub const LEVEL_UPGRADE_THRESHOLD_NANO: i64 = 60 * 60 * 24 * 1000000000;
-
-/// Percentage of least recent data we want to split to reduce compacting non-overlapped data
-/// Must be between 0 and 100
-// TODO: make this a config parameter
-pub const SPLIT_PERCENTAGE: i64 = 90;
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
@@ -156,6 +150,14 @@ pub enum Error {
     QueryingTombstones {
         source: iox_catalog::interface::Error,
     },
+
+    #[snafu(display("Error getting parquet files for partition: {}", source))]
+    ListParquetFiles {
+        source: iox_catalog::interface::Error,
+    },
+
+    #[snafu(display("Error joining compaction tasks: {}", source))]
+    CompactionJoin { source: tokio::task::JoinError },
 }
 
 /// A specialized `Error` for Compactor Data errors
@@ -177,11 +179,30 @@ pub struct Compactor {
     pub time_provider: Arc<dyn TimeProvider>,
 
     /// Backoff config
-    backoff_config: BackoffConfig,
+    pub(crate) backoff_config: BackoffConfig,
+
+    /// Configuration options for the compactor
+    pub(crate) config: CompactorConfig,
+
+    /// Counter for the number of files compacted
+    compaction_counter: Metric<U64Counter>,
+
+    /// Counter for level promotion from level 0 to 1
+    level_promotion_counter: Metric<U64Counter>,
+
+    /// Gauge for the number of compaction candidates
+    compaction_candidate_gauge: Metric<U64Gauge>,
+
+    /// Gauge for the number of bytes across compaction candidates
+    compaction_candidate_bytes_gauge: Metric<U64Gauge>,
+
+    /// Histogram for tracking the time to compact a partition
+    compaction_duration_ms: Metric<U64Histogram>,
 }
 
 impl Compactor {
     /// Initialize the Compactor Data
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         sequencers: Vec<SequencerId>,
         catalog: Arc<dyn Catalog>,
@@ -189,7 +210,36 @@ impl Compactor {
         exec: Arc<Executor>,
         time_provider: Arc<dyn TimeProvider>,
         backoff_config: BackoffConfig,
+        config: CompactorConfig,
+        registry: Arc<metric::Registry>,
     ) -> Self {
+        let compaction_counter = registry.register_metric(
+            "compactor_compacted_files_total",
+            "counter for the number of files compacted",
+        );
+        let compaction_candidate_gauge = registry.register_metric(
+            "compactor_candidates",
+            "gauge for the number of compaction candidates that are found when checked",
+        );
+        let compaction_candidate_bytes_gauge = registry.register_metric(
+            "compactor_candidate_bytes",
+            "gauge for the total bytes for compaction candidates",
+        );
+        let level_promotion_counter = registry.register_metric(
+            "compactor_level_promotions_total",
+            "Counter for level promotion from 0 to 1",
+        );
+
+        // buckets for timing compact partition
+        let compaction_duration_buckets_ms =
+            || U64HistogramOptions::new([100, 1000, 5000, 10000, 30000, 60000, 360000, u64::MAX]);
+
+        let compaction_duration_ms: Metric<U64Histogram> = registry.register_metric_with_options(
+            "compactor_compact_partition_duration_ms",
+            "Compact partition duration in milliseconds",
+            compaction_duration_buckets_ms,
+        );
+
         Self {
             sequencers,
             catalog,
@@ -197,6 +247,12 @@ impl Compactor {
             exec,
             time_provider,
             backoff_config,
+            config,
+            compaction_counter,
+            level_promotion_counter,
+            compaction_candidate_gauge,
+            compaction_candidate_bytes_gauge,
+            compaction_duration_ms,
         }
     }
 
@@ -248,7 +304,159 @@ impl Compactor {
         Ok(())
     }
 
-    // TODO: this function should be invoked in a backround loop
+    /// Returns a list of partitions that have level 0 files to compact along with some summary
+    /// statistics that the scheduler can use to decide which partitions to prioritize. Orders
+    /// them by the number of level 0 files and then size.
+    pub async fn partitions_to_compact(&self) -> Result<Vec<PartitionCompactionCandidate>> {
+        let mut candidates = vec![];
+
+        for sequencer_id in &self.sequencers {
+            // Read level-0 parquet files
+            let level_0_files = self.level_0_parquet_files(*sequencer_id).await?;
+
+            let mut partitions = BTreeMap::new();
+            for f in level_0_files {
+                let mut p = partitions.entry(f.partition_id).or_insert_with(|| {
+                    PartitionCompactionCandidate {
+                        sequencer_id: *sequencer_id,
+                        table_id: f.table_id,
+                        partition_id: f.partition_id,
+                        level_0_file_count: 0,
+                        file_size_bytes: 0,
+                        oldest_file: f.created_at,
+                    }
+                });
+                p.file_size_bytes += f.file_size_bytes;
+                p.level_0_file_count += 1;
+                p.oldest_file = p.oldest_file.min(f.created_at);
+            }
+
+            let mut partitions: Vec<_> = partitions.into_values().collect();
+
+            let total_size = partitions.iter().fold(0, |t, p| t + p.file_size_bytes);
+            let attributes =
+                Attributes::from([("sequencer_id", format!("{}", *sequencer_id).into())]);
+
+            let number_gauge = self.compaction_candidate_gauge.recorder(attributes.clone());
+            number_gauge.set(partitions.len() as u64);
+            let size_gauge = self.compaction_candidate_bytes_gauge.recorder(attributes);
+            size_gauge.set(total_size as u64);
+
+            candidates.append(&mut partitions);
+        }
+
+        candidates.sort_by(
+            |a, b| match b.level_0_file_count.cmp(&a.level_0_file_count) {
+                Ordering::Equal => b.file_size_bytes.cmp(&a.file_size_bytes),
+                o => o,
+            },
+        );
+
+        Ok(candidates)
+    }
+
+    /// Runs compaction in a partition resolving any tombstones and compacting data so that parquet
+    /// files will be non-overlapping in time.
+    pub async fn compact_partition(&self, partition_id: PartitionId) -> Result<()> {
+        let start_time = self.time_provider.now();
+
+        let parquet_files = self
+            .catalog
+            .repositories()
+            .await
+            .parquet_files()
+            .list_by_partition_not_to_delete(partition_id)
+            .await
+            .context(ListParquetFilesSnafu)?;
+        if parquet_files.is_empty() {
+            return Ok(());
+        }
+        let sequencer_id = parquet_files[0].sequencer_id;
+        let file_count = parquet_files.len();
+
+        let overlapped_file_groups = Self::overlapped_groups(parquet_files);
+
+        let groups_with_tombstones = self
+            .add_tombstones_to_groups(overlapped_file_groups)
+            .await?;
+
+        // Compact, persist,and update catalog accordingly for each overlaped file
+        let mut tombstones = BTreeMap::new();
+        let mut upgrade_level_list: Vec<ParquetFileId> = vec![];
+        for group in groups_with_tombstones {
+            // keep tombstone ids
+            tombstones = Self::union_tombstones(tombstones, &group);
+
+            // Only one file without tombstones, no need to compact, upgrade it since it is
+            // non-overlapping
+            if group.parquet_files.len() == 1 && group.tombstones.is_empty() {
+                upgrade_level_list.push(group.parquet_files[0].parquet_file_id());
+                continue;
+            }
+
+            // Collect all the parquet file IDs, to be able to set their catalog records to be
+            // deleted. These should already be unique, no need to dedupe.
+            let original_parquet_file_ids: Vec<_> =
+                group.parquet_files.iter().map(|f| f.data.id).collect();
+
+            // compact
+            let split_compacted_files = self.compact(group.parquet_files).await?;
+            let mut catalog_update_info = Vec::with_capacity(split_compacted_files.len());
+
+            for split_file in split_compacted_files {
+                let CompactedData {
+                    data,
+                    meta,
+                    tombstones,
+                } = split_file;
+
+                let file_size_and_md = Backoff::new(&self.backoff_config)
+                    .retry_all_errors("persist to object store", || {
+                        Self::persist(&meta, data.clone(), Arc::clone(&self.object_store))
+                    })
+                    .await
+                    .expect("retry forever");
+
+                if let Some((file_size, md)) = file_size_and_md {
+                    catalog_update_info.push(CatalogUpdate::new(meta, file_size, md, tombstones));
+                }
+            }
+            let mut txn = self
+                .catalog
+                .start_transaction()
+                .await
+                .context(TransactionSnafu)?;
+
+            self.update_catalog(
+                catalog_update_info,
+                original_parquet_file_ids,
+                txn.deref_mut(),
+            )
+            .await?;
+
+            txn.commit().await.context(TransactionCommitSnafu)?;
+        }
+
+        // Upgrade old level-0 to level 1
+        self.update_to_level_1(&upgrade_level_list).await?;
+
+        let attributes = Attributes::from([("sequencer_id", format!("{}", sequencer_id).into())]);
+        if !upgrade_level_list.is_empty() {
+            let promotion_counter = self.level_promotion_counter.recorder(attributes.clone());
+            promotion_counter.inc(upgrade_level_list.len() as u64);
+        }
+
+        if let Some(delta) = self.time_provider.now().checked_duration_since(start_time) {
+            let duration_ms = self.compaction_duration_ms.recorder(attributes.clone());
+            duration_ms.record(delta.as_millis() as _);
+        }
+
+        let compaction_counter = self.compaction_counter.recorder(attributes);
+        compaction_counter.inc(file_count as u64);
+
+        Ok(())
+    }
+
     /// Find and compact parquet files for a given sequencer
     pub async fn find_and_compact(&self, sequencer_id: SequencerId) -> Result<()> {
         if !self.sequencers.contains(&sequencer_id) {
@@ -304,11 +512,7 @@ impl Compactor {
 
             // Only one file without tombstones, no need to compact
             if group.parquet_files.len() == 1 && group.tombstones.is_empty() {
-                // If the file is old enough, it would not have any overlaps. Add it
-                // to the list to be upgraded to level 1
-                if group.parquet_files[0].level_upgradable(Arc::clone(&self.time_provider)) {
-                    upgrade_level_list.push(group.parquet_files[0].parquet_file_id());
-                }
+                upgrade_level_list.push(group.parquet_files[0].parquet_file_id());
                 continue;
             }
 
@@ -479,7 +683,7 @@ impl Compactor {
         let sort_key = compute_sort_key_for_chunks(&merged_schema, &query_chunks);
 
         // Identify split time
-        let split_time = Self::compute_split_time(min_time, max_time);
+        let split_time = self.compute_split_time(min_time, max_time);
 
         // Build compact & split query plan
         let plan = ReorgPlanner::new()
@@ -691,8 +895,8 @@ impl Compactor {
     }
 
     // Compute time to split data
-    fn compute_split_time(min_time: i64, max_time: i64) -> i64 {
-        min_time + (max_time - min_time) * SPLIT_PERCENTAGE / 100
+    fn compute_split_time(&self, min_time: i64, max_time: i64) -> i64 {
+        min_time + (max_time - min_time) * self.config.split_percentage() / 100
     }
 
     // remove fully processed tombstones
@@ -861,6 +1065,23 @@ impl Compactor {
     }
 }
 
+/// Summary information for a partition that is a candidate for compaction.
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub struct PartitionCompactionCandidate {
+    /// the sequencer the partition is in
+    pub sequencer_id: SequencerId,
+    /// the table the partition is in
+    pub table_id: TableId,
+    /// the partition for compaction
+    pub partition_id: PartitionId,
+    /// the number of level 0 files in the partition
+    pub level_0_file_count: usize,
+    /// the total bytes of the level 0 files to compact
+    pub file_size_bytes: i64,
+    /// the created_at time of the oldest level 0 file in the partition
+    pub oldest_file: Timestamp,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -919,14 +1140,16 @@ mod tests {
 
         // ------------------------------------------------
         // Compact
-        let compactor = Compactor {
-            sequencers: vec![sequencer.sequencer.id],
-            object_store: Arc::clone(&catalog.object_store),
-            catalog: Arc::clone(&catalog.catalog),
-            exec: Arc::new(Executor::new(1)),
-            time_provider: Arc::new(SystemProvider::new()),
-            backoff_config: BackoffConfig::default(),
-        };
+        let compactor = Compactor::new(
+            vec![sequencer.sequencer.id],
+            Arc::clone(&catalog.catalog),
+            Arc::clone(&catalog.object_store),
+            Arc::new(Executor::new(1)),
+            Arc::new(SystemProvider::new()),
+            BackoffConfig::default(),
+            CompactorConfig::new(90, 10000000),
+            Arc::new(metric::Registry::new()),
+        );
 
         compactor
             .find_and_compact(sequencer.sequencer.id)
@@ -1115,14 +1338,16 @@ mod tests {
 
         // ------------------------------------------------
         // Compact
-        let compactor = Compactor {
-            sequencers: vec![sequencer.sequencer.id],
-            object_store: Arc::clone(&catalog.object_store),
-            catalog: Arc::clone(&catalog.catalog),
-            exec: Arc::new(Executor::new(1)),
-            time_provider: Arc::new(SystemProvider::new()),
-            backoff_config: BackoffConfig::default(),
-        };
+        let compactor = Compactor::new(
+            vec![sequencer.sequencer.id],
+            Arc::clone(&catalog.catalog),
+            Arc::clone(&catalog.object_store),
+            Arc::new(Executor::new(1)),
+            Arc::new(SystemProvider::new()),
+            BackoffConfig::default(),
+            CompactorConfig::new(90, 10000000),
+            Arc::new(metric::Registry::new()),
+        );
         compactor
             .find_and_compact(sequencer.sequencer.id)
             .await
@@ -1133,8 +1358,8 @@ mod tests {
         assert_eq!(files.len(), 4);
         // pf1 upgraded to level 1 becasue it was too old
         assert_eq!((files[0].id.get(), files[0].compaction_level), (1, 1));
-        // pf4 stays level 0 since it is not old enough
-        assert_eq!((files[1].id.get(), files[1].compaction_level), (4, 0));
+        // pf4 gets upgraded to level 1
+        assert_eq!((files[1].id.get(), files[1].compaction_level), (4, 1));
         // 2 newly created level-0 files as the result of compaction
         assert_eq!((files[2].id.get(), files[2].compaction_level), (5, 0));
         assert_eq!((files[3].id.get(), files[3].compaction_level), (6, 0));
@@ -1215,14 +1440,16 @@ mod tests {
             .parquet_file
             .clone();
 
-        let compactor = Compactor {
-            sequencers: vec![sequencer.sequencer.id],
-            object_store: Arc::clone(&catalog.object_store),
-            catalog: Arc::clone(&catalog.catalog),
-            exec: Arc::new(Executor::new(1)),
-            time_provider: Arc::new(SystemProvider::new()),
-            backoff_config: BackoffConfig::default(),
-        };
+        let compactor = Compactor::new(
+            vec![sequencer.sequencer.id],
+            Arc::clone(&catalog.catalog),
+            Arc::clone(&catalog.object_store),
+            Arc::new(Executor::new(1)),
+            Arc::new(SystemProvider::new()),
+            BackoffConfig::default(),
+            CompactorConfig::new(90, 10000000),
+            Arc::new(metric::Registry::new()),
+        );
 
         // ------------------------------------------------
         // no files provided
@@ -1312,14 +1539,16 @@ mod tests {
             .parquet_file
             .clone();
 
-        let compactor = Compactor {
-            sequencers: vec![sequencer.sequencer.id],
-            object_store: Arc::clone(&catalog.object_store),
-            catalog: Arc::clone(&catalog.catalog),
-            exec: Arc::new(Executor::new(1)),
-            time_provider: Arc::new(SystemProvider::new()),
-            backoff_config: BackoffConfig::default(),
-        };
+        let compactor = Compactor::new(
+            vec![sequencer.sequencer.id],
+            Arc::clone(&catalog.catalog),
+            Arc::clone(&catalog.object_store),
+            Arc::new(Executor::new(1)),
+            Arc::new(SystemProvider::new()),
+            BackoffConfig::default(),
+            CompactorConfig::new(90, 10000000),
+            Arc::new(metric::Registry::new()),
+        );
 
         // File 1 with tombstone
         let tombstone = table
@@ -1417,14 +1646,16 @@ mod tests {
             .parquet_file
             .clone();
 
-        let compactor = Compactor {
-            sequencers: vec![sequencer.sequencer.id],
-            object_store: Arc::clone(&catalog.object_store),
-            catalog: Arc::clone(&catalog.catalog),
-            exec: Arc::new(Executor::new(1)),
-            time_provider: Arc::new(SystemProvider::new()),
-            backoff_config: BackoffConfig::default(),
-        };
+        let compactor = Compactor::new(
+            vec![sequencer.sequencer.id],
+            Arc::clone(&catalog.catalog),
+            Arc::clone(&catalog.object_store),
+            Arc::new(Executor::new(1)),
+            Arc::new(SystemProvider::new()),
+            BackoffConfig::default(),
+            CompactorConfig::new(90, 10000000),
+            Arc::new(metric::Registry::new()),
+        );
 
         // File 1 with tombstone
         let tombstone = table
@@ -1585,28 +1816,6 @@ mod tests {
     }
 
     #[test]
-    fn test_level_upgradable() {
-        let time = Arc::new(SystemProvider::new());
-        // file older than one day
-        let pf_old = arbitrary_parquet_file_with_creation_time(1, 10, 1);
-        let pt_old = ParquetFileWithTombstone {
-            data: Arc::new(pf_old),
-            tombstones: vec![],
-        };
-        // upgradable
-        assert!(pt_old.level_upgradable(Arc::<time::SystemProvider>::clone(&time)));
-
-        // file is created today
-        let pf_new = arbitrary_parquet_file_with_creation_time(1, 10, time.now().timestamp_nanos());
-        let pt_new = ParquetFileWithTombstone {
-            data: Arc::new(pf_new),
-            tombstones: vec![],
-        };
-        // not upgradable
-        assert!(!pt_new.level_upgradable(Arc::<time::SystemProvider>::clone(&time)));
-    }
-
-    #[test]
     fn test_overlapped_groups_no_overlap() {
         // Given two files that don't overlap,
         let pf1 = arbitrary_parquet_file(1, 2);
@@ -1719,14 +1928,16 @@ mod tests {
     async fn add_tombstones_to_parquet_files_in_groups() {
         let catalog = TestCatalog::new();
 
-        let compactor = Compactor {
-            sequencers: vec![],
-            object_store: Arc::clone(&catalog.object_store),
-            catalog: Arc::clone(&catalog.catalog),
-            exec: Arc::new(Executor::new(1)),
-            time_provider: Arc::new(SystemProvider::new()),
-            backoff_config: BackoffConfig::default(),
-        };
+        let compactor = Compactor::new(
+            vec![],
+            Arc::clone(&catalog.catalog),
+            Arc::clone(&catalog.object_store),
+            Arc::new(Executor::new(1)),
+            Arc::new(SystemProvider::new()),
+            BackoffConfig::default(),
+            CompactorConfig::new(90, 10000000),
+            Arc::new(metric::Registry::new()),
+        );
 
         let mut txn = catalog.catalog.start_transaction().await.unwrap();
 
@@ -1887,14 +2098,16 @@ mod tests {
     async fn persist_adds_to_object_store() {
         let catalog = TestCatalog::new();
 
-        let compactor = Compactor {
-            sequencers: vec![],
-            object_store: Arc::clone(&catalog.object_store),
-            catalog: Arc::clone(&catalog.catalog),
-            exec: Arc::new(Executor::new(1)),
-            time_provider: Arc::new(SystemProvider::new()),
-            backoff_config: BackoffConfig::default(),
-        };
+        let compactor = Compactor::new(
+            vec![],
+            Arc::clone(&catalog.catalog),
+            Arc::clone(&catalog.object_store),
+            Arc::new(Executor::new(1)),
+            Arc::new(SystemProvider::new()),
+            BackoffConfig::default(),
+            CompactorConfig::new(90, 10000000),
+            Arc::new(metric::Registry::new()),
+        );
 
         let table_id = TableId::new(3);
         let sequencer_id = SequencerId::new(2);
@@ -1964,14 +2177,16 @@ mod tests {
     async fn test_add_parquet_file_with_tombstones() {
         let catalog = TestCatalog::new();
 
-        let compactor = Compactor {
-            sequencers: vec![],
-            object_store: Arc::clone(&catalog.object_store),
-            catalog: Arc::clone(&catalog.catalog),
-            exec: Arc::new(Executor::new(1)),
-            time_provider: Arc::new(SystemProvider::new()),
-            backoff_config: BackoffConfig::default(),
-        };
+        let compactor = Compactor::new(
+            vec![],
+            Arc::clone(&catalog.catalog),
+            Arc::clone(&catalog.object_store),
+            Arc::new(Executor::new(1)),
+            Arc::new(SystemProvider::new()),
+            BackoffConfig::default(),
+            CompactorConfig::new(90, 10000000),
+            Arc::new(metric::Registry::new()),
+        );
 
         let mut txn = catalog.catalog.start_transaction().await.unwrap();
         let kafka = txn.kafka_topics().create_or_get("foo").await.unwrap();
@@ -2195,5 +2410,137 @@ mod tests {
         assert_eq!(pt_count_after - pt_count_before, 0);
         assert_eq!(parquet_file_count_after - parquet_file_count_before, 0);
         txn.commit().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_candidate_partitions() {
+        let catalog = TestCatalog::new();
+
+        let mut txn = catalog.catalog.start_transaction().await.unwrap();
+
+        let kafka = txn.kafka_topics().create_or_get("foo").await.unwrap();
+        let pool = txn.query_pools().create_or_get("foo").await.unwrap();
+        let namespace = txn
+            .namespaces()
+            .create("namespace_candidate_partitions", "inf", kafka.id, pool.id)
+            .await
+            .unwrap();
+        let table = txn
+            .tables()
+            .create_or_get("test_table", namespace.id)
+            .await
+            .unwrap();
+        let sequencer = txn
+            .sequencers()
+            .create_or_get(&kafka, KafkaPartition::new(1))
+            .await
+            .unwrap();
+        let partition = txn
+            .partitions()
+            .create_or_get("one", sequencer.id, table.id)
+            .await
+            .unwrap();
+        let partition2 = txn
+            .partitions()
+            .create_or_get("two", sequencer.id, table.id)
+            .await
+            .unwrap();
+        let partition3 = txn
+            .partitions()
+            .create_or_get("three", sequencer.id, table.id)
+            .await
+            .unwrap();
+        let partition4 = txn
+            .partitions()
+            .create_or_get("four", sequencer.id, table.id)
+            .await
+            .unwrap();
+
+        let p1 = ParquetFileParams {
+            sequencer_id: sequencer.id,
+            namespace_id: namespace.id,
+            table_id: table.id,
+            partition_id: partition.id,
+            object_store_id: Uuid::new_v4(),
+            min_sequence_number: SequenceNumber::new(4),
+            max_sequence_number: SequenceNumber::new(100),
+            min_time: Timestamp::new(1),
+            max_time: Timestamp::new(5),
+            file_size_bytes: 1337,
+            parquet_metadata: b"md1".to_vec(),
+            row_count: 0,
+            created_at: Timestamp::new(1),
+        };
+
+        let p2 = ParquetFileParams {
+            object_store_id: Uuid::new_v4(),
+            ..p1.clone()
+        };
+        let p3 = ParquetFileParams {
+            object_store_id: Uuid::new_v4(),
+            partition_id: partition2.id,
+            ..p1.clone()
+        };
+        let p4 = ParquetFileParams {
+            object_store_id: Uuid::new_v4(),
+            partition_id: partition3.id,
+            file_size_bytes: 20000,
+            ..p1.clone()
+        };
+        let p5 = ParquetFileParams {
+            object_store_id: Uuid::new_v4(),
+            partition_id: partition4.id,
+            ..p1.clone()
+        };
+        let pf1 = txn.parquet_files().create(p1).await.unwrap();
+        let _pf2 = txn.parquet_files().create(p2).await.unwrap();
+        let pf3 = txn.parquet_files().create(p3).await.unwrap();
+        let pf4 = txn.parquet_files().create(p4).await.unwrap();
+        let pf5 = txn.parquet_files().create(p5).await.unwrap();
+        txn.parquet_files()
+            .update_to_level_1(&[pf5.id])
+            .await
+            .unwrap();
+        txn.commit().await.unwrap();
+
+        let compactor = Compactor::new(
+            vec![sequencer.id],
+            Arc::clone(&catalog.catalog),
+            Arc::clone(&catalog.object_store),
+            Arc::new(Executor::new(1)),
+            Arc::new(SystemProvider::new()),
+            BackoffConfig::default(),
+            CompactorConfig::new(90, 10000000),
+            Arc::new(metric::Registry::new()),
+        );
+
+        let candidates = compactor.partitions_to_compact().await.unwrap();
+        let expect: Vec<PartitionCompactionCandidate> = vec![
+            PartitionCompactionCandidate {
+                sequencer_id: sequencer.id,
+                table_id: table.id,
+                partition_id: partition.id,
+                level_0_file_count: 2,
+                file_size_bytes: 1337 * 2,
+                oldest_file: pf1.created_at,
+            },
+            PartitionCompactionCandidate {
+                sequencer_id: sequencer.id,
+                table_id: table.id,
+                partition_id: partition3.id,
+                level_0_file_count: 1,
+                file_size_bytes: 20000,
+                oldest_file: pf4.created_at,
+            },
+            PartitionCompactionCandidate {
+                sequencer_id: sequencer.id,
+                table_id: table.id,
+                partition_id: partition2.id,
+                level_0_file_count: 1,
+                file_size_bytes: 1337,
+                oldest_file: pf3.created_at,
+            },
+        ];
+        assert_eq!(expect, candidates);
     }
 }
