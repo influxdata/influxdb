@@ -1,6 +1,7 @@
 use std::{any::Any, collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
+use data_types2::NamespaceId;
 use datafusion::{
     catalog::{catalog::CatalogProvider, schema::SchemaProvider},
     datasource::TableProvider,
@@ -13,7 +14,12 @@ use query::{
 use schema::Schema;
 use trace::ctx::SpanContext;
 
-use crate::{namespace::QuerierNamespace, table::QuerierTable};
+use crate::{
+    namespace::QuerierNamespace,
+    query_log::QueryLog,
+    system_tables::{SystemSchemaProvider, SYSTEM_SCHEMA},
+    table::QuerierTable,
+};
 
 impl QueryDatabaseMeta for QuerierNamespace {
     fn table_names(&self) -> Vec<String> {
@@ -61,12 +67,16 @@ impl QueryDatabase for QuerierNamespace {
 
     fn record_query(
         &self,
-        _ctx: &IOxSessionContext,
-        _query_type: &str,
-        _query_text: QueryText,
+        ctx: &IOxSessionContext,
+        query_type: &str,
+        query_text: QueryText,
     ) -> QueryCompletedToken {
-        // TODO: implement query recording again (https://github.com/influxdata/influxdb_iox/issues/4084)
-        QueryCompletedToken::new(|_success| {})
+        // When the query token is dropped the query entry's completion time
+        // will be set.
+        let query_log = Arc::clone(&self.query_log);
+        let trace_id = ctx.span().map(|s| s.ctx.trace_id);
+        let entry = query_log.push(self.id, query_type, query_text, trace_id);
+        QueryCompletedToken::new(move |success| query_log.set_completed(entry, success))
     }
 
     fn as_meta(&self) -> &dyn QueryDatabaseMeta {
@@ -75,14 +85,22 @@ impl QueryDatabase for QuerierNamespace {
 }
 
 pub struct QuerierCatalogProvider {
+    /// Namespace ID.
+    namespace_id: NamespaceId,
+
     /// A snapshot of all tables.
     tables: Arc<HashMap<Arc<str>, Arc<QuerierTable>>>,
+
+    /// Query log.
+    query_log: Arc<QueryLog>,
 }
 
 impl QuerierCatalogProvider {
     fn from_namespace(namespace: &QuerierNamespace) -> Self {
         Self {
+            namespace_id: namespace.id,
             tables: Arc::clone(&namespace.tables),
+            query_log: Arc::clone(&namespace.query_log),
         }
     }
 }
@@ -93,11 +111,7 @@ impl CatalogProvider for QuerierCatalogProvider {
     }
 
     fn schema_names(&self) -> Vec<String> {
-        // TODO: system tables (https://github.com/influxdata/influxdb_iox/issues/4085)
-        vec![
-            DEFAULT_SCHEMA.to_string(),
-            // system_tables::SYSTEM_SCHEMA.to_string(),
-        ]
+        vec![DEFAULT_SCHEMA.to_string(), SYSTEM_SCHEMA.to_string()]
     }
 
     fn schema(&self, name: &str) -> Option<Arc<dyn SchemaProvider>> {
@@ -105,7 +119,10 @@ impl CatalogProvider for QuerierCatalogProvider {
             DEFAULT_SCHEMA => Some(Arc::new(UserSchemaProvider {
                 tables: Arc::clone(&self.tables),
             })),
-            // SYSTEM_SCHEMA => Some(Arc::clone(&self.system_tables) as Arc<dyn SchemaProvider>),
+            SYSTEM_SCHEMA => Some(Arc::new(SystemSchemaProvider::new(
+                Arc::clone(&self.query_log),
+                self.namespace_id,
+            ))),
             _ => None,
         }
     }

@@ -19,7 +19,9 @@ mod flight;
 mod handler;
 mod namespace;
 mod poison;
+mod query_log;
 mod server;
+mod system_tables;
 mod table;
 mod tombstone;
 

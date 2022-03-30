@@ -1,6 +1,9 @@
 //! Database for the querier that contains all namespaces.
 
-use crate::{cache::CatalogCache, chunk::ParquetChunkAdapter, namespace::QuerierNamespace};
+use crate::{
+    cache::CatalogCache, chunk::ParquetChunkAdapter, namespace::QuerierNamespace,
+    query_log::QueryLog,
+};
 use async_trait::async_trait;
 use backoff::BackoffConfig;
 use iox_catalog::interface::Catalog;
@@ -10,6 +13,11 @@ use query::exec::Executor;
 use service_common::QueryDatabaseProvider;
 use std::{collections::HashMap, sync::Arc};
 use time::TimeProvider;
+
+/// The number of entries to store in the circular query buffer log.
+///
+/// That buffer is shared between all namespaces, and filtered on query
+const QUERY_LOG_SIZE: usize = 10_000;
 
 /// Database for the querier.
 ///
@@ -42,6 +50,9 @@ pub struct QuerierDatabase {
 
     /// Executor for queries.
     exec: Arc<Executor>,
+
+    /// Query log.
+    query_log: Arc<QueryLog>,
 }
 
 #[async_trait]
@@ -72,6 +83,7 @@ impl QuerierDatabase {
             Arc::clone(&metric_registry),
             Arc::clone(&time_provider),
         ));
+        let query_log = Arc::new(QueryLog::new(QUERY_LOG_SIZE, Arc::clone(&time_provider)));
 
         Self {
             backoff_config: BackoffConfig::default(),
@@ -83,6 +95,7 @@ impl QuerierDatabase {
             object_store,
             time_provider,
             exec,
+            query_log,
         }
     }
 
@@ -100,6 +113,7 @@ impl QuerierDatabase {
             schema,
             name,
             Arc::clone(&self.exec),
+            Arc::clone(&self.query_log),
         )))
     }
 }

@@ -1,5 +1,7 @@
 //! Namespace within the whole database.
-use crate::{cache::CatalogCache, chunk::ParquetChunkAdapter, table::QuerierTable};
+use crate::{
+    cache::CatalogCache, chunk::ParquetChunkAdapter, query_log::QueryLog, table::QuerierTable,
+};
 use backoff::BackoffConfig;
 use data_types2::{NamespaceId, NamespaceSchema};
 use iox_catalog::interface::Catalog;
@@ -34,6 +36,9 @@ pub struct QuerierNamespace {
 
     /// Executor for queries.
     exec: Arc<Executor>,
+
+    /// Query log.
+    query_log: Arc<QueryLog>,
 }
 
 impl QuerierNamespace {
@@ -44,6 +49,7 @@ impl QuerierNamespace {
         schema: Arc<NamespaceSchema>,
         name: Arc<str>,
         exec: Arc<Executor>,
+        query_log: Arc<QueryLog>,
     ) -> Self {
         let tables: HashMap<_, _> = schema
             .tables
@@ -72,6 +78,7 @@ impl QuerierNamespace {
             name,
             tables: Arc::new(tables),
             exec,
+            query_log,
         }
     }
 
@@ -90,10 +97,18 @@ impl QuerierNamespace {
             catalog_cache,
             object_store,
             metric_registry,
-            time_provider,
+            Arc::clone(&time_provider),
         ));
+        let query_log = Arc::new(QueryLog::new(10, time_provider));
 
-        Self::new(BackoffConfig::default(), chunk_adapter, schema, name, exec)
+        Self::new(
+            BackoffConfig::default(),
+            chunk_adapter,
+            schema,
+            name,
+            exec,
+            query_log,
+        )
     }
 
     /// Namespace name.

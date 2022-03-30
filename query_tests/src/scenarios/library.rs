@@ -11,14 +11,14 @@ use db::{
     },
     LockableChunk, LockablePartition,
 };
-use query::QueryChunk;
+use query::{frontend::sql::SqlQueryPlanner, QueryChunk};
 
 use crate::scenarios::util::{make_n_chunks_scenario_new, ChunkDataNew};
 
 use super::{
     util::{
         all_scenarios_for_one_chunk, make_one_rub_or_parquet_chunk_scenario,
-        make_two_chunk_scenarios,
+        make_two_chunk_scenarios, ChunkStageNew,
     },
     DbScenario, DbSetup,
 };
@@ -664,6 +664,64 @@ impl DbSetup for OldTwoMeasurementsManyFieldsTwoChunks {
                 .into(),
             db,
         }]
+    }
+}
+
+#[derive(Debug)]
+/// This has two chunks for queries that check the state of the system
+///
+/// This scenario is NG-specific and can be used for `EXPLAIN` plans and system tables.
+pub struct NewTwoMeasurementsManyFieldsTwoChunks {}
+#[async_trait]
+impl DbSetup for NewTwoMeasurementsManyFieldsTwoChunks {
+    async fn make(&self) -> Vec<DbScenario> {
+        let partition_key = "1970-01-01T00";
+
+        let lp_lines1 = vec![
+            "h2o,state=MA,city=Boston temp=70.4 50",
+            "h2o,state=MA,city=Boston other_temp=70.4 250",
+        ];
+
+        let lp_lines2 = vec![
+            "h2o,state=CA,city=Boston other_temp=72.4 350",
+            "o2,state=MA,city=Boston temp=53.4,reading=51 50",
+            "o2,state=CA temp=79.0 300",
+        ];
+
+        let scenarios = make_n_chunks_scenario_new(&[
+            ChunkDataNew {
+                lp_lines: lp_lines1,
+                partition_key,
+                chunk_stage: Some(ChunkStageNew::Parquet),
+                ..Default::default()
+            },
+            ChunkDataNew {
+                lp_lines: lp_lines2,
+                partition_key,
+                chunk_stage: Some(ChunkStageNew::Parquet),
+                ..Default::default()
+            },
+        ])
+        .await;
+
+        // run a test query on each DB
+        for scenario in &scenarios {
+            let query = "SELECT 1;";
+            let planner = SqlQueryPlanner::default();
+            let ctx = scenario.db.new_query_context(None);
+            let physical_plan = planner
+                .query(query, &ctx)
+                .await
+                .expect("built plan successfully");
+            let mut query_completed_token =
+                scenario
+                    .db
+                    .record_query(&ctx, "sql", Box::new(String::from(query)));
+            ctx.collect(physical_plan).await.expect("Running plan");
+            query_completed_token.set_success()
+        }
+
+        scenarios
     }
 }
 
