@@ -8,13 +8,13 @@ use thiserror::Error;
 use time::SystemProvider;
 
 use clap_blocks::{catalog_dsn::CatalogDsnConfig, run_config::RunConfig};
-use influxdb_ioxd::{self, server_type::querier::create_querier_server_type, Service};
+use ioxd::{self, server_type::querier::create_querier_server_type, Service};
 use ioxd_common::server_type::{CommonServerState, CommonServerStateError};
 
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("Run: {0}")]
-    Run(#[from] influxdb_ioxd::Error),
+    Run(#[from] ioxd::Error),
 
     #[error("Invalid config: {0}")]
     InvalidConfig(#[from] CommonServerStateError),
@@ -92,5 +92,5 @@ pub async fn command(config: Config) -> Result<(), Error> {
     info!("starting querier");
 
     let services = vec![Service::create(server_type, common_state.run_config())];
-    Ok(influxdb_ioxd::main(common_state, services).await?)
+    Ok(ioxd::main(common_state, services).await?)
 }

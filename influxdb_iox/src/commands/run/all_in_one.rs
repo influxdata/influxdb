@@ -11,7 +11,7 @@ use clap_blocks::{
 };
 use ioxd_common::server_type::{CommonServerState, CommonServerStateError};
 
-use influxdb_ioxd::{
+use ioxd::{
     self,
     server_type::{
         compactor::create_compactor_server_type, ingester::create_ingester_server_type,
@@ -43,7 +43,7 @@ pub const DEFAULT_COMPACTOR_GRPC_BIND_ADDR: &str = "127.0.0.1:8084";
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("Run: {0}")]
-    Run(#[from] influxdb_ioxd::Error),
+    Run(#[from] ioxd::Error),
 
     #[error("Catalog DSN error: {0}")]
     CatalogDsn(#[from] clap_blocks::catalog_dsn::Error),
@@ -55,13 +55,13 @@ pub enum Error {
     ObjectStoreParsing(#[from] clap_blocks::object_store::ParseError),
 
     #[error("Router2 error: {0}")]
-    Router2(#[from] influxdb_ioxd::server_type::router2::Error),
+    Router2(#[from] ioxd::server_type::router2::Error),
 
     #[error("Ingester error: {0}")]
-    Ingester(#[from] influxdb_ioxd::server_type::ingester::Error),
+    Ingester(#[from] ioxd::server_type::ingester::Error),
 
     #[error("error initializing compactor: {0}")]
-    Compactor(#[from] influxdb_ioxd::server_type::compactor::Error),
+    Compactor(#[from] ioxd::server_type::compactor::Error),
 
     #[error("Invalid config: {0}")]
     InvalidConfig(#[from] CommonServerStateError),
@@ -384,5 +384,5 @@ pub async fn command(config: Config) -> Result<()> {
         Service::create_grpc_only(querier, &querier_run_config),
     ];
 
-    Ok(influxdb_ioxd::main(common_state, services).await?)
+    Ok(ioxd::main(common_state, services).await?)
 }

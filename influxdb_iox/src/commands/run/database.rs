@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use clap_blocks::run_config::RunConfig;
 use data_types::boolean_flag::BooleanFlag;
-use influxdb_ioxd::{self, Service};
+use ioxd::{self, Service};
 use ioxd_common::server_type::{CommonServerState, CommonServerStateError};
 use ioxd_database::{
     setup::{make_application, make_server},
@@ -16,7 +16,7 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("Run: {0}")]
-    Run(#[from] influxdb_ioxd::Error),
+    Run(#[from] ioxd::Error),
 
     #[error("Cannot setup server: {0}")]
     Setup(#[from] ioxd_database::setup::Error),
@@ -128,5 +128,5 @@ pub async fn command(config: Config) -> Result<()> {
     ));
 
     let services = vec![Service::create(server_type, common_state.run_config())];
-    Ok(influxdb_ioxd::main(common_state, services).await?)
+    Ok(ioxd::main(common_state, services).await?)
 }

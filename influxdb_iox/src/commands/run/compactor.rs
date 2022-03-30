@@ -10,13 +10,13 @@ use time::SystemProvider;
 use clap_blocks::{
     catalog_dsn::CatalogDsnConfig, compactor::CompactorConfig, run_config::RunConfig,
 };
-use influxdb_ioxd::{self, server_type::compactor::create_compactor_server_type, Service};
+use ioxd::{self, server_type::compactor::create_compactor_server_type, Service};
 use ioxd_common::server_type::{CommonServerState, CommonServerStateError};
 
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("Run: {0}")]
-    Run(#[from] influxdb_ioxd::Error),
+    Run(#[from] ioxd::Error),
 
     #[error("Invalid config: {0}")]
     InvalidConfig(#[from] CommonServerStateError),
@@ -31,7 +31,7 @@ pub enum Error {
     ObjectStoreParsing(#[from] clap_blocks::object_store::ParseError),
 
     #[error("error initializing compactor: {0}")]
-    Compactor(#[from] influxdb_ioxd::server_type::compactor::Error),
+    Compactor(#[from] ioxd::server_type::compactor::Error),
 }
 
 #[derive(Debug, clap::Parser)]
@@ -100,5 +100,5 @@ pub async fn command(config: Config) -> Result<(), Error> {
     info!("starting compactor");
 
     let services = vec![Service::create(server_type, common_state.run_config())];
-    Ok(influxdb_ioxd::main(common_state, services).await?)
+    Ok(ioxd::main(common_state, services).await?)
 }

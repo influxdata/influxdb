@@ -120,7 +120,7 @@ where
 }
 
 /// This adaptor converts the `router2` http error type into a type that
-/// satisfies the requirements of influxdb_ioxd's runner framework, keeping the
+/// satisfies the requirements of ioxd's runner framework, keeping the
 /// two decoupled.
 #[derive(Debug)]
 pub struct IoxHttpErrorAdaptor(router2::server::http::Error);

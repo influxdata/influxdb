@@ -5,7 +5,7 @@ use std::sync::Arc;
 use clap_blocks::{
     catalog_dsn::CatalogDsnConfig, run_config::RunConfig, write_buffer::WriteBufferConfig,
 };
-use influxdb_ioxd::{self, server_type::router2::create_router2_server_type, Service};
+use ioxd::{self, server_type::router2::create_router2_server_type, Service};
 use ioxd_common::server_type::{CommonServerState, CommonServerStateError};
 use observability_deps::tracing::*;
 use thiserror::Error;
@@ -13,13 +13,13 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("Run: {0}")]
-    Run(#[from] influxdb_ioxd::Error),
+    Run(#[from] ioxd::Error),
 
     #[error("Invalid config: {0}")]
     InvalidConfig(#[from] CommonServerStateError),
 
     #[error("Creating router: {0}")]
-    Router(#[from] influxdb_ioxd::server_type::router2::Error),
+    Router(#[from] ioxd::server_type::router2::Error),
 
     #[error("Catalog DSN error: {0}")]
     CatalogDsn(#[from] clap_blocks::catalog_dsn::Error),
@@ -81,5 +81,5 @@ pub async fn command(config: Config) -> Result<()> {
 
     info!("starting router2");
     let services = vec![Service::create(server_type, common_state.run_config())];
-    Ok(influxdb_ioxd::main(common_state, services).await?)
+    Ok(ioxd::main(common_state, services).await?)
 }

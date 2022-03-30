@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use clap_blocks::run_config::RunConfig;
-use influxdb_ioxd::{
+use ioxd::{
     self,
     server_type::test::{TestAction, TestServerType},
     Service,
@@ -15,7 +15,7 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("Run: {0}")]
-    Run(#[from] influxdb_ioxd::Error),
+    Run(#[from] ioxd::Error),
 
     #[error("Invalid config: {0}")]
     InvalidConfig(#[from] CommonServerStateError),
@@ -62,5 +62,5 @@ pub async fn command(config: Config) -> Result<()> {
     ));
 
     let services = vec![Service::create(server_type, common_state.run_config())];
-    Ok(influxdb_ioxd::main(common_state, services).await?)
+    Ok(ioxd::main(common_state, services).await?)
 }

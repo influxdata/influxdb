@@ -4,7 +4,7 @@ use clap_blocks::{
     catalog_dsn::CatalogDsnConfig, ingester::IngesterConfig, run_config::RunConfig,
     write_buffer::WriteBufferConfig,
 };
-use influxdb_ioxd::{self, server_type::ingester::create_ingester_server_type, Service};
+use ioxd::{self, server_type::ingester::create_ingester_server_type, Service};
 use ioxd_common::server_type::{CommonServerState, CommonServerStateError};
 use object_store::{instrumentation::ObjectStoreMetrics, DynObjectStore, ObjectStoreImpl};
 use observability_deps::tracing::*;
@@ -15,7 +15,7 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("Run: {0}")]
-    Run(#[from] influxdb_ioxd::Error),
+    Run(#[from] ioxd::Error),
 
     #[error("Invalid config: {0}")]
     InvalidConfig(#[from] CommonServerStateError),
@@ -24,7 +24,7 @@ pub enum Error {
     ObjectStoreParsing(#[from] clap_blocks::object_store::ParseError),
 
     #[error("error initializing ingester: {0}")]
-    Ingester(#[from] influxdb_ioxd::server_type::ingester::Error),
+    Ingester(#[from] ioxd::server_type::ingester::Error),
 
     #[error("Catalog DSN error: {0}")]
     CatalogDsn(#[from] clap_blocks::catalog_dsn::Error),
@@ -98,5 +98,5 @@ pub async fn command(config: Config) -> Result<()> {
     info!("starting ingester");
 
     let services = vec![Service::create(server_type, common_state.run_config())];
-    Ok(influxdb_ioxd::main(common_state, services).await?)
+    Ok(ioxd::main(common_state, services).await?)
 }
