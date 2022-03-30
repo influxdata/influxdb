@@ -7,6 +7,7 @@ pub enum ServerType {
     AllInOne,
     Ingester,
     Router2,
+    Querier,
 }
 
 impl ServerType {
@@ -16,6 +17,7 @@ impl ServerType {
             Self::AllInOne => "all-in-one",
             Self::Ingester => "ingester",
             Self::Router2 => "router2",
+            Self::Querier => "querier",
         }
     }
 }
@@ -66,6 +68,15 @@ impl AddAddrEnv for Command {
                 .env(
                     "INFLUXDB_IOX_GRPC_BIND_ADDR",
                     addrs.router_grpc_api().bind_addr().as_ref(),
+                ),
+            ServerType::Querier => self
+                .env(
+                    "INFLUXDB_IOX_BIND_ADDR",
+                    addrs.router_http_api().bind_addr().as_ref(),
+                )
+                .env(
+                    "INFLUXDB_IOX_GRPC_BIND_ADDR",
+                    addrs.querier_grpc_api().bind_addr().as_ref(),
                 ),
         }
     }

@@ -1,2 +1,4 @@
 mod all_in_one;
-mod ng;
+mod ingester;
+mod querier;
+mod schema;

@@ -2,6 +2,7 @@ use assert_cmd::prelude::*;
 use futures::prelude::*;
 use influxdb_iox_client::connection::Connection;
 use std::{
+    fmt::Debug,
     path::Path,
     process::{Child, Command},
     str,
@@ -17,6 +18,7 @@ use super::{addrs::BindAddresses, ServerType, TestConfig};
 
 /// Represents a server that has been started and is available for
 /// testing.
+#[derive(Debug)]
 pub struct ServerFixture {
     server: Arc<TestServer>,
 }
@@ -62,8 +64,8 @@ impl ServerFixture {
     }
 }
 
-#[derive(Debug)]
 /// Represents the current known state of a TestServer
+#[derive(Debug)]
 enum ServerState {
     Started,
     Starting,
@@ -71,6 +73,7 @@ enum ServerState {
     Error,
 }
 
+#[derive(Debug)]
 pub struct TestServer {
     /// Is the server ready to accept connections?
     ready: Mutex<ServerState>,
@@ -94,6 +97,7 @@ pub struct TestServer {
     querier_grpc_connection: Option<Connection>,
 }
 
+#[derive(Debug)]
 struct Process {
     child: Child,
     log_path: Box<Path>,
@@ -199,7 +203,7 @@ impl TestServer {
 
         self.querier_grpc_connection =
             match server_type {
-                ServerType::AllInOne => {
+                ServerType::AllInOne | ServerType::Querier => {
                     let client_base = self.addrs.querier_grpc_api().client_base();
                     Some(self.grpc_channel(client_base.as_ref()).await.map_err(|e| {
                         format!("Can not connect to querier at {}: {}", client_base, e)
@@ -389,6 +393,12 @@ impl TestServer {
                 ServerType::Ingester => {
                     if check_arrow_service_health(server_type, self.ingester_grpc_connection())
                         .await
+                    {
+                        return;
+                    }
+                }
+                ServerType::Querier => {
+                    if check_arrow_service_health(server_type, self.querier_grpc_connection()).await
                     {
                         return;
                     }

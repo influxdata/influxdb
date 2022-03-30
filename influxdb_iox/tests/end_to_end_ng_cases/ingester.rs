@@ -1,45 +1,35 @@
-use assert_cmd::Command;
 use http::StatusCode;
-use predicates::prelude::*;
-use test_helpers_end_to_end_ng::{
-    maybe_skip_integration, rand_name, write_to_router, ServerFixture, TestConfig,
-};
+use test_helpers_end_to_end_ng::{maybe_skip_integration, MiniCluster, TestConfig};
 
 use arrow_util::assert_batches_sorted_eq;
 use data_types2::{IngesterQueryRequest, SequencerId};
 
 #[tokio::test]
-async fn router2_through_ingester() {
+async fn ingester_flight_api() {
     let database_url = maybe_skip_integration!();
 
     let sequencer_id = SequencerId::new(1);
-    let org = rand_name();
-    let bucket = rand_name();
-    let namespace = format!("{}_{}", org, bucket);
     let table_name = "mytable";
-
-    // Set up router2 ====================================
 
     let router2_config = TestConfig::new_router2(&database_url);
     let ingester_config = TestConfig::new_ingester(&router2_config);
 
-    let router2 = ServerFixture::create(router2_config).await;
+    // Set up router2  ====================================
+    let cluster = MiniCluster::new().with_router2(router2_config).await;
 
     // Write some data into the v2 HTTP API ==============
     let lp = format!("{},tag1=A,tag2=B val=42i 123456", table_name);
-
-    let response = write_to_router(lp, org, bucket, router2.server().router_http_base()).await;
-
+    let response = cluster.write_to_router(lp).await;
     assert_eq!(response.status(), StatusCode::NO_CONTENT);
 
     // Set up ingester ===================================
-    let ingester = ServerFixture::create(ingester_config).await;
+    let cluster = cluster.with_ingester(ingester_config).await;
 
     let mut querier_flight =
-        querier::QuerierFlightClient::new(ingester.server().ingester_grpc_connection());
+        querier::QuerierFlightClient::new(cluster.ingester().ingester_grpc_connection());
 
     let query = IngesterQueryRequest::new(
-        namespace.clone(),
+        cluster.namespace().to_string(),
         sequencer_id,
         table_name.into(),
         vec![],
@@ -60,20 +50,4 @@ async fn router2_through_ingester() {
         "+------+------+--------------------------------+-----+",
     ];
     assert_batches_sorted_eq!(&expected, &query_results);
-
-    // Validate the output of the schema CLI command
-    Command::cargo_bin("influxdb_iox")
-        .unwrap()
-        .arg("-h")
-        .arg(router2.server().router_grpc_base().as_ref())
-        .arg("schema")
-        .arg("get")
-        .arg(namespace)
-        .assert()
-        .success()
-        .stdout(
-            predicate::str::contains("mytable")
-                .and(predicate::str::contains("tag1"))
-                .and(predicate::str::contains("val")),
-        );
 }

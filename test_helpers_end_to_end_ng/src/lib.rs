@@ -4,12 +4,14 @@ mod addrs;
 mod client;
 mod config;
 mod database;
+mod mini_cluster;
 mod server_fixture;
 mod server_type;
 
 pub use client::*;
 pub use config::TestConfig;
-pub use server_fixture::ServerFixture;
+pub use mini_cluster::MiniCluster;
+pub use server_fixture::{ServerFixture, TestServer};
 pub use server_type::ServerType;
 
 /// Return a random string suitable for use as a database name

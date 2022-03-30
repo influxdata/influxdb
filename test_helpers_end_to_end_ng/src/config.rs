@@ -57,14 +57,24 @@ impl TestConfig {
             .with_default_ingester_options()
     }
 
+    /// Create a minimal querier configuration, using the dsn and
+    /// object store from other
+    pub fn new_querier(other: &TestConfig) -> Self {
+        Self::new(ServerType::Querier, other.dsn()).with_existing_object_store(other)
+    }
+
     /// Create a minimal all in one configuration
     pub fn new_all_in_one(dsn: impl Into<String>) -> Self {
         Self::new(ServerType::AllInOne, dsn)
             .with_new_write_buffer()
             .with_new_object_store()
             .with_default_ingester_options()
-            // Aggressive expulsion of parquet files
-            .with_env("INFLUXDB_IOX_PAUSE_INGEST_SIZE_BYTES", "2")
+            .with_fast_parquet_generation()
+    }
+
+    /// Create a configuraton for aggressive creation of parquet files
+    pub fn with_fast_parquet_generation(self) -> Self {
+        self.with_env("INFLUXDB_IOX_PAUSE_INGEST_SIZE_BYTES", "2")
             .with_env("INFLUXDB_IOX_PERSIST_MEMORY_THRESHOLD_BYTES", "1")
     }
 

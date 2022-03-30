@@ -53,7 +53,7 @@ impl Address {
 }
 
 /// This structure contains all the addresses a test server could use
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct BindAddresses {
     router_http_api: std::sync::Mutex<Option<Address>>,
     router_grpc_api: std::sync::Mutex<Option<Address>>,
