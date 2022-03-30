@@ -162,7 +162,7 @@ func NewStorageReader(tb testing.TB, setupFn SetupFunc) *StorageReader {
 	}
 }
 
-func (r *StorageReader) ReadWindowAggregate(ctx context.Context, spec influxdb.ReadWindowAggregateSpec, alloc *memory.Allocator) (influxdb.TableIterator, error) {
+func (r *StorageReader) ReadWindowAggregate(ctx context.Context, spec influxdb.ReadWindowAggregateSpec, alloc memory.Allocator) (influxdb.TableIterator, error) {
 	return r.Reader.ReadWindowAggregate(ctx, spec, alloc)
 }
 
@@ -182,7 +182,7 @@ func TestStorageReader_ReadFilter(t *testing.T) {
 	mem := arrowmem.NewCheckedAllocator(arrowmem.DefaultAllocator)
 	defer mem.AssertSize(t, 0)
 
-	alloc := &memory.Allocator{
+	alloc := &memory.ResourceAllocator{
 		Allocator: mem,
 	}
 	ti, err := reader.ReadFilter(context.Background(), influxdb.ReadFilterSpec{
@@ -258,11 +258,11 @@ func TestStorageReader_Table(t *testing.T) {
 
 	for _, tc := range []struct {
 		name  string
-		newFn func(ctx context.Context, alloc *memory.Allocator) flux.TableIterator
+		newFn func(ctx context.Context, alloc memory.Allocator) flux.TableIterator
 	}{
 		{
 			name: "ReadFilter",
-			newFn: func(ctx context.Context, alloc *memory.Allocator) flux.TableIterator {
+			newFn: func(ctx context.Context, alloc memory.Allocator) flux.TableIterator {
 				ti, err := reader.ReadFilter(context.Background(), influxdb.ReadFilterSpec{
 					Database:        reader.Database,
 					RetentionPolicy: reader.RetentionPolicy,
@@ -414,7 +414,7 @@ func TestStorageReader_ReadWindowAggregate(t *testing.T) {
 			mem := arrowmem.NewCheckedAllocator(arrowmem.DefaultAllocator)
 			defer mem.AssertSize(t, 0)
 
-			alloc := &memory.Allocator{
+			alloc := &memory.ResourceAllocator{
 				Allocator: mem,
 			}
 			got, err := reader.ReadWindowAggregate(context.Background(), influxdb.ReadWindowAggregateSpec{
@@ -514,7 +514,6 @@ func TestStorageReader_ReadWindowAggregate_ByStopTime(t *testing.T) {
 			},
 		},
 	} {
-		mem := &memory.Allocator{}
 		got, err := reader.ReadWindowAggregate(context.Background(), influxdb.ReadWindowAggregateSpec{
 			ReadFilterSpec: influxdb.ReadFilterSpec{
 				Database:        reader.Database,
@@ -529,7 +528,7 @@ func TestStorageReader_ReadWindowAggregate_ByStopTime(t *testing.T) {
 			Aggregates: []plan.ProcedureKind{
 				tt.aggregate,
 			},
-		}, mem)
+		}, memory.DefaultAllocator)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -613,7 +612,6 @@ func TestStorageReader_ReadWindowAggregate_ByStartTime(t *testing.T) {
 		},
 	} {
 		t.Run(string(tt.aggregate), func(t *testing.T) {
-			mem := &memory.Allocator{}
 			got, err := reader.ReadWindowAggregate(context.Background(), influxdb.ReadWindowAggregateSpec{
 				ReadFilterSpec: influxdb.ReadFilterSpec{
 					Database:        reader.Database,
@@ -628,7 +626,7 @@ func TestStorageReader_ReadWindowAggregate_ByStartTime(t *testing.T) {
 				Aggregates: []plan.ProcedureKind{
 					tt.aggregate,
 				},
-			}, mem)
+			}, memory.DefaultAllocator)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -797,7 +795,6 @@ func TestStorageReader_ReadWindowAggregate_CreateEmpty(t *testing.T) {
 		},
 	} {
 		t.Run(string(tt.aggregate), func(t *testing.T) {
-			mem := &memory.Allocator{}
 			got, err := reader.ReadWindowAggregate(context.Background(), influxdb.ReadWindowAggregateSpec{
 				ReadFilterSpec: influxdb.ReadFilterSpec{
 					Database:        reader.Database,
@@ -812,7 +809,7 @@ func TestStorageReader_ReadWindowAggregate_CreateEmpty(t *testing.T) {
 					tt.aggregate,
 				},
 				CreateEmpty: true,
-			}, mem)
+			}, memory.DefaultAllocator)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -897,7 +894,6 @@ func TestStorageReader_ReadWindowAggregate_CreateEmptyByStopTime(t *testing.T) {
 		},
 	} {
 		t.Run(string(tt.aggregate), func(t *testing.T) {
-			mem := &memory.Allocator{}
 			got, err := reader.ReadWindowAggregate(context.Background(), influxdb.ReadWindowAggregateSpec{
 				ReadFilterSpec: influxdb.ReadFilterSpec{
 					Database:        reader.Database,
@@ -913,7 +909,7 @@ func TestStorageReader_ReadWindowAggregate_CreateEmptyByStopTime(t *testing.T) {
 					tt.aggregate,
 				},
 				CreateEmpty: true,
-			}, mem)
+			}, memory.DefaultAllocator)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -998,7 +994,6 @@ func TestStorageReader_ReadWindowAggregate_CreateEmptyByStartTime(t *testing.T) 
 		},
 	} {
 		t.Run(string(tt.aggregate), func(t *testing.T) {
-			mem := &memory.Allocator{}
 			got, err := reader.ReadWindowAggregate(context.Background(), influxdb.ReadWindowAggregateSpec{
 				ReadFilterSpec: influxdb.ReadFilterSpec{
 					Database:        reader.Database,
@@ -1014,7 +1009,7 @@ func TestStorageReader_ReadWindowAggregate_CreateEmptyByStartTime(t *testing.T) 
 					tt.aggregate,
 				},
 				CreateEmpty: true,
-			}, mem)
+			}, memory.DefaultAllocator)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1132,7 +1127,6 @@ func TestStorageReader_ReadWindowAggregate_TruncatedBounds(t *testing.T) {
 		},
 	} {
 		t.Run(string(tt.aggregate), func(t *testing.T) {
-			mem := &memory.Allocator{}
 			got, err := reader.ReadWindowAggregate(context.Background(), influxdb.ReadWindowAggregateSpec{
 				ReadFilterSpec: influxdb.ReadFilterSpec{
 					Database:        reader.Database,
@@ -1149,7 +1143,7 @@ func TestStorageReader_ReadWindowAggregate_TruncatedBounds(t *testing.T) {
 				Aggregates: []plan.ProcedureKind{
 					tt.aggregate,
 				},
-			}, mem)
+			}, memory.DefaultAllocator)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1267,7 +1261,6 @@ func TestStorageReader_ReadWindowAggregate_TruncatedBoundsCreateEmpty(t *testing
 		},
 	} {
 		t.Run(string(tt.aggregate), func(t *testing.T) {
-			mem := &memory.Allocator{}
 			got, err := reader.ReadWindowAggregate(context.Background(), influxdb.ReadWindowAggregateSpec{
 				ReadFilterSpec: influxdb.ReadFilterSpec{
 					Database:        reader.Database,
@@ -1285,7 +1278,7 @@ func TestStorageReader_ReadWindowAggregate_TruncatedBoundsCreateEmpty(t *testing
 					tt.aggregate,
 				},
 				CreateEmpty: true,
-			}, mem)
+			}, memory.DefaultAllocator)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1341,7 +1334,6 @@ func TestStorageReader_ReadWindowAggregate_Mean(t *testing.T) {
 	defer reader.Close()
 
 	t.Run("unwindowed mean", func(t *testing.T) {
-		mem := &memory.Allocator{}
 		ti, err := reader.ReadWindowAggregate(context.Background(), influxdb.ReadWindowAggregateSpec{
 			ReadFilterSpec: influxdb.ReadFilterSpec{
 				Database:        reader.Database,
@@ -1355,7 +1347,7 @@ func TestStorageReader_ReadWindowAggregate_Mean(t *testing.T) {
 			Aggregates: []plan.ProcedureKind{
 				storageflux.MeanKind,
 			},
-		}, mem)
+		}, memory.DefaultAllocator)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1374,7 +1366,6 @@ func TestStorageReader_ReadWindowAggregate_Mean(t *testing.T) {
 	})
 
 	t.Run("windowed mean", func(t *testing.T) {
-		mem := &memory.Allocator{}
 		ti, err := reader.ReadWindowAggregate(context.Background(), influxdb.ReadWindowAggregateSpec{
 			ReadFilterSpec: influxdb.ReadFilterSpec{
 				Database:        reader.Database,
@@ -1388,7 +1379,7 @@ func TestStorageReader_ReadWindowAggregate_Mean(t *testing.T) {
 			Aggregates: []plan.ProcedureKind{
 				storageflux.MeanKind,
 			},
-		}, mem)
+		}, memory.DefaultAllocator)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1434,7 +1425,6 @@ func TestStorageReader_ReadWindowAggregate_Mean(t *testing.T) {
 	})
 
 	t.Run("windowed mean with offset", func(t *testing.T) {
-		mem := &memory.Allocator{}
 		ti, err := reader.ReadWindowAggregate(context.Background(), influxdb.ReadWindowAggregateSpec{
 			ReadFilterSpec: influxdb.ReadFilterSpec{
 				Database:        reader.Database,
@@ -1449,7 +1439,7 @@ func TestStorageReader_ReadWindowAggregate_Mean(t *testing.T) {
 			Aggregates: []plan.ProcedureKind{
 				storageflux.MeanKind,
 			},
-		}, mem)
+		}, memory.DefaultAllocator)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1543,7 +1533,6 @@ func TestStorageReader_ReadWindowFirst(t *testing.T) {
 	})
 	defer reader.Close()
 
-	mem := &memory.Allocator{}
 	ti, err := reader.ReadWindowAggregate(context.Background(), influxdb.ReadWindowAggregateSpec{
 		ReadFilterSpec: influxdb.ReadFilterSpec{
 			Database:        reader.Database,
@@ -1557,7 +1546,7 @@ func TestStorageReader_ReadWindowFirst(t *testing.T) {
 		Aggregates: []plan.ProcedureKind{
 			storageflux.FirstKind,
 		},
-	}, mem)
+	}, memory.DefaultAllocator)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1654,7 +1643,6 @@ func TestStorageReader_WindowFirstOffset(t *testing.T) {
 	})
 	defer reader.Close()
 
-	mem := &memory.Allocator{}
 	ti, err := reader.ReadWindowAggregate(context.Background(), influxdb.ReadWindowAggregateSpec{
 		ReadFilterSpec: influxdb.ReadFilterSpec{
 			Database:        reader.Database,
@@ -1669,7 +1657,7 @@ func TestStorageReader_WindowFirstOffset(t *testing.T) {
 		Aggregates: []plan.ProcedureKind{
 			storageflux.FirstKind,
 		},
-	}, mem)
+	}, memory.DefaultAllocator)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1767,7 +1755,6 @@ func TestStorageReader_WindowSumOffset(t *testing.T) {
 	})
 	defer reader.Close()
 
-	mem := &memory.Allocator{}
 	ti, err := reader.ReadWindowAggregate(context.Background(), influxdb.ReadWindowAggregateSpec{
 		ReadFilterSpec: influxdb.ReadFilterSpec{
 			Database:        reader.Database,
@@ -1782,7 +1769,7 @@ func TestStorageReader_WindowSumOffset(t *testing.T) {
 		Aggregates: []plan.ProcedureKind{
 			storageflux.SumKind,
 		},
-	}, mem)
+	}, memory.DefaultAllocator)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1879,7 +1866,6 @@ func TestStorageReader_ReadWindowFirstCreateEmpty(t *testing.T) {
 	})
 	defer reader.Close()
 
-	mem := &memory.Allocator{}
 	ti, err := reader.ReadWindowAggregate(context.Background(), influxdb.ReadWindowAggregateSpec{
 		ReadFilterSpec: influxdb.ReadFilterSpec{
 			Database:        reader.Database,
@@ -1894,7 +1880,7 @@ func TestStorageReader_ReadWindowFirstCreateEmpty(t *testing.T) {
 			storageflux.FirstKind,
 		},
 		CreateEmpty: true,
-	}, mem)
+	}, memory.DefaultAllocator)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2019,7 +2005,6 @@ func TestStorageReader_WindowFirstOffsetCreateEmpty(t *testing.T) {
 	})
 	defer reader.Close()
 
-	mem := &memory.Allocator{}
 	ti, err := reader.ReadWindowAggregate(context.Background(), influxdb.ReadWindowAggregateSpec{
 		ReadFilterSpec: influxdb.ReadFilterSpec{
 			Database:        reader.Database,
@@ -2035,7 +2020,7 @@ func TestStorageReader_WindowFirstOffsetCreateEmpty(t *testing.T) {
 			storageflux.FirstKind,
 		},
 		CreateEmpty: true,
-	}, mem)
+	}, memory.DefaultAllocator)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2163,7 +2148,6 @@ func TestStorageReader_WindowSumOffsetCreateEmpty(t *testing.T) {
 	})
 	defer reader.Close()
 
-	mem := &memory.Allocator{}
 	ti, err := reader.ReadWindowAggregate(context.Background(), influxdb.ReadWindowAggregateSpec{
 		ReadFilterSpec: influxdb.ReadFilterSpec{
 			Database:        reader.Database,
@@ -2179,7 +2163,7 @@ func TestStorageReader_WindowSumOffsetCreateEmpty(t *testing.T) {
 			storageflux.SumKind,
 		},
 		CreateEmpty: true,
-	}, mem)
+	}, memory.DefaultAllocator)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2307,7 +2291,6 @@ func TestStorageReader_ReadWindowFirstTimeColumn(t *testing.T) {
 	})
 	defer reader.Close()
 
-	mem := &memory.Allocator{}
 	ti, err := reader.ReadWindowAggregate(context.Background(), influxdb.ReadWindowAggregateSpec{
 		ReadFilterSpec: influxdb.ReadFilterSpec{
 			Database:        reader.Database,
@@ -2323,7 +2306,7 @@ func TestStorageReader_ReadWindowFirstTimeColumn(t *testing.T) {
 		},
 		CreateEmpty: true,
 		TimeColumn:  execute.DefaultStopColLabel,
-	}, mem)
+	}, memory.DefaultAllocator)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2412,7 +2395,6 @@ func TestStorageReader_WindowFirstOffsetTimeColumn(t *testing.T) {
 	})
 	defer reader.Close()
 
-	mem := &memory.Allocator{}
 	ti, err := reader.ReadWindowAggregate(context.Background(), influxdb.ReadWindowAggregateSpec{
 		ReadFilterSpec: influxdb.ReadFilterSpec{
 			Database:        reader.Database,
@@ -2429,7 +2411,7 @@ func TestStorageReader_WindowFirstOffsetTimeColumn(t *testing.T) {
 		},
 		CreateEmpty: true,
 		TimeColumn:  execute.DefaultStopColLabel,
-	}, mem)
+	}, memory.DefaultAllocator)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2518,7 +2500,6 @@ func TestStorageReader_WindowSumOffsetTimeColumn(t *testing.T) {
 	})
 	defer reader.Close()
 
-	mem := &memory.Allocator{}
 	ti, err := reader.ReadWindowAggregate(context.Background(), influxdb.ReadWindowAggregateSpec{
 		ReadFilterSpec: influxdb.ReadFilterSpec{
 			Database:        reader.Database,
@@ -2535,7 +2516,7 @@ func TestStorageReader_WindowSumOffsetTimeColumn(t *testing.T) {
 		},
 		CreateEmpty: true,
 		TimeColumn:  execute.DefaultStopColLabel,
-	}, mem)
+	}, memory.DefaultAllocator)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2628,7 +2609,6 @@ func TestStorageReader_EmptyTableNoEmptyWindows(t *testing.T) {
 	})
 	defer reader.Close()
 
-	mem := &memory.Allocator{}
 	ti, err := reader.ReadWindowAggregate(context.Background(), influxdb.ReadWindowAggregateSpec{
 		ReadFilterSpec: influxdb.ReadFilterSpec{
 			Database:        reader.Database,
@@ -2643,7 +2623,7 @@ func TestStorageReader_EmptyTableNoEmptyWindows(t *testing.T) {
 			storageflux.FirstKind,
 		},
 		CreateEmpty: true,
-	}, mem)
+	}, memory.DefaultAllocator)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2825,7 +2805,7 @@ func TestStorageReader_ReadGroup(t *testing.T) {
 			mem := arrowmem.NewCheckedAllocator(arrowmem.DefaultAllocator)
 			defer mem.AssertSize(t, 0)
 
-			alloc := &memory.Allocator{
+			alloc := &memory.ResourceAllocator{
 				Allocator: mem,
 			}
 			got, err := reader.ReadGroup(context.Background(), influxdb.ReadGroupSpec{
@@ -2918,7 +2898,6 @@ func TestStorageReader_ReadGroupSelectTags(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.aggregate, func(t *testing.T) {
-			mem := &memory.Allocator{}
 			got, err := reader.ReadGroup(context.Background(), influxdb.ReadGroupSpec{
 				ReadFilterSpec: influxdb.ReadFilterSpec{
 					Database:        reader.Database,
@@ -2928,7 +2907,7 @@ func TestStorageReader_ReadGroupSelectTags(t *testing.T) {
 				GroupMode:       influxdb.GroupModeBy,
 				GroupKeys:       []string{"t0"},
 				AggregateMethod: tt.aggregate,
-			}, mem)
+			}, memory.DefaultAllocator)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -2990,7 +2969,6 @@ func TestStorageReader_ReadGroupNoAgg(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.aggregate, func(t *testing.T) {
-			mem := &memory.Allocator{}
 			got, err := reader.ReadGroup(context.Background(), influxdb.ReadGroupSpec{
 				ReadFilterSpec: influxdb.ReadFilterSpec{
 					Database:        reader.Database,
@@ -2999,7 +2977,7 @@ func TestStorageReader_ReadGroupNoAgg(t *testing.T) {
 				},
 				GroupMode: influxdb.GroupModeBy,
 				GroupKeys: []string{"t1"},
-			}, mem)
+			}, memory.DefaultAllocator)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -3124,7 +3102,7 @@ func TestStorageReader_ReadWindowAggregateMonths(t *testing.T) {
 			mem := arrowmem.NewCheckedAllocator(arrowmem.DefaultAllocator)
 			defer mem.AssertSize(t, 0)
 
-			alloc := &memory.Allocator{
+			alloc := &memory.ResourceAllocator{
 				Allocator: mem,
 			}
 			got, err := reader.ReadWindowAggregate(context.Background(), influxdb.ReadWindowAggregateSpec{
@@ -3173,11 +3151,11 @@ func TestStorageReader_Backoff(t *testing.T) {
 
 	for _, tt := range []struct {
 		name string
-		read func(reader *StorageReader, mem *memory.Allocator) (flux.TableIterator, error)
+		read func(reader *StorageReader, mem memory.Allocator) (flux.TableIterator, error)
 	}{
 		{
 			name: "ReadFilter",
-			read: func(reader *StorageReader, mem *memory.Allocator) (flux.TableIterator, error) {
+			read: func(reader *StorageReader, mem memory.Allocator) (flux.TableIterator, error) {
 				return reader.ReadFilter(context.Background(), influxdb.ReadFilterSpec{
 					Database:        reader.Database,
 					RetentionPolicy: reader.RetentionPolicy,
@@ -3187,7 +3165,7 @@ func TestStorageReader_Backoff(t *testing.T) {
 		},
 		{
 			name: "ReadGroup",
-			read: func(reader *StorageReader, mem *memory.Allocator) (flux.TableIterator, error) {
+			read: func(reader *StorageReader, mem memory.Allocator) (flux.TableIterator, error) {
 				return reader.ReadGroup(context.Background(), influxdb.ReadGroupSpec{
 					ReadFilterSpec: influxdb.ReadFilterSpec{
 						Database:        reader.Database,
@@ -3201,7 +3179,7 @@ func TestStorageReader_Backoff(t *testing.T) {
 		},
 		{
 			name: "ReadWindowAggregate",
-			read: func(reader *StorageReader, mem *memory.Allocator) (flux.TableIterator, error) {
+			read: func(reader *StorageReader, mem memory.Allocator) (flux.TableIterator, error) {
 				return reader.ReadWindowAggregate(context.Background(), influxdb.ReadWindowAggregateSpec{
 					ReadFilterSpec: influxdb.ReadFilterSpec{
 						Database:        reader.Database,
@@ -3223,7 +3201,7 @@ func TestStorageReader_Backoff(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Read the table and learn what the maximum allocated
 			// value is. We don't want to exceed this.
-			mem := &memory.Allocator{}
+			mem := &memory.ResourceAllocator{}
 			tables, err := tt.read(reader, mem)
 			if err != nil {
 				t.Fatal(err)
@@ -3250,7 +3228,7 @@ func TestStorageReader_Backoff(t *testing.T) {
 			// if the next buffer attempts to be allocated
 			// before the first.
 			limit := mem.MaxAllocated()
-			mem = &memory.Allocator{Limit: &limit}
+			mem = &memory.ResourceAllocator{Limit: &limit}
 			tables, err = tt.read(reader, mem)
 			if err != nil {
 				t.Fatal(err)
@@ -3361,12 +3339,11 @@ func BenchmarkReadFilter(b *testing.B) {
 		return datagen.NewSeriesGeneratorFromSpec(&spec, tr), tr
 	}
 	benchmarkRead(b, setupFn, func(r *StorageReader) error {
-		mem := &memory.Allocator{}
 		tables, err := r.ReadFilter(context.Background(), influxdb.ReadFilterSpec{
 			Database:        r.Database,
 			RetentionPolicy: r.RetentionPolicy,
 			Bounds:          r.Bounds,
-		}, mem)
+		}, memory.DefaultAllocator)
 		if err != nil {
 			return err
 		}
@@ -3466,7 +3443,6 @@ func BenchmarkReadGroup(b *testing.B) {
 		return datagen.NewSeriesGeneratorFromSpec(&spec, tr), tr
 	}
 	benchmarkRead(b, setupFn, func(r *StorageReader) error {
-		mem := &memory.Allocator{}
 		tables, err := r.ReadGroup(context.Background(), influxdb.ReadGroupSpec{
 			ReadFilterSpec: influxdb.ReadFilterSpec{
 				Database:        r.Database,
@@ -3476,7 +3452,7 @@ func BenchmarkReadGroup(b *testing.B) {
 			GroupMode:       influxdb.GroupModeBy,
 			GroupKeys:       []string{"_start", "_stop", "t0"},
 			AggregateMethod: storageflux.MinKind,
-		}, mem)
+		}, memory.DefaultAllocator)
 		if err != nil {
 			return err
 		}
