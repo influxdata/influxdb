@@ -29,7 +29,22 @@ impl<T> InstrumentationDecorator<T> {
     /// labelled with `handler=name`.
     pub fn new(name: &'static str, registry: Arc<metric::Registry>, inner: T) -> Self {
         let buckets = || {
-            U64HistogramOptions::new([5, 10, 20, 40, 80, 160, 320, 640, 1280, 2560, 5120, u64::MAX])
+            U64HistogramOptions::new([
+                5,
+                10,
+                20,
+                40,
+                80,
+                160,
+                320,
+                640,
+                1280,
+                2560,
+                5120,
+                10240,
+                20480,
+                u64::MAX,
+            ])
         };
 
         let write: Metric<U64Histogram> = registry.register_metric_with_options(
