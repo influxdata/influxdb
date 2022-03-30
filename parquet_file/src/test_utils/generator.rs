@@ -133,7 +133,6 @@ impl ChunkGenerator {
         let (path, file_size_bytes, parquet_metadata) = written_result.unwrap();
 
         let chunk = ParquetChunk::new_from_parts(
-            Arc::clone(&self.partition.partition_key),
             Arc::new(table_summary),
             Arc::new(schema),
             &path,

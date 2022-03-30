@@ -206,17 +206,11 @@ impl ParquetChunkAdapter {
             .table()
             .name(parquet_file.table_id)
             .await?;
-        let partition_key = self
-            .catalog_cache
-            .partition()
-            .old_gen_partition_key(parquet_file.partition_id)
-            .await;
         let metrics = ParquetChunkMetrics::new(self.metric_registry.as_ref());
 
         Some(new_parquet_chunk(
             decoded_parquet_file,
             table_name,
-            partition_key,
             metrics,
             Arc::clone(&self.iox_object_store),
         ))

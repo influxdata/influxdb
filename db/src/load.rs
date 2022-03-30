@@ -221,7 +221,6 @@ impl CatalogState for Loader {
             info.file_size_bytes,
             info.metadata,
             Arc::clone(&iox_md.table_name),
-            Arc::clone(&iox_md.partition_key),
             metrics,
         )
         .context(ChunkCreationFailedSnafu { path: &info.path })?;

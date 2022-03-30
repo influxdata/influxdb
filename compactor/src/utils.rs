@@ -84,7 +84,6 @@ impl ParquetFileWithTombstone {
         &self,
         object_store: Arc<DynObjectStore>,
         table_name: String,
-        partition_key: String,
     ) -> QueryableParquetChunk {
         let decoded_parquet_file = DecodedParquetFile::new((*self.data).clone());
         let root_path = IoxObjectStore::root_path_for(&*object_store, self.data.object_store_id);
@@ -92,7 +91,6 @@ impl ParquetFileWithTombstone {
         let parquet_chunk = new_parquet_chunk(
             &decoded_parquet_file,
             Arc::from(table_name.clone()),
-            Arc::from(partition_key),
             ChunkMetrics::new_unregistered(), // TODO: need to add metrics
             Arc::new(iox_object_store),
         );

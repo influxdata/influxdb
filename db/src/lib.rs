@@ -1701,7 +1701,7 @@ mod tests {
             .id();
 
         // A chunk is now in the object store and still in read buffer
-        let expected_parquet_size = 1290;
+        let expected_parquet_size = 1261;
         catalog_chunk_size_bytes_metric_eq(registry, "read_buffer", expected_read_buffer_size);
         // now also in OS
         catalog_chunk_size_bytes_metric_eq(registry, "object_store", expected_parquet_size);
@@ -2136,7 +2136,7 @@ mod tests {
         // Read buffer + Parquet chunk size
         catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 0);
         catalog_chunk_size_bytes_metric_eq(registry, "read_buffer", 1700);
-        catalog_chunk_size_bytes_metric_eq(registry, "object_store", 1291);
+        catalog_chunk_size_bytes_metric_eq(registry, "object_store", 1262);
 
         // All the chunks should have different IDs
         assert_ne!(mb_chunk.id(), rb_chunk.id());
@@ -2253,7 +2253,7 @@ mod tests {
         let registry = test_db.metric_registry.as_ref();
 
         // Read buffer + Parquet chunk size
-        let object_store_bytes = 1291;
+        let object_store_bytes = 1262;
         catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 0);
         catalog_chunk_size_bytes_metric_eq(registry, "read_buffer", 1700);
         catalog_chunk_size_bytes_metric_eq(registry, "object_store", object_store_bytes);
@@ -2733,7 +2733,7 @@ mod tests {
                 id: chunk_summaries[0].id,
                 storage: ChunkStorage::ReadBufferAndObjectStore,
                 lifecycle_action,
-                memory_bytes: 4151,       // size of RB and OS chunks
+                memory_bytes: 4122,       // size of RB and OS chunks
                 object_store_bytes: 1574, // size of parquet file
                 row_count: 2,
                 time_of_last_access: None,
@@ -2784,7 +2784,7 @@ mod tests {
 
         assert_eq!(db.catalog.metrics().memory().mutable_buffer(), 2550 + 1495);
         assert_eq!(db.catalog.metrics().memory().read_buffer(), 2550);
-        assert_eq!(db.catalog.metrics().memory().object_store(), 1601);
+        assert_eq!(db.catalog.metrics().memory().object_store(), 1572);
     }
 
     #[tokio::test]

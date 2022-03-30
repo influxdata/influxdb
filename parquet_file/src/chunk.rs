@@ -78,9 +78,6 @@ impl ChunkMetrics {
 
 #[derive(Debug)]
 pub struct ParquetChunk {
-    /// Partition this chunk belongs to
-    partition_key: Arc<str>,
-
     /// Meta data of the table
     table_summary: Arc<TableSummary>,
 
@@ -118,7 +115,6 @@ impl ParquetChunk {
         file_size_bytes: usize,
         parquet_metadata: Arc<IoxParquetMetaData>,
         table_name: Arc<str>,
-        partition_key: Arc<str>,
         metrics: ChunkMetrics,
     ) -> Result<Self> {
         let decoded = parquet_metadata
@@ -137,7 +133,6 @@ impl ParquetChunk {
         let rows = decoded.row_count();
 
         Ok(Self::new_from_parts(
-            partition_key,
             Arc::new(table_summary),
             schema,
             path,
@@ -153,7 +148,6 @@ impl ParquetChunk {
     /// metadata.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new_from_parts(
-        partition_key: Arc<str>,
         table_summary: Arc<TableSummary>,
         schema: Arc<Schema>,
         path: &ParquetFilePath,
@@ -166,7 +160,6 @@ impl ParquetChunk {
         let timestamp_min_max = extract_range(&table_summary);
 
         Self {
-            partition_key,
             table_summary,
             schema,
             timestamp_min_max,
@@ -177,11 +170,6 @@ impl ParquetChunk {
             rows,
             metrics,
         }
-    }
-
-    /// Return the chunk's partition key
-    pub fn partition_key(&self) -> &str {
-        self.partition_key.as_ref()
     }
 
     /// Return object store path for this chunk
@@ -203,7 +191,6 @@ impl ParquetChunk {
     /// dictionary, tables, and their rows.
     pub fn size(&self) -> usize {
         mem::size_of::<Self>()
-            + self.partition_key.len()
             + self.table_summary.size()
             + mem::size_of_val(&self.schema.as_ref())
             + mem::size_of_val(&self.path)
@@ -322,7 +309,6 @@ impl DecodedParquetFile {
 pub fn new_parquet_chunk(
     decoded_parquet_file: &DecodedParquetFile,
     table_name: Arc<str>,
-    partition_key: Arc<str>, // old partition key format
     metrics: ChunkMetrics,
     iox_object_store: Arc<IoxObjectStore>,
 ) -> ParquetChunk {
@@ -344,7 +330,6 @@ pub fn new_parquet_chunk(
         file_size_bytes,
         Arc::clone(&decoded_parquet_file.parquet_metadata),
         table_name,
-        partition_key,
         metrics,
     )
     .expect("cannot create chunk")

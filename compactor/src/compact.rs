@@ -450,7 +450,6 @@ impl Compactor {
                 f.to_queryable_parquet_chunk(
                     Arc::clone(&self.object_store),
                     iox_metadata.table_name.to_string(),
-                    iox_metadata.partition_key.to_string(),
                 )
             })
             .collect();
@@ -1564,12 +1563,10 @@ mod tests {
         let pc1 = pt1.to_queryable_parquet_chunk(
             Arc::clone(&catalog.object_store),
             table.table.name.clone(),
-            partition.partition.partition_key.clone(),
         );
         let pc2 = pt2.to_queryable_parquet_chunk(
             Arc::clone(&catalog.object_store),
             table.table.name.clone(),
-            partition.partition.partition_key.clone(),
         );
 
         // Vector of chunks
