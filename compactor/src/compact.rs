@@ -746,7 +746,8 @@ impl Compactor {
                 min_sequence_number,
                 max_sequence_number,
                 row_count,
-                sort_key: None,
+                compaction_level: 1, // compacted result file always have level 1
+                sort_key: None,      // todo after #3968 - sort_key must have values
             };
 
             let compacted_data = CompactedData::new(output_batches, meta, tombstone_map.clone());
@@ -1087,6 +1088,7 @@ mod tests {
     use super::*;
     use arrow_util::assert_batches_sorted_eq;
     use data_types2::{ChunkId, KafkaPartition, NamespaceId, ParquetFileParams, SequenceNumber};
+    use iox_catalog::interface::INITIAL_COMPACTION_LEVEL;
     use iox_tests::util::TestCatalog;
     use object_store::ObjectStoreTestConvenience;
     use querier::{
@@ -1158,9 +1160,9 @@ mod tests {
         // should have 2 non-deleted level_0 files. The original file was marked deleted and not counted
         let files = catalog.list_by_table_not_to_delete(table.table.id).await;
         assert_eq!(files.len(), 2);
-        // 2 newly created level-0 files as the result of compaction
-        assert_eq!((files[0].id.get(), files[0].compaction_level), (2, 0));
-        assert_eq!((files[1].id.get(), files[1].compaction_level), (3, 0));
+        // 2 newly created level-1 files as the result of compaction
+        assert_eq!((files[0].id.get(), files[0].compaction_level), (2, 1));
+        assert_eq!((files[1].id.get(), files[1].compaction_level), (3, 1));
 
         // processed tombstones created and deleted inside find_and_compact function
         let count = catalog
@@ -1356,13 +1358,13 @@ mod tests {
         // Should have 4 non-soft-deleted files: pf1 and pf4 not compacted and stay, and 2 newly created after compacting pf2 with pf3
         let files = catalog.list_by_table_not_to_delete(table.table.id).await;
         assert_eq!(files.len(), 4);
-        // pf1 upgraded to level 1 becasue it was too old
+        // pf1 upgraded to level 1 because it was too old
         assert_eq!((files[0].id.get(), files[0].compaction_level), (1, 1));
         // pf4 gets upgraded to level 1
         assert_eq!((files[1].id.get(), files[1].compaction_level), (4, 1));
-        // 2 newly created level-0 files as the result of compaction
-        assert_eq!((files[2].id.get(), files[2].compaction_level), (5, 0));
-        assert_eq!((files[3].id.get(), files[3].compaction_level), (6, 0));
+        // 2 newly created level-1 files as the result of compaction
+        assert_eq!((files[2].id.get(), files[2].compaction_level), (5, 1));
+        assert_eq!((files[3].id.get(), files[3].compaction_level), (6, 1));
 
         // should have ts1 and ts3 that not involved in the commpaction process
         // ts2 was removed because it was fully processed
@@ -1741,7 +1743,7 @@ mod tests {
             file_size_bytes: 0,
             parquet_metadata: vec![],
             row_count: 0,
-            compaction_level: 0,
+            compaction_level: INITIAL_COMPACTION_LEVEL, // level of file of new writes
             created_at: Timestamp::new(created_at),
         }
     }
@@ -1983,6 +1985,7 @@ mod tests {
             parquet_metadata: b"md1".to_vec(),
             row_count: 0,
             created_at: Timestamp::new(1),
+            compaction_level: INITIAL_COMPACTION_LEVEL,
         };
 
         let p2 = ParquetFileParams {
@@ -2127,6 +2130,7 @@ mod tests {
             min_sequence_number: SequenceNumber::new(5),
             max_sequence_number: SequenceNumber::new(6),
             row_count: 3,
+            compaction_level: 1, // level of compacted data is always 1
             sort_key: None,
         };
 
@@ -2272,6 +2276,7 @@ mod tests {
             min_sequence_number: SequenceNumber::new(5),
             max_sequence_number: SequenceNumber::new(6),
             row_count: 3,
+            compaction_level: 1, // file level of compacted file is always 1
             sort_key: None,
         };
 
@@ -2288,7 +2293,9 @@ mod tests {
             max_time,
             file_size_bytes: 1337,
             parquet_metadata: b"md1".to_vec(),
+            compaction_level: INITIAL_COMPACTION_LEVEL, // level of file of new writes
             row_count: 0,
+
             created_at: Timestamp::new(1),
         };
         let other_parquet = ParquetFileParams {
@@ -2469,6 +2476,7 @@ mod tests {
             file_size_bytes: 1337,
             parquet_metadata: b"md1".to_vec(),
             row_count: 0,
+            compaction_level: INITIAL_COMPACTION_LEVEL, // level of file of new writes
             created_at: Timestamp::new(1),
         };
 

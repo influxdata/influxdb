@@ -12,9 +12,13 @@ use data_types2::{
     NamespaceId, PartitionId, SequenceNumber, SequencerId, TableId, Timestamp, Tombstone,
     TombstoneId,
 };
-use iox_catalog::{interface::Catalog, mem::MemCatalog};
+use iox_catalog::{
+    interface::{Catalog, INITIAL_COMPACTION_LEVEL},
+    mem::MemCatalog,
+};
 use parquet_file::metadata::IoxMetadata;
 use query::test::{raw_data, TestChunk};
+use schema::sort::SortKey;
 use std::{collections::BTreeMap, sync::Arc};
 use time::{SystemProvider, Time, TimeProvider};
 use uuid::Uuid;
@@ -87,6 +91,8 @@ pub async fn make_persisting_batch_with_meta() -> (Arc<PersistingBatch>, Vec<Tom
         seq_num_start,
         seq_num_end,
         row_count,
+        INITIAL_COMPACTION_LEVEL,
+        Some(SortKey::from_columns(vec!["tag1", "tag2", "time"])),
     );
 
     (persisting_batch, tombstones, meta)
@@ -129,6 +135,8 @@ pub fn make_meta(
     min_sequence_number: i64,
     max_sequence_number: i64,
     row_count: i64,
+    compaction_level: i16,
+    sort_key: Option<SortKey>,
 ) -> IoxMetadata {
     IoxMetadata {
         object_store_id,
@@ -145,7 +153,8 @@ pub fn make_meta(
         min_sequence_number: SequenceNumber::new(min_sequence_number),
         max_sequence_number: SequenceNumber::new(max_sequence_number),
         row_count,
-        sort_key: None,
+        compaction_level,
+        sort_key,
     }
 }
 

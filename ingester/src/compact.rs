@@ -4,6 +4,7 @@ use crate::data::{PersistingBatch, QueryableBatch};
 use arrow::record_batch::RecordBatch;
 use data_types2::NamespaceId;
 use datafusion::{error::DataFusionError, physical_plan::SendableRecordBatchStream};
+use iox_catalog::interface::INITIAL_COMPACTION_LEVEL;
 use parquet_file::metadata::IoxMetadata;
 use query::{
     exec::{Executor, ExecutorType},
@@ -104,6 +105,7 @@ pub async fn compact_persisting_batch(
         min_sequence_number: min_seq,
         max_sequence_number: max_seq,
         row_count,
+        compaction_level: INITIAL_COMPACTION_LEVEL,
         sort_key: None,
     };
 
@@ -298,6 +300,8 @@ mod tests {
             seq_num_start,
             seq_num_end,
             3,
+            INITIAL_COMPACTION_LEVEL,
+            None, // todo: this  will have value when #3968 is done
         );
         assert_eq!(expected_meta, meta);
     }

@@ -547,6 +547,9 @@ pub struct IoxMetadata {
     /// number of rows of data
     pub row_count: i64,
 
+    /// the compaction level of the file
+    pub compaction_level: i16,
+
     /// Sort key of this chunk
     pub sort_key: Option<SortKey>,
 }
@@ -581,6 +584,7 @@ impl IoxMetadata {
             max_sequence_number: self.max_sequence_number.get(),
             row_count: self.row_count,
             sort_key,
+            compaction_level: self.compaction_level as i32,
         };
 
         let mut buf = Vec::new();
@@ -646,6 +650,7 @@ impl IoxMetadata {
             max_sequence_number: SequenceNumber::new(proto_msg.max_sequence_number),
             row_count: proto_msg.row_count,
             sort_key,
+            compaction_level: proto_msg.compaction_level as i16,
         })
     }
 
@@ -673,6 +678,7 @@ impl IoxMetadata {
             file_size_bytes: file_size_bytes as i64,
             parquet_metadata: metadata.thrift_bytes().to_vec(),
             row_count: self.row_count,
+            compaction_level: self.compaction_level,
             created_at: Timestamp::new(self.creation_timestamp.timestamp_nanos()),
         }
     }
@@ -1310,6 +1316,7 @@ mod tests {
             min_sequence_number: SequenceNumber::new(5),
             max_sequence_number: SequenceNumber::new(6),
             row_count: 3,
+            compaction_level: 0,
             sort_key: Some(sort_key),
         };
 

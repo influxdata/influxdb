@@ -50,6 +50,9 @@ message IoxMetadata {
 
   // The sort key of this chunk
   SortKey sort_key = 15;
+
+  // the compaction level of the file
+  int32 compaction_level = 16;
 }
 
 // Sort key of a chunk.

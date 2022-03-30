@@ -767,6 +767,8 @@ pub struct ParquetFileParams {
     pub parquet_metadata: Vec<u8>,
     /// the number of rows of data in this file
     pub row_count: i64,
+    /// the compaction level of the file
+    pub compaction_level: i16,
     /// the creation time of the parquet file
     pub created_at: Timestamp,
 }

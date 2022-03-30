@@ -5,7 +5,7 @@ use crate::{
         sealed::TransactionFinalize, Catalog, ColumnRepo, ColumnUpsertRequest, Error,
         KafkaTopicRepo, NamespaceRepo, ParquetFileRepo, PartitionRepo, ProcessedTombstoneRepo,
         QueryPoolRepo, RepoCollection, Result, SequencerRepo, TablePersistInfo, TableRepo,
-        TombstoneRepo, Transaction, INITIAL_COMPACTION_LEVEL,
+        TombstoneRepo, Transaction,
     },
     metrics::MetricDecorator,
 };
@@ -1388,6 +1388,7 @@ impl ParquetFileRepo for PostgresTxn {
             file_size_bytes,
             parquet_metadata,
             row_count,
+            compaction_level,
             created_at,
         } = parquet_file_params;
 
@@ -1412,7 +1413,7 @@ RETURNING *;
         .bind(file_size_bytes) // $9
         .bind(parquet_metadata) // $10
         .bind(row_count) // $11
-        .bind(INITIAL_COMPACTION_LEVEL) // $12
+        .bind(compaction_level) // $12
         .bind(created_at) // $13
         .bind(namespace_id) // $14
         .fetch_one(&mut self.inner)

@@ -10,7 +10,10 @@ use data_types2::{
     Partition, QueryPool, SequenceNumber, Sequencer, SequencerId, Table, TableId, Timestamp,
     Tombstone, TombstoneId,
 };
-use iox_catalog::{interface::Catalog, mem::MemCatalog};
+use iox_catalog::{
+    interface::{Catalog, INITIAL_COMPACTION_LEVEL},
+    mem::MemCatalog,
+};
 use iox_object_store::{IoxObjectStore, ParquetFilePath};
 use mutable_batch::MutableBatch;
 use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
@@ -431,6 +434,7 @@ impl TestPartition {
             min_sequence_number,
             max_sequence_number,
             row_count: row_count as i64,
+            compaction_level: INITIAL_COMPACTION_LEVEL,
             sort_key: Some(sort_key),
         };
         let (parquet_metadata_bin, file_size_bytes) =
@@ -450,6 +454,7 @@ impl TestPartition {
             parquet_metadata: parquet_metadata_bin,
             row_count: row_count as i64,
             created_at: Timestamp::new(creation_time),
+            compaction_level: INITIAL_COMPACTION_LEVEL,
         };
         let parquet_file = repos
             .parquet_files()

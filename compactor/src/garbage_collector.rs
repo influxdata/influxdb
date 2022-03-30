@@ -102,6 +102,7 @@ impl GarbageCollector {
 mod tests {
     use super::*;
     use data_types2::{KafkaPartition, ParquetFile, ParquetFileParams, SequenceNumber};
+    use iox_catalog::interface::INITIAL_COMPACTION_LEVEL;
     use iox_object_store::ParquetFilePath;
     use iox_tests::util::TestCatalog;
     use object_store::ObjectStoreTestConvenience;
@@ -204,6 +205,7 @@ mod tests {
             parquet_metadata: b"md1".to_vec(),
             row_count: 0,
             created_at: Timestamp::new(1),
+            compaction_level: INITIAL_COMPACTION_LEVEL,
         };
         let parquet_file = txn
             .parquet_files()
@@ -283,6 +285,7 @@ mod tests {
             parquet_metadata: b"md1".to_vec(),
             row_count: 0,
             created_at: Timestamp::new(1),
+            compaction_level: INITIAL_COMPACTION_LEVEL,
         };
         let parquet_file = txn
             .parquet_files()
@@ -365,6 +368,7 @@ mod tests {
             parquet_metadata: b"md1".to_vec(),
             row_count: 0,
             created_at: Timestamp::new(1),
+            compaction_level: INITIAL_COMPACTION_LEVEL,
         };
         let parquet_file = txn
             .parquet_files()

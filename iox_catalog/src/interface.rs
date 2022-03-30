@@ -921,6 +921,7 @@ pub(crate) mod test_helpers {
             file_size_bytes: 0,
             parquet_metadata: vec![],
             row_count: 0,
+            compaction_level: INITIAL_COMPACTION_LEVEL,
             created_at: Timestamp::new(1),
         };
         let p1 = repos
@@ -1522,6 +1523,7 @@ pub(crate) mod test_helpers {
             file_size_bytes: 1337,
             parquet_metadata: b"md1".to_vec(),
             row_count: 0,
+            compaction_level: INITIAL_COMPACTION_LEVEL,
             created_at: Timestamp::new(1),
         };
         let parquet_file = repos
@@ -1732,6 +1734,7 @@ pub(crate) mod test_helpers {
             file_size_bytes: 1337,
             parquet_metadata: b"md1".to_vec(),
             row_count: 0,
+            compaction_level: INITIAL_COMPACTION_LEVEL,
             created_at: Timestamp::new(1),
         };
         let parquet_file = repos
@@ -2059,6 +2062,7 @@ pub(crate) mod test_helpers {
             file_size_bytes: 1337,
             parquet_metadata: b"md1".to_vec(),
             row_count: 0,
+            compaction_level: INITIAL_COMPACTION_LEVEL,
             created_at: Timestamp::new(1),
         };
 
@@ -2188,6 +2192,7 @@ pub(crate) mod test_helpers {
             file_size_bytes: 1337,
             parquet_metadata: b"md1".to_vec(),
             row_count: 0,
+            compaction_level: INITIAL_COMPACTION_LEVEL,
             created_at: Timestamp::new(1),
         };
         let parquet_file = repos
@@ -2393,6 +2398,7 @@ pub(crate) mod test_helpers {
             file_size_bytes: 1337,
             parquet_metadata: b"md1".to_vec(),
             row_count: 0,
+            compaction_level: INITIAL_COMPACTION_LEVEL,
             created_at: Timestamp::new(1),
         };
 
@@ -2498,6 +2504,7 @@ pub(crate) mod test_helpers {
             file_size_bytes: 1337,
             parquet_metadata: b"md1".to_vec(),
             row_count: 0,
+            compaction_level: INITIAL_COMPACTION_LEVEL,
             created_at: Timestamp::new(1),
         };
         let parquet_file = repos
@@ -2614,6 +2621,7 @@ pub(crate) mod test_helpers {
             file_size_bytes: 1337,
             parquet_metadata: b"md1".to_vec(),
             row_count: 0,
+            compaction_level: INITIAL_COMPACTION_LEVEL,
             created_at: Timestamp::new(1),
         };
         let p1 = repos

@@ -1299,7 +1299,9 @@ mod tests {
     use data_types2::{NamespaceSchema, ParquetFileParams, Sequence};
     use dml::{DmlMeta, DmlWrite};
     use futures::TryStreamExt;
-    use iox_catalog::{mem::MemCatalog, validate_or_insert_schema};
+    use iox_catalog::{
+        interface::INITIAL_COMPACTION_LEVEL, mem::MemCatalog, validate_or_insert_schema,
+    };
     use metric::{MetricObserver, Observation};
     use mutable_batch_lp::{lines_to_batches, test_helpers::lp_to_mutable_batch};
     use object_store::ObjectStoreImpl;
@@ -1908,6 +1910,7 @@ mod tests {
             file_size_bytes: 0,
             parquet_metadata: vec![],
             row_count: 0,
+            compaction_level: INITIAL_COMPACTION_LEVEL,
             created_at: Timestamp::new(1),
         };
         repos

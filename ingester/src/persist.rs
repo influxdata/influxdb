@@ -87,6 +87,7 @@ pub async fn persist(
 mod tests {
     use super::*;
     use data_types2::{NamespaceId, PartitionId, SequenceNumber, SequencerId, TableId};
+    use iox_catalog::interface::INITIAL_COMPACTION_LEVEL;
     use object_store::{ObjectStoreImpl, ObjectStoreTestConvenience};
     use query::test::{raw_data, TestChunk};
     use std::sync::Arc;
@@ -118,6 +119,7 @@ mod tests {
             min_sequence_number: SequenceNumber::new(5),
             max_sequence_number: SequenceNumber::new(6),
             row_count: 0,
+            compaction_level: INITIAL_COMPACTION_LEVEL,
             sort_key: None,
         };
         let object_store = object_store();
@@ -144,6 +146,7 @@ mod tests {
             min_sequence_number: SequenceNumber::new(5),
             max_sequence_number: SequenceNumber::new(6),
             row_count: 3,
+            compaction_level: INITIAL_COMPACTION_LEVEL,
             sort_key: None,
         };
 
