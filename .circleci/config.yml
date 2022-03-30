@@ -336,7 +336,7 @@ jobs:
   build_dev:
     docker:
       - image: quay.io/influxdb/rust:ci
-    resource_class: xlarge # use of a smaller executor tends crashes on link
+    resource_class: 2xlarge # use of a smaller executor tends crashes on link
     environment:
       # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
       CARGO_INCREMENTAL: "0"
@@ -502,7 +502,6 @@ jobs:
           command: |
             echo "$QUAY_PASS" | docker login quay.io --username $QUAY_USER --password-stdin
             ./.circleci/get-deploy-tags.sh "${COMMIT_SHA}"
-
 
   # Prepare the CI image used for other tasks.
   #
