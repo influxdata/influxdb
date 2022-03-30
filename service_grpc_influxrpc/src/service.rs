@@ -572,6 +572,8 @@ where
 
         // For now, hard code our list of support
         let caps = [
+            ("KeySortCapability", vec!["ReadFilter"]),
+            ("Group", vec!["First", "Last", "Min", "Max"]),
             (
                 "WindowAggregate",
                 vec![
@@ -581,7 +583,6 @@ where
                     // "Offset"
                 ],
             ),
-            ("Group", vec!["First", "Last", "Min", "Max"]),
         ];
 
         // Turn it into the HashMap -> Capabiltity
@@ -1438,12 +1439,12 @@ mod tests {
 
         // Test response from storage server
         let mut expected_capabilities: HashMap<String, Vec<String>> = HashMap::new();
+        expected_capabilities.insert("KeySortCapability".into(), to_str_vec(&["ReadFilter"]));
+        expected_capabilities.insert("Group".into(), to_str_vec(&["First", "Last", "Min", "Max"]));
         expected_capabilities.insert(
             "WindowAggregate".into(),
             to_str_vec(&["Count", "Sum", "Min", "Max", "Mean"]),
         );
-
-        expected_capabilities.insert("Group".into(), to_str_vec(&["First", "Last", "Min", "Max"]));
 
         assert_eq!(
             expected_capabilities,
