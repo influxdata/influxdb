@@ -24,6 +24,9 @@ type BoxedMapper<K1, K2, V> =
 /// Takes two backend and a mapper that can extract the keys for the other backends. If these mappers return `None`, the
 /// data will NOT cross-populated. This can be helpful in cases where the other key cannot be extracted, e.g. for
 /// "missing" values. Be careful however since this can lead to inconsistent states in both caches.
+///
+/// # Panic
+/// If the two backends are not empty.
 pub fn dual_backends<K1, K2, V, F1, F2>(
     backend1: Box<dyn CacheBackend<K = K1, V = V>>,
     mapper1: F1,
@@ -37,6 +40,9 @@ where
     F1: for<'k, 'v> Fn(&'k K1, &'v V) -> Option<K2> + Send + Sync + 'static,
     F2: for<'k, 'v> Fn(&'k K2, &'v V) -> Option<K1> + Send + Sync + 'static,
 {
+    assert!(backend1.is_empty(), "backend1 is not empty");
+    assert!(backend2.is_empty(), "backend2 is not empty");
+
     let shared = Arc::new(Mutex::new((backend1, backend2)));
     let dual1 = DualBackend1 {
         shared: Arc::clone(&shared),
@@ -100,6 +106,10 @@ where
         self.shared.lock().0.remove(k)
     }
 
+    fn is_empty(&self) -> bool {
+        self.shared.lock().0.is_empty()
+    }
+
     fn as_any(&self) -> &dyn Any {
         self as &dyn Any
     }
@@ -156,6 +166,10 @@ where
         self.shared.lock().1.remove(k)
     }
 
+    fn is_empty(&self) -> bool {
+        self.shared.lock().1.is_empty()
+    }
+
     fn as_any(&self) -> &dyn Any {
         self as &dyn Any
     }
@@ -182,11 +196,15 @@ mod tests {
         // both start empty
         assert_eq!(backend1.get(&1), None);
         assert_eq!(backend2.get(&1), None);
+        assert!(backend1.is_empty());
+        assert!(backend2.is_empty());
 
         // populate via first backend, test first backend first
         backend1.set(1, String::from("a"));
         assert_eq!(backend1.get(&1), Some(String::from("a")));
         assert_eq!(backend2.get(&1), Some(String::from("a")));
+        assert!(!backend1.is_empty());
+        assert!(!backend2.is_empty());
 
         // populate via second backend, test first backend first
         backend2.set(2, String::from("b"));
@@ -218,5 +236,111 @@ mod tests {
         backend1.set(11, String::from("f"));
         assert_eq!(backend1.get(&11), Some(String::from("f")));
         assert_eq!(backend2.get(&11), Some(String::from("e")));
+    }
+
+    #[test]
+    fn test_is_empty_partial1() {
+        let backend1 = Box::new(HashMap::<u8, String>::new());
+        let backend2 = Box::new(HashMap::<i8, String>::new());
+
+        let (mut backend1, backend2) = dual_backends(
+            backend1,
+            |k1, _v| (*k1 < 10).then(|| *k1 as i8),
+            backend2,
+            |k2, _v| (*k2 < 10).then(|| *k2 as u8),
+        );
+
+        assert!(backend1.is_empty());
+        assert!(backend2.is_empty());
+
+        // populate via first backend but not 2nd, test first backend first
+        backend1.set(10, String::from("a"));
+        assert!(!backend1.is_empty());
+        assert!(backend2.is_empty());
+    }
+
+    #[test]
+    fn test_is_empty_partial2() {
+        let backend1 = Box::new(HashMap::<u8, String>::new());
+        let backend2 = Box::new(HashMap::<i8, String>::new());
+
+        let (backend1, mut backend2) = dual_backends(
+            backend1,
+            |k1, _v| (*k1 < 10).then(|| *k1 as i8),
+            backend2,
+            |k2, _v| (*k2 < 10).then(|| *k2 as u8),
+        );
+
+        assert!(backend1.is_empty());
+        assert!(backend2.is_empty());
+
+        // populate via first backend but not 2nd, test first backend first
+        backend2.set(10, String::from("a"));
+        assert!(backend1.is_empty());
+        assert!(!backend2.is_empty());
+    }
+
+    #[test]
+    #[should_panic(expected = "backend1 is not empty")]
+    fn test_panic_inner1_not_empty() {
+        let backend1 = Box::new(HashMap::<u8, String>::from([(1, String::from("a"))]));
+        let backend2 = Box::new(HashMap::<i8, String>::new());
+
+        dual_backends(
+            backend1,
+            |k1, _v| Some(*k1 as i8),
+            backend2,
+            |k2, _v| Some(*k2 as u8),
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "backend2 is not empty")]
+    fn test_panic_inner2_not_empty() {
+        let backend1 = Box::new(HashMap::<u8, String>::new());
+        let backend2 = Box::new(HashMap::<i8, String>::from([(1, String::from("a"))]));
+
+        dual_backends(
+            backend1,
+            |k1, _v| Some(*k1 as i8),
+            backend2,
+            |k2, _v| Some(*k2 as u8),
+        );
+    }
+
+    #[test]
+    fn test_generic1() {
+        use crate::cache_system::backend::test_util::test_generic;
+
+        test_generic(|| {
+            let backend1 = Box::new(HashMap::<u8, String>::new());
+            let backend2 = Box::new(HashMap::<i8, String>::new());
+
+            let (backend1, _backend2) = dual_backends(
+                backend1,
+                |k1, _v| Some(*k1 as i8),
+                backend2,
+                |k2, _v| Some(*k2 as u8),
+            );
+            backend1
+        });
+    }
+
+    #[test]
+    fn test_generic2() {
+        use crate::cache_system::backend::test_util::test_generic;
+
+        test_generic(|| {
+            let backend1 = Box::new(HashMap::<i8, String>::new());
+            let backend2 = Box::new(HashMap::<u8, String>::new());
+
+            let (_backend1, backend2) = dual_backends(
+                backend1,
+                |k1, _v| Some(*k1 as u8),
+                backend2,
+                |k2, _v| Some(*k2 as i8),
+            );
+            backend2
+        });
     }
 }

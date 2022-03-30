@@ -16,6 +16,7 @@ where
     test_set_remove_get(constructor());
     test_remove_empty(constructor());
     test_readd(constructor());
+    test_is_empty(constructor());
 }
 
 /// Test GET on empty backend.
@@ -90,4 +91,22 @@ where
     backend.set(1, String::from("b"));
 
     assert_eq!(backend.get(&1), Some(String::from("b")));
+}
+
+/// Test `is_empty` check.
+fn test_is_empty<B>(mut backend: B)
+where
+    B: CacheBackend<K = u8, V = String>,
+{
+    assert!(backend.is_empty());
+
+    backend.set(1, String::from("a"));
+    backend.set(2, String::from("b"));
+    assert!(!backend.is_empty());
+
+    backend.remove(&1);
+    assert!(!backend.is_empty());
+
+    backend.remove(&2);
+    assert!(backend.is_empty());
 }

@@ -127,12 +127,17 @@ where
 {
     /// Create new backend w/o any known keys.
     ///
-    /// The inner backend SHOULD NOT contain any data at this point, otherwise we will not track any TTLs for these entries.
+    /// The inner backend MUST NOT contain any data at this point, otherwise we will not track any TTLs for these entries.
+    ///
+    /// # Panic
+    /// If the inner backend is not empty.
     pub fn new(
         inner_backend: Box<dyn CacheBackend<K = K, V = V>>,
         ttl_provider: Arc<dyn TtlProvider<K = K, V = V>>,
         time_provider: Arc<dyn TimeProvider>,
     ) -> Self {
+        assert!(inner_backend.is_empty(), "inner backend is not empty");
+
         Self {
             inner_backend,
             ttl_provider,
@@ -213,6 +218,10 @@ where
 
         self.inner_backend.remove(k);
         self.expiration.remove(k);
+    }
+
+    fn is_empty(&self) -> bool {
+        self.inner_backend.is_empty()
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -525,6 +534,18 @@ mod tests {
         assert!(inner_backend.is_empty());
 
         assert_eq!(backend.get(&1), None);
+    }
+
+    #[test]
+    #[should_panic(expected = "inner backend is not empty")]
+    fn test_panic_inner_not_empty() {
+        let ttl_provider = Arc::new(TestTtlProvider::new());
+        let time_provider = Arc::new(MockProvider::new(Time::MIN));
+        TtlBackend::new(
+            Box::new(HashMap::<u8, String>::from([(1, String::from("a"))])),
+            Arc::clone(&ttl_provider) as _,
+            Arc::clone(&time_provider) as _,
+        );
     }
 
     #[test]

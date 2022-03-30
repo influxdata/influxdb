@@ -28,6 +28,10 @@ where
         self.remove(k);
     }
 
+    fn is_empty(&self) -> bool {
+        self.is_empty()
+    }
+
     fn as_any(&self) -> &dyn Any {
         self as &dyn Any
     }

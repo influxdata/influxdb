@@ -31,6 +31,9 @@ pub trait CacheBackend: Debug + Send + 'static {
     /// It is OK to remove a key even when it does not exist.
     fn remove(&mut self, k: &Self::K);
 
+    /// Check if backend is empty.
+    fn is_empty(&self) -> bool;
+
     /// Return backend as [`Any`] which can be used to downcast to a specifc implementation.
     fn as_any(&self) -> &dyn Any;
 }
