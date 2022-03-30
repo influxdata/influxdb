@@ -270,9 +270,9 @@ impl TestChunk {
     pub fn new(table_name: impl Into<String>) -> Self {
         let table_name = table_name.into();
         Self {
-            table_name: table_name.clone(),
+            table_name,
             schema: Arc::new(SchemaBuilder::new().build().unwrap()),
-            table_summary: TableSummary::new(table_name),
+            table_summary: TableSummary::new(),
             id: ChunkId::new_test(0),
             may_contain_pk_duplicates: Default::default(),
             predicates: Default::default(),

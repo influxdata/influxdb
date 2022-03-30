@@ -42,6 +42,7 @@ pub struct PartitionSummary {
     /// PartitionRules
     pub key: String,
     pub table: TableSummary,
+    pub table_name: String,
 }
 
 impl PartitionSummary {
@@ -50,12 +51,14 @@ impl PartitionSummary {
     /// times in the collection. They will be combined together for a single
     /// summary. Field type conflicts will be ignored.
     pub fn from_table_summaries(
+        table_name: impl Into<String>,
         key: impl Into<String>,
         summaries: impl IntoIterator<Item = TableSummary>,
     ) -> Self {
         Self {
             key: key.into(),
             table: TableSummary::from_iter(summaries),
+            table_name: table_name.into(),
         }
     }
 }
@@ -75,21 +78,15 @@ impl FromIterator<Self> for TableSummary {
 /// Metadata and statistics information for a table. This can be
 /// either for the portion of a Table stored within a single chunk or
 /// aggregated across chunks.
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Default)]
 pub struct TableSummary {
-    /// Table name
-    pub name: String,
-
     /// Per column statistics
     pub columns: Vec<ColumnSummary>,
 }
 
 impl TableSummary {
-    pub fn new(name: impl Into<String>) -> Self {
-        Self {
-            name: name.into(),
-            columns: vec![],
-        }
+    pub fn new() -> Self {
+        Self::default()
     }
 
     /// Returns the total number of rows in the columns of this summary
@@ -102,7 +99,7 @@ impl TableSummary {
         for c in &self.columns {
             // Restore to assert when https://github.com/influxdata/influxdb_iox/issues/2124 is fixed
             if c.total_count() != count {
-                warn!(table_name=%self.name, column_name=%c.name,
+                warn!(column_name=%c.name,
                       column_count=c.total_count(), previous_count=count,
                       "Mismatch in statistics count, see #2124");
             }
@@ -114,10 +111,8 @@ impl TableSummary {
         // Total size of all ColumnSummaries that belong to this table which include
         // column names and their stats
         let size: usize = self.columns.iter().map(|c| c.size()).sum();
-        size
-            + self.name.len() // Add size of the table name
-            + mem::size_of::<Self>() // Add size of this struct that points to
-                                     // table and ColumnSummary
+        size + mem::size_of::<Self>() // Add size of this struct that points to
+                                      // table and ColumnSummary
     }
 
     /// Updates the table summary with combined stats from the other. Counts are
@@ -126,8 +121,6 @@ impl TableSummary {
     /// on that column. Columns that only exist in the other are cloned into
     /// this table summary.
     pub fn update_from(&mut self, other: &Self) {
-        assert_eq!(self.name, other.name);
-
         let new_total_count = self.total_count() + other.total_count();
 
         // update all existing columns
@@ -993,7 +986,6 @@ mod tests {
         };
 
         let mut table_a = TableSummary {
-            name: "a".to_string(),
             columns: vec![string_col, int_col, float_col],
         };
 
@@ -1014,7 +1006,6 @@ mod tests {
         };
 
         let mut table_b = TableSummary {
-            name: "a".to_string(),
             columns: vec![int_col, string_col],
         };
 
@@ -1086,13 +1077,11 @@ mod tests {
 
         // table summary that does not have the "string" col
         let table1 = TableSummary {
-            name: "the_table".to_string(),
             columns: vec![int_col.clone()],
         };
 
         // table summary that has both columns
         let table2 = TableSummary {
-            name: "the_table".to_string(),
             columns: vec![int_col, string_col],
         };
 
@@ -1154,7 +1143,6 @@ mod tests {
         };
 
         let table_a = TableSummary {
-            name: "a".to_string(),
             columns: vec![string_col, int_col],
         };
 
@@ -1164,10 +1152,10 @@ mod tests {
             stats: Statistics::I64(StatValues::new_with_value(10)),
         };
         let table_a_2 = TableSummary {
-            name: "a".to_string(),
             columns: vec![int_col],
         };
-        let partition = PartitionSummary::from_table_summaries("key", vec![table_a, table_a_2]);
+        let partition =
+            PartitionSummary::from_table_summaries("table", "key", vec![table_a, table_a_2]);
         let t = partition.table;
         let col = t.column("string").unwrap();
         assert_eq!(

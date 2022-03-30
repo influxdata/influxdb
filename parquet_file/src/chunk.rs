@@ -114,7 +114,6 @@ impl ParquetChunk {
         iox_object_store: Arc<IoxObjectStore>,
         file_size_bytes: usize,
         parquet_metadata: Arc<IoxParquetMetaData>,
-        table_name: Arc<str>,
         metrics: ChunkMetrics,
     ) -> Result<Self> {
         let decoded = parquet_metadata
@@ -126,10 +125,7 @@ impl ParquetChunk {
         let columns = decoded
             .read_statistics(&schema)
             .context(StatisticsReadFailedSnafu { path })?;
-        let table_summary = TableSummary {
-            name: table_name.to_string(),
-            columns,
-        };
+        let table_summary = TableSummary { columns };
         let rows = decoded.row_count();
 
         Ok(Self::new_from_parts(
@@ -180,11 +176,6 @@ impl ParquetChunk {
     /// Returns the summary statistics for this chunk
     pub fn table_summary(&self) -> &Arc<TableSummary> {
         &self.table_summary
-    }
-
-    /// Returns the name of the table this chunk holds
-    pub fn table_name(&self) -> &str {
-        &self.table_summary.name
     }
 
     /// Return the approximate memory size of the chunk, in bytes including the
@@ -308,7 +299,6 @@ impl DecodedParquetFile {
 /// Create parquet chunk.
 pub fn new_parquet_chunk(
     decoded_parquet_file: &DecodedParquetFile,
-    table_name: Arc<str>,
     metrics: ChunkMetrics,
     iox_object_store: Arc<IoxObjectStore>,
 ) -> ParquetChunk {
@@ -329,7 +319,6 @@ pub fn new_parquet_chunk(
         iox_object_store,
         file_size_bytes,
         Arc::clone(&decoded_parquet_file.parquet_metadata),
-        table_name,
         metrics,
     )
     .expect("cannot create chunk")

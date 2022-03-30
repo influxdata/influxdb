@@ -200,17 +200,10 @@ impl ParquetChunkAdapter {
         &self,
         decoded_parquet_file: &DecodedParquetFile,
     ) -> Option<ParquetChunk> {
-        let parquet_file = &decoded_parquet_file.parquet_file;
-        let table_name = self
-            .catalog_cache
-            .table()
-            .name(parquet_file.table_id)
-            .await?;
         let metrics = ParquetChunkMetrics::new(self.metric_registry.as_ref());
 
         Some(new_parquet_chunk(
             decoded_parquet_file,
-            table_name,
             metrics,
             Arc::clone(&self.iox_object_store),
         ))

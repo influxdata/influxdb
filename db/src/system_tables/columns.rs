@@ -79,7 +79,7 @@ fn from_partition_summaries(
         let table = partition.table;
         for column in table.columns {
             partition_key.append_value(&partition.key)?;
-            table_name.append_value(&table.name)?;
+            table_name.append_value(&partition.table_name)?;
             column_name.append_value(&column.name)?;
             column_type.append_value(column.type_name())?;
             if let Some(t) = &column.influxdb_type {
@@ -313,9 +313,9 @@ mod tests {
     fn test_from_partition_summaries() {
         let partitions = vec![
             PartitionSummary {
+                table_name: "t1".to_string(),
                 key: "p1".to_string(),
                 table: TableSummary {
-                    name: "t1".to_string(),
                     columns: vec![
                         ColumnSummary {
                             name: "c1".to_string(),
@@ -343,11 +343,9 @@ mod tests {
                 },
             },
             PartitionSummary {
+                table_name: "t1".to_string(),
                 key: "p3".to_string(),
-                table: TableSummary {
-                    name: "t1".to_string(),
-                    columns: vec![],
-                },
+                table: TableSummary { columns: vec![] },
             },
         ];
 
@@ -375,7 +373,6 @@ mod tests {
         let summaries = vec![
             (
                 Arc::new(TableSummary {
-                    name: "t1".to_string(),
                     columns: vec![
                         ColumnSummary {
                             name: "c1".to_string(),
@@ -430,7 +427,6 @@ mod tests {
             ),
             (
                 Arc::new(TableSummary {
-                    name: "t1".to_string(),
                     columns: vec![ColumnSummary {
                         name: "c1".to_string(),
                         influxdb_type: Some(InfluxDbType::Field),
@@ -466,7 +462,6 @@ mod tests {
             ),
             (
                 Arc::new(TableSummary {
-                    name: "t2".to_string(),
                     columns: vec![ColumnSummary {
                         name: "c3".to_string(),
                         influxdb_type: Some(InfluxDbType::Field),

@@ -156,10 +156,7 @@ impl MBChunk {
 
         columns.sort_by(|a, b| a.name.cmp(&b.name));
 
-        TableSummary {
-            name: self.table_name.to_string(),
-            columns,
-        }
+        TableSummary { columns }
     }
 
     /// Return the approximate memory size of the chunk, in bytes including the
@@ -305,7 +302,6 @@ mod tests {
         let chunk = write_lp_to_new_chunk(lp);
 
         let summary = chunk.table_summary();
-        assert_eq!(summary.name, "cpu");
         let expected_column_summaries = vec![
             ColumnSummary {
                 name: "env".to_string(),

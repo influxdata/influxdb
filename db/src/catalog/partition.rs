@@ -291,8 +291,6 @@ impl Partition {
         metadata: ChunkMetadata,
         chunk: Arc<parquet_file::chunk::ParquetChunk>,
     ) -> &Arc<RwLock<CatalogChunk>> {
-        assert_eq!(chunk.table_name(), self.table_name());
-
         let addr = ChunkAddr::new(&self.addr, chunk_id);
 
         let chunk = CatalogChunk::new_object_store_only(
@@ -402,6 +400,7 @@ impl Partition {
             None
         } else {
             Some(PartitionSummary::from_table_summaries(
+                self.addr.table_name.to_string(),
                 self.addr.partition_key.to_string(),
                 self.chunks
                     .values()

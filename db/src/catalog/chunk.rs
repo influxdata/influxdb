@@ -364,8 +364,6 @@ impl CatalogChunk {
         metrics: ChunkMetrics,
         time_provider: Arc<dyn TimeProvider>,
     ) -> Self {
-        assert_eq!(chunk.table_name(), addr.table_name.as_ref());
-
         let stage = ChunkStage::Persisted {
             parquet: chunk,
             read_buffer: None,

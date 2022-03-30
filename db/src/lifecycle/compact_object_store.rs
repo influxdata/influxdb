@@ -405,7 +405,6 @@ async fn persist_stream_to_chunk<'a>(
             Arc::clone(&db.iox_object_store),
             file_size_bytes,
             Arc::clone(&parquet_metadata),
-            Arc::clone(&partition_addr.table_name),
             metrics,
         )
         .context(ParquetChunkSnafu)?,

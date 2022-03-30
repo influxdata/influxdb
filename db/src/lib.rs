@@ -1674,7 +1674,7 @@ mod tests {
         assert_storage_gauge(registry, "catalog_loaded_rows", "read_buffer", 0);
         assert_storage_gauge(registry, "catalog_loaded_rows", "object_store", 0);
 
-        catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 1327);
+        catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 1303);
 
         db.compact_partition("cpu", "1970-01-01T00").await.unwrap();
 
@@ -1701,7 +1701,7 @@ mod tests {
             .id();
 
         // A chunk is now in the object store and still in read buffer
-        let expected_parquet_size = 1261;
+        let expected_parquet_size = 1234;
         catalog_chunk_size_bytes_metric_eq(registry, "read_buffer", expected_read_buffer_size);
         // now also in OS
         catalog_chunk_size_bytes_metric_eq(registry, "object_store", expected_parquet_size);
@@ -2026,7 +2026,7 @@ mod tests {
 
         let registry = test_db.metric_registry.as_ref();
         // MUB chunk size
-        catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 3671);
+        catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 3647);
 
         // With the above data, cardinality of tag2 is 2 and tag1 is 5. Hence, RUB is sorted on (tag2, tag1)
         let rb_chunk = db
@@ -2136,7 +2136,7 @@ mod tests {
         // Read buffer + Parquet chunk size
         catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 0);
         catalog_chunk_size_bytes_metric_eq(registry, "read_buffer", 1700);
-        catalog_chunk_size_bytes_metric_eq(registry, "object_store", 1262);
+        catalog_chunk_size_bytes_metric_eq(registry, "object_store", 1235);
 
         // All the chunks should have different IDs
         assert_ne!(mb_chunk.id(), rb_chunk.id());
@@ -2253,7 +2253,7 @@ mod tests {
         let registry = test_db.metric_registry.as_ref();
 
         // Read buffer + Parquet chunk size
-        let object_store_bytes = 1262;
+        let object_store_bytes = 1235;
         catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 0);
         catalog_chunk_size_bytes_metric_eq(registry, "read_buffer", 1700);
         catalog_chunk_size_bytes_metric_eq(registry, "object_store", object_store_bytes);
@@ -2410,7 +2410,6 @@ mod tests {
         let partition = partition.write();
         // validate it has data
         let table_summary = partition.summary().unwrap().table;
-        assert_eq!(&table_summary.name, "cpu");
         assert_eq!(table_summary.total_count(), 2);
         let windows = partition.persistence_windows().unwrap();
         let open_min = windows.minimum_unpersisted_timestamp().unwrap();
@@ -2733,7 +2732,7 @@ mod tests {
                 id: chunk_summaries[0].id,
                 storage: ChunkStorage::ReadBufferAndObjectStore,
                 lifecycle_action,
-                memory_bytes: 4122,       // size of RB and OS chunks
+                memory_bytes: 4095,       // size of RB and OS chunks
                 object_store_bytes: 1574, // size of parquet file
                 row_count: 2,
                 time_of_last_access: None,
@@ -2747,7 +2746,7 @@ mod tests {
                 id: chunk_summaries[1].id,
                 storage: ChunkStorage::ClosedMutableBuffer,
                 lifecycle_action,
-                memory_bytes: 2550,
+                memory_bytes: 2526,
                 object_store_bytes: 0, // no OS chunks
                 row_count: 1,
                 time_of_last_access: None,
@@ -2782,9 +2781,9 @@ mod tests {
             );
         }
 
-        assert_eq!(db.catalog.metrics().memory().mutable_buffer(), 2550 + 1495);
+        assert_eq!(db.catalog.metrics().memory().mutable_buffer(), 2526 + 1495);
         assert_eq!(db.catalog.metrics().memory().read_buffer(), 2550);
-        assert_eq!(db.catalog.metrics().memory().object_store(), 1572);
+        assert_eq!(db.catalog.metrics().memory().object_store(), 1545);
     }
 
     #[tokio::test]
@@ -2823,9 +2822,9 @@ mod tests {
 
         let expected = vec![
             PartitionSummary {
+                table_name: "cpu".into(),
                 key: "1970-01-01T00".into(),
                 table: TableSummary {
-                    name: "cpu".into(),
                     columns: vec![
                         ColumnSummary {
                             name: "bar".into(),
@@ -2856,9 +2855,9 @@ mod tests {
                 },
             },
             PartitionSummary {
+                table_name: "mem".into(),
                 key: "1970-01-01T00".into(),
                 table: TableSummary {
-                    name: "mem".into(),
                     columns: vec![
                         ColumnSummary {
                             name: "foo".into(),
@@ -2879,9 +2878,9 @@ mod tests {
                 },
             },
             PartitionSummary {
+                table_name: "cpu".into(),
                 key: "1970-01-05T15".into(),
                 table: TableSummary {
-                    name: "cpu".into(),
                     columns: vec![
                         ColumnSummary {
                             name: "bar".into(),
@@ -2907,9 +2906,9 @@ mod tests {
                 },
             },
             PartitionSummary {
+                table_name: "mem".into(),
                 key: "1970-01-05T15".into(),
                 table: TableSummary {
-                    name: "mem".into(),
                     columns: vec![
                         ColumnSummary {
                             name: "frob".into(),

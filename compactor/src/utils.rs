@@ -90,7 +90,6 @@ impl ParquetFileWithTombstone {
         let iox_object_store = IoxObjectStore::existing(object_store, root_path);
         let parquet_chunk = new_parquet_chunk(
             &decoded_parquet_file,
-            Arc::from(table_name.clone()),
             ChunkMetrics::new_unregistered(), // TODO: need to add metrics
             Arc::new(iox_object_store),
         );

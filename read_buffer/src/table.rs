@@ -191,7 +191,7 @@ impl Table {
 
     /// Return a summary of all columns in this table
     pub fn table_summary(&self) -> TableSummary {
-        self.table_data.read().meta.to_summary(&self.name)
+        self.table_data.read().meta.to_summary()
     }
 
     /// Returns the column range associated with an InfluxDB Timestamp column
@@ -781,7 +781,7 @@ impl MetaData {
         })
     }
 
-    pub fn to_summary(&self, table_name: impl Into<String>) -> TableSummary {
+    pub fn to_summary(&self) -> TableSummary {
         use data_types::partition_metadata::{ColumnSummary, StatValues, Statistics};
         let columns = self
             .columns
@@ -838,10 +838,7 @@ impl MetaData {
             })
             .collect();
 
-        TableSummary {
-            name: table_name.into(),
-            columns,
-        }
+        TableSummary { columns }
     }
 
     pub fn has_column(&self, name: &str) -> bool {

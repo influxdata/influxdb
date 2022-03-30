@@ -140,7 +140,6 @@ mod test {
         };
 
         let table_summary = TableSummary {
-            name: "t1".to_string(),
             columns: vec![c1_summary, c2_summary],
         };
 
@@ -168,7 +167,7 @@ mod test {
 
         let expected = DFStatistics {
             num_rows: Some(3),
-            total_byte_size: Some(470),
+            total_byte_size: Some(444),
             column_statistics: Some(vec![df_c1_stats.clone(), df_c2_stats.clone()]),
             is_exact: true,
         };

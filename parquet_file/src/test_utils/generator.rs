@@ -114,7 +114,6 @@ impl ChunkGenerator {
         }
 
         let table_summary = TableSummary {
-            name: self.partition.table_name.to_string(),
             columns: column_summaries,
         };
 

@@ -166,7 +166,6 @@ pub(super) fn write_chunk_to_object_store(
                     Arc::clone(&db.iox_object_store),
                     file_size_bytes,
                     Arc::clone(&parquet_metadata),
-                    Arc::clone(&table_name),
                     metrics,
                 )
                 .context(ParquetChunkSnafu)?,

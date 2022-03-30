@@ -925,7 +925,6 @@ mod test {
         let chunk = chunk_builder.must_build();
 
         let summary = chunk.table_summary();
-        assert_eq!("a_table", summary.name);
 
         let column_summaries = summary.columns;
         let expected_column_summaries = vec![
