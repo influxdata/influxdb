@@ -2,7 +2,6 @@ use super::DmlHandler;
 use async_trait::async_trait;
 use data_types2::{DatabaseName, DeletePredicate};
 use metric::{Metric, U64Histogram, U64HistogramOptions};
-use std::sync::Arc;
 use time::{SystemProvider, TimeProvider};
 use trace::{ctx::SpanContext, span::SpanRecorder};
 
@@ -27,7 +26,7 @@ pub struct InstrumentationDecorator<T, P = SystemProvider> {
 impl<T> InstrumentationDecorator<T> {
     /// Wrap a new [`InstrumentationDecorator`] over `T` exposing metrics
     /// labelled with `handler=name`.
-    pub fn new(name: &'static str, registry: Arc<metric::Registry>, inner: T) -> Self {
+    pub fn new(name: &'static str, registry: &metric::Registry, inner: T) -> Self {
         let buckets = || {
             U64HistogramOptions::new([
                 5,
@@ -215,7 +214,7 @@ mod tests {
         let traces: Arc<dyn TraceCollector> = Arc::new(RingBufferTraceCollector::new(5));
         let span = SpanContext::new(Arc::clone(&traces));
 
-        let decorator = InstrumentationDecorator::new(HANDLER_NAME, Arc::clone(&metrics), handler);
+        let decorator = InstrumentationDecorator::new(HANDLER_NAME, &*metrics, handler);
 
         decorator
             .write(&ns, (), Some(span))
@@ -238,7 +237,7 @@ mod tests {
         let traces: Arc<dyn TraceCollector> = Arc::new(RingBufferTraceCollector::new(5));
         let span = SpanContext::new(Arc::clone(&traces));
 
-        let decorator = InstrumentationDecorator::new(HANDLER_NAME, Arc::clone(&metrics), handler);
+        let decorator = InstrumentationDecorator::new(HANDLER_NAME, &*metrics, handler);
 
         let err = decorator
             .write(&ns, (), Some(span))
@@ -260,7 +259,7 @@ mod tests {
         let traces: Arc<dyn TraceCollector> = Arc::new(RingBufferTraceCollector::new(5));
         let span = SpanContext::new(Arc::clone(&traces));
 
-        let decorator = InstrumentationDecorator::new(HANDLER_NAME, Arc::clone(&metrics), handler);
+        let decorator = InstrumentationDecorator::new(HANDLER_NAME, &*metrics, handler);
 
         let pred = DeletePredicate {
             range: TimestampRange::new(1, 2),
@@ -288,7 +287,7 @@ mod tests {
         let traces: Arc<dyn TraceCollector> = Arc::new(RingBufferTraceCollector::new(5));
         let span = SpanContext::new(Arc::clone(&traces));
 
-        let decorator = InstrumentationDecorator::new(HANDLER_NAME, Arc::clone(&metrics), handler);
+        let decorator = InstrumentationDecorator::new(HANDLER_NAME, &*metrics, handler);
 
         let pred = DeletePredicate {
             range: TimestampRange::new(1, 2),

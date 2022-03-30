@@ -111,8 +111,7 @@ impl TestContext {
             .and_then(partitioner)
             .and_then(FanOutAdaptor::new(sharded_write_buffer));
 
-        let handler_stack =
-            InstrumentationDecorator::new("request", Arc::clone(&metrics), handler_stack);
+        let handler_stack = InstrumentationDecorator::new("request", &*metrics, handler_stack);
 
         let delegate = HttpDelegate::new(1024, Arc::new(handler_stack), &metrics);
 

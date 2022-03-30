@@ -156,7 +156,7 @@ pub async fn create_router2_server_type(
     )
     .await?;
     let write_buffer =
-        InstrumentationDecorator::new("sharded_write_buffer", Arc::clone(&metrics), write_buffer);
+        InstrumentationDecorator::new("sharded_write_buffer", &*metrics, write_buffer);
 
     // Initialise an instrumented namespace cache to be shared with the schema
     // validator, and namespace auto-creator that reports cache hit/miss/update
@@ -172,15 +172,14 @@ pub async fn create_router2_server_type(
     let schema_validator =
         SchemaValidator::new(Arc::clone(&catalog), Arc::clone(&ns_cache), &*metrics);
     let schema_validator =
-        InstrumentationDecorator::new("schema_validator", Arc::clone(&metrics), schema_validator);
+        InstrumentationDecorator::new("schema_validator", &*metrics, schema_validator);
 
     // Add a write partitioner into the handler stack that splits by the date
     // portion of the write's timestamp.
     let partitioner = Partitioner::new(PartitionTemplate {
         parts: vec![TemplatePart::TimeFormat("%Y-%m-%d".to_owned())],
     });
-    let partitioner =
-        InstrumentationDecorator::new("partitioner", Arc::clone(&metrics), partitioner);
+    let partitioner = InstrumentationDecorator::new("partitioner", &*metrics, partitioner);
 
     ////////////////////////////////////////////////////////////////////////////
     //
@@ -248,13 +247,12 @@ pub async fn create_router2_server_type(
         // operation.
         .and_then(InstrumentationDecorator::new(
             "parallel_write",
-            Arc::clone(&metrics),
+            &*metrics,
             FanOutAdaptor::new(write_buffer),
         ));
 
     // Record the overall request handling latency
-    let handler_stack =
-        InstrumentationDecorator::new("request", Arc::clone(&metrics), handler_stack);
+    let handler_stack = InstrumentationDecorator::new("request", &*metrics, handler_stack);
 
     // Initialise the API delegates, sharing the handler stack between them.
     let handler_stack = Arc::new(handler_stack);
