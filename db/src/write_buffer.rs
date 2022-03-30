@@ -515,20 +515,23 @@ mod tests {
             ("sequencer_id", "0"),
             ("status", "client_error"),
         ]);
+
         loop {
             let maybe_metric = metric_registry
                 .get_instrument::<Metric<U64Counter>>("write_buffer_ingest_requests");
 
             if let Some(metric) = maybe_metric {
                 if let Some(observer) = metric.get_observer(&attributes) {
-                    if observer.fetch() == 1 {
+                    if dbg!(observer.fetch()) == 1 {
                         break;
                     }
                 }
             }
 
-            assert!(t_0.elapsed() < Duration::from_secs(10));
-            tokio::time::sleep(Duration::from_millis(100)).await;
+            assert!(t_0.elapsed() < Duration::from_secs(20));
+            // make sure the other tasks get a chance to work in the
+            // background
+            tokio::time::sleep(Duration::from_millis(1000)).await;
         }
 
         // do: stop background task loop
