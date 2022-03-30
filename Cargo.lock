@@ -1096,16 +1096,16 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "7.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=e8ed603c6d91e0b66f7fa0134823399bb825cc95#e8ed603c6d91e0b66f7fa0134823399bb825cc95"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=9e3bec811549b61bcb7957554879b77fd9c249ef#9e3bec811549b61bcb7957554879b77fd9c249ef"
 dependencies = [
  "ahash",
  "arrow",
  "async-trait",
  "chrono",
  "datafusion-common",
+ "datafusion-data-access",
  "datafusion-expr",
  "datafusion-physical-expr",
- "datafusion-storage",
  "futures",
  "hashbrown 0.12.0",
  "lazy_static",
@@ -1128,7 +1128,7 @@ dependencies = [
 [[package]]
 name = "datafusion-common"
 version = "7.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=e8ed603c6d91e0b66f7fa0134823399bb825cc95#e8ed603c6d91e0b66f7fa0134823399bb825cc95"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=9e3bec811549b61bcb7957554879b77fd9c249ef#9e3bec811549b61bcb7957554879b77fd9c249ef"
 dependencies = [
  "arrow",
  "ordered-float 2.10.0",
@@ -1137,9 +1137,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "datafusion-data-access"
+version = "1.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=9e3bec811549b61bcb7957554879b77fd9c249ef#9e3bec811549b61bcb7957554879b77fd9c249ef"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "futures",
+ "parking_lot 0.12.0",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
 name = "datafusion-expr"
 version = "7.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=e8ed603c6d91e0b66f7fa0134823399bb825cc95#e8ed603c6d91e0b66f7fa0134823399bb825cc95"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=9e3bec811549b61bcb7957554879b77fd9c249ef#9e3bec811549b61bcb7957554879b77fd9c249ef"
 dependencies = [
  "ahash",
  "arrow",
@@ -1150,7 +1163,7 @@ dependencies = [
 [[package]]
 name = "datafusion-physical-expr"
 version = "7.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=e8ed603c6d91e0b66f7fa0134823399bb825cc95#e8ed603c6d91e0b66f7fa0134823399bb825cc95"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=9e3bec811549b61bcb7957554879b77fd9c249ef#9e3bec811549b61bcb7957554879b77fd9c249ef"
 dependencies = [
  "ahash",
  "arrow",
@@ -1168,20 +1181,6 @@ dependencies = [
  "regex",
  "sha2 0.10.2",
  "unicode-segmentation",
-]
-
-[[package]]
-name = "datafusion-storage"
-version = "7.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=e8ed603c6d91e0b66f7fa0134823399bb825cc95#e8ed603c6d91e0b66f7fa0134823399bb825cc95"
-dependencies = [
- "async-trait",
- "chrono",
- "datafusion-common",
- "futures",
- "parking_lot 0.12.0",
- "tempfile",
- "tokio",
 ]
 
 [[package]]

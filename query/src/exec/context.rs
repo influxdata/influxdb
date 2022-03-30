@@ -211,7 +211,7 @@ impl IOxSessionConfig {
 
     /// Create an ExecutionContext suitable for executing DataFusion plans
     pub fn build(self) -> IOxSessionContext {
-        let state = SessionState::with_config(self.session_config, self.runtime)
+        let state = SessionState::with_config_rt(self.session_config, self.runtime)
             .with_query_planner(Arc::new(IOxQueryPlanner {}));
 
         let inner = SessionContext::with_state(state);

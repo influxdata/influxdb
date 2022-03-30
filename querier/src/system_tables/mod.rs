@@ -12,7 +12,7 @@ use datafusion::{
     catalog::schema::SchemaProvider,
     datasource::TableProvider,
     error::Result as DataFusionResult,
-    execution::context::{TaskContext, TaskProperties},
+    execution::context::TaskContext,
     physical_plan::{
         expressions::PhysicalSortExpr, ExecutionPlan, Partitioning, RecordBatchStream,
         SendableRecordBatchStream, Statistics,
@@ -166,13 +166,7 @@ impl<T: IoxSystemTable + 'static> ExecutionPlan for SystemTableExecutionPlan<T> 
         _partition: usize,
         context: Arc<TaskContext>,
     ) -> DataFusionResult<SendableRecordBatchStream> {
-        let batch_size = {
-            if let TaskProperties::SessionConfig(config) = &context.properties {
-                config.batch_size
-            } else {
-                todo!("Need to always have properties")
-            }
-        };
+        let batch_size = context.session_config().batch_size;
 
         Ok(Box::pin(SystemTableStream {
             projected_schema: Arc::clone(&self.projected_schema),

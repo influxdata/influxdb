@@ -284,7 +284,7 @@ mod test {
         .unwrap();
 
         let provider = MemTable::try_new(Arc::clone(&schema), vec![vec![rb]]).unwrap();
-        let mut ctx = SessionContext::new();
+        let ctx = SessionContext::new();
         ctx.register_table("t", Arc::new(provider)).unwrap();
 
         let df = ctx.table("t").unwrap();
