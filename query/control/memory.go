@@ -47,7 +47,7 @@ func (c *Controller) createAllocator(q *Query) {
 		m:     c.memory,
 		limit: c.memory.initialBytesQuotaPerQuery,
 	}
-	q.alloc = &memory.Allocator{
+	q.alloc = &memory.ResourceAllocator{
 		// Use an anonymous function to ensure the value is copied.
 		Limit:   func(v int64) *int64 { return &v }(q.memoryManager.limit),
 		Manager: q.memoryManager,
