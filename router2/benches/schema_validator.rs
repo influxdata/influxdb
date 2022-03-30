@@ -46,7 +46,7 @@ fn bench(group: &mut BenchmarkGroup<WallTime>, tables: usize, columns_per_table:
     let ns_cache = Arc::new(ShardedCache::new(
         iter::repeat_with(|| Arc::new(MemoryNamespaceCache::default())).take(10),
     ));
-    let validator = SchemaValidator::new(catalog, ns_cache);
+    let validator = SchemaValidator::new(catalog, ns_cache, &*metrics);
 
     for i in 0..65_000 {
         let write = lp_to_writes(format!("{}{}", i + 10_000_000, generate_lp(1, 1)).as_str());

@@ -101,7 +101,7 @@ impl TestContext {
             iox_catalog::INFINITE_RETENTION_POLICY.to_owned(),
         );
 
-        let schema_validator = SchemaValidator::new(Arc::clone(&catalog), ns_cache);
+        let schema_validator = SchemaValidator::new(Arc::clone(&catalog), ns_cache, &*metrics);
         let partitioner = Partitioner::new(PartitionTemplate {
             parts: vec![TemplatePart::TimeFormat("%Y-%m-%d".to_owned())],
         });

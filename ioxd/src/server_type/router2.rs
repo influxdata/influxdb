@@ -169,7 +169,8 @@ pub async fn create_router2_server_type(
     ));
 
     // Initialise and instrument the schema validator
-    let schema_validator = SchemaValidator::new(Arc::clone(&catalog), Arc::clone(&ns_cache));
+    let schema_validator =
+        SchemaValidator::new(Arc::clone(&catalog), Arc::clone(&ns_cache), &*metrics);
     let schema_validator =
         InstrumentationDecorator::new("schema_validator", Arc::clone(&metrics), schema_validator);
 
