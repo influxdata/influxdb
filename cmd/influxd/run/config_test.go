@@ -3,7 +3,6 @@ package run_test
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"testing"
 	"time"
@@ -340,7 +339,7 @@ func TestConfig_InvalidSubsections(t *testing.T) {
 func TestConfig_Parse_UTF8_ByteOrderMark(t *testing.T) {
 	// Parse configuration.
 	var c run.Config
-	f, err := ioutil.TempFile("", "influxd")
+	f, err := os.CreateTemp("", "influxd")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -432,7 +431,7 @@ enabled = true
 func TestConfig_Parse_UTF16_ByteOrderMark(t *testing.T) {
 	// Parse configuration.
 	var c run.Config
-	f, err := ioutil.TempFile("", "influxd")
+	f, err := os.CreateTemp("", "influxd")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
@@ -154,7 +153,7 @@ func (t *testExecutor) executeWithOptions(
 		return err
 	}
 	if resp.StatusCode/100 != 2 {
-		b, _ := ioutil.ReadAll(resp.Body)
+		b, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("error response from flux query: %s", string(b))
 	}
 

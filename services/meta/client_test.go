@@ -1,7 +1,6 @@
 package meta_test
 
 import (
-	"io/ioutil"
 	"os"
 	"path"
 	"reflect"
@@ -1156,7 +1155,7 @@ func testTempDir(skip int) string {
 	}
 	_, prefix := path.Split(runtime.FuncForPC(pc).Name())
 	// Make a temp dir prefixed with calling function's name.
-	dir, err := ioutil.TempDir(os.TempDir(), prefix)
+	dir, err := os.MkdirTemp(os.TempDir(), prefix)
 	if err != nil {
 		panic(err)
 	}

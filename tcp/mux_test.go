@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net"
 	"os"
@@ -38,7 +37,7 @@ func TestMux(t *testing.T) {
 		defer tcpListener.Close()
 
 		// Setup muxer & listeners.
-		logger := log.New(ioutil.Discard, "", 0)
+		logger := log.New(io.Discard, "", 0)
 		if testing.Verbose() {
 			logger = tcp.MuxLogger(os.Stderr)
 		}

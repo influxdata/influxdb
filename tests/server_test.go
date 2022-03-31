@@ -6,7 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"math/rand"
 	"net/http"
 	"net/url"
@@ -10178,7 +10178,7 @@ func TestFluxBasicEndToEnd(t *testing.T) {
 		resp, err := httpClient.Do(req)
 		assert.NoError(t, err)
 		defer resp.Body.Close()
-		b, err := ioutil.ReadAll(resp.Body)
+		b, err := io.ReadAll(resp.Body)
 		assert.NoError(t, err)
 		assert.Equal(t,
 			strings.ReplaceAll(`,result,table,organizationID,databaseName,retentionPolicy,retentionPeriod,default,bucketId
@@ -10200,7 +10200,7 @@ func TestFluxBasicEndToEnd(t *testing.T) {
 		resp, err := httpClient.Do(req)
 		assert.NoError(t, err)
 		defer resp.Body.Close()
-		b, err := ioutil.ReadAll(resp.Body)
+		b, err := io.ReadAll(resp.Body)
 		assert.NoError(t, err)
 		assert.Equal(t,
 			strings.ReplaceAll(`#datatype,string,long,string,string,string,long,boolean,string
@@ -10222,7 +10222,7 @@ func TestFluxBasicEndToEnd(t *testing.T) {
 		resp, err := httpClient.Do(req)
 		assert.NoError(t, err)
 		defer resp.Body.Close()
-		b, err := ioutil.ReadAll(resp.Body)
+		b, err := io.ReadAll(resp.Body)
 		assert.NoError(t, err)
 		assert.Equal(t,
 			strings.ReplaceAll(`,result,table,organizationID,databaseName,retentionPolicy,retentionPeriod,default,bucketId
@@ -10297,7 +10297,7 @@ func TestFluxRegressionEndToEnd(t *testing.T) {
 		resp, err := httpClient.Do(req)
 		assert.NoError(t, err)
 		defer resp.Body.Close()
-		b, err := ioutil.ReadAll(resp.Body)
+		b, err := io.ReadAll(resp.Body)
 		assert.NoError(t, err)
 		assert.Equal(t,
 			strings.ReplaceAll(`,result,table,name,id,organizationID,retentionPolicy,retentionPeriod
@@ -10620,7 +10620,7 @@ func runFluxBuiltinTest(t *testing.T, file *ast.File, u *url.URL, bucket string,
 	}
 
 	if resp.StatusCode/100 != 2 {
-		b, _ := ioutil.ReadAll(resp.Body)
+		b, _ := io.ReadAll(resp.Body)
 		t.Log("Bad response from flux:", string(b))
 		return fmt.Errorf("Bad status code %d from flux query", resp.StatusCode)
 	}

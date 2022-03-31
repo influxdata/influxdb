@@ -8,7 +8,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"math"
 	"os"
@@ -494,7 +493,7 @@ func (cmd *Command) backupMetastore() (retErr error) {
 		if err != nil {
 			return err
 		}
-		if err := ioutil.WriteFile(filepath.Join(cmd.path, filename), protoBytes, 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(cmd.path, filename), protoBytes, 0644); err != nil {
 			fmt.Fprintln(cmd.Stdout, "Error.")
 			return err
 		}

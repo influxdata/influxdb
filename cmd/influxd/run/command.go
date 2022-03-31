@@ -5,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	_ "net/http/pprof"
@@ -225,7 +224,7 @@ func (cmd *Command) writePIDFile(path string) error {
 
 	// Retrieve the PID and write it.
 	pid := strconv.Itoa(os.Getpid())
-	if err := ioutil.WriteFile(path, []byte(pid), 0666); err != nil {
+	if err := os.WriteFile(path, []byte(pid), 0666); err != nil {
 		return fmt.Errorf("write file: %s", err)
 	}
 
@@ -267,8 +266,7 @@ Usage: influxd run [flags]
     -cpuprofile <path>
             Write CPU profiling information to a file.
     -memprofile <path>
-            Write memory usage information to a file.
-`
+            Write memory usage information to a file.`
 
 // Options represents the command line options that can be parsed.
 type Options struct {
