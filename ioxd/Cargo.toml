@@ -64,6 +64,7 @@ workspace-hack = { path = "../workspace-hack"}
 # Workspace dependencies, in alphabetical order
 arrow_util = { path = "../arrow_util" }
 test_helpers = { path = "../test_helpers" }
+iox_tests = { path = "../iox_tests" }
 
 # Crates.io dependencies, in alphabetical order
 assert_cmd = "2.0.2"

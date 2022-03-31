@@ -76,6 +76,10 @@ impl<C: QuerierHandler + std::fmt::Debug + 'static> ServerType for QuerierServer
             builder,
             rpc::query::make_storage_server(Arc::clone(&self.database),)
         );
+        add_service!(
+            builder,
+            rpc::namespace::namespace_service(Arc::clone(&self.database),)
+        );
         serve_builder!(builder);
 
         Ok(())

@@ -1,0 +1,23 @@
+syntax = "proto3";
+package influxdata.iox.namespace.v1;
+option go_package = "github.com/influxdata/iox/namespace/v1";
+
+service NamespaceService {
+  // Get all namespaces
+  rpc GetNamespaces(GetNamespacesRequest) returns (GetNamespacesResponse);
+}
+
+message GetNamespacesRequest {
+}
+
+message GetNamespacesResponse {
+  repeated Namespace namespaces = 1;
+}
+
+message Namespace {
+  // Namespace ID
+  int32 id = 1;
+
+  // Name of the Namespace
+  string name = 2;
+}

@@ -13,6 +13,9 @@ pub mod deployment;
 /// Client for management API
 pub mod management;
 
+/// Client for namespace API
+pub mod namespace;
+
 /// Client for remote API
 pub mod remote;
 

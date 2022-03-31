@@ -6,6 +6,7 @@ use crate::{
 };
 use async_trait::async_trait;
 use backoff::BackoffConfig;
+use data_types2::Namespace;
 use iox_catalog::interface::Catalog;
 use object_store::DynObjectStore;
 use parking_lot::RwLock;
@@ -115,6 +116,11 @@ impl QuerierDatabase {
             Arc::clone(&self.exec),
             Arc::clone(&self.query_log),
         )))
+    }
+
+    /// Return all namespaces this querier knows about
+    pub async fn namespaces(&self) -> Result<Vec<Namespace>, iox_catalog::interface::Error> {
+        self.catalog.repositories().await.namespaces().list().await
     }
 }
 

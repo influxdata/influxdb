@@ -1,0 +1,131 @@
+//! NamespaceService gRPC implementation
+use std::sync::Arc;
+
+use data_types2::Namespace;
+use generated_types::influxdata::iox::namespace::v1 as proto;
+use querier::QuerierDatabase;
+
+/// Acquire a [`NamespaceService`] gRPC service implementation.
+pub fn namespace_service(
+    server: Arc<QuerierDatabase>,
+) -> proto::namespace_service_server::NamespaceServiceServer<
+    impl proto::namespace_service_server::NamespaceService,
+> {
+    proto::namespace_service_server::NamespaceServiceServer::new(NamespaceServiceImpl::new(server))
+}
+
+#[derive(Debug)]
+struct NamespaceServiceImpl {
+    server: Arc<QuerierDatabase>,
+}
+
+impl NamespaceServiceImpl {
+    pub fn new(server: Arc<QuerierDatabase>) -> Self {
+        Self { server }
+    }
+}
+
+/// Translate a catalog Namespace object to a protobuf form
+fn namespace_to_proto(namespace: Namespace) -> proto::Namespace {
+    proto::Namespace {
+        id: namespace.id.get(),
+        name: namespace.name,
+    }
+}
+
+#[tonic::async_trait]
+impl proto::namespace_service_server::NamespaceService for NamespaceServiceImpl {
+    async fn get_namespaces(
+        &self,
+        _request: tonic::Request<proto::GetNamespacesRequest>,
+    ) -> Result<tonic::Response<proto::GetNamespacesResponse>, tonic::Status> {
+        // Get catalog namespaces
+        let namespaces = self
+            .server
+            .namespaces()
+            .await
+            .map_err(|e| tonic::Status::internal(e.to_string()))?;
+
+        // convert to proto Namespaces
+        let namespaces: Vec<_> = namespaces.into_iter().map(namespace_to_proto).collect();
+
+        Ok(tonic::Response::new(proto::GetNamespacesResponse {
+            namespaces,
+        }))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use generated_types::influxdata::iox::namespace::v1::namespace_service_server::NamespaceService;
+    use iox_tests::util::TestCatalog;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_get_namespaces_empty() {
+        let catalog = TestCatalog::new();
+
+        let db = Arc::new(QuerierDatabase::new(
+            catalog.catalog(),
+            catalog.metric_registry(),
+            catalog.object_store(),
+            catalog.time_provider(),
+            catalog.exec(),
+        ));
+
+        let service = NamespaceServiceImpl::new(db);
+
+        let namespaces = get_namespaces(&service).await;
+        assert_eq!(
+            namespaces,
+            proto::GetNamespacesResponse { namespaces: vec![] }
+        );
+    }
+
+    #[tokio::test]
+    async fn test_get_namespaces() {
+        let catalog = TestCatalog::new();
+
+        let db = Arc::new(QuerierDatabase::new(
+            catalog.catalog(),
+            catalog.metric_registry(),
+            catalog.object_store(),
+            catalog.time_provider(),
+            catalog.exec(),
+        ));
+
+        let service = NamespaceServiceImpl::new(db);
+        catalog.create_namespace("namespace2").await;
+        catalog.create_namespace("namespace1").await;
+
+        let namespaces = get_namespaces(&service).await;
+        assert_eq!(
+            namespaces,
+            proto::GetNamespacesResponse {
+                namespaces: vec![
+                    proto::Namespace {
+                        id: 1,
+                        name: "namespace2".to_string(),
+                    },
+                    proto::Namespace {
+                        id: 2,
+                        name: "namespace1".to_string(),
+                    },
+                ]
+            }
+        );
+    }
+
+    async fn get_namespaces(service: &NamespaceServiceImpl) -> proto::GetNamespacesResponse {
+        let request = proto::GetNamespacesRequest {};
+
+        let mut namespaces = service
+            .get_namespaces(tonic::Request::new(request))
+            .await
+            .unwrap()
+            .into_inner();
+        namespaces.namespaces.sort_by_key(|n| n.id);
+        namespaces
+    }
+}

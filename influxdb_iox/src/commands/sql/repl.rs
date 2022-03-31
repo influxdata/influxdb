@@ -1,7 +1,7 @@
 use std::{borrow::Cow, convert::TryInto, path::PathBuf, sync::Arc, time::Instant};
 
 use arrow::{
-    array::{ArrayRef, StringArray},
+    array::{ArrayRef, Int32Array, StringArray},
     record_batch::RecordBatch,
 };
 use observability_deps::tracing::{debug, info};
@@ -238,6 +238,12 @@ impl Repl {
                         .map_err(|e| println!("{}", e))
                         .ok();
                 }
+                ReplCommand::ShowNamespaces => {
+                    self.list_namespaces()
+                        .await
+                        .map_err(|e| println!("{}", e))
+                        .ok();
+                }
                 ReplCommand::UseDatabase { db_name } => {
                     self.use_database(db_name);
                 }
@@ -288,6 +294,28 @@ impl Repl {
         let record_batch =
             RecordBatch::try_from_iter(vec![("db_name", Arc::new(db_names) as ArrayRef)])
                 .expect("creating record batch successfully");
+
+        self.print_results(&[record_batch])
+    }
+
+    // print all namespaces to the output
+    async fn list_namespaces(&mut self) -> Result<()> {
+        let mut namespace_client =
+            influxdb_iox_client::namespace::Client::new(self.connection.clone());
+        let namespaces = namespace_client
+            .get_namespaces()
+            .await
+            .map_err(|e| Box::new(e) as _)
+            .context(LoadingRemoteStateSnafu)?;
+
+        let namespace_id: Int32Array = namespaces.iter().map(|ns| Some(ns.id)).collect();
+        let name: StringArray = namespaces.iter().map(|ns| Some(&ns.name)).collect();
+
+        let record_batch = RecordBatch::try_from_iter(vec![
+            ("namespace_id", Arc::new(namespace_id) as ArrayRef),
+            ("name", Arc::new(name) as ArrayRef),
+        ])
+        .expect("creating record batch successfully");
 
         self.print_results(&[record_batch])
     }

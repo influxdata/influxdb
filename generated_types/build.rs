@@ -22,6 +22,7 @@ fn main() -> Result<()> {
 /// - `influxdata.iox.deployment.v1.rs`
 /// - `influxdata.iox.ingester.v1.rs`
 /// - `influxdata.iox.management.v1.rs`
+/// - `influxdata.iox.namespace.v1.rs`
 /// - `influxdata.iox.preserved_catalog.v1.rs`
 /// - `influxdata.iox.remote.v1.rs`
 /// - `influxdata.iox.router.v1.rs`
@@ -34,6 +35,7 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
     let deployment_path = root.join("influxdata/iox/deployment/v1");
     let ingester_path = root.join("influxdata/iox/ingester/v1");
     let management_path = root.join("influxdata/iox/management/v1");
+    let namespace_path = root.join("influxdata/iox/namespace/v1");
     let predicate_path = root.join("influxdata/iox/predicate/v1");
     let preserved_catalog_path = root.join("influxdata/iox/preserved_catalog/v1");
     let remote_path = root.join("influxdata/iox/remote/v1");
@@ -54,6 +56,7 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
         management_path.join("partition_template.proto"),
         management_path.join("server_config.proto"),
         management_path.join("service.proto"),
+        namespace_path.join("service.proto"),
         predicate_path.join("predicate.proto"),
         preserved_catalog_path.join("catalog.proto"),
         preserved_catalog_path.join("parquet_metadata.proto"),

@@ -2522,6 +2522,7 @@ dependencies = [
  "hyper",
  "ingester",
  "iox_catalog",
+ "iox_tests",
  "ioxd_common",
  "metric",
  "metric_exporters",

@@ -5,6 +5,7 @@ use observability_deps::tracing::{debug, warn};
 pub enum ReplCommand {
     Help,
     ShowDatabases,
+    ShowNamespaces,
     Observer,
     SetFormat { format: String },
     UseDatabase { db_name: String },
@@ -80,6 +81,7 @@ impl TryFrom<&str> for ReplCommand {
                 })
             }
             ["show", "databases"] => Ok(Self::ShowDatabases),
+            ["show", "namespaces"] => Ok(Self::ShowNamespaces),
             ["set", "format", _format] => Ok(Self::SetFormat {
                 format: raw_commands[2].to_string(),
             }),
@@ -98,9 +100,11 @@ impl ReplCommand {
 Available commands (not case sensitive):
 HELP (this one)
 
-SHOW DATABASES: List databases available on the server
+SHOW DATABASES: List databases available on the server (OG)
 
-USE [DATABASE] <name>: Set the current remote database to name
+SHOW NAMESPACES: List databases available on the server (NG)
+
+USE [DATABASE|NAMESPACE] <name>: Set the current remote database to name
 
 SET FORMAT <format>: Set the output format to Pretty, csv or json
 
@@ -193,6 +197,20 @@ mod tests {
         assert_eq!("SHOW DATABASES".try_into(), expected);
 
         assert_eq!("SHOW DATABASES DD".try_into(), sql_cmd("SHOW DATABASES DD"));
+    }
+
+    #[test]
+    fn show_namespaces() {
+        let expected = Ok(ReplCommand::ShowNamespaces);
+        assert_eq!("show namespaces".try_into(), expected);
+        assert_eq!("show  Namespaces".try_into(), expected);
+        assert_eq!("show  namespaces;".try_into(), expected);
+        assert_eq!("SHOW NAMESPACES".try_into(), expected);
+
+        assert_eq!(
+            "SHOW NAMESPACES DD".try_into(),
+            sql_cmd("SHOW NAMESPACES DD")
+        );
     }
 
     #[test]
