@@ -1,0 +1,43 @@
+[package]
+name = "ioxd_querier"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# Workspace dependencies, in alphabetical order
+data_types2 = { path = "../data_types2" }
+generated_types = { path = "../generated_types" }
+iox_catalog = { path = "../iox_catalog" }
+ioxd_common = { path = "../ioxd_common" }
+metric = { path = "../metric" }
+object_store = { path = "../object_store" }
+querier = { path = "../querier" }
+query = { path = "../query" }
+service_common = { path = "../service_common" }
+service_grpc_flight = { path = "../service_grpc_flight" }
+service_grpc_influxrpc = { path = "../service_grpc_influxrpc" }
+service_grpc_testing = { path = "../service_grpc_testing" }
+time = { path = "../time" }
+trace = { path = "../trace" }
+trace_http = { path = "../trace_http" }
+
+# Crates.io dependencies, in alphabetical order
+arrow-flight = "11"
+async-trait = "0.1"
+hyper = "0.14"
+tokio = { version = "1.17", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
+tokio-stream = { version = "0.1", features = ["net"] }
+tokio-util = { version = "0.7.1" }
+tonic = "0.6"
+tonic-health = "0.5.0"
+tonic-reflection = "0.3.0"
+workspace-hack = { path = "../workspace-hack"}
+
+
+[dev-dependencies]
+# Workspace dependencies, in alphabetical order
+iox_tests = { path = "../iox_tests" }
+
+# Crates.io dependencies, in alphabetical order

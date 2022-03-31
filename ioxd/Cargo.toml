@@ -20,7 +20,6 @@ mutable_batch = { path = "../mutable_batch" }
 object_store = { path = "../object_store" }
 observability_deps = { path = "../observability_deps" }
 panic_logging = { path = "../panic_logging" }
-querier = { path = "../querier" }
 query = { path = "../query" }
 router = { path = "../router" }
 router2 = { path = "../router2" }

@@ -8,8 +8,9 @@ use thiserror::Error;
 use time::SystemProvider;
 
 use clap_blocks::{catalog_dsn::CatalogDsnConfig, run_config::RunConfig};
-use ioxd::{self, server_type::querier::create_querier_server_type, Service};
+use ioxd::{self, Service};
 use ioxd_common::server_type::{CommonServerState, CommonServerStateError};
+use ioxd_querier::create_querier_server_type;
 
 #[derive(Debug, Error)]
 pub enum Error {

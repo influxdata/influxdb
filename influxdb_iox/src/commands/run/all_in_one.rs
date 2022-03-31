@@ -11,11 +11,13 @@ use clap_blocks::{
 };
 use ioxd_common::server_type::{CommonServerState, CommonServerStateError};
 
+use ioxd_querier::create_querier_server_type;
+
 use ioxd::{
     self,
     server_type::{
         compactor::create_compactor_server_type, ingester::create_ingester_server_type,
-        querier::create_querier_server_type, router2::create_router2_server_type,
+        router2::create_router2_server_type,
     },
     Service,
 };
