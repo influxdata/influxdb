@@ -120,8 +120,24 @@ impl QuerierTable {
                 for tombstone in tombstones {
                     // check conditions that don't need catalog access first to avoid unnecessary catalog load
 
-                    // check if tombstone even applies to the sequence number range within the parquet file
-                    if chunk.meta().min_sequence_number() > tombstone.sequence_number() {
+                    // Check if tombstone even applies to the sequence number range within the parquet file. There
+                    // are the following cases here:
+                    //
+                    // 1. Tombstone comes before chunk min sequencer number:
+                    //    There is no way the tombstone can affect the chunk.
+                    // 2. Tombstone comes after chunk max sequencer number:
+                    //    Tombstone affects whole chunk (it might be marked as processed though, we'll check that
+                    //    further down).
+                    // 3. Tombstone is in the min-max sequencer number range of the chunk:
+                    //    Technically the querier has NO way to determine the rows that are affected by the tombstone
+                    //    since we have no row-level sequence numbers. Such a file can be created by two sources -- the
+                    //    ingester and the compactor. The ingester must have materialized the tombstone while creating
+                    //    the parquet file, so the querier can skip it. The compactor also materialized the tombstones,
+                    //    so we can skip it as well. In the compactor case the tombstone will even be marked as
+                    //    processed.
+                    //
+                    // So the querier only needs to consider the tombstone in case 2.
+                    if tombstone.sequence_number() <= chunk.meta().max_sequence_number() {
                         continue;
                     }
 
@@ -238,6 +254,15 @@ mod tests {
                 now().timestamp_nanos(),
             )
             .await;
+        let file115 = partition11
+            .create_parquet_file_with_min_max(
+                "table1 foo=5 55",
+                9,
+                10,
+                now().timestamp_nanos(),
+                now().timestamp_nanos(),
+            )
+            .await;
         let file121 = partition12
             .create_parquet_file_with_min_max(
                 "table1 foo=5 55",
@@ -259,11 +284,16 @@ mod tests {
 
         file111.flag_for_delete().await;
 
-        let tombstone = table1
+        let tombstone1 = table1
             .with_sequencer(&sequencer1)
-            .create_tombstone(6, 1, 100, "foo=1")
+            .create_tombstone(7, 1, 100, "foo=1")
             .await;
-        tombstone.mark_processed(&file112).await;
+        tombstone1.mark_processed(&file112).await;
+        let tombstone2 = table1
+            .with_sequencer(&sequencer1)
+            .create_tombstone(8, 1, 100, "foo=1")
+            .await;
+        tombstone2.mark_processed(&file112).await;
 
         // now we have some files
         // this contains all files except for:
@@ -271,7 +301,7 @@ mod tests {
         // - file221: wrong table
         let mut chunks = querier_table.chunks().await;
         chunks.sort_by_key(|c| c.id());
-        assert_eq!(chunks.len(), 4);
+        assert_eq!(chunks.len(), 5);
 
         // check IDs
         assert_eq!(
@@ -288,6 +318,10 @@ mod tests {
         );
         assert_eq!(
             chunks[3].id(),
+            ChunkId::new_test(file115.parquet_file.id.get() as u128),
+        );
+        assert_eq!(
+            chunks[4].id(),
             ChunkId::new_test(file121.parquet_file.id.get() as u128),
         );
 
@@ -295,10 +329,12 @@ mod tests {
         // file112: marked as processed
         assert_eq!(chunks[0].delete_predicates().len(), 0);
         // file113: has delete predicate
-        assert_eq!(chunks[1].delete_predicates().len(), 1);
-        // file114: came after in sequencer
+        assert_eq!(chunks[1].delete_predicates().len(), 2);
+        // file114: predicates are directly within the chunk range => assume they are materialized
         assert_eq!(chunks[2].delete_predicates().len(), 0);
-        // file121: wrong sequencer
+        // file115: came after in sequencer
         assert_eq!(chunks[3].delete_predicates().len(), 0);
+        // file121: wrong sequencer
+        assert_eq!(chunks[4].delete_predicates().len(), 0);
     }
 }

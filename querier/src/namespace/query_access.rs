@@ -260,7 +260,7 @@ mod tests {
 
         table_mem
             .with_sequencer(&sequencer1)
-            .create_tombstone(1, 1, 13, "host=d")
+            .create_tombstone(1000, 1, 13, "host=d")
             .await;
 
         let querier_namespace = Arc::new(querier_namespace(&ns).await);
