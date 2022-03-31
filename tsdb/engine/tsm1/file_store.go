@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math"
 	"os"
 	"path/filepath"
@@ -491,7 +490,7 @@ func (f *FileStore) Open() error {
 	}
 
 	// find the current max ID for temp directories
-	tmpfiles, err := ioutil.ReadDir(f.dir)
+	tmpfiles, err := os.ReadDir(f.dir)
 	if err != nil {
 		return err
 	}

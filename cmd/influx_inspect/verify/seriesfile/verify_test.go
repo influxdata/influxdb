@@ -3,7 +3,6 @@ package seriesfile_test
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -71,7 +70,7 @@ type Test struct {
 func NewTest(t *testing.T) *Test {
 	t.Helper()
 
-	dir, err := ioutil.TempDir("", "verify-seriesfile-")
+	dir, err := os.MkdirTemp("", "verify-seriesfile-")
 	if err != nil {
 		t.Fatal(err)
 	}

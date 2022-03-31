@@ -9,7 +9,6 @@ import (
 	"expvar"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"math"
 	"net/http"
@@ -1218,7 +1217,7 @@ func (h *Handler) servePromWrite(w http.ResponseWriter, r *http.Request, user me
 func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user meta.User) {
 	atomic.AddInt64(&h.stats.PromReadRequests, 1)
 	h.requestTracker.Add(r, user)
-	compressed, err := ioutil.ReadAll(r.Body)
+	compressed, err := io.ReadAll(r.Body)
 	if err != nil {
 		h.httpError(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -1703,11 +1702,10 @@ type credentials struct {
 }
 
 func parseToken(token string) (user, pass string, ok bool) {
-	s := strings.IndexByte(token, ':')
-	if s < 0 {
-		return
+	if t1, t2, ok := strings.Cut(token, ":"); ok {
+		return t1, t2, ok
 	}
-	return token[:s], token[s+1:], true
+	return
 }
 
 // parseCredentials parses a request and returns the authentication credentials.

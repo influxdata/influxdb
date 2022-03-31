@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -1968,7 +1967,7 @@ func (fs *MeasurementFieldSet) load() error {
 	}
 
 	var pb internal.MeasurementFieldSet
-	b, err := ioutil.ReadAll(fd)
+	b, err := io.ReadAll(fd)
 	if err != nil {
 		return err
 	}

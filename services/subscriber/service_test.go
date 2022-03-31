@@ -3,7 +3,7 @@ package subscriber_test
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -408,7 +408,7 @@ func TestService_WaitForDataChanged(t *testing.T) {
 		<-done
 	}))
 	nonBlockingServer := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) {
-		b, _ := ioutil.ReadAll(req.Body)
+		b, _ := io.ReadAll(req.Body)
 		receivedNonBlocking <- string(b)
 	}))
 	defer blockingServer.Close()

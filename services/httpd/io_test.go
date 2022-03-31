@@ -2,7 +2,7 @@ package httpd
 
 import (
 	"bytes"
-	"io/ioutil"
+	"io"
 	"testing"
 )
 
@@ -22,7 +22,7 @@ func TestTruncatedReader_Read(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			b := truncateReader(bytes.NewReader(tc.in), tc.n)
-			_, err := ioutil.ReadAll(b)
+			_, err := io.ReadAll(b)
 			if err != tc.err {
 				t.Errorf("unexpected error; got=%v, exp=%v", err, tc.err)
 			}

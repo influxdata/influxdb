@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -343,7 +342,7 @@ func (s *Store) loadShards() error {
 	var n int
 
 	// Determine how many shards we need to open by checking the store path.
-	dbDirs, err := ioutil.ReadDir(s.path)
+	dbDirs, err := os.ReadDir(s.path)
 	if err != nil {
 		return err
 	}
@@ -373,7 +372,7 @@ func (s *Store) loadShards() error {
 		}
 
 		// Load each retention policy within the database directory.
-		rpDirs, err := ioutil.ReadDir(dbPath)
+		rpDirs, err := os.ReadDir(dbPath)
 		if err != nil {
 			return err
 		}
@@ -395,7 +394,7 @@ func (s *Store) loadShards() error {
 				continue
 			}
 
-			shardDirs, err := ioutil.ReadDir(rpPath)
+			shardDirs, err := os.ReadDir(rpPath)
 			if err != nil {
 				return err
 			}

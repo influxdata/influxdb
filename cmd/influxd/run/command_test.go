@@ -1,7 +1,6 @@
 package run_test
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -11,7 +10,7 @@ import (
 )
 
 func TestCommand_PIDFile(t *testing.T) {
-	tmpdir, err := ioutil.TempDir(os.TempDir(), "influxd-test")
+	tmpdir, err := os.MkdirTemp(os.TempDir(), "influxd-test")
 	if err != nil {
 		t.Fatal(err)
 	}

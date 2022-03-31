@@ -3,7 +3,6 @@ package tsi1
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -1189,7 +1188,7 @@ func (i *Index) Rebuild() {}
 
 // IsIndexDir returns true if directory contains at least one partition directory.
 func IsIndexDir(path string) (bool, error) {
-	fis, err := ioutil.ReadDir(path)
+	fis, err := os.ReadDir(path)
 	if err != nil {
 		return false, err
 	}

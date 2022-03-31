@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
@@ -70,11 +69,8 @@ type Query struct {
 
 // SplitPath gets the path of a url
 func SplitPath(v string) (string, string) {
-	i := strings.Index(v, "/")
-	if i == -1 {
-		return v, ""
-	}
-	return v[:i] /* first */, v[i+1:] /* rest */
+	first, rest, _ := strings.Cut(v, "/")
+	return first, rest
 }
 
 // ParseConnectionString will parse a string to create a valid connection URL
@@ -406,7 +402,7 @@ func (c *Client) Write(bp BatchPoints) (*Response, error) {
 	defer resp.Body.Close()
 
 	var response Response
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -452,7 +448,7 @@ func (c *Client) WriteLineProtocol(data, database, retentionPolicy, precision, w
 	defer resp.Body.Close()
 
 	var response Response
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -648,7 +644,7 @@ func (r *ChunkedResponse) NextResponse() (*Response, error) {
 		// A decoding error happened. This probably means the server crashed
 		// and sent a last-ditch error message to us. Ensure we have read the
 		// entirety of the connection to get any remaining error text.
-		io.Copy(ioutil.Discard, r.duplex)
+		io.Copy(io.Discard, r.duplex)
 		return nil, errors.New(strings.TrimSpace(r.buf.String()))
 	}
 	r.buf.Reset()
