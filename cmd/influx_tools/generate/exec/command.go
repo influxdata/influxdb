@@ -369,6 +369,7 @@ fields = [
 `
 
 func (cmd *Command) printExample() error {
+	// go vet: "possible formatting directive" is intended
 	fmt.Fprint(cmd.Stdout, exampleSchema)
 	return nil
 }

@@ -1780,10 +1780,14 @@ func testFieldMaker(t *testing.T, wg *sync.WaitGroup, mf *tsdb.MeasurementFieldS
 	fields := mf.CreateFieldsIfNotExists([]byte(measurement))
 	for _, fieldName := range fieldNames {
 		if err := fields.CreateFieldIfNotExists([]byte(fieldName), influxql.Float); err != nil {
-			t.Fatalf("create field error: %v", err)
+			t.Logf("create field error: %v", err)
+			t.Fail()
+			return
 		}
 		if err := mf.Save(); err != nil {
-			t.Fatalf("save error: %v", err)
+			t.Logf("save error: %v", err)
+			t.Fail()
+			return
 		}
 	}
 }
