@@ -69,11 +69,8 @@ type Query struct {
 
 // SplitPath gets the path of a url
 func SplitPath(v string) (string, string) {
-	i := strings.Index(v, "/")
-	if i == -1 {
-		return v, ""
-	}
-	return v[:i] /* first */, v[i+1:] /* rest */
+	first, rest, _ := strings.Cut(v, "/")
+	return first, rest
 }
 
 // ParseConnectionString will parse a string to create a valid connection URL

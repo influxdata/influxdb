@@ -78,13 +78,7 @@ func (s *ReadRangePhysSpec) Copy() plan.ProcedureSpec {
 }
 
 func lookupDatabase(ctx context.Context, bucketName string, deps StorageDependencies, privilege influxql.Privilege) (string, string, error) {
-	var db, rp string
-	if i := strings.IndexByte(bucketName, '/'); i == -1 {
-		db = bucketName
-	} else {
-		rp = bucketName[i+1:]
-		db = bucketName[:i]
-	}
+	db, rp, _ := strings.Cut(bucketName, "/")
 	// validate and resolve db/rp
 	di := deps.MetaClient.Database(db)
 	if di == nil {

@@ -1702,11 +1702,10 @@ type credentials struct {
 }
 
 func parseToken(token string) (user, pass string, ok bool) {
-	s := strings.IndexByte(token, ':')
-	if s < 0 {
-		return
+	if t1, t2, ok := strings.Cut(token, ":"); ok {
+		return t1, t2, ok
 	}
-	return token[:s], token[s+1:], true
+	return
 }
 
 // parseCredentials parses a request and returns the authentication credentials.

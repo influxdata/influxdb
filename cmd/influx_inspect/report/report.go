@@ -2,6 +2,7 @@
 package report
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"io"
@@ -115,8 +116,7 @@ func (cmd *Command) Run(args ...string) error {
 			dbCount.Add([]byte(key))
 
 			if cmd.detailed {
-				sep := strings.Index(string(key), "#!~#")
-				seriesKey, field := key[:sep], key[sep+4:]
+				seriesKey, field, _ := bytes.Cut(key, []byte("#!~#"))
 				measurement, tags := models.ParseKey(seriesKey)
 
 				measCount := measCardinalities[measurement]
