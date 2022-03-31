@@ -12,13 +12,11 @@ use clap_blocks::{
 use ioxd_common::server_type::{CommonServerState, CommonServerStateError};
 
 use ioxd_querier::create_querier_server_type;
+use ioxd_router2::create_router2_server_type;
 
 use ioxd::{
     self,
-    server_type::{
-        compactor::create_compactor_server_type, ingester::create_ingester_server_type,
-        router2::create_router2_server_type,
-    },
+    server_type::{compactor::create_compactor_server_type, ingester::create_ingester_server_type},
     Service,
 };
 use object_store::{DynObjectStore, ObjectStoreImpl};
@@ -57,7 +55,7 @@ pub enum Error {
     ObjectStoreParsing(#[from] clap_blocks::object_store::ParseError),
 
     #[error("Router2 error: {0}")]
-    Router2(#[from] ioxd::server_type::router2::Error),
+    Router2(#[from] ioxd_router2::Error),
 
     #[error("Ingester error: {0}")]
     Ingester(#[from] ioxd::server_type::ingester::Error),

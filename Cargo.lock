@@ -2150,6 +2150,7 @@ dependencies = [
  "ioxd_database",
  "ioxd_querier",
  "ioxd_router",
+ "ioxd_router2",
  "itertools",
  "job_registry",
  "libc",
@@ -2716,6 +2717,39 @@ dependencies = [
  "trace",
  "trace_http",
  "workspace-hack",
+]
+
+[[package]]
+name = "ioxd_router2"
+version = "0.1.0"
+dependencies = [
+ "arrow-flight",
+ "async-trait",
+ "clap_blocks",
+ "data_types2",
+ "generated_types",
+ "hashbrown 0.12.0",
+ "hyper",
+ "iox_catalog",
+ "ioxd_common",
+ "metric",
+ "mutable_batch",
+ "object_store",
+ "observability_deps",
+ "router2",
+ "service_grpc_testing",
+ "thiserror",
+ "time 0.1.0",
+ "tokio",
+ "tokio-stream",
+ "tokio-util 0.7.1",
+ "tonic",
+ "tonic-health",
+ "tonic-reflection",
+ "trace",
+ "trace_http",
+ "workspace-hack",
+ "write_buffer",
 ]
 
 [[package]]

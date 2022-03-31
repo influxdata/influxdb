@@ -35,6 +35,7 @@ members = [
     "ioxd_querier",
     "ioxd_database",
     "ioxd_router",
+    "ioxd_router2",
     "job_registry",
     "lifecycle",
     "logfmt",

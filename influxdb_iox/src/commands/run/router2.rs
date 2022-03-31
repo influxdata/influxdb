@@ -5,8 +5,10 @@ use std::sync::Arc;
 use clap_blocks::{
     catalog_dsn::CatalogDsnConfig, run_config::RunConfig, write_buffer::WriteBufferConfig,
 };
-use ioxd::{self, server_type::router2::create_router2_server_type, Service};
+
+use ioxd::{self, Service};
 use ioxd_common::server_type::{CommonServerState, CommonServerStateError};
+use ioxd_router2::create_router2_server_type;
 use observability_deps::tracing::*;
 use thiserror::Error;
 
@@ -19,7 +21,7 @@ pub enum Error {
     InvalidConfig(#[from] CommonServerStateError),
 
     #[error("Creating router: {0}")]
-    Router(#[from] ioxd::server_type::router2::Error),
+    Router(#[from] ioxd_router2::Error),
 
     #[error("Catalog DSN error: {0}")]
     CatalogDsn(#[from] clap_blocks::catalog_dsn::Error),
