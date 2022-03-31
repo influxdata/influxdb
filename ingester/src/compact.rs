@@ -309,7 +309,7 @@ mod tests {
             seq_num_end,
             3,
             INITIAL_COMPACTION_LEVEL,
-            None, // todo: this will have value when #3968 is done
+            Some(SortKey::from_columns(["tag1", "time"])),
         );
         assert_eq!(expected_meta, meta);
     }
