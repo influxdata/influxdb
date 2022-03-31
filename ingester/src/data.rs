@@ -442,7 +442,7 @@ impl NamespaceData {
             .meta()
             .sequence()
             .expect("must have sequence number")
-            .number;
+            .sequence_number;
         let sequence_number = i64::try_from(sequence_number).expect("sequence out of bounds");
         let sequence_number = SequenceNumber::new(sequence_number);
 

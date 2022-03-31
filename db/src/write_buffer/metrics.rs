@@ -181,10 +181,10 @@ impl<'a> IngestRecorder<'a> {
                 .expect("entry from write buffer should have size");
 
             metrics.bytes_read.inc(bytes_read as u64);
-            metrics.last_sequence_number.set(sequence.number);
+            metrics.last_sequence_number.set(sequence.sequence_number);
             metrics.sequence_number_lag.set(
                 self.watermark
-                    .saturating_sub(sequence.number)
+                    .saturating_sub(sequence.sequence_number)
                     .saturating_sub(1),
             );
 

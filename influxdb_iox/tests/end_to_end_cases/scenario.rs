@@ -773,21 +773,21 @@ pub async fn fixture_replay_broken(db_name: &str, write_buffer_path: &Path) -> S
         write_buffer_path,
         db_name,
         sequencer_id,
-        meta1.sequence().unwrap().number,
+        meta1.sequence().unwrap().sequence_number,
     )
     .await;
     write_buffer::file::test_utils::remove_entry(
         write_buffer_path,
         db_name,
         sequencer_id,
-        meta2.sequence().unwrap().number,
+        meta2.sequence().unwrap().sequence_number,
     )
     .await;
     write_buffer::file::test_utils::remove_entry(
         write_buffer_path,
         db_name,
         sequencer_id,
-        meta3.sequence().unwrap().number,
+        meta3.sequence().unwrap().sequence_number,
     )
     .await;
 

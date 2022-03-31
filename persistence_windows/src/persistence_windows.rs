@@ -182,19 +182,19 @@ impl PersistenceWindows {
         self.time_of_last_write = time_of_write;
 
         if let Some(sequence) = sequence {
-            match self.max_sequence_numbers.entry(sequence.id) {
+            match self.max_sequence_numbers.entry(sequence.sequencer_id) {
                 Entry::Occupied(mut occupied) => {
                     assert!(
-                        *occupied.get() < sequence.number,
+                        *occupied.get() < sequence.sequence_number,
                         "sequence number {} for sequencer {} was not greater than previous {}",
-                        sequence.number,
-                        sequence.id,
+                        sequence.sequence_number,
+                        sequence.sequencer_id,
                         *occupied.get()
                     );
-                    *occupied.get_mut() = sequence.number;
+                    *occupied.get_mut() = sequence.sequence_number;
                 }
                 Entry::Vacant(vacant) => {
-                    vacant.insert(sequence.number);
+                    vacant.insert(sequence.sequence_number);
                 }
             }
         }
@@ -466,8 +466,8 @@ impl Window {
         let mut sequencer_numbers = BTreeMap::new();
         if let Some(sequence) = sequence {
             sequencer_numbers.insert(
-                sequence.id,
-                MinMaxSequence::new(sequence.number, sequence.number),
+                sequence.sequencer_id,
+                MinMaxSequence::new(sequence.sequence_number, sequence.sequence_number),
             );
         }
 
@@ -504,15 +504,15 @@ impl Window {
             self.max_time = max_time;
         }
         if let Some(sequence) = sequence {
-            match self.sequencer_numbers.get_mut(&sequence.id) {
+            match self.sequencer_numbers.get_mut(&sequence.sequencer_id) {
                 Some(n) => {
-                    assert!(sequence.number > n.max());
-                    *n = MinMaxSequence::new(n.min(), sequence.number);
+                    assert!(sequence.sequence_number > n.max());
+                    *n = MinMaxSequence::new(n.min(), sequence.sequence_number);
                 }
                 None => {
                     self.sequencer_numbers.insert(
-                        sequence.id,
-                        MinMaxSequence::new(sequence.number, sequence.number),
+                        sequence.sequencer_id,
+                        MinMaxSequence::new(sequence.sequence_number, sequence.sequence_number),
                     );
                 }
             }
@@ -590,7 +590,10 @@ mod tests {
 
         time.set(Time::from_timestamp_nanos(1));
         w.add_range(
-            Some(&Sequence { id: 1, number: 1 }),
+            Some(&Sequence {
+                sequencer_id: 1,
+                sequence_number: 1,
+            }),
             NonZeroUsize::new(1).unwrap(),
             Time::from_timestamp_nanos(100),
             Time::from_timestamp_nanos(200),
@@ -598,7 +601,10 @@ mod tests {
 
         time.set(Time::from_timestamp_nanos(0));
         w.add_range(
-            Some(&Sequence { id: 1, number: 2 }),
+            Some(&Sequence {
+                sequencer_id: 1,
+                sequence_number: 2,
+            }),
             NonZeroUsize::new(1).unwrap(),
             Time::from_timestamp_nanos(100),
             Time::from_timestamp_nanos(200),
@@ -611,7 +617,10 @@ mod tests {
         let (mut w, _) = make_windows(Duration::from_secs(60), Time::from_timestamp_nanos(0));
 
         w.add_range(
-            Some(&Sequence { id: 1, number: 1 }),
+            Some(&Sequence {
+                sequencer_id: 1,
+                sequence_number: 1,
+            }),
             NonZeroUsize::new(1).unwrap(),
             Time::from_timestamp(1, 0),
             Time::from_timestamp(0, 1),
@@ -634,28 +643,40 @@ mod tests {
 
         // Write timestamps are purposefully out of order
         w.add_range(
-            Some(&Sequence { id: 1, number: 2 }),
+            Some(&Sequence {
+                sequencer_id: 1,
+                sequence_number: 2,
+            }),
             NonZeroUsize::new(1).unwrap(),
             row_t0,
             row_t0,
         );
         time.set(write_t2);
         w.add_range(
-            Some(&Sequence { id: 1, number: 4 }),
+            Some(&Sequence {
+                sequencer_id: 1,
+                sequence_number: 4,
+            }),
             NonZeroUsize::new(2).unwrap(),
             row_t1,
             row_t1,
         );
         time.set(write_t3);
         w.add_range(
-            Some(&Sequence { id: 1, number: 10 }),
+            Some(&Sequence {
+                sequencer_id: 1,
+                sequence_number: 10,
+            }),
             NonZeroUsize::new(1).unwrap(),
             row_t2,
             row_t3,
         );
         time.set(write_t1);
         w.add_range(
-            Some(&Sequence { id: 2, number: 23 }),
+            Some(&Sequence {
+                sequencer_id: 2,
+                sequence_number: 23,
+            }),
             NonZeroUsize::new(10).unwrap(),
             row_t2,
             row_t3,
@@ -691,13 +712,19 @@ mod tests {
         let (mut w, time) = make_windows(Duration::from_secs(60), created_at);
 
         w.add_range(
-            Some(&Sequence { id: 1, number: 2 }),
+            Some(&Sequence {
+                sequencer_id: 1,
+                sequence_number: 2,
+            }),
             NonZeroUsize::new(1).unwrap(),
             row_t0,
             row_t1,
         );
         w.add_range(
-            Some(&Sequence { id: 1, number: 3 }),
+            Some(&Sequence {
+                sequencer_id: 1,
+                sequence_number: 3,
+            }),
             NonZeroUsize::new(1).unwrap(),
             row_t0,
             row_t1,
@@ -706,7 +733,10 @@ mod tests {
         time.set(after_close_threshold);
 
         w.add_range(
-            Some(&Sequence { id: 1, number: 6 }),
+            Some(&Sequence {
+                sequencer_id: 1,
+                sequence_number: 6,
+            }),
             NonZeroUsize::new(2).unwrap(),
             row_t1,
             row_t2,
@@ -752,7 +782,10 @@ mod tests {
         let (mut w, time) = make_windows(Duration::from_secs(120), write_t0);
 
         w.add_range(
-            Some(&Sequence { id: 1, number: 2 }),
+            Some(&Sequence {
+                sequencer_id: 1,
+                sequence_number: 2,
+            }),
             NonZeroUsize::new(2).unwrap(),
             row_t0,
             row_t1,
@@ -760,7 +793,10 @@ mod tests {
 
         time.set(write_t1);
         w.add_range(
-            Some(&Sequence { id: 1, number: 3 }),
+            Some(&Sequence {
+                sequencer_id: 1,
+                sequence_number: 3,
+            }),
             NonZeroUsize::new(3).unwrap(),
             row_t1,
             row_t2,
@@ -768,7 +804,10 @@ mod tests {
 
         time.set(write_t2);
         w.add_range(
-            Some(&Sequence { id: 1, number: 4 }),
+            Some(&Sequence {
+                sequencer_id: 1,
+                sequence_number: 4,
+            }),
             NonZeroUsize::new(4).unwrap(),
             row_t2,
             row_t3,
@@ -796,7 +835,10 @@ mod tests {
 
         time.set(write_t3);
         w.add_range(
-            Some(&Sequence { id: 1, number: 5 }),
+            Some(&Sequence {
+                sequencer_id: 1,
+                sequence_number: 5,
+            }),
             NonZeroUsize::new(1).unwrap(),
             row_t4,
             row_t4,
@@ -818,7 +860,10 @@ mod tests {
 
         time.set(write_t4);
         w.add_range(
-            Some(&Sequence { id: 1, number: 9 }),
+            Some(&Sequence {
+                sequencer_id: 1,
+                sequence_number: 9,
+            }),
             NonZeroUsize::new(2).unwrap(),
             row_t5,
             row_t5,
@@ -853,7 +898,10 @@ mod tests {
 
         time.set(write_t0);
         w.add_range(
-            Some(&Sequence { id: 1, number: 2 }),
+            Some(&Sequence {
+                sequencer_id: 1,
+                sequence_number: 2,
+            }),
             NonZeroUsize::new(2).unwrap(),
             start_time,
             first_end,
@@ -861,7 +909,10 @@ mod tests {
 
         time.set(write_t1);
         w.add_range(
-            Some(&Sequence { id: 1, number: 3 }),
+            Some(&Sequence {
+                sequencer_id: 1,
+                sequence_number: 3,
+            }),
             NonZeroUsize::new(3).unwrap(),
             second_start,
             second_end,
@@ -869,7 +920,10 @@ mod tests {
 
         time.set(write_t2);
         w.add_range(
-            Some(&Sequence { id: 1, number: 5 }),
+            Some(&Sequence {
+                sequencer_id: 1,
+                sequence_number: 5,
+            }),
             NonZeroUsize::new(2).unwrap(),
             third_start,
             third_end,
@@ -928,7 +982,10 @@ mod tests {
         let (mut w, time) = make_windows(Duration::from_secs(120), write_t0);
 
         w.add_range(
-            Some(&Sequence { id: 1, number: 2 }),
+            Some(&Sequence {
+                sequencer_id: 1,
+                sequence_number: 2,
+            }),
             NonZeroUsize::new(2).unwrap(),
             start_time,
             first_end,
@@ -936,14 +993,20 @@ mod tests {
 
         time.set(write_t1);
         w.add_range(
-            Some(&Sequence { id: 1, number: 3 }),
+            Some(&Sequence {
+                sequencer_id: 1,
+                sequence_number: 3,
+            }),
             NonZeroUsize::new(3).unwrap(),
             second_start,
             second_end,
         );
         time.set(write_t2);
         w.add_range(
-            Some(&Sequence { id: 1, number: 5 }),
+            Some(&Sequence {
+                sequencer_id: 1,
+                sequence_number: 5,
+            }),
             NonZeroUsize::new(2).unwrap(),
             third_start,
             third_end,
@@ -1004,7 +1067,10 @@ mod tests {
         let (mut w, time) = make_windows(Duration::from_secs(120), write_t0);
 
         w.add_range(
-            Some(&Sequence { id: 1, number: 2 }),
+            Some(&Sequence {
+                sequencer_id: 1,
+                sequence_number: 2,
+            }),
             NonZeroUsize::new(2).unwrap(),
             start_time,
             first_end,
@@ -1012,7 +1078,10 @@ mod tests {
         time.set(write_t1);
 
         w.add_range(
-            Some(&Sequence { id: 1, number: 3 }),
+            Some(&Sequence {
+                sequencer_id: 1,
+                sequence_number: 3,
+            }),
             NonZeroUsize::new(3).unwrap(),
             first_end,
             second_end,
@@ -1020,7 +1089,10 @@ mod tests {
         time.set(write_t2);
 
         w.add_range(
-            Some(&Sequence { id: 1, number: 5 }),
+            Some(&Sequence {
+                sequencer_id: 1,
+                sequence_number: 5,
+            }),
             NonZeroUsize::new(2).unwrap(),
             third_start,
             third_end,
@@ -1088,7 +1160,10 @@ mod tests {
         let (mut w, time) = make_windows(Duration::from_secs(120), write_t0);
 
         w.add_range(
-            Some(&Sequence { id: 1, number: 2 }),
+            Some(&Sequence {
+                sequencer_id: 1,
+                sequence_number: 2,
+            }),
             NonZeroUsize::new(2).unwrap(),
             start_time,
             first_end,
@@ -1096,7 +1171,10 @@ mod tests {
 
         time.set(write_t1);
         w.add_range(
-            Some(&Sequence { id: 1, number: 3 }),
+            Some(&Sequence {
+                sequencer_id: 1,
+                sequence_number: 3,
+            }),
             NonZeroUsize::new(3).unwrap(),
             second_start,
             second_end,
@@ -1104,7 +1182,10 @@ mod tests {
 
         time.set(write_t2);
         w.add_range(
-            Some(&Sequence { id: 1, number: 5 }),
+            Some(&Sequence {
+                sequencer_id: 1,
+                sequence_number: 5,
+            }),
             NonZeroUsize::new(2).unwrap(),
             third_start,
             third_end,
@@ -1166,7 +1247,10 @@ mod tests {
         let (mut w, time) = make_windows(late_arrival_period, write_t0);
 
         w.add_range(
-            Some(&Sequence { id: 1, number: 2 }),
+            Some(&Sequence {
+                sequencer_id: 1,
+                sequence_number: 2,
+            }),
             NonZeroUsize::new(2).unwrap(),
             row_t0,
             row_t1,
@@ -1179,7 +1263,10 @@ mod tests {
         assert_eq!(w.persistable.as_ref().unwrap().max_time, row_t1);
 
         w.add_range(
-            Some(&Sequence { id: 1, number: 4 }),
+            Some(&Sequence {
+                sequencer_id: 1,
+                sequence_number: 4,
+            }),
             NonZeroUsize::new(5).unwrap(),
             row_t0,
             row_t2,
@@ -1251,7 +1338,10 @@ mod tests {
 
         time.set(write_t2);
         w.add_range(
-            Some(&Sequence { id: 1, number: 9 }),
+            Some(&Sequence {
+                sequencer_id: 1,
+                sequence_number: 9,
+            }),
             NonZeroUsize::new(9).unwrap(),
             row_t0,
             row_t0 + Duration::from_secs(2),
@@ -1292,7 +1382,10 @@ mod tests {
         let (mut w, time) = make_windows(late_arrival_period, write_t0);
 
         w.add_range(
-            Some(&Sequence { id: 1, number: 2 }),
+            Some(&Sequence {
+                sequencer_id: 1,
+                sequence_number: 2,
+            }),
             NonZeroUsize::new(2).unwrap(),
             row_t0,
             row_t1,
@@ -1300,7 +1393,10 @@ mod tests {
 
         time.set(write_t1);
         w.add_range(
-            Some(&Sequence { id: 1, number: 6 }),
+            Some(&Sequence {
+                sequencer_id: 1,
+                sequence_number: 6,
+            }),
             NonZeroUsize::new(5).unwrap(),
             row_t0,
             row_t2,
@@ -1308,7 +1404,10 @@ mod tests {
 
         time.set(write_t2);
         w.add_range(
-            Some(&Sequence { id: 1, number: 9 }),
+            Some(&Sequence {
+                sequencer_id: 1,
+                sequence_number: 9,
+            }),
             NonZeroUsize::new(9).unwrap(),
             row_t0,
             row_t1,
@@ -1316,7 +1415,10 @@ mod tests {
 
         time.set(write_t3);
         w.add_range(
-            Some(&Sequence { id: 1, number: 10 }),
+            Some(&Sequence {
+                sequencer_id: 1,
+                sequence_number: 10,
+            }),
             NonZeroUsize::new(17).unwrap(),
             row_t0,
             row_t1,
@@ -1339,7 +1441,10 @@ mod tests {
 
         time.set(write_t4);
         w.add_range(
-            Some(&Sequence { id: 1, number: 14 }),
+            Some(&Sequence {
+                sequencer_id: 1,
+                sequence_number: 14,
+            }),
             NonZeroUsize::new(11).unwrap(),
             row_t0,
             row_t1,
@@ -1411,7 +1516,10 @@ mod tests {
         // Window 1
         time.set(write_t1);
         w.add_range(
-            Some(&Sequence { id: 1, number: 1 }),
+            Some(&Sequence {
+                sequencer_id: 1,
+                sequence_number: 1,
+            }),
             NonZeroUsize::new(11).unwrap(),
             Time::from_timestamp_nanos(10),
             Time::from_timestamp_nanos(11),
@@ -1419,7 +1527,10 @@ mod tests {
 
         time.set(write_t2);
         w.add_range(
-            Some(&Sequence { id: 1, number: 2 }),
+            Some(&Sequence {
+                sequencer_id: 1,
+                sequence_number: 2,
+            }),
             NonZeroUsize::new(4).unwrap(),
             Time::from_timestamp_nanos(10),
             Time::from_timestamp_nanos(340),
@@ -1427,7 +1538,10 @@ mod tests {
 
         time.set(write_t3);
         w.add_range(
-            Some(&Sequence { id: 1, number: 3 }),
+            Some(&Sequence {
+                sequencer_id: 1,
+                sequence_number: 3,
+            }),
             NonZeroUsize::new(6).unwrap(),
             Time::from_timestamp_nanos(1),
             Time::from_timestamp_nanos(5),
@@ -1436,7 +1550,10 @@ mod tests {
         // More than DEFAULT_CLOSED_WINDOW_PERIOD after start of Window 1 => Window 2
         time.set(write_t4);
         w.add_range(
-            Some(&Sequence { id: 1, number: 4 }),
+            Some(&Sequence {
+                sequencer_id: 1,
+                sequence_number: 4,
+            }),
             NonZeroUsize::new(3).unwrap(),
             Time::from_timestamp_nanos(89),
             Time::from_timestamp_nanos(90),
@@ -1445,7 +1562,10 @@ mod tests {
         // More than DEFAULT_CLOSED_WINDOW_PERIOD after start of Window 2 => Window 3
         time.set(write_t5);
         w.add_range(
-            Some(&Sequence { id: 1, number: 5 }),
+            Some(&Sequence {
+                sequencer_id: 1,
+                sequence_number: 5,
+            }),
             NonZeroUsize::new(8).unwrap(),
             Time::from_timestamp_nanos(3),
             Time::from_timestamp_nanos(4),
@@ -1522,7 +1642,10 @@ mod tests {
         let min_time = Time::from_timestamp_nanos(10);
         let max_time = Time::from_timestamp_nanos(11);
         w.add_range(
-            Some(&Sequence { id: 1, number: 1 }),
+            Some(&Sequence {
+                sequencer_id: 1,
+                sequence_number: 1,
+            }),
             NonZeroUsize::new(1).unwrap(),
             min_time,
             max_time,
@@ -1531,7 +1654,10 @@ mod tests {
         // window 2: closed but overlaps with the persistence range
         time.set(t1);
         w.add_range(
-            Some(&Sequence { id: 1, number: 4 }),
+            Some(&Sequence {
+                sequencer_id: 1,
+                sequence_number: 4,
+            }),
             NonZeroUsize::new(1).unwrap(),
             min_time,
             max_time,
@@ -1587,14 +1713,20 @@ mod tests {
         let (mut w, time) = make_windows(Duration::from_secs(30), Time::from_timestamp_nanos(0));
 
         w.add_range(
-            Some(&Sequence { id: 1, number: 2 }),
+            Some(&Sequence {
+                sequencer_id: 1,
+                sequence_number: 2,
+            }),
             NonZeroUsize::new(2).unwrap(),
             Time::MIN,
             Time::MAX,
         );
         time.inc(Duration::from_secs(30));
         w.add_range(
-            Some(&Sequence { id: 1, number: 3 }),
+            Some(&Sequence {
+                sequencer_id: 1,
+                sequence_number: 3,
+            }),
             NonZeroUsize::new(2).unwrap(),
             Time::MIN,
             Time::MAX,

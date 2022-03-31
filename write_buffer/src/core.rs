@@ -593,7 +593,7 @@ pub mod test_utils {
 
         // forward seek
         handler_1_1_a
-            .seek(w_east_2.meta().sequence().unwrap().number)
+            .seek(w_east_2.meta().sequence().unwrap().sequence_number)
             .await
             .unwrap();
 
@@ -672,12 +672,12 @@ pub mod test_utils {
         let w2 = write("namespace", &writer, entry_west_1, sequencer_id_2, None).await;
         assert_eq!(
             reader.fetch_high_watermark(sequencer_id_1).await.unwrap(),
-            w1.meta().sequence().unwrap().number + 1
+            w1.meta().sequence().unwrap().sequence_number + 1
         );
 
         assert_eq!(
             reader.fetch_high_watermark(sequencer_id_2).await.unwrap(),
-            w2.meta().sequence().unwrap().number + 1
+            w2.meta().sequence().unwrap().sequence_number + 1
         );
     }
 

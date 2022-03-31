@@ -38,8 +38,8 @@ impl WriteResVec {
         if let Ok(entry) = &val {
             if let Some(seqno) = entry.meta().sequence() {
                 self.max_seqno = Some(match self.max_seqno {
-                    Some(current) => current.max(seqno.number),
-                    None => seqno.number,
+                    Some(current) => current.max(seqno.sequence_number),
+                    None => seqno.sequence_number,
                 });
             }
         }
@@ -145,13 +145,15 @@ impl MockBufferSharedState {
 
         let mut guard = self.writes.lock();
         let writes = guard.as_mut().expect("no sequencers initialized");
-        let writes_vec = writes.get_mut(&sequence.id).expect("invalid sequencer ID");
+        let writes_vec = writes
+            .get_mut(&sequence.sequencer_id)
+            .expect("invalid sequencer ID");
 
         if let Some(max_sequence_number) = writes_vec.max_seqno {
             assert!(
-                max_sequence_number < sequence.number,
+                max_sequence_number < sequence.sequence_number,
                 "sequence number {} is less/equal than current max sequencer number {}",
-                sequence.number,
+                sequence.sequence_number,
                 max_sequence_number
             );
         }
@@ -280,8 +282,8 @@ impl WriteBufferWriting for MockBufferForWriting {
         let sequence_number = writes_vec.max_seqno.map(|n| n + 1).unwrap_or(0);
 
         let sequence = Sequence {
-            id: sequencer_id,
-            number: sequence_number,
+            sequencer_id,
+            sequence_number,
         };
 
         let timestamp = operation
@@ -423,7 +425,7 @@ impl WriteBufferStreamHandler for MockBufferStreamHandler {
                     Ok(write) => {
                         // found an entry => need to check if it is within the offset
                         let sequence = write.meta().sequence().unwrap();
-                        if sequence.number >= self.offset {
+                        if sequence.sequence_number >= self.offset {
                             // within offset => return entry to caller
                             return Poll::Ready(Some(Ok(write.clone())));
                         } else {
@@ -444,7 +446,7 @@ impl WriteBufferStreamHandler for MockBufferStreamHandler {
                 .filter_map(|write_result| {
                     if let Ok(write) = write_result {
                         let sequence = write.meta().sequence().unwrap();
-                        Some(sequence.number)
+                        Some(sequence.sequence_number)
                     } else {
                         None
                     }

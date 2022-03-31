@@ -187,8 +187,8 @@ impl WriteBufferStreamHandler for RSKafkaStreamHandler {
                 IoxHeaders::from_headers(record.record.headers, trace_collector.as_ref())?;
 
             let sequence = Sequence {
-                id: self.sequencer_id,
-                number: record
+                sequencer_id: self.sequencer_id,
+                sequence_number: record
                     .offset
                     .try_into()
                     .map_err(WriteBufferError::invalid_data)?,

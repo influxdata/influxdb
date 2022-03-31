@@ -419,8 +419,8 @@ impl ConsumerStream {
                 Ok(data) => {
                     // decode file
                     let sequence = Sequence {
-                        id: sequencer_id,
-                        number: sequence_number,
+                        sequencer_id,
+                        sequence_number,
                     };
                     match Self::decode_file(data, sequence, trace_collector.clone()) {
                         Ok(write) => {
@@ -821,14 +821,14 @@ mod tests {
             &ctx.path,
             &ctx.database_name,
             sequencer_id,
-            w2.meta().sequence().unwrap().number,
+            w2.meta().sequence().unwrap().sequence_number,
         )
         .await;
         remove_entry(
             &ctx.path,
             &ctx.database_name,
             sequencer_id,
-            w3.meta().sequence().unwrap().number,
+            w3.meta().sequence().unwrap().sequence_number,
         )
         .await;
 
@@ -857,7 +857,7 @@ mod tests {
             &ctx.path,
             &ctx.database_name,
             sequencer_id,
-            w1.meta().sequence().unwrap().number,
+            w1.meta().sequence().unwrap().sequence_number,
         )
         .await;
 

@@ -1,14 +1,14 @@
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct Sequence {
-    pub id: u32,
-    pub number: u64,
+    pub sequencer_id: u32,
+    pub sequence_number: u64,
 }
 
 impl Sequence {
     pub fn new(sequencer_id: u32, sequence_number: u64) -> Self {
         Self {
-            id: sequencer_id,
-            number: sequence_number,
+            sequencer_id,
+            sequence_number,
         }
     }
 }

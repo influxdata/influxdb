@@ -241,10 +241,10 @@ pub async fn perform_replay(
                     .sequence()
                     .expect("entry must be sequenced");
 
-                if sequence.number > min_max.max() {
+                if sequence.sequence_number > min_max.max() {
                     return Err(Error::EntryLostError {
                         sequencer_id: *sequencer_id,
-                        actual_sequence_number: sequence.number,
+                        actual_sequence_number: sequence.sequence_number,
                         expected_sequence_number: min_max.max(),
                     });
                 }
@@ -297,7 +297,7 @@ pub async fn perform_replay(
                 }
 
                 // done replaying?
-                if sequence.number == min_max.max() {
+                if sequence.sequence_number == min_max.max() {
                     break;
                 }
             }
@@ -352,14 +352,14 @@ impl<'a> WriteFilter for ReplayFilter<'a> {
             .last_partition_checkpoint(table_name, partition_key)
             .and_then(|partition_checkpoint| {
                 partition_checkpoint
-                    .sequencer_numbers(self.sequence.id)
+                    .sequencer_numbers(self.sequence.sequencer_id)
                     .map(|min_max| (partition_checkpoint.flush_timestamp(), min_max))
             });
 
         match max_persisted_ts_and_sequence_range {
             Some((max_persisted_ts, min_max)) => {
                 // Figure out what the sequence number tells us about the entire batch
-                match SequenceNumberSection::compare(self.sequence.number, min_max) {
+                match SequenceNumberSection::compare(self.sequence.sequence_number, min_max) {
                     SequenceNumberSection::Persisted => {
                         // skip the entire batch
                         None
