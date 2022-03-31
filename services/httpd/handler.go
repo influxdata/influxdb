@@ -200,6 +200,10 @@ func NewHandler(c Config) *Handler {
 			"POST", "/write", true, writeLogEnabled, h.serveWriteV1,
 		},
 		Route{
+			"delete",
+			"POST", "/api/v2/delete", false, true, h.serveDeleteV2,
+		},
+		Route{
 			"write", // Data-ingest route.
 			"POST", "/api/v2/write", true, writeLogEnabled, h.serveWriteV2,
 		},
@@ -827,6 +831,165 @@ func bucket2dbrp(bucket string) (string, string, error) {
 			return "", "", fmt.Errorf(`bucket name %q is in db/rp form but has an empty database`, bucket)
 		default:
 			return db, rp, nil
+		}
+	}
+}
+
+type DeleteBody struct {
+	Start     string `json:"start"`
+	Stop      string `json:"stop"`
+	Predicate string `json:"predicate"`
+}
+
+// serveDeleteV2 maps v2 write parameters to a v1 style handler.  the concepts
+// of an "org" and "bucket" are mapped to v1 "database" and "retention
+// policies".
+func (h *Handler) serveDeleteV2(w http.ResponseWriter, r *http.Request, user meta.User) {
+	db, rp, err := bucket2dbrp(r.URL.Query().Get("bucket"))
+	if err != nil {
+		h.httpError(w, fmt.Sprintf("delete - bucket: %s", err.Error()), http.StatusNotFound)
+		return
+	}
+	if db == "" {
+		h.httpError(w, "delete - database is required", http.StatusNotFound)
+		return
+	}
+
+	if di := h.MetaClient.Database(db); di == nil {
+		h.httpError(w, fmt.Sprintf("delete - database not found: %q", db), http.StatusNotFound)
+		return
+	} else if nil == di.RetentionPolicy(rp) {
+		h.httpError(w, fmt.Sprintf("delete - retention policy not found in %q: %q", db, rp), http.StatusNotFound)
+		return
+	}
+
+	if h.Config.AuthEnabled {
+		if user == nil {
+			h.httpError(w, fmt.Sprintf("delete - user is required to delete from database %q", db), http.StatusForbidden)
+			return
+		}
+
+		// DeleteSeries requires write permission to the database
+		if err := h.WriteAuthorizer.AuthorizeWrite(user.ID(), db); err != nil {
+			h.httpError(w, fmt.Sprintf("delete - %q is not authorized to delete from %q: %s", user.ID(), db, err.Error()), http.StatusForbidden)
+			return
+		}
+	}
+
+	var bs []byte
+	if r.ContentLength > 0 {
+		if h.Config.MaxBodySize > 0 && r.ContentLength > int64(h.Config.MaxBodySize) {
+			h.httpError(w, http.StatusText(http.StatusRequestEntityTooLarge), http.StatusRequestEntityTooLarge)
+			return
+		}
+
+		// This will just be an initial hint for the reader, as the
+		// bytes.Buffer will grow as needed when ReadFrom is called
+		bs = make([]byte, 0, r.ContentLength)
+	}
+	buf := bytes.NewBuffer(bs)
+
+	_, err = buf.ReadFrom(r.Body)
+	if err != nil {
+		h.httpError(w, fmt.Sprintf("delete - cannot read request body: %s", err.Error()), http.StatusBadRequest)
+		return
+	}
+
+	var drd DeleteBody
+	if err := json.Unmarshal(buf.Bytes(), &drd); err != nil {
+		h.httpError(w, fmt.Sprintf("delete - cannot parse request body: %s", err.Error()), http.StatusBadRequest)
+		return
+	}
+
+	if len(drd.Start) <= 0 {
+		h.httpError(w, "delete - start field in RFC3339Nano format required", http.StatusBadRequest)
+		return
+	}
+
+	if len(drd.Stop) <= 0 {
+		h.httpError(w, "delete - stop field in RFC3339Nano format required", http.StatusBadRequest)
+		return
+	}
+	// Avoid injection errors by converting and back-converting time.
+	start, err := time.Parse(time.RFC3339Nano, drd.Start)
+	if err != nil {
+		h.httpError(w, fmt.Sprintf("delete - invalid format for start field %q, please use RFC3339Nano: %s",
+			drd.Start, err.Error()), http.StatusBadRequest)
+		return
+	}
+
+	// Avoid injection errors by converting and back-converting time.
+	stop, err := time.Parse(time.RFC3339Nano, drd.Stop)
+	if err != nil {
+		h.httpError(w, fmt.Sprintf("delete - invalid format for stop field %q, please use RFC3339Nano: %s",
+			drd.Stop, err.Error()), http.StatusBadRequest)
+		return
+	}
+
+	var timePredicate string
+	timeRange := fmt.Sprintf("time >= '%s' AND time < '%s'", start.Format(time.RFC3339Nano), stop.Format(time.RFC3339Nano))
+
+	if drd.Predicate != "" {
+		timePredicate = fmt.Sprintf("%s AND %s", drd.Predicate, timeRange)
+	} else {
+		timePredicate = timeRange
+	}
+
+	cond, err := influxql.ParseExpr(timePredicate)
+	if err != nil {
+		h.httpError(w, fmt.Sprintf("delete - cannot parse predicate %q: %s", timePredicate, err.Error()), http.StatusBadRequest)
+		return
+	}
+
+	srcs := make([]influxql.Source, 0)
+	const measurement = "_measurement"
+
+	// take out the _measurement = 'mymeasurement' clause to pass separately
+	// Also check for illegal operands.
+	_, remainingExpr, err := influxql.PartitionExpr(influxql.CloneExpr(cond), func(e influxql.Expr) (bool, error) {
+		switch e := e.(type) {
+		case *influxql.BinaryExpr:
+			switch e.Op {
+			case influxql.EQ:
+				tag, ok := e.LHS.(*influxql.VarRef)
+				if ok && tag.Val == measurement {
+					srcs = append(srcs, &influxql.Measurement{Database: db, RetentionPolicy: rp, Name: e.RHS.String()})
+					return true, nil
+				}
+			// Not permitted in V2 API DELETE predicates
+			case influxql.NEQ, influxql.REGEX, influxql.NEQREGEX, influxql.OR:
+				return true,
+					fmt.Errorf("delete - predicate only supports equality operators and conjunctions. database: %q, retention policy: %q, start: %q, stop: %q, predicate: %q",
+						db, rp, drd.Start, drd.Stop, drd.Predicate)
+			}
+		}
+		return false, nil
+	})
+
+	if err != nil {
+		h.httpError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	influxql.WalkFunc(remainingExpr, fixLiterals)
+
+	if err = h.Store.Delete(db, srcs, remainingExpr); err != nil {
+		h.httpError(w,
+			fmt.Sprintf("delete - database: %q, retention policy: %q, start: %q, stop: %q, predicate: %q, error: %s",
+				db, rp, drd.Start, drd.Stop, drd.Predicate, err.Error()), http.StatusBadRequest)
+		return
+	}
+}
+
+// fixLiterals - If we have an equality comparison between two VarRefs of Unknown type,
+// assume it is a tag key (LHS) and a tag value (RHS) and convert the tag value to a
+// StringLiteral. This lets us consume V2 DELETE double-quoted syntax.
+func fixLiterals(node influxql.Node) {
+	if bn, ok := node.(*influxql.BinaryExpr); ok && (bn.Op == influxql.EQ) {
+		if lhs, ok := bn.LHS.(*influxql.VarRef); ok && (lhs.Type == influxql.Unknown) {
+			if rhs, ok := bn.RHS.(*influxql.VarRef); ok && (rhs.Type == influxql.Unknown) {
+				bn.RHS = &influxql.StringLiteral{Val: rhs.Val}
+			}
 		}
 	}
 }
@@ -2022,6 +2185,7 @@ func (h *Handler) recovery(inner http.Handler, name string) http.Handler {
 // Store describes the behaviour of the storage packages Store type.
 type Store interface {
 	ReadFilter(ctx context.Context, req *datatypes.ReadFilterRequest) (reads.ResultSet, error)
+	Delete(database string, sources []influxql.Source, condition influxql.Expr) error
 }
 
 // Response represents a list of statement results.
