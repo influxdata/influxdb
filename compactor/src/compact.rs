@@ -437,6 +437,9 @@ impl Compactor {
             txn.commit().await.context(TransactionCommitSnafu)?;
         }
 
+        // Remove fully processed tombstones
+        self.remove_fully_processed_tombstones(tombstones).await?;
+
         // Upgrade old level-0 to level 1
         self.update_to_level_1(&upgrade_level_list).await?;
 
@@ -453,117 +456,6 @@ impl Compactor {
 
         let compaction_counter = self.compaction_counter.recorder(attributes);
         compaction_counter.inc(file_count as u64);
-
-        Ok(())
-    }
-
-    /// Find and compact parquet files for a given sequencer
-    pub async fn find_and_compact(&self, sequencer_id: SequencerId) -> Result<()> {
-        if !self.sequencers.contains(&sequencer_id) {
-            return Err(Error::SequencerNotFound { sequencer_id });
-        }
-
-        // Read level-0 parquet files
-        let level_0_files = self.level_0_parquet_files(sequencer_id).await?;
-
-        // If there are no level-0 parquet files, return because there's nothing to do
-        if level_0_files.is_empty() {
-            return Ok(());
-        }
-
-        // Group files into table partition
-        let mut partitions = Self::group_parquet_files_into_partition(level_0_files);
-
-        // Get level-1 files overlapped in time with level-0
-        for (key, val) in &mut partitions.iter_mut() {
-            let overall_min_time = val
-                .iter()
-                .map(|pf| pf.min_time)
-                .min()
-                .expect("The list of files was checked for emptiness above");
-            let overall_max_time = val
-                .iter()
-                .map(|pf| pf.max_time)
-                .max()
-                .expect("The list of files was checked for emptiness above");
-            let level_1_files = self
-                .level_1_parquet_files(*key, overall_min_time, overall_max_time)
-                .await?;
-            val.extend(level_1_files);
-        }
-
-        // Each partition may contain non-overlapped files. Group overlapped files in each
-        // partition. Once the groups are created, the partitions aren't needed.
-        let overlapped_file_groups: Vec<Vec<ParquetFile>> = partitions
-            .into_iter()
-            .flat_map(|(_key, parquet_files)| Self::overlapped_groups(parquet_files))
-            .collect();
-
-        let groups_with_tombstones = self
-            .add_tombstones_to_groups(overlapped_file_groups)
-            .await?;
-
-        // Compact, persist, and update catalog accordingly for each overlaped file group
-        let mut tombstones = BTreeMap::new();
-        let mut upgrade_level_list: Vec<ParquetFileId> = vec![];
-        for group in groups_with_tombstones {
-            // keep tombstone ids
-            tombstones = Self::union_tombstones(tombstones, &group);
-
-            // Only one file without tombstones, no need to compact
-            if group.parquet_files.len() == 1 && group.tombstones.is_empty() {
-                upgrade_level_list.push(group.parquet_files[0].parquet_file_id());
-                continue;
-            }
-
-            // Collect all the parquet file IDs, to be able to set their catalog records to be
-            // deleted. These should already be unique, no need to dedupe.
-            let original_parquet_file_ids: Vec<_> =
-                group.parquet_files.iter().map(|f| f.data.id).collect();
-
-            // compact
-            let split_compacted_files = self.compact(group.parquet_files).await?;
-            let mut catalog_update_info = Vec::with_capacity(split_compacted_files.len());
-
-            for split_file in split_compacted_files {
-                let CompactedData {
-                    data,
-                    meta,
-                    tombstones,
-                } = split_file;
-
-                let file_size_and_md = Backoff::new(&self.backoff_config)
-                    .retry_all_errors("persist to object store", || {
-                        Self::persist(&meta, data.clone(), Arc::clone(&self.object_store))
-                    })
-                    .await
-                    .expect("retry forever");
-
-                if let Some((file_size, md)) = file_size_and_md {
-                    catalog_update_info.push(CatalogUpdate::new(meta, file_size, md, tombstones));
-                }
-            }
-            let mut txn = self
-                .catalog
-                .start_transaction()
-                .await
-                .context(TransactionSnafu)?;
-
-            self.update_catalog(
-                catalog_update_info,
-                original_parquet_file_ids,
-                txn.deref_mut(),
-            )
-            .await?;
-
-            txn.commit().await.context(TransactionCommitSnafu)?;
-        }
-
-        // Remove fully processed tombstones
-        self.remove_fully_processed_tombstones(tombstones).await?;
-
-        // Upgrade old level-0 to level 1
-        self.update_to_level_1(&upgrade_level_list).await?;
 
         Ok(())
     }
@@ -1100,7 +992,7 @@ mod tests {
 
     #[tokio::test]
     // This is integration test to verify all pieces are put together correctly
-    async fn test_find_and_compact() {
+    async fn test_compact_partitiom() {
         let catalog = TestCatalog::new();
 
         let lp = vec![
@@ -1114,10 +1006,11 @@ mod tests {
         let table = ns.create_table("table").await;
 
         // One parquet file
-        table
+        let partition = table
             .with_sequencer(&sequencer)
             .create_partition("part")
-            .await
+            .await;
+        partition
             .create_parquet_file_with_min_max_and_creation_time(
                 &lp,
                 1,
@@ -1154,7 +1047,7 @@ mod tests {
         );
 
         compactor
-            .find_and_compact(sequencer.sequencer.id)
+            .compact_partition(partition.partition.id)
             .await
             .unwrap();
         // should have 2 non-deleted level_0 files. The original file was marked deleted and not counted
@@ -1164,7 +1057,7 @@ mod tests {
         assert_eq!((files[0].id.get(), files[0].compaction_level), (2, 1));
         assert_eq!((files[1].id.get(), files[1].compaction_level), (3, 1));
 
-        // processed tombstones created and deleted inside find_and_compact function
+        // processed tombstones created and deleted inside compact_partition function
         let count = catalog
             .count_processed_tombstones(tombstone.tombstone.id)
             .await;
@@ -1218,7 +1111,7 @@ mod tests {
     // Beside lp data, every value min/max sequence numbers and min/max time are important
     // to have a combination of needed tests in this test function
     #[tokio::test]
-    async fn test_find_and_compact_many_files_many_tombstones() {
+    async fn test_compact_partition_many_files_many_tombstones() {
         let catalog = TestCatalog::new();
 
         // lp1 does not overlap with any
@@ -1351,7 +1244,7 @@ mod tests {
             Arc::new(metric::Registry::new()),
         );
         compactor
-            .find_and_compact(sequencer.sequencer.id)
+            .compact_partition(partition.partition.id)
             .await
             .unwrap();
 
@@ -1373,7 +1266,7 @@ mod tests {
         assert_eq!(tss[0].id.get(), ts1.tombstone.id.get());
         assert_eq!(tss[1].id.get(), ts3.tombstone.id.get());
 
-        // processed tombstones of ts2 was created and deleted inside find_and_compact function
+        // processed tombstones of ts2 was created and deleted inside compact_partition function
         let count = catalog.count_processed_tombstones(ts2.tombstone.id).await;
         assert_eq!(count, 0);
 
