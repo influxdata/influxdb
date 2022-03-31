@@ -6,6 +6,7 @@ mod all_in_one;
 mod compactor;
 mod database;
 mod ingester;
+mod main;
 mod querier;
 mod router;
 mod router2;

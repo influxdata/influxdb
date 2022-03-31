@@ -12,10 +12,12 @@ use query::exec::Executor;
 use std::{convert::TryFrom, sync::Arc};
 use thiserror::Error;
 
+use super::main;
+
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("Run: {0}")]
-    Run(#[from] ioxd::Error),
+    Run(#[from] main::Error),
 
     #[error("Invalid config: {0}")]
     InvalidConfig(#[from] CommonServerStateError),
@@ -98,5 +100,5 @@ pub async fn command(config: Config) -> Result<()> {
     info!("starting ingester");
 
     let services = vec![Service::create(server_type, common_state.run_config())];
-    Ok(ioxd::main(common_state, services).await?)
+    Ok(main::main(common_state, services).await?)
 }

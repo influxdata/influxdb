@@ -47,16 +47,12 @@ num_cpus = "1.13.0"
 pprof = { version = "0.7", default-features = false, features = ["flamegraph", "prost-codec"], optional = true }
 snafu = "0.7"
 thiserror = "1.0.30"
-tikv-jemalloc-ctl = { version = "0.4.0", optional = true }
 tokio = { version = "1.17", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-stream = { version = "0.1", features = ["net"] }
 tokio-util = { version = "0.7.1" }
 tonic = "0.6"
 tonic-health = "0.5.0"
 tonic-reflection = "0.3.0"
-# jemalloc-sys with unprefixed_malloc_on_supported_platforms feature and heappy are mutually exclusive
-tikv-jemalloc-sys = { version = "0.4.0", optional = true, features = ["unprefixed_malloc_on_supported_platforms"] }
-heappy = { git = "https://github.com/mkmik/heappy", rev = "1770cd0cde556d121e7f017538ddda0e1778126a", features = ["enable_heap_profiler", "jemalloc_shim", "measure_free"], optional = true }
 workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]
@@ -68,21 +64,3 @@ iox_tests = { path = "../iox_tests" }
 # Crates.io dependencies, in alphabetical order
 assert_cmd = "2.0.2"
 tempfile = "3.1.0"
-
-[features]
-default = ["jemalloc_replacing_malloc"]
-
-azure = ["object_store/azure"] # Optional Azure Object store support
-gcp = ["object_store/gcp"] # Optional GCP object store support
-aws = ["object_store/aws"] # Optional AWS / S3 object store support
-# pprof is an optional feature for pprof support
-
-# heappy is an optional feature; Not on by default as it
-# runtime overhead on all allocations (calls to malloc).
-# Cargo cannot currently implement mutually exclusive features so let's force every build
-# to pick either heappy or jemalloc_replacing_malloc feature at least until we figure out something better.
-jemalloc_replacing_malloc = ["tikv-jemalloc-sys", "tikv-jemalloc-ctl"]
-
-# Implicit feature selected when running under `clippy --all-features` to accept mutable exclusive features during
-# linting
-clippy = []

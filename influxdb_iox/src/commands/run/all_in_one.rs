@@ -25,6 +25,8 @@ use query::exec::Executor;
 use thiserror::Error;
 use time::{SystemProvider, TimeProvider};
 
+use super::main;
+
 /// The default bind address for the Router HTTP API.
 pub const DEFAULT_ROUTER_HTTP_BIND_ADDR: &str = "127.0.0.1:8080";
 
@@ -43,7 +45,7 @@ pub const DEFAULT_COMPACTOR_GRPC_BIND_ADDR: &str = "127.0.0.1:8084";
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("Run: {0}")]
-    Run(#[from] ioxd::Error),
+    Run(#[from] main::Error),
 
     #[error("Catalog DSN error: {0}")]
     CatalogDsn(#[from] clap_blocks::catalog_dsn::Error),
@@ -386,5 +388,5 @@ pub async fn command(config: Config) -> Result<()> {
         Service::create_grpc_only(querier, &querier_run_config),
     ];
 
-    Ok(ioxd::main(common_state, services).await?)
+    Ok(main::main(common_state, services).await?)
 }

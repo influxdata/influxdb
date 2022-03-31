@@ -46,7 +46,10 @@ static VERSION_STRING: Lazy<String> = Lazy::new(|| {
     format!(
         "{}, revision {}",
         option_env!("CARGO_PKG_VERSION").unwrap_or("UNKNOWN"),
-        option_env!("GIT_HASH").unwrap_or("UNKNOWN")
+        env!(
+            "GIT_HASH",
+            "Can not find find GIT HASH in build environment"
+        )
     )
 });
 

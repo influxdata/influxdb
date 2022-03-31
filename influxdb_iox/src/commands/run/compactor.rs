@@ -13,10 +13,12 @@ use clap_blocks::{
 use ioxd::{self, server_type::compactor::create_compactor_server_type, Service};
 use ioxd_common::server_type::{CommonServerState, CommonServerStateError};
 
+use super::main;
+
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("Run: {0}")]
-    Run(#[from] ioxd::Error),
+    Run(#[from] main::Error),
 
     #[error("Invalid config: {0}")]
     InvalidConfig(#[from] CommonServerStateError),
@@ -100,5 +102,5 @@ pub async fn command(config: Config) -> Result<(), Error> {
     info!("starting compactor");
 
     let services = vec![Service::create(server_type, common_state.run_config())];
-    Ok(ioxd::main(common_state, services).await?)
+    Ok(main::main(common_state, services).await?)
 }
