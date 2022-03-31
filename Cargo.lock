@@ -2315,6 +2315,7 @@ dependencies = [
  "hyper",
  "iox_catalog",
  "iox_object_store",
+ "lazy_static",
  "metric",
  "mutable_batch",
  "mutable_batch_lp",

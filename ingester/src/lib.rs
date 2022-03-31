@@ -25,6 +25,7 @@ pub mod querier_handler;
 pub mod query;
 pub mod server;
 pub mod sort_key;
+pub mod stream_handler;
 
 #[cfg(test)]
 pub mod test_util;
