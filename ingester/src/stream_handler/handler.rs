@@ -51,6 +51,11 @@ pub struct SequencedStreamHandler<I, O, T = SystemProvider> {
     time_to_be_readable_ms: U64Gauge,
     /// Duration of time ingest is paused at the request of the LifecycleManager
     pause_duration_ms: U64Counter,
+    /// Errors during op stream reading
+    seq_unknown_sequence_number_count: U64Counter,
+    seq_invalid_data_count: U64Counter,
+    seq_unknown_error_count: U64Counter,
+    sink_apply_error_count: U64Counter,
 
     /// Log context fields - otherwise unused.
     kafka_topic_name: String,
@@ -72,19 +77,47 @@ impl<I, O> SequencedStreamHandler<I, O> {
         kafka_partition: KafkaPartition,
         metrics: &metric::Registry,
     ) -> Self {
-        let attributes = Attributes::from([
-            ("sequencer_id", kafka_partition.to_string().into()),
-            ("kafka_topic", kafka_topic_name.clone().into()),
-        ]);
+        // TTBR
         let time_to_be_readable_ms = metrics.register_metric::<U64Gauge>(
             "ingester_ttbr_ms",
             "duration of time between producer writing to consumer putting into queryable cache in milliseconds",
-        ).recorder(attributes.clone());
+        ).recorder(metric_attrs(kafka_partition, &kafka_topic_name, None, false));
 
+        // Lifecycle-driven ingest pause duration
         let pause_duration_ms = metrics.register_metric::<U64Counter>(
             "ingest_paused_duration_ms_total",
             "duration of time ingestion has been paused by the lifecycle manager in milliseconds",
         ).recorder(&[]);
+
+        // Error count metrics
+        let ingest_errors = metrics.register_metric::<U64Counter>(
+            "ingest_stream_handler_error",
+            "ingester op fetching and buffering errors",
+        );
+        let seq_unknown_sequence_number_count = ingest_errors.recorder(metric_attrs(
+            kafka_partition,
+            &kafka_topic_name,
+            Some("sequencer_unknown_sequence_number"),
+            true,
+        ));
+        let seq_invalid_data_count = ingest_errors.recorder(metric_attrs(
+            kafka_partition,
+            &kafka_topic_name,
+            Some("sequencer_invalid_data"),
+            true,
+        ));
+        let seq_unknown_error_count = ingest_errors.recorder(metric_attrs(
+            kafka_partition,
+            &kafka_topic_name,
+            Some("sequencer_unknown_error"),
+            true,
+        ));
+        let sink_apply_error_count = ingest_errors.recorder(metric_attrs(
+            kafka_partition,
+            &kafka_topic_name,
+            Some("sink_apply_error"),
+            true,
+        ));
 
         Self {
             stream,
@@ -93,6 +126,10 @@ impl<I, O> SequencedStreamHandler<I, O> {
             time_provider: SystemProvider::default(),
             time_to_be_readable_ms,
             pause_duration_ms,
+            seq_unknown_sequence_number_count,
+            seq_invalid_data_count,
+            seq_unknown_error_count,
+            sink_apply_error_count,
             kafka_topic_name,
             kafka_partition,
         }
@@ -108,6 +145,10 @@ impl<I, O> SequencedStreamHandler<I, O> {
             time_provider: provider,
             time_to_be_readable_ms: self.time_to_be_readable_ms,
             pause_duration_ms: self.pause_duration_ms,
+            seq_unknown_sequence_number_count: self.seq_unknown_sequence_number_count,
+            seq_invalid_data_count: self.seq_invalid_data_count,
+            seq_unknown_error_count: self.seq_unknown_error_count,
+            sink_apply_error_count: self.sink_apply_error_count,
             kafka_topic_name: self.kafka_topic_name,
             kafka_partition: self.kafka_partition,
         }
@@ -166,7 +207,7 @@ where
                         potential_data_loss=true,
                         "unable to read from desired sequencer offset"
                     );
-                    // TODO: emit metric
+                    self.seq_unknown_sequence_number_count.inc(1);
                     None
                 }
                 Some(Err(e)) if e.kind() == WriteBufferErrorKind::IO => {
@@ -193,7 +234,7 @@ where
                         "unable to deserialise dml operation"
                     );
 
-                    // TODO: emit metric
+                    self.seq_invalid_data_count.inc(1);
                     None
                 }
                 Some(Err(e)) => {
@@ -204,7 +245,7 @@ where
                         potential_data_loss=true,
                         "unhandled error converting write buffer data to DmlOperation",
                     );
-                    // TODO: emit metric
+                    self.seq_unknown_error_count.inc(1);
                     tokio::time::sleep(Duration::from_secs(1)).await;
                     None
                 }
@@ -245,7 +286,7 @@ where
                         potential_data_loss=true,
                         "failed to apply dml operation"
                     );
-                    // TODO: emit metric
+                    self.sink_apply_error_count.inc(1);
                     return;
                 }
             };
@@ -304,6 +345,28 @@ where
     }
 }
 
+fn metric_attrs(
+    partition: KafkaPartition,
+    topic: &str,
+    err: Option<&'static str>,
+    data_loss: bool,
+) -> Attributes {
+    let mut attr = Attributes::from([
+        ("sequencer_id", partition.to_string().into()),
+        ("kafka_topic", topic.to_string().into()),
+    ]);
+
+    if let Some(err) = err {
+        attr.insert("error", err)
+    }
+
+    if data_loss {
+        attr.insert("potential_data_loss", "true");
+    }
+
+    attr
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
@@ -326,7 +389,9 @@ mod tests {
 
     lazy_static::lazy_static! {
         static ref TEST_TIME: Time = SystemProvider::default().now();
+        static ref TEST_KAFKA_PARTITION: KafkaPartition = KafkaPartition::new(42);
     }
+    static TEST_KAFKA_TOPIC: &str = "kafka_topic_name";
 
     // Return a DmlWrite with the given namespace and a single table.
     fn make_write(name: impl Into<String>, ttbr: u64) -> DmlWrite {
@@ -366,6 +431,8 @@ mod tests {
             stream_ops = $stream_ops:expr,  // An ordered set of stream items to feed to the handler
             sink_rets = $sink_ret:expr,     // An ordered set of values to return from the mock op sink
             want_ttbr = $want_ttbr:literal, // Desired TTBR value in milliseconds
+            // Optional set of ingest error metric label / values to assert
+            want_err_metrics = [$($metric_name:literal => $metric_count:literal),*],
             want_sink = $($want_sink:tt)+   // A pattern to match against the calls made to the op sink
         ) => {
             paste::paste! {
@@ -393,8 +460,8 @@ mod tests {
                         ReceiverStream::new(rx),
                         Arc::clone(&sink),
                         lifecycle.handle(),
-                        "kafka_topic_name".to_string(),
-                        KafkaPartition::new(42),
+                        TEST_KAFKA_TOPIC.to_string(),
+                        *TEST_KAFKA_PARTITION,
                         &*metrics,
                     ).with_time_provider(time::MockProvider::new(*TEST_TIME));
 
@@ -438,13 +505,29 @@ mod tests {
                     let ttbr = metrics
                         .get_instrument::<Metric<U64Gauge>>("ingester_ttbr_ms")
                         .expect("did not find ttbr metric")
-                        .get_observer(&Attributes::from(&[
-                            ("kafka_topic", "kafka_topic_name"),
-                            ("sequencer_id", "42"),
+                        .get_observer(&Attributes::from([
+                            ("kafka_topic", TEST_KAFKA_TOPIC.into()),
+                            ("sequencer_id", TEST_KAFKA_PARTITION.to_string().into()),
                         ]))
                         .expect("did not match metric attributes")
                         .fetch();
                     assert_eq!(ttbr, $want_ttbr);
+
+                    // Assert any error metrics in the macro call
+                    $(
+                        let got = metrics
+                            .get_instrument::<Metric<U64Counter>>("ingest_stream_handler_error")
+                            .expect("did not find error metric")
+                            .get_observer(&metric_attrs(
+                                *TEST_KAFKA_PARTITION,
+                                TEST_KAFKA_TOPIC,
+                                Some($metric_name),
+                                true,
+                            ))
+                            .expect("did not match metric attributes")
+                            .fetch();
+                        assert_eq!(got, $metric_count, $metric_name);
+                    )*
                 }
             }
         };
@@ -455,6 +538,7 @@ mod tests {
         stream_ops = [],
         sink_rets = [],
         want_ttbr = 0, // No ops, no TTBR
+        want_err_metrics = [],
         want_sink = []
     );
 
@@ -466,6 +550,7 @@ mod tests {
         ],
         sink_rets = [Ok(true)],
         want_ttbr = 42,
+        want_err_metrics = [],
         want_sink = [DmlOperation::Write(op)] => {
             assert_eq!(op.namespace(), "bananas");
         }
@@ -479,6 +564,7 @@ mod tests {
         ],
         sink_rets = [Ok(true)],
         want_ttbr = 24,
+        want_err_metrics = [],
         want_sink = [DmlOperation::Delete(op)] => {
             assert_eq!(op.namespace(), "platanos");
         }
@@ -494,6 +580,13 @@ mod tests {
         ],
         sink_rets = [Ok(true)],
         want_ttbr = 13,
+        want_err_metrics = [
+            // No error metrics for I/O errors
+            "sequencer_unknown_sequence_number" => 0,
+            "sequencer_invalid_data" => 0,
+            "sequencer_unknown_error" => 0,
+            "sink_apply_error" => 0
+        ],
         want_sink = [DmlOperation::Write(op)] => {
             assert_eq!(op.namespace(), "bananas");
         }
@@ -506,6 +599,12 @@ mod tests {
         ],
         sink_rets = [Ok(true)],
         want_ttbr = 31,
+        want_err_metrics = [
+            "sequencer_unknown_sequence_number" => 1,
+            "sequencer_invalid_data" => 0,
+            "sequencer_unknown_error" => 0,
+            "sink_apply_error" => 0
+        ],
         want_sink = [DmlOperation::Write(op)] => {
             assert_eq!(op.namespace(), "bananas");
         }
@@ -518,6 +617,12 @@ mod tests {
         ],
         sink_rets = [Ok(true)],
         want_ttbr = 50,
+        want_err_metrics = [
+            "sequencer_unknown_sequence_number" => 0,
+            "sequencer_invalid_data" => 1,
+            "sequencer_unknown_error" => 0,
+            "sink_apply_error" => 0
+        ],
         want_sink = [DmlOperation::Write(op)] => {
             assert_eq!(op.namespace(), "bananas");
         }
@@ -530,6 +635,12 @@ mod tests {
         ],
         sink_rets = [Ok(true)],
         want_ttbr = 60,
+        want_err_metrics = [
+            "sequencer_unknown_sequence_number" => 0,
+            "sequencer_invalid_data" => 0,
+            "sequencer_unknown_error" => 1,
+            "sink_apply_error" => 0
+        ],
         want_sink = [DmlOperation::Write(op)] => {
             assert_eq!(op.namespace(), "bananas");
         }
@@ -544,6 +655,7 @@ mod tests {
         )),],
         sink_rets = [],
         want_ttbr = 0,
+        want_err_metrics = [],
         want_sink = []
     );
 
@@ -558,6 +670,13 @@ mod tests {
         ],
         sink_rets = [Ok(true), Ok(false), Ok(true), Ok(false),],
         want_ttbr = 42,
+        want_err_metrics = [
+            // No errors!
+            "sequencer_unknown_sequence_number" => 0,
+            "sequencer_invalid_data" => 0,
+            "sequencer_unknown_error" => 0,
+            "sink_apply_error" => 0
+        ],
         want_sink = _
     );
 
@@ -574,6 +693,12 @@ mod tests {
             Ok(true),
         ],
         want_ttbr = 2,
+        want_err_metrics = [
+            "sequencer_unknown_sequence_number" => 0,
+            "sequencer_invalid_data" => 0,
+            "sequencer_unknown_error" => 0,
+            "sink_apply_error" => 1
+        ],
         want_sink = [
             DmlOperation::Write(_),  // First call into sink is bad_op, returning an error
             DmlOperation::Write(op), // Second call succeeds
