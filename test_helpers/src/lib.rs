@@ -12,7 +12,8 @@ use std::{
     sync::{Arc, Once},
 };
 pub use tempfile;
-
+#[cfg(feature = "future_timeout")]
+pub mod timeout;
 pub mod tracing;
 
 pub type Error = Box<dyn std::error::Error + Send + Sync + 'static>;

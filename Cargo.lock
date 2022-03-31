@@ -2323,6 +2323,7 @@ dependencies = [
  "parking_lot 0.12.0",
  "parquet",
  "parquet_file",
+ "paste",
  "pin-project",
  "predicate",
  "prost 0.9.0",
@@ -2333,6 +2334,7 @@ dependencies = [
  "thiserror",
  "time 0.1.0",
  "tokio",
+ "tokio-stream",
  "tokio-util 0.7.1",
  "tonic",
  "trace",
@@ -5890,10 +5892,12 @@ checksum = "507e9898683b6c43a9aa55b64259b721b52ba226e0f3779137e50ad114a4c90b"
 name = "test_helpers"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "dotenv",
  "observability_deps",
  "parking_lot 0.12.0",
  "tempfile",
+ "tokio",
  "tracing-log",
  "tracing-subscriber",
  "workspace-hack",
