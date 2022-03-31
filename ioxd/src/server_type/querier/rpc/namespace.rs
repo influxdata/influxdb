@@ -40,11 +40,7 @@ impl proto::namespace_service_server::NamespaceService for NamespaceServiceImpl 
         _request: tonic::Request<proto::GetNamespacesRequest>,
     ) -> Result<tonic::Response<proto::GetNamespacesResponse>, tonic::Status> {
         // Get catalog namespaces
-        let namespaces = self
-            .server
-            .namespaces()
-            .await
-            .map_err(|e| tonic::Status::internal(e.to_string()))?;
+        let namespaces = self.server.namespaces().await;
 
         // convert to proto Namespaces
         let namespaces: Vec<_> = namespaces.into_iter().map(namespace_to_proto).collect();

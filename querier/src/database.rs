@@ -5,7 +5,7 @@ use crate::{
     query_log::QueryLog,
 };
 use async_trait::async_trait;
-use backoff::BackoffConfig;
+use backoff::{Backoff, BackoffConfig};
 use data_types2::Namespace;
 use iox_catalog::interface::Catalog;
 use object_store::DynObjectStore;
@@ -119,8 +119,14 @@ impl QuerierDatabase {
     }
 
     /// Return all namespaces this querier knows about
-    pub async fn namespaces(&self) -> Result<Vec<Namespace>, iox_catalog::interface::Error> {
-        self.catalog.repositories().await.namespaces().list().await
+    pub async fn namespaces(&self) -> Vec<Namespace> {
+        let catalog = Arc::clone(&self.catalog);
+        Backoff::new(&self.backoff_config)
+            .retry_all_errors("listing namespaces", || async {
+                catalog.repositories().await.namespaces().list().await
+            })
+            .await
+            .expect("retry forever")
     }
 }
 
