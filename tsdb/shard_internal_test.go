@@ -2,7 +2,6 @@ package tsdb
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -215,7 +214,7 @@ type TempShard struct {
 // NewTempShard returns a new instance of TempShard with temp paths.
 func NewTempShard(index string) *TempShard {
 	// Create temporary path for data and WAL.
-	dir, err := ioutil.TempDir("", "influxdb-tsdb-")
+	dir, err := os.MkdirTemp("", "influxdb-tsdb-")
 	if err != nil {
 		panic(err)
 	}

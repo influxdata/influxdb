@@ -2,7 +2,6 @@ package run
 
 import (
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/user"
@@ -118,7 +117,7 @@ func NewDemoConfig() (*Config, error) {
 
 // FromTomlFile loads the config from a TOML file.
 func (c *Config) FromTomlFile(fpath string) error {
-	bs, err := ioutil.ReadFile(fpath)
+	bs, err := os.ReadFile(fpath)
 	if err != nil {
 		return err
 	}

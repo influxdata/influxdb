@@ -2,7 +2,6 @@ package inmem_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -165,7 +164,7 @@ type seriesFileWrapper struct {
 
 // newSeriesFileWrapper returns a new instance of seriesFileWrapper with a temporary file path.
 func newSeriesFileWrapper() *seriesFileWrapper {
-	dir, err := ioutil.TempDir("", "tsdb-series-file-")
+	dir, err := os.MkdirTemp("", "tsdb-series-file-")
 	if err != nil {
 		panic(err)
 	}

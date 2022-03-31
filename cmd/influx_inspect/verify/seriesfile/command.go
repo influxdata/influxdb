@@ -5,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -79,7 +78,7 @@ func (cmd *Command) Run(args ...string) error {
 		return err
 	}
 
-	dbs, err := ioutil.ReadDir(cmd.dir)
+	dbs, err := os.ReadDir(cmd.dir)
 	if err != nil {
 		return err
 	}

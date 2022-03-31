@@ -1,7 +1,6 @@
 package cmd_test
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -18,7 +17,7 @@ type TestRunCommand struct {
 }
 
 func NewTestRunCommand(env map[string]string) *TestRunCommand {
-	dir, err := ioutil.TempDir("", "testrun-")
+	dir, err := os.MkdirTemp("", "testrun-")
 	if err != nil {
 		panic(err)
 	}

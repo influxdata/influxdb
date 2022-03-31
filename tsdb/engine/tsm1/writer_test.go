@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"io"
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -75,7 +74,7 @@ func TestTSMWriter_Write_Single(t *testing.T) {
 		t.Fatalf("unexpected error open file: %v", err)
 	}
 
-	b, err := ioutil.ReadAll(fd)
+	b, err := io.ReadAll(fd)
 	if err != nil {
 		t.Fatalf("unexpected error reading: %v", err)
 	}
@@ -419,7 +418,7 @@ func TestTSMWriter_WriteBlock_Empty(t *testing.T) {
 	}
 	defer fd.Close()
 
-	b, err := ioutil.ReadAll(fd)
+	b, err := io.ReadAll(fd)
 	if err != nil {
 		t.Fatalf("unexpected error read all: %v", err)
 	}
@@ -467,7 +466,7 @@ func TestTSMWriter_WriteBlock_Multiple(t *testing.T) {
 	}
 	defer fd.Close()
 
-	b, err := ioutil.ReadAll(fd)
+	b, err := io.ReadAll(fd)
 	if err != nil {
 		t.Fatalf("unexpected error read all: %v", err)
 	}
@@ -596,7 +595,7 @@ func TestTSMWriter_Sync(t *testing.T) {
 		io.Writer
 		fakeSyncer
 	}{
-		Writer: ioutil.Discard,
+		Writer: io.Discard,
 	}
 
 	w, err := tsm1.NewTSMWriter(f)

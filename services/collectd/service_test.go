@@ -3,7 +3,6 @@ package collectd
 import (
 	"encoding/hex"
 	"errors"
-	"io/ioutil"
 	"net"
 	"os"
 	"path"
@@ -61,14 +60,14 @@ func TestService_Open_TypesDBDir(t *testing.T) {
 	t.Parallel()
 
 	// Make a temp dir to write types.db into.
-	tmpDir, err := ioutil.TempDir(os.TempDir(), "")
+	tmpDir, err := os.MkdirTemp(os.TempDir(), "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(tmpDir)
 
 	// Write types.db.
-	if err := ioutil.WriteFile(path.Join(tmpDir, "types.db"), []byte(typesDBText), 0777); err != nil {
+	if err := os.WriteFile(path.Join(tmpDir, "types.db"), []byte(typesDBText), 0777); err != nil {
 		t.Fatal(err)
 	}
 

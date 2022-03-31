@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sync"
@@ -101,7 +100,7 @@ func (p *SeriesPartition) Open() error {
 }
 
 func (p *SeriesPartition) openSegments() error {
-	fis, err := ioutil.ReadDir(p.path)
+	fis, err := os.ReadDir(p.path)
 	if err != nil {
 		return err
 	}

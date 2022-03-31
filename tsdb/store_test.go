@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"math"
 	"math/rand"
 	"os"
@@ -2464,7 +2463,7 @@ type Store struct {
 
 // NewStore returns a new instance of Store with a temporary path.
 func NewStore(index string) *Store {
-	path, err := ioutil.TempDir("", "influxdb-tsdb-")
+	path, err := os.MkdirTemp("", "influxdb-tsdb-")
 	if err != nil {
 		panic(err)
 	}

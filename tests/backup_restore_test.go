@@ -2,7 +2,6 @@ package tests
 
 import (
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	"path/filepath"
@@ -22,16 +21,16 @@ func TestServer_BackupAndRestore(t *testing.T) {
 	config.Monitor.StoreEnabled = true
 	config.Monitor.StoreInterval = toml.Duration(time.Second)
 
-	fullBackupDir, _ := ioutil.TempDir("", "backup")
+	fullBackupDir, _ := os.MkdirTemp("", "backup")
 	defer os.RemoveAll(fullBackupDir)
 
-	partialBackupDir, _ := ioutil.TempDir("", "backup")
+	partialBackupDir, _ := os.MkdirTemp("", "backup")
 	defer os.RemoveAll(partialBackupDir)
 
-	portableBackupDir, _ := ioutil.TempDir("", "backup")
+	portableBackupDir, _ := os.MkdirTemp("", "backup")
 	defer os.RemoveAll(portableBackupDir)
 
-	shardBackupDir, _ := ioutil.TempDir("", "backup")
+	shardBackupDir, _ := os.MkdirTemp("", "backup")
 	defer os.RemoveAll(shardBackupDir)
 
 	db := "mydb"
