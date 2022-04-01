@@ -27,7 +27,7 @@ type {{.name}}Table struct {
 	table
 	mu     sync.Mutex
 	cur    cursors.{{.Name}}ArrayCursor
-	alloc  *memory.Allocator
+	alloc  memory.Allocator
 }
 
 func new{{.Name}}Table(
@@ -39,7 +39,7 @@ func new{{.Name}}Table(
 	tags models.Tags,
 	defs [][]byte,
 	cache *tagsCache,
-	alloc *memory.Allocator,
+	alloc memory.Allocator,
 ) *{{.name}}Table {
 	t := &{{.name}}Table{
 		table: newTable(done, bounds, key, cols, defs, cache, alloc),
@@ -122,7 +122,7 @@ func new{{.Name}}WindowTable(
 	tags models.Tags,
 	defs [][]byte,
 	cache *tagsCache,
-	alloc *memory.Allocator,
+	alloc memory.Allocator,
 ) *{{.name}}WindowTable {
 	t := &{{.name}}WindowTable{
 		{{.name}}Table: {{.name}}Table{
@@ -330,7 +330,7 @@ func new{{.Name}}WindowSelectorTable(
 	tags models.Tags,
 	defs [][]byte,
 	cache *tagsCache,
-	alloc *memory.Allocator,
+	alloc memory.Allocator,
 ) *{{.name}}WindowSelectorTable {
 	t := &{{.name}}WindowSelectorTable{
 		{{.name}}Table: {{.name}}Table{
@@ -431,7 +431,7 @@ func new{{.Name}}EmptyWindowSelectorTable(
 	tags models.Tags,
 	defs [][]byte,
 	cache *tagsCache,
-	alloc *memory.Allocator,
+	alloc memory.Allocator,
 ) *{{.name}}EmptyWindowSelectorTable {
 	rangeStart := int64(bounds.Start)
 	rangeStop  := int64(bounds.Stop)
@@ -667,7 +667,7 @@ func new{{.Name}}GroupTable(
 	tags models.Tags,
 	defs [][]byte,
 	cache *tagsCache,
-	alloc *memory.Allocator,
+	alloc memory.Allocator,
 ) *{{.name}}GroupTable {
 	t := &{{.name}}GroupTable{
 		table: newTable(done, bounds, key, cols, defs, cache, alloc),

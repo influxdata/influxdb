@@ -71,7 +71,7 @@ type DatabasesDecoder struct {
 	deps      *influxdb.StorageDependencies
 	databases []meta.DatabaseInfo
 	user      meta.User
-	alloc     *memory.Allocator
+	alloc     memory.Allocator
 }
 
 func (bd *DatabasesDecoder) Connect(ctx context.Context) error {

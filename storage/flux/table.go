@@ -33,7 +33,7 @@ type table struct {
 
 	cancelled, used int32
 	cache           *tagsCache
-	alloc           *memory.Allocator
+	alloc           memory.Allocator
 }
 
 func newTable(
@@ -43,7 +43,7 @@ func newTable(
 	cols []flux.ColMeta,
 	defs [][]byte,
 	cache *tagsCache,
-	alloc *memory.Allocator,
+	alloc memory.Allocator,
 ) table {
 	return table{
 		done:   done,
