@@ -219,6 +219,7 @@ impl Persister for IngesterData {
                 &partition_info.namespace_name,
                 &partition_info.table_name,
                 &partition_info.partition.partition_key,
+                partition_info.partition.sort_key(),
                 Arc::clone(&persisting_batch),
             )
             .await
