@@ -1,6 +1,9 @@
 //! This module is responsible for compacting Ingester's data
 
-use crate::data::{PersistingBatch, QueryableBatch};
+use crate::{
+    data::{PersistingBatch, QueryableBatch},
+    sort_key::compute_sort_key,
+};
 use arrow::record_batch::RecordBatch;
 use data_types2::NamespaceId;
 use datafusion::{error::DataFusionError, physical_plan::SendableRecordBatchStream};
@@ -10,8 +13,9 @@ use query::{
     exec::{Executor, ExecutorType},
     frontend::reorg::ReorgPlanner,
     util::compute_timenanosecond_min_max,
-    QueryChunkMeta,
+    QueryChunk, QueryChunkMeta,
 };
+use schema::sort::SortKey;
 use snafu::{ResultExt, Snafu};
 use std::sync::Arc;
 use time::{Time, TimeProvider};
@@ -67,8 +71,11 @@ pub async fn compact_persisting_batch(
         return Ok(None);
     }
 
+    // Get sort key based on cardinality
+    let sort_key = compute_sort_key(&batch.data);
+
     // Compact
-    let stream = compact(executor, Arc::clone(&batch.data)).await?;
+    let stream = compact(executor, Arc::clone(&batch.data), sort_key.clone()).await?;
     // Collect compacted data into record batches for computing statistics
     let output_batches = datafusion::physical_plan::common::collect(stream)
         .await
@@ -106,7 +113,7 @@ pub async fn compact_persisting_batch(
         max_sequence_number: max_seq,
         row_count,
         compaction_level: INITIAL_COMPACTION_LEVEL,
-        sort_key: None,
+        sort_key: Some(sort_key),
     };
 
     Ok(Some((output_batches, meta)))
@@ -116,11 +123,12 @@ pub async fn compact_persisting_batch(
 pub async fn compact(
     executor: &Executor,
     data: Arc<QueryableBatch>,
+    sort_key: SortKey,
 ) -> Result<SendableRecordBatchStream> {
     // Build logical plan for compaction
     let ctx = executor.new_context(ExecutorType::Reorg);
     let logical_plan = ReorgPlanner::new()
-        .scan_single_chunk_plan(data.schema(), data)
+        .compact_plan(data.schema(), [data as Arc<dyn QueryChunk>], sort_key)
         .context(LogicalPlanSnafu {})?;
 
     // Build physical plan
@@ -301,7 +309,7 @@ mod tests {
             seq_num_end,
             3,
             INITIAL_COMPACTION_LEVEL,
-            None, // todo: this  will have value when #3968 is done
+            Some(SortKey::from_columns(["tag1", "time"])),
         );
         assert_eq!(expected_meta, meta);
     }
@@ -322,9 +330,12 @@ mod tests {
         let expected_pk = vec!["tag1", "time"];
         assert_eq!(expected_pk, pk);
 
+        let sort_key = compute_sort_key(&compact_batch);
+        assert_eq!(sort_key, SortKey::from_columns(["tag1", "time"]));
+
         // compact
         let exc = Executor::new(1);
-        let stream = compact(&exc, compact_batch).await.unwrap();
+        let stream = compact(&exc, compact_batch, sort_key).await.unwrap();
         let output_batches = datafusion::physical_plan::common::collect(stream)
             .await
             .unwrap();
@@ -360,9 +371,12 @@ mod tests {
         let expected_pk = vec!["tag1", "time"];
         assert_eq!(expected_pk, pk);
 
+        let sort_key = compute_sort_key(&compact_batch);
+        assert_eq!(sort_key, SortKey::from_columns(["tag1", "time"]));
+
         // compact
         let exc = Executor::new(1);
-        let stream = compact(&exc, compact_batch).await.unwrap();
+        let stream = compact(&exc, compact_batch, sort_key).await.unwrap();
         let output_batches = datafusion::physical_plan::common::collect(stream)
             .await
             .unwrap();
@@ -398,9 +412,12 @@ mod tests {
         let expected_pk = vec!["tag1", "time"];
         assert_eq!(expected_pk, pk);
 
+        let sort_key = compute_sort_key(&compact_batch);
+        assert_eq!(sort_key, SortKey::from_columns(["tag1", "time"]));
+
         // compact
         let exc = Executor::new(1);
-        let stream = compact(&exc, compact_batch).await.unwrap();
+        let stream = compact(&exc, compact_batch, sort_key).await.unwrap();
         let output_batches = datafusion::physical_plan::common::collect(stream)
             .await
             .unwrap();
@@ -441,9 +458,12 @@ mod tests {
         let expected_pk = vec!["tag1", "time"];
         assert_eq!(expected_pk, pk);
 
+        let sort_key = compute_sort_key(&compact_batch);
+        assert_eq!(sort_key, SortKey::from_columns(["tag1", "time"]));
+
         // compact
         let exc = Executor::new(1);
-        let stream = compact(&exc, compact_batch).await.unwrap();
+        let stream = compact(&exc, compact_batch, sort_key).await.unwrap();
         let output_batches = datafusion::physical_plan::common::collect(stream)
             .await
             .unwrap();
@@ -481,9 +501,12 @@ mod tests {
         let expected_pk = vec!["tag1", "tag2", "time"];
         assert_eq!(expected_pk, pk);
 
+        let sort_key = compute_sort_key(&compact_batch);
+        assert_eq!(sort_key, SortKey::from_columns(["tag1", "tag2", "time"]));
+
         // compact
         let exc = Executor::new(1);
-        let stream = compact(&exc, compact_batch).await.unwrap();
+        let stream = compact(&exc, compact_batch, sort_key).await.unwrap();
         let output_batches = datafusion::physical_plan::common::collect(stream)
             .await
             .unwrap();
@@ -535,9 +558,12 @@ mod tests {
         let expected_pk = vec!["tag1", "tag2", "time"];
         assert_eq!(expected_pk, pk);
 
+        let sort_key = compute_sort_key(&compact_batch);
+        assert_eq!(sort_key, SortKey::from_columns(["tag1", "tag2", "time"]));
+
         // compact
         let exc = Executor::new(1);
-        let stream = compact(&exc, compact_batch).await.unwrap();
+        let stream = compact(&exc, compact_batch, sort_key).await.unwrap();
         let output_batches = datafusion::physical_plan::common::collect(stream)
             .await
             .unwrap();
@@ -597,9 +623,12 @@ mod tests {
         let expected_pk = vec!["tag1", "tag2", "time"];
         assert_eq!(expected_pk, pk);
 
+        let sort_key = compute_sort_key(&compact_batch);
+        assert_eq!(sort_key, SortKey::from_columns(["tag1", "tag2", "time"]));
+
         // compact
         let exc = Executor::new(1);
-        let stream = compact(&exc, compact_batch).await.unwrap();
+        let stream = compact(&exc, compact_batch, sort_key).await.unwrap();
         let output_batches = datafusion::physical_plan::common::collect(stream)
             .await
             .unwrap();
@@ -652,9 +681,12 @@ mod tests {
         let expected_pk = vec!["tag1", "tag2", "time"];
         assert_eq!(expected_pk, pk);
 
+        let sort_key = compute_sort_key(&compact_batch);
+        assert_eq!(sort_key, SortKey::from_columns(["tag1", "tag2", "time"]));
+
         // compact
         let exc = Executor::new(1);
-        let stream = compact(&exc, compact_batch).await.unwrap();
+        let stream = compact(&exc, compact_batch, sort_key).await.unwrap();
         let output_batches = datafusion::physical_plan::common::collect(stream)
             .await
             .unwrap();

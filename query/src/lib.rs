@@ -270,7 +270,7 @@ pub fn chunks_have_stats(chunks: &[Arc<dyn QueryChunk>]) -> bool {
 
 pub fn compute_sort_key_for_chunks(schema: &Schema, chunks: &[Arc<dyn QueryChunk>]) -> SortKey {
     if !chunks_have_stats(chunks) {
-        // chunks have not enough stats, return its  pk that is
+        // chunks have not enough stats, return its pk that is
         // sorted lexicographically but time column always last
         SortKey::from_columns(schema.primary_key())
     } else {
