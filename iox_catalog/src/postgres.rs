@@ -1203,6 +1203,32 @@ WHERE partition.id = $1;
             partition,
         }))
     }
+
+    async fn update_sort_key(
+        &mut self,
+        partition_id: PartitionId,
+        sort_key: &str,
+    ) -> Result<Partition> {
+        let rec = sqlx::query_as::<_, Partition>(
+            r#"
+UPDATE partition
+SET sort_key = $1
+WHERE id = $2
+RETURNING *;
+        "#,
+        )
+        .bind(&sort_key)
+        .bind(&partition_id)
+        .fetch_one(&mut self.inner)
+        .await;
+
+        let partition = rec.map_err(|e| match e {
+            sqlx::Error::RowNotFound => Error::PartitionNotFound { id: partition_id },
+            _ => Error::SqlxError { source: e },
+        })?;
+
+        Ok(partition)
+    }
 }
 
 #[async_trait]

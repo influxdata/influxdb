@@ -777,6 +777,21 @@ impl PartitionRepo for MemTxn {
 
         Ok(None)
     }
+
+    async fn update_sort_key(
+        &mut self,
+        partition_id: PartitionId,
+        sort_key: &str,
+    ) -> Result<Partition> {
+        let stage = self.stage();
+        match stage.partitions.iter_mut().find(|p| p.id == partition_id) {
+            Some(p) => {
+                p.sort_key = Some(sort_key.to_string());
+                Ok(p.clone())
+            }
+            None => Err(Error::PartitionNotFound { id: partition_id }),
+        }
+    }
 }
 
 #[async_trait]
