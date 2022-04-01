@@ -615,9 +615,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "3.1.6"
+version = "3.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d8c93436c21e4698bacadf42917db28b23017027a4deccb35dbe47a7e7840123"
+checksum = "c67e7973e74896f4bba06ca2dcfd28d54f9cb8c035e940a32b88ed48f5f5ecf2"
 dependencies = [
  "atty",
  "bitflags",
@@ -634,7 +634,7 @@ dependencies = [
 name = "clap_blocks"
 version = "0.1.0"
 dependencies = [
- "clap 3.1.6",
+ "clap 3.1.7",
  "data_types",
  "futures",
  "iox_catalog",
@@ -654,9 +654,9 @@ dependencies = [
 
 [[package]]
 name = "clap_derive"
-version = "3.1.4"
+version = "3.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "da95d038ede1a964ce99f49cbe27a7fb538d1da595e4b4f70b8c8f338d17bf16"
+checksum = "a3aab4734e083b809aaf5794e14e756d1c798d2c69c7f7de7a09a2f5214993c1"
 dependencies = [
  "heck 0.4.0",
  "proc-macro-error",
@@ -2116,7 +2116,7 @@ dependencies = [
  "byteorder",
  "bytes",
  "chrono",
- "clap 3.1.6",
+ "clap 3.1.7",
  "clap_blocks",
  "comfy-table",
  "compactor",
@@ -2411,7 +2411,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "chrono-english",
- "clap 3.1.6",
+ "clap 3.1.7",
  "criterion",
  "data_types",
  "futures",
@@ -2440,7 +2440,7 @@ dependencies = [
  "assert_matches",
  "async-trait",
  "chrono",
- "clap 3.1.6",
+ "clap 3.1.7",
  "dotenv",
  "futures",
  "glob",
@@ -2511,7 +2511,7 @@ dependencies = [
  "arrow_util",
  "assert_cmd",
  "async-trait",
- "clap 3.1.6",
+ "clap 3.1.7",
  "clap_blocks",
  "compactor",
  "data_types2",
@@ -2566,7 +2566,7 @@ dependencies = [
  "async-trait",
  "bytes",
  "chrono",
- "clap 3.1.6",
+ "clap 3.1.7",
  "clap_blocks",
  "data_types",
  "dml",
@@ -2609,7 +2609,7 @@ dependencies = [
  "arrow_util",
  "async-trait",
  "bytes",
- "clap 3.1.6",
+ "clap 3.1.7",
  "clap_blocks",
  "data_types",
  "db",
@@ -6231,7 +6231,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "chrono",
- "clap 3.1.6",
+ "clap 3.1.7",
  "futures",
  "observability_deps",
  "snafu",
@@ -6376,7 +6376,7 @@ dependencies = [
 name = "trogging"
 version = "0.1.0"
 dependencies = [
- "clap 3.1.6",
+ "clap 3.1.7",
  "logfmt",
  "observability_deps",
  "regex",
