@@ -18,7 +18,7 @@ use iox_catalog::interface::{Catalog, Transaction};
 use iox_object_store::ParquetFilePath;
 use metric::{Attributes, Metric, U64Counter, U64Gauge, U64Histogram, U64HistogramOptions};
 use object_store::DynObjectStore;
-use observability_deps::tracing::warn;
+use observability_deps::tracing::{info, warn};
 use parquet_file::metadata::{IoxMetadata, IoxParquetMetaData};
 use query::{
     compute_sort_key_for_chunks, exec::ExecutorType, frontend::reorg::ReorgPlanner,
@@ -363,6 +363,7 @@ impl Compactor {
         partition_id: PartitionId,
         compaction_max_size_bytes: i64,
     ) -> Result<()> {
+        info!("compacting partition {}", partition_id);
         let start_time = self.time_provider.now();
 
         let parquet_files = self
@@ -388,6 +389,7 @@ impl Compactor {
 
         // Attach appropriate tombstones to each file
         let groups_with_tombstones = self.add_tombstones_to_groups(compact_file_groups).await?;
+        info!("compacting {} groups", groups_with_tombstones.len());
 
         // Compact, persist,and update catalog accordingly for each overlaped file
         let mut tombstones = BTreeMap::new();
@@ -407,6 +409,7 @@ impl Compactor {
             // deleted. These should already be unique, no need to dedupe.
             let original_parquet_file_ids: Vec<_> =
                 group.parquet_files.iter().map(|f| f.data.id).collect();
+            info!("compacting group of files: {:?}", original_parquet_file_ids);
 
             // compact
             let split_compacted_files = self.compact(group.parquet_files).await?;
