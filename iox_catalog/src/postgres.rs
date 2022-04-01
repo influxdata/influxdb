@@ -1513,13 +1513,17 @@ RETURNING *;
     }
 
     async fn level_0(&mut self, sequencer_id: SequencerId) -> Result<Vec<ParquetFile>> {
+        // this intentionally limits the returned files to 10,000 as it is used to make
+        // a decision on the highest priority partitions. If compaction has never been
+        // run this could end up returning millions of results and taking too long to run
         sqlx::query_as::<_, ParquetFile>(
             r#"
 SELECT *
 FROM parquet_file
 WHERE parquet_file.sequencer_id = $1
   AND parquet_file.compaction_level = 0
-  AND parquet_file.to_delete IS NULL;
+  AND parquet_file.to_delete IS NULL
+  LIMIT 10000;
         "#,
         )
         .bind(&sequencer_id) // $1
