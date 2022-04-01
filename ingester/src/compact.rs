@@ -331,6 +331,7 @@ mod tests {
         assert_eq!(expected_pk, pk);
 
         let sort_key = compute_sort_key(&compact_batch);
+        assert_eq!(sort_key, SortKey::from_columns(["tag1", "time"]));
 
         // compact
         let exc = Executor::new(1);
@@ -371,6 +372,7 @@ mod tests {
         assert_eq!(expected_pk, pk);
 
         let sort_key = compute_sort_key(&compact_batch);
+        assert_eq!(sort_key, SortKey::from_columns(["tag1", "time"]));
 
         // compact
         let exc = Executor::new(1);
@@ -411,6 +413,7 @@ mod tests {
         assert_eq!(expected_pk, pk);
 
         let sort_key = compute_sort_key(&compact_batch);
+        assert_eq!(sort_key, SortKey::from_columns(["tag1", "time"]));
 
         // compact
         let exc = Executor::new(1);
@@ -456,6 +459,7 @@ mod tests {
         assert_eq!(expected_pk, pk);
 
         let sort_key = compute_sort_key(&compact_batch);
+        assert_eq!(sort_key, SortKey::from_columns(["tag1", "time"]));
 
         // compact
         let exc = Executor::new(1);
@@ -498,6 +502,7 @@ mod tests {
         assert_eq!(expected_pk, pk);
 
         let sort_key = compute_sort_key(&compact_batch);
+        assert_eq!(sort_key, SortKey::from_columns(["tag1", "tag2", "time"]));
 
         // compact
         let exc = Executor::new(1);
@@ -554,6 +559,7 @@ mod tests {
         assert_eq!(expected_pk, pk);
 
         let sort_key = compute_sort_key(&compact_batch);
+        assert_eq!(sort_key, SortKey::from_columns(["tag1", "tag2", "time"]));
 
         // compact
         let exc = Executor::new(1);
@@ -618,6 +624,7 @@ mod tests {
         assert_eq!(expected_pk, pk);
 
         let sort_key = compute_sort_key(&compact_batch);
+        assert_eq!(sort_key, SortKey::from_columns(["tag1", "tag2", "time"]));
 
         // compact
         let exc = Executor::new(1);
@@ -675,6 +682,7 @@ mod tests {
         assert_eq!(expected_pk, pk);
 
         let sort_key = compute_sort_key(&compact_batch);
+        assert_eq!(sort_key, SortKey::from_columns(["tag1", "tag2", "time"]));
 
         // compact
         let exc = Executor::new(1);
