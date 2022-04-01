@@ -18,7 +18,7 @@ require (
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/golang/snappy v0.0.4
 	github.com/google/go-cmp v0.5.7
-	github.com/influxdata/flux v0.159.0
+	github.com/influxdata/flux v0.161.0
 	github.com/influxdata/httprouter v1.3.1-0.20191122104820-ee83e2772f69
 	github.com/influxdata/influxql v1.1.1-0.20211004132434-7e7d61973256
 	github.com/influxdata/pkg-config v0.2.11
@@ -27,7 +27,7 @@ require (
 	github.com/jsternberg/zap-logfmt v1.2.0
 	github.com/jwilder/encoding v0.0.0-20170811194829-b4e1701a28ef
 	github.com/klauspost/pgzip v1.0.2-0.20170402124221-0bf5dcad4ada
-	github.com/mattn/go-isatty v0.0.12
+	github.com/mattn/go-isatty v0.0.13
 	github.com/mileusna/useragent v0.0.0-20190129205925-3e331f0949a5
 	github.com/opentracing/opentracing-go v1.2.0
 	github.com/peterh/liner v1.0.1-0.20180619022028-8c1271fcf47f
@@ -38,12 +38,12 @@ require (
 	github.com/prometheus/prometheus v0.0.0-20200609090129-a6600f564e3c
 	github.com/retailnext/hllpp v1.0.1-0.20180308014038-101a6d2f8b52
 	github.com/spf13/cast v1.3.0
-	github.com/spf13/cobra v0.0.3
+	github.com/spf13/cobra v1.0.0
 	github.com/stretchr/testify v1.7.0
 	github.com/tinylib/msgp v1.1.0
 	github.com/uber/jaeger-client-go v2.28.0+incompatible
 	github.com/willf/bitset v1.1.9 // indirect
-	github.com/xlab/treeprint v0.0.0-20180616005107-d6fb6747feb6
+	github.com/xlab/treeprint v1.0.0
 	go.uber.org/multierr v1.6.0
 	go.uber.org/zap v1.16.0
 	golang.org/x/crypto v0.0.0-20211117183948-ae814b36b871
@@ -101,7 +101,7 @@ require (
 	github.com/eclipse/paho.mqtt.golang v1.2.0 // indirect
 	github.com/form3tech-oss/jwt-go v3.2.5+incompatible // indirect
 	github.com/gabriel-vasile/mimetype v1.4.0 // indirect
-	github.com/glycerine/go-unsnap-stream v0.0.0-20180323001048-9f0cb55181dd // indirect
+	github.com/glycerine/go-unsnap-stream v0.0.0-20181221182339-f9677308dec2 // indirect
 	github.com/go-sql-driver/mysql v1.5.0 // indirect
 	github.com/goccy/go-json v0.7.10 // indirect
 	github.com/gofrs/uuid v3.3.0+incompatible // indirect
@@ -111,9 +111,10 @@ require (
 	github.com/google/flatbuffers v2.0.5+incompatible // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/googleapis/gax-go/v2 v2.0.5 // indirect
+	github.com/gopherjs/gopherjs v0.0.0-20190812055157-5d271430af9f // indirect
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0 // indirect
 	github.com/huandu/xstrings v1.0.0 // indirect
-	github.com/imdario/mergo v0.3.5 // indirect
+	github.com/imdario/mergo v0.3.9 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/influxdata/gosnowflake v1.6.9 // indirect
 	github.com/influxdata/influxdb-client-go/v2 v2.3.1-0.20210518120617-5d1fff431040 // indirect
@@ -123,10 +124,11 @@ require (
 	github.com/jstemmer/go-junit-report v0.9.1 // indirect
 	github.com/klauspost/compress v1.13.6 // indirect
 	github.com/klauspost/crc32 v0.0.0-20161016154125-cb6bfca970f6 // indirect
-	github.com/lib/pq v1.0.0 // indirect
+	github.com/lib/pq v1.2.0 // indirect
 	github.com/mattn/go-colorable v0.1.8 // indirect
 	github.com/mattn/go-ieproxy v0.0.1 // indirect
-	github.com/mattn/go-runewidth v0.0.3 // indirect
+	github.com/mattn/go-runewidth v0.0.9 // indirect
+	github.com/mattn/go-sqlite3 v1.14.7 // indirect
 	github.com/mattn/go-tty v0.0.0-20180907095812-13ff1204f104 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.1 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
@@ -138,8 +140,9 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/procfs v0.0.11 // indirect
 	github.com/segmentio/kafka-go v0.2.0 // indirect
-	github.com/sergi/go-diff v1.0.0 // indirect
+	github.com/sergi/go-diff v1.1.0 // indirect
 	github.com/sirupsen/logrus v1.8.1 // indirect
+	github.com/smartystreets/assertions v1.0.1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/uber-go/tally v3.3.15+incompatible // indirect
 	github.com/uber/athenadriver v1.1.4 // indirect
@@ -159,4 +162,5 @@ require (
 	google.golang.org/genproto v0.0.0-20210630183607-d20f26d13c79 // indirect
 	gopkg.in/yaml.v2 v2.3.0 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c // indirect
+	honnef.co/go/tools v0.2.0 // indirect
 )
