@@ -437,7 +437,7 @@ impl TestPartition {
             compaction_level: INITIAL_COMPACTION_LEVEL,
             sort_key: Some(sort_key),
         };
-        let (parquet_metadata_bin, file_size_bytes) =
+        let (parquet_metadata_bin, real_file_size_bytes) =
             create_parquet_file(&self.catalog.object_store, &metadata, record_batch).await;
 
         let parquet_file_params = ParquetFileParams {
@@ -450,7 +450,79 @@ impl TestPartition {
             max_sequence_number,
             min_time: Timestamp::new(min_time),
             max_time: Timestamp::new(max_time),
-            file_size_bytes: file_size_bytes as i64,
+            file_size_bytes: real_file_size_bytes as i64,
+            parquet_metadata: parquet_metadata_bin,
+            row_count: row_count as i64,
+            created_at: Timestamp::new(creation_time),
+            compaction_level: INITIAL_COMPACTION_LEVEL,
+        };
+        let parquet_file = repos
+            .parquet_files()
+            .create(parquet_file_params)
+            .await
+            .unwrap();
+
+        Arc::new(TestParquetFile {
+            catalog: Arc::clone(&self.catalog),
+            namespace: Arc::clone(&self.namespace),
+            parquet_file,
+        })
+    }
+
+    /// Create a parquet for the partition with fake sizew for testing
+    #[allow(clippy::too_many_arguments)]
+    pub async fn create_parquet_file_with_min_max_size_and_creation_time(
+        self: &Arc<Self>,
+        lp: &str,
+        min_seq: i64,
+        max_seq: i64,
+        min_time: i64,
+        max_time: i64,
+        file_size_bytes: i64,
+        creation_time: i64,
+    ) -> Arc<TestParquetFile> {
+        let mut repos = self.catalog.catalog.repositories().await;
+
+        let (table, batch) = lp_to_mutable_batch(lp);
+        assert_eq!(table, self.table.table.name);
+        let row_count = batch.rows();
+        let (record_batch, sort_key) = sort_mutable_batch(batch);
+
+        let object_store_id = Uuid::new_v4();
+        let min_sequence_number = SequenceNumber::new(min_seq);
+        let max_sequence_number = SequenceNumber::new(max_seq);
+        let metadata = IoxMetadata {
+            object_store_id,
+            creation_timestamp: now(),
+            namespace_id: self.namespace.namespace.id,
+            namespace_name: self.namespace.namespace.name.clone().into(),
+            sequencer_id: self.sequencer.sequencer.id,
+            table_id: self.table.table.id,
+            table_name: self.table.table.name.clone().into(),
+            partition_id: self.partition.id,
+            partition_key: self.partition.partition_key.clone().into(),
+            time_of_first_write: Time::from_timestamp_nanos(min_time),
+            time_of_last_write: Time::from_timestamp_nanos(max_time),
+            min_sequence_number,
+            max_sequence_number,
+            row_count: row_count as i64,
+            compaction_level: INITIAL_COMPACTION_LEVEL,
+            sort_key: Some(sort_key),
+        };
+        let (parquet_metadata_bin, _real_file_size_bytes) =
+            create_parquet_file(&self.catalog.object_store, &metadata, record_batch).await;
+
+        let parquet_file_params = ParquetFileParams {
+            sequencer_id: self.sequencer.sequencer.id,
+            namespace_id: self.namespace.namespace.id,
+            table_id: self.table.table.id,
+            partition_id: self.partition.id,
+            object_store_id,
+            min_sequence_number,
+            max_sequence_number,
+            min_time: Timestamp::new(min_time),
+            max_time: Timestamp::new(max_time),
+            file_size_bytes,
             parquet_metadata: parquet_metadata_bin,
             row_count: row_count as i64,
             created_at: Timestamp::new(creation_time),

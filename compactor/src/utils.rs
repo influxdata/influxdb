@@ -2,7 +2,9 @@
 
 use crate::query::QueryableParquetChunk;
 use arrow::record_batch::RecordBatch;
-use data_types2::{ParquetFile, ParquetFileId, ParquetFileParams, Tombstone, TombstoneId};
+use data_types2::{
+    ParquetFile, ParquetFileId, ParquetFileParams, Timestamp, Tombstone, TombstoneId,
+};
 use iox_object_store::IoxObjectStore;
 use object_store::DynObjectStore;
 use parquet_file::{
@@ -28,6 +30,19 @@ impl GroupWithTombstones {
     pub fn tombstone_ids(&self) -> HashSet<TombstoneId> {
         self.tombstones.iter().map(|t| t.id).collect()
     }
+}
+
+/// Wrapper of group of parquet files with their min time and total size
+#[derive(Debug, Clone, PartialEq)]
+pub struct GroupWithMinTimeAndSize {
+    /// Parquet files
+    pub(crate) parquet_files: Vec<ParquetFile>,
+
+    /// min time of all parquet_files
+    pub(crate) min_time: Timestamp,
+
+    /// total size of all file
+    pub(crate) total_file_size_bytes: i64,
 }
 
 /// Wrapper of a parquet file and its tombstones
