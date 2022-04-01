@@ -37,7 +37,7 @@ func (s *LocalBucketsProcedureSpec) Copy() plan.ProcedureSpec {
 
 type BucketsDecoder struct {
 	deps  StorageDependencies
-	alloc *memory.Allocator
+	alloc memory.Allocator
 	user  meta.User
 }
 

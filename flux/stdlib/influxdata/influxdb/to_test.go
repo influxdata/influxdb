@@ -7,6 +7,7 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/dependencies/dependenciestest"
+	"github.com/influxdata/flux/dependency"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/execute/executetest"
 	"github.com/influxdata/flux/interpreter"
@@ -760,7 +761,8 @@ m,tag1=c _value=4 41`),
 				tc.want.tables,
 				nil,
 				func(d execute.Dataset, c execute.TableBuilderCache) execute.Transformation {
-					ctx := deps.Inject(context.Background())
+					ctx, span := dependency.Inject(context.Background())
+					defer span.Finish()
 					newT, err := influxdb.NewToTransformation(ctx, d, c, tc.spec, deps.StorageDeps)
 					if err != nil {
 						t.Error(err)
