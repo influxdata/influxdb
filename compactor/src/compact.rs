@@ -1,6 +1,7 @@
 //! Data Points for the lifecycle of the Compactor
 
 use crate::handler::CompactorConfig;
+use crate::utils::GroupWithMinTimeAndSize;
 use crate::{
     query::QueryableParquetChunk,
     utils::{CatalogUpdate, CompactedData, GroupWithTombstones, ParquetFileWithTombstone},
@@ -357,7 +358,11 @@ impl Compactor {
 
     /// Runs compaction in a partition resolving any tombstones and compacting data so that parquet
     /// files will be non-overlapping in time.
-    pub async fn compact_partition(&self, partition_id: PartitionId) -> Result<()> {
+    pub async fn compact_partition(
+        &self,
+        partition_id: PartitionId,
+        compaction_max_size_bytes: i64,
+    ) -> Result<()> {
         let start_time = self.time_provider.now();
 
         let parquet_files = self
@@ -374,11 +379,15 @@ impl Compactor {
         let sequencer_id = parquet_files[0].sequencer_id;
         let file_count = parquet_files.len();
 
+        // Group overlapped files
         let overlapped_file_groups = Self::overlapped_groups(parquet_files);
 
-        let groups_with_tombstones = self
-            .add_tombstones_to_groups(overlapped_file_groups)
-            .await?;
+        // Group time-contiguous non-overlapped groups if their total size is smaller than a threshold
+        let compact_file_groups =
+            Self::group_small_contiguous_groups(overlapped_file_groups, compaction_max_size_bytes);
+
+        // Attach appropriate tombstones to each file
+        let groups_with_tombstones = self.add_tombstones_to_groups(compact_file_groups).await?;
 
         // Compact, persist,and update catalog accordingly for each overlaped file
         let mut tombstones = BTreeMap::new();
@@ -460,19 +469,39 @@ impl Compactor {
         Ok(())
     }
 
-    // Group given parquet files into partition of the same (sequencer_id, table_id, partition_id)
-    fn group_parquet_files_into_partition(
-        parquet_files: Vec<ParquetFile>,
-    ) -> BTreeMap<TablePartition, Vec<ParquetFile>> {
-        let mut groups: BTreeMap<TablePartition, Vec<ParquetFile>> = BTreeMap::default();
-        for file in parquet_files {
-            let key = TablePartition::new(file.sequencer_id, file.table_id, file.partition_id);
-            if let Some(val) = groups.get_mut(&key) {
-                val.push(file);
+    // Group time-contiguous non-overlapped groups if their total size is smaller than a threshold
+    fn group_small_contiguous_groups(
+        mut file_groups: Vec<GroupWithMinTimeAndSize>,
+        compaction_max_size_bytes: i64,
+    ) -> Vec<Vec<ParquetFile>> {
+        let mut groups = Vec::with_capacity(file_groups.len());
+        if file_groups.is_empty() {
+            return groups;
+        }
+
+        // Sort the groups by their min_time
+        file_groups.sort_by_key(|a| a.min_time);
+
+        let mut current_group = vec![];
+        let mut current_size = 0;
+        for g in file_groups {
+            if current_size + g.total_file_size_bytes < compaction_max_size_bytes {
+                // Group this one with the current_group
+                current_group.extend(g.parquet_files);
+                current_size += g.total_file_size_bytes;
             } else {
-                groups.insert(key, vec![file]);
+                // Current group  cannot combine with it next one
+                if !current_group.is_empty() {
+                    groups.push(current_group);
+                }
+
+                current_group = g.parquet_files;
+                current_size = g.total_file_size_bytes;
             }
         }
+
+        // push the last one
+        groups.push(current_group);
 
         groups
     }
@@ -754,14 +783,19 @@ impl Compactor {
 
     /// Given a list of parquet files that come from the same Table Partition, group files together
     /// if their (min_time, max_time) ranges overlap. Does not preserve or guarantee any ordering.
-    fn overlapped_groups(mut parquet_files: Vec<ParquetFile>) -> Vec<Vec<ParquetFile>> {
+    fn overlapped_groups(mut parquet_files: Vec<ParquetFile>) -> Vec<GroupWithMinTimeAndSize> {
         let mut groups = Vec::with_capacity(parquet_files.len());
 
         // While there are still files not in any group
         while !parquet_files.is_empty() {
             // Start a group containing only the first file
             let mut in_group = Vec::with_capacity(parquet_files.len());
-            in_group.push(parquet_files.swap_remove(0));
+
+            // first file
+            let pf = parquet_files.swap_remove(0);
+            let mut min_time = pf.min_time;
+            let mut total_file_size_bytes = pf.file_size_bytes;
+            in_group.push(pf);
 
             // Start a group for the remaining files that don't overlap
             let mut out_group = Vec::with_capacity(parquet_files.len());
@@ -774,13 +808,19 @@ impl Compactor {
                         || (file.min_time > group_file.min_time
                             && file.min_time <= group_file.max_time)
                 }) {
+                    min_time = min_time.min(file.min_time);
+                    total_file_size_bytes += file.file_size_bytes;
                     in_group.push(file);
                 } else {
                     out_group.push(file);
                 }
             }
 
-            groups.push(in_group);
+            groups.push(GroupWithMinTimeAndSize {
+                parquet_files: in_group,
+                min_time,
+                total_file_size_bytes,
+            });
             parquet_files = out_group;
         }
 
@@ -992,7 +1032,7 @@ mod tests {
 
     #[tokio::test]
     // This is integration test to verify all pieces are put together correctly
-    async fn test_compact_partitiom() {
+    async fn test_compact_partition() {
         let catalog = TestCatalog::new();
 
         let lp = vec![
@@ -1042,12 +1082,15 @@ mod tests {
             Arc::new(Executor::new(1)),
             Arc::new(SystemProvider::new()),
             BackoffConfig::default(),
-            CompactorConfig::new(90, 10000000),
+            CompactorConfig::new(90, 100000, 100000),
             Arc::new(metric::Registry::new()),
         );
 
         compactor
-            .compact_partition(partition.partition.id)
+            .compact_partition(
+                partition.partition.id,
+                compactor.config.compaction_max_size_bytes(),
+            )
             .await
             .unwrap();
         // should have 2 non-deleted level_0 files. The original file was marked deleted and not counted
@@ -1151,13 +1194,30 @@ mod tests {
             .with_sequencer(&sequencer)
             .create_partition("part")
             .await;
-
         let time = Arc::new(SystemProvider::new());
+        let compactor = Compactor::new(
+            vec![sequencer.sequencer.id],
+            Arc::clone(&catalog.catalog),
+            Arc::clone(&catalog.object_store),
+            Arc::new(Executor::new(1)),
+            Arc::new(SystemProvider::new()),
+            BackoffConfig::default(),
+            CompactorConfig::new(90, 100000, 100000),
+            Arc::new(metric::Registry::new()),
+        );
 
         // parquet files
-        // pf1 does not overlap with any and was created long ago ==> will be upgraded to level 1 during compaction
+        // pf1 does not overlap with any and very large ==> will be upgraded to level 1 during compaction
         let _pf1 = partition
-            .create_parquet_file_with_min_max_and_creation_time(&lp1, 1, 1, 10, 20, 20)
+            .create_parquet_file_with_min_max_size_and_creation_time(
+                &lp1,
+                1,
+                1,
+                10,
+                20,
+                compactor.config.compaction_max_size_bytes() + 10,
+                20,
+            )
             .await
             .parquet_file
             .clone();
@@ -1187,7 +1247,7 @@ mod tests {
             .await
             .parquet_file
             .clone();
-        // pf4 does not overlap with any and recent created ==> stay level 0
+        // pf4 does not overlap with any but small => will also be compacted with pf2 and pf3
         let _pf4 = partition
             .create_parquet_file_with_min_max_and_creation_time(
                 &lp4,
@@ -1233,31 +1293,22 @@ mod tests {
 
         // ------------------------------------------------
         // Compact
-        let compactor = Compactor::new(
-            vec![sequencer.sequencer.id],
-            Arc::clone(&catalog.catalog),
-            Arc::clone(&catalog.object_store),
-            Arc::new(Executor::new(1)),
-            Arc::new(SystemProvider::new()),
-            BackoffConfig::default(),
-            CompactorConfig::new(90, 10000000),
-            Arc::new(metric::Registry::new()),
-        );
         compactor
-            .compact_partition(partition.partition.id)
+            .compact_partition(
+                partition.partition.id,
+                compactor.config.compaction_max_size_bytes(),
+            )
             .await
             .unwrap();
 
-        // Should have 4 non-soft-deleted files: pf1 and pf4 not compacted and stay, and 2 newly created after compacting pf2 with pf3
+        // Should have 3 non-soft-deleted files: pf1 not compacted and stay, and 2 newly created after compacting pf2, pf3, pf4
         let files = catalog.list_by_table_not_to_delete(table.table.id).await;
-        assert_eq!(files.len(), 4);
-        // pf1 upgraded to level 1 because it was too old
+        assert_eq!(files.len(), 3);
+        // pf1 upgraded to level 1
         assert_eq!((files[0].id.get(), files[0].compaction_level), (1, 1));
-        // pf4 gets upgraded to level 1
-        assert_eq!((files[1].id.get(), files[1].compaction_level), (4, 1));
         // 2 newly created level-1 files as the result of compaction
-        assert_eq!((files[2].id.get(), files[2].compaction_level), (5, 1));
-        assert_eq!((files[3].id.get(), files[3].compaction_level), (6, 1));
+        assert_eq!((files[1].id.get(), files[2].compaction_level), (5, 1));
+        assert_eq!((files[2].id.get(), files[2].compaction_level), (6, 1));
 
         // should have ts1 and ts3 that not involved in the commpaction process
         // ts2 was removed because it was fully processed
@@ -1282,20 +1333,21 @@ mod tests {
             catalog.time_provider(),
         );
         // create chunks for 2 files
-        let chunk_0 = adapter.new_querier_chunk(files[2].clone()).await.unwrap();
-        let chunk_1 = adapter.new_querier_chunk(files[3].clone()).await.unwrap();
+        let chunk_0 = adapter.new_querier_chunk(files[1].clone()).await.unwrap();
+        let chunk_1 = adapter.new_querier_chunk(files[2].clone()).await.unwrap();
         // query the chunks
         // least recent compacted first half (~90%)
         let batches = collect_read_filter(&chunk_0).await;
         assert_batches_sorted_eq!(
             &[
-                "+-----------+------+-----------------------------+",
-                "| field_int | tag1 | time                        |",
-                "+-----------+------+-----------------------------+",
-                "| 10        | VT   | 1970-01-01T00:00:00.000006Z |",
-                "| 1500      | WA   | 1970-01-01T00:00:00.000008Z |",
-                "| 70        | UT   | 1970-01-01T00:00:00.000020Z |",
-                "+-----------+------+-----------------------------+",
+                "+-----------+------+------+------+-----------------------------+",
+                "| field_int | tag1 | tag2 | tag3 | time                        |",
+                "+-----------+------+------+------+-----------------------------+",
+                "| 10        | VT   |      |      | 1970-01-01T00:00:00.000006Z |",
+                "| 1500      | WA   |      |      | 1970-01-01T00:00:00.000008Z |",
+                "| 270       | UT   |      |      | 1970-01-01T00:00:00.000025Z |",
+                "| 70        | UT   |      |      | 1970-01-01T00:00:00.000020Z |",
+                "+-----------+------+------+------+-----------------------------+",
             ],
             &batches
         );
@@ -1303,11 +1355,12 @@ mod tests {
         let batches = collect_read_filter(&chunk_1).await;
         assert_batches_sorted_eq!(
             &[
-                "+-----------+------+-----------------------------+",
-                "| field_int | tag1 | time                        |",
-                "+-----------+------+-----------------------------+",
-                "| 270       | UT   | 1970-01-01T00:00:00.000025Z |",
-                "+-----------+------+-----------------------------+",
+                "+-----------+------+------+------+-----------------------------+",
+                "| field_int | tag1 | tag2 | tag3 | time                        |",
+                "+-----------+------+------+------+-----------------------------+",
+                "| 1600      |      | WA   | 10   | 1970-01-01T00:00:00.000028Z |",
+                "| 20        |      | VT   | 20   | 1970-01-01T00:00:00.000026Z |",
+                "+-----------+------+------+------+-----------------------------+",
             ],
             &batches
         );
@@ -1342,7 +1395,7 @@ mod tests {
             Arc::new(Executor::new(1)),
             Arc::new(SystemProvider::new()),
             BackoffConfig::default(),
-            CompactorConfig::new(90, 10000000),
+            CompactorConfig::new(90, 100000, 100000),
             Arc::new(metric::Registry::new()),
         );
 
@@ -1441,7 +1494,7 @@ mod tests {
             Arc::new(Executor::new(1)),
             Arc::new(SystemProvider::new()),
             BackoffConfig::default(),
-            CompactorConfig::new(90, 10000000),
+            CompactorConfig::new(90, 100000, 100000),
             Arc::new(metric::Registry::new()),
         );
 
@@ -1548,7 +1601,7 @@ mod tests {
             Arc::new(Executor::new(1)),
             Arc::new(SystemProvider::new()),
             BackoffConfig::default(),
-            CompactorConfig::new(90, 10000000),
+            CompactorConfig::new(90, 100000, 100000),
             Arc::new(metric::Registry::new()),
         );
 
@@ -1613,13 +1666,13 @@ mod tests {
     /// A test utility function to make minimially-viable ParquetFile records with particular
     /// min/max times. Does not involve the catalog at all.
     fn arbitrary_parquet_file(min_time: i64, max_time: i64) -> ParquetFile {
-        arbitrary_parquet_file_with_creation_time(min_time, max_time, 1)
+        arbitrary_parquet_file_with_size(min_time, max_time, 100)
     }
 
-    fn arbitrary_parquet_file_with_creation_time(
+    fn arbitrary_parquet_file_with_size(
         min_time: i64,
         max_time: i64,
-        created_at: i64,
+        file_size_bytes: i64,
     ) -> ParquetFile {
         ParquetFile {
             id: ParquetFileId::new(0),
@@ -1633,11 +1686,11 @@ mod tests {
             min_time: Timestamp::new(min_time),
             max_time: Timestamp::new(max_time),
             to_delete: None,
-            file_size_bytes: 0,
+            file_size_bytes,
             parquet_metadata: vec![],
             row_count: 0,
             compaction_level: INITIAL_COMPACTION_LEVEL, // level of file of new writes
-            created_at: Timestamp::new(created_at),
+            created_at: Timestamp::new(1),
         }
     }
 
@@ -1718,8 +1771,11 @@ mod tests {
 
         let groups = Compactor::overlapped_groups(vec![pf1.clone(), pf2.clone()]);
 
-        // They should each be in their own group
-        assert_eq!(groups, vec![vec![pf1], vec![pf2]]);
+        // They should be 2 groups
+        assert_eq!(groups.len(), 2, "There should have been two group");
+
+        groups[0].parquet_files.contains(&pf1);
+        groups[1].parquet_files.contains(&pf2);
     }
 
     #[test]
@@ -1735,12 +1791,12 @@ mod tests {
 
         let group = &groups[0];
         assert_eq!(
-            group.len(),
+            group.parquet_files.len(),
             2,
             "The one group should have contained 2 items"
         );
-        assert!(group.contains(&pf1));
-        assert!(group.contains(&pf2));
+        assert!(group.parquet_files.contains(&pf1));
+        assert!(group.parquet_files.contains(&pf2));
     }
 
     #[test]
@@ -1771,52 +1827,272 @@ mod tests {
 
         assert_eq!(groups.len(), 3);
 
-        // Order of the groups is not guaranteed; sort by length of group so we can test membership
-        groups.sort_by_key(|g| g.len());
+        // Order of the groups is not guaranteed; sort by min_time of group so we can test membership
+        groups.sort_by_key(|g| g.min_time);
 
-        let alone_group = &groups[0];
-        assert_eq!(alone_group.len(), 1);
+        let alone_group = &groups[2];
+        assert_eq!(alone_group.min_time, Timestamp::new(30));
         assert!(
-            alone_group.contains(&alone),
+            alone_group.parquet_files.contains(&alone),
             "Actually contains: {:#?}",
             alone_group
         );
 
         let another_group = &groups[1];
-        assert_eq!(another_group.len(), 2);
+        assert_eq!(another_group.min_time, Timestamp::new(13));
         assert!(
-            another_group.contains(&another),
+            another_group.parquet_files.contains(&another),
             "Actually contains: {:#?}",
             another_group
         );
         assert!(
-            another_group.contains(&partial_overlap),
+            another_group.parquet_files.contains(&partial_overlap),
             "Actually contains: {:#?}",
             another_group
         );
 
-        let many_group = &groups[2];
-        assert_eq!(many_group.len(), 4);
+        let many_group = &groups[0];
+        assert_eq!(many_group.min_time, Timestamp::new(3));
         assert!(
-            many_group.contains(&overlaps_many),
+            many_group.parquet_files.contains(&overlaps_many),
             "Actually contains: {:#?}",
             many_group
         );
         assert!(
-            many_group.contains(&contained_completely_within),
+            many_group
+                .parquet_files
+                .contains(&contained_completely_within),
             "Actually contains: {:#?}",
             many_group
         );
         assert!(
-            many_group.contains(&max_equals_min),
+            many_group.parquet_files.contains(&max_equals_min),
             "Actually contains: {:#?}",
             many_group
         );
         assert!(
-            many_group.contains(&min_equals_max),
+            many_group.parquet_files.contains(&min_equals_max),
             "Actually contains: {:#?}",
             many_group
         );
+    }
+
+    #[test]
+    fn test_group_small_contiguous_overlapped_groups() {
+        // Given two files that don't overlap,
+        let pf1 = arbitrary_parquet_file_with_size(1, 2, 100);
+        let pf2 = arbitrary_parquet_file_with_size(3, 4, 200);
+
+        let overlapped_groups = Compactor::overlapped_groups(vec![pf1.clone(), pf2.clone()]);
+        // 2 overlapped groups
+        assert_eq!(overlapped_groups.len(), 2);
+        let g1 = GroupWithMinTimeAndSize {
+            parquet_files: vec![pf1.clone()],
+            min_time: Timestamp::new(1),
+            total_file_size_bytes: 100,
+        };
+        let g2 = GroupWithMinTimeAndSize {
+            parquet_files: vec![pf2.clone()],
+            min_time: Timestamp::new(3),
+            total_file_size_bytes: 200,
+        };
+        // They should each be in their own group
+        assert_eq!(overlapped_groups, vec![g1, g2]);
+
+        // Group them by size
+        let compaction_max_size_bytes = 100000;
+        let groups =
+            Compactor::group_small_contiguous_groups(overlapped_groups, compaction_max_size_bytes);
+        // 2 small groups should be grouped in one
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups, vec![vec![pf1, pf2]]);
+    }
+
+    #[test]
+    fn test_group_small_contiguous_overlapped_groups_no_group() {
+        let compaction_max_size_bytes = 100000;
+
+        // Given two files that don't overlap,
+        let pf1 = arbitrary_parquet_file_with_size(1, 2, 100);
+        let pf2 = arbitrary_parquet_file_with_size(3, 4, compaction_max_size_bytes); // too large to group
+
+        let overlapped_groups = Compactor::overlapped_groups(vec![pf1.clone(), pf2.clone()]);
+        // 2 overlapped groups
+        assert_eq!(overlapped_groups.len(), 2);
+        let g1 = GroupWithMinTimeAndSize {
+            parquet_files: vec![pf1.clone()],
+            min_time: Timestamp::new(1),
+            total_file_size_bytes: 100,
+        };
+        let g2 = GroupWithMinTimeAndSize {
+            parquet_files: vec![pf2.clone()],
+            min_time: Timestamp::new(3),
+            total_file_size_bytes: compaction_max_size_bytes,
+        };
+        // They should each be in their own group
+        assert_eq!(overlapped_groups, vec![g1, g2]);
+
+        // Group them by size
+        let groups =
+            Compactor::group_small_contiguous_groups(overlapped_groups, compaction_max_size_bytes);
+        // Files too big to group further
+        assert_eq!(groups.len(), 2);
+        assert_eq!(groups, vec![vec![pf1], vec![pf2]]);
+    }
+
+    #[test]
+    fn test_group_small_contiguous_overlapped_groups_many_files() {
+        let compaction_max_size_bytes = 100000;
+
+        // oldest overlapped and very small
+        let overlaps_many = arbitrary_parquet_file_with_size(5, 10, 200);
+        let contained_completely_within = arbitrary_parquet_file_with_size(6, 7, 300);
+        let max_equals_min = arbitrary_parquet_file_with_size(3, 5, 400);
+        let min_equals_max = arbitrary_parquet_file_with_size(10, 12, 500);
+
+        // newest files and very large
+        let alone = arbitrary_parquet_file_with_size(30, 35, compaction_max_size_bytes + 200); // too large to group
+
+        // small files in  the middle
+        let another = arbitrary_parquet_file_with_size(13, 15, 1000);
+        let partial_overlap = arbitrary_parquet_file_with_size(14, 16, 2000);
+
+        // Given a bunch of files in an arbitrary order,
+        let all = vec![
+            min_equals_max.clone(),
+            overlaps_many.clone(),
+            alone.clone(),
+            another.clone(),
+            max_equals_min.clone(),
+            contained_completely_within.clone(),
+            partial_overlap.clone(),
+        ];
+
+        // Group into overlapped groups
+        let overlapped_groups = Compactor::overlapped_groups(all);
+        assert_eq!(overlapped_groups.len(), 3);
+
+        // group further into group by size
+        let groups =
+            Compactor::group_small_contiguous_groups(overlapped_groups, compaction_max_size_bytes);
+        // should be 2 groups
+        assert_eq!(groups.len(), 2);
+        // first group includes 6 oldest files in 2 overlapped groups
+        assert_eq!(groups[0].len(), 6);
+        assert!(groups[0].contains(&overlaps_many));
+        assert!(groups[0].contains(&contained_completely_within));
+        assert!(groups[0].contains(&max_equals_min));
+        assert!(groups[0].contains(&min_equals_max));
+        assert!(groups[0].contains(&another));
+        assert!(groups[0].contains(&partial_overlap));
+        // second group includes the one newest file
+        assert_eq!(groups[1].len(), 1);
+        assert!(groups[1].contains(&alone));
+    }
+
+    #[test]
+    fn test_group_small_contiguous_overlapped_groups_many_files_too_large() {
+        let compaction_max_size_bytes = 100000;
+
+        // oldest overlapped  and large
+        let overlaps_many = arbitrary_parquet_file_with_size(5, 10, 200);
+        let contained_completely_within = arbitrary_parquet_file_with_size(6, 7, 300);
+        let max_equals_min =
+            arbitrary_parquet_file_with_size(3, 5, compaction_max_size_bytes + 400); // too large to group
+        let min_equals_max = arbitrary_parquet_file_with_size(10, 12, 500);
+
+        // newest files and large
+        let alone = arbitrary_parquet_file_with_size(30, 35, compaction_max_size_bytes + 200); // too large to group
+
+        // files in  the middle and also large
+        let another = arbitrary_parquet_file_with_size(13, 15, compaction_max_size_bytes + 100); // too large to group
+        let partial_overlap = arbitrary_parquet_file_with_size(14, 16, 2000);
+
+        // Given a bunch of files in an arbitrary order
+        let all = vec![
+            min_equals_max.clone(),
+            overlaps_many.clone(),
+            alone.clone(),
+            another.clone(),
+            max_equals_min.clone(),
+            contained_completely_within.clone(),
+            partial_overlap.clone(),
+        ];
+
+        // Group into overlapped groups
+        let overlapped_groups = Compactor::overlapped_groups(all);
+        assert_eq!(overlapped_groups.len(), 3);
+
+        // group further into group by size
+        let groups =
+            Compactor::group_small_contiguous_groups(overlapped_groups, compaction_max_size_bytes);
+        // Still 3 groups because they are all large
+        assert_eq!(groups.len(), 3);
+        // first group includes 4 oldest files
+        assert_eq!(groups[0].len(), 4);
+        assert!(groups[0].contains(&overlaps_many));
+        assert!(groups[0].contains(&contained_completely_within));
+        assert!(groups[0].contains(&max_equals_min));
+        assert!(groups[0].contains(&min_equals_max));
+        // second group
+        assert_eq!(groups[1].len(), 2);
+        assert!(groups[1].contains(&another));
+        assert!(groups[1].contains(&partial_overlap));
+        // third group
+        assert_eq!(groups[2].len(), 1);
+        assert!(groups[2].contains(&alone));
+    }
+
+    #[test]
+    fn test_group_small_contiguous_overlapped_groups_many_files_middle_too_large() {
+        let compaction_max_size_bytes = 100000;
+
+        // oldest overlapped and very small
+        let overlaps_many = arbitrary_parquet_file_with_size(5, 10, 200);
+        let contained_completely_within = arbitrary_parquet_file_with_size(6, 7, 300);
+        let max_equals_min = arbitrary_parquet_file_with_size(3, 5, 400);
+        let min_equals_max = arbitrary_parquet_file_with_size(10, 12, 500);
+
+        // newest files and small
+        let alone = arbitrary_parquet_file_with_size(30, 35, 200);
+
+        // large files in  the middle
+        let another = arbitrary_parquet_file_with_size(13, 15, compaction_max_size_bytes + 100); // too large to group
+        let partial_overlap = arbitrary_parquet_file_with_size(14, 16, 2000);
+
+        // Given a bunch of files in an arbitrary order
+        let all = vec![
+            min_equals_max.clone(),
+            overlaps_many.clone(),
+            alone.clone(),
+            another.clone(),
+            max_equals_min.clone(),
+            contained_completely_within.clone(),
+            partial_overlap.clone(),
+        ];
+
+        // Group into overlapped groups
+        let overlapped_groups = Compactor::overlapped_groups(all);
+        assert_eq!(overlapped_groups.len(), 3);
+
+        // group further into group by size
+        let groups =
+            Compactor::group_small_contiguous_groups(overlapped_groups, compaction_max_size_bytes);
+        // Nothing will be group further because the middle one is large
+        assert_eq!(groups.len(), 3);
+        // first group includes 4 oldest files
+        assert_eq!(groups[0].len(), 4);
+        assert!(groups[0].contains(&overlaps_many));
+        assert!(groups[0].contains(&contained_completely_within));
+        assert!(groups[0].contains(&max_equals_min));
+        assert!(groups[0].contains(&min_equals_max));
+        // second group
+        assert_eq!(groups[1].len(), 2);
+        assert!(groups[1].contains(&another));
+        assert!(groups[1].contains(&partial_overlap));
+        // third group
+        assert_eq!(groups[2].len(), 1);
+        assert!(groups[2].contains(&alone));
     }
 
     #[tokio::test]
@@ -1830,7 +2106,7 @@ mod tests {
             Arc::new(Executor::new(1)),
             Arc::new(SystemProvider::new()),
             BackoffConfig::default(),
-            CompactorConfig::new(90, 10000000),
+            CompactorConfig::new(90, 100000, 100000),
             Arc::new(metric::Registry::new()),
         );
 
@@ -2001,7 +2277,7 @@ mod tests {
             Arc::new(Executor::new(1)),
             Arc::new(SystemProvider::new()),
             BackoffConfig::default(),
-            CompactorConfig::new(90, 10000000),
+            CompactorConfig::new(90, 100000, 100000),
             Arc::new(metric::Registry::new()),
         );
 
@@ -2081,7 +2357,7 @@ mod tests {
             Arc::new(Executor::new(1)),
             Arc::new(SystemProvider::new()),
             BackoffConfig::default(),
-            CompactorConfig::new(90, 10000000),
+            CompactorConfig::new(90, 100000, 100000),
             Arc::new(metric::Registry::new()),
         );
 
@@ -2411,7 +2687,7 @@ mod tests {
             Arc::new(Executor::new(1)),
             Arc::new(SystemProvider::new()),
             BackoffConfig::default(),
-            CompactorConfig::new(90, 10000000),
+            CompactorConfig::new(90, 100000, 100000),
             Arc::new(metric::Registry::new()),
         );
 

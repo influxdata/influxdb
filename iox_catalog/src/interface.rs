@@ -56,6 +56,16 @@ pub enum Error {
     },
 
     #[snafu(display(
+        "partial failure: inserted {} of {} column names in multi insert.",
+        input_column_count,
+        inserted_column_count,
+    ))]
+    PartialColumnCreateError {
+        input_column_count: usize,
+        inserted_column_count: usize,
+    },
+
+    #[snafu(display(
         "couldn't create table {}; limit reached on namespace {}",
         table_name,
         namespace_id
@@ -346,6 +356,13 @@ pub trait ColumnRepo: Send + Sync {
     /// Implementations make no guarantees as to the ordering or atomicity of
     /// the batch of column upsert operations - a batch upsert may partially
     /// commit, in which case an error MUST be returned by the implementation.
+    ///
+    /// Partial failure will occur when column limits per table are hit. For example, if namespace
+    /// A has a limit of 10 columns per table and so does namespace B, the DB already has 5 columns
+    /// for table A in namespace A and nothing for namespace B, and a batch is passed to this
+    /// function containing 10 inserts for table A and 10 inserts for some table in namespace B,
+    /// ALL of the inserts for table A will fail and all of the inserts for the table in namespace
+    /// B will succeed, and an error will be returned telling the user it was a partial failure.
     async fn create_or_get_many(
         &mut self,
         columns: &[ColumnUpsertRequest<'_>],
@@ -1107,7 +1124,8 @@ pub(crate) mod test_helpers {
         want.extend(cols3);
         assert_eq!(want, columns);
 
-        // test per-namespace column limits
+        // test per-namespace column limits (not testing _many() version, that's tested in
+        // postgres.rs because it's closely tied to the complex SQL statement)
         repos
             .namespaces()
             .update_column_limit("namespace_column_test", 1)
