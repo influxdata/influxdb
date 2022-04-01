@@ -692,6 +692,7 @@ impl PartitionRepo for MemTxn {
                     sequencer_id,
                     table_id,
                     partition_key: key.to_string(),
+                    sort_key: None,
                 };
                 stage.partitions.push(p);
                 stage.partitions.last().unwrap()
