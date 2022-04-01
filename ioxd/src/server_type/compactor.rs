@@ -161,6 +161,7 @@ pub async fn create_compactor_server_type(
     let compactor_config = compactor::handler::CompactorConfig::new(
         compactor_config.split_percentage,
         compactor_config.max_concurrent_compaction_size_bytes,
+        compactor_config.compaction_max_size_bytes,
     );
     let compactor_handler = Arc::new(CompactorHandlerImpl::new(
         sequencers,

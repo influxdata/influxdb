@@ -36,9 +36,6 @@ use std::{
 use time::{Time, TimeProvider};
 use uuid::Uuid;
 
-/// todo: add to clap_blocks to make this configurable
-pub const INFLUXDB_IOX_COMPACTION_MAX_SIZE_BYTES: i64 = 100 * 1024 * 1024; // 100MB
-
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
 pub enum Error {
@@ -361,7 +358,11 @@ impl Compactor {
 
     /// Runs compaction in a partition resolving any tombstones and compacting data so that parquet
     /// files will be non-overlapping in time.
-    pub async fn compact_partition(&self, partition_id: PartitionId) -> Result<()> {
+    pub async fn compact_partition(
+        &self,
+        partition_id: PartitionId,
+        compaction_max_size_bytes: i64,
+    ) -> Result<()> {
         let start_time = self.time_provider.now();
 
         let parquet_files = self
@@ -382,7 +383,8 @@ impl Compactor {
         let overlapped_file_groups = Self::overlapped_groups(parquet_files);
 
         // Group time-contiguous non-overlapped groups if their total size is smaller than a threshold
-        let compact_file_groups = Self::group_small_contiguous_groups(overlapped_file_groups);
+        let compact_file_groups =
+            Self::group_small_contiguous_groups(overlapped_file_groups, compaction_max_size_bytes);
 
         // Attach appropriate tombstones to each file
         let groups_with_tombstones = self.add_tombstones_to_groups(compact_file_groups).await?;
@@ -470,6 +472,7 @@ impl Compactor {
     // Group time-contiguous non-overlapped groups if their total size is smaller than a threshold
     fn group_small_contiguous_groups(
         mut file_groups: Vec<GroupWithMinTimeAndSize>,
+        compaction_max_size_bytes: i64,
     ) -> Vec<Vec<ParquetFile>> {
         let mut groups = Vec::with_capacity(file_groups.len());
         if file_groups.is_empty() {
@@ -482,7 +485,7 @@ impl Compactor {
         let mut current_group = vec![];
         let mut current_size = 0;
         for g in file_groups {
-            if current_size + g.total_file_size_bytes < INFLUXDB_IOX_COMPACTION_MAX_SIZE_BYTES {
+            if current_size + g.total_file_size_bytes < compaction_max_size_bytes {
                 // Group this one with the current_group
                 current_group.extend(g.parquet_files);
                 current_size += g.total_file_size_bytes;
@@ -1079,12 +1082,15 @@ mod tests {
             Arc::new(Executor::new(1)),
             Arc::new(SystemProvider::new()),
             BackoffConfig::default(),
-            CompactorConfig::new(90, 10000000),
+            CompactorConfig::new(90, 100000, 100000),
             Arc::new(metric::Registry::new()),
         );
 
         compactor
-            .compact_partition(partition.partition.id)
+            .compact_partition(
+                partition.partition.id,
+                compactor.config.compaction_max_size_bytes(),
+            )
             .await
             .unwrap();
         // should have 2 non-deleted level_0 files. The original file was marked deleted and not counted
@@ -1188,8 +1194,17 @@ mod tests {
             .with_sequencer(&sequencer)
             .create_partition("part")
             .await;
-
         let time = Arc::new(SystemProvider::new());
+        let compactor = Compactor::new(
+            vec![sequencer.sequencer.id],
+            Arc::clone(&catalog.catalog),
+            Arc::clone(&catalog.object_store),
+            Arc::new(Executor::new(1)),
+            Arc::new(SystemProvider::new()),
+            BackoffConfig::default(),
+            CompactorConfig::new(90, 100000, 100000),
+            Arc::new(metric::Registry::new()),
+        );
 
         // parquet files
         // pf1 does not overlap with any and very large ==> will be upgraded to level 1 during compaction
@@ -1200,7 +1215,7 @@ mod tests {
                 1,
                 10,
                 20,
-                INFLUXDB_IOX_COMPACTION_MAX_SIZE_BYTES + 10,
+                compactor.config.compaction_max_size_bytes() + 10,
                 20,
             )
             .await
@@ -1278,18 +1293,11 @@ mod tests {
 
         // ------------------------------------------------
         // Compact
-        let compactor = Compactor::new(
-            vec![sequencer.sequencer.id],
-            Arc::clone(&catalog.catalog),
-            Arc::clone(&catalog.object_store),
-            Arc::new(Executor::new(1)),
-            Arc::new(SystemProvider::new()),
-            BackoffConfig::default(),
-            CompactorConfig::new(90, 10000000),
-            Arc::new(metric::Registry::new()),
-        );
         compactor
-            .compact_partition(partition.partition.id)
+            .compact_partition(
+                partition.partition.id,
+                compactor.config.compaction_max_size_bytes(),
+            )
             .await
             .unwrap();
 
@@ -1387,7 +1395,7 @@ mod tests {
             Arc::new(Executor::new(1)),
             Arc::new(SystemProvider::new()),
             BackoffConfig::default(),
-            CompactorConfig::new(90, 10000000),
+            CompactorConfig::new(90, 100000, 100000),
             Arc::new(metric::Registry::new()),
         );
 
@@ -1486,7 +1494,7 @@ mod tests {
             Arc::new(Executor::new(1)),
             Arc::new(SystemProvider::new()),
             BackoffConfig::default(),
-            CompactorConfig::new(90, 10000000),
+            CompactorConfig::new(90, 100000, 100000),
             Arc::new(metric::Registry::new()),
         );
 
@@ -1593,7 +1601,7 @@ mod tests {
             Arc::new(Executor::new(1)),
             Arc::new(SystemProvider::new()),
             BackoffConfig::default(),
-            CompactorConfig::new(90, 10000000),
+            CompactorConfig::new(90, 100000, 100000),
             Arc::new(metric::Registry::new()),
         );
 
@@ -1892,7 +1900,9 @@ mod tests {
         assert_eq!(overlapped_groups, vec![g1, g2]);
 
         // Group them by size
-        let groups = Compactor::group_small_contiguous_groups(overlapped_groups);
+        let compaction_max_size_bytes = 100000;
+        let groups =
+            Compactor::group_small_contiguous_groups(overlapped_groups, compaction_max_size_bytes);
         // 2 small groups should be grouped in one
         assert_eq!(groups.len(), 1);
         assert_eq!(groups, vec![vec![pf1, pf2]]);
@@ -1900,9 +1910,11 @@ mod tests {
 
     #[test]
     fn test_group_small_contiguous_overlapped_groups_no_group() {
+        let compaction_max_size_bytes = 100000;
+
         // Given two files that don't overlap,
         let pf1 = arbitrary_parquet_file_with_size(1, 2, 100);
-        let pf2 = arbitrary_parquet_file_with_size(3, 4, INFLUXDB_IOX_COMPACTION_MAX_SIZE_BYTES); // too large to group
+        let pf2 = arbitrary_parquet_file_with_size(3, 4, compaction_max_size_bytes); // too large to group
 
         let overlapped_groups = Compactor::overlapped_groups(vec![pf1.clone(), pf2.clone()]);
         // 2 overlapped groups
@@ -1915,13 +1927,14 @@ mod tests {
         let g2 = GroupWithMinTimeAndSize {
             parquet_files: vec![pf2.clone()],
             min_time: Timestamp::new(3),
-            total_file_size_bytes: INFLUXDB_IOX_COMPACTION_MAX_SIZE_BYTES,
+            total_file_size_bytes: compaction_max_size_bytes,
         };
         // They should each be in their own group
         assert_eq!(overlapped_groups, vec![g1, g2]);
 
         // Group them by size
-        let groups = Compactor::group_small_contiguous_groups(overlapped_groups);
+        let groups =
+            Compactor::group_small_contiguous_groups(overlapped_groups, compaction_max_size_bytes);
         // Files too big to group further
         assert_eq!(groups.len(), 2);
         assert_eq!(groups, vec![vec![pf1], vec![pf2]]);
@@ -1929,6 +1942,8 @@ mod tests {
 
     #[test]
     fn test_group_small_contiguous_overlapped_groups_many_files() {
+        let compaction_max_size_bytes = 100000;
+
         // oldest overlapped and very small
         let overlaps_many = arbitrary_parquet_file_with_size(5, 10, 200);
         let contained_completely_within = arbitrary_parquet_file_with_size(6, 7, 300);
@@ -1936,8 +1951,7 @@ mod tests {
         let min_equals_max = arbitrary_parquet_file_with_size(10, 12, 500);
 
         // newest files and very large
-        let alone =
-            arbitrary_parquet_file_with_size(30, 35, INFLUXDB_IOX_COMPACTION_MAX_SIZE_BYTES + 200); // too large to group
+        let alone = arbitrary_parquet_file_with_size(30, 35, compaction_max_size_bytes + 200); // too large to group
 
         // small files in  the middle
         let another = arbitrary_parquet_file_with_size(13, 15, 1000);
@@ -1959,7 +1973,8 @@ mod tests {
         assert_eq!(overlapped_groups.len(), 3);
 
         // group further into group by size
-        let groups = Compactor::group_small_contiguous_groups(overlapped_groups);
+        let groups =
+            Compactor::group_small_contiguous_groups(overlapped_groups, compaction_max_size_bytes);
         // should be 2 groups
         assert_eq!(groups.len(), 2);
         // first group includes 6 oldest files in 2 overlapped groups
@@ -1977,20 +1992,20 @@ mod tests {
 
     #[test]
     fn test_group_small_contiguous_overlapped_groups_many_files_too_large() {
+        let compaction_max_size_bytes = 100000;
+
         // oldest overlapped  and large
         let overlaps_many = arbitrary_parquet_file_with_size(5, 10, 200);
         let contained_completely_within = arbitrary_parquet_file_with_size(6, 7, 300);
         let max_equals_min =
-            arbitrary_parquet_file_with_size(3, 5, INFLUXDB_IOX_COMPACTION_MAX_SIZE_BYTES + 400); // too large to group
+            arbitrary_parquet_file_with_size(3, 5, compaction_max_size_bytes + 400); // too large to group
         let min_equals_max = arbitrary_parquet_file_with_size(10, 12, 500);
 
         // newest files and large
-        let alone =
-            arbitrary_parquet_file_with_size(30, 35, INFLUXDB_IOX_COMPACTION_MAX_SIZE_BYTES + 200); // too large to group
+        let alone = arbitrary_parquet_file_with_size(30, 35, compaction_max_size_bytes + 200); // too large to group
 
         // files in  the middle and also large
-        let another =
-            arbitrary_parquet_file_with_size(13, 15, INFLUXDB_IOX_COMPACTION_MAX_SIZE_BYTES + 100); // too large to group
+        let another = arbitrary_parquet_file_with_size(13, 15, compaction_max_size_bytes + 100); // too large to group
         let partial_overlap = arbitrary_parquet_file_with_size(14, 16, 2000);
 
         // Given a bunch of files in an arbitrary order
@@ -2009,7 +2024,8 @@ mod tests {
         assert_eq!(overlapped_groups.len(), 3);
 
         // group further into group by size
-        let groups = Compactor::group_small_contiguous_groups(overlapped_groups);
+        let groups =
+            Compactor::group_small_contiguous_groups(overlapped_groups, compaction_max_size_bytes);
         // Still 3 groups because they are all large
         assert_eq!(groups.len(), 3);
         // first group includes 4 oldest files
@@ -2029,6 +2045,8 @@ mod tests {
 
     #[test]
     fn test_group_small_contiguous_overlapped_groups_many_files_middle_too_large() {
+        let compaction_max_size_bytes = 100000;
+
         // oldest overlapped and very small
         let overlaps_many = arbitrary_parquet_file_with_size(5, 10, 200);
         let contained_completely_within = arbitrary_parquet_file_with_size(6, 7, 300);
@@ -2039,8 +2057,7 @@ mod tests {
         let alone = arbitrary_parquet_file_with_size(30, 35, 200);
 
         // large files in  the middle
-        let another =
-            arbitrary_parquet_file_with_size(13, 15, INFLUXDB_IOX_COMPACTION_MAX_SIZE_BYTES + 100); // too large to group
+        let another = arbitrary_parquet_file_with_size(13, 15, compaction_max_size_bytes + 100); // too large to group
         let partial_overlap = arbitrary_parquet_file_with_size(14, 16, 2000);
 
         // Given a bunch of files in an arbitrary order
@@ -2059,7 +2076,8 @@ mod tests {
         assert_eq!(overlapped_groups.len(), 3);
 
         // group further into group by size
-        let groups = Compactor::group_small_contiguous_groups(overlapped_groups);
+        let groups =
+            Compactor::group_small_contiguous_groups(overlapped_groups, compaction_max_size_bytes);
         // Nothing will be group further because the middle one is large
         assert_eq!(groups.len(), 3);
         // first group includes 4 oldest files
@@ -2088,7 +2106,7 @@ mod tests {
             Arc::new(Executor::new(1)),
             Arc::new(SystemProvider::new()),
             BackoffConfig::default(),
-            CompactorConfig::new(90, 10000000),
+            CompactorConfig::new(90, 100000, 100000),
             Arc::new(metric::Registry::new()),
         );
 
@@ -2259,7 +2277,7 @@ mod tests {
             Arc::new(Executor::new(1)),
             Arc::new(SystemProvider::new()),
             BackoffConfig::default(),
-            CompactorConfig::new(90, 10000000),
+            CompactorConfig::new(90, 100000, 100000),
             Arc::new(metric::Registry::new()),
         );
 
@@ -2339,7 +2357,7 @@ mod tests {
             Arc::new(Executor::new(1)),
             Arc::new(SystemProvider::new()),
             BackoffConfig::default(),
-            CompactorConfig::new(90, 10000000),
+            CompactorConfig::new(90, 100000, 100000),
             Arc::new(metric::Registry::new()),
         );
 
@@ -2669,7 +2687,7 @@ mod tests {
             Arc::new(Executor::new(1)),
             Arc::new(SystemProvider::new()),
             BackoffConfig::default(),
-            CompactorConfig::new(90, 10000000),
+            CompactorConfig::new(90, 100000, 100000),
             Arc::new(metric::Registry::new()),
         );
 

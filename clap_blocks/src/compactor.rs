@@ -32,6 +32,7 @@ pub struct CompactorConfig {
         default_value = "100"
     )]
     pub split_percentage: i64,
+
     /// The compactor will limit the number of simultaneous compaction jobs based on the
     /// size of the input files to be compacted. Currently this only takes into account the
     /// level 0 files, but should later also consider the level 1 files to be compacted. This
@@ -43,4 +44,15 @@ pub struct CompactorConfig {
         default_value = "100000000"
     )]
     pub max_concurrent_compaction_size_bytes: i64,
+
+    /// The compactor will compact overlapped files no matter how much large they are.
+    /// For non-overlapped and contiguous files, compactor will also compact them into
+    /// a larger file of max size defined by the config value.
+    /// Default is 100,000,000 (100MB).
+    #[clap(
+        long = "--compaction-max-size-bytes",
+        env = "INFLUXDB_IOX_COMPACTION_MAX_SIZE_BYTES",
+        default_value = "100000000"
+    )]
+    pub compaction_max_size_bytes: i64,
 }

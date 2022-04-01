@@ -107,16 +107,25 @@ pub struct CompactorConfig {
     /// number should be less than 1/10th of the available memory to ensure compactions have
     /// enough space to run.
     max_concurrent_compaction_size_bytes: i64,
+    /// The compactor will compact overlapped files no matter how much large they are.
+    /// For non-overlapped and contiguous files, compactor will also compact them into
+    /// a larger file of max size defined by this config value.
+    compaction_max_size_bytes: i64,
 }
 
 impl CompactorConfig {
     /// Initialize a valid config
-    pub fn new(split_percentage: i64, max_concurrent_compaction_size_bytes: i64) -> Self {
+    pub fn new(
+        split_percentage: i64,
+        max_concurrent_compaction_size_bytes: i64,
+        compaction_max_size_bytes: i64,
+    ) -> Self {
         assert!(split_percentage > 0 && split_percentage <= 100);
 
         Self {
             split_percentage,
             max_concurrent_compaction_size_bytes,
+            compaction_max_size_bytes,
         }
     }
 
@@ -132,6 +141,13 @@ impl CompactorConfig {
     /// enough space to run.
     pub fn max_concurrent_compaction_size_bytes(&self) -> i64 {
         self.max_concurrent_compaction_size_bytes
+    }
+
+    /// The compactor will compact overlapped files no matter how much large they are.
+    /// For non-overlapped and contiguous files, compactor will also compact them into
+    /// a larger file of max size defined by this config value.
+    pub fn compaction_max_size_bytes(&self) -> i64 {
+        self.compaction_max_size_bytes
     }
 }
 
@@ -149,13 +165,17 @@ async fn run_compactor(compactor: Arc<Compactor>, shutdown: CancellationToken) {
 
         let mut used_size = 0;
         let max_size = compactor.config.max_concurrent_compaction_size_bytes();
+        let max_file_size = compactor.config.compaction_max_size_bytes();
         let mut handles = vec![];
 
         for c in &candidates {
             let compactor = Arc::clone(&compactor);
             let partition_id = c.partition_id;
-            let handle =
-                tokio::task::spawn(async move { compactor.compact_partition(partition_id).await });
+            let handle = tokio::task::spawn(async move {
+                compactor
+                    .compact_partition(partition_id, max_file_size)
+                    .await
+            });
             used_size += c.file_size_bytes;
             handles.push(handle);
             if used_size > max_size {

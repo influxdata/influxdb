@@ -240,6 +240,7 @@ impl Config {
             write_buffer_partition_range_end: ingester_config.write_buffer_partition_range_end,
             split_percentage: 90,
             max_concurrent_compaction_size_bytes: 100000,
+            compaction_max_size_bytes: 100000,
         };
 
         SpecializedConfig {
