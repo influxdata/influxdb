@@ -17,16 +17,17 @@ use router2::{
     dml_handlers::{
         DmlHandler, DmlHandlerChainExt, FanOutAdaptor, InstrumentationDecorator,
         NamespaceAutocreation, Partitioner, SchemaValidator, ShardedWriteBuffer,
+        WriteSummaryAdapter,
     },
     namespace_cache::{metrics::InstrumentedCache, MemoryNamespaceCache, ShardedCache},
     sequencer::Sequencer,
     server::{grpc::GrpcDelegate, http::HttpDelegate, RouterServer},
     sharder::JumpHash,
 };
+use thiserror::Error;
 use tokio_util::sync::CancellationToken;
 use trace::TraceCollector;
-
-use thiserror::Error;
+use write_summary::WriteSummary;
 
 use ioxd_common::{
     add_service,
@@ -71,7 +72,7 @@ impl<D> RouterServerType<D> {
 #[async_trait]
 impl<D> ServerType for RouterServerType<D>
 where
-    D: DmlHandler<WriteInput = HashMap<String, MutableBatch>> + 'static,
+    D: DmlHandler<WriteInput = HashMap<String, MutableBatch>, WriteOutput = WriteSummary> + 'static,
 {
     /// Return the [`metric::Registry`] used by the router.
     fn metric_registry(&self) -> Arc<Registry> {
@@ -233,6 +234,8 @@ pub async fn create_router2_server_type(
     //
     ////////////////////////////////////////////////////////////////////////////
 
+    let parallel_write = WriteSummaryAdapter::new(FanOutAdaptor::new(write_buffer));
+
     // Build the chain of DML handlers that forms the request processing
     // pipeline, starting with the namespace creator (for testing purposes) and
     // write partitioner that yields a set of partitioned batches.
@@ -248,7 +251,7 @@ pub async fn create_router2_server_type(
         .and_then(InstrumentationDecorator::new(
             "parallel_write",
             &*metrics,
-            FanOutAdaptor::new(write_buffer),
+            parallel_write,
         ));
 
     // Record the overall request handling latency

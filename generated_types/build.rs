@@ -43,6 +43,7 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
     let schema_path = root.join("influxdata/iox/schema/v1");
     let storage_path = root.join("influxdata/platform/storage");
     let write_buffer_path = root.join("influxdata/iox/write_buffer/v1");
+    let write_summary_path = root.join("influxdata/iox/write_summary/v1");
 
     let proto_files = vec![
         delete_path.join("service.proto"),
@@ -77,6 +78,7 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
         storage_path.join("storage_common.proto"),
         storage_path.join("test.proto"),
         write_buffer_path.join("write_buffer.proto"),
+        write_summary_path.join("write_summary.proto"),
     ];
 
     // Tell cargo to recompile if any of these proto files are changed

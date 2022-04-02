@@ -99,5 +99,8 @@ pub use chain::*;
 mod fan_out;
 pub use fan_out::*;
 
+mod write_summary;
+pub use self::write_summary::*;
+
 #[cfg(test)]
 pub mod mock;

@@ -10,7 +10,7 @@ use router2::{
     dml_handlers::{
         Chain, DmlError, DmlHandlerChainExt, FanOutAdaptor, InstrumentationDecorator,
         NamespaceAutocreation, Partitioned, Partitioner, SchemaError, SchemaValidator,
-        ShardedWriteBuffer,
+        ShardedWriteBuffer, WriteSummaryAdapter,
     },
     namespace_cache::{MemoryNamespaceCache, ShardedCache},
     sequencer::Sequencer,
@@ -55,9 +55,11 @@ type HttpDelegateStack = HttpDelegate<
                 >,
                 Partitioner,
             >,
-            FanOutAdaptor<
-                ShardedWriteBuffer<JumpHash<Arc<Sequencer>>>,
-                Vec<Partitioned<HashMap<String, MutableBatch>>>,
+            WriteSummaryAdapter<
+                FanOutAdaptor<
+                    ShardedWriteBuffer<JumpHash<Arc<Sequencer>>>,
+                    Vec<Partitioned<HashMap<String, MutableBatch>>>,
+                >,
             >,
         >,
     >,
@@ -109,7 +111,9 @@ impl TestContext {
         let handler_stack = ns_creator
             .and_then(schema_validator)
             .and_then(partitioner)
-            .and_then(FanOutAdaptor::new(sharded_write_buffer));
+            .and_then(WriteSummaryAdapter::new(FanOutAdaptor::new(
+                sharded_write_buffer,
+            )));
 
         let handler_stack = InstrumentationDecorator::new("request", &*metrics, handler_stack);
 

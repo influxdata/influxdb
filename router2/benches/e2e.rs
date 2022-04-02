@@ -7,6 +7,7 @@ use iox_catalog::{interface::Catalog, mem::MemCatalog};
 use router2::{
     dml_handlers::{
         DmlHandlerChainExt, FanOutAdaptor, Partitioner, SchemaValidator, ShardedWriteBuffer,
+        WriteSummaryAdapter,
     },
     namespace_cache::{MemoryNamespaceCache, ShardedCache},
     sequencer::Sequencer,
@@ -66,8 +67,9 @@ fn e2e_benchmarks(c: &mut Criterion) {
             parts: vec![TemplatePart::TimeFormat("%Y-%m-%d".to_owned())],
         });
 
-        let handler_stack =
-            schema_validator.and_then(partitioner.and_then(FanOutAdaptor::new(write_buffer)));
+        let handler_stack = schema_validator.and_then(
+            partitioner.and_then(WriteSummaryAdapter::new(FanOutAdaptor::new(write_buffer))),
+        );
 
         HttpDelegate::new(1024, Arc::new(handler_stack), &metrics)
     };

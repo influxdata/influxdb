@@ -1,7 +1,7 @@
 use arrow_util::assert_batches_sorted_eq;
 use http::StatusCode;
 use test_helpers_end_to_end_ng::{
-    maybe_skip_integration, query_until_results, MiniCluster, TestConfig,
+    get_write_token, maybe_skip_integration, query_when_readable, MiniCluster, TestConfig,
 };
 
 #[tokio::test]
@@ -28,11 +28,16 @@ async fn basic_on_parquet() {
     let response = cluster.write_to_router(lp).await;
     assert_eq!(response.status(), StatusCode::NO_CONTENT);
 
+    // assert that the response contains a write token
+    let write_token = get_write_token(&response);
+    assert!(!write_token.is_empty());
+
     // run query in a loop until the data becomes available
     let sql = format!("select * from {}", table_name);
-    let batches = query_until_results(
+    let batches = query_when_readable(
         sql,
         cluster.namespace(),
+        write_token,
         cluster.querier().querier_grpc_connection(),
     )
     .await;

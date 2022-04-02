@@ -2747,6 +2747,7 @@ dependencies = [
  "trace_http",
  "workspace-hack",
  "write_buffer",
+ "write_summary",
 ]
 
 [[package]]
@@ -4755,6 +4756,7 @@ dependencies = [
  "trace",
  "workspace-hack",
  "write_buffer",
+ "write_summary",
 ]
 
 [[package]]
@@ -6898,6 +6900,19 @@ dependencies = [
  "trace",
  "trace_http",
  "uuid",
+ "workspace-hack",
+]
+
+[[package]]
+name = "write_summary"
+version = "0.1.0"
+dependencies = [
+ "base64 0.13.0",
+ "data_types",
+ "dml",
+ "generated_types",
+ "serde_json",
+ "time 0.1.0",
  "workspace-hack",
 ]
 

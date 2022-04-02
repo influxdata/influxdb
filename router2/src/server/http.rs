@@ -18,6 +18,9 @@ use serde::Deserialize;
 use thiserror::Error;
 use time::{SystemProvider, TimeProvider};
 use trace::ctx::SpanContext;
+use write_summary::WriteSummary;
+
+const WRITE_TOKEN_HTTP_HEADER: &str = "X-IOx-Write-Token";
 
 /// Errors returned by the `router2` HTTP request handler.
 #[derive(Debug, Error)]
@@ -263,7 +266,7 @@ impl<D> HttpDelegate<D, SystemProvider> {
 
 impl<D, T> HttpDelegate<D, T>
 where
-    D: DmlHandler<WriteInput = HashMap<String, MutableBatch>>,
+    D: DmlHandler<WriteInput = HashMap<String, MutableBatch>, WriteOutput = WriteSummary>,
     T: TimeProvider,
 {
     /// Routes `req` to the appropriate handler, if any, returning the handler
@@ -274,10 +277,16 @@ where
             (&Method::POST, "/api/v2/delete") => self.delete_handler(req).await,
             _ => return Err(Error::NoHandler),
         }
-        .map(|_| response_no_content())
+        .map(|summary| {
+            Response::builder()
+                .status(StatusCode::NO_CONTENT)
+                .header(WRITE_TOKEN_HTTP_HEADER, summary.to_token())
+                .body(Body::empty())
+                .unwrap()
+        })
     }
 
-    async fn write_handler(&self, req: Request<Body>) -> Result<(), Error> {
+    async fn write_handler(&self, req: Request<Body>) -> Result<WriteSummary, Error> {
         let span_ctx: Option<SpanContext> = req.extensions().get().cloned();
 
         let write_info = WriteInfo::try_from(&req)?;
@@ -300,7 +309,7 @@ where
             Ok(v) => v,
             Err(mutable_batch_lp::Error::EmptyPayload) => {
                 debug!("nothing to write");
-                return Ok(());
+                return Ok(WriteSummary::default());
             }
             Err(e) => return Err(Error::ParseLineProtocol(e)),
         };
@@ -318,7 +327,8 @@ where
             "routing write",
         );
 
-        self.dml_handler
+        let summary = self
+            .dml_handler
             .write(&namespace, batches, span_ctx)
             .await
             .map_err(Into::into)?;
@@ -328,10 +338,10 @@ where
         self.write_metric_tables.inc(num_tables as _);
         self.write_metric_body_size.inc(body.len() as _);
 
-        Ok(())
+        Ok(summary)
     }
 
-    async fn delete_handler(&self, req: Request<Body>) -> Result<(), Error> {
+    async fn delete_handler(&self, req: Request<Body>) -> Result<WriteSummary, Error> {
         let span_ctx: Option<SpanContext> = req.extensions().get().cloned();
 
         let account = WriteInfo::try_from(&req)?;
@@ -376,7 +386,9 @@ where
 
         self.delete_metric_body_size.inc(body.len() as _);
 
-        Ok(())
+        // TODO pass back write summaries for deletes as well
+        // https://github.com/influxdata/influxdb_iox/issues/4209
+        Ok(WriteSummary::default())
     }
 
     /// Parse the request's body into raw bytes, applying the configured size
@@ -437,13 +449,6 @@ where
     }
 }
 
-fn response_no_content() -> Response<Body> {
-    Response::builder()
-        .status(StatusCode::NO_CONTENT)
-        .body(Body::empty())
-        .unwrap()
-}
-
 #[cfg(test)]
 mod tests {
     use std::{io::Write, iter, sync::Arc};
@@ -459,6 +464,10 @@ mod tests {
     use super::*;
 
     const MAX_BYTES: usize = 1024;
+
+    fn summary() -> WriteSummary {
+        WriteSummary::default()
+    }
 
     fn assert_metric_hit(metrics: &metric::Registry, name: &'static str, value: Option<u64>) {
         let counter = metrics
@@ -639,7 +648,7 @@ mod tests {
         ok,
         query_string = "?org=bananas&bucket=test",
         body = "platanos,tag1=A,tag2=B val=42i 123456".as_bytes(),
-        dml_handler = [Ok(())],
+        dml_handler = [Ok(summary())],
         want_result = Ok(_),
         want_dml_calls = [MockDmlHandlerCall::Write{namespace, ..}] => {
             assert_eq!(namespace, "bananas_test");
@@ -650,7 +659,7 @@ mod tests {
         ok_precision_s,
         query_string = "?org=bananas&bucket=test&precision=s",
         body = "platanos,tag1=A,tag2=B val=42i 1647622847".as_bytes(),
-        dml_handler = [Ok(())],
+        dml_handler = [Ok(summary())],
         want_result = Ok(_),
         want_dml_calls = [MockDmlHandlerCall::Write{namespace, write_input}] => {
             assert_eq!(namespace, "bananas_test");
@@ -665,7 +674,7 @@ mod tests {
         ok_precision_ms,
         query_string = "?org=bananas&bucket=test&precision=ms",
         body = "platanos,tag1=A,tag2=B val=42i 1647622847000".as_bytes(),
-        dml_handler = [Ok(())],
+        dml_handler = [Ok(summary())],
         want_result = Ok(_),
         want_dml_calls = [MockDmlHandlerCall::Write{namespace, write_input}] => {
             assert_eq!(namespace, "bananas_test");
@@ -680,7 +689,7 @@ mod tests {
         ok_precision_us,
         query_string = "?org=bananas&bucket=test&precision=us",
         body = "platanos,tag1=A,tag2=B val=42i 1647622847000000".as_bytes(),
-        dml_handler = [Ok(())],
+        dml_handler = [Ok(summary())],
         want_result = Ok(_),
         want_dml_calls = [MockDmlHandlerCall::Write{namespace, write_input}] => {
             assert_eq!(namespace, "bananas_test");
@@ -695,7 +704,7 @@ mod tests {
         ok_precision_ns,
         query_string = "?org=bananas&bucket=test&precision=ns",
         body = "platanos,tag1=A,tag2=B val=42i 1647622847000000000".as_bytes(),
-        dml_handler = [Ok(())],
+        dml_handler = [Ok(summary())],
         want_result = Ok(_),
         want_dml_calls = [MockDmlHandlerCall::Write{namespace, write_input}] => {
             assert_eq!(namespace, "bananas_test");
@@ -711,7 +720,7 @@ mod tests {
         // SECONDS, so multiplies the provided timestamp by 1,000,000,000
         query_string = "?org=bananas&bucket=test&precision=s",
         body = "platanos,tag1=A,tag2=B val=42i 1647622847000000000".as_bytes(),
-        dml_handler = [Ok(())],
+        dml_handler = [Ok(summary())],
         want_result = Err(Error::ParseLineProtocol(_)),
         want_dml_calls = []
     );
@@ -720,7 +729,7 @@ mod tests {
         no_query_params,
         query_string = "",
         body = "platanos,tag1=A,tag2=B val=42i 123456".as_bytes(),
-        dml_handler = [Ok(())],
+        dml_handler = [Ok(summary())],
         want_result = Err(Error::InvalidOrgBucket(OrgBucketError::NotSpecified)),
         want_dml_calls = [] // None
     );
@@ -729,7 +738,7 @@ mod tests {
         no_org_bucket,
         query_string = "?",
         body = "platanos,tag1=A,tag2=B val=42i 123456".as_bytes(),
-        dml_handler = [Ok(())],
+        dml_handler = [Ok(summary())],
         want_result = Err(Error::InvalidOrgBucket(OrgBucketError::DecodeFail(_))),
         want_dml_calls = [] // None
     );
@@ -738,7 +747,7 @@ mod tests {
         empty_org_bucket,
         query_string = "?org=&bucket=",
         body = "platanos,tag1=A,tag2=B val=42i 123456".as_bytes(),
-        dml_handler = [Ok(())],
+        dml_handler = [Ok(summary())],
         want_result = Err(Error::InvalidOrgBucket(OrgBucketError::NotSpecified)),
         want_dml_calls = [] // None
     );
@@ -747,7 +756,7 @@ mod tests {
         invalid_org_bucket,
         query_string = format!("?org=test&bucket={}", "A".repeat(1000)),
         body = "platanos,tag1=A,tag2=B val=42i 123456".as_bytes(),
-        dml_handler = [Ok(())],
+        dml_handler = [Ok(summary())],
         want_result = Err(Error::InvalidOrgBucket(OrgBucketError::MappingFail(_))),
         want_dml_calls = [] // None
     );
@@ -756,7 +765,7 @@ mod tests {
         invalid_line_protocol,
         query_string = "?org=bananas&bucket=test",
         body = "not line protocol".as_bytes(),
-        dml_handler = [Ok(())],
+        dml_handler = [Ok(summary())],
         want_result = Err(Error::ParseLineProtocol(_)),
         want_dml_calls = [] // None
     );
@@ -765,7 +774,7 @@ mod tests {
         non_utf8_body,
         query_string = "?org=bananas&bucket=test",
         body = vec![0xc3, 0x28],
-        dml_handler = [Ok(())],
+        dml_handler = [Ok(summary())],
         want_result = Err(Error::NonUtf8Body(_)),
         want_dml_calls = [] // None
     );
@@ -793,7 +802,7 @@ mod tests {
                 .flat_map(|s| s.bytes())
                 .collect::<Vec<u8>>()
         },
-        dml_handler = [Ok(())],
+        dml_handler = [Ok(summary())],
         want_result = Err(Error::RequestSizeExceeded(_)),
         want_dml_calls = [] // None
     );

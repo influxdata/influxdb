@@ -11,7 +11,6 @@ use mutable_batch::MutableBatch;
 use observability_deps::tracing::*;
 use std::{
     fmt::{Debug, Display},
-    future,
     sync::Arc,
 };
 use thiserror::Error;
@@ -81,7 +80,7 @@ where
     type DeleteError = ShardError;
 
     type WriteInput = Partitioned<HashMap<String, MutableBatch>>;
-    type WriteOutput = ();
+    type WriteOutput = Vec<DmlMeta>;
 
     /// Shard `writes` and dispatch the resultant DML operations.
     async fn write(
@@ -162,30 +161,37 @@ where
 /// Enumerates all items in the iterator, maps each to a future that dispatches
 /// the [`DmlOperation`] to its paired [`Sequencer`], executes all the futures
 /// in parallel and gathers any errors.
-async fn parallel_enqueue<T>(v: T) -> Result<(), ShardError>
+///
+/// Returns a list of the sequences that were written
+async fn parallel_enqueue<T>(v: T) -> Result<Vec<DmlMeta>, ShardError>
 where
     T: Iterator<Item = (Arc<Sequencer>, DmlOperation)> + Send,
 {
-    let mut successes = 0;
-    let errs = v
-        .map(|(sequencer, op)| async move {
-            tokio::spawn(async move { sequencer.enqueue(op).await })
-                .await
-                .expect("shard enqueue panic")
-        })
-        .collect::<FuturesUnordered<_>>()
-        .filter_map(|v| {
-            if v.is_ok() {
-                successes += 1;
-            }
-            future::ready(v.err())
-        })
-        .collect::<Vec<WriteBufferError>>()
-        .await;
+    let mut successes = vec![];
+    let mut errs = vec![];
+
+    v.map(|(sequencer, op)| async move {
+        tokio::spawn(async move { sequencer.enqueue(op).await })
+            .await
+            .expect("shard enqueue panic")
+    })
+    // Use FuturesUnordered so the futures can run in parallel
+    .collect::<FuturesUnordered<_>>()
+    .collect::<Vec<_>>()
+    .await
+    // Sort the result into successes/failures upon completion
+    .into_iter()
+    .for_each(|v| match v {
+        Ok(meta) => successes.push(meta),
+        Err(e) => errs.push(e),
+    });
 
     match errs.len() {
-        0 => Ok(()),
-        _n => Err(ShardError::WriteBufferErrors { successes, errs }),
+        0 => Ok(successes),
+        _n => Err(ShardError::WriteBufferErrors {
+            successes: successes.len(),
+            errs,
+        }),
     }
 }
 

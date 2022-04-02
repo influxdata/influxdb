@@ -6,6 +6,7 @@ use async_trait::async_trait;
 use data_types2::{DatabaseName, DeletePredicate};
 use parking_lot::Mutex;
 use trace::ctx::SpanContext;
+use write_summary::WriteSummary;
 
 /// A captured call to a [`MockDmlHandler`], generic over `W`, the captured
 /// [`DmlHandler::WriteInput`] type.
@@ -25,7 +26,7 @@ pub enum MockDmlHandlerCall<W> {
 #[derive(Debug)]
 struct Inner<W> {
     calls: Vec<MockDmlHandlerCall<W>>,
-    write_return: VecDeque<Result<(), DmlError>>,
+    write_return: VecDeque<Result<WriteSummary, DmlError>>,
     delete_return: VecDeque<Result<(), DmlError>>,
 }
 
@@ -58,7 +59,10 @@ impl<W> MockDmlHandler<W>
 where
     W: Clone,
 {
-    pub fn with_write_return(self, ret: impl Into<VecDeque<Result<(), DmlError>>>) -> Self {
+    pub fn with_write_return(
+        self,
+        ret: impl Into<VecDeque<Result<WriteSummary, DmlError>>>,
+    ) -> Self {
         self.0.lock().write_return = ret.into();
         self
     }
@@ -93,7 +97,7 @@ where
     type WriteError = DmlError;
     type DeleteError = DmlError;
     type WriteInput = W;
-    type WriteOutput = ();
+    type WriteOutput = WriteSummary;
 
     async fn write(
         &self,

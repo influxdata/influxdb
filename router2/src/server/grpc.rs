@@ -15,6 +15,7 @@ use schema::selection::Selection;
 use std::ops::DerefMut;
 use tonic::{Request, Response, Status};
 use trace::ctx::SpanContext;
+use write_summary::WriteSummary;
 
 use crate::dml_handlers::{DmlError, DmlHandler, PartitionError};
 
@@ -45,7 +46,7 @@ impl<D> GrpcDelegate<D> {
 
 impl<D> GrpcDelegate<D>
 where
-    D: DmlHandler<WriteInput = HashMap<String, MutableBatch>> + 'static,
+    D: DmlHandler<WriteInput = HashMap<String, MutableBatch>, WriteOutput = WriteSummary> + 'static,
 {
     /// Acquire a [`WriteService`] gRPC service implementation.
     ///
@@ -159,6 +160,9 @@ where
             "routing grpc write",
         );
 
+        // TODO return the produced WriteSummary to the client
+        // https://github.com/influxdata/influxdb_iox/issues/4208
+
         self.dml_handler
             .write(&namespace, tables, span_ctx)
             .await
@@ -265,10 +269,14 @@ mod tests {
 
     use super::*;
 
+    fn summary() -> WriteSummary {
+        WriteSummary::default()
+    }
+
     #[tokio::test]
     async fn test_write_no_batch() {
         let metrics = Arc::new(metric::Registry::default());
-        let handler = Arc::new(MockDmlHandler::default().with_write_return([Ok(())]));
+        let handler = Arc::new(MockDmlHandler::default().with_write_return([Ok(summary())]));
         let grpc = super::WriteService::new(Arc::clone(&handler), &metrics);
 
         let req = WriteRequest::default();
@@ -285,7 +293,7 @@ mod tests {
     #[tokio::test]
     async fn test_write_no_namespace() {
         let metrics = Arc::new(metric::Registry::default());
-        let handler = Arc::new(MockDmlHandler::default().with_write_return([Ok(())]));
+        let handler = Arc::new(MockDmlHandler::default().with_write_return([Ok(summary())]));
         let grpc = super::WriteService::new(Arc::clone(&handler), &metrics);
 
         let req = WriteRequest {
@@ -307,7 +315,7 @@ mod tests {
     #[tokio::test]
     async fn test_write_ok() {
         let metrics = Arc::new(metric::Registry::default());
-        let handler = Arc::new(MockDmlHandler::default().with_write_return([Ok(())]));
+        let handler = Arc::new(MockDmlHandler::default().with_write_return([Ok(summary())]));
         let grpc = super::WriteService::new(Arc::clone(&handler), &metrics);
 
         let req = WriteRequest {

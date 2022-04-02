@@ -78,6 +78,7 @@ members = [
     "trogging",
     "workspace-hack",
     "write_buffer",
+    "write_summary",
 ]
 default-members = ["influxdb_iox"]
 

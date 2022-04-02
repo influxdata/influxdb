@@ -22,6 +22,7 @@ time = { path = "../time" }
 trace = { path = "../trace" }
 trace_http = { path = "../trace_http" }
 write_buffer = { path = "../write_buffer" }
+write_summary = { path = "../write_summary" }
 
 # Crates.io dependencies, in alphabetical order
 arrow-flight = "11"

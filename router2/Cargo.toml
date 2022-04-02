@@ -35,6 +35,7 @@ tonic = "0.6"
 trace = { path = "../trace/" }
 workspace-hack = { path = "../workspace-hack"}
 write_buffer = { path = "../write_buffer" }
+write_summary = { path = "../write_summary" }
 
 [dev-dependencies]
 assert_matches = "1.5"

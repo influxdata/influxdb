@@ -156,6 +156,19 @@ pub mod influxdata {
                 ));
             }
         }
+
+        pub mod write_summary {
+            pub mod v1 {
+                include!(concat!(
+                    env!("OUT_DIR"),
+                    "/influxdata.iox.write_summary.v1.rs"
+                ));
+                include!(concat!(
+                    env!("OUT_DIR"),
+                    "/influxdata.iox.write_summary.v1.serde.rs"
+                ));
+            }
+        }
     }
 
     pub mod pbdata {
