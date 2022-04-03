@@ -1,0 +1,29 @@
+[package]
+name = "ioxd_test"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# Workspace dependencies, in alphabetical order
+generated_types = { path = "../generated_types" }
+ioxd_common = { path = "../ioxd_common" }
+metric = { path = "../metric" }
+service_grpc_testing = { path = "../service_grpc_testing" }
+trace = { path = "../trace" }
+trace_http = { path = "../trace_http" }
+
+
+# Crates.io dependencies, in alphabetical order
+async-trait = "0.1"
+clap = { version = "3", features = ["derive", "env"] }
+hyper = "0.14"
+snafu = "0.7"
+tokio = { version = "1.17", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
+tokio-stream = { version = "0.1", features = ["net"] }
+tokio-util = { version = "0.7.1" }
+tonic = "0.6"
+tonic-health = "0.5.0"
+tonic-reflection = "0.3.0"
+workspace-hack = { path = "../workspace-hack"}

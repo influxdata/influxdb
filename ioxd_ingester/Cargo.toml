@@ -1,0 +1,35 @@
+[package]
+name = "ioxd_ingester"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# Workspace dependencies, in alphabetical order
+clap_blocks = { path = "../clap_blocks" }
+data_types2 = { path = "../data_types2" }
+generated_types = { path = "../generated_types" }
+ingester = { path = "../ingester" }
+iox_catalog = { path = "../iox_catalog" }
+ioxd_common = { path = "../ioxd_common" }
+metric = { path = "../metric" }
+object_store = { path = "../object_store" }
+query = { path = "../query" }
+service_grpc_testing = { path = "../service_grpc_testing" }
+time = { path = "../time" }
+trace = { path = "../trace" }
+trace_http = { path = "../trace_http" }
+write_buffer = { path = "../write_buffer" }
+
+# Crates.io dependencies, in alphabetical order
+async-trait = "0.1"
+hyper = "0.14"
+thiserror = "1.0.30"
+tokio = { version = "1.17", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
+tokio-stream = { version = "0.1", features = ["net"] }
+tokio-util = { version = "0.7.1" }
+tonic = "0.6"
+tonic-health = "0.5.0"
+tonic-reflection = "0.3.0"
+workspace-hack = { path = "../workspace-hack"}

@@ -1,6 +1,9 @@
 pub mod http;
 pub mod rpc;
 pub mod server_type;
+mod service;
+
+pub use service::Service;
 
 use crate::server_type::{CommonServerState, ServerType};
 use futures::{future::FusedFuture, pin_mut, FutureExt};
