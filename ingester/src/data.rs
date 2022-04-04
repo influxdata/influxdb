@@ -257,7 +257,7 @@ impl Persister for IngesterData {
 
             // and remove the persisted data from memory
             namespace
-                .mark_persisted_and_remove_if_empty(
+                .mark_persisted(
                     &partition_info.table_name,
                     &partition_info.partition.partition_key,
                     iox_meta.max_sequence_number,
@@ -572,7 +572,6 @@ impl NamespaceData {
             Entry::Vacant(v) => {
                 let v = v.insert(Arc::new(tokio::sync::RwLock::new(TableData::new(
                     info.table_id,
-                    info.parquet_max_sequence_number,
                     info.tombstone_max_sequence_number,
                 ))));
                 self.table_count.inc(1);
@@ -584,10 +583,10 @@ impl NamespaceData {
         Ok(data)
     }
 
-    /// Walks down the table and partition and clears the persisting batch. If there is no
-    /// data buffered in the partition, it is removed. The sequence number is the max_sequence_number
-    /// for the persisted parquet file, which should be kept in the table data buffer.
-    async fn mark_persisted_and_remove_if_empty(
+    /// Walks down the table and partition and clears the persisting batch. The sequence number is
+    /// the max_sequence_number for the persisted parquet file, which should be kept in the table
+    /// data buffer.
+    async fn mark_persisted(
         &self,
         table_name: &str,
         partition_key: &str,
@@ -598,19 +597,11 @@ impl NamespaceData {
             let partition = t.partition_data.get_mut(partition_key);
 
             if let Some(p) = partition {
+                p.data.max_persisted_sequence_number = Some(sequence_number);
                 p.data.persisting = None;
                 // clear the deletes kept for this persisting batch
                 p.data.deletes_during_persisting.clear();
-                if p.data.is_empty() {
-                    t.partition_data.remove(partition_key);
-                }
             }
-
-            let max_sequence_number = t
-                .parquet_max_sequence_number
-                .unwrap_or(sequence_number)
-                .max(sequence_number);
-            t.parquet_max_sequence_number = Some(max_sequence_number);
         }
     }
 }
@@ -619,8 +610,6 @@ impl NamespaceData {
 #[derive(Debug)]
 pub(crate) struct TableData {
     table_id: TableId,
-    // the max sequence number persisted for this table
-    parquet_max_sequence_number: Option<SequenceNumber>,
     // the max sequence number for a tombstone associated with this table
     tombstone_max_sequence_number: Option<SequenceNumber>,
     // Map pf partition key to its data
@@ -629,14 +618,9 @@ pub(crate) struct TableData {
 
 impl TableData {
     /// Initialize new table buffer
-    pub fn new(
-        table_id: TableId,
-        parquet_max_sequence_number: Option<SequenceNumber>,
-        tombstone_max_sequence_number: Option<SequenceNumber>,
-    ) -> Self {
+    pub fn new(table_id: TableId, tombstone_max_sequence_number: Option<SequenceNumber>) -> Self {
         Self {
             table_id,
-            parquet_max_sequence_number,
             tombstone_max_sequence_number,
             partition_data: Default::default(),
         }
@@ -646,13 +630,11 @@ impl TableData {
     #[cfg(test)]
     pub fn new_for_test(
         table_id: TableId,
-        parquet_max_sequence_number: Option<SequenceNumber>,
         tombstone_max_sequence_number: Option<SequenceNumber>,
         partitions: BTreeMap<String, PartitionData>,
     ) -> Self {
         Self {
             table_id,
-            parquet_max_sequence_number,
             tombstone_max_sequence_number,
             partition_data: partitions,
         }
@@ -660,7 +642,11 @@ impl TableData {
 
     /// Return parquet_max_sequence_number
     pub fn parquet_max_sequence_number(&self) -> Option<SequenceNumber> {
-        self.parquet_max_sequence_number
+        self.partition_data
+            .values()
+            .map(|p| p.data.max_persisted_sequence_number)
+            .max()
+            .flatten()
     }
 
     /// Return tombstone_max_sequence_number
@@ -678,12 +664,6 @@ impl TableData {
         catalog: &dyn Catalog,
         lifecycle_handle: &LifecycleHandle,
     ) -> Result<bool> {
-        if let Some(max) = self.parquet_max_sequence_number {
-            if sequence_number <= max {
-                return Ok(false);
-            }
-        }
-
         let (_, col) = batch
             .columns()
             .find(|(name, _)| *name == TIME_COLUMN_NAME)
@@ -707,6 +687,13 @@ impl TableData {
                 self.partition_data.get_mut(&partition_key).unwrap()
             }
         };
+
+        // skip the write if it has already been persisted
+        if let Some(max) = partition_data.data.max_persisted_sequence_number {
+            if max >= sequence_number {
+                return Ok(false);
+            }
+        }
 
         let should_pause = lifecycle_handle.log_write(
             partition_data.id,
@@ -787,7 +774,20 @@ impl TableData {
             .create_or_get(partition_key, sequencer_id, self.table_id)
             .await
             .context(CatalogSnafu)?;
-        let data = PartitionData::new(partition.id);
+
+        // get info on the persisted parquet files to use later for replay or for snapshot
+        // information on query.
+        let files = repos
+            .parquet_files()
+            .list_by_partition_not_to_delete(partition.id)
+            .await
+            .context(CatalogSnafu)?;
+        // for now we just need the max persisted
+        let max_persisted_sequence_number = files.iter().map(|p| p.max_sequence_number).max();
+
+        let mut data = PartitionData::new(partition.id);
+        data.data.max_persisted_sequence_number = max_persisted_sequence_number;
+
         self.partition_data.insert(partition.partition_key, data);
 
         Ok(())
@@ -822,11 +822,13 @@ impl PartitionData {
             .snapshot_to_persisting(sequencer_id, table_id, partition_id, table_name)
     }
 
-    /// Clears the persisting batch and returns true if there is no other data in the partition.
-    fn clear_persisting(&mut self) -> bool {
+    /// Clears the persisting batch, updates the max_persisted_sequence_number.
+    fn mark_persisted(&mut self) {
+        if let Some(persisting) = &self.data.persisting {
+            let (_, max) = persisting.data.min_max_sequence_numbers();
+            self.data.max_persisted_sequence_number = Some(max);
+        }
         self.data.persisting = None;
-
-        self.data.snapshots.is_empty() && self.data.buffer.is_none()
     }
 
     /// Snapshot whatever is in the buffer and return a new vec of the
@@ -972,6 +974,9 @@ impl PartitionData {
 struct DataBuffer {
     /// Buffer of incoming writes
     pub(crate) buffer: Option<BufferBatch>,
+
+    /// The max_persisted_sequence number for any parquet_file in this partition
+    pub(crate) max_persisted_sequence_number: Option<SequenceNumber>,
 
     /// Buffer of tombstones whose time range may overlap with this partition.
     /// All tombstones were already applied to corresponding snapshots. This list
@@ -1587,12 +1592,9 @@ mod tests {
         let mem_table = n.table_data("mem").unwrap();
         let mem_table = mem_table.read().await;
 
-        // verify that the partition got removed from the table because it is now empty
-        assert!(mem_table.partition_data.get("1970-01-01").is_none());
-
         // verify that the parquet_max_sequence_number got updated
         assert_eq!(
-            mem_table.parquet_max_sequence_number,
+            mem_table.parquet_max_sequence_number(),
             Some(SequenceNumber::new(2))
         );
     }
@@ -1897,6 +1899,12 @@ mod tests {
             .create_or_get("1970-01-01", sequencer.id, table.id)
             .await
             .unwrap();
+        let partition2 = repos
+            .partitions()
+            .create_or_get("1970-01-02", sequencer.id, table.id)
+            .await
+            .unwrap();
+
         let parquet_file_params = ParquetFileParams {
             sequencer_id: sequencer.id,
             namespace_id: namespace.id,
@@ -1915,7 +1923,23 @@ mod tests {
         };
         repos
             .parquet_files()
-            .create(parquet_file_params)
+            .create(parquet_file_params.clone())
+            .await
+            .unwrap();
+
+        // now create a parquet file in another partition with a much higher sequence persisted
+        // sequence number. We want to make sure that this doesn't cause our write in the other
+        // partition to get ignored.
+        let other_file_params = ParquetFileParams {
+            min_sequence_number: SequenceNumber::new(12),
+            max_sequence_number: SequenceNumber::new(15),
+            object_store_id: Uuid::new_v4(),
+            partition_id: partition2.id,
+            ..parquet_file_params
+        };
+        repos
+            .parquet_files()
+            .create(other_file_params)
             .await
             .unwrap();
         std::mem::drop(repos);
@@ -1943,11 +1967,12 @@ mod tests {
         {
             let tables = data.tables.read();
             let table = tables.get("mem").unwrap().read().await;
+            let p = table.partition_data.get("1970-01-01").unwrap();
             assert_eq!(
-                table.parquet_max_sequence_number,
+                p.data.max_persisted_sequence_number,
                 Some(SequenceNumber::new(1))
             );
-            assert!(table.partition_data.is_empty());
+            assert!(p.data.buffer.is_none());
         }
         assert!(!should_pause);
 

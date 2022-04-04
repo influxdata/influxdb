@@ -445,12 +445,6 @@ impl TableRepo for MemTxn {
             .iter()
             .find(|t| t.name == table_name && t.namespace_id == namespace_id)
         {
-            let parquet_max_sequence_number = stage
-                .parquet_files
-                .iter()
-                .filter(|p| p.sequencer_id == sequencer_id && p.table_id == table.id)
-                .max_by_key(|p| p.max_sequence_number)
-                .map(|p| p.max_sequence_number);
             let tombstone_max_sequence_number = stage
                 .tombstones
                 .iter()
@@ -461,7 +455,6 @@ impl TableRepo for MemTxn {
             return Ok(Some(TablePersistInfo {
                 sequencer_id,
                 table_id: table.id,
-                parquet_max_sequence_number,
                 tombstone_max_sequence_number,
             }));
         }

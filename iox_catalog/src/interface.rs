@@ -323,8 +323,6 @@ pub struct TablePersistInfo {
     pub sequencer_id: SequencerId,
     /// the global identifier for the table
     pub table_id: TableId,
-    /// max max_sequence_number from this table's parquet_files for this sequencer
-    pub parquet_max_sequence_number: Option<SequenceNumber>,
     /// max sequence number from this table's tombstones for this sequencer
     pub tombstone_max_sequence_number: Option<SequenceNumber>,
 }
@@ -925,78 +923,6 @@ pub(crate) mod test_helpers {
             TablePersistInfo {
                 sequencer_id: seq.id,
                 table_id: t.id,
-                parquet_max_sequence_number: None,
-                tombstone_max_sequence_number: None
-            }
-        );
-
-        // and now with a parquet file persisted
-        let partition = repos
-            .partitions()
-            .create_or_get("1970-01-01", seq.id, t.id)
-            .await
-            .unwrap();
-        let parquet_file_params = ParquetFileParams {
-            namespace_id: namespace.id,
-            sequencer_id: seq.id,
-            table_id: t.id,
-            partition_id: partition.id,
-            object_store_id: Uuid::new_v4(),
-            min_sequence_number: SequenceNumber::new(10),
-            max_sequence_number: SequenceNumber::new(513),
-            min_time: Timestamp::new(1),
-            max_time: Timestamp::new(2),
-            file_size_bytes: 0,
-            parquet_metadata: vec![],
-            row_count: 0,
-            compaction_level: INITIAL_COMPACTION_LEVEL,
-            created_at: Timestamp::new(1),
-        };
-        let p1 = repos
-            .parquet_files()
-            .create(parquet_file_params.clone())
-            .await
-            .unwrap();
-        let ti = repos
-            .tables()
-            .get_table_persist_info(seq.id, t.namespace_id, &t.name)
-            .await
-            .unwrap()
-            .unwrap();
-        assert_eq!(
-            ti,
-            TablePersistInfo {
-                sequencer_id: seq.id,
-                table_id: t.id,
-                parquet_max_sequence_number: Some(p1.max_sequence_number),
-                tombstone_max_sequence_number: None
-            }
-        );
-
-        // and with another parquet file persisted
-        let parquet_file_params = ParquetFileParams {
-            object_store_id: Uuid::new_v4(),
-            min_sequence_number: SequenceNumber::new(514),
-            max_sequence_number: SequenceNumber::new(1008),
-            ..parquet_file_params
-        };
-        let p1 = repos
-            .parquet_files()
-            .create(parquet_file_params.clone())
-            .await
-            .unwrap();
-        let ti = repos
-            .tables()
-            .get_table_persist_info(seq.id, t.namespace_id, &t.name)
-            .await
-            .unwrap()
-            .unwrap();
-        assert_eq!(
-            ti,
-            TablePersistInfo {
-                sequencer_id: seq.id,
-                table_id: t.id,
-                parquet_max_sequence_number: Some(p1.max_sequence_number),
                 tombstone_max_sequence_number: None
             }
         );
@@ -1025,7 +951,6 @@ pub(crate) mod test_helpers {
             TablePersistInfo {
                 sequencer_id: seq.id,
                 table_id: t.id,
-                parquet_max_sequence_number: Some(p1.max_sequence_number),
                 tombstone_max_sequence_number: Some(tombstone.sequence_number),
             }
         );

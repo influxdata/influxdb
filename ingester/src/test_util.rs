@@ -633,11 +633,9 @@ pub fn make_ingester_data(two_partitions: bool, loc: DataLocation) -> IngesterDa
     let empty_tbl = Arc::new(tokio::sync::RwLock::new(TableData::new(
         empty_table_id,
         None,
-        None,
     )));
     let data_tbl = Arc::new(tokio::sync::RwLock::new(TableData::new_for_test(
         data_table_id,
-        None,
         None,
         partitions,
     )));
@@ -683,7 +681,7 @@ pub async fn make_ingester_data_with_tombstones(loc: DataLocation) -> IngesterDa
 
     // Two tables: one empty and one with data of one or two partitions
     let mut tables = BTreeMap::new();
-    let data_tbl = TableData::new_for_test(data_table_id, None, None, partitions);
+    let data_tbl = TableData::new_for_test(data_table_id, None, partitions);
     tables.insert(
         TEST_TABLE.to_string(),
         Arc::new(tokio::sync::RwLock::new(data_tbl)),

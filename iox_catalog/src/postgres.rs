@@ -799,7 +799,6 @@ WHERE namespace_id = $1;
             r#"
 WITH tid as (SELECT id FROM table_name WHERE name = $2 AND namespace_id = $3)
 SELECT $1 as sequencer_id, id as table_id,
-       parquet_file.max_sequence_number AS parquet_max_sequence_number,
        tombstone.sequence_number as tombstone_max_sequence_number
 FROM tid
 LEFT JOIN (
@@ -809,13 +808,6 @@ LEFT JOIN (
   ORDER BY sequence_number DESC
   LIMIT 1
 ) tombstone ON tombstone.table_id = tid.id
-LEFT JOIN (
-  SELECT parquet_file.table_id, max_sequence_number
-  FROM parquet_file
-  WHERE parquet_file.sequencer_id = $1 AND parquet_file.table_id = (SELECT id from tid)
-  ORDER BY max_sequence_number DESC
-  LIMIT 1
-) parquet_file ON parquet_file.table_id = tid.id;
             "#,
         )
         .bind(&sequencer_id) // $1
