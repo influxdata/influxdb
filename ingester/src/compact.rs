@@ -5,7 +5,7 @@ use crate::{
     sort_key::{compute_sort_key, concat_new_columns},
 };
 use arrow::record_batch::RecordBatch;
-use data_types2::NamespaceId;
+use data_types2::{NamespaceId, PartitionInfo};
 use datafusion::{error::DataFusionError, physical_plan::SendableRecordBatchStream};
 use iox_catalog::interface::INITIAL_COMPACTION_LEVEL;
 use parquet_file::metadata::IoxMetadata;
@@ -61,16 +61,18 @@ pub async fn compact_persisting_batch(
     time_provider: Arc<dyn TimeProvider>,
     executor: &Executor,
     namespace_id: i32,
-    namespace_name: &str,
-    table_name: &str,
-    partition_key: &str,
-    sort_key: Option<SortKey>,
+    partition_info: &PartitionInfo,
     batch: Arc<PersistingBatch>,
 ) -> Result<Option<(Vec<RecordBatch>, IoxMetadata)>> {
     // Nothing to compact
     if batch.data.data.is_empty() {
         return Ok(None);
     }
+
+    let namespace_name = &partition_info.namespace_name;
+    let table_name = &partition_info.table_name;
+    let partition_key = &partition_info.partition.partition_key;
+    let sort_key = partition_info.partition.sort_key();
 
     // Get sort key from the catalog or compute it from cardinality
     let sort_key = match sort_key {
@@ -109,11 +111,11 @@ pub async fn compact_persisting_batch(
         creation_timestamp: time_provider.now(),
         sequencer_id: batch.sequencer_id,
         namespace_id: NamespaceId::new(namespace_id),
-        namespace_name: Arc::from(namespace_name),
+        namespace_name: Arc::from(namespace_name.as_str()),
         table_id: batch.table_id,
-        table_name: Arc::from(table_name),
+        table_name: Arc::from(table_name.as_str()),
         partition_id: batch.partition_id,
-        partition_key: Arc::from(partition_key),
+        partition_key: Arc::from(partition_key.as_str()),
         time_of_first_write: Time::from_timestamp_nanos(min_time),
         time_of_last_write: Time::from_timestamp_nanos(max_time),
         min_sequence_number: min_seq,
@@ -167,6 +169,7 @@ mod tests {
         make_persisting_batch, make_queryable_batch, make_queryable_batch_with_deletes,
     };
     use arrow_util::assert_batches_eq;
+    use data_types2::{Partition, PartitionId, SequencerId, TableId};
     use mutable_batch_lp::lines_to_batches;
     use schema::selection::Selection;
     use time::SystemProvider;
@@ -214,19 +217,23 @@ mod tests {
         // compact
         let exc = Executor::new(1);
         let time_provider = Arc::new(SystemProvider::new());
-        let (output_batches, _) = compact_persisting_batch(
-            time_provider,
-            &exc,
-            1,
-            namespace_name,
-            table_name,
-            partition_key,
-            None,
-            persisting_batch,
-        )
-        .await
-        .unwrap()
-        .unwrap();
+        let partition_info = PartitionInfo {
+            namespace_name: namespace_name.into(),
+            table_name: table_name.into(),
+            partition: Partition {
+                id: PartitionId::new(partition_id),
+                sequencer_id: SequencerId::new(seq_id),
+                table_id: TableId::new(table_id),
+                partition_key: partition_key.into(),
+                sort_key: None,
+            },
+        };
+
+        let (output_batches, _) =
+            compact_persisting_batch(time_provider, &exc, 1, &partition_info, persisting_batch)
+                .await
+                .unwrap()
+                .unwrap();
 
         // verify compacted data
         // should be the same as the input but sorted on tag1 & time
@@ -276,19 +283,23 @@ mod tests {
         // compact
         let exc = Executor::new(1);
         let time_provider = Arc::new(SystemProvider::new());
-        let (output_batches, meta) = compact_persisting_batch(
-            time_provider,
-            &exc,
-            1,
-            namespace_name,
-            table_name,
-            partition_key,
-            None,
-            persisting_batch,
-        )
-        .await
-        .unwrap()
-        .unwrap();
+        let partition_info = PartitionInfo {
+            namespace_name: namespace_name.into(),
+            table_name: table_name.into(),
+            partition: Partition {
+                id: PartitionId::new(partition_id),
+                sequencer_id: SequencerId::new(seq_id),
+                table_id: TableId::new(table_id),
+                partition_key: partition_key.into(),
+                sort_key: None,
+            },
+        };
+
+        let (output_batches, meta) =
+            compact_persisting_batch(time_provider, &exc, 1, &partition_info, persisting_batch)
+                .await
+                .unwrap()
+                .unwrap();
 
         // verify compacted data
         // should be the same as the input but sorted on tag1 & time
@@ -360,19 +371,24 @@ mod tests {
         // compact
         let exc = Executor::new(1);
         let time_provider = Arc::new(SystemProvider::new());
-        let (output_batches, meta) = compact_persisting_batch(
-            time_provider,
-            &exc,
-            1,
-            namespace_name,
-            table_name,
-            partition_key,
-            None, // <---------- NO SORT KEY from the catalog here, first persisting batch
-            persisting_batch,
-        )
-        .await
-        .unwrap()
-        .unwrap();
+        let partition_info = PartitionInfo {
+            namespace_name: namespace_name.into(),
+            table_name: table_name.into(),
+            partition: Partition {
+                id: PartitionId::new(partition_id),
+                sequencer_id: SequencerId::new(seq_id),
+                table_id: TableId::new(table_id),
+                partition_key: partition_key.into(),
+                // NO SORT KEY from the catalog here, first persisting batch
+                sort_key: None,
+            },
+        };
+
+        let (output_batches, meta) =
+            compact_persisting_batch(time_provider, &exc, 1, &partition_info, persisting_batch)
+                .await
+                .unwrap()
+                .unwrap();
 
         // verify compacted data
         // should be the same as the input but sorted on the computed sort key of tag1, tag3, & time
@@ -446,21 +462,25 @@ mod tests {
         // compact
         let exc = Executor::new(1);
         let time_provider = Arc::new(SystemProvider::new());
-        let (output_batches, meta) = compact_persisting_batch(
-            time_provider,
-            &exc,
-            1,
-            namespace_name,
-            table_name,
-            partition_key,
-            // SPECIFY A SORT KEY HERE to simulate a sort key being stored in the catalog
-            // this is NOT what the computed sort key would be based on this data's cardinality
-            Some(SortKey::from_columns(["tag3", "tag1", "time"])),
-            persisting_batch,
-        )
-        .await
-        .unwrap()
-        .unwrap();
+        let partition_info = PartitionInfo {
+            namespace_name: namespace_name.into(),
+            table_name: table_name.into(),
+            partition: Partition {
+                id: PartitionId::new(partition_id),
+                sequencer_id: SequencerId::new(seq_id),
+                table_id: TableId::new(table_id),
+                partition_key: partition_key.into(),
+                // SPECIFY A SORT KEY HERE to simulate a sort key being stored in the catalog
+                // this is NOT what the computed sort key would be based on this data's cardinality
+                sort_key: Some("tag3,tag1,time".into()),
+            },
+        };
+
+        let (output_batches, meta) =
+            compact_persisting_batch(time_provider, &exc, 1, &partition_info, persisting_batch)
+                .await
+                .unwrap()
+                .unwrap();
 
         // verify compacted data
         // should be the same as the input but sorted on the specified sort key of tag3, tag1, &
@@ -536,22 +556,26 @@ mod tests {
         // compact
         let exc = Executor::new(1);
         let time_provider = Arc::new(SystemProvider::new());
-        let (output_batches, meta) = compact_persisting_batch(
-            time_provider,
-            &exc,
-            1,
-            namespace_name,
-            table_name,
-            partition_key,
-            // SPECIFY A SORT KEY HERE to simulate a sort key being stored in the catalog
-            // this is NOT what the computed sort key would be based on this data's cardinality
-            // The new column, tag1, should get added just before the time column
-            Some(SortKey::from_columns(["tag3", "time"])),
-            persisting_batch,
-        )
-        .await
-        .unwrap()
-        .unwrap();
+        let partition_info = PartitionInfo {
+            namespace_name: namespace_name.into(),
+            table_name: table_name.into(),
+            partition: Partition {
+                id: PartitionId::new(partition_id),
+                sequencer_id: SequencerId::new(seq_id),
+                table_id: TableId::new(table_id),
+                partition_key: partition_key.into(),
+                // SPECIFY A SORT KEY HERE to simulate a sort key being stored in the catalog
+                // this is NOT what the computed sort key would be based on this data's cardinality
+                // The new column, tag1, should get added just before the time column
+                sort_key: Some("tag3,time".into()),
+            },
+        };
+
+        let (output_batches, meta) =
+            compact_persisting_batch(time_provider, &exc, 1, &partition_info, persisting_batch)
+                .await
+                .unwrap()
+                .unwrap();
 
         // verify compacted data
         // should be the same as the input but sorted on the specified sort key of tag3, tag1, &
@@ -627,22 +651,26 @@ mod tests {
         // compact
         let exc = Executor::new(1);
         let time_provider = Arc::new(SystemProvider::new());
-        let (output_batches, meta) = compact_persisting_batch(
-            time_provider,
-            &exc,
-            1,
-            namespace_name,
-            table_name,
-            partition_key,
-            // SPECIFY A SORT KEY HERE to simulate a sort key being stored in the catalog
-            // this is NOT what the computed sort key would be based on this data's cardinality
-            // This contains a sort key, "tag4", that doesn't appear in the data.
-            Some(SortKey::from_columns(["tag3", "tag1", "tag4", "time"])),
-            persisting_batch,
-        )
-        .await
-        .unwrap()
-        .unwrap();
+        let partition_info = PartitionInfo {
+            namespace_name: namespace_name.into(),
+            table_name: table_name.into(),
+            partition: Partition {
+                id: PartitionId::new(partition_id),
+                sequencer_id: SequencerId::new(seq_id),
+                table_id: TableId::new(table_id),
+                partition_key: partition_key.into(),
+                // SPECIFY A SORT KEY HERE to simulate a sort key being stored in the catalog
+                // this is NOT what the computed sort key would be based on this data's cardinality
+                // This contains a sort key, "tag4", that doesn't appear in the data.
+                sort_key: Some("tag3,tag1,tag4,time".into()),
+            },
+        };
+
+        let (output_batches, meta) =
+            compact_persisting_batch(time_provider, &exc, 1, &partition_info, persisting_batch)
+                .await
+                .unwrap()
+                .unwrap();
 
         // verify compacted data
         // should be the same as the input but sorted on the specified sort key of tag3, tag1, &
