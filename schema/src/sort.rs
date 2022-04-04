@@ -144,6 +144,10 @@ impl SortKey {
         builder.build()
     }
 
+    pub fn to_columns(&self) -> String {
+        self.columns.keys().join(",")
+    }
+
     /// Gets the ColumnSort for a given column name
     pub fn get(&self, column: &str) -> Option<ColumnSort> {
         let (sort_ordinal, _, options) = self.columns.get_full(column)?;

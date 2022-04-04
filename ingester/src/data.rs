@@ -256,6 +256,23 @@ impl Persister for IngesterData {
                     .expect("retry forever");
             }
 
+            // Update the sort key in the catalog if there are additional columns
+            let sort_key_string = iox_meta.sort_key.map(|sk| sk.to_columns());
+            if sort_key_string != partition_info.partition.sort_key {
+                let sort_key = sort_key_string
+                    .expect("sort_key should be Some after compact_persisting_batch");
+                Backoff::new(&self.backoff_config)
+                    .retry_all_errors("update_sort_key", || async {
+                        let mut repos = self.catalog.repositories().await;
+                        repos
+                            .partitions()
+                            .update_sort_key(partition_id, &sort_key)
+                            .await
+                    })
+                    .await
+                    .expect("retry forever");
+            }
+
             // and remove the persisted data from memory
             namespace
                 .mark_persisted(
@@ -1560,6 +1577,18 @@ mod tests {
             table_id = mem_table.table_id;
             partition_id = p.id;
         }
+        {
+            // verify the partition doesn't have a sort key before any data has been persisted
+            let mut repos = catalog.repositories().await;
+            let partition_info = repos
+                .partitions()
+                .partition_info_by_id(partition_id)
+                .await
+                .unwrap()
+                .unwrap();
+            assert!(partition_info.partition.sort_key.is_none());
+        }
+
         data.persist(partition_id).await;
 
         // verify that a file got put into object store
@@ -1589,6 +1618,15 @@ mod tests {
         assert_eq!(pf.max_sequence_number, SequenceNumber::new(2));
         assert_eq!(pf.sequencer_id, sequencer1.id);
         assert!(pf.to_delete.is_none());
+
+        // verify it set a sort key on the partition in the catalog
+        let partition_info = repos
+            .partitions()
+            .partition_info_by_id(partition_id)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(partition_info.partition.sort_key.unwrap(), "time");
 
         let mem_table = n.table_data("mem").unwrap();
         let mem_table = mem_table.read().await;
