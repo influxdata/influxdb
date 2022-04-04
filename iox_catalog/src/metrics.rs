@@ -244,6 +244,7 @@ decorate!(
         "partition_list_by_sequencer" = list_by_sequencer(&mut self, sequencer_id: SequencerId) -> Result<Vec<Partition>>;
         "partition_list_by_namespace" = list_by_namespace(&mut self, namespace_id: NamespaceId) -> Result<Vec<Partition>>;
         "partition_partition_info_by_id" = partition_info_by_id(&mut self, partition_id: PartitionId) -> Result<Option<PartitionInfo>>;
+        "partition_update_sort_key" = update_sort_key(&mut self, partition_id: PartitionId, sort_key: &str) -> Result<Partition>;
     ]
 );
 

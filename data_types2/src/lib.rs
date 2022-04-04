@@ -652,6 +652,9 @@ pub struct Partition {
     pub table_id: TableId,
     /// the string key of the partition
     pub partition_key: String,
+    /// The sort key for the partition. Should be computed on the first persist operation for
+    /// this partition and updated if new tag columns are added.
+    pub sort_key: Option<String>,
 }
 
 /// Information for a partition from the catalog.
