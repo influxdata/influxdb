@@ -190,7 +190,7 @@ impl Schema {
     pub fn is_sorted_on_pk(&self, sort_key: &SortKey) -> bool {
         self.primary_key()
             .iter()
-            .all(|col| sort_key.get(*col).is_some())
+            .all(|col| sort_key.contains(col))
     }
 
     /// Provide a reference to the underlying Arrow Schema object
