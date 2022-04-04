@@ -129,6 +129,26 @@ fn distinct_values(batch: &RecordBatch, primary_key: &[&str]) -> HashMap<String,
         .collect()
 }
 
+/// Given a sort key from the catalog and the primary key (tags + time) from the data, if there
+/// are new columns that appear in the primary
+pub fn concat_new_columns(sort_key: &SortKey, primary_key: &[&str]) -> SortKey {
+    let existing_columns_without_time = sort_key
+        .iter()
+        .map(|(col, _opts)| col)
+        .cloned()
+        .filter(|col| TIME_COLUMN_NAME != col.as_ref());
+    let new_columns = primary_key
+        .iter()
+        .filter(|col| !sort_key.contains(col))
+        .map(|&col| Arc::from(col));
+
+    SortKey::from_columns(
+        existing_columns_without_time
+            .chain(new_columns)
+            .chain(std::iter::once(Arc::from(TIME_COLUMN_NAME))),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -229,5 +249,25 @@ mod tests {
         let sort_key = compute_sort_key(&qb);
 
         assert_eq!(sort_key, SortKey::from_columns(["host", "env", "time"]));
+    }
+
+    #[test]
+    fn test_concat_new_columns() {
+        // If the sort key is the same as the primary key, no changes
+        let sort_key = SortKey::from_columns(["host", "env", "time"]);
+        let actual = concat_new_columns(&sort_key, &["host", "env", "time"]);
+        assert_eq!(sort_key, actual);
+
+        // If the sort key contains more columns than the primary key, no changes
+        let sort_key = SortKey::from_columns(["host", "env", "time"]);
+        let actual = concat_new_columns(&sort_key, &["host", "time"]);
+        assert_eq!(sort_key, actual);
+
+        // If the sort key contains fewer columns than the primary key, add the new columns just
+        // before the time column
+        let sort_key = SortKey::from_columns(["host", "env", "time"]);
+        let actual = concat_new_columns(&sort_key, &["host", "temp", "env", "time"]);
+        let expected = SortKey::from_columns(["host", "env", "temp", "time"]);
+        assert_eq!(expected, actual);
     }
 }

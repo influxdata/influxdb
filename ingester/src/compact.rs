@@ -2,7 +2,7 @@
 
 use crate::{
     data::{PersistingBatch, QueryableBatch},
-    sort_key::compute_sort_key,
+    sort_key::{compute_sort_key, concat_new_columns},
 };
 use arrow::record_batch::RecordBatch;
 use data_types2::NamespaceId;
@@ -72,9 +72,12 @@ pub async fn compact_persisting_batch(
         return Ok(None);
     }
 
-    // Get sort key based on cardinality
+    // Get sort key from the catalog or compute it from cardinality
     let sort_key = match sort_key {
-        Some(sk) => sk,
+        Some(sk) => {
+            // Add any new columns in the data to the end of the catalog sort key
+            concat_new_columns(&sk, &batch.data.schema().primary_key())
+        }
         None => compute_sort_key(&batch.data),
     };
 
@@ -493,6 +496,187 @@ mod tests {
             // The sort key in the metadata should be the same as specified (that is, not
             // recomputed)
             Some(SortKey::from_columns(["tag3", "tag1", "time"])),
+        );
+        assert_eq!(expected_meta, meta);
+    }
+
+    #[tokio::test]
+    async fn test_compact_persisting_batch_new_column_for_sort_key() {
+        // create input data
+        let batches = create_batches_with_influxtype_different_cardinality().await;
+
+        // build persisting batch from the input batches
+        let uuid = Uuid::new_v4();
+        let namespace_name = "test_namespace";
+        let partition_key = "test_partition_key";
+        let table_name = "test_table";
+        let seq_id = 1;
+        let seq_num_start: i64 = 1;
+        let seq_num_end: i64 = seq_num_start; // one batch
+        let namespace_id = 1;
+        let table_id = 1;
+        let partition_id = 1;
+        let persisting_batch = make_persisting_batch(
+            seq_id,
+            seq_num_start,
+            table_id,
+            table_name,
+            partition_id,
+            uuid,
+            batches,
+            vec![],
+        );
+
+        // verify PK
+        let schema = persisting_batch.data.schema();
+        let pk = schema.primary_key();
+        let expected_pk = vec!["tag1", "tag3", "time"];
+        assert_eq!(expected_pk, pk);
+
+        // compact
+        let exc = Executor::new(1);
+        let time_provider = Arc::new(SystemProvider::new());
+        let (output_batches, meta) = compact_persisting_batch(
+            time_provider,
+            &exc,
+            1,
+            namespace_name,
+            table_name,
+            partition_key,
+            // SPECIFY A SORT KEY HERE to simulate a sort key being stored in the catalog
+            // this is NOT what the computed sort key would be based on this data's cardinality
+            // The new column, tag1, should get added just before the time column
+            Some(SortKey::from_columns(["tag3", "time"])),
+            persisting_batch,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        // verify compacted data
+        // should be the same as the input but sorted on the specified sort key of tag3, tag1, &
+        // time
+        let expected_data = vec![
+            "+-----------+------+------+-----------------------------+",
+            "| field_int | tag1 | tag3 | time                        |",
+            "+-----------+------+------+-----------------------------+",
+            "| 50        | VT   | AL   | 1970-01-01T00:00:00.000210Z |",
+            "| 70        | UT   | OR   | 1970-01-01T00:00:00.000220Z |",
+            "| 10        | VT   | PR   | 1970-01-01T00:00:00.000210Z |",
+            "| 1000      | WA   | TX   | 1970-01-01T00:00:00.000028Z |",
+            "+-----------+------+------+-----------------------------+",
+        ];
+        assert_batches_eq!(&expected_data, &output_batches);
+
+        let expected_meta = make_meta(
+            uuid,
+            meta.creation_timestamp,
+            seq_id,
+            namespace_id,
+            namespace_name,
+            table_id,
+            table_name,
+            partition_id,
+            partition_key,
+            28000,
+            220000,
+            seq_num_start,
+            seq_num_end,
+            4,
+            INITIAL_COMPACTION_LEVEL,
+            // The sort key in the metadata should be updated to include the new column just before
+            // the time column
+            Some(SortKey::from_columns(["tag3", "tag1", "time"])),
+        );
+        assert_eq!(expected_meta, meta);
+    }
+
+    #[tokio::test]
+    async fn test_compact_persisting_batch_missing_column_for_sort_key() {
+        // create input data
+        let batches = create_batches_with_influxtype_different_cardinality().await;
+
+        // build persisting batch from the input batches
+        let uuid = Uuid::new_v4();
+        let namespace_name = "test_namespace";
+        let partition_key = "test_partition_key";
+        let table_name = "test_table";
+        let seq_id = 1;
+        let seq_num_start: i64 = 1;
+        let seq_num_end: i64 = seq_num_start; // one batch
+        let namespace_id = 1;
+        let table_id = 1;
+        let partition_id = 1;
+        let persisting_batch = make_persisting_batch(
+            seq_id,
+            seq_num_start,
+            table_id,
+            table_name,
+            partition_id,
+            uuid,
+            batches,
+            vec![],
+        );
+
+        // verify PK
+        let schema = persisting_batch.data.schema();
+        let pk = schema.primary_key();
+        let expected_pk = vec!["tag1", "tag3", "time"];
+        assert_eq!(expected_pk, pk);
+
+        // compact
+        let exc = Executor::new(1);
+        let time_provider = Arc::new(SystemProvider::new());
+        let (output_batches, meta) = compact_persisting_batch(
+            time_provider,
+            &exc,
+            1,
+            namespace_name,
+            table_name,
+            partition_key,
+            // SPECIFY A SORT KEY HERE to simulate a sort key being stored in the catalog
+            // this is NOT what the computed sort key would be based on this data's cardinality
+            // This contains a sort key, "tag4", that doesn't appear in the data.
+            Some(SortKey::from_columns(["tag3", "tag1", "tag4", "time"])),
+            persisting_batch,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        // verify compacted data
+        // should be the same as the input but sorted on the specified sort key of tag3, tag1, &
+        // time
+        let expected_data = vec![
+            "+-----------+------+------+-----------------------------+",
+            "| field_int | tag1 | tag3 | time                        |",
+            "+-----------+------+------+-----------------------------+",
+            "| 50        | VT   | AL   | 1970-01-01T00:00:00.000210Z |",
+            "| 70        | UT   | OR   | 1970-01-01T00:00:00.000220Z |",
+            "| 10        | VT   | PR   | 1970-01-01T00:00:00.000210Z |",
+            "| 1000      | WA   | TX   | 1970-01-01T00:00:00.000028Z |",
+            "+-----------+------+------+-----------------------------+",
+        ];
+        assert_batches_eq!(&expected_data, &output_batches);
+
+        let expected_meta = make_meta(
+            uuid,
+            meta.creation_timestamp,
+            seq_id,
+            namespace_id,
+            namespace_name,
+            table_id,
+            table_name,
+            partition_id,
+            partition_key,
+            28000,
+            220000,
+            seq_num_start,
+            seq_num_end,
+            4,
+            INITIAL_COMPACTION_LEVEL,
+            // The sort key in the metadata should be unchanged from what was specified
+            Some(SortKey::from_columns(["tag3", "tag1", "tag4", "time"])),
         );
         assert_eq!(expected_meta, meta);
     }

@@ -171,6 +171,11 @@ impl SortKey {
         None
     }
 
+    /// Return true if this column appears anywhere in the sort key.
+    pub fn contains(&self, column: &str) -> bool {
+        self.columns.contains_key(column)
+    }
+
     /// Returns an iterator over the columns in this key
     pub fn iter(&self) -> Iter<'_, Arc<str>, SortOptions> {
         self.columns.iter()
