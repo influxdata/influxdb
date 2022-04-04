@@ -961,12 +961,11 @@ impl ParquetFileRepo for MemTxn {
             row_count,
             to_delete: None,
             file_size_bytes,
-            parquet_metadata,
             compaction_level,
             created_at,
         };
         stage.parquet_files.push(parquet_file);
-        Ok(stage.parquet_files.last().unwrap().clone())
+        Ok(*stage.parquet_files.last().unwrap())
     }
 
     async fn flag_for_delete(&mut self, id: ParquetFileId) -> Result<()> {

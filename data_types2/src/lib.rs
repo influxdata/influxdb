@@ -720,7 +720,7 @@ pub fn tombstones_to_delete_predicates_iter(
 }
 
 /// Data for a parquet file reference that has been inserted in the catalog.
-#[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
+#[derive(Debug, Clone, Copy, PartialEq, sqlx::FromRow)]
 pub struct ParquetFile {
     /// the id of the file in the catalog
     pub id: ParquetFileId,
@@ -746,8 +746,6 @@ pub struct ParquetFile {
     pub to_delete: Option<Timestamp>,
     /// file size in bytes
     pub file_size_bytes: i64,
-    /// thrift-encoded parquet metadata
-    pub parquet_metadata: Vec<u8>,
     /// the number of rows of data in this file
     pub row_count: i64,
     /// the compaction level of the file
