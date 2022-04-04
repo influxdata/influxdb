@@ -14,7 +14,7 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Converts a [`predicate::predicate::Predicate`] into [`read_buffer::Predicate`],
+/// Converts a [`predicate::Predicate`] into [`read_buffer::Predicate`],
 /// suitable for evaluating on the ReadBuffer.
 ///
 /// NOTE: a valid Read Buffer predicate is not guaranteed to be applicable to an

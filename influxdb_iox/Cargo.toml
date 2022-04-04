@@ -24,11 +24,13 @@ influxrpc_parser = { path = "../influxrpc_parser"}
 iox_catalog = { path = "../iox_catalog" }
 iox_object_store = { path = "../iox_object_store" }
 ioxd_common = { path = "../ioxd_common"}
+ioxd_compactor = { path = "../ioxd_compactor"}
 ioxd_database = { path = "../ioxd_database"}
+ioxd_ingester = { path = "../ioxd_ingester"}
 ioxd_router = { path = "../ioxd_router"}
 ioxd_router2 = { path = "../ioxd_router2"}
 ioxd_querier = { path = "../ioxd_querier"}
-ioxd = { path = "../ioxd", default-features = false }
+ioxd_test = { path = "../ioxd_test"}
 job_registry = { path = "../job_registry" }
 logfmt = { path = "../logfmt" }
 metric = { path = "../metric" }

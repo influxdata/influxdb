@@ -30,12 +30,14 @@ members = [
     "iox_gitops_adapter",
     "iox_object_store",
     "iox_tests",
-    "ioxd",
     "ioxd_common",
+    "ioxd_compactor",
+    "ioxd_ingester",
     "ioxd_querier",
     "ioxd_database",
     "ioxd_router",
     "ioxd_router2",
+    "ioxd_test",
     "job_registry",
     "lifecycle",
     "logfmt",
@@ -78,6 +80,7 @@ members = [
     "trogging",
     "workspace-hack",
     "write_buffer",
+    "write_summary",
 ]
 default-members = ["influxdb_iox"]
 

@@ -1,4 +1,4 @@
-use ioxd::Service;
+use ioxd_common::Service;
 use ioxd_common::{grpc_listener, http_listener, serve, server_type::CommonServerState};
 use observability_deps::tracing::{error, info};
 use panic_logging::SendPanicsToTracing;

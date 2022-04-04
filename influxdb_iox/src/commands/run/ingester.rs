@@ -4,8 +4,9 @@ use clap_blocks::{
     catalog_dsn::CatalogDsnConfig, ingester::IngesterConfig, run_config::RunConfig,
     write_buffer::WriteBufferConfig,
 };
-use ioxd::{self, server_type::ingester::create_ingester_server_type, Service};
 use ioxd_common::server_type::{CommonServerState, CommonServerStateError};
+use ioxd_common::Service;
+use ioxd_ingester::create_ingester_server_type;
 use object_store::{instrumentation::ObjectStoreMetrics, DynObjectStore, ObjectStoreImpl};
 use observability_deps::tracing::*;
 use query::exec::Executor;
@@ -26,7 +27,7 @@ pub enum Error {
     ObjectStoreParsing(#[from] clap_blocks::object_store::ParseError),
 
     #[error("error initializing ingester: {0}")]
-    Ingester(#[from] ioxd::server_type::ingester::Error),
+    Ingester(#[from] ioxd_ingester::Error),
 
     #[error("Catalog DSN error: {0}")]
     CatalogDsn(#[from] clap_blocks::catalog_dsn::Error),

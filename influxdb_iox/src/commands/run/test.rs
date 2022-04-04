@@ -3,12 +3,9 @@
 use std::sync::Arc;
 
 use clap_blocks::run_config::RunConfig;
-use ioxd::{
-    self,
-    server_type::test::{TestAction, TestServerType},
-    Service,
-};
 use ioxd_common::server_type::{CommonServerState, CommonServerStateError};
+use ioxd_common::Service;
+use ioxd_test::{TestAction, TestServerType};
 use metric::Registry;
 use thiserror::Error;
 

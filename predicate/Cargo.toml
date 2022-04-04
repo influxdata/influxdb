@@ -17,7 +17,7 @@ regex-syntax = "0.6.25"
 schema = { path = "../schema" }
 serde_json = "1.0.79"
 snafu = "0.7"
-sqlparser = "0.15.0"
+sqlparser = "0.16.0"
 workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]

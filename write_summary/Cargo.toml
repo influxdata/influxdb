@@ -1,0 +1,26 @@
+[package]
+name = "write_summary"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# Workspace dependencies, in alphabetical order
+dml = { path = "../dml" }
+generated_types = { path = "../generated_types" }
+
+
+# Crates.io dependencies, in alphabetical order
+base64 = "0.13"
+serde_json = "1.0.79"
+workspace-hack = { path = "../workspace-hack"}
+
+
+[dev-dependencies]
+# Workspace dependencies, in alphabetical order
+data_types = { path = "../data_types" }
+time = { path = "../time" }
+
+
+# Crates.io dependencies, in alphabetical order

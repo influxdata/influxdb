@@ -1,8 +1,8 @@
 use arrow_util::assert_batches_sorted_eq;
 use http::StatusCode;
 use test_helpers_end_to_end_ng::{
-    maybe_skip_integration, query_until_results, rand_name, write_to_router, ServerFixture,
-    TestConfig,
+    get_write_token, maybe_skip_integration, query_when_readable, rand_name, write_to_router,
+    ServerFixture, TestConfig,
 };
 
 #[tokio::test]
@@ -26,12 +26,14 @@ async fn smoke() {
     let response = write_to_router(lp, org, bucket, all_in_one.server().router_http_base()).await;
 
     assert_eq!(response.status(), StatusCode::NO_CONTENT);
+    let write_token = get_write_token(&response);
 
     // run query in a loop until the data becomes available
     let sql = format!("select * from {}", table_name);
-    let batches = query_until_results(
+    let batches = query_when_readable(
         sql,
         namespace,
+        write_token,
         all_in_one.server().querier_grpc_connection(),
     )
     .await;

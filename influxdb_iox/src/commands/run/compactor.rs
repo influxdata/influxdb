@@ -10,8 +10,9 @@ use time::SystemProvider;
 use clap_blocks::{
     catalog_dsn::CatalogDsnConfig, compactor::CompactorConfig, run_config::RunConfig,
 };
-use ioxd::{self, server_type::compactor::create_compactor_server_type, Service};
 use ioxd_common::server_type::{CommonServerState, CommonServerStateError};
+use ioxd_common::Service;
+use ioxd_compactor::create_compactor_server_type;
 
 use super::main;
 
@@ -33,7 +34,7 @@ pub enum Error {
     ObjectStoreParsing(#[from] clap_blocks::object_store::ParseError),
 
     #[error("error initializing compactor: {0}")]
-    Compactor(#[from] ioxd::server_type::compactor::Error),
+    Compactor(#[from] ioxd_compactor::Error),
 }
 
 #[derive(Debug, clap::Parser)]

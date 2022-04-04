@@ -10,15 +10,11 @@ use clap_blocks::{
     write_buffer::WriteBufferConfig,
 };
 use ioxd_common::server_type::{CommonServerState, CommonServerStateError};
-
+use ioxd_common::Service;
+use ioxd_compactor::create_compactor_server_type;
+use ioxd_ingester::create_ingester_server_type;
 use ioxd_querier::create_querier_server_type;
 use ioxd_router2::create_router2_server_type;
-
-use ioxd::{
-    self,
-    server_type::{compactor::create_compactor_server_type, ingester::create_ingester_server_type},
-    Service,
-};
 use object_store::{DynObjectStore, ObjectStoreImpl};
 use observability_deps::tracing::*;
 use query::exec::Executor;
@@ -60,10 +56,10 @@ pub enum Error {
     Router2(#[from] ioxd_router2::Error),
 
     #[error("Ingester error: {0}")]
-    Ingester(#[from] ioxd::server_type::ingester::Error),
+    Ingester(#[from] ioxd_ingester::Error),
 
     #[error("error initializing compactor: {0}")]
-    Compactor(#[from] ioxd::server_type::compactor::Error),
+    Compactor(#[from] ioxd_compactor::Error),
 
     #[error("Invalid config: {0}")]
     InvalidConfig(#[from] CommonServerStateError),

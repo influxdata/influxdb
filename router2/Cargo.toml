@@ -35,13 +35,14 @@ tonic = "0.6"
 trace = { path = "../trace/" }
 workspace-hack = { path = "../workspace-hack"}
 write_buffer = { path = "../write_buffer" }
+write_summary = { path = "../write_summary" }
 
 [dev-dependencies]
 assert_matches = "1.5"
 criterion = { version = "0.3.4", features = ["async_tokio", "html_reports"] }
 lazy_static = "1.4.0"
 paste = "1.0.7"
-pretty_assertions = "1.2.0"
+pretty_assertions = "1.2.1"
 rand = "0.8.3"
 schema = { path = "../schema" }
 

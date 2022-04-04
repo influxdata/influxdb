@@ -4,8 +4,8 @@ use std::sync::Arc;
 
 use clap_blocks::run_config::RunConfig;
 use data_types::boolean_flag::BooleanFlag;
-use ioxd::{self, Service};
 use ioxd_common::server_type::{CommonServerState, CommonServerStateError};
+use ioxd_common::Service;
 use ioxd_database::{
     setup::{make_application, make_server},
     DatabaseServerType,

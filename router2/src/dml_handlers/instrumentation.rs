@@ -165,6 +165,7 @@ mod tests {
     use metric::Attributes;
     use std::sync::Arc;
     use trace::{span::SpanStatus, RingBufferTraceCollector, TraceCollector};
+    use write_summary::WriteSummary;
 
     const HANDLER_NAME: &str = "bananas";
 
@@ -205,10 +206,14 @@ mod tests {
         );
     }
 
+    fn summary() -> WriteSummary {
+        WriteSummary::default()
+    }
+
     #[tokio::test]
     async fn test_write_ok() {
         let ns = "platanos".try_into().unwrap();
-        let handler = Arc::new(MockDmlHandler::default().with_write_return([Ok(())]));
+        let handler = Arc::new(MockDmlHandler::default().with_write_return([Ok(summary())]));
 
         let metrics = Arc::new(metric::Registry::default());
         let traces: Arc<dyn TraceCollector> = Arc::new(RingBufferTraceCollector::new(5));

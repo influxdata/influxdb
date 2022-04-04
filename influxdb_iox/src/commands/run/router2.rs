@@ -6,8 +6,8 @@ use clap_blocks::{
     catalog_dsn::CatalogDsnConfig, run_config::RunConfig, write_buffer::WriteBufferConfig,
 };
 
-use ioxd::{self, Service};
 use ioxd_common::server_type::{CommonServerState, CommonServerStateError};
+use ioxd_common::Service;
 use ioxd_router2::create_router2_server_type;
 use observability_deps::tracing::*;
 use thiserror::Error;

@@ -7,8 +7,8 @@ use clap_blocks::run_config::RunConfig;
 
 use data_types::router::Router as RouterConfig;
 use generated_types::{google::FieldViolation, influxdata::iox::router::v1::RouterConfigFile};
-use ioxd::{self, Service};
 use ioxd_common::server_type::{CommonServerState, CommonServerStateError};
+use ioxd_common::Service;
 use ioxd_router::RouterServerType;
 use observability_deps::tracing::warn;
 use router::{resolver::RemoteTemplate, server::RouterServer};

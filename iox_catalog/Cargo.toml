@@ -24,7 +24,7 @@ workspace-hack = { path = "../workspace-hack"}
 dotenv = "0.15.0"
 mutable_batch_lp = { path = "../mutable_batch_lp" }
 paste = "1.0.7"
-pretty_assertions = "1.2.0"
+pretty_assertions = "1.2.1"
 rand = "0.8"
 tempfile = "3"
 test_helpers = { path = "../test_helpers" }

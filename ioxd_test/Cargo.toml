@@ -1,5 +1,5 @@
 [package]
-name = "ioxd_router2"
+name = "ioxd_test"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,29 +7,19 @@ edition = "2021"
 
 [dependencies]
 # Workspace dependencies, in alphabetical order
-data_types2 = { path = "../data_types2" }
-clap_blocks = { path = "../clap_blocks" }
 generated_types = { path = "../generated_types" }
-iox_catalog = { path = "../iox_catalog" }
 ioxd_common = { path = "../ioxd_common" }
 metric = { path = "../metric" }
-mutable_batch = { path = "../mutable_batch" }
-object_store = { path = "../object_store" }
-observability_deps = { path = "../observability_deps" }
-router2 = { path = "../router2" }
 service_grpc_testing = { path = "../service_grpc_testing" }
-time = { path = "../time" }
 trace = { path = "../trace" }
 trace_http = { path = "../trace_http" }
-write_buffer = { path = "../write_buffer" }
-write_summary = { path = "../write_summary" }
+
 
 # Crates.io dependencies, in alphabetical order
-arrow-flight = "11"
 async-trait = "0.1"
-hashbrown = "0.12"
+clap = { version = "3", features = ["derive", "env"] }
 hyper = "0.14"
-thiserror = "1.0.30"
+snafu = "0.7"
 tokio = { version = "1.17", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-stream = { version = "0.1", features = ["net"] }
 tokio-util = { version = "0.7.1" }

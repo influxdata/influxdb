@@ -10,7 +10,7 @@ data_types = { path = "../data_types", optional = true }
 data_types2 = { path = "../data_types2", optional = true }
 datafusion = { path = "../datafusion", optional = true }
 observability_deps = { path = "../observability_deps" }
-pbjson = "0.2"
+pbjson = "0.3"
 pbjson-types = "0.2"
 predicate = { path = "../predicate", optional = true }
 prost = "0.9"
@@ -27,7 +27,7 @@ num_cpus = "1.13.0"
 [build-dependencies] # In alphabetical order
 tonic-build = "0.6"
 prost-build = "0.9"
-pbjson-build = "0.2"
+pbjson-build = "0.3"
 
 [features]
 default = ["data_types_conversions"]

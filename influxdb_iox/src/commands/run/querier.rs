@@ -8,8 +8,8 @@ use thiserror::Error;
 use time::SystemProvider;
 
 use clap_blocks::{catalog_dsn::CatalogDsnConfig, run_config::RunConfig};
-use ioxd::{self, Service};
 use ioxd_common::server_type::{CommonServerState, CommonServerStateError};
+use ioxd_common::Service;
 use ioxd_querier::create_querier_server_type;
 
 use super::main;

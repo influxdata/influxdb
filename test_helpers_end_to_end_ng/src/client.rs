@@ -34,19 +34,40 @@ pub async fn write_to_router(
         .expect("http error sending write")
 }
 
-/// Runs a query using the flight API on the specified connection
-/// until responses are produced
-///
-/// The retry loop is used to wait for writes to become visible
+/// Extracts the write token from the specified response (to the /api/v2/write api)
+pub fn get_write_token(response: &Response<Body>) -> String {
+    let message = format!("no write token in {:?}", response);
+    response
+        .headers()
+        .get("X-IOx-Write-Token")
+        .expect(&message)
+        .to_str()
+        .expect("Value not a string")
+        .to_string()
+}
+
 const MAX_QUERY_RETRY_TIME_SEC: u64 = 10;
 
-pub async fn query_until_results(
+/// Runs a query using the flight API on the specified connection
+/// until responses are produced.
+///
+/// (Will) eventually Wait until data from the specified write token
+/// is readable, but currently waits for
+///
+/// The retry loop is used to wait for writes to become visible
+pub async fn query_when_readable(
     sql: impl Into<String>,
     namespace: impl Into<String>,
+    write_token: impl Into<String>,
     connection: Connection,
 ) -> Vec<RecordBatch> {
     let namespace = namespace.into();
     let sql = sql.into();
+
+    println!(
+        "(TODO) Waiting for Write Token to be visible {}",
+        write_token.into()
+    );
 
     let mut client = influxdb_iox_client::flight::Client::new(connection);
 

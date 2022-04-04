@@ -2,7 +2,7 @@ use super::DmlHandler;
 use async_trait::async_trait;
 use data_types2::{DatabaseName, DeletePredicate};
 use futures::{stream::FuturesUnordered, TryStreamExt};
-use std::{fmt::Debug, future, marker::PhantomData};
+use std::{fmt::Debug, marker::PhantomData};
 use trace::ctx::SpanContext;
 
 /// A [`FanOutAdaptor`] takes an iterator of DML write operation inputs and
@@ -38,7 +38,7 @@ where
     U: Iterator<Item = T::WriteInput> + Send + Sync,
 {
     type WriteInput = I;
-    type WriteOutput = ();
+    type WriteOutput = Vec<T::WriteOutput>;
     type WriteError = T::WriteError;
     type DeleteError = T::DeleteError;
 
@@ -51,7 +51,7 @@ where
         input: Self::WriteInput,
         span_ctx: Option<SpanContext>,
     ) -> Result<Self::WriteOutput, Self::WriteError> {
-        input
+        let results = input
             .into_iter()
             .map(|v| {
                 let namespace = namespace.clone();
@@ -59,10 +59,9 @@ where
                 async move { self.inner.write(&namespace, v, span_ctx).await }
             })
             .collect::<FuturesUnordered<_>>()
-            .try_for_each(|_| future::ready(Ok(())))
+            .try_collect::<Vec<_>>()
             .await?;
-
-        Ok(())
+        Ok(results)
     }
 
     /// Pass the delete through to the inner handler.

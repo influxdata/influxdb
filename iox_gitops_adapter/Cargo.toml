@@ -36,7 +36,7 @@ trogging = { path = "../trogging", default-features = false, features = ["clap"]
 
 [build-dependencies]
 glob = "0.3.0"
-pbjson-build = "0.2"
+pbjson-build = "0.3"
 tonic-build = "0.6"
 
 [dev-dependencies]

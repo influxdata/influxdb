@@ -172,9 +172,15 @@ async fn run_compactor(compactor: Arc<Compactor>, shutdown: CancellationToken) {
             let compactor = Arc::clone(&compactor);
             let partition_id = c.partition_id;
             let handle = tokio::task::spawn(async move {
-                compactor
+                if let Err(e) = compactor
                     .compact_partition(partition_id, max_file_size)
                     .await
+                {
+                    warn!(
+                        "compaction on partition {} failed with: {:?}",
+                        partition_id, e
+                    );
+                }
             });
             used_size += c.file_size_bytes;
             handles.push(handle);
@@ -185,9 +191,7 @@ async fn run_compactor(compactor: Arc<Compactor>, shutdown: CancellationToken) {
 
         let compactions_run = handles.len();
 
-        if let Err(e) = futures::future::try_join_all(handles).await {
-            warn!("error compacting: {}", e);
-        }
+        let _ = futures::future::join_all(handles).await;
 
         // if all candidate partitions have been compacted, wait a bit before checking again
         if compactions_run == candidates.len() {

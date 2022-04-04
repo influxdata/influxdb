@@ -1,9 +1,8 @@
 use std::sync::Arc;
 
 use clap_blocks::{run_config::RunConfig, socket_addr::SocketAddr};
-use ioxd_common::server_type::ServerType;
 
-pub mod server_type;
+use crate::server_type::ServerType;
 
 /// A service that will start on the specified addresses
 pub struct Service {

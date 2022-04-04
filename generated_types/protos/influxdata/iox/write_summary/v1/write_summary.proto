@@ -1,0 +1,18 @@
+syntax = "proto3";
+package influxdata.iox.write_summary.v1;
+
+// Represents a single logical write that was partitioned and shared
+// into multiple pieces in multiple sequencers
+message WriteSummary {
+  // per sequencer information
+  repeated SequencerWrite sequencers = 1;
+}
+
+// Per sequencer information aout what sequence numbers contain part of a write
+message SequencerWrite {
+  // Unique sequencer ID.
+  uint32 sequencer_id = 1;
+
+  // Which sequence numbers for this sequencer had data
+  repeated uint64 sequence_numbers = 13;
+}
