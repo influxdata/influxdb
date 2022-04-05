@@ -166,7 +166,8 @@ where
     ///
     /// This method blocks until gracefully shutdown by cancelling the
     /// `shutdown` [`CancellationToken`]. Once cancelled, this handler will
-    /// complete the current operation it is
+    /// complete the current operation it is processing before this method
+    /// returns.
     ///
     /// # Panics
     ///
