@@ -819,15 +819,3 @@ impl IngesterQueryRequest {
         }
     }
 }
-
-/// The information on what sequence numbers were stored for a
-/// particular (line protocol) write that may have been sharded /
-/// partitioned across multiple sequencers
-///
-/// This information can be used to wait for a particular write to
-/// become readable.
-#[derive(Debug, Clone)]
-pub struct SequencerWrites {
-    /// List of sequences
-    pub sequencers: Vec<Sequence>,
-}
