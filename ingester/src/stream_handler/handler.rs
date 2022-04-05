@@ -394,11 +394,13 @@ mod tests {
     static TEST_KAFKA_TOPIC: &str = "kafka_topic_name";
 
     // Return a DmlWrite with the given namespace and a single table.
-    fn make_write(name: impl Into<String>, ttbr: u64) -> DmlWrite {
+    fn make_write(name: impl Into<String>, write_time: u64) -> DmlWrite {
         let tables = lines_to_batches("bananas level=42 4242", 0).unwrap();
         let sequence = DmlMeta::sequenced(
             Sequence::new(1, 2),
-            TEST_TIME.checked_sub(Duration::from_millis(ttbr)).unwrap(),
+            TEST_TIME
+                .checked_sub(Duration::from_millis(write_time))
+                .unwrap(),
             None,
             42,
         );
@@ -406,14 +408,16 @@ mod tests {
     }
 
     // Return a DmlDelete with the given namespace.
-    fn make_delete(name: impl Into<String>, ttbr: u64) -> DmlDelete {
+    fn make_delete(name: impl Into<String>, write_time: u64) -> DmlDelete {
         let pred = DeletePredicate {
             range: TimestampRange::new(1, 2),
             exprs: vec![],
         };
         let sequence = DmlMeta::sequenced(
             Sequence::new(1, 2),
-            TEST_TIME.checked_sub(Duration::from_millis(ttbr)).unwrap(),
+            TEST_TIME
+                .checked_sub(Duration::from_millis(write_time))
+                .unwrap(),
             None,
             42,
         );
