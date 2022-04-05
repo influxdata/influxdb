@@ -17,10 +17,12 @@
 //! [`LifecycleHandle::can_resume_ingest()`]: crate::lifecycle::LifecycleHandle::can_resume_ingest()
 
 mod handler;
+mod periodic_watermark_fetcher;
 mod sink;
 
 #[cfg(test)]
 pub mod mock_sink;
 
 pub use handler::*;
+pub use periodic_watermark_fetcher::*;
 pub use sink::*;
