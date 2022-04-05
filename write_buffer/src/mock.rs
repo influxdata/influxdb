@@ -347,6 +347,7 @@ impl WriteBufferWriting for MockBufferForWritingThatAlwaysErrors {
     }
 }
 
+#[derive(Debug)]
 pub struct MockBufferForReading {
     shared_state: MockBufferSharedState,
     n_sequencers: u32,
@@ -374,12 +375,6 @@ impl MockBufferForReading {
             shared_state: state,
             n_sequencers,
         })
-    }
-}
-
-impl std::fmt::Debug for MockBufferForReading {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("MockBufferForReading").finish()
     }
 }
 
