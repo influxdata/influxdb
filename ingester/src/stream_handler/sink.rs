@@ -1,4 +1,4 @@
-use std::{fmt::Debug, sync::Arc};
+use std::{fmt::Debug, ops::Deref, sync::Arc};
 
 use async_trait::async_trait;
 use dml::DmlOperation;
@@ -17,6 +17,6 @@ where
     T: DmlSink,
 {
     async fn apply(&self, op: DmlOperation) -> Result<bool, crate::data::Error> {
-        (**self).apply(op).await
+        self.deref().apply(op).await
     }
 }
