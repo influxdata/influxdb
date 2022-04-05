@@ -18,7 +18,7 @@ use iox_catalog::interface::{Catalog, Transaction};
 use iox_object_store::ParquetFilePath;
 use metric::{Attributes, Metric, U64Counter, U64Gauge, U64Histogram, U64HistogramOptions};
 use object_store::DynObjectStore;
-use observability_deps::tracing::{info, warn};
+use observability_deps::tracing::{debug, info, warn};
 use parquet_file::metadata::{IoxMetadata, IoxParquetMetaData};
 use query::{
     compute_sort_key_for_chunks, exec::ExecutorType, frontend::reorg::ReorgPlanner,
@@ -422,6 +422,7 @@ impl Compactor {
                     tombstones,
                 } = split_file;
 
+                info!("persisting file {}", meta.object_store_id);
                 let file_size_and_md = Backoff::new(&self.backoff_config)
                     .retry_all_errors("persist to object store", || {
                         Self::persist(&meta, data.clone(), Arc::clone(&self.object_store))
@@ -439,6 +440,10 @@ impl Compactor {
                 .await
                 .context(TransactionSnafu)?;
 
+            debug!(
+                "updating catalog with {} updates",
+                catalog_update_info.len()
+            );
             self.update_catalog(
                 catalog_update_info,
                 original_parquet_file_ids,
@@ -530,6 +535,8 @@ impl Compactor {
         &self,
         overlapped_files: Vec<ParquetFileWithTombstone>,
     ) -> Result<Vec<CompactedData>> {
+        debug!("compact {} overlapped files", overlapped_files.len());
+
         let mut compacted = vec![];
         // Nothing to compact
         if overlapped_files.is_empty() {
@@ -605,6 +612,7 @@ impl Compactor {
 
         // Compute the sorted output of the compacting result
         let sort_key = compute_sort_key_for_chunks(&merged_schema, &query_chunks);
+        debug!("sort key: {:?}", sort_key);
 
         // Identify split time
         let split_time = self.compute_split_time(min_time, max_time);
@@ -627,6 +635,7 @@ impl Compactor {
 
         // Run to collect each stream of the plan
         let stream_count = physical_plan.output_partitioning().partition_count();
+        debug!("running plan with {} streams", stream_count);
         for i in 0..stream_count {
             let stream = ctx
                 .execute_stream_partitioned(Arc::clone(&physical_plan), i)
@@ -647,6 +656,7 @@ impl Compactor {
             let row_count: usize = output_batches.iter().map(|b| b.num_rows()).sum();
             let row_count = row_count.try_into().context(RowCountTypeConversionSnafu)?;
 
+            debug!("got {} rows from stream {}", row_count, i);
             if row_count == 0 {
                 continue;
             }
