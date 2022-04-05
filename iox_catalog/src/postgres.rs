@@ -1576,7 +1576,7 @@ FROM parquet_file
 WHERE parquet_file.sequencer_id = $1
   AND parquet_file.compaction_level = 0
   AND parquet_file.to_delete IS NULL
-  LIMIT 10000;
+  LIMIT 1000;
         "#,
         )
         .bind(&sequencer_id) // $1
