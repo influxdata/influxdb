@@ -18,6 +18,8 @@ import (
 	icheck "github.com/influxdata/influxdb/v2/notification/check"
 	"github.com/influxdata/influxdb/v2/notification/endpoint"
 	"github.com/influxdata/influxdb/v2/notification/rule"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 type identity struct {
@@ -458,7 +460,7 @@ func (c chartKind) ok() bool {
 
 func (c chartKind) title() string {
 	spacedKind := strings.ReplaceAll(string(c), "_", " ")
-	return strings.ReplaceAll(strings.Title(spacedKind), " ", "_")
+	return strings.ReplaceAll(cases.Title(language.Und).String(spacedKind), " ", "_")
 }
 
 const (
