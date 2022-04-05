@@ -12,6 +12,8 @@ import (
 
 	"github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
 	"github.com/spf13/cobra"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 type args struct {
@@ -152,7 +154,7 @@ func dumpTSM(cmd *cobra.Command, args args) error {
 		if len(counts) == 0 {
 			continue
 		}
-		cmd.Printf("    %s: ", strings.Title(fieldType[i]))
+		cmd.Printf("    %s: ", cases.Title(language.Und).String(fieldType[i]))
 		for j, v := range counts {
 			cmd.Printf("\t%s: %d (%d%%) ", encDescs[i][j], v, int(float64(v)/float64(blockCount)*100))
 		}
