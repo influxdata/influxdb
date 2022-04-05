@@ -79,14 +79,25 @@ workflows:
                 arch: arm64
               - os: windows
                 arch: arm64
+      # - package-and-release:
+      #     name: package-snapshot
+      #     build-type: snapshot
+      #     filters:
+      #       branches:
+      #         ignore: /pull\/[0-9]+/
+      #     requires:
+      #       - build
+      - changelog
       - package-and-release:
           name: package-snapshot
-          build-type: snapshot
+          build-type: release
           filters:
             branches:
-              ignore: /pull\/[0-9]+/
+              only:
+                - BNP_release_2.2test
           requires:
             - build
+            - changelog
       - test-downgrade:
           requires:
             - build-snapshot-linux-amd64
@@ -357,8 +368,32 @@ jobs:
       - attach_workspace:
           at: .
       - run:
+          name: Install Qemu for Docker Crossbuilds
+          command: |
+            # Get jq to parse binfmt output.
+            sudo apt-get update && sudo apt-get install -y jq
+
+            # Uninstall any emulators provided by the system.
+            emulators=($(docker run --rm --privileged tonistiigi/binfmt:latest | jq -r .emulators[]))
+            for e in ${emulators[@]}; do
+              docker run --rm --privileged tonistiigi/binfmt:latest --uninstall ${e}
+            done
+
+            # Install the QEMU emulators we need to cross-build.
+            docker run --rm --privileged tonistiigi/binfmt:latest --install all
+
+            # Create a new buildx context using the freshly-installed emulators.
+            docker buildx create --name cross-builder
+            docker buildx use --default cross-builder
+            docker buildx inspect --bootstrap
+
+            # Build the 1st stage of our Docker(s) on our target platforms, to flush out
+            # any problems in our emulator setup.
+            docker buildx build --target dependency-base --platform linux/amd64,linux/arm64 docker/influxd
+      - run:
           name: Compute artifact version
-          command: echo "export GORELEASER_CURRENT_TAG='$(build-version.sh << parameters.build-type >>)'" >> $BASH_ENV
+          #command: echo "export GORELEASER_CURRENT_TAG='$(build-version.sh << parameters.build-type >>)'" >> $BASH_ENV
+          command: echo 'export GORELEASER_CURRENT_TAG=v2.2.0' >> $BASH_ENV
       - unless:
           condition:
             equal: [ release, << parameters.build-type >> ]
@@ -388,7 +423,13 @@ jobs:
             mv goreleaser /go/bin/
       - run:
           name: Run goreleaser
-          command: goreleaser --debug release --config .goreleaser/<< parameters.build-type >>.yml
+          command: |
+            VERSION=v2.2.0                                         \
+            goreleaser release                                     \
+              --debug                                              \
+              --skip-publish                                       \
+              --skip-validate                                      \
+              --config .goreleaser/<< parameters.build-type >>.yml
       # goreleaser generates some temp files in the dist/
       # directory alongside the artifacts we want to save.
       - run:
@@ -657,6 +698,12 @@ jobs:
 
             if [[ ! "$BRANCH" == "master" ]] ;  then
               echo -e "In addition to the list of changes below, please also see the [official release notes](https://docs.influxdata.com/influxdb/$DOCS_LINKS_VERSION/reference/release-notes/influxdb/) for other important information about this release.\n" >> changelog_artifacts/CHANGELOG.md
+            fi
+
+            if [[ "${BRANCH}" == "BNP_release_2.2test" ]]
+            then
+               LATEST_21X="$(git tag | grep '^v2\.1\.[0-9]*$' | sort -V | tail -1)"
+               build-multibranch-changelog.sh v2.2.0 "$LATEST_21X" v2.1.1 >> changelog_artifacts/CHANGELOG_v2.2.0.md
             fi
 
             if [[ "$BRANCH" == "master" ]] ;  then

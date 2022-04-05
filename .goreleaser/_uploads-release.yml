@@ -1,0 +1,45 @@
+blobs:
+  - provider: "s3"
+    bucket: "dl.influxdata.com"
+    region: "us-east-1"
+    folder: "influxdb/releases/bnp_test"
+    extra_files:
+      - glob: ./changelog_artifacts/CHANGELOG_v2.2.0.md
+  # Duplicating the contents to another folder in the bucket ensures
+  # scheme parity with release branches; eventually the artifacts should
+  # __only__ appear in the branch-specific folder
+  - provider: "s3"
+    bucket: "dl.influxdata.com"
+    region: "us-east-1"
+    folder: "influxdb/releases/bnp_test"
+    extra_files:
+      - glob: ./changelog_artifacts/CHANGELOG_v2.2.0.md
+
+dockers:
+  - goos: linux
+    goarch: amd64
+    image_templates:
+      - "quay.io/influxdb/influxdb-amd64:{{ .Env.VERSION }}"
+    dockerfile: docker/influxd/Dockerfile
+    extra_files:
+      - docker/influxd/entrypoint.sh
+    build_flag_templates:
+      - "--platform=linux/amd64"
+    use_buildx: true
+
+  - goos: linux
+    goarch: arm64
+    image_templates:
+      - "quay.io/influxdb/influxdb-arm64v8:{{ .Env.VERSION }}"
+    dockerfile: docker/influxd/Dockerfile
+    extra_files:
+      - docker/influxd/entrypoint.sh
+    build_flag_templates:
+      - "--platform=linux/arm64/v8"
+    use_buildx: true
+
+docker_manifests:
+  - name_template: "quay.io/influxdb/influxdb:{{ .Env.VERSION }}"
+    image_templates:
+      - "quay.io/influxdb/influxdb-amd64:{{ .Env.VERSION }}"
+      - "quay.io/influxdb/influxdb-arm64v8:{{ .Env.VERSION }}"

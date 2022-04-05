@@ -9,11 +9,11 @@ function main () {
         exit 1
     fi
     local -r out_dir=$1 build_type=$2 pkg=$3
-    local -r version="$(build-version.sh "$build_type")"
+    local -r version='v2.2.0'
 
     mkdir -p "$out_dir"
 
-    local -r commit=$(git rev-parse --short HEAD)
+    local -r commit='a2f8538837'
     local -r build_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
 
     # NOTE: This code is purposefully repetitive, to enable easier copy-paste of individual build commands.
