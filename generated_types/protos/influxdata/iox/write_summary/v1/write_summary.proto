@@ -11,8 +11,8 @@ message WriteSummary {
 // Per sequencer information aout what sequence numbers contain part of a write
 message SequencerWrite {
   // Unique sequencer ID.
-  uint32 sequencer_id = 1;
+  int32 sequencer_id = 1;
 
   // Which sequence numbers for this sequencer had data
-  repeated uint64 sequence_numbers = 13;
+  repeated int64 sequence_numbers = 2;
 }
