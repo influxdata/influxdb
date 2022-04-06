@@ -1694,6 +1694,17 @@ RETURNING id;
         Ok(read_result.count > 0)
     }
 
+    async fn parquet_metadata(&mut self, id: ParquetFileId) -> Result<Vec<u8>> {
+        let read_result =
+            sqlx::query(r#"SELECT parquet_metadata FROM parquet_file WHERE id = $1;"#)
+                .bind(&id) // $1
+                .fetch_one(&mut self.inner)
+                .await
+                .map_err(|e| Error::SqlxError { source: e })?;
+
+        Ok(read_result.get("parquet_metadata"))
+    }
+
     async fn count(&mut self) -> Result<i64> {
         let read_result =
             sqlx::query_as::<_, Count>(r#"SELECT count(*) as count FROM parquet_file;"#)

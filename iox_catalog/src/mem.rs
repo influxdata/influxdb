@@ -18,9 +18,12 @@ use data_types2::{
     TableId, TablePartition, Timestamp, Tombstone, TombstoneId,
 };
 use observability_deps::tracing::warn;
-use std::fmt::Formatter;
-use std::sync::Arc;
-use std::{collections::HashSet, convert::TryFrom};
+use std::{
+    collections::{BTreeMap, HashSet},
+    convert::TryFrom,
+    fmt::Formatter,
+    sync::Arc,
+};
 use time::{SystemProvider, TimeProvider};
 use tokio::sync::{Mutex, OwnedMutexGuard};
 
@@ -60,6 +63,7 @@ struct MemCollections {
     partitions: Vec<Partition>,
     tombstones: Vec<Tombstone>,
     parquet_files: Vec<ParquetFile>,
+    parquet_file_metadata: BTreeMap<ParquetFileId, Vec<u8>>,
     processed_tombstones: Vec<ProcessedTombstone>,
 }
 
@@ -964,6 +968,11 @@ impl ParquetFileRepo for MemTxn {
             compaction_level,
             created_at,
         };
+
+        stage
+            .parquet_file_metadata
+            .insert(parquet_file.id, parquet_metadata);
+
         stage.parquet_files.push(parquet_file);
         Ok(*stage.parquet_files.last().unwrap())
     }
@@ -1036,6 +1045,10 @@ impl ParquetFileRepo for MemTxn {
         );
 
         stage.parquet_files = keep;
+
+        for delete in &delete {
+            stage.parquet_file_metadata.remove(&delete.id);
+        }
 
         Ok(delete)
     }
@@ -1115,6 +1128,16 @@ impl ParquetFileRepo for MemTxn {
         let stage = self.stage();
 
         Ok(stage.parquet_files.iter().any(|f| f.id == id))
+    }
+
+    async fn parquet_metadata(&mut self, id: ParquetFileId) -> Result<Vec<u8>> {
+        let stage = self.stage();
+
+        stage
+            .parquet_file_metadata
+            .get(&id)
+            .cloned()
+            .ok_or(Error::ParquetRecordNotFound { id })
     }
 
     async fn count(&mut self) -> Result<i64> {

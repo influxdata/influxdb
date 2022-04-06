@@ -559,6 +559,9 @@ pub trait ParquetFileRepo: Send + Sync {
     /// Verify if the parquet file exists by selecting its id
     async fn exist(&mut self, id: ParquetFileId) -> Result<bool>;
 
+    /// Fetch the parquet_metadata bytes for the given id. Potentially expensive.
+    async fn parquet_metadata(&mut self, id: ParquetFileId) -> Result<Vec<u8>>;
+
     /// Return count
     async fn count(&mut self) -> Result<i64>;
 
@@ -1737,6 +1740,13 @@ pub(crate) mod test_helpers {
             .create(parquet_file_params.clone())
             .await
             .unwrap();
+
+        let metadata = repos
+            .parquet_files()
+            .parquet_metadata(parquet_file.id)
+            .await
+            .unwrap();
+        assert_eq!(metadata, b"md1".to_vec());
 
         // verify that trying to create a file with the same UUID throws an error
         let err = repos
