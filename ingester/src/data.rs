@@ -212,7 +212,7 @@ impl Persister for IngesterData {
 
         if let Some(persisting_batch) = persisting_batch {
             // do the CPU intensive work of compaction, de-duplication and sorting
-            let (record_batches, iox_meta) = match compact_persisting_batch(
+            let (record_batches, iox_meta, sort_key_update) = match compact_persisting_batch(
                 Arc::new(SystemProvider::new()),
                 &self.exec,
                 namespace.namespace_id.get(),
@@ -254,16 +254,14 @@ impl Persister for IngesterData {
             }
 
             // Update the sort key in the catalog if there are additional columns
-            let sort_key_string = iox_meta.sort_key.map(|sk| sk.to_columns());
-            if sort_key_string != partition_info.partition.sort_key {
-                let sort_key = sort_key_string
-                    .expect("sort_key should be Some after compact_persisting_batch");
+            if let Some(new_sort_key) = sort_key_update {
+                let sort_key_string = new_sort_key.to_columns();
                 Backoff::new(&self.backoff_config)
                     .retry_all_errors("update_sort_key", || async {
                         let mut repos = self.catalog.repositories().await;
                         repos
                             .partitions()
-                            .update_sort_key(partition_id, &sort_key)
+                            .update_sort_key(partition_id, &sort_key_string)
                             .await
                     })
                     .await

@@ -2,7 +2,7 @@
 
 use crate::{
     data::{PersistingBatch, QueryableBatch},
-    sort_key::{compute_sort_key, concat_new_columns},
+    sort_key::{adjust_sort_key_columns, compute_sort_key},
 };
 use arrow::record_batch::RecordBatch;
 use data_types2::{NamespaceId, PartitionInfo};
@@ -63,7 +63,7 @@ pub async fn compact_persisting_batch(
     namespace_id: i32,
     partition_info: &PartitionInfo,
     batch: Arc<PersistingBatch>,
-) -> Result<Option<(Vec<RecordBatch>, IoxMetadata)>> {
+) -> Result<Option<(Vec<RecordBatch>, IoxMetadata, Option<SortKey>)>> {
     // Nothing to compact
     if batch.data.data.is_empty() {
         return Ok(None);
@@ -74,17 +74,26 @@ pub async fn compact_persisting_batch(
     let partition_key = &partition_info.partition.partition_key;
     let sort_key = partition_info.partition.sort_key();
 
-    // Get sort key from the catalog or compute it from cardinality
-    let sort_key = match sort_key {
+    // Get sort key from the catalog or compute it from cardinality. Save a new value for the
+    // catalog to store if necessary.
+    let (metadata_sort_key, sort_key_update) = match sort_key {
         Some(sk) => {
-            // Add any new columns in the data to the end of the catalog sort key
-            concat_new_columns(&sk, &batch.data.schema().primary_key())
+            // Remove any columns not present in this data from the sort key that will be in this
+            // parquet file's metadata.
+            // If there are any new columns, add them to the end of the sort key in the catalog and
+            // return that to be updated in the catalog.
+            adjust_sort_key_columns(&sk, &batch.data.schema().primary_key())
         }
-        None => compute_sort_key(&batch.data),
+        None => {
+            let sort_key = compute_sort_key(&batch.data);
+            // Use the sort key computed from the cardinality as the sort key for this parquet
+            // file's metadata, also return the sort key to be stored in the catalog
+            (sort_key.clone(), Some(sort_key))
+        }
     };
 
     // Compact
-    let stream = compact(executor, Arc::clone(&batch.data), sort_key.clone()).await?;
+    let stream = compact(executor, Arc::clone(&batch.data), metadata_sort_key.clone()).await?;
     // Collect compacted data into record batches for computing statistics
     let output_batches = datafusion::physical_plan::common::collect(stream)
         .await
@@ -122,10 +131,10 @@ pub async fn compact_persisting_batch(
         max_sequence_number: max_seq,
         row_count,
         compaction_level: INITIAL_COMPACTION_LEVEL,
-        sort_key: Some(sort_key),
+        sort_key: Some(metadata_sort_key),
     };
 
-    Ok(Some((output_batches, meta)))
+    Ok(Some((output_batches, meta, sort_key_update)))
 }
 
 /// Compact a given Queryable Batch
@@ -229,7 +238,7 @@ mod tests {
             },
         };
 
-        let (output_batches, _) =
+        let (output_batches, _, _) =
             compact_persisting_batch(time_provider, &exc, 1, &partition_info, persisting_batch)
                 .await
                 .unwrap()
@@ -295,7 +304,7 @@ mod tests {
             },
         };
 
-        let (output_batches, meta) =
+        let (output_batches, meta, sort_key_update) =
             compact_persisting_batch(time_provider, &exc, 1, &partition_info, persisting_batch)
                 .await
                 .unwrap()
@@ -333,6 +342,11 @@ mod tests {
             Some(SortKey::from_columns(["tag1", "time"])),
         );
         assert_eq!(expected_meta, meta);
+
+        assert_eq!(
+            sort_key_update.unwrap(),
+            SortKey::from_columns(["tag1", "time"])
+        );
     }
 
     #[tokio::test]
@@ -384,7 +398,7 @@ mod tests {
             },
         };
 
-        let (output_batches, meta) =
+        let (output_batches, meta, sort_key_update) =
             compact_persisting_batch(time_provider, &exc, 1, &partition_info, persisting_batch)
                 .await
                 .unwrap()
@@ -424,6 +438,11 @@ mod tests {
             Some(SortKey::from_columns(["tag1", "tag3", "time"])),
         );
         assert_eq!(expected_meta, meta);
+
+        assert_eq!(
+            sort_key_update.unwrap(),
+            SortKey::from_columns(["tag1", "tag3", "time"])
+        );
     }
 
     #[tokio::test]
@@ -476,7 +495,7 @@ mod tests {
             },
         };
 
-        let (output_batches, meta) =
+        let (output_batches, meta, sort_key_update) =
             compact_persisting_batch(time_provider, &exc, 1, &partition_info, persisting_batch)
                 .await
                 .unwrap()
@@ -518,6 +537,9 @@ mod tests {
             Some(SortKey::from_columns(["tag3", "tag1", "time"])),
         );
         assert_eq!(expected_meta, meta);
+
+        // The sort key does not need to be updated in the catalog
+        assert!(sort_key_update.is_none());
     }
 
     #[tokio::test]
@@ -571,7 +593,7 @@ mod tests {
             },
         };
 
-        let (output_batches, meta) =
+        let (output_batches, meta, sort_key_update) =
             compact_persisting_batch(time_provider, &exc, 1, &partition_info, persisting_batch)
                 .await
                 .unwrap()
@@ -613,6 +635,12 @@ mod tests {
             Some(SortKey::from_columns(["tag3", "tag1", "time"])),
         );
         assert_eq!(expected_meta, meta);
+
+        // The sort key in the catalog needs to be updated to include the new column
+        assert_eq!(
+            sort_key_update.unwrap(),
+            SortKey::from_columns(["tag3", "tag1", "time"])
+        );
     }
 
     #[tokio::test]
@@ -666,7 +694,7 @@ mod tests {
             },
         };
 
-        let (output_batches, meta) =
+        let (output_batches, meta, sort_key_update) =
             compact_persisting_batch(time_provider, &exc, 1, &partition_info, persisting_batch)
                 .await
                 .unwrap()
@@ -703,10 +731,13 @@ mod tests {
             seq_num_end,
             4,
             INITIAL_COMPACTION_LEVEL,
-            // The sort key in the metadata should be unchanged from what was specified
-            Some(SortKey::from_columns(["tag3", "tag1", "tag4", "time"])),
+            // The sort key in the metadata should only contain the columns in this file
+            Some(SortKey::from_columns(["tag3", "tag1", "time"])),
         );
         assert_eq!(expected_meta, meta);
+
+        // The sort key in the catalog should NOT get a new value
+        assert!(sort_key_update.is_none());
     }
 
     #[tokio::test]
