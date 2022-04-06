@@ -292,23 +292,23 @@ mod tests {
     }
 
     /// Extract the metric with the given name from `metrics`.
-    fn get_metric<'a, T: MetricObserver>(
-        metrics: &'a metric::Registry,
+    fn get_metric<T: MetricObserver>(
+        metrics: &metric::Registry,
         name: &'static str,
         attrs: &Attributes,
     ) -> Observation {
         metrics
             .get_instrument::<Metric<T>>(name)
-            .expect(format!("did not find metric {}", name).as_str())
+            .unwrap_or_else(|| panic!("did not find metric {}", name))
             .get_observer(attrs)
-            .expect(format!("failed to match {} attributes", name).as_str())
+            .unwrap_or_else(|| panic!("failed to match {} attributes", name))
             .observe()
     }
 
     /// Initialise a [`SinkInstrumentation`] and drive it with the given
     /// parameters.
     async fn test(
-        op: impl Into<DmlOperation>,
+        op: impl Into<DmlOperation> + Send,
         metrics: &metric::Registry,
         with_sink_return: Result<bool, crate::data::Error>,
         with_fetcher_return: Option<u64>,
