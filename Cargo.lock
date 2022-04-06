@@ -2343,6 +2343,7 @@ dependencies = [
  "uuid",
  "workspace-hack",
  "write_buffer",
+ "write_summary",
 ]
 
 [[package]]
@@ -6999,7 +7000,9 @@ dependencies = [
  "data_types2",
  "dml",
  "generated_types",
+ "observability_deps",
  "serde_json",
+ "snafu",
  "time 0.1.0",
  "workspace-hack",
 ]

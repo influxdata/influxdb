@@ -35,6 +35,7 @@ use tokio::task::{JoinError, JoinHandle};
 use tokio_util::sync::CancellationToken;
 use trace::span::SpanRecorder;
 use write_buffer::core::{WriteBufferReading, WriteBufferStreamHandler};
+use write_summary::SequencerProgress;
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
@@ -53,6 +54,9 @@ pub enum Error {
     WriteBuffer {
         source: write_buffer::core::WriteBufferError,
     },
+
+    #[snafu(display("Data Error: {}", source))]
+    Data { source: crate::data::Error },
 }
 
 /// When the lifecycle manager indicates that ingest should be paused because of
@@ -63,7 +67,7 @@ const INGEST_PAUSE_DELAY: Duration = Duration::from_millis(100);
 /// A specialized `Error` for Catalog errors
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// The [`IngestHandler`] handles all ingest from kafka, persistence and queries
+/// An [`IngestHandler`] handles all ingest requests from kafka, persistence and queries
 #[async_trait]
 pub trait IngestHandler: Send + Sync {
     /// Return results from the in-memory data that match this query
@@ -71,6 +75,12 @@ pub trait IngestHandler: Send + Sync {
         &self,
         request: IngesterQueryRequest,
     ) -> Result<IngesterQueryResponse, crate::querier_handler::Error>;
+
+    /// Return sequencer progress for the requested kafka partitions
+    async fn progresses(
+        &self,
+        sequencers: Vec<KafkaPartition>,
+    ) -> Result<BTreeMap<KafkaPartition, SequencerProgress>>;
 
     /// Wait until the handler finished  to shutdown.
     ///
@@ -127,7 +137,10 @@ impl IngestHandlerImpl {
         // build the initial ingester data state
         let mut sequencers = BTreeMap::new();
         for s in sequencer_states.values() {
-            sequencers.insert(s.id, SequencerData::new(Arc::clone(&metric_registry)));
+            sequencers.insert(
+                s.id,
+                SequencerData::new(s.kafka_partition, Arc::clone(&metric_registry)),
+            );
         }
         let data = Arc::new(IngesterData {
             object_store,
@@ -241,6 +254,14 @@ impl IngestHandler for IngestHandlerImpl {
     fn shutdown(&self) {
         self.shutdown.cancel();
         self.data.exec.shutdown();
+    }
+
+    /// Return the ingestion progress from each sequencer
+    async fn progresses(
+        &self,
+        partitions: Vec<KafkaPartition>,
+    ) -> Result<BTreeMap<KafkaPartition, SequencerProgress>> {
+        self.data.progresses(partitions).await.context(DataSnafu)
     }
 }
 

@@ -31,6 +31,7 @@ use std::{
 };
 use time::SystemProvider;
 use uuid::Uuid;
+use write_summary::SequencerProgress;
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
@@ -49,6 +50,12 @@ pub enum Error {
 
     #[snafu(display("Sequencer {} not found in data map", sequencer_id))]
     SequencerNotFound { sequencer_id: SequencerId },
+
+    #[snafu(display(
+        "Sequencer not found for kafka partition {} in data map",
+        kafka_partition
+    ))]
+    SequencerForPartitionNotFound { kafka_partition: KafkaPartition },
 
     #[snafu(display("Namespace {} not found in catalog", namespace))]
     NamespaceNotFound { namespace: String },
@@ -153,6 +160,25 @@ impl IngesterData {
         let tables = namespace_data.tables.read();
         let table_data = tables.get(table_name)?;
         Some(Arc::clone(table_data))
+    }
+
+    /// Return the ingestion progress for the specified kafka partitions
+    pub(crate) async fn progresses(
+        &self,
+        partitions: Vec<KafkaPartition>,
+    ) -> Result<BTreeMap<KafkaPartition, SequencerProgress>> {
+        let mut progresses = BTreeMap::new();
+        for kafka_partition in partitions {
+            let sequencer_data = self
+                .sequencers
+                .iter()
+                .map(|(_, sequencer_data)| sequencer_data)
+                .find(|sequencer_data| sequencer_data.kafka_partition == kafka_partition)
+                .context(SequencerForPartitionNotFoundSnafu { kafka_partition })?;
+
+            progresses.insert(kafka_partition, sequencer_data.progress().await);
+        }
+        Ok(progresses)
     }
 }
 
@@ -288,6 +314,9 @@ impl Persister for IngesterData {
 /// Data of a Shard
 #[derive(Debug)]
 pub struct SequencerData {
+    /// The kafka partition for this sequencer
+    kafka_partition: KafkaPartition,
+
     // New namespaces can come in at any time so we need to be able to add new ones
     namespaces: RwLock<BTreeMap<String, Arc<NamespaceData>>>,
 
@@ -297,7 +326,7 @@ pub struct SequencerData {
 
 impl SequencerData {
     /// Initialise a new [`SequencerData`] that emits metrics to `metrics`.
-    pub fn new(metrics: Arc<metric::Registry>) -> Self {
+    pub fn new(kafka_partition: KafkaPartition, metrics: Arc<metric::Registry>) -> Self {
         let namespace_count = metrics
             .register_metric::<U64Counter>(
                 "ingester_namespaces_total",
@@ -306,6 +335,7 @@ impl SequencerData {
             .recorder(&[]);
 
         Self {
+            kafka_partition,
             namespaces: Default::default(),
             metrics,
             namespace_count,
@@ -314,8 +344,12 @@ impl SequencerData {
 
     /// Initialize new SequncerData with namespace for testing purpose only
     #[cfg(test)]
-    pub fn new_for_test(namespaces: BTreeMap<String, Arc<NamespaceData>>) -> Self {
+    pub fn new_for_test(
+        kafka_partition: KafkaPartition,
+        namespaces: BTreeMap<String, Arc<NamespaceData>>,
+    ) -> Self {
         Self {
+            kafka_partition,
             namespaces: RwLock::new(namespaces),
             metrics: Default::default(),
             namespace_count: Default::default(),
@@ -386,6 +420,18 @@ impl SequencerData {
         };
 
         Ok(data)
+    }
+
+    /// Return the progress of this sequencer
+    async fn progress(&self) -> SequencerProgress {
+        let namespaces: Vec<_> = self.namespaces.read().values().map(Arc::clone).collect();
+
+        let mut progress = SequencerProgress::new();
+
+        for namespace_data in namespaces {
+            progress = progress.combine(namespace_data.progress().await);
+        }
+        progress
     }
 }
 
@@ -604,6 +650,18 @@ impl NamespaceData {
             }
         }
     }
+
+    /// Return progress from this Namespace
+    async fn progress(&self) -> SequencerProgress {
+        let tables: Vec<_> = self.tables.read().values().map(Arc::clone).collect();
+
+        let mut progress = SequencerProgress::new();
+        for table_data in tables {
+            progress = progress.combine(table_data.read().await.progress())
+        }
+
+        progress
+    }
 }
 
 /// Data of a Table in a given Namesapce that belongs to a given Shard
@@ -792,6 +850,21 @@ impl TableData {
 
         Ok(())
     }
+
+    /// Return progress from this Table
+    fn progress(&self) -> SequencerProgress {
+        let progress = SequencerProgress::new();
+        let progress = match self.parquet_max_sequence_number() {
+            Some(n) => progress.with_persisted(n),
+            None => progress,
+        };
+
+        self.partition_data
+            .values()
+            .fold(progress, |progress, partition_data| {
+                progress.combine(partition_data.progress())
+            })
+    }
 }
 
 /// Data of an IOx Partition of a given Table of a Namesapce that belongs to a given Shard
@@ -861,7 +934,7 @@ impl PartitionData {
             }
             None => {
                 self.data.buffer = Some(BufferBatch {
-                    min_sequencer_number: sequencer_number,
+                    min_sequence_number: sequencer_number,
                     max_sequence_number: sequencer_number,
                     data: mb,
                 })
@@ -945,6 +1018,11 @@ impl PartitionData {
         if let Some(snapshot) = snapshot {
             self.data.snapshots.push(snapshot);
         }
+    }
+
+    /// Return the progress from this Partition
+    fn progress(&self) -> SequencerProgress {
+        self.data.progress()
     }
 }
 
@@ -1035,7 +1113,7 @@ impl DataBuffer {
     ) -> Result<Option<Arc<SnapshotBatch>>, mutable_batch::Error> {
         if let Some(buf) = &self.buffer {
             return Ok(Some(Arc::new(SnapshotBatch {
-                min_sequencer_number: buf.min_sequencer_number,
+                min_sequencer_number: buf.min_sequence_number,
                 max_sequencer_number: buf.max_sequence_number,
                 data: Arc::new(buf.data.to_arrow(Selection::All)?),
             })));
@@ -1156,6 +1234,33 @@ impl DataBuffer {
 
         Ok(())
     }
+
+    /// Return the progress in this DataBuffer
+    fn progress(&self) -> SequencerProgress {
+        let progress = SequencerProgress::new();
+
+        let progress = if let Some(buffer) = &self.buffer {
+            progress.combine(buffer.progress())
+        } else {
+            progress
+        };
+
+        let progress = self.snapshots.iter().fold(progress, |progress, snapshot| {
+            progress.combine(snapshot.progress())
+        });
+
+        if let Some(persisting) = &self.persisting {
+            persisting
+                .data
+                .data
+                .iter()
+                .fold(progress, |progress, snapshot| {
+                    progress.combine(snapshot.progress())
+                })
+        } else {
+            progress
+        }
+    }
 }
 
 /// BufferBatch is a MutableBatch with its ingesting order, sequencer_number, that helps the
@@ -1163,11 +1268,21 @@ impl DataBuffer {
 #[derive(Debug)]
 pub struct BufferBatch {
     /// Sequence number of the first write in this batch
-    pub(crate) min_sequencer_number: SequenceNumber,
+    pub(crate) min_sequence_number: SequenceNumber,
     /// Sequence number of the last write in this batch
     pub(crate) max_sequence_number: SequenceNumber,
     /// Ingesting data
     pub(crate) data: MutableBatch,
+}
+
+impl BufferBatch {
+    /// Return the progress in this DataBuffer
+
+    fn progress(&self) -> SequencerProgress {
+        SequencerProgress::new()
+            .with_buffered(self.min_sequence_number)
+            .with_buffered(self.max_sequence_number)
+    }
 }
 
 /// SnapshotBatch contains data of many contiguous BufferBatches
@@ -1207,6 +1322,13 @@ impl SnapshotBatch {
                 }
             }
         })
+    }
+
+    /// Return progress in this data
+    fn progress(&self) -> SequencerProgress {
+        SequencerProgress::new()
+            .with_buffered(self.min_sequencer_number)
+            .with_buffered(self.max_sequencer_number)
     }
 }
 
@@ -1330,7 +1452,7 @@ mod tests {
         let (_, mutable_batch1) =
             lp_to_mutable_batch(r#"foo,t1=asdf iv=1i,uv=774u,fv=1.0,bv=true,sv="hi" 1"#);
         let buffer_batch1 = BufferBatch {
-            min_sequencer_number: seq_num1,
+            min_sequence_number: seq_num1,
             max_sequence_number: seq_num1,
             data: mutable_batch1,
         };
@@ -1405,7 +1527,11 @@ mod tests {
             .unwrap();
 
         let mut sequencers = BTreeMap::new();
-        sequencers.insert(sequencer1.id, SequencerData::new(Arc::clone(&metrics)));
+        let kafka_partition = KafkaPartition::new(0);
+        sequencers.insert(
+            sequencer1.id,
+            SequencerData::new(kafka_partition, Arc::clone(&metrics)),
+        );
 
         let object_store: Arc<DynObjectStore> = Arc::new(ObjectStoreImpl::new_in_memory());
 
@@ -1485,8 +1611,14 @@ mod tests {
             .await
             .unwrap();
         let mut sequencers = BTreeMap::new();
-        sequencers.insert(sequencer1.id, SequencerData::new(Arc::clone(&metrics)));
-        sequencers.insert(sequencer2.id, SequencerData::new(Arc::clone(&metrics)));
+        sequencers.insert(
+            sequencer1.id,
+            SequencerData::new(sequencer1.kafka_partition, Arc::clone(&metrics)),
+        );
+        sequencers.insert(
+            sequencer2.id,
+            SequencerData::new(sequencer2.kafka_partition, Arc::clone(&metrics)),
+        );
 
         let object_store: Arc<DynObjectStore> = Arc::new(ObjectStoreImpl::new_in_memory());
 
@@ -1546,6 +1678,17 @@ mod tests {
             .await
             .unwrap();
 
+        // check progresses
+        let progresses = data.progresses(vec![kafka_partition]).await.unwrap();
+        let mut expected_progresses = BTreeMap::new();
+        expected_progresses.insert(
+            kafka_partition,
+            SequencerProgress::new()
+                .with_buffered(SequenceNumber::new(1))
+                .with_buffered(SequenceNumber::new(2)),
+        );
+        assert_eq!(progresses, expected_progresses);
+
         let sd = data.sequencers.get(&sequencer1.id).unwrap();
         let n = sd.namespace("foo").unwrap();
         let partition_id;
@@ -1597,6 +1740,17 @@ mod tests {
             mem_table.parquet_max_sequence_number(),
             Some(SequenceNumber::new(2))
         );
+
+        // check progresses after persist
+        let progresses = data.progresses(vec![kafka_partition]).await.unwrap();
+        let mut expected_progresses = BTreeMap::new();
+        expected_progresses.insert(
+            kafka_partition,
+            SequencerProgress::new()
+                .with_buffered(SequenceNumber::new(1))
+                .with_persisted(SequenceNumber::new(2)),
+        );
+        assert_eq!(progresses, expected_progresses);
     }
 
     // Test deletes mixed with writes on a single parittion
@@ -1623,7 +1777,7 @@ mod tests {
 
         // verify data
         assert_eq!(
-            p.data.buffer.as_ref().unwrap().min_sequencer_number,
+            p.data.buffer.as_ref().unwrap().min_sequence_number,
             SequenceNumber::new(1)
         );
         assert_eq!(
@@ -1685,7 +1839,7 @@ mod tests {
 
         // verify data
         assert_eq!(
-            p.data.buffer.as_ref().unwrap().min_sequencer_number,
+            p.data.buffer.as_ref().unwrap().min_sequence_number,
             SequenceNumber::new(4)
         );
         assert_eq!(
@@ -1782,7 +1936,7 @@ mod tests {
 
         // verify data
         assert_eq!(
-            p.data.buffer.as_ref().unwrap().min_sequencer_number,
+            p.data.buffer.as_ref().unwrap().min_sequence_number,
             SequenceNumber::new(8)
         ); // 1 newlly added mutable batch of 3 rows of data
         assert_eq!(p.data.snapshots.len(), 0); // still empty
@@ -1991,7 +2145,7 @@ mod tests {
         let table = tables.get("mem").unwrap().read().await;
         let partition = table.partition_data.get("1970-01-01").unwrap();
         assert_eq!(
-            partition.data.buffer.as_ref().unwrap().min_sequencer_number,
+            partition.data.buffer.as_ref().unwrap().min_sequence_number,
             SequenceNumber::new(2)
         );
 
