@@ -12,6 +12,8 @@ use observability_deps::tracing::*;
 use tokio::task::JoinHandle;
 use write_buffer::core::WriteBufferReading;
 
+use super::sink_instrumentation::WatermarkFetcher;
+
 /// Periodically fetch and cache the maximum known write buffer offset
 /// (watermark) from the write buffer for a given sequencer.
 ///
@@ -59,7 +61,7 @@ impl PeriodicWatermarkFetcher {
     ///
     /// If the watermark value has yet to be observed (i.e. due to continuous
     /// fetch errors) `None` is returned.
-    pub async fn cached_watermark(&self) -> Option<u64> {
+    pub fn cached_watermark(&self) -> Option<u64> {
         match self.last_watermark.load(Ordering::Relaxed) {
             // A value of 0 means "never observed a watermark".
             0 => None,
@@ -177,6 +179,12 @@ impl Poller {
     }
 }
 
+impl WatermarkFetcher for PeriodicWatermarkFetcher {
+    fn watermark(&self) -> Option<u64> {
+        self.cached_watermark()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use data_types2::Sequence;
@@ -199,9 +207,9 @@ mod tests {
             &*metrics,
         );
 
-        assert_eq!(fetcher.cached_watermark().await, None);
+        assert_eq!(fetcher.cached_watermark(), None);
         tokio::time::sleep(Duration::from_millis(50)).await;
-        assert_eq!(fetcher.cached_watermark().await, None);
+        assert_eq!(fetcher.cached_watermark(), None);
 
         let hits = metrics
             .get_instrument::<Metric<U64Counter>>("write_buffer_watermark_fetch_errors")
@@ -232,7 +240,7 @@ mod tests {
         async {
             loop {
                 // Read the watermark until the expected value is observed.
-                match fetcher.cached_watermark().await {
+                match fetcher.cached_watermark() {
                     Some(42) => break,
                     // The mock is configured to return 42 - any other value
                     // is incorrect.

@@ -22,6 +22,9 @@ mod sink;
 
 #[cfg(test)]
 pub mod mock_sink;
+#[cfg(test)]
+pub mod mock_watermark_fetcher;
+pub mod sink_instrumentation;
 
 pub use handler::*;
 pub use periodic_watermark_fetcher::*;
