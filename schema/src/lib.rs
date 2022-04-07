@@ -188,9 +188,7 @@ impl Schema {
 
     /// Returns true if the sort_key includes all primary key cols
     pub fn is_sorted_on_pk(&self, sort_key: &SortKey) -> bool {
-        self.primary_key()
-            .iter()
-            .all(|col| sort_key.get(*col).is_some())
+        self.primary_key().iter().all(|col| sort_key.contains(col))
     }
 
     /// Provide a reference to the underlying Arrow Schema object

@@ -436,10 +436,9 @@ impl Deduplicater {
                 Some(sort_key) => {
                     // Technically we only require that the sort order is prefixed by
                     // the primary key, in order for deduplication to work correctly
-                    assert_eq!(
-                        pk_schema.len(),
-                        sort_key.len(),
-                        "output_sort_key must be same length as primary key"
+                    assert!(
+                        pk_schema.len() <= sort_key.len(),
+                        "output_sort_key must be at least as long as the primary key"
                     );
                     assert!(
                         pk_schema.is_sorted_on_pk(sort_key),

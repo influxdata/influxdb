@@ -129,6 +129,53 @@ fn distinct_values(batch: &RecordBatch, primary_key: &[&str]) -> HashMap<String,
         .collect()
 }
 
+/// Given a sort key from the catalog and the primary key (tags + time) from the data, return the
+/// sort key that should be used for this parquet file and, if needed, the sort key that should
+/// be updated in the catalog. These are computed as follows:
+///
+/// - Columns that appear in both the primary key and the catalog sort key should appear in the
+///   same order as they appear in the catalog sort key.
+/// - If there are new columns that appear in the primary key, add the new columns to the end of
+///   the catalog sort key's tag list. Also return an updated catalog sort key to save the new
+///   column in the catalog.
+/// - If there are columns that appear in the catalog sort key but aren't present in this data's
+///   primary key, don't include them in the sort key to be used for this data. Don't remove them
+///   from the catalog sort key.
+pub fn adjust_sort_key_columns(
+    catalog_sort_key: &SortKey,
+    primary_key: &[&str],
+) -> (SortKey, Option<SortKey>) {
+    let existing_columns_without_time = catalog_sort_key
+        .iter()
+        .map(|(col, _opts)| col)
+        .cloned()
+        .filter(|col| TIME_COLUMN_NAME != col.as_ref());
+    let new_columns: Vec<_> = primary_key
+        .iter()
+        .filter(|col| !catalog_sort_key.contains(col))
+        .collect();
+
+    let metadata_sort_key = SortKey::from_columns(
+        existing_columns_without_time
+            .clone()
+            .filter(|col| primary_key.contains(&col.as_ref()))
+            .chain(new_columns.iter().map(|&&col| Arc::from(col)))
+            .chain(std::iter::once(Arc::from(TIME_COLUMN_NAME))),
+    );
+
+    let catalog_update = if new_columns.is_empty() {
+        None
+    } else {
+        Some(SortKey::from_columns(
+            existing_columns_without_time
+                .chain(new_columns.into_iter().map(|&col| Arc::from(col)))
+                .chain(std::iter::once(Arc::from(TIME_COLUMN_NAME))),
+        ))
+    };
+
+    (metadata_sort_key, catalog_update)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -229,5 +276,49 @@ mod tests {
         let sort_key = compute_sort_key(&qb);
 
         assert_eq!(sort_key, SortKey::from_columns(["host", "env", "time"]));
+    }
+
+    #[test]
+    fn test_adjust_sort_key_columns() {
+        // If the catalog sort key is the same as the primary key, no changes
+        let catalog_sort_key = SortKey::from_columns(["host", "env", "time"]);
+        let data_primary_key = ["host", "env", "time"];
+
+        let (metadata, update) = adjust_sort_key_columns(&catalog_sort_key, &data_primary_key);
+
+        assert_eq!(metadata, catalog_sort_key);
+        assert!(update.is_none());
+
+        // If the catalog sort key contains more columns than the primary key, the metadata key
+        // should only contain the columns in the data and the catalog should not be updated
+        let catalog_sort_key = SortKey::from_columns(["host", "env", "time"]);
+        let data_primary_key = ["host", "time"];
+
+        let (metadata, update) = adjust_sort_key_columns(&catalog_sort_key, &data_primary_key);
+
+        assert_eq!(metadata, SortKey::from_columns(data_primary_key));
+        assert!(update.is_none());
+
+        // If the catalog sort key contains fewer columns than the primary key, add the new columns
+        // just before the time column and update the catalog
+        let catalog_sort_key = SortKey::from_columns(["host", "env", "time"]);
+        let data_primary_key = ["host", "temp", "env", "time"];
+
+        let (metadata, update) = adjust_sort_key_columns(&catalog_sort_key, &data_primary_key);
+
+        let expected = SortKey::from_columns(["host", "env", "temp", "time"]);
+        assert_eq!(metadata, expected);
+        assert_eq!(update.unwrap(), expected);
+
+        // If the sort key contains a column that doesn't exist in the data and is missing a column,
+        // the metadata key should only contain the columns in the data and the catalog should be
+        // updated to include the new column (but not remove the missing column)
+        let catalog_sort_key = SortKey::from_columns(["host", "env", "time"]);
+        let data_primary_key = ["host", "temp", "time"];
+
+        let (metadata, update) = adjust_sort_key_columns(&catalog_sort_key, &data_primary_key);
+        assert_eq!(metadata, SortKey::from_columns(data_primary_key));
+        let expected = SortKey::from_columns(["host", "env", "temp", "time"]);
+        assert_eq!(update.unwrap(), expected);
     }
 }

@@ -528,6 +528,60 @@ pub async fn create_batches_with_influxtype_different_columns_different_order(
     batches
 }
 
+/// Has 2 tag columns; tag1 has a lower cardinality (3) than tag3 (4)
+pub async fn create_batches_with_influxtype_different_cardinality() -> Vec<Arc<RecordBatch>> {
+    // Use the available TestChunk to create chunks and then convert them to raw RecordBatches
+    let mut batches = vec![];
+
+    let chunk1 = Arc::new(
+        TestChunk::new("t")
+            .with_id(1)
+            .with_time_column()
+            .with_tag_column("tag1")
+            .with_i64_field_column("field_int")
+            .with_tag_column("tag3")
+            .with_four_rows_of_data(),
+    );
+    let batch1 = raw_data(&[chunk1]).await[0].clone();
+    let expected = vec![
+        "+-----------+------+------+-----------------------------+",
+        "| field_int | tag1 | tag3 | time                        |",
+        "+-----------+------+------+-----------------------------+",
+        "| 1000      | WA   | TX   | 1970-01-01T00:00:00.000028Z |",
+        "| 10        | VT   | PR   | 1970-01-01T00:00:00.000210Z |",
+        "| 70        | UT   | OR   | 1970-01-01T00:00:00.000220Z |",
+        "| 50        | VT   | AL   | 1970-01-01T00:00:00.000210Z |",
+        "+-----------+------+------+-----------------------------+",
+    ];
+    assert_batches_eq!(&expected, &[batch1.clone()]);
+    batches.push(Arc::new(batch1.clone()));
+
+    let chunk2 = Arc::new(
+        TestChunk::new("t")
+            .with_id(2)
+            .with_time_column()
+            .with_tag_column("tag1")
+            .with_tag_column("tag3")
+            .with_i64_field_column("field_int")
+            .with_four_rows_of_data(),
+    );
+    let batch2 = raw_data(&[chunk2]).await[0].clone();
+    let expected = vec![
+        "+-----------+------+------+-----------------------------+",
+        "| field_int | tag1 | tag3 | time                        |",
+        "+-----------+------+------+-----------------------------+",
+        "| 1000      | WA   | TX   | 1970-01-01T00:00:00.000028Z |",
+        "| 10        | VT   | PR   | 1970-01-01T00:00:00.000210Z |",
+        "| 70        | UT   | OR   | 1970-01-01T00:00:00.000220Z |",
+        "| 50        | VT   | AL   | 1970-01-01T00:00:00.000210Z |",
+        "+-----------+------+------+-----------------------------+",
+    ];
+    assert_batches_eq!(&expected, &[batch2.clone()]);
+    batches.push(Arc::new(batch2));
+
+    batches
+}
+
 /// RecordBatches with knowledge of influx metadata
 pub async fn create_batches_with_influxtype_same_columns_different_type() -> Vec<Arc<RecordBatch>> {
     // Use the available TestChunk to create chunks and then convert them to raw RecordBatches
