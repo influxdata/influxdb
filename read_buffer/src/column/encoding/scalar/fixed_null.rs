@@ -523,7 +523,7 @@ mod test {
 
     // Helper function to create a new FixedNull encoding using a mock transcoder
     // that will allow tests to track calls to encode/decode.
-    fn new_encoding(
+    fn new_mock_encoding(
         values: Vec<Option<i64>>,
     ) -> (
         FixedNull<Int64Type, i64, Arc<MockTranscoder>>,
@@ -540,38 +540,38 @@ mod test {
 
     #[test]
     fn size() {
-        let (v, _) = new_encoding(vec![None, None, Some(100), Some(2222)]);
+        let (v, _) = new_mock_encoding(vec![None, None, Some(100), Some(2222)]);
         assert_eq!(v.size(false), 408);
         assert_eq!(v.size(true), 408); // no difference in reported size
     }
 
     #[test]
     fn size_raw() {
-        let (v, _) = new_encoding(vec![None, None, Some(100), Some(2222)]);
+        let (v, _) = new_mock_encoding(vec![None, None, Some(100), Some(2222)]);
         // values   = 4 * 8 = 32b
         // Vec<u64> = 24b
         assert_eq!(v.size_raw(true), 56);
         assert_eq!(v.size_raw(false), 40);
 
-        let (v, _) = new_encoding(vec![None, None]);
+        let (v, _) = new_mock_encoding(vec![None, None]);
         assert_eq!(v.size_raw(true), 40);
         assert_eq!(v.size_raw(false), 24);
 
-        let (v, _) = new_encoding(vec![None, None, Some(22)]);
+        let (v, _) = new_mock_encoding(vec![None, None, Some(22)]);
         assert_eq!(v.size_raw(true), 48);
         assert_eq!(v.size_raw(false), 32);
     }
 
     #[test]
     fn value() {
-        let (v, transcoder) = new_encoding(vec![Some(22), Some(33), Some(18)]);
+        let (v, transcoder) = new_mock_encoding(vec![Some(22), Some(33), Some(18)]);
         assert_eq!(v.value(2), Some(18));
         assert_eq!(transcoder.decodings(), 1);
     }
 
     #[test]
     fn values() {
-        let (v, transcoder) = new_encoding((0..10).map(Option::Some).collect::<Vec<_>>());
+        let (v, transcoder) = new_mock_encoding((0..10).map(Option::Some).collect::<Vec<_>>());
 
         assert_eq!(
             v.values(&[0, 1, 2, 3]).unwrap_right(),
@@ -591,7 +591,7 @@ mod test {
 
     #[test]
     fn all_values() {
-        let (v, transcoder) = new_encoding((0..10).map(Option::Some).collect::<Vec<_>>());
+        let (v, transcoder) = new_mock_encoding((0..10).map(Option::Some).collect::<Vec<_>>());
 
         assert_eq!(
             v.all_values(),
@@ -603,7 +603,7 @@ mod test {
     #[test]
     fn count() {
         let data = vec![Some(0), None, Some(22), None, None, Some(33), Some(44)];
-        let (v, _) = new_encoding(data);
+        let (v, _) = new_mock_encoding(data);
 
         assert_eq!(v.count(&[0, 1, 2, 3, 4, 5, 6]), 4);
         assert_eq!(v.count(&[1, 3]), 0);
@@ -612,7 +612,7 @@ mod test {
 
     #[test]
     fn sum() {
-        let (v, transcoder) = new_encoding((0..10).map(Option::Some).collect::<Vec<_>>());
+        let (v, transcoder) = new_mock_encoding((0..10).map(Option::Some).collect::<Vec<_>>());
 
         assert_eq!(v.sum(&[3, 5, 6, 7]), Some(21));
         assert_eq!(transcoder.decodings(), 4);
@@ -622,7 +622,7 @@ mod test {
     #[test]
     fn min() {
         let data = vec![Some(100), Some(110), Some(20), Some(1), Some(110)];
-        let (v, transcoder) = new_encoding(data);
+        let (v, transcoder) = new_mock_encoding(data);
 
         assert_eq!(v.min(&[0, 1, 2, 3, 4]), Some(1));
         assert_eq!(transcoder.decodings(), 1); // only min is decoded
@@ -631,14 +631,14 @@ mod test {
     #[test]
     fn max() {
         let data = vec![Some(100), Some(110), Some(20), Some(1), Some(109)];
-        let (v, transcoder) = new_encoding(data);
+        let (v, transcoder) = new_mock_encoding(data);
         assert_eq!(v.max(&[0, 1, 2, 3, 4]), Some(110));
         assert_eq!(transcoder.decodings(), 1); // only max is decoded
     }
 
     #[test]
     fn row_ids_filter_eq() {
-        let (v, transcoder) = new_encoding(
+        let (v, transcoder) = new_mock_encoding(
             vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100]
                 .into_iter()
                 .map(Option::Some)
@@ -661,7 +661,7 @@ mod test {
 
     #[test]
     fn row_ids_filter_neq() {
-        let (v, transcoder) = new_encoding(
+        let (v, transcoder) = new_mock_encoding(
             vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100]
                 .into_iter()
                 .map(Option::Some)
@@ -687,7 +687,7 @@ mod test {
 
     #[test]
     fn row_ids_filter_lt() {
-        let (v, transcoder) = new_encoding(
+        let (v, transcoder) = new_mock_encoding(
             vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100]
                 .into_iter()
                 .map(Option::Some)
@@ -704,7 +704,7 @@ mod test {
 
     #[test]
     fn row_ids_filter_lte() {
-        let (v, transcoder) = new_encoding(
+        let (v, transcoder) = new_mock_encoding(
             vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100]
                 .into_iter()
                 .map(Option::Some)
@@ -720,7 +720,7 @@ mod test {
 
     #[test]
     fn row_ids_filter_gt() {
-        let (v, transcoder) = new_encoding(
+        let (v, transcoder) = new_mock_encoding(
             vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100]
                 .into_iter()
                 .map(Option::Some)
@@ -737,7 +737,7 @@ mod test {
 
     #[test]
     fn row_ids_filter_null() {
-        let (v, transcoder) = new_encoding(vec![
+        let (v, transcoder) = new_mock_encoding(vec![
             Some(100),
             Some(200),
             None,
@@ -757,7 +757,7 @@ mod test {
 
     #[test]
     fn row_ids_filter_gte() {
-        let (v, transcoder) = new_encoding(
+        let (v, transcoder) = new_mock_encoding(
             vec![100, 101, 100, 102, 1000, 300, 2030, 3, 101, 4, 5, 21, 100]
                 .into_iter()
                 .map(Option::Some)
@@ -774,7 +774,7 @@ mod test {
 
     #[test]
     fn row_ids_filter_range() {
-        let (v, transcoder) = new_encoding(vec![
+        let (v, transcoder) = new_mock_encoding(vec![
             Some(100),
             Some(101),
             None,
@@ -833,7 +833,7 @@ mod test {
         );
         assert_eq!(row_ids.to_vec(), Vec::<u32>::new());
 
-        let (v, _) = new_encoding(vec![
+        let (v, _) = new_mock_encoding(vec![
             Some(100),
             Some(200),
             Some(300),
@@ -871,7 +871,7 @@ mod test {
         ];
 
         for (i, (data, exp)) in cases.into_iter().enumerate() {
-            let (v, _) = new_encoding(data);
+            let (v, _) = new_mock_encoding(data);
             let dst = RowIDs::new_vector();
             assert_eq!(
                 v.all_non_null_row_ids(dst).unwrap_vector(),
@@ -884,14 +884,14 @@ mod test {
 
     #[test]
     fn has_non_null_value() {
-        let (v, _) = new_encoding(vec![None, None]);
+        let (v, _) = new_mock_encoding(vec![None, None]);
         assert!(!v.has_non_null_value(&[0, 1]));
 
-        let (v, _) = new_encoding(vec![Some(100), Some(222)]);
+        let (v, _) = new_mock_encoding(vec![Some(100), Some(222)]);
         assert!(v.has_non_null_value(&[0, 1]));
         assert!(v.has_non_null_value(&[1]));
 
-        let (v, _) = new_encoding(vec![None, Some(100), Some(222)]);
+        let (v, _) = new_mock_encoding(vec![None, Some(100), Some(222)]);
         assert!(v.has_non_null_value(&[0, 1, 2]));
         assert!(!v.has_non_null_value(&[0]));
         assert!(v.has_non_null_value(&[2]));
@@ -899,13 +899,13 @@ mod test {
 
     #[test]
     fn has_any_non_null_value() {
-        let (v, _) = new_encoding(vec![None, None]);
+        let (v, _) = new_mock_encoding(vec![None, None]);
         assert!(!v.has_any_non_null_value());
 
-        let (v, _) = new_encoding(vec![Some(100), Some(222)]);
+        let (v, _) = new_mock_encoding(vec![Some(100), Some(222)]);
         assert!(v.has_any_non_null_value());
 
-        let (v, _) = new_encoding(vec![None, Some(100), Some(222)]);
+        let (v, _) = new_mock_encoding(vec![None, Some(100), Some(222)]);
         assert!(v.has_any_non_null_value());
     }
 }
