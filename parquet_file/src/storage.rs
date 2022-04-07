@@ -12,7 +12,7 @@ use datafusion_util::AdapterStream;
 use futures::{stream, Stream, StreamExt};
 use iox_object_store::{IoxObjectStore, ParquetFilePath};
 use object_store::GetResult;
-use observability_deps::tracing::debug;
+use observability_deps::tracing::*;
 use parking_lot::Mutex;
 use parquet::arrow::{ArrowReader, ParquetFileArrowReader};
 use parquet::file::reader::SerializedFileReader;
@@ -300,6 +300,8 @@ impl Storage {
             }
         }
 
+        debug!("Completed parquet download & scan");
+
         Ok(())
     }
 
@@ -332,6 +334,7 @@ impl Storage {
 
             // If there was an error returned from download_and_scan_parquet send it back to the receiver.
             if let Err(e) = download_result {
+                warn!(error=%e, "Parquet download & scan failed");
                 let e = ArrowError::ExternalError(Box::new(e));
                 if let Err(e) = tx.blocking_send(ArrowResult::Err(e)) {
                     // if no one is listening, there is no one else to hear our screams
