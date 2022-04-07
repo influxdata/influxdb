@@ -2308,7 +2308,6 @@ dependencies = [
  "chrono",
  "data_types2",
  "datafusion 0.1.0",
- "db",
  "dml",
  "futures",
  "generated_types",
