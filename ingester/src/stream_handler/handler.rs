@@ -157,7 +157,7 @@ impl<I, O> SequencedStreamHandler<I, O> {
 
 impl<I, O, T> SequencedStreamHandler<I, O, T>
 where
-    I: Stream<Item = Result<DmlOperation, WriteBufferError>> + Unpin + Send + Sync,
+    I: Stream<Item = Result<DmlOperation, WriteBufferError>> + Unpin + Send,
     O: DmlSink,
     T: TimeProvider,
 {
@@ -264,7 +264,7 @@ where
         }
     }
 
-    async fn maybe_apply_op(&self, op: Option<DmlOperation>) {
+    async fn maybe_apply_op(&mut self, op: Option<DmlOperation>) {
         if let Some(op) = op {
             // Extract the producer timestamp (added in the router when
             // dispatching the request).
@@ -307,7 +307,7 @@ where
         }
     }
 
-    async fn pause_ingest(&self) {
+    async fn pause_ingest(&mut self) {
         // Record how long this pause is, for logging purposes.
         let started_at = self.time_provider.now();
 
