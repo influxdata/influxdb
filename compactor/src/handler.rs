@@ -9,7 +9,7 @@ use futures::{
 };
 use iox_catalog::interface::Catalog;
 use object_store::DynObjectStore;
-use observability_deps::tracing::{info, warn};
+use observability_deps::tracing::*;
 use query::exec::Executor;
 use std::sync::Arc;
 use thiserror::Error;
@@ -163,28 +163,33 @@ async fn run_compactor(compactor: Arc<Compactor>, shutdown: CancellationToken) {
             .await
             .expect("retry forever");
 
+        let n_candidates = candidates.len();
+        debug!(n_candidates, "found compaction candidates");
+
         let mut used_size = 0;
         let max_size = compactor.config.max_concurrent_compaction_size_bytes();
         let max_file_size = compactor.config.compaction_max_size_bytes();
         let mut handles = vec![];
 
-        for c in &candidates {
+        for c in candidates {
             let compactor = Arc::clone(&compactor);
-            let partition_id = c.partition_id;
             let handle = tokio::task::spawn(async move {
+                debug!(candidate=?c, "compacting candidate");
                 if let Err(e) = compactor
-                    .compact_partition(partition_id, max_file_size)
+                    .compact_partition(c.partition_id, max_file_size)
                     .await
                 {
                     warn!(
                         "compaction on partition {} failed with: {:?}",
-                        partition_id, e
+                        c.partition_id, e
                     );
                 }
+                debug!(candidate=?c, "compaction complete");
             });
             used_size += c.file_size_bytes;
             handles.push(handle);
             if used_size > max_size {
+                debug!(%max_size, %used_size, n_compactions=%handles.len(), "reached maximum concurrent compaction size limit");
                 break;
             }
         }
@@ -194,7 +199,7 @@ async fn run_compactor(compactor: Arc<Compactor>, shutdown: CancellationToken) {
         let _ = futures::future::join_all(handles).await;
 
         // if all candidate partitions have been compacted, wait a bit before checking again
-        if compactions_run == candidates.len() {
+        if compactions_run == n_candidates {
             tokio::time::sleep(Duration::from_secs(5)).await;
         }
     }

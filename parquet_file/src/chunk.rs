@@ -9,6 +9,7 @@ use data_types::{
 use data_types2::ParquetFile;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use iox_object_store::{IoxObjectStore, ParquetFilePath};
+use observability_deps::tracing::*;
 use predicate::Predicate;
 use schema::selection::Selection;
 use schema::{Schema, TIME_COLUMN_NAME};
@@ -231,6 +232,7 @@ impl ParquetChunk {
         predicate: &Predicate,
         selection: Selection<'_>,
     ) -> Result<SendableRecordBatchStream> {
+        debug!(path=?self.path, "fetching parquet data for filtered read");
         Storage::read_filter(
             predicate,
             selection,
