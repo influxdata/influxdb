@@ -38,6 +38,7 @@ async fn basic_on_parquet() {
         sql,
         cluster.namespace(),
         write_token,
+        cluster.ingester().ingester_grpc_connection(),
         cluster.querier().querier_grpc_connection(),
     )
     .await;

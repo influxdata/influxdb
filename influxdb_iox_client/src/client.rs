@@ -34,3 +34,6 @@ pub mod operations;
 #[cfg(feature = "flight")]
 /// Client for query API (based on Arrow flight)
 pub mod flight;
+
+/// Client for fetching write info
+pub mod write_info;

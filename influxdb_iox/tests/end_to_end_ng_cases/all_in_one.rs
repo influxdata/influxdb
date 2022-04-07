@@ -34,6 +34,7 @@ async fn smoke() {
         sql,
         namespace,
         write_token,
+        all_in_one.server().ingester_grpc_connection(),
         all_in_one.server().querier_grpc_connection(),
     )
     .await;

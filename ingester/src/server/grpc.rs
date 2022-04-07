@@ -13,7 +13,11 @@ use arrow_flight::{
     HandshakeRequest, HandshakeResponse, PutResult, SchemaAsIpc, SchemaResult, Ticket,
 };
 use futures::{SinkExt, Stream, StreamExt};
-use generated_types::influxdata::iox::ingester::v1 as proto;
+use generated_types::influxdata::iox::ingester::v1::{
+    self as proto,
+    write_info_service_server::{WriteInfoService, WriteInfoServiceServer},
+    GetWriteInfoRequest, GetWriteInfoResponse,
+};
 use observability_deps::tracing::{info, warn};
 use pin_project::{pin_project, pinned_drop};
 use prost::Message;
@@ -22,6 +26,7 @@ use std::{pin::Pin, sync::Arc, task::Poll};
 use tokio::task::JoinHandle;
 use tonic::{Request, Response, Streaming};
 use trace::ctx::SpanContext;
+use write_summary::WriteSummary;
 
 /// This type is responsible for managing all gRPC services exposed by
 /// `ingester`.
@@ -42,6 +47,69 @@ impl<I: IngestHandler + Send + Sync + 'static> GrpcDelegate<I> {
         FlightServer::new(FlightService {
             ingest_handler: Arc::clone(&self.ingest_handler),
         })
+    }
+
+    /// Acquire an WriteInfo gRPC service implementation.
+    pub fn write_info_service(&self) -> WriteInfoServiceServer<impl WriteInfoService> {
+        WriteInfoServiceServer::new(WriteInfoServiceImpl::new(
+            Arc::clone(&self.ingest_handler) as _
+        ))
+    }
+}
+
+/// Implementation of write info
+struct WriteInfoServiceImpl {
+    handler: Arc<dyn IngestHandler + Send + Sync + 'static>,
+}
+
+impl WriteInfoServiceImpl {
+    pub fn new(handler: Arc<dyn IngestHandler + Send + Sync + 'static>) -> Self {
+        Self { handler }
+    }
+}
+
+fn write_summary_error_to_status(e: write_summary::Error) -> tonic::Status {
+    use write_summary::Error;
+
+    match e {
+        // treat "unknown partition error" as a failed precondition
+        // (so the client can distinguish between "write isn't
+        // readable" from "we can't tell if write is readable"
+        e @ Error::UnknownKafkaPartition { .. } => {
+            tonic::Status::failed_precondition(format!("Can not determine status of write: {}", e))
+        }
+    }
+}
+
+#[tonic::async_trait]
+impl WriteInfoService for WriteInfoServiceImpl {
+    async fn get_write_info(
+        &self,
+        request: Request<GetWriteInfoRequest>,
+    ) -> Result<Response<GetWriteInfoResponse>, tonic::Status> {
+        let GetWriteInfoRequest { write_token } = request.into_inner();
+
+        let write_summary =
+            WriteSummary::try_from_token(&write_token).map_err(tonic::Status::invalid_argument)?;
+
+        let progress = self
+            .handler
+            .progresses(write_summary.kafka_partitions())
+            .await
+            .map_err(|e| tonic::Status::invalid_argument(e.to_string()))?;
+
+        let readable = write_summary
+            .readable(&progress)
+            .map_err(write_summary_error_to_status)?;
+
+        let persisted = write_summary
+            .persisted(&progress)
+            .map_err(write_summary_error_to_status)?;
+
+        Ok(tonic::Response::new(GetWriteInfoResponse {
+            readable,
+            persisted,
+        }))
     }
 }
 

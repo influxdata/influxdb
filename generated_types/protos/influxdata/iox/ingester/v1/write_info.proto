@@ -1,0 +1,21 @@
+syntax = "proto3";
+package influxdata.iox.ingester.v1;
+
+service WriteInfoService {
+  // Get information about a particular write
+  rpc GetWriteInfo(GetWriteInfoRequest) returns (GetWriteInfoResponse);
+}
+
+message GetWriteInfoRequest {
+  // The write token returned from a write
+  string write_token = 1;
+}
+
+message GetWriteInfoResponse {
+  // Is the data in this write entirely readable (will be included in
+  // a query response)?
+  bool readable = 1;
+
+  // Is the data in this write completely persisted to parquet files?
+  bool persisted = 2;
+}

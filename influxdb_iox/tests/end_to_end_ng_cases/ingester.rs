@@ -1,5 +1,7 @@
 use http::StatusCode;
-use test_helpers_end_to_end_ng::{maybe_skip_integration, MiniCluster, TestConfig};
+use test_helpers_end_to_end_ng::{
+    get_write_token, maybe_skip_integration, wait_for_readable, MiniCluster, TestConfig,
+};
 
 use arrow_util::assert_batches_sorted_eq;
 use data_types2::{IngesterQueryRequest, SequencerId};
@@ -14,16 +16,21 @@ async fn ingester_flight_api() {
     let router2_config = TestConfig::new_router2(&database_url);
     let ingester_config = TestConfig::new_ingester(&router2_config);
 
-    // Set up router2  ====================================
-    let cluster = MiniCluster::new().with_router2(router2_config).await;
+    // Set up cluster
+    let cluster = MiniCluster::new()
+        .with_router2(router2_config)
+        .await
+        .with_ingester(ingester_config)
+        .await;
 
     // Write some data into the v2 HTTP API ==============
     let lp = format!("{},tag1=A,tag2=B val=42i 123456", table_name);
     let response = cluster.write_to_router(lp).await;
     assert_eq!(response.status(), StatusCode::NO_CONTENT);
 
-    // Set up ingester ===================================
-    let cluster = cluster.with_ingester(ingester_config).await;
+    // wait for the write to become visible
+    let write_token = get_write_token(&response);
+    wait_for_readable(write_token, cluster.ingester().ingester_grpc_connection()).await;
 
     let mut querier_flight =
         querier::QuerierFlightClient::new(cluster.ingester().ingester_grpc_connection());
