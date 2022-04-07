@@ -26,8 +26,21 @@ enum Variant {
 
 /// Location of a Parquet file within a database's object store.
 /// The exact format is an implementation detail and is subject to change.
-#[derive(Debug, Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
+#[derive(Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub struct ParquetFilePath(Variant);
+
+impl std::fmt::Debug for ParquetFilePath {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let path = match self.0 {
+            Variant::Old { .. } => self.relative_dirs_and_file_name().to_string(),
+            Variant::New { .. } => self.absolute_dirs_and_file_name().to_string(),
+        };
+        f.debug_struct("ParquetFilePath")
+            .field("inner", &self.0)
+            .field("resolved_path", &path)
+            .finish()
+    }
+}
 
 impl ParquetFilePath {
     /// Create a location for this chunk's parquet file. Calling this twice on the same `ChunkAddr`
@@ -352,6 +365,8 @@ mod tests {
         let round_trip =
             ParquetFilePath::from_relative_dirs_and_file_name(&dirs_and_file_name).unwrap();
         assert_eq!(pfp, round_trip);
+
+        assert_eq!(format!("{:?}", pfp), "ParquetFilePath { inner: Old { table_name: \"}*\", partition_key: \"aoeu\", chunk_id: ChunkId(10) }, resolved_path: \"%7D%2A/aoeu/00000000-0000-0000-0000-00000000000a.parquet\" }");
     }
 
     #[test]
@@ -381,6 +396,8 @@ mod tests {
             dirs_and_file_name.to_string(),
             "1/2/3/4/00000000-0000-0000-0000-000000000000.parquet".to_string(),
         );
+
+        assert_eq!(format!("{:?}", pfp), "ParquetFilePath { inner: New { namespace_id: NamespaceId(1), table_id: TableId(2), sequencer_id: SequencerId(3), partition_id: PartitionId(4), object_store_id: 00000000-0000-0000-0000-000000000000 }, resolved_path: \"1/2/3/4/00000000-0000-0000-0000-000000000000.parquet\" }");
     }
 
     #[test]

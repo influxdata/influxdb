@@ -7,6 +7,7 @@ use data_types2::{
 };
 use iox_object_store::IoxObjectStore;
 use object_store::DynObjectStore;
+use observability_deps::tracing::*;
 use parquet_file::{
     chunk::{new_parquet_chunk, ChunkMetrics, DecodedParquetFile},
     metadata::{IoxMetadata, IoxParquetMetaData},
@@ -18,6 +19,7 @@ use std::{
 
 /// Wrapper of a group of parquet files and their tombstones that overlap in time and should be
 /// considered during compaction.
+#[derive(Debug)]
 pub struct GroupWithTombstones {
     /// Each file with the set of tombstones relevant to it
     pub(crate) parquet_files: Vec<ParquetFileWithTombstone>,
@@ -95,6 +97,11 @@ impl ParquetFileWithTombstone {
             &decoded_parquet_file,
             ChunkMetrics::new_unregistered(), // TODO: need to add metrics
             Arc::new(iox_object_store),
+        );
+
+        debug!(
+            parquet_file=?decoded_parquet_file.parquet_file,
+            "generated parquet chunk from object store"
         );
 
         QueryableParquetChunk::new(

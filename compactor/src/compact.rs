@@ -413,6 +413,8 @@ impl Compactor {
 
             // compact
             let split_compacted_files = self.compact(group.parquet_files).await?;
+            debug!("compacted files");
+
             let mut catalog_update_info = Vec::with_capacity(split_compacted_files.len());
 
             for split_file in split_compacted_files {
@@ -588,6 +590,11 @@ impl Compactor {
                 )
             })
             .collect();
+
+        debug!(
+            n_query_chunks = query_chunks.len(),
+            "gathered parquet data to compact"
+        );
 
         // Compute min & max sequence numbers and time
         // unwrap here will work becasue the len of the query_chunks already >= 1
