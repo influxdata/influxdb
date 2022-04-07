@@ -464,7 +464,7 @@ mod tests {
             }
         );
 
-        // Validate the success histogram was hit
+        // Validate the histogram was hit even on error
         let hist = get_metric::<U64Histogram>(&metrics, "ingester_op_apply_duration_ms", &{
             let mut attrs = DEFAULT_ATTRS.clone();
             attrs.insert("result", "error");
