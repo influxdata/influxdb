@@ -101,7 +101,7 @@ impl QueryChunkMeta for QueryableParquetChunk {
     }
 
     fn sort_key(&self) -> Option<&SortKey> {
-        None // TODO: return the sortkey when it is available in the parquet file #3968
+        self.iox_metadata.sort_key.as_ref()
     }
 
     fn delete_predicates(&self) -> &[Arc<DeletePredicate>] {

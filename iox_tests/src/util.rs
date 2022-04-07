@@ -7,11 +7,11 @@ use arrow::{
 use bytes::Bytes;
 use data_types2::{
     Column, ColumnType, KafkaPartition, KafkaTopic, Namespace, ParquetFile, ParquetFileParams,
-    Partition, QueryPool, SequenceNumber, Sequencer, SequencerId, Table, TableId, Timestamp,
-    Tombstone, TombstoneId,
+    Partition, PartitionId, QueryPool, SequenceNumber, Sequencer, SequencerId, Table, TableId,
+    Timestamp, Tombstone, TombstoneId,
 };
 use iox_catalog::{
-    interface::{Catalog, INITIAL_COMPACTION_LEVEL},
+    interface::{Catalog, PartitionRepo, INITIAL_COMPACTION_LEVEL},
     mem::MemCatalog,
 };
 use iox_object_store::{IoxObjectStore, ParquetFilePath};
@@ -22,7 +22,7 @@ use parquet_file::metadata::{IoxMetadata, IoxParquetMetaData};
 use query::exec::Executor;
 use schema::{
     selection::Selection,
-    sort::{SortKey, SortKeyBuilder},
+    sort::{adjust_sort_key_columns, SortKey, SortKeyBuilder},
 };
 use std::sync::Arc;
 use time::{MockProvider, Time, TimeProvider};
@@ -435,7 +435,7 @@ impl TestPartition {
             max_sequence_number,
             row_count: row_count as i64,
             compaction_level: INITIAL_COMPACTION_LEVEL,
-            sort_key: Some(sort_key),
+            sort_key: Some(sort_key.clone()),
         };
         let (parquet_metadata_bin, real_file_size_bytes) =
             create_parquet_file(&self.catalog.object_store, &metadata, record_batch).await;
@@ -461,6 +461,8 @@ impl TestPartition {
             .create(parquet_file_params)
             .await
             .unwrap();
+
+        merge_catalog_sort_key(repos.partitions(), self.partition.id, sort_key).await;
 
         Arc::new(TestParquetFile {
             catalog: Arc::clone(&self.catalog),
@@ -507,7 +509,7 @@ impl TestPartition {
             max_sequence_number,
             row_count: row_count as i64,
             compaction_level: INITIAL_COMPACTION_LEVEL,
-            sort_key: Some(sort_key),
+            sort_key: Some(sort_key.clone()),
         };
         let (parquet_metadata_bin, _real_file_size_bytes) =
             create_parquet_file(&self.catalog.object_store, &metadata, record_batch).await;
@@ -534,11 +536,48 @@ impl TestPartition {
             .await
             .unwrap();
 
+        merge_catalog_sort_key(repos.partitions(), self.partition.id, sort_key).await;
+
         Arc::new(TestParquetFile {
             catalog: Arc::clone(&self.catalog),
             namespace: Arc::clone(&self.namespace),
             parquet_file,
         })
+    }
+}
+
+async fn merge_catalog_sort_key(
+    partitions_catalog: &mut dyn PartitionRepo,
+    partition_id: PartitionId,
+    sort_key: SortKey,
+) {
+    // Fetch the latest partition info from the catalog
+    let partition = partitions_catalog
+        .get_by_id(partition_id)
+        .await
+        .unwrap()
+        .unwrap();
+
+    // Similarly to what the ingester does, if there's an existing sort key in the catalog, add new
+    // columns onto the end
+    match partition.sort_key() {
+        Some(catalog_sort_key) => {
+            let sort_key_string = sort_key.to_columns();
+            let new_sort_key: Vec<_> = sort_key_string.split(',').collect();
+            let (_metadata, update) = adjust_sort_key_columns(&catalog_sort_key, &new_sort_key);
+            if let Some(new_sort_key) = update {
+                partitions_catalog
+                    .update_sort_key(partition_id, &new_sort_key.to_columns())
+                    .await
+                    .unwrap();
+            }
+        }
+        None => {
+            partitions_catalog
+                .update_sort_key(partition_id, &sort_key.to_columns())
+                .await
+                .unwrap();
+        }
     }
 }
 
