@@ -85,7 +85,10 @@ pub async fn compact_persisting_batch(
             adjust_sort_key_columns(&sk, &batch.data.schema().primary_key())
         }
         None => {
-            let sort_key = compute_sort_key(&batch.data);
+            let sort_key = compute_sort_key(
+                batch.data.schema().as_ref(),
+                batch.data.data.iter().map(|sb| sb.data.as_ref()),
+            );
             // Use the sort key computed from the cardinality as the sort key for this parquet
             // file's metadata, also return the sort key to be stored in the catalog
             (sort_key.clone(), Some(sort_key))
@@ -756,7 +759,10 @@ mod tests {
         let expected_pk = vec!["tag1", "time"];
         assert_eq!(expected_pk, pk);
 
-        let sort_key = compute_sort_key(&compact_batch);
+        let sort_key = compute_sort_key(
+            &schema,
+            compact_batch.data.iter().map(|sb| sb.data.as_ref()),
+        );
         assert_eq!(sort_key, SortKey::from_columns(["tag1", "time"]));
 
         // compact
@@ -797,7 +803,10 @@ mod tests {
         let expected_pk = vec!["tag1", "time"];
         assert_eq!(expected_pk, pk);
 
-        let sort_key = compute_sort_key(&compact_batch);
+        let sort_key = compute_sort_key(
+            &schema,
+            compact_batch.data.iter().map(|sb| sb.data.as_ref()),
+        );
         assert_eq!(sort_key, SortKey::from_columns(["tag1", "time"]));
 
         // compact
@@ -838,7 +847,10 @@ mod tests {
         let expected_pk = vec!["tag1", "time"];
         assert_eq!(expected_pk, pk);
 
-        let sort_key = compute_sort_key(&compact_batch);
+        let sort_key = compute_sort_key(
+            &schema,
+            compact_batch.data.iter().map(|sb| sb.data.as_ref()),
+        );
         assert_eq!(sort_key, SortKey::from_columns(["tag1", "time"]));
 
         // compact
@@ -884,7 +896,10 @@ mod tests {
         let expected_pk = vec!["tag1", "time"];
         assert_eq!(expected_pk, pk);
 
-        let sort_key = compute_sort_key(&compact_batch);
+        let sort_key = compute_sort_key(
+            &schema,
+            compact_batch.data.iter().map(|sb| sb.data.as_ref()),
+        );
         assert_eq!(sort_key, SortKey::from_columns(["tag1", "time"]));
 
         // compact
@@ -927,7 +942,10 @@ mod tests {
         let expected_pk = vec!["tag1", "tag2", "time"];
         assert_eq!(expected_pk, pk);
 
-        let sort_key = compute_sort_key(&compact_batch);
+        let sort_key = compute_sort_key(
+            &schema,
+            compact_batch.data.iter().map(|sb| sb.data.as_ref()),
+        );
         assert_eq!(sort_key, SortKey::from_columns(["tag1", "tag2", "time"]));
 
         // compact
@@ -984,7 +1002,10 @@ mod tests {
         let expected_pk = vec!["tag1", "tag2", "time"];
         assert_eq!(expected_pk, pk);
 
-        let sort_key = compute_sort_key(&compact_batch);
+        let sort_key = compute_sort_key(
+            &schema,
+            compact_batch.data.iter().map(|sb| sb.data.as_ref()),
+        );
         assert_eq!(sort_key, SortKey::from_columns(["tag1", "tag2", "time"]));
 
         // compact
@@ -1049,7 +1070,10 @@ mod tests {
         let expected_pk = vec!["tag1", "tag2", "time"];
         assert_eq!(expected_pk, pk);
 
-        let sort_key = compute_sort_key(&compact_batch);
+        let sort_key = compute_sort_key(
+            &schema,
+            compact_batch.data.iter().map(|sb| sb.data.as_ref()),
+        );
         assert_eq!(sort_key, SortKey::from_columns(["tag1", "tag2", "time"]));
 
         // compact
@@ -1107,7 +1131,10 @@ mod tests {
         let expected_pk = vec!["tag1", "tag2", "time"];
         assert_eq!(expected_pk, pk);
 
-        let sort_key = compute_sort_key(&compact_batch);
+        let sort_key = compute_sort_key(
+            &schema,
+            compact_batch.data.iter().map(|sb| sb.data.as_ref()),
+        );
         assert_eq!(sort_key, SortKey::from_columns(["tag1", "tag2", "time"]));
 
         // compact
