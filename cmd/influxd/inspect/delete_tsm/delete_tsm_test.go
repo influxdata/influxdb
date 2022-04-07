@@ -12,8 +12,7 @@ import (
 )
 
 func Test_DeleteTSM_EmptyFile(t *testing.T) {
-	dir, file := createTSMFile(t, tsmParams{})
-	defer os.RemoveAll(dir)
+	_, file := createTSMFile(t, tsmParams{})
 
 	runCommand(t, testParams{
 		file:      file,
@@ -23,10 +22,9 @@ func Test_DeleteTSM_EmptyFile(t *testing.T) {
 }
 
 func Test_DeleteTSM_WrongExt(t *testing.T) {
-	dir, file := createTSMFile(t, tsmParams{
+	_, file := createTSMFile(t, tsmParams{
 		improperExt: true,
 	})
-	defer os.RemoveAll(dir)
 
 	runCommand(t, testParams{
 		file:      file,
@@ -37,7 +35,6 @@ func Test_DeleteTSM_WrongExt(t *testing.T) {
 
 func Test_DeleteTSM_NotFile(t *testing.T) {
 	dir, _ := createTSMFile(t, tsmParams{})
-	defer os.RemoveAll(dir)
 
 	runCommand(t, testParams{
 		file:      dir,
@@ -47,10 +44,9 @@ func Test_DeleteTSM_NotFile(t *testing.T) {
 }
 
 func Test_DeleteTSM_SingleEntry_Valid(t *testing.T) {
-	dir, file := createTSMFile(t, tsmParams{
+	_, file := createTSMFile(t, tsmParams{
 		keys: []string{"cpu"},
 	})
-	defer os.RemoveAll(dir)
 
 	runCommand(t, testParams{
 		file:            file,
@@ -60,11 +56,10 @@ func Test_DeleteTSM_SingleEntry_Valid(t *testing.T) {
 }
 
 func Test_DeleteTSM_SingleEntry_Invalid(t *testing.T) {
-	dir, file := createTSMFile(t, tsmParams{
+	_, file := createTSMFile(t, tsmParams{
 		invalid: true,
 		keys:    []string{"cpu"},
 	})
-	defer os.RemoveAll(dir)
 
 	runCommand(t, testParams{
 		file:      file,
@@ -74,10 +69,9 @@ func Test_DeleteTSM_SingleEntry_Invalid(t *testing.T) {
 }
 
 func Test_DeleteTSM_ManyEntries_Valid(t *testing.T) {
-	dir, file := createTSMFile(t, tsmParams{
+	_, file := createTSMFile(t, tsmParams{
 		keys: []string{"cpu", "foobar", "mem"},
 	})
-	defer os.RemoveAll(dir)
 
 	runCommand(t, testParams{
 		file:      file,
@@ -86,11 +80,10 @@ func Test_DeleteTSM_ManyEntries_Valid(t *testing.T) {
 }
 
 func Test_DeleteTSM_ManyEntries_Invalid(t *testing.T) {
-	dir, file := createTSMFile(t, tsmParams{
+	_, file := createTSMFile(t, tsmParams{
 		invalid: true,
 		keys:    []string{"cpu", "foobar", "mem"},
 	})
-	defer os.RemoveAll(dir)
 
 	runCommand(t, testParams{
 		file:      file,
@@ -154,10 +147,10 @@ type tsmParams struct {
 
 func createTSMFile(t *testing.T, params tsmParams) (string, string) {
 	t.Helper()
-	dir, err := os.MkdirTemp("", "deletetsm")
-	require.NoError(t, err)
+	dir := t.TempDir()
 
 	var file *os.File
+	var err error
 	if !params.improperExt {
 		file, err = os.CreateTemp(dir, "*."+tsm1.TSMFileExtension)
 	} else {

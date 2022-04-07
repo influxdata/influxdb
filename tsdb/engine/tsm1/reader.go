@@ -238,6 +238,7 @@ func NewTSMReader(f *os.File, options ...tsmReaderOption) (*TSMReader, error) {
 
 	index, err := t.accessor.init()
 	if err != nil {
+		_ = t.accessor.close()
 		return nil, err
 	}
 

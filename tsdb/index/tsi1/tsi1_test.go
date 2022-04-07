@@ -255,19 +255,10 @@ func (itr *SeriesIDIterator) Next() (elem tsdb.SeriesIDElem) {
 	return elem
 }
 
-// MustTempDir returns a temporary directory. Panic on error.
-func MustTempDir() string {
-	path, err := os.MkdirTemp("", "tsi-")
-	if err != nil {
-		panic(err)
-	}
-	return path
-}
-
-// MustTempDir returns a temporary directory for a partition. Panic on error.
-func MustTempPartitionDir() string {
-	path := MustTempDir()
-	path = filepath.Join(path, "0")
+// MustTempPartitionDir returns a temporary directory for a partition. Panic on
+// error.
+func MustTempPartitionDir(tb testing.TB) string {
+	path := filepath.Join(tb.TempDir(), "0")
 	if err := os.Mkdir(path, 0777); err != nil {
 		panic(err)
 	}
@@ -287,17 +278,13 @@ type SeriesFile struct {
 }
 
 // NewSeriesFile returns a new instance of SeriesFile with a temporary file path.
-func NewSeriesFile() *SeriesFile {
-	dir, err := os.MkdirTemp("", "tsdb-series-file-")
-	if err != nil {
-		panic(err)
-	}
-	return &SeriesFile{SeriesFile: tsdb.NewSeriesFile(dir)}
+func NewSeriesFile(tb testing.TB) *SeriesFile {
+	return &SeriesFile{SeriesFile: tsdb.NewSeriesFile(tb.TempDir())}
 }
 
 // MustOpenSeriesFile returns a new, open instance of SeriesFile. Panic on error.
-func MustOpenSeriesFile() *SeriesFile {
-	f := NewSeriesFile()
+func MustOpenSeriesFile(tb testing.TB) *SeriesFile {
+	f := NewSeriesFile(tb)
 	if err := f.Open(); err != nil {
 		panic(err)
 	}
@@ -306,7 +293,6 @@ func MustOpenSeriesFile() *SeriesFile {
 
 // Close closes the log file and removes it from disk.
 func (f *SeriesFile) Close() error {
-	defer os.RemoveAll(f.Path())
 	return f.SeriesFile.Close()
 }
 

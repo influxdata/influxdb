@@ -13,13 +13,13 @@ import (
 )
 
 func TestDigest_None(t *testing.T) {
-	dir := MustTempDir()
+	dir := t.TempDir()
 	dataDir := filepath.Join(dir, "data")
 	if err := os.Mkdir(dataDir, 0755); err != nil {
 		t.Fatalf("create data dir: %v", err)
 	}
 
-	df := MustTempFile(dir)
+	df := MustTempFile(t, dir)
 
 	files := []string{}
 	if err := tsm1.Digest(dir, files, df); err != nil {
@@ -62,7 +62,7 @@ func TestDigest_None(t *testing.T) {
 }
 
 func TestDigest_One(t *testing.T) {
-	dir := MustTempDir()
+	dir := t.TempDir()
 	dataDir := filepath.Join(dir, "data")
 	if err := os.Mkdir(dataDir, 0755); err != nil {
 		t.Fatalf("create data dir: %v", err)
@@ -72,14 +72,14 @@ func TestDigest_One(t *testing.T) {
 	writes := map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": []tsm1.Value{a1},
 	}
-	MustWriteTSM(dir, 1, writes)
+	MustWriteTSM(t, dir, 1, writes)
 
 	files, err := filepath.Glob(filepath.Join(dir, fmt.Sprintf("*.%s", tsm1.TSMFileExtension)))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	df := MustTempFile(dir)
+	df := MustTempFile(t, dir)
 
 	if err := tsm1.Digest(dir, files, df); err != nil {
 		t.Fatalf("digest error: %v", err)
@@ -125,7 +125,7 @@ func TestDigest_One(t *testing.T) {
 }
 
 func TestDigest_TimeFilter(t *testing.T) {
-	dir := MustTempDir()
+	dir := t.TempDir()
 	dataDir := filepath.Join(dir, "data")
 	if err := os.Mkdir(dataDir, 0755); err != nil {
 		t.Fatalf("create data dir: %v", err)
@@ -135,26 +135,26 @@ func TestDigest_TimeFilter(t *testing.T) {
 	writes := map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": []tsm1.Value{a1},
 	}
-	MustWriteTSM(dir, 1, writes)
+	MustWriteTSM(t, dir, 1, writes)
 
 	a2 := tsm1.NewValue(2, 2.1)
 	writes = map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": []tsm1.Value{a2},
 	}
-	MustWriteTSM(dir, 2, writes)
+	MustWriteTSM(t, dir, 2, writes)
 
 	a3 := tsm1.NewValue(3, 3.1)
 	writes = map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": []tsm1.Value{a3},
 	}
-	MustWriteTSM(dir, 3, writes)
+	MustWriteTSM(t, dir, 3, writes)
 
 	files, err := filepath.Glob(filepath.Join(dir, fmt.Sprintf("*.%s", tsm1.TSMFileExtension)))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	df := MustTempFile(dir)
+	df := MustTempFile(t, dir)
 
 	if err := tsm1.DigestWithOptions(dir, files, tsm1.DigestOptions{MinTime: 2, MaxTime: 2}, df); err != nil {
 		t.Fatalf("digest error: %v", err)
@@ -206,7 +206,7 @@ func TestDigest_TimeFilter(t *testing.T) {
 }
 
 func TestDigest_KeyFilter(t *testing.T) {
-	dir := MustTempDir()
+	dir := t.TempDir()
 	dataDir := filepath.Join(dir, "data")
 	if err := os.Mkdir(dataDir, 0755); err != nil {
 		t.Fatalf("create data dir: %v", err)
@@ -216,26 +216,26 @@ func TestDigest_KeyFilter(t *testing.T) {
 	writes := map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": []tsm1.Value{a1},
 	}
-	MustWriteTSM(dir, 1, writes)
+	MustWriteTSM(t, dir, 1, writes)
 
 	a2 := tsm1.NewValue(2, 2.1)
 	writes = map[string][]tsm1.Value{
 		"cpu,host=B#!~#value": []tsm1.Value{a2},
 	}
-	MustWriteTSM(dir, 2, writes)
+	MustWriteTSM(t, dir, 2, writes)
 
 	a3 := tsm1.NewValue(3, 3.1)
 	writes = map[string][]tsm1.Value{
 		"cpu,host=C#!~#value": []tsm1.Value{a3},
 	}
-	MustWriteTSM(dir, 3, writes)
+	MustWriteTSM(t, dir, 3, writes)
 
 	files, err := filepath.Glob(filepath.Join(dir, fmt.Sprintf("*.%s", tsm1.TSMFileExtension)))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	df := MustTempFile(dir)
+	df := MustTempFile(t, dir)
 
 	if err := tsm1.DigestWithOptions(dir, files, tsm1.DigestOptions{
 		MinKey: []byte("cpu,host=B#!~#value"),
@@ -284,8 +284,7 @@ func TestDigest_KeyFilter(t *testing.T) {
 
 func TestDigest_Manifest(t *testing.T) {
 	// Create temp directory to hold test files.
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	digestFile := filepath.Join(dir, tsm1.DigestFilename)
 
@@ -299,7 +298,7 @@ func TestDigest_Manifest(t *testing.T) {
 	var files []string
 	gen := 1
 	for ; gen < 4; gen++ {
-		name := MustWriteTSM(dir, gen, writes)
+		name := MustWriteTSM(t, dir, gen, writes)
 		files = append(files, name)
 	}
 
@@ -363,7 +362,7 @@ func TestDigest_Manifest(t *testing.T) {
 	}
 
 	// Write an extra tsm file that shouldn't be included in the manifest.
-	extra := MustWriteTSM(dir, gen, writes)
+	extra := MustWriteTSM(t, dir, gen, writes)
 
 	// Re-generate manifest.
 	mfest, err = tsm1.NewDigestManifest(dir, files)

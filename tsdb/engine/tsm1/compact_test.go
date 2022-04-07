@@ -17,8 +17,7 @@ import (
 
 // Tests compacting a Cache snapshot into a single TSM file
 func TestCompactor_Snapshot(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	v1 := tsm1.NewValue(1, float64(1))
 	v2 := tsm1.NewValue(1, float64(1))
@@ -36,9 +35,12 @@ func TestCompactor_Snapshot(t *testing.T) {
 		}
 	}
 
+	fs := &fakeFileStore{}
+	t.Cleanup(func() { fs.Close() })
+
 	compactor := tsm1.NewCompactor()
 	compactor.Dir = dir
-	compactor.FileStore = &fakeFileStore{}
+	compactor.FileStore = fs
 
 	files, err := compactor.WriteSnapshot(c, zap.NewNop())
 	if err == nil {
@@ -61,6 +63,7 @@ func TestCompactor_Snapshot(t *testing.T) {
 	}
 
 	r := MustOpenTSMReader(files[0])
+	t.Cleanup(func() { r.Close() })
 
 	if got, exp := r.KeyCount(), 2; got != exp {
 		t.Fatalf("keys length mismatch: got %v, exp %v", got, exp)
@@ -91,8 +94,7 @@ func TestCompactor_Snapshot(t *testing.T) {
 }
 
 func TestCompactor_CompactFullLastTimestamp(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	var vals tsm1.Values
 	ts := int64(1e9)
@@ -106,15 +108,16 @@ func TestCompactor_CompactFullLastTimestamp(t *testing.T) {
 	writes := map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": vals[:100],
 	}
-	f1 := MustWriteTSM(dir, 1, writes)
+	f1 := MustWriteTSM(t, dir, 1, writes)
 
 	writes = map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": vals[100:],
 	}
-	f2 := MustWriteTSM(dir, 2, writes)
+	f2 := MustWriteTSM(t, dir, 2, writes)
 
 	fs := &fakeFileStore{}
-	defer fs.Close()
+	t.Cleanup(func() { fs.Close() })
+
 	compactor := tsm1.NewCompactor()
 	compactor.Dir = dir
 	compactor.FileStore = fs
@@ -126,6 +129,8 @@ func TestCompactor_CompactFullLastTimestamp(t *testing.T) {
 	}
 
 	r := MustOpenTSMReader(files[0])
+	t.Cleanup(func() { r.Close() })
+
 	entries := r.Entries([]byte("cpu,host=A#!~#value"))
 	_, b, err := r.ReadBytes(&entries[0], nil)
 	if err != nil {
@@ -144,15 +149,14 @@ func TestCompactor_CompactFullLastTimestamp(t *testing.T) {
 
 // Ensures that a compaction will properly merge multiple TSM files
 func TestCompactor_CompactFull(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	// write 3 TSM files with different data and one new point
 	a1 := tsm1.NewValue(1, 1.1)
 	writes := map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": {a1},
 	}
-	f1 := MustWriteTSM(dir, 1, writes)
+	f1 := MustWriteTSM(t, dir, 1, writes)
 
 	a2 := tsm1.NewValue(2, 1.2)
 	b1 := tsm1.NewValue(1, 2.1)
@@ -160,7 +164,7 @@ func TestCompactor_CompactFull(t *testing.T) {
 		"cpu,host=A#!~#value": {a2},
 		"cpu,host=B#!~#value": {b1},
 	}
-	f2 := MustWriteTSM(dir, 2, writes)
+	f2 := MustWriteTSM(t, dir, 2, writes)
 
 	a3 := tsm1.NewValue(1, 1.3)
 	c1 := tsm1.NewValue(1, 3.1)
@@ -168,10 +172,10 @@ func TestCompactor_CompactFull(t *testing.T) {
 		"cpu,host=A#!~#value": {a3},
 		"cpu,host=C#!~#value": {c1},
 	}
-	f3 := MustWriteTSM(dir, 3, writes)
+	f3 := MustWriteTSM(t, dir, 3, writes)
 
 	fs := &fakeFileStore{}
-	defer fs.Close()
+	t.Cleanup(func() { fs.Close() })
 	compactor := tsm1.NewCompactor()
 	compactor.Dir = dir
 	compactor.FileStore = fs
@@ -216,6 +220,7 @@ func TestCompactor_CompactFull(t *testing.T) {
 	}
 
 	r := MustOpenTSMReader(files[0])
+	t.Cleanup(func() { r.Close() })
 
 	if got, exp := r.KeyCount(), 3; got != exp {
 		t.Fatalf("keys length mismatch: got %v, exp %v", got, exp)
@@ -248,15 +253,14 @@ func TestCompactor_CompactFull(t *testing.T) {
 
 // Ensures that a compaction will properly merge multiple TSM files
 func TestCompactor_DecodeError(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	// write 3 TSM files with different data and one new point
 	a1 := tsm1.NewValue(1, 1.1)
 	writes := map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": {a1},
 	}
-	f1 := MustWriteTSM(dir, 1, writes)
+	f1 := MustWriteTSM(t, dir, 1, writes)
 
 	a2 := tsm1.NewValue(2, 1.2)
 	b1 := tsm1.NewValue(1, 2.1)
@@ -264,7 +268,7 @@ func TestCompactor_DecodeError(t *testing.T) {
 		"cpu,host=A#!~#value": {a2},
 		"cpu,host=B#!~#value": {b1},
 	}
-	f2 := MustWriteTSM(dir, 2, writes)
+	f2 := MustWriteTSM(t, dir, 2, writes)
 
 	a3 := tsm1.NewValue(1, 1.3)
 	c1 := tsm1.NewValue(1, 3.1)
@@ -272,7 +276,7 @@ func TestCompactor_DecodeError(t *testing.T) {
 		"cpu,host=A#!~#value": {a3},
 		"cpu,host=C#!~#value": {c1},
 	}
-	f3 := MustWriteTSM(dir, 3, writes)
+	f3 := MustWriteTSM(t, dir, 3, writes)
 	f, err := os.OpenFile(f3, os.O_RDWR, os.ModePerm)
 	if err != nil {
 		panic(err)
@@ -304,8 +308,7 @@ func TestCompactor_DecodeError(t *testing.T) {
 
 // Ensures that a compaction will properly merge multiple TSM files
 func TestCompactor_Compact_OverlappingBlocks(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	// write 3 TSM files with different data and one new point
 	a1 := tsm1.NewValue(4, 1.1)
@@ -315,7 +318,7 @@ func TestCompactor_Compact_OverlappingBlocks(t *testing.T) {
 	writes := map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": {a1, a2, a3},
 	}
-	f1 := MustWriteTSM(dir, 1, writes)
+	f1 := MustWriteTSM(t, dir, 1, writes)
 
 	c1 := tsm1.NewValue(3, 1.2)
 	c2 := tsm1.NewValue(8, 1.2)
@@ -324,10 +327,10 @@ func TestCompactor_Compact_OverlappingBlocks(t *testing.T) {
 	writes = map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": {c1, c2, c3},
 	}
-	f3 := MustWriteTSM(dir, 3, writes)
+	f3 := MustWriteTSM(t, dir, 3, writes)
 
 	fs := &fakeFileStore{}
-	defer fs.Close()
+	t.Cleanup(func() { fs.Close() })
 	compactor := tsm1.NewCompactor()
 	compactor.Dir = dir
 	compactor.FileStore = fs
@@ -345,6 +348,7 @@ func TestCompactor_Compact_OverlappingBlocks(t *testing.T) {
 	}
 
 	r := MustOpenTSMReader(files[0])
+	t.Cleanup(func() { r.Close() })
 
 	if got, exp := r.KeyCount(), 1; got != exp {
 		t.Fatalf("keys length mismatch: got %v, exp %v", got, exp)
@@ -375,8 +379,7 @@ func TestCompactor_Compact_OverlappingBlocks(t *testing.T) {
 
 // Ensures that a compaction will properly merge multiple TSM files
 func TestCompactor_Compact_OverlappingBlocksMultiple(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	// write 3 TSM files with different data and one new point
 	a1 := tsm1.NewValue(4, 1.1)
@@ -386,7 +389,7 @@ func TestCompactor_Compact_OverlappingBlocksMultiple(t *testing.T) {
 	writes := map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": {a1, a2, a3},
 	}
-	f1 := MustWriteTSM(dir, 1, writes)
+	f1 := MustWriteTSM(t, dir, 1, writes)
 
 	b1 := tsm1.NewValue(1, 1.2)
 	b2 := tsm1.NewValue(2, 1.2)
@@ -395,7 +398,7 @@ func TestCompactor_Compact_OverlappingBlocksMultiple(t *testing.T) {
 	writes = map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": {b1, b2, b3},
 	}
-	f2 := MustWriteTSM(dir, 2, writes)
+	f2 := MustWriteTSM(t, dir, 2, writes)
 
 	c1 := tsm1.NewValue(3, 1.2)
 	c2 := tsm1.NewValue(8, 1.2)
@@ -404,10 +407,10 @@ func TestCompactor_Compact_OverlappingBlocksMultiple(t *testing.T) {
 	writes = map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": {c1, c2, c3},
 	}
-	f3 := MustWriteTSM(dir, 3, writes)
+	f3 := MustWriteTSM(t, dir, 3, writes)
 
 	fs := &fakeFileStore{}
-	defer fs.Close()
+	t.Cleanup(func() { fs.Close() })
 	compactor := tsm1.NewCompactor()
 	compactor.Dir = dir
 	compactor.FileStore = fs
@@ -425,6 +428,7 @@ func TestCompactor_Compact_OverlappingBlocksMultiple(t *testing.T) {
 	}
 
 	r := MustOpenTSMReader(files[0])
+	t.Cleanup(func() { r.Close() })
 
 	if got, exp := r.KeyCount(), 1; got != exp {
 		t.Fatalf("keys length mismatch: got %v, exp %v", got, exp)
@@ -454,8 +458,7 @@ func TestCompactor_Compact_OverlappingBlocksMultiple(t *testing.T) {
 }
 
 func TestCompactor_Compact_UnsortedBlocks(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	// write 2 TSM files with different data and one new point
 	a1 := tsm1.NewValue(4, 1.1)
@@ -465,7 +468,7 @@ func TestCompactor_Compact_UnsortedBlocks(t *testing.T) {
 	writes := map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": {a1, a2, a3},
 	}
-	f1 := MustWriteTSM(dir, 1, writes)
+	f1 := MustWriteTSM(t, dir, 1, writes)
 
 	b1 := tsm1.NewValue(1, 1.2)
 	b2 := tsm1.NewValue(2, 1.2)
@@ -474,11 +477,13 @@ func TestCompactor_Compact_UnsortedBlocks(t *testing.T) {
 	writes = map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": {b1, b2, b3},
 	}
-	f2 := MustWriteTSM(dir, 2, writes)
+	f2 := MustWriteTSM(t, dir, 2, writes)
 
+	fs := &fakeFileStore{}
+	t.Cleanup(func() { fs.Close() })
 	compactor := tsm1.NewCompactor()
 	compactor.Dir = dir
-	compactor.FileStore = &fakeFileStore{}
+	compactor.FileStore = fs
 	compactor.Size = 2
 
 	compactor.Open()
@@ -493,6 +498,7 @@ func TestCompactor_Compact_UnsortedBlocks(t *testing.T) {
 	}
 
 	r := MustOpenTSMReader(files[0])
+	t.Cleanup(func() { r.Close() })
 
 	if got, exp := r.KeyCount(), 1; got != exp {
 		t.Fatalf("keys length mismatch: got %v, exp %v", got, exp)
@@ -522,8 +528,7 @@ func TestCompactor_Compact_UnsortedBlocks(t *testing.T) {
 }
 
 func TestCompactor_Compact_UnsortedBlocksOverlapping(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	// write 3 TSM files where two blocks are overlapping and with unsorted order
 	a1 := tsm1.NewValue(1, 1.1)
@@ -532,7 +537,7 @@ func TestCompactor_Compact_UnsortedBlocksOverlapping(t *testing.T) {
 	writes := map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": {a1, a2},
 	}
-	f1 := MustWriteTSM(dir, 1, writes)
+	f1 := MustWriteTSM(t, dir, 1, writes)
 
 	b1 := tsm1.NewValue(3, 1.2)
 	b2 := tsm1.NewValue(4, 1.2)
@@ -540,7 +545,7 @@ func TestCompactor_Compact_UnsortedBlocksOverlapping(t *testing.T) {
 	writes = map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": {b1, b2},
 	}
-	f2 := MustWriteTSM(dir, 2, writes)
+	f2 := MustWriteTSM(t, dir, 2, writes)
 
 	c1 := tsm1.NewValue(1, 1.1)
 	c2 := tsm1.NewValue(2, 1.1)
@@ -548,11 +553,13 @@ func TestCompactor_Compact_UnsortedBlocksOverlapping(t *testing.T) {
 	writes = map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": {c1, c2},
 	}
-	f3 := MustWriteTSM(dir, 3, writes)
+	f3 := MustWriteTSM(t, dir, 3, writes)
 
+	fs := &fakeFileStore{}
+	t.Cleanup(func() { fs.Close() })
 	compactor := tsm1.NewCompactor()
 	compactor.Dir = dir
-	compactor.FileStore = &fakeFileStore{}
+	compactor.FileStore = fs
 	compactor.Size = 2
 
 	compactor.Open()
@@ -567,6 +574,7 @@ func TestCompactor_Compact_UnsortedBlocksOverlapping(t *testing.T) {
 	}
 
 	r := MustOpenTSMReader(files[0])
+	t.Cleanup(func() { r.Close() })
 
 	if got, exp := r.KeyCount(), 1; got != exp {
 		t.Fatalf("keys length mismatch: got %v, exp %v", got, exp)
@@ -597,8 +605,7 @@ func TestCompactor_Compact_UnsortedBlocksOverlapping(t *testing.T) {
 
 // Ensures that a compaction will properly merge multiple TSM files
 func TestCompactor_CompactFull_SkipFullBlocks(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	// write 3 TSM files with different data and one new point
 	a1 := tsm1.NewValue(1, 1.1)
@@ -606,22 +613,22 @@ func TestCompactor_CompactFull_SkipFullBlocks(t *testing.T) {
 	writes := map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": {a1, a2},
 	}
-	f1 := MustWriteTSM(dir, 1, writes)
+	f1 := MustWriteTSM(t, dir, 1, writes)
 
 	a3 := tsm1.NewValue(3, 1.3)
 	writes = map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": {a3},
 	}
-	f2 := MustWriteTSM(dir, 2, writes)
+	f2 := MustWriteTSM(t, dir, 2, writes)
 
 	a4 := tsm1.NewValue(4, 1.4)
 	writes = map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": {a4},
 	}
-	f3 := MustWriteTSM(dir, 3, writes)
+	f3 := MustWriteTSM(t, dir, 3, writes)
 
 	fs := &fakeFileStore{}
-	defer fs.Close()
+	t.Cleanup(func() { fs.Close() })
 	compactor := tsm1.NewCompactor()
 	compactor.Dir = dir
 	compactor.FileStore = fs
@@ -657,6 +664,7 @@ func TestCompactor_CompactFull_SkipFullBlocks(t *testing.T) {
 	}
 
 	r := MustOpenTSMReader(files[0])
+	t.Cleanup(func() { r.Close() })
 
 	if got, exp := r.KeyCount(), 1; got != exp {
 		t.Fatalf("keys length mismatch: got %v, exp %v", got, exp)
@@ -692,8 +700,7 @@ func TestCompactor_CompactFull_SkipFullBlocks(t *testing.T) {
 // Ensures that a full compaction will skip over blocks that have the full
 // range of time contained in the block tombstoned
 func TestCompactor_CompactFull_TombstonedSkipBlock(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	// write 3 TSM files with different data and one new point
 	a1 := tsm1.NewValue(1, 1.1)
@@ -701,7 +708,7 @@ func TestCompactor_CompactFull_TombstonedSkipBlock(t *testing.T) {
 	writes := map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": {a1, a2},
 	}
-	f1 := MustWriteTSM(dir, 1, writes)
+	f1 := MustWriteTSM(t, dir, 1, writes)
 
 	ts := tsm1.NewTombstoner(f1, nil)
 	ts.AddRange([][]byte{[]byte("cpu,host=A#!~#value")}, math.MinInt64, math.MaxInt64)
@@ -714,16 +721,16 @@ func TestCompactor_CompactFull_TombstonedSkipBlock(t *testing.T) {
 	writes = map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": {a3},
 	}
-	f2 := MustWriteTSM(dir, 2, writes)
+	f2 := MustWriteTSM(t, dir, 2, writes)
 
 	a4 := tsm1.NewValue(4, 1.4)
 	writes = map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": {a4},
 	}
-	f3 := MustWriteTSM(dir, 3, writes)
+	f3 := MustWriteTSM(t, dir, 3, writes)
 
 	fs := &fakeFileStore{}
-	defer fs.Close()
+	t.Cleanup(func() { fs.Close() })
 	compactor := tsm1.NewCompactor()
 	compactor.Dir = dir
 	compactor.FileStore = fs
@@ -759,6 +766,7 @@ func TestCompactor_CompactFull_TombstonedSkipBlock(t *testing.T) {
 	}
 
 	r := MustOpenTSMReader(files[0])
+	t.Cleanup(func() { r.Close() })
 
 	if got, exp := r.KeyCount(), 1; got != exp {
 		t.Fatalf("keys length mismatch: got %v, exp %v", got, exp)
@@ -794,8 +802,7 @@ func TestCompactor_CompactFull_TombstonedSkipBlock(t *testing.T) {
 // Ensures that a full compaction will decode and combine blocks with
 // partial tombstoned values
 func TestCompactor_CompactFull_TombstonedPartialBlock(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	// write 3 TSM files with different data and one new point
 	a1 := tsm1.NewValue(1, 1.1)
@@ -803,7 +810,7 @@ func TestCompactor_CompactFull_TombstonedPartialBlock(t *testing.T) {
 	writes := map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": {a1, a2},
 	}
-	f1 := MustWriteTSM(dir, 1, writes)
+	f1 := MustWriteTSM(t, dir, 1, writes)
 
 	ts := tsm1.NewTombstoner(f1, nil)
 	// a1 should remain after compaction
@@ -817,16 +824,16 @@ func TestCompactor_CompactFull_TombstonedPartialBlock(t *testing.T) {
 	writes = map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": {a3},
 	}
-	f2 := MustWriteTSM(dir, 2, writes)
+	f2 := MustWriteTSM(t, dir, 2, writes)
 
 	a4 := tsm1.NewValue(4, 1.4)
 	writes = map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": {a4},
 	}
-	f3 := MustWriteTSM(dir, 3, writes)
+	f3 := MustWriteTSM(t, dir, 3, writes)
 
 	fs := &fakeFileStore{}
-	defer fs.Close()
+	t.Cleanup(func() { fs.Close() })
 	compactor := tsm1.NewCompactor()
 	compactor.Dir = dir
 	compactor.FileStore = fs
@@ -862,6 +869,7 @@ func TestCompactor_CompactFull_TombstonedPartialBlock(t *testing.T) {
 	}
 
 	r := MustOpenTSMReader(files[0])
+	t.Cleanup(func() { r.Close() })
 
 	if got, exp := r.KeyCount(), 1; got != exp {
 		t.Fatalf("keys length mismatch: got %v, exp %v", got, exp)
@@ -898,8 +906,7 @@ func TestCompactor_CompactFull_TombstonedPartialBlock(t *testing.T) {
 // multiple tombstoned ranges within the block e.g. (t1, t2, t3, t4)
 // having t2 and t3 removed
 func TestCompactor_CompactFull_TombstonedMultipleRanges(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	// write 3 TSM files with different data and one new point
 	a1 := tsm1.NewValue(1, 1.1)
@@ -910,7 +917,7 @@ func TestCompactor_CompactFull_TombstonedMultipleRanges(t *testing.T) {
 	writes := map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": {a1, a2, a3, a4},
 	}
-	f1 := MustWriteTSM(dir, 1, writes)
+	f1 := MustWriteTSM(t, dir, 1, writes)
 
 	ts := tsm1.NewTombstoner(f1, nil)
 	// a1, a3 should remain after compaction
@@ -925,16 +932,16 @@ func TestCompactor_CompactFull_TombstonedMultipleRanges(t *testing.T) {
 	writes = map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": {a5},
 	}
-	f2 := MustWriteTSM(dir, 2, writes)
+	f2 := MustWriteTSM(t, dir, 2, writes)
 
 	a6 := tsm1.NewValue(6, 1.6)
 	writes = map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": {a6},
 	}
-	f3 := MustWriteTSM(dir, 3, writes)
+	f3 := MustWriteTSM(t, dir, 3, writes)
 
 	fs := &fakeFileStore{}
-	defer fs.Close()
+	t.Cleanup(func() { fs.Close() })
 	compactor := tsm1.NewCompactor()
 	compactor.Dir = dir
 	compactor.FileStore = fs
@@ -970,6 +977,7 @@ func TestCompactor_CompactFull_TombstonedMultipleRanges(t *testing.T) {
 	}
 
 	r := MustOpenTSMReader(files[0])
+	t.Cleanup(func() { r.Close() })
 
 	if got, exp := r.KeyCount(), 1; got != exp {
 		t.Fatalf("keys length mismatch: got %v, exp %v", got, exp)
@@ -1009,12 +1017,11 @@ func TestCompactor_CompactFull_MaxKeys(t *testing.T) {
 	if testing.Short() || os.Getenv("CI") != "" || os.Getenv("GORACE") != "" {
 		t.Skip("Skipping max keys compaction test")
 	}
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	// write two files where the first contains a single key with the maximum
 	// number of full blocks that can fit in a TSM file
-	f1, f1Name := MustTSMWriter(dir, 1)
+	f1, f1Name := MustTSMWriter(t, dir, 1)
 	values := make([]tsm1.Value, 1000)
 	for i := 0; i < 65534; i++ {
 		values = values[:0]
@@ -1032,7 +1039,7 @@ func TestCompactor_CompactFull_MaxKeys(t *testing.T) {
 
 	// Write a new file with 2 blocks that when compacted would exceed the max
 	// blocks
-	f2, f2Name := MustTSMWriter(dir, 2)
+	f2, f2Name := MustTSMWriter(t, dir, 2)
 	for i := 0; i < 2; i++ {
 		lastTimeStamp := values[len(values)-1].UnixNano() + 1
 		values = values[:0]
@@ -1050,7 +1057,7 @@ func TestCompactor_CompactFull_MaxKeys(t *testing.T) {
 	f2.Close()
 
 	fs := &fakeFileStore{}
-	defer fs.Close()
+	t.Cleanup(func() { fs.Close() })
 	compactor := tsm1.NewCompactor()
 	compactor.Dir = dir
 	compactor.FileStore = fs
@@ -1088,20 +1095,21 @@ func TestCompactor_CompactFull_MaxKeys(t *testing.T) {
 
 // Tests that a single TSM file can be read and iterated over
 func TestTSMKeyIterator_Single(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	v1 := tsm1.NewValue(1, 1.1)
 	writes := map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": {v1},
 	}
 
-	r := MustTSMReader(dir, 1, writes)
+	r := MustTSMReader(t, dir, 1, writes)
+	t.Cleanup(func() { r.Close() })
 
 	iter, err := newTSMKeyIterator(1, false, nil, r)
 	if err != nil {
 		t.Fatalf("unexpected error creating WALKeyIterator: %v", err)
 	}
+	t.Cleanup(func() { iter.Close() })
 
 	var readValues bool
 	for iter.Next() {
@@ -1148,8 +1156,7 @@ func newTSMKeyIterator(size int, fast bool, interrupt chan struct{}, readers ...
 // No data is lost but the same point time/value would exist in two files until
 // compaction corrects it.
 func TestTSMKeyIterator_Duplicate(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	v1 := tsm1.NewValue(1, int64(1))
 	v2 := tsm1.NewValue(1, int64(2))
@@ -1158,18 +1165,21 @@ func TestTSMKeyIterator_Duplicate(t *testing.T) {
 		"cpu,host=A#!~#value": {v1},
 	}
 
-	r1 := MustTSMReader(dir, 1, writes1)
+	r1 := MustTSMReader(t, dir, 1, writes1)
+	t.Cleanup(func() { r1.Close() })
 
 	writes2 := map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": {v2},
 	}
 
-	r2 := MustTSMReader(dir, 2, writes2)
+	r2 := MustTSMReader(t, dir, 2, writes2)
+	t.Cleanup(func() { r2.Close() })
 
 	iter, err := newTSMKeyIterator(1, false, nil, r1, r2)
 	if err != nil {
 		t.Fatalf("unexpected error creating WALKeyIterator: %v", err)
 	}
+	t.Cleanup(func() { iter.Close() })
 
 	var readValues bool
 	for iter.Next() {
@@ -1203,18 +1213,18 @@ func TestTSMKeyIterator_Duplicate(t *testing.T) {
 // Tests that deleted keys are not seen during iteration with
 // TSM files.
 func TestTSMKeyIterator_MultipleKeysDeleted(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	v1 := tsm1.NewValue(2, int64(1))
 	points1 := map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": {v1},
 	}
 
-	r1 := MustTSMReader(dir, 1, points1)
+	r1 := MustTSMReader(t, dir, 1, points1)
 	if e := r1.Delete([][]byte{[]byte("cpu,host=A#!~#value")}); nil != e {
 		t.Fatal(e)
 	}
+	t.Cleanup(func() { r1.Close() })
 
 	v2 := tsm1.NewValue(1, float64(1))
 	v3 := tsm1.NewValue(1, float64(1))
@@ -1224,7 +1234,8 @@ func TestTSMKeyIterator_MultipleKeysDeleted(t *testing.T) {
 		"cpu,host=B#!~#value": {v3},
 	}
 
-	r2 := MustTSMReader(dir, 2, points2)
+	r2 := MustTSMReader(t, dir, 2, points2)
+	t.Cleanup(func() { r2.Close() })
 	r2.Delete([][]byte{[]byte("cpu,host=A#!~#count")})
 
 	iter, err := newTSMKeyIterator(1, false, nil, r1, r2)
@@ -1272,8 +1283,7 @@ func TestTSMKeyIterator_MultipleKeysDeleted(t *testing.T) {
 // Tests that deleted keys are not seen during iteration with
 // TSM files.
 func TestTSMKeyIterator_SingleDeletes(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	v1 := tsm1.NewValue(10, int64(1))
 	v2 := tsm1.NewValue(20, int64(1))
@@ -1290,7 +1300,8 @@ func TestTSMKeyIterator_SingleDeletes(t *testing.T) {
 		"cpu,host=D#!~#value": {v1, v2},
 	}
 
-	r1 := MustTSMReader(dir, 1, points1)
+	r1 := MustTSMReader(t, dir, 1, points1)
+	t.Cleanup(func() { r1.Close() })
 
 	if e := r1.DeleteRange([][]byte{[]byte("cpu,host=A#!~#value")}, 50, 50); nil != e {
 		t.Fatal(e)
@@ -1312,6 +1323,7 @@ func TestTSMKeyIterator_SingleDeletes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error creating WALKeyIterator: %v", err)
 	}
+	t.Cleanup(func() { iter.Close() })
 
 	var readValues int
 	var data = []struct {
@@ -1354,21 +1366,22 @@ func TestTSMKeyIterator_SingleDeletes(t *testing.T) {
 
 // Tests that the TSMKeyIterator will abort if the interrupt channel is closed
 func TestTSMKeyIterator_Abort(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	v1 := tsm1.NewValue(1, 1.1)
 	writes := map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": {v1},
 	}
 
-	r := MustTSMReader(dir, 1, writes)
+	r := MustTSMReader(t, dir, 1, writes)
+	t.Cleanup(func() { r.Close() })
 
 	intC := make(chan struct{})
 	iter, err := newTSMKeyIterator(1, false, intC, r)
 	if err != nil {
 		t.Fatalf("unexpected error creating WALKeyIterator: %v", err)
 	}
+	t.Cleanup(func() { iter.Close() })
 
 	var aborted bool
 	for iter.Next() {
@@ -2966,8 +2979,8 @@ func assertValueEqual(t *testing.T, a, b tsm1.Value) {
 	}
 }
 
-func MustTSMWriter(dir string, gen int) (tsm1.TSMWriter, string) {
-	f := MustTempFile(dir)
+func MustTSMWriter(tb testing.TB, dir string, gen int) (tsm1.TSMWriter, string) {
+	f := MustTempFile(tb, dir)
 	oldName := f.Name()
 
 	// Windows can't rename a file while it's open.  Close first, rename and
@@ -2995,8 +3008,8 @@ func MustTSMWriter(dir string, gen int) (tsm1.TSMWriter, string) {
 	return w, newName
 }
 
-func MustWriteTSM(dir string, gen int, values map[string][]tsm1.Value) string {
-	w, name := MustTSMWriter(dir, gen)
+func MustWriteTSM(tb testing.TB, dir string, gen int, values map[string][]tsm1.Value) string {
+	w, name := MustTSMWriter(tb, dir, gen)
 
 	keys := make([]string, 0, len(values))
 	for k := range values {
@@ -3021,8 +3034,8 @@ func MustWriteTSM(dir string, gen int, values map[string][]tsm1.Value) string {
 	return name
 }
 
-func MustTSMReader(dir string, gen int, values map[string][]tsm1.Value) *tsm1.TSMReader {
-	return MustOpenTSMReader(MustWriteTSM(dir, gen, values))
+func MustTSMReader(tb testing.TB, dir string, gen int, values map[string][]tsm1.Value) *tsm1.TSMReader {
+	return MustOpenTSMReader(MustWriteTSM(tb, dir, gen, values))
 }
 
 func MustOpenTSMReader(name string) *tsm1.TSMReader {

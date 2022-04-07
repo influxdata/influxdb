@@ -370,9 +370,12 @@ func (p *Partition) Close() error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	var err error
+	if p.fileSet == nil {
+		return nil
+	}
 
 	// Close log files.
+	var err error
 	for _, f := range p.fileSet.files {
 		if localErr := f.Close(); localErr != nil {
 			err = localErr

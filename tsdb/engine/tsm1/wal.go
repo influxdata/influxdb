@@ -271,6 +271,7 @@ func (l *WAL) Open() error {
 				return err
 			}
 			if _, err := fd.Seek(0, io.SeekEnd); err != nil {
+				_ = fd.Close()
 				return err
 			}
 			l.currentSegmentWriter = NewWALSegmentWriter(fd)

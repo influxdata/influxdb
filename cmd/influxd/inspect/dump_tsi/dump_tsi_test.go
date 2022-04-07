@@ -19,9 +19,7 @@ func Test_DumpTSI_NoError(t *testing.T) {
 	cmd.SetOut(b)
 
 	// Create the temp-dir for our un-tared files to live in
-	dir, err := os.MkdirTemp("", "dumptsitest-")
-	require.NoError(t, err)
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	// Untar the test data
 	file, err := os.Open("../tsi-test-data.tar.gz")

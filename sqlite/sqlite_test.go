@@ -14,8 +14,7 @@ func TestFlush(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	store, clean := NewTestStore(t)
-	defer clean(t)
+	store := NewTestStore(t)
 
 	err := store.execTrans(ctx, `CREATE TABLE test_table_1 (id TEXT NOT NULL PRIMARY KEY)`)
 	require.NoError(t, err)
@@ -38,8 +37,7 @@ func TestFlushMigrationsTable(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	store, clean := NewTestStore(t)
-	defer clean(t)
+	store := NewTestStore(t)
 
 	require.NoError(t, store.execTrans(ctx, fmt.Sprintf(`CREATE TABLE %s (id TEXT NOT NULL PRIMARY KEY)`, migrationsTableName)))
 	require.NoError(t, store.execTrans(ctx, fmt.Sprintf(`INSERT INTO %s (id) VALUES ("one"), ("two"), ("three")`, migrationsTableName)))
@@ -59,10 +57,8 @@ func TestBackupSqlStore(t *testing.T) {
 	// this temporary dir/file is is used as the source db path for testing a bacup
 	// from a non-memory database. each individual test also creates a separate temporary dir/file
 	// to backup into.
-	td, err := os.MkdirTemp("", "")
-	require.NoError(t, err)
+	td := t.TempDir()
 	tf := fmt.Sprintf("%s/%s", td, DefaultFilename)
-	defer os.RemoveAll(td)
 
 	tests := []struct {
 		name   string
@@ -94,14 +90,13 @@ func TestBackupSqlStore(t *testing.T) {
 		require.NoError(t, err)
 
 		// create a file to write the backup to.
-		tempDir, err := os.MkdirTemp("", "")
-		require.NoError(t, err)
-		defer os.RemoveAll(tempDir)
+		tempDir := t.TempDir()
 
 		// open the file to use as a writer for BackupSqlStore
 		backupPath := tempDir + "/db.sqlite"
 		dest, err := os.Create(backupPath)
 		require.NoError(t, err)
+		defer dest.Close()
 
 		// run the backup
 		err = store.BackupSqlStore(ctx, dest)
@@ -130,10 +125,8 @@ func TestRestoreSqlStore(t *testing.T) {
 	// this temporary dir/file is is used as the destination db path for testing a restore
 	// into a non-memory database. each individual test also creates a separate temporary dir/file
 	// to hold a test db to restore from.
-	td, err := os.MkdirTemp("", "")
-	require.NoError(t, err)
+	td := t.TempDir()
 	tf := fmt.Sprintf("%s/%s", td, DefaultFilename)
-	defer os.RemoveAll(td)
 
 	tests := []struct {
 		name   string
@@ -153,13 +146,12 @@ func TestRestoreSqlStore(t *testing.T) {
 		ctx := context.Background()
 
 		// create the test db to restore from
-		tempDir, err := os.MkdirTemp("", "")
-		require.NoError(t, err)
+		tempDir := t.TempDir()
 		tempFileName := fmt.Sprintf("%s/%s", tempDir, DefaultFilename)
-		defer os.RemoveAll(tempDir)
 
 		restoreDB, err := NewSqlStore(tempFileName, zap.NewNop())
 		require.NoError(t, err)
+		t.Cleanup(func() { restoreDB.Close() })
 
 		// add some data to the test db
 		_, err = restoreDB.DB.Exec(`CREATE TABLE test_table_1 (id TEXT NOT NULL PRIMARY KEY)`)
@@ -179,10 +171,12 @@ func TestRestoreSqlStore(t *testing.T) {
 		// open the test "restore-from" db file as a reader
 		f, err := os.Open(tempFileName)
 		require.NoError(t, err)
+		t.Cleanup(func() { f.Close() })
 
 		// open a db to restore into. it will be empty to begin with.
 		restore, err := NewSqlStore(tt.dbPath, zap.NewNop())
 		require.NoError(t, err)
+		t.Cleanup(func() { restore.Close() })
 
 		// run the restore
 		err = restore.RestoreSqlStore(ctx, f)
@@ -197,14 +191,15 @@ func TestRestoreSqlStore(t *testing.T) {
 
 		require.Equal(t, []string{"one", "two", "three"}, res1)
 		require.Equal(t, []string{"four", "five", "six"}, res2)
+
+		require.NoError(t, f.Close())
 	}
 }
 
 func TestTableNames(t *testing.T) {
 	t.Parallel()
 
-	store, clean := NewTestStore(t)
-	defer clean(t)
+	store := NewTestStore(t)
 	ctx := context.Background()
 
 	err := store.execTrans(ctx, `CREATE TABLE test_table_1 (id TEXT NOT NULL PRIMARY KEY);
@@ -220,8 +215,7 @@ func TestTableNames(t *testing.T) {
 func TestAllMigrationNames(t *testing.T) {
 	t.Parallel()
 
-	store, clean := NewTestStore(t)
-	defer clean(t)
+	store := NewTestStore(t)
 	ctx := context.Background()
 
 	// Empty db, returns nil slice and no error

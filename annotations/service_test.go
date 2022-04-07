@@ -134,8 +134,7 @@ func TestAnnotationsCRUD(t *testing.T) {
 	}
 
 	t.Run("create annotations", func(t *testing.T) {
-		svc, clean := newTestService(t)
-		defer clean(t)
+		svc := newTestService(t)
 
 		tests := []struct {
 			name    string
@@ -169,9 +168,7 @@ func TestAnnotationsCRUD(t *testing.T) {
 	})
 
 	t.Run("select with filters", func(t *testing.T) {
-
-		svc, clean := newTestService(t)
-		defer clean(t)
+		svc := newTestService(t)
 		populateAnnotationsData(t, svc)
 
 		tests := []struct {
@@ -335,8 +332,7 @@ func TestAnnotationsCRUD(t *testing.T) {
 	})
 
 	t.Run("get by id", func(t *testing.T) {
-		svc, clean := newTestService(t)
-		defer clean(t)
+		svc := newTestService(t)
 		anns := populateAnnotationsData(t, svc)
 
 		tests := []struct {
@@ -383,8 +379,7 @@ func TestAnnotationsCRUD(t *testing.T) {
 
 	t.Run("delete multiple with a filter", func(t *testing.T) {
 		t.Run("delete by stream id", func(t *testing.T) {
-			svc, clean := newTestService(t)
-			defer clean(t)
+			svc := newTestService(t)
 			populateAnnotationsData(t, svc)
 
 			ctx := context.Background()
@@ -485,8 +480,7 @@ func TestAnnotationsCRUD(t *testing.T) {
 		})
 
 		t.Run("delete with non-id filters", func(t *testing.T) {
-			svc, clean := newTestService(t)
-			defer clean(t)
+			svc := newTestService(t)
 			populateAnnotationsData(t, svc)
 
 			tests := []struct {
@@ -590,8 +584,7 @@ func TestAnnotationsCRUD(t *testing.T) {
 
 			for _, tt := range tests {
 				t.Run(tt.name, func(t *testing.T) {
-					svc, clean := newTestService(t)
-					defer clean(t)
+					svc := newTestService(t)
 					populateAnnotationsData(t, svc)
 
 					err := svc.DeleteAnnotations(ctx, tt.deleteOrgID, tt.filter)
@@ -608,8 +601,7 @@ func TestAnnotationsCRUD(t *testing.T) {
 	})
 
 	t.Run("delete a single annotation by id", func(t *testing.T) {
-		svc, clean := newTestService(t)
-		defer clean(t)
+		svc := newTestService(t)
 		ans := populateAnnotationsData(t, svc)
 
 		tests := []struct {
@@ -652,8 +644,7 @@ func TestAnnotationsCRUD(t *testing.T) {
 	})
 
 	t.Run("update a single annotation by id", func(t *testing.T) {
-		svc, clean := newTestService(t)
-		defer clean(t)
+		svc := newTestService(t)
 		ans := populateAnnotationsData(t, svc)
 
 		updatedTime := time.Time{}.Add(time.Minute)
@@ -728,8 +719,7 @@ func TestAnnotationsCRUD(t *testing.T) {
 	})
 
 	t.Run("deleted streams cascade to deleted annotations", func(t *testing.T) {
-		svc, clean := newTestService(t)
-		defer clean(t)
+		svc := newTestService(t)
 
 		ctx := context.Background()
 		ans := populateAnnotationsData(t, svc)
@@ -762,8 +752,7 @@ func TestAnnotationsCRUD(t *testing.T) {
 	})
 
 	t.Run("renamed streams are reflected in subsequent annotation queries", func(t *testing.T) {
-		svc, clean := newTestService(t)
-		defer clean(t)
+		svc := newTestService(t)
 
 		ctx := context.Background()
 		populateAnnotationsData(t, svc)
@@ -817,8 +806,7 @@ func TestAnnotationsCRUD(t *testing.T) {
 func TestStreamsCRUDSingle(t *testing.T) {
 	t.Parallel()
 
-	svc, clean := newTestService(t)
-	defer clean(t)
+	svc := newTestService(t)
 
 	ctx := context.Background()
 	orgID := *influxdbtesting.IDPtr(1)
@@ -907,8 +895,7 @@ func TestStreamsCRUDSingle(t *testing.T) {
 func TestStreamsCRUDMany(t *testing.T) {
 	t.Parallel()
 
-	svc, clean := newTestService(t)
-	defer clean(t)
+	svc := newTestService(t)
 
 	ctx := context.Background()
 
@@ -1038,10 +1025,10 @@ func assertStreamNames(t *testing.T, want []string, got []influxdb.StoredStream)
 	require.ElementsMatch(t, want, storedNames)
 }
 
-func newTestService(t *testing.T) (*Service, func(t *testing.T)) {
+func newTestService(t *testing.T) *Service {
 	t.Helper()
 
-	store, clean := sqlite.NewTestStore(t)
+	store := sqlite.NewTestStore(t)
 	ctx := context.Background()
 
 	sqliteMigrator := sqlite.NewMigrator(store, zap.NewNop())
@@ -1050,5 +1037,5 @@ func newTestService(t *testing.T) (*Service, func(t *testing.T)) {
 
 	svc := NewService(store)
 
-	return svc, clean
+	return svc
 }

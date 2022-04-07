@@ -50,10 +50,7 @@ type StorageReader struct {
 }
 
 func NewStorageReader(tb testing.TB, setupFn SetupFunc) *StorageReader {
-	rootDir, err := os.MkdirTemp("", "storage-flux-test")
-	if err != nil {
-		tb.Fatal(err)
-	}
+	rootDir := tb.TempDir()
 
 	var closers []io.Closer
 	close := func() {
@@ -62,7 +59,6 @@ func NewStorageReader(tb testing.TB, setupFn SetupFunc) *StorageReader {
 				tb.Errorf("close error: %s", err)
 			}
 		}
-		_ = os.RemoveAll(rootDir)
 	}
 
 	// Create an underlying kv store. We use the inmem version to speed

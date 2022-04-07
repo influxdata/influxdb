@@ -10,7 +10,7 @@ import (
 )
 
 func TestSQLIndexExporter_ExportIndex(t *testing.T) {
-	idx := MustOpenIndex(1)
+	idx := MustOpenIndex(t, 1)
 	defer idx.Close()
 
 	// Add series to index.

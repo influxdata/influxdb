@@ -2,7 +2,6 @@ package launcher_test
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"github.com/influxdata/influx-cli/v2/clients/backup"
@@ -18,9 +17,7 @@ func TestBackupRestore_Full(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	backupDir, err := os.MkdirTemp("", "")
-	require.NoError(t, err)
-	defer os.RemoveAll(backupDir)
+	backupDir := t.TempDir()
 
 	// Boot a server, write some data, and take a backup.
 	l1 := launcher.RunAndSetupNewLauncherOrFail(ctx, t, func(o *launcher.InfluxdOpts) {
@@ -83,7 +80,7 @@ func TestBackupRestore_Full(t *testing.T) {
 	l2.ResetHTTPCLient()
 
 	// Check that orgs and buckets were reset to match the original server's metadata.
-	_, err = l2.OrgService(t).FindOrganizationByID(ctx, l2.Org.ID)
+	_, err := l2.OrgService(t).FindOrganizationByID(ctx, l2.Org.ID)
 	require.Equal(t, errors.ENotFound, errors.ErrorCode(err))
 	rbkt1, err := l2.BucketService(t).FindBucket(ctx, influxdb.BucketFilter{OrganizationID: &l1.Org.ID, ID: &l1.Bucket.ID})
 	require.NoError(t, err)
@@ -116,9 +113,7 @@ func TestBackupRestore_Partial(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	backupDir, err := os.MkdirTemp("", "")
-	require.NoError(t, err)
-	defer os.RemoveAll(backupDir)
+	backupDir := t.TempDir()
 
 	// Boot a server, write some data, and take a backup.
 	l1 := launcher.RunAndSetupNewLauncherOrFail(ctx, t, func(o *launcher.InfluxdOpts) {

@@ -14,9 +14,7 @@ import (
 )
 
 func TestEngine_ConcurrentShardSnapshots(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "shard_test")
-	require.NoError(t, err, "error creating temporary directory")
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 
 	tmpShard := filepath.Join(tmpDir, "shard")
 	tmpWal := filepath.Join(tmpDir, "wal")
@@ -41,7 +39,7 @@ func TestEngine_ConcurrentShardSnapshots(t *testing.T) {
 			time.Unix(int64(i), 0),
 		))
 	}
-	err = sh.WritePoints(context.Background(), points)
+	err := sh.WritePoints(context.Background(), points)
 	require.NoError(t, err)
 
 	engineInterface, err := sh.Engine()
@@ -82,10 +80,7 @@ func TestEngine_ConcurrentShardSnapshots(t *testing.T) {
 func NewSeriesFile(tb testing.TB, tmpDir string) *tsdb.SeriesFile {
 	tb.Helper()
 
-	dir, err := os.MkdirTemp(tmpDir, "tsdb-series-file-")
-	if err != nil {
-		panic(err)
-	}
+	dir := tb.TempDir()
 	f := tsdb.NewSeriesFile(dir)
 	f.Logger = zaptest.NewLogger(tb)
 	if err := f.Open(); err != nil {

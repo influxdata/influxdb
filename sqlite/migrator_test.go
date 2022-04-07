@@ -28,8 +28,7 @@ type tableInfo struct {
 func TestUp(t *testing.T) {
 	t.Parallel()
 
-	store, clean := NewTestStore(t)
-	defer clean(t)
+	store := NewTestStore(t)
 
 	upsOnlyAll, err := test_migrations.AllUp.ReadDir(".")
 	require.NoError(t, err)
@@ -69,8 +68,7 @@ func TestUpErrors(t *testing.T) {
 	t.Parallel()
 
 	t.Run("only unknown migration exists", func(t *testing.T) {
-		store, clean := NewTestStore(t)
-		defer clean(t)
+		store := NewTestStore(t)
 		ctx := context.Background()
 
 		migrator := NewMigrator(store, zaptest.NewLogger(t))
@@ -80,8 +78,7 @@ func TestUpErrors(t *testing.T) {
 	})
 
 	t.Run("known + unknown migrations exist", func(t *testing.T) {
-		store, clean := NewTestStore(t)
-		defer clean(t)
+		store := NewTestStore(t)
 		ctx := context.Background()
 
 		migrator := NewMigrator(store, zaptest.NewLogger(t))
@@ -94,8 +91,7 @@ func TestUpErrors(t *testing.T) {
 func TestUpWithBackups(t *testing.T) {
 	t.Parallel()
 
-	store, clean := NewTestStore(t)
-	defer clean(t)
+	store := NewTestStore(t)
 
 	logger := zaptest.NewLogger(t)
 	migrator := NewMigrator(store, logger)
@@ -140,8 +136,7 @@ func TestUpWithBackups(t *testing.T) {
 func TestDown(t *testing.T) {
 	t.Parallel()
 
-	store, clean := NewTestStore(t)
-	defer clean(t)
+	store := NewTestStore(t)
 
 	upsOnlyAll, err := test_migrations.AllUp.ReadDir(".")
 	require.NoError(t, err)

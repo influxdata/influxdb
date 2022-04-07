@@ -17,8 +17,7 @@ func fatal(t *testing.T, msg string, err error) {
 }
 
 func TestTSMReader_Type(t *testing.T) {
-	dir := mustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	f := mustTempFile(dir)
 
 	w, err := NewTSMWriter(f)
@@ -47,6 +46,7 @@ func TestTSMReader_Type(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
 	}
+	t.Cleanup(func() { r.Close() })
 
 	typ, err := r.Type([]byte("cpu"))
 	if err != nil {
@@ -59,8 +59,7 @@ func TestTSMReader_Type(t *testing.T) {
 }
 
 func TestTSMReader_MMAP_ReadAll(t *testing.T) {
-	dir := mustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	f := mustTempFile(dir)
 	defer f.Close()
 
@@ -133,8 +132,7 @@ func TestTSMReader_MMAP_ReadAll(t *testing.T) {
 }
 
 func TestTSMReader_MMAP_Read(t *testing.T) {
-	dir := mustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	f := mustTempFile(dir)
 	defer f.Close()
 
@@ -212,8 +210,7 @@ func TestTSMReader_MMAP_Read(t *testing.T) {
 }
 
 func TestTSMReader_MMAP_Keys(t *testing.T) {
-	dir := mustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	f := mustTempFile(dir)
 	defer f.Close()
 
@@ -291,10 +288,9 @@ func TestTSMReader_MMAP_Keys(t *testing.T) {
 }
 
 func TestTSMReader_MMAP_Tombstone(t *testing.T) {
-	dir := mustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	f := mustTempFile(dir)
-	defer f.Close()
+	t.Cleanup(func() { f.Close() })
 
 	w, err := NewTSMWriter(f)
 	if err != nil {
@@ -323,29 +319,29 @@ func TestTSMReader_MMAP_Tombstone(t *testing.T) {
 		t.Fatalf("unexpected error open file: %v", err)
 	}
 
-	r, err := NewTSMReader(f)
+	r1, err := NewTSMReader(f)
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
 	}
+	t.Cleanup(func() { r1.Close() })
 
-	if err := r.Delete([][]byte{[]byte("mem")}); err != nil {
+	if err := r1.Delete([][]byte{[]byte("mem")}); err != nil {
 		t.Fatalf("unexpected error deleting: %v", err)
 	}
 
-	r, err = NewTSMReader(f)
+	r2, err := NewTSMReader(f)
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
 	}
-	defer r.Close()
+	t.Cleanup(func() { r2.Close() })
 
-	if got, exp := r.KeyCount(), 1; got != exp {
+	if got, exp := r2.KeyCount(), 1; got != exp {
 		t.Fatalf("key length mismatch: got %v, exp %v", got, exp)
 	}
 }
 
 func TestTSMReader_MMAP_TombstoneRange(t *testing.T) {
-	dir := mustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	f := mustTempFile(dir)
 	defer f.Close()
 
@@ -409,8 +405,7 @@ func TestTSMReader_MMAP_TombstoneRange(t *testing.T) {
 }
 
 func TestTSMReader_MMAP_TombstoneOutsideTimeRange(t *testing.T) {
-	dir := mustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	f := mustTempFile(dir)
 	defer f.Close()
 
@@ -471,8 +466,7 @@ func TestTSMReader_MMAP_TombstoneOutsideTimeRange(t *testing.T) {
 }
 
 func TestTSMReader_MMAP_TombstoneOutsideKeyRange(t *testing.T) {
-	dir := mustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	f := mustTempFile(dir)
 	defer f.Close()
 
@@ -533,8 +527,7 @@ func TestTSMReader_MMAP_TombstoneOutsideKeyRange(t *testing.T) {
 }
 
 func TestTSMReader_MMAP_TombstoneOverlapKeyRange(t *testing.T) {
-	dir := mustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	f := mustTempFile(dir)
 	defer f.Close()
 
@@ -599,8 +592,7 @@ func TestTSMReader_MMAP_TombstoneOverlapKeyRange(t *testing.T) {
 }
 
 func TestTSMReader_MMAP_TombstoneFullRange(t *testing.T) {
-	dir := mustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	f := mustTempFile(dir)
 	defer f.Close()
 
@@ -652,8 +644,7 @@ func TestTSMReader_MMAP_TombstoneFullRange(t *testing.T) {
 }
 
 func TestTSMReader_MMAP_TombstoneFullRangeMultiple(t *testing.T) {
-	dir := mustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	f := mustTempFile(dir)
 	defer f.Close()
 
@@ -725,8 +716,7 @@ func TestTSMReader_MMAP_TombstoneFullRangeMultiple(t *testing.T) {
 }
 
 func TestTSMReader_MMAP_TombstoneMultipleRanges(t *testing.T) {
-	dir := mustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	f := mustTempFile(dir)
 	defer f.Close()
 
@@ -784,8 +774,7 @@ func TestTSMReader_MMAP_TombstoneMultipleRanges(t *testing.T) {
 }
 
 func TestTSMReader_MMAP_TombstoneMultipleRangesFull(t *testing.T) {
-	dir := mustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	f := mustTempFile(dir)
 	defer f.Close()
 
@@ -844,8 +833,7 @@ func TestTSMReader_MMAP_TombstoneMultipleRangesFull(t *testing.T) {
 }
 
 func TestTSMReader_MMAP_TombstoneMultipleRangesNoOverlap(t *testing.T) {
-	dir := mustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	f := mustTempFile(dir)
 	defer f.Close()
 
@@ -905,8 +893,7 @@ func TestTSMReader_MMAP_TombstoneMultipleRangesNoOverlap(t *testing.T) {
 }
 
 func TestTSMReader_MMAP_TombstoneOutsideRange(t *testing.T) {
-	dir := mustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	f := mustTempFile(dir)
 	defer f.Close()
 
@@ -989,8 +976,7 @@ func TestTSMReader_MMAP_TombstoneOutsideRange(t *testing.T) {
 }
 
 func TestTSMReader_MMAP_Stats(t *testing.T) {
-	dir := mustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	f := mustTempFile(dir)
 	defer f.Close()
 
@@ -1052,8 +1038,7 @@ func TestTSMReader_MMAP_Stats(t *testing.T) {
 
 // Ensure that we return an error if we try to open a non-tsm file
 func TestTSMReader_VerifiesFileType(t *testing.T) {
-	dir := mustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	f := mustTempFile(dir)
 	defer f.Close()
 
@@ -1184,8 +1169,7 @@ func TestDirectIndex_KeyCount(t *testing.T) {
 }
 
 func TestBlockIterator_Single(t *testing.T) {
-	dir := mustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	f := mustTempFile(dir)
 
 	w, err := NewTSMWriter(f)
@@ -1215,6 +1199,7 @@ func TestBlockIterator_Single(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
 	}
+	t.Cleanup(func() { r.Close() })
 
 	var count int
 	iter := r.BlockIterator()
@@ -1253,8 +1238,7 @@ func TestBlockIterator_Single(t *testing.T) {
 }
 
 func TestBlockIterator_Tombstone(t *testing.T) {
-	dir := mustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	f := mustTempFile(dir)
 
 	w, err := NewTSMWriter(f)
@@ -1288,6 +1272,7 @@ func TestBlockIterator_Tombstone(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
 	}
+	t.Cleanup(func() { r.Close() })
 
 	iter := r.BlockIterator()
 	for iter.Next() {
@@ -1302,8 +1287,7 @@ func TestBlockIterator_Tombstone(t *testing.T) {
 }
 
 func TestBlockIterator_MultipleBlocks(t *testing.T) {
-	dir := mustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	f := mustTempFile(dir)
 
 	w, err := NewTSMWriter(f)
@@ -1338,6 +1322,7 @@ func TestBlockIterator_MultipleBlocks(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
 	}
+	t.Cleanup(func() { r.Close() })
 
 	var count int
 	expData := []Values{values1, values2}
@@ -1380,8 +1365,7 @@ func TestBlockIterator_MultipleBlocks(t *testing.T) {
 }
 
 func TestBlockIterator_Sorted(t *testing.T) {
-	dir := mustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	f := mustTempFile(dir)
 
 	w, err := NewTSMWriter(f)
@@ -1406,7 +1390,6 @@ func TestBlockIterator_Sorted(t *testing.T) {
 	for _, k := range keys {
 		if err := w.Write([]byte(k), values[k]); err != nil {
 			t.Fatalf("unexpected error writing: %v", err)
-
 		}
 	}
 
@@ -1427,6 +1410,7 @@ func TestBlockIterator_Sorted(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
 	}
+	t.Cleanup(func() { r.Close() })
 
 	var count int
 	iter := r.BlockIterator()
@@ -1457,8 +1441,7 @@ func TestBlockIterator_Sorted(t *testing.T) {
 }
 
 func TestIndirectIndex_UnmarshalBinary_BlockCountOverflow(t *testing.T) {
-	dir := mustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	f := mustTempFile(dir)
 	defer f.Close()
 
@@ -1492,8 +1475,7 @@ func TestIndirectIndex_UnmarshalBinary_BlockCountOverflow(t *testing.T) {
 }
 
 func TestCompacted_NotFull(t *testing.T) {
-	dir := mustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	f := mustTempFile(dir)
 
 	w, err := NewTSMWriter(f)
@@ -1523,6 +1505,7 @@ func TestCompacted_NotFull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
 	}
+	t.Cleanup(func() { r.Close() })
 
 	iter := r.BlockIterator()
 	if !iter.Next() {
@@ -1544,8 +1527,7 @@ func TestCompacted_NotFull(t *testing.T) {
 }
 
 func TestTSMReader_File_ReadAll(t *testing.T) {
-	dir := mustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	f := mustTempFile(dir)
 	defer f.Close()
 
@@ -1652,48 +1634,43 @@ func TestTSMReader_FuzzCrashes(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		func() {
-			dir := mustTempDir()
-			defer os.RemoveAll(dir)
+		dir := t.TempDir()
 
-			filename := filepath.Join(dir, "x.tsm")
-			if err := os.WriteFile(filename, []byte(c), 0600); err != nil {
-				t.Fatalf("exp no error, got %s", err)
-			}
-			defer os.RemoveAll(dir)
+		filename := filepath.Join(dir, "x.tsm")
+		if err := os.WriteFile(filename, []byte(c), 0600); err != nil {
+			t.Fatalf("exp no error, got %s", err)
+		}
 
-			f, err := os.Open(filename)
-			if err != nil {
-				t.Fatalf("exp no error, got %s", err)
-			}
-			defer f.Close()
+		f, err := os.Open(filename)
+		if err != nil {
+			t.Fatalf("exp no error, got %s", err)
+		}
+		t.Cleanup(func() { f.Close() })
 
-			r, err := NewTSMReader(f)
+		r, err := NewTSMReader(f)
+		if err != nil {
+			return
+		}
+		t.Cleanup(func() { r.Close() })
+
+		iter := r.BlockIterator()
+		for iter.Next() {
+			key, _, _, _, _, _, err := iter.Read()
 			if err != nil {
 				return
 			}
-			defer r.Close()
 
-			iter := r.BlockIterator()
-			for iter.Next() {
-				key, _, _, _, _, _, err := iter.Read()
-				if err != nil {
-					return
-				}
+			_, _ = r.Type(key)
 
-				_, _ = r.Type(key)
-
-				if _, err = r.ReadAll(key); err != nil {
-					return
-				}
+			if _, err = r.ReadAll(key); err != nil {
+				return
 			}
-		}()
+		}
 	}
 }
 
 func TestTSMReader_File_Read(t *testing.T) {
-	dir := mustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	f := mustTempFile(dir)
 	defer f.Close()
 
@@ -1771,8 +1748,7 @@ func TestTSMReader_File_Read(t *testing.T) {
 }
 
 func TestTSMReader_References(t *testing.T) {
-	dir := mustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	f := mustTempFile(dir)
 	defer f.Close()
 
@@ -1915,7 +1891,7 @@ func TestBatchKeyIterator_Errors(t *testing.T) {
 }
 
 func createTestTSM(t *testing.T) (dir string, name string) {
-	dir = MustTempDir()
+	dir = t.TempDir()
 	f := mustTempFile(dir)
 	name = f.Name()
 	w, err := NewTSMWriter(f)

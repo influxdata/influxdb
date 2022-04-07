@@ -21,8 +21,7 @@ func Test_DumpTSM_NoFile(t *testing.T) {
 }
 
 func Test_DumpTSM_EmptyFile(t *testing.T) {
-	dir, file := makeTSMFile(t, tsmParams{})
-	defer os.RemoveAll(dir)
+	_, file := makeTSMFile(t, tsmParams{})
 
 	runCommand(t, cmdParams{
 		file:      file,
@@ -32,10 +31,9 @@ func Test_DumpTSM_EmptyFile(t *testing.T) {
 }
 
 func Test_DumpTSM_WrongExt(t *testing.T) {
-	dir, file := makeTSMFile(t, tsmParams{
+	_, file := makeTSMFile(t, tsmParams{
 		wrongExt: true,
 	})
-	defer os.RemoveAll(dir)
 
 	runCommand(t, cmdParams{
 		file:      file,
@@ -46,7 +44,6 @@ func Test_DumpTSM_WrongExt(t *testing.T) {
 
 func Test_DumpTSM_NotFile(t *testing.T) {
 	dir, _ := makeTSMFile(t, tsmParams{})
-	defer os.RemoveAll(dir)
 
 	runCommand(t, cmdParams{
 		file:      dir,
@@ -56,10 +53,9 @@ func Test_DumpTSM_NotFile(t *testing.T) {
 }
 
 func Test_DumpTSM_Valid(t *testing.T) {
-	dir, file := makeTSMFile(t, tsmParams{
+	_, file := makeTSMFile(t, tsmParams{
 		keys: []string{"cpu"},
 	})
-	defer os.RemoveAll(dir)
 
 	runCommand(t, cmdParams{
 		file: file,
@@ -72,11 +68,10 @@ func Test_DumpTSM_Valid(t *testing.T) {
 }
 
 func Test_DumpTSM_Invalid(t *testing.T) {
-	dir, file := makeTSMFile(t, tsmParams{
+	_, file := makeTSMFile(t, tsmParams{
 		invalid: true,
 		keys:    []string{"cpu"},
 	})
-	defer os.RemoveAll(dir)
 
 	runCommand(t, cmdParams{
 		file:      file,
@@ -86,10 +81,9 @@ func Test_DumpTSM_Invalid(t *testing.T) {
 }
 
 func Test_DumpTSM_ManyKeys(t *testing.T) {
-	dir, file := makeTSMFile(t, tsmParams{
+	_, file := makeTSMFile(t, tsmParams{
 		keys: []string{"cpu", "foobar", "mem"},
 	})
-	defer os.RemoveAll(dir)
 
 	runCommand(t, cmdParams{
 		file: file,
@@ -103,10 +97,9 @@ func Test_DumpTSM_ManyKeys(t *testing.T) {
 }
 
 func Test_DumpTSM_FilterKey(t *testing.T) {
-	dir, file := makeTSMFile(t, tsmParams{
+	_, file := makeTSMFile(t, tsmParams{
 		keys: []string{"cpu", "foobar", "mem"},
 	})
-	defer os.RemoveAll(dir)
 
 	runCommand(t, cmdParams{
 		file:   file,
@@ -187,8 +180,7 @@ type tsmParams struct {
 func makeTSMFile(t *testing.T, params tsmParams) (string, string) {
 	t.Helper()
 
-	dir, err := os.MkdirTemp("", "dumptsm")
-	require.NoError(t, err)
+	dir := t.TempDir()
 
 	ext := tsm1.TSMFileExtension
 	if params.wrongExt {

@@ -25,8 +25,7 @@ func NewWAL(path string, maxConcurrentWrites int, maxWriteDelay time.Duration) *
 }
 
 func TestWALWriter_WriteMulti_Single(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	w := NewWAL(dir, 0, 0)
 	defer w.Close()
 	require.NoError(t, w.Open())
@@ -69,8 +68,7 @@ func TestWALWriter_WriteMulti_Single(t *testing.T) {
 }
 
 func TestWALWriter_WriteMulti_LargeBatch(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	w := NewWAL(dir, 0, 0)
 	defer w.Close()
 	require.NoError(t, w.Open())
@@ -109,8 +107,7 @@ func TestWALWriter_WriteMulti_LargeBatch(t *testing.T) {
 }
 
 func TestWALWriter_WriteMulti_Multiple(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	w := NewWAL(dir, 0, 0)
 	defer w.Close()
 	require.NoError(t, w.Open())
@@ -157,8 +154,7 @@ func TestWALWriter_WriteMulti_Multiple(t *testing.T) {
 }
 
 func TestWALWriter_WriteDelete_Single(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	w := NewWAL(dir, 0, 0)
 	defer w.Close()
 	require.NoError(t, w.Open())
@@ -184,8 +180,7 @@ func TestWALWriter_WriteDelete_Single(t *testing.T) {
 }
 
 func TestWALWriter_WriteMultiDelete_Multiple(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	w := NewWAL(dir, 0, 0)
 	defer w.Close()
 	require.NoError(t, w.Open())
@@ -236,8 +231,7 @@ func TestWALWriter_WriteMultiDelete_Multiple(t *testing.T) {
 }
 
 func TestWALWriter_WriteMultiDeleteRange_Multiple(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	w := NewWAL(dir, 0, 0)
 	defer w.Close()
 	require.NoError(t, w.Open())
@@ -295,8 +289,7 @@ func TestWALWriter_WriteMultiDeleteRange_Multiple(t *testing.T) {
 }
 
 func TestWAL_ClosedSegments(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	w := NewWAL(dir, 0, 0)
 	require.NoError(t, w.Open())
@@ -326,8 +319,7 @@ func TestWAL_ClosedSegments(t *testing.T) {
 }
 
 func TestWAL_Delete(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	w := NewWAL(dir, 0, 0)
 	require.NoError(t, w.Open())
@@ -354,9 +346,8 @@ func TestWAL_Delete(t *testing.T) {
 }
 
 func TestWALWriter_Corrupt(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
-	f := MustTempFile(dir)
+	dir := t.TempDir()
+	f := MustTempFile(t, dir)
 	w := tsm1.NewWALSegmentWriter(f)
 	corruption := []byte{1, 4, 0, 0, 0}
 
@@ -401,9 +392,8 @@ func TestWALWriter_Corrupt(t *testing.T) {
 // Reproduces a `panic: runtime error: makeslice: cap out of range` when run with
 // GOARCH=386 go test -run TestWALSegmentReader_Corrupt -v ./tsdb/engine/tsm1/
 func TestWALSegmentReader_Corrupt(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
-	f := MustTempFile(dir)
+	dir := t.TempDir()
+	f := MustTempFile(t, dir)
 	w := tsm1.NewWALSegmentWriter(f)
 
 	p4 := tsm1.NewValue(1, "string")
@@ -439,8 +429,7 @@ func TestWALSegmentReader_Corrupt(t *testing.T) {
 }
 
 func TestWALRollSegment(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	w := NewWAL(dir, 0, 0)
 	require.NoError(t, w.Open())
@@ -509,8 +498,7 @@ func TestWAL_DiskSize(t *testing.T) {
 		require.Equal(t, old+cur, w.DiskSizeBytes(), "total disk size")
 	}
 
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	w := NewWAL(dir, 0, 0)
 
@@ -543,9 +531,10 @@ func TestWAL_DiskSize(t *testing.T) {
 	}
 
 	test(w, false, false)
+	require.NoError(t, w.Close())
 
 	// reopen
-	require.NoError(t, w.Close())
+	w = NewWAL(dir, 0, 0)
 	require.NoError(t, w.Open())
 
 	test(w, false, false)
@@ -556,6 +545,8 @@ func TestWAL_DiskSize(t *testing.T) {
 	require.NoError(t, w.Remove(closedSegments))
 
 	test(w, true, false)
+
+	require.NoError(t, w.Close())
 }
 
 func TestWriteWALSegment_UnmarshalBinary_WriteWALCorrupt(t *testing.T) {
@@ -690,8 +681,7 @@ func BenchmarkWAL_WriteMulti_Concurrency(b *testing.B) {
 				points[k] = append(points[k], tsm1.NewValue(int64(i), 1.1))
 			}
 
-			dir := MustTempDir()
-			defer os.RemoveAll(dir)
+			dir := b.TempDir()
 
 			w := NewWAL(dir, 0, 0)
 			defer w.Close()
@@ -748,10 +738,9 @@ func BenchmarkWALSegmentWriter(b *testing.B) {
 		points[k] = append(points[k], tsm1.NewValue(int64(i), 1.1))
 	}
 
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := b.TempDir()
 
-	f := MustTempFile(dir)
+	f := MustTempFile(b, dir)
 	w := tsm1.NewWALSegmentWriter(f)
 
 	write := &tsm1.WriteWALEntry{
@@ -771,10 +760,9 @@ func BenchmarkWALSegmentReader(b *testing.B) {
 		points[k] = append(points[k], tsm1.NewValue(int64(i), 1.1))
 	}
 
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := b.TempDir()
 
-	f := MustTempFile(dir)
+	f := MustTempFile(b, dir)
 	w := tsm1.NewWALSegmentWriter(f)
 
 	write := &tsm1.WriteWALEntry{

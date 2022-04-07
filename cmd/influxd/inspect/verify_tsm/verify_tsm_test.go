@@ -69,8 +69,7 @@ func TestValidUTF8(t *testing.T) {
 func newUTFTest(t *testing.T, withError bool) string {
 	t.Helper()
 
-	dir, err := os.MkdirTemp("", "verify-tsm")
-	require.NoError(t, err)
+	dir := t.TempDir()
 
 	f, err := os.CreateTemp(dir, "verifytsmtest*"+"."+tsm1.TSMFileExtension)
 	require.NoError(t, err)
@@ -94,8 +93,7 @@ func newUTFTest(t *testing.T, withError bool) string {
 func newChecksumTest(t *testing.T, withError bool) string {
 	t.Helper()
 
-	dir, err := os.MkdirTemp("", "verify-tsm")
-	require.NoError(t, err)
+	dir := t.TempDir()
 
 	f, err := os.CreateTemp(dir, "verifytsmtest*"+"."+tsm1.TSMFileExtension)
 	require.NoError(t, err)

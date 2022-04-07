@@ -12,13 +12,9 @@ import (
 )
 
 func TestCopyDirAndDirSize(t *testing.T) {
-	tmpdir, err := os.MkdirTemp("", "tcd")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(tmpdir)
+	tmpdir := t.TempDir()
 
-	err = os.MkdirAll(filepath.Join(tmpdir, "1", "1", "1"), 0700)
+	err := os.MkdirAll(filepath.Join(tmpdir, "1", "1", "1"), 0700)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,11 +45,7 @@ func TestCopyDirAndDirSize(t *testing.T) {
 	}
 	assert.Equal(t, uint64(1600), size)
 
-	targetDir, err := os.MkdirTemp("", "tcd")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(targetDir)
+	targetDir := t.TempDir()
 	targetDir = filepath.Join(targetDir, "x")
 	err = CopyDir(tmpdir, targetDir, nil, func(path string) bool {
 		base := filepath.Base(path)

@@ -23,7 +23,7 @@ import (
 
 // Ensure log file can append series.
 func TestLogFile_AddSeriesList(t *testing.T) {
-	sfile := MustOpenSeriesFile()
+	sfile := MustOpenSeriesFile(t)
 	defer sfile.Close()
 
 	f := MustOpenLogFile(sfile.SeriesFile)
@@ -114,7 +114,7 @@ func TestLogFile_AddSeriesList(t *testing.T) {
 }
 
 func TestLogFile_SeriesStoredInOrder(t *testing.T) {
-	sfile := MustOpenSeriesFile()
+	sfile := MustOpenSeriesFile(t)
 	defer sfile.Close()
 
 	f := MustOpenLogFile(sfile.SeriesFile)
@@ -171,7 +171,7 @@ func TestLogFile_SeriesStoredInOrder(t *testing.T) {
 
 // Ensure log file can delete an existing measurement.
 func TestLogFile_DeleteMeasurement(t *testing.T) {
-	sfile := MustOpenSeriesFile()
+	sfile := MustOpenSeriesFile(t)
 	defer sfile.Close()
 
 	f := MustOpenLogFile(sfile.SeriesFile)
@@ -210,7 +210,7 @@ func TestLogFile_DeleteMeasurement(t *testing.T) {
 // Ensure log file can recover correctly.
 func TestLogFile_Open(t *testing.T) {
 	t.Run("Truncate", func(t *testing.T) {
-		sfile := MustOpenSeriesFile()
+		sfile := MustOpenSeriesFile(t)
 		defer sfile.Close()
 		seriesSet := tsdb.NewSeriesIDSet()
 
@@ -270,7 +270,7 @@ func TestLogFile_Open(t *testing.T) {
 	})
 
 	t.Run("ChecksumMismatch", func(t *testing.T) {
-		sfile := MustOpenSeriesFile()
+		sfile := MustOpenSeriesFile(t)
 		defer sfile.Close()
 		seriesSet := tsdb.NewSeriesIDSet()
 
@@ -313,7 +313,7 @@ func TestLogFile_Open(t *testing.T) {
 }
 
 func TestLogFile_MeasurementHasSeries(t *testing.T) {
-	sfile := MustOpenSeriesFile()
+	sfile := MustOpenSeriesFile(t)
 	defer sfile.Close()
 
 	f := MustOpenLogFile(sfile.SeriesFile)
@@ -447,7 +447,7 @@ func GenerateLogFile(sfile *tsdb.SeriesFile, measurementN, tagN, valueN int) (*L
 }
 
 func benchmarkLogFile_AddSeries(b *testing.B, measurementN, seriesKeyN, seriesValueN int) {
-	sfile := MustOpenSeriesFile()
+	sfile := MustOpenSeriesFile(b)
 	defer sfile.Close()
 
 	b.StopTimer()
@@ -505,7 +505,7 @@ func BenchmarkLogFile_WriteTo(b *testing.B) {
 	for _, seriesN := range []int{1000, 10000, 100000, 1000000} {
 		name := fmt.Sprintf("series=%d", seriesN)
 		b.Run(name, func(b *testing.B) {
-			sfile := MustOpenSeriesFile()
+			sfile := MustOpenSeriesFile(b)
 			defer sfile.Close()
 
 			f := MustOpenLogFile(sfile.SeriesFile)
@@ -549,7 +549,7 @@ func BenchmarkLogFile_WriteTo(b *testing.B) {
 func benchmarkLogFile_MeasurementHasSeries(b *testing.B, seriesKeyN, seriesValueN int) {
 	b.StopTimer()
 
-	sfile := MustOpenSeriesFile()
+	sfile := MustOpenSeriesFile(b)
 	defer sfile.Close()
 
 	f := MustOpenLogFile(sfile.SeriesFile)

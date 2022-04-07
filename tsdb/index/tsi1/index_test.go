@@ -27,7 +27,7 @@ const M, K = 4096, 6
 
 // Ensure index can iterate over all measurement names.
 func TestIndex_ForEachMeasurementName(t *testing.T) {
-	idx := MustOpenDefaultIndex()
+	idx := MustOpenDefaultIndex(t)
 	defer idx.Close()
 
 	// Add series to index.
@@ -80,7 +80,7 @@ func TestIndex_ForEachMeasurementName(t *testing.T) {
 
 // Ensure index can return whether a measurement exists.
 func TestIndex_MeasurementExists(t *testing.T) {
-	idx := MustOpenDefaultIndex()
+	idx := MustOpenDefaultIndex(t)
 	defer idx.Close()
 
 	// Add series to index.
@@ -142,7 +142,7 @@ func TestIndex_MeasurementExists(t *testing.T) {
 
 // Ensure index can return a list of matching measurements.
 func TestIndex_MeasurementNamesByRegex(t *testing.T) {
-	idx := MustOpenDefaultIndex()
+	idx := MustOpenDefaultIndex(t)
 	defer idx.Close()
 
 	// Add series to index.
@@ -167,7 +167,7 @@ func TestIndex_MeasurementNamesByRegex(t *testing.T) {
 
 // Ensure index can delete a measurement and all related keys, values, & series.
 func TestIndex_DropMeasurement(t *testing.T) {
-	idx := MustOpenDefaultIndex()
+	idx := MustOpenDefaultIndex(t)
 	defer idx.Close()
 
 	// Add series to index.
@@ -213,7 +213,7 @@ func TestIndex_DropMeasurement(t *testing.T) {
 }
 
 func TestIndex_OpenFail(t *testing.T) {
-	idx := NewDefaultIndex()
+	idx := NewDefaultIndex(t)
 	require.NoError(t, idx.Open())
 	idx.Index.Close()
 	// mess up the index:
@@ -237,16 +237,15 @@ func TestIndex_OpenFail(t *testing.T) {
 }
 
 func TestIndex_Open(t *testing.T) {
-	// Opening a fresh index should set the MANIFEST version to current version.
-	idx := NewDefaultIndex()
 	t.Run("open new index", func(t *testing.T) {
-		if err := idx.Open(); err != nil {
-			t.Fatal(err)
-		}
+		// Opening a fresh index should set the MANIFEST version to current version.
+		idx := MustOpenDefaultIndex(t)
+		t.Cleanup(func() { assert.NoError(t, idx.Close()) })
 
 		// Check version set appropriately.
 		for i := 0; uint64(i) < tsi1.DefaultPartitionN; i++ {
 			partition := idx.PartitionAt(i)
+
 			if got, exp := partition.Manifest().Version, 1; got != exp {
 				t.Fatalf("got index version %d, expected %d", got, exp)
 			}
@@ -254,6 +253,7 @@ func TestIndex_Open(t *testing.T) {
 
 		for i := 0; i < int(idx.PartitionN); i++ {
 			p := idx.PartitionAt(i)
+
 			if got, exp := p.NeedsCompaction(false), false; got != exp {
 				t.Fatalf("got needs compaction %v, expected %v", got, exp)
 			}
@@ -262,19 +262,28 @@ func TestIndex_Open(t *testing.T) {
 
 	// Reopening an open index should return an error.
 	t.Run("reopen open index", func(t *testing.T) {
+		idx := MustOpenDefaultIndex(t)
+		t.Cleanup(func() { assert.NoError(t, idx.Close()) })
+
+		// Manually closing the existing SeriesFile so that it won't be left
+		// opened after idx.Open(), which calls another idx.SeriesFile.Open().
+		//
+		// This is required for t.TempDir() to be cleaned-up successfully on
+		// Windows.
+		assert.NoError(t, idx.SeriesFile.Close())
+
 		err := idx.Open()
 		if err == nil {
-			idx.Close()
 			t.Fatal("didn't get an error on reopen, but expected one")
 		}
-		idx.Close()
 	})
 
 	// Opening an incompatible index should return an error.
 	incompatibleVersions := []int{-1, 0, 2}
 	for _, v := range incompatibleVersions {
 		t.Run(fmt.Sprintf("incompatible index version: %d", v), func(t *testing.T) {
-			idx = NewDefaultIndex()
+			idx := NewDefaultIndex(t)
+
 			// Manually create a MANIFEST file for an incompatible index version.
 			// under one of the partitions.
 			partitionPath := filepath.Join(idx.Path(), "2")
@@ -298,8 +307,8 @@ func TestIndex_Open(t *testing.T) {
 			// Opening this index should return an error because the MANIFEST has an
 			// incompatible version.
 			err = idx.Open()
+			t.Cleanup(func() { assert.NoError(t, idx.Close()) })
 			if !errors.Is(err, tsi1.ErrIncompatibleVersion) {
-				idx.Close()
 				t.Fatalf("got error %v, expected %v", err, tsi1.ErrIncompatibleVersion)
 			}
 		})
@@ -308,7 +317,7 @@ func TestIndex_Open(t *testing.T) {
 
 func TestIndex_Manifest(t *testing.T) {
 	t.Run("current MANIFEST", func(t *testing.T) {
-		idx := MustOpenIndex(tsi1.DefaultPartitionN)
+		idx := MustOpenIndex(t, tsi1.DefaultPartitionN)
 
 		// Check version set appropriately.
 		for i := 0; uint64(i) < tsi1.DefaultPartitionN; i++ {
@@ -317,11 +326,13 @@ func TestIndex_Manifest(t *testing.T) {
 				t.Fatalf("got MANIFEST version %d, expected %d", got, exp)
 			}
 		}
+
+		require.NoError(t, idx.Close())
 	})
 }
 
 func TestIndex_DiskSizeBytes(t *testing.T) {
-	idx := MustOpenIndex(tsi1.DefaultPartitionN)
+	idx := MustOpenIndex(t, tsi1.DefaultPartitionN)
 	defer idx.Close()
 
 	// Add series to index.
@@ -359,9 +370,9 @@ func TestIndex_DiskSizeBytes(t *testing.T) {
 }
 
 func TestIndex_TagValueSeriesIDIterator(t *testing.T) {
-	idx1 := MustOpenDefaultIndex() // Uses the single series creation method CreateSeriesIfNotExists
+	idx1 := MustOpenDefaultIndex(t) // Uses the single series creation method CreateSeriesIfNotExists
 	defer idx1.Close()
-	idx2 := MustOpenDefaultIndex() // Uses the batch series creation method CreateSeriesListIfNotExists
+	idx2 := MustOpenDefaultIndex(t) // Uses the batch series creation method CreateSeriesListIfNotExists
 	defer idx2.Close()
 
 	// Add some series.
@@ -519,21 +530,21 @@ type Index struct {
 }
 
 // NewIndex returns a new instance of Index at a temporary path.
-func NewIndex(partitionN uint64) *Index {
-	idx := &Index{SeriesFile: NewSeriesFile()}
-	idx.Index = tsi1.NewIndex(idx.SeriesFile.SeriesFile, "db0", tsi1.WithPath(MustTempDir()))
+func NewIndex(tb testing.TB, partitionN uint64) *Index {
+	idx := &Index{SeriesFile: NewSeriesFile(tb)}
+	idx.Index = tsi1.NewIndex(idx.SeriesFile.SeriesFile, "db0", tsi1.WithPath(tb.TempDir()))
 	idx.Index.PartitionN = partitionN
 	return idx
 }
 
 // NewIndex returns a new instance of Index with default number of partitions at a temporary path.
-func NewDefaultIndex() *Index {
-	return NewIndex(tsi1.DefaultPartitionN)
+func NewDefaultIndex(tb testing.TB) *Index {
+	return NewIndex(tb, tsi1.DefaultPartitionN)
 }
 
 // MustOpenIndex returns a new, open index. Panic on error.
-func MustOpenIndex(partitionN uint64) *Index {
-	idx := NewIndex(partitionN)
+func MustOpenIndex(tb testing.TB, partitionN uint64) *Index {
+	idx := NewIndex(tb, partitionN)
 	if err := idx.Open(); err != nil {
 		panic(err)
 	}
@@ -541,8 +552,8 @@ func MustOpenIndex(partitionN uint64) *Index {
 }
 
 // MustOpenIndex returns a new, open index with the default number of partitions.
-func MustOpenDefaultIndex() *Index {
-	return MustOpenIndex(tsi1.DefaultPartitionN)
+func MustOpenDefaultIndex(tb testing.TB) *Index {
+	return MustOpenIndex(tb, tsi1.DefaultPartitionN)
 }
 
 // Open opens the underlying tsi1.Index and tsdb.SeriesFile
@@ -555,7 +566,6 @@ func (idx Index) Open() error {
 
 // Close closes and removes the index directory.
 func (idx *Index) Close() error {
-	defer os.RemoveAll(idx.Path())
 	// Series file is opened first and must be closed last
 	if err := idx.Index.Close(); err != nil {
 		return err
@@ -671,7 +681,7 @@ var tsiditr tsdb.SeriesIDIterator
 func BenchmarkIndex_IndexFile_TagValueSeriesIDIterator(b *testing.B) {
 	runBenchMark := func(b *testing.B, cacheSize int) {
 		var err error
-		sfile := NewSeriesFile()
+		sfile := NewSeriesFile(b)
 		// Load index
 		idx := tsi1.NewIndex(sfile.SeriesFile, "foo",
 			tsi1.WithPath("testdata/index-file-index"),
@@ -771,7 +781,7 @@ func BenchmarkIndex_CreateSeriesListIfNotExists(b *testing.B) {
 		b.Run(fmt.Sprintf("batch size %d", sz), func(b *testing.B) {
 			for _, partition := range partitions {
 				b.Run(fmt.Sprintf("partition %d", partition), func(b *testing.B) {
-					idx := MustOpenIndex(partition)
+					idx := MustOpenIndex(b, partition)
 					for j := 0; j < b.N; j++ {
 						for i := 0; i < len(keys); i += sz {
 							k := keys[i : i+sz]
@@ -786,7 +796,7 @@ func BenchmarkIndex_CreateSeriesListIfNotExists(b *testing.B) {
 						if err := idx.Close(); err != nil {
 							b.Fatal(err)
 						}
-						idx = MustOpenIndex(partition)
+						idx = MustOpenIndex(b, partition)
 						b.StartTimer()
 					}
 				})
@@ -847,8 +857,8 @@ func BenchmarkIndex_ConcurrentWriteQuery(b *testing.B) {
 	}
 
 	runBenchmark := func(b *testing.B, queryN int, partitions uint64, cacheSize int) {
-		idx := &Index{SeriesFile: NewSeriesFile()}
-		idx.Index = tsi1.NewIndex(idx.SeriesFile.SeriesFile, "db0", tsi1.WithPath(MustTempDir()), tsi1.WithSeriesIDCacheSize(cacheSize))
+		idx := &Index{SeriesFile: NewSeriesFile(b)}
+		idx.Index = tsi1.NewIndex(idx.SeriesFile.SeriesFile, "db0", tsi1.WithPath(b.TempDir()), tsi1.WithSeriesIDCacheSize(cacheSize))
 		idx.Index.PartitionN = partitions
 
 		if err := idx.Open(); err != nil {
@@ -906,8 +916,8 @@ func BenchmarkIndex_ConcurrentWriteQuery(b *testing.B) {
 			}
 
 			// Re-open everything
-			idx := &Index{SeriesFile: NewSeriesFile()}
-			idx.Index = tsi1.NewIndex(idx.SeriesFile.SeriesFile, "db0", tsi1.WithPath(MustTempDir()), tsi1.WithSeriesIDCacheSize(cacheSize))
+			idx := &Index{SeriesFile: NewSeriesFile(b)}
+			idx.Index = tsi1.NewIndex(idx.SeriesFile.SeriesFile, "db0", tsi1.WithPath(b.TempDir()), tsi1.WithSeriesIDCacheSize(cacheSize))
 			idx.Index.PartitionN = partitions
 
 			if err := idx.Open(); err != nil {
