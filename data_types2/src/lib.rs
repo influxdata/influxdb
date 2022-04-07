@@ -12,7 +12,7 @@
 
 use influxdb_line_protocol::FieldValue;
 use predicate::{delete_predicate::parse_delete_predicate, Predicate};
-use schema::{builder::SchemaBuilder, InfluxColumnType, InfluxFieldType, Schema};
+use schema::{builder::SchemaBuilder, sort::SortKey, InfluxColumnType, InfluxFieldType, Schema};
 use std::{
     collections::BTreeMap,
     convert::TryFrom,
@@ -659,6 +659,15 @@ pub struct Partition {
     /// The sort key for the partition. Should be computed on the first persist operation for
     /// this partition and updated if new tag columns are added.
     pub sort_key: Option<String>,
+}
+
+impl Partition {
+    /// The sort key for the partition, if present, structured as a `SortKey`
+    pub fn sort_key(&self) -> Option<SortKey> {
+        self.sort_key
+            .as_ref()
+            .map(|s| SortKey::from_columns(s.split(',')))
+    }
 }
 
 /// Information for a partition from the catalog.

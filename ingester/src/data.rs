@@ -238,13 +238,11 @@ impl Persister for IngesterData {
 
         if let Some(persisting_batch) = persisting_batch {
             // do the CPU intensive work of compaction, de-duplication and sorting
-            let (record_batches, iox_meta) = match compact_persisting_batch(
+            let (record_batches, iox_meta, sort_key_update) = match compact_persisting_batch(
                 Arc::new(SystemProvider::new()),
                 &self.exec,
                 namespace.namespace_id.get(),
-                &partition_info.namespace_name,
-                &partition_info.table_name,
-                &partition_info.partition.partition_key,
+                &partition_info,
                 Arc::clone(&persisting_batch),
             )
             .await
@@ -276,6 +274,21 @@ impl Persister for IngesterData {
                     .retry_all_errors("add parquet file to catalog", || async {
                         let mut repos = self.catalog.repositories().await;
                         repos.parquet_files().create(parquet_file.clone()).await
+                    })
+                    .await
+                    .expect("retry forever");
+            }
+
+            // Update the sort key in the catalog if there are additional columns
+            if let Some(new_sort_key) = sort_key_update {
+                let sort_key_string = new_sort_key.to_columns();
+                Backoff::new(&self.backoff_config)
+                    .retry_all_errors("update_sort_key", || async {
+                        let mut repos = self.catalog.repositories().await;
+                        repos
+                            .partitions()
+                            .update_sort_key(partition_id, &sort_key_string)
+                            .await
                     })
                     .await
                     .expect("retry forever");
@@ -1702,6 +1715,18 @@ mod tests {
             table_id = mem_table.table_id;
             partition_id = p.id;
         }
+        {
+            // verify the partition doesn't have a sort key before any data has been persisted
+            let mut repos = catalog.repositories().await;
+            let partition_info = repos
+                .partitions()
+                .partition_info_by_id(partition_id)
+                .await
+                .unwrap()
+                .unwrap();
+            assert!(partition_info.partition.sort_key.is_none());
+        }
+
         data.persist(partition_id).await;
 
         // verify that a file got put into object store
@@ -1731,6 +1756,15 @@ mod tests {
         assert_eq!(pf.max_sequence_number, SequenceNumber::new(2));
         assert_eq!(pf.sequencer_id, sequencer1.id);
         assert!(pf.to_delete.is_none());
+
+        // verify it set a sort key on the partition in the catalog
+        let partition_info = repos
+            .partitions()
+            .partition_info_by_id(partition_id)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(partition_info.partition.sort_key.unwrap(), "time");
 
         let mem_table = n.table_data("mem").unwrap();
         let mem_table = mem_table.read().await;
