@@ -1292,7 +1292,7 @@ mod tests {
         let mut generator = ChunkGenerator::new().await;
         let (chunk, _) = generator.generate().await.unwrap();
         let parquet_metadata = chunk.parquet_metadata();
-        assert_eq!(parquet_metadata.size(), 4069);
+        assert_eq!(parquet_metadata.size(), 4070);
     }
 
     #[test]

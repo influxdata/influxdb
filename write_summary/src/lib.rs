@@ -1,10 +1,24 @@
 use std::collections::BTreeMap;
 
-use data_types2::{SequenceNumber, SequencerId};
+use data_types2::{KafkaPartition, SequenceNumber};
+use observability_deps::tracing::{debug, trace};
+
 /// Protobuf to/from conversion
 use generated_types::influxdata::iox::write_summary::v1 as proto;
 
 use dml::DmlMeta;
+
+use snafu::{OptionExt, Snafu};
+mod progress;
+pub use progress::SequencerProgress;
+
+#[derive(Debug, Snafu, PartialEq)]
+pub enum Error {
+    #[snafu(display("Unknown kafka partition: {}", kafka_partition))]
+    UnknownKafkaPartition { kafka_partition: KafkaPartition },
+}
+
+pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Contains information about a single write.
 ///
@@ -18,13 +32,17 @@ use dml::DmlMeta;
 #[derive(Debug, Default, Clone, PartialEq)]
 /// Summary of a Vec<Vec<DmlMeta>>
 pub struct WriteSummary {
-    /// Key is the sequencer, value is the sequence numbers from that sequencer.
+    /// Key is the sequencer_id from the DmlMeta structure (aka kafka
+    /// partition id), value is the sequence numbers from that
+    /// sequencer.
+    ///
     /// Note: BTreeMap to ensure the output is in a consistent order
-    sequencers: BTreeMap<SequencerId, Vec<SequenceNumber>>,
+    sequencers: BTreeMap<KafkaPartition, Vec<SequenceNumber>>,
 }
 
 impl WriteSummary {
     pub fn new(metas: Vec<Vec<DmlMeta>>) -> Self {
+        debug!(?metas, "Creating write summary");
         let sequences = metas
             .iter()
             .flat_map(|v| v.iter())
@@ -32,7 +50,17 @@ impl WriteSummary {
 
         let mut sequencers = BTreeMap::new();
         for s in sequences {
-            let sequencer_id: i16 = s.sequencer_id.try_into().expect("Invalid sequencer id");
+            let sequencer_id: i32 = s.sequencer_id.try_into().expect("Invalid sequencer id");
+
+            // This is super confusing: "sequencer_id" in the router2
+            //  and other parts of the codebase refers to what the
+            //  ingester calls "kakfa_partition".
+            //
+            // The ingester uses "sequencer_id" to refer to the id of
+            // the Sequencer catalog type
+            //
+            // https://github.com/influxdata/influxdb_iox/issues/4237
+            let kafka_partition = KafkaPartition::new(sequencer_id);
 
             let sequence_number: i64 = s
                 .sequence_number
@@ -40,7 +68,7 @@ impl WriteSummary {
                 .expect("Invalid sequencer number");
 
             sequencers
-                .entry(SequencerId::new(sequencer_id))
+                .entry(kafka_partition)
                 .or_insert_with(Vec::new)
                 .push(SequenceNumber::new(sequence_number))
         }
@@ -73,9 +101,82 @@ impl WriteSummary {
             .map_err(|e| format!("Invalid write token, invalid content: {}", e))
     }
 
-    /// return what sequencer ids were present in this write summary
-    pub fn sequencer_ids(&self) -> Vec<SequencerId> {
+    /// return what kafka partitions (sequencer ids from the write
+    /// buffer) were present in this write summary
+    pub fn kafka_partitions(&self) -> Vec<KafkaPartition> {
         self.sequencers.keys().cloned().collect()
+    }
+
+    /// Given the write described by this summary and the sequencer's
+    /// progress, returns:
+    ///
+    /// 1. `Ok(true) if the write is guaranteed to be readable
+    /// 2. `Ok(false) if the write is guaranteed to NOT be readable
+    /// 3. `Err` if a determination can not be made
+    ///
+    /// The progress may not contain information about the kafka
+    /// partition of interest, for example.
+    pub fn readable(
+        &self,
+        progresses: &BTreeMap<KafkaPartition, SequencerProgress>,
+    ) -> Result<bool> {
+        let readable = self.check_progress(progresses, |sequence_number, progress| {
+            progress.readable(sequence_number)
+        });
+        trace!(?readable, ?progresses, ?self, "Checked readable");
+        readable
+    }
+
+    /// Given the write described by this summary and the sequencer's
+    /// progress, returns:
+    ///
+    /// 1. `Ok(true) if the write is guaranteed to be persisted to parquet
+    /// 2. `Ok(false) if the write is guaranteed to NOT be persisted to parquet
+    /// 3. `Err` if a determination can not be made
+    ///
+    /// The progress may not contain information about the kafka
+    /// partition of interest, for example.
+    pub fn persisted(
+        &self,
+        progresses: &BTreeMap<KafkaPartition, SequencerProgress>,
+    ) -> Result<bool> {
+        let persisted = self.check_progress(progresses, |sequence_number, progress| {
+            progress.persisted(sequence_number)
+        });
+        trace!(?persisted, ?progresses, ?self, "Checked persisted");
+        persisted
+    }
+
+    /// returns Some(true) if f(kafka_partition, progress) returns
+    /// true for all kafka_partitions in self for the corresponding
+    /// progress, Some(false) if `f` ever returned false, and None if
+    /// there `progresses` does not have information about one of the
+    /// partitions
+    fn check_progress<F>(
+        &self,
+        progresses: &BTreeMap<KafkaPartition, SequencerProgress>,
+        f: F,
+    ) -> Result<bool>
+    where
+        F: Fn(SequenceNumber, &SequencerProgress) -> bool,
+    {
+        self.sequencers
+            .iter()
+            .map(|(&kafka_partition, sequence_numbers)| {
+                progresses
+                    .get(&kafka_partition)
+                    .map(|progress| {
+                        sequence_numbers
+                            .iter()
+                            .all(|sequence_number| f(*sequence_number, progress))
+                    })
+                    .context(UnknownKafkaPartitionSnafu { kafka_partition })
+            })
+            .collect::<Result<Vec<_>>>()
+            .map(|all_results| {
+                // were all invocations of f() true?
+                all_results.into_iter().all(|v| v)
+            })
     }
 }
 
@@ -84,10 +185,12 @@ impl From<WriteSummary> for proto::WriteSummary {
         let sequencers = summary
             .sequencers
             .into_iter()
-            .map(|(sequencer_id, sequence_numbers)| proto::SequencerWrite {
-                sequencer_id: sequencer_id.get() as i32,
-                sequence_numbers: sequence_numbers.into_iter().map(|v| v.get()).collect(),
-            })
+            .map(
+                |(kafka_partition, sequence_numbers)| proto::SequencerWrite {
+                    sequencer_id: kafka_partition.get(),
+                    sequence_numbers: sequence_numbers.into_iter().map(|v| v.get()).collect(),
+                },
+            )
             .collect();
 
         Self { sequencers }
@@ -106,16 +209,12 @@ impl TryFrom<proto::WriteSummary> for WriteSummary {
                      sequencer_id,
                      sequence_numbers,
                  }| {
-                    let sequencer_id = sequencer_id.try_into().map_err(|e| {
-                        format!("Invalid sequencer id {} in proto: {}", sequencer_id, e)
-                    })?;
-
                     let sequence_numbers = sequence_numbers
                         .into_iter()
                         .map(SequenceNumber::new)
                         .collect::<Vec<_>>();
 
-                    Ok((SequencerId::new(sequencer_id), sequence_numbers))
+                    Ok((KafkaPartition::new(sequencer_id), sequence_numbers))
                 },
             )
             .collect::<Result<BTreeMap<_, _>, String>>()?;
@@ -280,24 +379,6 @@ mod tests {
         WriteSummary::try_from_token(&token).unwrap();
     }
 
-    #[test]
-    #[should_panic(
-        expected = "Invalid write token, invalid content: Invalid sequencer id 2147483647 in proto"
-    )]
-    fn token_parsing_bad_sequencer() {
-        // construct a message with sequencer id that can not be converted into i16
-        let bad_proto = proto::WriteSummary {
-            sequencers: vec![proto::SequencerWrite {
-                sequencer_id: i32::MAX,
-                sequence_numbers: vec![2],
-            }],
-        };
-
-        let token = base64::encode(serde_json::to_string(&bad_proto).unwrap());
-
-        WriteSummary::try_from_token(&token).unwrap();
-    }
-
     fn make_meta(s: Sequence) -> DmlMeta {
         use time::TimeProvider;
         let time_provider = time::SystemProvider::new();
@@ -305,5 +386,113 @@ mod tests {
         let span_context = None;
         let bytes_read = 132;
         DmlMeta::sequenced(s, time_provider.now(), span_context, bytes_read)
+    }
+
+    #[test]
+    fn readable() {
+        let metas = vec![vec![
+            make_meta(Sequence::new(1, 2)),
+            make_meta(Sequence::new(1, 3)),
+            make_meta(Sequence::new(2, 1)),
+        ]];
+        let summary = WriteSummary::new(metas);
+
+        let progresses = [
+            (
+                KafkaPartition::new(1),
+                SequencerProgress::new().with_buffered(SequenceNumber::new(3)),
+            ),
+            (
+                KafkaPartition::new(2),
+                SequencerProgress::new().with_buffered(SequenceNumber::new(2)),
+            ),
+        ]
+        .into_iter()
+        .collect();
+
+        assert_eq!(summary.readable(&progresses), Ok(true));
+
+        // kafka partition 1 only made it to 2, but write includes 3
+        let progresses = [
+            (
+                KafkaPartition::new(1),
+                SequencerProgress::new().with_buffered(SequenceNumber::new(2)),
+            ),
+            (
+                KafkaPartition::new(2),
+                SequencerProgress::new().with_buffered(SequenceNumber::new(2)),
+            ),
+        ]
+        .into_iter()
+        .collect();
+
+        assert_eq!(summary.readable(&progresses), Ok(false));
+
+        // No information on kafka partition 1
+        let progresses = [(
+            KafkaPartition::new(2),
+            SequencerProgress::new().with_buffered(SequenceNumber::new(2)),
+        )]
+        .into_iter()
+        .collect();
+
+        assert_eq!(
+            summary.readable(&progresses).unwrap_err().to_string(),
+            "Unknown kafka partition: 1"
+        );
+    }
+
+    #[test]
+    fn persisted() {
+        let metas = vec![vec![
+            make_meta(Sequence::new(1, 2)),
+            make_meta(Sequence::new(1, 3)),
+            make_meta(Sequence::new(2, 1)),
+        ]];
+        let summary = WriteSummary::new(metas);
+
+        let progresses = [
+            (
+                KafkaPartition::new(1),
+                SequencerProgress::new().with_persisted(SequenceNumber::new(3)),
+            ),
+            (
+                KafkaPartition::new(2),
+                SequencerProgress::new().with_persisted(SequenceNumber::new(2)),
+            ),
+        ]
+        .into_iter()
+        .collect();
+
+        assert_eq!(summary.persisted(&progresses), Ok(true));
+
+        // kafka partition 1 only made it to 2, but write includes 3
+        let progresses = [
+            (
+                KafkaPartition::new(1),
+                SequencerProgress::new().with_persisted(SequenceNumber::new(2)),
+            ),
+            (
+                KafkaPartition::new(2),
+                SequencerProgress::new().with_persisted(SequenceNumber::new(2)),
+            ),
+        ]
+        .into_iter()
+        .collect();
+
+        assert_eq!(summary.persisted(&progresses), Ok(false));
+
+        // No information on kafka partition 1
+        let progresses = [(
+            KafkaPartition::new(2),
+            SequencerProgress::new().with_persisted(SequenceNumber::new(2)),
+        )]
+        .into_iter()
+        .collect();
+
+        assert_eq!(
+            summary.persisted(&progresses).unwrap_err().to_string(),
+            "Unknown kafka partition: 1"
+        );
     }
 }

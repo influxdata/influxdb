@@ -2136,7 +2136,7 @@ mod tests {
         // Read buffer + Parquet chunk size
         catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 0);
         catalog_chunk_size_bytes_metric_eq(registry, "read_buffer", 1700);
-        catalog_chunk_size_bytes_metric_eq(registry, "object_store", 1235);
+        catalog_chunk_size_bytes_metric_eq(registry, "object_store", 1236);
 
         // All the chunks should have different IDs
         assert_ne!(mb_chunk.id(), rb_chunk.id());
@@ -2253,7 +2253,7 @@ mod tests {
         let registry = test_db.metric_registry.as_ref();
 
         // Read buffer + Parquet chunk size
-        let object_store_bytes = 1235;
+        let object_store_bytes = 1236;
         catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 0);
         catalog_chunk_size_bytes_metric_eq(registry, "read_buffer", 1700);
         catalog_chunk_size_bytes_metric_eq(registry, "object_store", object_store_bytes);
@@ -2732,7 +2732,7 @@ mod tests {
                 id: chunk_summaries[0].id,
                 storage: ChunkStorage::ReadBufferAndObjectStore,
                 lifecycle_action,
-                memory_bytes: 4095,       // size of RB and OS chunks
+                memory_bytes: 4096,       // size of RB and OS chunks
                 object_store_bytes: 1574, // size of parquet file
                 row_count: 2,
                 time_of_last_access: None,
@@ -2783,7 +2783,7 @@ mod tests {
 
         assert_eq!(db.catalog.metrics().memory().mutable_buffer(), 2526 + 1495);
         assert_eq!(db.catalog.metrics().memory().read_buffer(), 2550);
-        assert_eq!(db.catalog.metrics().memory().object_store(), 1545);
+        assert_eq!(db.catalog.metrics().memory().object_store(), 1546);
     }
 
     #[tokio::test]
