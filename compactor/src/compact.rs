@@ -399,7 +399,13 @@ impl Compactor {
             return Ok(());
         }
 
-        let sort_key_from_catalog = self.sort_key_from_catalog(partition_id).await?;
+        let sort_key_from_catalog = self
+            .sort_key_from_catalog(partition_id)
+            .await?
+            // This can happen for data in catalogs created in "the before times"
+            // we do not currently plan to provide an upgrade path (instead we will wipe
+            // old catalogs)
+            .expect("Partition sort key should have been available in the catalog");
 
         let sequencer_id = parquet_files[0].sequencer_id;
         let file_count = parquet_files.len();
@@ -562,7 +568,7 @@ impl Compactor {
     async fn compact(
         &self,
         overlapped_files: Vec<ParquetFileWithTombstone>,
-        sort_key_from_catalog: Option<SortKey>,
+        sort_key_from_catalog: SortKey,
     ) -> Result<Vec<CompactedData>> {
         debug!("compact {} overlapped files", overlapped_files.len());
 
@@ -644,12 +650,6 @@ impl Compactor {
             .collect();
         let merged_schema = QueryableParquetChunk::merge_schemas(&query_chunks);
 
-        let sort_key = sort_key_from_catalog
-            // This can happen for data in catalogs created in "the before times"
-            // we do not currently plan to provide an upgrade path (instead we will wipe
-            // old catalogs)
-            .expect("Partition sort key should have been available in the catalog");
-
         // Identify split time
         let split_time = self.compute_split_time(min_time, max_time);
 
@@ -658,7 +658,7 @@ impl Compactor {
             .split_plan(
                 Arc::clone(&merged_schema),
                 query_chunks,
-                sort_key.clone(),
+                sort_key_from_catalog.clone(),
                 split_time,
             )
             .context(CompactLogicalPlanSnafu)?;
@@ -733,7 +733,7 @@ impl Compactor {
                 max_sequence_number,
                 row_count,
                 compaction_level: 1, // compacted result file always have level 1
-                sort_key: Some(sort_key.clone()),
+                sort_key: Some(sort_key_from_catalog.clone()),
             };
 
             let compacted_data = CompactedData::new(output_batches, meta, tombstone_map.clone());
@@ -1465,7 +1465,7 @@ mod tests {
             Arc::new(metric::Registry::new()),
         );
 
-        let sort_key = Some(SortKey::from_columns(["tag1", "time"]));
+        let sort_key = SortKey::from_columns(["tag1", "time"]);
 
         // ------------------------------------------------
         // no files provided
@@ -1569,7 +1569,7 @@ mod tests {
             Arc::new(metric::Registry::new()),
         );
 
-        let sort_key = Some(SortKey::from_columns(["tag1", "time"]));
+        let sort_key = SortKey::from_columns(["tag1", "time"]);
 
         // File 1 with tombstone
         let tombstone = table
@@ -1683,7 +1683,7 @@ mod tests {
 
         // The sort key comes from the catalog and should be the union of all tags the
         // ingester has seen
-        let sort_key = Some(SortKey::from_columns(["tag1", "tag2", "tag3", "time"]));
+        let sort_key = SortKey::from_columns(["tag1", "tag2", "tag3", "time"]);
 
         // File 1 with tombstone
         let tombstone = table
@@ -1746,8 +1746,8 @@ mod tests {
         );
 
         // Sort keys should be the same as was passed in to compact
-        assert_eq!(batches[0].meta.sort_key, sort_key);
-        assert_eq!(batches[1].meta.sort_key, sort_key);
+        assert_eq!(batches[0].meta.sort_key.as_ref().unwrap(), &sort_key);
+        assert_eq!(batches[1].meta.sort_key.as_ref().unwrap(), &sort_key);
     }
 
     /// A test utility function to make minimially-viable ParquetFile records with particular
