@@ -500,3 +500,7 @@ func (s *Store) GetSource(db, rp string) proto.Message {
 func (s *Store) Delete(database string, sources []influxql.Source, condition influxql.Expr) error {
 	return s.TSDBStore.DeleteSeries(database, sources, condition)
 }
+
+func (s *Store) DeleteRetentionPolicy(database, name string) error {
+	return s.TSDBStore.DeleteRetentionPolicy(database, name)
+}
