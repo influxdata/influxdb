@@ -479,6 +479,39 @@ mod tests {
             .unwrap();
     }
 
+    #[should_panic(expected = "Background worker 'bad_task' exited early!")]
+    async fn test_join_task_early_shutdown() {
+        let mut ingester = TestIngester::new().await.ingester;
+
+        let shutdown_task = tokio::spawn(async {
+            // It does nothing! and stops.
+        });
+        ingester
+            .join_handles
+            .push(("bad_task".to_string(), shared_handle(shutdown_task)));
+
+        tokio::time::timeout(Duration::from_millis(1000), ingester.join())
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "JoinError::Panic")]
+    async fn test_join_task_panic() {
+        let mut ingester = TestIngester::new().await.ingester;
+
+        let shutdown_task = tokio::spawn(async {
+            panic!("bananas");
+        });
+        ingester
+            .join_handles
+            .push(("bad_task".to_string(), shared_handle(shutdown_task)));
+
+        tokio::time::timeout(Duration::from_millis(1000), ingester.join())
+            .await
+            .unwrap();
+    }
+
     #[tokio::test]
     async fn seeks_on_initialization() {
         let metrics: Arc<metric::Registry> = Default::default();
