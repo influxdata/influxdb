@@ -220,7 +220,7 @@ impl<T: IoxSystemTable + 'static> ExecutionPlan for SystemTableExecutionPlan<T> 
     }
 
     fn with_new_children(
-        &self,
+        self: Arc<Self>,
         _children: Vec<Arc<dyn ExecutionPlan>>,
     ) -> DataFusionResult<Arc<dyn ExecutionPlan>> {
         unimplemented!()

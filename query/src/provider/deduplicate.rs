@@ -175,7 +175,7 @@ impl ExecutionPlan for DeduplicateExec {
     }
 
     fn with_new_children(
-        &self,
+        self: Arc<Self>,
         children: Vec<Arc<dyn ExecutionPlan>>,
     ) -> datafusion::error::Result<Arc<dyn ExecutionPlan>> {
         assert_eq!(children.len(), 1);
@@ -1160,7 +1160,7 @@ mod test {
         }
 
         fn with_new_children(
-            &self,
+            self: Arc<Self>,
             _children: Vec<Arc<dyn ExecutionPlan>>,
         ) -> Result<Arc<dyn ExecutionPlan>> {
             unimplemented!()
