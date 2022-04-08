@@ -462,7 +462,7 @@ impl TestPartition {
             .await
             .unwrap();
 
-        merge_catalog_sort_key(repos.partitions(), self.partition.id, sort_key).await;
+        update_catalog_sort_key_if_needed(repos.partitions(), self.partition.id, sort_key).await;
 
         Arc::new(TestParquetFile {
             catalog: Arc::clone(&self.catalog),
@@ -536,7 +536,7 @@ impl TestPartition {
             .await
             .unwrap();
 
-        merge_catalog_sort_key(repos.partitions(), self.partition.id, sort_key).await;
+        update_catalog_sort_key_if_needed(repos.partitions(), self.partition.id, sort_key).await;
 
         Arc::new(TestParquetFile {
             catalog: Arc::clone(&self.catalog),
@@ -546,7 +546,7 @@ impl TestPartition {
     }
 }
 
-async fn merge_catalog_sort_key(
+async fn update_catalog_sort_key_if_needed(
     partitions_catalog: &mut dyn PartitionRepo,
     partition_id: PartitionId,
     sort_key: SortKey,
