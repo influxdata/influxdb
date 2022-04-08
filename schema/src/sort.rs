@@ -203,6 +203,32 @@ impl SortKey {
         self.columns.is_empty()
     }
 
+    /// Filters this sort key to contain only the columns present in the primary key, in the order
+    /// that the columns appear in this sort key.
+    ///
+    /// # Panics
+    ///
+    /// Panics if any columns in the primary key are NOT present in this sort key.
+    pub fn filter_to(&self, primary_key: &[&str]) -> SortKey {
+        let missing_from_catalog_key: Vec<_> = primary_key
+            .iter()
+            .filter(|col| !self.contains(col))
+            .collect();
+        if !missing_from_catalog_key.is_empty() {
+            panic!(
+                "Primary key column(s) found that don't appear in the catalog sort key: [{:?}]",
+                missing_from_catalog_key
+            )
+        }
+
+        Self::from_columns(
+            self.iter()
+                .map(|(col, _opts)| col)
+                .filter(|col| primary_key.contains(&col.as_ref()))
+                .cloned(),
+        )
+    }
+
     /// Returns merge key of the 2 given keys if one covers the other. Returns None otherwise.
     /// Key1 is said to cover key2 if key2 is a subset and in the same order of key1.
     /// Examples:
@@ -807,5 +833,46 @@ mod tests {
         assert_eq!(metadata, SortKey::from_columns(data_primary_key));
         let expected = SortKey::from_columns(["host", "env", "temp", "time"]);
         assert_eq!(update.unwrap(), expected);
+    }
+
+    #[test]
+    fn test_filter_to_primary_key() {
+        // If the catalog sort key is the same as the primary key, no changes
+        let catalog_sort_key = SortKey::from_columns(["host", "env", "time"]);
+        let data_primary_key = ["host", "env", "time"];
+
+        let filtered = catalog_sort_key.filter_to(&data_primary_key);
+        assert_eq!(catalog_sort_key, filtered);
+
+        // If the catalog sort key contains more columns than the primary key, the filtered key
+        // should only contain the columns in the primary key
+        let catalog_sort_key = SortKey::from_columns(["host", "env", "time"]);
+        let data_primary_key = ["host", "time"];
+
+        let filtered = catalog_sort_key.filter_to(&data_primary_key);
+        let expected = SortKey::from_columns(["host", "time"]);
+        assert_eq!(expected, filtered);
+
+        // If the catalog sort key has columns in a different order than the primary key, the
+        // filtered key should contain the columns in the same order as the catalog sort key.
+        let catalog_sort_key = SortKey::from_columns(["host", "env", "zone", "time"]);
+        let data_primary_key = ["env", "host", "time"];
+
+        let filtered = catalog_sort_key.filter_to(&data_primary_key);
+        let expected = SortKey::from_columns(["host", "env", "time"]);
+        assert_eq!(expected, filtered);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_filter_missing_columns() {
+        // If the primary key has columns that are missing from the catalog sort key, panic.
+        // This should never happen because the ingester should save the sort key as the union
+        // of all primary key columns it has seen, and the compactor shouldn't get data that hasn't
+        // been through the ingester.
+        let catalog_sort_key = SortKey::from_columns(["host", "env", "time"]);
+        let data_primary_key = ["host", "env", "zone", "time"];
+
+        catalog_sort_key.filter_to(&data_primary_key);
     }
 }

@@ -650,6 +650,8 @@ impl Compactor {
             .collect();
         let merged_schema = QueryableParquetChunk::merge_schemas(&query_chunks);
 
+        let sort_key = sort_key_from_catalog.filter_to(&merged_schema.primary_key());
+
         // Identify split time
         let split_time = self.compute_split_time(min_time, max_time);
 
@@ -658,7 +660,7 @@ impl Compactor {
             .split_plan(
                 Arc::clone(&merged_schema),
                 query_chunks,
-                sort_key_from_catalog.clone(),
+                sort_key.clone(),
                 split_time,
             )
             .context(CompactLogicalPlanSnafu)?;
@@ -733,7 +735,7 @@ impl Compactor {
                 max_sequence_number,
                 row_count,
                 compaction_level: 1, // compacted result file always have level 1
-                sort_key: Some(sort_key_from_catalog.clone()),
+                sort_key: Some(sort_key.clone()),
             };
 
             let compacted_data = CompactedData::new(output_batches, meta, tombstone_map.clone());
