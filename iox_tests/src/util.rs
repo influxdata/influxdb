@@ -566,15 +566,23 @@ async fn update_catalog_sort_key_if_needed(
             let new_sort_key: Vec<_> = sort_key_string.split(',').collect();
             let (_metadata, update) = adjust_sort_key_columns(&catalog_sort_key, &new_sort_key);
             if let Some(new_sort_key) = update {
+                let new_columns = new_sort_key.to_columns();
+                dbg!(
+                    "Updating sort key from {:?} to {:?}",
+                    catalog_sort_key.to_columns(),
+                    &new_columns,
+                );
                 partitions_catalog
-                    .update_sort_key(partition_id, &new_sort_key.to_columns())
+                    .update_sort_key(partition_id, &new_columns)
                     .await
                     .unwrap();
             }
         }
         None => {
+            let new_columns = sort_key.to_columns();
+            dbg!("Updating sort key from None to {:?}", &new_columns,);
             partitions_catalog
-                .update_sort_key(partition_id, &sort_key.to_columns())
+                .update_sort_key(partition_id, &new_columns)
                 .await
                 .unwrap();
         }
