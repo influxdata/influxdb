@@ -1069,6 +1069,7 @@ mod tests {
     #[tokio::test]
     // This is integration test to verify all pieces are put together correctly
     async fn test_compact_partition() {
+        test_helpers::maybe_start_logging();
         let catalog = TestCatalog::new();
 
         let lp = vec![
