@@ -672,21 +672,17 @@ mod tests {
         assert_eq!(merge_key, None);
     }
 
+    fn to_string_array(values: impl Into<StringArray>) -> ArrayRef {
+        Arc::new(values.into()) as ArrayRef
+    }
+
     #[test]
     fn test_distinct_values() {
         let rb = RecordBatch::try_from_iter(vec![
-            (
-                "host",
-                Arc::new(StringArray::from(vec!["a", "b", "c", "a"])) as ArrayRef,
-            ),
+            ("host", to_string_array(vec!["a", "b", "c", "a"])),
             (
                 "env",
-                Arc::new(StringArray::from(vec![
-                    None,
-                    Some("prod"),
-                    Some("stage"),
-                    Some("prod"),
-                ])) as ArrayRef,
+                to_string_array(vec![None, Some("prod"), Some("stage"), Some("prod")]),
             ),
         ])
         .unwrap();
@@ -737,40 +733,22 @@ mod tests {
         // host has the lower cardinality, so it should appear first in the sort key.
         let rb1 = Arc::new(
             RecordBatch::try_from_iter(vec![
-                (
-                    "host",
-                    Arc::new(StringArray::from(vec!["a", "b"])) as ArrayRef,
-                ),
-                (
-                    "env",
-                    Arc::new(StringArray::from(vec!["prod", "prod"])) as ArrayRef,
-                ),
+                ("host", to_string_array(vec!["a", "b"])),
+                ("env", to_string_array(vec!["prod", "prod"])),
             ])
             .unwrap(),
         );
         let rb2 = Arc::new(
             RecordBatch::try_from_iter(vec![
-                (
-                    "host",
-                    Arc::new(StringArray::from(vec!["a", "b"])) as ArrayRef,
-                ),
-                (
-                    "env",
-                    Arc::new(StringArray::from(vec!["stage", "stage"])) as ArrayRef,
-                ),
+                ("host", to_string_array(vec!["a", "b"])),
+                ("env", to_string_array(vec!["stage", "stage"])),
             ])
             .unwrap(),
         );
         let rb3 = Arc::new(
             RecordBatch::try_from_iter(vec![
-                (
-                    "host",
-                    Arc::new(StringArray::from(vec!["a", "b"])) as ArrayRef,
-                ),
-                (
-                    "env",
-                    Arc::new(StringArray::from(vec!["dev", "dev"])) as ArrayRef,
-                ),
+                ("host", to_string_array(vec!["a", "b"])),
+                ("env", to_string_array(vec!["dev", "dev"])),
             ])
             .unwrap(),
         );
