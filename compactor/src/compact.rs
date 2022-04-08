@@ -645,6 +645,9 @@ impl Compactor {
         let merged_schema = QueryableParquetChunk::merge_schemas(&query_chunks);
 
         let sort_key = sort_key_from_catalog
+            // This can happen for data in catalogs created in "the before times"
+            // we do not currently plan to provide an upgrade path (instead we will wipe
+            // old catalogs)
             .expect("Partition sort key should have been available in the catalog");
 
         // Identify split time
