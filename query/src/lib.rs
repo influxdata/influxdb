@@ -130,6 +130,9 @@ impl Drop for QueryCompletedToken {
 /// This avoids storing potentially large strings
 pub type QueryText = Box<dyn std::fmt::Display + Send + Sync>;
 
+/// Error type for [`QueryDatabase`] operations.
+pub type QueryDatabaseError = Box<dyn std::error::Error + Send + Sync + 'static>;
+
 /// A `Database` is the main trait implemented by the IOx subsystems
 /// that store actual data.
 ///
@@ -140,7 +143,11 @@ pub trait QueryDatabase: QueryDatabaseMeta + Debug + Send + Sync {
     /// Returns a set of chunks within the partition with data that may match
     /// the provided predicate. If possible, chunks which have no rows that can
     /// possibly match the predicate may be omitted.
-    async fn chunks(&self, table_name: &str, predicate: &Predicate) -> Vec<Arc<dyn QueryChunk>>;
+    async fn chunks(
+        &self,
+        table_name: &str,
+        predicate: &Predicate,
+    ) -> Result<Vec<Arc<dyn QueryChunk>>, QueryDatabaseError>;
 
     /// Record that particular type of query was run / planned
     fn record_query(

@@ -73,6 +73,11 @@ pub enum Error {
     #[snafu(display("Unsupported predicate in gRPC table_names: {:?}", predicate))]
     UnsupportedPredicateForTableNames { predicate: Predicate },
 
+    #[snafu(display("gRPC planner got error fetching chunks: {}", source))]
+    GettingChunks {
+        source: Box<dyn std::error::Error + Send + Sync>,
+    },
+
     #[snafu(display(
         "gRPC planner got error checking if chunk {} could pass predicate: {}",
         chunk_id,
@@ -245,7 +250,11 @@ impl InfluxRpcPlanner {
         for (table_name, predicate) in &table_predicates {
             // Identify which chunks can answer from its metadata and then record its table,
             // and which chunks needs full plan and group them into their table
-            for chunk in database.chunks(table_name, predicate).await {
+            let chunks = database
+                .chunks(table_name, predicate)
+                .await
+                .context(GettingChunksSnafu)?;
+            for chunk in chunks {
                 trace!(chunk_id=%chunk.id(), %table_name, "Considering table");
 
                 // Table is already in the returned table list, no longer needs to discover it from other chunks
@@ -349,7 +358,11 @@ impl InfluxRpcPlanner {
             .table_predicates(database.as_meta())
             .context(CreatingPredicatesSnafu)?;
         for (table_name, predicate) in &table_predicates {
-            for chunk in database.chunks(table_name, predicate).await {
+            let chunks = database
+                .chunks(table_name, predicate)
+                .await
+                .context(GettingChunksSnafu)?;
+            for chunk in chunks {
                 // If there are delete predicates, we need to scan (or do full plan) the data to eliminate
                 // deleted data before getting tag keys
                 let mut do_full_plan = chunk.has_delete_predicates();
@@ -487,7 +500,11 @@ impl InfluxRpcPlanner {
             .table_predicates(database.as_meta())
             .context(CreatingPredicatesSnafu)?;
         for (table_name, predicate) in &table_predicates {
-            for chunk in database.chunks(table_name, predicate).await {
+            let chunks = database
+                .chunks(table_name, predicate)
+                .await
+                .context(GettingChunksSnafu)?;
+            for chunk in chunks {
                 // If there are delete predicates, we need to scan (or do full plan) the data to eliminate
                 // deleted data before getting tag values
                 let mut do_full_plan = chunk.has_delete_predicates();
@@ -661,7 +678,10 @@ impl InfluxRpcPlanner {
         let mut field_list_plan = FieldListPlan::with_capacity(table_predicates.len());
 
         for (table_name, predicate) in &table_predicates {
-            let chunks = database.chunks(table_name, predicate).await;
+            let chunks = database
+                .chunks(table_name, predicate)
+                .await
+                .context(GettingChunksSnafu)?;
             let chunks = prune_chunks_metadata(chunks, predicate)?;
 
             if chunks.is_empty() {
@@ -717,7 +737,10 @@ impl InfluxRpcPlanner {
             .context(CreatingPredicatesSnafu)?;
         let mut ss_plans = Vec::with_capacity(table_predicates.len());
         for (table_name, predicate) in &table_predicates {
-            let chunks = database.chunks(table_name, predicate).await;
+            let chunks = database
+                .chunks(table_name, predicate)
+                .await
+                .context(GettingChunksSnafu)?;
             let chunks = prune_chunks_metadata(chunks, predicate)?;
 
             if chunks.is_empty() {
@@ -780,7 +803,10 @@ impl InfluxRpcPlanner {
         let mut ss_plans = Vec::with_capacity(table_predicates.len());
 
         for (table_name, predicate) in &table_predicates {
-            let chunks = database.chunks(table_name, predicate).await;
+            let chunks = database
+                .chunks(table_name, predicate)
+                .await
+                .context(GettingChunksSnafu)?;
             let chunks = prune_chunks_metadata(chunks, predicate)?;
 
             if chunks.is_empty() {
@@ -852,7 +878,10 @@ impl InfluxRpcPlanner {
             .context(CreatingPredicatesSnafu)?;
         let mut ss_plans = Vec::with_capacity(table_predicates.len());
         for (table_name, predicate) in &table_predicates {
-            let chunks = database.chunks(table_name, predicate).await;
+            let chunks = database
+                .chunks(table_name, predicate)
+                .await
+                .context(GettingChunksSnafu)?;
             let chunks = prune_chunks_metadata(chunks, predicate)?;
 
             if chunks.is_empty() {
