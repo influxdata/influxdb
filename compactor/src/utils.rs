@@ -100,8 +100,13 @@ impl ParquetFileWithTombstone {
         );
 
         debug!(
-            parquet_file=?decoded_parquet_file.parquet_file,
-            "generated parquet chunk from object store"
+            parquet_file_id=?decoded_parquet_file.parquet_file.id,
+            parquet_file_sequencer_id=?decoded_parquet_file.parquet_file.sequencer_id,
+            parquet_file_namespace_id=?decoded_parquet_file.parquet_file.namespace_id,
+            parquet_file_table_id=?decoded_parquet_file.parquet_file.table_id,
+            parquet_file_partition_id=?decoded_parquet_file.parquet_file.partition_id,
+            parquet_file_object_store_id=?decoded_parquet_file.parquet_file.object_store_id,
+            "built parquet chunk from metadata"
         );
 
         QueryableParquetChunk::new(

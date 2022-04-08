@@ -644,21 +644,37 @@ impl Compactor {
         let stream_count = physical_plan.output_partitioning().partition_count();
         debug!("running plan with {} streams", stream_count);
         for i in 0..stream_count {
+            debug!(partition = i, "executing datafusion partition");
+
             let stream = ctx
                 .execute_stream_partitioned(Arc::clone(&physical_plan), i)
                 .await
                 .context(ExecuteCompactPlanSnafu)?;
+
+            debug!(partition = i, "built result stream for partition");
 
             // Collect compacted data into record batches for computing statistics
             let output_batches = datafusion::physical_plan::common::collect(stream)
                 .await
                 .context(CollectStreamSnafu)?;
 
+            debug!(
+                partition = i,
+                n_batches = output_batches.len(),
+                "collected record batches from partition exec stream"
+            );
+
             // Filter empty record batches
             let output_batches: Vec<_> = output_batches
                 .into_iter()
                 .filter(|b| b.num_rows() != 0)
                 .collect();
+
+            debug!(
+                partition = i,
+                n_batches = output_batches.len(),
+                "filtered out empty record batches"
+            );
 
             let row_count: usize = output_batches.iter().map(|b| b.num_rows()).sum();
             let row_count = row_count.try_into().context(RowCountTypeConversionSnafu)?;

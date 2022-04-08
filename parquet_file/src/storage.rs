@@ -300,7 +300,7 @@ impl Storage {
             }
         }
 
-        debug!("Completed parquet download & scan");
+        debug!(?path, "Completed parquet download & scan");
 
         Ok(())
     }
