@@ -525,6 +525,13 @@ pub trait ParquetFileRepo: Send + Sync {
     /// [`to_delete`](ParquetFile::to_delete).
     async fn list_by_table_not_to_delete(&mut self, table_id: TableId) -> Result<Vec<ParquetFile>>;
 
+    /// List all parquet files and their metadata within a given table that are NOT marked as
+    /// [`to_delete`](ParquetFile::to_delete). Fetching metadata can be expensive.
+    async fn list_by_table_not_to_delete_with_metadata(
+        &mut self,
+        table_id: TableId,
+    ) -> Result<Vec<(ParquetFile, Vec<u8>)>>;
+
     /// Delete all parquet files that were marked to be deleted earlier than the specified time.
     /// Returns the deleted records.
     async fn delete_old(&mut self, older_than: Timestamp) -> Result<Vec<ParquetFile>>;
@@ -1842,6 +1849,20 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         assert_eq!(files, vec![other_file]);
+
+        // test list_by_table_not_to_delete_with_metadata
+        let files = repos
+            .parquet_files()
+            .list_by_table_not_to_delete_with_metadata(table.id)
+            .await
+            .unwrap();
+        assert_eq!(files, vec![]);
+        let files = repos
+            .parquet_files()
+            .list_by_table_not_to_delete_with_metadata(other_table.id)
+            .await
+            .unwrap();
+        assert_eq!(files, vec![(other_file, b"md1".to_vec())]);
 
         // test list_by_namespace_not_to_delete
         let namespace2 = repos

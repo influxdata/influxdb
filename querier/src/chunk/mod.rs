@@ -212,8 +212,12 @@ impl ParquetChunkAdapter {
     /// Create new querier chunk.
     ///
     /// Returns `None` if some data required to create this chunk is already gone from the catalog.
-    pub async fn new_querier_chunk(&self, parquet_file: ParquetFile) -> Option<QuerierChunk> {
-        let decoded_parquet_file = DecodedParquetFile::new(parquet_file);
+    pub async fn new_querier_chunk(
+        &self,
+        parquet_file: ParquetFile,
+        parquet_metadata_bytes: Vec<u8>,
+    ) -> Option<QuerierChunk> {
+        let decoded_parquet_file = DecodedParquetFile::new(parquet_file, parquet_metadata_bytes);
         let chunk = Arc::new(self.new_parquet_chunk(&decoded_parquet_file).await?);
 
         let addr = self
@@ -334,11 +338,14 @@ pub mod tests {
             .await
             .create_parquet_file(&lp)
             .await
-            .parquet_file
-            .clone();
+            .parquet_file;
 
         // create chunk
-        let chunk = adapter.new_querier_chunk(parquet_file).await.unwrap();
+        let parquet_metadata = catalog.parquet_metadata(parquet_file.id).await;
+        let chunk = adapter
+            .new_querier_chunk(parquet_file, parquet_metadata)
+            .await
+            .unwrap();
 
         // check chunk addr
         assert_eq!(

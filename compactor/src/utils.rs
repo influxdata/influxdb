@@ -89,8 +89,9 @@ impl ParquetFileWithTombstone {
         &self,
         object_store: Arc<DynObjectStore>,
         table_name: String,
+        parquet_metadata_bytes: Vec<u8>,
     ) -> QueryableParquetChunk {
-        let decoded_parquet_file = DecodedParquetFile::new((*self.data).clone());
+        let decoded_parquet_file = DecodedParquetFile::new(*self.data, parquet_metadata_bytes);
         let root_path = IoxObjectStore::root_path_for(&*object_store, self.data.object_store_id);
         let iox_object_store = IoxObjectStore::existing(object_store, root_path);
         let parquet_chunk = new_parquet_chunk(
@@ -115,12 +116,6 @@ impl ParquetFileWithTombstone {
             Arc::new(decoded_parquet_file.iox_metadata),
             &self.tombstones,
         )
-    }
-
-    /// Return iox metadata of the parquet file
-    pub fn iox_metadata(&self) -> IoxMetadata {
-        let decoded_parquet_file = DecodedParquetFile::new((*self.data).clone());
-        decoded_parquet_file.iox_metadata
     }
 }
 

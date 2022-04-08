@@ -280,9 +280,9 @@ pub struct DecodedParquetFile {
 }
 
 impl DecodedParquetFile {
-    pub fn new(parquet_file: ParquetFile) -> Self {
+    pub fn new(parquet_file: ParquetFile, parquet_metadata_bytes: Vec<u8>) -> Self {
         let parquet_metadata = Arc::new(IoxParquetMetaData::from_thrift_bytes(
-            parquet_file.parquet_metadata.clone(),
+            parquet_metadata_bytes,
         ));
         let decoded_metadata = parquet_metadata.decode().expect("parquet metadata broken");
         let iox_metadata = decoded_metadata

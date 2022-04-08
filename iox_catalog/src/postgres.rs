@@ -17,7 +17,7 @@ use data_types2::{
     TableId, TablePartition, Timestamp, Tombstone, TombstoneId,
 };
 use observability_deps::tracing::{info, warn};
-use sqlx::{migrate::Migrator, postgres::PgPoolOptions, Acquire, Executor, Postgres, Row};
+use sqlx::{migrate::Migrator, postgres::PgPoolOptions, Acquire, Executor, FromRow, Postgres, Row};
 use sqlx_hotswap_pool::HotSwapPool;
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use time::{SystemProvider, TimeProvider};
@@ -1563,6 +1563,32 @@ WHERE table_id = $1 AND to_delete IS NULL;
         .fetch_all(&mut self.inner)
         .await
         .map_err(|e| Error::SqlxError { source: e })
+    }
+
+    async fn list_by_table_not_to_delete_with_metadata(
+        &mut self,
+        table_id: TableId,
+    ) -> Result<Vec<(ParquetFile, Vec<u8>)>> {
+        let rows = sqlx::query(
+            r#"
+SELECT *
+FROM parquet_file
+WHERE table_id = $1 AND to_delete IS NULL;
+             "#,
+        )
+        .bind(&table_id) // $1
+        .fetch_all(&mut self.inner)
+        .await
+        .map_err(|e| Error::SqlxError { source: e })?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| {
+                ParquetFile::from_row(&row)
+                    .map(|parquet_file| (parquet_file, row.get("parquet_metadata")))
+                    .map_err(|e| Error::SqlxError { source: e })
+            })
+            .collect::<Result<Vec<_>, _>>()?)
     }
 
     async fn delete_old(&mut self, older_than: Timestamp) -> Result<Vec<ParquetFile>> {

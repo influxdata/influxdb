@@ -1037,6 +1037,31 @@ impl ParquetFileRepo for MemTxn {
         Ok(parquet_files)
     }
 
+    async fn list_by_table_not_to_delete_with_metadata(
+        &mut self,
+        table_id: TableId,
+    ) -> Result<Vec<(ParquetFile, Vec<u8>)>> {
+        let stage = self.stage();
+
+        let parquet_files: Vec<_> = stage
+            .parquet_files
+            .iter()
+            .filter(|f| table_id == f.table_id && f.to_delete.is_none())
+            .cloned()
+            .map(|f| {
+                (
+                    f,
+                    stage
+                        .parquet_file_metadata
+                        .get(&f.id)
+                        .cloned()
+                        .unwrap_or_default(),
+                )
+            })
+            .collect();
+        Ok(parquet_files)
+    }
+
     async fn delete_old(&mut self, older_than: Timestamp) -> Result<Vec<ParquetFile>> {
         let stage = self.stage();
 

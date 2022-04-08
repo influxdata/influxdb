@@ -107,7 +107,7 @@ impl QuerierTable {
 
                     let parquet_files = txn
                         .parquet_files()
-                        .list_by_table_not_to_delete(self.id)
+                        .list_by_table_not_to_delete_with_metadata(self.id)
                         .await?;
 
                     let tombstones = txn.tombstones().list_by_table(self.id).await?;
@@ -132,8 +132,12 @@ impl QuerierTable {
 
         // convert parquet files and tombstones to nicer objects
         let mut chunks = Vec::with_capacity(parquet_files.len());
-        for parquet_file in parquet_files {
-            if let Some(chunk) = self.chunk_adapter.new_querier_chunk(parquet_file).await {
+        for (parquet_file, parquet_metadata) in parquet_files {
+            if let Some(chunk) = self
+                .chunk_adapter
+                .new_querier_chunk(parquet_file, parquet_metadata)
+                .await
+            {
                 chunks.push(chunk);
             }
         }

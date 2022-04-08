@@ -6,9 +6,9 @@ use arrow::{
 };
 use bytes::Bytes;
 use data_types2::{
-    Column, ColumnType, KafkaPartition, KafkaTopic, Namespace, ParquetFile, ParquetFileParams,
-    Partition, QueryPool, SequenceNumber, Sequencer, SequencerId, Table, TableId, Timestamp,
-    Tombstone, TombstoneId,
+    Column, ColumnType, KafkaPartition, KafkaTopic, Namespace, ParquetFile, ParquetFileId,
+    ParquetFileParams, Partition, QueryPool, SequenceNumber, Sequencer, SequencerId, Table,
+    TableId, Timestamp, Tombstone, TombstoneId,
 };
 use iox_catalog::{
     interface::{Catalog, INITIAL_COMPACTION_LEVEL},
@@ -186,6 +186,17 @@ impl TestCatalog {
             .await
             .parquet_files()
             .list_by_table_not_to_delete(table_id)
+            .await
+            .unwrap()
+    }
+
+    /// Get a parquet file's metadata bytes
+    pub async fn parquet_metadata(&self, parquet_file_id: ParquetFileId) -> Vec<u8> {
+        self.catalog
+            .repositories()
+            .await
+            .parquet_files()
+            .parquet_metadata(parquet_file_id)
             .await
             .unwrap()
     }
