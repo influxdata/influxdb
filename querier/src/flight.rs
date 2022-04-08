@@ -62,7 +62,7 @@ pub enum Error {
     Deserialization(#[from] prost::DecodeError),
 }
 
-/// An ingester Arrow Flight gRPC API client for the query service to use.
+/// Client for the querier to fetch not yet persisted data from the ingester
 #[derive(Debug)]
 pub struct Client {
     inner: FlightServiceClient<Connection>,
@@ -219,5 +219,9 @@ impl PerformQuery {
         }
 
         Ok(batches)
+    }
+
+    pub fn schema(&self) -> Arc<Schema> {
+        Arc::clone(&self.schema)
     }
 }
