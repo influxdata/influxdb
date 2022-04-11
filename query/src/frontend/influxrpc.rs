@@ -73,8 +73,13 @@ pub enum Error {
     #[snafu(display("Unsupported predicate in gRPC table_names: {:?}", predicate))]
     UnsupportedPredicateForTableNames { predicate: Predicate },
 
-    #[snafu(display("gRPC planner got error fetching chunks: {}", source))]
+    #[snafu(display(
+        "gRPC planner got error fetching chunks for table '{}': {}",
+        table_name,
+        source
+    ))]
     GettingChunks {
+        table_name: String,
         source: Box<dyn std::error::Error + Send + Sync>,
     },
 
@@ -253,7 +258,7 @@ impl InfluxRpcPlanner {
             let chunks = database
                 .chunks(table_name, predicate)
                 .await
-                .context(GettingChunksSnafu)?;
+                .context(GettingChunksSnafu { table_name })?;
             for chunk in chunks {
                 trace!(chunk_id=%chunk.id(), %table_name, "Considering table");
 
@@ -361,7 +366,7 @@ impl InfluxRpcPlanner {
             let chunks = database
                 .chunks(table_name, predicate)
                 .await
-                .context(GettingChunksSnafu)?;
+                .context(GettingChunksSnafu { table_name })?;
             for chunk in chunks {
                 // If there are delete predicates, we need to scan (or do full plan) the data to eliminate
                 // deleted data before getting tag keys
@@ -503,7 +508,7 @@ impl InfluxRpcPlanner {
             let chunks = database
                 .chunks(table_name, predicate)
                 .await
-                .context(GettingChunksSnafu)?;
+                .context(GettingChunksSnafu { table_name })?;
             for chunk in chunks {
                 // If there are delete predicates, we need to scan (or do full plan) the data to eliminate
                 // deleted data before getting tag values
@@ -681,7 +686,7 @@ impl InfluxRpcPlanner {
             let chunks = database
                 .chunks(table_name, predicate)
                 .await
-                .context(GettingChunksSnafu)?;
+                .context(GettingChunksSnafu { table_name })?;
             let chunks = prune_chunks_metadata(chunks, predicate)?;
 
             if chunks.is_empty() {
@@ -740,7 +745,7 @@ impl InfluxRpcPlanner {
             let chunks = database
                 .chunks(table_name, predicate)
                 .await
-                .context(GettingChunksSnafu)?;
+                .context(GettingChunksSnafu { table_name })?;
             let chunks = prune_chunks_metadata(chunks, predicate)?;
 
             if chunks.is_empty() {
@@ -806,7 +811,7 @@ impl InfluxRpcPlanner {
             let chunks = database
                 .chunks(table_name, predicate)
                 .await
-                .context(GettingChunksSnafu)?;
+                .context(GettingChunksSnafu { table_name })?;
             let chunks = prune_chunks_metadata(chunks, predicate)?;
 
             if chunks.is_empty() {
@@ -881,7 +886,7 @@ impl InfluxRpcPlanner {
             let chunks = database
                 .chunks(table_name, predicate)
                 .await
-                .context(GettingChunksSnafu)?;
+                .context(GettingChunksSnafu { table_name })?;
             let chunks = prune_chunks_metadata(chunks, predicate)?;
 
             if chunks.is_empty() {
