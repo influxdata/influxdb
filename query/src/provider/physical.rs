@@ -86,7 +86,7 @@ impl ExecutionPlan for IOxReadFilterNode {
     }
 
     fn with_new_children(
-        &self,
+        self: Arc<Self>,
         children: Vec<Arc<dyn ExecutionPlan>>,
     ) -> datafusion::error::Result<Arc<dyn ExecutionPlan>> {
         assert!(children.is_empty(), "no children expected in iox plan");

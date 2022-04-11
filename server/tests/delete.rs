@@ -142,7 +142,11 @@ async fn delete_predicate_preservation() {
         let pred = pred.clone();
 
         async move {
-            for chunk in db.chunks(table_name, &Default::default()).await {
+            let chunks = db
+                .chunks(table_name, &Default::default())
+                .await
+                .expect("error getting chunks");
+            for chunk in chunks {
                 let addr = chunk.addr();
                 let partition_key = addr.partition_key.as_ref();
                 if partition_key == "part_b" {

@@ -3,7 +3,7 @@ use test_helpers_end_to_end_ng::{maybe_skip_integration, MiniCluster, TestConfig
 
 /// Test the namespacea client
 #[tokio::test]
-async fn qerier_namespace_client() {
+async fn querier_namespace_client() {
     let database_url = maybe_skip_integration!();
 
     let table_name = "the_table";

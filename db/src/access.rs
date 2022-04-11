@@ -14,7 +14,7 @@ use metric::{Attributes, DurationCounter, Metric, U64Counter};
 use observability_deps::tracing::debug;
 use parking_lot::Mutex;
 use predicate::{rpc_predicate::QueryDatabaseMeta, Predicate};
-use query::{exec::IOxSessionContext, QueryChunk};
+use query::{exec::IOxSessionContext, QueryChunk, QueryDatabaseError};
 use query::{
     provider::{ChunkPruner, ProviderBuilder},
     pruning::{prune_chunks, PruningObserver},
@@ -290,8 +290,12 @@ impl PruningObserver for TableAccessMetrics {
 #[async_trait]
 impl QueryDatabase for QueryCatalogAccess {
     /// Return a covering set of chunks for a particular table and predicate
-    async fn chunks(&self, table_name: &str, predicate: &Predicate) -> Vec<Arc<dyn QueryChunk>> {
-        self.chunk_access.candidate_chunks(table_name, predicate)
+    async fn chunks(
+        &self,
+        table_name: &str,
+        predicate: &Predicate,
+    ) -> Result<Vec<Arc<dyn QueryChunk>>, QueryDatabaseError> {
+        Ok(self.chunk_access.candidate_chunks(table_name, predicate))
     }
 
     fn record_query(
@@ -411,6 +415,7 @@ mod tests {
     use super::*;
     use crate::test_helpers::write_lp;
     use crate::utils::make_db;
+    use crate::Db;
     use predicate::PredicateBuilder;
 
     #[tokio::test]
@@ -432,21 +437,29 @@ mod tests {
         write_lp(&db, "cpu foo=1 4");
 
         let predicate = Default::default();
-        assert_eq!(db.catalog_access.chunks("cpu", &predicate).await.len(), 3);
+        assert_eq!(get_chunks(&db, &predicate).await.len(), 3);
 
         let predicate = PredicateBuilder::new().timestamp_range(0, 1).build();
-        assert_eq!(db.catalog_access.chunks("cpu", &predicate).await.len(), 0);
+        assert_eq!(get_chunks(&db, &predicate).await.len(), 0);
 
         let predicate = PredicateBuilder::new().timestamp_range(0, 2).build();
-        assert_eq!(db.catalog_access.chunks("cpu", &predicate).await.len(), 1);
+        assert_eq!(get_chunks(&db, &predicate).await.len(), 1);
 
         let predicate = PredicateBuilder::new().timestamp_range(2, 3).build();
-        assert_eq!(db.catalog_access.chunks("cpu", &predicate).await.len(), 1);
+        assert_eq!(get_chunks(&db, &predicate).await.len(), 1);
 
         let predicate = PredicateBuilder::new().timestamp_range(2, 4).build();
-        assert_eq!(db.catalog_access.chunks("cpu", &predicate).await.len(), 2);
+        assert_eq!(get_chunks(&db, &predicate).await.len(), 2);
 
         let predicate = PredicateBuilder::new().timestamp_range(2, 5).build();
-        assert_eq!(db.catalog_access.chunks("cpu", &predicate).await.len(), 3);
+        assert_eq!(get_chunks(&db, &predicate).await.len(), 3);
+    }
+
+    async fn get_chunks(db: impl AsRef<Db>, predicate: &Predicate) -> Vec<Arc<dyn QueryChunk>> {
+        db.as_ref()
+            .catalog_access
+            .chunks("cpu", predicate)
+            .await
+            .unwrap()
     }
 }

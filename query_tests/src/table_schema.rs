@@ -36,7 +36,11 @@ async fn run_table_schema_test_case<D>(
         // Make sure at least one table has data
         let mut chunks_with_table = 0;
 
-        for chunk in db.chunks(table_name, &Default::default()).await {
+        let chunks = db
+            .chunks(table_name, &Default::default())
+            .await
+            .expect("error getting chunks");
+        for chunk in chunks {
             if chunk.table_name() == table_name {
                 chunks_with_table += 1;
                 let actual_schema = chunk.schema().select(selection).unwrap();

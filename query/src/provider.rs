@@ -416,6 +416,7 @@ impl Deduplicater {
         let mut plans: Vec<Arc<dyn ExecutionPlan>> = vec![];
         if self.no_duplicates() {
             // Neither overlaps nor duplicates, no deduplicating needed
+            trace!("All chunks neither overlap nor duplicate. Build only one scan node for all of them.");
             let mut non_duplicate_plans = Self::build_plans_for_non_duplicates_chunks(
                 self.ctx.child_ctx("build_plans_for_non_duplicates_chunks"),
                 Arc::clone(&table_name),
@@ -429,7 +430,8 @@ impl Deduplicater {
             trace!(overlapped_chunks=?self.overlapped_chunks_set.len(),
                 in_chunk_duplicates=?self.in_chunk_duplicates_chunks.len(),
                 no_duplicates_chunks=?self.no_duplicates_chunks.len(),
-                "Chunks after classifying: ");
+                "Some of the chunks either overlap or duplicate or both. There should be one scan node for each overlapped or duplicated chunk.\n
+                Chunks after classifying: ");
 
             let pk_schema = Self::compute_pk_schema(&chunks);
             let dedup_sort_key = match &output_sort_key {
@@ -476,15 +478,20 @@ impl Deduplicater {
             }
 
             // Go over non_duplicates_chunks, build a plan for it
-            let mut non_duplicate_plans = Self::build_plans_for_non_duplicates_chunks(
-                self.ctx.child_ctx("build_plans_for_non_duplicates_chunks"),
-                Arc::clone(&table_name),
-                Arc::clone(&output_schema),
-                self.no_duplicates_chunks.to_vec(),
-                predicate,
-                output_sort_key.as_ref(),
-            )?;
-            plans.append(&mut non_duplicate_plans);
+            if !self.no_duplicates_chunks.is_empty() {
+                trace!(
+                    "Build one scan node for the rest of neither-duplicated-nor-overlapped chunks."
+                );
+                let mut non_duplicate_plans = Self::build_plans_for_non_duplicates_chunks(
+                    self.ctx.child_ctx("build_plans_for_non_duplicates_chunks"),
+                    Arc::clone(&table_name),
+                    Arc::clone(&output_schema),
+                    self.no_duplicates_chunks.to_vec(),
+                    predicate,
+                    output_sort_key.as_ref(),
+                )?;
+                plans.append(&mut non_duplicate_plans);
+            }
         }
 
         if plans.is_empty() {
@@ -1009,6 +1016,7 @@ impl Deduplicater {
         // Only chunks without delete predicates should be in this one IOxReadFilterNode
         // if there is no chunk, we still need to return a plan
         if (output_sort_key.is_none() && Self::no_delete_predicates(&chunks)) || chunks.is_empty() {
+            trace!("build_plans_for_non_duplicates_chunks");
             plans.push(Arc::new(IOxReadFilterNode::new(
                 ctx,
                 Arc::clone(&table_name),

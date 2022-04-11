@@ -642,7 +642,7 @@ mod tests {
         }
 
         fn with_new_children(
-            &self,
+            self: Arc<Self>,
             _children: Vec<Arc<dyn ExecutionPlan>>,
         ) -> datafusion::error::Result<Arc<dyn ExecutionPlan>> {
             unimplemented!()

@@ -8,7 +8,7 @@ use crate::{
     exec::stringset::{StringSet, StringSetRef},
     Predicate, PredicateMatch, QueryChunk, QueryChunkMeta, QueryDatabase,
 };
-use crate::{QueryChunkError, QueryCompletedToken, QueryText};
+use crate::{QueryChunkError, QueryCompletedToken, QueryDatabaseError, QueryText};
 use arrow::array::UInt64Array;
 use arrow::{
     array::{ArrayRef, DictionaryArray, Int64Array, StringArray, TimestampNanosecondArray},
@@ -102,17 +102,21 @@ impl TestDatabase {
 
 #[async_trait]
 impl QueryDatabase for TestDatabase {
-    async fn chunks(&self, table_name: &str, predicate: &Predicate) -> Vec<Arc<dyn QueryChunk>> {
+    async fn chunks(
+        &self,
+        table_name: &str,
+        predicate: &Predicate,
+    ) -> Result<Vec<Arc<dyn QueryChunk>>, QueryDatabaseError> {
         // save last predicate
         *self.chunks_predicate.lock() = predicate.clone();
 
         let partitions = self.partitions.lock();
-        partitions
+        Ok(partitions
             .values()
             .flat_map(|x| x.values())
             .filter(|x| x.table_name == table_name)
             .map(|x| Arc::clone(x) as _)
-            .collect()
+            .collect())
     }
 
     fn record_query(

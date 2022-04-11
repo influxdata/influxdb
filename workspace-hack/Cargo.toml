@@ -34,6 +34,7 @@ hashbrown-5ef9efb8ec2df382 = { package = "hashbrown", version = "0.12", features
 hyper = { version = "0.14", features = ["client", "full", "h2", "http1", "http2", "runtime", "server", "socket2", "stream", "tcp"] }
 hyper-rustls = { version = "0.23", features = ["http1", "http2", "log", "logging", "native-tokio", "rustls-native-certs", "tls12", "tokio-runtime", "webpki-roots", "webpki-tokio"] }
 indexmap = { version = "1", default-features = false, features = ["std"] }
+libc = { version = "0.2", features = ["std"] }
 log = { version = "0.4", default-features = false, features = ["std"] }
 memchr = { version = "2", features = ["std"] }
 nom = { version = "7", features = ["alloc", "std"] }
@@ -89,6 +90,7 @@ generic-array = { version = "0.14", default-features = false, features = ["more_
 getrandom = { version = "0.2", default-features = false, features = ["std"] }
 hashbrown-a6292c17cd707f01 = { package = "hashbrown", version = "0.11", features = ["ahash", "inline-more", "raw"] }
 indexmap = { version = "1", default-features = false, features = ["std"] }
+libc = { version = "0.2", features = ["std"] }
 log = { version = "0.4", default-features = false, features = ["std"] }
 memchr = { version = "2", features = ["std"] }
 nom = { version = "7", features = ["alloc", "std"] }
@@ -111,25 +113,25 @@ tokio-stream = { version = "0.1", features = ["fs", "net", "time"] }
 uuid = { version = "0.8", features = ["getrandom", "std", "v4"] }
 
 [target.x86_64-unknown-linux-gnu.dependencies]
-libc = { version = "0.2", features = ["extra_traits", "std"] }
+libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
 tokio-rustls = { version = "0.23" }
 
 [target.x86_64-unknown-linux-gnu.build-dependencies]
-libc = { version = "0.2", features = ["extra_traits", "std"] }
+libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
 
 [target.x86_64-apple-darwin.dependencies]
-libc = { version = "0.2", features = ["extra_traits", "std"] }
+libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
 tokio-rustls = { version = "0.23" }
 
 [target.x86_64-apple-darwin.build-dependencies]
-libc = { version = "0.2", features = ["extra_traits", "std"] }
+libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
 
 [target.aarch64-apple-darwin.dependencies]
-libc = { version = "0.2", features = ["extra_traits", "std"] }
+libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
 tokio-rustls = { version = "0.23" }
 
 [target.aarch64-apple-darwin.build-dependencies]
-libc = { version = "0.2", features = ["extra_traits", "std"] }
+libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
 
 [target.x86_64-pc-windows-msvc.dependencies]
 scopeguard = { version = "1", features = ["use_std"] }

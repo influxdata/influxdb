@@ -5,6 +5,8 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+# Optional feature 'pprof' enables http://localhost:8080/debug/pprof/profile support support
+
 [dependencies]
 # Workspace dependencies, in alphabetical order
 clap_blocks = { path = "../clap_blocks" }
@@ -13,6 +15,7 @@ dml = { path = "../dml" }
 metric = { path = "../metric" }
 observability_deps = { path = "../observability_deps" }
 predicate = { path = "../predicate" }
+pprof = { version = "0.7", default-features = false, features = ["flamegraph", "prost-codec"], optional = true }
 metric_exporters = { path = "../metric_exporters" }
 mutable_batch_lp = { path = "../mutable_batch_lp" }
 trace = { path = "../trace" }

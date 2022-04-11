@@ -57,4 +57,15 @@ async fn ingester_flight_api() {
         "+------+------+--------------------------------+-----+",
     ];
     assert_batches_sorted_eq!(&expected, &query_results);
+
+    // Also ensure that the schema of the batches matches what is
+    // reported by the performed_query.
+    query_results.iter().enumerate().for_each(|(i, b)| {
+        assert_eq!(
+            performed_query.schema(),
+            b.schema(),
+            "Schema mismatch for returned batch {}",
+            i
+        );
+    });
 }

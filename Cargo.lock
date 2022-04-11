@@ -374,18 +374,14 @@ dependencies = [
  "bitflags",
  "cexpr",
  "clang-sys",
- "clap 2.34.0",
- "env_logger",
  "lazy_static",
  "lazycell",
- "log",
  "peeking_take_while",
  "proc-macro2",
  "quote",
  "regex",
  "rustc-hash",
  "shlex",
- "which",
 ]
 
 [[package]]
@@ -604,13 +600,9 @@ version = "2.34.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a0610544180c38b88101fecf2dd634b174a62eef6946f84dfc6a7127512b381c"
 dependencies = [
- "ansi_term",
- "atty",
  "bitflags",
- "strsim 0.8.0",
  "textwrap 0.11.0",
  "unicode-width",
- "vec_map",
 ]
 
 [[package]]
@@ -625,7 +617,7 @@ dependencies = [
  "indexmap",
  "lazy_static",
  "os_str_bytes",
- "strsim 0.10.0",
+ "strsim",
  "termcolor",
  "textwrap 0.15.0",
 ]
@@ -882,9 +874,9 @@ dependencies = [
 
 [[package]]
 name = "croaring"
-version = "0.5.1"
+version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "86e1edf7c26c5fe75a4f9a485ec448b3a637a2d6dea264072228ad44117ed139"
+checksum = "aff1eea8a79ffa2a743c1322d5c3853d45699b7842197160c7c32a18c32c1866"
 dependencies = [
  "byteorder",
  "croaring-sys",
@@ -893,9 +885,9 @@ dependencies = [
 
 [[package]]
 name = "croaring-sys"
-version = "0.5.1"
+version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a23e3dd8b47c2972b118ee12082dbf1ba08cffb564aaeb5ac99af097376449b3"
+checksum = "21d77e33a1d5e04573f79846692e72f2e02e0fdd942b90f023c45f146d3447db"
 dependencies = [
  "bindgen",
  "cc",
@@ -1038,7 +1030,7 @@ dependencies = [
  "ident_case",
  "proc-macro2",
  "quote",
- "strsim 0.10.0",
+ "strsim",
  "syn",
 ]
 
@@ -1096,7 +1088,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "7.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=b890190a6521ab1e572184dcf6ea0a5afb3a47af#b890190a6521ab1e572184dcf6ea0a5afb3a47af"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=fa9e0164127c233a16b53e1d12f162f3b00171f5#fa9e0164127c233a16b53e1d12f162f3b00171f5"
 dependencies = [
  "ahash",
  "arrow",
@@ -1128,7 +1120,7 @@ dependencies = [
 [[package]]
 name = "datafusion-common"
 version = "7.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=b890190a6521ab1e572184dcf6ea0a5afb3a47af#b890190a6521ab1e572184dcf6ea0a5afb3a47af"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=fa9e0164127c233a16b53e1d12f162f3b00171f5#fa9e0164127c233a16b53e1d12f162f3b00171f5"
 dependencies = [
  "arrow",
  "ordered-float 2.10.0",
@@ -1139,7 +1131,7 @@ dependencies = [
 [[package]]
 name = "datafusion-data-access"
 version = "1.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=b890190a6521ab1e572184dcf6ea0a5afb3a47af#b890190a6521ab1e572184dcf6ea0a5afb3a47af"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=fa9e0164127c233a16b53e1d12f162f3b00171f5#fa9e0164127c233a16b53e1d12f162f3b00171f5"
 dependencies = [
  "async-trait",
  "chrono",
@@ -1152,7 +1144,7 @@ dependencies = [
 [[package]]
 name = "datafusion-expr"
 version = "7.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=b890190a6521ab1e572184dcf6ea0a5afb3a47af#b890190a6521ab1e572184dcf6ea0a5afb3a47af"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=fa9e0164127c233a16b53e1d12f162f3b00171f5#fa9e0164127c233a16b53e1d12f162f3b00171f5"
 dependencies = [
  "ahash",
  "arrow",
@@ -1163,7 +1155,7 @@ dependencies = [
 [[package]]
 name = "datafusion-physical-expr"
 version = "7.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=b890190a6521ab1e572184dcf6ea0a5afb3a47af#b890190a6521ab1e572184dcf6ea0a5afb3a47af"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=fa9e0164127c233a16b53e1d12f162f3b00171f5#fa9e0164127c233a16b53e1d12f162f3b00171f5"
 dependencies = [
  "ahash",
  "arrow",
@@ -1399,19 +1391,6 @@ name = "endian-type"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c34f04666d835ff5d62e058c3995147c06f42fe86ff053337632bca83e42702d"
-
-[[package]]
-name = "env_logger"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0b2cf0344971ee6c64c31be0d530793fba457d322dfec2810c453d0ef228f9c3"
-dependencies = [
- "atty",
- "humantime",
- "log",
- "regex",
- "termcolor",
-]
 
 [[package]]
 name = "errno"
@@ -2174,7 +2153,6 @@ dependencies = [
  "parquet_catalog",
  "parquet_file",
  "pin-project",
- "pprof 0.7.0",
  "predicate",
  "predicates",
  "prost 0.9.0",
@@ -2529,6 +2507,7 @@ dependencies = [
  "mutable_batch_lp",
  "observability_deps",
  "parking_lot 0.12.0",
+ "pprof 0.7.0",
  "predicate",
  "prost 0.9.0",
  "reqwest",
@@ -5785,12 +5764,6 @@ dependencies = [
 
 [[package]]
 name = "strsim"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8ea5119cdb4c55b55d432abb513a0429384878c15dde60cc77b1c99de1a95a6a"
-
-[[package]]
-name = "strsim"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "73473c0e59e6d5812c5dfe2a064a6444949f089e20eec9a2e5506596494e4623"
@@ -6351,9 +6324,9 @@ dependencies = [
 
 [[package]]
 name = "tracing"
-version = "0.1.32"
+version = "0.1.33"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4a1bdf54a7c28a2bbf701e1d2233f6c77f473486b94bee4f9678da5a148dca7f"
+checksum = "80b9fa4360528139bc96100c160b7ae879f5567f49f1782b0b02035b0358ebf3"
 dependencies = [
  "cfg-if",
  "log",
@@ -6416,9 +6389,9 @@ dependencies = [
 
 [[package]]
 name = "tracing-subscriber"
-version = "0.3.10"
+version = "0.3.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b9df98b037d039d03400d9dd06b0f8ce05486b5f25e9a2d7d36196e142ebbc52"
+checksum = "4bc28f93baff38037f64e6f43d34cfa1605f27a49c34e8a04c5e78b0babf2596"
 dependencies = [
  "ansi_term",
  "lazy_static",
@@ -6571,12 +6544,6 @@ name = "valuable"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "830b7e5d4d90034032940e4ace0d9a9a057e7a45cd94e6c007832e39edb82f6d"
-
-[[package]]
-name = "vec_map"
-version = "0.8.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f1bddf1187be692e79c5ffeab891132dfb0f236ed36a43c7ed39f1165ee20191"
 
 [[package]]
 name = "version_check"

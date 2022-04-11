@@ -9,7 +9,7 @@ use datafusion::{
 use predicate::{rpc_predicate::QueryDatabaseMeta, Predicate};
 use query::{
     exec::{ExecutionContextProvider, ExecutorType, IOxSessionContext},
-    QueryChunk, QueryCompletedToken, QueryDatabase, QueryText, DEFAULT_SCHEMA,
+    QueryChunk, QueryCompletedToken, QueryDatabase, QueryDatabaseError, QueryText, DEFAULT_SCHEMA,
 };
 use schema::Schema;
 use trace::ctx::SpanContext;
@@ -35,13 +35,17 @@ impl QueryDatabaseMeta for QuerierNamespace {
 
 #[async_trait]
 impl QueryDatabase for QuerierNamespace {
-    async fn chunks(&self, table_name: &str, predicate: &Predicate) -> Vec<Arc<dyn QueryChunk>> {
+    async fn chunks(
+        &self,
+        table_name: &str,
+        predicate: &Predicate,
+    ) -> Result<Vec<Arc<dyn QueryChunk>>, QueryDatabaseError> {
         // get table metadata
         let table = match self.tables.get(table_name).map(Arc::clone) {
             Some(table) => table,
             None => {
                 // table gone
-                return vec![];
+                return Ok(vec![]);
             }
         };
 
@@ -62,7 +66,7 @@ impl QueryDatabase for QuerierNamespace {
         }
 
         let pruner = table.chunk_pruner();
-        pruner.prune_chunks(table_name, Arc::clone(table.schema()), chunks, predicate)
+        Ok(pruner.prune_chunks(table_name, Arc::clone(table.schema()), chunks, predicate))
     }
 
     fn record_query(
