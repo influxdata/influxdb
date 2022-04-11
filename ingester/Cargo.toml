@@ -17,7 +17,6 @@ data_types2 = { path = "../data_types2" }
 futures = "0.3"
 generated_types = { path = "../generated_types" }
 chrono = { version = "0.4", default-features = false }
-db = { path = "../db" }
 dml = { path = "../dml" }
 hyper = "0.14"
 iox_catalog = { path = "../iox_catalog" }
