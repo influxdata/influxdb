@@ -35,10 +35,10 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Create a new connection given an `ingester_address` such as
+/// Create a new connection given Vec of `ingester_address` such as
 /// "http://127.0.0.1:8083"
-pub fn create_ingester_connection(ingester_address: String) -> Arc<dyn IngesterConnection> {
-    Arc::new(IngesterConnectionImpl::new(ingester_address))
+pub fn create_ingester_connection(ingester_addresses: Vec<String>) -> Arc<dyn IngesterConnection> {
+    Arc::new(IngesterConnectionImpl::new(ingester_addresses))
 }
 
 /// Create a new ingester suitable for testing
@@ -65,14 +65,14 @@ pub trait IngesterConnection: std::fmt::Debug + Send + Sync + 'static {
 #[allow(missing_copy_implementations)]
 #[derive(Debug)]
 pub(crate) struct IngesterConnectionImpl {
-    ingester_address: String,
+    ingester_addresses: Vec<String>,
 }
 
 impl IngesterConnectionImpl {
-    /// Create a new connection given an `ingester_address` such as
+    /// Create a new connection given a Vec of `ingester_address` such as
     /// "http://127.0.0.1:8083"
-    pub fn new(ingester_address: String) -> Self {
-        Self { ingester_address }
+    pub fn new(ingester_addresses: Vec<String>) -> Self {
+        Self { ingester_addresses }
     }
 }
 
@@ -88,26 +88,29 @@ impl IngesterConnection for IngesterConnectionImpl {
         _predicate: &Predicate,
         _expected_schema: &Schema,
     ) -> Result<Vec<Arc<IngesterPartition>>> {
-        let ingester_address = &self.ingester_address;
-        debug!(%ingester_address, %table_name, "Connecting to ingester");
+        let mut partitions = vec![];
 
-        // TODO maybe cache this connection
-        let connection = connection::Builder::new()
-            .build(&self.ingester_address)
-            .await
-            .context(ConnectingSnafu { ingester_address })?;
+        for ingester_address in &self.ingester_addresses {
+            debug!(%ingester_address, %table_name, "Connecting to ingester");
+            // TODO maybe cache this connection
+            let connection = connection::Builder::new()
+                .build(ingester_address)
+                .await
+                .context(ConnectingSnafu { ingester_address })?;
 
-        let mut client = QuerierFlightClient::new(connection);
+            let mut client = QuerierFlightClient::new(connection);
 
-        // make contact with the ingester
-        client
-            .handshake()
-            .await
-            .context(HandshakeSnafu { ingester_address })?;
+            // make contact with the ingester
+            client
+                .handshake()
+                .await
+                .context(HandshakeSnafu { ingester_address })?;
 
-        // TODO Coming Soon: create the actual IngesterPartition and return them here.
+            // TODO Coming Soon: create the actual IngesterPartition and return them here.
+            partitions.extend(vec![]);
+        }
 
-        Ok(vec![])
+        Ok(partitions)
     }
 }
 
