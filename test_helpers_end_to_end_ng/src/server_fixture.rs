@@ -81,9 +81,6 @@ pub struct TestServer {
     /// Handle to the server process being controlled
     server_process: Arc<Mutex<Process>>,
 
-    /// Which ports this server should use
-    addrs: BindAddresses,
-
     /// Configuration values for starting the test server
     test_config: TestConfig,
 
@@ -105,17 +102,13 @@ struct Process {
 
 impl TestServer {
     async fn new(test_config: TestConfig) -> Self {
-        let addrs = BindAddresses::default();
         let ready = Mutex::new(ServerState::Started);
 
-        let server_process = Arc::new(Mutex::new(
-            Self::create_server_process(&addrs, &test_config).await,
-        ));
+        let server_process = Arc::new(Mutex::new(Self::create_server_process(&test_config).await));
 
         Self {
             ready,
             server_process,
-            addrs,
             test_config,
             router_grpc_connection: None,
             ingester_grpc_connection: None,
@@ -149,12 +142,12 @@ impl TestServer {
 
     /// Return the http base URL for the router HTTP API
     pub fn router_http_base(&self) -> Arc<str> {
-        self.addrs.router_http_api().client_base()
+        self.addrs().router_http_api().client_base()
     }
 
     /// Return the http base URL for the router gRPC API
     pub fn router_grpc_base(&self) -> Arc<str> {
-        self.addrs.router_grpc_api().client_base()
+        self.addrs().router_grpc_api().client_base()
     }
 
     /// Create a connection channel to the specified gRPC endpoint
@@ -183,7 +176,7 @@ impl TestServer {
         self.router_grpc_connection =
             match server_type {
                 ServerType::AllInOne | ServerType::Router2 => {
-                    let client_base = self.addrs.router_grpc_api().client_base();
+                    let client_base = self.addrs().router_grpc_api().client_base();
                     Some(self.grpc_channel(client_base.as_ref()).await.map_err(|e| {
                         format!("Can not connect to router at {}: {}", client_base, e)
                     })?)
@@ -193,7 +186,7 @@ impl TestServer {
 
         self.ingester_grpc_connection = match server_type {
             ServerType::AllInOne | ServerType::Ingester => {
-                let client_base = self.addrs.ingester_grpc_api().client_base();
+                let client_base = self.addrs().ingester_grpc_api().client_base();
                 Some(self.grpc_channel(client_base.as_ref()).await.map_err(|e| {
                     format!("Can not connect to ingester at {}: {}", client_base, e)
                 })?)
@@ -204,7 +197,7 @@ impl TestServer {
         self.querier_grpc_connection =
             match server_type {
                 ServerType::AllInOne | ServerType::Querier => {
-                    let client_base = self.addrs.querier_grpc_api().client_base();
+                    let client_base = self.addrs().querier_grpc_api().client_base();
                     Some(self.grpc_channel(client_base.as_ref()).await.map_err(|e| {
                         format!("Can not connect to querier at {}: {}", client_base, e)
                     })?)
@@ -217,7 +210,7 @@ impl TestServer {
 
     /// Returns the addresses to which the server has been bound
     fn addrs(&self) -> &BindAddresses {
-        &self.addrs
+        self.test_config.addrs()
     }
 
     /// Restarts the tests server process, but does not reconnect clients
@@ -226,11 +219,11 @@ impl TestServer {
         let mut server_process = self.server_process.lock().await;
         server_process.child.kill().unwrap();
         server_process.child.wait().unwrap();
-        *server_process = Self::create_server_process(&self.addrs, &self.test_config).await;
+        *server_process = Self::create_server_process(&self.test_config).await;
         *ready_guard = ServerState::Started;
     }
 
-    async fn create_server_process(addrs: &BindAddresses, test_config: &TestConfig) -> Process {
+    async fn create_server_process(test_config: &TestConfig) -> Process {
         // Create a new file each time and keep it around to aid debugging
         let (log_file, log_path) = NamedTempFile::new()
             .expect("opening log file")
@@ -266,7 +259,7 @@ impl TestServer {
             .env("LOG_FILTER", log_filter)
             .env("INFLUXDB_IOX_CATALOG_DSN", &dsn)
             // add http/grpc address information
-            .add_addr_env(server_type, addrs)
+            .add_addr_env(server_type, test_config.addrs())
             .envs(test_config.env())
             // redirect output to log file
             .stdout(stdout_log_file)
@@ -467,7 +460,7 @@ impl std::fmt::Display for TestServer {
             f,
             "TestServer {:?} ({})",
             self.test_config.server_type(),
-            self.addrs
+            self.addrs()
         )
     }
 }

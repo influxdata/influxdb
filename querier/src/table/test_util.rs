@@ -5,7 +5,9 @@ use iox_catalog::interface::get_schema_by_name;
 use iox_tests::util::{TestCatalog, TestTable};
 use schema::Schema;
 
-use crate::{cache::CatalogCache, chunk::ParquetChunkAdapter};
+use crate::{
+    cache::CatalogCache, chunk::ParquetChunkAdapter, create_ingester_connection_for_testing,
+};
 
 use super::QuerierTable;
 
@@ -28,11 +30,15 @@ pub async fn querier_table(catalog: &Arc<TestCatalog>, table: &Arc<TestTable>) -
     let schema = catalog_schema.tables.remove(&table.table.name).unwrap();
     let schema = Arc::new(Schema::try_from(schema).unwrap());
 
+    let namespace_name = Arc::from(table.namespace.namespace.name.as_str());
+
     QuerierTable::new(
+        namespace_name,
         BackoffConfig::default(),
         table.table.id,
         table.table.name.clone().into(),
         schema,
+        create_ingester_connection_for_testing(),
         chunk_adapter,
     )
 }

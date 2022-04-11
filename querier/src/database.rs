@@ -1,8 +1,8 @@
 //! Database for the querier that contains all namespaces.
 
 use crate::{
-    cache::CatalogCache, chunk::ParquetChunkAdapter, namespace::QuerierNamespace,
-    query_log::QueryLog,
+    cache::CatalogCache, chunk::ParquetChunkAdapter, ingester::IngesterConnection,
+    namespace::QuerierNamespace, query_log::QueryLog,
 };
 use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig};
@@ -52,6 +52,9 @@ pub struct QuerierDatabase {
     /// Executor for queries.
     exec: Arc<Executor>,
 
+    /// Connection to ingester
+    ingester_connection: Arc<dyn IngesterConnection>,
+
     /// Query log.
     query_log: Arc<QueryLog>,
 }
@@ -73,6 +76,7 @@ impl QuerierDatabase {
         object_store: Arc<DynObjectStore>,
         time_provider: Arc<dyn TimeProvider>,
         exec: Arc<Executor>,
+        ingester_connection: Arc<dyn IngesterConnection>,
     ) -> Self {
         let catalog_cache = Arc::new(CatalogCache::new(
             Arc::clone(&catalog),
@@ -96,6 +100,7 @@ impl QuerierDatabase {
             object_store,
             time_provider,
             exec,
+            ingester_connection,
             query_log,
         }
     }
@@ -114,6 +119,7 @@ impl QuerierDatabase {
             schema,
             name,
             Arc::clone(&self.exec),
+            Arc::clone(&self.ingester_connection),
             Arc::clone(&self.query_log),
         )))
     }
@@ -134,6 +140,8 @@ impl QuerierDatabase {
 mod tests {
     use iox_tests::util::TestCatalog;
 
+    use crate::create_ingester_connection_for_testing;
+
     use super::*;
 
     #[tokio::test]
@@ -146,6 +154,7 @@ mod tests {
             catalog.object_store(),
             catalog.time_provider(),
             catalog.exec(),
+            create_ingester_connection_for_testing(),
         );
 
         catalog.create_namespace("ns1").await;

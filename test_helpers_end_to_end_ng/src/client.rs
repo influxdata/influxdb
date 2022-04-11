@@ -58,8 +58,9 @@ pub async fn wait_for_token<F>(
     F: Fn(&GetWriteInfoResponse) -> bool,
 {
     let write_token = write_token.into();
+    assert!(!write_token.is_empty());
 
-    println!("Waiting for Write Token {}", write_token);
+    println!("  write token: {}", write_token);
 
     let retry_duration = Duration::from_secs(MAX_QUERY_RETRY_TIME_SEC);
     let mut write_info_client = influxdb_iox_client::write_info::Client::new(ingester_connection);
@@ -87,7 +88,7 @@ pub async fn wait_for_token<F>(
 
 /// Waits for the specified write token to be readable
 pub async fn wait_for_readable(write_token: impl Into<String>, ingester_connection: Connection) {
-    println!("Waiting for Write Token to be readable");
+    println!("Waiting for write token to be readable");
 
     wait_for_token(write_token, ingester_connection, |res| {
         if res.readable {
@@ -102,7 +103,7 @@ pub async fn wait_for_readable(write_token: impl Into<String>, ingester_connecti
 
 /// Waits for the write token to be persisted
 pub async fn wait_for_persisted(write_token: impl Into<String>, ingester_connection: Connection) {
-    println!("Waiting for Write Token to be persisted");
+    println!("Waiting for write token to be persisted");
 
     wait_for_token(write_token, ingester_connection, |res| {
         if res.persisted {
@@ -116,25 +117,13 @@ pub async fn wait_for_persisted(write_token: impl Into<String>, ingester_connect
 }
 
 /// Runs a query using the flight API on the specified connection
-/// until responses are produced.
-///
-/// (Will) eventually wait until data from the specified write token
-/// is readable, but currently waits for the data to be persisted (as
-/// the querier doesn't know how to ask the ingester yet)
-///
-/// The retry loop is used to wait for writes to become visible
-pub async fn query_when_readable(
+pub async fn run_query(
     sql: impl Into<String>,
     namespace: impl Into<String>,
-    write_token: impl Into<String>,
-    ingester_connection: Connection,
     querier_connection: Connection,
 ) -> Vec<RecordBatch> {
     let namespace = namespace.into();
     let sql = sql.into();
-
-    // TODO: this should be "wait_for_readable" once the querier can talk to ingester
-    wait_for_persisted(write_token, ingester_connection).await;
 
     let mut client = influxdb_iox_client::flight::Client::new(querier_connection);
 

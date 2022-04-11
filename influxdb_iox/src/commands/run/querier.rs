@@ -59,6 +59,18 @@ pub struct Config {
     /// If not specified, defaults to the number of cores on the system
     #[clap(long = "--num-query-threads", env = "INFLUXDB_IOX_NUM_QUERY_THREADS")]
     pub num_query_threads: Option<usize>,
+
+    /// gRPC address for the querier to talk with the
+    /// ingester. For example "http://127.0.0.1:8083"
+    ///
+    /// Note this is a workround for
+    /// <https://github.com/influxdata/influxdb_iox/issues/3996>
+    #[clap(
+        long = "--ingester-address",
+        env = "INFLUXDB_IOX_INGESTER_ADDRESS",
+        default_value = "http://127.0.0.1:8083"
+    )]
+    pub ingester_address: String,
 }
 
 pub async fn command(config: Config) -> Result<(), Error> {
@@ -80,6 +92,7 @@ pub async fn command(config: Config) -> Result<(), Error> {
 
     let num_threads = config.num_query_threads.unwrap_or_else(num_cpus::get);
     info!(%num_threads, "using specified number of threads per thread pool");
+    info!(ingester_address=%config.ingester_address, "using ingester address");
 
     let exec = Arc::new(Executor::new(num_threads));
     let server_type = create_querier_server_type(
@@ -89,6 +102,7 @@ pub async fn command(config: Config) -> Result<(), Error> {
         object_store,
         time_provider,
         exec,
+        config.ingester_address,
     )
     .await;
 

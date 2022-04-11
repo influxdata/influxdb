@@ -1,6 +1,7 @@
 //! Namespace within the whole database.
 use crate::{
-    cache::CatalogCache, chunk::ParquetChunkAdapter, query_log::QueryLog, table::QuerierTable,
+    cache::CatalogCache, chunk::ParquetChunkAdapter, ingester::IngesterConnection,
+    query_log::QueryLog, table::QuerierTable,
 };
 use backoff::BackoffConfig;
 use data_types2::{NamespaceId, NamespaceSchema};
@@ -37,6 +38,9 @@ pub struct QuerierNamespace {
     /// Executor for queries.
     exec: Arc<Executor>,
 
+    /// Connection to ingester
+    ingester_connection: Arc<dyn IngesterConnection>,
+
     /// Query log.
     query_log: Arc<QueryLog>,
 }
@@ -49,25 +53,28 @@ impl QuerierNamespace {
         schema: Arc<NamespaceSchema>,
         name: Arc<str>,
         exec: Arc<Executor>,
+        ingester_connection: Arc<dyn IngesterConnection>,
         query_log: Arc<QueryLog>,
     ) -> Self {
         let tables: HashMap<_, _> = schema
             .tables
             .iter()
-            .map(|(name, table_schema)| {
-                let name = Arc::from(name.clone());
+            .map(|(table_name, table_schema)| {
+                let table_name = Arc::from(table_name.clone());
                 let id = table_schema.id;
                 let schema = Schema::try_from(table_schema.clone()).expect("cannot build schema");
 
                 let table = Arc::new(QuerierTable::new(
+                    Arc::clone(&name),
                     backoff_config.clone(),
                     id,
-                    Arc::clone(&name),
+                    Arc::clone(&table_name),
                     Arc::new(schema),
+                    Arc::clone(&ingester_connection),
                     Arc::clone(&chunk_adapter),
                 ));
 
-                (name, table)
+                (table_name, table)
             })
             .collect();
 
@@ -78,11 +85,13 @@ impl QuerierNamespace {
             name,
             tables: Arc::new(tables),
             exec,
+            ingester_connection,
             query_log,
         }
     }
 
     /// Create new namespace for given schema, for testing.
+    #[allow(clippy::too_many_arguments)]
     pub fn new_testing(
         catalog: Arc<dyn Catalog>,
         object_store: Arc<DynObjectStore>,
@@ -91,6 +100,7 @@ impl QuerierNamespace {
         name: Arc<str>,
         schema: Arc<NamespaceSchema>,
         exec: Arc<Executor>,
+        ingester_connection: Arc<dyn IngesterConnection>,
     ) -> Self {
         let catalog_cache = Arc::new(CatalogCache::new(catalog, Arc::clone(&time_provider)));
         let chunk_adapter = Arc::new(ParquetChunkAdapter::new(
@@ -107,6 +117,7 @@ impl QuerierNamespace {
             schema,
             name,
             exec,
+            ingester_connection,
             query_log,
         )
     }

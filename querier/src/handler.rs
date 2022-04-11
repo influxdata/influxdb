@@ -115,6 +115,8 @@ mod tests {
     use query::exec::Executor;
     use time::{MockProvider, Time};
 
+    use crate::create_ingester_connection_for_testing;
+
     use super::*;
 
     #[tokio::test]
@@ -151,6 +153,7 @@ mod tests {
                 object_store,
                 time_provider,
                 exec,
+                create_ingester_connection_for_testing(),
             ));
             let querier = QuerierHandlerImpl::new(database);
 

@@ -1,8 +1,8 @@
 use arrow_util::assert_batches_sorted_eq;
 use http::StatusCode;
 use test_helpers_end_to_end_ng::{
-    get_write_token, maybe_skip_integration, query_when_readable, rand_name, write_to_router,
-    ServerFixture, TestConfig,
+    get_write_token, maybe_skip_integration, rand_name, run_query, wait_for_persisted,
+    write_to_router, ServerFixture, TestConfig,
 };
 
 #[tokio::test]
@@ -25,16 +25,16 @@ async fn smoke() {
 
     let response = write_to_router(lp, org, bucket, all_in_one.server().router_http_base()).await;
 
+    // wait for data to be persisted to parquet
     assert_eq!(response.status(), StatusCode::NO_CONTENT);
     let write_token = get_write_token(&response);
+    wait_for_persisted(write_token, all_in_one.server().ingester_grpc_connection()).await;
 
-    // run query in a loop until the data becomes available
+    // run query
     let sql = format!("select * from {}", table_name);
-    let batches = query_when_readable(
+    let batches = run_query(
         sql,
         namespace,
-        write_token,
-        all_in_one.server().ingester_grpc_connection(),
         all_in_one.server().querier_grpc_connection(),
     )
     .await;
