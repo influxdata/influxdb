@@ -53,11 +53,7 @@ impl QueryDatabase for QuerierNamespace {
             }
         };
 
-        let mut chunks = table
-            .chunks(predicate)
-            .await
-            // TODO QuerierNamespace trait needs to be updated to return Result
-            .expect("Success getting chunks");
+        let mut chunks = table.chunks(predicate).await.map_err(Box::new)?;
 
         // if there is a field restriction on the predicate, only
         // chunks with that field should be returned. If the chunk has
