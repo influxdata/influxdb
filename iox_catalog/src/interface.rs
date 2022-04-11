@@ -3,10 +3,10 @@
 use async_trait::async_trait;
 use data_types2::{
     Column, ColumnSchema, ColumnType, KafkaPartition, KafkaTopic, KafkaTopicId, Namespace,
-    NamespaceId, NamespaceSchema, ParquetFile, ParquetFileId, ParquetFileParams, Partition,
-    PartitionId, PartitionInfo, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber,
-    Sequencer, SequencerId, Table, TableId, TablePartition, TableSchema, Timestamp, Tombstone,
-    TombstoneId,
+    NamespaceId, NamespaceSchema, ParquetFile, ParquetFileId, ParquetFileParams,
+    ParquetFileWithMetadata, Partition, PartitionId, PartitionInfo, ProcessedTombstone, QueryPool,
+    QueryPoolId, SequenceNumber, Sequencer, SequencerId, Table, TableId, TablePartition,
+    TableSchema, Timestamp, Tombstone, TombstoneId,
 };
 use snafu::{OptionExt, Snafu};
 use std::{collections::BTreeMap, convert::TryFrom, fmt::Debug, sync::Arc};
@@ -530,7 +530,7 @@ pub trait ParquetFileRepo: Send + Sync {
     async fn list_by_table_not_to_delete_with_metadata(
         &mut self,
         table_id: TableId,
-    ) -> Result<Vec<(ParquetFile, Vec<u8>)>>;
+    ) -> Result<Vec<ParquetFileWithMetadata>>;
 
     /// Delete all parquet files that were marked to be deleted earlier than the specified time.
     /// Returns the deleted records.
@@ -550,11 +550,19 @@ pub trait ParquetFileRepo: Send + Sync {
         max_time: Timestamp,
     ) -> Result<Vec<ParquetFile>>;
 
-    /// List parquet files for a given partition that are NOT marked as [`to_delete`](ParquetFile::to_delete).
+    /// List parquet files for a given partition that are NOT marked as
+    /// [`to_delete`](ParquetFile::to_delete).
     async fn list_by_partition_not_to_delete(
         &mut self,
         partition_id: PartitionId,
     ) -> Result<Vec<ParquetFile>>;
+
+    /// List parquet files and their metadata for a given partition that are NOT marked as
+    /// [`to_delete`](ParquetFile::to_delete). Fetching metadata can be expensive.
+    async fn list_by_partition_not_to_delete_with_metadata(
+        &mut self,
+        partition_id: PartitionId,
+    ) -> Result<Vec<ParquetFileWithMetadata>>;
 
     /// Update the compaction level of the specified parquet files to level 1. Returns the IDs
     /// of the files that were successfully updated.
@@ -1862,7 +1870,10 @@ pub(crate) mod test_helpers {
             .list_by_table_not_to_delete_with_metadata(other_table.id)
             .await
             .unwrap();
-        assert_eq!(files, vec![(other_file, b"md1".to_vec())]);
+        assert_eq!(
+            files,
+            vec![ParquetFileWithMetadata::new(other_file, b"md1".to_vec())]
+        );
 
         // test list_by_namespace_not_to_delete
         let namespace2 = repos
@@ -2480,6 +2491,19 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         assert_eq!(files, vec![parquet_file, level1_file]);
+
+        let files = repos
+            .parquet_files()
+            .list_by_partition_not_to_delete_with_metadata(partition.id)
+            .await
+            .unwrap();
+        assert_eq!(
+            files,
+            vec![
+                ParquetFileWithMetadata::new(parquet_file, b"md1".to_vec()),
+                ParquetFileWithMetadata::new(level1_file, b"md1".to_vec()),
+            ]
+        );
     }
 
     async fn test_update_to_compaction_level_1(catalog: Arc<dyn Catalog>) {

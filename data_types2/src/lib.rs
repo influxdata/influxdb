@@ -754,6 +754,131 @@ pub struct ParquetFile {
     pub created_at: Timestamp,
 }
 
+/// Data for a parquet file reference that has been inserted in the catalog, including the
+/// `parquet_metadata` field that can be expensive to fetch.
+#[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
+pub struct ParquetFileWithMetadata {
+    /// the id of the file in the catalog
+    pub id: ParquetFileId,
+    /// the sequencer that sequenced writes that went into this file
+    pub sequencer_id: SequencerId,
+    /// the namespace
+    pub namespace_id: NamespaceId,
+    /// the table
+    pub table_id: TableId,
+    /// the partition
+    pub partition_id: PartitionId,
+    /// the uuid used in the object store path for this file
+    pub object_store_id: Uuid,
+    /// the minimum sequence number from a record in this file
+    pub min_sequence_number: SequenceNumber,
+    /// the maximum sequence number from a record in this file
+    pub max_sequence_number: SequenceNumber,
+    /// the min timestamp of data in this file
+    pub min_time: Timestamp,
+    /// the max timestamp of data in this file
+    pub max_time: Timestamp,
+    /// When this file was marked for deletion
+    pub to_delete: Option<Timestamp>,
+    /// file size in bytes
+    pub file_size_bytes: i64,
+    /// thrift-encoded parquet metadata
+    pub parquet_metadata: Vec<u8>,
+    /// the number of rows of data in this file
+    pub row_count: i64,
+    /// the compaction level of the file
+    pub compaction_level: i16,
+    /// the creation time of the parquet file
+    pub created_at: Timestamp,
+}
+
+impl ParquetFileWithMetadata {
+    /// Create an instance from an instance of ParquetFile and metadata bytes fetched from the
+    /// catalog.
+    pub fn new(parquet_file: ParquetFile, parquet_metadata: Vec<u8>) -> Self {
+        let ParquetFile {
+            id,
+            sequencer_id,
+            namespace_id,
+            table_id,
+            partition_id,
+            object_store_id,
+            min_sequence_number,
+            max_sequence_number,
+            min_time,
+            max_time,
+            to_delete,
+            file_size_bytes,
+            row_count,
+            compaction_level,
+            created_at,
+        } = parquet_file;
+
+        Self {
+            id,
+            sequencer_id,
+            namespace_id,
+            table_id,
+            partition_id,
+            object_store_id,
+            min_sequence_number,
+            max_sequence_number,
+            min_time,
+            max_time,
+            to_delete,
+            file_size_bytes,
+            parquet_metadata,
+            row_count,
+            compaction_level,
+            created_at,
+        }
+    }
+
+    /// Split the parquet_metadata off, leaving a regular ParquetFile and the bytes to transfer
+    /// ownership separately.
+    pub fn split_off_metadata(self) -> (ParquetFile, Vec<u8>) {
+        let Self {
+            id,
+            sequencer_id,
+            namespace_id,
+            table_id,
+            partition_id,
+            object_store_id,
+            min_sequence_number,
+            max_sequence_number,
+            min_time,
+            max_time,
+            to_delete,
+            file_size_bytes,
+            parquet_metadata,
+            row_count,
+            compaction_level,
+            created_at,
+        } = self;
+
+        (
+            ParquetFile {
+                id,
+                sequencer_id,
+                namespace_id,
+                table_id,
+                partition_id,
+                object_store_id,
+                min_sequence_number,
+                max_sequence_number,
+                min_time,
+                max_time,
+                to_delete,
+                file_size_bytes,
+                row_count,
+                compaction_level,
+                created_at,
+            },
+            parquet_metadata,
+        )
+    }
+}
+
 /// Data for a parquet file to be inserted into the catalog.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ParquetFileParams {

@@ -3,7 +3,7 @@
 use crate::query::QueryableParquetChunk;
 use arrow::record_batch::RecordBatch;
 use data_types2::{
-    ParquetFile, ParquetFileId, ParquetFileParams, Timestamp, Tombstone, TombstoneId,
+    ParquetFileId, ParquetFileParams, ParquetFileWithMetadata, Timestamp, Tombstone, TombstoneId,
 };
 use iox_object_store::IoxObjectStore;
 use object_store::DynObjectStore;
@@ -37,8 +37,8 @@ impl GroupWithTombstones {
 /// Wrapper of group of parquet files with their min time and total size
 #[derive(Debug, Clone, PartialEq)]
 pub struct GroupWithMinTimeAndSize {
-    /// Parquet files
-    pub(crate) parquet_files: Vec<ParquetFile>,
+    /// Parquet files and their metadata
+    pub(crate) parquet_files: Vec<ParquetFileWithMetadata>,
 
     /// min time of all parquet_files
     pub(crate) min_time: Timestamp,
@@ -51,7 +51,7 @@ pub struct GroupWithMinTimeAndSize {
 #[allow(missing_docs)]
 #[derive(Debug, Clone)]
 pub struct ParquetFileWithTombstone {
-    pub(crate) data: Arc<ParquetFile>,
+    pub(crate) data: Arc<ParquetFileWithMetadata>,
     pub(crate) tombstones: Vec<Tombstone>,
 }
 
@@ -89,9 +89,8 @@ impl ParquetFileWithTombstone {
         &self,
         object_store: Arc<DynObjectStore>,
         table_name: String,
-        parquet_metadata_bytes: Vec<u8>,
     ) -> QueryableParquetChunk {
-        let decoded_parquet_file = DecodedParquetFile::new(*self.data, parquet_metadata_bytes);
+        let decoded_parquet_file = DecodedParquetFile::new((*self.data).clone());
         let root_path = IoxObjectStore::root_path_for(&*object_store, self.data.object_store_id);
         let iox_object_store = IoxObjectStore::existing(object_store, root_path);
         let parquet_chunk = new_parquet_chunk(
@@ -116,6 +115,12 @@ impl ParquetFileWithTombstone {
             Arc::new(decoded_parquet_file.iox_metadata),
             &self.tombstones,
         )
+    }
+
+    /// Return iox metadata of the parquet file
+    pub fn iox_metadata(&self) -> IoxMetadata {
+        let decoded_parquet_file = DecodedParquetFile::new((*self.data).clone());
+        decoded_parquet_file.iox_metadata
     }
 }
 

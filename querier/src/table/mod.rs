@@ -132,10 +132,10 @@ impl QuerierTable {
 
         // convert parquet files and tombstones to nicer objects
         let mut chunks = Vec::with_capacity(parquet_files.len());
-        for (parquet_file, parquet_metadata) in parquet_files {
+        for parquet_file_with_metadata in parquet_files {
             if let Some(chunk) = self
                 .chunk_adapter
-                .new_querier_chunk(parquet_file, parquet_metadata)
+                .new_querier_chunk(parquet_file_with_metadata)
                 .await
             {
                 chunks.push(chunk);

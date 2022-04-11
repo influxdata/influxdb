@@ -13,9 +13,9 @@ use crate::{
 use async_trait::async_trait;
 use data_types2::{
     Column, ColumnId, ColumnType, KafkaPartition, KafkaTopic, KafkaTopicId, Namespace, NamespaceId,
-    ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionInfo,
-    ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Sequencer, SequencerId, Table,
-    TableId, TablePartition, Timestamp, Tombstone, TombstoneId,
+    ParquetFile, ParquetFileId, ParquetFileParams, ParquetFileWithMetadata, Partition, PartitionId,
+    PartitionInfo, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Sequencer,
+    SequencerId, Table, TableId, TablePartition, Timestamp, Tombstone, TombstoneId,
 };
 use observability_deps::tracing::warn;
 use std::{
@@ -1040,7 +1040,7 @@ impl ParquetFileRepo for MemTxn {
     async fn list_by_table_not_to_delete_with_metadata(
         &mut self,
         table_id: TableId,
-    ) -> Result<Vec<(ParquetFile, Vec<u8>)>> {
+    ) -> Result<Vec<ParquetFileWithMetadata>> {
         let stage = self.stage();
 
         let parquet_files: Vec<_> = stage
@@ -1049,7 +1049,7 @@ impl ParquetFileRepo for MemTxn {
             .filter(|f| table_id == f.table_id && f.to_delete.is_none())
             .cloned()
             .map(|f| {
-                (
+                ParquetFileWithMetadata::new(
                     f,
                     stage
                         .parquet_file_metadata
@@ -1126,6 +1126,30 @@ impl ParquetFileRepo for MemTxn {
             .iter()
             .filter(|f| f.partition_id == partition_id && f.to_delete.is_none())
             .cloned()
+            .collect())
+    }
+
+    async fn list_by_partition_not_to_delete_with_metadata(
+        &mut self,
+        partition_id: PartitionId,
+    ) -> Result<Vec<ParquetFileWithMetadata>> {
+        let stage = self.stage();
+
+        Ok(stage
+            .parquet_files
+            .iter()
+            .filter(|f| f.partition_id == partition_id && f.to_delete.is_none())
+            .cloned()
+            .map(|f| {
+                ParquetFileWithMetadata::new(
+                    f,
+                    stage
+                        .parquet_file_metadata
+                        .get(&f.id)
+                        .cloned()
+                        .unwrap_or_default(),
+                )
+            })
             .collect())
     }
 
