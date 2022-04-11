@@ -131,7 +131,7 @@ impl ColumnId {
 /// "sequencer_number" in the `write_buffer` which currently means
 /// "kafka partition".
 ///
-/// https://github.com/influxdata/influxdb_iox/issues/4237
+/// <https://github.com/influxdata/influxdb_iox/issues/4237>
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
 #[sqlx(transparent)]
 pub struct SequencerId(i16);
@@ -798,7 +798,7 @@ pub struct ProcessedTombstone {
     pub parquet_file_id: ParquetFileId,
 }
 
-/// Request received from the query service for data the ingester has
+/// Request from the querier service to the ingester service
 #[derive(Debug, PartialEq)]
 pub struct IngesterQueryRequest {
     /// namespace to search

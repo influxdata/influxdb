@@ -8,7 +8,7 @@ use datafusion::{
     logical_plan::Expr,
     physical_plan::ExecutionPlan,
 };
-use predicate::Predicate;
+use predicate::{Predicate, PredicateBuilder};
 use query::{
     provider::{ChunkPruner, ProviderBuilder},
     pruning::{prune_chunks, PruningObserver},
@@ -43,7 +43,17 @@ impl TableProvider for QuerierTable {
         let mut builder = ProviderBuilder::new(self.name(), Arc::clone(self.schema()));
         builder = builder.add_pruner(self.chunk_pruner());
 
-        for chunk in self.chunks().await {
+        let predicate = filters
+            .iter()
+            .fold(PredicateBuilder::new(), |b, expr| b.add_expr(expr.clone()))
+            .build();
+
+        let chunks = self
+            .chunks(&predicate)
+            .await
+            .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+        for chunk in chunks {
             builder = builder.add_chunk(chunk);
         }
 

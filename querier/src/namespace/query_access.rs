@@ -1,3 +1,5 @@
+//! This module contains implementations of [query] interfaces for
+//! [QuerierNamespace].
 use std::{any::Any, collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
@@ -6,6 +8,7 @@ use datafusion::{
     catalog::{catalog::CatalogProvider, schema::SchemaProvider},
     datasource::TableProvider,
 };
+use observability_deps::tracing::trace;
 use predicate::{rpc_predicate::QueryDatabaseMeta, Predicate};
 use query::{
     exec::{ExecutionContextProvider, ExecutorType, IOxSessionContext},
@@ -45,11 +48,16 @@ impl QueryDatabase for QuerierNamespace {
             Some(table) => table,
             None => {
                 // table gone
+                trace!(%table_name, "No entry for table");
                 return Ok(vec![]);
             }
         };
 
-        let mut chunks = table.chunks().await;
+        let mut chunks = table
+            .chunks(predicate)
+            .await
+            // TODO QuerierNamespace trait needs to be updated to return Result
+            .expect("Success getting chunks");
 
         // if there is a field restriction on the predicate, only
         // chunks with that field should be returned. If the chunk has

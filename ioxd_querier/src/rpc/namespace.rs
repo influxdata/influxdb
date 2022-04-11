@@ -55,6 +55,7 @@ impl proto::namespace_service_server::NamespaceService for NamespaceServiceImpl 
 mod tests {
     use generated_types::influxdata::iox::namespace::v1::namespace_service_server::NamespaceService;
     use iox_tests::util::TestCatalog;
+    use querier::create_ingester_connection_for_testing;
 
     use super::*;
 
@@ -68,6 +69,7 @@ mod tests {
             catalog.object_store(),
             catalog.time_provider(),
             catalog.exec(),
+            create_ingester_connection_for_testing(),
         ));
 
         let service = NamespaceServiceImpl::new(db);
@@ -89,6 +91,7 @@ mod tests {
             catalog.object_store(),
             catalog.time_provider(),
             catalog.exec(),
+            create_ingester_connection_for_testing(),
         ));
 
         let service = NamespaceServiceImpl::new(db);

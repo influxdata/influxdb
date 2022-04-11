@@ -365,7 +365,8 @@ pub async fn command(config: Config) -> Result<()> {
     )
     .await?;
 
-    info!("starting querier");
+    let ingester_address = format!("http://{}", ingester_run_config.grpc_bind_address);
+    info!(%ingester_address, "starting querier");
     let querier = create_querier_server_type(
         &common_state,
         metrics,
@@ -373,6 +374,7 @@ pub async fn command(config: Config) -> Result<()> {
         object_store,
         time_provider,
         exec,
+        ingester_address,
     )
     .await;
 

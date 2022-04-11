@@ -3,6 +3,8 @@ use std::sync::Arc;
 use iox_catalog::interface::get_schema_by_name;
 use iox_tests::util::TestNamespace;
 
+use crate::create_ingester_connection_for_testing;
+
 use super::QuerierNamespace;
 
 /// Create [`QuerierNamespace`] for testing.
@@ -22,5 +24,6 @@ pub async fn querier_namespace(ns: &Arc<TestNamespace>) -> QuerierNamespace {
         ns.namespace.name.clone().into(),
         schema,
         ns.catalog.exec(),
+        create_ingester_connection_for_testing(),
     )
 }

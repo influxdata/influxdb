@@ -10,7 +10,7 @@ use db::{
 use iox_catalog::interface::get_schema_by_name;
 use iox_tests::util::{TestCatalog, TestNamespace};
 use itertools::Itertools;
-use querier::QuerierNamespace;
+use querier::{create_ingester_connection_for_testing, QuerierNamespace};
 use query::QueryChunk;
 use schema::merge::SchemaMerger;
 use schema::selection::Selection;
@@ -1256,5 +1256,6 @@ async fn make_querier_namespace(ns: Arc<TestNamespace>) -> Arc<QuerierNamespace>
         ns.namespace.name.clone().into(),
         schema,
         ns.catalog.exec(),
+        create_ingester_connection_for_testing(),
     ))
 }

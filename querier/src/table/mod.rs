@@ -1,11 +1,17 @@
 use std::{collections::HashMap, sync::Arc};
 
+use crate::{
+    chunk::ParquetChunkAdapter,
+    ingester::{self, IngesterPartition},
+    tombstone::QuerierTombstone,
+    IngesterConnection,
+};
 use backoff::{Backoff, BackoffConfig};
 use data_types2::TableId;
+use predicate::Predicate;
 use query::{provider::ChunkPruner, QueryChunk};
 use schema::Schema;
-
-use crate::{chunk::ParquetChunkAdapter, tombstone::QuerierTombstone};
+use snafu::{ResultExt, Snafu};
 
 use self::query_access::QuerierTableChunkPruner;
 
@@ -14,9 +20,21 @@ mod query_access;
 #[cfg(test)]
 mod test_util;
 
+#[derive(Debug, Snafu)]
+#[allow(missing_copy_implementations, missing_docs)]
+pub enum Error {
+    #[snafu(display("Error getting partitions from ingester: {}", source))]
+    GettingIngesterPartitions { source: ingester::Error },
+}
+
+pub type Result<T, E = Error> = std::result::Result<T, E>;
+
 /// Table representation for the querier.
 #[derive(Debug)]
 pub struct QuerierTable {
+    /// Namespace the table is in
+    namespace_name: Arc<str>,
+
     /// Backoff config for IO operations.
     backoff_config: BackoffConfig,
 
@@ -29,6 +47,9 @@ pub struct QuerierTable {
     /// Table schema.
     schema: Arc<Schema>,
 
+    /// Connection to ingester
+    ingester_connection: Arc<dyn IngesterConnection>,
+
     /// Interface to create chunks for this table.
     chunk_adapter: Arc<ParquetChunkAdapter>,
 }
@@ -36,17 +57,21 @@ pub struct QuerierTable {
 impl QuerierTable {
     /// Create new table.
     pub fn new(
+        namespace_name: Arc<str>,
         backoff_config: BackoffConfig,
         id: TableId,
         name: Arc<str>,
         schema: Arc<Schema>,
+        ingester_connection: Arc<dyn IngesterConnection>,
         chunk_adapter: Arc<ParquetChunkAdapter>,
     ) -> Self {
         Self {
+            namespace_name,
             backoff_config,
             name,
             id,
             schema,
+            ingester_connection,
             chunk_adapter,
         }
     }
@@ -69,7 +94,7 @@ impl QuerierTable {
     /// Query all chunks within this table.
     ///
     /// This currently contains all parquet files linked to their unprocessed tombstones.
-    pub async fn chunks(&self) -> Vec<Arc<dyn QueryChunk>> {
+    pub async fn chunks(&self, predicate: &Predicate) -> Result<Vec<Arc<dyn QueryChunk>>> {
         // get parquet files and tombstones in a single catalog transaction
         // TODO: figure out some form of caching
         let (parquet_files, tombstones) = Backoff::new(&self.backoff_config)
@@ -92,6 +117,12 @@ impl QuerierTable {
             )
             .await
             .expect("retry forever");
+
+        // TODO do in parallel with fetching parquet files
+        let ingester_partitions = self.ingester_partitions(predicate).await?;
+
+        // TODO: Validate that the cache contents is consistent with the
+        // parquet files we know about
 
         // convert parquet files and tombstones to nicer objects
         let mut chunks = Vec::with_capacity(parquet_files.len());
@@ -169,12 +200,44 @@ impl QuerierTable {
             chunks2.push(Arc::new(chunk) as Arc<dyn QueryChunk>);
         }
 
-        chunks2
+        // Add ingester chunks to the overall chunk list. What about tombstones??
+        chunks2.extend(ingester_partitions.into_iter().map(|c| c as _));
+
+        Ok(chunks2)
     }
 
     /// Get a chunk pruner that can be used to prune chunks retrieved via [`chunks`](Self::chunks)
     pub fn chunk_pruner(&self) -> Arc<dyn ChunkPruner> {
         Arc::new(QuerierTableChunkPruner {})
+    }
+
+    async fn ingester_partitions(
+        &self,
+        predicate: &Predicate,
+    ) -> Result<Vec<Arc<IngesterPartition>>> {
+        // For now, ask for *all* columns in the table from the ingester (need
+        // at least all pk (time, tag) columns for
+        // deduplication.
+        //
+        // As a future optimization, might be able to fetch only
+        // fields that are needed in query
+        let columns: Vec<String> = self
+            .schema
+            .iter()
+            .map(|(_, f)| f.name().to_string())
+            .collect();
+
+        // get any chunks from the ingster
+        self.ingester_connection
+            .partitions(
+                Arc::clone(&self.namespace_name),
+                Arc::clone(&self.name),
+                columns,
+                predicate,
+                self.schema.as_ref(),
+            )
+            .await
+            .context(GettingIngesterPartitionsSnafu)
     }
 }
 
@@ -182,11 +245,13 @@ impl QuerierTable {
 mod tests {
     use data_types2::{ChunkId, ColumnType};
     use iox_tests::util::{now, TestCatalog};
+    use predicate::Predicate;
 
     use crate::table::test_util::querier_table;
 
     #[tokio::test]
     async fn test_chunks() {
+        let pred = Predicate::default();
         let catalog = TestCatalog::new();
 
         let ns = catalog.create_namespace("ns").await;
@@ -216,7 +281,7 @@ mod tests {
         let querier_table = querier_table(&catalog, &table1).await;
 
         // no parquet files yet
-        assert!(querier_table.chunks().await.is_empty());
+        assert!(querier_table.chunks(&pred).await.unwrap().is_empty());
 
         let file111 = partition11
             .create_parquet_file_with_min_max(
@@ -299,7 +364,7 @@ mod tests {
         // this contains all files except for:
         // - file111: marked for delete
         // - file221: wrong table
-        let mut chunks = querier_table.chunks().await;
+        let mut chunks = querier_table.chunks(&pred).await.unwrap();
         chunks.sort_by_key(|c| c.id());
         assert_eq!(chunks.len(), 5);
 

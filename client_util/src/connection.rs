@@ -60,7 +60,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// use client_util::connection::Builder;
 /// use std::time::Duration;
 ///
-/// let connection = Builder::default()
+/// let connection = Builder::new()
 ///     .timeout(Duration::from_secs(42))
 ///     .user_agent("my_awesome_client")
 ///     .build("http://127.0.0.1:8082/")
@@ -88,6 +88,11 @@ impl std::default::Default for Builder {
 }
 
 impl Builder {
+    /// Create a new default builder
+    pub fn new() -> Self {
+        Default::default()
+    }
+
     /// Construct the [`Connection`] instance using the specified base URL.
     pub async fn build<D>(self, dst: D) -> Result<Connection>
     where

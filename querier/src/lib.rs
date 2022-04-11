@@ -17,6 +17,7 @@ mod database;
 /// Flight client to the ingester to request in-memory data.
 mod flight;
 mod handler;
+mod ingester;
 mod namespace;
 mod poison;
 mod query_log;
@@ -26,7 +27,10 @@ mod table;
 mod tombstone;
 
 pub use database::QuerierDatabase;
-pub use flight::Client as QuerierFlightClient;
+pub use flight::{Client as QuerierFlightClient, Error as QuerierFlightError};
 pub use handler::{QuerierHandler, QuerierHandlerImpl};
+pub use ingester::{
+    create_ingester_connection, create_ingester_connection_for_testing, IngesterConnection,
+};
 pub use namespace::QuerierNamespace;
 pub use server::QuerierServer;

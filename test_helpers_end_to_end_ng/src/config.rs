@@ -3,6 +3,8 @@ use std::{collections::HashMap, sync::Arc};
 use http::{header::HeaderName, HeaderValue};
 use tempfile::TempDir;
 
+use crate::addrs::BindAddresses;
+
 use super::ServerType;
 
 /// Options for creating test servers (`influxdb_iox` processes)
@@ -25,6 +27,9 @@ pub struct TestConfig {
 
     /// Object store directory, if needed.
     object_store_dir: Option<Arc<TempDir>>,
+
+    /// Which ports this server should use
+    addrs: Arc<BindAddresses>,
 }
 
 impl TestConfig {
@@ -38,6 +43,7 @@ impl TestConfig {
             dsn: dsn.into(),
             write_buffer_dir: None,
             object_store_dir: None,
+            addrs: Arc::new(BindAddresses::default()),
         }
     }
 
@@ -57,10 +63,21 @@ impl TestConfig {
             .with_default_ingester_options()
     }
 
-    /// Create a minimal querier configuration, using the dsn and
-    /// object store from other
-    pub fn new_querier(other: &TestConfig) -> Self {
-        Self::new(ServerType::Querier, other.dsn()).with_existing_object_store(other)
+    /// Create a minimal querier configuration from the specified
+    /// ingester configuration, using the same dsn and object store,
+    /// and pointing at the specified ingester
+    pub fn new_querier(ingester_config: &TestConfig) -> Self {
+        assert_eq!(ingester_config.server_type(), ServerType::Ingester);
+        Self::new(ServerType::Querier, ingester_config.dsn())
+            .with_existing_object_store(ingester_config)
+            // Configure to talk with the ingester
+            .with_ingester_address(
+                ingester_config
+                    .addrs()
+                    .ingester_grpc_api()
+                    .client_base()
+                    .as_ref(),
+            )
     }
 
     /// Create a minimal all in one configuration
@@ -89,6 +106,11 @@ impl TestConfig {
             .with_env("INFLUXDB_IOX_PERSIST_MEMORY_THRESHOLD_BYTES", "10")
             .with_env("INFLUXDB_IOX_WRITE_BUFFER_PARTITION_RANGE_START", "0")
             .with_env("INFLUXDB_IOX_WRITE_BUFFER_PARTITION_RANGE_END", "0")
+    }
+
+    /// Adds the ingester address
+    fn with_ingester_address(self, ingester_address: &str) -> Self {
+        self.with_env("INFLUXDB_IOX_INGESTER_ADDRESS", ingester_address)
     }
 
     /// add a name=value environment variable when starting the server
@@ -183,5 +205,11 @@ impl TestConfig {
     #[must_use]
     pub fn client_headers(&self) -> &[(HeaderName, HeaderValue)] {
         self.client_headers.as_ref()
+    }
+
+    /// Get a reference to the test config's addrs.
+    #[must_use]
+    pub fn addrs(&self) -> &BindAddresses {
+        &self.addrs
     }
 }

@@ -8,7 +8,9 @@ use hyper::{Body, Request, Response};
 use iox_catalog::interface::Catalog;
 use metric::Registry;
 use object_store::DynObjectStore;
-use querier::{QuerierDatabase, QuerierHandler, QuerierHandlerImpl, QuerierServer};
+use querier::{
+    create_ingester_connection, QuerierDatabase, QuerierHandler, QuerierHandlerImpl, QuerierServer,
+};
 use query::exec::Executor;
 use time::TimeProvider;
 use trace::TraceCollector;
@@ -130,6 +132,7 @@ pub async fn create_querier_server_type(
     object_store: Arc<DynObjectStore>,
     time_provider: Arc<dyn TimeProvider>,
     exec: Arc<Executor>,
+    ingester_address: String,
 ) -> Arc<dyn ServerType> {
     let database = Arc::new(QuerierDatabase::new(
         catalog,
@@ -137,6 +140,7 @@ pub async fn create_querier_server_type(
         object_store,
         time_provider,
         exec,
+        create_ingester_connection(ingester_address),
     ));
     let querier_handler = Arc::new(QuerierHandlerImpl::new(Arc::clone(&database)));
 

@@ -85,7 +85,7 @@ impl WriteSummary {
         )
     }
 
-    /// Return a WriteSummary from the "token" (created with [to_token]), or error if not possible
+    /// Return a WriteSummary from the "token" (created with [Self::to_token]), or error if not possible
     pub fn try_from_token(token: &str) -> Result<Self, String> {
         let data = base64::decode(token)
             .map_err(|e| format!("Invalid write token, invalid base64: {}", e))?;
