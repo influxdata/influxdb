@@ -30,7 +30,7 @@ serde_json = "1.0"
 thiserror = "1.0"
 tokio = { version = "1.17", features = ["rt-multi-thread", "macros", "parking_lot"] }
 tonic = "0.6"
-tracing = { version = "0.1", features = ["release_max_level_debug"] }
+tracing = { version = "0.1" }
 workspace-hack = { path = "../workspace-hack"}
 trogging = { path = "../trogging", default-features = false, features = ["clap"] }
 
