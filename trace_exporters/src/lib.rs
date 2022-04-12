@@ -9,6 +9,7 @@
 
 use crate::export::AsyncExporter;
 use crate::jaeger::JaegerAgentExporter;
+use jaeger::JaegerTag;
 use snafu::Snafu;
 use std::num::NonZeroU16;
 use std::sync::Arc;
@@ -103,6 +104,19 @@ pub struct TracingConfig {
         default_value = "jaeger-debug-id"
     )]
     pub traces_jaeger_debug_name: String,
+
+    /// Tracing: set of key=value pairs to annotate tracing spans with.
+    ///
+    /// Use a comma-delimited string to set multiple pairs: env=prod,region=eu-1
+    ///
+    /// Only used if `--traces-exporter` is "jaeger".
+    #[clap(
+        long = "--traces-jaeger-tags",
+        env = "TRACES_EXPORTER_JAEGER_TAGS",
+        value_delimiter = ',',
+        parse(try_from_str)
+    )]
+    pub traces_jaeger_tags: Option<Vec<JaegerTag>>,
 }
 
 impl TracingConfig {
@@ -154,7 +168,12 @@ fn jaeger_exporter(config: &TracingConfig) -> Result<Arc<AsyncExporter>> {
     );
 
     let service_name = &config.traces_exporter_jaeger_service_name;
-    let jaeger = JaegerAgentExporter::new(service_name.clone(), agent_endpoint)?;
+    let mut jaeger = JaegerAgentExporter::new(service_name.clone(), agent_endpoint)?;
+
+    // Use any specified static span tags.
+    if let Some(tags) = &config.traces_jaeger_tags {
+        jaeger = jaeger.with_tags(tags);
+    }
 
     Ok(Arc::new(AsyncExporter::new(jaeger)))
 }
