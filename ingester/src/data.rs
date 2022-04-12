@@ -605,7 +605,10 @@ impl NamespaceData {
     }
 
     /// Gets the buffered table data
-    fn table_data(&self, table_name: &str) -> Option<Arc<tokio::sync::RwLock<TableData>>> {
+    pub(crate) fn table_data(
+        &self,
+        table_name: &str,
+    ) -> Option<Arc<tokio::sync::RwLock<TableData>>> {
         let t = self.tables.read();
         t.get(table_name).cloned()
     }
@@ -812,25 +815,21 @@ impl TableData {
         Ok(())
     }
 
-    pub fn non_persisted_and_persisting_batches(
-        &self,
-    ) -> (Vec<Arc<SnapshotBatch>>, Vec<QueryableBatch>) {
-        let mut snapshots = vec![];
-        let mut queryable_batches = vec![];
-
-        for p in self.partition_data.values() {
-            snapshots.append(
-                &mut p
+    pub fn unpersisted_partition_data(&self) -> Vec<UnpersistedPartitionData> {
+        self.partition_data
+            .values()
+            .map(|p| UnpersistedPartitionData {
+                partition_id: p.id,
+                non_persisted: p
                     .get_non_persisting_data()
                     .expect("get_non_persisting should always work"),
-            );
-
-            if let Some(q) = p.get_persisting_data() {
-                queryable_batches.push(q);
-            }
-        }
-
-        (snapshots, queryable_batches)
+                persisting: p.get_persisting_data(),
+                partition_status: PartitionStatus {
+                    parquet_max_sequence_number: p.data.max_persisted_sequence_number,
+                    tombstone_max_sequence_number: self.tombstone_max_sequence_number,
+                },
+            })
+            .collect()
     }
 
     async fn insert_partition(
@@ -878,6 +877,15 @@ impl TableData {
                 progress.combine(partition_data.progress())
             })
     }
+}
+
+/// Read only copy of the unpersisted data for a partition in the ingester for a specific partition.
+#[derive(Debug)]
+pub(crate) struct UnpersistedPartitionData {
+    pub partition_id: PartitionId,
+    pub non_persisted: Vec<Arc<SnapshotBatch>>,
+    pub persisting: Option<QueryableBatch>,
+    pub partition_status: PartitionStatus,
 }
 
 /// Data of an IOx Partition of a given Table of a Namesapce that belongs to a given Shard
@@ -1378,6 +1386,19 @@ pub struct QueryableBatch {
     pub(crate) table_name: String,
 }
 
+/// Status of a partition that has unpersisted data.
+///
+/// Note that this structure is specific to a partition (which itself is bound to a table and sequencer)!
+#[derive(Debug, Clone)]
+#[allow(missing_copy_implementations)]
+pub struct PartitionStatus {
+    /// Max sequence number persisted
+    pub parquet_max_sequence_number: Option<SequenceNumber>,
+
+    /// Max sequence number for a tombstone
+    pub tombstone_max_sequence_number: Option<SequenceNumber>,
+}
+
 /// Response sending to the query service per its request defined in IngesterQueryRequest
 pub struct IngesterQueryResponse {
     /// Stream of RecordBatch results that match the requested query
@@ -1386,11 +1407,11 @@ pub struct IngesterQueryResponse {
     /// The schema of the record batches
     pub schema: Schema,
 
-    /// Max sequence number persisted for this table
-    pub parquet_max_sequence_number: Option<SequenceNumber>,
-
-    /// Max sequence number for a tombstone associated with this table
-    pub tombstone_max_sequence_number: Option<SequenceNumber>,
+    /// Contains status for every partition that has unpersisted data.
+    ///
+    /// If a partition does NOT appear within this map, then either all data was persisted or the ingester has never seen
+    /// data for this partition. In either case the querier may just read all parquet files for the missing partition.
+    pub unpersisted_partitions: BTreeMap<PartitionId, PartitionStatus>,
 }
 
 impl std::fmt::Debug for IngesterQueryResponse {
@@ -1398,14 +1419,7 @@ impl std::fmt::Debug for IngesterQueryResponse {
         f.debug_struct("IngesterQueryResponse")
             .field("data", &"<RECORDBATCH STREAM>")
             .field("schema", &self.schema)
-            .field(
-                "parquet_max_sequence_number",
-                &self.parquet_max_sequence_number,
-            )
-            .field(
-                "tombstone_max_sequence_number",
-                &self.tombstone_max_sequence_number,
-            )
+            .field("unpersisted_partitions", &self.unpersisted_partitions)
             .finish()
     }
 }
@@ -1415,14 +1429,12 @@ impl IngesterQueryResponse {
     pub fn new(
         data: SendableRecordBatchStream,
         schema: Schema,
-        parquet_max_sequence_number: Option<SequenceNumber>,
-        tombstone_max_sequence_number: Option<SequenceNumber>,
+        unpersisted_partitions: BTreeMap<PartitionId, PartitionStatus>,
     ) -> Self {
         Self {
             data,
             schema,
-            parquet_max_sequence_number,
-            tombstone_max_sequence_number,
+            unpersisted_partitions,
         }
     }
 }

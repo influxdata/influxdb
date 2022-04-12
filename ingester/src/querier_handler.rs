@@ -1,9 +1,11 @@
 //! Handle all requests from Querier
 
-use crate::data::{self, IngesterData, IngesterQueryResponse, QueryableBatch};
+use crate::data::{
+    self, IngesterData, IngesterQueryResponse, QueryableBatch, UnpersistedPartitionData,
+};
 use arrow::record_batch::RecordBatch;
 use arrow_util::util::merge_record_batches;
-use data_types2::{IngesterQueryRequest, SequencerId};
+use data_types2::IngesterQueryRequest;
 use datafusion::{
     error::DataFusionError,
     physical_plan::{
@@ -18,9 +20,16 @@ use query::{
     frontend::reorg::ReorgPlanner,
     QueryChunkMeta,
 };
-use schema::{merge::merge_record_batch_schemas, selection::Selection};
-use snafu::{OptionExt, ResultExt, Snafu};
-use std::sync::Arc;
+use schema::{
+    merge::{merge_record_batch_schemas, SchemaMerger},
+    selection::Selection,
+    Schema,
+};
+use snafu::{ensure, ResultExt, Snafu};
+use std::{
+    collections::{BTreeMap, HashMap},
+    sync::Arc,
+};
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
@@ -49,10 +58,11 @@ pub enum Error {
     CollectStream { source: DataFusionError },
 
     #[snafu(display(
-        "No Table Data found for the given sequencer id {}, namespace name {}, table name {}", sequencer_id.get(), namespace_name, table_name
+        "No Table Data found for the given namespace name {}, table name {}",
+        namespace_name,
+        table_name
     ))]
     TableNotFound {
-        sequencer_id: SequencerId,
         namespace_name: String,
         table_name: String,
     },
@@ -62,6 +72,9 @@ pub enum Error {
 
     #[snafu(display("Error concating same-schema record batches: {}", source))]
     ConcatBatches { source: arrow::error::ArrowError },
+
+    #[snafu(display("Error merging schemas: {}", source))]
+    MergeSchema { source: schema::merge::Error },
 }
 
 /// A specialized `Error` for Ingester's Query errors
@@ -72,31 +85,81 @@ pub async fn prepare_data_to_querier(
     ingest_data: &Arc<IngesterData>,
     request: &IngesterQueryRequest,
 ) -> Result<IngesterQueryResponse> {
-    // ------------------------------------------------
-    //  Read the IngesterData to get TableData for the given request's table
-    let table_data =
-        ingest_data.table_data(request.sequencer_id, &request.namespace, &request.table);
-    let table_data = table_data.context(TableNotFoundSnafu {
-        sequencer_id: request.sequencer_id,
-        namespace_name: &request.namespace,
-        table_name: &request.table,
-    })?;
+    let mut schema_merger = SchemaMerger::new();
+    let mut unpersisted_partitions = BTreeMap::new();
+    let mut batches = vec![];
+    for sequencer_data in ingest_data.sequencers.values() {
+        let maybe_table_data = sequencer_data
+            .namespace(&request.namespace)
+            .and_then(|namespace_data| namespace_data.table_data(&request.table));
 
-    let (
-        parquet_max_sequence_number,
-        tombstone_max_sequence_number,
-        (filter_not_applied_batches, persisting_batches),
-    ) = {
-        let table_data = table_data.read().await;
-        (
-            table_data.parquet_max_sequence_number(),
-            table_data.tombstone_max_sequence_number(),
-            table_data.non_persisted_and_persisting_batches(),
-        )
-    };
+        let table_data = match maybe_table_data {
+            Some(table_data) => table_data,
+            None => {
+                continue;
+            }
+        };
+
+        let unpersisted_partition_data = {
+            let table_data = table_data.read().await;
+            table_data.unpersisted_partition_data()
+        };
+
+        for partition in unpersisted_partition_data {
+            // include partition in `unpersisted_partitions` even when there we might filter out all the data, because
+            // the metadata (e.g. max persisted parquet file) is important for the querier.
+            unpersisted_partitions
+                .insert(partition.partition_id, partition.partition_status.clone());
+
+            // extract payload
+            let (schema, batch) =
+                prepare_data_to_querier_for_partition(&ingest_data.exec, partition, request)
+                    .await?;
+            schema_merger = schema_merger
+                .merge(schema.as_ref())
+                .context(MergeSchemaSnafu)?;
+            if let Some(batch) = batch {
+                batches.push(Arc::new(batch));
+            }
+        }
+    }
+
+    ensure!(
+        !unpersisted_partitions.is_empty(),
+        TableNotFoundSnafu {
+            namespace_name: &request.namespace,
+            table_name: &request.table
+        }
+    );
+    let schema = schema_merger.build();
 
     // ------------------------------------------------
-    // Accumulate data from each partition
+    // Make a stream for this batch
+    let dummy_metrics = ExecutionPlanMetricsSet::new();
+    let mem_metrics = MemTrackingMetrics::new(&dummy_metrics, 0);
+    let stream = SizedRecordBatchStream::new(schema.as_arrow(), batches, mem_metrics);
+
+    Ok(IngesterQueryResponse::new(
+        Box::pin(stream),
+        schema,
+        unpersisted_partitions,
+    ))
+}
+
+async fn prepare_data_to_querier_for_partition(
+    executor: &Executor,
+    unpersisted_partition_data: UnpersistedPartitionData,
+    request: &IngesterQueryRequest,
+) -> Result<(Arc<Schema>, Option<RecordBatch>)> {
+    // ------------------------------------------------
+    // Metadata
+    let schema_metadata = HashMap::from([(
+        String::from("iox:partition_id"),
+        unpersisted_partition_data.partition_id.get().to_string(),
+    )]);
+
+    // ------------------------------------------------
+    // Accumulate data
 
     // Make Filters
     let selection_columns: Vec<_> = request.columns.iter().map(String::as_str).collect();
@@ -108,15 +171,16 @@ pub async fn prepare_data_to_querier(
     let predicate = request.predicate.clone().unwrap_or_default();
 
     let mut filter_applied_batches = vec![];
-    for queryable_batch in persisting_batches {
+    if let Some(queryable_batch) = unpersisted_partition_data.persisting {
         // ------------------------------------------------
         // persisting data
 
         let record_batch = run_query(
-            &ingest_data.exec,
+            executor,
             Arc::new(queryable_batch),
             predicate.clone(),
             selection,
+            schema_metadata.clone(),
         )
         .await?;
 
@@ -128,17 +192,21 @@ pub async fn prepare_data_to_querier(
     }
 
     // ------------------------------------------------
-    // Apply filters on the snapshot bacthes
-    if !filter_not_applied_batches.is_empty() {
+    // Apply filters on the snapshot batches
+    if !unpersisted_partition_data.non_persisted.is_empty() {
         // Make a Query able batch for all the snapshot
-        let queryable_batch =
-            QueryableBatch::new(&request.table, filter_not_applied_batches, vec![]);
+        let queryable_batch = QueryableBatch::new(
+            &request.table,
+            unpersisted_partition_data.non_persisted,
+            vec![],
+        );
 
         let record_batch = run_query(
-            &ingest_data.exec,
+            executor,
             Arc::new(queryable_batch),
             predicate,
             selection,
+            schema_metadata.clone(),
         )
         .await?;
 
@@ -153,23 +221,20 @@ pub async fn prepare_data_to_querier(
     // Combine record batches into one batch and pad null values as needed
 
     // Schema of all record batches after merging
-    let schema = merge_record_batch_schemas(&filter_applied_batches);
+    let schema = Arc::new(
+        Schema::try_from(Arc::new(
+            merge_record_batch_schemas(&filter_applied_batches)
+                .as_arrow()
+                .as_ref()
+                .clone()
+                .with_metadata(schema_metadata),
+        ))
+        .expect("schema roundtrip should work"),
+    );
     let batch = merge_record_batches(schema.as_arrow(), filter_applied_batches)
         .context(ConcatBatchesSnafu)?;
 
-    // ------------------------------------------------
-    // Make a stream for this batch
-    let dummy_metrics = ExecutionPlanMetricsSet::new();
-    let mem_metrics = MemTrackingMetrics::new(&dummy_metrics, 0);
-    let stream_batch = batch.map(|b| vec![Arc::new(b)]).unwrap_or_default();
-    let stream = SizedRecordBatchStream::new(schema.as_arrow(), stream_batch, mem_metrics);
-
-    Ok(IngesterQueryResponse::new(
-        Box::pin(stream),
-        (*schema).clone(),
-        parquet_max_sequence_number,
-        tombstone_max_sequence_number,
-    ))
+    Ok((schema, batch))
 }
 
 /// Query a given Queryable Batch, applying selection and filters as appropriate
@@ -179,6 +244,7 @@ pub async fn run_query(
     data: Arc<QueryableBatch>,
     predicate: Predicate,
     selection: Selection<'_>,
+    schema_metadata: HashMap<String, String>,
 ) -> Result<Option<RecordBatch>> {
     let stream = query(executor, data, predicate, selection).await?;
 
@@ -193,6 +259,19 @@ pub async fn run_query(
     // concat all same-schema record batches into one batch
     let record_batch = RecordBatch::concat(&record_batches[0].schema(), &record_batches)
         .context(ConcatBatchesSnafu)?;
+
+    // modify schema AFTER concat, otherwise Arrow will be unhappy about the different Key-Value data
+    let record_batch = RecordBatch::try_new(
+        Arc::new(
+            record_batch
+                .schema()
+                .as_ref()
+                .clone()
+                .with_metadata(schema_metadata),
+        ),
+        record_batch.columns().to_vec(),
+    )
+    .expect("adding key-value schema data should work");
 
     Ok(Some(record_batch))
 }
@@ -210,11 +289,15 @@ pub async fn query(
 
     let indices = match selection {
         Selection::All => None,
-        Selection::Some(columns) => Some(
-            data.schema()
-                .compute_select_indicies(columns)
-                .context(SelectColumnsSnafu)?,
-        ),
+        Selection::Some(columns) => {
+            let schema = data.schema();
+            Some(
+                columns
+                    .iter()
+                    .flat_map(|&column_name| schema.find_index_of(column_name))
+                    .collect(),
+            )
+        }
     };
 
     let mut expr = vec![];
@@ -376,14 +459,13 @@ mod tests {
                 DataLocation::PERSISTING,
             ] {
                 let scenario = Arc::new(make_ingester_data(two_partitions, loc));
-                scenarios.push(scenario);
+                scenarios.push((loc, scenario));
             }
         }
 
         // read data from all scenarios without any filters
         let mut request = IngesterQueryRequest::new(
             TEST_NAMESPACE.to_string(),
-            SequencerId::new(1), // must be 1
             TEST_TABLE.to_string(),
             vec![],
             None,
@@ -402,12 +484,14 @@ mod tests {
             "| Wilmington | mon |      | 1970-01-01T00:00:00.000000035Z |", // in group 3 - seq_num: 6
             "+------------+-----+------+--------------------------------+",
         ];
-        for scenario in &scenarios {
+        for (loc, scenario) in &scenarios {
+            println!("Location: {loc:?}");
             let stream = prepare_data_to_querier(scenario, &request).await.unwrap();
             let result = datafusion::physical_plan::common::collect(stream.data)
                 .await
                 .unwrap();
             assert_batches_sorted_eq!(&expected, &result);
+            assert_batches_have_schema_metadata(&result);
         }
 
         // read data from all scenarios and filter out column day
@@ -426,12 +510,14 @@ mod tests {
             "| Wilmington |      | 1970-01-01T00:00:00.000000035Z |",
             "+------------+------+--------------------------------+",
         ];
-        for scenario in &scenarios {
+        for (loc, scenario) in &scenarios {
+            println!("Location: {loc:?}");
             let stream = prepare_data_to_querier(scenario, &request).await.unwrap();
             let result = datafusion::physical_plan::common::collect(stream.data)
                 .await
                 .unwrap();
             assert_batches_sorted_eq!(&expected, &result);
+            assert_batches_have_schema_metadata(&result);
         }
 
         // read data from all scenarios, filter out column day, city Medford, time outside range [0, 42)
@@ -453,12 +539,14 @@ mod tests {
             "| Wilmington |      | 1970-01-01T00:00:00.000000035Z |",
             "+------------+------+--------------------------------+",
         ];
-        for scenario in &scenarios {
+        for (loc, scenario) in &scenarios {
+            println!("Location: {loc:?}");
             let stream = prepare_data_to_querier(scenario, &request).await.unwrap();
             let result = datafusion::physical_plan::common::collect(stream.data)
                 .await
                 .unwrap();
             assert_batches_sorted_eq!(&expected, &result);
+            assert_batches_have_schema_metadata(&result);
         }
     }
 
@@ -484,7 +572,6 @@ mod tests {
         // read data from all scenarios without any filters
         let mut request = IngesterQueryRequest::new(
             TEST_NAMESPACE.to_string(),
-            SequencerId::new(1), // must be 1
             TEST_TABLE.to_string(),
             vec![],
             None,
@@ -507,6 +594,7 @@ mod tests {
                 .await
                 .unwrap();
             assert_batches_sorted_eq!(&expected, &result);
+            assert_batches_have_schema_metadata(&result);
         }
 
         // read data from all scenarios and filter out column day
@@ -529,6 +617,7 @@ mod tests {
                 .await
                 .unwrap();
             assert_batches_sorted_eq!(&expected, &result);
+            assert_batches_have_schema_metadata(&result);
         }
 
         // read data from all scenarios, filter out column day, city Medford, time outside range [0, 42)
@@ -554,6 +643,19 @@ mod tests {
                 .await
                 .unwrap();
             assert_batches_sorted_eq!(&expected, &result);
+            assert_batches_have_schema_metadata(&result);
+        }
+    }
+
+    fn assert_batches_have_schema_metadata(batches: &[RecordBatch]) {
+        for batch in batches {
+            let schema = batch.schema();
+
+            let metadata = schema.metadata();
+            assert_eq!(metadata.len(), 1);
+
+            let partition_id_str = metadata.get("iox:partition_id").unwrap();
+            partition_id_str.parse::<i64>().unwrap();
         }
     }
 }

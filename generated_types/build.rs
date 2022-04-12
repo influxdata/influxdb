@@ -116,6 +116,7 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
             ".influxdata.iox.write.v1.WriteEntryRequest.entry",
         ])
         .btree_map(&[
+            ".influxdata.iox.ingester.v1.IngesterQueryResponseMetadata.unpersisted_partitions",
             ".influxdata.iox.preserved_catalog.v1.DatabaseCheckpoint.sequencer_numbers",
             ".influxdata.iox.preserved_catalog.v1.PartitionCheckpoint.sequencer_numbers",
         ]);

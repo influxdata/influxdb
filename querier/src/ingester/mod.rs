@@ -4,7 +4,7 @@ use arrow::{datatypes::DataType, error::ArrowError, record_batch::RecordBatch};
 use async_trait::async_trait;
 use client_util::connection;
 use data_types2::{
-    ChunkAddr, ChunkId, ChunkOrder, IngesterQueryRequest, SequenceNumber, SequencerId, TableSummary,
+    ChunkAddr, ChunkId, ChunkOrder, IngesterQueryRequest, SequenceNumber, TableSummary,
 };
 use datafusion_util::MemoryStream;
 use influxdb_iox_client::flight::{self, Client as FlightClient, Error as FlightError};
@@ -136,9 +136,6 @@ impl IngesterConnection for IngesterConnectionImpl {
 
             let ingester_query_request = IngesterQueryRequest {
                 namespace: namespace_name.to_string(),
-                // TODO: change protocol to search all sequencers...
-                //sequencer_id: SequencerId::new(0),
-                sequencer_id: SequencerId::new(1),
                 table: table_name.to_string(),
                 columns: columns.clone(),
                 predicate: Some(predicate.clone()),

@@ -1,9 +1,9 @@
 use crate::{
-    google::{FieldViolation, FieldViolationExt, OptionalField},
+    google::{FieldViolation, OptionalField},
     influxdata::iox::ingester::v1 as proto,
 };
 use data_types::timestamp::TimestampRange;
-use data_types2::{IngesterQueryRequest, SequencerId};
+use data_types2::IngesterQueryRequest;
 use datafusion::{
     logical_plan::{
         abs, acos, asin, atan, ceil, concat, cos, digest, exp, floor, ln, log10, log2, round,
@@ -25,22 +25,14 @@ impl TryFrom<proto::IngesterQueryRequest> for IngesterQueryRequest {
     fn try_from(proto: proto::IngesterQueryRequest) -> Result<Self, Self::Error> {
         let proto::IngesterQueryRequest {
             namespace,
-            sequencer_id,
             table,
             columns,
             predicate,
         } = proto;
 
         let predicate = predicate.map(TryInto::try_into).transpose()?;
-        let sequencer_id: i16 = sequencer_id.try_into().scope("sequencer_id")?;
 
-        Ok(Self::new(
-            namespace,
-            SequencerId::new(sequencer_id),
-            table,
-            columns,
-            predicate,
-        ))
+        Ok(Self::new(namespace, table, columns, predicate))
     }
 }
 
@@ -50,7 +42,6 @@ impl TryFrom<IngesterQueryRequest> for proto::IngesterQueryRequest {
     fn try_from(query: IngesterQueryRequest) -> Result<Self, Self::Error> {
         let IngesterQueryRequest {
             namespace,
-            sequencer_id,
             table,
             columns,
             predicate,
@@ -58,7 +49,6 @@ impl TryFrom<IngesterQueryRequest> for proto::IngesterQueryRequest {
 
         Ok(Self {
             namespace,
-            sequencer_id: sequencer_id.get().into(),
             table,
             columns,
             predicate: predicate.map(TryInto::try_into).transpose()?,
@@ -1703,7 +1693,6 @@ mod tests {
 
         let rust_query = IngesterQueryRequest::new(
             "mydb".into(),
-            SequencerId::new(5),
             "cpu".into(),
             vec!["usage".into(), "time".into()],
             Some(rust_predicate),
@@ -1711,7 +1700,6 @@ mod tests {
 
         let proto_query = proto::IngesterQueryRequest {
             namespace: "mydb".into(),
-            sequencer_id: 5,
             table: "cpu".into(),
             columns: vec!["usage".into(), "time".into()],
             predicate: Some(proto_predicate),
