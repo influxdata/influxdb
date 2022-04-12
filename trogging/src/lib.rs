@@ -27,6 +27,7 @@ use thiserror::Error;
 use tracing_subscriber::{
     fmt::{self, writer::BoxMakeWriter, MakeWriter},
     layer::SubscriberExt,
+    registry::LookupSpan,
     EnvFilter, Layer,
 };
 
@@ -189,7 +190,13 @@ where
         Self { with_ansi, ..self }
     }
 
-    pub fn build(self) -> Result<impl Subscriber> {
+    /// Returns a [`Layer`] that emits logs as specified by the configuration of
+    /// `self`.
+    pub fn build<S>(self) -> Result<impl Layer<S> + 'static>
+    where
+        S: Subscriber,
+        for<'a> S: LookupSpan<'a>,
+    {
         let log_writer = self.make_writer;
         let log_format = self.log_format;
         let with_target = self.with_target;
@@ -242,22 +249,20 @@ where
 
         let log_filter = self.log_filter.unwrap_or(self.default_log_filter);
 
-        let subscriber = tracing_subscriber::Registry::default().with(
-            log_filter
-                .and_then(log_format_full)
-                .and_then(log_format_pretty)
-                .and_then(log_format_json)
-                .and_then(log_format_logfmt),
-        );
-
-        Ok(subscriber)
+        Ok(log_filter
+            .and_then(log_format_full)
+            .and_then(log_format_pretty)
+            .and_then(log_format_json)
+            .and_then(log_format_logfmt))
     }
 
-    /// Build a tracing subscriber and install it as a global default subscriber for all threads.
+    /// Build a tracing subscriber and install it as a global default subscriber
+    /// for all threads.
     ///
     /// It returns a RAII guard that will ensure all events are flushed on drop
     pub fn install_global(self) -> Result<TroggingGuard> {
-        let subscriber = self.build()?;
+        let layer = self.build()?;
+        let subscriber = tracing_subscriber::Registry::default().with(layer);
         tracing::subscriber::set_global_default(subscriber)?;
         tracing_log::LogTracer::init()?;
         Ok(TroggingGuard)
@@ -396,13 +401,14 @@ pub mod test_util {
         F: Fn(),
     {
         let (writer, output) = TestWriter::new();
-        let subscriber = builder
+        let layer = builder
             .with_writer(make_writer(writer))
             .with_target(false)
             .with_ansi(false)
             .build()
             .expect("subscriber");
 
+        let subscriber = tracing_subscriber::Registry::default().with(layer);
         tracing::subscriber::with_default(subscriber, f);
 
         output
