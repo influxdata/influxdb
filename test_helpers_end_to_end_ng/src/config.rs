@@ -72,10 +72,16 @@ impl TestConfig {
         let ingester_address =
             Arc::clone(&ingester_config.addrs().ingester_grpc_api().client_base());
 
-        Self::new(ServerType::Querier, ingester_config.dsn())
-            .with_existing_object_store(ingester_config)
+        Self::new_querier_without_ingester(ingester_config)
             // Configure to talk with the ingester
             .with_ingester_addresses(&[ingester_address.as_ref()])
+    }
+
+    /// Create a minimal querier configuration from the specified
+    /// ingester configuration, using the same dsn and object store
+    pub fn new_querier_without_ingester(ingester_config: &TestConfig) -> Self {
+        Self::new(ServerType::Querier, ingester_config.dsn())
+            .with_existing_object_store(ingester_config)
     }
 
     /// Create a minimal all in one configuration

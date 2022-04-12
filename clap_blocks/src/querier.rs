@@ -18,16 +18,21 @@ pub struct QuerierConfig {
     num_query_threads: Option<usize>,
 
     /// gRPC address for the querier to talk with the ingester. For
-    /// example "http://127.0.0.1:8083" or
-    /// "http://10.10.10.1:8083,http://10.10.10.2:8083" for multiple
-    /// addresses.
+    /// example:
+    ///
+    /// "http://127.0.0.1:8083"
+    ///
+    /// or
+    ///
+    /// "http://10.10.10.1:8083,http://10.10.10.2:8083"
+    ///
+    /// for multiple addresses.
     ///
     /// Note we plan to improve this interface in
     /// <https://github.com/influxdata/influxdb_iox/issues/3996>
     #[clap(
         long = "--ingester-address",
         env = "INFLUXDB_IOX_INGESTER_ADDRESSES",
-        default_value = "http://127.0.0.1:8083",
         multiple_values = true,
         use_value_delimiter = true
     )]
@@ -70,10 +75,7 @@ mod tests {
         let actual = QuerierConfig::try_parse_from(["my_binary"]).unwrap();
 
         assert_eq!(actual.num_query_threads(), None);
-        assert_eq!(
-            actual.ingester_addresses().unwrap(),
-            &["http://127.0.0.1:8083".to_string()]
-        );
+        assert!(actual.ingester_addresses().unwrap().is_empty());
     }
 
     #[test]
@@ -82,10 +84,7 @@ mod tests {
             QuerierConfig::try_parse_from(["my_binary", "--num-query-threads", "42"]).unwrap();
 
         assert_eq!(actual.num_query_threads(), Some(42));
-        assert_eq!(
-            actual.ingester_addresses().unwrap(),
-            &["http://127.0.0.1:8083".to_string()]
-        );
+        assert!(actual.ingester_addresses().unwrap().is_empty());
     }
 
     #[test]
