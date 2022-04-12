@@ -1,8 +1,12 @@
-use std::{convert::TryFrom, sync::Arc};
+use std::{convert::TryFrom, marker::PhantomData, sync::Arc};
 
+use ::generated_types::influxdata::iox::{
+    ingester::v1::{IngesterQueryRequest, IngesterQueryResponseMetadata},
+    querier::v1::{AppMetadata, ReadInfo},
+};
 use futures_util::stream;
 use futures_util::stream::StreamExt;
-use serde::Serialize;
+use prost::Message;
 use thiserror::Error;
 use tonic::Streaming;
 
@@ -20,14 +24,18 @@ use arrow_flight::{
 use crate::connection::Connection;
 use rand::Rng;
 
+/// Re-export generated_types
+pub mod generated_types {
+    pub use generated_types::influxdata::iox::{
+        ingester::v1::{IngesterQueryRequest, IngesterQueryResponseMetadata},
+        querier::v1::*,
+    };
+}
+
 /// Error responses when querying an IOx database using the Arrow Flight gRPC
 /// API.
 #[derive(Debug, Error)]
 pub enum Error {
-    /// An error occurred while serializing the query.
-    #[error(transparent)]
-    QuerySerializeError(#[from] serde_json::Error),
-
     /// There were no FlightData messages returned when we expected to get one
     /// containing a Schema.
     #[error("no FlightData containing a Schema returned")]
@@ -55,14 +63,51 @@ pub enum Error {
     /// Arrow Flight handshake failed.
     #[error("Handshake failed")]
     HandshakeFailed,
+
+    /// Serializing the protobuf structs into bytes failed.
+    #[error(transparent)]
+    Serialization(#[from] prost::EncodeError),
+
+    /// Deserializing the protobuf structs from bytes failed.
+    #[error(transparent)]
+    Deserialization(#[from] prost::DecodeError),
+}
+
+/// Metadata that can be send during flight requests.
+pub trait ClientMetadata: Message {
+    /// Response metadata.
+    type Response: Default + Message;
+}
+
+impl ClientMetadata for ReadInfo {
+    type Response = AppMetadata;
+}
+
+impl ClientMetadata for IngesterQueryRequest {
+    type Response = IngesterQueryResponseMetadata;
 }
 
 /// An IOx Arrow Flight gRPC API client.
 ///
+/// # Request and Response Metadata
+/// The type parameter `T` -- which must implement [`ClientMetadata`] describes the request and response metadata that
+/// is send and received during the flight request. The request is encoded as protobuf and send as the Flight "ticket",
+/// the response is received via the so called "app metadata".
+///
+/// The default [`ReadInfo`] should work most general-purpose clients that talk the the IOx querier.
+///
+/// # Example
+///
 /// ```rust,no_run
 /// #[tokio::main]
 /// # async fn main() {
-/// use influxdb_iox_client::{connection::Builder, flight::Client};
+/// use influxdb_iox_client::{
+///     connection::Builder,
+///     flight::{
+///         Client,
+///         generated_types::ReadInfo,
+///     },
+/// };
 ///
 /// let connection = Builder::default()
 ///     .build("http://127.0.0.1:8082")
@@ -72,7 +117,10 @@ pub enum Error {
 /// let mut client = Client::new(connection);
 ///
 /// let mut query_results = client
-///     .perform_query("my_database", "select * from cpu_load")
+///     .perform_query(ReadInfo {
+///         namespace_name: "my_database".to_string(),
+///         sql_query: "select * from cpu_load".to_string(),
+///     })
 ///     .await
 ///     .expect("query request should work");
 ///
@@ -84,26 +132,30 @@ pub enum Error {
 /// # }
 /// ```
 #[derive(Debug)]
-pub struct Client {
+pub struct Client<T = ReadInfo>
+where
+    T: ClientMetadata,
+{
     inner: FlightServiceClient<Connection>,
+    _phantom: PhantomData<T>,
 }
 
-impl Client {
+impl<T> Client<T>
+where
+    T: ClientMetadata,
+{
     /// Creates a new client with the provided connection
     pub fn new(channel: Connection) -> Self {
         Self {
             inner: FlightServiceClient::new(channel),
+            _phantom: PhantomData::default(),
         }
     }
 
     /// Query the given database with the given SQL query, and return a
     /// [`PerformQuery`] instance that streams Arrow `RecordBatch` results.
-    pub async fn perform_query(
-        &mut self,
-        database_name: impl Into<String> + Send,
-        sql_query: impl Into<String> + Send,
-    ) -> Result<PerformQuery, Error> {
-        PerformQuery::new(self, database_name.into(), sql_query.into()).await
+    pub async fn perform_query(&mut self, request: T) -> Result<PerformQuery<T::Response>, Error> {
+        PerformQuery::<T::Response>::new(self, request).await
     }
 
     /// Perform a handshake with the server, as defined by the Arrow Flight API.
@@ -130,40 +182,40 @@ impl Client {
     }
 }
 
-// TODO: this should be shared
-#[derive(Serialize, Debug)]
-struct ReadInfo {
-    database_name: String,
-    sql_query: String,
-}
-
 /// A struct that manages the stream of Arrow `RecordBatch` results from an
 /// Arrow Flight query. Created by calling the `perform_query` method on a
 /// Flight [`Client`].
 #[derive(Debug)]
-pub struct PerformQuery {
+pub struct PerformQuery<T = AppMetadata>
+where
+    T: Default + Message,
+{
     schema: Arc<Schema>,
     dictionaries_by_field: Vec<Option<Arc<dyn Array>>>,
     response: Streaming<FlightData>,
+    app_metadata: T,
 }
 
-impl PerformQuery {
-    pub(crate) async fn new(
-        flight: &mut Client,
-        database_name: String,
-        sql_query: String,
-    ) -> Result<Self, Error> {
-        let query = ReadInfo {
-            database_name,
-            sql_query,
-        };
-
+impl<T> PerformQuery<T>
+where
+    T: Default + Message,
+{
+    pub(crate) async fn new<R>(flight: &mut Client<R>, request: R) -> Result<Self, Error>
+    where
+        R: ClientMetadata<Response = T>,
+    {
+        let mut bytes = bytes::BytesMut::new();
+        prost::Message::encode(&request, &mut bytes)?;
         let t = Ticket {
-            ticket: serde_json::to_string(&query)?.into(),
+            ticket: bytes.to_vec(),
         };
         let mut response = flight.inner.do_get(t).await?.into_inner();
 
         let flight_data_schema = response.next().await.ok_or(Error::NoSchema)??;
+
+        let app_metadata = &flight_data_schema.app_metadata[..];
+        let app_metadata = prost::Message::decode(app_metadata)?;
+
         let schema = Arc::new(Schema::try_from(&flight_data_schema)?);
 
         let dictionaries_by_field = vec![None; schema.fields().len()];
@@ -172,6 +224,7 @@ impl PerformQuery {
             schema,
             dictionaries_by_field,
             response,
+            app_metadata,
         })
     }
 
@@ -182,6 +235,7 @@ impl PerformQuery {
             schema,
             dictionaries_by_field,
             response,
+            ..
         } = self;
 
         let mut data = match response.next().await {
@@ -226,5 +280,15 @@ impl PerformQuery {
         }
 
         Ok(batches)
+    }
+
+    /// App metadata that was part of the response.
+    pub fn app_metadata(&self) -> &T {
+        &self.app_metadata
+    }
+
+    /// Schema.
+    pub fn schema(&self) -> Arc<Schema> {
+        Arc::clone(&self.schema)
     }
 }

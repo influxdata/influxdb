@@ -24,6 +24,7 @@ fn main() -> Result<()> {
 /// - `influxdata.iox.management.v1.rs`
 /// - `influxdata.iox.namespace.v1.rs`
 /// - `influxdata.iox.preserved_catalog.v1.rs`
+/// - `influxdata.iox.querier.v1.rs`
 /// - `influxdata.iox.remote.v1.rs`
 /// - `influxdata.iox.router.v1.rs`
 /// - `influxdata.iox.schema.v1.rs`
@@ -38,6 +39,7 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
     let namespace_path = root.join("influxdata/iox/namespace/v1");
     let predicate_path = root.join("influxdata/iox/predicate/v1");
     let preserved_catalog_path = root.join("influxdata/iox/preserved_catalog/v1");
+    let querier_path = root.join("influxdata/iox/querier/v1");
     let remote_path = root.join("influxdata/iox/remote/v1");
     let router_path = root.join("influxdata/iox/router/v1");
     let schema_path = root.join("influxdata/iox/schema/v1");
@@ -62,6 +64,7 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
         predicate_path.join("predicate.proto"),
         preserved_catalog_path.join("catalog.proto"),
         preserved_catalog_path.join("parquet_metadata.proto"),
+        querier_path.join("flight.proto"),
         root.join("google/longrunning/operations.proto"),
         root.join("google/rpc/error_details.proto"),
         root.join("google/rpc/status.proto"),

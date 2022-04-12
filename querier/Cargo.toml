@@ -15,6 +15,7 @@ datafusion = { path = "../datafusion" }
 futures = "0.3"
 generated_types = { path = "../generated_types" }
 hyper = "0.14"
+influxdb_iox_client = { path = "../influxdb_iox_client" }
 iox_catalog = { path = "../iox_catalog" }
 iox_object_store = { path = "../iox_object_store" }
 metric = { path = "../metric" }

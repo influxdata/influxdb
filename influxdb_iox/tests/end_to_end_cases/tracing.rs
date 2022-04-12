@@ -5,6 +5,7 @@ use crate::common::{
 };
 use futures::TryStreamExt;
 use generated_types::{storage_client::StorageClient, ReadFilterRequest};
+use influxdb_iox_client::flight::generated_types::ReadInfo;
 use std::num::NonZeroU32;
 
 async fn setup() -> (UdpCapture, ServerFixture) {
@@ -46,7 +47,10 @@ async fn run_sql_query(server_fixture: &ServerFixture) {
     let mut client = server_fixture.flight_client();
 
     client
-        .perform_query(scenario.database_name(), sql_query)
+        .perform_query(ReadInfo {
+            namespace_name: scenario.database_name().to_string(),
+            sql_query: sql_query.to_string(),
+        })
         .await
         .unwrap()
         .collect()

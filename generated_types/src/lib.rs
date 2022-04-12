@@ -114,6 +114,16 @@ pub mod influxdata {
             }
         }
 
+        pub mod querier {
+            pub mod v1 {
+                include!(concat!(env!("OUT_DIR"), "/influxdata.iox.querier.v1.rs"));
+                include!(concat!(
+                    env!("OUT_DIR"),
+                    "/influxdata.iox.querier.v1.serde.rs"
+                ));
+            }
+        }
+
         pub mod remote {
             pub mod v1 {
                 include!(concat!(env!("OUT_DIR"), "/influxdata.iox.remote.v1.rs"));

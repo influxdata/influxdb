@@ -32,8 +32,9 @@ async fn ingester_flight_api() {
     let write_token = get_write_token(&response);
     wait_for_readable(write_token, cluster.ingester().ingester_grpc_connection()).await;
 
-    let mut querier_flight =
-        querier::QuerierFlightClient::new(cluster.ingester().ingester_grpc_connection());
+    let mut querier_flight = influxdb_iox_client::flight::Client::<
+        influxdb_iox_client::flight::generated_types::IngesterQueryRequest,
+    >::new(cluster.ingester().ingester_grpc_connection());
 
     let query = IngesterQueryRequest::new(
         cluster.namespace().to_string(),
@@ -43,9 +44,15 @@ async fn ingester_flight_api() {
         Some(::predicate::EMPTY_PREDICATE),
     );
 
-    let mut performed_query = querier_flight.perform_query(query).await.unwrap();
+    let mut performed_query = querier_flight
+        .perform_query(query.try_into().unwrap())
+        .await
+        .unwrap();
 
-    assert!(performed_query.parquet_max_sequence_number.is_none());
+    assert!(performed_query
+        .app_metadata()
+        .parquet_max_sequence_number
+        .is_none());
 
     let query_results = performed_query.collect().await.unwrap();
 

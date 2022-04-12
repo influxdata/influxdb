@@ -1,5 +1,6 @@
 use influxdb_iox_client::{
     error::Error,
+    flight::generated_types::ReadInfo,
     router::generated_types::{
         write_sink, HashRing, Matcher, MatcherToShard, Router, ShardConfig, WriteSink, WriteSinkSet,
     },
@@ -244,7 +245,10 @@ async fn test_write_routed() {
 
     let mut query_results = target_1
         .flight_client()
-        .perform_query(&db_name, "select * from cpu")
+        .perform_query(ReadInfo {
+            namespace_name: db_name.clone(),
+            sql_query: "select * from cpu".to_string(),
+        })
         .await
         .expect("failed to query target 1");
 
@@ -265,7 +269,10 @@ async fn test_write_routed() {
 
     assert!(target_1
         .flight_client()
-        .perform_query(&db_name, "select * from disk")
+        .perform_query(ReadInfo {
+            namespace_name: db_name.clone(),
+            sql_query: "select * from disk".to_string()
+        })
         .await
         .unwrap_err()
         .to_string()
@@ -273,7 +280,10 @@ async fn test_write_routed() {
 
     let mut query_results = target_2
         .flight_client()
-        .perform_query(&db_name, "select * from disk")
+        .perform_query(ReadInfo {
+            namespace_name: db_name.clone(),
+            sql_query: "select * from disk".to_string(),
+        })
         .await
         .expect("failed to query target 2");
 
@@ -293,7 +303,10 @@ async fn test_write_routed() {
 
     assert!(target_2
         .flight_client()
-        .perform_query(&db_name, "select * from cpu")
+        .perform_query(ReadInfo {
+            namespace_name: db_name.clone(),
+            sql_query: "select * from cpu".to_string()
+        })
         .await
         .unwrap_err()
         .to_string()
@@ -303,7 +316,10 @@ async fn test_write_routed() {
 
     let mut query_results = target_3
         .flight_client()
-        .perform_query(&db_name, "select * from mem")
+        .perform_query(ReadInfo {
+            namespace_name: db_name,
+            sql_query: "select * from mem".to_string(),
+        })
         .await
         .expect("failed to query target 3");
 
@@ -563,7 +579,10 @@ async fn test_write_routed_no_shard() {
 
     let mut query_results = target_1
         .flight_client()
-        .perform_query(&db_name_1, "select * from cpu")
+        .perform_query(ReadInfo {
+            namespace_name: db_name_1.clone(),
+            sql_query: "select * from cpu".to_string(),
+        })
         .await
         .expect("failed to query target 1");
 
@@ -583,7 +602,10 @@ async fn test_write_routed_no_shard() {
 
     assert!(target_1
         .flight_client()
-        .perform_query(&db_name_1, "select * from disk")
+        .perform_query(ReadInfo {
+            namespace_name: db_name_1.clone(),
+            sql_query: "select * from disk".to_string()
+        })
         .await
         .unwrap_err()
         .to_string()
@@ -591,7 +613,10 @@ async fn test_write_routed_no_shard() {
 
     let mut query_results = target_2
         .flight_client()
-        .perform_query(&db_name_2, "select * from disk")
+        .perform_query(ReadInfo {
+            namespace_name: db_name_2.clone(),
+            sql_query: "select * from disk".to_string(),
+        })
         .await
         .expect("failed to query target 2");
 
@@ -611,7 +636,10 @@ async fn test_write_routed_no_shard() {
 
     assert!(target_2
         .flight_client()
-        .perform_query(&db_name_1, "select * from cpu")
+        .perform_query(ReadInfo {
+            namespace_name: db_name_1.clone(),
+            sql_query: "select * from cpu".to_string()
+        })
         .await
         .unwrap_err()
         .to_string()
@@ -621,7 +649,10 @@ async fn test_write_routed_no_shard() {
 
     assert!(target_3
         .flight_client()
-        .perform_query(&db_name_1, "select * from cpu")
+        .perform_query(ReadInfo {
+            namespace_name: db_name_1,
+            sql_query: "select * from cpu".to_string()
+        })
         .await
         .unwrap_err()
         .to_string()
@@ -629,7 +660,10 @@ async fn test_write_routed_no_shard() {
 
     assert!(target_3
         .flight_client()
-        .perform_query(&db_name_2, "select * from disk")
+        .perform_query(ReadInfo {
+            namespace_name: db_name_2,
+            sql_query: "select * from disk".to_string()
+        })
         .await
         .unwrap_err()
         .to_string()

@@ -6,6 +6,7 @@ use http::Response;
 use hyper::{Body, Client, Request};
 
 use influxdb_iox_client::connection::Connection;
+use influxdb_iox_client::flight::generated_types::ReadInfo;
 use influxdb_iox_client::write_info::generated_types::GetWriteInfoResponse;
 
 /// Writes the line protocol to the write_base/api/v2/write endpoint (typically on the router)
@@ -131,7 +132,10 @@ pub async fn run_query(
     client.handshake().await.unwrap();
 
     let mut response = client
-        .perform_query(&namespace, &sql)
+        .perform_query(ReadInfo {
+            namespace_name: namespace,
+            sql_query: sql,
+        })
         .await
         .expect("Error performing query");
 

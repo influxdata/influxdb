@@ -2,13 +2,14 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use client_util::connection;
+use influxdb_iox_client::flight::{
+    generated_types::IngesterQueryRequest, Client as FlightClient, Error as FlightError,
+};
 use observability_deps::tracing::debug;
 use predicate::Predicate;
 use query::{QueryChunk, QueryChunkMeta};
 use schema::Schema;
 use snafu::{ResultExt, Snafu};
-
-use crate::{QuerierFlightClient, QuerierFlightError};
 
 use self::test_util::MockIngesterConnection;
 
@@ -29,7 +30,7 @@ pub enum Error {
     #[snafu(display("Failed ingester handshake '{}': {}", ingester_address, source))]
     Handshake {
         ingester_address: String,
-        source: QuerierFlightError,
+        source: FlightError,
     },
 }
 
@@ -98,7 +99,7 @@ impl IngesterConnection for IngesterConnectionImpl {
                 .await
                 .context(ConnectingSnafu { ingester_address })?;
 
-            let mut client = QuerierFlightClient::new(connection);
+            let mut client = FlightClient::<IngesterQueryRequest>::new(connection);
 
             // make contact with the ingester
             client

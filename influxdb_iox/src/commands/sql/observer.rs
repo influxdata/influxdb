@@ -1,6 +1,6 @@
 //! This module implements the "Observer" functionality of the SQL repl
 
-use influxdb_iox_client::connection::Connection;
+use influxdb_iox_client::{connection::Connection, flight::generated_types::ReadInfo};
 use snafu::{ResultExt, Snafu};
 
 use std::{collections::HashMap, sync::Arc, time::Instant};
@@ -134,7 +134,10 @@ async fn load_remote_system_tables(
                 tokio::task::spawn(async move {
                     let mut client = influxdb_iox_client::flight::Client::new(connection);
                     let mut query_results = client
-                        .perform_query(&db_name, &sql)
+                        .perform_query(ReadInfo {
+                            namespace_name: db_name.clone(),
+                            sql_query: sql,
+                        })
                         .await
                         .context(RunningRemoteQuerySnafu)?;
 

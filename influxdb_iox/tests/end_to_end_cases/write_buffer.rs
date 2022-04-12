@@ -10,6 +10,7 @@ use generated_types::influxdata::iox::write_buffer::v1::WriteBufferConnection;
 use influxdb_iox_client::{
     delete::generated_types::{Predicate, TimestampRange},
     error::Error,
+    flight::generated_types::ReadInfo,
     management::generated_types::WriteBufferCreationConfig,
 };
 use std::{num::NonZeroU32, sync::Arc};
@@ -81,7 +82,10 @@ async fn reads_come_from_write_buffer() {
             // query for the data
             let query_results = server
                 .flight_client()
-                .perform_query(&db_name, "select * from upc")
+                .perform_query(ReadInfo {
+                    namespace_name: db_name.clone(),
+                    sql_query: "select * from upc".to_string(),
+                })
                 .await;
 
             if let Ok(mut results) = query_results {

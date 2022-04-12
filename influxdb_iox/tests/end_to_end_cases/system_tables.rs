@@ -4,6 +4,7 @@ use crate::{
     end_to_end_cases::scenario::Scenario,
 };
 use arrow_util::{assert_batches_eq, test_util::normalize_batches};
+use influxdb_iox_client::flight::generated_types::ReadInfo;
 use std::num::NonZeroU32;
 
 use super::scenario::{create_readable_database, list_chunks, rand_name};
@@ -50,7 +51,10 @@ async fn test_operations() {
     let sql_query = "select status, description from system.operations";
 
     let batches = client
-        .perform_query(&db_name1, sql_query)
+        .perform_query(ReadInfo {
+            namespace_name: db_name1,
+            sql_query: sql_query.to_string(),
+        })
         .await
         .unwrap()
         .collect()
@@ -71,7 +75,10 @@ async fn test_operations() {
 
     // Should not see jobs from db1 when querying db2
     let batches = client
-        .perform_query(&db_name2, sql_query)
+        .perform_query(ReadInfo {
+            namespace_name: db_name2,
+            sql_query: sql_query.to_string(),
+        })
         .await
         .unwrap()
         .collect()
@@ -159,7 +166,10 @@ async fn test_queries() {
     // Query system.queries and should have an entry for the storage rpc
     let batches = fixture
         .flight_client()
-        .perform_query(&db_name, query)
+        .perform_query(ReadInfo {
+            namespace_name: db_name.to_string(),
+            sql_query: query.to_string(),
+        })
         .await
         .unwrap()
         .collect()
@@ -201,7 +211,10 @@ async fn test_queries() {
     let query = "select foo from blarg read_filter";
     fixture
         .flight_client()
-        .perform_query(&db_name, query)
+        .perform_query(ReadInfo {
+            namespace_name: db_name.to_string(),
+            sql_query: query.to_string(),
+        })
         .await
         .unwrap_err();
 
@@ -210,7 +223,10 @@ async fn test_queries() {
     let query = "select query_type, query_text, completed_duration IS NOT NULL as is_complete, success from system.queries where query_type = 'sql' and query_text like '%read_filter%'";
     let batches = fixture
         .flight_client()
-        .perform_query(&db_name, query)
+        .perform_query(ReadInfo {
+            namespace_name: db_name.to_string(),
+            sql_query: query.to_string(),
+        })
         .await
         .unwrap()
         .collect()
