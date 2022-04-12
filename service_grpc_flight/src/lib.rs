@@ -21,6 +21,7 @@ use generated_types::influxdata::iox::querier::v1 as proto;
 use pin_project::{pin_project, pinned_drop};
 use prost::Message;
 use query::{QueryCompletedToken, QueryDatabase};
+use serde::Deserialize;
 use service_common::QueryDatabaseProvider;
 use snafu::{ResultExt, Snafu};
 use tokio::task::JoinHandle;
@@ -37,6 +38,15 @@ use service_common::planner::Planner;
 pub enum Error {
     #[snafu(display("Invalid ticket. Error: {:?}", source))]
     InvalidTicket { source: prost::DecodeError },
+
+    #[snafu(display("Invalid legacy ticket. Error: {:?}", source))]
+    InvalidTicketLegacy { source: std::string::FromUtf8Error },
+
+    #[snafu(display("Invalid query, could not parse '{}': {}", query, source))]
+    InvalidQuery {
+        query: String,
+        source: serde_json::Error,
+    },
 
     #[snafu(display("Database {} not found", database_name))]
     DatabaseNotFound { database_name: String },
@@ -80,6 +90,8 @@ impl From<Error> for tonic::Status {
         match err {
             Error::DatabaseNotFound { .. }
             | Error::InvalidTicket { .. }
+            | Error::InvalidTicketLegacy { .. }
+            | Error::InvalidQuery { .. }
             // TODO(edd): this should be `debug`. Keeping at info whilst IOx still in early development
             | Error::InvalidDatabaseName { .. } => info!(?err, msg),
             Error::Query { .. } => info!(?err, msg),
@@ -98,6 +110,8 @@ impl Error {
         use tonic::Status;
         match &self {
             Self::InvalidTicket { .. } => Status::invalid_argument(self.to_string()),
+            Self::InvalidTicketLegacy { .. } => Status::invalid_argument(self.to_string()),
+            Self::InvalidQuery { .. } => Status::invalid_argument(self.to_string()),
             Self::DatabaseNotFound { .. } => Status::not_found(self.to_string()),
             Self::Query { .. } => Status::internal(self.to_string()),
             Self::InvalidDatabaseName { .. } => Status::invalid_argument(self.to_string()),
@@ -110,6 +124,34 @@ impl Error {
 }
 
 type TonicStream<T> = Pin<Box<dyn Stream<Item = Result<T, tonic::Status>> + Send + Sync + 'static>>;
+
+#[derive(Deserialize, Debug)]
+/// Body of the `Ticket` serialized and sent to the do_get endpoint.
+struct ReadInfo {
+    database_name: String,
+    sql_query: String,
+}
+
+impl ReadInfo {
+    fn decode_json(ticket: &[u8]) -> Result<Self> {
+        let json_str = String::from_utf8(ticket.to_vec()).context(InvalidTicketLegacySnafu {})?;
+
+        let read_info: ReadInfo =
+            serde_json::from_str(&json_str).context(InvalidQuerySnafu { query: &json_str })?;
+
+        Ok(read_info)
+    }
+
+    fn decode_protobuf(ticket: &[u8]) -> Result<Self> {
+        let read_info =
+            proto::ReadInfo::decode(Bytes::from(ticket.to_vec())).context(InvalidTicketSnafu {})?;
+
+        Ok(Self {
+            database_name: read_info.namespace_name,
+            sql_query: read_info.sql_query,
+        })
+    }
+}
 
 /// Concrete implementation of the gRPC Arrow Flight Service API
 #[derive(Debug)]
@@ -153,11 +195,18 @@ where
     ) -> Result<Response<Self::DoGetStream>, tonic::Status> {
         let span_ctx = request.extensions().get().cloned();
         let ticket = request.into_inner();
-        let read_info =
-            proto::ReadInfo::decode(Bytes::from(ticket.ticket)).context(InvalidTicketSnafu {})?;
+
+        // decode ticket
+        let read_info = match ReadInfo::decode_protobuf(&ticket.ticket) {
+            Ok(read_info) => read_info,
+            Err(_) => {
+                // try legacy json
+                ReadInfo::decode_json(&ticket.ticket)?
+            }
+        };
 
         let database =
-            DatabaseName::new(&read_info.namespace_name).context(InvalidDatabaseNameSnafu)?;
+            DatabaseName::new(&read_info.database_name).context(InvalidDatabaseNameSnafu)?;
 
         let db =
             self.server.db(&database).await.ok_or_else(|| {
@@ -176,7 +225,7 @@ where
         let output = GetStream::new(
             ctx,
             physical_plan,
-            read_info.namespace_name,
+            read_info.database_name,
             query_completed_token,
         )
         .await?;
