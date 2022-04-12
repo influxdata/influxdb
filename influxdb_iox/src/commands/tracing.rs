@@ -1,9 +1,13 @@
 //! Log and trace initialization and setup
 
+use observability_deps::tracing::subscriber;
 use std::cmp::max;
-use trogging::cli::LoggingConfigBuilderExt;
 pub use trogging::config::*;
 pub use trogging::TroggingGuard;
+use trogging::{
+    cli::LoggingConfigBuilderExt,
+    tracing_subscriber::{prelude::*, Registry},
+};
 
 /// Start simple logger. Panics on error.
 pub fn init_simple_logs(log_verbose_count: u8) -> Result<TroggingGuard, trogging::Error> {
@@ -23,7 +27,25 @@ pub fn init_logs_and_tracing(
     // command
     logging_config.log_verbose_count = max(logging_config.log_verbose_count, log_verbose_count);
 
-    trogging::Builder::new()
+    let log_layer = trogging::Builder::new()
         .with_logging_config(&logging_config)
-        .install_global()
+        .build()?;
+
+    let layers = log_layer;
+
+    // Optionally enable the tokio console exporter layer, if enabled.
+    //
+    // This spawns a background tokio task to serve the instrumentation data,
+    // and hooks the instrumentation into the tracing pipeline.
+    #[cfg(feature = "tokio_console")]
+    let layers = {
+        use console_subscriber::ConsoleLayer;
+        let console_layer = ConsoleLayer::builder().with_default_env().spawn();
+        layers.and_then(console_layer)
+    };
+
+    let subscriber = Registry::default().with(layers);
+    subscriber::set_global_default(subscriber)?;
+
+    Ok(TroggingGuard)
 }
