@@ -8,7 +8,7 @@ use datafusion::{
     catalog::{catalog::CatalogProvider, schema::SchemaProvider},
     datasource::TableProvider,
 };
-use observability_deps::tracing::trace;
+use observability_deps::tracing::{debug, trace};
 use predicate::{rpc_predicate::QueryDatabaseMeta, Predicate};
 use query::{
     exec::{ExecutionContextProvider, ExecutorType, IOxSessionContext},
@@ -43,6 +43,7 @@ impl QueryDatabase for QuerierNamespace {
         table_name: &str,
         predicate: &Predicate,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, QueryDatabaseError> {
+        debug!(%table_name, %predicate, "Finding chunks for table");
         // get table metadata
         let table = match self.tables.get(table_name).map(Arc::clone) {
             Some(table) => table,
@@ -53,7 +54,7 @@ impl QueryDatabase for QuerierNamespace {
             }
         };
 
-        let mut chunks = table.chunks(predicate).await.map_err(Box::new)?;
+        let mut chunks = table.chunks(predicate).await?;
 
         // if there is a field restriction on the predicate, only
         // chunks with that field should be returned. If the chunk has

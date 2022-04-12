@@ -12,10 +12,7 @@ async fn basic_ingester() {
     let table_name = "the_table";
 
     let router2_config = TestConfig::new_router2(&database_url);
-    //let ingester_config = TestConfig::new_ingester(&router2_config);
-    // TEMP: use fast parquet generation until we have completed
-    // https://github.com/influxdata/influxdb_iox/pull/4255
-    let ingester_config = TestConfig::new_ingester(&router2_config).with_fast_parquet_generation();
+    let ingester_config = TestConfig::new_ingester(&router2_config);
     let querier_config = TestConfig::new_querier(&ingester_config);
 
     // Set up the cluster  ====================================
@@ -38,9 +35,7 @@ async fn basic_ingester() {
 
     // Wait for data to be readable
     let write_token = get_write_token(&response);
-    wait_for_readable(&write_token, cluster.ingester().ingester_grpc_connection()).await;
-    // TODO remove this as part of https://github.com/influxdata/influxdb_iox/pull/4255
-    wait_for_persisted(write_token, cluster.ingester().ingester_grpc_connection()).await;
+    wait_for_readable(write_token, cluster.ingester().ingester_grpc_connection()).await;
 
     // run query
     let sql = format!("select * from {}", table_name);

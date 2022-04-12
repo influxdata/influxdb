@@ -7,7 +7,8 @@ use crate::{
     IngesterConnection,
 };
 use backoff::{Backoff, BackoffConfig};
-use data_types2::TableId;
+use data_types2::{ParquetFile, TableId};
+use observability_deps::tracing::debug;
 use predicate::Predicate;
 use query::{provider::ChunkPruner, QueryChunk};
 use schema::Schema;
@@ -95,6 +96,7 @@ impl QuerierTable {
     ///
     /// This currently contains all parquet files linked to their unprocessed tombstones.
     pub async fn chunks(&self, predicate: &Predicate) -> Result<Vec<Arc<dyn QueryChunk>>> {
+        debug!(?predicate, namespace=%self.namespace_name, table_name=%self.name(), "Fetching all chunks");
         // get parquet files and tombstones in a single catalog transaction
         // TODO: figure out some form of caching
         let (parquet_files, tombstones) = Backoff::new(&self.backoff_config)
@@ -121,8 +123,12 @@ impl QuerierTable {
         // TODO do in parallel with fetching parquet files
         let ingester_partitions = self.ingester_partitions(predicate).await?;
 
-        // TODO: Validate that the cache contents is consistent with the
+        // Validate that the cache contents is consistent with the
         // parquet files we know about
+        if !validate_cache(&ingester_partitions, &parquet_files) {
+            // TODO real error / retry
+            panic!("returned ingester partitions are inconsistent with our parquet files");
+        }
 
         // convert parquet files and tombstones to nicer objects
         let mut chunks = Vec::with_capacity(parquet_files.len());
@@ -234,11 +240,21 @@ impl QuerierTable {
                 Arc::clone(&self.name),
                 columns,
                 predicate,
-                self.schema.as_ref(),
+                Arc::clone(&self.schema),
             )
             .await
             .context(GettingIngesterPartitionsSnafu)
     }
+}
+
+/// Validate that our current cache state is not stale given the
+/// information in the IngesterPartitions
+///
+/// Specificially, ensure that the persisted number from all
+/// chunks is consistent with the parquet files we know about
+fn validate_cache(_partitions: &[Arc<IngesterPartition>], _parquet_files: &[ParquetFile]) -> bool {
+    // TODO fill out the validation logic here
+    true
 }
 
 #[cfg(test)]
