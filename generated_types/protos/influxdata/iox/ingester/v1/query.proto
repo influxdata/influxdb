@@ -28,8 +28,9 @@ message IngesterQueryRequest {
   // Namespace to search
   string namespace = 7;
 
-  // Sequencer to search
-  int32 sequencer_id = 8;
+  // was used to only request data from a single sequencer ID
+  reserved "sequencer_id";
+  reserved 8;
 }
 
 // Metadata that the ingester provides to the query service along with the results. Serialized
@@ -43,11 +44,31 @@ message IngesterQueryResponseMetadata {
   reserved "max_sequencer_number";
   reserved 2;
 
-  // Max sequence number persisted for this table
-  optional int64 parquet_max_sequence_number = 3;
+  // Was max sequence number persisted for this table
+  reserved "parquet_max_sequence_number";
+  reserved 3;
 
-  // Max sequence number for a tombstone associated with this table
-  optional int64 tombstone_max_sequence_number = 4;
+  // Was max sequence number for a tombstone associated with this table
+  reserved "tombstone_max_sequence_number";
+  reserved 4;
+
+  // Map partition_id to status for every partition that has unpersisted data.
+  //
+  // If a partition does NOT appear within this map, then either all data was persisted or the ingester has never seen
+  // data for this partition. In either case the querier may just read all parquet files for the missing partition
+  // and ensure it has a complete dataset
+  map<int64, PartitionStatus> unpersisted_partitions = 5;
+}
+
+// Status of a partition that has unpersisted data.
+//
+// Note that this structure is specific to a partition (which itself is bound to a table and sequencer)!
+message PartitionStatus {
+  // Max sequence number persisted
+  optional int64 parquet_max_sequence_number = 1;
+
+  // Max sequence number for a tombstone associated
+  optional int64 tombstone_max_sequence_number = 2;
 }
 
 // Serialization of `predicate::predicate::Predicate` that contains DataFusion `Expr`s
