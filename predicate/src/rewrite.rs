@@ -98,6 +98,7 @@ fn is_comparison(op: Operator) -> bool {
         Operator::RegexIMatch => true,
         Operator::RegexNotMatch => true,
         Operator::RegexNotIMatch => true,
+        Operator::StringConcat => false,
     }
 }
 
