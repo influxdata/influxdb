@@ -1,6 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use http::{header::HeaderName, HeaderValue};
+use rand::Rng;
 use tempfile::TempDir;
 
 use crate::addrs::BindAddresses;
@@ -22,6 +23,9 @@ pub struct TestConfig {
     /// Catalog DSN value
     dsn: String,
 
+    /// Catalog schema name
+    catalog_schema_name: String,
+
     /// Write buffer directory, if needed
     write_buffer_dir: Option<Arc<TempDir>>,
 
@@ -35,12 +39,17 @@ pub struct TestConfig {
 impl TestConfig {
     /// Create a new TestConfig (tests should use one of the specific
     /// configuration setup below, such as [new_router2]
-    fn new(server_type: ServerType, dsn: impl Into<String>) -> Self {
+    fn new(
+        server_type: ServerType,
+        dsn: impl Into<String>,
+        catalog_schema_name: impl Into<String>,
+    ) -> Self {
         Self {
             env: HashMap::new(),
             client_headers: vec![],
             server_type,
             dsn: dsn.into(),
+            catalog_schema_name: catalog_schema_name.into(),
             write_buffer_dir: None,
             object_store_dir: None,
             addrs: Arc::new(BindAddresses::default()),
@@ -49,7 +58,7 @@ impl TestConfig {
 
     /// Create a minimal router2 configuration
     pub fn new_router2(dsn: impl Into<String>) -> Self {
-        Self::new(ServerType::Router2, dsn)
+        Self::new(ServerType::Router2, dsn, random_catalog_schema_name())
             .with_new_write_buffer()
             .with_new_object_store()
     }
@@ -57,10 +66,14 @@ impl TestConfig {
     /// Create a minimal ingester configuration, using the dsn and
     /// write buffer configuration from other
     pub fn new_ingester(other: &TestConfig) -> Self {
-        Self::new(ServerType::Ingester, other.dsn())
-            .with_existing_write_buffer(other)
-            .with_existing_object_store(other)
-            .with_default_ingester_options()
+        Self::new(
+            ServerType::Ingester,
+            other.dsn(),
+            other.catalog_schema_name(),
+        )
+        .with_existing_write_buffer(other)
+        .with_existing_object_store(other)
+        .with_default_ingester_options()
     }
 
     /// Create a minimal querier configuration from the specified
@@ -80,13 +93,17 @@ impl TestConfig {
     /// Create a minimal querier configuration from the specified
     /// ingester configuration, using the same dsn and object store
     pub fn new_querier_without_ingester(ingester_config: &TestConfig) -> Self {
-        Self::new(ServerType::Querier, ingester_config.dsn())
-            .with_existing_object_store(ingester_config)
+        Self::new(
+            ServerType::Querier,
+            ingester_config.dsn(),
+            ingester_config.catalog_schema_name(),
+        )
+        .with_existing_object_store(ingester_config)
     }
 
     /// Create a minimal all in one configuration
     pub fn new_all_in_one(dsn: impl Into<String>) -> Self {
-        Self::new(ServerType::AllInOne, dsn)
+        Self::new(ServerType::AllInOne, dsn, random_catalog_schema_name())
             .with_new_write_buffer()
             .with_new_object_store()
             .with_default_ingester_options()
@@ -102,6 +119,11 @@ impl TestConfig {
     // Get the catalog DSN URL and panic if it's not set
     pub fn dsn(&self) -> &str {
         &self.dsn
+    }
+
+    // Get the catalog postgres schema name
+    pub fn catalog_schema_name(&self) -> &str {
+        &self.catalog_schema_name
     }
 
     /// Adds default ingester options
@@ -219,4 +241,15 @@ impl TestConfig {
     pub fn addrs(&self) -> &BindAddresses {
         &self.addrs
     }
+}
+
+fn random_catalog_schema_name() -> String {
+    let mut rng = rand::thread_rng();
+
+    (&mut rng)
+        .sample_iter(rand::distributions::Alphanumeric)
+        .filter(|c| c.is_ascii_alphabetic())
+        .take(20)
+        .map(char::from)
+        .collect::<String>()
 }
