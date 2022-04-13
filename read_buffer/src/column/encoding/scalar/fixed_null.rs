@@ -518,7 +518,9 @@ mod test {
     use arrow::datatypes::*;
     use proptest::prelude::*;
 
-    use super::super::transcoders::{ByteTrimmer, MockTranscoder, NoOpTranscoder};
+    use super::super::transcoders::{
+        ByteTrimmer, FloatByteTrimmer, MockTranscoder, NoOpTranscoder,
+    };
     use super::cmp::Operator;
     use super::*;
 
@@ -914,7 +916,7 @@ mod test {
     // Each of the supported logical types (i64, u64) is tested with transcoders
     // that store encoded values physically as (i32, u32, i16, u16, i8, u8)
     // depending on logical type and value range.
-    macro_rules! make_test_transcoder_integer_bytetrimer {
+    macro_rules! make_test_transcoder_integer_bytetrimmer {
         (($logical:ty, $logical_arrow:ty, $physical:ty, $physical_arrow:ty, $fn_name:ident)) => {
             proptest! {
                 #[test]
@@ -976,53 +978,143 @@ mod test {
         };
     }
 
-    make_test_transcoder_integer_bytetrimer!((
+    make_test_transcoder_integer_bytetrimmer!((
         u64,
         UInt64Type,
         u8,
         UInt8Type,
         test_transcoder_byte_trim_u64_to_u8
     ));
-    make_test_transcoder_integer_bytetrimer!((
+    make_test_transcoder_integer_bytetrimmer!((
         u64,
         UInt64Type,
         u16,
         UInt16Type,
         test_transcoder_byte_trim_u64_to_u16
     ));
-    make_test_transcoder_integer_bytetrimer!((
+    make_test_transcoder_integer_bytetrimmer!((
         u64,
         UInt64Type,
         u32,
         UInt32Type,
         test_transcoder_byte_trim_u64_to_u32
     ));
-    make_test_transcoder_integer_bytetrimer!((
+    make_test_transcoder_integer_bytetrimmer!((
         i64,
         Int64Type,
         i8,
         Int8Type,
         test_transcoder_byte_trim_i64_to_i8
     ));
-    make_test_transcoder_integer_bytetrimer!((
+    make_test_transcoder_integer_bytetrimmer!((
         i64,
         Int64Type,
         u8,
         UInt8Type,
         test_transcoder_byte_trim_i64_to_u8
     ));
-    make_test_transcoder_integer_bytetrimer!((
+    make_test_transcoder_integer_bytetrimmer!((
         i64,
         Int64Type,
         i16,
         Int16Type,
         test_transcoder_byte_trim_i64_to_i16
     ));
-    make_test_transcoder_integer_bytetrimer!((
+    make_test_transcoder_integer_bytetrimmer!((
         i64,
         Int64Type,
         u16,
         UInt16Type,
         test_transcoder_byte_trim_i64_to_u16
+    ));
+
+    // This macro builds out property tests for the float byte trimmer encoder.
+    // Columns of f64 values are tested with transcoders that store encoded
+    // values physically as (i32, u32, i16, u16, i8, u8) depending on the
+    // contents of the inputs.
+    macro_rules! make_test_transcoder_float_bytetrimmer {
+        (($physical:ty, $physical_arrow:ty, $fn_name:ident)) => {
+            proptest! {
+                #[test]
+                 // The proptest strategy will generate vectors of values within the physical type
+                 // bounds, ensuring they can be safely encoded.
+                 // The strategy effectively says:
+                 //
+                 //   Generate vectors of Option<f64> where the value will be `None`.
+                 //   Generate values according to the provided range, and generate
+                 //   `n` of them according to the size range `0..=50`.
+                fn $fn_name(arr in prop::collection::vec(proptest::option::weighted(0.9, (<$physical>::MIN ..=<$physical>::MAX).prop_map(|x| x as f64)), 0..=50)) {
+                    // The control encoding is just a null-supporting array
+                    // implementation with no compression. We will check that all
+                    // encodings under test behave in the same way as this one.
+                    let control = FixedNull::new(
+                        PrimitiveArray::from(arr.clone()),
+                        NoOpTranscoder {},
+                    );
+
+                    let transcoder = FloatByteTrimmer {};
+                    let byte_trimmed = FixedNull::<$physical_arrow, f64, _>::new(
+                        arr.into_iter()
+                            .map(|v| v.map(|v| transcoder.encode(v)))
+                            .collect::<PrimitiveArray<_>>(), // encode u64 as u8,
+                        transcoder,
+                    );
+
+                    // exercise some physical operations
+                    let mut cases = vec![];
+                    for op in ["<", "<=", ">", ">=", "=", "!="] {
+                        for v in [
+                            <$physical>::MIN as f64,
+                            <$physical>::MIN as f64 + 1.0,
+                            <$physical>::MIN as f64 + 1.5,
+                            <$physical>::MAX as f64  / 10.0,
+                            <$physical>::MAX as f64  / 4.0,
+                            <$physical>::MAX as f64  / 2.0,
+                            <$physical>::MAX as f64  - 1.2,
+                            <$physical>::MAX as f64,
+                        ] {
+                            cases.push((op, v as f64));
+                        }
+                    }
+
+                    for (op, v) in cases {
+                        let row_ids_control = control.row_ids_filter(
+                            v,
+                            &cmp::Operator::try_from(op).unwrap(),
+                            RowIDs::new_vector(),
+                        );
+                        let row_ids_trimmed = byte_trimmed.row_ids_filter(
+                            v,
+                            &cmp::Operator::try_from(op).unwrap(),
+                            RowIDs::new_vector(),
+                        );
+                        prop_assert_eq!(row_ids_control, row_ids_trimmed)
+                    }
+                }
+            }
+        };
+    }
+
+    make_test_transcoder_float_bytetrimmer!((u8, UInt8Type, test_transcoder_float_byte_trim_to_u8));
+    make_test_transcoder_float_bytetrimmer!((
+        u16,
+        UInt16Type,
+        test_transcoder_float_byte_trim_to_u16
+    ));
+    make_test_transcoder_float_bytetrimmer!((
+        u32,
+        UInt32Type,
+        test_transcoder_float_byte_trim_to_u32
+    ));
+    make_test_transcoder_float_bytetrimmer!((i8, Int8Type, test_transcoder_float_byte_trim_to_i8));
+    make_test_transcoder_float_bytetrimmer!((
+        i16,
+        Int16Type,
+        test_transcoder_float_byte_trim_to_i16
+    ));
+    make_test_transcoder_float_bytetrimmer!((
+        i32,
+        Int32Type,
+        test_transcoder_float_byte_trim_to_i32
     ));
 }
