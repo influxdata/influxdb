@@ -654,7 +654,12 @@ mod test {
     use cmp::Operator;
     use std::sync::Arc;
 
-    use super::super::transcoders::{MockTranscoder, NoOpTranscoder};
+    use arrow::array::PrimitiveArray;
+    use arrow::datatypes::*;
+    use proptest::prelude::*;
+
+    use super::super::transcoders::{ByteTrimmer, MockTranscoder, NoOpTranscoder};
+    use super::super::*;
     use super::*;
 
     // Helper function to create a new RLE encoding using a mock transcoder
@@ -1159,4 +1164,116 @@ mod test {
             assert_eq!(super::estimate_rle_size(input.into_iter()), exp);
         }
     }
+
+    // This macro builds out property tests for RLE with an integer byte trimmer
+    // encoder.
+    // Each of the supported logical types (i64, u64) is tested with transcoders
+    // that store encoded values physically as (i32, u32, i16, u16, i8, u8)
+    // depending on logical type and value range.
+    macro_rules! make_test_rle_transcoder_integer_bytetrimmer {
+        (($logical:ty, $logical_arrow:ty, $physical:ty, $fn_name:ident)) => {
+            proptest! {
+                #[test]
+                 // The proptest strategy will generate vectors of values within the physical type
+                 // bounds, ensuring they can be safely encoded.
+                 // The strategy effectively says:
+                 //
+                 //   Generate vectors of Option<T> where the value will be `None`.
+                 //   Generate values according to the provided range, and generate
+                 //   `n` of them according to the size range `0..=5000`. The
+                 //   parameters are set in a way that should exercise the core
+                 //   RLE functionality.
+                fn $fn_name(mut arr in prop::collection::vec(proptest::option::weighted(0.9, 0 as $logical ..=50 as $logical), 0..=1000)) {
+                    // sort input so that there are more runs
+                    arr.sort();
+
+                    // The control encoding is just a null-supporting array
+                    // implementation with no compression. We will check that all
+                    // encodings under test behave in the same way as this one.
+                    let control = FixedNull::new(
+                        PrimitiveArray::<$logical_arrow>::from(arr.clone()),
+                        NoOpTranscoder {},
+                    );
+
+                    let transcoder = ByteTrimmer {};
+                    let rle = RLE::<$physical, $logical, _>::new_from_iter_opt(
+                        arr.into_iter()
+                        .map(|v| v.map(|v| transcoder.encode(v))),
+                        transcoder,
+                    );
+
+                    // exercise some physical operations
+                    let mut cases = vec![];
+                    for op in ["<", "<=", ">", ">=", "=", "!="] {
+                        for v in [0, 1, 10, 20, 49, 50, 51] {
+                            cases.push((op, v as $logical));
+                        }
+                    }
+
+                    for (op, v) in cases {
+                        let row_ids_control = control.row_ids_filter(
+                            v,
+                            &cmp::Operator::try_from(op).unwrap(),
+                            RowIDs::new_vector(),
+                        );
+                        let row_ids_trimmed = rle.row_ids_filter(
+                            v,
+                            &cmp::Operator::try_from(op).unwrap(),
+                            RowIDs::new_vector(),
+                        );
+                        prop_assert_eq!(row_ids_control, row_ids_trimmed)
+                    }
+                }
+            }
+        };
+    }
+
+    make_test_rle_transcoder_integer_bytetrimmer!((
+        u64,
+        UInt64Type,
+        u8,
+        test_transcoder_byte_trim_u64_to_u8
+    ));
+    make_test_rle_transcoder_integer_bytetrimmer!((
+        u64,
+        UInt64Type,
+        u16,
+        test_transcoder_byte_trim_u64_to_u16
+    ));
+    make_test_rle_transcoder_integer_bytetrimmer!((
+        u64,
+        UInt64Type,
+        u32,
+        test_transcoder_byte_trim_u64_to_u32
+    ));
+    make_test_rle_transcoder_integer_bytetrimmer!((
+        i64,
+        Int64Type,
+        i8,
+        test_transcoder_byte_trim_i64_to_i8
+    ));
+    make_test_rle_transcoder_integer_bytetrimmer!((
+        i64,
+        Int64Type,
+        u8,
+        test_transcoder_byte_trim_i64_to_u8
+    ));
+    make_test_rle_transcoder_integer_bytetrimmer!((
+        i64,
+        Int64Type,
+        i16,
+        test_transcoder_byte_trim_i64_to_i16
+    ));
+    make_test_rle_transcoder_integer_bytetrimmer!((
+        i64,
+        Int64Type,
+        u16,
+        test_transcoder_byte_trim_i64_to_u16
+    ));
+    make_test_rle_transcoder_integer_bytetrimmer!((
+        i64,
+        Int64Type,
+        u32,
+        test_transcoder_byte_trim_i64_to_u32
+    ));
 }
