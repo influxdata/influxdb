@@ -1,9 +1,4 @@
-use arrow_util::assert_batches_sorted_eq;
-use http::StatusCode;
-use test_helpers_end_to_end_ng::{
-    get_write_token, maybe_skip_integration, run_query, wait_for_persisted, wait_for_readable,
-    MiniCluster, TestConfig,
-};
+use test_helpers_end_to_end_ng::{maybe_skip_integration, MiniCluster, Step, StepTest, TestConfig};
 
 #[tokio::test]
 async fn basic_ingester() {
@@ -24,37 +19,31 @@ async fn basic_ingester() {
         .with_querier(querier_config)
         .await;
 
-    // Write some data into the v2 HTTP API ==============
-    let lp = format!(
-        "{},tag1=A,tag2=B val=42i 123456\n\
-                      {},tag1=A,tag2=C val=43i 123457",
-        table_name, table_name
-    );
-    let response = cluster.write_to_router(lp).await;
-    assert_eq!(response.status(), StatusCode::NO_CONTENT);
-
-    // Wait for data to be readable
-    let write_token = get_write_token(&response);
-    wait_for_readable(write_token, cluster.ingester().ingester_grpc_connection()).await;
-
-    // run query
-    let sql = format!("select * from {}", table_name);
-    let batches = run_query(
-        sql,
-        cluster.namespace(),
-        cluster.querier().querier_grpc_connection(),
+    StepTest::new(
+        &cluster,
+        vec![
+            Step::WriteLineProtocol(format!(
+                "{},tag1=A,tag2=B val=42i 123456\n\
+                 {},tag1=A,tag2=C val=43i 123457",
+                table_name, table_name
+            )),
+            Step::WaitForReadable,
+            Step::AssertNotPersisted,
+            Step::Query {
+                sql: format!("select * from {}", table_name),
+                expected: vec![
+                    "+------+------+--------------------------------+-----+",
+                    "| tag1 | tag2 | time                           | val |",
+                    "+------+------+--------------------------------+-----+",
+                    "| A    | B    | 1970-01-01T00:00:00.000123456Z | 42  |",
+                    "| A    | C    | 1970-01-01T00:00:00.000123457Z | 43  |",
+                    "+------+------+--------------------------------+-----+",
+                ],
+            },
+        ],
     )
-    .await;
-
-    let expected = [
-        "+------+------+--------------------------------+-----+",
-        "| tag1 | tag2 | time                           | val |",
-        "+------+------+--------------------------------+-----+",
-        "| A    | B    | 1970-01-01T00:00:00.000123456Z | 42  |",
-        "| A    | C    | 1970-01-01T00:00:00.000123457Z | 43  |",
-        "+------+------+--------------------------------+-----+",
-    ];
-    assert_batches_sorted_eq!(&expected, &batches);
+    .run()
+    .await
 }
 
 #[tokio::test]
@@ -77,32 +66,26 @@ async fn basic_on_parquet() {
         .with_querier(querier_config)
         .await;
 
-    // Write some data into the v2 HTTP API ==============
-    let lp = format!("{},tag1=A,tag2=B val=42i 123456", table_name);
-    let response = cluster.write_to_router(lp).await;
-    assert_eq!(response.status(), StatusCode::NO_CONTENT);
-
-    // Wait for data to be persisted to parquet
-    let write_token = get_write_token(&response);
-    wait_for_persisted(write_token, cluster.ingester().ingester_grpc_connection()).await;
-
-    // run query
-    let sql = format!("select * from {}", table_name);
-    let batches = run_query(
-        sql,
-        cluster.namespace(),
-        cluster.querier().querier_grpc_connection(),
+    StepTest::new(
+        &cluster,
+        vec![
+            Step::WriteLineProtocol(format!("{},tag1=A,tag2=B val=42i 123456", table_name)),
+            // Wait for data to be persisted to parquet
+            Step::WaitForPersisted,
+            Step::Query {
+                sql: format!("select * from {}", table_name),
+                expected: vec![
+                    "+------+------+--------------------------------+-----+",
+                    "| tag1 | tag2 | time                           | val |",
+                    "+------+------+--------------------------------+-----+",
+                    "| A    | B    | 1970-01-01T00:00:00.000123456Z | 42  |",
+                    "+------+------+--------------------------------+-----+",
+                ],
+            },
+        ],
     )
-    .await;
-
-    let expected = [
-        "+------+------+--------------------------------+-----+",
-        "| tag1 | tag2 | time                           | val |",
-        "+------+------+--------------------------------+-----+",
-        "| A    | B    | 1970-01-01T00:00:00.000123456Z | 42  |",
-        "+------+------+--------------------------------+-----+",
-    ];
-    assert_batches_sorted_eq!(&expected, &batches);
+    .run()
+    .await
 }
 
 #[tokio::test]
@@ -128,29 +111,24 @@ async fn basic_no_ingster_connection() {
         .await;
 
     // Write some data into the v2 HTTP API ==============
-    let lp = format!("{},tag1=A,tag2=B val=42i 123456", table_name);
-    let response = cluster.write_to_router(lp).await;
-    assert_eq!(response.status(), StatusCode::NO_CONTENT);
-
-    // Wait for data to be persisted to parquet
-    let write_token = get_write_token(&response);
-    wait_for_persisted(write_token, cluster.ingester().ingester_grpc_connection()).await;
-
-    // run query
-    let sql = format!("select * from {}", table_name);
-    let batches = run_query(
-        sql,
-        cluster.namespace(),
-        cluster.querier().querier_grpc_connection(),
+    StepTest::new(
+        &cluster,
+        vec![
+            Step::WriteLineProtocol(format!("{},tag1=A,tag2=B val=42i 123456", table_name)),
+            // Wait for data to be persisted to parquet
+            Step::WaitForPersisted,
+            Step::Query {
+                sql: format!("select * from {}", table_name),
+                expected: vec![
+                    "+------+------+--------------------------------+-----+",
+                    "| tag1 | tag2 | time                           | val |",
+                    "+------+------+--------------------------------+-----+",
+                    "| A    | B    | 1970-01-01T00:00:00.000123456Z | 42  |",
+                    "+------+------+--------------------------------+-----+",
+                ],
+            },
+        ],
     )
-    .await;
-
-    let expected = [
-        "+------+------+--------------------------------+-----+",
-        "| tag1 | tag2 | time                           | val |",
-        "+------+------+--------------------------------+-----+",
-        "| A    | B    | 1970-01-01T00:00:00.000123456Z | 42  |",
-        "+------+------+--------------------------------+-----+",
-    ];
-    assert_batches_sorted_eq!(&expected, &batches);
+    .run()
+    .await
 }

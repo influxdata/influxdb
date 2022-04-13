@@ -48,6 +48,19 @@ pub fn get_write_token(response: &Response<Body>) -> String {
         .to_string()
 }
 
+/// returns true if the write for this token is persisted, false if it
+/// is not persisted. panic's on error
+pub async fn token_is_persisted(
+    write_token: impl AsRef<str>,
+    ingester_connection: Connection,
+) -> bool {
+    influxdb_iox_client::write_info::Client::new(ingester_connection)
+        .get_write_info(write_token.as_ref())
+        .await
+        .expect("Error fetching write info for token")
+        .persisted
+}
+
 const MAX_QUERY_RETRY_TIME_SEC: u64 = 10;
 
 /// Waits for the specified predicate to return true

@@ -6002,6 +6002,7 @@ name = "test_helpers_end_to_end_ng"
 version = "0.1.0"
 dependencies = [
  "arrow",
+ "arrow_util",
  "assert_cmd",
  "futures",
  "http",
