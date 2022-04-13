@@ -1,3 +1,4 @@
+- Closes #
 ### Required checklist
 - [ ] Sample config files updated (both `/etc` folder and `NewDemoConfig` methods) (influxdb and plutonium)
 - [ ] openapi swagger.yml updated (if modified API) - link openapi PR
