@@ -199,7 +199,7 @@ impl ExecutionPlan for StreamSplitExec {
         partition: usize,
         context: Arc<TaskContext>,
     ) -> Result<SendableRecordBatchStream> {
-        trace!(partition, "SplitExec::execute");
+        debug!(partition, "Start SplitExec::execute");
         self.start_if_needed(context).await?;
 
         let mut state = self.state.lock().await;
@@ -214,6 +214,7 @@ impl ExecutionPlan for StreamSplitExec {
                         partition
                     ),
                 };
+                debug!(partition, "End SplitExec::execute");
                 Ok(stream)
             }
         }

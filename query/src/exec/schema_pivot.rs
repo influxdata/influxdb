@@ -47,6 +47,7 @@ use datafusion::{
     },
 };
 
+use observability_deps::tracing::debug;
 use tokio_stream::StreamExt;
 
 /// Implements the SchemaPivot operation described in `make_schema_pivot`
@@ -220,6 +221,8 @@ impl ExecutionPlan for SchemaPivotExec {
         partition: usize,
         context: Arc<TaskContext>,
     ) -> Result<SendableRecordBatchStream> {
+        debug!(partition, "Start SchemaPivotExec::execute");
+
         if self.output_partitioning().partition_count() <= partition {
             return Err(Error::Internal(format!(
                 "SchemaPivotExec invalid partition {}",
@@ -305,6 +308,8 @@ impl ExecutionPlan for SchemaPivotExec {
 
         let batches = vec![Arc::new(batch)];
         let mem_metrics = MemTrackingMetrics::new(&self.metrics, partition);
+
+        debug!(partition, "End SchemaPivotExec::execute");
         Ok(Box::pin(SizedRecordBatchStream::new(
             self.schema(),
             batches,

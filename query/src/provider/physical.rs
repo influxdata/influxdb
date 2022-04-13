@@ -13,6 +13,7 @@ use datafusion::{
         DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream, Statistics,
     },
 };
+use observability_deps::tracing::debug;
 use schema::selection::Selection;
 use schema::Schema;
 
@@ -112,6 +113,8 @@ impl ExecutionPlan for IOxReadFilterNode {
         partition: usize,
         _context: Arc<TaskContext>,
     ) -> datafusion::error::Result<SendableRecordBatchStream> {
+        debug!(partition, "Start IOxReadFilterNode::execute");
+
         let baseline_metrics = BaselineMetrics::new(&self.metrics, partition);
         let timer = baseline_metrics.elapsed_compute().timer();
 
@@ -153,6 +156,7 @@ impl ExecutionPlan for IOxReadFilterNode {
         let adapter = SchemaAdapterStream::try_new(stream, schema, baseline_metrics)
             .map_err(|e| DataFusionError::Internal(e.to_string()))?;
 
+        debug!(partition, "End IOxReadFilterNode::execute");
         Ok(Box::pin(adapter))
     }
 

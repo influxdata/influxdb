@@ -251,6 +251,7 @@ impl ExecutionPlan for NonNullCheckerExec {
         partition: usize,
         context: Arc<TaskContext>,
     ) -> Result<SendableRecordBatchStream> {
+        debug!(partition, "Start NonNullCheckerExec::execute");
         if self.output_partitioning().partition_count() <= partition {
             return Err(Error::Internal(format!(
                 "NonNullCheckerExec invalid partition {}",
@@ -301,6 +302,7 @@ impl ExecutionPlan for NonNullCheckerExec {
             }
         });
 
+        debug!(partition, "End NonNullCheckerExec::execute");
         Ok(AdapterStream::adapt(self.schema(), rx))
     }
 

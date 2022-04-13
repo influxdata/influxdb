@@ -17,7 +17,7 @@ use datafusion::{
         ExecutionPlan,
     },
 };
-use observability_deps::tracing::{debug, trace};
+use observability_deps::tracing::{debug, warn};
 use predicate::{Predicate, PredicateBuilder};
 use schema::{merge::SchemaMerger, sort::SortKey, InfluxColumnType, Schema};
 
@@ -241,7 +241,7 @@ impl TableProvider for ChunkTableProvider {
         filters: &[Expr],
         _limit: Option<usize>,
     ) -> std::result::Result<Arc<dyn ExecutionPlan>, DataFusionError> {
-        trace!(" = Inside ChunkTableProvider Scan");
+        debug!("Create a scan node for ChunkTableProvider");
 
         // Note that `filters` don't actually need to be evaluated in
         // the scan for the plans to be correct, they are an extra
@@ -270,7 +270,7 @@ impl TableProvider for ChunkTableProvider {
 
         // This debug shows the self.arrow_schema() includes all columns in all chunks
         // which means the schema of all chunks are merged before invoking this scan
-        trace!("all chunks schema: {:#?}", self.arrow_schema());
+        debug!(schema=?self.arrow_schema(), "All chunks schema");
         // However, the schema of each chunk is still in its original form which does not
         // include the merged columns of other chunks. The code below (put in comments on purpose) proves it
         // for chunk in chunks.clone() {
@@ -419,7 +419,7 @@ impl Deduplicater {
         let mut plans: Vec<Arc<dyn ExecutionPlan>> = vec![];
         if self.no_duplicates() {
             // Neither overlaps nor duplicates, no deduplicating needed
-            trace!("All chunks neither overlap nor duplicate. Build only one scan node for all of them.");
+            debug!("All chunks neither overlap nor duplicate. Build only one scan node for all of them.");
             let mut non_duplicate_plans = Self::build_plans_for_non_duplicates_chunks(
                 self.ctx.child_ctx("build_plans_for_non_duplicates_chunks"),
                 Arc::clone(&table_name),
@@ -431,7 +431,7 @@ impl Deduplicater {
             plans.append(&mut non_duplicate_plans);
         } else {
             let pk_schema = Self::compute_pk_schema(&chunks);
-            trace!(overlapped_chunks=?self.overlapped_chunks_set.len(),
+            debug!(overlapped_chunks=?self.overlapped_chunks_set.len(),
                    in_chunk_duplicates=?self.in_chunk_duplicates_chunks.len(),
                    no_duplicates_chunks=?self.no_duplicates_chunks.len(),
                    "Chunks after classifying");
@@ -453,7 +453,7 @@ impl Deduplicater {
                 None => compute_sort_key_for_chunks(&pk_schema, chunks.as_ref()),
             };
 
-            trace!(
+            debug!(
                 ?dedup_sort_key,
                 ?output_sort_key,
                 ?pk_schema,
@@ -488,7 +488,7 @@ impl Deduplicater {
 
             // Go over non_duplicates_chunks, build a plan for it
             if !self.no_duplicates_chunks.is_empty() {
-                trace!(
+                debug!(
                     "Build one scan node for the rest of neither-duplicated-nor-overlapped chunks."
                 );
                 let mut non_duplicate_plans = Self::build_plans_for_non_duplicates_chunks(
@@ -510,7 +510,7 @@ impl Deduplicater {
         }
 
         let mut plan = match plans.len() {
-            //One child plan, no need to add Union
+            // One child plan, no need to add Union
             1 => plans.remove(0),
             // many child plans, add Union
             _ => Arc::new(UnionExec::new(plans)),
@@ -623,7 +623,7 @@ impl Deduplicater {
         let pk_schema = Self::compute_pk_schema(&chunks);
         let input_schema = Self::compute_input_schema(&output_schema, &pk_schema);
 
-        trace!(
+        debug!(
             ?output_schema,
             ?pk_schema,
             ?input_schema,
@@ -701,6 +701,13 @@ impl Deduplicater {
         let pk_schema = Self::compute_pk_schema(&[Arc::clone(&chunk)]);
         let input_schema = Self::compute_input_schema(&output_schema, &pk_schema);
 
+        debug!(
+            ?output_schema,
+            ?pk_schema,
+            ?input_schema,
+            "creating deduplicate plan for a chunk with duplicates"
+        );
+
         // Compute the output sort key for this chunk
         let chunks = vec![chunk];
 
@@ -717,7 +724,7 @@ impl Deduplicater {
         // Add DeduplicateExec
         // Sort exprs for the deduplication
         let sort_exprs = arrow_sort_key_exprs(sort_key, &plan.schema());
-        trace!(Sort_Exprs=?sort_exprs, chunk_ID=?chunks[0].id(), "Sort Expression for the deduplicate node of chunk");
+        debug!(?sort_exprs, chunk_id=?chunks[0].id(), "Sort Expression for the deduplicate node of chunk");
         let plan = Self::add_deduplicate_node(sort_exprs, plan);
 
         // select back to the requested output schema
@@ -822,8 +829,8 @@ impl Deduplicater {
         ctx: IOxSessionContext,
         table_name: Arc<str>,
         output_schema: Arc<Schema>,
-        chunk: Arc<dyn QueryChunk>, // This chunk is identified having duplicates
-        predicate: Predicate,       // This is the select predicate of the query
+        chunk: Arc<dyn QueryChunk>,
+        predicate: Predicate, // This is the select predicate of the query
         sort_key: Option<&SortKey>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         // Add columns of sort key and delete predicates in the schema of to-be-scanned IOxReadFilterNode
@@ -841,9 +848,10 @@ impl Deduplicater {
         // 1. ensures that the schema post-projection matches output_schema
         // 2. ensures that all columns necessary to perform the sort are present
         // 3. ensures that all columns necessary to evaluate the delete predicates are present
+        debug!("Build sort plan for a single chunk. Sort node won't be added if the plan is already sorted");
         let mut schema_merger = SchemaMerger::new().merge(&output_schema).unwrap();
-
         let chunk_schema = chunk.schema();
+        debug!(?chunk_schema, "chunk schema");
 
         // Cols of sort key
         if let Some(key) = sort_key {
@@ -922,7 +930,7 @@ impl Deduplicater {
             panic!("Super sort key is empty");
         }
 
-        trace!(output_sort_key=?output_sort_key, "Super sort key input to build_sort_plan");
+        debug!(output_sort_key=?output_sort_key, "Super sort key input to build_sort_plan");
 
         // Check to see if the plan is sorted on the subset of the output_sort_key
         let sort_key = chunk.sort_key();
@@ -931,17 +939,18 @@ impl Deduplicater {
                 if merge_key == output_sort_key {
                     // the chunk is already sorted on the subset of the o_sort_key,
                     // no need to resort it
-                    trace!(ChunkID=?chunk.id(), "Chunk is sorted and no need the sort operator");
+                    debug!(ChunkID=?chunk.id(), "Chunk is sorted and no need the sort operator");
                     return Ok(input);
                 }
             } else {
                 // The chunk is sorted but not on different order with super sort key.
                 // Log it for investigating data set to improve performance further
-                debug!(chunk_type=?chunk.chunk_type(),
+                // This behavior should not happen when ingester, compactor and querier use the sort key
+                warn!(chunk_type=?chunk.chunk_type(),
                     chunk_ID=?chunk.id(),
                     chunk_current_sort_order=?chunk_sort_key,
                     chunk_super_sort_key=?output_sort_key,
-                    "Chunk will get resorted in build_sort_plan due to new cardinality rate between key columns");
+                    "Chunk will get resorted in build_sort_plan because it was sorted on different sort key");
             }
         } else {
             debug!(chunk_type=?chunk.chunk_type(),
@@ -953,7 +962,7 @@ impl Deduplicater {
         let input_schema = input.schema();
         let sort_exprs = arrow_sort_key_exprs(output_sort_key, &input_schema);
 
-        trace!(Sort_Exprs=?sort_exprs, Chunk_ID=?chunk.id(), "Sort Expression for the sort operator of chunk");
+        debug!(?sort_exprs, chunk_id=?chunk.id(), "Sort Expression for the sort operator of chunk");
 
         // Create SortExec operator
         Ok(Arc::new(
@@ -1025,7 +1034,7 @@ impl Deduplicater {
         // Only chunks without delete predicates should be in this one IOxReadFilterNode
         // if there is no chunk, we still need to return a plan
         if (output_sort_key.is_none() && Self::no_delete_predicates(&chunks)) || chunks.is_empty() {
-            trace!("build_plans_for_non_duplicates_chunks");
+            debug!("Build one scan IOxReadFilterNode for all non duplicated chunks even if empty");
             plans.push(Arc::new(IOxReadFilterNode::new(
                 ctx,
                 Arc::clone(&table_name),
@@ -1038,6 +1047,7 @@ impl Deduplicater {
         }
 
         // Build sorted plans, one for each chunk
+        debug!("Consider to add a sort node if needed for every non duplicated chunk");
         let sorted_chunk_plans: Result<Vec<Arc<dyn ExecutionPlan>>> = chunks
             .iter()
             .map(|chunk| {

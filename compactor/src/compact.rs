@@ -358,6 +358,11 @@ impl Compactor {
             },
         );
 
+        debug!(
+            candidate_num = candidates.len(),
+            "Number of candidate partitions to be considered to compact"
+        );
+
         Ok(candidates)
     }
 
@@ -621,6 +626,10 @@ impl Compactor {
             .map(|c| Arc::new(c) as Arc<dyn QueryChunk>)
             .collect();
         let merged_schema = QueryableParquetChunk::merge_schemas(&query_chunks);
+        debug!(
+            num_cols = merged_schema.as_arrow().fields().len(),
+            "Number of columns in the merged schema to build query plan"
+        );
 
         // Compute the sorted output of the compacting result
         let sort_key = compute_sort_key_for_chunks(&merged_schema, &query_chunks);

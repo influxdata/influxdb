@@ -188,6 +188,8 @@ impl ExecutionPlan for DeduplicateExec {
         partition: usize,
         context: Arc<TaskContext>,
     ) -> Result<SendableRecordBatchStream> {
+        debug!(partition, "Start DeduplicationExec::execute");
+
         if partition != 0 {
             return Err(DataFusionError::Internal(
                 "DeduplicateExec only supports a single input stream".to_string(),
@@ -237,6 +239,8 @@ impl ExecutionPlan for DeduplicateExec {
                 }
             }
         });
+
+        debug!(partition, "End DeduplicationExec::execute");
 
         Ok(AdapterStream::adapt(self.schema(), rx))
     }
@@ -1173,6 +1177,8 @@ mod test {
         ) -> Result<SendableRecordBatchStream> {
             assert_eq!(partition, 0);
 
+            debug!(partition, "Start DummyExec::execute");
+
             // ensure there is space to queue up the channel
             let (tx, rx) = mpsc::channel(self.batches.len());
 
@@ -1184,6 +1190,7 @@ mod test {
                 }
             }
 
+            debug!(partition, "End DummyExec::execute");
             Ok(AdapterStream::adapt(self.schema(), rx))
         }
 
