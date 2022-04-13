@@ -6,9 +6,9 @@ use arrow::{
 };
 use bytes::Bytes;
 use data_types2::{
-    Column, ColumnType, KafkaPartition, KafkaTopic, Namespace, ParquetFile, ParquetFileParams,
-    Partition, QueryPool, SequenceNumber, Sequencer, SequencerId, Table, TableId, Timestamp,
-    Tombstone, TombstoneId,
+    Column, ColumnType, KafkaPartition, KafkaTopic, Namespace, ParquetFile, ParquetFileId,
+    ParquetFileParams, ParquetFileWithMetadata, Partition, QueryPool, SequenceNumber, Sequencer,
+    SequencerId, Table, TableId, Timestamp, Tombstone, TombstoneId,
 };
 use iox_catalog::{
     interface::{Catalog, INITIAL_COMPACTION_LEVEL},
@@ -186,6 +186,31 @@ impl TestCatalog {
             .await
             .parquet_files()
             .list_by_table_not_to_delete(table_id)
+            .await
+            .unwrap()
+    }
+
+    /// List all non-deleted files with their metadata
+    pub async fn list_by_table_not_to_delete_with_metadata(
+        self: &Arc<Self>,
+        table_id: TableId,
+    ) -> Vec<ParquetFileWithMetadata> {
+        self.catalog
+            .repositories()
+            .await
+            .parquet_files()
+            .list_by_table_not_to_delete_with_metadata(table_id)
+            .await
+            .unwrap()
+    }
+
+    /// Get a parquet file's metadata bytes
+    pub async fn parquet_metadata(&self, parquet_file_id: ParquetFileId) -> Vec<u8> {
+        self.catalog
+            .repositories()
+            .await
+            .parquet_files()
+            .parquet_metadata(parquet_file_id)
             .await
             .unwrap()
     }
@@ -373,7 +398,7 @@ pub struct TestPartition {
 
 impl TestPartition {
     /// Create a parquet for the partition
-    pub async fn create_parquet_file(self: &Arc<Self>, lp: &str) -> Arc<TestParquetFile> {
+    pub async fn create_parquet_file(self: &Arc<Self>, lp: &str) -> TestParquetFile {
         self.create_parquet_file_with_min_max(
             lp,
             1,
@@ -392,7 +417,7 @@ impl TestPartition {
         max_seq: i64,
         min_time: i64,
         max_time: i64,
-    ) -> Arc<TestParquetFile> {
+    ) -> TestParquetFile {
         self.create_parquet_file_with_min_max_and_creation_time(
             lp, min_seq, max_seq, min_time, max_time, 1,
         )
@@ -408,7 +433,7 @@ impl TestPartition {
         min_time: i64,
         max_time: i64,
         creation_time: i64,
-    ) -> Arc<TestParquetFile> {
+    ) -> TestParquetFile {
         let mut repos = self.catalog.catalog.repositories().await;
 
         let (table, batch) = lp_to_mutable_batch(lp);
@@ -451,7 +476,7 @@ impl TestPartition {
             min_time: Timestamp::new(min_time),
             max_time: Timestamp::new(max_time),
             file_size_bytes: real_file_size_bytes as i64,
-            parquet_metadata: parquet_metadata_bin,
+            parquet_metadata: parquet_metadata_bin.clone(),
             row_count: row_count as i64,
             created_at: Timestamp::new(creation_time),
             compaction_level: INITIAL_COMPACTION_LEVEL,
@@ -462,11 +487,13 @@ impl TestPartition {
             .await
             .unwrap();
 
-        Arc::new(TestParquetFile {
+        let parquet_file = ParquetFileWithMetadata::new(parquet_file, parquet_metadata_bin);
+
+        TestParquetFile {
             catalog: Arc::clone(&self.catalog),
             namespace: Arc::clone(&self.namespace),
             parquet_file,
-        })
+        }
     }
 
     /// Create a parquet for the partition with fake sizew for testing
@@ -480,7 +507,7 @@ impl TestPartition {
         max_time: i64,
         file_size_bytes: i64,
         creation_time: i64,
-    ) -> Arc<TestParquetFile> {
+    ) -> TestParquetFile {
         let mut repos = self.catalog.catalog.repositories().await;
 
         let (table, batch) = lp_to_mutable_batch(lp);
@@ -523,7 +550,7 @@ impl TestPartition {
             min_time: Timestamp::new(min_time),
             max_time: Timestamp::new(max_time),
             file_size_bytes,
-            parquet_metadata: parquet_metadata_bin,
+            parquet_metadata: parquet_metadata_bin.clone(),
             row_count: row_count as i64,
             created_at: Timestamp::new(creation_time),
             compaction_level: INITIAL_COMPACTION_LEVEL,
@@ -534,11 +561,13 @@ impl TestPartition {
             .await
             .unwrap();
 
-        Arc::new(TestParquetFile {
+        let parquet_file = ParquetFileWithMetadata::new(parquet_file, parquet_metadata_bin);
+
+        TestParquetFile {
             catalog: Arc::clone(&self.catalog),
             namespace: Arc::clone(&self.namespace),
             parquet_file,
-        })
+        }
     }
 }
 
@@ -590,12 +619,12 @@ async fn create_parquet_file(
 pub struct TestParquetFile {
     pub catalog: Arc<TestCatalog>,
     pub namespace: Arc<TestNamespace>,
-    pub parquet_file: ParquetFile,
+    pub parquet_file: ParquetFileWithMetadata,
 }
 
 impl TestParquetFile {
     /// Make the parquet file deletable
-    pub async fn flag_for_delete(self: &Arc<Self>) {
+    pub async fn flag_for_delete(&self) {
         let mut repos = self.catalog.catalog.repositories().await;
 
         repos
@@ -603,6 +632,11 @@ impl TestParquetFile {
             .flag_for_delete(self.parquet_file.id)
             .await
             .unwrap()
+    }
+
+    /// When only the ParquetFile is needed without the metadata, use this instead of the field
+    pub fn parquet_file_no_metadata(self) -> ParquetFile {
+        self.parquet_file.split_off_metadata().0
     }
 }
 
@@ -616,7 +650,7 @@ pub struct TestTombstone {
 
 impl TestTombstone {
     /// mark the tombstone proccesed
-    pub async fn mark_processed(self: &Arc<Self>, parquet_file: &Arc<TestParquetFile>) {
+    pub async fn mark_processed(self: &Arc<Self>, parquet_file: &TestParquetFile) {
         assert!(Arc::ptr_eq(&self.catalog, &parquet_file.catalog));
         assert!(Arc::ptr_eq(&self.namespace, &parquet_file.namespace));
 

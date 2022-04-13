@@ -6,7 +6,7 @@ use data_types::{
     partition_metadata::{Statistics, TableSummary},
     timestamp::{TimestampMinMax, TimestampRange},
 };
-use data_types2::ParquetFile;
+use data_types2::{ParquetFile, ParquetFileWithMetadata};
 use datafusion::physical_plan::SendableRecordBatchStream;
 use iox_object_store::{IoxObjectStore, ParquetFilePath};
 use observability_deps::tracing::*;
@@ -280,10 +280,9 @@ pub struct DecodedParquetFile {
 }
 
 impl DecodedParquetFile {
-    pub fn new(parquet_file: ParquetFile) -> Self {
-        let parquet_metadata = Arc::new(IoxParquetMetaData::from_thrift_bytes(
-            parquet_file.parquet_metadata.clone(),
-        ));
+    pub fn new(parquet_file_with_metadata: ParquetFileWithMetadata) -> Self {
+        let (parquet_file, parquet_metadata) = parquet_file_with_metadata.split_off_metadata();
+        let parquet_metadata = Arc::new(IoxParquetMetaData::from_thrift_bytes(parquet_metadata));
         let decoded_metadata = parquet_metadata.decode().expect("parquet metadata broken");
         let iox_metadata = decoded_metadata
             .read_iox_metadata_new()
