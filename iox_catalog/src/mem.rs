@@ -13,14 +13,17 @@ use crate::{
 use async_trait::async_trait;
 use data_types2::{
     Column, ColumnId, ColumnType, KafkaPartition, KafkaTopic, KafkaTopicId, Namespace, NamespaceId,
-    ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionInfo,
-    ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Sequencer, SequencerId, Table,
-    TableId, TablePartition, Timestamp, Tombstone, TombstoneId,
+    ParquetFile, ParquetFileId, ParquetFileParams, ParquetFileWithMetadata, Partition, PartitionId,
+    PartitionInfo, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Sequencer,
+    SequencerId, Table, TableId, TablePartition, Timestamp, Tombstone, TombstoneId,
 };
 use observability_deps::tracing::warn;
-use std::fmt::Formatter;
-use std::sync::Arc;
-use std::{collections::HashSet, convert::TryFrom};
+use std::{
+    collections::{BTreeMap, HashSet},
+    convert::TryFrom,
+    fmt::Formatter,
+    sync::Arc,
+};
 use time::{SystemProvider, TimeProvider};
 use tokio::sync::{Mutex, OwnedMutexGuard};
 
@@ -60,6 +63,7 @@ struct MemCollections {
     partitions: Vec<Partition>,
     tombstones: Vec<Tombstone>,
     parquet_files: Vec<ParquetFile>,
+    parquet_file_metadata: BTreeMap<ParquetFileId, Vec<u8>>,
     processed_tombstones: Vec<ProcessedTombstone>,
 }
 
@@ -961,12 +965,16 @@ impl ParquetFileRepo for MemTxn {
             row_count,
             to_delete: None,
             file_size_bytes,
-            parquet_metadata,
             compaction_level,
             created_at,
         };
+
+        stage
+            .parquet_file_metadata
+            .insert(parquet_file.id, parquet_metadata);
+
         stage.parquet_files.push(parquet_file);
-        Ok(stage.parquet_files.last().unwrap().clone())
+        Ok(*stage.parquet_files.last().unwrap())
     }
 
     async fn flag_for_delete(&mut self, id: ParquetFileId) -> Result<()> {
@@ -1029,6 +1037,31 @@ impl ParquetFileRepo for MemTxn {
         Ok(parquet_files)
     }
 
+    async fn list_by_table_not_to_delete_with_metadata(
+        &mut self,
+        table_id: TableId,
+    ) -> Result<Vec<ParquetFileWithMetadata>> {
+        let stage = self.stage();
+
+        let parquet_files: Vec<_> = stage
+            .parquet_files
+            .iter()
+            .filter(|f| table_id == f.table_id && f.to_delete.is_none())
+            .cloned()
+            .map(|f| {
+                ParquetFileWithMetadata::new(
+                    f,
+                    stage
+                        .parquet_file_metadata
+                        .get(&f.id)
+                        .cloned()
+                        .unwrap_or_default(),
+                )
+            })
+            .collect();
+        Ok(parquet_files)
+    }
+
     async fn delete_old(&mut self, older_than: Timestamp) -> Result<Vec<ParquetFile>> {
         let stage = self.stage();
 
@@ -1037,6 +1070,10 @@ impl ParquetFileRepo for MemTxn {
         );
 
         stage.parquet_files = keep;
+
+        for delete in &delete {
+            stage.parquet_file_metadata.remove(&delete.id);
+        }
 
         Ok(delete)
     }
@@ -1092,6 +1129,30 @@ impl ParquetFileRepo for MemTxn {
             .collect())
     }
 
+    async fn list_by_partition_not_to_delete_with_metadata(
+        &mut self,
+        partition_id: PartitionId,
+    ) -> Result<Vec<ParquetFileWithMetadata>> {
+        let stage = self.stage();
+
+        Ok(stage
+            .parquet_files
+            .iter()
+            .filter(|f| f.partition_id == partition_id && f.to_delete.is_none())
+            .cloned()
+            .map(|f| {
+                ParquetFileWithMetadata::new(
+                    f,
+                    stage
+                        .parquet_file_metadata
+                        .get(&f.id)
+                        .cloned()
+                        .unwrap_or_default(),
+                )
+            })
+            .collect())
+    }
+
     async fn update_to_level_1(
         &mut self,
         parquet_file_ids: &[ParquetFileId],
@@ -1116,6 +1177,16 @@ impl ParquetFileRepo for MemTxn {
         let stage = self.stage();
 
         Ok(stage.parquet_files.iter().any(|f| f.id == id))
+    }
+
+    async fn parquet_metadata(&mut self, id: ParquetFileId) -> Result<Vec<u8>> {
+        let stage = self.stage();
+
+        stage
+            .parquet_file_metadata
+            .get(&id)
+            .cloned()
+            .ok_or(Error::ParquetRecordNotFound { id })
     }
 
     async fn count(&mut self) -> Result<i64> {

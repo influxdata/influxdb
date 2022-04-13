@@ -12,9 +12,9 @@ use crate::{
 use async_trait::async_trait;
 use data_types2::{
     Column, ColumnType, KafkaPartition, KafkaTopic, KafkaTopicId, Namespace, NamespaceId,
-    ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionInfo,
-    ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Sequencer, SequencerId, Table,
-    TableId, TablePartition, Timestamp, Tombstone, TombstoneId,
+    ParquetFile, ParquetFileId, ParquetFileParams, ParquetFileWithMetadata, Partition, PartitionId,
+    PartitionInfo, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Sequencer,
+    SequencerId, Table, TableId, TablePartition, Timestamp, Tombstone, TombstoneId,
 };
 use observability_deps::tracing::{info, warn};
 use sqlx::{migrate::Migrator, postgres::PgPoolOptions, Acquire, Executor, Postgres, Row};
@@ -1502,9 +1502,13 @@ RETURNING *;
         sequencer_id: SequencerId,
         sequence_number: SequenceNumber,
     ) -> Result<Vec<ParquetFile>> {
+        // Deliberately doesn't use `SELECT *` to avoid the performance hit of fetching the large
+        // `parquet_metadata` column!!
         sqlx::query_as::<_, ParquetFile>(
             r#"
-SELECT *
+SELECT id, sequencer_id, namespace_id, table_id, partition_id, object_store_id,
+       min_sequence_number, max_sequence_number, min_time, max_time, to_delete, file_size_bytes,
+       row_count, compaction_level, created_at
 FROM parquet_file
 WHERE sequencer_id = $1
   AND max_sequence_number > $2
@@ -1522,9 +1526,15 @@ ORDER BY id;
         &mut self,
         namespace_id: NamespaceId,
     ) -> Result<Vec<ParquetFile>> {
+        // Deliberately doesn't use `SELECT *` to avoid the performance hit of fetching the large
+        // `parquet_metadata` column!!
         sqlx::query_as::<_, ParquetFile>(
             r#"
-SELECT parquet_file.*
+SELECT parquet_file.id, parquet_file.sequencer_id, parquet_file.namespace_id,
+       parquet_file.table_id, parquet_file.partition_id, parquet_file.object_store_id,
+       parquet_file.min_sequence_number, parquet_file.max_sequence_number, parquet_file.min_time,
+       parquet_file.max_time, parquet_file.to_delete, parquet_file.file_size_bytes,
+       parquet_file.row_count, parquet_file.compaction_level, parquet_file.created_at
 FROM parquet_file
 INNER JOIN table_name on table_name.id = parquet_file.table_id
 WHERE table_name.namespace_id = $1
@@ -1538,7 +1548,28 @@ WHERE table_name.namespace_id = $1
     }
 
     async fn list_by_table_not_to_delete(&mut self, table_id: TableId) -> Result<Vec<ParquetFile>> {
+        // Deliberately doesn't use `SELECT *` to avoid the performance hit of fetching the large
+        // `parquet_metadata` column!!
         sqlx::query_as::<_, ParquetFile>(
+            r#"
+SELECT id, sequencer_id, namespace_id, table_id, partition_id, object_store_id,
+       min_sequence_number, max_sequence_number, min_time, max_time, to_delete, file_size_bytes,
+       row_count, compaction_level, created_at
+FROM parquet_file
+WHERE table_id = $1 AND to_delete IS NULL;
+             "#,
+        )
+        .bind(&table_id) // $1
+        .fetch_all(&mut self.inner)
+        .await
+        .map_err(|e| Error::SqlxError { source: e })
+    }
+
+    async fn list_by_table_not_to_delete_with_metadata(
+        &mut self,
+        table_id: TableId,
+    ) -> Result<Vec<ParquetFileWithMetadata>> {
+        sqlx::query_as::<_, ParquetFileWithMetadata>(
             r#"
 SELECT *
 FROM parquet_file
@@ -1568,10 +1599,14 @@ RETURNING *;
     async fn level_0(&mut self, sequencer_id: SequencerId) -> Result<Vec<ParquetFile>> {
         // this intentionally limits the returned files to 10,000 as it is used to make
         // a decision on the highest priority partitions. If compaction has never been
-        // run this could end up returning millions of results and taking too long to run
+        // run this could end up returning millions of results and taking too long to run.
+        // Deliberately doesn't use `SELECT *` to avoid the performance hit of fetching the large
+        // `parquet_metadata` column!!
         sqlx::query_as::<_, ParquetFile>(
             r#"
-SELECT *
+SELECT id, sequencer_id, namespace_id, table_id, partition_id, object_store_id,
+       min_sequence_number, max_sequence_number, min_time, max_time, to_delete, file_size_bytes,
+       row_count, compaction_level, created_at
 FROM parquet_file
 WHERE parquet_file.sequencer_id = $1
   AND parquet_file.compaction_level = 0
@@ -1591,9 +1626,13 @@ WHERE parquet_file.sequencer_id = $1
         min_time: Timestamp,
         max_time: Timestamp,
     ) -> Result<Vec<ParquetFile>> {
+        // Deliberately doesn't use `SELECT *` to avoid the performance hit of fetching the large
+        // `parquet_metadata` column!!
         sqlx::query_as::<_, ParquetFile>(
             r#"
-SELECT *
+SELECT id, sequencer_id, namespace_id, table_id, partition_id, object_store_id,
+       min_sequence_number, max_sequence_number, min_time, max_time, to_delete, file_size_bytes,
+       row_count, compaction_level, created_at
 FROM parquet_file
 WHERE parquet_file.sequencer_id = $1
   AND parquet_file.table_id = $2
@@ -1618,13 +1657,35 @@ WHERE parquet_file.sequencer_id = $1
         &mut self,
         partition_id: PartitionId,
     ) -> Result<Vec<ParquetFile>> {
+        // Deliberately doesn't use `SELECT *` to avoid the performance hit of fetching the large
+        // `parquet_metadata` column!!
         sqlx::query_as::<_, ParquetFile>(
+            r#"
+SELECT id, sequencer_id, namespace_id, table_id, partition_id, object_store_id,
+       min_sequence_number, max_sequence_number, min_time, max_time, to_delete, file_size_bytes,
+       row_count, compaction_level, created_at
+FROM parquet_file
+WHERE parquet_file.partition_id = $1
+  AND parquet_file.to_delete IS NULL;
+        "#,
+        )
+        .bind(&partition_id) // $1
+        .fetch_all(&mut self.inner)
+        .await
+        .map_err(|e| Error::SqlxError { source: e })
+    }
+
+    async fn list_by_partition_not_to_delete_with_metadata(
+        &mut self,
+        partition_id: PartitionId,
+    ) -> Result<Vec<ParquetFileWithMetadata>> {
+        sqlx::query_as::<_, ParquetFileWithMetadata>(
             r#"
 SELECT *
 FROM parquet_file
 WHERE parquet_file.partition_id = $1
   AND parquet_file.to_delete IS NULL;
-        "#,
+             "#,
         )
         .bind(&partition_id) // $1
         .fetch_all(&mut self.inner)
@@ -1666,6 +1727,17 @@ RETURNING id;
         .map_err(|e| Error::SqlxError { source: e })?;
 
         Ok(read_result.count > 0)
+    }
+
+    async fn parquet_metadata(&mut self, id: ParquetFileId) -> Result<Vec<u8>> {
+        let read_result =
+            sqlx::query(r#"SELECT parquet_metadata FROM parquet_file WHERE id = $1;"#)
+                .bind(&id) // $1
+                .fetch_one(&mut self.inner)
+                .await
+                .map_err(|e| Error::SqlxError { source: e })?;
+
+        Ok(read_result.get("parquet_metadata"))
     }
 
     async fn count(&mut self) -> Result<i64> {

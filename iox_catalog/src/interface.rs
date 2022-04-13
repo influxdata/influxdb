@@ -3,10 +3,10 @@
 use async_trait::async_trait;
 use data_types2::{
     Column, ColumnSchema, ColumnType, KafkaPartition, KafkaTopic, KafkaTopicId, Namespace,
-    NamespaceId, NamespaceSchema, ParquetFile, ParquetFileId, ParquetFileParams, Partition,
-    PartitionId, PartitionInfo, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber,
-    Sequencer, SequencerId, Table, TableId, TablePartition, TableSchema, Timestamp, Tombstone,
-    TombstoneId,
+    NamespaceId, NamespaceSchema, ParquetFile, ParquetFileId, ParquetFileParams,
+    ParquetFileWithMetadata, Partition, PartitionId, PartitionInfo, ProcessedTombstone, QueryPool,
+    QueryPoolId, SequenceNumber, Sequencer, SequencerId, Table, TableId, TablePartition,
+    TableSchema, Timestamp, Tombstone, TombstoneId,
 };
 use snafu::{OptionExt, Snafu};
 use std::{collections::BTreeMap, convert::TryFrom, fmt::Debug, sync::Arc};
@@ -525,6 +525,13 @@ pub trait ParquetFileRepo: Send + Sync {
     /// [`to_delete`](ParquetFile::to_delete).
     async fn list_by_table_not_to_delete(&mut self, table_id: TableId) -> Result<Vec<ParquetFile>>;
 
+    /// List all parquet files and their metadata within a given table that are NOT marked as
+    /// [`to_delete`](ParquetFile::to_delete). Fetching metadata can be expensive.
+    async fn list_by_table_not_to_delete_with_metadata(
+        &mut self,
+        table_id: TableId,
+    ) -> Result<Vec<ParquetFileWithMetadata>>;
+
     /// Delete all parquet files that were marked to be deleted earlier than the specified time.
     /// Returns the deleted records.
     async fn delete_old(&mut self, older_than: Timestamp) -> Result<Vec<ParquetFile>>;
@@ -543,11 +550,19 @@ pub trait ParquetFileRepo: Send + Sync {
         max_time: Timestamp,
     ) -> Result<Vec<ParquetFile>>;
 
-    /// List parquet files for a given partition that are NOT marked as [`to_delete`](ParquetFile::to_delete).
+    /// List parquet files for a given partition that are NOT marked as
+    /// [`to_delete`](ParquetFile::to_delete).
     async fn list_by_partition_not_to_delete(
         &mut self,
         partition_id: PartitionId,
     ) -> Result<Vec<ParquetFile>>;
+
+    /// List parquet files and their metadata for a given partition that are NOT marked as
+    /// [`to_delete`](ParquetFile::to_delete). Fetching metadata can be expensive.
+    async fn list_by_partition_not_to_delete_with_metadata(
+        &mut self,
+        partition_id: PartitionId,
+    ) -> Result<Vec<ParquetFileWithMetadata>>;
 
     /// Update the compaction level of the specified parquet files to level 1. Returns the IDs
     /// of the files that were successfully updated.
@@ -558,6 +573,9 @@ pub trait ParquetFileRepo: Send + Sync {
 
     /// Verify if the parquet file exists by selecting its id
     async fn exist(&mut self, id: ParquetFileId) -> Result<bool>;
+
+    /// Fetch the parquet_metadata bytes for the given id. Potentially expensive.
+    async fn parquet_metadata(&mut self, id: ParquetFileId) -> Result<Vec<u8>>;
 
     /// Return count
     async fn count(&mut self) -> Result<i64>;
@@ -1738,6 +1756,13 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
 
+        let metadata = repos
+            .parquet_files()
+            .parquet_metadata(parquet_file.id)
+            .await
+            .unwrap();
+        assert_eq!(metadata, b"md1".to_vec());
+
         // verify that trying to create a file with the same UUID throws an error
         let err = repos
             .parquet_files()
@@ -1770,13 +1795,13 @@ pub(crate) mod test_helpers {
             .list_by_sequencer_greater_than(sequencer.id, SequenceNumber::new(1))
             .await
             .unwrap();
-        assert_eq!(vec![parquet_file.clone(), other_file.clone()], files);
+        assert_eq!(vec![parquet_file, other_file], files);
         let files = repos
             .parquet_files()
             .list_by_sequencer_greater_than(sequencer.id, SequenceNumber::new(150))
             .await
             .unwrap();
-        assert_eq!(vec![other_file.clone()], files);
+        assert_eq!(vec![other_file], files);
 
         // verify that to_delete is initially set to null and the file does not get deleted
         assert!(parquet_file.to_delete.is_none());
@@ -1832,6 +1857,23 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         assert_eq!(files, vec![other_file]);
+
+        // test list_by_table_not_to_delete_with_metadata
+        let files = repos
+            .parquet_files()
+            .list_by_table_not_to_delete_with_metadata(table.id)
+            .await
+            .unwrap();
+        assert_eq!(files, vec![]);
+        let files = repos
+            .parquet_files()
+            .list_by_table_not_to_delete_with_metadata(other_table.id)
+            .await
+            .unwrap();
+        assert_eq!(
+            files,
+            vec![ParquetFileWithMetadata::new(other_file, b"md1".to_vec())]
+        );
 
         // test list_by_namespace_not_to_delete
         let namespace2 = repos
@@ -1890,7 +1932,7 @@ pub(crate) mod test_helpers {
             .list_by_namespace_not_to_delete(namespace2.id)
             .await
             .unwrap();
-        assert_eq!(vec![f1.clone(), f2.clone()], files);
+        assert_eq!(vec![f1, f2], files);
 
         let f3_params = ParquetFileParams {
             object_store_id: Uuid::new_v4(),
@@ -1906,7 +1948,7 @@ pub(crate) mod test_helpers {
             .list_by_namespace_not_to_delete(namespace2.id)
             .await
             .unwrap();
-        assert_eq!(vec![f1.clone(), f2.clone(), f3.clone()], files);
+        assert_eq!(vec![f1, f2, f3], files);
 
         repos.parquet_files().flag_for_delete(f2.id).await.unwrap();
         let files = repos
@@ -1914,7 +1956,7 @@ pub(crate) mod test_helpers {
             .list_by_namespace_not_to_delete(namespace2.id)
             .await
             .unwrap();
-        assert_eq!(vec![f1.clone(), f3.clone()], files);
+        assert_eq!(vec![f1, f3], files);
 
         let files = repos
             .parquet_files()
@@ -2449,6 +2491,19 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         assert_eq!(files, vec![parquet_file, level1_file]);
+
+        let files = repos
+            .parquet_files()
+            .list_by_partition_not_to_delete_with_metadata(partition.id)
+            .await
+            .unwrap();
+        assert_eq!(
+            files,
+            vec![
+                ParquetFileWithMetadata::new(parquet_file, b"md1".to_vec()),
+                ParquetFileWithMetadata::new(level1_file, b"md1".to_vec()),
+            ]
+        );
     }
 
     async fn test_update_to_compaction_level_1(catalog: Arc<dyn Catalog>) {
@@ -2519,7 +2574,7 @@ pub(crate) mod test_helpers {
         let nonexistent_parquet_file_id = ParquetFileId::new(level_0_file.id.get() + 1);
 
         // Level 0 parquet files should contain both existing files at this point
-        let expected = vec![parquet_file.clone(), level_0_file.clone()];
+        let expected = vec![parquet_file, level_0_file];
         let level_0 = repos.parquet_files().level_0(sequencer.id).await.unwrap();
         let mut level_0_ids: Vec<_> = level_0.iter().map(|pf| pf.id).collect();
         level_0_ids.sort();

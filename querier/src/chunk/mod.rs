@@ -3,8 +3,8 @@
 use crate::cache::CatalogCache;
 use arrow::record_batch::RecordBatch;
 use data_types2::{
-    ChunkAddr, ChunkId, ChunkOrder, DeletePredicate, ParquetFile, ParquetFileId, SequenceNumber,
-    SequencerId,
+    ChunkAddr, ChunkId, ChunkOrder, DeletePredicate, ParquetFile, ParquetFileId,
+    ParquetFileWithMetadata, SequenceNumber, SequencerId,
 };
 use futures::StreamExt;
 use iox_catalog::interface::Catalog;
@@ -212,8 +212,11 @@ impl ParquetChunkAdapter {
     /// Create new querier chunk.
     ///
     /// Returns `None` if some data required to create this chunk is already gone from the catalog.
-    pub async fn new_querier_chunk(&self, parquet_file: ParquetFile) -> Option<QuerierChunk> {
-        let decoded_parquet_file = DecodedParquetFile::new(parquet_file);
+    pub async fn new_querier_chunk(
+        &self,
+        parquet_file_with_metadata: ParquetFileWithMetadata,
+    ) -> Option<QuerierChunk> {
+        let decoded_parquet_file = DecodedParquetFile::new(parquet_file_with_metadata);
         let chunk = Arc::new(self.new_parquet_chunk(&decoded_parquet_file).await?);
 
         let addr = self
@@ -334,8 +337,7 @@ pub mod tests {
             .await
             .create_parquet_file(&lp)
             .await
-            .parquet_file
-            .clone();
+            .parquet_file;
 
         // create chunk
         let chunk = adapter.new_querier_chunk(parquet_file).await.unwrap();
