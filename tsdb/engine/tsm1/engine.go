@@ -3110,12 +3110,8 @@ func BlockTypeToInfluxQLDataType(typ byte) influxql.DataType { return blockToFie
 
 // SeriesAndFieldFromCompositeKey returns the series key and the field key extracted from the composite key.
 func SeriesAndFieldFromCompositeKey(key []byte) ([]byte, []byte) {
-	sep := bytes.Index(key, keyFieldSeparatorBytes)
-	if sep == -1 {
-		// No field???
-		return key, nil
-	}
-	return key[:sep], key[sep+len(keyFieldSeparator):]
+	series, field, _ := bytes.Cut(key, keyFieldSeparatorBytes)
+	return series, field
 }
 
 func varRefSliceContains(a []influxql.VarRef, v string) bool {

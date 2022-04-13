@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"go/format"
 	"html/template"
-	"io/ioutil"
+	"os"
 	"strings"
 
 	"golang.org/x/text/cases"
@@ -30,13 +30,13 @@ func CreateNewMigration(existing []Spec, name string) error {
 
 	fmt.Println("Creating new migration:", newMigrationFile)
 
-	if err := ioutil.WriteFile(newMigrationFile, []byte(fmt.Sprintf(newMigrationFmt, newMigrationVariable)), 0644); err != nil {
+	if err := os.WriteFile(newMigrationFile, []byte(fmt.Sprintf(newMigrationFmt, newMigrationVariable)), 0644); err != nil {
 		return err
 	}
 
 	fmt.Println("Inserting migration into ./kv/migration/all/all.go")
 
-	tmplData, err := ioutil.ReadFile("./kv/migration/all/all.go")
+	tmplData, err := os.ReadFile("./kv/migration/all/all.go")
 	if err != nil {
 		return err
 	}
@@ -69,7 +69,7 @@ func CreateNewMigration(existing []Spec, name string) error {
 		return err
 	}
 
-	if err := ioutil.WriteFile("./kv/migration/all/all.go", src, 0644); err != nil {
+	if err := os.WriteFile("./kv/migration/all/all.go", src, 0644); err != nil {
 		return err
 	}
 

@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -404,7 +404,7 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
 
 			res := w.Result()
 			content := res.Header.Get("Content-Type")
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 
 			if res.StatusCode != tt.wants.statusCode {
 				t.Errorf("%q. handleGetTasks() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
@@ -570,7 +570,7 @@ func TestTaskHandler_handlePostTasks(t *testing.T) {
 
 			res := w.Result()
 			content := res.Header.Get("Content-Type")
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 
 			if res.StatusCode != tt.wants.statusCode {
 				t.Errorf("%q. handlePostTask() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
@@ -684,7 +684,7 @@ func TestTaskHandler_handleGetRun(t *testing.T) {
 
 			res := w.Result()
 			content := res.Header.Get("Content-Type")
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 
 			if res.StatusCode != tt.wants.statusCode {
 				t.Errorf("%q. handleGetRun() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
@@ -802,7 +802,7 @@ func TestTaskHandler_handleGetRuns(t *testing.T) {
 
 			res := w.Result()
 			content := res.Header.Get("Content-Type")
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 
 			if res.StatusCode != tt.wants.statusCode {
 				t.Errorf("%q. handleGetRuns() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
@@ -1083,7 +1083,7 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 
 				if res.StatusCode < 200 || res.StatusCode > 299 {
 					t.Errorf("expected OK, got %d", res.StatusCode)
-					b, _ := ioutil.ReadAll(res.Body)
+					b, _ := io.ReadAll(res.Body)
 					t.Fatalf("body: %s", string(b))
 				}
 			})
@@ -1104,7 +1104,7 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 
 						if res.StatusCode != http.StatusNotFound {
 							t.Errorf("expected Not Found, got %d", res.StatusCode)
-							b, _ := ioutil.ReadAll(res.Body)
+							b, _ := io.ReadAll(res.Body)
 							t.Fatalf("body: %s", string(b))
 						}
 					})
@@ -1197,7 +1197,7 @@ func TestService_handlePostTaskLabel(t *testing.T) {
 
 			res := w.Result()
 			content := res.Header.Get("Content-Type")
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 
 			if res.StatusCode != tt.wants.statusCode {
 				t.Errorf("got %v, want %v", res.StatusCode, tt.wants.statusCode)
@@ -1295,7 +1295,7 @@ func TestTaskHandler_CreateTaskWithOrgName(t *testing.T) {
 
 	res := w.Result()
 	defer res.Body.Close()
-	body, err := ioutil.ReadAll(res.Body)
+	body, err := io.ReadAll(res.Body)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1430,7 +1430,7 @@ func TestTaskHandler_Sessions(t *testing.T) {
 		h.handleGetRuns(w, r)
 
 		res := w.Result()
-		body, err := ioutil.ReadAll(res.Body)
+		body, err := io.ReadAll(res.Body)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1469,7 +1469,7 @@ func TestTaskHandler_Sessions(t *testing.T) {
 		h.handleGetRuns(w, r)
 
 		res = w.Result()
-		body, err = ioutil.ReadAll(res.Body)
+		body, err = io.ReadAll(res.Body)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1526,7 +1526,7 @@ func TestTaskHandler_Sessions(t *testing.T) {
 		h.handleGetRun(w, r)
 
 		res := w.Result()
-		body, err := ioutil.ReadAll(res.Body)
+		body, err := io.ReadAll(res.Body)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1563,7 +1563,7 @@ func TestTaskHandler_Sessions(t *testing.T) {
 		h.handleGetRuns(w, r)
 
 		res = w.Result()
-		body, err = ioutil.ReadAll(res.Body)
+		body, err = io.ReadAll(res.Body)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1621,7 +1621,7 @@ func TestTaskHandler_Sessions(t *testing.T) {
 		h.handleGetLogs(w, r)
 
 		res := w.Result()
-		body, err := ioutil.ReadAll(res.Body)
+		body, err := io.ReadAll(res.Body)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1658,7 +1658,7 @@ func TestTaskHandler_Sessions(t *testing.T) {
 		h.handleGetRuns(w, r)
 
 		res = w.Result()
-		body, err = ioutil.ReadAll(res.Body)
+		body, err = io.ReadAll(res.Body)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1715,7 +1715,7 @@ func TestTaskHandler_Sessions(t *testing.T) {
 		h.handleRetryRun(w, r)
 
 		res := w.Result()
-		body, err := ioutil.ReadAll(res.Body)
+		body, err := io.ReadAll(res.Body)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1752,7 +1752,7 @@ func TestTaskHandler_Sessions(t *testing.T) {
 		h.handleGetRuns(w, r)
 
 		res = w.Result()
-		body, err = ioutil.ReadAll(res.Body)
+		body, err = io.ReadAll(res.Body)
 		if err != nil {
 			t.Fatal(err)
 		}

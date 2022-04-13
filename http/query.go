@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"mime"
 	"net/http"
 	"time"
@@ -294,7 +293,7 @@ func decodeQueryRequest(ctx context.Context, r *http.Request, svc influxdb.Organ
 	}
 	switch mt {
 	case fluxContentType:
-		octets, err := ioutil.ReadAll(body)
+		octets, err := io.ReadAll(body)
 		if err != nil {
 			return nil, body.bytesRead, err
 		}

@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"time"
@@ -590,7 +589,7 @@ func GetQueryResponseBody(res *http.Response) ([]byte, error) {
 		return nil, err
 	}
 	defer res.Body.Close()
-	return ioutil.ReadAll(res.Body)
+	return io.ReadAll(res.Body)
 }
 
 // SimpleQuery runs a flux query with common parameters and returns CSV results.

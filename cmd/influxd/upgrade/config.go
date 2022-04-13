@@ -5,7 +5,6 @@ package upgrade
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -76,7 +75,7 @@ func loadV1Config(configFile string) (*configV1, *map[string]interface{}, error)
 }
 
 func load(path string) ([]byte, error) {
-	bs, err := ioutil.ReadFile(path)
+	bs, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
@@ -193,11 +192,7 @@ func fixQueryLimits(v2Config map[string]interface{}) {
 
 func (cu *configUpgrader) lookup(v1Config map[string]interface{}, path string) (interface{}, bool) {
 	for {
-		elem := path
-		rest := ""
-		if i := strings.Index(path, "."); i != -1 {
-			elem, rest = path[0:i], path[i+1:]
-		}
+		elem, rest, _ := strings.Cut(path, ".")
 		val, ok := v1Config[elem]
 		if rest == "" {
 			return val, ok

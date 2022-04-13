@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -357,7 +357,7 @@ func TestService_handleGetAuthorizations(t *testing.T) {
 
 			res := w.Result()
 			content := res.Header.Get("Content-Type")
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 
 			if res.StatusCode != tt.wants.statusCode {
 				t.Errorf("%q. handleGetAuthorizations() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
@@ -545,7 +545,7 @@ func TestService_handleGetAuthorization(t *testing.T) {
 
 			res := w.Result()
 			content := res.Header.Get("Content-Type")
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 
 			if res.StatusCode != tt.wants.statusCode {
 				t.Logf("headers: %v body: %s", res.Header, body)
@@ -726,7 +726,7 @@ func TestService_handlePostAuthorization(t *testing.T) {
 
 			res := w.Result()
 			content := res.Header.Get("Content-Type")
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 
 			if res.StatusCode != tt.wants.statusCode {
 				t.Logf("headers: %v body: %s", res.Header, body)
@@ -838,7 +838,7 @@ func TestService_handleDeleteAuthorization(t *testing.T) {
 
 			res := w.Result()
 			content := res.Header.Get("Content-Type")
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 
 			if res.StatusCode != tt.wants.statusCode {
 				t.Errorf("%q. handleDeleteAuthorization() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)

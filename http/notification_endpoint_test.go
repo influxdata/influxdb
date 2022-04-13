@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"path"
@@ -246,7 +246,7 @@ func TestService_handleGetNotificationEndpoints(t *testing.T) {
 
 			res := w.Result()
 			content := res.Header.Get("Content-Type")
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 
 			if res.StatusCode != tt.wants.statusCode {
 				t.Errorf("%q. handleGetNotificationEndpoints() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
@@ -384,7 +384,7 @@ func TestService_handleGetNotificationEndpoint(t *testing.T) {
 
 			res := w.Result()
 			content := res.Header.Get("Content-Type")
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 			t.Logf(res.Header.Get("X-Influx-Error"))
 
 			if res.StatusCode != tt.wants.statusCode {
@@ -734,7 +734,7 @@ func TestService_handlePatchNotificationEndpoint(t *testing.T) {
 
 			res := w.Result()
 			content := res.Header.Get("Content-Type")
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 
 			if res.StatusCode != tt.wants.statusCode {
 				t.Errorf("%q. handlePatchNotificationEndpoint() = %v, want %v %v", tt.name, res.StatusCode, tt.wants.statusCode, w.Header())
@@ -954,7 +954,7 @@ func TestService_handlePostNotificationEndpointMember(t *testing.T) {
 
 			res := w.Result()
 			content := res.Header.Get("Content-Type")
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 
 			if res.StatusCode != tt.wants.statusCode {
 				t.Errorf("%q. handlePostNotificationEndpointMember() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
@@ -1048,7 +1048,7 @@ func TestService_handlePostNotificationEndpointOwner(t *testing.T) {
 
 			res := w.Result()
 			content := res.Header.Get("Content-Type")
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 
 			if res.StatusCode != tt.wants.statusCode {
 				t.Errorf("%q. handlePostNotificationEndpointOwner() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)

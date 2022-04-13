@@ -123,7 +123,7 @@ func deepValueEqual(v1, v2 reflect.Value, visited map[visit]bool, depth int) boo
 			return v1.IsNil() == v2.IsNil()
 		}
 		return deepValueEqual(v1.Elem(), v2.Elem(), visited, depth+1)
-	case reflect.Ptr:
+	case reflect.Pointer:
 		return deepValueEqual(v1.Elem(), v2.Elem(), visited, depth+1)
 	case reflect.Struct:
 		for i, n := 0, v1.NumField(); i < n; i++ {

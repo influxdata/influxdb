@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -114,7 +114,7 @@ func TestPusher_Push(t *testing.T) {
 						return
 					}
 					got.Method = r.Method
-					got.Body, _ = ioutil.ReadAll(r.Body)
+					got.Body, _ = io.ReadAll(r.Body)
 					w.WriteHeader(tt.status)
 				}),
 			)

@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -380,7 +380,7 @@ func TestService_handleGetDashboards(t *testing.T) {
 
 			res := w.Result()
 			content := res.Header.Get("Content-Type")
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 
 			if res.StatusCode != tt.wants.statusCode {
 				t.Errorf("%q. handleGetDashboards() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
@@ -811,7 +811,7 @@ func TestService_handleGetDashboard(t *testing.T) {
 
 			res := w.Result()
 			content := res.Header.Get("Content-Type")
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 			if res.StatusCode != tt.wants.statusCode {
 				t.Errorf("%q. handleGetDashboard() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
 			}
@@ -1075,7 +1075,7 @@ func TestService_handlePostDashboard(t *testing.T) {
 
 			res := w.Result()
 			content := res.Header.Get("Content-Type")
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 
 			if res.StatusCode != tt.wants.statusCode {
 				t.Errorf("%q. handlePostDashboard() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
@@ -1174,7 +1174,7 @@ func TestService_handleDeleteDashboard(t *testing.T) {
 
 			res := w.Result()
 			content := res.Header.Get("Content-Type")
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 
 			if res.StatusCode != tt.wants.statusCode {
 				t.Errorf("%q. handleDeleteDashboard() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
@@ -1365,7 +1365,7 @@ func TestService_handlePatchDashboard(t *testing.T) {
 
 			res := w.Result()
 			content := res.Header.Get("Content-Type")
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 
 			if res.StatusCode != tt.wants.statusCode {
 				t.Errorf("%q. handlePatchDashboard() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
@@ -1536,7 +1536,7 @@ func TestService_handlePostDashboardCell(t *testing.T) {
 
 			res := w.Result()
 			content := res.Header.Get("Content-Type")
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 
 			if res.StatusCode != tt.wants.statusCode {
 				t.Errorf("%q. handlePostDashboardCell() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
@@ -1618,7 +1618,7 @@ func TestService_handleDeleteDashboardCell(t *testing.T) {
 
 			res := w.Result()
 			content := res.Header.Get("Content-Type")
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 
 			if res.StatusCode != tt.wants.statusCode {
 				t.Errorf("%q. handleDeleteDashboardCell() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
@@ -1746,7 +1746,7 @@ func TestService_handlePatchDashboardCell(t *testing.T) {
 
 			res := w.Result()
 			content := res.Header.Get("Content-Type")
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 
 			if res.StatusCode != tt.wants.statusCode {
 				t.Errorf("%q. handlePatchDashboardCell() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
@@ -1925,7 +1925,7 @@ func TestService_handlePostDashboardLabel(t *testing.T) {
 
 			res := w.Result()
 			content := res.Header.Get("Content-Type")
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 
 			if res.StatusCode != tt.wants.statusCode {
 				t.Errorf("got %v, want %v", res.StatusCode, tt.wants.statusCode)

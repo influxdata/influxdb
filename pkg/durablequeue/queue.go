@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -233,7 +232,7 @@ func (l *Queue) RemoveSegments() error {
 		return fmt.Errorf("queue is open")
 	}
 
-	files, err := ioutil.ReadDir(l.dir)
+	files, err := os.ReadDir(l.dir)
 	if err != nil {
 		return err
 	}
@@ -395,7 +394,7 @@ func (l *Queue) addSegment() error {
 func (l *Queue) loadSegments() (segments, error) {
 	var ss segments
 
-	files, err := ioutil.ReadDir(l.dir)
+	files, err := os.ReadDir(l.dir)
 	if err != nil {
 		return ss, err
 	}
@@ -440,7 +439,7 @@ func (l *Queue) loadSegments() (segments, error) {
 
 // nextSegmentID returns the next segment ID that is free.
 func (l *Queue) nextSegmentID() (uint64, error) {
-	segments, err := ioutil.ReadDir(l.dir)
+	segments, err := os.ReadDir(l.dir)
 	if err != nil {
 		return 0, err
 	}

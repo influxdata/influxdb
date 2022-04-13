@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -94,7 +94,7 @@ func TestService_handlePostLabel(t *testing.T) {
 
 			res := w.Result()
 			content := res.Header.Get("Content-Type")
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 
 			if res.StatusCode != tt.wants.statusCode {
 				t.Errorf("%q. handlePostLabel() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
@@ -207,7 +207,7 @@ func TestService_handleGetLabel(t *testing.T) {
 
 			res := w.Result()
 			content := res.Header.Get("Content-Type")
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 
 			if res.StatusCode != tt.wants.statusCode {
 				t.Errorf("%q. handleGetLabel() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
@@ -330,7 +330,7 @@ func TestService_handleGetLabels(t *testing.T) {
 
 			res := w.Result()
 			content := res.Header.Get("Content-Type")
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 
 			if res.StatusCode != tt.wants.statusCode {
 				t.Errorf("%q. handleGetLabels() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
@@ -470,7 +470,7 @@ func TestService_handlePatchLabel(t *testing.T) {
 
 			res := w.Result()
 			content := res.Header.Get("Content-Type")
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 
 			if res.StatusCode != tt.wants.statusCode {
 				t.Errorf("%q. handlePatchLabel() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
@@ -566,7 +566,7 @@ func TestService_handleDeleteLabel(t *testing.T) {
 
 			res := w.Result()
 			content := res.Header.Get("Content-Type")
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 
 			if res.StatusCode != tt.wants.statusCode {
 				t.Errorf("%q. handleDeleteLabel() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)

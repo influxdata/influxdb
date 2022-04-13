@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -45,7 +45,7 @@ func constantStatus(i int) func(int) int {
 func testServer(t *testing.T, statusForCount func(int) int, wantData []byte) *httptest.Server {
 	count := 0
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotData, err := ioutil.ReadAll(r.Body)
+		gotData, err := io.ReadAll(r.Body)
 		require.NoError(t, err)
 		require.Equal(t, wantData, gotData)
 		w.WriteHeader(statusForCount(count))
@@ -206,7 +206,7 @@ func TestWrite(t *testing.T) {
 		waitTimeFromHeader := 5 * time.Second
 
 		svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			gotData, err := ioutil.ReadAll(r.Body)
+			gotData, err := io.ReadAll(r.Body)
 			require.NoError(t, err)
 			require.Equal(t, testData, gotData)
 			w.Header().Set(retryAfterHeaderKey, strconv.Itoa(numSeconds))
@@ -363,7 +363,7 @@ func TestPostWrite(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("status code %d", tt.status), func(t *testing.T) {
 			svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				recData, err := ioutil.ReadAll(r.Body)
+				recData, err := io.ReadAll(r.Body)
 				require.NoError(t, err)
 				require.Equal(t, testData, recData)
 

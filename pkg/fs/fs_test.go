@@ -1,7 +1,7 @@
 package fs_test
 
 import (
-	"io/ioutil"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -94,7 +94,7 @@ func testFileMoveOrRename(t *testing.T, name string, testFunc func(src string, d
 func MustCreateTempFile(t testing.TB, data string) string {
 	t.Helper()
 
-	f, err := ioutil.TempFile("", "fs-test")
+	f, err := os.CreateTemp("", "fs-test")
 	if err != nil {
 		t.Fatalf("failed to create temp file: %v", err)
 	} else if _, err := f.WriteString(data); err != nil {
@@ -131,7 +131,7 @@ func MustReadAllFile(path string) string {
 	}
 	defer fd.Close()
 
-	data, err := ioutil.ReadAll(fd)
+	data, err := io.ReadAll(fd)
 	if err != nil {
 		panic(err)
 	}

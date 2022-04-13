@@ -3,7 +3,6 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"math"
 	"os"
 	"path"
@@ -185,7 +184,7 @@ func Test_NewProgram(t *testing.T) {
 	for _, tt := range tests {
 		for _, writer := range configWriters {
 			fn := func(t *testing.T) {
-				testDir, err := ioutil.TempDir("", "")
+				testDir, err := os.MkdirTemp("", "")
 				require.NoError(t, err)
 				defer os.RemoveAll(testDir)
 
@@ -275,7 +274,7 @@ func writeJsonConfig(dir string, config interface{}) (string, error) {
 		return "", err
 	}
 	confFile := path.Join(dir, "config.json")
-	if err := ioutil.WriteFile(confFile, b, os.ModePerm); err != nil {
+	if err := os.WriteFile(confFile, b, os.ModePerm); err != nil {
 		return "", err
 	}
 	return confFile, nil
@@ -383,7 +382,7 @@ func Test_ConfigPrecedence(t *testing.T) {
 
 	for _, tt := range tests {
 		fn := func(t *testing.T) {
-			testDir, err := ioutil.TempDir("", "")
+			testDir, err := os.MkdirTemp("", "")
 			require.NoError(t, err)
 			defer os.RemoveAll(testDir)
 			defer setEnvVar("TEST_CONFIG_PATH", testDir)()
@@ -430,7 +429,7 @@ func Test_ConfigPrecedence(t *testing.T) {
 }
 
 func Test_ConfigPathDotDirectory(t *testing.T) {
-	testDir, err := ioutil.TempDir("", "")
+	testDir, err := os.MkdirTemp("", "")
 	require.NoError(t, err)
 	defer os.RemoveAll(testDir)
 
@@ -488,7 +487,7 @@ func Test_ConfigPathDotDirectory(t *testing.T) {
 }
 
 func Test_LoadConfigCwd(t *testing.T) {
-	testDir, err := ioutil.TempDir("", "")
+	testDir, err := os.MkdirTemp("", "")
 	require.NoError(t, err)
 	defer os.RemoveAll(testDir)
 

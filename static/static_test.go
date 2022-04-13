@@ -3,7 +3,6 @@ package static
 import (
 	"io"
 	"io/fs"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -177,7 +176,7 @@ func TestOpenAsset(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, tt.fallback, fallback)
 
-			got, err := ioutil.ReadAll(gotFile)
+			got, err := io.ReadAll(gotFile)
 			require.NoError(t, err)
 
 			require.Equal(t, tt.want, got)

@@ -149,7 +149,7 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 	element := spec
 	// If spec is a named type and is addressable,
 	// check the address to see if it implements encoding.TextUnmarshaler.
-	if spec.Kind() != reflect.Ptr && spec.Type().Name() != "" && spec.CanAddr() {
+	if spec.Kind() != reflect.Pointer && spec.Type().Name() != "" && spec.CanAddr() {
 		v := spec.Addr()
 		if u, ok := v.Interface().(encoding.TextUnmarshaler); ok {
 			value := getenv(prefix)
@@ -157,7 +157,7 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 		}
 	}
 	// If we have a pointer, dereference it
-	if spec.Kind() == reflect.Ptr {
+	if spec.Kind() == reflect.Pointer {
 		element = spec.Elem()
 	}
 
@@ -251,7 +251,7 @@ func applyEnvOverrides(getenv func(string) string, prefix string, spec reflect.V
 			}
 
 			// If it's a sub-config, recursively apply
-			if field.Kind() == reflect.Struct || field.Kind() == reflect.Ptr ||
+			if field.Kind() == reflect.Struct || field.Kind() == reflect.Pointer ||
 				field.Kind() == reflect.Slice || field.Kind() == reflect.Array {
 				if err := applyEnvOverrides(getenv, envKey, field, fieldName); err != nil {
 					return err

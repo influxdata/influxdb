@@ -2,7 +2,7 @@ package http
 
 import (
 	"context"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -151,7 +151,7 @@ func TestService_handleGetDocuments(t *testing.T) {
 			h.handleGetDocuments(w, r)
 			res := w.Result()
 			content := res.Header.Get("Content-Type")
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 
 			if res.StatusCode != tt.wants.statusCode {
 				t.Errorf("%q. handleGetDocuments() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)

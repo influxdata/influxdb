@@ -5,9 +5,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -24,7 +24,7 @@ import (
 func TestPkgerHTTPServerStacks(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		b, err := ioutil.ReadFile(strings.TrimPrefix(r.URL.Path, "/"))
+		b, err := os.ReadFile(strings.TrimPrefix(r.URL.Path, "/"))
 		if err != nil {
 			http.Error(w, err.Error(), 500)
 			return

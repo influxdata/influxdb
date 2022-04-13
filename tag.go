@@ -103,10 +103,7 @@ func NewTag(s string) (Tag, error) {
 		}
 	}
 
-	slice := strings.Split(s, ":")
-	tagPair.Key = slice[0]
-	tagPair.Value = slice[1]
-
+	tagPair.Key, tagPair.Value, _ = strings.Cut(s, ":")
 	return tagPair, nil
 }
 

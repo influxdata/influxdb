@@ -2,7 +2,7 @@ package http
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -15,7 +15,7 @@ func TestReadyHandler(t *testing.T) {
 	ReadyHandler().ServeHTTP(w, r)
 	res := w.Result()
 	contentType := res.Header.Get("Content-Type")
-	body, _ := ioutil.ReadAll(res.Body)
+	body, _ := io.ReadAll(res.Body)
 
 	if res.StatusCode != 200 {
 		t.Errorf("TestReadyHandler. ReadyHandler() StatusCode = %v, want 200", res.StatusCode)

@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"math"
 	"math/rand"
 	"os"
@@ -2271,7 +2270,7 @@ type Store struct {
 func NewStore(tb testing.TB, index string) *Store {
 	tb.Helper()
 
-	path, err := ioutil.TempDir("", "influxdb-tsdb-")
+	path, err := os.MkdirTemp("", "influxdb-tsdb-")
 	if err != nil {
 		panic(err)
 	}

@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	nethttp "net/http"
 	"net/http/httptest"
+	"os"
 	"runtime"
 	"sort"
 	"strings"
@@ -658,7 +658,7 @@ func TestLauncher_Pkger(t *testing.T) {
 			}))
 			defer svr.Close()
 
-			f, err := ioutil.TempFile("", "pkg.yml")
+			f, err := os.CreateTemp("", "pkg.yml")
 			require.NoError(t, err)
 			defer f.Close()
 

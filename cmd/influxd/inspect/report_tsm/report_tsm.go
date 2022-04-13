@@ -1,6 +1,7 @@
 package report_tsm
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"math"
@@ -147,8 +148,7 @@ func (a *args) Run(cmd *cobra.Command) error {
 			dbCount.Add(key)
 
 			if a.detailed {
-				sep := strings.Index(string(key), "#!~#")
-				seriesKey, field := key[:sep], key[sep+4:]
+				seriesKey, field, _ := bytes.Cut(key, []byte("#!~#"))
 				measurement, tags := models.ParseKey(seriesKey)
 
 				measCount, ok := measCardinalities[measurement]

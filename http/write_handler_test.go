@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -121,7 +120,7 @@ func TestWriteService_WriteTo(t *testing.T) {
 				defer r.Body.Close()
 				in, _ := gzip.NewReader(r.Body)
 				defer in.Close()
-				lp, _ = ioutil.ReadAll(in)
+				lp, _ = io.ReadAll(in)
 				w.WriteHeader(tt.status)
 			}))
 			s := &WriteService{

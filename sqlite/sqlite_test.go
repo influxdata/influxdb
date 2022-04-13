@@ -3,7 +3,6 @@ package sqlite
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -60,7 +59,7 @@ func TestBackupSqlStore(t *testing.T) {
 	// this temporary dir/file is is used as the source db path for testing a bacup
 	// from a non-memory database. each individual test also creates a separate temporary dir/file
 	// to backup into.
-	td, err := ioutil.TempDir("", "")
+	td, err := os.MkdirTemp("", "")
 	require.NoError(t, err)
 	tf := fmt.Sprintf("%s/%s", td, DefaultFilename)
 	defer os.RemoveAll(td)
@@ -95,7 +94,7 @@ func TestBackupSqlStore(t *testing.T) {
 		require.NoError(t, err)
 
 		// create a file to write the backup to.
-		tempDir, err := ioutil.TempDir("", "")
+		tempDir, err := os.MkdirTemp("", "")
 		require.NoError(t, err)
 		defer os.RemoveAll(tempDir)
 
@@ -131,7 +130,7 @@ func TestRestoreSqlStore(t *testing.T) {
 	// this temporary dir/file is is used as the destination db path for testing a restore
 	// into a non-memory database. each individual test also creates a separate temporary dir/file
 	// to hold a test db to restore from.
-	td, err := ioutil.TempDir("", "")
+	td, err := os.MkdirTemp("", "")
 	require.NoError(t, err)
 	tf := fmt.Sprintf("%s/%s", td, DefaultFilename)
 	defer os.RemoveAll(td)
@@ -154,7 +153,7 @@ func TestRestoreSqlStore(t *testing.T) {
 		ctx := context.Background()
 
 		// create the test db to restore from
-		tempDir, err := ioutil.TempDir("", "")
+		tempDir, err := os.MkdirTemp("", "")
 		require.NoError(t, err)
 		tempFileName := fmt.Sprintf("%s/%s", tempDir, DefaultFilename)
 		defer os.RemoveAll(tempDir)

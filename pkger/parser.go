@@ -6,10 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"path"
 	"regexp"
 	"sort"
@@ -118,7 +118,7 @@ func FromFile(filePath string) ReaderFn {
 		}
 
 		// not using os.Open to avoid having to deal with closing the file in here
-		b, err := ioutil.ReadFile(u.Path)
+		b, err := os.ReadFile(u.Path)
 		if err != nil {
 			return nil, filePath, err
 		}
@@ -253,7 +253,7 @@ func parseSource(r io.Reader, opts ...ValidateOptFn) (*Template, error) {
 	if byter, ok := r.(interface{ Bytes() []byte }); ok {
 		b = byter.Bytes()
 	} else {
-		bb, err := ioutil.ReadAll(r)
+		bb, err := io.ReadAll(r)
 		if err != nil {
 			return nil, fmt.Errorf("failed to decode pkg source: %s", err)
 		}

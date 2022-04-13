@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math"
 	"os"
 	"path/filepath"
@@ -573,7 +572,7 @@ func (s *TestSegment) String() string {
 // mustCreateSegment calls newSegment, which means it calls open on the segment,
 // and possibly attempts to repair the TestSegment.
 func mustCreateSegment(ts *TestSegment, dir string, vf func([]byte) error) *segment {
-	fd, err := ioutil.TempFile(dir, "")
+	fd, err := os.CreateTemp(dir, "")
 	if err != nil {
 		panic(err)
 	}
@@ -598,7 +597,7 @@ func mustCreateSegment(ts *TestSegment, dir string, vf func([]byte) error) *segm
 
 // ReadSegment returns a hexadecimal representation of a segment.
 func ReadSegment(segment *segment) string {
-	data, err := ioutil.ReadFile(segment.path)
+	data, err := os.ReadFile(segment.path)
 	if err != nil {
 		panic(err)
 	}
@@ -606,7 +605,7 @@ func ReadSegment(segment *segment) string {
 }
 
 func TestSegment_repair(t *testing.T) {
-	dir, err := ioutil.TempDir("", "hh_queue")
+	dir, err := os.MkdirTemp("", "hh_queue")
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}

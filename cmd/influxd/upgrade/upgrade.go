@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net/url"
 	"os"
 	"os/user"
@@ -535,7 +534,7 @@ func (o *optionsV2) validatePaths() error {
 		if !fi.IsDir() {
 			return fmt.Errorf("upgraded 2.x engine path %q is not a directory", o.enginePath)
 		}
-		entries, err := ioutil.ReadDir(o.enginePath)
+		entries, err := os.ReadDir(o.enginePath)
 		if err != nil {
 			return fmt.Errorf("error checking contents of existing engine directory %q: %w", o.enginePath, err)
 		}

@@ -186,13 +186,7 @@ func dumpIndex(cmd *cobra.Command, args args, info dumpIndexParams) {
 		key, _ := info.r.KeyAt(i)
 		for _, e := range info.r.Entries(key) {
 			pos++
-			split := strings.Split(string(key), "#!~#")
-
-			measurement := split[0]
-			var field string
-			if len(split) > 1 {
-				field = split[1]
-			}
+			measurement, field, _ := strings.Cut(string(key), "#!~#")
 
 			if args.filterKey != "" && !strings.Contains(string(key), args.filterKey) {
 				continue

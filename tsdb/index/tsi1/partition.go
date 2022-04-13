@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -1384,7 +1383,7 @@ func (m *Manifest) Write() (int64, error) {
 	}
 	buf = append(buf, '\n')
 
-	if err := ioutil.WriteFile(m.path, buf, 0666); err != nil {
+	if err := os.WriteFile(m.path, buf, 0666); err != nil {
 		return 0, err
 	}
 	return int64(len(buf)), nil
@@ -1393,7 +1392,7 @@ func (m *Manifest) Write() (int64, error) {
 // ReadManifestFile reads a manifest from a file path and returns the Manifest,
 // the size of the manifest on disk, and any error if appropriate.
 func ReadManifestFile(path string) (*Manifest, int64, error) {
-	buf, err := ioutil.ReadFile(path)
+	buf, err := os.ReadFile(path)
 	if err != nil {
 		return nil, 0, err
 	}

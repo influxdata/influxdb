@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"path"
 	"time"
@@ -401,7 +401,7 @@ type decodeStatus struct {
 }
 
 func decodePostCheckRequest(r *http.Request) (postCheckRequest, error) {
-	b, err := ioutil.ReadAll(r.Body)
+	b, err := io.ReadAll(r.Body)
 	if err != nil {
 		return postCheckRequest{}, &errors.Error{
 			Code: errors.EInvalid,
@@ -461,7 +461,7 @@ func decodePutCheckRequest(ctx context.Context, lang fluxlang.FluxLanguageServic
 		}
 	}
 
-	b, err := ioutil.ReadAll(r.Body)
+	b, err := io.ReadAll(r.Body)
 	if err != nil {
 		return influxdb.CheckCreate{}, &errors.Error{
 			Code: errors.EInvalid,

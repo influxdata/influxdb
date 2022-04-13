@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"reflect"
 	"testing"
@@ -52,7 +51,7 @@ func newTestQueue(t testing.TB, fns ...func(o *opts)) (*Queue, string) {
 		tmp = os.ExpandEnv(htmp)
 	}
 
-	dir, err := ioutil.TempDir(tmp, "hh_queue")
+	dir, err := os.MkdirTemp(tmp, "hh_queue")
 	require.NoError(t, err)
 
 	q, err := NewQueue(dir, opts.maxSize, opts.maxSegmentSize, &SharedCount{}, MaxWritesPending, opts.fn)
@@ -254,7 +253,7 @@ func TestQueue_NewScanner_Corrupted(t *testing.T) {
 
 	var buf [8]byte
 	binary.BigEndian.PutUint64(buf[:], uint64(1<<63))
-	err := ioutil.WriteFile(q.segments[0].path, buf[:], os.ModePerm)
+	err := os.WriteFile(q.segments[0].path, buf[:], os.ModePerm)
 	if err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}

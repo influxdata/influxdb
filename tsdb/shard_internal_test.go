@@ -3,7 +3,6 @@ package tsdb
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -337,7 +336,7 @@ func NewTempShard(tb testing.TB, index string) *TempShard {
 	tb.Helper()
 
 	// Create temporary path for data and WAL.
-	dir, err := ioutil.TempDir("", "influxdb-tsdb-")
+	dir, err := os.MkdirTemp("", "influxdb-tsdb-")
 	if err != nil {
 		panic(err)
 	}

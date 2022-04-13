@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 
 	"github.com/influxdata/httprouter"
@@ -301,7 +301,7 @@ func decodeNotificationEndpointFilter(ctx context.Context, r *http.Request) (inf
 }
 
 func decodePostNotificationEndpointRequest(r *http.Request) (postNotificationEndpointRequest, error) {
-	b, err := ioutil.ReadAll(r.Body)
+	b, err := io.ReadAll(r.Body)
 	if err != nil {
 		return postNotificationEndpointRequest{}, &errors.Error{
 			Code: errors.EInvalid,

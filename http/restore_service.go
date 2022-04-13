@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"strconv"
 	"time"
@@ -198,7 +197,7 @@ func (h *RestoreHandler) handleRestoreBucket(w http.ResponseWriter, r *http.Requ
 	}
 
 	// Read serialized DBI data.
-	buf, err := ioutil.ReadAll(r.Body)
+	buf, err := io.ReadAll(r.Body)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return

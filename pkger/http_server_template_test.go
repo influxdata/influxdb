@@ -6,10 +6,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"path"
 	"strings"
 	"testing"
@@ -34,7 +34,7 @@ import (
 func TestPkgerHTTPServerTemplate(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		b, err := ioutil.ReadFile(strings.TrimPrefix(r.URL.Path, "/"))
+		b, err := os.ReadFile(strings.TrimPrefix(r.URL.Path, "/"))
 		if err != nil {
 			http.Error(w, err.Error(), 500)
 			return

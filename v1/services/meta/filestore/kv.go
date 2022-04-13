@@ -3,7 +3,6 @@ package filestore
 import (
 	"context"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sync"
@@ -106,7 +105,7 @@ func (s *KVStore) GetBatch(keys ...[]byte) (values [][]byte, err error) {
 }
 
 func (s *KVStore) get() ([]byte, error) {
-	if d, err := ioutil.ReadFile(s.full); os.IsNotExist(err) {
+	if d, err := os.ReadFile(s.full); os.IsNotExist(err) {
 		return nil, kv.ErrKeyNotFound
 	} else if err != nil {
 		return nil, err

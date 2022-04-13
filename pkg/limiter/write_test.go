@@ -3,7 +3,6 @@ package limiter_test
 import (
 	"bytes"
 	"io"
-	"io/ioutil"
 	"testing"
 	"time"
 
@@ -14,7 +13,7 @@ func TestWriter_Limited(t *testing.T) {
 	r := bytes.NewReader(bytes.Repeat([]byte{0}, 1024*1024))
 
 	limit := 512 * 1024
-	w := limiter.NewWriter(nopWriteCloser{ioutil.Discard}, limit, 10*1024*1024)
+	w := limiter.NewWriter(nopWriteCloser{io.Discard}, limit, 10*1024*1024)
 
 	start := time.Now()
 	n, err := io.Copy(w, r)

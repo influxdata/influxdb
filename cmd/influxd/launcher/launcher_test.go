@@ -3,7 +3,7 @@ package launcher_test
 import (
 	"context"
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	nethttp "net/http"
 	"testing"
 	"time"
@@ -66,7 +66,7 @@ func TestLauncher_SetupWithUsers(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +96,7 @@ func TestLauncher_SetupWithUsers(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	body, err = ioutil.ReadAll(resp.Body)
+	body, err = io.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +120,7 @@ func TestLauncher_SetupWithUsers(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	body, err = ioutil.ReadAll(resp.Body)
+	body, err = io.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatal(err)
 	}
