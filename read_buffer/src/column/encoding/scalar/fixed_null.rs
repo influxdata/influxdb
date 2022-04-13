@@ -516,8 +516,9 @@ mod test {
     use std::sync::Arc;
 
     use arrow::datatypes::*;
+    use proptest::prelude::*;
 
-    use super::super::transcoders::MockTranscoder;
+    use super::super::transcoders::{ByteTrimmer, MockTranscoder, NoOpTranscoder};
     use super::cmp::Operator;
     use super::*;
 
@@ -908,4 +909,120 @@ mod test {
         let (v, _) = new_mock_encoding(vec![None, Some(100), Some(222)]);
         assert!(v.has_any_non_null_value());
     }
+
+    // This macro builds out property tests for the integer byte trimmer encoder.
+    // Each of the supported logical types (i64, u64) is tested with transcoders
+    // that store encoded values physically as (i32, u32, i16, u16, i8, u8)
+    // depending on logical type and value range.
+    macro_rules! make_test_transcoder_integer_bytetrimer {
+        (($logical:ty, $logical_arrow:ty, $physical:ty, $physical_arrow:ty, $fn_name:ident)) => {
+            proptest! {
+                #[test]
+                 // The proptest strategy will generate vectors of values within the physical type
+                 // bounds, ensuring they can be safely encoded.
+                 // The strategy effectively says:
+                 //
+                 //   Generate vectors of Option<T> where the value will be `None`.
+                 //   Generate values according to the provided range, and generate
+                 //   `n` of them according to the size range `0..=50`.
+                fn $fn_name(arr in prop::collection::vec(proptest::option::weighted(0.9, <$physical>::MIN as $logical ..=<$physical>::MAX as $logical), 0..=50)) {
+                    // The control encoding is just a null-supporting array
+                    // implementation with no compression. We will check that all
+                    // encodings under test behave in the same way as this one.
+                    let control = FixedNull::new(
+                        PrimitiveArray::<$logical_arrow>::from(arr.clone()),
+                        NoOpTranscoder {},
+                    );
+
+                    let transcoder = ByteTrimmer {};
+                    let byte_trimmed = FixedNull::<$physical_arrow, $logical, _>::new(
+                        arr.into_iter()
+                            .map(|v| v.map(|v| transcoder.encode(v)))
+                            .collect::<PrimitiveArray<_>>(), // encode u64 as u8,
+                        transcoder,
+                    );
+
+                    // exercise some physical operations
+                    let mut cases = vec![];
+                    for op in ["<", "<=", ">", ">=", "=", "!="] {
+                        for v in [
+                            <$physical>::MIN,
+                            <$physical>::MIN + 1,
+                            <$physical>::MAX  / 10,
+                            <$physical>::MAX  / 4,
+                            <$physical>::MAX  / 2,
+                            <$physical>::MAX  - 1,
+                            <$physical>::MAX,
+                        ] {
+                            cases.push((op, v as $logical));
+                        }
+                    }
+
+                    for (op, v) in cases {
+                        let row_ids_control = control.row_ids_filter(
+                            v,
+                            &cmp::Operator::try_from(op).unwrap(),
+                            RowIDs::new_vector(),
+                        );
+                        let row_ids_trimmed = byte_trimmed.row_ids_filter(
+                            v,
+                            &cmp::Operator::try_from(op).unwrap(),
+                            RowIDs::new_vector(),
+                        );
+                        prop_assert_eq!(row_ids_control, row_ids_trimmed)
+                    }
+                }
+            }
+        };
+    }
+
+    make_test_transcoder_integer_bytetrimer!((
+        u64,
+        UInt64Type,
+        u8,
+        UInt8Type,
+        test_transcoder_byte_trim_u64_to_u8
+    ));
+    make_test_transcoder_integer_bytetrimer!((
+        u64,
+        UInt64Type,
+        u16,
+        UInt16Type,
+        test_transcoder_byte_trim_u64_to_u16
+    ));
+    make_test_transcoder_integer_bytetrimer!((
+        u64,
+        UInt64Type,
+        u32,
+        UInt32Type,
+        test_transcoder_byte_trim_u64_to_u32
+    ));
+    make_test_transcoder_integer_bytetrimer!((
+        i64,
+        Int64Type,
+        i8,
+        Int8Type,
+        test_transcoder_byte_trim_i64_to_i8
+    ));
+    make_test_transcoder_integer_bytetrimer!((
+        i64,
+        Int64Type,
+        u8,
+        UInt8Type,
+        test_transcoder_byte_trim_i64_to_u8
+    ));
+    make_test_transcoder_integer_bytetrimer!((
+        i64,
+        Int64Type,
+        i16,
+        Int16Type,
+        test_transcoder_byte_trim_i64_to_i16
+    ));
+    make_test_transcoder_integer_bytetrimer!((
+        i64,
+        Int64Type,
+        u16,
+        UInt16Type,
+        test_transcoder_byte_trim_i64_to_u16
+    ));
 }
