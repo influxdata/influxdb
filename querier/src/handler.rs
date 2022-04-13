@@ -90,10 +90,12 @@ impl QuerierHandler for QuerierHandlerImpl {
         }
 
         self.shutdown.cancelled().await;
+        self.database.exec().join().await;
     }
 
     fn shutdown(&self) {
         self.shutdown.cancel();
+        self.database.exec().shutdown();
     }
 }
 

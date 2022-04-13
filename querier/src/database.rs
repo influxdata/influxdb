@@ -134,6 +134,11 @@ impl QuerierDatabase {
             .await
             .expect("retry forever")
     }
+
+    /// Executor
+    pub(crate) fn exec(&self) -> &Executor {
+        &self.exec
+    }
 }
 
 #[cfg(test)]
