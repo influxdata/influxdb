@@ -3,19 +3,18 @@
 use assert_cmd::Command;
 use once_cell::sync::Lazy;
 use sqlx::{migrate::MigrateDatabase, Postgres};
-use std::sync::Mutex;
+use std::{collections::BTreeSet, sync::Mutex};
 
 // I really do want to block everything until the database is initialized...
 #[allow(clippy::await_holding_lock)]
-#[allow(clippy::mutex_atomic)]
-static DB_INITIALIZED: Lazy<Mutex<bool>> = Lazy::new(|| Mutex::new(false));
+static DB_INITIALIZED: Lazy<Mutex<BTreeSet<String>>> = Lazy::new(|| Mutex::new(BTreeSet::new()));
 
 /// Performs once-per-process database initialization, if necessary
-pub async fn initialize_db(dsn: &str) {
+pub async fn initialize_db(dsn: &str, schema_name: &str) {
     let mut init = DB_INITIALIZED.lock().expect("Mutex poisoned");
 
     // already done
-    if *init {
+    if init.contains(schema_name) {
         return;
     }
 
@@ -32,7 +31,8 @@ pub async fn initialize_db(dsn: &str) {
         .unwrap()
         .arg("catalog")
         .arg("setup")
-        .env("INFLUXDB_IOX_CATALOG_DSN", &dsn)
+        .env("INFLUXDB_IOX_CATALOG_DSN", dsn)
+        .env("INFLUXDB_IOX_CATALOG_POSTGRES_SCHEMA_NAME", schema_name)
         .ok()
         .unwrap();
 
@@ -43,9 +43,10 @@ pub async fn initialize_db(dsn: &str) {
         .arg("topic")
         .arg("update")
         .arg("iox-shared")
-        .env("INFLUXDB_IOX_CATALOG_DSN", &dsn)
+        .env("INFLUXDB_IOX_CATALOG_DSN", dsn)
+        .env("INFLUXDB_IOX_CATALOG_POSTGRES_SCHEMA_NAME", schema_name)
         .ok()
         .unwrap();
 
-    *init = true;
+    init.insert(schema_name.into());
 }
