@@ -112,8 +112,11 @@ impl ParquetFileWithTombstone {
         QueryableParquetChunk::new(
             table_name,
             Arc::new(parquet_chunk),
-            Arc::new(decoded_parquet_file.iox_metadata),
             &self.tombstones,
+            self.data.min_sequence_number,
+            self.data.max_sequence_number,
+            self.data.min_time,
+            self.data.max_time,
         )
     }
 
