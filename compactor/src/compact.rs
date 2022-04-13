@@ -10,8 +10,8 @@ use arrow::record_batch::RecordBatch;
 use backoff::{Backoff, BackoffConfig};
 use bytes::Bytes;
 use data_types2::{
-    ParquetFile, ParquetFileId, PartitionId, SequencerId, TableId, TablePartition, Timestamp,
-    Tombstone, TombstoneId,
+    ParquetFile, ParquetFileId, ParquetFileWithMetadata, PartitionId, SequencerId, TableId,
+    TablePartition, Timestamp, Tombstone, TombstoneId,
 };
 use datafusion::error::DataFusionError;
 use iox_catalog::interface::{Catalog, Transaction};
@@ -121,6 +121,11 @@ pub enum Error {
 
     #[snafu(display("Error while requesting level 1 parquet files {}", source))]
     Level1 {
+        source: iox_catalog::interface::Error,
+    },
+
+    #[snafu(display("Error while requesting parquet file metadata {}", source))]
+    ParquetMetadata {
         source: iox_catalog::interface::Error,
     },
 
@@ -371,7 +376,7 @@ impl Compactor {
             .repositories()
             .await
             .parquet_files()
-            .list_by_partition_not_to_delete(partition_id)
+            .list_by_partition_not_to_delete_with_metadata(partition_id)
             .await
             .context(ListParquetFilesSnafu)?;
         if parquet_files.is_empty() {
@@ -483,7 +488,7 @@ impl Compactor {
     fn group_small_contiguous_groups(
         mut file_groups: Vec<GroupWithMinTimeAndSize>,
         compaction_max_size_bytes: i64,
-    ) -> Vec<Vec<ParquetFile>> {
+    ) -> Vec<Vec<ParquetFileWithMetadata>> {
         let mut groups = Vec::with_capacity(file_groups.len());
         if file_groups.is_empty() {
             return groups;
@@ -550,7 +555,7 @@ impl Compactor {
             return Ok(compacted);
         }
 
-        // Keep the fist IoxMetadata to reuse same IDs and names
+        // Save the parquet metadata for the first file to reuse IDs and names
         let iox_metadata = overlapped_files[0].iox_metadata();
 
         //  Collect all unique tombstone
@@ -819,7 +824,9 @@ impl Compactor {
 
     /// Given a list of parquet files that come from the same Table Partition, group files together
     /// if their (min_time, max_time) ranges overlap. Does not preserve or guarantee any ordering.
-    fn overlapped_groups(mut parquet_files: Vec<ParquetFile>) -> Vec<GroupWithMinTimeAndSize> {
+    fn overlapped_groups(
+        mut parquet_files: Vec<ParquetFileWithMetadata>,
+    ) -> Vec<GroupWithMinTimeAndSize> {
         let mut groups = Vec::with_capacity(parquet_files.len());
 
         // While there are still files not in any group
@@ -951,7 +958,7 @@ impl Compactor {
 
     async fn add_tombstones_to_groups(
         &self,
-        groups: Vec<Vec<ParquetFile>>,
+        groups: Vec<Vec<ParquetFileWithMetadata>>,
     ) -> Result<Vec<GroupWithTombstones>> {
         let mut repo = self.catalog.repositories().await;
         let tombstone_repo = repo.tombstones();
@@ -1131,7 +1138,9 @@ mod tests {
             .await
             .unwrap();
         // should have 2 non-deleted level_0 files. The original file was marked deleted and not counted
-        let files = catalog.list_by_table_not_to_delete(table.table.id).await;
+        let mut files = catalog
+            .list_by_table_not_to_delete_with_metadata(table.table.id)
+            .await;
         assert_eq!(files.len(), 2);
         // 2 newly created level-1 files as the result of compaction
         assert_eq!((files[0].id.get(), files[0].compaction_level), (2, 1));
@@ -1158,8 +1167,10 @@ mod tests {
             catalog.time_provider(),
         );
         // create chunks for 2 files
-        let chunk_0 = adapter.new_querier_chunk(files[0].clone()).await.unwrap();
-        let chunk_1 = adapter.new_querier_chunk(files[1].clone()).await.unwrap();
+        let files1 = files.pop().unwrap();
+        let files0 = files.pop().unwrap();
+        let chunk_0 = adapter.new_querier_chunk(files0).await.unwrap();
+        let chunk_1 = adapter.new_querier_chunk(files1).await.unwrap();
         // query the chunks
         // least recent compacted first half (~90%)
         let batches = collect_read_filter(&chunk_0).await;
@@ -1245,7 +1256,7 @@ mod tests {
 
         // parquet files
         // pf1 does not overlap with any and very large ==> will be upgraded to level 1 during compaction
-        let _pf1 = partition
+        partition
             .create_parquet_file_with_min_max_size_and_creation_time(
                 &lp1,
                 1,
@@ -1255,11 +1266,9 @@ mod tests {
                 compactor.config.compaction_max_size_bytes() + 10,
                 20,
             )
-            .await
-            .parquet_file
-            .clone();
+            .await;
         // pf2 overlaps with pf3 ==> compacted and marked to_delete with a timestamp
-        let _pf2 = partition
+        partition
             .create_parquet_file_with_min_max_and_creation_time(
                 &lp2,
                 4,
@@ -1268,11 +1277,9 @@ mod tests {
                 20000,
                 time.now().timestamp_nanos(),
             )
-            .await
-            .parquet_file
-            .clone();
+            .await;
         // pf3 overlaps with pf2 ==> compacted and marked to_delete with a timestamp
-        let _pf3 = partition
+        partition
             .create_parquet_file_with_min_max_and_creation_time(
                 &lp3,
                 8,
@@ -1281,11 +1288,9 @@ mod tests {
                 25000,
                 time.now().timestamp_nanos(),
             )
-            .await
-            .parquet_file
-            .clone();
+            .await;
         // pf4 does not overlap with any but small => will also be compacted with pf2 and pf3
-        let _pf4 = partition
+        partition
             .create_parquet_file_with_min_max_and_creation_time(
                 &lp4,
                 18,
@@ -1294,9 +1299,7 @@ mod tests {
                 28000,
                 time.now().timestamp_nanos(),
             )
-            .await
-            .parquet_file
-            .clone();
+            .await;
         // should have 4 level-0 files before compacting
         let count = catalog.count_level_0_files(sequencer.sequencer.id).await;
         assert_eq!(count, 4);
@@ -1339,7 +1342,9 @@ mod tests {
             .unwrap();
 
         // Should have 3 non-soft-deleted files: pf1 not compacted and stay, and 2 newly created after compacting pf2, pf3, pf4
-        let files = catalog.list_by_table_not_to_delete(table.table.id).await;
+        let mut files = catalog
+            .list_by_table_not_to_delete_with_metadata(table.table.id)
+            .await;
         assert_eq!(files.len(), 3);
         // pf1 upgraded to level 1
         assert_eq!((files[0].id.get(), files[0].compaction_level), (1, 1));
@@ -1370,8 +1375,10 @@ mod tests {
             catalog.time_provider(),
         );
         // create chunks for 2 files
-        let chunk_0 = adapter.new_querier_chunk(files[1].clone()).await.unwrap();
-        let chunk_1 = adapter.new_querier_chunk(files[2].clone()).await.unwrap();
+        let files2 = files.pop().unwrap();
+        let files1 = files.pop().unwrap();
+        let chunk_0 = adapter.new_querier_chunk(files1).await.unwrap();
+        let chunk_1 = adapter.new_querier_chunk(files2).await.unwrap();
         // query the chunks
         // least recent compacted first half (~90%)
         let batches = collect_read_filter(&chunk_0).await;
@@ -1422,8 +1429,7 @@ mod tests {
             .await
             .create_parquet_file_with_min_max(&lp, 1, 1, 8000, 20000)
             .await
-            .parquet_file
-            .clone();
+            .parquet_file;
 
         let compactor = Compactor::new(
             vec![sequencer.sequencer.id],
@@ -1516,13 +1522,11 @@ mod tests {
         let parquet_file1 = partition
             .create_parquet_file_with_min_max(&lp1, 1, 5, 8000, 20000)
             .await
-            .parquet_file
-            .clone();
+            .parquet_file;
         let parquet_file2 = partition
             .create_parquet_file_with_min_max(&lp2, 10, 15, 6000, 25000)
             .await
-            .parquet_file
-            .clone();
+            .parquet_file;
 
         let compactor = Compactor::new(
             vec![sequencer.sequencer.id],
@@ -1618,18 +1622,15 @@ mod tests {
         let parquet_file1 = partition
             .create_parquet_file_with_min_max(&lp1, 1, 5, 8000, 20000)
             .await
-            .parquet_file
-            .clone();
+            .parquet_file;
         let parquet_file2 = partition
             .create_parquet_file_with_min_max(&lp2, 10, 15, 6000, 25000)
             .await
-            .parquet_file
-            .clone();
+            .parquet_file;
         let parquet_file3 = partition
             .create_parquet_file_with_min_max(&lp3, 20, 25, 6000, 8000)
             .await
-            .parquet_file
-            .clone();
+            .parquet_file;
 
         let compactor = Compactor::new(
             vec![sequencer.sequencer.id],
@@ -1702,7 +1703,7 @@ mod tests {
 
     /// A test utility function to make minimially-viable ParquetFile records with particular
     /// min/max times. Does not involve the catalog at all.
-    fn arbitrary_parquet_file(min_time: i64, max_time: i64) -> ParquetFile {
+    fn arbitrary_parquet_file(min_time: i64, max_time: i64) -> ParquetFileWithMetadata {
         arbitrary_parquet_file_with_size(min_time, max_time, 100)
     }
 
@@ -1710,8 +1711,8 @@ mod tests {
         min_time: i64,
         max_time: i64,
         file_size_bytes: i64,
-    ) -> ParquetFile {
-        ParquetFile {
+    ) -> ParquetFileWithMetadata {
+        ParquetFileWithMetadata {
             id: ParquetFileId::new(0),
             sequencer_id: SequencerId::new(0),
             namespace_id: NamespaceId::new(0),
@@ -1759,13 +1760,11 @@ mod tests {
         let pf1 = partition
             .create_parquet_file_with_min_max(&lp1, 1, 5, 8000, 20000)
             .await
-            .parquet_file
-            .clone();
+            .parquet_file;
         let pf2 = partition
             .create_parquet_file_with_min_max(&lp2, 1, 5, 28000, 35000)
             .await
-            .parquet_file
-            .clone();
+            .parquet_file;
 
         // Build 2 QueryableParquetChunks
         let pt1 = ParquetFileWithTombstone {
@@ -1776,6 +1775,7 @@ mod tests {
             data: Arc::new(pf2),
             tombstones: vec![],
         };
+
         let pc1 = pt1.to_queryable_parquet_chunk(
             Arc::clone(&catalog.object_store),
             table.table.name.clone(),
@@ -2203,7 +2203,11 @@ mod tests {
             ..p1.clone()
         };
         let pf1 = txn.parquet_files().create(p1).await.unwrap();
+        let pf1_metadata = txn.parquet_files().parquet_metadata(pf1.id).await.unwrap();
+        let pf1 = ParquetFileWithMetadata::new(pf1, pf1_metadata);
         let pf2 = txn.parquet_files().create(p2).await.unwrap();
+        let pf2_metadata = txn.parquet_files().parquet_metadata(pf2.id).await.unwrap();
+        let pf2 = ParquetFileWithMetadata::new(pf2, pf2_metadata);
 
         let parquet_files = vec![pf1.clone(), pf2.clone()];
         let groups = vec![

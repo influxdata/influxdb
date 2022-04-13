@@ -7,7 +7,7 @@ use crate::{
     IngesterConnection,
 };
 use backoff::{Backoff, BackoffConfig};
-use data_types2::{ParquetFile, TableId};
+use data_types2::{ParquetFileWithMetadata, TableId};
 use observability_deps::tracing::debug;
 use predicate::Predicate;
 use query::{provider::ChunkPruner, QueryChunk};
@@ -107,7 +107,7 @@ impl QuerierTable {
 
                     let parquet_files = txn
                         .parquet_files()
-                        .list_by_table_not_to_delete(self.id)
+                        .list_by_table_not_to_delete_with_metadata(self.id)
                         .await?;
 
                     let tombstones = txn.tombstones().list_by_table(self.id).await?;
@@ -132,8 +132,12 @@ impl QuerierTable {
 
         // convert parquet files and tombstones to nicer objects
         let mut chunks = Vec::with_capacity(parquet_files.len());
-        for parquet_file in parquet_files {
-            if let Some(chunk) = self.chunk_adapter.new_querier_chunk(parquet_file).await {
+        for parquet_file_with_metadata in parquet_files {
+            if let Some(chunk) = self
+                .chunk_adapter
+                .new_querier_chunk(parquet_file_with_metadata)
+                .await
+            {
                 chunks.push(chunk);
             }
         }
@@ -252,7 +256,10 @@ impl QuerierTable {
 ///
 /// Specificially, ensure that the persisted number from all
 /// chunks is consistent with the parquet files we know about
-fn validate_cache(_partitions: &[Arc<IngesterPartition>], _parquet_files: &[ParquetFile]) -> bool {
+fn validate_cache(
+    _partitions: &[Arc<IngesterPartition>],
+    _parquet_files: &[ParquetFileWithMetadata],
+) -> bool {
     // TODO fill out the validation logic here
     true
 }

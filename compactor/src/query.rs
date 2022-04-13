@@ -4,11 +4,11 @@ use std::sync::Arc;
 
 use data_types2::{
     tombstones_to_delete_predicates, ChunkAddr, ChunkId, ChunkOrder, DeletePredicate,
-    SequenceNumber, TableSummary, Tombstone,
+    SequenceNumber, TableSummary, Timestamp, Tombstone,
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
 use observability_deps::tracing::trace;
-use parquet_file::{chunk::ParquetChunk, metadata::IoxMetadata};
+use parquet_file::chunk::ParquetChunk;
 use predicate::{Predicate, PredicateMatch};
 use query::{
     exec::{stringset::StringSet, IOxSessionContext},
@@ -39,9 +39,12 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug, Clone)]
 pub struct QueryableParquetChunk {
     data: Arc<ParquetChunk>,                      // data of the parquet file
-    iox_metadata: Arc<IoxMetadata>,               // metadata of the parquet file
     delete_predicates: Vec<Arc<DeletePredicate>>, // converted from tombstones
     table_name: String,                           // needed to build query plan
+    min_sequence_number: SequenceNumber,
+    max_sequence_number: SequenceNumber,
+    min_time: Timestamp,
+    max_time: Timestamp,
 }
 
 impl QueryableParquetChunk {
@@ -49,15 +52,21 @@ impl QueryableParquetChunk {
     pub fn new(
         table_name: impl Into<String>,
         data: Arc<ParquetChunk>,
-        iox_metadata: Arc<IoxMetadata>,
         deletes: &[Tombstone],
+        min_sequence_number: SequenceNumber,
+        max_sequence_number: SequenceNumber,
+        min_time: Timestamp,
+        max_time: Timestamp,
     ) -> Self {
         let delete_predicates = tombstones_to_delete_predicates(deletes);
         Self {
             data,
-            iox_metadata,
             delete_predicates,
             table_name: table_name.into(),
+            min_sequence_number,
+            max_sequence_number,
+            min_time,
+            max_time,
         }
     }
 
@@ -72,22 +81,22 @@ impl QueryableParquetChunk {
 
     /// Return min sequence number
     pub fn min_sequence_number(&self) -> SequenceNumber {
-        self.iox_metadata.min_sequence_number
+        self.min_sequence_number
     }
 
     /// Return max sequence number
     pub fn max_sequence_number(&self) -> SequenceNumber {
-        self.iox_metadata.max_sequence_number
+        self.max_sequence_number
     }
 
     /// Return min time
     pub fn min_time(&self) -> i64 {
-        self.iox_metadata.time_of_first_write.timestamp_nanos()
+        self.min_time.get()
     }
 
     /// Return max time
     pub fn max_time(&self) -> i64 {
-        self.iox_metadata.time_of_last_write.timestamp_nanos()
+        self.max_time.get()
     }
 }
 
@@ -121,7 +130,7 @@ impl QueryChunk for QueryableParquetChunk {
     // Note: parquet_file's id is an uuid which is also the datatype of the ChunkId. However,
     // it is not safe to use it for sorting chunk
     fn id(&self) -> ChunkId {
-        let timestamp_nano = self.iox_metadata.time_of_first_write.timestamp_nanos();
+        let timestamp_nano = self.min_time.get();
         let timestamp_nano_u128 =
             u128::try_from(timestamp_nano).expect("Cannot convert timestamp nano to u128 ");
 
@@ -221,7 +230,7 @@ impl QueryChunk for QueryableParquetChunk {
 
     // Order of the chunk so they can be deduplicate correctly
     fn order(&self) -> ChunkOrder {
-        let seq_num = self.iox_metadata.min_sequence_number.get();
+        let seq_num = self.min_sequence_number.get();
         let seq_num = u32::try_from(seq_num)
             .expect("Sequence number should have been converted to chunk order successfully");
         ChunkOrder::new(seq_num)

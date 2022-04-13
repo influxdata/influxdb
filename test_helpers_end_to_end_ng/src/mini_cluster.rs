@@ -71,6 +71,19 @@ impl MiniCluster {
             .server()
     }
 
+    /// Restart ingester.
+    ///
+    /// This will break all currently connected clients!
+    pub async fn restart_ingester(&mut self) {
+        self.ingester = Some(
+            self.ingester
+                .take()
+                .expect("ingester not initialized")
+                .restart_server()
+                .await,
+        )
+    }
+
     /// Retrieve the underlying querier server, if set
     pub fn querier(&self) -> &TestServer {
         self.querier
