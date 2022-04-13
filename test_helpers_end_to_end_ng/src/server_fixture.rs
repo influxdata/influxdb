@@ -3,6 +3,7 @@ use futures::prelude::*;
 use influxdb_iox_client::connection::Connection;
 use std::{
     fmt::Debug,
+    fs::OpenOptions,
     path::Path,
     process::{Child, Command},
     str,
@@ -104,7 +105,9 @@ impl TestServer {
     async fn new(test_config: TestConfig) -> Self {
         let ready = Mutex::new(ServerState::Started);
 
-        let server_process = Arc::new(Mutex::new(Self::create_server_process(&test_config).await));
+        let server_process = Arc::new(Mutex::new(
+            Self::create_server_process(&test_config, None).await,
+        ));
 
         Self {
             ready,
@@ -217,18 +220,35 @@ impl TestServer {
     async fn restart(&self) {
         let mut ready_guard = self.ready.lock().await;
         let mut server_process = self.server_process.lock().await;
-        server_process.child.kill().unwrap();
-        server_process.child.wait().unwrap();
-        *server_process = Self::create_server_process(&self.test_config).await;
+        kill_politely(&mut server_process.child, Duration::from_secs(5));
+        *server_process =
+            Self::create_server_process(&self.test_config, Some(server_process.log_path.clone()))
+                .await;
         *ready_guard = ServerState::Started;
     }
 
-    async fn create_server_process(test_config: &TestConfig) -> Process {
+    async fn create_server_process(
+        test_config: &TestConfig,
+        log_path: Option<Box<Path>>,
+    ) -> Process {
         // Create a new file each time and keep it around to aid debugging
-        let (log_file, log_path) = NamedTempFile::new()
-            .expect("opening log file")
-            .keep()
-            .expect("expected to keep");
+        let (log_file, log_path) = match log_path {
+            Some(log_path) => (
+                OpenOptions::new()
+                    .read(true)
+                    .append(true)
+                    .open(&log_path)
+                    .expect("log file should still be there"),
+                log_path,
+            ),
+            None => {
+                let (log_file, log_path) = NamedTempFile::new()
+                    .expect("opening log file")
+                    .keep()
+                    .expect("expected to keep");
+                (log_file, log_path.into_boxed_path())
+            }
+        };
 
         let stdout_log_file = log_file
             .try_clone()
@@ -267,10 +287,7 @@ impl TestServer {
             .spawn()
             .unwrap();
 
-        Process {
-            child,
-            log_path: log_path.into_boxed_path(),
-        }
+        Process { child, log_path }
     }
 
     /// Polls the various services to ensure the server is
@@ -472,13 +489,7 @@ impl Drop for TestServer {
             .try_lock()
             .expect("should be able to get a server process lock");
 
-        if let Err(e) = server_lock.child.kill() {
-            println!("Error killing child: {}", e);
-        }
-
-        if let Err(e) = server_lock.child.wait() {
-            println!("Error waiting on child exit: {}", e);
-        }
+        kill_politely(&mut server_lock.child, Duration::from_secs(1));
 
         dump_log_to_stdout(self.test_config.server_type(), &server_lock.log_path);
     }
@@ -528,4 +539,66 @@ fn dump_log_to_stdout(server_type: ServerType, log_path: &Path) {
     println!("****************");
     println!("End {:?} TestServer Output", server_type);
     println!("****************");
+}
+
+/// Attempt to kill a child process politely.
+fn kill_politely(child: &mut Child, wait: Duration) {
+    use nix::{
+        sys::{
+            signal::{self, Signal},
+            wait::waitpid,
+        },
+        unistd::Pid,
+    };
+
+    let pid = Pid::from_raw(child.id().try_into().unwrap());
+
+    // try to be polite
+    let wait_errored = match signal::kill(pid, Signal::SIGTERM) {
+        Ok(()) => wait_timeout(pid, wait).is_err(),
+        Err(e) => {
+            println!("Error sending SIGTERM to child: {e}");
+            true
+        }
+    };
+
+    if wait_errored {
+        // timeout => kill it
+        println!("Cannot terminate child politely, using SIGKILL...");
+
+        if let Err(e) = signal::kill(pid, Signal::SIGKILL) {
+            println!("Error sending SIGKILL to child: {e}");
+        }
+        if let Err(e) = waitpid(pid, None) {
+            println!("Cannot wait for child: {e}");
+        }
+    } else {
+        println!("Killed child politely");
+    }
+}
+
+/// Wait for given PID to exit with a timeout.
+fn wait_timeout(pid: nix::unistd::Pid, timeout: Duration) -> Result<(), ()> {
+    use nix::sys::wait::waitpid;
+
+    // use some thread and channel trickery, see https://stackoverflow.com/a/42720480
+    let (sender, receiver) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let waitpid_res = waitpid(pid, None).map(|_| ());
+
+        // errors if the receiver side is gone which is OK.
+        sender.send(waitpid_res).ok();
+    });
+
+    match receiver.recv_timeout(timeout) {
+        Ok(Ok(())) => Ok(()),
+        Ok(Err(e)) => {
+            println!("Cannot wait for child: {e}");
+            Err(())
+        }
+        Err(_) => {
+            println!("Timeout waiting for child");
+            Err(())
+        }
+    }
 }

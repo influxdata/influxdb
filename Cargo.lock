@@ -6007,6 +6007,7 @@ dependencies = [
  "http",
  "hyper",
  "influxdb_iox_client",
+ "nix",
  "once_cell",
  "rand",
  "reqwest",
