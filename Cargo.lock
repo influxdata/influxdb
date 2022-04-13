@@ -2523,7 +2523,7 @@ dependencies = [
  "glob",
  "k8s-openapi",
  "kube",
- "kube-derive",
+ "kube-derive 0.71.0",
  "kube-runtime",
  "parking_lot 0.11.2",
  "pbjson-build 0.3.0",
@@ -2971,7 +2971,7 @@ dependencies = [
  "k8s-openapi",
  "kube-client",
  "kube-core",
- "kube-derive",
+ "kube-derive 0.70.0",
 ]
 
 [[package]]
@@ -3033,6 +3033,19 @@ name = "kube-derive"
 version = "0.70.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1322e25c20dd6f18ca6baecc88bb130331e99d988df9d7a9a207f15819e05bff"
+dependencies = [
+ "darling",
+ "proc-macro2",
+ "quote",
+ "serde_json",
+ "syn",
+]
+
+[[package]]
+name = "kube-derive"
+version = "0.71.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "203f7c5acf9d0dfb0b08d44ec1d66ace3d1dfe0cdd82e65e274f3f96615d666c"
 dependencies = [
  "darling",
  "proc-macro2",
