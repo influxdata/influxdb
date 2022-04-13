@@ -1027,6 +1027,13 @@ mod test {
         UInt16Type,
         test_transcoder_byte_trim_i64_to_u16
     ));
+    make_test_transcoder_integer_bytetrimmer!((
+        i64,
+        Int64Type,
+        u32,
+        UInt32Type,
+        test_transcoder_byte_trim_i64_to_u32
+    ));
 
     // This macro builds out property tests for the float byte trimmer encoder.
     // Columns of f64 values are tested with transcoders that store encoded
