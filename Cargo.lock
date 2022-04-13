@@ -2523,7 +2523,7 @@ dependencies = [
  "glob",
  "k8s-openapi",
  "kube",
- "kube-derive 0.71.0",
+ "kube-derive",
  "kube-runtime",
  "parking_lot 0.11.2",
  "pbjson-build 0.3.0",
@@ -2964,14 +2964,14 @@ dependencies = [
 
 [[package]]
 name = "kube"
-version = "0.70.0"
+version = "0.71.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4dcc72fdf0c491160a34d4a1bfb03f96da8a5054288d61c816d514b5c2fa49ea"
+checksum = "342744dfeb81fe186b84f485b33f12c6a15d3396987d933b06a566a3db52ca38"
 dependencies = [
  "k8s-openapi",
- "kube-client",
- "kube-core",
- "kube-derive 0.70.0",
+ "kube-client 0.71.0",
+ "kube-core 0.71.0",
+ "kube-derive",
 ]
 
 [[package]]
@@ -2989,11 +2989,44 @@ dependencies = [
  "http",
  "http-body",
  "hyper",
+ "hyper-timeout",
+ "jsonpath_lib",
+ "k8s-openapi",
+ "kube-core 0.70.0",
+ "pem 1.0.2",
+ "pin-project",
+ "secrecy",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "thiserror",
+ "tokio",
+ "tokio-util 0.7.1",
+ "tower",
+ "tower-http",
+ "tracing",
+]
+
+[[package]]
+name = "kube-client"
+version = "0.71.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3f69a504997799340408635d6e351afb8aab2c34ca3165e162f41b3b34a69a79"
+dependencies = [
+ "base64 0.13.0",
+ "bytes",
+ "chrono",
+ "dirs-next",
+ "either",
+ "futures",
+ "http",
+ "http-body",
+ "hyper",
  "hyper-rustls 0.23.0",
  "hyper-timeout",
  "jsonpath_lib",
  "k8s-openapi",
- "kube-core",
+ "kube-core 0.71.0",
  "pem 1.0.2",
  "pin-project",
  "rustls 0.20.4",
@@ -3022,23 +3055,26 @@ dependencies = [
  "json-patch",
  "k8s-openapi",
  "once_cell",
- "schemars",
  "serde",
  "serde_json",
  "thiserror",
 ]
 
 [[package]]
-name = "kube-derive"
-version = "0.70.0"
+name = "kube-core"
+version = "0.71.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1322e25c20dd6f18ca6baecc88bb130331e99d988df9d7a9a207f15819e05bff"
+checksum = "a4a247487699941baaf93438d65b12d4e32450bea849d619d19ed394e8a4a645"
 dependencies = [
- "darling",
- "proc-macro2",
- "quote",
+ "chrono",
+ "form_urlencoded",
+ "http",
+ "k8s-openapi",
+ "once_cell",
+ "schemars",
+ "serde",
  "serde_json",
- "syn",
+ "thiserror",
 ]
 
 [[package]]
@@ -3066,7 +3102,7 @@ dependencies = [
  "futures",
  "json-patch",
  "k8s-openapi",
- "kube-client",
+ "kube-client 0.70.0",
  "parking_lot 0.12.0",
  "pin-project",
  "serde",
