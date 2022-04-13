@@ -7,7 +7,7 @@ use crate::{
     IngesterConnection,
 };
 use backoff::{Backoff, BackoffConfig};
-use data_types2::{ParquetFile, TableId};
+use data_types2::{ParquetFileWithMetadata, TableId};
 use observability_deps::tracing::debug;
 use predicate::Predicate;
 use query::{provider::ChunkPruner, QueryChunk};
@@ -256,7 +256,10 @@ impl QuerierTable {
 ///
 /// Specificially, ensure that the persisted number from all
 /// chunks is consistent with the parquet files we know about
-fn validate_cache(_partitions: &[Arc<IngesterPartition>], _parquet_files: &[ParquetFile]) -> bool {
+fn validate_cache(
+    _partitions: &[Arc<IngesterPartition>],
+    _parquet_files: &[ParquetFileWithMetadata],
+) -> bool {
     // TODO fill out the validation logic here
     true
 }
