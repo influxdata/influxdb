@@ -14,9 +14,12 @@ use arrow_flight::{
     Action, ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightInfo,
     HandshakeRequest, HandshakeResponse, PutResult, SchemaAsIpc, SchemaResult, Ticket,
 };
+use bytes::{Bytes, BytesMut};
 use datafusion::physical_plan::ExecutionPlan;
 use futures::{SinkExt, Stream, StreamExt};
+use generated_types::influxdata::iox::querier::v1 as proto;
 use pin_project::{pin_project, pinned_drop};
+use prost::Message;
 use query::{QueryCompletedToken, QueryDatabase};
 use serde::Deserialize;
 use service_common::QueryDatabaseProvider;
@@ -33,11 +36,12 @@ use service_common::planner::Planner;
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Snafu)]
 pub enum Error {
-    #[snafu(display("Invalid ticket. Error: {:?} Ticket: {:?}", source, ticket))]
-    InvalidTicket {
-        source: std::string::FromUtf8Error,
-        ticket: Vec<u8>,
-    },
+    #[snafu(display("Invalid ticket. Error: {:?}", source))]
+    InvalidTicket { source: prost::DecodeError },
+
+    #[snafu(display("Invalid legacy ticket. Error: {:?}", source))]
+    InvalidTicketLegacy { source: std::string::FromUtf8Error },
+
     #[snafu(display("Invalid query, could not parse '{}': {}", query, source))]
     InvalidQuery {
         query: String,
@@ -70,6 +74,9 @@ pub enum Error {
     Planning {
         source: service_common::planner::Error,
     },
+
+    #[snafu(display("Error during protobuf serialization: {}", source))]
+    Serialization { source: prost::EncodeError },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -83,13 +90,14 @@ impl From<Error> for tonic::Status {
         match err {
             Error::DatabaseNotFound { .. }
             | Error::InvalidTicket { .. }
+            | Error::InvalidTicketLegacy { .. }
             | Error::InvalidQuery { .. }
             // TODO(edd): this should be `debug`. Keeping at info whilst IOx still in early development
             | Error::InvalidDatabaseName { .. } => info!(?err, msg),
             Error::Query { .. } => info!(?err, msg),
             Error::DictionaryError { .. }
             | Error::InvalidRecordBatch { .. }
-            | Error::Planning { .. } => warn!(?err, msg),
+            | Error::Planning { .. } | Error::Serialization { .. } => warn!(?err, msg),
         }
         err.to_status()
     }
@@ -102,6 +110,7 @@ impl Error {
         use tonic::Status;
         match &self {
             Self::InvalidTicket { .. } => Status::invalid_argument(self.to_string()),
+            Self::InvalidTicketLegacy { .. } => Status::invalid_argument(self.to_string()),
             Self::InvalidQuery { .. } => Status::invalid_argument(self.to_string()),
             Self::DatabaseNotFound { .. } => Status::not_found(self.to_string()),
             Self::Query { .. } => Status::internal(self.to_string()),
@@ -109,6 +118,7 @@ impl Error {
             Self::InvalidRecordBatch { .. } => Status::internal(self.to_string()),
             Self::Planning { .. } => Status::invalid_argument(self.to_string()),
             Self::DictionaryError { .. } => Status::internal(self.to_string()),
+            Self::Serialization { .. } => Status::internal(self.to_string()),
         }
     }
 }
@@ -116,11 +126,31 @@ impl Error {
 type TonicStream<T> = Pin<Box<dyn Stream<Item = Result<T, tonic::Status>> + Send + Sync + 'static>>;
 
 #[derive(Deserialize, Debug)]
-/// Body of the `Ticket` serialized and sent to the do_get endpoint; this should
-/// be shared with the read API probably...
+/// Body of the `Ticket` serialized and sent to the do_get endpoint.
 struct ReadInfo {
     database_name: String,
     sql_query: String,
+}
+
+impl ReadInfo {
+    fn decode_json(ticket: &[u8]) -> Result<Self> {
+        let json_str = String::from_utf8(ticket.to_vec()).context(InvalidTicketLegacySnafu {})?;
+
+        let read_info: ReadInfo =
+            serde_json::from_str(&json_str).context(InvalidQuerySnafu { query: &json_str })?;
+
+        Ok(read_info)
+    }
+
+    fn decode_protobuf(ticket: &[u8]) -> Result<Self> {
+        let read_info =
+            proto::ReadInfo::decode(Bytes::from(ticket.to_vec())).context(InvalidTicketSnafu {})?;
+
+        Ok(Self {
+            database_name: read_info.namespace_name,
+            sql_query: read_info.sql_query,
+        })
+    }
 }
 
 /// Concrete implementation of the gRPC Arrow Flight Service API
@@ -165,12 +195,15 @@ where
     ) -> Result<Response<Self::DoGetStream>, tonic::Status> {
         let span_ctx = request.extensions().get().cloned();
         let ticket = request.into_inner();
-        let json_str = String::from_utf8(ticket.ticket.to_vec()).context(InvalidTicketSnafu {
-            ticket: ticket.ticket,
-        })?;
 
-        let read_info: ReadInfo =
-            serde_json::from_str(&json_str).context(InvalidQuerySnafu { query: &json_str })?;
+        // decode ticket
+        let read_info = match ReadInfo::decode_protobuf(&ticket.ticket) {
+            Ok(read_info) => read_info,
+            Err(_) => {
+                // try legacy json
+                ReadInfo::decode_json(&ticket.ticket)?
+            }
+        };
 
         let database =
             DatabaseName::new(&read_info.database_name).context(InvalidDatabaseNameSnafu)?;
@@ -279,7 +312,14 @@ impl GetStream {
 
         // setup stream
         let options = arrow::ipc::writer::IpcWriteOptions::default();
-        let schema_flight_data = SchemaAsIpc::new(&schema, &options).into();
+        let mut schema_flight_data: FlightData = SchemaAsIpc::new(&schema, &options).into();
+
+        // Add response metadata
+        let mut bytes = BytesMut::new();
+        let app_metadata = proto::AppMetadata {};
+        prost::Message::encode(&app_metadata, &mut bytes).context(SerializationSnafu)?;
+        schema_flight_data.app_metadata = bytes.to_vec();
+
         let mut stream_record_batches = ctx
             .execute_stream(Arc::clone(&physical_plan))
             .await

@@ -1,16 +1,18 @@
+use std::collections::BTreeMap;
+
+use generated_types::influxdata::iox::ingester::v1::PartitionStatus;
 use http::StatusCode;
 use test_helpers_end_to_end_ng::{
     get_write_token, maybe_skip_integration, wait_for_readable, MiniCluster, TestConfig,
 };
 
 use arrow_util::assert_batches_sorted_eq;
-use data_types2::{IngesterQueryRequest, SequencerId};
+use data_types2::IngesterQueryRequest;
 
 #[tokio::test]
 async fn ingester_flight_api() {
     let database_url = maybe_skip_integration!();
 
-    let sequencer_id = SequencerId::new(1);
     let table_name = "mytable";
 
     let router2_config = TestConfig::new_router2(&database_url);
@@ -32,20 +34,34 @@ async fn ingester_flight_api() {
     let write_token = get_write_token(&response);
     wait_for_readable(write_token, cluster.ingester().ingester_grpc_connection()).await;
 
-    let mut querier_flight =
-        querier::QuerierFlightClient::new(cluster.ingester().ingester_grpc_connection());
+    let mut querier_flight = influxdb_iox_client::flight::Client::<
+        influxdb_iox_client::flight::generated_types::IngesterQueryRequest,
+    >::new(cluster.ingester().ingester_grpc_connection());
 
     let query = IngesterQueryRequest::new(
         cluster.namespace().to_string(),
-        sequencer_id,
         table_name.into(),
         vec![],
         Some(::predicate::EMPTY_PREDICATE),
     );
 
-    let mut performed_query = querier_flight.perform_query(query).await.unwrap();
+    let mut performed_query = querier_flight
+        .perform_query(query.try_into().unwrap())
+        .await
+        .unwrap();
 
-    assert!(performed_query.parquet_max_sequence_number.is_none());
+    let unpersisted_partitions = &performed_query.app_metadata().unpersisted_partitions;
+    let partition_id = *unpersisted_partitions.keys().next().unwrap();
+    assert_eq!(
+        unpersisted_partitions,
+        &BTreeMap::from([(
+            partition_id,
+            PartitionStatus {
+                parquet_max_sequence_number: None,
+                tombstone_max_sequence_number: None
+            }
+        )]),
+    );
 
     let query_results = performed_query.collect().await.unwrap();
 

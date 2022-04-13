@@ -4,6 +4,7 @@ use arrow_util::assert_batches_sorted_eq;
 use dml::{test_util::assert_write_op_eq, DmlWrite};
 use futures::StreamExt;
 use generated_types::influxdata::pbdata::v1 as pb;
+use influxdb_iox_client::flight::generated_types::ReadInfo;
 use mutable_batch_lp::lines_to_batches;
 
 #[tokio::test]
@@ -21,7 +22,10 @@ pub async fn test_write_pb_database() {
 
     let mut query_results = fixture
         .flight_client()
-        .perform_query(&db_name, "select * from mytable")
+        .perform_query(ReadInfo {
+            namespace_name: db_name,
+            sql_query: "select * from mytable".to_string(),
+        })
         .await
         .unwrap();
 

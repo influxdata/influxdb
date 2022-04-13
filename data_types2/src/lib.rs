@@ -803,8 +803,6 @@ pub struct ProcessedTombstone {
 pub struct IngesterQueryRequest {
     /// namespace to search
     pub namespace: String,
-    /// sequencer to search
-    pub sequencer_id: SequencerId,
     /// Table to search
     pub table: String,
     /// Columns the query service is interested in
@@ -814,18 +812,16 @@ pub struct IngesterQueryRequest {
 }
 
 impl IngesterQueryRequest {
-    /// Make a request
-    #[allow(clippy::too_many_arguments)]
+    /// Make a request to return data for a specified table for
+    /// all sequencers an ingester is responsible for
     pub fn new(
         namespace: String,
-        sequencer_id: SequencerId,
         table: String,
         columns: Vec<String>,
         predicate: Option<Predicate>,
     ) -> Self {
         Self {
             namespace,
-            sequencer_id,
             table,
             columns,
             predicate,

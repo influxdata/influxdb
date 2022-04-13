@@ -108,6 +108,7 @@ impl ServerType for DatabaseServerType {
 mod tests {
     use clap_blocks::run_config::RunConfig;
 
+    use influxdb_iox_client::flight::generated_types::ReadInfo;
     use ioxd_common::{grpc_listener, http_listener, serve};
 
     use crate::setup::{make_application, make_server};
@@ -542,19 +543,28 @@ mod tests {
         let mut flight = influxdb_iox_client::flight::Client::new(conn.clone());
         consume_query(
             flight
-                .perform_query(db_info.db_name(), "select * from cpu;")
+                .perform_query(ReadInfo {
+                    namespace_name: db_info.db_name().to_string(),
+                    sql_query: "select * from cpu;".to_string(),
+                })
                 .await
                 .unwrap(),
         )
         .await;
 
         flight
-            .perform_query("nonexistent", "select * from cpu;")
+            .perform_query(ReadInfo {
+                namespace_name: "nonexistent".to_string(),
+                sql_query: "select * from cpu;".to_string(),
+            })
             .await
             .unwrap_err();
 
         flight
-            .perform_query(db_info.db_name(), "select * from nonexistent;")
+            .perform_query(ReadInfo {
+                namespace_name: db_info.db_name().to_string(),
+                sql_query: "select * from nonexistent;".to_string(),
+            })
             .await
             .unwrap_err();
 

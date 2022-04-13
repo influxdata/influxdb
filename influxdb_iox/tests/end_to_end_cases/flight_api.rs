@@ -1,6 +1,7 @@
 use super::scenario::{create_readable_database, rand_name, Scenario};
 use crate::common::server_fixture::{ServerFixture, ServerType};
 use arrow_util::assert_batches_sorted_eq;
+use influxdb_iox_client::flight::generated_types::ReadInfo;
 
 #[tokio::test]
 pub async fn test() {
@@ -21,7 +22,10 @@ pub async fn test() {
     client.handshake().await.unwrap();
 
     let batches = client
-        .perform_query(scenario.database_name(), sql_query)
+        .perform_query(ReadInfo {
+            namespace_name: scenario.database_name().to_string(),
+            sql_query: sql_query.to_string(),
+        })
         .await
         .unwrap()
         .collect()
@@ -44,7 +48,13 @@ pub async fn test_no_rows() {
 
     let mut client = server_fixture.flight_client();
 
-    let mut query_results = client.perform_query(&db_name, sql_query).await.unwrap();
+    let mut query_results = client
+        .perform_query(ReadInfo {
+            namespace_name: db_name,
+            sql_query: sql_query.to_string(),
+        })
+        .await
+        .unwrap();
 
     // no record batches are returned
     let batch = query_results.next().await.unwrap();

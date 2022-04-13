@@ -4,7 +4,7 @@ use crate::TABLE_STYLE_SINGLE_LINE_BORDERS;
 use comfy_table::{Cell, Table};
 use influxdb_iox_client::{
     connection::Connection,
-    flight,
+    flight::{self, generated_types::ReadInfo},
     format::QueryOutputFormat,
     management::{self, generated_types::database_status::DatabaseState, generated_types::*},
     write,
@@ -393,7 +393,12 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
 
             let format = QueryOutputFormat::from_str(&format)?;
 
-            let mut query_results = client.perform_query(&name, query).await?;
+            let mut query_results = client
+                .perform_query(ReadInfo {
+                    namespace_name: name,
+                    sql_query: query,
+                })
+                .await?;
 
             // It might be nice to do some sort of streaming write
             // rather than buffering the whole thing.

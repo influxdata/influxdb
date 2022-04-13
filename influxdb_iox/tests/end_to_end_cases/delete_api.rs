@@ -6,7 +6,9 @@ use data_types::{
 };
 use dml::{test_util::assert_delete_op_eq, DmlDelete};
 use futures::StreamExt;
-use influxdb_iox_client::management::generated_types::DatabaseRules;
+use influxdb_iox_client::{
+    flight::generated_types::ReadInfo, management::generated_types::DatabaseRules,
+};
 
 use super::scenario::{create_router_to_write_buffer, rand_name};
 use crate::common::server_fixture::{ServerFixture, ServerType};
@@ -49,7 +51,10 @@ async fn test_delete_on_database() {
 
     // Query cpu
     let mut query_results = flight_client
-        .perform_query(db_name.clone(), "select * from cpu")
+        .perform_query(ReadInfo {
+            namespace_name: db_name.clone(),
+            sql_query: "select * from cpu".to_string(),
+        })
         .await
         .unwrap();
     let batches = query_results.collect().await.unwrap();
@@ -80,7 +85,10 @@ async fn test_delete_on_database() {
 
     // query to verify data deleted
     let mut query_results = flight_client
-        .perform_query(db_name.clone(), "select * from cpu")
+        .perform_query(ReadInfo {
+            namespace_name: db_name.clone(),
+            sql_query: "select * from cpu".to_string(),
+        })
         .await
         .unwrap();
     let batches = query_results.collect().await.unwrap();
@@ -95,10 +103,10 @@ async fn test_delete_on_database() {
 
     // Query cpu again with a selection predicate
     let mut query_results = flight_client
-        .perform_query(
-            db_name.clone(),
-            r#"select * from cpu where cpu.region='west';"#,
-        )
+        .perform_query(ReadInfo {
+            namespace_name: db_name.clone(),
+            sql_query: r#"select * from cpu where cpu.region='west';"#.to_string(),
+        })
         .await
         .unwrap();
     let batches = query_results.collect().await.unwrap();
@@ -107,7 +115,10 @@ async fn test_delete_on_database() {
 
     // Query cpu again with a differentselection predicate
     let mut query_results = flight_client
-        .perform_query(db_name.clone(), "select * from cpu where user!=21")
+        .perform_query(ReadInfo {
+            namespace_name: db_name.clone(),
+            sql_query: "select * from cpu where user!=21".to_string(),
+        })
         .await
         .unwrap();
     let batches = query_results.collect().await.unwrap();
@@ -129,7 +140,10 @@ async fn test_delete_on_database() {
     // query to verify data deleted
     // cpu
     let mut query_results = flight_client
-        .perform_query(db_name.clone(), "select * from cpu")
+        .perform_query(ReadInfo {
+            namespace_name: db_name.clone(),
+            sql_query: "select * from cpu".to_string(),
+        })
         .await
         .unwrap();
     let batches = query_results.collect().await.unwrap();
@@ -143,7 +157,10 @@ async fn test_delete_on_database() {
     assert_batches_sorted_eq!(&cpu_expected, &batches);
     // disk
     let mut query_results = flight_client
-        .perform_query(db_name.clone(), "select * from disk")
+        .perform_query(ReadInfo {
+            namespace_name: db_name.clone(),
+            sql_query: "select * from disk".to_string(),
+        })
         .await
         .unwrap();
     let batches = query_results.collect().await.unwrap();

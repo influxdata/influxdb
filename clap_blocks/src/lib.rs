@@ -5,6 +5,7 @@ pub mod catalog_dsn;
 pub mod compactor;
 pub mod ingester;
 pub mod object_store;
+pub mod querier;
 pub mod run_config;
 pub mod server_id;
 pub mod socket_addr;

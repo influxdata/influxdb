@@ -1,5 +1,6 @@
 //! Implementation of command line option for running the querier
 
+use clap_blocks::querier::QuerierConfig;
 use object_store::{instrumentation::ObjectStoreMetrics, DynObjectStore, ObjectStoreImpl};
 use observability_deps::tracing::*;
 use query::exec::Executor;
@@ -20,7 +21,10 @@ pub enum Error {
     Run(#[from] main::Error),
 
     #[error("Invalid config: {0}")]
-    InvalidConfig(#[from] CommonServerStateError),
+    InvalidConfigCommon(#[from] CommonServerStateError),
+
+    #[error("Invalid config: {0}")]
+    InvalidConfigIngester(#[from] clap_blocks::querier::Error),
 
     #[error("Catalog error: {0}")]
     Catalog(#[from] iox_catalog::interface::Error),
@@ -54,23 +58,8 @@ pub struct Config {
     #[clap(flatten)]
     pub(crate) catalog_dsn: CatalogDsnConfig,
 
-    /// The number of threads to use for queries.
-    ///
-    /// If not specified, defaults to the number of cores on the system
-    #[clap(long = "--num-query-threads", env = "INFLUXDB_IOX_NUM_QUERY_THREADS")]
-    pub num_query_threads: Option<usize>,
-
-    /// gRPC address for the querier to talk with the
-    /// ingester. For example "http://127.0.0.1:8083"
-    ///
-    /// Note this is a workround for
-    /// <https://github.com/influxdata/influxdb_iox/issues/3996>
-    #[clap(
-        long = "--ingester-address",
-        env = "INFLUXDB_IOX_INGESTER_ADDRESS",
-        default_value = "http://127.0.0.1:8083"
-    )]
-    pub ingester_address: String,
+    #[clap(flatten)]
+    pub(crate) querier_config: QuerierConfig,
 }
 
 pub async fn command(config: Config) -> Result<(), Error> {
@@ -90,9 +79,12 @@ pub async fn command(config: Config) -> Result<(), Error> {
 
     let time_provider = Arc::new(SystemProvider::new());
 
-    let num_threads = config.num_query_threads.unwrap_or_else(num_cpus::get);
+    let num_query_threads = config.querier_config.num_query_threads();
+    let ingester_addresses = config.querier_config.ingester_addresses()?;
+
+    let num_threads = num_query_threads.unwrap_or_else(num_cpus::get);
     info!(%num_threads, "using specified number of threads per thread pool");
-    info!(ingester_address=%config.ingester_address, "using ingester address");
+    info!(?ingester_addresses, "using ingester addresses");
 
     let exec = Arc::new(Executor::new(num_threads));
     let server_type = create_querier_server_type(
@@ -102,7 +94,7 @@ pub async fn command(config: Config) -> Result<(), Error> {
         object_store,
         time_provider,
         exec,
-        config.ingester_address,
+        ingester_addresses,
     )
     .await;
 

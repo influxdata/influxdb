@@ -1,5 +1,6 @@
 use std::num::NonZeroU32;
 
+use influxdb_iox_client::flight::generated_types::ReadInfo;
 use itertools::Itertools;
 
 use arrow_util::assert_batches_eq;
@@ -317,7 +318,10 @@ async fn assert_chunk_query_works(fixture: &ServerFixture, db_name: &str) {
     let sql_query = "select region, host, user, time from cpu";
 
     let batches = client
-        .perform_query(db_name, sql_query)
+        .perform_query(ReadInfo {
+            namespace_name: db_name.to_string(),
+            sql_query: sql_query.to_string(),
+        })
         .await
         .unwrap()
         .collect()
@@ -337,7 +341,7 @@ async fn assert_chunk_query_works(fixture: &ServerFixture, db_name: &str) {
     assert_batches_eq!(expected_read_data, &batches);
 
     let batches = client
-        .perform_query(db_name, "select column_name, row_count, null_count, min_value, max_value, sort_ordinal from system.chunk_columns")
+        .perform_query(ReadInfo{namespace_name: db_name.to_string(), sql_query: "select column_name, row_count, null_count, min_value, max_value, sort_ordinal from system.chunk_columns".to_string()})
         .await
         .unwrap()
         .collect()

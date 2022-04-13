@@ -68,16 +68,20 @@ impl TestConfig {
     /// and pointing at the specified ingester
     pub fn new_querier(ingester_config: &TestConfig) -> Self {
         assert_eq!(ingester_config.server_type(), ServerType::Ingester);
+
+        let ingester_address =
+            Arc::clone(&ingester_config.addrs().ingester_grpc_api().client_base());
+
+        Self::new_querier_without_ingester(ingester_config)
+            // Configure to talk with the ingester
+            .with_ingester_addresses(&[ingester_address.as_ref()])
+    }
+
+    /// Create a minimal querier configuration from the specified
+    /// ingester configuration, using the same dsn and object store
+    pub fn new_querier_without_ingester(ingester_config: &TestConfig) -> Self {
         Self::new(ServerType::Querier, ingester_config.dsn())
             .with_existing_object_store(ingester_config)
-            // Configure to talk with the ingester
-            .with_ingester_address(
-                ingester_config
-                    .addrs()
-                    .ingester_grpc_api()
-                    .client_base()
-                    .as_ref(),
-            )
     }
 
     /// Create a minimal all in one configuration
@@ -108,9 +112,12 @@ impl TestConfig {
             .with_env("INFLUXDB_IOX_WRITE_BUFFER_PARTITION_RANGE_END", "0")
     }
 
-    /// Adds the ingester address
-    fn with_ingester_address(self, ingester_address: &str) -> Self {
-        self.with_env("INFLUXDB_IOX_INGESTER_ADDRESS", ingester_address)
+    /// Adds the ingester addresses
+    fn with_ingester_addresses(self, ingester_addresses: &[&str]) -> Self {
+        self.with_env(
+            "INFLUXDB_IOX_INGESTER_ADDRESSES",
+            ingester_addresses.join(","),
+        )
     }
 
     /// add a name=value environment variable when starting the server

@@ -10,7 +10,9 @@ use snafu::{ResultExt, Snafu};
 
 use super::repl_command::ReplCommand;
 
-use influxdb_iox_client::{connection::Connection, format::QueryOutputFormat};
+use influxdb_iox_client::{
+    connection::Connection, flight::generated_types::ReadInfo, format::QueryOutputFormat,
+};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -453,7 +455,10 @@ async fn scrape_query(
     query: &str,
 ) -> Result<Vec<RecordBatch>> {
     let mut query_results = client
-        .perform_query(db_name, query)
+        .perform_query(ReadInfo {
+            namespace_name: db_name.to_string(),
+            sql_query: query.to_string(),
+        })
         .await
         .context(RunningRemoteQuerySnafu)?;
 

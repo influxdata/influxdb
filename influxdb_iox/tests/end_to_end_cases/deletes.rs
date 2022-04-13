@@ -2,6 +2,7 @@ use super::scenario::rand_name;
 use crate::common::server_fixture::{ServerFixture, ServerType};
 use arrow_util::assert_batches_sorted_eq;
 use generated_types::influxdata::iox::management::v1::DatabaseRules;
+use influxdb_iox_client::flight::generated_types::ReadInfo;
 
 type Result<T, E = Box<dyn std::error::Error>> = std::result::Result<T, E>;
 
@@ -88,7 +89,10 @@ async fn query_cpu_to_batches(
     db_name: &str,
 ) -> Result<Vec<arrow::record_batch::RecordBatch>> {
     let mut query_results = flight_client
-        .perform_query(db_name, "select * from cpu")
+        .perform_query(ReadInfo {
+            namespace_name: db_name.to_string(),
+            sql_query: "select * from cpu".to_string(),
+        })
         .await?;
 
     let mut batches = Vec::new();

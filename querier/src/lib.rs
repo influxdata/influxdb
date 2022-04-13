@@ -14,8 +14,6 @@ pub mod cache;
 mod cache_system;
 pub mod chunk;
 mod database;
-/// Flight client to the ingester to request in-memory data.
-mod flight;
 mod handler;
 mod ingester;
 mod namespace;
@@ -27,7 +25,6 @@ mod table;
 mod tombstone;
 
 pub use database::QuerierDatabase;
-pub use flight::{Client as QuerierFlightClient, Error as QuerierFlightError};
 pub use handler::{QuerierHandler, QuerierHandlerImpl};
 pub use ingester::{
     create_ingester_connection, create_ingester_connection_for_testing, IngesterConnection,

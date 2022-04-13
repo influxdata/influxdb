@@ -22,7 +22,7 @@ impl IngesterConnection for MockIngesterConnection {
         _table_name: Arc<str>,
         _columns: Vec<String>,
         _predicate: &predicate::Predicate,
-        _expected_schema: &schema::Schema,
+        _expected_schema: Arc<schema::Schema>,
     ) -> super::Result<Vec<Arc<super::IngesterPartition>>> {
         Ok(vec![])
     }

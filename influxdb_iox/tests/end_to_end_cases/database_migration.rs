@@ -9,6 +9,7 @@ use std::{
 use arrow_util::assert_batches_eq;
 use assert_cmd::Command;
 use data_types::chunk_metadata::ChunkStorage;
+use influxdb_iox_client::flight::generated_types::ReadInfo;
 use predicates::prelude::*;
 use tempfile::TempDir;
 use test_helpers::assert_contains;
@@ -180,7 +181,10 @@ async fn migrate_table_files_from_one_server_to_another() {
     // No data for the_table yet
     let mut flight_client = fixture.flight_client();
     let query_results = flight_client
-        .perform_query(&db_name, sql_query)
+        .perform_query(ReadInfo {
+            namespace_name: db_name.clone(),
+            sql_query: sql_query.to_string(),
+        })
         .await
         .unwrap_err()
         .to_string();
@@ -234,7 +238,10 @@ async fn migrate_table_files_from_one_server_to_another() {
 
     // Now the data should be available for the_table
     let batches = flight_client
-        .perform_query(&db_name, sql_query)
+        .perform_query(ReadInfo {
+            namespace_name: db_name,
+            sql_query: sql_query.to_string(),
+        })
         .await
         .unwrap()
         .collect()

@@ -331,7 +331,10 @@ impl Deduplicater {
 
     /// The IOx scan process needs to deduplicate data if there are duplicates. Hence it will look
     /// like below.
-    /// Depending on the parameter, sort_output, the output data of plan will be either sorted or not sorted.
+    ///
+    /// If `sort_key` is `Some`, the output data of plan will be sorted by that key. If `sort_key` is
+    /// `None` the output will not (necessarily) be sorted.
+    ///
     /// In the case of sorted plan, plan will include 2 extra operators: the final SortPreservingMergeExec on top and the SortExec
     ///   on top of Chunk 4's IOxReadFilterNode. Detail:
     /// In this example, there are 4 chunks and should be read bottom up as follows:
@@ -427,13 +430,12 @@ impl Deduplicater {
             )?;
             plans.append(&mut non_duplicate_plans);
         } else {
-            trace!(overlapped_chunks=?self.overlapped_chunks_set.len(),
-                in_chunk_duplicates=?self.in_chunk_duplicates_chunks.len(),
-                no_duplicates_chunks=?self.no_duplicates_chunks.len(),
-                "Some of the chunks either overlap or duplicate or both. There should be one scan node for each overlapped or duplicated chunk.\n
-                Chunks after classifying: ");
-
             let pk_schema = Self::compute_pk_schema(&chunks);
+            trace!(overlapped_chunks=?self.overlapped_chunks_set.len(),
+                   in_chunk_duplicates=?self.in_chunk_duplicates_chunks.len(),
+                   no_duplicates_chunks=?self.no_duplicates_chunks.len(),
+                   "Chunks after classifying");
+
             let dedup_sort_key = match &output_sort_key {
                 Some(sort_key) => {
                     // Technically we only require that the sort order is prefixed by
@@ -452,6 +454,13 @@ impl Deduplicater {
                 }
                 None => compute_sort_key_for_chunks(&pk_schema, chunks.as_ref()),
             };
+
+            trace!(
+                ?dedup_sort_key,
+                ?output_sort_key,
+                ?pk_schema,
+                "Sort keys while building"
+            );
 
             // Go over overlapped set, build deduplicate plan for each vector of overlapped chunks
             for overlapped_chunks in self.overlapped_chunks_set.iter().cloned() {

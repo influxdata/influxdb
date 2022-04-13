@@ -132,7 +132,7 @@ pub async fn create_querier_server_type(
     object_store: Arc<DynObjectStore>,
     time_provider: Arc<dyn TimeProvider>,
     exec: Arc<Executor>,
-    ingester_address: String,
+    ingester_addresses: Vec<String>,
 ) -> Arc<dyn ServerType> {
     let database = Arc::new(QuerierDatabase::new(
         catalog,
@@ -140,7 +140,7 @@ pub async fn create_querier_server_type(
         object_store,
         time_provider,
         exec,
-        create_ingester_connection(ingester_address),
+        create_ingester_connection(ingester_addresses),
     ));
     let querier_handler = Arc::new(QuerierHandlerImpl::new(Arc::clone(&database)));
 
