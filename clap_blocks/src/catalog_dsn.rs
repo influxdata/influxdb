@@ -38,6 +38,14 @@ pub struct CatalogDsnConfig {
         default_value = "10"
     )]
     pub max_catalog_connections: u32,
+
+    /// Schema name for PostgreSQL-based catalogs.
+    #[clap(
+        long = "--catalog-postgres-schema-name",
+        env = "INFLUXDB_IOX_CATALOG_POSTGRES_SCHEMA_NAME",
+        default_value = iox_catalog::postgres::SCHEMA_NAME,
+    )]
+    pub postgres_schema_name: String,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, clap::ArgEnum)]
@@ -56,7 +64,7 @@ impl CatalogDsnConfig {
             CatalogType::Postgres => Arc::new(
                 PostgresCatalog::connect(
                     app_name,
-                    iox_catalog::postgres::SCHEMA_NAME,
+                    &self.postgres_schema_name,
                     self.dsn.as_ref().context(ConnectionStringRequiredSnafu)?,
                     self.max_catalog_connections,
                     metrics,

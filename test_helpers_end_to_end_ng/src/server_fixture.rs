@@ -248,7 +248,8 @@ impl TestServer {
         let run_command = server_type.run_command();
 
         let dsn = test_config.dsn();
-        initialize_db(dsn).await;
+        let schema_name = test_config.catalog_schema_name();
+        initialize_db(dsn, schema_name).await;
 
         // This will inherit environment from the test runner
         // in particular `LOG_FILTER`
@@ -257,7 +258,8 @@ impl TestServer {
             .arg("run")
             .arg(run_command)
             .env("LOG_FILTER", log_filter)
-            .env("INFLUXDB_IOX_CATALOG_DSN", &dsn)
+            .env("INFLUXDB_IOX_CATALOG_DSN", dsn)
+            .env("INFLUXDB_IOX_CATALOG_POSTGRES_SCHEMA_NAME", schema_name)
             // add http/grpc address information
             .add_addr_env(server_type, test_config.addrs())
             .envs(test_config.env())
