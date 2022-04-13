@@ -4,7 +4,7 @@ orbs:
 parameters:
   cross-container-tag:
     type: string
-    default: go1.17.2-c9371c24dc3e9daabf19786cf9638428dfe2637a
+    default: go1.17.9-52b299506343dfbb3f138d8a740bcfd0d97c1888
 
 commands:
   install_rust:
