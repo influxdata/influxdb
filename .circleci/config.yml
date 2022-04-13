@@ -6,7 +6,7 @@ parameters:
     # when updating the go version, should also update the go version in go.mod
     description: docker tag for cross build container from quay.io . Created by https://github.com/influxdata/edge/tree/master/dockerfiles/cross-builder .
     type: string
-    default: go1.18-62da560a25c021668f39bc4d10f936cef93140f9
+    default: go1.18.1-52b299506343dfbb3f138d8a740bcfd0d97c1888
 
 commands:
   install_rust:
