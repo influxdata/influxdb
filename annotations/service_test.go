@@ -169,6 +169,7 @@ func TestAnnotationsCRUD(t *testing.T) {
 	})
 
 	t.Run("select with filters", func(t *testing.T) {
+
 		svc, clean := newTestService(t)
 		defer clean(t)
 		populateAnnotationsData(t, svc)
@@ -178,136 +179,153 @@ func TestAnnotationsCRUD(t *testing.T) {
 			orgID platform.ID
 			f     influxdb.AnnotationListFilter
 			want  []influxdb.StoredAnnotation
+			skip  string // link to issue and/or reason
 		}{
 			{
-				"time filter is inclusive - gets all",
-				orgID,
-				influxdb.AnnotationListFilter{
+				name:  "time filter is inclusive - gets all",
+				orgID: orgID,
+				f: influxdb.AnnotationListFilter{
 					BasicFilter: influxdb.BasicFilter{
 						StartTime: &st3,
 						EndTime:   &et1,
 					},
 				},
-				[]influxdb.StoredAnnotation{s1, s2, s3, s4},
+				want: []influxdb.StoredAnnotation{s1, s2, s3, s4},
+				skip: "",
 			},
 			{
-				"doesn't get results for other org",
-				otherOrgID,
-				influxdb.AnnotationListFilter{
+				name:  "doesn't get results for other org",
+				orgID: otherOrgID,
+				f: influxdb.AnnotationListFilter{
 					BasicFilter: influxdb.BasicFilter{
 						StartTime: &st3,
 						EndTime:   &et1,
 					},
 				},
-				[]influxdb.StoredAnnotation{},
+				want: []influxdb.StoredAnnotation{},
+				skip: "",
 			},
 			{
-				"end time will filter out annotations",
-				orgID,
-				influxdb.AnnotationListFilter{
+				name:  "end time will filter out annotations",
+				orgID: orgID,
+				f: influxdb.AnnotationListFilter{
 					BasicFilter: influxdb.BasicFilter{
 						StartTime: &st3,
 						EndTime:   &earlierEt1,
 					},
 				},
-				[]influxdb.StoredAnnotation{s2, s3, s4},
+				want: []influxdb.StoredAnnotation{s2, s3, s4},
+				skip: "",
 			},
 			{
-				"start time will filter out annotations",
-				orgID,
-				influxdb.AnnotationListFilter{
+				name:  "start time will filter out annotations",
+				orgID: orgID,
+				f: influxdb.AnnotationListFilter{
 					BasicFilter: influxdb.BasicFilter{
 						StartTime: &laterSt3,
 						EndTime:   &et1,
 					},
 				},
-				[]influxdb.StoredAnnotation{s1, s2},
+				want: []influxdb.StoredAnnotation{s1, s2},
+				skip: "https://github.com/influxdata/influxdb/issues/23272",
 			},
 			{
-				"time can filter out all annotations if it's too soon",
-				orgID,
-				influxdb.AnnotationListFilter{
+				name:  "time can filter out all annotations if it's too soon",
+				orgID: orgID,
+				f: influxdb.AnnotationListFilter{
 					BasicFilter: influxdb.BasicFilter{
 						StartTime: &beforeAny,
 						EndTime:   &beforeAny,
 					},
 				},
-				[]influxdb.StoredAnnotation{},
+				want: []influxdb.StoredAnnotation{},
+				skip: "https://github.com/influxdata/influxdb/issues/23272",
 			},
 			{
-				"time can filter out all annotations if it's too late",
-				orgID,
-				influxdb.AnnotationListFilter{
+				name:  "time can filter out all annotations if it's too late",
+				orgID: orgID,
+				f: influxdb.AnnotationListFilter{
 					BasicFilter: influxdb.BasicFilter{
 						StartTime: &afterAny,
 						EndTime:   &afterAny,
 					},
 				},
-				[]influxdb.StoredAnnotation{},
+				want: []influxdb.StoredAnnotation{},
+				skip: "",
 			},
 			{
-				"time can filter out all annotations if it's too narrow",
-				orgID,
-				influxdb.AnnotationListFilter{
+				name:  "time can filter out all annotations if it's too narrow",
+				orgID: orgID,
+				f: influxdb.AnnotationListFilter{
 					BasicFilter: influxdb.BasicFilter{
 						StartTime: &laterSt3,
 						EndTime:   &et3,
 					},
 				},
-				[]influxdb.StoredAnnotation{},
+				want: []influxdb.StoredAnnotation{},
+				skip: "",
 			},
 			{
-				"can filter by stickers - one sticker matches one",
-				orgID,
-				influxdb.AnnotationListFilter{
+				name:  "can filter by stickers - one sticker matches one",
+				orgID: orgID,
+				f: influxdb.AnnotationListFilter{
 					StickerIncludes: map[string]string{"stick1": "val2"},
 				},
-				[]influxdb.StoredAnnotation{s3},
+				want: []influxdb.StoredAnnotation{s3},
+				skip: "",
 			},
 			{
-				"can filter by stickers - one sticker matches multiple",
-				orgID,
-				influxdb.AnnotationListFilter{
+				name:  "can filter by stickers - one sticker matches multiple",
+				orgID: orgID,
+				f: influxdb.AnnotationListFilter{
 					StickerIncludes: map[string]string{"stick2": "val2"},
 				},
-				[]influxdb.StoredAnnotation{s1, s2},
+				want: []influxdb.StoredAnnotation{s1, s2},
+				skip: "",
 			},
 			{
-				"can filter by stickers - matching key but wrong value",
-				orgID,
-				influxdb.AnnotationListFilter{
+				name:  "can filter by stickers - matching key but wrong value",
+				orgID: orgID,
+				f: influxdb.AnnotationListFilter{
 					StickerIncludes: map[string]string{"stick2": "val3"},
 				},
-				[]influxdb.StoredAnnotation{},
+				want: []influxdb.StoredAnnotation{},
+				skip: "",
 			},
 			{
-				"can filter by stream - matches one",
-				orgID,
-				influxdb.AnnotationListFilter{
+				name:  "can filter by stream - matches one",
+				orgID: orgID,
+				f: influxdb.AnnotationListFilter{
 					StreamIncludes: []string{"stream1"},
 				},
-				[]influxdb.StoredAnnotation{s1},
+				want: []influxdb.StoredAnnotation{s1},
+				skip: "",
 			},
 			{
-				"can filter by stream - matches multiple",
-				orgID,
-				influxdb.AnnotationListFilter{
+				name:  "can filter by stream - matches multiple",
+				orgID: orgID,
+				f: influxdb.AnnotationListFilter{
 					StreamIncludes: []string{"stream2"},
 				},
-				[]influxdb.StoredAnnotation{s2, s3},
+				want: []influxdb.StoredAnnotation{s2, s3},
+				skip: "",
 			},
 			{
-				"can filter by stream - no match",
-				orgID,
-				influxdb.AnnotationListFilter{
+				name:  "can filter by stream - no match",
+				orgID: orgID,
+				f: influxdb.AnnotationListFilter{
 					StreamIncludes: []string{"badStream"},
 				},
-				[]influxdb.StoredAnnotation{},
+				want: []influxdb.StoredAnnotation{},
+				skip: "",
 			},
 		}
 
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
+				if tt.skip != "" {
+					t.Skip(tt.skip)
+				}
 				tt.f.Validate(time.Now)
 				got, err := svc.ListAnnotations(ctx, tt.orgID, tt.f)
 				require.NoError(t, err)
