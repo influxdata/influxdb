@@ -45,10 +45,12 @@ pub struct QueryableParquetChunk {
     max_sequence_number: SequenceNumber,
     min_time: Timestamp,
     max_time: Timestamp,
+    sort_key: Option<SortKey>,
 }
 
 impl QueryableParquetChunk {
     /// Initialize a QueryableParquetChunk
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         table_name: impl Into<String>,
         data: Arc<ParquetChunk>,
@@ -57,6 +59,7 @@ impl QueryableParquetChunk {
         max_sequence_number: SequenceNumber,
         min_time: Timestamp,
         max_time: Timestamp,
+        sort_key: Option<SortKey>,
     ) -> Self {
         let delete_predicates = tombstones_to_delete_predicates(deletes);
         Self {
@@ -67,6 +70,7 @@ impl QueryableParquetChunk {
             max_sequence_number,
             min_time,
             max_time,
+            sort_key,
         }
     }
 
@@ -110,7 +114,7 @@ impl QueryChunkMeta for QueryableParquetChunk {
     }
 
     fn sort_key(&self) -> Option<&SortKey> {
-        None // TODO: return the sortkey when it is available in the parquet file #3968
+        self.sort_key.as_ref()
     }
 
     fn delete_predicates(&self) -> &[Arc<DeletePredicate>] {
