@@ -7,11 +7,11 @@ use arrow::{
 use bytes::Bytes;
 use data_types2::{
     Column, ColumnType, KafkaPartition, KafkaTopic, Namespace, ParquetFile, ParquetFileId,
-    ParquetFileParams, ParquetFileWithMetadata, Partition, PartitionId, QueryPool, SequenceNumber,
-    Sequencer, SequencerId, Table, TableId, Timestamp, Tombstone, TombstoneId,
+    ParquetFileParams, ParquetFileWithMetadata, Partition, QueryPool, SequenceNumber, Sequencer,
+    SequencerId, Table, TableId, Timestamp, Tombstone, TombstoneId,
 };
 use iox_catalog::{
-    interface::{Catalog, PartitionRepo, INITIAL_COMPACTION_LEVEL},
+    interface::{Catalog, INITIAL_COMPACTION_LEVEL},
     mem::MemCatalog,
 };
 use iox_object_store::{IoxObjectStore, ParquetFilePath};
@@ -22,7 +22,7 @@ use parquet_file::metadata::{IoxMetadata, IoxParquetMetaData};
 use query::exec::Executor;
 use schema::{
     selection::Selection,
-    sort::{adjust_sort_key_columns, SortKey, SortKeyBuilder},
+    sort::{SortKey, SortKeyBuilder},
 };
 use std::sync::Arc;
 use time::{MockProvider, Time, TimeProvider};
@@ -460,7 +460,7 @@ impl TestPartition {
             max_sequence_number,
             row_count: row_count as i64,
             compaction_level: INITIAL_COMPACTION_LEVEL,
-            sort_key: Some(sort_key.clone()),
+            sort_key: Some(sort_key),
         };
         let (parquet_metadata_bin, real_file_size_bytes) =
             create_parquet_file(&self.catalog.object_store, &metadata, record_batch).await;
@@ -488,8 +488,6 @@ impl TestPartition {
             .unwrap();
 
         let parquet_file = ParquetFileWithMetadata::new(parquet_file, parquet_metadata_bin);
-
-        update_catalog_sort_key_if_needed(repos.partitions(), self.partition.id, sort_key).await;
 
         TestParquetFile {
             catalog: Arc::clone(&self.catalog),
@@ -536,7 +534,7 @@ impl TestPartition {
             max_sequence_number,
             row_count: row_count as i64,
             compaction_level: INITIAL_COMPACTION_LEVEL,
-            sort_key: Some(sort_key.clone()),
+            sort_key: Some(sort_key),
         };
         let (parquet_metadata_bin, _real_file_size_bytes) =
             create_parquet_file(&self.catalog.object_store, &metadata, record_batch).await;
@@ -565,55 +563,10 @@ impl TestPartition {
 
         let parquet_file = ParquetFileWithMetadata::new(parquet_file, parquet_metadata_bin);
 
-        update_catalog_sort_key_if_needed(repos.partitions(), self.partition.id, sort_key).await;
-
         TestParquetFile {
             catalog: Arc::clone(&self.catalog),
             namespace: Arc::clone(&self.namespace),
             parquet_file,
-        }
-    }
-}
-
-async fn update_catalog_sort_key_if_needed(
-    partitions_catalog: &mut dyn PartitionRepo,
-    partition_id: PartitionId,
-    sort_key: SortKey,
-) {
-    // Fetch the latest partition info from the catalog
-    let partition = partitions_catalog
-        .get_by_id(partition_id)
-        .await
-        .unwrap()
-        .unwrap();
-
-    // Similarly to what the ingester does, if there's an existing sort key in the catalog, add new
-    // columns onto the end
-    match partition.sort_key() {
-        Some(catalog_sort_key) => {
-            let sort_key_string = sort_key.to_columns();
-            let new_sort_key: Vec<_> = sort_key_string.split(',').collect();
-            let (_metadata, update) = adjust_sort_key_columns(&catalog_sort_key, &new_sort_key);
-            if let Some(new_sort_key) = update {
-                let new_columns = new_sort_key.to_columns();
-                dbg!(
-                    "Updating sort key from {:?} to {:?}",
-                    catalog_sort_key.to_columns(),
-                    &new_columns,
-                );
-                partitions_catalog
-                    .update_sort_key(partition_id, &new_columns)
-                    .await
-                    .unwrap();
-            }
-        }
-        None => {
-            let new_columns = sort_key.to_columns();
-            dbg!("Updating sort key from None to {:?}", &new_columns,);
-            partitions_catalog
-                .update_sort_key(partition_id, &new_columns)
-                .await
-                .unwrap();
         }
     }
 }
