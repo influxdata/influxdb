@@ -17,6 +17,7 @@ hashbrown = "0.12"
 hyper = "0.14"
 influxdb_line_protocol = { version = "0.1.0", path = "../influxdb_line_protocol" }
 iox_catalog = { path = "../iox_catalog" }
+iox_catalog_service = { path = "../iox_catalog_service"}
 metric = { path = "../metric" }
 mutable_batch = { path = "../mutable_batch" }
 mutable_batch_lp = { path = "../mutable_batch_lp" }

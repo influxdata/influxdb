@@ -2498,6 +2498,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "iox_catalog_service"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "data_types2",
+ "generated_types",
+ "iox_catalog",
+ "metric",
+ "observability_deps",
+ "serde",
+ "serde_urlencoded",
+ "time 0.1.0",
+ "tokio",
+ "tonic 0.6.2",
+ "trace",
+ "uuid",
+ "workspace-hack",
+]
+
+[[package]]
 name = "iox_data_generator"
 version = "0.1.0"
 dependencies = [
@@ -4934,6 +4954,7 @@ dependencies = [
  "hyper",
  "influxdb_line_protocol",
  "iox_catalog",
+ "iox_catalog_service",
  "lazy_static",
  "metric",
  "mutable_batch",

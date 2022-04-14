@@ -106,6 +106,7 @@ where
         let builder = setup_builder!(builder_input, self);
         add_service!(builder, self.server.grpc().write_service());
         add_service!(builder, self.server.grpc().schema_service());
+        add_service!(builder, self.server.grpc().catalog_service());
         serve_builder!(builder);
 
         Ok(())

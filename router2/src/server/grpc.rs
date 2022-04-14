@@ -4,10 +4,14 @@ use std::sync::Arc;
 
 use generated_types::{
     google::FieldViolation,
-    influxdata::{iox::schema::v1::*, pbdata::v1::*},
+    influxdata::{
+        iox::{catalog::v1::*, schema::v1::*},
+        pbdata::v1::*,
+    },
 };
 use hashbrown::HashMap;
 use iox_catalog::interface::{get_schema_by_name, Catalog};
+use iox_catalog_service::CatalogService;
 use metric::U64Counter;
 use mutable_batch::MutableBatch;
 use observability_deps::tracing::*;
@@ -67,6 +71,18 @@ where
         &self,
     ) -> schema_service_server::SchemaServiceServer<impl schema_service_server::SchemaService> {
         schema_service_server::SchemaServiceServer::new(SchemaService::new(Arc::clone(
+            &self.catalog,
+        )))
+    }
+
+    /// Acquire a [`CatalogService`] gRPC service implementation.
+    ///
+    /// [`CatalogService`]: generated_types::influxdata::iox::catalog::v1::catalog_service_server::CatalogService.
+    pub fn catalog_service(
+        &self,
+    ) -> catalog_service_server::CatalogServiceServer<impl catalog_service_server::CatalogService>
+    {
+        catalog_service_server::CatalogServiceServer::new(CatalogService::new(Arc::clone(
             &self.catalog,
         )))
     }
