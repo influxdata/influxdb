@@ -279,7 +279,7 @@ impl StreamSplitExec {
             let txs = [tx0, tx1];
             match worker.await {
                 Err(e) => {
-                    debug!(%e, "error joining split task");
+                    error!(%e, "error joining split task");
                     for tx in &txs {
                         let err: ArrowError =
                             DataFusionError::Execution(format!("Join Error: {}", e)).into();
