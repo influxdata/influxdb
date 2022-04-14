@@ -49,8 +49,8 @@ const orgLabel = "org"
 // Controller provides a central location to manage all incoming queries.
 // The controller is responsible for compiling, queueing, and executing queries.
 type Controller struct {
-	config     Config
 	lastID     uint64
+	config     Config
 	queriesMu  sync.RWMutex
 	queries    map[QueryID]*Query
 	queryQueue chan *Query
