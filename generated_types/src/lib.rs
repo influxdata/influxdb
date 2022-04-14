@@ -37,6 +37,16 @@ pub mod influxdata {
     }
 
     pub mod iox {
+        pub mod catalog {
+            pub mod v1 {
+                include!(concat!(env!("OUT_DIR"), "/influxdata.iox.catalog.v1.rs"));
+                include!(concat!(
+                    env!("OUT_DIR"),
+                    "/influxdata.iox.catalog.v1.serde.rs"
+                ));
+            }
+        }
+
         pub mod delete {
             pub mod v1 {
                 include!(concat!(env!("OUT_DIR"), "/influxdata.iox.delete.v1.rs"));

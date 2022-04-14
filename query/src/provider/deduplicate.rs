@@ -212,7 +212,9 @@ impl ExecutionPlan for DeduplicateExec {
 
         // A second task watches the output of the worker task
         tokio::task::spawn(async move {
+            debug!("waiting for deduplicated batches");
             let task_result = task.await;
+            debug!("got result from deduplicating batches");
 
             let msg = match task_result {
                 Err(join_err) => {
@@ -225,11 +227,13 @@ impl ExecutionPlan for DeduplicateExec {
                 }
                 Ok(Ok(())) => {
                     // successful
+                    debug!("sucessful deduplication");
                     None
                 }
             };
 
             if let Some(e) = msg {
+                debug!("Something wrong");
                 // try and tell the receiver something went
                 // wrong. Note we ignore errors sending this message
                 // as that means the receiver has already been
@@ -238,9 +242,13 @@ impl ExecutionPlan for DeduplicateExec {
                     debug!("deduplicate receiver hung up");
                 }
             }
+            debug!("no error watching worker task");
         });
 
-        debug!(partition, "End DeduplicationExec::execute");
+        debug!(
+            partition,
+            "End building stream for DeduplicationExec::execute"
+        );
 
         Ok(AdapterStream::adapt(self.schema(), rx))
     }
@@ -322,6 +330,7 @@ async fn deduplicate(
                 .map_err(|e| ArrowError::from_external_error(Box::new(e)))?;
         }
     }
+    debug!("before sending the left over batch");
 
     // send any left over batch
     let timer = elapsed_compute.timer();
@@ -335,6 +344,7 @@ async fn deduplicate(
     } else {
         timer.done()
     }
+    debug!("done sending the left over batch");
 
     Ok(())
 }

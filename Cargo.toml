@@ -26,6 +26,7 @@ members = [
     "ingester",
     "internal_types",
     "iox_catalog",
+    "iox_catalog_service",
     "iox_data_generator",
     "iox_gitops_adapter",
     "iox_object_store",

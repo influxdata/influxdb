@@ -1,0 +1,19 @@
+syntax = "proto3";
+package influxdata.iox.catalog.v1;
+
+import "influxdata/iox/catalog/v1/parquet_file.proto";
+
+service CatalogService {
+    // Get the parquet_file catalog records in the given partition
+    rpc GetParquetFilesByPartitionId(GetParquetFilesByPartitionIdRequest) returns (GetParquetFilesByPartitionIdResponse);
+}
+
+message GetParquetFilesByPartitionIdRequest {
+    // the partition id
+    int64 partition_id = 1;
+}
+
+message GetParquetFilesByPartitionIdResponse {
+    // the parquet_file records in the partition
+    repeated ParquetFile parquet_files = 1;
+}
