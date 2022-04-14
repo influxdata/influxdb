@@ -175,6 +175,11 @@ impl IngestHandlerImpl {
                 .stream_handler(kafka_partition.get() as u32)
                 .await
                 .context(WriteBufferSnafu)?;
+            debug!(
+                kafka_partition = kafka_partition.get(),
+                min_unpersisted_sequence_number = sequencer.min_unpersisted_sequence_number,
+                "Seek stream",
+            );
             op_stream
                 .seek(sequencer.min_unpersisted_sequence_number as u64)
                 .await

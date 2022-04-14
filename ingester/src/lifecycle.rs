@@ -359,12 +359,21 @@ impl LifecycleManager {
             // number that was persisted. Marking the highest number as the state is ok because it
             // just needs to represent the farthest we'd have to seek back in the write buffer. Any
             // data replayed during recovery that has already been persisted will just be ignored.
+            //
+            // The calculation of the min unpersisted sequence number is:
+            // - If there is any unpersisted data (i.e. `rest` contains entries for that sequencer) then we take the
+            //   minimum sequence number from there. Note that there might be a gap between the data that we have just
+            //   persisted and the unpersisted section.
+            // - If there is NO unpersisted data, we take the max sequence number of the part that we have just
+            //   persisted. Note that can cannot use "max + 1" because the lifecycle handler receives writes on a
+            //   partition level and therefore might run while data for a single sequence number is added. So the max
+            //   sequence number that we have just persisted might have more data.
             for (sequencer_id, sequence_number) in sequencer_maxes {
                 let min = rest
                     .iter()
                     .filter(|s| s.sequencer_id == sequencer_id)
-                    .max_by_key(|s| s.first_sequence_number)
                     .map(|s| s.first_sequence_number)
+                    .min()
                     .unwrap_or(sequence_number);
                 persister
                     .update_min_unpersisted_sequence_number(sequencer_id, min)
@@ -592,6 +601,61 @@ mod tests {
         assert_eq!(stats.total_bytes, 6);
         assert_eq!(stats.partition_stats.len(), 1);
         assert_eq!(stats.partition_stats[0].partition_id, PartitionId::new(2));
+
+        let age_counter = get_counter(&metric_registry, "age");
+        assert_eq!(age_counter, 1);
+    }
+
+    #[tokio::test]
+    async fn persists_based_on_age_with_multiple_unpersisted() {
+        let config = LifecycleConfig {
+            pause_ingest_size: 30,
+            persist_memory_threshold: 20,
+            partition_size_threshold: 10,
+            partition_age_threshold: Duration::from_nanos(5),
+            partition_cold_threshold: Duration::from_secs(500),
+        };
+        let TestLifecycleManger {
+            mut m,
+            time_provider,
+            metric_registry,
+        } = TestLifecycleManger::new(config);
+        let partition_id = PartitionId::new(1);
+        let persister = Arc::new(TestPersister::default());
+        let sequencer_id = SequencerId::new(1);
+        let h = m.handle();
+
+        h.log_write(partition_id, sequencer_id, SequenceNumber::new(1), 10);
+
+        m.maybe_persist(&persister).await;
+        let stats = m.stats();
+        assert_eq!(stats.total_bytes, 10);
+        assert_eq!(stats.partition_stats[0].partition_id, partition_id);
+
+        // age out the partition
+        time_provider.inc(Duration::from_nanos(6));
+
+        // validate that from before, persist wasn't called for the partition
+        assert!(!persister.persist_called_for(partition_id));
+
+        // write in data for a new partition so we can be sure it isn't persisted, but the older one is
+        h.log_write(PartitionId::new(2), sequencer_id, SequenceNumber::new(2), 6);
+        h.log_write(PartitionId::new(3), sequencer_id, SequenceNumber::new(3), 7);
+
+        m.maybe_persist(&persister).await;
+
+        assert!(persister.persist_called_for(partition_id));
+        assert!(!persister.persist_called_for(PartitionId::new(2)));
+        assert_eq!(
+            persister.update_min_calls(),
+            vec![(sequencer_id, SequenceNumber::new(2))]
+        );
+
+        let stats = m.stats();
+        assert_eq!(stats.total_bytes, 13);
+        assert_eq!(stats.partition_stats.len(), 2);
+        assert_eq!(stats.partition_stats[0].partition_id, PartitionId::new(2));
+        assert_eq!(stats.partition_stats[1].partition_id, PartitionId::new(3));
 
         let age_counter = get_counter(&metric_registry, "age");
         assert_eq!(age_counter, 1);
