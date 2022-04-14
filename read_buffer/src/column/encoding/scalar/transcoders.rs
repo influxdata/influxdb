@@ -66,7 +66,7 @@ impl Display for NoOpTranscoder {
 /// It is the caller's responsibility to ensure that conversions involving
 /// `P::TryFrom(L)` will always succeed by, e.g., checking each value to be
 /// transcoded.
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub struct ByteTrimmer {}
 impl<P, L> Transcoder<P, L> for ByteTrimmer
 where
