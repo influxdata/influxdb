@@ -138,6 +138,22 @@ pub enum Error {
         source: Box<crate::querier_handler::Error>,
     },
 
+    #[snafu(display(
+        "No Namespace Data found for the given namespace name {}",
+        namespace_name,
+    ))]
+    NamespaceNotFound { namespace_name: String },
+
+    #[snafu(display(
+        "No Table Data found for the given namespace name {}, table name {}",
+        namespace_name,
+        table_name
+    ))]
+    TableNotFound {
+        namespace_name: String,
+        table_name: String,
+    },
+
     #[snafu(display("Error while streaming query results: {}", source))]
     QueryStream { source: ArrowError },
 
@@ -152,7 +168,11 @@ impl From<Error> for tonic::Status {
         // new error variants.
         let msg = "Error handling Flight gRPC request";
         match err {
-            Error::InvalidTicket { .. } | Error::InvalidQuery { .. } | Error::Query { .. } => {
+            Error::InvalidTicket { .. }
+            | Error::InvalidQuery { .. }
+            | Error::Query { .. }
+            | Error::NamespaceNotFound { .. }
+            | Error::TableNotFound { .. } => {
                 // TODO(edd): this should be `debug`. Keeping at info whilst IOx still in early
                 // development
                 info!(?err, msg)
@@ -179,6 +199,9 @@ impl Error {
             | Self::Dictionary { .. }
             | Self::QueryStream { .. }
             | Self::Serialization { .. } => Status::internal(self.to_string()),
+            Self::NamespaceNotFound { .. } | Self::TableNotFound { .. } => {
+                Status::not_found(self.to_string())
+            }
         }
     }
 }
@@ -222,12 +245,25 @@ impl<I: IngestHandler + Send + Sync + 'static> Flight for FlightService<I> {
 
         let query_request = proto_query_request.try_into().context(InvalidQuerySnafu)?;
 
-        let query_response = self
-            .ingest_handler
-            .query(query_request)
-            .await
-            .map_err(Box::new)
-            .context(QuerySnafu)?;
+        let query_response =
+            self.ingest_handler
+                .query(query_request)
+                .await
+                .map_err(|e| match e {
+                    crate::querier_handler::Error::NamespaceNotFound { namespace_name } => {
+                        Error::NamespaceNotFound { namespace_name }
+                    }
+                    crate::querier_handler::Error::TableNotFound {
+                        namespace_name,
+                        table_name,
+                    } => Error::TableNotFound {
+                        namespace_name,
+                        table_name,
+                    },
+                    _ => Error::Query {
+                        source: Box::new(e),
+                    },
+                })?;
 
         let output = GetStream::new(query_response).await?;
 

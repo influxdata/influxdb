@@ -58,6 +58,12 @@ pub enum Error {
     CollectStream { source: DataFusionError },
 
     #[snafu(display(
+        "No Namespace Data found for the given namespace name {}",
+        namespace_name,
+    ))]
+    NamespaceNotFound { namespace_name: String },
+
+    #[snafu(display(
         "No Table Data found for the given namespace name {}, table name {}",
         namespace_name,
         table_name
@@ -87,13 +93,20 @@ pub async fn prepare_data_to_querier(
 ) -> Result<IngesterQueryResponse> {
     let mut schema_merger = SchemaMerger::new();
     let mut unpersisted_partitions = BTreeMap::new();
+    let mut found_namespace = false;
     let mut batches = vec![];
     for sequencer_data in ingest_data.sequencers.values() {
-        let maybe_table_data = sequencer_data
-            .namespace(&request.namespace)
-            .and_then(|namespace_data| namespace_data.table_data(&request.table));
+        let namespace_data = match sequencer_data.namespace(&request.namespace) {
+            Some(namespace_data) => {
+                found_namespace = true;
+                namespace_data
+            }
+            None => {
+                continue;
+            }
+        };
 
-        let table_data = match maybe_table_data {
+        let table_data = match namespace_data.table_data(&request.table) {
             Some(table_data) => table_data,
             None => {
                 continue;
@@ -125,11 +138,17 @@ pub async fn prepare_data_to_querier(
     }
 
     ensure!(
+        found_namespace,
+        NamespaceNotFoundSnafu {
+            namespace_name: &request.namespace,
+        },
+    );
+    ensure!(
         !unpersisted_partitions.is_empty(),
         TableNotFoundSnafu {
             namespace_name: &request.namespace,
             table_name: &request.table
-        }
+        },
     );
     let schema = schema_merger.build();
 
@@ -336,6 +355,7 @@ mod tests {
         make_queryable_batch_with_deletes, DataLocation, TEST_NAMESPACE, TEST_TABLE,
     };
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
+    use assert_matches::assert_matches;
     use datafusion::logical_plan::{col, lit};
     use predicate::PredicateBuilder;
 
@@ -547,6 +567,26 @@ mod tests {
                 .unwrap();
             assert_batches_sorted_eq!(&expected, &result);
             assert_batches_have_schema_metadata(&result);
+        }
+
+        // test "table not found" handling
+        request.table = String::from("table_does_not_exist");
+        for (loc, scenario) in &scenarios {
+            println!("Location: {loc:?}");
+            let err = prepare_data_to_querier(scenario, &request)
+                .await
+                .unwrap_err();
+            assert_matches!(err, Error::TableNotFound { .. });
+        }
+
+        // test "namespace not found" handling
+        request.namespace = String::from("namespace_does_not_exist");
+        for (loc, scenario) in &scenarios {
+            println!("Location: {loc:?}");
+            let err = prepare_data_to_querier(scenario, &request)
+                .await
+                .unwrap_err();
+            assert_matches!(err, Error::NamespaceNotFound { .. });
         }
     }
 

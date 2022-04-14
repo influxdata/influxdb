@@ -57,6 +57,12 @@ pub enum Error {
         ingester_address: String,
         source: FlightError,
     },
+
+    #[snafu(display("Failed ingester query '{}': {}", ingester_address, source))]
+    RemoteQuery {
+        ingester_address: String,
+        source: FlightError,
+    },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -118,7 +124,12 @@ impl IngesterConnection for IngesterConnectionImpl {
 
         // TODO make these requests in parallel
         for ingester_address in &self.ingester_addresses {
-            debug!(%ingester_address, %table_name, "Connecting to ingester");
+            debug!(
+                %ingester_address,
+                %namespace_name,
+                %table_name,
+                "Connecting to ingester",
+            );
             // TODO maybe cache this connection
             let connection = connection::Builder::new()
                 .build(ingester_address)
@@ -146,10 +157,19 @@ impl IngesterConnection for IngesterConnectionImpl {
                     .try_into()
                     .context(CreatingRequestSnafu)?;
 
-            let mut perform_query = client
-                .perform_query(ingester_query_request)
-                .await
-                .expect("error performing query");
+            let query_res = client.perform_query(ingester_query_request).await;
+            if let Err(FlightError::GrpcError(status)) = &query_res {
+                if status.code() == tonic::Code::NotFound {
+                    debug!(
+                        %ingester_address,
+                        %namespace_name,
+                        %table_name,
+                        "Ingester does not know namespace or table, skipping",
+                    );
+                    continue;
+                }
+            }
+            let mut perform_query = query_res.context(RemoteQuerySnafu { ingester_address })?;
 
             // Gather up all the results (todo pass along partition information in metadata)
             let batches = perform_query.collect().await.expect("collecting");

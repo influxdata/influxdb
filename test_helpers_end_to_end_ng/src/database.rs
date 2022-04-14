@@ -3,15 +3,15 @@
 use assert_cmd::Command;
 use once_cell::sync::Lazy;
 use sqlx::{migrate::MigrateDatabase, Postgres};
-use std::{collections::BTreeSet, sync::Mutex};
+use std::collections::BTreeSet;
+use tokio::sync::Mutex;
 
 // I really do want to block everything until the database is initialized...
-#[allow(clippy::await_holding_lock)]
 static DB_INITIALIZED: Lazy<Mutex<BTreeSet<String>>> = Lazy::new(|| Mutex::new(BTreeSet::new()));
 
 /// Performs once-per-process database initialization, if necessary
 pub async fn initialize_db(dsn: &str, schema_name: &str) {
-    let mut init = DB_INITIALIZED.lock().expect("Mutex poisoned");
+    let mut init = DB_INITIALIZED.lock().await;
 
     // already done
     if init.contains(schema_name) {

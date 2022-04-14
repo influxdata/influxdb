@@ -1,3 +1,4 @@
+use futures::future::BoxFuture;
 use http::StatusCode;
 
 use arrow_util::assert_batches_sorted_eq;
@@ -9,11 +10,16 @@ use crate::{
 
 /// Test harness for end to end tests that are comprised of several steps
 pub struct StepTest<'a> {
-    cluster: &'a MiniCluster,
+    cluster: &'a mut MiniCluster,
 
     /// The test steps to perform
     steps: Vec<Step>,
 }
+
+/// Function used for custom [`Step`]s.
+///
+/// It is an async function that receives a mutable reference to [`MiniCluster`].
+pub type FCustom = Box<dyn for<'b> Fn(&'b mut MiniCluster) -> BoxFuture<'b, ()>>;
 
 /// Possible test steps that a test can perform
 pub enum Step {
@@ -35,12 +41,15 @@ pub enum Step {
         sql: String,
         expected: Vec<&'static str>,
     },
+
+    /// A custom step that can be used to implement special cases that are only used once.
+    Custom(FCustom),
 }
 
 impl<'a> StepTest<'a> {
     /// Create a new test that runs each `step`, in sequence, against
     /// `cluster` panic'ing if any step fails
-    pub fn new(cluster: &'a MiniCluster, steps: Vec<Step>) -> Self {
+    pub fn new(cluster: &'a mut MiniCluster, steps: Vec<Step>) -> Self {
         Self { cluster, steps }
     }
 
@@ -101,6 +110,11 @@ impl<'a> StepTest<'a> {
                     // convert String --> str
                     assert_batches_sorted_eq!(&expected, &batches);
                     println!("====Done running");
+                }
+                Step::Custom(f) => {
+                    println!("====Begin custom step");
+                    f(cluster).await;
+                    println!("====Done custom step");
                 }
             }
         }

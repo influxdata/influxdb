@@ -85,3 +85,80 @@ async fn ingester_flight_api() {
         );
     });
 }
+
+#[tokio::test]
+async fn ingester_flight_api_namespace_not_found() {
+    let database_url = maybe_skip_integration!();
+
+    let table_name = "mytable";
+
+    // Set up cluster
+    let router2_config = TestConfig::new_router2(&database_url);
+    let ingester_config = TestConfig::new_ingester(&router2_config);
+    let cluster = MiniCluster::new().with_ingester(ingester_config).await;
+
+    let mut querier_flight = influxdb_iox_client::flight::Client::<
+        influxdb_iox_client::flight::generated_types::IngesterQueryRequest,
+    >::new(cluster.ingester().ingester_grpc_connection());
+
+    let query = IngesterQueryRequest::new(
+        String::from("does_not_exist"),
+        table_name.into(),
+        vec![],
+        Some(::predicate::EMPTY_PREDICATE),
+    );
+
+    let err = querier_flight
+        .perform_query(query.try_into().unwrap())
+        .await
+        .unwrap_err();
+    if let influxdb_iox_client::flight::Error::GrpcError(status) = err {
+        assert_eq!(status.code(), tonic::Code::NotFound);
+    } else {
+        panic!("Wrong error variant: {err}")
+    }
+}
+
+#[tokio::test]
+async fn ingester_flight_api_table_not_found() {
+    let database_url = maybe_skip_integration!();
+
+    // Set up cluster
+    let router2_config = TestConfig::new_router2(&database_url);
+    let ingester_config = TestConfig::new_ingester(&router2_config);
+    let cluster = MiniCluster::new()
+        .with_router2(router2_config)
+        .await
+        .with_ingester(ingester_config)
+        .await;
+
+    // Write some data into the v2 HTTP API ==============
+    let lp = String::from("my_table,tag1=A,tag2=B val=42i 123456");
+    let response = cluster.write_to_router(lp).await;
+    assert_eq!(response.status(), StatusCode::NO_CONTENT);
+
+    // wait for the write to become visible
+    let write_token = get_write_token(&response);
+    wait_for_readable(write_token, cluster.ingester().ingester_grpc_connection()).await;
+
+    let mut querier_flight = influxdb_iox_client::flight::Client::<
+        influxdb_iox_client::flight::generated_types::IngesterQueryRequest,
+    >::new(cluster.ingester().ingester_grpc_connection());
+
+    let query = IngesterQueryRequest::new(
+        cluster.namespace().to_string(),
+        String::from("does_not_exist"),
+        vec![],
+        Some(::predicate::EMPTY_PREDICATE),
+    );
+
+    let err = querier_flight
+        .perform_query(query.try_into().unwrap())
+        .await
+        .unwrap_err();
+    if let influxdb_iox_client::flight::Error::GrpcError(status) = err {
+        assert_eq!(status.code(), tonic::Code::NotFound);
+    } else {
+        panic!("Wrong error variant: {err}")
+    }
+}
