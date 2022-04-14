@@ -2,12 +2,10 @@ use std::sync::Arc;
 
 use arrow::{datatypes::DataType, error::ArrowError, record_batch::RecordBatch};
 use async_trait::async_trait;
-use client_util::connection;
 use data_types2::{
     ChunkAddr, ChunkId, ChunkOrder, IngesterQueryRequest, SequenceNumber, TableSummary,
 };
 use datafusion_util::MemoryStream;
-use influxdb_iox_client::flight::{self, Client as FlightClient, Error as FlightError};
 use observability_deps::tracing::{debug, trace};
 use predicate::{Predicate, PredicateMatch};
 use query::{
@@ -17,8 +15,12 @@ use query::{
 use schema::{selection::Selection, sort::SortKey, Schema};
 use snafu::{ResultExt, Snafu};
 
-use self::test_util::MockIngesterConnection;
+use self::{
+    flight_client::{Error as FlightClientError, FlightClient, FlightClientImpl, FlightError},
+    test_util::MockIngesterConnection,
+};
 
+mod flight_client;
 mod test_util;
 
 #[derive(Debug, Snafu)]
@@ -26,12 +28,6 @@ mod test_util;
 pub enum Error {
     #[snafu(display("Failed to select columns: {}", source))]
     SelectColumns { source: schema::Error },
-
-    #[snafu(display("Failed to connect to ingester '{}': {}", ingester_address, source))]
-    Connecting {
-        ingester_address: String,
-        source: connection::Error,
-    },
 
     #[snafu(display("Internal error: failed to resolve ingester record batch types for column '{}' type '{}': {}",
                     column_name, data_type, source))]
@@ -41,27 +37,16 @@ pub enum Error {
         source: ArrowError,
     },
 
-    #[snafu(display("Internal error creating flight request : {}", source))]
-    CreatingRequest {
-        source: influxdb_iox_client::google::FieldViolation,
-    },
-
     #[snafu(display("Internal error creating record batch: {}", source))]
     CreatingRecordBatch { source: ArrowError },
 
     #[snafu(display("Internal error creating IOx schema: {}", source))]
     CreatingSchema { source: schema::Error },
 
-    #[snafu(display("Failed ingester handshake '{}': {}", ingester_address, source))]
-    Handshake {
-        ingester_address: String,
-        source: FlightError,
-    },
-
     #[snafu(display("Failed ingester query '{}': {}", ingester_address, source))]
     RemoteQuery {
         ingester_address: String,
-        source: FlightError,
+        source: FlightClientError,
     },
 }
 
@@ -98,13 +83,24 @@ pub trait IngesterConnection: std::fmt::Debug + Send + Sync + 'static {
 #[derive(Debug)]
 pub(crate) struct IngesterConnectionImpl {
     ingester_addresses: Vec<String>,
+    flight_client: Arc<dyn FlightClient>,
 }
 
 impl IngesterConnectionImpl {
     /// Create a new connection given a Vec of `ingester_address` such as
     /// "http://127.0.0.1:8083"
     pub fn new(ingester_addresses: Vec<String>) -> Self {
-        Self { ingester_addresses }
+        Self::new_with_flight_client(ingester_addresses, Arc::new(FlightClientImpl::new()))
+    }
+
+    fn new_with_flight_client(
+        ingester_addresses: Vec<String>,
+        flight_client: Arc<dyn FlightClient>,
+    ) -> Self {
+        Self {
+            ingester_addresses,
+            flight_client,
+        }
     }
 }
 
@@ -124,41 +120,21 @@ impl IngesterConnection for IngesterConnectionImpl {
 
         // TODO make these requests in parallel
         for ingester_address in &self.ingester_addresses {
-            debug!(
-                %ingester_address,
-                %namespace_name,
-                %table_name,
-                "Connecting to ingester",
-            );
-            // TODO maybe cache this connection
-            let connection = connection::Builder::new()
-                .build(ingester_address)
-                .await
-                .context(ConnectingSnafu { ingester_address })?;
-
-            let mut client =
-                FlightClient::<flight::generated_types::IngesterQueryRequest>::new(connection);
-
-            // make contact with the ingester
-            client
-                .handshake()
-                .await
-                .context(HandshakeSnafu { ingester_address })?;
-
             let ingester_query_request = IngesterQueryRequest {
                 namespace: namespace_name.to_string(),
                 table: table_name.to_string(),
                 columns: columns.clone(),
                 predicate: Some(predicate.clone()),
             };
-            debug!(?ingester_query_request, "Sending request to ingester");
-            let ingester_query_request: flight::generated_types::IngesterQueryRequest =
-                ingester_query_request
-                    .try_into()
-                    .context(CreatingRequestSnafu)?;
 
-            let query_res = client.perform_query(ingester_query_request).await;
-            if let Err(FlightError::GrpcError(status)) = &query_res {
+            let query_res = self
+                .flight_client
+                .query(ingester_address, ingester_query_request)
+                .await;
+            if let Err(FlightClientError::Flight {
+                source: FlightError::GrpcError(status),
+            }) = &query_res
+            {
                 if status.code() == tonic::Code::NotFound {
                     debug!(
                         %ingester_address,
@@ -401,13 +377,129 @@ fn ensure_schema(batch: RecordBatch, expected_schema: &Schema) -> Result<RecordB
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use arrow::{
         array::{ArrayRef, DictionaryArray, StringArray, TimestampNanosecondArray},
         datatypes::Int32Type,
     };
+    use assert_matches::assert_matches;
+    use influxdb_iox_client::flight::{
+        generated_types::IngesterQueryResponseMetadata, PerformQuery,
+    };
     use schema::builder::SchemaBuilder;
+    use tokio::sync::Mutex;
 
     use super::*;
+
+    #[tokio::test]
+    async fn test_flight_handshake_error() {
+        let mock_flight_client = Arc::new(MockFlightClient::from([(
+            "addr1",
+            Err(FlightClientError::Handshake {
+                ingester_address: String::from("addr1"),
+                source: FlightError::GrpcError(tonic::Status::internal("don't know")),
+            }),
+        )]));
+        let ingester_conn = mock_flight_client.ingester_conn().await;
+        let err = get_partitions(&ingester_conn).await.unwrap_err();
+        assert_matches!(err, Error::RemoteQuery { .. });
+    }
+
+    #[tokio::test]
+    async fn test_flight_internal_error() {
+        let mock_flight_client = Arc::new(MockFlightClient::from([(
+            "addr1",
+            Err(FlightClientError::Flight {
+                source: FlightError::GrpcError(tonic::Status::internal("cow exploded")),
+            }),
+        )]));
+        let ingester_conn = mock_flight_client.ingester_conn().await;
+        let err = get_partitions(&ingester_conn).await.unwrap_err();
+        assert_matches!(err, Error::RemoteQuery { .. });
+    }
+
+    #[tokio::test]
+    async fn test_flight_not_found() {
+        let mock_flight_client = Arc::new(MockFlightClient::from([(
+            "addr1",
+            Err(FlightClientError::Flight {
+                source: FlightError::GrpcError(tonic::Status::not_found("something")),
+            }),
+        )]));
+        let ingester_conn = mock_flight_client.ingester_conn().await;
+        let partitions = get_partitions(&ingester_conn).await.unwrap();
+        assert!(partitions.is_empty());
+    }
+
+    async fn get_partitions(
+        ingester_conn: &IngesterConnectionImpl,
+    ) -> Result<Vec<Arc<IngesterPartition>>, Error> {
+        let namespace = Arc::from("namespace");
+        let table = Arc::from("table");
+        let columns = vec![String::from("col")];
+        let schema = Arc::new(SchemaBuilder::new().build().unwrap());
+        ingester_conn
+            .partitions(namespace, table, columns, &Predicate::default(), schema)
+            .await
+    }
+
+    #[derive(Debug)]
+    struct MockFlightClient {
+        responses: Mutex<
+            HashMap<String, Result<PerformQuery<IngesterQueryResponseMetadata>, FlightClientError>>,
+        >,
+    }
+
+    impl MockFlightClient {
+        async fn ingester_conn(self: &Arc<Self>) -> IngesterConnectionImpl {
+            let ingester_addresses = self.responses.lock().await.keys().cloned().collect();
+            IngesterConnectionImpl::new_with_flight_client(
+                ingester_addresses,
+                Arc::clone(self) as _,
+            )
+        }
+    }
+
+    impl<const N: usize>
+        From<
+            [(
+                &'static str,
+                Result<PerformQuery<IngesterQueryResponseMetadata>, FlightClientError>,
+            ); N],
+        > for MockFlightClient
+    {
+        fn from(
+            responses: [(
+                &'static str,
+                Result<PerformQuery<IngesterQueryResponseMetadata>, FlightClientError>,
+            ); N],
+        ) -> Self {
+            Self {
+                responses: Mutex::new(
+                    responses
+                        .into_iter()
+                        .map(|(k, v)| (String::from(k), v))
+                        .collect(),
+                ),
+            }
+        }
+    }
+
+    #[async_trait]
+    impl FlightClient for MockFlightClient {
+        async fn query(
+            &self,
+            ingester_address: &str,
+            _request: IngesterQueryRequest,
+        ) -> Result<PerformQuery<IngesterQueryResponseMetadata>, FlightClientError> {
+            self.responses
+                .lock()
+                .await
+                .remove(ingester_address)
+                .expect("Response not mocked")
+        }
+    }
 
     #[test]
     fn test_ingester_partition_type_cast() {

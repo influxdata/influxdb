@@ -4524,6 +4524,7 @@ dependencies = [
  "arrow",
  "arrow-flight",
  "arrow_util",
+ "assert_matches",
  "async-trait",
  "backoff 0.1.0",
  "bytes",
