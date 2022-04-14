@@ -2770,4 +2770,75 @@ mod tests {
         ];
         assert_eq!(expect, candidates);
     }
+
+    #[tokio::test]
+    async fn test_compact_two_big_files() {
+        test_helpers::maybe_start_logging();
+        let catalog = TestCatalog::new();
+
+        let lp1 = (1..1000) // total 999 rows
+            .into_iter()
+            .map(|i| format!("table,tag1=foo ifield=1i {}", i))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        let lp2 = (500..1500) // total 1000 rows
+            .into_iter()
+            .map(|i| format!("table,tag1=foo ifield=1i {}", i))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        let ns = catalog.create_namespace("ns").await;
+        let sequencer = ns.create_sequencer(1).await;
+        let table = ns.create_table("table").await;
+        let partition = table
+            .with_sequencer(&sequencer)
+            .create_partition("part")
+            .await;
+        let parquet_file1 = partition
+            .create_parquet_file_with_min_max(&lp1, 1, 5, 1, 1000)
+            .await
+            .parquet_file;
+        let parquet_file2 = partition
+            .create_parquet_file_with_min_max(&lp2, 10, 15, 500, 1500)
+            .await
+            .parquet_file;
+
+        let compactor = Compactor::new(
+            vec![sequencer.sequencer.id],
+            Arc::clone(&catalog.catalog),
+            Arc::clone(&catalog.object_store),
+            Arc::new(Executor::new(1)),
+            Arc::new(SystemProvider::new()),
+            BackoffConfig::default(),
+            CompactorConfig::new(90, 100000, 100000),
+            Arc::new(metric::Registry::new()),
+        );
+
+        let pf1 = ParquetFileWithTombstone {
+            data: Arc::new(parquet_file1),
+            tombstones: vec![],
+        };
+        // File 2 without tombstones
+        let pf2 = ParquetFileWithTombstone {
+            data: Arc::new(parquet_file2),
+            tombstones: vec![],
+        };
+
+        // Compact them
+        let batches = compactor.compact(vec![pf1, pf2]).await.unwrap();
+
+        // 2 sets based on the split rule
+        assert_eq!(batches.len(), 2);
+
+        // Verify number of output rows
+        // There should be total 1499 output rows (999 from lp1 + 100 from lp2 - 500 duplicates)
+        let mut num_rows: usize = batches[0].data.iter().map(|rb| rb.num_rows()).sum();
+        num_rows += batches[1]
+            .data
+            .iter()
+            .map(|rb| rb.num_rows())
+            .sum::<usize>();
+        assert_eq!(num_rows, 1499);
+    }
 }

@@ -14,7 +14,7 @@ use arrow_util::optimize::optimize_dictionaries;
 use datafusion::physical_plan::{
     coalesce_batches::concat_batches, expressions::PhysicalSortExpr, metrics, PhysicalExpr,
 };
-use observability_deps::tracing::trace;
+use observability_deps::tracing::{debug, trace};
 
 use crate::provider::deduplicate::key_ranges::key_ranges;
 
@@ -63,12 +63,16 @@ impl RecordBatchDeduplicator {
         let batch = if let Some(last_batch) = self.last_batch.take() {
             let schema = last_batch.schema();
             let row_count = last_batch.num_rows() + batch.num_rows();
-            concat_batches(&schema, &[last_batch, batch], row_count)?
+            debug!(row_count, "Before concat_batches");
+            let result = concat_batches(&schema, &[last_batch, batch], row_count)?;
+            debug!(row_count, "After concat_batches");
+            result
         } else {
             batch
         };
 
         let mut dupe_ranges = self.compute_ranges(&batch)?;
+        debug!("Finish computing range");
 
         // The last partition may span batches so we can't emit it
         // until we have seen the next batch (or we are at end of
@@ -76,6 +80,10 @@ impl RecordBatchDeduplicator {
         let last_range = dupe_ranges.ranges.pop();
 
         let output_record_batch = self.output_from_ranges(&batch, &dupe_ranges)?;
+        debug!(
+            num_rows = output_record_batch.num_rows(),
+            "Rows of ouput_record_batch"
+        );
 
         // Now, save the last bit of the pk
         if let Some(last_range) = last_range {
@@ -83,6 +91,7 @@ impl RecordBatchDeduplicator {
             let last_batch = Self::slice_record_batch(&batch, last_range.start, len)?;
             self.last_batch = Some(last_batch);
         }
+        debug!("done pushing record batch into the indexer");
 
         Ok(output_record_batch)
     }
