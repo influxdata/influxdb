@@ -12,7 +12,7 @@ if [ -n "${TLS_CERT}" ] && [ -n "${TLS_KEY}" ]; then
   echo "TLS cert and key found -- using https"
   PROTOCOL="https"
 fi
-HOST=${BIND_ADDRESS%%:*}
+HOST=${BIND_ADDRESS%:*}
 HOST=${HOST:-"localhost"}
 PORT=${BIND_ADDRESS##*:}
 
