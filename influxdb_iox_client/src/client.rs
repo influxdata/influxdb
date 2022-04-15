@@ -37,3 +37,6 @@ pub mod flight;
 
 /// Client for fetching write info
 pub mod write_info;
+
+/// Client for interacting with a remote catalog
+pub mod catalog;

@@ -28,6 +28,7 @@ mod commands {
     pub mod database;
     pub mod debug;
     pub mod operations;
+    pub mod remote;
     pub mod router;
     pub mod run;
     pub mod schema;
@@ -169,6 +170,9 @@ enum Command {
     // Clippy recommended boxing this variant because it's much larger than the others
     Run(Box<commands::run::Config>),
 
+    /// Commands to run against remote IOx APIs
+    Remote(commands::remote::Config),
+
     /// Router-related commands
     Router(commands::router::Config),
 
@@ -270,6 +274,14 @@ fn main() -> Result<(), std::io::Error> {
                 let connection = connection().await;
                 if let Err(e) = commands::server::command(connection, config).await {
                     eprintln!("Server command failed: {}", e);
+                    std::process::exit(ReturnCode::Failure as _)
+                }
+            }
+            Command::Remote(config) => {
+                let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
+                let connection = connection().await;
+                if let Err(e) = commands::remote::command(connection, config).await {
+                    eprintln!("{}", e);
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
