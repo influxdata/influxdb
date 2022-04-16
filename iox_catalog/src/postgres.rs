@@ -17,6 +17,7 @@ use data_types2::{
     SequencerId, Table, TableId, TablePartition, Timestamp, Tombstone, TombstoneId,
 };
 use observability_deps::tracing::{info, warn};
+use sqlx::types::Uuid;
 use sqlx::{migrate::Migrator, postgres::PgPoolOptions, Acquire, Executor, Postgres, Row};
 use sqlx_hotswap_pool::HotSwapPool;
 use std::{collections::HashMap, sync::Arc, time::Duration};
@@ -1780,6 +1781,34 @@ WHERE table_id = $1
         .map_err(|e| Error::SqlxError { source: e })?;
 
         Ok(read_result.count)
+    }
+
+    async fn get_by_object_store_id(
+        &mut self,
+        object_store_id: Uuid,
+    ) -> Result<Option<ParquetFile>> {
+        // Deliberately doesn't use `SELECT *` to avoid the performance hit of fetching the large
+        // `parquet_metadata` column!!
+        let rec = sqlx::query_as::<_, ParquetFile>(
+            r#"
+SELECT id, sequencer_id, namespace_id, table_id, partition_id, object_store_id,
+       min_sequence_number, max_sequence_number, min_time, max_time, to_delete, file_size_bytes,
+       row_count, compaction_level, created_at
+FROM parquet_file
+WHERE object_store_id = $1;
+             "#,
+        )
+        .bind(&object_store_id) // $1
+        .fetch_one(&mut self.inner)
+        .await;
+
+        if let Err(sqlx::Error::RowNotFound) = rec {
+            return Ok(None);
+        }
+
+        let parquet_file = rec.map_err(|e| Error::SqlxError { source: e })?;
+
+        Ok(Some(parquet_file))
     }
 }
 

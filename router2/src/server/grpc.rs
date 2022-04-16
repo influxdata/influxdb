@@ -5,15 +5,17 @@ use std::sync::Arc;
 use generated_types::{
     google::FieldViolation,
     influxdata::{
-        iox::{catalog::v1::*, schema::v1::*},
+        iox::{catalog::v1::*, object_store::v1::*, schema::v1::*},
         pbdata::v1::*,
     },
 };
 use hashbrown::HashMap;
 use iox_catalog::interface::{get_schema_by_name, Catalog};
 use iox_catalog_service::CatalogService;
+use iox_object_store_service::ObjectStoreService;
 use metric::U64Counter;
 use mutable_batch::MutableBatch;
+use object_store::DynObjectStore;
 use observability_deps::tracing::*;
 use schema::selection::Selection;
 use std::ops::DerefMut;
@@ -29,6 +31,7 @@ use crate::dml_handlers::{DmlError, DmlHandler, PartitionError};
 pub struct GrpcDelegate<D> {
     dml_handler: Arc<D>,
     catalog: Arc<dyn Catalog>,
+    object_store: Arc<DynObjectStore>,
     metrics: Arc<metric::Registry>,
 }
 
@@ -38,11 +41,13 @@ impl<D> GrpcDelegate<D> {
     pub fn new(
         dml_handler: Arc<D>,
         catalog: Arc<dyn Catalog>,
+        object_store: Arc<DynObjectStore>,
         metrics: Arc<metric::Registry>,
     ) -> Self {
         Self {
             dml_handler,
             catalog,
+            object_store,
             metrics,
         }
     }
@@ -85,6 +90,20 @@ where
         catalog_service_server::CatalogServiceServer::new(CatalogService::new(Arc::clone(
             &self.catalog,
         )))
+    }
+
+    /// Acquire a [`ObjectStoreService`] gRPC service implementation.
+    ///
+    /// [`ObjectStoreService`]: generated_types::influxdata::iox::object_store::v1::object_store_service_server::ObjectStoreService.
+    pub fn object_store_service(
+        &self,
+    ) -> object_store_service_server::ObjectStoreServiceServer<
+        impl object_store_service_server::ObjectStoreService,
+    > {
+        object_store_service_server::ObjectStoreServiceServer::new(ObjectStoreService::new(
+            Arc::clone(&self.catalog),
+            Arc::clone(&self.object_store),
+        ))
     }
 }
 

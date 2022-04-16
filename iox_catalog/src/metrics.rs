@@ -15,6 +15,7 @@ use data_types2::{
 use metric::{Metric, U64Histogram, U64HistogramOptions};
 use std::{fmt::Debug, sync::Arc};
 use time::{SystemProvider, TimeProvider};
+use uuid::Uuid;
 
 /// Decorates a implementation of the catalog's [`RepoCollection`] (and the
 /// transactional variant) with instrumentation that emits latency histograms
@@ -280,6 +281,7 @@ decorate!(
         "parquet_metadata" = parquet_metadata(&mut self, id: ParquetFileId) -> Result<Vec<u8>>;
         "parquet_count" = count(&mut self) -> Result<i64>;
         "parquet_count_by_overlaps" = count_by_overlaps(&mut self, table_id: TableId, sequencer_id: SequencerId, min_time: Timestamp, max_time: Timestamp, sequence_number: SequenceNumber) -> Result<i64>;
+        "parquet_get_by_object_store_id" = get_by_object_store_id(&mut self, object_store_id: Uuid) -> Result<Option<ParquetFile>>;
     ]
 );
 

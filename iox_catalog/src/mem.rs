@@ -18,6 +18,7 @@ use data_types2::{
     SequencerId, Table, TableId, TablePartition, Timestamp, Tombstone, TombstoneId,
 };
 use observability_deps::tracing::warn;
+use sqlx::types::Uuid;
 use std::{
     collections::{BTreeMap, HashSet},
     convert::TryFrom,
@@ -1224,6 +1225,19 @@ impl ParquetFileRepo for MemTxn {
             .count();
 
         i64::try_from(count).map_err(|_| Error::InvalidValue { value: count })
+    }
+
+    async fn get_by_object_store_id(
+        &mut self,
+        object_store_id: Uuid,
+    ) -> Result<Option<ParquetFile>> {
+        let stage = self.stage();
+
+        Ok(stage
+            .parquet_files
+            .iter()
+            .find(|f| f.object_store_id.eq(&object_store_id))
+            .cloned())
     }
 }
 

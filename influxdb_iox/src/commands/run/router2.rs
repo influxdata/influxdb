@@ -9,6 +9,7 @@ use clap_blocks::{
 use ioxd_common::server_type::{CommonServerState, CommonServerStateError};
 use ioxd_common::Service;
 use ioxd_router2::create_router2_server_type;
+use object_store::{instrumentation::ObjectStoreMetrics, DynObjectStore, ObjectStoreImpl};
 use observability_deps::tracing::*;
 use thiserror::Error;
 
@@ -21,6 +22,9 @@ pub enum Error {
 
     #[error("Invalid config: {0}")]
     InvalidConfig(#[from] CommonServerStateError),
+
+    #[error("Cannot parse object store config: {0}")]
+    ObjectStoreParsing(#[from] clap_blocks::object_store::ParseError),
 
     #[error("Creating router: {0}")]
     Router(#[from] ioxd_router2::Error),
@@ -74,10 +78,17 @@ pub async fn command(config: Config) -> Result<()> {
         .get_catalog("router2", Arc::clone(&metrics))
         .await?;
 
+    let object_store = ObjectStoreImpl::try_from(config.run_config.object_store_config())
+        .map_err(Error::ObjectStoreParsing)?;
+    // Decorate the object store with a metric recorder.
+    let object_store: Arc<DynObjectStore> =
+        Arc::new(ObjectStoreMetrics::new(object_store, &*metrics));
+
     let server_type = create_router2_server_type(
         &common_state,
         Arc::clone(&metrics),
         catalog,
+        object_store,
         &config.write_buffer_config,
         &config.query_pool_name,
     )

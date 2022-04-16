@@ -2612,6 +2612,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "iox_object_store_service"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "bytes",
+ "data_types2",
+ "futures",
+ "generated_types",
+ "iox_catalog",
+ "iox_object_store",
+ "metric",
+ "object_store",
+ "observability_deps",
+ "serde",
+ "serde_urlencoded",
+ "time 0.1.0",
+ "tokio",
+ "tokio-stream",
+ "tonic 0.6.2",
+ "trace",
+ "uuid",
+ "workspace-hack",
+]
+
+[[package]]
 name = "iox_tests"
 version = "0.1.0"
 dependencies = [
@@ -4974,11 +4999,13 @@ dependencies = [
  "influxdb_line_protocol",
  "iox_catalog",
  "iox_catalog_service",
+ "iox_object_store_service",
  "lazy_static",
  "metric",
  "mutable_batch",
  "mutable_batch_lp",
  "mutable_batch_pb",
+ "object_store",
  "observability_deps",
  "parking_lot 0.12.0",
  "paste",

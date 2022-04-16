@@ -591,6 +591,12 @@ pub trait ParquetFileRepo: Send + Sync {
         max_time: Timestamp,
         sequence_number: SequenceNumber,
     ) -> Result<i64>;
+
+    /// Return the parquet file with the given object store id
+    async fn get_by_object_store_id(
+        &mut self,
+        object_store_id: Uuid,
+    ) -> Result<Option<ParquetFile>>;
 }
 
 /// Functions for working with processed tombstone pointers in the catalog
@@ -1755,6 +1761,14 @@ pub(crate) mod test_helpers {
             .create(parquet_file_params.clone())
             .await
             .unwrap();
+
+        // verify we can get it by its object store id
+        let pfg = repos
+            .parquet_files()
+            .get_by_object_store_id(parquet_file.object_store_id)
+            .await
+            .unwrap();
+        assert_eq!(parquet_file, pfg.unwrap());
 
         let metadata = repos
             .parquet_files()

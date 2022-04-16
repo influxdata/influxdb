@@ -39,6 +39,7 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
     let ingester_path = root.join("influxdata/iox/ingester/v1");
     let management_path = root.join("influxdata/iox/management/v1");
     let namespace_path = root.join("influxdata/iox/namespace/v1");
+    let object_store_path = root.join("influxdata/iox/object_store/v1");
     let predicate_path = root.join("influxdata/iox/predicate/v1");
     let preserved_catalog_path = root.join("influxdata/iox/preserved_catalog/v1");
     let querier_path = root.join("influxdata/iox/querier/v1");
@@ -65,6 +66,7 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
         management_path.join("server_config.proto"),
         management_path.join("service.proto"),
         namespace_path.join("service.proto"),
+        object_store_path.join("service.proto"),
         predicate_path.join("predicate.proto"),
         preserved_catalog_path.join("catalog.proto"),
         preserved_catalog_path.join("parquet_metadata.proto"),

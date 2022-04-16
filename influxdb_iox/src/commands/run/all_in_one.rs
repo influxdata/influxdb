@@ -336,6 +336,7 @@ pub async fn command(config: Config) -> Result<()> {
         &common_state,
         Arc::clone(&metrics),
         Arc::clone(&catalog),
+        Arc::clone(&object_store),
         &write_buffer_config,
         query_pool_name,
     )

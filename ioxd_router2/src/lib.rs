@@ -37,6 +37,7 @@ use ioxd_common::{
     server_type::{CommonServerState, RpcError, ServerType},
     setup_builder,
 };
+use object_store::DynObjectStore;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -107,6 +108,7 @@ where
         add_service!(builder, self.server.grpc().write_service());
         add_service!(builder, self.server.grpc().schema_service());
         add_service!(builder, self.server.grpc().catalog_service());
+        add_service!(builder, self.server.grpc().object_store_service());
         serve_builder!(builder);
 
         Ok(())
@@ -146,6 +148,7 @@ pub async fn create_router2_server_type(
     common_state: &CommonServerState,
     metrics: Arc<metric::Registry>,
     catalog: Arc<dyn Catalog>,
+    object_store: Arc<DynObjectStore>,
     write_buffer_config: &WriteBufferConfig,
     query_pool_name: &str,
 ) -> Result<Arc<dyn ServerType>> {
@@ -265,7 +268,12 @@ pub async fn create_router2_server_type(
         Arc::clone(&handler_stack),
         &metrics,
     );
-    let grpc = GrpcDelegate::new(handler_stack, schema_catalog, Arc::clone(&metrics));
+    let grpc = GrpcDelegate::new(
+        handler_stack,
+        schema_catalog,
+        object_store,
+        Arc::clone(&metrics),
+    );
 
     let router_server = RouterServer::new(http, grpc, metrics, common_state.trace_collector());
     let server_type = Arc::new(RouterServerType::new(router_server, common_state));
