@@ -12,6 +12,7 @@ use parquet_file::{
     chunk::{new_parquet_chunk, ChunkMetrics, DecodedParquetFile},
     metadata::{IoxMetadata, IoxParquetMetaData},
 };
+use schema::sort::SortKey;
 use std::{
     collections::{BTreeMap, HashSet},
     sync::Arc,
@@ -89,6 +90,7 @@ impl ParquetFileWithTombstone {
         &self,
         object_store: Arc<DynObjectStore>,
         table_name: String,
+        sort_key: Option<SortKey>,
     ) -> QueryableParquetChunk {
         let decoded_parquet_file = DecodedParquetFile::new((*self.data).clone());
         let root_path = IoxObjectStore::root_path_for(&*object_store, self.data.object_store_id);
@@ -117,6 +119,7 @@ impl ParquetFileWithTombstone {
             self.data.max_sequence_number,
             self.data.min_time,
             self.data.max_time,
+            sort_key,
         )
     }
 
