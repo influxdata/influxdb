@@ -665,16 +665,16 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "3.1.8"
+version = "3.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "71c47df61d9e16dc010b55dba1952a57d8c215dbb533fd13cdd13369aac73b1c"
+checksum = "6aad2534fad53df1cc12519c5cda696dd3e20e6118a027e24054aea14a0bdcbe"
 dependencies = [
  "atty",
  "bitflags",
  "clap_derive",
+ "clap_lex",
  "indexmap",
  "lazy_static",
- "os_str_bytes",
  "strsim",
  "termcolor",
  "textwrap 0.15.0",
@@ -684,7 +684,7 @@ dependencies = [
 name = "clap_blocks"
 version = "0.1.0"
 dependencies = [
- "clap 3.1.8",
+ "clap 3.1.9",
  "data_types",
  "futures",
  "iox_catalog",
@@ -713,6 +713,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "clap_lex"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "189ddd3b5d32a70b35e7686054371742a937b0d99128e76dde6340210e966669"
+dependencies = [
+ "os_str_bytes",
 ]
 
 [[package]]
@@ -2221,7 +2230,7 @@ dependencies = [
  "byteorder",
  "bytes",
  "chrono",
- "clap 3.1.8",
+ "clap 3.1.9",
  "clap_blocks",
  "comfy-table",
  "compactor",
@@ -2541,7 +2550,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "chrono-english",
- "clap 3.1.8",
+ "clap 3.1.9",
  "criterion",
  "data_types",
  "futures",
@@ -2570,7 +2579,7 @@ dependencies = [
  "assert_matches",
  "async-trait",
  "chrono",
- "clap 3.1.8",
+ "clap 3.1.9",
  "dotenv",
  "futures",
  "glob",
@@ -2664,7 +2673,7 @@ dependencies = [
  "async-trait",
  "bytes",
  "chrono",
- "clap 3.1.8",
+ "clap 3.1.9",
  "clap_blocks",
  "data_types",
  "dml",
@@ -2737,7 +2746,7 @@ dependencies = [
  "arrow_util",
  "async-trait",
  "bytes",
- "clap 3.1.8",
+ "clap 3.1.9",
  "clap_blocks",
  "data_types",
  "db",
@@ -2913,7 +2922,7 @@ name = "ioxd_test"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "clap 3.1.8",
+ "clap 3.1.9",
  "generated_types",
  "hyper",
  "ioxd_common",
@@ -3889,9 +3898,6 @@ name = "os_str_bytes"
 version = "6.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8e22443d1643a904602595ba1cd8f7d896afe56d26712531c5ff73a15b2fbf64"
-dependencies = [
- "memchr",
-]
 
 [[package]]
 name = "output_vt100"
@@ -6553,7 +6559,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "chrono",
- "clap 3.1.8",
+ "clap 3.1.9",
  "futures",
  "observability_deps",
  "snafu",
@@ -6699,7 +6705,7 @@ dependencies = [
 name = "trogging"
 version = "0.1.0"
 dependencies = [
- "clap 3.1.8",
+ "clap 3.1.9",
  "logfmt",
  "observability_deps",
  "regex",
