@@ -115,7 +115,7 @@ workspace-hack = { path = "../workspace-hack"}
 # Workspace dependencies, in alphabetical order
 arrow_util = { path = "../arrow_util" }
 iox_tests = { path = "../iox_tests" }
-test_helpers = { path = "../test_helpers" }
+test_helpers = { path = "../test_helpers", features = ["future_timeout"] }
 test_helpers_end_to_end_ng = { path = "../test_helpers_end_to_end_ng" }
 schema = { path = "../schema" }
 

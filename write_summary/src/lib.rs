@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use data_types2::{KafkaPartition, SequenceNumber};
-use observability_deps::tracing::{debug, trace};
+use observability_deps::tracing::debug;
 
 /// Protobuf to/from conversion
 use generated_types::influxdata::iox::write_summary::v1 as proto;
@@ -38,6 +38,19 @@ pub struct WriteSummary {
     ///
     /// Note: BTreeMap to ensure the output is in a consistent order
     sequencers: BTreeMap<KafkaPartition, Vec<SequenceNumber>>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum KafkaPartitionWriteStatus {
+    /// Nothing is known about this write (e.g. it refers to a kafka
+    /// partition for which we have no information)
+    KafkaPartitionUnknown,
+    /// The data has not yet been processed by the ingester, and thus is unreadable
+    Durable,
+    /// The data is readable, but not yet persisted
+    Readable,
+    /// The data is both readable and persisted to parquet
+    Persisted,
 }
 
 impl WriteSummary {
@@ -107,76 +120,40 @@ impl WriteSummary {
         self.sequencers.keys().cloned().collect()
     }
 
-    /// Given the write described by this summary and the sequencer's
-    /// progress, returns:
-    ///
-    /// 1. `Ok(true) if the write is guaranteed to be readable
-    /// 2. `Ok(false) if the write is guaranteed to NOT be readable
-    /// 3. `Err` if a determination can not be made
-    ///
-    /// The progress may not contain information about the kafka
-    /// partition of interest, for example.
-    pub fn readable(
+    /// Given the write described by this summary, and the sequencer's
+    /// progress for a particular kafka partition, returns the status
+    /// of that write in this write summary
+    pub fn write_status(
         &self,
-        progresses: &BTreeMap<KafkaPartition, SequencerProgress>,
-    ) -> Result<bool> {
-        let readable = self.check_progress(progresses, |sequence_number, progress| {
-            progress.readable(sequence_number)
-        });
-        trace!(?readable, ?progresses, ?self, "Checked readable");
-        readable
-    }
+        kafka_partition: KafkaPartition,
+        progress: &SequencerProgress,
+    ) -> Result<KafkaPartitionWriteStatus> {
+        let sequence_numbers = self
+            .sequencers
+            .get(&kafka_partition)
+            .context(UnknownKafkaPartitionSnafu { kafka_partition })?;
 
-    /// Given the write described by this summary and the sequencer's
-    /// progress, returns:
-    ///
-    /// 1. `Ok(true) if the write is guaranteed to be persisted to parquet
-    /// 2. `Ok(false) if the write is guaranteed to NOT be persisted to parquet
-    /// 3. `Err` if a determination can not be made
-    ///
-    /// The progress may not contain information about the kafka
-    /// partition of interest, for example.
-    pub fn persisted(
-        &self,
-        progresses: &BTreeMap<KafkaPartition, SequencerProgress>,
-    ) -> Result<bool> {
-        let persisted = self.check_progress(progresses, |sequence_number, progress| {
-            progress.persisted(sequence_number)
-        });
-        trace!(?persisted, ?progresses, ?self, "Checked persisted");
-        persisted
-    }
+        if progress.is_empty() {
+            return Ok(KafkaPartitionWriteStatus::KafkaPartitionUnknown);
+        }
 
-    /// returns Some(true) if f(kafka_partition, progress) returns
-    /// true for all kafka_partitions in self for the corresponding
-    /// progress, Some(false) if `f` ever returned false, and None if
-    /// there `progresses` does not have information about one of the
-    /// partitions
-    fn check_progress<F>(
-        &self,
-        progresses: &BTreeMap<KafkaPartition, SequencerProgress>,
-        f: F,
-    ) -> Result<bool>
-    where
-        F: Fn(SequenceNumber, &SequencerProgress) -> bool,
-    {
-        self.sequencers
+        let is_persisted = sequence_numbers
             .iter()
-            .map(|(&kafka_partition, sequence_numbers)| {
-                progresses
-                    .get(&kafka_partition)
-                    .map(|progress| {
-                        sequence_numbers
-                            .iter()
-                            .all(|sequence_number| f(*sequence_number, progress))
-                    })
-                    .context(UnknownKafkaPartitionSnafu { kafka_partition })
-            })
-            .collect::<Result<Vec<_>>>()
-            .map(|all_results| {
-                // were all invocations of f() true?
-                all_results.into_iter().all(|v| v)
-            })
+            .all(|sequence_number| progress.persisted(*sequence_number));
+
+        if is_persisted {
+            return Ok(KafkaPartitionWriteStatus::Persisted);
+        }
+
+        let is_readable = sequence_numbers
+            .iter()
+            .all(|sequence_number| progress.readable(*sequence_number));
+
+        if is_readable {
+            return Ok(KafkaPartitionWriteStatus::Readable);
+        }
+
+        Ok(KafkaPartitionWriteStatus::Durable)
     }
 }
 
@@ -379,6 +356,105 @@ mod tests {
         WriteSummary::try_from_token(&token).unwrap();
     }
 
+    #[test]
+    fn no_progress() {
+        let summary = test_summary();
+
+        // if we have no info about this partition in the progress
+        let kafka_partition = KafkaPartition::new(1);
+        let progress = SequencerProgress::new();
+        assert_eq!(
+            summary.write_status(kafka_partition, &progress),
+            Ok(KafkaPartitionWriteStatus::KafkaPartitionUnknown)
+        );
+    }
+
+    #[test]
+    fn unknown_partition() {
+        let summary = test_summary();
+        // No information on kafka partition 3
+        let kafka_partition = KafkaPartition::new(3);
+        let progress = SequencerProgress::new().with_buffered(SequenceNumber::new(2));
+        let err = summary
+            .write_status(kafka_partition, &progress)
+            .unwrap_err();
+        assert_eq!(err.to_string(), "Unknown kafka partition: 3");
+    }
+
+    #[test]
+    fn readable() {
+        let summary = test_summary();
+
+        // kafka partition 1 made it to 3
+        let kafka_partition = KafkaPartition::new(1);
+        let progress = SequencerProgress::new().with_buffered(SequenceNumber::new(3));
+        assert_eq!(
+            summary.write_status(kafka_partition, &progress),
+            Ok(KafkaPartitionWriteStatus::Readable)
+        );
+
+        // if kafka partition 1 only made it to 2, but write includes 3
+        let kafka_partition = KafkaPartition::new(1);
+        let progress = SequencerProgress::new().with_buffered(SequenceNumber::new(2));
+        assert_eq!(
+            summary.write_status(kafka_partition, &progress),
+            Ok(KafkaPartitionWriteStatus::Durable)
+        );
+
+        // kafka partition 2 made it to 2
+        let kafka_partition = KafkaPartition::new(2);
+        let progress = SequencerProgress::new().with_buffered(SequenceNumber::new(2));
+
+        assert_eq!(
+            summary.write_status(kafka_partition, &progress),
+            Ok(KafkaPartitionWriteStatus::Readable)
+        );
+    }
+
+    #[test]
+    fn persisted() {
+        let summary = test_summary();
+
+        // kafka partition 1 has persisted up to sequence 3
+        let kafka_partition = KafkaPartition::new(1);
+        let progress = SequencerProgress::new().with_persisted(SequenceNumber::new(3));
+        assert_eq!(
+            summary.write_status(kafka_partition, &progress),
+            Ok(KafkaPartitionWriteStatus::Persisted)
+        );
+
+        // kafka partition 2 has persisted up to sequence 2
+        let kafka_partition = KafkaPartition::new(2);
+        let progress = SequencerProgress::new().with_persisted(SequenceNumber::new(2));
+        assert_eq!(
+            summary.write_status(kafka_partition, &progress),
+            Ok(KafkaPartitionWriteStatus::Persisted)
+        );
+
+        // kafka partition 1 only persisted up to sequence number 2, have buffered data at 3
+        let kafka_partition = KafkaPartition::new(1);
+        let progress = SequencerProgress::new()
+            .with_buffered(SequenceNumber::new(3))
+            .with_persisted(SequenceNumber::new(2));
+
+        assert_eq!(
+            summary.write_status(kafka_partition, &progress),
+            Ok(KafkaPartitionWriteStatus::Readable)
+        );
+    }
+
+    /// Return a write summary that describes a write with:
+    /// kafka_partition 1 --> sequence 3
+    /// kafka_partition 2 --> sequence 1
+    fn test_summary() -> WriteSummary {
+        let metas = vec![vec![
+            make_meta(Sequence::new(1, 2)),
+            make_meta(Sequence::new(1, 3)),
+            make_meta(Sequence::new(2, 1)),
+        ]];
+        WriteSummary::new(metas)
+    }
+
     fn make_meta(s: Sequence) -> DmlMeta {
         use time::TimeProvider;
         let time_provider = time::SystemProvider::new();
@@ -386,113 +462,5 @@ mod tests {
         let span_context = None;
         let bytes_read = 132;
         DmlMeta::sequenced(s, time_provider.now(), span_context, bytes_read)
-    }
-
-    #[test]
-    fn readable() {
-        let metas = vec![vec![
-            make_meta(Sequence::new(1, 2)),
-            make_meta(Sequence::new(1, 3)),
-            make_meta(Sequence::new(2, 1)),
-        ]];
-        let summary = WriteSummary::new(metas);
-
-        let progresses = [
-            (
-                KafkaPartition::new(1),
-                SequencerProgress::new().with_buffered(SequenceNumber::new(3)),
-            ),
-            (
-                KafkaPartition::new(2),
-                SequencerProgress::new().with_buffered(SequenceNumber::new(2)),
-            ),
-        ]
-        .into_iter()
-        .collect();
-
-        assert_eq!(summary.readable(&progresses), Ok(true));
-
-        // kafka partition 1 only made it to 2, but write includes 3
-        let progresses = [
-            (
-                KafkaPartition::new(1),
-                SequencerProgress::new().with_buffered(SequenceNumber::new(2)),
-            ),
-            (
-                KafkaPartition::new(2),
-                SequencerProgress::new().with_buffered(SequenceNumber::new(2)),
-            ),
-        ]
-        .into_iter()
-        .collect();
-
-        assert_eq!(summary.readable(&progresses), Ok(false));
-
-        // No information on kafka partition 1
-        let progresses = [(
-            KafkaPartition::new(2),
-            SequencerProgress::new().with_buffered(SequenceNumber::new(2)),
-        )]
-        .into_iter()
-        .collect();
-
-        assert_eq!(
-            summary.readable(&progresses).unwrap_err().to_string(),
-            "Unknown kafka partition: 1"
-        );
-    }
-
-    #[test]
-    fn persisted() {
-        let metas = vec![vec![
-            make_meta(Sequence::new(1, 2)),
-            make_meta(Sequence::new(1, 3)),
-            make_meta(Sequence::new(2, 1)),
-        ]];
-        let summary = WriteSummary::new(metas);
-
-        let progresses = [
-            (
-                KafkaPartition::new(1),
-                SequencerProgress::new().with_persisted(SequenceNumber::new(3)),
-            ),
-            (
-                KafkaPartition::new(2),
-                SequencerProgress::new().with_persisted(SequenceNumber::new(2)),
-            ),
-        ]
-        .into_iter()
-        .collect();
-
-        assert_eq!(summary.persisted(&progresses), Ok(true));
-
-        // kafka partition 1 only made it to 2, but write includes 3
-        let progresses = [
-            (
-                KafkaPartition::new(1),
-                SequencerProgress::new().with_persisted(SequenceNumber::new(2)),
-            ),
-            (
-                KafkaPartition::new(2),
-                SequencerProgress::new().with_persisted(SequenceNumber::new(2)),
-            ),
-        ]
-        .into_iter()
-        .collect();
-
-        assert_eq!(summary.persisted(&progresses), Ok(false));
-
-        // No information on kafka partition 1
-        let progresses = [(
-            KafkaPartition::new(2),
-            SequencerProgress::new().with_persisted(SequenceNumber::new(2)),
-        )]
-        .into_iter()
-        .collect();
-
-        assert_eq!(
-            summary.persisted(&progresses).unwrap_err().to_string(),
-            "Unknown kafka partition: 1"
-        );
     }
 }

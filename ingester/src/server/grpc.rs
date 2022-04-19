@@ -16,7 +16,6 @@ use futures::{SinkExt, Stream, StreamExt};
 use generated_types::influxdata::iox::ingester::v1::{
     self as proto,
     write_info_service_server::{WriteInfoService, WriteInfoServiceServer},
-    GetWriteInfoRequest, GetWriteInfoResponse,
 };
 use observability_deps::tracing::{info, warn};
 use pin_project::{pin_project, pinned_drop};
@@ -26,7 +25,7 @@ use std::{pin::Pin, sync::Arc, task::Poll};
 use tokio::task::JoinHandle;
 use tonic::{Request, Response, Streaming};
 use trace::ctx::SpanContext;
-use write_summary::WriteSummary;
+use write_summary::{KafkaPartitionWriteStatus, WriteSummary};
 
 /// This type is responsible for managing all gRPC services exposed by
 /// `ingester`.
@@ -81,34 +80,47 @@ fn write_summary_error_to_status(e: write_summary::Error) -> tonic::Status {
     }
 }
 
+fn to_proto_status(status: KafkaPartitionWriteStatus) -> proto::KafkaPartitionStatus {
+    match status {
+        KafkaPartitionWriteStatus::KafkaPartitionUnknown => proto::KafkaPartitionStatus::Unknown,
+        KafkaPartitionWriteStatus::Durable => proto::KafkaPartitionStatus::Durable,
+        KafkaPartitionWriteStatus::Readable => proto::KafkaPartitionStatus::Readable,
+        KafkaPartitionWriteStatus::Persisted => proto::KafkaPartitionStatus::Persisted,
+    }
+}
+
 #[tonic::async_trait]
 impl WriteInfoService for WriteInfoServiceImpl {
     async fn get_write_info(
         &self,
-        request: Request<GetWriteInfoRequest>,
-    ) -> Result<Response<GetWriteInfoResponse>, tonic::Status> {
-        let GetWriteInfoRequest { write_token } = request.into_inner();
+        request: Request<proto::GetWriteInfoRequest>,
+    ) -> Result<Response<proto::GetWriteInfoResponse>, tonic::Status> {
+        let proto::GetWriteInfoRequest { write_token } = request.into_inner();
 
         let write_summary =
             WriteSummary::try_from_token(&write_token).map_err(tonic::Status::invalid_argument)?;
 
-        let progress = self
+        let progresses = self
             .handler
             .progresses(write_summary.kafka_partitions())
-            .await
-            .map_err(|e| tonic::Status::invalid_argument(e.to_string()))?;
+            .await;
 
-        let readable = write_summary
-            .readable(&progress)
-            .map_err(write_summary_error_to_status)?;
+        let kafka_partition_infos = progresses
+            .into_iter()
+            .map(|(kafka_partition_id, progress)| {
+                let status = write_summary
+                    .write_status(kafka_partition_id, &progress)
+                    .map_err(|e| tonic::Status::invalid_argument(e.to_string()))?;
 
-        let persisted = write_summary
-            .persisted(&progress)
-            .map_err(write_summary_error_to_status)?;
+                Ok(proto::KafkaPartitionInfo {
+                    kafka_partition_id: kafka_partition_id.get(),
+                    status: to_proto_status(status).into(),
+                })
+            })
+            .collect::<Result<Vec<_>, tonic::Status>>()?;
 
-        Ok(tonic::Response::new(GetWriteInfoResponse {
-            readable,
-            persisted,
+        Ok(tonic::Response::new(proto::GetWriteInfoResponse {
+            kafka_partition_infos,
         }))
     }
 }

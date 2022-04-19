@@ -7,7 +7,9 @@ use hyper::{Body, Client, Request};
 
 use influxdb_iox_client::connection::Connection;
 use influxdb_iox_client::flight::generated_types::ReadInfo;
-use influxdb_iox_client::write_info::generated_types::GetWriteInfoResponse;
+use influxdb_iox_client::write_info::generated_types::{
+    GetWriteInfoResponse, KafkaPartitionStatus,
+};
 
 /// Writes the line protocol to the write_base/api/v2/write endpoint (typically on the router)
 pub async fn write_to_router(
@@ -48,17 +50,26 @@ pub fn get_write_token(response: &Response<Body>) -> String {
         .to_string()
 }
 
+/// returns the write info from ingester_connection for this token
+pub async fn token_info(
+    write_token: impl AsRef<str>,
+    ingester_connection: Connection,
+) -> Result<GetWriteInfoResponse, influxdb_iox_client::error::Error> {
+    influxdb_iox_client::write_info::Client::new(ingester_connection)
+        .get_write_info(write_token.as_ref())
+        .await
+}
+
 /// returns true if the write for this token is persisted, false if it
 /// is not persisted. panic's on error
 pub async fn token_is_persisted(
     write_token: impl AsRef<str>,
     ingester_connection: Connection,
 ) -> bool {
-    influxdb_iox_client::write_info::Client::new(ingester_connection)
-        .get_write_info(write_token.as_ref())
+    let res = token_info(write_token, ingester_connection)
         .await
-        .expect("Error fetching write info for token")
-        .persisted
+        .expect("Error fetching write info for token");
+    all_persisted(&res)
 }
 
 const MAX_QUERY_RETRY_TIME_SEC: u64 = 10;
@@ -105,7 +116,7 @@ pub async fn wait_for_readable(write_token: impl Into<String>, ingester_connecti
     println!("Waiting for write token to be readable");
 
     wait_for_token(write_token, ingester_connection, |res| {
-        if res.readable {
+        if all_readable(res) {
             println!("Write is readable: {:?}", res);
             true
         } else {
@@ -120,7 +131,7 @@ pub async fn wait_for_persisted(write_token: impl Into<String>, ingester_connect
     println!("Waiting for write token to be persisted");
 
     wait_for_token(write_token, ingester_connection, |res| {
-        if res.persisted {
+        if all_persisted(res) {
             println!("Write is persisted: {:?}", res);
             true
         } else {
@@ -128,6 +139,27 @@ pub async fn wait_for_persisted(write_token: impl Into<String>, ingester_connect
         }
     })
     .await
+}
+
+/// returns true if all partitions in the response are readablel
+/// TODO: maybe put this in the influxdb_iox_client library / make a
+/// proper public facing client API. For now, iterate in the end to end tests.
+pub fn all_readable(res: &GetWriteInfoResponse) -> bool {
+    res.kafka_partition_infos.iter().all(|info| {
+        matches!(
+            info.status(),
+            KafkaPartitionStatus::Readable | KafkaPartitionStatus::Persisted
+        )
+    })
+}
+
+/// returns true if all partitions in the response are readablel
+/// TODO: maybe put this in the influxdb_iox_client library / make a
+/// proper public facing client API. For now, iterate in the end to end tests.
+pub fn all_persisted(res: &GetWriteInfoResponse) -> bool {
+    res.kafka_partition_infos
+        .iter()
+        .all(|info| matches!(info.status(), KafkaPartitionStatus::Persisted))
 }
 
 /// Runs a query using the flight API on the specified connection

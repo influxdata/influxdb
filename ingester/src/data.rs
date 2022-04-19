@@ -162,23 +162,29 @@ impl IngesterData {
         Some(Arc::clone(table_data))
     }
 
-    /// Return the ingestion progress for the specified kafka partitions
+    /// Return the ingestion progress for the specified kafka
+    /// partitions. Returns an empty `SequencerProgress` for any kafka
+    /// partitions that this ingester doesn't know about.
     pub(crate) async fn progresses(
         &self,
         partitions: Vec<KafkaPartition>,
-    ) -> Result<BTreeMap<KafkaPartition, SequencerProgress>> {
+    ) -> BTreeMap<KafkaPartition, SequencerProgress> {
         let mut progresses = BTreeMap::new();
         for kafka_partition in partitions {
             let sequencer_data = self
                 .sequencers
                 .iter()
                 .map(|(_, sequencer_data)| sequencer_data)
-                .find(|sequencer_data| sequencer_data.kafka_partition == kafka_partition)
-                .context(SequencerForPartitionNotFoundSnafu { kafka_partition })?;
+                .find(|sequencer_data| sequencer_data.kafka_partition == kafka_partition);
 
-            progresses.insert(kafka_partition, sequencer_data.progress().await);
+            let progress = match sequencer_data {
+                Some(sequencer_data) => sequencer_data.progress().await,
+                None => SequencerProgress::new(), // don't know about this sequencer
+            };
+
+            progresses.insert(kafka_partition, progress);
         }
-        Ok(progresses)
+        progresses
     }
 }
 
@@ -1710,7 +1716,7 @@ mod tests {
             .unwrap();
 
         // check progresses
-        let progresses = data.progresses(vec![kafka_partition]).await.unwrap();
+        let progresses = data.progresses(vec![kafka_partition]).await;
         let mut expected_progresses = BTreeMap::new();
         expected_progresses.insert(
             kafka_partition,
@@ -1794,7 +1800,7 @@ mod tests {
         );
 
         // check progresses after persist
-        let progresses = data.progresses(vec![kafka_partition]).await.unwrap();
+        let progresses = data.progresses(vec![kafka_partition]).await;
         let mut expected_progresses = BTreeMap::new();
         expected_progresses.insert(
             kafka_partition,

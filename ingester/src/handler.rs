@@ -48,9 +48,6 @@ pub enum Error {
     WriteBuffer {
         source: write_buffer::core::WriteBufferError,
     },
-
-    #[snafu(display("Data Error: {}", source))]
-    Data { source: crate::data::Error },
 }
 
 /// When the lifecycle manager indicates that ingest should be paused because of
@@ -74,7 +71,7 @@ pub trait IngestHandler: Send + Sync {
     async fn progresses(
         &self,
         sequencers: Vec<KafkaPartition>,
-    ) -> Result<BTreeMap<KafkaPartition, SequencerProgress>>;
+    ) -> BTreeMap<KafkaPartition, SequencerProgress>;
 
     /// Wait until the handler finished  to shutdown.
     ///
@@ -278,8 +275,8 @@ impl IngestHandler for IngestHandlerImpl {
     async fn progresses(
         &self,
         partitions: Vec<KafkaPartition>,
-    ) -> Result<BTreeMap<KafkaPartition, SequencerProgress>> {
-        self.data.progresses(partitions).await.context(DataSnafu)
+    ) -> BTreeMap<KafkaPartition, SequencerProgress> {
+        self.data.progresses(partitions).await
     }
 }
 

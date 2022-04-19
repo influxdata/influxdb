@@ -59,6 +59,12 @@ impl SequencerProgress {
         self
     }
 
+    /// Return true if this sequencer progress has no information on
+    /// sequencer progress, false otherwise
+    pub fn is_empty(&self) -> bool {
+        self.min_buffered.is_none() && self.max_buffered.is_none() && self.max_persisted.is_none()
+    }
+
     // return true if this sequence number is readable
     pub fn readable(&self, sequence_number: SequenceNumber) -> bool {
         match (&self.max_buffered, &self.max_persisted) {

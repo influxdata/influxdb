@@ -90,7 +90,7 @@ async fn basic_on_parquet() {
 }
 
 #[tokio::test]
-async fn basic_no_ingster_connection() {
+async fn basic_no_ingester_connection() {
     let database_url = maybe_skip_integration!();
 
     let table_name = "the_table";

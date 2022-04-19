@@ -7,7 +7,7 @@ use crate::error::Error;
 pub mod generated_types {
     pub use generated_types::influxdata::iox::ingester::v1::{
         write_info_service_client, write_info_service_server, GetWriteInfoRequest,
-        GetWriteInfoResponse,
+        GetWriteInfoResponse, KafkaPartitionInfo, KafkaPartitionStatus,
     };
 }
 
