@@ -204,8 +204,7 @@ where
                 }
                 // Service limits
                 CatalogError::ColumnCreateLimitError { .. }
-                | CatalogError::TableCreateLimitError { .. }
-                | CatalogError::PartialColumnCreateError { .. } => {
+                | CatalogError::TableCreateLimitError { .. } => {
                     warn!(%namespace, error=%e, "service protection limit reached");
                     self.service_limit_hit.inc(1);
                     SchemaError::ServiceLimit(e)

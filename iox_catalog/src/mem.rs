@@ -553,20 +553,7 @@ impl ColumnRepo for MemTxn {
         for column in columns {
             out.push(
                 ColumnRepo::create_or_get(self, column.name, column.table_id, column.column_type)
-                    .await
-                    .map_err(|e| match e {
-                        // create_or_get_many returns a different error than the single version in
-                        // the postgres impl. since the mem impl is only used in tests we can just
-                        // do this sloppy conversion of one error type to another
-                        Error::ColumnCreateLimitError {
-                            column_name: _,
-                            table_id: _,
-                        } => Error::PartialColumnCreateError {
-                            input_column_count: columns.len(),
-                            inserted_column_count: 0,
-                        },
-                        _ => e,
-                    })?,
+                    .await?,
             );
         }
         Ok(out)

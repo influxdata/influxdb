@@ -151,8 +151,6 @@ where
     }
 
     if !column_batch.is_empty() {
-        // Remember that create_or_get_many() can partially fail if per-table column limits are hit
-        // for a namespace
         repos
             .columns()
             .create_or_get_many(&column_batch)
