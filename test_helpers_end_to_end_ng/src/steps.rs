@@ -60,8 +60,6 @@ impl<'a> StepTest<'a> {
         // Tokens for all writes performed in this test
         let mut write_tokens = vec![];
 
-        let ingester_grpc_connection = cluster.ingester().ingester_grpc_connection();
-
         for step in steps {
             match step {
                 Step::WriteLineProtocol(line_protocol) => {
@@ -77,6 +75,7 @@ impl<'a> StepTest<'a> {
                 }
                 Step::WaitForReadable => {
                     println!("====Begin waiting for all write tokens to be readable");
+                    let ingester_grpc_connection = cluster.ingester().ingester_grpc_connection();
                     for write_token in &write_tokens {
                         wait_for_readable(write_token, ingester_grpc_connection.clone()).await;
                     }
@@ -84,6 +83,7 @@ impl<'a> StepTest<'a> {
                 }
                 Step::WaitForPersisted => {
                     println!("====Begin waiting for all write tokens to be persisted");
+                    let ingester_grpc_connection = cluster.ingester().ingester_grpc_connection();
                     for write_token in &write_tokens {
                         wait_for_persisted(write_token, ingester_grpc_connection.clone()).await;
                     }
@@ -91,6 +91,7 @@ impl<'a> StepTest<'a> {
                 }
                 Step::AssertNotPersisted => {
                     println!("====Begin checking all tokens not persisted");
+                    let ingester_grpc_connection = cluster.ingester().ingester_grpc_connection();
                     for write_token in &write_tokens {
                         let persisted =
                             token_is_persisted(write_token, ingester_grpc_connection.clone()).await;
