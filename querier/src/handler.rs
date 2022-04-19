@@ -117,7 +117,7 @@ mod tests {
     use query::exec::Executor;
     use time::{MockProvider, Time};
 
-    use crate::create_ingester_connection_for_testing;
+    use crate::{cache::CatalogCache, create_ingester_connection_for_testing};
 
     use super::*;
 
@@ -149,11 +149,11 @@ mod tests {
             let object_store = Arc::new(ObjectStoreImpl::new_in_memory());
             let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
             let exec = Arc::new(Executor::new(1));
+            let catalog_cache = Arc::new(CatalogCache::new(catalog, time_provider));
             let database = Arc::new(QuerierDatabase::new(
-                catalog,
+                catalog_cache,
                 metric_registry,
                 object_store,
-                time_provider,
                 exec,
                 create_ingester_connection_for_testing(),
             ));

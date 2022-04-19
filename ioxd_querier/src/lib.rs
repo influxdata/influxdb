@@ -9,7 +9,8 @@ use iox_catalog::interface::Catalog;
 use metric::Registry;
 use object_store::DynObjectStore;
 use querier::{
-    create_ingester_connection, QuerierDatabase, QuerierHandler, QuerierHandlerImpl, QuerierServer,
+    create_ingester_connection, QuerierCatalogCache, QuerierDatabase, QuerierHandler,
+    QuerierHandlerImpl, QuerierServer,
 };
 use query::exec::Executor;
 use time::TimeProvider;
@@ -134,13 +135,15 @@ pub async fn create_querier_server_type(
     exec: Arc<Executor>,
     ingester_addresses: Vec<String>,
 ) -> Arc<dyn ServerType> {
+    let catalog_cache = Arc::new(QuerierCatalogCache::new(catalog, time_provider));
+    let ingester_connection =
+        create_ingester_connection(ingester_addresses, Arc::clone(&catalog_cache));
     let database = Arc::new(QuerierDatabase::new(
-        catalog,
+        catalog_cache,
         Arc::clone(&metric_registry),
         object_store,
-        time_provider,
         exec,
-        create_ingester_connection(ingester_addresses),
+        ingester_connection,
     ));
     let querier_handler = Arc::new(QuerierHandlerImpl::new(Arc::clone(&database)));
 
