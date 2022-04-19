@@ -1,13 +1,15 @@
 use assert_cmd::Command;
 use futures::FutureExt;
 use predicates::prelude::*;
+use serde_json::Value;
+use tempfile::tempdir;
 use test_helpers_end_to_end_ng::{maybe_skip_integration, MiniCluster, Step, StepTest, TestConfig};
 
 /// Tests CLI commands
 
-/// remote partition command
+/// remote partition command and getting a parquet file from the object store
 #[tokio::test]
-async fn remote_partition() {
+async fn remote_partition_and_get_from_store() {
     let database_url = maybe_skip_integration!();
 
     let router2_config = TestConfig::new_router2(&database_url);
@@ -49,7 +51,7 @@ async fn remote_partition() {
                     //     "createdAt": "1650019674289347000"
                     // }
 
-                    Command::cargo_bin("influxdb_iox")
+                    let out = Command::cargo_bin("influxdb_iox")
                         .unwrap()
                         .arg("-h")
                         .arg(cluster.router2().router_grpc_base().as_ref())
@@ -62,6 +64,38 @@ async fn remote_partition() {
                         .stdout(
                             predicate::str::contains(r#""id": "1""#)
                                 .and(predicate::str::contains(r#""partitionId": "1","#)),
+                        )
+                        .get_output()
+                        .stdout
+                        .clone();
+
+                    let v: Value = serde_json::from_slice(&out).unwrap();
+                    let id = v.as_array().unwrap()[0]
+                        .as_object()
+                        .unwrap()
+                        .get("objectStoreId")
+                        .unwrap()
+                        .as_str()
+                        .unwrap();
+
+                    let dir = tempdir().unwrap();
+                    let f = dir.path().join("tmp.parquet");
+                    let filename = f.as_os_str().to_str().unwrap();
+
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(cluster.router2().router_grpc_base().as_ref())
+                        .arg("remote")
+                        .arg("store")
+                        .arg("get")
+                        .arg(id)
+                        .arg(filename)
+                        .assert()
+                        .success()
+                        .stdout(
+                            predicate::str::contains("wrote")
+                                .and(predicate::str::contains(filename)),
                         );
                 }
                 .boxed()

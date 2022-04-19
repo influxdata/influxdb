@@ -2,7 +2,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use backoff::{Backoff, BackoffConfig};
-use data_types2::PartitionId;
+use data_types2::{PartitionId, SequencerId};
 use iox_catalog::interface::Catalog;
 
 use crate::cache_system::{driver::Cache, loader::FunctionLoader};
@@ -40,6 +40,7 @@ impl PartitionCache {
                         partition.sequencer_id.get(),
                         partition.partition_key
                     )),
+                    sequencer_id: partition.sequencer_id,
                 }
             }
         }));
@@ -56,11 +57,17 @@ impl PartitionCache {
     pub async fn old_gen_partition_key(&self, partition_id: PartitionId) -> Arc<str> {
         self.cache.get(partition_id).await.old_gen_partition_key
     }
+
+    /// Get sequencer ID.
+    pub async fn sequencer_id(&self, partition_id: PartitionId) -> SequencerId {
+        self.cache.get(partition_id).await.sequencer_id
+    }
 }
 
 #[derive(Debug, Clone)]
 struct CachedPartition {
     old_gen_partition_key: Arc<str>,
+    sequencer_id: SequencerId,
 }
 
 #[cfg(test)]
@@ -124,5 +131,73 @@ mod tests {
         let name11_b = cache.old_gen_partition_key(p11.id).await;
         assert!(Arc::ptr_eq(&name11_a, &name11_b));
         assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 4);
+    }
+
+    #[tokio::test]
+    async fn test_sequencer_id() {
+        let catalog = TestCatalog::new();
+
+        let ns = catalog.create_namespace("ns").await;
+        let t = ns.create_table("table").await;
+        let s1 = ns.create_sequencer(1).await;
+        let s2 = ns.create_sequencer(2).await;
+        let p1 = t
+            .with_sequencer(&s1)
+            .create_partition("k1")
+            .await
+            .partition
+            .clone();
+        let p2 = t
+            .with_sequencer(&s2)
+            .create_partition("k2")
+            .await
+            .partition
+            .clone();
+
+        let cache = PartitionCache::new(catalog.catalog(), BackoffConfig::default());
+
+        let id1 = cache.sequencer_id(p1.id).await;
+        assert_eq!(id1, s1.sequencer.id);
+        assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 1);
+
+        let id2 = cache.sequencer_id(p2.id).await;
+        assert_eq!(id2, s2.sequencer.id);
+        assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 2);
+
+        let id1 = cache.sequencer_id(p1.id).await;
+        assert_eq!(id1, s1.sequencer.id);
+        assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 2);
+    }
+
+    #[tokio::test]
+    async fn test_cache_sharing() {
+        let catalog = TestCatalog::new();
+
+        let ns = catalog.create_namespace("ns").await;
+        let t = ns.create_table("table").await;
+        let s1 = ns.create_sequencer(1).await;
+        let s2 = ns.create_sequencer(2).await;
+        let p1 = t
+            .with_sequencer(&s1)
+            .create_partition("k1")
+            .await
+            .partition
+            .clone();
+        let p2 = t
+            .with_sequencer(&s2)
+            .create_partition("k2")
+            .await
+            .partition
+            .clone();
+
+        let cache = PartitionCache::new(catalog.catalog(), BackoffConfig::default());
+
+        cache.old_gen_partition_key(p1.id).await;
+        cache.sequencer_id(p2.id).await;
+        assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 2);
+
+        cache.sequencer_id(p1.id).await;
+        cache.old_gen_partition_key(p2.id).await;
+        assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 2);
     }
 }

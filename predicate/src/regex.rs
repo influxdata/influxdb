@@ -6,8 +6,9 @@ use arrow::{
 };
 use datafusion::{
     error::DataFusionError,
+    logical_expr::Volatility,
     logical_plan::{create_udf, Expr},
-    physical_plan::functions::{make_scalar_function, Volatility},
+    physical_plan::functions::make_scalar_function,
 };
 
 /// The name of the regex_match UDF given to DataFusion.

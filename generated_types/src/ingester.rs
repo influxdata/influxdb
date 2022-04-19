@@ -5,13 +5,14 @@ use crate::{
 use data_types::timestamp::TimestampRange;
 use data_types2::IngesterQueryRequest;
 use datafusion::{
+    logical_expr::{window_function, BuiltinScalarFunction},
     logical_plan::{
         abs, acos, asin, atan, ceil, concat, cos, digest, exp, floor, ln, log10, log2, round,
         signum, sin, sqrt, tan, trunc,
         window_frames::{WindowFrame, WindowFrameBound, WindowFrameUnits},
         Column, Expr, Operator,
     },
-    physical_plan::{aggregates, functions, window_functions},
+    physical_plan::aggregates,
     prelude::{
         array, date_part, date_trunc, lower, ltrim, md5, octet_length, rtrim, sha224, sha256,
         sha384, sha512, trim, upper,
@@ -249,7 +250,7 @@ fn from_proto_expr(proto: proto::LogicalExprNode) -> Result<Expr, FieldViolation
                     })?;
 
                     Ok(Expr::WindowFunction {
-                        fun: window_functions::WindowFunction::AggregateFunction(
+                        fun: window_function::WindowFunction::AggregateFunction(
                             from_proto_aggr_function(aggr_function)?,
                         ),
                         args: vec![from_proto_expr(*expr.expr.unwrap_field("expr")?)?],
@@ -260,7 +261,7 @@ fn from_proto_expr(proto: proto::LogicalExprNode) -> Result<Expr, FieldViolation
                 }
                 proto::window_expr_node::WindowFunction::BuiltInFunction(i) => {
                     use proto::BuiltInWindowFunction::*;
-                    use window_functions::BuiltInWindowFunction;
+                    use window_function::BuiltInWindowFunction;
 
                     let built_in = proto::BuiltInWindowFunction::from_i32(i)
                         .unwrap_field("built_in_window_function")?;
@@ -282,7 +283,7 @@ fn from_proto_expr(proto: proto::LogicalExprNode) -> Result<Expr, FieldViolation
                     };
 
                     Ok(Expr::WindowFunction {
-                        fun: window_functions::WindowFunction::BuiltInWindowFunction(
+                        fun: window_function::WindowFunction::BuiltInWindowFunction(
                             built_in_function,
                         ),
                         args: vec![from_proto_expr(*expr.expr.unwrap_field("expr")?)?],
@@ -467,15 +468,15 @@ fn from_proto_expr(proto: proto::LogicalExprNode) -> Result<Expr, FieldViolation
                 proto::ScalarFunction::Concat => concat(&args),
                 proto::ScalarFunction::Array => array(args),
                 proto::ScalarFunction::Totimestamp => Expr::ScalarFunction {
-                    fun: functions::BuiltinScalarFunction::ToTimestamp,
+                    fun: BuiltinScalarFunction::ToTimestamp,
                     args,
                 },
                 proto::ScalarFunction::Totimestampmillis => Expr::ScalarFunction {
-                    fun: functions::BuiltinScalarFunction::ToTimestampMillis,
+                    fun: BuiltinScalarFunction::ToTimestampMillis,
                     args,
                 },
                 proto::ScalarFunction::Nullif => Expr::ScalarFunction {
-                    fun: functions::BuiltinScalarFunction::NullIf,
+                    fun: BuiltinScalarFunction::NullIf,
                     args,
                 },
             };
@@ -528,13 +529,13 @@ fn from_expr(expr: Expr) -> Result<proto::LogicalExprNode, FieldViolation> {
             ref window_frame,
         } => {
             let window_function = match fun {
-                window_functions::WindowFunction::AggregateFunction(fun) => {
+                window_function::WindowFunction::AggregateFunction(fun) => {
                     proto::window_expr_node::WindowFunction::AggrFunction(
                         from_aggr_function(fun).into(),
                     )
                 }
-                window_functions::WindowFunction::BuiltInWindowFunction(fun) => {
-                    use window_functions::BuiltInWindowFunction;
+                window_function::WindowFunction::BuiltInWindowFunction(fun) => {
+                    use window_function::BuiltInWindowFunction;
 
                     proto::window_expr_node::WindowFunction::BuiltInFunction(
                         match fun {
@@ -1200,9 +1201,8 @@ fn from_aggr_function(fun: aggregates::AggregateFunction) -> proto::AggregateFun
 }
 
 fn from_scalar_function(
-    fun: functions::BuiltinScalarFunction,
+    fun: BuiltinScalarFunction,
 ) -> Result<proto::ScalarFunction, FieldViolation> {
-    use functions::BuiltinScalarFunction;
     match fun {
         BuiltinScalarFunction::Sqrt => Ok(proto::ScalarFunction::Sqrt),
         BuiltinScalarFunction::Sin => Ok(proto::ScalarFunction::Sin),

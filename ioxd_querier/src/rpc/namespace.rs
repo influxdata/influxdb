@@ -55,7 +55,7 @@ impl proto::namespace_service_server::NamespaceService for NamespaceServiceImpl 
 mod tests {
     use generated_types::influxdata::iox::namespace::v1::namespace_service_server::NamespaceService;
     use iox_tests::util::TestCatalog;
-    use querier::create_ingester_connection_for_testing;
+    use querier::{create_ingester_connection_for_testing, QuerierCatalogCache};
 
     use super::*;
 
@@ -63,11 +63,14 @@ mod tests {
     async fn test_get_namespaces_empty() {
         let catalog = TestCatalog::new();
 
-        let db = Arc::new(QuerierDatabase::new(
+        let catalog_cache = Arc::new(QuerierCatalogCache::new(
             catalog.catalog(),
+            catalog.time_provider(),
+        ));
+        let db = Arc::new(QuerierDatabase::new(
+            catalog_cache,
             catalog.metric_registry(),
             catalog.object_store(),
-            catalog.time_provider(),
             catalog.exec(),
             create_ingester_connection_for_testing(),
         ));
@@ -85,11 +88,14 @@ mod tests {
     async fn test_get_namespaces() {
         let catalog = TestCatalog::new();
 
-        let db = Arc::new(QuerierDatabase::new(
+        let catalog_cache = Arc::new(QuerierCatalogCache::new(
             catalog.catalog(),
+            catalog.time_provider(),
+        ));
+        let db = Arc::new(QuerierDatabase::new(
+            catalog_cache,
             catalog.metric_registry(),
             catalog.object_store(),
-            catalog.time_provider(),
             catalog.exec(),
             create_ingester_connection_for_testing(),
         ));

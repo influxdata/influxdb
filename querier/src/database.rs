@@ -7,13 +7,11 @@ use crate::{
 use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig};
 use data_types2::Namespace;
-use iox_catalog::interface::Catalog;
 use object_store::DynObjectStore;
 use parking_lot::RwLock;
 use query::exec::Executor;
 use service_common::QueryDatabaseProvider;
 use std::{collections::HashMap, sync::Arc};
-use time::TimeProvider;
 
 /// The number of entries to store in the circular query buffer log.
 ///
@@ -27,9 +25,6 @@ const QUERY_LOG_SIZE: usize = 10_000;
 pub struct QuerierDatabase {
     /// Backoff config for IO operations.
     backoff_config: BackoffConfig,
-
-    /// Catalog.
-    catalog: Arc<dyn Catalog>,
 
     /// Catalog cache.
     catalog_cache: Arc<CatalogCache>,
@@ -45,9 +40,6 @@ pub struct QuerierDatabase {
 
     /// Object store.
     object_store: Arc<DynObjectStore>,
-
-    /// Time provider.
-    time_provider: Arc<dyn TimeProvider>,
 
     /// Executor for queries.
     exec: Arc<Executor>,
@@ -71,34 +63,27 @@ impl QueryDatabaseProvider for QuerierDatabase {
 impl QuerierDatabase {
     /// Create new database.
     pub fn new(
-        catalog: Arc<dyn Catalog>,
+        catalog_cache: Arc<CatalogCache>,
         metric_registry: Arc<metric::Registry>,
         object_store: Arc<DynObjectStore>,
-        time_provider: Arc<dyn TimeProvider>,
         exec: Arc<Executor>,
         ingester_connection: Arc<dyn IngesterConnection>,
     ) -> Self {
-        let catalog_cache = Arc::new(CatalogCache::new(
-            Arc::clone(&catalog),
-            Arc::clone(&time_provider),
-        ));
         let chunk_adapter = Arc::new(ParquetChunkAdapter::new(
             Arc::clone(&catalog_cache),
             Arc::clone(&object_store),
             Arc::clone(&metric_registry),
-            Arc::clone(&time_provider),
+            catalog_cache.time_provider(),
         ));
-        let query_log = Arc::new(QueryLog::new(QUERY_LOG_SIZE, Arc::clone(&time_provider)));
+        let query_log = Arc::new(QueryLog::new(QUERY_LOG_SIZE, catalog_cache.time_provider()));
 
         Self {
             backoff_config: BackoffConfig::default(),
-            catalog,
             catalog_cache,
             chunk_adapter,
             metric_registry,
             namespaces: RwLock::new(HashMap::new()),
             object_store,
-            time_provider,
             exec,
             ingester_connection,
             query_log,
@@ -126,7 +111,7 @@ impl QuerierDatabase {
 
     /// Return all namespaces this querier knows about
     pub async fn namespaces(&self) -> Vec<Namespace> {
-        let catalog = Arc::clone(&self.catalog);
+        let catalog = &self.catalog_cache.catalog();
         Backoff::new(&self.backoff_config)
             .retry_all_errors("listing namespaces", || async {
                 catalog.repositories().await.namespaces().list().await
@@ -153,11 +138,14 @@ mod tests {
     async fn test_namespace() {
         let catalog = TestCatalog::new();
 
-        let db = QuerierDatabase::new(
+        let catalog_cache = Arc::new(CatalogCache::new(
             catalog.catalog(),
+            catalog.time_provider(),
+        ));
+        let db = QuerierDatabase::new(
+            catalog_cache,
             catalog.metric_registry(),
             catalog.object_store(),
-            catalog.time_provider(),
             catalog.exec(),
             create_ingester_connection_for_testing(),
         );

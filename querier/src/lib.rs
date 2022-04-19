@@ -24,6 +24,7 @@ mod system_tables;
 mod table;
 mod tombstone;
 
+pub use cache::CatalogCache as QuerierCatalogCache;
 pub use database::QuerierDatabase;
 pub use handler::{QuerierHandler, QuerierHandlerImpl};
 pub use ingester::{
