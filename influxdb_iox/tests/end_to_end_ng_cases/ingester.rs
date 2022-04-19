@@ -65,6 +65,12 @@ async fn ingester_flight_api() {
 
     let query_results = performed_query.collect().await.unwrap();
 
+    // check if batch-level metadata is present
+    assert_eq!(
+        performed_query.app_metadata().batch_partition_ids.len(),
+        query_results.len()
+    );
+
     let expected = [
         "+------+------+--------------------------------+-----+",
         "| tag1 | tag2 | time                           | val |",

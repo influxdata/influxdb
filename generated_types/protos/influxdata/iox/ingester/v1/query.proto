@@ -58,6 +58,9 @@ message IngesterQueryResponseMetadata {
   // data for this partition. In either case the querier may just read all parquet files for the missing partition
   // and ensure it has a complete dataset
   map<int64, PartitionStatus> unpersisted_partitions = 5;
+
+  // Map each record batch to a partition ID.
+  repeated int64 batch_partition_ids = 6;
 }
 
 // Status of a partition that has unpersisted data.

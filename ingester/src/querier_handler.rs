@@ -26,10 +26,7 @@ use schema::{
     Schema,
 };
 use snafu::{ensure, ResultExt, Snafu};
-use std::{
-    collections::{BTreeMap, HashMap},
-    sync::Arc,
-};
+use std::{collections::BTreeMap, sync::Arc};
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
@@ -95,6 +92,7 @@ pub async fn prepare_data_to_querier(
     let mut unpersisted_partitions = BTreeMap::new();
     let mut found_namespace = false;
     let mut batches = vec![];
+    let mut batch_partition_ids = vec![];
     for sequencer_data in ingest_data.sequencers.values() {
         let namespace_data = match sequencer_data.namespace(&request.namespace) {
             Some(namespace_data) => {
@@ -125,6 +123,7 @@ pub async fn prepare_data_to_querier(
                 .insert(partition.partition_id, partition.partition_status.clone());
 
             // extract payload
+            let partition_id = partition.partition_id;
             let (schema, batch) =
                 prepare_data_to_querier_for_partition(&ingest_data.exec, partition, request)
                     .await?;
@@ -133,6 +132,7 @@ pub async fn prepare_data_to_querier(
                 .context(MergeSchemaSnafu)?;
             if let Some(batch) = batch {
                 batches.push(Arc::new(batch));
+                batch_partition_ids.push(partition_id);
             }
         }
     }
@@ -162,6 +162,7 @@ pub async fn prepare_data_to_querier(
         Box::pin(stream),
         schema,
         unpersisted_partitions,
+        batch_partition_ids,
     ))
 }
 
@@ -170,13 +171,6 @@ async fn prepare_data_to_querier_for_partition(
     unpersisted_partition_data: UnpersistedPartitionData,
     request: &IngesterQueryRequest,
 ) -> Result<(Arc<Schema>, Option<RecordBatch>)> {
-    // ------------------------------------------------
-    // Metadata
-    let schema_metadata = HashMap::from([(
-        String::from("iox:partition_id"),
-        unpersisted_partition_data.partition_id.get().to_string(),
-    )]);
-
     // ------------------------------------------------
     // Accumulate data
 
@@ -199,7 +193,6 @@ async fn prepare_data_to_querier_for_partition(
             Arc::new(queryable_batch),
             predicate.clone(),
             selection,
-            schema_metadata.clone(),
         )
         .await?;
 
@@ -220,14 +213,8 @@ async fn prepare_data_to_querier_for_partition(
             vec![],
         );
 
-        let record_batch = run_query(
-            executor,
-            Arc::new(queryable_batch),
-            predicate,
-            selection,
-            schema_metadata.clone(),
-        )
-        .await?;
+        let record_batch =
+            run_query(executor, Arc::new(queryable_batch), predicate, selection).await?;
 
         if let Some(record_batch) = record_batch {
             if record_batch.num_rows() > 0 {
@@ -240,16 +227,7 @@ async fn prepare_data_to_querier_for_partition(
     // Combine record batches into one batch and pad null values as needed
 
     // Schema of all record batches after merging
-    let schema = Arc::new(
-        Schema::try_from(Arc::new(
-            merge_record_batch_schemas(&filter_applied_batches)
-                .as_arrow()
-                .as_ref()
-                .clone()
-                .with_metadata(schema_metadata),
-        ))
-        .expect("schema roundtrip should work"),
-    );
+    let schema = merge_record_batch_schemas(&filter_applied_batches);
     let batch = merge_record_batches(schema.as_arrow(), filter_applied_batches)
         .context(ConcatBatchesSnafu)?;
 
@@ -263,7 +241,6 @@ pub async fn run_query(
     data: Arc<QueryableBatch>,
     predicate: Predicate,
     selection: Selection<'_>,
-    schema_metadata: HashMap<String, String>,
 ) -> Result<Option<RecordBatch>> {
     let stream = query(executor, data, predicate, selection).await?;
 
@@ -278,19 +255,6 @@ pub async fn run_query(
     // concat all same-schema record batches into one batch
     let record_batch = RecordBatch::concat(&record_batches[0].schema(), &record_batches)
         .context(ConcatBatchesSnafu)?;
-
-    // modify schema AFTER concat, otherwise Arrow will be unhappy about the different Key-Value data
-    let record_batch = RecordBatch::try_new(
-        Arc::new(
-            record_batch
-                .schema()
-                .as_ref()
-                .clone()
-                .with_metadata(schema_metadata),
-        ),
-        record_batch.columns().to_vec(),
-    )
-    .expect("adding key-value schema data should work");
 
     Ok(Some(record_batch))
 }
@@ -348,6 +312,8 @@ pub async fn query(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
     use super::*;
     use crate::test_util::{
         create_one_record_batch_with_influxtype_no_duplicates, create_tombstone,
@@ -356,6 +322,7 @@ mod tests {
     };
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use assert_matches::assert_matches;
+    use data_types2::PartitionId;
     use datafusion::logical_plan::{col, lit};
     use predicate::PredicateBuilder;
 
@@ -511,7 +478,7 @@ mod tests {
                 .await
                 .unwrap();
             assert_batches_sorted_eq!(&expected, &result);
-            assert_batches_have_schema_metadata(&result);
+            assert_batch_partition_ids(&result, &stream.batch_partition_ids);
         }
 
         // read data from all scenarios and filter out column day
@@ -537,7 +504,7 @@ mod tests {
                 .await
                 .unwrap();
             assert_batches_sorted_eq!(&expected, &result);
-            assert_batches_have_schema_metadata(&result);
+            assert_batch_partition_ids(&result, &stream.batch_partition_ids);
         }
 
         // read data from all scenarios, filter out column day, city Medford, time outside range [0, 42)
@@ -566,7 +533,7 @@ mod tests {
                 .await
                 .unwrap();
             assert_batches_sorted_eq!(&expected, &result);
-            assert_batches_have_schema_metadata(&result);
+            assert_batch_partition_ids(&result, &stream.batch_partition_ids);
         }
 
         // test "table not found" handling
@@ -634,7 +601,7 @@ mod tests {
                 .await
                 .unwrap();
             assert_batches_sorted_eq!(&expected, &result);
-            assert_batches_have_schema_metadata(&result);
+            assert_batch_partition_ids(&result, &stream.batch_partition_ids);
         }
 
         // read data from all scenarios and filter out column day
@@ -657,7 +624,7 @@ mod tests {
                 .await
                 .unwrap();
             assert_batches_sorted_eq!(&expected, &result);
-            assert_batches_have_schema_metadata(&result);
+            assert_batch_partition_ids(&result, &stream.batch_partition_ids);
         }
 
         // read data from all scenarios, filter out column day, city Medford, time outside range [0, 42)
@@ -683,19 +650,15 @@ mod tests {
                 .await
                 .unwrap();
             assert_batches_sorted_eq!(&expected, &result);
-            assert_batches_have_schema_metadata(&result);
+            assert_batch_partition_ids(&result, &stream.batch_partition_ids);
         }
     }
 
-    fn assert_batches_have_schema_metadata(batches: &[RecordBatch]) {
-        for batch in batches {
-            let schema = batch.schema();
+    fn assert_batch_partition_ids(batches: &[RecordBatch], partition_ids: &[PartitionId]) {
+        assert_eq!(batches.len(), partition_ids.len());
 
-            let metadata = schema.metadata();
-            assert_eq!(metadata.len(), 1);
-
-            let partition_id_str = metadata.get("iox:partition_id").unwrap();
-            partition_id_str.parse::<i64>().unwrap();
-        }
+        // at the moment there is at most one record batch per partition ID
+        let partition_ids_unique: HashSet<_> = partition_ids.iter().collect();
+        assert_eq!(batches.len(), partition_ids_unique.len());
     }
 }

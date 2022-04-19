@@ -340,6 +340,7 @@ impl GetStream {
             mut data,
             schema,
             unpersisted_partitions,
+            batch_partition_ids,
         } = query_response;
 
         // setup channel
@@ -369,6 +370,7 @@ impl GetStream {
                     )
                 })
                 .collect(),
+            batch_partition_ids: batch_partition_ids.into_iter().map(|id| id.get()).collect(),
         };
         prost::Message::encode(&app_metadata, &mut bytes).context(SerializationSnafu)?;
         schema_flight_data.app_metadata = bytes.to_vec();

@@ -1412,6 +1412,9 @@ pub struct IngesterQueryResponse {
     /// If a partition does NOT appear within this map, then either all data was persisted or the ingester has never seen
     /// data for this partition. In either case the querier may just read all parquet files for the missing partition.
     pub unpersisted_partitions: BTreeMap<PartitionId, PartitionStatus>,
+
+    /// Map each record batch to a partition ID.
+    pub batch_partition_ids: Vec<PartitionId>,
 }
 
 impl std::fmt::Debug for IngesterQueryResponse {
@@ -1420,6 +1423,7 @@ impl std::fmt::Debug for IngesterQueryResponse {
             .field("data", &"<RECORDBATCH STREAM>")
             .field("schema", &self.schema)
             .field("unpersisted_partitions", &self.unpersisted_partitions)
+            .field("batch_partition_ids", &self.batch_partition_ids)
             .finish()
     }
 }
@@ -1430,11 +1434,13 @@ impl IngesterQueryResponse {
         data: SendableRecordBatchStream,
         schema: Schema,
         unpersisted_partitions: BTreeMap<PartitionId, PartitionStatus>,
+        batch_partition_ids: Vec<PartitionId>,
     ) -> Self {
         Self {
             data,
             schema,
             unpersisted_partitions,
+            batch_partition_ids,
         }
     }
 }
