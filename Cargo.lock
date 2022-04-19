@@ -3909,6 +3909,7 @@ dependencies = [
 name = "panic_logging"
 version = "0.1.0"
 dependencies = [
+ "metric",
  "observability_deps",
  "workspace-hack",
 ]
