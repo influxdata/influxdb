@@ -40,3 +40,6 @@ pub mod write_info;
 
 /// Client for interacting with a remote catalog
 pub mod catalog;
+
+/// Client for interacting with a remote object store
+pub mod store;
