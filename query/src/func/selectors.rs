@@ -19,11 +19,8 @@ use std::{fmt::Debug, sync::Arc};
 use arrow::{array::ArrayRef, datatypes::DataType};
 use datafusion::{
     error::{DataFusionError, Result as DataFusionResult},
-    physical_plan::{
-        functions::{Signature, Volatility},
-        udaf::AggregateUDF,
-        Accumulator,
-    },
+    logical_expr::{Signature, Volatility},
+    physical_plan::{udaf::AggregateUDF, Accumulator},
     scalar::ScalarValue,
 };
 

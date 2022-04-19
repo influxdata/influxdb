@@ -7,8 +7,7 @@ use std::sync::Arc;
 
 use arrow::array::{ArrayRef, TimestampNanosecondArray};
 use datafusion::{
-    logical_plan::Expr,
-    physical_plan::functions::{make_scalar_function, Volatility},
+    logical_expr::Volatility, logical_plan::Expr, physical_plan::functions::make_scalar_function,
     prelude::*,
 };
 
