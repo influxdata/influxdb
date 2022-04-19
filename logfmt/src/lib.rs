@@ -285,9 +285,17 @@ fn needs_quotes_and_escaping(value: &str) -> bool {
         return true;
     }
 
-    let has_not_printable = value.bytes().any(|b| b <= b' ');
+    // Quote any strings that contain a literal '=' which the logfmt parser
+    // interprets as a key/value separator.
+    if value.chars().any(|c| c == '=') && !pre_quoted {
+        return true;
+    }
 
-    has_not_printable && !pre_quoted
+    if value.bytes().any(|b| b <= b' ') && !pre_quoted {
+        return true;
+    }
+
+    false
 }
 
 /// escape any characters in name as needed, otherwise return string as is
@@ -390,5 +398,11 @@ mod test {
     #[test]
     fn not_quote_unicode_unnecessarily() {
         assert_eq!(quote_and_escape("mikuličić"), "mikuličić");
+    }
+
+    #[test]
+    // https://github.com/influxdata/influxdb_iox/issues/4352
+    fn test_uri_quoted() {
+        assert_eq!(quote_and_escape("/api/v2/write?bucket=06fddb4f912a0d7f&org=9df0256628d1f506&orgID=9df0256628d1f506&precision=ns"), r#""/api/v2/write?bucket=06fddb4f912a0d7f&org=9df0256628d1f506&orgID=9df0256628d1f506&precision=ns""#);
     }
 }
