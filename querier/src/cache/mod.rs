@@ -34,6 +34,9 @@ pub struct CatalogCache {
 
     /// Processed tombstone cache.
     processed_tombstones: ProcessedTombstonesCache,
+
+    /// Time provider.
+    time_provider: Arc<dyn TimeProvider>,
 }
 
 impl CatalogCache {
@@ -52,8 +55,11 @@ impl CatalogCache {
             Arc::clone(&time_provider),
         );
         let partition_cache = PartitionCache::new(Arc::clone(&catalog), backoff_config.clone());
-        let processed_tombstones =
-            ProcessedTombstonesCache::new(Arc::clone(&catalog), backoff_config, time_provider);
+        let processed_tombstones = ProcessedTombstonesCache::new(
+            Arc::clone(&catalog),
+            backoff_config,
+            Arc::clone(&time_provider),
+        );
 
         Self {
             catalog,
@@ -61,31 +67,37 @@ impl CatalogCache {
             table_cache,
             namespace_cache,
             processed_tombstones,
+            time_provider,
         }
     }
 
     /// Get underlying catalog
-    pub fn catalog(&self) -> Arc<dyn Catalog> {
+    pub(crate) fn catalog(&self) -> Arc<dyn Catalog> {
         Arc::clone(&self.catalog)
     }
 
+    /// Get underlying time provider
+    pub(crate) fn time_provider(&self) -> Arc<dyn TimeProvider> {
+        Arc::clone(&self.time_provider)
+    }
+
     /// Namespace cache
-    pub fn namespace(&self) -> &NamespaceCache {
+    pub(crate) fn namespace(&self) -> &NamespaceCache {
         &self.namespace_cache
     }
 
     /// Table cache
-    pub fn table(&self) -> &TableCache {
+    pub(crate) fn table(&self) -> &TableCache {
         &self.table_cache
     }
 
     /// Partition cache
-    pub fn partition(&self) -> &PartitionCache {
+    pub(crate) fn partition(&self) -> &PartitionCache {
         &self.partition_cache
     }
 
     /// Processed tombstone cache.
-    pub fn processed_tombstones(&self) -> &ProcessedTombstonesCache {
+    pub(crate) fn processed_tombstones(&self) -> &ProcessedTombstonesCache {
         &self.processed_tombstones
     }
 }

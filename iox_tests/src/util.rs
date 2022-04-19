@@ -29,6 +29,7 @@ use time::{MockProvider, Time, TimeProvider};
 use uuid::Uuid;
 
 /// Catalog for tests
+#[derive(Debug)]
 #[allow(missing_docs)]
 pub struct TestCatalog {
     pub catalog: Arc<dyn Catalog>,
