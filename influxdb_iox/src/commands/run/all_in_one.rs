@@ -370,7 +370,7 @@ pub async fn command(config: Config) -> Result<()> {
     info!(?ingester_addresses, "starting querier");
     let querier = create_querier_server_type(
         &common_state,
-        metrics,
+        Arc::clone(&metrics),
         catalog,
         object_store,
         time_provider,
@@ -388,5 +388,5 @@ pub async fn command(config: Config) -> Result<()> {
         Service::create_grpc_only(querier, &querier_run_config),
     ];
 
-    Ok(main::main(common_state, services).await?)
+    Ok(main::main(common_state, services, metrics).await?)
 }

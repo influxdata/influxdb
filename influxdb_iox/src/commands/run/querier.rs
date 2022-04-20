@@ -89,7 +89,7 @@ pub async fn command(config: Config) -> Result<(), Error> {
     let exec = Arc::new(Executor::new(num_threads));
     let server_type = create_querier_server_type(
         &common_state,
-        metric_registry,
+        Arc::clone(&metric_registry),
         catalog,
         object_store,
         time_provider,
@@ -101,5 +101,5 @@ pub async fn command(config: Config) -> Result<(), Error> {
     info!("starting querier");
 
     let services = vec![Service::create(server_type, common_state.run_config())];
-    Ok(main::main(common_state, services).await?)
+    Ok(main::main(common_state, services, metric_registry).await?)
 }

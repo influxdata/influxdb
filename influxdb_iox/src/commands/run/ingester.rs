@@ -89,7 +89,7 @@ pub async fn command(config: Config) -> Result<()> {
     let exec = Arc::new(Executor::new(config.query_exec_thread_count));
     let server_type = create_ingester_server_type(
         &common_state,
-        metric_registry,
+        Arc::clone(&metric_registry),
         catalog,
         object_store,
         exec,
@@ -101,5 +101,5 @@ pub async fn command(config: Config) -> Result<()> {
     info!("starting ingester");
 
     let services = vec![Service::create(server_type, common_state.run_config())];
-    Ok(main::main(common_state, services).await?)
+    Ok(main::main(common_state, services, metric_registry).await?)
 }

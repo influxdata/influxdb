@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use ioxd_common::Service;
 use ioxd_common::{grpc_listener, http_listener, serve, server_type::CommonServerState};
 use observability_deps::tracing::{error, info};
@@ -66,7 +68,11 @@ fn build_malloc_conf() -> String {
 ///
 /// Due to its invasive nature (install global panic handling,
 /// logging, etc) this function should not be used during unit tests.
-pub async fn main(common_state: CommonServerState, services: Vec<Service>) -> Result<()> {
+pub async fn main(
+    common_state: CommonServerState,
+    services: Vec<Service>,
+    metrics: Arc<metric::Registry>,
+) -> Result<()> {
     let git_hash = env!("GIT_HASH", "starting influxdb_iox server");
     let num_cpus = num_cpus::get();
     let build_malloc_conf = build_malloc_conf();
@@ -98,7 +104,7 @@ pub async fn main(common_state: CommonServerState, services: Vec<Service>) -> Re
     // lifetime of the program - this is actually a good thing, as it prevents
     // the panic handler from being removed while unwinding a panic (which in
     // turn, causes a panic - see #548)
-    let f = SendPanicsToTracing::new();
+    let f = SendPanicsToTracing::new().with_metrics(&*metrics);
     std::mem::forget(f);
 
     // Register jemalloc metrics
