@@ -7,6 +7,7 @@ use data_types2::{
     TableSummary,
 };
 use datafusion_util::MemoryStream;
+use futures::{stream::FuturesUnordered, TryStreamExt};
 use observability_deps::tracing::{debug, trace};
 use predicate::{Predicate, PredicateMatch};
 use query::{
@@ -119,7 +120,7 @@ pub trait IngesterConnection: std::fmt::Debug + Send + Sync + 'static {
 #[allow(missing_copy_implementations)]
 #[derive(Debug)]
 pub(crate) struct IngesterConnectionImpl {
-    ingester_addresses: Vec<String>,
+    ingester_addresses: Vec<Arc<str>>,
     flight_client: Arc<dyn FlightClient>,
     catalog_cache: Arc<CatalogCache>,
 }
@@ -140,12 +141,143 @@ impl IngesterConnectionImpl {
         flight_client: Arc<dyn FlightClient>,
         catalog_cache: Arc<CatalogCache>,
     ) -> Self {
+        let ingester_addresses = ingester_addresses
+            .into_iter()
+            .map(|addr| Arc::from(addr.as_str()))
+            .collect();
+
         Self {
             ingester_addresses,
             flight_client,
             catalog_cache,
         }
     }
+}
+
+/// Struct that names all parameters to `execute`
+struct GetPartitionForIngester<'a> {
+    flight_client: Arc<dyn FlightClient>,
+    catalog_cache: Arc<CatalogCache>,
+    ingester_address: Arc<str>,
+    namespace_name: Arc<str>,
+    table_name: Arc<str>,
+    columns: Vec<String>,
+    predicate: &'a Predicate,
+    expected_schema: Arc<Schema>,
+}
+
+/// Fetches the partitions for a single ingester
+async fn execute(request: GetPartitionForIngester<'_>) -> Result<Vec<Arc<IngesterPartition>>> {
+    let GetPartitionForIngester {
+        flight_client,
+        catalog_cache,
+        ingester_address,
+        namespace_name,
+        table_name,
+        columns,
+        predicate,
+        expected_schema,
+    } = request;
+
+    let ingester_address = ingester_address.as_ref();
+
+    let ingester_query_request = IngesterQueryRequest {
+        namespace: namespace_name.to_string(),
+        table: table_name.to_string(),
+        columns: columns.clone(),
+        predicate: Some(predicate.clone()),
+    };
+
+    let query_res = flight_client
+        .query(ingester_address, ingester_query_request)
+        .await;
+    if let Err(FlightClientError::Flight {
+        source: FlightError::GrpcError(status),
+    }) = &query_res
+    {
+        if status.code() == tonic::Code::NotFound {
+            debug!(
+                %ingester_address,
+                %namespace_name,
+                %table_name,
+                "Ingester does not know namespace or table, skipping",
+            );
+            return Ok(vec![]);
+        }
+    }
+    let mut perform_query = query_res.context(RemoteQuerySnafu { ingester_address })?;
+
+    // read unpersisted partitions
+    // map partition_id -> (PartitionMetadata, Vec<PartitionData>))
+    let mut partitions: HashMap<_, _> = perform_query
+        .app_metadata()
+        .unpersisted_partitions
+        .iter()
+        .map(|(id, state)| (*id, (state.clone(), vec![])))
+        .collect();
+
+    // sort batches into partitions
+    let mut num_batches = 0usize;
+    let partition_ids = perform_query.app_metadata().batch_partition_ids.clone();
+    while let Some(batch) = perform_query
+        .next()
+        .await
+        .map_err(|source| FlightClientError::Flight { source })
+        .context(RemoteQuerySnafu { ingester_address })?
+    {
+        let partition_id = *partition_ids
+            .get(num_batches)
+            .context(MissingPartitionIdSnafu {
+                pos: num_batches,
+                ingester_address,
+            })?;
+        partitions
+            .get_mut(&partition_id)
+            .context(UnknownPartitionIdSnafu {
+                partition_id,
+                ingester_address,
+            })?
+            .1
+            .push(batch);
+        num_batches += 1;
+    }
+    debug!(num_batches, "Received batches from ingester");
+    trace!(?partitions, schema=?perform_query.schema(), "Detailed from ingester");
+    ensure!(
+        num_batches == partition_ids.len(),
+        TooManyPartitionIdsSnafu {
+            actual: partition_ids.len(),
+            expected: num_batches,
+            ingester_address
+        },
+    );
+
+    let mut ingester_partitions = vec![];
+    for (partition_id, (state, batches)) in partitions {
+        // do NOT filter out empty partitions, because the caller of this functions needs the attached metadata
+        // to select the right parquet files and tombstones
+        let partition_id = PartitionId::new(partition_id);
+        let old_gen_partition_key = catalog_cache
+            .partition()
+            .old_gen_partition_key(partition_id)
+            .await;
+        let sequencer_id = catalog_cache.partition().sequencer_id(partition_id).await;
+        let ingester_partition = IngesterPartition::try_new(
+            ChunkId::new(),
+            Arc::clone(&namespace_name),
+            Arc::clone(&table_name),
+            partition_id,
+            sequencer_id,
+            old_gen_partition_key,
+            Arc::clone(&expected_schema),
+            state.parquet_max_sequence_number.map(SequenceNumber::new),
+            state.tombstone_max_sequence_number.map(SequenceNumber::new),
+            batches,
+        )?;
+        ingester_partitions.push(Arc::new(ingester_partition));
+    }
+
+    Ok(ingester_partitions)
 }
 
 #[async_trait]
@@ -160,112 +292,29 @@ impl IngesterConnection for IngesterConnectionImpl {
         predicate: &Predicate,
         expected_schema: Arc<Schema>,
     ) -> Result<Vec<Arc<IngesterPartition>>> {
-        let mut ingester_partitions = vec![];
-
-        // TODO make these requests in parallel
-        for ingester_address in &self.ingester_addresses {
-            let ingester_query_request = IngesterQueryRequest {
-                namespace: namespace_name.to_string(),
-                table: table_name.to_string(),
-                columns: columns.clone(),
-                predicate: Some(predicate.clone()),
-            };
-
-            let query_res = self
-                .flight_client
-                .query(ingester_address, ingester_query_request)
-                .await;
-            if let Err(FlightClientError::Flight {
-                source: FlightError::GrpcError(status),
-            }) = &query_res
-            {
-                if status.code() == tonic::Code::NotFound {
-                    debug!(
-                        %ingester_address,
-                        %namespace_name,
-                        %table_name,
-                        "Ingester does not know namespace or table, skipping",
-                    );
-                    continue;
-                }
-            }
-            let mut perform_query = query_res.context(RemoteQuerySnafu { ingester_address })?;
-
-            // read unpersisted partitions
-            // map partition_id -> (PartitionMetadata, Vec<PartitionData>))
-            let mut partitions: HashMap<_, _> = perform_query
-                .app_metadata()
-                .unpersisted_partitions
-                .iter()
-                .map(|(id, state)| (*id, (state.clone(), vec![])))
-                .collect();
-
-            // sort batches into partitions
-            let mut num_batches = 0usize;
-            let partition_ids = perform_query.app_metadata().batch_partition_ids.clone();
-            while let Some(batch) = perform_query
-                .next()
-                .await
-                .map_err(|source| FlightClientError::Flight { source })
-                .context(RemoteQuerySnafu { ingester_address })?
-            {
-                let partition_id =
-                    *partition_ids
-                        .get(num_batches)
-                        .context(MissingPartitionIdSnafu {
-                            pos: num_batches,
-                            ingester_address,
-                        })?;
-                partitions
-                    .get_mut(&partition_id)
-                    .context(UnknownPartitionIdSnafu {
-                        partition_id,
-                        ingester_address,
-                    })?
-                    .1
-                    .push(batch);
-                num_batches += 1;
-            }
-            debug!(num_batches, "Received batches from ingester");
-            trace!(?partitions, schema=?perform_query.schema(), "Detailed from ingester");
-            ensure!(
-                num_batches == partition_ids.len(),
-                TooManyPartitionIdsSnafu {
-                    actual: partition_ids.len(),
-                    expected: num_batches,
-                    ingester_address
-                },
-            );
-
-            for (partition_id, (state, batches)) in partitions {
-                // do NOT filter out empty partitions, because the caller of this functions needs the attached metadata
-                // to select the right parquet files and tombstones
-                let partition_id = PartitionId::new(partition_id);
-                let old_gen_partition_key = self
-                    .catalog_cache
-                    .partition()
-                    .old_gen_partition_key(partition_id)
-                    .await;
-                let sequencer_id = self
-                    .catalog_cache
-                    .partition()
-                    .sequencer_id(partition_id)
-                    .await;
-                let ingester_partition = IngesterPartition::try_new(
-                    ChunkId::new(),
-                    Arc::clone(&namespace_name),
-                    Arc::clone(&table_name),
-                    partition_id,
-                    sequencer_id,
-                    old_gen_partition_key,
-                    Arc::clone(&expected_schema),
-                    state.parquet_max_sequence_number.map(SequenceNumber::new),
-                    state.tombstone_max_sequence_number.map(SequenceNumber::new),
-                    batches,
-                )?;
-                ingester_partitions.push(Arc::new(ingester_partition));
-            }
-        }
+        let mut ingester_partitions: Vec<Arc<IngesterPartition>> = self
+            .ingester_addresses
+            .iter()
+            .map(|ingester_address| {
+                let request = GetPartitionForIngester {
+                    flight_client: Arc::clone(&self.flight_client),
+                    catalog_cache: Arc::clone(&self.catalog_cache),
+                    ingester_address: Arc::clone(ingester_address),
+                    namespace_name: Arc::clone(&namespace_name),
+                    table_name: Arc::clone(&table_name),
+                    columns: columns.clone(),
+                    predicate,
+                    expected_schema: Arc::clone(&expected_schema),
+                };
+                execute(request)
+            })
+            .collect::<FuturesUnordered<_>>()
+            .try_collect::<Vec<_>>()
+            .await?
+            // We have a Vec<Vec<..>> flatten to Vec<_>
+            .into_iter()
+            .flatten()
+            .collect();
 
         ingester_partitions.sort_by_key(|p| p.partition_id);
         Ok(ingester_partitions)
