@@ -6,10 +6,20 @@ use crate::{rand_name, write_to_router, ServerFixture, TestConfig, TestServer};
 /// Structure that holds NG services and helpful accessors
 #[derive(Debug, Default)]
 pub struct MiniCluster {
+    /// Standard optional router2
     router2: Option<ServerFixture>,
+
+    /// Standard optional ingster2
     ingester: Option<ServerFixture>,
+
+    /// Standard optional querier
     querier: Option<ServerFixture>,
+
+    /// Standard optional compactor
     compactor: Option<ServerFixture>,
+
+    /// Optional additional `ServerFixture`s that can be used for specific tests
+    other_servers: Vec<ServerFixture>,
 
     // Potentially helpful data
     org: String,
@@ -49,9 +59,15 @@ impl MiniCluster {
         self
     }
 
-    /// create an compactor with the specified configuration;
+    /// create a compactor with the specified configuration;
     pub async fn with_compactor(mut self, compactor_config: TestConfig) -> Self {
         self.compactor = Some(ServerFixture::create(compactor_config).await);
+        self
+    }
+
+    /// create another server compactor with the specified configuration;
+    pub async fn with_other(mut self, config: TestConfig) -> Self {
+        self.other_servers.push(ServerFixture::create(config).await);
         self
     }
 
@@ -124,5 +140,10 @@ impl MiniCluster {
             self.router2().router_http_base(),
         )
         .await
+    }
+
+    /// Get a reference to the mini cluster's other servers.
+    pub fn other_servers(&self) -> &[ServerFixture] {
+        self.other_servers.as_ref()
     }
 }

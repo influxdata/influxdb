@@ -1,5 +1,9 @@
+mod multi_ingester;
+
 use futures::FutureExt;
-use test_helpers_end_to_end_ng::{maybe_skip_integration, MiniCluster, Step, StepTest, TestConfig};
+use test_helpers_end_to_end_ng::{
+    maybe_skip_integration, MiniCluster, Step, StepTest, StepTestState, TestConfig,
+};
 
 #[tokio::test]
 async fn basic_ingester() {
@@ -163,8 +167,8 @@ async fn table_not_found_on_ingester() {
             Step::WaitForPersisted,
             // Restart the ingester so that it does not have any table data in memory
             // and so will return "not found" to the querier
-            Step::Custom(Box::new(|cluster: &mut MiniCluster| {
-                cluster.restart_ingester().boxed()
+            Step::Custom(Box::new(|state: &mut StepTestState| {
+                state.cluster_mut().restart_ingester().boxed()
             })),
             Step::Query {
                 sql: format!("select * from {}", table_name),

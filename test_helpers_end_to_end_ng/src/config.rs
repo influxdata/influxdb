@@ -82,12 +82,9 @@ impl TestConfig {
     pub fn new_querier(ingester_config: &TestConfig) -> Self {
         assert_eq!(ingester_config.server_type(), ServerType::Ingester);
 
-        let ingester_address =
-            Arc::clone(&ingester_config.addrs().ingester_grpc_api().client_base());
-
         Self::new_querier_without_ingester(ingester_config)
             // Configure to talk with the ingester
-            .with_ingester_addresses(&[ingester_address.as_ref()])
+            .with_ingester_addresses(&[ingester_config.ingester_base().as_ref()])
     }
 
     /// Create a minimal querier configuration from the specified
@@ -130,12 +127,23 @@ impl TestConfig {
     fn with_default_ingester_options(self) -> Self {
         self.with_env("INFLUXDB_IOX_PAUSE_INGEST_SIZE_BYTES", "20")
             .with_env("INFLUXDB_IOX_PERSIST_MEMORY_THRESHOLD_BYTES", "10")
-            .with_env("INFLUXDB_IOX_WRITE_BUFFER_PARTITION_RANGE_START", "0")
-            .with_env("INFLUXDB_IOX_WRITE_BUFFER_PARTITION_RANGE_END", "0")
+            .with_kafka_partition(0)
+    }
+
+    /// Adds an ingester that ingests from the specified kafka partition
+    pub fn with_kafka_partition(self, kafka_partition_id: u64) -> Self {
+        self.with_env(
+            "INFLUXDB_IOX_WRITE_BUFFER_PARTITION_RANGE_START",
+            kafka_partition_id.to_string(),
+        )
+        .with_env(
+            "INFLUXDB_IOX_WRITE_BUFFER_PARTITION_RANGE_END",
+            kafka_partition_id.to_string(),
+        )
     }
 
     /// Adds the ingester addresses
-    fn with_ingester_addresses(self, ingester_addresses: &[&str]) -> Self {
+    pub fn with_ingester_addresses(self, ingester_addresses: &[&str]) -> Self {
         self.with_env(
             "INFLUXDB_IOX_INGESTER_ADDRESSES",
             ingester_addresses.join(","),
@@ -168,9 +176,15 @@ impl TestConfig {
         self.with_env(name, value)
     }
 
-    /// Configures a new write buffer
-    pub fn with_new_write_buffer(mut self) -> Self {
-        let n_sequencers = 1;
+    /// Configures a new write buffer with 1 sequencer
+    ///  (kafka partitions)
+    pub fn with_new_write_buffer(self) -> Self {
+        self.with_new_write_buffer_kafka_partitions(1)
+    }
+
+    /// Configures a new write buffer with the specified number of
+    /// sequencers (kafka partitions)
+    pub fn with_new_write_buffer_kafka_partitions(mut self, n_sequencers: u64) -> Self {
         let tmpdir = TempDir::new().expect("can not create tmp dir");
         let write_buffer_string = tmpdir.path().display().to_string();
         self.write_buffer_dir = Some(Arc::new(tmpdir));
@@ -240,6 +254,12 @@ impl TestConfig {
     #[must_use]
     pub fn addrs(&self) -> &BindAddresses {
         &self.addrs
+    }
+
+    /// return the base ingester gRPC address, such as
+    /// `http://localhost:8082/`
+    pub fn ingester_base(&self) -> Arc<str> {
+        self.addrs().ingester_grpc_api().client_base()
     }
 }
 

@@ -1,14 +1,16 @@
 //! Client helpers for writing end to end ng tests
+use std::collections::HashMap;
 use std::time::Duration;
 
 use arrow::record_batch::RecordBatch;
+use futures::{stream::FuturesUnordered, StreamExt};
 use http::Response;
 use hyper::{Body, Client, Request};
 
 use influxdb_iox_client::connection::Connection;
 use influxdb_iox_client::flight::generated_types::ReadInfo;
 use influxdb_iox_client::write_info::generated_types::{
-    GetWriteInfoResponse, KafkaPartitionStatus,
+    GetWriteInfoResponse, KafkaPartitionInfo, KafkaPartitionStatus,
 };
 
 /// Writes the line protocol to the write_base/api/v2/write endpoint (typically on the router)
@@ -58,6 +60,36 @@ pub async fn token_info(
     influxdb_iox_client::write_info::Client::new(ingester_connection)
         .get_write_info(write_token.as_ref())
         .await
+}
+
+/// returns a combined write info that contains the combined
+/// information across all ingester_connections for all the specified
+/// tokens
+pub async fn combined_token_info(
+    write_tokens: Vec<String>,
+    ingester_connections: Vec<Connection>,
+) -> Result<GetWriteInfoResponse, influxdb_iox_client::error::Error> {
+    let responses = write_tokens
+        .into_iter()
+        .flat_map(|write_token| {
+            ingester_connections
+                .clone()
+                .into_iter()
+                .map(move |ingester_connection| {
+                    token_info(write_token.clone(), ingester_connection)
+                })
+        })
+        .collect::<FuturesUnordered<_>>()
+        .collect::<Vec<_>>()
+        .await
+        // check for errors
+        .into_iter()
+        .collect::<Result<Vec<_>, _>>()?;
+
+    println!("combining response: {:#?}", responses);
+
+    // merge them together
+    Ok(merge_responses(responses))
 }
 
 /// returns true if the write for this token is persisted, false if it
@@ -162,6 +194,61 @@ pub fn all_persisted(res: &GetWriteInfoResponse) -> bool {
         .all(|info| matches!(info.status(), KafkaPartitionStatus::Persisted))
 }
 
+/// "merges" the partition information for write info responses so
+/// that the "most recent" information is returned
+fn merge_responses(
+    responses: impl IntoIterator<Item = GetWriteInfoResponse>,
+) -> GetWriteInfoResponse {
+    // make kafka partition id to status
+    let mut partition_infos: HashMap<_, KafkaPartitionInfo> = HashMap::new();
+
+    responses
+        .into_iter()
+        .flat_map(|res| res.kafka_partition_infos.into_iter())
+        .for_each(|info| {
+            partition_infos
+                .entry(info.kafka_partition_id)
+                .and_modify(|existing_info| merge_info(existing_info, &info))
+                .or_insert(info);
+        });
+
+    let kafka_partition_infos = partition_infos
+        .into_iter()
+        .map(|(_kafka_partition_id, info)| info)
+        .collect();
+
+    GetWriteInfoResponse {
+        kafka_partition_infos,
+    }
+}
+
+// convert the status to a number such that higher numbers are later
+// in the data lifecycle
+fn status_order(status: KafkaPartitionStatus) -> u8 {
+    match status {
+        KafkaPartitionStatus::Unspecified => panic!("Unspecified status"),
+        KafkaPartitionStatus::Unknown => 0,
+        KafkaPartitionStatus::Durable => 1,
+        KafkaPartitionStatus::Readable => 2,
+        KafkaPartitionStatus::Persisted => 3,
+    }
+}
+
+fn merge_info(left: &mut KafkaPartitionInfo, right: &KafkaPartitionInfo) {
+    println!("existing_info {:?}, info: {:?}", left, right);
+
+    let left_status = left.status();
+    let right_status = right.status();
+
+    let new_status = match status_order(left_status).cmp(&status_order(right_status)) {
+        std::cmp::Ordering::Less => right_status,
+        std::cmp::Ordering::Equal => left_status,
+        std::cmp::Ordering::Greater => left_status,
+    };
+
+    left.set_status(new_status);
+}
+
 /// Runs a query using the flight API on the specified connection
 pub async fn run_query(
     sql: impl Into<String>,
@@ -185,4 +272,93 @@ pub async fn run_query(
         .expect("Error performing query");
 
     response.collect().await.expect("Error executing query")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_merge_info() {
+        #[derive(Debug)]
+        struct Test<'a> {
+            left: &'a KafkaPartitionInfo,
+            right: &'a KafkaPartitionInfo,
+            expected: &'a KafkaPartitionInfo,
+        }
+
+        let durable = KafkaPartitionInfo {
+            kafka_partition_id: 1,
+            status: KafkaPartitionStatus::Durable.into(),
+        };
+
+        let readable = KafkaPartitionInfo {
+            kafka_partition_id: 1,
+            status: KafkaPartitionStatus::Readable.into(),
+        };
+
+        let persisted = KafkaPartitionInfo {
+            kafka_partition_id: 1,
+            status: KafkaPartitionStatus::Persisted.into(),
+        };
+
+        let unknown = KafkaPartitionInfo {
+            kafka_partition_id: 1,
+            status: KafkaPartitionStatus::Unknown.into(),
+        };
+
+        let tests = vec![
+            Test {
+                left: &unknown,
+                right: &unknown,
+                expected: &unknown,
+            },
+            Test {
+                left: &unknown,
+                right: &durable,
+                expected: &durable,
+            },
+            Test {
+                left: &unknown,
+                right: &readable,
+                expected: &readable,
+            },
+            Test {
+                left: &durable,
+                right: &unknown,
+                expected: &durable,
+            },
+            Test {
+                left: &readable,
+                right: &readable,
+                expected: &readable,
+            },
+            Test {
+                left: &durable,
+                right: &durable,
+                expected: &durable,
+            },
+            Test {
+                left: &readable,
+                right: &durable,
+                expected: &readable,
+            },
+            Test {
+                left: &persisted,
+                right: &durable,
+                expected: &persisted,
+            },
+        ];
+
+        for test in tests {
+            let mut output = test.left.clone();
+
+            merge_info(&mut output, test.right);
+            assert_eq!(
+                &output, test.expected,
+                "Mismatch\n\nOutput:\n{:#?}\n\nTest:\n{:#?}",
+                output, test
+            );
+        }
+    }
 }

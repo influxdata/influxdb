@@ -14,7 +14,7 @@ pub use config::TestConfig;
 pub use mini_cluster::MiniCluster;
 pub use server_fixture::{ServerFixture, TestServer};
 pub use server_type::ServerType;
-pub use steps::{Step, StepTest};
+pub use steps::{FCustom, Step, StepTest, StepTestState};
 
 /// Return a random string suitable for use as a database name
 pub fn rand_name() -> String {

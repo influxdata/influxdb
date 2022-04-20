@@ -1,5 +1,7 @@
 use futures::FutureExt;
-use test_helpers_end_to_end_ng::{maybe_skip_integration, MiniCluster, Step, StepTest, TestConfig};
+use test_helpers_end_to_end_ng::{
+    maybe_skip_integration, MiniCluster, Step, StepTest, StepTestState, TestConfig,
+};
 
 use assert_cmd::Command;
 use predicates::prelude::*;
@@ -20,13 +22,13 @@ async fn ingester_schema_client() {
             Step::WriteLineProtocol(String::from(
                 "my_awesome_table,tag1=A,tag2=B val=42i 123456",
             )),
-            Step::Custom(Box::new(|cluster: &mut MiniCluster| {
+            Step::Custom(Box::new(|state: &mut StepTestState| {
                 async {
                     let mut client = influxdb_iox_client::schema::Client::new(
-                        cluster.router2().router_grpc_connection(),
+                        state.cluster().router2().router_grpc_connection(),
                     );
                     let response = client
-                        .get_schema(cluster.namespace())
+                        .get_schema(state.cluster().namespace())
                         .await
                         .expect("successful response");
 
@@ -69,16 +71,18 @@ async fn ingester_schema_cli() {
             Step::WriteLineProtocol(String::from(
                 "my_awesome_table2,tag1=A,tag2=B val=42i 123456",
             )),
-            Step::Custom(Box::new(|cluster: &mut MiniCluster| {
+            Step::Custom(Box::new(|state: &mut StepTestState| {
                 async {
+                    let router_addr = state.cluster().router2().router_grpc_base().to_string();
+
                     // Validate the output of the schema CLI command
                     Command::cargo_bin("influxdb_iox")
                         .unwrap()
                         .arg("-h")
-                        .arg(cluster.router2().router_grpc_base().as_ref())
+                        .arg(&router_addr)
                         .arg("schema")
                         .arg("get")
-                        .arg(cluster.namespace())
+                        .arg(state.cluster().namespace())
                         .assert()
                         .success()
                         .stdout(
