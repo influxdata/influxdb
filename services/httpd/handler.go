@@ -1196,9 +1196,10 @@ func (h *Handler) serveRetrieveBucketV2(w http.ResponseWriter, r *http.Request, 
 }
 
 func (h *Handler) serveBucketListV2(w http.ResponseWriter, r *http.Request, user meta.User) {
+	const defaultLimit = 20
 	var err error
 	var db, rp, after string
-	limit := 20
+	limit := defaultLimit
 	offset := 0
 
 	if h.Config.AuthEnabled {
@@ -1236,6 +1237,8 @@ func (h *Handler) serveBucketListV2(w http.ResponseWriter, r *http.Request, user
 		if l, err := strconv.ParseInt(limitStr, 10, 64); err != nil {
 			h.httpError(w, fmt.Sprintf("list buckets parameter is not an integer - limit=%q: %s", limitStr, err.Error()), http.StatusBadRequest)
 			return
+		} else if l <= 0 {
+			limit = math.MaxInt
 		} else {
 			limit = int(l)
 		}
@@ -1267,8 +1270,11 @@ func (h *Handler) serveBucketListV2(w http.ResponseWriter, r *http.Request, user
 			return
 		}
 	}
-
-	buckets := make([]Bucket, 0, limit)
+	sliceCap := limit
+	if sliceCap > (2 * defaultLimit) {
+		sliceCap = 2 * defaultLimit
+	}
+	buckets := make([]Bucket, 0, sliceCap)
 
 outer:
 	for ; dbIndex < len(dbs); dbIndex++ {

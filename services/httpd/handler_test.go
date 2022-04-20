@@ -2027,6 +2027,12 @@ func TestHandler_ListBuckets(t *testing.T) {
 
 	tests := []*test{
 		{
+			url:    "/api/v2/buckets?after=dbOne/rpTwo_1&limit=-1",
+			status: http.StatusOK,
+			skip:   2,
+			limit:  1000000,
+		},
+		{
 			url:    "/api/v2/buckets?offset=200",
 			status: http.StatusOK,
 			skip:   100,
