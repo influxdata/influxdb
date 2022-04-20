@@ -210,7 +210,7 @@ func NewHandler(c Config) *Handler {
 		},
 		Route{
 			"buckets",
-			"POST", "/api/v2/buckets", false, true, h.serveBucketsV2,
+			"POST", "/api/v2/buckets", false, true, h.ServePostBucketsV2,
 		},
 		Route{
 			"delete-bucket",
@@ -1037,7 +1037,7 @@ type Bucket struct {
 	UpdatedAt           time.Time `json:"updatedAt"`
 }
 
-func (h *Handler) serveBucketsV2(w http.ResponseWriter, r *http.Request, user meta.User) {
+func (h *Handler) ServePostBucketsV2(w http.ResponseWriter, r *http.Request, user meta.User) {
 	var bs []byte
 	if r.ContentLength > 0 {
 		if h.Config.MaxBodySize > 0 && r.ContentLength > int64(h.Config.MaxBodySize) {
@@ -1263,8 +1263,7 @@ func (h *Handler) serveBucketListV2(w http.ResponseWriter, r *http.Request, user
 		}
 	} else if offset > 0 {
 		if dbIndex, rpIndex = findBucketOffsetIndex(dbs, offset); dbIndex < 0 {
-			// TODO (DSB): Is this the right error?
-			http.Error(w, fmt.Sprintf("list buckets offset past end of list: %d", offset), http.StatusNotFound)
+			sendBuckets(w, []Bucket{})
 			return
 		}
 	}
