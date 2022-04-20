@@ -6,7 +6,7 @@ FROM rust:${RUST_VERSION}-slim-bullseye as build
 USER root
 
 RUN apt update \
-    && apt install --yes binutils build-essential pkg-config libssl-dev clang lld git \
+    && apt install --yes binutils build-essential pkg-config libssl-dev clang lld git protobuf-compiler \
     && rm -rf /var/lib/{apt,dpkg,cache,log}
 
 # Build influxdb_iox
