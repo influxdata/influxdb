@@ -96,5 +96,5 @@ pub async fn command(config: Config) -> Result<()> {
 
     info!("starting router2");
     let services = vec![Service::create(server_type, common_state.run_config())];
-    Ok(main::main(common_state, services).await?)
+    Ok(main::main(common_state, services, metrics).await?)
 }

@@ -130,5 +130,10 @@ pub async fn command(config: Config) -> Result<()> {
     ));
 
     let services = vec![Service::create(server_type, common_state.run_config())];
-    Ok(main::main(common_state, services).await?)
+    Ok(main::main(
+        common_state,
+        services,
+        Arc::new(metric::Registry::default()),
+    )
+    .await?)
 }
