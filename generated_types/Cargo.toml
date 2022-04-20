@@ -11,12 +11,12 @@ data_types2 = { path = "../data_types2", optional = true }
 datafusion = { path = "../datafusion", optional = true }
 observability_deps = { path = "../observability_deps" }
 pbjson = "0.3"
-pbjson-types = "0.2"
+pbjson-types = "0.3"
 predicate = { path = "../predicate", optional = true }
-prost = "0.9"
+prost = "0.10"
 regex = "1"
 serde = { version = "1.0", features = ["derive"] }
-tonic = "0.6"
+tonic = "0.7"
 time = { path = "../time" }
 workspace-hack = { path = "../workspace-hack"}
 
@@ -25,8 +25,8 @@ data_types = { path = "../data_types" }
 num_cpus = "1.13.0"
 
 [build-dependencies] # In alphabetical order
-tonic-build = "0.6"
-prost-build = "0.9"
+tonic-build = "0.7"
+prost-build = "0.10"
 pbjson-build = "0.3"
 
 [features]

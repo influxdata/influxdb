@@ -790,7 +790,7 @@ impl IoxParquetMetaData {
             column_orders: None,
             num_rows: file_metadata.num_rows(),
             row_groups: thrift_row_groups,
-            key_value_metadata: file_metadata.key_value_metadata().clone(),
+            key_value_metadata: file_metadata.key_value_metadata().cloned(),
             created_by: file_metadata.created_by().clone(),
             encryption_algorithm: None,
             footer_signing_key_metadata: None,
@@ -1292,7 +1292,7 @@ mod tests {
         let mut generator = ChunkGenerator::new().await;
         let (chunk, _) = generator.generate().await.unwrap();
         let parquet_metadata = chunk.parquet_metadata();
-        assert_eq!(parquet_metadata.size(), 4070);
+        assert_eq!(parquet_metadata.size(), 4069);
     }
 
     #[test]

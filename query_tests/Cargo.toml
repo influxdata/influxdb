@@ -25,7 +25,7 @@ query = { path = "../query" }
 workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]
-arrow = { version = "11", features = ["prettyprint"] }
+arrow = { version = "12", features = ["prettyprint"] }
 arrow_util = { path = "../arrow_util" }
 metric = { path = "../metric" }
 object_store = { path = "../object_store" }

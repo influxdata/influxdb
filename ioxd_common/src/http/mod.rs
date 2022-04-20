@@ -51,7 +51,9 @@ pub enum ApplicationError {
     HeappyError { source: heappy::Error },
 
     #[snafu(display("Protobuf error: {}", source))]
-    Prost { source: prost::EncodeError },
+    Prost {
+        source: Box<dyn std::error::Error + Send + Sync>,
+    },
 
     #[snafu(display("Protobuf error: {}", source))]
     ProstIO { source: std::io::Error },
@@ -272,7 +274,10 @@ async fn pprof_profile(req: Request<Body>) -> Result<Response<Body>, Application
             .pprof()
             .map_err(|e| Box::new(e) as _)
             .context(PProfSnafu)?;
-        profile.encode(&mut body).context(ProstSnafu)?;
+        profile
+            .encode(&mut body)
+            .map_err(|e| Box::new(e) as _)
+            .context(ProstSnafu)?;
     }
 
     Ok(Response::new(Body::from(body)))

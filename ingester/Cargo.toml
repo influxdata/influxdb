@@ -5,8 +5,8 @@ authors = ["Nga Tran <nga-tran@live.com>"]
 edition = "2021"
 
 [dependencies]
-arrow = { version = "11", features = ["prettyprint"] }
-arrow-flight = "11"
+arrow = { version = "12", features = ["prettyprint"] }
+arrow-flight = "12"
 arrow_util = { path = "../arrow_util" }
 async-trait = "0.1.53"
 backoff = { path = "../backoff" }
@@ -27,18 +27,18 @@ mutable_batch_lp = { path = "../mutable_batch_lp" }
 object_store = { path = "../object_store" }
 observability_deps = { path = "../observability_deps" }
 parking_lot = "0.12"
-parquet = "11"
+parquet = "12"
 parquet_file = { path = "../parquet_file" }
 pin-project = "1.0"
 predicate = { path = "../predicate" }
-prost = "0.9"
+prost = "0.10"
 query = { path = "../query" }
 schema = { path = "../schema" }
 snafu = "0.7"
 thiserror = "1.0"
 time = { path = "../time" }
 tokio = { version = "1.17", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
-tonic = { version = "0.6" }
+tonic = { version = "0.7" }
 tracker = { path = "../tracker" }
 uuid = { version = "0.8", features = ["v4"] }
 workspace-hack = { path = "../workspace-hack"}

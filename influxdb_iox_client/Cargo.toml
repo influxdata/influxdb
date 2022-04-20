@@ -17,20 +17,20 @@ client_util = { path = "../client_util" }
 generated_types = { path = "../generated_types", default-features = false }
 
 # Crates.io dependencies, in alphabetical order
-arrow = { version = "11", optional = true }
-arrow-flight = { version = "11", optional = true }
+arrow = { version = "12", optional = true }
+arrow-flight = { version = "12", optional = true }
 bytes = "1.0"
 futures-util = { version = "0.3", optional = true }
 dml = { path = "../dml", optional = true }
 mutable_batch = { path = "../mutable_batch", optional = true }
 mutable_batch_lp = { path = "../mutable_batch_lp", optional = true }
 mutable_batch_pb = { path = "../mutable_batch_pb", optional = true }
-prost = "0.9"
+prost = "0.10"
 rand = "0.8.3"
 serde = "1.0.128"
 serde_json = { version = "1.0.79", optional = true }
 thiserror = "1.0.30"
-tonic = { version = "0.6" }
+tonic = { version = "0.7" }
 uuid = { version = "0.8", features = ["v4"] }
 
 [dev-dependencies] # In alphabetical order

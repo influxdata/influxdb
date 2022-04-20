@@ -25,7 +25,7 @@ write_buffer = { path = "../write_buffer" }
 write_summary = { path = "../write_summary" }
 
 # Crates.io dependencies, in alphabetical order
-arrow-flight = "11"
+arrow-flight = "12"
 async-trait = "0.1"
 hashbrown = "0.12"
 hyper = "0.14"
@@ -33,7 +33,7 @@ thiserror = "1.0.30"
 tokio = { version = "1.17", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-stream = { version = "0.1", features = ["net"] }
 tokio-util = { version = "0.7.1" }
-tonic = "0.6"
-tonic-health = "0.5.0"
-tonic-reflection = "0.3.0"
+tonic = "0.7"
+tonic-health = "0.6.0"
+tonic-reflection = "0.4.0"
 workspace-hack = { path = "../workspace-hack"}

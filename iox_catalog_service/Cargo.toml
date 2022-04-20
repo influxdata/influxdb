@@ -15,7 +15,7 @@ serde = "1.0"
 serde_urlencoded = "0.7"
 time = { path = "../time" }
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
-tonic = "0.6"
+tonic = "0.7"
 trace = { path = "../trace/" }
 workspace-hack = { path = "../workspace-hack"}
 

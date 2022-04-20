@@ -20,7 +20,5 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
 
     config.disable_comments(&[".google"]);
 
-    tonic_build::configure()
-        .format(true)
-        .compile_with_config(config, &proto_files, &[root])
+    tonic_build::configure().compile_with_config(config, &proto_files, &[root])
 }
