@@ -1,16 +1,25 @@
-use std::sync::Arc;
+use std::{any::Any, sync::Arc};
 
 use async_trait::async_trait;
+use parking_lot::Mutex;
 
 use super::IngesterConnection;
 
 /// IngesterConnection for testing
 #[derive(Debug)]
-pub(crate) struct MockIngesterConnection {}
+pub(crate) struct MockIngesterConnection {
+    next_response: Mutex<Option<super::Result<Vec<Arc<super::IngesterPartition>>>>>,
+}
 
 impl MockIngesterConnection {
     pub fn new() -> Self {
-        Self {}
+        Self {
+            next_response: Mutex::new(None),
+        }
+    }
+
+    pub fn next_response(&self, response: super::Result<Vec<Arc<super::IngesterPartition>>>) {
+        *self.next_response.lock() = Some(response);
     }
 }
 
@@ -24,6 +33,13 @@ impl IngesterConnection for MockIngesterConnection {
         _predicate: &predicate::Predicate,
         _expected_schema: Arc<schema::Schema>,
     ) -> super::Result<Vec<Arc<super::IngesterPartition>>> {
-        Ok(vec![])
+        self.next_response
+            .lock()
+            .take()
+            .unwrap_or_else(|| Ok(vec![]))
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self as &dyn Any
     }
 }

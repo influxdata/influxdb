@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{any::Any, collections::HashMap, sync::Arc};
 
 use arrow::{datatypes::DataType, error::ArrowError, record_batch::RecordBatch};
 use async_trait::async_trait;
@@ -25,7 +25,7 @@ use self::{
 };
 
 mod flight_client;
-mod test_util;
+pub(crate) mod test_util;
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
@@ -114,6 +114,9 @@ pub trait IngesterConnection: std::fmt::Debug + Send + Sync + 'static {
         predicate: &Predicate,
         expected_schema: Arc<Schema>,
     ) -> Result<Vec<Arc<IngesterPartition>>>;
+
+    /// Return backend as [`Any`] which can be used to downcast to a specifc implementation.
+    fn as_any(&self) -> &dyn Any;
 }
 
 // IngesterConnection that communicates with an ingester.
@@ -319,6 +322,10 @@ impl IngesterConnection for IngesterConnectionImpl {
         ingester_partitions.sort_by_key(|p| p.partition_id);
         Ok(ingester_partitions)
     }
+
+    fn as_any(&self) -> &dyn Any {
+        self as &dyn Any
+    }
 }
 
 /// A wrapper around the unpersisted data in a partition returned by
@@ -390,6 +397,26 @@ impl IngesterPartition {
             tombstone_max_sequence_number,
             batches,
         })
+    }
+
+    pub fn has_batches(&self) -> bool {
+        !self.batches.is_empty()
+    }
+
+    pub fn partition_id(&self) -> PartitionId {
+        self.partition_id
+    }
+
+    pub fn sequencer_id(&self) -> SequencerId {
+        self.sequencer_id
+    }
+
+    pub fn parquet_max_sequence_number(&self) -> Option<SequenceNumber> {
+        self.parquet_max_sequence_number
+    }
+
+    pub fn tombstone_max_sequence_number(&self) -> Option<SequenceNumber> {
+        self.tombstone_max_sequence_number
     }
 }
 
