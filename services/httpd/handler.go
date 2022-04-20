@@ -113,6 +113,7 @@ type Handler struct {
 		CreateDatabaseWithRetentionPolicy(name string, spec *meta.RetentionPolicySpec) (*meta.DatabaseInfo, error)
 		DropRetentionPolicy(database, name string) error
 		CreateRetentionPolicy(database string, spec *meta.RetentionPolicySpec, makeDefault bool) (*meta.RetentionPolicyInfo, error)
+		UpdateRetentionPolicy(database, name string, rpu *meta.RetentionPolicyUpdate, makeDefault bool) error
 	}
 
 	QueryAuthorizer QueryAuthorizer
@@ -223,6 +224,10 @@ func NewHandler(c Config) *Handler {
 		Route{
 			"buckets",
 			"GET", "/api/v2/buckets", false, true, h.serveBucketListV2,
+		},
+		Route{
+			"buckets",
+			"PATCH", "/api/v2/buckets/:db/:rp", false, true, h.serveUpdateBucketV2,
 		},
 		Route{
 			"write", // Data-ingest route.
@@ -1018,14 +1023,18 @@ type RetentionRule struct {
 	ShardGroupDurationSeconds int64  `json:"shardGroupDurationSeconds"`
 }
 
-// BucketsBody and RetentionRule should match the 2.0 API definition.
-type BucketsBody struct {
+type BucketUpdate struct {
 	Description    string          `json:"description"`
 	Name           string          `json:"name"`
-	OrgID          string          `json:"orgId"`
-	Rp             string          `json:"rp"`
-	SchemaType     string          `json:"schemaType"`
 	RetentionRules []RetentionRule `json:"retentionRules"`
+}
+
+// BucketsBody and RetentionRule should match the 2.0 API definition.
+type BucketsBody struct {
+	BucketUpdate
+	OrgID      string `json:"orgId"`
+	Rp         string `json:"rp"`
+	SchemaType string `json:"schemaType"`
 }
 
 type Bucket struct {
@@ -1142,9 +1151,8 @@ func (h *Handler) serveBucketDeleteV2(w http.ResponseWriter, r *http.Request, us
 			h.httpError(w, fmt.Sprintf("delete bucket - user is required to delete from database %q", db), http.StatusForbidden)
 			return
 		}
-
-		if err := h.QueryAuthorizer.AuthorizeDeleteRetentionPolicy(user, db); err != nil {
-			h.httpError(w, fmt.Sprintf("delete bucket - %q is not authorized to delete %q: %s", user.ID(), id, err.Error()), http.StatusForbidden)
+		if err := h.QueryAuthorizer.AuthorizeCreateRetentionPolicy(user, db); err != nil {
+			h.httpError(w, fmt.Sprintf("buckets - %q is not authorized to modify %q: %s", user.ID(), id, err.Error()), http.StatusForbidden)
 			return
 		}
 	}
@@ -1160,6 +1168,67 @@ func (h *Handler) serveBucketDeleteV2(w http.ResponseWriter, r *http.Request, us
 		return
 	} else if err := h.MetaClient.DropRetentionPolicy(db, rp); err != nil {
 		h.httpError(w, fmt.Sprintf("delete bucket %q: %s", id, err.Error()), http.StatusBadRequest)
+		return
+	}
+}
+
+func (h *Handler) serveUpdateBucketV2(w http.ResponseWriter, r *http.Request, user meta.User) {
+	var bs []byte
+	db := r.URL.Query().Get(":db")
+	rp := r.URL.Query().Get(":rp")
+	bucket := fmt.Sprintf("%s/%s", db, rp)
+	if h.Config.AuthEnabled {
+		if user == nil {
+			h.httpError(w, fmt.Sprintf("update bucket - user is required to update %q", bucket), http.StatusForbidden)
+			return
+		}
+		// This is the privilege required in the Enterprise authorization.
+		if err := h.QueryAuthorizer.AuthorizeCreateDatabase(user); err != nil {
+			h.httpError(w, fmt.Sprintf("update bucket - %q is not authorized to modify %q: %s", user.ID(), bucket, err.Error()), http.StatusForbidden)
+			return
+		}
+	}
+	if r.ContentLength > 0 {
+		if h.Config.MaxBodySize > 0 && r.ContentLength > int64(h.Config.MaxBodySize) {
+			h.httpError(w, http.StatusText(http.StatusRequestEntityTooLarge), http.StatusRequestEntityTooLarge)
+			return
+		}
+
+		// This will just be an initial hint for the reader, as the
+		// bytes.Buffer will grow as needed when ReadFrom is called
+		bs = make([]byte, 0, r.ContentLength)
+	}
+
+	buf := bytes.NewBuffer(bs)
+	_, err := buf.ReadFrom(r.Body)
+	if err != nil {
+		h.httpError(w, fmt.Sprintf("update bucket - cannot read request body: %s", err.Error()), http.StatusBadRequest)
+		return
+	}
+
+	bu := &BucketUpdate{}
+	if err = json.Unmarshal(buf.Bytes(), bu); err != nil {
+		h.httpError(w, fmt.Sprintf("update bucket - cannot parse request body: %s", err.Error()), http.StatusBadRequest)
+		return
+	}
+	var dur, sgDur time.Duration
+	if len(bu.RetentionRules) > 0 {
+		dur = time.Second * time.Duration(bu.RetentionRules[0].EverySeconds)
+		sgDur = time.Duration(bu.RetentionRules[0].ShardGroupDurationSeconds) * time.Second
+	} else {
+		dur = meta.DefaultRetentionPolicyDuration
+		sgDur = 0
+	}
+	rf := meta.DefaultRetentionPolicyReplicaN
+	m := &meta.RetentionPolicyUpdate{
+		Name:               &bu.Name,
+		Duration:           &dur,
+		ReplicaN:           &rf,
+		ShardGroupDuration: &sgDur,
+	}
+
+	if err := h.MetaClient.UpdateRetentionPolicy(db, rp, m, false); err != nil {
+		h.httpError(w, fmt.Sprintf("update bucket %q: %s", bucket, err.Error()), http.StatusBadRequest)
 		return
 	}
 }
@@ -1361,17 +1430,19 @@ func makeBucket(rpi *meta.RetentionPolicyInfo, database string) *Bucket {
 	name := fmt.Sprintf("%s/%s", database, rpi.Name)
 	return &Bucket{
 		BucketsBody: BucketsBody{
-			Name:       name,
+			BucketUpdate: BucketUpdate{
+				Name: name,
+				RetentionRules: []RetentionRule{{
+					Type:                      "",
+					EverySeconds:              int64(rpi.Duration.Seconds()),
+					ShardGroupDurationSeconds: int64(rpi.ShardGroupDuration.Seconds()),
+				}},
+			},
 			Rp:         rpi.Name,
 			SchemaType: "implicit",
-			RetentionRules: []RetentionRule{{
-				Type:                      "",
-				EverySeconds:              int64(rpi.Duration.Seconds()),
-				ShardGroupDurationSeconds: int64(rpi.ShardGroupDuration.Seconds()),
-			}},
 		},
-		RetentionPolicyName: rpi.Name,
 		ID:                  name,
+		RetentionPolicyName: rpi.Name,
 	}
 }
 

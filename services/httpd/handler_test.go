@@ -1841,6 +1841,7 @@ func TestHandler_CreateDeleteBuckets(t *testing.T) {
 	const goodRp = "myrp"
 	const postMethod = "POST"
 	const deleteMethod = "DELETE"
+	const patchMethod = "PATCH"
 
 	type test struct {
 		url    string
@@ -1851,6 +1852,22 @@ func TestHandler_CreateDeleteBuckets(t *testing.T) {
 	}
 
 	tests := []*test{
+		{
+			url:    "/api/v2/buckets/" + existingDb + "/" + goodRp,
+			method: patchMethod,
+			body: httpd.BucketsBody{
+				BucketUpdate: httpd.BucketUpdate{
+					Name: "newNewRp",
+					RetentionRules: []httpd.RetentionRule{
+						{
+							EverySeconds:              6000,
+							ShardGroupDurationSeconds: 18000,
+						},
+					},
+				},
+			},
+			status: http.StatusOK,
+		},
 		{
 			url:    "/api/v2/buckets/" + existingDb + "/",
 			method: deleteMethod,
@@ -1866,15 +1883,17 @@ func TestHandler_CreateDeleteBuckets(t *testing.T) {
 			url:    "/api/v2/buckets",
 			method: postMethod,
 			body: httpd.BucketsBody{
-				Name:       newDb + "/" + goodRp,
-				Rp:         goodRp,
-				SchemaType: "implicit",
-				RetentionRules: []httpd.RetentionRule{
-					httpd.RetentionRule{
-						EverySeconds:              7200,
-						ShardGroupDurationSeconds: 14400,
+				BucketUpdate: httpd.BucketUpdate{
+					Name: newDb + "/" + goodRp,
+					RetentionRules: []httpd.RetentionRule{
+						httpd.RetentionRule{
+							EverySeconds:              7200,
+							ShardGroupDurationSeconds: 14400,
+						},
 					},
 				},
+				Rp:         goodRp,
+				SchemaType: "implicit",
 			},
 			status: http.StatusOK,
 		},
@@ -1888,15 +1907,17 @@ func TestHandler_CreateDeleteBuckets(t *testing.T) {
 			url:    "/api/v2/buckets",
 			method: postMethod,
 			body: httpd.BucketsBody{
-				Name:       existingDb + "/" + goodRp,
-				Rp:         goodRp,
-				SchemaType: "implicit",
-				RetentionRules: []httpd.RetentionRule{
-					httpd.RetentionRule{
-						EverySeconds:              7200,
-						ShardGroupDurationSeconds: 14400,
+				BucketUpdate: httpd.BucketUpdate{
+					Name: existingDb + "/" + goodRp,
+					RetentionRules: []httpd.RetentionRule{
+						httpd.RetentionRule{
+							EverySeconds:              7200,
+							ShardGroupDurationSeconds: 14400,
+						},
 					},
 				},
+				Rp:         goodRp,
+				SchemaType: "implicit",
 			},
 			status: http.StatusOK,
 		},
@@ -1938,6 +1959,14 @@ func TestHandler_CreateDeleteBuckets(t *testing.T) {
 		}
 	}
 
+	updateRp := func(database string, name string, update *meta.RetentionPolicyUpdate, makeDefault bool) error {
+		if database == existingDb && name == goodRp {
+			return nil
+		} else {
+			return fmt.Errorf("bucket not found: %q", fmt.Sprintf("%s/%s", database, name))
+		}
+	}
+
 	h := NewHandler(false)
 
 	h.MetaClient = &internal.MetaClientMock{
@@ -1952,7 +1981,8 @@ func TestHandler_CreateDeleteBuckets(t *testing.T) {
 				ContinuousQueries:      nil,
 			}, err
 		},
-		DropRetentionPolicyFn: dropDeleteRp,
+		DropRetentionPolicyFn:   dropDeleteRp,
+		UpdateRetentionPolicyFn: updateRp,
 	}
 
 	h.Store.DeleteRetentionPolicyFn = dropDeleteRp
