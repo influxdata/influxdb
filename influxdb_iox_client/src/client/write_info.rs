@@ -11,7 +11,14 @@ pub mod generated_types {
     };
 }
 
-/// A basic client for fetching information about write tokens
+/// A basic client for fetching information about write tokens from a
+/// single ingester.
+///
+/// NOTE: This is an ALPHA / Internal API that is used as part of the
+/// end to end tests.
+///
+/// A public API is tracked here:
+/// <https://github.com/influxdata/influxdb_iox/issues/4354>
 #[derive(Debug, Clone)]
 pub struct Client {
     inner: WriteInfoServiceClient<Connection>,
