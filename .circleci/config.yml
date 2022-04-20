@@ -289,6 +289,8 @@ jobs:
       # https://github.com/rust-lang/cargo/issues/10280
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
       RUST_BACKTRACE: "1"
+      PROTOC: "/home/circleci/protoc/bin/protoc"
+      PROTOC_INCLUDE: "/home/circleci/protoc/include"
     steps:
       # Use us.archive.ubuntu.com since it is close. If it is down, try archive.ubuntu.com. If it is
       # down too, temporarily choose something from http://mirrors.ubuntu.com/mirrors.txt that
@@ -303,6 +305,14 @@ jobs:
           name: Install required compile tools
           command: sudo apt install curl clang lld pkg-config libssl-dev --yes --no-install-recommends
       - checkout
+
+      - run:
+          name: Install protoc 3.19.4 to ~/protoc (stock in ubunutu is too old)
+          command: |
+            mkdir /home/circleci/protoc
+            cd /home/circleci/protoc
+            wget https://github.com/protocolbuffers/protobuf/releases/download/v3.19.4/protoc-3.19.4-linux-x86_64.zip
+            unzip protoc-3.19.4-linux-x86_64.zip
 
       - run:
           name: Install rustup
