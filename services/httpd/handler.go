@@ -211,11 +211,11 @@ func NewHandler(c Config) *Handler {
 		},
 		Route{
 			"buckets",
-			"POST", "/api/v2/buckets", false, true, h.ServePostBucketsV2,
+			"POST", "/api/v2/buckets", false, true, h.ServePostCreateBucketV2,
 		},
 		Route{
 			"delete-bucket",
-			"DELETE", "/api/v2/buckets/:db/:rp", false, true, h.serveBucketDeleteV2,
+			"DELETE", "/api/v2/buckets/:db/:rp", false, true, h.serveDeleteBucketV2,
 		},
 		Route{
 			"buckets",
@@ -223,7 +223,7 @@ func NewHandler(c Config) *Handler {
 		},
 		Route{
 			"buckets",
-			"GET", "/api/v2/buckets", false, true, h.serveBucketListV2,
+			"GET", "/api/v2/buckets", false, true, h.serveListBucketsV2,
 		},
 		Route{
 			"buckets",
@@ -1046,7 +1046,7 @@ type Bucket struct {
 	UpdatedAt           time.Time `json:"updatedAt"`
 }
 
-func (h *Handler) ServePostBucketsV2(w http.ResponseWriter, r *http.Request, user meta.User) {
+func (h *Handler) ServePostCreateBucketV2(w http.ResponseWriter, r *http.Request, user meta.User) {
 	var bs []byte
 	if r.ContentLength > 0 {
 		if h.Config.MaxBodySize > 0 && r.ContentLength > int64(h.Config.MaxBodySize) {
@@ -1140,7 +1140,7 @@ func (h *Handler) ServePostBucketsV2(w http.ResponseWriter, r *http.Request, use
 	}
 }
 
-func (h *Handler) serveBucketDeleteV2(w http.ResponseWriter, r *http.Request, user meta.User) {
+func (h *Handler) serveDeleteBucketV2(w http.ResponseWriter, r *http.Request, user meta.User) {
 	db := r.URL.Query().Get(":db")
 	rp := r.URL.Query().Get(":rp")
 	id := fmt.Sprintf("%s/%s", db, rp)
@@ -1150,7 +1150,7 @@ func (h *Handler) serveBucketDeleteV2(w http.ResponseWriter, r *http.Request, us
 			h.httpError(w, fmt.Sprintf("delete bucket - user is required to delete from database %q", db), http.StatusForbidden)
 			return
 		}
-		if err := h.QueryAuthorizer.AuthorizeCreateRetentionPolicy(user, db); err != nil {
+		if err := h.QueryAuthorizer.AuthorizeDeleteRetentionPolicy(user, db); err != nil {
 			h.httpError(w, fmt.Sprintf("buckets - %q is not authorized to modify %q: %s", user.ID(), id, err.Error()), http.StatusForbidden)
 			return
 		}
@@ -1263,7 +1263,7 @@ func (h *Handler) serveRetrieveBucketV2(w http.ResponseWriter, r *http.Request, 
 	return
 }
 
-func (h *Handler) serveBucketListV2(w http.ResponseWriter, r *http.Request, user meta.User) {
+func (h *Handler) serveListBucketsV2(w http.ResponseWriter, r *http.Request, user meta.User) {
 	const defaultLimit = 100
 	var err error
 	var db, rp, after string
@@ -1288,9 +1288,12 @@ func (h *Handler) serveBucketListV2(w http.ResponseWriter, r *http.Request, user
 			name = id
 		}
 		if b := h.oneBucket(w, name); b != nil {
-			sendBuckets(w, []Bucket{*b})
+			h.sendBuckets(w, []Bucket{*b})
+			return
+		} else {
+			h.sendBuckets(w, []Bucket{})
+			return
 		}
-		return
 	}
 
 	if after = r.URL.Query().Get("after"); after != "" {
@@ -1328,13 +1331,15 @@ func (h *Handler) serveBucketListV2(w http.ResponseWriter, r *http.Request, user
 	rpIndex := 0
 	dbs := h.MetaClient.Databases()
 	if after != "" {
-		if dbIndex, rpIndex = findBucketIndex(dbs, db, rp); dbIndex < 0 {
+		var ok bool
+		if dbIndex, rpIndex, ok = findBucketIndex(dbs, db, rp); !ok {
 			h.httpError(w, fmt.Sprintf("list buckets \"after\" parameter not found: %q", after), http.StatusNotFound)
 			return
 		}
 	} else if offset > 0 {
-		if dbIndex, rpIndex = findBucketOffsetIndex(dbs, offset); dbIndex < 0 {
-			sendBuckets(w, []Bucket{})
+		var ok bool
+		if dbIndex, rpIndex, ok = findBucketOffsetIndex(dbs, offset); !ok {
+			h.sendBuckets(w, []Bucket{})
 			return
 		}
 	}
@@ -1362,7 +1367,7 @@ outer:
 		}
 		rpIndex = 0
 	}
-	sendBuckets(w, buckets)
+	h.sendBuckets(w, buckets)
 }
 
 func (h *Handler) oneBucket(w http.ResponseWriter, name string) *Bucket {
@@ -1381,20 +1386,20 @@ func (h *Handler) oneBucket(w http.ResponseWriter, name string) *Bucket {
 	}
 }
 
-func findBucketOffsetIndex(dbs []meta.DatabaseInfo, offset int) (dbIndex int, rpIndex int) {
+func findBucketOffsetIndex(dbs []meta.DatabaseInfo, offset int) (dbIndex int, rpIndex int, ok bool) {
 	for i, dbi := range dbs {
 		if offset > len(dbi.RetentionPolicies) {
 			offset -= len(dbi.RetentionPolicies)
 		} else {
 			dbIndex = i
 			rpIndex = offset
-			return dbIndex, rpIndex
+			return dbIndex, rpIndex, true
 		}
 	}
-	return -1, -1
+	return -1, -1, false
 }
 
-func findBucketIndex(dbs []meta.DatabaseInfo, db string, rp string) (dbIndex int, rpIndex int) {
+func findBucketIndex(dbs []meta.DatabaseInfo, db string, rp string) (dbIndex int, rpIndex int, ok bool) {
 	for di, dbi := range dbs {
 		if dbi.Name != db {
 			continue
@@ -1402,26 +1407,25 @@ func findBucketIndex(dbs []meta.DatabaseInfo, db string, rp string) (dbIndex int
 			for ri, rpi := range dbi.RetentionPolicies {
 				if rpi.Name == rp {
 					if ri < (len(dbi.RetentionPolicies) - 1) {
-						return di, ri + 1
+						return di, ri + 1, true
 					} else {
-						return di + 1, 0
+						return di + 1, 0, true
 					}
 				}
 			}
 		}
 	}
-	return -1, -1
+	return -1, -1, false
 }
 
-func sendBuckets(w http.ResponseWriter, buckets []Bucket) {
+func (h *Handler) sendBuckets(w http.ResponseWriter, buckets []Bucket) {
 	b, err := json.Marshal(buckets)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("list buckets marshaling error: %s", err.Error()), http.StatusBadRequest)
+		h.httpError(w, fmt.Sprintf("list buckets marshaling error: %s", err.Error()), http.StatusInternalServerError)
 		return
 	}
 	if _, err := w.Write(b); err != nil {
-		http.Error(w, fmt.Sprintf("list buckets error writing response: %s", err.Error()), http.StatusBadRequest)
-		return
+		h.Logger.Info("/api/v2/buckets: list buckets error writing response", zap.Error(err))
 	}
 }
 
