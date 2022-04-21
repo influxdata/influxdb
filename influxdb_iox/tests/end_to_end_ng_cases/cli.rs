@@ -4,7 +4,7 @@ use predicates::prelude::*;
 use serde_json::Value;
 use tempfile::tempdir;
 use test_helpers_end_to_end_ng::{
-    maybe_skip_integration, MiniCluster, Step, StepTest, StepTestState, TestConfig,
+    maybe_skip_integration, MiniCluster, Step, StepTest, StepTestState,
 };
 
 /// Tests CLI commands
@@ -14,16 +14,8 @@ use test_helpers_end_to_end_ng::{
 async fn remote_partition_and_get_from_store() {
     let database_url = maybe_skip_integration!();
 
-    let router2_config = TestConfig::new_router2(&database_url);
-    // generate parquet files quickly
-    let ingester_config = TestConfig::new_ingester(&router2_config).with_fast_parquet_generation();
-
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::new()
-        .with_router2(router2_config)
-        .await
-        .with_ingester(ingester_config)
-        .await;
+    let mut cluster = MiniCluster::create_quickly_peristing(database_url).await;
 
     StepTest::new(
         &mut cluster,

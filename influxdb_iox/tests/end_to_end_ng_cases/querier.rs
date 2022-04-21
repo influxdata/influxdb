@@ -12,18 +12,8 @@ async fn basic_ingester() {
 
     let table_name = "the_table";
 
-    let router2_config = TestConfig::new_router2(&database_url);
-    let ingester_config = TestConfig::new_ingester(&router2_config);
-    let querier_config = TestConfig::new_querier(&ingester_config);
-
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::new()
-        .with_router2(router2_config)
-        .await
-        .with_ingester(ingester_config)
-        .await
-        .with_querier(querier_config)
-        .await;
+    let mut cluster = MiniCluster::create_standard(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -58,19 +48,8 @@ async fn basic_on_parquet() {
 
     let table_name = "the_table";
 
-    let router2_config = TestConfig::new_router2(&database_url);
-    // fast parquet
-    let ingester_config = TestConfig::new_ingester(&router2_config).with_fast_parquet_generation();
-    let querier_config = TestConfig::new_querier(&ingester_config);
-
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::new()
-        .with_router2(router2_config)
-        .await
-        .with_ingester(ingester_config)
-        .await
-        .with_querier(querier_config)
-        .await;
+    let mut cluster = MiniCluster::create_quickly_peristing(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -145,19 +124,8 @@ async fn table_not_found_on_ingester() {
 
     let table_name = "the_table";
 
-    let router2_config = TestConfig::new_router2(&database_url);
-    // fast parquet
-    let ingester_config = TestConfig::new_ingester(&router2_config).with_fast_parquet_generation();
-    let querier_config = TestConfig::new_querier(&ingester_config);
-
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::new()
-        .with_router2(router2_config)
-        .await
-        .with_ingester(ingester_config)
-        .await
-        .with_querier(querier_config)
-        .await;
+    let mut cluster = MiniCluster::create_quickly_peristing(database_url).await;
 
     StepTest::new(
         &mut cluster,

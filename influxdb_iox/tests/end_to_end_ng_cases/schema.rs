@@ -1,6 +1,6 @@
 use futures::FutureExt;
 use test_helpers_end_to_end_ng::{
-    maybe_skip_integration, MiniCluster, Step, StepTest, StepTestState, TestConfig,
+    maybe_skip_integration, MiniCluster, Step, StepTest, StepTestState,
 };
 
 use assert_cmd::Command;
@@ -11,10 +11,7 @@ use predicates::prelude::*;
 async fn ingester_schema_client() {
     let database_url = maybe_skip_integration!();
 
-    let router2_config = TestConfig::new_router2(&database_url);
-
-    // Set up router2  ====================================
-    let mut cluster = MiniCluster::new().with_router2(router2_config).await;
+    let mut cluster = MiniCluster::create_standard(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -60,10 +57,7 @@ async fn ingester_schema_client() {
 async fn ingester_schema_cli() {
     let database_url = maybe_skip_integration!();
 
-    let router2_config = TestConfig::new_router2(&database_url);
-
-    // Set up router2  ====================================
-    let mut cluster = MiniCluster::new().with_router2(router2_config).await;
+    let mut cluster = MiniCluster::create_standard(database_url).await;
 
     StepTest::new(
         &mut cluster,

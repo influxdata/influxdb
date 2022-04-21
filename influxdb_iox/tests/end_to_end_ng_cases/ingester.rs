@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use generated_types::influxdata::iox::ingester::v1::PartitionStatus;
 use http::StatusCode;
 use test_helpers_end_to_end_ng::{
-    get_write_token, maybe_skip_integration, wait_for_readable, MiniCluster, TestConfig,
+    get_write_token, maybe_skip_integration, wait_for_readable, MiniCluster,
 };
 
 use arrow_util::assert_batches_sorted_eq;
@@ -15,15 +15,8 @@ async fn ingester_flight_api() {
 
     let table_name = "mytable";
 
-    let router2_config = TestConfig::new_router2(&database_url);
-    let ingester_config = TestConfig::new_ingester(&router2_config);
-
     // Set up cluster
-    let cluster = MiniCluster::new()
-        .with_router2(router2_config)
-        .await
-        .with_ingester(ingester_config)
-        .await;
+    let cluster = MiniCluster::create_standard(database_url).await;
 
     // Write some data into the v2 HTTP API ==============
     let lp = format!("{},tag1=A,tag2=B val=42i 123456", table_name);
@@ -99,9 +92,7 @@ async fn ingester_flight_api_namespace_not_found() {
     let table_name = "mytable";
 
     // Set up cluster
-    let router2_config = TestConfig::new_router2(&database_url);
-    let ingester_config = TestConfig::new_ingester(&router2_config);
-    let cluster = MiniCluster::new().with_ingester(ingester_config).await;
+    let cluster = MiniCluster::create_standard(database_url).await;
 
     let mut querier_flight = influxdb_iox_client::flight::Client::<
         influxdb_iox_client::flight::generated_types::IngesterQueryRequest,
@@ -130,13 +121,7 @@ async fn ingester_flight_api_table_not_found() {
     let database_url = maybe_skip_integration!();
 
     // Set up cluster
-    let router2_config = TestConfig::new_router2(&database_url);
-    let ingester_config = TestConfig::new_ingester(&router2_config);
-    let cluster = MiniCluster::new()
-        .with_router2(router2_config)
-        .await
-        .with_ingester(ingester_config)
-        .await;
+    let cluster = MiniCluster::create_standard(database_url).await;
 
     // Write some data into the v2 HTTP API ==============
     let lp = String::from("my_table,tag1=A,tag2=B val=42i 123456");
