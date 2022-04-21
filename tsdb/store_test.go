@@ -1526,7 +1526,7 @@ func TestStore_Sketches(t *testing.T) {
 
 		// Now delete the rest of the measurements.
 		// This will cause the measurement tombstones to exceed the measurement cardinality for TSI.
-		mnames, err = store.MeasurementNames(context.Background(), nil, "db", "", nil)
+		mnames, err = store.MeasurementNames(context.Background(), nil, "db", nil)
 		if err != nil {
 			return err
 		}
