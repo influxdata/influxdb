@@ -13,6 +13,7 @@ backoff = { path = "../backoff" }
 base64 = "0.13"
 bytes = "1.0"
 datafusion = { path = "../datafusion" }
+datafusion_util = { path = "../datafusion_util" }
 data_types2 = { path = "../data_types2" }
 futures = "0.3"
 generated_types = { path = "../generated_types" }

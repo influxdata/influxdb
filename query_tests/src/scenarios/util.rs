@@ -1,6 +1,7 @@
 //! This module contains util functions for testing scenarios
 use super::DbScenario;
 use data_types::{chunk_metadata::ChunkId, delete_predicate::DeletePredicate};
+use datafusion_util::batch_filter;
 use db::test_helpers::chunk_ids_rub;
 use db::{
     test_helpers::write_lp,
@@ -10,7 +11,9 @@ use db::{
 use iox_catalog::interface::get_schema_by_name;
 use iox_tests::util::{TestCatalog, TestNamespace};
 use itertools::Itertools;
+use predicate::PredicateBuilder;
 use querier::{create_ingester_connection_for_testing, QuerierNamespace};
+use query::util::df_physical_expr_from_schema_and_expr;
 use query::QueryChunk;
 use schema::merge::SchemaMerger;
 use schema::selection::Selection;
@@ -46,7 +49,7 @@ pub struct ChunkDataNew<'a, 'b> {
     pub preds: Vec<PredNew<'b>>,
 
     /// Table that should be deleted.
-    pub delete_table_name: &'a str,
+    pub delete_table_name: Option<&'a str>,
 
     /// Partition key
     pub partition_key: &'a str,
@@ -96,7 +99,7 @@ impl ChunkStageOld {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ChunkStageNew {
     /// In parquet file.
     Parquet,
@@ -238,7 +241,19 @@ impl DeleteTimeOld {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum DeleteTimeNew {
-    /// Delete  predicate is added to chunks at their parquet stage
+    /// Delete predicate is added while chunk is was still in ingester memory.
+    Ingester {
+        /// Flag if the tombstone also exists in the catalog.
+        ///
+        /// If this is set to `false`, then the tombstone was applied by the ingester but does not exist in the catalog
+        /// any longer. This can be because:
+        ///
+        /// - the ingester decided that it doesn't need to be added to the catalog (this is currently/2022-04-21 not implemented!)
+        /// - the compactor pruned the tombstone from the catalog because there are zero affected parquet files
+        also_in_catalog: bool,
+    },
+
+    /// Delete predicate is added to chunks at their parquet stage
     Parquet,
 }
 
@@ -246,16 +261,40 @@ impl DeleteTimeNew {
     /// Return all DeleteTime at and after the given chunk stage
     pub fn all_from_and_before(chunk_stage: ChunkStageNew) -> Vec<DeleteTimeNew> {
         match chunk_stage {
-            ChunkStageNew::Parquet => vec![Self::Parquet],
+            ChunkStageNew::Parquet => vec![
+                Self::Ingester {
+                    also_in_catalog: true,
+                },
+                Self::Ingester {
+                    also_in_catalog: false,
+                },
+                Self::Parquet,
+            ],
         }
     }
 
     pub fn begin() -> Self {
-        Self::Parquet
+        Self::Ingester {
+            also_in_catalog: true,
+        }
     }
 
     pub fn end() -> Self {
         Self::Parquet
+    }
+}
+
+impl Display for DeleteTimeNew {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Ingester {
+                also_in_catalog: false,
+            } => write!(f, "Ingester w/o catalog entry"),
+            Self::Ingester {
+                also_in_catalog: true,
+            } => write!(f, "Ingester w/ catalog entry"),
+            Self::Parquet => write!(f, "Parquet"),
+        }
     }
 }
 
@@ -398,7 +437,7 @@ async fn make_chunk_with_deletes_at_different_stages(
                 lp_lines,
                 chunk_stage,
                 preds,
-                delete_table_name,
+                (!delete_table_name.is_empty()).then(|| delete_table_name),
                 partition_key,
             )
             .await
@@ -646,7 +685,7 @@ async fn make_chunk_with_deletes_at_different_stages_new(
     lp_lines: Vec<&str>,
     chunk_stage: ChunkStageNew,
     preds: Vec<PredNew<'_>>,
-    delete_table_name: &str,
+    delete_table_name: Option<&str>,
     partition_key: &str,
 ) -> DbScenario {
     let catalog = TestCatalog::new();
@@ -1155,7 +1194,15 @@ async fn make_ng_chunk(ns: Arc<TestNamespace>, chunk: ChunkDataNew<'_, '_>) -> S
     let sequencer = ns.create_sequencer(1).await;
     let tables = {
         // need to use a temporary vector because BTree iterators ain't `Send`
-        let table_names: Vec<_> = lp_lines_grouped.keys().cloned().collect();
+        let mut table_names: Vec<_> = lp_lines_grouped.keys().cloned().collect();
+
+        // ensure that table for deletions is also present in the catalog, even if it was not mentioned in the LP data
+        if let Some(delete_table_name) = chunk.delete_table_name {
+            let delete_table_name = String::from(delete_table_name);
+            if !table_names.contains(&delete_table_name) {
+                table_names.push(delete_table_name);
+            }
+        }
 
         let mut tables = BTreeMap::new();
         for table_name in table_names {
@@ -1188,52 +1235,129 @@ async fn make_ng_chunk(ns: Arc<TestNamespace>, chunk: ChunkDataNew<'_, '_>) -> S
     }
 
     // create chunk
-    match chunk_stage {
-        ChunkStageNew::Parquet => {
-            // need to use a temporary vector because BTree iterators ain't `Send`
-            let lp_lines_grouped: Vec<_> = lp_lines_grouped.into_iter().collect();
+    // need to use a temporary vector because BTree iterators ain't `Send`
+    let lp_lines_grouped: Vec<_> = lp_lines_grouped.into_iter().collect();
+    for (table_name, lp_lines) in lp_lines_grouped {
+        // convert LP to schema and record batch
+        let (table_name_lp, batch) = lp_to_mutable_batch(&lp_lines.join("\n"));
+        assert_eq!(table_name, table_name_lp);
+        let schema = batch.schema(Selection::All).unwrap();
+        let mut batch = batch.to_arrow(Selection::All).unwrap();
 
-            for (table_name, lp_lines) in lp_lines_grouped {
-                let partition = partitions.get(&table_name).unwrap();
-                let min_seq = 1;
-                let max_seq = 1;
-                let min_time = 0;
-                let max_time = 0;
-                partition
-                    .create_parquet_file_with_min_max(
-                        &lp_lines.join("\n"),
-                        min_seq,
-                        max_seq,
-                        min_time,
-                        max_time,
-                    )
-                    .await;
-            }
-        }
-    }
+        match chunk_stage {
+            ChunkStageNew::Parquet => {
+                // model delete predicates that are materialized (applied) by the ingester,
+                // during parquet file creation
+                if let Some(delete_table_name) = chunk.delete_table_name {
+                    if delete_table_name == table_name {
+                        for pred in &chunk.preds {
+                            match pred.delete_time {
+                                DeleteTimeNew::Ingester { .. } => {
+                                    let mut predicate = PredicateBuilder::new().build();
+                                    predicate.merge_delete_predicates(&[Arc::new(
+                                        pred.predicate.clone().into(),
+                                    )]);
+                                    if let Some(expr) = predicate.filter_expr() {
+                                        let df_phy_expr = df_physical_expr_from_schema_and_expr(
+                                            schema.as_arrow(),
+                                            expr,
+                                        )
+                                        .unwrap();
+                                        batch = batch_filter(&batch, &df_phy_expr).unwrap();
+                                    }
+                                }
+                                DeleteTimeNew::Parquet => {
+                                    // will be attached AFTER the chunk was created
+                                }
+                            }
+                        }
+                    }
+                }
 
-    // attach delete predicates
-    let n_preds = chunk.preds.len();
-    if let Some(table) = tables.get(chunk.delete_table_name) {
-        for (i, pred) in chunk.preds.iter().enumerate() {
-            match pred.delete_time {
-                DeleteTimeNew::Parquet => {
-                    // parquet files got created w/ sequence number = 1
-                    let sequence_number = 2 + i;
-
-                    let min_time = pred.predicate.range.start();
-                    let max_time = pred.predicate.range.end();
-                    let predicate = pred.predicate.expr_sql_string();
-                    table
-                        .with_sequencer(&sequencer)
-                        .create_tombstone(sequence_number as i64, min_time, max_time, &predicate)
+                // create parquet file
+                let parquet_file_seq_number = 1000;
+                if batch.num_rows() > 0 {
+                    let partition = partitions.get(&table_name).unwrap();
+                    let min_seq = parquet_file_seq_number;
+                    let max_seq = parquet_file_seq_number;
+                    let min_time = 0;
+                    let max_time = 0;
+                    let file_size_bytes = None; // don't mock/override
+                    let creation_time = 1;
+                    partition
+                        .create_parquet_file_with_batch(
+                            batch,
+                            schema,
+                            min_seq,
+                            max_seq,
+                            min_time,
+                            max_time,
+                            file_size_bytes,
+                            creation_time,
+                        )
                         .await;
+                }
+
+                // attach delete predicates that were created AFTER parquet file creation
+                if let Some(delete_table_name) = chunk.delete_table_name {
+                    if delete_table_name == table_name {
+                        let delete_table = tables.get(delete_table_name).unwrap();
+
+                        for (i, pred) in chunk.preds.iter().enumerate() {
+                            match pred.delete_time {
+                                DeleteTimeNew::Ingester {
+                                    also_in_catalog: false,
+                                } => {
+                                    // was already materialized
+                                }
+                                // model deletes that were already applied by ingester prior to writing
+                                // parquet file but ALSO still in the catalog
+                                DeleteTimeNew::Ingester {
+                                    also_in_catalog: true,
+                                } => {
+                                    let sequence_number = i as i64;
+                                    assert!(sequence_number < parquet_file_seq_number);
+
+                                    let min_time = pred.predicate.range.start();
+                                    let max_time = pred.predicate.range.end();
+                                    let predicate = pred.predicate.expr_sql_string();
+                                    delete_table
+                                        .with_sequencer(&sequencer)
+                                        .create_tombstone(
+                                            sequence_number,
+                                            min_time,
+                                            max_time,
+                                            &predicate,
+                                        )
+                                        .await;
+                                }
+                                DeleteTimeNew::Parquet => {
+                                    let sequence_number = parquet_file_seq_number + 1 + (i as i64);
+                                    assert!(sequence_number > parquet_file_seq_number);
+
+                                    let min_time = pred.predicate.range.start();
+                                    let max_time = pred.predicate.range.end();
+                                    let predicate = pred.predicate.expr_sql_string();
+                                    delete_table
+                                        .with_sequencer(&sequencer)
+                                        .create_tombstone(
+                                            sequence_number as i64,
+                                            min_time,
+                                            max_time,
+                                            &predicate,
+                                        )
+                                        .await;
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
     }
 
     let mut name = format!("NG Chunk {}", chunk_stage);
+    let n_preds = chunk.preds.len();
     if n_preds > 0 {
         write!(name, " with {} deletes", n_preds).unwrap();
     }

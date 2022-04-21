@@ -38,7 +38,7 @@ pub const MAX_NANO_TIME: i64 = i64::MAX - 1;
 pub struct TimestampRange {
     /// Start defines the inclusive lower bound. Minimum value is [MIN_NANO_TIME]
     start: i64,
-    /// End defines the exclusive upper bound. Maximum value is [MAX_NANO_TIME]
+    /// End defines the inclusive upper bound. Maximum value is [MAX_NANO_TIME]
     end: i64,
 }
 

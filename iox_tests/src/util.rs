@@ -15,7 +15,6 @@ use iox_catalog::{
     mem::MemCatalog,
 };
 use iox_object_store::{IoxObjectStore, ParquetFilePath};
-use mutable_batch::MutableBatch;
 use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
 use object_store::{DynObjectStore, ObjectStoreImpl};
 use parquet_file::metadata::{IoxMetadata, IoxParquetMetaData};
@@ -23,6 +22,7 @@ use query::exec::Executor;
 use schema::{
     selection::Selection,
     sort::{adjust_sort_key_columns, SortKey, SortKeyBuilder},
+    Schema,
 };
 use std::sync::Arc;
 use time::{MockProvider, Time, TimeProvider};
@@ -435,12 +435,43 @@ impl TestPartition {
         max_time: i64,
         creation_time: i64,
     ) -> TestParquetFile {
-        let mut repos = self.catalog.catalog.repositories().await;
-
         let (table, batch) = lp_to_mutable_batch(lp);
         assert_eq!(table, self.table.table.name);
-        let row_count = batch.rows();
-        let (record_batch, sort_key) = sort_mutable_batch(batch);
+
+        let schema = batch.schema(Selection::All).unwrap();
+        let record_batch = batch.to_arrow(Selection::All).unwrap();
+
+        self.create_parquet_file_with_batch(
+            record_batch,
+            schema,
+            min_seq,
+            max_seq,
+            min_time,
+            max_time,
+            None,
+            creation_time,
+        )
+        .await
+    }
+
+    /// Create a parquet with the data in the specified `record_batch` for the partition
+    #[allow(clippy::too_many_arguments)]
+    pub async fn create_parquet_file_with_batch(
+        self: &Arc<Self>,
+        record_batch: RecordBatch,
+        schema: Schema,
+        min_seq: i64,
+        max_seq: i64,
+        min_time: i64,
+        max_time: i64,
+        file_size_bytes: Option<i64>,
+        creation_time: i64,
+    ) -> TestParquetFile {
+        let mut repos = self.catalog.catalog.repositories().await;
+
+        let row_count = record_batch.num_rows();
+        assert!(row_count > 0, "Parquet file must have at least 1 row");
+        let (record_batch, sort_key) = sort_batch(record_batch, schema);
 
         let object_store_id = Uuid::new_v4();
         let min_sequence_number = SequenceNumber::new(min_seq);
@@ -476,7 +507,7 @@ impl TestPartition {
             max_sequence_number,
             min_time: Timestamp::new(min_time),
             max_time: Timestamp::new(max_time),
-            file_size_bytes: real_file_size_bytes as i64,
+            file_size_bytes: file_size_bytes.unwrap_or(real_file_size_bytes as i64),
             parquet_metadata: parquet_metadata_bin.clone(),
             row_count: row_count as i64,
             created_at: Timestamp::new(creation_time),
@@ -511,68 +542,23 @@ impl TestPartition {
         file_size_bytes: i64,
         creation_time: i64,
     ) -> TestParquetFile {
-        let mut repos = self.catalog.catalog.repositories().await;
-
         let (table, batch) = lp_to_mutable_batch(lp);
         assert_eq!(table, self.table.table.name);
-        let row_count = batch.rows();
-        let (record_batch, sort_key) = sort_mutable_batch(batch);
 
-        let object_store_id = Uuid::new_v4();
-        let min_sequence_number = SequenceNumber::new(min_seq);
-        let max_sequence_number = SequenceNumber::new(max_seq);
-        let metadata = IoxMetadata {
-            object_store_id,
-            creation_timestamp: now(),
-            namespace_id: self.namespace.namespace.id,
-            namespace_name: self.namespace.namespace.name.clone().into(),
-            sequencer_id: self.sequencer.sequencer.id,
-            table_id: self.table.table.id,
-            table_name: self.table.table.name.clone().into(),
-            partition_id: self.partition.id,
-            partition_key: self.partition.partition_key.clone().into(),
-            time_of_first_write: Time::from_timestamp_nanos(min_time),
-            time_of_last_write: Time::from_timestamp_nanos(max_time),
-            min_sequence_number,
-            max_sequence_number,
-            row_count: row_count as i64,
-            compaction_level: INITIAL_COMPACTION_LEVEL,
-            sort_key: Some(sort_key.clone()),
-        };
-        let (parquet_metadata_bin, _real_file_size_bytes) =
-            create_parquet_file(&self.catalog.object_store, &metadata, record_batch).await;
+        let schema = batch.schema(Selection::All).unwrap();
+        let record_batch = batch.to_arrow(Selection::All).unwrap();
 
-        let parquet_file_params = ParquetFileParams {
-            sequencer_id: self.sequencer.sequencer.id,
-            namespace_id: self.namespace.namespace.id,
-            table_id: self.table.table.id,
-            partition_id: self.partition.id,
-            object_store_id,
-            min_sequence_number,
-            max_sequence_number,
-            min_time: Timestamp::new(min_time),
-            max_time: Timestamp::new(max_time),
-            file_size_bytes,
-            parquet_metadata: parquet_metadata_bin.clone(),
-            row_count: row_count as i64,
-            created_at: Timestamp::new(creation_time),
-            compaction_level: INITIAL_COMPACTION_LEVEL,
-        };
-        let parquet_file = repos
-            .parquet_files()
-            .create(parquet_file_params)
-            .await
-            .unwrap();
-
-        let parquet_file = ParquetFileWithMetadata::new(parquet_file, parquet_metadata_bin);
-
-        update_catalog_sort_key_if_needed(repos.partitions(), self.partition.id, sort_key).await;
-
-        TestParquetFile {
-            catalog: Arc::clone(&self.catalog),
-            namespace: Arc::clone(&self.namespace),
-            parquet_file,
-        }
+        self.create_parquet_file_with_batch(
+            record_batch,
+            schema,
+            min_seq,
+            max_seq,
+            min_time,
+            max_time,
+            Some(file_size_bytes),
+            creation_time,
+        )
+        .await
     }
 }
 
@@ -717,11 +703,10 @@ pub fn now() -> Time {
     Time::from_timestamp(0, 0)
 }
 
-/// Sort mutable batch into arrow record batch and sort key.
-fn sort_mutable_batch(batch: MutableBatch) -> (RecordBatch, SortKey) {
+/// Sort arrow record batch into arrow record batch and sort key.
+fn sort_batch(record_batch: RecordBatch, schema: Schema) -> (RecordBatch, SortKey) {
     // build dummy sort key
     let mut sort_key_builder = SortKeyBuilder::new();
-    let schema = batch.schema(Selection::All).unwrap();
     for field in schema.tags_iter() {
         sort_key_builder = sort_key_builder.with_col(field.name().clone());
     }
@@ -729,9 +714,6 @@ fn sort_mutable_batch(batch: MutableBatch) -> (RecordBatch, SortKey) {
         sort_key_builder = sort_key_builder.with_col(field.name().clone());
     }
     let sort_key = sort_key_builder.build();
-
-    // create record batch
-    let record_batch = batch.to_arrow(Selection::All).unwrap();
 
     // set up sorting
     let mut sort_columns = Vec::with_capacity(record_batch.num_columns());

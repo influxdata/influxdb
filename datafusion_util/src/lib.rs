@@ -4,7 +4,11 @@
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
+use datafusion::arrow::array::BooleanArray;
+use datafusion::arrow::compute::filter_record_batch;
+use datafusion::common::DataFusionError;
 use datafusion::execution::context::TaskContext;
+use datafusion::physical_expr::PhysicalExpr;
 use datafusion::physical_plan::common::SizedRecordBatchStream;
 use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MemTrackingMetrics};
 use datafusion::physical_plan::{collect, ExecutionPlan};
@@ -286,6 +290,33 @@ pub async fn test_collect_partition(
     datafusion::physical_plan::common::collect(stream)
         .await
         .unwrap()
+}
+
+/// Filter data from RecordBatch
+///
+/// Borrowed from DF's <https://github.com/apache/arrow-datafusion/blob/ecd0081bde98e9031b81aa6e9ae2a4f309fcec12/datafusion/src/physical_plan/filter.rs#L186>.
+// TODO: if we make DF batch_filter public, we can call that function directly
+pub fn batch_filter(
+    batch: &RecordBatch,
+    predicate: &Arc<dyn PhysicalExpr>,
+) -> ArrowResult<RecordBatch> {
+    predicate
+        .evaluate(batch)
+        .map(|v| v.into_array(batch.num_rows()))
+        .map_err(DataFusionError::into)
+        .and_then(|array| {
+            array
+                .as_any()
+                .downcast_ref::<BooleanArray>()
+                .ok_or_else(|| {
+                    DataFusionError::Internal(
+                        "Filter predicate evaluated to non-boolean value".to_string(),
+                    )
+                    .into()
+                })
+                // apply filter array to record batch
+                .and_then(|filter_array| filter_record_batch(batch, filter_array))
+        })
 }
 
 #[cfg(test)]

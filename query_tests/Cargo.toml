@@ -11,6 +11,7 @@ description = "Tests of the query engine against different database configuratio
 async-trait = "0.1"
 data_types = { path = "../data_types" }
 datafusion = { path = "../datafusion" }
+datafusion_util = { path = "../datafusion_util" }
 db = { path = "../db" }
 iox_catalog = { path = "../iox_catalog" }
 iox_tests = { path = "../iox_tests" }

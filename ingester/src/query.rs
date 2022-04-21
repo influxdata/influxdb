@@ -1,24 +1,21 @@
 //! Module to handle query on Ingester's data
 
 use crate::data::{QueryableBatch, SnapshotBatch};
-use arrow::{
-    array::BooleanArray, compute::filter_record_batch, error::Result as ArrowResult,
-    record_batch::RecordBatch,
-};
+use arrow::record_batch::RecordBatch;
 use arrow_util::util::merge_record_batches;
 use data_types2::{
     tombstones_to_delete_predicates, tombstones_to_delete_predicates_iter, ChunkAddr, ChunkId,
     ChunkOrder, DeletePredicate, SequenceNumber, TableSummary, Tombstone,
 };
 use datafusion::{
-    error::DataFusionError,
     logical_plan::ExprRewritable,
     physical_plan::{
         common::SizedRecordBatchStream,
         metrics::{ExecutionPlanMetricsSet, MemTrackingMetrics},
-        PhysicalExpr, SendableRecordBatchStream,
+        SendableRecordBatchStream,
     },
 };
+use datafusion_util::batch_filter;
 use observability_deps::tracing::{debug, trace};
 use predicate::{Predicate, PredicateMatch};
 use query::{
@@ -274,32 +271,6 @@ impl QueryChunk for QueryableBatch {
     fn order(&self) -> ChunkOrder {
         unimplemented!()
     }
-}
-
-// Filter data from RecordBatch
-// Borrow from DF's https://github.com/apache/arrow-datafusion/blob/ecd0081bde98e9031b81aa6e9ae2a4f309fcec12/datafusion/src/physical_plan/filter.rs#L186
-// TODO: if we make DF batch_filter public, we can call that function directly
-fn batch_filter(
-    batch: &RecordBatch,
-    predicate: &Arc<dyn PhysicalExpr>,
-) -> ArrowResult<RecordBatch> {
-    predicate
-        .evaluate(batch)
-        .map(|v| v.into_array(batch.num_rows()))
-        .map_err(DataFusionError::into)
-        .and_then(|array| {
-            array
-                .as_any()
-                .downcast_ref::<BooleanArray>()
-                .ok_or_else(|| {
-                    DataFusionError::Internal(
-                        "Filter predicate evaluated to non-boolean value".to_string(),
-                    )
-                    .into()
-                })
-                // apply filter array to record batch
-                .and_then(|filter_array| filter_record_batch(batch, filter_array))
-        })
 }
 
 #[cfg(test)]

@@ -428,21 +428,21 @@ impl DbSetup for ThreeDeleteThreeChunks {
                 ChunkDataNew {
                     lp_lines: lp_lines_1,
                     preds: vec![PredNew::end(&pred1)],
-                    delete_table_name: table_name,
+                    delete_table_name: Some(table_name),
                     partition_key,
                     ..Default::default()
                 },
                 ChunkDataNew {
                     lp_lines: lp_lines_2,
                     preds: vec![PredNew::end(&pred2)],
-                    delete_table_name: table_name,
+                    delete_table_name: Some(table_name),
                     partition_key,
                     ..Default::default()
                 },
                 ChunkDataNew {
                     lp_lines: lp_lines_3,
                     preds: vec![PredNew::end(&pred3)],
-                    delete_table_name: table_name,
+                    delete_table_name: Some(table_name),
                     partition_key,
                     ..Default::default()
                 },
