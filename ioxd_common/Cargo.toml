@@ -15,7 +15,7 @@ dml = { path = "../dml" }
 metric = { path = "../metric" }
 observability_deps = { path = "../observability_deps" }
 predicate = { path = "../predicate" }
-pprof = { version = "0.7", default-features = false, features = ["flamegraph", "prost-codec"], optional = true }
+pprof = { version = "0.8", default-features = false, features = ["flamegraph", "prost-codec"], optional = true }
 metric_exporters = { path = "../metric_exporters" }
 mutable_batch_lp = { path = "../mutable_batch_lp" }
 trace = { path = "../trace" }
