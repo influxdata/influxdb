@@ -1428,6 +1428,21 @@ func TestStore_Sketches(t *testing.T) {
 		if got, exp := int(tsketch.Count()), tmeasurements; got-exp < -delta(tmeasurements) || got-exp > delta(tmeasurements) {
 			return fmt.Errorf("got measurement tombstone cardinality %d, expected ~%d", got, exp)
 		}
+
+		if mc, err := store.MeasurementsCardinality(context.Background(), "db"); err != nil {
+			return fmt.Errorf("unexpected error from MeasurementsCardinality: %w", err)
+		} else {
+			if mc < 0 {
+				return fmt.Errorf("MeasurementsCardinality returned < 0 (%v)", mc)
+			}
+			expMc := int64(sketch.Count() - tsketch.Count())
+			if expMc < 0 {
+				expMc = 0
+			}
+			if got, exp := int(mc), int(expMc); got-exp < -delta(exp) || got-exp > delta(exp) {
+				return fmt.Errorf("got measurement cardinality %d, expected ~%d", mc, exp)
+			}
+		}
 		return nil
 	}
 
@@ -1507,6 +1522,31 @@ func TestStore_Sketches(t *testing.T) {
 		if err := checkCardinalities(store.Store, expS, expTS, expM, expTM); err != nil {
 			return fmt.Errorf("[initial|re-open|delete|re-open] %v", err)
 		}
+
+		// Now delete the rest of the measurements.
+		// This will cause the measurement tombstones to exceed the measurement cardinality for TSI.
+		mnames, err = store.MeasurementNames(context.Background(), nil, "db", "", nil)
+		if err != nil {
+			return err
+		}
+
+		for _, name := range mnames {
+			if err := store.DeleteSeries("db", []influxql.Source{&influxql.Measurement{Name: string(name)}}, nil); err != nil {
+				return err
+			}
+		}
+
+		// Check cardinalities. In this case, the indexes behave differently.
+		expS, expTS, expM, expTM = 80, 159, 5, 10
+		if index == inmem.IndexName {
+			expS, expTS, expM, expTM = 80, 80, 5, 5
+		}
+
+		// Check cardinalities - tombstones should be in
+		if err := checkCardinalities(store.Store, expS, expTS, expM, expTM); err != nil {
+			return fmt.Errorf("[initial|re-open|delete] %v", err)
+		}
+
 		return nil
 	}
 
