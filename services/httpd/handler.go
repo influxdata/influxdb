@@ -1140,6 +1140,8 @@ func (h *Handler) ServePostCreateBucketV2(w http.ResponseWriter, r *http.Request
 	}
 }
 
+// serveDeleteBucketV2 should do the same thing as coordinator/statement_executor.go/executeDropRetentionPolicyStatement
+// i.e., Store.DeleteRetentionPolicy and MetaClient.DropRetentionPolicy
 func (h *Handler) serveDeleteBucketV2(w http.ResponseWriter, r *http.Request, user meta.User) {
 	db := r.URL.Query().Get(":db")
 	rp := r.URL.Query().Get(":rp")
