@@ -1,7 +1,7 @@
 use http::Response;
 use hyper::Body;
 
-use crate::{rand_name, write_to_router, ServerFixture, TestConfig, TestServer};
+use crate::{rand_id, write_to_router, ServerFixture, TestConfig, TestServer};
 
 /// Structure that holds NG services and helpful accessors
 #[derive(Debug, Default)]
@@ -22,23 +22,63 @@ pub struct MiniCluster {
     other_servers: Vec<ServerFixture>,
 
     // Potentially helpful data
-    org: String,
-    bucket: String,
+    org_id: String,
+    bucket_id: String,
     namespace: String,
 }
 
 impl MiniCluster {
     pub fn new() -> Self {
-        let org = rand_name();
-        let bucket = rand_name();
-        let namespace = format!("{}_{}", org, bucket);
+        let org_id = rand_id();
+        let bucket_id = rand_id();
+        let namespace = format!("{}_{}", org_id, bucket_id);
 
         Self {
-            org,
-            bucket,
+            org_id,
+            bucket_id,
             namespace,
             ..Self::default()
         }
+    }
+
+    /// Create a "standard" MiniCluster that has a router, ingester,
+    /// querier
+    ///
+    /// Long term plan is that this will be shared across multiple tests if possible
+    pub async fn create_standard(database_url: String) -> MiniCluster {
+        let router2_config = TestConfig::new_router2(&database_url);
+        // fast parquet
+        let ingester_config =
+            TestConfig::new_ingester(&router2_config).with_fast_parquet_generation();
+        let querier_config = TestConfig::new_querier(&ingester_config);
+
+        // Set up the cluster  ====================================
+        Self::new()
+            .with_router2(router2_config)
+            .await
+            .with_ingester(ingester_config)
+            .await
+            .with_querier(querier_config)
+            .await
+    }
+
+    /// return a "standard" MiniCluster that has a router, ingester,
+    /// querier and quickly persists files to parquet
+    pub async fn ccreate_quickly_peristing(database_url: String) -> MiniCluster {
+        let router2_config = TestConfig::new_router2(&database_url);
+        // fast parquet
+        let ingester_config =
+            TestConfig::new_ingester(&router2_config).with_fast_parquet_generation();
+        let querier_config = TestConfig::new_querier(&ingester_config);
+
+        // Set up the cluster  ====================================
+        Self::new()
+            .with_router2(router2_config)
+            .await
+            .with_ingester(ingester_config)
+            .await
+            .with_querier(querier_config)
+            .await
     }
 
     /// create a router2 with the specified configuration
@@ -117,13 +157,13 @@ impl MiniCluster {
     }
 
     /// Get a reference to the mini cluster's org.
-    pub fn org(&self) -> &str {
-        self.org.as_ref()
+    pub fn org_id(&self) -> &str {
+        self.org_id.as_ref()
     }
 
     /// Get a reference to the mini cluster's bucket.
-    pub fn bucket(&self) -> &str {
-        self.bucket.as_ref()
+    pub fn bucket_id(&self) -> &str {
+        self.bucket_id.as_ref()
     }
 
     /// Get a reference to the mini cluster's namespace.
@@ -135,8 +175,8 @@ impl MiniCluster {
     pub async fn write_to_router(&self, line_protocol: impl Into<String>) -> Response<Body> {
         write_to_router(
             line_protocol,
-            &self.org,
-            &self.bucket,
+            &self.org_id,
+            &self.bucket_id,
             self.router2().router_http_base(),
         )
         .await

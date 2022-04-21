@@ -1,4 +1,7 @@
-use rand::{distributions::Alphanumeric, thread_rng, Rng};
+use rand::{
+    distributions::{Alphanumeric, Standard},
+    thread_rng, Rng,
+};
 
 mod addrs;
 mod client;
@@ -22,6 +25,23 @@ pub fn rand_name() -> String {
         .sample_iter(&Alphanumeric)
         .take(10)
         .map(char::from)
+        .collect()
+}
+
+// return a random 16 digit string comprised of numbers suitable for
+// use as a influxdb2 org_id or bucket_id
+pub fn rand_id() -> String {
+    thread_rng()
+        .sample_iter(&Standard)
+        .filter_map(|c: u8| {
+            if c.is_ascii_digit() {
+                Some(char::from(c))
+            } else {
+                // discard if out of range
+                None
+            }
+        })
+        .take(16)
         .collect()
 }
 

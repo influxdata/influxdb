@@ -81,14 +81,20 @@ pub enum Step {
     /// Wait for all previously written data to be persisted
     WaitForPersisted,
 
-    /// Run a query and verify that the results are as expected
+    /// Run a query using the FlightSQL interface and verify that the
+    /// results match the expected results using the
+    /// `assert_batches_eq!` macro
     Query {
         sql: String,
         expected: Vec<&'static str>,
     },
 
-    /// Run a query and run the validation function on the
-    /// results. The validation function is expected to panic if there is an error
+    /// Run a query using the FlightSQL interface, and then verifies
+    /// the results using the provided validation function on the
+    /// results.
+    ///
+    /// The validation function is expected to panic on validation
+    /// failure.
     VerifiedQuery {
         sql: String,
         verify: Box<dyn Fn(Vec<RecordBatch>)>,

@@ -316,6 +316,8 @@ async fn measurement_fields_endpoint(
     assert_eq!(field.timestamp, scenario.ns_since_epoch() + 4);
 }
 
+//////// Tests above here have been ported to NG. Tests below have not yet been /////
+
 #[tokio::test]
 pub async fn read_filter_regex_operator() {
     do_read_filter_test(
