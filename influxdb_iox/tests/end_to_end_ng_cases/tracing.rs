@@ -1,162 +1,181 @@
-use super::scenario::Scenario;
-use crate::common::{
-    server_fixture::{ServerFixture, ServerType, TestConfig},
-    udp_listener::UdpCapture,
+use futures::{prelude::*, FutureExt};
+use generated_types::{storage_client::StorageClient, ReadFilterRequest, ReadSource};
+use prost::Message;
+use test_helpers_end_to_end_ng::{
+    maybe_skip_integration, MiniCluster, Step, StepTest, StepTestState, TestConfig, UdpCapture,
 };
-use futures::TryStreamExt;
-use generated_types::{storage_client::StorageClient, ReadFilterRequest};
-use influxdb_iox_client::flight::generated_types::ReadInfo;
-use std::num::NonZeroU32;
-
-async fn setup() -> (UdpCapture, ServerFixture) {
-    let udp_capture = UdpCapture::new().await;
-
-    let test_config = TestConfig::new(ServerType::Database)
-        .with_env("TRACES_EXPORTER", "jaeger")
-        .with_env("TRACES_EXPORTER_JAEGER_AGENT_HOST", udp_capture.ip())
-        .with_env("TRACES_EXPORTER_JAEGER_AGENT_PORT", udp_capture.port())
-        .with_env(
-            "TRACES_EXPORTER_JAEGER_TRACE_CONTEXT_HEADER_NAME",
-            "custom-trace-header",
-        )
-        .with_client_header("custom-trace-header", "4:3:2:1");
-
-    let server_fixture = ServerFixture::create_single_use_with_config(test_config).await;
-
-    let mut deployment_client = server_fixture.deployment_client();
-
-    deployment_client
-        .update_server_id(NonZeroU32::new(1).unwrap())
-        .await
-        .unwrap();
-    server_fixture.wait_server_initialized().await;
-
-    (udp_capture, server_fixture)
-}
-
-/// Runs a query, discarding the results
-async fn run_sql_query(server_fixture: &ServerFixture) {
-    let scenario = Scenario::new();
-    scenario
-        .create_database(&mut server_fixture.management_client())
-        .await;
-    scenario.load_data(&mut server_fixture.write_client()).await;
-
-    // run a query, ensure we get traces
-    let sql_query = "select * from cpu_load_short";
-    let mut client = server_fixture.flight_client();
-
-    client
-        .perform_query(ReadInfo {
-            namespace_name: scenario.database_name().to_string(),
-            sql_query: sql_query.to_string(),
-        })
-        .await
-        .unwrap()
-        .collect()
-        .await
-        .unwrap();
-}
 
 #[tokio::test]
 pub async fn test_tracing_sql() {
-    let (udp_capture, server_fixture) = setup().await;
-    run_sql_query(&server_fixture).await;
+    let database_url = maybe_skip_integration!();
+    let table_name = "the_table";
+    let udp_capture = UdpCapture::new().await;
+    let test_config = TestConfig::new_all_in_one(database_url).with_tracing(&udp_capture);
+    let mut cluster = MiniCluster::create_all_in_one(test_config).await;
 
-    //  "shallow" packet inspection and verify the UDP server got
-    //  something that had some expected results (maybe we could
-    //  eventually verify the payload here too)
+    StepTest::new(
+        &mut cluster,
+        vec![
+            Step::WriteLineProtocol(format!(
+                "{},tag1=A,tag2=B val=42i 123456\n\
+                 {},tag1=A,tag2=C val=43i 123457",
+                table_name, table_name
+            )),
+            Step::WaitForReadable,
+            Step::Query {
+                sql: format!("select * from {}", table_name),
+                expected: vec![
+                    "+------+------+--------------------------------+-----+",
+                    "| tag1 | tag2 | time                           | val |",
+                    "+------+------+--------------------------------+-----+",
+                    "| A    | B    | 1970-01-01T00:00:00.000123456Z | 42  |",
+                    "| A    | C    | 1970-01-01T00:00:00.000123457Z | 43  |",
+                    "+------+------+--------------------------------+-----+",
+                ],
+            },
+        ],
+    )
+    .run()
+    .await;
+
+    // "shallow" packet inspection and verify the UDP server got omething that had some expected
+    // results (maybe we could eventually verify the payload here too)
     udp_capture
         .wait_for(|m| m.to_string().contains("IOxReadFilterNode"))
         .await;
 
     // debugging assistance
-    //println!("Traces received (1):\n\n{:#?}", udp_capture.messages());
+    // println!("Traces received (1):\n\n{:#?}", udp_capture.messages());
 
     // wait for the UDP server to shutdown
-    udp_capture.stop().await
+    udp_capture.stop().await;
 }
 
 #[tokio::test]
 pub async fn test_tracing_storage_api() {
-    let (udp_capture, server_fixture) = setup().await;
+    let database_url = maybe_skip_integration!();
+    let table_name = "the_table";
+    let udp_capture = UdpCapture::new().await;
+    let test_config = TestConfig::new_all_in_one(database_url).with_tracing(&udp_capture);
+    let mut cluster = MiniCluster::create_all_in_one(test_config).await;
 
-    let scenario = Scenario::new();
-    scenario
-        .create_database(&mut server_fixture.management_client())
-        .await;
-    scenario.load_data(&mut server_fixture.write_client()).await;
+    StepTest::new(
+        &mut cluster,
+        vec![
+            Step::WriteLineProtocol(format!(
+                "{},tag1=A,tag2=B val=42i 123456\n\
+                 {},tag1=A,tag2=C val=43i 123457",
+                table_name, table_name
+            )),
+            Step::WaitForReadable,
+            Step::Custom(Box::new(move |state: &mut StepTestState| {
+                let cluster = state.cluster();
+                let mut storage_client =
+                    StorageClient::new(cluster.querier().querier_grpc_connection());
 
-    // run a query via gRPC, ensure we get traces
-    let read_source = scenario.read_source();
-    let range = scenario.timestamp_range();
-    let predicate = None;
-    let read_filter_request = tonic::Request::new(ReadFilterRequest {
-        read_source,
-        range,
-        predicate,
-        ..Default::default()
-    });
-    let mut storage_client = StorageClient::new(server_fixture.grpc_channel());
-    let read_response = storage_client
-        .read_filter(read_filter_request)
-        .await
-        .unwrap();
+                let org_id = cluster.org_id();
+                let bucket_id = cluster.bucket_id();
+                let org_id = u64::from_str_radix(org_id, 16).unwrap();
+                let bucket_id = u64::from_str_radix(bucket_id, 16).unwrap();
 
-    read_response
-        .into_inner()
-        .try_collect::<Vec<_>>()
-        .await
-        .unwrap();
+                let partition_id = u64::from(u32::MAX);
+                let read_source = ReadSource {
+                    org_id,
+                    bucket_id,
+                    partition_id,
+                };
 
-    //  "shallow" packet inspection and verify the UDP server got
-    //  something that had some expected results (maybe we could
-    //  eventually verify the payload here too)
+                // Do the magic to-any conversion
+                let mut d = bytes::BytesMut::new();
+                read_source.encode(&mut d).unwrap();
+                let read_source = generated_types::google::protobuf::Any {
+                    type_url: "/TODO".to_string(),
+                    value: d.freeze(),
+                };
+
+                let range = None;
+                let predicate = None;
+
+                let read_filter_request = tonic::Request::new(ReadFilterRequest {
+                    read_source: Some(read_source),
+                    range,
+                    predicate,
+                    ..Default::default()
+                });
+
+                async move {
+                    let read_response = storage_client
+                        .read_filter(read_filter_request)
+                        .await
+                        .unwrap();
+
+                    let _responses: Vec<_> =
+                        read_response.into_inner().try_collect().await.unwrap();
+                }
+                .boxed()
+            })),
+        ],
+    )
+    .run()
+    .await;
+
+    // "shallow" packet inspection and verify the UDP server got omething that had some expected
+    // results (maybe we could eventually verify the payload here too)
     udp_capture
         .wait_for(|m| m.to_string().contains("IOxReadFilterNode"))
         .await;
 
     // debugging assistance
-    //println!("Traces received (2):\n\n{:#?}", udp_capture.messages());
+    // println!("Traces received (1):\n\n{:#?}", udp_capture.messages());
 
     // wait for the UDP server to shutdown
-    udp_capture.stop().await
+    udp_capture.stop().await;
 }
 
 #[tokio::test]
 pub async fn test_tracing_create_trace() {
+    let database_url = maybe_skip_integration!();
+    let table_name = "the_table";
     let udp_capture = UdpCapture::new().await;
+    let test_config = TestConfig::new_all_in_one(database_url)
+        .with_tracing(&udp_capture)
+        .with_tracing_debug_name("force-trace");
+    let mut cluster = MiniCluster::create_all_in_one(test_config).await;
 
-    let test_config = TestConfig::new(ServerType::Database)
-        .with_env("TRACES_EXPORTER", "jaeger")
-        .with_env("TRACES_EXPORTER_JAEGER_AGENT_HOST", udp_capture.ip())
-        .with_env("TRACES_EXPORTER_JAEGER_AGENT_PORT", udp_capture.port())
-        // setup a custom debug name (to ensure it gets plumbed through)
-        .with_env("TRACES_EXPORTER_JAEGER_DEBUG_NAME", "force-trace")
-        .with_client_header("force-trace", "some-debug-id");
+    StepTest::new(
+        &mut cluster,
+        vec![
+            Step::WriteLineProtocol(format!(
+                "{},tag1=A,tag2=B val=42i 123456\n\
+                 {},tag1=A,tag2=C val=43i 123457",
+                table_name, table_name
+            )),
+            Step::WaitForReadable,
+            Step::Query {
+                sql: format!("select * from {}", table_name),
+                expected: vec![
+                    "+------+------+--------------------------------+-----+",
+                    "| tag1 | tag2 | time                           | val |",
+                    "+------+------+--------------------------------+-----+",
+                    "| A    | B    | 1970-01-01T00:00:00.000123456Z | 42  |",
+                    "| A    | C    | 1970-01-01T00:00:00.000123457Z | 43  |",
+                    "+------+------+--------------------------------+-----+",
+                ],
+            },
+        ],
+    )
+    .run()
+    .await;
 
-    let server_fixture = ServerFixture::create_single_use_with_config(test_config).await;
-
-    let mut deployment_client = server_fixture.deployment_client();
-
-    deployment_client
-        .update_server_id(NonZeroU32::new(1).unwrap())
-        .await
-        .unwrap();
-    server_fixture.wait_server_initialized().await;
-
-    run_sql_query(&server_fixture).await;
-
-    //  "shallow" packet inspection and verify the UDP server got
-    //  something that had some expected results (maybe we could
-    //  eventually verify the payload here too)
+    // "shallow" packet inspection and verify the UDP server got omething that had some expected
+    // results (maybe we could eventually verify the payload here too)
     udp_capture
         .wait_for(|m| m.to_string().contains("IOxReadFilterNode"))
         .await;
 
     // debugging assistance
-    //println!("Traces received (1):\n\n{:#?}", udp_capture.messages());
+    // println!("Traces received (1):\n\n{:#?}", udp_capture.messages());
 
     // wait for the UDP server to shutdown
-    udp_capture.stop().await
+    udp_capture.stop().await;
 }
