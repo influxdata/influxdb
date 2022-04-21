@@ -3604,6 +3604,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "nix"
+version = "0.24.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8f6d99b651ff9697d6710f9613a07c5b4e0d655040faf56b3b471af108d55597"
+dependencies = [
+ "bitflags",
+ "cfg-if",
+ "libc",
+ "memoffset",
+]
+
+[[package]]
 name = "nodrop"
 version = "0.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4286,7 +4298,7 @@ dependencies = [
  "inferno",
  "libc",
  "log",
- "nix",
+ "nix 0.23.1",
  "once_cell",
  "parking_lot 0.12.0",
  "prost",
@@ -5189,7 +5201,7 @@ dependencies = [
  "libc",
  "log",
  "memchr",
- "nix",
+ "nix 0.23.1",
  "radix_trie",
  "scopeguard",
  "smallvec",
@@ -6040,7 +6052,7 @@ dependencies = [
  "http",
  "hyper",
  "influxdb_iox_client",
- "nix",
+ "nix 0.24.0",
  "once_cell",
  "rand",
  "reqwest",

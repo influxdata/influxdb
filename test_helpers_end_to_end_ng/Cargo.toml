@@ -17,7 +17,7 @@ assert_cmd = "2.0.2"
 futures = "0.3"
 http = "0.2.0"
 hyper = "0.14"
-nix = "0.23"
+nix = "0.24"
 once_cell = { version = "1.10.0", features = ["parking_lot"] }
 rand = "0.8.3"
 reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls"] }
