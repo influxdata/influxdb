@@ -1,12 +1,8 @@
-use std::{collections::HashMap, sync::Arc};
-
+use crate::{addrs::BindAddresses, ServerType, UdpCapture};
 use http::{header::HeaderName, HeaderValue};
 use rand::Rng;
+use std::{collections::HashMap, sync::Arc};
 use tempfile::TempDir;
-
-use crate::addrs::BindAddresses;
-
-use super::ServerType;
 
 /// Options for creating test servers (`influxdb_iox` processes)
 #[derive(Debug, Clone)]
@@ -111,6 +107,25 @@ impl TestConfig {
     pub fn with_fast_parquet_generation(self) -> Self {
         self.with_env("INFLUXDB_IOX_PAUSE_INGEST_SIZE_BYTES", "2")
             .with_env("INFLUXDB_IOX_PERSIST_MEMORY_THRESHOLD_BYTES", "1")
+    }
+
+    /// Configure tracing capture
+    pub fn with_tracing(self, udp_capture: &UdpCapture) -> Self {
+        self.with_env("TRACES_EXPORTER", "jaeger")
+            .with_env("TRACES_EXPORTER_JAEGER_AGENT_HOST", udp_capture.ip())
+            .with_env("TRACES_EXPORTER_JAEGER_AGENT_PORT", udp_capture.port())
+            .with_env(
+                "TRACES_EXPORTER_JAEGER_TRACE_CONTEXT_HEADER_NAME",
+                "custom-trace-header",
+            )
+            .with_client_header("custom-trace-header", "4:3:2:1")
+    }
+
+    /// Configure a custom debug name for tracing
+    pub fn with_tracing_debug_name(self, custom_debug_name: &str) -> Self {
+        // setup a custom debug name (to ensure it gets plumbed through)
+        self.with_env("TRACES_EXPORTER_JAEGER_DEBUG_NAME", custom_debug_name)
+            .with_client_header(custom_debug_name, "some-debug-id")
     }
 
     // Get the catalog DSN URL and panic if it's not set

@@ -3,25 +3,22 @@ name = "test_helpers_end_to_end_ng"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[dependencies]
-# Workspace dependencies, in alphabetical order
-arrow_util = { path = "../arrow_util" }
-influxdb_iox_client = { path = "../influxdb_iox_client", features = ["flight", "format", "write_lp"] }
-test_helpers = { path = "../test_helpers" }
-
-# Crates.io dependencies, in alphabetical order
+[dependencies] # In alphabetical order
 arrow = { version = "12", features = ["prettyprint"] }
+arrow_util = { path = "../arrow_util" }
 assert_cmd = "2.0.2"
 futures = "0.3"
 http = "0.2.0"
 hyper = "0.14"
+influxdb_iox_client = { path = "../influxdb_iox_client", features = ["flight", "format", "write_lp"] }
 nix = "0.24"
 once_cell = { version = "1.10.0", features = ["parking_lot"] }
+parking_lot = "0.12"
 rand = "0.8.3"
 reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls"] }
 sqlx = { version = "0.5", features = [ "runtime-tokio-rustls" , "postgres", "uuid" ] }
 tempfile = "3.1.0"
+test_helpers = { path = "../test_helpers" }
 tokio = { version = "1.17", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
+tokio-util = "0.7"
 workspace-hack = { path = "../workspace-hack"}

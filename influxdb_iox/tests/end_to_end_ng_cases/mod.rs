@@ -4,3 +4,4 @@ mod ingester;
 mod namespace;
 mod querier;
 mod schema;
+mod tracing;

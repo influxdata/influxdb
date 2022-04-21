@@ -6055,12 +6055,14 @@ dependencies = [
  "influxdb_iox_client",
  "nix 0.24.0",
  "once_cell",
+ "parking_lot 0.12.0",
  "rand",
  "reqwest",
  "sqlx",
  "tempfile",
  "test_helpers",
  "tokio",
+ "tokio-util 0.7.1",
  "workspace-hack",
 ]
 
