@@ -20,9 +20,10 @@ import (
 // It's currently a partial implementation as one of a store's exported methods
 // returns an unexported type.
 type StorageStoreMock struct {
-	ReadFilterFn func(ctx context.Context, req *datatypes.ReadFilterRequest) (reads.ResultSet, error)
-	ReadGroupFn  func(ctx context.Context, req *datatypes.ReadGroupRequest) (reads.GroupResultSet, error)
-	DeleteFn     func(database string, sources []influxql.Source, condition influxql.Expr) error
+	ReadFilterFn            func(ctx context.Context, req *datatypes.ReadFilterRequest) (reads.ResultSet, error)
+	ReadGroupFn             func(ctx context.Context, req *datatypes.ReadGroupRequest) (reads.GroupResultSet, error)
+	DeleteFn                func(database string, sources []influxql.Source, condition influxql.Expr) error
+	DeleteRetentionPolicyFn func(database string, name string) error
 
 	TagKeysFn    func(ctx context.Context, req *datatypes.TagKeysRequest) (cursors.StringIterator, error)
 	TagValuesFn  func(ctx context.Context, req *datatypes.TagValuesRequest) (cursors.StringIterator, error)
@@ -30,6 +31,10 @@ type StorageStoreMock struct {
 
 	ResultSet *StorageResultsMock
 	// TODO(edd): can't mock GroupRead as it returns an unexported type.
+}
+
+func (s *StorageStoreMock) DeleteRetentionPolicy(database, name string) error {
+	return s.DeleteRetentionPolicyFn(database, name)
 }
 
 // NewStorageStoreMock initialises a StorageStoreMock with methods that return
@@ -48,6 +53,10 @@ func NewStorageStoreMock() *StorageStoreMock {
 	}
 
 	store.DeleteFn = func(database string, sources []influxql.Source, condition influxql.Expr) error {
+		return errors.New("implement me")
+	}
+
+	store.DeleteRetentionPolicyFn = func(database string, name string) error {
 		return errors.New("implement me")
 	}
 

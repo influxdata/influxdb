@@ -83,6 +83,9 @@ type Route struct {
 type QueryAuthorizer interface {
 	AuthorizeQuery(u meta.User, query *influxql.Query, database string) (query.FineAuthorizer, error)
 	AuthorizeDatabase(u meta.User, priv influxql.Privilege, database string) error
+	AuthorizeCreateDatabase(u meta.User) error
+	AuthorizeCreateRetentionPolicy(u meta.User, db string) error
+	AuthorizeDeleteRetentionPolicy(u meta.User, db string) error
 }
 
 // userQueryAuthorizer binds the QueryAuthorizer with a specific user for consumption by the query engine.
@@ -107,6 +110,10 @@ type Handler struct {
 		Authenticate(username, password string) (ui meta.User, err error)
 		User(username string) (meta.User, error)
 		AdminUserExists() bool
+		CreateDatabaseWithRetentionPolicy(name string, spec *meta.RetentionPolicySpec) (*meta.DatabaseInfo, error)
+		DropRetentionPolicy(database, name string) error
+		CreateRetentionPolicy(database string, spec *meta.RetentionPolicySpec, makeDefault bool) (*meta.RetentionPolicyInfo, error)
+		UpdateRetentionPolicy(database, name string, rpu *meta.RetentionPolicyUpdate, makeDefault bool) error
 	}
 
 	QueryAuthorizer QueryAuthorizer
@@ -201,6 +208,26 @@ func NewHandler(c Config) *Handler {
 		Route{
 			"delete",
 			"POST", "/api/v2/delete", false, true, h.serveDeleteV2,
+		},
+		Route{
+			"buckets",
+			"POST", "/api/v2/buckets", false, true, h.ServePostCreateBucketV2,
+		},
+		Route{
+			"delete-bucket",
+			"DELETE", "/api/v2/buckets/:db/:rp", false, true, h.serveDeleteBucketV2,
+		},
+		Route{
+			"buckets",
+			"GET", "/api/v2/buckets/:db/:rp", false, true, h.serveRetrieveBucketV2,
+		},
+		Route{
+			"buckets",
+			"GET", "/api/v2/buckets", false, true, h.serveListBucketsV2,
+		},
+		Route{
+			"buckets",
+			"PATCH", "/api/v2/buckets/:db/:rp", false, true, h.serveUpdateBucketV2,
 		},
 		Route{
 			"write", // Data-ingest route.
@@ -814,7 +841,7 @@ func bucket2dbrp(bucket string) (string, string, error) {
 	// test for a slash in our bucket name.
 	switch idx := strings.IndexByte(bucket, '/'); idx {
 	case -1:
-		// if there is no slash, we're mapping bucket to the databse.
+		// if there is no slash, we're mapping bucket to the database.
 		switch db := bucket; db {
 		case "":
 			// if our "database" is an empty string, this is an error.
@@ -845,12 +872,9 @@ type DeleteBody struct {
 // policies".
 func (h *Handler) serveDeleteV2(w http.ResponseWriter, r *http.Request, user meta.User) {
 	db, rp, err := bucket2dbrp(r.URL.Query().Get("bucket"))
+
 	if err != nil {
 		h.httpError(w, fmt.Sprintf("delete - bucket: %s", err.Error()), http.StatusNotFound)
-		return
-	}
-	if db == "" {
-		h.httpError(w, "delete - database is required", http.StatusNotFound)
 		return
 	}
 
@@ -993,8 +1017,442 @@ func fixLiterals(node influxql.Node) {
 	}
 }
 
+type RetentionRule struct {
+	Type                      string `json:"type"`
+	EverySeconds              int64  `json:"everySeconds"`
+	ShardGroupDurationSeconds int64  `json:"shardGroupDurationSeconds"`
+}
+
+type BucketUpdate struct {
+	Description    string          `json:"description"`
+	Name           string          `json:"name"`
+	RetentionRules []RetentionRule `json:"retentionRules"`
+}
+
+// BucketsBody and RetentionRule should match the 2.0 API definition.
+type BucketsBody struct {
+	BucketUpdate
+	OrgID      string `json:"orgId"`
+	Rp         string `json:"rp"`
+	SchemaType string `json:"schemaType"`
+}
+
+type Bucket struct {
+	BucketsBody
+	ID                  string    `json:"id,omitempty"`
+	Type                string    `json:"type"`
+	RetentionPolicyName string    `json:"rp,omitempty"` // This to support v1 sources
+	CreatedAt           time.Time `json:"createdAt"`
+	UpdatedAt           time.Time `json:"updatedAt"`
+}
+
+func (h *Handler) ServePostCreateBucketV2(w http.ResponseWriter, r *http.Request, user meta.User) {
+	var bs []byte
+	if r.ContentLength > 0 {
+		if h.Config.MaxBodySize > 0 && r.ContentLength > int64(h.Config.MaxBodySize) {
+			h.httpError(w, http.StatusText(http.StatusRequestEntityTooLarge), http.StatusRequestEntityTooLarge)
+			return
+		}
+
+		// This will just be an initial hint for the reader, as the
+		// bytes.Buffer will grow as needed when ReadFrom is called
+		bs = make([]byte, 0, r.ContentLength)
+	}
+	buf := bytes.NewBuffer(bs)
+
+	_, err := buf.ReadFrom(r.Body)
+	if err != nil {
+		h.httpError(w, fmt.Sprintf("buckets - cannot read request body: %s", err.Error()), http.StatusBadRequest)
+		return
+	}
+
+	brd := &BucketsBody{}
+	if err = json.Unmarshal(buf.Bytes(), brd); err != nil {
+		h.httpError(w, fmt.Sprintf("buckets - cannot parse request body: %s", err.Error()), http.StatusBadRequest)
+		return
+	}
+	db, rp, err := bucket2dbrp(brd.Name)
+	if err != nil {
+		h.httpError(w, fmt.Sprintf("buckets - illegal bucket name: %s", err.Error()), http.StatusBadRequest)
+		return
+	} else if rp == "" {
+		h.httpError(w, fmt.Sprintf("buckets - illegal bucket name: %q", brd.Name), http.StatusBadRequest)
+		return
+	} else if !((brd.Rp == rp) || (brd.Rp == "")) {
+		h.httpError(w, fmt.Sprintf("buckets - two retention policies specified: %q differs from %q", rp, brd.Rp), http.StatusBadRequest)
+		return
+	}
+	// We only need to validate non-empty
+	// retention policy names
+	if rp != "" && !meta.ValidName(rp) {
+		h.httpError(w, fmt.Sprintf("buckets - retention policy %q: %s", rp, meta.ErrInvalidName.Error()), http.StatusBadRequest)
+		return
+	}
+
+	var dur, sgDur time.Duration
+	if len(brd.RetentionRules) > 0 {
+		dur = time.Second * time.Duration(brd.RetentionRules[0].EverySeconds)
+		sgDur = time.Duration(brd.RetentionRules[0].ShardGroupDurationSeconds) * time.Second
+	} else {
+		dur = meta.DefaultRetentionPolicyDuration
+		// This will get set to default in normalisedShardDuration()
+		// called by CreateRetentionPolicy
+		sgDur = 0
+	}
+	rf := meta.DefaultRetentionPolicyReplicaN
+	spec := meta.RetentionPolicySpec{
+		Name:               rp,
+		Duration:           &dur,
+		ReplicaN:           &rf,
+		ShardGroupDuration: sgDur,
+	}
+	dbi := h.MetaClient.Database(db)
+
+	if h.Config.AuthEnabled {
+		if user == nil {
+			h.httpError(w, fmt.Sprintf("buckets - user is required to to create bucket %q", brd.Name), http.StatusForbidden)
+			return
+		}
+
+		if dbi == nil {
+			if err := h.QueryAuthorizer.AuthorizeCreateDatabase(user); err != nil {
+				h.httpError(w, fmt.Sprintf("buckets - %q is not authorized to create %q: %s", user.ID(), brd.Name, err.Error()), http.StatusForbidden)
+				return
+			}
+		} else {
+			if err := h.QueryAuthorizer.AuthorizeCreateRetentionPolicy(user, db); err != nil {
+				h.httpError(w, fmt.Sprintf("buckets - %q is not authorized to create %q: %s", user.ID(), brd.Name, err.Error()), http.StatusForbidden)
+				return
+			}
+		}
+	}
+
+	if dbi == nil {
+		if _, err = h.MetaClient.CreateDatabaseWithRetentionPolicy(db, &spec); err != nil {
+			h.httpError(w, fmt.Sprintf("buckets - cannot create bucket %q: %s", brd.Name, err.Error()), http.StatusBadRequest)
+			return
+		}
+	} else {
+		if _, err = h.MetaClient.CreateRetentionPolicy(db, &spec, false); err != nil {
+			h.httpError(w, fmt.Sprintf("buckets - cannot create bucket %q: %s", brd.Name, err.Error()), http.StatusBadRequest)
+			return
+		}
+	}
+}
+
+// serveDeleteBucketV2 should do the same thing as coordinator/statement_executor.go/executeDropRetentionPolicyStatement
+// i.e., Store.DeleteRetentionPolicy and MetaClient.DropRetentionPolicy
+func (h *Handler) serveDeleteBucketV2(w http.ResponseWriter, r *http.Request, user meta.User) {
+	db := r.URL.Query().Get(":db")
+	rp := r.URL.Query().Get(":rp")
+	id := fmt.Sprintf("%s/%s", db, rp)
+
+	if h.Config.AuthEnabled {
+		if user == nil {
+			h.httpError(w, fmt.Sprintf("delete bucket - user is required to delete from database %q", db), http.StatusForbidden)
+			return
+		}
+		if err := h.QueryAuthorizer.AuthorizeDeleteRetentionPolicy(user, db); err != nil {
+			h.httpError(w, fmt.Sprintf("buckets - %q is not authorized to modify %q: %s", user.ID(), id, err.Error()), http.StatusForbidden)
+			return
+		}
+	}
+
+	if dbi := h.MetaClient.Database(db); dbi == nil {
+		h.httpError(w, fmt.Sprintf("delete bucket - not found: %q", id), http.StatusNotFound)
+		return
+	} else if rpi := dbi.RetentionPolicy(rp); rpi == nil {
+		h.httpError(w, fmt.Sprintf("delete bucket - not found: %q", id), http.StatusNotFound)
+		return
+	} else if err := h.Store.DeleteRetentionPolicy(db, rp); err != nil {
+		h.httpError(w, fmt.Sprintf("delete bucket %q: %s", id, err.Error()), http.StatusBadRequest)
+		return
+	} else if err := h.MetaClient.DropRetentionPolicy(db, rp); err != nil {
+		h.httpError(w, fmt.Sprintf("delete bucket %q: %s", id, err.Error()), http.StatusBadRequest)
+		return
+	}
+}
+
+func (h *Handler) serveUpdateBucketV2(w http.ResponseWriter, r *http.Request, user meta.User) {
+	var bs []byte
+	db := r.URL.Query().Get(":db")
+	rp := r.URL.Query().Get(":rp")
+	bucket := fmt.Sprintf("%s/%s", db, rp)
+	if h.Config.AuthEnabled {
+		if user == nil {
+			h.httpError(w, fmt.Sprintf("update bucket - user is required to update %q", bucket), http.StatusForbidden)
+			return
+		}
+		// This is the privilege required in the Enterprise authorization.
+		if err := h.QueryAuthorizer.AuthorizeCreateDatabase(user); err != nil {
+			h.httpError(w, fmt.Sprintf("update bucket - %q is not authorized to modify %q: %s", user.ID(), bucket, err.Error()), http.StatusForbidden)
+			return
+		}
+	}
+	if r.ContentLength > 0 {
+		if h.Config.MaxBodySize > 0 && r.ContentLength > int64(h.Config.MaxBodySize) {
+			h.httpError(w, http.StatusText(http.StatusRequestEntityTooLarge), http.StatusRequestEntityTooLarge)
+			return
+		}
+
+		// This will just be an initial hint for the reader, as the
+		// bytes.Buffer will grow as needed when ReadFrom is called
+		bs = make([]byte, 0, r.ContentLength)
+	}
+
+	buf := bytes.NewBuffer(bs)
+	_, err := buf.ReadFrom(r.Body)
+	if err != nil {
+		h.httpError(w, fmt.Sprintf("update bucket - cannot read request body: %s", err.Error()), http.StatusBadRequest)
+		return
+	}
+
+	bu := &BucketUpdate{}
+	if err = json.Unmarshal(buf.Bytes(), bu); err != nil {
+		h.httpError(w, fmt.Sprintf("update bucket - cannot parse request body: %s", err.Error()), http.StatusBadRequest)
+		return
+	}
+	var dur, sgDur time.Duration
+	if len(bu.RetentionRules) > 0 {
+		dur = time.Second * time.Duration(bu.RetentionRules[0].EverySeconds)
+		sgDur = time.Duration(bu.RetentionRules[0].ShardGroupDurationSeconds) * time.Second
+	} else {
+		dur = meta.DefaultRetentionPolicyDuration
+		sgDur = 0
+	}
+	rf := meta.DefaultRetentionPolicyReplicaN
+	m := &meta.RetentionPolicyUpdate{
+		Name:               &bu.Name,
+		Duration:           &dur,
+		ReplicaN:           &rf,
+		ShardGroupDuration: &sgDur,
+	}
+
+	if err := h.MetaClient.UpdateRetentionPolicy(db, rp, m, false); err != nil {
+		h.httpError(w, fmt.Sprintf("update bucket %q: %s", bucket, err.Error()), http.StatusBadRequest)
+		return
+	}
+}
+
+func (h *Handler) serveRetrieveBucketV2(w http.ResponseWriter, r *http.Request, user meta.User) {
+	// This is the API for returning a single bucket
+	// In V1, BucketID and BucketName are the same: "db/rp"
+	db := r.URL.Query().Get(":db")
+	rp := r.URL.Query().Get(":rp")
+	if h.Config.AuthEnabled {
+		if user == nil {
+			h.httpError(w, fmt.Sprintf("retrieve bucket - user is required for database %q", db), http.StatusForbidden)
+			return
+		}
+
+		if err := h.QueryAuthorizer.AuthorizeDatabase(user, influxql.ReadPrivilege, db); err != nil {
+			h.httpError(w, fmt.Sprintf("retrieve bucket - %q is not authorized to read %q: %s", user.ID(), db, err.Error()), http.StatusForbidden)
+			return
+		}
+	}
+
+	if bucket := h.oneBucket(w, fmt.Sprintf("%s/%s", db, rp)); bucket != nil {
+		b, err := json.Marshal(bucket)
+		if err != nil {
+			h.httpError(w, fmt.Sprintf("retrieve bucket marshaling error: %s", err.Error()), http.StatusBadRequest)
+			return
+		}
+		if _, err := w.Write(b); err != nil {
+			h.httpError(w, fmt.Sprintf("retrieve bucket error writing response: %s", err.Error()), http.StatusBadRequest)
+			return
+		}
+	}
+	return
+}
+
+func (h *Handler) serveListBucketsV2(w http.ResponseWriter, r *http.Request, user meta.User) {
+	const defaultLimit = 100
+	var err error
+	var db, rp, after string
+	limit := defaultLimit
+	offset := 0
+
+	if h.Config.AuthEnabled {
+		if user == nil {
+			h.httpError(w, "list buckets - user is required", http.StatusForbidden)
+			return
+		}
+	}
+
+	// This is the API for returning an array of buckets
+	id := r.URL.Query().Get("id")
+	name := r.URL.Query().Get("name")
+	if id != "" || name != "" {
+		if id != "" && name != "" && id != name {
+			h.httpError(w, fmt.Sprintf("list buckets: name: %q and id: %q do not match", name, id), http.StatusBadRequest)
+			return
+		} else if id != "" {
+			name = id
+		}
+		if b := h.oneBucket(w, name); b != nil {
+			h.sendBuckets(w, []Bucket{*b})
+			return
+		} else {
+			h.sendBuckets(w, []Bucket{})
+			return
+		}
+	}
+
+	if after = r.URL.Query().Get("after"); after != "" {
+		db, rp, err = bucket2dbrp(after)
+		if err != nil {
+			h.httpError(w, fmt.Sprintf("list buckets invalid parameter - after=%q: %s", after, err.Error()), http.StatusNotFound)
+			return
+		}
+	}
+
+	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
+		if l, err := strconv.ParseInt(limitStr, 10, 64); err != nil {
+			h.httpError(w, fmt.Sprintf("list buckets parameter is not an integer - limit=%q: %s", limitStr, err.Error()), http.StatusBadRequest)
+			return
+		} else if l <= 0 {
+			limit = math.MaxInt
+		} else {
+			limit = int(l)
+		}
+	}
+
+	if offsetStr := r.URL.Query().Get("offset"); offsetStr != "" {
+		if after != "" {
+			h.httpError(w, "list buckets cannot have both \"offset\" and \"after\" arguments", http.StatusBadRequest)
+			return
+		} else if o, err := strconv.ParseInt(offsetStr, 10, 64); err != nil {
+			h.httpError(w, fmt.Sprintf("list buckets parameter is not an integer - offset=%q: %s", offsetStr, err.Error()), http.StatusBadRequest)
+			return
+		} else {
+			offset = int(o)
+		}
+	}
+
+	dbIndex := 0
+	rpIndex := 0
+	dbs := h.MetaClient.Databases()
+	if after != "" {
+		var ok bool
+		if dbIndex, rpIndex, ok = findBucketIndex(dbs, db, rp); !ok {
+			h.httpError(w, fmt.Sprintf("list buckets \"after\" parameter not found: %q", after), http.StatusNotFound)
+			return
+		}
+	} else if offset > 0 {
+		var ok bool
+		if dbIndex, rpIndex, ok = findBucketOffsetIndex(dbs, offset); !ok {
+			h.sendBuckets(w, []Bucket{})
+			return
+		}
+	}
+	sliceCap := limit
+	if sliceCap > (2 * defaultLimit) {
+		sliceCap = 2 * defaultLimit
+	}
+	buckets := make([]Bucket, 0, sliceCap)
+
+outer:
+	for ; dbIndex < len(dbs); dbIndex++ {
+		dbi := dbs[dbIndex]
+		if h.Config.AuthEnabled {
+			if err := h.QueryAuthorizer.AuthorizeDatabase(user, influxql.ReadPrivilege, dbi.Name); err != nil {
+				continue
+			}
+		}
+		for ; rpIndex < len(dbi.RetentionPolicies); rpIndex++ {
+			if limit > 0 {
+				buckets = append(buckets, *makeBucket(&dbi.RetentionPolicies[rpIndex], dbi.Name))
+				limit--
+			} else {
+				break outer
+			}
+		}
+		rpIndex = 0
+	}
+	h.sendBuckets(w, buckets)
+}
+
+func (h *Handler) oneBucket(w http.ResponseWriter, name string) *Bucket {
+	db, rp, err := bucket2dbrp(name)
+	if err != nil {
+		h.httpError(w, fmt.Sprintf("bucket %q: %s", name, err.Error()), http.StatusNotFound)
+		return nil
+	} else if dbi := h.MetaClient.Database(db); dbi == nil {
+		h.httpError(w, fmt.Sprintf("bucket not found: %q", name), http.StatusNotFound)
+		return nil
+	} else if rpi := dbi.RetentionPolicy(rp); rpi == nil {
+		h.httpError(w, fmt.Sprintf("bucket not found: %q", name), http.StatusNotFound)
+		return nil
+	} else {
+		return makeBucket(rpi, db)
+	}
+}
+
+func findBucketOffsetIndex(dbs []meta.DatabaseInfo, offset int) (dbIndex int, rpIndex int, ok bool) {
+	for i, dbi := range dbs {
+		if offset > len(dbi.RetentionPolicies) {
+			offset -= len(dbi.RetentionPolicies)
+		} else {
+			dbIndex = i
+			rpIndex = offset
+			return dbIndex, rpIndex, true
+		}
+	}
+	return -1, -1, false
+}
+
+func findBucketIndex(dbs []meta.DatabaseInfo, db string, rp string) (dbIndex int, rpIndex int, ok bool) {
+	for di, dbi := range dbs {
+		if dbi.Name != db {
+			continue
+		} else {
+			for ri, rpi := range dbi.RetentionPolicies {
+				if rpi.Name == rp {
+					if ri < (len(dbi.RetentionPolicies) - 1) {
+						return di, ri + 1, true
+					} else {
+						return di + 1, 0, true
+					}
+				}
+			}
+		}
+	}
+	return -1, -1, false
+}
+
+func (h *Handler) sendBuckets(w http.ResponseWriter, buckets []Bucket) {
+	b, err := json.Marshal(buckets)
+	if err != nil {
+		h.httpError(w, fmt.Sprintf("list buckets marshaling error: %s", err.Error()), http.StatusInternalServerError)
+		return
+	}
+	if _, err := w.Write(b); err != nil {
+		h.Logger.Info("/api/v2/buckets: list buckets error writing response", zap.Error(err))
+	}
+}
+
+func makeBucket(rpi *meta.RetentionPolicyInfo, database string) *Bucket {
+	name := fmt.Sprintf("%s/%s", database, rpi.Name)
+	return &Bucket{
+		BucketsBody: BucketsBody{
+			BucketUpdate: BucketUpdate{
+				Name: name,
+				RetentionRules: []RetentionRule{{
+					Type:                      "",
+					EverySeconds:              int64(rpi.Duration.Seconds()),
+					ShardGroupDurationSeconds: int64(rpi.ShardGroupDuration.Seconds()),
+				}},
+			},
+			Rp:         rpi.Name,
+			SchemaType: "implicit",
+		},
+		ID:                  name,
+		RetentionPolicyName: rpi.Name,
+	}
+}
+
 // serveWriteV2 maps v2 write parameters to a v1 style handler.  the concepts
-// of an "org" and "bucket" are mapped to v1 "database" and "retention
+// of a "bucket" is mapped to v1 "database" and "retention
 // policies".
 func (h *Handler) serveWriteV2(w http.ResponseWriter, r *http.Request, user meta.User) {
 	precision := r.URL.Query().Get("precision")
@@ -2186,6 +2644,7 @@ func (h *Handler) recovery(inner http.Handler, name string) http.Handler {
 type Store interface {
 	ReadFilter(ctx context.Context, req *datatypes.ReadFilterRequest) (reads.ResultSet, error)
 	Delete(database string, sources []influxql.Source, condition influxql.Expr) error
+	DeleteRetentionPolicy(database, name string) error
 }
 
 // Response represents a list of statement results.
