@@ -19,9 +19,14 @@ use super::{addrs::BindAddresses, ServerType, TestConfig};
 
 /// Represents a server that has been started and is available for
 /// testing.
+///
+/// Note This structure can not be shared between tests because even
+/// though a `Connection` is `Cloneable` if multiple requests are
+/// issued through the same connection chaos ensues.
 #[derive(Debug)]
 pub struct ServerFixture {
     server: Arc<TestServer>,
+    connections: Connections,
 }
 
 impl ServerFixture {
@@ -32,11 +37,12 @@ impl ServerFixture {
         let mut server = TestServer::new(test_config).await;
 
         // ensure the server is ready
-        server.wait_until_ready().await;
+        let connections = server.wait_until_ready().await;
 
-        let server = Arc::new(server);
-
-        ServerFixture { server }
+        ServerFixture {
+            server: Arc::new(server),
+            connections,
+        }
     }
 
     /// Restart test server, panic'ing if it is shared with some other
@@ -51,17 +57,41 @@ impl ServerFixture {
         };
 
         server.restart().await;
-        server.wait_until_ready().await;
+        let connections = server.wait_until_ready().await;
 
         Self {
             server: Arc::new(server),
+            connections,
         }
     }
 
-    /// Get a reference to the underlying server.
-    #[must_use]
-    pub fn server(&self) -> &TestServer {
-        self.server.as_ref()
+    pub fn connections(&self) -> &Connections {
+        &self.connections
+    }
+
+    /// Return a channel connected to the gRPC API, panic'ing if not the correct type of server
+    pub fn router_grpc_connection(&self) -> Connection {
+        self.connections.router_grpc_connection()
+    }
+
+    /// Return a channel connected to the ingester gRPC API, panic'ing if not the correct type of server
+    pub fn ingester_grpc_connection(&self) -> Connection {
+        self.connections.ingester_grpc_connection()
+    }
+
+    /// Return a channel connected to the querier gRPC API, panic'ing if not the correct type of server
+    pub fn querier_grpc_connection(&self) -> Connection {
+        self.connections.querier_grpc_connection()
+    }
+
+    /// Return the http base URL for the router HTTP API
+    pub fn router_http_base(&self) -> Arc<str> {
+        self.server.addrs().router_http_api().client_base()
+    }
+
+    /// Return the http base URL for the router gRPC API
+    pub fn router_grpc_base(&self) -> Arc<str> {
+        self.server.addrs().router_grpc_api().client_base()
     }
 }
 
@@ -74,17 +104,9 @@ enum ServerState {
     Error,
 }
 
-#[derive(Debug)]
-pub struct TestServer {
-    /// Is the server ready to accept connections?
-    ready: Mutex<ServerState>,
-
-    /// Handle to the server process being controlled
-    server_process: Arc<Mutex<Process>>,
-
-    /// Configuration values for starting the test server
-    test_config: TestConfig,
-
+/// Mananges some number of gRPC connections
+#[derive(Debug, Default)]
+pub struct Connections {
     /// connection to router gRPC, if available
     router_grpc_connection: Option<Connection>,
 
@@ -95,28 +117,10 @@ pub struct TestServer {
     querier_grpc_connection: Option<Connection>,
 }
 
-#[derive(Debug)]
-struct Process {
-    child: Child,
-    log_path: Box<Path>,
-}
-
-impl TestServer {
-    async fn new(test_config: TestConfig) -> Self {
-        let ready = Mutex::new(ServerState::Started);
-
-        let server_process = Arc::new(Mutex::new(
-            Self::create_server_process(&test_config, None).await,
-        ));
-
-        Self {
-            ready,
-            server_process,
-            test_config,
-            router_grpc_connection: None,
-            ingester_grpc_connection: None,
-            querier_grpc_connection: None,
-        }
+impl Connections {
+    /// Create a new set of connections, that are initially unconnected
+    pub fn new() -> Self {
+        Default::default()
     }
 
     /// Return a channel connected to the gRPC API, panic'ing if not the correct type of server
@@ -143,72 +147,106 @@ impl TestServer {
             .clone()
     }
 
-    /// Return the http base URL for the router HTTP API
-    pub fn router_http_base(&self) -> Arc<str> {
-        self.addrs().router_http_api().client_base()
-    }
+    /// (re)establish channels to all gRPC services that were started
+    /// with the specified test config
+    async fn reconnect(&mut self, test_config: &TestConfig) -> Result<(), String> {
+        let server_type = test_config.server_type();
 
-    /// Return the http base URL for the router gRPC API
-    pub fn router_grpc_base(&self) -> Arc<str> {
-        self.addrs().router_grpc_api().client_base()
-    }
-
-    /// Create a connection channel to the specified gRPC endpoint
-    async fn grpc_channel(
-        &self,
-        client_base: &str,
-    ) -> influxdb_iox_client::connection::Result<Connection> {
-        let builder = influxdb_iox_client::connection::Builder::default();
-
-        println!("Creating gRPC channel to {}", client_base);
-        self.test_config
-            .client_headers()
-            .iter()
-            .fold(builder, |builder, (header_name, header_value)| {
-                builder.header(header_name, header_value)
-            })
-            .build(client_base)
-            .await
-    }
-
-    /// (re)establish channels to all gRPC services that are running
-    /// for this particular server type
-    async fn reconnect(&mut self) -> Result<(), String> {
-        let server_type = self.test_config.server_type();
-
-        self.router_grpc_connection =
-            match server_type {
-                ServerType::AllInOne | ServerType::Router2 => {
-                    let client_base = self.addrs().router_grpc_api().client_base();
-                    Some(self.grpc_channel(client_base.as_ref()).await.map_err(|e| {
-                        format!("Can not connect to router at {}: {}", client_base, e)
-                    })?)
-                }
-                _ => None,
-            };
-
-        self.ingester_grpc_connection = match server_type {
-            ServerType::AllInOne | ServerType::Ingester => {
-                let client_base = self.addrs().ingester_grpc_api().client_base();
-                Some(self.grpc_channel(client_base.as_ref()).await.map_err(|e| {
-                    format!("Can not connect to ingester at {}: {}", client_base, e)
-                })?)
+        self.router_grpc_connection = match server_type {
+            ServerType::AllInOne | ServerType::Router2 => {
+                let client_base = test_config.addrs().router_grpc_api().client_base();
+                Some(
+                    grpc_channel(test_config, client_base.as_ref())
+                        .await
+                        .map_err(|e| {
+                            format!("Can not connect to router at {}: {}", client_base, e)
+                        })?,
+                )
             }
             _ => None,
         };
 
-        self.querier_grpc_connection =
-            match server_type {
-                ServerType::AllInOne | ServerType::Querier => {
-                    let client_base = self.addrs().querier_grpc_api().client_base();
-                    Some(self.grpc_channel(client_base.as_ref()).await.map_err(|e| {
-                        format!("Can not connect to querier at {}: {}", client_base, e)
-                    })?)
-                }
-                _ => None,
-            };
+        self.ingester_grpc_connection = match server_type {
+            ServerType::AllInOne | ServerType::Ingester => {
+                let client_base = test_config.addrs().ingester_grpc_api().client_base();
+                Some(
+                    grpc_channel(test_config, client_base.as_ref())
+                        .await
+                        .map_err(|e| {
+                            format!("Can not connect to ingester at {}: {}", client_base, e)
+                        })?,
+                )
+            }
+            _ => None,
+        };
+
+        self.querier_grpc_connection = match server_type {
+            ServerType::AllInOne | ServerType::Querier => {
+                let client_base = test_config.addrs().querier_grpc_api().client_base();
+                Some(
+                    grpc_channel(test_config, client_base.as_ref())
+                        .await
+                        .map_err(|e| {
+                            format!("Can not connect to querier at {}: {}", client_base, e)
+                        })?,
+                )
+            }
+            _ => None,
+        };
 
         Ok(())
+    }
+}
+
+/// Create a connection channel to the specified gRPC endpoint
+async fn grpc_channel(
+    test_config: &TestConfig,
+    client_base: &str,
+) -> influxdb_iox_client::connection::Result<Connection> {
+    let builder = influxdb_iox_client::connection::Builder::default();
+
+    println!("Creating gRPC channel to {}", client_base);
+    test_config
+        .client_headers()
+        .iter()
+        .fold(builder, |builder, (header_name, header_value)| {
+            builder.header(header_name, header_value)
+        })
+        .build(client_base)
+        .await
+}
+
+#[derive(Debug)]
+pub struct TestServer {
+    /// Is the server ready to accept connections?
+    ready: Mutex<ServerState>,
+
+    /// Handle to the server process being controlled
+    server_process: Arc<Mutex<Process>>,
+
+    /// Configuration values for starting the test server
+    test_config: TestConfig,
+}
+
+#[derive(Debug)]
+struct Process {
+    child: Child,
+    log_path: Box<Path>,
+}
+
+impl TestServer {
+    async fn new(test_config: TestConfig) -> Self {
+        let ready = Mutex::new(ServerState::Started);
+
+        let server_process = Arc::new(Mutex::new(
+            Self::create_server_process(&test_config, None).await,
+        ));
+
+        Self {
+            ready,
+            server_process,
+            test_config,
+        }
     }
 
     /// Returns the addresses to which the server has been bound
@@ -293,31 +331,34 @@ impl TestServer {
     }
 
     /// Polls the various services to ensure the server is
-    /// operational, reestablishing grpc connections
-    async fn wait_until_ready(&mut self) {
+    /// operational, reestablishing grpc connections, and returning
+    /// those active connections
+    async fn wait_until_ready(&mut self) -> Connections {
+        let mut need_wait_for_startup = false;
         {
             let mut ready = self.ready.lock().await;
             match *ready {
-                ServerState::Started => {} // first time, need to try and start it
+                ServerState::Started => {
+                    // first time, need to try and start it
+                    need_wait_for_startup = true;
+                    *ready = ServerState::Starting;
+                }
                 ServerState::Starting => {
                     // someone else is starting this
-                    return;
                 }
-                ServerState::Ready => {
-                    return;
-                }
+                ServerState::Ready => {}
                 ServerState::Error => {
                     panic!("Server was previously found to be in Error, aborting");
                 }
             };
-            *ready = ServerState::Starting;
         }
 
         // at first, attempt to reconnect all the clients
+        let mut connections = Connections::new();
         tokio::time::timeout(Duration::from_secs(10), async {
             let mut interval = tokio::time::interval(Duration::from_millis(100));
             loop {
-                match self.reconnect().await {
+                match connections.reconnect(&self.test_config).await {
                     Err(e) => println!("wait_until_ready: can not yet connect: {}", e),
                     Ok(()) => return,
                 }
@@ -327,9 +368,13 @@ impl TestServer {
         .await
         .expect("Timed out waiting to connect clients");
 
+        if !need_wait_for_startup {
+            return connections;
+        }
+
         // Poll the RPC and HTTP servers separately as they listen on
         // different ports but both need to be up for the test to run
-        let try_grpc_connect = self.wait_for_grpc();
+        let try_grpc_connect = self.wait_for_grpc(&connections);
 
         let server_process = Arc::clone(&self.server_process);
         let try_http_connect = async {
@@ -383,9 +428,11 @@ impl TestServer {
                 );
             }
         }
+
+        connections
     }
 
-    pub async fn wait_for_grpc(&self) {
+    pub async fn wait_for_grpc(&self, connections: &Connections) {
         let server_process = Arc::clone(&self.server_process);
         let mut interval = tokio::time::interval(Duration::from_millis(1000));
 
@@ -397,20 +444,28 @@ impl TestServer {
 
             match server_type {
                 ServerType::Router2 => {
-                    if check_write_service_health(server_type, self.router_grpc_connection()).await
-                    {
-                        return;
-                    }
-                }
-                ServerType::Ingester => {
-                    if check_arrow_service_health(server_type, self.ingester_grpc_connection())
+                    if check_write_service_health(server_type, connections.router_grpc_connection())
                         .await
                     {
                         return;
                     }
                 }
+                ServerType::Ingester => {
+                    if check_arrow_service_health(
+                        server_type,
+                        connections.ingester_grpc_connection(),
+                    )
+                    .await
+                    {
+                        return;
+                    }
+                }
                 ServerType::Querier => {
-                    if check_arrow_service_health(server_type, self.querier_grpc_connection()).await
+                    if check_arrow_service_health(
+                        server_type,
+                        connections.querier_grpc_connection(),
+                    )
+                    .await
                     {
                         return;
                     }
@@ -418,11 +473,18 @@ impl TestServer {
                 ServerType::AllInOne => {
                     // ensure we can write and query
                     // TODO also check compactor and ingester
-                    if check_write_service_health(server_type, self.router_grpc_connection()).await
-                        && check_arrow_service_health(server_type, self.ingester_grpc_connection())
-                            .await
-                        && check_arrow_service_health(server_type, self.querier_grpc_connection())
-                            .await
+                    if check_write_service_health(server_type, connections.router_grpc_connection())
+                        .await
+                        && check_arrow_service_health(
+                            server_type,
+                            connections.ingester_grpc_connection(),
+                        )
+                        .await
+                        && check_arrow_service_health(
+                            server_type,
+                            connections.querier_grpc_connection(),
+                        )
+                        .await
                     {
                         return;
                     }

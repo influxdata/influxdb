@@ -1,7 +1,7 @@
 use http::Response;
 use hyper::Body;
 
-use crate::{rand_id, write_to_router, ServerFixture, TestConfig, TestServer};
+use crate::{rand_id, write_to_router, ServerFixture, TestConfig};
 
 /// Structure that holds NG services and helpful accessors
 #[derive(Debug, Default)]
@@ -112,19 +112,13 @@ impl MiniCluster {
     }
 
     /// Retrieve the underlying router2 server, if set
-    pub fn router2(&self) -> &TestServer {
-        self.router2
-            .as_ref()
-            .expect("router2 not initialized")
-            .server()
+    pub fn router2(&self) -> &ServerFixture {
+        self.router2.as_ref().expect("router2 not initialized")
     }
 
     /// Retrieve the underlying ingester server, if set
-    pub fn ingester(&self) -> &TestServer {
-        self.ingester
-            .as_ref()
-            .expect("ingester not initialized")
-            .server()
+    pub fn ingester(&self) -> &ServerFixture {
+        self.ingester.as_ref().expect("ingester not initialized")
     }
 
     /// Restart ingester.
@@ -141,19 +135,13 @@ impl MiniCluster {
     }
 
     /// Retrieve the underlying querier server, if set
-    pub fn querier(&self) -> &TestServer {
-        self.querier
-            .as_ref()
-            .expect("querier not initialized")
-            .server()
+    pub fn querier(&self) -> &ServerFixture {
+        self.querier.as_ref().expect("querier not initialized")
     }
 
     /// Retrieve the underlying compactor server, if set
-    pub fn compactor(&self) -> &TestServer {
-        self.compactor
-            .as_ref()
-            .expect("compactor not initialized")
-            .server()
+    pub fn compactor(&self) -> &ServerFixture {
+        self.compactor.as_ref().expect("compactor not initialized")
     }
 
     /// Get a reference to the mini cluster's org.

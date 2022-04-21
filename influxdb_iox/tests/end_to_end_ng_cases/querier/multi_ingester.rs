@@ -132,9 +132,7 @@ async fn get_multi_ingester_readable_combined_response(
 
         let ingester_connections = vec![
             cluster.ingester().ingester_grpc_connection(),
-            cluster.other_servers()[0]
-                .server()
-                .ingester_grpc_connection(),
+            cluster.other_servers()[0].ingester_grpc_connection(),
         ];
 
         loop {
