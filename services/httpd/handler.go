@@ -1265,7 +1265,7 @@ func (h *Handler) serveRetrieveBucketV2(w http.ResponseWriter, r *http.Request, 
 }
 
 func (h *Handler) serveBucketListV2(w http.ResponseWriter, r *http.Request, user meta.User) {
-	const defaultLimit = 20
+	const defaultLimit = 100
 	var err error
 	var db, rp, after string
 	limit := defaultLimit
