@@ -1075,13 +1075,12 @@ func (h *Handler) ServePostBucketsV2(w http.ResponseWriter, r *http.Request, use
 	if err != nil {
 		h.httpError(w, fmt.Sprintf("buckets - illegal bucket name: %s", err.Error()), http.StatusBadRequest)
 		return
-	}
-	if !((brd.Rp == rp) || ((brd.Rp == "") && (rp != "")) || ((brd.Rp != "") && (rp == ""))) {
+	} else if rp == "" {
+		h.httpError(w, fmt.Sprintf("buckets - illegal bucket name: %q", brd.Name), http.StatusBadRequest)
+		return
+	} else if !((brd.Rp == rp) || (brd.Rp == "")) {
 		h.httpError(w, fmt.Sprintf("buckets - two retention policies specified: %q differs from %q", rp, brd.Rp), http.StatusBadRequest)
 		return
-	} else if rp == "" {
-		rp = brd.Rp
-
 	}
 	// We only need to validate non-empty
 	// retention policy names

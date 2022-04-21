@@ -1853,6 +1853,44 @@ func TestHandler_CreateDeleteBuckets(t *testing.T) {
 
 	tests := []*test{
 		{
+			url:    "/api/v2/buckets",
+			method: postMethod,
+			body: httpd.BucketsBody{
+				BucketUpdate: httpd.BucketUpdate{
+					Name: existingDb + "/",
+					RetentionRules: []httpd.RetentionRule{
+						httpd.RetentionRule{
+							EverySeconds:              7200,
+							ShardGroupDurationSeconds: 14400,
+						},
+					},
+				},
+				Rp:         "",
+				SchemaType: "implicit",
+			},
+			status: http.StatusBadRequest,
+			errMsg: `buckets - illegal bucket name: "mydb/"`,
+		},
+		{
+			url:    "/api/v2/buckets",
+			method: postMethod,
+			body: httpd.BucketsBody{
+				BucketUpdate: httpd.BucketUpdate{
+					Name: existingDb + "//",
+					RetentionRules: []httpd.RetentionRule{
+						httpd.RetentionRule{
+							EverySeconds:              7200,
+							ShardGroupDurationSeconds: 14400,
+						},
+					},
+				},
+				Rp:         "",
+				SchemaType: "implicit",
+			},
+			status: http.StatusBadRequest,
+			errMsg: `buckets - retention policy "/": invalid name`,
+		},
+		{
 			url:    "/api/v2/buckets/" + existingDb + "/" + goodRp,
 			method: patchMethod,
 			body: httpd.BucketsBody{
