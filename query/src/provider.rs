@@ -5,8 +5,9 @@ use std::sync::Arc;
 
 use arrow::{datatypes::SchemaRef as ArrowSchemaRef, error::ArrowError};
 use datafusion::{
-    datasource::{datasource::TableProviderFilterPushDown, TableProvider},
+    datasource::TableProvider,
     error::{DataFusionError, Result as DataFusionResult},
+    logical_expr::TableProviderFilterPushDown,
     logical_plan::Expr,
     physical_plan::{
         expressions::{col as physical_col, PhysicalSortExpr},

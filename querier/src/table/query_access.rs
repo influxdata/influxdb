@@ -3,8 +3,9 @@ use std::{any::Any, sync::Arc};
 use arrow::datatypes::SchemaRef;
 use async_trait::async_trait;
 use datafusion::{
-    datasource::{datasource::TableProviderFilterPushDown, TableProvider, TableType},
+    datasource::{TableProvider, TableType},
     error::DataFusionError,
+    logical_expr::TableProviderFilterPushDown,
     logical_plan::Expr,
     physical_plan::ExecutionPlan,
 };
