@@ -307,7 +307,7 @@ dependencies = [
  "serde_json",
  "thiserror",
  "url",
- "uuid",
+ "uuid 0.8.2",
 ]
 
 [[package]]
@@ -333,7 +333,7 @@ dependencies = [
  "sha2 0.10.2",
  "thiserror",
  "url",
- "uuid",
+ "uuid 0.8.2",
 ]
 
 [[package]]
@@ -357,7 +357,7 @@ dependencies = [
  "serde_json",
  "thiserror",
  "url",
- "uuid",
+ "uuid 0.8.2",
 ]
 
 [[package]]
@@ -697,7 +697,7 @@ dependencies = [
  "trace",
  "trace_exporters",
  "trogging",
- "uuid",
+ "uuid 0.8.2",
  "workspace-hack",
  "write_buffer",
 ]
@@ -833,7 +833,7 @@ dependencies = [
  "time 0.1.0",
  "tokio",
  "tokio-util 0.7.1",
- "uuid",
+ "uuid 0.8.2",
  "workspace-hack",
 ]
 
@@ -1172,7 +1172,7 @@ dependencies = [
  "snafu",
  "test_helpers",
  "time 0.1.0",
- "uuid",
+ "uuid 0.8.2",
  "workspace-hack",
 ]
 
@@ -1186,7 +1186,7 @@ dependencies = [
  "predicate",
  "schema",
  "sqlx",
- "uuid",
+ "uuid 0.8.2",
  "workspace-hack",
 ]
 
@@ -1201,7 +1201,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "7.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=7548e961b58f75fc26fd4fb16c99377f6f468fc9#7548e961b58f75fc26fd4fb16c99377f6f468fc9"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=cd8bfb46b2f20ac9d44d22e66883e41cecd683e1#cd8bfb46b2f20ac9d44d22e66883e41cecd683e1"
 dependencies = [
  "ahash",
  "arrow",
@@ -1227,13 +1227,13 @@ dependencies = [
  "tempfile",
  "tokio",
  "tokio-stream",
- "uuid",
+ "uuid 1.0.0",
 ]
 
 [[package]]
 name = "datafusion-common"
 version = "7.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=7548e961b58f75fc26fd4fb16c99377f6f468fc9#7548e961b58f75fc26fd4fb16c99377f6f468fc9"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=cd8bfb46b2f20ac9d44d22e66883e41cecd683e1#cd8bfb46b2f20ac9d44d22e66883e41cecd683e1"
 dependencies = [
  "arrow",
  "ordered-float 2.10.0",
@@ -1244,7 +1244,7 @@ dependencies = [
 [[package]]
 name = "datafusion-data-access"
 version = "1.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=7548e961b58f75fc26fd4fb16c99377f6f468fc9#7548e961b58f75fc26fd4fb16c99377f6f468fc9"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=cd8bfb46b2f20ac9d44d22e66883e41cecd683e1#cd8bfb46b2f20ac9d44d22e66883e41cecd683e1"
 dependencies = [
  "async-trait",
  "chrono",
@@ -1257,7 +1257,7 @@ dependencies = [
 [[package]]
 name = "datafusion-expr"
 version = "7.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=7548e961b58f75fc26fd4fb16c99377f6f468fc9#7548e961b58f75fc26fd4fb16c99377f6f468fc9"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=cd8bfb46b2f20ac9d44d22e66883e41cecd683e1#cd8bfb46b2f20ac9d44d22e66883e41cecd683e1"
 dependencies = [
  "ahash",
  "arrow",
@@ -1268,7 +1268,7 @@ dependencies = [
 [[package]]
 name = "datafusion-physical-expr"
 version = "7.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=7548e961b58f75fc26fd4fb16c99377f6f468fc9#7548e961b58f75fc26fd4fb16c99377f6f468fc9"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=cd8bfb46b2f20ac9d44d22e66883e41cecd683e1#cd8bfb46b2f20ac9d44d22e66883e41cecd683e1"
 dependencies = [
  "ahash",
  "arrow",
@@ -1342,7 +1342,7 @@ dependencies = [
  "tokio-util 0.7.1",
  "trace",
  "tracker",
- "uuid",
+ "uuid 0.8.2",
  "workspace-hack",
  "write_buffer",
 ]
@@ -1353,7 +1353,7 @@ version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d6ee87af31d84ef885378aebca32be3d682b0e0dc119d5b4860a2c5bb5046730"
 dependencies = [
- "uuid",
+ "uuid 0.8.2",
 ]
 
 [[package]]
@@ -2203,7 +2203,7 @@ dependencies = [
  "test_helpers",
  "tokio",
  "url",
- "uuid",
+ "uuid 0.8.2",
 ]
 
 [[package]]
@@ -2318,7 +2318,7 @@ dependencies = [
  "trace_http",
  "tracker",
  "trogging",
- "uuid",
+ "uuid 0.8.2",
  "workspace-hack",
  "write_buffer",
 ]
@@ -2345,7 +2345,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tonic",
- "uuid",
+ "uuid 0.8.2",
 ]
 
 [[package]]
@@ -2445,7 +2445,7 @@ dependencies = [
  "tonic",
  "trace",
  "tracker",
- "uuid",
+ "uuid 0.8.2",
  "workspace-hack",
  "write_buffer",
  "write_summary",
@@ -2512,7 +2512,7 @@ dependencies = [
  "test_helpers",
  "time 0.1.0",
  "tokio",
- "uuid",
+ "uuid 0.8.2",
  "workspace-hack",
 ]
 
@@ -2532,7 +2532,7 @@ dependencies = [
  "tokio",
  "tonic",
  "trace",
- "uuid",
+ "uuid 0.8.2",
  "workspace-hack",
 ]
 
@@ -2561,7 +2561,7 @@ dependencies = [
  "toml",
  "tracing",
  "tracing-subscriber",
- "uuid",
+ "uuid 0.8.2",
 ]
 
 [[package]]
@@ -2608,7 +2608,7 @@ dependencies = [
  "test_helpers",
  "tokio",
  "tokio-stream",
- "uuid",
+ "uuid 0.8.2",
  "workspace-hack",
 ]
 
@@ -2633,7 +2633,7 @@ dependencies = [
  "tokio-stream",
  "tonic",
  "trace",
- "uuid",
+ "uuid 0.8.2",
  "workspace-hack",
 ]
 
@@ -2653,7 +2653,7 @@ dependencies = [
  "query",
  "schema",
  "time 0.1.0",
- "uuid",
+ "uuid 0.8.2",
  "workspace-hack",
 ]
 
@@ -2778,7 +2778,7 @@ dependencies = [
  "trace_exporters",
  "trace_http",
  "tracker",
- "uuid",
+ "uuid 0.8.2",
  "workspace-hack",
 ]
 
@@ -4036,7 +4036,7 @@ dependencies = [
  "time 0.1.0",
  "tokio",
  "tokio-stream",
- "uuid",
+ "uuid 0.8.2",
  "workspace-hack",
  "zstd",
 ]
@@ -4074,7 +4074,7 @@ dependencies = [
  "time 0.1.0",
  "tokio",
  "tokio-stream",
- "uuid",
+ "uuid 0.8.2",
  "workspace-hack",
  "zstd",
 ]
@@ -4563,7 +4563,7 @@ dependencies = [
  "tokio-util 0.7.1",
  "tonic",
  "trace",
- "uuid",
+ "uuid 0.8.2",
  "workspace-hack",
 ]
 
@@ -5493,7 +5493,7 @@ dependencies = [
  "tokio-util 0.7.1",
  "trace",
  "tracker",
- "uuid",
+ "uuid 0.8.2",
  "workspace-hack",
  "write_buffer",
 ]
@@ -5836,7 +5836,7 @@ dependencies = [
  "thiserror",
  "tokio-stream",
  "url",
- "uuid",
+ "uuid 0.8.2",
  "webpki 0.21.4",
  "webpki-roots 0.21.1",
  "whoami",
@@ -5961,7 +5961,7 @@ dependencies = [
  "debugid",
  "memmap2",
  "stable_deref_trait",
- "uuid",
+ "uuid 0.8.2",
 ]
 
 [[package]]
@@ -6712,6 +6712,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "uuid"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8cfcd319456c4d6ea10087ed423473267e1a071f3bc0aa89f80d60997843c6f0"
+dependencies = [
+ "getrandom",
+]
+
+[[package]]
 name = "valuable"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7091,7 +7100,7 @@ dependencies = [
  "tracing-core",
  "tracing-log",
  "tracing-subscriber",
- "uuid",
+ "uuid 0.8.2",
  "winapi",
  "zstd",
  "zstd-safe",
@@ -7128,7 +7137,7 @@ dependencies = [
  "tokio-util 0.7.1",
  "trace",
  "trace_http",
- "uuid",
+ "uuid 0.8.2",
  "workspace-hack",
 ]
 
