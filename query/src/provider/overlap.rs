@@ -342,6 +342,24 @@ mod test {
         assert_groups_eq!(expected, groups);
     }
 
+    // TODO: turn this on after https://github.com/influxdata/influxdb_iox/issues/4158
+    #[ignore]
+    #[test]
+    fn one_time_column_overlap_bad_case() {
+        let c1 = Arc::new(TestChunk::new("chunk1").with_time_column_with_stats(Some(1), Some(10)));
+
+        let c2 = Arc::new(TestChunk::new("chunk2").with_time_column_with_stats(Some(15), Some(30)));
+
+        let c3 = Arc::new(TestChunk::new("chunk3").with_time_column_with_stats(Some(7), Some(20)));
+
+        let c4 = Arc::new(TestChunk::new("chunk4").with_time_column_with_stats(Some(25), Some(35)));
+
+        let groups = group_potential_duplicates(vec![c1, c2, c3, c4]).expect("grouping succeeded");
+
+        let expected = vec!["Group 0: [chunk1, chunk2, chunk3, chunk4]"];
+        assert_groups_eq!(expected, groups);
+    }
+
     #[test]
     fn multi_columns() {
         let c1 = Arc::new(

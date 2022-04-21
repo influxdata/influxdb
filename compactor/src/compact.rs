@@ -863,51 +863,64 @@ impl Compactor {
         Ok(())
     }
 
-    /// Given a list of parquet files that come from the same Table Partition, group files together
-    /// if their (min_time, max_time) ranges overlap. Does not preserve or guarantee any ordering.
+    // Given a list of parquet files that come from the same Table Partition, group files together
+    // if their (min_time, max_time) ranges overlap. Does not preserve or guarantee any ordering.
     fn overlapped_groups(
-        mut parquet_files: Vec<ParquetFileWithMetadata>,
+        parquet_files: Vec<ParquetFileWithMetadata>,
     ) -> Vec<GroupWithMinTimeAndSize> {
-        let mut groups = Vec::with_capacity(parquet_files.len());
+        let num_files = parquet_files.len();
+        let mut grouper = Vec::with_capacity(num_files * 2);
 
-        // While there are still files not in any group
-        while !parquet_files.is_empty() {
-            // Start a group containing only the first file
-            let mut in_group = Vec::with_capacity(parquet_files.len());
-
-            // first file
-            let pf = parquet_files.swap_remove(0);
-            let mut min_time = pf.min_time;
-            let mut total_file_size_bytes = pf.file_size_bytes;
-            in_group.push(pf);
-
-            // Start a group for the remaining files that don't overlap
-            let mut out_group = Vec::with_capacity(parquet_files.len());
-
-            // Consider each file; if it overlaps with any file in the current group, add it to
-            // the group. If not, add it to the non-overlapping group.
-            for file in parquet_files {
-                if in_group.iter().any(|group_file| {
-                    (file.min_time <= group_file.min_time && file.max_time >= group_file.min_time)
-                        || (file.min_time > group_file.min_time
-                            && file.min_time <= group_file.max_time)
-                }) {
-                    min_time = min_time.min(file.min_time);
-                    total_file_size_bytes += file.file_size_bytes;
-                    in_group.push(file);
-                } else {
-                    out_group.push(file);
-                }
-            }
-
-            groups.push(GroupWithMinTimeAndSize {
-                parquet_files: in_group,
-                min_time,
-                total_file_size_bytes,
-            });
-            parquet_files = out_group;
+        enum StartEnd<I> {
+            Start,
+            End(I),
         }
 
+        struct GrouperRecord<I, V: PartialOrd> {
+            value: V,
+            start_end: StartEnd<I>,
+        }
+
+        for file in parquet_files {
+            grouper.push(GrouperRecord {
+                value: file.min_time,
+                start_end: StartEnd::Start,
+            });
+            grouper.push(GrouperRecord {
+                value: file.max_time,
+                start_end: StartEnd::End(file),
+            });
+        }
+
+        grouper.sort_by_key(|gr| gr.value);
+
+        let mut cumulative_sum = 0;
+        let mut groups: Vec<GroupWithMinTimeAndSize> = Vec::with_capacity(num_files);
+
+        for gr in grouper {
+            cumulative_sum += match gr.start_end {
+                StartEnd::Start => 1,
+                StartEnd::End(_) => -1,
+            };
+
+            if matches!(gr.start_end, StartEnd::Start) && cumulative_sum == 1 {
+                let group = GroupWithMinTimeAndSize {
+                    parquet_files: Vec::with_capacity(num_files),
+                    min_time: Timestamp::new(i64::MAX),
+                    total_file_size_bytes: 0,
+                };
+                groups.push(group); //Vec::with_capacity(num_files));
+            }
+            if let StartEnd::End(item) = gr.start_end {
+                let group = groups
+                    .last_mut()
+                    .expect("a start should have pushed at least one empty group");
+
+                group.min_time = group.min_time.min(item.min_time);
+                group.total_file_size_bytes += item.file_size_bytes;
+                group.parquet_files.push(item);
+            }
+        }
         groups
     }
 
@@ -1112,7 +1125,11 @@ mod tests {
         chunk::{collect_read_filter, ParquetChunkAdapter},
     };
     use query::test::{raw_data, TestChunk};
+    use std::sync::atomic::{AtomicI64, Ordering};
     use time::SystemProvider;
+
+    // Simulate unique ID generation
+    static NEXT_ID: AtomicI64 = AtomicI64::new(0);
 
     #[tokio::test]
     // This is integration test to verify all pieces are put together correctly
@@ -1774,8 +1791,9 @@ mod tests {
         max_time: i64,
         file_size_bytes: i64,
     ) -> ParquetFileWithMetadata {
+        let id = NEXT_ID.fetch_add(1, Ordering::SeqCst);
         ParquetFileWithMetadata {
-            id: ParquetFileId::new(0),
+            id: ParquetFileId::new(id),
             sequencer_id: SequencerId::new(0),
             namespace_id: NamespaceId::new(0),
             table_id: TableId::new(0),
@@ -2369,6 +2387,36 @@ mod tests {
             actual_pf2.tombstones.iter().map(|t| t.id).collect();
         actual_pf2_tombstones.sort();
         assert_eq!(actual_pf2_tombstones, &[t3.id, t4.id]);
+    }
+
+    #[tokio::test]
+    async fn test_overlap_group_edge_case() {
+        let one = arbitrary_parquet_file(0, 3);
+        let two = arbitrary_parquet_file(5, 10);
+        let three = arbitrary_parquet_file(2, 6);
+
+        // Given a bunch of files in a particular order to exercise the algorithm:
+        let all = vec![one, two, three];
+
+        let groups = Compactor::overlapped_groups(all);
+        dbg!(&groups);
+
+        // All should be in the same group.
+        assert_eq!(groups.len(), 1);
+
+        let one = arbitrary_parquet_file(0, 3);
+        let two = arbitrary_parquet_file(5, 10);
+        let three = arbitrary_parquet_file(2, 6);
+        let four = arbitrary_parquet_file(8, 11);
+
+        // Given a bunch of files in a particular order to exercise the algorithm:
+        let all = vec![one, two, three, four];
+
+        let groups = Compactor::overlapped_groups(all);
+        dbg!(&groups);
+
+        // All should be in the same group.
+        assert_eq!(groups.len(), 1);
     }
 
     #[tokio::test]
