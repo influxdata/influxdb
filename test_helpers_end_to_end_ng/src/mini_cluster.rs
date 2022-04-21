@@ -45,7 +45,7 @@ impl MiniCluster {
     /// querier
     ///
     /// Long term plan is that this will be shared across multiple tests if possible
-    pub async fn create_standard(database_url: String) -> MiniCluster {
+    pub async fn create_standard(database_url: String) -> Self {
         let router2_config = TestConfig::new_router2(&database_url);
         // fast parquet
         let ingester_config =
@@ -64,7 +64,7 @@ impl MiniCluster {
 
     /// return a "standard" MiniCluster that has a router, ingester,
     /// querier and quickly persists files to parquet
-    pub async fn create_quickly_peristing(database_url: String) -> MiniCluster {
+    pub async fn create_quickly_peristing(database_url: String) -> Self {
         let router2_config = TestConfig::new_router2(&database_url);
         // fast parquet
         let ingester_config =
@@ -78,6 +78,17 @@ impl MiniCluster {
             .with_ingester(ingester_config)
             .await
             .with_querier(querier_config)
+            .await
+    }
+
+    /// Create an all-in-one server with the specified configuration
+    pub async fn create_all_in_one(test_config: TestConfig) -> Self {
+        Self::new()
+            .with_router2(test_config.clone())
+            .await
+            .with_ingester(test_config.clone())
+            .await
+            .with_querier(test_config)
             .await
     }
 
