@@ -17,7 +17,7 @@ async fn remote_partition_and_get_from_store() {
     let database_url = maybe_skip_integration!();
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_quickly_peristing(database_url).await;
+    let mut cluster = MiniCluster::create_quickly_persisting(database_url).await;
 
     StepTest::new(
         &mut cluster,

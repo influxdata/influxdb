@@ -64,7 +64,7 @@ impl MiniCluster {
 
     /// return a "standard" MiniCluster that has a router, ingester,
     /// querier and quickly persists files to parquet
-    pub async fn create_quickly_peristing(database_url: String) -> Self {
+    pub async fn create_quickly_persisting(database_url: String) -> Self {
         let router2_config = TestConfig::new_router2(&database_url);
         // fast parquet
         let ingester_config =
