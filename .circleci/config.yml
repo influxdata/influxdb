@@ -659,13 +659,16 @@ jobs:
               echo -e "In addition to the list of changes below, please also see the [official release notes](https://docs.influxdata.com/influxdb/$DOCS_LINKS_VERSION/reference/release-notes/influxdb/) for other important information about this release.\n" >> changelog_artifacts/CHANGELOG.md
             fi
 
-            if [[ "$BRANCH" == "master" ]] ;  then
-               LATEST_21X="$(git tag | grep '^v2\.1\.[0-9]*$' | sort -V | tail -1)"
-               # build 2.1.0 to 2.1.x changelog, plus unreleased from master
-               build-multibranch-changelog.sh HEAD "$LATEST_21X" v2.1.0 >> changelog_artifacts/CHANGELOG.md
-            elif [[ "$BRANCH" == "2.1" ]] ;  then
-               # build 2.1.0 to current 2.1 changelog
-               build-simple-changelog.sh HEAD v2.1.0 >> changelog_artifacts/CHANGELOG.md
+            if [[ "$BRANCH" == "master" ]] ; then
+                LATEST_22X="$(git tag | grep '^v2\.2\.[0-9]*$' | sort -V | tail -1)"
+                # build 2.2.0 to 2.2.x changelog, plus unreleased from master
+                build-multibranch-changelog.sh HEAD "$LATEST_22X" v2.2.0 >> changelog_artifacts/CHANGELOG.md
+            elif [[ "$BRANCH" == "2.1" ]] ; then
+                # build 2.1.0 to current 2.1 changelog
+                build-simple-changelog.sh HEAD v2.1.0 >> changelog_artifacts/CHANGELOG.md
+            elif [[ "$BRANCH" == "2.2" ]] ; then
+                # build 2.2.0 to current 2.2 changelog
+                build-simple-changelog.sh HEAD v2.2.0 >> changelog_artifacts/CHANGELOG.md
             fi
 
             cat ./scripts/ci/CHANGELOG_frozen.md >> changelog_artifacts/CHANGELOG.md
