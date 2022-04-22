@@ -345,13 +345,7 @@ pub enum FieldValue<'a> {
 impl<'a> FieldValue<'a> {
     /// Returns true if `self` and `other` are of the same data type.
     pub fn is_same_type(&self, other: &Self) -> bool {
-        match self {
-            FieldValue::I64(_) => matches!(other, FieldValue::I64(_)),
-            FieldValue::U64(_) => matches!(other, FieldValue::U64(_)),
-            FieldValue::F64(_) => matches!(other, FieldValue::F64(_)),
-            FieldValue::String(_) => matches!(other, FieldValue::String(_)),
-            FieldValue::Boolean(_) => matches!(other, FieldValue::Boolean(_)),
-        }
+        std::mem::discriminant(self) == std::mem::discriminant(other)
     }
 }
 
