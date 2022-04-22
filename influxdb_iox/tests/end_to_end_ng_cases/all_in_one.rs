@@ -7,6 +7,7 @@ use test_helpers_end_to_end_ng::{
 
 #[tokio::test]
 async fn smoke() {
+    test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();
 
     let org = rand_name();

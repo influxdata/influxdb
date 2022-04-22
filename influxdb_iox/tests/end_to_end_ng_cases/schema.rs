@@ -9,6 +9,7 @@ use predicates::prelude::*;
 /// Test the schema client
 #[tokio::test]
 async fn ingester_schema_client() {
+    test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();
 
     let mut cluster = MiniCluster::create_standard(database_url).await;
@@ -55,6 +56,7 @@ async fn ingester_schema_client() {
 /// Test the schema cli command
 #[tokio::test]
 async fn ingester_schema_cli() {
+    test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();
 
     let mut cluster = MiniCluster::create_standard(database_url).await;

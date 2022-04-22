@@ -12,6 +12,8 @@ use test_helpers_end_to_end_ng::{
 /// remote partition command and getting a parquet file from the object store
 #[tokio::test]
 async fn remote_partition_and_get_from_store() {
+    test_helpers::maybe_start_logging();
+
     let database_url = maybe_skip_integration!();
 
     // Set up the cluster  ====================================
