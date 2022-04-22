@@ -1,7 +1,7 @@
+use crate::{rand_id, write_to_router, write_to_router_grpc, ServerFixture, TestConfig};
 use http::Response;
 use hyper::Body;
-
-use crate::{rand_id, write_to_router, ServerFixture, TestConfig};
+use influxdb_iox_client::write::generated_types::TableBatch;
 
 /// Structure that holds NG services and helpful accessors
 #[derive(Debug, Default)]
@@ -9,7 +9,7 @@ pub struct MiniCluster {
     /// Standard optional router2
     router2: Option<ServerFixture>,
 
-    /// Standard optional ingster2
+    /// Standard optional ingester
     ingester: Option<ServerFixture>,
 
     /// Standard optional querier
@@ -170,13 +170,24 @@ impl MiniCluster {
         self.namespace.as_ref()
     }
 
-    /// Writes the line protocol to the write_base/api/v2/write endpoint on the router into the org/bucket
+    /// Writes the line protocol to the write_base/api/v2/write endpoint on the router into the
+    /// org/bucket
     pub async fn write_to_router(&self, line_protocol: impl Into<String>) -> Response<Body> {
         write_to_router(
             line_protocol,
             &self.org_id,
             &self.bucket_id,
             self.router2().router_http_base(),
+        )
+        .await
+    }
+
+    /// Writes the table batch to the gRPC write API on the router into the org/bucket
+    pub async fn write_to_router_grpc(&self, table_batches: Vec<TableBatch>) {
+        write_to_router_grpc(
+            table_batches,
+            &self.namespace,
+            self.router2().router_grpc_connection(),
         )
         .await
     }

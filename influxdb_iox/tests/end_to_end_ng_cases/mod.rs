@@ -5,5 +5,6 @@ mod ingester;
 mod logging;
 mod namespace;
 mod querier;
+mod router;
 mod schema;
 mod tracing;
