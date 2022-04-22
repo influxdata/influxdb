@@ -458,6 +458,8 @@ mod tests {
     use flate2::{write::GzEncoder, Compression};
     use hyper::header::HeaderValue;
     use metric::{Attributes, Metric};
+    use mutable_batch::column::ColumnData;
+    use mutable_batch_lp::LineWriteError;
 
     use crate::dml_handlers::mock::{MockDmlHandler, MockDmlHandlerCall};
 
@@ -829,6 +831,32 @@ mod tests {
         }
     );
 
+    test_write_handler!(
+        field_upsert_within_batch,
+        query_string = "?org=bananas&bucket=test",
+        body = "test field=1u 100\ntest field=2u 100".as_bytes(),
+        dml_handler = [Ok(summary())],
+        want_result = Ok(_),
+        want_dml_calls = [MockDmlHandlerCall::Write{namespace, write_input}] => {
+            assert_eq!(namespace, "bananas_test");
+            let table = write_input.get("test").expect("table not in write");
+            let col = table.column("field").expect("column missing");
+            assert_matches!(col.data(), ColumnData::U64(data, _) => {
+                // Ensure both values are recorded, in the correct order.
+                assert_eq!(data.as_slice(), [1, 2]);
+            });
+        }
+    );
+
+    test_write_handler!(
+        column_named_time,
+        query_string = "?org=bananas&bucket=test",
+        body = "test field=1u,time=42u 100".as_bytes(),
+        dml_handler = [],
+        want_result = Err(_),
+        want_dml_calls = []
+    );
+
     test_delete_handler!(
         ok,
         query_string = "?org=bananas&bucket=test",
@@ -931,4 +959,119 @@ mod tests {
         want_result = Err(Error::NoHandler),
         want_dml_calls = []
     );
+
+    // https://github.com/influxdata/influxdb_iox/issues/4326
+    mod issue4326 {
+        use super::*;
+
+        test_write_handler!(
+            duplicate_fields_same_value,
+            query_string = "?org=bananas&bucket=test",
+            body = "whydo InputPower=300i,InputPower=300i".as_bytes(),
+            dml_handler = [Ok(summary())],
+            want_result = Ok(_),
+            want_dml_calls = [MockDmlHandlerCall::Write{namespace, write_input}] => {
+                assert_eq!(namespace, "bananas_test");
+                let table = write_input.get("whydo").expect("table not in write");
+                let col = table.column("InputPower").expect("column missing");
+                assert_matches!(col.data(), ColumnData::I64(data, _) => {
+                    // Ensure the duplicate values are coalesced.
+                    assert_eq!(data.as_slice(), [300]);
+                });
+            }
+        );
+
+        test_write_handler!(
+            duplicate_fields_different_value,
+            query_string = "?org=bananas&bucket=test",
+            body = "whydo InputPower=300i,InputPower=42i".as_bytes(),
+            dml_handler = [Ok(summary())],
+            want_result = Ok(_),
+            want_dml_calls = [MockDmlHandlerCall::Write{namespace, write_input}] => {
+                assert_eq!(namespace, "bananas_test");
+                let table = write_input.get("whydo").expect("table not in write");
+                let col = table.column("InputPower").expect("column missing");
+                assert_matches!(col.data(), ColumnData::I64(data, _) => {
+                    // Last value wins
+                    assert_eq!(data.as_slice(), [42]);
+                });
+            }
+        );
+
+        test_write_handler!(
+            duplicate_fields_different_type,
+            query_string = "?org=bananas&bucket=test",
+            body = "whydo InputPower=300i,InputPower=4.2".as_bytes(),
+            dml_handler = [],
+            want_result = Err(Error::ParseLineProtocol(mutable_batch_lp::Error::Write {
+                source: LineWriteError::ConflictedFieldTypes { .. },
+                ..
+            })),
+            want_dml_calls = []
+        );
+
+        test_write_handler!(
+            duplicate_tags_same_value,
+            query_string = "?org=bananas&bucket=test",
+            body = "whydo,InputPower=300i,InputPower=300i field=42i".as_bytes(),
+            dml_handler = [],
+            want_result = Err(Error::ParseLineProtocol(mutable_batch_lp::Error::Write {
+                source: LineWriteError::DuplicateTag { .. },
+                ..
+            })),
+            want_dml_calls = []
+        );
+
+        test_write_handler!(
+            duplicate_tags_different_value,
+            query_string = "?org=bananas&bucket=test",
+            body = "whydo,InputPower=300i,InputPower=42i field=42i".as_bytes(),
+            dml_handler = [],
+            want_result = Err(Error::ParseLineProtocol(mutable_batch_lp::Error::Write {
+                source: LineWriteError::DuplicateTag { .. },
+                ..
+            })),
+            want_dml_calls = []
+        );
+
+        test_write_handler!(
+            duplicate_tags_different_type,
+            query_string = "?org=bananas&bucket=test",
+            body = "whydo,InputPower=300i,InputPower=4.2 field=42i".as_bytes(),
+            dml_handler = [],
+            want_result = Err(Error::ParseLineProtocol(mutable_batch_lp::Error::Write {
+                source: LineWriteError::DuplicateTag { .. },
+                ..
+            })),
+            want_dml_calls = []
+        );
+
+        test_write_handler!(
+            duplicate_is_tag_and_field,
+            query_string = "?org=bananas&bucket=test",
+            body = "whydo,InputPower=300i InputPower=300i".as_bytes(),
+            dml_handler = [],
+            want_result = Err(Error::ParseLineProtocol(mutable_batch_lp::Error::Write {
+                source: LineWriteError::MutableBatch {
+                    source: mutable_batch::writer::Error::TypeMismatch { .. }
+                },
+                ..
+            })),
+            want_dml_calls = []
+        );
+
+        test_write_handler!(
+            duplicate_is_tag_and_field_different_types,
+            query_string = "?org=bananas&bucket=test",
+            body = "whydo,InputPower=300i InputPower=30.0".as_bytes(),
+            dml_handler = [],
+            want_result = Err(Error::ParseLineProtocol(mutable_batch_lp::Error::Write {
+                source: LineWriteError::MutableBatch {
+                    source: mutable_batch::writer::Error::TypeMismatch { .. }
+                },
+                ..
+            })),
+            want_dml_calls = []
+        );
+    }
 }

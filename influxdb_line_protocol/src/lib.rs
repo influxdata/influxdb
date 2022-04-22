@@ -342,6 +342,19 @@ pub enum FieldValue<'a> {
     Boolean(bool),
 }
 
+impl<'a> FieldValue<'a> {
+    /// Returns true if `self` and `other` are of the same data type.
+    pub fn is_same_type(&self, other: &Self) -> bool {
+        match self {
+            FieldValue::I64(_) => matches!(other, FieldValue::I64(_)),
+            FieldValue::U64(_) => matches!(other, FieldValue::U64(_)),
+            FieldValue::F64(_) => matches!(other, FieldValue::F64(_)),
+            FieldValue::String(_) => matches!(other, FieldValue::String(_)),
+            FieldValue::Boolean(_) => matches!(other, FieldValue::Boolean(_)),
+        }
+    }
+}
+
 /// Converts FieldValue back to LineProtocol
 /// See <https://docs.influxdata.com/influxdb/v2.0/reference/syntax/line-protocol/>
 /// for more detail.
@@ -369,7 +382,7 @@ impl<'a> Display for FieldValue<'a> {
 /// For example the 8 character string `Foo\\Bar` (note the double
 /// `\\`) is parsed into the logical 7 character string `Foo\Bar`
 /// (note the single `\`)
-#[derive(Debug, Clone, Eq)]
+#[derive(Debug, Clone, Eq, Hash)]
 pub enum EscapedStr<'a> {
     SingleSlice(&'a str),
     CopiedValue(String),
@@ -2216,5 +2229,29 @@ her"#,
         let vals = parse(input).unwrap();
 
         assert_eq!(vals[0].tag_value("asdf"), None);
+    }
+
+    #[test]
+    fn test_field_value_same_type() {
+        // True cases
+        assert!(FieldValue::I64(0).is_same_type(&FieldValue::I64(42)));
+        assert!(FieldValue::U64(0).is_same_type(&FieldValue::U64(42)));
+        assert!(FieldValue::F64(0.0).is_same_type(&FieldValue::F64(4.2)));
+        assert!(
+            FieldValue::String(EscapedStr::CopiedValue("bananas".to_string())).is_same_type(
+                &FieldValue::String(EscapedStr::CopiedValue("platanos".to_string()))
+            )
+        );
+        assert!(FieldValue::Boolean(true).is_same_type(&FieldValue::Boolean(false)));
+
+        // Some false cases
+        assert!(!FieldValue::I64(0).is_same_type(&FieldValue::U64(42)));
+        assert!(!FieldValue::U64(0).is_same_type(&FieldValue::I64(42)));
+        assert!(!FieldValue::F64(0.0).is_same_type(&FieldValue::U64(42)));
+        assert!(
+            !FieldValue::String(EscapedStr::CopiedValue("bananas".to_string()))
+                .is_same_type(&FieldValue::U64(42))
+        );
+        assert!(!FieldValue::Boolean(true).is_same_type(&FieldValue::U64(42)));
     }
 }
