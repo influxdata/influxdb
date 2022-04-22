@@ -17,7 +17,8 @@ pub(crate) fn min_to_scalar(
     match stats {
         IOxStatistics::I64(v) => {
             if let Some(InfluxDbType::Timestamp) = *influx_type {
-                Some(ScalarValue::TimestampNanosecond(v.min, None))
+                v.min
+                    .map(|x| ScalarValue::TimestampNanosecond(Some(x), None))
             } else {
                 v.min.map(ScalarValue::from)
             }
@@ -37,7 +38,8 @@ pub(crate) fn max_to_scalar(
     match stats {
         IOxStatistics::I64(v) => {
             if let Some(InfluxDbType::Timestamp) = *influx_type {
-                Some(ScalarValue::TimestampNanosecond(v.max, None))
+                v.max
+                    .map(|x| ScalarValue::TimestampNanosecond(Some(x), None))
             } else {
                 v.max.map(ScalarValue::from)
             }
@@ -111,6 +113,16 @@ mod test {
     use data_types::partition_metadata::{InfluxDbType, StatValues};
     use schema::{builder::SchemaBuilder, InfluxFieldType};
 
+    macro_rules! assert_nice_eq {
+        ($actual:ident, $expected:ident) => {
+            assert_eq!(
+                $actual, $expected,
+                "\n\nactual:\n\n{:#?}\n\nexpected:\n\n{:#?}",
+                $actual, $expected,
+            );
+        };
+    }
+
     #[test]
     fn convert() {
         let c1_stats = StatValues {
@@ -173,11 +185,7 @@ mod test {
         };
 
         let actual = df_from_iox(&schema, &table_summary);
-        assert_eq!(
-            actual, expected,
-            "\n\nactual:\n\n{:#?}\n\nexpected:\n\n{:#?}",
-            actual, expected
-        );
+        assert_nice_eq!(actual, expected);
 
         // test 1: columns in c1, c2 order in shcema (in c1, c2 in table_summary)
 
@@ -195,10 +203,47 @@ mod test {
         };
 
         let actual = df_from_iox(&schema, &table_summary);
-        assert_eq!(
-            actual, expected,
-            "\n\nactual:\n\n{:#?}\n\nexpected:\n\n{:#?}",
-            actual, expected
-        );
+        assert_nice_eq!(actual, expected);
+    }
+
+    #[test]
+    fn null_ts() {
+        let c_stats = StatValues {
+            min: None,
+            max: None,
+            total_count: 3,
+            null_count: None,
+            distinct_count: None,
+        };
+        let c_summary = ColumnSummary {
+            name: "time".to_string(),
+            influxdb_type: Some(InfluxDbType::Timestamp),
+            stats: IOxStatistics::I64(c_stats),
+        };
+
+        let table_summary = TableSummary {
+            columns: vec![c_summary],
+        };
+
+        let df_c_stats = ColumnStatistics {
+            null_count: None,
+            // Note min/max values should be `None` (not known)
+            // NOT `Some(None)` (known to be null)
+            max_value: None,
+            min_value: None,
+            distinct_count: None,
+        };
+
+        let schema = SchemaBuilder::new().timestamp().build().unwrap();
+
+        let expected = DFStatistics {
+            num_rows: Some(3),
+            total_byte_size: Some(236),
+            column_statistics: Some(vec![df_c_stats]),
+            is_exact: true,
+        };
+
+        let actual = df_from_iox(&schema, &table_summary);
+        assert_nice_eq!(actual, expected);
     }
 }
