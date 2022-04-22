@@ -1,3 +1,71 @@
+## v2.2.0 [2022-03-29]
+----------------------
+
+### Bug Fixes
+
+1. [84776d7](https://github.com/influxdata/influxdb/commit/84776d7): Manual task runs are scheduled asyncronously
+1. [5e6b0d5](https://github.com/influxdata/influxdb/commit/5e6b0d5): Extend snapshot copy to filesystems that cannot link
+1. [88afa92](https://github.com/influxdata/influxdb/commit/88afa92): Detect misquoted tag values and return an error
+1. [2bace77](https://github.com/influxdata/influxdb/commit/2bace77): Unhandled errors returned by Sketch.Merge
+1. [fa9ba8e](https://github.com/influxdata/influxdb/commit/fa9ba8e): Duplicated X-version and X-Build headers for /ping endpoint
+1. [8aa3a8f](https://github.com/influxdata/influxdb/commit/8aa3a8f): Add causal error when meta.db is missing
+1. [799d349](https://github.com/influxdata/influxdb/commit/799d349): Sync index file before close
+1. [5ce164f](https://github.com/influxdata/influxdb/commit/5ce164f): Remove influx CLI output from CONTRIBUTING
+1. [e4e1633](https://github.com/influxdata/influxdb/commit/e4e1633): Replications remote writes do not block server shutdown
+1. [39eeb3e](https://github.com/influxdata/influxdb/commit/39eeb3e): Fix race condition which could cause restore command to fail
+1. [e5cbd27](https://github.com/influxdata/influxdb/commit/e5cbd27): Advance replications queue after successful remote writes
+1. [4fd4bd0](https://github.com/influxdata/influxdb/commit/4fd4bd0): Use copy when a rename spans volumes
+1. [11c0081](https://github.com/influxdata/influxdb/commit/11c0081): Disable use of jsonnet with `/api/v2/templates/apply`
+1. [0c30afd](https://github.com/influxdata/influxdb/commit/0c30afd): Updating a check does not require an owner id
+1. [b8ccf5b](https://github.com/influxdata/influxdb/commit/b8ccf5b): Correctly handle PartialWriteError
+1. [e20b5e9](https://github.com/influxdata/influxdb/commit/e20b5e9): Remove nats for scraper processing
+1. [0bd28f6](https://github.com/influxdata/influxdb/commit/0bd28f6): Update 422 dry-run response to conform to API spec
+1. [e5ccbb8](https://github.com/influxdata/influxdb/commit/e5ccbb8): Forbid reading OSS buckets for a token with only write permissions
+1. [49ce57c](https://github.com/influxdata/influxdb/commit/49ce57c): Remove telegraf endpoint pagination
+1. [7c0ec4d](https://github.com/influxdata/influxdb/commit/7c0ec4d): Replications replicates flux to() writes
+1. [df01d93](https://github.com/influxdata/influxdb/commit/df01d93): Allow flux http calls to be unlimited
+1. [3ec5a57](https://github.com/influxdata/influxdb/commit/3ec5a57): Tell browser about cookie expiry
+1. [e304ef9](https://github.com/influxdata/influxdb/commit/e304ef9): Add write permissions check for DELETE and DROP MEASUREMENT
+1. [0504498](https://github.com/influxdata/influxdb/commit/0504498): Reset provided slice correctly
+1. [a2f8538](https://github.com/influxdata/influxdb/commit/a2f8538): Pin UI to OSS-2.1.2 so tokens can be accessed
+
+### Features
+
+1. [504f0e4](https://github.com/influxdata/influxdb/commit/504f0e4): Passing `type=basic` returns task metadata without query text
+1. [58139c4](https://github.com/influxdata/influxdb/commit/58139c4): Add auth to remotes & replications APIs
+1. [8825cd5](https://github.com/influxdata/influxdb/commit/8825cd5): Replication apis durable queue management
+1. [cd0243d](https://github.com/influxdata/influxdb/commit/cd0243d): Added replications queue management to launcher tasks
+1. [6b56af3](https://github.com/influxdata/influxdb/commit/6b56af3): Mirror writes to registered replications
+1. [40d9587](https://github.com/influxdata/influxdb/commit/40d9587): Add replications queue scanner
+1. [ad52815](https://github.com/influxdata/influxdb/commit/ad52815): Add field for dropping data resulting in non-retryable errors to individual replications
+1. [fea3037](https://github.com/influxdata/influxdb/commit/fea3037): Configure perf tests with yaml
+1. [dece95d](https://github.com/influxdata/influxdb/commit/dece95d): Tsm compaction metrics via prometheus
+1. [3a81166](https://github.com/influxdata/influxdb/commit/3a81166): Added metrics collection for replications
+1. [0a74085](https://github.com/influxdata/influxdb/commit/0a74085): Point write requests have metrics
+1. [a74e051](https://github.com/influxdata/influxdb/commit/a74e051): Disk size metrics per shard
+1. [feb459c](https://github.com/influxdata/influxdb/commit/feb459c): Metrics for cache subsystem
+1. [edb21ab](https://github.com/influxdata/influxdb/commit/edb21ab): Metrics for wal subsystem
+1. [9873ccd](https://github.com/influxdata/influxdb/commit/9873ccd): Remote write function for replications
+1. [f05d013](https://github.com/influxdata/influxdb/commit/f05d013): Metrics collection for replications remote writes
+1. [3460f1c](https://github.com/influxdata/influxdb/commit/3460f1c): Replication remote writes do not block local writes
+1. [b970e35](https://github.com/influxdata/influxdb/commit/b970e35): Remaining storage metrics from OSS engine
+1. [28bcd41](https://github.com/influxdata/influxdb/commit/28bcd41): Batch replications remote writes to avoid payload limit errors
+1. [6096ee2](https://github.com/influxdata/influxdb/commit/6096ee2): Replications metrics include failure to enqueue
+1. [a7a5233](https://github.com/influxdata/influxdb/commit/a7a5233): Advance queue scanner periodically instead of every remote write
+1. [5a919b6](https://github.com/influxdata/influxdb/commit/5a919b6): Enable remotes and replication streams feature
+1. [c51a0df](https://github.com/influxdata/influxdb/commit/c51a0df): Error out when config file contains 1.x config values
+1. [afb167a](https://github.com/influxdata/influxdb/commit/afb167a): `query-memory-bytes` zero-value is unlimited
+1. [f78f9ed](https://github.com/influxdata/influxdb/commit/f78f9ed): Api/v2/config endpoint displays runtime configuration
+1. [4f74049](https://github.com/influxdata/influxdb/commit/4f74049): Add downgrade target for 2.1
+1. [b02c89e](https://github.com/influxdata/influxdb/commit/b02c89e): Option to log flux queries cancelled because of server shutdown
+1. [adf29df](https://github.com/influxdata/influxdb/commit/adf29df): Allow influxdb to set flux feature flags
+1. [4e08604](https://github.com/influxdata/influxdb/commit/4e08604): Add MeasurementNames method to MeasurementFieldSet
+1. [a40e12b](https://github.com/influxdata/influxdb/commit/a40e12b): Allow changing a password with `influxd recovery user update`
+1. [2c930fd](https://github.com/influxdata/influxdb/commit/2c930fd): Add --hardening-enabled option to limit flux/pkger HTTP requests
+1. [5231d2d](https://github.com/influxdata/influxdb/commit/5231d2d): Enable the mqtt pool dialer by default
+1. [359fcc4](https://github.com/influxdata/influxdb/commit/359fcc4): Add maximum age to replication queues
+
+
 ## v2.1.0 [2021-11-04]
 
 ### `influx` CLI moved to separate repository
@@ -104,7 +172,7 @@ Support for Notebooks and Annotations is included with this release.
 
 ### WARNING: Upcoming changes to CLI packaging
 
-Beginning with the next minor version, the `influx` CLI will no longer be packaged in releases from `influxdb`. 
+Beginning with the next minor version, the `influx` CLI will no longer be packaged in releases from `influxdb`.
 Future versions of the CLI will instead be released from the [`influx-cli`](https://github.com/influxdata/influx-cli)
 repository.
 
@@ -397,7 +465,7 @@ Additionally, v2 specific path defaults are now defined and helper scripts are p
 
 1. [19992](https://github.com/influxdata/influxdb/pull/19992): Fix various typos. Thanks @kumakichi!
 1. [19999](https://github.com/influxdata/influxdb/pull/19999): Use --skip-verify flag for backup/restore CLI command.
-1. [19999](https://github.com/influxdata/influxdb/pull/19999): Suggest running with -h on error instead of printing usage when launching `influxd`. 
+1. [19999](https://github.com/influxdata/influxdb/pull/19999): Suggest running with -h on error instead of printing usage when launching `influxd`.
 1. [20047](https://github.com/influxdata/influxdb/pull/20072): Allow self signed certificates for scraper targets. Thanks @cmackenzie1!
 1. [20072](https://github.com/influxdata/influxdb/pull/20072): Add locking during TSI iterator creation.
 1. [20072](https://github.com/influxdata/influxdb/pull/20072): Do not use global viper APIs, which breaks testing.
@@ -408,7 +476,7 @@ Additionally, v2 specific path defaults are now defined and helper scripts are p
 1. [20072](https://github.com/influxdata/influxdb/pull/20072): Reinstate minimal read-only document store for dashboard template.
 1. [20072](https://github.com/influxdata/influxdb/pull/20072): UI: Skip dashboard index CRUD case.
 1. [20072](https://github.com/influxdata/influxdb/pull/20072): Task: Fixed logic checking time filter exists.
-1. [20072](https://github.com/influxdata/influxdb/pull/20072): Task: Fixed error message semantic. 
+1. [20072](https://github.com/influxdata/influxdb/pull/20072): Task: Fixed error message semantic.
 1. [20072](https://github.com/influxdata/influxdb/pull/20072): Track seen databases in map and skip duplicates.
 1. [20072](https://github.com/influxdata/influxdb/pull/20072): Build: Remove lint-feature-flag job from OSS.
 1. [20072](https://github.com/influxdata/influxdb/pull/20072): CLI: Don't validate unused paths in `upgrade`.
@@ -419,7 +487,7 @@ Additionally, v2 specific path defaults are now defined and helper scripts are p
 1. [20089](https://github.com/influxdata/influxdb/pull/20089): UI: UX improvements and bug fixes to dbrp commands.
 1. [20089](https://github.com/influxdata/influxdb/pull/20089): API: Make the dbrp api match the swagger spec.
 1. [20089](https://github.com/influxdata/influxdb/pull/20089): Revert changes to API page-sizes.
-1. [20089](https://github.com/influxdata/influxdb/pull/20089): Exclude pkger\_test.go from linting 
+1. [20089](https://github.com/influxdata/influxdb/pull/20089): Exclude pkger\_test.go from linting
 1. [20091](https://github.com/influxdata/influxdb/pull/20091): Make the DBRP http API match the swagger spec.
 
 ## v2.0.1 [2020-11-10]
