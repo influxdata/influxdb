@@ -1,7 +1,7 @@
 use crate::{rand_id, write_to_router, write_to_router_grpc, ServerFixture, TestConfig};
 use http::Response;
 use hyper::Body;
-use influxdb_iox_client::write::generated_types::TableBatch;
+use influxdb_iox_client::write::generated_types::{TableBatch, WriteResponse};
 
 /// Structure that holds NG services and helpful accessors
 #[derive(Debug, Default)]
@@ -183,7 +183,10 @@ impl MiniCluster {
     }
 
     /// Writes the table batch to the gRPC write API on the router into the org/bucket
-    pub async fn write_to_router_grpc(&self, table_batches: Vec<TableBatch>) {
+    pub async fn write_to_router_grpc(
+        &self,
+        table_batches: Vec<TableBatch>,
+    ) -> tonic::Response<WriteResponse> {
         write_to_router_grpc(
             table_batches,
             &self.namespace,

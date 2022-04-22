@@ -1,6 +1,6 @@
 use crate::{
-    get_write_token, run_query, token_is_persisted, wait_for_persisted, wait_for_readable,
-    MiniCluster,
+    get_write_token, get_write_token_from_grpc, run_query, token_is_persisted, wait_for_persisted,
+    wait_for_readable, MiniCluster,
 };
 use arrow::record_batch::RecordBatch;
 use arrow_util::assert_batches_sorted_eq;
@@ -140,8 +140,10 @@ impl<'a> StepTest<'a> {
                 }
                 Step::WriteTableBatches(table_batches) => {
                     info!("====Begin writing TableBatches to gRPC API");
-                    state.cluster.write_to_router_grpc(table_batches).await;
-                    info!("====Done writing TableBatches");
+                    let response = state.cluster.write_to_router_grpc(table_batches).await;
+                    let write_token = get_write_token_from_grpc(&response);
+                    info!("====Done writing TableBatches, got token {}", write_token);
+                    state.write_tokens.push(write_token);
                 }
                 Step::WaitForReadable => {
                     info!("====Begin waiting for all write tokens to be readable");

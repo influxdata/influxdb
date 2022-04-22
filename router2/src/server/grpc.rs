@@ -1,7 +1,6 @@
 //! gRPC service implementations for `router2`.
 
-use std::sync::Arc;
-
+use crate::dml_handlers::{DmlError, DmlHandler, PartitionError};
 use generated_types::{
     google::FieldViolation,
     influxdata::{
@@ -18,15 +17,16 @@ use mutable_batch::MutableBatch;
 use object_store::DynObjectStore;
 use observability_deps::tracing::*;
 use schema::selection::Selection;
-use std::ops::DerefMut;
-use tonic::{Request, Response, Status};
+use std::{ops::DerefMut, sync::Arc};
+use tonic::{metadata::AsciiMetadataValue, Request, Response, Status};
 use trace::ctx::SpanContext;
 use write_summary::WriteSummary;
 
-use crate::dml_handlers::{DmlError, DmlHandler, PartitionError};
+// This header value needs to be all lowercase as required by the HTTP/2.0 spec! tonic does not
+// lowercase this value for you like the http crate does!
+const WRITE_TOKEN_GRPC_HEADER: &str = "x-iox-write-token";
 
-/// This type is responsible for managing all gRPC services exposed by
-/// `router2`.
+/// This type is responsible for managing all gRPC services exposed by `router2`.
 #[derive(Debug)]
 pub struct GrpcDelegate<D> {
     dml_handler: Arc<D>,
@@ -36,8 +36,7 @@ pub struct GrpcDelegate<D> {
 }
 
 impl<D> GrpcDelegate<D> {
-    /// Initialise a new gRPC handler, dispatching DML operations to
-    /// `dml_handler`.
+    /// Initialise a new gRPC handler, dispatching DML operations to `dml_handler`.
     pub fn new(
         dml_handler: Arc<D>,
         catalog: Arc<dyn Catalog>,
@@ -149,7 +148,7 @@ impl<D> WriteService<D> {
 #[tonic::async_trait]
 impl<D> write_service_server::WriteService for WriteService<D>
 where
-    D: DmlHandler<WriteInput = HashMap<String, MutableBatch>> + 'static,
+    D: DmlHandler<WriteInput = HashMap<String, MutableBatch>, WriteOutput = WriteSummary> + 'static,
 {
     /// Receive a gRPC [`WriteRequest`] and dispatch it to the DML handler.
     async fn write(
@@ -195,10 +194,8 @@ where
             "routing grpc write",
         );
 
-        // TODO return the produced WriteSummary to the client
-        // https://github.com/influxdata/influxdb_iox/issues/4208
-
-        self.dml_handler
+        let summary = self
+            .dml_handler
             .write(&namespace, tables, span_ctx)
             .await
             .map_err(|e| match e.into() {
@@ -217,7 +214,18 @@ where
         self.write_metric_columns.inc(column_count as _);
         self.write_metric_tables.inc(num_tables as _);
 
-        Ok(Response::new(WriteResponse {}))
+        let mut response = Response::new(WriteResponse {});
+        let metadata = response.metadata_mut();
+        metadata.insert(
+            WRITE_TOKEN_GRPC_HEADER,
+            AsciiMetadataValue::from_str(&summary.to_token()).map_err(|e| {
+                Status::internal(format!(
+                    "Could not convert WriteSummary token to AsciiMetadataValue: {e}"
+                ))
+            })?,
+        );
+
+        Ok(response)
     }
 }
 

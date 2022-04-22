@@ -61,7 +61,8 @@ impl GrpcClient for RealClient {
                 client
                     .write_pb(write_request)
                     .await
-                    .map_err(|e| Box::new(e) as _)
+                    .map_err(|e| Box::new(e) as WriteError)?;
+                Ok(())
             }
             DmlOperation::Delete(delete) => {
                 // cheap, see https://docs.rs/tonic/0.4.2/tonic/client/index.html#concurrent-usage

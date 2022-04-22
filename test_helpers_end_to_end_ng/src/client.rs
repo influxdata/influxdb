@@ -6,7 +6,7 @@ use hyper::{Body, Client, Request};
 use influxdb_iox_client::{
     connection::Connection,
     flight::generated_types::ReadInfo,
-    write::generated_types::{DatabaseBatch, TableBatch, WriteRequest},
+    write::generated_types::{DatabaseBatch, TableBatch, WriteRequest, WriteResponse},
     write_info::generated_types::{GetWriteInfoResponse, KafkaPartitionInfo, KafkaPartitionStatus},
 };
 use observability_deps::tracing::info;
@@ -45,7 +45,7 @@ pub async fn write_to_router_grpc(
     table_batches: Vec<TableBatch>,
     namespace: impl Into<String>,
     router2_connection: Connection,
-) {
+) -> tonic::Response<WriteResponse> {
     let request = WriteRequest {
         database_batch: Some(DatabaseBatch {
             database_name: namespace.into(),
@@ -64,6 +64,18 @@ pub fn get_write_token(response: &Response<Body>) -> String {
     let message = format!("no write token in {:?}", response);
     response
         .headers()
+        .get("X-IOx-Write-Token")
+        .expect(&message)
+        .to_str()
+        .expect("Value not a string")
+        .to_string()
+}
+
+/// Extracts the write token from the specified response (to the gRPC write API)
+pub fn get_write_token_from_grpc(response: &tonic::Response<WriteResponse>) -> String {
+    let message = format!("no write token in {:?}", response);
+    response
+        .metadata()
         .get("X-IOx-Write-Token")
         .expect(&message)
         .to_str()

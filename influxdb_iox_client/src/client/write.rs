@@ -80,8 +80,7 @@ impl Client {
     pub async fn write_pb(
         &mut self,
         write_request: generated_types::WriteRequest,
-    ) -> Result<(), Error> {
-        self.inner.write(write_request).await?;
-        Ok(())
+    ) -> Result<tonic::Response<generated_types::WriteResponse>, Error> {
+        Ok(self.inner.write(write_request).await?)
     }
 }

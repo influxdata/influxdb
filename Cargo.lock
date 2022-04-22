@@ -6071,6 +6071,7 @@ dependencies = [
  "test_helpers",
  "tokio",
  "tokio-util 0.7.1",
+ "tonic",
  "workspace-hack",
 ]
 
