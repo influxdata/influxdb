@@ -65,7 +65,7 @@ impl<'a> StepTestState<'a> {
 ///   }.boxed()
 /// });
 /// ```
-pub type FCustom = Box<dyn for<'b> Fn(&'b mut StepTestState) -> BoxFuture<'b, ()>>;
+pub type FCustom = Box<dyn for<'b> FnOnce(&'b mut StepTestState) -> BoxFuture<'b, ()>>;
 
 /// Possible test steps that a test can perform
 pub enum Step {
