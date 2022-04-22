@@ -210,24 +210,60 @@ func NewHandler(c Config) *Handler {
 			"POST", "/api/v2/delete", false, true, h.serveDeleteV2,
 		},
 		Route{
-			"buckets",
-			"POST", "/api/v2/buckets", false, true, h.ServePostCreateBucketV2,
+			"create-bucket",
+			"POST", "/api/v2/buckets", false, true, h.servePostCreateBucketV2,
 		},
 		Route{
 			"delete-bucket",
 			"DELETE", "/api/v2/buckets/:db/:rp", false, true, h.serveDeleteBucketV2,
 		},
 		Route{
-			"buckets",
+			"retrieve-bucket",
 			"GET", "/api/v2/buckets/:db/:rp", false, true, h.serveRetrieveBucketV2,
 		},
 		Route{
-			"buckets",
+			"list-buckets",
 			"GET", "/api/v2/buckets", false, true, h.serveListBucketsV2,
 		},
 		Route{
-			"buckets",
+			"update-bucket",
 			"PATCH", "/api/v2/buckets/:db/:rp", false, true, h.serveUpdateBucketV2,
+		},
+		Route{
+			"bucket-labels",
+			"GET", "/api/v2/buckets/:db/:rp/labels", false, true, h.serveLabelsNotAllowedV2,
+		},
+		Route{
+			"add-bucket-label",
+			"POST", "/api/v2/buckets/:db/:rp/labels", false, true, h.serveLabelsNotAllowedV2,
+		},
+		Route{
+			"delete-bucket-label",
+			"DELETE", "/api/v2/buckets/:db/:rp/labels/:labelID", false, true, h.serveLabelsNotAllowedV2,
+		},
+		Route{
+			"bucket-members",
+			"GET", "/api/v2/buckets/:db/:rp/members", false, true, h.serveBucketMembersNotAllowedV2,
+		},
+		Route{
+			"add-bucket-member",
+			"POST", "/api/v2/buckets/:db/:rp/members", false, true, h.serveBucketMembersNotAllowedV2,
+		},
+		Route{
+			"delete-bucket-member",
+			"DELETE", "/api/v2/buckets/:db/:rp/members/:userID", false, true, h.serveBucketMembersNotAllowedV2,
+		},
+		Route{
+			"bucket-owners",
+			"GET", "/api/v2/buckets/:db/:rp/owners", false, true, h.serveBucketOwnersNotAllowedV2,
+		},
+		Route{
+			"add-bucket-owner",
+			"POST", "/api/v2/buckets/:db/:rp/owners", false, true, h.serveBucketOwnersNotAllowedV2,
+		},
+		Route{
+			"delete-bucket-owner",
+			"DELETE", "/api/v2/buckets/:db/:rp/owners/:userID", false, true, h.serveBucketOwnersNotAllowedV2,
 		},
 		Route{
 			"write", // Data-ingest route.
@@ -1046,7 +1082,7 @@ type Bucket struct {
 	UpdatedAt           time.Time `json:"updatedAt"`
 }
 
-func (h *Handler) ServePostCreateBucketV2(w http.ResponseWriter, r *http.Request, user meta.User) {
+func (h *Handler) servePostCreateBucketV2(w http.ResponseWriter, r *http.Request, user meta.User) {
 	var bs []byte
 	if r.ContentLength > 0 {
 		if h.Config.MaxBodySize > 0 && r.ContentLength > int64(h.Config.MaxBodySize) {
@@ -1449,6 +1485,21 @@ func makeBucket(rpi *meta.RetentionPolicyInfo, database string) *Bucket {
 		ID:                  name,
 		RetentionPolicyName: rpi.Name,
 	}
+}
+
+func (h *Handler) serveLabelsNotAllowedV2(w http.ResponseWriter, r *http.Request, user meta.User) {
+	h.httpError(w, "bucket labels not supported in this version", http.StatusMethodNotAllowed)
+	return
+}
+
+func (h *Handler) serveBucketMembersNotAllowedV2(w http.ResponseWriter, r *http.Request, user meta.User) {
+	h.httpError(w, "bucket members not supported in this version", http.StatusMethodNotAllowed)
+	return
+}
+
+func (h *Handler) serveBucketOwnersNotAllowedV2(w http.ResponseWriter, r *http.Request, user meta.User) {
+	h.httpError(w, "bucket owners not supported in this version", http.StatusMethodNotAllowed)
+	return
 }
 
 // serveWriteV2 maps v2 write parameters to a v1 style handler.  the concepts
