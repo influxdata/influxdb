@@ -202,13 +202,18 @@ func (s *Shard) WithLogger(log *zap.Logger) {
 // writes and queries return an error and compactions are stopped for the shard.
 func (s *Shard) SetEnabled(enabled bool) {
 	s.mu.Lock()
+	s.setEnabledNoLock(enabled)
+	s.mu.Unlock()
+}
+
+//! setEnabledNoLock performs actual work of SetEnabled. Must hold s.mu before calling.
+func (s *Shard) setEnabledNoLock(enabled bool) {
 	// Prevent writes and queries
 	s.enabled = enabled
 	if s._engine != nil && !s.CompactionDisabled {
 		// Disable background compactions and snapshotting
 		s._engine.SetEnabled(enabled)
 	}
-	s.mu.Unlock()
 }
 
 // ScheduleFullCompaction forces a full compaction to be schedule on the shard.
@@ -298,10 +303,14 @@ func (s *Shard) Path() string { return s.path }
 
 // Open initializes and opens the shard's store.
 func (s *Shard) Open() error {
-	if err := func() error {
-		s.mu.Lock()
-		defer s.mu.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.openNoLock()
+}
 
+// openNoLock does work of Open. Must hold s.mu before calling.
+func (s *Shard) openNoLock() error {
+	if err := func() error {
 		// Return if the shard is already open
 		if s._engine != nil {
 			return nil
@@ -351,13 +360,13 @@ func (s *Shard) Open() error {
 
 		return nil
 	}(); err != nil {
-		s.close()
+		s.closeNoLock()
 		return NewShardError(s.id, err)
 	}
 
 	if s.EnableOnOpen {
 		// enable writes, queries and compactions
-		s.SetEnabled(true)
+		s.setEnabledNoLock(true)
 	}
 
 	return nil
@@ -367,12 +376,12 @@ func (s *Shard) Open() error {
 func (s *Shard) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.close()
+	return s.closeNoLock()
 }
 
-// close closes the shard an removes reference to the shard from associated
+// closeNoLock closes the shard an removes reference to the shard from associated
 // indexes, unless clean is false.
-func (s *Shard) close() error {
+func (s *Shard) closeNoLock() error {
 	if s._engine == nil {
 		return nil
 	}
@@ -1084,30 +1093,28 @@ func (s *Shard) Export(w io.Writer, basePath string, start time.Time, end time.T
 // Restore restores data to the underlying engine for the shard.
 // The shard is reopened after restore.
 func (s *Shard) Restore(r io.Reader, basePath string) error {
-	if err := func() error {
-		s.mu.Lock()
-		defer s.mu.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-		// Special case - we can still restore to a disabled shard, so we should
-		// only check if the engine is closed and not care if the shard is
-		// disabled.
-		if s._engine == nil {
-			return ErrEngineClosed
-		}
+	// Special case - we can still restore to a disabled shard, so we should
+	// only check if the engine is closed and not care if the shard is
+	// disabled.
+	if s._engine == nil {
+		return ErrEngineClosed
+	}
 
-		// Restore to engine.
-		return s._engine.Restore(r, basePath)
-	}(); err != nil {
+	// Restore to engine.
+	if err := s._engine.Restore(r, basePath); err != nil {
 		return err
 	}
 
 	// Close shard.
-	if err := s.Close(); err != nil {
+	if err := s.closeNoLock(); err != nil {
 		return err
 	}
 
 	// Reopen engine.
-	return s.Open()
+	return s.openNoLock()
 }
 
 // Import imports data to the underlying engine for the shard. r should
