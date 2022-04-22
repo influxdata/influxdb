@@ -1,6 +1,7 @@
 //! Helpers for initializing the shared database connection
 
 use assert_cmd::Command;
+use observability_deps::tracing::info;
 use once_cell::sync::Lazy;
 use sqlx::{migrate::MigrateDatabase, Postgres};
 use std::collections::BTreeSet;
@@ -18,11 +19,11 @@ pub async fn initialize_db(dsn: &str, schema_name: &str) {
         return;
     }
 
-    println!("Initializing database...");
+    info!("Initializing database...");
 
     // Create the catalog database if it doesn't exist
     if !Postgres::database_exists(dsn).await.unwrap() {
-        println!("Creating database...");
+        info!("Creating database...");
         Postgres::create_database(dsn).await.unwrap();
     }
 

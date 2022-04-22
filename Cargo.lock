@@ -6054,6 +6054,7 @@ dependencies = [
  "hyper",
  "influxdb_iox_client",
  "nix 0.24.0",
+ "observability_deps",
  "once_cell",
  "parking_lot 0.12.0",
  "rand",

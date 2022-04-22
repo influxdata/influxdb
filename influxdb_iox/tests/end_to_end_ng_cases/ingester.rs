@@ -11,6 +11,7 @@ use data_types2::IngesterQueryRequest;
 
 #[tokio::test]
 async fn ingester_flight_api() {
+    test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();
 
     let table_name = "mytable";
@@ -87,6 +88,7 @@ async fn ingester_flight_api() {
 
 #[tokio::test]
 async fn ingester_flight_api_namespace_not_found() {
+    test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();
 
     let table_name = "mytable";
@@ -118,6 +120,7 @@ async fn ingester_flight_api_namespace_not_found() {
 
 #[tokio::test]
 async fn ingester_flight_api_table_not_found() {
+    test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();
 
     // Set up cluster
