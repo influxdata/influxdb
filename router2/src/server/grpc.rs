@@ -22,8 +22,8 @@ use tonic::{metadata::AsciiMetadataValue, Request, Response, Status};
 use trace::ctx::SpanContext;
 use write_summary::WriteSummary;
 
-// This header value needs to be all lowercase as required by the HTTP/2.0 spec! tonic does not
-// lowercase this value for you like the http crate does!
+// HERE BE DRAGONS: Uppercase characters in this constant cause a panic. Insert them and
+// investigate the cause if you dare.
 const WRITE_TOKEN_GRPC_HEADER: &str = "x-iox-write-token";
 
 /// This type is responsible for managing all gRPC services exposed by `router2`.
