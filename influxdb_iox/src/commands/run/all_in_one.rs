@@ -18,7 +18,7 @@ use ioxd_router2::create_router2_server_type;
 use object_store::{DynObjectStore, ObjectStoreImpl};
 use observability_deps::tracing::*;
 use query::exec::Executor;
-use std::{num::NonZeroU32, path::PathBuf, sync::Arc};
+use std::{path::PathBuf, sync::Arc};
 use thiserror::Error;
 use trace_exporters::TracingConfig;
 use trogging::cli::LoggingConfig;
@@ -37,6 +37,9 @@ pub const DEFAULT_INGESTER_GRPC_BIND_ADDR: &str = "127.0.0.1:8083";
 
 /// The default bind address for the Compactor gRPC (chosen to match default gRPC addr)
 pub const DEFAULT_COMPACTOR_GRPC_BIND_ADDR: &str = "127.0.0.1:8084";
+
+// If you want this level of control, should be instatiating the services individually
+const QUERY_POOL_NAME: &str = "iox-shared";
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -161,9 +164,6 @@ pub struct Config {
     #[clap(flatten)]
     pub(crate) catalog_dsn: CatalogDsnConfig,
 
-    #[clap(flatten)]
-    pub(crate) write_buffer_config: WriteBufferConfig,
-
     /// The ingester will continue to pull data and buffer it from the write buffer
     /// as long as it is below this size. If it hits this size it will pause
     /// ingest from the write buffer until persistence goes below this threshold.
@@ -266,7 +266,6 @@ impl Config {
             max_http_request_size,
             database_directory,
             catalog_dsn,
-            write_buffer_config,
             pause_ingest_size_bytes,
             persist_memory_threshold_bytes,
             persist_partition_size_threshold_bytes,
@@ -279,7 +278,8 @@ impl Config {
             compactor_grpc_bind_address,
         } = self;
 
-        let object_store_config = ObjectStoreConfig::new(database_directory);
+        let object_store_config = ObjectStoreConfig::new(database_directory.clone());
+        let write_buffer_config = WriteBufferConfig::new(QUERY_POOL_NAME, database_directory);
 
         let router_run_config = RunConfig::new(
             logging_config,
@@ -317,10 +317,10 @@ impl Config {
         };
 
         // create a CompactorConfig for the all in one server based on
-        // settings from other configs. Cant use `#clap(flatten)` as the
-        // parameters are redundant with ingesters
+        // settings from other configs. Can't use `#clap(flatten)` as the
+        // parameters are redundant with ingester's
         let compactor_config = CompactorConfig {
-            topic: write_buffer_config.topic().to_string(),
+            topic: QUERY_POOL_NAME.to_string(),
             write_buffer_partition_range_start,
             write_buffer_partition_range_end,
             split_percentage: 90,
@@ -364,26 +364,10 @@ pub async fn command(config: Config) -> Result<()> {
         ingester_run_config,
         compactor_run_config,
         catalog_dsn,
-        mut write_buffer_config,
+        write_buffer_config,
         ingester_config,
         compactor_config,
     } = config.specialize();
-
-    // Ensure at least one topic is automatically created in all in one mode
-    write_buffer_config.set_auto_create_topics(Some(
-        write_buffer_config.auto_create_topics().unwrap_or_else(|| {
-            let default_config = NonZeroU32::new(1).unwrap();
-            info!(
-                ?default_config,
-                "Automatically configuring creation of a single topic"
-            );
-            default_config
-        }),
-    ));
-
-    // If you want this level of control, should be instatiating the
-    // services individually
-    let query_pool_name = "iox-shared";
 
     let metrics = Arc::new(metric::Registry::default());
 
@@ -401,7 +385,7 @@ pub async fn command(config: Config) -> Result<()> {
         .repositories()
         .await
         .kafka_topics()
-        .create_or_get(query_pool_name)
+        .create_or_get(QUERY_POOL_NAME)
         .await?;
 
     let object_store: Arc<DynObjectStore> = Arc::new(
@@ -427,7 +411,7 @@ pub async fn command(config: Config) -> Result<()> {
         Arc::clone(&catalog),
         Arc::clone(&object_store),
         &write_buffer_config,
-        query_pool_name,
+        QUERY_POOL_NAME,
         1_000, // max 1,000 concurrent HTTP requests
     )
     .await?;
