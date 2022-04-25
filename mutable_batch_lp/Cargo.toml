@@ -14,3 +14,4 @@ workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]
 arrow_util = { path = "../arrow_util" }
+assert_matches = "1.5.0"

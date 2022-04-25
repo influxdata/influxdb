@@ -11,7 +11,7 @@
     clippy::clone_on_ref_ptr
 )]
 
-use hashbrown::HashMap;
+use hashbrown::{hash_map::Entry, HashMap, HashSet};
 use influxdb_line_protocol::{parse_lines, FieldValue, ParsedLine};
 use mutable_batch::writer::Writer;
 use mutable_batch::MutableBatch;
@@ -28,10 +28,7 @@ pub enum Error {
     },
 
     #[snafu(display("error writing line {}: {}", line, source))]
-    Write {
-        source: mutable_batch::writer::Error,
-        line: usize,
-    },
+    Write { source: LineWriteError, line: usize },
 
     #[snafu(display("empty write payload"))]
     EmptyPayload,
@@ -81,7 +78,25 @@ impl LinesConverter {
         self.timestamp_base = timestamp_base
     }
 
-    /// Write some line protocol data
+    /// Write some line protocol data.
+    ///
+    /// If a field / tag name appears more than once in a single line, the
+    /// following semantics apply:
+    ///
+    ///   * duplicate fields, same value: do nothing/coalesce
+    ///   * duplicate fields, different value: last occurrence wins
+    ///   * duplicate fields, different types: return
+    ///     [`LineWriteError::ConflictedFieldTypes`]
+    ///   * duplicate tags, same value: return [`LineWriteError::DuplicateTag`]
+    ///   * duplicate tags, different value: return
+    ///     [`LineWriteError::DuplicateTag`]
+    ///   * duplicate tags, different types: return
+    ///     [`LineWriteError::DuplicateTag`]
+    ///   * same name for tag and field: return
+    ///     [`mutable_batch::writer::Error::TypeMismatch`]
+    ///   * same name for tag and field, different type :
+    ///     [`mutable_batch::writer::Error::TypeMismatch`]
+    ///
     pub fn write_lp(&mut self, lines: &str) -> Result<()> {
         for (line_idx, maybe_line) in parse_lines(lines).enumerate() {
             let mut line = maybe_line.context(LineProtocolSnafu { line: line_idx + 1 })?;
@@ -139,38 +154,155 @@ pub fn lines_to_batches_stats(
     converter.finish()
 }
 
-/// Writes the [`ParsedLine`] to the [`MutableBatch`]
+/// An error applying an already-parsed line protocol line ([`ParsedLine`]) to a
+/// [`MutableBatch`].
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Snafu)]
+pub enum LineWriteError {
+    /// A transparent error wrapper over the underling mutable batch error.
+    #[snafu(display("{}", source))]
+    MutableBatch {
+        /// The underlying error
+        source: mutable_batch::writer::Error,
+    },
+
+    /// The specified tag name appears twice in one LP line, with conflicting
+    /// values.
+    #[snafu(display(
+        "the tag '{}' is specified more than once with conflicting values",
+        name
+    ))]
+    DuplicateTag {
+        /// The duplicated tag name.
+        name: String,
+    },
+
+    /// The specified field name appears twice in one LP line, with conflicting
+    /// types.
+    #[snafu(display(
+        "the field '{}' is specified more than once with conflicting types",
+        name
+    ))]
+    ConflictedFieldTypes {
+        /// The duplicated field name.
+        name: String,
+    },
+}
+
+/// Writes the [`ParsedLine`] to the [`MutableBatch`], respecting the edge case
+/// semantics described in [`LinesConverter::write_lp()`].
 pub fn write_line(
     writer: &mut Writer<'_>,
     line: &ParsedLine<'_>,
     default_time: i64,
-) -> mutable_batch::writer::Result<()> {
-    for (tag_key, tag_value) in line.series.tag_set.iter().flatten() {
-        writer.write_tag(tag_key.as_str(), None, std::iter::once(tag_value.as_str()))?
-    }
-
-    for (field_key, field_value) in &line.field_set {
-        match field_value {
-            FieldValue::I64(value) => {
-                writer.write_i64(field_key.as_str(), None, std::iter::once(*value))?;
+) -> Result<(), LineWriteError> {
+    // Only allocate the seen tags hashset if there are tags.
+    if let Some(tags) = &line.series.tag_set {
+        let mut seen = HashSet::with_capacity(tags.len());
+        for (tag_key, tag_value) in tags.iter() {
+            // Check if a field with this name has been observed previously.
+            if !seen.insert(tag_key) {
+                // This tag_key appears more than once, with differing values.
+                //
+                // This is always an error.
+                return Err(LineWriteError::DuplicateTag {
+                    name: tag_key.to_string(),
+                });
             }
-            FieldValue::U64(value) => {
-                writer.write_u64(field_key.as_str(), None, std::iter::once(*value))?;
-            }
-            FieldValue::F64(value) => {
-                writer.write_f64(field_key.as_str(), None, std::iter::once(*value))?;
-            }
-            FieldValue::String(value) => {
-                writer.write_string(field_key.as_str(), None, std::iter::once(value.as_str()))?;
-            }
-            FieldValue::Boolean(value) => {
-                writer.write_bool(field_key.as_str(), None, std::iter::once(*value))?;
-            }
+            writer
+                .write_tag(tag_key.as_str(), None, std::iter::once(tag_value.as_str()))
+                .context(MutableBatchSnafu)?
         }
     }
 
+    // In order to maintain parity with TSM, if a field within a single line is
+    // repeated, the last occurrence is retained - for example, in the following
+    // line protocol write:
+    //
+    //               table v=2,bananas=42,v=3,platanos=24
+    //                      ▲              ▲
+    //                      └───────┬──────┘
+    //                              │
+    //                     duplicate field "v"
+    //
+    // The duplicate "v" field should be collapsed into a single "v=3" field,
+    // yielding an effective write of:
+    //
+    //                table bananas=42,v=3,platanos=24
+    //
+    // To do this in O(n) time, the code below walks backwards (from right to
+    // left) when visiting parsed fields, and tracks which fields it has
+    // observed. Any time a previously observed field is visited, it is skipped:
+    //
+    //                                visit direction
+    //                           ◀─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─
+    //
+    //               table v=2,bananas=42,v=3,platanos=24
+    //                      ▲              ▲
+    //                      │              │
+    //                     skip           keep
+    //
+    // A notable exception of this "last value wins" rule is if the types differ
+    // between each occurrence of "v":
+    //
+    //                        table v=2i,v=3u
+    //
+    // In this instance we break from established TSM behaviour and return an
+    // error. IOx features schema enforcement, and as such is expected to reject
+    // conflicting types for writes. See the github issue[1] for the desired
+    // semantics.
+    //
+    // Tests below codify each of the scenarios described in the ticket.
+    //
+    // [1]: https://github.com/influxdata/influxdb_iox/issues/4326
+
+    let mut seen = HashMap::<_, &FieldValue<'_>>::with_capacity(line.field_set.len());
+    for (field_key, field_value) in line.field_set.iter().rev() {
+        // Check if a field with this name has been observed previously.
+        match seen.entry(field_key) {
+            Entry::Occupied(e) if e.get().is_same_type(field_value) => {
+                // This field_value, and the "last" occurrence of this field_key
+                // (the first visited) are of the same type - this occurrence is
+                // skipped.
+                continue;
+            }
+            Entry::Occupied(_) => {
+                // This occurrence of "field_key" is of a different type to that
+                // of the "last" (fist visited) occurrence. This is an
+                // internally type-conflicted line and should be rejected.
+                return Err(LineWriteError::ConflictedFieldTypes {
+                    name: field_key.to_string(),
+                });
+            }
+            Entry::Vacant(v) => {
+                v.insert(field_value);
+            }
+        };
+
+        match field_value {
+            FieldValue::I64(value) => {
+                writer.write_i64(field_key.as_str(), None, std::iter::once(*value))
+            }
+            FieldValue::U64(value) => {
+                writer.write_u64(field_key.as_str(), None, std::iter::once(*value))
+            }
+            FieldValue::F64(value) => {
+                writer.write_f64(field_key.as_str(), None, std::iter::once(*value))
+            }
+            FieldValue::String(value) => {
+                writer.write_string(field_key.as_str(), None, std::iter::once(value.as_str()))
+            }
+            FieldValue::Boolean(value) => {
+                writer.write_bool(field_key.as_str(), None, std::iter::once(*value))
+            }
+        }
+        .context(MutableBatchSnafu)?;
+    }
+
     let time = line.timestamp.unwrap_or(default_time);
-    writer.write_time("time", std::iter::once(time))?;
+    writer
+        .write_time("time", std::iter::once(time))
+        .context(MutableBatchSnafu)?;
 
     Ok(())
 }
@@ -192,6 +324,7 @@ pub mod test_helpers {
 mod tests {
     use super::*;
     use arrow_util::assert_batches_eq;
+    use assert_matches::assert_matches;
     use schema::selection::Selection;
 
     #[test]
@@ -308,5 +441,141 @@ m b=t 1639612800000000000
         assert!(!u.is_valid(0));
         assert!(u.is_valid(1));
         assert!(!u.is_valid(2));
+    }
+
+    // https://github.com/influxdata/influxdb_iox/issues/4326
+    mod issue4326 {
+        use super::*;
+
+        #[test]
+        fn test_duplicate_field_same_value() {
+            let lp = "m1 val=2i,val=2i 0";
+
+            let batches = lines_to_batches(lp, 5).unwrap();
+            assert_eq!(batches.len(), 1);
+
+            assert_batches_eq!(
+                &[
+                    "+----------------------+-----+",
+                    "| time                 | val |",
+                    "+----------------------+-----+",
+                    "| 1970-01-01T00:00:00Z | 2   |",
+                    "+----------------------+-----+",
+                ],
+                &[batches["m1"].to_arrow(Selection::All).unwrap()]
+            );
+        }
+
+        #[test]
+        fn test_duplicate_field_different_values() {
+            let lp = "m1 val=1i,val=2i 0";
+
+            let batches = lines_to_batches(lp, 5).unwrap();
+            assert_eq!(batches.len(), 1);
+
+            // "last value wins"
+            assert_batches_eq!(
+                &[
+                    "+----------------------+-----+",
+                    "| time                 | val |",
+                    "+----------------------+-----+",
+                    "| 1970-01-01T00:00:00Z | 2   |",
+                    "+----------------------+-----+",
+                ],
+                &[batches["m1"].to_arrow(Selection::All).unwrap()]
+            );
+        }
+
+        #[test]
+        fn test_duplicate_fields_different_type() {
+            let lp = "m1 val=1i,val=2.0 0";
+
+            let err = lines_to_batches(lp, 5).expect_err("type conflicted write should fail");
+            assert_matches!(err,
+                Error::Write {
+                    source: LineWriteError::ConflictedFieldTypes { name },
+                    line: 1
+                }
+            => {
+                assert_eq!(name, "val");
+            });
+        }
+
+        #[test]
+        fn test_duplicate_tags_same_value() {
+            let lp = "m1,tag=1,tag=1 val=1i 0";
+
+            let err = lines_to_batches(lp, 5).expect_err("duplicate tag write should fail");
+            assert_matches!(err,
+                Error::Write {
+                    source: LineWriteError::DuplicateTag { name },
+                    line: 1
+                }
+            => {
+                assert_eq!(name, "tag");
+            });
+        }
+
+        #[test]
+        fn test_duplicate_tags_different_value() {
+            let lp = "m1,tag=1,tag=2 val=1i 0";
+
+            let err = lines_to_batches(lp, 5).expect_err("duplicate tag write should fail");
+            assert_matches!(err,
+                Error::Write {
+                    source: LineWriteError::DuplicateTag { name },
+                    line: 1
+                }
+            => {
+                assert_eq!(name, "tag");
+            });
+        }
+
+        // NOTE: All tags are strings, so this should never be a type conflict.
+        #[test]
+        fn test_duplicate_tags_different_type() {
+            let lp = "m1,tag=1,tag=2.0 val=1i 0";
+
+            let err = lines_to_batches(lp, 5).expect_err("type conflicted write should fail");
+            assert_matches!(err,
+                Error::Write {
+                    source: LineWriteError::DuplicateTag { name },
+                    line: 1
+                }
+            => {
+                assert_eq!(name, "tag");
+            });
+        }
+
+        // NOTE: disallowed in IOx but accepted in TSM
+        //
+        // https://github.com/influxdata/influxdb_iox/issues/3150
+        #[test]
+        fn test_duplicate_is_tag_and_field() {
+            let lp = "m1,v=1i v=1i 0";
+
+            let err = lines_to_batches(lp, 5).expect_err("type conflicted write should fail");
+            assert_matches!(
+                err,
+                Error::Write {
+                    source: LineWriteError::MutableBatch { .. },
+                    line: 1
+                }
+            );
+        }
+
+        #[test]
+        fn test_duplicate_is_tag_and_field_different_types() {
+            let lp = "m1,v=1i v=1.0 0";
+
+            let err = lines_to_batches(lp, 5).expect_err("type conflicted write should fail");
+            assert_matches!(
+                err,
+                Error::Write {
+                    source: LineWriteError::MutableBatch { .. },
+                    line: 1
+                }
+            );
+        }
     }
 }
