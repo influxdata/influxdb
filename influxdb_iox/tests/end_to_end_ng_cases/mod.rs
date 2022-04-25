@@ -3,6 +3,7 @@ mod cli;
 mod debug;
 mod ingester;
 mod logging;
+mod metrics;
 mod namespace;
 mod querier;
 mod router;

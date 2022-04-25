@@ -1,21 +1,12 @@
-use super::make_read_source;
-use super::run_data_test;
-use super::run_no_data_test;
-
-use std::sync::Arc;
-
-use futures::prelude::*;
-use futures::FutureExt;
+use super::{run_data_test, run_no_data_test};
+use futures::{prelude::*, FutureExt};
 use generated_types::{
     google::protobuf::Empty, measurement_fields_response::FieldType,
-    offsets_response::PartitionOffsetResponse, storage_client::StorageClient,
-    MeasurementFieldsRequest, MeasurementNamesRequest, MeasurementTagKeysRequest,
-    MeasurementTagValuesRequest, OffsetsResponse, TagKeysRequest, TagValuesRequest,
+    offsets_response::PartitionOffsetResponse, storage_client::StorageClient, OffsetsResponse,
 };
 use influxdb_storage_client::tag_key_bytes_to_strings;
-use test_helpers_end_to_end_ng::StepTestState;
-
-use super::{data::DataGenerator, exprs};
+use std::sync::Arc;
+use test_helpers_end_to_end_ng::{DataGenerator, GrpcRequestBuilder, StepTestState};
 
 #[tokio::test]
 /// Validate that capabilities storage endpoint is hooked up
@@ -68,16 +59,12 @@ async fn tag_keys() {
             async move {
                 let mut storage_client =
                     StorageClient::new(state.cluster().querier().querier_grpc_connection());
-                let read_source = make_read_source(state.cluster());
-                let range = generator.timestamp_range();
-                let predicate = exprs::make_tag_predicate("host", "server01");
-                let predicate = Some(predicate);
 
-                let tag_keys_request = tonic::Request::new(TagKeysRequest {
-                    tags_source: read_source,
-                    range,
-                    predicate,
-                });
+                let tag_keys_request = GrpcRequestBuilder::new()
+                    .source(state.cluster())
+                    .timestamp_range(generator.min_time(), generator.max_time())
+                    .tag_predicate("host", "server01")
+                    .build_tag_keys();
 
                 let tag_keys_response = storage_client.tag_keys(tag_keys_request).await.unwrap();
                 let responses: Vec<_> = tag_keys_response.into_inner().try_collect().await.unwrap();
@@ -105,17 +92,12 @@ async fn tag_values() {
             async move {
                 let mut storage_client =
                     StorageClient::new(state.cluster().querier().querier_grpc_connection());
-                let read_source = make_read_source(state.cluster());
-                let range = generator.timestamp_range();
-                let predicate = exprs::make_tag_predicate("host", "server01");
-                let predicate = Some(predicate);
 
-                let tag_values_request = tonic::Request::new(TagValuesRequest {
-                    tags_source: read_source,
-                    range,
-                    predicate,
-                    tag_key: b"host".to_vec(),
-                });
+                let tag_values_request = GrpcRequestBuilder::new()
+                    .source(state.cluster())
+                    .timestamp_range(generator.min_time(), generator.max_time())
+                    .tag_predicate("host", "server01")
+                    .build_tag_values("host");
 
                 let tag_values_response =
                     storage_client.tag_values(tag_values_request).await.unwrap();
@@ -148,14 +130,11 @@ async fn measurement_names() {
             async move {
                 let mut storage_client =
                     StorageClient::new(state.cluster().querier().querier_grpc_connection());
-                let read_source = make_read_source(state.cluster());
-                let range = generator.timestamp_range();
 
-                let measurement_names_request = tonic::Request::new(MeasurementNamesRequest {
-                    source: read_source,
-                    range,
-                    predicate: None,
-                });
+                let measurement_names_request = GrpcRequestBuilder::new()
+                    .source(state.cluster())
+                    .timestamp_range(generator.min_time(), generator.max_time())
+                    .build_measurement_names();
 
                 let measurement_names_response = storage_client
                     .measurement_names(measurement_names_request)
@@ -193,18 +172,12 @@ async fn measurement_tag_keys() {
             async move {
                 let mut storage_client =
                     StorageClient::new(state.cluster().querier().querier_grpc_connection());
-                let read_source = make_read_source(state.cluster());
-                let range = generator.timestamp_range();
 
-                let predicate = exprs::make_tag_predicate("host", "server01");
-                let predicate = Some(predicate);
-
-                let measurement_tag_keys_request = tonic::Request::new(MeasurementTagKeysRequest {
-                    source: read_source,
-                    measurement: String::from("cpu_load_short"),
-                    range,
-                    predicate,
-                });
+                let measurement_tag_keys_request = GrpcRequestBuilder::new()
+                    .source(state.cluster())
+                    .timestamp_range(generator.min_time(), generator.max_time())
+                    .tag_predicate("host", "server01")
+                    .build_measurement_tag_keys("cpu_load_short");
 
                 let measurement_tag_keys_response = storage_client
                     .measurement_tag_keys(measurement_tag_keys_request)
@@ -239,20 +212,12 @@ async fn measurement_tag_values() {
             async move {
                 let mut storage_client =
                     StorageClient::new(state.cluster().querier().querier_grpc_connection());
-                let read_source = make_read_source(state.cluster());
-                let range = generator.timestamp_range();
 
-                let predicate = exprs::make_tag_predicate("host", "server01");
-                let predicate = Some(predicate);
-
-                let measurement_tag_values_request =
-                    tonic::Request::new(MeasurementTagValuesRequest {
-                        source: read_source,
-                        measurement: String::from("cpu_load_short"),
-                        tag_key: String::from("host"),
-                        range,
-                        predicate,
-                    });
+                let measurement_tag_values_request = GrpcRequestBuilder::new()
+                    .source(state.cluster())
+                    .timestamp_range(generator.min_time(), generator.max_time())
+                    .tag_predicate("host", "server01")
+                    .build_measurement_tag_values("cpu_load_short", "host");
 
                 let measurement_tag_values_response = storage_client
                     .measurement_tag_values(measurement_tag_values_request)
@@ -287,18 +252,12 @@ async fn measurement_fields() {
             async move {
                 let mut storage_client =
                     StorageClient::new(state.cluster().querier().querier_grpc_connection());
-                let read_source = make_read_source(state.cluster());
-                let range = generator.timestamp_range();
 
-                let predicate = exprs::make_tag_predicate("host", "server01");
-                let predicate = Some(predicate);
-
-                let measurement_fields_request = tonic::Request::new(MeasurementFieldsRequest {
-                    source: read_source,
-                    measurement: String::from("cpu_load_short"),
-                    range,
-                    predicate,
-                });
+                let measurement_fields_request = GrpcRequestBuilder::new()
+                    .source(state.cluster())
+                    .timestamp_range(generator.min_time(), generator.max_time())
+                    .tag_predicate("host", "server01")
+                    .build_measurement_fields("cpu_load_short");
 
                 let ns_since_epoch = generator.ns_since_epoch();
                 let measurement_fields_response = storage_client

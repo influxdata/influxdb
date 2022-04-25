@@ -1,15 +1,13 @@
 use std::time::SystemTime;
 
-use generated_types::TimestampRange;
-
 /// Manages a dataset for writing / reading
-pub(crate) struct DataGenerator {
+pub struct DataGenerator {
     ns_since_epoch: i64,
     line_protocol: String,
 }
 
 impl DataGenerator {
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         let ns_since_epoch = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .expect("System time should have been after the epoch")
@@ -56,16 +54,8 @@ impl DataGenerator {
         }
     }
 
-    /// Return a timestamp range that covers the entire data range
-    pub(crate) fn timestamp_range(&self) -> Option<TimestampRange> {
-        Some(TimestampRange {
-            start: self.ns_since_epoch,
-            end: self.ns_since_epoch + 10,
-        })
-    }
-
     /// substitutes "ns" --> ns_since_epoch, ns1-->ns_since_epoch+1, etc
-    pub(crate) fn substitute_nanos(&self, lines: &[&str]) -> Vec<String> {
+    pub fn substitute_nanos(&self, lines: &[&str]) -> Vec<String> {
         let ns_since_epoch = self.ns_since_epoch;
         let substitutions = vec![
             ("ns0", format!("{}", ns_since_epoch)),
@@ -91,13 +81,31 @@ impl DataGenerator {
 
     /// Get a reference to the data generator's line protocol.
     #[must_use]
-    pub(crate) fn line_protocol(&self) -> &str {
+    pub fn line_protocol(&self) -> &str {
         self.line_protocol.as_ref()
     }
 
     /// Get the data generator's ns since epoch.
     #[must_use]
-    pub(crate) fn ns_since_epoch(&self) -> i64 {
+    pub fn ns_since_epoch(&self) -> i64 {
         self.ns_since_epoch
+    }
+
+    /// Get the minimum time of the range of this data for querying.
+    #[must_use]
+    pub fn min_time(&self) -> i64 {
+        self.ns_since_epoch
+    }
+
+    /// Get the maximum time of the range of this data for querying.
+    #[must_use]
+    pub fn max_time(&self) -> i64 {
+        self.ns_since_epoch + 10
+    }
+}
+
+impl Default for DataGenerator {
+    fn default() -> Self {
+        Self::new()
     }
 }

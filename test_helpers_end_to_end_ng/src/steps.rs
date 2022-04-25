@@ -103,6 +103,13 @@ pub enum Step {
         verify: Box<dyn Fn(Vec<RecordBatch>)>,
     },
 
+    /// Retrieve the metrics and verify the results using the provided
+    /// validation function.
+    ///
+    /// The validation function is expected to panic on validation
+    /// failure.
+    VerifiedMetrics(Box<dyn Fn(&mut StepTestState, String)>),
+
     /// A custom step that can be used to implement special cases that
     /// are only used once.
     Custom(FCustom),
@@ -197,6 +204,20 @@ impl<'a> StepTest<'a> {
                     .await;
                     verify(batches);
                     info!("====Done running");
+                }
+                Step::VerifiedMetrics(verify) => {
+                    info!("====Begin validating metrics");
+
+                    let cluster = state.cluster();
+                    let http_base = cluster.router2().router_http_base();
+                    let url = format!("{http_base}/metrics");
+
+                    let client = reqwest::Client::new();
+                    let metrics = client.get(&url).send().await.unwrap().text().await.unwrap();
+
+                    verify(&mut state, metrics);
+
+                    info!("====Done validating metrics");
                 }
                 Step::Custom(f) => {
                     info!("====Begin custom step");

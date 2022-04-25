@@ -6,7 +6,9 @@ use rand::{
 mod addrs;
 mod client;
 mod config;
+mod data_generator;
 mod database;
+mod grpc;
 mod mini_cluster;
 mod server_fixture;
 mod server_type;
@@ -15,6 +17,8 @@ mod udp_listener;
 
 pub use client::*;
 pub use config::TestConfig;
+pub use data_generator::DataGenerator;
+pub use grpc::GrpcRequestBuilder;
 pub use mini_cluster::MiniCluster;
 pub use server_fixture::{ServerFixture, TestServer};
 pub use server_type::ServerType;

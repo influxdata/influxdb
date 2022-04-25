@@ -1,8 +1,8 @@
 use futures::{prelude::*, FutureExt};
-use generated_types::{storage_client::StorageClient, ReadFilterRequest, ReadSource};
-use prost::Message;
+use generated_types::storage_client::StorageClient;
 use test_helpers_end_to_end_ng::{
-    maybe_skip_integration, MiniCluster, Step, StepTest, StepTestState, TestConfig, UdpCapture,
+    maybe_skip_integration, GrpcRequestBuilder, MiniCluster, Step, StepTest, StepTestState,
+    TestConfig, UdpCapture,
 };
 
 #[tokio::test]
@@ -73,35 +73,9 @@ pub async fn test_tracing_storage_api() {
                 let mut storage_client =
                     StorageClient::new(cluster.querier().querier_grpc_connection());
 
-                let org_id = cluster.org_id();
-                let bucket_id = cluster.bucket_id();
-                let org_id = u64::from_str_radix(org_id, 16).unwrap();
-                let bucket_id = u64::from_str_radix(bucket_id, 16).unwrap();
-
-                let partition_id = u64::from(u32::MAX);
-                let read_source = ReadSource {
-                    org_id,
-                    bucket_id,
-                    partition_id,
-                };
-
-                // Do the magic to-any conversion
-                let mut d = bytes::BytesMut::new();
-                read_source.encode(&mut d).unwrap();
-                let read_source = generated_types::google::protobuf::Any {
-                    type_url: "/TODO".to_string(),
-                    value: d.freeze(),
-                };
-
-                let range = None;
-                let predicate = None;
-
-                let read_filter_request = tonic::Request::new(ReadFilterRequest {
-                    read_source: Some(read_source),
-                    range,
-                    predicate,
-                    ..Default::default()
-                });
+                let read_filter_request = GrpcRequestBuilder::new()
+                    .source(state.cluster())
+                    .build_read_filter();
 
                 async move {
                     let read_response = storage_client

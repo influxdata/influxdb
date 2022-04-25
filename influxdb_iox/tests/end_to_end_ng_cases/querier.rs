@@ -1,4 +1,4 @@
-mod influxrpc;
+pub(crate) mod influxrpc;
 mod multi_ingester;
 
 use futures::FutureExt;
