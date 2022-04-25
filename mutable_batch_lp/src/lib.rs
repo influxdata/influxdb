@@ -531,6 +531,7 @@ m b=t 1639612800000000000
             });
         }
 
+        // NOTE: All tags are strings, so this should never be a type conflict.
         #[test]
         fn test_duplicate_tags_different_type() {
             let lp = "m1,tag=1,tag=2.0 val=1i 0";
@@ -546,6 +547,9 @@ m b=t 1639612800000000000
             });
         }
 
+        // NOTE: disallowed in IOx but accepted in TSM
+        //
+        // https://github.com/influxdata/influxdb_iox/issues/3150
         #[test]
         fn test_duplicate_is_tag_and_field() {
             let lp = "m1,v=1i v=1i 0";
