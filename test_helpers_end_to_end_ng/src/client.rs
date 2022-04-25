@@ -1,18 +1,16 @@
 //! Client helpers for writing end to end ng tests
-use std::collections::HashMap;
-use std::time::Duration;
-
 use arrow::record_batch::RecordBatch;
 use futures::{stream::FuturesUnordered, StreamExt};
 use http::Response;
 use hyper::{Body, Client, Request};
-use observability_deps::tracing::info;
-
-use influxdb_iox_client::connection::Connection;
-use influxdb_iox_client::flight::generated_types::ReadInfo;
-use influxdb_iox_client::write_info::generated_types::{
-    GetWriteInfoResponse, KafkaPartitionInfo, KafkaPartitionStatus,
+use influxdb_iox_client::{
+    connection::Connection,
+    flight::generated_types::ReadInfo,
+    write::generated_types::{DatabaseBatch, TableBatch, WriteRequest, WriteResponse},
+    write_info::generated_types::{GetWriteInfoResponse, KafkaPartitionInfo, KafkaPartitionStatus},
 };
+use observability_deps::tracing::info;
+use std::{collections::HashMap, time::Duration};
 
 /// Writes the line protocol to the write_base/api/v2/write endpoint (typically on the router)
 pub async fn write_to_router(
@@ -41,11 +39,43 @@ pub async fn write_to_router(
         .expect("http error sending write")
 }
 
+/// Writes the table batch to the gRPC write API on the router into the org/bucket (typically on
+/// the router)
+pub async fn write_to_router_grpc(
+    table_batches: Vec<TableBatch>,
+    namespace: impl Into<String>,
+    router2_connection: Connection,
+) -> tonic::Response<WriteResponse> {
+    let request = WriteRequest {
+        database_batch: Some(DatabaseBatch {
+            database_name: namespace.into(),
+            table_batches,
+        }),
+    };
+
+    influxdb_iox_client::write::Client::new(router2_connection)
+        .write_pb(request)
+        .await
+        .expect("grpc error sending write")
+}
+
 /// Extracts the write token from the specified response (to the /api/v2/write api)
 pub fn get_write_token(response: &Response<Body>) -> String {
     let message = format!("no write token in {:?}", response);
     response
         .headers()
+        .get("X-IOx-Write-Token")
+        .expect(&message)
+        .to_str()
+        .expect("Value not a string")
+        .to_string()
+}
+
+/// Extracts the write token from the specified response (to the gRPC write API)
+pub fn get_write_token_from_grpc(response: &tonic::Response<WriteResponse>) -> String {
+    let message = format!("no write token in {:?}", response);
+    response
+        .metadata()
         .get("X-IOx-Write-Token")
         .expect(&message)
         .to_str()
