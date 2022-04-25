@@ -1,6 +1,7 @@
 //! Implementation of a DataFusion `TableProvider` in terms of `QueryChunk`s
 
 use async_trait::async_trait;
+use hashbrown::HashMap;
 use std::sync::Arc;
 
 use arrow::{datatypes::SchemaRef as ArrowSchemaRef, error::ArrowError};
@@ -35,7 +36,7 @@ mod adapter;
 mod deduplicate;
 mod overlap;
 mod physical;
-use self::overlap::group_potential_duplicates;
+use self::overlap::{group_potential_duplicates, group_potential_duplicates_og};
 pub(crate) use deduplicate::DeduplicateExec;
 pub(crate) use physical::IOxReadFilterNode;
 
@@ -532,17 +533,72 @@ impl Deduplicater {
         Ok(plan)
     }
 
+    // TODO: message for OG remover: Remove this function and rename split_overlapped_chunks_ng to split_overlapped_chunks
     /// discover overlaps and split them into three groups:
     ///  1. vector of vector of overlapped chunks
     ///  2. vector of non-overlapped chunks, each have duplicates in itself
     ///  3. vectors of non-overlapped chunks without duplicates
     fn split_overlapped_chunks(&mut self, chunks: Vec<Arc<dyn QueryChunk>>) -> Result<()> {
+        if chunks.iter().all(|c| c.ng_chunk()) {
+            self.split_overlapped_chunks_ng(chunks)
+        } else {
+            self.split_overlapped_chunks_og(chunks)
+        }
+    }
+
+    /// discover overlaps and split them into three groups:
+    ///  1. vector of vector of overlapped chunks
+    ///  2. vector of non-overlapped chunks, each have duplicates in itself
+    ///  3. vectors of non-overlapped chunks without duplicates
+    fn split_overlapped_chunks_ng(&mut self, chunks: Vec<Arc<dyn QueryChunk>>) -> Result<()> {
+        // -------------------------------
+        // Group chunks by partition first
+        // Chunks in different partition are guarantee not to ovelap
+
+        // Chunks without assigned partition id should be treated overlapped
+        // This is the case of ingester data
+        if chunks.iter().any(|c| c.partition_id().is_none()) {
+            self.overlapped_chunks_set.push(chunks);
+            return Ok(());
+        }
+
+        // Group chunks by partition
+        let mut partition_groups = HashMap::with_capacity(chunks.len());
+        for chunk in chunks {
+            let chunks = partition_groups
+                .entry(chunk.partition_id().expect("Chunk must have partition id"))
+                .or_insert_with(Vec::new);
+            chunks.push(chunk);
+        }
+
+        // -------------------------------
+        // Find all overlapped groups for each partition-group based on their time range
+        for (_, chunks) in partition_groups {
+            let groups = group_potential_duplicates(chunks).context(InternalChunkGroupingSnafu)?;
+            for mut group in groups {
+                if group.len() == 1 {
+                    if group[0].may_contain_pk_duplicates() {
+                        self.in_chunk_duplicates_chunks.append(&mut group);
+                    } else {
+                        self.no_duplicates_chunks.append(&mut group);
+                    }
+                } else {
+                    self.overlapped_chunks_set.push(group)
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    fn split_overlapped_chunks_og(&mut self, chunks: Vec<Arc<dyn QueryChunk>>) -> Result<()> {
         if !chunks_have_stats(&chunks) {
             // no statistics, consider all chunks overlap
             self.overlapped_chunks_set.push(chunks);
         } else {
             // Find all groups based on statistics
-            let groups = group_potential_duplicates(chunks).context(InternalChunkGroupingSnafu)?;
+            let groups =
+                group_potential_duplicates_og(chunks).context(InternalChunkGroupingSnafu)?;
 
             for mut group in groups {
                 if group.len() == 1 {
@@ -1135,8 +1191,9 @@ mod test {
 
     use super::*;
 
+    // Original OG test
     #[test]
-    fn chunk_grouping() {
+    fn chunk_grouping_og() {
         // This test just ensures that all the plumbing is connected
         // for chunk grouping. The logic of the grouping is tested
         // in the duplicate module
@@ -1172,6 +1229,64 @@ mod test {
 
         let mut deduplicator = Deduplicater::new();
         deduplicator
+            .split_overlapped_chunks_og(vec![c1, c2, c3, c4])
+            .expect("split chunks");
+
+        assert_eq!(
+            chunk_group_ids(&deduplicator.overlapped_chunks_set),
+            vec!["Group 0: 00000000-0000-0000-0000-000000000002, 00000000-0000-0000-0000-000000000003"]
+        );
+        assert_eq!(
+            chunk_ids(&deduplicator.in_chunk_duplicates_chunks),
+            "00000000-0000-0000-0000-000000000004"
+        );
+        assert_eq!(
+            chunk_ids(&deduplicator.no_duplicates_chunks),
+            "00000000-0000-0000-0000-000000000001"
+        );
+    }
+
+    #[test]
+    fn chunk_grouping() {
+        // This test just ensures that all the plumbing is connected
+        // for chunk grouping. The logic of the grouping is tested
+        // in the duplicate module
+
+        // c1: no overlaps
+        let c1 = Arc::new(
+            TestChunk::new("t")
+                .with_id(1)
+                .with_partition_id(10)
+                .with_time_column_with_stats(Some(1), Some(10)),
+        );
+
+        // c2: over lap with c3
+        let c2 = Arc::new(
+            TestChunk::new("t")
+                .with_id(2)
+                .with_partition_id(10)
+                .with_time_column_with_stats(Some(15), Some(20)),
+        );
+
+        // c3: overlap with c2
+        let c3 = Arc::new(
+            TestChunk::new("t")
+                .with_id(3)
+                .with_partition_id(10)
+                .with_time_column_with_stats(Some(17), Some(23)),
+        );
+
+        // c4: self overlap
+        let c4 = Arc::new(
+            TestChunk::new("t")
+                .with_id(4)
+                .with_partition_id(10)
+                .with_time_column_with_stats(Some(30), Some(40))
+                .with_may_contain_pk_duplicates(true),
+        );
+
+        let mut deduplicator = Deduplicater::new();
+        deduplicator
             .split_overlapped_chunks(vec![c1, c2, c3, c4])
             .expect("split chunks");
 
@@ -1186,6 +1301,54 @@ mod test {
         assert_eq!(
             chunk_ids(&deduplicator.no_duplicates_chunks),
             "00000000-0000-0000-0000-000000000001"
+        );
+    }
+
+    #[test]
+    fn chunk_grouping_no_partition() {
+        // At least one chunk without assigned partition, all chunks are considered overlapped even if their time ranges do not
+
+        // c1: no time-range overlaps
+        let c1 = Arc::new(
+            TestChunk::new("t")
+                .with_id(1)
+                .with_partition_id(10)
+                .with_time_column_with_stats(Some(1), Some(10)),
+        );
+
+        // c2: time-range overlap with c3
+        let c2 = Arc::new(
+            TestChunk::new("t")
+                .with_id(2)
+                .with_partition_id(10)
+                .with_time_column_with_stats(Some(15), Some(20)),
+        );
+
+        // c3: time-range overlap with c2
+        // no partition provided
+        let c3 = Arc::new(
+            TestChunk::new("t")
+                .with_id(3)
+                .with_time_column_with_stats(Some(17), Some(23)),
+        );
+
+        // c4: time-range self overlap
+        let c4 = Arc::new(
+            TestChunk::new("t")
+                .with_id(4)
+                .with_partition_id(10)
+                .with_time_column_with_stats(Some(30), Some(40))
+                .with_may_contain_pk_duplicates(true),
+        );
+
+        let mut deduplicator = Deduplicater::new();
+        deduplicator
+            .split_overlapped_chunks(vec![c1, c2, c3, c4])
+            .expect("split chunks");
+
+        assert_eq!(
+            chunk_group_ids(&deduplicator.overlapped_chunks_set),
+            vec!["Group 0: 00000000-0000-0000-0000-000000000001, 00000000-0000-0000-0000-000000000002, 00000000-0000-0000-0000-000000000003, 00000000-0000-0000-0000-000000000004"]
         );
     }
 
@@ -1776,14 +1939,14 @@ mod test {
             "+-----------+------+--------------------------------+",
             "| field_int | tag1 | time                           |",
             "+-----------+------+--------------------------------+",
-            "| 1000      | MT   | 1970-01-01T00:00:00.000001Z    |",
-            "| 10        | MT   | 1970-01-01T00:00:00.000007Z    |",
-            "| 70        | CT   | 1970-01-01T00:00:00.000000100Z |",
             "| 100       | AL   | 1970-01-01T00:00:00.000000050Z |",
+            "| 70        | CT   | 1970-01-01T00:00:00.000000100Z |",
+            "| 1000      | MT   | 1970-01-01T00:00:00.000001Z    |",
             "| 5         | MT   | 1970-01-01T00:00:00.000005Z    |",
+            "| 10        | MT   | 1970-01-01T00:00:00.000007Z    |",
             "+-----------+------+--------------------------------+",
         ];
-        assert_batches_eq!(&expected, &raw_data(&chunks).await);
+        assert_batches_sorted_eq!(&expected, &raw_data(&chunks).await);
 
         let mut deduplicator = Deduplicater::new();
         let plan = deduplicator
@@ -1791,7 +1954,7 @@ mod test {
             .unwrap();
         let batch = test_collect(plan).await;
         // No duplicates so no sort at all. The data will stay in their original order
-        assert_batches_eq!(&expected, &batch);
+        assert_batches_sorted_eq!(&expected, &batch);
     }
 
     #[tokio::test]

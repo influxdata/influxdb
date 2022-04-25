@@ -2,6 +2,7 @@ use std::{any::Any, collections::HashMap, sync::Arc};
 
 use arrow::{datatypes::DataType, error::ArrowError, record_batch::RecordBatch};
 use async_trait::async_trait;
+use data_types::timestamp::TimestampMinMax;
 use data_types2::{
     ChunkAddr, ChunkId, ChunkOrder, ColumnSummary, InfluxDbType, IngesterQueryRequest, PartitionId,
     SequenceNumber, SequencerId, StatValues, Statistics, TableSummary,
@@ -12,6 +13,7 @@ use observability_deps::tracing::{debug, trace};
 use predicate::{Predicate, PredicateMatch};
 use query::{
     exec::{stringset::StringSet, IOxSessionContext},
+    util::compute_timenanosecond_min_max,
     QueryChunk, QueryChunkError, QueryChunkMeta,
 };
 use schema::{selection::Selection, sort::SortKey, InfluxColumnType, InfluxFieldType, Schema};
@@ -434,6 +436,10 @@ impl QueryChunkMeta for IngesterPartition {
         Arc::clone(&self.schema)
     }
 
+    fn partition_id(&self) -> Option<PartitionId> {
+        Some(self.partition_id())
+    }
+
     fn sort_key(&self) -> Option<&SortKey> {
         //Some(&self.sort_key)
         // Data is not sorted
@@ -442,6 +448,16 @@ impl QueryChunkMeta for IngesterPartition {
 
     fn delete_predicates(&self) -> &[Arc<data_types2::DeletePredicate>] {
         &[]
+    }
+
+    fn timestamp_min_max(&self) -> Option<TimestampMinMax> {
+        // TODO: may want to ask the Ingester to send this value instead of computing it here.
+        // Note: if we return None here, this chunk will be considered ovelapped with all other chunks
+        // even if it does not and lead to unecessary deduplication
+        let (min, max) =
+            compute_timenanosecond_min_max(&self.batches).expect("Should have time range");
+
+        Some(TimestampMinMax { min, max })
     }
 }
 
@@ -535,6 +551,10 @@ impl QueryChunk for IngesterPartition {
         // since this is always the 'most recent' chunk for this
         // partition, put it at the end
         ChunkOrder::new(u32::MAX).unwrap()
+    }
+
+    fn ng_chunk(&self) -> bool {
+        true
     }
 }
 

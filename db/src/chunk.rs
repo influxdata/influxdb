@@ -2,11 +2,13 @@ use super::{
     catalog::chunk::ChunkMetadata, pred::to_read_buffer_predicate, streams::ReadFilterResultsStream,
 };
 use data_types::chunk_metadata::ChunkAddr;
+use data_types::timestamp::TimestampMinMax;
 use data_types::{
     chunk_metadata::{ChunkId, ChunkOrder},
     delete_predicate::DeletePredicate,
     partition_metadata,
 };
+use data_types2::PartitionId;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion_util::MemoryStream;
 use internal_types::access::AccessRecorder;
@@ -590,6 +592,10 @@ impl QueryChunk for DbChunk {
     fn order(&self) -> ChunkOrder {
         self.order
     }
+
+    fn ng_chunk(&self) -> bool {
+        false
+    }
 }
 
 impl QueryChunkMeta for DbChunk {
@@ -599,6 +605,10 @@ impl QueryChunkMeta for DbChunk {
 
     fn schema(&self) -> Arc<Schema> {
         Arc::clone(&self.meta.schema)
+    }
+
+    fn partition_id(&self) -> Option<PartitionId> {
+        None
     }
 
     fn sort_key(&self) -> Option<&SortKey> {
@@ -611,6 +621,13 @@ impl QueryChunkMeta for DbChunk {
         debug!(?pred, "Delete predicate in  DbChunk");
 
         pred
+    }
+
+    fn timestamp_min_max(&self) -> Option<TimestampMinMax> {
+        Some(TimestampMinMax {
+            min: self.meta.time_of_first_write.timestamp_nanos(),
+            max: self.meta.time_of_last_write.timestamp_nanos(),
+        })
     }
 }
 

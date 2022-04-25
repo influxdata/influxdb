@@ -2,8 +2,9 @@
 
 use std::sync::Arc;
 
+use data_types::timestamp::TimestampMinMax;
 use data_types2::{
-    tombstones_to_delete_predicates, ChunkAddr, ChunkId, ChunkOrder, DeletePredicate,
+    tombstones_to_delete_predicates, ChunkAddr, ChunkId, ChunkOrder, DeletePredicate, PartitionId,
     SequenceNumber, TableSummary, Timestamp, Tombstone,
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
@@ -41,6 +42,7 @@ pub struct QueryableParquetChunk {
     data: Arc<ParquetChunk>,                      // data of the parquet file
     delete_predicates: Vec<Arc<DeletePredicate>>, // converted from tombstones
     table_name: String,                           // needed to build query plan
+    partition_id: PartitionId,
     min_sequence_number: SequenceNumber,
     max_sequence_number: SequenceNumber,
     min_time: Timestamp,
@@ -53,6 +55,7 @@ impl QueryableParquetChunk {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         table_name: impl Into<String>,
+        partition_id: PartitionId,
         data: Arc<ParquetChunk>,
         deletes: &[Tombstone],
         min_sequence_number: SequenceNumber,
@@ -66,6 +69,7 @@ impl QueryableParquetChunk {
             data,
             delete_predicates,
             table_name: table_name.into(),
+            partition_id,
             min_sequence_number,
             max_sequence_number,
             min_time,
@@ -113,12 +117,23 @@ impl QueryChunkMeta for QueryableParquetChunk {
         self.data.schema()
     }
 
+    fn partition_id(&self) -> Option<PartitionId> {
+        Some(self.partition_id)
+    }
+
     fn sort_key(&self) -> Option<&SortKey> {
         self.sort_key.as_ref()
     }
 
     fn delete_predicates(&self) -> &[Arc<DeletePredicate>] {
         self.delete_predicates.as_ref()
+    }
+
+    fn timestamp_min_max(&self) -> Option<TimestampMinMax> {
+        Some(TimestampMinMax {
+            min: self.min_time(),
+            max: self.max_time(),
+        })
     }
 }
 
@@ -239,5 +254,9 @@ impl QueryChunk for QueryableParquetChunk {
             .expect("Sequence number should have been converted to chunk order successfully");
         ChunkOrder::new(seq_num)
             .expect("Sequence number should have been converted to chunk order successfully")
+    }
+
+    fn ng_chunk(&self) -> bool {
+        true
     }
 }

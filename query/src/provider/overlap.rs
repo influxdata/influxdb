@@ -48,7 +48,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 ///
 /// Note 2: this algorithm is O(n^2) worst case (when no chunks have
 /// any overlap)
-pub fn group_potential_duplicates(
+pub fn group_potential_duplicates_og(
     chunks: Vec<Arc<dyn QueryChunk>>,
 ) -> Result<Vec<Vec<Arc<dyn QueryChunk>>>> {
     let mut groups: Vec<Vec<KeyStats<'_>>> = vec![];
@@ -104,6 +104,70 @@ pub fn group_potential_duplicates(
         })
         .collect::<Vec<Vec<_>>>();
 
+    Ok(groups)
+}
+
+/// Groups [`QueryChunk`] objects into disjoint sets of overlapped time range.
+/// Does not preserve or guarantee any ordering.
+pub fn group_potential_duplicates(
+    chunks: Vec<Arc<dyn QueryChunk>>,
+) -> Result<Vec<Vec<Arc<dyn QueryChunk>>>> {
+    // If at least one of the chunks has no time range,
+    // all chunks are considered to overlap with each other.
+    if chunks.iter().any(|c| c.timestamp_min_max().is_none()) {
+        return Ok(vec![chunks]);
+    }
+
+    // Use this algorithm to group them
+    // https://towardsdatascience.com/overlapping-time-period-problem-b7f1719347db
+
+    let num_chunks = chunks.len();
+    let mut grouper = Vec::with_capacity(num_chunks * 2);
+
+    enum StartEnd<I> {
+        Start,
+        End(I),
+    }
+    struct GrouperRecord<I, V: PartialOrd> {
+        value: V,
+        start_end: StartEnd<I>,
+    }
+
+    for chunk in chunks {
+        let time_range = chunk
+            .timestamp_min_max()
+            .expect("Time range should have value");
+        grouper.push(GrouperRecord {
+            value: time_range.min,
+            start_end: StartEnd::Start,
+        });
+        grouper.push(GrouperRecord {
+            value: time_range.max,
+            start_end: StartEnd::End(chunk),
+        });
+    }
+
+    grouper.sort_by_key(|gr| gr.value);
+
+    let mut cumulative_sum = 0;
+    let mut groups = Vec::with_capacity(num_chunks);
+
+    for gr in grouper {
+        cumulative_sum += match gr.start_end {
+            StartEnd::Start => 1,
+            StartEnd::End(_) => -1,
+        };
+
+        if matches!(gr.start_end, StartEnd::Start) && cumulative_sum == 1 {
+            groups.push(Vec::with_capacity(num_chunks));
+        }
+        if let StartEnd::End(item) = gr.start_end {
+            groups
+                .last_mut()
+                .expect("a start should have pushed at least one empty group")
+                .push(item);
+        }
+    }
     Ok(groups)
 }
 
@@ -302,7 +366,7 @@ mod test {
             Some("zoo york"),
         ));
 
-        let groups = group_potential_duplicates(vec![c1, c2]).expect("grouping succeeded");
+        let groups = group_potential_duplicates_og(vec![c1, c2]).expect("grouping succeeded");
 
         let expected = vec!["Group 0: [chunk1]", "Group 1: [chunk2]"];
         assert_groups_eq!(expected, groups);
@@ -322,7 +386,7 @@ mod test {
             Some("zoo york"),
         ));
 
-        let groups = group_potential_duplicates(vec![c1, c2]).expect("grouping succeeded");
+        let groups = group_potential_duplicates_og(vec![c1, c2]).expect("grouping succeeded");
 
         let expected = vec!["Group 0: [chunk1, chunk2]"];
         assert_groups_eq!(expected, groups);
@@ -336,27 +400,150 @@ mod test {
         let c2 =
             Arc::new(TestChunk::new("chunk2").with_time_column_with_stats(Some(200), Some(500)));
 
-        let groups = group_potential_duplicates(vec![c1, c2]).expect("grouping succeeded");
+        let groups = group_potential_duplicates_og(vec![c1, c2]).expect("grouping succeeded");
 
         let expected = vec!["Group 0: [chunk1, chunk2]"];
         assert_groups_eq!(expected, groups);
     }
 
-    // TODO: turn this on after https://github.com/influxdata/influxdb_iox/issues/4158
-    #[ignore]
     #[test]
     fn one_time_column_overlap_bad_case() {
-        let c1 = Arc::new(TestChunk::new("chunk1").with_time_column_with_stats(Some(1), Some(10)));
+        // no full statistics just time min max for NG test
+        let c1 = Arc::new(TestChunk::new("chunk1").with_timestamp_min_max(1, 10));
+        let c2 = Arc::new(TestChunk::new("chunk2").with_timestamp_min_max(15, 30));
+        let c3 = Arc::new(TestChunk::new("chunk3").with_timestamp_min_max(7, 20));
+        let c4 = Arc::new(TestChunk::new("chunk4").with_timestamp_min_max(25, 35));
 
-        let c2 = Arc::new(TestChunk::new("chunk2").with_time_column_with_stats(Some(15), Some(30)));
+        let groups = group_potential_duplicates(vec![c1, c2, c3, c4]).expect("grouping succeeded");
 
-        let c3 = Arc::new(TestChunk::new("chunk3").with_time_column_with_stats(Some(7), Some(20)));
+        let expected = vec!["Group 0: [chunk1, chunk3, chunk2, chunk4]"];
+        assert_groups_eq!(expected, groups);
+    }
 
-        let c4 = Arc::new(TestChunk::new("chunk4").with_time_column_with_stats(Some(25), Some(35)));
+    #[test]
+    fn one_time_column_overlap_contiguous() {
+        // no full statistics just time min max for NG test
+        let c1 = Arc::new(TestChunk::new("chunk1").with_timestamp_min_max(1, 10));
+        let c2 = Arc::new(TestChunk::new("chunk2").with_timestamp_min_max(7, 20));
+        let c3 = Arc::new(TestChunk::new("chunk3").with_timestamp_min_max(15, 30));
+        let c4 = Arc::new(TestChunk::new("chunk4").with_timestamp_min_max(25, 35));
 
         let groups = group_potential_duplicates(vec![c1, c2, c3, c4]).expect("grouping succeeded");
 
         let expected = vec!["Group 0: [chunk1, chunk2, chunk3, chunk4]"];
+        assert_groups_eq!(expected, groups);
+    }
+
+    #[test]
+    fn one_time_column_overlap_2_groups() {
+        // no full statistics just time min max for NG test
+        let c1 = Arc::new(TestChunk::new("chunk1").with_timestamp_min_max(1, 10));
+        let c2 = Arc::new(TestChunk::new("chunk2").with_timestamp_min_max(7, 20));
+        let c3 = Arc::new(TestChunk::new("chunk3").with_timestamp_min_max(21, 30));
+        let c4 = Arc::new(TestChunk::new("chunk4").with_timestamp_min_max(25, 35));
+
+        let groups = group_potential_duplicates(vec![c1, c2, c3, c4]).expect("grouping succeeded");
+
+        let expected = vec!["Group 0: [chunk1, chunk2]", "Group 1: [chunk3, chunk4]"];
+        assert_groups_eq!(expected, groups);
+    }
+
+    #[test]
+    fn one_time_column_overlap_3_groups() {
+        // no full statistics just time min max for NG test
+        let c1 = Arc::new(TestChunk::new("chunk1").with_timestamp_min_max(1, 10));
+        let c2 = Arc::new(TestChunk::new("chunk2").with_timestamp_min_max(7, 20));
+        let c3 = Arc::new(TestChunk::new("chunk3").with_timestamp_min_max(21, 24));
+        let c4 = Arc::new(TestChunk::new("chunk4").with_timestamp_min_max(25, 35));
+
+        let groups = group_potential_duplicates(vec![c1, c4, c3, c2]).expect("grouping succeeded");
+
+        let expected = vec![
+            "Group 0: [chunk1, chunk2]",
+            "Group 1: [chunk3]",
+            "Group 2: [chunk4]",
+        ];
+        assert_groups_eq!(expected, groups);
+    }
+
+    #[test]
+    fn one_time_column_overlap_1_chunk() {
+        // no full statistics just time min max for NG test
+        let c1 = Arc::new(TestChunk::new("chunk1").with_timestamp_min_max(1, 10));
+
+        let groups = group_potential_duplicates(vec![c1]).expect("grouping succeeded");
+
+        let expected = vec!["Group 0: [chunk1]"];
+        assert_groups_eq!(expected, groups);
+    }
+
+    #[test]
+    fn overlap_no_groups() {
+        let groups = group_potential_duplicates(vec![]).expect("grouping succeeded");
+
+        assert!(groups.is_empty());
+    }
+
+    #[test]
+    fn multi_columns_overlap_bad_case() {
+        // no full statistics just time min max for NG test
+        let c1 = Arc::new(TestChunk::new("chunk1").with_timestamp_min_max(1, 10));
+        let c2 = Arc::new(
+            TestChunk::new("chunk2")
+                .with_timestamp_min_max(15, 30)
+                .with_i64_field_column("field1"),
+        );
+        let c3 = Arc::new(
+            TestChunk::new("chunk3")
+                .with_timestamp_min_max(7, 20)
+                .with_tag_column("tag1"),
+        );
+        let c4 = Arc::new(TestChunk::new("chunk4").with_timestamp_min_max(25, 35));
+
+        let groups = group_potential_duplicates(vec![c1, c2, c3, c4]).expect("grouping succeeded");
+
+        let expected = vec!["Group 0: [chunk1, chunk3, chunk2, chunk4]"];
+        assert_groups_eq!(expected, groups);
+    }
+
+    #[test]
+    fn multi_columns_overlap_1_chunk() {
+        // no full statistics just time min max for NG test
+        let c1 = Arc::new(
+            TestChunk::new("chunk1")
+                .with_timestamp_min_max(1, 10)
+                .with_tag_column("tag1"),
+        );
+
+        let groups = group_potential_duplicates(vec![c1]).expect("grouping succeeded");
+
+        let expected = vec!["Group 0: [chunk1]"];
+        assert_groups_eq!(expected, groups);
+    }
+
+    #[test]
+    fn multi_columns_overlap_3_groups() {
+        // no full statistics just time min max for NG test
+        let c1 = Arc::new(
+            TestChunk::new("chunk1")
+                .with_timestamp_min_max(1, 10)
+                .with_tag_column("tag1"),
+        );
+        let c2 = Arc::new(TestChunk::new("chunk2").with_timestamp_min_max(7, 20));
+        let c3 = Arc::new(
+            TestChunk::new("chunk3")
+                .with_timestamp_min_max(21, 24)
+                .with_tag_column("tag2"),
+        );
+        let c4 = Arc::new(TestChunk::new("chunk4").with_timestamp_min_max(25, 35));
+
+        let groups = group_potential_duplicates(vec![c1, c4, c3, c2]).expect("grouping succeeded");
+
+        let expected = vec![
+            "Group 0: [chunk1, chunk2]",
+            "Group 1: [chunk3]",
+            "Group 2: [chunk4]",
+        ];
         assert_groups_eq!(expected, groups);
     }
 
@@ -389,7 +576,8 @@ mod test {
                 .with_time_column_with_stats(Some(500), Some(1500)),
         );
 
-        let groups = group_potential_duplicates(vec![c1, c2, c3, c4]).expect("grouping succeeded");
+        let groups =
+            group_potential_duplicates_og(vec![c1, c2, c3, c4]).expect("grouping succeeded");
 
         let expected = vec![
             "Group 0: [chunk1, chunk4]",
@@ -445,8 +633,8 @@ mod test {
                 .with_time_column_with_stats(Some(4000), Some(5000)),
         );
 
-        let groups =
-            group_potential_duplicates(vec![c1, c2, c3, c4, c5, c6]).expect("grouping succeeded");
+        let groups = group_potential_duplicates_og(vec![c1, c2, c3, c4, c5, c6])
+            .expect("grouping succeeded");
 
         let expected = vec![
             "Group 0: [chunk1]",
@@ -467,7 +655,7 @@ mod test {
         // even if the column before the last column "time" has a name larger than it, e.g "url"
 
         // Even "time" column is stored in front of "url", the primary_key function
-        // invoked inside potential_overlap invoked by group_potential_duplicates
+        // invoked inside potential_overlap invoked by group_potential_duplicates_og
         //  will return "url", "time"
         let c1 = Arc::new(
             TestChunk::new("chunk1")
@@ -496,7 +684,8 @@ mod test {
                 .with_time_column_with_stats(Some(500), Some(1500)),
         );
 
-        let groups = group_potential_duplicates(vec![c1, c2, c3, c4]).expect("grouping succeeded");
+        let groups =
+            group_potential_duplicates_og(vec![c1, c2, c3, c4]).expect("grouping succeeded");
 
         let expected = vec![
             "Group 0: [chunk1, chunk4]",
@@ -520,7 +709,7 @@ mod test {
             Some("ccc"),
         ));
 
-        let groups = group_potential_duplicates(vec![c1, c2]).expect("grouping succeeded");
+        let groups = group_potential_duplicates_og(vec![c1, c2]).expect("grouping succeeded");
 
         let expected = vec!["Group 0: [chunk1, chunk2]"];
         assert_groups_eq!(expected, groups);
@@ -540,7 +729,7 @@ mod test {
             Some("bbb"),
         ));
 
-        let groups = group_potential_duplicates(vec![c1, c2]).expect("grouping succeeded");
+        let groups = group_potential_duplicates_og(vec![c1, c2]).expect("grouping succeeded");
 
         let expected = vec!["Group 0: [chunk1, chunk2]"];
         assert_groups_eq!(expected, groups);
@@ -560,7 +749,7 @@ mod test {
             Some("bbb"),
         ));
 
-        let groups = group_potential_duplicates(vec![c1, c2]).expect("grouping succeeded");
+        let groups = group_potential_duplicates_og(vec![c1, c2]).expect("grouping succeeded");
 
         // the overlap could come when (tag1 = NULL, tag2=NULL) which
         // could exist in either chunk
@@ -583,7 +772,7 @@ mod test {
                 .with_tag_column_with_stats("tag3", Some("aaa"), Some("bbb")),
         );
 
-        let groups = group_potential_duplicates(vec![c1, c2]).expect("grouping succeeded");
+        let groups = group_potential_duplicates_og(vec![c1, c2]).expect("grouping succeeded");
 
         // the overlap could come when  (tag1 = NULL, tag2, tag3=NULL)
         let expected = vec!["Group 0: [chunk1, chunk2]"];
@@ -615,7 +804,7 @@ mod test {
                 .with_time_column_with_stats(Some(1000), Some(2000)),
         );
 
-        let groups = group_potential_duplicates(vec![c1, c2, c3]).expect("grouping succeeded");
+        let groups = group_potential_duplicates_og(vec![c1, c2, c3]).expect("grouping succeeded");
 
         let expected = vec!["Group 0: [chunk1, chunk3]", "Group 1: [chunk2]"];
         assert_groups_eq!(expected, groups);
@@ -638,7 +827,7 @@ mod test {
                 .with_time_column_with_stats(Some(500), Some(1000)),
         );
 
-        let groups = group_potential_duplicates(vec![c1, c2]).expect("grouping succeeded");
+        let groups = group_potential_duplicates_og(vec![c1, c2]).expect("grouping succeeded");
 
         let expected = vec!["Group 0: [chunk1, chunk2]"];
         assert_groups_eq!(expected, groups);
@@ -661,7 +850,7 @@ mod test {
                 .with_time_column_with_stats(Some(500), Some(1000)),
         );
 
-        let groups = group_potential_duplicates(vec![c1, c2]).expect("grouping succeeded");
+        let groups = group_potential_duplicates_og(vec![c1, c2]).expect("grouping succeeded");
 
         let expected = vec!["Group 0: [chunk1, chunk2]"];
         assert_groups_eq!(expected, groups);
@@ -685,7 +874,7 @@ mod test {
                 .with_time_column_with_stats(Some(500), Some(1000)),
         );
 
-        let groups = group_potential_duplicates(vec![c1, c2]).expect("grouping succeeded");
+        let groups = group_potential_duplicates_og(vec![c1, c2]).expect("grouping succeeded");
 
         let expected = vec!["Group 0: [chunk1, chunk2]"];
         assert_groups_eq!(expected, groups);
@@ -706,7 +895,7 @@ mod test {
                 .with_time_column_with_stats(Some(500), Some(1000)),
         );
 
-        let result = group_potential_duplicates(vec![c1, c2]).unwrap_err();
+        let result = group_potential_duplicates_og(vec![c1, c2]).unwrap_err();
 
         let result = result.to_string();
         let expected =
@@ -737,7 +926,7 @@ mod test {
                 .with_time_column_with_stats(Some(500), Some(1000)),
         );
 
-        let groups = group_potential_duplicates(vec![c1, c2]).expect("grouping succeeded");
+        let groups = group_potential_duplicates_og(vec![c1, c2]).expect("grouping succeeded");
 
         let expected = vec!["Group 0: [chunk1, chunk2]"];
         assert_groups_eq!(expected, groups);
@@ -763,7 +952,7 @@ mod test {
                 .with_time_column_with_stats(Some(0), Some(1000)),
         );
 
-        let groups = group_potential_duplicates(vec![c1, c2]).expect("grouping succeeded");
+        let groups = group_potential_duplicates_og(vec![c1, c2]).expect("grouping succeeded");
 
         let expected = vec!["Group 0: [chunk1, chunk2]"];
         assert_groups_eq!(expected, groups);

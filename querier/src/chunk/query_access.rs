@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
-use data_types2::{ChunkAddr, ChunkId, ChunkOrder, DeletePredicate, TableSummary};
+use data_types::timestamp::TimestampMinMax;
+use data_types2::{ChunkAddr, ChunkId, ChunkOrder, DeletePredicate, PartitionId, TableSummary};
 use observability_deps::tracing::debug;
 use predicate::PredicateMatch;
 use query::{QueryChunk, QueryChunkError, QueryChunkMeta};
@@ -31,12 +32,20 @@ impl QueryChunkMeta for QuerierChunk {
         }
     }
 
+    fn partition_id(&self) -> Option<PartitionId> {
+        Some(self.meta.partition_id())
+    }
+
     fn sort_key(&self) -> Option<&SortKey> {
         self.meta().sort_key()
     }
 
     fn delete_predicates(&self) -> &[Arc<DeletePredicate>] {
         &self.delete_predicates
+    }
+
+    fn timestamp_min_max(&self) -> Option<TimestampMinMax> {
+        self.timestamp_min_max()
     }
 }
 
@@ -147,5 +156,9 @@ impl QueryChunk for QuerierChunk {
 
     fn order(&self) -> ChunkOrder {
         self.meta().order()
+    }
+
+    fn ng_chunk(&self) -> bool {
+        true
     }
 }

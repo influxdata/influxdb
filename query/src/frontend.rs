@@ -100,6 +100,7 @@ mod test {
             plan.as_any().downcast_ref::<DeduplicateExec>().is_some()
         })
         .unwrap();
+
         assert_extracted_metrics!(extracted, 3);
 
         // now the the split
@@ -198,6 +199,7 @@ mod test {
     fn get_test_chunks() -> (Arc<Schema>, Vec<Arc<dyn QueryChunk>>) {
         let chunk1 = Arc::new(
             TestChunk::new("t")
+                .with_partition_id(1)
                 .with_time_column_with_stats(Some(50), Some(7000))
                 .with_tag_column_with_stats("tag1", Some("AL"), Some("MT"))
                 .with_i64_field_column("field_int")
@@ -207,6 +209,7 @@ mod test {
         // Chunk 2 has an extra field, and only 4 fields
         let chunk2 = Arc::new(
             TestChunk::new("t")
+                .with_partition_id(1)
                 .with_time_column_with_stats(Some(28000), Some(220000))
                 .with_tag_column_with_stats("tag1", Some("UT"), Some("WA"))
                 .with_i64_field_column("field_int")

@@ -113,6 +113,7 @@ impl ParquetFileWithTombstone {
 
         QueryableParquetChunk::new(
             table_name,
+            self.data.partition_id,
             Arc::new(parquet_chunk),
             &self.tombstones,
             self.data.min_sequence_number,

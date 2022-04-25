@@ -13,7 +13,9 @@ use data_types::{
     chunk_metadata::{ChunkAddr, ChunkId, ChunkOrder},
     delete_predicate::DeletePredicate,
     partition_metadata::{InfluxDbType, TableSummary},
+    timestamp::TimestampMinMax,
 };
+use data_types2::PartitionId;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use exec::{stringset::StringSet, IOxSessionContext};
 use observability_deps::tracing::{debug, trace};
@@ -46,8 +48,14 @@ pub trait QueryChunkMeta {
     /// return a reference to the summary of the data held in this chunk
     fn schema(&self) -> Arc<Schema>;
 
+    /// Return partition id for this chunk
+    fn partition_id(&self) -> Option<PartitionId>;
+
     /// return a reference to the sort key if any
     fn sort_key(&self) -> Option<&SortKey>;
+
+    /// Return time range of the data
+    fn timestamp_min_max(&self) -> Option<TimestampMinMax>;
 
     /// return a reference to delete predicates of the chunk
     fn delete_predicates(&self) -> &[Arc<DeletePredicate>];
@@ -241,6 +249,9 @@ pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync + 'static {
 
     /// Order of this chunk relative to other overlapping chunks.
     fn order(&self) -> ChunkOrder;
+
+    /// TODO: remove after OG code is removed
+    fn ng_chunk(&self) -> bool;
 }
 
 /// Implement ChunkMeta for something wrapped in an Arc (like Chunks often are)
@@ -256,6 +267,10 @@ where
         self.as_ref().schema()
     }
 
+    fn partition_id(&self) -> Option<PartitionId> {
+        self.as_ref().partition_id()
+    }
+
     fn sort_key(&self) -> Option<&SortKey> {
         self.as_ref().sort_key()
     }
@@ -264,6 +279,10 @@ where
         let pred = self.as_ref().delete_predicates();
         debug!(?pred, "Delete predicate in QueryChunkMeta");
         pred
+    }
+
+    fn timestamp_min_max(&self) -> Option<TimestampMinMax> {
+        self.as_ref().timestamp_min_max()
     }
 }
 

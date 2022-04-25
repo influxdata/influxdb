@@ -17,10 +17,12 @@ use arrow::{
 };
 use async_trait::async_trait;
 use data_types::chunk_metadata::{ChunkAddr, ChunkId, ChunkOrder};
+use data_types::timestamp::TimestampMinMax;
 use data_types::{
     delete_predicate::DeletePredicate,
     partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary},
 };
+use data_types2::PartitionId;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion_util::stream_from_batches;
 use futures::StreamExt;
@@ -187,6 +189,8 @@ pub struct TestChunk {
 
     id: ChunkId,
 
+    partition_id: Option<PartitionId>,
+
     /// Set the flag if this chunk might contain duplicates
     may_contain_pk_duplicates: bool,
 
@@ -210,6 +214,9 @@ pub struct TestChunk {
 
     /// The sort key of this chunk
     sort_key: Option<SortKey>,
+
+    /// Time range of the data
+    timestamp_min_max: Option<TimestampMinMax>,
 }
 
 /// Implements a method for adding a column with default stats
@@ -286,11 +293,18 @@ impl TestChunk {
             delete_predicates: Default::default(),
             order: ChunkOrder::MIN,
             sort_key: None,
+            timestamp_min_max: None,
+            partition_id: None,
         }
     }
 
     pub fn with_id(mut self, id: u128) -> Self {
         self.id = ChunkId::new_test(id);
+        self
+    }
+
+    pub fn with_partition_id(mut self, id: i64) -> Self {
+        self.partition_id = Some(PartitionId::new(id));
         self
     }
 
@@ -407,7 +421,7 @@ impl TestChunk {
 
     /// Register a timestamp column with full stats with the test chunk
     pub fn with_time_column_with_full_stats(
-        self,
+        mut self,
         min: Option<i64>,
         max: Option<i64>,
         count: u64,
@@ -427,7 +441,18 @@ impl TestChunk {
             distinct_count,
         });
 
+        if let Some(min) = min {
+            if let Some(max) = max {
+                self.timestamp_min_max = Some(TimestampMinMax { min, max });
+            }
+        }
+
         self.add_schema_to_table(new_column_schema, true, Some(stats))
+    }
+
+    pub fn with_timestamp_min_max(mut self, min: i64, max: i64) -> Self {
+        self.timestamp_min_max = Some(TimestampMinMax { min, max });
+        self
     }
 
     impl_with_column!(with_i64_field_column, Int64);
@@ -956,6 +981,12 @@ impl QueryChunk for TestChunk {
     fn order(&self) -> ChunkOrder {
         self.order
     }
+
+    // The Test Chunk is used for both OG and NG but since OG will go away soon and
+    // this function will be removed, we apply all NG deduplication algorithms for this TestChunk
+    fn ng_chunk(&self) -> bool {
+        true
+    }
 }
 
 impl QueryChunkMeta for TestChunk {
@@ -965,6 +996,10 @@ impl QueryChunkMeta for TestChunk {
 
     fn schema(&self) -> Arc<Schema> {
         Arc::clone(&self.schema)
+    }
+
+    fn partition_id(&self) -> Option<PartitionId> {
+        self.partition_id
     }
 
     fn sort_key(&self) -> Option<&SortKey> {
@@ -977,6 +1012,10 @@ impl QueryChunkMeta for TestChunk {
         debug!(?pred, "Delete predicate in Test Chunk");
 
         pred
+    }
+
+    fn timestamp_min_max(&self) -> Option<TimestampMinMax> {
+        self.timestamp_min_max
     }
 }
 

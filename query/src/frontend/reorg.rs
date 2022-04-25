@@ -263,7 +263,7 @@ struct ScanPlan {
 
 #[cfg(test)]
 mod test {
-    use arrow_util::assert_batches_eq;
+    use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use datafusion_util::{test_collect, test_collect_partition};
     use schema::merge::SchemaMerger;
     use schema::sort::SortKeyBuilder;
@@ -357,15 +357,15 @@ mod test {
             "+-----------+------------+------+--------------------------------+",
             "| field_int | field_int2 | tag1 | time                           |",
             "+-----------+------------+------+--------------------------------+",
-            "| 1000      |            | MT   | 1970-01-01T00:00:00.000001Z    |",
-            "| 10        |            | MT   | 1970-01-01T00:00:00.000007Z    |",
-            "| 70        |            | CT   | 1970-01-01T00:00:00.000000100Z |",
             "| 100       |            | AL   | 1970-01-01T00:00:00.000000050Z |",
+            "| 70        |            | CT   | 1970-01-01T00:00:00.000000100Z |",
+            "| 1000      |            | MT   | 1970-01-01T00:00:00.000001Z    |",
             "| 5         |            | MT   | 1970-01-01T00:00:00.000005Z    |",
+            "| 10        |            | MT   | 1970-01-01T00:00:00.000007Z    |",
             "+-----------+------------+------+--------------------------------+",
         ];
 
-        assert_batches_eq!(&expected, &batches);
+        assert_batches_sorted_eq!(&expected, &batches);
 
         executor.join().await;
     }

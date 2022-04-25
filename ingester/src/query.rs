@@ -3,9 +3,10 @@
 use crate::data::{QueryableBatch, SnapshotBatch};
 use arrow::record_batch::RecordBatch;
 use arrow_util::util::merge_record_batches;
+use data_types::timestamp::TimestampMinMax;
 use data_types2::{
     tombstones_to_delete_predicates, tombstones_to_delete_predicates_iter, ChunkAddr, ChunkId,
-    ChunkOrder, DeletePredicate, SequenceNumber, TableSummary, Tombstone,
+    ChunkOrder, DeletePredicate, PartitionId, SequenceNumber, TableSummary, Tombstone,
 };
 use datafusion::{
     logical_plan::ExprRewritable,
@@ -114,12 +115,25 @@ impl QueryChunkMeta for QueryableBatch {
         merge_record_batch_schemas(&batches)
     }
 
+    fn partition_id(&self) -> Option<PartitionId> {
+        // Ingetser data is not officially attached to any parittion id yet.
+        // Only persisting & persisted data has partition id and we want to keep it that way
+        None
+    }
+
     fn sort_key(&self) -> Option<&SortKey> {
         None
     }
 
     fn delete_predicates(&self) -> &[Arc<DeletePredicate>] {
         self.delete_predicates.as_ref()
+    }
+
+    fn timestamp_min_max(&self) -> Option<TimestampMinMax> {
+        // Note: we need to consider which option we want to go with
+        //  . Return None here and avoid taking time to compute time's min max of RecordBacthes (current choice)
+        //  . Compute time's min max here and avoid compacting non-overlapped QueryableBatches in the Ingester
+        None
     }
 }
 
@@ -270,6 +284,10 @@ impl QueryChunk for QueryableBatch {
     // This function should not be used in PersistingBatch context
     fn order(&self) -> ChunkOrder {
         unimplemented!()
+    }
+
+    fn ng_chunk(&self) -> bool {
+        true
     }
 }
 

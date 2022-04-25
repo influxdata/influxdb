@@ -257,6 +257,11 @@ impl ParquetChunk {
     pub fn parquet_metadata(&self) -> Arc<IoxParquetMetaData> {
         Arc::clone(&self.parquet_metadata)
     }
+
+    /// return time range
+    pub fn timestamp_min_max(&self) -> Option<TimestampMinMax> {
+        self.timestamp_min_max
+    }
 }
 
 /// Extracts min/max values of the timestamp column, from the TableSummary, if possible

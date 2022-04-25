@@ -2,6 +2,7 @@
 
 use crate::cache::CatalogCache;
 use arrow::record_batch::RecordBatch;
+use data_types::timestamp::TimestampMinMax;
 use data_types2::{
     ChunkAddr, ChunkId, ChunkOrder, DeletePredicate, ParquetFile, ParquetFileId,
     ParquetFileWithMetadata, PartitionId, SequenceNumber, SequencerId,
@@ -149,6 +150,13 @@ impl QuerierChunk {
             ChunkStorage::Parquet {
                 parquet_file_id, ..
             } => Some(*parquet_file_id),
+        }
+    }
+
+    /// Return time range
+    pub fn timestamp_min_max(&self) -> Option<TimestampMinMax> {
+        match &self.storage {
+            ChunkStorage::Parquet { chunk, .. } => chunk.timestamp_min_max(),
         }
     }
 }

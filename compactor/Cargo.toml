@@ -9,6 +9,7 @@ arrow = { version = "12", features = ["prettyprint"] }
 async-trait = "0.1.53"
 backoff = { path = "../backoff" }
 bytes = "1.0"
+data_types = { path = "../data_types" }
 data_types2 = { path = "../data_types2" }
 datafusion = { path = "../datafusion" }
 futures = "0.3"
