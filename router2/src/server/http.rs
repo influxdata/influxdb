@@ -227,6 +227,7 @@ pub struct HttpDelegate<D, T = SystemProvider> {
     write_metric_tables: U64Counter,
     write_metric_body_size: U64Counter,
     delete_metric_body_size: U64Counter,
+    request_limit_rejected: U64Counter,
 }
 
 impl<D> HttpDelegate<D, SystemProvider> {
@@ -271,6 +272,12 @@ impl<D> HttpDelegate<D, SystemProvider> {
                 "cumulative byte size of successfully routed (decompressed) delete requests",
             )
             .recorder(&[]);
+        let request_limit_rejected = metrics
+            .register_metric::<U64Counter>(
+                "http_request_limit_rejected",
+                "number of HTTP requests rejected due to exceeding parallel request limit",
+            )
+            .recorder(&[]);
 
         Self {
             max_request_bytes,
@@ -282,6 +289,7 @@ impl<D> HttpDelegate<D, SystemProvider> {
             write_metric_tables,
             write_metric_body_size,
             delete_metric_body_size,
+            request_limit_rejected,
         }
     }
 }
@@ -305,6 +313,7 @@ where
             Ok(p) => p,
             Err(TryAcquireError::NoPermits) => {
                 error!("simultaneous request limit exceeded - dropping request");
+                self.request_limit_rejected.inc(1);
                 return Err(Error::RequestLimit);
             }
             Err(e) => panic!("request limiter error: {}", e),
@@ -520,9 +529,10 @@ mod tests {
             .expect("failed to get observer")
             .fetch();
 
-        assert!(counter > 0, "metric {} did not record any values", name);
         if let Some(want) = value {
             assert_eq!(want, counter, "metric does not have expected value");
+        } else {
+            assert!(counter > 0, "metric {} did not record any values", name);
         }
     }
 
@@ -1177,6 +1187,8 @@ mod tests {
         // immediate drop of any subsequent requests.
         //
 
+        assert_metric_hit(&*metrics, "http_request_limit_rejected", Some(0));
+
         // Retain this tx handle for the second request and use it to prove the
         // request dropped before anything was read from the body - the request
         // should error _before_ anything is sent over tx, and subsequently
@@ -1199,6 +1211,9 @@ mod tests {
             .await
             .expect_err("second request should be rejected");
         assert_matches!(err, Error::RequestLimit);
+
+        // Ensure the "rejected requests" metric was incremented
+        assert_metric_hit(&*metrics, "http_request_limit_rejected", Some(1));
 
         // Prove the dropped request body is not being read:
         body_2_tx
@@ -1232,5 +1247,8 @@ mod tests {
             .with_timeout_panic(Duration::from_secs(1))
             .await
             .expect("empty write should succeed");
+
+        // And the request rejected metric must remain unchanged
+        assert_metric_hit(&*metrics, "http_request_limit_rejected", Some(1));
     }
 }
