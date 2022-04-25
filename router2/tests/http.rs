@@ -25,11 +25,11 @@ use write_buffer::{
 
 /// The kafka topic catalog ID assigned by the namespace auto-creator in the
 /// handler stack for namespaces it has not yet observed.
-const TEST_KAFKA_TOPIC_ID: i32 = 1;
+const TEST_KAFKA_TOPIC_ID: i64 = 1;
 
 /// The query pool catalog ID assigned by the namespace auto-creator in the
 /// handler stack for namespaces it has not yet observed.
-const TEST_QUERY_POOL_ID: i16 = 1;
+const TEST_QUERY_POOL_ID: i64 = 1;
 
 pub struct TestContext {
     delegate: HttpDelegateStack,

@@ -16,7 +16,7 @@ message GetNamespacesResponse {
 
 message Namespace {
   // Namespace ID
-  int32 id = 1;
+  int64 id = 1;
 
   // Name of the Namespace
   string name = 2;

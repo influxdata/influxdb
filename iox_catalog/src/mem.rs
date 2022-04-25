@@ -237,7 +237,7 @@ impl KafkaTopicRepo for MemTxn {
             Some(t) => t,
             None => {
                 let topic = KafkaTopic {
-                    id: KafkaTopicId::new(stage.kafka_topics.len() as i32 + 1),
+                    id: KafkaTopicId::new(stage.kafka_topics.len() as i64 + 1),
                     name: name.to_string(),
                 };
                 stage.kafka_topics.push(topic);
@@ -265,7 +265,7 @@ impl QueryPoolRepo for MemTxn {
             Some(t) => t,
             None => {
                 let pool = QueryPool {
-                    id: QueryPoolId::new(stage.query_pools.len() as i16 + 1),
+                    id: QueryPoolId::new(stage.query_pools.len() as i64 + 1),
                     name: name.to_string(),
                 };
                 stage.query_pools.push(pool);
@@ -295,7 +295,7 @@ impl NamespaceRepo for MemTxn {
         }
 
         let namespace = Namespace {
-            id: NamespaceId::new(stage.namespaces.len() as i32 + 1),
+            id: NamespaceId::new(stage.namespaces.len() as i64 + 1),
             name: name.to_string(),
             kafka_topic_id,
             query_pool_id,
@@ -393,7 +393,7 @@ impl TableRepo for MemTxn {
             Some(t) => t,
             None => {
                 let table = Table {
-                    id: TableId::new(stage.tables.len() as i32 + 1),
+                    id: TableId::new(stage.tables.len() as i64 + 1),
                     namespace_id,
                     name: name.to_string(),
                 };
@@ -533,7 +533,7 @@ impl ColumnRepo for MemTxn {
             }
             None => {
                 let column = Column {
-                    id: ColumnId::new(stage.columns.len() as i32 + 1),
+                    id: ColumnId::new(stage.columns.len() as i64 + 1),
                     table_id,
                     name: name.to_string(),
                     column_type: column_type as i16,
@@ -596,7 +596,7 @@ impl SequencerRepo for MemTxn {
             Some(t) => t,
             None => {
                 let sequencer = Sequencer {
-                    id: SequencerId::new(stage.sequencers.len() as i16 + 1),
+                    id: SequencerId::new(stage.sequencers.len() as i64 + 1),
                     kafka_topic_id: topic.id,
                     kafka_partition: partition,
                     min_unpersisted_sequence_number: 0,

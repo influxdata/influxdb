@@ -63,7 +63,7 @@ impl catalog_service_server::CatalogService for CatalogService {
 fn to_parquet_file(p: data_types2::ParquetFile) -> ParquetFile {
     ParquetFile {
         id: p.id.get(),
-        sequencer_id: p.sequencer_id.get() as i32,
+        sequencer_id: p.sequencer_id.get(),
         namespace_id: p.namespace_id.get(),
         table_id: p.table_id.get(),
         partition_id: p.partition_id.get(),

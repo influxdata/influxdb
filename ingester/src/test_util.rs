@@ -101,8 +101,8 @@ pub async fn make_persisting_batch_with_meta() -> (Arc<PersistingBatch>, Vec<Tom
 /// Create tombstone for testing
 pub fn create_tombstone(
     id: i64,
-    table_id: i32,
-    seq_id: i16,
+    table_id: i64,
+    seq_id: i64,
     seq_num: i64,
     min_time: i64,
     max_time: i64,
@@ -123,10 +123,10 @@ pub fn create_tombstone(
 pub fn make_meta(
     object_store_id: Uuid,
     creation_timestamp: Time,
-    sequencer_id: i16,
-    namespace_id: i32,
+    sequencer_id: i64,
+    namespace_id: i64,
     namespace_name: &str,
-    table_id: i32,
+    table_id: i64,
     table_name: &str,
     partition_id: i64,
     partition_key: &str,
@@ -160,9 +160,9 @@ pub fn make_meta(
 
 #[allow(clippy::too_many_arguments)]
 pub fn make_persisting_batch(
-    seq_id: i16,
+    seq_id: i64,
     seq_num_start: i64,
-    table_id: i32,
+    table_id: i64,
     table_name: &str,
     partition_id: i64,
     object_store_id: Uuid,

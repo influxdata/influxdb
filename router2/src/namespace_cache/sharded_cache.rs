@@ -54,7 +54,7 @@ mod tests {
             .expect("generated invalid random database name")
     }
 
-    fn schema_with_id(id: i32) -> NamespaceSchema {
+    fn schema_with_id(id: i64) -> NamespaceSchema {
         NamespaceSchema {
             id: NamespaceId::new(id),
             kafka_topic_id: KafkaTopicId::new(1),

@@ -3,7 +3,7 @@ use crate::{
     query_log::{QueryLog, QueryLogEntry},
     system_tables::IoxSystemTable,
 };
-use arrow::array::{ArrayRef, BooleanArray, Int32Array};
+use arrow::array::{ArrayRef, BooleanArray, Int64Array};
 use arrow::{
     array::{DurationNanosecondArray, StringArray, TimestampNanosecondArray},
     datatypes::{DataType, Field, Schema, SchemaRef, TimeUnit},
@@ -79,7 +79,7 @@ impl IoxSystemTable for QueriesTable {
 fn queries_schema(include_namespace_id: bool) -> SchemaRef {
     let mut columns = vec![];
     if include_namespace_id {
-        columns.push(Field::new("namespace_id", DataType::Int32, false));
+        columns.push(Field::new("namespace_id", DataType::Int64, false));
     }
     columns.append(&mut vec![
         Field::new(
@@ -117,7 +117,7 @@ fn from_query_log_entries(
                 .skip(offset)
                 .take(len)
                 .map(|e| Some(e.namespace_id.get()))
-                .collect::<Int32Array>(),
+                .collect::<Int64Array>(),
         ));
     }
 

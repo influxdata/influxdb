@@ -764,7 +764,7 @@ pub(crate) mod test_helpers {
 
         let not_found = repos
             .namespaces()
-            .get_by_id(NamespaceId::new(i32::MAX))
+            .get_by_id(NamespaceId::new(i64::MAX))
             .await
             .unwrap();
         assert!(not_found.is_none());
@@ -839,7 +839,7 @@ pub(crate) mod test_helpers {
         assert_eq!(t, repos.tables().get_by_id(t.id).await.unwrap().unwrap());
         assert!(repos
             .tables()
-            .get_by_id(TableId::new(i32::MAX))
+            .get_by_id(TableId::new(i64::MAX))
             .await
             .unwrap()
             .is_none());
@@ -875,7 +875,7 @@ pub(crate) mod test_helpers {
         assert_eq!(
             repos
                 .tables()
-                .get_by_namespace_and_name(NamespaceId::new(i32::MAX), "test_table")
+                .get_by_namespace_and_name(NamespaceId::new(i64::MAX), "test_table")
                 .await
                 .unwrap(),
             None
@@ -1434,7 +1434,7 @@ pub(crate) mod test_helpers {
         assert_eq!(vec![t4.clone(), t5.clone()], listed);
         let listed = repos
             .tombstones()
-            .list_by_namespace(NamespaceId::new(i32::MAX))
+            .list_by_namespace(NamespaceId::new(i64::MAX))
             .await
             .unwrap();
         assert!(listed.is_empty());
@@ -1956,7 +1956,7 @@ pub(crate) mod test_helpers {
 
         let files = repos
             .parquet_files()
-            .list_by_namespace_not_to_delete(NamespaceId::new(i32::MAX))
+            .list_by_namespace_not_to_delete(NamespaceId::new(i64::MAX))
             .await
             .unwrap();
         assert!(files.is_empty());

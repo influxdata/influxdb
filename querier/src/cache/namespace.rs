@@ -223,18 +223,18 @@ mod tests {
             catalog.time_provider(),
         );
 
-        let none = cache.name(NamespaceId::new(i32::MAX)).await;
+        let none = cache.name(NamespaceId::new(i64::MAX)).await;
         assert!(none.is_none());
         assert_histogram_metric_count(&catalog.metric_registry, "namespace_get_by_id", 1);
 
-        let none = cache.name(NamespaceId::new(i32::MAX)).await;
+        let none = cache.name(NamespaceId::new(i64::MAX)).await;
         assert!(none.is_none());
         assert_histogram_metric_count(&catalog.metric_registry, "namespace_get_by_id", 1);
 
         // cache timeout
         catalog.mock_time_provider().inc(TTL_NON_EXISTING);
 
-        let none = cache.name(NamespaceId::new(i32::MAX)).await;
+        let none = cache.name(NamespaceId::new(i64::MAX)).await;
         assert!(none.is_none());
         assert_histogram_metric_count(&catalog.metric_registry, "namespace_get_by_id", 2);
     }

@@ -57,7 +57,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 pub async fn compact_persisting_batch(
     time_provider: Arc<dyn TimeProvider>,
     executor: &Executor,
-    namespace_id: i32,
+    namespace_id: i64,
     partition_info: &PartitionInfo,
     batch: Arc<PersistingBatch>,
 ) -> Result<Option<(Vec<RecordBatch>, IoxMetadata, Option<SortKey>)>> {

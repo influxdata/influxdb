@@ -39,14 +39,14 @@ pub use data_types::{
 /// Unique ID for a `Namespace`
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
 #[sqlx(transparent)]
-pub struct NamespaceId(i32);
+pub struct NamespaceId(i64);
 
 #[allow(missing_docs)]
 impl NamespaceId {
-    pub fn new(v: i32) -> Self {
+    pub fn new(v: i64) -> Self {
         Self(v)
     }
-    pub fn get(&self) -> i32 {
+    pub fn get(&self) -> i64 {
         self.0
     }
 }
@@ -60,14 +60,14 @@ impl std::fmt::Display for NamespaceId {
 /// Unique ID for a `KafkaTopic`
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
 #[sqlx(transparent)]
-pub struct KafkaTopicId(i32);
+pub struct KafkaTopicId(i64);
 
 #[allow(missing_docs)]
 impl KafkaTopicId {
-    pub fn new(v: i32) -> Self {
+    pub fn new(v: i64) -> Self {
         Self(v)
     }
-    pub fn get(&self) -> i32 {
+    pub fn get(&self) -> i64 {
         self.0
     }
 }
@@ -81,14 +81,14 @@ impl std::fmt::Display for KafkaTopicId {
 /// Unique ID for a `QueryPool`
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
 #[sqlx(transparent)]
-pub struct QueryPoolId(i16);
+pub struct QueryPoolId(i64);
 
 #[allow(missing_docs)]
 impl QueryPoolId {
-    pub fn new(v: i16) -> Self {
+    pub fn new(v: i64) -> Self {
         Self(v)
     }
-    pub fn get(&self) -> i16 {
+    pub fn get(&self) -> i64 {
         self.0
     }
 }
@@ -96,14 +96,14 @@ impl QueryPoolId {
 /// Unique ID for a `Table`
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
 #[sqlx(transparent)]
-pub struct TableId(i32);
+pub struct TableId(i64);
 
 #[allow(missing_docs)]
 impl TableId {
-    pub fn new(v: i32) -> Self {
+    pub fn new(v: i64) -> Self {
         Self(v)
     }
-    pub fn get(&self) -> i32 {
+    pub fn get(&self) -> i64 {
         self.0
     }
 }
@@ -117,14 +117,14 @@ impl std::fmt::Display for TableId {
 /// Unique ID for a `Column`
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
 #[sqlx(transparent)]
-pub struct ColumnId(i32);
+pub struct ColumnId(i64);
 
 #[allow(missing_docs)]
 impl ColumnId {
-    pub fn new(v: i32) -> Self {
+    pub fn new(v: i64) -> Self {
         Self(v)
     }
-    pub fn get(&self) -> i32 {
+    pub fn get(&self) -> i64 {
         self.0
     }
 }
@@ -136,14 +136,14 @@ impl ColumnId {
 /// <https://github.com/influxdata/influxdb_iox/issues/4237>
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
 #[sqlx(transparent)]
-pub struct SequencerId(i16);
+pub struct SequencerId(i64);
 
 #[allow(missing_docs)]
 impl SequencerId {
-    pub fn new(v: i16) -> Self {
+    pub fn new(v: i64) -> Self {
         Self(v)
     }
-    pub fn get(&self) -> i16 {
+    pub fn get(&self) -> i64 {
         self.0
     }
 }

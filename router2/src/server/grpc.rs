@@ -266,7 +266,7 @@ fn schema_to_proto(schema: Arc<data_types2::NamespaceSchema>) -> GetSchemaRespon
         schema: Some(NamespaceSchema {
             id: schema.id.get(),
             kafka_topic_id: schema.kafka_topic_id.get(),
-            query_pool_id: schema.query_pool_id.get() as i32,
+            query_pool_id: schema.query_pool_id.get(),
             tables: schema
                 .tables
                 .iter()

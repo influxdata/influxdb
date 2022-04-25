@@ -1,7 +1,7 @@
 use std::{borrow::Cow, convert::TryInto, path::PathBuf, sync::Arc, time::Instant};
 
 use arrow::{
-    array::{ArrayRef, Int32Array, StringArray},
+    array::{ArrayRef, Int64Array, StringArray},
     record_batch::RecordBatch,
 };
 use observability_deps::tracing::{debug, info};
@@ -310,7 +310,7 @@ impl Repl {
             .map_err(|e| Box::new(e) as _)
             .context(LoadingRemoteStateSnafu)?;
 
-        let namespace_id: Int32Array = namespaces.iter().map(|ns| Some(ns.id)).collect();
+        let namespace_id: Int64Array = namespaces.iter().map(|ns| Some(ns.id)).collect();
         let name: StringArray = namespaces.iter().map(|ns| Some(&ns.name)).collect();
 
         let record_batch = RecordBatch::try_from_iter(vec![

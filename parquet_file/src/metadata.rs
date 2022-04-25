@@ -573,7 +573,7 @@ impl IoxMetadata {
             creation_timestamp: Some(self.creation_timestamp.date_time().into()),
             namespace_id: self.namespace_id.get(),
             namespace_name: self.namespace_name.to_string(),
-            sequencer_id: self.sequencer_id.get() as i32,
+            sequencer_id: self.sequencer_id.get(),
             table_id: self.table_id.get(),
             table_name: self.table_name.to_string(),
             partition_id: self.partition_id.get(),
@@ -633,13 +633,7 @@ impl IoxMetadata {
             creation_timestamp,
             namespace_id: NamespaceId::new(proto_msg.namespace_id),
             namespace_name,
-            sequencer_id: SequencerId::new(
-                proto_msg
-                    .sequencer_id
-                    .try_into()
-                    .map_err(|err| Box::new(err) as _)
-                    .context(IoxMetadataBrokenSnafu)?,
-            ),
+            sequencer_id: SequencerId::new(proto_msg.sequencer_id),
             table_id: TableId::new(proto_msg.table_id),
             table_name,
             partition_id: PartitionId::new(proto_msg.partition_id),

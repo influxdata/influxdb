@@ -13,16 +13,16 @@ message IoxMetadata {
   google.protobuf.Timestamp creation_timestamp = 2;
 
   // Unique namespace ID.
-  int32 namespace_id = 3;
+  int64 namespace_id = 3;
 
   // Unique name of the namespace.
   string namespace_name = 4;
 
   // Unique sequencer ID.
-  int32 sequencer_id = 5;
+  int64 sequencer_id = 5;
 
   // Unique table ID.
-  int32 table_id = 6;
+  int64 table_id = 6;
 
   // Table that holds this parquet file.
   string table_name = 7;

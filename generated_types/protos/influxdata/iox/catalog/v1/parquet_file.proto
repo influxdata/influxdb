@@ -5,11 +5,11 @@ message ParquetFile {
     // the id of the file in the catalog
     int64 id = 1;
     // the sequencer that sequenced writes for this file
-    int32 sequencer_id = 2;
+    int64 sequencer_id = 2;
     // the namespace id
-    int32 namespace_id = 3;
+    int64 namespace_id = 3;
     // the table id
-    int32 table_id = 4;
+    int64 table_id = 4;
     // the partition id
     int64 partition_id = 5;
     // the object store uuid

@@ -213,17 +213,17 @@ mod tests {
             catalog.time_provider(),
         );
 
-        let none = cache.name(TableId::new(i32::MAX)).await;
+        let none = cache.name(TableId::new(i64::MAX)).await;
         assert_eq!(none, None);
         assert_histogram_metric_count(&catalog.metric_registry, "table_get_by_id", 1);
 
-        let none = cache.name(TableId::new(i32::MAX)).await;
+        let none = cache.name(TableId::new(i64::MAX)).await;
         assert_eq!(none, None);
         assert_histogram_metric_count(&catalog.metric_registry, "table_get_by_id", 1);
 
         catalog.mock_time_provider().inc(TTL_NON_EXISTING);
 
-        let none = cache.name(TableId::new(i32::MAX)).await;
+        let none = cache.name(TableId::new(i64::MAX)).await;
         assert_eq!(none, None);
         assert_histogram_metric_count(&catalog.metric_registry, "table_get_by_id", 2);
     }
@@ -275,18 +275,18 @@ mod tests {
             catalog.time_provider(),
         );
 
-        let none = cache.namespace_id(TableId::new(i32::MAX)).await;
+        let none = cache.namespace_id(TableId::new(i64::MAX)).await;
         assert_eq!(none, None);
         assert_histogram_metric_count(&catalog.metric_registry, "table_get_by_id", 1);
 
         // "non-existing" is cached
-        let none = cache.namespace_id(TableId::new(i32::MAX)).await;
+        let none = cache.namespace_id(TableId::new(i64::MAX)).await;
         assert_eq!(none, None);
         assert_histogram_metric_count(&catalog.metric_registry, "table_get_by_id", 1);
 
         // let "non-existing" TTL expire
         catalog.mock_time_provider().inc(TTL_NON_EXISTING);
-        let none = cache.namespace_id(TableId::new(i32::MAX)).await;
+        let none = cache.namespace_id(TableId::new(i64::MAX)).await;
         assert_eq!(none, None);
         assert_histogram_metric_count(&catalog.metric_registry, "table_get_by_id", 2);
     }
@@ -374,7 +374,7 @@ mod tests {
         );
 
         let none = cache
-            .id(NamespaceId::new(i32::MAX), Arc::from("table"))
+            .id(NamespaceId::new(i64::MAX), Arc::from("table"))
             .await;
         assert_eq!(none, None);
         assert_histogram_metric_count(
@@ -384,7 +384,7 @@ mod tests {
         );
 
         let none = cache
-            .id(NamespaceId::new(i32::MAX), Arc::from("table"))
+            .id(NamespaceId::new(i64::MAX), Arc::from("table"))
             .await;
         assert_eq!(none, None);
         assert_histogram_metric_count(
@@ -396,7 +396,7 @@ mod tests {
         catalog.mock_time_provider().inc(TTL_NON_EXISTING);
 
         let none = cache
-            .id(NamespaceId::new(i32::MAX), Arc::from("table"))
+            .id(NamespaceId::new(i64::MAX), Arc::from("table"))
             .await;
         assert_eq!(none, None);
         assert_histogram_metric_count(
