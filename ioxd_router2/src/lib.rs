@@ -39,16 +39,6 @@ use ioxd_common::{
 };
 use object_store::DynObjectStore;
 
-/// The maximum number of simultaneous requests the HTTP server is configured to
-/// accept.
-///
-/// This number of requests, multiplied by the maximum request body size the
-/// HTTP server is configured with gives the rough total amount of memory a HTTP
-/// server will use to buffer request bodies in memory.
-///
-/// A maximum of 200 requests x 10MiB max HTTP body == ~2GiB
-const MAX_HTTP_REQUESTS: usize = 200;
-
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("failed to initialise write buffer connection: {0}")]
@@ -161,6 +151,7 @@ pub async fn create_router2_server_type(
     object_store: Arc<DynObjectStore>,
     write_buffer_config: &WriteBufferConfig,
     query_pool_name: &str,
+    request_limit: usize,
 ) -> Result<Arc<dyn ServerType>> {
     // Initialise the sharded write buffer and instrument it with DML handler
     // metrics.
@@ -275,7 +266,7 @@ pub async fn create_router2_server_type(
     let handler_stack = Arc::new(handler_stack);
     let http = HttpDelegate::new(
         common_state.run_config().max_http_request_size,
-        MAX_HTTP_REQUESTS,
+        request_limit,
         Arc::clone(&handler_stack),
         &metrics,
     );

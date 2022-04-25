@@ -339,6 +339,7 @@ pub async fn command(config: Config) -> Result<()> {
         Arc::clone(&object_store),
         &write_buffer_config,
         query_pool_name,
+        1_000, // max 1,000 concurrent HTTP requests
     )
     .await?;
 
