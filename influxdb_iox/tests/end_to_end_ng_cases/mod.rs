@@ -1,6 +1,8 @@
 mod all_in_one;
 mod cli;
+mod debug;
 mod ingester;
+mod logging;
 mod namespace;
 mod querier;
 mod schema;

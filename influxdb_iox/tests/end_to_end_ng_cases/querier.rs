@@ -8,6 +8,7 @@ use test_helpers_end_to_end_ng::{
 
 #[tokio::test]
 async fn basic_ingester() {
+    test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();
 
     let table_name = "the_table";
@@ -44,12 +45,13 @@ async fn basic_ingester() {
 
 #[tokio::test]
 async fn basic_on_parquet() {
+    test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();
 
     let table_name = "the_table";
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_quickly_peristing(database_url).await;
+    let mut cluster = MiniCluster::create_quickly_persisting(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -75,6 +77,7 @@ async fn basic_on_parquet() {
 
 #[tokio::test]
 async fn basic_no_ingester_connection() {
+    test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();
 
     let table_name = "the_table";
@@ -120,12 +123,13 @@ async fn basic_no_ingester_connection() {
 
 #[tokio::test]
 async fn table_not_found_on_ingester() {
+    test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();
 
     let table_name = "the_table";
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_quickly_peristing(database_url).await;
+    let mut cluster = MiniCluster::create_quickly_persisting(database_url).await;
 
     StepTest::new(
         &mut cluster,

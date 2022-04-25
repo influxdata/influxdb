@@ -65,20 +65,20 @@ async fn tag_keys() {
     run_data_test(
         Arc::clone(&generator),
         Box::new(move |state: &mut StepTestState| {
-            let mut storage_client =
-                StorageClient::new(state.cluster().querier().querier_grpc_connection());
-            let read_source = make_read_source(state.cluster());
-            let range = generator.timestamp_range();
-            let predicate = exprs::make_tag_predicate("host", "server01");
-            let predicate = Some(predicate);
-
-            let tag_keys_request = tonic::Request::new(TagKeysRequest {
-                tags_source: read_source,
-                range,
-                predicate,
-            });
-
             async move {
+                let mut storage_client =
+                    StorageClient::new(state.cluster().querier().querier_grpc_connection());
+                let read_source = make_read_source(state.cluster());
+                let range = generator.timestamp_range();
+                let predicate = exprs::make_tag_predicate("host", "server01");
+                let predicate = Some(predicate);
+
+                let tag_keys_request = tonic::Request::new(TagKeysRequest {
+                    tags_source: read_source,
+                    range,
+                    predicate,
+                });
+
                 let tag_keys_response = storage_client.tag_keys(tag_keys_request).await.unwrap();
                 let responses: Vec<_> = tag_keys_response.into_inner().try_collect().await.unwrap();
 
@@ -102,21 +102,21 @@ async fn tag_values() {
     run_data_test(
         Arc::clone(&generator),
         Box::new(move |state: &mut StepTestState| {
-            let mut storage_client =
-                StorageClient::new(state.cluster().querier().querier_grpc_connection());
-            let read_source = make_read_source(state.cluster());
-            let range = generator.timestamp_range();
-            let predicate = exprs::make_tag_predicate("host", "server01");
-            let predicate = Some(predicate);
-
-            let tag_values_request = tonic::Request::new(TagValuesRequest {
-                tags_source: read_source,
-                range,
-                predicate,
-                tag_key: b"host".to_vec(),
-            });
-
             async move {
+                let mut storage_client =
+                    StorageClient::new(state.cluster().querier().querier_grpc_connection());
+                let read_source = make_read_source(state.cluster());
+                let range = generator.timestamp_range();
+                let predicate = exprs::make_tag_predicate("host", "server01");
+                let predicate = Some(predicate);
+
+                let tag_values_request = tonic::Request::new(TagValuesRequest {
+                    tags_source: read_source,
+                    range,
+                    predicate,
+                    tag_key: b"host".to_vec(),
+                });
+
                 let tag_values_response =
                     storage_client.tag_values(tag_values_request).await.unwrap();
                 let responses: Vec<_> = tag_values_response
@@ -145,18 +145,18 @@ async fn measurement_names() {
     run_data_test(
         Arc::clone(&generator),
         Box::new(move |state: &mut StepTestState| {
-            let mut storage_client =
-                StorageClient::new(state.cluster().querier().querier_grpc_connection());
-            let read_source = make_read_source(state.cluster());
-            let range = generator.timestamp_range();
-
-            let measurement_names_request = tonic::Request::new(MeasurementNamesRequest {
-                source: read_source,
-                range,
-                predicate: None,
-            });
-
             async move {
+                let mut storage_client =
+                    StorageClient::new(state.cluster().querier().querier_grpc_connection());
+                let read_source = make_read_source(state.cluster());
+                let range = generator.timestamp_range();
+
+                let measurement_names_request = tonic::Request::new(MeasurementNamesRequest {
+                    source: read_source,
+                    range,
+                    predicate: None,
+                });
+
                 let measurement_names_response = storage_client
                     .measurement_names(measurement_names_request)
                     .await
@@ -190,22 +190,22 @@ async fn measurement_tag_keys() {
     run_data_test(
         Arc::clone(&generator),
         Box::new(move |state: &mut StepTestState| {
-            let mut storage_client =
-                StorageClient::new(state.cluster().querier().querier_grpc_connection());
-            let read_source = make_read_source(state.cluster());
-            let range = generator.timestamp_range();
-
-            let predicate = exprs::make_tag_predicate("host", "server01");
-            let predicate = Some(predicate);
-
-            let measurement_tag_keys_request = tonic::Request::new(MeasurementTagKeysRequest {
-                source: read_source,
-                measurement: String::from("cpu_load_short"),
-                range,
-                predicate,
-            });
-
             async move {
+                let mut storage_client =
+                    StorageClient::new(state.cluster().querier().querier_grpc_connection());
+                let read_source = make_read_source(state.cluster());
+                let range = generator.timestamp_range();
+
+                let predicate = exprs::make_tag_predicate("host", "server01");
+                let predicate = Some(predicate);
+
+                let measurement_tag_keys_request = tonic::Request::new(MeasurementTagKeysRequest {
+                    source: read_source,
+                    measurement: String::from("cpu_load_short"),
+                    range,
+                    predicate,
+                });
+
                 let measurement_tag_keys_response = storage_client
                     .measurement_tag_keys(measurement_tag_keys_request)
                     .await
@@ -236,23 +236,24 @@ async fn measurement_tag_values() {
     run_data_test(
         Arc::clone(&generator),
         Box::new(move |state: &mut StepTestState| {
-            let mut storage_client =
-                StorageClient::new(state.cluster().querier().querier_grpc_connection());
-            let read_source = make_read_source(state.cluster());
-            let range = generator.timestamp_range();
-
-            let predicate = exprs::make_tag_predicate("host", "server01");
-            let predicate = Some(predicate);
-
-            let measurement_tag_values_request = tonic::Request::new(MeasurementTagValuesRequest {
-                source: read_source,
-                measurement: String::from("cpu_load_short"),
-                tag_key: String::from("host"),
-                range,
-                predicate,
-            });
-
             async move {
+                let mut storage_client =
+                    StorageClient::new(state.cluster().querier().querier_grpc_connection());
+                let read_source = make_read_source(state.cluster());
+                let range = generator.timestamp_range();
+
+                let predicate = exprs::make_tag_predicate("host", "server01");
+                let predicate = Some(predicate);
+
+                let measurement_tag_values_request =
+                    tonic::Request::new(MeasurementTagValuesRequest {
+                        source: read_source,
+                        measurement: String::from("cpu_load_short"),
+                        tag_key: String::from("host"),
+                        range,
+                        predicate,
+                    });
+
                 let measurement_tag_values_response = storage_client
                     .measurement_tag_values(measurement_tag_values_request)
                     .await
@@ -283,23 +284,23 @@ async fn measurement_fields() {
     run_data_test(
         Arc::clone(&generator),
         Box::new(move |state: &mut StepTestState| {
-            let mut storage_client =
-                StorageClient::new(state.cluster().querier().querier_grpc_connection());
-            let read_source = make_read_source(state.cluster());
-            let range = generator.timestamp_range();
-
-            let predicate = exprs::make_tag_predicate("host", "server01");
-            let predicate = Some(predicate);
-
-            let measurement_fields_request = tonic::Request::new(MeasurementFieldsRequest {
-                source: read_source,
-                measurement: String::from("cpu_load_short"),
-                range,
-                predicate,
-            });
-
-            let ns_since_epoch = generator.ns_since_epoch();
             async move {
+                let mut storage_client =
+                    StorageClient::new(state.cluster().querier().querier_grpc_connection());
+                let read_source = make_read_source(state.cluster());
+                let range = generator.timestamp_range();
+
+                let predicate = exprs::make_tag_predicate("host", "server01");
+                let predicate = Some(predicate);
+
+                let measurement_fields_request = tonic::Request::new(MeasurementFieldsRequest {
+                    source: read_source,
+                    measurement: String::from("cpu_load_short"),
+                    range,
+                    predicate,
+                });
+
+                let ns_since_epoch = generator.ns_since_epoch();
                 let measurement_fields_response = storage_client
                     .measurement_fields(measurement_fields_request)
                     .await

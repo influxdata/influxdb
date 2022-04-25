@@ -3,6 +3,7 @@ use futures::future::BoxFuture;
 use http::StatusCode;
 
 use arrow_util::assert_batches_sorted_eq;
+use observability_deps::tracing::info;
 
 use crate::{
     get_write_token, run_query, token_is_persisted, wait_for_persisted, wait_for_readable,
@@ -64,7 +65,7 @@ impl<'a> StepTestState<'a> {
 ///   }.boxed()
 /// });
 /// ```
-pub type FCustom = Box<dyn for<'b> Fn(&'b mut StepTestState) -> BoxFuture<'b, ()>>;
+pub type FCustom = Box<dyn for<'b> FnOnce(&'b mut StepTestState) -> BoxFuture<'b, ()>>;
 
 /// Possible test steps that a test can perform
 pub enum Step {
@@ -122,39 +123,39 @@ impl<'a> StepTest<'a> {
         };
 
         for (i, step) in steps.into_iter().enumerate() {
-            println!("**** Begin step {} *****", i);
+            info!("**** Begin step {} *****", i);
             match step {
                 Step::WriteLineProtocol(line_protocol) => {
-                    println!(
+                    info!(
                         "====Begin writing line protocol to v2 HTTP API:\n{}",
                         line_protocol
                     );
                     let response = state.cluster.write_to_router(line_protocol).await;
                     assert_eq!(response.status(), StatusCode::NO_CONTENT);
                     let write_token = get_write_token(&response);
-                    println!("====Done writing line protocol, got token {}", write_token);
+                    info!("====Done writing line protocol, got token {}", write_token);
                     state.write_tokens.push(write_token);
                 }
                 Step::WaitForReadable => {
-                    println!("====Begin waiting for all write tokens to be readable");
+                    info!("====Begin waiting for all write tokens to be readable");
                     let ingester_grpc_connection =
                         state.cluster().ingester().ingester_grpc_connection();
                     for write_token in &state.write_tokens {
                         wait_for_readable(write_token, ingester_grpc_connection.clone()).await;
                     }
-                    println!("====Done waiting for all write tokens to be readable");
+                    info!("====Done waiting for all write tokens to be readable");
                 }
                 Step::WaitForPersisted => {
-                    println!("====Begin waiting for all write tokens to be persisted");
+                    info!("====Begin waiting for all write tokens to be persisted");
                     let ingester_grpc_connection =
                         state.cluster().ingester().ingester_grpc_connection();
                     for write_token in &state.write_tokens {
                         wait_for_persisted(write_token, ingester_grpc_connection.clone()).await;
                     }
-                    println!("====Done waiting for all write tokens to be persisted");
+                    info!("====Done waiting for all write tokens to be persisted");
                 }
                 Step::AssertNotPersisted => {
-                    println!("====Begin checking all tokens not persisted");
+                    info!("====Begin checking all tokens not persisted");
                     let ingester_grpc_connection =
                         state.cluster().ingester().ingester_grpc_connection();
                     for write_token in &state.write_tokens {
@@ -162,10 +163,10 @@ impl<'a> StepTest<'a> {
                             token_is_persisted(write_token, ingester_grpc_connection.clone()).await;
                         assert!(!persisted);
                     }
-                    println!("====Done checking all tokens not persisted");
+                    info!("====Done checking all tokens not persisted");
                 }
                 Step::Query { sql, expected } => {
-                    println!("====Begin running query: {}", sql);
+                    info!("====Begin running query: {}", sql);
                     // run query
                     let batches = run_query(
                         sql,
@@ -174,10 +175,10 @@ impl<'a> StepTest<'a> {
                     )
                     .await;
                     assert_batches_sorted_eq!(&expected, &batches);
-                    println!("====Done running");
+                    info!("====Done running");
                 }
                 Step::VerifiedQuery { sql, verify } => {
-                    println!("====Begin running verified query: {}", sql);
+                    info!("====Begin running verified query: {}", sql);
                     // run query
                     let batches = run_query(
                         sql,
@@ -186,12 +187,12 @@ impl<'a> StepTest<'a> {
                     )
                     .await;
                     verify(batches);
-                    println!("====Done running");
+                    info!("====Done running");
                 }
                 Step::Custom(f) => {
-                    println!("====Begin custom step");
+                    info!("====Begin custom step");
                     f(&mut state).await;
-                    println!("====Done custom step");
+                    info!("====Done custom step");
                 }
             }
         }

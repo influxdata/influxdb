@@ -17,35 +17,35 @@ use super::{data::DataGenerator, exprs};
 async fn read_filter() {
     let generator = Arc::new(DataGenerator::new());
     run_data_test(Arc::clone(&generator), Box::new(move |state: &mut StepTestState| {
-        let mut storage_client =
-            StorageClient::new(state.cluster().querier().querier_grpc_connection());
-        let read_source = make_read_source(state.cluster());
-        let range = generator.timestamp_range();
-
-        let predicate = exprs::make_tag_predicate("host", "server01");
-        let predicate = Some(predicate);
-
-        let read_filter_request = tonic::Request::new(ReadFilterRequest {
-            read_source,
-            range,
-            predicate,
-            ..Default::default()
-        });
-
-        let expected_frames = generator.substitute_nanos(&[
-            "SeriesFrame, tags: _measurement=cpu_load_short,host=server01,_field=value, type: 0",
-            "FloatPointsFrame, timestamps: [ns1], values: \"27.99\"",
-            "SeriesFrame, tags: _measurement=cpu_load_short,host=server01,region=us-east,_field=value, type: 0",
-            "FloatPointsFrame, timestamps: [ns3], values: \"1234567.891011\"",
-            "SeriesFrame, tags: _measurement=cpu_load_short,host=server01,region=us-west,_field=value, type: 0",
-            "FloatPointsFrame, timestamps: [ns0, ns4], values: \"0.64,0.000003\"",
-            "SeriesFrame, tags: _measurement=swap,host=server01,name=disk0,_field=in, type: 1",
-            "IntegerPointsFrame, timestamps: [ns6], values: \"3\"",
-            "SeriesFrame, tags: _measurement=swap,host=server01,name=disk0,_field=out, type: 1",
-            "IntegerPointsFrame, timestamps: [ns6], values: \"4\""
-        ]);
-
         async move {
+            let mut storage_client =
+                StorageClient::new(state.cluster().querier().querier_grpc_connection());
+            let read_source = make_read_source(state.cluster());
+            let range = generator.timestamp_range();
+
+            let predicate = exprs::make_tag_predicate("host", "server01");
+            let predicate = Some(predicate);
+
+            let read_filter_request = tonic::Request::new(ReadFilterRequest {
+                read_source,
+                range,
+                predicate,
+                ..Default::default()
+            });
+
+            let expected_frames = generator.substitute_nanos(&[
+                "SeriesFrame, tags: _measurement=cpu_load_short,host=server01,_field=value, type: 0",
+                "FloatPointsFrame, timestamps: [ns1], values: \"27.99\"",
+                "SeriesFrame, tags: _measurement=cpu_load_short,host=server01,region=us-east,_field=value, type: 0",
+                "FloatPointsFrame, timestamps: [ns3], values: \"1234567.891011\"",
+                "SeriesFrame, tags: _measurement=cpu_load_short,host=server01,region=us-west,_field=value, type: 0",
+                "FloatPointsFrame, timestamps: [ns0, ns4], values: \"0.64,0.000003\"",
+                "SeriesFrame, tags: _measurement=swap,host=server01,name=disk0,_field=in, type: 1",
+                "IntegerPointsFrame, timestamps: [ns6], values: \"3\"",
+                "SeriesFrame, tags: _measurement=swap,host=server01,name=disk0,_field=out, type: 1",
+                "IntegerPointsFrame, timestamps: [ns6], values: \"4\""
+            ]);
+
             let read_response = storage_client
                 .read_filter(read_filter_request)
                 .await

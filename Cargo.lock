@@ -665,9 +665,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "3.1.10"
+version = "3.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3124f3f75ce09e22d1410043e1e24f2ecc44fad3afe4f08408f1f7663d68da2b"
+checksum = "423af4bd829996d7de0b8bf0279f5b91a20306937be514e972a95c3d3ab13f33"
 dependencies = [
  "atty",
  "bitflags",
@@ -684,7 +684,7 @@ dependencies = [
 name = "clap_blocks"
 version = "0.1.0"
 dependencies = [
- "clap 3.1.10",
+ "clap 3.1.11",
  "data_types",
  "futures",
  "iox_catalog",
@@ -1201,7 +1201,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "7.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=cd8bfb46b2f20ac9d44d22e66883e41cecd683e1#cd8bfb46b2f20ac9d44d22e66883e41cecd683e1"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=886735304f0fa83a24ddc3b3e356aeff4aab78f2#886735304f0fa83a24ddc3b3e356aeff4aab78f2"
 dependencies = [
  "ahash",
  "arrow",
@@ -1233,7 +1233,7 @@ dependencies = [
 [[package]]
 name = "datafusion-common"
 version = "7.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=cd8bfb46b2f20ac9d44d22e66883e41cecd683e1#cd8bfb46b2f20ac9d44d22e66883e41cecd683e1"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=886735304f0fa83a24ddc3b3e356aeff4aab78f2#886735304f0fa83a24ddc3b3e356aeff4aab78f2"
 dependencies = [
  "arrow",
  "ordered-float 2.10.0",
@@ -1244,7 +1244,7 @@ dependencies = [
 [[package]]
 name = "datafusion-data-access"
 version = "1.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=cd8bfb46b2f20ac9d44d22e66883e41cecd683e1#cd8bfb46b2f20ac9d44d22e66883e41cecd683e1"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=886735304f0fa83a24ddc3b3e356aeff4aab78f2#886735304f0fa83a24ddc3b3e356aeff4aab78f2"
 dependencies = [
  "async-trait",
  "chrono",
@@ -1257,7 +1257,7 @@ dependencies = [
 [[package]]
 name = "datafusion-expr"
 version = "7.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=cd8bfb46b2f20ac9d44d22e66883e41cecd683e1#cd8bfb46b2f20ac9d44d22e66883e41cecd683e1"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=886735304f0fa83a24ddc3b3e356aeff4aab78f2#886735304f0fa83a24ddc3b3e356aeff4aab78f2"
 dependencies = [
  "ahash",
  "arrow",
@@ -1268,7 +1268,7 @@ dependencies = [
 [[package]]
 name = "datafusion-physical-expr"
 version = "7.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=cd8bfb46b2f20ac9d44d22e66883e41cecd683e1#cd8bfb46b2f20ac9d44d22e66883e41cecd683e1"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=886735304f0fa83a24ddc3b3e356aeff4aab78f2#886735304f0fa83a24ddc3b3e356aeff4aab78f2"
 dependencies = [
  "ahash",
  "arrow",
@@ -2221,7 +2221,7 @@ dependencies = [
  "byteorder",
  "bytes",
  "chrono",
- "clap 3.1.10",
+ "clap 3.1.11",
  "clap_blocks",
  "comfy-table",
  "compactor",
@@ -2542,7 +2542,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "chrono-english",
- "clap 3.1.10",
+ "clap 3.1.11",
  "criterion",
  "data_types",
  "futures",
@@ -2571,7 +2571,7 @@ dependencies = [
  "assert_matches",
  "async-trait",
  "chrono",
- "clap 3.1.10",
+ "clap 3.1.11",
  "dotenv",
  "futures",
  "glob",
@@ -2664,7 +2664,7 @@ dependencies = [
  "async-trait",
  "bytes",
  "chrono",
- "clap 3.1.10",
+ "clap 3.1.11",
  "clap_blocks",
  "data_types",
  "dml",
@@ -2737,7 +2737,7 @@ dependencies = [
  "arrow_util",
  "async-trait",
  "bytes",
- "clap 3.1.10",
+ "clap 3.1.11",
  "clap_blocks",
  "data_types",
  "db",
@@ -2913,7 +2913,7 @@ name = "ioxd_test"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "clap 3.1.10",
+ "clap 3.1.11",
  "generated_types",
  "hyper",
  "ioxd_common",
@@ -3606,9 +3606,9 @@ dependencies = [
 
 [[package]]
 name = "nix"
-version = "0.24.0"
+version = "0.24.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8f6d99b651ff9697d6710f9613a07c5b4e0d655040faf56b3b471af108d55597"
+checksum = "8f17df307904acd05aa8e32e97bb20f2a0df1728bbc2d771ae8f9a90463441e9"
 dependencies = [
  "bitflags",
  "cfg-if",
@@ -6054,7 +6054,8 @@ dependencies = [
  "http",
  "hyper",
  "influxdb_iox_client",
- "nix 0.24.0",
+ "nix 0.24.1",
+ "observability_deps",
  "once_cell",
  "parking_lot 0.12.0",
  "rand",
@@ -6467,7 +6468,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "chrono",
- "clap 3.1.10",
+ "clap 3.1.11",
  "futures",
  "observability_deps",
  "snafu",
@@ -6613,7 +6614,7 @@ dependencies = [
 name = "trogging"
 version = "0.1.0"
 dependencies = [
- "clap 3.1.10",
+ "clap 3.1.11",
  "logfmt",
  "observability_deps",
  "regex",

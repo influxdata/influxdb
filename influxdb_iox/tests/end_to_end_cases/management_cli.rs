@@ -483,7 +483,7 @@ async fn release_database() {
         .arg(addr)
         .assert()
         .failure()
-        .stderr(predicate::str::contains(
+        .stdout(predicate::str::contains(
             r#"Invalid value "foo" for '--uuid <UUID>'"#,
         ));
 
@@ -636,7 +636,7 @@ async fn claim_database() {
         .arg(addr)
         .assert()
         .failure()
-        .stderr(predicate::str::contains(
+        .stdout(predicate::str::contains(
             r#"Invalid value "foo" for '<UUID>'"#,
         ));
 

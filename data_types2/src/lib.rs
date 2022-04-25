@@ -28,7 +28,9 @@ pub use data_types::{
     delete_predicate::{DeleteExpr, DeletePredicate, Op, Scalar},
     names::{org_and_bucket_to_database, OrgBucketMappingError},
     non_empty::NonEmptyString,
-    partition_metadata::{InfluxDbType, PartitionAddr, TableSummary},
+    partition_metadata::{
+        ColumnSummary, InfluxDbType, PartitionAddr, StatValues, Statistics, TableSummary,
+    },
     sequence::Sequence,
     timestamp::TimestampRange,
     DatabaseName,

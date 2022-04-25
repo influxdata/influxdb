@@ -1,6 +1,7 @@
 use assert_cmd::prelude::*;
 use futures::prelude::*;
 use influxdb_iox_client::connection::Connection;
+use observability_deps::tracing::info;
 use std::{
     fmt::Debug,
     fs::OpenOptions,
@@ -205,7 +206,7 @@ async fn grpc_channel(
 ) -> influxdb_iox_client::connection::Result<Connection> {
     let builder = influxdb_iox_client::connection::Builder::default();
 
-    println!("Creating gRPC channel to {}", client_base);
+    info!("Creating gRPC channel to {}", client_base);
     test_config
         .client_headers()
         .iter()
@@ -295,9 +296,9 @@ impl TestServer {
 
         let server_type = test_config.server_type();
 
-        println!("****************");
-        println!("Server {:?} Logging to {:?}", server_type, log_path);
-        println!("****************");
+        info!("****************");
+        info!("Server {:?} Logging to {:?}", server_type, log_path);
+        info!("****************");
 
         // If set in test environment, use that value, else default to info
         let log_filter =
@@ -359,7 +360,7 @@ impl TestServer {
             let mut interval = tokio::time::interval(Duration::from_millis(100));
             loop {
                 match connections.reconnect(&self.test_config).await {
-                    Err(e) => println!("wait_until_ready: can not yet connect: {}", e),
+                    Err(e) => info!("wait_until_ready: can not yet connect: {}", e),
                     Ok(()) => return,
                 }
                 interval.tick().await;
@@ -387,7 +388,7 @@ impl TestServer {
                 }
                 match client.get(&url).send().await {
                     Ok(resp) => {
-                        println!(
+                        info!(
                             "Successfully got a response from {:?} HTTP: {:?}",
                             self.test_config.server_type(),
                             resp
@@ -395,7 +396,7 @@ impl TestServer {
                         return;
                     }
                     Err(e) => {
-                        println!(
+                        info!(
                             "Waiting for {:?} HTTP server to be up: {}",
                             self.test_config.server_type(),
                             e
@@ -412,7 +413,7 @@ impl TestServer {
 
         match capped_check.await {
             Ok(_) => {
-                println!("Successfully started {}", self);
+                info!("Successfully started {}", self);
                 let mut ready = self.ready.lock().await;
                 *ready = ServerState::Ready;
             }
@@ -501,15 +502,15 @@ async fn check_write_service_health(server_type: ServerType, connection: Connect
 
     match health.check("influxdata.pbdata.v1.WriteService").await {
         Ok(true) => {
-            println!("Write service {:?} is running", server_type);
+            info!("Write service {:?} is running", server_type);
             true
         }
         Ok(false) => {
-            println!("Write service {:?} is not running", server_type);
+            info!("Write service {:?} is not running", server_type);
             true
         }
         Err(e) => {
-            println!("Write service {:?} not yet healthy: {:?}", server_type, e);
+            info!("Write service {:?} not yet healthy: {:?}", server_type, e);
             false
         }
     }
@@ -521,15 +522,15 @@ async fn check_arrow_service_health(server_type: ServerType, connection: Connect
 
     match health.check_arrow().await {
         Ok(true) => {
-            println!("Flight service {:?} is running", server_type);
+            info!("Flight service {:?} is running", server_type);
             true
         }
         Ok(false) => {
-            println!("Flight service {:?} is not running", server_type);
+            info!("Flight service {:?} is not running", server_type);
             true
         }
         Err(e) => {
-            println!("Flight service {:?} not yet healthy: {:?}", server_type, e);
+            info!("Flight service {:?} not yet healthy: {:?}", server_type, e);
             false
         }
     }
@@ -565,11 +566,11 @@ async fn server_dead(server_process: &Mutex<Process>) -> bool {
     match server_process.lock().await.child.try_wait() {
         Ok(None) => false,
         Ok(Some(status)) => {
-            println!("Server process exited: {}", status);
+            info!("Server process exited: {}", status);
             true
         }
         Err(e) => {
-            println!("Error getting server process exit status: {}", e);
+            info!("Error getting server process exit status: {}", e);
             true
         }
     }
@@ -582,9 +583,9 @@ fn dump_log_to_stdout(server_type: ServerType, log_path: &Path) {
     let mut f = std::fs::File::open(log_path).expect("failed to open log file");
     let mut buffer = [0_u8; 8 * 1024];
 
-    println!("****************");
-    println!("Start {:?} TestServer Output", server_type);
-    println!("****************");
+    info!("****************");
+    info!("Start {:?} TestServer Output", server_type);
+    info!("****************");
 
     while let Ok(read) = f.read(&mut buffer) {
         if read == 0 {
@@ -593,16 +594,16 @@ fn dump_log_to_stdout(server_type: ServerType, log_path: &Path) {
         if let Ok(str) = std::str::from_utf8(&buffer[..read]) {
             print!("{}", str);
         } else {
-            println!(
+            info!(
                 "\n\n-- ERROR IN TRANSFER -- please see {:?} for raw contents ---\n\n",
                 log_path
             );
         }
     }
 
-    println!("****************");
-    println!("End {:?} TestServer Output", server_type);
-    println!("****************");
+    info!("****************");
+    info!("End {:?} TestServer Output", server_type);
+    info!("****************");
 }
 
 /// Attempt to kill a child process politely.
@@ -621,23 +622,23 @@ fn kill_politely(child: &mut Child, wait: Duration) {
     let wait_errored = match signal::kill(pid, Signal::SIGTERM) {
         Ok(()) => wait_timeout(pid, wait).is_err(),
         Err(e) => {
-            println!("Error sending SIGTERM to child: {e}");
+            info!("Error sending SIGTERM to child: {e}");
             true
         }
     };
 
     if wait_errored {
         // timeout => kill it
-        println!("Cannot terminate child politely, using SIGKILL...");
+        info!("Cannot terminate child politely, using SIGKILL...");
 
         if let Err(e) = signal::kill(pid, Signal::SIGKILL) {
-            println!("Error sending SIGKILL to child: {e}");
+            info!("Error sending SIGKILL to child: {e}");
         }
         if let Err(e) = waitpid(pid, None) {
-            println!("Cannot wait for child: {e}");
+            info!("Cannot wait for child: {e}");
         }
     } else {
-        println!("Killed child politely");
+        info!("Killed child politely");
     }
 }
 
@@ -657,11 +658,11 @@ fn wait_timeout(pid: nix::unistd::Pid, timeout: Duration) -> Result<(), ()> {
     match receiver.recv_timeout(timeout) {
         Ok(Ok(())) => Ok(()),
         Ok(Err(e)) => {
-            println!("Cannot wait for child: {e}");
+            info!("Cannot wait for child: {e}");
             Err(())
         }
         Err(_) => {
-            println!("Timeout waiting for child");
+            info!("Timeout waiting for child");
             Err(())
         }
     }
