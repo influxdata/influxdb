@@ -2231,11 +2231,22 @@ her"#,
         assert!(FieldValue::I64(0).is_same_type(&FieldValue::I64(42)));
         assert!(FieldValue::U64(0).is_same_type(&FieldValue::U64(42)));
         assert!(FieldValue::F64(0.0).is_same_type(&FieldValue::F64(4.2)));
+        // String & String
         assert!(
             FieldValue::String(EscapedStr::CopiedValue("bananas".to_string())).is_same_type(
                 &FieldValue::String(EscapedStr::CopiedValue("platanos".to_string()))
             )
         );
+        // str & str
+        assert!(FieldValue::String(EscapedStr::SingleSlice("bananas"))
+            .is_same_type(&FieldValue::String(EscapedStr::SingleSlice("platanos"))));
+        // str & String
+        assert!(
+            FieldValue::String(EscapedStr::SingleSlice("bananas")).is_same_type(
+                &FieldValue::String(EscapedStr::CopiedValue("platanos".to_string()))
+            )
+        );
+
         assert!(FieldValue::Boolean(true).is_same_type(&FieldValue::Boolean(false)));
 
         // Some false cases

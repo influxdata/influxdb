@@ -491,7 +491,7 @@ m b=t 1639612800000000000
             let lp = "m1 val=1i,val=2.0 0";
 
             let err = lines_to_batches(lp, 5).expect_err("type conflicted write should fail");
-            assert_matches!( err,
+            assert_matches!(err,
                 Error::Write {
                     source: LineWriteError::ConflictedFieldTypes { name },
                     line: 1
@@ -505,8 +505,8 @@ m b=t 1639612800000000000
         fn test_duplicate_tags_same_value() {
             let lp = "m1,tag=1,tag=1 val=1i 0";
 
-            let err = lines_to_batches(lp, 5).expect_err("type conflicted write should fail");
-            assert_matches!( err,
+            let err = lines_to_batches(lp, 5).expect_err("duplicate tag write should fail");
+            assert_matches!(err,
                 Error::Write {
                     source: LineWriteError::DuplicateTag { name },
                     line: 1
@@ -520,8 +520,8 @@ m b=t 1639612800000000000
         fn test_duplicate_tags_different_value() {
             let lp = "m1,tag=1,tag=2 val=1i 0";
 
-            let err = lines_to_batches(lp, 5).expect_err("type conflicted write should fail");
-            assert_matches!( err,
+            let err = lines_to_batches(lp, 5).expect_err("duplicate tag write should fail");
+            assert_matches!(err,
                 Error::Write {
                     source: LineWriteError::DuplicateTag { name },
                     line: 1
@@ -536,7 +536,7 @@ m b=t 1639612800000000000
             let lp = "m1,tag=1,tag=2.0 val=1i 0";
 
             let err = lines_to_batches(lp, 5).expect_err("type conflicted write should fail");
-            assert_matches!( err,
+            assert_matches!(err,
                 Error::Write {
                     source: LineWriteError::DuplicateTag { name },
                     line: 1
