@@ -71,7 +71,7 @@ fn e2e_benchmarks(c: &mut Criterion) {
             partitioner.and_then(WriteSummaryAdapter::new(FanOutAdaptor::new(write_buffer))),
         );
 
-        HttpDelegate::new(1024, Arc::new(handler_stack), &metrics)
+        HttpDelegate::new(1024, 100, Arc::new(handler_stack), &metrics)
     };
 
     let body_str = "platanos,tag1=A,tag2=B val=42i 123456";
