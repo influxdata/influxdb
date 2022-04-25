@@ -5,11 +5,11 @@
 | partition_key | table_name | column_name | storage           | row_count | null_count | min_value | max_value | memory_bytes |
 +---------------+------------+-------------+-------------------+-----------+------------+-----------+-----------+--------------+
 | 1970-01-01T00 | h2o        | city        | OpenMutableBuffer | 1         | 0          | Boston    | Boston    | 317          |
-| 1970-01-01T00 | h2o        | city        | ReadBuffer        | 2         | 0          | Boston    | Boston    | 359          |
+| 1970-01-01T00 | h2o        | city        | ReadBuffer        | 2         | 0          | Boston    | Boston    | 327          |
 | 1970-01-01T00 | h2o        | other_temp  | OpenMutableBuffer | 1         | 0          | 72.4      | 72.4      | 305          |
 | 1970-01-01T00 | h2o        | other_temp  | ReadBuffer        | 2         | 1          | 70.4      | 70.4      | 471          |
 | 1970-01-01T00 | h2o        | state       | OpenMutableBuffer | 1         | 0          | CA        | CA        | 317          |
-| 1970-01-01T00 | h2o        | state       | ReadBuffer        | 2         | 0          | MA        | MA        | 347          |
+| 1970-01-01T00 | h2o        | state       | ReadBuffer        | 2         | 0          | MA        | MA        | 315          |
 | 1970-01-01T00 | h2o        | temp        | ReadBuffer        | 2         | 1          | 70.4      | 70.4      | 471          |
 | 1970-01-01T00 | h2o        | time        | OpenMutableBuffer | 1         | 0          | 350       | 350       | 305          |
 | 1970-01-01T00 | h2o        | time        | ReadBuffer        | 2         | 0          | 50        | 250       | 110          |

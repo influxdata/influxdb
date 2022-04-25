@@ -2041,7 +2041,7 @@ mod tests {
 
         // MUB chunk size
         catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 0);
-        catalog_chunk_size_bytes_metric_eq(registry, "read_buffer", 3618);
+        catalog_chunk_size_bytes_metric_eq(registry, "read_buffer", 3490);
 
         let rb = collect_read_filter(&rb_chunk).await;
 

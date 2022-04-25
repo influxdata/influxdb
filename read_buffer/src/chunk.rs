@@ -725,7 +725,7 @@ mod test {
                     (Attributes::from(&[("db_name", "mydb"), ("encoding", "FBT_U8-FIXEDN"), ("log_data_type", "f64")]), Observation::U64Gauge(906)),
                     (Attributes::from(&[("db_name", "mydb"), ("encoding", "FIXED"), ("log_data_type", "f64")]), Observation::U64Gauge(186)),
                     (Attributes::from(&[("db_name", "mydb"), ("encoding", "FIXEDN"), ("log_data_type", "bool")]), Observation::U64Gauge(672)),
-                    (Attributes::from(&[("db_name", "mydb"), ("encoding", "RLE"), ("log_data_type", "string")]), Observation::U64Gauge(784)),
+                    (Attributes::from(&[("db_name", "mydb"), ("encoding", "RLE"), ("log_data_type", "string")]), Observation::U64Gauge(688)),
                 ]
             },
             ObservationSet {
@@ -798,7 +798,18 @@ mod test {
 
         let mut reporter = RawReporter::default();
         registry.report(&mut reporter);
-        assert_eq!(&expected_observations, reporter.observations());
+        let actual_observations = reporter.observations();
+        assert_eq!(actual_observations.len(), expected_observations.len());
+        for (i, (actual, expected)) in actual_observations
+            .iter()
+            .zip(expected_observations.iter())
+            .enumerate()
+        {
+            assert_eq!(
+                actual, expected,
+                "Entry {i} differs.\n\nActual:\n{actual:#?}\n\nExpected:\n{expected:#?}",
+            )
+        }
 
         // when the chunk is dropped the metrics are all correctly decreased
         std::mem::drop(chunk);

@@ -1346,7 +1346,7 @@ impl RowIDs {
     // Add all row IDs in the domain `[from, to)` to the collection.
     pub fn add_range(&mut self, from: u32, to: u32) {
         match self {
-            Self::Bitmap(ids) => ids.add_range(from as u64..to as u64),
+            Self::Bitmap(ids) => ids.add_range(from..to),
             Self::Vector(ids) => ids.extend(from..to),
         }
     }
@@ -1448,9 +1448,10 @@ mod test {
 
         // The first 1000 multiples of 62 in the domain [0, 61938].
         // These are stored as 1000 16-bit values in a sorted array container
-        // requiring 2,000 bytes. We need 32 bytes for the RowIDs enum.
+        // requiring 2,000 bytes. We need 48 bytes for the RowIDs enum.
         let row_ids = RowIDs::Bitmap((0..61939).step_by(62).collect());
-        assert_eq!(row_ids.size(), 32 + 2000);
+        assert_eq!(std::mem::size_of::<RowIDs>(), 48);
+        assert_eq!(row_ids.size(), 48 + 2000);
 
         // Runs of values in the domain [2^16, 2^16 + 100) then [2^16 + 101, 2^16 + 201)
         // and then [2^16 + 300, 2^16 + 400). Altogether 300 values stored in
@@ -1460,19 +1461,21 @@ mod test {
         // actually you need 3 * 32 bits because you need 16 bits to store the
         // value and 16 bits to store the run.
         //
-        // So we have 32 bytes for the RowIDs enum, 2 bytes for the starting
+        // So we have 48 bytes for the RowIDs enum, 2 bytes for the starting
         // value of the container (65536) and then 3 runs of 4 bytes each.
         let mut row_ids = RowIDs::Bitmap((65536..65536 + 100).collect());
         row_ids.add_range(65536 + 101, 65536 + 201);
         row_ids.add_range(65536 + 300, 65536 + 400);
         row_ids.optimise_storage();
-        assert_eq!(row_ids.size(), 32 + 2 + (3 * 4));
+        assert_eq!(std::mem::size_of::<RowIDs>(), 48);
+        assert_eq!(row_ids.size(), 48 + 2 + (3 * 4));
 
         // All even numbers in the domain [2*2^16, 3*2^16].
-        // These will be stored using a bitset container. We need 32 bytes for
+        // These will be stored using a bitset container. We need 48 bytes for
         // the RowIDs enum and 2^16 bits (8,192 bytes) for the container.
         let row_ids = RowIDs::Bitmap(((2 * 65536)..(3 * 65536)).step_by(2).collect());
-        assert_eq!(row_ids.size(), 32 + 8192);
+        assert_eq!(std::mem::size_of::<RowIDs>(), 48);
+        assert_eq!(row_ids.size(), 48 + 8192);
     }
 
     #[test]

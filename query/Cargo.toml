@@ -18,7 +18,7 @@ arrow = { version = "12", features = ["prettyprint"] }
 arrow_util = { path = "../arrow_util" }
 async-trait = "0.1"
 chrono = { version = "0.4", default-features = false }
-croaring = "0.5"
+croaring = "0.6"
 data_types = { path = "../data_types" }
 data_types2 = { path = "../data_types2" }
 datafusion = { path = "../datafusion" }

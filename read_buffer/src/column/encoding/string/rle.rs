@@ -92,17 +92,12 @@ impl RLE {
         // The total size (an upper bound estimate) of all the bitmaps
         // in the column - only set if including allocated capacity, otherwise
         // ignore because not required for RLE compression.
-        let row_ids_bitmaps_size = match buffers {
+        let index_row_ids_size = match buffers {
             true => self
                 .index_row_ids
                 .iter()
                 .map(|row_ids| row_ids.size())
                 .sum::<usize>(),
-            false => 0,
-        };
-
-        let index_row_ids_size = match buffers {
-            true => size_of::<RowIDs>() * self.index_row_ids.len() + row_ids_bitmaps_size,
             false => 0,
         };
 
@@ -1011,6 +1006,7 @@ mod test {
         enc.push_none();
 
         // * Self: 24 + 24 + 24 + 1 + (padding 3b) + 4 = 80b
+        assert_eq!(std::mem::size_of::<RLE>(), 80);
         // * index entries: (4) are is (24*4) + 14 == 110
         // * index row ids: (bitmaps) not included in calc
         // * run lengths: (8*5) == 40
@@ -1032,11 +1028,13 @@ mod test {
         enc.push_none();
 
         // * Self: 24 + 24 + 24 + 1 + (padding 3b) + 4 = 80b
+        assert_eq!(std::mem::size_of::<RLE>(), 80);
         // * index entries: (40 * 24) + 14 == 974
-        // * index row ids: (bitmaps) is (4 * 32) + (154b for bitmaps) == 282
+        // * index row ids: (bitmaps) is (218b for bitmaps) == 218
+        assert_eq!(std::mem::size_of::<RowIDs>(), 48);
         // * run lengths: (40 * 8) == 320
         //
-        assert_eq!(enc.size(true), 1656);
+        assert_eq!(enc.size(true), 1592);
     }
 
     #[test]
