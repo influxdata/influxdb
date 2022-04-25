@@ -146,8 +146,57 @@ pub struct Config {
     #[clap(flatten)]
     pub(crate) write_buffer_config: WriteBufferConfig,
 
-    #[clap(flatten)]
-    pub(crate) ingester_config: IngesterConfig,
+    /// The ingester will continue to pull data and buffer it from the write buffer
+    /// as long as it is below this size. If it hits this size it will pause
+    /// ingest from the write buffer until persistence goes below this threshold.
+    /// The default value is 100 GB (in bytes).
+    #[clap(
+        long = "--pause-ingest-size-bytes",
+        env = "INFLUXDB_IOX_PAUSE_INGEST_SIZE_BYTES",
+        default_value = "107374182400"
+    )]
+    pub pause_ingest_size_bytes: usize,
+
+    /// Once the ingester crosses this threshold of data buffered across
+    /// all sequencers, it will pick the largest partitions and persist
+    /// them until it falls below this threshold. An ingester running in
+    /// a steady state is expected to take up this much memory.
+    /// The default value is 1 GB (in bytes).
+    #[clap(
+        long = "--persist-memory-threshold-bytes",
+        env = "INFLUXDB_IOX_PERSIST_MEMORY_THRESHOLD_BYTES",
+        default_value = "1073741824"
+    )]
+    pub persist_memory_threshold_bytes: usize,
+
+    /// If an individual partition crosses this size threshold, it will be persisted.
+    /// The default value is 300MB (in bytes).
+    #[clap(
+        long = "--persist-partition-size-threshold-bytes",
+        env = "INFLUXDB_IOX_PERSIST_PARTITION_SIZE_THRESHOLD_BYTES",
+        default_value = "314572800"
+    )]
+    pub persist_partition_size_threshold_bytes: usize,
+
+    /// If a partition has had data buffered for longer than this period of time
+    /// it will be persisted. This puts an upper bound on how far back the
+    /// ingester may need to read in Kafka on restart or recovery. The default value
+    /// is 30 minutes (in seconds).
+    #[clap(
+        long = "--persist-partition-age-threshold-seconds",
+        env = "INFLUXDB_IOX_PERSIST_PARTITION_AGE_THRESHOLD_SECONDS",
+        default_value = "1800"
+    )]
+    pub persist_partition_age_threshold_seconds: u64,
+
+    /// If a partition has had data buffered and hasn't received a write for this
+    /// period of time, it will be persisted. The default value is 300 seconds (5 minutes).
+    #[clap(
+        long = "--persist-partition-cold-threshold-seconds",
+        env = "INFLUXDB_IOX_PERSIST_PARTITION_COLD_THRESHOLD_SECONDS",
+        default_value = "300"
+    )]
+    pub persist_partition_cold_threshold_seconds: u64,
 
     /// The address on which IOx will serve Router HTTP API requests
     #[clap(
@@ -197,7 +246,11 @@ impl Config {
             run_config,
             catalog_dsn,
             write_buffer_config,
-            ingester_config,
+            pause_ingest_size_bytes,
+            persist_memory_threshold_bytes,
+            persist_partition_size_threshold_bytes,
+            persist_partition_age_threshold_seconds,
+            persist_partition_cold_threshold_seconds,
             router_http_bind_address,
             router_grpc_bind_address,
             querier_grpc_bind_address,
@@ -227,13 +280,27 @@ impl Config {
 
         let compactor_run_config = run_config.with_grpc_bind_address(compactor_grpc_bind_address);
 
+        // All-in-one mode only supports one write buffer partition.
+        let write_buffer_partition_range_start = 0;
+        let write_buffer_partition_range_end = 0;
+
+        let ingester_config = IngesterConfig {
+            write_buffer_partition_range_start,
+            write_buffer_partition_range_end,
+            pause_ingest_size_bytes,
+            persist_memory_threshold_bytes,
+            persist_partition_size_threshold_bytes,
+            persist_partition_age_threshold_seconds,
+            persist_partition_cold_threshold_seconds,
+        };
+
         // create a CompactorConfig for the all in one server based on
         // settings from other configs. Cant use `#clap(flatten)` as the
         // parameters are redundant with ingesters
         let compactor_config = CompactorConfig {
             topic: write_buffer_config.topic().to_string(),
-            write_buffer_partition_range_start: ingester_config.write_buffer_partition_range_start,
-            write_buffer_partition_range_end: ingester_config.write_buffer_partition_range_end,
+            write_buffer_partition_range_start,
+            write_buffer_partition_range_end,
             split_percentage: 90,
             max_concurrent_compaction_size_bytes: 100000,
             compaction_max_size_bytes: 100000,
