@@ -1,17 +1,16 @@
 //! Implementation of command line option for running all in one mode
-use std::{num::NonZeroU32, sync::Arc};
 
-use clap_blocks::compactor::CompactorConfig;
+use super::main;
 use clap_blocks::{
-    catalog_dsn::CatalogDsnConfig,
-    ingester::IngesterConfig,
-    run_config::{RunConfig, DEFAULT_API_BIND_ADDR, DEFAULT_GRPC_BIND_ADDR},
-    socket_addr::SocketAddr,
+    catalog_dsn::CatalogDsnConfig, compactor::CompactorConfig, ingester::IngesterConfig,
+    object_store::ObjectStoreConfig, run_config::RunConfig, socket_addr::SocketAddr,
     write_buffer::WriteBufferConfig,
 };
 use iox_time::{SystemProvider, TimeProvider};
-use ioxd_common::server_type::{CommonServerState, CommonServerStateError};
-use ioxd_common::Service;
+use ioxd_common::{
+    server_type::{CommonServerState, CommonServerStateError},
+    Service,
+};
 use ioxd_compactor::create_compactor_server_type;
 use ioxd_ingester::create_ingester_server_type;
 use ioxd_querier::create_querier_server_type;
@@ -19,9 +18,10 @@ use ioxd_router2::create_router2_server_type;
 use object_store::{DynObjectStore, ObjectStoreImpl};
 use observability_deps::tracing::*;
 use query::exec::Executor;
+use std::{num::NonZeroU32, path::PathBuf, sync::Arc};
 use thiserror::Error;
-
-use super::main;
+use trace_exporters::TracingConfig;
+use trogging::cli::LoggingConfig;
 
 /// The default bind address for the Router HTTP API.
 pub const DEFAULT_ROUTER_HTTP_BIND_ADDR: &str = "127.0.0.1:8080";
@@ -137,8 +137,26 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
     about = "Runs in IOx All in One mode, containing router, ingester, compactor and querier."
 )]
 pub struct Config {
+    /// logging options
     #[clap(flatten)]
-    pub(crate) run_config: RunConfig,
+    pub(crate) logging_config: LoggingConfig,
+
+    /// tracing options
+    #[clap(flatten)]
+    pub(crate) tracing_config: TracingConfig,
+
+    /// Maximum size of HTTP requests.
+    #[clap(
+        long = "--max-http-request-size",
+        env = "INFLUXDB_IOX_MAX_HTTP_REQUEST_SIZE",
+        default_value = "10485760" // 10 MiB
+    )]
+    pub max_http_request_size: usize,
+
+    /// The location InfluxDB IOx will use to store files locally. If not specified, will run in
+    /// ephemeral mode.
+    #[clap(long = "--data-dir", env = "INFLUXDB_IOX_DB_DIR")]
+    pub database_directory: Option<PathBuf>,
 
     #[clap(flatten)]
     pub(crate) catalog_dsn: CatalogDsnConfig,
@@ -243,7 +261,10 @@ impl Config {
     /// Get a specialized run config to use for each service
     fn specialize(self) -> SpecializedConfig {
         let Self {
-            run_config,
+            logging_config,
+            tracing_config,
+            max_http_request_size,
+            database_directory,
             catalog_dsn,
             write_buffer_config,
             pause_ingest_size_bytes,
@@ -258,27 +279,28 @@ impl Config {
             compactor_grpc_bind_address,
         } = self;
 
-        if run_config.http_bind_address != DEFAULT_API_BIND_ADDR.parse().unwrap() {
-            eprintln!("Warning: --http-bind-addr ignored in all in one mode");
-        }
-        if run_config.grpc_bind_address != DEFAULT_GRPC_BIND_ADDR.parse().unwrap() {
-            eprintln!("Warning: --grpc-bind-addr ignored in all in one mode");
-        }
+        let object_store_config = ObjectStoreConfig::new(database_directory);
 
-        let router_run_config = run_config
-            .clone()
-            .with_http_bind_address(router_http_bind_address)
-            .with_grpc_bind_address(router_grpc_bind_address);
+        let router_run_config = RunConfig::new(
+            logging_config,
+            tracing_config,
+            router_http_bind_address,
+            router_grpc_bind_address,
+            max_http_request_size,
+            object_store_config,
+        );
 
-        let querier_run_config = run_config
+        let querier_run_config = router_run_config
             .clone()
             .with_grpc_bind_address(querier_grpc_bind_address);
 
-        let ingester_run_config = run_config
+        let ingester_run_config = router_run_config
             .clone()
             .with_grpc_bind_address(ingester_grpc_bind_address);
 
-        let compactor_run_config = run_config.with_grpc_bind_address(compactor_grpc_bind_address);
+        let compactor_run_config = router_run_config
+            .clone()
+            .with_grpc_bind_address(compactor_grpc_bind_address);
 
         // All-in-one mode only supports one write buffer partition.
         let write_buffer_partition_range_start = 0;

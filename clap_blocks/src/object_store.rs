@@ -1,10 +1,10 @@
 //! CLI handling for object store config (via CLI arguments and environment variables).
-use std::{convert::TryFrom, fs, num::NonZeroUsize, path::PathBuf, time::Duration};
 
 use futures::TryStreamExt;
 use object_store::{path::ObjectStorePath, DynObjectStore, ObjectStoreImpl, ThrottleConfig};
 use observability_deps::tracing::{info, warn};
 use snafu::{ResultExt, Snafu};
+use std::{convert::TryFrom, fs, num::NonZeroUsize, path::PathBuf, time::Duration};
 use uuid::Uuid;
 
 #[derive(Debug, Snafu)]
@@ -182,6 +182,29 @@ Possible values (case insensitive):
         default_value = "16"
     )]
     pub object_store_connection_limit: NonZeroUsize,
+}
+
+impl ObjectStoreConfig {
+    /// Create a new instance for all-in-one mode, only allowing some arguments.
+    pub fn new(database_directory: Option<PathBuf>) -> Self {
+        let object_store = database_directory.as_ref().map(|_| ObjectStoreType::File);
+
+        Self {
+            aws_access_key_id: Default::default(),
+            aws_allow_http: Default::default(),
+            aws_default_region: Default::default(),
+            aws_endpoint: Default::default(),
+            aws_secret_access_key: Default::default(),
+            aws_session_token: Default::default(),
+            azure_storage_access_key: Default::default(),
+            azure_storage_account: Default::default(),
+            bucket: Default::default(),
+            database_directory,
+            google_service_account: Default::default(),
+            object_store,
+            object_store_connection_limit: NonZeroUsize::new(16).unwrap(),
+        }
+    }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, clap::ArgEnum)]
