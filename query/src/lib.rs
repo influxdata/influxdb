@@ -286,6 +286,35 @@ where
     }
 }
 
+/// Implement ChunkMeta for Arc<dyn QueryChunk>
+impl QueryChunkMeta for Arc<dyn QueryChunk> {
+    fn summary(&self) -> Option<&TableSummary> {
+        self.as_ref().summary()
+    }
+
+    fn schema(&self) -> Arc<Schema> {
+        self.as_ref().schema()
+    }
+
+    fn partition_id(&self) -> Option<PartitionId> {
+        self.as_ref().partition_id()
+    }
+
+    fn sort_key(&self) -> Option<&SortKey> {
+        self.as_ref().sort_key()
+    }
+
+    fn delete_predicates(&self) -> &[Arc<DeletePredicate>] {
+        let pred = self.as_ref().delete_predicates();
+        debug!(?pred, "Delete predicate in QueryChunkMeta");
+        pred
+    }
+
+    fn timestamp_min_max(&self) -> Option<TimestampMinMax> {
+        self.as_ref().timestamp_min_max()
+    }
+}
+
 /// return true if all the chunks inlcude statistics
 pub fn chunks_have_stats(chunks: &[Arc<dyn QueryChunk>]) -> bool {
     // If at least one of the provided chunk cannot provide stats,

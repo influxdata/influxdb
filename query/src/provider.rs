@@ -34,7 +34,7 @@ use snafu::{ResultExt, Snafu};
 
 mod adapter;
 mod deduplicate;
-mod overlap;
+pub mod overlap;
 mod physical;
 use self::overlap::{group_potential_duplicates, group_potential_duplicates_og};
 pub(crate) use deduplicate::DeduplicateExec;

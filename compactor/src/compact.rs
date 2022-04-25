@@ -20,6 +20,7 @@ use metric::{Attributes, Metric, U64Counter, U64Gauge, U64Histogram, U64Histogra
 use object_store::DynObjectStore;
 use observability_deps::tracing::{debug, info, warn};
 use parquet_file::metadata::{IoxMetadata, IoxParquetMetaData};
+use query::provider::overlap::group_potential_duplicates;
 use query::{
     exec::{Executor, ExecutorType},
     frontend::reorg::ReorgPlanner,
@@ -868,60 +869,30 @@ impl Compactor {
     fn overlapped_groups(
         parquet_files: Vec<ParquetFileWithMetadata>,
     ) -> Vec<GroupWithMinTimeAndSize> {
-        let num_files = parquet_files.len();
-        let mut grouper = Vec::with_capacity(num_files * 2);
+        // group overlap files
+        let overlapped_groups =
+            group_potential_duplicates(parquet_files).expect("Error grouping overlapped chunks");
 
-        enum StartEnd<I> {
-            Start,
-            End(I),
-        }
-
-        struct GrouperRecord<I, V: PartialOrd> {
-            value: V,
-            start_end: StartEnd<I>,
-        }
-
-        for file in parquet_files {
-            grouper.push(GrouperRecord {
-                value: file.min_time,
-                start_end: StartEnd::Start,
-            });
-            grouper.push(GrouperRecord {
-                value: file.max_time,
-                start_end: StartEnd::End(file),
-            });
-        }
-
-        grouper.sort_by_key(|gr| gr.value);
-
-        let mut cumulative_sum = 0;
-        let mut groups: Vec<GroupWithMinTimeAndSize> = Vec::with_capacity(num_files);
-
-        for gr in grouper {
-            cumulative_sum += match gr.start_end {
-                StartEnd::Start => 1,
-                StartEnd::End(_) => -1,
+        // Compute min time and total size for each overlapped group
+        let mut groups_with_min_time_and_size = Vec::with_capacity(overlapped_groups.len());
+        for group in overlapped_groups {
+            let mut group_with_min_time_and_size = GroupWithMinTimeAndSize {
+                parquet_files: Vec::with_capacity(group.len()),
+                min_time: Timestamp::new(i64::MAX),
+                total_file_size_bytes: 0,
             };
 
-            if matches!(gr.start_end, StartEnd::Start) && cumulative_sum == 1 {
-                let group = GroupWithMinTimeAndSize {
-                    parquet_files: Vec::with_capacity(num_files),
-                    min_time: Timestamp::new(i64::MAX),
-                    total_file_size_bytes: 0,
-                };
-                groups.push(group); //Vec::with_capacity(num_files));
+            for file in group {
+                group_with_min_time_and_size.min_time =
+                    group_with_min_time_and_size.min_time.min(file.min_time);
+                group_with_min_time_and_size.total_file_size_bytes += file.file_size_bytes;
+                group_with_min_time_and_size.parquet_files.push(file);
             }
-            if let StartEnd::End(item) = gr.start_end {
-                let group = groups
-                    .last_mut()
-                    .expect("a start should have pushed at least one empty group");
 
-                group.min_time = group.min_time.min(item.min_time);
-                group.total_file_size_bytes += item.file_size_bytes;
-                group.parquet_files.push(item);
-            }
+            groups_with_min_time_and_size.push(group_with_min_time_and_size);
         }
-        groups
+
+        groups_with_min_time_and_size
     }
 
     // Compute time to split data

@@ -4,12 +4,16 @@
 //! DataModel have been written in via multiple distinct line protocol
 //! writes (and thus are stored in separate rows)
 
-use data_types::partition_metadata::{ColumnSummary, StatOverlap, Statistics};
-use schema::TIME_COLUMN_NAME;
+use data_types::{
+    partition_metadata::{ColumnSummary, StatOverlap, Statistics},
+    timestamp::TimestampMinMax,
+};
+use data_types2::{DeletePredicate, ParquetFileWithMetadata, PartitionId, TableSummary};
+use schema::{sort::SortKey, Schema, TIME_COLUMN_NAME};
 use snafu::Snafu;
 use std::{cmp::Ordering, sync::Arc};
 
-use crate::QueryChunk;
+use crate::{QueryChunk, QueryChunkMeta};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -107,11 +111,45 @@ pub fn group_potential_duplicates_og(
     Ok(groups)
 }
 
-/// Groups [`QueryChunk`] objects into disjoint sets of overlapped time range.
+// Implement QueryChunkMeta for ParquetFileWithMetadata to have group_potential_duplicates
+// work on ParquetFileWithMetadata. Since group_potential_duplicates only needs 2 functions
+// partition_id and timestamp_min_max, other functions are left `umimplemneted` on purpose
+impl QueryChunkMeta for ParquetFileWithMetadata {
+    fn summary(&self) -> Option<&TableSummary> {
+        unimplemented!()
+    }
+
+    fn schema(&self) -> Arc<Schema> {
+        unimplemented!()
+    }
+
+    fn partition_id(&self) -> Option<PartitionId> {
+        Some(self.partition_id)
+    }
+
+    fn sort_key(&self) -> Option<&SortKey> {
+        unimplemented!()
+    }
+
+    fn timestamp_min_max(&self) -> Option<TimestampMinMax> {
+        Some(TimestampMinMax {
+            min: self.min_time.get(),
+            max: self.max_time.get(),
+        })
+    }
+
+    /// return a reference to delete predicates of the chunk
+    fn delete_predicates(&self) -> &[Arc<DeletePredicate>] {
+        unimplemented!()
+    }
+}
+
+/// Groups [`QueryChunkMeta`] objects into disjoint sets of overlapped time range.
 /// Does not preserve or guarantee any ordering.
-pub fn group_potential_duplicates(
-    chunks: Vec<Arc<dyn QueryChunk>>,
-) -> Result<Vec<Vec<Arc<dyn QueryChunk>>>> {
+pub fn group_potential_duplicates<T>(chunks: Vec<T>) -> Result<Vec<Vec<T>>>
+where
+    T: QueryChunkMeta,
+{
     // If at least one of the chunks has no time range,
     // all chunks are considered to overlap with each other.
     if chunks.iter().any(|c| c.timestamp_min_max().is_none()) {
@@ -415,6 +453,7 @@ mod test {
         let c4 = Arc::new(TestChunk::new("chunk4").with_timestamp_min_max(25, 35));
 
         let groups = group_potential_duplicates(vec![c1, c2, c3, c4]).expect("grouping succeeded");
+        let groups = to_group_query_chunks(groups);
 
         let expected = vec!["Group 0: [chunk1, chunk3, chunk2, chunk4]"];
         assert_groups_eq!(expected, groups);
@@ -429,6 +468,7 @@ mod test {
         let c4 = Arc::new(TestChunk::new("chunk4").with_timestamp_min_max(25, 35));
 
         let groups = group_potential_duplicates(vec![c1, c2, c3, c4]).expect("grouping succeeded");
+        let groups = to_group_query_chunks(groups);
 
         let expected = vec!["Group 0: [chunk1, chunk2, chunk3, chunk4]"];
         assert_groups_eq!(expected, groups);
@@ -443,6 +483,7 @@ mod test {
         let c4 = Arc::new(TestChunk::new("chunk4").with_timestamp_min_max(25, 35));
 
         let groups = group_potential_duplicates(vec![c1, c2, c3, c4]).expect("grouping succeeded");
+        let groups = to_group_query_chunks(groups);
 
         let expected = vec!["Group 0: [chunk1, chunk2]", "Group 1: [chunk3, chunk4]"];
         assert_groups_eq!(expected, groups);
@@ -457,6 +498,7 @@ mod test {
         let c4 = Arc::new(TestChunk::new("chunk4").with_timestamp_min_max(25, 35));
 
         let groups = group_potential_duplicates(vec![c1, c4, c3, c2]).expect("grouping succeeded");
+        let groups = to_group_query_chunks(groups);
 
         let expected = vec![
             "Group 0: [chunk1, chunk2]",
@@ -472,6 +514,7 @@ mod test {
         let c1 = Arc::new(TestChunk::new("chunk1").with_timestamp_min_max(1, 10));
 
         let groups = group_potential_duplicates(vec![c1]).expect("grouping succeeded");
+        let groups = to_group_query_chunks(groups);
 
         let expected = vec!["Group 0: [chunk1]"];
         assert_groups_eq!(expected, groups);
@@ -479,7 +522,8 @@ mod test {
 
     #[test]
     fn overlap_no_groups() {
-        let groups = group_potential_duplicates(vec![]).expect("grouping succeeded");
+        let groups: Vec<Vec<TestChunk>> =
+            group_potential_duplicates(vec![]).expect("grouping succeeded");
 
         assert!(groups.is_empty());
     }
@@ -501,6 +545,7 @@ mod test {
         let c4 = Arc::new(TestChunk::new("chunk4").with_timestamp_min_max(25, 35));
 
         let groups = group_potential_duplicates(vec![c1, c2, c3, c4]).expect("grouping succeeded");
+        let groups = to_group_query_chunks(groups);
 
         let expected = vec!["Group 0: [chunk1, chunk3, chunk2, chunk4]"];
         assert_groups_eq!(expected, groups);
@@ -516,6 +561,7 @@ mod test {
         );
 
         let groups = group_potential_duplicates(vec![c1]).expect("grouping succeeded");
+        let groups = to_group_query_chunks(groups);
 
         let expected = vec!["Group 0: [chunk1]"];
         assert_groups_eq!(expected, groups);
@@ -538,6 +584,7 @@ mod test {
         let c4 = Arc::new(TestChunk::new("chunk4").with_timestamp_min_max(25, 35));
 
         let groups = group_potential_duplicates(vec![c1, c4, c3, c2]).expect("grouping succeeded");
+        let groups = to_group_query_chunks(groups);
 
         let expected = vec![
             "Group 0: [chunk1, chunk2]",
@@ -959,7 +1006,6 @@ mod test {
     }
 
     // --- Test infrastructure --
-
     fn to_string(groups: Vec<Vec<Arc<dyn QueryChunk>>>) -> Vec<String> {
         let mut s = vec![];
         for (idx, group) in groups.iter().enumerate() {
@@ -967,5 +1013,13 @@ mod test {
             s.push(format!("Group {}: [{}]", idx, names.join(", ")));
         }
         s
+    }
+
+    // convert from Vec<Vec<Arc<TestChunk>>> to Vec<Vec<Arc<dyn QueryChunk>>>
+    fn to_group_query_chunks(groups: Vec<Vec<Arc<TestChunk>>>) -> Vec<Vec<Arc<dyn QueryChunk>>> {
+        groups
+            .into_iter()
+            .map(|chunks| chunks.into_iter().map(|c| c as _).collect::<Vec<_>>())
+            .collect::<Vec<_>>()
     }
 }
