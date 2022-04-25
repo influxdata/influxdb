@@ -2312,6 +2312,89 @@ func TestHandler_RetrieveBucket(t *testing.T) {
 	}
 }
 
+func TestHandler_UnsupportedV2API(t *testing.T) {
+	type test struct {
+		method string
+		url    string
+		status int
+		errMsg string
+	}
+	tests := []*test{
+		{
+			method: "GET",
+			url:    "/api/v2/buckets/mydb/myrp/labels",
+			status: http.StatusMethodNotAllowed,
+			errMsg: "bucket labels not supported in this version"},
+		{
+			method: "POST",
+			url:    "/api/v2/buckets/mydb/myrp/labels",
+			status: http.StatusMethodNotAllowed,
+			errMsg: "bucket labels not supported in this version",
+		},
+		{
+			method: "DELETE",
+			url:    "/api/v2/buckets/mydb/myrp/labels/mylabel",
+			status: http.StatusMethodNotAllowed,
+			errMsg: "bucket labels not supported in this version"},
+		{
+			method: "GET",
+			url:    "/api/v2/buckets/mydb/myrp/members",
+			status: http.StatusMethodNotAllowed,
+			errMsg: "bucket members not supported in this version",
+		},
+		{
+			method: "POST",
+			url:    "/api/v2/buckets/mydb/myrp/members",
+			status: http.StatusMethodNotAllowed,
+			errMsg: "bucket members not supported in this version",
+		},
+		{
+			method: "DELETE",
+			url:    "/api/v2/buckets/mydb/myrp/members/amember",
+			status: http.StatusMethodNotAllowed,
+			errMsg: "bucket members not supported in this version",
+		},
+		{
+			method: "GET",
+			url:    "/api/v2/buckets/mydb/myrp/owners",
+			status: http.StatusMethodNotAllowed,
+			errMsg: "bucket owners not supported in this version",
+		},
+		{
+			method: "POST",
+			url:    "/api/v2/buckets/mydb/myrp/owners",
+			status: http.StatusMethodNotAllowed,
+			errMsg: "bucket owners not supported in this version",
+		},
+		{
+			method: "DELETE",
+			url:    "/api/v2/buckets/mydb/myrp/owners/anowner",
+			status: http.StatusMethodNotAllowed,
+			errMsg: "bucket owners not supported in this version",
+		},
+	}
+	h := NewHandler(false)
+
+	var req *http.Request
+	fn := func(ct *test) {
+		w := httptest.NewRecorder()
+		req = MustNewJSONRequest(ct.method, ct.url, nil)
+		h.ServeHTTP(w, req)
+		var errMsg string
+		if w.Code != ct.status {
+			t.Fatalf("error, expected %d got %d: %s", ct.status, w.Code, errMsg)
+		} else if w.Code != http.StatusOK {
+			errMsg = w.Header().Get("X-InfluxDB-Error")
+			if errMsg != ct.errMsg {
+				t.Fatalf("incorrect error message, expected: %q, got: %q", ct.errMsg, errMsg)
+			}
+		}
+	}
+	for _, ct := range tests {
+		fn(ct)
+	}
+}
+
 // Ensure X-Forwarded-For header writes the correct log message.
 func TestHandler_XForwardedFor(t *testing.T) {
 	var buf bytes.Buffer
