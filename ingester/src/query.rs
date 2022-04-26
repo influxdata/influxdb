@@ -115,6 +115,10 @@ impl QueryChunkMeta for QueryableBatch {
         merge_record_batch_schemas(&batches)
     }
 
+    fn partition_sort_key(&self) -> Option<&SortKey> {
+        None // Ingester data has not persisted yet and should not be attached to any partition
+    }
+
     fn partition_id(&self) -> Option<PartitionId> {
         // Ingetser data is not officially attached to any parittion id yet.
         // Only persisting & persisted data has partition id and we want to keep it that way
@@ -122,7 +126,7 @@ impl QueryChunkMeta for QueryableBatch {
     }
 
     fn sort_key(&self) -> Option<&SortKey> {
-        None
+        None // Ingester data is not sorted
     }
 
     fn delete_predicates(&self) -> &[Arc<DeletePredicate>] {

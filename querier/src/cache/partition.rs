@@ -4,6 +4,7 @@ use std::{collections::HashMap, sync::Arc};
 use backoff::{Backoff, BackoffConfig};
 use data_types2::{PartitionId, SequencerId};
 use iox_catalog::interface::Catalog;
+use schema::sort::SortKey;
 
 use crate::cache_system::{driver::Cache, loader::FunctionLoader};
 
@@ -41,6 +42,7 @@ impl PartitionCache {
                         partition.partition_key
                     )),
                     sequencer_id: partition.sequencer_id,
+                    sort_key: partition.sort_key(),
                 }
             }
         }));
@@ -62,12 +64,18 @@ impl PartitionCache {
     pub async fn sequencer_id(&self, partition_id: PartitionId) -> SequencerId {
         self.cache.get(partition_id).await.sequencer_id
     }
+
+    /// Get sort key
+    pub async fn sort_key(&self, partition_id: PartitionId) -> Option<SortKey> {
+        self.cache.get(partition_id).await.sort_key
+    }
 }
 
 #[derive(Debug, Clone)]
 struct CachedPartition {
     old_gen_partition_key: Arc<str>,
     sequencer_id: SequencerId,
+    sort_key: Option<SortKey>,
 }
 
 #[cfg(test)]
@@ -170,6 +178,42 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_sort_key() {
+        let catalog = TestCatalog::new();
+
+        let ns = catalog.create_namespace("ns").await;
+        let t = ns.create_table("table").await;
+        let s1 = ns.create_sequencer(1).await;
+        let s2 = ns.create_sequencer(2).await;
+        let p1 = t
+            .with_sequencer(&s1)
+            .create_partition_with_sort_key("k1", "tag,time")
+            .await
+            .partition
+            .clone();
+        let p2 = t
+            .with_sequencer(&s2)
+            .create_partition("k2") // no sort key
+            .await
+            .partition
+            .clone();
+
+        let cache = PartitionCache::new(catalog.catalog(), BackoffConfig::default());
+
+        let sort_key1 = cache.sort_key(p1.id).await;
+        assert_eq!(sort_key1, p1.sort_key());
+        assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 1);
+
+        let sort_key2 = cache.sort_key(p2.id).await;
+        assert_eq!(sort_key2, p2.sort_key());
+        assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 2);
+
+        let sort_key1 = cache.sort_key(p1.id).await;
+        assert_eq!(sort_key1, p1.sort_key());
+        assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 2);
+    }
+
+    #[tokio::test]
     async fn test_cache_sharing() {
         let catalog = TestCatalog::new();
 
@@ -179,7 +223,7 @@ mod tests {
         let s2 = ns.create_sequencer(2).await;
         let p1 = t
             .with_sequencer(&s1)
-            .create_partition("k1")
+            .create_partition_with_sort_key("k1", "tag,time")
             .await
             .partition
             .clone();
@@ -189,15 +233,28 @@ mod tests {
             .await
             .partition
             .clone();
+        let p3 = t
+            .with_sequencer(&s2)
+            .create_partition("k3")
+            .await
+            .partition
+            .clone();
 
         let cache = PartitionCache::new(catalog.catalog(), BackoffConfig::default());
 
         cache.old_gen_partition_key(p1.id).await;
         cache.sequencer_id(p2.id).await;
-        assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 2);
+        cache.sort_key(p3.id).await;
+        assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 3);
 
         cache.sequencer_id(p1.id).await;
-        cache.old_gen_partition_key(p2.id).await;
-        assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 2);
+        cache.sort_key(p2.id).await;
+        cache.old_gen_partition_key(p3.id).await;
+        assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 3);
+
+        cache.sort_key(p1.id).await;
+        cache.sequencer_id(p2.id).await;
+        cache.old_gen_partition_key(p3.id).await;
+        assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 3);
     }
 }

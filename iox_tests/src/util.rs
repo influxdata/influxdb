@@ -359,6 +359,35 @@ impl TestTableBoundSequencer {
         })
     }
 
+    /// Creat a partition with a specifiyed sory key for the table
+    pub async fn create_partition_with_sort_key(
+        self: &Arc<Self>,
+        key: &str,
+        sort_key: &str,
+    ) -> Arc<TestPartition> {
+        let mut repos = self.catalog.catalog.repositories().await;
+
+        let partition = repos
+            .partitions()
+            .create_or_get(key, self.sequencer.sequencer.id, self.table.table.id)
+            .await
+            .unwrap();
+
+        let partition = repos
+            .partitions()
+            .update_sort_key(partition.id, sort_key)
+            .await
+            .unwrap();
+
+        Arc::new(TestPartition {
+            catalog: Arc::clone(&self.catalog),
+            namespace: Arc::clone(&self.namespace),
+            table: Arc::clone(&self.table),
+            sequencer: Arc::clone(&self.sequencer),
+            partition,
+        })
+    }
+
     /// Create a tombstone
     pub async fn create_tombstone(
         self: &Arc<Self>,

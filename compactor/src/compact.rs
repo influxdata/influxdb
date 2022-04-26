@@ -625,6 +625,9 @@ impl Compactor {
         }
 
         // Convert the input files into QueryableParquetChunk for making query plan
+        let partition_sort_key = self
+            .sort_key_from_catalog(iox_metadata.partition_id)
+            .await?;
         let query_chunks: Vec<_> = overlapped_files
             .iter()
             .map(|f| {
@@ -632,6 +635,7 @@ impl Compactor {
                     Arc::clone(&self.object_store),
                     iox_metadata.table_name.to_string(),
                     iox_metadata.sort_key.clone(),
+                    partition_sort_key.clone(),
                 )
             })
             .collect();
@@ -1831,10 +1835,12 @@ mod tests {
             Arc::clone(&catalog.object_store),
             table.table.name.clone(),
             partition.partition.sort_key(),
+            partition.partition.sort_key(),
         );
         let pc2 = pt2.to_queryable_parquet_chunk(
             Arc::clone(&catalog.object_store),
             table.table.name.clone(),
+            partition.partition.sort_key(),
             partition.partition.sort_key(),
         );
 

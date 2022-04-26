@@ -131,6 +131,10 @@ impl QueryChunkMeta for ParquetFileWithMetadata {
         unimplemented!()
     }
 
+    fn partition_sort_key(&self) -> Option<&SortKey> {
+        unimplemented!()
+    }
+
     fn timestamp_min_max(&self) -> Option<TimestampMinMax> {
         Some(TimestampMinMax {
             min: self.min_time.get(),

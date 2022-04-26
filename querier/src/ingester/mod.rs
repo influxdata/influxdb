@@ -436,6 +436,10 @@ impl QueryChunkMeta for IngesterPartition {
         Arc::clone(&self.schema)
     }
 
+    fn partition_sort_key(&self) -> Option<&SortKey> {
+        None // data comes from Ingester is not persisted yet and should not yet attached to any catalog partition
+    }
+
     fn partition_id(&self) -> Option<PartitionId> {
         Some(self.partition_id())
     }

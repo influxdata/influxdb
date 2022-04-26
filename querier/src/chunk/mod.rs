@@ -34,6 +34,9 @@ pub struct ChunkMeta {
     /// Sort key.
     sort_key: Option<SortKey>,
 
+    /// Partition sort key
+    partition_sort_key: Option<SortKey>,
+
     /// Sequencer that created the data within this chunk.
     sequencer_id: SequencerId,
 
@@ -61,6 +64,11 @@ impl ChunkMeta {
     /// Sort key.
     pub fn sort_key(&self) -> Option<&SortKey> {
         self.sort_key.as_ref()
+    }
+
+    /// Partition sort key
+    pub fn partition_sort_key(&self) -> Option<&SortKey> {
+        self.partition_sort_key.as_ref()
     }
 
     /// Sequencer that created the data within this chunk.
@@ -246,10 +254,18 @@ impl ParquetChunkAdapter {
         let order = ChunkOrder::new(1 + iox_metadata.min_sequence_number.get() as u32)
             .expect("cannot be zero");
 
+        // Read partition sort key
+        let partition_sort_key = self
+            .catalog_cache()
+            .partition()
+            .sort_key(iox_metadata.partition_id)
+            .await;
+
         let meta = Arc::new(ChunkMeta {
             addr,
             order,
             sort_key: iox_metadata.sort_key.clone(),
+            partition_sort_key,
             sequencer_id: iox_metadata.sequencer_id,
             partition_id: iox_metadata.partition_id,
             min_sequence_number: decoded_parquet_file.parquet_file.min_sequence_number,

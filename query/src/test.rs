@@ -215,6 +215,9 @@ pub struct TestChunk {
     /// The sort key of this chunk
     sort_key: Option<SortKey>,
 
+    /// The partition sort key of this chunk
+    partition_sort_key: Option<SortKey>,
+
     /// Time range of the data
     timestamp_min_max: Option<TimestampMinMax>,
 }
@@ -293,6 +296,7 @@ impl TestChunk {
             delete_predicates: Default::default(),
             order: ChunkOrder::MIN,
             sort_key: None,
+            partition_sort_key: None,
             timestamp_min_max: None,
             partition_id: None,
         }
@@ -866,6 +870,14 @@ impl TestChunk {
         }
     }
 
+    /// Set the partition sort key for this chunk
+    pub fn with_partition_sort_key(self, sort_key: SortKey) -> Self {
+        Self {
+            partition_sort_key: Some(sort_key),
+            ..self
+        }
+    }
+
     /// Returns all columns of the table
     pub fn all_column_names(&self) -> StringSet {
         self.schema
@@ -996,6 +1008,10 @@ impl QueryChunkMeta for TestChunk {
 
     fn schema(&self) -> Arc<Schema> {
         Arc::clone(&self.schema)
+    }
+
+    fn partition_sort_key(&self) -> Option<&SortKey> {
+        self.partition_sort_key.as_ref()
     }
 
     fn partition_id(&self) -> Option<PartitionId> {

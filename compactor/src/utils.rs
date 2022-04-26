@@ -91,6 +91,7 @@ impl ParquetFileWithTombstone {
         object_store: Arc<DynObjectStore>,
         table_name: String,
         sort_key: Option<SortKey>,
+        partition_sort_key: Option<SortKey>,
     ) -> QueryableParquetChunk {
         let decoded_parquet_file = DecodedParquetFile::new((*self.data).clone());
         let root_path = IoxObjectStore::root_path_for(&*object_store, self.data.object_store_id);
@@ -121,6 +122,7 @@ impl ParquetFileWithTombstone {
             self.data.min_time,
             self.data.max_time,
             sort_key,
+            partition_sort_key,
         )
     }
 

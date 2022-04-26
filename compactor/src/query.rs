@@ -48,6 +48,7 @@ pub struct QueryableParquetChunk {
     min_time: Timestamp,
     max_time: Timestamp,
     sort_key: Option<SortKey>,
+    partition_sort_key: Option<SortKey>,
 }
 
 impl QueryableParquetChunk {
@@ -63,6 +64,7 @@ impl QueryableParquetChunk {
         min_time: Timestamp,
         max_time: Timestamp,
         sort_key: Option<SortKey>,
+        partition_sort_key: Option<SortKey>,
     ) -> Self {
         let delete_predicates = tombstones_to_delete_predicates(deletes);
         Self {
@@ -75,6 +77,7 @@ impl QueryableParquetChunk {
             min_time,
             max_time,
             sort_key,
+            partition_sort_key,
         }
     }
 
@@ -115,6 +118,10 @@ impl QueryChunkMeta for QueryableParquetChunk {
 
     fn schema(&self) -> Arc<Schema> {
         self.data.schema()
+    }
+
+    fn partition_sort_key(&self) -> Option<&SortKey> {
+        self.partition_sort_key.as_ref()
     }
 
     fn partition_id(&self) -> Option<PartitionId> {

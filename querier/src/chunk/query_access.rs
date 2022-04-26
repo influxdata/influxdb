@@ -32,6 +32,10 @@ impl QueryChunkMeta for QuerierChunk {
         }
     }
 
+    fn partition_sort_key(&self) -> Option<&SortKey> {
+        self.meta().partition_sort_key()
+    }
+
     fn partition_id(&self) -> Option<PartitionId> {
         Some(self.meta.partition_id())
     }

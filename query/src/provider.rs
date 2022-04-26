@@ -439,34 +439,44 @@ impl Deduplicater {
                    no_duplicates_chunks=?self.no_duplicates_chunks.len(),
                    "Chunks after classifying");
 
-            let dedup_sort_key = match &output_sort_key {
-                Some(sort_key) => {
-                    // Technically we only require that the sort order is prefixed by
-                    // the primary key, in order for deduplication to work correctly
-                    assert!(
-                        pk_schema.len() <= sort_key.len(),
-                        "output_sort_key ({:?}) must be at least as long as the primary key ({:?})",
-                        sort_key.to_columns(),
-                        pk_schema,
-                    );
-                    assert!(
-                        pk_schema.is_sorted_on_pk(sort_key),
-                        "output_sort_key must contain primary key"
-                    );
-                    sort_key.clone()
-                }
-                None => compute_sort_key_for_chunks(&pk_schema, chunks.as_ref()),
-            };
+            // Verify that output_sort_key must cover PK
+            if let Some(sort_key) = &output_sort_key {
+                debug!(%sort_key, "output_sort_key is provided for building deduplicate plan");
+                // Technically we only require that the sort order is prefixed by
+                // the primary key, in order for deduplication to work correctly
+                assert!(
+                    pk_schema.len() <= sort_key.len(),
+                    "output_sort_key ({:?}) must be at least as long as the primary key ({:?})",
+                    sort_key.to_columns(),
+                    pk_schema,
+                );
+                assert!(
+                    pk_schema.is_sorted_on_pk(sort_key),
+                    "output_sort_key must contain primary key"
+                );
+            } else {
+                debug!("output_sort_key is not provided for building deduplicate plan");
+            }
 
-            debug!(
-                ?dedup_sort_key,
-                ?output_sort_key,
-                ?pk_schema,
-                "Sort keys while building"
-            );
+            // This sort key is only used when the chunks are not sorted and output_sort_key is not provided
+            let dedup_sort_key_for_unsorted_chunks =
+                compute_sort_key_for_chunks(&pk_schema, chunks.as_ref());
 
             // Go over overlapped set, build deduplicate plan for each vector of overlapped chunks
             for overlapped_chunks in self.overlapped_chunks_set.iter().cloned() {
+                let chunks_dedup_sort_key = Self::chunks_dedup_sort_key(
+                    &output_sort_key,
+                    &overlapped_chunks,
+                    &dedup_sort_key_for_unsorted_chunks,
+                );
+
+                debug!(
+                    ?chunks_dedup_sort_key,
+                    ?output_sort_key,
+                    ?pk_schema,
+                    "Sort keys while building build_deduplicate_plan_for_overlapped_chunks"
+                );
+
                 plans.push(Self::build_deduplicate_plan_for_overlapped_chunks(
                     self.ctx
                         .child_ctx("build_deduplicate_plan_for_overlapped_chunks"),
@@ -474,12 +484,26 @@ impl Deduplicater {
                     Arc::clone(&output_schema),
                     overlapped_chunks,
                     predicate.clone(),
-                    &dedup_sort_key,
+                    &chunks_dedup_sort_key,
                 )?);
             }
 
             // Go over each in_chunk_duplicates_chunks, build deduplicate plan for each
             for chunk_with_duplicates in self.in_chunk_duplicates_chunks.iter().cloned() {
+                // Set dedup sort key
+                let chunk_dedup_sort_key = Self::chunks_dedup_sort_key(
+                    &output_sort_key,
+                    &vec![Arc::clone(&chunk_with_duplicates)],
+                    &dedup_sort_key_for_unsorted_chunks,
+                );
+
+                debug!(
+                    ?chunk_dedup_sort_key,
+                    ?output_sort_key,
+                    ?pk_schema,
+                    "Sort keys while building build_deduplicate_plan_for_chunk_with_duplicate"
+                );
+
                 plans.push(Self::build_deduplicate_plan_for_chunk_with_duplicates(
                     self.ctx
                         .child_ctx("build_deduplicate_plan_for_chunk_with_duplicates"),
@@ -487,13 +511,15 @@ impl Deduplicater {
                     Arc::clone(&output_schema),
                     chunk_with_duplicates,
                     predicate.clone(),
-                    &dedup_sort_key,
+                    &chunk_dedup_sort_key,
                 )?);
             }
 
             // Go over non_duplicates_chunks, build a plan for it
             if !self.no_duplicates_chunks.is_empty() {
                 debug!(
+                    ?output_sort_key,
+                    ?pk_schema,
                     "Build one scan node for the rest of neither-duplicated-nor-overlapped chunks."
                 );
                 let mut non_duplicate_plans = Self::build_plans_for_non_duplicates_chunks(
@@ -532,6 +558,95 @@ impl Deduplicater {
         }
 
         Ok(plan)
+    }
+
+    // Return sort key for overlapped chunks
+    fn chunks_dedup_sort_key(
+        output_sort_key: &Option<SortKey>,
+        chunks: &Vec<Arc<dyn QueryChunk>>,
+        dedup_sort_key_for_unsorted_chunks: &SortKey,
+    ) -> SortKey {
+        let chunks_dedup_sort_key = match &output_sort_key {
+            // Use output _sort_key if provided
+            Some(sort_key) => sort_key.clone(),
+            None => {
+                // Use the chunk's partition key if they were persisted chunks
+                if let Some(sort_key) = if chunks.len() == 1 {
+                    chunks[0].sort_key()
+                } else {
+                    Self::sort_key_of_overlapped_chunks(chunks)
+                } {
+                    sort_key.clone()
+                } else {
+                    // This happens either:
+                    //   . In the Ingester to compact ingesting data that is not sorted and not deduplicated yet
+                    //   . In the Querier that also inlcudes data sent from Ingester that is also not not sorted.
+                    //        Note: Data sent from Ingetser is already deduplicated but if it overlaps with
+                    //        othe chunks, it may include duplicated data with those chunks
+                    //   . In OG for data without statistic
+                    debug!(
+                        "Sort key is computed during planning for deduplicating overlapped chunks."
+                    );
+                    dedup_sort_key_for_unsorted_chunks.clone()
+                }
+            }
+        };
+        chunks_dedup_sort_key
+    }
+
+    // Return sort key of overlapped chunks
+    // The input chunks must be in the same partition
+    fn sort_key_of_overlapped_chunks(chunks: &Vec<Arc<dyn QueryChunk>>) -> Option<&SortKey> {
+        if chunks.is_empty() {
+            return None;
+        }
+
+        // At least one of the overlapped chunks are not sorted
+        // Either Ingesting data or data sent from Ingester to Querier will
+        // fall into this case
+        if chunks.iter().any(|c| c.sort_key() == None) {
+            debug!("At least one of the overlapped chunks are not sorted");
+            return None;
+        }
+
+        // All overlapped chunks must be sorted
+        // --> they must come from persisted parquet files of the same partition
+        // Get their partition's sort_key
+        let partition_sort_key = chunks[0].partition_sort_key();
+
+        // TODO: Remove this line when we remove OG
+        partition_sort_key?;
+
+        // NG case: the chunk must have partition sort key
+        let partition_sort_key =
+            partition_sort_key.expect("Sorted/persisted chunk without partition id");
+
+        // Verify if the partition sort key covers all columns of the chunks sort keys in the same order
+        for c in chunks {
+            let chunk_sort_key = c.sort_key().expect("Chunk should have sort key");
+            if !Self::sort_key_cover_and_same_order(partition_sort_key, chunk_sort_key) {
+                panic!(
+                    "Partition sort key {} does not cover or is sorted on the same order of the chunk sort key {}",
+                    partition_sort_key, chunk_sort_key
+                );
+            }
+        }
+
+        Some(partition_sort_key)
+    }
+
+    // return true if the super_sort_key covers sort_key and same column order
+    fn sort_key_cover_and_same_order(super_sort_key: &SortKey, sort_key: &SortKey) -> bool {
+        if super_sort_key == sort_key {
+            return true;
+        }
+
+        if let Some(merge_key) = SortKey::try_merge_key(super_sort_key, sort_key) {
+            if merge_key == super_sort_key {
+                return true;
+            }
+        }
+        false
     }
 
     // TODO: message for OG remover: Remove this function and rename split_overlapped_chunks_ng to split_overlapped_chunks
@@ -969,8 +1084,17 @@ impl Deduplicater {
         }
 
         // Add the sort operator, SortExec, if needed
-        if let Some(key) = sort_key {
-            input = Self::build_sort_plan(chunk, input, key)?
+        if let Some(sort_key) = sort_key {
+            let mut add_sort_op = true;
+            if let Some(chunk_sort_key) = chunk.sort_key() {
+                if Self::sort_key_cover_and_same_order(sort_key, chunk_sort_key) {
+                    // the chunk is already sorted
+                    add_sort_op = false;
+                }
+            }
+            if add_sort_op {
+                input = Self::build_sort_plan(chunk, input, sort_key)?
+            }
         }
 
         // Add a projection operator to return only schema of the operator above this in the plan
@@ -1185,6 +1309,7 @@ mod test {
 
     use arrow::datatypes::DataType;
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
+    use datafusion::physical_plan::displayable;
     use datafusion_util::test_collect;
     use schema::{builder::SchemaBuilder, TIME_COLUMN_NAME};
 
@@ -1376,6 +1501,11 @@ mod test {
             vec![Arc::clone(&chunk)],
             Predicate::default(),
         ));
+
+        // plan should not have sort operator
+        let plan = format!("{}", displayable(input.as_ref()).indent());
+        assert!(!plan.contains("SortExec"));
+
         let batch = test_collect(Arc::clone(&input)).await;
         // data in its original non-sorted form
         let expected = vec![
@@ -1393,6 +1523,11 @@ mod test {
 
         // Add Sort operator on top of IOx scan
         let sort_plan = Deduplicater::build_sort_plan(chunk, input, &sort_key).unwrap();
+
+        // Plan should have sort operator
+        let plan = format!("{}", displayable(sort_plan.as_ref()).indent());
+        assert!(plan.contains("SortExec"));
+
         let batch = test_collect(sort_plan).await;
         // data is sorted on (tag1, time)
         let expected = vec![
@@ -1522,12 +1657,18 @@ mod test {
         let sort_plan = Deduplicater::build_sort_plan_for_read_filter(
             IOxSessionContext::default(),
             Arc::from("t"),
-            schema,
+            Arc::clone(&schema),
             Arc::clone(&chunk),
             Predicate::default(),
-            Some(&sort_key),
+            Some(&sort_key.clone()),
         )
         .unwrap();
+
+        // Plan should have sort operator because the chunk is not sorted
+        let plan = format!("{}", displayable(sort_plan.as_ref()).indent());
+
+        assert!(plan.contains("SortExec"));
+
         let batch = test_collect(sort_plan).await;
         // with provided stats, data is sorted on (tag1, tag2, time)
         let expected = vec![
@@ -1542,6 +1683,262 @@ mod test {
             "+-----------+------+------+--------------------------------+",
         ];
         assert_batches_eq!(&expected, &batch);
+
+        // -----------------------------------------
+        // Create a sorted chunk
+        let chunk = Arc::new(
+            TestChunk::new("t")
+                .with_id(1)
+                .with_time_column()
+                .with_tag_column("tag1")
+                .with_tag_column("tag2")
+                .with_i64_field_column("field_int")
+                .with_sort_key(sort_key.clone()), // signal the chunk is sorted
+        ) as Arc<dyn QueryChunk>;
+
+        let sort_plan = Deduplicater::build_sort_plan_for_read_filter(
+            IOxSessionContext::default(),
+            Arc::from("t"),
+            schema,
+            Arc::clone(&chunk),
+            Predicate::default(),
+            Some(&sort_key),
+        )
+        .unwrap();
+
+        // Plan should NOT have sort operator because the chunk is already sorted on the same sort key
+        let plan = format!("{}", displayable(sort_plan.as_ref()).indent());
+        assert!(!plan.contains("SortExec"));
+    }
+
+    #[tokio::test]
+    async fn test_build_deduplicate_plan_for_chunk_with_duplicates_explain() {
+        let sort_key = SortKey::from_columns(vec!["tag1", "tag2", TIME_COLUMN_NAME]);
+
+        // -----------------------------------------
+        // Create a sorted chunk
+        let chunk = Arc::new(
+            TestChunk::new("t")
+                .with_id(1)
+                .with_time_column()
+                .with_tag_column("tag1")
+                .with_tag_column("tag2")
+                .with_i64_field_column("field_int")
+                .with_sort_key(sort_key.clone()), // signal the chunk is sorted
+        ) as Arc<dyn QueryChunk>;
+
+        // Datafusion schema of the chunk
+        let schema = chunk.schema();
+
+        let plan = Deduplicater::build_deduplicate_plan_for_chunk_with_duplicates(
+            IOxSessionContext::default(),
+            Arc::from("t"),
+            schema,
+            Arc::clone(&chunk),
+            Predicate::default(),
+            &sort_key,
+        )
+        .unwrap();
+
+        let plan = format!("{}", displayable(plan.as_ref()).indent());
+        // Plan should NOT have sort operator because the chunk is already sorted on the same sort key
+        assert!(!plan.contains("SortExec"));
+        // Should have DeduplicateExec
+        assert!(plan.contains("DeduplicateExec"));
+
+        // -----------------------------------------
+        // Create a non-sorted chunk
+        let chunk = Arc::new(
+            TestChunk::new("t")
+                .with_id(1)
+                .with_time_column()
+                .with_tag_column("tag1")
+                .with_tag_column("tag2")
+                .with_i64_field_column("field_int"),
+        ) as Arc<dyn QueryChunk>;
+
+        // Datafusion schema of the chunk
+        let schema = chunk.schema();
+
+        let plan = Deduplicater::build_deduplicate_plan_for_chunk_with_duplicates(
+            IOxSessionContext::default(),
+            Arc::from("t"),
+            schema,
+            Arc::clone(&chunk),
+            Predicate::default(),
+            &sort_key,
+        )
+        .unwrap();
+
+        let plan = format!("{}", displayable(plan.as_ref()).indent());
+        // Plan should have sort operator
+        assert!(plan.contains("SortExec"));
+        // Should have DeduplicateExec
+        assert!(plan.contains("DeduplicateExec"));
+    }
+
+    #[tokio::test]
+    async fn test_build_plans_for_non_duplicates_chunks_explain() {
+        let sort_key = SortKey::from_columns(vec!["tag1", "tag2", TIME_COLUMN_NAME]);
+
+        // Sorted Chunk 1 with 5 rows of data on 2 tags
+        let chunk1 = Arc::new(
+            TestChunk::new("t")
+                .with_id(1)
+                .with_time_column()
+                .with_tag_column("tag1")
+                .with_tag_column("tag2")
+                .with_i64_field_column("field_int")
+                .with_sort_key(sort_key.clone()),
+        ) as Arc<dyn QueryChunk>;
+
+        // Non-sorted Chunk 2
+        let chunk2 = Arc::new(
+            TestChunk::new("t")
+                .with_id(2)
+                .with_time_column()
+                .with_tag_column("tag1")
+                .with_tag_column("tag2")
+                .with_i64_field_column("field_int"),
+        ) as Arc<dyn QueryChunk>;
+
+        // Datafusion schema of the chunk
+        let schema = chunk1.schema();
+
+        // All chunks in one single scan
+        let plans = Deduplicater::build_plans_for_non_duplicates_chunks(
+            IOxSessionContext::default(),
+            Arc::from("t"),
+            Arc::clone(&schema),
+            vec![Arc::clone(&chunk1), Arc::clone(&chunk2)],
+            Predicate::default(),
+            None, // not ask to sort the output of the plan
+        )
+        .unwrap();
+
+        // should have only one output plan
+        assert_eq!(plans.len(), 1);
+        let plan = format!("{}", displayable(plans[0].as_ref()).indent());
+        // Plan should NOT have sort operator
+        assert!(!plan.contains("SortExec"));
+        // Should not have DeduplicateExec
+        assert!(!plan.contains("DeduplicateExec"));
+
+        // -----------------------------------
+        // Each chunk in its own plan becasue sorting on each chunk is asked
+        let plans = Deduplicater::build_plans_for_non_duplicates_chunks(
+            IOxSessionContext::default(),
+            Arc::from("t"),
+            schema,
+            vec![Arc::clone(&chunk1), Arc::clone(&chunk2)],
+            Predicate::default(),
+            Some(&sort_key), // sort output on this sort_key
+        )
+        .unwrap();
+
+        // should have two output plans
+        assert_eq!(plans.len(), 2);
+        // First plan should NOT have sort operator because already sorted
+        let plan = format!("{}", displayable(plans[0].as_ref()).indent());
+        assert!(!plan.contains("SortExec"));
+        // Second plan should have sort operator
+        let plan = format!("{}", displayable(plans[1].as_ref()).indent());
+        assert!(plan.contains("SortExec"));
+        // Should not have DeduplicateExec
+        assert!(!plan.contains("DeduplicateExec"));
+    }
+
+    #[tokio::test]
+    async fn test_sort_key_of_overlapped_chunks() {
+        // Empty chunks
+        let chunks = vec![];
+        let result = Deduplicater::sort_key_of_overlapped_chunks(&chunks);
+        assert!(result.is_none());
+
+        // One not-sorted chunk
+        let chunk1 = Arc::new(TestChunk::new("t")) as Arc<dyn QueryChunk>;
+        let chunks = vec![chunk1];
+        let result = Deduplicater::sort_key_of_overlapped_chunks(&chunks);
+        assert!(result.is_none());
+
+        // One sorted chunk whose sort key and partition sort key are the same
+        let sort_key = SortKey::from_columns(vec!["tag1", TIME_COLUMN_NAME]);
+        let chunk1 = Arc::new(
+            TestChunk::new("t")
+                .with_sort_key(sort_key.clone())
+                .with_partition_sort_key(sort_key.clone()),
+        ) as Arc<dyn QueryChunk>;
+        let chunks = vec![chunk1];
+        let result = Deduplicater::sort_key_of_overlapped_chunks(&chunks).unwrap();
+        assert_eq!(*result, sort_key);
+
+        // partition sort key is a super key of the sort key
+        let sort_key = SortKey::from_columns(vec!["tag1", TIME_COLUMN_NAME]);
+        let partition_sort_key = SortKey::from_columns(vec!["tag1", "tag2", TIME_COLUMN_NAME]);
+        let chunk1 = Arc::new(
+            TestChunk::new("t")
+                .with_sort_key(sort_key)
+                .with_partition_sort_key(partition_sort_key.clone()),
+        ) as Arc<dyn QueryChunk>;
+        let chunks = vec![chunk1];
+        let result = Deduplicater::sort_key_of_overlapped_chunks(&chunks).unwrap();
+        assert_eq!(*result, partition_sort_key);
+    }
+
+    #[tokio::test]
+    async fn test_sort_key_of_overlapped_chunks_many_chunks() {
+        // One not-sorted chunk, one sorted
+        let sort_key = SortKey::from_columns(vec!["tag1", TIME_COLUMN_NAME]);
+        let chunk1 = Arc::new(
+            TestChunk::new("t")
+                .with_sort_key(sort_key.clone())
+                .with_partition_sort_key(sort_key),
+        ) as Arc<dyn QueryChunk>;
+        let chunk2 = Arc::new(TestChunk::new("t")) as Arc<dyn QueryChunk>;
+        let chunks = vec![chunk1, chunk2];
+        let result = Deduplicater::sort_key_of_overlapped_chunks(&chunks);
+        assert!(result.is_none());
+
+        // Two sorted chunks
+        let partition_sort_key = SortKey::from_columns(vec!["tag2", "tag1", TIME_COLUMN_NAME]);
+        let sort_key_1 = SortKey::from_columns(vec!["tag1", TIME_COLUMN_NAME]);
+        let sort_key_2 = SortKey::from_columns(vec!["tag2", TIME_COLUMN_NAME]);
+        let chunk1 = Arc::new(
+            TestChunk::new("t")
+                .with_sort_key(sort_key_1)
+                .with_partition_sort_key(partition_sort_key.clone()),
+        ) as Arc<dyn QueryChunk>;
+        let chunk2 = Arc::new(
+            TestChunk::new("t")
+                .with_sort_key(sort_key_2)
+                .with_partition_sort_key(partition_sort_key.clone()),
+        ) as Arc<dyn QueryChunk>;
+        let chunks = vec![chunk1, chunk2];
+        let result = Deduplicater::sort_key_of_overlapped_chunks(&chunks).unwrap();
+        assert_eq!(*result, partition_sort_key);
+    }
+
+    #[should_panic(
+        expected = "Partition sort key tag2, tag1, time, does not cover or is sorted on the same order of the chunk sort key tag3, time,"
+    )]
+    #[tokio::test]
+    async fn test_sort_key_of_overlapped_chunks_negative() {
+        // Two sorted chunks but partition sort key does not cover the sort key
+        let partition_sort_key = SortKey::from_columns(vec!["tag2", "tag1", TIME_COLUMN_NAME]);
+        let sort_key_1 = SortKey::from_columns(vec!["tag3", TIME_COLUMN_NAME]); // tag3 is notincluded in partition_sort_key
+        let sort_key_2 = SortKey::from_columns(vec!["tag2", TIME_COLUMN_NAME]);
+        let chunk1 = Arc::new(
+            TestChunk::new("t")
+                .with_sort_key(sort_key_1)
+                .with_partition_sort_key(partition_sort_key.clone()),
+        ) as Arc<dyn QueryChunk>;
+        let chunk2 = Arc::new(
+            TestChunk::new("t")
+                .with_sort_key(sort_key_2)
+                .with_partition_sort_key(partition_sort_key),
+        ) as Arc<dyn QueryChunk>;
+        // will panic
+        Deduplicater::sort_key_of_overlapped_chunks(&vec![chunk1, chunk2]).unwrap();
     }
 
     #[tokio::test]
@@ -1597,12 +1994,22 @@ mod test {
         let sort_plan = Deduplicater::build_deduplicate_plan_for_overlapped_chunks(
             IOxSessionContext::default(), //TODO(edd): address this.
             Arc::from("t"),
-            schema,
+            Arc::clone(&schema),
             chunks,
             Predicate::default(),
             &output_sort_key,
         )
         .unwrap();
+
+        // Check the plan
+        let plan = format!("{}", displayable(sort_plan.as_ref()).indent());
+        // Plan should have 2 SortExec, one for each chunk, because they are not yet sorted
+        assert!(plan.contains("SortExec"));
+        // Plan should include the final SortPreservingMergeExec to merge 2 sorted inputs
+        assert!(plan.contains("SortPreservingMergeExec"));
+        // Should have DeduplicateExec
+        assert!(plan.contains("DeduplicateExec"));
+
         let batch = test_collect(sort_plan).await;
         // data is sorted on primary key(tag1, tag2, time)
         let expected = vec![
@@ -1617,6 +2024,51 @@ mod test {
             "+-----------+------+------+--------------------------------+",
         ];
         assert_batches_eq!(&expected, &batch);
+
+        // -------------------------------------------------------------
+        // Build plan for sorted chunks
+        // Sorted Chunk
+        let chunk1 = Arc::new(
+            TestChunk::new("t")
+                .with_id(1)
+                .with_time_column()
+                .with_tag_column("tag1")
+                .with_tag_column("tag2")
+                .with_i64_field_column("field_int")
+                .with_five_rows_of_data()
+                .with_sort_key(output_sort_key.clone()),
+        ) as Arc<dyn QueryChunk>;
+
+        // Chunk 2 exactly the same with Chunk 1
+        let chunk2 = Arc::new(
+            TestChunk::new("t")
+                .with_id(2)
+                .with_time_column()
+                .with_tag_column("tag1")
+                .with_tag_column("tag2")
+                .with_i64_field_column("field_int")
+                .with_five_rows_of_data()
+                .with_sort_key(output_sort_key.clone()),
+        ) as Arc<dyn QueryChunk>;
+
+        let sort_plan = Deduplicater::build_deduplicate_plan_for_overlapped_chunks(
+            IOxSessionContext::default(),
+            Arc::from("t"),
+            schema,
+            vec![chunk1, chunk2],
+            Predicate::default(),
+            &output_sort_key,
+        )
+        .unwrap();
+
+        // Check the plan
+        let plan = format!("{}", displayable(sort_plan.as_ref()).indent());
+        // Plan should NOT have SortExec becasue both chunks are sorted
+        assert!(!plan.contains("SortExec"));
+        // Plan should include the final SortPreservingMergeExec to merge 2 sorted inputs
+        assert!(plan.contains("SortPreservingMergeExec"));
+        // Should have DeduplicateExec
+        assert!(plan.contains("DeduplicateExec"));
     }
 
     #[tokio::test]
@@ -2225,6 +2677,7 @@ mod test {
                     Some(NonZeroU64::new(3).unwrap()),
                 )
                 .with_i64_field_column("field_int")
+                .with_partition_id(1) // signal the chunk in partition 1 while grouping overlaps
                 .with_ten_rows_of_data_some_duplicates(),
         ) as Arc<dyn QueryChunk>;
 
@@ -2246,6 +2699,7 @@ mod test {
                     Some(NonZeroU64::new(3).unwrap()),
                 )
                 .with_i64_field_column("field_int")
+                .with_partition_id(1) // signal the chunk in partition 1 while grouping overlaps
                 .with_five_rows_of_data(),
         ) as Arc<dyn QueryChunk>;
 
@@ -2267,6 +2721,7 @@ mod test {
                     Some(NonZeroU64::new(3).unwrap()),
                 )
                 .with_i64_field_column("field_int")
+                .with_partition_id(1) // signal the chunk in partition 1 while grouping overlaps
                 .with_three_rows_of_data(),
         ) as Arc<dyn QueryChunk>;
 
@@ -2289,6 +2744,7 @@ mod test {
                 )
                 .with_i64_field_column("field_int")
                 .with_may_contain_pk_duplicates(true)
+                .with_partition_id(1) // signal the chunk in partition 1 while grouping overlaps
                 .with_four_rows_of_data(),
         ) as Arc<dyn QueryChunk>;
 
@@ -2332,6 +2788,46 @@ mod test {
         let plan = deduplicator
             .build_scan_plan(Arc::from("t"), schema, chunks, Predicate::default(), None)
             .unwrap();
+
+        // plan should include SortExec because chunks are not yet sorted
+        let plan_str = format!("{}", displayable(plan.as_ref()).indent());
+        // println!("{}", plan_str);
+        // The plan should look like this
+        // UnionExec
+        //     DeduplicateExec: [tag1@1 ASC,time@2 ASC]
+        //         SortPreservingMergeExec: [tag1@1 ASC,time@2 ASC]
+        //             UnionExec
+        //                 SortExec: [tag1@1 ASC,time@2 ASC]                   <-- needed for deduplication
+        //                     IOxReadFilterNode: table_name=t, chunks=1 predicate=Predicate
+        //                 SortExec: [tag1@1 ASC,time@2 ASC]                   <-- needed for deduplication
+        //                     IOxReadFilterNode: table_name=t, chunks=1 predicate=Predicate
+        //     DeduplicateExec: [tag1@1 ASC,time@2 ASC]
+        //         SortExec: [tag1@1 ASC,time@2 ASC]                           <-- needed for deduplication
+        //             IOxReadFilterNode: table_name=t, chunks=1 predicate=Predicate
+        //     IOxReadFilterNode: table_name=t, chunks=1 predicate=Predicate   <-- no sort above this because it
+        //                                                                         does not need to get deduplicated
+        //                                                                         and the plan output is not sorted
+
+        //  Verify 3 SortExec
+        let count = plan_str.matches("SortExec").count();
+        assert_eq!(count, 3);
+
+        // Verify 4 IOxReadFilterNode
+        let count = plan_str.matches("IOxReadFilterNode").count();
+        assert_eq!(count, 4);
+
+        // Verify 2 DeduplicateExec
+        let count = plan_str.matches("DeduplicateExec").count();
+        assert_eq!(count, 2);
+
+        // Verify 2 UnionExec
+        let count = plan_str.matches("UnionExec").count();
+        assert_eq!(count, 2);
+
+        // Verify 1 SortPreservingMergeExec
+        let count = plan_str.matches("SortPreservingMergeExec").count();
+        assert_eq!(count, 1);
+
         let batch = test_collect(plan).await;
         // Final data is partially sorted with duplicates removed. Detailed:
         //   . chunk1 and chunk2 will be sorted merged and deduplicated (rows 7-14)
@@ -2384,6 +2880,7 @@ mod test {
                     Some(NonZeroU64::new(3).unwrap()),
                 )
                 .with_i64_field_column("field_int")
+                .with_partition_id(1) // signal the chunk in partition 1 while grouping overlaps
                 .with_ten_rows_of_data_some_duplicates(),
         ) as Arc<dyn QueryChunk>;
 
@@ -2405,6 +2902,7 @@ mod test {
                     Some(NonZeroU64::new(3).unwrap()),
                 )
                 .with_i64_field_column("field_int")
+                .with_partition_id(1) // signal the chunk in partition 1 while grouping overlaps
                 .with_five_rows_of_data(),
         ) as Arc<dyn QueryChunk>;
 
@@ -2426,6 +2924,7 @@ mod test {
                     Some(NonZeroU64::new(3).unwrap()),
                 )
                 .with_i64_field_column("field_int")
+                .with_partition_id(1) // signal the chunk in partition 1 while grouping overlaps
                 .with_three_rows_of_data(),
         ) as Arc<dyn QueryChunk>;
 
@@ -2448,6 +2947,7 @@ mod test {
                 )
                 .with_i64_field_column("field_int")
                 .with_may_contain_pk_duplicates(true)
+                .with_partition_id(1) // signal the chunk in partition 1 while grouping overlaps
                 .with_four_rows_of_data(),
         ) as Arc<dyn QueryChunk>;
 
@@ -2494,9 +2994,48 @@ mod test {
                 schema,
                 chunks,
                 Predicate::default(),
-                Some(sort_key),
+                Some(sort_key.clone()), // Ask to sort the plan output
             )
             .unwrap();
+
+        // plan should inlcude SortExec because chunks are not yet sorted on the specified sort_key
+        let plan_str = format!("{}", displayable(plan.as_ref()).indent());
+        // println!("{}", plan_str);
+        // The plan should look like this
+        // SortPreservingMergeExec: [tag1@1 ASC,time@2 ASC]
+        //     UnionExec
+        //         DeduplicateExec: [tag1@1 ASC,time@2 ASC]
+        //             SortPreservingMergeExec: [tag1@1 ASC,time@2 ASC]
+        //                 UnionExec
+        //                     SortExec: [tag1@1 ASC,time@2 ASC]  <-- needed for deduplication
+        //                         IOxReadFilterNode: table_name=t, chunks=1 predicate=Predicate
+        //                     SortExec: [tag1@1 ASC,time@2 ASC]  <-- needed for deduplication
+        //                         IOxReadFilterNode: table_name=t, chunks=1 predicate=Predicate
+        //         DeduplicateExec: [tag1@1 ASC,time@2 ASC]
+        //             SortExec: [tag1@1 ASC,time@2 ASC]         <-- needed for deduplication
+        //                 IOxReadFilterNode: table_name=t, chunks=1 predicate=Predicate
+        //         SortExec: [tag1@1 ASC,time@2 ASC]              <-- needed because the plan output is asked to get sorted
+        //            IOxReadFilterNode: table_name=t, chunks=1 predicate=Predicate
+
+        //  Verify 4 SortExec
+        let count = plan_str.matches("SortExec").count();
+        assert_eq!(count, 4);
+
+        // Verify 4 IOxReadFilterNode
+        let count = plan_str.matches("IOxReadFilterNode").count();
+        assert_eq!(count, 4);
+
+        // Verify 2 DeduplicateExec
+        let count = plan_str.matches("DeduplicateExec").count();
+        assert_eq!(count, 2);
+
+        // Verify 2 UnionExec
+        let count = plan_str.matches("UnionExec").count();
+        assert_eq!(count, 2);
+
+        // Verify 2 SortPreservingMergeExec
+        let count = plan_str.matches("SortPreservingMergeExec").count();
+        assert_eq!(count, 2);
 
         let batch = test_collect(plan).await;
         // Final data must be sorted
@@ -2521,6 +3060,111 @@ mod test {
             "+-----------+------+--------------------------------+",
         ];
         assert_batches_eq!(&expected, &batch);
+    }
+
+    #[tokio::test]
+    async fn alread_sorted_scan_plan_with_four_chunks_explain() {
+        test_helpers::maybe_start_logging();
+
+        // This test covers all kind of SORTED chunks: overlap, non-overlap without duplicates within, non-overlap with duplicates within
+
+        let sort_key = SortKey::from_columns(vec!["tag1", TIME_COLUMN_NAME]);
+
+        let chunk1 = Arc::new(
+            TestChunk::new("t")
+                .with_id(1)
+                .with_time_column()
+                .with_timestamp_min_max(5, 7000)
+                .with_tag_column("tag1")
+                .with_i64_field_column("field_int")
+                .with_partition_id(1) // signal the chunk in partition 1 while grouping overlaps
+                .with_sort_key(sort_key.clone()), // signal the chunk is sorted
+        ) as Arc<dyn QueryChunk>;
+
+        // chunk2 overlaps with chunk 1
+        let chunk2 = Arc::new(
+            TestChunk::new("t")
+                .with_id(2)
+                .with_time_column()
+                .with_timestamp_min_max(5, 7000)
+                .with_tag_column("tag1")
+                .with_i64_field_column("field_int")
+                .with_partition_id(1) // signal the chunk in partition 1 while grouping overlaps
+                .with_sort_key(sort_key.clone()), // signal the chunk is sorted
+        ) as Arc<dyn QueryChunk>;
+
+        // chunk3 no overlap, no duplicates within
+        let chunk3 = Arc::new(
+            TestChunk::new("t")
+                .with_id(3)
+                .with_time_column()
+                .with_timestamp_min_max(8000, 20000)
+                .with_tag_column("tag1")
+                .with_i64_field_column("field_int")
+                .with_partition_id(1) // signal the chunk in partition 1 while grouping overlaps
+                .with_sort_key(sort_key.clone()), // signal the chunk is sorted
+        ) as Arc<dyn QueryChunk>;
+
+        // chunk3 no overlap, duplicates within
+        let chunk4 = Arc::new(
+            TestChunk::new("t")
+                .with_id(4)
+                .with_time_column()
+                .with_timestamp_min_max(28000, 220000)
+                .with_tag_column("tag1")
+                .with_i64_field_column("field_int")
+                .with_partition_id(1) // signal the chunk in partition 1 while grouping overlaps
+                .with_may_contain_pk_duplicates(true) // signal having duplicates within this chunk
+                .with_sort_key(sort_key.clone()), // signal the chunk is sorted
+        ) as Arc<dyn QueryChunk>;
+
+        let schema = chunk1.schema();
+        let chunks = vec![chunk1, chunk2, chunk3, chunk4];
+        let mut deduplicator = Deduplicater::new();
+        let plan = deduplicator
+            .build_scan_plan(
+                Arc::from("t"),
+                schema,
+                chunks,
+                Predicate::default(),
+                Some(sort_key),
+            )
+            .unwrap();
+
+        // The plan should look like this. No SortExec at all because
+        // all chunks are already sorted on the same requested sort key
+        //
+        // SortPreservingMergeExec: [tag1@1 ASC,time@2 ASC]
+        //     UnionExec
+        //         DeduplicateExec: [tag1@1 ASC,time@2 ASC]
+        //             SortPreservingMergeExec: [tag1@1 ASC,time@2 ASC]
+        //                 UnionExec
+        //                     IOxReadFilterNode: table_name=t, chunks=1 predicate=Predicate
+        //                     IOxReadFilterNode: table_name=t, chunks=1 predicate=Predicate
+        //         DeduplicateExec: [tag1@1 ASC,time@2 ASC]
+        //             IOxReadFilterNode: table_name=t, chunks=1 predicate=Predicate
+        //         IOxReadFilterNode: table_name=t, chunks=1 predicate=Predicate
+        let plan_str = format!("{}", displayable(plan.as_ref()).indent());
+        //println!("{}", plan_str);
+
+        //  Verify no SortExec because chunks are not yet sorted on the specified sort_key
+        assert!(!plan_str.contains("SortExec"));
+
+        // Verify 4 IOxReadFilterNode
+        let count = plan_str.matches("IOxReadFilterNode").count();
+        assert_eq!(count, 4);
+
+        // Verify 2 DeduplicateExec
+        let count = plan_str.matches("DeduplicateExec").count();
+        assert_eq!(count, 2);
+
+        // Verify 2 UnionExec
+        let count = plan_str.matches("UnionExec").count();
+        assert_eq!(count, 2);
+
+        // Verify 2 SortPreservingMergeExec
+        let count = plan_str.matches("SortPreservingMergeExec").count();
+        assert_eq!(count, 2);
     }
 
     fn chunk_ids(group: &[Arc<dyn QueryChunk>]) -> String {

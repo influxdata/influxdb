@@ -607,6 +607,10 @@ impl QueryChunkMeta for DbChunk {
         Arc::clone(&self.meta.schema)
     }
 
+    fn partition_sort_key(&self) -> Option<&SortKey> {
+        None // This is only needed in NG
+    }
+
     fn partition_id(&self) -> Option<PartitionId> {
         None
     }
