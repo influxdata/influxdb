@@ -19,17 +19,17 @@ use hashbrown::HashSet;
 use observability_deps::tracing::{debug, trace};
 use predicate::rpc_predicate::InfluxRpcPredicate;
 use predicate::{BinaryExpr, Predicate, PredicateMatch};
+use query_functions::{
+    group_by::{Aggregate, WindowDuration},
+    selectors::{selector_first, selector_last, selector_max, selector_min, SelectorOutput},
+    window::make_window_bound_expr,
+};
 use schema::selection::Selection;
 use schema::{InfluxColumnType, Schema, TIME_COLUMN_NAME};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 
 use crate::{
     exec::{field::FieldColumns, make_non_null_checker, make_schema_pivot, IOxSessionContext},
-    func::{
-        selectors::{selector_first, selector_last, selector_max, selector_min, SelectorOutput},
-        window::make_window_bound_expr,
-    },
-    group_by::{Aggregate, WindowDuration},
     plan::{
         fieldlist::FieldListPlan,
         seriesset::{SeriesSetPlan, SeriesSetPlans},
@@ -153,7 +153,9 @@ pub enum Error {
     },
 
     #[snafu(display("Error creating aggregate expression:  {}", source))]
-    CreatingAggregates { source: crate::group_by::Error },
+    CreatingAggregates {
+        source: query_functions::group_by::Error,
+    },
 
     #[snafu(display(
         "gRPC planner got error casting aggregate {:?} for {}: {}",

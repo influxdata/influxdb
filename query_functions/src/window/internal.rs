@@ -73,9 +73,12 @@ impl Duration {
         self.months == 0 && self.nsecs == 0
     }
 
+    /// Return the number of months in this duration
     pub fn months(&self) -> i64 {
         self.months
     }
+
+    /// Return the number of nanoseconds in this duration
     pub fn nanoseconds(&self) -> i64 {
         self.nsecs
     }
@@ -287,6 +290,7 @@ pub struct Window {
 }
 
 impl Window {
+    /// create a new Window with the specified duration and offset
     pub fn new(every: Duration, period: Duration, offset: Duration) -> Self {
         Self {
             every,

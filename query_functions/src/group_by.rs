@@ -5,8 +5,9 @@
 use datafusion::logical_plan::Expr;
 use snafu::Snafu;
 
-use crate::func::window;
+use crate::window;
 
+#[allow(missing_docs)]
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display(
@@ -16,6 +17,7 @@ pub enum Error {
     AggregateNotSupported { agg: String },
 }
 
+#[allow(missing_docs)]
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug, Clone, PartialEq, Copy)]
@@ -66,7 +68,8 @@ pub enum Aggregate {
 }
 
 /// Represents some duration in time
-#[derive(Debug, Clone, PartialEq)]
+#[allow(missing_docs)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum WindowDuration {
     /// Variable sized window,
     Variable { months: i64, negative: bool },
@@ -93,14 +96,17 @@ impl Aggregate {
 }
 
 impl WindowDuration {
+    /// Does this duration represent 0 nanoseconds?
     pub fn empty() -> Self {
         Self::Fixed { nanoseconds: 0 }
     }
 
+    /// Create a duration from nanoseconds
     pub fn from_nanoseconds(nanoseconds: i64) -> Self {
         Self::Fixed { nanoseconds }
     }
 
+    /// Create a duration from a number of months
     pub fn from_months(months: i64, negative: bool) -> Self {
         Self::Variable { months, negative }
     }

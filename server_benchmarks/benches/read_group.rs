@@ -10,7 +10,7 @@ use predicate::PredicateBuilder;
 use query::{
     exec::{Executor, ExecutorType},
     frontend::influxrpc::InfluxRpcPlanner,
-    group_by::Aggregate,
+    Aggregate,
 };
 use query_tests::scenarios::DbScenario;
 use tokio::runtime::Runtime;

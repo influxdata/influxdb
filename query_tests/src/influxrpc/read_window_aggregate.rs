@@ -3,10 +3,7 @@ use crate::{influxrpc::util::run_series_set_plan, scenarios::*};
 use datafusion::prelude::*;
 use predicate::rpc_predicate::InfluxRpcPredicate;
 use predicate::PredicateBuilder;
-use query::{
-    frontend::influxrpc::InfluxRpcPlanner,
-    group_by::{Aggregate, WindowDuration},
-};
+use query::{frontend::influxrpc::InfluxRpcPlanner, Aggregate, WindowDuration};
 
 /// runs read_window_aggregate(predicate) and compares it to the expected
 /// output
@@ -36,8 +33,8 @@ async fn run_read_window_aggregate_test_case<D>(
                 db.as_query_database(),
                 predicate.clone(),
                 agg,
-                every.clone(),
-                offset.clone(),
+                every,
+                offset,
             )
             .await
             .expect("built plan successfully");
@@ -241,8 +238,8 @@ async fn test_grouped_series_set_plan_group_aggregate_min_defect_2697_with_delet
         MeasurementForDefect2697WithDelete {},
         predicate.clone(),
         agg,
-        every.clone(),
-        offset.clone(),
+        every,
+        offset,
         expected_results,
     )
     .await;
@@ -353,8 +350,8 @@ async fn test_grouped_series_set_plan_group_aggregate_sum_defect_2697_with_delet
         MeasurementForDefect2697WithDelete {},
         predicate.clone(),
         agg,
-        every.clone(),
-        offset.clone(),
+        every,
+        offset,
         expected_results,
     )
     .await;

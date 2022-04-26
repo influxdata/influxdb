@@ -13,6 +13,7 @@ generated_types = { path = "../generated_types" }
 observability_deps = { path = "../observability_deps" }
 predicate = { path = "../predicate" }
 query = { path = "../query" }
+query_functions = { path = "../query_functions"}
 schema = { path = "../schema" }
 service_common = { path = "../service_common" }
 

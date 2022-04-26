@@ -4344,14 +4344,12 @@ dependencies = [
  "itertools",
  "observability_deps",
  "ordered-float 2.10.0",
- "regex",
- "regex-syntax",
+ "query_functions",
  "schema",
  "serde_json",
  "snafu",
  "sqlparser",
  "test_helpers",
- "tokio",
  "workspace-hack",
 ]
 
@@ -4605,6 +4603,7 @@ dependencies = [
  "parking_lot 0.12.0",
  "pin-project",
  "predicate",
+ "query_functions",
  "regex",
  "schema",
  "snafu",
@@ -4613,6 +4612,23 @@ dependencies = [
  "tokio-stream",
  "tokio-util 0.7.1",
  "trace",
+ "workspace-hack",
+]
+
+[[package]]
+name = "query_functions"
+version = "0.1.0"
+dependencies = [
+ "arrow",
+ "chrono",
+ "datafusion 0.1.0",
+ "itertools",
+ "observability_deps",
+ "regex",
+ "regex-syntax",
+ "schema",
+ "snafu",
+ "tokio",
  "workspace-hack",
 ]
 
@@ -5595,6 +5611,7 @@ dependencies = [
  "predicate",
  "prost",
  "query",
+ "query_functions",
  "regex",
  "schema",
  "serde",

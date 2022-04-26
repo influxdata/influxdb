@@ -13,6 +13,8 @@ use datafusion::{
 
 /// The name of the regex_match UDF given to DataFusion.
 pub const REGEX_MATCH_UDF_NAME: &str = "RegexMatch";
+
+/// The name of the not_regex_match UDF given to DataFusion.
 pub const REGEX_NOT_MATCH_UDF_NAME: &str = "RegexNotMatch";
 
 /// Given a column containing string values and a single regex pattern,

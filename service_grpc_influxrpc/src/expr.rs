@@ -24,13 +24,12 @@ use generated_types::{
 
 use super::{TAG_KEY_FIELD, TAG_KEY_MEASUREMENT};
 use observability_deps::tracing::warn;
-use predicate::rpc_predicate::InfluxRpcPredicate;
 use predicate::{
-    regex::regex_match_expr,
-    rpc_predicate::{FIELD_COLUMN_NAME, MEASUREMENT_COLUMN_NAME},
+    rpc_predicate::{InfluxRpcPredicate, FIELD_COLUMN_NAME, MEASUREMENT_COLUMN_NAME},
     PredicateBuilder,
 };
-use query::group_by::{Aggregate as QueryAggregate, WindowDuration};
+use query::{Aggregate as QueryAggregate, WindowDuration};
+use query_functions::regex::regex_match_expr;
 use snafu::{OptionExt, ResultExt, Snafu};
 
 #[derive(Debug, Snafu)]
@@ -1385,7 +1384,7 @@ mod tests {
 
         // correct window + window_every
         let agg = make_read_window_aggregate(vec![make_aggregate(1)], 5, 10, None).unwrap();
-        let expected = make_storage_window(QueryAggregate::Sum, &pos_5_ns, &pos_10_ns);
+        let expected = make_storage_window(QueryAggregate::Sum, pos_5_ns, pos_10_ns);
         assert_eq!(agg, expected);
 
         // correct every + offset
@@ -1396,7 +1395,7 @@ mod tests {
             Some(make_rpc_window(5, 0, false, 10, 0, false)),
         )
         .unwrap();
-        let expected = make_storage_window(QueryAggregate::Sum, &pos_5_ns, &pos_10_ns);
+        let expected = make_storage_window(QueryAggregate::Sum, pos_5_ns, pos_10_ns);
         assert_eq!(agg, expected);
 
         // correct every + zero offset
@@ -1407,8 +1406,7 @@ mod tests {
             Some(make_rpc_window(5, 0, false, 0, 0, false)),
         )
         .unwrap();
-        let expected =
-            make_storage_window(QueryAggregate::Sum, &pos_5_ns, &WindowDuration::empty());
+        let expected = make_storage_window(QueryAggregate::Sum, pos_5_ns, WindowDuration::empty());
         assert_eq!(agg, expected);
 
         // correct every + offset in months
@@ -1419,7 +1417,7 @@ mod tests {
             Some(make_rpc_window(0, 3, false, 0, 1, true)),
         )
         .unwrap();
-        let expected = make_storage_window(QueryAggregate::Sum, &pos_3_months, &neg_1_months);
+        let expected = make_storage_window(QueryAggregate::Sum, pos_3_months, neg_1_months);
         assert_eq!(agg, expected);
 
         // correct every + offset in months
@@ -1430,7 +1428,7 @@ mod tests {
             Some(make_rpc_window(0, 1, true, 0, 3, false)),
         )
         .unwrap();
-        let expected = make_storage_window(QueryAggregate::Sum, &neg_1_months, &pos_3_months);
+        let expected = make_storage_window(QueryAggregate::Sum, neg_1_months, pos_3_months);
         assert_eq!(agg, expected);
 
         // both window + window_every and every + offset -- every + offset overrides
@@ -1442,7 +1440,7 @@ mod tests {
             Some(make_rpc_window(100, 0, false, 200, 0, false)),
         )
         .unwrap();
-        let expected = make_storage_window(QueryAggregate::Sum, &pos_5_ns, &pos_10_ns);
+        let expected = make_storage_window(QueryAggregate::Sum, pos_5_ns, pos_10_ns);
         assert_eq!(agg, expected);
 
         // invalid durations
@@ -1557,14 +1555,10 @@ mod tests {
 
     fn make_storage_window(
         agg: QueryAggregate,
-        every: &WindowDuration,
-        offset: &WindowDuration,
+        every: WindowDuration,
+        offset: WindowDuration,
     ) -> GroupByAndAggregate {
-        GroupByAndAggregate::Window {
-            agg,
-            every: every.clone(),
-            offset: offset.clone(),
-        }
+        GroupByAndAggregate::Window { agg, every, offset }
     }
 
     #[test]

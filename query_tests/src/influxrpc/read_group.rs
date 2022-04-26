@@ -16,7 +16,7 @@ use datafusion::{
 };
 use predicate::rpc_predicate::InfluxRpcPredicate;
 use predicate::PredicateBuilder;
-use query::{frontend::influxrpc::InfluxRpcPlanner, group_by::Aggregate};
+use query::{frontend::influxrpc::InfluxRpcPlanner, Aggregate};
 
 /// runs read_group(predicate) and compares it to the expected
 /// output

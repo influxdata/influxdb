@@ -10,7 +10,6 @@
 
 pub mod delete_expr;
 pub mod delete_predicate;
-pub mod regex;
 pub mod rewrite;
 pub mod rpc_predicate;
 
@@ -339,7 +338,7 @@ impl PredicateBuilder {
     }
 
     fn regex_match_expr(mut self, column: &str, pattern: impl Into<String>, matches: bool) -> Self {
-        let expr = crate::regex::regex_match_expr(col(column), pattern.into(), matches);
+        let expr = query_functions::regex::regex_match_expr(col(column), pattern.into(), matches);
         self.inner.exprs.push(expr);
         self
     }

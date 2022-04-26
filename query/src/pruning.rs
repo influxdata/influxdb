@@ -16,8 +16,8 @@ use observability_deps::tracing::{debug, trace};
 use predicate::Predicate;
 use schema::Schema;
 
-use crate::group_by::Aggregate;
 use crate::QueryChunk;
+use query_functions::group_by::Aggregate;
 
 /// Something that cares to be notified when pruning of chunks occurs
 pub trait PruningObserver {

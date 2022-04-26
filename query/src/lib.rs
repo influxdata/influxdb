@@ -28,8 +28,6 @@ use std::{collections::BTreeSet, fmt::Debug, iter::FromIterator, sync::Arc};
 
 pub mod exec;
 pub mod frontend;
-pub mod func;
-pub mod group_by;
 pub mod plan;
 pub mod provider;
 pub mod pruning;
@@ -38,6 +36,8 @@ pub mod util;
 
 pub use exec::context::{DEFAULT_CATALOG, DEFAULT_SCHEMA};
 use schema::sort::SortKeyBuilder;
+
+pub use query_functions::group_by::{Aggregate, WindowDuration};
 
 /// Trait for an object (designed to be a Chunk) which can provide
 /// metadata

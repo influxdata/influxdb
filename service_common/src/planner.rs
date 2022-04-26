@@ -5,9 +5,8 @@ use datafusion::physical_plan::ExecutionPlan;
 use query::{
     exec::IOxSessionContext,
     frontend::{influxrpc::InfluxRpcPlanner, sql::SqlQueryPlanner},
-    group_by::{Aggregate, WindowDuration},
     plan::{fieldlist::FieldListPlan, seriesset::SeriesSetPlans, stringset::StringSetPlan},
-    QueryDatabase,
+    Aggregate, QueryDatabase, WindowDuration,
 };
 
 pub use datafusion::error::{DataFusionError as Error, Result};

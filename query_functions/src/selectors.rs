@@ -172,12 +172,14 @@ trait Selector: Debug + Default + Send + Sync {
     fn update_batch(&mut self, value_arr: &ArrayRef, time_arr: &ArrayRef) -> DataFusionResult<()>;
 }
 
-// Describes which part of the selector to return: the timestamp or
-// the value (when https://issues.apache.org/jira/browse/ARROW-10945
-// is fixed, this enum should be removed)
+/// Describes which part of the selector to return: the timestamp or
+/// the value (when https://issues.apache.org/jira/browse/ARROW-10945
+/// is fixed, this enum should be removed)
 #[derive(Debug, Clone, Copy)]
 pub enum SelectorOutput {
+    /// Return the value
     Value,
+    /// Return the timestamp
     Time,
 }
 

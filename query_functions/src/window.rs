@@ -72,8 +72,8 @@ pub fn make_window_bound_expr(
     offset: &WindowDuration,
 ) -> Expr {
     // Bind a copy of the arguments in a closure
-    let every = every.clone();
-    let offset = offset.clone();
+    let every = *every;
+    let offset = *offset;
 
     // TODO provide optimized implementations (that took every/offset
     // as a constant rather than arrays)

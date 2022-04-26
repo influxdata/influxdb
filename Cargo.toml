@@ -61,6 +61,7 @@ members = [
     "predicate",
     "querier",
     "query",
+    "query_functions",
     "query_tests",
     "read_buffer",
     "router",
