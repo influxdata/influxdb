@@ -117,7 +117,7 @@ impl TestContext {
 
         let handler_stack = InstrumentationDecorator::new("request", &*metrics, handler_stack);
 
-        let delegate = HttpDelegate::new(1024, Arc::new(handler_stack), &metrics);
+        let delegate = HttpDelegate::new(1024, 100, Arc::new(handler_stack), &metrics);
 
         Self {
             delegate,

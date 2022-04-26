@@ -67,6 +67,22 @@ pub struct Config {
         default_value = "iox-shared"
     )]
     pub(crate) query_pool_name: String,
+
+    /// The maximum number of simultaneous requests the HTTP server is
+    /// configured to accept.
+    ///
+    /// This number of requests, multiplied by the maximum request body size the
+    /// HTTP server is configured with gives the rough amount of memory a HTTP
+    /// server will use to buffer request bodies in memory.
+    ///
+    /// A default maximum of 200 requests, multiplied by the default 10MiB
+    /// maximum for HTTP request bodies == ~2GiB.
+    #[clap(
+        long = "--max-http-requests",
+        env = "INFLUXDB_IOX_MAX_HTTP_REQUESTS",
+        default_value = "200"
+    )]
+    pub(crate) http_request_limit: usize,
 }
 
 pub async fn command(config: Config) -> Result<()> {
@@ -91,6 +107,7 @@ pub async fn command(config: Config) -> Result<()> {
         object_store,
         &config.write_buffer_config,
         &config.query_pool_name,
+        config.http_request_limit,
     )
     .await?;
 

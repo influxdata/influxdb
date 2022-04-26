@@ -151,6 +151,7 @@ pub async fn create_router2_server_type(
     object_store: Arc<DynObjectStore>,
     write_buffer_config: &WriteBufferConfig,
     query_pool_name: &str,
+    request_limit: usize,
 ) -> Result<Arc<dyn ServerType>> {
     // Initialise the sharded write buffer and instrument it with DML handler
     // metrics.
@@ -265,6 +266,7 @@ pub async fn create_router2_server_type(
     let handler_stack = Arc::new(handler_stack);
     let http = HttpDelegate::new(
         common_state.run_config().max_http_request_size,
+        request_limit,
         Arc::clone(&handler_stack),
         &metrics,
     );
