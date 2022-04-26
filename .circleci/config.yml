@@ -348,7 +348,7 @@ jobs:
             - bin
 
   package-and-release:
-    executor: cross-builder
+    executor: linux-amd64
     parameters:
       build-type:
         type: string
@@ -356,9 +356,33 @@ jobs:
       - checkout
       - attach_workspace:
           at: .
+      - quay_login
+      - run:
+          name: Set up Docker cross-builder
+          command: |
+            # Get jq to parse binfmt output.
+            sudo apt-get update && sudo apt-get install -y jq
+
+            # Uninstall any emulators provided by the system.
+            emulators=($(docker run --rm --privileged tonistiigi/binfmt:latest | jq -r .emulators[]))
+            for e in ${emulators[@]}; do
+              docker run --rm --privileged tonistiigi/binfmt:latest --uninstall ${e}
+            done
+
+            # Install the QEMU emulators we need to cross-build.
+            docker run --rm --privileged tonistiigi/binfmt:latest --install all
+
+            # Create a new buildx context using the freshly-installed emulators.
+            docker buildx create --name cross-builder
+            docker buildx use --default cross-builder
+            docker buildx inspect --bootstrap
+
+            # Build the 1st stage of our Docker(s) on our target platforms, to flush out
+            # any problems in our emulator setup.
+            docker buildx build --target dependency-base --platform linux/amd64,linux/arm64 docker/influxd
       - run:
           name: Compute artifact version
-          command: echo "export GORELEASER_CURRENT_TAG='$(build-version.sh << parameters.build-type >>)'" >> $BASH_ENV
+          command: echo "export GORELEASER_CURRENT_TAG='$(scripts/ci/build-version.sh << parameters.build-type >>)'" >> $BASH_ENV
       - unless:
           condition:
             equal: [ release, << parameters.build-type >> ]
@@ -366,6 +390,22 @@ jobs:
             - run:
                 name: Tag commit locally to pass goreleaser validation
                 command: git tag "$GORELEASER_CURRENT_TAG"
+      - run:
+          name: Set GOPATH
+          # Machine executors use a different GOPATH from the cimg/go Docker executors.
+          command: |
+            echo 'export GOPATH=/go' >> $BASH_ENV
+            echo 'export PATH=${GOPATH}/bin:${PATH}' >> $BASH_ENV
+      - run:
+          name: Install GO 1.18
+          command: |
+            pushd "${HOME}"
+              curl -sSLO https://golang.org/dl/go1.18.1.linux-amd64.tar.gz
+
+              sha256sum --check -- \<<<"b3b815f47ababac13810fc6021eb73d65478e0b2db4b09d348eefad9581a2334 go1.18.1.linux-amd64.tar.gz"
+
+              sudo tar xzf go1.18.1.linux-amd64.tar.gz -C /
+            popd
       - run:
           name: Import GPG key
           command: |
@@ -385,7 +425,7 @@ jobs:
             tar --extract --file=goreleaser-pro_Linux_x86_64.tar.gz goreleaser
             rm goreleaser-pro_Linux_x86_64.tar.gz
             # Move goreleaser binary out of project dir so it doesn't dirty the git state.
-            mv goreleaser /go/bin/
+            sudo mv goreleaser /usr/bin/
       - run:
           name: Run goreleaser
           command: goreleaser --debug release --config .goreleaser/<< parameters.build-type >>.yml
