@@ -19,13 +19,31 @@ use std::{collections::BTreeMap, sync::Arc, time::Duration};
 use tokio_util::sync::CancellationToken;
 use tracker::TrackedFutureExt;
 
+/// API suitable for ingester tasks to query and update the [`LifecycleManager`] state.
+pub trait LifecycleHandle: Send + Sync + 'static {
+    /// Logs bytes written into a partition so that it can be tracked for the manager to
+    /// trigger persistence. Returns true if the ingester should pause consuming from the
+    /// write buffer so that persistence can catch up and free up memory.
+    fn log_write(
+        &self,
+        partition_id: PartitionId,
+        sequencer_id: SequencerId,
+        sequence_number: SequenceNumber,
+        bytes_written: usize,
+    ) -> bool;
+
+    /// Returns true if the `total_bytes` tracked by the manager is less than the pause amount.
+    /// As persistence runs, the `total_bytes` go down.
+    fn can_resume_ingest(&self) -> bool;
+}
+
 /// A handle for sequencer consumers to interact with the global
 /// [`LifecycleManager`] instance.
 ///
 /// This handle presents an API suitable for ingester tasks to query and update
 /// the [`LifecycleManager`] state.
 #[derive(Debug, Clone)]
-pub struct LifecycleHandle {
+pub struct LifecycleHandleImpl {
     time_provider: Arc<dyn TimeProvider>,
 
     config: Arc<LifecycleConfig>,
@@ -34,11 +52,8 @@ pub struct LifecycleHandle {
     state: Arc<Mutex<LifecycleState>>,
 }
 
-impl LifecycleHandle {
-    /// Logs bytes written into a partition so that it can be tracked for the manager to
-    /// trigger persistence. Returns true if the ingester should pause consuming from the
-    /// write buffer so that persistence can catch up and free up memory.
-    pub fn log_write(
+impl LifecycleHandle for LifecycleHandleImpl {
+    fn log_write(
         &self,
         partition_id: PartitionId,
         sequencer_id: SequencerId,
@@ -67,9 +82,7 @@ impl LifecycleHandle {
         s.total_bytes > self.config.pause_ingest_size
     }
 
-    /// Returns true if the `total_bytes` tracked by the manager is less than the pause amount.
-    /// As persistence runs, the `total_bytes` go down.
-    pub fn can_resume_ingest(&self) -> bool {
+    fn can_resume_ingest(&self) -> bool {
         let s = self.state.lock();
         s.total_bytes < self.config.pause_ingest_size
     }
@@ -239,8 +252,8 @@ impl LifecycleManager {
     }
 
     /// Acquire a shareable [`LifecycleHandle`] for this manager instance.
-    pub fn handle(&self) -> LifecycleHandle {
-        LifecycleHandle {
+    pub fn handle(&self) -> LifecycleHandleImpl {
+        LifecycleHandleImpl {
             time_provider: Arc::clone(&self.time_provider),
             config: Arc::clone(&self.config),
             state: Arc::clone(&self.state),

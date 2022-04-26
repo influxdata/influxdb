@@ -219,6 +219,7 @@ impl TestCatalog {
 }
 
 /// A test namespace
+#[derive(Debug)]
 #[allow(missing_docs)]
 pub struct TestNamespace {
     pub catalog: Arc<TestCatalog>,
@@ -264,6 +265,7 @@ impl TestNamespace {
 }
 
 /// A test sequencer with ist namespace in the catalog
+#[derive(Debug)]
 #[allow(missing_docs)]
 pub struct TestSequencer {
     pub catalog: Arc<TestCatalog>,

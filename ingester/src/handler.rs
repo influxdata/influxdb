@@ -3,6 +3,7 @@
 use crate::{
     data::{IngesterData, IngesterQueryResponse, SequencerData},
     lifecycle::{run_lifecycle_manager, LifecycleConfig, LifecycleManager},
+    partioning::DefaultPartitioner,
     poison::PoisonCabinet,
     querier_handler::prepare_data_to_querier,
     stream_handler::{
@@ -129,13 +130,14 @@ impl IngestHandlerImpl {
                 SequencerData::new(s.kafka_partition, Arc::clone(&metric_registry)),
             );
         }
-        let data = Arc::new(IngesterData {
+        let data = Arc::new(IngesterData::new(
             object_store,
             catalog,
             sequencers,
+            Arc::new(DefaultPartitioner::default()),
             exec,
-            backoff_config: BackoffConfig::default(),
-        });
+            BackoffConfig::default(),
+        ));
 
         let ingester_data = Arc::clone(&data);
         let kafka_topic_name = topic.name.clone();
@@ -263,12 +265,12 @@ impl IngestHandler for IngestHandlerImpl {
             }
         }
 
-        self.data.exec.join().await;
+        self.data.exec().join().await;
     }
 
     fn shutdown(&self) {
         self.shutdown.cancel();
-        self.data.exec.shutdown();
+        self.data.exec().shutdown();
     }
 
     /// Return the ingestion progress from each sequencer
@@ -363,12 +365,7 @@ mod tests {
             loop {
                 let mut has_measurement = false;
 
-                if let Some(data) = ingester
-                    .ingester
-                    .data
-                    .sequencers
-                    .get(&ingester.sequencer.id)
-                {
+                if let Some(data) = ingester.ingester.data.sequencer(ingester.sequencer.id) {
                     if let Some(data) = data.namespace(&ingester.namespace.name) {
                         // verify there's data in the buffer
                         if let Some((b, _)) = data.snapshot("a", "1970-01-01").await {
@@ -600,8 +597,7 @@ mod tests {
 
                 if let Some(data) = ingester
                     .data
-                    .sequencers
-                    .get(&sequencer.id)
+                    .sequencer(sequencer.id)
                 {
                     if let Some(data) = data.namespace(&namespace.name) {
                         // verify there's data in the buffer

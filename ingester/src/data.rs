@@ -1,13 +1,15 @@
 //! Data for the lifecycle of the Ingester
 
 use crate::{
-    compact::compact_persisting_batch, lifecycle::LifecycleHandle, persist::persist,
+    compact::compact_persisting_batch,
+    lifecycle::LifecycleHandle,
+    partioning::{Partitioner, PartitionerError},
+    persist::persist,
     querier_handler::query,
 };
 use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig};
-use chrono::{format::StrftimeItems, TimeZone, Utc};
 use data_types2::{
     DeletePredicate, KafkaPartition, NamespaceId, PartitionId, PartitionInfo, SequenceNumber,
     SequencerId, TableId, Timestamp, Tombstone,
@@ -17,13 +19,13 @@ use dml::DmlOperation;
 use iox_catalog::interface::Catalog;
 use iox_time::SystemProvider;
 use metric::U64Counter;
-use mutable_batch::{column::ColumnData, MutableBatch};
+use mutable_batch::MutableBatch;
 use object_store::DynObjectStore;
 use observability_deps::tracing::warn;
 use parking_lot::RwLock;
 use predicate::Predicate;
 use query::exec::Executor;
-use schema::{selection::Selection, Schema, TIME_COLUMN_NAME};
+use schema::{selection::Selection, Schema};
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
     collections::{btree_map::Entry, BTreeMap},
@@ -80,8 +82,8 @@ pub enum Error {
     #[snafu(display("The given batch does not match any in the Persisting list. Nothing is removed from the Persisting list"))]
     PersistingNotMatch,
 
-    #[snafu(display("Time column not present"))]
-    TimeColumnNotPresent,
+    #[snafu(display("Cannot partition data: {}", source))]
+    Partitioning { source: PartitionerError },
 
     #[snafu(display("Snapshot error: {}", source))]
     Snapshot { source: mutable_batch::Error },
@@ -106,20 +108,61 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug)]
 pub struct IngesterData {
     /// Object store for persistence of parquet files
-    pub(crate) object_store: Arc<DynObjectStore>,
+    object_store: Arc<DynObjectStore>,
+
     /// The global catalog for schema, parquet files and tombstones
-    pub(crate) catalog: Arc<dyn Catalog>,
+    catalog: Arc<dyn Catalog>,
+
     /// This map gets set up on initialization of the ingester so it won't ever be modified.
     /// The content of each SequenceData will get changed when more namespaces and tables
     /// get ingested.
-    pub(crate) sequencers: BTreeMap<SequencerId, SequencerData>,
+    sequencers: BTreeMap<SequencerId, SequencerData>,
+
+    /// Partitioner.
+    partitioner: Arc<dyn Partitioner>,
+
     /// Executor for running queries and compacting and persisting
-    pub(crate) exec: Arc<Executor>,
+    exec: Arc<Executor>,
+
     /// Backoff config
-    pub(crate) backoff_config: BackoffConfig,
+    backoff_config: BackoffConfig,
 }
 
 impl IngesterData {
+    /// Create new instance.
+    pub fn new(
+        object_store: Arc<DynObjectStore>,
+        catalog: Arc<dyn Catalog>,
+        sequencers: BTreeMap<SequencerId, SequencerData>,
+        partitioner: Arc<dyn Partitioner>,
+        exec: Arc<Executor>,
+        backoff_config: BackoffConfig,
+    ) -> Self {
+        Self {
+            object_store,
+            catalog,
+            sequencers,
+            partitioner,
+            exec,
+            backoff_config,
+        }
+    }
+
+    /// Executor for running queries and compacting and persisting
+    pub(crate) fn exec(&self) -> &Arc<Executor> {
+        &self.exec
+    }
+
+    /// Get sequencer data for specific sequencer.
+    pub(crate) fn sequencer(&self, sequencer_id: SequencerId) -> Option<&SequencerData> {
+        self.sequencers.get(&sequencer_id)
+    }
+
+    /// Get iterator over sequencers (ID and data).
+    pub(crate) fn sequencers(&self) -> impl Iterator<Item = (&SequencerId, &SequencerData)> {
+        self.sequencers.iter()
+    }
+
     /// Store the write or delete in the in memory buffer. Deletes will
     /// be written into the catalog before getting stored in the buffer.
     /// Any writes that create new IOx partitions will have those records
@@ -130,7 +173,7 @@ impl IngesterData {
         &self,
         sequencer_id: SequencerId,
         dml_operation: DmlOperation,
-        lifecycle_handle: &LifecycleHandle,
+        lifecycle_handle: &dyn LifecycleHandle,
     ) -> Result<bool> {
         let sequencer_data = self
             .sequencers
@@ -142,6 +185,7 @@ impl IngesterData {
                 sequencer_id,
                 self.catalog.as_ref(),
                 lifecycle_handle,
+                self.partitioner.as_ref(),
                 &self.exec,
             )
             .await
@@ -384,7 +428,8 @@ impl SequencerData {
         dml_operation: DmlOperation,
         sequencer_id: SequencerId,
         catalog: &dyn Catalog,
-        lifecycle_handle: &LifecycleHandle,
+        lifecycle_handle: &dyn LifecycleHandle,
+        partitioner: &dyn Partitioner,
         executor: &Executor,
     ) -> Result<bool> {
         let namespace_data = match self.namespace(dml_operation.namespace()) {
@@ -401,6 +446,7 @@ impl SequencerData {
                 sequencer_id,
                 catalog,
                 lifecycle_handle,
+                partitioner,
                 executor,
             )
             .await
@@ -500,7 +546,8 @@ impl NamespaceData {
         dml_operation: DmlOperation,
         sequencer_id: SequencerId,
         catalog: &dyn Catalog,
-        lifecycle_handle: &LifecycleHandle,
+        lifecycle_handle: &dyn LifecycleHandle,
+        partitioner: &dyn Partitioner,
         executor: &Executor,
     ) -> Result<bool> {
         let sequence_number = dml_operation
@@ -529,6 +576,7 @@ impl NamespaceData {
                             sequencer_id,
                             catalog,
                             lifecycle_handle,
+                            partitioner,
                         )
                         .await?;
 
@@ -742,22 +790,12 @@ impl TableData {
         batch: MutableBatch,
         sequencer_id: SequencerId,
         catalog: &dyn Catalog,
-        lifecycle_handle: &LifecycleHandle,
+        lifecycle_handle: &dyn LifecycleHandle,
+        partitioner: &dyn Partitioner,
     ) -> Result<bool> {
-        let (_, col) = batch
-            .columns()
-            .find(|(name, _)| *name == TIME_COLUMN_NAME)
-            .unwrap();
-        let timestamp = match col.data() {
-            ColumnData::I64(_, s) => s.min.unwrap(),
-            _ => return Err(Error::TimeColumnNotPresent),
-        };
-
-        let partition_key = format!(
-            "{}",
-            Utc.timestamp_nanos(timestamp)
-                .format_with_items(StrftimeItems::new("%Y-%m-%d"))
-        );
+        let partition_key = partitioner
+            .partition_key(&batch)
+            .context(PartitioningSnafu)?;
 
         let partition_data = match self.partition_data.get_mut(&partition_key) {
             Some(p) => p,
@@ -1456,6 +1494,7 @@ mod tests {
     use super::*;
     use crate::{
         lifecycle::{LifecycleConfig, LifecycleManager},
+        partioning::DefaultPartitioner,
         test_util::create_tombstone,
     };
     use arrow_util::assert_batches_sorted_eq;
@@ -1572,13 +1611,14 @@ mod tests {
 
         let object_store: Arc<DynObjectStore> = Arc::new(ObjectStoreImpl::new_in_memory());
 
-        let data = Arc::new(IngesterData {
-            object_store: Arc::clone(&object_store),
-            catalog: Arc::clone(&catalog),
+        let data = Arc::new(IngesterData::new(
+            Arc::clone(&object_store),
+            Arc::clone(&catalog),
             sequencers,
-            exec: Arc::new(Executor::new(1)),
-            backoff_config: BackoffConfig::default(),
-        });
+            Arc::new(DefaultPartitioner::default()),
+            Arc::new(Executor::new(1)),
+            BackoffConfig::default(),
+        ));
 
         let schema = NamespaceSchema::new(namespace.id, kafka_topic.id, query_pool.id);
 
@@ -1659,13 +1699,14 @@ mod tests {
 
         let object_store: Arc<DynObjectStore> = Arc::new(ObjectStoreImpl::new_in_memory());
 
-        let data = Arc::new(IngesterData {
-            object_store: Arc::clone(&object_store),
-            catalog: Arc::clone(&catalog),
+        let data = Arc::new(IngesterData::new(
+            Arc::clone(&object_store),
+            Arc::clone(&catalog),
             sequencers,
-            exec: Arc::new(Executor::new(1)),
-            backoff_config: BackoffConfig::default(),
-        });
+            Arc::new(DefaultPartitioner::default()),
+            Arc::new(Executor::new(1)),
+            BackoffConfig::default(),
+        ));
 
         let schema = NamespaceSchema::new(namespace.id, kafka_topic.id, query_pool.id);
 
@@ -2161,6 +2202,7 @@ mod tests {
             Arc::clone(&metrics),
             Arc::new(SystemProvider::new()),
         );
+        let partitioner = DefaultPartitioner::default();
         let exec = Executor::new(1);
 
         let data = NamespaceData::new(namespace.id, &*metrics);
@@ -2172,6 +2214,7 @@ mod tests {
                 sequencer.id,
                 catalog.as_ref(),
                 &manager.handle(),
+                &partitioner,
                 &exec,
             )
             .await
@@ -2194,6 +2237,7 @@ mod tests {
             sequencer.id,
             catalog.as_ref(),
             &manager.handle(),
+            &partitioner,
             &exec,
         )
         .await

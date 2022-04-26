@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use data_types2::SequencerId;
 use dml::DmlOperation;
 
-use crate::{data::IngesterData, lifecycle::LifecycleHandle};
+use crate::{data::IngesterData, lifecycle::LifecycleHandleImpl};
 
 use super::DmlSink;
 
@@ -14,7 +14,7 @@ use super::DmlSink;
 #[derive(Debug)]
 pub struct IngestSinkAdaptor {
     ingest_data: Arc<IngesterData>,
-    lifecycle_handle: LifecycleHandle,
+    lifecycle_handle: LifecycleHandleImpl,
     sequencer_id: SequencerId,
 }
 
@@ -23,7 +23,7 @@ impl IngestSinkAdaptor {
     /// implementation.
     pub fn new(
         ingest_data: Arc<IngesterData>,
-        lifecycle_handle: LifecycleHandle,
+        lifecycle_handle: LifecycleHandleImpl,
         sequencer_id: SequencerId,
     ) -> Self {
         Self {

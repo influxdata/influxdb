@@ -9,7 +9,7 @@ use observability_deps::tracing::*;
 use tokio_util::sync::CancellationToken;
 use write_buffer::core::{WriteBufferError, WriteBufferErrorKind};
 
-use crate::lifecycle::LifecycleHandle;
+use crate::lifecycle::{LifecycleHandle, LifecycleHandleImpl};
 
 use super::DmlSink;
 
@@ -44,7 +44,7 @@ pub struct SequencedStreamHandler<I, O, T = SystemProvider> {
     /// request ingest be paused to control memory pressure.
     ///
     /// [`LifecycleManager`]: crate::lifecycle::LifecycleManager
-    lifecycle_handle: LifecycleHandle,
+    lifecycle_handle: LifecycleHandleImpl,
 
     // Metrics
     time_provider: T,
@@ -72,7 +72,7 @@ impl<I, O> SequencedStreamHandler<I, O> {
     pub fn new(
         stream: I,
         sink: O,
-        lifecycle_handle: LifecycleHandle,
+        lifecycle_handle: LifecycleHandleImpl,
         kafka_topic_name: String,
         kafka_partition: KafkaPartition,
         metrics: &metric::Registry,
@@ -694,7 +694,7 @@ mod tests {
             Ok(DmlOperation::Write(make_write("good_op", 2)))
         ],
         sink_rets = [
-            Err(crate::data::Error::TimeColumnNotPresent),
+            Err(crate::data::Error::Partitioning{source: String::from("Time column not present").into()}),
             Ok(true),
         ],
         want_ttbr = 2,

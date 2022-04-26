@@ -1,9 +1,12 @@
 //! Test setups and data for ingester crate
 #![allow(missing_docs)]
 
-use crate::data::{
-    IngesterData, NamespaceData, PartitionData, PersistingBatch, QueryableBatch, SequencerData,
-    SnapshotBatch, TableData,
+use crate::{
+    data::{
+        IngesterData, NamespaceData, PartitionData, PersistingBatch, QueryableBatch, SequencerData,
+        SnapshotBatch, TableData,
+    },
+    partioning::DefaultPartitioner,
 };
 use arrow::record_batch::RecordBatch;
 use arrow_util::assert_batches_eq;
@@ -710,13 +713,14 @@ pub fn make_ingester_data(two_partitions: bool, loc: DataLocation) -> IngesterDa
     sequencers.insert(seq_id, seq_data);
 
     // Ingester data that inlcudes one sequencer/shard
-    IngesterData {
+    IngesterData::new(
         object_store,
         catalog,
         sequencers,
+        Arc::new(DefaultPartitioner::default()),
         exec,
-        backoff_config: backoff::BackoffConfig::default(),
-    }
+        backoff::BackoffConfig::default(),
+    )
 }
 
 pub async fn make_ingester_data_with_tombstones(loc: DataLocation) -> IngesterData {
@@ -754,13 +758,14 @@ pub async fn make_ingester_data_with_tombstones(loc: DataLocation) -> IngesterDa
     sequencers.insert(seq_id, seq_data);
 
     // Ingester data that inlcudes one sequencer/shard
-    IngesterData {
+    IngesterData::new(
         object_store,
         catalog,
         sequencers,
+        Arc::new(DefaultPartitioner::default()),
         exec,
-        backoff_config: backoff::BackoffConfig::default(),
-    }
+        backoff::BackoffConfig::default(),
+    )
 }
 
 /// Make data for one or two partitions per requested

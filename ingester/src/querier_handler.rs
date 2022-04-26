@@ -93,7 +93,7 @@ pub async fn prepare_data_to_querier(
     let mut found_namespace = false;
     let mut batches = vec![];
     let mut batch_partition_ids = vec![];
-    for sequencer_data in ingest_data.sequencers.values() {
+    for (_sequencer_id, sequencer_data) in ingest_data.sequencers() {
         let namespace_data = match sequencer_data.namespace(&request.namespace) {
             Some(namespace_data) => {
                 found_namespace = true;
@@ -125,7 +125,7 @@ pub async fn prepare_data_to_querier(
             // extract payload
             let partition_id = partition.partition_id;
             let (schema, batch) =
-                prepare_data_to_querier_for_partition(&ingest_data.exec, partition, request)
+                prepare_data_to_querier_for_partition(ingest_data.exec(), partition, request)
                     .await?;
             schema_merger = schema_merger
                 .merge(schema.as_ref())
