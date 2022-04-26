@@ -14,8 +14,6 @@ import (
 	"github.com/influxdata/flux/stdlib/influxdata/influxdb"
 	"github.com/influxdata/flux/stdlib/universe"
 	"github.com/influxdata/flux/values"
-	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/storage/reads/datatypes"
 )
 
 func init() {
@@ -233,27 +231,11 @@ func (rule PushDownReadTagKeysRule) Pattern() plan.Pattern {
 				plan.SingleSuccessor(ReadRangePhysKind))))
 }
 
-func hasFieldRef(node *datatypes.Node) bool {
-	if node == nil {
-		return false
-	}
-	// NodeType should imply the type, panic if it doesn't
-	if node.NodeType == datatypes.Node_TypeTagRef && string(node.Value.(*datatypes.Node_TagRefValue).TagRefValue) == models.FieldKeyTagKey {
-		return true
-	}
-	for _, c := range node.Children {
-		if hasFieldRef(c) {
-			return true
-		}
-	}
-	return false
-}
-
 func (rule PushDownReadTagKeysRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node, bool, error) {
 	// Retrieve the nodes and specs for all of the predecessors.
 	distinctSpec := pn.ProcedureSpec().(*universe.DistinctProcedureSpec)
 	keepNode := pn.Predecessors()[0]
-	keepSpec := keepNode.ProcedureSpec().(*universe.SchemaMutationProcedureSpec)
+	keepSpec := asSchemaMutationProcedureSpec(keepNode.ProcedureSpec())
 	keysNode := keepNode.Predecessors()[0]
 	keysSpec := keysNode.ProcedureSpec().(*universe.KeysProcedureSpec)
 	fromNode := keysNode.Predecessors()[0]
@@ -263,12 +245,6 @@ func (rule PushDownReadTagKeysRule) Rewrite(ctx context.Context, pn plan.Node) (
 	// from spec if it existed so we will take that one when
 	// constructing our own replacement. We do not care about it
 	// at the moment though which is why it is not in the pattern.
-
-	// The tag keys mechanism doesn't know about fields so we cannot
-	// push down _field comparisons in 1.x.
-	if fromSpec.Predicate != nil && hasFieldRef(fromSpec.Predicate.Root) {
-		return pn, false, nil
-	}
 
 	// The schema mutator needs to correspond to a keep call
 	// on the column specified by the keys procedure.
@@ -294,7 +270,7 @@ func (rule PushDownReadTagKeysRule) Rewrite(ctx context.Context, pn plan.Node) (
 
 	// We have passed all of the necessary prerequisites
 	// so construct the procedure spec.
-	return plan.CreatePhysicalNode("ReadTagKeys", &ReadTagKeysPhysSpec{
+	return plan.CreateUniquePhysicalNode(ctx, "ReadTagKeys", &ReadTagKeysPhysSpec{
 		ReadRangePhysSpec: *fromSpec.Copy().(*ReadRangePhysSpec),
 	}), true, nil
 }
@@ -324,7 +300,7 @@ func (rule PushDownReadTagValuesRule) Rewrite(ctx context.Context, pn plan.Node)
 	groupNode := distinctNode.Predecessors()[0]
 	groupSpec := groupNode.ProcedureSpec().(*universe.GroupProcedureSpec)
 	keepNode := groupNode.Predecessors()[0]
-	keepSpec := keepNode.ProcedureSpec().(*universe.SchemaMutationProcedureSpec)
+	keepSpec := asSchemaMutationProcedureSpec(keepNode.ProcedureSpec())
 	fromNode := keepNode.Predecessors()[0]
 	fromSpec := fromNode.ProcedureSpec().(*ReadRangePhysSpec)
 
@@ -365,7 +341,7 @@ func (rule PushDownReadTagValuesRule) Rewrite(ctx context.Context, pn plan.Node)
 
 	// We have passed all of the necessary prerequisites
 	// so construct the procedure spec.
-	return plan.CreatePhysicalNode("ReadTagValues", &ReadTagValuesPhysSpec{
+	return plan.CreateUniquePhysicalNode(ctx, "ReadTagValues", &ReadTagValuesPhysSpec{
 		ReadRangePhysSpec: *fromSpec.Copy().(*ReadRangePhysSpec),
 		TagKey:            tagKey,
 	}), true, nil

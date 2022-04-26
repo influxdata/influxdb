@@ -10,10 +10,7 @@ import (
 
 func exprEqual(x, y influxql.Expr) bool {
 	if x == nil {
-		if y == nil {
-			return true
-		}
-		return false
+		return y == nil
 	}
 
 	if y == nil {
