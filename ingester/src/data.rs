@@ -850,6 +850,9 @@ impl TableData {
             .await
             .context(CatalogSnafu)?;
 
+        // remember "persisted" state
+        self.tombstone_max_sequence_number = Some(sequence_number);
+
         // modify one partition at a time
         for data in self.partition_data.values_mut() {
             data.buffer_tombstone(executor, table_name, tombstone.clone())
@@ -1499,8 +1502,10 @@ mod tests {
     };
     use arrow_util::assert_batches_sorted_eq;
     use assert_matches::assert_matches;
-    use data_types2::{NamespaceSchema, ParquetFileParams, Sequence};
-    use dml::{DmlMeta, DmlWrite};
+    use data_types2::{
+        NamespaceSchema, NonEmptyString, ParquetFileParams, Sequence, TimestampRange,
+    };
+    use dml::{DmlDelete, DmlMeta, DmlWrite};
     use futures::TryStreamExt;
     use iox_catalog::{
         interface::INITIAL_COMPACTION_LEVEL, mem::MemCatalog, validate_or_insert_schema,
@@ -2254,5 +2259,119 @@ mod tests {
         assert_matches!(data.table_count.observe(), Observation::U64Counter(v) => {
             assert_eq!(v, 1, "unexpected table count metric value");
         });
+    }
+
+    #[tokio::test]
+    async fn buffer_deletes_updates_tombstone_watermark() {
+        let metrics = Arc::new(metric::Registry::new());
+        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
+        let mut repos = catalog.repositories().await;
+        let kafka_topic = repos.kafka_topics().create_or_get("whatevs").await.unwrap();
+        let query_pool = repos.query_pools().create_or_get("whatevs").await.unwrap();
+        let kafka_partition = KafkaPartition::new(0);
+        let namespace = repos
+            .namespaces()
+            .create("foo", "inf", kafka_topic.id, query_pool.id)
+            .await
+            .unwrap();
+        let sequencer1 = repos
+            .sequencers()
+            .create_or_get(&kafka_topic, kafka_partition)
+            .await
+            .unwrap();
+
+        let mut sequencers = BTreeMap::new();
+        let kafka_partition = KafkaPartition::new(0);
+        sequencers.insert(
+            sequencer1.id,
+            SequencerData::new(kafka_partition, Arc::clone(&metrics)),
+        );
+
+        let object_store: Arc<DynObjectStore> = Arc::new(ObjectStoreImpl::new_in_memory());
+
+        let data = Arc::new(IngesterData::new(
+            Arc::clone(&object_store),
+            Arc::clone(&catalog),
+            sequencers,
+            Arc::new(DefaultPartitioner::default()),
+            Arc::new(Executor::new(1)),
+            BackoffConfig::default(),
+        ));
+
+        let schema = NamespaceSchema::new(namespace.id, kafka_topic.id, query_pool.id);
+
+        let ignored_ts = Time::from_timestamp_millis(42);
+
+        let w1 = DmlWrite::new(
+            "foo",
+            lines_to_batches("mem foo=1 10", 0).unwrap(),
+            DmlMeta::sequenced(Sequence::new(1, 1), ignored_ts, None, 50),
+        );
+
+        let _ = validate_or_insert_schema(w1.tables(), &schema, repos.deref_mut())
+            .await
+            .unwrap()
+            .unwrap();
+
+        std::mem::drop(repos);
+        let pause_size = w1.size() + 1;
+        let manager = LifecycleManager::new(
+            LifecycleConfig::new(
+                pause_size,
+                0,
+                0,
+                Duration::from_secs(1),
+                Duration::from_secs(1),
+            ),
+            metrics,
+            Arc::new(SystemProvider::new()),
+        );
+        data.buffer_operation(
+            sequencer1.id,
+            DmlOperation::Write(w1.clone()),
+            &manager.handle(),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            data.sequencer(sequencer1.id)
+                .unwrap()
+                .namespace(&namespace.name)
+                .unwrap()
+                .table_data("mem")
+                .unwrap()
+                .read()
+                .await
+                .tombstone_max_sequence_number(),
+            None,
+        );
+
+        let predicate = DeletePredicate {
+            range: TimestampRange::new(1, 2),
+            exprs: vec![],
+        };
+        let d1 = DmlDelete::new(
+            "foo",
+            predicate,
+            Some(NonEmptyString::new("mem").unwrap()),
+            DmlMeta::sequenced(Sequence::new(1, 2), ignored_ts, None, 1337),
+        );
+        data.buffer_operation(sequencer1.id, DmlOperation::Delete(d1), &manager.handle())
+            .await
+            .unwrap();
+
+        assert_eq!(
+            data.sequencer(sequencer1.id)
+                .unwrap()
+                .namespace(&namespace.name)
+                .unwrap()
+                .table_data("mem")
+                .unwrap()
+                .read()
+                .await
+                .tombstone_max_sequence_number(),
+            Some(SequenceNumber::new(2)),
+        );
     }
 }
