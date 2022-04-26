@@ -3,8 +3,8 @@
 use data_types::server_id::ServerId;
 use generated_types::influxdata::iox::management;
 use iox_object_store::IoxObjectStore;
+use iox_time::Time;
 use snafu::{ensure, ResultExt, Snafu};
-use time::Time;
 
 #[derive(Debug, Snafu)]
 pub enum OwnerInfoFetchError {

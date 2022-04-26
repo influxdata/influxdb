@@ -3,6 +3,7 @@ use std::sync::Arc;
 use data_types::sequence::Sequence;
 use dml::{DmlMeta, DmlOperation, DmlWrite};
 use hashbrown::{hash_map::Entry, HashMap};
+use iox_time::{Time, TimeProvider};
 use mutable_batch::MutableBatch;
 use observability_deps::tracing::{debug, error, warn};
 use rskafka::{
@@ -10,7 +11,6 @@ use rskafka::{
     record::Record,
 };
 use schema::selection::Selection;
-use time::{Time, TimeProvider};
 use trace::{
     ctx::SpanContext,
     span::{Span, SpanRecorder},

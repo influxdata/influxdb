@@ -1,8 +1,8 @@
 //! Caches used by the querier.
 use backoff::BackoffConfig;
 use iox_catalog::interface::Catalog;
+use iox_time::TimeProvider;
 use std::sync::Arc;
-use time::TimeProvider;
 
 use self::{
     namespace::NamespaceCache, partition::PartitionCache,

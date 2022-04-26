@@ -16,10 +16,10 @@ use generated_types::google::FieldViolation;
 use generated_types::influxdata::iox::management;
 use generated_types::influxdata::iox::management::v1::OwnerInfo;
 use iox_object_store::IoxObjectStore;
+use iox_time::TimeProvider;
 use object_store::DynObjectStore;
 use snafu::{ensure, ResultExt, Snafu};
 use std::sync::Arc;
-use time::TimeProvider;
 use uuid::Uuid;
 
 /// Error enumeration for [`ConfigProviderObjectStorage`]

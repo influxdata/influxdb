@@ -10,7 +10,7 @@ use tonic::Status;
 use generated_types::{aggregate::AggregateType, Predicate};
 use influxdb_storage_client::{connection::Connection, Client, OrgAndBucket};
 use influxrpc_parser::predicate;
-use time;
+use iox_time;
 
 #[derive(Debug, Snafu)]
 pub enum ParseError {
@@ -75,7 +75,7 @@ fn parse_range(s: &str) -> Result<i64, ParseError> {
         Ok(v) => Ok(v),
         Err(_) => {
             // try to parse timestamp
-            let t = time::Time::from_rfc3339(s).or_else(|_| TimestampSnafu { t: s }.fail())?;
+            let t = iox_time::Time::from_rfc3339(s).or_else(|_| TimestampSnafu { t: s }.fail())?;
             Ok(t.timestamp_nanos())
         }
     }

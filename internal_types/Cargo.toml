@@ -8,7 +8,7 @@ readme = "README.md"
 
 [dependencies]
 parking_lot = "0.12"
-time = { path = "../time" }
+iox_time = { path = "../iox_time" }
 tokio = { version = "1.17", features = ["parking_lot", "sync"] }
 workspace-hack = { path = "../workspace-hack"}
 

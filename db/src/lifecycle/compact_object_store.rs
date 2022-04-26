@@ -23,6 +23,7 @@ use data_types::{
 use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::Future;
 use iox_object_store::ParquetFilePath;
+use iox_time::Time;
 use lifecycle::LifecycleWriteGuard;
 use observability_deps::tracing::info;
 use parquet_catalog::interface::CatalogParquetInfo;
@@ -42,7 +43,6 @@ use std::{
     ops::RangeInclusive,
     sync::Arc,
 };
-use time::Time;
 use tracker::{RwLock, TaskRegistration, TaskTracker, TrackedFuture, TrackedFutureExt};
 
 // Compact the provided object store chunks into a single object store chunk,

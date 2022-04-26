@@ -222,13 +222,13 @@ impl Debug for Metadata {
 mod tests {
     use super::*;
     use crate::{core::PreservedCatalog, interface::CatalogParquetInfo, test_helpers::make_config};
+    use iox_time::Time;
     use parquet_file::test_utils::generator::{ChunkGenerator, GeneratorConfig};
-    use time::Time;
     use uuid::Uuid;
 
     #[tokio::test]
     async fn test_dump_default_options() {
-        let time_provider = Arc::new(time::MockProvider::new(Time::from_timestamp(10, 20)));
+        let time_provider = Arc::new(iox_time::MockProvider::new(Time::from_timestamp(10, 20)));
         let config = make_config()
             .await
             .with_fixed_uuid(Uuid::nil())
@@ -340,7 +340,7 @@ File {
 
     #[tokio::test]
     async fn test_dump_show_parsed_data() {
-        let time_provider = Arc::new(time::MockProvider::new(Time::from_timestamp(10, 20)));
+        let time_provider = Arc::new(iox_time::MockProvider::new(Time::from_timestamp(10, 20)));
         let config = make_config()
             .await
             .with_fixed_uuid(Uuid::nil())

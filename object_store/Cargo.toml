@@ -38,7 +38,7 @@ walkdir = "2"
 tempfile = "3.1.0"
 workspace-hack = { path = "../workspace-hack"}
 metric = { version = "0.1.0", path = "../metric" }
-time = { version = "0.1.0", path = "../time" }
+iox_time = { version = "0.1.0", path = "../iox_time" }
 pin-project = "1.0.10"
 
 [features]

@@ -17,7 +17,7 @@ use self::metrics::CatalogMetrics;
 use self::partition::Partition;
 use self::table::Table;
 use data_types::write_summary::WriteSummary;
-use time::TimeProvider;
+use iox_time::TimeProvider;
 
 pub mod chunk;
 mod metrics;
@@ -74,7 +74,7 @@ impl Catalog {
         Self::new(
             Arc::from("test"),
             Default::default(),
-            Arc::new(time::SystemProvider::new()),
+            Arc::new(iox_time::SystemProvider::new()),
         )
     }
 

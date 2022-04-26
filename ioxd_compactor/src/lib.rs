@@ -11,10 +11,10 @@ use compactor::{
 use data_types2::KafkaPartition;
 use hyper::{Body, Request, Response};
 use iox_catalog::interface::Catalog;
+use iox_time::TimeProvider;
 use metric::Registry;
 use object_store::DynObjectStore;
 use query::exec::Executor;
-use time::TimeProvider;
 use trace::TraceCollector;
 
 use clap_blocks::compactor::CompactorConfig;

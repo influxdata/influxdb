@@ -9,6 +9,7 @@ use data_types::{
     partition_metadata::{PartitionAddr, PartitionSummary},
 };
 use hashbrown::HashMap;
+use iox_time::{Time, TimeProvider};
 use observability_deps::tracing::*;
 use persistence_windows::{
     min_max_sequence::OptionalMinMaxSequence, persistence_windows::PersistenceWindows,
@@ -20,7 +21,6 @@ use std::{
     ops::RangeInclusive,
     sync::Arc,
 };
-use time::{Time, TimeProvider};
 use tracker::RwLock;
 
 #[derive(Debug, Snafu)]
@@ -472,7 +472,7 @@ mod tests {
             Arc::clone(&addr.db_name),
             Arc::clone(&registry),
         ));
-        let time_provider = Arc::new(time::SystemProvider::new());
+        let time_provider = Arc::new(iox_time::SystemProvider::new());
         let table_metrics = Arc::new(catalog_metrics.new_table_metrics("t"));
         let partition_metrics = table_metrics.new_partition_metrics();
 
@@ -623,7 +623,7 @@ mod tests {
             Arc::clone(&addr.db_name),
             Arc::clone(&registry),
         ));
-        let time_provider = Arc::new(time::SystemProvider::new());
+        let time_provider = Arc::new(iox_time::SystemProvider::new());
         let table_metrics = Arc::new(catalog_metrics.new_table_metrics("t"));
         let partition_metrics = table_metrics.new_partition_metrics();
 

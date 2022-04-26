@@ -20,6 +20,7 @@ use influxdb_iox_client::{
         generated_types::{partition_template, WriteBufferConnection},
     },
 };
+use iox_time::SystemProvider;
 use prost::Message;
 use rand::{
     distributions::{Alphanumeric, Standard},
@@ -38,7 +39,6 @@ use std::{
 };
 use tempfile::TempDir;
 use test_helpers::assert_contains;
-use time::SystemProvider;
 use uuid::Uuid;
 use write_buffer::{
     core::{WriteBufferReading, WriteBufferWriting},

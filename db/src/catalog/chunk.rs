@@ -9,6 +9,7 @@ use data_types::{
     partition_metadata::TableSummary,
 };
 use internal_types::access::AccessRecorder;
+use iox_time::{Time, TimeProvider};
 use mutable_buffer::{snapshot::ChunkSnapshot as MBChunkSnapshot, MBChunk};
 use observability_deps::tracing::debug;
 use parking_lot::Mutex;
@@ -17,7 +18,6 @@ use read_buffer::RBChunk;
 use schema::{sort::SortKey, Schema, TIME_COLUMN_NAME};
 use snafu::Snafu;
 use std::sync::Arc;
-use time::{Time, TimeProvider};
 use tracker::{TaskRegistration, TaskTracker};
 
 #[derive(Debug, Snafu)]
@@ -1299,7 +1299,7 @@ mod tests {
             mb_chunk,
             ChunkMetrics::new_unregistered(),
             ChunkOrder::new(5).unwrap(),
-            Arc::new(time::SystemProvider::new()),
+            Arc::new(iox_time::SystemProvider::new()),
         )
     }
 
@@ -1325,7 +1325,7 @@ mod tests {
             metadata,
             Arc::new(parquet_chunk),
             ChunkMetrics::new_unregistered(),
-            Arc::new(time::SystemProvider::new()),
+            Arc::new(iox_time::SystemProvider::new()),
         )
     }
 }

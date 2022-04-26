@@ -6,11 +6,11 @@ use crate::{
 use backoff::BackoffConfig;
 use data_types2::{NamespaceId, NamespaceSchema};
 use iox_catalog::interface::Catalog;
+use iox_time::TimeProvider;
 use object_store::DynObjectStore;
 use query::exec::Executor;
 use schema::Schema;
 use std::{collections::HashMap, sync::Arc};
-use time::TimeProvider;
 
 mod query_access;
 

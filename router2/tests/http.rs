@@ -70,7 +70,7 @@ type HttpDelegateStack = HttpDelegate<
 impl TestContext {
     pub fn new() -> Self {
         let metrics = Arc::new(metric::Registry::default());
-        let time = time::MockProvider::new(time::Time::from_timestamp_millis(668563200000));
+        let time = iox_time::MockProvider::new(iox_time::Time::from_timestamp_millis(668563200000));
 
         let write_buffer = MockBufferForWriting::new(
             MockBufferSharedState::empty_with_n_sequencers(1.try_into().unwrap()),

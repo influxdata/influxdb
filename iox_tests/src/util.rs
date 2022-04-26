@@ -15,6 +15,7 @@ use iox_catalog::{
     mem::MemCatalog,
 };
 use iox_object_store::{IoxObjectStore, ParquetFilePath};
+use iox_time::{MockProvider, Time, TimeProvider};
 use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
 use object_store::{DynObjectStore, ObjectStoreImpl};
 use parquet_file::metadata::{IoxMetadata, IoxParquetMetaData};
@@ -25,7 +26,6 @@ use schema::{
     Schema,
 };
 use std::sync::Arc;
-use time::{MockProvider, Time, TimeProvider};
 use uuid::Uuid;
 
 /// Catalog for tests

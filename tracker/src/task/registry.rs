@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use hashbrown::HashMap;
 
-use time::TimeProvider;
+use iox_time::TimeProvider;
 
 use super::{TaskRegistration, TaskTracker};
 

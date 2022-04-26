@@ -9,9 +9,9 @@ use std::{
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::{stream::BoxStream, Stream, StreamExt};
+use iox_time::{SystemProvider, Time, TimeProvider};
 use metric::{Metric, U64Counter, U64Histogram, U64HistogramOptions};
 use pin_project::{pin_project, pinned_drop};
-use time::{SystemProvider, Time, TimeProvider};
 
 use crate::{path::parsed::DirsAndFileName, GetResult, ListResult, ObjectStoreApi};
 

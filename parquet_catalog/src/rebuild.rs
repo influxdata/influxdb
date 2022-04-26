@@ -173,13 +173,13 @@ mod tests {
     use data_types::chunk_metadata::{ChunkAddr, ChunkId, ChunkOrder};
     use datafusion::physical_plan::SendableRecordBatchStream;
     use datafusion_util::MemoryStream;
+    use iox_time::Time;
     use parquet::arrow::ArrowWriter;
     use parquet_file::{
         metadata::IoxMetadataOld,
         storage::{MemWriter, Storage},
         test_utils::{create_partition_and_database_checkpoint, make_record_batch, TestSize},
     };
-    use time::Time;
     use tokio_stream::StreamExt;
 
     #[tokio::test]

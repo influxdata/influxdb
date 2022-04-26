@@ -7,8 +7,8 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use data_types::{chunk_metadata::ChunkSummary, error::ErrorLogger};
+use iox_time::Time;
 use std::sync::Arc;
-use time::Time;
 
 /// Implementation of system.chunks table
 #[derive(Debug)]

@@ -1,6 +1,6 @@
+use iox_time::{Time, TimeProvider};
 use parking_lot::RwLock;
 use std::sync::Arc;
-use time::{Time, TimeProvider};
 
 /// A struct that allows recording access by a query
 #[derive(Debug, Clone)]
@@ -64,8 +64,8 @@ mod tests {
         let t2 = t1 + Duration::from_nanos(1);
         let t3 = t1 + Duration::from_nanos(2);
 
-        let time = Arc::new(time::MockProvider::new(t1));
-        let access_recorder = AccessRecorder::new(Arc::<time::MockProvider>::clone(&time));
+        let time = Arc::new(iox_time::MockProvider::new(t1));
+        let access_recorder = AccessRecorder::new(Arc::<iox_time::MockProvider>::clone(&time));
 
         assert_eq!(
             access_recorder.get_metrics(),

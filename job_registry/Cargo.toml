@@ -8,7 +8,7 @@ edition = "2021"
 data_types = { path = "../data_types" }
 metric = { path = "../metric" }
 parking_lot = "0.12"
-time = { path = "../time" }
+iox_time = { path = "../iox_time" }
 tokio = { version = "1.17", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
 tracker = { path = "../tracker" }
 workspace-hack = { path = "../workspace-hack"}

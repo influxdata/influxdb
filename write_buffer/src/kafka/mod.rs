@@ -10,6 +10,7 @@ use async_trait::async_trait;
 use data_types::{sequence::Sequence, write_buffer::WriteBufferCreationConfig};
 use dml::{DmlMeta, DmlOperation};
 use futures::{stream::BoxStream, StreamExt};
+use iox_time::{Time, TimeProvider};
 use parking_lot::Mutex;
 use rskafka::client::{
     consumer::{StartOffset, StreamConsumerBuilder},
@@ -18,7 +19,6 @@ use rskafka::client::{
     producer::{BatchProducer, BatchProducerBuilder},
     ClientBuilder,
 };
-use time::{Time, TimeProvider};
 use trace::TraceCollector;
 
 use crate::{

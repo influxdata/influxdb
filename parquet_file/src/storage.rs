@@ -402,8 +402,8 @@ mod tests {
     use arrow_util::assert_batches_eq;
     use data_types::chunk_metadata::{ChunkId, ChunkOrder};
     use datafusion_util::{stream_from_batch, MemoryStream};
+    use iox_time::Time;
     use parquet::schema::types::ColumnPath;
-    use time::Time;
 
     #[tokio::test]
     async fn test_parquet_contains_key_value_metadata() {

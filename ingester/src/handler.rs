@@ -20,12 +20,12 @@ use futures::{
     FutureExt, StreamExt, TryFutureExt,
 };
 use iox_catalog::interface::Catalog;
+use iox_time::SystemProvider;
 use object_store::DynObjectStore;
 use observability_deps::tracing::*;
 use query::exec::Executor;
 use snafu::{ResultExt, Snafu};
 use std::{collections::BTreeMap, sync::Arc, time::Duration};
-use time::SystemProvider;
 use tokio::task::{JoinError, JoinHandle};
 use tokio_util::sync::CancellationToken;
 use write_buffer::core::WriteBufferReading;
@@ -306,11 +306,11 @@ mod tests {
     use data_types2::{Namespace, NamespaceSchema, QueryPool, Sequence, SequenceNumber};
     use dml::{DmlMeta, DmlWrite};
     use iox_catalog::{mem::MemCatalog, validate_or_insert_schema};
+    use iox_time::Time;
     use metric::{Attributes, Metric, U64Counter, U64Gauge, U64Histogram};
     use mutable_batch_lp::lines_to_batches;
     use object_store::ObjectStoreImpl;
     use std::{num::NonZeroU32, ops::DerefMut};
-    use time::Time;
     use write_buffer::mock::{MockBufferForReading, MockBufferSharedState};
 
     #[tokio::test]

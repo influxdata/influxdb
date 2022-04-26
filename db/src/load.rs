@@ -5,6 +5,7 @@ use super::catalog::{chunk::ChunkStage, table::TableSchemaUpsertHandle, Catalog}
 use crate::catalog::chunk::ChunkMetadata;
 use data_types::delete_predicate::DeletePredicate;
 use iox_object_store::{IoxObjectStore, ParquetFilePath};
+use iox_time::TimeProvider;
 use observability_deps::tracing::{error, info};
 use parquet_catalog::{
     core::{PreservedCatalog, PreservedCatalogConfig},
@@ -17,7 +18,6 @@ use parquet_file::chunk::{ChunkMetrics as ParquetChunkMetrics, ParquetChunk};
 use persistence_windows::checkpoint::{ReplayPlan, ReplayPlanner};
 use snafu::{ResultExt, Snafu};
 use std::sync::Arc;
-use time::TimeProvider;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -333,7 +333,7 @@ mod tests {
     #[tokio::test]
     async fn load_or_create_preserved_catalog_recovers_from_error() {
         let object_store = Arc::new(ObjectStoreImpl::new_in_memory());
-        let time_provider: Arc<dyn TimeProvider> = Arc::new(time::SystemProvider::new());
+        let time_provider: Arc<dyn TimeProvider> = Arc::new(iox_time::SystemProvider::new());
         let db_name = DatabaseName::new("preserved_catalog_test").unwrap();
         let db_uuid = Uuid::new_v4();
         let iox_object_store =
@@ -368,7 +368,7 @@ mod tests {
         let loader = Loader::new(
             "db1",
             Default::default(),
-            Arc::new(time::SystemProvider::new()),
+            Arc::new(iox_time::SystemProvider::new()),
             false,
         );
         assert_catalog_state_implementation(loader, checkpoint_data_from_loader).await;

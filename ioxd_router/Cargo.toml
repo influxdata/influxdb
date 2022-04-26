@@ -15,7 +15,7 @@ metric = { path = "../metric" }
 mutable_batch_pb = { path = "../mutable_batch_pb" }
 router = { path = "../router" }
 service_grpc_testing = { path = "../service_grpc_testing" }
-time = { path = "../time" }
+iox_time = { path = "../iox_time" }
 trace = { path = "../trace" }
 trace_http = { path = "../trace_http" }
 

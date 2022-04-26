@@ -4,13 +4,13 @@ use crate::CatalogChunk;
 use data_types::partition_metadata::{PartitionAddr, PartitionSummary};
 use data_types::timestamp::TimestampRange;
 use hashbrown::HashMap;
+use iox_time::TimeProvider;
 use schema::{
     builder::SchemaBuilder,
     merge::{Error as SchemaMergerError, SchemaMerger},
     Schema,
 };
 use std::{ops::Deref, result::Result, sync::Arc};
-use time::TimeProvider;
 use tracker::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 /// A `Table` is a collection of `Partition` each of which is a collection of `Chunk`

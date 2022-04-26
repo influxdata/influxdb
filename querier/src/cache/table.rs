@@ -4,7 +4,7 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 use backoff::{Backoff, BackoffConfig};
 use data_types2::{NamespaceId, Table, TableId};
 use iox_catalog::interface::Catalog;
-use time::TimeProvider;
+use iox_time::TimeProvider;
 
 use crate::cache_system::{
     backend::{

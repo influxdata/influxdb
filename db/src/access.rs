@@ -9,6 +9,7 @@ use datafusion::{
     datasource::TableProvider,
 };
 use hashbrown::HashMap;
+use iox_time::TimeProvider;
 use job_registry::JobRegistry;
 use metric::{Attributes, DurationCounter, Metric, U64Counter};
 use observability_deps::tracing::debug;
@@ -24,7 +25,6 @@ use schema::Schema;
 use std::time::Instant;
 use std::{any::Any, sync::Arc};
 use system_tables::{SystemSchemaProvider, SYSTEM_SCHEMA};
-use time::TimeProvider;
 
 /// The number of entries to store in the circular query buffer log
 const QUERY_LOG_SIZE: usize = 10_000;

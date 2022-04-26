@@ -1,6 +1,6 @@
 use data_types::write_buffer::{WriteBufferConnection, WriteBufferCreationConfig};
+use iox_time::SystemProvider;
 use std::{collections::BTreeMap, num::NonZeroU32, sync::Arc};
-use time::SystemProvider;
 use trace::TraceCollector;
 use write_buffer::{
     config::WriteBufferConfigFactory,

@@ -6,6 +6,7 @@ use std::{
 use async_trait::async_trait;
 use hyper::{Body, Request, Response};
 use iox_catalog::interface::Catalog;
+use iox_time::TimeProvider;
 use metric::Registry;
 use object_store::DynObjectStore;
 use querier::{
@@ -13,7 +14,6 @@ use querier::{
     QuerierHandlerImpl, QuerierServer,
 };
 use query::exec::Executor;
-use time::TimeProvider;
 use trace::TraceCollector;
 
 use ioxd_common::{

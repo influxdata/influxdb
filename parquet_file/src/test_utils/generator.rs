@@ -8,8 +8,8 @@ use data_types::chunk_metadata::{ChunkAddr, ChunkId, ChunkOrder};
 use data_types::partition_metadata::{PartitionAddr, TableSummary};
 use datafusion_util::MemoryStream;
 use iox_object_store::IoxObjectStore;
+use iox_time::Time;
 use std::sync::Arc;
-use time::Time;
 
 /// Controls the number of row groups to generate for chunks
 #[derive(Debug, Copy, Clone)]

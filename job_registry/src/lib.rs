@@ -1,7 +1,7 @@
 use data_types::job::Job;
+use iox_time::TimeProvider;
 use parking_lot::Mutex;
 use std::{convert::Infallible, sync::Arc};
-use time::TimeProvider;
 use tracker::{
     AbstractTaskRegistry, TaskId, TaskRegistration, TaskRegistry, TaskRegistryWithHistory,
     TaskRegistryWithMetrics, TaskTracker, TrackedFutureExt,

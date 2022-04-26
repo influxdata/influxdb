@@ -52,7 +52,7 @@ router = { path = "../router" }
 router2 = { path = "../router2" }
 schema = { path = "../schema" }
 server = { path = "../server" }
-time = { path = "../time" }
+iox_time = { path = "../iox_time" }
 trace = { path = "../trace" }
 trace_exporters = { path = "../trace_exporters" }
 trace_http = { path = "../trace_http" }

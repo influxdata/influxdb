@@ -216,7 +216,7 @@ mod tests {
 
     // Init a mock write buffer with the given number of sequencers.
     fn init_write_buffer(n_sequencers: u32) -> MockBufferForWriting {
-        let time = time::MockProvider::new(time::Time::from_timestamp_millis(668563200000));
+        let time = iox_time::MockProvider::new(iox_time::Time::from_timestamp_millis(668563200000));
         MockBufferForWriting::new(
             MockBufferSharedState::empty_with_n_sequencers(
                 n_sequencers.try_into().expect("cannot have 0 sequencers"),

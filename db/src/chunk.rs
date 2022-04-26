@@ -13,6 +13,7 @@ use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion_util::MemoryStream;
 use internal_types::access::AccessRecorder;
 use iox_object_store::ParquetFilePath;
+use iox_time::Time;
 use mutable_buffer::snapshot::ChunkSnapshot;
 use observability_deps::tracing::debug;
 use parquet_file::chunk::ParquetChunk;
@@ -29,7 +30,6 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
 };
-use time::Time;
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Snafu)]
@@ -642,7 +642,7 @@ mod tests {
     use data_types::chunk_metadata::ChunkStorage;
     use std::time::Duration;
 
-    async fn test_chunk_access(chunk: &CatalogChunk, time: Arc<time::MockProvider>) {
+    async fn test_chunk_access(chunk: &CatalogChunk, time: Arc<iox_time::MockProvider>) {
         let m1 = chunk.access_recorder().get_metrics();
         let snapshot = DbChunk::snapshot(chunk);
         let m2 = chunk.access_recorder().get_metrics();

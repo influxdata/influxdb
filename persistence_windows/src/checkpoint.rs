@@ -76,7 +76,7 @@
 //!
 //! # // mocking for the example below
 //! # use std::collections::BTreeMap;
-//! # use time::Time;
+//! # use iox_time::Time;
 //! # use persistence_windows::min_max_sequence::OptionalMinMaxSequence;
 //! #
 //! # struct Partition {
@@ -176,7 +176,7 @@
 //!
 //! # // mocking for the example below
 //! # use std::sync::Arc;
-//! # use time::Time;
+//! # use iox_time::Time;
 //! # use persistence_windows::checkpoint::{DatabaseCheckpoint, PartitionCheckpoint, PersistCheckpointBuilder};
 //! #
 //! # struct File {}
@@ -265,9 +265,9 @@ use std::{
     sync::Arc,
 };
 
+use iox_time::Time;
 use observability_deps::tracing::warn;
 use snafu::{OptionExt, Snafu};
-use time::Time;
 
 use crate::min_max_sequence::OptionalMinMaxSequence;
 

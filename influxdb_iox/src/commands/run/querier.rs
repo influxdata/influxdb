@@ -1,12 +1,12 @@
 //! Implementation of command line option for running the querier
 
 use clap_blocks::querier::QuerierConfig;
+use iox_time::SystemProvider;
 use object_store::{instrumentation::ObjectStoreMetrics, DynObjectStore, ObjectStoreImpl};
 use observability_deps::tracing::*;
 use query::exec::Executor;
 use std::sync::Arc;
 use thiserror::Error;
-use time::SystemProvider;
 
 use clap_blocks::{catalog_dsn::CatalogDsnConfig, run_config::RunConfig};
 use ioxd_common::server_type::{CommonServerState, CommonServerStateError};

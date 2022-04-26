@@ -2,9 +2,9 @@
 
 use super::NamespaceCache;
 use data_types2::{DatabaseName, NamespaceSchema};
+use iox_time::{SystemProvider, TimeProvider};
 use metric::{Metric, U64Gauge, U64Histogram, U64HistogramOptions};
 use std::sync::Arc;
-use time::{SystemProvider, TimeProvider};
 
 /// An [`InstrumentedCache`] decorates a [`NamespaceCache`] with cache read
 /// hit/miss and cache put insert/update metrics.

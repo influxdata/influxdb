@@ -5,10 +5,10 @@
 use data_types2::Timestamp;
 use iox_catalog::interface::Catalog;
 use iox_object_store::ParquetFilePath;
+use iox_time::TimeProvider;
 use object_store::DynObjectStore;
 use snafu::{ResultExt, Snafu};
 use std::sync::Arc;
-use time::TimeProvider;
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]

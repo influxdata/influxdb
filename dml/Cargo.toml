@@ -11,7 +11,7 @@ hashbrown = "0.12"
 mutable_batch = { path = "../mutable_batch" }
 ordered-float = "2"
 schema = { path = "../schema" }
-time = { path = "../time" }
+iox_time = { path = "../iox_time" }
 trace = { path = "../trace" }
 workspace-hack = { path = "../workspace-hack"}
 

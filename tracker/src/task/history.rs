@@ -197,7 +197,7 @@ mod tests {
                 assert_eq!(&collected, expected_ids);
             };
 
-        let time_provider = Arc::new(time::SystemProvider::new());
+        let time_provider = Arc::new(iox_time::SystemProvider::new());
         let registry = TaskRegistry::new(time_provider);
         let mut archive = TaskRegistryWithHistory::new(registry, 4);
 

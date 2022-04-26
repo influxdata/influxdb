@@ -143,13 +143,13 @@ fn from_query_log_entries(
 mod tests {
     use super::*;
     use arrow_util::assert_batches_eq;
-    use time::{Time, TimeProvider};
+    use iox_time::{Time, TimeProvider};
     use trace::ctx::TraceId;
 
     #[test]
     fn test_from_query_log() {
         let now = Time::from_rfc3339("1996-12-19T16:39:57+00:00").unwrap();
-        let time_provider = Arc::new(time::MockProvider::new(now));
+        let time_provider = Arc::new(iox_time::MockProvider::new(now));
 
         let query_log = QueryLog::new(10, Arc::clone(&time_provider) as Arc<dyn TimeProvider>);
         query_log.push("sql", Box::new("select * from foo"), None);

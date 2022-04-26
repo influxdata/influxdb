@@ -9,6 +9,7 @@ use data_types2::{org_and_bucket_to_database, OrgBucketMappingError};
 use futures::StreamExt;
 use hashbrown::HashMap;
 use hyper::{header::CONTENT_ENCODING, Body, Method, Request, Response, StatusCode};
+use iox_time::{SystemProvider, TimeProvider};
 use metric::U64Counter;
 use mutable_batch::MutableBatch;
 use mutable_batch_lp::LinesConverter;
@@ -16,7 +17,6 @@ use observability_deps::tracing::*;
 use predicate::delete_predicate::{parse_delete_predicate, parse_http_delete_request};
 use serde::Deserialize;
 use thiserror::Error;
-use time::{SystemProvider, TimeProvider};
 use trace::ctx::SpanContext;
 use write_summary::WriteSummary;
 

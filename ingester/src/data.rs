@@ -15,6 +15,7 @@ use data_types2::{
 use datafusion::physical_plan::SendableRecordBatchStream;
 use dml::DmlOperation;
 use iox_catalog::interface::Catalog;
+use iox_time::SystemProvider;
 use metric::U64Counter;
 use mutable_batch::{column::ColumnData, MutableBatch};
 use object_store::DynObjectStore;
@@ -29,7 +30,6 @@ use std::{
     convert::TryFrom,
     sync::Arc,
 };
-use time::SystemProvider;
 use uuid::Uuid;
 use write_summary::SequencerProgress;
 
@@ -1466,11 +1466,11 @@ mod tests {
     use iox_catalog::{
         interface::INITIAL_COMPACTION_LEVEL, mem::MemCatalog, validate_or_insert_schema,
     };
+    use iox_time::Time;
     use metric::{MetricObserver, Observation};
     use mutable_batch_lp::{lines_to_batches, test_helpers::lp_to_mutable_batch};
     use object_store::ObjectStoreImpl;
     use std::{ops::DerefMut, time::Duration};
-    use time::Time;
 
     #[test]
     fn snapshot_empty_buffer_adds_no_snapshots() {

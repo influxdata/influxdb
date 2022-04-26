@@ -2,9 +2,9 @@ use std::{convert::TryInto, num::TryFromIntError};
 
 use generated_types::influxdata::iox::preserved_catalog::v1 as proto;
 use iox_object_store::{ParquetFilePath, ParquetFilePathParseError};
+use iox_time::Time;
 use object_store::path::{parsed::DirsAndFileName, parts::PathPart};
 use snafu::{OptionExt, ResultExt, Snafu};
-use time::Time;
 use uuid::Uuid;
 
 #[derive(Debug, Snafu)]

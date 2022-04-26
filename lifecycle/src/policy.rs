@@ -9,9 +9,9 @@ use data_types::{
 };
 use futures::future::BoxFuture;
 use internal_types::access::AccessMetrics;
+use iox_time::Time;
 use observability_deps::tracing::{debug, info, trace, warn};
 use std::{fmt::Debug, time::Duration};
-use time::Time;
 use tracker::TaskTracker;
 
 /// Number of seconds to wait before retrying a failed lifecycle action
@@ -717,6 +717,7 @@ mod tests {
     };
     use data_types::chunk_metadata::{ChunkAddr, ChunkId, ChunkOrder, ChunkStorage};
     use data_types::database_rules::MaxActiveCompactions::MaxActiveCompactions;
+    use iox_time::{MockProvider, TimeProvider};
     use parking_lot::Mutex;
     use std::time::Duration;
     use std::{
@@ -726,7 +727,6 @@ mod tests {
         num::{NonZeroU32, NonZeroUsize},
         sync::Arc,
     };
-    use time::{MockProvider, TimeProvider};
     use tracker::{AbstractTaskRegistry, RwLock, TaskRegistry};
 
     #[derive(Debug, Eq, PartialEq)]
@@ -1268,7 +1268,7 @@ mod tests {
         rules: LifecycleRules,
         chunks: Vec<TestChunk>,
         now: Time,
-    ) -> (TestDb, Arc<time::MockProvider>) {
+    ) -> (TestDb, Arc<iox_time::MockProvider>) {
         test_db_partitions(rules, vec![TestPartition::new(chunks)], now)
     }
 
@@ -1276,8 +1276,8 @@ mod tests {
         rules: LifecycleRules,
         partitions: Vec<TestPartition>,
         now: Time,
-    ) -> (TestDb, Arc<time::MockProvider>) {
-        let mock_provider = Arc::new(time::MockProvider::new(now));
+    ) -> (TestDb, Arc<iox_time::MockProvider>) {
+        let mock_provider = Arc::new(iox_time::MockProvider::new(now));
 
         let time_provider: Arc<dyn TimeProvider> = Arc::<MockProvider>::clone(&mock_provider);
         let tasks = TaskRegistry::new(Arc::clone(&time_provider));
@@ -1500,7 +1500,7 @@ mod tests {
         lifecycle.check_for_work();
         assert_eq!(*db.events.read(), vec![]);
 
-        let time_provider = Arc::new(time::MockProvider::new(from_secs(0)));
+        let time_provider = Arc::new(iox_time::MockProvider::new(from_secs(0)));
         let mut tasks = TaskRegistry::new(Arc::<MockProvider>::clone(&time_provider));
 
         let partitions = vec![TestPartition::new(vec![
@@ -1563,7 +1563,7 @@ mod tests {
             ..Default::default()
         };
 
-        let time_provider = Arc::new(time::MockProvider::new(from_secs(20)));
+        let time_provider = Arc::new(iox_time::MockProvider::new(from_secs(20)));
         let mut tasks = TaskRegistry::new(Arc::<MockProvider>::clone(&time_provider));
 
         let partitions = vec![
@@ -1767,7 +1767,7 @@ mod tests {
         };
         let now = from_secs(0);
 
-        let time_provider = Arc::new(time::MockProvider::new(now));
+        let time_provider = Arc::new(iox_time::MockProvider::new(now));
         let mut tasks = TaskRegistry::new(Arc::<MockProvider>::clone(&time_provider));
 
         let partitions = vec![

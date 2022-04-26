@@ -23,7 +23,7 @@ snafu = "0.7"
 [dev-dependencies]
 # Workspace dependencies, in alphabetical order
 data_types = { path = "../data_types" }
-time = { path = "../time" }
+iox_time = { path = "../iox_time" }
 
 
 # Crates.io dependencies, in alphabetical order

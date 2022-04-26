@@ -2,8 +2,8 @@
 use std::{convert::TryFrom, num::NonZeroU32, str::FromStr, sync::Arc};
 
 use bytes::Bytes;
+use iox_time::Time;
 use snafu::{ResultExt, Snafu};
-use time::Time;
 use uuid::Uuid;
 
 use crate::partition_metadata::PartitionAddr;

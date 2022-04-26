@@ -32,7 +32,7 @@ serde = "1.0"
 serde_urlencoded = "0.7"
 siphasher = "0.3"
 thiserror = "1.0"
-time = { path = "../time" }
+iox_time = { path = "../iox_time" }
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 tonic = "0.7"
 trace = { path = "../trace/" }

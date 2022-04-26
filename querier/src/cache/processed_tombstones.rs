@@ -4,7 +4,7 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 use backoff::{Backoff, BackoffConfig};
 use data_types2::{ParquetFileId, TombstoneId};
 use iox_catalog::interface::Catalog;
-use time::TimeProvider;
+use iox_time::TimeProvider;
 
 use crate::cache_system::{
     backend::ttl::{TtlBackend, TtlProvider},
@@ -90,7 +90,7 @@ impl TtlProvider for KeepExistsForever {
 #[cfg(test)]
 mod tests {
     use iox_tests::util::TestCatalog;
-    use time::{MockProvider, Time};
+    use iox_time::{MockProvider, Time};
 
     use crate::cache::test_util::assert_histogram_metric_count;
 

@@ -80,12 +80,12 @@
 //! etc... between threads as any such functionality must perform the necessary
 //! synchronisation to be well-formed.
 
+use iox_time::{Time, TimeProvider};
 use std::fmt::Formatter;
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
     Arc,
 };
-use time::{Time, TimeProvider};
 
 use tokio_util::sync::CancellationToken;
 
@@ -569,7 +569,7 @@ mod tests {
     }
 
     fn test_registry<T: Send + Sync>() -> TaskRegistry<T> {
-        TaskRegistry::new(Arc::new(time::SystemProvider::new()))
+        TaskRegistry::new(Arc::new(iox_time::SystemProvider::new()))
     }
 
     #[tokio::test]

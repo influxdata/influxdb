@@ -1,6 +1,6 @@
 use std::{any::Any, fmt::Debug, hash::Hash, marker::PhantomData, sync::Arc, time::Duration};
 
-use time::{Time, TimeProvider};
+use iox_time::{Time, TimeProvider};
 
 use super::{addressable_heap::AddressableHeap, CacheBackend};
 
@@ -233,8 +233,8 @@ where
 mod tests {
     use std::{collections::HashMap, time::Duration};
 
+    use iox_time::MockProvider;
     use parking_lot::Mutex;
-    use time::MockProvider;
 
     use super::*;
 

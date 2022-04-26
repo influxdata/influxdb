@@ -125,7 +125,7 @@ impl ConnectionPool {
     /// Create new connection factory for testing purposes.
     #[cfg(test)]
     pub async fn new_testing() -> Self {
-        use time::SystemProvider;
+        use iox_time::SystemProvider;
 
         let time_provider = Arc::new(SystemProvider::new());
         let metric_registry = Arc::new(metric::Registry::new());
@@ -172,7 +172,7 @@ impl ConnectionPool {
 
 #[cfg(test)]
 mod tests {
-    use time::{SystemProvider, TimeProvider};
+    use iox_time::{SystemProvider, TimeProvider};
 
     use crate::grpc_client::MockClient;
 

@@ -8,13 +8,13 @@ use crate::{
     DbChunk,
 };
 use data_types::{chunk_metadata::ChunkOrder, delete_predicate::DeletePredicate, job::Job};
+use iox_time::Time;
 use lifecycle::{LifecycleWriteGuard, LockableChunk, LockablePartition};
 use observability_deps::tracing::info;
 use persistence_windows::persistence_windows::FlushHandle;
 use query::QueryChunk;
 use query::{compute_sort_key, exec::ExecutorType, frontend::reorg::ReorgPlanner};
 use std::{collections::HashSet, future::Future, sync::Arc};
-use time::Time;
 use tracker::{TaskTracker, TrackedFuture, TrackedFutureExt};
 
 /// Split and then persist the provided chunks
@@ -250,6 +250,7 @@ mod tests {
         server_id::ServerId,
         timestamp::TimestampRange,
     };
+    use iox_time::Time;
     use lifecycle::{LockableChunk, LockablePartition};
     use object_store::{DynObjectStore, ObjectStoreImpl};
     use std::{
@@ -257,10 +258,9 @@ mod tests {
         num::{NonZeroU32, NonZeroU64},
         time::Duration,
     };
-    use time::Time;
 
-    async fn test_db() -> (Arc<Db>, Arc<time::MockProvider>) {
-        let time_provider = Arc::new(time::MockProvider::new(Time::from_timestamp(3409, 45)));
+    async fn test_db() -> (Arc<Db>, Arc<iox_time::MockProvider>) {
+        let time_provider = Arc::new(iox_time::MockProvider::new(Time::from_timestamp(3409, 45)));
         let test_db = TestDb::builder()
             .lifecycle_rules(LifecycleRules {
                 late_arrive_window_seconds: NonZeroU32::new(1).unwrap(),
@@ -268,7 +268,7 @@ mod tests {
                 worker_backoff_millis: NonZeroU64::new(u64::MAX).unwrap(),
                 ..Default::default()
             })
-            .time_provider(Arc::<time::MockProvider>::clone(&time_provider))
+            .time_provider(Arc::<iox_time::MockProvider>::clone(&time_provider))
             .build()
             .await;
 

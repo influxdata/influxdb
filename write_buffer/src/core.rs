@@ -249,6 +249,7 @@ pub mod test_utils {
     use async_trait::async_trait;
     use dml::{test_util::assert_write_op_eq, DmlMeta, DmlOperation, DmlWrite};
     use futures::{stream::FuturesUnordered, Stream, StreamExt, TryStreamExt};
+    use iox_time::{Time, TimeProvider};
     use std::{
         collections::{BTreeSet, HashSet},
         convert::TryFrom,
@@ -256,7 +257,6 @@ pub mod test_utils {
         sync::Arc,
         time::Duration,
     };
-    use time::{Time, TimeProvider};
     use trace::{ctx::SpanContext, span::Span, RingBufferTraceCollector};
     use uuid::Uuid;
 
@@ -276,7 +276,7 @@ pub mod test_utils {
         /// This will be called multiple times during the test suite. Each resulting context must represent an isolated
         /// environment.
         async fn new_context(&self, n_sequencers: NonZeroU32) -> Self::Context {
-            self.new_context_with_time(n_sequencers, Arc::new(time::SystemProvider::new()))
+            self.new_context_with_time(n_sequencers, Arc::new(iox_time::SystemProvider::new()))
                 .await
         }
 
@@ -688,11 +688,11 @@ pub mod test_utils {
     {
         // Note: Roundtrips are only guaranteed for millisecond-precision
         let t0 = Time::from_timestamp_millis(129);
-        let time = Arc::new(time::MockProvider::new(t0));
+        let time = Arc::new(iox_time::MockProvider::new(t0));
         let context = adapter
             .new_context_with_time(
                 NonZeroU32::try_from(1).unwrap(),
-                Arc::<time::MockProvider>::clone(&time),
+                Arc::<iox_time::MockProvider>::clone(&time),
             )
             .await;
 

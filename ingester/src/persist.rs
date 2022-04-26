@@ -88,10 +88,10 @@ mod tests {
     use super::*;
     use data_types2::{NamespaceId, PartitionId, SequenceNumber, SequencerId, TableId};
     use iox_catalog::interface::INITIAL_COMPACTION_LEVEL;
+    use iox_time::Time;
     use object_store::{ObjectStoreImpl, ObjectStoreTestConvenience};
     use query::test::{raw_data, TestChunk};
     use std::sync::Arc;
-    use time::Time;
     use uuid::Uuid;
 
     fn now() -> Time {

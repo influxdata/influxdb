@@ -3,8 +3,8 @@
 use std::{borrow::Cow, hash::Hash, sync::Arc};
 
 use dml::{DmlMeta, DmlOperation};
+use iox_time::{SystemProvider, TimeProvider};
 use metric::{Metric, U64Histogram, U64HistogramOptions};
-use time::{SystemProvider, TimeProvider};
 use write_buffer::core::{WriteBufferError, WriteBufferWriting};
 
 /// A sequencer tags an write buffer with a sequencer ID.

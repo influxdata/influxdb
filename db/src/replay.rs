@@ -7,6 +7,7 @@ use crate::{
 use data_types::sequence::Sequence;
 use dml::DmlOperation;
 use futures::TryStreamExt;
+use iox_time::Time;
 use mutable_batch::payload::PartitionWrite;
 use observability_deps::tracing::{info, warn};
 use persistence_windows::{
@@ -20,7 +21,6 @@ use std::{
     sync::Arc,
     time::Duration,
 };
-use time::Time;
 use write_buffer::core::{WriteBufferReading, WriteBufferStreamHandler};
 
 #[allow(clippy::enum_variant_names)]
@@ -467,6 +467,7 @@ mod tests {
         timestamp::TimestampRange,
     };
     use dml::{DmlDelete, DmlMeta};
+    use iox_time::{Time, TimeProvider};
     use object_store::{DynObjectStore, ObjectStoreImpl};
     use persistence_windows::{
         checkpoint::{PartitionCheckpoint, PersistCheckpointBuilder, ReplayPlanner},
@@ -480,7 +481,6 @@ mod tests {
         time::{Duration, Instant},
     };
     use test_helpers::{assert_contains, assert_not_contains, tracing::TracingCapture};
-    use time::{Time, TimeProvider};
     use tokio::task::JoinHandle;
     use tokio_util::sync::CancellationToken;
     use write_buffer::mock::{MockBufferForReading, MockBufferSharedState};
@@ -604,7 +604,7 @@ mod tests {
 
             // ==================== setup ====================
             let object_store: Arc<DynObjectStore> = Arc::new(ObjectStoreImpl::new_in_memory());
-            let time = Arc::new(time::MockProvider::new(Time::from_timestamp(12, 0)));
+            let time = Arc::new(iox_time::MockProvider::new(Time::from_timestamp(12, 0)));
             let server_id = ServerId::try_from(1).unwrap();
             let db_name = "replay_test";
             let partition_template = PartitionTemplate {
@@ -620,7 +620,7 @@ mod tests {
                 db_name,
                 partition_template,
                 self.catalog_transactions_until_checkpoint,
-                Arc::<time::MockProvider>::clone(&time),
+                Arc::<iox_time::MockProvider>::clone(&time),
             );
 
             let (mut test_db, mut shutdown, mut join_handle) =
@@ -806,7 +806,7 @@ mod tests {
                                 delete.table_name.and_then(NonEmptyString::new),
                                 DmlMeta::sequenced(
                                     Sequence::new(delete.sequencer_id, delete.sequence_number),
-                                    time::Time::from_timestamp_nanos(0),
+                                    iox_time::Time::from_timestamp_nanos(0),
                                     None,
                                     0,
                                 ),

@@ -207,8 +207,8 @@ impl WriteSinkSet {
 #[cfg(test)]
 mod tests {
     use dml::DmlWrite;
+    use iox_time::SystemProvider;
     use mutable_batch_lp::lines_to_batches;
-    use time::SystemProvider;
     use write_buffer::config::WriteBufferConfigFactory;
 
     use crate::grpc_client::MockClient;

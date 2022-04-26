@@ -12,6 +12,7 @@
 use crate::commands::tracing::{init_logs_and_tracing, init_simple_logs, TroggingGuard};
 use dotenv::dotenv;
 use influxdb_iox_client::connection::Builder;
+use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::warn;
 use once_cell::sync::Lazy;
 use std::time::Duration;
@@ -20,7 +21,6 @@ use std::{
     hash::{Hash, Hasher},
     str::FromStr,
 };
-use time::{SystemProvider, TimeProvider};
 use tokio::runtime::Runtime;
 
 mod commands {

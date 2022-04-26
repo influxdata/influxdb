@@ -13,7 +13,7 @@ object_store = { path = "../object_store" }
 observability_deps = { path = "../observability_deps" }
 trace_exporters = { path = "../trace_exporters" }
 trace = { path = "../trace" }
-time = { path = "../time" }
+iox_time = { path = "../iox_time" }
 trogging = { path = "../trogging", default-features = false, features = ["clap"] }
 write_buffer = { path = "../write_buffer" }
 

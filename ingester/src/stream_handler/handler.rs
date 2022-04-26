@@ -3,9 +3,9 @@ use std::{fmt::Debug, time::Duration};
 use data_types2::KafkaPartition;
 use dml::DmlOperation;
 use futures::{pin_mut, FutureExt, Stream, StreamExt};
+use iox_time::{SystemProvider, TimeProvider};
 use metric::{Attributes, U64Counter, U64Gauge};
 use observability_deps::tracing::*;
-use time::{SystemProvider, TimeProvider};
 use tokio_util::sync::CancellationToken;
 use write_buffer::core::{WriteBufferError, WriteBufferErrorKind};
 
@@ -381,10 +381,10 @@ mod tests {
     use data_types2::{DeletePredicate, Sequence, TimestampRange};
     use dml::{DmlDelete, DmlMeta, DmlWrite};
     use futures::stream;
+    use iox_time::{SystemProvider, Time};
     use metric::Metric;
     use mutable_batch_lp::lines_to_batches;
     use test_helpers::timeout::FutureTimeout;
-    use time::{SystemProvider, Time};
     use tokio::sync::mpsc;
     use tokio_stream::wrappers::ReceiverStream;
 
@@ -468,7 +468,7 @@ mod tests {
                         TEST_KAFKA_TOPIC.to_string(),
                         *TEST_KAFKA_PARTITION,
                         &*metrics,
-                    ).with_time_provider(time::MockProvider::new(*TEST_TIME));
+                    ).with_time_provider(iox_time::MockProvider::new(*TEST_TIME));
 
                     // Run the handler in the background and push inputs to it
                     let shutdown = CancellationToken::default();

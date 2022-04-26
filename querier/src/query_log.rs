@@ -7,9 +7,9 @@ use std::{
 };
 
 use data_types2::NamespaceId;
+use iox_time::{Time, TimeProvider};
 use parking_lot::Mutex;
 use query::QueryText;
-use time::{Time, TimeProvider};
 use trace::ctx::TraceId;
 
 // The query duration used for queries still running.
@@ -163,7 +163,7 @@ impl QueryLog {
 
 #[cfg(test)]
 mod test_super {
-    use time::MockProvider;
+    use iox_time::MockProvider;
 
     use super::*;
 

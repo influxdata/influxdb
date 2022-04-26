@@ -6,13 +6,13 @@ use data_types::{
     DatabaseName,
 };
 use iox_object_store::IoxObjectStore;
+use iox_time::{Time, TimeProvider};
 use job_registry::JobRegistry;
 use object_store::{DynObjectStore, ObjectStoreImpl};
 use persistence_windows::checkpoint::ReplayPlan;
 use query::exec::Executor;
 use query::exec::ExecutorConfig;
 use std::{borrow::Cow, convert::TryFrom, num::NonZeroU32, sync::Arc, time::Duration};
-use time::{Time, TimeProvider};
 use uuid::Uuid;
 
 // A wrapper around a Db and a metric registry allowing for isolated testing
@@ -60,7 +60,7 @@ impl Default for TestDbBuilder {
             partition_template: PartitionTemplate {
                 parts: vec![TemplatePart::TimeFormat("%Y-%m-%dT%H".to_string())],
             },
-            time_provider: Arc::new(time::SystemProvider::new()),
+            time_provider: Arc::new(iox_time::SystemProvider::new()),
         }
     }
 }
@@ -175,10 +175,10 @@ pub async fn make_db() -> TestDb {
     TestDb::builder().build().await
 }
 
-pub async fn make_db_time() -> (Arc<Db>, Arc<time::MockProvider>) {
-    let provider = Arc::new(time::MockProvider::new(Time::from_timestamp(295293, 3)));
+pub async fn make_db_time() -> (Arc<Db>, Arc<iox_time::MockProvider>) {
+    let provider = Arc::new(iox_time::MockProvider::new(Time::from_timestamp(295293, 3)));
     let db = TestDb::builder()
-        .time_provider(Arc::<time::MockProvider>::clone(&provider))
+        .time_provider(Arc::<iox_time::MockProvider>::clone(&provider))
         .build()
         .await
         .db;

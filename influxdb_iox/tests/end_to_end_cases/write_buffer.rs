@@ -13,10 +13,10 @@ use influxdb_iox_client::{
     flight::generated_types::ReadInfo,
     management::generated_types::WriteBufferCreationConfig,
 };
+use iox_time::SystemProvider;
 use std::{num::NonZeroU32, sync::Arc};
 use tempfile::TempDir;
 use test_helpers::{assert_contains, assert_error};
-use time::SystemProvider;
 use write_buffer::{core::WriteBufferWriting, file::FileBufferProducer};
 
 #[tokio::test]

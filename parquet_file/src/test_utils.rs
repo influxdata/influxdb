@@ -15,6 +15,7 @@ use data_types::{
     server_id::ServerId,
 };
 use iox_object_store::{IoxObjectStore, ParquetFilePath};
+use iox_time::Time;
 use object_store::ObjectStoreImpl;
 use parquet::{
     arrow::{ArrowReader, ParquetFileArrowReader},
@@ -28,7 +29,6 @@ use schema::selection::Selection;
 use schema::{builder::SchemaBuilder, Schema, TIME_COLUMN_NAME};
 use snafu::{ResultExt, Snafu};
 use std::{collections::BTreeMap, num::NonZeroU32, sync::Arc};
-use time::Time;
 use uuid::Uuid;
 
 pub mod generator;

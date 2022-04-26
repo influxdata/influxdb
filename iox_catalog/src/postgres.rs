@@ -16,12 +16,12 @@ use data_types2::{
     PartitionInfo, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Sequencer,
     SequencerId, Table, TableId, TablePartition, Timestamp, Tombstone, TombstoneId,
 };
+use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::{info, warn};
 use sqlx::types::Uuid;
 use sqlx::{migrate::Migrator, postgres::PgPoolOptions, Acquire, Executor, Postgres, Row};
 use sqlx_hotswap_pool::HotSwapPool;
 use std::{sync::Arc, time::Duration};
-use time::{SystemProvider, TimeProvider};
 
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
 const IDLE_TIMEOUT: Duration = Duration::from_secs(60);

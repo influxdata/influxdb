@@ -10,6 +10,7 @@ use data_types2::{
 use futures::StreamExt;
 use iox_catalog::interface::Catalog;
 use iox_object_store::IoxObjectStore;
+use iox_time::TimeProvider;
 use object_store::DynObjectStore;
 use parquet_file::chunk::{
     new_parquet_chunk, ChunkMetrics as ParquetChunkMetrics, DecodedParquetFile, ParquetChunk,
@@ -17,7 +18,6 @@ use parquet_file::chunk::{
 use query::{exec::IOxSessionContext, QueryChunk};
 use schema::{selection::Selection, sort::SortKey};
 use std::sync::Arc;
-use time::TimeProvider;
 use uuid::Uuid;
 
 mod query_access;

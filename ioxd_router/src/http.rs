@@ -93,9 +93,9 @@ mod tests {
     };
     use dml::{DmlDelete, DmlMeta, DmlOperation};
     use http::StatusCode;
+    use iox_time::SystemProvider;
     use reqwest::Client;
     use router::{grpc_client::MockClient, resolver::RemoteTemplate, server::RouterServer};
-    use time::SystemProvider;
     use trace::RingBufferTraceCollector;
 
     use ioxd_common::{

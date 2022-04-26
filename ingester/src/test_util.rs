@@ -16,11 +16,11 @@ use iox_catalog::{
     interface::{Catalog, INITIAL_COMPACTION_LEVEL},
     mem::MemCatalog,
 };
+use iox_time::{SystemProvider, Time, TimeProvider};
 use parquet_file::metadata::IoxMetadata;
 use query::test::{raw_data, TestChunk};
 use schema::sort::SortKey;
 use std::{collections::BTreeMap, sync::Arc};
-use time::{SystemProvider, Time, TimeProvider};
 use uuid::Uuid;
 
 /// Create a persisting batch, some tombstones and corresponding metadata for them after compaction

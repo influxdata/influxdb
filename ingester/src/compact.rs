@@ -5,6 +5,7 @@ use arrow::record_batch::RecordBatch;
 use data_types2::{NamespaceId, PartitionInfo};
 use datafusion::{error::DataFusionError, physical_plan::SendableRecordBatchStream};
 use iox_catalog::interface::INITIAL_COMPACTION_LEVEL;
+use iox_time::{Time, TimeProvider};
 use parquet_file::metadata::IoxMetadata;
 use query::{
     exec::{Executor, ExecutorType},
@@ -15,7 +16,6 @@ use query::{
 use schema::sort::{adjust_sort_key_columns, compute_sort_key, SortKey};
 use snafu::{ResultExt, Snafu};
 use std::sync::Arc;
-use time::{Time, TimeProvider};
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
@@ -179,9 +179,9 @@ mod tests {
     };
     use arrow_util::assert_batches_eq;
     use data_types2::{Partition, PartitionId, SequencerId, TableId};
+    use iox_time::SystemProvider;
     use mutable_batch_lp::lines_to_batches;
     use schema::selection::Selection;
-    use time::SystemProvider;
     use uuid::Uuid;
 
     // this test was added to guard against https://github.com/influxdata/influxdb_iox/issues/3782

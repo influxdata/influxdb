@@ -303,9 +303,9 @@ mod tests {
         chunk_metadata::{ChunkColumnSummary, ChunkId, ChunkOrder, ChunkStorage, ChunkSummary},
         partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics},
     };
+    use iox_time::Time;
     use schema::sort::SortKey;
     use std::num::NonZeroU64;
-    use time::Time;
 
     use super::*;
 

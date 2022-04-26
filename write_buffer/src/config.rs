@@ -8,13 +8,13 @@ use crate::{
     },
 };
 use data_types::write_buffer::WriteBufferConnection;
+use iox_time::TimeProvider;
 use parking_lot::RwLock;
 use std::{
     collections::{btree_map::Entry, BTreeMap},
     path::PathBuf,
     sync::Arc,
 };
-use time::TimeProvider;
 use trace::TraceCollector;
 
 #[derive(Debug, Clone)]
@@ -384,7 +384,7 @@ mod tests {
     }
 
     fn factory() -> WriteBufferConfigFactory {
-        let time = Arc::new(time::SystemProvider::new());
+        let time = Arc::new(iox_time::SystemProvider::new());
         let registry = Arc::new(metric::Registry::new());
         WriteBufferConfigFactory::new(time, registry)
     }

@@ -9,6 +9,7 @@ use clap_blocks::{
     socket_addr::SocketAddr,
     write_buffer::WriteBufferConfig,
 };
+use iox_time::{SystemProvider, TimeProvider};
 use ioxd_common::server_type::{CommonServerState, CommonServerStateError};
 use ioxd_common::Service;
 use ioxd_compactor::create_compactor_server_type;
@@ -19,7 +20,6 @@ use object_store::{DynObjectStore, ObjectStoreImpl};
 use observability_deps::tracing::*;
 use query::exec::Executor;
 use thiserror::Error;
-use time::{SystemProvider, TimeProvider};
 
 use super::main;
 

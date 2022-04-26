@@ -20,8 +20,8 @@ use tracker::TaskTracker;
 mod guard;
 pub use guard::*;
 mod policy;
+use iox_time::{Time, TimeProvider};
 pub use policy::*;
-use time::{Time, TimeProvider};
 
 /// A trait that encapsulates the database logic that is automated by `LifecyclePolicy`
 pub trait LifecycleDb {

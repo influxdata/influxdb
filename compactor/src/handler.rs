@@ -8,12 +8,12 @@ use futures::{
     FutureExt, TryFutureExt,
 };
 use iox_catalog::interface::Catalog;
+use iox_time::TimeProvider;
 use object_store::DynObjectStore;
 use observability_deps::tracing::*;
 use query::exec::Executor;
 use std::sync::Arc;
 use thiserror::Error;
-use time::TimeProvider;
 use tokio::task::{JoinError, JoinHandle};
 use tokio_util::sync::CancellationToken;
 

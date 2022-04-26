@@ -456,8 +456,8 @@ mod tests {
     }
 
     fn make_meta(s: Sequence) -> DmlMeta {
-        use time::TimeProvider;
-        let time_provider = time::SystemProvider::new();
+        use iox_time::TimeProvider;
+        let time_provider = iox_time::SystemProvider::new();
 
         let span_context = None;
         let bytes_read = 132;

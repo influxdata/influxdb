@@ -239,7 +239,7 @@ mod tests {
 
     #[test]
     fn test_metrics() {
-        let time_provider = Arc::new(time::SystemProvider::new());
+        let time_provider = Arc::new(iox_time::SystemProvider::new());
         let registry = TaskRegistry::new(time_provider);
         let metric_registry = Arc::new(metric::Registry::new());
         let mut reg = TaskRegistryWithMetrics::new(

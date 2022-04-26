@@ -1,11 +1,11 @@
 //! Implementation of command line option for running the compactor
 
+use iox_time::SystemProvider;
 use object_store::{instrumentation::ObjectStoreMetrics, DynObjectStore, ObjectStoreImpl};
 use observability_deps::tracing::*;
 use query::exec::Executor;
 use std::sync::Arc;
 use thiserror::Error;
-use time::SystemProvider;
 
 use clap_blocks::{
     catalog_dsn::CatalogDsnConfig, compactor::CompactorConfig, run_config::RunConfig,

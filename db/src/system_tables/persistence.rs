@@ -107,7 +107,7 @@ fn from_write_summaries(
 mod tests {
 
     use arrow_util::assert_batches_eq;
-    use time::Time;
+    use iox_time::Time;
 
     use super::*;
 

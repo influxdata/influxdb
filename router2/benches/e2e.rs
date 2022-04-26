@@ -20,7 +20,7 @@ use write_buffer::mock::{MockBufferForWriting, MockBufferSharedState};
 
 // Init a mock write buffer with the given number of sequencers.
 fn init_write_buffer(n_sequencers: u32) -> ShardedWriteBuffer<JumpHash<Arc<Sequencer>>> {
-    let time = time::MockProvider::new(time::Time::from_timestamp_millis(668563200000));
+    let time = iox_time::MockProvider::new(iox_time::Time::from_timestamp_millis(668563200000));
     let write_buffer: Arc<dyn WriteBufferWriting> = Arc::new(
         MockBufferForWriting::new(
             MockBufferSharedState::empty_with_n_sequencers(

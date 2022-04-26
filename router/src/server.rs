@@ -1,10 +1,10 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 use data_types::{router::Router as RouterConfig, server_id::ServerId};
+use iox_time::TimeProvider;
 use metric::Registry as MetricRegistry;
 use parking_lot::RwLock;
 use snafu::Snafu;
-use time::TimeProvider;
 use trace::TraceCollector;
 use write_buffer::config::WriteBufferConfigFactory;
 
@@ -165,7 +165,7 @@ impl RouterServer {
 pub mod test_utils {
     use std::sync::Arc;
 
-    use time::SystemProvider;
+    use iox_time::SystemProvider;
 
     use super::RouterServer;
 

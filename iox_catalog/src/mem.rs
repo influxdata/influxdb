@@ -17,6 +17,7 @@ use data_types2::{
     PartitionInfo, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Sequencer,
     SequencerId, Table, TableId, TablePartition, Timestamp, Tombstone, TombstoneId,
 };
+use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::warn;
 use sqlx::types::Uuid;
 use std::{
@@ -25,7 +26,6 @@ use std::{
     fmt::Formatter,
     sync::Arc,
 };
-use time::{SystemProvider, TimeProvider};
 use tokio::sync::{Mutex, OwnedMutexGuard};
 
 /// In-memory catalog that implements the `RepoCollection` and individual repo traits from

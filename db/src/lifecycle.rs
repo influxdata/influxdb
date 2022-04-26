@@ -17,6 +17,7 @@ use futures::{
     FutureExt, TryFutureExt,
 };
 use internal_types::access::AccessMetrics;
+use iox_time::{Time, TimeProvider};
 use lifecycle::{
     LifecycleChunk, LifecyclePartition, LifecycleReadGuard, LifecycleWriteGuard, LockableChunk,
     LockablePartition,
@@ -27,7 +28,6 @@ use persistence_windows::persistence_windows::FlushHandle;
 use query::QueryChunk;
 use schema::{merge::SchemaMerger, Schema, TIME_COLUMN_NAME};
 use std::{future::Future, sync::Arc};
-use time::{Time, TimeProvider};
 use tokio::task::JoinError;
 use tokio_util::sync::CancellationToken;
 use tracker::{RwLock, TaskTracker};

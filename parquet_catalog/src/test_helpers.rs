@@ -555,7 +555,7 @@ pub fn create_delete_predicate(value: i64) -> Arc<DeletePredicate> {
 /// Creates a new [`PreservedCatalogConfig`] with an in-memory object store
 pub async fn make_config() -> PreservedCatalogConfig {
     let iox_object_store = make_iox_object_store().await;
-    let time_provider = Arc::new(time::SystemProvider::new());
+    let time_provider = Arc::new(iox_time::SystemProvider::new());
     PreservedCatalogConfig::new(iox_object_store, DB_NAME.to_string(), time_provider)
 }
 

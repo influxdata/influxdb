@@ -96,6 +96,7 @@ use data_types2::{
 use generated_types::influxdata::iox::{
     ingester::v1 as proto, preserved_catalog::v1 as preserved_catalog,
 };
+use iox_time::Time;
 use parquet::{
     arrow::parquet_to_arrow_schema,
     file::{
@@ -119,7 +120,6 @@ use schema::{InfluxColumnType, InfluxFieldType, Schema};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{collections::BTreeMap, convert::TryInto, sync::Arc};
 use thrift::protocol::{TCompactInputProtocol, TCompactOutputProtocol, TOutputProtocol};
-use time::Time;
 use uuid::Uuid;
 
 /// Current version for serialized metadata.

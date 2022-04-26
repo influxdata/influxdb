@@ -17,7 +17,7 @@ observability_deps = { path = "../observability_deps" }
 trace = { path = "../trace" }
 parking_lot = "0.12"
 snafu = "0.7"
-time = { path = "../time" }
+iox_time = { path = "../iox_time" }
 write_buffer = { path = "../write_buffer" }
 workspace-hack = { path = "../workspace-hack"}
 

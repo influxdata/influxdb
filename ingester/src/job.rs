@@ -1,7 +1,7 @@
 use data_types2::PartitionId;
+use iox_time::TimeProvider;
 use parking_lot::Mutex;
 use std::sync::Arc;
-use time::TimeProvider;
 use tracker::{
     AbstractTaskRegistry, TaskRegistration, TaskRegistry, TaskRegistryWithHistory,
     TaskRegistryWithMetrics, TaskTracker,

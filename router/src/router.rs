@@ -146,9 +146,9 @@ mod tests {
         timestamp::TimestampRange,
     };
     use dml::{DmlDelete, DmlMeta, DmlWrite};
+    use iox_time::Time;
     use mutable_batch_lp::lines_to_batches;
     use regex::Regex;
-    use time::Time;
 
     #[tokio::test]
     async fn test_getters() {

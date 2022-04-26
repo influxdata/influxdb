@@ -34,7 +34,7 @@ service_common = { path = "../service_common" }
 schema = { path = "../schema" }
 snafu = "0.7"
 thiserror = "1.0"
-time = { path = "../time" }
+iox_time = { path = "../iox_time" }
 tokio = { version = "1.17", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
 tokio-util = { version = "0.7.1" }
 tonic = { version = "0.7" }

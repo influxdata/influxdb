@@ -9,9 +9,9 @@ use influxdb_iox_client::{
     management::{self, generated_types::database_status::DatabaseState, generated_types::*},
     write,
 };
+use iox_time::TimeProvider;
 use std::{fs::File, io::Read, num::NonZeroU64, path::PathBuf, str::FromStr, time::Duration};
 use thiserror::Error;
-use time::TimeProvider;
 use uuid::Uuid;
 
 mod chunk;
@@ -378,7 +378,7 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
                     source: e,
                 })?;
 
-            let default_time = time::SystemProvider::new().now().timestamp_nanos();
+            let default_time = iox_time::SystemProvider::new().now().timestamp_nanos();
             let lines_written = client.write_lp(write.name, lp_data, default_time).await?;
 
             println!("{} Lines OK", lines_written);

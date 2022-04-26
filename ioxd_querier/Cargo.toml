@@ -19,7 +19,7 @@ service_common = { path = "../service_common" }
 service_grpc_flight = { path = "../service_grpc_flight" }
 service_grpc_influxrpc = { path = "../service_grpc_influxrpc" }
 service_grpc_testing = { path = "../service_grpc_testing" }
-time = { path = "../time" }
+iox_time = { path = "../iox_time" }
 trace = { path = "../trace" }
 trace_http = { path = "../trace_http" }
 

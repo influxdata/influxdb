@@ -13,7 +13,7 @@ iox_catalog = { path = "../iox_catalog" }
 observability_deps = { path = "../observability_deps" }
 serde = "1.0"
 serde_urlencoded = "0.7"
-time = { path = "../time" }
+iox_time = { path = "../iox_time" }
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 tonic = "0.7"
 trace = { path = "../trace/" }

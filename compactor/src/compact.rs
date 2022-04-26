@@ -16,6 +16,7 @@ use data_types2::{
 use datafusion::error::DataFusionError;
 use iox_catalog::interface::{Catalog, Transaction};
 use iox_object_store::ParquetFilePath;
+use iox_time::{Time, TimeProvider};
 use metric::{Attributes, Metric, U64Counter, U64Gauge, U64Histogram, U64HistogramOptions};
 use object_store::DynObjectStore;
 use observability_deps::tracing::{debug, info, warn};
@@ -35,7 +36,6 @@ use std::{
     ops::DerefMut,
     sync::Arc,
 };
-use time::{Time, TimeProvider};
 use uuid::Uuid;
 
 #[derive(Debug, Snafu)]
@@ -1090,6 +1090,7 @@ mod tests {
     use data_types2::{ChunkId, KafkaPartition, NamespaceId, ParquetFileParams, SequenceNumber};
     use iox_catalog::interface::INITIAL_COMPACTION_LEVEL;
     use iox_tests::util::TestCatalog;
+    use iox_time::SystemProvider;
     use object_store::ObjectStoreTestConvenience;
     use querier::{
         cache::CatalogCache,
@@ -1097,7 +1098,6 @@ mod tests {
     };
     use query::test::{raw_data, TestChunk};
     use std::sync::atomic::{AtomicI64, Ordering};
-    use time::SystemProvider;
 
     // Simulate unique ID generation
     static NEXT_ID: AtomicI64 = AtomicI64::new(0);

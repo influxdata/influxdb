@@ -1,10 +1,10 @@
 use crate::config::{object_store::ConfigProviderObjectStorage, ConfigProvider};
+use iox_time::TimeProvider;
 use job_registry::JobRegistry;
 use object_store::DynObjectStore;
 use observability_deps::tracing::info;
 use query::exec::Executor;
 use std::sync::Arc;
-use time::TimeProvider;
 use trace::TraceCollector;
 use write_buffer::config::WriteBufferConfigFactory;
 
@@ -36,7 +36,7 @@ impl ApplicationState {
         info!(%num_threads, "using specified number of threads per thread pool");
 
         let metric_registry = Arc::new(metric::Registry::new());
-        let time_provider: Arc<dyn TimeProvider> = Arc::new(time::SystemProvider::new());
+        let time_provider: Arc<dyn TimeProvider> = Arc::new(iox_time::SystemProvider::new());
         let job_registry = Arc::new(JobRegistry::new(
             Arc::clone(&metric_registry),
             Arc::clone(&time_provider),

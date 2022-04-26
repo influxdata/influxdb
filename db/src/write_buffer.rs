@@ -256,12 +256,12 @@ mod tests {
     use arrow_util::assert_batches_eq;
     use data_types::sequence::Sequence;
     use dml::{DmlMeta, DmlWrite};
+    use iox_time::Time;
     use metric::{Attributes, Metric, U64Counter, U64Gauge};
     use mutable_batch_lp::lines_to_batches;
     use persistence_windows::min_max_sequence::MinMaxSequence;
     use query::{exec::ExecutionContextProvider, frontend::sql::SqlQueryPlanner};
     use std::{collections::BTreeMap, convert::TryFrom, num::NonZeroU32};
-    use time::Time;
     use write_buffer::mock::{MockBufferForReading, MockBufferSharedState};
 
     #[tokio::test]

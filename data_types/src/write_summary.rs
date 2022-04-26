@@ -1,5 +1,5 @@
 use crate::partition_metadata::StatValues;
-use time::Time;
+use iox_time::Time;
 
 /// A description of a set of writes
 #[derive(Debug, Clone, Eq, PartialEq)]

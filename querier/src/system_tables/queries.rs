@@ -183,13 +183,13 @@ fn from_query_log_entries(
 mod tests {
     use super::*;
     use arrow_util::assert_batches_eq;
-    use time::{Time, TimeProvider};
+    use iox_time::{Time, TimeProvider};
     use trace::ctx::TraceId;
 
     #[test]
     fn test_from_query_log() {
         let now = Time::from_rfc3339("1996-12-19T16:39:57+00:00").unwrap();
-        let time_provider = Arc::new(time::MockProvider::new(now));
+        let time_provider = Arc::new(iox_time::MockProvider::new(now));
 
         let id1 = NamespaceId::new(1);
         let id2 = NamespaceId::new(2);

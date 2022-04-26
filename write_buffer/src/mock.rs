@@ -12,7 +12,7 @@ use parking_lot::Mutex;
 use data_types::sequence::Sequence;
 use data_types::write_buffer::WriteBufferCreationConfig;
 use dml::{DmlDelete, DmlMeta, DmlOperation, DmlWrite};
-use time::TimeProvider;
+use iox_time::TimeProvider;
 
 use crate::core::{
     WriteBufferError, WriteBufferReading, WriteBufferStreamHandler, WriteBufferWriting,
@@ -164,7 +164,7 @@ impl MockBufferSharedState {
     /// Push line protocol data with placeholder values used for write metadata
     pub fn push_lp(&self, sequence: Sequence, lp: &str) {
         let tables = mutable_batch_lp::lines_to_batches(lp, 0).unwrap();
-        let meta = DmlMeta::sequenced(sequence, time::Time::from_timestamp_nanos(0), None, 0);
+        let meta = DmlMeta::sequenced(sequence, iox_time::Time::from_timestamp_nanos(0), None, 0);
         self.push_write(DmlWrite::new("foo", tables, meta))
     }
 
@@ -567,9 +567,9 @@ mod tests {
     use std::time::Duration;
 
     use futures::StreamExt;
+    use iox_time::TimeProvider;
     use mutable_batch_lp::lines_to_batches;
     use test_helpers::assert_contains;
-    use time::TimeProvider;
     use trace::RingBufferTraceCollector;
 
     use crate::core::test_utils::{perform_generic_tests, TestAdapter, TestContext};

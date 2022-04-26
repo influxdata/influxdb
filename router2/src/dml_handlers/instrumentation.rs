@@ -1,8 +1,8 @@
 use super::DmlHandler;
 use async_trait::async_trait;
 use data_types2::{DatabaseName, DeletePredicate};
+use iox_time::{SystemProvider, TimeProvider};
 use metric::{Metric, U64Histogram, U64HistogramOptions};
-use time::{SystemProvider, TimeProvider};
 use trace::{ctx::SpanContext, span::SpanRecorder};
 
 /// An instrumentation decorator recording call latencies for [`DmlHandler`]

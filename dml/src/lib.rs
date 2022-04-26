@@ -20,8 +20,8 @@ use data_types::delete_predicate::DeletePredicate;
 use data_types::non_empty::NonEmptyString;
 use data_types::partition_metadata::{StatValues, Statistics};
 use data_types::sequence::Sequence;
+use iox_time::Time;
 use mutable_batch::MutableBatch;
-use time::Time;
 use trace::ctx::SpanContext;
 
 /// Metadata information about a DML operation

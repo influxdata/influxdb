@@ -17,7 +17,7 @@ metric = { path = "../metric" }
 object_store = { path = "../object_store" }
 query = { path = "../query" }
 service_grpc_testing = { path = "../service_grpc_testing" }
-time = { path = "../time" }
+iox_time = { path = "../iox_time" }
 trace = { path = "../trace" }
 trace_http = { path = "../trace_http" }
 write_buffer = { path = "../write_buffer" }

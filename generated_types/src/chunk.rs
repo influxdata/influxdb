@@ -6,11 +6,11 @@ use crate::{
 use data_types::chunk_metadata::{
     ChunkId, ChunkLifecycleAction, ChunkOrder, ChunkStorage, ChunkSummary,
 };
+use iox_time::Time;
 use std::{
     convert::{TryFrom, TryInto},
     sync::Arc,
 };
-use time::Time;
 
 /// Conversion code to management API chunk structure
 impl From<ChunkSummary> for management::Chunk {
@@ -172,7 +172,7 @@ mod test {
     use super::*;
     use bytes::Bytes;
     use data_types::chunk_metadata::ChunkOrder;
-    use time::Time;
+    use iox_time::Time;
 
     #[test]
     fn valid_proto_to_summary() {

@@ -8,9 +8,9 @@ use data_types2::{
     QueryPoolId, SequenceNumber, Sequencer, SequencerId, Table, TableId, TablePartition,
     TableSchema, Timestamp, Tombstone, TombstoneId,
 };
+use iox_time::TimeProvider;
 use snafu::{OptionExt, Snafu};
 use std::{collections::BTreeMap, convert::TryFrom, fmt::Debug, sync::Arc};
-use time::TimeProvider;
 use uuid::Uuid;
 
 #[derive(Debug, Snafu)]

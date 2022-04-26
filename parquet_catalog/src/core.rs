@@ -6,6 +6,7 @@ use futures::{StreamExt, TryStreamExt};
 use generated_types::google::FieldViolation;
 use generated_types::influxdata::iox::preserved_catalog::v1 as proto;
 use iox_object_store::{IoxObjectStore, ParquetFilePath, TransactionFilePath};
+use iox_time::{Time, TimeProvider};
 use object_store::{ObjectStoreApi, ObjectStoreImpl};
 use observability_deps::tracing::{info, warn};
 use parking_lot::RwLock;
@@ -20,7 +21,6 @@ use std::{
     fmt::Debug,
     sync::Arc,
 };
-use time::{Time, TimeProvider};
 use tokio::sync::{Semaphore, SemaphorePermit};
 use uuid::Uuid;
 
@@ -173,7 +173,7 @@ pub struct PreservedCatalogConfig {
     /// Fixed UUID for testing
     pub(crate) fixed_uuid: Option<Uuid>,
 
-    /// Time provider to use instead of [`time::SystemProvider`]
+    /// Time provider to use instead of [`iox_time::SystemProvider`]
     pub(crate) time_provider: Arc<dyn TimeProvider>,
 }
 

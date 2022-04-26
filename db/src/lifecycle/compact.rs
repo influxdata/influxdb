@@ -8,12 +8,12 @@ use crate::{
     DbChunk,
 };
 use data_types::{chunk_metadata::ChunkOrder, delete_predicate::DeletePredicate, job::Job};
+use iox_time::Time;
 use lifecycle::LifecycleWriteGuard;
 use observability_deps::tracing::*;
 use query::QueryChunk;
 use query::{compute_sort_key, exec::ExecutorType, frontend::reorg::ReorgPlanner};
 use std::{collections::HashSet, future::Future, sync::Arc};
-use time::Time;
 use tracker::{TaskTracker, TrackedFuture, TrackedFutureExt};
 
 /// Compact the provided chunks into a single chunk,

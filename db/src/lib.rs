@@ -31,6 +31,7 @@ use datafusion::catalog::{catalog::CatalogProvider, schema::SchemaProvider};
 use dml::{DmlDelete, DmlMeta, DmlOperation, DmlWrite};
 use internal_types::mailbox::Mailbox;
 use iox_object_store::IoxObjectStore;
+use iox_time::{Time, TimeProvider};
 use job_registry::JobRegistry;
 use mutable_batch::payload::PartitionWrite;
 use mutable_buffer::{ChunkMetrics as MutableBufferChunkMetrics, MBChunk};
@@ -62,7 +63,6 @@ use std::{
     },
     time::Duration,
 };
-use time::{Time, TimeProvider};
 use trace::ctx::SpanContext;
 use tracker::TaskTracker;
 
@@ -1452,6 +1452,7 @@ mod tests {
     };
     use futures::{stream, StreamExt, TryStreamExt};
     use iox_object_store::ParquetFilePath;
+    use iox_time::Time;
     use metric::{Attributes, CumulativeGauge, Metric, Observation};
     use mutable_batch_lp::lines_to_batches;
     use object_store::{DynObjectStore, ObjectStoreImpl};
@@ -1470,7 +1471,6 @@ mod tests {
         str,
         time::{Duration, Instant},
     };
-    use time::Time;
     use tokio_util::sync::CancellationToken;
 
     type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;
@@ -1621,9 +1621,9 @@ mod tests {
 
     #[tokio::test]
     async fn metrics_during_rollover() {
-        let time = Arc::new(time::MockProvider::new(Time::from_timestamp(11, 22)));
+        let time = Arc::new(iox_time::MockProvider::new(Time::from_timestamp(11, 22)));
         let test_db = TestDb::builder()
-            .time_provider(Arc::<time::MockProvider>::clone(&time))
+            .time_provider(Arc::<iox_time::MockProvider>::clone(&time))
             .build()
             .await;
 
@@ -2094,7 +2094,7 @@ mod tests {
     async fn write_one_chunk_to_parquet_file() {
         // Test that data can be written into parquet files
         let object_store: Arc<DynObjectStore> = Arc::new(ObjectStoreImpl::new_in_memory());
-        let time = Arc::new(time::MockProvider::new(Time::from_timestamp(11, 22)));
+        let time = Arc::new(iox_time::MockProvider::new(Time::from_timestamp(11, 22)));
 
         let test_db = TestDb::builder()
             .lifecycle_rules(LifecycleRules {
@@ -2102,7 +2102,7 @@ mod tests {
                 ..Default::default()
             })
             .object_store(Arc::clone(&object_store))
-            .time_provider(Arc::<time::MockProvider>::clone(&time))
+            .time_provider(Arc::<iox_time::MockProvider>::clone(&time))
             .build()
             .await;
         let db = test_db.db;
@@ -2195,7 +2195,7 @@ mod tests {
 
         // Create an object store in memory
         let object_store: Arc<DynObjectStore> = Arc::new(ObjectStoreImpl::new_in_memory());
-        let time = Arc::new(time::MockProvider::new(Time::from_timestamp(11, 22)));
+        let time = Arc::new(iox_time::MockProvider::new(Time::from_timestamp(11, 22)));
 
         let test_db = TestDb::builder()
             .lifecycle_rules(LifecycleRules {
@@ -2203,7 +2203,7 @@ mod tests {
                 ..Default::default()
             })
             .object_store(Arc::clone(&object_store))
-            .time_provider(Arc::<time::MockProvider>::clone(&time))
+            .time_provider(Arc::<iox_time::MockProvider>::clone(&time))
             .build()
             .await;
 
@@ -3661,9 +3661,9 @@ mod tests {
     #[tokio::test]
     async fn chunk_times() {
         let t0 = Time::from_timestamp(11, 22);
-        let time = Arc::new(time::MockProvider::new(t0));
+        let time = Arc::new(iox_time::MockProvider::new(t0));
         let db = TestDb::builder()
-            .time_provider(Arc::<time::MockProvider>::clone(&time))
+            .time_provider(Arc::<iox_time::MockProvider>::clone(&time))
             .build()
             .await
             .db;

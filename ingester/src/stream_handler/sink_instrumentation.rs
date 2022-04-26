@@ -4,8 +4,8 @@ use std::fmt::Debug;
 use async_trait::async_trait;
 use data_types2::KafkaPartition;
 use dml::DmlOperation;
+use iox_time::{SystemProvider, TimeProvider};
 use metric::{Attributes, U64Counter, U64Gauge, U64Histogram, U64HistogramOptions};
-use time::{SystemProvider, TimeProvider};
 use trace::span::SpanRecorder;
 
 use super::DmlSink;
@@ -257,9 +257,9 @@ mod tests {
     use assert_matches::assert_matches;
     use data_types2::Sequence;
     use dml::{DmlMeta, DmlWrite};
+    use iox_time::Time;
     use metric::{Metric, MetricObserver, Observation};
     use mutable_batch_lp::lines_to_batches;
-    use time::Time;
     use trace::{ctx::SpanContext, span::SpanStatus, RingBufferTraceCollector, TraceCollector};
 
     use crate::stream_handler::{

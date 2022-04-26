@@ -3,9 +3,9 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use futures::TryStreamExt;
 use iox_object_store::{IoxObjectStore, TransactionFilePath};
+use iox_time::Time;
 use object_store::{ObjectStoreApi, ObjectStoreImpl};
 use snafu::{ResultExt, Snafu};
-use time::Time;
 
 use crate::{
     internals::{proto_io::load_transaction_proto, proto_parse::parse_timestamp},
@@ -158,10 +158,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_complex_1() {
-        let time = Arc::new(time::MockProvider::new(Time::from_timestamp(0, 32)));
+        let time = Arc::new(iox_time::MockProvider::new(Time::from_timestamp(0, 32)));
         let config = make_config()
             .await
-            .with_time_provider(Arc::<time::MockProvider>::clone(&time));
+            .with_time_provider(Arc::<iox_time::MockProvider>::clone(&time));
 
         let iox_object_store = &config.iox_object_store;
 
@@ -186,10 +186,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_complex_2() {
-        let time = Arc::new(time::MockProvider::new(Time::from_timestamp(0, 32)));
+        let time = Arc::new(iox_time::MockProvider::new(Time::from_timestamp(0, 32)));
         let config = make_config()
             .await
-            .with_time_provider(Arc::<time::MockProvider>::clone(&time));
+            .with_time_provider(Arc::<iox_time::MockProvider>::clone(&time));
 
         let iox_object_store = &config.iox_object_store;
 

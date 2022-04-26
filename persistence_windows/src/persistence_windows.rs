@@ -7,7 +7,7 @@ use std::{
     time::Duration,
 };
 
-use time::{Time, TimeProvider};
+use iox_time::{Time, TimeProvider};
 
 use data_types::{
     partition_metadata::PartitionAddr, sequence::Sequence, write_summary::WriteSummary,
@@ -563,7 +563,7 @@ impl Window {
 
 #[cfg(test)]
 mod tests {
-    use time::MockProvider;
+    use iox_time::MockProvider;
 
     use super::*;
 

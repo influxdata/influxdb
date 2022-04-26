@@ -11,11 +11,11 @@ use crate::{
     poison::{PoisonCabinet, PoisonPill},
 };
 use data_types2::{PartitionId, SequenceNumber, SequencerId};
+use iox_time::{Time, TimeProvider};
 use metric::{Metric, U64Counter};
 use observability_deps::tracing::{error, info};
 use parking_lot::Mutex;
 use std::{collections::BTreeMap, sync::Arc, time::Duration};
-use time::{Time, TimeProvider};
 use tokio_util::sync::CancellationToken;
 use tracker::TrackedFutureExt;
 
@@ -438,9 +438,9 @@ pub(crate) async fn run_lifecycle_manager<P: Persister>(
 mod tests {
     use super::*;
     use async_trait::async_trait;
+    use iox_time::MockProvider;
     use metric::{Attributes, Registry};
     use std::collections::BTreeSet;
-    use time::MockProvider;
 
     #[derive(Default)]
     struct TestPersister {
