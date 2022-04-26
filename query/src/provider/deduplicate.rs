@@ -11,7 +11,7 @@ use arrow::{
 use async_trait::async_trait;
 use datafusion_util::AdapterStream;
 
-use self::algo::RecordBatchDeduplicator;
+pub use self::algo::RecordBatchDeduplicator;
 use datafusion::{
     error::{DataFusionError, Result},
     execution::context::TaskContext,

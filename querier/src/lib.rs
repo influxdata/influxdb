@@ -28,7 +28,8 @@ pub use cache::CatalogCache as QuerierCatalogCache;
 pub use database::QuerierDatabase;
 pub use handler::{QuerierHandler, QuerierHandlerImpl};
 pub use ingester::{
-    create_ingester_connection, create_ingester_connection_for_testing, IngesterConnection,
+    create_ingester_connection, create_ingester_connection_for_testing, Error as IngesterError,
+    IngesterConnection, IngesterPartition,
 };
 pub use namespace::QuerierNamespace;
 pub use server::QuerierServer;

@@ -1,6 +1,9 @@
 //! This module contains util functions for testing scenarios
 use super::DbScenario;
+use arrow::record_batch::RecordBatch;
+use async_trait::async_trait;
 use data_types::{chunk_metadata::ChunkId, delete_predicate::DeletePredicate};
+use data_types2::SequenceNumber;
 use datafusion_util::batch_filter;
 use db::test_helpers::chunk_ids_rub;
 use db::{
@@ -12,11 +15,15 @@ use iox_catalog::interface::get_schema_by_name;
 use iox_tests::util::{TestCatalog, TestNamespace};
 use itertools::Itertools;
 use predicate::PredicateBuilder;
-use querier::{create_ingester_connection_for_testing, QuerierNamespace};
-use query::util::df_physical_expr_from_schema_and_expr;
+use querier::{IngesterConnection, IngesterError, IngesterPartition, QuerierNamespace};
+use query::util::{
+    compute_timenanosecond_min_max_for_one_record_batch, df_physical_expr_from_schema_and_expr,
+};
 use query::QueryChunk;
 use schema::merge::SchemaMerger;
 use schema::selection::Selection;
+use std::any::Any;
+use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::fmt::Write;
 use std::{fmt::Display, sync::Arc};
@@ -64,6 +71,23 @@ impl<'a, 'b> ChunkDataNew<'a, 'b> {
             ..self
         }
     }
+
+    /// Replace [`DeleteTimeNew::Begin`] and [`DeleteTimeNew::End`] with values that correspond to the linked [`ChunkStageNew`].
+    fn replace_begin_and_end_delete_times(self) -> Self {
+        Self {
+            preds: self
+                .preds
+                .into_iter()
+                .map(|pred| {
+                    pred.replace_begin_and_end_delete_times(
+                        self.chunk_stage
+                            .expect("chunk stage must be set at this point"),
+                    )
+                })
+                .collect(),
+            ..self
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -99,16 +123,36 @@ impl ChunkStageOld {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ChunkStageNew {
     /// In parquet file.
     Parquet,
+
+    /// In ingester.
+    Ingester,
 }
 
 impl Display for ChunkStageNew {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Parquet => write!(f, "Parquet"),
+            Self::Ingester => write!(f, "Ingester"),
+        }
+    }
+}
+
+impl PartialOrd for ChunkStageNew {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        match (self, other) {
+            // allow multiple parquet chunks (for the same partition). sequence numbers will be used for ordering.
+            (Self::Parquet, Self::Parquet) => Some(Ordering::Equal),
+
+            // "parquet" chunks are older (i.e. come earlier) than chunks that still life in the ingester
+            (Self::Parquet, Self::Ingester) => Some(Ordering::Less),
+            (Self::Ingester, Self::Parquet) => Some(Ordering::Greater),
+
+            // it's impossible for two chunks (for the same partition) to be in the ingester stage
+            (Self::Ingester, Self::Ingester) => None,
         }
     }
 }
@@ -116,7 +160,7 @@ impl Display for ChunkStageNew {
 impl ChunkStageNew {
     /// return the list of all chunk types
     pub fn all() -> Vec<Self> {
-        vec![Self::Parquet]
+        vec![Self::Parquet, Self::Ingester]
     }
 }
 
@@ -157,23 +201,18 @@ pub struct PredOld<'a> {
 #[derive(Debug, Clone)]
 pub struct PredNew<'a> {
     /// Delete predicate
-    predicate: &'a DeletePredicate,
+    pub predicate: &'a DeletePredicate,
+
     /// At which chunk stage this predicate is applied
-    delete_time: DeleteTimeNew,
+    pub delete_time: DeleteTimeNew,
 }
 
 impl<'a> PredNew<'a> {
-    pub fn begin(predicate: &'a DeletePredicate) -> Self {
+    /// Replace [`DeleteTimeNew::Begin`] and [`DeleteTimeNew::End`] with values that correspond to the linked [`ChunkStageNew`].
+    fn replace_begin_and_end_delete_times(self, stage: ChunkStageNew) -> Self {
         Self {
-            predicate,
-            delete_time: DeleteTimeNew::begin(),
-        }
-    }
-
-    pub fn end(predicate: &'a DeletePredicate) -> Self {
-        Self {
-            predicate,
-            delete_time: DeleteTimeNew::end(),
+            delete_time: self.delete_time.replace_begin_and_end_delete_times(stage),
+            ..self
         }
     }
 }
@@ -239,8 +278,19 @@ impl DeleteTimeOld {
     }
 }
 
+/// Describes when a delete predicate was applied.
+///
+/// # Ordering
+/// Compared to [`ChunkStageNew`], the ordering here may seem a bit confusing. While the latest payload / LP data
+/// resists in the ingester and is not yet available as a parquet file, the latest tombstones apply to parquet files and
+/// were (past tense!) NOT applied while the LP data was in the ingester.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum DeleteTimeNew {
+    /// Special delete time which marks the first time that could be used from deletion.
+    ///
+    /// May depend on [`ChunkStageNew`].
+    Begin,
+
     /// Delete predicate is added while chunk is was still in ingester memory.
     Ingester {
         /// Flag if the tombstone also exists in the catalog.
@@ -255,6 +305,11 @@ pub enum DeleteTimeNew {
 
     /// Delete predicate is added to chunks at their parquet stage
     Parquet,
+
+    /// Special delete time which marks the last time that could be used from deletion.
+    ///
+    /// May depend on [`ChunkStageNew`].
+    End,
 }
 
 impl DeleteTimeNew {
@@ -270,23 +325,46 @@ impl DeleteTimeNew {
                 },
                 Self::Parquet,
             ],
+            ChunkStageNew::Ingester => vec![
+                Self::Ingester {
+                    also_in_catalog: true,
+                },
+                Self::Ingester {
+                    also_in_catalog: false,
+                },
+            ],
         }
     }
 
-    pub fn begin() -> Self {
+    /// Replace [`DeleteTimeNew::Begin`] and [`DeleteTimeNew::End`] with values that correspond to the linked [`ChunkStageNew`].
+    fn replace_begin_and_end_delete_times(self, stage: ChunkStageNew) -> Self {
+        match self {
+            Self::Begin => Self::begin_for(stage),
+            Self::End => Self::end_for(stage),
+            other @ (Self::Ingester { .. } | Self::Parquet) => other,
+        }
+    }
+
+    fn begin_for(_stage: ChunkStageNew) -> Self {
         Self::Ingester {
             also_in_catalog: true,
         }
     }
 
-    pub fn end() -> Self {
-        Self::Parquet
+    fn end_for(stage: ChunkStageNew) -> Self {
+        match stage {
+            ChunkStageNew::Ingester => Self::Ingester {
+                also_in_catalog: true,
+            },
+            ChunkStageNew::Parquet => Self::Parquet,
+        }
     }
 }
 
 impl Display for DeleteTimeNew {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::Begin => write!(f, "Begin"),
             Self::Ingester {
                 also_in_catalog: false,
             } => write!(f, "Ingester w/o catalog entry"),
@@ -294,6 +372,7 @@ impl Display for DeleteTimeNew {
                 also_in_catalog: true,
             } => write!(f, "Ingester w/ catalog entry"),
             Self::Parquet => write!(f, "Parquet"),
+            Self::End => write!(f, "End"),
         }
     }
 }
@@ -306,7 +385,7 @@ pub enum DeleteTime {
 
 impl DeleteTime {
     /// Return all DeleteTime at and after the given chunk stage
-    pub fn all_from_and_before(chunk_stage: ChunkStage) -> Vec<Self> {
+    fn all_from_and_before(chunk_stage: ChunkStage) -> Vec<Self> {
         match chunk_stage {
             ChunkStage::Old(chunk_stage) => DeleteTimeOld::all_from_and_before(chunk_stage)
                 .into_iter()
@@ -319,17 +398,17 @@ impl DeleteTime {
         }
     }
 
-    pub fn begin_for(chunk_stage: ChunkStage) -> Self {
+    fn begin_for(chunk_stage: ChunkStage) -> Self {
         match chunk_stage {
             ChunkStage::Old(_) => Self::Old(DeleteTimeOld::begin()),
-            ChunkStage::New(_) => Self::New(DeleteTimeNew::begin()),
+            ChunkStage::New(chunk_stage) => Self::New(DeleteTimeNew::begin_for(chunk_stage)),
         }
     }
 
-    pub fn end_for(chunk_stage: ChunkStage) -> Self {
+    fn end_for(chunk_stage: ChunkStage) -> Self {
         match chunk_stage {
             ChunkStage::Old(_) => Self::Old(DeleteTimeOld::end()),
-            ChunkStage::New(_) => Self::New(DeleteTimeNew::end()),
+            ChunkStage::New(chunk_stage) => Self::New(DeleteTimeNew::end_for(chunk_stage)),
         }
     }
 }
@@ -698,9 +777,11 @@ async fn make_chunk_with_deletes_at_different_stages_new(
         delete_table_name,
         partition_key,
     };
-    let scenario_name = make_ng_chunk(Arc::clone(&ns), chunk_data).await;
+    let mut ingester_connection = MockIngesterConnection::default();
+    let scenario_name =
+        make_ng_chunk(Arc::clone(&ns), chunk_data, &mut ingester_connection, 0).await;
 
-    let db = make_querier_namespace(ns).await;
+    let db = make_querier_namespace(ns, ingester_connection).await;
 
     DbScenario { scenario_name, db }
 }
@@ -1091,14 +1172,25 @@ pub async fn make_n_chunks_scenario_new(chunks: &[ChunkDataNew<'_, '_>]) -> Vec<
 
     for stages in ChunkStageNew::all()
         .into_iter()
-        .permutations(n_stages_unset)
+        .combinations_with_replacement(n_stages_unset)
     {
+        // filter out unordered stages
+        if !stages.windows(2).all(|stages| {
+            stages[0]
+                .partial_cmp(&stages[1])
+                .map(|o| o.is_le())
+                .unwrap_or_default()
+        }) {
+            continue;
+        }
+
         let catalog = TestCatalog::new();
         let ns = catalog.create_namespace("test_db").await;
         let mut scenario_name = format!("{} chunks:", chunks.len());
         let mut stages_it = stages.iter();
+        let mut ingester_connection = MockIngesterConnection::default();
 
-        for chunk_data in chunks {
+        for (i, chunk_data) in chunks.iter().enumerate() {
             let mut chunk_data = chunk_data.clone();
 
             if chunk_data.chunk_stage.is_none() {
@@ -1106,14 +1198,23 @@ pub async fn make_n_chunks_scenario_new(chunks: &[ChunkDataNew<'_, '_>]) -> Vec<
                 chunk_data = chunk_data.with_chunk_stage(*chunk_stage);
             }
 
-            let name = make_ng_chunk(Arc::clone(&ns), chunk_data).await;
+            let chunk_data = chunk_data.replace_begin_and_end_delete_times();
 
-            write!(&mut scenario_name, "{}", name).unwrap();
+            let sequence_number_offset = (i as i64) * 1000;
+            let name = make_ng_chunk(
+                Arc::clone(&ns),
+                chunk_data,
+                &mut ingester_connection,
+                sequence_number_offset,
+            )
+            .await;
+
+            write!(&mut scenario_name, ", {}", name).unwrap();
         }
 
         assert!(stages_it.next().is_none(), "generated too many stages");
 
-        let db = make_querier_namespace(ns).await;
+        let db = make_querier_namespace(ns, ingester_connection).await;
         scenarios.push(DbScenario { scenario_name, db });
     }
 
@@ -1159,7 +1260,12 @@ pub(crate) async fn make_one_rub_or_parquet_chunk_scenario(
     vec![scenario1, scenario2]
 }
 
-async fn make_ng_chunk(ns: Arc<TestNamespace>, chunk: ChunkDataNew<'_, '_>) -> String {
+async fn make_ng_chunk(
+    ns: Arc<TestNamespace>,
+    chunk: ChunkDataNew<'_, '_>,
+    ingester_connection: &mut MockIngesterConnection,
+    sequence_number_offset: i64,
+) -> String {
     use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
 
     let chunk_stage = chunk.chunk_stage.expect("chunk stage should be set");
@@ -1245,6 +1351,59 @@ async fn make_ng_chunk(ns: Arc<TestNamespace>, chunk: ChunkDataNew<'_, '_>) -> S
         let mut batch = batch.to_arrow(Selection::All).unwrap();
 
         match chunk_stage {
+            ChunkStageNew::Ingester => {
+                // process delete predicates
+                if let Some(delete_table_name) = chunk.delete_table_name {
+                    if delete_table_name == table_name {
+                        for pred in &chunk.preds {
+                            match pred.delete_time {
+                                DeleteTimeNew::Ingester { .. } => {
+                                    batch = materialize_delete_predicate(batch, pred.predicate);
+                                }
+                                other @ DeleteTimeNew::Parquet => {
+                                    panic!("Cannot have delete time '{other}' for ingester chunk")
+                                }
+                                DeleteTimeNew::Begin | DeleteTimeNew::End => {
+                                    unreachable!("Begin/end cases should have been replaced with concrete instances at this point")
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // create ingester partition
+                if batch.num_rows() > 0 {
+                    let partition = partitions.get(&table_name).unwrap();
+                    let chunk_id = ChunkId::new();
+                    let namespace_name = Arc::from(ns.namespace.name.clone());
+                    let table_name = Arc::from(table_name);
+                    let partition_id = partition.partition.id;
+                    let sequencer_id = partition.sequencer.sequencer.id;
+                    let old_gen_partition_key = Arc::from(format!(
+                        "{}-{}",
+                        sequencer_id, partition.partition.partition_key
+                    ));
+                    let expected_schema = Arc::new(schema);
+                    let parquet_max_sequence_number = Some(SequenceNumber::new(i64::MAX)); // do NOT exclude any parquet files in other chunks
+                    let tombstone_max_sequence_number = Some(SequenceNumber::new(i64::MAX)); // do NOT exclude any delete predicates in other chunks
+                    let batches = vec![batch];
+                    ingester_connection.push(Arc::new(
+                        IngesterPartition::try_new(
+                            chunk_id,
+                            namespace_name,
+                            table_name,
+                            partition_id,
+                            sequencer_id,
+                            old_gen_partition_key,
+                            expected_schema,
+                            parquet_max_sequence_number,
+                            tombstone_max_sequence_number,
+                            batches,
+                        )
+                        .unwrap(),
+                    ));
+                }
+            }
             ChunkStageNew::Parquet => {
                 // model delete predicates that are materialized (applied) by the ingester,
                 // during parquet file creation
@@ -1253,21 +1412,13 @@ async fn make_ng_chunk(ns: Arc<TestNamespace>, chunk: ChunkDataNew<'_, '_>) -> S
                         for pred in &chunk.preds {
                             match pred.delete_time {
                                 DeleteTimeNew::Ingester { .. } => {
-                                    let mut predicate = PredicateBuilder::new().build();
-                                    predicate.merge_delete_predicates(&[Arc::new(
-                                        pred.predicate.clone().into(),
-                                    )]);
-                                    if let Some(expr) = predicate.filter_expr() {
-                                        let df_phy_expr = df_physical_expr_from_schema_and_expr(
-                                            schema.as_arrow(),
-                                            expr,
-                                        )
-                                        .unwrap();
-                                        batch = batch_filter(&batch, &df_phy_expr).unwrap();
-                                    }
+                                    batch = materialize_delete_predicate(batch, pred.predicate);
                                 }
                                 DeleteTimeNew::Parquet => {
                                     // will be attached AFTER the chunk was created
+                                }
+                                DeleteTimeNew::Begin | DeleteTimeNew::End => {
+                                    unreachable!("Begin/end cases should have been replaced with concrete instances at this point")
                                 }
                             }
                         }
@@ -1275,13 +1426,13 @@ async fn make_ng_chunk(ns: Arc<TestNamespace>, chunk: ChunkDataNew<'_, '_>) -> S
                 }
 
                 // create parquet file
-                let parquet_file_seq_number = 1000;
+                let parquet_file_seq_number = sequence_number_offset + (chunk.preds.len() as i64);
                 if batch.num_rows() > 0 {
                     let partition = partitions.get(&table_name).unwrap();
                     let min_seq = parquet_file_seq_number;
                     let max_seq = parquet_file_seq_number;
-                    let min_time = 0;
-                    let max_time = 0;
+                    let (min_time, max_time) =
+                        compute_timenanosecond_min_max_for_one_record_batch(&batch).unwrap();
                     let file_size_bytes = None; // don't mock/override
                     let creation_time = 1;
                     partition
@@ -1315,7 +1466,9 @@ async fn make_ng_chunk(ns: Arc<TestNamespace>, chunk: ChunkDataNew<'_, '_>) -> S
                                 DeleteTimeNew::Ingester {
                                     also_in_catalog: true,
                                 } => {
-                                    let sequence_number = i as i64;
+                                    let sequence_number = parquet_file_seq_number
+                                        - (chunk.preds.len() as i64)
+                                        + (i as i64);
                                     assert!(sequence_number < parquet_file_seq_number);
 
                                     let min_time = pred.predicate.range.start();
@@ -1348,6 +1501,9 @@ async fn make_ng_chunk(ns: Arc<TestNamespace>, chunk: ChunkDataNew<'_, '_>) -> S
                                         )
                                         .await;
                                 }
+                                DeleteTimeNew::Begin | DeleteTimeNew::End => {
+                                    unreachable!("Begin/end cases should have been replaced with concrete instances at this point")
+                                }
                             }
                         }
                     }
@@ -1359,18 +1515,47 @@ async fn make_ng_chunk(ns: Arc<TestNamespace>, chunk: ChunkDataNew<'_, '_>) -> S
     let mut name = format!("NG Chunk {}", chunk_stage);
     let n_preds = chunk.preds.len();
     if n_preds > 0 {
-        write!(name, " with {} deletes", n_preds).unwrap();
+        let delete_names: Vec<_> = chunk
+            .preds
+            .iter()
+            .map(|p| p.delete_time.to_string())
+            .collect();
+        write!(
+            name,
+            " with {} delete(s) ({})",
+            n_preds,
+            delete_names.join(", ")
+        )
+        .unwrap();
     }
     name
 }
 
-async fn make_querier_namespace(ns: Arc<TestNamespace>) -> Arc<QuerierNamespace> {
+fn materialize_delete_predicate(record_batch: RecordBatch, pred: &DeletePredicate) -> RecordBatch {
+    let mut predicate = PredicateBuilder::new().build();
+    predicate.merge_delete_predicates(&[Arc::new(pred.clone().into())]);
+
+    if let Some(expr) = predicate.filter_expr() {
+        let df_phy_expr =
+            df_physical_expr_from_schema_and_expr(record_batch.schema(), expr).unwrap();
+        batch_filter(&record_batch, &df_phy_expr).unwrap()
+    } else {
+        record_batch
+    }
+}
+
+async fn make_querier_namespace(
+    ns: Arc<TestNamespace>,
+    ingester_connection: MockIngesterConnection,
+) -> Arc<QuerierNamespace> {
     let mut repos = ns.catalog.catalog.repositories().await;
     let schema = Arc::new(
         get_schema_by_name(&ns.namespace.name, repos.as_mut())
             .await
             .unwrap(),
     );
+
+    let ingester_connection = Arc::new(ingester_connection);
 
     Arc::new(QuerierNamespace::new_testing(
         ns.catalog.catalog(),
@@ -1380,6 +1565,40 @@ async fn make_querier_namespace(ns: Arc<TestNamespace>) -> Arc<QuerierNamespace>
         ns.namespace.name.clone().into(),
         schema,
         ns.catalog.exec(),
-        create_ingester_connection_for_testing(),
+        ingester_connection,
     ))
+}
+
+#[derive(Debug, Default)]
+struct MockIngesterConnection {
+    responses: Vec<Arc<IngesterPartition>>,
+}
+
+impl MockIngesterConnection {
+    fn push(&mut self, p: Arc<IngesterPartition>) {
+        self.responses.push(p);
+    }
+}
+
+#[async_trait]
+impl IngesterConnection for MockIngesterConnection {
+    async fn partitions(
+        &self,
+        _namespace_name: Arc<str>,
+        table_name: Arc<str>,
+        _columns: Vec<String>,
+        _predicate: &predicate::Predicate,
+        _expected_schema: Arc<schema::Schema>,
+    ) -> Result<Vec<Arc<IngesterPartition>>, IngesterError> {
+        Ok(self
+            .responses
+            .iter()
+            .filter(|p| p.table_name() == table_name.as_ref())
+            .cloned()
+            .collect())
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self as &dyn Any
+    }
 }

@@ -28,6 +28,7 @@ SELECT max(foo) from cpu;
 SELECT min(time) from cpu;
 SELECT max(time) from cpu;
 
+-- IOX_COMPARE: sorted
 SELECT foo, min(time) from cpu group by foo;
 SELECT bar, max(time) as max_time from cpu group by bar order by bar, max_time;
 SELECT max(time) as max_time from cpu group by bar order by max_time;

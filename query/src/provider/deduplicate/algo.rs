@@ -22,7 +22,7 @@ use crate::provider::deduplicate::key_ranges::key_ranges;
 // [`RecordBatch`]es which are already sorted on a primary key,
 // including primary keys which straddle RecordBatch boundaries
 #[derive(Debug)]
-pub(crate) struct RecordBatchDeduplicator {
+pub struct RecordBatchDeduplicator {
     sort_keys: Vec<PhysicalSortExpr>,
     last_batch: Option<RecordBatch>,
     num_dupes: metrics::Count,

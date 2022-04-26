@@ -6,18 +6,18 @@ use parking_lot::Mutex;
 use super::IngesterConnection;
 
 /// IngesterConnection for testing
-#[derive(Debug)]
-pub(crate) struct MockIngesterConnection {
+#[derive(Debug, Default)]
+pub struct MockIngesterConnection {
     next_response: Mutex<Option<super::Result<Vec<Arc<super::IngesterPartition>>>>>,
 }
 
 impl MockIngesterConnection {
+    /// Create connection w/ an empty response.
     pub fn new() -> Self {
-        Self {
-            next_response: Mutex::new(None),
-        }
+        Self::default()
     }
 
+    /// Set next response for this connection.
     pub fn next_response(&self, response: super::Result<Vec<Arc<super::IngesterPartition>>>) {
         *self.next_response.lock() = Some(response);
     }

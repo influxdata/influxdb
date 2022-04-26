@@ -5,7 +5,7 @@ use data_types::timestamp::TimestampRange;
 
 use async_trait::async_trait;
 
-use super::util::{make_n_chunks_scenario_new, ChunkDataNew, PredNew};
+use super::util::{make_n_chunks_scenario_new, ChunkDataNew, DeleteTimeNew, PredNew};
 use super::{DbScenario, DbSetup};
 use crate::scenarios::util::{
     all_scenarios_for_one_chunk, make_different_stage_chunks_with_deletes_scenario_old,
@@ -427,21 +427,46 @@ impl DbSetup for ThreeDeleteThreeChunks {
             &mut make_n_chunks_scenario_new(&[
                 ChunkDataNew {
                     lp_lines: lp_lines_1,
-                    preds: vec![PredNew::end(&pred1)],
+                    preds: vec![
+                        PredNew {
+                            predicate: &pred1,
+                            delete_time: DeleteTimeNew::End,
+                        },
+                        PredNew {
+                            predicate: &pred2,
+                            delete_time: DeleteTimeNew::End,
+                        },
+                        PredNew {
+                            predicate: &pred3,
+                            delete_time: DeleteTimeNew::End,
+                        },
+                    ],
                     delete_table_name: Some(table_name),
                     partition_key,
                     ..Default::default()
                 },
                 ChunkDataNew {
                     lp_lines: lp_lines_2,
-                    preds: vec![PredNew::end(&pred2)],
+                    preds: vec![
+                        PredNew {
+                            predicate: &pred2,
+                            delete_time: DeleteTimeNew::End,
+                        },
+                        PredNew {
+                            predicate: &pred3,
+                            delete_time: DeleteTimeNew::End,
+                        },
+                    ],
                     delete_table_name: Some(table_name),
                     partition_key,
                     ..Default::default()
                 },
                 ChunkDataNew {
                     lp_lines: lp_lines_3,
-                    preds: vec![PredNew::end(&pred3)],
+                    preds: vec![PredNew {
+                        predicate: &pred3,
+                        delete_time: DeleteTimeNew::End,
+                    }],
                     delete_table_name: Some(table_name),
                     partition_key,
                     ..Default::default()

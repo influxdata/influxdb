@@ -8,8 +8,10 @@ description = "Tests of the query engine against different database configuratio
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+arrow = { version = "12", features = ["prettyprint"] }
 async-trait = "0.1"
 data_types = { path = "../data_types" }
+data_types2 = { path = "../data_types2" }
 datafusion = { path = "../datafusion" }
 datafusion_util = { path = "../datafusion_util" }
 db = { path = "../db" }

@@ -10,6 +10,7 @@ use data_types2::{
     ParquetFileParams, ParquetFileWithMetadata, Partition, PartitionId, QueryPool, SequenceNumber,
     Sequencer, SequencerId, Table, TableId, Timestamp, Tombstone, TombstoneId,
 };
+use datafusion::physical_plan::metrics::Count;
 use iox_catalog::{
     interface::{Catalog, PartitionRepo, INITIAL_COMPACTION_LEVEL},
     mem::MemCatalog,
@@ -19,7 +20,7 @@ use iox_time::{MockProvider, Time, TimeProvider};
 use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
 use object_store::{DynObjectStore, ObjectStoreImpl};
 use parquet_file::metadata::{IoxMetadata, IoxParquetMetaData};
-use query::exec::Executor;
+use query::{exec::Executor, provider::RecordBatchDeduplicator, util::arrow_sort_key_exprs};
 use schema::{
     selection::Selection,
     sort::{adjust_sort_key_columns, SortKey, SortKeyBuilder},
@@ -472,6 +473,7 @@ impl TestPartition {
         let row_count = record_batch.num_rows();
         assert!(row_count > 0, "Parquet file must have at least 1 row");
         let (record_batch, sort_key) = sort_batch(record_batch, schema);
+        let record_batch = dedup_batch(record_batch, &sort_key);
 
         let object_store_id = Uuid::new_v4();
         let min_sequence_number = SequenceNumber::new(min_seq);
@@ -754,4 +756,17 @@ fn sort_batch(record_batch: RecordBatch, schema: Schema) -> (RecordBatch, SortKe
     let record_batch = RecordBatch::try_new(record_batch.schema(), arrays).unwrap();
 
     (record_batch, sort_key)
+}
+
+fn dedup_batch(record_batch: RecordBatch, sort_key: &SortKey) -> RecordBatch {
+    let schema = record_batch.schema();
+    let sort_keys = arrow_sort_key_exprs(sort_key, &schema);
+    let mut deduplicator = RecordBatchDeduplicator::new(sort_keys, Count::default(), None);
+
+    let mut batches = vec![deduplicator.push(record_batch).unwrap()];
+    if let Some(batch) = deduplicator.finish().unwrap() {
+        batches.push(batch);
+    }
+
+    RecordBatch::concat(&schema, &batches).unwrap()
 }

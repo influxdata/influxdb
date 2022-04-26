@@ -55,6 +55,7 @@ pub fn get_all_setups() -> &'static HashMap<String, Arc<dyn DbSetup>> {
             register_setup!(OldTwoMeasurementsManyFieldsTwoChunks),
             register_setup!(OldTwoMeasurementsManyFieldsOneRubChunk),
             register_setup!(OneMeasurementFourChunksWithDuplicates),
+            register_setup!(OldOneMeasurementFourChunksWithDuplicates),
             register_setup!(OneMeasurementAllChunksDropped),
             register_setup!(ChunkOrder),
             register_setup!(ThreeDeleteThreeChunks),

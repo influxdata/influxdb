@@ -851,6 +851,25 @@ impl DbSetup for OneMeasurementFourChunksWithDuplicates {
 }
 
 #[derive(Debug)]
+/// Setup for four chunks with duplicates for deduplicate tests
+///
+/// This scenario is OG-specific and can be used for `EXPLAIN` plans and system tables.
+pub struct OldOneMeasurementFourChunksWithDuplicates {}
+#[async_trait]
+impl DbSetup for OldOneMeasurementFourChunksWithDuplicates {
+    async fn make(&self) -> Vec<DbScenario> {
+        let scenarios: Vec<_> = OneMeasurementFourChunksWithDuplicates {}
+            .make()
+            .await
+            .into_iter()
+            .filter(|s| s.scenario_name == "Data in four chunks with duplicates")
+            .collect();
+        assert_eq!(scenarios.len(), 1);
+        scenarios
+    }
+}
+
+#[derive(Debug)]
 /// This has a single scenario with all the life cycle operations to
 /// test queries that depend on that
 ///
