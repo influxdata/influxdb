@@ -11,7 +11,6 @@ use snafu::Snafu;
 use std::{
     collections::{HashMap, HashSet},
     fmt::Display,
-    num::NonZeroU64,
     str::FromStr,
     sync::Arc,
 };
@@ -353,7 +352,7 @@ pub fn compute_sort_key<'a>(
 fn distinct_counts<'a>(
     batches: impl Iterator<Item = &'a RecordBatch>,
     primary_key: &[&str],
-) -> HashMap<String, NonZeroU64> {
+) -> HashMap<String, u64> {
     let mut distinct_values_across_batches = HashMap::with_capacity(primary_key.len());
 
     for batch in batches {
@@ -367,13 +366,13 @@ fn distinct_counts<'a>(
 
     distinct_values_across_batches
         .into_iter()
-        .filter_map(|(column, distinct_values)| {
-            distinct_values
+        .map(|(column, distinct_values)| {
+            let count = distinct_values
                 .len()
                 .try_into()
-                .ok()
-                .and_then(NonZeroU64::new)
-                .map(|count| (column, count))
+                .expect("usize -> u64 overflow");
+
+            (column, count)
         })
         .collect()
 }
@@ -789,6 +788,30 @@ mod tests {
         let sort_key = compute_sort_key(&schema, rbs.iter().map(|rb| rb.as_ref()));
 
         assert_eq!(sort_key, SortKey::from_columns(["host", "env", "time"]));
+    }
+
+    #[test]
+    fn test_sort_key_all_null() {
+        let rb = Arc::new(
+            RecordBatch::try_from_iter(vec![
+                ("x", to_string_array(vec!["a", "b"])),
+                ("y", to_string_array(vec![None, None])),
+                ("z", to_string_array(vec!["c", "c"])),
+            ])
+            .unwrap(),
+        );
+        let rbs = [rb];
+        let schema = SchemaBuilder::new()
+            .tag("x")
+            .tag("y")
+            .tag("z")
+            .timestamp()
+            .build()
+            .unwrap();
+
+        let sort_key = compute_sort_key(&schema, rbs.iter().map(|rb| rb.as_ref()));
+
+        assert_eq!(sort_key, SortKey::from_columns(["x", "z", "y", "time"]));
     }
 
     #[test]
