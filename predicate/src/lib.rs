@@ -16,11 +16,12 @@ pub mod rpc_predicate;
 use data_types::timestamp::{TimestampRange, MAX_NANO_TIME, MIN_NANO_TIME};
 use datafusion::{
     error::DataFusionError,
-    logical_plan::{col, lit_timestamp_nano, Column, Expr, Operator},
+    logical_plan::{binary_expr, col, lit_timestamp_nano, Expr, Operator},
     optimizer::utils,
 };
 use datafusion_util::{make_range_expr, AndExprBuilder};
 use observability_deps::tracing::debug;
+use rpc_predicate::VALUE_COLUMN_NAME;
 use schema::TIME_COLUMN_NAME;
 use std::{
     collections::{BTreeSet, HashSet},
@@ -66,7 +67,7 @@ pub struct Predicate {
     /// Optional arbitrary predicates on the special `_value` column. These
     /// expressions are applied to `field_columns` projections in the form of
     /// `CASE` statement conditions.
-    pub value_expr: Vec<BinaryExpr>,
+    pub value_expr: Vec<ValueExpr>,
 }
 
 impl Predicate {
@@ -450,12 +451,52 @@ impl PredicateBuilder {
     }
 }
 
-// A representation of the `BinaryExpr` variant of a Datafusion expression.
+// Wrapper around `Expr::BinaryExpr` where left input is known to be
+// single Column reference to the `_value` column
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
-pub struct BinaryExpr {
-    pub left: Column,
-    pub op: Operator,
-    pub right: Expr,
+pub struct ValueExpr {
+    expr: Expr,
+}
+
+impl TryFrom<Expr> for ValueExpr {
+    /// Returns the original Expr if conversion doesn't work
+    type Error = Expr;
+
+    /// tries to create a new ValueExpr. If `expr` follows the
+    /// expected pattrn, returns Ok(Self). If not, returns Err(expr)
+    fn try_from(expr: Expr) -> Result<Self, Self::Error> {
+        if let Expr::BinaryExpr {
+            left,
+            op: _,
+            right: _,
+        } = &expr
+        {
+            if let Expr::Column(inner) = left.as_ref() {
+                if inner.name == VALUE_COLUMN_NAME {
+                    return Ok(Self { expr });
+                }
+            }
+        }
+        Err(expr)
+    }
+}
+
+impl ValueExpr {
+    /// Returns a new [`Expr`] with the reference to the `_value`
+    /// column replaced with the specified column name
+    pub fn replace_col(&self, name: &str) -> Expr {
+        if let Expr::BinaryExpr { left: _, op, right } = &self.expr {
+            binary_expr(col(name), *op, right.as_ref().clone())
+        } else {
+            unreachable!("Unexpected content in ValueExpr")
+        }
+    }
+}
+
+impl From<ValueExpr> for Expr {
+    fn from(value_expr: ValueExpr) -> Self {
+        value_expr.expr
+    }
 }
 
 #[cfg(test)]

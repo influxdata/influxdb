@@ -1,6 +1,6 @@
 //! Interface logic between IOx ['Predicate`] and predicates used by the
 //! InfluxDB Storage gRPC API
-use crate::{rewrite, BinaryExpr, Predicate};
+use crate::{rewrite, Predicate, ValueExpr};
 
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::context::ExecutionProps;
@@ -9,7 +9,6 @@ use datafusion::logical_plan::{
     Operator, SimplifyInfo,
 };
 use datafusion::scalar::ScalarValue;
-use datafusion_util::AsExpr;
 use schema::Schema;
 use std::collections::BTreeSet;
 use std::sync::Arc;
@@ -287,7 +286,7 @@ impl ExprRewriter for MeasurementRewriter<'_> {
 /// encountered expressions onto `value_exprs` so they can be moved onto column
 /// projections.
 fn rewrite_field_value_references(
-    value_exprs: &mut Vec<BinaryExpr>,
+    value_exprs: &mut Vec<ValueExpr>,
     expr: Expr,
 ) -> DataFusionResult<Expr> {
     let mut rewriter = FieldValueRewriter { value_exprs };
@@ -295,31 +294,21 @@ fn rewrite_field_value_references(
 }
 
 struct FieldValueRewriter<'a> {
-    value_exprs: &'a mut Vec<BinaryExpr>,
+    value_exprs: &'a mut Vec<ValueExpr>,
 }
 
 impl<'a> ExprRewriter for FieldValueRewriter<'a> {
     fn mutate(&mut self, expr: Expr) -> DataFusionResult<Expr> {
-        Ok(match expr {
-            Expr::BinaryExpr {
-                ref left,
-                op,
-                ref right,
-            } => {
-                if let Expr::Column(inner) = &**left {
-                    if inner.name == VALUE_COLUMN_NAME {
-                        self.value_exprs.push(BinaryExpr {
-                            left: inner.to_owned(),
-                            op,
-                            right: right.as_expr(),
-                        });
-                        return Ok(lit(true));
-                    }
-                }
-                expr
+        // try and convert Expr into a ValueExpr
+        match expr.try_into() {
+            // found a value expr. Save and replace with true
+            Ok(value_expr) => {
+                self.value_exprs.push(value_expr);
+                Ok(lit(true))
             }
-            _ => expr,
-        })
+            // not a ValueExpr, so leave the same
+            Err(expr) => Ok(expr),
+        }
     }
 }
 
@@ -389,13 +378,8 @@ mod tests {
                 binary_expr(col(VALUE_COLUMN_NAME), Operator::Eq, lit(1.82)),
                 // _value = 1.82 -> true
                 lit(true),
-                vec![BinaryExpr {
-                    left: Column {
-                        relation: None,
-                        name: VALUE_COLUMN_NAME.into(),
-                    },
-                    op: Operator::Eq,
-                    right: lit(1.82),
+                vec![ValueExpr {
+                    expr: binary_expr(col(VALUE_COLUMN_NAME), Operator::Eq, lit(1.82)),
                 }],
             ),
         ];
@@ -412,19 +396,9 @@ mod tests {
         };
 
         let input = binary_expr(col(VALUE_COLUMN_NAME), Operator::Gt, lit(1.88));
-        let rewritten = input.rewrite(&mut rewriter).unwrap();
+        let rewritten = input.clone().rewrite(&mut rewriter).unwrap();
         assert_eq!(rewritten, lit(true));
-        assert_eq!(
-            rewriter.value_exprs,
-            &mut vec![BinaryExpr {
-                left: Column {
-                    relation: None,
-                    name: VALUE_COLUMN_NAME.into(),
-                },
-                op: Operator::Gt,
-                right: lit(1.88),
-            }]
-        );
+        assert_eq!(rewriter.value_exprs, &mut vec![ValueExpr { expr: input }]);
     }
 
     #[test]
