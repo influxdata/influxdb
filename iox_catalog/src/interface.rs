@@ -10,7 +10,12 @@ use data_types2::{
 };
 use iox_time::TimeProvider;
 use snafu::{OptionExt, Snafu};
-use std::{collections::BTreeMap, convert::TryFrom, fmt::Debug, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashMap, HashSet},
+    convert::TryFrom,
+    fmt::Debug,
+    sync::Arc,
+};
 use uuid::Uuid;
 
 #[derive(Debug, Snafu)]
@@ -666,13 +671,112 @@ where
     Ok(namespace)
 }
 
+/// Fetch all [`NamespaceSchema`] in the catalog.
+///
+/// This method performs the minimal number of queries needed to build the
+/// result set. No table lock is obtained, nor are queries executed within a
+/// transaction, but this method does return a point-in-time snapshot of the
+/// catalog state.
+pub async fn list_schemas(
+    catalog: &dyn Catalog,
+) -> Result<impl Iterator<Item = (Namespace, NamespaceSchema)>> {
+    let mut repos = catalog.repositories().await;
+
+    // In order to obtain a point-in-time snapshot, first fetch the columns,
+    // then the tables, and then resolve the namespace IDs to Namespace in order
+    // to construct the schemas.
+    //
+    // The set of columns returned forms the state snapshot, with the subsequent
+    // queries resolving only what is needed to construct schemas for the
+    // retrieved columns (ignoring any newly added tables/namespaces since the
+    // column snapshot was taken).
+
+    // First fetch all the columns - this is the state snapshot of the catalog
+    // schemas.
+    let columns = repos.columns().list().await?;
+
+    // Construct the set of table IDs these columns belong to.
+    let retain_table_ids = columns.iter().map(|c| c.table_id).collect::<HashSet<_>>();
+
+    // Fetch all tables, and filter for those that are needed to construct
+    // schemas for "columns" only.
+    //
+    // Discard any tables that have no columns or have been created since
+    // the "columns" snapshot was retrieved, and construct a map of ID->Table.
+    let tables = repos
+        .tables()
+        .list()
+        .await?
+        .into_iter()
+        .filter_map(|t| {
+            if !retain_table_ids.contains(&t.id) {
+                return None;
+            }
+
+            Some((t.id, t))
+        })
+        .collect::<HashMap<_, _>>();
+
+    // Drop the table ID set as it will not be referenced again.
+    drop(retain_table_ids);
+
+    // Do all the I/O to fetch the namespaces in the background, while this
+    // thread constructs the NamespaceId->TableSchema map below.
+    let namespaces = tokio::spawn(async move { repos.namespaces().list().await });
+
+    // A set of tables within a single namespace.
+    type NamespaceTables = BTreeMap<String, TableSchema>;
+
+    let mut joined = HashMap::<NamespaceId, NamespaceTables>::default();
+    for column in columns {
+        // Resolve the table this column references
+        let table = tables.get(&column.table_id).expect("no table for column");
+
+        let table_schema = joined
+            // Find or create a record in the joined <NamespaceId, Tables> map
+            // for this namespace ID.
+            .entry(table.namespace_id)
+            .or_default()
+            // Fetch the schema record for this table, or create an empty one.
+            .entry(table.name.clone())
+            .or_insert_with(|| TableSchema::new(column.table_id));
+
+        table_schema.add_column(&column);
+    }
+
+    // The table map is no longer needed - immediately reclaim the memory.
+    drop(tables);
+
+    // Convert the Namespace instances into NamespaceSchema instances.
+    let iter = namespaces
+        .await
+        .expect("namespace list task panicked")?
+        .into_iter()
+        // Ignore any namespaces that did not exist when the "columns" snapshot
+        // was created, or have no tables/columns (and therefore have no entry
+        // in "joined").
+        .filter_map(move |v| {
+            let mut ns = NamespaceSchema::new(v.id, v.kafka_topic_id, v.query_pool_id);
+            ns.tables = joined.remove(&v.id)?;
+            Some((v, ns))
+        });
+
+    Ok(iter)
+}
+
 #[cfg(test)]
 pub(crate) mod test_helpers {
+    use crate::validate_or_insert_schema;
+
     use super::*;
     use ::test_helpers::{assert_contains, tracing::TracingCapture};
     use data_types2::ColumnId;
     use metric::{Attributes, Metric, U64Histogram};
-    use std::{ops::Add, sync::Arc, time::Duration};
+    use std::{
+        ops::{Add, DerefMut},
+        sync::Arc,
+        time::Duration,
+    };
 
     pub(crate) async fn test_catalog(catalog: Arc<dyn Catalog>) {
         test_setup(Arc::clone(&catalog)).await;
@@ -693,6 +797,7 @@ pub(crate) mod test_helpers {
         test_list_by_partiton_not_to_delete(Arc::clone(&catalog)).await;
         test_txn_isolation(Arc::clone(&catalog)).await;
         test_txn_drop(Arc::clone(&catalog)).await;
+        test_list_schemas(Arc::clone(&catalog)).await;
 
         let metrics = catalog.metrics();
         assert_metric_hit(&*metrics, "kafka_create_or_get");
@@ -2884,6 +2989,73 @@ pub(crate) mod test_helpers {
             .unwrap();
         assert!(topic.is_none());
         txn.abort().await.unwrap();
+    }
+
+    /// Upsert a namespace called `namespace_name` and write `lines` to it.
+    async fn populate_namespace<R>(
+        repos: &mut R,
+        namespace_name: &str,
+        lines: &str,
+    ) -> (Namespace, NamespaceSchema)
+    where
+        R: RepoCollection + ?Sized,
+    {
+        let kafka = repos.kafka_topics().create_or_get("foo").await.unwrap();
+        let pool = repos.query_pools().create_or_get("foo").await.unwrap();
+        let namespace = repos
+            .namespaces()
+            .create(namespace_name, "inf", kafka.id, pool.id)
+            .await;
+
+        let namespace = match namespace {
+            Ok(v) => v,
+            Err(Error::NameExists { .. }) => repos
+                .namespaces()
+                .get_by_name(namespace_name)
+                .await
+                .unwrap()
+                .unwrap(),
+            e @ Err(_) => e.unwrap(),
+        };
+
+        let batches = mutable_batch_lp::lines_to_batches(lines, 42).unwrap();
+        let batches = batches.iter().map(|(table, batch)| (table.as_str(), batch));
+        let ns = NamespaceSchema::new(namespace.id, kafka.id, pool.id);
+
+        let schema = validate_or_insert_schema(batches, &ns, repos)
+            .await
+            .expect("validate schema failed")
+            .unwrap_or(ns);
+
+        (namespace, schema)
+    }
+
+    async fn test_list_schemas(catalog: Arc<dyn Catalog>) {
+        let mut repos = catalog.repositories().await;
+
+        let ns1 = populate_namespace(
+            repos.deref_mut(),
+            "ns1",
+            "cpu,tag=1 field=1i\nanother,tag=1 field=1.0",
+        )
+        .await;
+        let ns2 = populate_namespace(
+            repos.deref_mut(),
+            "ns2",
+            "cpu,tag=1 field=1i\nsomethingelse field=1u",
+        )
+        .await;
+
+        // Otherwise the in-mem catalog deadlocks.... (but not postgres)
+        drop(repos);
+
+        let got = list_schemas(&*catalog)
+            .await
+            .expect("should be able to list the schemas")
+            .collect::<Vec<_>>();
+
+        assert!(got.contains(&ns1), "{:#?}\n\nwant{:#?}", got, &ns1);
+        assert!(got.contains(&ns2), "{:#?}\n\nwant{:#?}", got, &ns2);
     }
 
     fn assert_metric_hit(metrics: &metric::Registry, name: &'static str) {

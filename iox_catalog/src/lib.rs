@@ -247,7 +247,7 @@ mod tests {
                         let schema = {
                             let lp: String = $lp.to_string();
 
-                            let (writes, _) = mutable_batch_lp::lines_to_batches_stats(lp.as_str(), 42)
+                            let writes = mutable_batch_lp::lines_to_batches(lp.as_str(), 42)
                                 .expect("failed to build test writes from LP");
 
                             let got = validate_or_insert_schema(writes.iter().map(|(k, v)| (k.as_str(), v)), &schema, txn.deref_mut())
