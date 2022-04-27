@@ -1165,7 +1165,11 @@ func (s *Store) MeasurementsCardinality(ctx context.Context, database string) (i
 	if err != nil {
 		return 0, err
 	}
-	return int64(ss.Count() - ts.Count()), nil
+	mc := int64(ss.Count() - ts.Count())
+	if mc < 0 {
+		mc = 0
+	}
+	return mc, nil
 }
 
 // MeasurementsSketches returns the sketches associated with the measurement
