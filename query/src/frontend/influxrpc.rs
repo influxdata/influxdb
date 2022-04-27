@@ -21,8 +21,8 @@ use predicate::rpc_predicate::InfluxRpcPredicate;
 use predicate::{BinaryExpr, Predicate, PredicateMatch};
 use query_functions::{
     group_by::{Aggregate, WindowDuration},
+    make_window_bound_expr,
     selectors::{selector_first, selector_last, selector_max, selector_min, SelectorOutput},
-    window::make_window_bound_expr,
 };
 use schema::selection::Selection;
 use schema::{InfluxColumnType, Schema, TIME_COLUMN_NAME};
@@ -905,8 +905,8 @@ impl InfluxRpcPlanner {
                 schema,
                 predicate,
                 agg,
-                &every,
-                &offset,
+                every,
+                offset,
                 chunks,
             )?;
 
@@ -1348,8 +1348,8 @@ impl InfluxRpcPlanner {
         schema: Arc<Schema>,
         predicate: &Predicate,
         agg: Aggregate,
-        every: &WindowDuration,
-        offset: &WindowDuration,
+        every: WindowDuration,
+        offset: WindowDuration,
         chunks: Vec<Arc<dyn QueryChunk>>,
     ) -> Result<Option<SeriesSetPlan>> {
         let table_name = table_name.into();

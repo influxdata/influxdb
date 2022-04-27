@@ -13,6 +13,8 @@ use datafusion::{
     logical_plan::{Expr, FunctionRegistry},
     prelude::lit,
 };
+use group_by::WindowDuration;
+use window::EncodedWindowDuration;
 
 /// Grouping by structs
 pub mod group_by;
@@ -23,8 +25,8 @@ mod regex;
 /// Flux selector expressions
 pub mod selectors;
 
-/// Time window and groupin
-pub mod window;
+/// window_bounds expressions
+mod window;
 
 /// Function registry
 mod registry;
@@ -55,7 +57,139 @@ pub fn regex_not_match_expr(input: Expr, pattern: String) -> Expr {
         .call(vec![input, lit(pattern)])
 }
 
+/// Create a DataFusion `Expr` that invokes `window_bounds` with the
+/// appropriate every and offset arguments at runtime
+pub fn make_window_bound_expr(
+    time_arg: Expr,
+    every: WindowDuration,
+    offset: WindowDuration,
+) -> Expr {
+    let encoded_every: EncodedWindowDuration = every.into();
+    let encoded_offset: EncodedWindowDuration = offset.into();
+
+    registry()
+        .udf(window::WINDOW_BOUNDS_UDF_NAME)
+        .expect("WindowBounds function not registered")
+        .call(vec![
+            time_arg,
+            lit(encoded_every.ty),
+            lit(encoded_every.field1),
+            lit(encoded_every.field2),
+            lit(encoded_offset.ty),
+            lit(encoded_offset.field1),
+            lit(encoded_offset.field2),
+        ])
+}
+
 /// Return an [`FunctionRegistry`] with the implementations of IOx UDFs
 pub fn registry() -> &'static dyn FunctionRegistry {
     registry::instance()
+}
+
+#[cfg(test)]
+mod test {
+    use arrow::{
+        array::{ArrayRef, StringArray, TimestampNanosecondArray},
+        record_batch::RecordBatch,
+    };
+    use datafusion::{assert_batches_eq, logical_plan::col};
+    use datafusion_util::context_with_table;
+    use std::sync::Arc;
+
+    use super::*;
+
+    /// plumbing test to validate registry is connected. functions are
+    /// tested more thoroughly in their own modules
+    #[tokio::test]
+    async fn test_regex_match_expr() {
+        let batch = RecordBatch::try_from_iter(vec![(
+            "data",
+            Arc::new(StringArray::from(vec!["Foo", "Bar", "FooBar"])) as ArrayRef,
+        )])
+        .unwrap();
+
+        let ctx = context_with_table(batch);
+        let result = ctx
+            .table("t")
+            .unwrap()
+            .filter(regex_match_expr(col("data"), "Foo".into()))
+            .unwrap()
+            .collect()
+            .await
+            .unwrap();
+
+        let expected = vec![
+            "+--------+",
+            "| data   |",
+            "+--------+",
+            "| Foo    |",
+            "| FooBar |",
+            "+--------+",
+        ];
+
+        assert_batches_eq!(&expected, &result);
+    }
+
+    /// plumbing test to validate registry is connected. functions are
+    /// tested more thoroughly in their own modules
+    #[tokio::test]
+    async fn test_regex_not_match_expr() {
+        let batch = RecordBatch::try_from_iter(vec![(
+            "data",
+            Arc::new(StringArray::from(vec!["Foo", "Bar", "FooBar"])) as ArrayRef,
+        )])
+        .unwrap();
+
+        let ctx = context_with_table(batch);
+        let result = ctx
+            .table("t")
+            .unwrap()
+            .filter(regex_not_match_expr(col("data"), "Foo".into()))
+            .unwrap()
+            .collect()
+            .await
+            .unwrap();
+
+        let expected = vec!["+------+", "| data |", "+------+", "| Bar  |", "+------+"];
+
+        assert_batches_eq!(&expected, &result);
+    }
+
+    /// plumbing test to validate registry is connected. functions are
+    /// tested more thoroughly in their own modules
+    #[tokio::test]
+    async fn test_make_window_bound_expr() {
+        let batch = RecordBatch::try_from_iter(vec![(
+            "time",
+            Arc::new(TimestampNanosecondArray::from(vec![Some(1000), Some(2000)])) as ArrayRef,
+        )])
+        .unwrap();
+
+        let each = WindowDuration::Fixed { nanoseconds: 100 };
+        let every = WindowDuration::Fixed { nanoseconds: 200 };
+
+        let ctx = context_with_table(batch);
+        let result = ctx
+            .table("t")
+            .unwrap()
+            .select(vec![
+                col("time"),
+                make_window_bound_expr(col("time"), each, every).alias("bound"),
+            ])
+            .unwrap()
+            .collect()
+            .await
+            .unwrap();
+
+        let expected = vec![
+            "+----------------------------+-------------------------------+",
+            "| time                       | bound                         |",
+            "+----------------------------+-------------------------------+",
+            "| 1970-01-01 00:00:00.000001 | 1970-01-01 00:00:00.000001100 |",
+            "| 1970-01-01 00:00:00.000002 | 1970-01-01 00:00:00.000002100 |",
+            "+----------------------------+-------------------------------+",
+        ];
+
+        assert_batches_eq!(&expected, &result);
+    }
 }

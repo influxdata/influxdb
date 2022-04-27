@@ -5,30 +5,133 @@ use schema::TIME_DATA_TYPE;
 
 use std::sync::Arc;
 
-use arrow::array::{ArrayRef, TimestampNanosecondArray};
+use arrow::{
+    array::{Array, ArrayRef, TimestampNanosecondArray},
+    datatypes::DataType,
+};
 use datafusion::{
-    logical_expr::Volatility, logical_plan::Expr, physical_plan::functions::make_scalar_function,
+    logical_expr::{ScalarUDF, Volatility},
+    physical_plan::ColumnarValue,
     prelude::*,
+    scalar::ScalarValue,
 };
 
 use crate::group_by::WindowDuration;
 
 // Reuse DataFusion error and Result types for this module
-pub use datafusion::error::{DataFusionError as Error, Result};
+pub use datafusion::error::{DataFusionError, Result as DataFusionResult};
+
+/// The name of the window_bounds UDF given to DataFusion.
+pub(crate) const WINDOW_BOUNDS_UDF_NAME: &str = "WindowBounds";
+
+lazy_static::lazy_static! {
+    /// Implementation of window_bounds
+    pub(crate) static ref WINDOW_BOUNDS_UDF: Arc<ScalarUDF> = Arc::new(
+        create_udf(
+            WINDOW_BOUNDS_UDF_NAME,
+            // takes 7 arguments (see [`window_bounds_udf`] for details)
+            vec![
+                TIME_DATA_TYPE(),
+                // encoded every
+                DataType::Utf8,
+                DataType::Int64,
+                DataType::Boolean,
+                // encoded offset
+                DataType::Utf8,
+                DataType::Int64,
+                DataType::Boolean,
+            ],
+            Arc::new(TIME_DATA_TYPE()),
+            Volatility::Stable,
+            Arc::new(window_bounds_udf),
+        )
+    );
+}
+
+/// Implement the window bounds function as a DataFusion UDF where
+/// each of the two `WindowDuration` argument has been encoded as
+/// three distinct arguments, for 7 total arguments
+///
+/// ```text
+/// window_bounds(arg, every, offset)
+/// ```
+///
+/// Becomes
+///
+/// ```text
+/// window_bounds_udf(arg, every_type, every.field1, every.field2, offset_type, offset.field1, duration.field2)
+/// ```
+///
+/// For example this would mean that `window_bounds` like this:
+///
+/// ```text
+/// window_bounds(
+///   col(time),
+///   WindowDuration::Fixed(10),
+///   WindowDuration::Variable(11, false)
+/// )
+/// ```
+/// Would be called like:
+///
+/// ```text
+/// window_bounds_udf(
+///   col(time),
+///   "fixed", 10, NULL,
+///   "variable", 11, false
+/// )
+/// ```
+///
+/// Note: [`EncodedWindowDuration`] Handles the encoding / decoding of these arguments
+fn window_bounds_udf(args: &[ColumnarValue]) -> DataFusionResult<ColumnarValue> {
+    assert_eq!(args.len(), 7);
+
+    // extract the arguments as a Scalar
+    macro_rules! extract_scalar {
+        ($ARG:expr) => {
+            match &args[$ARG] {
+                ColumnarValue::Array(_) => {
+                    return Err(DataFusionError::Internal(format!(
+                        "window_bounds_udf argument {} not a scalar",
+                        $ARG
+                    )))
+                }
+                ColumnarValue::Scalar(v) => v.clone(),
+            }
+        };
+    }
+
+    let every: WindowDuration = EncodedWindowDuration {
+        ty: extract_scalar!(1),
+        field1: extract_scalar!(2),
+        field2: extract_scalar!(3),
+    }
+    .try_into()?;
+
+    let offset: WindowDuration = EncodedWindowDuration {
+        ty: extract_scalar!(4),
+        field1: extract_scalar!(5),
+        field2: extract_scalar!(6),
+    }
+    .try_into()?;
+
+    let arg = match &args[0] {
+        ColumnarValue::Scalar(v) => {
+            return Err(DataFusionError::NotImplemented(format!(
+                "window_bounds against scalar arguments ({:?}) not yet implemented",
+                v
+            )))
+        }
+        ColumnarValue::Array(arr) => arr,
+    };
+
+    Ok(ColumnarValue::Array(window_bounds(arg, every, offset)))
+}
 
 /// This is the implementation of the `window_bounds` user defined
 /// function used in IOx to compute window boundaries when doing
 /// grouping by windows.
-fn window_bounds(args: &[ArrayRef], every: &WindowDuration, offset: &WindowDuration) -> ArrayRef {
-    // Note:  At the time of writing, DataFusion creates arrays of constants for
-    // constant arguments (which 4 of 5 arguments to window bounds are). We
-    // should eventually contribute some way back upstream to make DataFusion
-    // pass 4 constants rather than 4 arrays of constants.
-
-    // There are any number of ways this function could also be further
-    // optimized, which we leave as an exercise to our future selves
-
-    // `args` and output are dynamically-typed Arrow arrays, which means that we
+fn window_bounds(arg: &dyn Array, every: WindowDuration, offset: WindowDuration) -> ArrayRef {
+    // `arg` and output are dynamically-typed Arrow arrays, which means that we
     // need to:
     //
     // 1. cast the values to the type we want
@@ -36,10 +139,7 @@ fn window_bounds(args: &[ArrayRef], every: &WindowDuration, offset: &WindowDurat
     //     timestamp array
     // 3. construct the resulting array
 
-    // this is guaranteed by DataFusion based on the function's signature.
-    assert_eq!(args.len(), 1);
-
-    let time = &args[0]
+    let time = arg
         .as_any()
         .downcast_ref::<TimestampNanosecondArray>()
         .expect("cast of time failed");
@@ -49,7 +149,7 @@ fn window_bounds(args: &[ArrayRef], every: &WindowDuration, offset: &WindowDurat
 
     // Note window doesn't use the period argument
     let period = internal::Duration::from_nsecs(0);
-    let window = internal::Window::new(every.into(), period, offset.into());
+    let window = internal::Window::new((&every).into(), period, (&offset).into());
 
     // calculate the output times, one at a time, one element at a time
 
@@ -64,30 +164,93 @@ fn window_bounds(args: &[ArrayRef], every: &WindowDuration, offset: &WindowDurat
     Arc::new(array) as ArrayRef
 }
 
-/// Create a DataFusion `Expr` that invokes `window_bounds` with the
-/// appropriate every and offset arguments at runtime
-pub fn make_window_bound_expr(
-    time_arg: Expr,
-    every: &WindowDuration,
-    offset: &WindowDuration,
-) -> Expr {
-    // Bind a copy of the arguments in a closure
-    let every = *every;
-    let offset = *offset;
+/// Represents a [`WindowDuration`] encoded as a set of
+/// [`ScalarValue`]s that can be passed as arguments to a DataFusion
+/// function
+pub(crate) struct EncodedWindowDuration {
+    /// type: uf8: "fixed" or "variable"
+    pub(crate) ty: ScalarValue,
 
-    // TODO provide optimized implementations (that took every/offset
-    // as a constant rather than arrays)
-    let func_ptr = make_scalar_function(move |args| Ok(window_bounds(args, &every, &offset)));
+    /// type: i64
+    /// if "fixed", holds nanoseconds
+    /// if "variable", months
+    pub(crate) field1: ScalarValue,
 
-    let udf = create_udf(
-        "window_bounds",
-        vec![TIME_DATA_TYPE()],     // argument types
-        Arc::new(TIME_DATA_TYPE()), // return type
-        Volatility::Stable,
-        func_ptr,
-    );
+    /// type: bool
+    /// if "fixed", null
+    /// if "variable", holds `negative`
+    pub(crate) field2: ScalarValue,
+}
 
-    udf.call(vec![time_arg])
+impl From<WindowDuration> for EncodedWindowDuration {
+    // Turn a [`WindowDuration`] into a [`EncodedWindowDuration`]
+    // suitable for passing as a parameter to a datafusion parameter
+    fn from(window_duration: WindowDuration) -> Self {
+        match window_duration {
+            WindowDuration::Variable { months, negative } => Self {
+                ty: ScalarValue::Utf8(Some("variable".into())),
+                field1: ScalarValue::Int64(Some(months)),
+                field2: ScalarValue::Boolean(Some(negative)),
+            },
+            WindowDuration::Fixed { nanoseconds } => Self {
+                ty: ScalarValue::Utf8(Some("fixed".into())),
+                field1: ScalarValue::Int64(Some(nanoseconds)),
+                field2: ScalarValue::Boolean(None),
+            },
+        }
+    }
+}
+
+impl TryFrom<EncodedWindowDuration> for WindowDuration {
+    type Error = DataFusionError;
+
+    // attempt to convert the encoded duration back to a WindowDuration
+    fn try_from(value: EncodedWindowDuration) -> Result<Self, Self::Error> {
+        let EncodedWindowDuration { ty, field1, field2 } = value;
+
+        match ty {
+            ScalarValue::Utf8(Some(val)) if val == "variable" => {
+                let months = if let ScalarValue::Int64(Some(v)) = field1 {
+                    v
+                } else {
+                    return Err(DataFusionError::Internal(
+                        format!("Invalid variable WindowDuration encoding. Expected int64 for months but got '{:?}'", field1)
+                    ))
+                };
+
+                let negative = if let ScalarValue::Boolean(Some(v)) = field2 {
+                    v
+                } else {
+                    return Err(DataFusionError::Internal(
+                        format!("Invalid variable WindowDuration encoding. Expected bool for negative but got '{:?}'", field2)
+                    ))
+                };
+
+                Ok(Self::Variable { months, negative })
+            },
+            ScalarValue::Utf8(Some(val)) if val == "fixed" => {
+                let nanoseconds = if let ScalarValue::Int64(Some(v)) = field1 {
+                    v
+                } else {
+                    return Err(DataFusionError::Internal(
+                        format!("Invalid fixed WindowDuration encoding. Expected int64 for nanoseconds but got '{:?}'", field1)
+                    ))
+                };
+
+                if let ScalarValue::Boolean(None) = field2 {
+                } else {
+                    return Err(DataFusionError::Internal(
+                        format!("Invalid fixed WindowDuration encoding. Expected Null bool in field2 but got '{:?}'", field2)
+                    ))
+                };
+
+                Ok(Self::Fixed { nanoseconds })
+            }
+            _ => return Err(DataFusionError::Internal(
+                format!("Invalid WindowDuration encoding. Expected string 'variable' or 'fixed' but got '{:?}'", ty)
+            ))
+        }
+    }
 }
 
 #[cfg(test)]
@@ -107,7 +270,7 @@ mod tests {
         let every = WindowDuration::from_nanoseconds(200);
         let offset = WindowDuration::from_nanoseconds(50);
 
-        let bounds_array = window_bounds(&[input], &every, &offset);
+        let bounds_array = window_bounds(&input, every, offset);
 
         let expected_array: ArrayRef = Arc::new(TimestampNanosecondArray::from_opt_vec(
             vec![Some(250), None, Some(250), Some(450), Some(450)],
@@ -119,5 +282,119 @@ mod tests {
             "Expected:\n{:?}\nActual:\n{:?}",
             expected_array, bounds_array,
         );
+    }
+
+    #[test]
+    fn test_encoded_duration_roundtrop() {
+        /// That `window_duration` survives encoding and decoding
+        fn round_trip(window_duration: WindowDuration) {
+            let encoded_window_duration: EncodedWindowDuration = window_duration.into();
+            let decoded_window_duration: WindowDuration =
+                encoded_window_duration.try_into().expect("decode failed");
+            assert_eq!(window_duration, decoded_window_duration);
+        }
+
+        round_trip(WindowDuration::Fixed { nanoseconds: 42 });
+        round_trip(WindowDuration::Variable {
+            months: 11,
+            negative: true,
+        });
+        round_trip(WindowDuration::Variable {
+            months: 3,
+            negative: false,
+        });
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "Invalid WindowDuration encoding. Expected string 'variable' or 'fixed' but got 'Boolean(true)'"
+    )]
+    fn test_decoding_error_wrong_type_type() {
+        decode(EncodedWindowDuration {
+            // incorrect type for ty
+            ty: ScalarValue::Boolean(Some(true)),
+            ..good_variable_duration()
+        })
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "Invalid WindowDuration encoding. Expected string 'variable' or 'fixed' but got 'Utf8(\\\"FIXED\\\")"
+    )]
+    fn test_decoding_error_wrong_type_value() {
+        decode(EncodedWindowDuration {
+            // incorrect value
+            ty: ScalarValue::Utf8(Some("FIXED".to_string())),
+            ..good_variable_duration()
+        })
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "Invalid variable WindowDuration encoding. Expected int64 for months but got 'UInt64(11)'"
+    )]
+    fn test_decoding_error_wrong_variable_months() {
+        let _: WindowDuration = EncodedWindowDuration {
+            field1: ScalarValue::UInt64(Some(11)),
+            ..good_variable_duration()
+        }
+        .try_into()
+        .unwrap();
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "Invalid variable WindowDuration encoding. Expected bool for negative but got 'UInt64(11)'"
+    )]
+    fn test_decoding_error_wrong_variable_negative() {
+        decode(EncodedWindowDuration {
+            field2: ScalarValue::UInt64(Some(11)),
+            ..good_variable_duration()
+        })
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "Invalid fixed WindowDuration encoding. Expected int64 for nanoseconds but got 'UInt64(11)'"
+    )]
+    fn test_decoding_error_wrong_fixed_nanos() {
+        decode(EncodedWindowDuration {
+            field1: ScalarValue::UInt64(Some(11)),
+            ..good_fixed_duration()
+        })
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "Invalid fixed WindowDuration encoding. Expected Null bool in field2 but got 'Boolean(false)'"
+    )]
+    fn test_decoding_error_wrong_fixed_field2() {
+        decode(EncodedWindowDuration {
+            field2: ScalarValue::Boolean(Some(false)),
+            ..good_fixed_duration()
+        })
+    }
+
+    /// decodes the encoded value as a `WindowDuration`, panic'ing on failure
+    fn decode(encoded: EncodedWindowDuration) {
+        let _: WindowDuration = encoded.try_into().unwrap();
+    }
+
+    fn good_variable_duration() -> EncodedWindowDuration {
+        EncodedWindowDuration {
+            // incorrect type for ty
+            ty: ScalarValue::Utf8(Some("variable".to_string())),
+            field1: ScalarValue::Int64(Some(11)),
+            field2: ScalarValue::Boolean(Some(false)),
+        }
+    }
+
+    fn good_fixed_duration() -> EncodedWindowDuration {
+        EncodedWindowDuration {
+            // incorrect type for ty
+            ty: ScalarValue::Utf8(Some("fixed".to_string())),
+            field1: ScalarValue::Int64(Some(11)),
+            field2: ScalarValue::Boolean(None),
+        }
     }
 }

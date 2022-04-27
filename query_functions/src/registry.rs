@@ -6,7 +6,7 @@ use datafusion::{
     logical_plan::FunctionRegistry,
 };
 
-use crate::regex;
+use crate::{regex, window};
 
 lazy_static::lazy_static! {
     static ref REGISTRY: IOxFunctionRegistry =  IOxFunctionRegistry::new();
@@ -34,6 +34,7 @@ impl FunctionRegistry for IOxFunctionRegistry {
         match name {
             regex::REGEX_MATCH_UDF_NAME => Ok(regex::REGEX_MATCH_UDF.clone()),
             regex::REGEX_NOT_MATCH_UDF_NAME => Ok(regex::REGEX_NOT_MATCH_UDF.clone()),
+            window::WINDOW_BOUNDS_UDF_NAME => Ok(window::WINDOW_BOUNDS_UDF.clone()),
             _ => Err(DataFusionError::Plan(format!(
                 "IOx FunctionRegistry does not contain function '{}'",
                 name

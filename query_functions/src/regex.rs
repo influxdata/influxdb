@@ -19,6 +19,7 @@ pub(crate) const REGEX_MATCH_UDF_NAME: &str = "RegexMatch";
 pub(crate) const REGEX_NOT_MATCH_UDF_NAME: &str = "RegexNotMatch";
 
 lazy_static::lazy_static! {
+    /// Implementation of regexp_match
     pub(crate) static ref REGEX_MATCH_UDF: Arc<ScalarUDF> = Arc::new(
         create_udf(
             REGEX_MATCH_UDF_NAME,
@@ -32,6 +33,7 @@ lazy_static::lazy_static! {
 }
 
 lazy_static::lazy_static! {
+    /// Implementation of regexp_not_match
     pub(crate) static ref REGEX_NOT_MATCH_UDF: Arc<ScalarUDF> = Arc::new(
         create_udf(
             REGEX_NOT_MATCH_UDF_NAME,
@@ -201,18 +203,18 @@ fn clean_non_meta_escapes(pattern: &str) -> String {
 
 #[cfg(test)]
 mod test {
+
     use arrow::{
         array::{StringArray, UInt64Array},
-        datatypes::{DataType, Field, Schema},
         record_batch::RecordBatch,
         util::pretty::pretty_format_batches,
     };
     use datafusion::{
-        datasource::MemTable,
         error::DataFusionError,
         logical_plan::{col, Expr},
-        prelude::{lit, SessionContext},
+        prelude::lit,
     };
+    use datafusion_util::context_with_table;
     use std::sync::Arc;
 
     use super::*;
@@ -310,11 +312,6 @@ mod test {
 
     // Run a plan against the following input table as "t"
     async fn run_plan(op: Expr) -> Result<Vec<String>, DataFusionError> {
-        let schema = Arc::new(Schema::new(vec![
-            Field::new("words", DataType::Utf8, true),
-            Field::new("length", DataType::UInt64, false),
-        ]));
-
         // define data for table
         let words = vec![
             Some("air"),
@@ -325,24 +322,21 @@ mod test {
             None,
             Some("cocteau twins"),
         ];
-        let rb = RecordBatch::try_new(
-            Arc::clone(&schema),
-            vec![
-                Arc::new(StringArray::from(words.clone())),
-                Arc::new(
-                    words
-                        .iter()
-                        .map(|word| word.map(|word| word.len() as u64))
-                        .collect::<UInt64Array>(),
-                ),
-            ],
-        )
+
+        let lengths = words
+            .iter()
+            .map(|word| word.map(|word| word.len() as u64))
+            .collect::<UInt64Array>();
+
+        let words = StringArray::from(words);
+
+        let rb = RecordBatch::try_from_iter(vec![
+            ("words", Arc::new(words) as ArrayRef),
+            ("length", Arc::new(lengths)),
+        ])
         .unwrap();
 
-        let provider = MemTable::try_new(Arc::clone(&schema), vec![vec![rb]]).unwrap();
-        let ctx = SessionContext::new();
-        ctx.register_table("t", Arc::new(provider)).unwrap();
-
+        let ctx = context_with_table(rb);
         let df = ctx.table("t").unwrap();
         let df = df.filter(op).unwrap();
 

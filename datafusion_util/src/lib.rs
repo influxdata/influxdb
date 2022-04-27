@@ -7,6 +7,7 @@ use std::task::{Context, Poll};
 use datafusion::arrow::array::BooleanArray;
 use datafusion::arrow::compute::filter_record_batch;
 use datafusion::common::DataFusionError;
+use datafusion::datasource::MemTable;
 use datafusion::execution::context::TaskContext;
 use datafusion::physical_expr::PhysicalExpr;
 use datafusion::physical_plan::common::SizedRecordBatchStream;
@@ -317,6 +318,15 @@ pub fn batch_filter(
                 // apply filter array to record batch
                 .and_then(|filter_array| filter_record_batch(batch, filter_array))
         })
+}
+
+/// Return a DataFusion [`SessionContext`] that has the passed RecordBatch available as a table
+pub fn context_with_table(batch: RecordBatch) -> SessionContext {
+    let schema = batch.schema();
+    let provider = MemTable::try_new(schema, vec![vec![batch]]).unwrap();
+    let ctx = SessionContext::new();
+    ctx.register_table("t", Arc::new(provider)).unwrap();
+    ctx
 }
 
 #[cfg(test)]

@@ -4596,6 +4596,7 @@ dependencies = [
  "arrow",
  "chrono",
  "datafusion 0.1.0",
+ "datafusion_util",
  "itertools",
  "lazy_static",
  "observability_deps",
