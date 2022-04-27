@@ -297,6 +297,9 @@ pub trait TableRepo: Send + Sync {
     /// Lists all tables in the catalog for the given namespace id.
     async fn list_by_namespace_id(&mut self, namespace_id: NamespaceId) -> Result<Vec<Table>>;
 
+    /// List all tables.
+    async fn list(&mut self) -> Result<Vec<Table>>;
+
     /// Gets the table persistence info for the given sequencer
     async fn get_table_persist_info(
         &mut self,
@@ -901,17 +904,23 @@ pub(crate) mod test_helpers {
                 .tables()
                 .get_by_namespace_and_name(namespace2.id, "test_table")
                 .await
-                .unwrap(),
-            Some(test_table)
+                .unwrap()
+                .as_ref(),
+            Some(&test_table)
         );
         assert_eq!(
             repos
                 .tables()
                 .get_by_namespace_and_name(namespace2.id, "foo")
                 .await
-                .unwrap(),
-            Some(foo_table)
+                .unwrap()
+                .as_ref(),
+            Some(&foo_table)
         );
+
+        // All tables should be returned by list(), regardless of namespace
+        let list = repos.tables().list().await.unwrap();
+        assert_eq!(list.as_slice(), [tt, test_table, foo_table]);
 
         // test we can get table persistence info with no persistence so far
         let seq = repos

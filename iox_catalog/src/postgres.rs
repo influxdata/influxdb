@@ -790,6 +790,15 @@ WHERE namespace_id = $1;
         Ok(rec)
     }
 
+    async fn list(&mut self) -> Result<Vec<Table>> {
+        let rec = sqlx::query_as::<_, Table>("SELECT * FROM table_name;")
+            .fetch_all(&mut self.inner)
+            .await
+            .map_err(|e| Error::SqlxError { source: e })?;
+
+        Ok(rec)
+    }
+
     async fn get_table_persist_info(
         &mut self,
         sequencer_id: SequencerId,

@@ -437,6 +437,11 @@ impl TableRepo for MemTxn {
         Ok(tables)
     }
 
+    async fn list(&mut self) -> Result<Vec<Table>> {
+        let stage = self.stage();
+        Ok(stage.tables.clone())
+    }
+
     async fn get_table_persist_info(
         &mut self,
         sequencer_id: SequencerId,
