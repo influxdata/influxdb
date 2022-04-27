@@ -5,7 +5,7 @@ Describe your proposed changes here.
 <!-- Please DO NOT update the CHANGELOG, as this is now handled by automation. -->
 <!-- Checkboxes below this note can be erased if not applicable to your Pull Request. -->
 
-- [ ] [Well-formatted commit messages](https://www.conventionalcommits.org/en/v1.0.0-beta.3/)
+- [ ] [Well-formatted commit messages](https://www.conventionalcommits.org/en/v1.0.0/)
 - [ ] Rebased/mergeable
 - [ ] Tests pass
 - [ ] http/swagger.yml updated (if modified Go structs or API)
