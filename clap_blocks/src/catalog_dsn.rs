@@ -1,6 +1,7 @@
 use iox_catalog::{
     create_or_get_default_records, interface::Catalog, mem::MemCatalog, postgres::PostgresCatalog,
 };
+use observability_deps::tracing::*;
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{ops::DerefMut, sync::Arc};
 
@@ -58,6 +59,8 @@ impl CatalogDsnConfig {
     /// Create a new memory instance for all-in-one mode if a catalog DSN is not specified, setting
     /// the default for arguments that are irrelevant
     pub fn new_memory() -> Self {
+        info!("Catalog: In-memory");
+
         Self {
             catalog_type_: CatalogType::Memory,
             dsn: None,
@@ -72,6 +75,8 @@ impl CatalogDsnConfig {
         max_catalog_connections: u32,
         postgres_schema_name: String,
     ) -> Self {
+        info!("Catalog: Postgres at `{}`", dsn);
+
         Self {
             catalog_type_: CatalogType::Postgres,
             dsn: Some(dsn),

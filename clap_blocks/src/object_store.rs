@@ -187,6 +187,11 @@ Possible values (case insensitive):
 impl ObjectStoreConfig {
     /// Create a new instance for all-in-one mode, only allowing some arguments.
     pub fn new(database_directory: Option<PathBuf>) -> Self {
+        match &database_directory {
+            Some(dir) => info!("Object store: File-based in `{}`", dir.display()),
+            None => info!("Object store: In-memory"),
+        }
+
         let object_store = database_directory.as_ref().map(|_| ObjectStoreType::File);
 
         Self {

@@ -1,5 +1,6 @@
 use data_types::write_buffer::{WriteBufferConnection, WriteBufferCreationConfig};
 use iox_time::SystemProvider;
+use observability_deps::tracing::*;
 use std::{collections::BTreeMap, num::NonZeroU32, path::PathBuf, sync::Arc};
 use tempfile::TempDir;
 use trace::TraceCollector;
@@ -65,6 +66,8 @@ impl WriteBufferConfig {
                     .display()
                     .to_string()
             });
+
+        info!("Write buffer: File-based in `{}`", connection_string);
 
         Self {
             type_: "file".to_string(),
