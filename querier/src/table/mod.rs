@@ -626,7 +626,7 @@ mod tests {
                         Some(SequenceNumber::new(2)),
                         // tombstone max persisted sequence number
                         Some(SequenceNumber::new(10)),
-                        vec![lp_to_record_batch("table foo=3 33")],
+                        vec![lp_to_record_batch("table foo=3i 33")],
                     )
                     .unwrap(),
                 ),

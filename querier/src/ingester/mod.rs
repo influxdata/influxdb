@@ -35,6 +35,14 @@ pub enum Error {
     #[snafu(display("Failed to select columns: {}", source))]
     SelectColumns { source: schema::Error },
 
+    #[snafu(display("Internal error: ingester record batch for colum '{}' has type '{}' but should have type '{}'",
+                    column_name, actual_data_type, desired_data_type))]
+    RecordBatchType {
+        column_name: String,
+        actual_data_type: DataType,
+        desired_data_type: DataType,
+    },
+
     #[snafu(display("Internal error: failed to resolve ingester record batch types for column '{}' type '{}': {}",
                     column_name, data_type, source))]
     ConvertingRecordBatch {
@@ -562,27 +570,71 @@ impl QueryChunk for IngesterPartition {
     }
 }
 
+/// Ensure that the record batch has the given schema.
+///
+/// This does multiple things:
+///
+/// 1. Dictionary type recovery
+/// 2. NULL-column creation
+///
+/// # Dictionary Type Recovery
 /// Cast arrays in record batch to be the type of schema this is a
 /// workaround for
-/// https://github.com/influxdata/influxdb_iox/pull/4273 where the
-/// flight API doesn't necessairly return the same schema as was
+/// <https://github.com/influxdata/influxdb_iox/pull/4273> where the
+/// flight API doesn't necessarily return the same schema as was
 /// provided by the ingester.
 ///
 /// Namely, dictionary encoded columns (e.g. tags) are returned as
 /// `DataType::Utf8` even when they were sent as
 /// `DataType::Dictionary(Int32, Utf8)`.
+///
+/// # NULL-column Creation
+/// If a column is absent in an ingester partition it will not be part of record batch even when the querier requests
+/// it. In that case we create it as "all NULL" column with the appropriate type.
+///
+/// An alternative would be to remove the column from the schema of the appropriate [`IngesterPartition`]. However since
+/// a partition may contain multiple record batches and we do not want to assume that the presence/absence of columns is
+/// identical for all of them, we fix this here.
 fn ensure_schema(batch: RecordBatch, expected_schema: &Schema) -> Result<RecordBatch> {
-    let old_columns = batch.columns().iter();
+    let actual_schema = batch.schema();
     let desired_fields = expected_schema.iter().map(|(_, f)| f);
 
-    let new_columns = old_columns
-        .zip(desired_fields)
-        .map(|(col, f)| {
-            let data_type = f.data_type();
-            arrow::compute::cast(col, data_type).context(ConvertingRecordBatchSnafu {
-                column_name: f.name(),
-                data_type: data_type.clone(),
-            })
+    let new_columns = desired_fields
+        .map(|desired_field| {
+            let desired_type = desired_field.data_type();
+
+            // find column by name
+            match actual_schema.column_with_name(desired_field.name()) {
+                Some((idx, _field)) => {
+                    let col = batch.column(idx);
+                    let actual_type = col.data_type();
+
+                    // check type
+                    if desired_type != actual_type {
+                        if let DataType::Dictionary(_key_type, value_type) = desired_type.clone() {
+                            if value_type.as_ref() == actual_type {
+                                // convert
+                                return arrow::compute::cast(col, desired_type).context(
+                                    ConvertingRecordBatchSnafu {
+                                        column_name: desired_field.name(),
+                                        data_type: desired_type.clone(),
+                                    },
+                                );
+                            }
+                        }
+
+                        RecordBatchTypeSnafu {
+                            column_name: desired_field.name(),
+                            actual_data_type: actual_type.clone(),
+                            desired_data_type: desired_type.clone(),
+                        }
+                        .fail()
+                    } else {
+                        Ok(Arc::clone(col))
+                    }
+                }
+                None => Ok(arrow::array::new_null_array(desired_type, batch.num_rows())),
+            }
         })
         .collect::<Result<Vec<_>>>()?;
 
@@ -660,7 +712,7 @@ mod tests {
     use std::collections::{BTreeMap, HashMap};
 
     use arrow::{
-        array::{ArrayRef, DictionaryArray, StringArray, TimestampNanosecondArray},
+        array::{ArrayRef, DictionaryArray, Int64Array, StringArray, TimestampNanosecondArray},
         datatypes::Int32Type,
     };
     use assert_matches::assert_matches;
@@ -1140,6 +1192,75 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_ingester_partition_fail_type_cast() {
+        let expected_schema = Arc::new(
+            SchemaBuilder::new()
+                .field("b", DataType::Boolean)
+                .timestamp()
+                .build()
+                .unwrap(),
+        );
+
+        let batch =
+            RecordBatch::try_from_iter(vec![("b", int64_array()), ("time", ts_array())]).unwrap();
+
+        let parquet_max_sequence_number = None;
+        let tombstone_max_sequence_number = None;
+        let err = IngesterPartition::try_new(
+            ChunkId::new(),
+            "ns".into(),
+            "table".into(),
+            PartitionId::new(1),
+            SequencerId::new(1),
+            Arc::from(String::from("foo")),
+            Arc::clone(&expected_schema),
+            parquet_max_sequence_number,
+            tombstone_max_sequence_number,
+            vec![batch],
+        )
+        .unwrap_err();
+
+        assert_matches!(err, Error::RecordBatchType { .. });
+    }
+
+    #[test]
+    fn test_ingester_partition_null_column() {
+        let expected_schema = Arc::new(
+            SchemaBuilder::new()
+                .field("b", DataType::Boolean)
+                .timestamp()
+                .build()
+                .unwrap(),
+        );
+
+        let batch = RecordBatch::try_from_iter(vec![("time", ts_array())]).unwrap();
+
+        let parquet_max_sequence_number = None;
+        let tombstone_max_sequence_number = None;
+        let ingester_partition = IngesterPartition::try_new(
+            ChunkId::new(),
+            "ns".into(),
+            "table".into(),
+            PartitionId::new(1),
+            SequencerId::new(1),
+            Arc::from(String::from("foo")),
+            Arc::clone(&expected_schema),
+            parquet_max_sequence_number,
+            tombstone_max_sequence_number,
+            vec![batch],
+        )
+        .unwrap();
+
+        assert_eq!(ingester_partition.batches.len(), 1);
+        let batch = &ingester_partition.batches[0];
+        assert_eq!(batch.column(0).data_type(), &DataType::Boolean);
+        assert!(arrow::compute::is_null(batch.column(0))
+            .unwrap()
+            .into_iter()
+            .all(|x| x.unwrap()));
+    }
+
     fn ts_array() -> ArrayRef {
         Arc::new(
             [Some(1), Some(2), Some(3)]
@@ -1161,8 +1282,16 @@ mod tests {
         )
     }
 
+    fn int64_array() -> ArrayRef {
+        Arc::new(i64_vec().iter().collect::<Int64Array>())
+    }
+
     fn str_vec() -> &'static [Option<&'static str>] {
         &[Some("foo"), Some("bar"), Some("baz")]
+    }
+
+    fn i64_vec() -> &'static [Option<i64>] {
+        &[Some(1), Some(2), Some(3)]
     }
 
     #[test]
