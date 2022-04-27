@@ -94,7 +94,7 @@ message Predicate {
 
   // Optional arbitrary predicates on the special `_value` column. These expressions are applied to
   // `field_columns` projections in the form of `CASE` statement conditions.
-  repeated BinaryExpr value_expr = 5;
+  repeated ValueExpr value_expr = 5;
 }
 
 // Specifies a continuous range of nanosecond timestamps.
@@ -143,11 +143,9 @@ message LogicalExprNode {
   }
 }
 
-// A representation of the `BinaryExpr` variant of a DataFusion expression for value expressions.
-message BinaryExpr {
-  Column left = 1;
-  string op = 2;
-  LogicalExprNode right = 3;
+// A wrapper around a DataFusion expression against `_value` columns
+message ValueExpr {
+  LogicalExprNode expr = 1;
 }
 
 message BinaryExprNode {

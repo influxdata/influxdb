@@ -18,7 +18,7 @@ use datafusion::{
         sha384, sha512, trim, upper,
     },
 };
-use predicate::{BinaryExpr, Predicate};
+use predicate::{Predicate, ValueExpr};
 
 impl TryFrom<proto::IngesterQueryRequest> for IngesterQueryRequest {
     type Error = FieldViolation;
@@ -121,16 +121,18 @@ impl TryFrom<proto::Predicate> for Predicate {
         let value_expr = value_expr
             .into_iter()
             .map(|ve| {
-                let left = ve.left.unwrap_field("left")?;
-                let right = ve.right.unwrap_field("right")?;
-
-                Ok(BinaryExpr {
-                    left: from_proto_column(left),
-                    op: from_proto_binary_op("op", &ve.op)?,
-                    right: from_proto_expr(right)?,
-                })
+                let expr = ve.expr.unwrap_field("expr")?;
+                let expr = from_proto_expr(expr)?;
+                expr.try_into() // into ValueExpr
+                    .map_err(|e| FieldViolation {
+                        field: "expr".into(),
+                        description: format!(
+                            "Internal: Serialized expr a valid ValueExpr: {:?}",
+                            e
+                        ),
+                    })
             })
-            .collect::<Result<Vec<BinaryExpr>, FieldViolation>>()?;
+            .collect::<Result<Vec<ValueExpr>, FieldViolation>>()?;
 
         Ok(Self {
             field_columns,
@@ -142,16 +144,12 @@ impl TryFrom<proto::Predicate> for Predicate {
     }
 }
 
-impl TryFrom<BinaryExpr> for proto::BinaryExpr {
+impl TryFrom<ValueExpr> for proto::ValueExpr {
     type Error = FieldViolation;
 
-    fn try_from(bin_expr: BinaryExpr) -> Result<Self, Self::Error> {
-        let BinaryExpr { left, op, right } = bin_expr;
-
+    fn try_from(value_expr: ValueExpr) -> Result<Self, Self::Error> {
         Ok(Self {
-            left: Some(from_column(left)),
-            op: op.to_string(),
-            right: Some(from_expr(right)?),
+            expr: Some(from_expr(value_expr.into())?),
         })
     }
 }

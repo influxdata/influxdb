@@ -9,7 +9,7 @@ use data_types::chunk_metadata::ChunkId;
 use datafusion::{
     error::DataFusionError,
     logical_plan::{
-        binary_expr, col, when, DFSchemaRef, Expr, ExprRewritable, ExprSchemable, LogicalPlan,
+        col, when, DFSchemaRef, Expr, ExprRewritable, ExprSchemable, LogicalPlan,
         LogicalPlanBuilder,
     },
 };
@@ -18,7 +18,7 @@ use datafusion_util::AsExpr;
 use hashbrown::HashSet;
 use observability_deps::tracing::{debug, trace};
 use predicate::rpc_predicate::InfluxRpcPredicate;
-use predicate::{BinaryExpr, Predicate, PredicateMatch};
+use predicate::{Predicate, PredicateMatch};
 use query_functions::{
     group_by::{Aggregate, WindowDuration},
     make_window_bound_expr,
@@ -1638,9 +1638,7 @@ fn filtered_fields_iter<'a>(
         let expr = predicate
             .value_expr
             .iter()
-            .map(|BinaryExpr { left: _, op, right }| {
-                binary_expr(col(f.name()), *op, right.as_expr())
-            })
+            .map(|value_expr| value_expr.replace_col(f.name()))
             .reduce(|a, b| a.or(b))
             .map(|when_expr| when(when_expr, col(f.name())).end())
             .unwrap_or_else(|| Ok(col(f.name())))
