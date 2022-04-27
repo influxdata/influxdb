@@ -43,10 +43,9 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug, clap::Parser)]
 pub struct Config {
-    // TODO(marco) remove this
-    /// Config for database mode, for backwards compatibility reasons.
+    /// Supports having all-in-one be the default command.
     #[clap(flatten)]
-    database_config: database::Config,
+    all_in_one_config: all_in_one::Config,
 
     #[clap(subcommand)]
     command: Option<Command>,
@@ -55,7 +54,7 @@ pub struct Config {
 impl Config {
     pub fn logging_config(&self) -> &LoggingConfig {
         match &self.command {
-            None => self.database_config.run_config.logging_config(),
+            None => &self.all_in_one_config.logging_config,
             Some(Command::Compactor(config)) => config.run_config.logging_config(),
             Some(Command::Database(config)) => config.run_config.logging_config(),
             Some(Command::Querier(config)) => config.run_config.logging_config(),
@@ -88,7 +87,7 @@ enum Command {
     /// Run the server in ingester mode
     Ingester(ingester::Config),
 
-    /// Run the server in "all in one" mode
+    /// Run the server in "all in one" mode (Default)
     AllInOne(all_in_one::Config),
 
     /// Run the server in test mode
@@ -97,14 +96,10 @@ enum Command {
 
 pub async fn command(config: Config) -> Result<()> {
     match config.command {
-        None => {
-            println!(
-                "WARNING: Not specifying the run-mode is deprecated. Defaulting to 'database'."
-            );
-            database::command(config.database_config)
-                .await
-                .context(DatabaseSnafu)
-        }
+        None => all_in_one::command(config.all_in_one_config)
+            .await
+            .context(AllInOneSnafu),
+        Some(Command::AllInOne(config)) => all_in_one::command(config).await.context(AllInOneSnafu),
         Some(Command::Compactor(config)) => {
             compactor::command(config).await.context(CompactorSnafu)
         }
@@ -113,7 +108,6 @@ pub async fn command(config: Config) -> Result<()> {
         Some(Command::Router(config)) => router::command(config).await.context(RouterSnafu),
         Some(Command::Router2(config)) => router2::command(config).await.context(Router2Snafu),
         Some(Command::Ingester(config)) => ingester::command(config).await.context(IngesterSnafu),
-        Some(Command::AllInOne(config)) => all_in_one::command(config).await.context(AllInOneSnafu),
         Some(Command::Test(config)) => test::command(config).await.context(TestSnafu),
     }
 }

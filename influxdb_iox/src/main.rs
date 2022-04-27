@@ -65,20 +65,20 @@ compile_error!("heappy and jemalloc_replacing_malloc features are mutually exclu
     long_about = r#"InfluxDB IOx server and command line tools
 
 Examples:
-    # Run the InfluxDB IOx server:
-    influxdb_iox run database
+    # Run the InfluxDB IOx server in all-in-one mode:
+    influxdb_iox run
 
     # Run the interactive SQL prompt
     influxdb_iox sql
 
     # Display all server settings
-    influxdb_iox run database --help
+    influxdb_iox run --help
 
     # Run the InfluxDB IOx server with extra verbose logging
-    influxdb_iox run database -v
+    influxdb_iox run -v
 
     # Run InfluxDB IOx with full debug logging specified with LOG_FILTER
-    LOG_FILTER=debug influxdb_iox run database
+    LOG_FILTER=debug influxdb_iox run
 
 Command are generally structured in the form:
     <type of object> <action> <arguments>

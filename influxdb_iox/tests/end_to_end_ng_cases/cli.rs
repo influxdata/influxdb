@@ -2,12 +2,24 @@ use assert_cmd::Command;
 use futures::FutureExt;
 use predicates::prelude::*;
 use serde_json::Value;
+use std::time::Duration;
 use tempfile::tempdir;
 use test_helpers_end_to_end_ng::{
     maybe_skip_integration, MiniCluster, Step, StepTest, StepTestState,
 };
 
 /// Tests CLI commands
+
+#[tokio::test]
+async fn default_run_mode_is_all_in_one() {
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .args(&["run", "-v"])
+        .timeout(Duration::from_secs(2))
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("starting all in one server"));
+}
 
 /// remote partition command and getting a parquet file from the object store and pulling the files
 #[tokio::test]
