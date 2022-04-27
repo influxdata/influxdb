@@ -13,4 +13,4 @@ These versions of InfluxDB are currently being supported with security updates.
 
 ## Reporting a Vulnerability
 
-InfluxData takes security and our users' trust very seriously. If you believe you have found a security issue in any of our open source projects, please responsibly disclose it by contacting security@influxdata.com. More details about security vulnerability reporting, including our GPG key, can be found at https://www.influxdata.com/how-to-report-security-vulnerabilities/.
+InfluxData takes security and our users' trust very seriously. If you believe you have found a security issue in any of our open source projects, please responsibly disclose it by contacting security@influxdata.com. For more information, see [how to report security vulnerabilities](https://www.influxdata.com/how-to-report-security-vulnerabilities/).
