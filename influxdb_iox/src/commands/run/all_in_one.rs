@@ -161,8 +161,25 @@ pub struct Config {
     #[clap(long = "--data-dir", env = "INFLUXDB_IOX_DB_DIR")]
     pub database_directory: Option<PathBuf>,
 
-    #[clap(flatten)]
-    pub(crate) catalog_dsn: CatalogDsnConfig,
+    /// Postgres connection string. If not specified, will use an in-memory catalog.
+    #[clap(long = "--catalog-dsn", env = "INFLUXDB_IOX_CATALOG_DSN")]
+    pub dsn: Option<String>,
+
+    /// Maximum number of connections allowed to the catalog at any one time.
+    #[clap(
+        long = "--catalog-max-connections",
+        env = "INFLUXDB_IOX_CATALOG_MAX_CONNECTIONS",
+        default_value = "10"
+    )]
+    pub max_catalog_connections: u32,
+
+    /// Schema name for PostgreSQL-based catalogs.
+    #[clap(
+        long = "--catalog-postgres-schema-name",
+        env = "INFLUXDB_IOX_CATALOG_POSTGRES_SCHEMA_NAME",
+        default_value = iox_catalog::postgres::SCHEMA_NAME,
+    )]
+    pub postgres_schema_name: String,
 
     /// The ingester will continue to pull data and buffer it from the write buffer
     /// as long as it is below this size. If it hits this size it will pause
@@ -265,7 +282,9 @@ impl Config {
             tracing_config,
             max_http_request_size,
             database_directory,
-            catalog_dsn,
+            dsn,
+            max_catalog_connections,
+            postgres_schema_name,
             pause_ingest_size_bytes,
             persist_memory_threshold_bytes,
             persist_partition_size_threshold_bytes,
@@ -280,6 +299,15 @@ impl Config {
 
         let object_store_config = ObjectStoreConfig::new(database_directory.clone());
         let write_buffer_config = WriteBufferConfig::new(QUERY_POOL_NAME, database_directory);
+        let catalog_dsn = dsn
+            .map(|postgres_url| {
+                CatalogDsnConfig::new_postgres(
+                    postgres_url,
+                    max_catalog_connections,
+                    postgres_schema_name,
+                )
+            })
+            .unwrap_or_else(CatalogDsnConfig::new_memory);
 
         let router_run_config = RunConfig::new(
             logging_config,

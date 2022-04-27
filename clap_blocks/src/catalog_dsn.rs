@@ -55,6 +55,31 @@ pub enum CatalogType {
 }
 
 impl CatalogDsnConfig {
+    /// Create a new memory instance for all-in-one mode if a catalog DSN is not specified, setting
+    /// the default for arguments that are irrelevant
+    pub fn new_memory() -> Self {
+        Self {
+            catalog_type_: CatalogType::Memory,
+            dsn: None,
+            max_catalog_connections: 10,
+            postgres_schema_name: iox_catalog::postgres::SCHEMA_NAME.to_string(),
+        }
+    }
+
+    /// Create a new Postgres instance for all-in-one mode if a catalog DSN is specified
+    pub fn new_postgres(
+        dsn: String,
+        max_catalog_connections: u32,
+        postgres_schema_name: String,
+    ) -> Self {
+        Self {
+            catalog_type_: CatalogType::Postgres,
+            dsn: Some(dsn),
+            max_catalog_connections,
+            postgres_schema_name,
+        }
+    }
+
     pub async fn get_catalog(
         &self,
         app_name: &'static str,
