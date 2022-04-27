@@ -8,7 +8,7 @@ async fn test_git_version() {
         .arg("--version")
         .assert()
         .success()
-        .stderr(
+        .stdout(
             predicate::str::contains("UNKNOWN")
                 .not()
                 .and(predicate::str::is_match("revision [0-9a-f]{40}").unwrap()),
