@@ -80,6 +80,8 @@ async fn write_data(
 }
 
 #[tokio::test]
+// Ignored due to https://github.com/influxdata/influxdb_iox/issues/4437
+#[ignore]
 async fn test_full_lifecycle() {
     let fixture = ServerFixture::create_shared(ServerType::Database).await;
     let mut write_client = fixture.write_client();
