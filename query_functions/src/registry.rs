@@ -1,0 +1,55 @@
+use std::{collections::HashSet, sync::Arc};
+
+use datafusion::{
+    common::{DataFusionError, Result as DataFusionResult},
+    logical_expr::{AggregateUDF, ScalarUDF},
+    logical_plan::FunctionRegistry,
+};
+
+use crate::regex;
+
+lazy_static::lazy_static! {
+    static ref REGISTRY: IOxFunctionRegistry =  IOxFunctionRegistry::new();
+}
+
+/// Lookup for all DataFusion User Defined Functions used by IOx
+#[derive(Debug)]
+pub(crate) struct IOxFunctionRegistry {}
+
+impl IOxFunctionRegistry {
+    fn new() -> Self {
+        Self {}
+    }
+}
+
+impl FunctionRegistry for IOxFunctionRegistry {
+    fn udfs(&self) -> HashSet<String> {
+        [regex::REGEX_MATCH_UDF_NAME, regex::REGEX_NOT_MATCH_UDF_NAME]
+            .into_iter()
+            .map(|s| s.to_string())
+            .collect()
+    }
+
+    fn udf(&self, name: &str) -> DataFusionResult<Arc<ScalarUDF>> {
+        match name {
+            regex::REGEX_MATCH_UDF_NAME => Ok(regex::REGEX_MATCH_UDF.clone()),
+            regex::REGEX_NOT_MATCH_UDF_NAME => Ok(regex::REGEX_NOT_MATCH_UDF.clone()),
+            _ => Err(DataFusionError::Plan(format!(
+                "IOx FunctionRegistry does not contain function '{}'",
+                name
+            ))),
+        }
+    }
+
+    fn udaf(&self, name: &str) -> DataFusionResult<Arc<AggregateUDF>> {
+        Err(DataFusionError::Plan(format!(
+            "IOx FunctionRegistry does not contain user defined aggregate function '{}'",
+            name
+        )))
+    }
+}
+
+/// Return a reference to the global function registry
+pub(crate) fn instance() -> &'static IOxFunctionRegistry {
+    &REGISTRY
+}

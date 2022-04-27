@@ -4623,6 +4623,7 @@ dependencies = [
  "chrono",
  "datafusion 0.1.0",
  "itertools",
+ "lazy_static",
  "observability_deps",
  "regex",
  "regex-syntax",

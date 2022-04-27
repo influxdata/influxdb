@@ -29,7 +29,6 @@ use predicate::{
     PredicateBuilder,
 };
 use query::{Aggregate as QueryAggregate, WindowDuration};
-use query_functions::regex::regex_match_expr;
 use snafu::{OptionExt, ResultExt, Snafu};
 
 #[derive(Debug, Snafu)]
@@ -590,7 +589,14 @@ fn build_regex_match_expr(matches: bool, mut inputs: Vec<Expr>) -> Result<Expr> 
                 return InternalInvalidRegexExprReferenceSnafu.fail();
             };
 
-            Ok(regex_match_expr(inputs.remove(0), pattern, matches))
+            if matches {
+                Ok(query_functions::regex_match_expr(inputs.remove(0), pattern))
+            } else {
+                Ok(query_functions::regex_not_match_expr(
+                    inputs.remove(0),
+                    pattern,
+                ))
+            }
         }
         _ => InternalInvalidRegexExprChildrenSnafu { num_children }.fail(),
     }

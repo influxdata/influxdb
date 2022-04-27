@@ -10,6 +10,7 @@ arrow = { version = "12", features = ["prettyprint"] }
 chrono = { version = "0.4", default-features = false }
 datafusion = { path = "../datafusion" }
 itertools = "0.10.2"
+lazy_static = "1.4.0"
 observability_deps = { path = "../observability_deps" }
 regex = "1"
 regex-syntax = "0.6.25"

@@ -1,21 +1,48 @@
 use std::sync::Arc;
 
 use arrow::{
-    array::{ArrayRef, BooleanArray, StringArray},
+    array::{as_string_array, ArrayRef, BooleanArray},
     datatypes::DataType,
 };
 use datafusion::{
     error::DataFusionError,
-    logical_expr::Volatility,
-    logical_plan::{create_udf, Expr},
-    physical_plan::functions::make_scalar_function,
+    logical_expr::{ScalarFunctionImplementation, ScalarUDF, Volatility},
+    logical_plan::create_udf,
+    physical_plan::ColumnarValue,
+    scalar::ScalarValue,
 };
 
 /// The name of the regex_match UDF given to DataFusion.
-pub const REGEX_MATCH_UDF_NAME: &str = "RegexMatch";
+pub(crate) const REGEX_MATCH_UDF_NAME: &str = "RegexMatch";
 
 /// The name of the not_regex_match UDF given to DataFusion.
-pub const REGEX_NOT_MATCH_UDF_NAME: &str = "RegexNotMatch";
+pub(crate) const REGEX_NOT_MATCH_UDF_NAME: &str = "RegexNotMatch";
+
+lazy_static::lazy_static! {
+    pub(crate) static ref REGEX_MATCH_UDF: Arc<ScalarUDF> = Arc::new(
+        create_udf(
+            REGEX_MATCH_UDF_NAME,
+            // takes two arguments: regex, pattern
+            vec![DataType::Utf8, DataType::Utf8],
+            Arc::new(DataType::Boolean),
+            Volatility::Stable,
+            regex_match_expr_impl(true),
+        )
+    );
+}
+
+lazy_static::lazy_static! {
+    pub(crate) static ref REGEX_NOT_MATCH_UDF: Arc<ScalarUDF> = Arc::new(
+        create_udf(
+            REGEX_NOT_MATCH_UDF_NAME,
+            // takes two arguments: regex, pattern
+            vec![DataType::Utf8, DataType::Utf8],
+            Arc::new(DataType::Boolean),
+            Volatility::Stable,
+            regex_match_expr_impl(false),
+        )
+    );
+}
 
 /// Given a column containing string values and a single regex pattern,
 /// `regex_match_expr` determines which values satisfy the pattern and which do
@@ -29,55 +56,74 @@ pub const REGEX_NOT_MATCH_UDF_NAME: &str = "RegexNotMatch";
 /// This UDF is designed to support the regex operator that can be pushed down
 /// via the InfluxRPC API.
 ///
-pub fn regex_match_expr(input: Expr, pattern: String, matches: bool) -> Expr {
-    // N.B., this function does not utilise the Arrow regexp compute kernel because
-    // in order to act as a filter it needs to return a boolean array of comparison
-    // results, not an array of strings as the regex compute kernel does.
+fn regex_match_expr_impl(matches: bool) -> ScalarFunctionImplementation {
+    // N.B., this function does not utilise the Arrow regexp compute
+    // kernel because in order to act as a filter it needs to return a
+    // boolean array of comparison results, not an array of strings as
+    // the regex compute kernel does and it needs to implement the
+    // regexp syntax for influxrpc.
 
-    // Attempt to make the pattern compatible with what is accepted by
-    // the golang regexp library which is different than Rust's regexp
-    let pattern = clean_non_meta_escapes(pattern);
+    let func = move |args: &[ColumnarValue]| {
+        assert_eq!(args.len(), 2); // only works over a single column and pattern at a time.
 
-    let func = move |args: &[ArrayRef]| {
-        assert_eq!(args.len(), 1); // only works over a single column at a time.
+        let pattern = match &args[1] {
+            // second arg was array (not constant)
+            ColumnarValue::Array(_) => {
+                return Err(DataFusionError::NotImplemented(format!(
+                    "regex_match({}) with non scalar patterns not yet implemented",
+                    matches
+                )))
+            }
+            ColumnarValue::Scalar(ScalarValue::Utf8(pattern)) => pattern,
+            ColumnarValue::Scalar(arg) => {
+                return Err(DataFusionError::Internal(format!(
+                    "Expected string pattern to regex match({}), got: {:?}",
+                    matches, arg
+                )))
+            }
+        };
 
-        let input_arr = &args[0].as_any().downcast_ref::<StringArray>().unwrap();
+        let pattern = pattern.as_ref().ok_or_else(|| {
+            DataFusionError::NotImplemented(
+                "NULL patterns not supported in regex match".to_string(),
+            )
+        })?;
+
+        // Attempt to make the pattern compatible with what is accepted by
+        // the golang regexp library which is different than Rust's regexp
+        let pattern = clean_non_meta_escapes(pattern);
 
         let pattern = regex::Regex::new(&pattern).map_err(|e| {
             DataFusionError::Internal(format!("error compiling regex pattern: {}", e))
         })?;
 
-        let results = input_arr
-            .iter()
-            .map(|row| {
-                // in arrow, any value can be null.
-                // Here we decide to make our UDF to return null when either base or exponent is null.
-                row.map(|v| pattern.is_match(v) == matches)
-            })
-            .collect::<BooleanArray>();
+        match &args[0] {
+            ColumnarValue::Array(arr) => {
+                let results = as_string_array(arr)
+                    .iter()
+                    .map(|row| {
+                        // in arrow, any value can be null.
+                        // Here we decide to make our UDF to return null when either base or exponent is null.
+                        row.map(|v| pattern.is_match(v) == matches)
+                    })
+                    .collect::<BooleanArray>();
 
-        Ok(Arc::new(results) as ArrayRef)
+                Ok(ColumnarValue::Array(Arc::new(results) as ArrayRef))
+            }
+            ColumnarValue::Scalar(ScalarValue::Utf8(row)) => {
+                let res = row.as_ref().map(|v| pattern.is_match(v) == matches);
+                Ok(ColumnarValue::Scalar(ScalarValue::Boolean(res)))
+            }
+            ColumnarValue::Scalar(v) => {
+                return Err(DataFusionError::Internal(format!(
+                    "regex_match({}) expected first argument to be utf8, got ('{}')",
+                    matches, v
+                )))
+            }
+        }
     };
 
-    // make_scalar_function is a helper to support accepting scalar values as
-    // well as arrays.
-    let func = make_scalar_function(func);
-
-    let udf_name = if matches {
-        REGEX_MATCH_UDF_NAME
-    } else {
-        REGEX_NOT_MATCH_UDF_NAME
-    };
-
-    let udf = create_udf(
-        udf_name,
-        vec![DataType::Utf8],
-        Arc::new(DataType::Boolean),
-        Volatility::Stable,
-        func,
-    );
-
-    udf.call(vec![input])
+    Arc::new(func)
 }
 
 fn is_valid_character_after_escape(c: char) -> bool {
@@ -104,9 +150,9 @@ fn is_valid_character_after_escape(c: char) -> bool {
 /// golang, used by the influx storage rpc.
 ///
 /// See <https://github.com/rust-lang/regex/issues/501> for more details
-fn clean_non_meta_escapes(pattern: String) -> String {
+fn clean_non_meta_escapes(pattern: &str) -> String {
     if pattern.is_empty() {
-        return pattern;
+        return pattern.to_string();
     }
 
     #[derive(Debug, Copy, Clone)]
@@ -165,11 +211,11 @@ mod test {
         datasource::MemTable,
         error::DataFusionError,
         logical_plan::{col, Expr},
-        prelude::SessionContext,
+        prelude::{lit, SessionContext},
     };
     use std::sync::Arc;
 
-    use super::clean_non_meta_escapes;
+    use super::*;
 
     #[tokio::test]
     async fn regex_match_expr() {
@@ -235,7 +281,14 @@ mod test {
         ];
 
         for (pattern, matches, expected) in cases.into_iter() {
-            let regex_expr = super::regex_match_expr(col("words"), pattern.to_string(), matches);
+            let args = vec![col("words"), lit(pattern)];
+
+            let regex_expr = if matches {
+                REGEX_MATCH_UDF.call(args)
+            } else {
+                REGEX_NOT_MATCH_UDF.call(args)
+            };
+
             let actual = run_plan(regex_expr).await.unwrap();
 
             assert_eq!(
@@ -249,7 +302,7 @@ mod test {
     #[tokio::test]
     async fn regex_match_expr_invalid_regex() {
         // an invalid regex pattern
-        let regex_expr = super::regex_match_expr(col("words"), "[".to_string(), true);
+        let regex_expr = crate::regex_match_expr(col("words"), "[".to_string());
 
         let actual = run_plan(regex_expr).await.expect_err("expected error");
         assert!(actual.to_string().contains("error compiling regex pattern"))
@@ -328,7 +381,7 @@ mod test {
         ];
 
         for (pattern, expected) in cases {
-            let cleaned_pattern = clean_non_meta_escapes(pattern.to_string());
+            let cleaned_pattern = clean_non_meta_escapes(pattern);
             assert_eq!(
                 cleaned_pattern, expected,
                 "Expected '{}' to be cleaned to '{}', got '{}'",

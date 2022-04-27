@@ -327,18 +327,16 @@ impl PredicateBuilder {
 
     /// Builds a regex matching expression from the provided column name and
     /// pattern. Values not matching the regex will be filtered out.
-    pub fn build_regex_match_expr(self, column: &str, pattern: impl Into<String>) -> Self {
-        self.regex_match_expr(column, pattern, true)
+    pub fn build_regex_match_expr(mut self, column: &str, pattern: impl Into<String>) -> Self {
+        let expr = query_functions::regex_match_expr(col(column), pattern.into());
+        self.inner.exprs.push(expr);
+        self
     }
 
     /// Builds a regex "not matching" expression from the provided column name
     /// and pattern. Values *matching* the regex will be filtered out.
-    pub fn build_regex_not_match_expr(self, column: &str, pattern: impl Into<String>) -> Self {
-        self.regex_match_expr(column, pattern, false)
-    }
-
-    fn regex_match_expr(mut self, column: &str, pattern: impl Into<String>, matches: bool) -> Self {
-        let expr = query_functions::regex::regex_match_expr(col(column), pattern.into(), matches);
+    pub fn build_regex_not_match_expr(mut self, column: &str, pattern: impl Into<String>) -> Self {
+        let expr = query_functions::regex_not_match_expr(col(column), pattern.into());
         self.inner.exprs.push(expr);
         self
     }
