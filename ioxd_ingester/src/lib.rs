@@ -51,10 +51,15 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-#[derive(Debug)]
 pub struct IngesterServerType<I: IngestHandler> {
     server: IngesterServer<I>,
     trace_collector: Option<Arc<dyn TraceCollector>>,
+}
+
+impl<I: IngestHandler> std::fmt::Debug for IngesterServerType<I> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Ingester")
+    }
 }
 
 impl<I: IngestHandler> IngesterServerType<I> {

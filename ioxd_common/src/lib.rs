@@ -119,12 +119,13 @@ pub async fn serve(
         frontend_shutdown.clone(),
     )
     .fuse();
-    info!("gRPC server listening");
+    info!(?server_type, "gRPC server listening");
 
     let captured_server_type = Arc::clone(&server_type);
     let captured_shutdown = frontend_shutdown.clone();
     let http_server = async move {
         if let Some(http_listener) = http_listener {
+            info!(server_type=?captured_server_type, "HTTP server listening");
             http::serve(
                 http_listener,
                 captured_server_type,
@@ -139,10 +140,9 @@ pub async fn serve(
         Ok(())
     }
     .fuse();
-    info!("HTTP server listening");
 
     // Purposefully use log not tokio-tracing to ensure correctly hooked up
-    log::info!("InfluxDB IOx server ready");
+    log::info!("InfluxDB IOx {:?} server ready", server_type);
 
     // Get IOx background worker join handle
     let server_handle = Arc::clone(&server_type).join().fuse();
@@ -192,30 +192,30 @@ pub async fn serve(
     // registry, don't exit before HTTP and gRPC requests dependent on them
     while !grpc_server.is_terminated() && !http_server.is_terminated() {
         futures::select! {
-            _ = signal => info!("Shutdown requested"),
+            _ = signal => info!(?server_type, "Shutdown requested"),
             _ = server_handle => {
-                error!("server worker shutdown prematurely");
+                error!(?server_type, "server worker shutdown prematurely");
                 res = res.and(Err(Error::LostServer));
             },
             result = grpc_server => match result {
-                Ok(_) if frontend_shutdown.is_cancelled() => info!("gRPC server shutdown"),
+                Ok(_) if frontend_shutdown.is_cancelled() => info!(?server_type, "gRPC server shutdown"),
                 Ok(_) => {
-                    error!("Early gRPC server exit");
+                    error!(?server_type, "Early gRPC server exit");
                     res = res.and(Err(Error::LostRpc));
                 }
                 Err(error) => {
-                    error!(%error, "gRPC server error");
+                    error!(%error, ?server_type, "gRPC server error");
                     res = res.and(Err(Error::ServingRpc{source: error}));
                 }
             },
             result = http_server => match result {
-                Ok(_) if frontend_shutdown.is_cancelled() => info!("HTTP server shutdown"),
+                Ok(_) if frontend_shutdown.is_cancelled() => info!(?server_type, "HTTP server shutdown"),
                 Ok(_) => {
-                    error!("Early HTTP server exit");
+                    error!(?server_type, "Early HTTP server exit");
                     res = res.and(Err(Error::LostHttp));
                 }
                 Err(error) => {
-                    error!(%error, "HTTP server error");
+                    error!(%error, ?server_type, "HTTP server error");
                     res = res.and(Err(Error::ServingHttp{source: error}));
                 }
             },
@@ -223,13 +223,13 @@ pub async fn serve(
 
         frontend_shutdown.cancel()
     }
-    info!("frontend shutdown completed");
+    info!(?server_type, "frontend shutdown completed");
 
     server_type.shutdown();
     if !server_handle.is_terminated() {
         server_handle.await;
     }
-    info!("backend shutdown completed");
+    info!(?server_type, "backend shutdown completed");
 
     res
 }
