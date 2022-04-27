@@ -905,6 +905,15 @@ WHERE table_name.namespace_id = $1;
         Ok(rec)
     }
 
+    async fn list(&mut self) -> Result<Vec<Column>> {
+        let rec = sqlx::query_as::<_, Column>("SELECT * FROM column_name;")
+            .fetch_all(&mut self.inner)
+            .await
+            .map_err(|e| Error::SqlxError { source: e })?;
+
+        Ok(rec)
+    }
+
     async fn create_or_get_many(
         &mut self,
         columns: &[ColumnUpsertRequest<'_>],

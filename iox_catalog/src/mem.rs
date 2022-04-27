@@ -582,6 +582,11 @@ impl ColumnRepo for MemTxn {
 
         Ok(columns)
     }
+
+    async fn list(&mut self) -> Result<Vec<Column>> {
+        let stage = self.stage();
+        Ok(stage.columns.clone())
+    }
 }
 
 #[async_trait]

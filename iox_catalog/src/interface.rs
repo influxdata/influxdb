@@ -357,6 +357,9 @@ pub trait ColumnRepo: Send + Sync {
 
     /// Lists all columns in the passed in namespace id.
     async fn list_by_namespace_id(&mut self, namespace_id: NamespaceId) -> Result<Vec<Column>>;
+
+    /// List all columns.
+    async fn list(&mut self) -> Result<Vec<Column>>;
 }
 
 /// Functions for working with sequencers in the catalog
@@ -1075,6 +1078,10 @@ pub(crate) mod test_helpers {
         let mut want = vec![c, ccc];
         want.extend(cols3);
         assert_eq!(want, columns);
+
+        // Listing columns should return all columns in the catalog
+        let list = repos.columns().list().await.unwrap();
+        assert_eq!(list, want);
 
         // test per-namespace column limits
         repos
