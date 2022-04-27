@@ -5,6 +5,10 @@ import (
 	"errors"
 
 	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/dependencies"
+	"github.com/influxdata/flux/dependencies/http"
+	"github.com/influxdata/flux/dependencies/secret"
+	"github.com/influxdata/flux/dependencies/url"
 	"github.com/influxdata/influxdb/coordinator"
 )
 
@@ -65,7 +69,16 @@ func NewDependencies(
 	authEnabled bool,
 	writer PointsWriter,
 ) (Dependencies, error) {
-	fdeps := flux.NewDefaultDependencies()
+	validator := &url.PassValidator{}
+	fdeps := dependencies.NewDefaultDependencies("")
+	fdeps.Deps = flux.Deps{
+		Deps: flux.WrappedDeps{
+			HTTPClient:        http.NewDefaultClient(validator),
+			FilesystemService: nil,
+			SecretService:     secret.EmptySecretService{},
+			URLValidator:      validator,
+		},
+	}
 	deps := Dependencies{FluxDeps: fdeps}
 	deps.StorageDeps = StorageDependencies{
 		Reader:       reader,
