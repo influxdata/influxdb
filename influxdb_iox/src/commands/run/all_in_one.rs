@@ -32,13 +32,13 @@ pub const DEFAULT_ROUTER_GRPC_BIND_ADDR: &str = "127.0.0.1:8081";
 /// The default bind address for the Querier gRPC (chosen to match default gRPC addr)
 pub const DEFAULT_QUERIER_GRPC_BIND_ADDR: &str = "127.0.0.1:8082";
 
-/// The default bind address for the Ingester gRPC (chosen to match default gRPC addr)
+/// The default bind address for the Ingester gRPC
 pub const DEFAULT_INGESTER_GRPC_BIND_ADDR: &str = "127.0.0.1:8083";
 
-/// The default bind address for the Compactor gRPC (chosen to match default gRPC addr)
+/// The default bind address for the Compactor gRPC
 pub const DEFAULT_COMPACTOR_GRPC_BIND_ADDR: &str = "127.0.0.1:8084";
 
-// If you want this level of control, should be instatiating the services individually
+// If you want this level of control, should be instantiating the services individually
 const QUERY_POOL_NAME: &str = "iox-shared";
 
 #[derive(Debug, Error)]
@@ -108,7 +108,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 ///
 /// Currently, the starts services on 5 ports, designed so that the
 /// ports used to interact with the old architecture are the same as
-/// the new architecture (8082 write endpoint and query on 8082).
+/// the new architecture (8081 write endpoint and query on 8082).
 ///
 /// Router;
 ///  8080 http  (overrides INFLUXDB_IOX_BIND_ADDR)
