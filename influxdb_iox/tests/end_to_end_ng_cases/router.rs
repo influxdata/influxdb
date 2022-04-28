@@ -75,7 +75,7 @@ async fn write_via_grpc() {
     }];
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_quickly_persisting(database_url).await;
+    let mut cluster = MiniCluster::create_shared(database_url).await;
 
     StepTest::new(
         &mut cluster,

@@ -100,13 +100,6 @@ impl TestConfig {
             .with_new_write_buffer()
             .with_new_object_store()
             .with_default_ingester_options()
-            .with_fast_parquet_generation()
-    }
-
-    /// Create a configuraton for aggressive creation of parquet files
-    pub fn with_fast_parquet_generation(self) -> Self {
-        self.with_env("INFLUXDB_IOX_PAUSE_INGEST_SIZE_BYTES", "2")
-            .with_env("INFLUXDB_IOX_PERSIST_MEMORY_THRESHOLD_BYTES", "1")
     }
 
     /// Configure tracing capture
@@ -140,7 +133,7 @@ impl TestConfig {
 
     /// Adds default ingester options
     fn with_default_ingester_options(self) -> Self {
-        self.with_env("INFLUXDB_IOX_PAUSE_INGEST_SIZE_BYTES", "20")
+        self.with_env("INFLUXDB_IOX_PAUSE_INGEST_SIZE_BYTES", "2000000")
             .with_env("INFLUXDB_IOX_PERSIST_MEMORY_THRESHOLD_BYTES", "10")
             .with_kafka_partition(0)
     }

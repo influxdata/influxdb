@@ -135,7 +135,7 @@ pub async fn token_is_persisted(
     all_persisted(&res)
 }
 
-const MAX_QUERY_RETRY_TIME_SEC: u64 = 10;
+const MAX_QUERY_RETRY_TIME_SEC: u64 = 20;
 
 /// Waits for the specified predicate to return true
 pub async fn wait_for_token<F>(

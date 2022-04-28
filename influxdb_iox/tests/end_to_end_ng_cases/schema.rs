@@ -12,7 +12,7 @@ async fn ingester_schema_client() {
     test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();
 
-    let mut cluster = MiniCluster::create_standard(database_url).await;
+    let mut cluster = MiniCluster::create_shared(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -59,7 +59,7 @@ async fn ingester_schema_cli() {
     test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();
 
-    let mut cluster = MiniCluster::create_standard(database_url).await;
+    let mut cluster = MiniCluster::create_shared(database_url).await;
 
     StepTest::new(
         &mut cluster,

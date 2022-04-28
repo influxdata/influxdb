@@ -6074,6 +6074,7 @@ dependencies = [
  "http",
  "hyper",
  "influxdb_iox_client",
+ "lazy_static",
  "nix 0.24.0",
  "observability_deps",
  "once_cell",

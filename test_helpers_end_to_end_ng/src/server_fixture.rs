@@ -8,7 +8,7 @@ use std::{
     path::Path,
     process::{Child, Command},
     str,
-    sync::Arc,
+    sync::{Arc, Weak},
     time::Duration,
 };
 use tempfile::NamedTempFile;
@@ -34,15 +34,20 @@ pub struct ServerFixture {
 impl ServerFixture {
     /// Create a new server fixture and wait for it to be ready. This
     /// is called "create" rather than new because it is async and
-    /// waits. The server is not shared with any other tests.
+    /// waits.
     pub async fn create(test_config: TestConfig) -> Self {
-        let mut server = TestServer::new(test_config).await;
+        let server = TestServer::new(test_config).await;
+        Self::create_from_existing(Arc::new(server)).await
+    }
 
+    /// Create a new server fixture that shares the same TestServer,
+    /// but has its own connections
+    pub(crate) async fn create_from_existing(server: Arc<TestServer>) -> Self {
         // ensure the server is ready
         let connections = server.wait_until_ready().await;
 
         ServerFixture {
-            server: Arc::new(server),
+            server,
             connections,
         }
     }
@@ -94,6 +99,11 @@ impl ServerFixture {
     /// Return the http base URL for the router gRPC API
     pub fn router_grpc_base(&self) -> Arc<str> {
         self.server.addrs().router_grpc_api().client_base()
+    }
+
+    /// Get a weak reference to the underlying `TestServer`
+    pub(crate) fn weak(&self) -> Weak<TestServer> {
+        Arc::downgrade(&self.server)
     }
 }
 
@@ -257,7 +267,7 @@ impl TestServer {
     }
 
     /// Restarts the tests server process, but does not reconnect clients
-    async fn restart(&self) {
+    async fn restart(&mut self) {
         let mut ready_guard = self.ready.lock().await;
         let mut server_process = self.server_process.lock().await;
         kill_politely(&mut server_process.child, Duration::from_secs(5));
@@ -335,7 +345,7 @@ impl TestServer {
     /// Polls the various services to ensure the server is
     /// operational, reestablishing grpc connections, and returning
     /// those active connections
-    async fn wait_until_ready(&mut self) -> Connections {
+    async fn wait_until_ready(&self) -> Connections {
         let mut need_wait_for_startup = false;
         {
             let mut ready = self.ready.lock().await;

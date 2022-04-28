@@ -17,7 +17,7 @@ async fn ingester_flight_api() {
     let table_name = "mytable";
 
     // Set up cluster
-    let cluster = MiniCluster::create_standard(database_url).await;
+    let cluster = MiniCluster::create_shared(database_url).await;
 
     // Write some data into the v2 HTTP API ==============
     let lp = format!("{},tag1=A,tag2=B val=42i 123456", table_name);
@@ -94,7 +94,7 @@ async fn ingester_flight_api_namespace_not_found() {
     let table_name = "mytable";
 
     // Set up cluster
-    let cluster = MiniCluster::create_standard(database_url).await;
+    let cluster = MiniCluster::create_shared(database_url).await;
 
     let mut querier_flight = influxdb_iox_client::flight::Client::<
         influxdb_iox_client::flight::generated_types::IngesterQueryRequest,
@@ -124,7 +124,7 @@ async fn ingester_flight_api_table_not_found() {
     let database_url = maybe_skip_integration!();
 
     // Set up cluster
-    let cluster = MiniCluster::create_standard(database_url).await;
+    let cluster = MiniCluster::create_shared(database_url).await;
 
     // Write some data into the v2 HTTP API ==============
     let lp = String::from("my_table,tag1=A,tag2=B val=42i 123456");

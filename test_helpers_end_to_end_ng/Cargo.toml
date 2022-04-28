@@ -14,6 +14,7 @@ http = "0.2.0"
 hyper = "0.14"
 influxdb_iox_client = { path = "../influxdb_iox_client", features = ["flight", "format", "write_lp"] }
 nix = "0.24"
+lazy_static = "1.4.0"
 observability_deps = { path = "../observability_deps" }
 once_cell = { version = "1.10.0", features = ["parking_lot"] }
 parking_lot = "0.12"
