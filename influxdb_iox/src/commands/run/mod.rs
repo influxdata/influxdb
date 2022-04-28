@@ -1,7 +1,7 @@
 use snafu::{ResultExt, Snafu};
 use trogging::cli::LoggingConfig;
 
-mod all_in_one;
+pub(crate) mod all_in_one;
 mod compactor;
 mod database;
 mod ingester;

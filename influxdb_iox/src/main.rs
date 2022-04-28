@@ -9,7 +9,10 @@
     clippy::future_not_send
 )]
 
-use crate::commands::tracing::{init_logs_and_tracing, init_simple_logs, TroggingGuard};
+use crate::commands::{
+    run::all_in_one,
+    tracing::{init_logs_and_tracing, init_simple_logs, TroggingGuard},
+};
 use dotenv::dotenv;
 use influxdb_iox_client::connection::Builder;
 use iox_time::{SystemProvider, TimeProvider};
@@ -90,25 +93,6 @@ For example, a command such as the following shows all actions
 "#
 )]
 struct Config {
-    /// Log filter short-hand.
-    ///
-    /// Convenient way to set log severity level filter.
-    /// Overrides --log-filter / LOG_FILTER.
-    ///
-    /// -v   'info'
-    ///
-    /// -vv  'debug,hyper::proto::h1=info,h2=info'
-    ///
-    /// -vvv 'trace,hyper::proto::h1=info,h2=info'
-    #[clap(
-        short = 'v',
-        long = "--verbose",
-        multiple_occurrences = true,
-        takes_value = false,
-        parse(from_occurrences)
-    )]
-    pub log_verbose_count: u8,
-
     /// gRPC address of IOx server to connect to
     #[clap(
         short,
@@ -139,6 +123,10 @@ struct Config {
     /// cores on the system
     #[clap(long)]
     num_threads: Option<usize>,
+
+    /// Supports having all-in-one be the default command.
+    #[clap(flatten)]
+    all_in_one_config: all_in_one::Config,
 
     #[clap(subcommand)]
     command: Command,
@@ -184,7 +172,7 @@ fn main() -> Result<(), std::io::Error> {
     tokio_runtime.block_on(async move {
         let host = config.host;
         let headers = config.header;
-        let log_verbose_count = config.log_verbose_count;
+        let log_verbose_count = config.all_in_one_config.logging_config.log_verbose_count;
         let rpc_timeout = config.rpc_timeout;
 
         let connection = || async move {
