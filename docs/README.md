@@ -33,6 +33,7 @@ We hold monthly Tech Talks that explain the project's technical underpinnings. Y
 * SQL command line tips and tricks: [SQL](sql.md).
 * Notes on server startup and error recovery: [`server_startup.md`](server_startup.md)
 * IOx Architecture
+    * IOx Data Deduplication & Sort Key: [dedup_and_sort.md](dedup_and_sort.md)
     * IOx Data Organization and Data LifeCycle: [`data_organization_lifecycle.md`](data_organization_lifecycle.md)
     * IOx Catalog: The Metadata for Operating a Database [`catalogs.md`](catalogs.md)
     * IOx transactions ang locks. (to be written & linked)

@@ -3147,7 +3147,7 @@ mod test {
         let plan_str = format!("{}", displayable(plan.as_ref()).indent());
         //println!("{}", plan_str);
 
-        //  Verify no SortExec because chunks are not yet sorted on the specified sort_key
+        //  Verify no SortExec because chunks are already sorted on the specified sort_key
         assert!(!plan_str.contains("SortExec"));
 
         // Verify 4 IOxReadFilterNode
@@ -3165,6 +3165,204 @@ mod test {
         // Verify 2 SortPreservingMergeExec
         let count = plan_str.matches("SortPreservingMergeExec").count();
         assert_eq!(count, 2);
+    }
+
+    #[tokio::test]
+    async fn alread_sorted_scan_plan_with_two_partitions_explain() {
+        test_helpers::maybe_start_logging();
+
+        // ------------
+        // Partition 1: covers all kind of SORTED chunks: overlap, non-overlap without duplicates within, non-overlap with duplicates within
+
+        let sort_key = SortKey::from_columns(vec!["tag1", TIME_COLUMN_NAME]);
+
+        let chunk1_1 = Arc::new(
+            TestChunk::new("t")
+                .with_id(1)
+                .with_time_column()
+                .with_timestamp_min_max(5, 7000)
+                .with_tag_column("tag1")
+                .with_i64_field_column("field_int")
+                .with_partition_id(1) // signal the chunk in partition 1 while grouping overlaps
+                .with_sort_key(sort_key.clone()), // signal the chunk is sorted
+        ) as Arc<dyn QueryChunk>;
+
+        // chunk2 overlaps with chunk 1
+        let chunk1_2 = Arc::new(
+            TestChunk::new("t")
+                .with_id(2)
+                .with_time_column()
+                .with_timestamp_min_max(5, 7000)
+                .with_tag_column("tag1")
+                .with_i64_field_column("field_int")
+                .with_partition_id(1) // signal the chunk in partition 1 while grouping overlaps
+                .with_sort_key(sort_key.clone()), // signal the chunk is sorted
+        ) as Arc<dyn QueryChunk>;
+
+        // chunk3 no overlap, no duplicates within
+        let chunk1_3 = Arc::new(
+            TestChunk::new("t")
+                .with_id(3)
+                .with_time_column()
+                .with_timestamp_min_max(8000, 20000)
+                .with_tag_column("tag1")
+                .with_i64_field_column("field_int")
+                .with_partition_id(1) // signal the chunk in partition 1 while grouping overlaps
+                .with_sort_key(sort_key.clone()), // signal the chunk is sorted
+        ) as Arc<dyn QueryChunk>;
+
+        // chunk3 no overlap, duplicates within
+        let chunk1_4 = Arc::new(
+            TestChunk::new("t")
+                .with_id(4)
+                .with_time_column()
+                .with_timestamp_min_max(28000, 220000)
+                .with_tag_column("tag1")
+                .with_i64_field_column("field_int")
+                .with_partition_id(1) // signal the chunk in partition 1 while grouping overlaps
+                .with_may_contain_pk_duplicates(true) // signal having duplicates within this chunk
+                .with_sort_key(sort_key.clone()), // signal the chunk is sorted
+        ) as Arc<dyn QueryChunk>;
+
+        // ------------
+        // Partition 2: Same 4 kinds of chunks on 6 chunks.
+        // The non-overlap without duplicates within and non-overlap with duplicates within, each now
+        // include 2 chunks for more test coverage
+
+        let chunk2_1 = Arc::new(
+            TestChunk::new("t")
+                .with_id(1)
+                .with_time_column()
+                .with_timestamp_min_max(5, 7000)
+                .with_tag_column("tag1")
+                .with_i64_field_column("field_int")
+                .with_partition_id(2) // signal the chunk in partition 2
+                .with_sort_key(sort_key.clone()), // signal the chunk is sorted
+        ) as Arc<dyn QueryChunk>;
+
+        // chunk2_2 overlaps with chunk 2_1
+        let chunk2_2 = Arc::new(
+            TestChunk::new("t")
+                .with_id(2)
+                .with_time_column()
+                .with_timestamp_min_max(5, 7000)
+                .with_tag_column("tag1")
+                .with_i64_field_column("field_int")
+                .with_partition_id(2) // signal the chunk in partition 2
+                .with_sort_key(sort_key.clone()), // signal the chunk is sorted
+        ) as Arc<dyn QueryChunk>;
+
+        // chunk2_2 no overlap, no duplicates within
+        let chunk2_3 = Arc::new(
+            TestChunk::new("t")
+                .with_id(3)
+                .with_time_column()
+                .with_timestamp_min_max(8000, 20000)
+                .with_tag_column("tag1")
+                .with_i64_field_column("field_int")
+                .with_partition_id(2) // signal the chunk in partition 2
+                .with_sort_key(sort_key.clone()), // signal the chunk is sorted
+        ) as Arc<dyn QueryChunk>;
+
+        // chunk2_4 no overlap, no duplicates within
+        let chunk2_4 = Arc::new(
+            TestChunk::new("t")
+                .with_id(3)
+                .with_time_column()
+                .with_timestamp_min_max(21000, 27000)
+                .with_tag_column("tag1")
+                .with_i64_field_column("field_int")
+                .with_partition_id(2) // signal the chunk in partition 2
+                .with_sort_key(sort_key.clone()), // signal the chunk is sorted
+        ) as Arc<dyn QueryChunk>;
+
+        // chunk2_5 no overlap, duplicates within
+        let chunk2_5 = Arc::new(
+            TestChunk::new("t")
+                .with_id(4)
+                .with_time_column()
+                .with_timestamp_min_max(28000, 30000)
+                .with_tag_column("tag1")
+                .with_i64_field_column("field_int")
+                .with_partition_id(2) // signal the chunk in partition 2 while grouping overlaps
+                .with_may_contain_pk_duplicates(true) // signal having duplicates within this chunk
+                .with_sort_key(sort_key.clone()), // signal the chunk is sorted
+        ) as Arc<dyn QueryChunk>;
+
+        // chunk2_6 no overlap, duplicates within
+        let chunk2_6 = Arc::new(
+            TestChunk::new("t")
+                .with_id(4)
+                .with_time_column()
+                .with_timestamp_min_max(38000, 40000)
+                .with_tag_column("tag1")
+                .with_i64_field_column("field_int")
+                .with_partition_id(2) // signal the chunk in partition 2 while grouping overlaps
+                .with_may_contain_pk_duplicates(true) // signal having duplicates within this chunk
+                .with_sort_key(sort_key.clone()), // signal the chunk is sorted
+        ) as Arc<dyn QueryChunk>;
+
+        let schema = chunk1_1.schema();
+        let chunks = vec![
+            chunk1_1, chunk1_2, chunk1_3, chunk1_4, chunk2_1, chunk2_2, chunk2_3, chunk2_4,
+            chunk2_5, chunk2_6,
+        ];
+        let mut deduplicator = Deduplicater::new();
+        let plan = deduplicator
+            .build_scan_plan(
+                Arc::from("t"),
+                schema,
+                chunks,
+                Predicate::default(),
+                Some(sort_key),
+            )
+            .unwrap();
+
+        // The plan should look like this. No SortExec at all because
+        // all chunks are already sorted on the same requested sort key
+        //
+        // SortPreservingMergeExec: [tag1@1 ASC,time@2 ASC]
+        //     UnionExec
+        //     DeduplicateExec: [tag1@1 ASC,time@2 ASC]
+        //         SortPreservingMergeExec: [tag1@1 ASC,time@2 ASC]
+        //             UnionExec
+        //                 IOxReadFilterNode: table_name=t, chunks=1 predicate=Predicate
+        //                 IOxReadFilterNode: table_name=t, chunks=1 predicate=Predicate
+        //     DeduplicateExec: [tag1@1 ASC,time@2 ASC]
+        //         SortPreservingMergeExec: [tag1@1 ASC,time@2 ASC]
+        //             UnionExec
+        //                 IOxReadFilterNode: table_name=t, chunks=1 predicate=Predicate
+        //                 IOxReadFilterNode: table_name=t, chunks=1 predicate=Predicate
+        //     DeduplicateExec: [tag1@1 ASC,time@2 ASC]
+        //         IOxReadFilterNode: table_name=t, chunks=1 predicate=Predicate
+        //     DeduplicateExec: [tag1@1 ASC,time@2 ASC]
+        //         IOxReadFilterNode: table_name=t, chunks=1 predicate=Predicate
+        //     DeduplicateExec: [tag1@1 ASC,time@2 ASC]
+        //         IOxReadFilterNode: table_name=t, chunks=1 predicate=Predicate
+        //     IOxReadFilterNode: table_name=t, chunks=1 predicate=Predicate
+        //     IOxReadFilterNode: table_name=t, chunks=1 predicate=Predicate
+        //     IOxReadFilterNode: table_name=t, chunks=1 predicate=Predicate
+        let plan_str = format!("{}", displayable(plan.as_ref()).indent());
+        println!("{}", plan_str);
+
+        //  Verify no SortExec because chunks are already sorted on the specified sort_key
+        assert!(!plan_str.contains("SortExec"));
+
+        // Verify 10 IOxReadFilterNode
+        let count = plan_str.matches("IOxReadFilterNode").count();
+        assert_eq!(count, 10);
+
+        // Verify 5 DeduplicateExec
+        let count = plan_str.matches("DeduplicateExec").count();
+        assert_eq!(count, 5);
+
+        // Verify 3 UnionExec
+        let count = plan_str.matches("UnionExec").count();
+        assert_eq!(count, 3);
+
+        // Verify 3 SortPreservingMergeExec
+        let count = plan_str.matches("SortPreservingMergeExec").count();
+        assert_eq!(count, 3);
     }
 
     fn chunk_ids(group: &[Arc<dyn QueryChunk>]) -> String {
