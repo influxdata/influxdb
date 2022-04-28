@@ -1,3 +1,5 @@
+//! Tests CLI commands
+
 use assert_cmd::Command;
 use futures::FutureExt;
 use predicates::prelude::*;
@@ -8,7 +10,16 @@ use test_helpers_end_to_end_ng::{
     maybe_skip_integration, MiniCluster, Step, StepTest, StepTestState,
 };
 
-/// Tests CLI commands
+#[tokio::test]
+async fn default_mode_is_run_all_in_one() {
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .args(&["-v"])
+        .timeout(Duration::from_secs(2))
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("starting all in one server"));
+}
 
 #[tokio::test]
 async fn default_run_mode_is_all_in_one() {
