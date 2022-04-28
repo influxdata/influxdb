@@ -22,7 +22,7 @@ rand = "0.8.3"
 reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls"] }
 sqlx = { version = "0.5", features = [ "runtime-tokio-rustls" , "postgres", "uuid" ] }
 tempfile = "3.1.0"
-test_helpers = { path = "../test_helpers" }
+test_helpers = { path = "../test_helpers", features = ["future_timeout"] }
 tokio = { version = "1.18", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-util = "0.7"
 tonic = "0.7"

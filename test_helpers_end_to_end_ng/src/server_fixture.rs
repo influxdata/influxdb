@@ -12,6 +12,7 @@ use std::{
     time::Duration,
 };
 use tempfile::NamedTempFile;
+use test_helpers::timeout::FutureTimeout;
 use tokio::sync::Mutex;
 
 use crate::{database::initialize_db, server_type::AddAddrEnv};
@@ -356,7 +357,7 @@ impl TestServer {
 
         // at first, attempt to reconnect all the clients
         let mut connections = Connections::new();
-        tokio::time::timeout(Duration::from_secs(10), async {
+        async {
             let mut interval = tokio::time::interval(Duration::from_millis(100));
             loop {
                 match connections.reconnect(&self.test_config).await {
@@ -365,9 +366,9 @@ impl TestServer {
                 }
                 interval.tick().await;
             }
-        })
-        .await
-        .expect("Timed out waiting to connect clients");
+        }
+        .with_timeout_panic(Duration::from_secs(10))
+        .await;
 
         if !need_wait_for_startup {
             return connections;
