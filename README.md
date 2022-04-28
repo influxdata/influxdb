@@ -65,6 +65,7 @@ To compile and run InfluxDB IOx from source, you'll need the following:
 * [Clang](#clang)
 * [lld (on Linux)](#lld)
 * [protoc (on Apple Silicon)](#protoc)
+* [Postgres](#postgres)
 
 #### Rust
 
@@ -136,6 +137,16 @@ PROTOC_INCLUDE=/opt/homebrew/include
 
 IOx should then build correctly.
 
+#### Postgres
+
+The catalog is stored in Postgres (unless you're running in ephemeral mode). Postgres can be installed via Homebrew:
+
+```shell
+brew install postgres
+```
+
+then follow the instructions for starting Postgres either at system startup or on-demand.
+
 ### Clone the repository
 
 Clone this repository using `git`.
@@ -158,7 +169,7 @@ The rest of these instructions assume you are in this directory.
 InfluxDB IOx can be configured using either environment variables or a configutation file,
 making it suitable for deployment in containerized environments.
 
-For a list configuration options, run `influxdb_iox --help`.
+For a list of configuration options, run `influxdb_iox --help`.
 For configuration options for specific subcommands, run `influxdb_iox <subcommand> --help`.
 
 To use a configuration file, use a `.env` file in the working directory.
@@ -169,7 +180,7 @@ To use the example configuration file, run:
 cp docs/env.example .env
 ```
 
-### Compile and start the server
+### Compiling and Running
 
 InfluxDB IOx is built using Cargo, Rust's package manager and build tool.
 
@@ -181,34 +192,65 @@ cargo build
 
 This which will create a binary at `target/debug/influxdb_iox`.
 
-To start the InfluxDB IOx server, run:
+#### Ephemeral mode
+
+To start InfluxDB IOx and store data in memory, after you've compiled for development, run:
 
 ```shell
-./target/debug/influxdb_iox run database
+./target/debug/influxdb_iox run all-in-one
 ```
 
 By default the server will start an HTTP server on port `8080` and a gRPC server on port `8082`.
 
-You can also compile and run with one command:
+#### Local persistence mode
+
+To start InfluxDB IOx and store the catalog in Postgres and data in the local filesystem to persist
+data across restarts, after you've compiled for development, run:
 
 ```shell
-cargo run -- run database
+./target/debug/influxdb_iox run all-in-one --catalog-dsn postgres:///iox_shared --data-dir=~/iox_data
 ```
 
-To compile for performance testing, build in release mode:
+where `--catalog-dsn` is a connection URL to the Postgres database you wish to use, and
+`--data-dir` is the directory you wish to use.
+
+### Loading data in local mode
+
+Because the services run on different gRPC ports, and because the CLI uses the gRPC write API, if
+you're using `influxdb_iox database` you have to set a `--host` with the correct gRPC
+
+```shell
+influxdb_iox -vv database write my_db test_fixtures/lineproto/metrics.lp --host http://localhost:8081
+```
+
+#### Compile and run
+
+Rather than building and running the binary in `target`, you can also compile and run with one
+command:
+
+```shell
+cargo run -- run all-in-one
+```
+
+#### Release mode for performance testing
+
+To compile for performance testing, build in release mode then use the binary in `target/release`:
 
 ```shell
 cargo build --release
-./target/release/influxdb_iox run database
+./target/release/influxdb_iox run all-in-one
 ```
 
-You can also run in release mode with one step:
+You can also compile and run in release mode with one step:
 
 ```shell
-cargo run --release -- run database
+cargo run --release -- run all-in-one
 ```
 
-To run all available tests in debug mode, you may want to set min stack size to avoid the current known stack overflow issue:
+#### Running tests
+
+To run all available tests in debug mode, you may want to set min stack size to avoid the current
+known stack overflow issue:
 
 ```shell
 RUST_MIN_STACK=10485760 cargo test --all
@@ -233,26 +275,6 @@ DOCKER_BUILDKIT=1 docker build .
 [Enable BuildKit]: https://docs.docker.com/develop/develop-images/build_enhancements/#to-enable-buildkit-builds
 
 ### Write and read data
-
-Each IOx instance requires a server ID.
-This can be set one of 4 ways:
-
-* set an environment variable `INFLUXDB_IOX_ID=42`
-* set a flag `--server-id 42`
-* use the API (not convered here)
-* use the CLI
-
-  ```shell
-  influxdb_iox server set 42
-  ```
-
-To write data, you need to create a database.
-You can do so via the API or using the CLI.
-For example, to create a database called `company_sensors`, use this command:
-
-```shell
-influxdb_iox database create company_sensors
-```
 
 Data can be stored in InfluxDB IOx by sending it in [line protocol] format to the `/api/v2/write` endpoint or using the CLI.
 For example, here is a command that will send the data in the `test_fixtures/lineproto/metrics.lp` file in this repository, assuming that you're running the server on the default port into the `company_sensors` database, you can use:

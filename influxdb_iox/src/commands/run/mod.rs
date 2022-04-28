@@ -1,6 +1,5 @@
 use snafu::{ResultExt, Snafu};
-
-use clap_blocks::run_config::RunConfig;
+use trogging::cli::LoggingConfig;
 
 mod all_in_one;
 mod compactor;
@@ -54,17 +53,17 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn run_config(&self) -> &RunConfig {
+    pub fn logging_config(&self) -> &LoggingConfig {
         match &self.command {
-            None => &self.database_config.run_config,
-            Some(Command::Compactor(config)) => &config.run_config,
-            Some(Command::Database(config)) => &config.run_config,
-            Some(Command::Querier(config)) => &config.run_config,
-            Some(Command::Router(config)) => &config.run_config,
-            Some(Command::Router2(config)) => &config.run_config,
-            Some(Command::Ingester(config)) => &config.run_config,
-            Some(Command::AllInOne(config)) => &config.run_config,
-            Some(Command::Test(config)) => &config.run_config,
+            None => self.database_config.run_config.logging_config(),
+            Some(Command::Compactor(config)) => config.run_config.logging_config(),
+            Some(Command::Database(config)) => config.run_config.logging_config(),
+            Some(Command::Querier(config)) => config.run_config.logging_config(),
+            Some(Command::Router(config)) => config.run_config.logging_config(),
+            Some(Command::Router2(config)) => config.run_config.logging_config(),
+            Some(Command::Ingester(config)) => config.run_config.logging_config(),
+            Some(Command::AllInOne(config)) => &config.logging_config,
+            Some(Command::Test(config)) => config.run_config.logging_config(),
         }
     }
 }

@@ -1,6 +1,8 @@
 use data_types::write_buffer::{WriteBufferConnection, WriteBufferCreationConfig};
 use iox_time::SystemProvider;
-use std::{collections::BTreeMap, num::NonZeroU32, sync::Arc};
+use observability_deps::tracing::*;
+use std::{collections::BTreeMap, num::NonZeroU32, path::PathBuf, sync::Arc};
+use tempfile::TempDir;
 use trace::TraceCollector;
 use write_buffer::{
     config::WriteBufferConfigFactory,
@@ -53,6 +55,30 @@ pub struct WriteBufferConfig {
 }
 
 impl WriteBufferConfig {
+    /// Create a new instance for all-in-one mode, only allowing some arguments.
+    /// If `database_directory` is not specified, creates a new temporary directory.
+    pub fn new(topic: &str, database_directory: Option<PathBuf>) -> Self {
+        let connection_string = database_directory
+            .map(|pathbuf| pathbuf.display().to_string())
+            .unwrap_or_else(|| {
+                TempDir::new()
+                    .expect("Creating a temporary directory should work")
+                    .into_path()
+                    .display()
+                    .to_string()
+            });
+
+        info!("Write buffer: File-based in `{}`", connection_string);
+
+        Self {
+            type_: "file".to_string(),
+            connection_string,
+            topic: topic.to_string(),
+            connection_config: Default::default(),
+            auto_create_topics: Some(NonZeroU32::new(1).unwrap()),
+        }
+    }
+
     /// Initialize a [`WriteBufferWriting`].
     pub async fn writing(
         &self,

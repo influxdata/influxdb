@@ -53,7 +53,6 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-#[derive(Debug)]
 pub struct RouterServerType<D> {
     server: RouterServer<D>,
     shutdown: CancellationToken,
@@ -67,6 +66,12 @@ impl<D> RouterServerType<D> {
             shutdown: CancellationToken::new(),
             trace_collector: common_state.trace_collector(),
         }
+    }
+}
+
+impl<D> std::fmt::Debug for RouterServerType<D> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Router2")
     }
 }
 

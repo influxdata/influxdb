@@ -95,4 +95,26 @@ impl RunConfig {
         self.grpc_bind_address = grpc_bind_address;
         self
     }
+
+    /// Create a new instance for all-in-one mode, only allowing some arguments.
+    pub fn new(
+        logging_config: LoggingConfig,
+        tracing_config: TracingConfig,
+        http_bind_address: SocketAddr,
+        grpc_bind_address: SocketAddr,
+        max_http_request_size: usize,
+        object_store_config: ObjectStoreConfig,
+    ) -> Self {
+        Self {
+            logging_config,
+            tracing_config,
+            // TODO: server_id isn't used in NG; this field should be removed when OG is removed
+            // https://github.com/influxdata/influxdb_iox/issues/4451
+            server_id_config: ServerIdConfig { server_id: None },
+            http_bind_address,
+            grpc_bind_address,
+            max_http_request_size,
+            object_store_config,
+        }
+    }
 }

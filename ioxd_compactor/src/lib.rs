@@ -42,10 +42,15 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-#[derive(Debug)]
 pub struct CompactorServerType<C: CompactorHandler> {
     server: CompactorServer<C>,
     trace_collector: Option<Arc<dyn TraceCollector>>,
+}
+
+impl<C: CompactorHandler> std::fmt::Debug for CompactorServerType<C> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Compactor")
+    }
 }
 
 impl<C: CompactorHandler> CompactorServerType<C> {

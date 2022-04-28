@@ -132,16 +132,20 @@ pub async fn main(
                 server_type,
             } = service;
 
-            info!(?grpc_bind_address, "Binding gRPC services");
+            info!(?grpc_bind_address, ?server_type, "Binding gRPC services");
             let grpc_listener = grpc_listener(grpc_bind_address.into()).await?;
 
             let http_listener = match http_bind_address {
                 Some(http_bind_address) => {
-                    info!(?http_bind_address, "Completed bind of gRPC, binding http");
+                    info!(
+                        ?http_bind_address,
+                        ?server_type,
+                        "Completed bind of gRPC, binding http"
+                    );
                     Some(http_listener(http_bind_address.into()).await?)
                 }
                 None => {
-                    info!("No http server specified");
+                    info!(?server_type, "No http server specified");
                     None
                 }
             };
@@ -151,13 +155,14 @@ pub async fn main(
                 frontend_shutdown,
                 grpc_listener,
                 http_listener,
-                server_type,
+                Arc::clone(&server_type),
             )
             .await;
 
             info!(
                 ?grpc_bind_address,
                 ?http_bind_address,
+                ?server_type,
                 "done serving, draining futures"
             );
             if let Some(trace_exporter) = trace_exporter {

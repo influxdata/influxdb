@@ -27,11 +27,16 @@ use ioxd_common::{
 
 mod rpc;
 
-#[derive(Debug)]
 pub struct QuerierServerType<C: QuerierHandler> {
     database: Arc<QuerierDatabase>,
     server: QuerierServer<C>,
     trace_collector: Option<Arc<dyn TraceCollector>>,
+}
+
+impl<C: QuerierHandler> std::fmt::Debug for QuerierServerType<C> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Querier")
+    }
 }
 
 impl<C: QuerierHandler> QuerierServerType<C> {

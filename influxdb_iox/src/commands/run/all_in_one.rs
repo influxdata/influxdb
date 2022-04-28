@@ -1,17 +1,16 @@
 //! Implementation of command line option for running all in one mode
-use std::{num::NonZeroU32, sync::Arc};
 
-use clap_blocks::compactor::CompactorConfig;
+use super::main;
 use clap_blocks::{
-    catalog_dsn::CatalogDsnConfig,
-    ingester::IngesterConfig,
-    run_config::{RunConfig, DEFAULT_API_BIND_ADDR, DEFAULT_GRPC_BIND_ADDR},
-    socket_addr::SocketAddr,
+    catalog_dsn::CatalogDsnConfig, compactor::CompactorConfig, ingester::IngesterConfig,
+    object_store::ObjectStoreConfig, run_config::RunConfig, socket_addr::SocketAddr,
     write_buffer::WriteBufferConfig,
 };
 use iox_time::{SystemProvider, TimeProvider};
-use ioxd_common::server_type::{CommonServerState, CommonServerStateError};
-use ioxd_common::Service;
+use ioxd_common::{
+    server_type::{CommonServerState, CommonServerStateError},
+    Service,
+};
 use ioxd_compactor::create_compactor_server_type;
 use ioxd_ingester::create_ingester_server_type;
 use ioxd_querier::create_querier_server_type;
@@ -19,9 +18,10 @@ use ioxd_router2::create_router2_server_type;
 use object_store::{DynObjectStore, ObjectStoreImpl};
 use observability_deps::tracing::*;
 use query::exec::Executor;
+use std::{path::PathBuf, sync::Arc};
 use thiserror::Error;
-
-use super::main;
+use trace_exporters::TracingConfig;
+use trogging::cli::LoggingConfig;
 
 /// The default bind address for the Router HTTP API.
 pub const DEFAULT_ROUTER_HTTP_BIND_ADDR: &str = "127.0.0.1:8080";
@@ -32,11 +32,14 @@ pub const DEFAULT_ROUTER_GRPC_BIND_ADDR: &str = "127.0.0.1:8081";
 /// The default bind address for the Querier gRPC (chosen to match default gRPC addr)
 pub const DEFAULT_QUERIER_GRPC_BIND_ADDR: &str = "127.0.0.1:8082";
 
-/// The default bind address for the Ingester gRPC (chosen to match default gRPC addr)
+/// The default bind address for the Ingester gRPC
 pub const DEFAULT_INGESTER_GRPC_BIND_ADDR: &str = "127.0.0.1:8083";
 
-/// The default bind address for the Compactor gRPC (chosen to match default gRPC addr)
+/// The default bind address for the Compactor gRPC
 pub const DEFAULT_COMPACTOR_GRPC_BIND_ADDR: &str = "127.0.0.1:8084";
+
+// If you want this level of control, should be instantiating the services individually
+const QUERY_POOL_NAME: &str = "iox-shared";
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -105,7 +108,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 ///
 /// Currently, the starts services on 5 ports, designed so that the
 /// ports used to interact with the old architecture are the same as
-/// the new architecture (8082 write endpoint and query on 8082).
+/// the new architecture (8081 write endpoint and query on 8082).
 ///
 /// Router;
 ///  8080 http  (overrides INFLUXDB_IOX_BIND_ADDR)
@@ -137,17 +140,90 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
     about = "Runs in IOx All in One mode, containing router, ingester, compactor and querier."
 )]
 pub struct Config {
+    /// logging options
     #[clap(flatten)]
-    pub(crate) run_config: RunConfig,
+    pub(crate) logging_config: LoggingConfig,
 
+    /// tracing options
     #[clap(flatten)]
-    pub(crate) catalog_dsn: CatalogDsnConfig,
+    pub(crate) tracing_config: TracingConfig,
 
-    #[clap(flatten)]
-    pub(crate) write_buffer_config: WriteBufferConfig,
+    /// Maximum size of HTTP requests.
+    #[clap(
+        long = "--max-http-request-size",
+        env = "INFLUXDB_IOX_MAX_HTTP_REQUEST_SIZE",
+        default_value = "10485760" // 10 MiB
+    )]
+    pub max_http_request_size: usize,
 
-    #[clap(flatten)]
-    pub(crate) ingester_config: IngesterConfig,
+    /// The location InfluxDB IOx will use to store files locally. If not specified, will run in
+    /// ephemeral mode.
+    #[clap(long = "--data-dir", env = "INFLUXDB_IOX_DB_DIR")]
+    pub database_directory: Option<PathBuf>,
+
+    /// Postgres connection string. If not specified, will use an in-memory catalog.
+    #[clap(long = "--catalog-dsn", env = "INFLUXDB_IOX_CATALOG_DSN")]
+    pub dsn: Option<String>,
+
+    /// Schema name for PostgreSQL-based catalogs.
+    #[clap(
+        long = "--catalog-postgres-schema-name",
+        env = "INFLUXDB_IOX_CATALOG_POSTGRES_SCHEMA_NAME",
+        default_value = iox_catalog::postgres::SCHEMA_NAME,
+    )]
+    pub postgres_schema_name: String,
+
+    /// The ingester will continue to pull data and buffer it from the write buffer
+    /// as long as it is below this size. If it hits this size it will pause
+    /// ingest from the write buffer until persistence goes below this threshold.
+    /// The default value is 100 GB (in bytes).
+    #[clap(
+        long = "--pause-ingest-size-bytes",
+        env = "INFLUXDB_IOX_PAUSE_INGEST_SIZE_BYTES",
+        default_value = "107374182400"
+    )]
+    pub pause_ingest_size_bytes: usize,
+
+    /// Once the ingester crosses this threshold of data buffered across
+    /// all sequencers, it will pick the largest partitions and persist
+    /// them until it falls below this threshold. An ingester running in
+    /// a steady state is expected to take up this much memory.
+    /// The default value is 1 GB (in bytes).
+    #[clap(
+        long = "--persist-memory-threshold-bytes",
+        env = "INFLUXDB_IOX_PERSIST_MEMORY_THRESHOLD_BYTES",
+        default_value = "1073741824"
+    )]
+    pub persist_memory_threshold_bytes: usize,
+
+    /// If an individual partition crosses this size threshold, it will be persisted.
+    /// The default value is 300MB (in bytes).
+    #[clap(
+        long = "--persist-partition-size-threshold-bytes",
+        env = "INFLUXDB_IOX_PERSIST_PARTITION_SIZE_THRESHOLD_BYTES",
+        default_value = "314572800"
+    )]
+    pub persist_partition_size_threshold_bytes: usize,
+
+    /// If a partition has had data buffered for longer than this period of time
+    /// it will be persisted. This puts an upper bound on how far back the
+    /// ingester may need to read in Kafka on restart or recovery. The default value
+    /// is 30 minutes (in seconds).
+    #[clap(
+        long = "--persist-partition-age-threshold-seconds",
+        env = "INFLUXDB_IOX_PERSIST_PARTITION_AGE_THRESHOLD_SECONDS",
+        default_value = "1800"
+    )]
+    pub persist_partition_age_threshold_seconds: u64,
+
+    /// If a partition has had data buffered and hasn't received a write for this
+    /// period of time, it will be persisted. The default value is 300 seconds (5 minutes).
+    #[clap(
+        long = "--persist-partition-cold-threshold-seconds",
+        env = "INFLUXDB_IOX_PERSIST_PARTITION_COLD_THRESHOLD_SECONDS",
+        default_value = "300"
+    )]
+    pub persist_partition_cold_threshold_seconds: u64,
 
     /// The address on which IOx will serve Router HTTP API requests
     #[clap(
@@ -194,10 +270,17 @@ impl Config {
     /// Get a specialized run config to use for each service
     fn specialize(self) -> SpecializedConfig {
         let Self {
-            run_config,
-            catalog_dsn,
-            write_buffer_config,
-            ingester_config,
+            logging_config,
+            tracing_config,
+            max_http_request_size,
+            database_directory,
+            dsn,
+            postgres_schema_name,
+            pause_ingest_size_bytes,
+            persist_memory_threshold_bytes,
+            persist_partition_size_threshold_bytes,
+            persist_partition_age_threshold_seconds,
+            persist_partition_cold_threshold_seconds,
             router_http_bind_address,
             router_grpc_bind_address,
             querier_grpc_bind_address,
@@ -205,35 +288,54 @@ impl Config {
             compactor_grpc_bind_address,
         } = self;
 
-        if run_config.http_bind_address != DEFAULT_API_BIND_ADDR.parse().unwrap() {
-            eprintln!("Warning: --http-bind-addr ignored in all in one mode");
-        }
-        if run_config.grpc_bind_address != DEFAULT_GRPC_BIND_ADDR.parse().unwrap() {
-            eprintln!("Warning: --grpc-bind-addr ignored in all in one mode");
-        }
+        let object_store_config = ObjectStoreConfig::new(database_directory.clone());
+        let write_buffer_config = WriteBufferConfig::new(QUERY_POOL_NAME, database_directory);
+        let catalog_dsn = dsn
+            .map(|postgres_url| CatalogDsnConfig::new_postgres(postgres_url, postgres_schema_name))
+            .unwrap_or_else(CatalogDsnConfig::new_memory);
 
-        let router_run_config = run_config
-            .clone()
-            .with_http_bind_address(router_http_bind_address)
-            .with_grpc_bind_address(router_grpc_bind_address);
+        let router_run_config = RunConfig::new(
+            logging_config,
+            tracing_config,
+            router_http_bind_address,
+            router_grpc_bind_address,
+            max_http_request_size,
+            object_store_config,
+        );
 
-        let querier_run_config = run_config
+        let querier_run_config = router_run_config
             .clone()
             .with_grpc_bind_address(querier_grpc_bind_address);
 
-        let ingester_run_config = run_config
+        let ingester_run_config = router_run_config
             .clone()
             .with_grpc_bind_address(ingester_grpc_bind_address);
 
-        let compactor_run_config = run_config.with_grpc_bind_address(compactor_grpc_bind_address);
+        let compactor_run_config = router_run_config
+            .clone()
+            .with_grpc_bind_address(compactor_grpc_bind_address);
+
+        // All-in-one mode only supports one write buffer partition.
+        let write_buffer_partition_range_start = 0;
+        let write_buffer_partition_range_end = 0;
+
+        let ingester_config = IngesterConfig {
+            write_buffer_partition_range_start,
+            write_buffer_partition_range_end,
+            pause_ingest_size_bytes,
+            persist_memory_threshold_bytes,
+            persist_partition_size_threshold_bytes,
+            persist_partition_age_threshold_seconds,
+            persist_partition_cold_threshold_seconds,
+        };
 
         // create a CompactorConfig for the all in one server based on
-        // settings from other configs. Cant use `#clap(flatten)` as the
-        // parameters are redundant with ingesters
+        // settings from other configs. Can't use `#clap(flatten)` as the
+        // parameters are redundant with ingester's
         let compactor_config = CompactorConfig {
-            topic: write_buffer_config.topic().to_string(),
-            write_buffer_partition_range_start: ingester_config.write_buffer_partition_range_start,
-            write_buffer_partition_range_end: ingester_config.write_buffer_partition_range_end,
+            topic: QUERY_POOL_NAME.to_string(),
+            write_buffer_partition_range_start,
+            write_buffer_partition_range_end,
             split_percentage: 90,
             max_concurrent_compaction_size_bytes: 100000,
             compaction_max_size_bytes: 100000,
@@ -275,26 +377,10 @@ pub async fn command(config: Config) -> Result<()> {
         ingester_run_config,
         compactor_run_config,
         catalog_dsn,
-        mut write_buffer_config,
+        write_buffer_config,
         ingester_config,
         compactor_config,
     } = config.specialize();
-
-    // Ensure at least one topic is automatically created in all in one mode
-    write_buffer_config.set_auto_create_topics(Some(
-        write_buffer_config.auto_create_topics().unwrap_or_else(|| {
-            let default_config = NonZeroU32::new(1).unwrap();
-            info!(
-                ?default_config,
-                "Automatically configuring creation of a single topic"
-            );
-            default_config
-        }),
-    ));
-
-    // If you want this level of control, should be instatiating the
-    // services individually
-    let query_pool_name = "iox-shared";
 
     let metrics = Arc::new(metric::Registry::default());
 
@@ -312,7 +398,7 @@ pub async fn command(config: Config) -> Result<()> {
         .repositories()
         .await
         .kafka_topics()
-        .create_or_get(query_pool_name)
+        .create_or_get(QUERY_POOL_NAME)
         .await?;
 
     let object_store: Arc<DynObjectStore> = Arc::new(
@@ -338,7 +424,7 @@ pub async fn command(config: Config) -> Result<()> {
         Arc::clone(&catalog),
         Arc::clone(&object_store),
         &write_buffer_config,
-        query_pool_name,
+        QUERY_POOL_NAME,
         1_000, // max 1,000 concurrent HTTP requests
     )
     .await?;
