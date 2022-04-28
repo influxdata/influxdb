@@ -66,7 +66,6 @@ tokio-rustls = { version = "0.23", default-features = false, features = ["loggin
 tokio-stream = { version = "0.1", features = ["fs", "net", "time"] }
 tokio-util = { version = "0.7", features = ["codec", "io", "slab", "time", "tracing"] }
 tower = { version = "0.4", features = ["__common", "balance", "buffer", "discover", "filter", "futures-core", "futures-util", "indexmap", "limit", "load", "log", "make", "pin-project", "pin-project-lite", "rand", "ready-cache", "slab", "timeout", "tokio", "tokio-util", "tracing", "util"] }
-tower-http = { version = "0.2", features = ["auth", "base64", "map-response-body", "tower", "trace", "tracing", "util"] }
 tracing = { version = "0.1", features = ["attributes", "log", "max_level_trace", "release_max_level_trace", "std", "tracing-attributes"] }
 tracing-core = { version = "0.1", features = ["lazy_static", "std"] }
 tracing-log = { version = "0.1", features = ["log-tracer", "std", "trace-logger"] }
