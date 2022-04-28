@@ -924,7 +924,7 @@ pub struct ProcessedTombstone {
 }
 
 /// Request from the querier service to the ingester service
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct IngesterQueryRequest {
     /// namespace to search
     pub namespace: String,
