@@ -109,6 +109,7 @@ impl RunConfig {
             logging_config,
             tracing_config,
             // TODO: server_id isn't used in NG; this field should be removed when OG is removed
+            // https://github.com/influxdata/influxdb_iox/issues/4451
             server_id_config: ServerIdConfig { server_id: None },
             http_bind_address,
             grpc_bind_address,
