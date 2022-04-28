@@ -56,6 +56,7 @@ pub struct WriteBufferConfig {
 
 impl WriteBufferConfig {
     /// Create a new instance for all-in-one mode, only allowing some arguments.
+    /// If `database_directory` is not specified, creates a new temporary directory.
     pub fn new(topic: &str, database_directory: Option<PathBuf>) -> Self {
         let connection_string = database_directory
             .map(|pathbuf| pathbuf.display().to_string())
