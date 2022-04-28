@@ -1124,6 +1124,20 @@ WHERE table_name.namespace_id = $1;
         .map_err(|e| Error::SqlxError { source: e })
     }
 
+    async fn list_by_table_id(&mut self, table_id: TableId) -> Result<Vec<Partition>> {
+        sqlx::query_as::<_, Partition>(
+            r#"
+SELECT *
+FROM partition
+WHERE table_id = $1;
+            "#,
+        )
+        .bind(&table_id) // $1
+        .fetch_all(&mut self.inner)
+        .await
+        .map_err(|e| Error::SqlxError { source: e })
+    }
+
     async fn partition_info_by_id(
         &mut self,
         partition_id: PartitionId,
