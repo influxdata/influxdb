@@ -28,8 +28,12 @@ pub use cache::CatalogCache as QuerierCatalogCache;
 pub use database::QuerierDatabase;
 pub use handler::{QuerierHandler, QuerierHandlerImpl};
 pub use ingester::{
-    create_ingester_connection, create_ingester_connection_for_testing, Error as IngesterError,
-    IngesterConnection, IngesterPartition,
+    create_ingester_connection, create_ingester_connection_for_testing,
+    flight_client::{
+        Error as IngesterFlightClientError, FlightClient as IngesterFlightClient,
+        QueryData as IngesterFlightClientQueryData,
+    },
+    Error as IngesterError, IngesterConnection, IngesterConnectionImpl, IngesterPartition,
 };
 pub use namespace::QuerierNamespace;
 pub use server::QuerierServer;

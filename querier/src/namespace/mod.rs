@@ -5,8 +5,6 @@ use crate::{
 };
 use backoff::BackoffConfig;
 use data_types2::{NamespaceId, NamespaceSchema};
-use iox_catalog::interface::Catalog;
-use iox_time::TimeProvider;
 use object_store::DynObjectStore;
 use query::exec::Executor;
 use schema::Schema;
@@ -23,7 +21,7 @@ mod test_util;
 /// Tables and schemas are created when [`QuerierNamespace`] is created because DataFusion does not implement async
 /// schema inspection. The actual payload (chunks and tombstones) are only queried on demand.
 ///
-/// Most access to the [IOx Catalog](Catalog) are cached.
+/// Most access to the [IOx Catalog](iox_catalog::interface::Catalog) are cached via [`CatalogCache`].
 #[derive(Debug)]
 pub struct QuerierNamespace {
     /// ID of this namespace.
@@ -93,16 +91,15 @@ impl QuerierNamespace {
     /// Create new namespace for given schema, for testing.
     #[allow(clippy::too_many_arguments)]
     pub fn new_testing(
-        catalog: Arc<dyn Catalog>,
+        catalog_cache: Arc<CatalogCache>,
         object_store: Arc<DynObjectStore>,
         metric_registry: Arc<metric::Registry>,
-        time_provider: Arc<dyn TimeProvider>,
         name: Arc<str>,
         schema: Arc<NamespaceSchema>,
         exec: Arc<Executor>,
         ingester_connection: Arc<dyn IngesterConnection>,
     ) -> Self {
-        let catalog_cache = Arc::new(CatalogCache::new(catalog, Arc::clone(&time_provider)));
+        let time_provider = catalog_cache.time_provider();
         let chunk_adapter = Arc::new(ParquetChunkAdapter::new(
             catalog_cache,
             object_store,

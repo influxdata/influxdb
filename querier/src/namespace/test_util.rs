@@ -3,7 +3,7 @@ use std::sync::Arc;
 use iox_catalog::interface::get_schema_by_name;
 use iox_tests::util::TestNamespace;
 
-use crate::create_ingester_connection_for_testing;
+use crate::{create_ingester_connection_for_testing, QuerierCatalogCache};
 
 use super::QuerierNamespace;
 
@@ -16,11 +16,14 @@ pub async fn querier_namespace(ns: &Arc<TestNamespace>) -> QuerierNamespace {
             .unwrap(),
     );
 
-    QuerierNamespace::new_testing(
+    let catalog_cache = Arc::new(QuerierCatalogCache::new(
         ns.catalog.catalog(),
+        ns.catalog.time_provider(),
+    ));
+    QuerierNamespace::new_testing(
+        catalog_cache,
         ns.catalog.object_store(),
         ns.catalog.metric_registry(),
-        ns.catalog.time_provider(),
         ns.namespace.name.clone().into(),
         schema,
         ns.catalog.exec(),
