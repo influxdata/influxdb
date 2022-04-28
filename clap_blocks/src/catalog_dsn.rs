@@ -70,17 +70,13 @@ impl CatalogDsnConfig {
     }
 
     /// Create a new Postgres instance for all-in-one mode if a catalog DSN is specified
-    pub fn new_postgres(
-        dsn: String,
-        max_catalog_connections: u32,
-        postgres_schema_name: String,
-    ) -> Self {
+    pub fn new_postgres(dsn: String, postgres_schema_name: String) -> Self {
         info!("Catalog: Postgres at `{}`", dsn);
 
         Self {
             catalog_type_: CatalogType::Postgres,
             dsn: Some(dsn),
-            max_catalog_connections,
+            max_catalog_connections: 10,
             postgres_schema_name,
         }
     }

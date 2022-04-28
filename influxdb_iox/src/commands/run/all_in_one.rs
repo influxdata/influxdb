@@ -165,14 +165,6 @@ pub struct Config {
     #[clap(long = "--catalog-dsn", env = "INFLUXDB_IOX_CATALOG_DSN")]
     pub dsn: Option<String>,
 
-    /// Maximum number of connections allowed to the catalog at any one time.
-    #[clap(
-        long = "--catalog-max-connections",
-        env = "INFLUXDB_IOX_CATALOG_MAX_CONNECTIONS",
-        default_value = "10"
-    )]
-    pub max_catalog_connections: u32,
-
     /// Schema name for PostgreSQL-based catalogs.
     #[clap(
         long = "--catalog-postgres-schema-name",
@@ -283,7 +275,6 @@ impl Config {
             max_http_request_size,
             database_directory,
             dsn,
-            max_catalog_connections,
             postgres_schema_name,
             pause_ingest_size_bytes,
             persist_memory_threshold_bytes,
@@ -300,13 +291,7 @@ impl Config {
         let object_store_config = ObjectStoreConfig::new(database_directory.clone());
         let write_buffer_config = WriteBufferConfig::new(QUERY_POOL_NAME, database_directory);
         let catalog_dsn = dsn
-            .map(|postgres_url| {
-                CatalogDsnConfig::new_postgres(
-                    postgres_url,
-                    max_catalog_connections,
-                    postgres_schema_name,
-                )
-            })
+            .map(|postgres_url| CatalogDsnConfig::new_postgres(postgres_url, postgres_schema_name))
             .unwrap_or_else(CatalogDsnConfig::new_memory);
 
         let router_run_config = RunConfig::new(
