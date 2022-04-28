@@ -214,6 +214,15 @@ data across restarts, after you've compiled for development, run:
 where `--catalog-dsn` is a connection URL to the Postgres database you wish to use, and
 `--data-dir` is the directory you wish to use.
 
+### Loading data in local mode
+
+Because the services run on different gRPC ports, and because the CLI uses the gRPC write API, if
+you're using `influxdb_iox database` you have to set a `--host` with the correct gRPC
+
+```shell
+influxdb_iox -vv database write my_db test_fixtures/lineproto/metrics.lp --host http://localhost:8081
+```
+
 #### Compile and run
 
 Rather than building and running the binary in `target`, you can also compile and run with one
