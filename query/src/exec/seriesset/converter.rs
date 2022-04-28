@@ -8,13 +8,12 @@ use arrow::{
     datatypes::{DataType, Int32Type},
     record_batch::RecordBatch,
 };
-use datafusion::physical_plan::SendableRecordBatchStream;
+use datafusion::physical_plan::{common::collect, SendableRecordBatchStream};
 
 use observability_deps::tracing::trace;
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::sync::Arc;
 use tokio::sync::mpsc::error::SendError;
-use tokio_stream::StreamExt;
 
 use croaring::bitmap::Bitmap;
 
@@ -39,7 +38,15 @@ pub enum Error {
         "Error reading record batch while converting from SeriesSet: {:?}",
         source
     ))]
-    ReadingRecordBatch { source: arrow::error::ArrowError },
+    Reading {
+        source: datafusion::error::DataFusionError,
+    },
+
+    #[snafu(display(
+        "Error concatenating record batch while converting from SeriesSet: {:?}",
+        source
+    ))]
+    Concatenating { source: arrow::error::ArrowError },
 
     #[snafu(display("Internal field error while converting series set: {}", source))]
     InternalField { source: field::Error },
@@ -83,59 +90,63 @@ impl SeriesSetConverter {
         table_name: Arc<str>,
         tag_columns: Arc<Vec<Arc<str>>>,
         field_columns: FieldColumns,
-        mut it: SendableRecordBatchStream,
+        it: SendableRecordBatchStream,
     ) -> Result<Vec<SeriesSet>, Error> {
-        let mut results = vec![];
+        // for now, this logic only handles a single `RecordBatch` so
+        // concat data together.
+        //
+        // proper streaming support tracked by:
+        // https://github.com/influxdata/influxdb_iox/issues/4445
+        let batches = collect(it).await.context(ReadingSnafu)?;
 
-        // for now, only handle a single record batch
-        if let Some(batch) = it.next().await {
-            let batch = batch.context(ReadingRecordBatchSnafu)?;
+        let batch = if !batches.is_empty() {
+            RecordBatch::concat(&batches[0].schema(), &batches).context(ConcatenatingSnafu)?
+        } else {
+            return Ok(vec![]);
+        };
 
-            if it.next().await.is_some() {
-                // but not yet
-                unimplemented!("Computing series across multiple record batches not yet supported");
-            }
+        let schema = batch.schema();
+        // TODO: check that the tag columns are sorted by tag name...
+        let tag_indexes =
+            FieldIndexes::names_to_indexes(&schema, &tag_columns).context(InternalFieldSnafu)?;
+        let field_indexes = FieldIndexes::from_field_columns(&schema, &field_columns)
+            .context(InternalFieldSnafu)?;
 
-            let schema = batch.schema();
-            // TODO: check that the tag columns are sorted by tag name...
-            let tag_indexes = FieldIndexes::names_to_indexes(&schema, &tag_columns)
-                .context(InternalFieldSnafu)?;
-            let field_indexes = FieldIndexes::from_field_columns(&schema, &field_columns)
-                .context(InternalFieldSnafu)?;
+        // Algorithm: compute, via bitsets, the rows at which each
+        // tag column changes and thereby where the tagset
+        // changes. Emit a new SeriesSet at each such transition
+        let mut tag_transitions = tag_indexes
+            .iter()
+            .map(|&col| Self::compute_transitions(&batch, col))
+            .collect::<Vec<_>>();
 
-            // Algorithm: compute, via bitsets, the rows at which each
-            // tag column changes and thereby where the tagset
-            // changes. Emit a new SeriesSet at each such transition
-            let mut tag_transitions = tag_indexes
-                .iter()
-                .map(|&col| Self::compute_transitions(&batch, col))
-                .collect::<Vec<_>>();
+        // no tag columns, emit a single tagset
+        let intersections = if tag_transitions.is_empty() {
+            let mut b = Bitmap::create_with_capacity(1);
+            let end_row = batch.num_rows();
+            b.add(end_row as u32);
+            b
+        } else {
+            // OR bitsets together to to find all rows where the
+            // keyset (values of the tag keys) changes
+            let remaining = tag_transitions.split_off(1);
 
-            // no tag columns, emit a single tagset
-            let intersections = if tag_transitions.is_empty() {
-                let mut b = Bitmap::create_with_capacity(1);
-                let end_row = batch.num_rows();
-                b.add(end_row as u32);
-                b
-            } else {
-                // OR bitsets together to to find all rows where the
-                // keyset (values of the tag keys) changes
-                let remaining = tag_transitions.split_off(1);
+            remaining
+                .into_iter()
+                .for_each(|b| tag_transitions[0].or_inplace(&b));
+            // take the first item
+            tag_transitions.into_iter().next().unwrap()
+        };
 
-                remaining
-                    .into_iter()
-                    .for_each(|b| tag_transitions[0].or_inplace(&b));
-                // take the first item
-                tag_transitions.into_iter().next().unwrap()
-            };
+        let mut start_row: u32 = 0;
 
-            let mut start_row: u32 = 0;
+        // create each series (since bitmap are not Send, we can't
+        // call await during the loop)
 
-            // create each series (since bitmap are not Send, we can't
-            // call await during the loop)
-
-            // emit each series
-            let series_sets = intersections.iter().map(|end_row| {
+        // emit each series
+        let series_sets = intersections
+            .iter()
+            .map(|end_row| {
                 let series_set = SeriesSet {
                     table_name: Arc::clone(&table_name),
                     tags: Self::get_tag_keys(
@@ -152,11 +163,10 @@ impl SeriesSetConverter {
 
                 start_row = end_row;
                 series_set
-            });
+            })
+            .collect();
 
-            results.extend(series_sets);
-        }
-        Ok(results)
+        Ok(series_sets)
     }
 
     /// returns a bitset with all row indexes where the value of the
@@ -490,7 +500,7 @@ mod tests {
         record_batch::RecordBatch,
     };
     use arrow_util::assert_batches_eq;
-    use datafusion_util::{stream_from_batch, stream_from_schema};
+    use datafusion_util::{stream_from_batch, stream_from_batches, stream_from_schema};
     use test_helpers::{str_pair_vec_to_vec, str_vec_to_arc_vec};
 
     use super::*;
@@ -508,237 +518,229 @@ mod tests {
         assert_eq!(results.len(), 0);
     }
 
-    #[tokio::test]
-    async fn test_convert_single_series_no_tags() {
-        // single series
-        let schema = Arc::new(Schema::new(vec![
+    fn test_schema() -> SchemaRef {
+        Arc::new(Schema::new(vec![
             Field::new("tag_a", DataType::Utf8, true),
             Field::new("tag_b", DataType::Utf8, true),
             Field::new("float_field", DataType::Float64, true),
             Field::new("int_field", DataType::Int64, true),
             Field::new("time", DataType::Int64, false),
-        ]));
-        let input = parse_to_iterator(
-            schema,
-            "one,ten,10.0,1,1000\n\
-             one,ten,10.1,2,2000\n",
-        );
+        ]))
+    }
 
-        let table_name = "foo";
-        let tag_columns = [];
-        let field_columns = ["float_field"];
-        let results = convert(table_name, &tag_columns, &field_columns, input).await;
+    #[tokio::test]
+    async fn test_convert_single_series_no_tags() {
+        // single series
+        let schema = test_schema();
+        let inputs = parse_to_iterators(schema, &["one,ten,10.0,1,1000", "one,ten,10.1,2,2000"]);
+        for (i, input) in inputs.into_iter().enumerate() {
+            println!("Stream {}", i);
 
-        assert_eq!(results.len(), 1);
-        let series_set = &results[0];
+            let table_name = "foo";
+            let tag_columns = [];
+            let field_columns = ["float_field"];
+            let results = convert(table_name, &tag_columns, &field_columns, input).await;
 
-        assert_eq!(series_set.table_name.as_ref(), "foo");
-        assert!(series_set.tags.is_empty());
-        assert_eq!(
-            series_set.field_indexes,
-            FieldIndexes::from_timestamp_and_value_indexes(4, &[2])
-        );
-        assert_eq!(series_set.start_row, 0);
-        assert_eq!(series_set.num_rows, 2);
+            assert_eq!(results.len(), 1);
+            let series_set = &results[0];
 
-        // Test that the record batch made it through
-        let expected_data = vec![
-            "+-------+-------+-------------+-----------+------+",
-            "| tag_a | tag_b | float_field | int_field | time |",
-            "+-------+-------+-------------+-----------+------+",
-            "| one   | ten   | 10          | 1         | 1000 |",
-            "| one   | ten   | 10.1        | 2         | 2000 |",
-            "+-------+-------+-------------+-----------+------+",
-        ];
+            assert_eq!(series_set.table_name.as_ref(), "foo");
+            assert!(series_set.tags.is_empty());
+            assert_eq!(
+                series_set.field_indexes,
+                FieldIndexes::from_timestamp_and_value_indexes(4, &[2])
+            );
+            assert_eq!(series_set.start_row, 0);
+            assert_eq!(series_set.num_rows, 2);
 
-        assert_batches_eq!(expected_data, &[series_set.batch.clone()]);
+            // Test that the record batch made it through
+            let expected_data = vec![
+                "+-------+-------+-------------+-----------+------+",
+                "| tag_a | tag_b | float_field | int_field | time |",
+                "+-------+-------+-------------+-----------+------+",
+                "| one   | ten   | 10          | 1         | 1000 |",
+                "| one   | ten   | 10.1        | 2         | 2000 |",
+                "+-------+-------+-------------+-----------+------+",
+            ];
+
+            assert_batches_eq!(expected_data, &[series_set.batch.clone()]);
+        }
     }
 
     #[tokio::test]
     async fn test_convert_single_series_no_tags_nulls() {
         // single series
-        let schema = Arc::new(Schema::new(vec![
-            Field::new("tag_a", DataType::Utf8, true),
-            Field::new("tag_b", DataType::Utf8, true),
-            Field::new("float_field", DataType::Float64, true),
-            Field::new("int_field", DataType::Int64, true),
-            Field::new("time", DataType::Int64, false),
-        ]));
+        let schema = test_schema();
+
+        let inputs = parse_to_iterators(schema, &["one,ten,10.0,,1000", "one,ten,10.1,,2000"]);
+
         // send no values in the int_field colum
-        let input = parse_to_iterator(
-            schema,
-            "one,ten,10.0,,1000\n\
-             one,ten,10.1,,2000\n",
-        );
+        for (i, input) in inputs.into_iter().enumerate() {
+            println!("Stream {}", i);
 
-        let table_name = "foo";
-        let tag_columns = [];
-        let field_columns = ["float_field"];
-        let results = convert(table_name, &tag_columns, &field_columns, input).await;
+            let table_name = "foo";
+            let tag_columns = [];
+            let field_columns = ["float_field"];
+            let results = convert(table_name, &tag_columns, &field_columns, input).await;
 
-        assert_eq!(results.len(), 1);
-        let series_set = &results[0];
+            assert_eq!(results.len(), 1);
+            let series_set = &results[0];
 
-        assert_eq!(series_set.table_name.as_ref(), "foo");
-        assert!(series_set.tags.is_empty());
-        assert_eq!(
-            series_set.field_indexes,
-            FieldIndexes::from_timestamp_and_value_indexes(4, &[2])
-        );
-        assert_eq!(series_set.start_row, 0);
-        assert_eq!(series_set.num_rows, 2);
+            assert_eq!(series_set.table_name.as_ref(), "foo");
+            assert!(series_set.tags.is_empty());
+            assert_eq!(
+                series_set.field_indexes,
+                FieldIndexes::from_timestamp_and_value_indexes(4, &[2])
+            );
+            assert_eq!(series_set.start_row, 0);
+            assert_eq!(series_set.num_rows, 2);
 
-        // Test that the record batch made it through
-        let expected_data = vec![
-            "+-------+-------+-------------+-----------+------+",
-            "| tag_a | tag_b | float_field | int_field | time |",
-            "+-------+-------+-------------+-----------+------+",
-            "| one   | ten   | 10          |           | 1000 |",
-            "| one   | ten   | 10.1        |           | 2000 |",
-            "+-------+-------+-------------+-----------+------+",
-        ];
+            // Test that the record batch made it through
+            let expected_data = vec![
+                "+-------+-------+-------------+-----------+------+",
+                "| tag_a | tag_b | float_field | int_field | time |",
+                "+-------+-------+-------------+-----------+------+",
+                "| one   | ten   | 10          |           | 1000 |",
+                "| one   | ten   | 10.1        |           | 2000 |",
+                "+-------+-------+-------------+-----------+------+",
+            ];
 
-        assert_batches_eq!(expected_data, &[series_set.batch.clone()]);
+            assert_batches_eq!(expected_data, &[series_set.batch.clone()]);
+        }
     }
 
     #[tokio::test]
     async fn test_convert_single_series_one_tag() {
         // single series
-        let schema = Arc::new(Schema::new(vec![
-            Field::new("tag_a", DataType::Utf8, true),
-            Field::new("tag_b", DataType::Utf8, true),
-            Field::new("float_field", DataType::Float64, true),
-            Field::new("int_field", DataType::Int64, true),
-            Field::new("time", DataType::Int64, false),
-        ]));
-        let input = parse_to_iterator(
-            schema,
-            "one,ten,10.0,1,1000\n\
-             one,ten,10.1,2,2000\n",
-        );
+        let schema = test_schema();
+        let inputs = parse_to_iterators(schema, &["one,ten,10.0,1,1000", "one,ten,10.1,2,2000"]);
 
-        // test with one tag column, one series
-        let table_name = "bar";
-        let tag_columns = ["tag_a"];
-        let field_columns = ["float_field"];
-        let results = convert(table_name, &tag_columns, &field_columns, input).await;
+        for (i, input) in inputs.into_iter().enumerate() {
+            println!("Stream {}", i);
 
-        assert_eq!(results.len(), 1);
-        let series_set = &results[0];
+            // test with one tag column, one series
+            let table_name = "bar";
+            let tag_columns = ["tag_a"];
+            let field_columns = ["float_field"];
+            let results = convert(table_name, &tag_columns, &field_columns, input).await;
 
-        assert_eq!(series_set.table_name.as_ref(), "bar");
-        assert_eq!(series_set.tags, str_pair_vec_to_vec(&[("tag_a", "one")]));
-        assert_eq!(
-            series_set.field_indexes,
-            FieldIndexes::from_timestamp_and_value_indexes(4, &[2])
-        );
-        assert_eq!(series_set.start_row, 0);
-        assert_eq!(series_set.num_rows, 2);
+            assert_eq!(results.len(), 1);
+            let series_set = &results[0];
+
+            assert_eq!(series_set.table_name.as_ref(), "bar");
+            assert_eq!(series_set.tags, str_pair_vec_to_vec(&[("tag_a", "one")]));
+            assert_eq!(
+                series_set.field_indexes,
+                FieldIndexes::from_timestamp_and_value_indexes(4, &[2])
+            );
+            assert_eq!(series_set.start_row, 0);
+            assert_eq!(series_set.num_rows, 2);
+        }
     }
 
     #[tokio::test]
     async fn test_convert_one_tag_multi_series() {
-        let schema = Arc::new(Schema::new(vec![
-            Field::new("tag_a", DataType::Utf8, true),
-            Field::new("tag_b", DataType::Utf8, true),
-            Field::new("float_field", DataType::Float64, true),
-            Field::new("int_field", DataType::Int64, true),
-            Field::new("time", DataType::Int64, false),
-        ]));
+        let schema = test_schema();
 
-        let input = parse_to_iterator(
+        let inputs = parse_to_iterators(
             schema,
-            "one,ten,10.0,1,1000\n\
-             one,ten,10.1,2,2000\n\
-             one,eleven,10.1,3,3000\n\
-             two,eleven,10.2,4,4000\n\
-             two,eleven,10.3,5,5000\n",
+            &[
+                "one,ten,10.0,1,1000",
+                "one,ten,10.1,2,2000",
+                "one,eleven,10.1,3,3000",
+                "two,eleven,10.2,4,4000",
+                "two,eleven,10.3,5,5000",
+            ],
         );
 
-        let table_name = "foo";
-        let tag_columns = ["tag_a"];
-        let field_columns = ["int_field"];
-        let results = convert(table_name, &tag_columns, &field_columns, input).await;
+        for (i, input) in inputs.into_iter().enumerate() {
+            println!("Stream {}", i);
 
-        assert_eq!(results.len(), 2);
-        let series_set1 = &results[0];
+            let table_name = "foo";
+            let tag_columns = ["tag_a"];
+            let field_columns = ["int_field"];
+            let results = convert(table_name, &tag_columns, &field_columns, input).await;
 
-        assert_eq!(series_set1.table_name.as_ref(), "foo");
-        assert_eq!(series_set1.tags, str_pair_vec_to_vec(&[("tag_a", "one")]));
-        assert_eq!(
-            series_set1.field_indexes,
-            FieldIndexes::from_timestamp_and_value_indexes(4, &[3])
-        );
-        assert_eq!(series_set1.start_row, 0);
-        assert_eq!(series_set1.num_rows, 3);
+            assert_eq!(results.len(), 2);
+            let series_set1 = &results[0];
 
-        let series_set2 = &results[1];
+            assert_eq!(series_set1.table_name.as_ref(), "foo");
+            assert_eq!(series_set1.tags, str_pair_vec_to_vec(&[("tag_a", "one")]));
+            assert_eq!(
+                series_set1.field_indexes,
+                FieldIndexes::from_timestamp_and_value_indexes(4, &[3])
+            );
+            assert_eq!(series_set1.start_row, 0);
+            assert_eq!(series_set1.num_rows, 3);
 
-        assert_eq!(series_set2.table_name.as_ref(), "foo");
-        assert_eq!(series_set2.tags, str_pair_vec_to_vec(&[("tag_a", "two")]));
-        assert_eq!(
-            series_set2.field_indexes,
-            FieldIndexes::from_timestamp_and_value_indexes(4, &[3])
-        );
-        assert_eq!(series_set2.start_row, 3);
-        assert_eq!(series_set2.num_rows, 2);
+            let series_set2 = &results[1];
+
+            assert_eq!(series_set2.table_name.as_ref(), "foo");
+            assert_eq!(series_set2.tags, str_pair_vec_to_vec(&[("tag_a", "two")]));
+            assert_eq!(
+                series_set2.field_indexes,
+                FieldIndexes::from_timestamp_and_value_indexes(4, &[3])
+            );
+            assert_eq!(series_set2.start_row, 3);
+            assert_eq!(series_set2.num_rows, 2);
+        }
     }
 
     // two tag columns, three series
     #[tokio::test]
     async fn test_convert_two_tag_multi_series() {
-        let schema = Arc::new(Schema::new(vec![
-            Field::new("tag_a", DataType::Utf8, true),
-            Field::new("tag_b", DataType::Utf8, true),
-            Field::new("float_field", DataType::Float64, true),
-            Field::new("int_field", DataType::Int64, true),
-            Field::new("time", DataType::Int64, false),
-        ]));
+        let schema = test_schema();
 
-        let input = parse_to_iterator(
+        let inputs = parse_to_iterators(
             schema,
-            "one,ten,10.0,1,1000\n\
-             one,ten,10.1,2,2000\n\
-             one,eleven,10.1,3,3000\n\
-             two,eleven,10.2,4,4000\n\
-             two,eleven,10.3,5,5000\n",
+            &[
+                "one,ten,10.0,1,1000",
+                "one,ten,10.1,2,2000",
+                "one,eleven,10.1,3,3000",
+                "two,eleven,10.2,4,4000",
+                "two,eleven,10.3,5,5000",
+            ],
         );
 
-        let table_name = "foo";
-        let tag_columns = ["tag_a", "tag_b"];
-        let field_columns = ["int_field"];
-        let results = convert(table_name, &tag_columns, &field_columns, input).await;
+        for (i, input) in inputs.into_iter().enumerate() {
+            println!("Stream {}", i);
 
-        assert_eq!(results.len(), 3);
-        let series_set1 = &results[0];
+            let table_name = "foo";
+            let tag_columns = ["tag_a", "tag_b"];
+            let field_columns = ["int_field"];
+            let results = convert(table_name, &tag_columns, &field_columns, input).await;
 
-        assert_eq!(series_set1.table_name.as_ref(), "foo");
-        assert_eq!(
-            series_set1.tags,
-            str_pair_vec_to_vec(&[("tag_a", "one"), ("tag_b", "ten")])
-        );
-        assert_eq!(series_set1.start_row, 0);
-        assert_eq!(series_set1.num_rows, 2);
+            assert_eq!(results.len(), 3);
+            let series_set1 = &results[0];
 
-        let series_set2 = &results[1];
+            assert_eq!(series_set1.table_name.as_ref(), "foo");
+            assert_eq!(
+                series_set1.tags,
+                str_pair_vec_to_vec(&[("tag_a", "one"), ("tag_b", "ten")])
+            );
+            assert_eq!(series_set1.start_row, 0);
+            assert_eq!(series_set1.num_rows, 2);
 
-        assert_eq!(series_set2.table_name.as_ref(), "foo");
-        assert_eq!(
-            series_set2.tags,
-            str_pair_vec_to_vec(&[("tag_a", "one"), ("tag_b", "eleven")])
-        );
-        assert_eq!(series_set2.start_row, 2);
-        assert_eq!(series_set2.num_rows, 1);
+            let series_set2 = &results[1];
 
-        let series_set3 = &results[2];
+            assert_eq!(series_set2.table_name.as_ref(), "foo");
+            assert_eq!(
+                series_set2.tags,
+                str_pair_vec_to_vec(&[("tag_a", "one"), ("tag_b", "eleven")])
+            );
+            assert_eq!(series_set2.start_row, 2);
+            assert_eq!(series_set2.num_rows, 1);
 
-        assert_eq!(series_set3.table_name.as_ref(), "foo");
-        assert_eq!(
-            series_set3.tags,
-            str_pair_vec_to_vec(&[("tag_a", "two"), ("tag_b", "eleven")])
-        );
-        assert_eq!(series_set3.start_row, 3);
-        assert_eq!(series_set3.num_rows, 2);
+            let series_set3 = &results[2];
+
+            assert_eq!(series_set3.table_name.as_ref(), "foo");
+            assert_eq!(
+                series_set3.tags,
+                str_pair_vec_to_vec(&[("tag_a", "two"), ("tag_b", "eleven")])
+            );
+            assert_eq!(series_set3.start_row, 3);
+            assert_eq!(series_set3.num_rows, 2);
+        }
     }
 
     #[tokio::test]
@@ -759,7 +761,7 @@ mod tests {
         .unwrap();
 
         // Input has one row that has no value (NULL value) for tag_b, which is its own series
-        let input = batch_to_iterator(batch);
+        let input = stream_from_batch(batch);
 
         let table_name = "foo";
         let tag_columns = ["tag_a", "tag_b"];
@@ -838,17 +840,40 @@ mod tests {
             "Unexpected batch while parsing csv"
         );
 
-        println!("First batch: \n{:#?}", first_batch);
+        println!("batch: \n{:#?}", first_batch);
 
         first_batch.unwrap()
     }
 
-    fn parse_to_iterator(schema: SchemaRef, data: &str) -> SendableRecordBatchStream {
-        let batch = parse_to_record_batch(schema, data);
-        batch_to_iterator(batch)
-    }
+    /// Parses a set of CSV lines into several `RecordBatchStream`s of varying sizes
+    ///
+    /// For example, with three input lines:
+    /// line1
+    /// line2
+    /// line3
+    ///
+    /// This will produce two output streams:
+    /// Stream1: (line1), (line2), (line3)
+    /// Stream2: (line1, line2), (line3)
+    fn parse_to_iterators(schema: SchemaRef, lines: &[&str]) -> Vec<SendableRecordBatchStream> {
+        println!("** Input data:\n{:#?}\n\n", lines);
+        (1..lines.len())
+            .map(|chunk_size| {
+                println!("Chunk size {}", chunk_size);
+                // make record batches of each line
+                let batches: Vec<_> = lines
+                    .chunks(chunk_size)
+                    .map(|chunk| {
+                        let chunk = chunk.join("\n");
+                        println!("  Chunk data\n{}", chunk);
+                        parse_to_record_batch(Arc::clone(&schema), &chunk)
+                    })
+                    .map(Arc::new)
+                    .collect();
 
-    fn batch_to_iterator(batch: RecordBatch) -> SendableRecordBatchStream {
-        stream_from_batch(batch)
+                // stream from those batches
+                stream_from_batches(batches)
+            })
+            .collect()
     }
 }
