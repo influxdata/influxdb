@@ -24,7 +24,7 @@ prost = "0.10"
 rskafka = { git = "https://github.com/influxdata/rskafka.git", rev="39cd7d809fe0b27c0bb5e70d8dda9964d82a5540", default-features = false, features = ["compression-snappy"] }
 schema = { path = "../schema" }
 iox_time = { path = "../iox_time" }
-tokio = { version = "1.17", features = ["fs", "macros", "parking_lot", "rt", "sync", "time"] }
+tokio = { version = "1.18", features = ["fs", "macros", "parking_lot", "rt", "sync", "time"] }
 tokio-util = "0.7.1"
 trace = { path = "../trace" }
 trace_http = { path = "../trace_http" }

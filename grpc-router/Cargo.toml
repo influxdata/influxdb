@@ -13,7 +13,7 @@ paste = "1.0.7"
 prost = "0.10"
 prost-types = "0.10"
 thiserror = "1.0.30"
-tokio = { version = "1.17", features = ["macros", "parking_lot", "rt-multi-thread"] }
+tokio = { version = "1.18", features = ["macros", "parking_lot", "rt-multi-thread"] }
 tokio-stream = { version = "0.1", features = ["net"] }
 tokio-util = { version = "0.7.1" }
 tonic = "0.7"
