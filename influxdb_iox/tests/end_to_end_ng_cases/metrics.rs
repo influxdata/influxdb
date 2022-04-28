@@ -16,13 +16,13 @@ pub async fn test_metrics() {
             Step::WriteLineProtocol(lp),
             Step::WaitForReadable,
             Step::VerifiedMetrics(Box::new(|_state, metrics| {
-                assert_eq!(
+                assert!(
                     metrics
                         .trim()
                         .split('\n')
                         .filter(|x| x.starts_with("catalog_op_duration_ms_bucket"))
-                        .count(),
-                    180
+                        .count()
+                        >= 180
                 );
             })),
         ],
