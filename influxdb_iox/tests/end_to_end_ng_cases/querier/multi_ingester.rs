@@ -5,7 +5,6 @@ use futures::FutureExt;
 use influxdb_iox_client::write_info::generated_types::{
     GetWriteInfoResponse, KafkaPartitionStatus,
 };
-use observability_deps::tracing::info;
 use test_helpers::timeout::FutureTimeout;
 use test_helpers_end_to_end_ng::{
     all_readable, combined_token_info, maybe_skip_integration, MiniCluster, Step, StepTest,
@@ -144,14 +143,14 @@ async fn get_multi_ingester_readable_combined_response(
             match combined_response {
                 Ok(combined_response) => {
                     if all_readable(&combined_response) {
-                        info!("All data is readable: {:?}", combined_response);
+                        println!("All data is readable: {:?}", combined_response);
                         return combined_response;
                     } else {
-                        info!("retrying, not yet readable: {:?}", combined_response);
+                        println!("retrying, not yet readable: {:?}", combined_response);
                     }
                 }
                 Err(e) => {
-                    info!("retrying, error getting token status: {}", e);
+                    println!("retrying, error getting token status: {}", e);
                 }
             }
             interval.tick().await;
