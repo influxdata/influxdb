@@ -1793,6 +1793,7 @@ dependencies = [
  "predicate",
  "prost",
  "prost-build",
+ "query_functions",
  "regex",
  "serde",
  "tonic",

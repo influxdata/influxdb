@@ -7,6 +7,7 @@ use generated_types::{
 };
 use prost::Message;
 
+#[derive(Debug)]
 pub struct GrpcRequestBuilder {
     read_source: Option<generated_types::google::protobuf::Any>,
     range: Option<TimestampRange>,
@@ -64,7 +65,7 @@ impl GrpcRequestBuilder {
         }
     }
 
-    /// Create a predicate representing tag_name=tag_value in the horrible gRPC
+    /// Set predicate to be  `tag_name=tag_value` in the horrible gRPC
     /// structs
     pub fn tag_predicate(self, tag_name: impl Into<String>, tag_value: impl Into<String>) -> Self {
         let predicate = Predicate {
@@ -85,6 +86,69 @@ impl GrpcRequestBuilder {
                 value: Some(Value::Comparison(Comparison::Equal as _)),
             }),
         };
+        self.predicate(predicate)
+    }
+
+    /// Set predicate to tag_name ~= /pattern/
+    pub fn regex_match_predicate(
+        self,
+        tag_key_name: impl Into<String>,
+        pattern: impl Into<String>,
+    ) -> Self {
+        self.regex_predicate(tag_key_name, pattern, Comparison::Regex)
+    }
+
+    /// Set predicate to tag_name !~ /pattern/
+    pub fn not_regex_match_predicate(
+        self,
+        tag_key_name: impl Into<String>,
+        pattern: impl Into<String>,
+    ) -> Self {
+        self.regex_predicate(tag_key_name, pattern, Comparison::NotRegex)
+    }
+
+    /// Set predicate to tag_name <op> /pattern/
+    ///
+    /// where op is `Regex` or `NotRegEx`
+    /// The constitution of this request was formed by looking at a real request
+    /// made to storage, which looked like this:
+    ///
+    /// root:<
+    ///         node_type:COMPARISON_EXPRESSION
+    ///         children:<node_type:TAG_REF tag_ref_value:"tag_key_name" >
+    ///         children:<node_type:LITERAL regex_value:"pattern" >
+    ///         comparison:REGEX
+    /// >
+    pub fn regex_predicate(
+        self,
+        tag_key_name: impl Into<String>,
+        pattern: impl Into<String>,
+        comparison: Comparison,
+    ) -> Self {
+        let predicate = Predicate {
+            root: Some(Node {
+                node_type: NodeType::ComparisonExpression as i32,
+                children: vec![
+                    Node {
+                        node_type: NodeType::TagRef as i32,
+                        children: vec![],
+                        value: Some(Value::TagRefValue(tag_key_name.into().into())),
+                    },
+                    Node {
+                        node_type: NodeType::Literal as i32,
+                        children: vec![],
+                        value: Some(Value::RegexValue(pattern.into())),
+                    },
+                ],
+                value: Some(Value::Comparison(comparison as _)),
+            }),
+        };
+        self.predicate(predicate)
+    }
+
+    /// Set the predicate being crated
+    pub fn predicate(self, predicate: Predicate) -> Self {
+        assert!(self.predicate.is_none(), "Overwriting existing predicate");
         Self {
             predicate: Some(predicate),
             ..self

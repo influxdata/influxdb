@@ -121,14 +121,15 @@ impl TryFrom<proto::Predicate> for Predicate {
         let exprs = exprs
             .into_iter()
             .map(|bytes| {
-                Expr::from_bytes(&bytes).map_err(|e| expr_from_bytes_violation("exprs", e))
+                Expr::from_bytes_with_registry(&bytes, query_functions::registry())
+                    .map_err(|e| expr_from_bytes_violation("exprs", e))
             })
             .collect::<Result<Vec<_>, _>>()?;
 
         let value_expr = value_expr
             .into_iter()
             .map(|ve| {
-                let expr = Expr::from_bytes(&ve.expr)
+                let expr = Expr::from_bytes_with_registry(&ve.expr, query_functions::registry())
                     .map_err(|e| expr_from_bytes_violation("value_expr.expr", e))?;
                 // try to convert to ValueExpr
                 expr.try_into().map_err(|e| FieldViolation {

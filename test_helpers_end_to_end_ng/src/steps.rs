@@ -48,7 +48,7 @@ impl<'a> StepTestState<'a> {
 
 /// Function used for custom [`Step`]s.
 ///
-/// It is an async function that receives a mutable reference to [`MiniCluster`].
+/// It is an async function that receives a mutable reference to [`StepTestState`].
 ///
 /// Example of creating one (note the `boxed()` call):
 /// ```

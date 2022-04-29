@@ -316,8 +316,6 @@ async fn measurement_fields_endpoint(
     assert_eq!(field.timestamp, scenario.ns_since_epoch() + 4);
 }
 
-//////// Tests above here have been ported to NG. Tests below have not yet been /////
-
 #[tokio::test]
 pub async fn read_filter_regex_operator() {
     do_read_filter_test(
@@ -396,6 +394,8 @@ pub async fn read_filter_empty_tag_regex() {
     )
     .await
 }
+
+//////// Tests above here have been ported to NG. Tests below have not yet been /////
 
 /// Creates and loads the common data for read_group
 async fn read_group_setup() -> (ServerFixture, Scenario) {
