@@ -38,7 +38,6 @@ members = [
     "ioxd_ingester",
     "ioxd_querier",
     "ioxd_database",
-    "ioxd_router",
     "ioxd_router2",
     "ioxd_test",
     "job_registry",
