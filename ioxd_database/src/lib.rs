@@ -106,29 +106,26 @@ impl ServerType for DatabaseServerType {
 
 #[cfg(test)]
 mod tests {
-    use clap_blocks::run_config::RunConfig;
-
-    use influxdb_iox_client::flight::generated_types::ReadInfo;
-    use ioxd_common::{grpc_listener, http_listener, serve};
-
-    use crate::setup::{make_application, make_server};
-
     use super::*;
+    use crate::setup::{make_application, make_server};
     use ::http::{header::HeaderName, HeaderValue};
     use clap::Parser;
+    use clap_blocks::run_config::RunConfig;
     use data_types::{database_rules::DatabaseRules, DatabaseName};
     use futures::pin_mut;
-    use influxdb_iox_client::{connection::Connection, flight::PerformQuery};
+    use influxdb_iox_client::{
+        connection::Connection,
+        flight::{generated_types::ReadInfo, PerformQuery},
+    };
+    use ioxd_common::{grpc_listener, http_listener, serve};
     use server::rules::ProvidedDatabaseRules;
-    use std::{convert::TryInto, net::SocketAddr, num::NonZeroU64};
-    use std::{str::FromStr, time::Duration};
+    use std::{convert::TryInto, net::SocketAddr, num::NonZeroU64, str::FromStr, time::Duration};
     use test_helpers::{assert_contains, assert_error};
     use tokio::task::JoinHandle;
     use trace::{
         span::{Span, SpanStatus},
         RingBufferTraceCollector,
     };
-    use trace_exporters::export::{AsyncExporter, TestAsyncExporter};
 
     /// Creates Application and Servers for this test
     #[derive(Default)]
@@ -431,80 +428,6 @@ mod tests {
         (addr, server, join)
     }
 
-    #[tokio::test]
-    async fn test_tracing() {
-        let trace_collector = Arc::new(RingBufferTraceCollector::new(20));
-        let (addr, server, join) = tracing_server(&trace_collector).await;
-
-        let client = influxdb_iox_client::connection::Builder::default()
-            .build(format!("http://{}", addr))
-            .await
-            .unwrap();
-
-        let mut client = influxdb_iox_client::management::Client::new(client);
-
-        client.list_database_names().await.unwrap();
-
-        assert_eq!(trace_collector.spans().len(), 0);
-
-        let b3_tracing_client = influxdb_iox_client::connection::Builder::default()
-            .header(
-                HeaderName::from_static("x-b3-sampled"),
-                HeaderValue::from_static("1"),
-            )
-            .header(
-                HeaderName::from_static("x-b3-traceid"),
-                HeaderValue::from_static("fea24902"),
-            )
-            .header(
-                HeaderName::from_static("x-b3-spanid"),
-                HeaderValue::from_static("ab3409"),
-            )
-            .build(format!("http://{}", addr))
-            .await
-            .unwrap();
-
-        let mut b3_tracing_client = influxdb_iox_client::management::Client::new(b3_tracing_client);
-
-        b3_tracing_client.list_database_names().await.unwrap();
-        b3_tracing_client.get_server_status().await.unwrap();
-
-        let conn = jaeger_client(addr, "34f9495:30e34:0:1").await;
-        influxdb_iox_client::management::Client::new(conn)
-            .list_database_names()
-            .await
-            .unwrap();
-
-        let spans = trace_collector.spans();
-        assert_eq!(spans.len(), 3);
-
-        assert_eq!(spans[0].name, "IOx");
-        assert_eq!(spans[0].ctx.parent_span_id.unwrap().0.get(), 0xab3409);
-        assert_eq!(spans[0].ctx.trace_id.0.get(), 0xfea24902);
-        assert!(spans[0].start.is_some());
-        assert!(spans[0].end.is_some());
-        assert_eq!(spans[0].status, SpanStatus::Ok);
-
-        assert_eq!(spans[1].name, "IOx");
-        assert_eq!(spans[1].ctx.parent_span_id.unwrap().0.get(), 0xab3409);
-        assert_eq!(spans[1].ctx.trace_id.0.get(), 0xfea24902);
-        assert!(spans[1].start.is_some());
-        assert!(spans[1].end.is_some());
-
-        assert_eq!(spans[2].name, "IOx");
-        assert_eq!(spans[2].ctx.parent_span_id.unwrap().0.get(), 0x30e34);
-        assert_eq!(spans[2].ctx.trace_id.0.get(), 0x34f9495);
-        assert!(spans[2].start.is_some());
-        assert!(spans[2].end.is_some());
-
-        assert_ne!(spans[0].ctx.span_id, spans[1].ctx.span_id);
-
-        // shutdown server early
-        server.shutdown();
-        let res = join.await.unwrap();
-        assert_error!(res, ioxd_common::Error::LostServer);
-    }
-
     /// Ensure that query is fully executed.
     async fn consume_query(mut query: PerformQuery) {
         while query.next().await.unwrap().is_some() {}
@@ -522,18 +445,6 @@ mod tests {
         );
 
         // Perform a number of different requests to generate traces
-
-        let mut management = influxdb_iox_client::management::Client::new(conn.clone());
-        management
-            .create_database(
-                influxdb_iox_client::management::generated_types::DatabaseRules {
-                    name: db_info.db_name().to_string(),
-                    ..Default::default()
-                },
-            )
-            .await
-            .unwrap();
-
         let mut write = influxdb_iox_client::write::Client::new(conn.clone());
         write
             .write_lp(db_info.db_name(), "cpu,tag0=foo val=1 100\n", 0)
@@ -634,30 +545,6 @@ mod tests {
 
         let to_string_set = child(ctx_span, "to_string_set").unwrap();
         child(to_string_set, "run_logical_plans").unwrap();
-    }
-
-    #[tokio::test]
-    async fn test_async_exporter() {
-        let (sender, mut receiver) = tokio::sync::mpsc::channel(20);
-        let collector = Arc::new(AsyncExporter::new(TestAsyncExporter::new(sender)));
-
-        let (addr, server, join) = tracing_server(&collector).await;
-        let conn = jaeger_client(addr, "34f8495:30e34:0:1").await;
-        influxdb_iox_client::management::Client::new(conn)
-            .list_database_names()
-            .await
-            .unwrap();
-
-        collector.drain().await.unwrap();
-
-        // early shutdown
-        server.shutdown();
-        let res = join.await.unwrap();
-        assert_error!(res, ioxd_common::Error::LostServer);
-
-        let span = receiver.recv().await.unwrap();
-        assert_eq!(span.ctx.trace_id.get(), 0x34f8495);
-        assert_eq!(span.ctx.parent_span_id.unwrap().get(), 0x30e34);
     }
 
     fn make_rules(db_name: impl Into<String>) -> ProvidedDatabaseRules {
