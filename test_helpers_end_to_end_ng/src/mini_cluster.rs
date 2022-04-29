@@ -1,7 +1,17 @@
-use crate::{rand_id, write_to_router, write_to_router_grpc, ServerFixture, TestConfig};
+use crate::{
+    rand_id, write_to_router, write_to_router_grpc, ServerFixture, TestConfig, TestServer,
+};
 use http::Response;
 use hyper::Body;
 use influxdb_iox_client::write::generated_types::{TableBatch, WriteResponse};
+use std::{
+    sync::{Arc, Weak},
+    time::Instant,
+};
+
+use futures::{stream::FuturesOrdered, StreamExt};
+use observability_deps::tracing::{debug, info};
+use tokio::sync::Mutex;
 
 /// Structure that holds NG services and helpful accessors
 #[derive(Debug, Default)]
@@ -41,34 +51,78 @@ impl MiniCluster {
         }
     }
 
-    /// Create a "standard" MiniCluster that has a router, ingester,
-    /// querier
+    /// Create a new MiniCluster that shares the same underlying
+    /// servers but has a new unique namespace and set of connections
     ///
-    /// Long term plan is that this will be shared across multiple tests if possible
-    pub async fn create_standard(database_url: String) -> Self {
-        let router2_config = TestConfig::new_router2(&database_url);
-        // fast parquet
-        let ingester_config =
-            TestConfig::new_ingester(&router2_config).with_fast_parquet_generation();
-        let querier_config = TestConfig::new_querier(&ingester_config);
+    /// Note this is an internal implementation -- please use
+    /// [create_shared], and [new] to create new MiniClusters.
+    fn new_from_fixtures(
+        router2: Option<ServerFixture>,
+        ingester: Option<ServerFixture>,
+        querier: Option<ServerFixture>,
+        compactor: Option<ServerFixture>,
+    ) -> Self {
+        let org_id = rand_id();
+        let bucket_id = rand_id();
+        let namespace = format!("{}_{}", org_id, bucket_id);
 
-        // Set up the cluster  ====================================
-        Self::new()
-            .with_router2(router2_config)
-            .await
-            .with_ingester(ingester_config)
-            .await
-            .with_querier(querier_config)
-            .await
+        Self {
+            router2,
+            ingester,
+            querier,
+            compactor,
+            other_servers: vec![],
+
+            org_id,
+            bucket_id,
+            namespace,
+        }
     }
 
-    /// return a "standard" MiniCluster that has a router, ingester,
-    /// querier and quickly persists files to parquet
-    pub async fn create_quickly_persisting(database_url: String) -> Self {
+    /// Create a "standard" shared MiniCluster that has a router, ingester,
+    /// querier
+    ///
+    /// Note: Since the underlying server processes are shared across multiple
+    /// tests so all users of this MiniCluster should only modify
+    /// their namespace
+    pub async fn create_shared(database_url: String) -> Self {
+        let start = Instant::now();
+        let mut shared_servers = GLOBAL_SHARED_SERVERS.lock().await;
+        debug!(mutex_wait=?start.elapsed(), "creating standard cluster");
+
+        // try to reuse existing server processes
+        if let Some(shared) = shared_servers.take() {
+            if let Some(cluster) = shared.creatable_cluster().await {
+                debug!("Reusing existing cluster");
+
+                // Put the server back
+                *shared_servers = Some(shared);
+                let start = Instant::now();
+                // drop the lock prior to calling create() to allow
+                // others to proceed
+                std::mem::drop(shared_servers);
+                let new_self = cluster.create().await;
+                info!(total_wait=?start.elapsed(), "created new new mini cluster from existing cluster");
+                return new_self;
+            } else {
+                info!("some server proceses of previous cluster have already returned");
+            }
+        }
+
+        // Have to make a new one
+        info!("Create a new server");
+        let new_cluster = Self::create_non_shared_standard(database_url).await;
+
+        // Update the shared servers to point at the newly created server proesses
+        *shared_servers = Some(SharedServers::new(&new_cluster));
+        new_cluster
+    }
+
+    /// Create a non shared "standard" MiniCluster that has a router, ingester,
+    /// querier
+    pub async fn create_non_shared_standard(database_url: String) -> Self {
         let router2_config = TestConfig::new_router2(&database_url);
-        // fast parquet
-        let ingester_config =
-            TestConfig::new_ingester(&router2_config).with_fast_parquet_generation();
+        let ingester_config = TestConfig::new_ingester(&router2_config);
         let querier_config = TestConfig::new_querier(&ingester_config);
 
         // Set up the cluster  ====================================
@@ -199,4 +253,109 @@ impl MiniCluster {
     pub fn other_servers(&self) -> &[ServerFixture] {
         self.other_servers.as_ref()
     }
+}
+
+/// holds shared server processes to share across tests
+#[derive(Clone)]
+struct SharedServers {
+    router2: Option<Weak<TestServer>>,
+    ingester: Option<Weak<TestServer>>,
+    querier: Option<Weak<TestServer>>,
+    compactor: Option<Weak<TestServer>>,
+}
+
+/// Deferred creaton of a mini cluster
+struct CreatableMiniCluster {
+    router2: Option<Arc<TestServer>>,
+    ingester: Option<Arc<TestServer>>,
+    querier: Option<Arc<TestServer>>,
+    compactor: Option<Arc<TestServer>>,
+}
+
+async fn create_if_needed(server: Option<Arc<TestServer>>) -> Option<ServerFixture> {
+    if let Some(server) = server {
+        Some(ServerFixture::create_from_existing(server).await)
+    } else {
+        None
+    }
+}
+
+impl CreatableMiniCluster {
+    async fn create(self) -> MiniCluster {
+        let Self {
+            router2,
+            ingester,
+            querier,
+            compactor,
+        } = self;
+
+        let mut servers = [
+            create_if_needed(router2),
+            create_if_needed(ingester),
+            create_if_needed(querier),
+            create_if_needed(compactor),
+        ]
+        .into_iter()
+        // Use futures ordered to run them all in parallel (hopfully)
+        .collect::<FuturesOrdered<_>>()
+        .collect::<Vec<Option<ServerFixture>>>()
+        .await
+        .into_iter();
+
+        // ServerFixtures go in the same order as they came out
+        MiniCluster::new_from_fixtures(
+            servers.next().unwrap(),
+            servers.next().unwrap(),
+            servers.next().unwrap(),
+            servers.next().unwrap(),
+        )
+    }
+}
+
+impl SharedServers {
+    /// Save the server processes in this shared servers as weak references
+    pub fn new(cluster: &MiniCluster) -> Self {
+        assert!(
+            cluster.other_servers.is_empty(),
+            "other servers not yet handled in shared mini clusters"
+        );
+        Self {
+            router2: cluster.router2.as_ref().map(|c| c.weak()),
+            ingester: cluster.ingester.as_ref().map(|c| c.weak()),
+            querier: cluster.querier.as_ref().map(|c| c.weak()),
+            compactor: cluster.compactor.as_ref().map(|c| c.weak()),
+        }
+    }
+
+    /// Returns a creatable MiniCluster that will reuse the existing
+    /// [TestServer]s. Return None if they are no longer active
+    async fn creatable_cluster(&self) -> Option<CreatableMiniCluster> {
+        // The goal of the following code is to bail out (return None
+        // from the function) if any of the optional weak references
+        // aren't present so that the cluster is recreated correctly
+        Some(CreatableMiniCluster {
+            router2: server_from_weak(self.router2.as_ref())?,
+            ingester: server_from_weak(self.ingester.as_ref())?,
+            querier: server_from_weak(self.querier.as_ref())?,
+            compactor: server_from_weak(self.compactor.as_ref())?,
+        })
+    }
+}
+
+/// Returns None if there was a weak server but we couldn't upgrade.
+/// Returns Some(None) if there was no weak server
+/// Returns Some(Some(fixture)) if there was a weak server that we can upgrade and make a fixture from
+fn server_from_weak(server: Option<&Weak<TestServer>>) -> Option<Option<Arc<TestServer>>> {
+    if let Some(server) = server.as_ref() {
+        // return None if can't upgrade
+        let server = server.upgrade()?;
+
+        Some(Some(server))
+    } else {
+        Some(None)
+    }
+}
+
+lazy_static::lazy_static! {
+    static ref GLOBAL_SHARED_SERVERS: Mutex<Option<SharedServers>> = Mutex::new(None);
 }

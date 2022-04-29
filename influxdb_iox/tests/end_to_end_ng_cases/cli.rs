@@ -9,15 +9,16 @@ use test_helpers_end_to_end_ng::{
 
 /// Tests CLI commands
 
-/// remote partition command and getting a parquet file from the object store
+/// remote partition command and getting a parquet file from the object store and pulling the files
 #[tokio::test]
-async fn remote_partition_and_get_from_store() {
+async fn remote_partition_and_get_from_store_and_pull() {
     test_helpers::maybe_start_logging();
-
     let database_url = maybe_skip_integration!();
 
-    // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_quickly_persisting(database_url).await;
+    // The test below assumes a specific partition id, so use a
+    // non-shared one here so concurrent tests don't interfere with
+    // each other
+    let mut cluster = MiniCluster::create_non_shared_standard(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -31,6 +32,7 @@ async fn remote_partition_and_get_from_store() {
             Step::Custom(Box::new(|state: &mut StepTestState| {
                 async {
                     let router_addr = state.cluster().router2().router_grpc_base().to_string();
+                    let namespace = state.cluster().namespace().to_string();
 
                     // Validate the output of the remote partittion CLI command
                     //
@@ -94,6 +96,27 @@ async fn remote_partition_and_get_from_store() {
                         .stdout(
                             predicate::str::contains("wrote")
                                 .and(predicate::str::contains(filename)),
+                        );
+
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(&router_addr)
+                        .arg("remote")
+                        .arg("partition")
+                        .arg("pull")
+                        .arg("--catalog")
+                        .arg("memory")
+                        .arg("--object-store")
+                        .arg("memory")
+                        .arg(&namespace)
+                        .arg("my_awesome_table")
+                        .arg("1970-01-01")
+                        .assert()
+                        .success()
+                        .stdout(
+                            predicate::str::contains("wrote file")
+                                .and(predicate::str::contains(id)),
                         );
                 }
                 .boxed()

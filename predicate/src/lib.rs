@@ -326,6 +326,12 @@ impl PredicateBuilder {
         self
     }
 
+    /// Adds a ValueExpr to the list of value expressons
+    pub fn add_value_expr(mut self, value_expr: ValueExpr) -> Self {
+        self.inner.value_expr.push(value_expr);
+        self
+    }
+
     /// Builds a regex matching expression from the provided column name and
     /// pattern. Values not matching the regex will be filtered out.
     pub fn build_regex_match_expr(mut self, column: &str, pattern: impl Into<String>) -> Self {

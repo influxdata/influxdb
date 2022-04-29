@@ -34,4 +34,17 @@ impl Client {
 
         Ok(response.into_inner().parquet_files)
     }
+
+    /// Get the partitions by table id
+    pub async fn get_partitions_by_table_id(
+        &mut self,
+        table_id: i64,
+    ) -> Result<Vec<Partition>, Error> {
+        let response = self
+            .inner
+            .get_partitions_by_table_id(GetPartitionsByTableIdRequest { table_id })
+            .await?;
+
+        Ok(response.into_inner().partitions)
+    }
 }

@@ -23,15 +23,68 @@ use sqlx::{migrate::Migrator, postgres::PgPoolOptions, Acquire, Executor, Postgr
 use sqlx_hotswap_pool::HotSwapPool;
 use std::{sync::Arc, time::Duration};
 
-const CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
-const IDLE_TIMEOUT: Duration = Duration::from_secs(60);
-/// the default schema name to use in Postgres
-pub const SCHEMA_NAME: &str = "iox_catalog";
-
-/// The file pointed to by a `dsn-file://` DSN is polled for change every `HOTSWAP_POLL_INTERVAL`.
-const HOTSWAP_POLL_INTERVAL: std::time::Duration = Duration::from_secs(5);
-
 static MIGRATOR: Migrator = sqlx::migrate!();
+
+/// Postgres connection options.
+#[derive(Debug, Clone)]
+pub struct PostgresConnectionOptions {
+    /// Application name.
+    ///
+    /// This will be reported to postgres.
+    pub app_name: String,
+
+    /// Schema name.
+    pub schema_name: String,
+
+    /// DSN.
+    pub dsn: String,
+
+    /// Maximum number of concurrent connections.
+    pub max_conns: u32,
+
+    /// Set the amount of time to attempt connecting to the database.
+    pub connect_timeout: Duration,
+
+    /// Set a maximum idle duration for individual connections.
+    pub idle_timeout: Duration,
+
+    /// If the DSN points to a file (i.e. starts with `dsn-file://`), this sets the interval how often the the file
+    /// should be polled for updates.
+    ///
+    /// If an update is encountered, the underlying connection pool will be hot-swapped.
+    pub hotswap_poll_interval: Duration,
+}
+
+impl PostgresConnectionOptions {
+    /// Default value for [`schema_name`](Self::schema_name).
+    pub const DEFAULT_SCHEMA_NAME: &'static str = "iox_catalog";
+
+    /// Default value for [`max_conns`](Self::max_conns).
+    pub const DEFAULT_MAX_CONNS: u32 = 10;
+
+    /// Default value for [`connect_timeout`](Self::connect_timeout).
+    pub const DEFAULT_CONNECT_TIMETOUT: Duration = Duration::from_secs(2);
+
+    /// Default value for [`idle_timeout`](Self::idle_timeout).
+    pub const DEFAULT_IDLE_TIMETOUT: Duration = Duration::from_secs(10);
+
+    /// Default value for [`hotswap_poll_interval`](Self::hotswap_poll_interval).
+    pub const DEFAULT_HOTSWAP_POLL_INTERVAL: Duration = Duration::from_secs(5);
+}
+
+impl Default for PostgresConnectionOptions {
+    fn default() -> Self {
+        Self {
+            app_name: String::from("iox"),
+            schema_name: String::from(Self::DEFAULT_SCHEMA_NAME),
+            dsn: String::new(),
+            max_conns: Self::DEFAULT_MAX_CONNS,
+            connect_timeout: Self::DEFAULT_CONNECT_TIMETOUT,
+            idle_timeout: Self::DEFAULT_IDLE_TIMETOUT,
+            hotswap_poll_interval: Self::DEFAULT_HOTSWAP_POLL_INTERVAL,
+        }
+    }
+}
 
 /// PostgreSQL catalog.
 #[derive(Debug)]
@@ -51,23 +104,14 @@ struct Count {
 impl PostgresCatalog {
     /// Connect to the catalog store.
     pub async fn connect(
-        app_name: &str,
-        schema_name: &str,
-        dsn: &str,
-        max_conns: u32,
+        options: PostgresConnectionOptions,
         metrics: Arc<metric::Registry>,
     ) -> Result<Self> {
-        let schema_name = schema_name.to_string();
-        let pool = new_pool(
-            app_name,
-            &schema_name,
-            dsn,
-            max_conns,
-            HOTSWAP_POLL_INTERVAL,
-        )
-        .await
-        .map_err(|e| Error::SqlxError { source: e })?;
+        let pool = new_pool(&options)
+            .await
+            .map_err(|e| Error::SqlxError { source: e })?;
 
+        let schema_name = options.schema_name;
         Ok(Self {
             pool,
             metrics,
@@ -280,19 +324,17 @@ impl Catalog for PostgresCatalog {
 ///
 /// This function doesn't support the IDPE specific `dsn-file://` uri scheme.
 async fn new_raw_pool(
-    app_name: &str,
-    schema_name: &str,
-    dsn: &str,
-    max_conns: u32,
+    options: &PostgresConnectionOptions,
+    parsed_dsn: &str,
 ) -> Result<sqlx::Pool<Postgres>, sqlx::Error> {
-    let app_name = app_name.to_owned();
-    let app_name2 = app_name.clone(); // just to log below
-    let schema_name = schema_name.to_owned();
+    let app_name = options.app_name.clone();
+    let app_name2 = options.app_name.clone(); // just to log below
+    let schema_name = options.schema_name.clone();
     let pool = PgPoolOptions::new()
         .min_connections(1)
-        .max_connections(max_conns)
-        .connect_timeout(CONNECT_TIMEOUT)
-        .idle_timeout(IDLE_TIMEOUT)
+        .max_connections(options.max_conns)
+        .connect_timeout(options.connect_timeout)
+        .idle_timeout(options.idle_timeout)
         .test_before_acquire(true)
         .after_connect(move |c| {
             let app_name = app_name.to_owned();
@@ -318,7 +360,7 @@ async fn new_raw_pool(
                 Ok(())
             })
         })
-        .connect(dsn)
+        .connect(parsed_dsn)
         .await?;
 
     // Log a connection was successfully established and include the application
@@ -341,23 +383,18 @@ async fn new_raw_pool(
 /// The [`new_raw_pool`] function will return a new pool only if the connection
 /// is successfull (see [`sqlx::pool::PoolOptions::test_before_acquire`]).
 async fn new_pool(
-    app_name: &str,
-    schema_name: &str,
-    dsn: &str,
-    max_conns: u32,
-    polling_interval: Duration,
+    options: &PostgresConnectionOptions,
 ) -> Result<HotSwapPool<Postgres>, sqlx::Error> {
-    let app_name: Arc<str> = Arc::from(app_name);
-    let schema_name: Arc<str> = Arc::from(schema_name);
-    let parsed_dsn = match get_dsn_file_path(dsn) {
+    let parsed_dsn = match get_dsn_file_path(&options.dsn) {
         Some(filename) => std::fs::read_to_string(&filename)?,
-        None => dsn.to_owned(),
+        None => options.dsn.clone(),
     };
-    let pool =
-        HotSwapPool::new(new_raw_pool(&app_name, &schema_name, &parsed_dsn, max_conns).await?);
+    let pool = HotSwapPool::new(new_raw_pool(options, &parsed_dsn).await?);
+    let polling_interval = options.hotswap_poll_interval;
 
-    if let Some(dsn_file) = get_dsn_file_path(dsn) {
+    if let Some(dsn_file) = get_dsn_file_path(&options.dsn) {
         let pool = pool.clone();
+        let options = options.clone();
 
         // TODO(mkm): return a guard that stops this background worker.
         // We create only one pool per process, but it would be cleaner to be
@@ -372,34 +409,22 @@ async fn new_pool(
                 tokio::time::sleep(polling_interval).await;
 
                 async fn try_update(
-                    app_name: &str,
-                    schema_name: &str,
+                    options: &PostgresConnectionOptions,
                     current_dsn: &str,
                     dsn_file: &str,
-                    max_conns: u32,
                     pool: &HotSwapPool<Postgres>,
                 ) -> Result<Option<String>, sqlx::Error> {
                     let new_dsn = std::fs::read_to_string(&dsn_file)?;
                     if new_dsn == current_dsn {
                         Ok(None)
                     } else {
-                        let new_pool =
-                            new_raw_pool(app_name, schema_name, &new_dsn, max_conns).await?;
+                        let new_pool = new_raw_pool(options, &new_dsn).await?;
                         pool.replace(new_pool);
                         Ok(Some(new_dsn))
                     }
                 }
 
-                match try_update(
-                    &app_name,
-                    &schema_name,
-                    &current_dsn,
-                    &dsn_file,
-                    max_conns,
-                    &pool,
-                )
-                .await
-                {
+                match try_update(&options, &current_dsn, &dsn_file, &pool).await {
                     Ok(None) => {}
                     Ok(Some(new_dsn)) => {
                         info!("replaced hotswap pool");
@@ -1137,6 +1162,20 @@ WHERE table_name.namespace_id = $1;
             "#,
         )
         .bind(&namespace_id) // $1
+        .fetch_all(&mut self.inner)
+        .await
+        .map_err(|e| Error::SqlxError { source: e })
+    }
+
+    async fn list_by_table_id(&mut self, table_id: TableId) -> Result<Vec<Partition>> {
+        sqlx::query_as::<_, Partition>(
+            r#"
+SELECT *
+FROM partition
+WHERE table_id = $1;
+            "#,
+        )
+        .bind(&table_id) // $1
         .fetch_all(&mut self.inner)
         .await
         .map_err(|e| Error::SqlxError { source: e })
@@ -1999,7 +2038,14 @@ mod tests {
 
         create_db(&dsn).await;
 
-        let pg = PostgresCatalog::connect("test", &schema_name, &dsn, 3, metrics)
+        let options = PostgresConnectionOptions {
+            app_name: String::from("test"),
+            schema_name: schema_name.clone(),
+            dsn,
+            max_conns: 3,
+            ..Default::default()
+        };
+        let pg = PostgresCatalog::connect(options, metrics)
             .await
             .expect("failed to connect catalog");
 
@@ -2352,15 +2398,15 @@ mod tests {
 
         // create a hot swap pool with test application name and dsn file pointing to tmp file.
         // we will later update this file and the pool should be replaced.
-        let pool = new_pool(
-            TEST_APPLICATION_NAME,
-            "test",
-            dsn_good.as_str(),
-            3,
-            POLLING_INTERVAL,
-        )
-        .await
-        .expect("connect");
+        let options = PostgresConnectionOptions {
+            app_name: TEST_APPLICATION_NAME.to_owned(),
+            schema_name: String::from("test"),
+            dsn: dsn_good,
+            max_conns: 3,
+            hotswap_poll_interval: POLLING_INTERVAL,
+            ..Default::default()
+        };
+        let pool = new_pool(&options).await.expect("connect");
         eprintln!("got a pool");
 
         // ensure the application name is set as expected

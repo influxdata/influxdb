@@ -14,7 +14,7 @@ async fn basic_ingester() {
     let table_name = "the_table";
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_standard(database_url).await;
+    let mut cluster = MiniCluster::create_shared(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -51,7 +51,7 @@ async fn basic_on_parquet() {
     let table_name = "the_table";
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_quickly_persisting(database_url).await;
+    let mut cluster = MiniCluster::create_shared(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -84,7 +84,7 @@ async fn basic_no_ingester_connection() {
 
     let router2_config = TestConfig::new_router2(&database_url);
     // fast parquet
-    let ingester_config = TestConfig::new_ingester(&router2_config).with_fast_parquet_generation();
+    let ingester_config = TestConfig::new_ingester(&router2_config);
 
     // specially create a querier config that is NOT connected to the ingester
     let querier_config = TestConfig::new_querier_without_ingester(&ingester_config);
@@ -129,7 +129,7 @@ async fn table_not_found_on_ingester() {
     let table_name = "the_table";
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_quickly_persisting(database_url).await;
+    let mut cluster = MiniCluster::create_shared(database_url).await;
 
     StepTest::new(
         &mut cluster,

@@ -736,6 +736,18 @@ impl PartitionRepo for MemTxn {
         Ok(partitions)
     }
 
+    async fn list_by_table_id(&mut self, table_id: TableId) -> Result<Vec<Partition>> {
+        let stage = self.stage();
+
+        let partitions: Vec<_> = stage
+            .partitions
+            .iter()
+            .filter(|p| p.table_id == table_id)
+            .cloned()
+            .collect();
+        Ok(partitions)
+    }
+
     async fn partition_info_by_id(
         &mut self,
         partition_id: PartitionId,

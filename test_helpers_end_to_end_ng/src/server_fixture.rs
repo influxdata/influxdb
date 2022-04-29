@@ -8,10 +8,11 @@ use std::{
     path::Path,
     process::{Child, Command},
     str,
-    sync::Arc,
+    sync::{Arc, Weak},
     time::Duration,
 };
 use tempfile::NamedTempFile;
+use test_helpers::timeout::FutureTimeout;
 use tokio::sync::Mutex;
 
 use crate::{database::initialize_db, server_type::AddAddrEnv};
@@ -33,15 +34,20 @@ pub struct ServerFixture {
 impl ServerFixture {
     /// Create a new server fixture and wait for it to be ready. This
     /// is called "create" rather than new because it is async and
-    /// waits. The server is not shared with any other tests.
+    /// waits.
     pub async fn create(test_config: TestConfig) -> Self {
-        let mut server = TestServer::new(test_config).await;
+        let server = TestServer::new(test_config).await;
+        Self::create_from_existing(Arc::new(server)).await
+    }
 
+    /// Create a new server fixture that shares the same TestServer,
+    /// but has its own connections
+    pub(crate) async fn create_from_existing(server: Arc<TestServer>) -> Self {
         // ensure the server is ready
         let connections = server.wait_until_ready().await;
 
         ServerFixture {
-            server: Arc::new(server),
+            server,
             connections,
         }
     }
@@ -93,6 +99,11 @@ impl ServerFixture {
     /// Return the http base URL for the router gRPC API
     pub fn router_grpc_base(&self) -> Arc<str> {
         self.server.addrs().router_grpc_api().client_base()
+    }
+
+    /// Get a weak reference to the underlying `TestServer`
+    pub(crate) fn weak(&self) -> Weak<TestServer> {
+        Arc::downgrade(&self.server)
     }
 }
 
@@ -256,7 +267,7 @@ impl TestServer {
     }
 
     /// Restarts the tests server process, but does not reconnect clients
-    async fn restart(&self) {
+    async fn restart(&mut self) {
         let mut ready_guard = self.ready.lock().await;
         let mut server_process = self.server_process.lock().await;
         kill_politely(&mut server_process.child, Duration::from_secs(5));
@@ -334,7 +345,7 @@ impl TestServer {
     /// Polls the various services to ensure the server is
     /// operational, reestablishing grpc connections, and returning
     /// those active connections
-    async fn wait_until_ready(&mut self) -> Connections {
+    async fn wait_until_ready(&self) -> Connections {
         let mut need_wait_for_startup = false;
         {
             let mut ready = self.ready.lock().await;
@@ -356,7 +367,7 @@ impl TestServer {
 
         // at first, attempt to reconnect all the clients
         let mut connections = Connections::new();
-        tokio::time::timeout(Duration::from_secs(10), async {
+        async {
             let mut interval = tokio::time::interval(Duration::from_millis(100));
             loop {
                 match connections.reconnect(&self.test_config).await {
@@ -365,9 +376,9 @@ impl TestServer {
                 }
                 interval.tick().await;
             }
-        })
-        .await
-        .expect("Timed out waiting to connect clients");
+        }
+        .with_timeout_panic(Duration::from_secs(10))
+        .await;
 
         if !need_wait_for_startup {
             return connections;

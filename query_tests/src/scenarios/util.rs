@@ -2,30 +2,43 @@
 use super::DbScenario;
 use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
+use backoff::BackoffConfig;
 use data_types::{chunk_metadata::ChunkId, delete_predicate::DeletePredicate};
-use data_types2::SequenceNumber;
-use datafusion_util::batch_filter;
+use data_types2::{
+    IngesterQueryRequest, NonEmptyString, PartitionId, Sequence, SequenceNumber, SequencerId,
+    TombstoneId,
+};
 use db::test_helpers::chunk_ids_rub;
 use db::{
     test_helpers::write_lp,
     utils::{count_mub_table_chunks, count_os_table_chunks, count_rub_table_chunks, make_db},
     Db,
 };
+use dml::{DmlDelete, DmlMeta, DmlOperation, DmlWrite};
+use futures::StreamExt;
+use generated_types::influxdata::iox::ingester::v1::{
+    IngesterQueryResponseMetadata, PartitionStatus,
+};
+use influxdb_iox_client::flight::Error as FlightError;
+use ingester::data::{IngesterData, IngesterQueryResponse, Persister, SequencerData};
+use ingester::lifecycle::LifecycleHandle;
+use ingester::partioning::{Partitioner, PartitionerError};
+use ingester::querier_handler::prepare_data_to_querier;
 use iox_catalog::interface::get_schema_by_name;
-use iox_tests::util::{TestCatalog, TestNamespace};
+use iox_tests::util::{TestCatalog, TestNamespace, TestSequencer};
 use itertools::Itertools;
-use predicate::PredicateBuilder;
-use querier::{IngesterConnection, IngesterError, IngesterPartition, QuerierNamespace};
-use query::util::{
-    compute_timenanosecond_min_max_for_one_record_batch, df_physical_expr_from_schema_and_expr,
+use mutable_batch::MutableBatch;
+use mutable_batch_lp::LinesConverter;
+use querier::{
+    IngesterConnectionImpl, IngesterFlightClient, IngesterFlightClientError,
+    IngesterFlightClientQueryData, QuerierCatalogCache, QuerierNamespace,
 };
 use query::QueryChunk;
-use schema::merge::SchemaMerger;
 use schema::selection::Selection;
-use std::any::Any;
 use std::cmp::Ordering;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write;
+use std::sync::Mutex;
 use std::{fmt::Display, sync::Arc};
 
 // Structs, enums, and functions used to exhaust all test scenarios of chunk life cycle
@@ -767,9 +780,6 @@ async fn make_chunk_with_deletes_at_different_stages_new(
     delete_table_name: Option<&str>,
     partition_key: &str,
 ) -> DbScenario {
-    let catalog = TestCatalog::new();
-    let ns = catalog.create_namespace("test_db").await;
-
     let chunk_data = ChunkDataNew {
         lp_lines,
         chunk_stage: Some(chunk_stage),
@@ -777,11 +787,10 @@ async fn make_chunk_with_deletes_at_different_stages_new(
         delete_table_name,
         partition_key,
     };
-    let mut ingester_connection = MockIngesterConnection::default();
-    let scenario_name =
-        make_ng_chunk(Arc::clone(&ns), chunk_data, &mut ingester_connection, 0).await;
+    let mut mock_ingester = MockIngester::new().await;
+    let scenario_name = make_ng_chunk(&mut mock_ingester, chunk_data).await;
 
-    let db = make_querier_namespace(ns, ingester_connection).await;
+    let db = mock_ingester.into_query_namespace().await;
 
     DbScenario { scenario_name, db }
 }
@@ -1184,13 +1193,11 @@ pub async fn make_n_chunks_scenario_new(chunks: &[ChunkDataNew<'_, '_>]) -> Vec<
             continue;
         }
 
-        let catalog = TestCatalog::new();
-        let ns = catalog.create_namespace("test_db").await;
         let mut scenario_name = format!("{} chunks:", chunks.len());
         let mut stages_it = stages.iter();
-        let mut ingester_connection = MockIngesterConnection::default();
+        let mut mock_ingester = MockIngester::new().await;
 
-        for (i, chunk_data) in chunks.iter().enumerate() {
+        for chunk_data in chunks {
             let mut chunk_data = chunk_data.clone();
 
             if chunk_data.chunk_stage.is_none() {
@@ -1200,21 +1207,14 @@ pub async fn make_n_chunks_scenario_new(chunks: &[ChunkDataNew<'_, '_>]) -> Vec<
 
             let chunk_data = chunk_data.replace_begin_and_end_delete_times();
 
-            let sequence_number_offset = (i as i64) * 1000;
-            let name = make_ng_chunk(
-                Arc::clone(&ns),
-                chunk_data,
-                &mut ingester_connection,
-                sequence_number_offset,
-            )
-            .await;
+            let name = make_ng_chunk(&mut mock_ingester, chunk_data).await;
 
             write!(&mut scenario_name, ", {}", name).unwrap();
         }
 
         assert!(stages_it.next().is_none(), "generated too many stages");
 
-        let db = make_querier_namespace(ns, ingester_connection).await;
+        let db = mock_ingester.into_query_namespace().await;
         scenarios.push(DbScenario { scenario_name, db });
     }
 
@@ -1260,251 +1260,124 @@ pub(crate) async fn make_one_rub_or_parquet_chunk_scenario(
     vec![scenario1, scenario2]
 }
 
-async fn make_ng_chunk(
-    ns: Arc<TestNamespace>,
-    chunk: ChunkDataNew<'_, '_>,
-    ingester_connection: &mut MockIngesterConnection,
-    sequence_number_offset: i64,
-) -> String {
-    use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
-
+/// Create given chunk using the given ingester.
+///
+/// Returns a human-readable chunk description.
+async fn make_ng_chunk(mock_ingester: &mut MockIngester, chunk: ChunkDataNew<'_, '_>) -> String {
     let chunk_stage = chunk.chunk_stage.expect("chunk stage should be set");
 
-    // detect table names and schemas from LP lines
-    let (lp_lines_grouped, schemas) = {
-        let mut lp_lines_grouped: BTreeMap<_, Vec<_>> = BTreeMap::new();
-        let mut schemas: BTreeMap<_, SchemaMerger> = BTreeMap::new();
-
-        for lp in chunk.lp_lines {
-            let (table_name, batch) = lp_to_mutable_batch(lp);
-
-            lp_lines_grouped
-                .entry(table_name.clone())
-                .or_default()
-                .push(lp);
-
-            let schema = batch.schema(Selection::All).unwrap();
-            let merger = schemas.entry(table_name).or_default();
-            *merger = merger.clone().merge(&schema).unwrap();
-        }
-
-        let schemas: BTreeMap<_, _> = schemas
-            .into_iter()
-            .map(|(table_name, merger)| (table_name, merger.build()))
-            .collect();
-
-        (lp_lines_grouped, schemas)
-    };
-
-    // set up catalog
-    let sequencer = ns.create_sequencer(1).await;
-    let tables = {
-        // need to use a temporary vector because BTree iterators ain't `Send`
-        let mut table_names: Vec<_> = lp_lines_grouped.keys().cloned().collect();
-
-        // ensure that table for deletions is also present in the catalog, even if it was not mentioned in the LP data
-        if let Some(delete_table_name) = chunk.delete_table_name {
-            let delete_table_name = String::from(delete_table_name);
-            if !table_names.contains(&delete_table_name) {
-                table_names.push(delete_table_name);
-            }
-        }
-
-        let mut tables = BTreeMap::new();
-        for table_name in table_names {
-            let table = ns.create_table(&table_name).await;
-            tables.insert(table_name, table);
-        }
-        tables
-    };
-    let partitions = {
-        // need to use a temporary vector because BTree iterators ain't `Send`
-        let tables: Vec<_> = tables.values().cloned().collect();
-
-        let mut partitions = BTreeMap::new();
-        for table in tables {
-            let partition = table
-                .with_sequencer(&sequencer)
-                .create_partition(chunk.partition_key)
-                .await;
-            partitions.insert(table.table.name.clone(), partition);
-        }
-        partitions
-    };
-    for (table_name, schema) in schemas {
-        let table = tables.get(&table_name).unwrap();
-
-        for (t, field) in schema.iter() {
-            let t = t.unwrap();
-            table.create_column(field.name(), t.into()).await;
-        }
-    }
-
     // create chunk
-    // need to use a temporary vector because BTree iterators ain't `Send`
-    let lp_lines_grouped: Vec<_> = lp_lines_grouped.into_iter().collect();
-    for (table_name, lp_lines) in lp_lines_grouped {
-        // convert LP to schema and record batch
-        let (table_name_lp, batch) = lp_to_mutable_batch(&lp_lines.join("\n"));
-        assert_eq!(table_name, table_name_lp);
-        let schema = batch.schema(Selection::All).unwrap();
-        let mut batch = batch.to_arrow(Selection::All).unwrap();
+    match chunk_stage {
+        ChunkStageNew::Ingester => {
+            // process write
+            let (op, _partition_ids) = mock_ingester
+                .simulate_write_routing(&chunk.lp_lines, chunk.partition_key)
+                .await;
+            mock_ingester.buffer_operation(op).await;
 
-        match chunk_stage {
-            ChunkStageNew::Ingester => {
-                // process delete predicates
-                if let Some(delete_table_name) = chunk.delete_table_name {
-                    if delete_table_name == table_name {
-                        for pred in &chunk.preds {
-                            match pred.delete_time {
-                                DeleteTimeNew::Ingester { .. } => {
-                                    batch = materialize_delete_predicate(batch, pred.predicate);
-                                }
-                                other @ DeleteTimeNew::Parquet => {
-                                    panic!("Cannot have delete time '{other}' for ingester chunk")
-                                }
-                                DeleteTimeNew::Begin | DeleteTimeNew::End => {
-                                    unreachable!("Begin/end cases should have been replaced with concrete instances at this point")
-                                }
-                            }
+            // process delete predicates
+            if let Some(delete_table_name) = chunk.delete_table_name {
+                for pred in &chunk.preds {
+                    match pred.delete_time {
+                        DeleteTimeNew::Ingester { .. } => {
+                            let op = mock_ingester
+                                .simulate_delete_routing(delete_table_name, pred.predicate.clone())
+                                .await;
+                            mock_ingester.buffer_operation(op).await;
+                        }
+                        other @ DeleteTimeNew::Parquet => {
+                            panic!("Cannot have delete time '{other}' for ingester chunk")
+                        }
+                        DeleteTimeNew::Begin | DeleteTimeNew::End => {
+                            unreachable!("Begin/end cases should have been replaced with concrete instances at this point")
                         }
                     }
-                }
-
-                // create ingester partition
-                if batch.num_rows() > 0 {
-                    let partition = partitions.get(&table_name).unwrap();
-                    let chunk_id = ChunkId::new();
-                    let namespace_name = Arc::from(ns.namespace.name.clone());
-                    let table_name = Arc::from(table_name);
-                    let partition_id = partition.partition.id;
-                    let sequencer_id = partition.sequencer.sequencer.id;
-                    let old_gen_partition_key = Arc::from(format!(
-                        "{}-{}",
-                        sequencer_id, partition.partition.partition_key
-                    ));
-                    let expected_schema = Arc::new(schema);
-                    let parquet_max_sequence_number = Some(SequenceNumber::new(i64::MAX)); // do NOT exclude any parquet files in other chunks
-                    let tombstone_max_sequence_number = Some(SequenceNumber::new(i64::MAX)); // do NOT exclude any delete predicates in other chunks
-                    let batches = vec![batch];
-                    ingester_connection.push(Arc::new(
-                        IngesterPartition::try_new(
-                            chunk_id,
-                            namespace_name,
-                            table_name,
-                            partition_id,
-                            sequencer_id,
-                            old_gen_partition_key,
-                            expected_schema,
-                            parquet_max_sequence_number,
-                            tombstone_max_sequence_number,
-                            batches,
-                        )
-                        .unwrap(),
-                    ));
                 }
             }
-            ChunkStageNew::Parquet => {
-                // model delete predicates that are materialized (applied) by the ingester,
-                // during parquet file creation
-                if let Some(delete_table_name) = chunk.delete_table_name {
-                    if delete_table_name == table_name {
-                        for pred in &chunk.preds {
-                            match pred.delete_time {
-                                DeleteTimeNew::Ingester { .. } => {
-                                    batch = materialize_delete_predicate(batch, pred.predicate);
-                                }
-                                DeleteTimeNew::Parquet => {
-                                    // will be attached AFTER the chunk was created
-                                }
-                                DeleteTimeNew::Begin | DeleteTimeNew::End => {
-                                    unreachable!("Begin/end cases should have been replaced with concrete instances at this point")
+        }
+        ChunkStageNew::Parquet => {
+            // process write
+            let (op, partition_ids) = mock_ingester
+                .simulate_write_routing(&chunk.lp_lines, chunk.partition_key)
+                .await;
+            mock_ingester.buffer_operation(op).await;
+
+            // model delete predicates that are materialized (applied) by the ingester,
+            // during parquet file creation
+            let mut tombstone_ids = vec![];
+            if let Some(delete_table_name) = chunk.delete_table_name {
+                for pred in &chunk.preds {
+                    match pred.delete_time {
+                        DeleteTimeNew::Ingester { .. } => {
+                            let ids_pre = mock_ingester.tombstone_ids(delete_table_name).await;
+
+                            let op = mock_ingester
+                                .simulate_delete_routing(delete_table_name, pred.predicate.clone())
+                                .await;
+                            mock_ingester.buffer_operation(op).await;
+
+                            // tombstones are created immediately, need to remember their ID to handle deletion later
+                            let mut tombstone_id = None;
+                            for id in mock_ingester.tombstone_ids(delete_table_name).await {
+                                if !ids_pre.contains(&id) {
+                                    assert!(tombstone_id.is_none(), "Added multiple tombstones?!");
+                                    tombstone_id = Some(id);
                                 }
                             }
+                            tombstone_ids.push(tombstone_id.expect("No tombstone added?!"));
+                        }
+                        DeleteTimeNew::Parquet => {
+                            // will be attached AFTER the chunk was created
+                        }
+                        DeleteTimeNew::Begin | DeleteTimeNew::End => {
+                            unreachable!("Begin/end cases should have been replaced with concrete instances at this point")
                         }
                     }
                 }
+            }
 
-                // create parquet file
-                let parquet_file_seq_number = sequence_number_offset + (chunk.preds.len() as i64);
-                if batch.num_rows() > 0 {
-                    let partition = partitions.get(&table_name).unwrap();
-                    let min_seq = parquet_file_seq_number;
-                    let max_seq = parquet_file_seq_number;
-                    let (min_time, max_time) =
-                        compute_timenanosecond_min_max_for_one_record_batch(&batch).unwrap();
-                    let file_size_bytes = None; // don't mock/override
-                    let creation_time = 1;
-                    partition
-                        .create_parquet_file_with_batch(
-                            batch,
-                            schema,
-                            min_seq,
-                            max_seq,
-                            min_time,
-                            max_time,
-                            file_size_bytes,
-                            creation_time,
-                        )
-                        .await;
-                }
+            mock_ingester.persist(&partition_ids).await;
 
-                // attach delete predicates that were created AFTER parquet file creation
-                if let Some(delete_table_name) = chunk.delete_table_name {
-                    if delete_table_name == table_name {
-                        let delete_table = tables.get(delete_table_name).unwrap();
+            // model post-persist delete predicates
+            if let Some(delete_table_name) = chunk.delete_table_name {
+                let mut id_it = tombstone_ids.iter();
+                for pred in &chunk.preds {
+                    match pred.delete_time {
+                        DeleteTimeNew::Ingester { also_in_catalog } => {
+                            // should still have a tombstone
+                            let tombstone_id = *id_it.next().unwrap();
+                            mock_ingester
+                                .catalog
+                                .catalog
+                                .repositories()
+                                .await
+                                .tombstones()
+                                .get_by_id(tombstone_id)
+                                .await
+                                .unwrap()
+                                .expect("tombstone should be present");
 
-                        for (i, pred) in chunk.preds.iter().enumerate() {
-                            match pred.delete_time {
-                                DeleteTimeNew::Ingester {
-                                    also_in_catalog: false,
-                                } => {
-                                    // was already materialized
-                                }
-                                // model deletes that were already applied by ingester prior to writing
-                                // parquet file but ALSO still in the catalog
-                                DeleteTimeNew::Ingester {
-                                    also_in_catalog: true,
-                                } => {
-                                    let sequence_number = parquet_file_seq_number
-                                        - (chunk.preds.len() as i64)
-                                        + (i as i64);
-                                    assert!(sequence_number < parquet_file_seq_number);
-
-                                    let min_time = pred.predicate.range.start();
-                                    let max_time = pred.predicate.range.end();
-                                    let predicate = pred.predicate.expr_sql_string();
-                                    delete_table
-                                        .with_sequencer(&sequencer)
-                                        .create_tombstone(
-                                            sequence_number,
-                                            min_time,
-                                            max_time,
-                                            &predicate,
-                                        )
-                                        .await;
-                                }
-                                DeleteTimeNew::Parquet => {
-                                    let sequence_number = parquet_file_seq_number + 1 + (i as i64);
-                                    assert!(sequence_number > parquet_file_seq_number);
-
-                                    let min_time = pred.predicate.range.start();
-                                    let max_time = pred.predicate.range.end();
-                                    let predicate = pred.predicate.expr_sql_string();
-                                    delete_table
-                                        .with_sequencer(&sequencer)
-                                        .create_tombstone(
-                                            sequence_number as i64,
-                                            min_time,
-                                            max_time,
-                                            &predicate,
-                                        )
-                                        .await;
-                                }
-                                DeleteTimeNew::Begin | DeleteTimeNew::End => {
-                                    unreachable!("Begin/end cases should have been replaced with concrete instances at this point")
-                                }
+                            if !also_in_catalog {
+                                mock_ingester
+                                    .catalog
+                                    .catalog
+                                    .repositories()
+                                    .await
+                                    .tombstones()
+                                    .remove(&[tombstone_id])
+                                    .await
+                                    .unwrap();
                             }
+                        }
+                        DeleteTimeNew::Parquet => {
+                            // create new tombstone
+                            let op = mock_ingester
+                                .simulate_delete_routing(delete_table_name, pred.predicate.clone())
+                                .await;
+                            mock_ingester.buffer_operation(op).await;
+                        }
+                        DeleteTimeNew::Begin | DeleteTimeNew::End => {
+                            unreachable!("Begin/end cases should have been replaced with concrete instances at this point")
                         }
                     }
                 }
@@ -1531,74 +1404,388 @@ async fn make_ng_chunk(
     name
 }
 
-fn materialize_delete_predicate(record_batch: RecordBatch, pred: &DeletePredicate) -> RecordBatch {
-    let mut predicate = PredicateBuilder::new().build();
-    predicate.merge_delete_predicates(&[Arc::new(pred.clone().into())]);
+/// Ingester that can be controlled specifically for query tests.
+///
+/// This uses as much ingester code as possible but allows more direct control over aspects like lifecycle and
+/// partioning.
+#[derive(Debug)]
+struct MockIngester {
+    /// Test catalog state.
+    catalog: Arc<TestCatalog>,
 
-    if let Some(expr) = predicate.filter_expr() {
-        let df_phy_expr =
-            df_physical_expr_from_schema_and_expr(record_batch.schema(), expr).unwrap();
-        batch_filter(&record_batch, &df_phy_expr).unwrap()
-    } else {
-        record_batch
+    /// Namespace used for testing.
+    ns: Arc<TestNamespace>,
+
+    /// Sequencer used for testing.
+    sequencer: Arc<TestSequencer>,
+
+    /// Special partitioner that lets us control to which partition we write.
+    partitioner: Arc<ConstantPartitioner>,
+
+    /// Memory of partition keys for certain sequence numbers.
+    ///
+    /// This is currently required because [`DmlWrite`] does not carry partiion information so we need to do that. In
+    /// production this is not required because the router and the ingester use the same partition logic, but we need
+    /// direct control over the partion key for the query tests.
+    partition_keys: HashMap<SequenceNumber, String>,
+
+    /// Ingester state.
+    ingester_data: Arc<IngesterData>,
+
+    /// Next sequence number.
+    ///
+    /// This is kinda a poor-mans write buffer.
+    sequence_counter: u64,
+}
+
+impl MockIngester {
+    /// Create new empty ingester.
+    async fn new() -> Self {
+        let catalog = TestCatalog::new();
+        let ns = catalog.create_namespace("test_db").await;
+        let sequencer = ns.create_sequencer(1).await;
+
+        let sequencers = BTreeMap::from([(
+            sequencer.sequencer.id,
+            SequencerData::new(
+                sequencer.sequencer.kafka_partition,
+                catalog.metric_registry(),
+            ),
+        )]);
+        let partitioner = Arc::new(ConstantPartitioner::default());
+        let ingester_data = Arc::new(IngesterData::new(
+            catalog.object_store(),
+            catalog.catalog(),
+            sequencers,
+            Arc::clone(&partitioner) as _,
+            catalog.exec(),
+            BackoffConfig::default(),
+        ));
+
+        Self {
+            catalog,
+            ns,
+            sequencer,
+            partitioner,
+            partition_keys: Default::default(),
+            ingester_data,
+            sequence_counter: 0,
+        }
+    }
+
+    /// Buffer up [`DmlOperation`] in ingester memory.
+    ///
+    /// This will never persist.
+    ///
+    /// Takes `&self mut` because our partioning implementation does not work with concurrent access.
+    async fn buffer_operation(&mut self, dml_operation: DmlOperation) {
+        let lifecycle_handle = NoopLifecycleHandle {};
+
+        // set up partitioner for writes
+        if matches!(dml_operation, DmlOperation::Write(_)) {
+            let sequence_number = SequenceNumber::new(
+                dml_operation.meta().sequence().unwrap().sequence_number as i64,
+            );
+            self.partitioner
+                .set(self.partition_keys.get(&sequence_number).unwrap().clone());
+        }
+
+        let should_pause = self
+            .ingester_data
+            .buffer_operation(
+                self.sequencer.sequencer.id,
+                dml_operation,
+                &lifecycle_handle,
+            )
+            .await
+            .unwrap();
+        assert!(!should_pause);
+    }
+
+    /// Persists the given set of partitions.
+    async fn persist(&mut self, partition_ids: &[PartitionId]) {
+        for partition_id in partition_ids {
+            self.ingester_data.persist(*partition_id).await;
+        }
+    }
+
+    /// Draws new sequence number.
+    fn next_sequence_number(&mut self) -> u64 {
+        let next = self.sequence_counter;
+        self.sequence_counter += 1;
+        next
+    }
+
+    /// Simulate what the router would do when it encounters the given set of line protocol lines.
+    ///
+    /// In contrast to a real router we have tight control over the partition key here.
+    async fn simulate_write_routing(
+        &mut self,
+        lp_lines: &[&str],
+        partition_key: &str,
+    ) -> (DmlOperation, Vec<PartitionId>) {
+        // detect table names and schemas from LP lines
+        let mut converter = LinesConverter::new(0);
+        for lp_line in lp_lines {
+            converter.write_lp(lp_line).unwrap();
+        }
+        let (mutable_batches, _stats) = converter.finish().unwrap();
+
+        // set up catalog
+        let tables = {
+            // sort names so that IDs are deterministic
+            let mut table_names: Vec<_> = mutable_batches.keys().cloned().collect();
+            table_names.sort();
+
+            let mut tables = vec![];
+            for table_name in table_names {
+                let table = self.ns.create_table(&table_name).await;
+                tables.push(table);
+            }
+            tables
+        };
+        let mut partition_ids = vec![];
+        for table in &tables {
+            let partition = table
+                .with_sequencer(&self.sequencer)
+                .create_partition(partition_key)
+                .await;
+            partition_ids.push(partition.partition.id);
+        }
+        for table in tables {
+            let schema = mutable_batches
+                .get(&table.table.name)
+                .unwrap()
+                .schema(Selection::All)
+                .unwrap();
+
+            for (t, field) in schema.iter() {
+                let t = t.unwrap();
+                table.create_column(field.name(), t.into()).await;
+            }
+        }
+
+        let sequence_number = self.next_sequence_number();
+        self.partition_keys.insert(
+            SequenceNumber::new(sequence_number as i64),
+            partition_key.to_string(),
+        );
+        let meta = DmlMeta::sequenced(
+            Sequence::new(self.sequencer.sequencer.id.get() as u32, sequence_number),
+            self.catalog.time_provider().now(),
+            None,
+            0,
+        );
+        let op = DmlOperation::Write(DmlWrite::new(
+            self.ns.namespace.name.clone(),
+            mutable_batches,
+            meta,
+        ));
+        (op, partition_ids)
+    }
+
+    /// Simulates what the router would do when it encouters the given delete predicate.
+    async fn simulate_delete_routing(
+        &mut self,
+        delete_table_name: &str,
+        predicate: DeletePredicate,
+    ) -> DmlOperation {
+        // ensure that table for deletions is also present in the catalog
+        self.ns.create_table(delete_table_name).await;
+
+        let sequence_number = self.next_sequence_number();
+        let meta = DmlMeta::sequenced(
+            Sequence::new(self.sequencer.sequencer.id.get() as u32, sequence_number),
+            self.catalog.time_provider().now(),
+            None,
+            0,
+        );
+        DmlOperation::Delete(DmlDelete::new(
+            self.ns.namespace.name.clone(),
+            predicate,
+            Some(NonEmptyString::new(delete_table_name).unwrap()),
+            meta,
+        ))
+    }
+
+    /// Get the current set of tombstone IDs for the given table.
+    async fn tombstone_ids(&self, table_name: &str) -> Vec<TombstoneId> {
+        let table_id = self
+            .catalog
+            .catalog
+            .repositories()
+            .await
+            .tables()
+            .create_or_get(table_name, self.ns.namespace.id)
+            .await
+            .unwrap()
+            .id;
+        let tombstones = self
+            .catalog
+            .catalog
+            .repositories()
+            .await
+            .tombstones()
+            .list_by_table(table_id)
+            .await
+            .unwrap();
+        tombstones.iter().map(|t| t.id).collect()
+    }
+
+    /// Finalizes the ingester and creates a querier namespace that can be used for query tests.
+    ///
+    /// The querier namespace will hold a simulated connection to the ingester to be able to query unpersisted data.
+    async fn into_query_namespace(self) -> Arc<QuerierNamespace> {
+        let mut repos = self.catalog.catalog.repositories().await;
+        let schema = Arc::new(
+            get_schema_by_name(&self.ns.namespace.name, repos.as_mut())
+                .await
+                .unwrap(),
+        );
+
+        let catalog = Arc::clone(&self.catalog);
+        let ns = Arc::clone(&self.ns);
+        let catalog_cache = Arc::new(QuerierCatalogCache::new(
+            self.catalog.catalog(),
+            self.catalog.time_provider(),
+        ));
+        let ingester_connection = IngesterConnectionImpl::new_with_flight_client(
+            vec![String::from("some_address")],
+            Arc::new(self),
+            Arc::clone(&catalog_cache),
+        );
+        let ingester_connection = Arc::new(ingester_connection);
+
+        Arc::new(QuerierNamespace::new_testing(
+            catalog_cache,
+            catalog.object_store(),
+            catalog.metric_registry(),
+            ns.namespace.name.clone().into(),
+            schema,
+            catalog.exec(),
+            ingester_connection,
+        ))
     }
 }
 
-async fn make_querier_namespace(
-    ns: Arc<TestNamespace>,
-    ingester_connection: MockIngesterConnection,
-) -> Arc<QuerierNamespace> {
-    let mut repos = ns.catalog.catalog.repositories().await;
-    let schema = Arc::new(
-        get_schema_by_name(&ns.namespace.name, repos.as_mut())
-            .await
-            .unwrap(),
-    );
+/// Special [`LifecycleHandle`] that never persists and always accepts more data.
+///
+/// This is useful to control persists manually.
+struct NoopLifecycleHandle {}
 
-    let ingester_connection = Arc::new(ingester_connection);
+impl LifecycleHandle for NoopLifecycleHandle {
+    fn log_write(
+        &self,
+        _partition_id: PartitionId,
+        _sequencer_id: SequencerId,
+        _sequence_number: SequenceNumber,
+        _bytes_written: usize,
+    ) -> bool {
+        // do NOT pause ingest
+        false
+    }
 
-    Arc::new(QuerierNamespace::new_testing(
-        ns.catalog.catalog(),
-        ns.catalog.object_store(),
-        ns.catalog.metric_registry(),
-        ns.catalog.time_provider(),
-        ns.namespace.name.clone().into(),
-        schema,
-        ns.catalog.exec(),
-        ingester_connection,
-    ))
+    fn can_resume_ingest(&self) -> bool {
+        true
+    }
 }
 
+/// Special partitioner that returns a constant values.
 #[derive(Debug, Default)]
-struct MockIngesterConnection {
-    responses: Vec<Arc<IngesterPartition>>,
+struct ConstantPartitioner {
+    partition_key: Mutex<String>,
 }
 
-impl MockIngesterConnection {
-    fn push(&mut self, p: Arc<IngesterPartition>) {
-        self.responses.push(p);
+impl ConstantPartitioner {
+    /// Set partition key.
+    fn set(&self, partition_key: String) {
+        *self.partition_key.lock().unwrap() = partition_key;
+    }
+}
+
+impl Partitioner for ConstantPartitioner {
+    fn partition_key(&self, _batch: &MutableBatch) -> Result<String, PartitionerError> {
+        Ok(self.partition_key.lock().unwrap().clone())
     }
 }
 
 #[async_trait]
-impl IngesterConnection for MockIngesterConnection {
-    async fn partitions(
+impl IngesterFlightClient for MockIngester {
+    async fn query(
         &self,
-        _namespace_name: Arc<str>,
-        table_name: Arc<str>,
-        _columns: Vec<String>,
-        _predicate: &predicate::Predicate,
-        _expected_schema: Arc<schema::Schema>,
-    ) -> Result<Vec<Arc<IngesterPartition>>, IngesterError> {
-        Ok(self
-            .responses
-            .iter()
-            .filter(|p| p.table_name() == table_name.as_ref())
-            .cloned()
-            .collect())
+        _ingester_address: &str,
+        request: IngesterQueryRequest,
+    ) -> Result<Box<dyn IngesterFlightClientQueryData>, IngesterFlightClientError> {
+        // NOTE: we MUST NOT unwrap errors here because some query tests assert error behavior (e.g. passing predicates
+        // of wrong types)
+        let response = prepare_data_to_querier(&self.ingester_data, &request)
+            .await
+            .map_err(|e| IngesterFlightClientError::Flight {
+                source: FlightError::ArrowError(arrow::error::ArrowError::ExternalError(Box::new(
+                    e,
+                ))),
+            })?;
+
+        Ok(Box::new(QueryDataAdapter::new(response)))
+    }
+}
+
+/// Helper struct to present [`IngesterQueryResponse`] (produces by the ingester) as a [`IngesterFlightClientQueryData`]
+/// (used by the querier) without doing any real gRPC IO.
+#[derive(Debug)]
+struct QueryDataAdapter {
+    response: IngesterQueryResponse,
+    app_metadata: IngesterQueryResponseMetadata,
+}
+
+impl QueryDataAdapter {
+    /// Create new adapter.
+    ///
+    /// This pre-calculates some data structure that we are going to need later.
+    fn new(response: IngesterQueryResponse) -> Self {
+        let app_metadata = IngesterQueryResponseMetadata {
+            unpersisted_partitions: response
+                .unpersisted_partitions
+                .iter()
+                .map(|(id, status)| {
+                    (
+                        id.get(),
+                        PartitionStatus {
+                            parquet_max_sequence_number: status
+                                .parquet_max_sequence_number
+                                .map(|x| x.get()),
+                            tombstone_max_sequence_number: status
+                                .tombstone_max_sequence_number
+                                .map(|x| x.get()),
+                        },
+                    )
+                })
+                .collect(),
+            batch_partition_ids: response
+                .batch_partition_ids
+                .iter()
+                .map(|id| id.get())
+                .collect(),
+        };
+
+        Self {
+            response,
+            app_metadata,
+        }
+    }
+}
+
+#[async_trait]
+impl IngesterFlightClientQueryData for QueryDataAdapter {
+    async fn next(&mut self) -> Result<Option<RecordBatch>, FlightError> {
+        Ok(self.response.data.next().await.map(|x| x.unwrap()))
     }
 
-    fn as_any(&self) -> &dyn Any {
-        self as &dyn Any
+    fn app_metadata(&self) -> &IngesterQueryResponseMetadata {
+        &self.app_metadata
+    }
+
+    fn schema(&self) -> Arc<arrow::datatypes::Schema> {
+        self.response.schema.as_arrow()
     }
 }

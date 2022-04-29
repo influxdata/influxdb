@@ -11,7 +11,7 @@
     clippy::clone_on_ref_ptr
 )]
 
-use data_types2::PartitionId;
+use data_types2::{PartitionId, TableId};
 use generated_types::influxdata::iox::catalog::v1::*;
 use iox_catalog::interface::Catalog;
 use observability_deps::tracing::*;
@@ -57,6 +57,27 @@ impl catalog_service_server::CatalogService for CatalogService {
 
         Ok(Response::new(response))
     }
+
+    async fn get_partitions_by_table_id(
+        &self,
+        request: Request<GetPartitionsByTableIdRequest>,
+    ) -> Result<Response<GetPartitionsByTableIdResponse>, Status> {
+        let mut repos = self.catalog.repositories().await;
+        let req = request.into_inner();
+        let table_id = TableId::new(req.table_id);
+
+        let partitions = repos
+            .partitions()
+            .list_by_table_id(table_id)
+            .await
+            .map_err(|e| Status::unknown(e.to_string()))?;
+
+        let partitions: Vec<_> = partitions.into_iter().map(to_partition).collect();
+
+        let response = GetPartitionsByTableIdResponse { partitions };
+
+        Ok(Response::new(response))
+    }
 }
 
 // converts the catalog ParquetFile to protobuf
@@ -80,6 +101,17 @@ fn to_parquet_file(p: data_types2::ParquetFile) -> ParquetFile {
     }
 }
 
+// converts the catalog Partition to protobuf
+fn to_partition(p: data_types2::Partition) -> Partition {
+    Partition {
+        id: p.id.get(),
+        sequencer_id: p.sequencer_id.get(),
+        key: p.partition_key,
+        table_id: p.table_id.get(),
+        sort_key: p.sort_key.unwrap_or_else(|| "".to_string()),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -89,7 +121,7 @@ mod tests {
     use uuid::Uuid;
 
     #[tokio::test]
-    async fn test_get_parquet_files_by_partition_id() {
+    async fn get_parquet_files_by_partition_id() {
         // create a catalog and populate it with some test data, then drop the write lock
         let partition_id;
         let p1;
@@ -168,5 +200,83 @@ mod tests {
         let response = tonic_response.into_inner();
         let expect: Vec<_> = [p1, p2].into_iter().map(to_parquet_file).collect();
         assert_eq!(expect, response.parquet_files,);
+    }
+
+    #[tokio::test]
+    async fn get_partitions_by_table_id() {
+        // create a catalog and populate it with some test data, then drop the write lock
+        let table_id;
+        let partition1;
+        let partition2;
+        let partition3;
+        let catalog = {
+            let metrics = Arc::new(metric::Registry::default());
+            let catalog = Arc::new(MemCatalog::new(metrics));
+            let mut repos = catalog.repositories().await;
+            let kafka = repos
+                .kafka_topics()
+                .create_or_get("iox_shared")
+                .await
+                .unwrap();
+            let pool = repos
+                .query_pools()
+                .create_or_get("iox_shared")
+                .await
+                .unwrap();
+            let sequencer = repos
+                .sequencers()
+                .create_or_get(&kafka, KafkaPartition::new(1))
+                .await
+                .unwrap();
+            let namespace = repos
+                .namespaces()
+                .create("catalog_partition_test", "inf", kafka.id, pool.id)
+                .await
+                .unwrap();
+            let table = repos
+                .tables()
+                .create_or_get("schema_test_table", namespace.id)
+                .await
+                .unwrap();
+            partition1 = repos
+                .partitions()
+                .create_or_get("foo", sequencer.id, table.id)
+                .await
+                .unwrap();
+            partition2 = repos
+                .partitions()
+                .create_or_get("bar", sequencer.id, table.id)
+                .await
+                .unwrap();
+            let sequencer2 = repos
+                .sequencers()
+                .create_or_get(&kafka, KafkaPartition::new(2))
+                .await
+                .unwrap();
+            partition3 = repos
+                .partitions()
+                .create_or_get("foo", sequencer2.id, table.id)
+                .await
+                .unwrap();
+
+            table_id = table.id;
+            Arc::clone(&catalog)
+        };
+
+        let grpc = super::CatalogService::new(catalog);
+        let request = GetPartitionsByTableIdRequest {
+            table_id: table_id.get(),
+        };
+
+        let tonic_response = grpc
+            .get_partitions_by_table_id(Request::new(request))
+            .await
+            .expect("rpc request should succeed");
+        let response = tonic_response.into_inner();
+        let expect: Vec<_> = [partition1, partition2, partition3]
+            .into_iter()
+            .map(to_partition)
+            .collect();
+        assert_eq!(expect, response.partitions);
     }
 }

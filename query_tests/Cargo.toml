@@ -10,14 +10,20 @@ description = "Tests of the query engine against different database configuratio
 [dependencies]
 arrow = { version = "12", features = ["prettyprint"] }
 async-trait = "0.1"
+backoff = { path = "../backoff" }
 data_types = { path = "../data_types" }
 data_types2 = { path = "../data_types2" }
 datafusion = { path = "../datafusion" }
-datafusion_util = { path = "../datafusion_util" }
 db = { path = "../db" }
+dml = { path = "../dml" }
+futures = "0.3"
+generated_types = { path = "../generated_types" }
+influxdb_iox_client = { path = "../influxdb_iox_client" }
+ingester = { path = "../ingester" }
 iox_catalog = { path = "../iox_catalog" }
 iox_tests = { path = "../iox_tests" }
 itertools = "0.10"
+mutable_batch = { path = "../mutable_batch" }
 mutable_batch_lp = { path = "../mutable_batch_lp" }
 once_cell = { version = "1.10.0", features = ["parking_lot"] }
 predicate = { path = "../predicate" }
@@ -35,4 +41,4 @@ object_store = { path = "../object_store" }
 snafu = "0.7"
 tempfile = "3.1.0"
 test_helpers = { path = "../test_helpers" }
-tokio = { version = "1.17", features = ["macros", "parking_lot", "rt-multi-thread", "time"] }
+tokio = { version = "1.18", features = ["macros", "parking_lot", "rt-multi-thread", "time"] }

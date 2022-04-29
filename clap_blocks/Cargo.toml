@@ -3,26 +3,21 @@ name = "clap_blocks"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
+clap = { version = "3", features = ["derive", "env"] }
 data_types = { path = "../data_types" }
+futures = "0.3"
+humantime = "2.1.0"
 iox_catalog = { path = "../iox_catalog" }
+iox_time = { path = "../iox_time" }
 metric = { path = "../metric" }
 object_store = { path = "../object_store" }
 observability_deps = { path = "../observability_deps" }
-trace_exporters = { path = "../trace_exporters" }
-trace = { path = "../trace" }
-iox_time = { path = "../iox_time" }
-trogging = { path = "../trogging", default-features = false, features = ["clap"] }
-write_buffer = { path = "../write_buffer" }
-
-
-clap = { version = "3", features = ["derive", "env"] }
-futures = "0.3"
 snafu = "0.7"
+tempfile = "3.1.0"
+trace = { path = "../trace" }
+trace_exporters = { path = "../trace_exporters" }
+trogging = { path = "../trogging", default-features = false, features = ["clap"] }
 uuid = { version = "0.8", features = ["v4"] }
 workspace-hack = { path = "../workspace-hack"}
-
-[dev-dependencies]
-tempfile = "3.1.0"
+write_buffer = { path = "../write_buffer" }

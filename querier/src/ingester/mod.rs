@@ -26,7 +26,7 @@ use self::{
     test_util::MockIngesterConnection,
 };
 
-mod flight_client;
+pub(crate) mod flight_client;
 pub(crate) mod test_util;
 
 #[derive(Debug, Snafu)]
@@ -129,10 +129,10 @@ pub trait IngesterConnection: std::fmt::Debug + Send + Sync + 'static {
     fn as_any(&self) -> &dyn Any;
 }
 
-// IngesterConnection that communicates with an ingester.
+/// IngesterConnection that communicates with an ingester.
 #[allow(missing_copy_implementations)]
 #[derive(Debug)]
-pub(crate) struct IngesterConnectionImpl {
+pub struct IngesterConnectionImpl {
     ingester_addresses: Vec<Arc<str>>,
     flight_client: Arc<dyn FlightClient>,
     catalog_cache: Arc<CatalogCache>,
@@ -149,7 +149,10 @@ impl IngesterConnectionImpl {
         )
     }
 
-    fn new_with_flight_client(
+    /// Create new ingester connection with specific flight client implementation.
+    ///
+    /// This is helpful for testing, i.e. when the flight client should not be backed by normal network communication.
+    pub fn new_with_flight_client(
         ingester_addresses: Vec<String>,
         flight_client: Arc<dyn FlightClient>,
         catalog_cache: Arc<CatalogCache>,

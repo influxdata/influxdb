@@ -34,7 +34,7 @@ service_common = { path = "../service_common" }
 snafu = "0.7"
 iox_time = { path = "../iox_time" }
 trace = { path = "../trace" }
-tokio = { version = "1.17", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
+tokio = { version = "1.18", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
 tokio-util = { version = "0.7.1" }
 tracker = { path = "../tracker" }
 uuid = { version = "0.8", features = ["v4"] }

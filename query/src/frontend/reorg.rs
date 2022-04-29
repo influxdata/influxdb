@@ -57,17 +57,6 @@ impl ReorgPlanner {
     }
 
     /// Creates an execution plan for a scan and filter data of a single chunk
-    // Notes on 2022.04.8 for developers: So far this function is only invoked by either
-    //   1. OG lifecycle's load_chunk which will go way
-    //   2. NG ingester
-    //  In both places, data is not yet sorted and may contain duplicates.
-    //   Hence, this function will create a plan with a sort operator added on top of the scan operator for the deduplication work.
-    // This function should NOT be used on sorted chunks. However, if you need to use it for chunks that are sorted on the SAME key,
-    //   you need to refactor this function to provide that sort_key and add this line
-    //    `builder.with_sort_key(your-newly-added-sortkey)` below `builder = builder.add_no_op_pruner()`
-    //   to make sure the plan is built using that sort_key and avoid resorting already sorted data.
-    //  Also note that if all of your provided chunks are not sorted on your provided sort_key, IOx plan builder
-    //   is smart enough to resort only chunks that are not yet sorted or sorted on different key.
     pub fn scan_single_chunk_plan_with_filter(
         &self,
         schema: Arc<Schema>,

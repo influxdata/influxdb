@@ -47,6 +47,8 @@ once_cell = { version = "1", features = ["alloc", "parking_lot", "race", "std"] 
 parquet = { version = "12", features = ["arrow", "base64", "brotli", "experimental", "flate2", "lz4", "snap", "zstd"] }
 predicates = { version = "2", features = ["diff", "difflib", "float-cmp", "normalize-line-endings", "regex"] }
 proptest = { version = "1", features = ["bit-set", "break-dead-code", "fork", "lazy_static", "quick-error", "regex-syntax", "rusty-fork", "std", "tempfile", "timeout"] }
+prost = { version = "0.10", features = ["prost-derive", "std"] }
+prost-types = { version = "0.10", features = ["std"] }
 rand = { version = "0.8", features = ["alloc", "getrandom", "libc", "rand_chacha", "rand_hc", "small_rng", "std", "std_rng"] }
 regex = { version = "1", features = ["aho-corasick", "memchr", "perf", "perf-cache", "perf-dfa", "perf-inline", "perf-literal", "std", "unicode", "unicode-age", "unicode-bool", "unicode-case", "unicode-gencat", "unicode-perl", "unicode-script", "unicode-segment"] }
 regex-automata = { version = "0.1", features = ["regex-syntax", "std"] }
@@ -64,7 +66,6 @@ tokio-rustls = { version = "0.23", default-features = false, features = ["loggin
 tokio-stream = { version = "0.1", features = ["fs", "net", "time"] }
 tokio-util = { version = "0.7", features = ["codec", "io", "slab", "time", "tracing"] }
 tower = { version = "0.4", features = ["__common", "balance", "buffer", "discover", "filter", "futures-core", "futures-util", "indexmap", "limit", "load", "log", "make", "pin-project", "pin-project-lite", "rand", "ready-cache", "slab", "timeout", "tokio", "tokio-util", "tracing", "util"] }
-tower-http = { version = "0.2", features = ["auth", "base64", "map-response-body", "tower", "trace", "tracing", "util"] }
 tracing = { version = "0.1", features = ["attributes", "log", "max_level_trace", "release_max_level_trace", "std", "tracing-attributes"] }
 tracing-core = { version = "0.1", features = ["lazy_static", "std"] }
 tracing-log = { version = "0.1", features = ["log-tracer", "std", "trace-logger"] }
@@ -101,6 +102,8 @@ memchr = { version = "2", features = ["std"] }
 nom = { version = "7", features = ["alloc", "std"] }
 num-traits = { version = "0.2", features = ["i128", "libm", "std"] }
 once_cell = { version = "1", features = ["alloc", "parking_lot", "race", "std"] }
+prost = { version = "0.10", features = ["prost-derive", "std"] }
+prost-types = { version = "0.10", features = ["std"] }
 rand = { version = "0.8", features = ["alloc", "getrandom", "libc", "rand_chacha", "rand_hc", "small_rng", "std", "std_rng"] }
 regex = { version = "1", features = ["aho-corasick", "memchr", "perf", "perf-cache", "perf-dfa", "perf-inline", "perf-literal", "std", "unicode", "unicode-age", "unicode-bool", "unicode-case", "unicode-gencat", "unicode-perl", "unicode-script", "unicode-segment"] }
 regex-syntax = { version = "0.6", features = ["unicode", "unicode-age", "unicode-bool", "unicode-case", "unicode-gencat", "unicode-perl", "unicode-script", "unicode-segment"] }

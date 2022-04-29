@@ -419,6 +419,9 @@ pub trait PartitionRepo: Send + Sync {
     /// return partitions for a given namespace
     async fn list_by_namespace(&mut self, namespace_id: NamespaceId) -> Result<Vec<Partition>>;
 
+    /// return the partitions by table id
+    async fn list_by_table_id(&mut self, table_id: TableId) -> Result<Vec<Partition>>;
+
     /// return the partition record, the namespace name it belongs to, and the table name it is
     /// under
     async fn partition_info_by_id(
@@ -1339,6 +1342,18 @@ pub(crate) mod test_helpers {
             .map(|v| (v.id, v))
             .collect::<BTreeMap<_, _>>();
 
+        assert_eq!(created, listed);
+
+        let listed = repos
+            .partitions()
+            .list_by_table_id(table.id)
+            .await
+            .expect("failed to list partitions")
+            .into_iter()
+            .map(|v| (v.id, v))
+            .collect::<BTreeMap<_, _>>();
+
+        created.insert(other_partition.id, other_partition.clone());
         assert_eq!(created, listed);
 
         // test get_partition_info_by_id
