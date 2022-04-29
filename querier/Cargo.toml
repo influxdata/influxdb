@@ -50,6 +50,7 @@ criterion = "0.3"
 iox_tests = { path = "../iox_tests" }
 mutable_batch_lp = { path = "../mutable_batch_lp" }
 proptest = { version = "1", default_features = false, features = ["std"] }
+test_helpers = { path = "../test_helpers" }
 
 [[bench]]
 name = "addressable_heap"

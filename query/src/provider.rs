@@ -667,6 +667,7 @@ impl Deduplicater {
     ///  2. vector of non-overlapped chunks, each have duplicates in itself
     ///  3. vectors of non-overlapped chunks without duplicates
     fn split_overlapped_chunks_ng(&mut self, chunks: Vec<Arc<dyn QueryChunk>>) -> Result<()> {
+        debug!("NG split_overlapped_chunks");
         // -------------------------------
         // Group chunks by partition first
         // Chunks in different partition are guarantee not to ovelap

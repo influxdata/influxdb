@@ -4553,6 +4553,7 @@ dependencies = [
  "schema",
  "service_common",
  "snafu",
+ "test_helpers",
  "thiserror",
  "tokio",
  "tokio-util 0.7.1",

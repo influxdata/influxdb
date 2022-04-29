@@ -9,6 +9,7 @@ use data_types::{
     timestamp::TimestampMinMax,
 };
 use data_types2::{DeletePredicate, ParquetFileWithMetadata, PartitionId, TableSummary};
+use observability_deps::tracing::debug;
 use schema::{sort::SortKey, Schema, TIME_COLUMN_NAME};
 use snafu::Snafu;
 use std::{cmp::Ordering, sync::Arc};
@@ -157,6 +158,7 @@ where
     // If at least one of the chunks has no time range,
     // all chunks are considered to overlap with each other.
     if chunks.iter().any(|c| c.timestamp_min_max().is_none()) {
+        debug!("At least one chunk has not timestamp mim max");
         return Ok(vec![chunks]);
     }
 
@@ -166,48 +168,61 @@ where
     let num_chunks = chunks.len();
     let mut grouper = Vec::with_capacity(num_chunks * 2);
 
-    enum StartEnd<I> {
+    #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+    enum StartEnd {
         Start,
-        End(I),
+        End,
+    }
+    #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+    struct StartEndChunk<I> {
+        start_end: StartEnd,
+        chunk: Option<I>,
     }
     struct GrouperRecord<I, V: PartialOrd> {
         value: V,
-        start_end: StartEnd<I>,
+        start_end_chunk: StartEndChunk<I>,
     }
 
     for chunk in chunks {
         let time_range = chunk
             .timestamp_min_max()
             .expect("Time range should have value");
+
         grouper.push(GrouperRecord {
             value: time_range.min,
-            start_end: StartEnd::Start,
+            start_end_chunk: StartEndChunk {
+                start_end: StartEnd::Start,
+                chunk: None,
+            },
         });
         grouper.push(GrouperRecord {
             value: time_range.max,
-            start_end: StartEnd::End(chunk),
+            start_end_chunk: StartEndChunk {
+                start_end: StartEnd::End,
+                chunk: Some(chunk),
+            },
         });
     }
 
-    grouper.sort_by_key(|gr| gr.value);
+    grouper.sort_by_key(|gr| (gr.value, gr.start_end_chunk.start_end));
 
     let mut cumulative_sum = 0;
     let mut groups = Vec::with_capacity(num_chunks);
 
     for gr in grouper {
-        cumulative_sum += match gr.start_end {
+        cumulative_sum += match gr.start_end_chunk.start_end {
             StartEnd::Start => 1,
-            StartEnd::End(_) => -1,
+            StartEnd::End => -1,
         };
 
-        if matches!(gr.start_end, StartEnd::Start) && cumulative_sum == 1 {
+        if matches!(gr.start_end_chunk.start_end, StartEnd::Start) && cumulative_sum == 1 {
             groups.push(Vec::with_capacity(num_chunks));
         }
-        if let StartEnd::End(item) = gr.start_end {
+        if let StartEnd::End = gr.start_end_chunk.start_end {
             groups
                 .last_mut()
                 .expect("a start should have pushed at least one empty group")
-                .push(item);
+                .push(gr.start_end_chunk.chunk.expect("Must have chunk value"));
         }
     }
     Ok(groups)
@@ -443,6 +458,19 @@ mod test {
             Arc::new(TestChunk::new("chunk2").with_time_column_with_stats(Some(200), Some(500)));
 
         let groups = group_potential_duplicates_og(vec![c1, c2]).expect("grouping succeeded");
+
+        let expected = vec!["Group 0: [chunk1, chunk2]"];
+        assert_groups_eq!(expected, groups);
+    }
+
+    #[test]
+    fn one_time_column_overlap_same_min_max() {
+        // no full statistics just time min max for NG test
+        let c1 = Arc::new(TestChunk::new("chunk1").with_timestamp_min_max(1, 1));
+        let c2 = Arc::new(TestChunk::new("chunk2").with_timestamp_min_max(1, 1));
+
+        let groups = group_potential_duplicates(vec![c1, c2]).expect("grouping succeeded");
+        let groups = to_group_query_chunks(groups);
 
         let expected = vec!["Group 0: [chunk1, chunk2]"];
         assert_groups_eq!(expected, groups);
