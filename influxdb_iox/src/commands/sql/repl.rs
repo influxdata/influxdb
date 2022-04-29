@@ -49,25 +49,6 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// (Potentially) cached remote state of the server
-struct RemoteState {
-    db_names: Vec<String>,
-}
-
-impl RemoteState {
-    async fn try_new(
-        management_client: &mut influxdb_iox_client::management::Client,
-    ) -> Result<Self> {
-        let db_names = management_client
-            .list_database_names()
-            .await
-            .map_err(|e| Box::new(e) as _)
-            .context(LoadingRemoteStateSnafu)?;
-
-        Ok(Self { db_names })
-    }
-}
-
 enum QueryEngine {
     /// Run queries against the named database on the remote server
     Remote(String),
@@ -172,8 +153,8 @@ pub struct Repl {
     /// Connection to the server
     connection: Connection,
 
-    /// Client for interacting with IOx management API
-    management_client: influxdb_iox_client::management::Client,
+    /// Client for interacting with IOx namespace API
+    namespace_client: influxdb_iox_client::namespace::Client,
 
     /// Client for running sql
     flight_client: influxdb_iox_client::flight::Client,
@@ -192,7 +173,7 @@ impl Repl {
 
     /// Create a new Repl instance, connected to the specified URL
     pub fn new(connection: Connection) -> Self {
-        let management_client = influxdb_iox_client::management::Client::new(connection.clone());
+        let namespace_client = influxdb_iox_client::namespace::Client::new(connection.clone());
         let flight_client = influxdb_iox_client::flight::Client::new(connection.clone());
 
         let mut rl = Editor::new();
@@ -211,7 +192,7 @@ impl Repl {
             rl,
             prompt,
             connection,
-            management_client,
+            namespace_client,
             flight_client,
             query_engine: None,
             output_format,
@@ -230,12 +211,6 @@ impl Repl {
                 }
                 ReplCommand::Observer {} => {
                     self.use_observer()
-                        .await
-                        .map_err(|e| println!("{}", e))
-                        .ok();
-                }
-                ReplCommand::ShowDatabases => {
-                    self.list_databases()
                         .await
                         .map_err(|e| println!("{}", e))
                         .ok();
@@ -288,23 +263,10 @@ impl Repl {
         }
     }
 
-    // print all databases to the output
-    async fn list_databases(&mut self) -> Result<()> {
-        let state = self.remote_state().await?;
-        let db_names = StringArray::from_iter_values(state.db_names.iter().map(|s| s.as_str()));
-
-        let record_batch =
-            RecordBatch::try_from_iter(vec![("db_name", Arc::new(db_names) as ArrayRef)])
-                .expect("creating record batch successfully");
-
-        self.print_results(&[record_batch])
-    }
-
     // print all namespaces to the output
     async fn list_namespaces(&mut self) -> Result<()> {
-        let mut namespace_client =
-            influxdb_iox_client::namespace::Client::new(self.connection.clone());
-        let namespaces = namespace_client
+        let namespaces = self
+            .namespace_client
             .get_namespaces()
             .await
             .map_err(|e| Box::new(e) as _)
@@ -404,12 +366,6 @@ impl Repl {
             .context(SettingFormatSnafu { requested_format })?;
         println!("Set output format format to {}", self.output_format);
         Ok(())
-    }
-
-    // TODO make a setting for changing if we cache remote state or not
-    async fn remote_state(&mut self) -> Result<RemoteState> {
-        let state = RemoteState::try_new(&mut self.management_client).await?;
-        Ok(state)
     }
 
     /// Prints to the specified output format

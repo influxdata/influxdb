@@ -4,7 +4,6 @@ use observability_deps::tracing::{debug, warn};
 #[derive(Debug, PartialEq)]
 pub enum ReplCommand {
     Help,
-    ShowDatabases,
     ShowNamespaces,
     Observer,
     SetFormat { format: String },
@@ -80,7 +79,6 @@ impl TryFrom<&str> for ReplCommand {
                     db_name: raw_commands[1].to_string(),
                 })
             }
-            ["show", "databases"] => Ok(Self::ShowDatabases),
             ["show", "namespaces"] => Ok(Self::ShowNamespaces),
             ["set", "format", _format] => Ok(Self::SetFormat {
                 format: raw_commands[2].to_string(),
@@ -100,9 +98,7 @@ impl ReplCommand {
 Available commands (not case sensitive):
 HELP (this one)
 
-SHOW DATABASES: List databases available on the server (OG)
-
-SHOW NAMESPACES: List databases available on the server (NG)
+SHOW NAMESPACES: List databases available on the server
 
 USE [DATABASE|NAMESPACE] <name>: Set the current remote database to name
 
@@ -186,17 +182,6 @@ mod tests {
 
         let expected = sql_cmd("  observer me;  ");
         assert_eq!("  observer me;  ".try_into(), expected);
-    }
-
-    #[test]
-    fn show_databases() {
-        let expected = Ok(ReplCommand::ShowDatabases);
-        assert_eq!("show databases".try_into(), expected);
-        assert_eq!("show  Databases".try_into(), expected);
-        assert_eq!("show  databases;".try_into(), expected);
-        assert_eq!("SHOW DATABASES".try_into(), expected);
-
-        assert_eq!("SHOW DATABASES DD".try_into(), sql_cmd("SHOW DATABASES DD"));
     }
 
     #[test]
