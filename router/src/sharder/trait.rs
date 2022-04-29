@@ -19,5 +19,5 @@ pub trait Sharder<P>: Debug + Send + Sync {
     type Item: Debug + Send + Sync;
 
     /// Map the specified `payload` to a shard.
-    fn shard(&self, table: &str, namespace: &DatabaseName<'_>, payload: &P) -> &Self::Item;
+    fn shard(&self, table: &str, namespace: &DatabaseName<'_>, payload: &P) -> Self::Item;
 }

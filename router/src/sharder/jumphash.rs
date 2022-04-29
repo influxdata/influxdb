@@ -1,9 +1,11 @@
 use super::Sharder;
-use data_types::DatabaseName;
+use data_types::{DatabaseName, DeletePredicate};
+use mutable_batch::MutableBatch;
 use siphasher::sip::SipHasher13;
 use std::{
     fmt::Debug,
     hash::{Hash, Hasher},
+    sync::Arc,
 };
 
 /// A [`JumpHash`] maps operations for a given table in a given namespace
@@ -58,6 +60,11 @@ impl<T> JumpHash<T> {
             shards,
         }
     }
+
+    /// Return a slice of all the shards this instance is configured with,
+    pub fn shards(&self) -> &[T] {
+        &self.shards
+    }
 }
 
 impl<T> JumpHash<T> {
@@ -110,24 +117,62 @@ struct HashKey<'a> {
 /// A [`JumpHash`] sharder implementation is generic over `P`, the payload type,
 /// enabling it to map any type of payload to a shard as it only considers the
 /// table name and namespace when making a sharding decision.
-impl<T, P> Sharder<P> for JumpHash<T>
+///
+
+/// A [`JumpHash`] sharder mapping a [`MutableBatch`] reference according to
+/// the`namespace it is destined for.
+impl<T> Sharder<MutableBatch> for JumpHash<Arc<T>>
 where
     T: Debug + Send + Sync,
 {
-    type Item = T;
+    type Item = Arc<T>;
 
-    fn shard(&self, table: &str, namespace: &DatabaseName<'_>, _payload: &P) -> &Self::Item {
+    fn shard(
+        &self,
+        table: &str,
+        namespace: &DatabaseName<'_>,
+        _payload: &MutableBatch,
+    ) -> Self::Item {
         // The derived hash impl for HashKey is hardened against prefix
         // collisions when combining the two fields.
-        self.hash(&HashKey {
+        Arc::clone(self.hash(&HashKey {
             table,
             namespace: namespace.as_ref(),
-        })
+        }))
+    }
+}
+
+/// A [`JumpHash`] sharder mapping a [`DeletePredicate`] reference to all
+/// shards unless a table is specified, in which case the table & namespace are
+/// used to shard to the same destination as a write with the same table &
+/// namespace would.
+impl<T> Sharder<DeletePredicate> for JumpHash<Arc<T>>
+where
+    T: Debug + Send + Sync,
+{
+    type Item = Vec<Arc<T>>;
+
+    fn shard(
+        &self,
+        table: &str,
+        namespace: &DatabaseName<'_>,
+        _payload: &DeletePredicate,
+    ) -> Self::Item {
+        // A delete
+        if table.is_empty() {
+            return self.shards.iter().map(Arc::clone).collect();
+        }
+
+        vec![Arc::clone(self.hash(&HashKey {
+            table,
+            namespace: namespace.as_ref(),
+        }))]
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use data_types::TimestampRange;
     use hashbrown::HashMap;
 
     use super::*;
@@ -174,27 +219,62 @@ mod tests {
 
     #[test]
     fn test_sharder_impl() {
-        let hasher = JumpHash::new(0..10_000);
+        let hasher = JumpHash::new((0..10_000).map(Arc::new));
 
-        let a = hasher.shard("table", &DatabaseName::try_from("namespace").unwrap(), &0);
-        let b = hasher.shard("table", &DatabaseName::try_from("namespace2").unwrap(), &0);
+        let a = hasher.shard(
+            "table",
+            &DatabaseName::try_from("namespace").unwrap(),
+            &MutableBatch::default(),
+        );
+        let b = hasher.shard(
+            "table",
+            &DatabaseName::try_from("namespace2").unwrap(),
+            &MutableBatch::default(),
+        );
         assert_ne!(a, b);
 
-        let a = hasher.shard("table", &DatabaseName::try_from("namespace").unwrap(), &0);
-        let b = hasher.shard("table2", &DatabaseName::try_from("namespace").unwrap(), &0);
+        let a = hasher.shard(
+            "table",
+            &DatabaseName::try_from("namespace").unwrap(),
+            &MutableBatch::default(),
+        );
+        let b = hasher.shard(
+            "table2",
+            &DatabaseName::try_from("namespace").unwrap(),
+            &MutableBatch::default(),
+        );
         assert_ne!(a, b);
+
+        let mut batches = mutable_batch_lp::lines_to_batches("cpu a=1i", 42).unwrap();
+        let batch = batches.remove("cpu").unwrap();
 
         // Assert payloads are ignored for this sharder
-        let a = hasher.shard("table", &DatabaseName::try_from("namespace").unwrap(), &0);
-        let b = hasher.shard("table", &DatabaseName::try_from("namespace").unwrap(), &42);
+        let a = hasher.shard(
+            "table",
+            &DatabaseName::try_from("namespace").unwrap(),
+            &MutableBatch::default(),
+        );
+        let b = hasher.shard(
+            "table",
+            &DatabaseName::try_from("namespace").unwrap(),
+            &batch,
+        );
         assert_eq!(a, b);
     }
 
     #[test]
     fn test_sharder_prefix_collision() {
-        let hasher = JumpHash::new(0..10_000);
-        let a = hasher.shard("a", &DatabaseName::try_from("bc").unwrap(), &0);
-        let b = hasher.shard("ab", &DatabaseName::try_from("c").unwrap(), &0);
+        let hasher = JumpHash::new((0..10_000).map(Arc::new));
+        let a = hasher.shard(
+            "a",
+            &DatabaseName::try_from("bc").unwrap(),
+            &MutableBatch::default(),
+        );
+        let b = hasher.shard(
+            "ab",
+            &DatabaseName::try_from("c").unwrap(),
+            &MutableBatch::default(),
+        );
         assert_ne!(a, b);
     }
 
@@ -212,23 +292,36 @@ mod tests {
     // strategy would that accounts for this mapping change.
     #[test]
     fn test_key_bucket_fixture() {
-        let hasher = JumpHash::new(0..1000);
+        let hasher = JumpHash::new((0..1_000).map(Arc::new));
         let namespace = DatabaseName::try_from("bananas").unwrap();
 
-        assert_eq!(*hasher.shard("42", &namespace, &0), 904);
-        assert_eq!(*hasher.shard("4242", &namespace, &1), 230);
-        assert_eq!(*hasher.shard("bananas", &namespace, &2), 183);
+        let mut batches = mutable_batch_lp::lines_to_batches("cpu a=1i", 42).unwrap();
+        let batch = batches.remove("cpu").unwrap();
+
+        assert_eq!(
+            *hasher.shard("42", &namespace, &MutableBatch::default()),
+            904
+        );
+        assert_eq!(
+            *hasher.shard("4242", &namespace, &MutableBatch::default()),
+            230
+        );
+        assert_eq!(*hasher.shard("bananas", &namespace, &batch), 183);
     }
 
     #[test]
     fn test_distribution() {
-        let hasher = JumpHash::new(0..100);
+        let hasher = JumpHash::new((0..100).map(Arc::new));
         let namespace = DatabaseName::try_from("bananas").unwrap();
 
         let mut mapping = HashMap::<_, usize>::new();
 
         for i in 0..10_000_000 {
-            let bucket = hasher.shard(format!("{}", i).as_str(), &namespace, &0);
+            let bucket = hasher.shard(
+                format!("{}", i).as_str(),
+                &namespace,
+                &MutableBatch::default(),
+            );
             *mapping.entry(bucket).or_default() += 1;
         }
 
@@ -240,5 +333,47 @@ mod tests {
         // Expect that the number of values of each bucket are all within ±0.05%
         // of the total 10M values
         assert!(max - min < 5000, "min: {}, max: {}", min, max);
+    }
+
+    #[test]
+    fn test_delete_with_table() {
+        let namespace = DatabaseName::try_from("bananas").unwrap();
+
+        let hasher = JumpHash::new((0..10_000).map(Arc::new));
+
+        let predicate = DeletePredicate {
+            range: TimestampRange::new(1, 2),
+            exprs: vec![],
+        };
+
+        let batch = MutableBatch::default();
+
+        for i in 0..100_usize {
+            // A delete with a table should map to exactly one shard.
+            let mut got = hasher.shard(i.to_string().as_str(), &namespace, &predicate);
+            assert_eq!(got.len(), 1);
+            let delete_shard = got.pop().unwrap();
+
+            // And a write to the same table & namespace MUST map to the same shard.
+            let write_shard = hasher.shard(i.to_string().as_str(), &namespace, &batch);
+            assert_eq!(delete_shard, write_shard);
+        }
+    }
+
+    #[test]
+    fn test_delete_no_table_shards_to_all() {
+        let namespace = DatabaseName::try_from("bananas").unwrap();
+
+        let shards = (0..10_000).map(Arc::new).collect::<Vec<_>>();
+        let hasher = JumpHash::new(shards.clone());
+
+        let predicate = DeletePredicate {
+            range: TimestampRange::new(1, 2),
+            exprs: vec![],
+        };
+
+        let got = hasher.shard("", &namespace, &predicate);
+
+        assert_eq!(got, shards);
     }
 }

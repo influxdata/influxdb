@@ -74,7 +74,7 @@ impl<S> ShardedWriteBuffer<S> {
 impl<S> DmlHandler for ShardedWriteBuffer<S>
 where
     S: Sharder<MutableBatch, Item = Arc<Sequencer>>
-        + Sharder<DeletePredicate, Item = Arc<Sequencer>>,
+        + Sharder<DeletePredicate, Item = Vec<Arc<Sequencer>>>,
 {
     type WriteError = ShardError;
     type DeleteError = ShardError;
@@ -98,7 +98,7 @@ where
         // per shard to maximise the size of each write, and therefore increase
         // the effectiveness of compression of ops in the write buffer.
         for (table, batch) in writes.into_iter() {
-            let sequencer = Arc::clone(self.sharder.shard(&table, namespace, &batch));
+            let sequencer = self.sharder.shard(&table, namespace, &batch);
 
             let existing = collated
                 .entry(sequencer)
@@ -135,9 +135,7 @@ where
         span_ctx: Option<SpanContext>,
     ) -> Result<(), ShardError> {
         let predicate = predicate.clone();
-        let sequencer = self.sharder.shard(table_name, namespace, &predicate);
-
-        trace!(sequencer_id=%sequencer.id(), %table_name, %namespace, "routing delete to shard");
+        let sequencers = self.sharder.shard(table_name, namespace, &predicate);
 
         let dml = DmlDelete::new(
             namespace,
@@ -146,13 +144,14 @@ where
             DmlMeta::unsequenced(span_ctx),
         );
 
-        sequencer
-            .enqueue(DmlOperation::from(dml))
-            .await
-            .map_err(|e| ShardError::WriteBufferErrors {
-                successes: 0,
-                errs: vec![e],
-            })?;
+        let iter = sequencers.into_iter().map(|s| {
+            trace!(sequencer_id=%s.id(), %table_name, %namespace, "routing delete to shard");
+
+            (s, DmlOperation::from(dml.clone()))
+        });
+
+        // TODO: return sequencer metadata
+        parallel_enqueue(iter).await?;
 
         Ok(())
     }
@@ -200,7 +199,7 @@ mod tests {
     use super::*;
     use crate::{
         dml_handlers::DmlHandler,
-        sharder::mock::{MockSharder, MockSharderCall},
+        sharder::mock::{MockSharder, MockSharderCall, MockSharderPayload},
     };
     use assert_matches::assert_matches;
     use data_types::TimestampRange;
@@ -463,5 +462,188 @@ mod tests {
             assert_eq!(d.table_name(), Some(TABLE));
             assert_eq!(*d.predicate(), predicate);
         });
+    }
+
+    #[tokio::test]
+    async fn test_shard_delete_no_table() {
+        let write_buffer = init_write_buffer(1);
+        let write_buffer_state = write_buffer.state();
+
+        let predicate = DeletePredicate {
+            range: TimestampRange::new(1, 2),
+            exprs: vec![],
+        };
+
+        // Configure the sharder to return shards containing the mock write
+        // buffer.
+        let shard = Arc::new(Sequencer::new(
+            0,
+            Arc::new(write_buffer),
+            &Default::default(),
+        ));
+        let sharder = Arc::new(MockSharder::default().with_return([Arc::clone(&shard)]));
+
+        let w = ShardedWriteBuffer::new(Arc::clone(&sharder));
+
+        // Call the ShardedWriteBuffer and drive the test
+        let ns = DatabaseName::new("namespace").unwrap();
+        w.delete(&ns, "", &predicate, None)
+            .await
+            .expect("delete failed");
+
+        // Assert the table name was captured as empty.
+        let calls = sharder.calls();
+        assert_matches!(calls.as_slice(), [MockSharderCall{table_name, payload, ..}] => {
+            assert_eq!(table_name, "");
+            assert_matches!(payload, MockSharderPayload::DeletePredicate(..));
+        });
+
+        // All writes were dispatched to the same shard, which should observe
+        // one op containing all writes lines (asserting that all the writes for
+        // one shard are collated into one op).
+        //
+        // The table name should be None as it was specified as an empty string.
+        let mut got = write_buffer_state.get_messages(shard.id() as _);
+        assert_eq!(got.len(), 1);
+        let got = got
+            .pop()
+            .unwrap()
+            .expect("write should have been successful");
+        assert_matches!(got, DmlOperation::Delete(d) => {
+            assert_eq!(d.table_name(), None);
+            assert_eq!(*d.predicate(), predicate);
+        });
+    }
+
+    #[derive(Debug)]
+    struct MultiDeleteSharder(Vec<Arc<Sequencer>>);
+
+    impl Sharder<DeletePredicate> for MultiDeleteSharder {
+        type Item = Vec<Arc<Sequencer>>;
+
+        fn shard(
+            &self,
+            _table: &str,
+            _namespace: &DatabaseName<'_>,
+            _payload: &DeletePredicate,
+        ) -> Self::Item {
+            self.0.clone()
+        }
+    }
+
+    impl Sharder<MutableBatch> for MultiDeleteSharder {
+        type Item = Arc<Sequencer>;
+
+        fn shard(
+            &self,
+            _table: &str,
+            _namespace: &DatabaseName<'_>,
+            _payload: &MutableBatch,
+        ) -> Self::Item {
+            unreachable!()
+        }
+    }
+
+    #[tokio::test]
+    async fn test_shard_delete_multiple_shards() {
+        const TABLE: &str = "bananas";
+
+        let predicate = DeletePredicate {
+            range: TimestampRange::new(1, 2),
+            exprs: vec![],
+        };
+
+        // Configure the first shard to write to one write buffer
+        let write_buffer1 = init_write_buffer(1);
+        let write_buffer1_state = write_buffer1.state();
+        let shard1 = Arc::new(Sequencer::new(
+            0,
+            Arc::new(write_buffer1),
+            &Default::default(),
+        ));
+
+        // Configure the second shard to write to another write buffer
+        let write_buffer2 = init_write_buffer(1);
+        let write_buffer2_state = write_buffer2.state();
+        let shard2 = Arc::new(Sequencer::new(
+            0,
+            Arc::new(write_buffer2),
+            &Default::default(),
+        ));
+
+        let sharder = MultiDeleteSharder(vec![Arc::clone(&shard1), Arc::clone(&shard2)]);
+
+        let w = ShardedWriteBuffer::new(sharder);
+
+        // Call the ShardedWriteBuffer and drive the test
+        let ns = DatabaseName::new("namespace").unwrap();
+        w.delete(&ns, TABLE, &predicate, None)
+            .await
+            .expect("delete failed");
+
+        // The write buffer for shard 1 should observe 1 write containing 3 rows.
+        let mut got = write_buffer1_state.get_messages(shard1.id() as _);
+        assert_eq!(got.len(), 1);
+        let got = got
+            .pop()
+            .unwrap()
+            .expect("write should have been successful");
+        assert_matches!(got, DmlOperation::Delete(_));
+
+        // The second shard should observe 1 write containing 1 row.
+        let mut got = write_buffer2_state.get_messages(shard2.id() as _);
+        assert_eq!(got.len(), 1);
+        let got = got
+            .pop()
+            .unwrap()
+            .expect("write should have been successful");
+        assert_matches!(got, DmlOperation::Delete(_));
+    }
+
+    #[tokio::test]
+    async fn test_shard_delete_multiple_shards_partial_failure() {
+        const TABLE: &str = "bananas";
+
+        let predicate = DeletePredicate {
+            range: TimestampRange::new(1, 2),
+            exprs: vec![],
+        };
+
+        // Configure the first shard to write to one write buffer
+        let write_buffer1 = init_write_buffer(1);
+        let write_buffer1_state = write_buffer1.state();
+        let shard1 = Arc::new(Sequencer::new(
+            0,
+            Arc::new(write_buffer1),
+            &Default::default(),
+        ));
+
+        // Configure the second shard to write to a write buffer that always fails
+        let write_buffer2 = init_write_buffer(1);
+        // Non-existant sequencer ID to trigger an error.
+        let shard2 = Arc::new(Sequencer::new(
+            13,
+            Arc::new(write_buffer2),
+            &Default::default(),
+        ));
+
+        let sharder = MultiDeleteSharder(vec![Arc::clone(&shard1), Arc::clone(&shard2)]);
+
+        let w = ShardedWriteBuffer::new(sharder);
+
+        // Call the ShardedWriteBuffer and drive the test
+        let ns = DatabaseName::new("namespace").unwrap();
+        let err = w
+            .delete(&ns, TABLE, &predicate, None)
+            .await
+            .expect_err("delete should fail");
+        assert_matches!(err, ShardError::WriteBufferErrors{successes, errs} => {
+            assert_eq!(errs.len(), 1);
+            assert_eq!(successes, 1);
+        });
+
+        // The write buffer for shard 1 should observe 1 write containing 3 rows.
+        let got = write_buffer1_state.get_messages(shard1.id() as _);
+        assert_eq!(got.len(), 1);
     }
 }

@@ -53,10 +53,6 @@ impl<T> Default for MockSharder<T> {
 impl<T> MockSharder<T> {
     /// Return the values specified in `ret` in sequence for calls to `shard`,
     /// starting from the front.
-    ///
-    /// # Memory Leak
-    ///
-    /// Each call to `shard` leaks the memory of the `T` it returns.
     pub fn with_return(self, ret: impl Into<VecDeque<T>>) -> Self {
         self.0.lock().shard_return = ret.into();
         self
@@ -78,19 +74,17 @@ where
         table: &str,
         namespace: &DatabaseName<'_>,
         payload: &MutableBatch,
-    ) -> &Self::Item {
+    ) -> Self::Item {
         let mut guard = self.0.lock();
         guard.record_call(MockSharderCall {
             table_name: table.to_string(),
             namespace: namespace.to_string(),
             payload: MockSharderPayload::MutableBatch(payload.clone()),
         });
-        Box::leak(Box::new(
-            guard
-                .shard_return
-                .pop_front()
-                .expect("no shard mock value to return"),
-        ))
+        guard
+            .shard_return
+            .pop_front()
+            .expect("no shard mock value to return")
     }
 }
 
@@ -98,25 +92,23 @@ impl<T> Sharder<DeletePredicate> for Arc<MockSharder<T>>
 where
     T: Debug + Send + Sync,
 {
-    type Item = T;
+    type Item = Vec<T>;
 
     fn shard(
         &self,
         table: &str,
         namespace: &DatabaseName<'_>,
         payload: &DeletePredicate,
-    ) -> &Self::Item {
+    ) -> Self::Item {
         let mut guard = self.0.lock();
         guard.record_call(MockSharderCall {
             table_name: table.to_string(),
             namespace: namespace.to_string(),
             payload: MockSharderPayload::DeletePredicate(payload.clone()),
         });
-        Box::leak(Box::new(
-            guard
-                .shard_return
-                .pop_front()
-                .expect("no shard mock value to return"),
-        ))
+        vec![guard
+            .shard_return
+            .pop_front()
+            .expect("no shard mock value to return")]
     }
 }
