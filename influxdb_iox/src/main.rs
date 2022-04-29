@@ -25,8 +25,8 @@ use tokio::runtime::Runtime;
 
 mod commands {
     pub mod catalog;
-    pub mod database;
     pub mod debug;
+    pub mod query;
     pub mod remote;
     pub mod run;
     pub mod schema;
@@ -147,9 +147,6 @@ struct Config {
 
 #[derive(Debug, clap::Parser)]
 enum Command {
-    /// Database-related commands
-    Database(commands::database::Config),
-
     /// Run the InfluxDB IOx server
     // Clippy recommended boxing this variant because it's much larger than the others
     Run(Box<commands::run::Config>),
@@ -174,6 +171,9 @@ enum Command {
 
     /// Write data into the specified database
     Write(commands::write::Config),
+
+    /// Query the data with SQL
+    Query(commands::query::Config),
 }
 
 fn main() -> Result<(), std::io::Error> {
@@ -231,14 +231,6 @@ fn main() -> Result<(), std::io::Error> {
         }
 
         match config.command {
-            Command::Database(config) => {
-                let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
-                let connection = connection().await;
-                if let Err(e) = commands::database::command(connection, config).await {
-                    eprintln!("{}", e);
-                    std::process::exit(ReturnCode::Failure as _)
-                }
-            }
             Command::Remote(config) => {
                 let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
                 let connection = connection().await;
@@ -297,6 +289,14 @@ fn main() -> Result<(), std::io::Error> {
                 let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
                 let connection = connection().await;
                 if let Err(e) = commands::write::command(connection, config).await {
+                    eprintln!("{}", e);
+                    std::process::exit(ReturnCode::Failure as _)
+                }
+            }
+            Command::Query(config) => {
+                let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
+                let connection = connection().await;
+                if let Err(e) = commands::query::command(connection, config).await {
                     eprintln!("{}", e);
                     std::process::exit(ReturnCode::Failure as _)
                 }
