@@ -90,7 +90,6 @@ parking_lot = "0.12"
 parquet = "12"
 pin-project = "1.0"
 prost = "0.10"
-regex = "1.5.4"
 rustyline = { version = "9.0", default-features = false }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.79"
@@ -112,23 +111,13 @@ heappy = { git = "https://github.com/mkmik/heappy", rev = "df8c1428a2ff727db2399
 workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]
-# Workspace dependencies, in alphabetical order
+# In alphabetical order
 arrow_util = { path = "../arrow_util" }
-iox_tests = { path = "../iox_tests" }
+assert_cmd = "2.0.2"
+predicates = "2.1.0"
+tempfile = "3.1.0"
 test_helpers = { path = "../test_helpers", features = ["future_timeout"] }
 test_helpers_end_to_end_ng = { path = "../test_helpers_end_to_end_ng" }
-schema = { path = "../schema" }
-
-# Crates.io dependencies, in alphabetical order
-assert_cmd = "2.0.2"
-base64 = "0.13"
-hex = "0.4.2"
-predicates = "2.1.0"
-rand = "0.8.3"
-regex = "1"
-reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls"] }
-sqlx = { version = "0.5", features = [ "runtime-tokio-rustls" , "postgres", "uuid" ] }
-tempfile = "3.1.0"
 
 [features]
 default = ["jemalloc_replacing_malloc"]
