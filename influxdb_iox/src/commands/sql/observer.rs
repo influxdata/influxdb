@@ -1,10 +1,5 @@
 //! This module implements the "Observer" functionality of the SQL repl
 
-use influxdb_iox_client::{connection::Connection, flight::generated_types::ReadInfo};
-use snafu::{ResultExt, Snafu};
-
-use std::{collections::HashMap, sync::Arc, time::Instant};
-
 use arrow::{
     array::{Array, ArrayRef, StringArray},
     datatypes::{Field, Schema},
@@ -14,8 +9,10 @@ use datafusion::{
     datasource::MemTable,
     prelude::{SessionConfig, SessionContext},
 };
-
+use influxdb_iox_client::{connection::Connection, flight::generated_types::ReadInfo};
 use observability_deps::tracing::{debug, info};
+use snafu::{ResultExt, Snafu};
+use std::{collections::HashMap, sync::Arc, time::Instant};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -81,14 +78,6 @@ SHOW TABLES;
 To reload the most recent version of the database system tables, run
 OBSERVER;
 
-Example SQL to show the total estimated storage size by database:
-
-SELECT database_name, storage, count(*) as num_chunks,
-  sum(memory_bytes)/1024/1024 as estimated_mb
-FROM chunks
-GROUP BY database_name, storage
-ORDER BY estimated_mb desc;
-
 "#
         .to_string()
     }
@@ -102,22 +91,19 @@ async fn load_remote_system_tables(
     connection: Connection,
 ) -> Result<()> {
     // all prefixed with "system."
-    let table_names = vec![
-        "chunks",
-        "chunk_columns",
-        "columns",
-        "operations",
-        "queries",
-    ];
+    let table_names = vec!["queries"];
 
     let start = Instant::now();
 
-    let mut management_client = influxdb_iox_client::management::Client::new(connection.clone());
+    let mut namespace_client = influxdb_iox_client::namespace::Client::new(connection.clone());
 
-    let db_names = management_client
-        .list_database_names()
+    let db_names: Vec<_> = namespace_client
+        .get_namespaces()
         .await
-        .context(LoadingDatabaseNamesSnafu)?;
+        .context(LoadingDatabaseNamesSnafu)?
+        .into_iter()
+        .map(|ns| ns.name)
+        .collect();
 
     println!("Loading system tables from {} databases", db_names.len());
 
