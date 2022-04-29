@@ -33,6 +33,7 @@ mod commands {
     pub mod sql;
     pub mod storage;
     pub mod tracing;
+    pub mod write;
 }
 
 enum ReturnCode {
@@ -170,6 +171,9 @@ enum Command {
 
     /// Initiate a read request to the gRPC storage service.
     Storage(commands::storage::Config),
+
+    /// Write data into the specified database
+    Write(commands::write::Config),
 }
 
 fn main() -> Result<(), std::io::Error> {
@@ -285,6 +289,14 @@ fn main() -> Result<(), std::io::Error> {
             Command::Debug(config) => {
                 let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
                 if let Err(e) = commands::debug::command(config).await {
+                    eprintln!("{}", e);
+                    std::process::exit(ReturnCode::Failure as _)
+                }
+            }
+            Command::Write(config) => {
+                let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
+                let connection = connection().await;
+                if let Err(e) = commands::write::command(connection, config).await {
                     eprintln!("{}", e);
                     std::process::exit(ReturnCode::Failure as _)
                 }

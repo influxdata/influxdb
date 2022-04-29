@@ -4,22 +4,14 @@ use influxdb_iox_client::{
     connection::Connection,
     flight::{self, generated_types::ReadInfo},
     format::QueryOutputFormat,
-    write,
 };
-use iox_time::TimeProvider;
-use std::{fs::File, io::Read, num::NonZeroU64, path::PathBuf, str::FromStr, time::Duration};
+use std::{num::NonZeroU64, path::PathBuf, str::FromStr, time::Duration};
 use thiserror::Error;
 use uuid::Uuid;
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("Error reading file {:?}: {}", file_name, source)]
-    ReadingFile {
-        file_name: PathBuf,
-        source: std::io::Error,
-    },
-
     #[error("Error formatting: {0}")]
     FormattingError(#[from] influxdb_iox_client::format::Error),
 
@@ -195,35 +187,12 @@ struct Restart {
 /// All possible subcommands for database
 #[derive(Debug, clap::Parser)]
 enum Command {
-    /// Write data into the specified database
-    Write(Write),
-
     /// Query the data with SQL
     Query(Query),
 }
 
 pub async fn command(connection: Connection, config: Config) -> Result<()> {
     match config.command {
-        Command::Write(write) => {
-            let mut client = write::Client::new(connection);
-
-            let mut file = File::open(&write.file_name).map_err(|e| Error::ReadingFile {
-                file_name: write.file_name.clone(),
-                source: e,
-            })?;
-
-            let mut lp_data = String::new();
-            file.read_to_string(&mut lp_data)
-                .map_err(|e| Error::ReadingFile {
-                    file_name: write.file_name.clone(),
-                    source: e,
-                })?;
-
-            let default_time = iox_time::SystemProvider::new().now().timestamp_nanos();
-            let lines_written = client.write_lp(write.name, lp_data, default_time).await?;
-
-            println!("{} Lines OK", lines_written);
-        }
         Command::Query(query) => {
             let mut client = flight::Client::new(connection);
             let Query {
