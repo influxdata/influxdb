@@ -140,6 +140,7 @@ async fn do_read_filter_test(
     request_builder: GrpcRequestBuilder,
     expected_frames: impl IntoIterator<Item = &str>,
 ) {
+    test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();
     let expected_frames: Vec<String> = expected_frames.into_iter().map(|s| s.to_string()).collect();
 

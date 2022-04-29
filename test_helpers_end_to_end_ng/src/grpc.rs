@@ -1,32 +1,34 @@
 use crate::MiniCluster;
 use generated_types::{
+    aggregate::AggregateType,
     node::{Comparison, Type as NodeType, Value},
-    MeasurementFieldsRequest, MeasurementNamesRequest, MeasurementTagKeysRequest,
-    MeasurementTagValuesRequest, Node, Predicate, ReadFilterRequest, ReadSource, TagKeysRequest,
-    TagValuesRequest, TimestampRange,
+    read_group_request::Group,
+    Aggregate, MeasurementFieldsRequest, MeasurementNamesRequest, MeasurementTagKeysRequest,
+    MeasurementTagValuesRequest, Node, Predicate, ReadFilterRequest, ReadGroupRequest, ReadSource,
+    ReadWindowAggregateRequest, TagKeysRequest, TagValuesRequest, TimestampRange,
 };
 use prost::Message;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
+/// Helps create and send influxrpc / gRPC requests to IOx
 pub struct GrpcRequestBuilder {
     read_source: Option<generated_types::google::protobuf::Any>,
     range: Option<TimestampRange>,
     predicate: Option<Predicate>,
-}
 
-impl Default for GrpcRequestBuilder {
-    fn default() -> Self {
-        Self::new()
-    }
+    // for read_group requests
+    group: Option<Group>,
+    group_keys: Option<Vec<String>>,
+    // also used for read_window_aggregate requests
+    aggregate_type: Option<AggregateType>,
+
+    window_every: Option<i64>,
+    offset: Option<i64>,
 }
 
 impl GrpcRequestBuilder {
     pub fn new() -> Self {
-        Self {
-            read_source: None,
-            range: None,
-            predicate: None,
-        }
+        Default::default()
     }
 
     /// Creates the appropriate `Any` protobuf magic for a read source with the cluster's org and
@@ -81,6 +83,29 @@ impl GrpcRequestBuilder {
                         node_type: NodeType::Literal as i32,
                         children: vec![],
                         value: Some(Value::StringValue(tag_value.into())),
+                    },
+                ],
+                value: Some(Value::Comparison(Comparison::Equal as _)),
+            }),
+        };
+        self.predicate(predicate)
+    }
+
+    /// Create a predicate representing _f=field_name in the horrible gRPC structs
+    pub fn field_predicate(self, field_name: impl Into<String>) -> Self {
+        let predicate = Predicate {
+            root: Some(Node {
+                node_type: NodeType::ComparisonExpression as i32,
+                children: vec![
+                    Node {
+                        node_type: NodeType::TagRef as i32,
+                        children: vec![],
+                        value: Some(Value::TagRefValue([255].to_vec())),
+                    },
+                    Node {
+                        node_type: NodeType::Literal as i32,
+                        children: vec![],
+                        value: Some(Value::StringValue(field_name.into())),
                     },
                 ],
                 value: Some(Value::Comparison(Comparison::Equal as _)),
@@ -155,6 +180,58 @@ impl GrpcRequestBuilder {
         }
     }
 
+    /// Append the specified strings to the `group_keys` request
+    pub fn group_keys<'a>(self, group_keys: impl IntoIterator<Item = &'a str>) -> Self {
+        assert!(self.group_keys.is_none(), "Overwriting existing group_keys");
+        let group_keys = group_keys.into_iter().map(|s| s.to_string()).collect();
+        Self {
+            group_keys: Some(group_keys),
+            ..self
+        }
+    }
+
+    /// set the specified grouping method on a read_group request
+    pub fn group(self, group: Group) -> Self {
+        assert!(self.group.is_none(), "Overwriting existing group");
+        Self {
+            group: Some(group),
+            ..self
+        }
+    }
+
+    /// set the specified grouping grouping aggregate on a read_group or read_window_aggregate request
+    pub fn aggregate_type(self, aggregate_type: AggregateType) -> Self {
+        assert!(
+            self.aggregate_type.is_none(),
+            "Overwriting existing aggregate"
+        );
+        Self {
+            aggregate_type: Some(aggregate_type),
+            ..self
+        }
+    }
+
+    /// set the window_every field for a read_window_aggregate request
+    pub fn window_every(self, window_every: i64) -> Self {
+        assert!(
+            self.window_every.is_none(),
+            "Overwriting existing window_every"
+        );
+        Self {
+            window_every: Some(window_every),
+            ..self
+        }
+    }
+
+    /// set the offset field for a read_window_aggregate request
+    pub fn offset(self, offset: i64) -> Self {
+        assert!(self.offset.is_none(), "Overwriting existing offset");
+        Self {
+            offset: Some(offset),
+            ..self
+        }
+    }
+
     pub fn build_read_filter(self) -> tonic::Request<ReadFilterRequest> {
         tonic::Request::new(ReadFilterRequest {
             read_source: self.read_source,
@@ -224,6 +301,51 @@ impl GrpcRequestBuilder {
             measurement: measurement.to_string(),
             range: self.range,
             predicate: self.predicate,
+        })
+    }
+
+    /// Creates a read group request
+    pub fn build_read_group(self) -> tonic::Request<ReadGroupRequest> {
+        let aggregate = self.aggregate_type.map(|aggregate_type| Aggregate {
+            r#type: aggregate_type.into(),
+        });
+
+        let group_keys = self.group_keys.unwrap_or_default();
+        let group = self
+            .group
+            .expect("no group specified, can't create read_group_request")
+            .into();
+
+        tonic::Request::new(ReadGroupRequest {
+            read_source: self.read_source,
+            range: self.range,
+            predicate: self.predicate,
+            group_keys,
+            group,
+            aggregate,
+        })
+    }
+
+    /// Creates a read window_aggregate request
+    pub fn build_read_window_aggregate(self) -> tonic::Request<ReadWindowAggregateRequest> {
+        // we support only a single aggregate for now
+        let aggregate = self
+            .aggregate_type
+            .map(|aggregate_type| {
+                vec![Aggregate {
+                    r#type: aggregate_type.into(),
+                }]
+            })
+            .expect("No aggregate specified, can't create read_window_aggregate request");
+
+        tonic::Request::new(ReadWindowAggregateRequest {
+            read_source: self.read_source,
+            range: self.range,
+            predicate: self.predicate,
+            window_every: self.window_every.expect("no window_every specified"),
+            offset: self.offset.expect("no offset specified"),
+            aggregate,
+            window: None,
         })
     }
 }

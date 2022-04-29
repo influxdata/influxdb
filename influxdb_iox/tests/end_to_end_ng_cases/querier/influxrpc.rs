@@ -3,6 +3,8 @@
 mod dump;
 mod metadata;
 mod read_filter;
+mod read_group;
+mod read_window_aggregate;
 
 use std::sync::Arc;
 use test_helpers_end_to_end_ng::{
