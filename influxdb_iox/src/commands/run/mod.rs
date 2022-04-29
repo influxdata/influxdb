@@ -3,7 +3,6 @@ use trogging::cli::LoggingConfig;
 
 mod all_in_one;
 mod compactor;
-mod database;
 mod ingester;
 mod main;
 mod querier;
@@ -15,9 +14,6 @@ mod test;
 pub enum Error {
     #[snafu(display("Error in compactor subcommand: {}", source))]
     CompactorError { source: compactor::Error },
-
-    #[snafu(display("Error in database subcommand: {}", source))]
-    DatabaseError { source: database::Error },
 
     #[snafu(display("Error in querier subcommand: {}", source))]
     QuerierError { source: querier::Error },
@@ -39,26 +35,19 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug, clap::Parser)]
 pub struct Config {
-    // TODO(marco) remove this
-    /// Config for database mode, for backwards compatibility reasons.
-    #[clap(flatten)]
-    database_config: database::Config,
-
     #[clap(subcommand)]
-    command: Option<Command>,
+    command: Command,
 }
 
 impl Config {
     pub fn logging_config(&self) -> &LoggingConfig {
         match &self.command {
-            None => self.database_config.run_config.logging_config(),
-            Some(Command::Compactor(config)) => config.run_config.logging_config(),
-            Some(Command::Database(config)) => config.run_config.logging_config(),
-            Some(Command::Querier(config)) => config.run_config.logging_config(),
-            Some(Command::Router2(config)) => config.run_config.logging_config(),
-            Some(Command::Ingester(config)) => config.run_config.logging_config(),
-            Some(Command::AllInOne(config)) => &config.logging_config,
-            Some(Command::Test(config)) => config.run_config.logging_config(),
+            Command::Compactor(config) => config.run_config.logging_config(),
+            Command::Querier(config) => config.run_config.logging_config(),
+            Command::Router2(config) => config.run_config.logging_config(),
+            Command::Ingester(config) => config.run_config.logging_config(),
+            Command::AllInOne(config) => &config.logging_config,
+            Command::Test(config) => config.run_config.logging_config(),
         }
     }
 }
@@ -67,9 +56,6 @@ impl Config {
 enum Command {
     /// Run the server in compactor mode
     Compactor(compactor::Config),
-
-    /// Run the server in database mode (Deprecated)
-    Database(database::Config),
 
     /// Run the server in querier mode
     Querier(querier::Config),
@@ -89,22 +75,11 @@ enum Command {
 
 pub async fn command(config: Config) -> Result<()> {
     match config.command {
-        None => {
-            println!(
-                "WARNING: Not specifying the run-mode is deprecated. Defaulting to 'database'."
-            );
-            database::command(config.database_config)
-                .await
-                .context(DatabaseSnafu)
-        }
-        Some(Command::Compactor(config)) => {
-            compactor::command(config).await.context(CompactorSnafu)
-        }
-        Some(Command::Database(config)) => database::command(config).await.context(DatabaseSnafu),
-        Some(Command::Querier(config)) => querier::command(config).await.context(QuerierSnafu),
-        Some(Command::Router2(config)) => router2::command(config).await.context(Router2Snafu),
-        Some(Command::Ingester(config)) => ingester::command(config).await.context(IngesterSnafu),
-        Some(Command::AllInOne(config)) => all_in_one::command(config).await.context(AllInOneSnafu),
-        Some(Command::Test(config)) => test::command(config).await.context(TestSnafu),
+        Command::Compactor(config) => compactor::command(config).await.context(CompactorSnafu),
+        Command::Querier(config) => querier::command(config).await.context(QuerierSnafu),
+        Command::Router2(config) => router2::command(config).await.context(Router2Snafu),
+        Command::Ingester(config) => ingester::command(config).await.context(IngesterSnafu),
+        Command::AllInOne(config) => all_in_one::command(config).await.context(AllInOneSnafu),
+        Command::Test(config) => test::command(config).await.context(TestSnafu),
     }
 }

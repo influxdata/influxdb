@@ -145,7 +145,7 @@ dependencies = [
  "arrow",
  "chrono",
  "comfy-table",
- "hashbrown 0.12.1",
+ "hashbrown 0.12.0",
  "num-traits",
  "rand",
  "snafu",
@@ -665,9 +665,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "3.1.15"
+version = "3.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "85a35a599b11c089a7f49105658d089b8f2cf0882993c17daf6de15285c2c35d"
+checksum = "7c167e37342afc5f33fd87bbc870cedd020d2a6dffa05d45ccd9241fbdd146db"
 dependencies = [
  "atty",
  "bitflags",
@@ -684,7 +684,7 @@ dependencies = [
 name = "clap_blocks"
 version = "0.1.0"
 dependencies = [
- "clap 3.1.15",
+ "clap 3.1.12",
  "data_types",
  "futures",
  "humantime",
@@ -718,9 +718,9 @@ dependencies = [
 
 [[package]]
 name = "clap_lex"
-version = "0.2.0"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a37c35f1112dad5e6e0b1adaff798507497a18fceeb30cceb3bae7d1427b9213"
+checksum = "189ddd3b5d32a70b35e7686054371742a937b0d99128e76dde6340210e966669"
 dependencies = [
  "os_str_bytes",
 ]
@@ -1206,7 +1206,7 @@ dependencies = [
  "datafusion-expr",
  "datafusion-physical-expr",
  "futures",
- "hashbrown 0.12.1",
+ "hashbrown 0.12.0",
  "lazy_static",
  "log",
  "num_cpus",
@@ -1271,7 +1271,7 @@ dependencies = [
  "chrono",
  "datafusion-common",
  "datafusion-expr",
- "hashbrown 0.12.1",
+ "hashbrown 0.12.0",
  "lazy_static",
  "md-5 0.10.1",
  "ordered-float 3.0.0",
@@ -1318,7 +1318,7 @@ dependencies = [
  "datafusion_util",
  "dml",
  "futures",
- "hashbrown 0.12.1",
+ "hashbrown 0.12.0",
  "internal_types",
  "iox_object_store",
  "iox_time",
@@ -1461,7 +1461,7 @@ version = "0.1.0"
 dependencies = [
  "arrow_util",
  "data_types",
- "hashbrown 0.12.1",
+ "hashbrown 0.12.0",
  "iox_time",
  "mutable_batch",
  "mutable_batch_lp",
@@ -1929,9 +1929,9 @@ dependencies = [
 
 [[package]]
 name = "hashbrown"
-version = "0.12.1"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "db0d4cf898abf0081f964436dc980e96670a0f36863e4b83aaacdb65c9d7ccc3"
+checksum = "8c21d40587b92fa6a6c6e3c1bdbf87d75511db5672f9c93175574b3a00df1758"
 dependencies = [
  "ahash",
 ]
@@ -2210,7 +2210,7 @@ dependencies = [
  "byteorder",
  "bytes",
  "chrono",
- "clap 3.1.15",
+ "clap 3.1.12",
  "clap_blocks",
  "comfy-table",
  "compactor",
@@ -2225,7 +2225,7 @@ dependencies = [
  "flate2",
  "futures",
  "generated_types",
- "hashbrown 0.12.1",
+ "hashbrown 0.12.0",
  "heappy",
  "http",
  "humantime",
@@ -2241,7 +2241,6 @@ dependencies = [
  "iox_time",
  "ioxd_common",
  "ioxd_compactor",
- "ioxd_database",
  "ioxd_ingester",
  "ioxd_querier",
  "ioxd_router2",
@@ -2525,7 +2524,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "chrono-english",
- "clap 3.1.15",
+ "clap 3.1.12",
  "criterion",
  "data_types",
  "futures",
@@ -2554,7 +2553,7 @@ dependencies = [
  "assert_matches",
  "async-trait",
  "chrono",
- "clap 3.1.15",
+ "clap 3.1.12",
  "dotenv",
  "futures",
  "glob",
@@ -2657,13 +2656,13 @@ dependencies = [
  "async-trait",
  "bytes",
  "chrono",
- "clap 3.1.15",
+ "clap 3.1.12",
  "clap_blocks",
  "data_types",
  "dml",
  "flate2",
  "futures",
- "hashbrown 0.12.1",
+ "hashbrown 0.12.0",
  "http",
  "hyper",
  "log",
@@ -2718,60 +2717,6 @@ dependencies = [
  "tonic-reflection",
  "trace",
  "trace_http",
- "workspace-hack",
-]
-
-[[package]]
-name = "ioxd_database"
-version = "0.1.0"
-dependencies = [
- "arrow",
- "arrow-flight",
- "arrow_util",
- "async-trait",
- "bytes",
- "clap 3.1.15",
- "clap_blocks",
- "data_types",
- "db",
- "dml",
- "futures",
- "generated_types",
- "http",
- "hyper",
- "influxdb_iox_client",
- "influxdb_storage_client",
- "ioxd_common",
- "job_registry",
- "metric",
- "mutable_batch_pb",
- "object_store",
- "observability_deps",
- "prost",
- "query",
- "reqwest",
- "schema",
- "serde",
- "serde_json",
- "serde_urlencoded",
- "server",
- "service_common",
- "service_grpc_flight",
- "service_grpc_influxrpc",
- "service_grpc_testing",
- "snafu",
- "test_helpers",
- "tokio",
- "tokio-stream",
- "tokio-util 0.7.1",
- "tonic",
- "tonic-health",
- "tonic-reflection",
- "trace",
- "trace_exporters",
- "trace_http",
- "tracker",
- "uuid 0.8.2",
  "workspace-hack",
 ]
 
@@ -2846,7 +2791,7 @@ dependencies = [
  "clap_blocks",
  "data_types2",
  "generated_types",
- "hashbrown 0.12.1",
+ "hashbrown 0.12.0",
  "hyper",
  "iox_catalog",
  "iox_time",
@@ -2876,7 +2821,7 @@ name = "ioxd_test"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "clap 3.1.15",
+ "clap 3.1.12",
  "generated_types",
  "hyper",
  "ioxd_common",
@@ -3184,9 +3129,9 @@ dependencies = [
 
 [[package]]
 name = "libc"
-version = "0.2.125"
+version = "0.2.124"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5916d2ae698f6de9bfb891ad7a8d65c09d232dc58cc4ac433c7da3b2fd84bc2b"
+checksum = "21a41fed9d98f27ab1c6d161da622a4fa35e8a54a8adc24bbf3ddd0ef70b0e50"
 
 [[package]]
 name = "libloading"
@@ -3210,7 +3155,7 @@ version = "0.1.0"
 dependencies = [
  "data_types",
  "futures",
- "hashbrown 0.12.1",
+ "hashbrown 0.12.0",
  "internal_types",
  "iox_time",
  "observability_deps",
@@ -3244,9 +3189,9 @@ dependencies = [
 
 [[package]]
 name = "log"
-version = "0.4.17"
+version = "0.4.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "abb12e687cfb44aa40f41fc3978ef76448f9b6038cad6aef4259d3c095a2382e"
+checksum = "6389c490849ff5bc16be905ae24bc913a9c8892e19b2341dbc175e14c341c2b8"
 dependencies = [
  "cfg-if",
 ]
@@ -3338,9 +3283,9 @@ checksum = "490cc448043f947bae3cbee9c203358d62dbee0db12107a74be5c30ccfd09771"
 
 [[package]]
 name = "memchr"
-version = "2.5.0"
+version = "2.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2dffe52ecf27772e601905b7522cb4ef790d2cc203488bbd0e2fe85fcb74566d"
+checksum = "308cc39be01b73d0d18f82a0e7b2a3df85245f84af96fdddc5d202d27e47b86a"
 
 [[package]]
 name = "memmap2"
@@ -3475,7 +3420,7 @@ dependencies = [
  "arrow_util",
  "chrono",
  "data_types",
- "hashbrown 0.12.1",
+ "hashbrown 0.12.0",
  "itertools",
  "rand",
  "schema",
@@ -3490,7 +3435,7 @@ dependencies = [
  "arrow_util",
  "assert_matches",
  "criterion",
- "hashbrown 0.12.1",
+ "hashbrown 0.12.0",
  "influxdb_line_protocol",
  "mutable_batch",
  "schema",
@@ -3505,7 +3450,7 @@ dependencies = [
  "arrow_util",
  "dml",
  "generated_types",
- "hashbrown 0.12.1",
+ "hashbrown 0.12.0",
  "mutable_batch",
  "mutable_batch_lp",
  "schema",
@@ -3668,9 +3613,9 @@ dependencies = [
 
 [[package]]
 name = "num-integer"
-version = "0.1.45"
+version = "0.1.44"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "225d3389fb3509a24c93f5c29eb6bde2586b98d9f016636dff58d7c6f7569cd9"
+checksum = "d2cc698a63b549a70bc047073d2949cce27cd1c7b0a4a862d08a8031bc2801db"
 dependencies = [
  "autocfg",
  "num-traits",
@@ -4557,7 +4502,7 @@ dependencies = [
  "datafusion_util",
  "executor",
  "futures",
- "hashbrown 0.12.1",
+ "hashbrown 0.12.0",
  "itertools",
  "observability_deps",
  "parking_lot 0.12.0",
@@ -4765,7 +4710,7 @@ dependencies = [
  "data_types",
  "datafusion 0.1.0",
  "either",
- "hashbrown 0.12.1",
+ "hashbrown 0.12.0",
  "itertools",
  "metric",
  "observability_deps",
@@ -4907,7 +4852,7 @@ dependencies = [
  "cache_loader_async",
  "data_types",
  "dml",
- "hashbrown 0.12.1",
+ "hashbrown 0.12.0",
  "influxdb_iox_client",
  "iox_time",
  "metric",
@@ -4937,7 +4882,7 @@ dependencies = [
  "flate2",
  "futures",
  "generated_types",
- "hashbrown 0.12.1",
+ "hashbrown 0.12.0",
  "hyper",
  "influxdb_line_protocol",
  "iox_catalog",
@@ -5240,7 +5185,7 @@ name = "schema"
 version = "0.1.0"
 dependencies = [
  "arrow",
- "hashbrown 0.12.1",
+ "hashbrown 0.12.0",
  "indexmap",
  "itertools",
  "snafu",
@@ -5459,7 +5404,7 @@ dependencies = [
  "futures",
  "futures-util",
  "generated_types",
- "hashbrown 0.12.1",
+ "hashbrown 0.12.0",
  "influxdb_line_protocol",
  "internal_types",
  "iox_object_store",
@@ -6451,7 +6396,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "chrono",
- "clap 3.1.15",
+ "clap 3.1.12",
  "futures",
  "observability_deps",
  "snafu",
@@ -6466,7 +6411,7 @@ name = "trace_http"
 version = "0.1.0"
 dependencies = [
  "futures",
- "hashbrown 0.12.1",
+ "hashbrown 0.12.0",
  "http",
  "http-body",
  "itertools",
@@ -6572,7 +6517,7 @@ name = "tracker"
 version = "0.1.0"
 dependencies = [
  "futures",
- "hashbrown 0.12.1",
+ "hashbrown 0.12.0",
  "iox_time",
  "lock_api",
  "metric",
@@ -6597,7 +6542,7 @@ dependencies = [
 name = "trogging"
 version = "0.1.0"
 dependencies = [
- "clap 3.1.15",
+ "clap 3.1.12",
  "logfmt",
  "observability_deps",
  "regex",
@@ -7045,7 +6990,7 @@ dependencies = [
  "futures-util",
  "getrandom",
  "hashbrown 0.11.2",
- "hashbrown 0.12.1",
+ "hashbrown 0.12.0",
  "heck 0.4.0",
  "hyper",
  "hyper-rustls",
@@ -7105,7 +7050,7 @@ dependencies = [
  "dotenv",
  "futures",
  "generated_types",
- "hashbrown 0.12.1",
+ "hashbrown 0.12.0",
  "http",
  "httparse",
  "iox_time",
