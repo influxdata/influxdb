@@ -7,7 +7,7 @@
 //! 2. **Catalog Query:** Query parquet files and tombstones from catalog. It is important that this happens AFTER the
 //!    ingester request. This will create [`ParquetFileWithMetadata`] and [`Tombstone`].
 //! 3. **Pruning:** Call [`filter_parquet_files`] and [`tombstone_exclude_list`] to filter out files and tombstones that
-//!    are too new (i.e. were created after between step 1 and 2).
+//!    are too new (i.e. were created between step 1 and 2).
 
 use std::{
     collections::{HashMap, HashSet},
