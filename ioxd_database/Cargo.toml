@@ -35,7 +35,7 @@ arrow-flight = "12"
 async-trait = "0.1"
 bytes = "1.0"
 futures = "0.3"
-http = "0.2.0"
+http = "0.2.7"
 hyper = "0.14"
 prost = "0.10"
 serde = { version = "1.0", features = ["derive"] }

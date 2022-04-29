@@ -23,7 +23,7 @@ trace_http = { path = "../trace_http" }
 # Crates.io dependencies, in alphabetical order
 async-trait = "0.1"
 
-http = "0.2.0"
+http = "0.2.7"
 hyper = "0.14"
 snafu = "0.7"
 
