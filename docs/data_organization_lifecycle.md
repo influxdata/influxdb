@@ -78,7 +78,7 @@ Before digging into Data Lifecycle, let us look into the stages of a chunk imple
 └───────────┘       └──────────────────────────┘       │ └───────────────┘ │
                                                        └───────────────────┘
 
-Figure 2: Stages of a C hunk
+Figure 2: Stages of a Chunk
 ```
 
 Now let us see how data of chunks are transformed in IOx's Data LifeCycle.
