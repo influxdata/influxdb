@@ -29,7 +29,6 @@ mod commands {
     pub mod query;
     pub mod remote;
     pub mod run;
-    pub mod schema;
     pub mod sql;
     pub mod storage;
     pub mod tracing;
@@ -154,9 +153,6 @@ enum Command {
     /// Commands to run against remote IOx APIs
     Remote(commands::remote::Config),
 
-    /// IOx schema configuration commands
-    Schema(commands::schema::Config),
-
     /// Start IOx interactive SQL REPL loop
     Sql(commands::sql::Config),
 
@@ -247,14 +243,6 @@ fn main() -> Result<(), std::io::Error> {
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
-            Command::Schema(config) => {
-                let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
-                let connection = connection().await;
-                if let Err(e) = commands::schema::command(connection, config).await {
-                    eprintln!("{}", e);
-                    std::process::exit(ReturnCode::Failure as _)
-                }
-            }
             Command::Sql(config) => {
                 let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
                 let connection = connection().await;
@@ -280,7 +268,7 @@ fn main() -> Result<(), std::io::Error> {
             }
             Command::Debug(config) => {
                 let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
-                if let Err(e) = commands::debug::command(config).await {
+                if let Err(e) = commands::debug::command(connection, config).await {
                     eprintln!("{}", e);
                     std::process::exit(ReturnCode::Failure as _)
                 }
