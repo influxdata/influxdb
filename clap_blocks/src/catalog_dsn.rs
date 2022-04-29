@@ -1,9 +1,12 @@
 use iox_catalog::{
-    create_or_get_default_records, interface::Catalog, mem::MemCatalog, postgres::PostgresCatalog,
+    create_or_get_default_records,
+    interface::Catalog,
+    mem::MemCatalog,
+    postgres::{PostgresCatalog, PostgresConnectionOptions},
 };
 use observability_deps::tracing::*;
 use snafu::{OptionExt, ResultExt, Snafu};
-use std::{ops::DerefMut, sync::Arc};
+use std::{ops::DerefMut, sync::Arc, time::Duration};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -14,6 +17,29 @@ pub enum Error {
     Catalog {
         source: iox_catalog::interface::Error,
     },
+}
+
+fn default_max_connections() -> &'static str {
+    let s = PostgresConnectionOptions::DEFAULT_MAX_CONNS.to_string();
+    Box::leak(Box::new(s))
+}
+
+fn default_connect_timeout() -> &'static str {
+    let s =
+        humantime::format_duration(PostgresConnectionOptions::DEFAULT_CONNECT_TIMETOUT).to_string();
+    Box::leak(Box::new(s))
+}
+
+fn default_idle_timeout() -> &'static str {
+    let s =
+        humantime::format_duration(PostgresConnectionOptions::DEFAULT_IDLE_TIMETOUT).to_string();
+    Box::leak(Box::new(s))
+}
+
+fn default_hotswap_poll_interval_timeout() -> &'static str {
+    let s = humantime::format_duration(PostgresConnectionOptions::DEFAULT_HOTSWAP_POLL_INTERVAL)
+        .to_string();
+    Box::leak(Box::new(s))
 }
 
 /// CLI config for catalog DSN.
@@ -36,7 +62,7 @@ pub struct CatalogDsnConfig {
     #[clap(
         long = "--catalog-max-connections",
         env = "INFLUXDB_IOX_CATALOG_MAX_CONNECTIONS",
-        default_value = "10"
+        default_value = default_max_connections(),
     )]
     pub max_catalog_connections: u32,
 
@@ -44,9 +70,39 @@ pub struct CatalogDsnConfig {
     #[clap(
         long = "--catalog-postgres-schema-name",
         env = "INFLUXDB_IOX_CATALOG_POSTGRES_SCHEMA_NAME",
-        default_value = iox_catalog::postgres::SCHEMA_NAME,
+        default_value = PostgresConnectionOptions::DEFAULT_SCHEMA_NAME,
     )]
     pub postgres_schema_name: String,
+
+    /// Set the amount of time to attempt connecting to the database.
+    #[clap(
+        long = "--catalog-connect-timeout",
+        env = "INFLUXDB_IOX_CATALOG_CONNECT_TIMEOUT",
+        default_value = default_connect_timeout(),
+        parse(try_from_str = humantime::parse_duration),
+    )]
+    pub connect_timeout: Duration,
+
+    /// Set a maximum idle duration for individual connections.
+    #[clap(
+        long = "--catalog-idle-timeout",
+        env = "INFLUXDB_IOX_CATALOG_IDLE_TIMEOUT",
+        default_value = default_idle_timeout(),
+        parse(try_from_str = humantime::parse_duration),
+    )]
+    pub idle_timeout: Duration,
+
+    /// If the DSN points to a file (i.e. starts with `dsn-file://`), this sets the interval how often the the file
+    /// should be polled for updates.
+    ///
+    /// If an update is encountered, the underlying connection pool will be hot-swapped.
+    #[clap(
+        long = "--catalog-hotswap-poll-interval",
+        env = "INFLUXDB_IOX_CATALOG_HOTSWAP_POLL_INTERVAL",
+        default_value = default_hotswap_poll_interval_timeout(),
+        parse(try_from_str = humantime::parse_duration),
+    )]
+    pub hotswap_poll_interval: Duration,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, clap::ArgEnum)]
@@ -64,8 +120,11 @@ impl CatalogDsnConfig {
         Self {
             catalog_type_: CatalogType::Memory,
             dsn: None,
-            max_catalog_connections: 10,
-            postgres_schema_name: iox_catalog::postgres::SCHEMA_NAME.to_string(),
+            max_catalog_connections: PostgresConnectionOptions::DEFAULT_MAX_CONNS,
+            postgres_schema_name: PostgresConnectionOptions::DEFAULT_SCHEMA_NAME.to_string(),
+            connect_timeout: PostgresConnectionOptions::DEFAULT_CONNECT_TIMETOUT,
+            idle_timeout: PostgresConnectionOptions::DEFAULT_IDLE_TIMETOUT,
+            hotswap_poll_interval: PostgresConnectionOptions::DEFAULT_HOTSWAP_POLL_INTERVAL,
         }
     }
 
@@ -76,8 +135,11 @@ impl CatalogDsnConfig {
         Self {
             catalog_type_: CatalogType::Postgres,
             dsn: Some(dsn),
-            max_catalog_connections: 10,
+            max_catalog_connections: PostgresConnectionOptions::DEFAULT_MAX_CONNS,
             postgres_schema_name,
+            connect_timeout: PostgresConnectionOptions::DEFAULT_CONNECT_TIMETOUT,
+            idle_timeout: PostgresConnectionOptions::DEFAULT_IDLE_TIMETOUT,
+            hotswap_poll_interval: PostgresConnectionOptions::DEFAULT_HOTSWAP_POLL_INTERVAL,
         }
     }
 
@@ -87,17 +149,26 @@ impl CatalogDsnConfig {
         metrics: Arc<metric::Registry>,
     ) -> Result<Arc<dyn Catalog>, Error> {
         let catalog = match self.catalog_type_ {
-            CatalogType::Postgres => Arc::new(
-                PostgresCatalog::connect(
-                    app_name,
-                    &self.postgres_schema_name,
-                    self.dsn.as_ref().context(ConnectionStringRequiredSnafu)?,
-                    self.max_catalog_connections,
-                    metrics,
-                )
-                .await
-                .context(CatalogSnafu)?,
-            ) as Arc<dyn Catalog>,
+            CatalogType::Postgres => {
+                let options = PostgresConnectionOptions {
+                    app_name: app_name.to_string(),
+                    schema_name: self.postgres_schema_name.clone(),
+                    dsn: self
+                        .dsn
+                        .as_ref()
+                        .context(ConnectionStringRequiredSnafu)?
+                        .clone(),
+                    max_conns: self.max_catalog_connections,
+                    connect_timeout: self.connect_timeout,
+                    idle_timeout: self.idle_timeout,
+                    hotswap_poll_interval: self.hotswap_poll_interval,
+                };
+                Arc::new(
+                    PostgresCatalog::connect(options, metrics)
+                        .await
+                        .context(CatalogSnafu)?,
+                ) as Arc<dyn Catalog>
+            }
             CatalogType::Memory => {
                 let mem = MemCatalog::new(metrics);
 

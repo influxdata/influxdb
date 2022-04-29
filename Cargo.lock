@@ -687,6 +687,7 @@ dependencies = [
  "clap 3.1.12",
  "data_types",
  "futures",
+ "humantime",
  "iox_catalog",
  "iox_time",
  "metric",

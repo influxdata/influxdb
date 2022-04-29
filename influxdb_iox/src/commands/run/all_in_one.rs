@@ -169,7 +169,7 @@ pub struct Config {
     #[clap(
         long = "--catalog-postgres-schema-name",
         env = "INFLUXDB_IOX_CATALOG_POSTGRES_SCHEMA_NAME",
-        default_value = iox_catalog::postgres::SCHEMA_NAME,
+        default_value = iox_catalog::postgres::PostgresConnectionOptions::DEFAULT_SCHEMA_NAME,
     )]
     pub postgres_schema_name: String,
 
