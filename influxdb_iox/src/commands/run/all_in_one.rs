@@ -228,6 +228,8 @@ pub struct Config {
     /// The address on which IOx will serve Router HTTP API requests
     #[clap(
     long = "--router-http-bind",
+    // by default, write API requests go to router
+    alias = "api-bind",
     env = "INFLUXDB_IOX_ROUTER_HTTP_BIND_ADDR",
     default_value = DEFAULT_ROUTER_HTTP_BIND_ADDR,
     )]
@@ -244,6 +246,8 @@ pub struct Config {
     /// The address on which IOx will serve Querier gRPC API requests
     #[clap(
     long = "--querier-grpc-bind",
+    // by default, grpc requests go to querier
+    alias = "grpc-bind",
     env = "INFLUXDB_IOX_QUERIER_GRPC_BIND_ADDR",
     default_value = DEFAULT_QUERIER_GRPC_BIND_ADDR,
     )]
