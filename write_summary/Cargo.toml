@@ -16,7 +16,7 @@ workspace-hack = { path = "../workspace-hack"}
 
 # Crates.io dependencies, in alphabetical order
 base64 = "0.13"
-serde_json = "1.0.79"
+serde_json = "1.0.80"
 snafu = "0.7"
 
 
