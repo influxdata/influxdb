@@ -124,28 +124,6 @@ async fn sql_select_from_school() {
 }
 
 #[tokio::test]
-async fn sql_select_from_system_operations() {
-    test_helpers::maybe_start_logging();
-    let expected = vec![
-        "+----+---------+------------+---------------+----------------+------------+---------------+-------------------------------------+",
-        "| id | status  | start_time | took_cpu_time | took_wall_time | table_name | partition_key | description                         |",
-        "+----+---------+------------+---------------+----------------+------------+---------------+-------------------------------------+",
-        "| 0  | Success | true       | true          | true           | h2o        | 1970-01-01T00 | Compacting chunks to ReadBuffer     |",
-        "| 1  | Success | true       | true          | true           | h2o        | 1970-01-01T00 | Persisting chunks to object storage |",
-        "| 2  | Success | true       | true          | true           | h2o        | 1970-01-01T00 | Writing chunk to Object Storage     |",
-        "+----+---------+------------+---------------+----------------+------------+---------------+-------------------------------------+",
-    ];
-
-    // Check that the cpu time used reported is greater than zero as it isn't
-    // repeatable
-    run_sql_test_case(
-        OldTwoMeasurementsManyFieldsLifecycle {},
-        "SELECT id, status, CAST(start_time as BIGINT) > 0 as start_time, CAST(cpu_time_used AS BIGINT) > 0 as took_cpu_time, CAST(wall_time_used AS BIGINT) > 0 as took_wall_time, table_name, partition_key, description from system.operations",
-        &expected
-    ).await;
-}
-
-#[tokio::test]
 async fn sql_union_all() {
     // validate name resolution works for UNION ALL queries
     let expected = vec![

@@ -5,7 +5,7 @@ use backoff::{Backoff, BackoffConfig};
 use data_types2::SequencerId;
 use futures::{
     future::{BoxFuture, Shared},
-    FutureExt, TryFutureExt,
+    select, FutureExt, TryFutureExt,
 };
 use iox_catalog::interface::Catalog;
 use iox_time::TimeProvider;
@@ -198,9 +198,13 @@ async fn run_compactor(compactor: Arc<Compactor>, shutdown: CancellationToken) {
 
         let _ = futures::future::join_all(handles).await;
 
-        // if all candidate partitions have been compacted, wait a bit before checking again
+        // if all candidate partitions have been compacted, wait a bit
+        // before checking again, but don'skip sleeping if cancel arrives
         if compactions_run == n_candidates {
-            tokio::time::sleep(Duration::from_secs(5)).await;
+            select! {
+                () = tokio::time::sleep(Duration::from_secs(5)).fuse() => {},
+                () = shutdown.cancelled().fuse() => {}
+            }
         }
     }
 }

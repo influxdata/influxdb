@@ -49,7 +49,7 @@ We're also hosting monthly tech talks and community office hours on the project 
 1. [Install dependencies](#install-dependencies)
 1. [Clone the repository](#clone-the-repository)
 1. [Configure the server](#configure-the-server)
-1. [Compile and start the server](#compile-and-start-the-server)
+1. [Compiling and Running](#compiling-and-running)
    (You can also [build a Docker image](#build-a-docker-image-optional) to run InfluxDB IOx.)
 1. [Write and read data](#write-and-read-data)
 1. [Use the CLI](#use-the-cli)
