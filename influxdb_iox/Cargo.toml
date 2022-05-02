@@ -72,7 +72,7 @@ chrono = { version = "0.4", default-features = false }
 clap = { version = "3", features = ["derive", "env"] }
 # used by arrow/datafusion anyway
 comfy-table = { version = "5.0", default-features = false }
-console-subscriber = { version = "0.1.4", optional = true, features = ["parking_lot"] }
+console-subscriber = { version = "0.1.5", optional = true, features = ["parking_lot"] }
 csv = "1.1"
 dotenv = "0.15.0"
 flate2 = "1.0"
