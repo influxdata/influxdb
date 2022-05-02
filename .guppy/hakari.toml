@@ -35,7 +35,6 @@ workspace-members = [
     "influxdb2_client",
     "iox_data_generator",
     "mutable_batch_tests",
-    "server_benchmarks",
 ]
 third-party = [
     { name = "azure_core", git = "https://github.com/Azure/azure-sdk-for-rust.git", rev = "15de10cb58cf5cb271334a20e35fa9fbedd10244" },

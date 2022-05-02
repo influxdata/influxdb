@@ -68,7 +68,6 @@ members = [
     "router2",
     "schema",
     "server",
-    "server_benchmarks",
     "service_common",
     "service_grpc_influxrpc",
     "service_grpc_flight",

@@ -5521,29 +5521,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "server_benchmarks"
-version = "0.1.0"
-dependencies = [
- "arrow_util",
- "chrono",
- "criterion",
- "data_types",
- "datafusion 0.1.0",
- "db",
- "flate2",
- "influxdb_line_protocol",
- "influxdb_tsm",
- "mutable_buffer",
- "object_store",
- "predicate",
- "query",
- "query_tests",
- "rand",
- "test_helpers",
- "tokio",
-]
-
-[[package]]
 name = "service_common"
 version = "0.1.0"
 dependencies = [
