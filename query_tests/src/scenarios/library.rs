@@ -9,99 +9,15 @@ use db::{
     utils::{
         count_mutable_buffer_chunks, count_object_store_chunks, count_read_buffer_chunks, make_db,
     },
-    LockableChunk, LockablePartition,
 };
 use query::{frontend::sql::SqlQueryPlanner, QueryChunk};
 
 use crate::scenarios::util::{make_n_chunks_scenario_new, ChunkDataNew};
 
 use super::{
-    util::{
-        all_scenarios_for_one_chunk, make_one_rub_or_parquet_chunk_scenario,
-        make_two_chunk_scenarios, ChunkStageNew,
-    },
+    util::{all_scenarios_for_one_chunk, make_two_chunk_scenarios, ChunkStageNew},
     DbScenario, DbSetup,
 };
-
-/// No data
-#[derive(Debug)]
-pub struct ChunkOrder {}
-#[async_trait]
-impl DbSetup for ChunkOrder {
-    async fn make(&self) -> Vec<DbScenario> {
-        let partition_key = "1970-01-01T00";
-        let table_name = "cpu";
-
-        let db = make_db().await.db;
-
-        // create first chunk: data->MUB->RUB
-        write_lp(&db, "cpu,region=west user=1 100");
-        assert_eq!(count_mutable_buffer_chunks(&db), 1);
-        assert_eq!(count_read_buffer_chunks(&db), 0);
-        assert_eq!(count_object_store_chunks(&db), 0);
-        db.compact_partition(table_name, partition_key)
-            .await
-            .unwrap();
-        assert_eq!(count_mutable_buffer_chunks(&db), 0);
-        assert_eq!(count_read_buffer_chunks(&db), 1);
-        assert_eq!(count_object_store_chunks(&db), 0);
-
-        // We prepare a persist, then drop the locks, perform another write, re-acquire locks
-        // and start a persist operation. In practice the lifecycle doesn't drop the locks
-        // before starting the persist operation, but this allows us to deterministically
-        // interleave a persist with a write
-        let partition = db.lockable_partition(table_name, partition_key).unwrap();
-        let (chunks, flush_handle) = {
-            let partition = partition.read();
-            let chunks = LockablePartition::chunks(&partition);
-            let mut partition = partition.upgrade();
-            let flush_handle = LockablePartition::prepare_persist(&mut partition, true).unwrap();
-
-            (chunks, flush_handle)
-        };
-
-        // create second chunk: data->MUB
-        write_lp(&db, "cpu,region=west user=2 100");
-        assert_eq!(count_mutable_buffer_chunks(&db), 1);
-        assert_eq!(count_read_buffer_chunks(&db), 1);
-        assert_eq!(count_object_store_chunks(&db), 0);
-
-        let tracker = {
-            let partition = partition.write();
-            let chunks = chunks.iter().map(|chunk| chunk.write()).collect();
-            LockablePartition::persist_chunks(partition, chunks, flush_handle).unwrap()
-        };
-
-        tracker.join().await;
-        assert!(tracker.get_status().result().unwrap().success());
-
-        assert_eq!(count_mutable_buffer_chunks(&db), 1);
-        assert_eq!(count_read_buffer_chunks(&db), 1);
-        assert_eq!(count_object_store_chunks(&db), 1);
-
-        // Now we have the the following chunks (same partition and table):
-        //
-        // | ID | order | tag: region | field: user | time |
-        // | -- | ----- | ----------- | ----------- | ---- |
-        // |  1 |     1 | "west"      |           2 | 100  |
-        // |  2 |     0 | "west"      |           1 | 100  |
-        //
-        // The result after deduplication should be:
-        //
-        // | tag: region | field: user | time |
-        // | ----------- | ----------- | ---- |
-        // | "west"      |           2 | 100  |
-        //
-        // So the query engine must use `order` as a primary key to sort chunks, NOT `id`.
-
-        let scenario = DbScenario {
-            scenario_name: "chunks where chunk ID alone cannot be used for ordering".into(),
-            db,
-        };
-
-        vec![scenario]
-    }
-}
 
 #[derive(Debug)]
 pub struct MeasurementWithMaxTime {}
@@ -121,6 +37,8 @@ impl DbSetup for MeasurementWithMaxTime {
     }
 }
 
+// TODO: rewrite this for NG. Need to see whether we will need to test empty DB and if so how
+// <https://github.com/influxdata/influxdb_iox/issues/4488>
 /// No data
 #[derive(Debug)]
 pub struct NoData {}
@@ -496,7 +414,7 @@ impl DbSetup for TwoMeasurementsPredicatePushDown {
     async fn make(&self) -> Vec<DbScenario> {
         let partition_key = "1970-01-01T00";
 
-        let lp_lines = vec![
+        let lp_lines1 = vec![
             "restaurant,town=andover count=40000u,system=5.0 100",
             "restaurant,town=reading count=632u,system=5.0 120",
             "restaurant,town=bedford count=189u,system=7.0 110",
@@ -504,11 +422,13 @@ impl DbSetup for TwoMeasurementsPredicatePushDown {
             "restaurant,town=lexington count=372u,system=5.0 100",
             "restaurant,town=lawrence count=872u,system=6.0 110",
             "restaurant,town=reading count=632u,system=6.0 130",
+        ];
+        let lp_lines2 = vec![
             "school,town=reading count=17u,system=6.0 150",
             "school,town=andover count=25u,system=6.0 160",
         ];
 
-        make_one_rub_or_parquet_chunk_scenario(partition_key, &lp_lines.join("\n")).await
+        make_two_chunk_scenarios(partition_key, &lp_lines1.join("\n"), &lp_lines2.join("\n")).await
     }
 }
 
@@ -595,75 +515,6 @@ impl DbSetup for TwoMeasurementsManyFieldsOneChunk {
         ];
 
         all_scenarios_for_one_chunk(vec![], vec![], lp_lines, "h2o", partition_key).await
-    }
-}
-
-#[derive(Debug)]
-/// This has a single chunk for queries that check the state of the system
-///
-/// This scenario is OG-specific and can be used for `EXPLAIN` plans and system tables.
-pub struct OldTwoMeasurementsManyFieldsOneRubChunk {}
-#[async_trait]
-impl DbSetup for OldTwoMeasurementsManyFieldsOneRubChunk {
-    async fn make(&self) -> Vec<DbScenario> {
-        let db = make_db().await.db;
-        let partition_key = "1970-01-01T00";
-
-        let lp_lines = vec![
-            "h2o,state=MA,city=Boston temp=70.4 50",
-            "h2o,state=MA,city=Boston other_temp=70.4 250",
-            "h2o,state=CA,city=Boston other_temp=72.4 350",
-            "o2,state=MA,city=Boston temp=53.4,reading=51 50",
-            "o2,state=CA temp=79.0 300",
-        ];
-
-        write_lp(&db, &lp_lines.join("\n"));
-
-        // move all data to RUB
-        db.compact_open_chunk("h2o", partition_key).await.unwrap();
-
-        vec![DbScenario {
-            scenario_name: "Data in single chunk of read buffer".into(),
-            db,
-        }]
-    }
-}
-
-#[derive(Debug)]
-/// This has two chunks for queries that check the state of the system
-///
-/// This scenario is OG-specific and can be used for `EXPLAIN` plans and system tables.
-pub struct OldTwoMeasurementsManyFieldsTwoChunks {}
-#[async_trait]
-impl DbSetup for OldTwoMeasurementsManyFieldsTwoChunks {
-    async fn make(&self) -> Vec<DbScenario> {
-        let db = make_db().await.db;
-
-        let partition_key = "1970-01-01T00";
-
-        let lp_lines = vec![
-            "h2o,state=MA,city=Boston temp=70.4 50",
-            "h2o,state=MA,city=Boston other_temp=70.4 250",
-        ];
-        write_lp(&db, &lp_lines.join("\n"));
-        db.compact_partition("h2o", partition_key).await.unwrap();
-
-        let lp_lines = vec![
-            "h2o,state=CA,city=Boston other_temp=72.4 350",
-            "o2,state=MA,city=Boston temp=53.4,reading=51 50",
-            "o2,state=CA temp=79.0 300",
-        ];
-        write_lp(&db, &lp_lines.join("\n"));
-
-        assert_eq!(count_mutable_buffer_chunks(&db), 2);
-        assert_eq!(count_read_buffer_chunks(&db), 1);
-        assert_eq!(count_object_store_chunks(&db), 0);
-
-        vec![DbScenario {
-            scenario_name: "Data in two open mutable buffer chunks per table and read buffer"
-                .into(),
-            db,
-        }]
     }
 }
 
@@ -755,8 +606,6 @@ pub struct OneMeasurementFourChunksWithDuplicates {}
 #[async_trait]
 impl DbSetup for OneMeasurementFourChunksWithDuplicates {
     async fn make(&self) -> Vec<DbScenario> {
-        let db = make_db().await.db;
-
         let partition_key = "1970-01-01T00";
 
         // Chunk 1:
@@ -768,8 +617,6 @@ impl DbSetup for OneMeasurementFourChunksWithDuplicates {
             "h2o,state=MA,city=Boston max_temp=75.4 250",
             "h2o,state=MA,city=Andover max_temp=69.2, 250",
         ];
-        write_lp(&db, &lp_lines1.join("\n"));
-        db.compact_open_chunk("h2o", partition_key).await.unwrap();
 
         // Chunk 2: overlaps with chunk 1
         //  . time range: 150 - 300
@@ -782,8 +629,6 @@ impl DbSetup for OneMeasurementFourChunksWithDuplicates {
             "h2o,state=CA,city=SJ min_temp=78.5,max_temp=88.0 300",
             "h2o,state=CA,city=SJ min_temp=75.5,max_temp=84.08 350",
         ];
-        write_lp(&db, &lp_lines2.join("\n"));
-        db.compact_open_chunk("h2o", partition_key).await.unwrap();
 
         // Chunk 3: no overlap
         //  . time range: 400 - 500
@@ -796,8 +641,6 @@ impl DbSetup for OneMeasurementFourChunksWithDuplicates {
             "h2o,state=CA,city=SJ min_temp=77.0,max_temp=90.7 450",
             "h2o,state=CA,city=SJ min_temp=69.5,max_temp=88.2 500",
         ];
-        write_lp(&db, &lp_lines3.join("\n"));
-        db.compact_open_chunk("h2o", partition_key).await.unwrap();
 
         // Chunk 4: no overlap
         //  . time range: 600 - 700
@@ -810,106 +653,32 @@ impl DbSetup for OneMeasurementFourChunksWithDuplicates {
             "h2o,state=CA,city=SJ min_temp=69.5,max_temp=89.2 650",
             "h2o,state=CA,city=SJ min_temp=75.5,max_temp=84.08 700",
         ];
-        write_lp(&db, &lp_lines4.join("\n"));
-        db.compact_open_chunk("h2o", partition_key).await.unwrap();
 
-        assert_eq!(count_mutable_buffer_chunks(&db), 0);
-        assert_eq!(count_read_buffer_chunks(&db), 4);
-        assert_eq!(count_object_store_chunks(&db), 0);
+        let scenarios = make_n_chunks_scenario_new(&[
+            ChunkDataNew {
+                lp_lines: lp_lines1,
+                partition_key,
+                ..Default::default()
+            },
+            ChunkDataNew {
+                lp_lines: lp_lines2,
+                partition_key,
+                ..Default::default()
+            },
+            ChunkDataNew {
+                lp_lines: lp_lines3,
+                partition_key,
+                ..Default::default()
+            },
+            ChunkDataNew {
+                lp_lines: lp_lines4,
+                partition_key,
+                ..Default::default()
+            },
+        ])
+        .await;
 
-        let mut scenarios = vec![DbScenario {
-            scenario_name: "Data in four chunks with duplicates".into(),
-            db,
-        }];
-        scenarios.append(
-            &mut make_n_chunks_scenario_new(&[
-                ChunkDataNew {
-                    lp_lines: lp_lines1,
-                    partition_key,
-                    ..Default::default()
-                },
-                ChunkDataNew {
-                    lp_lines: lp_lines2,
-                    partition_key,
-                    ..Default::default()
-                },
-                ChunkDataNew {
-                    lp_lines: lp_lines3,
-                    partition_key,
-                    ..Default::default()
-                },
-                ChunkDataNew {
-                    lp_lines: lp_lines4,
-                    partition_key,
-                    ..Default::default()
-                },
-            ])
-            .await,
-        );
         scenarios
-    }
-}
-
-#[derive(Debug)]
-/// Setup for four chunks with duplicates for deduplicate tests
-///
-/// This scenario is OG-specific and can be used for `EXPLAIN` plans and system tables.
-pub struct OldOneMeasurementFourChunksWithDuplicates {}
-#[async_trait]
-impl DbSetup for OldOneMeasurementFourChunksWithDuplicates {
-    async fn make(&self) -> Vec<DbScenario> {
-        let scenarios: Vec<_> = OneMeasurementFourChunksWithDuplicates {}
-            .make()
-            .await
-            .into_iter()
-            .filter(|s| s.scenario_name == "Data in four chunks with duplicates")
-            .collect();
-        assert_eq!(scenarios.len(), 1);
-        scenarios
-    }
-}
-
-#[derive(Debug)]
-/// This has a single scenario with all the life cycle operations to
-/// test queries that depend on that
-///
-/// This scenario is OG-specific and can be used for `EXPLAIN` plans and system tables.
-pub struct OldTwoMeasurementsManyFieldsLifecycle {}
-#[async_trait]
-impl DbSetup for OldTwoMeasurementsManyFieldsLifecycle {
-    async fn make(&self) -> Vec<DbScenario> {
-        let partition_key = "1970-01-01T00";
-
-        let db = make_db().await.db;
-
-        write_lp(
-            &db,
-            &vec![
-                "h2o,state=MA,city=Boston temp=70.4 50",
-                "h2o,state=MA,city=Boston other_temp=70.4 250",
-            ]
-            .join("\n"),
-        );
-
-        db.compact_open_chunk("h2o", partition_key).await.unwrap();
-
-        db.persist_partition("h2o", partition_key, true)
-            .await
-            .unwrap();
-
-        write_lp(
-            &db,
-            &vec!["h2o,state=CA,city=Boston other_temp=72.4 350"].join("\n"),
-        );
-
-        assert_eq!(count_mutable_buffer_chunks(&db), 1);
-        assert_eq!(count_read_buffer_chunks(&db), 1);
-        assert_eq!(count_object_store_chunks(&db), 1);
-
-        vec![DbScenario {
-            scenario_name: "Data in parquet, RUB, and MUB".into(),
-            db,
-        }]
     }
 }
 

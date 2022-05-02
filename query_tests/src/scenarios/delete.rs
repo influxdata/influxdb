@@ -7,11 +7,7 @@ use async_trait::async_trait;
 
 use super::util::{make_n_chunks_scenario_new, ChunkDataNew, DeleteTimeNew, PredNew};
 use super::{DbScenario, DbSetup};
-use crate::scenarios::util::{
-    all_scenarios_for_one_chunk, make_different_stage_chunks_with_deletes_scenario_old,
-    make_os_chunks_and_then_compact_with_different_scenarios_with_delete, ChunkDataOld,
-    ChunkStageOld,
-};
+use crate::scenarios::util::all_scenarios_for_one_chunk;
 
 // =========================================================================================================================
 // DELETE TEST SETUPS: chunk lp data, how many chunks, their types, how many delete predicates and when they happen
@@ -255,225 +251,49 @@ impl DbSetup for ThreeDeleteThreeChunks {
             )],
         };
 
-        // ----------------------
-        // 3 chunks: MUB, RUB, OS
-        let lp = vec![
-            ChunkDataOld {
-                lp_lines: lp_lines_1.clone(),
-                chunk_stage: ChunkStageOld::Os,
+        //let preds = vec![&pred1, &pred2, &pred3];
+        let preds = vec![
+            PredNew {
+                predicate: &pred1,
+                delete_time: DeleteTimeNew::End,
             },
-            ChunkDataOld {
-                lp_lines: lp_lines_2.clone(),
-                chunk_stage: ChunkStageOld::Rub,
+            PredNew {
+                predicate: &pred2,
+                delete_time: DeleteTimeNew::End,
             },
-            ChunkDataOld {
-                lp_lines: lp_lines_3.clone(),
-                chunk_stage: ChunkStageOld::Mubo,
-            },
-        ];
-        let preds = vec![&pred1, &pred2, &pred3];
-        let scenario_mub_rub_os = make_different_stage_chunks_with_deletes_scenario_old(
-            lp,
-            preds.clone(),
-            table_name,
-            partition_key,
-        )
-        .await;
-
-        // ----------------------
-        // 3 chunks: 1 MUB open, 1 MUB frozen, 1 RUB
-        let lp = vec![
-            ChunkDataOld {
-                lp_lines: lp_lines_1.clone(),
-                chunk_stage: ChunkStageOld::Rub,
-            },
-            ChunkDataOld {
-                lp_lines: lp_lines_2.clone(),
-                chunk_stage: ChunkStageOld::Mubf,
-            },
-            ChunkDataOld {
-                lp_lines: lp_lines_3.clone(),
-                chunk_stage: ChunkStageOld::Mubo,
+            PredNew {
+                predicate: &pred3,
+                delete_time: DeleteTimeNew::End,
             },
         ];
-        let scenario_2mub_rub = make_different_stage_chunks_with_deletes_scenario_old(
-            lp,
-            preds.clone(),
-            table_name,
-            partition_key,
-        )
-        .await;
 
-        // ----------------------
-        // 3 chunks: 2 MUB, 1 OS
-        let lp = vec![
-            ChunkDataOld {
-                lp_lines: lp_lines_1.clone(),
-                chunk_stage: ChunkStageOld::Os,
-            },
-            ChunkDataOld {
-                lp_lines: lp_lines_2.clone(),
-                chunk_stage: ChunkStageOld::Mubf,
-            },
-            ChunkDataOld {
-                lp_lines: lp_lines_3.clone(),
-                chunk_stage: ChunkStageOld::Mubo,
-            },
-        ];
-        let scenario_2mub_os = make_different_stage_chunks_with_deletes_scenario_old(
-            lp,
-            preds.clone(),
-            table_name,
-            partition_key,
-        )
-        .await;
-
-        // ----------------------
-        // 3 chunks: 2 RUB, 1 OS
-        let lp = vec![
-            ChunkDataOld {
-                lp_lines: lp_lines_1.clone(),
-                chunk_stage: ChunkStageOld::Os,
-            },
-            ChunkDataOld {
-                lp_lines: lp_lines_2.clone(),
-                chunk_stage: ChunkStageOld::Rub,
-            },
-            ChunkDataOld {
-                lp_lines: lp_lines_3.clone(),
-                chunk_stage: ChunkStageOld::Rub,
-            },
-        ];
-        let scenario_2rub_os = make_different_stage_chunks_with_deletes_scenario_old(
-            lp,
-            preds.clone(),
-            table_name,
-            partition_key,
-        )
-        .await;
-
-        // ----------------------
-        // 3 chunks:  RUB, 2 OS
-        let lp = vec![
-            ChunkDataOld {
-                lp_lines: lp_lines_1.clone(),
-                chunk_stage: ChunkStageOld::Os,
-            },
-            ChunkDataOld {
-                lp_lines: lp_lines_2.clone(),
-                chunk_stage: ChunkStageOld::Os,
-            },
-            ChunkDataOld {
-                lp_lines: lp_lines_3.clone(),
-                chunk_stage: ChunkStageOld::Rub,
-            },
-        ];
-        let scenario_rub_2os = make_different_stage_chunks_with_deletes_scenario_old(
-            lp,
-            preds.clone(),
-            table_name,
-            partition_key,
-        )
-        .await;
-
-        // ----------------------
-        // 3 chunks:  3 OS
-        let lp = vec![
-            ChunkDataOld {
-                lp_lines: lp_lines_1.clone(),
-                chunk_stage: ChunkStageOld::Os,
-            },
-            ChunkDataOld {
-                lp_lines: lp_lines_2.clone(),
-                chunk_stage: ChunkStageOld::Os,
-            },
-            ChunkDataOld {
-                lp_lines: lp_lines_3.clone(),
-                chunk_stage: ChunkStageOld::Os,
-            },
-        ];
-        let scenario_3os = make_different_stage_chunks_with_deletes_scenario_old(
-            lp,
-            preds.clone(),
-            table_name,
-            partition_key,
-        )
-        .await;
-
-        // ----------------------
-        // A few more scenarios to compact all 3 OS chunk or the fist 2 OS chunks
-        // with delete before or after the os_compaction
-        let compact_os_scenarios =
-            make_os_chunks_and_then_compact_with_different_scenarios_with_delete(
-                vec![lp_lines_1.clone(), lp_lines_2.clone(), lp_lines_3.clone()],
-                preds.clone(),
-                table_name,
+        // Scenarios
+        // All threee deletes will be applied to every chunk but due to their predicates,
+        // only appropriate data is deleted
+        let scenarios = make_n_chunks_scenario_new(&[
+            ChunkDataNew {
+                lp_lines: lp_lines_1,
+                preds: preds.clone(),
+                delete_table_name: Some(table_name),
                 partition_key,
-            )
-            .await;
-
-        // return scenarios to run queries
-        let mut scenarios = vec![
-            scenario_mub_rub_os,
-            scenario_2mub_rub,
-            scenario_2mub_os,
-            scenario_2rub_os,
-            scenario_rub_2os,
-            scenario_3os,
-        ];
-
-        scenarios.extend(compact_os_scenarios.into_iter());
-        scenarios.append(
-            &mut make_n_chunks_scenario_new(&[
-                ChunkDataNew {
-                    lp_lines: lp_lines_1,
-                    preds: vec![
-                        PredNew {
-                            predicate: &pred1,
-                            delete_time: DeleteTimeNew::End,
-                        },
-                        PredNew {
-                            predicate: &pred2,
-                            delete_time: DeleteTimeNew::End,
-                        },
-                        PredNew {
-                            predicate: &pred3,
-                            delete_time: DeleteTimeNew::End,
-                        },
-                    ],
-                    delete_table_name: Some(table_name),
-                    partition_key,
-                    ..Default::default()
-                },
-                ChunkDataNew {
-                    lp_lines: lp_lines_2,
-                    preds: vec![
-                        PredNew {
-                            predicate: &pred2,
-                            delete_time: DeleteTimeNew::End,
-                        },
-                        PredNew {
-                            predicate: &pred3,
-                            delete_time: DeleteTimeNew::End,
-                        },
-                    ],
-                    delete_table_name: Some(table_name),
-                    partition_key,
-                    ..Default::default()
-                },
-                ChunkDataNew {
-                    lp_lines: lp_lines_3,
-                    preds: vec![PredNew {
-                        predicate: &pred3,
-                        delete_time: DeleteTimeNew::End,
-                    }],
-                    delete_table_name: Some(table_name),
-                    partition_key,
-                    ..Default::default()
-                },
-            ])
-            .await,
-        );
+                ..Default::default()
+            },
+            ChunkDataNew {
+                lp_lines: lp_lines_2,
+                preds: preds.clone(),
+                delete_table_name: Some(table_name),
+                partition_key,
+                ..Default::default()
+            },
+            ChunkDataNew {
+                lp_lines: lp_lines_3,
+                preds,
+                delete_table_name: Some(table_name),
+                partition_key,
+                ..Default::default()
+            },
+        ])
+        .await;
 
         scenarios
     }

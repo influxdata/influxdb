@@ -3,16 +3,10 @@ use super::DbScenario;
 use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
 use backoff::BackoffConfig;
-use data_types::{chunk_metadata::ChunkId, delete_predicate::DeletePredicate};
+use data_types::delete_predicate::DeletePredicate;
 use data_types2::{
     IngesterQueryRequest, NonEmptyString, PartitionId, Sequence, SequenceNumber, SequencerId,
     TombstoneId,
-};
-use db::test_helpers::chunk_ids_rub;
-use db::{
-    test_helpers::write_lp,
-    utils::{count_mub_table_chunks, count_os_table_chunks, count_rub_table_chunks, make_db},
-    Db,
 };
 use dml::{DmlDelete, DmlMeta, DmlOperation, DmlWrite};
 use futures::StreamExt;
@@ -33,7 +27,6 @@ use querier::{
     IngesterConnectionImpl, IngesterFlightClient, IngesterFlightClientError,
     IngesterFlightClientQueryData, QuerierCatalogCache, QuerierNamespace,
 };
-use query::QueryChunk;
 use schema::selection::Selection;
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, HashMap};
@@ -45,14 +38,6 @@ use std::{fmt::Display, sync::Arc};
 // & when delete predicates are applied
 
 // STRUCTs & ENUMs
-#[derive(Debug, Clone)]
-pub struct ChunkDataOld<'a> {
-    /// Line protocol data of this chunk
-    pub lp_lines: Vec<&'a str>,
-    /// which stage this chunk will be created
-    pub chunk_stage: ChunkStageOld,
-}
-
 #[derive(Debug, Clone, Default)]
 pub struct ChunkDataNew<'a, 'b> {
     /// Line protocol data of this chunk
@@ -103,39 +88,6 @@ impl<'a, 'b> ChunkDataNew<'a, 'b> {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum ChunkStageOld {
-    /// Open MUB
-    Mubo,
-    /// Frozen MUB
-    Mubf,
-    /// RUB without OS
-    Rub,
-    /// both RUB and OS of the chunk exist
-    RubOs,
-    /// OS only
-    Os,
-}
-
-impl Display for ChunkStageOld {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Mubo => write!(f, "Open MUB"),
-            Self::Mubf => write!(f, "Frozen MUB"),
-            Self::Rub => write!(f, "RUB"),
-            Self::RubOs => write!(f, "RUB & OS"),
-            Self::Os => write!(f, "OS"),
-        }
-    }
-}
-
-impl ChunkStageOld {
-    /// return the list of all chunk types
-    pub fn all() -> Vec<Self> {
-        vec![Self::Mubo, Self::Mubf, Self::Rub, Self::RubOs, Self::Os]
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ChunkStageNew {
     /// In parquet file.
@@ -179,14 +131,12 @@ impl ChunkStageNew {
 
 #[derive(Debug, Clone, Copy)]
 pub enum ChunkStage {
-    Old(ChunkStageOld),
     New(ChunkStageNew),
 }
 
 impl Display for ChunkStage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Old(stage) => write!(f, "Old: {}", stage),
             Self::New(stage) => write!(f, "New: {}", stage),
         }
     }
@@ -195,20 +145,11 @@ impl Display for ChunkStage {
 impl ChunkStage {
     /// return the list of all chunk types
     pub fn all() -> Vec<Self> {
-        ChunkStageOld::all()
+        ChunkStageNew::all()
             .into_iter()
-            .map(ChunkStage::Old)
-            .chain(ChunkStageNew::all().into_iter().map(ChunkStage::New))
+            .map(ChunkStage::New)
             .collect()
     }
-}
-
-#[derive(Debug, Clone)]
-pub struct PredOld<'a> {
-    /// Delete predicate
-    predicate: &'a DeletePredicate,
-    /// At which chunk stage this predicate is applied
-    delete_time: DeleteTimeOld,
 }
 
 #[derive(Debug, Clone)]
@@ -232,62 +173,17 @@ impl<'a> PredNew<'a> {
 
 #[derive(Debug, Clone)]
 pub enum Pred<'a> {
-    Old(PredOld<'a>),
     New(PredNew<'a>),
 }
 
 impl<'a> Pred<'a> {
     fn new(predicate: &'a DeletePredicate, delete_time: DeleteTime) -> Self {
         match delete_time {
-            DeleteTime::Old(delete_time) => Self::Old(PredOld {
-                predicate,
-                delete_time,
-            }),
             DeleteTime::New(delete_time) => Self::New(PredNew {
                 predicate,
                 delete_time,
             }),
         }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum DeleteTimeOld {
-    /// Delete predicate happens after all chunks created
-    /// and moved to their corresponding stages
-    End,
-    /// Delete predicate is added to chunks at their Mub Open stage
-    Mubo,
-    /// Delete predicate is added to chunks at their Mub Frozen stage
-    Mubf,
-    /// Delete predicate is added to chunks at their Rub stage
-    Rub,
-    /// Delete predicate is added to chunks at their Rub & Os stage
-    RubOs,
-    /// Delete predicate is added to chunks at their Os stage
-    Os,
-}
-
-impl DeleteTimeOld {
-    /// Return all DeleteTime at and after the given chunk stage
-    pub fn all_from_and_before(chunk_stage: ChunkStageOld) -> Vec<Self> {
-        match chunk_stage {
-            ChunkStageOld::Mubo => vec![Self::Mubo],
-            ChunkStageOld::Mubf => vec![Self::Mubo, Self::Mubf],
-            ChunkStageOld::Rub => {
-                vec![Self::Mubo, Self::Mubf, Self::Rub]
-            }
-            ChunkStageOld::RubOs => vec![Self::Mubo, Self::Mubf, Self::Rub, Self::RubOs],
-            ChunkStageOld::Os => vec![Self::Mubo, Self::Mubf, Self::Rub, Self::RubOs, Self::Os],
-        }
-    }
-
-    pub fn begin() -> Self {
-        Self::Mubo
-    }
-
-    pub fn end() -> Self {
-        Self::End
     }
 }
 
@@ -392,7 +288,6 @@ impl Display for DeleteTimeNew {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum DeleteTime {
-    Old(DeleteTimeOld),
     New(DeleteTimeNew),
 }
 
@@ -400,10 +295,6 @@ impl DeleteTime {
     /// Return all DeleteTime at and after the given chunk stage
     fn all_from_and_before(chunk_stage: ChunkStage) -> Vec<Self> {
         match chunk_stage {
-            ChunkStage::Old(chunk_stage) => DeleteTimeOld::all_from_and_before(chunk_stage)
-                .into_iter()
-                .map(Self::Old)
-                .collect(),
             ChunkStage::New(chunk_stage) => DeleteTimeNew::all_from_and_before(chunk_stage)
                 .into_iter()
                 .map(Self::New)
@@ -413,14 +304,12 @@ impl DeleteTime {
 
     fn begin_for(chunk_stage: ChunkStage) -> Self {
         match chunk_stage {
-            ChunkStage::Old(_) => Self::Old(DeleteTimeOld::begin()),
             ChunkStage::New(chunk_stage) => Self::New(DeleteTimeNew::begin_for(chunk_stage)),
         }
     }
 
     fn end_for(chunk_stage: ChunkStage) -> Self {
         match chunk_stage {
-            ChunkStage::Old(_) => Self::Old(DeleteTimeOld::end()),
             ChunkStage::New(chunk_stage) => Self::New(DeleteTimeNew::end_for(chunk_stage)),
         }
     }
@@ -498,29 +387,10 @@ async fn make_chunk_with_deletes_at_different_stages(
     partition_key: &str,
 ) -> DbScenario {
     match chunk_stage {
-        ChunkStage::Old(chunk_stage) => {
-            let preds: Vec<_> = preds
-                .into_iter()
-                .map(|p| match p {
-                    Pred::Old(pred) => pred,
-                    Pred::New(_) => panic!("mixed new and old"),
-                })
-                .collect();
-
-            make_chunk_with_deletes_at_different_stages_old(
-                lp_lines,
-                chunk_stage,
-                preds,
-                delete_table_name,
-                partition_key,
-            )
-            .await
-        }
         ChunkStage::New(chunk_stage) => {
             let preds: Vec<_> = preds
                 .into_iter()
                 .map(|p| match p {
-                    Pred::Old(_) => panic!("mixed new and old"),
                     Pred::New(pred) => pred,
                 })
                 .collect();
@@ -535,242 +405,6 @@ async fn make_chunk_with_deletes_at_different_stages(
             .await
         }
     }
-}
-
-async fn make_chunk_with_deletes_at_different_stages_old(
-    lp_lines: Vec<&str>,
-    chunk_stage: ChunkStageOld,
-    preds: Vec<PredOld<'_>>,
-    delete_table_name: &str,
-    partition_key: &str,
-) -> DbScenario {
-    let db = make_db().await.db;
-
-    // ----------------------
-    // Make an open MUB
-    //
-    // There may be more than one tables in the lp data
-    let tables = write_lp(&db, &lp_lines.join("\n"));
-    for table in &tables {
-        let num_mubs = count_mub_table_chunks(&db, table.as_str(), partition_key);
-        // must be one MUB per table
-        assert_eq!(num_mubs, 1);
-    }
-    // Apply delete predicate
-    let mut deleted = false;
-    let mut display = "".to_string();
-    let mut count = 0;
-    for pred in &preds {
-        if pred.delete_time == DeleteTimeOld::Mubo {
-            db.delete(delete_table_name, Arc::new(pred.predicate.clone()))
-                .unwrap();
-            deleted = true;
-            count += 1;
-        }
-    }
-    if count > 0 {
-        display.push_str(format!(", with {} deletes from open MUB", count).as_str());
-    }
-
-    // ----------------------
-    // Freeze MUB if requested
-    match chunk_stage {
-        ChunkStageOld::Mubf | ChunkStageOld::Rub | ChunkStageOld::RubOs | ChunkStageOld::Os => {
-            // Since mub are frozen at delete, no need to do it in that case for table of deleted data
-            if !deleted {
-                db.rollover_partition(delete_table_name, partition_key)
-                    .await
-                    .unwrap()
-                    .unwrap();
-            }
-
-            // Freeze MUBs of tables that not have deleted/deleting data
-            for table in &tables {
-                if table != delete_table_name {
-                    db.rollover_partition(table.as_str(), partition_key)
-                        .await
-                        .unwrap()
-                        .unwrap();
-                }
-            }
-
-            // Verify still one MUB and no RUB for each table
-            for table in &tables {
-                let num_mubs = count_mub_table_chunks(&db, table.as_str(), partition_key);
-                let num_rubs = count_rub_table_chunks(&db, table.as_str(), partition_key);
-                assert_eq!(num_mubs, 1);
-                assert_eq!(num_rubs, 0);
-            }
-        }
-        _ => {}
-    }
-    // Apply delete predicate
-    count = 0;
-    for pred in &preds {
-        if pred.delete_time == DeleteTimeOld::Mubf {
-            db.delete(delete_table_name, Arc::new(pred.predicate.clone()))
-                .unwrap();
-            count += 1;
-        }
-    }
-    if count > 0 {
-        display.push_str(format!(", with {} deletes from frozen MUB", count).as_str());
-    }
-
-    // ----------------------
-    // Move MUB to RUB if requested
-    match chunk_stage {
-        ChunkStageOld::Rub | ChunkStageOld::RubOs | ChunkStageOld::Os => {
-            let mut no_more_data = false;
-            for table in &tables {
-                // Compact this MUB of this table
-                let chunk_result = db.compact_partition(table, partition_key).await.unwrap();
-
-                // Verify no MUB and one RUB if not all data was soft deleted
-                let num_mubs = count_mub_table_chunks(&db, table.as_str(), partition_key);
-                let num_rubs = count_rub_table_chunks(&db, table.as_str(), partition_key);
-                assert_eq!(num_mubs, 0);
-
-                // Stop if compaction result is nothing which means MUB has
-                // all soft deleted data and no RUB is created. No more data
-                // to affect further delete
-                if table == delete_table_name {
-                    match chunk_result {
-                        Some(_chunk) => {
-                            assert_eq!(num_rubs, 1);
-                        }
-                        None => {
-                            assert_eq!(num_rubs, 0);
-                            no_more_data = true;
-                        }
-                    }
-                } else {
-                    assert_eq!(num_rubs, 1);
-                }
-            }
-
-            if no_more_data {
-                let scenario_name =
-                    format!("Deleted data from one {} chunk{}", chunk_stage, display);
-                return DbScenario { scenario_name, db };
-            }
-        }
-        _ => {}
-    }
-    // Apply delete predicate
-    count = 0;
-    for pred in &preds {
-        if pred.delete_time == DeleteTimeOld::Rub {
-            db.delete(delete_table_name, Arc::new(pred.predicate.clone()))
-                .unwrap();
-            count += 1;
-        }
-    }
-    if count > 0 {
-        display.push_str(format!(", with {} deletes from RUB", count).as_str());
-    }
-
-    // ----------------------
-    // Persist RUB to OS if requested
-    match chunk_stage {
-        ChunkStageOld::RubOs | ChunkStageOld::Os => {
-            let mut no_more_data = false;
-            for table in &tables {
-                // Persist RUB of this table
-                let chunk_result = db
-                    .persist_partition(table, partition_key, true)
-                    .await
-                    .unwrap();
-
-                // Verify no MUB and one RUB if not all data was soft deleted
-                let num_mubs = count_mub_table_chunks(&db, table.as_str(), partition_key);
-                let num_rubs = count_rub_table_chunks(&db, table.as_str(), partition_key);
-                let num_os = count_os_table_chunks(&db, table.as_str(), partition_key);
-                assert_eq!(num_mubs, 0);
-
-                // For delete table, two different things can happen
-                if table == delete_table_name {
-                    match chunk_result {
-                        // Not all rows were soft deleted
-                        Some(_chunk) => {
-                            assert_eq!(num_rubs, 1); // still have RUB with the persisted OS
-                            assert_eq!(num_os, 1);
-                        }
-                        // All rows in the RUB were soft deleted. There is nothing after compacting and hence
-                        // nothing will be left and persisted.
-                        None => {
-                            assert_eq!(num_rubs, 0);
-                            assert_eq!(num_os, 0);
-                            no_more_data = true;
-                        }
-                    }
-                } else {
-                    assert_eq!(num_rubs, 1);
-                    assert_eq!(num_os, 1);
-                }
-            }
-
-            if no_more_data {
-                let scenario_name =
-                    format!("Deleted data from one {} chunk{}", chunk_stage, display);
-                return DbScenario { scenario_name, db };
-            }
-        }
-        _ => {}
-    }
-    // Apply delete predicate
-    count = 0;
-    for pred in &preds {
-        if pred.delete_time == DeleteTimeOld::RubOs {
-            db.delete(delete_table_name, Arc::new(pred.predicate.clone()))
-                .unwrap();
-            count = 1;
-        }
-    }
-    if count > 0 {
-        display.push_str(format!(", with {} deletes from RUB & OS", count).as_str());
-    }
-
-    // ----------------------
-    // Unload RUB
-    if let ChunkStageOld::Os = chunk_stage {
-        for table in &tables {
-            // retrieve its chunk_id first
-            let rub_chunk_ids = chunk_ids_rub(&db, Some(table.as_str()), Some(partition_key));
-            assert_eq!(rub_chunk_ids.len(), 1);
-            db.unload_read_buffer(table.as_str(), partition_key, rub_chunk_ids[0])
-                .unwrap();
-
-            // verify chunk stages
-            let num_mubs = count_mub_table_chunks(&db, table.as_str(), partition_key);
-            let num_rubs = count_rub_table_chunks(&db, table.as_str(), partition_key);
-            let num_os = count_os_table_chunks(&db, table.as_str(), partition_key);
-            assert_eq!(num_mubs, 0);
-            assert_eq!(num_rubs, 0);
-            assert_eq!(num_os, 1);
-        }
-    }
-    // Apply delete predicate
-    count = 0;
-    for pred in &preds {
-        if pred.delete_time == DeleteTimeOld::Os || pred.delete_time == DeleteTimeOld::End {
-            db.delete(delete_table_name, Arc::new(pred.predicate.clone()))
-                .unwrap();
-            count += 1;
-        }
-    }
-    if count > 0 {
-        display.push_str(
-            format!(
-                ", with {} deletes from OS or after all chunks are created",
-                count
-            )
-            .as_str(),
-        );
-    }
-
-    let scenario_name = format!("Deleted data from one {} chunk{}", chunk_stage, display);
-    DbScenario { scenario_name, db }
 }
 
 async fn make_chunk_with_deletes_at_different_stages_new(
@@ -795,205 +429,6 @@ async fn make_chunk_with_deletes_at_different_stages_new(
     DbScenario { scenario_name, db }
 }
 
-/// Build many chunks which are in different stages
-//  Note that, after a lot of thoughts, I decided to have 2 separated functions, this one and the one above.
-//  The above tests delete predicates before and/or after a chunk is moved to different stages, while
-//  this function tests different-stage chunks in various stages when one or many deletes happen.
-//  Even though these 2 functions have some overlapped code, merging them in one
-//  function will created a much more complicated cases to handle
-pub async fn make_different_stage_chunks_with_deletes_scenario_old(
-    data: Vec<ChunkDataOld<'_>>,
-    preds: Vec<&DeletePredicate>,
-    table_name: &str,
-    partition_key: &str,
-) -> DbScenario {
-    let db = make_db().await.db;
-    let mut display = "".to_string();
-
-    // Build chunks
-    for chunk_data in &data {
-        display.push_str(" - ");
-        display.push_str(&chunk_data.chunk_stage.to_string());
-
-        // ----------
-        // Make an open MUB
-        write_lp(&db, &chunk_data.lp_lines.join("\n"));
-        // 0 does not represent the real chunk id. It is here just to initialize the chunk_id  variable for later assignment
-        let mut chunk_id = db.chunk_summaries()[0].id;
-
-        // ----------
-        // freeze MUB
-        match chunk_data.chunk_stage {
-            ChunkStageOld::Mubf | ChunkStageOld::Rub | ChunkStageOld::RubOs | ChunkStageOld::Os => {
-                let chunk = db
-                    .rollover_partition(table_name, partition_key)
-                    .await
-                    .unwrap()
-                    .unwrap();
-                chunk_id = chunk.id();
-            }
-            _ => {}
-        }
-
-        // ----------
-        // Move MUB to RUB
-        match chunk_data.chunk_stage {
-            ChunkStageOld::Rub | ChunkStageOld::RubOs | ChunkStageOld::Os => {
-                let chunk = db
-                    .compact_chunks(table_name, partition_key, |chunk| chunk.id() == chunk_id)
-                    .await
-                    .unwrap()
-                    .unwrap();
-                chunk_id = chunk.id();
-            }
-            _ => {}
-        }
-
-        // ----------
-        // Move RUB to OS
-        match chunk_data.chunk_stage {
-            ChunkStageOld::RubOs | ChunkStageOld::Os => {
-                let chunk = db
-                    .persist_partition(table_name, partition_key, true)
-                    .await
-                    .unwrap()
-                    .unwrap();
-                chunk_id = chunk.id();
-            }
-            _ => {}
-        }
-
-        // ----------
-        // Unload RUB
-        if let ChunkStageOld::Os = chunk_data.chunk_stage {
-            db.unload_read_buffer(table_name, partition_key, chunk_id)
-                .unwrap();
-        }
-    }
-
-    // ----------
-    // Apply all delete predicates
-    for pred in &preds {
-        db.delete(table_name, Arc::new((*pred).clone())).unwrap();
-    }
-
-    // Scenario of the input chunks and delete predicates
-    let scenario_name = format!(
-        "Deleted data from {} chunks, {}, with {} deletes after all chunks are created",
-        data.len(),
-        display,
-        preds.len()
-    );
-    DbScenario { scenario_name, db }
-}
-
-pub async fn make_os_chunks_and_then_compact_with_different_scenarios_with_delete(
-    lp_lines_vec: Vec<Vec<&str>>,
-    preds: Vec<&DeletePredicate>,
-    table_name: &str,
-    partition_key: &str,
-) -> Vec<DbScenario> {
-    // Scenario 1: apply deletes and then compact all 3 chunks
-    let (db, chunk_ids) =
-        make_contiguous_os_chunks(lp_lines_vec.clone(), table_name, partition_key).await;
-    for pred in &preds {
-        db.delete(table_name, Arc::new((*pred).clone())).unwrap();
-    }
-    db.compact_object_store_chunks(table_name, partition_key, chunk_ids)
-        .unwrap()
-        .join()
-        .await;
-
-    let scenario_name = "Deletes and then compact all OS chunks".to_string();
-    let scenario_1 = DbScenario { scenario_name, db };
-
-    // Scenario 2: compact all 3 chunks and apply deletes
-    let (db, chunk_ids) =
-        make_contiguous_os_chunks(lp_lines_vec.clone(), table_name, partition_key).await;
-    db.compact_object_store_chunks(table_name, partition_key, chunk_ids)
-        .unwrap()
-        .join()
-        .await;
-    for pred in &preds {
-        db.delete(table_name, Arc::new((*pred).clone())).unwrap();
-    }
-    let scenario_name = "Compact all OS chunks and then deletes".to_string();
-    let scenario_2 = DbScenario { scenario_name, db };
-
-    // Scenario 3: apply deletes then compact the first n-1 chunks
-    let (db, chunk_ids) =
-        make_contiguous_os_chunks(lp_lines_vec.clone(), table_name, partition_key).await;
-    for pred in &preds {
-        db.delete(table_name, Arc::new((*pred).clone())).unwrap();
-    }
-    let (_last_chunk_id, chunk_ids_but_last) = chunk_ids.split_last().unwrap();
-    db.compact_object_store_chunks(table_name, partition_key, chunk_ids_but_last.to_vec())
-        .unwrap()
-        .join()
-        .await;
-    let scenario_name = "Deletes and then compact all but last OS chunk".to_string();
-    let scenario_3 = DbScenario { scenario_name, db };
-
-    // Scenario 4: compact the first n-1 chunks then apply deletes
-    let (db, chunk_ids) =
-        make_contiguous_os_chunks(lp_lines_vec.clone(), table_name, partition_key).await;
-    let (_last_chunk_id, chunk_ids_but_last) = chunk_ids.split_last().unwrap();
-    db.compact_object_store_chunks(table_name, partition_key, chunk_ids_but_last.to_vec())
-        .unwrap()
-        .join()
-        .await;
-    for pred in &preds {
-        db.delete(table_name, Arc::new((*pred).clone())).unwrap();
-    }
-    let scenario_name = "Compact all but last OS chunk and then deletes".to_string();
-    let scenario_4 = DbScenario { scenario_name, db };
-
-    vec![scenario_1, scenario_2, scenario_3, scenario_4]
-}
-
-async fn make_contiguous_os_chunks(
-    lp_lines_vec: Vec<Vec<&str>>,
-    table_name: &str,
-    partition_key: &str,
-) -> (Arc<Db>, Vec<ChunkId>) {
-    // This test is aimed for at least 3 chunks
-    assert!(lp_lines_vec.len() >= 3);
-
-    // First make all OS chunks fot the lp_lins_vec
-    // Define they are OS
-    let mut chunk_data_vec = vec![];
-    for lp_lines in lp_lines_vec {
-        let chunk_data = ChunkDataOld {
-            lp_lines: lp_lines.clone(),
-            chunk_stage: ChunkStageOld::Os,
-        };
-        chunk_data_vec.push(chunk_data);
-    }
-    // Make db with those OS chunks
-    let scenario = make_different_stage_chunks_with_deletes_scenario_old(
-        chunk_data_vec,
-        vec![], // not delete anything yet
-        table_name,
-        partition_key,
-    )
-    .await;
-
-    // Get chunk ids in contiguous order
-    let db = Arc::downcast::<Db>(scenario.db.as_any_arc()).unwrap();
-    let partition = db.partition(table_name, partition_key).unwrap();
-    let partition = partition.read();
-    let mut keyed_chunks: Vec<(_, _)> = partition
-        .keyed_chunks()
-        .into_iter()
-        .map(|(id, order, _chunk)| (id, order))
-        .collect();
-    keyed_chunks.sort_by(|(_id1, order1), (_id2, order2)| order1.cmp(order2));
-
-    let chunk_ids: Vec<_> = keyed_chunks.iter().map(|(id, _order)| *id).collect();
-
-    (db, chunk_ids)
-}
-
 /// This function loads two chunks of lp data into 4 different scenarios
 ///
 /// Data in single open mutable buffer chunk
@@ -1005,147 +440,7 @@ pub async fn make_two_chunk_scenarios(
     data1: &str,
     data2: &str,
 ) -> Vec<DbScenario> {
-    make_two_chunk_scenarios_old(partition_key, data1, data2)
-        .await
-        .into_iter()
-        .chain(make_two_chunk_scenarios_new(partition_key, data1, data2).await)
-        .collect()
-}
-
-async fn make_two_chunk_scenarios_old(
-    partition_key: &str,
-    data1: &str,
-    data2: &str,
-) -> Vec<DbScenario> {
-    let db = make_db().await.db;
-    write_lp(&db, data1);
-    write_lp(&db, data2);
-    let scenario1 = DbScenario {
-        scenario_name: "Data in single open chunk of mutable buffer".into(),
-        db,
-    };
-
-    // spread across 2 mutable buffer chunks
-    let db = make_db().await.db;
-    let table_names = write_lp(&db, data1);
-    for table_name in &table_names {
-        db.rollover_partition(table_name, partition_key)
-            .await
-            .unwrap();
-    }
-    write_lp(&db, data2);
-    let scenario2 = DbScenario {
-        scenario_name: "Data in one open chunk and one closed chunk of mutable buffer".into(),
-        db,
-    };
-
-    // spread across 1 mutable buffer, 1 read buffer chunks
-    let db = make_db().await.db;
-    let table_names = write_lp(&db, data1);
-    for table_name in &table_names {
-        db.compact_partition(table_name, partition_key)
-            .await
-            .unwrap();
-    }
-    write_lp(&db, data2);
-    let scenario3 = DbScenario {
-        scenario_name: "Data in open chunk of mutable buffer, and one chunk of read buffer".into(),
-        db,
-    };
-
-    // in 2 read buffer chunks
-    let db = make_db().await.db;
-    let table_names = write_lp(&db, data1);
-    for table_name in &table_names {
-        db.compact_partition(table_name, partition_key)
-            .await
-            .unwrap();
-    }
-    let table_names = write_lp(&db, data2);
-    for table_name in &table_names {
-        // Compact just the last chunk
-        db.compact_open_chunk(table_name, partition_key)
-            .await
-            .unwrap();
-    }
-    let scenario4 = DbScenario {
-        scenario_name: "Data in two read buffer chunks".into(),
-        db,
-    };
-
-    // in 2 read buffer chunks that also loaded into object store
-    let db = make_db().await.db;
-    let table_names = write_lp(&db, data1);
-    for table_name in &table_names {
-        db.persist_partition(table_name, partition_key, true)
-            .await
-            .unwrap();
-    }
-    let table_names = write_lp(&db, data2);
-    for table_name in &table_names {
-        db.persist_partition(table_name, partition_key, true)
-            .await
-            .unwrap();
-    }
-    let scenario5 = DbScenario {
-        scenario_name: "Data in two read buffer chunks and two parquet file chunks".into(),
-        db,
-    };
-
-    // Scenario 6: Two closed chunk in OS only
-    let db = make_db().await.db;
-    let table_names = write_lp(&db, data1);
-    for table_name in &table_names {
-        let id = db
-            .persist_partition(table_name, partition_key, true)
-            .await
-            .unwrap()
-            .unwrap()
-            .id();
-        db.unload_read_buffer(table_name, partition_key, id)
-            .unwrap();
-    }
-    let table_names = write_lp(&db, data2);
-    for table_name in &table_names {
-        let id = db
-            .persist_partition(table_name, partition_key, true)
-            .await
-            .unwrap()
-            .unwrap()
-            .id();
-
-        db.unload_read_buffer(table_name, partition_key, id)
-            .unwrap();
-    }
-    let scenario6 = DbScenario {
-        scenario_name: "Data in 2 parquet chunks in object store only".into(),
-        db,
-    };
-
-    // Scenario 7: in a single chunk resulting from compacting MUB and RUB
-    let db = make_db().await.db;
-    let table_names = write_lp(&db, data1);
-    for table_name in &table_names {
-        // put chunk 1 into RUB
-        db.compact_partition(table_name, partition_key)
-            .await
-            .unwrap();
-    }
-    let table_names = write_lp(&db, data2); // write to MUB
-    for table_name in &table_names {
-        // compact chunks into a single RUB chunk
-        db.compact_partition(table_name, partition_key)
-            .await
-            .unwrap();
-    }
-    let scenario7 = DbScenario {
-        scenario_name: "Data in one compacted read buffer chunk".into(),
-        db,
-    };
-
-    vec![
-        scenario1, scenario2, scenario3, scenario4, scenario5, scenario6, scenario7,
-    ]
+    make_two_chunk_scenarios_new(partition_key, data1, data2).await
 }
 
 async fn make_two_chunk_scenarios_new(
@@ -1219,45 +514,6 @@ pub async fn make_n_chunks_scenario_new(chunks: &[ChunkDataNew<'_, '_>]) -> Vec<
     }
 
     scenarios
-}
-
-// // This function loads one chunk of lp data into RUB for testing predicate pushdown
-pub(crate) async fn make_one_rub_or_parquet_chunk_scenario(
-    partition_key: &str,
-    data: &str,
-) -> Vec<DbScenario> {
-    // Scenario 1: One closed chunk in RUB
-    let db = make_db().await.db;
-    let table_names = write_lp(&db, data);
-    for table_name in &table_names {
-        db.compact_partition(table_name, partition_key)
-            .await
-            .unwrap();
-    }
-    let scenario1 = DbScenario {
-        scenario_name: "--------------------- Data in read buffer".into(),
-        db,
-    };
-
-    // Scenario 2: One closed chunk in Parquet only
-    let db = make_db().await.db;
-    let table_names = write_lp(&db, data);
-    for table_name in &table_names {
-        let id = db
-            .persist_partition(table_name, partition_key, true)
-            .await
-            .unwrap()
-            .unwrap()
-            .id();
-        db.unload_read_buffer(table_name, partition_key, id)
-            .unwrap();
-    }
-    let scenario2 = DbScenario {
-        scenario_name: "--------------------- Data in object store only ".into(),
-        db,
-    };
-
-    vec![scenario1, scenario2]
 }
 
 /// Create given chunk using the given ingester.
