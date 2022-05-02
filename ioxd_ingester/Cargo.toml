@@ -25,7 +25,7 @@ write_buffer = { path = "../write_buffer" }
 # Crates.io dependencies, in alphabetical order
 async-trait = "0.1"
 hyper = "0.14"
-thiserror = "1.0.30"
+thiserror = "1.0.31"
 tokio = { version = "1.18", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-stream = { version = "0.1", features = ["net"] }
 tokio-util = { version = "0.7.1" }
