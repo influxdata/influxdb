@@ -43,11 +43,6 @@ impl Client {
         }
     }
 
-    /// Returns `Ok(true)` if the deployment service is serving
-    pub async fn check_deployment(&mut self) -> Result<bool, Error> {
-        self.check(generated_types::DEPLOYMENT_SERVICE).await
-    }
-
     /// Returns `Ok(true)` if the storage service is serving
     pub async fn check_storage(&mut self) -> Result<bool, Error> {
         self.check(generated_types::STORAGE_SERVICE).await
