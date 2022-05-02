@@ -23,23 +23,19 @@ We hold monthly Tech Talks that explain the project's technical underpinnings. Y
 
 ## Table of Contents:
 
-* Rust style and Idiom guide: [style_guide.md](style_guide.md)
-* Distributed Tracing Guide: [tracing.md](tracing.md)
-* Logging Guide: [logging.md](logging.md)
-* Handling Observability Context: [`observability.md`](observability.md)
-* Profiling Guide: [profiling.md](profiling.md)
-* Protobuf tips and tricks: [Protobuf](protobuf.md).
+* [Rust style and Idiom guide](style_guide.md)
+* [Distributed Tracing Guide](tracing.md)
+* [Logging Guide](logging.md)
+* [Handling Observability Context](observability.md)
+* [Metrics guide](metrics.md)
+* [Profiling Guide](profiling.md)
+* [Valgrind Guide](valgrind.md)
+* [Protobuf tips and tricks](protobuf.md)
 * [Testing documentation](testing.md) for developers of IOx
-* SQL command line tips and tricks: [SQL](sql.md).
-* Notes on server startup and error recovery: [`server_startup.md`](server_startup.md)
+* [SQL command line tips and tricks](sql.md)
 * IOx Architecture
-    * IOx Data Deduplication & Sort Key: [dedup_and_sort.md](dedup_and_sort.md)
-    * IOx Data Organization and Data LifeCycle: [`data_organization_lifecycle.md`](data_organization_lifecycle.md)
-    * IOx Catalog: The Metadata for Operating a Database [`catalogs.md`](catalogs.md)
-    * IOx transactions ang locks. (to be written & linked)
-* How InfluxDB IOx manages the lifecycle of time series data: [data_management.md](data_management.md)
-* Thoughts on parquet encoding and compression for timeseries data: [encoding_thoughts.md](encoding_thoughts.md)
-* Thoughts on using multiple cores / thread pools: [multi_core_tasks.md](multi_core_tasks.md)
+    * [Data Deduplication & Sort Key](dedup_and_sort.md)
+    * Transactions and locks (to be written & linked)
+* [Thoughts on using multiple cores / thread pools](multi_core_tasks.md)
 * [Query Engine Docs](../query/README.md)
-* Catalog Persistence: [`catalog_persistence.md`](catalog_persistence.md).
-* Notes on the use of local filesystems: [`local_filesystems.md`](local_filesystems.md)
+* [Notes on the use of local filesystems](local_filesystems.md)
