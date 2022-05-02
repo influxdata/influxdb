@@ -568,7 +568,9 @@ workflows:
       - docs-lint
       - test
       - test_heappy
-      - test_perf
+      # Temporarily disable until perf can be updated to use NG
+      # https://github.com/influxdata/influxdb_iox/issues/4485
+      # - test_perf
       - build_dev
       - doc
       - workspace_hack_checks
@@ -588,7 +590,9 @@ workflows:
             - docs-lint
             - test
             - test_heappy
-            - test_perf
+            # Temporarily disable until perf can be updated to use NG
+            # https://github.com/influxdata/influxdb_iox/issues/4485
+            # - test_perf
             - build_dev
             - build_release
             - doc
