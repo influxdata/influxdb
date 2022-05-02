@@ -199,7 +199,7 @@ async fn run_compactor(compactor: Arc<Compactor>, shutdown: CancellationToken) {
         let _ = futures::future::join_all(handles).await;
 
         // if all candidate partitions have been compacted, wait a bit
-        // before checking again, but don'skip sleeping if cancel arrives
+        // before checking again, waking early if cancel arrives
         if compactions_run == n_candidates {
             select! {
                 () = tokio::time::sleep(Duration::from_secs(5)).fuse() => {},
