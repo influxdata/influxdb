@@ -40,5 +40,4 @@ workspace-hack = { path = "../workspace-hack"}
 dml = { path = "../dml" }
 futures-util = { version = "0.3" }
 regex = "1"
-router = { path = "../router" }
 test_helpers = { path = "../test_helpers" }

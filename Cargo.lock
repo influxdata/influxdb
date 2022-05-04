@@ -2218,7 +2218,6 @@ dependencies = [
  "querier",
  "query",
  "read_buffer",
- "router",
  "router2",
  "rustyline",
  "schema",
@@ -4695,31 +4694,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "router"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "cache_loader_async",
- "data_types",
- "dml",
- "hashbrown 0.12.0",
- "influxdb_iox_client",
- "iox_time",
- "metric",
- "mutable_batch",
- "mutable_batch_lp",
- "mutable_batch_pb",
- "observability_deps",
- "parking_lot 0.12.0",
- "regex",
- "snafu",
- "tokio",
- "trace",
- "workspace-hack",
- "write_buffer",
-]
-
-[[package]]
 name = "router2"
 version = "0.1.0"
 dependencies = [
@@ -5267,7 +5241,6 @@ dependencies = [
  "query",
  "rand",
  "regex",
- "router",
  "service_common",
  "snafu",
  "test_helpers",
