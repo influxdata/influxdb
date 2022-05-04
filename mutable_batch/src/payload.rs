@@ -2,7 +2,7 @@
 
 use crate::column::ColumnData;
 use crate::{MutableBatch, Result};
-use data_types::database_rules::PartitionTemplate;
+use data_types2::PartitionTemplate;
 use hashbrown::HashMap;
 use schema::TIME_COLUMN_NAME;
 use std::num::NonZeroUsize;

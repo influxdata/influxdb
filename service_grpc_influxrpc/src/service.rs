@@ -1,15 +1,16 @@
 //! This module contains implementations for the storage gRPC service
 //! implemented in terms of the [`QueryDatabase`](query::QueryDatabase).
 
-use std::{
-    collections::{BTreeSet, HashMap},
-    sync::Arc,
+use super::{TAG_KEY_FIELD, TAG_KEY_MEASUREMENT};
+use crate::{
+    data::{
+        fieldlist_to_measurement_fields_response, series_or_groups_to_read_response,
+        tag_keys_to_byte_vecs,
+    },
+    expr::{self, GroupByAndAggregate, InfluxRpcPredicateBuilder, Loggable, SpecialTagKeys},
+    input::GrpcInputs,
+    StorageService,
 };
-use service_common::QueryDatabaseProvider;
-use snafu::{OptionExt, ResultExt, Snafu};
-use tokio::sync::mpsc;
-use tokio_stream::wrappers::ReceiverStream;
-use tonic::Status;
 use data_types::{error::ErrorLogger, names::org_and_bucket_to_database, DatabaseName};
 use generated_types::{
     google::protobuf::Empty, literal_or_regex::Value as RegexOrLiteralValue,
@@ -31,17 +32,16 @@ use query::{
     },
     QueryDatabase, QueryText,
 };
-use crate::{
-    data::{
-        fieldlist_to_measurement_fields_response, series_or_groups_to_read_response,
-        tag_keys_to_byte_vecs,
-    },
-    expr::{self, GroupByAndAggregate, InfluxRpcPredicateBuilder, Loggable, SpecialTagKeys},
-    input::GrpcInputs,
-    StorageService,
-};
 use service_common::planner::Planner;
-use super::{TAG_KEY_FIELD, TAG_KEY_MEASUREMENT};
+use service_common::QueryDatabaseProvider;
+use snafu::{OptionExt, ResultExt, Snafu};
+use std::{
+    collections::{BTreeSet, HashMap},
+    sync::Arc,
+};
+use tokio::sync::mpsc;
+use tokio_stream::wrappers::ReceiverStream;
+use tonic::Status;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -1364,33 +1364,33 @@ where
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use async_trait::async_trait;
+    use data_types2::ChunkId;
+    use datafusion::logical_plan::{col, lit, Expr};
+    use generated_types::{i_ox_testing_client::IOxTestingClient, tag_key_predicate::Value};
+    use influxdb_storage_client::{
+        connection::{Builder as ConnectionBuilder, Connection},
+        generated_types::*,
+        Client as StorageClient, OrgAndBucket,
+    };
+    use metric::{Attributes, Metric, U64Counter};
+    use panic_logging::SendPanicsToTracing;
+    use parking_lot::Mutex;
+    use predicate::{PredicateBuilder, PredicateMatch};
+    use query::{
+        exec::Executor,
+        test::{TestChunk, TestDatabase},
+    };
+    use service_common::QueryDatabaseProvider;
     use std::{
         collections::BTreeMap,
         net::{IpAddr, Ipv4Addr, SocketAddr},
         num::NonZeroU64,
         sync::Arc,
     };
-    use async_trait::async_trait;
-    use data_types2::ChunkId;
-    use generated_types::{i_ox_testing_client::IOxTestingClient, tag_key_predicate::Value};
-    use parking_lot::Mutex;
-    use service_common::QueryDatabaseProvider;
-    use tokio_stream::wrappers::TcpListenerStream;
-    use datafusion::logical_plan::{col, lit, Expr};
-    use influxdb_storage_client::{
-        connection::{Builder as ConnectionBuilder, Connection},
-        generated_types::*,
-        Client as StorageClient, OrgAndBucket,
-    };
-    use panic_logging::SendPanicsToTracing;
-    use predicate::{PredicateBuilder, PredicateMatch};
-    use query::{
-        exec::Executor,
-        test::{TestChunk, TestDatabase},
-    };
     use test_helpers::{assert_contains, tracing::TracingCapture};
-    use super::*;
-    use metric::{Attributes, Metric, U64Counter};
+    use tokio_stream::wrappers::TcpListenerStream;
 
     fn to_str_vec(s: &[&str]) -> Vec<String> {
         s.iter().map(|s| s.to_string()).collect()

@@ -9,6 +9,7 @@ arrow = { version = "13", features = ["prettyprint"] }
 arrow_util = { path = "../arrow_util" }
 chrono = { version = "0.4", default-features = false }
 data_types = { path = "../data_types" }
+data_types2 = { path = "../data_types2" }
 schema = { path = "../schema" }
 snafu = "0.7"
 hashbrown = "0.12"

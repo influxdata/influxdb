@@ -1174,7 +1174,6 @@ version = "0.1.0"
 dependencies = [
  "data_types",
  "influxdb_line_protocol",
- "mutable_batch",
  "predicate",
  "schema",
  "sqlx",
@@ -3301,6 +3300,7 @@ dependencies = [
  "arrow_util",
  "chrono",
  "data_types",
+ "data_types2",
  "hashbrown 0.12.0",
  "itertools",
  "rand",

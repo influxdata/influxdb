@@ -24,7 +24,6 @@ use std::{
 use uuid::Uuid;
 
 pub use data_types::{
-    database_rules::{PartitionTemplate, TemplatePart},
     delete_predicate::{DeleteExpr, DeletePredicate, Op, Scalar},
     names::{org_and_bucket_to_database, OrgBucketMappingError},
     non_empty::NonEmptyString,
@@ -492,8 +491,8 @@ impl ColumnSchema {
     }
 
     /// Returns true if `mb_column` is of the same type as `self`.
-    pub fn matches_type(&self, mb_column: &mutable_batch::column::Column) -> bool {
-        self.column_type == mb_column.influx_type()
+    pub fn matches_type(&self, mb_column_influx_type: InfluxColumnType) -> bool {
+        self.column_type == mb_column_influx_type
     }
 }
 
@@ -1057,7 +1056,64 @@ impl ChunkOrder {
     pub fn new(order: u32) -> Option<Self> {
         NonZeroU32::new(order).map(Self)
     }
+}
 
+/// `PartitionTemplate` is used to compute the partition key of each row that
+/// gets written. It can consist of the table name, a column name and its value,
+/// a formatted time, or a string column and regex captures of its value. For
+/// columns that do not appear in the input row, a blank value is output.
+///
+/// The key is constructed in order of the template parts; thus ordering changes
+/// what partition key is generated.
+#[derive(Debug, Default, Eq, PartialEq, Clone)]
+#[allow(missing_docs)]
+pub struct PartitionTemplate {
+    pub parts: Vec<TemplatePart>,
+}
+
+/// `TemplatePart` specifies what part of a row should be used to compute this
+/// part of a partition key.
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub enum TemplatePart {
+    /// The name of a table
+    Table,
+    /// The value in a named column
+    Column(String),
+    /// Applies a  `strftime` format to the "time" column.
+    ///
+    /// For example, a time format of "%Y-%m-%d %H:%M:%S" will produce
+    /// partition key parts such as "2021-03-14 12:25:21" and
+    /// "2021-04-14 12:24:21"
+    TimeFormat(String),
+    /// Applies a regex to the value in a string column
+    RegexCapture(RegexCapture),
+    /// Applies a `strftime` pattern to some column other than "time"
+    StrftimeColumn(StrftimeColumn),
+}
+
+/// `RegexCapture` is for pulling parts of a string column into the partition
+/// key.
+#[derive(Debug, Eq, PartialEq, Clone)]
+#[allow(missing_docs)]
+pub struct RegexCapture {
+    pub column: String,
+    pub regex: String,
+}
+
+/// [`StrftimeColumn`] is used to create a time based partition key off some
+/// column other than the builtin `time` column.
+///
+/// The value of the named column is formatted using a `strftime`
+/// style string.
+///
+/// For example, a time format of "%Y-%m-%d %H:%M:%S" will produce
+/// partition key parts such as "2021-03-14 12:25:21" and
+/// "2021-04-14 12:24:21"
+#[derive(Debug, Eq, PartialEq, Clone)]
+#[allow(missing_docs)]
+pub struct StrftimeColumn {
+    pub column: String,
+    pub format: String,
 }
 
 #[cfg(test)]

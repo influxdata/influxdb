@@ -5,7 +5,7 @@
 use crate::column::{Column, ColumnData};
 use crate::MutableBatch;
 use chrono::{format::StrftimeItems, TimeZone, Utc};
-use data_types::database_rules::{PartitionTemplate, TemplatePart};
+use data_types2::{PartitionTemplate, TemplatePart};
 use schema::TIME_COLUMN_NAME;
 use std::ops::Range;
 

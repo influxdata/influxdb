@@ -19,8 +19,8 @@ use hashbrown::HashSet;
 use rand::prelude::*;
 
 use arrow_util::bitset::BitSet;
-use data_types::database_rules::{PartitionTemplate, TemplatePart};
 use data_types::partition_metadata::{IsNan, StatValues, Statistics};
+use data_types2::{PartitionTemplate, TemplatePart};
 use mutable_batch::writer::Writer;
 use mutable_batch::{MutableBatch, PartitionWrite, WritePayload};
 use schema::selection::Selection;

@@ -125,7 +125,7 @@ where
         // If it does, validate it. If it does not exist, create it and insert
         // it into the cached schema.
         match table.columns.get(name.as_str()) {
-            Some(existing) if existing.matches_type(col) => {
+            Some(existing) if existing.matches_type(col.influx_type()) => {
                 // No action is needed as the column matches the existing column
                 // schema.
             }
