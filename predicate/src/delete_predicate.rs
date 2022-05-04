@@ -396,9 +396,8 @@ pub fn parse_http_delete_request(input: &str) -> Result<HttpDeleteRequest> {
 
 #[cfg(test)]
 mod tests {
-    use data_types::delete_predicate::{Op, Scalar};
-
     use super::*;
+    use data_types2::{Op, Scalar};
 
     #[test]
     fn test_time_range_valid() {

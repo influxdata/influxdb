@@ -4052,7 +4052,6 @@ version = "0.1.0"
 dependencies = [
  "arrow",
  "chrono",
- "data_types",
  "data_types2",
  "datafusion 0.1.0",
  "datafusion_util",

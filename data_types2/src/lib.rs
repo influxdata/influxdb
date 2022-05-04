@@ -30,7 +30,7 @@ pub use data_types::{
         ColumnSummary, InfluxDbType, PartitionAddr, StatValues, Statistics, TableSummary,
     },
     sequence::Sequence,
-    timestamp::{TimestampMinMax, TimestampRange},
+    timestamp::{TimestampMinMax, TimestampRange, MAX_NANO_TIME, MIN_NANO_TIME},
     DatabaseName,
 };
 
