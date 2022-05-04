@@ -1,5 +1,6 @@
 syntax = "proto3";
 package influxdata.iox.predicate.v1;
+option go_package = "github.com/influxdata/iox/predicate/v1";
 
 // Represents a parsed predicate for evaluation by the InfluxDB IOx query engine.
 message Predicate {

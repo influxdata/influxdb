@@ -1,5 +1,6 @@
 syntax = "proto3";
 package influxdata.iox.preserved_catalog.v1;
+option go_package = "github.com/influxdata/iox/preserved_catalog/v1";
 
 import "google/protobuf/timestamp.proto";
 import "influxdata/iox/predicate/v1/predicate.proto";

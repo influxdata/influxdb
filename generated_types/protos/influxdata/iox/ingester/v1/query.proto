@@ -1,5 +1,6 @@
 syntax = "proto3";
 package influxdata.iox.ingester.v1;
+option go_package = "github.com/influxdata/iox/ingester/v1";
 
 // Request from the query service for the data not yet persisted. Serialized as the Ticket value
 // for the Arrow Flight doGet request.

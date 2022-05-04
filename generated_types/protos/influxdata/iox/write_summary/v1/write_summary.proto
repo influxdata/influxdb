@@ -1,5 +1,6 @@
 syntax = "proto3";
 package influxdata.iox.write_summary.v1;
+option go_package = "github.com/influxdata/iox/write_summary/v1";
 
 // Represents a single logical write that was partitioned and shared
 // into multiple pieces in multiple sequencers (kafka partitions)

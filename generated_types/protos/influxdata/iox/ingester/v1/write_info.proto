@@ -1,5 +1,6 @@
 syntax = "proto3";
 package influxdata.iox.ingester.v1;
+option go_package = "github.com/influxdata/iox/ingester/v1";
 
 // NOTE: This is an ALPHA / Internal API that is used as part of the
 // end to end tests.

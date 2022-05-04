@@ -1,5 +1,6 @@
 syntax = "proto3";
 package influxdata.iox.object_store.v1;
+option go_package = "github.com/influxdata/iox/object_store/v1";
 
 service ObjectStoreService {
     // Get the parquet file from the object store by its uuid

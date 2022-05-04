@@ -1,5 +1,6 @@
 syntax = "proto3";
 package influxdata.iox.catalog.v1;
+option go_package = "github.com/influxdata/iox/catalog/v1";
 
 message ParquetFile {
     // the id of the file in the catalog

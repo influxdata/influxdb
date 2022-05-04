@@ -1,5 +1,6 @@
 syntax = "proto3";
 package influxdata.iox.querier.v1;
+option go_package = "github.com/influxdata/iox/querier/v1";
 
 // Request body for ticket in "end-user to querier" flight requests.
 message ReadInfo {
