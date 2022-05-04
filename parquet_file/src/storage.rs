@@ -1,3 +1,4 @@
+use crate::metadata::{IoxMetadata, METADATA_KEY};
 /// This module responsible to write given data to specify object store and
 /// read them back
 use arrow::{
@@ -6,10 +7,9 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use bytes::Bytes;
-use data_types::chunk_metadata::ChunkAddr;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion_util::AdapterStream;
-use futures::{stream, Stream, StreamExt};
+use futures::{stream, StreamExt};
 use iox_object_store::{IoxObjectStore, ParquetFilePath};
 use object_store::GetResult;
 use observability_deps::tracing::*;
@@ -27,11 +27,8 @@ use schema::selection::Selection;
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
     io::{Cursor, Seek, SeekFrom, Write},
-    marker::Unpin,
     sync::Arc,
 };
-
-use crate::metadata::{IoxMetadata, IoxMetadataOld, IoxParquetMetaData, METADATA_KEY};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -105,43 +102,6 @@ impl Storage {
         self.max_row_group_size = Some(max_row_group_size);
     }
 
-    /// Write the given stream of data of a specified table of
-    /// a specified partitioned chunk to a parquet file of this storage
-    ///
-    /// returns the path to which the chunk was written, the size of
-    /// the bytes, and the parquet metadata
-    ///
-    /// Nothing will be persisted if the input stream returns nothing as
-    /// a result of hard deletes and deduplications
-    pub async fn write_to_object_store(
-        &self,
-        chunk_addr: ChunkAddr,
-        stream: SendableRecordBatchStream,
-        metadata: IoxMetadataOld,
-    ) -> Result<Option<(ParquetFilePath, usize, IoxParquetMetaData)>> {
-        // Create full path location of this file in object store
-        let path = ParquetFilePath::new_old_gen(&chunk_addr);
-
-        let schema = stream.schema();
-        let data = self
-            .parquet_stream_to_bytes(stream, schema, metadata)
-            .await?;
-        // no data
-        if data.is_empty() {
-            return Ok(None);
-        }
-
-        let file_size_bytes = data.len();
-        let data = Arc::new(data);
-        let md = IoxParquetMetaData::from_file_bytes(Arc::clone(&data))
-            .context(ExtractingMetadataFailureSnafu)?
-            .context(NoDataSnafu)?;
-        let data = Arc::try_unwrap(data).expect("dangling reference to data");
-        self.to_object_store(data, &path).await?;
-
-        Ok(Some((path, file_size_bytes, md)))
-    }
-
     fn writer_props(&self, metadata_bytes: &[u8]) -> WriterProperties {
         let builder = WriterProperties::builder()
             .set_key_value_metadata(Some(vec![KeyValue {
@@ -159,20 +119,6 @@ impl Storage {
         builder.build()
     }
 
-    /// Convert the given stream of RecordBatches to bytes. This should be deleted when switching
-    /// over to use `ingester` only.
-    async fn parquet_stream_to_bytes(
-        &self,
-        stream: SendableRecordBatchStream,
-        schema: SchemaRef,
-        metadata: IoxMetadataOld,
-    ) -> Result<Vec<u8>> {
-        let metadata_bytes = metadata.to_protobuf().context(MetadataEncodeFailureSnafu)?;
-
-        self.record_batches_to_parquet_bytes(stream, schema, &metadata_bytes)
-            .await
-    }
-
     /// Convert the given metadata and RecordBatches to parquet file bytes. Used by `ingester`.
     pub async fn parquet_bytes(
         &self,
@@ -182,22 +128,9 @@ impl Storage {
     ) -> Result<Vec<u8>> {
         let metadata_bytes = metadata.to_protobuf().context(MetadataEncodeFailureSnafu)?;
 
-        let stream = Box::pin(stream::iter(record_batches.into_iter().map(Ok)));
+        let mut stream = Box::pin(stream::iter(record_batches.into_iter().map(Ok)));
 
-        self.record_batches_to_parquet_bytes(stream, schema, &metadata_bytes)
-            .await
-    }
-
-    /// Share code between `parquet_stream_to_bytes` and `parquet_bytes`. When
-    /// `parquet_stream_to_bytes` is deleted, this code can be moved into `parquet_bytes` and
-    /// made simpler by using a plain `Iter` rather than a `Stream`.
-    async fn record_batches_to_parquet_bytes(
-        &self,
-        mut stream: impl Stream<Item = ArrowResult<RecordBatch>> + Send + Unpin,
-        schema: SchemaRef,
-        metadata_bytes: &[u8],
-    ) -> Result<Vec<u8>> {
-        let props = self.writer_props(metadata_bytes);
+        let props = self.writer_props(&metadata_bytes);
 
         let mem_writer = MemWriter::default();
         {
@@ -387,225 +320,5 @@ impl TryClone for MemWriter {
         Ok(Self {
             mem: Arc::clone(&self.mem),
         })
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::test_utils::generator::ChunkGenerator;
-    use crate::test_utils::{
-        create_partition_and_database_checkpoint, load_parquet_from_store, make_iox_object_store,
-        make_record_batch, read_data_from_parquet_data, TestSize,
-    };
-    use arrow::array::{ArrayRef, StringArray};
-    use arrow_util::assert_batches_eq;
-    use data_types::chunk_metadata::{ChunkId, ChunkOrder};
-    use datafusion_util::{stream_from_batch, MemoryStream};
-    use iox_time::Time;
-    use parquet::schema::types::ColumnPath;
-
-    #[tokio::test]
-    async fn test_parquet_contains_key_value_metadata() {
-        let table_name = Arc::from("table1");
-        let partition_key = Arc::from("part1");
-        let (partition_checkpoint, database_checkpoint) = create_partition_and_database_checkpoint(
-            Arc::clone(&table_name),
-            Arc::clone(&partition_key),
-        );
-        let metadata = IoxMetadataOld {
-            creation_timestamp: Time::from_timestamp_nanos(3453),
-            table_name,
-            partition_key,
-            chunk_id: ChunkId::new_test(1337),
-            partition_checkpoint,
-            database_checkpoint,
-            time_of_first_write: Time::from_timestamp_nanos(456),
-            time_of_last_write: Time::from_timestamp_nanos(43069346),
-            chunk_order: ChunkOrder::new(5).unwrap(),
-            sort_key: None,
-        };
-
-        // create parquet file
-        let (record_batches, schema, _column_summaries, _num_rows) =
-            make_record_batch("foo", TestSize::Minimal);
-        let stream: SendableRecordBatchStream = Box::pin(MemoryStream::new_with_schema(
-            record_batches,
-            Arc::clone(schema.inner()),
-        ));
-        let bytes = Storage::new(make_iox_object_store().await)
-            .parquet_stream_to_bytes(stream, Arc::clone(schema.inner()), metadata.clone())
-            .await
-            .unwrap();
-
-        // extract metadata
-        let md = IoxParquetMetaData::from_file_bytes(Arc::new(bytes))
-            .unwrap()
-            .unwrap();
-        let metadata_roundtrip = md.decode().unwrap().read_iox_metadata_old().unwrap();
-
-        // compare with input
-        assert_eq!(metadata_roundtrip, metadata);
-    }
-
-    #[tokio::test]
-    async fn test_roundtrip() {
-        test_helpers::maybe_start_logging();
-        // validates that the async plumbing is setup to read parquet files from object store
-
-        // prepare input
-        let array = StringArray::from(vec!["foo", "bar", "baz"]);
-        let batch = RecordBatch::try_from_iter(vec![(
-            "my_awesome_test_column",
-            Arc::new(array) as ArrayRef,
-        )])
-        .unwrap();
-
-        let expected = vec![
-            "+------------------------+",
-            "| my_awesome_test_column |",
-            "+------------------------+",
-            "| foo                    |",
-            "| bar                    |",
-            "| baz                    |",
-            "+------------------------+",
-        ];
-
-        let input_batches = vec![batch.clone()];
-        assert_batches_eq!(&expected, &input_batches);
-
-        // create Storage
-        let table_name = Arc::from("my_table");
-        let partition_key = Arc::from("my_partition");
-        let chunk_id = ChunkId::new_test(33);
-        let iox_object_store = make_iox_object_store().await;
-        let db_name = Arc::from("db1");
-        let storage = Storage::new(Arc::clone(&iox_object_store));
-
-        // write the data in
-        let schema = batch.schema();
-        let input_stream = stream_from_batch(batch);
-        let (partition_checkpoint, database_checkpoint) = create_partition_and_database_checkpoint(
-            Arc::clone(&table_name),
-            Arc::clone(&partition_key),
-        );
-        let metadata = IoxMetadataOld {
-            creation_timestamp: Time::from_timestamp_nanos(43069346),
-            table_name: Arc::clone(&table_name),
-            partition_key: Arc::clone(&partition_key),
-            chunk_id,
-            partition_checkpoint,
-            database_checkpoint,
-            time_of_first_write: Time::from_timestamp_nanos(234),
-            time_of_last_write: Time::from_timestamp_nanos(4784),
-            chunk_order: ChunkOrder::new(5).unwrap(),
-            sort_key: None,
-        };
-
-        let (path, _file_size_bytes, _metadata) = storage
-            .write_to_object_store(
-                ChunkAddr {
-                    db_name: Arc::clone(&db_name),
-                    table_name,
-                    partition_key,
-                    chunk_id,
-                },
-                input_stream,
-                metadata,
-            )
-            .await
-            .expect("successfully wrote to object store")
-            .unwrap();
-
-        let iox_object_store = Arc::clone(&storage.iox_object_store);
-        let read_stream = Storage::read_filter(
-            &Predicate::default(),
-            Selection::All,
-            schema,
-            path,
-            iox_object_store,
-        )
-        .expect("successfully called read_filter");
-
-        let read_batches = datafusion::physical_plan::common::collect(read_stream)
-            .await
-            .expect("collecting results");
-
-        assert_batches_eq!(&expected, &read_batches);
-    }
-
-    #[tokio::test]
-    async fn test_props_have_compression() {
-        let storage = Storage::new(make_iox_object_store().await);
-
-        // should be writing with compression
-        let props = storage.writer_props(&[]);
-
-        // arbitrary column name to get default values
-        let col_path: ColumnPath = "default".into();
-        assert_eq!(props.compression(&col_path), Compression::ZSTD);
-    }
-
-    #[tokio::test]
-    async fn test_write_read() {
-        ////////////////////
-        // Store the data as a chunk and write it to in the object store
-        // This tests Storage::write_to_object_store
-        let mut generator = ChunkGenerator::new().await;
-        let (chunk, _) = generator.generate().await.unwrap();
-        let key_value_metadata = chunk.schema().as_arrow().metadata().clone();
-
-        ////////////////////
-        // Now let read it back
-        //
-        let parquet_data = Arc::new(
-            load_parquet_from_store(&chunk, Arc::clone(generator.store()))
-                .await
-                .unwrap(),
-        );
-        let parquet_metadata = IoxParquetMetaData::from_file_bytes(Arc::clone(&parquet_data))
-            .unwrap()
-            .unwrap();
-        let decoded = parquet_metadata.decode().unwrap();
-        //
-        // 1. Check metadata at file level: Everything is correct
-        let schema_actual = decoded.read_schema().unwrap();
-        assert_eq!(chunk.schema(), schema_actual);
-        assert_eq!(
-            key_value_metadata.clone(),
-            schema_actual.as_arrow().metadata().clone()
-        );
-
-        // 2. Check statistics
-        let table_summary_actual = decoded.read_statistics(&schema_actual).unwrap();
-        assert_eq!(table_summary_actual, chunk.table_summary().columns);
-
-        // 3. Check data
-        // Note that the read_data_from_parquet_data function fixes the row-group/batches' level metadata bug in arrow
-        let actual_record_batches =
-            read_data_from_parquet_data(chunk.schema().as_arrow(), parquet_data);
-        let mut actual_num_rows = 0;
-        for batch in actual_record_batches.clone() {
-            actual_num_rows += batch.num_rows();
-
-            // Check if record batch has meta data
-            let batch_key_value_metadata = batch.schema().metadata().clone();
-            assert_eq!(key_value_metadata, batch_key_value_metadata);
-        }
-
-        // Now verify return results. This assert_batches_eq still works correctly without the metadata
-        // We might modify it to make it include checking metadata or add a new comparison checking macro that prints out the metadata too
-        let expected = vec![
-            "+----------------+---------------+-------------------+------------------+-------------------------+------------------------+----------------------------+---------------------------+----------------------+----------------------+-------------------------+------------------------+----------------------+----------------------+-------------------------+------------------------+----------------------+-------------------+--------------------+------------------------+-----------------------+-------------------------+------------------------+-----------------------+--------------------------+-------------------------+-----------------------------+",
-            "| foo_tag_normal | foo_tag_empty | foo_tag_null_some | foo_tag_null_all | foo_field_string_normal | foo_field_string_empty | foo_field_string_null_some | foo_field_string_null_all | foo_field_i64_normal | foo_field_i64_range  | foo_field_i64_null_some | foo_field_i64_null_all | foo_field_u64_normal | foo_field_u64_range  | foo_field_u64_null_some | foo_field_u64_null_all | foo_field_f64_normal | foo_field_f64_inf | foo_field_f64_zero | foo_field_f64_nan_some | foo_field_f64_nan_all | foo_field_f64_null_some | foo_field_f64_null_all | foo_field_bool_normal | foo_field_bool_null_some | foo_field_bool_null_all | time                        |",
-            "+----------------+---------------+-------------------+------------------+-------------------------+------------------------+----------------------------+---------------------------+----------------------+----------------------+-------------------------+------------------------+----------------------+----------------------+-------------------------+------------------------+----------------------+-------------------+--------------------+------------------------+-----------------------+-------------------------+------------------------+-----------------------+--------------------------+-------------------------+-----------------------------+",
-            "| foo            |               |                   |                  | foo                     |                        |                            |                           | -1                   | -9223372036854775808 |                         |                        | 1                    | 0                    |                         |                        | 10.1                 | 0                 | 0                  | NaN                    | NaN                   |                         |                        | true                  |                          |                         | 1970-01-01T00:00:00.000001Z |",
-            "| bar            |               | bar               |                  | bar                     |                        | bar                        |                           | 2                    | 9223372036854775807  | 2                       |                        | 2                    | 18446744073709551615 | 2                       |                        | 20.1                 | inf               | -0                 | 2                      | NaN                   | 20.1                    |                        | false                 | false                    |                         | 1970-01-01T00:00:00.000002Z |",
-            "| baz            |               | baz               |                  | baz                     |                        | baz                        |                           | 3                    | -9223372036854775808 | 3                       |                        | 3                    | 0                    | 3                       |                        | 30.1                 | -inf              | 0                  | 1                      | NaN                   | 30.1                    |                        | true                  | true                     |                         | 1970-01-01T00:00:00.000003Z |",
-            "| foo            |               |                   |                  | foo                     |                        |                            |                           | 4                    | 9223372036854775807  |                         |                        | 4                    | 18446744073709551615 |                         |                        | 40.1                 | 1                 | -0                 | NaN                    | NaN                   |                         |                        | false                 |                          |                         | 1970-01-01T00:00:00.000004Z |",
-            "+----------------+---------------+-------------------+------------------+-------------------------+------------------------+----------------------------+---------------------------+----------------------+----------------------+-------------------------+------------------------+----------------------+----------------------+-------------------------+------------------------+----------------------+-------------------+--------------------+------------------------+-----------------------+-------------------------+------------------------+-----------------------+--------------------------+-------------------------+-----------------------------+",
-        ];
-        assert_eq!(chunk.rows(), actual_num_rows);
-        assert_batches_eq!(expected, &actual_record_batches);
     }
 }
