@@ -17,13 +17,13 @@ use std::{
     collections::BTreeMap,
     convert::TryFrom,
     fmt::{Debug, Formatter},
+    num::NonZeroU32,
     ops::{Add, Sub},
     sync::Arc,
 };
 use uuid::Uuid;
 
 pub use data_types::{
-    chunk_metadata::{ChunkAddr, ChunkId, ChunkOrder, ChunkSummary},
     database_rules::{PartitionTemplate, TemplatePart},
     delete_predicate::{DeleteExpr, DeletePredicate, Op, Scalar},
     names::{org_and_bucket_to_database, OrgBucketMappingError},
@@ -32,7 +32,7 @@ pub use data_types::{
         ColumnSummary, InfluxDbType, PartitionAddr, StatValues, Statistics, TableSummary,
     },
     sequence::Sequence,
-    timestamp::TimestampRange,
+    timestamp::{TimestampMinMax, TimestampRange},
     DatabaseName,
 };
 
@@ -951,5 +951,143 @@ impl IngesterQueryRequest {
             columns,
             predicate,
         }
+    }
+}
+
+/// Address of the chunk within the catalog
+#[derive(Debug, Clone, Eq, PartialEq, PartialOrd, Ord, Hash)]
+pub struct ChunkAddr {
+    /// Database name
+    pub db_name: Arc<str>,
+
+    /// What table does the chunk belong to?
+    pub table_name: Arc<str>,
+
+    /// What partition does the chunk belong to?
+    pub partition_key: Arc<str>,
+
+    /// The ID of the chunk
+    pub chunk_id: ChunkId,
+}
+
+impl std::fmt::Display for ChunkAddr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Chunk('{}':'{}':'{}':{})",
+            self.db_name,
+            self.table_name,
+            self.partition_key,
+            self.chunk_id.get()
+        )
+    }
+}
+
+/// ID of a chunk.
+///
+/// This ID is unique within a single partition.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ChunkId(Uuid);
+
+impl ChunkId {
+    /// Create new, random ID.
+    #[allow(clippy::new_without_default)] // `new` creates non-deterministic result
+    pub fn new() -> Self {
+        Self(Uuid::new_v4())
+    }
+
+    /// **TESTING ONLY:** Create new ID from integer.
+    ///
+    /// Since this can easily lead to ID collissions (which in turn can lead to panics), this must
+    /// only be used for testing purposes!
+    pub fn new_test(id: u128) -> Self {
+        Self(Uuid::from_u128(id))
+    }
+
+    /// The chunk id is only effective in case the chunk's order is the same with another chunk.
+    /// Hence collisions are safe in that context.
+    pub fn new_id_for_ng(id: u128) -> Self {
+        Self(Uuid::from_u128(id))
+    }
+
+    /// Get inner UUID.
+    pub fn get(&self) -> Uuid {
+        self.0
+    }
+}
+
+impl std::fmt::Debug for ChunkId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        <Self as std::fmt::Display>::fmt(self, f)
+    }
+}
+
+impl std::fmt::Display for ChunkId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if (self.0.get_variant() == Some(uuid::Variant::RFC4122))
+            && (self.0.get_version() == Some(uuid::Version::Random))
+        {
+            f.debug_tuple("ChunkId").field(&self.0).finish()
+        } else {
+            f.debug_tuple("ChunkId").field(&self.0.as_u128()).finish()
+        }
+    }
+}
+
+impl From<Uuid> for ChunkId {
+    fn from(uuid: Uuid) -> Self {
+        Self(uuid)
+    }
+}
+
+/// Order of a chunk.
+///
+/// This is used for:
+/// 1. **upsert order:** chunks with higher order overwrite data in chunks with lower order
+/// 2. **locking order:** chunks must be locked in consistent (ascending) order
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ChunkOrder(NonZeroU32);
+
+impl ChunkOrder {
+    /// The minimum ordering value a chunk could have. Currently only used in testing.
+    // TODO: remove `unsafe` once https://github.com/rust-lang/rust/issues/51999 is fixed
+    pub const MIN: Self = Self(unsafe { NonZeroU32::new_unchecked(1) });
+
+    /// Create a ChunkOrder from the given value.
+    pub fn new(order: u32) -> Option<Self> {
+        NonZeroU32::new(order).map(Self)
+    }
+
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_chunk_id_new() {
+        // `ChunkId::new()` create new random ID
+        assert_ne!(ChunkId::new(), ChunkId::new());
+    }
+
+    #[test]
+    fn test_chunk_id_new_test() {
+        // `ChunkId::new_test(...)` creates deterministic ID
+        assert_eq!(ChunkId::new_test(1), ChunkId::new_test(1));
+        assert_ne!(ChunkId::new_test(1), ChunkId::new_test(2));
+    }
+
+    #[test]
+    fn test_chunk_id_debug_and_display() {
+        // Random chunk IDs use UUID-format
+        let id_random = ChunkId::new();
+        let inner: Uuid = id_random.get();
+        assert_eq!(format!("{:?}", id_random), format!("ChunkId({})", inner));
+        assert_eq!(format!("{}", id_random), format!("ChunkId({})", inner));
+
+        // Deterministic IDs use integer format
+        let id_test = ChunkId::new_test(42);
+        assert_eq!(format!("{:?}", id_test), "ChunkId(42)");
+        assert_eq!(format!("{}", id_test), "ChunkId(42)");
     }
 }

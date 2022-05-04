@@ -5,13 +5,11 @@ use std::{
     collections::{BTreeSet, HashMap},
     sync::Arc,
 };
-
 use service_common::QueryDatabaseProvider;
 use snafu::{OptionExt, ResultExt, Snafu};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::Status;
-
 use data_types::{error::ErrorLogger, names::org_and_bucket_to_database, DatabaseName};
 use generated_types::{
     google::protobuf::Empty, literal_or_regex::Value as RegexOrLiteralValue,
@@ -33,7 +31,6 @@ use query::{
     },
     QueryDatabase, QueryText,
 };
-
 use crate::{
     data::{
         fieldlist_to_measurement_fields_response, series_or_groups_to_read_response,
@@ -44,7 +41,6 @@ use crate::{
     StorageService,
 };
 use service_common::planner::Planner;
-
 use super::{TAG_KEY_FIELD, TAG_KEY_MEASUREMENT};
 
 #[derive(Debug, Snafu)]
@@ -1374,14 +1370,12 @@ mod tests {
         num::NonZeroU64,
         sync::Arc,
     };
-
     use async_trait::async_trait;
-    use data_types::chunk_metadata::ChunkId;
+    use data_types2::ChunkId;
     use generated_types::{i_ox_testing_client::IOxTestingClient, tag_key_predicate::Value};
     use parking_lot::Mutex;
     use service_common::QueryDatabaseProvider;
     use tokio_stream::wrappers::TcpListenerStream;
-
     use datafusion::logical_plan::{col, lit, Expr};
     use influxdb_storage_client::{
         connection::{Builder as ConnectionBuilder, Connection},
@@ -1395,7 +1389,6 @@ mod tests {
         test::{TestChunk, TestDatabase},
     };
     use test_helpers::{assert_contains, tracing::TracingCapture};
-
     use super::*;
     use metric::{Attributes, Metric, U64Counter};
 

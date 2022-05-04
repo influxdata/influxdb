@@ -16,13 +16,10 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use async_trait::async_trait;
-use data_types::chunk_metadata::{ChunkAddr, ChunkId, ChunkOrder};
-use data_types::timestamp::TimestampMinMax;
-use data_types::{
-    delete_predicate::DeletePredicate,
-    partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary},
+use data_types2::{
+    ChunkAddr, ChunkId, ChunkOrder, ColumnSummary, DeletePredicate, InfluxDbType, PartitionId,
+    StatValues, Statistics, TableSummary, TimestampMinMax,
 };
-use data_types2::PartitionId;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion_util::stream_from_batches;
 use futures::StreamExt;

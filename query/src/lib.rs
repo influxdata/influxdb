@@ -9,13 +9,10 @@
 )]
 
 use async_trait::async_trait;
-use data_types::{
-    chunk_metadata::{ChunkAddr, ChunkId, ChunkOrder},
-    delete_predicate::DeletePredicate,
-    partition_metadata::{InfluxDbType, TableSummary},
-    timestamp::TimestampMinMax,
+use data_types2::{
+    ChunkAddr, ChunkId, ChunkOrder, DeletePredicate, InfluxDbType, PartitionId, TableSummary,
+    TimestampMinMax,
 };
-use data_types2::PartitionId;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use exec::{stringset::StringSet, IOxSessionContext};
 use observability_deps::tracing::{debug, trace};
