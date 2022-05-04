@@ -44,7 +44,6 @@ query = { path = "../query" }
 read_buffer = { path = "../read_buffer" }
 router2 = { path = "../router2" }
 schema = { path = "../schema" }
-server = { path = "../server" }
 iox_time = { path = "../iox_time" }
 trace = { path = "../trace" }
 trace_exporters = { path = "../trace_exporters" }

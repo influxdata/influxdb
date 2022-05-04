@@ -58,7 +58,6 @@ members = [
     "read_buffer",
     "router2",
     "schema",
-    "server",
     "service_common",
     "service_grpc_influxrpc",
     "service_grpc_flight",

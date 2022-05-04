@@ -2224,7 +2224,6 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_urlencoded",
- "server",
  "snafu",
  "tempfile",
  "test_helpers",
@@ -5211,46 +5210,6 @@ dependencies = [
  "ryu",
  "serde",
  "yaml-rust",
-]
-
-[[package]]
-name = "server"
-version = "0.1.0"
-dependencies = [
- "arrow_util",
- "async-trait",
- "bytes",
- "chrono",
- "crc32fast",
- "data_types",
- "dml",
- "futures",
- "futures-util",
- "generated_types",
- "hashbrown 0.12.0",
- "influxdb_line_protocol",
- "iox_object_store",
- "iox_time",
- "job_registry",
- "metric",
- "mutable_batch_lp",
- "num_cpus",
- "object_store",
- "observability_deps",
- "parking_lot 0.12.0",
- "query",
- "rand",
- "regex",
- "service_common",
- "snafu",
- "test_helpers",
- "tokio",
- "tokio-util 0.7.1",
- "trace",
- "tracker",
- "uuid 0.8.2",
- "workspace-hack",
- "write_buffer",
 ]
 
 [[package]]
