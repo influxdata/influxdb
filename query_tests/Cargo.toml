@@ -14,7 +14,6 @@ backoff = { path = "../backoff" }
 data_types = { path = "../data_types" }
 data_types2 = { path = "../data_types2" }
 datafusion = { path = "../datafusion" }
-db = { path = "../db" }
 dml = { path = "../dml" }
 futures = "0.3"
 generated_types = { path = "../generated_types" }

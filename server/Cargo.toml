@@ -11,7 +11,6 @@ bytes = "1.0"
 chrono = { version = "0.4", default-features = false }
 crc32fast = "1.3.2"
 data_types = { path = "../data_types" }
-db = { path = "../db" }
 futures = "0.3"
 generated_types = { path = "../generated_types" }
 hashbrown = "0.12"

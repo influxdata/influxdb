@@ -10,7 +10,6 @@ members = [
     "data_types2",
     "datafusion",
     "datafusion_util",
-    "db",
     "dml",
     "executor",
     "generated_types",

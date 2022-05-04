@@ -1305,55 +1305,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "db"
-version = "0.1.0"
-dependencies = [
- "arrow",
- "arrow_util",
- "async-trait",
- "bytes",
- "data_types",
- "data_types2",
- "datafusion 0.1.0",
- "datafusion_util",
- "dml",
- "futures",
- "hashbrown 0.12.0",
- "internal_types",
- "iox_object_store",
- "iox_time",
- "itertools",
- "job_registry",
- "lifecycle",
- "metric",
- "mutable_batch",
- "mutable_batch_lp",
- "mutable_buffer",
- "object_store",
- "observability_deps",
- "once_cell",
- "parking_lot 0.12.0",
- "parquet_catalog",
- "parquet_file",
- "persistence_windows",
- "predicate",
- "query",
- "rand",
- "rand_distr",
- "read_buffer",
- "schema",
- "snafu",
- "test_helpers",
- "tokio",
- "tokio-util 0.7.1",
- "trace",
- "tracker",
- "uuid 0.8.2",
- "workspace-hack",
- "write_buffer",
-]
-
-[[package]]
 name = "debugid"
 version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2218,7 +2169,6 @@ dependencies = [
  "data_types",
  "data_types2",
  "datafusion 0.1.0",
- "db",
  "dml",
  "dotenv",
  "flate2",
@@ -4549,7 +4499,6 @@ dependencies = [
  "data_types",
  "data_types2",
  "datafusion 0.1.0",
- "db",
  "dml",
  "futures",
  "generated_types",
@@ -5398,7 +5347,6 @@ dependencies = [
  "chrono",
  "crc32fast",
  "data_types",
- "db",
  "dml",
  "futures",
  "futures-util",
