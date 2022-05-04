@@ -1179,6 +1179,7 @@ dependencies = [
  "schema",
  "snafu",
  "sqlx",
+ "test_helpers",
  "uuid 0.8.2",
  "workspace-hack",
 ]
@@ -5195,7 +5196,7 @@ dependencies = [
  "arrow",
  "arrow-flight",
  "bytes",
- "data_types",
+ "data_types2",
  "datafusion 0.1.0",
  "futures",
  "generated_types",

@@ -14,3 +14,6 @@ snafu = "0.7"
 sqlx = { version = "0.5", features = ["runtime-tokio-rustls", "postgres", "uuid"] }
 uuid = { version = "0.8", features = ["v4"] }
 workspace-hack = { path = "../workspace-hack"}
+
+[dev-dependencies] # In alphabetical order
+test_helpers = { path = "../test_helpers" }

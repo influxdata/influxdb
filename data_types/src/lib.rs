@@ -13,8 +13,6 @@
 pub mod boolean_flag;
 pub mod chunk_metadata;
 pub mod consistent_hasher;
-mod database_name;
-pub mod database_rules;
 pub mod error;
 pub mod job;
 pub mod partition_metadata;
@@ -24,4 +22,3 @@ pub mod server_id;
 pub mod timestamp;
 pub mod write_buffer;
 pub mod write_summary;
-pub use database_name::*;
