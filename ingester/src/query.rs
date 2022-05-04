@@ -5,8 +5,8 @@ use arrow::record_batch::RecordBatch;
 use arrow_util::util::merge_record_batches;
 use data_types::timestamp::TimestampMinMax;
 use data_types2::{
-    tombstones_to_delete_predicates, tombstones_to_delete_predicates_iter, ChunkAddr, ChunkId,
-    ChunkOrder, DeletePredicate, PartitionId, SequenceNumber, TableSummary, Tombstone,
+    ChunkAddr, ChunkId, ChunkOrder, DeletePredicate, PartitionId, SequenceNumber, TableSummary,
+    Tombstone,
 };
 use datafusion::{
     logical_plan::ExprRewritable,
@@ -18,7 +18,10 @@ use datafusion::{
 };
 use datafusion_util::batch_filter;
 use observability_deps::tracing::{debug, trace};
-use predicate::{Predicate, PredicateMatch};
+use predicate::{
+    delete_predicate::{tombstones_to_delete_predicates, tombstones_to_delete_predicates_iter},
+    Predicate, PredicateMatch,
+};
 use query::{
     exec::{stringset::StringSet, IOxSessionContext},
     util::{df_physical_expr_from_schema_and_expr, MissingColumnsToNull},

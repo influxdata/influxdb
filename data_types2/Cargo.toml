@@ -7,7 +7,6 @@ description = "Shared data types in the Iox NG architecture"
 [dependencies]
 data_types = { path = "../data_types" }
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
-predicate = { path = "../predicate" }
 schema = { path = "../schema" }
 sqlx = { version = "0.5", features = ["runtime-tokio-rustls", "postgres", "uuid"] }
 uuid = { version = "0.8", features = ["v4"] }

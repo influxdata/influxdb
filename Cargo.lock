@@ -1174,7 +1174,6 @@ version = "0.1.0"
 dependencies = [
  "data_types",
  "influxdb_line_protocol",
- "predicate",
  "schema",
  "sqlx",
  "uuid 0.8.2",
@@ -4054,6 +4053,7 @@ dependencies = [
  "arrow",
  "chrono",
  "data_types",
+ "data_types2",
  "datafusion 0.1.0",
  "datafusion_util",
  "itertools",

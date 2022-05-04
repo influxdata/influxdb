@@ -4,13 +4,13 @@ use std::sync::Arc;
 
 use data_types::timestamp::TimestampMinMax;
 use data_types2::{
-    tombstones_to_delete_predicates, ChunkAddr, ChunkId, ChunkOrder, DeletePredicate, PartitionId,
-    SequenceNumber, TableSummary, Timestamp, Tombstone,
+    ChunkAddr, ChunkId, ChunkOrder, DeletePredicate, PartitionId, SequenceNumber, TableSummary,
+    Timestamp, Tombstone,
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
 use observability_deps::tracing::trace;
 use parquet_file::chunk::ParquetChunk;
-use predicate::{Predicate, PredicateMatch};
+use predicate::{delete_predicate::tombstones_to_delete_predicates, Predicate, PredicateMatch};
 use query::{
     exec::{stringset::StringSet, IOxSessionContext},
     QueryChunk, QueryChunkError, QueryChunkMeta,
