@@ -11,7 +11,7 @@
 )]
 
 use influxdb_line_protocol::FieldValue;
-use predicate::{delete_predicate::parse_delete_predicate, Predicate};
+use predicate::delete_predicate::parse_delete_predicate;
 use schema::{builder::SchemaBuilder, sort::SortKey, InfluxColumnType, InfluxFieldType, Schema};
 use std::{
     collections::BTreeMap,
@@ -920,37 +920,6 @@ pub struct ProcessedTombstone {
     pub tombstone_id: TombstoneId,
     /// the id of the parquet file the tombstone was applied
     pub parquet_file_id: ParquetFileId,
-}
-
-/// Request from the querier service to the ingester service
-#[derive(Debug, PartialEq, Clone)]
-pub struct IngesterQueryRequest {
-    /// namespace to search
-    pub namespace: String,
-    /// Table to search
-    pub table: String,
-    /// Columns the query service is interested in
-    pub columns: Vec<String>,
-    /// Predicate for filtering
-    pub predicate: Option<Predicate>,
-}
-
-impl IngesterQueryRequest {
-    /// Make a request to return data for a specified table for
-    /// all sequencers an ingester is responsible for
-    pub fn new(
-        namespace: String,
-        table: String,
-        columns: Vec<String>,
-        predicate: Option<Predicate>,
-    ) -> Self {
-        Self {
-            namespace,
-            table,
-            columns,
-            predicate,
-        }
-    }
 }
 
 /// Address of the chunk within the catalog

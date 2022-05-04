@@ -5,13 +5,13 @@ use async_trait::async_trait;
 use backoff::BackoffConfig;
 use data_types::delete_predicate::DeletePredicate;
 use data_types2::{
-    IngesterQueryRequest, NonEmptyString, PartitionId, Sequence, SequenceNumber, SequencerId,
-    TombstoneId,
+    NonEmptyString, PartitionId, Sequence, SequenceNumber, SequencerId, TombstoneId,
 };
 use dml::{DmlDelete, DmlMeta, DmlOperation, DmlWrite};
 use futures::StreamExt;
-use generated_types::influxdata::iox::ingester::v1::{
-    IngesterQueryResponseMetadata, PartitionStatus,
+use generated_types::{
+    influxdata::iox::ingester::v1::{IngesterQueryResponseMetadata, PartitionStatus},
+    ingester::IngesterQueryRequest,
 };
 use influxdb_iox_client::flight::Error as FlightError;
 use ingester::data::{IngesterData, IngesterQueryResponse, Persister, SequencerData};

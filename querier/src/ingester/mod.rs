@@ -1,14 +1,14 @@
-use std::{any::Any, collections::HashMap, sync::Arc};
-
+use crate::cache::CatalogCache;
 use arrow::{datatypes::DataType, error::ArrowError, record_batch::RecordBatch};
 use async_trait::async_trait;
 use data_types::timestamp::TimestampMinMax;
 use data_types2::{
-    ChunkAddr, ChunkId, ChunkOrder, ColumnSummary, InfluxDbType, IngesterQueryRequest, PartitionId,
-    SequenceNumber, SequencerId, StatValues, Statistics, TableSummary,
+    ChunkAddr, ChunkId, ChunkOrder, ColumnSummary, InfluxDbType, PartitionId, SequenceNumber,
+    SequencerId, StatValues, Statistics, TableSummary,
 };
 use datafusion_util::MemoryStream;
 use futures::{stream::FuturesUnordered, TryStreamExt};
+use generated_types::ingester::IngesterQueryRequest;
 use observability_deps::tracing::{debug, trace};
 use predicate::{Predicate, PredicateMatch};
 use query::{
@@ -18,8 +18,7 @@ use query::{
 };
 use schema::{selection::Selection, sort::SortKey, InfluxColumnType, InfluxFieldType, Schema};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
-
-use crate::cache::CatalogCache;
+use std::{any::Any, collections::HashMap, sync::Arc};
 
 use self::{
     flight_client::{Error as FlightClientError, FlightClient, FlightClientImpl, FlightError},

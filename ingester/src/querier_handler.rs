@@ -5,7 +5,6 @@ use crate::data::{
 };
 use arrow::record_batch::RecordBatch;
 use arrow_util::util::merge_record_batches;
-use data_types2::IngesterQueryRequest;
 use datafusion::{
     error::DataFusionError,
     physical_plan::{
@@ -14,6 +13,7 @@ use datafusion::{
         SendableRecordBatchStream,
     },
 };
+use generated_types::ingester::IngesterQueryRequest;
 use predicate::Predicate;
 use query::{
     exec::{Executor, ExecutorType},
