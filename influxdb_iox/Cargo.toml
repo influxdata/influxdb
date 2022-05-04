@@ -18,7 +18,6 @@ influxdb_iox_client = { path = "../influxdb_iox_client", features = ["flight", "
 influxdb_storage_client = { path = "../influxdb_storage_client" }
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
 ingester = { path = "../ingester" }
-internal_types = { path = "../internal_types" }
 influxrpc_parser = { path = "../influxrpc_parser"}
 iox_catalog = { path = "../iox_catalog" }
 iox_object_store = { path = "../iox_object_store" }

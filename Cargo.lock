@@ -2184,7 +2184,6 @@ dependencies = [
  "influxdb_storage_client",
  "influxrpc_parser",
  "ingester",
- "internal_types",
  "iox_catalog",
  "iox_object_store",
  "iox_time",
@@ -2402,17 +2401,6 @@ name = "integer-encoding"
 version = "3.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0e85a1509a128c855368e135cffcde7eac17d8e1083f41e2b98c58bc1a5074be"
-
-[[package]]
-name = "internal_types"
-version = "0.1.0"
-dependencies = [
- "futures",
- "iox_time",
- "parking_lot 0.12.0",
- "tokio",
- "workspace-hack",
-]
 
 [[package]]
 name = "io-lifetimes"
@@ -3105,7 +3093,6 @@ dependencies = [
  "data_types",
  "futures",
  "hashbrown 0.12.0",
- "internal_types",
  "iox_time",
  "observability_deps",
  "parking_lot 0.12.0",
@@ -4033,7 +4020,6 @@ name = "persistence_windows"
 version = "0.1.0"
 dependencies = [
  "data_types",
- "internal_types",
  "iox_time",
  "observability_deps",
  "snafu",
@@ -5353,7 +5339,6 @@ dependencies = [
  "generated_types",
  "hashbrown 0.12.0",
  "influxdb_line_protocol",
- "internal_types",
  "iox_object_store",
  "iox_time",
  "job_registry",

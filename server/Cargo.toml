@@ -15,7 +15,6 @@ futures = "0.3"
 generated_types = { path = "../generated_types" }
 hashbrown = "0.12"
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
-internal_types = { path = "../internal_types" }
 iox_object_store = { path = "../iox_object_store" }
 job_registry = { path = "../job_registry" }
 lifecycle = { path = "../lifecycle" }

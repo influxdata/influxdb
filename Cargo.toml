@@ -23,7 +23,6 @@ members = [
     "influxdb2_client",
     "influxrpc_parser",
     "ingester",
-    "internal_types",
     "iox_catalog",
     "iox_catalog_service",
     "iox_data_generator",
