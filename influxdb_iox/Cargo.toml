@@ -27,7 +27,6 @@ ioxd_ingester = { path = "../ioxd_ingester"}
 ioxd_router2 = { path = "../ioxd_router2"}
 ioxd_querier = { path = "../ioxd_querier"}
 ioxd_test = { path = "../ioxd_test"}
-job_registry = { path = "../job_registry" }
 logfmt = { path = "../logfmt" }
 metric = { path = "../metric" }
 metric_exporters = { path = "../metric_exporters" }

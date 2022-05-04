@@ -2194,7 +2194,6 @@ dependencies = [
  "ioxd_router2",
  "ioxd_test",
  "itertools",
- "job_registry",
  "libc",
  "log",
  "logfmt",
@@ -2798,19 +2797,6 @@ name = "itoa"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1aab8fc367588b89dcee83ab0fd66b72b50b72fa1904d7095045ace2b0c81c35"
-
-[[package]]
-name = "job_registry"
-version = "0.1.0"
-dependencies = [
- "data_types",
- "iox_time",
- "metric",
- "parking_lot 0.12.0",
- "tokio",
- "tracker",
- "workspace-hack",
-]
 
 [[package]]
 name = "jobserver"

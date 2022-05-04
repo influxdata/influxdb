@@ -37,7 +37,6 @@ members = [
     "ioxd_querier",
     "ioxd_router2",
     "ioxd_test",
-    "job_registry",
     "logfmt",
     "metric",
     "metric_exporters",
