@@ -27,7 +27,6 @@ members = [
     "iox_catalog_service",
     "iox_data_generator",
     "iox_gitops_adapter",
-    "iox_object_store",
     "iox_object_store_service",
     "iox_tests",
     "iox_time",

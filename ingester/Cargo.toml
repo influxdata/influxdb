@@ -22,7 +22,6 @@ chrono = { version = "0.4", default-features = false }
 dml = { path = "../dml" }
 hyper = "0.14"
 iox_catalog = { path = "../iox_catalog" }
-iox_object_store = { path = "../iox_object_store" }
 metric = { path = "../metric" }
 mutable_batch = { path = "../mutable_batch"}
 mutable_batch_lp = { path = "../mutable_batch_lp" }

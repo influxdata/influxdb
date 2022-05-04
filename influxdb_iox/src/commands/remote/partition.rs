@@ -18,9 +18,9 @@ use influxdb_iox_client::{
     store,
 };
 use iox_catalog::interface::{get_schema_by_name, Catalog};
-use iox_object_store::ParquetFilePath;
 use object_store::{DynObjectStore, ObjectStoreImpl};
-use std::sync::Arc;
+use parquet_file::ParquetFilePath;
+use std::{ops::Deref, sync::Arc};
 use thiserror::Error;
 use tokio_stream::StreamExt;
 use uuid::Uuid;
@@ -150,15 +150,14 @@ pub async fn command(connection: Connection, config: Config) -> Result<(), Error
             let mut handles = vec![];
             let store_client = store::Client::new(connection);
             for parquet_file in parquet_files {
-                let path = ParquetFilePath::new_new_gen(
+                let path = ParquetFilePath::new(
                     parquet_file.namespace_id,
                     parquet_file.table_id,
                     parquet_file.sequencer_id,
                     parquet_file.partition_id,
                     parquet_file.object_store_id,
-                )
-                .absolute_dirs_and_file_name();
-                let path = object_store.path_from_dirs_and_filename(path);
+                );
+                let path = path.object_store_path(object_store.deref());
                 match object_store.get(&path).await {
                     Ok(_) => {
                         println!(

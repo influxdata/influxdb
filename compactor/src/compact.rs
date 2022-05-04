@@ -15,12 +15,14 @@ use data_types2::{
 };
 use datafusion::error::DataFusionError;
 use iox_catalog::interface::{Catalog, Transaction};
-use iox_object_store::ParquetFilePath;
 use iox_time::{Time, TimeProvider};
 use metric::{Attributes, Metric, U64Counter, U64Gauge, U64Histogram, U64HistogramOptions};
 use object_store::DynObjectStore;
 use observability_deps::tracing::{debug, info, warn};
-use parquet_file::metadata::{IoxMetadata, IoxParquetMetaData};
+use parquet_file::{
+    metadata::{IoxMetadata, IoxParquetMetaData},
+    ParquetFilePath,
+};
 use query::provider::overlap::group_potential_duplicates;
 use query::{
     exec::{Executor, ExecutorType},
@@ -33,7 +35,7 @@ use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{
     cmp::{max, min, Ordering},
     collections::{BTreeMap, HashSet},
-    ops::DerefMut,
+    ops::{Deref, DerefMut},
     sync::Arc,
 };
 use uuid::Uuid;
@@ -782,16 +784,7 @@ impl Compactor {
             .expect("record_batches.is_empty was just checked")
             .schema();
 
-        // Make a fake IOx object store to conform to the parquet file
-        // interface, but note this isn't actually used to find parquet
-        // paths to write to
-        use iox_object_store::IoxObjectStore;
-        let iox_object_store = Arc::new(IoxObjectStore::existing(
-            Arc::clone(&object_store),
-            IoxObjectStore::root_path_for(&*object_store, uuid::Uuid::new_v4()),
-        ));
-
-        let data = parquet_file::storage::Storage::new(Arc::clone(&iox_object_store))
+        let data = parquet_file::storage::Storage::new(Arc::clone(&object_store))
             .parquet_bytes(record_batches, schema, metadata)
             .await
             .context(ConvertingToBytesSnafu)?;
@@ -810,16 +803,17 @@ impl Compactor {
         let file_size = data.len();
         let bytes = Bytes::from(data);
 
-        let path = ParquetFilePath::new_new_gen(
+        let path = ParquetFilePath::new(
             metadata.namespace_id,
             metadata.table_id,
             metadata.sequencer_id,
             metadata.partition_id,
             metadata.object_store_id,
         );
+        let path = path.object_store_path(object_store.deref());
 
-        iox_object_store
-            .put_parquet_file(&path, bytes)
+        object_store
+            .put(&path, bytes)
             .await
             .context(WritingToObjectStoreSnafu)?;
 

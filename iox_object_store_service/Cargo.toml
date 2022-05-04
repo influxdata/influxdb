@@ -11,9 +11,9 @@ data_types2 = { path = "../data_types2" }
 futures = "0.3"
 generated_types = { path = "../generated_types" }
 iox_catalog = { path = "../iox_catalog" }
-iox_object_store = { path = "../iox_object_store" }
 object_store = { path = "../object_store" }
 observability_deps = { path = "../observability_deps" }
+parquet_file = { path = "../parquet_file" }
 serde = "1.0"
 serde_urlencoded = "0.7"
 iox_time = { path = "../iox_time" }

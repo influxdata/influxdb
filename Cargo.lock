@@ -818,7 +818,6 @@ dependencies = [
  "datafusion 0.1.0",
  "futures",
  "iox_catalog",
- "iox_object_store",
  "iox_tests",
  "iox_time",
  "metric",
@@ -2185,7 +2184,6 @@ dependencies = [
  "influxrpc_parser",
  "ingester",
  "iox_catalog",
- "iox_object_store",
  "iox_time",
  "ioxd_common",
  "ioxd_compactor",
@@ -2344,7 +2342,6 @@ dependencies = [
  "generated_types",
  "hyper",
  "iox_catalog",
- "iox_object_store",
  "iox_time",
  "lazy_static",
  "metric",
@@ -2509,24 +2506,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "iox_object_store"
-version = "0.1.0"
-dependencies = [
- "bytes",
- "data_types",
- "data_types2",
- "futures",
- "object_store",
- "observability_deps",
- "snafu",
- "test_helpers",
- "tokio",
- "tokio-stream",
- "uuid 0.8.2",
- "workspace-hack",
-]
-
-[[package]]
 name = "iox_object_store_service"
 version = "0.1.0"
 dependencies = [
@@ -2536,11 +2515,11 @@ dependencies = [
  "futures",
  "generated_types",
  "iox_catalog",
- "iox_object_store",
  "iox_time",
  "metric",
  "object_store",
  "observability_deps",
+ "parquet_file",
  "serde",
  "serde_urlencoded",
  "tokio",
@@ -2560,7 +2539,6 @@ dependencies = [
  "data_types2",
  "datafusion 0.1.0",
  "iox_catalog",
- "iox_object_store",
  "iox_time",
  "metric",
  "mutable_batch_lp",
@@ -3823,7 +3801,6 @@ dependencies = [
  "datafusion_util",
  "futures",
  "generated_types",
- "iox_object_store",
  "iox_time",
  "metric",
  "object_store",
@@ -4294,7 +4271,6 @@ dependencies = [
  "hyper",
  "influxdb_iox_client",
  "iox_catalog",
- "iox_object_store",
  "iox_tests",
  "iox_time",
  "metric",

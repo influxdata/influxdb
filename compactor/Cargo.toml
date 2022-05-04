@@ -14,7 +14,6 @@ data_types2 = { path = "../data_types2" }
 datafusion = { path = "../datafusion" }
 futures = "0.3"
 iox_catalog = { path = "../iox_catalog" }
-iox_object_store = { path = "../iox_object_store" }
 metric = { path = "../metric" }
 object_store = { path = "../object_store" }
 observability_deps = { path = "../observability_deps" }

@@ -9,7 +9,6 @@ use data_types2::{
 };
 use futures::StreamExt;
 use iox_catalog::interface::Catalog;
-use iox_object_store::IoxObjectStore;
 use iox_time::TimeProvider;
 use object_store::DynObjectStore;
 use parquet_file::chunk::{
@@ -175,8 +174,8 @@ pub struct ParquetChunkAdapter {
     /// Cache
     catalog_cache: Arc<CatalogCache>,
 
-    /// Old-gen object store.
-    iox_object_store: Arc<IoxObjectStore>,
+    /// Object store.
+    object_store: Arc<DynObjectStore>,
 
     /// Metric registry.
     metric_registry: Arc<metric::Registry>,
@@ -193,15 +192,9 @@ impl ParquetChunkAdapter {
         metric_registry: Arc<metric::Registry>,
         time_provider: Arc<dyn TimeProvider>,
     ) -> Self {
-        // create a virtual IOx object store, the UUID won't be used anyways
-        let iox_object_store = Arc::new(IoxObjectStore::existing(
-            Arc::clone(&object_store),
-            IoxObjectStore::root_path_for(&*object_store, uuid::Uuid::new_v4()),
-        ));
-
         Self {
             catalog_cache,
-            iox_object_store,
+            object_store,
             metric_registry,
             time_provider,
         }
@@ -229,7 +222,7 @@ impl ParquetChunkAdapter {
         Some(new_parquet_chunk(
             decoded_parquet_file,
             metrics,
-            Arc::clone(&self.iox_object_store),
+            Arc::clone(&self.object_store),
         ))
     }
 

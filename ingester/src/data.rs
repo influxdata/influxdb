@@ -312,7 +312,11 @@ impl Persister for IngesterData {
             // save the compacted data to a parquet file in object storage
             let file_size_and_md = Backoff::new(&self.backoff_config)
                 .retry_all_errors("persist to object store", || {
-                    persist(&iox_meta, record_batches.to_vec(), &self.object_store)
+                    persist(
+                        &iox_meta,
+                        record_batches.to_vec(),
+                        Arc::clone(&self.object_store),
+                    )
                 })
                 .await
                 .expect("retry forever");
