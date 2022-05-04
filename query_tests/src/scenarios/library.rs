@@ -5,10 +5,7 @@ use super::{
 };
 use crate::scenarios::util::{make_n_chunks_scenario_new, ChunkDataNew};
 use async_trait::async_trait;
-use data_types::{
-    delete_predicate::{DeleteExpr, DeletePredicate},
-    timestamp::TimestampRange,
-};
+use data_types2::{DeleteExpr, DeletePredicate, Op, Scalar, TimestampRange};
 use query::frontend::sql::SqlQueryPlanner;
 
 #[derive(Debug)]
@@ -112,8 +109,8 @@ impl DbSetup for OneMeasurementManyNullTagsWithDelete {
             range: TimestampRange::new(400, 602),
             exprs: vec![DeleteExpr::new(
                 "state".to_string(),
-                data_types::delete_predicate::Op::Eq,
-                data_types::delete_predicate::Scalar::String(("NY").to_string()),
+                Op::Eq,
+                Scalar::String(("NY").to_string()),
             )],
         };
 
@@ -205,8 +202,8 @@ impl DbSetup for TwoMeasurementsWithDelete {
             range: TimestampRange::new(120, 160),
             exprs: vec![DeleteExpr::new(
                 "region".to_string(),
-                data_types::delete_predicate::Op::Eq,
-                data_types::delete_predicate::Scalar::String("west".to_string()),
+                Op::Eq,
+                Scalar::String("west".to_string()),
             )],
         };
 
@@ -237,8 +234,8 @@ impl DbSetup for TwoMeasurementsWithDeleteAll {
             range: TimestampRange::new(120, 160),
             exprs: vec![DeleteExpr::new(
                 "region".to_string(),
-                data_types::delete_predicate::Op::Eq,
-                data_types::delete_predicate::Scalar::String("west".to_string()),
+                Op::Eq,
+                Scalar::String("west".to_string()),
             )],
         };
 
@@ -661,8 +658,8 @@ impl DbSetup for EndToEndTestWithDelete {
             range: TimestampRange::new(6000, 6000),
             exprs: vec![DeleteExpr::new(
                 "name".to_string(),
-                data_types::delete_predicate::Op::Eq,
-                data_types::delete_predicate::Scalar::String(("disk0").to_string()),
+                Op::Eq,
+                Scalar::String(("disk0").to_string()),
             )],
         };
 
@@ -835,8 +832,8 @@ impl DbSetup for MeasurementsSortableTagsWithDelete {
             range: TimestampRange::new(120, 350),
             exprs: vec![DeleteExpr::new(
                 "state".to_string(),
-                data_types::delete_predicate::Op::Eq,
-                data_types::delete_predicate::Scalar::String(("CA").to_string()),
+                Op::Eq,
+                Scalar::String(("CA").to_string()),
             )],
         };
 
@@ -896,8 +893,8 @@ impl DbSetup for OneMeasurementNoTagsWithDelete {
             range: TimestampRange::new(1, 1),
             exprs: vec![DeleteExpr::new(
                 "foo".to_string(),
-                data_types::delete_predicate::Op::Eq,
-                data_types::delete_predicate::Scalar::F64((1.0).into()),
+                Op::Eq,
+                Scalar::F64((1.0).into()),
             )],
         };
 

@@ -11,17 +11,17 @@
     clippy::clone_on_ref_ptr
 )]
 
-use std::collections::{BTreeMap, HashSet};
-
-use data_types::router::{ShardConfig, ShardId};
+use data_types::{
+    non_empty::NonEmptyString,
+    partition_metadata::{StatValues, Statistics},
+    router::{ShardConfig, ShardId},
+    sequence::Sequence,
+};
+use data_types2::DeletePredicate;
 use hashbrown::HashMap;
-
-use data_types::delete_predicate::DeletePredicate;
-use data_types::non_empty::NonEmptyString;
-use data_types::partition_metadata::{StatValues, Statistics};
-use data_types::sequence::Sequence;
 use iox_time::Time;
 use mutable_batch::MutableBatch;
+use std::collections::{BTreeMap, HashSet};
 use trace::ctx::SpanContext;
 
 /// Metadata information about a DML operation
@@ -487,19 +487,16 @@ pub mod test_util {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::test_util::assert_writes_eq;
     use data_types::{
         consistent_hasher::ConsistentHasher,
-        delete_predicate::DeletePredicate,
         non_empty::NonEmptyString,
         router::{HashRing, Matcher, MatcherToShard},
         timestamp::TimestampRange,
     };
     use mutable_batch_lp::lines_to_batches;
     use regex::Regex;
-
-    use crate::test_util::assert_writes_eq;
-
-    use super::*;
 
     #[test]
     fn test_write_sharding() {

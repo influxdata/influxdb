@@ -1174,6 +1174,7 @@ version = "0.1.0"
 dependencies = [
  "data_types",
  "influxdb_line_protocol",
+ "ordered-float 3.0.0",
  "schema",
  "sqlx",
  "uuid 0.8.2",
@@ -1409,6 +1410,7 @@ version = "0.1.0"
 dependencies = [
  "arrow_util",
  "data_types",
+ "data_types2",
  "hashbrown 0.12.0",
  "iox_time",
  "mutable_batch",
@@ -6784,6 +6786,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "data_types",
+ "data_types2",
  "dml",
  "dotenv",
  "futures",
