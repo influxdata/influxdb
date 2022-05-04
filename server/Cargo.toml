@@ -17,7 +17,6 @@ hashbrown = "0.12"
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
 iox_object_store = { path = "../iox_object_store" }
 job_registry = { path = "../job_registry" }
-lifecycle = { path = "../lifecycle" }
 metric = { path = "../metric" }
 mutable_batch_lp = { path = "../mutable_batch_lp" }
 num_cpus = "1.13.0"

@@ -3087,21 +3087,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "33a33a362ce288760ec6a508b94caaec573ae7d3bbbd91b87aa0bad4456839db"
 
 [[package]]
-name = "lifecycle"
-version = "0.1.0"
-dependencies = [
- "data_types",
- "futures",
- "hashbrown 0.12.0",
- "iox_time",
- "observability_deps",
- "parking_lot 0.12.0",
- "tokio",
- "tracker",
- "workspace-hack",
-]
-
-[[package]]
 name = "linked-hash-map"
 version = "0.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5342,7 +5327,6 @@ dependencies = [
  "iox_object_store",
  "iox_time",
  "job_registry",
- "lifecycle",
  "metric",
  "mutable_batch_lp",
  "num_cpus",
