@@ -34,7 +34,6 @@ metric_exporters = { path = "../metric_exporters" }
 mutable_batch = { path = "../mutable_batch" }
 mutable_batch_lp = { path = "../mutable_batch_lp" }
 mutable_batch_pb = { path = "../mutable_batch_pb" }
-mutable_buffer = { path = "../mutable_buffer" }
 object_store = { path = "../object_store" }
 observability_deps = { path = "../observability_deps" }
 panic_logging = { path = "../panic_logging" }

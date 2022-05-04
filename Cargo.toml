@@ -45,7 +45,6 @@ members = [
     "mutable_batch_lp",
     "mutable_batch_pb",
     "mutable_batch_tests",
-    "mutable_buffer",
     "object_store",
     "observability_deps",
     "packers",
