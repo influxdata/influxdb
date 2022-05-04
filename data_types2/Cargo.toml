@@ -8,7 +8,9 @@ description = "Shared data types in the IOx NG architecture"
 data_types = { path = "../data_types" }
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
 ordered-float = "3"
+percent-encoding = "2.1.0"
 schema = { path = "../schema" }
+snafu = "0.7"
 sqlx = { version = "0.5", features = ["runtime-tokio-rustls", "postgres", "uuid"] }
 uuid = { version = "0.8", features = ["v4"] }
 workspace-hack = { path = "../workspace-hack"}

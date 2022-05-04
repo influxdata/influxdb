@@ -11,7 +11,8 @@ use crate::{
     input::GrpcInputs,
     StorageService,
 };
-use data_types::{error::ErrorLogger, names::org_and_bucket_to_database, DatabaseName};
+use data_types::error::ErrorLogger;
+use data_types2::{org_and_bucket_to_database, DatabaseName};
 use generated_types::{
     google::protobuf::Empty, literal_or_regex::Value as RegexOrLiteralValue,
     offsets_response::PartitionOffsetResponse, storage_server::Storage, tag_key_predicate,
