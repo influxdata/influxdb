@@ -1731,7 +1731,6 @@ name = "generated_types"
 version = "0.1.0"
 dependencies = [
  "bytes",
- "data_types",
  "data_types2",
  "datafusion 0.1.0",
  "iox_time",

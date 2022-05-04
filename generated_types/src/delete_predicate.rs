@@ -11,10 +11,7 @@ use crate::google::{FieldViolation, FromOptionalField, FromRepeatedField, Option
 use crate::influxdata::iox::predicate::v1 as proto;
 use crate::influxdata::iox::predicate::v1::scalar::Value;
 use crate::influxdata::iox::predicate::v1::{Expr, Predicate};
-use data_types::{
-    delete_predicate::{DeleteExpr, DeletePredicate, Op, Scalar},
-    timestamp::TimestampRange,
-};
+use data_types2::{DeleteExpr, DeletePredicate, Op, Scalar, TimestampRange};
 
 impl From<DeletePredicate> for proto::Predicate {
     fn from(predicate: DeletePredicate) -> Self {
