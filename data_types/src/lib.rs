@@ -17,7 +17,6 @@ mod database_name;
 pub mod database_rules;
 pub mod error;
 pub mod job;
-pub mod non_empty;
 pub mod partition_metadata;
 pub mod router;
 pub mod sequence;

@@ -12,12 +12,11 @@
 )]
 
 use data_types::{
-    non_empty::NonEmptyString,
     partition_metadata::{StatValues, Statistics},
     router::{ShardConfig, ShardId},
     sequence::Sequence,
 };
-use data_types2::DeletePredicate;
+use data_types2::{DeletePredicate, NonEmptyString};
 use hashbrown::HashMap;
 use iox_time::Time;
 use mutable_batch::MutableBatch;
@@ -491,7 +490,6 @@ mod tests {
     use crate::test_util::assert_writes_eq;
     use data_types::{
         consistent_hasher::ConsistentHasher,
-        non_empty::NonEmptyString,
         router::{HashRing, Matcher, MatcherToShard},
         timestamp::TimestampRange,
     };

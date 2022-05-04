@@ -20,13 +20,12 @@ use std::{
     convert::TryFrom,
     fmt::Write,
     num::{FpCategory, NonZeroU32},
-    ops::{Add, Sub},
+    ops::{Add, Deref, Sub},
     sync::Arc,
 };
 use uuid::Uuid;
 
 pub use data_types::{
-    non_empty::NonEmptyString,
     partition_metadata::{
         ColumnSummary, InfluxDbType, PartitionAddr, StatValues, Statistics, TableSummary,
     },
@@ -1253,6 +1252,34 @@ pub fn org_and_bucket_to_database<'a, O: AsRef<str>, B: AsRef<str>>(
     let db_name = format!("{}{}{}", org.as_ref(), SEPARATOR, bucket.as_ref());
 
     DatabaseName::new(db_name).context(InvalidDatabaseNameSnafu)
+}
+
+/// A string that cannot be empty
+///
+/// This is particularly useful for types that map to/from protobuf, where string fields
+/// are not nullable - that is they default to an empty string if not specified
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct NonEmptyString(Box<str>);
+
+impl NonEmptyString {
+    /// Create a new `NonEmptyString` from the provided `String`
+    ///
+    /// Returns None if empty
+    pub fn new(s: impl Into<String>) -> Option<Self> {
+        let s = s.into();
+        match s.is_empty() {
+            true => None,
+            false => Some(Self(s.into_boxed_str())),
+        }
+    }
+}
+
+impl Deref for NonEmptyString {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        self.0.as_ref()
+    }
 }
 
 #[cfg(test)]
