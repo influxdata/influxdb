@@ -23,7 +23,6 @@ num_cpus = "1.13.0"
 object_store = { path = "../object_store" }
 observability_deps = { path = "../observability_deps" }
 parking_lot = "0.12"
-persistence_windows = { path = "../persistence_windows" }
 query = { path = "../query" }
 rand = "0.8.3"
 service_common = { path = "../service_common" }

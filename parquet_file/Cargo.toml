@@ -22,7 +22,6 @@ parquet = {version = "13", features = ["experimental"]}
 parquet-format = "4.0"
 parking_lot = "0.12"
 pbjson-types = "0.3"
-persistence_windows = { path = "../persistence_windows" }
 predicate = { path = "../predicate" }
 prost = "0.10"
 snafu = "0.7"

@@ -3848,7 +3848,6 @@ dependencies = [
  "parquet",
  "parquet-format",
  "pbjson-types",
- "persistence_windows",
  "predicate",
  "prost",
  "schema",
@@ -3943,18 +3942,6 @@ name = "permutation"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f3f4a387a9ad6165bb590820827ef047d8e2921dfb9821891ed0ef2b7cf82774"
-
-[[package]]
-name = "persistence_windows"
-version = "0.1.0"
-dependencies = [
- "data_types",
- "iox_time",
- "observability_deps",
- "snafu",
- "test_helpers",
- "workspace-hack",
-]
 
 [[package]]
 name = "pest"
@@ -5277,7 +5264,6 @@ dependencies = [
  "object_store",
  "observability_deps",
  "parking_lot 0.12.0",
- "persistence_windows",
  "query",
  "rand",
  "regex",

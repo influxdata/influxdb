@@ -50,7 +50,6 @@ members = [
     "packers",
     "panic_logging",
     "parquet_file",
-    "persistence_windows",
     "predicate",
     "querier",
     "query",
