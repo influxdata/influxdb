@@ -2210,7 +2210,6 @@ dependencies = [
  "panic_logging",
  "parking_lot 0.12.0",
  "parquet",
- "parquet_catalog",
  "parquet_file",
  "pin-project",
  "predicate",
@@ -3827,42 +3826,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "parquet_catalog"
-version = "0.1.0"
-dependencies = [
- "arrow",
- "base64 0.13.0",
- "bytes",
- "data_types",
- "datafusion 0.1.0",
- "datafusion_util",
- "futures",
- "generated_types",
- "iox_object_store",
- "iox_time",
- "metric",
- "object_store",
- "observability_deps",
- "parking_lot 0.12.0",
- "parquet",
- "parquet-format",
- "parquet_file",
- "pbjson-types",
- "persistence_windows",
- "predicate",
- "prost",
- "schema",
- "snafu",
- "tempfile",
- "thrift",
- "tokio",
- "tokio-stream",
- "uuid 0.8.2",
- "workspace-hack",
- "zstd",
-]
-
-[[package]]
 name = "parquet_file"
 version = "0.1.0"
 dependencies = [
@@ -5314,7 +5277,6 @@ dependencies = [
  "object_store",
  "observability_deps",
  "parking_lot 0.12.0",
- "parquet_catalog",
  "persistence_windows",
  "query",
  "rand",
