@@ -50,24 +50,6 @@ async fn run_read_window_aggregate_test_case<D>(
 }
 
 #[tokio::test]
-async fn test_read_window_aggregate_no_data_no_pred() {
-    let agg = Aggregate::Mean;
-    let every = WindowDuration::from_nanoseconds(200);
-    let offset = WindowDuration::from_nanoseconds(0);
-    let expected_results = vec![] as Vec<&str>;
-
-    run_read_window_aggregate_test_case(
-        NoData {},
-        InfluxRpcPredicate::default(),
-        agg,
-        every,
-        offset,
-        expected_results,
-    )
-    .await;
-}
-
-#[tokio::test]
 async fn test_read_window_aggregate_nanoseconds() {
     let predicate = PredicateBuilder::default()
         // city=Boston or city=LA
@@ -151,28 +133,6 @@ async fn test_read_window_aggregate_nanoseconds_measurement_count() {
     run_read_window_aggregate_test_case(
         MeasurementForWindowAggregate {},
         predicate,
-        agg,
-        every,
-        offset,
-        expected_results,
-    )
-    .await;
-}
-
-#[tokio::test]
-async fn test_read_window_aggregate_months() {
-    let agg = Aggregate::Mean;
-    let every = WindowDuration::from_months(1, false);
-    let offset = WindowDuration::from_months(0, false);
-
-    // note the name of the field is "temp" even though it is the average
-    let expected_results = vec![
-    "Series tags={_measurement=h2o, city=Boston, state=MA, _field=temp}\n  FloatPoints timestamps: [1585699200000000000, 1588291200000000000], values: [70.5, 72.5]",
-    ];
-
-    run_read_window_aggregate_test_case(
-        MeasurementForWindowAggregateMonths {},
-        InfluxRpcPredicate::default(),
         agg,
         every,
         offset,

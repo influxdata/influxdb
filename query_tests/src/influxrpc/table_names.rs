@@ -52,11 +52,6 @@ async fn run_table_names_test_case<D>(
 }
 
 #[tokio::test]
-async fn list_table_names_no_data_no_pred() {
-    run_table_names_test_case(NoData {}, InfluxRpcPredicate::default(), vec![]).await;
-}
-
-#[tokio::test]
 async fn list_table_names_no_data_pred() {
     run_table_names_test_case(
         TwoMeasurements {},
