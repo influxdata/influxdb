@@ -14,11 +14,9 @@ object_store = { path = "../object_store" }
 observability_deps = { path = "../observability_deps" }
 parquet_file = { path = "../parquet_file" }
 serde = "1.0"
-serde_urlencoded = "0.7"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 tokio-stream = "0.1"
 tonic = "0.7"
-trace = { path = "../trace/" }
 uuid = { version = "0.8", features = ["v4"] }
 workspace-hack = { path = "../workspace-hack"}
 

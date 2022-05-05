@@ -5,7 +5,6 @@ authors = ["Paul Dix <paul@pauldix.net>"]
 edition = "2021"
 
 [dependencies] # In alphabetical order
-assert_matches = "1.5.0"
 async-trait = "0.1.53"
 data_types = { path = "../data_types" }
 futures = "0.3"
@@ -21,6 +20,7 @@ uuid = { version = "0.8", features = ["v4"] }
 workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies] # In alphabetical order
+assert_matches = "1.5.0"
 dotenv = "0.15.0"
 mutable_batch_lp = { path = "../mutable_batch_lp" }
 paste = "1.0.7"

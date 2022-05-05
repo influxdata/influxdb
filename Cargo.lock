@@ -1716,7 +1716,6 @@ dependencies = [
  "bytes",
  "data_types",
  "datafusion 0.1.0",
- "iox_time",
  "num_cpus",
  "observability_deps",
  "pbjson",
@@ -2418,10 +2417,8 @@ dependencies = [
  "metric",
  "observability_deps",
  "serde",
- "serde_urlencoded",
  "tokio",
  "tonic",
- "trace",
  "uuid 0.8.2",
  "workspace-hack",
 ]
@@ -2499,11 +2496,9 @@ dependencies = [
  "observability_deps",
  "parquet_file",
  "serde",
- "serde_urlencoded",
  "tokio",
  "tokio-stream",
  "tonic",
- "trace",
  "uuid 0.8.2",
  "workspace-hack",
 ]
@@ -2674,7 +2669,6 @@ dependencies = [
 name = "ioxd_router"
 version = "0.1.0"
 dependencies = [
- "arrow-flight",
  "async-trait",
  "clap_blocks",
  "data_types",
