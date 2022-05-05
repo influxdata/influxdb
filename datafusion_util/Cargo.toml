@@ -8,6 +8,7 @@ description = "Datafusion utilities"
 [dependencies]
 datafusion = { path = "../datafusion" }
 futures = "0.3"
+observability_deps = { path = "../observability_deps" }
 tokio = { version = "1.18", features = ["parking_lot", "sync"] }
 tokio-stream = "0.1"
 workspace-hack = { path = "../workspace-hack"}

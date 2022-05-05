@@ -47,7 +47,7 @@ use async_trait::async_trait;
 use arrow::{
     array::{new_empty_array, StringArray},
     datatypes::{DataType, Field, Schema, SchemaRef},
-    error::{ArrowError, Result as ArrowResult},
+    error::Result as ArrowResult,
     record_batch::RecordBatch,
 };
 use datafusion::{
@@ -62,7 +62,7 @@ use datafusion::{
     },
 };
 
-use datafusion_util::AdapterStream;
+use datafusion_util::{watch::watch_task, AdapterStream};
 use observability_deps::tracing::debug;
 use tokio::sync::mpsc;
 use tokio_stream::StreamExt;
@@ -272,35 +272,9 @@ impl ExecutionPlan for NonNullCheckerExec {
             tx.clone(),
         ));
 
-        // A second task watches the output of the worker task (TODO refactor into datafusion_util)
-        tokio::task::spawn(async move {
-            let task_result = task.await;
-
-            let msg = match task_result {
-                Err(join_err) => {
-                    debug!(e=%join_err, "Error joining null_check task");
-                    Some(ArrowError::ExternalError(Box::new(join_err)))
-                }
-                Ok(Err(e)) => {
-                    debug!(%e, "Error in null_check task itself");
-                    Some(e)
-                }
-                Ok(Ok(())) => {
-                    // successful
-                    None
-                }
-            };
-
-            if let Some(e) = msg {
-                // try and tell the receiver something went
-                // wrong. Note we ignore errors sending this message
-                // as that means the receiver has already been
-                // shutdown and no one cares anymore lol
-                if tx.send(Err(e)).await.is_err() {
-                    debug!("null_check receiver hung up");
-                }
-            }
-        });
+        // A second task watches the output of the worker task and
+        // reports errors
+        tokio::task::spawn(watch_task("non_null_checker", tx, task));
 
         debug!(partition, "End NonNullCheckerExec::execute");
         Ok(AdapterStream::adapt(self.schema(), rx))

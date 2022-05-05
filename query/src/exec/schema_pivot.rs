@@ -28,8 +28,9 @@ use std::{
 use async_trait::async_trait;
 
 use arrow::{
-    array::StringBuilder,
+    array::StringArray,
     datatypes::{DataType, Field, Schema, SchemaRef},
+    error::{ArrowError, Result as ArrowResult},
     record_batch::RecordBatch,
 };
 use datafusion::{
@@ -37,17 +38,16 @@ use datafusion::{
     execution::context::TaskContext,
     logical_plan::{DFSchemaRef, Expr, LogicalPlan, ToDFSchema, UserDefinedLogicalNode},
     physical_plan::{
-        common::SizedRecordBatchStream,
         expressions::PhysicalSortExpr,
-        metrics::{
-            BaselineMetrics, ExecutionPlanMetricsSet, MemTrackingMetrics, MetricsSet, RecordOutput,
-        },
+        metrics::{BaselineMetrics, ExecutionPlanMetricsSet, MetricsSet, RecordOutput},
         DisplayFormatType, Distribution, ExecutionPlan, Partitioning, SendableRecordBatchStream,
         Statistics,
     },
 };
 
+use datafusion_util::{watch::watch_task, AdapterStream};
 use observability_deps::tracing::debug;
+use tokio::sync::mpsc;
 use tokio_stream::StreamExt;
 
 /// Implements the SchemaPivot operation described in `make_schema_pivot`
@@ -231,90 +231,26 @@ impl ExecutionPlan for SchemaPivotExec {
         }
 
         let baseline_metrics = BaselineMetrics::new(&self.metrics, partition);
-        let mut input_reader = self.input.execute(partition, context).await?;
-
-        // Algorithm: for each column we haven't seen a value for yet,
-        // check each input row;
-        //
-        // Performance Optimizations: Don't continue scaning columns
-        // if we have already seen a non-null value, and stop early we
-        // have seen values for all columns.
-        //
-        // this code should be streaming (aka not run directly in
-        // `execute`):
-        // https://github.com/influxdata/influxdb_iox/issues/2386
         let input_schema = self.input.schema();
-        let input_fields = input_schema.fields();
-        let num_fields = input_fields.len();
-        let mut field_indexes_with_seen_values = vec![false; num_fields];
-        let mut num_fields_seen_with_values = 0;
+        let input_stream = self.input.execute(partition, context).await?;
 
-        // use a loop so that we release the mutex once we have read each input_batch
-        let mut keep_searching = true;
-        while keep_searching {
-            let input_batch = input_reader.next().await.transpose()?;
-            let timer = baseline_metrics.elapsed_compute().timer();
+        // the operation performed in a separate task which is
+        // then sent via a channel to the output
+        let (tx, rx) = mpsc::channel(1);
 
-            keep_searching = match input_batch {
-                Some(input_batch) => {
-                    let num_rows = input_batch.num_rows();
+        let task = tokio::task::spawn(schema_pivot(
+            input_stream,
+            input_schema,
+            self.schema(),
+            tx.clone(),
+            baseline_metrics,
+        ));
 
-                    for (i, seen_value) in field_indexes_with_seen_values.iter_mut().enumerate() {
-                        // only check fields we haven't seen values for
-                        if !*seen_value {
-                            let column = input_batch.column(i);
-
-                            let field_has_values =
-                                !column.is_empty() && column.null_count() < num_rows;
-
-                            if field_has_values {
-                                *seen_value = true;
-                                num_fields_seen_with_values += 1;
-                            }
-                        }
-                    }
-                    // need to keep searching if there are still some
-                    // fields without values
-                    num_fields_seen_with_values < num_fields
-                }
-                // no more input
-                None => false,
-            };
-            timer.done();
-        }
-
-        // now, output a string for each column in the input schema
-        // that we saw values for
-        let mut column_name_builder = StringBuilder::new(num_fields);
-        field_indexes_with_seen_values
-            .iter()
-            .enumerate()
-            .filter_map(|(field_index, has_values)| {
-                if *has_values {
-                    Some(input_fields[field_index].name())
-                } else {
-                    None
-                }
-            })
-            .try_for_each(|field_name| {
-                column_name_builder
-                    .append_value(field_name)
-                    .map_err(Error::ArrowError)
-            })?;
-
-        let batch =
-            RecordBatch::try_new(self.schema(), vec![Arc::new(column_name_builder.finish())])
-                .record_output(&baseline_metrics)?;
-
-        let batches = vec![Arc::new(batch)];
-        let mem_metrics = MemTrackingMetrics::new(&self.metrics, partition);
+        // A second task watches the output of the worker task and reports errors
+        tokio::task::spawn(watch_task("schema_pivot", tx, task));
 
         debug!(partition, "End SchemaPivotExec::execute");
-        Ok(Box::pin(SizedRecordBatchStream::new(
-            self.schema(),
-            batches,
-            mem_metrics,
-        )))
+        Ok(AdapterStream::adapt(self.schema(), rx))
     }
 
     fn fmt_as(&self, t: DisplayFormatType, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -333,6 +269,82 @@ impl ExecutionPlan for SchemaPivotExec {
         // don't know anything about the statistics
         Statistics::default()
     }
+}
+
+// Algorithm: for each column we haven't seen a value for yet,
+// check each input row;
+//
+// Performance Optimizations: Don't continue scaning columns
+// if we have already seen a non-null value, and stop early we
+// have seen values for all columns.
+async fn schema_pivot(
+    mut input_stream: SendableRecordBatchStream,
+    input_schema: SchemaRef,
+    output_schema: SchemaRef,
+    tx: mpsc::Sender<ArrowResult<RecordBatch>>,
+    baseline_metrics: BaselineMetrics,
+) -> ArrowResult<()> {
+    let input_fields = input_schema.fields();
+    let num_fields = input_fields.len();
+    let mut field_indexes_with_seen_values = vec![false; num_fields];
+    let mut num_fields_seen_with_values = 0;
+
+    // use a loop so that we release the mutex once we have read each input_batch
+    let mut keep_searching = true;
+    while keep_searching {
+        let input_batch = input_stream.next().await.transpose()?;
+        let timer = baseline_metrics.elapsed_compute().timer();
+
+        keep_searching = match input_batch {
+            Some(input_batch) => {
+                let num_rows = input_batch.num_rows();
+
+                for (i, seen_value) in field_indexes_with_seen_values.iter_mut().enumerate() {
+                    // only check fields we haven't seen values for
+                    if !*seen_value {
+                        let column = input_batch.column(i);
+
+                        let field_has_values = !column.is_empty() && column.null_count() < num_rows;
+
+                        if field_has_values {
+                            *seen_value = true;
+                            num_fields_seen_with_values += 1;
+                        }
+                    }
+                }
+                // need to keep searching if there are still some
+                // fields without values
+                num_fields_seen_with_values < num_fields
+            }
+            // no more input
+            None => false,
+        };
+        timer.done();
+    }
+
+    // now, output a string for each column in the input schema
+    // that we saw values for
+    let column_names: StringArray = field_indexes_with_seen_values
+        .iter()
+        .enumerate()
+        .filter_map(|(field_index, has_values)| {
+            if *has_values {
+                Some(input_fields[field_index].name())
+            } else {
+                None
+            }
+        })
+        .map(Some)
+        .collect();
+
+    let batch = RecordBatch::try_new(output_schema, vec![Arc::new(column_names)])
+        .record_output(&baseline_metrics)?;
+
+    // and send the result back
+    tx.send(Ok(batch))
+        .await
+        .map_err(|e| ArrowError::from_external_error(Box::new(e)))?;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -495,14 +507,8 @@ mod tests {
     }
 
     fn to_string_array(strs: &[Option<&str>]) -> Arc<StringArray> {
-        let mut builder = StringBuilder::new(strs.len());
-        for s in strs {
-            match s {
-                Some(s) => builder.append_value(s).expect("appending; string"),
-                None => builder.append_null().expect("appending a null"),
-            }
-        }
-        Arc::new(builder.finish())
+        let arr: StringArray = strs.iter().collect();
+        Arc::new(arr)
     }
 
     // Input schema is (A INT, B STRING)

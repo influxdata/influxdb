@@ -9,7 +9,7 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use async_trait::async_trait;
-use datafusion_util::AdapterStream;
+use datafusion_util::{watch::watch_task, AdapterStream};
 
 pub use self::algo::RecordBatchDeduplicator;
 use datafusion::{
@@ -210,40 +210,8 @@ impl ExecutionPlan for DeduplicateExec {
             deduplicate_metrics,
         ));
 
-        // A second task watches the output of the worker task
-        tokio::task::spawn(async move {
-            debug!("waiting for deduplicated batches");
-            let task_result = task.await;
-            debug!("got result from deduplicating batches");
-
-            let msg = match task_result {
-                Err(join_err) => {
-                    debug!(e=%join_err, "Error joining deduplicate task");
-                    Some(ArrowError::ExternalError(Box::new(join_err)))
-                }
-                Ok(Err(e)) => {
-                    debug!(%e, "Error in deduplicate task itself");
-                    Some(e)
-                }
-                Ok(Ok(())) => {
-                    // successful
-                    debug!("sucessful deduplication");
-                    None
-                }
-            };
-
-            if let Some(e) = msg {
-                debug!("Something wrong");
-                // try and tell the receiver something went
-                // wrong. Note we ignore errors sending this message
-                // as that means the receiver has already been
-                // shutdown and no one cares anymore lol
-                if tx.send(Err(e)).await.is_err() {
-                    debug!("deduplicate receiver hung up");
-                }
-            }
-            debug!("no error watching worker task");
-        });
+        // A second task watches the output of the worker task and reports errors
+        tokio::task::spawn(watch_task("deduplicate batches", tx, task));
 
         debug!(
             partition,

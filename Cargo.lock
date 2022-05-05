@@ -1298,6 +1298,7 @@ version = "0.1.0"
 dependencies = [
  "datafusion 0.1.0",
  "futures",
+ "observability_deps",
  "tokio",
  "tokio-stream",
  "workspace-hack",
