@@ -33,7 +33,7 @@ members = [
     "ioxd_compactor",
     "ioxd_ingester",
     "ioxd_querier",
-    "ioxd_router2",
+    "ioxd_router",
     "ioxd_test",
     "logfmt",
     "metric",

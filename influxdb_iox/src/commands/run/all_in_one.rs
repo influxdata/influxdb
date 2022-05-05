@@ -14,7 +14,7 @@ use ioxd_common::{
 use ioxd_compactor::create_compactor_server_type;
 use ioxd_ingester::create_ingester_server_type;
 use ioxd_querier::create_querier_server_type;
-use ioxd_router2::create_router2_server_type;
+use ioxd_router::create_router2_server_type;
 use object_store::{DynObjectStore, ObjectStoreImpl};
 use observability_deps::tracing::*;
 use query::exec::Executor;
@@ -56,7 +56,7 @@ pub enum Error {
     ObjectStoreParsing(#[from] clap_blocks::object_store::ParseError),
 
     #[error("Router2 error: {0}")]
-    Router2(#[from] ioxd_router2::Error),
+    Router2(#[from] ioxd_router::Error),
 
     #[error("Ingester error: {0}")]
     Ingester(#[from] ioxd_ingester::Error),

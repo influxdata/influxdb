@@ -1,19 +1,18 @@
 //! Implementation of command line option for running router2
 
-use std::sync::Arc;
-
+use super::main;
 use clap_blocks::{
     catalog_dsn::CatalogDsnConfig, run_config::RunConfig, write_buffer::WriteBufferConfig,
 };
-
-use ioxd_common::server_type::{CommonServerState, CommonServerStateError};
-use ioxd_common::Service;
-use ioxd_router2::create_router2_server_type;
+use ioxd_common::{
+    server_type::{CommonServerState, CommonServerStateError},
+    Service,
+};
+use ioxd_router::create_router2_server_type;
 use object_store::{instrumentation::ObjectStoreMetrics, DynObjectStore, ObjectStoreImpl};
 use observability_deps::tracing::*;
+use std::sync::Arc;
 use thiserror::Error;
-
-use super::main;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -27,7 +26,7 @@ pub enum Error {
     ObjectStoreParsing(#[from] clap_blocks::object_store::ParseError),
 
     #[error("Creating router: {0}")]
-    Router(#[from] ioxd_router2::Error),
+    Router(#[from] ioxd_router::Error),
 
     #[error("Catalog DSN error: {0}")]
     CatalogDsn(#[from] clap_blocks::catalog_dsn::Error),

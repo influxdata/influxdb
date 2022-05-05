@@ -1,5 +1,5 @@
 [package]
-name = "ioxd_router2"
+name = "ioxd_router"
 version = "0.1.0"
 edition = "2021"
 
