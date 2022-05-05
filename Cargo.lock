@@ -3307,6 +3307,7 @@ dependencies = [
  "data_types",
  "data_types2",
  "hashbrown 0.12.0",
+ "iox_time",
  "itertools",
  "rand",
  "schema",
