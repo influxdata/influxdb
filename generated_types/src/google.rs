@@ -233,7 +233,6 @@ pub enum ResourceType {
     DatabaseUuid,
     Job,
     Router,
-    ServerId,
     Unknown(String),
 }
 
@@ -247,7 +246,6 @@ impl ResourceType {
             Self::Chunk => "chunk",
             Self::Job => "job",
             Self::Router => "router",
-            Self::ServerId => "server_id",
             Self::Unknown(unknown) => unknown,
         }
     }
@@ -263,7 +261,6 @@ impl From<String> for ResourceType {
             "chunk" => Self::Chunk,
             "job" => Self::Job,
             "router" => Self::Router,
-            "server_id" => Self::ServerId,
             _ => Self::Unknown(s),
         }
     }
@@ -417,8 +414,6 @@ pub fn decode_not_found(status: &tonic::Status) -> impl Iterator<Item = NotFound
 /// prevents performing the requested operation
 #[derive(Debug, Clone, PartialEq)]
 pub enum PreconditionViolation {
-    /// Server ID not set
-    ServerIdNotSet,
     /// Database is not mutable
     DatabaseImmutable,
     /// Server not in required state for operation
@@ -444,7 +439,6 @@ pub enum PreconditionViolation {
 impl PreconditionViolation {
     fn description(&self) -> String {
         match self {
-            Self::ServerIdNotSet => "server id must be set".to_string(),
             Self::DatabaseImmutable => "database must be mutable".to_string(),
             Self::ServerInvalidState(description) => description.clone(),
             Self::DatabaseInvalidState(description) => description.clone(),
@@ -460,11 +454,6 @@ impl PreconditionViolation {
 impl From<PreconditionViolation> for rpc::precondition_failure::Violation {
     fn from(v: PreconditionViolation) -> Self {
         match v {
-            PreconditionViolation::ServerIdNotSet => Self {
-                r#type: "server_id".to_string(),
-                subject: "influxdata.com/iox".to_string(),
-                description: v.description(),
-            },
             PreconditionViolation::ServerInvalidState(_) => Self {
                 r#type: "state".to_string(),
                 subject: "influxdata.com/iox".to_string(),
@@ -516,7 +505,6 @@ impl From<PreconditionViolation> for rpc::precondition_failure::Violation {
 impl From<rpc::precondition_failure::Violation> for PreconditionViolation {
     fn from(v: rpc::precondition_failure::Violation) -> Self {
         match (v.r#type.as_str(), v.subject.as_str()) {
-            ("server_id", "influxdata.com/iox") => PreconditionViolation::ServerIdNotSet,
             ("state", "influxdata.com/iox") => {
                 PreconditionViolation::ServerInvalidState(v.description)
             }
