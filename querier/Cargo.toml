@@ -4,8 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-arrow = "12"
-arrow-flight = "12"
+arrow = "13"
+arrow-flight = "13"
 async-trait = "0.1.53"
 backoff = { path = "../backoff" }
 bytes = "1.0"

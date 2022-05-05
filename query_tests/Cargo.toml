@@ -8,7 +8,7 @@ description = "Tests of the query engine against different database configuratio
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-arrow = { version = "12", features = ["prettyprint"] }
+arrow = { version = "13", features = ["prettyprint"] }
 async-trait = "0.1"
 backoff = { path = "../backoff" }
 data_types = { path = "../data_types" }
@@ -34,7 +34,7 @@ query = { path = "../query" }
 workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]
-arrow = { version = "12", features = ["prettyprint"] }
+arrow = { version = "13", features = ["prettyprint"] }
 arrow_util = { path = "../arrow_util" }
 metric = { path = "../metric" }
 object_store = { path = "../object_store" }

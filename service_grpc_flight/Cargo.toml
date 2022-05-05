@@ -15,8 +15,8 @@ query = { path = "../query" }
 service_common = { path = "../service_common" }
 
 # Crates.io dependencies, in alphabetical order
-arrow = { version = "12", features = ["prettyprint"] }
-arrow-flight = "12"
+arrow = { version = "13", features = ["prettyprint"] }
+arrow-flight = "13"
 bytes = "1.0"
 futures = "0.3"
 pin-project = "1.0"

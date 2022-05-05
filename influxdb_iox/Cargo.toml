@@ -62,8 +62,8 @@ write_buffer = { path = "../write_buffer" }
 
 # Crates.io dependencies, in alphabetical order
 ansi_term = "0.12"
-arrow = { version = "12", features = ["prettyprint"] }
-arrow-flight = "12"
+arrow = { version = "13", features = ["prettyprint"] }
+arrow-flight = "13"
 async-trait = "0.1"
 backtrace = "0.3"
 byteorder = "1.3.4"
@@ -87,7 +87,7 @@ log = "0.4"
 num_cpus = "1.13.0"
 once_cell = { version = "1.10.0", features = ["parking_lot"] }
 parking_lot = "0.12"
-parquet = "12"
+parquet = "13"
 pin-project = "1.0"
 prost = "0.10"
 rustyline = { version = "9.0", default-features = false }

@@ -25,7 +25,7 @@ write_buffer = { path = "../write_buffer" }
 write_summary = { path = "../write_summary" }
 
 # Crates.io dependencies, in alphabetical order
-arrow-flight = "12"
+arrow-flight = "13"
 async-trait = "0.1"
 hashbrown = "0.12"
 hyper = "0.14"

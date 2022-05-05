@@ -31,7 +31,7 @@ tracker = { path = "../tracker" }
 uuid = { version = "0.8", features = ["v4"] }
 
 # Crates.io dependencies, in alphabetical order
-arrow-flight = "12"
+arrow-flight = "13"
 async-trait = "0.1"
 bytes = "1.0"
 futures = "0.3"
@@ -60,6 +60,6 @@ trace_exporters = { path = "../trace_exporters" }
 schema = { path = "../schema" }
 
 # Crates.io dependencies, in alphabetical order
-arrow = "12"
+arrow = "13"
 clap = { version = "3", features = ["derive", "env"] }
 reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls"] }

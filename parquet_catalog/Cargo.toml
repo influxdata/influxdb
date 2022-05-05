@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-arrow = { version = "12", features = ["prettyprint"] }
+arrow = { version = "13", features = ["prettyprint"] }
 base64 = "0.13"
 bytes = "1.0"
 data_types = { path = "../data_types" }
@@ -16,7 +16,7 @@ iox_object_store = { path = "../iox_object_store" }
 metric = { path = "../metric" }
 object_store = { path = "../object_store" }
 observability_deps = { path = "../observability_deps" }
-parquet = "12"
+parquet = "13"
 parquet_file = { path = "../parquet_file" }
 parquet-format = "4.0"
 parking_lot = "0.12"

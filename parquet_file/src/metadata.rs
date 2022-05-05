@@ -785,7 +785,7 @@ impl IoxParquetMetaData {
             num_rows: file_metadata.num_rows(),
             row_groups: thrift_row_groups,
             key_value_metadata: file_metadata.key_value_metadata().cloned(),
-            created_by: file_metadata.created_by().clone(),
+            created_by: file_metadata.created_by().map(|s| s.to_string()),
             encryption_algorithm: None,
             footer_signing_key_metadata: None,
         };

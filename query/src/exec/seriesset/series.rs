@@ -183,7 +183,7 @@ impl SeriesSet {
 
         // Only take timestamps (and values) from the rows that have non
         // null values for this field
-        let valid = array.data().null_bitmap().as_ref();
+        let valid = array.data().null_bitmap();
 
         let timestamps = batch
             .column(index.timestamp_index)
