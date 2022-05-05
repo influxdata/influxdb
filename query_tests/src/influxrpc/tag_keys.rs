@@ -1,5 +1,5 @@
 use crate::scenarios::*;
-use data_types2::{MAX_NANO_TIME, MIN_NANO_TIME};
+use data_types::{MAX_NANO_TIME, MIN_NANO_TIME};
 use datafusion::logical_plan::{col, lit};
 use predicate::{rpc_predicate::InfluxRpcPredicate, PredicateBuilder};
 use query::{
@@ -7,11 +7,9 @@ use query::{
     frontend::influxrpc::InfluxRpcPlanner,
 };
 
-/// Creates and loads several database scenarios using the db_setup
-/// function.
+/// Creates and loads several database scenarios using the db_setup function.
 ///
-/// runs table_column_names(predicate) and compares it to the expected
-/// output
+/// Runs table_column_names(predicate) and compares it to the expected output.
 async fn run_tag_keys_test_case<D>(
     db_setup: D,
     predicate: InfluxRpcPredicate,

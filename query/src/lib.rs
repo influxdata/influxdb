@@ -9,18 +9,20 @@
 )]
 
 use async_trait::async_trait;
-use data_types2::{
+use data_types::{
     ChunkAddr, ChunkId, ChunkOrder, DeletePredicate, InfluxDbType, PartitionId, TableSummary,
     TimestampMinMax,
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
 use exec::{stringset::StringSet, IOxSessionContext};
+use hashbrown::HashMap;
 use observability_deps::tracing::{debug, trace};
 use predicate::{rpc_predicate::QueryDatabaseMeta, Predicate, PredicateMatch};
-use schema::selection::Selection;
-use schema::{sort::SortKey, Schema, TIME_COLUMN_NAME};
-
-use hashbrown::HashMap;
+use schema::{
+    selection::Selection,
+    sort::{SortKey, SortKeyBuilder},
+    Schema, TIME_COLUMN_NAME,
+};
 use std::{collections::BTreeSet, fmt::Debug, iter::FromIterator, sync::Arc};
 
 pub mod exec;
@@ -32,8 +34,6 @@ pub mod statistics;
 pub mod util;
 
 pub use exec::context::{DEFAULT_CATALOG, DEFAULT_SCHEMA};
-use schema::sort::SortKeyBuilder;
-
 pub use query_functions::group_by::{Aggregate, WindowDuration};
 
 /// Trait for an object (designed to be a Chunk) which can provide

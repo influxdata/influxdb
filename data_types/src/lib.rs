@@ -1313,7 +1313,7 @@ pub enum DatabaseNameError {
 /// that is expecting a `str`:
 ///
 /// ```rust
-/// # use data_types2::DatabaseName;
+/// # use data_types::DatabaseName;
 /// fn print_database(s: &str) {
 ///     println!("database name: {}", s);
 /// }

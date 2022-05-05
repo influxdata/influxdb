@@ -1,5 +1,5 @@
 use super::Sharder;
-use data_types2::{DatabaseName, DeletePredicate};
+use data_types::{DatabaseName, DeletePredicate};
 use mutable_batch::MutableBatch;
 use parking_lot::Mutex;
 use std::{collections::VecDeque, fmt::Debug, sync::Arc};

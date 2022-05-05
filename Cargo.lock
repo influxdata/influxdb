@@ -812,7 +812,7 @@ dependencies = [
  "async-trait",
  "backoff 0.1.0",
  "bytes",
- "data_types2",
+ "data_types",
  "datafusion 0.1.0",
  "futures",
  "iox_catalog",
@@ -1149,7 +1149,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "data_types2"
+name = "data_types"
 version = "0.1.0"
 dependencies = [
  "influxdb_line_protocol",
@@ -1392,7 +1392,7 @@ name = "dml"
 version = "0.1.0"
 dependencies = [
  "arrow_util",
- "data_types2",
+ "data_types",
  "hashbrown 0.12.0",
  "iox_time",
  "mutable_batch",
@@ -1714,7 +1714,7 @@ name = "generated_types"
 version = "0.1.0"
 dependencies = [
  "bytes",
- "data_types2",
+ "data_types",
  "datafusion 0.1.0",
  "iox_time",
  "num_cpus",
@@ -2146,7 +2146,7 @@ dependencies = [
  "compactor",
  "console-subscriber",
  "csv",
- "data_types2",
+ "data_types",
  "datafusion 0.1.0",
  "dml",
  "dotenv",
@@ -2313,7 +2313,7 @@ dependencies = [
  "bitflags",
  "bytes",
  "chrono",
- "data_types2",
+ "data_types",
  "datafusion 0.1.0",
  "datafusion_util",
  "dml",
@@ -2385,7 +2385,7 @@ version = "0.1.0"
 dependencies = [
  "assert_matches",
  "async-trait",
- "data_types2",
+ "data_types",
  "dotenv",
  "futures",
  "iox_time",
@@ -2411,7 +2411,7 @@ name = "iox_catalog_service"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "data_types2",
+ "data_types",
  "generated_types",
  "iox_catalog",
  "iox_time",
@@ -2489,7 +2489,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "bytes",
- "data_types2",
+ "data_types",
  "futures",
  "generated_types",
  "iox_catalog",
@@ -2514,7 +2514,7 @@ version = "0.1.0"
 dependencies = [
  "arrow",
  "bytes",
- "data_types2",
+ "data_types",
  "datafusion 0.1.0",
  "iox_catalog",
  "iox_time",
@@ -2546,7 +2546,7 @@ dependencies = [
  "chrono",
  "clap 3.1.12",
  "clap_blocks",
- "data_types2",
+ "data_types",
  "dml",
  "flate2",
  "futures",
@@ -2586,7 +2586,7 @@ dependencies = [
  "async-trait",
  "clap_blocks",
  "compactor",
- "data_types2",
+ "data_types",
  "generated_types",
  "hyper",
  "iox_catalog",
@@ -2614,7 +2614,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "clap_blocks",
- "data_types2",
+ "data_types",
  "generated_types",
  "hyper",
  "ingester",
@@ -2644,7 +2644,7 @@ version = "0.1.0"
 dependencies = [
  "arrow-flight",
  "async-trait",
- "data_types2",
+ "data_types",
  "generated_types",
  "hyper",
  "iox_catalog",
@@ -2677,7 +2677,7 @@ dependencies = [
  "arrow-flight",
  "async-trait",
  "clap_blocks",
- "data_types2",
+ "data_types",
  "generated_types",
  "hashbrown 0.12.0",
  "hyper",
@@ -3278,7 +3278,7 @@ dependencies = [
  "arrow",
  "arrow_util",
  "chrono",
- "data_types2",
+ "data_types",
  "hashbrown 0.12.0",
  "iox_time",
  "itertools",
@@ -3774,7 +3774,7 @@ dependencies = [
  "arrow_util",
  "base64 0.13.0",
  "bytes",
- "data_types2",
+ "data_types",
  "datafusion 0.1.0",
  "datafusion_util",
  "futures",
@@ -4032,7 +4032,7 @@ version = "0.1.0"
 dependencies = [
  "arrow",
  "chrono",
- "data_types2",
+ "data_types",
  "datafusion 0.1.0",
  "datafusion_util",
  "itertools",
@@ -4240,7 +4240,7 @@ dependencies = [
  "bytes",
  "client_util",
  "criterion",
- "data_types2",
+ "data_types",
  "datafusion 0.1.0",
  "datafusion_util",
  "futures",
@@ -4284,7 +4284,7 @@ dependencies = [
  "async-trait",
  "chrono",
  "croaring",
- "data_types2",
+ "data_types",
  "datafusion 0.1.0",
  "datafusion_util",
  "executor",
@@ -4334,7 +4334,7 @@ dependencies = [
  "arrow_util",
  "async-trait",
  "backoff 0.1.0",
- "data_types2",
+ "data_types",
  "datafusion 0.1.0",
  "dml",
  "futures",
@@ -4492,7 +4492,7 @@ dependencies = [
  "arrow_util",
  "criterion",
  "croaring",
- "data_types2",
+ "data_types",
  "datafusion 0.1.0",
  "either",
  "hashbrown 0.12.0",
@@ -4637,7 +4637,7 @@ dependencies = [
  "async-trait",
  "bytes",
  "criterion",
- "data_types2",
+ "data_types",
  "dml",
  "flate2",
  "futures",
@@ -5167,7 +5167,7 @@ dependencies = [
  "arrow",
  "arrow-flight",
  "bytes",
- "data_types2",
+ "data_types",
  "datafusion 0.1.0",
  "futures",
  "generated_types",
@@ -5190,7 +5190,7 @@ version = "0.1.0"
 dependencies = [
  "arrow",
  "async-trait",
- "data_types2",
+ "data_types",
  "datafusion 0.1.0",
  "futures",
  "generated_types",
@@ -6759,7 +6759,7 @@ name = "write_buffer"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "data_types2",
+ "data_types",
  "dml",
  "dotenv",
  "futures",
@@ -6793,7 +6793,7 @@ name = "write_summary"
 version = "0.1.0"
 dependencies = [
  "base64 0.13.0",
- "data_types2",
+ "data_types",
  "dml",
  "generated_types",
  "iox_time",

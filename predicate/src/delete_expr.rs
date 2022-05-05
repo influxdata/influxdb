@@ -1,4 +1,4 @@
-use data_types2::{DeleteExpr, Op, Scalar};
+use data_types::{DeleteExpr, Op, Scalar};
 use snafu::{ResultExt, Snafu};
 use std::ops::Deref;
 

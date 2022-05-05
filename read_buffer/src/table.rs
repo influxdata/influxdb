@@ -7,7 +7,7 @@ use crate::{
     BinaryExpr,
 };
 use arrow::record_batch::RecordBatch;
-use data_types2::TableSummary;
+use data_types::TableSummary;
 use parking_lot::RwLock;
 use schema::selection::Selection;
 use snafu::{ensure, Snafu};
@@ -783,7 +783,7 @@ impl MetaData {
     }
 
     pub fn to_summary(&self) -> TableSummary {
-        use data_types2::{ColumnSummary, StatValues, Statistics};
+        use data_types::{ColumnSummary, StatValues, Statistics};
         let columns = self
             .columns
             .iter()
@@ -851,8 +851,8 @@ impl MetaData {
 fn make_null_stats(
     total_count: u64,
     logical_data_type: &LogicalDataType,
-) -> data_types2::Statistics {
-    use data_types2::{StatValues, Statistics};
+) -> data_types::Statistics {
+    use data_types::{StatValues, Statistics};
     use LogicalDataType::*;
 
     match logical_data_type {
@@ -1112,7 +1112,7 @@ mod test {
         value::{AggregateVec, OwnedValue, Scalar},
     };
     use arrow::array::BooleanArray;
-    use data_types2::{StatValues, Statistics};
+    use data_types::{StatValues, Statistics};
 
     #[test]
     fn meta_data_update_with() {

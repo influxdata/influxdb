@@ -1,4 +1,4 @@
-use data_types2::SequenceNumber;
+use data_types::SequenceNumber;
 
 /// Information on how much data a particular sequencer has been processed
 ///

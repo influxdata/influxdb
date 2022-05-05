@@ -12,8 +12,7 @@
     clippy::clone_on_ref_ptr
 )]
 
-use futures::stream::BoxStream;
-use futures::StreamExt;
+use futures::{stream::BoxStream, StreamExt};
 use generated_types::influxdata::iox::object_store::v1::*;
 use iox_catalog::interface::Catalog;
 use object_store::DynObjectStore;
@@ -96,7 +95,7 @@ impl object_store_service_server::ObjectStoreService for ObjectStoreService {
 mod tests {
     use super::*;
     use bytes::Bytes;
-    use data_types2::{KafkaPartition, ParquetFileParams, SequenceNumber, Timestamp};
+    use data_types::{KafkaPartition, ParquetFileParams, SequenceNumber, Timestamp};
     use generated_types::influxdata::iox::object_store::v1::object_store_service_server::ObjectStoreService;
     use iox_catalog::mem::MemCatalog;
     use object_store::{ObjectStoreApi, ObjectStoreImpl};

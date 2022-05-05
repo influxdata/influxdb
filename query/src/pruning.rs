@@ -7,7 +7,7 @@ use arrow::{
     },
     datatypes::{DataType, Int32Type, TimeUnit},
 };
-use data_types2::{StatValues, Statistics};
+use data_types::{StatValues, Statistics};
 use datafusion::{
     logical_plan::Column,
     physical_optimizer::pruning::{PruningPredicate, PruningStatistics},

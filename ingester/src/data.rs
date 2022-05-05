@@ -10,7 +10,7 @@ use crate::{
 use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig};
-use data_types2::{
+use data_types::{
     DeletePredicate, KafkaPartition, NamespaceId, PartitionId, PartitionInfo, SequenceNumber,
     SequencerId, TableId, Timestamp, Tombstone,
 };
@@ -1519,7 +1519,7 @@ mod tests {
     };
     use arrow_util::assert_batches_sorted_eq;
     use assert_matches::assert_matches;
-    use data_types2::{
+    use data_types::{
         NamespaceSchema, NonEmptyString, ParquetFileParams, Sequence, TimestampRange,
     };
     use dml::{DmlDelete, DmlMeta, DmlWrite};

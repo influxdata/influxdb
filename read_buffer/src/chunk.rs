@@ -5,7 +5,7 @@ use crate::{
     table::{self, Table},
 };
 use arrow::{error::ArrowError, record_batch::RecordBatch};
-use data_types2::TableSummary;
+use data_types::TableSummary;
 use observability_deps::tracing::debug;
 use schema::{builder::Error as SchemaError, selection::Selection, Schema};
 use snafu::{ResultExt, Snafu};
@@ -536,7 +536,7 @@ mod test {
             Int32Type,
         },
     };
-    use data_types2::{ColumnSummary, InfluxDbType, StatValues, Statistics};
+    use data_types::{ColumnSummary, InfluxDbType, StatValues, Statistics};
     use metric::{Attributes, MetricKind, Observation, ObservationSet, RawReporter};
     use schema::builder::SchemaBuilder;
     use std::{iter::FromIterator, num::NonZeroU64, sync::Arc};

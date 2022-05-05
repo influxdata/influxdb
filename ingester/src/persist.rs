@@ -81,7 +81,7 @@ pub async fn persist(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use data_types2::{NamespaceId, PartitionId, SequenceNumber, SequencerId, TableId};
+    use data_types::{NamespaceId, PartitionId, SequenceNumber, SequencerId, TableId};
     use iox_catalog::interface::INITIAL_COMPACTION_LEVEL;
     use iox_time::Time;
     use object_store::{ObjectStoreImpl, ObjectStoreTestConvenience};

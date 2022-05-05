@@ -1,5 +1,5 @@
 use crate::codec::{ContentType, IoxHeaders};
-use data_types2::Sequence;
+use data_types::Sequence;
 use dml::{DmlMeta, DmlOperation, DmlWrite};
 use hashbrown::{hash_map::Entry, HashMap};
 use iox_time::{Time, TimeProvider};

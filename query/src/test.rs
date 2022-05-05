@@ -3,20 +3,23 @@
 //!
 //! AKA it is a Mock
 
-use crate::exec::{ExecutionContextProvider, Executor, ExecutorType, IOxSessionContext};
 use crate::{
-    exec::stringset::{StringSet, StringSetRef},
-    Predicate, PredicateMatch, QueryChunk, QueryChunkMeta, QueryDatabase,
+    exec::{
+        stringset::{StringSet, StringSetRef},
+        ExecutionContextProvider, Executor, ExecutorType, IOxSessionContext,
+    },
+    Predicate, PredicateMatch, QueryChunk, QueryChunkError, QueryChunkMeta, QueryCompletedToken,
+    QueryDatabase, QueryDatabaseError, QueryText,
 };
-use crate::{QueryChunkError, QueryCompletedToken, QueryDatabaseError, QueryText};
-use arrow::array::UInt64Array;
 use arrow::{
-    array::{ArrayRef, DictionaryArray, Int64Array, StringArray, TimestampNanosecondArray},
+    array::{
+        ArrayRef, DictionaryArray, Int64Array, StringArray, TimestampNanosecondArray, UInt64Array,
+    },
     datatypes::{DataType, Int32Type, TimeUnit},
     record_batch::RecordBatch,
 };
 use async_trait::async_trait;
-use data_types2::{
+use data_types::{
     ChunkAddr, ChunkId, ChunkOrder, ColumnSummary, DeletePredicate, InfluxDbType, PartitionId,
     StatValues, Statistics, TableSummary, TimestampMinMax,
 };
@@ -27,12 +30,11 @@ use hashbrown::HashSet;
 use observability_deps::tracing::debug;
 use parking_lot::Mutex;
 use predicate::rpc_predicate::QueryDatabaseMeta;
-use schema::selection::Selection;
 use schema::{
-    builder::SchemaBuilder, merge::SchemaMerger, sort::SortKey, InfluxColumnType, Schema,
+    builder::SchemaBuilder, merge::SchemaMerger, selection::Selection, sort::SortKey,
+    InfluxColumnType, Schema,
 };
-use std::num::NonZeroU64;
-use std::{collections::BTreeMap, fmt, sync::Arc};
+use std::{collections::BTreeMap, fmt, num::NonZeroU64, sync::Arc};
 use trace::ctx::SpanContext;
 
 #[derive(Debug)]

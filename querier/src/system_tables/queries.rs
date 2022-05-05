@@ -1,16 +1,17 @@
-use crate::system_tables::BatchIterator;
 use crate::{
     query_log::{QueryLog, QueryLogEntry},
-    system_tables::IoxSystemTable,
+    system_tables::{BatchIterator, IoxSystemTable},
 };
-use arrow::array::{ArrayRef, BooleanArray, Int64Array};
 use arrow::{
-    array::{DurationNanosecondArray, StringArray, TimestampNanosecondArray},
+    array::{
+        ArrayRef, BooleanArray, DurationNanosecondArray, Int64Array, StringArray,
+        TimestampNanosecondArray,
+    },
     datatypes::{DataType, Field, Schema, SchemaRef, TimeUnit},
     error::Result,
     record_batch::RecordBatch,
 };
-use data_types2::NamespaceId;
+use data_types::NamespaceId;
 use observability_deps::tracing::error;
 use std::{collections::VecDeque, sync::Arc};
 

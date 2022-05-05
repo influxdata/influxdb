@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 base64 = "0.13"
-data_types2 = { path = "../data_types2" }
+data_types = { path = "../data_types" }
 dml = { path = "../dml" }
 generated_types = { path = "../generated_types" }
 observability_deps = { path = "../observability_deps" }

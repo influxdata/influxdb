@@ -5,7 +5,7 @@ use std::{str::Utf8Error, sync::Arc};
 use crate::dml_handlers::{DmlError, DmlHandler, PartitionError, SchemaError};
 
 use bytes::{Bytes, BytesMut};
-use data_types2::{org_and_bucket_to_database, OrgBucketMappingError};
+use data_types::{org_and_bucket_to_database, OrgBucketMappingError};
 use futures::StreamExt;
 use hashbrown::HashMap;
 use hyper::{header::CONTENT_ENCODING, Body, Method, Request, Response, StatusCode};

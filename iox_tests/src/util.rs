@@ -5,7 +5,7 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use bytes::Bytes;
-use data_types2::{
+use data_types::{
     Column, ColumnType, KafkaPartition, KafkaTopic, Namespace, ParquetFile, ParquetFileId,
     ParquetFileParams, ParquetFileWithMetadata, Partition, PartitionId, QueryPool, SequenceNumber,
     Sequencer, SequencerId, Table, TableId, Timestamp, Tombstone, TombstoneId,

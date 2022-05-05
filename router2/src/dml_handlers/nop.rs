@@ -2,7 +2,7 @@
 
 use super::{DmlError, DmlHandler};
 use async_trait::async_trait;
-use data_types2::{DatabaseName, DeletePredicate};
+use data_types::{DatabaseName, DeletePredicate};
 use observability_deps::tracing::*;
 use std::{fmt::Debug, marker::PhantomData};
 use trace::ctx::SpanContext;

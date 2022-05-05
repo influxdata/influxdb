@@ -1,15 +1,17 @@
 //! Data Points for the lifecycle of the Compactor
 
-use crate::handler::CompactorConfig;
-use crate::utils::GroupWithMinTimeAndSize;
 use crate::{
+    handler::CompactorConfig,
     query::QueryableParquetChunk,
-    utils::{CatalogUpdate, CompactedData, GroupWithTombstones, ParquetFileWithTombstone},
+    utils::{
+        CatalogUpdate, CompactedData, GroupWithMinTimeAndSize, GroupWithTombstones,
+        ParquetFileWithTombstone,
+    },
 };
 use arrow::record_batch::RecordBatch;
 use backoff::{Backoff, BackoffConfig};
 use bytes::Bytes;
-use data_types2::{
+use data_types::{
     ParquetFile, ParquetFileId, ParquetFileWithMetadata, PartitionId, SequencerId, TableId,
     TablePartition, Timestamp, Tombstone, TombstoneId,
 };
@@ -23,10 +25,10 @@ use parquet_file::{
     metadata::{IoxMetadata, IoxParquetMetaData},
     ParquetFilePath,
 };
-use query::provider::overlap::group_potential_duplicates;
 use query::{
     exec::{Executor, ExecutorType},
     frontend::reorg::ReorgPlanner,
+    provider::overlap::group_potential_duplicates,
     util::compute_timenanosecond_min_max,
     QueryChunk,
 };
@@ -1085,7 +1087,7 @@ pub struct PartitionCompactionCandidate {
 mod tests {
     use super::*;
     use arrow_util::assert_batches_sorted_eq;
-    use data_types2::{ChunkId, KafkaPartition, NamespaceId, ParquetFileParams, SequenceNumber};
+    use data_types::{ChunkId, KafkaPartition, NamespaceId, ParquetFileParams, SequenceNumber};
     use iox_catalog::interface::INITIAL_COMPACTION_LEVEL;
     use iox_tests::util::TestCatalog;
     use iox_time::SystemProvider;

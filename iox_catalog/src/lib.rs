@@ -11,12 +11,11 @@
     clippy::clone_on_ref_ptr
 )]
 
-use crate::interface::{Error, Result, Transaction};
-use data_types2::{
+use crate::interface::{ColumnUpsertRequest, Error, RepoCollection, Result, Transaction};
+use data_types::{
     ColumnType, KafkaPartition, KafkaTopic, NamespaceSchema, QueryPool, Sequencer, SequencerId,
     TableSchema,
 };
-use interface::{ColumnUpsertRequest, RepoCollection};
 use mutable_batch::MutableBatch;
 use std::{borrow::Cow, collections::BTreeMap};
 

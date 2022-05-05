@@ -1,5 +1,5 @@
 use super::Sharder;
-use data_types2::DatabaseName;
+use data_types::DatabaseName;
 use siphasher::sip::SipHasher13;
 use std::{
     fmt::Debug,

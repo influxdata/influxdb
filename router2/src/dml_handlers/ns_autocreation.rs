@@ -1,7 +1,7 @@
 use super::DmlHandler;
 use crate::namespace_cache::NamespaceCache;
 use async_trait::async_trait;
-use data_types2::{DatabaseName, DeletePredicate, KafkaTopicId, QueryPoolId};
+use data_types::{DatabaseName, DeletePredicate, KafkaTopicId, QueryPoolId};
 use iox_catalog::interface::Catalog;
 use observability_deps::tracing::*;
 use std::{fmt::Debug, marker::PhantomData, sync::Arc};
@@ -132,7 +132,7 @@ where
 mod tests {
     use super::*;
     use crate::namespace_cache::MemoryNamespaceCache;
-    use data_types2::{Namespace, NamespaceId, NamespaceSchema};
+    use data_types::{Namespace, NamespaceId, NamespaceSchema};
     use iox_catalog::mem::MemCatalog;
     use std::sync::Arc;
 

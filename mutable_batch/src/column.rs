@@ -9,7 +9,7 @@ use arrow::{
     error::ArrowError,
 };
 use arrow_util::{bitset::BitSet, string::PackedStringArray};
-use data_types2::{StatValues, Statistics};
+use data_types::{StatValues, Statistics};
 use schema::{InfluxColumnType, InfluxFieldType, TIME_DATA_TYPE};
 use snafu::{ResultExt, Snafu};
 use std::{fmt::Formatter, mem, sync::Arc};

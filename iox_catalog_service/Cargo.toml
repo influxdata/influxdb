@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 async-trait = "0.1"
-data_types2 = { path = "../data_types2" }
+data_types = { path = "../data_types" }
 generated_types = { path = "../generated_types" }
 iox_catalog = { path = "../iox_catalog" }
 observability_deps = { path = "../observability_deps" }

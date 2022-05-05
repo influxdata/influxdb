@@ -6,7 +6,7 @@ description = "DML types"
 
 [dependencies]
 arrow_util = { path = "../arrow_util" }
-data_types2 = { path = "../data_types2" }
+data_types = { path = "../data_types" }
 hashbrown = "0.12"
 mutable_batch = { path = "../mutable_batch" }
 ordered-float = "3"

@@ -11,7 +11,7 @@ use crate::{
     },
 };
 use async_trait::async_trait;
-use data_types2::Sequence;
+use data_types::Sequence;
 use dml::{DmlMeta, DmlOperation};
 use futures::{stream::BoxStream, StreamExt};
 use iox_time::{Time, TimeProvider};
@@ -367,7 +367,7 @@ mod tests {
         },
         maybe_skip_kafka_integration,
     };
-    use data_types2::{DeletePredicate, TimestampRange};
+    use data_types::{DeletePredicate, TimestampRange};
     use dml::{test_util::assert_write_op_eq, DmlDelete, DmlWrite};
     use futures::{stream::FuturesUnordered, TryStreamExt};
     use rskafka::{client::partition::Compression, record::Record};

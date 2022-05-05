@@ -1,5 +1,5 @@
 use crate::chunk::{ChunkStorage, QuerierChunk};
-use data_types2::{
+use data_types::{
     ChunkAddr, ChunkId, ChunkOrder, DeletePredicate, PartitionId, TableSummary, TimestampMinMax,
 };
 use observability_deps::tracing::debug;

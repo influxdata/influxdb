@@ -1,7 +1,7 @@
 //! Metric instrumentation for a [`NamespaceCache`] implementation.
 
 use super::NamespaceCache;
-use data_types2::{DatabaseName, NamespaceSchema};
+use data_types::{DatabaseName, NamespaceSchema};
 use iox_time::{SystemProvider, TimeProvider};
 use metric::{Metric, U64Gauge, U64Histogram, U64HistogramOptions};
 use std::sync::Arc;
@@ -163,7 +163,7 @@ impl NamespaceStats {
 mod tests {
     use super::*;
     use crate::namespace_cache::MemoryNamespaceCache;
-    use data_types2::{
+    use data_types::{
         ColumnId, ColumnSchema, ColumnType, KafkaTopicId, NamespaceId, QueryPoolId, TableId,
         TableSchema,
     };

@@ -2,7 +2,7 @@
 
 use crate::cache::CatalogCache;
 use arrow::record_batch::RecordBatch;
-use data_types2::{
+use data_types::{
     ChunkAddr, ChunkId, ChunkOrder, DeletePredicate, ParquetFile, ParquetFileId,
     ParquetFileWithMetadata, PartitionId, SequenceNumber, SequencerId, TimestampMinMax,
 };

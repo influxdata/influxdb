@@ -17,7 +17,7 @@
 
 use crate::column::{Column, ColumnData};
 use arrow::record_batch::RecordBatch;
-use data_types2::StatValues;
+use data_types::StatValues;
 use hashbrown::HashMap;
 use iox_time::Time;
 use schema::selection::Selection;

@@ -6,7 +6,7 @@ use super::{
 };
 use crate::scenarios::util::all_scenarios_for_one_chunk;
 use async_trait::async_trait;
-use data_types2::{DeleteExpr, DeletePredicate, Op, Scalar, TimestampRange};
+use data_types::{DeleteExpr, DeletePredicate, Op, Scalar, TimestampRange};
 
 // ================================================================================================
 // DELETE TEST SETUPS: chunk lp data, how many chunks, their types, how many delete predicates and

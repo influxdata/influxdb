@@ -2,7 +2,7 @@
 
 use bytes::Bytes;
 use clap_blocks::{catalog_dsn::CatalogDsnConfig, object_store::ObjectStoreConfig};
-use data_types2::{
+use data_types::{
     ColumnType, KafkaPartition, NamespaceId, NamespaceSchema as CatalogNamespaceSchema,
     ParquetFile as CatalogParquetFile, ParquetFileParams, PartitionId, SequenceNumber, SequencerId,
     TableId, Timestamp,
@@ -370,7 +370,7 @@ struct PartitionMapping {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use data_types2::{ColumnType, ParquetFileId};
+    use data_types::{ColumnType, ParquetFileId};
     use influxdb_iox_client::schema::generated_types::*;
     use iox_catalog::mem::MemCatalog;
     use std::collections::HashMap;

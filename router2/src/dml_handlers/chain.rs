@@ -1,6 +1,6 @@
 use super::{DmlError, DmlHandler};
 use async_trait::async_trait;
-use data_types2::{DatabaseName, DeletePredicate};
+use data_types::{DatabaseName, DeletePredicate};
 use trace::ctx::SpanContext;
 
 /// An extension trait to chain together the execution of a pair of

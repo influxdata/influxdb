@@ -6,7 +6,7 @@ members = [
     "clap_blocks",
     "client_util",
     "compactor",
-    "data_types2",
+    "data_types",
     "datafusion",
     "datafusion_util",
     "dml",

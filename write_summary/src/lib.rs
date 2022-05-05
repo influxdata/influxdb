@@ -1,4 +1,4 @@
-use data_types2::{KafkaPartition, SequenceNumber};
+use data_types::{KafkaPartition, SequenceNumber};
 use dml::DmlMeta;
 /// Protobuf to/from conversion
 use generated_types::influxdata::iox::write_summary::v1 as proto;
@@ -200,7 +200,7 @@ impl TryFrom<proto::WriteSummary> for WriteSummary {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use data_types2::Sequence;
+    use data_types::Sequence;
 
     #[test]
     fn empty() {

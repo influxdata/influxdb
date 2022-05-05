@@ -1,5 +1,5 @@
 use super::NamespaceCache;
-use data_types2::{DatabaseName, NamespaceSchema};
+use data_types::{DatabaseName, NamespaceSchema};
 use hashbrown::HashMap;
 use parking_lot::RwLock;
 use std::sync::Arc;
@@ -28,7 +28,7 @@ impl NamespaceCache for Arc<MemoryNamespaceCache> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use data_types2::{KafkaTopicId, NamespaceId, QueryPoolId};
+    use data_types::{KafkaTopicId, NamespaceId, QueryPoolId};
 
     #[test]
     fn test_put_get() {

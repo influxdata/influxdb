@@ -1,6 +1,6 @@
 use super::DmlHandler;
 use async_trait::async_trait;
-use data_types2::{DatabaseName, DeletePredicate, PartitionTemplate};
+use data_types::{DatabaseName, DeletePredicate, PartitionTemplate};
 use hashbrown::HashMap;
 use mutable_batch::{MutableBatch, PartitionWrite, WritePayload};
 use observability_deps::tracing::*;
@@ -117,7 +117,7 @@ impl DmlHandler for Partitioner {
 mod tests {
     use super::*;
     use assert_matches::assert_matches;
-    use data_types2::TemplatePart;
+    use data_types::TemplatePart;
 
     /// The default timestamp applied to test LP if the write does not specify
     /// one.

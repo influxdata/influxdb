@@ -1,4 +1,4 @@
-use data_types2::DatabaseName;
+use data_types::DatabaseName;
 use std::fmt::Debug;
 
 /// A [`Sharder`] implementation is responsible for mapping an opaque payload

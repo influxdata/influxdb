@@ -3,7 +3,7 @@ use crate::{
     storage::Storage,
     ParquetFilePath,
 };
-use data_types2::{
+use data_types::{
     ParquetFile, ParquetFileWithMetadata, Statistics, TableSummary, TimestampMinMax, TimestampRange,
 };
 use datafusion::physical_plan::SendableRecordBatchStream;

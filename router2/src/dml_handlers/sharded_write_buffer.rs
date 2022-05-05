@@ -3,7 +3,7 @@
 use super::Partitioned;
 use crate::{dml_handlers::DmlHandler, sequencer::Sequencer, sharder::Sharder};
 use async_trait::async_trait;
-use data_types2::{DatabaseName, DeletePredicate, NonEmptyString};
+use data_types::{DatabaseName, DeletePredicate, NonEmptyString};
 use dml::{DmlDelete, DmlMeta, DmlOperation, DmlWrite};
 use futures::{stream::FuturesUnordered, StreamExt};
 use hashbrown::HashMap;
@@ -203,7 +203,7 @@ mod tests {
         sharder::mock::{MockSharder, MockSharderCall},
     };
     use assert_matches::assert_matches;
-    use data_types2::TimestampRange;
+    use data_types::TimestampRange;
     use std::sync::Arc;
     use write_buffer::mock::{MockBufferForWriting, MockBufferSharedState};
 

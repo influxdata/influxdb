@@ -1,6 +1,6 @@
 use super::NamespaceCache;
 use crate::sharder::JumpHash;
-use data_types2::{DatabaseName, NamespaceSchema};
+use data_types::{DatabaseName, NamespaceSchema};
 use std::sync::Arc;
 
 /// A decorator sharding the [`NamespaceCache`] keyspace into a set of `T`.
@@ -40,7 +40,7 @@ where
 mod tests {
     use super::*;
     use crate::namespace_cache::MemoryNamespaceCache;
-    use data_types2::{KafkaTopicId, NamespaceId, QueryPoolId};
+    use data_types::{KafkaTopicId, NamespaceId, QueryPoolId};
     use rand::{distributions::Alphanumeric, thread_rng, Rng};
     use std::{collections::HashMap, iter};
 

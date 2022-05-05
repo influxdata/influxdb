@@ -12,7 +12,7 @@ pub mod chunk;
 pub mod metadata;
 pub mod storage;
 
-use data_types2::{NamespaceId, PartitionId, SequencerId, TableId};
+use data_types::{NamespaceId, PartitionId, SequencerId, TableId};
 use object_store::{
     path::{parsed::DirsAndFileName, ObjectStorePath, Path},
     DynObjectStore,

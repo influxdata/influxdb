@@ -129,7 +129,7 @@ use crate::{
     core::{WriteBufferError, WriteBufferReading, WriteBufferStreamHandler, WriteBufferWriting},
 };
 use async_trait::async_trait;
-use data_types2::Sequence;
+use data_types::Sequence;
 use dml::{DmlMeta, DmlOperation};
 use futures::{stream::BoxStream, Stream, StreamExt};
 use iox_time::{Time, TimeProvider};

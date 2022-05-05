@@ -1,10 +1,11 @@
-use std::sync::Arc;
-
+use super::{
+    error::{HttpApiError, HttpApiErrorExt, HttpApiErrorSource},
+    metrics::LineProtocolMetrics,
+};
+use crate::{http::utils::parse_body, server_type::ServerType};
 use async_trait::async_trait;
 use chrono::Utc;
-use data_types2::{
-    org_and_bucket_to_database, DatabaseName, NonEmptyString, OrgBucketMappingError,
-};
+use data_types::{org_and_bucket_to_database, DatabaseName, NonEmptyString, OrgBucketMappingError};
 use dml::{DmlDelete, DmlMeta, DmlOperation, DmlWrite};
 use hyper::{Body, Method, Request, Response, StatusCode};
 use mutable_batch_lp::LinesConverter;
@@ -12,13 +13,7 @@ use observability_deps::tracing::debug;
 use predicate::delete_predicate::{parse_delete_predicate, parse_http_delete_request};
 use serde::Deserialize;
 use snafu::{OptionExt, ResultExt, Snafu};
-
-use crate::{http::utils::parse_body, server_type::ServerType};
-
-use super::{
-    error::{HttpApiError, HttpApiErrorExt, HttpApiErrorSource},
-    metrics::LineProtocolMetrics,
-};
+use std::sync::Arc;
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Snafu)]

@@ -1,10 +1,8 @@
-use std::{iter, sync::Arc};
-
 use criterion::{
     criterion_group, criterion_main, measurement::WallTime, BatchSize, BenchmarkGroup, Criterion,
     Throughput,
 };
-use data_types2::DatabaseName;
+use data_types::DatabaseName;
 use hashbrown::HashMap;
 use iox_catalog::mem::MemCatalog;
 use mutable_batch::MutableBatch;
@@ -13,6 +11,7 @@ use router2::{
     namespace_cache::{MemoryNamespaceCache, ShardedCache},
 };
 use schema::selection::Selection;
+use std::{iter, sync::Arc};
 use tokio::runtime::Runtime;
 
 lazy_static::lazy_static! {

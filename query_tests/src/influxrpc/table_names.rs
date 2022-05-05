@@ -1,6 +1,6 @@
 //! Tests for the Influx gRPC queries
 use crate::scenarios::*;
-use data_types2::{MAX_NANO_TIME, MIN_NANO_TIME};
+use data_types::{MAX_NANO_TIME, MIN_NANO_TIME};
 use datafusion::logical_plan::{col, lit};
 use predicate::{rpc_predicate::InfluxRpcPredicate, PredicateBuilder};
 use query::{

@@ -1,4 +1,5 @@
 //! Query frontend for InfluxDB Storage gRPC requests
+
 use crate::{
     exec::{field::FieldColumns, make_non_null_checker, make_schema_pivot, IOxSessionContext},
     plan::{
@@ -11,7 +12,7 @@ use crate::{
     QueryChunk, QueryDatabase,
 };
 use arrow::datatypes::DataType;
-use data_types2::ChunkId;
+use data_types::ChunkId;
 use datafusion::{
     error::DataFusionError,
     logical_plan::{

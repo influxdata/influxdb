@@ -1,11 +1,12 @@
 //! Library of test scenarios that can be used in query_tests
+
 use super::{
     util::{all_scenarios_for_one_chunk, make_two_chunk_scenarios, ChunkStageNew},
     DbScenario, DbSetup,
 };
 use crate::scenarios::util::{make_n_chunks_scenario_new, ChunkDataNew};
 use async_trait::async_trait;
-use data_types2::{DeleteExpr, DeletePredicate, Op, Scalar, TimestampRange};
+use data_types::{DeleteExpr, DeletePredicate, Op, Scalar, TimestampRange};
 use query::frontend::sql::SqlQueryPlanner;
 
 #[derive(Debug)]

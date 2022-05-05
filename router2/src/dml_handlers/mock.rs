@@ -1,10 +1,8 @@
-use std::{collections::VecDeque, fmt::Debug};
-
 use super::{DmlError, DmlHandler};
-
 use async_trait::async_trait;
-use data_types2::{DatabaseName, DeletePredicate};
+use data_types::{DatabaseName, DeletePredicate};
 use parking_lot::Mutex;
+use std::{collections::VecDeque, fmt::Debug};
 use trace::ctx::SpanContext;
 use write_summary::WriteSummary;
 

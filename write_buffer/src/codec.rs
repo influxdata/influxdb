@@ -1,7 +1,7 @@
 //! Encode/Decode for messages
 
 use crate::core::WriteBufferError;
-use data_types2::{NonEmptyString, Sequence};
+use data_types::{NonEmptyString, Sequence};
 use dml::{DmlDelete, DmlMeta, DmlOperation, DmlWrite};
 use generated_types::{
     google::FromOptionalField,

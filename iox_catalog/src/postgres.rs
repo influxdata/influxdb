@@ -10,7 +10,7 @@ use crate::{
     metrics::MetricDecorator,
 };
 use async_trait::async_trait;
-use data_types2::{
+use data_types::{
     Column, ColumnType, KafkaPartition, KafkaTopic, KafkaTopicId, Namespace, NamespaceId,
     ParquetFile, ParquetFileId, ParquetFileParams, ParquetFileWithMetadata, Partition, PartitionId,
     PartitionInfo, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Sequencer,
@@ -18,8 +18,9 @@ use data_types2::{
 };
 use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::{info, warn};
-use sqlx::types::Uuid;
-use sqlx::{migrate::Migrator, postgres::PgPoolOptions, Acquire, Executor, Postgres, Row};
+use sqlx::{
+    migrate::Migrator, postgres::PgPoolOptions, types::Uuid, Acquire, Executor, Postgres, Row,
+};
 use sqlx_hotswap_pool::HotSwapPool;
 use std::{sync::Arc, time::Duration};
 

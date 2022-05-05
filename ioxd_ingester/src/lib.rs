@@ -1,26 +1,13 @@
-use std::{
-    collections::BTreeMap,
-    fmt::{Debug, Display},
-    sync::Arc,
-    time::Duration,
-};
-
 use async_trait::async_trait;
 use clap_blocks::{ingester::IngesterConfig, write_buffer::WriteBufferConfig};
-use data_types2::KafkaPartition;
+use data_types::KafkaPartition;
 use hyper::{Body, Request, Response};
 use ingester::{
-    handler::IngestHandlerImpl,
+    handler::{IngestHandler, IngestHandlerImpl},
     lifecycle::LifecycleConfig,
     server::{grpc::GrpcDelegate, http::HttpDelegate, IngesterServer},
 };
 use iox_catalog::interface::Catalog;
-use metric::Registry;
-use object_store::DynObjectStore;
-use query::exec::Executor;
-use trace::TraceCollector;
-
-use ingester::handler::IngestHandler;
 use ioxd_common::{
     add_service,
     http::error::{HttpApiError, HttpApiErrorCode, HttpApiErrorSource},
@@ -29,7 +16,17 @@ use ioxd_common::{
     server_type::{CommonServerState, RpcError, ServerType},
     setup_builder,
 };
+use metric::Registry;
+use object_store::DynObjectStore;
+use query::exec::Executor;
+use std::{
+    collections::BTreeMap,
+    fmt::{Debug, Display},
+    sync::Arc,
+    time::Duration,
+};
 use thiserror::Error;
+use trace::TraceCollector;
 
 #[derive(Debug, Error)]
 pub enum Error {

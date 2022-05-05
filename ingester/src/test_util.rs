@@ -1,4 +1,5 @@
 //! Test setups and data for ingester crate
+
 #![allow(missing_docs)]
 
 use crate::{
@@ -11,7 +12,7 @@ use crate::{
 use arrow::record_batch::RecordBatch;
 use arrow_util::assert_batches_eq;
 use bitflags::bitflags;
-use data_types2::{
+use data_types::{
     KafkaPartition, NamespaceId, PartitionId, SequenceNumber, SequencerId, TableId, Timestamp,
     Tombstone, TombstoneId,
 };

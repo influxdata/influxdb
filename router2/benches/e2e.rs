@@ -1,7 +1,5 @@
-use std::{collections::BTreeSet, iter, sync::Arc};
-
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
-use data_types2::{PartitionTemplate, TemplatePart};
+use data_types::{PartitionTemplate, TemplatePart};
 use hyper::{Body, Request};
 use iox_catalog::{interface::Catalog, mem::MemCatalog};
 use router2::{
@@ -14,9 +12,12 @@ use router2::{
     server::http::HttpDelegate,
     sharder::JumpHash,
 };
+use std::{collections::BTreeSet, iter, sync::Arc};
 use tokio::runtime::Runtime;
-use write_buffer::core::WriteBufferWriting;
-use write_buffer::mock::{MockBufferForWriting, MockBufferSharedState};
+use write_buffer::{
+    core::WriteBufferWriting,
+    mock::{MockBufferForWriting, MockBufferSharedState},
+};
 
 // Init a mock write buffer with the given number of sequencers.
 fn init_write_buffer(n_sequencers: u32) -> ShardedWriteBuffer<JumpHash<Arc<Sequencer>>> {

@@ -1,5 +1,5 @@
 [package]
-name = "data_types2"
+name = "data_types"
 version = "0.1.0"
 edition = "2021"
 description = "Shared data types in the IOx NG architecture"

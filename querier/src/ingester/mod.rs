@@ -5,7 +5,7 @@ use self::{
 use crate::cache::CatalogCache;
 use arrow::{datatypes::DataType, error::ArrowError, record_batch::RecordBatch};
 use async_trait::async_trait;
-use data_types2::{
+use data_types::{
     ChunkAddr, ChunkId, ChunkOrder, ColumnSummary, InfluxDbType, PartitionId, SequenceNumber,
     SequencerId, StatValues, Statistics, TableSummary, TimestampMinMax,
 };
@@ -458,7 +458,7 @@ impl QueryChunkMeta for IngesterPartition {
         None
     }
 
-    fn delete_predicates(&self) -> &[Arc<data_types2::DeletePredicate>] {
+    fn delete_predicates(&self) -> &[Arc<data_types::DeletePredicate>] {
         &[]
     }
 
@@ -478,7 +478,7 @@ impl QueryChunk for IngesterPartition {
         self.chunk_id
     }
 
-    fn addr(&self) -> data_types2::ChunkAddr {
+    fn addr(&self) -> data_types::ChunkAddr {
         ChunkAddr {
             db_name: Arc::clone(&self.namespace_name),
             table_name: Arc::clone(&self.table_name),

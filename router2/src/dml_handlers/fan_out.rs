@@ -1,6 +1,6 @@
 use super::DmlHandler;
 use async_trait::async_trait;
-use data_types2::{DatabaseName, DeletePredicate};
+use data_types::{DatabaseName, DeletePredicate};
 use futures::{stream::FuturesUnordered, TryStreamExt};
 use std::{fmt::Debug, marker::PhantomData};
 use trace::ctx::SpanContext;

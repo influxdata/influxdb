@@ -1,4 +1,4 @@
-use data_types2::PartitionId;
+use data_types::PartitionId;
 use iox_time::TimeProvider;
 use parking_lot::Mutex;
 use std::sync::Arc;

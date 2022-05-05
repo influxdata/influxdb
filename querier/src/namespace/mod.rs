@@ -1,10 +1,11 @@
 //! Namespace within the whole database.
+
 use crate::{
     cache::CatalogCache, chunk::ParquetChunkAdapter, ingester::IngesterConnection,
     query_log::QueryLog, table::QuerierTable,
 };
 use backoff::BackoffConfig;
-use data_types2::{NamespaceId, NamespaceSchema};
+use data_types::{NamespaceId, NamespaceSchema};
 use object_store::DynObjectStore;
 use query::exec::Executor;
 use schema::Schema;
@@ -129,7 +130,7 @@ impl QuerierNamespace {
 mod tests {
     use super::*;
     use crate::namespace::test_util::querier_namespace;
-    use data_types2::ColumnType;
+    use data_types::ColumnType;
     use iox_tests::util::TestCatalog;
     use schema::{builder::SchemaBuilder, InfluxColumnType, InfluxFieldType};
 

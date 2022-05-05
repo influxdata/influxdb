@@ -1,6 +1,6 @@
 use crate::delete_expr::{df_to_expr, expr_to_df};
 use chrono::DateTime;
-use data_types2::{DeleteExpr, DeletePredicate, TimestampRange, Tombstone};
+use data_types::{DeleteExpr, DeletePredicate, TimestampRange, Tombstone};
 use datafusion::logical_plan::{lit, Column, Expr, Operator};
 use snafu::{ResultExt, Snafu};
 use sqlparser::{
@@ -397,7 +397,7 @@ pub fn parse_http_delete_request(input: &str) -> Result<HttpDeleteRequest> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use data_types2::{Op, Scalar};
+    use data_types::{Op, Scalar};
 
     #[test]
     fn test_time_range_valid() {

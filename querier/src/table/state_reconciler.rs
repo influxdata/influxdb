@@ -1,26 +1,26 @@
 //! Logic to reconcile the state that the querier got the from catalog and from the ingester.
 //!
 //! # Usage
+//!
 //! The code in this module should be used like this:
 //!
 //! 1. **Ingester Request:** Request data from ingester(s). This will create [`IngesterPartition`]s.
-//! 2. **Catalog Query:** Query parquet files and tombstones from catalog. It is important that this happens AFTER the
-//!    ingester request. This will create [`ParquetFileWithMetadata`] and [`Tombstone`].
-//! 3. **Pruning:** Call [`filter_parquet_files`] and [`tombstone_exclude_list`] to filter out files and tombstones that
-//!    are too new (i.e. were created between step 1 and 2).
+//! 2. **Catalog Query:** Query parquet files and tombstones from catalog. It is important that
+//!    this happens AFTER the ingester request. This will create [`ParquetFileWithMetadata`] and
+//!    [`Tombstone`].
+//! 3. **Pruning:** Call [`filter_parquet_files`] and [`tombstone_exclude_list`] to filter out
+//!    files and tombstones that are too new (i.e. were created between step 1 and 2).
 
+use crate::ingester::IngesterPartition;
+use data_types::{
+    ParquetFileWithMetadata, PartitionId, SequenceNumber, SequencerId, Tombstone, TombstoneId,
+};
+use snafu::Snafu;
 use std::{
     collections::{HashMap, HashSet},
     ops::Deref,
     sync::Arc,
 };
-
-use data_types2::{
-    ParquetFileWithMetadata, PartitionId, SequenceNumber, SequencerId, Tombstone, TombstoneId,
-};
-use snafu::Snafu;
-
-use crate::ingester::IngesterPartition;
 
 /// Information about an ingester partition.
 ///

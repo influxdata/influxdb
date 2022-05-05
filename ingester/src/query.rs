@@ -3,7 +3,7 @@
 use crate::data::{QueryableBatch, SnapshotBatch};
 use arrow::record_batch::RecordBatch;
 use arrow_util::util::merge_record_batches;
-use data_types2::{
+use data_types::{
     ChunkAddr, ChunkId, ChunkOrder, DeletePredicate, PartitionId, SequenceNumber, TableSummary,
     TimestampMinMax, Tombstone,
 };
@@ -313,7 +313,7 @@ mod tests {
         datatypes::{DataType, Int32Type, TimeUnit},
     };
     use arrow_util::assert_batches_eq;
-    use data_types2::{DeleteExpr, Op, Scalar, TimestampRange};
+    use data_types::{DeleteExpr, Op, Scalar, TimestampRange};
     use datafusion::logical_plan::{col, lit};
     use predicate::PredicateBuilder;
 

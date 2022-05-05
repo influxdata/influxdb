@@ -1,6 +1,6 @@
 use super::DmlHandler;
 use async_trait::async_trait;
-use data_types2::{DatabaseName, DeletePredicate};
+use data_types::{DatabaseName, DeletePredicate};
 use iox_time::{SystemProvider, TimeProvider};
 use metric::{Metric, U64Histogram, U64HistogramOptions};
 use trace::{ctx::SpanContext, span::SpanRecorder};
@@ -161,7 +161,7 @@ mod tests {
     use super::*;
     use crate::dml_handlers::{mock::MockDmlHandler, DmlError};
     use assert_matches::assert_matches;
-    use data_types2::TimestampRange;
+    use data_types::TimestampRange;
     use metric::Attributes;
     use std::sync::Arc;
     use trace::{span::SpanStatus, RingBufferTraceCollector, TraceCollector};

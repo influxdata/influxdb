@@ -3,14 +3,12 @@ name = "ioxd_common"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 # Optional feature 'pprof' enables http://localhost:8080/debug/pprof/profile support support
 
 [dependencies]
 # Workspace dependencies, in alphabetical order
 clap_blocks = { path = "../clap_blocks" }
-data_types2 = { path = "../data_types2" }
+data_types = { path = "../data_types" }
 dml = { path = "../dml" }
 metric = { path = "../metric" }
 observability_deps = { path = "../observability_deps" }

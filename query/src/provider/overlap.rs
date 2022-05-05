@@ -4,7 +4,7 @@
 //! separate rows)
 
 use crate::{QueryChunk, QueryChunkMeta};
-use data_types2::{
+use data_types::{
     ColumnSummary, DeletePredicate, ParquetFileWithMetadata, PartitionId, StatOverlap, Statistics,
     TableSummary, TimestampMinMax,
 };

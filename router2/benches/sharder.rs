@@ -1,7 +1,7 @@
 use criterion::{
     criterion_group, criterion_main, measurement::WallTime, BenchmarkGroup, Criterion, Throughput,
 };
-use data_types2::DatabaseName;
+use data_types::DatabaseName;
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use router2::sharder::{JumpHash, Sharder};
 

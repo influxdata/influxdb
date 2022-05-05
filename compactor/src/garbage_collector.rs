@@ -2,7 +2,7 @@
 //! no longer needed because they've been compacted and they're old enough to no longer be used by
 //! any queriers.
 
-use data_types2::Timestamp;
+use data_types::Timestamp;
 use iox_catalog::interface::Catalog;
 use iox_time::TimeProvider;
 use object_store::DynObjectStore;
@@ -93,7 +93,7 @@ impl GarbageCollector {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use data_types2::{KafkaPartition, ParquetFile, ParquetFileParams, SequenceNumber};
+    use data_types::{KafkaPartition, ParquetFile, ParquetFileParams, SequenceNumber};
     use iox_catalog::interface::INITIAL_COMPACTION_LEVEL;
     use iox_tests::util::TestCatalog;
     use object_store::ObjectStoreTestConvenience;

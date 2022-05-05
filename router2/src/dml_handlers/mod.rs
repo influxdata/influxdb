@@ -71,7 +71,7 @@
 //! operations into a fixed set of sequencers.
 //!
 //! [`NamespaceCache`]: crate::namespace_cache::NamespaceCache
-//! [`NamespaceSchema`]: data_types2::NamespaceSchema
+//! [`NamespaceSchema`]: data_types::NamespaceSchema
 
 mod r#trait;
 pub use r#trait::*;

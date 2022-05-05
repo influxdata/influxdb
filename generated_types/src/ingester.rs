@@ -1,5 +1,5 @@
 use crate::{google::FieldViolation, influxdata::iox::ingester::v1 as proto};
-use data_types2::TimestampRange;
+use data_types::TimestampRange;
 use datafusion::{
     common::DataFusionError, datafusion_proto::bytes::Serializeable, logical_plan::Expr,
 };

@@ -9,7 +9,7 @@ description = "Tests of the query engine against different database configuratio
 arrow = { version = "13", features = ["prettyprint"] }
 async-trait = "0.1"
 backoff = { path = "../backoff" }
-data_types2 = { path = "../data_types2" }
+data_types = { path = "../data_types" }
 datafusion = { path = "../datafusion" }
 dml = { path = "../dml" }
 futures = "0.3"

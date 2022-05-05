@@ -3,7 +3,7 @@
 use super::adapter::SchemaAdapterStream;
 use crate::{exec::IOxSessionContext, QueryChunk};
 use arrow::datatypes::SchemaRef;
-use data_types2::TableSummary;
+use data_types::TableSummary;
 use datafusion::{
     error::DataFusionError,
     execution::context::TaskContext,

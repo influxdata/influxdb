@@ -2,7 +2,7 @@
 
 use crate::query::QueryableParquetChunk;
 use arrow::record_batch::RecordBatch;
-use data_types2::{
+use data_types::{
     ParquetFileId, ParquetFileParams, ParquetFileWithMetadata, Timestamp, Tombstone, TombstoneId,
 };
 use object_store::DynObjectStore;

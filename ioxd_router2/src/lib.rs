@@ -1,17 +1,20 @@
-use std::{
-    collections::BTreeSet,
-    fmt::{Debug, Display},
-    sync::Arc,
-};
-
 use async_trait::async_trait;
 use clap_blocks::write_buffer::WriteBufferConfig;
-use data_types2::{DatabaseName, PartitionTemplate, TemplatePart};
+use data_types::{DatabaseName, PartitionTemplate, TemplatePart};
 use hashbrown::HashMap;
 use hyper::{Body, Request, Response};
 use iox_catalog::interface::Catalog;
+use ioxd_common::{
+    add_service,
+    http::error::{HttpApiError, HttpApiErrorSource},
+    rpc::RpcBuilderInput,
+    serve_builder,
+    server_type::{CommonServerState, RpcError, ServerType},
+    setup_builder,
+};
 use metric::Registry;
 use mutable_batch::MutableBatch;
+use object_store::DynObjectStore;
 use observability_deps::tracing::info;
 use router2::{
     dml_handlers::{
@@ -26,20 +29,15 @@ use router2::{
     server::{grpc::GrpcDelegate, http::HttpDelegate, RouterServer},
     sharder::JumpHash,
 };
+use std::{
+    collections::BTreeSet,
+    fmt::{Debug, Display},
+    sync::Arc,
+};
 use thiserror::Error;
 use tokio_util::sync::CancellationToken;
 use trace::TraceCollector;
 use write_summary::WriteSummary;
-
-use ioxd_common::{
-    add_service,
-    http::error::{HttpApiError, HttpApiErrorSource},
-    rpc::RpcBuilderInput,
-    serve_builder,
-    server_type::{CommonServerState, RpcError, ServerType},
-    setup_builder,
-};
-use object_store::DynObjectStore;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -352,7 +350,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use data_types2::ColumnType;
+    use data_types::ColumnType;
     use iox_catalog::mem::MemCatalog;
 
     use super::*;

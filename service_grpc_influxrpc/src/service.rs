@@ -11,7 +11,7 @@ use crate::{
     input::GrpcInputs,
     StorageService,
 };
-use data_types2::{org_and_bucket_to_database, DatabaseName};
+use data_types::{org_and_bucket_to_database, DatabaseName};
 use generated_types::{
     google::protobuf::Empty, literal_or_regex::Value as RegexOrLiteralValue,
     offsets_response::PartitionOffsetResponse, storage_server::Storage, tag_key_predicate,
@@ -24,16 +24,14 @@ use generated_types::{
     TimestampRange,
 };
 use observability_deps::tracing::{error, info, trace};
-use query::exec::IOxSessionContext;
 use query::{
     exec::{
         fieldlist::FieldList, seriesset::converter::Error as SeriesSetError,
-        ExecutionContextProvider,
+        ExecutionContextProvider, IOxSessionContext,
     },
     QueryDatabase, QueryText,
 };
-use service_common::planner::Planner;
-use service_common::QueryDatabaseProvider;
+use service_common::{planner::Planner, QueryDatabaseProvider};
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
     collections::{BTreeSet, HashMap},
@@ -1392,7 +1390,7 @@ impl<T, E: std::fmt::Debug> ErrorLogger for Result<T, E> {
 mod tests {
     use super::*;
     use async_trait::async_trait;
-    use data_types2::ChunkId;
+    use data_types::ChunkId;
     use datafusion::logical_plan::{col, lit, Expr};
     use generated_types::{i_ox_testing_client::IOxTestingClient, tag_key_predicate::Value};
     use influxdb_storage_client::{

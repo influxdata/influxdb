@@ -257,7 +257,7 @@ mod tests {
         core::test_utils::random_topic_name, maybe_skip_kafka_integration,
         mock::MockBufferSharedState,
     };
-    use data_types2::DatabaseName;
+    use data_types::DatabaseName;
     use std::{convert::TryFrom, num::NonZeroU32};
     use tempfile::TempDir;
 

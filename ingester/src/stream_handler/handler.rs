@@ -1,17 +1,14 @@
-use std::{fmt::Debug, time::Duration};
-
-use data_types2::KafkaPartition;
+use super::DmlSink;
+use crate::lifecycle::{LifecycleHandle, LifecycleHandleImpl};
+use data_types::KafkaPartition;
 use dml::DmlOperation;
 use futures::{pin_mut, FutureExt, Stream, StreamExt};
 use iox_time::{SystemProvider, TimeProvider};
 use metric::{Attributes, U64Counter, U64Gauge};
 use observability_deps::tracing::*;
+use std::{fmt::Debug, time::Duration};
 use tokio_util::sync::CancellationToken;
 use write_buffer::core::{WriteBufferError, WriteBufferErrorKind};
-
-use crate::lifecycle::{LifecycleHandle, LifecycleHandleImpl};
-
-use super::DmlSink;
 
 /// When the [`LifecycleManager`] indicates that ingest should be paused because
 /// of memory pressure, the sequencer will loop, sleeping this long between
@@ -378,7 +375,7 @@ mod tests {
         stream_handler::mock_sink::MockDmlSink,
     };
     use assert_matches::assert_matches;
-    use data_types2::{DeletePredicate, Sequence, TimestampRange};
+    use data_types::{DeletePredicate, Sequence, TimestampRange};
     use dml::{DmlDelete, DmlMeta, DmlWrite};
     use futures::stream;
     use iox_time::{SystemProvider, Time};

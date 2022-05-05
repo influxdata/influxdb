@@ -1,7 +1,7 @@
 //! This module contains the traits and data objects for the Catalog API.
 
 use async_trait::async_trait;
-use data_types2::{
+use data_types::{
     Column, ColumnSchema, ColumnType, KafkaPartition, KafkaTopic, KafkaTopicId, Namespace,
     NamespaceId, NamespaceSchema, ParquetFile, ParquetFileId, ParquetFileParams,
     ParquetFileWithMetadata, Partition, PartitionId, PartitionInfo, ProcessedTombstone, QueryPool,
@@ -773,7 +773,7 @@ pub(crate) mod test_helpers {
 
     use super::*;
     use ::test_helpers::{assert_contains, tracing::TracingCapture};
-    use data_types2::ColumnId;
+    use data_types::ColumnId;
     use metric::{Attributes, Metric, U64Histogram};
     use std::{
         ops::{Add, DerefMut},

@@ -322,7 +322,7 @@ mod tests {
     };
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use assert_matches::assert_matches;
-    use data_types2::PartitionId;
+    use data_types::PartitionId;
     use datafusion::logical_plan::{col, lit};
     use predicate::PredicateBuilder;
 

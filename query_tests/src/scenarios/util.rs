@@ -3,7 +3,7 @@ use super::DbScenario;
 use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
 use backoff::BackoffConfig;
-use data_types2::{
+use data_types::{
     DeletePredicate, NonEmptyString, PartitionId, Sequence, SequenceNumber, SequencerId,
     TombstoneId,
 };

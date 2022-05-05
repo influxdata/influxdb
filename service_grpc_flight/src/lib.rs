@@ -12,7 +12,7 @@ use arrow_flight::{
     HandshakeRequest, HandshakeResponse, PutResult, SchemaAsIpc, SchemaResult, Ticket,
 };
 use bytes::{Bytes, BytesMut};
-use data_types2::{DatabaseName, DatabaseNameError};
+use data_types::{DatabaseName, DatabaseNameError};
 use datafusion::physical_plan::ExecutionPlan;
 use futures::{SinkExt, Stream, StreamExt};
 use generated_types::influxdata::iox::querier::v1 as proto;

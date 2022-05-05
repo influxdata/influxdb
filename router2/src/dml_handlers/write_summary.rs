@@ -1,6 +1,6 @@
 use super::DmlHandler;
 use async_trait::async_trait;
-use data_types2::{DatabaseName, DeletePredicate};
+use data_types::{DatabaseName, DeletePredicate};
 use dml::DmlMeta;
 use std::fmt::Debug;
 use trace::ctx::SpanContext;

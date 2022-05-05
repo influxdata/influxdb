@@ -261,7 +261,7 @@ impl schema_service_server::SchemaService for SchemaService {
     }
 }
 
-fn schema_to_proto(schema: Arc<data_types2::NamespaceSchema>) -> GetSchemaResponse {
+fn schema_to_proto(schema: Arc<data_types::NamespaceSchema>) -> GetSchemaResponse {
     let response = GetSchemaResponse {
         schema: Some(NamespaceSchema {
             id: schema.id.get(),
@@ -299,18 +299,15 @@ fn schema_to_proto(schema: Arc<data_types2::NamespaceSchema>) -> GetSchemaRespon
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
-    use data_types2::ColumnType;
+    use super::*;
+    use crate::dml_handlers::{mock::MockDmlHandler, DmlError};
+    use data_types::ColumnType;
     use generated_types::influxdata::{
         iox::schema::v1::schema_service_server::SchemaService,
         pbdata::v1::write_service_server::WriteService,
     };
     use iox_catalog::mem::MemCatalog;
-
-    use crate::dml_handlers::{mock::MockDmlHandler, DmlError};
-
-    use super::*;
+    use std::sync::Arc;
 
     fn summary() -> WriteSummary {
         WriteSummary::default()

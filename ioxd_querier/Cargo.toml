@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 # Workspace dependencies, in alphabetical order
-data_types2 = { path = "../data_types2" }
+data_types = { path = "../data_types" }
 generated_types = { path = "../generated_types" }
 iox_catalog = { path = "../iox_catalog" }
 ioxd_common = { path = "../ioxd_common" }

@@ -6,7 +6,7 @@ use crate::interface::{
     SequencerRepo, TablePersistInfo, TableRepo, TombstoneRepo,
 };
 use async_trait::async_trait;
-use data_types2::{
+use data_types::{
     Column, ColumnType, KafkaPartition, KafkaTopic, KafkaTopicId, Namespace, NamespaceId,
     ParquetFile, ParquetFileId, ParquetFileParams, ParquetFileWithMetadata, Partition, PartitionId,
     PartitionInfo, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Sequencer,
