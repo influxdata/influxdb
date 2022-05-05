@@ -8,7 +8,6 @@ description = "A mutable arrow RecordBatch"
 arrow = { version = "13", features = ["prettyprint"] }
 arrow_util = { path = "../arrow_util" }
 chrono = { version = "0.4", default-features = false }
-data_types = { path = "../data_types" }
 data_types2 = { path = "../data_types2" }
 iox_time = { path = "../iox_time" }
 schema = { path = "../schema" }

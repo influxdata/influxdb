@@ -685,7 +685,6 @@ name = "clap_blocks"
 version = "0.1.0"
 dependencies = [
  "clap 3.1.12",
- "data_types",
  "futures",
  "humantime",
  "iox_catalog",
@@ -813,7 +812,6 @@ dependencies = [
  "async-trait",
  "backoff 0.1.0",
  "bytes",
- "data_types",
  "data_types2",
  "datafusion 0.1.0",
  "futures",
@@ -1172,7 +1170,6 @@ dependencies = [
 name = "data_types2"
 version = "0.1.0"
 dependencies = [
- "data_types",
  "influxdb_line_protocol",
  "observability_deps",
  "ordered-float 3.0.0",
@@ -1413,7 +1410,6 @@ name = "dml"
 version = "0.1.0"
 dependencies = [
  "arrow_util",
- "data_types",
  "data_types2",
  "hashbrown 0.12.0",
  "iox_time",
@@ -2168,7 +2164,6 @@ dependencies = [
  "compactor",
  "console-subscriber",
  "csv",
- "data_types",
  "data_types2",
  "datafusion 0.1.0",
  "dml",
@@ -2336,7 +2331,6 @@ dependencies = [
  "bitflags",
  "bytes",
  "chrono",
- "data_types",
  "data_types2",
  "datafusion 0.1.0",
  "datafusion_util",
@@ -2458,7 +2452,6 @@ dependencies = [
  "chrono-english",
  "clap 3.1.12",
  "criterion",
- "data_types",
  "futures",
  "handlebars",
  "humantime",
@@ -2571,7 +2564,6 @@ dependencies = [
  "chrono",
  "clap 3.1.12",
  "clap_blocks",
- "data_types",
  "data_types2",
  "dml",
  "flate2",
@@ -3304,7 +3296,6 @@ dependencies = [
  "arrow",
  "arrow_util",
  "chrono",
- "data_types",
  "data_types2",
  "hashbrown 0.12.0",
  "iox_time",
@@ -3801,7 +3792,6 @@ dependencies = [
  "arrow_util",
  "base64 0.13.0",
  "bytes",
- "data_types",
  "data_types2",
  "datafusion 0.1.0",
  "datafusion_util",
@@ -4268,7 +4258,6 @@ dependencies = [
  "bytes",
  "client_util",
  "criterion",
- "data_types",
  "data_types2",
  "datafusion 0.1.0",
  "datafusion_util",
@@ -4313,7 +4302,6 @@ dependencies = [
  "async-trait",
  "chrono",
  "croaring",
- "data_types",
  "data_types2",
  "datafusion 0.1.0",
  "datafusion_util",
@@ -5220,7 +5208,6 @@ version = "0.1.0"
 dependencies = [
  "arrow",
  "async-trait",
- "data_types",
  "data_types2",
  "datafusion 0.1.0",
  "futures",
@@ -6790,7 +6777,6 @@ name = "write_buffer"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "data_types",
  "data_types2",
  "dml",
  "dotenv",
@@ -6825,7 +6811,6 @@ name = "write_summary"
 version = "0.1.0"
 dependencies = [
  "base64 0.13.0",
- "data_types",
  "data_types2",
  "dml",
  "generated_types",

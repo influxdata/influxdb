@@ -10,7 +10,6 @@ edition = "2021"
 [dependencies]
 # Workspace dependencies, in alphabetical order
 clap_blocks = { path = "../clap_blocks" }
-data_types = { path = "../data_types" }
 data_types2 = { path = "../data_types2" }
 dml = { path = "../dml" }
 metric = { path = "../metric" }

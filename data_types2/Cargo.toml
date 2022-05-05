@@ -5,7 +5,6 @@ edition = "2021"
 description = "Shared data types in the IOx NG architecture"
 
 [dependencies]
-data_types = { path = "../data_types" }
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
 observability_deps = { path = "../observability_deps" }
 ordered-float = "3"

@@ -5,7 +5,6 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "3", features = ["derive", "env"] }
-data_types = { path = "../data_types" }
 futures = "0.3"
 humantime = "2.1.0"
 iox_catalog = { path = "../iox_catalog" }
