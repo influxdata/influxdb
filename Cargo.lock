@@ -1195,7 +1195,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "7.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=b7bb2cfba13cc04a08c2f687102dd14a8dedc7b6#b7bb2cfba13cc04a08c2f687102dd14a8dedc7b6"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=7304719bb4830c873af32f873ce22f205fef4c77#7304719bb4830c873af32f873ce22f205fef4c77"
 dependencies = [
  "ahash",
  "arrow",
@@ -1227,7 +1227,7 @@ dependencies = [
 [[package]]
 name = "datafusion-common"
 version = "7.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=b7bb2cfba13cc04a08c2f687102dd14a8dedc7b6#b7bb2cfba13cc04a08c2f687102dd14a8dedc7b6"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=7304719bb4830c873af32f873ce22f205fef4c77#7304719bb4830c873af32f873ce22f205fef4c77"
 dependencies = [
  "arrow",
  "ordered-float 3.0.0",
@@ -1238,7 +1238,7 @@ dependencies = [
 [[package]]
 name = "datafusion-data-access"
 version = "1.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=b7bb2cfba13cc04a08c2f687102dd14a8dedc7b6#b7bb2cfba13cc04a08c2f687102dd14a8dedc7b6"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=7304719bb4830c873af32f873ce22f205fef4c77#7304719bb4830c873af32f873ce22f205fef4c77"
 dependencies = [
  "async-trait",
  "chrono",
@@ -1251,7 +1251,7 @@ dependencies = [
 [[package]]
 name = "datafusion-expr"
 version = "7.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=b7bb2cfba13cc04a08c2f687102dd14a8dedc7b6#b7bb2cfba13cc04a08c2f687102dd14a8dedc7b6"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=7304719bb4830c873af32f873ce22f205fef4c77#7304719bb4830c873af32f873ce22f205fef4c77"
 dependencies = [
  "ahash",
  "arrow",
@@ -1262,7 +1262,7 @@ dependencies = [
 [[package]]
 name = "datafusion-physical-expr"
 version = "7.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=b7bb2cfba13cc04a08c2f687102dd14a8dedc7b6#b7bb2cfba13cc04a08c2f687102dd14a8dedc7b6"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=7304719bb4830c873af32f873ce22f205fef4c77#7304719bb4830c873af32f873ce22f205fef4c77"
 dependencies = [
  "ahash",
  "arrow",
@@ -1285,7 +1285,7 @@ dependencies = [
 [[package]]
 name = "datafusion-proto"
 version = "7.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=b7bb2cfba13cc04a08c2f687102dd14a8dedc7b6#b7bb2cfba13cc04a08c2f687102dd14a8dedc7b6"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=7304719bb4830c873af32f873ce22f205fef4c77#7304719bb4830c873af32f873ce22f205fef4c77"
 dependencies = [
  "datafusion 7.0.0",
  "prost",

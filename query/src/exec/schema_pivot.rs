@@ -25,8 +25,6 @@ use std::{
     sync::Arc,
 };
 
-use async_trait::async_trait;
-
 use arrow::{
     array::StringArray,
     datatypes::{DataType, Field, Schema, SchemaRef},
@@ -166,7 +164,6 @@ impl Debug for SchemaPivotExec {
     }
 }
 
-#[async_trait]
 impl ExecutionPlan for SchemaPivotExec {
     fn as_any(&self) -> &(dyn std::any::Any + 'static) {
         self
@@ -216,7 +213,7 @@ impl ExecutionPlan for SchemaPivotExec {
     }
 
     /// Execute one partition and return an iterator over RecordBatch
-    async fn execute(
+    fn execute(
         &self,
         partition: usize,
         context: Arc<TaskContext>,
@@ -232,7 +229,7 @@ impl ExecutionPlan for SchemaPivotExec {
 
         let baseline_metrics = BaselineMetrics::new(&self.metrics, partition);
         let input_schema = self.input.schema();
-        let input_stream = self.input.execute(partition, context).await?;
+        let input_stream = self.input.execute(partition, context)?;
 
         // the operation performed in a separate task which is
         // then sent via a channel to the output

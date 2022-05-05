@@ -277,7 +277,7 @@ pub async fn test_execute_partition(
 ) -> SendableRecordBatchStream {
     let session_ctx = SessionContext::new();
     let task_ctx = Arc::new(TaskContext::from(&session_ctx));
-    plan.execute(partition, task_ctx).await.unwrap()
+    plan.execute(partition, task_ctx).unwrap()
 }
 
 /// Execute the specified partition of the [ExecutionPlan] with a

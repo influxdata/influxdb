@@ -133,7 +133,6 @@ impl<T> std::fmt::Debug for SystemTableExecutionPlan<T> {
     }
 }
 
-#[async_trait]
 impl<T: IoxSystemTable + 'static> ExecutionPlan for SystemTableExecutionPlan<T> {
     fn as_any(&self) -> &dyn Any {
         self
@@ -161,7 +160,7 @@ impl<T: IoxSystemTable + 'static> ExecutionPlan for SystemTableExecutionPlan<T> 
         unimplemented!()
     }
 
-    async fn execute(
+    fn execute(
         &self,
         _partition: usize,
         context: Arc<TaskContext>,

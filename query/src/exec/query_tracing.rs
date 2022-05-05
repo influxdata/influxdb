@@ -312,7 +312,6 @@ fn get_timestamps(metrics: &MetricsSet) -> (Option<DateTime<Utc>>, Option<DateTi
 
 #[cfg(test)]
 mod tests {
-    use async_trait::async_trait;
     use chrono::TimeZone;
     use datafusion::{
         execution::context::TaskContext,
@@ -619,7 +618,6 @@ mod tests {
         }
     }
 
-    #[async_trait]
     impl ExecutionPlan for TestExec {
         fn as_any(&self) -> &dyn std::any::Any {
             self
@@ -648,7 +646,7 @@ mod tests {
             unimplemented!()
         }
 
-        async fn execute(
+        fn execute(
             &self,
             _partition: usize,
             _context: Arc<TaskContext>,

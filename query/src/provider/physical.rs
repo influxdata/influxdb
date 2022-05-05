@@ -20,8 +20,6 @@ use schema::Schema;
 use crate::{exec::IOxSessionContext, QueryChunk};
 use predicate::Predicate;
 
-use async_trait::async_trait;
-
 use super::adapter::SchemaAdapterStream;
 
 /// Implements the DataFusion physical plan interface
@@ -62,7 +60,6 @@ impl IOxReadFilterNode {
     }
 }
 
-#[async_trait]
 impl ExecutionPlan for IOxReadFilterNode {
     fn as_any(&self) -> &dyn std::any::Any {
         self
@@ -108,7 +105,7 @@ impl ExecutionPlan for IOxReadFilterNode {
         Ok(Arc::new(new_self))
     }
 
-    async fn execute(
+    fn execute(
         &self,
         partition: usize,
         _context: Arc<TaskContext>,

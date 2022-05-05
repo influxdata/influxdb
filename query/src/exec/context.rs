@@ -358,7 +358,7 @@ impl IOxSessionContext {
         let task_context = Arc::new(TaskContext::from(self.inner()));
 
         self.run(async move {
-            let stream = physical_plan.execute(partition, task_context).await?;
+            let stream = physical_plan.execute(partition, task_context)?;
             let stream = TracedStream::new(stream, span, physical_plan);
             Ok(Box::pin(stream) as _)
         })

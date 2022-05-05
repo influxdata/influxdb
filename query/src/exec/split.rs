@@ -6,8 +6,6 @@ use std::{
     sync::Arc,
 };
 
-use async_trait::async_trait;
-
 use arrow::{
     array::{Array, ArrayRef, BooleanArray},
     compute::{self, filter_record_batch},
@@ -32,7 +30,8 @@ use datafusion::{
 use datafusion_util::AdapterStream;
 use futures::StreamExt;
 use observability_deps::tracing::*;
-use tokio::sync::{mpsc::UnboundedSender, Mutex};
+use parking_lot::Mutex;
+use tokio::sync::mpsc::UnboundedSender;
 
 /// Implements stream splitting described in `make_stream_split`
 ///
@@ -145,7 +144,6 @@ impl Debug for StreamSplitExec {
     }
 }
 
-#[async_trait]
 impl ExecutionPlan for StreamSplitExec {
     fn as_any(&self) -> &(dyn std::any::Any + 'static) {
         self
@@ -194,15 +192,15 @@ impl ExecutionPlan for StreamSplitExec {
     ///
     /// * partition 0 are the rows for which the split_expr evaluates to true
     /// * partition 1 are the rows for which the split_expr does not evaluate to true (e.g. Null or false)
-    async fn execute(
+    fn execute(
         &self,
         partition: usize,
         context: Arc<TaskContext>,
     ) -> Result<SendableRecordBatchStream> {
         debug!(partition, "Start SplitExec::execute");
-        self.start_if_needed(context).await?;
+        self.start_if_needed(context)?;
 
-        let mut state = self.state.lock().await;
+        let mut state = self.state.lock();
         match &mut (*state) {
             State::New => panic!("should have been initialized"),
             State::Running { stream0, stream1 } => {
@@ -241,8 +239,8 @@ impl ExecutionPlan for StreamSplitExec {
 
 impl StreamSplitExec {
     /// if in State::New, sets up the output running and sets self.state --> `Running`
-    async fn start_if_needed(&self, context: Arc<TaskContext>) -> Result<()> {
-        let mut state = self.state.lock().await;
+    fn start_if_needed(&self, context: Arc<TaskContext>) -> Result<()> {
+        let mut state = self.state.lock();
         if matches!(*state, State::Running { .. }) {
             return Ok(());
         }
@@ -258,7 +256,7 @@ impl StreamSplitExec {
 
         trace!("Setting up SplitStreamExec state");
 
-        let input_stream = self.input.execute(0, context).await?;
+        let input_stream = self.input.execute(0, context)?;
         let (tx0, rx0) = tokio::sync::mpsc::unbounded_channel();
         let (tx1, rx1) = tokio::sync::mpsc::unbounded_channel();
         let split_expr = Arc::clone(&self.split_expr);

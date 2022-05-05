@@ -8,7 +8,6 @@ use arrow::{
     error::{ArrowError, Result as ArrowResult},
     record_batch::RecordBatch,
 };
-use async_trait::async_trait;
 use datafusion_util::{watch::watch_task, AdapterStream};
 
 pub use self::algo::RecordBatchDeduplicator;
@@ -140,7 +139,6 @@ impl DeduplicateMetrics {
     }
 }
 
-#[async_trait]
 impl ExecutionPlan for DeduplicateExec {
     fn as_any(&self) -> &dyn std::any::Any {
         self
@@ -183,7 +181,7 @@ impl ExecutionPlan for DeduplicateExec {
         Ok(Arc::new(Self::new(input, self.sort_keys.clone())))
     }
 
-    async fn execute(
+    fn execute(
         &self,
         partition: usize,
         context: Arc<TaskContext>,
@@ -197,7 +195,7 @@ impl ExecutionPlan for DeduplicateExec {
         }
         let deduplicate_metrics = DeduplicateMetrics::new(&self.metrics, partition);
 
-        let input_stream = self.input.execute(0, context).await?;
+        let input_stream = self.input.execute(0, context)?;
 
         // the deduplication is performed in a separate task which is
         // then sent via a channel to the output
@@ -1119,7 +1117,6 @@ mod test {
         batches: Vec<ArrowResult<RecordBatch>>,
     }
 
-    #[async_trait]
     impl ExecutionPlan for DummyExec {
         fn as_any(&self) -> &dyn std::any::Any {
             self
@@ -1148,7 +1145,7 @@ mod test {
             unimplemented!()
         }
 
-        async fn execute(
+        fn execute(
             &self,
             partition: usize,
             _context: Arc<TaskContext>,
@@ -1157,19 +1154,19 @@ mod test {
 
             debug!(partition, "Start DummyExec::execute");
 
-            // ensure there is space to queue up the channel
-            let (tx, rx) = mpsc::channel(self.batches.len());
+            // queue them all up
+            let (tx, rx) = mpsc::unbounded_channel();
 
             // queue up all the results
             for r in &self.batches {
                 match r {
-                    Ok(batch) => tx.send(Ok(batch.clone())).await.unwrap(),
-                    Err(e) => tx.send(Err(clone_error(e))).await.unwrap(),
+                    Ok(batch) => tx.send(Ok(batch.clone())).unwrap(),
+                    Err(e) => tx.send(Err(clone_error(e))).unwrap(),
                 }
             }
 
             debug!(partition, "End DummyExec::execute");
-            Ok(AdapterStream::adapt(self.schema(), rx))
+            Ok(AdapterStream::adapt_unbounded(self.schema(), rx))
         }
 
         fn statistics(&self) -> Statistics {
