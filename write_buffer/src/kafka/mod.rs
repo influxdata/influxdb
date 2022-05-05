@@ -4,13 +4,13 @@ use self::{
 };
 use crate::{
     codec::IoxHeaders,
+    config::WriteBufferCreationConfig,
     core::{
         WriteBufferError, WriteBufferErrorKind, WriteBufferReading, WriteBufferStreamHandler,
         WriteBufferWriting,
     },
 };
 use async_trait::async_trait;
-use data_types::write_buffer::WriteBufferCreationConfig;
 use data_types2::Sequence;
 use dml::{DmlMeta, DmlOperation};
 use futures::{stream::BoxStream, StreamExt};

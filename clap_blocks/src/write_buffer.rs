@@ -1,11 +1,10 @@
-use data_types::write_buffer::{WriteBufferConnection, WriteBufferCreationConfig};
 use iox_time::SystemProvider;
 use observability_deps::tracing::*;
 use std::{collections::BTreeMap, num::NonZeroU32, path::PathBuf, sync::Arc};
 use tempfile::TempDir;
 use trace::TraceCollector;
 use write_buffer::{
-    config::WriteBufferConfigFactory,
+    config::{WriteBufferConfigFactory, WriteBufferConnection, WriteBufferCreationConfig},
     core::{WriteBufferError, WriteBufferReading, WriteBufferWriting},
 };
 

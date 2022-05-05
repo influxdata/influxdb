@@ -1,8 +1,8 @@
-use crate::core::{
-    WriteBufferError, WriteBufferReading, WriteBufferStreamHandler, WriteBufferWriting,
+use crate::{
+    config::WriteBufferCreationConfig,
+    core::{WriteBufferError, WriteBufferReading, WriteBufferStreamHandler, WriteBufferWriting},
 };
 use async_trait::async_trait;
-use data_types::write_buffer::WriteBufferCreationConfig;
 use data_types2::Sequence;
 use dml::{DmlDelete, DmlMeta, DmlOperation, DmlWrite};
 use futures::{stream::BoxStream, StreamExt};

@@ -15,5 +15,4 @@ pub mod consistent_hasher;
 pub mod job;
 pub mod partition_metadata;
 pub mod timestamp;
-pub mod write_buffer;
 pub mod write_summary;

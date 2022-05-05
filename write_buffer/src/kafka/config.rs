@@ -1,10 +1,8 @@
+use crate::{config::WriteBufferCreationConfig, core::WriteBufferError};
 use std::{collections::BTreeMap, fmt::Display, str::FromStr, time::Duration};
 
-use data_types::write_buffer::WriteBufferCreationConfig;
-
-use crate::core::WriteBufferError;
-
-/// Generic client config that is used for consumers, producers as well as admin operations (like "create topic").
+/// Generic client config that is used for consumers, producers as well as admin operations (like
+/// "create topic").
 #[derive(Debug, PartialEq, Eq)]
 pub struct ClientConfig {
     /// Maximum message size in bytes.
