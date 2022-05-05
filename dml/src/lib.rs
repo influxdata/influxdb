@@ -11,11 +11,8 @@
     clippy::clone_on_ref_ptr
 )]
 
-use data_types::{
-    router::{ShardConfig, ShardId},
-    sequence::Sequence,
-};
-use data_types2::{DeletePredicate, NonEmptyString, StatValues, Statistics};
+use data_types::router::{ShardConfig, ShardId};
+use data_types2::{DeletePredicate, NonEmptyString, Sequence, StatValues, Statistics};
 use hashbrown::HashMap;
 use iox_time::Time;
 use mutable_batch::MutableBatch;

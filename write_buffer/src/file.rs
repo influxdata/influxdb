@@ -108,6 +108,17 @@
 //! [`rename(2)`]: https://man7.org/linux/man-pages/man2/rename.2.html
 //! [`symlink(2)`]: https://man7.org/linux/man-pages/man2/symlink.2.html
 //! [`unlink(2)`]: https://man7.org/linux/man-pages/man2/unlink.2.html
+use crate::{
+    codec::{ContentType, IoxHeaders},
+    core::{WriteBufferError, WriteBufferReading, WriteBufferStreamHandler, WriteBufferWriting},
+};
+use async_trait::async_trait;
+use data_types::write_buffer::WriteBufferCreationConfig;
+use data_types2::Sequence;
+use dml::{DmlMeta, DmlOperation};
+use futures::{stream::BoxStream, Stream, StreamExt};
+use iox_time::{Time, TimeProvider};
+use pin_project::pin_project;
 use std::{
     collections::{BTreeMap, BTreeSet},
     path::{Path, PathBuf},
@@ -118,22 +129,9 @@ use std::{
         Arc,
     },
 };
-
-use crate::{
-    codec::{ContentType, IoxHeaders},
-    core::WriteBufferStreamHandler,
-};
-use async_trait::async_trait;
-use data_types::{sequence::Sequence, write_buffer::WriteBufferCreationConfig};
-use dml::{DmlMeta, DmlOperation};
-use futures::{stream::BoxStream, Stream, StreamExt};
-use iox_time::{Time, TimeProvider};
-use pin_project::pin_project;
 use tokio_util::sync::ReusableBoxFuture;
 use trace::TraceCollector;
 use uuid::Uuid;
-
-use crate::core::{WriteBufferError, WriteBufferReading, WriteBufferWriting};
 
 /// Header used to declare the creation time of the message.
 pub const HEADER_TIME: &str = "last-modified";

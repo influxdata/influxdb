@@ -17,7 +17,6 @@ pub mod error;
 pub mod job;
 pub mod partition_metadata;
 pub mod router;
-pub mod sequence;
 pub mod server_id;
 pub mod timestamp;
 pub mod write_buffer;

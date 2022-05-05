@@ -27,10 +27,7 @@ use std::{
 };
 use uuid::Uuid;
 
-pub use data_types::{
-    sequence::Sequence,
-    timestamp::{TimestampMinMax, TimestampRange, MAX_NANO_TIME, MIN_NANO_TIME},
-};
+pub use data_types::timestamp::{TimestampMinMax, TimestampRange, MAX_NANO_TIME, MIN_NANO_TIME};
 
 /// Unique ID for a `Namespace`
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
@@ -1920,6 +1917,25 @@ impl TableSummary {
         let size: usize = self.columns.iter().map(|c| c.size()).sum();
         size + mem::size_of::<Self>() // Add size of this struct that points to
                                       // table and ColumnSummary
+    }
+}
+
+/// Kafka partition ID plus offset
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub struct Sequence {
+    /// The sequencer id (kafka partition id)
+    pub sequencer_id: u32,
+    /// The sequence number (kafka offset)
+    pub sequence_number: u64,
+}
+
+impl Sequence {
+    /// Create a new Sequence
+    pub fn new(sequencer_id: u32, sequence_number: u64) -> Self {
+        Self {
+            sequencer_id,
+            sequence_number,
+        }
     }
 }
 
