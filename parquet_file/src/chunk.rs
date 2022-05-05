@@ -3,17 +3,14 @@ use crate::{
     storage::Storage,
     ParquetFilePath,
 };
-use data_types::{
-    partition_metadata::{Statistics, TableSummary},
-    timestamp::{TimestampMinMax, TimestampRange},
+use data_types2::{
+    ParquetFile, ParquetFileWithMetadata, Statistics, TableSummary, TimestampMinMax, TimestampRange,
 };
-use data_types2::{ParquetFile, ParquetFileWithMetadata};
 use datafusion::physical_plan::SendableRecordBatchStream;
 use object_store::DynObjectStore;
 use observability_deps::tracing::*;
 use predicate::Predicate;
-use schema::selection::Selection;
-use schema::{Schema, TIME_COLUMN_NAME};
+use schema::{selection::Selection, Schema, TIME_COLUMN_NAME};
 use snafu::{ResultExt, Snafu};
 use std::{collections::BTreeSet, mem, sync::Arc};
 

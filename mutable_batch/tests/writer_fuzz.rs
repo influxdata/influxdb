@@ -1,3 +1,16 @@
+use arrow::{
+    array::{
+        ArrayRef, BooleanArray, Float64Array, Int64Array, StringArray, TimestampNanosecondArray,
+        UInt64Array,
+    },
+    record_batch::RecordBatch,
+};
+use arrow_util::bitset::BitSet;
+use data_types2::{IsNan, PartitionTemplate, StatValues, Statistics, TemplatePart};
+use hashbrown::HashSet;
+use mutable_batch::{writer::Writer, MutableBatch, PartitionWrite, WritePayload};
+use rand::prelude::*;
+use schema::selection::Selection;
 /// A fuzz test of the [`mutable_batch::Writer`] interface:
 ///
 /// - column writes - `write_i64`, `write_tag`, etc...
@@ -5,25 +18,7 @@
 /// - batch writes with ranges - `write_batch_ranges`
 ///
 /// Verifies that the rows and statistics are as expected after a number of interleaved writes
-use std::collections::BTreeMap;
-use std::num::NonZeroU64;
-use std::ops::Range;
-use std::sync::Arc;
-
-use arrow::array::{
-    ArrayRef, BooleanArray, Float64Array, Int64Array, StringArray, TimestampNanosecondArray,
-    UInt64Array,
-};
-use arrow::record_batch::RecordBatch;
-use hashbrown::HashSet;
-use rand::prelude::*;
-
-use arrow_util::bitset::BitSet;
-use data_types::partition_metadata::{IsNan, StatValues, Statistics};
-use data_types2::{PartitionTemplate, TemplatePart};
-use mutable_batch::writer::Writer;
-use mutable_batch::{MutableBatch, PartitionWrite, WritePayload};
-use schema::selection::Selection;
+use std::{collections::BTreeMap, num::NonZeroU64, ops::Range, sync::Arc};
 
 fn make_rng() -> StdRng {
     let seed = rand::rngs::OsRng::default().next_u64();

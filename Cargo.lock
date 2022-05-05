@@ -1174,6 +1174,7 @@ version = "0.1.0"
 dependencies = [
  "data_types",
  "influxdb_line_protocol",
+ "observability_deps",
  "ordered-float 3.0.0",
  "percent-encoding",
  "schema",
@@ -4522,6 +4523,7 @@ dependencies = [
  "criterion",
  "croaring",
  "data_types",
+ "data_types2",
  "datafusion 0.1.0",
  "either",
  "hashbrown 0.12.0",

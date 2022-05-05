@@ -241,8 +241,8 @@ impl ColumnType {
         }
     }
 
-    pub fn as_influxdb_type(&self) -> Option<data_types::partition_metadata::InfluxDbType> {
-        use data_types::partition_metadata::InfluxDbType;
+    pub fn as_influxdb_type(&self) -> Option<data_types2::InfluxDbType> {
+        use data_types2::InfluxDbType;
         match self {
             Self::Tag(_) => Some(InfluxDbType::Tag),
             Self::Field(_) => Some(InfluxDbType::Field),

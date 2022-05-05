@@ -5,11 +5,10 @@ use crate::{
     table::{self, Table},
 };
 use arrow::{error::ArrowError, record_batch::RecordBatch};
-use data_types::{chunk_metadata::ChunkColumnSummary, partition_metadata::TableSummary};
-
+use data_types::chunk_metadata::ChunkColumnSummary;
+use data_types2::TableSummary;
 use observability_deps::tracing::debug;
-use schema::selection::Selection;
-use schema::{builder::Error as SchemaError, Schema};
+use schema::{builder::Error as SchemaError, selection::Selection, Schema};
 use snafu::{ResultExt, Snafu};
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -527,11 +526,10 @@ mod test {
             Int32Type,
         },
     };
-    use data_types::partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics};
+    use data_types2::{ColumnSummary, InfluxDbType, StatValues, Statistics};
     use metric::{Attributes, MetricKind, Observation, ObservationSet, RawReporter};
     use schema::builder::SchemaBuilder;
-    use std::iter::FromIterator;
-    use std::{num::NonZeroU64, sync::Arc};
+    use std::{iter::FromIterator, num::NonZeroU64, sync::Arc};
 
     // helper to make the `add_remove_tables` test simpler to read.
     fn gen_recordbatch() -> RecordBatch {

@@ -1,6 +1,6 @@
 use arrow_util::assert_batches_eq;
-use data_types::partition_metadata::{StatValues, Statistics};
 use data_types::write_summary::TimestampSummary;
+use data_types2::{StatValues, Statistics};
 use mutable_batch::writer::Writer;
 use mutable_batch::MutableBatch;
 use schema::selection::Selection;

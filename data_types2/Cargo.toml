@@ -7,6 +7,7 @@ description = "Shared data types in the IOx NG architecture"
 [dependencies]
 data_types = { path = "../data_types" }
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
+observability_deps = { path = "../observability_deps" }
 ordered-float = "3"
 percent-encoding = "2.1.0"
 schema = { path = "../schema" }

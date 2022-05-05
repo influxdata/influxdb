@@ -3,7 +3,7 @@
 use crate::column::{Column, ColumnData, INVALID_DID};
 use crate::MutableBatch;
 use arrow_util::bitset::{iter_set_positions, iter_set_positions_with_offset, BitSet};
-use data_types::partition_metadata::{IsNan, StatValues, Statistics};
+use data_types2::{IsNan, StatValues, Statistics};
 use schema::{InfluxColumnType, InfluxFieldType};
 use snafu::Snafu;
 use std::num::NonZeroU64;

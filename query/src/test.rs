@@ -283,7 +283,7 @@ impl TestChunk {
         Self {
             table_name,
             schema: Arc::new(SchemaBuilder::new().build().unwrap()),
-            table_summary: TableSummary::new(),
+            table_summary: TableSummary::default(),
             id: ChunkId::new_test(0),
             may_contain_pk_duplicates: Default::default(),
             predicates: Default::default(),

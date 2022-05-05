@@ -12,11 +12,10 @@
 )]
 
 use data_types::{
-    partition_metadata::{StatValues, Statistics},
     router::{ShardConfig, ShardId},
     sequence::Sequence,
 };
-use data_types2::{DeletePredicate, NonEmptyString};
+use data_types2::{DeletePredicate, NonEmptyString, StatValues, Statistics};
 use hashbrown::HashMap;
 use iox_time::Time;
 use mutable_batch::MutableBatch;

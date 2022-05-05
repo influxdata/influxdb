@@ -6,7 +6,8 @@ use crate::{
     BinaryExpr,
 };
 use arrow::record_batch::RecordBatch;
-use data_types::{chunk_metadata::ChunkColumnSummary, partition_metadata::TableSummary};
+use data_types::chunk_metadata::ChunkColumnSummary;
+use data_types2::TableSummary;
 use parking_lot::RwLock;
 use schema::selection::Selection;
 use snafu::{ensure, Snafu};
@@ -782,7 +783,7 @@ impl MetaData {
     }
 
     pub fn to_summary(&self) -> TableSummary {
-        use data_types::partition_metadata::{ColumnSummary, StatValues, Statistics};
+        use data_types2::{ColumnSummary, StatValues, Statistics};
         let columns = self
             .columns
             .iter()
@@ -850,8 +851,8 @@ impl MetaData {
 fn make_null_stats(
     total_count: u64,
     logical_data_type: &LogicalDataType,
-) -> data_types::partition_metadata::Statistics {
-    use data_types::partition_metadata::{StatValues, Statistics};
+) -> data_types2::Statistics {
+    use data_types2::{StatValues, Statistics};
     use LogicalDataType::*;
 
     match logical_data_type {
@@ -1103,9 +1104,6 @@ impl std::fmt::Display for DisplayReadAggregateResults<'_> {
 
 #[cfg(test)]
 mod test {
-    use arrow::array::BooleanArray;
-    use data_types::partition_metadata::{StatValues, Statistics};
-
     use super::*;
     use crate::{
         column::Column,
@@ -1113,6 +1111,8 @@ mod test {
         schema::{self, LogicalDataType},
         value::{AggregateVec, OwnedValue, Scalar},
     };
+    use arrow::array::BooleanArray;
+    use data_types2::{StatValues, Statistics};
 
     #[test]
     fn meta_data_update_with() {
