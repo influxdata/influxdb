@@ -1149,24 +1149,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "data_types"
-version = "0.1.0"
-dependencies = [
- "bytes",
- "iox_time",
- "num_cpus",
- "observability_deps",
- "ordered-float 3.0.0",
- "percent-encoding",
- "regex",
- "siphasher",
- "snafu",
- "test_helpers",
- "uuid 0.8.2",
- "workspace-hack",
-]
-
-[[package]]
 name = "data_types2"
 version = "0.1.0"
 dependencies = [
