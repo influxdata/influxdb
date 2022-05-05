@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"context"
 
     "github.com/influxdata/flux/interval"
     "github.com/influxdata/flux/values"
@@ -29,7 +30,7 @@ func newLimitArrayCursor(cur cursors.Cursor) cursors.Cursor {
 	}
 }
 
-func newWindowFirstArrayCursor(cur cursors.Cursor, window interval.Window) cursors.Cursor {
+func newWindowFirstArrayCursor(ctx context.Context, cur cursors.Cursor, window interval.Window) cursors.Cursor {
 	if window.IsZero() {
 		return newLimitArrayCursor(cur)
 	}
@@ -43,7 +44,7 @@ func newWindowFirstArrayCursor(cur cursors.Cursor, window interval.Window) curso
 	}
 }
 
-func newWindowLastArrayCursor(cur cursors.Cursor, window interval.Window) cursors.Cursor {
+func newWindowLastArrayCursor(ctx context.Context, cur cursors.Cursor, window interval.Window) cursors.Cursor {
 	if window.IsZero() {
 		return newLimitArrayCursor(cur)
 	}
@@ -57,7 +58,7 @@ func newWindowLastArrayCursor(cur cursors.Cursor, window interval.Window) cursor
 	}
 }
 
-func newWindowCountArrayCursor(cur cursors.Cursor, window interval.Window) cursors.Cursor {
+func newWindowCountArrayCursor(ctx context.Context, cur cursors.Cursor, window interval.Window) cursors.Cursor {
 	switch cur := cur.(type) {
 {{range .}}{{/* every type supports count */}}
 	case cursors.{{.Name}}ArrayCursor:
@@ -68,7 +69,7 @@ func newWindowCountArrayCursor(cur cursors.Cursor, window interval.Window) curso
 	}
 }
 
-func newWindowSumArrayCursor(cur cursors.Cursor, window interval.Window) (cursors.Cursor, error) {
+func newWindowSumArrayCursor(ctx context.Context, cur cursors.Cursor, window interval.Window) (cursors.Cursor, error) {
 	switch cur := cur.(type) {
 {{range .}}
 {{$Type := .Name}}
@@ -87,7 +88,7 @@ func newWindowSumArrayCursor(cur cursors.Cursor, window interval.Window) (cursor
 	}
 }
 
-func newWindowMinArrayCursor(cur cursors.Cursor, window interval.Window) cursors.Cursor {
+func newWindowMinArrayCursor(ctx context.Context, cur cursors.Cursor, window interval.Window) cursors.Cursor {
 	switch cur := cur.(type) {
 {{range .}}
 {{$Type := .Name}}
@@ -103,7 +104,7 @@ func newWindowMinArrayCursor(cur cursors.Cursor, window interval.Window) cursors
 	}
 }
 
-func newWindowMaxArrayCursor(cur cursors.Cursor, window interval.Window) cursors.Cursor {
+func newWindowMaxArrayCursor(ctx context.Context, cur cursors.Cursor, window interval.Window) cursors.Cursor {
 	switch cur := cur.(type) {
 {{range .}}
 {{$Type := .Name}}
@@ -119,7 +120,7 @@ func newWindowMaxArrayCursor(cur cursors.Cursor, window interval.Window) cursors
 	}
 }
 
-func newWindowMeanArrayCursor(cur cursors.Cursor, window interval.Window) (cursors.Cursor, error) {
+func newWindowMeanArrayCursor(ctx context.Context, cur cursors.Cursor, window interval.Window) (cursors.Cursor, error) {
 	switch cur := cur.(type) {
 {{range .}}
 {{$Type := .Name}}

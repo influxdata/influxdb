@@ -32,19 +32,19 @@ func newWindowAggregateArrayCursor(ctx context.Context, agg *datatypes.Aggregate
 
 	switch agg.Type {
 	case datatypes.Aggregate_AggregateTypeCount:
-		return newWindowCountArrayCursor(cursor, window), nil
+		return newWindowCountArrayCursor(ctx, cursor, window), nil
 	case datatypes.Aggregate_AggregateTypeSum:
-		return newWindowSumArrayCursor(cursor, window)
+		return newWindowSumArrayCursor(ctx, cursor, window)
 	case datatypes.Aggregate_AggregateTypeFirst:
-		return newWindowFirstArrayCursor(cursor, window), nil
+		return newWindowFirstArrayCursor(ctx, cursor, window), nil
 	case datatypes.Aggregate_AggregateTypeLast:
-		return newWindowLastArrayCursor(cursor, window), nil
+		return newWindowLastArrayCursor(ctx, cursor, window), nil
 	case datatypes.Aggregate_AggregateTypeMin:
-		return newWindowMinArrayCursor(cursor, window), nil
+		return newWindowMinArrayCursor(ctx, cursor, window), nil
 	case datatypes.Aggregate_AggregateTypeMax:
-		return newWindowMaxArrayCursor(cursor, window), nil
+		return newWindowMaxArrayCursor(ctx, cursor, window), nil
 	case datatypes.Aggregate_AggregateTypeMean:
-		return newWindowMeanArrayCursor(cursor, window)
+		return newWindowMeanArrayCursor(ctx, cursor, window)
 	default:
 		// TODO(sgc): should be validated higher up
 		panic("invalid aggregate")

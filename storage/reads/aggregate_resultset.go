@@ -23,6 +23,8 @@ type windowAggregateResultSet struct {
 	err          error
 }
 
+type field string
+
 // IsLastDescendingAggregateOptimization checks two things: If the request passed in
 // is using the `last` aggregate type, and if it doesn't have a window. If both
 // conditions are met, it returns false, otherwise, it returns true.
@@ -98,6 +100,9 @@ func (r *windowAggregateResultSet) createCursor(seriesRow SeriesRow) (cursors.Cu
 	every := r.req.WindowEvery
 	offset := r.req.Offset
 	cursor := r.arrayCursors.createCursor(seriesRow)
+	var fieldName field = "field"
+
+	ctx := context.WithValue(r.ctx, fieldName, r.seriesRow.Name)
 
 	var everyDur values.Duration
 	var offsetDur values.Duration
@@ -126,9 +131,9 @@ func (r *windowAggregateResultSet) createCursor(seriesRow SeriesRow) (cursors.Cu
 
 	if everyDur.Nanoseconds() == math.MaxInt64 {
 		// This means to aggregate over whole series for the query's time range
-		return newAggregateArrayCursor(r.ctx, agg, cursor)
+		return newAggregateArrayCursor(ctx, agg, cursor)
 	} else {
-		return newWindowAggregateArrayCursor(r.ctx, agg, window, cursor)
+		return newWindowAggregateArrayCursor(ctx, agg, window, cursor)
 	}
 }
 
