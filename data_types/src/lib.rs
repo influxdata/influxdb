@@ -10,7 +10,6 @@
     clippy::clone_on_ref_ptr
 )]
 
-pub mod boolean_flag;
 pub mod chunk_metadata;
 pub mod consistent_hasher;
 pub mod error;
