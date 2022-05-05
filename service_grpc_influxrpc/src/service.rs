@@ -11,7 +11,6 @@ use crate::{
     input::GrpcInputs,
     StorageService,
 };
-use data_types::error::ErrorLogger;
 use data_types2::{org_and_bucket_to_database, DatabaseName};
 use generated_types::{
     google::protobuf::Empty, literal_or_regex::Value as RegexOrLiteralValue,
@@ -1361,6 +1360,32 @@ where
     }
 
     Box::new(DeferredToJson { s: s.clone() })
+}
+
+/// Add ability for Results to log error messages via `error!` logs.
+/// This is useful when using async tasks that may not have any code
+/// checking their return values.
+pub trait ErrorLogger {
+    /// Log the contents of self with a string of context. The context
+    /// should appear in a message such as
+    ///
+    /// "Error <context>: <formatted error message>
+    fn log_if_error(self, context: &str) -> Self;
+
+    /// Provided method to log an error via the `error!` macro
+    fn log_error<E: std::fmt::Debug>(context: &str, e: E) {
+        error!("Error {}: {:?}", context, e);
+    }
+}
+
+/// Implement logging for all results
+impl<T, E: std::fmt::Debug> ErrorLogger for Result<T, E> {
+    fn log_if_error(self, context: &str) -> Self {
+        if let Err(e) = &self {
+            Self::log_error(context, e);
+        }
+        self
+    }
 }
 
 #[cfg(test)]

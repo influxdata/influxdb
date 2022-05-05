@@ -12,7 +12,6 @@
 
 pub mod chunk_metadata;
 pub mod consistent_hasher;
-pub mod error;
 pub mod job;
 pub mod partition_metadata;
 pub mod timestamp;
