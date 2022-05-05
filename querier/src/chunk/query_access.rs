@@ -1,5 +1,4 @@
-use std::sync::Arc;
-
+use crate::chunk::{ChunkStorage, QuerierChunk};
 use data_types2::{
     ChunkAddr, ChunkId, ChunkOrder, DeletePredicate, PartitionId, TableSummary, TimestampMinMax,
 };
@@ -8,8 +7,7 @@ use predicate::PredicateMatch;
 use query::{QueryChunk, QueryChunkError, QueryChunkMeta};
 use schema::{sort::SortKey, Schema};
 use snafu::{ResultExt, Snafu};
-
-use crate::chunk::{ChunkStorage, QuerierChunk};
+use std::sync::Arc;
 
 #[derive(Debug, Snafu)]
 pub enum Error {

@@ -1,11 +1,8 @@
 //! Queryable Compactor Data
 
-use std::sync::Arc;
-
-use data_types::timestamp::TimestampMinMax;
 use data_types2::{
     ChunkAddr, ChunkId, ChunkOrder, DeletePredicate, PartitionId, SequenceNumber, TableSummary,
-    Timestamp, Tombstone,
+    Timestamp, TimestampMinMax, Tombstone,
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
 use observability_deps::tracing::trace;
@@ -17,6 +14,7 @@ use query::{
 };
 use schema::{merge::SchemaMerger, selection::Selection, sort::SortKey, Schema};
 use snafu::{ResultExt, Snafu};
+use std::sync::Arc;
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]

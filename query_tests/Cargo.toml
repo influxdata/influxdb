@@ -5,13 +5,10 @@ authors = ["Andrew Lamb <andrew@nerdnetworks.org>"]
 edition = "2021"
 description = "Tests of the query engine against different database configurations"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 arrow = { version = "13", features = ["prettyprint"] }
 async-trait = "0.1"
 backoff = { path = "../backoff" }
-data_types = { path = "../data_types" }
 data_types2 = { path = "../data_types2" }
 datafusion = { path = "../datafusion" }
 dml = { path = "../dml" }

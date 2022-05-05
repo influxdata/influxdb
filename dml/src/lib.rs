@@ -487,8 +487,8 @@ mod tests {
     use data_types::{
         consistent_hasher::ConsistentHasher,
         router::{HashRing, Matcher, MatcherToShard},
-        timestamp::TimestampRange,
     };
+    use data_types2::TimestampRange;
     use mutable_batch_lp::lines_to_batches;
     use regex::Regex;
 

@@ -1,10 +1,13 @@
+use self::{
+    flight_client::{Error as FlightClientError, FlightClient, FlightClientImpl, FlightError},
+    test_util::MockIngesterConnection,
+};
 use crate::cache::CatalogCache;
 use arrow::{datatypes::DataType, error::ArrowError, record_batch::RecordBatch};
 use async_trait::async_trait;
-use data_types::timestamp::TimestampMinMax;
 use data_types2::{
     ChunkAddr, ChunkId, ChunkOrder, ColumnSummary, InfluxDbType, PartitionId, SequenceNumber,
-    SequencerId, StatValues, Statistics, TableSummary,
+    SequencerId, StatValues, Statistics, TableSummary, TimestampMinMax,
 };
 use datafusion_util::MemoryStream;
 use futures::{stream::FuturesUnordered, TryStreamExt};
@@ -19,11 +22,6 @@ use query::{
 use schema::{selection::Selection, sort::SortKey, InfluxColumnType, InfluxFieldType, Schema};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{any::Any, collections::HashMap, sync::Arc};
-
-use self::{
-    flight_client::{Error as FlightClientError, FlightClient, FlightClientImpl, FlightError},
-    test_util::MockIngesterConnection,
-};
 
 pub(crate) mod flight_client;
 pub(crate) mod test_util;

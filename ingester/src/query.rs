@@ -3,10 +3,9 @@
 use crate::data::{QueryableBatch, SnapshotBatch};
 use arrow::record_batch::RecordBatch;
 use arrow_util::util::merge_record_batches;
-use data_types::timestamp::TimestampMinMax;
 use data_types2::{
     ChunkAddr, ChunkId, ChunkOrder, DeletePredicate, PartitionId, SequenceNumber, TableSummary,
-    Tombstone,
+    TimestampMinMax, Tombstone,
 };
 use datafusion::{
     logical_plan::ExprRewritable,

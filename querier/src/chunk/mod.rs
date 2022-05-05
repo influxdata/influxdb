@@ -2,10 +2,9 @@
 
 use crate::cache::CatalogCache;
 use arrow::record_batch::RecordBatch;
-use data_types::timestamp::TimestampMinMax;
 use data_types2::{
     ChunkAddr, ChunkId, ChunkOrder, DeletePredicate, ParquetFile, ParquetFileId,
-    ParquetFileWithMetadata, PartitionId, SequenceNumber, SequencerId,
+    ParquetFileWithMetadata, PartitionId, SequenceNumber, SequencerId, TimestampMinMax,
 };
 use futures::StreamExt;
 use iox_catalog::interface::Catalog;
