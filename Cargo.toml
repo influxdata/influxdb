@@ -53,7 +53,7 @@ members = [
     "query_functions",
     "query_tests",
     "read_buffer",
-    "router2",
+    "router",
     "schema",
     "service_common",
     "service_grpc_influxrpc",

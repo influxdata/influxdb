@@ -39,7 +39,7 @@ predicate = { path = "../predicate" }
 querier = { path = "../querier" }
 query = { path = "../query" }
 read_buffer = { path = "../read_buffer" }
-router2 = { path = "../router2" }
+router = { path = "../router" }
 schema = { path = "../schema" }
 iox_time = { path = "../iox_time" }
 trace = { path = "../trace" }

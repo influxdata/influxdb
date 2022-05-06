@@ -16,7 +16,7 @@ use metric::Registry;
 use mutable_batch::MutableBatch;
 use object_store::DynObjectStore;
 use observability_deps::tracing::info;
-use router2::{
+use router::{
     dml_handlers::{
         DmlHandler, DmlHandlerChainExt, FanOutAdaptor, InstrumentationDecorator,
         NamespaceAutocreation, Partitioner, SchemaValidator, ShardedWriteBuffer,
@@ -71,7 +71,7 @@ impl<D> RouterServerType<D> {
 
 impl<D> std::fmt::Debug for RouterServerType<D> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Router2")
+        write!(f, "Router")
     }
 }
 
@@ -92,7 +92,7 @@ where
 
     /// Dispatches `req` to the router [`HttpDelegate`] delegate.
     ///
-    /// [`HttpDelegate`]: router2::server::http::HttpDelegate
+    /// [`HttpDelegate`]: router::server::http::HttpDelegate
     async fn route_http_request(
         &self,
         req: Request<Body>,
@@ -107,7 +107,7 @@ where
 
     /// Registers the services exposed by the router [`GrpcDelegate`] delegate.
     ///
-    /// [`GrpcDelegate`]: router2::server::grpc::GrpcDelegate
+    /// [`GrpcDelegate`]: router::server::grpc::GrpcDelegate
     async fn server_grpc(self: Arc<Self>, builder_input: RpcBuilderInput) -> Result<(), RpcError> {
         let builder = setup_builder!(builder_input, self);
         add_service!(builder, self.server.grpc().write_service());
@@ -128,11 +128,11 @@ where
     }
 }
 
-/// This adaptor converts the `router2` http error type into a type that
+/// This adaptor converts the `router` http error type into a type that
 /// satisfies the requirements of ioxd's runner framework, keeping the
 /// two decoupled.
 #[derive(Debug)]
-pub struct IoxHttpErrorAdaptor(router2::server::http::Error);
+pub struct IoxHttpErrorAdaptor(router::server::http::Error);
 
 impl Display for IoxHttpErrorAdaptor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -148,8 +148,8 @@ impl HttpApiErrorSource for IoxHttpErrorAdaptor {
     }
 }
 
-/// Instantiate a router2 server
-pub async fn create_router2_server_type(
+/// Instantiate a router server
+pub async fn create_router_server_type(
     common_state: &CommonServerState,
     metrics: Arc<metric::Registry>,
     catalog: Arc<dyn Catalog>,

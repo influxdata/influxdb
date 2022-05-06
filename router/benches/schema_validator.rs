@@ -6,7 +6,7 @@ use data_types::DatabaseName;
 use hashbrown::HashMap;
 use iox_catalog::mem::MemCatalog;
 use mutable_batch::MutableBatch;
-use router2::{
+use router::{
     dml_handlers::{DmlHandler, SchemaValidator},
     namespace_cache::{MemoryNamespaceCache, ShardedCache},
 };

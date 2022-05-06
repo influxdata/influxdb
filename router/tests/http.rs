@@ -6,7 +6,7 @@ use hyper::{Body, Request, StatusCode};
 use iox_catalog::{interface::Catalog, mem::MemCatalog};
 use metric::{Attributes, Metric, Registry, U64Counter, U64Histogram};
 use mutable_batch::MutableBatch;
-use router2::{
+use router::{
     dml_handlers::{
         Chain, DmlError, DmlHandlerChainExt, FanOutAdaptor, InstrumentationDecorator,
         NamespaceAutocreation, Partitioned, Partitioner, SchemaError, SchemaValidator,
@@ -65,7 +65,7 @@ type HttpDelegateStack = HttpDelegate<
     >,
 >;
 
-/// A [`router2`] stack configured with the various DML handlers using mock
+/// A [`router`] stack configured with the various DML handlers using mock
 /// catalog / write buffer backends.
 impl TestContext {
     pub fn new() -> Self {
@@ -268,7 +268,7 @@ async fn test_schema_conflict() {
 
     assert_matches!(
         &err,
-        router2::server::http::Error::DmlHandler(
+        router::server::http::Error::DmlHandler(
             DmlError::Schema(
                 SchemaError::Conflict(
                     iox_catalog::interface::Error::ColumnTypeMismatch {
@@ -327,7 +327,7 @@ async fn test_schema_limit() {
 
     assert_matches!(
         &err,
-        router2::server::http::Error::DmlHandler(
+        router::server::http::Error::DmlHandler(
             DmlError::Schema(
                 SchemaError::ServiceLimit(
                     iox_catalog::interface::Error::TableCreateLimitError {

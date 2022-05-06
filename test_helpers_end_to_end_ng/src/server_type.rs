@@ -6,7 +6,7 @@ use super::addrs::BindAddresses;
 pub enum ServerType {
     AllInOne,
     Ingester,
-    Router2,
+    Router,
     Querier,
 }
 
@@ -16,7 +16,7 @@ impl ServerType {
         match self {
             Self::AllInOne => "all-in-one",
             Self::Ingester => "ingester",
-            Self::Router2 => "router2",
+            Self::Router => "router",
             Self::Querier => "querier",
         }
     }
@@ -60,7 +60,7 @@ impl AddAddrEnv for Command {
                     "INFLUXDB_IOX_GRPC_BIND_ADDR",
                     addrs.ingester_grpc_api().bind_addr().as_ref(),
                 ),
-            ServerType::Router2 => self
+            ServerType::Router => self
                 .env(
                     "INFLUXDB_IOX_BIND_ADDR",
                     addrs.router_http_api().bind_addr().as_ref(),

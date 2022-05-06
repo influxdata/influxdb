@@ -2195,7 +2195,7 @@ dependencies = [
  "querier",
  "query",
  "read_buffer",
- "router2",
+ "router",
  "rustyline",
  "schema",
  "serde",
@@ -2688,7 +2688,7 @@ dependencies = [
  "mutable_batch",
  "object_store",
  "observability_deps",
- "router2",
+ "router",
  "service_grpc_testing",
  "thiserror",
  "tokio",
@@ -4630,7 +4630,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "router2"
+name = "router"
 version = "0.1.0"
 dependencies = [
  "assert_matches",

@@ -15,7 +15,7 @@ metric = { path = "../metric" }
 mutable_batch = { path = "../mutable_batch" }
 object_store = { path = "../object_store" }
 observability_deps = { path = "../observability_deps" }
-router2 = { path = "../router2" }
+router = { path = "../router" }
 service_grpc_testing = { path = "../service_grpc_testing" }
 trace = { path = "../trace" }
 trace_http = { path = "../trace_http" }

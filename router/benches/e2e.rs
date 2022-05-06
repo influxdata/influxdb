@@ -2,7 +2,7 @@ use criterion::{criterion_group, criterion_main, Criterion, Throughput};
 use data_types::{PartitionTemplate, TemplatePart};
 use hyper::{Body, Request};
 use iox_catalog::{interface::Catalog, mem::MemCatalog};
-use router2::{
+use router::{
     dml_handlers::{
         DmlHandlerChainExt, FanOutAdaptor, Partitioner, SchemaValidator, ShardedWriteBuffer,
         WriteSummaryAdapter,

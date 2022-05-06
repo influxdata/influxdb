@@ -3,7 +3,7 @@ use criterion::{
 };
 use data_types::DatabaseName;
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
-use router2::sharder::{JumpHash, Sharder};
+use router::sharder::{JumpHash, Sharder};
 
 fn get_random_string(length: usize) -> String {
     thread_rng()

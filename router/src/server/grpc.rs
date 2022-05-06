@@ -1,4 +1,4 @@
-//! gRPC service implementations for `router2`.
+//! gRPC service implementations for `router`.
 
 use crate::dml_handlers::{DmlError, DmlHandler, PartitionError};
 use generated_types::{
@@ -26,7 +26,7 @@ use write_summary::WriteSummary;
 // investigate the cause if you dare.
 const WRITE_TOKEN_GRPC_HEADER: &str = "x-iox-write-token";
 
-/// This type is responsible for managing all gRPC services exposed by `router2`.
+/// This type is responsible for managing all gRPC services exposed by `router`.
 #[derive(Debug)]
 pub struct GrpcDelegate<D> {
     dml_handler: Arc<D>,

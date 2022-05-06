@@ -1,9 +1,6 @@
-//! HTTP service implementations for `router2`.
-
-use std::{str::Utf8Error, sync::Arc};
+//! HTTP service implementations for `router`.
 
 use crate::dml_handlers::{DmlError, DmlHandler, PartitionError, SchemaError};
-
 use bytes::{Bytes, BytesMut};
 use data_types::{org_and_bucket_to_database, OrgBucketMappingError};
 use futures::StreamExt;
@@ -16,6 +13,7 @@ use mutable_batch_lp::LinesConverter;
 use observability_deps::tracing::*;
 use predicate::delete_predicate::{parse_delete_predicate, parse_http_delete_request};
 use serde::Deserialize;
+use std::{str::Utf8Error, sync::Arc};
 use thiserror::Error;
 use tokio::sync::{Semaphore, TryAcquireError};
 use trace::ctx::SpanContext;
@@ -23,7 +21,7 @@ use write_summary::WriteSummary;
 
 const WRITE_TOKEN_HTTP_HEADER: &str = "X-IOx-Write-Token";
 
-/// Errors returned by the `router2` HTTP request handler.
+/// Errors returned by the `router` HTTP request handler.
 #[derive(Debug, Error)]
 pub enum Error {
     /// The requested path has no registered handler.
@@ -201,7 +199,7 @@ impl<T> TryFrom<&Request<T>> for WriteInfo {
     }
 }
 
-/// This type is responsible for servicing requests to the `router2` HTTP
+/// This type is responsible for servicing requests to the `router` HTTP
 /// endpoint.
 ///
 /// Requests to some paths may be handled externally by the caller - the IOx

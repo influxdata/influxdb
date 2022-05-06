@@ -62,7 +62,7 @@ impl WriteSummary {
         for s in sequences {
             let sequencer_id: i32 = s.sequencer_id.try_into().expect("Invalid sequencer id");
 
-            // This is super confusing: "sequencer_id" in the router2
+            // This is super confusing: "sequencer_id" in the router
             //  and other parts of the codebase refers to what the
             //  ingester calls "kakfa_partition".
             //

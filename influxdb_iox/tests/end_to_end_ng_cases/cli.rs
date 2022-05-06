@@ -54,7 +54,7 @@ async fn remote_partition_and_get_from_store_and_pull() {
             // Run the 'remote partition' command
             Step::Custom(Box::new(|state: &mut StepTestState| {
                 async {
-                    let router_addr = state.cluster().router2().router_grpc_base().to_string();
+                    let router_addr = state.cluster().router().router_grpc_base().to_string();
                     let namespace = state.cluster().namespace().to_string();
 
                     // Validate the output of the remote partittion CLI command

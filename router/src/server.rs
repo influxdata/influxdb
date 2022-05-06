@@ -1,19 +1,17 @@
 //! Router server entrypoint.
 
-use std::sync::Arc;
-
+use self::{grpc::GrpcDelegate, http::HttpDelegate};
 use crate::dml_handlers::DmlHandler;
 use hashbrown::HashMap;
 use mutable_batch::MutableBatch;
+use std::sync::Arc;
 use trace::TraceCollector;
-
-use self::{grpc::GrpcDelegate, http::HttpDelegate};
 
 pub mod grpc;
 pub mod http;
 
 /// The [`RouterServer`] manages the lifecycle and contains all state for a
-/// `router2` server instance.
+/// `router` server instance.
 #[derive(Debug)]
 pub struct RouterServer<D> {
     metrics: Arc<metric::Registry>,

@@ -1,4 +1,4 @@
-//! Implementation of command line option for running router2
+//! Implementation of command line option for running router
 
 use super::main;
 use clap_blocks::{
@@ -8,7 +8,7 @@ use ioxd_common::{
     server_type::{CommonServerState, CommonServerStateError},
     Service,
 };
-use ioxd_router::create_router2_server_type;
+use ioxd_router::create_router_server_type;
 use object_store::{instrumentation::ObjectStoreMetrics, DynObjectStore, ObjectStoreImpl};
 use observability_deps::tracing::*;
 use std::sync::Arc;
@@ -37,8 +37,8 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug, clap::Parser)]
 #[clap(
     name = "run",
-    about = "Runs in router2 mode",
-    long_about = "Run the IOx router2 server.\n\nThe configuration options below can be \
+    about = "Runs in router mode",
+    long_about = "Run the IOx router server.\n\nThe configuration options below can be \
     set either with the command line flags or with the specified environment \
     variable. If there is a file named '.env' in the current working directory, \
     it is sourced before loading the configuration.
@@ -90,7 +90,7 @@ pub async fn command(config: Config) -> Result<()> {
 
     let catalog = config
         .catalog_dsn
-        .get_catalog("router2", Arc::clone(&metrics))
+        .get_catalog("router", Arc::clone(&metrics))
         .await?;
 
     let object_store = ObjectStoreImpl::try_from(config.run_config.object_store_config())
@@ -99,7 +99,7 @@ pub async fn command(config: Config) -> Result<()> {
     let object_store: Arc<DynObjectStore> =
         Arc::new(ObjectStoreMetrics::new(object_store, &*metrics));
 
-    let server_type = create_router2_server_type(
+    let server_type = create_router_server_type(
         &common_state,
         Arc::clone(&metrics),
         catalog,
@@ -110,7 +110,7 @@ pub async fn command(config: Config) -> Result<()> {
     )
     .await?;
 
-    info!("starting router2");
+    info!("starting router");
     let services = vec![Service::create(server_type, common_state.run_config())];
     Ok(main::main(common_state, services, metrics).await?)
 }
