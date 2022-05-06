@@ -9,30 +9,11 @@ use thiserror::Error;
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Error)]
 pub enum Error {
-    // #[error("Error reading file {:?}: {}", file_name, source)]
-    // ReadingFile {
-    //     file_name: PathBuf,
-    //     source: std::io::Error,
-    // },
     #[error("Error formatting: {0}")]
     FormattingError(#[from] influxdb_iox_client::format::Error),
 
     #[error("Error querying: {0}")]
     Query(#[from] influxdb_iox_client::flight::Error),
-    // #[error("Error in chunk subcommand: {0}")]
-    // Chunk(#[from] chunk::Error),
-
-    // #[error("Error in partition subcommand: {0}")]
-    // Partition(#[from] partition::Error),
-
-    // #[error("JSON Serialization error: {0}")]
-    // Serde(#[from] serde_json::Error),
-
-    // #[error("Error in partition subcommand: {0}")]
-    // Catalog(#[from] recover::Error),
-
-    // #[error("Client error: {0}")]
-    // ClientError(#[from] influxdb_iox_client::error::Error),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
