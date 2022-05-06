@@ -180,6 +180,7 @@ pub struct ParquetChunkAdapter {
     metric_registry: Arc<metric::Registry>,
 
     /// Time provider.
+    #[allow(dead_code)]
     time_provider: Arc<dyn TimeProvider>,
 }
 

@@ -38,6 +38,7 @@ pub struct QuerierNamespace {
     exec: Arc<Executor>,
 
     /// Connection to ingester
+    #[allow(dead_code)]
     ingester_connection: Arc<dyn IngesterConnection>,
 
     /// Query log.

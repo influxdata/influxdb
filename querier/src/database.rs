@@ -33,12 +33,15 @@ pub struct QuerierDatabase {
     chunk_adapter: Arc<ParquetChunkAdapter>,
 
     /// Metric registry
+    #[allow(dead_code)]
     metric_registry: Arc<metric::Registry>,
 
     /// Namespaces.
+    #[allow(dead_code)]
     namespaces: RwLock<HashMap<Arc<str>, Arc<QuerierNamespace>>>,
 
     /// Object store.
+    #[allow(dead_code)]
     object_store: Arc<DynObjectStore>,
 
     /// Executor for queries.
