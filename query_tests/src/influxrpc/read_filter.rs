@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 #[cfg(test)]
 use crate::scenarios::{
-    DbScenario, DbSetup, NoData, TwoMeasurements, TwoMeasurementsManyFields,
-    TwoMeasurementsWithDelete, TwoMeasurementsWithDeleteAll,
+    DbScenario, DbSetup, TwoMeasurements, TwoMeasurementsManyFields, TwoMeasurementsWithDelete,
+    TwoMeasurementsWithDeleteAll,
 };
 use crate::{
     db::AbstractDb,
@@ -91,13 +91,6 @@ async fn run_read_filter_error_case<D>(
 
         assert_contains!(result.to_string(), expected_error);
     }
-}
-
-#[tokio::test]
-async fn test_read_filter_no_data_no_pred() {
-    let expected_results = vec![] as Vec<&str>;
-
-    run_read_filter_test_case(NoData {}, InfluxRpcPredicate::default(), expected_results).await;
 }
 
 #[tokio::test]

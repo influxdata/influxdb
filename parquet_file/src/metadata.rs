@@ -86,16 +86,11 @@
 //! [Apache Parquet]: https://parquet.apache.org/
 //! [Apache Thrift]: https://thrift.apache.org/
 //! [Thrift Compact Protocol]: https://github.com/apache/thrift/blob/master/doc/specs/thrift-compact-protocol.md
-use data_types::{
-    chunk_metadata::{ChunkId, ChunkOrder},
-    partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics},
-};
+use data_types::partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics};
 use data_types2::{
     NamespaceId, ParquetFileParams, PartitionId, SequenceNumber, SequencerId, TableId, Timestamp,
 };
-use generated_types::influxdata::iox::{
-    ingester::v1 as proto, preserved_catalog::v1 as preserved_catalog,
-};
+use generated_types::influxdata::iox::ingester::v1 as proto;
 use iox_time::Time;
 use parquet::{
     arrow::parquet_to_arrow_schema,
@@ -110,15 +105,11 @@ use parquet::{
     },
     schema::types::SchemaDescriptor as ParquetSchemaDescriptor,
 };
-use persistence_windows::{
-    checkpoint::{DatabaseCheckpoint, PartitionCheckpoint},
-    min_max_sequence::OptionalMinMaxSequence,
-};
 use prost::Message;
 use schema::sort::{SortKey, SortKeyBuilder};
 use schema::{InfluxColumnType, InfluxFieldType, Schema};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
-use std::{collections::BTreeMap, convert::TryInto, sync::Arc};
+use std::{convert::TryInto, sync::Arc};
 use thrift::protocol::{TCompactInputProtocol, TCompactOutputProtocol, TOutputProtocol};
 use uuid::Uuid;
 
@@ -131,10 +122,6 @@ use uuid::Uuid;
 pub const METADATA_VERSION: u32 = 10;
 
 /// File-level metadata key to store the IOx-specific data.
-///
-/// This will contain [`IoxMetadataOld`] serialized as base64-encoded [Protocol Buffers 3].
-///
-/// [Protocol Buffers 3]: https://developers.google.com/protocol-buffers/docs/proto3
 pub const METADATA_KEY: &str = "IOX:metadata";
 
 #[derive(Debug, Snafu)]
@@ -222,20 +209,10 @@ pub enum Error {
     #[snafu(display("Field missing while parsing IOx metadata: {}", field))]
     IoxMetadataFieldMissing { field: String },
 
-    #[snafu(display("Min-max relation wrong while parsing IOx metadata"))]
-    IoxMetadataMinMax,
-
     #[snafu(display("Cannot parse IOx metadata from Protobuf: {}", source))]
     IoxMetadataBroken {
         source: Box<dyn std::error::Error + Send + Sync>,
     },
-
-    #[snafu(display(
-        "Format version of IOx metadata is {} but only {:?} are supported",
-        actual,
-        expected
-    ))]
-    IoxMetadataVersionMismatch { actual: u32, expected: Vec<u32> },
 
     #[snafu(display("Cannot encode ZSTD message for parquet metadata: {}", source))]
     ZstdEncodeFailure { source: std::io::Error },
@@ -243,257 +220,10 @@ pub enum Error {
     #[snafu(display("Cannot decode ZSTD message for parquet metadata: {}", source))]
     ZstdDecodeFailure { source: std::io::Error },
 
-    #[snafu(display("Cannot decode chunk id: {}", source))]
-    CannotDecodeChunkId {
-        source: data_types::chunk_metadata::ChunkIdConversionError,
-    },
-
     #[snafu(display("Cannot parse UUID: {}", source))]
     UuidParse { source: uuid::Error },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
-
-/// IOx-specific metadata.
-///
-/// # Serialization
-/// This will serialized as base64-encoded [Protocol Buffers 3] into the file-level key-value Parquet metadata (under [`METADATA_KEY`]).
-///
-/// **Important: When changing this structure, consider bumping the
-///   [metadata version](METADATA_VERSION)!**
-///
-/// # Content
-/// This struct contains chunk-specific information (like the chunk address), data lineage information (like the
-/// creation timestamp) and partition/database-wide checkpoint data. While this struct is stored in a parquet file and
-/// is somewhat chunk-bound, it is necessary to also store broader information (like the checkpoints) in it so that the
-/// catalog can be rebuilt from parquet files (see [Catalog Properties]).
-///
-/// [Catalog Properties]: https://github.com/influxdata/influxdb_iox/blob/main/docs/catalog_persistence.md#13-properties
-/// [Protocol Buffers 3]: https://developers.google.com/protocol-buffers/docs/proto3
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub struct IoxMetadataOld {
-    /// Timestamp when this file was created.
-    pub creation_timestamp: Time,
-
-    pub time_of_first_write: Time,
-
-    pub time_of_last_write: Time,
-
-    /// Table that holds this parquet file.
-    pub table_name: Arc<str>,
-
-    /// Partition key of the partition that holds this parquet file.
-    pub partition_key: Arc<str>,
-
-    /// Chunk ID.
-    pub chunk_id: ChunkId,
-
-    /// Partition checkpoint with pre-split data for the in this file.
-    pub partition_checkpoint: PartitionCheckpoint,
-
-    /// Database checkpoint created at the time of the write.
-    pub database_checkpoint: DatabaseCheckpoint,
-
-    /// Order of this chunk relative to other overlapping chunks.
-    pub chunk_order: ChunkOrder,
-
-    /// Sort key of this chunk
-    pub sort_key: Option<SortKey>,
-}
-
-impl IoxMetadataOld {
-    /// Read from protobuf message
-    fn from_protobuf(data: &[u8]) -> Result<Self> {
-        // extract protobuf message from bytes
-        let proto_msg = preserved_catalog::IoxMetadata::decode(data)
-            .map_err(|err| Box::new(err) as _)
-            .context(IoxMetadataBrokenSnafu)?;
-
-        // check version
-        if proto_msg.version != METADATA_VERSION {
-            return Err(Error::IoxMetadataVersionMismatch {
-                actual: proto_msg.version,
-                expected: vec![METADATA_VERSION],
-            });
-        }
-
-        // extract creation timestamp
-        let creation_timestamp =
-            decode_timestamp_from_field(proto_msg.creation_timestamp, "creation_timestamp")?;
-        // extract time of first write
-        let time_of_first_write =
-            decode_timestamp_from_field(proto_msg.time_of_first_write, "time_of_first_write")?;
-        // extract time of last write
-        let time_of_last_write =
-            decode_timestamp_from_field(proto_msg.time_of_last_write, "time_of_last_write")?;
-
-        // extract strings
-        let table_name = Arc::from(proto_msg.table_name.as_ref());
-        let partition_key = Arc::from(proto_msg.partition_key.as_ref());
-
-        // extract partition checkpoint
-        let proto_partition_checkpoint =
-            proto_msg
-                .partition_checkpoint
-                .context(IoxMetadataFieldMissingSnafu {
-                    field: "partition_checkpoint",
-                })?;
-
-        let sequencer_numbers = proto_partition_checkpoint
-            .sequencer_numbers
-            .into_iter()
-            .map(|(sequencer_id, min_max)| {
-                let min = min_max.min.as_ref().map(|min| min.value);
-
-                if min.map(|min| min <= min_max.max).unwrap_or(true) {
-                    Ok((sequencer_id, OptionalMinMaxSequence::new(min, min_max.max)))
-                } else {
-                    Err(Error::IoxMetadataMinMax)
-                }
-            })
-            .collect::<Result<BTreeMap<u32, OptionalMinMaxSequence>>>()?;
-
-        let flush_timestamp = decode_timestamp_from_field(
-            proto_partition_checkpoint.flush_timestamp,
-            "partition_checkpoint.flush_timestamp",
-        )?;
-        let partition_checkpoint = PartitionCheckpoint::new(
-            Arc::clone(&table_name),
-            Arc::clone(&partition_key),
-            sequencer_numbers,
-            flush_timestamp,
-        );
-
-        // extract database checkpoint
-        let proto_database_checkpoint =
-            proto_msg
-                .database_checkpoint
-                .context(IoxMetadataFieldMissingSnafu {
-                    field: "database_checkpoint",
-                })?;
-
-        let sequencer_numbers = proto_database_checkpoint
-            .sequencer_numbers
-            .into_iter()
-            .map(|(sequencer_id, min_max)| {
-                let min = min_max.min.as_ref().map(|min| min.value);
-
-                if min.map(|min| min <= min_max.max).unwrap_or(true) {
-                    Ok((sequencer_id, OptionalMinMaxSequence::new(min, min_max.max)))
-                } else {
-                    Err(Error::IoxMetadataMinMax)
-                }
-            })
-            .collect::<Result<BTreeMap<u32, OptionalMinMaxSequence>>>()?;
-
-        let database_checkpoint = DatabaseCheckpoint::new(sequencer_numbers);
-
-        let sort_key = proto_msg.sort_key.map(|proto_key| {
-            let mut builder = SortKeyBuilder::with_capacity(proto_key.expressions.len());
-            for expr in proto_key.expressions {
-                builder = builder.with_col_opts(expr.column, expr.descending, expr.nulls_first)
-            }
-            builder.build()
-        });
-
-        Ok(Self {
-            creation_timestamp,
-            time_of_first_write,
-            time_of_last_write,
-            table_name,
-            partition_key,
-            chunk_id: proto_msg
-                .chunk_id
-                .try_into()
-                .context(CannotDecodeChunkIdSnafu)?,
-            partition_checkpoint,
-            database_checkpoint,
-            chunk_order: ChunkOrder::new(proto_msg.chunk_order).ok_or_else(|| {
-                Error::IoxMetadataFieldMissing {
-                    field: "chunk_order".to_string(),
-                }
-            })?,
-            sort_key,
-        })
-    }
-
-    /// Convert to protobuf v3 message.
-    pub(crate) fn to_protobuf(&self) -> std::result::Result<Vec<u8>, prost::EncodeError> {
-        let proto_partition_checkpoint = preserved_catalog::PartitionCheckpoint {
-            sequencer_numbers: self
-                .partition_checkpoint
-                .sequencer_numbers_iter()
-                .map(|(sequencer_id, min_max)| {
-                    (
-                        sequencer_id,
-                        preserved_catalog::OptionalMinMaxSequence {
-                            min: min_max
-                                .min()
-                                .map(|min| preserved_catalog::OptionalUint64 { value: min }),
-                            max: min_max.max(),
-                        },
-                    )
-                })
-                .collect(),
-            flush_timestamp: Some(
-                self.partition_checkpoint
-                    .flush_timestamp()
-                    .date_time()
-                    .into(),
-            ),
-        };
-
-        let proto_database_checkpoint = preserved_catalog::DatabaseCheckpoint {
-            sequencer_numbers: self
-                .database_checkpoint
-                .sequencer_numbers_iter()
-                .map(|(sequencer_id, min_max)| {
-                    (
-                        sequencer_id,
-                        preserved_catalog::OptionalMinMaxSequence {
-                            min: min_max
-                                .min()
-                                .map(|min| preserved_catalog::OptionalUint64 { value: min }),
-                            max: min_max.max(),
-                        },
-                    )
-                })
-                .collect(),
-        };
-
-        let sort_key = self
-            .sort_key
-            .as_ref()
-            .map(|key| preserved_catalog::SortKey {
-                expressions: key
-                    .iter()
-                    .map(|(name, options)| preserved_catalog::sort_key::Expr {
-                        column: name.to_string(),
-                        descending: options.descending,
-                        nulls_first: options.nulls_first,
-                    })
-                    .collect(),
-            });
-
-        let proto_msg = preserved_catalog::IoxMetadata {
-            version: METADATA_VERSION,
-            creation_timestamp: Some(self.creation_timestamp.date_time().into()),
-            time_of_first_write: Some(self.time_of_first_write.date_time().into()),
-            time_of_last_write: Some(self.time_of_last_write.date_time().into()),
-            table_name: self.table_name.to_string(),
-            partition_key: self.partition_key.to_string(),
-            chunk_id: self.chunk_id.into(),
-            partition_checkpoint: Some(proto_partition_checkpoint),
-            database_checkpoint: Some(proto_database_checkpoint),
-            chunk_order: self.chunk_order.get(),
-            sort_key,
-        };
-
-        let mut buf = Vec::new();
-        proto_msg.encode(&mut buf)?;
-
-        Ok(buf)
-    }
-}
 
 /// IOx-specific metadata.
 ///
@@ -871,29 +601,6 @@ impl DecodedIoxParquetMetaData {
     }
 
     /// Read IOx metadata from file-level key-value parquet metadata.
-    pub fn read_iox_metadata_old(&self) -> Result<IoxMetadataOld> {
-        // find file-level key-value metadata entry
-        let kv = self
-            .md
-            .file_metadata()
-            .key_value_metadata()
-            .as_ref()
-            .context(IoxMetadataMissingSnafu)?
-            .iter()
-            .find(|kv| kv.key == METADATA_KEY)
-            .context(IoxMetadataMissingSnafu)?;
-
-        // extract protobuf message from key-value entry
-        let proto_base64 = kv.value.as_ref().context(IoxMetadataMissingSnafu)?;
-        let proto_bytes = base64::decode(proto_base64)
-            .map_err(|err| Box::new(err) as _)
-            .context(IoxMetadataBrokenSnafu)?;
-
-        // convert to Rust object
-        IoxMetadataOld::from_protobuf(proto_bytes.as_slice())
-    }
-
-    /// Read IOx metadata from file-level key-value parquet metadata.
     pub fn read_iox_metadata_new(&self) -> Result<IoxMetadata> {
         // find file-level key-value metadata entry
         let kv = self
@@ -1133,161 +840,6 @@ fn extract_iox_statistics(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    use schema::TIME_COLUMN_NAME;
-
-    use crate::test_utils::create_partition_and_database_checkpoint;
-    use crate::test_utils::generator::{ChunkGenerator, GeneratorConfig};
-
-    #[tokio::test]
-    async fn test_restore_from_file() {
-        // setup: preserve chunk to object store
-        let mut generator = ChunkGenerator::new().await;
-        let (chunk, _) = generator.generate().await.unwrap();
-        let parquet_metadata = chunk.parquet_metadata();
-        let decoded = parquet_metadata.decode().unwrap();
-
-        // step 1: read back schema
-        let schema_actual = decoded.read_schema().unwrap();
-        let schema_expected = chunk.schema();
-        assert_eq!(schema_actual, schema_expected);
-
-        // step 2: read back statistics
-        let table_summary_actual = decoded.read_statistics(&schema_actual).unwrap();
-        let table_summary_expected = chunk.table_summary();
-        for (actual_column, expected_column) in table_summary_actual
-            .iter()
-            .zip(table_summary_expected.columns.iter())
-        {
-            assert_eq!(actual_column.stats.total_count() as usize, chunk.rows());
-            assert_eq!(expected_column.stats.total_count() as usize, chunk.rows());
-            assert_eq!(actual_column, expected_column);
-        }
-    }
-
-    #[tokio::test]
-    async fn test_restore_from_thrift() {
-        // setup: write chunk to object store and only keep thrift-encoded metadata
-        let mut generator = ChunkGenerator::new().await;
-        let (chunk, _) = generator.generate().await.unwrap();
-        let parquet_metadata = chunk.parquet_metadata();
-        let data = parquet_metadata.thrift_bytes().to_vec();
-        let parquet_metadata = IoxParquetMetaData::from_thrift_bytes(data);
-        let decoded = parquet_metadata.decode().unwrap();
-
-        // step 1: read back schema
-        let schema_actual = decoded.read_schema().unwrap();
-        let schema_expected = chunk.schema();
-        assert_eq!(schema_actual, schema_expected);
-
-        // step 2: read back statistics
-        let table_summary_actual = decoded.read_statistics(&schema_actual).unwrap();
-        let table_summary_expected = chunk.table_summary();
-        assert_eq!(table_summary_actual, table_summary_expected.columns);
-    }
-
-    #[tokio::test]
-    async fn test_restore_from_file_no_row_group() {
-        // setup: preserve chunk to object store
-        let mut generator = ChunkGenerator::new().await;
-        generator.set_config(GeneratorConfig::NoData);
-        let result = generator.generate().await;
-        assert!(result.is_none());
-    }
-
-    #[tokio::test]
-    async fn test_make_chunk() {
-        let mut generator = ChunkGenerator::new().await;
-        let (chunk, _) = generator.generate().await.unwrap();
-        let parquet_metadata = chunk.parquet_metadata();
-        let decoded = parquet_metadata.decode().unwrap();
-
-        // Several of these tests cover merging
-        // metata from several different row groups, so this should
-        // not be changed.
-        assert!(decoded.md.num_row_groups() > 1);
-        assert_ne!(decoded.md.file_metadata().schema_descr().num_columns(), 0);
-
-        // column count in summary including the timestamp column
-        assert_eq!(
-            chunk.table_summary().columns.len(),
-            decoded.md.file_metadata().schema_descr().num_columns()
-        );
-
-        // check that column counts are consistent
-        let n_rows = decoded.md.file_metadata().num_rows() as u64;
-        assert!(n_rows >= decoded.md.num_row_groups() as u64);
-        for (col_idx, summary) in chunk.table_summary().columns.iter().enumerate() {
-            let mut num_values = 0;
-            let mut null_count = 0;
-
-            for row_group in decoded.md.row_groups() {
-                let column_chunk = row_group.column(col_idx);
-                num_values += column_chunk.num_values();
-                null_count += column_chunk.statistics().unwrap().null_count();
-            }
-
-            assert_eq!(summary.total_count(), num_values as u64);
-            assert_eq!(summary.total_count(), n_rows);
-            assert_eq!(summary.null_count(), Some(null_count));
-            assert!(summary.null_count().unwrap() <= summary.total_count());
-        }
-
-        // check column names
-        for column in decoded.md.file_metadata().schema_descr().columns() {
-            assert!((column.name() == TIME_COLUMN_NAME) || column.name().starts_with("foo_"));
-        }
-    }
-
-    #[test]
-    fn test_iox_metadata_from_protobuf_checks_version() {
-        let table_name = Arc::from("table1");
-        let partition_key = Arc::from("part1");
-        let (partition_checkpoint, database_checkpoint) = create_partition_and_database_checkpoint(
-            Arc::clone(&table_name),
-            Arc::clone(&partition_key),
-        );
-        let metadata = IoxMetadataOld {
-            creation_timestamp: Time::from_timestamp(3234, 0),
-            table_name,
-            partition_key,
-            chunk_id: ChunkId::new_test(1337),
-            partition_checkpoint,
-            database_checkpoint,
-            time_of_first_write: Time::from_timestamp(3234, 0),
-            time_of_last_write: Time::from_timestamp(3234, 3456),
-            chunk_order: ChunkOrder::new(5).unwrap(),
-            sort_key: None,
-        };
-
-        let proto_bytes = metadata.to_protobuf().unwrap();
-
-        // tamper message
-        let mut proto_msg = preserved_catalog::IoxMetadata::decode(proto_bytes.as_slice()).unwrap();
-        proto_msg.version = 42;
-        let mut proto_bytes = Vec::new();
-        proto_msg.encode(&mut proto_bytes).unwrap();
-
-        // decoding should fail now
-        assert_eq!(
-            IoxMetadataOld::from_protobuf(&proto_bytes)
-                .unwrap_err()
-                .to_string(),
-            format!(
-                "Format version of IOx metadata is 42 but only [{}] are supported",
-                METADATA_VERSION
-            )
-        );
-    }
-
-    #[tokio::test]
-    async fn test_parquet_metadata_size() {
-        // setup: preserve chunk to object store
-        let mut generator = ChunkGenerator::new().await;
-        let (chunk, _) = generator.generate().await.unwrap();
-        let parquet_metadata = chunk.parquet_metadata();
-        assert_eq!(parquet_metadata.size(), 4069);
-    }
 
     #[test]
     fn iox_metadata_protobuf_round_trip() {

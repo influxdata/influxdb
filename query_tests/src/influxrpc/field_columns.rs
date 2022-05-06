@@ -51,12 +51,6 @@ async fn run_field_columns_test_case<D>(
 }
 
 #[tokio::test]
-async fn test_field_columns_empty_database() {
-    let expected_fields = FieldList::default();
-    run_field_columns_test_case(NoData {}, InfluxRpcPredicate::default(), expected_fields).await;
-}
-
-#[tokio::test]
 async fn test_field_columns_no_predicate() {
     let predicate = PredicateBuilder::default()
         .add_expr(col("state").eq(lit("MA"))) // state=MA

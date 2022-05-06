@@ -1305,55 +1305,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "db"
-version = "0.1.0"
-dependencies = [
- "arrow",
- "arrow_util",
- "async-trait",
- "bytes",
- "data_types",
- "data_types2",
- "datafusion 0.1.0",
- "datafusion_util",
- "dml",
- "futures",
- "hashbrown 0.12.0",
- "internal_types",
- "iox_object_store",
- "iox_time",
- "itertools",
- "job_registry",
- "lifecycle",
- "metric",
- "mutable_batch",
- "mutable_batch_lp",
- "mutable_buffer",
- "object_store",
- "observability_deps",
- "once_cell",
- "parking_lot 0.12.0",
- "parquet_catalog",
- "parquet_file",
- "persistence_windows",
- "predicate",
- "query",
- "rand",
- "rand_distr",
- "read_buffer",
- "schema",
- "snafu",
- "test_helpers",
- "tokio",
- "tokio-util 0.7.1",
- "trace",
- "tracker",
- "uuid 0.8.2",
- "workspace-hack",
- "write_buffer",
-]
-
-[[package]]
 name = "debugid"
 version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2218,7 +2169,6 @@ dependencies = [
  "data_types",
  "data_types2",
  "datafusion 0.1.0",
- "db",
  "dml",
  "dotenv",
  "flate2",
@@ -2234,7 +2184,6 @@ dependencies = [
  "influxdb_storage_client",
  "influxrpc_parser",
  "ingester",
- "internal_types",
  "iox_catalog",
  "iox_object_store",
  "iox_time",
@@ -2245,7 +2194,6 @@ dependencies = [
  "ioxd_router2",
  "ioxd_test",
  "itertools",
- "job_registry",
  "libc",
  "log",
  "logfmt",
@@ -2254,7 +2202,6 @@ dependencies = [
  "mutable_batch",
  "mutable_batch_lp",
  "mutable_batch_pb",
- "mutable_buffer",
  "num_cpus",
  "object_store",
  "observability_deps",
@@ -2262,7 +2209,6 @@ dependencies = [
  "panic_logging",
  "parking_lot 0.12.0",
  "parquet",
- "parquet_catalog",
  "parquet_file",
  "pin-project",
  "predicate",
@@ -2271,14 +2217,12 @@ dependencies = [
  "querier",
  "query",
  "read_buffer",
- "router",
  "router2",
  "rustyline",
  "schema",
  "serde",
  "serde_json",
  "serde_urlencoded",
- "server",
  "snafu",
  "tempfile",
  "test_helpers",
@@ -2452,17 +2396,6 @@ name = "integer-encoding"
 version = "3.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0e85a1509a128c855368e135cffcde7eac17d8e1083f41e2b98c58bc1a5074be"
-
-[[package]]
-name = "internal_types"
-version = "0.1.0"
-dependencies = [
- "futures",
- "iox_time",
- "parking_lot 0.12.0",
- "tokio",
- "workspace-hack",
-]
 
 [[package]]
 name = "io-lifetimes"
@@ -2866,19 +2799,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1aab8fc367588b89dcee83ab0fd66b72b50b72fa1904d7095045ace2b0c81c35"
 
 [[package]]
-name = "job_registry"
-version = "0.1.0"
-dependencies = [
- "data_types",
- "iox_time",
- "metric",
- "parking_lot 0.12.0",
- "tokio",
- "tracker",
- "workspace-hack",
-]
-
-[[package]]
 name = "jobserver"
 version = "0.1.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3147,22 +3067,6 @@ name = "libm"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "33a33a362ce288760ec6a508b94caaec573ae7d3bbbd91b87aa0bad4456839db"
-
-[[package]]
-name = "lifecycle"
-version = "0.1.0"
-dependencies = [
- "data_types",
- "futures",
- "hashbrown 0.12.0",
- "internal_types",
- "iox_time",
- "observability_deps",
- "parking_lot 0.12.0",
- "tokio",
- "tracker",
- "workspace-hack",
-]
 
 [[package]]
 name = "linked-hash-map"
@@ -3470,24 +3374,6 @@ dependencies = [
  "mutable_batch_lp",
  "mutable_batch_pb",
  "prost",
-]
-
-[[package]]
-name = "mutable_buffer"
-version = "0.1.0"
-dependencies = [
- "arrow",
- "arrow_util",
- "data_types",
- "metric",
- "mutable_batch",
- "mutable_batch_lp",
- "observability_deps",
- "parking_lot 0.12.0",
- "schema",
- "snafu",
- "test_helpers",
- "workspace-hack",
 ]
 
 [[package]]
@@ -3924,42 +3810,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "parquet_catalog"
-version = "0.1.0"
-dependencies = [
- "arrow",
- "base64 0.13.0",
- "bytes",
- "data_types",
- "datafusion 0.1.0",
- "datafusion_util",
- "futures",
- "generated_types",
- "iox_object_store",
- "iox_time",
- "metric",
- "object_store",
- "observability_deps",
- "parking_lot 0.12.0",
- "parquet",
- "parquet-format",
- "parquet_file",
- "pbjson-types",
- "persistence_windows",
- "predicate",
- "prost",
- "schema",
- "snafu",
- "tempfile",
- "thrift",
- "tokio",
- "tokio-stream",
- "uuid 0.8.2",
- "workspace-hack",
- "zstd",
-]
-
-[[package]]
 name = "parquet_file"
 version = "0.1.0"
 dependencies = [
@@ -3982,7 +3832,6 @@ dependencies = [
  "parquet",
  "parquet-format",
  "pbjson-types",
- "persistence_windows",
  "predicate",
  "prost",
  "schema",
@@ -4077,19 +3926,6 @@ name = "permutation"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f3f4a387a9ad6165bb590820827ef047d8e2921dfb9821891ed0ef2b7cf82774"
-
-[[package]]
-name = "persistence_windows"
-version = "0.1.0"
-dependencies = [
- "data_types",
- "internal_types",
- "iox_time",
- "observability_deps",
- "snafu",
- "test_helpers",
- "workspace-hack",
-]
 
 [[package]]
 name = "pest"
@@ -4549,7 +4385,6 @@ dependencies = [
  "data_types",
  "data_types2",
  "datafusion 0.1.0",
- "db",
  "dml",
  "futures",
  "generated_types",
@@ -4841,31 +4676,6 @@ dependencies = [
  "untrusted",
  "web-sys",
  "winapi",
-]
-
-[[package]]
-name = "router"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "cache_loader_async",
- "data_types",
- "dml",
- "hashbrown 0.12.0",
- "influxdb_iox_client",
- "iox_time",
- "metric",
- "mutable_batch",
- "mutable_batch_lp",
- "mutable_batch_pb",
- "observability_deps",
- "parking_lot 0.12.0",
- "regex",
- "snafu",
- "tokio",
- "trace",
- "workspace-hack",
- "write_buffer",
 ]
 
 [[package]]
@@ -5386,52 +5196,6 @@ dependencies = [
  "ryu",
  "serde",
  "yaml-rust",
-]
-
-[[package]]
-name = "server"
-version = "0.1.0"
-dependencies = [
- "arrow_util",
- "async-trait",
- "bytes",
- "chrono",
- "crc32fast",
- "data_types",
- "db",
- "dml",
- "futures",
- "futures-util",
- "generated_types",
- "hashbrown 0.12.0",
- "influxdb_line_protocol",
- "internal_types",
- "iox_object_store",
- "iox_time",
- "job_registry",
- "lifecycle",
- "metric",
- "mutable_batch_lp",
- "num_cpus",
- "object_store",
- "observability_deps",
- "parking_lot 0.12.0",
- "parquet_catalog",
- "persistence_windows",
- "query",
- "rand",
- "regex",
- "router",
- "service_common",
- "snafu",
- "test_helpers",
- "tokio",
- "tokio-util 0.7.1",
- "trace",
- "tracker",
- "uuid 0.8.2",
- "workspace-hack",
- "write_buffer",
 ]
 
 [[package]]

@@ -12,14 +12,12 @@ compactor = { path = "../compactor" }
 data_types = { path = "../data_types" }
 data_types2 = { path = "../data_types2" }
 datafusion = { path = "../datafusion" }
-db = { path = "../db" }
 dml = { path = "../dml" }
 generated_types = { path = "../generated_types" }
 influxdb_iox_client = { path = "../influxdb_iox_client", features = ["flight", "format", "write_lp"] }
 influxdb_storage_client = { path = "../influxdb_storage_client" }
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
 ingester = { path = "../ingester" }
-internal_types = { path = "../internal_types" }
 influxrpc_parser = { path = "../influxrpc_parser"}
 iox_catalog = { path = "../iox_catalog" }
 iox_object_store = { path = "../iox_object_store" }
@@ -29,27 +27,22 @@ ioxd_ingester = { path = "../ioxd_ingester"}
 ioxd_router2 = { path = "../ioxd_router2"}
 ioxd_querier = { path = "../ioxd_querier"}
 ioxd_test = { path = "../ioxd_test"}
-job_registry = { path = "../job_registry" }
 logfmt = { path = "../logfmt" }
 metric = { path = "../metric" }
 metric_exporters = { path = "../metric_exporters" }
 mutable_batch = { path = "../mutable_batch" }
 mutable_batch_lp = { path = "../mutable_batch_lp" }
 mutable_batch_pb = { path = "../mutable_batch_pb" }
-mutable_buffer = { path = "../mutable_buffer" }
 object_store = { path = "../object_store" }
 observability_deps = { path = "../observability_deps" }
 panic_logging = { path = "../panic_logging" }
-parquet_catalog = { path = "../parquet_catalog" }
 parquet_file = { path = "../parquet_file" }
 predicate = { path = "../predicate" }
 querier = { path = "../querier" }
 query = { path = "../query" }
 read_buffer = { path = "../read_buffer" }
-router = { path = "../router" }
 router2 = { path = "../router2" }
 schema = { path = "../schema" }
-server = { path = "../server" }
 iox_time = { path = "../iox_time" }
 trace = { path = "../trace" }
 trace_exporters = { path = "../trace_exporters" }

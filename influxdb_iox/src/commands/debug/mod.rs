@@ -2,16 +2,11 @@ use futures::Future;
 use influxdb_iox_client::connection::Connection;
 use snafu::prelude::*;
 
-mod dump_catalog;
 mod print_cpu;
 mod schema;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
-    #[snafu(context(false))]
-    #[snafu(display("Error in dump-catalog subcommand: {}", source))]
-    DumpCatalogError { source: dump_catalog::Error },
-
     #[snafu(context(false))]
     #[snafu(display("Error in schema subcommand: {}", source))]
     SchemaError { source: schema::Error },
@@ -28,9 +23,6 @@ pub struct Config {
 
 #[derive(Debug, clap::Parser)]
 enum Command {
-    /// Dump preserved catalog.
-    DumpCatalog(Box<dump_catalog::Config>),
-
     /// Prints what CPU features are used by the compiler by default.
     PrintCpu,
 
@@ -43,7 +35,6 @@ where
     CFut: Send + Future<Output = Connection>,
 {
     match config.command {
-        Command::DumpCatalog(dump_catalog) => dump_catalog::command(*dump_catalog).await?,
         Command::PrintCpu => print_cpu::main(),
         Command::Schema(config) => {
             let connection = connection().await;

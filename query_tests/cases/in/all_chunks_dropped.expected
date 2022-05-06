@@ -1,7 +1,0 @@
--- Test Setup: OneMeasurementAllChunksDropped
--- SQL: SELECT * from information_schema.tables where table_schema = 'iox';
-+---------------+--------------+------------+------------+
-| table_catalog | table_schema | table_name | table_type |
-+---------------+--------------+------------+------------+
-| public        | iox          | h2o        | BASE TABLE |
-+---------------+--------------+------------+------------+

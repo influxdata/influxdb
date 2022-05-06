@@ -4,7 +4,7 @@ use crate::{
     scenarios::{
         AnotherMeasurementForAggs, DbScenario, DbSetup, MeasurementForDefect2691,
         MeasurementForGroupByField, MeasurementForGroupKeys, MeasurementForMax, MeasurementForMin,
-        MeasurementForSelectors, NoData, OneMeasurementForAggs, OneMeasurementNoTags2,
+        MeasurementForSelectors, OneMeasurementForAggs, OneMeasurementNoTags2,
         OneMeasurementNoTagsWithDelete, OneMeasurementNoTagsWithDeleteAllWithAndWithoutChunk,
         TwoMeasurementForAggs, TwoMeasurementsManyFields, TwoMeasurementsManyFieldsOneChunk,
     },
@@ -58,22 +58,6 @@ async fn run_read_group_test_case<D>(
             scenario_name, expected_results, string_results
         );
     }
-}
-
-#[tokio::test]
-async fn test_read_group_no_data_no_pred() {
-    let agg = Aggregate::Mean;
-    let group_columns = vec![] as Vec<&str>;
-    let expected_results = vec![] as Vec<&str>;
-
-    run_read_group_test_case(
-        NoData {},
-        InfluxRpcPredicate::default(),
-        agg,
-        group_columns,
-        expected_results,
-    )
-    .await;
 }
 
 #[tokio::test]

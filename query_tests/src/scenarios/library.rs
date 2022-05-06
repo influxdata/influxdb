@@ -1,23 +1,15 @@
 //! Library of test scenarios that can be used in query_tests
+use super::{
+    util::{all_scenarios_for_one_chunk, make_two_chunk_scenarios, ChunkStageNew},
+    DbScenario, DbSetup,
+};
+use crate::scenarios::util::{make_n_chunks_scenario_new, ChunkDataNew};
 use async_trait::async_trait;
 use data_types::{
     delete_predicate::{DeleteExpr, DeletePredicate},
     timestamp::TimestampRange,
 };
-use db::{
-    test_helpers::write_lp,
-    utils::{
-        count_mutable_buffer_chunks, count_object_store_chunks, count_read_buffer_chunks, make_db,
-    },
-};
-use query::{frontend::sql::SqlQueryPlanner, QueryChunk};
-
-use crate::scenarios::util::{make_n_chunks_scenario_new, ChunkDataNew};
-
-use super::{
-    util::{all_scenarios_for_one_chunk, make_two_chunk_scenarios, ChunkStageNew},
-    DbScenario, DbSetup,
-};
+use query::frontend::sql::SqlQueryPlanner;
 
 #[derive(Debug)]
 pub struct MeasurementWithMaxTime {}
@@ -34,127 +26,6 @@ impl DbSetup for MeasurementWithMaxTime {
         let lp_lines = lp_lines.iter().map(|s| s.as_str()).collect();
 
         all_scenarios_for_one_chunk(vec![], vec![], lp_lines, "cpu", partition_key).await
-    }
-}
-
-// TODO: rewrite this for NG. Need to see whether we will need to test empty DB and if so how
-// <https://github.com/influxdata/influxdb_iox/issues/4488>
-/// No data
-#[derive(Debug)]
-pub struct NoData {}
-#[async_trait]
-impl DbSetup for NoData {
-    async fn make(&self) -> Vec<DbScenario> {
-        let partition_key = "1970-01-01T00";
-        let table_name = "cpu";
-
-        // Scenario 1: No data in the DB yet
-        //
-        let db = make_db().await.db;
-        let scenario1 = DbScenario {
-            scenario_name: "New, Empty Database".into(),
-            db,
-        };
-
-        // Scenario 2: listing partitions (which may create an entry in a map)
-        // in an empty database
-        //
-        let db = make_db().await.db;
-        assert_eq!(count_mutable_buffer_chunks(&db), 0);
-        assert_eq!(count_read_buffer_chunks(&db), 0);
-        assert_eq!(count_object_store_chunks(&db), 0);
-        let scenario2 = DbScenario {
-            scenario_name: "New, Empty Database after partitions are listed".into(),
-            db,
-        };
-
-        // Scenario 3: the database has had data loaded into RB and then deleted
-        //
-        let db = make_db().await.db;
-        let data = "cpu,region=west user=23.2 100";
-        write_lp(&db, data);
-        // move data out of open chunk
-        db.rollover_partition(table_name, partition_key)
-            .await
-            .unwrap();
-        assert_eq!(count_mutable_buffer_chunks(&db), 1); //
-        assert_eq!(count_read_buffer_chunks(&db), 0); // nothing yet
-        assert_eq!(count_object_store_chunks(&db), 0); // nothing yet
-
-        // Now load the closed chunk into the RB
-        let chunk_id = db
-            .compact_partition(table_name, partition_key)
-            .await
-            .unwrap()
-            .unwrap()
-            .id();
-        assert_eq!(count_mutable_buffer_chunks(&db), 0); // open chunk only
-        assert_eq!(count_read_buffer_chunks(&db), 1); // close chunk only
-        assert_eq!(count_object_store_chunks(&db), 0); // nothing yet
-
-        // drop chunk
-        db.drop_chunk(table_name, partition_key, chunk_id)
-            .await
-            .unwrap();
-
-        assert_eq!(count_mutable_buffer_chunks(&db), 0); // open chunk only
-        assert_eq!(count_read_buffer_chunks(&db), 0); // nothing after dropping chunk 0
-        assert_eq!(count_object_store_chunks(&db), 0); // still nothing
-
-        let scenario3 = DbScenario {
-            scenario_name: "Empty Database after drop chunk that is in read buffer".into(),
-            db,
-        };
-
-        // Scenario 4: the database has had data loaded into RB & Object Store and then deleted
-        //
-        let db = make_db().await.db;
-        let data = "cpu,region=west user=23.2 100";
-        write_lp(&db, data);
-        // move data out of open chunk
-        db.rollover_partition(table_name, partition_key)
-            .await
-            .unwrap();
-        assert_eq!(count_mutable_buffer_chunks(&db), 1); // 1 open chunk
-        assert_eq!(count_read_buffer_chunks(&db), 0); // nothing yet
-        assert_eq!(count_object_store_chunks(&db), 0); // nothing yet
-
-        // Now load the closed chunk into the RB
-        db.compact_partition(table_name, partition_key)
-            .await
-            .unwrap();
-        assert_eq!(count_mutable_buffer_chunks(&db), 0); // open chunk only
-        assert_eq!(count_read_buffer_chunks(&db), 1); // close chunk only
-        assert_eq!(count_object_store_chunks(&db), 0); // nothing yet
-
-        // Now write the data in RB to object store but keep it in RB
-        let chunk_id = db
-            .persist_partition("cpu", partition_key, true)
-            .await
-            .unwrap()
-            .unwrap()
-            .id();
-        assert_eq!(count_mutable_buffer_chunks(&db), 0); // open chunk only
-        assert_eq!(count_read_buffer_chunks(&db), 1); // closed chunk only
-        assert_eq!(count_object_store_chunks(&db), 1); // close chunk only
-
-        // drop chunk
-        db.drop_chunk(table_name, partition_key, chunk_id)
-            .await
-            .unwrap();
-
-        assert_eq!(count_mutable_buffer_chunks(&db), 0);
-        assert_eq!(count_read_buffer_chunks(&db), 0);
-        assert_eq!(count_object_store_chunks(&db), 0);
-
-        let scenario4 = DbScenario {
-            scenario_name:
-                "Empty Database after drop chunk that is in both read buffer and object store"
-                    .into(),
-            db,
-        };
-
-        vec![scenario1, scenario2, scenario3, scenario4]
     }
 }
 
@@ -806,36 +677,6 @@ impl DbSetup for EndToEndTestWithDelete {
     }
 }
 
-/// This creates two chunks but then drops them all. This should keep the tables.
-#[derive(Debug)]
-pub struct OneMeasurementAllChunksDropped {}
-#[async_trait]
-impl DbSetup for OneMeasurementAllChunksDropped {
-    async fn make(&self) -> Vec<DbScenario> {
-        let db = make_db().await.db;
-
-        let partition_key = "1970-01-01T00";
-        let table_name = "h2o";
-
-        let lp_lines = vec!["h2o,state=MA temp=70.4 50"];
-        write_lp(&db, &lp_lines.join("\n"));
-        let chunk_id = db
-            .compact_open_chunk(table_name, partition_key)
-            .await
-            .unwrap()
-            .unwrap()
-            .id();
-        db.drop_chunk(table_name, partition_key, chunk_id)
-            .await
-            .unwrap();
-
-        vec![DbScenario {
-            scenario_name: "one measurement but all chunks are dropped".into(),
-            db,
-        }]
-    }
-}
-
 #[derive(Debug)]
 pub struct TwoMeasurementsMultiSeries {}
 #[async_trait]
@@ -1306,68 +1147,6 @@ impl DbSetup for MeasurementForWindowAggregate {
         ];
 
         make_two_chunk_scenarios(partition_key, &lp_lines1.join("\n"), &lp_lines2.join("\n")).await
-    }
-}
-
-pub struct MeasurementForWindowAggregateMonths {}
-#[async_trait]
-impl DbSetup for MeasurementForWindowAggregateMonths {
-    async fn make(&self) -> Vec<DbScenario> {
-        // Note the lines are written into 4 different partititions (as we are
-        // partitioned by day, effectively)
-        let lp_lines = vec![
-            "h2o,state=MA,city=Boston temp=70.0 1583020800000000000", // 2020-03-01T00:00:00Z
-            "h2o,state=MA,city=Boston temp=71.0 1583107920000000000", // 2020-03-02T00:12:00Z
-            "h2o,state=MA,city=Boston temp=72.0 1585699200000000000", // 2020-04-01T00:00:00Z
-            "h2o,state=MA,city=Boston temp=73.0 1585785600000000000", // 2020-04-02T00:00:00Z
-        ];
-        // partition keys are: ["2020-03-02T00", "2020-03-01T00", "2020-04-01T00",
-        // "2020-04-02T00"]
-
-        let db = make_db().await.db;
-        let data = lp_lines.join("\n");
-        write_lp(&db, &data);
-        let scenario1 = DbScenario {
-            scenario_name: "Data in 4 partitions, open chunks of mutable buffer".into(),
-            db,
-        };
-
-        let db = make_db().await.db;
-        let data = lp_lines.join("\n");
-        write_lp(&db, &data);
-        db.rollover_partition("h2o", "2020-03-01T00").await.unwrap();
-        db.rollover_partition("h2o", "2020-03-02T00").await.unwrap();
-        let scenario2 = DbScenario {
-            scenario_name:
-                "Data in 4 partitions, two open chunk and two closed chunks of mutable buffer"
-                    .into(),
-            db,
-        };
-
-        let db = make_db().await.db;
-        let data = lp_lines.join("\n");
-        write_lp(&db, &data);
-        // roll over and load chunks into both RUB and OS
-        db.persist_partition("h2o", "2020-03-01T00", true)
-            .await
-            .unwrap();
-        db.persist_partition("h2o", "2020-03-02T00", true)
-            .await
-            .unwrap();
-        db.persist_partition("h2o", "2020-04-01T00", true)
-            .await
-            .unwrap();
-        db.persist_partition("h2o", "2020-04-02T00", true)
-            .await
-            .unwrap();
-        let scenario3 = DbScenario {
-            scenario_name: "Data in 4 partitions, 4 closed chunks in mutable buffer".into(),
-            db,
-        };
-
-        // TODO: Add a scenario for OS only in #1342
-
-        vec![scenario1, scenario2, scenario3]
     }
 }
 
