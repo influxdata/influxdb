@@ -48,7 +48,6 @@ impl Task {
 }
 
 /// The type of error that is returned from tasks in this module
-#[allow(dead_code)]
 pub type Error = tokio::sync::oneshot::error::RecvError;
 
 /// Job within the executor.

@@ -19,7 +19,6 @@ use data_types::{
 use mutable_batch::MutableBatch;
 use std::{borrow::Cow, collections::BTreeMap};
 
-#[allow(dead_code)]
 const SHARED_KAFKA_TOPIC: &str = "iox-shared";
 const SHARED_QUERY_POOL: &str = SHARED_KAFKA_TOPIC;
 const TIME_COLUMN: &str = "time";
