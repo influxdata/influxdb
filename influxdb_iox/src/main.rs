@@ -9,7 +9,10 @@
     clippy::future_not_send
 )]
 
-use crate::commands::tracing::{init_logs_and_tracing, init_simple_logs, TroggingGuard};
+use crate::commands::{
+    run::all_in_one,
+    tracing::{init_logs_and_tracing, init_simple_logs, TroggingGuard},
+};
 use dotenv::dotenv;
 use influxdb_iox_client::connection::Builder;
 use iox_time::{SystemProvider, TimeProvider};
@@ -65,20 +68,23 @@ compile_error!("heappy and jemalloc_replacing_malloc features are mutually exclu
     long_about = r#"InfluxDB IOx server and command line tools
 
 Examples:
-    # Run the InfluxDB IOx server:
-    influxdb_iox run database
+    # Run the InfluxDB IOx server in all-in-one "run" mode
+    influxdb_iox
+
+    # Display all available modes, including "run"
+    influxdb_iox --help
+
+    # Run the InfluxDB IOx server in all-in-one mode with extra verbose logging
+    influxdb_iox -v
+
+    # Run InfluxDB IOx with full debug logging specified with LOG_FILTER
+    LOG_FILTER=debug influxdb_iox
+
+    # Display all "run" mode settings
+    influxdb_iox run --help
 
     # Run the interactive SQL prompt
     influxdb_iox sql
-
-    # Display all server settings
-    influxdb_iox run database --help
-
-    # Run the InfluxDB IOx server with extra verbose logging
-    influxdb_iox run database -v
-
-    # Run InfluxDB IOx with full debug logging specified with LOG_FILTER
-    LOG_FILTER=debug influxdb_iox run database
 
 Command are generally structured in the form:
     <type of object> <action> <arguments>
@@ -90,25 +96,6 @@ For example, a command such as the following shows all actions
 "#
 )]
 struct Config {
-    /// Log filter short-hand.
-    ///
-    /// Convenient way to set log severity level filter.
-    /// Overrides --log-filter / LOG_FILTER.
-    ///
-    /// -v   'info'
-    ///
-    /// -vv  'debug,hyper::proto::h1=info,h2=info'
-    ///
-    /// -vvv 'trace,hyper::proto::h1=info,h2=info'
-    #[clap(
-        short = 'v',
-        long = "--verbose",
-        multiple_occurrences = true,
-        takes_value = false,
-        parse(from_occurrences)
-    )]
-    pub log_verbose_count: u8,
-
     /// gRPC address of IOx server to connect to
     #[clap(
         short,
@@ -140,8 +127,12 @@ struct Config {
     #[clap(long)]
     num_threads: Option<usize>,
 
+    /// Supports having all-in-one be the default command.
+    #[clap(flatten)]
+    all_in_one_config: all_in_one::Config,
+
     #[clap(subcommand)]
-    command: Command,
+    command: Option<Command>,
 }
 
 #[derive(Debug, clap::Parser)]
@@ -184,7 +175,7 @@ fn main() -> Result<(), std::io::Error> {
     tokio_runtime.block_on(async move {
         let host = config.host;
         let headers = config.header;
-        let log_verbose_count = config.log_verbose_count;
+        let log_verbose_count = config.all_in_one_config.logging_config.log_verbose_count;
         let rpc_timeout = config.rpc_timeout;
 
         let connection = || async move {
@@ -227,7 +218,14 @@ fn main() -> Result<(), std::io::Error> {
         }
 
         match config.command {
-            Command::Remote(config) => {
+            None => {
+                let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
+                if let Err(e) = all_in_one::command(config.all_in_one_config).await {
+                    eprintln!("Server command failed: {}", e);
+                    std::process::exit(ReturnCode::Failure as _)
+                }
+            }
+            Some(Command::Remote(config)) => {
                 let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
                 let connection = connection().await;
                 if let Err(e) = commands::remote::command(connection, config).await {
@@ -235,7 +233,7 @@ fn main() -> Result<(), std::io::Error> {
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
-            Command::Run(config) => {
+            Some(Command::Run(config)) => {
                 let _tracing_guard =
                     handle_init_logs(init_logs_and_tracing(log_verbose_count, &config));
                 if let Err(e) = commands::run::command(*config).await {
@@ -243,7 +241,7 @@ fn main() -> Result<(), std::io::Error> {
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
-            Command::Sql(config) => {
+            Some(Command::Sql(config)) => {
                 let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
                 let connection = connection().await;
                 if let Err(e) = commands::sql::command(connection, config).await {
@@ -251,7 +249,7 @@ fn main() -> Result<(), std::io::Error> {
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
-            Command::Storage(config) => {
+            Some(Command::Storage(config)) => {
                 let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
                 let connection = connection().await;
                 if let Err(e) = commands::storage::command(connection, config).await {
@@ -259,21 +257,21 @@ fn main() -> Result<(), std::io::Error> {
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
-            Command::Catalog(config) => {
+            Some(Command::Catalog(config)) => {
                 let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
                 if let Err(e) = commands::catalog::command(config).await {
                     eprintln!("{}", e);
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
-            Command::Debug(config) => {
+            Some(Command::Debug(config)) => {
                 let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
                 if let Err(e) = commands::debug::command(connection, config).await {
                     eprintln!("{}", e);
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
-            Command::Write(config) => {
+            Some(Command::Write(config)) => {
                 let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
                 let connection = connection().await;
                 if let Err(e) = commands::write::command(connection, config).await {
@@ -281,7 +279,7 @@ fn main() -> Result<(), std::io::Error> {
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
-            Command::Query(config) => {
+            Some(Command::Query(config)) => {
                 let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
                 let connection = connection().await;
                 if let Err(e) = commands::query::command(connection, config).await {

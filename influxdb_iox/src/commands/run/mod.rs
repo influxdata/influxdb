@@ -1,7 +1,7 @@
 use snafu::{ResultExt, Snafu};
 use trogging::cli::LoggingConfig;
 
-mod all_in_one;
+pub(crate) mod all_in_one;
 mod compactor;
 mod ingester;
 mod main;
@@ -35,19 +35,24 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug, clap::Parser)]
 pub struct Config {
+    /// Supports having all-in-one be the default command.
+    #[clap(flatten)]
+    all_in_one_config: all_in_one::Config,
+
     #[clap(subcommand)]
-    command: Command,
+    command: Option<Command>,
 }
 
 impl Config {
     pub fn logging_config(&self) -> &LoggingConfig {
         match &self.command {
-            Command::Compactor(config) => config.run_config.logging_config(),
-            Command::Querier(config) => config.run_config.logging_config(),
-            Command::Router2(config) => config.run_config.logging_config(),
-            Command::Ingester(config) => config.run_config.logging_config(),
-            Command::AllInOne(config) => &config.logging_config,
-            Command::Test(config) => config.run_config.logging_config(),
+            None => &self.all_in_one_config.logging_config,
+            Some(Command::Compactor(config)) => config.run_config.logging_config(),
+            Some(Command::Querier(config)) => config.run_config.logging_config(),
+            Some(Command::Router2(config)) => config.run_config.logging_config(),
+            Some(Command::Ingester(config)) => config.run_config.logging_config(),
+            Some(Command::AllInOne(config)) => &config.logging_config,
+            Some(Command::Test(config)) => config.run_config.logging_config(),
         }
     }
 }
@@ -66,7 +71,7 @@ enum Command {
     /// Run the server in ingester mode
     Ingester(ingester::Config),
 
-    /// Run the server in "all in one" mode
+    /// Run the server in "all in one" mode (Default)
     AllInOne(all_in_one::Config),
 
     /// Run the server in test mode
@@ -75,11 +80,16 @@ enum Command {
 
 pub async fn command(config: Config) -> Result<()> {
     match config.command {
-        Command::Compactor(config) => compactor::command(config).await.context(CompactorSnafu),
-        Command::Querier(config) => querier::command(config).await.context(QuerierSnafu),
-        Command::Router2(config) => router2::command(config).await.context(Router2Snafu),
-        Command::Ingester(config) => ingester::command(config).await.context(IngesterSnafu),
-        Command::AllInOne(config) => all_in_one::command(config).await.context(AllInOneSnafu),
-        Command::Test(config) => test::command(config).await.context(TestSnafu),
+        None => all_in_one::command(config.all_in_one_config)
+            .await
+            .context(AllInOneSnafu),
+        Some(Command::Compactor(config)) => {
+            compactor::command(config).await.context(CompactorSnafu)
+        }
+        Some(Command::Querier(config)) => querier::command(config).await.context(QuerierSnafu),
+        Some(Command::Router2(config)) => router2::command(config).await.context(Router2Snafu),
+        Some(Command::Ingester(config)) => ingester::command(config).await.context(IngesterSnafu),
+        Some(Command::AllInOne(config)) => all_in_one::command(config).await.context(AllInOneSnafu),
+        Some(Command::Test(config)) => test::command(config).await.context(TestSnafu),
     }
 }
