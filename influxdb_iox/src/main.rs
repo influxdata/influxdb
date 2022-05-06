@@ -28,14 +28,14 @@ use tokio::runtime::Runtime;
 
 mod commands {
     pub mod catalog;
-    pub mod database;
     pub mod debug;
+    pub mod query;
     pub mod remote;
     pub mod run;
-    pub mod schema;
     pub mod sql;
     pub mod storage;
     pub mod tracing;
+    pub mod write;
 }
 
 enum ReturnCode {
@@ -137,18 +137,12 @@ struct Config {
 
 #[derive(Debug, clap::Parser)]
 enum Command {
-    /// Database-related commands
-    Database(commands::database::Config),
-
     /// Run the InfluxDB IOx server
     // Clippy recommended boxing this variant because it's much larger than the others
     Run(Box<commands::run::Config>),
 
     /// Commands to run against remote IOx APIs
     Remote(commands::remote::Config),
-
-    /// IOx schema configuration commands
-    Schema(commands::schema::Config),
 
     /// Start IOx interactive SQL REPL loop
     Sql(commands::sql::Config),
@@ -161,6 +155,12 @@ enum Command {
 
     /// Initiate a read request to the gRPC storage service.
     Storage(commands::storage::Config),
+
+    /// Write data into the specified database
+    Write(commands::write::Config),
+
+    /// Query the data with SQL
+    Query(commands::query::Config),
 }
 
 fn main() -> Result<(), std::io::Error> {
@@ -225,14 +225,6 @@ fn main() -> Result<(), std::io::Error> {
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
-            Some(Command::Database(config)) => {
-                let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
-                let connection = connection().await;
-                if let Err(e) = commands::database::command(connection, config).await {
-                    eprintln!("{}", e);
-                    std::process::exit(ReturnCode::Failure as _)
-                }
-            }
             Some(Command::Remote(config)) => {
                 let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
                 let connection = connection().await;
@@ -246,14 +238,6 @@ fn main() -> Result<(), std::io::Error> {
                     handle_init_logs(init_logs_and_tracing(log_verbose_count, &config));
                 if let Err(e) = commands::run::command(*config).await {
                     eprintln!("Server command failed: {}", e);
-                    std::process::exit(ReturnCode::Failure as _)
-                }
-            }
-            Some(Command::Schema(config)) => {
-                let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
-                let connection = connection().await;
-                if let Err(e) = commands::schema::command(connection, config).await {
-                    eprintln!("{}", e);
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
@@ -282,7 +266,23 @@ fn main() -> Result<(), std::io::Error> {
             }
             Some(Command::Debug(config)) => {
                 let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
-                if let Err(e) = commands::debug::command(config).await {
+                if let Err(e) = commands::debug::command(connection, config).await {
+                    eprintln!("{}", e);
+                    std::process::exit(ReturnCode::Failure as _)
+                }
+            }
+            Some(Command::Write(config)) => {
+                let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
+                let connection = connection().await;
+                if let Err(e) = commands::write::command(connection, config).await {
+                    eprintln!("{}", e);
+                    std::process::exit(ReturnCode::Failure as _)
+                }
+            }
+            Some(Command::Query(config)) => {
+                let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
+                let connection = connection().await;
+                if let Err(e) = commands::query::command(connection, config).await {
                     eprintln!("{}", e);
                     std::process::exit(ReturnCode::Failure as _)
                 }
