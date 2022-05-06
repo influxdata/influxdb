@@ -57,36 +57,12 @@ pub mod influxdata {
             }
         }
 
-        pub mod deployment {
-            pub mod v1 {
-                include!(concat!(env!("OUT_DIR"), "/influxdata.iox.deployment.v1.rs"));
-                include!(concat!(
-                    env!("OUT_DIR"),
-                    "/influxdata.iox.deployment.v1.serde.rs"
-                ));
-            }
-        }
-
         pub mod ingester {
             pub mod v1 {
                 include!(concat!(env!("OUT_DIR"), "/influxdata.iox.ingester.v1.rs"));
                 include!(concat!(
                     env!("OUT_DIR"),
                     "/influxdata.iox.ingester.v1.serde.rs"
-                ));
-            }
-        }
-
-        pub mod management {
-            pub mod v1 {
-                /// Operation metadata type
-                pub const OPERATION_METADATA: &str =
-                    "influxdata.iox.management.v1.OperationMetadata";
-
-                include!(concat!(env!("OUT_DIR"), "/influxdata.iox.management.v1.rs"));
-                include!(concat!(
-                    env!("OUT_DIR"),
-                    "/influxdata.iox.management.v1.serde.rs"
                 ));
             }
         }
@@ -124,45 +100,12 @@ pub mod influxdata {
             }
         }
 
-        pub mod preserved_catalog {
-            pub mod v1 {
-                include!(concat!(
-                    env!("OUT_DIR"),
-                    "/influxdata.iox.preserved_catalog.v1.rs"
-                ));
-                include!(concat!(
-                    env!("OUT_DIR"),
-                    "/influxdata.iox.preserved_catalog.v1.serde.rs"
-                ));
-            }
-        }
-
         pub mod querier {
             pub mod v1 {
                 include!(concat!(env!("OUT_DIR"), "/influxdata.iox.querier.v1.rs"));
                 include!(concat!(
                     env!("OUT_DIR"),
                     "/influxdata.iox.querier.v1.serde.rs"
-                ));
-            }
-        }
-
-        pub mod remote {
-            pub mod v1 {
-                include!(concat!(env!("OUT_DIR"), "/influxdata.iox.remote.v1.rs"));
-                include!(concat!(
-                    env!("OUT_DIR"),
-                    "/influxdata.iox.remote.v1.serde.rs"
-                ));
-            }
-        }
-
-        pub mod router {
-            pub mod v1 {
-                include!(concat!(env!("OUT_DIR"), "/influxdata.iox.router.v1.rs"));
-                include!(concat!(
-                    env!("OUT_DIR"),
-                    "/influxdata.iox.router.v1.serde.rs"
                 ));
             }
         }
@@ -221,9 +164,6 @@ pub mod grpc {
     }
 }
 
-/// gRPC Deployment Service
-pub const DEPLOYMENT_SERVICE: &str = "influxdata.iox.deployment.v1.DeploymentService";
-
 /// gRPC Storage Service
 pub const STORAGE_SERVICE: &str = "influxdata.platform.storage.Storage";
 
@@ -272,23 +212,9 @@ pub use influxdata::platform::storage::*;
 pub mod google;
 
 #[cfg(any(feature = "data_types_conversions", test))]
-pub mod chunk;
-#[cfg(any(feature = "data_types_conversions", test))]
-pub mod database_rules;
-#[cfg(any(feature = "data_types_conversions", test))]
-pub mod database_state;
-#[cfg(any(feature = "data_types_conversions", test))]
 pub mod delete_predicate;
 #[cfg(any(feature = "data_types_conversions", test))]
 pub mod ingester;
-#[cfg(any(feature = "data_types_conversions", test))]
-pub mod job;
-#[cfg(any(feature = "data_types_conversions", test))]
-pub mod router;
-#[cfg(any(feature = "data_types_conversions", test))]
-pub mod server_config;
-#[cfg(any(feature = "data_types_conversions", test))]
-pub mod write_buffer;
 
 pub use prost::{DecodeError, EncodeError};
 
@@ -298,22 +224,17 @@ mod tests {
 
     #[test]
     fn test_protobuf_type_url() {
-        use influxdata::iox::management::v1::OPERATION_METADATA;
-
-        let t = protobuf_type_url(OPERATION_METADATA);
+        let t = protobuf_type_url(STORAGE_SERVICE);
 
         assert_eq!(
             &t,
-            "type.googleapis.com/influxdata.iox.management.v1.OperationMetadata"
+            "type.googleapis.com/influxdata.platform.storage.Storage"
         );
 
-        assert!(protobuf_type_url_eq(&t, OPERATION_METADATA));
+        assert!(protobuf_type_url_eq(&t, STORAGE_SERVICE));
         assert!(!protobuf_type_url_eq(&t, "foo"));
 
         // The URL must start with the type.googleapis.com prefix
-        assert!(!protobuf_type_url_eq(
-            OPERATION_METADATA,
-            OPERATION_METADATA
-        ));
+        assert!(!protobuf_type_url_eq(STORAGE_SERVICE, STORAGE_SERVICE,));
     }
 }

@@ -20,14 +20,11 @@ fn main() -> Result<()> {
 ///
 /// - `influxdata.iox.catalog.v1.rs`
 /// - `influxdata.iox.delete.v1.rs`
-/// - `influxdata.iox.deployment.v1.rs`
 /// - `influxdata.iox.ingester.v1.rs`
-/// - `influxdata.iox.management.v1.rs`
 /// - `influxdata.iox.namespace.v1.rs`
-/// - `influxdata.iox.preserved_catalog.v1.rs`
+/// - `influxdata.iox.object_store.v1.rs`
+/// - `influxdata.iox.predicate.v1.rs`
 /// - `influxdata.iox.querier.v1.rs`
-/// - `influxdata.iox.remote.v1.rs`
-/// - `influxdata.iox.router.v1.rs`
 /// - `influxdata.iox.schema.v1.rs`
 /// - `influxdata.iox.write.v1.rs`
 /// - `influxdata.iox.write_buffer.v1.rs`
@@ -35,60 +32,40 @@ fn main() -> Result<()> {
 fn generate_grpc_types(root: &Path) -> Result<()> {
     let catalog_path = root.join("influxdata/iox/catalog/v1");
     let delete_path = root.join("influxdata/iox/delete/v1");
-    let deployment_path = root.join("influxdata/iox/deployment/v1");
     let ingester_path = root.join("influxdata/iox/ingester/v1");
-    let management_path = root.join("influxdata/iox/management/v1");
     let namespace_path = root.join("influxdata/iox/namespace/v1");
     let object_store_path = root.join("influxdata/iox/object_store/v1");
     let predicate_path = root.join("influxdata/iox/predicate/v1");
-    let preserved_catalog_path = root.join("influxdata/iox/preserved_catalog/v1");
     let querier_path = root.join("influxdata/iox/querier/v1");
-    let remote_path = root.join("influxdata/iox/remote/v1");
-    let router_path = root.join("influxdata/iox/router/v1");
     let schema_path = root.join("influxdata/iox/schema/v1");
-    let storage_path = root.join("influxdata/platform/storage");
     let write_buffer_path = root.join("influxdata/iox/write_buffer/v1");
     let write_summary_path = root.join("influxdata/iox/write_summary/v1");
+    let storage_path = root.join("influxdata/platform/storage");
 
     let proto_files = vec![
         catalog_path.join("parquet_file.proto"),
         catalog_path.join("service.proto"),
         delete_path.join("service.proto"),
-        deployment_path.join("service.proto"),
         ingester_path.join("parquet_metadata.proto"),
         ingester_path.join("query.proto"),
         ingester_path.join("write_info.proto"),
-        management_path.join("chunk.proto"),
-        management_path.join("database_rules.proto"),
-        management_path.join("jobs.proto"),
-        management_path.join("partition.proto"),
-        management_path.join("partition_template.proto"),
-        management_path.join("server_config.proto"),
-        management_path.join("service.proto"),
         namespace_path.join("service.proto"),
         object_store_path.join("service.proto"),
         predicate_path.join("predicate.proto"),
-        preserved_catalog_path.join("catalog.proto"),
-        preserved_catalog_path.join("parquet_metadata.proto"),
         querier_path.join("flight.proto"),
         root.join("google/longrunning/operations.proto"),
         root.join("google/rpc/error_details.proto"),
         root.join("google/rpc/status.proto"),
         root.join("grpc/health/v1/service.proto"),
         root.join("influxdata/pbdata/v1/influxdb_pb_data_protocol.proto"),
-        remote_path.join("remote.proto"),
-        remote_path.join("service.proto"),
-        router_path.join("router.proto"),
-        router_path.join("service.proto"),
-        router_path.join("shard.proto"),
         schema_path.join("service.proto"),
+        write_buffer_path.join("write_buffer.proto"),
+        write_summary_path.join("write_summary.proto"),
         storage_path.join("predicate.proto"),
         storage_path.join("service.proto"),
         storage_path.join("source.proto"),
         storage_path.join("storage_common.proto"),
         storage_path.join("test.proto"),
-        write_buffer_path.join("write_buffer.proto"),
-        write_summary_path.join("write_summary.proto"),
     ];
 
     // Tell cargo to recompile if any of these proto files are changed
@@ -102,35 +79,14 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
         .compile_well_known_types()
         .disable_comments(&[".google"])
         .extern_path(".google.protobuf", "::pbjson_types")
-        .bytes(&[
-            ".influxdata.iox.management.v1.Chunk.id",
-            ".influxdata.iox.management.v1.ClosePartitionChunkRequest.chunk_id",
-            ".influxdata.iox.management.v1.CompactChunks.chunks",
-            ".influxdata.iox.management.v1.CompactObjectStoreChunks.chunks",
-            ".influxdata.iox.management.v1.CompactObjectStoreChunksRequest.chunk_ids",
-            ".influxdata.iox.management.v1.DropChunk.chunk_id",
-            ".influxdata.iox.management.v1.PersistChunks.chunks",
-            ".influxdata.iox.management.v1.WriteChunk.chunk_id",
-            ".influxdata.iox.management.v1.LoadReadBufferChunk.chunk_id",
-            ".influxdata.iox.management.v1.LoadPartitionChunkRequest.chunk_id",
-            ".influxdata.iox.management.v1.UnloadPartitionChunkRequest.chunk_id",
-            ".influxdata.iox.preserved_catalog.v1.AddParquet.metadata",
-            ".influxdata.iox.preserved_catalog.v1.ChunkAddr.chunk_id",
-            ".influxdata.iox.preserved_catalog.v1.IoxMetadata.chunk_id",
-            ".influxdata.iox.preserved_catalog.v1.Transaction.previous_uuid",
-            ".influxdata.iox.preserved_catalog.v1.Transaction.uuid",
-            ".influxdata.iox.write.v1.WriteEntryRequest.entry",
-        ])
         .btree_map(&[
             ".influxdata.iox.ingester.v1.IngesterQueryResponseMetadata.unpersisted_partitions",
-            ".influxdata.iox.preserved_catalog.v1.DatabaseCheckpoint.sequencer_numbers",
-            ".influxdata.iox.preserved_catalog.v1.PartitionCheckpoint.sequencer_numbers",
         ]);
 
     let descriptor_path = PathBuf::from(env::var("OUT_DIR").unwrap()).join("proto_descriptor.bin");
     tonic_build::configure()
         .file_descriptor_set_path(&descriptor_path)
-        // protoc in unbuntu builder needs this option
+        // protoc in ubuntu builder needs this option
         .protoc_arg("--experimental_allow_proto3_optional")
         .compile_with_config(config, &proto_files, &[root])?;
 
