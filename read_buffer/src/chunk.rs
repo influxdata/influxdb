@@ -5,7 +5,6 @@ use crate::{
     table::{self, Table},
 };
 use arrow::{error::ArrowError, record_batch::RecordBatch};
-use data_types::chunk_metadata::ChunkColumnSummary;
 use data_types2::TableSummary;
 use observability_deps::tracing::debug;
 use schema::{builder::Error as SchemaError, selection::Selection, Schema};
@@ -13,6 +12,7 @@ use snafu::{ResultExt, Snafu};
 use std::{
     collections::{BTreeMap, BTreeSet},
     convert::TryFrom,
+    sync::Arc,
 };
 
 // The desired minimum row group size, used as the default for the `ChunkBuilder`.
@@ -96,7 +96,7 @@ impl Chunk {
 
     /// Return the estimated size for each column in the table.
     /// Note there may be multiple entries for each column.
-    pub fn column_sizes(&self) -> Vec<ChunkColumnSummary> {
+    pub(crate) fn column_sizes(&self) -> Vec<ChunkColumnSummary> {
         self.table.column_sizes()
     }
 
@@ -506,6 +506,16 @@ impl ChunkBuilder {
     fn must_build(self) -> Chunk {
         self.build().unwrap()
     }
+}
+
+/// Represents metadata about the physical storage of a column in a chunk
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub(crate) struct ChunkColumnSummary {
+    /// Column name
+    pub(crate) name: Arc<str>,
+
+    /// Estimated size, in bytes, consumed by this column.
+    pub(crate) memory_bytes: usize,
 }
 
 #[cfg(test)]

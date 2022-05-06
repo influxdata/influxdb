@@ -1,4 +1,5 @@
 use crate::{
+    chunk::ChunkColumnSummary,
     column,
     row_group::{self, ColumnName, Literal, Predicate, RowGroup},
     schema::{AggregateType, ColumnType, LogicalDataType, ResultSchema},
@@ -6,7 +7,6 @@ use crate::{
     BinaryExpr,
 };
 use arrow::record_batch::RecordBatch;
-use data_types::chunk_metadata::ChunkColumnSummary;
 use data_types2::TableSummary;
 use parking_lot::RwLock;
 use schema::selection::Selection;
@@ -147,7 +147,7 @@ impl Table {
     }
 
     /// The estimated size for each column in this table.
-    pub fn column_sizes(&self) -> Vec<ChunkColumnSummary> {
+    pub(crate) fn column_sizes(&self) -> Vec<ChunkColumnSummary> {
         self.table_data
             .read()
             .data

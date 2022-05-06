@@ -14,7 +14,6 @@ edition = "2021"
 arrow = { version = "13", features = ["prettyprint"] }
 arrow_util = { path = "../arrow_util" }
 croaring = "0.6"
-data_types = { path = "../data_types" }
 data_types2 = { path = "../data_types2" }
 datafusion = { path = "../datafusion" }
 either = "1.6.1"
