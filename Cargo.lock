@@ -6769,6 +6769,7 @@ dependencies = [
  "once_cell",
  "parquet",
  "predicates",
+ "proptest",
  "prost",
  "prost-types",
  "rand",
