@@ -12,7 +12,6 @@ publish = false
 sqlx = { version = "0.5.13", features = ["runtime-tokio-rustls", "postgres", "json", "tls"] }
 either = "1.6.1"
 tokio = { version = "1.18", features = ["rt-multi-thread", "macros", "parking_lot"] }
-tokio-stream = { version = "0.1", default_features = false }
 futures = "0.3"
 workspace-hack = { path = "../workspace-hack"}
 

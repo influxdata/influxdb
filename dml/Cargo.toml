@@ -9,12 +9,7 @@ arrow_util = { path = "../arrow_util" }
 data_types = { path = "../data_types" }
 hashbrown = "0.12"
 mutable_batch = { path = "../mutable_batch" }
-ordered-float = "3"
 schema = { path = "../schema" }
 iox_time = { path = "../iox_time" }
 trace = { path = "../trace" }
 workspace-hack = { path = "../workspace-hack"}
-
-[dev-dependencies]
-mutable_batch_lp = { path = "../mutable_batch_lp" }
-regex = "1"

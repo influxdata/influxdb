@@ -6,33 +6,28 @@ edition = "2021"
 
 [features]
 default = ["flight", "format", "write_lp"]
-flight = ["arrow", "arrow-flight", "arrow_util", "serde/derive", "serde_json", "futures-util"]
+flight = ["arrow", "arrow-flight", "arrow_util", "futures-util"]
 format = ["arrow", "arrow_util"]
-write_lp = ["dml", "mutable_batch", "mutable_batch_lp", "mutable_batch_pb"]
+write_lp = ["dml", "mutable_batch_lp", "mutable_batch_pb"]
 
 [dependencies]
 # Workspace dependencies, in alphabetical order
 arrow_util = { path = "../arrow_util", optional = true }
 client_util = { path = "../client_util" }
+dml = { path = "../dml", optional = true }
 generated_types = { path = "../generated_types", default-features = false }
+mutable_batch_lp = { path = "../mutable_batch_lp", optional = true }
+mutable_batch_pb = { path = "../mutable_batch_pb", optional = true }
 
 # Crates.io dependencies, in alphabetical order
 arrow = { version = "13", optional = true }
 arrow-flight = { version = "13", optional = true }
 bytes = "1.0"
 futures-util = { version = "0.3", optional = true }
-dml = { path = "../dml", optional = true }
-mutable_batch = { path = "../mutable_batch", optional = true }
-mutable_batch_lp = { path = "../mutable_batch_lp", optional = true }
-mutable_batch_pb = { path = "../mutable_batch_pb", optional = true }
 prost = "0.10"
 rand = "0.8.3"
-serde = "1.0.137"
-serde_json = { version = "1.0.81", optional = true }
 thiserror = "1.0.31"
 tonic = { version = "0.7" }
-uuid = { version = "0.8", features = ["v4"] }
 
 [dev-dependencies] # In alphabetical order
-serde_json = "1.0"
 tokio = { version = "1.18", features = ["macros", "parking_lot", "rt-multi-thread"] }

@@ -23,21 +23,14 @@ k8s-openapi = { version = "0.14", features = ["v1_19", "schemars"], default-feat
 kube = { version = "0.71", default-features = false, features = ["client", "rustls-tls", "derive"] }
 kube-derive = { version = "0.71", default-features = false } # only needed to opt out of schema
 kube-runtime = "0.71"
-prost = "0.10"
 schemars = { version = "0.8.8", features = ["derive"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 thiserror = "1.0"
 tokio = { version = "1.18", features = ["rt-multi-thread", "macros", "parking_lot"] }
-tonic = "0.7"
 tracing = { version = "0.1" }
 workspace-hack = { path = "../workspace-hack"}
 trogging = { path = "../trogging", default-features = false, features = ["clap"] }
-
-[build-dependencies]
-glob = "0.3.0"
-pbjson-build = "0.3"
-tonic-build = "0.7"
 
 [dev-dependencies]
 assert_matches = "1.5"

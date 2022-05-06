@@ -7,18 +7,14 @@ edition = "2021"
 # Workspace dependencies, in alphabetical order
 data_types = { path = "../data_types" }
 clap_blocks = { path = "../clap_blocks" }
-generated_types = { path = "../generated_types" }
 iox_catalog = { path = "../iox_catalog" }
-iox_time = { path = "../iox_time" }
 ioxd_common = { path = "../ioxd_common" }
 metric = { path = "../metric" }
 mutable_batch = { path = "../mutable_batch" }
 object_store = { path = "../object_store" }
 observability_deps = { path = "../observability_deps" }
 router = { path = "../router" }
-service_grpc_testing = { path = "../service_grpc_testing" }
 trace = { path = "../trace" }
-trace_http = { path = "../trace_http" }
 write_buffer = { path = "../write_buffer" }
 write_summary = { path = "../write_summary" }
 
@@ -28,9 +24,5 @@ hashbrown = "0.12"
 hyper = "0.14"
 thiserror = "1.0.31"
 tokio = { version = "1.18", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
-tokio-stream = { version = "0.1", features = ["net"] }
 tokio-util = { version = "0.7.1" }
-tonic = "0.7"
-tonic-health = "0.6.0"
-tonic-reflection = "0.4.0"
 workspace-hack = { path = "../workspace-hack"}

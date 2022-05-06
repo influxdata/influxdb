@@ -7,7 +7,6 @@ edition = "2021"
 
 [dependencies]
 http = "0.2.7"
-prost = "0.10"
 thiserror = "1.0.31"
 tonic = { version = "0.7" }
 tower = "0.4"

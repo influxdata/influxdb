@@ -14,13 +14,9 @@ pbjson-types = "0.3"
 predicate = { path = "../predicate", optional = true }
 prost = "0.10"
 query_functions = { path = "../query_functions" }
-regex = "1"
 serde = { version = "1.0", features = ["derive"] }
 tonic = "0.7"
 workspace-hack = { path = "../workspace-hack"}
-
-[dev-dependencies]
-num_cpus = "1.13.0"
 
 [build-dependencies] # In alphabetical order
 tonic-build = "0.7"

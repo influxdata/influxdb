@@ -8,7 +8,6 @@ description = "Protobuf used in test for the grpc-router crate; need to be in a 
 [dependencies]
 tonic = "0.7"
 prost = "0.10"
-prost-types = "0.10"
 
 [build-dependencies]
 tonic-build = "0.7"

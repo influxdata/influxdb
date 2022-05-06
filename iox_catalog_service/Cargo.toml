@@ -4,13 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-async-trait = "0.1"
 data_types = { path = "../data_types" }
 generated_types = { path = "../generated_types" }
 iox_catalog = { path = "../iox_catalog" }
 observability_deps = { path = "../observability_deps" }
-serde = "1.0"
-iox_time = { path = "../iox_time" }
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 tonic = "0.7"
 workspace-hack = { path = "../workspace-hack"}

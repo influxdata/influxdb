@@ -13,7 +13,6 @@ futures = "0.3.21"
 generated_types = { path = "../generated_types" }
 hashbrown = "0.12"
 hyper = "0.14"
-influxdb_line_protocol = { version = "0.1.0", path = "../influxdb_line_protocol" }
 iox_catalog = { path = "../iox_catalog" }
 iox_catalog_service = { path = "../iox_catalog_service"}
 iox_object_store_service = { path = "../iox_object_store_service" }
