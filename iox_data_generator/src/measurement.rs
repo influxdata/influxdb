@@ -183,7 +183,6 @@ impl MeasurementGenerator {
         Ok(Self {
             measurement: Arc::new(Mutex::new(Measurement {
                 name: measurement_name,
-                id: measurement_id,
                 tag_pairs,
                 generated_tag_sets,
                 tag_ordering,
@@ -207,8 +206,6 @@ impl MeasurementGenerator {
 #[derive(Debug)]
 pub struct Measurement {
     name: String,
-    #[allow(dead_code)]
-    id: usize,
     tag_pairs: Vec<Arc<TagPair>>,
     generated_tag_sets: Arc<Vec<TagSet>>,
     tag_ordering: Vec<TagOrdering>,
