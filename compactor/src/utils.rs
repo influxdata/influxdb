@@ -156,6 +156,7 @@ impl CompactedData {
 /// Information needed to update the catalog after compacting a group of files
 #[derive(Debug)]
 pub struct CatalogUpdate {
+    #[allow(dead_code)]
     pub(crate) meta: IoxMetadata,
     pub(crate) tombstones: BTreeMap<TombstoneId, Tombstone>,
     pub(crate) parquet_file: ParquetFileParams,

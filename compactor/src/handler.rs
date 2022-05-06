@@ -48,6 +48,7 @@ fn shared_handle(handle: JoinHandle<()>) -> SharedJoinHandle {
 #[derive(Debug)]
 pub struct CompactorHandlerImpl {
     /// Data to compact
+    #[allow(dead_code)]
     compactor_data: Arc<Compactor>,
 
     /// A token that is used to trigger shutdown of the background worker

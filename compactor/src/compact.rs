@@ -13,7 +13,7 @@ use backoff::{Backoff, BackoffConfig};
 use bytes::Bytes;
 use data_types::{
     ParquetFile, ParquetFileId, ParquetFileWithMetadata, PartitionId, SequencerId, TableId,
-    TablePartition, Timestamp, Tombstone, TombstoneId,
+    Timestamp, Tombstone, TombstoneId,
 };
 use datafusion::error::DataFusionError;
 use iox_catalog::interface::{Catalog, Transaction};
@@ -284,21 +284,6 @@ impl Compactor {
             .level_0(sequencer_id)
             .await
             .context(Level0Snafu)
-    }
-
-    async fn level_1_parquet_files(
-        &self,
-        table_partition: TablePartition,
-        min_time: Timestamp,
-        max_time: Timestamp,
-    ) -> Result<Vec<ParquetFile>> {
-        let mut repos = self.catalog.repositories().await;
-
-        repos
-            .parquet_files()
-            .level_1(table_partition, min_time, max_time)
-            .await
-            .context(Level1Snafu)
     }
 
     async fn update_to_level_1(&self, parquet_file_ids: &[ParquetFileId]) -> Result<()> {
