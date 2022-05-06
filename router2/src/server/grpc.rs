@@ -218,7 +218,7 @@ where
         let metadata = response.metadata_mut();
         metadata.insert(
             WRITE_TOKEN_GRPC_HEADER,
-            AsciiMetadataValue::from_str(&summary.to_token()).map_err(|e| {
+            AsciiMetadataValue::try_from(&summary.to_token()).map_err(|e| {
                 Status::internal(format!(
                     "Could not convert WriteSummary token to AsciiMetadataValue: {e}"
                 ))
