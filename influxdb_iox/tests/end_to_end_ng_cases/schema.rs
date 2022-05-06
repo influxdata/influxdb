@@ -76,6 +76,7 @@ async fn ingester_schema_cli() {
                         .unwrap()
                         .arg("-h")
                         .arg(&router_addr)
+                        .arg("debug")
                         .arg("schema")
                         .arg("get")
                         .arg(state.cluster().namespace())
