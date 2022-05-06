@@ -51,11 +51,6 @@ pub enum Error {
     },
 }
 
-/// When the lifecycle manager indicates that ingest should be paused because of
-/// memory pressure, the sequencer will loop, sleeping this long before checking
-/// with the manager if it can resume ingest.
-const INGEST_PAUSE_DELAY: Duration = Duration::from_millis(100);
-
 /// A specialized `Error` for Catalog errors
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -478,6 +473,7 @@ mod tests {
             .unwrap();
     }
 
+    #[tokio::test]
     #[should_panic(expected = "Background worker 'bad_task' exited early!")]
     async fn test_join_task_early_shutdown() {
         let mut ingester = TestIngester::new().await.ingester;

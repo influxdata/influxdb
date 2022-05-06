@@ -79,7 +79,10 @@ pub enum Error {
     #[snafu(display("Nothing in the Persisting list to get removed"))]
     PersistingEmpty,
 
-    #[snafu(display("The given batch does not match any in the Persisting list. Nothing is removed from the Persisting list"))]
+    #[snafu(display(
+        "The given batch does not match any in the Persisting list. \
+        Nothing is removed from the Persisting list"
+    ))]
     PersistingNotMatch,
 
     #[snafu(display("Cannot partition data: {}", source))]
@@ -154,6 +157,7 @@ impl IngesterData {
     }
 
     /// Get sequencer data for specific sequencer.
+    #[allow(dead_code)] // Used in tests
     pub(crate) fn sequencer(&self, sequencer_id: SequencerId) -> Option<&SequencerData> {
         self.sequencers.get(&sequencer_id)
     }
@@ -189,21 +193,6 @@ impl IngesterData {
                 &self.exec,
             )
             .await
-    }
-
-    /// Return table data of a given (sequencer id, namespace name, and table name)
-    pub(crate) fn table_data(
-        &self,
-        sequencer_id: SequencerId,
-        namespace_name: &str,
-        table_name: &str,
-    ) -> Option<Arc<tokio::sync::RwLock<TableData>>> {
-        let sequencer_data = self.sequencers.get(&sequencer_id)?;
-        let namespaces = sequencer_data.namespaces.read();
-        let namespace_data = namespaces.get(namespace_name)?;
-        let tables = namespace_data.tables.read();
-        let table_data = tables.get(table_name)?;
-        Some(Arc::clone(table_data))
     }
 
     /// Return the ingestion progress for the specified kafka
@@ -543,8 +532,9 @@ impl NamespaceData {
         }
     }
 
-    /// Buffer the operation in the cache, adding any new partitions or delete tombstones to the catalog.
-    /// Returns true if ingest should be paused due to memory limits set in the passed lifecycle manager.
+    /// Buffer the operation in the cache, adding any new partitions or delete tombstones to the
+    /// catalog. Returns true if ingest should be paused due to memory limits set in the passed
+    /// lifecycle manager.
     pub async fn buffer_operation(
         &self,
         dml_operation: DmlOperation,
@@ -615,8 +605,8 @@ impl NamespaceData {
         }
     }
 
-    /// Snapshots the mutable buffer for the partition, which clears it out and moves it over to snapshots. Then
-    /// return a vec of the snapshots and the optional persisting batch.
+    /// Snapshots the mutable buffer for the partition, which clears it out and moves it over to
+    /// snapshots. Then return a vec of the snapshots and the optional persisting batch.
     pub async fn snapshot(
         &self,
         table_name: &str,
@@ -782,6 +772,7 @@ impl TableData {
     }
 
     /// Return tombstone_max_sequence_number
+    #[allow(dead_code)] // Used in tests
     pub fn tombstone_max_sequence_number(&self) -> Option<SequenceNumber> {
         self.tombstone_max_sequence_number
     }
@@ -967,17 +958,9 @@ impl PartitionData {
             .snapshot_to_persisting(sequencer_id, table_id, partition_id, table_name)
     }
 
-    /// Clears the persisting batch, updates the max_persisted_sequence_number.
-    fn mark_persisted(&mut self) {
-        if let Some(persisting) = &self.data.persisting {
-            let (_, max) = persisting.data.min_max_sequence_numbers();
-            self.data.max_persisted_sequence_number = Some(max);
-        }
-        self.data.persisting = None;
-    }
-
     /// Snapshot whatever is in the buffer and return a new vec of the
     /// arc cloned snapshots
+    #[allow(dead_code)] // Used in tests
     pub fn snapshot(&mut self) -> Result<Vec<Arc<SnapshotBatch>>> {
         self.data.snapshot().context(SnapshotSnafu)?;
         Ok(self.data.snapshots.to_vec())
@@ -1017,8 +1000,10 @@ impl PartitionData {
     }
 
     /// Buffers a new tombstone:
-    ///   . All the data in the `buffer` and `snapshots` will be replaced with one tombstone-applied snapshot
-    ///   . The tombstone is only added in the `deletes_during_persisting` if the `persisting` exists
+    ///   . All the data in the `buffer` and `snapshots` will be replaced with one
+    ///     tombstone-applied snapshot
+    ///   . The tombstone is only added in the `deletes_during_persisting` if the `persisting`
+    ///     exists
     pub(crate) async fn buffer_tombstone(
         &mut self,
         executor: &Executor,
@@ -1037,7 +1022,7 @@ impl PartitionData {
         {
             Some(query_batch) if !query_batch.is_empty() => query_batch,
             _ => {
-                // No need to procedd further
+                // No need to proceed further
                 return;
             }
         };
@@ -1197,11 +1182,6 @@ impl DataBuffer {
         Ok(None)
     }
 
-    /// Returns true if there are no batches in the buffer or snapshots or persisting data
-    fn is_empty(&self) -> bool {
-        self.snapshots.is_empty() && self.buffer.is_none() && self.persisting.is_none()
-    }
-
     /// Snapshots the buffer and make a QueryableBatch for all the snapshots
     /// Both buffer and snapshots will be empty after this
     pub fn snapshot_to_queryable_batch(
@@ -1246,6 +1226,7 @@ impl DataBuffer {
     /// Snapshots the buffer and moves snapshots over to the `PersistingBatch`.
     ///
     /// # Panic
+    ///
     /// Panics if there is already a persisting batch.
     pub fn snapshot_to_persisting(
         &mut self,
@@ -1275,19 +1256,6 @@ impl DataBuffer {
         }
     }
 
-    /// Add a persiting batch into the buffer persisting list
-    /// Note: For now, there is at most one persisting batch at a time but
-    /// the plan is to process several of them a time as needed
-    pub fn add_persisting_batch(&mut self, batch: Arc<PersistingBatch>) -> Result<()> {
-        if self.persisting.is_some() {
-            return Err(Error::PersistingNotEmpty);
-        } else {
-            self.persisting = Some(batch);
-        }
-
-        Ok(())
-    }
-
     /// Return a QueryableBatch of the persisting batch after applying new tombstones
     pub fn get_persisting_data(&self) -> Option<QueryableBatch> {
         let persisting = match &self.persisting {
@@ -1302,22 +1270,6 @@ impl DataBuffer {
         queryable_batch.add_tombstones(&self.deletes_during_persisting);
 
         Some(queryable_batch)
-    }
-
-    /// Remove the given PersistingBatch that was persisted
-    pub fn remove_persisting_batch(&mut self, batch: &Arc<PersistingBatch>) -> Result<()> {
-        if let Some(persisting_batch) = &self.persisting {
-            if persisting_batch == batch {
-                // found. Remove this batch from the memory
-                self.persisting = None;
-            } else {
-                return Err(Error::PersistingNotMatch);
-            }
-        } else {
-            return Err(Error::PersistingEmpty);
-        }
-
-        Ok(())
     }
 
     /// Return the progress in this DataBuffer
@@ -1362,7 +1314,6 @@ pub struct BufferBatch {
 
 impl BufferBatch {
     /// Return the progress in this DataBuffer
-
     fn progress(&self) -> SequencerProgress {
         SequencerProgress::new()
             .with_buffered(self.min_sequence_number)
@@ -1452,7 +1403,8 @@ pub struct QueryableBatch {
 
 /// Status of a partition that has unpersisted data.
 ///
-/// Note that this structure is specific to a partition (which itself is bound to a table and sequencer)!
+/// Note that this structure is specific to a partition (which itself is bound to a table and
+/// sequencer)!
 #[derive(Debug, Clone)]
 #[allow(missing_copy_implementations)]
 pub struct PartitionStatus {
@@ -1473,8 +1425,9 @@ pub struct IngesterQueryResponse {
 
     /// Contains status for every partition that has unpersisted data.
     ///
-    /// If a partition does NOT appear within this map, then either all data was persisted or the ingester has never seen
-    /// data for this partition. In either case the querier may just read all parquet files for the missing partition.
+    /// If a partition does NOT appear within this map, then either all data was persisted or the
+    /// ingester has never seen data for this partition. In either case the querier may just read
+    /// all parquet files for the missing partition.
     pub unpersisted_partitions: BTreeMap<PartitionId, PartitionStatus>,
 
     /// Map each record batch to a partition ID.

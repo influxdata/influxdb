@@ -8,6 +8,7 @@ use std::{
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum PoisonPill {
     LifecyclePanic,
     LifecycleExit,
@@ -48,6 +49,7 @@ impl PoisonCabinet {
         }
     }
 
+    #[allow(dead_code)]
     pub fn add(&self, pill: PoisonPill) {
         let mut inner = self.inner.write();
         inner.pills.push(pill);
@@ -63,6 +65,7 @@ impl PoisonCabinet {
         inner.pills.contains(pill)
     }
 
+    #[allow(dead_code)]
     pub fn wait_for(&self, pill: PoisonPill) -> PoisonWait {
         PoisonWait {
             pill,
