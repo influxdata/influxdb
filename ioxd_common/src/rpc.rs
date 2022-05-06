@@ -49,7 +49,7 @@ macro_rules! add_service {
                 } = $builder;
                 let service = $svc;
 
-                let status = tonic_health::ServingStatus::Serving;
+                let status = $crate::reexport::tonic_health::ServingStatus::Serving;
                 health_reporter
                     .set_service_status(service_name(&service), status)
                     .await;
@@ -75,7 +75,7 @@ macro_rules! add_service {
 macro_rules! setup_builder {
     ($input:ident, $server_type:ident) => {{
         #[allow(unused_imports)]
-        use ioxd_common::{add_service, rpc::RpcBuilder, server_type::ServerType};
+        use $crate::{add_service, rpc::RpcBuilder, server_type::ServerType};
 
         let RpcBuilderInput {
             socket,
@@ -83,14 +83,17 @@ macro_rules! setup_builder {
             shutdown,
         } = $input;
 
-        let (health_reporter, health_service) = tonic_health::server::health_reporter();
-        let reflection_service = tonic_reflection::server::Builder::configure()
-            .register_encoded_file_descriptor_set(generated_types::FILE_DESCRIPTOR_SET)
+        let (health_reporter, health_service) =
+            $crate::reexport::tonic_health::server::health_reporter();
+        let reflection_service = $crate::reexport::tonic_reflection::server::Builder::configure()
+            .register_encoded_file_descriptor_set(
+                $crate::reexport::generated_types::FILE_DESCRIPTOR_SET,
+            )
             .build()
             .expect("gRPC reflection data broken");
 
-        let builder = tonic::transport::Server::builder();
-        let builder = builder.layer(trace_http::tower::TraceLayer::new(
+        let builder = $crate::reexport::tonic::transport::Server::builder();
+        let builder = builder.layer($crate::reexport::trace_http::tower::TraceLayer::new(
             trace_header_parser,
             $server_type.metric_registry(),
             $server_type.trace_collector(),
@@ -106,7 +109,10 @@ macro_rules! setup_builder {
 
         add_service!(builder, health_service);
         add_service!(builder, reflection_service);
-        add_service!(builder, service_grpc_testing::make_server());
+        add_service!(
+            builder,
+            $crate::reexport::service_grpc_testing::make_server()
+        );
 
         builder
     }};
@@ -116,7 +122,7 @@ macro_rules! setup_builder {
 #[macro_export]
 macro_rules! serve_builder {
     ($builder:ident) => {{
-        use tokio_stream::wrappers::TcpListenerStream;
+        use $crate::reexport::tokio_stream::wrappers::TcpListenerStream;
         use $crate::rpc::RpcBuilder;
 
         let RpcBuilder {
