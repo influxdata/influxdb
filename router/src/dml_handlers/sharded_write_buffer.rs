@@ -581,7 +581,7 @@ mod tests {
             .await
             .expect("delete failed");
 
-        // The write buffer for shard 1 should observe 1 write containing 3 rows.
+        // The write buffer for shard 1 should observe the delete
         let mut got = write_buffer1_state.get_messages(shard1.id() as _);
         assert_eq!(got.len(), 1);
         let got = got
@@ -590,7 +590,7 @@ mod tests {
             .expect("write should have been successful");
         assert_matches!(got, DmlOperation::Delete(_));
 
-        // The second shard should observe 1 write containing 1 row.
+        // The second shard should observe the delete as well
         let mut got = write_buffer2_state.get_messages(shard2.id() as _);
         assert_eq!(got.len(), 1);
         let got = got
@@ -642,7 +642,7 @@ mod tests {
             assert_eq!(successes, 1);
         });
 
-        // The write buffer for shard 1 should observe 1 write containing 3 rows.
+        // The write buffer for shard 1 will still observer the delete.
         let got = write_buffer1_state.get_messages(shard1.id() as _);
         assert_eq!(got.len(), 1);
     }
