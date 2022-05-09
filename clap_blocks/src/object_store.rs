@@ -1,10 +1,14 @@
 //! CLI handling for object store config (via CLI arguments and environment variables).
 
 use futures::TryStreamExt;
-use object_store::{path::ObjectStorePath, DynObjectStore, ObjectStoreImpl, ThrottleConfig};
-use observability_deps::tracing::{info, warn};
+use object_store::memory::InMemory;
+use object_store::path::Path;
+use object_store::throttle::ThrottledStore;
+use object_store::{throttle::ThrottleConfig, DynObjectStore};
+use observability_deps::tracing::info;
 use snafu::{ResultExt, Snafu};
-use std::{convert::TryFrom, fs, num::NonZeroUsize, path::PathBuf, time::Duration};
+use std::sync::Arc;
+use std::{fs, num::NonZeroUsize, path::PathBuf, time::Duration};
 use uuid::Uuid;
 
 #[derive(Debug, Snafu)]
@@ -222,152 +226,157 @@ pub enum ObjectStoreType {
     Azure,
 }
 
-pub fn warn_about_inmem_store(config: &ObjectStoreConfig) {
-    match config.object_store {
-        Some(ObjectStoreType::Memory) | None => {
-            warn!("NO PERSISTENCE: using Memory for object storage");
-        }
-        Some(store) => {
-            info!("Using {:?} for object storage", store);
+#[cfg(feature = "gcp")]
+fn new_gcs(config: &ObjectStoreConfig) -> Result<Arc<DynObjectStore>, ParseError> {
+    match (
+        config.bucket.as_ref(),
+        config.google_service_account.as_ref(),
+    ) {
+        (Some(bucket), Some(service_account)) => Ok(Arc::new(
+            object_store::gcp::new_gcs(service_account, bucket).context(InvalidGCSConfigSnafu)?,
+        )),
+        (bucket, service_account) => {
+            let mut missing_args = vec![];
+
+            if bucket.is_none() {
+                missing_args.push("bucket");
+            }
+            if service_account.is_none() {
+                missing_args.push("google-service-account");
+            }
+            MissingObjectStoreConfigSnafu {
+                object_store: ObjectStoreType::Google,
+                missing: missing_args.join(", "),
+            }
+            .fail()
         }
     }
 }
 
-impl TryFrom<&ObjectStoreConfig> for ObjectStoreImpl {
-    type Error = ParseError;
+#[cfg(not(feature = "gcp"))]
+fn new_gcs(_: &ObjectStoreConfig) -> Result<Arc<DynObjectStore>, ParseError> {
+    panic!("GCS support not enabled, recompile with the gcp feature enabled")
+}
 
-    fn try_from(config: &ObjectStoreConfig) -> Result<Self, Self::Error> {
-        match config.object_store {
-            Some(ObjectStoreType::Memory) | None => Ok(Self::new_in_memory()),
-            Some(ObjectStoreType::MemoryThrottled) => {
-                let config = ThrottleConfig {
-                    // for every call: assume a 100ms latency
-                    wait_delete_per_call: Duration::from_millis(100),
-                    wait_get_per_call: Duration::from_millis(100),
-                    wait_list_per_call: Duration::from_millis(100),
-                    wait_list_with_delimiter_per_call: Duration::from_millis(100),
-                    wait_put_per_call: Duration::from_millis(100),
+#[cfg(feature = "aws")]
+fn new_s3(config: &ObjectStoreConfig) -> Result<Arc<DynObjectStore>, ParseError> {
+    match (
+        config.bucket.as_ref(),
+        config.aws_access_key_id.as_ref(),
+        config.aws_secret_access_key.as_ref(),
+        config.aws_default_region.as_str(),
+        config.aws_endpoint.as_ref(),
+        config.aws_session_token.as_ref(),
+    ) {
+        (Some(bucket), key_id, secret_key, region, endpoint, session_token) => Ok(Arc::new(
+            object_store::aws::new_s3(
+                key_id,
+                secret_key,
+                region,
+                bucket,
+                endpoint,
+                session_token,
+                config.object_store_connection_limit,
+                config.aws_allow_http,
+            )
+            .context(InvalidS3ConfigSnafu)?,
+        )),
+        (bucket, _, _, _, _, _) => {
+            let mut missing_args = vec![];
 
-                    // for list operations: assume we need 1 call per 1k entries at 100ms
-                    wait_list_per_entry: Duration::from_millis(100) / 1_000,
-                    wait_list_with_delimiter_per_entry: Duration::from_millis(100) / 1_000,
-
-                    // for upload/download: assume 1GByte/s
-                    wait_get_per_byte: Duration::from_secs(1) / 1_000_000_000,
-                };
-
-                Ok(Self::new_in_memory_throttled(config))
+            if bucket.is_none() {
+                missing_args.push("bucket");
             }
-
-            Some(ObjectStoreType::Google) => {
-                match (
-                    config.bucket.as_ref(),
-                    config.google_service_account.as_ref(),
-                ) {
-                    (Some(bucket), Some(service_account)) => {
-                        Self::new_google_cloud_storage(service_account, bucket)
-                            .context(InvalidGCSConfigSnafu)
-                    }
-                    (bucket, service_account) => {
-                        let mut missing_args = vec![];
-
-                        if bucket.is_none() {
-                            missing_args.push("bucket");
-                        }
-                        if service_account.is_none() {
-                            missing_args.push("google-service-account");
-                        }
-                        MissingObjectStoreConfigSnafu {
-                            object_store: ObjectStoreType::Google,
-                            missing: missing_args.join(", "),
-                        }
-                        .fail()
-                    }
-                }
+            MissingObjectStoreConfigSnafu {
+                object_store: ObjectStoreType::S3,
+                missing: missing_args.join(", "),
             }
-
-            Some(ObjectStoreType::S3) => {
-                match (
-                    config.bucket.as_ref(),
-                    config.aws_access_key_id.as_ref(),
-                    config.aws_secret_access_key.as_ref(),
-                    config.aws_default_region.as_str(),
-                    config.aws_endpoint.as_ref(),
-                    config.aws_session_token.as_ref(),
-                ) {
-                    (Some(bucket), key_id, secret_key, region, endpoint, session_token) => {
-                        Self::new_amazon_s3(
-                            key_id,
-                            secret_key,
-                            region,
-                            bucket,
-                            endpoint,
-                            session_token,
-                            config.object_store_connection_limit,
-                            config.aws_allow_http,
-                        )
-                        .context(InvalidS3ConfigSnafu)
-                    }
-                    (bucket, _, _, _, _, _) => {
-                        let mut missing_args = vec![];
-
-                        if bucket.is_none() {
-                            missing_args.push("bucket");
-                        }
-                        MissingObjectStoreConfigSnafu {
-                            object_store: ObjectStoreType::S3,
-                            missing: missing_args.join(", "),
-                        }
-                        .fail()
-                    }
-                }
-            }
-
-            Some(ObjectStoreType::Azure) => {
-                match (
-                    config.bucket.as_ref(),
-                    config.azure_storage_account.as_ref(),
-                    config.azure_storage_access_key.as_ref(),
-                ) {
-                    (Some(bucket), Some(storage_account), Some(access_key)) => {
-                        Self::new_microsoft_azure(storage_account, access_key, bucket, false)
-                            .context(InvalidAzureConfigSnafu)
-                    }
-                    (bucket, storage_account, access_key) => {
-                        let mut missing_args = vec![];
-
-                        if bucket.is_none() {
-                            missing_args.push("bucket");
-                        }
-                        if storage_account.is_none() {
-                            missing_args.push("azure-storage-account");
-                        }
-                        if access_key.is_none() {
-                            missing_args.push("azure-storage-access-key");
-                        }
-
-                        MissingObjectStoreConfigSnafu {
-                            object_store: ObjectStoreType::Azure,
-                            missing: missing_args.join(", "),
-                        }
-                        .fail()
-                    }
-                }
-            }
-
-            Some(ObjectStoreType::File) => match config.database_directory.as_ref() {
-                Some(db_dir) => {
-                    fs::create_dir_all(db_dir)
-                        .context(CreatingDatabaseDirectorySnafu { path: db_dir })?;
-                    Ok(Self::new_file(&db_dir))
-                }
-                None => MissingObjectStoreConfigSnafu {
-                    object_store: ObjectStoreType::File,
-                    missing: "data-dir",
-                }
-                .fail(),
-            },
+            .fail()
         }
+    }
+}
+
+#[cfg(not(feature = "aws"))]
+fn new_s3(_: &ObjectStoreConfig) -> Result<Arc<DynObjectStore>, ParseError> {
+    panic!("S3 support not enabled, recompile with the gcp feature enabled")
+}
+
+#[cfg(feature = "azure")]
+fn new_azure(config: &ObjectStoreConfig) -> Result<Arc<DynObjectStore>, ParseError> {
+    match (
+        config.bucket.as_ref(),
+        config.azure_storage_account.as_ref(),
+        config.azure_storage_access_key.as_ref(),
+    ) {
+        (Some(bucket), Some(storage_account), Some(access_key)) => Ok(Arc::new(
+            object_store::azure::new_azure(storage_account, access_key, bucket, false)
+                .context(InvalidS3ConfigSnafu)?,
+        )),
+        (bucket, storage_account, access_key) => {
+            let mut missing_args = vec![];
+
+            if bucket.is_none() {
+                missing_args.push("bucket");
+            }
+            if storage_account.is_none() {
+                missing_args.push("azure-storage-account");
+            }
+            if access_key.is_none() {
+                missing_args.push("azure-storage-access-key");
+            }
+
+            MissingObjectStoreConfigSnafu {
+                object_store: ObjectStoreType::Azure,
+                missing: missing_args.join(", "),
+            }
+            .fail()
+        }
+    }
+}
+
+#[cfg(not(feature = "azure"))]
+fn new_azure(_: &ObjectStoreConfig) -> Result<Arc<DynObjectStore>, ParseError> {
+    panic!("Azure blob storage support not enabled, recompile with the azure feature enabled")
+}
+
+pub fn make_object_store(config: &ObjectStoreConfig) -> Result<Arc<DynObjectStore>, ParseError> {
+    match &config.object_store {
+        Some(ObjectStoreType::Memory) | None => Ok(Arc::new(InMemory::new())),
+        Some(ObjectStoreType::MemoryThrottled) => {
+            let config = ThrottleConfig {
+                // for every call: assume a 100ms latency
+                wait_delete_per_call: Duration::from_millis(100),
+                wait_get_per_call: Duration::from_millis(100),
+                wait_list_per_call: Duration::from_millis(100),
+                wait_list_with_delimiter_per_call: Duration::from_millis(100),
+                wait_put_per_call: Duration::from_millis(100),
+
+                // for list operations: assume we need 1 call per 1k entries at 100ms
+                wait_list_per_entry: Duration::from_millis(100) / 1_000,
+                wait_list_with_delimiter_per_entry: Duration::from_millis(100) / 1_000,
+
+                // for upload/download: assume 1GByte/s
+                wait_get_per_byte: Duration::from_secs(1) / 1_000_000_000,
+            };
+
+            Ok(Arc::new(ThrottledStore::new(InMemory::new(), config)))
+        }
+
+        Some(ObjectStoreType::Google) => new_gcs(config),
+        Some(ObjectStoreType::S3) => new_s3(config),
+        Some(ObjectStoreType::Azure) => new_azure(config),
+        Some(ObjectStoreType::File) => match config.database_directory.as_ref() {
+            Some(db_dir) => {
+                fs::create_dir_all(db_dir)
+                    .context(CreatingDatabaseDirectorySnafu { path: db_dir })?;
+                Ok(Arc::new(object_store::disk::LocalFileSystem::new(&db_dir)))
+            }
+            None => MissingObjectStoreConfigSnafu {
+                object_store: ObjectStoreType::File,
+                missing: "data-dir",
+            }
+            .fail(),
+        },
     }
 }
 
@@ -383,8 +392,7 @@ pub enum CheckError {
 pub async fn check_object_store(object_store: &DynObjectStore) -> Result<(), CheckError> {
     // Use some prefix that will very likely end in an empty result, so we don't pull too much actual data here.
     let uuid = Uuid::new_v4().to_string();
-    let mut prefix = object_store.new_path();
-    prefix.push_dir(&uuid);
+    let prefix = Path::from_iter([uuid]);
 
     // create stream (this might fail if the store is not readable)
     let mut stream = object_store
@@ -405,7 +413,6 @@ pub async fn check_object_store(object_store: &DynObjectStore) -> Result<(), Che
 #[cfg(test)]
 mod tests {
     use clap::StructOpt;
-    use object_store::ObjectStoreIntegration;
     use tempfile::TempDir;
 
     use super::*;
@@ -414,10 +421,8 @@ mod tests {
     fn default_object_store_is_memory() {
         let config = ObjectStoreConfig::try_parse_from(&["server"]).unwrap();
 
-        let object_store = ObjectStoreImpl::try_from(&config).unwrap();
-        let ObjectStoreImpl { integration, .. } = object_store;
-
-        assert!(matches!(integration, ObjectStoreIntegration::InMemory(_)));
+        let object_store = make_object_store(&config).unwrap();
+        assert_eq!(&object_store.to_string(), "InMemory")
     }
 
     #[test]
@@ -425,10 +430,8 @@ mod tests {
         let config =
             ObjectStoreConfig::try_parse_from(&["server", "--object-store", "memory"]).unwrap();
 
-        let object_store = ObjectStoreImpl::try_from(&config).unwrap();
-        let ObjectStoreImpl { integration, .. } = object_store;
-
-        assert!(matches!(integration, ObjectStoreIntegration::InMemory(_)));
+        let object_store = make_object_store(&config).unwrap();
+        assert_eq!(&object_store.to_string(), "InMemory")
     }
 
     #[test]
@@ -447,13 +450,12 @@ mod tests {
         ])
         .unwrap();
 
-        let object_store = ObjectStoreImpl::try_from(&config).unwrap();
-        let ObjectStore { integration, .. } = object_store;
-
-        assert!(matches!(integration, ObjectStoreIntegration::AmazonS3(_)));
+        let object_store = make_object_store(&config).unwrap();
+        assert_eq!(&object_store.to_string(), "AmazonS3(mybucket)")
     }
 
     #[test]
+    #[cfg(feature = "aws")]
     fn s3_config_missing_params() {
         let mut config =
             ObjectStoreConfig::try_parse_from(&["server", "--object-store", "s3"]).unwrap();
@@ -461,7 +463,7 @@ mod tests {
         // clean out eventual leaks via env variables
         config.bucket = None;
 
-        let err = ObjectStoreImpl::try_from(&config).unwrap_err().to_string();
+        let err = make_object_store(&config).unwrap_err().to_string();
 
         assert_eq!(
             err,
@@ -483,16 +485,12 @@ mod tests {
         ])
         .unwrap();
 
-        let object_store = ObjectStoreImpl::try_from(&config).unwrap();
-        let ObjectStore { integration, .. } = object_store;
-
-        assert!(matches!(
-            integration,
-            ObjectStoreIntegration::GoogleCloudStorage(_)
-        ));
+        let object_store = make_object_store(&config).unwrap();
+        assert_eq!(&object_store.to_string(), "GoogleCloudStorage(mybucket)")
     }
 
     #[test]
+    #[cfg(feature = "gcp")]
     fn google_config_missing_params() {
         let mut config =
             ObjectStoreConfig::try_parse_from(&["server", "--object-store", "google"]).unwrap();
@@ -500,7 +498,7 @@ mod tests {
         // clean out eventual leaks via env variables
         config.bucket = None;
 
-        let err = ObjectStoreImpl::try_from(&config).unwrap_err().to_string();
+        let err = make_object_store(&config).unwrap_err().to_string();
 
         assert_eq!(
             err,
@@ -525,16 +523,12 @@ mod tests {
         ])
         .unwrap();
 
-        let object_store = ObjectStoreImpl::try_from(&config).unwrap();
-        let ObjectStore { integration, .. } = object_store;
-
-        assert!(matches!(
-            integration,
-            ObjectStoreIntegration::MicrosoftAzure(_)
-        ));
+        let object_store = make_object_store(&config).unwrap();
+        assert_eq!(&object_store.to_string(), "MicrosoftAzure(mybucket)")
     }
 
     #[test]
+    #[cfg(feature = "azure")]
     fn azure_config_missing_params() {
         let mut config =
             ObjectStoreConfig::try_parse_from(&["server", "--object-store", "azure"]).unwrap();
@@ -542,7 +536,7 @@ mod tests {
         // clean out eventual leaks via env variables
         config.bucket = None;
 
-        let err = ObjectStoreImpl::try_from(&config).unwrap_err().to_string();
+        let err = make_object_store(&config).unwrap_err().to_string();
 
         assert_eq!(
             err,
@@ -554,20 +548,22 @@ mod tests {
     #[test]
     fn valid_file_config() {
         let root = TempDir::new().unwrap();
+        let root_path = root.path().to_str().unwrap();
 
         let config = ObjectStoreConfig::try_parse_from(&[
             "server",
             "--object-store",
             "file",
             "--data-dir",
-            root.path().to_str().unwrap(),
+            root_path,
         ])
         .unwrap();
 
-        let object_store = ObjectStoreImpl::try_from(&config).unwrap();
-        let ObjectStoreImpl { integration, .. } = object_store;
-
-        assert!(matches!(integration, ObjectStoreIntegration::File(_)));
+        let object_store = make_object_store(&config).unwrap();
+        assert_eq!(
+            object_store.to_string(),
+            format!("LocalFileSystem({})", root_path)
+        )
     }
 
     #[test]
@@ -575,7 +571,7 @@ mod tests {
         let config =
             ObjectStoreConfig::try_parse_from(&["server", "--object-store", "file"]).unwrap();
 
-        let err = ObjectStoreImpl::try_from(&config).unwrap_err().to_string();
+        let err = make_object_store(&config).unwrap_err().to_string();
 
         assert_eq!(
             err,

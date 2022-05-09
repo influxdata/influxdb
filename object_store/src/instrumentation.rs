@@ -1,5 +1,6 @@
 //! A metric instrumentation wrapper over [`ObjectStoreApi`] implementations.
 
+use std::sync::Arc;
 use std::{
     marker::PhantomData,
     pin::Pin,
@@ -13,7 +14,7 @@ use iox_time::{SystemProvider, Time, TimeProvider};
 use metric::{Metric, U64Counter, U64Histogram, U64HistogramOptions};
 use pin_project::{pin_project, pinned_drop};
 
-use crate::{path::parsed::DirsAndFileName, GetResult, ListResult, ObjectStoreApi};
+use crate::{path::Path, GetResult, ListResult, ObjectStoreApi, Result};
 
 /// An instrumentation decorator, wrapping an underlying [`ObjectStoreApi`]
 /// implementation and recording bytes transferred and call latency.
@@ -62,9 +63,9 @@ use crate::{path::parsed::DirsAndFileName, GetResult, ListResult, ObjectStoreApi
 /// If the system clock is observed as moving backwards in time, call durations
 /// are not recorded. The bytes transferred metric is not affected.
 #[derive(Debug)]
-pub struct ObjectStoreMetrics<T, P = SystemProvider> {
-    inner: T,
-    time_provider: P,
+pub struct ObjectStoreMetrics {
+    inner: Arc<dyn ObjectStoreApi>,
+    time_provider: Arc<dyn TimeProvider>,
 
     put_success_duration_ms: U64Histogram,
     put_error_duration_ms: U64Histogram,
@@ -81,9 +82,13 @@ pub struct ObjectStoreMetrics<T, P = SystemProvider> {
     list_error_duration_ms: U64Histogram,
 }
 
-impl<T> ObjectStoreMetrics<T> {
+impl ObjectStoreMetrics {
     /// Instrument `T`, pushing to `registry`.
-    pub fn new(inner: T, registry: &metric::Registry) -> Self {
+    pub fn new(
+        inner: Arc<dyn ObjectStoreApi>,
+        time_provider: Arc<dyn TimeProvider>,
+        registry: &metric::Registry,
+    ) -> Self {
         let buckets = || {
             U64HistogramOptions::new([
                 5,
@@ -128,7 +133,7 @@ impl<T> ObjectStoreMetrics<T> {
 
         Self {
             inner,
-            time_provider: Default::default(),
+            time_provider,
 
             put_success_duration_ms: put_success_duration,
             put_error_duration_ms: put_error_duration,
@@ -147,28 +152,15 @@ impl<T> ObjectStoreMetrics<T> {
     }
 }
 
+impl std::fmt::Display for ObjectStoreMetrics {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ObjectStoreMetrics({})", self.inner)
+    }
+}
+
 #[async_trait]
-impl<T, P> ObjectStoreApi for ObjectStoreMetrics<T, P>
-where
-    T: ObjectStoreApi,
-    P: TimeProvider,
-{
-    type Path = T::Path;
-    type Error = T::Error;
-
-    fn new_path(&self) -> Self::Path {
-        self.inner.new_path()
-    }
-
-    fn path_from_raw(&self, raw: &str) -> Self::Path {
-        self.inner.path_from_raw(raw)
-    }
-
-    fn path_from_dirs_and_filename(&self, path: DirsAndFileName) -> Self::Path {
-        self.inner.path_from_dirs_and_filename(path)
-    }
-
-    async fn put(&self, location: &Self::Path, bytes: Bytes) -> Result<(), Self::Error> {
+impl ObjectStoreApi for ObjectStoreMetrics {
+    async fn put(&self, location: &Path, bytes: Bytes) -> Result<()> {
         let t = self.time_provider.now();
 
         let size = bytes.len();
@@ -187,7 +179,7 @@ where
         res
     }
 
-    async fn get(&self, location: &Self::Path) -> Result<GetResult<Self::Error>, Self::Error> {
+    async fn get(&self, location: &Path) -> Result<GetResult> {
         let started_at = self.time_provider.now();
 
         let res = self.inner.get(location).await;
@@ -227,7 +219,7 @@ where
         }
     }
 
-    async fn delete(&self, location: &Self::Path) -> Result<(), Self::Error> {
+    async fn delete(&self, location: &Path) -> Result<()> {
         let t = self.time_provider.now();
 
         let res = self.inner.delete(location).await;
@@ -248,8 +240,8 @@ where
 
     async fn list<'a>(
         &'a self,
-        prefix: Option<&'a Self::Path>,
-    ) -> Result<BoxStream<'a, Result<Vec<Self::Path>, Self::Error>>, Self::Error> {
+        prefix: Option<&'a Path>,
+    ) -> Result<BoxStream<'a, Result<Vec<Path>>>> {
         let started_at = self.time_provider.now();
 
         let res = self.inner.list(prefix).await;
@@ -279,10 +271,7 @@ where
         }
     }
 
-    async fn list_with_delimiter(
-        &self,
-        prefix: &Self::Path,
-    ) -> Result<ListResult<Self::Path>, Self::Error> {
+    async fn list_with_delimiter(&self, prefix: &Path) -> Result<ListResult> {
         let t = self.time_provider.now();
 
         let res = self.inner.list_with_delimiter(prefix).await;
@@ -518,7 +507,7 @@ mod tests {
     use metric::Attributes;
     use tokio::io::AsyncReadExt;
 
-    use crate::{dummy, ObjectStoreImpl};
+    use crate::{disk::LocalFileSystem, dummy::DummyObjectStore, memory::InMemory};
 
     use super::*;
 
@@ -556,12 +545,13 @@ mod tests {
     #[tokio::test]
     async fn test_put() {
         let metrics = Arc::new(metric::Registry::default());
-        let store = ObjectStoreImpl::new_in_memory();
-        let store = ObjectStoreMetrics::new(store, &metrics);
+        let store = Arc::new(InMemory::new());
+        let time = Arc::new(SystemProvider::new());
+        let store = ObjectStoreMetrics::new(store, time, &metrics);
 
         store
             .put(
-                &store.path_from_raw("test"),
+                &Path::from_raw("test"),
                 Bytes::from([42_u8, 42, 42, 42, 42].as_slice()),
             )
             .await
@@ -578,12 +568,13 @@ mod tests {
     #[tokio::test]
     async fn test_put_fails() {
         let metrics = Arc::new(metric::Registry::default());
-        let store = dummy::new_failing_s3().expect("cannot init failing store");
-        let store = ObjectStoreMetrics::new(store, &metrics);
+        let store = Arc::new(DummyObjectStore::new("s3"));
+        let time = Arc::new(SystemProvider::new());
+        let store = ObjectStoreMetrics::new(store, time, &metrics);
 
         store
             .put(
-                &store.path_from_raw("test"),
+                &Path::from_raw("test"),
                 Bytes::from([42_u8, 42, 42, 42, 42].as_slice()),
             )
             .await
@@ -600,8 +591,9 @@ mod tests {
     #[tokio::test]
     async fn test_list() {
         let metrics = Arc::new(metric::Registry::default());
-        let store = ObjectStoreImpl::new_in_memory();
-        let store = ObjectStoreMetrics::new(store, &metrics);
+        let store = Arc::new(InMemory::new());
+        let time = Arc::new(SystemProvider::new());
+        let store = ObjectStoreMetrics::new(store, time, &metrics);
 
         store.list(None).await.expect("list should succeed");
 
@@ -615,8 +607,9 @@ mod tests {
     #[tokio::test]
     async fn test_list_fails() {
         let metrics = Arc::new(metric::Registry::default());
-        let store = dummy::new_failing_s3().expect("cannot init failing store");
-        let store = ObjectStoreMetrics::new(store, &metrics);
+        let store = Arc::new(DummyObjectStore::new("s3"));
+        let time = Arc::new(SystemProvider::new());
+        let store = ObjectStoreMetrics::new(store, time, &metrics);
 
         assert!(store.list(None).await.is_err(), "mock configured to fail");
 
@@ -630,11 +623,12 @@ mod tests {
     #[tokio::test]
     async fn test_list_with_delimiter() {
         let metrics = Arc::new(metric::Registry::default());
-        let store = ObjectStoreImpl::new_in_memory();
-        let store = ObjectStoreMetrics::new(store, &metrics);
+        let store = Arc::new(InMemory::new());
+        let time = Arc::new(SystemProvider::new());
+        let store = ObjectStoreMetrics::new(store, time, &metrics);
 
         store
-            .list_with_delimiter(&store.path_from_raw("test"))
+            .list_with_delimiter(&Path::from_raw("test"))
             .await
             .expect("list should succeed");
 
@@ -648,12 +642,13 @@ mod tests {
     #[tokio::test]
     async fn test_list_with_delimiter_fails() {
         let metrics = Arc::new(metric::Registry::default());
-        let store = dummy::new_failing_s3().expect("cannot init failing store");
-        let store = ObjectStoreMetrics::new(store, &metrics);
+        let store = Arc::new(DummyObjectStore::new("s3"));
+        let time = Arc::new(SystemProvider::new());
+        let store = ObjectStoreMetrics::new(store, time, &metrics);
 
         assert!(
             store
-                .list_with_delimiter(&store.path_from_raw("test"))
+                .list_with_delimiter(&Path::from_raw("test"))
                 .await
                 .is_err(),
             "mock configured to fail"
@@ -669,11 +664,12 @@ mod tests {
     #[tokio::test]
     async fn test_get_fails() {
         let metrics = Arc::new(metric::Registry::default());
-        let store = dummy::new_failing_s3().expect("cannot init failing store");
-        let store = ObjectStoreMetrics::new(store, &metrics);
+        let store = Arc::new(DummyObjectStore::new("s3"));
+        let time = Arc::new(SystemProvider::new());
+        let store = ObjectStoreMetrics::new(store, time, &metrics);
 
         store
-            .get(&store.path_from_raw("test"))
+            .get(&Path::from_raw("test"))
             .await
             .expect_err("mock configured to fail");
 
@@ -687,11 +683,12 @@ mod tests {
     #[tokio::test]
     async fn test_put_get_delete_file() {
         let metrics = Arc::new(metric::Registry::default());
-        let store = ObjectStoreImpl::new_file("./");
-        let store = ObjectStoreMetrics::new(store, &metrics);
+        let store = Arc::new(LocalFileSystem::new("./"));
+        let time = Arc::new(SystemProvider::new());
+        let store = ObjectStoreMetrics::new(store, time, &metrics);
 
         let data = [42_u8, 42, 42, 42, 42];
-        let path = store.path_from_raw("test");
+        let path = Path::from_raw("test");
         store
             .put(&path, Bytes::copy_from_slice(&data))
             .await
@@ -731,11 +728,12 @@ mod tests {
     #[tokio::test]
     async fn test_get_stream() {
         let metrics = Arc::new(metric::Registry::default());
-        let store = ObjectStoreImpl::new_in_memory();
-        let store = ObjectStoreMetrics::new(store, &metrics);
+        let store = Arc::new(InMemory::new());
+        let time = Arc::new(SystemProvider::new());
+        let store = ObjectStoreMetrics::new(store, time, &metrics);
 
         let data = [42_u8, 42, 42, 42, 42];
-        let path = store.path_from_raw("test");
+        let path = Path::from_raw("test");
         store
             .put(&path, Bytes::copy_from_slice(&data))
             .await

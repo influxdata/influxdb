@@ -1,9 +1,6 @@
 //! This module contains the IOx implementation for using memory as the object
 //! store.
-use crate::{
-    path::{cloud::CloudPath, parsed::DirsAndFileName},
-    GetResult, ListResult, ObjectMeta, ObjectStoreApi,
-};
+use crate::{path::Path, GetResult, ListResult, ObjectMeta, ObjectStoreApi, Result};
 use async_trait::async_trait;
 use bytes::Bytes;
 use chrono::Utc;
@@ -13,53 +10,47 @@ use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use tokio::sync::RwLock;
 
-/// A specialized `Result` for in-memory object store-related errors
-pub type Result<T, E = Error> = std::result::Result<T, E>;
-
 /// A specialized `Error` for in-memory object store-related errors
 #[derive(Debug, Snafu)]
 #[allow(missing_docs)]
-pub enum Error {
+enum Error {
     #[snafu(display("No data in memory found. Location: {path}"))]
     NoDataInMemory { path: String },
+}
+
+impl From<Error> for super::Error {
+    fn from(source: Error) -> Self {
+        match source {
+            Error::NoDataInMemory { ref path } => Self::NotFound {
+                path: path.into(),
+                source: source.into(),
+            },
+            // currently "not found" is the only error that can happen with the in-memory store
+        }
+    }
 }
 
 /// In-memory storage suitable for testing or for opting out of using a cloud
 /// storage provider.
 #[derive(Debug, Default)]
 pub struct InMemory {
-    storage: RwLock<BTreeMap<DirsAndFileName, Bytes>>,
+    storage: RwLock<BTreeMap<Path, Bytes>>,
+}
+
+impl std::fmt::Display for InMemory {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "InMemory")
+    }
 }
 
 #[async_trait]
 impl ObjectStoreApi for InMemory {
-    type Path = DirsAndFileName;
-    type Error = Error;
-
-    fn new_path(&self) -> Self::Path {
-        DirsAndFileName::default()
-    }
-
-    fn path_from_raw(&self, raw: &str) -> Self::Path {
-        // Reuse the CloudPath parsing logic even though the in-memory storage isn't considered
-        // to be cloud storage, necessarily
-        let cloud_path = CloudPath::raw(raw);
-        cloud_path.into()
-    }
-
-    fn path_from_dirs_and_filename(&self, path: DirsAndFileName) -> Self::Path {
-        path
-    }
-
-    async fn put(&self, location: &Self::Path, bytes: Bytes) -> Result<()> {
-        self.storage
-            .write()
-            .await
-            .insert(location.to_owned(), bytes);
+    async fn put(&self, location: &Path, bytes: Bytes) -> Result<()> {
+        self.storage.write().await.insert(location.clone(), bytes);
         Ok(())
     }
 
-    async fn get(&self, location: &Self::Path) -> Result<GetResult<Self::Error>> {
+    async fn get(&self, location: &Path) -> Result<GetResult> {
         let data =
             self.storage
                 .read()
@@ -75,15 +66,15 @@ impl ObjectStoreApi for InMemory {
         ))
     }
 
-    async fn delete(&self, location: &Self::Path) -> Result<()> {
+    async fn delete(&self, location: &Path) -> Result<()> {
         self.storage.write().await.remove(location);
         Ok(())
     }
 
     async fn list<'a>(
         &'a self,
-        prefix: Option<&'a Self::Path>,
-    ) -> Result<BoxStream<'a, Result<Vec<Self::Path>>>> {
+        prefix: Option<&'a Path>,
+    ) -> Result<BoxStream<'a, Result<Vec<Path>>>> {
         let list = if let Some(prefix) = &prefix {
             self.storage
                 .read()
@@ -102,32 +93,30 @@ impl ObjectStoreApi for InMemory {
     /// The memory implementation returns all results, as opposed to the cloud
     /// versions which limit their results to 1k or more because of API
     /// limitations.
-    async fn list_with_delimiter(&self, prefix: &Self::Path) -> Result<ListResult<Self::Path>> {
+    async fn list_with_delimiter(&self, prefix: &Path) -> Result<ListResult> {
         let mut common_prefixes = BTreeSet::new();
         let last_modified = Utc::now();
 
         // Only objects in this base level should be returned in the
         // response. Otherwise, we just collect the common prefixes.
         let mut objects = vec![];
-        for (k, v) in self
-            .storage
-            .read()
-            .await
-            .range((prefix)..)
-            .take_while(|(k, _)| k.prefix_matches(prefix))
-        {
-            let parts = match k.parts_after_prefix(prefix) {
+        for (k, v) in self.storage.read().await.range((prefix)..) {
+            let mut parts = match k.prefix_match(prefix) {
                 Some(parts) => parts,
+                None => break,
+            };
+
+            // Pop first element
+            let common_prefix = match parts.next() {
+                Some(p) => p,
                 None => continue,
             };
 
-            if parts.len() >= 2 {
-                let mut full_prefix = prefix.to_owned();
-                full_prefix.push_part_as_dir(&parts[0]);
-                common_prefixes.insert(full_prefix);
+            if parts.next().is_some() {
+                common_prefixes.insert(prefix.child(common_prefix));
             } else {
                 let object = ObjectMeta {
-                    location: k.to_owned(),
+                    location: k.clone(),
                     last_modified,
                     size: v.len(),
                 };
@@ -169,12 +158,12 @@ mod tests {
             get_nonexistent_object, list_uses_directories_correctly, list_with_delimiter,
             put_get_delete_list,
         },
-        Error as ObjectStoreError, ObjectStoreApi, ObjectStoreImpl, ObjectStorePath,
+        Error as ObjectStoreError, ObjectStoreApi,
     };
 
     #[tokio::test]
     async fn in_memory_test() {
-        let integration = ObjectStoreImpl::new_in_memory();
+        let integration = InMemory::new();
 
         put_get_delete_list(&integration).await.unwrap();
         list_uses_directories_correctly(&integration).await.unwrap();
@@ -183,10 +172,9 @@ mod tests {
 
     #[tokio::test]
     async fn unknown_length() {
-        let integration = ObjectStoreImpl::new_in_memory();
+        let integration = InMemory::new();
 
-        let mut location = integration.new_path();
-        location.set_file_name("some_file");
+        let location = Path::from_raw("some_file");
 
         let data = Bytes::from("arbitrary data");
         let expected_data = data.clone();
@@ -207,10 +195,9 @@ mod tests {
 
     #[tokio::test]
     async fn nonexistent_location() {
-        let integration = ObjectStoreImpl::new_in_memory();
+        let integration = InMemory::new();
 
-        let mut location = integration.new_path();
-        location.set_file_name(NON_EXISTENT_NAME);
+        let location = Path::from_raw(NON_EXISTENT_NAME);
 
         let err = get_nonexistent_object(&integration, Some(location))
             .await

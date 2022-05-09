@@ -1,8 +1,8 @@
 //! This module contains the IOx implementation for using S3 as the object
 //! store.
 use crate::{
-    path::{cloud::CloudPath, parsed::DirsAndFileName, DELIMITER},
-    GetResult, ListResult, ObjectMeta, ObjectStoreApi, ObjectStorePath,
+    path::{Path, DELIMITER},
+    GetResult, ListResult, ObjectMeta, ObjectStoreApi, Result,
 };
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -20,16 +20,13 @@ use snafu::{OptionExt, ResultExt, Snafu};
 use std::{convert::TryFrom, fmt, num::NonZeroUsize, ops::Deref, sync::Arc, time::Duration};
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
-/// A specialized `Result` for object store-related errors
-pub type Result<T, E = Error> = std::result::Result<T, E>;
-
 /// The maximum number of times a request will be retried in the case of an AWS server error
 pub const MAX_NUM_RETRIES: u32 = 3;
 
 /// A specialized `Error` for object store-related errors
 #[derive(Debug, Snafu)]
 #[allow(missing_docs)]
-pub enum Error {
+enum Error {
     #[snafu(display("Expected streamed data to have length {}, got {}", expected, actual))]
     DataDoesNotMatchLength { expected: usize, actual: usize },
 
@@ -140,6 +137,21 @@ pub enum Error {
     },
 }
 
+impl From<Error> for super::Error {
+    fn from(source: Error) -> Self {
+        match source {
+            Error::NotFound { path, source } => Self::NotFound {
+                path,
+                source: source.into(),
+            },
+            _ => Self::Generic {
+                store: "S3",
+                source: Box::new(source),
+            },
+        }
+    }
+}
+
 /// Configuration for connecting to [Amazon S3](https://aws.amazon.com/s3/).
 pub struct AmazonS3 {
     /// S3 client w/o any connection limit.
@@ -163,24 +175,15 @@ impl fmt::Debug for AmazonS3 {
     }
 }
 
+impl fmt::Display for AmazonS3 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "AmazonS3({})", self.bucket_name)
+    }
+}
+
 #[async_trait]
 impl ObjectStoreApi for AmazonS3 {
-    type Path = CloudPath;
-    type Error = Error;
-
-    fn new_path(&self) -> Self::Path {
-        CloudPath::default()
-    }
-
-    fn path_from_raw(&self, raw: &str) -> Self::Path {
-        CloudPath::raw(raw)
-    }
-
-    fn path_from_dirs_and_filename(&self, path: DirsAndFileName) -> Self::Path {
-        path.into()
-    }
-
-    async fn put(&self, location: &Self::Path, bytes: Bytes) -> Result<()> {
+    async fn put(&self, location: &Path, bytes: Bytes) -> Result<()> {
         let bucket_name = self.bucket_name.clone();
         let key = location.to_raw();
         let request_factory = move || {
@@ -193,7 +196,7 @@ impl ObjectStoreApi for AmazonS3 {
 
             rusoto_s3::PutObjectRequest {
                 bucket: bucket_name.clone(),
-                key: key.clone(),
+                key: key.to_string(),
                 body: Some(byte_stream),
                 ..Default::default()
             }
@@ -215,8 +218,8 @@ impl ObjectStoreApi for AmazonS3 {
         Ok(())
     }
 
-    async fn get(&self, location: &Self::Path) -> Result<GetResult<Error>> {
-        let key = location.to_raw();
+    async fn get(&self, location: &Path) -> Result<GetResult> {
+        let key = location.to_raw().to_string();
         let get_request = rusoto_s3::GetObjectRequest {
             bucket: self.bucket_name.clone(),
             key: key.clone(),
@@ -257,13 +260,13 @@ impl ObjectStoreApi for AmazonS3 {
         Ok(GetResult::Stream(s))
     }
 
-    async fn delete(&self, location: &Self::Path) -> Result<()> {
+    async fn delete(&self, location: &Path) -> Result<()> {
         let key = location.to_raw();
         let bucket_name = self.bucket_name.clone();
 
         let request_factory = move || rusoto_s3::DeleteObjectRequest {
             bucket: bucket_name.clone(),
-            key: key.clone(),
+            key: key.to_string(),
             ..Default::default()
         };
 
@@ -285,10 +288,8 @@ impl ObjectStoreApi for AmazonS3 {
 
     async fn list<'a>(
         &'a self,
-        prefix: Option<&'a Self::Path>,
-    ) -> Result<BoxStream<'a, Result<Vec<Self::Path>>>> {
-        let prefix_is_dir = prefix.map(|path| path.is_dir()).unwrap_or(true);
-
+        prefix: Option<&'a Path>,
+    ) -> Result<BoxStream<'a, Result<Vec<Path>>>> {
         Ok(self
             .list_objects_v2(prefix, None)
             .await?
@@ -297,18 +298,13 @@ impl ObjectStoreApi for AmazonS3 {
 
                 contents
                     .into_iter()
-                    .flat_map(|object| object.key.map(CloudPath::raw))
-                    .filter(move |path| {
-                        prefix_is_dir || prefix.map(|prefix| prefix == path).unwrap_or_default()
-                    })
+                    .flat_map(|object| object.key.map(Path::from_raw))
                     .collect()
             })
             .boxed())
     }
 
-    async fn list_with_delimiter(&self, prefix: &Self::Path) -> Result<ListResult<Self::Path>> {
-        let prefix_is_dir = prefix.is_dir();
-
+    async fn list_with_delimiter(&self, prefix: &Path) -> Result<ListResult> {
         Ok(self
             .list_objects_v2(Some(prefix), Some(DELIMITER.to_string()))
             .await?
@@ -324,7 +320,7 @@ impl ObjectStoreApi for AmazonS3 {
                     let mut objects = contents
                         .into_iter()
                         .map(|object| {
-                            let location = CloudPath::raw(
+                            let location = Path::from_raw(
                                 object.key.expect("object doesn't exist without a key"),
                             );
                             let last_modified = match object.last_modified {
@@ -344,10 +340,6 @@ impl ObjectStoreApi for AmazonS3 {
                                 size,
                             })
                         })
-                        .filter(move |meta_res| match meta_res {
-                            Ok(meta) => prefix_is_dir || prefix == &meta.location,
-                            Err(_) => true,
-                        })
                         .collect::<Result<Vec<_>>>()?;
 
                     res.objects.append(&mut objects);
@@ -358,7 +350,7 @@ impl ObjectStoreApi for AmazonS3 {
                             .unwrap_or_default()
                             .into_iter()
                             .map(|p| {
-                                CloudPath::raw(
+                                Path::from_raw(
                                     p.prefix.expect("can't have a prefix without a value"),
                                 )
                             }),
@@ -373,11 +365,8 @@ impl ObjectStoreApi for AmazonS3 {
 
 /// Configure a connection to Amazon S3 using the specified credentials in
 /// the specified Amazon region and bucket.
-///
-/// Note do not expose the AmazonS3::new() function to allow it to be
-/// swapped out when the aws feature is not enabled
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn new_s3(
+pub fn new_s3(
     access_key_id: Option<impl Into<String>>,
     secret_access_key: Option<impl Into<String>>,
     region: impl Into<String>,
@@ -432,8 +421,8 @@ pub(crate) fn new_s3(
                 StaticProvider::new_minimal(access_key_id.into(), secret_access_key.into());
             rusoto_s3::S3Client::new_with(http_client, credentials_provider, region)
         }
-        (None, Some(_), _) => return Err(Error::MissingAccessKey),
-        (Some(_), None, _) => return Err(Error::MissingSecretAccessKey),
+        (None, Some(_), _) => return Err(Error::MissingAccessKey.into()),
+        (Some(_), None, _) => return Err(Error::MissingSecretAccessKey.into()),
         _ => {
             let credentials_provider = InstanceMetadataProvider::new();
             rusoto_s3::S3Client::new_with(http_client, credentials_provider, region)
@@ -447,7 +436,8 @@ pub(crate) fn new_s3(
     })
 }
 
-pub(crate) fn new_failing_s3() -> Result<AmazonS3> {
+/// Create a new [`AmazonS3`] that always errors
+pub fn new_failing_s3() -> Result<AmazonS3> {
     new_s3(
         Some("foo"),
         Some("bar"),
@@ -495,7 +485,7 @@ impl AmazonS3 {
 
     async fn list_objects_v2(
         &self,
-        prefix: Option<&CloudPath>,
+        prefix: Option<&Path>,
         delimiter: Option<String>,
     ) -> Result<BoxStream<'_, Result<rusoto_s3::ListObjectsV2Output>>> {
         #[derive(Clone)]
@@ -506,12 +496,12 @@ impl AmazonS3 {
         }
         use ListState::*;
 
-        let raw_prefix = prefix.map(|p| p.to_raw());
+        let raw_prefix = prefix.map(|p| format!("{}{}", p.to_raw(), DELIMITER));
         let bucket = self.bucket_name.clone();
 
         let request_factory = move || rusoto_s3::ListObjectsV2Request {
             bucket,
-            prefix: raw_prefix.clone(),
+            prefix: raw_prefix,
             delimiter,
             ..Default::default()
         };
@@ -568,9 +558,12 @@ impl AmazonS3 {
                 Some((Ok(resp), next_state))
             }
         })
-        .map_err(move |e| Error::UnableToListData {
-            source: e,
-            bucket: self.bucket_name.clone(),
+        .map_err(move |e| {
+            Error::UnableToListData {
+                source: e,
+                bucket: self.bucket_name.clone(),
+            }
+            .into()
         })
         .boxed())
     }
@@ -670,7 +663,7 @@ mod tests {
             get_nonexistent_object, list_uses_directories_correctly, list_with_delimiter,
             put_get_delete_list,
         },
-        Error as ObjectStoreError, ObjectStoreApi, ObjectStoreImpl, ObjectStorePath,
+        Error as ObjectStoreError, ObjectStoreApi,
     };
     use bytes::Bytes;
     use std::env;
@@ -761,10 +754,8 @@ mod tests {
         r
     }
 
-    #[tokio::test]
-    async fn s3_test() {
-        let config = maybe_skip_integration!();
-        let integration = ObjectStoreImpl::new_amazon_s3(
+    fn make_integration(config: AwsConfig) -> AmazonS3 {
+        new_s3(
             Some(config.access_key_id),
             Some(config.secret_access_key),
             config.region,
@@ -774,7 +765,13 @@ mod tests {
             NonZeroUsize::new(16).unwrap(),
             true,
         )
-        .expect("Valid S3 config");
+        .expect("Valid S3 config")
+    }
+
+    #[tokio::test]
+    async fn s3_test() {
+        let config = maybe_skip_integration!();
+        let integration = make_integration(config);
 
         check_credentials(put_get_delete_list(&integration).await).unwrap();
         check_credentials(list_uses_directories_correctly(&integration).await).unwrap();
@@ -784,20 +781,9 @@ mod tests {
     #[tokio::test]
     async fn s3_test_get_nonexistent_location() {
         let config = maybe_skip_integration!();
-        let integration = ObjectStoreImpl::new_amazon_s3(
-            Some(config.access_key_id),
-            Some(config.secret_access_key),
-            config.region,
-            &config.bucket,
-            config.endpoint,
-            config.token,
-            NonZeroUsize::new(16).unwrap(),
-            true,
-        )
-        .expect("Valid S3 config");
+        let integration = make_integration(config);
 
-        let mut location = integration.new_path();
-        location.set_file_name(NON_EXISTENT_NAME);
+        let location = Path::from_iter([NON_EXISTENT_NAME]);
 
         let err = get_nonexistent_object(&integration, Some(location))
             .await
@@ -826,137 +812,70 @@ mod tests {
     async fn s3_test_get_nonexistent_bucket() {
         let mut config = maybe_skip_integration!();
         config.bucket = NON_EXISTENT_NAME.into();
+        let integration = make_integration(config);
 
-        let integration = ObjectStoreImpl::new_amazon_s3(
-            Some(config.access_key_id),
-            Some(config.secret_access_key),
-            config.region,
-            &config.bucket,
-            config.endpoint,
-            config.token,
-            NonZeroUsize::new(16).unwrap(),
-            true,
-        )
-        .expect("Valid S3 config");
-
-        let mut location = integration.new_path();
-        location.set_file_name(NON_EXISTENT_NAME);
+        let location = Path::from_iter([NON_EXISTENT_NAME]);
 
         let err = get_nonexistent_object(&integration, Some(location))
             .await
-            .unwrap_err();
-        if let Some(ObjectStoreError::AwsObjectStoreError {
-            source: Error::UnableToListData { source, bucket },
-        }) = err.downcast_ref::<ObjectStoreError>()
-        {
-            assert!(matches!(
-                source,
-                rusoto_core::RusotoError::Service(rusoto_s3::ListObjectsV2Error::NoSuchBucket(_))
-            ));
-            assert_eq!(bucket, &config.bucket);
-        } else {
-            panic!("unexpected error type: {:?}", err);
-        }
+            .unwrap_err()
+            .to_string();
+
+        assert!(
+            err.contains("The specified bucket does not exist")
+                && err.contains("Unable to list data"),
+            "{}",
+            err
+        )
     }
 
     #[tokio::test]
     async fn s3_test_put_nonexistent_bucket() {
         let mut config = maybe_skip_integration!();
         config.bucket = NON_EXISTENT_NAME.into();
+        let integration = make_integration(config);
 
-        let integration = ObjectStoreImpl::new_amazon_s3(
-            Some(config.access_key_id),
-            Some(config.secret_access_key),
-            config.region,
-            &config.bucket,
-            config.endpoint,
-            config.token,
-            NonZeroUsize::new(16).unwrap(),
-            true,
-        )
-        .expect("Valid S3 config");
-
-        let mut location = integration.new_path();
-        location.set_file_name(NON_EXISTENT_NAME);
+        let location = Path::from_iter([NON_EXISTENT_NAME]);
         let data = Bytes::from("arbitrary data");
 
-        let err = integration.put(&location, data).await.unwrap_err();
+        let err = integration
+            .put(&location, data)
+            .await
+            .unwrap_err()
+            .to_string();
 
-        if let ObjectStoreError::AwsObjectStoreError {
-            source:
-                Error::UnableToPutData {
-                    source,
-                    bucket,
-                    path,
-                },
-        } = err
-        {
-            assert!(matches!(source, rusoto_core::RusotoError::Unknown(_)));
-            assert_eq!(bucket, config.bucket);
-            assert_eq!(path, NON_EXISTENT_NAME);
-        } else {
-            panic!("unexpected error type: {:?}", err);
-        }
+        assert!(
+            err.contains("The specified bucket does not exist")
+                && err.contains("Unable to PUT data"),
+            "{}",
+            err
+        )
     }
 
     #[tokio::test]
     async fn s3_test_delete_nonexistent_location() {
         let config = maybe_skip_integration!();
-        let integration = ObjectStoreImpl::new_amazon_s3(
-            Some(config.access_key_id),
-            Some(config.secret_access_key),
-            config.region,
-            config.bucket,
-            config.endpoint,
-            config.token,
-            NonZeroUsize::new(16).unwrap(),
-            true,
-        )
-        .expect("Valid S3 config");
+        let integration = make_integration(config);
 
-        let mut location = integration.new_path();
-        location.set_file_name(NON_EXISTENT_NAME);
+        let location = Path::from_iter([NON_EXISTENT_NAME]);
 
-        let result = integration.delete(&location).await;
-
-        assert!(result.is_ok());
+        integration.delete(&location).await.unwrap();
     }
 
     #[tokio::test]
     async fn s3_test_delete_nonexistent_bucket() {
         let mut config = maybe_skip_integration!();
         config.bucket = NON_EXISTENT_NAME.into();
+        let integration = make_integration(config);
 
-        let integration = ObjectStoreImpl::new_amazon_s3(
-            Some(config.access_key_id),
-            Some(config.secret_access_key),
-            config.region,
-            &config.bucket,
-            config.endpoint,
-            config.token,
-            NonZeroUsize::new(16).unwrap(),
-            true,
+        let location = Path::from_iter([NON_EXISTENT_NAME]);
+
+        let err = integration.delete(&location).await.unwrap_err().to_string();
+        assert!(
+            err.contains("The specified bucket does not exist")
+                && err.contains("Unable to DELETE data"),
+            "{}",
+            err
         )
-        .expect("Valid S3 config");
-
-        let mut location = integration.new_path();
-        location.set_file_name(NON_EXISTENT_NAME);
-
-        let err = integration.delete(&location).await.unwrap_err();
-        if let ObjectStoreError::AwsObjectStoreError {
-            source:
-                Error::UnableToDeleteData {
-                    source,
-                    bucket,
-                    path,
-                },
-        } = err
-        {
-            assert!(matches!(source, rusoto_core::RusotoError::Unknown(_)));
-            assert_eq!(bucket, config.bucket);
-            assert_eq!(path, NON_EXISTENT_NAME);
-        } else {
-            panic!("unexpected error type: {:?}", err);
-        }
     }
 }

@@ -17,7 +17,7 @@ use iox_catalog::{
 };
 use iox_time::{MockProvider, Time, TimeProvider};
 use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
-use object_store::{DynObjectStore, ObjectStoreImpl};
+use object_store::{memory::InMemory, DynObjectStore};
 use parquet_file::{
     metadata::{IoxMetadata, IoxParquetMetaData},
     ParquetFilePath,
@@ -28,7 +28,7 @@ use schema::{
     sort::{adjust_sort_key_columns, SortKey, SortKeyBuilder},
     Schema,
 };
-use std::{ops::Deref, sync::Arc};
+use std::sync::Arc;
 use uuid::Uuid;
 
 /// Catalog for tests
@@ -47,7 +47,7 @@ impl TestCatalog {
     pub fn new() -> Arc<Self> {
         let metric_registry = Arc::new(metric::Registry::new());
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metric_registry)));
-        let object_store = Arc::new(ObjectStoreImpl::new_in_memory());
+        let object_store = Arc::new(InMemory::new());
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp(0, 0)));
         let exec = Arc::new(Executor::new(1));
 
@@ -673,7 +673,7 @@ async fn create_parquet_file(
         metadata.partition_id,
         metadata.object_store_id,
     );
-    let path = path.object_store_path(object_store.deref());
+    let path = path.object_store_path();
 
     object_store.put(&path, bytes).await.unwrap();
 

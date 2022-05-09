@@ -4,7 +4,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use crate::{path::parsed::DirsAndFileName, GetResult, ListResult, ObjectStoreApi, Result};
+use crate::{GetResult, ListResult, ObjectStoreApi, Path, Result};
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::{stream::BoxStream, StreamExt};
@@ -85,7 +85,7 @@ pub struct ThrottleConfig {
 #[derive(Debug)]
 pub struct ThrottledStore<T: ObjectStoreApi> {
     inner: T,
-    pub config: Arc<Mutex<ThrottleConfig>>,
+    config: Arc<Mutex<ThrottleConfig>>,
 }
 
 impl<T: ObjectStoreApi> ThrottledStore<T> {
@@ -112,34 +112,21 @@ impl<T: ObjectStoreApi> ThrottledStore<T> {
     }
 }
 
+impl<T: ObjectStoreApi> std::fmt::Display for ThrottledStore<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ThrottledStore({})", self.inner)
+    }
+}
+
 #[async_trait]
-impl<T: ObjectStoreApi> ObjectStoreApi for ThrottledStore<T>
-where
-    DirsAndFileName: Into<T::Path>,
-{
-    type Path = T::Path;
-
-    type Error = T::Error;
-
-    fn new_path(&self) -> Self::Path {
-        self.inner.new_path()
-    }
-
-    fn path_from_raw(&self, raw: &str) -> Self::Path {
-        self.inner.path_from_raw(raw)
-    }
-
-    fn path_from_dirs_and_filename(&self, path: DirsAndFileName) -> Self::Path {
-        path.into()
-    }
-
-    async fn put(&self, location: &Self::Path, bytes: Bytes) -> Result<(), Self::Error> {
+impl<T: ObjectStoreApi> ObjectStoreApi for ThrottledStore<T> {
+    async fn put(&self, location: &Path, bytes: Bytes) -> Result<()> {
         sleep(self.config().wait_put_per_call).await;
 
         self.inner.put(location, bytes).await
     }
 
-    async fn get(&self, location: &Self::Path) -> Result<GetResult<Self::Error>, Self::Error> {
+    async fn get(&self, location: &Path) -> Result<GetResult> {
         sleep(self.config().wait_get_per_call).await;
 
         // need to copy to avoid moving / referencing `self`
@@ -167,7 +154,7 @@ where
         })
     }
 
-    async fn delete(&self, location: &Self::Path) -> Result<(), Self::Error> {
+    async fn delete(&self, location: &Path) -> Result<()> {
         sleep(self.config().wait_delete_per_call).await;
 
         self.inner.delete(location).await
@@ -175,8 +162,8 @@ where
 
     async fn list<'a>(
         &'a self,
-        prefix: Option<&'a Self::Path>,
-    ) -> Result<BoxStream<'a, Result<Vec<Self::Path>, Self::Error>>, Self::Error> {
+        prefix: Option<&'a Path>,
+    ) -> Result<BoxStream<'a, Result<Vec<Path>>>> {
         sleep(self.config().wait_list_per_call).await;
 
         // need to copy to avoid moving / referencing `self`
@@ -198,10 +185,7 @@ where
         })
     }
 
-    async fn list_with_delimiter(
-        &self,
-        prefix: &Self::Path,
-    ) -> Result<ListResult<Self::Path>, Self::Error> {
+    async fn list_with_delimiter(&self, prefix: &Path) -> Result<ListResult> {
         sleep(self.config().wait_list_with_delimiter_per_call).await;
 
         match self.inner.list_with_delimiter(prefix).await {
@@ -225,9 +209,7 @@ mod tests {
     use super::*;
     use crate::{
         memory::InMemory,
-        path::ObjectStorePath,
         tests::{list_uses_directories_correctly, list_with_delimiter, put_get_delete_list},
-        ObjectStoreImpl,
     };
     use bytes::Bytes;
     use futures::TryStreamExt;
@@ -252,12 +234,12 @@ mod tests {
 
     #[tokio::test]
     async fn throttle_test() {
-        let config = ThrottleConfig::default();
-        let integration = ObjectStoreImpl::new_in_memory_throttled(config);
+        let inner = InMemory::new();
+        let store = ThrottledStore::new(inner, ThrottleConfig::default());
 
-        put_get_delete_list(&integration).await.unwrap();
-        list_uses_directories_correctly(&integration).await.unwrap();
-        list_with_delimiter(&integration).await.unwrap();
+        put_get_delete_list(&store).await.unwrap();
+        list_uses_directories_correctly(&store).await.unwrap();
+        list_with_delimiter(&store).await.unwrap();
     }
 
     #[tokio::test]
@@ -368,12 +350,8 @@ mod tests {
         assert_bounds!(measure_put(&store, 0).await, 0);
     }
 
-    async fn place_test_object(
-        store: &ThrottledStore<InMemory>,
-        n_bytes: Option<usize>,
-    ) -> <ThrottledStore<InMemory> as ObjectStoreApi>::Path {
-        let mut path = store.new_path();
-        path.set_file_name("foo");
+    async fn place_test_object(store: &ThrottledStore<InMemory>, n_bytes: Option<usize>) -> Path {
+        let path = Path::from_raw("foo");
 
         if let Some(n_bytes) = n_bytes {
             let data: Vec<_> = std::iter::repeat(1u8).take(n_bytes).collect();
@@ -387,12 +365,8 @@ mod tests {
         path
     }
 
-    async fn place_test_objects(
-        store: &ThrottledStore<InMemory>,
-        n_entries: usize,
-    ) -> <ThrottledStore<InMemory> as ObjectStoreApi>::Path {
-        let mut prefix = store.new_path();
-        prefix.push_dir("foo");
+    async fn place_test_objects(store: &ThrottledStore<InMemory>, n_entries: usize) -> Path {
+        let prefix = Path::from_raw("foo");
 
         // clean up store
         for entry in store
@@ -408,8 +382,7 @@ mod tests {
 
         // create new entries
         for i in 0..n_entries {
-            let mut path = prefix.clone();
-            path.set_file_name(&i.to_string());
+            let path = prefix.child(i.to_string().as_str());
 
             let data = Bytes::from("bar");
             store.put(&path, data).await.unwrap();
@@ -478,14 +451,11 @@ mod tests {
     }
 
     async fn measure_put(store: &ThrottledStore<InMemory>, n_bytes: usize) -> Duration {
-        let mut path = store.new_path();
-        path.set_file_name("foo");
-
         let data: Vec<_> = std::iter::repeat(1u8).take(n_bytes).collect();
         let bytes = Bytes::from(data);
 
         let t0 = Instant::now();
-        store.put(&path, bytes).await.unwrap();
+        store.put(&Path::from_raw("foo"), bytes).await.unwrap();
 
         t0.elapsed()
     }

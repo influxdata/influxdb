@@ -13,10 +13,7 @@ pub mod metadata;
 pub mod storage;
 
 use data_types::{NamespaceId, PartitionId, SequencerId, TableId};
-use object_store::{
-    path::{parsed::DirsAndFileName, ObjectStorePath, Path},
-    DynObjectStore,
-};
+use object_store::path::Path;
 use uuid::Uuid;
 
 /// Location of a Parquet file within a database's object store.
@@ -48,8 +45,8 @@ impl ParquetFilePath {
         }
     }
 
-    /// Get absolute storage location.
-    fn absolute_dirs_and_file_name(&self) -> DirsAndFileName {
+    /// Get object-store path.
+    pub fn object_store_path(&self) -> Path {
         let Self {
             namespace_id,
             table_id,
@@ -58,20 +55,13 @@ impl ParquetFilePath {
             object_store_id,
         } = self;
 
-        let mut result = DirsAndFileName::default();
-        result.push_all_dirs(&[
+        Path::from_iter([
             namespace_id.to_string().as_str(),
             table_id.to_string().as_str(),
             sequencer_id.to_string().as_str(),
             partition_id.to_string().as_str(),
-        ]);
-        result.set_file_name(format!("{}.parquet", object_store_id));
-        result
-    }
-
-    /// Get object-store specific absolute path.
-    pub fn object_store_path(&self, object_store: &DynObjectStore) -> Path {
-        object_store.path_from_dirs_and_filename(self.absolute_dirs_and_file_name())
+            &format!("{}.parquet", object_store_id),
+        ])
     }
 }
 
@@ -94,9 +84,9 @@ mod tests {
             PartitionId::new(4),
             Uuid::nil(),
         );
-        let dirs_and_file_name = pfp.absolute_dirs_and_file_name();
+        let path = pfp.object_store_path();
         assert_eq!(
-            dirs_and_file_name.to_string(),
+            path.to_string(),
             "1/2/3/4/00000000-0000-0000-0000-000000000000.parquet".to_string(),
         );
     }

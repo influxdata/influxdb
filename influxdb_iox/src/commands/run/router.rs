@@ -1,15 +1,17 @@
 //! Implementation of command line option for running router
 
 use super::main;
+use clap_blocks::object_store::make_object_store;
 use clap_blocks::{
     catalog_dsn::CatalogDsnConfig, run_config::RunConfig, write_buffer::WriteBufferConfig,
 };
+use iox_time::{SystemProvider, TimeProvider};
 use ioxd_common::{
     server_type::{CommonServerState, CommonServerStateError},
     Service,
 };
 use ioxd_router::create_router_server_type;
-use object_store::{instrumentation::ObjectStoreMetrics, DynObjectStore, ObjectStoreImpl};
+use object_store::{instrumentation::ObjectStoreMetrics, DynObjectStore};
 use observability_deps::tracing::*;
 use std::sync::Arc;
 use thiserror::Error;
@@ -86,6 +88,7 @@ pub struct Config {
 
 pub async fn command(config: Config) -> Result<()> {
     let common_state = CommonServerState::from_config(config.run_config.clone())?;
+    let time_provider = Arc::new(SystemProvider::new()) as Arc<dyn TimeProvider>;
     let metrics = Arc::new(metric::Registry::default());
 
     let catalog = config
@@ -93,11 +96,14 @@ pub async fn command(config: Config) -> Result<()> {
         .get_catalog("router", Arc::clone(&metrics))
         .await?;
 
-    let object_store = ObjectStoreImpl::try_from(config.run_config.object_store_config())
+    let object_store = make_object_store(config.run_config.object_store_config())
         .map_err(Error::ObjectStoreParsing)?;
     // Decorate the object store with a metric recorder.
-    let object_store: Arc<DynObjectStore> =
-        Arc::new(ObjectStoreMetrics::new(object_store, &*metrics));
+    let object_store: Arc<DynObjectStore> = Arc::new(ObjectStoreMetrics::new(
+        object_store,
+        time_provider,
+        &*metrics,
+    ));
 
     let server_type = create_router_server_type(
         &common_state,

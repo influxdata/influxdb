@@ -1,8 +1,8 @@
 //! This module contains the IOx implementation for using Azure Blob storage as
 //! the object store.
 use crate::{
-    path::{cloud::CloudPath, parsed::DirsAndFileName, DELIMITER},
-    GetResult, ListResult, ObjectMeta, ObjectStoreApi, ObjectStorePath,
+    path::{Path, DELIMITER},
+    GetResult, ListResult, ObjectMeta, ObjectStoreApi, Result,
 };
 use async_trait::async_trait;
 use azure_core::{prelude::*, HttpClient};
@@ -19,13 +19,10 @@ use futures::{
 use snafu::{ResultExt, Snafu};
 use std::{convert::TryInto, sync::Arc};
 
-/// A specialized `Result` for Azure object store-related errors
-pub type Result<T, E = Error> = std::result::Result<T, E>;
-
 /// A specialized `Error` for Azure object store-related errors
 #[derive(Debug, Snafu)]
 #[allow(missing_docs)]
-pub enum Error {
+enum Error {
     #[snafu(display("Unable to DELETE data. Location: {}, Error: {}", path, source,))]
     Delete {
         source: Box<dyn std::error::Error + Send + Sync>,
@@ -56,6 +53,15 @@ pub enum Error {
     NoEmulatorFeature,
 }
 
+impl From<Error> for super::Error {
+    fn from(source: Error) -> Self {
+        Self::Generic {
+            store: "Azure Blob Storage",
+            source: Box::new(source),
+        }
+    }
+}
+
 /// Configuration for connecting to [Microsoft Azure Blob Storage](https://azure.microsoft.com/en-us/services/storage/blobs/).
 #[derive(Debug)]
 pub struct MicrosoftAzure {
@@ -64,30 +70,21 @@ pub struct MicrosoftAzure {
     container_name: String,
 }
 
+impl std::fmt::Display for MicrosoftAzure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "MicrosoftAzure({})", self.container_name)
+    }
+}
+
 #[async_trait]
 impl ObjectStoreApi for MicrosoftAzure {
-    type Path = CloudPath;
-    type Error = Error;
-
-    fn new_path(&self) -> Self::Path {
-        CloudPath::default()
-    }
-
-    fn path_from_raw(&self, raw: &str) -> Self::Path {
-        CloudPath::raw(raw)
-    }
-
-    fn path_from_dirs_and_filename(&self, path: DirsAndFileName) -> Self::Path {
-        path.into()
-    }
-
-    async fn put(&self, location: &Self::Path, bytes: Bytes) -> Result<()> {
+    async fn put(&self, location: &Path, bytes: Bytes) -> Result<()> {
         let location = location.to_raw();
 
         let bytes = bytes::BytesMut::from(&*bytes);
 
         self.container_client
-            .as_blob_client(&location)
+            .as_blob_client(location)
             .put_block_blob(bytes)
             .execute()
             .await
@@ -98,19 +95,19 @@ impl ObjectStoreApi for MicrosoftAzure {
         Ok(())
     }
 
-    async fn get(&self, location: &Self::Path) -> Result<GetResult<Error>> {
+    async fn get(&self, location: &Path) -> Result<GetResult> {
         let container_client = Arc::clone(&self.container_client);
-        let location = location.to_raw();
+        let location = location.to_raw().to_string();
         let s = async move {
-            container_client
+            let bytes = container_client
                 .as_blob_client(&location)
                 .get()
                 .execute()
                 .await
                 .map(|blob| blob.data)
-                .context(GetSnafu {
-                    path: location.to_owned(),
-                })
+                .context(GetSnafu { path: location })?;
+
+            Ok(bytes)
         }
         .into_stream()
         .boxed();
@@ -118,10 +115,10 @@ impl ObjectStoreApi for MicrosoftAzure {
         Ok(GetResult::Stream(s))
     }
 
-    async fn delete(&self, location: &Self::Path) -> Result<()> {
+    async fn delete(&self, location: &Path) -> Result<()> {
         let location = location.to_raw();
         self.container_client
-            .as_blob_client(&location)
+            .as_blob_client(location)
             .delete()
             .delete_snapshots_method(DeleteSnapshotsMethod::Include)
             .execute()
@@ -135,10 +132,8 @@ impl ObjectStoreApi for MicrosoftAzure {
 
     async fn list<'a>(
         &'a self,
-        prefix: Option<&'a Self::Path>,
-    ) -> Result<BoxStream<'a, Result<Vec<Self::Path>>>> {
-        let prefix_is_dir = prefix.map(|path| path.is_dir()).unwrap_or(true);
-
+        prefix: Option<&'a Path>,
+    ) -> Result<BoxStream<'a, Result<Vec<Path>>>> {
         #[derive(Clone)]
         enum ListState {
             Start,
@@ -149,7 +144,7 @@ impl ObjectStoreApi for MicrosoftAzure {
         Ok(stream::unfold(ListState::Start, move |state| async move {
             let mut request = self.container_client.list_blobs();
 
-            let prefix_raw = prefix.map(|p| p.to_raw());
+            let prefix_raw = prefix.map(|p| format!("{}{}", p.to_raw(), DELIMITER));
             if let Some(ref p) = prefix_raw {
                 request = request.prefix(p as &str);
             }
@@ -166,7 +161,7 @@ impl ObjectStoreApi for MicrosoftAzure {
 
             let resp = match request.execute().await.context(ListSnafu) {
                 Ok(resp) => resp,
-                Err(err) => return Some((Err(err), state)),
+                Err(err) => return Some((Err(err.into()), state)),
             };
 
             let next_state = if let Some(marker) = resp.next_marker {
@@ -179,10 +174,7 @@ impl ObjectStoreApi for MicrosoftAzure {
                 .blobs
                 .blobs
                 .into_iter()
-                .map(|blob| CloudPath::raw(blob.name))
-                .filter(move |path| {
-                    prefix_is_dir || prefix.map(|prefix| prefix == path).unwrap_or_default()
-                })
+                .map(|blob| Path::from_raw(blob.name))
                 .collect();
 
             Some((Ok(names), next_state))
@@ -190,11 +182,10 @@ impl ObjectStoreApi for MicrosoftAzure {
         .boxed())
     }
 
-    async fn list_with_delimiter(&self, prefix: &Self::Path) -> Result<ListResult<Self::Path>> {
-        let prefix_is_dir = prefix.is_dir();
+    async fn list_with_delimiter(&self, prefix: &Path) -> Result<ListResult> {
         let mut request = self.container_client.list_blobs();
 
-        let prefix_raw = prefix.to_raw();
+        let prefix_raw = format!("{}{}", prefix, DELIMITER);
 
         request = request.delimiter(Delimiter::new(DELIMITER));
         request = request.prefix(&*prefix_raw);
@@ -209,7 +200,7 @@ impl ObjectStoreApi for MicrosoftAzure {
             .map(|prefixes| {
                 prefixes
                     .iter()
-                    .map(|prefix| CloudPath::raw(&prefix.name))
+                    .map(|prefix| Path::from_raw(&prefix.name))
                     .collect()
             })
             .unwrap_or_else(Vec::new);
@@ -219,7 +210,7 @@ impl ObjectStoreApi for MicrosoftAzure {
             .blobs
             .into_iter()
             .map(|blob| {
-                let location = CloudPath::raw(blob.name);
+                let location = Path::from_raw(blob.name);
                 let last_modified = blob.properties.last_modified;
                 let size = blob
                     .properties
@@ -233,7 +224,6 @@ impl ObjectStoreApi for MicrosoftAzure {
                     size,
                 }
             })
-            .filter(move |object| prefix_is_dir || prefix == &object.location)
             .collect();
 
         Ok(ListResult {
@@ -251,7 +241,7 @@ fn check_if_emulator_works() -> Result<()> {
 
 #[cfg(not(feature = "azure_test"))]
 fn check_if_emulator_works() -> Result<()> {
-    Err(Error::NoEmulatorFeature)
+    Err(Error::NoEmulatorFeature.into())
 }
 
 /// Configure a connection to container with given name on Microsoft Azure
@@ -290,8 +280,8 @@ pub fn new_azure(
 
 #[cfg(test)]
 mod tests {
+    use crate::azure::new_azure;
     use crate::tests::{list_uses_directories_correctly, list_with_delimiter, put_get_delete_list};
-    use crate::ObjectStoreImpl;
     use std::env;
 
     #[derive(Debug)]
@@ -357,7 +347,7 @@ mod tests {
     #[tokio::test]
     async fn azure_blob_test() {
         let config = maybe_skip_integration!();
-        let integration = ObjectStoreImpl::new_microsoft_azure(
+        let integration = new_azure(
             config.storage_account,
             config.access_key,
             config.bucket,

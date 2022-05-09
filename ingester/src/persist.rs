@@ -8,7 +8,7 @@ use parquet_file::{
     ParquetFilePath,
 };
 use snafu::{ResultExt, Snafu};
-use std::{ops::Deref, sync::Arc};
+use std::sync::Arc;
 
 #[derive(Debug, Snafu)]
 #[allow(missing_docs)]
@@ -68,7 +68,7 @@ pub async fn persist(
         metadata.object_store_id,
     );
 
-    let path = path.object_store_path(object_store.deref());
+    let path = path.object_store_path();
 
     object_store
         .put(&path, bytes)
@@ -84,7 +84,8 @@ mod tests {
     use data_types::{NamespaceId, PartitionId, SequenceNumber, SequencerId, TableId};
     use iox_catalog::interface::INITIAL_COMPACTION_LEVEL;
     use iox_time::Time;
-    use object_store::{ObjectStoreImpl, ObjectStoreTestConvenience};
+    use object_store::memory::InMemory;
+    use object_store::ObjectStoreTestConvenience;
     use query::test::{raw_data, TestChunk};
     use std::sync::Arc;
     use uuid::Uuid;
@@ -94,7 +95,7 @@ mod tests {
     }
 
     fn object_store() -> Arc<DynObjectStore> {
-        Arc::new(ObjectStoreImpl::new_in_memory())
+        Arc::new(InMemory::new())
     }
 
     #[tokio::test]

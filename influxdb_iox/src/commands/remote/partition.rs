@@ -1,6 +1,7 @@
 //! This module implements the `remote partition` CLI subcommand
 
 use bytes::Bytes;
+use clap_blocks::object_store::make_object_store;
 use clap_blocks::{catalog_dsn::CatalogDsnConfig, object_store::ObjectStoreConfig};
 use data_types::{
     ColumnType, KafkaPartition, NamespaceId, NamespaceSchema as CatalogNamespaceSchema,
@@ -18,9 +19,8 @@ use influxdb_iox_client::{
     store,
 };
 use iox_catalog::interface::{get_schema_by_name, Catalog};
-use object_store::{DynObjectStore, ObjectStoreImpl};
 use parquet_file::ParquetFilePath;
-use std::{ops::Deref, sync::Arc};
+use std::sync::Arc;
 use thiserror::Error;
 use tokio_stream::StreamExt;
 use uuid::Uuid;
@@ -132,9 +132,9 @@ pub async fn command(connection: Connection, config: Config) -> Result<(), Error
 
             let partition_mapping =
                 load_partition(&catalog, &schema, &pull.table, &partition).await?;
+
             let object_store =
-                ObjectStoreImpl::try_from(&pull.object_store).map_err(Error::ObjectStoreParsing)?;
-            let object_store: Arc<DynObjectStore> = Arc::new(object_store);
+                make_object_store(&pull.object_store).map_err(Error::ObjectStoreParsing)?;
 
             println!(
                 "getting parquet files from remote for partiton {}",
@@ -157,7 +157,7 @@ pub async fn command(connection: Connection, config: Config) -> Result<(), Error
                     parquet_file.partition_id,
                     parquet_file.object_store_id,
                 );
-                let path = path.object_store_path(object_store.deref());
+                let path = path.object_store_path();
                 match object_store.get(&path).await {
                     Ok(_) => {
                         println!(

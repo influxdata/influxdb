@@ -30,7 +30,6 @@ use schema::selection::Selection;
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
     io::{Cursor, Seek, SeekFrom, Write},
-    ops::Deref,
     sync::Arc,
 };
 
@@ -158,7 +157,7 @@ impl Storage {
     /// Put the given vector of bytes to the specified location
     pub async fn to_object_store(&self, data: Vec<u8>, path: &ParquetFilePath) -> Result<()> {
         let data = Bytes::from(data);
-        let path = path.object_store_path(self.object_store.deref());
+        let path = path.object_store_path();
 
         self.object_store
             .put(&path, data)
@@ -197,7 +196,7 @@ impl Storage {
     ) -> Result<()> {
         // Size of each batch
         let batch_size = 1024; // Todo: make a constant or policy for this
-        let path = path.object_store_path(object_store.deref());
+        let path = path.object_store_path();
 
         let read_stream = futures::executor::block_on(object_store.get(&path))
             .context(ReadingObjectStoreSnafu)?;

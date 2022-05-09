@@ -18,7 +18,7 @@ use iox_catalog::interface::Catalog;
 use object_store::DynObjectStore;
 use observability_deps::tracing::*;
 use parquet_file::ParquetFilePath;
-use std::{ops::Deref, sync::Arc};
+use std::sync::Arc;
 use tonic::{Request, Response, Status};
 use uuid::Uuid;
 
@@ -72,7 +72,7 @@ impl object_store_service_server::ObjectStoreService for ObjectStoreService {
             parquet_file.partition_id,
             parquet_file.object_store_id,
         );
-        let path = path.object_store_path(self.object_store.deref());
+        let path = path.object_store_path();
 
         let res = self
             .object_store
@@ -98,7 +98,7 @@ mod tests {
     use data_types::{KafkaPartition, ParquetFileParams, SequenceNumber, Timestamp};
     use generated_types::influxdata::iox::object_store::v1::object_store_service_server::ObjectStoreService;
     use iox_catalog::mem::MemCatalog;
-    use object_store::{ObjectStoreApi, ObjectStoreImpl};
+    use object_store::{memory::InMemory, ObjectStoreApi};
     use uuid::Uuid;
 
     #[tokio::test]
@@ -160,7 +160,7 @@ mod tests {
             Arc::clone(&catalog)
         };
 
-        let object_store = Arc::new(ObjectStoreImpl::new_in_memory());
+        let object_store = Arc::new(InMemory::new());
 
         let path = ParquetFilePath::new(
             p1.namespace_id,
@@ -169,7 +169,7 @@ mod tests {
             p1.partition_id,
             p1.object_store_id,
         );
-        let path = path.object_store_path(object_store.deref());
+        let path = path.object_store_path();
 
         let data = Bytes::from_static(b"some data");
 

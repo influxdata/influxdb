@@ -1,8 +1,7 @@
 //! This module contains the IOx implementation for using local disk as the
 //! object store.
-use crate::path::{parsed::DirsAndFileName, Path};
-use crate::{cache::Cache, DynObjectStore};
-use crate::{path::file::FilePath, GetResult, ListResult, ObjectMeta, ObjectStoreApi};
+use crate::path::{Path, DELIMITER};
+use crate::{GetResult, ListResult, ObjectMeta, ObjectStoreApi, Result};
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::{
@@ -10,13 +9,9 @@ use futures::{
     StreamExt,
 };
 use snafu::{OptionExt, ResultExt, Snafu};
-use std::sync::Arc;
-use std::{collections::BTreeSet, convert::TryFrom, io, path::PathBuf};
+use std::{collections::BTreeSet, convert::TryFrom, io};
 use tokio::fs;
 use walkdir::WalkDir;
-
-/// A specialized `Result` for filesystem object store-related errors
-pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// A specialized `Error` for filesystem object store-related errors
 #[derive(Debug, Snafu)]
@@ -25,7 +20,7 @@ pub enum Error {
     #[snafu(display("File size for {} did not fit in a usize: {}", path.display(), source))]
     FileSizeOverflowedUsize {
         source: std::num::TryFromIntError,
-        path: PathBuf,
+        path: std::path::PathBuf,
     },
 
     #[snafu(display("Unable to walk dir: {}", source))]
@@ -36,7 +31,7 @@ pub enum Error {
     #[snafu(display("Unable to access metadata for {}: {}", path.display(), source))]
     UnableToAccessMetadata {
         source: walkdir::Error,
-        path: PathBuf,
+        path: std::path::PathBuf,
     },
 
     #[snafu(display("Unable to copy data to file: {}", source))]
@@ -47,31 +42,31 @@ pub enum Error {
     #[snafu(display("Unable to create dir {}: {}", path.display(), source))]
     UnableToCreateDir {
         source: io::Error,
-        path: PathBuf,
+        path: std::path::PathBuf,
     },
 
     #[snafu(display("Unable to create file {}: {}", path.display(), err))]
     UnableToCreateFile {
-        path: PathBuf,
+        path: std::path::PathBuf,
         err: io::Error,
     },
 
     #[snafu(display("Unable to delete file {}: {}", path.display(), source))]
     UnableToDeleteFile {
         source: io::Error,
-        path: PathBuf,
+        path: std::path::PathBuf,
     },
 
     #[snafu(display("Unable to open file {}: {}", path.display(), source))]
     UnableToOpenFile {
         source: io::Error,
-        path: PathBuf,
+        path: std::path::PathBuf,
     },
 
     #[snafu(display("Unable to read data from file {}: {}", path.display(), source))]
     UnableToReadBytes {
         source: io::Error,
-        path: PathBuf,
+        path: std::path::PathBuf,
     },
 
     NotFound {
@@ -80,34 +75,40 @@ pub enum Error {
     },
 }
 
+impl From<Error> for super::Error {
+    fn from(source: Error) -> Self {
+        match source {
+            Error::NotFound { path, source } => Self::NotFound {
+                path,
+                source: source.into(),
+            },
+            _ => Self::Generic {
+                store: "LocalFileSystem",
+                source: Box::new(source),
+            },
+        }
+    }
+}
+
 /// Local filesystem storage suitable for testing or for opting out of using a
 /// cloud storage provider.
 #[derive(Debug)]
-pub struct File {
-    root: FilePath,
+pub struct LocalFileSystem {
+    root: std::path::PathBuf,
+}
+
+impl std::fmt::Display for LocalFileSystem {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "LocalFileSystem({})", self.root.display())
+    }
 }
 
 #[async_trait]
-impl ObjectStoreApi for File {
-    type Path = FilePath;
-    type Error = Error;
-
-    fn new_path(&self) -> Self::Path {
-        FilePath::default()
-    }
-
-    fn path_from_raw(&self, raw: &str) -> Self::Path {
-        FilePath::raw(raw, true)
-    }
-
-    fn path_from_dirs_and_filename(&self, path: DirsAndFileName) -> Self::Path {
-        path.into()
-    }
-
-    async fn put(&self, location: &Self::Path, bytes: Bytes) -> Result<()> {
+impl ObjectStoreApi for LocalFileSystem {
+    async fn put(&self, location: &Path, bytes: Bytes) -> Result<()> {
         let content = bytes::BytesMut::from(&*bytes);
 
-        let path = self.path(location);
+        let path = self.path_to_filesystem(location);
 
         let mut file = match fs::File::create(&path).await {
             Ok(f) => f,
@@ -121,10 +122,10 @@ impl ObjectStoreApi for File {
 
                 match fs::File::create(&path).await {
                     Ok(f) => f,
-                    Err(err) => return UnableToCreateFileSnafu { path, err }.fail(),
+                    Err(err) => return Err(Error::UnableToCreateFile { path, err }.into()),
                 }
             }
-            Err(err) => return UnableToCreateFileSnafu { path, err }.fail(),
+            Err(err) => return Err(Error::UnableToCreateFile { path, err }.into()),
         };
 
         tokio::io::copy(&mut &content[..], &mut file)
@@ -134,8 +135,8 @@ impl ObjectStoreApi for File {
         Ok(())
     }
 
-    async fn get(&self, location: &Self::Path) -> Result<GetResult<Error>> {
-        let path = self.path(location);
+    async fn get(&self, location: &Path) -> Result<GetResult> {
+        let path = self.path_to_filesystem(location);
 
         let file = fs::File::open(&path).await.map_err(|e| {
             if e.kind() == std::io::ErrorKind::NotFound {
@@ -154,8 +155,8 @@ impl ObjectStoreApi for File {
         Ok(GetResult::File(file, path))
     }
 
-    async fn delete(&self, location: &Self::Path) -> Result<()> {
-        let path = self.path(location);
+    async fn delete(&self, location: &Path) -> Result<()> {
+        let path = self.path_to_filesystem(location);
         fs::remove_file(&path)
             .await
             .context(UnableToDeleteFileSnafu { path })?;
@@ -164,8 +165,8 @@ impl ObjectStoreApi for File {
 
     async fn list<'a>(
         &'a self,
-        prefix: Option<&'a Self::Path>,
-    ) -> Result<BoxStream<'a, Result<Vec<Self::Path>>>> {
+        prefix: Option<&'a Path>,
+    ) -> Result<BoxStream<'a, Result<Vec<Path>>>> {
         let root_path = self.root.to_path_buf();
         let walkdir = WalkDir::new(&root_path)
             // Don't include the root directory itself
@@ -178,12 +179,7 @@ impl ObjectStoreApi for File {
                     Ok(None) => None,
                     Ok(entry @ Some(_)) => entry
                         .filter(|dir_entry| dir_entry.file_type().is_file())
-                        .map(|file| {
-                            let relative_path = file.path().strip_prefix(&root_path).expect(
-                                "Must start with root path because this came from walking the root",
-                            );
-                            FilePath::raw(relative_path, false)
-                        })
+                        .map(|file| self.filesystem_to_path(file.path()).unwrap())
                         .filter(|name| prefix.map_or(true, |p| name.prefix_matches(p)))
                         .map(|name| Ok(vec![name])),
                 }
@@ -192,69 +188,50 @@ impl ObjectStoreApi for File {
         Ok(stream::iter(s).boxed())
     }
 
-    async fn list_with_delimiter(&self, prefix: &Self::Path) -> Result<ListResult<Self::Path>> {
-        // Always treat prefix as relative because the list operations don't know
-        // anything about where on disk the root of this object store is; they
-        // only care about what's within this object store's directory. See
-        // documentation for `push_path`: it deliberately does *not* behave  as
-        // `PathBuf::push` does: there is no way to replace the root. So even if
-        // `prefix` isn't relative, we treat it as such here.
-        let mut resolved_prefix = self.root.clone();
-        resolved_prefix.push_path(prefix);
+    async fn list_with_delimiter(&self, prefix: &Path) -> Result<ListResult> {
+        let resolved_prefix = self.path_to_filesystem(prefix);
 
-        // It is valid to specify a prefix with directories `[foo, bar]` and filename
-        // `baz`, in which case we want to treat it like a glob for
-        // `foo/bar/baz*` and there may not actually be a file or directory
-        // named `foo/bar/baz`. We want to look at all the entries in
-        // `foo/bar/`, so remove the file name.
-        let mut search_path = resolved_prefix.clone();
-        search_path.unset_file_name();
-
-        let walkdir = WalkDir::new(&search_path.to_path_buf())
-            .min_depth(1)
-            .max_depth(1);
+        let walkdir = WalkDir::new(&resolved_prefix).min_depth(1).max_depth(1);
 
         let mut common_prefixes = BTreeSet::new();
         let mut objects = Vec::new();
 
-        let root_path = self.root.to_path_buf();
         for entry_res in walkdir.into_iter().map(convert_walkdir_result) {
             if let Some(entry) = entry_res? {
-                let entry_location = FilePath::raw(entry.path(), false);
+                let is_directory = entry.file_type().is_dir();
+                let entry_location = self.filesystem_to_path(entry.path()).unwrap();
 
-                if entry_location.prefix_matches(&resolved_prefix) {
+                let mut parts = match entry_location.prefix_match(prefix) {
+                    Some(parts) => parts,
+                    None => continue,
+                };
+
+                let common_prefix = match parts.next() {
+                    Some(p) => p,
+                    None => continue,
+                };
+
+                drop(parts);
+
+                if is_directory {
+                    common_prefixes.insert(prefix.child(common_prefix));
+                } else {
                     let metadata = entry
                         .metadata()
                         .context(UnableToAccessMetadataSnafu { path: entry.path() })?;
 
-                    if metadata.is_dir() {
-                        let parts = entry_location
-                            .parts_after_prefix(&resolved_prefix)
-                            .expect("must have prefix because of the if prefix_matches condition");
+                    let last_modified = metadata
+                        .modified()
+                        .expect("Modified file time should be supported on this platform")
+                        .into();
+                    let size = usize::try_from(metadata.len())
+                        .context(FileSizeOverflowedUsizeSnafu { path: entry.path() })?;
 
-                        let mut relative_location = prefix.to_owned();
-                        relative_location.push_part_as_dir(&parts[0]);
-                        common_prefixes.insert(relative_location);
-                    } else {
-                        let path = entry
-                            .path()
-                            .strip_prefix(&root_path)
-                            .expect("must have prefix because of the if prefix_matches condition");
-                        let location = FilePath::raw(path, false);
-
-                        let last_modified = metadata
-                            .modified()
-                            .expect("Modified file time should be supported on this platform")
-                            .into();
-                        let size = usize::try_from(metadata.len())
-                            .context(FileSizeOverflowedUsizeSnafu { path: entry.path() })?;
-
-                        objects.push(ObjectMeta {
-                            location,
-                            last_modified,
-                            size,
-                        });
-                    }
+                    objects.push(ObjectMeta {
+                        location: entry_location,
+                        last_modified,
+                        size,
+                    });
                 }
             }
         }
@@ -264,29 +241,6 @@ impl ObjectStoreApi for File {
             common_prefixes: common_prefixes.into_iter().collect(),
             objects,
         })
-    }
-}
-
-#[async_trait]
-impl Cache for File {
-    fn evict(&self, _path: &Path) -> crate::cache::Result<()> {
-        todo!()
-    }
-
-    async fn fs_path_or_cache(
-        &self,
-        _path: &Path,
-        _store: Arc<DynObjectStore>,
-    ) -> crate::cache::Result<&str> {
-        todo!()
-    }
-
-    fn size(&self) -> u64 {
-        todo!()
-    }
-
-    fn limit(&self) -> u64 {
-        todo!()
     }
 }
 
@@ -301,28 +255,38 @@ fn convert_walkdir_result(
                 io::ErrorKind::NotFound => Ok(None),
                 _ => Err(Error::UnableToWalkDir {
                     source: walkdir_err,
-                }),
+                }
+                .into()),
             },
             None => Err(Error::UnableToWalkDir {
                 source: walkdir_err,
-            }),
+            }
+            .into()),
         },
     }
 }
 
-impl File {
+impl LocalFileSystem {
     /// Create new filesystem storage.
-    pub fn new(root: impl Into<PathBuf>) -> Self {
-        Self {
-            root: FilePath::raw(root, true),
-        }
+    pub fn new(root: impl Into<std::path::PathBuf>) -> Self {
+        Self { root: root.into() }
     }
 
-    /// Return full path of the given location
-    pub fn path(&self, location: &FilePath) -> PathBuf {
+    /// Return filesystem path of the given location
+    fn path_to_filesystem(&self, location: &Path) -> std::path::PathBuf {
         let mut path = self.root.clone();
-        path.push_path(location);
+        for component in location.to_raw().split(DELIMITER) {
+            path.push(component)
+        }
         path.to_path_buf()
+    }
+
+    fn filesystem_to_path(&self, location: &std::path::Path) -> Option<Path> {
+        let stripped = location.strip_prefix(&self.root).ok()?;
+        let path = stripped.to_string_lossy();
+        let split = path.split(std::path::MAIN_SEPARATOR);
+
+        Some(Path::from_iter(split))
     }
 }
 
@@ -334,7 +298,7 @@ mod tests {
             get_nonexistent_object, list_uses_directories_correctly, list_with_delimiter,
             put_get_delete_list,
         },
-        Error as ObjectStoreError, ObjectStoreApi, ObjectStoreImpl, ObjectStorePath,
+        Error as ObjectStoreError, ObjectStoreApi,
     };
     use std::{fs::set_permissions, os::unix::prelude::PermissionsExt};
     use tempfile::TempDir;
@@ -342,7 +306,7 @@ mod tests {
     #[tokio::test]
     async fn file_test() {
         let root = TempDir::new().unwrap();
-        let integration = ObjectStoreImpl::new_file(root.path());
+        let integration = LocalFileSystem::new(root.path());
 
         put_get_delete_list(&integration).await.unwrap();
         list_uses_directories_correctly(&integration).await.unwrap();
@@ -352,10 +316,9 @@ mod tests {
     #[tokio::test]
     async fn creates_dir_if_not_present() {
         let root = TempDir::new().unwrap();
-        let integration = ObjectStoreImpl::new_file(root.path());
+        let integration = LocalFileSystem::new(root.path());
 
-        let mut location = integration.new_path();
-        location.push_all_dirs(&["nested", "file", "test_file"]);
+        let location = Path::from_raw("nested/file/test_file");
 
         let data = Bytes::from("arbitrary data");
         let expected_data = data.clone();
@@ -375,10 +338,9 @@ mod tests {
     #[tokio::test]
     async fn unknown_length() {
         let root = TempDir::new().unwrap();
-        let integration = ObjectStoreImpl::new_file(root.path());
+        let integration = LocalFileSystem::new(root.path());
 
-        let mut location = integration.new_path();
-        location.set_file_name("some_file");
+        let location = Path::from_raw("some_file");
 
         let data = Bytes::from("arbitrary data");
         let expected_data = data.clone();
@@ -405,7 +367,7 @@ mod tests {
         permissions.set_mode(0o000);
         set_permissions(root.path(), permissions).unwrap();
 
-        let store = File::new(root.path());
+        let store = LocalFileSystem::new(root.path());
 
         // `list` must fail
         match store.list(None).await {
@@ -424,7 +386,7 @@ mod tests {
         }
 
         // `list_with_delimiter
-        assert!(store.list_with_delimiter(&store.new_path()).await.is_err());
+        assert!(store.list_with_delimiter(&Path::default()).await.is_err());
     }
 
     const NON_EXISTENT_NAME: &str = "nonexistentname";
@@ -432,10 +394,9 @@ mod tests {
     #[tokio::test]
     async fn get_nonexistent_location() {
         let root = TempDir::new().unwrap();
-        let integration = ObjectStoreImpl::new_file(root.path());
+        let integration = LocalFileSystem::new(root.path());
 
-        let mut location = integration.new_path();
-        location.set_file_name(NON_EXISTENT_NAME);
+        let location = Path::from_raw(NON_EXISTENT_NAME);
 
         let err = get_nonexistent_object(&integration, Some(location))
             .await

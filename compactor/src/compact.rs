@@ -37,7 +37,7 @@ use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{
     cmp::{max, min, Ordering},
     collections::{BTreeMap, HashSet},
-    ops::{Deref, DerefMut},
+    ops::DerefMut,
     sync::Arc,
 };
 use uuid::Uuid;
@@ -797,7 +797,7 @@ impl Compactor {
             metadata.partition_id,
             metadata.object_store_id,
         );
-        let path = path.object_store_path(object_store.deref());
+        let path = path.object_store_path();
 
         object_store
             .put(&path, bytes)

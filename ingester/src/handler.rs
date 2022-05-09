@@ -306,7 +306,7 @@ mod tests {
     use iox_time::Time;
     use metric::{Attributes, Metric, U64Counter, U64Gauge, U64Histogram};
     use mutable_batch_lp::lines_to_batches;
-    use object_store::ObjectStoreImpl;
+    use object_store::memory::InMemory;
     use std::{num::NonZeroU32, ops::DerefMut};
     use write_buffer::mock::{MockBufferForReading, MockBufferSharedState};
 
@@ -563,7 +563,7 @@ mod tests {
 
         let reading: Arc<dyn WriteBufferReading> =
             Arc::new(MockBufferForReading::new(write_buffer_state.clone(), None).unwrap());
-        let object_store = Arc::new(ObjectStoreImpl::new_in_memory());
+        let object_store = Arc::new(InMemory::new());
 
         let lifecycle_config = LifecycleConfig::new(
             1000000,
@@ -662,7 +662,7 @@ mod tests {
                 MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());
             let reading: Arc<dyn WriteBufferReading> =
                 Arc::new(MockBufferForReading::new(write_buffer_state.clone(), None).unwrap());
-            let object_store = Arc::new(ObjectStoreImpl::new_in_memory());
+            let object_store = Arc::new(InMemory::new());
 
             let lifecycle_config = LifecycleConfig::new(
                 1000000,

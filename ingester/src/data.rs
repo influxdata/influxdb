@@ -1483,7 +1483,7 @@ mod tests {
     use iox_time::Time;
     use metric::{MetricObserver, Observation};
     use mutable_batch_lp::{lines_to_batches, test_helpers::lp_to_mutable_batch};
-    use object_store::ObjectStoreImpl;
+    use object_store::memory::InMemory;
     use std::{ops::DerefMut, time::Duration};
 
     #[test]
@@ -1584,7 +1584,7 @@ mod tests {
             SequencerData::new(kafka_partition, Arc::clone(&metrics)),
         );
 
-        let object_store: Arc<DynObjectStore> = Arc::new(ObjectStoreImpl::new_in_memory());
+        let object_store: Arc<DynObjectStore> = Arc::new(InMemory::new());
 
         let data = Arc::new(IngesterData::new(
             Arc::clone(&object_store),
@@ -1672,7 +1672,7 @@ mod tests {
             SequencerData::new(sequencer2.kafka_partition, Arc::clone(&metrics)),
         );
 
-        let object_store: Arc<DynObjectStore> = Arc::new(ObjectStoreImpl::new_in_memory());
+        let object_store: Arc<DynObjectStore> = Arc::new(InMemory::new());
 
         let data = Arc::new(IngesterData::new(
             Arc::clone(&object_store),
@@ -2259,7 +2259,7 @@ mod tests {
             SequencerData::new(kafka_partition, Arc::clone(&metrics)),
         );
 
-        let object_store: Arc<DynObjectStore> = Arc::new(ObjectStoreImpl::new_in_memory());
+        let object_store: Arc<DynObjectStore> = Arc::new(InMemory::new());
 
         let data = Arc::new(IngesterData::new(
             Arc::clone(&object_store),

@@ -8,7 +8,7 @@ use iox_time::TimeProvider;
 use object_store::DynObjectStore;
 use parquet_file::ParquetFilePath;
 use snafu::{ResultExt, Snafu};
-use std::{ops::Deref, sync::Arc};
+use std::sync::Arc;
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
@@ -72,7 +72,7 @@ impl GarbageCollector {
                 catalog_record.partition_id,
                 catalog_record.object_store_id,
             );
-            let path = path.object_store_path(self.object_store.deref());
+            let path = path.object_store_path();
 
             if let Err(e) = self.object_store.delete(&path).await {
                 object_store_errors.push(e);
@@ -116,7 +116,7 @@ mod tests {
             catalog_record.partition_id,
             catalog_record.object_store_id,
         );
-        let path = path.object_store_path(object_store.deref());
+        let path = path.object_store_path();
 
         object_store.put(&path, bytes).await.unwrap();
     }

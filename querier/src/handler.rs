@@ -116,7 +116,7 @@ mod tests {
 
     use iox_catalog::mem::MemCatalog;
     use iox_time::{MockProvider, Time};
-    use object_store::ObjectStoreImpl;
+    use object_store::memory::InMemory;
     use query::exec::Executor;
 
     use crate::{cache::CatalogCache, create_ingester_connection_for_testing};
@@ -148,7 +148,7 @@ mod tests {
         fn new() -> Self {
             let metric_registry = Arc::new(metric::Registry::new());
             let catalog = Arc::new(MemCatalog::new(Arc::clone(&metric_registry)));
-            let object_store = Arc::new(ObjectStoreImpl::new_in_memory());
+            let object_store = Arc::new(InMemory::new());
             let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
             let exec = Arc::new(Executor::new(1));
             let catalog_cache = Arc::new(CatalogCache::new(catalog, time_provider));

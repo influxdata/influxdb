@@ -1,130 +1,76 @@
 //! Crate that mimics the interface of the the various object stores
 //! but does nothing if they are not enabled.
-use std::num::NonZeroUsize;
 
 use async_trait::async_trait;
 use bytes::Bytes;
 use snafu::Snafu;
 
-use crate::{
-    path::{cloud::CloudPath, parsed::DirsAndFileName},
-    GetResult, ObjectStoreApi,
-};
+use crate::{path::Path, GetResult, ListResult, ObjectStoreApi, Result};
 
 /// A specialized `Error` for Azure object store-related errors
 #[derive(Debug, Snafu, Clone)]
-#[allow(missing_docs)]
-pub enum Error {
+#[allow(missing_copy_implementations, missing_docs)]
+enum Error {
     #[snafu(display(
         "'{}' not supported with this build. Hint: recompile with appropriate features",
         name
     ))]
-    NotSupported { name: String },
+    NotSupported { name: &'static str },
 }
-/// Result for the dummy object store
-pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+impl From<Error> for super::Error {
+    fn from(source: Error) -> Self {
+        match source {
+            Error::NotSupported { name } => Self::Generic {
+                store: name,
+                source: Box::new(source),
+            },
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
+#[allow(missing_copy_implementations)]
 /// An object store that always generates an error
 pub struct DummyObjectStore {
-    name: String,
+    name: &'static str,
 }
 
-/// If aws feature not available, use DummyObjectStore
-pub type AmazonS3 = DummyObjectStore;
+impl DummyObjectStore {
+    /// Create a new [`DummyObjectStore`] that always fails
+    pub fn new(name: &'static str) -> Self {
+        Self { name }
+    }
+}
 
-/// If azure feature not available, use DummyObjectStore
-pub type MicrosoftAzure = DummyObjectStore;
-
-/// If gcp feature not available, use DummyObjectStore
-pub type GoogleCloudStorage = DummyObjectStore;
+impl std::fmt::Display for DummyObjectStore {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Dummy({})", self.name)
+    }
+}
 
 #[async_trait]
 impl ObjectStoreApi for DummyObjectStore {
-    type Path = CloudPath;
-    type Error = Error;
-
-    fn new_path(&self) -> Self::Path {
-        CloudPath::default()
+    async fn put(&self, _location: &Path, _bytes: Bytes) -> Result<()> {
+        Ok(NotSupportedSnafu { name: self.name }.fail()?)
     }
 
-    fn path_from_raw(&self, raw: &str) -> Self::Path {
-        CloudPath::raw(raw)
+    async fn get(&self, _location: &Path) -> Result<GetResult> {
+        Ok(NotSupportedSnafu { name: self.name }.fail()?)
     }
 
-    fn path_from_dirs_and_filename(&self, path: DirsAndFileName) -> Self::Path {
-        path.into()
-    }
-
-    async fn put(&self, _location: &Self::Path, _bytes: Bytes) -> crate::Result<(), Self::Error> {
-        NotSupportedSnafu { name: &self.name }.fail()
-    }
-
-    async fn get(
-        &self,
-        _location: &Self::Path,
-    ) -> crate::Result<GetResult<Self::Error>, Self::Error> {
-        NotSupportedSnafu { name: &self.name }.fail()
-    }
-
-    async fn delete(&self, _location: &Self::Path) -> crate::Result<(), Self::Error> {
-        NotSupportedSnafu { name: &self.name }.fail()
+    async fn delete(&self, _location: &Path) -> Result<()> {
+        Ok(NotSupportedSnafu { name: self.name }.fail()?)
     }
 
     async fn list<'a>(
         &'a self,
-        _prefix: Option<&'a Self::Path>,
-    ) -> crate::Result<
-        futures::stream::BoxStream<'a, crate::Result<Vec<Self::Path>, Self::Error>>,
-        Self::Error,
-    > {
-        NotSupportedSnafu { name: &self.name }.fail()
+        _prefix: Option<&'a Path>,
+    ) -> Result<futures::stream::BoxStream<'a, Result<Vec<Path>>>> {
+        Ok(NotSupportedSnafu { name: self.name }.fail()?)
     }
 
-    async fn list_with_delimiter(
-        &self,
-        _prefix: &Self::Path,
-    ) -> crate::Result<crate::ListResult<Self::Path>, Self::Error> {
-        NotSupportedSnafu { name: &self.name }.fail()
+    async fn list_with_delimiter(&self, _prefix: &Path) -> Result<ListResult> {
+        Ok(NotSupportedSnafu { name: self.name }.fail()?)
     }
-}
-
-/// Stub when s3 is not configured
-#[allow(dead_code, clippy::too_many_arguments)]
-pub(crate) fn new_s3(
-    _access_key_id: Option<impl Into<String>>,
-    _secret_access_key: Option<impl Into<String>>,
-    _region: impl Into<String>,
-    _bucket_name: impl Into<String>,
-    _endpoint: Option<impl Into<String>>,
-    _session_token: Option<impl Into<String>>,
-    _max_connections: NonZeroUsize,
-    _allow_http: bool,
-) -> Result<DummyObjectStore> {
-    NotSupportedSnafu { name: "aws" }.fail()
-}
-
-#[allow(dead_code)]
-pub(crate) fn new_failing_s3() -> Result<AmazonS3> {
-    Ok(DummyObjectStore { name: "aws".into() })
-}
-
-/// Stub when gcs is not configured
-#[allow(dead_code)]
-pub(crate) fn new_gcs(
-    _service_account_path: impl AsRef<std::ffi::OsStr>,
-    _bucket_name: impl Into<String>,
-) -> Result<DummyObjectStore> {
-    NotSupportedSnafu { name: "gcs" }.fail()
-}
-
-/// Stub when azure is not configured
-#[allow(dead_code)]
-pub(crate) fn new_azure(
-    _account: impl Into<String>,
-    _access_key: impl Into<String>,
-    _container_name: impl Into<String>,
-    _use_emulator: bool,
-) -> Result<DummyObjectStore> {
-    NotSupportedSnafu { name: "azure" }.fail()
 }

@@ -1,6 +1,7 @@
 //! Implementation of command line option for running all in one mode
 
 use super::main;
+use clap_blocks::object_store::make_object_store;
 use clap_blocks::{
     catalog_dsn::CatalogDsnConfig, compactor::CompactorConfig, ingester::IngesterConfig,
     object_store::ObjectStoreConfig, run_config::RunConfig, socket_addr::SocketAddr,
@@ -15,7 +16,7 @@ use ioxd_compactor::create_compactor_server_type;
 use ioxd_ingester::create_ingester_server_type;
 use ioxd_querier::create_querier_server_type;
 use ioxd_router::create_router_server_type;
-use object_store::{DynObjectStore, ObjectStoreImpl};
+use object_store::DynObjectStore;
 use observability_deps::tracing::*;
 use query::exec::Executor;
 use std::{path::PathBuf, sync::Arc};
@@ -405,10 +406,9 @@ pub async fn command(config: Config) -> Result<()> {
         .create_or_get(QUERY_POOL_NAME)
         .await?;
 
-    let object_store: Arc<DynObjectStore> = Arc::new(
-        ObjectStoreImpl::try_from(router_run_config.object_store_config())
-            .map_err(Error::ObjectStoreParsing)?,
-    );
+    let object_store: Arc<DynObjectStore> =
+        make_object_store(router_run_config.object_store_config())
+            .map_err(Error::ObjectStoreParsing)?;
 
     let time_provider: Arc<dyn TimeProvider> = Arc::new(SystemProvider::new());
 
