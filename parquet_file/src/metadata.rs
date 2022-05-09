@@ -86,9 +86,9 @@
 //! [Apache Parquet]: https://parquet.apache.org/
 //! [Apache Thrift]: https://thrift.apache.org/
 //! [Thrift Compact Protocol]: https://github.com/apache/thrift/blob/master/doc/specs/thrift-compact-protocol.md
-use data_types::partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics};
-use data_types2::{
-    NamespaceId, ParquetFileParams, PartitionId, SequenceNumber, SequencerId, TableId, Timestamp,
+use data_types::{
+    ColumnSummary, InfluxDbType, NamespaceId, ParquetFileParams, PartitionId, SequenceNumber,
+    SequencerId, StatValues, Statistics, TableId, Timestamp,
 };
 use generated_types::influxdata::iox::ingester::v1 as proto;
 use iox_time::Time;
@@ -106,8 +106,10 @@ use parquet::{
     schema::types::SchemaDescriptor as ParquetSchemaDescriptor,
 };
 use prost::Message;
-use schema::sort::{SortKey, SortKeyBuilder};
-use schema::{InfluxColumnType, InfluxFieldType, Schema};
+use schema::{
+    sort::{SortKey, SortKeyBuilder},
+    InfluxColumnType, InfluxFieldType, Schema,
+};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{convert::TryInto, sync::Arc};
 use thrift::protocol::{TCompactInputProtocol, TCompactOutputProtocol, TOutputProtocol};

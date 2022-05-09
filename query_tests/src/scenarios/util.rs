@@ -3,21 +3,23 @@ use super::DbScenario;
 use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
 use backoff::BackoffConfig;
-use data_types::delete_predicate::DeletePredicate;
-use data_types2::{
-    IngesterQueryRequest, NonEmptyString, PartitionId, Sequence, SequenceNumber, SequencerId,
+use data_types::{
+    DeletePredicate, NonEmptyString, PartitionId, Sequence, SequenceNumber, SequencerId,
     TombstoneId,
 };
 use dml::{DmlDelete, DmlMeta, DmlOperation, DmlWrite};
 use futures::StreamExt;
-use generated_types::influxdata::iox::ingester::v1::{
-    IngesterQueryResponseMetadata, PartitionStatus,
+use generated_types::{
+    influxdata::iox::ingester::v1::{IngesterQueryResponseMetadata, PartitionStatus},
+    ingester::IngesterQueryRequest,
 };
 use influxdb_iox_client::flight::Error as FlightError;
-use ingester::data::{IngesterData, IngesterQueryResponse, Persister, SequencerData};
-use ingester::lifecycle::LifecycleHandle;
-use ingester::partioning::{Partitioner, PartitionerError};
-use ingester::querier_handler::prepare_data_to_querier;
+use ingester::{
+    data::{IngesterData, IngesterQueryResponse, Persister, SequencerData},
+    lifecycle::LifecycleHandle,
+    partioning::{Partitioner, PartitionerError},
+    querier_handler::prepare_data_to_querier,
+};
 use iox_catalog::interface::get_schema_by_name;
 use iox_tests::util::{TestCatalog, TestNamespace, TestSequencer};
 use itertools::Itertools;
@@ -28,11 +30,14 @@ use querier::{
     IngesterFlightClientQueryData, QuerierCatalogCache, QuerierNamespace,
 };
 use schema::selection::Selection;
-use std::cmp::Ordering;
-use std::collections::{BTreeMap, HashMap};
-use std::fmt::Write;
-use std::sync::Mutex;
-use std::{fmt::Display, sync::Arc};
+use std::{
+    cmp::Ordering,
+    collections::{BTreeMap, HashMap},
+    fmt::Display,
+    fmt::Write,
+    sync::Arc,
+    sync::Mutex,
+};
 
 // Structs, enums, and functions used to exhaust all test scenarios of chunk life cycle
 // & when delete predicates are applied

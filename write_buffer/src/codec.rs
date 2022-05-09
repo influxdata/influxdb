@@ -1,25 +1,22 @@
 //! Encode/Decode for messages
 
-use std::borrow::Cow;
-use std::sync::Arc;
-
-use data_types::non_empty::NonEmptyString;
-use http::{HeaderMap, HeaderValue};
-use prost::Message;
-
-use data_types::sequence::Sequence;
+use crate::core::WriteBufferError;
+use data_types::{NonEmptyString, Sequence};
 use dml::{DmlDelete, DmlMeta, DmlOperation, DmlWrite};
-use generated_types::google::FromOptionalField;
-use generated_types::influxdata::iox::delete::v1::DeletePayload;
-use generated_types::influxdata::iox::write_buffer::v1::write_buffer_payload::Payload;
-use generated_types::influxdata::iox::write_buffer::v1::WriteBufferPayload;
+use generated_types::{
+    google::FromOptionalField,
+    influxdata::iox::{
+        delete::v1::DeletePayload,
+        write_buffer::v1::{write_buffer_payload::Payload, WriteBufferPayload},
+    },
+};
+use http::{HeaderMap, HeaderValue};
 use iox_time::Time;
 use mutable_batch_pb::decode::decode_database_batch;
-use trace::ctx::SpanContext;
-use trace::TraceCollector;
+use prost::Message;
+use std::{borrow::Cow, sync::Arc};
+use trace::{ctx::SpanContext, TraceCollector};
 use trace_http::ctx::{format_jaeger_trace_context, TraceHeaderParser};
-
-use crate::core::WriteBufferError;
 
 /// Pbdata based content type
 pub const CONTENT_TYPE_PROTOBUF: &str =

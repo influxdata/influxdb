@@ -1,9 +1,13 @@
-//! This module contains implementations of [query] interfaces for
-//! [QuerierNamespace].
-use std::{any::Any, collections::HashMap, sync::Arc};
+//! This module contains implementations of [query] interfaces for [QuerierNamespace].
 
+use crate::{
+    namespace::QuerierNamespace,
+    query_log::QueryLog,
+    system_tables::{SystemSchemaProvider, SYSTEM_SCHEMA},
+    table::QuerierTable,
+};
 use async_trait::async_trait;
-use data_types2::NamespaceId;
+use data_types::NamespaceId;
 use datafusion::{
     catalog::{catalog::CatalogProvider, schema::SchemaProvider},
     datasource::TableProvider,
@@ -15,14 +19,8 @@ use query::{
     QueryChunk, QueryCompletedToken, QueryDatabase, QueryDatabaseError, QueryText, DEFAULT_SCHEMA,
 };
 use schema::Schema;
+use std::{any::Any, collections::HashMap, sync::Arc};
 use trace::ctx::SpanContext;
-
-use crate::{
-    namespace::QuerierNamespace,
-    query_log::QueryLog,
-    system_tables::{SystemSchemaProvider, SYSTEM_SCHEMA},
-    table::QuerierTable,
-};
 
 impl QueryDatabaseMeta for QuerierNamespace {
     fn table_names(&self) -> Vec<String> {
@@ -193,7 +191,7 @@ mod tests {
     use crate::namespace::test_util::querier_namespace;
     use arrow::record_batch::RecordBatch;
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
-    use data_types2::ColumnType;
+    use data_types::ColumnType;
     use iox_tests::util::TestCatalog;
     use query::frontend::sql::SqlQueryPlanner;
 

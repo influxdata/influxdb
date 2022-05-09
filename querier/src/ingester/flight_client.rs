@@ -1,16 +1,15 @@
+use arrow::{datatypes::Schema, record_batch::RecordBatch};
+use async_trait::async_trait;
+use client_util::connection;
+use generated_types::ingester::IngesterQueryRequest;
+use influxdb_iox_client::flight::{self, generated_types::IngesterQueryResponseMetadata};
+use observability_deps::tracing::debug;
+use snafu::{ResultExt, Snafu};
 use std::{
     fmt::Debug,
     ops::{Deref, DerefMut},
     sync::Arc,
 };
-
-use arrow::{datatypes::Schema, record_batch::RecordBatch};
-use async_trait::async_trait;
-use client_util::connection;
-use data_types2::IngesterQueryRequest;
-use influxdb_iox_client::flight::{self, generated_types::IngesterQueryResponseMetadata};
-use observability_deps::tracing::debug;
-use snafu::{ResultExt, Snafu};
 
 pub use flight::{Error as FlightError, PerformQuery};
 

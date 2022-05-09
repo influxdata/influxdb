@@ -82,16 +82,16 @@ async fn basic_no_ingester_connection() {
 
     let table_name = "the_table";
 
-    let router2_config = TestConfig::new_router2(&database_url);
+    let router_config = TestConfig::new_router(&database_url);
     // fast parquet
-    let ingester_config = TestConfig::new_ingester(&router2_config);
+    let ingester_config = TestConfig::new_ingester(&router_config);
 
     // specially create a querier config that is NOT connected to the ingester
     let querier_config = TestConfig::new_querier_without_ingester(&ingester_config);
 
     // Set up the cluster  ====================================
     let mut cluster = MiniCluster::new()
-        .with_router2(router2_config)
+        .with_router(router_config)
         .await
         .with_ingester(ingester_config)
         .await

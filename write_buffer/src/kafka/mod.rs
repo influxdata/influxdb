@@ -1,13 +1,17 @@
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
+use self::{
+    aggregator::DmlAggregator,
+    config::{ClientConfig, ConsumerConfig, ProducerConfig, TopicCreationConfig},
+};
+use crate::{
+    codec::IoxHeaders,
+    config::WriteBufferCreationConfig,
+    core::{
+        WriteBufferError, WriteBufferErrorKind, WriteBufferReading, WriteBufferStreamHandler,
+        WriteBufferWriting,
     },
 };
-
 use async_trait::async_trait;
-use data_types::{sequence::Sequence, write_buffer::WriteBufferCreationConfig};
+use data_types::Sequence;
 use dml::{DmlMeta, DmlOperation};
 use futures::{stream::BoxStream, StreamExt};
 use iox_time::{Time, TimeProvider};
@@ -19,20 +23,14 @@ use rskafka::client::{
     producer::{BatchProducer, BatchProducerBuilder},
     ClientBuilder,
 };
-use trace::TraceCollector;
-
-use crate::{
-    codec::IoxHeaders,
-    core::{
-        WriteBufferError, WriteBufferErrorKind, WriteBufferReading, WriteBufferStreamHandler,
-        WriteBufferWriting,
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
     },
 };
-
-use self::{
-    aggregator::DmlAggregator,
-    config::{ClientConfig, ConsumerConfig, ProducerConfig, TopicCreationConfig},
-};
+use trace::TraceCollector;
 
 mod aggregator;
 mod config;
@@ -361,15 +359,7 @@ async fn setup_topic(
 
 #[cfg(test)]
 mod tests {
-    use std::num::NonZeroU32;
-
-    use data_types::{delete_predicate::DeletePredicate, timestamp::TimestampRange};
-    use dml::{test_util::assert_write_op_eq, DmlDelete, DmlWrite};
-    use futures::{stream::FuturesUnordered, TryStreamExt};
-    use rskafka::{client::partition::Compression, record::Record};
-    use test_helpers::assert_contains;
-    use trace::{ctx::SpanContext, RingBufferTraceCollector};
-
+    use super::*;
     use crate::{
         core::test_utils::{
             assert_span_context_eq_or_linked, perform_generic_tests, random_topic_name,
@@ -377,8 +367,13 @@ mod tests {
         },
         maybe_skip_kafka_integration,
     };
-
-    use super::*;
+    use data_types::{DeletePredicate, TimestampRange};
+    use dml::{test_util::assert_write_op_eq, DmlDelete, DmlWrite};
+    use futures::{stream::FuturesUnordered, TryStreamExt};
+    use rskafka::{client::partition::Compression, record::Record};
+    use std::num::NonZeroU32;
+    use test_helpers::assert_contains;
+    use trace::{ctx::SpanContext, RingBufferTraceCollector};
 
     struct RSKafkaTestAdapter {
         conn: String,

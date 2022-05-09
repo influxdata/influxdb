@@ -34,7 +34,7 @@ pub struct TestConfig {
 
 impl TestConfig {
     /// Create a new TestConfig (tests should use one of the specific
-    /// configuration setup below, such as [new_router2]
+    /// configuration setup below, such as [new_router]
     fn new(
         server_type: ServerType,
         dsn: impl Into<String>,
@@ -52,9 +52,9 @@ impl TestConfig {
         }
     }
 
-    /// Create a minimal router2 configuration
-    pub fn new_router2(dsn: impl Into<String>) -> Self {
-        Self::new(ServerType::Router2, dsn, random_catalog_schema_name())
+    /// Create a minimal router configuration
+    pub fn new_router(dsn: impl Into<String>) -> Self {
+        Self::new(ServerType::Router, dsn, random_catalog_schema_name())
             .with_new_write_buffer()
             .with_new_object_store()
     }

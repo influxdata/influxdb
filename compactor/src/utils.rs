@@ -2,10 +2,9 @@
 
 use crate::query::QueryableParquetChunk;
 use arrow::record_batch::RecordBatch;
-use data_types2::{
+use data_types::{
     ParquetFileId, ParquetFileParams, ParquetFileWithMetadata, Timestamp, Tombstone, TombstoneId,
 };
-use iox_object_store::IoxObjectStore;
 use object_store::DynObjectStore;
 use observability_deps::tracing::*;
 use parquet_file::{
@@ -94,12 +93,11 @@ impl ParquetFileWithTombstone {
         partition_sort_key: Option<SortKey>,
     ) -> QueryableParquetChunk {
         let decoded_parquet_file = DecodedParquetFile::new((*self.data).clone());
-        let root_path = IoxObjectStore::root_path_for(&*object_store, self.data.object_store_id);
-        let iox_object_store = IoxObjectStore::existing(object_store, root_path);
+
         let parquet_chunk = new_parquet_chunk(
             &decoded_parquet_file,
             ChunkMetrics::new_unregistered(), // TODO: need to add metrics
-            Arc::new(iox_object_store),
+            object_store,
         );
 
         debug!(

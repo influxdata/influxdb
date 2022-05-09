@@ -1,14 +1,12 @@
 //! Tests for the Influx gRPC queries
-use data_types::timestamp::{MAX_NANO_TIME, MIN_NANO_TIME};
+use crate::scenarios::*;
+use data_types::{MAX_NANO_TIME, MIN_NANO_TIME};
 use datafusion::logical_plan::{col, lit};
-use predicate::rpc_predicate::InfluxRpcPredicate;
-use predicate::PredicateBuilder;
+use predicate::{rpc_predicate::InfluxRpcPredicate, PredicateBuilder};
 use query::{
     exec::stringset::{IntoStringSet, StringSetRef},
     frontend::influxrpc::InfluxRpcPlanner,
 };
-
-use crate::scenarios::*;
 
 /// runs table_names(predicate) and compares it to the expected
 /// output

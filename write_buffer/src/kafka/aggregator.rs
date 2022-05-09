@@ -1,6 +1,5 @@
-use std::sync::Arc;
-
-use data_types::sequence::Sequence;
+use crate::codec::{ContentType, IoxHeaders};
+use data_types::Sequence;
 use dml::{DmlMeta, DmlOperation, DmlWrite};
 use hashbrown::{hash_map::Entry, HashMap};
 use iox_time::{Time, TimeProvider};
@@ -11,13 +10,12 @@ use rskafka::{
     record::Record,
 };
 use schema::selection::Selection;
+use std::sync::Arc;
 use trace::{
     ctx::SpanContext,
     span::{Span, SpanRecorder},
     TraceCollector,
 };
-
-use crate::codec::{ContentType, IoxHeaders};
 
 /// Newtype wrapper for tags given back to the aggregator framework.
 ///

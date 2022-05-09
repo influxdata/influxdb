@@ -1,12 +1,10 @@
 //! Write payload abstractions derived from [`MutableBatch`]
 
-use crate::column::ColumnData;
-use crate::{MutableBatch, Result};
-use data_types::database_rules::PartitionTemplate;
+use crate::{column::ColumnData, MutableBatch, Result};
+use data_types::PartitionTemplate;
 use hashbrown::HashMap;
 use schema::TIME_COLUMN_NAME;
-use std::num::NonZeroUsize;
-use std::ops::Range;
+use std::{num::NonZeroUsize, ops::Range};
 
 mod filter;
 mod partition;

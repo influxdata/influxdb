@@ -3,20 +3,13 @@ name = "iox_catalog_service"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
-async-trait = "0.1"
-data_types2 = { path = "../data_types2" }
+data_types = { path = "../data_types" }
 generated_types = { path = "../generated_types" }
 iox_catalog = { path = "../iox_catalog" }
 observability_deps = { path = "../observability_deps" }
-serde = "1.0"
-serde_urlencoded = "0.7"
-iox_time = { path = "../iox_time" }
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 tonic = "0.7"
-trace = { path = "../trace/" }
 workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]

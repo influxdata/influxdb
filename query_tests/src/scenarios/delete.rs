@@ -1,16 +1,16 @@
 //! This module contains testing scenarios for Delete
 
-use data_types::delete_predicate::{DeleteExpr, DeletePredicate};
-use data_types::timestamp::TimestampRange;
-
-use async_trait::async_trait;
-
-use super::util::{make_n_chunks_scenario_new, ChunkDataNew, DeleteTimeNew, PredNew};
-use super::{DbScenario, DbSetup};
+use super::{
+    util::{make_n_chunks_scenario_new, ChunkDataNew, DeleteTimeNew, PredNew},
+    DbScenario, DbSetup,
+};
 use crate::scenarios::util::all_scenarios_for_one_chunk;
+use async_trait::async_trait;
+use data_types::{DeleteExpr, DeletePredicate, Op, Scalar, TimestampRange};
 
-// =========================================================================================================================
-// DELETE TEST SETUPS: chunk lp data, how many chunks, their types, how many delete predicates and when they happen
+// ================================================================================================
+// DELETE TEST SETUPS: chunk lp data, how many chunks, their types, how many delete predicates and
+// when they happen
 
 #[derive(Debug)]
 /// Setup for delete query test with one table and one chunk moved from MUB to RUB to OS
@@ -53,8 +53,8 @@ impl DbSetup for OneDeleteSimpleExprOneChunk {
             range: TimestampRange::new(0, 15),
             exprs: vec![DeleteExpr::new(
                 "bar".to_string(),
-                data_types::delete_predicate::Op::Eq,
-                data_types::delete_predicate::Scalar::F64((1.0).into()),
+                Op::Eq,
+                Scalar::F64((1.0).into()),
             )],
         };
 
@@ -104,16 +104,8 @@ impl DbSetup for OneDeleteMultiExprsOneChunk {
         let pred = DeletePredicate {
             range: TimestampRange::new(0, 30),
             exprs: vec![
-                DeleteExpr::new(
-                    "bar".to_string(),
-                    data_types::delete_predicate::Op::Eq,
-                    data_types::delete_predicate::Scalar::F64((1.0).into()),
-                ),
-                DeleteExpr::new(
-                    "foo".to_string(),
-                    data_types::delete_predicate::Op::Eq,
-                    data_types::delete_predicate::Scalar::String("me".to_string()),
-                ),
+                DeleteExpr::new("bar".to_string(), Op::Eq, Scalar::F64((1.0).into())),
+                DeleteExpr::new("foo".to_string(), Op::Eq, Scalar::String("me".to_string())),
             ],
         };
 
@@ -147,16 +139,8 @@ impl DbSetup for TwoDeletesMultiExprsOneChunk {
         let pred1 = DeletePredicate {
             range: TimestampRange::new(0, 32),
             exprs: vec![
-                DeleteExpr::new(
-                    "bar".to_string(),
-                    data_types::delete_predicate::Op::Eq,
-                    data_types::delete_predicate::Scalar::F64((1.0).into()),
-                ),
-                DeleteExpr::new(
-                    "foo".to_string(),
-                    data_types::delete_predicate::Op::Eq,
-                    data_types::delete_predicate::Scalar::String("me".to_string()),
-                ),
+                DeleteExpr::new("bar".to_string(), Op::Eq, Scalar::F64((1.0).into())),
+                DeleteExpr::new("foo".to_string(), Op::Eq, Scalar::String("me".to_string())),
             ],
         };
 
@@ -165,8 +149,8 @@ impl DbSetup for TwoDeletesMultiExprsOneChunk {
             range: TimestampRange::new(10, 40),
             exprs: vec![DeleteExpr::new(
                 "bar".to_string(),
-                data_types::delete_predicate::Op::Ne,
-                data_types::delete_predicate::Scalar::F64((1.0).into()),
+                Op::Ne,
+                Scalar::F64((1.0).into()),
             )],
         };
 
@@ -204,16 +188,8 @@ impl DbSetup for ThreeDeleteThreeChunks {
         let pred1 = DeletePredicate {
             range: TimestampRange::new(0, 30),
             exprs: vec![
-                DeleteExpr::new(
-                    "bar".to_string(),
-                    data_types::delete_predicate::Op::Eq,
-                    data_types::delete_predicate::Scalar::F64((1.0).into()),
-                ),
-                DeleteExpr::new(
-                    "foo".to_string(),
-                    data_types::delete_predicate::Op::Eq,
-                    data_types::delete_predicate::Scalar::String("me".to_string()),
-                ),
+                DeleteExpr::new("bar".to_string(), Op::Eq, Scalar::F64((1.0).into())),
+                DeleteExpr::new("foo".to_string(), Op::Eq, Scalar::String("me".to_string())),
             ],
         };
 
@@ -229,8 +205,8 @@ impl DbSetup for ThreeDeleteThreeChunks {
             range: TimestampRange::new(20, 45),
             exprs: vec![DeleteExpr::new(
                 "foo".to_string(),
-                data_types::delete_predicate::Op::Eq,
-                data_types::delete_predicate::Scalar::String("you".to_string()),
+                Op::Eq,
+                Scalar::String("you".to_string()),
             )],
         };
 
@@ -246,8 +222,8 @@ impl DbSetup for ThreeDeleteThreeChunks {
             range: TimestampRange::new(75, 95),
             exprs: vec![DeleteExpr::new(
                 "bar".to_string(),
-                data_types::delete_predicate::Op::Ne,
-                data_types::delete_predicate::Scalar::F64((7.0).into()),
+                Op::Ne,
+                Scalar::F64((7.0).into()),
             )],
         };
 

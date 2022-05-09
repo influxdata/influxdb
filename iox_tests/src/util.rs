@@ -5,7 +5,7 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use bytes::Bytes;
-use data_types2::{
+use data_types::{
     Column, ColumnType, KafkaPartition, KafkaTopic, Namespace, ParquetFile, ParquetFileId,
     ParquetFileParams, ParquetFileWithMetadata, Partition, PartitionId, QueryPool, SequenceNumber,
     Sequencer, SequencerId, Table, TableId, Timestamp, Tombstone, TombstoneId,
@@ -15,18 +15,20 @@ use iox_catalog::{
     interface::{Catalog, PartitionRepo, INITIAL_COMPACTION_LEVEL},
     mem::MemCatalog,
 };
-use iox_object_store::{IoxObjectStore, ParquetFilePath};
 use iox_time::{MockProvider, Time, TimeProvider};
 use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
 use object_store::{DynObjectStore, ObjectStoreImpl};
-use parquet_file::metadata::{IoxMetadata, IoxParquetMetaData};
+use parquet_file::{
+    metadata::{IoxMetadata, IoxParquetMetaData},
+    ParquetFilePath,
+};
 use query::{exec::Executor, provider::RecordBatchDeduplicator, util::arrow_sort_key_exprs};
 use schema::{
     selection::Selection,
     sort::{adjust_sort_key_columns, SortKey, SortKeyBuilder},
     Schema,
 };
-use std::sync::Arc;
+use std::{ops::Deref, sync::Arc};
 use uuid::Uuid;
 
 /// Catalog for tests
@@ -527,8 +529,12 @@ impl TestPartition {
             compaction_level: INITIAL_COMPACTION_LEVEL,
             sort_key: Some(sort_key.clone()),
         };
-        let (parquet_metadata_bin, real_file_size_bytes) =
-            create_parquet_file(&self.catalog.object_store, &metadata, record_batch).await;
+        let (parquet_metadata_bin, real_file_size_bytes) = create_parquet_file(
+            Arc::clone(&self.catalog.object_store),
+            &metadata,
+            record_batch,
+        )
+        .await;
 
         let parquet_file_params = ParquetFileParams {
             sequencer_id: self.sequencer.sequencer.id,
@@ -640,18 +646,13 @@ async fn update_catalog_sort_key_if_needed(
 
 /// Create parquet file and return thrift-encoded and zstd-compressed parquet metadata as well as the file size.
 async fn create_parquet_file(
-    object_store: &Arc<DynObjectStore>,
+    object_store: Arc<DynObjectStore>,
     metadata: &IoxMetadata,
     record_batch: RecordBatch,
 ) -> (Vec<u8>, usize) {
-    let iox_object_store = Arc::new(IoxObjectStore::existing(
-        Arc::clone(object_store),
-        IoxObjectStore::root_path_for(&**object_store, uuid::Uuid::new_v4()),
-    ));
-
     let schema = record_batch.schema();
 
-    let data = parquet_file::storage::Storage::new(Arc::clone(&iox_object_store))
+    let data = parquet_file::storage::Storage::new(Arc::clone(&object_store))
         .parquet_bytes(vec![record_batch], schema, metadata)
         .await
         .unwrap();
@@ -665,18 +666,16 @@ async fn create_parquet_file(
     let file_size = data.len();
     let bytes = Bytes::from(data);
 
-    let path = ParquetFilePath::new_new_gen(
+    let path = ParquetFilePath::new(
         metadata.namespace_id,
         metadata.table_id,
         metadata.sequencer_id,
         metadata.partition_id,
         metadata.object_store_id,
     );
+    let path = path.object_store_path(object_store.deref());
 
-    iox_object_store
-        .put_parquet_file(&path, bytes)
-        .await
-        .unwrap();
+    object_store.put(&path, bytes).await.unwrap();
 
     (parquet_md, file_size)
 }

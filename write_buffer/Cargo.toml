@@ -13,6 +13,7 @@ generated_types = { path = "../generated_types" }
 hashbrown = "0.12"
 http = "0.2"
 httparse = "1.7"
+iox_time = { path = "../iox_time" }
 metric = { path = "../metric" }
 mutable_batch = { path = "../mutable_batch" }
 mutable_batch_lp = { path = "../mutable_batch_lp" }
@@ -23,7 +24,6 @@ pin-project = "1.0"
 prost = "0.10"
 rskafka = { git = "https://github.com/influxdata/rskafka.git", rev="39cd7d809fe0b27c0bb5e70d8dda9964d82a5540", default-features = false, features = ["compression-snappy"] }
 schema = { path = "../schema" }
-iox_time = { path = "../iox_time" }
 tokio = { version = "1.18", features = ["fs", "macros", "parking_lot", "rt", "sync", "time"] }
 tokio-util = "0.7.1"
 trace = { path = "../trace" }

@@ -2,7 +2,7 @@
 
 use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig};
-use data_types2::SequencerId;
+use data_types::SequencerId;
 use futures::{
     future::{BoxFuture, Shared},
     select, FutureExt, TryFutureExt,

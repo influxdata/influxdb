@@ -1,6 +1,10 @@
-use crate::metadata::{IoxMetadata, METADATA_KEY};
-/// This module responsible to write given data to specify object store and
-/// read them back
+//! This module is responsible for writing the given data to the specified object store and reading
+//! it back.
+
+use crate::{
+    metadata::{IoxMetadata, METADATA_KEY},
+    ParquetFilePath,
+};
 use arrow::{
     datatypes::{Schema, SchemaRef},
     error::{ArrowError, Result as ArrowResult},
@@ -10,8 +14,7 @@ use bytes::Bytes;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion_util::AdapterStream;
 use futures::{stream, StreamExt};
-use iox_object_store::{IoxObjectStore, ParquetFilePath};
-use object_store::GetResult;
+use object_store::{DynObjectStore, GetResult};
 use observability_deps::tracing::*;
 use parking_lot::Mutex;
 use parquet::arrow::{ArrowReader, ParquetFileArrowReader};
@@ -27,6 +30,7 @@ use schema::selection::Selection;
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
     io::{Cursor, Seek, SeekFrom, Write},
+    ops::Deref,
     sync::Arc,
 };
 
@@ -83,16 +87,16 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug, Clone)]
 pub struct Storage {
-    iox_object_store: Arc<IoxObjectStore>,
+    object_store: Arc<DynObjectStore>,
 
     // If `Some`, restricts the size of the row groups created in the parquet file
     max_row_group_size: Option<usize>,
 }
 
 impl Storage {
-    pub fn new(iox_object_store: Arc<IoxObjectStore>) -> Self {
+    pub fn new(object_store: Arc<DynObjectStore>) -> Self {
         Self {
-            iox_object_store,
+            object_store,
             max_row_group_size: None,
         }
     }
@@ -154,9 +158,10 @@ impl Storage {
     /// Put the given vector of bytes to the specified location
     pub async fn to_object_store(&self, data: Vec<u8>, path: &ParquetFilePath) -> Result<()> {
         let data = Bytes::from(data);
+        let path = path.object_store_path(self.object_store.deref());
 
-        self.iox_object_store
-            .put_parquet_file(path, data)
+        self.object_store
+            .put(&path, data)
             .await
             .context(WritingToObjectStoreSnafu)
     }
@@ -187,13 +192,14 @@ impl Storage {
     fn download_and_scan_parquet(
         projection: Vec<usize>,
         path: ParquetFilePath,
-        store: Arc<IoxObjectStore>,
+        object_store: Arc<DynObjectStore>,
         tx: tokio::sync::mpsc::Sender<ArrowResult<RecordBatch>>,
     ) -> Result<()> {
         // Size of each batch
         let batch_size = 1024; // Todo: make a constant or policy for this
+        let path = path.object_store_path(object_store.deref());
 
-        let read_stream = futures::executor::block_on(store.get_parquet_file(&path))
+        let read_stream = futures::executor::block_on(object_store.get(&path))
             .context(ReadingObjectStoreSnafu)?;
 
         let file = match read_stream {
@@ -243,7 +249,7 @@ impl Storage {
         selection: Selection<'_>,
         schema: SchemaRef,
         path: ParquetFilePath,
-        store: Arc<IoxObjectStore>,
+        object_store: Arc<DynObjectStore>,
     ) -> Result<SendableRecordBatchStream> {
         // Indices of columns in the schema needed to read
         let projection: Vec<usize> = Self::column_indices(selection, Arc::clone(&schema));
@@ -263,7 +269,7 @@ impl Storage {
         // not silently ignored
         tokio::task::spawn_blocking(move || {
             let download_result =
-                Self::download_and_scan_parquet(projection, path, store, tx.clone());
+                Self::download_and_scan_parquet(projection, path, object_store, tx.clone());
 
             // If there was an error returned from download_and_scan_parquet send it back to the receiver.
             if let Err(e) = download_result {

@@ -1,23 +1,22 @@
 use crate::{
     rand_id, write_to_router, write_to_router_grpc, ServerFixture, TestConfig, TestServer,
 };
+use futures::{stream::FuturesOrdered, StreamExt};
 use http::Response;
 use hyper::Body;
 use influxdb_iox_client::write::generated_types::{TableBatch, WriteResponse};
+use observability_deps::tracing::{debug, info};
 use std::{
     sync::{Arc, Weak},
     time::Instant,
 };
-
-use futures::{stream::FuturesOrdered, StreamExt};
-use observability_deps::tracing::{debug, info};
 use tokio::sync::Mutex;
 
 /// Structure that holds NG services and helpful accessors
 #[derive(Debug, Default)]
 pub struct MiniCluster {
-    /// Standard optional router2
-    router2: Option<ServerFixture>,
+    /// Standard optional router
+    router: Option<ServerFixture>,
 
     /// Standard optional ingester
     ingester: Option<ServerFixture>,
@@ -57,7 +56,7 @@ impl MiniCluster {
     /// Note this is an internal implementation -- please use
     /// [create_shared], and [new] to create new MiniClusters.
     fn new_from_fixtures(
-        router2: Option<ServerFixture>,
+        router: Option<ServerFixture>,
         ingester: Option<ServerFixture>,
         querier: Option<ServerFixture>,
         compactor: Option<ServerFixture>,
@@ -67,7 +66,7 @@ impl MiniCluster {
         let namespace = format!("{}_{}", org_id, bucket_id);
 
         Self {
-            router2,
+            router,
             ingester,
             querier,
             compactor,
@@ -121,13 +120,13 @@ impl MiniCluster {
     /// Create a non shared "standard" MiniCluster that has a router, ingester,
     /// querier
     pub async fn create_non_shared_standard(database_url: String) -> Self {
-        let router2_config = TestConfig::new_router2(&database_url);
-        let ingester_config = TestConfig::new_ingester(&router2_config);
+        let router_config = TestConfig::new_router(&database_url);
+        let ingester_config = TestConfig::new_ingester(&router_config);
         let querier_config = TestConfig::new_querier(&ingester_config);
 
         // Set up the cluster  ====================================
         Self::new()
-            .with_router2(router2_config)
+            .with_router(router_config)
             .await
             .with_ingester(ingester_config)
             .await
@@ -138,7 +137,7 @@ impl MiniCluster {
     /// Create an all-in-one server with the specified configuration
     pub async fn create_all_in_one(test_config: TestConfig) -> Self {
         Self::new()
-            .with_router2(test_config.clone())
+            .with_router(test_config.clone())
             .await
             .with_ingester(test_config.clone())
             .await
@@ -146,9 +145,9 @@ impl MiniCluster {
             .await
     }
 
-    /// create a router2 with the specified configuration
-    pub async fn with_router2(mut self, router2_config: TestConfig) -> Self {
-        self.router2 = Some(ServerFixture::create(router2_config).await);
+    /// create a router with the specified configuration
+    pub async fn with_router(mut self, router_config: TestConfig) -> Self {
+        self.router = Some(ServerFixture::create(router_config).await);
         self
     }
 
@@ -176,9 +175,9 @@ impl MiniCluster {
         self
     }
 
-    /// Retrieve the underlying router2 server, if set
-    pub fn router2(&self) -> &ServerFixture {
-        self.router2.as_ref().expect("router2 not initialized")
+    /// Retrieve the underlying router server, if set
+    pub fn router(&self) -> &ServerFixture {
+        self.router.as_ref().expect("router not initialized")
     }
 
     /// Retrieve the underlying ingester server, if set
@@ -231,7 +230,7 @@ impl MiniCluster {
             line_protocol,
             &self.org_id,
             &self.bucket_id,
-            self.router2().router_http_base(),
+            self.router().router_http_base(),
         )
         .await
     }
@@ -244,7 +243,7 @@ impl MiniCluster {
         write_to_router_grpc(
             table_batches,
             &self.namespace,
-            self.router2().router_grpc_connection(),
+            self.router().router_grpc_connection(),
         )
         .await
     }
@@ -258,7 +257,7 @@ impl MiniCluster {
 /// holds shared server processes to share across tests
 #[derive(Clone)]
 struct SharedServers {
-    router2: Option<Weak<TestServer>>,
+    router: Option<Weak<TestServer>>,
     ingester: Option<Weak<TestServer>>,
     querier: Option<Weak<TestServer>>,
     compactor: Option<Weak<TestServer>>,
@@ -266,7 +265,7 @@ struct SharedServers {
 
 /// Deferred creaton of a mini cluster
 struct CreatableMiniCluster {
-    router2: Option<Arc<TestServer>>,
+    router: Option<Arc<TestServer>>,
     ingester: Option<Arc<TestServer>>,
     querier: Option<Arc<TestServer>>,
     compactor: Option<Arc<TestServer>>,
@@ -283,14 +282,14 @@ async fn create_if_needed(server: Option<Arc<TestServer>>) -> Option<ServerFixtu
 impl CreatableMiniCluster {
     async fn create(self) -> MiniCluster {
         let Self {
-            router2,
+            router,
             ingester,
             querier,
             compactor,
         } = self;
 
         let mut servers = [
-            create_if_needed(router2),
+            create_if_needed(router),
             create_if_needed(ingester),
             create_if_needed(querier),
             create_if_needed(compactor),
@@ -320,7 +319,7 @@ impl SharedServers {
             "other servers not yet handled in shared mini clusters"
         );
         Self {
-            router2: cluster.router2.as_ref().map(|c| c.weak()),
+            router: cluster.router.as_ref().map(|c| c.weak()),
             ingester: cluster.ingester.as_ref().map(|c| c.weak()),
             querier: cluster.querier.as_ref().map(|c| c.weak()),
             compactor: cluster.compactor.as_ref().map(|c| c.weak()),
@@ -334,7 +333,7 @@ impl SharedServers {
         // from the function) if any of the optional weak references
         // aren't present so that the cluster is recreated correctly
         Some(CreatableMiniCluster {
-            router2: server_from_weak(self.router2.as_ref())?,
+            router: server_from_weak(self.router.as_ref())?,
             ingester: server_from_weak(self.ingester.as_ref())?,
             querier: server_from_weak(self.querier.as_ref())?,
             compactor: server_from_weak(self.compactor.as_ref())?,

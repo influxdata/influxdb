@@ -1,18 +1,16 @@
 use crate::{
     metadata::{DecodedIoxParquetMetaData, IoxMetadata, IoxParquetMetaData},
     storage::Storage,
+    ParquetFilePath,
 };
 use data_types::{
-    partition_metadata::{Statistics, TableSummary},
-    timestamp::{TimestampMinMax, TimestampRange},
+    ParquetFile, ParquetFileWithMetadata, Statistics, TableSummary, TimestampMinMax, TimestampRange,
 };
-use data_types2::{ParquetFile, ParquetFileWithMetadata};
 use datafusion::physical_plan::SendableRecordBatchStream;
-use iox_object_store::{IoxObjectStore, ParquetFilePath};
+use object_store::DynObjectStore;
 use observability_deps::tracing::*;
 use predicate::Predicate;
-use schema::selection::Selection;
-use schema::{Schema, TIME_COLUMN_NAME};
+use schema::{selection::Selection, Schema, TIME_COLUMN_NAME};
 use snafu::{ResultExt, Snafu};
 use std::{collections::BTreeSet, mem, sync::Arc};
 
@@ -90,7 +88,7 @@ pub struct ParquetChunk {
     timestamp_min_max: Option<TimestampMinMax>,
 
     /// Persists the parquet file within a database's relative path
-    iox_object_store: Arc<IoxObjectStore>,
+    object_store: Arc<DynObjectStore>,
 
     /// Path in the database's object store.
     path: ParquetFilePath,
@@ -112,7 +110,7 @@ impl ParquetChunk {
     /// Creates new chunk from given parquet metadata.
     pub fn new(
         path: &ParquetFilePath,
-        iox_object_store: Arc<IoxObjectStore>,
+        object_store: Arc<DynObjectStore>,
         file_size_bytes: usize,
         parquet_metadata: Arc<IoxParquetMetaData>,
         metrics: ChunkMetrics,
@@ -133,7 +131,7 @@ impl ParquetChunk {
             Arc::new(table_summary),
             schema,
             path,
-            iox_object_store,
+            object_store,
             file_size_bytes,
             parquet_metadata,
             rows,
@@ -148,7 +146,7 @@ impl ParquetChunk {
         table_summary: Arc<TableSummary>,
         schema: Arc<Schema>,
         path: &ParquetFilePath,
-        iox_object_store: Arc<IoxObjectStore>,
+        object_store: Arc<DynObjectStore>,
         file_size_bytes: usize,
         parquet_metadata: Arc<IoxParquetMetaData>,
         rows: usize,
@@ -160,8 +158,8 @@ impl ParquetChunk {
             table_summary,
             schema,
             timestamp_min_max,
-            iox_object_store,
             path: path.into(),
+            object_store,
             file_size_bytes,
             parquet_metadata,
             rows,
@@ -237,8 +235,8 @@ impl ParquetChunk {
             predicate,
             selection,
             Arc::clone(&self.schema.as_arrow()),
-            self.path.clone(),
-            Arc::clone(&self.iox_object_store),
+            self.path,
+            Arc::clone(&self.object_store),
         )
         .context(ReadParquetSnafu)
     }
@@ -306,10 +304,10 @@ impl DecodedParquetFile {
 pub fn new_parquet_chunk(
     decoded_parquet_file: &DecodedParquetFile,
     metrics: ChunkMetrics,
-    iox_object_store: Arc<IoxObjectStore>,
+    object_store: Arc<DynObjectStore>,
 ) -> ParquetChunk {
     let iox_metadata = &decoded_parquet_file.iox_metadata;
-    let path = ParquetFilePath::new_new_gen(
+    let path = ParquetFilePath::new(
         iox_metadata.namespace_id,
         iox_metadata.table_id,
         iox_metadata.sequencer_id,
@@ -322,7 +320,7 @@ pub fn new_parquet_chunk(
 
     ParquetChunk::new(
         &path,
-        iox_object_store,
+        object_store,
         file_size_bytes,
         Arc::clone(&decoded_parquet_file.parquet_metadata),
         metrics,

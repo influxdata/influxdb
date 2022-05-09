@@ -1,21 +1,17 @@
 [package]
 name = "data_types"
 version = "0.1.0"
-authors = ["pauldix <paul@pauldix.net>"]
-description = "InfluxDB IOx data_types, shared between IOx instances and IOx clients"
 edition = "2021"
-readme = "README.md"
+description = "Shared data types in the IOx NG architecture"
 
-[dependencies] # In alphabetical order
-bytes = "1.0"
-num_cpus = "1.13.0"
+[dependencies]
+influxdb_line_protocol = { path = "../influxdb_line_protocol" }
 observability_deps = { path = "../observability_deps" }
 ordered-float = "3"
 percent-encoding = "2.1.0"
-regex = "1"
-siphasher = "0.3"
+schema = { path = "../schema" }
 snafu = "0.7"
-iox_time = { path = "../iox_time" }
+sqlx = { version = "0.5", features = ["runtime-tokio-rustls", "postgres", "uuid"] }
 uuid = { version = "0.8", features = ["v4"] }
 workspace-hack = { path = "../workspace-hack"}
 

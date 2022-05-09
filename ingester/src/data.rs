@@ -10,7 +10,7 @@ use crate::{
 use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig};
-use data_types2::{
+use data_types::{
     DeletePredicate, KafkaPartition, NamespaceId, PartitionId, PartitionInfo, SequenceNumber,
     SequencerId, TableId, Timestamp, Tombstone,
 };
@@ -312,7 +312,11 @@ impl Persister for IngesterData {
             // save the compacted data to a parquet file in object storage
             let file_size_and_md = Backoff::new(&self.backoff_config)
                 .retry_all_errors("persist to object store", || {
-                    persist(&iox_meta, record_batches.to_vec(), &self.object_store)
+                    persist(
+                        &iox_meta,
+                        record_batches.to_vec(),
+                        Arc::clone(&self.object_store),
+                    )
                 })
                 .await
                 .expect("retry forever");
@@ -1515,7 +1519,7 @@ mod tests {
     };
     use arrow_util::assert_batches_sorted_eq;
     use assert_matches::assert_matches;
-    use data_types2::{
+    use data_types::{
         NamespaceSchema, NonEmptyString, ParquetFileParams, Sequence, TimestampRange,
     };
     use dml::{DmlDelete, DmlMeta, DmlWrite};

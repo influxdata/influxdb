@@ -9,14 +9,12 @@ arrow = { version = "13", features = ["prettyprint"] }
 influxdb_tsm = { path = "../influxdb_tsm" }
 schema = { path = "../schema" }
 snafu = "0.7"
-observability_deps = { path = "../observability_deps" }
 parquet = "13"
 workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies] # In alphabetical order
 criterion = "0.3.3"
 rand = "0.8.3"
-test_helpers = { path = "../test_helpers" }
 
 [[bench]]
 name = "packers"

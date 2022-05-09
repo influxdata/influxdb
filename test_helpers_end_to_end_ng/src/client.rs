@@ -44,7 +44,7 @@ pub async fn write_to_router(
 pub async fn write_to_router_grpc(
     table_batches: Vec<TableBatch>,
     namespace: impl Into<String>,
-    router2_connection: Connection,
+    router_connection: Connection,
 ) -> tonic::Response<WriteResponse> {
     let request = WriteRequest {
         database_batch: Some(DatabaseBatch {
@@ -53,7 +53,7 @@ pub async fn write_to_router_grpc(
         }),
     };
 
-    influxdb_iox_client::write::Client::new(router2_connection)
+    influxdb_iox_client::write::Client::new(router_connection)
         .write_pb(request)
         .await
         .expect("grpc error sending write")

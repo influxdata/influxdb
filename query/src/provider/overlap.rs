@@ -1,20 +1,17 @@
-//! Contains the algorithm to determine which chunks may contain
-//! "duplicate" primary keys (that is where data with the same
-//! combination of "tag" columns and timestamp in the InfluxDB
-//! DataModel have been written in via multiple distinct line protocol
-//! writes (and thus are stored in separate rows)
+//! Contains the algorithm to determine which chunks may contain "duplicate" primary keys (that is
+//! where data with the same combination of "tag" columns and timestamp in the InfluxDB DataModel
+//! have been written in via multiple distinct line protocol writes (and thus are stored in
+//! separate rows)
 
+use crate::{QueryChunk, QueryChunkMeta};
 use data_types::{
-    partition_metadata::{ColumnSummary, StatOverlap, Statistics},
-    timestamp::TimestampMinMax,
+    ColumnSummary, DeletePredicate, ParquetFileWithMetadata, PartitionId, StatOverlap, Statistics,
+    TableSummary, TimestampMinMax,
 };
-use data_types2::{DeletePredicate, ParquetFileWithMetadata, PartitionId, TableSummary};
 use observability_deps::tracing::debug;
 use schema::{sort::SortKey, Schema, TIME_COLUMN_NAME};
 use snafu::Snafu;
 use std::{cmp::Ordering, sync::Arc};
-
-use crate::{QueryChunk, QueryChunkMeta};
 
 #[derive(Debug, Snafu)]
 pub enum Error {

@@ -1,11 +1,8 @@
 //! This module contains the code to map DataFusion metrics to `Span`s
 //! for use in distributed tracing (e.g. Jaeger)
 
-use std::{fmt, sync::Arc};
-
 use arrow::record_batch::RecordBatch;
 use chrono::{DateTime, Utc};
-use data_types::boolean_flag::BooleanFlag;
 use datafusion::physical_plan::{
     metrics::{MetricValue, MetricsSet},
     DisplayFormatType, ExecutionPlan, RecordBatchStream, SendableRecordBatchStream,
@@ -13,6 +10,7 @@ use datafusion::physical_plan::{
 use futures::StreamExt;
 use hashbrown::HashMap;
 use observability_deps::tracing::debug;
+use std::{fmt, sync::Arc};
 use trace::span::{Span, SpanRecorder};
 
 const PER_PARTITION_TRACING_ENABLE_ENV: &str = "INFLUXDB_IOX_PER_PARTITION_TRACING";
@@ -310,8 +308,37 @@ fn get_timestamps(metrics: &MetricsSet) -> (Option<DateTime<Utc>>, Option<DateTi
     (start_ts, end_ts)
 }
 
+/// Boolean flag that works with environment variables.
+#[derive(Debug, Clone, Copy)]
+pub enum BooleanFlag {
+    True,
+    False,
+}
+
+impl std::str::FromStr for BooleanFlag {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_ascii_lowercase().as_str() {
+            "yes" | "y" | "true" | "t" | "1" => Ok(Self::True),
+            "no" | "n" | "false" | "f" | "0" => Ok(Self::False),
+            _ => Err(format!(
+                "Invalid boolean flag '{}'. Valid options: yes, no, y, n, true, false, t, f, 1, 0",
+                s
+            )),
+        }
+    }
+}
+
+impl From<BooleanFlag> for bool {
+    fn from(yes_no: BooleanFlag) -> Self {
+        matches!(yes_no, BooleanFlag::True)
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use super::*;
     use chrono::TimeZone;
     use datafusion::{
         execution::context::TaskContext,
@@ -321,13 +348,8 @@ mod tests {
             Metric,
         },
     };
-
-    use std::collections::BTreeMap;
-    use std::{sync::Arc, time::Duration};
-
+    use std::{collections::BTreeMap, str::FromStr, sync::Arc, time::Duration};
     use trace::{ctx::SpanContext, span::MetaValue, RingBufferTraceCollector};
-
-    use super::*;
 
     #[test]
     fn name_truncation() {
@@ -666,5 +688,17 @@ mod tests {
         fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             write!(f, "TestExec - {}", self.name)
         }
+    }
+
+    #[test]
+    fn test_parsing() {
+        assert!(bool::from(BooleanFlag::from_str("yes").unwrap()));
+        assert!(bool::from(BooleanFlag::from_str("Yes").unwrap()));
+        assert!(bool::from(BooleanFlag::from_str("YES").unwrap()));
+
+        assert!(!bool::from(BooleanFlag::from_str("No").unwrap()));
+        assert!(!bool::from(BooleanFlag::from_str("FaLse").unwrap()));
+
+        BooleanFlag::from_str("foo").unwrap_err();
     }
 }

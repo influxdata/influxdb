@@ -1,10 +1,4 @@
 //! Table cache.
-use std::{collections::HashMap, sync::Arc, time::Duration};
-
-use backoff::{Backoff, BackoffConfig};
-use data_types2::{NamespaceId, Table, TableId};
-use iox_catalog::interface::Catalog;
-use iox_time::TimeProvider;
 
 use crate::cache_system::{
     backend::{
@@ -14,6 +8,11 @@ use crate::cache_system::{
     driver::Cache,
     loader::FunctionLoader,
 };
+use backoff::{Backoff, BackoffConfig};
+use data_types::{NamespaceId, Table, TableId};
+use iox_catalog::interface::Catalog;
+use iox_time::TimeProvider;
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 /// Duration to keep non-existing tables.
 pub const TTL_NON_EXISTING: Duration = Duration::from_secs(10);

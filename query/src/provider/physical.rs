@@ -1,9 +1,9 @@
 //! Implementation of a DataFusion PhysicalPlan node across partition chunks
 
-use std::{fmt, sync::Arc};
-
+use super::adapter::SchemaAdapterStream;
+use crate::{exec::IOxSessionContext, QueryChunk};
 use arrow::datatypes::SchemaRef;
-use data_types::partition_metadata::TableSummary;
+use data_types::TableSummary;
 use datafusion::{
     error::DataFusionError,
     execution::context::TaskContext,
@@ -14,13 +14,9 @@ use datafusion::{
     },
 };
 use observability_deps::tracing::debug;
-use schema::selection::Selection;
-use schema::Schema;
-
-use crate::{exec::IOxSessionContext, QueryChunk};
 use predicate::Predicate;
-
-use super::adapter::SchemaAdapterStream;
+use schema::{selection::Selection, Schema};
+use std::{fmt, sync::Arc};
 
 /// Implements the DataFusion physical plan interface
 #[derive(Debug)]

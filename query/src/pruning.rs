@@ -1,23 +1,22 @@
 //! Implementation of statistics based pruning
 
-use std::sync::Arc;
-
-use arrow::array::{
-    ArrayRef, BooleanArray, DictionaryArray, Float64Array, Int64Array, StringArray, UInt64Array,
+use crate::QueryChunk;
+use arrow::{
+    array::{
+        ArrayRef, BooleanArray, DictionaryArray, Float64Array, Int64Array, StringArray, UInt64Array,
+    },
+    datatypes::{DataType, Int32Type, TimeUnit},
 };
-use arrow::datatypes::{DataType, Int32Type, TimeUnit};
-
-use data_types::partition_metadata::{StatValues, Statistics};
+use data_types::{StatValues, Statistics};
 use datafusion::{
     logical_plan::Column,
     physical_optimizer::pruning::{PruningPredicate, PruningStatistics},
 };
 use observability_deps::tracing::{debug, trace};
 use predicate::Predicate;
-use schema::Schema;
-
-use crate::QueryChunk;
 use query_functions::group_by::Aggregate;
+use schema::Schema;
+use std::sync::Arc;
 
 /// Something that cares to be notified when pruning of chunks occurs
 pub trait PruningObserver {

@@ -1,14 +1,17 @@
-use std::{any::Any, collections::HashMap, sync::Arc};
-
+use self::{
+    flight_client::{Error as FlightClientError, FlightClient, FlightClientImpl, FlightError},
+    test_util::MockIngesterConnection,
+};
+use crate::cache::CatalogCache;
 use arrow::{datatypes::DataType, error::ArrowError, record_batch::RecordBatch};
 use async_trait::async_trait;
-use data_types::timestamp::TimestampMinMax;
-use data_types2::{
-    ChunkAddr, ChunkId, ChunkOrder, ColumnSummary, InfluxDbType, IngesterQueryRequest, PartitionId,
-    SequenceNumber, SequencerId, StatValues, Statistics, TableSummary,
+use data_types::{
+    ChunkAddr, ChunkId, ChunkOrder, ColumnSummary, InfluxDbType, PartitionId, SequenceNumber,
+    SequencerId, StatValues, Statistics, TableSummary, TimestampMinMax,
 };
 use datafusion_util::MemoryStream;
 use futures::{stream::FuturesUnordered, TryStreamExt};
+use generated_types::ingester::IngesterQueryRequest;
 use observability_deps::tracing::{debug, trace};
 use predicate::{Predicate, PredicateMatch};
 use query::{
@@ -18,13 +21,7 @@ use query::{
 };
 use schema::{selection::Selection, sort::SortKey, InfluxColumnType, InfluxFieldType, Schema};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
-
-use crate::cache::CatalogCache;
-
-use self::{
-    flight_client::{Error as FlightClientError, FlightClient, FlightClientImpl, FlightError},
-    test_util::MockIngesterConnection,
-};
+use std::{any::Any, collections::HashMap, sync::Arc};
 
 pub(crate) mod flight_client;
 pub(crate) mod test_util;
@@ -461,7 +458,7 @@ impl QueryChunkMeta for IngesterPartition {
         None
     }
 
-    fn delete_predicates(&self) -> &[Arc<data_types2::DeletePredicate>] {
+    fn delete_predicates(&self) -> &[Arc<data_types::DeletePredicate>] {
         &[]
     }
 
@@ -481,7 +478,7 @@ impl QueryChunk for IngesterPartition {
         self.chunk_id
     }
 
-    fn addr(&self) -> data_types2::ChunkAddr {
+    fn addr(&self) -> data_types::ChunkAddr {
         ChunkAddr {
             db_name: Arc::clone(&self.namespace_name),
             table_name: Arc::clone(&self.table_name),

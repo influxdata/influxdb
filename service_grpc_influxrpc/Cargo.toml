@@ -3,12 +3,10 @@ name = "service_grpc_influxrpc"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 # Workspace dependencies, in alphabetical order
-datafusion = { path = "../datafusion" }
 data_types = { path = "../data_types" }
+datafusion = { path = "../datafusion" }
 generated_types = { path = "../generated_types" }
 observability_deps = { path = "../observability_deps" }
 predicate = { path = "../predicate" }

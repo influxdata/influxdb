@@ -1,14 +1,11 @@
-use std::collections::BTreeMap;
-
-use data_types2::{KafkaPartition, SequenceNumber};
-use observability_deps::tracing::debug;
-
+use data_types::{KafkaPartition, SequenceNumber};
+use dml::DmlMeta;
 /// Protobuf to/from conversion
 use generated_types::influxdata::iox::write_summary::v1 as proto;
-
-use dml::DmlMeta;
-
+use observability_deps::tracing::debug;
 use snafu::{OptionExt, Snafu};
+use std::collections::BTreeMap;
+
 mod progress;
 pub use progress::SequencerProgress;
 
@@ -65,7 +62,7 @@ impl WriteSummary {
         for s in sequences {
             let sequencer_id: i32 = s.sequencer_id.try_into().expect("Invalid sequencer id");
 
-            // This is super confusing: "sequencer_id" in the router2
+            // This is super confusing: "sequencer_id" in the router
             //  and other parts of the codebase refers to what the
             //  ingester calls "kakfa_partition".
             //
@@ -203,7 +200,7 @@ impl TryFrom<proto::WriteSummary> for WriteSummary {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use data_types::sequence::Sequence;
+    use data_types::Sequence;
 
     #[test]
     fn empty() {

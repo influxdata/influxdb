@@ -5,7 +5,7 @@ use hyper::{Body, Request, Response, StatusCode};
 use std::sync::Arc;
 use thiserror::Error;
 
-/// Errors returned by the `router2` HTTP request handler.
+/// Errors returned by the `router` HTTP request handler.
 #[derive(Debug, Error, Copy, Clone)]
 pub enum Error {
     /// The requested path has no registered handler.

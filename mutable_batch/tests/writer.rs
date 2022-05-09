@@ -1,8 +1,6 @@
 use arrow_util::assert_batches_eq;
-use data_types::partition_metadata::{StatValues, Statistics};
-use data_types::write_summary::TimestampSummary;
-use mutable_batch::writer::Writer;
-use mutable_batch::MutableBatch;
+use data_types::{StatValues, Statistics};
+use mutable_batch::{writer::Writer, MutableBatch, TimestampSummary};
 use schema::selection::Selection;
 use std::num::NonZeroU64;
 

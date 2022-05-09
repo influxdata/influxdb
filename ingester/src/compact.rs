@@ -2,7 +2,7 @@
 
 use crate::data::{PersistingBatch, QueryableBatch};
 use arrow::record_batch::RecordBatch;
-use data_types2::{NamespaceId, PartitionInfo};
+use data_types::{NamespaceId, PartitionInfo};
 use datafusion::{error::DataFusionError, physical_plan::SendableRecordBatchStream};
 use iox_catalog::interface::INITIAL_COMPACTION_LEVEL;
 use iox_time::{Time, TimeProvider};
@@ -178,7 +178,7 @@ mod tests {
         make_persisting_batch, make_queryable_batch, make_queryable_batch_with_deletes,
     };
     use arrow_util::assert_batches_eq;
-    use data_types2::{Partition, PartitionId, SequencerId, TableId};
+    use data_types::{Partition, PartitionId, SequencerId, TableId};
     use iox_time::SystemProvider;
     use mutable_batch_lp::lines_to_batches;
     use schema::selection::Selection;

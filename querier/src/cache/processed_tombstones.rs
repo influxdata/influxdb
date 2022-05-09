@@ -1,20 +1,20 @@
 //! Processed tombstone cache.
-use std::{collections::HashMap, sync::Arc, time::Duration};
-
-use backoff::{Backoff, BackoffConfig};
-use data_types2::{ParquetFileId, TombstoneId};
-use iox_catalog::interface::Catalog;
-use iox_time::TimeProvider;
 
 use crate::cache_system::{
     backend::ttl::{TtlBackend, TtlProvider},
     driver::Cache,
     loader::FunctionLoader,
 };
+use backoff::{Backoff, BackoffConfig};
+use data_types::{ParquetFileId, TombstoneId};
+use iox_catalog::interface::Catalog;
+use iox_time::TimeProvider;
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 /// Duration to keep "tombstone is NOT processed yet".
 ///
-/// Marking tombstones as processed is a mere optimization, so we can keep this cache entry for a while.
+/// Marking tombstones as processed is a mere optimization, so we can keep this cache entry for a
+/// while.
 pub const TTL_NOT_PROCESSED: Duration = Duration::from_secs(100);
 
 /// Cache for processed tombstones.

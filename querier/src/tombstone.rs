@@ -1,7 +1,6 @@
-use std::sync::Arc;
-
-use data_types2::{DeletePredicate, SequenceNumber, SequencerId, Tombstone, TombstoneId};
+use data_types::{DeletePredicate, SequenceNumber, SequencerId, Tombstone, TombstoneId};
 use predicate::delete_predicate::parse_delete_predicate;
+use std::sync::Arc;
 
 /// Tombstone as it is handled by the querier.
 #[derive(Debug, Clone)]

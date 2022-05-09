@@ -1,12 +1,11 @@
 //! Partition cache.
-use std::{collections::HashMap, sync::Arc};
-
-use backoff::{Backoff, BackoffConfig};
-use data_types2::{PartitionId, SequencerId};
-use iox_catalog::interface::Catalog;
-use schema::sort::SortKey;
 
 use crate::cache_system::{driver::Cache, loader::FunctionLoader};
+use backoff::{Backoff, BackoffConfig};
+use data_types::{PartitionId, SequencerId};
+use iox_catalog::interface::Catalog;
+use schema::sort::SortKey;
+use std::{collections::HashMap, sync::Arc};
 
 /// Cache for partition-related attributes.
 #[derive(Debug)]

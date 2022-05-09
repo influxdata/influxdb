@@ -1,15 +1,14 @@
 //! Ring buffer of queries that have been run with some brief information
 
+use data_types::NamespaceId;
+use iox_time::{Time, TimeProvider};
+use parking_lot::Mutex;
+use query::QueryText;
 use std::{
     collections::VecDeque,
     sync::{atomic, Arc},
     time::Duration,
 };
-
-use data_types2::NamespaceId;
-use iox_time::{Time, TimeProvider};
-use parking_lot::Mutex;
-use query::QueryText;
 use trace::ctx::TraceId;
 
 // The query duration used for queries still running.

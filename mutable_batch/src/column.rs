@@ -1,23 +1,18 @@
 //! A [`Column`] stores the rows for a given column name
 
-use std::fmt::Formatter;
-use std::mem;
-use std::sync::Arc;
-
-use arrow::error::ArrowError;
 use arrow::{
     array::{
         ArrayDataBuilder, ArrayRef, BooleanArray, Float64Array, Int64Array,
         TimestampNanosecondArray, UInt64Array,
     },
     datatypes::DataType,
+    error::ArrowError,
 };
-use snafu::{ResultExt, Snafu};
-
-use arrow_util::bitset::BitSet;
-use arrow_util::string::PackedStringArray;
-use data_types::partition_metadata::{StatValues, Statistics};
+use arrow_util::{bitset::BitSet, string::PackedStringArray};
+use data_types::{StatValues, Statistics};
 use schema::{InfluxColumnType, InfluxFieldType, TIME_DATA_TYPE};
+use snafu::{ResultExt, Snafu};
+use std::{fmt::Formatter, mem, sync::Arc};
 
 /// A "dictionary ID" (DID) is a compact numeric representation of an interned
 /// string in the dictionary. The same string always maps the same DID.

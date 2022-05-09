@@ -1,14 +1,12 @@
+use crate::scenarios::*;
 use arrow::datatypes::DataType;
-use data_types::timestamp::{MAX_NANO_TIME, MIN_NANO_TIME};
+use data_types::{MAX_NANO_TIME, MIN_NANO_TIME};
 use datafusion::logical_plan::{col, lit};
-use predicate::rpc_predicate::InfluxRpcPredicate;
-use predicate::PredicateBuilder;
+use predicate::{rpc_predicate::InfluxRpcPredicate, PredicateBuilder};
 use query::{
     exec::fieldlist::{Field, FieldList},
     frontend::influxrpc::InfluxRpcPlanner,
 };
-
-use crate::scenarios::*;
 
 /// Creates and loads several database scenarios using the db_setup
 /// function.

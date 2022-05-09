@@ -1,10 +1,9 @@
-use std::time::Duration;
-
 use arrow::{array::as_primitive_array, datatypes::Int64Type, record_batch::RecordBatch};
 use futures::FutureExt;
 use influxdb_iox_client::write_info::generated_types::{
     GetWriteInfoResponse, KafkaPartitionStatus,
 };
+use std::time::Duration;
 use test_helpers::timeout::FutureTimeout;
 use test_helpers_end_to_end_ng::{
     all_readable, combined_token_info, maybe_skip_integration, MiniCluster, Step, StepTest,
@@ -17,12 +16,12 @@ async fn basic_multi_ingesters() {
     let database_url = maybe_skip_integration!();
 
     // write into two different kafka partitions: 0 and 1
-    let router2_config =
-        TestConfig::new_router2(&database_url).with_new_write_buffer_kafka_partitions(2);
+    let router_config =
+        TestConfig::new_router(&database_url).with_new_write_buffer_kafka_partitions(2);
 
     // ingester gets partition 0
-    let ingester_config = TestConfig::new_ingester(&router2_config).with_kafka_partition(0);
-    let ingester2_config = TestConfig::new_ingester(&router2_config).with_kafka_partition(1);
+    let ingester_config = TestConfig::new_ingester(&router_config).with_kafka_partition(0);
+    let ingester2_config = TestConfig::new_ingester(&router_config).with_kafka_partition(1);
 
     let querier_config = TestConfig::new_querier_without_ingester(&ingester_config)
         // Configure to talk with both the ingesters
@@ -33,7 +32,7 @@ async fn basic_multi_ingesters() {
 
     // Set up the cluster  ====================================
     let mut cluster = MiniCluster::new()
-        .with_router2(router2_config)
+        .with_router(router_config)
         .await
         .with_ingester(ingester_config)
         .await

@@ -13,20 +13,17 @@
 //!
 //! Can be viewed as a mutable version of [`RecordBatch`] that remains the exclusive
 //! owner of its buffers, permitting mutability. The in-memory layout is similar, however,
-//! permitting fast conversion to [`RecordBatch`]
-//!
-
-use std::ops::Range;
-
-use arrow::record_batch::RecordBatch;
-use hashbrown::HashMap;
-use snafu::{OptionExt, ResultExt, Snafu};
-
-use data_types::write_summary::TimestampSummary;
-use schema::selection::Selection;
-use schema::{builder::SchemaBuilder, Schema, TIME_COLUMN_NAME};
+//! permitting fast conversion to [`RecordBatch`].
 
 use crate::column::{Column, ColumnData};
+use arrow::record_batch::RecordBatch;
+use data_types::StatValues;
+use hashbrown::HashMap;
+use iox_time::Time;
+use schema::selection::Selection;
+use schema::{builder::SchemaBuilder, Schema, TIME_COLUMN_NAME};
+use snafu::{OptionExt, ResultExt, Snafu};
+use std::ops::Range;
 
 pub mod column;
 pub mod payload;
@@ -206,5 +203,41 @@ impl MutableBatch {
                 .map(|(k, v)| std::mem::size_of_val(k) + k.capacity() + std::mem::size_of_val(v))
                 .sum::<usize>()
             + self.columns.iter().map(|c| c.size()).sum::<usize>()
+    }
+}
+
+/// A description of the distribution of timestamps in a
+/// set of writes, bucketed based on minute within the hour
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct TimestampSummary {
+    /// Stores the count of how many rows in the set of writes have a timestamp
+    /// with a minute matching a given index
+    ///
+    /// E.g. a row with timestamp 12:31:12 would store a count at index 31
+    pub counts: [u32; 60],
+
+    /// Standard timestamp statistics
+    pub stats: StatValues<i64>,
+}
+
+impl Default for TimestampSummary {
+    fn default() -> Self {
+        Self {
+            counts: [0; 60],
+            stats: Default::default(),
+        }
+    }
+}
+
+impl TimestampSummary {
+    /// Records a timestamp value
+    pub fn record(&mut self, timestamp: Time) {
+        self.counts[timestamp.minute() as usize] += 1;
+        self.stats.update(&timestamp.timestamp_nanos())
+    }
+
+    /// Records a timestamp value from nanos
+    pub fn record_nanos(&mut self, timestamp_nanos: i64) {
+        self.record(Time::from_timestamp_nanos(timestamp_nanos))
     }
 }

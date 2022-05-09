@@ -12,9 +12,7 @@ clap = { version = "3", features = ["cargo"] }
 futures = "0.3"
 handlebars = "4.2.2"
 humantime = "2.1.0"
-data_types = { path = "../data_types" }
 influxdb2_client = { path = "../influxdb2_client" }
-influxdb_iox_client = { path = "../influxdb_iox_client" }
 itertools = "0.10.0"
 rand = { version = "0.8.3", features = ["small_rng"] }
 regex = "1.5"

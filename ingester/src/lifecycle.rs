@@ -10,7 +10,7 @@ use crate::{
     job::{Job, JobRegistry},
     poison::{PoisonCabinet, PoisonPill},
 };
-use data_types2::{PartitionId, SequenceNumber, SequencerId};
+use data_types::{PartitionId, SequenceNumber, SequencerId};
 use iox_time::{Time, TimeProvider};
 use metric::{Metric, U64Counter};
 use observability_deps::tracing::{error, info};

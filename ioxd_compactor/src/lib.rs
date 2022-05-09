@@ -1,23 +1,13 @@
-use std::{
-    fmt::{Debug, Display},
-    sync::Arc,
-};
-
 use async_trait::async_trait;
+use clap_blocks::compactor::CompactorConfig;
 use compactor::{
     handler::{CompactorHandler, CompactorHandlerImpl},
     server::CompactorServer,
 };
-use data_types2::KafkaPartition;
+use data_types::KafkaPartition;
 use hyper::{Body, Request, Response};
 use iox_catalog::interface::Catalog;
 use iox_time::TimeProvider;
-use metric::Registry;
-use object_store::DynObjectStore;
-use query::exec::Executor;
-use trace::TraceCollector;
-
-use clap_blocks::compactor::CompactorConfig;
 use ioxd_common::{
     add_service,
     http::error::{HttpApiError, HttpApiErrorCode, HttpApiErrorSource},
@@ -26,7 +16,15 @@ use ioxd_common::{
     server_type::{CommonServerState, RpcError, ServerType},
     setup_builder,
 };
+use metric::Registry;
+use object_store::DynObjectStore;
+use query::exec::Executor;
+use std::{
+    fmt::{Debug, Display},
+    sync::Arc,
+};
 use thiserror::Error;
+use trace::TraceCollector;
 
 #[derive(Debug, Error)]
 pub enum Error {

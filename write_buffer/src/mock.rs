@@ -1,21 +1,18 @@
+use crate::{
+    config::WriteBufferCreationConfig,
+    core::{WriteBufferError, WriteBufferReading, WriteBufferStreamHandler, WriteBufferWriting},
+};
+use async_trait::async_trait;
+use data_types::Sequence;
+use dml::{DmlDelete, DmlMeta, DmlOperation, DmlWrite};
+use futures::{stream::BoxStream, StreamExt};
+use iox_time::TimeProvider;
+use parking_lot::Mutex;
 use std::{
     collections::{BTreeMap, BTreeSet},
     num::NonZeroU32,
     sync::Arc,
     task::{Poll, Waker},
-};
-
-use async_trait::async_trait;
-use futures::{stream::BoxStream, StreamExt};
-use parking_lot::Mutex;
-
-use data_types::sequence::Sequence;
-use data_types::write_buffer::WriteBufferCreationConfig;
-use dml::{DmlDelete, DmlMeta, DmlOperation, DmlWrite};
-use iox_time::TimeProvider;
-
-use crate::core::{
-    WriteBufferError, WriteBufferReading, WriteBufferStreamHandler, WriteBufferWriting,
 };
 
 #[derive(Debug, Default)]

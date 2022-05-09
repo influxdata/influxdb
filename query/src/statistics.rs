@@ -1,8 +1,6 @@
 //! Code to translate IOx statistics to DataFusion statistics
 
-use data_types::partition_metadata::{
-    ColumnSummary, InfluxDbType, Statistics as IOxStatistics, TableSummary,
-};
+use data_types::{ColumnSummary, InfluxDbType, Statistics as IOxStatistics, TableSummary};
 use datafusion::{
     physical_plan::{ColumnStatistics, Statistics as DFStatistics},
     scalar::ScalarValue,
@@ -107,11 +105,10 @@ fn df_from_iox_col(col: &ColumnSummary) -> ColumnStatistics {
 
 #[cfg(test)]
 mod test {
-    use std::num::NonZeroU64;
-
     use super::*;
-    use data_types::partition_metadata::{InfluxDbType, StatValues};
+    use data_types::{InfluxDbType, StatValues};
     use schema::{builder::SchemaBuilder, InfluxFieldType};
+    use std::num::NonZeroU64;
 
     macro_rules! assert_nice_eq {
         ($actual:ident, $expected:ident) => {

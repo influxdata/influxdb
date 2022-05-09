@@ -209,7 +209,7 @@ impl<'a> StepTest<'a> {
                     info!("====Begin validating metrics");
 
                     let cluster = state.cluster();
-                    let http_base = cluster.router2().router_http_base();
+                    let http_base = cluster.router().router_http_base();
                     let url = format!("{http_base}/metrics");
 
                     let client = reqwest::Client::new();

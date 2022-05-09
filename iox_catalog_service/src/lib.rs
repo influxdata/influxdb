@@ -1,4 +1,4 @@
-//! gRPC service for the Catalog. Used in router2, but can be included in any gRPC server.
+//! gRPC service for the Catalog. Used in router, but can be included in any gRPC server.
 
 #![deny(rustdoc::broken_intra_doc_links, rustdoc::bare_urls, rust_2018_idioms)]
 #![warn(
@@ -11,7 +11,7 @@
     clippy::clone_on_ref_ptr
 )]
 
-use data_types2::{PartitionId, TableId};
+use data_types::{PartitionId, TableId};
 use generated_types::influxdata::iox::catalog::v1::*;
 use iox_catalog::interface::Catalog;
 use observability_deps::tracing::*;
@@ -81,7 +81,7 @@ impl catalog_service_server::CatalogService for CatalogService {
 }
 
 // converts the catalog ParquetFile to protobuf
-fn to_parquet_file(p: data_types2::ParquetFile) -> ParquetFile {
+fn to_parquet_file(p: data_types::ParquetFile) -> ParquetFile {
     ParquetFile {
         id: p.id.get(),
         sequencer_id: p.sequencer_id.get(),
@@ -102,7 +102,7 @@ fn to_parquet_file(p: data_types2::ParquetFile) -> ParquetFile {
 }
 
 // converts the catalog Partition to protobuf
-fn to_partition(p: data_types2::Partition) -> Partition {
+fn to_partition(p: data_types::Partition) -> Partition {
     Partition {
         id: p.id.get(),
         sequencer_id: p.sequencer_id.get(),
@@ -115,7 +115,7 @@ fn to_partition(p: data_types2::Partition) -> Partition {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use data_types2::{KafkaPartition, ParquetFileParams, SequenceNumber, Timestamp};
+    use data_types::{KafkaPartition, ParquetFileParams, SequenceNumber, Timestamp};
     use generated_types::influxdata::iox::catalog::v1::catalog_service_server::CatalogService;
     use iox_catalog::mem::MemCatalog;
     use uuid::Uuid;

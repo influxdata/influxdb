@@ -8,81 +8,48 @@ default-run = "influxdb_iox"
 [dependencies]
 # Workspace dependencies, in alphabetical order
 clap_blocks = { path = "../clap_blocks" }
-compactor = { path = "../compactor" }
 data_types = { path = "../data_types" }
-data_types2 = { path = "../data_types2" }
 datafusion = { path = "../datafusion" }
-dml = { path = "../dml" }
 generated_types = { path = "../generated_types" }
 influxdb_iox_client = { path = "../influxdb_iox_client", features = ["flight", "format", "write_lp"] }
 influxdb_storage_client = { path = "../influxdb_storage_client" }
-influxdb_line_protocol = { path = "../influxdb_line_protocol" }
-ingester = { path = "../ingester" }
 influxrpc_parser = { path = "../influxrpc_parser"}
 iox_catalog = { path = "../iox_catalog" }
-iox_object_store = { path = "../iox_object_store" }
 ioxd_common = { path = "../ioxd_common"}
 ioxd_compactor = { path = "../ioxd_compactor"}
 ioxd_ingester = { path = "../ioxd_ingester"}
-ioxd_router2 = { path = "../ioxd_router2"}
+ioxd_router = { path = "../ioxd_router"}
 ioxd_querier = { path = "../ioxd_querier"}
 ioxd_test = { path = "../ioxd_test"}
-logfmt = { path = "../logfmt" }
 metric = { path = "../metric" }
-metric_exporters = { path = "../metric_exporters" }
-mutable_batch = { path = "../mutable_batch" }
-mutable_batch_lp = { path = "../mutable_batch_lp" }
-mutable_batch_pb = { path = "../mutable_batch_pb" }
 object_store = { path = "../object_store" }
 observability_deps = { path = "../observability_deps" }
 panic_logging = { path = "../panic_logging" }
 parquet_file = { path = "../parquet_file" }
-predicate = { path = "../predicate" }
-querier = { path = "../querier" }
 query = { path = "../query" }
-read_buffer = { path = "../read_buffer" }
-router2 = { path = "../router2" }
 schema = { path = "../schema" }
 iox_time = { path = "../iox_time" }
-trace = { path = "../trace" }
 trace_exporters = { path = "../trace_exporters" }
-trace_http = { path = "../trace_http" }
-tracker = { path = "../tracker" }
 trogging = { path = "../trogging", default-features = false, features = ["clap"] }
-write_buffer = { path = "../write_buffer" }
 
 # Crates.io dependencies, in alphabetical order
 ansi_term = "0.12"
 arrow = { version = "13", features = ["prettyprint"] }
-arrow-flight = "13"
-async-trait = "0.1"
 backtrace = "0.3"
-byteorder = "1.3.4"
 bytes = "1.0"
-chrono = { version = "0.4", default-features = false }
 clap = { version = "3", features = ["derive", "env"] }
 console-subscriber = { version = "0.1.5", optional = true, features = ["parking_lot"] }
-csv = "1.1"
 dotenv = "0.15.0"
-flate2 = "1.0"
 futures = "0.3"
 hashbrown = "0.12"
 http = "0.2.7"
 humantime = "2.1.0"
-hyper = "0.14"
 itertools = "0.10.1"
 libc = { version = "0.2" }
-log = "0.4"
 num_cpus = "1.13.0"
 once_cell = { version = "1.10.0", features = ["parking_lot"] }
-parking_lot = "0.12"
-parquet = "13"
-pin-project = "1.0"
-prost = "0.10"
 rustyline = { version = "9.0", default-features = false }
-serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.81"
-serde_urlencoded = "0.7.0"
 snafu = "0.7"
 thiserror = "1.0.31"
 tikv-jemalloc-ctl = { version = "0.4.0", optional = true }
@@ -90,9 +57,6 @@ tokio = { version = "1.18", features = ["macros", "net", "parking_lot", "rt-mult
 tokio-stream = { version = "0.1", features = ["net"] }
 tokio-util = { version = "0.7.1" }
 tonic = "0.7"
-tonic-health = "0.6.0"
-tonic-reflection = "0.4.0"
-tower = "0.4"
 uuid = { version = "0.8", features = ["v4"] }
 # jemalloc-sys with unprefixed_malloc_on_supported_platforms feature and heappy are mutually exclusive
 tikv-jemalloc-sys = { version = "0.4.0", optional = true, features = ["unprefixed_malloc_on_supported_platforms"] }
@@ -103,6 +67,7 @@ workspace-hack = { path = "../workspace-hack"}
 # In alphabetical order
 arrow_util = { path = "../arrow_util" }
 assert_cmd = "2.0.2"
+predicate = { path = "../predicate" }
 predicates = "2.1.0"
 tempfile = "3.1.0"
 test_helpers = { path = "../test_helpers", features = ["future_timeout"] }

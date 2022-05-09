@@ -10,15 +10,12 @@ async-trait = "0.1.53"
 backoff = { path = "../backoff" }
 bytes = "1.0"
 data_types = { path = "../data_types" }
-data_types2 = { path = "../data_types2" }
 datafusion = { path = "../datafusion" }
 futures = "0.3"
 iox_catalog = { path = "../iox_catalog" }
-iox_object_store = { path = "../iox_object_store" }
 metric = { path = "../metric" }
 object_store = { path = "../object_store" }
 observability_deps = { path = "../observability_deps" }
-parking_lot = "0.12"
 parquet_file = { path = "../parquet_file" }
 predicate = { path = "../predicate" }
 query = { path = "../query" }

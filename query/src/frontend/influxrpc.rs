@@ -1,32 +1,4 @@
 //! Query frontend for InfluxDB Storage gRPC requests
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    sync::Arc,
-};
-
-use arrow::datatypes::DataType;
-use data_types::chunk_metadata::ChunkId;
-use datafusion::{
-    error::DataFusionError,
-    logical_plan::{
-        col, when, DFSchemaRef, Expr, ExprRewritable, ExprSchemable, LogicalPlan,
-        LogicalPlanBuilder,
-    },
-};
-use datafusion_util::AsExpr;
-
-use hashbrown::HashSet;
-use observability_deps::tracing::{debug, trace};
-use predicate::rpc_predicate::InfluxRpcPredicate;
-use predicate::{Predicate, PredicateMatch};
-use query_functions::{
-    group_by::{Aggregate, WindowDuration},
-    make_window_bound_expr,
-    selectors::{selector_first, selector_last, selector_max, selector_min, SelectorOutput},
-};
-use schema::selection::Selection;
-use schema::{InfluxColumnType, Schema, TIME_COLUMN_NAME};
-use snafu::{ensure, OptionExt, ResultExt, Snafu};
 
 use crate::{
     exec::{field::FieldColumns, make_non_null_checker, make_schema_pivot, IOxSessionContext},
@@ -38,6 +10,30 @@ use crate::{
     provider::ProviderBuilder,
     util::MissingColumnsToNull,
     QueryChunk, QueryDatabase,
+};
+use arrow::datatypes::DataType;
+use data_types::ChunkId;
+use datafusion::{
+    error::DataFusionError,
+    logical_plan::{
+        col, when, DFSchemaRef, Expr, ExprRewritable, ExprSchemable, LogicalPlan,
+        LogicalPlanBuilder,
+    },
+};
+use datafusion_util::AsExpr;
+use hashbrown::HashSet;
+use observability_deps::tracing::{debug, trace};
+use predicate::{rpc_predicate::InfluxRpcPredicate, Predicate, PredicateMatch};
+use query_functions::{
+    group_by::{Aggregate, WindowDuration},
+    make_window_bound_expr,
+    selectors::{selector_first, selector_last, selector_max, selector_min, SelectorOutput},
+};
+use schema::{selection::Selection, InfluxColumnType, Schema, TIME_COLUMN_NAME};
+use snafu::{ensure, OptionExt, ResultExt, Snafu};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
 };
 
 #[derive(Debug, Snafu)]

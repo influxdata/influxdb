@@ -11,12 +11,11 @@
     clippy::clone_on_ref_ptr
 )]
 
-use crate::interface::{Error, Result, Transaction};
-use data_types2::{
+use crate::interface::{ColumnUpsertRequest, Error, RepoCollection, Result, Transaction};
+use data_types::{
     ColumnType, KafkaPartition, KafkaTopic, NamespaceSchema, QueryPool, Sequencer, SequencerId,
     TableSchema,
 };
-use interface::{ColumnUpsertRequest, RepoCollection};
 use mutable_batch::MutableBatch;
 use std::{borrow::Cow, collections::BTreeMap};
 
@@ -125,7 +124,7 @@ where
         // If it does, validate it. If it does not exist, create it and insert
         // it into the cached schema.
         match table.columns.get(name.as_str()) {
-            Some(existing) if existing.matches_type(col) => {
+            Some(existing) if existing.matches_type(col.influx_type()) => {
                 // No action is needed as the column matches the existing column
                 // schema.
             }

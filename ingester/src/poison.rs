@@ -1,4 +1,4 @@
-use data_types2::KafkaPartition;
+use data_types::KafkaPartition;
 use futures::Future;
 use parking_lot::{RwLock, RwLockUpgradableReadGuard};
 use pin_project::pin_project;

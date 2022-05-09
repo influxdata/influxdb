@@ -1,10 +1,9 @@
+use assert_cmd::Command;
 use futures::FutureExt;
+use predicates::prelude::*;
 use test_helpers_end_to_end_ng::{
     maybe_skip_integration, MiniCluster, Step, StepTest, StepTestState,
 };
-
-use assert_cmd::Command;
-use predicates::prelude::*;
 
 /// Test the schema client
 #[tokio::test]
@@ -23,7 +22,7 @@ async fn ingester_schema_client() {
             Step::Custom(Box::new(|state: &mut StepTestState| {
                 async {
                     let mut client = influxdb_iox_client::schema::Client::new(
-                        state.cluster().router2().router_grpc_connection(),
+                        state.cluster().router().router_grpc_connection(),
                     );
                     let response = client
                         .get_schema(state.cluster().namespace())
@@ -69,7 +68,7 @@ async fn ingester_schema_cli() {
             )),
             Step::Custom(Box::new(|state: &mut StepTestState| {
                 async {
-                    let router_addr = state.cluster().router2().router_grpc_base().to_string();
+                    let router_addr = state.cluster().router().router_grpc_base().to_string();
 
                     // Validate the output of the schema CLI command
                     Command::cargo_bin("influxdb_iox")

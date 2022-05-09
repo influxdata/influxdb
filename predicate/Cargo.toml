@@ -11,7 +11,6 @@ datafusion = { path = "../datafusion" }
 datafusion_util = { path = "../datafusion_util" }
 itertools = "0.10"
 observability_deps = { path = "../observability_deps" }
-ordered-float = "3"
 query_functions = { path = "../query_functions"}
 schema = { path = "../schema" }
 serde_json = "1.0.81"

@@ -3,6 +3,18 @@ pub mod rpc;
 pub mod server_type;
 mod service;
 
+// These crates are used by the macros we export; provide a stable
+// path to use them from in downstream crates.
+pub mod reexport {
+    pub use generated_types;
+    pub use service_grpc_testing;
+    pub use tokio_stream;
+    pub use tonic;
+    pub use tonic_health;
+    pub use tonic_reflection;
+    pub use trace_http;
+}
+
 pub use service::Service;
 
 use crate::server_type::{CommonServerState, ServerType};

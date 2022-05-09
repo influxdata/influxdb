@@ -5,21 +5,16 @@ edition = "2021"
 
 [dependencies]
 arrow = "13"
-arrow-flight = "13"
 async-trait = "0.1.53"
 backoff = { path = "../backoff" }
-bytes = "1.0"
 client_util = { path = "../client_util" }
 data_types = { path = "../data_types" }
-data_types2 = { path = "../data_types2" }
 datafusion = { path = "../datafusion" }
 datafusion_util = { path = "../datafusion_util" }
 futures = "0.3"
 generated_types = { path = "../generated_types" }
-hyper = "0.14"
 influxdb_iox_client = { path = "../influxdb_iox_client" }
 iox_catalog = { path = "../iox_catalog" }
-iox_object_store = { path = "../iox_object_store" }
 metric = { path = "../metric" }
 object_store = { path = "../object_store" }
 observability_deps = { path = "../observability_deps" }
@@ -27,7 +22,6 @@ parking_lot = "0.12"
 parquet_file = { path = "../parquet_file" }
 pin-project = "1.0"
 predicate = { path = "../predicate" }
-prost = "0.10"
 query = { path = "../query" }
 rand = "0.8.3"
 service_common = { path = "../service_common" }
@@ -45,7 +39,6 @@ workspace-hack = { path = "../workspace-hack"}
 [dev-dependencies]
 arrow_util = { path = "../arrow_util" }
 assert_matches = "1.5"
-bytes = "1.0"
 criterion = "0.3"
 iox_tests = { path = "../iox_tests" }
 mutable_batch_lp = { path = "../mutable_batch_lp" }

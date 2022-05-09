@@ -8,16 +8,15 @@ description = "IOx NG test utils and tests"
 [dependencies]
 arrow = "13"
 bytes = "1.0"
-data_types2 = { path = "../data_types2" }
+data_types = { path = "../data_types" }
 datafusion = { path = "../datafusion" }
 iox_catalog = { path = "../iox_catalog" }
-iox_object_store = { path = "../iox_object_store" }
+iox_time = { path = "../iox_time" }
 metric = { path = "../metric" }
 mutable_batch_lp = { path = "../mutable_batch_lp" }
 object_store = { path = "../object_store" }
 parquet_file = { path = "../parquet_file" }
 query = { path = "../query" }
 schema = { path = "../schema" }
-iox_time = { path = "../iox_time" }
 uuid = { version = "0.8", features = ["v4"] }
 workspace-hack = { path = "../workspace-hack"}

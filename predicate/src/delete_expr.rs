@@ -1,7 +1,6 @@
-use std::ops::Deref;
-
-use data_types::delete_predicate::{DeleteExpr, Op, Scalar};
+use data_types::{DeleteExpr, Op, Scalar};
 use snafu::{ResultExt, Snafu};
+use std::ops::Deref;
 
 pub(crate) fn expr_to_df(expr: DeleteExpr) -> datafusion::logical_plan::Expr {
     use datafusion::logical_plan::Expr;

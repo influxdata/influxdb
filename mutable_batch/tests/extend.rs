@@ -1,10 +1,8 @@
 use arrow_util::assert_batches_eq;
-use data_types::partition_metadata::{StatValues, Statistics};
-use mutable_batch::writer::Writer;
-use mutable_batch::MutableBatch;
+use data_types::{StatValues, Statistics};
+use mutable_batch::{writer::Writer, MutableBatch};
 use schema::selection::Selection;
-use std::collections::BTreeMap;
-use std::num::NonZeroU64;
+use std::{collections::BTreeMap, num::NonZeroU64};
 
 #[test]
 fn test_extend() {

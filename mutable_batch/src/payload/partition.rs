@@ -2,10 +2,12 @@
 //!
 //! The returned ranges can then be used with [`MutableBatch::extend_from_range`]
 
-use crate::column::{Column, ColumnData};
-use crate::MutableBatch;
+use crate::{
+    column::{Column, ColumnData},
+    MutableBatch,
+};
 use chrono::{format::StrftimeItems, TimeZone, Utc};
-use data_types::database_rules::{PartitionTemplate, TemplatePart};
+use data_types::{PartitionTemplate, TemplatePart};
 use schema::TIME_COLUMN_NAME;
 use std::ops::Range;
 

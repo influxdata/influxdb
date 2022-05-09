@@ -3,8 +3,6 @@ name = "ioxd_common"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 # Optional feature 'pprof' enables http://localhost:8080/debug/pprof/profile support support
 
 [dependencies]
@@ -12,12 +10,14 @@ edition = "2021"
 clap_blocks = { path = "../clap_blocks" }
 data_types = { path = "../data_types" }
 dml = { path = "../dml" }
+generated_types = { path = "../generated_types" }
 metric = { path = "../metric" }
-observability_deps = { path = "../observability_deps" }
-predicate = { path = "../predicate" }
-pprof = { version = "0.8", default-features = false, features = ["flamegraph", "prost-codec"], optional = true }
 metric_exporters = { path = "../metric_exporters" }
 mutable_batch_lp = { path = "../mutable_batch_lp" }
+observability_deps = { path = "../observability_deps" }
+pprof = { version = "0.8", default-features = false, features = ["flamegraph", "prost-codec"], optional = true }
+predicate = { path = "../predicate" }
+service_grpc_testing = { path = "../service_grpc_testing" }
 trace = { path = "../trace" }
 trace_exporters = { path = "../trace_exporters" }
 trace_http = { path = "../trace_http" }
@@ -34,17 +34,17 @@ http = "0.2.7"
 hyper = "0.14"
 log = "0.4"
 parking_lot = "0.12"
-prost = "0.10"
 reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.81"
 serde_urlencoded = "0.7.0"
 snafu = "0.7"
 tokio = { version = "1.18", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
-tokio-util = { version = "0.7.0" }
 tokio-stream = { version = "0.1", features = ["net"] }
+tokio-util = { version = "0.7.0" }
 tonic = "0.7"
 tonic-health = "0.6.0"
+tonic-reflection = "0.4.0"
 tower = "0.4"
 workspace-hack = { path = "../workspace-hack"}
 

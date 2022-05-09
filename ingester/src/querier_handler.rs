@@ -5,7 +5,6 @@ use crate::data::{
 };
 use arrow::record_batch::RecordBatch;
 use arrow_util::util::merge_record_batches;
-use data_types2::IngesterQueryRequest;
 use datafusion::{
     error::DataFusionError,
     physical_plan::{
@@ -14,6 +13,7 @@ use datafusion::{
         SendableRecordBatchStream,
     },
 };
+use generated_types::ingester::IngesterQueryRequest;
 use predicate::Predicate;
 use query::{
     exec::{Executor, ExecutorType},
@@ -322,7 +322,7 @@ mod tests {
     };
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use assert_matches::assert_matches;
-    use data_types2::PartitionId;
+    use data_types::PartitionId;
     use datafusion::logical_plan::{col, lit};
     use predicate::PredicateBuilder;
 

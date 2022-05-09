@@ -14,7 +14,7 @@ use ioxd_common::{
 use ioxd_compactor::create_compactor_server_type;
 use ioxd_ingester::create_ingester_server_type;
 use ioxd_querier::create_querier_server_type;
-use ioxd_router2::create_router2_server_type;
+use ioxd_router::create_router_server_type;
 use object_store::{DynObjectStore, ObjectStoreImpl};
 use observability_deps::tracing::*;
 use query::exec::Executor;
@@ -55,8 +55,8 @@ pub enum Error {
     #[error("Cannot parse object store config: {0}")]
     ObjectStoreParsing(#[from] clap_blocks::object_store::ParseError),
 
-    #[error("Router2 error: {0}")]
-    Router2(#[from] ioxd_router2::Error),
+    #[error("Router error: {0}")]
+    Router(#[from] ioxd_router::Error),
 
     #[error("Ingester error: {0}")]
     Ingester(#[from] ioxd_ingester::Error),
@@ -421,8 +421,8 @@ pub async fn command(config: Config) -> Result<()> {
     info!(%num_threads, "Creating shared query executor");
     let exec = Arc::new(Executor::new(num_threads));
 
-    info!("starting router2");
-    let router2 = create_router2_server_type(
+    info!("starting router");
+    let router = create_router_server_type(
         &common_state,
         Arc::clone(&metrics),
         Arc::clone(&catalog),
@@ -473,7 +473,7 @@ pub async fn command(config: Config) -> Result<()> {
     info!("starting all in one server");
 
     let services = vec![
-        Service::create(router2, &router_run_config),
+        Service::create(router, &router_run_config),
         Service::create_grpc_only(ingester, &ingester_run_config),
         Service::create_grpc_only(compactor, &compactor_run_config),
         Service::create_grpc_only(querier, &querier_run_config),

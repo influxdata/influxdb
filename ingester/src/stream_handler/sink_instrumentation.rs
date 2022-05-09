@@ -1,14 +1,13 @@
 //! Instrumentation for [`DmlSink`] implementations.
-use std::fmt::Debug;
 
+use super::DmlSink;
 use async_trait::async_trait;
-use data_types2::KafkaPartition;
+use data_types::KafkaPartition;
 use dml::DmlOperation;
 use iox_time::{SystemProvider, TimeProvider};
 use metric::{Attributes, U64Counter, U64Gauge, U64Histogram, U64HistogramOptions};
+use std::fmt::Debug;
 use trace::span::SpanRecorder;
-
-use super::DmlSink;
 
 /// A [`WatermarkFetcher`] abstracts a source of the write buffer high watermark
 /// (max known offset).
@@ -255,7 +254,7 @@ mod tests {
     use std::sync::Arc;
 
     use assert_matches::assert_matches;
-    use data_types2::Sequence;
+    use data_types::Sequence;
     use dml::{DmlMeta, DmlWrite};
     use iox_time::Time;
     use metric::{Metric, MetricObserver, Observation};

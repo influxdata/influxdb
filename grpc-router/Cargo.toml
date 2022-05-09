@@ -5,24 +5,14 @@ authors = ["Marko Mikulicic <mkm@influxdata.com>"]
 edition = "2021"
 
 [dependencies]
-bytes = "1.0"
 cache_loader_async = {version  = "0.2.0", features = ["ttl-cache"] }
 futures = "0.3"
 observability_deps = { path = "../observability_deps" }
 paste = "1.0.7"
-prost = "0.10"
-prost-types = "0.10"
 thiserror = "1.0.31"
 tokio = { version = "1.18", features = ["macros", "parking_lot", "rt-multi-thread"] }
 tokio-stream = { version = "0.1", features = ["net"] }
-tokio-util = { version = "0.7.1" }
 tonic = "0.7"
-tonic-reflection = "0.4.0"
-
-[build-dependencies]
-paste = "1.0.7"
-prost-build = "0.10"
-tonic-build = "0.7"
 
 [dev-dependencies]
 grpc-router-test-gen = { path = "../grpc-router-test-gen" }

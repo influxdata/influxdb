@@ -1,13 +1,7 @@
-use std::{
-    any::Any,
-    pin::Pin,
-    sync::Arc,
-    task::{Context, Poll},
-};
-
+use crate::query_log::QueryLog;
 use arrow::{datatypes::SchemaRef, error::Result as ArrowResult, record_batch::RecordBatch};
 use async_trait::async_trait;
-use data_types2::NamespaceId;
+use data_types::NamespaceId;
 use datafusion::{
     catalog::schema::SchemaProvider,
     datasource::TableProvider,
@@ -18,8 +12,12 @@ use datafusion::{
         SendableRecordBatchStream, Statistics,
     },
 };
-
-use crate::query_log::QueryLog;
+use std::{
+    any::Any,
+    pin::Pin,
+    sync::Arc,
+    task::{Context, Poll},
+};
 
 mod queries;
 

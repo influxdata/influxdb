@@ -1,5 +1,5 @@
 //! gRPC service for getting files from the object store a remote IOx service is connected to. Used
-//! in router2, but can be included in any gRPC server.
+//! in router, but can be included in any gRPC server.
 
 #![deny(rustdoc::broken_intra_doc_links, rustdoc::bare_urls, rust_2018_idioms)]
 #![warn(
@@ -12,14 +12,13 @@
     clippy::clone_on_ref_ptr
 )]
 
-use futures::stream::BoxStream;
-use futures::StreamExt;
+use futures::{stream::BoxStream, StreamExt};
 use generated_types::influxdata::iox::object_store::v1::*;
 use iox_catalog::interface::Catalog;
-use iox_object_store::ParquetFilePath;
 use object_store::DynObjectStore;
 use observability_deps::tracing::*;
-use std::sync::Arc;
+use parquet_file::ParquetFilePath;
+use std::{ops::Deref, sync::Arc};
 use tonic::{Request, Response, Status};
 use uuid::Uuid;
 
@@ -66,15 +65,14 @@ impl object_store_service_server::ObjectStoreService for ObjectStoreService {
             })?
             .ok_or_else(|| Status::not_found(req.uuid))?;
 
-        let path = ParquetFilePath::new_new_gen(
+        let path = ParquetFilePath::new(
             parquet_file.namespace_id,
             parquet_file.table_id,
             parquet_file.sequencer_id,
             parquet_file.partition_id,
             parquet_file.object_store_id,
-        )
-        .absolute_dirs_and_file_name();
-        let path = self.object_store.path_from_dirs_and_filename(path);
+        );
+        let path = path.object_store_path(self.object_store.deref());
 
         let res = self
             .object_store
@@ -97,7 +95,7 @@ impl object_store_service_server::ObjectStoreService for ObjectStoreService {
 mod tests {
     use super::*;
     use bytes::Bytes;
-    use data_types2::{KafkaPartition, ParquetFileParams, SequenceNumber, Timestamp};
+    use data_types::{KafkaPartition, ParquetFileParams, SequenceNumber, Timestamp};
     use generated_types::influxdata::iox::object_store::v1::object_store_service_server::ObjectStoreService;
     use iox_catalog::mem::MemCatalog;
     use object_store::{ObjectStoreApi, ObjectStoreImpl};
@@ -164,15 +162,14 @@ mod tests {
 
         let object_store = Arc::new(ObjectStoreImpl::new_in_memory());
 
-        let path = ParquetFilePath::new_new_gen(
+        let path = ParquetFilePath::new(
             p1.namespace_id,
             p1.table_id,
             p1.sequencer_id,
             p1.partition_id,
             p1.object_store_id,
-        )
-        .absolute_dirs_and_file_name();
-        let path = object_store.path_from_dirs_and_filename(path);
+        );
+        let path = path.object_store_path(object_store.deref());
 
         let data = Bytes::from_static(b"some data");
 

@@ -3,10 +3,9 @@
 use crate::data::{QueryableBatch, SnapshotBatch};
 use arrow::record_batch::RecordBatch;
 use arrow_util::util::merge_record_batches;
-use data_types::timestamp::TimestampMinMax;
-use data_types2::{
-    tombstones_to_delete_predicates, tombstones_to_delete_predicates_iter, ChunkAddr, ChunkId,
-    ChunkOrder, DeletePredicate, PartitionId, SequenceNumber, TableSummary, Tombstone,
+use data_types::{
+    ChunkAddr, ChunkId, ChunkOrder, DeletePredicate, PartitionId, SequenceNumber, TableSummary,
+    TimestampMinMax, Tombstone,
 };
 use datafusion::{
     logical_plan::ExprRewritable,
@@ -18,7 +17,10 @@ use datafusion::{
 };
 use datafusion_util::batch_filter;
 use observability_deps::tracing::{debug, trace};
-use predicate::{Predicate, PredicateMatch};
+use predicate::{
+    delete_predicate::{tombstones_to_delete_predicates, tombstones_to_delete_predicates_iter},
+    Predicate, PredicateMatch,
+};
 use query::{
     exec::{stringset::StringSet, IOxSessionContext},
     util::{df_physical_expr_from_schema_and_expr, MissingColumnsToNull},
@@ -311,7 +313,7 @@ mod tests {
         datatypes::{DataType, Int32Type, TimeUnit},
     };
     use arrow_util::assert_batches_eq;
-    use data_types2::{DeleteExpr, Op, Scalar, TimestampRange};
+    use data_types::{DeleteExpr, Op, Scalar, TimestampRange};
     use datafusion::logical_plan::{col, lit};
     use predicate::PredicateBuilder;
 

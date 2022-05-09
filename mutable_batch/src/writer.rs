@@ -1,13 +1,14 @@
 //! A panic-safe write abstraction for [`MutableBatch`]
 
-use crate::column::{Column, ColumnData, INVALID_DID};
-use crate::MutableBatch;
+use crate::{
+    column::{Column, ColumnData, INVALID_DID},
+    MutableBatch,
+};
 use arrow_util::bitset::{iter_set_positions, iter_set_positions_with_offset, BitSet};
-use data_types::partition_metadata::{IsNan, StatValues, Statistics};
+use data_types::{IsNan, StatValues, Statistics};
 use schema::{InfluxColumnType, InfluxFieldType};
 use snafu::Snafu;
-use std::num::NonZeroU64;
-use std::ops::Range;
+use std::{num::NonZeroU64, ops::Range};
 
 #[allow(missing_docs, missing_copy_implementations)]
 #[derive(Debug, Snafu)]

@@ -1,7 +1,4 @@
 //! Implements the native gRPC IOx query API using Arrow Flight
-use std::fmt::Debug;
-use std::task::Poll;
-use std::{pin::Pin, sync::Arc};
 
 use arrow::{
     array::{make_array, ArrayRef, MutableArrayData},
@@ -15,23 +12,23 @@ use arrow_flight::{
     HandshakeRequest, HandshakeResponse, PutResult, SchemaAsIpc, SchemaResult, Ticket,
 };
 use bytes::{Bytes, BytesMut};
+use data_types::{DatabaseName, DatabaseNameError};
 use datafusion::physical_plan::ExecutionPlan;
 use futures::{SinkExt, Stream, StreamExt};
 use generated_types::influxdata::iox::querier::v1 as proto;
+use observability_deps::tracing::{info, warn};
 use pin_project::{pin_project, pinned_drop};
 use prost::Message;
-use query::{QueryCompletedToken, QueryDatabase};
+use query::{
+    exec::{ExecutionContextProvider, IOxSessionContext},
+    QueryCompletedToken, QueryDatabase,
+};
 use serde::Deserialize;
-use service_common::QueryDatabaseProvider;
+use service_common::{planner::Planner, QueryDatabaseProvider};
 use snafu::{ResultExt, Snafu};
+use std::{fmt::Debug, pin::Pin, sync::Arc, task::Poll};
 use tokio::task::JoinHandle;
 use tonic::{Request, Response, Streaming};
-
-use data_types::{DatabaseName, DatabaseNameError};
-use observability_deps::tracing::{info, warn};
-use query::exec::{ExecutionContextProvider, IOxSessionContext};
-
-use service_common::planner::Planner;
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Snafu)]

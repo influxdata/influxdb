@@ -5,15 +5,14 @@ use crate::{
     table::{self, Table},
 };
 use arrow::{error::ArrowError, record_batch::RecordBatch};
-use data_types::{chunk_metadata::ChunkColumnSummary, partition_metadata::TableSummary};
-
+use data_types::TableSummary;
 use observability_deps::tracing::debug;
-use schema::selection::Selection;
-use schema::{builder::Error as SchemaError, Schema};
+use schema::{builder::Error as SchemaError, selection::Selection, Schema};
 use snafu::{ResultExt, Snafu};
 use std::{
     collections::{BTreeMap, BTreeSet},
     convert::TryFrom,
+    sync::Arc,
 };
 
 // The desired minimum row group size, used as the default for the `ChunkBuilder`.
@@ -97,7 +96,7 @@ impl Chunk {
 
     /// Return the estimated size for each column in the table.
     /// Note there may be multiple entries for each column.
-    pub fn column_sizes(&self) -> Vec<ChunkColumnSummary> {
+    pub(crate) fn column_sizes(&self) -> Vec<ChunkColumnSummary> {
         self.table.column_sizes()
     }
 
@@ -509,6 +508,16 @@ impl ChunkBuilder {
     }
 }
 
+/// Represents metadata about the physical storage of a column in a chunk
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub(crate) struct ChunkColumnSummary {
+    /// Column name
+    pub(crate) name: Arc<str>,
+
+    /// Estimated size, in bytes, consumed by this column.
+    pub(crate) memory_bytes: usize,
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -527,11 +536,10 @@ mod test {
             Int32Type,
         },
     };
-    use data_types::partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics};
+    use data_types::{ColumnSummary, InfluxDbType, StatValues, Statistics};
     use metric::{Attributes, MetricKind, Observation, ObservationSet, RawReporter};
     use schema::builder::SchemaBuilder;
-    use std::iter::FromIterator;
-    use std::{num::NonZeroU64, sync::Arc};
+    use std::{iter::FromIterator, num::NonZeroU64, sync::Arc};
 
     // helper to make the `add_remove_tables` test simpler to read.
     fn gen_recordbatch() -> RecordBatch {

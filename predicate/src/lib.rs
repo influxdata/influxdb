@@ -13,7 +13,7 @@ pub mod delete_predicate;
 pub mod rewrite;
 pub mod rpc_predicate;
 
-use data_types::timestamp::{TimestampRange, MAX_NANO_TIME, MIN_NANO_TIME};
+use data_types::{TimestampRange, MAX_NANO_TIME, MIN_NANO_TIME};
 use datafusion::{
     error::DataFusionError,
     logical_plan::{binary_expr, col, lit_timestamp_nano, Expr, Operator},

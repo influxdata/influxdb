@@ -1,8 +1,9 @@
 //! Code to serialize and deserialize certain expressions.
 //!
-//! Note that [Ballista] also provides a serialization using [Protocol Buffers 3]. However the protocol is meant as a
-//! communication channel between workers and clients of Ballista, not for long term preservation. For IOx we need a
-//! more stable solution. Luckily we only need to support a very small subset of expression.
+//! Note that [Ballista] also provides a serialization using [Protocol Buffers 3]. However the
+//! protocol is meant as a communication channel between workers and clients of Ballista, not for
+//! long term preservation. For IOx we need a more stable solution. Luckily we only need to support
+//! a very small subset of expression.
 //!
 //! [Ballista]: https://github.com/apache/arrow-datafusion/blob/22fcb3d7a68a56afbe12eab9e7d98f7b8de33703/ballista/rust/core/proto/ballista.proto
 //! [Protocol Buffers 3]: https://developers.google.com/protocol-buffers/docs/proto3
@@ -11,10 +12,7 @@ use crate::google::{FieldViolation, FromOptionalField, FromRepeatedField, Option
 use crate::influxdata::iox::predicate::v1 as proto;
 use crate::influxdata::iox::predicate::v1::scalar::Value;
 use crate::influxdata::iox::predicate::v1::{Expr, Predicate};
-use data_types::{
-    delete_predicate::{DeleteExpr, DeletePredicate, Op, Scalar},
-    timestamp::TimestampRange,
-};
+use data_types::{DeleteExpr, DeletePredicate, Op, Scalar, TimestampRange};
 
 impl From<DeletePredicate> for proto::Predicate {
     fn from(predicate: DeletePredicate) -> Self {

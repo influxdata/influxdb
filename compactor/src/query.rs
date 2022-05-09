@@ -1,22 +1,20 @@
 //! Queryable Compactor Data
 
-use std::sync::Arc;
-
-use data_types::timestamp::TimestampMinMax;
-use data_types2::{
-    tombstones_to_delete_predicates, ChunkAddr, ChunkId, ChunkOrder, DeletePredicate, PartitionId,
-    SequenceNumber, TableSummary, Timestamp, Tombstone,
+use data_types::{
+    ChunkAddr, ChunkId, ChunkOrder, DeletePredicate, PartitionId, SequenceNumber, TableSummary,
+    Timestamp, TimestampMinMax, Tombstone,
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
 use observability_deps::tracing::trace;
 use parquet_file::chunk::ParquetChunk;
-use predicate::{Predicate, PredicateMatch};
+use predicate::{delete_predicate::tombstones_to_delete_predicates, Predicate, PredicateMatch};
 use query::{
     exec::{stringset::StringSet, IOxSessionContext},
     QueryChunk, QueryChunkError, QueryChunkMeta,
 };
 use schema::{merge::SchemaMerger, selection::Selection, sort::SortKey, Schema};
 use snafu::{ResultExt, Snafu};
+use std::sync::Arc;
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]

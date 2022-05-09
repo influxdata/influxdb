@@ -1,7 +1,7 @@
 use trace_exporters::TracingConfig;
 use trogging::cli::LoggingConfig;
 
-use crate::{object_store::ObjectStoreConfig, server_id::ServerIdConfig, socket_addr::SocketAddr};
+use crate::{object_store::ObjectStoreConfig, socket_addr::SocketAddr};
 
 /// The default bind address for the HTTP API.
 pub const DEFAULT_API_BIND_ADDR: &str = "127.0.0.1:8080";
@@ -19,10 +19,6 @@ pub struct RunConfig {
     /// tracing options
     #[clap(flatten)]
     pub(crate) tracing_config: TracingConfig,
-
-    /// object store config
-    #[clap(flatten)]
-    pub(crate) server_id_config: ServerIdConfig,
 
     /// The address on which IOx will serve HTTP API requests.
     #[clap(
@@ -69,19 +65,9 @@ impl RunConfig {
         &mut self.tracing_config
     }
 
-    /// Get a reference to the run config's server id config.
-    pub fn server_id_config(&self) -> &ServerIdConfig {
-        &self.server_id_config
-    }
-
     /// Get a reference to the run config's logging config.
     pub fn logging_config(&self) -> &LoggingConfig {
         &self.logging_config
-    }
-
-    /// Get a mutable reference to the run config's server id config.
-    pub fn server_id_config_mut(&mut self) -> &mut ServerIdConfig {
-        &mut self.server_id_config
     }
 
     /// set the http bind address
@@ -108,9 +94,6 @@ impl RunConfig {
         Self {
             logging_config,
             tracing_config,
-            // TODO: server_id isn't used in NG; this field should be removed when OG is removed
-            // https://github.com/influxdata/influxdb_iox/issues/4451
-            server_id_config: ServerIdConfig { server_id: None },
             http_bind_address,
             grpc_bind_address,
             max_http_request_size,

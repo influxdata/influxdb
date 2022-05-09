@@ -2,13 +2,13 @@
 //! no longer needed because they've been compacted and they're old enough to no longer be used by
 //! any queriers.
 
-use data_types2::Timestamp;
+use data_types::Timestamp;
 use iox_catalog::interface::Catalog;
-use iox_object_store::ParquetFilePath;
 use iox_time::TimeProvider;
 use object_store::DynObjectStore;
+use parquet_file::ParquetFilePath;
 use snafu::{ResultExt, Snafu};
-use std::sync::Arc;
+use std::{ops::Deref, sync::Arc};
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
@@ -53,15 +53,6 @@ impl GarbageCollector {
     /// associated object store files.
     /// Meant to be invoked in a background loop.
     pub async fn cleanup(&self, older_than: Timestamp) -> Result<()> {
-        // Make a fake IOx object store to conform to the parquet file
-        // interface, but note this isn't actually used to find parquet
-        // paths to write to
-        use iox_object_store::IoxObjectStore;
-        let iox_object_store = Arc::new(IoxObjectStore::existing(
-            Arc::clone(&self.object_store),
-            IoxObjectStore::root_path_for(&*self.object_store, uuid::Uuid::new_v4()),
-        ));
-
         let deleted_catalog_records = self
             .catalog
             .repositories()
@@ -74,15 +65,16 @@ impl GarbageCollector {
         let mut object_store_errors = Vec::with_capacity(deleted_catalog_records.len());
 
         for catalog_record in deleted_catalog_records {
-            let path = ParquetFilePath::new_new_gen(
+            let path = ParquetFilePath::new(
                 catalog_record.namespace_id,
                 catalog_record.table_id,
                 catalog_record.sequencer_id,
                 catalog_record.partition_id,
                 catalog_record.object_store_id,
             );
+            let path = path.object_store_path(self.object_store.deref());
 
-            if let Err(e) = iox_object_store.delete_parquet_file(&path).await {
+            if let Err(e) = self.object_store.delete(&path).await {
                 object_store_errors.push(e);
             }
         }
@@ -101,9 +93,8 @@ impl GarbageCollector {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use data_types2::{KafkaPartition, ParquetFile, ParquetFileParams, SequenceNumber};
+    use data_types::{KafkaPartition, ParquetFile, ParquetFileParams, SequenceNumber};
     use iox_catalog::interface::INITIAL_COMPACTION_LEVEL;
-    use iox_object_store::ParquetFilePath;
     use iox_tests::util::TestCatalog;
     use object_store::ObjectStoreTestConvenience;
     use std::time::Duration;
@@ -118,27 +109,16 @@ mod tests {
     ) {
         let bytes = "arbitrary".into();
 
-        // Make a fake IOx object store to conform to the parquet file
-        // interface, but note this isn't actually used to find parquet
-        // paths to write to
-        use iox_object_store::IoxObjectStore;
-        let iox_object_store = Arc::new(IoxObjectStore::existing(
-            Arc::clone(&object_store),
-            IoxObjectStore::root_path_for(&*object_store, uuid::Uuid::new_v4()),
-        ));
-
-        let path = ParquetFilePath::new_new_gen(
+        let path = ParquetFilePath::new(
             catalog_record.namespace_id,
             catalog_record.table_id,
             catalog_record.sequencer_id,
             catalog_record.partition_id,
             catalog_record.object_store_id,
         );
+        let path = path.object_store_path(object_store.deref());
 
-        iox_object_store
-            .put_parquet_file(&path, bytes)
-            .await
-            .unwrap();
+        object_store.put(&path, bytes).await.unwrap();
     }
 
     #[tokio::test]

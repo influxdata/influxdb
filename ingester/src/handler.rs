@@ -13,13 +13,13 @@ use crate::{
 };
 use async_trait::async_trait;
 use backoff::BackoffConfig;
-use data_types2::{IngesterQueryRequest, KafkaPartition, KafkaTopic, Sequencer};
-
+use data_types::{KafkaPartition, KafkaTopic, Sequencer};
 use futures::{
     future::{BoxFuture, Shared},
     stream::FuturesUnordered,
     FutureExt, StreamExt, TryFutureExt,
 };
+use generated_types::ingester::IngesterQueryRequest;
 use iox_catalog::interface::Catalog;
 use iox_time::SystemProvider;
 use object_store::DynObjectStore;
@@ -305,7 +305,7 @@ impl Drop for IngestHandlerImpl {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use data_types2::{Namespace, NamespaceSchema, QueryPool, Sequence, SequenceNumber};
+    use data_types::{Namespace, NamespaceSchema, QueryPool, Sequence, SequenceNumber};
     use dml::{DmlMeta, DmlWrite};
     use iox_catalog::{mem::MemCatalog, validate_or_insert_schema};
     use iox_time::Time;

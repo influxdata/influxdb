@@ -1,5 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
-
+use self::query_access::QuerierTableChunkPruner;
 use crate::{
     chunk::ParquetChunkAdapter,
     ingester::{self, IngesterPartition},
@@ -8,14 +7,13 @@ use crate::{
     IngesterConnection,
 };
 use backoff::{Backoff, BackoffConfig};
-use data_types2::TableId;
+use data_types::TableId;
 use observability_deps::tracing::debug;
 use predicate::Predicate;
 use query::{provider::ChunkPruner, QueryChunk};
 use schema::Schema;
 use snafu::{ResultExt, Snafu};
-
-use self::query_access::QuerierTableChunkPruner;
+use std::{collections::HashMap, sync::Arc};
 
 mod query_access;
 mod state_reconciler;
@@ -278,7 +276,7 @@ mod tests {
 
     use arrow::record_batch::RecordBatch;
     use assert_matches::assert_matches;
-    use data_types2::{ChunkId, ColumnType, SequenceNumber};
+    use data_types::{ChunkId, ColumnType, SequenceNumber};
     use iox_tests::util::{now, TestCatalog};
     use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
     use predicate::Predicate;

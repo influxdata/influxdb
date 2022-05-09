@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 # Workspace dependencies, in alphabetical order
-data_types2 = { path = "../data_types2" }
+data_types = { path = "../data_types" }
 generated_types = { path = "../generated_types" }
 iox_catalog = { path = "../iox_catalog" }
 ioxd_common = { path = "../ioxd_common" }
@@ -15,24 +15,17 @@ metric = { path = "../metric" }
 object_store = { path = "../object_store" }
 querier = { path = "../querier" }
 query = { path = "../query" }
-service_common = { path = "../service_common" }
 service_grpc_flight = { path = "../service_grpc_flight" }
 service_grpc_influxrpc = { path = "../service_grpc_influxrpc" }
-service_grpc_testing = { path = "../service_grpc_testing" }
 iox_time = { path = "../iox_time" }
 trace = { path = "../trace" }
-trace_http = { path = "../trace_http" }
 
 # Crates.io dependencies, in alphabetical order
 arrow-flight = "13"
 async-trait = "0.1"
 hyper = "0.14"
 tokio = { version = "1.18", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
-tokio-stream = { version = "0.1", features = ["net"] }
-tokio-util = { version = "0.7.1" }
 tonic = "0.7"
-tonic-health = "0.6.0"
-tonic-reflection = "0.4.0"
 workspace-hack = { path = "../workspace-hack"}
 
 

@@ -9,32 +9,25 @@ arrow = { version = "13", features = ["prettyprint"] }
 base64 = "0.13"
 bytes = "1.0"
 data_types = { path = "../data_types" }
-data_types2 = { path = "../data_types2" }
 datafusion = { path = "../datafusion" }
 datafusion_util = { path = "../datafusion_util" }
 futures = "0.3"
 generated_types = { path = "../generated_types" }
-iox_object_store = { path = "../iox_object_store" }
+iox_time = { path = "../iox_time" }
 metric = { path = "../metric" }
 object_store = { path = "../object_store" }
 observability_deps = { path = "../observability_deps" }
+parking_lot = "0.12"
 parquet = {version = "13", features = ["experimental"]}
 parquet-format = "4.0"
-parking_lot = "0.12"
 pbjson-types = "0.3"
 predicate = { path = "../predicate" }
 prost = "0.10"
-snafu = "0.7"
 schema = { path = "../schema" }
+snafu = "0.7"
 tempfile = "3.1.0"
 thrift = "0.13"
-iox_time = { path = "../iox_time" }
 tokio = { version = "1.18", features = ["macros", "parking_lot", "rt", "rt-multi-thread", "sync"] }
-tokio-stream = "0.1"
 uuid = { version = "0.8", features = ["v4"] }
 zstd = "0.11"
 workspace-hack = { path = "../workspace-hack"}
-
-[dev-dependencies]
-arrow_util = { path = "../arrow_util" }
-test_helpers = { path = "../test_helpers" }

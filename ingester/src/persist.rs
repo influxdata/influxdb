@@ -2,11 +2,13 @@
 
 use arrow::record_batch::RecordBatch;
 use bytes::Bytes;
-use iox_object_store::ParquetFilePath;
 use object_store::DynObjectStore;
-use parquet_file::metadata::{IoxMetadata, IoxParquetMetaData};
+use parquet_file::{
+    metadata::{IoxMetadata, IoxParquetMetaData},
+    ParquetFilePath,
+};
 use snafu::{ResultExt, Snafu};
-use std::sync::Arc;
+use std::{ops::Deref, sync::Arc};
 
 #[derive(Debug, Snafu)]
 #[allow(missing_docs)]
@@ -29,7 +31,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 pub async fn persist(
     metadata: &IoxMetadata,
     record_batches: Vec<RecordBatch>,
-    object_store: &Arc<DynObjectStore>,
+    object_store: Arc<DynObjectStore>,
 ) -> Result<Option<(usize, IoxParquetMetaData)>> {
     if record_batches.is_empty() {
         return Ok(None);
@@ -39,16 +41,7 @@ pub async fn persist(
         .expect("record_batches.is_empty was just checked")
         .schema();
 
-    // Make a fake IOx object store to conform to the parquet file
-    // interface, but note this isn't actually used to find parquet
-    // paths to write to
-    use iox_object_store::IoxObjectStore;
-    let iox_object_store = Arc::new(IoxObjectStore::existing(
-        Arc::clone(object_store),
-        IoxObjectStore::root_path_for(&**object_store, uuid::Uuid::new_v4()),
-    ));
-
-    let data = parquet_file::storage::Storage::new(Arc::clone(&iox_object_store))
+    let data = parquet_file::storage::Storage::new(Arc::clone(&object_store))
         .parquet_bytes(record_batches, schema, metadata)
         .await
         .context(ConvertingToBytesSnafu)?;
@@ -67,7 +60,7 @@ pub async fn persist(
     let file_size = data.len();
     let bytes = Bytes::from(data);
 
-    let path = ParquetFilePath::new_new_gen(
+    let path = ParquetFilePath::new(
         metadata.namespace_id,
         metadata.table_id,
         metadata.sequencer_id,
@@ -75,8 +68,10 @@ pub async fn persist(
         metadata.object_store_id,
     );
 
-    iox_object_store
-        .put_parquet_file(&path, bytes)
+    let path = path.object_store_path(object_store.deref());
+
+    object_store
+        .put(&path, bytes)
         .await
         .context(WritingToObjectStoreSnafu)?;
 
@@ -86,7 +81,7 @@ pub async fn persist(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use data_types2::{NamespaceId, PartitionId, SequenceNumber, SequencerId, TableId};
+    use data_types::{NamespaceId, PartitionId, SequenceNumber, SequencerId, TableId};
     use iox_catalog::interface::INITIAL_COMPACTION_LEVEL;
     use iox_time::Time;
     use object_store::{ObjectStoreImpl, ObjectStoreTestConvenience};
@@ -124,7 +119,9 @@ mod tests {
         };
         let object_store = object_store();
 
-        persist(&metadata, vec![], &object_store).await.unwrap();
+        persist(&metadata, vec![], Arc::clone(&object_store))
+            .await
+            .unwrap();
 
         assert!(object_store.list_all().await.unwrap().is_empty());
     }
@@ -163,7 +160,9 @@ mod tests {
 
         let object_store = object_store();
 
-        persist(&metadata, batches, &object_store).await.unwrap();
+        persist(&metadata, batches, Arc::clone(&object_store))
+            .await
+            .unwrap();
 
         let obj_store_paths = object_store.list_all().await.unwrap();
         assert_eq!(obj_store_paths.len(), 1);

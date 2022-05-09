@@ -1,9 +1,9 @@
 //! NamespaceService gRPC implementation
-use std::sync::Arc;
 
-use data_types2::Namespace;
+use data_types::Namespace;
 use generated_types::influxdata::iox::namespace::v1 as proto;
 use querier::QuerierDatabase;
+use std::sync::Arc;
 
 /// Acquire a [`NamespaceService`] gRPC service implementation.
 pub fn namespace_service(

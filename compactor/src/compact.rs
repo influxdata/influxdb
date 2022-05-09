@@ -1,30 +1,34 @@
 //! Data Points for the lifecycle of the Compactor
 
-use crate::handler::CompactorConfig;
-use crate::utils::GroupWithMinTimeAndSize;
 use crate::{
+    handler::CompactorConfig,
     query::QueryableParquetChunk,
-    utils::{CatalogUpdate, CompactedData, GroupWithTombstones, ParquetFileWithTombstone},
+    utils::{
+        CatalogUpdate, CompactedData, GroupWithMinTimeAndSize, GroupWithTombstones,
+        ParquetFileWithTombstone,
+    },
 };
 use arrow::record_batch::RecordBatch;
 use backoff::{Backoff, BackoffConfig};
 use bytes::Bytes;
-use data_types2::{
+use data_types::{
     ParquetFile, ParquetFileId, ParquetFileWithMetadata, PartitionId, SequencerId, TableId,
     TablePartition, Timestamp, Tombstone, TombstoneId,
 };
 use datafusion::error::DataFusionError;
 use iox_catalog::interface::{Catalog, Transaction};
-use iox_object_store::ParquetFilePath;
 use iox_time::{Time, TimeProvider};
 use metric::{Attributes, Metric, U64Counter, U64Gauge, U64Histogram, U64HistogramOptions};
 use object_store::DynObjectStore;
 use observability_deps::tracing::{debug, info, warn};
-use parquet_file::metadata::{IoxMetadata, IoxParquetMetaData};
-use query::provider::overlap::group_potential_duplicates;
+use parquet_file::{
+    metadata::{IoxMetadata, IoxParquetMetaData},
+    ParquetFilePath,
+};
 use query::{
     exec::{Executor, ExecutorType},
     frontend::reorg::ReorgPlanner,
+    provider::overlap::group_potential_duplicates,
     util::compute_timenanosecond_min_max,
     QueryChunk,
 };
@@ -33,7 +37,7 @@ use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{
     cmp::{max, min, Ordering},
     collections::{BTreeMap, HashSet},
-    ops::DerefMut,
+    ops::{Deref, DerefMut},
     sync::Arc,
 };
 use uuid::Uuid;
@@ -782,16 +786,7 @@ impl Compactor {
             .expect("record_batches.is_empty was just checked")
             .schema();
 
-        // Make a fake IOx object store to conform to the parquet file
-        // interface, but note this isn't actually used to find parquet
-        // paths to write to
-        use iox_object_store::IoxObjectStore;
-        let iox_object_store = Arc::new(IoxObjectStore::existing(
-            Arc::clone(&object_store),
-            IoxObjectStore::root_path_for(&*object_store, uuid::Uuid::new_v4()),
-        ));
-
-        let data = parquet_file::storage::Storage::new(Arc::clone(&iox_object_store))
+        let data = parquet_file::storage::Storage::new(Arc::clone(&object_store))
             .parquet_bytes(record_batches, schema, metadata)
             .await
             .context(ConvertingToBytesSnafu)?;
@@ -810,16 +805,17 @@ impl Compactor {
         let file_size = data.len();
         let bytes = Bytes::from(data);
 
-        let path = ParquetFilePath::new_new_gen(
+        let path = ParquetFilePath::new(
             metadata.namespace_id,
             metadata.table_id,
             metadata.sequencer_id,
             metadata.partition_id,
             metadata.object_store_id,
         );
+        let path = path.object_store_path(object_store.deref());
 
-        iox_object_store
-            .put_parquet_file(&path, bytes)
+        object_store
+            .put(&path, bytes)
             .await
             .context(WritingToObjectStoreSnafu)?;
 
@@ -1091,7 +1087,7 @@ pub struct PartitionCompactionCandidate {
 mod tests {
     use super::*;
     use arrow_util::assert_batches_sorted_eq;
-    use data_types2::{ChunkId, KafkaPartition, NamespaceId, ParquetFileParams, SequenceNumber};
+    use data_types::{ChunkId, KafkaPartition, NamespaceId, ParquetFileParams, SequenceNumber};
     use iox_catalog::interface::INITIAL_COMPACTION_LEVEL;
     use iox_tests::util::TestCatalog;
     use iox_time::SystemProvider;

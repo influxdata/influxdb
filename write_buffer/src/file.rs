@@ -1,11 +1,12 @@
 //! Write buffer that uses files to encode messages.
 //!
-//! This implementation can be used by multiple readers and writers at the same time. It is ideal for local end2end
-//! testing. However it might not perform extremely well when dealing with large messages and (currently) does not
-//! implement any message pruning.
+//! This implementation can be used by multiple readers and writers at the same time. It is ideal
+//! for local end2end testing. However it might not perform extremely well when dealing with large
+//! messages and (currently) does not implement any message pruning.
 //!
 //! # Format
-//! Given a root path, the database name and the number of sequencers, the directory structure looks like this:
+//! Given a root path, the database name and the number of sequencers, the directory structure
+//! looks like this:
 //!
 //! ```text
 //! <root>/<db_name>/
@@ -54,50 +55,63 @@
 //! <payload>
 //! ```
 //!
-//! The payload is binary data. The headers contain metadata about it (like timestamp, format, tracing information).
-//!
+//! The payload is binary data. The headers contain metadata about it (like timestamp, format,
+//! tracing information).
 //!
 //! # Implementation Notes
+//!
 //! Some notes about file system functionality that shaped this implementation
 //!
 //! ## Atomic File Creation
-//! It is quite easy to create a file and ensure that it did not exist beforehand using [`open(2)`] together with
-//! `O_CREAT` and `O_EXCL`. However writing actual content to that file requires time and a reader could already see an
-//! incomplete version of that. A workaround is to use a scratchpad file at a temporary location, write the entire
-//! desired content to it and then move the file to the target location. This assumes that the target location and the
-//! file content are independent, e.g. that the file itself does not contain the `sequence_number`. Now we need to find
-//! a way to make this move operation reliable though.
 //!
-//! Files can be renamed using [`rename(2)`]. There is the `RENAME_NOREPLACE` flag that prevents that we silently
-//! overwrite the target file. This however is only implemented for a handful of filesystems (notable NOT [NFS]). So to
-//! use [`rename(2)`] we would need some additional locking.
+//! It is quite easy to create a file and ensure that it did not exist beforehand using [`open(2)`]
+//! together with `O_CREAT` and `O_EXCL`. However writing actual content to that file requires time
+//! and a reader could already see an incomplete version of that. A workaround is to use a
+//! scratchpad file at a temporary location, write the entire desired content to it and then move
+//! the file to the target location. This assumes that the target location and the file content are
+//! independent, e.g. that the file itself does not contain the `sequence_number`. Now we need to
+//! find a way to make this move operation reliable though.
 //!
-//! Then there is [`link(2)`] which creates a new link to an existing file. It explicitly states that the target is
-//! NEVER overwritten. According to <https://unix.stackexchange.com/a/125946> this should even work properly on [NFS].
-//! We then need to use [`unlink(2)`] to clean the scratchpad file.
+//! Files can be renamed using [`rename(2)`]. There is the `RENAME_NOREPLACE` flag that prevents
+//! that we silently overwrite the target file. This however is only implemented for a handful of
+//! filesystems (notable NOT [NFS]). So to use [`rename(2)`] we would need some additional locking.
+//!
+//! Then there is [`link(2)`] which creates a new link to an existing file. It explicitly states
+//! that the target is NEVER overwritten. According to <https://unix.stackexchange.com/a/125946>
+//! this should even work properly on [NFS]. We then need to use [`unlink(2)`] to clean the
+//! scratchpad file.
 //!
 //! ## Atomic Directory Creation
-//! To setup a new sequencer config we need to create the directory structure in an atomic way. Hardlinks don't work for
-//! directories, but [`symlink(2)`] does and -- like [`link(2)`] -- does not overwrite existing targets.
+//!
+//! To setup a new sequencer config we need to create the directory structure in an atomic way.
+//! Hardlinks don't work for directories, but [`symlink(2)`] does and -- like [`link(2)`] -- does
+//! not overwrite existing targets.
 //!
 //! ## File Locking
-//! Instead of atomic operations we could also use file locking. Under Linux there are a few ways this can be archived:
+//!
+//! Instead of atomic operations we could also use file locking. Under Linux there are a few ways
+//! this can be archived:
 //!
 //! - **[`fcntl(2)`] via `F_SETLK`, `F_SETLKW`, `F_GETLK`:** <br />
-//!   Works on [NFS], but is process-bound (aka if you have multiple writers within the same process, only one can
+//!   Works on [NFS], but is process-bound (aka if you have multiple writers within the same
+//!   process, only one can
 //!   acquire the lock).
 //! - **[`fcntl(2)`] via `F_OFD_SETLK`, `F_OFD_SETLKW`, `F_OFD_GETLK`:** <br />
 //!   Works on [NFS] and is file-descriptor-bound.
 //! - **[`flock(2)`]:** <br />
-//!   Works on [NFS] but is technically emulated via [`fcntl(2)`] so the latter should probably be preferred.
+//!   Works on [NFS] but is technically emulated via [`fcntl(2)`] so the latter should probably be
+//!   preferred.
 //!
-//! The biggest issue with file locking is what happens when an operation fails while a lock is being held. Either the
-//! resulting state is obviously unfinished (e.g. due to some checksum or size mismatch, due to some missing marker) or
-//! we would need to implement some form of lock poisoning. Since this can get quite tricky, I have decided that atomic
-//! file and directory operations are easier to reason about.
+//! The biggest issue with file locking is what happens when an operation fails while a lock is
+//! being held. Either the resulting state is obviously unfinished (e.g. due to some checksum or
+//! size mismatch, due to some missing marker) or we would need to implement some form of lock
+//! poisoning. Since this can get quite tricky, I have decided that atomic file and directory
+//! operations are easier to reason about.
 //!
 //! ## Message Metadata
-//! We are NOT using any file-based metadata (like `mtime` or extended attributes) because they are often broken.
+//!
+//! We are NOT using any file-based metadata (like `mtime` or extended attributes) because they are
+//! often broken.
 //!
 //!
 //! [`fcntl(2)`]: https://www.man7.org/linux/man-pages/man2/fcntl.2.html
@@ -108,6 +122,18 @@
 //! [`rename(2)`]: https://man7.org/linux/man-pages/man2/rename.2.html
 //! [`symlink(2)`]: https://man7.org/linux/man-pages/man2/symlink.2.html
 //! [`unlink(2)`]: https://man7.org/linux/man-pages/man2/unlink.2.html
+
+use crate::{
+    codec::{ContentType, IoxHeaders},
+    config::WriteBufferCreationConfig,
+    core::{WriteBufferError, WriteBufferReading, WriteBufferStreamHandler, WriteBufferWriting},
+};
+use async_trait::async_trait;
+use data_types::Sequence;
+use dml::{DmlMeta, DmlOperation};
+use futures::{stream::BoxStream, Stream, StreamExt};
+use iox_time::{Time, TimeProvider};
+use pin_project::pin_project;
 use std::{
     collections::{BTreeMap, BTreeSet},
     path::{Path, PathBuf},
@@ -118,22 +144,9 @@ use std::{
         Arc,
     },
 };
-
-use crate::{
-    codec::{ContentType, IoxHeaders},
-    core::WriteBufferStreamHandler,
-};
-use async_trait::async_trait;
-use data_types::{sequence::Sequence, write_buffer::WriteBufferCreationConfig};
-use dml::{DmlMeta, DmlOperation};
-use futures::{stream::BoxStream, Stream, StreamExt};
-use iox_time::{Time, TimeProvider};
-use pin_project::pin_project;
 use tokio_util::sync::ReusableBoxFuture;
 use trace::TraceCollector;
 use uuid::Uuid;
-
-use crate::core::{WriteBufferError, WriteBufferReading, WriteBufferWriting};
 
 /// Header used to declare the creation time of the message.
 pub const HEADER_TIME: &str = "last-modified";

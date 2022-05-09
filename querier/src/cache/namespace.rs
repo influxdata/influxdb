@@ -1,10 +1,4 @@
 //! Namespace cache.
-use std::{collections::HashMap, sync::Arc, time::Duration};
-
-use backoff::{Backoff, BackoffConfig};
-use data_types2::{NamespaceId, NamespaceSchema};
-use iox_catalog::interface::{get_schema_by_name, Catalog};
-use iox_time::TimeProvider;
 
 use crate::cache_system::{
     backend::{
@@ -14,6 +8,11 @@ use crate::cache_system::{
     driver::Cache,
     loader::FunctionLoader,
 };
+use backoff::{Backoff, BackoffConfig};
+use data_types::{NamespaceId, NamespaceSchema};
+use iox_catalog::interface::{get_schema_by_name, Catalog};
+use iox_time::TimeProvider;
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 /// Duration to keep existing namespaces.
 pub const TTL_EXISTING: Duration = Duration::from_secs(10);
@@ -173,7 +172,7 @@ mod tests {
     use std::collections::BTreeMap;
 
     use crate::cache::test_util::assert_histogram_metric_count;
-    use data_types2::{ColumnSchema, ColumnType, TableSchema};
+    use data_types::{ColumnSchema, ColumnType, TableSchema};
     use iox_tests::util::TestCatalog;
 
     use super::*;

@@ -1,6 +1,5 @@
 use crate::{google::FieldViolation, influxdata::iox::ingester::v1 as proto};
-use data_types::timestamp::TimestampRange;
-use data_types2::IngesterQueryRequest;
+use data_types::TimestampRange;
 use datafusion::{
     common::DataFusionError, datafusion_proto::bytes::Serializeable, logical_plan::Expr,
 };
@@ -17,6 +16,37 @@ fn expr_from_bytes_violation(field: impl Into<String>, e: DataFusionError) -> Fi
     FieldViolation {
         field: field.into(),
         description: format!("Error creating Expr from bytes: {}", e),
+    }
+}
+
+/// Request from the querier service to the ingester service
+#[derive(Debug, PartialEq, Clone)]
+pub struct IngesterQueryRequest {
+    /// namespace to search
+    pub namespace: String,
+    /// Table to search
+    pub table: String,
+    /// Columns the query service is interested in
+    pub columns: Vec<String>,
+    /// Predicate for filtering
+    pub predicate: Option<Predicate>,
+}
+
+impl IngesterQueryRequest {
+    /// Make a request to return data for a specified table for
+    /// all sequencers an ingester is responsible for
+    pub fn new(
+        namespace: String,
+        table: String,
+        columns: Vec<String>,
+        predicate: Option<Predicate>,
+    ) -> Self {
+        Self {
+            namespace,
+            table,
+            columns,
+            predicate,
+        }
     }
 }
 

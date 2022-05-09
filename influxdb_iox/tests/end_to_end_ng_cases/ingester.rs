@@ -1,13 +1,12 @@
-use std::collections::BTreeMap;
-
-use generated_types::influxdata::iox::ingester::v1::PartitionStatus;
+use arrow_util::assert_batches_sorted_eq;
+use generated_types::{
+    influxdata::iox::ingester::v1::PartitionStatus, ingester::IngesterQueryRequest,
+};
 use http::StatusCode;
+use std::collections::BTreeMap;
 use test_helpers_end_to_end_ng::{
     get_write_token, maybe_skip_integration, wait_for_readable, MiniCluster,
 };
-
-use arrow_util::assert_batches_sorted_eq;
-use data_types2::IngesterQueryRequest;
 
 #[tokio::test]
 async fn ingester_flight_api() {
