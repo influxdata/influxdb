@@ -3670,9 +3670,9 @@ checksum = "0c520e05135d6e763148b6426a837e239041653ba7becd2e538c076c738025fc"
 
 [[package]]
 name = "pbjson"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d86c0a61b93c50f35af5d8a4f134790f47cbebf8803a7219dd1e7238cd1af022"
+checksum = "4d1732313025e2e4b635b788636284ab22177fa3052c4050e257341753340c1f"
 dependencies = [
  "base64 0.13.0",
  "serde",
@@ -3680,9 +3680,9 @@ dependencies = [
 
 [[package]]
 name = "pbjson-build"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "956a449e8a85fc040e9f8cd8fd4dd2e68059d179092401f0d8570ba059f76dae"
+checksum = "a73432641ac0183d308af24fb041e8d58cdcd8809c4abccf576dfcf12e9a13b2"
 dependencies = [
  "heck 0.4.0",
  "itertools",
@@ -3692,9 +3692,9 @@ dependencies = [
 
 [[package]]
 name = "pbjson-types"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2c20bd6ec3b4ba0073e7e5a1a770abd95723b431bf0e1941d2dd8aace9ffb97f"
+checksum = "d38e7f715b195abd7b51cfc09da4fbc3deca252099ccf885d6c8e7a589c65a7b"
 dependencies = [
  "bytes",
  "chrono",
@@ -5430,9 +5430,9 @@ checksum = "6bdef32e8150c2a081110b42772ffe7d7c9032b606bc226c8260fd97e0976601"
 
 [[package]]
 name = "symbolic-common"
-version = "8.7.1"
+version = "8.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b2523f5f1831bbd2c362b50915b74416d34d15c0f3e46b2f6ee07d27672f58cb"
+checksum = "65098afa1f1ca8991e4c6f4a6c03a661838e8f464c8bbafab9c2f1a3fa913b7f"
 dependencies = [
  "debugid",
  "memmap2",
@@ -5442,9 +5442,9 @@ dependencies = [
 
 [[package]]
 name = "symbolic-demangle"
-version = "8.7.1"
+version = "8.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aa0ad97a4195edfd0bbddb1e61f5397e6bd6f206e25da69acf5281cc9e3c5357"
+checksum = "be2718eec240c927afaed217f7c99dc9905c53466726f37607566ae0aa34ae66"
 dependencies = [
  "cpp_demangle",
  "rustc-demangle",
