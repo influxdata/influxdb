@@ -18,6 +18,7 @@ impl MockIngesterConnection {
     }
 
     /// Set next response for this connection.
+    #[allow(dead_code)]
     pub fn next_response(&self, response: super::Result<Vec<Arc<super::IngesterPartition>>>) {
         *self.next_response.lock() = Some(response);
     }

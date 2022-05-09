@@ -159,11 +159,13 @@ where
     }
 
     /// Reference to inner backend.
+    #[allow(dead_code)]
     pub fn inner_backend(&self) -> &dyn CacheBackend<K = K, V = V> {
         self.inner_backend.as_ref()
     }
 
     /// Reference to TTL provider.
+    #[allow(dead_code)]
     pub fn ttl_provider(&self) -> &Arc<dyn TtlProvider<K = K, V = V>> {
         &self.ttl_provider
     }

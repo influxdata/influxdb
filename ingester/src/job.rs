@@ -20,12 +20,6 @@ impl Job {
             Self::Persist { .. } => "persist",
         }
     }
-
-    fn partition_id(&self) -> Option<PartitionId> {
-        match self {
-            Self::Persist { partition_id, .. } => Some(*partition_id),
-        }
-    }
 }
 
 /// The global job registry

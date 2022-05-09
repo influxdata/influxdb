@@ -177,6 +177,7 @@ where
     /// Side-load an entry into the cache.
     ///
     /// This will also complete a currently running request for this key.
+    #[allow(dead_code)]
     pub async fn set(&self, k: K, v: V) {
         let maybe_join_handle = {
             let mut state = self.state.lock();
@@ -239,6 +240,7 @@ struct RunningQuery<V> {
     recv: SharedReceiver<V>,
 
     /// A sender that enables setting entries while the query is running.
+    #[allow(dead_code)]
     set: Sender<V>,
 
     /// A handle for the task that is currently executing the query.
@@ -246,7 +248,8 @@ struct RunningQuery<V> {
     /// The handle can be used to abort the running query, e.g. when dropping the cache.
     join_handle: JoinHandle<()>,
 
-    /// Tag so that queries for the same key (e.g. when starting, side-loading, starting again) can be told apart.
+    /// Tag so that queries for the same key (e.g. when starting, side-loading, starting again) can
+    /// be told apart.
     tag: u64,
 }
 

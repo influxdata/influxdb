@@ -88,6 +88,7 @@ impl QuerierTable {
     }
 
     /// Table ID.
+    #[allow(dead_code)]
     pub fn id(&self) -> TableId {
         self.id
     }

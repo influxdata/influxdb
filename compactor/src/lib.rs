@@ -10,7 +10,6 @@
     clippy::use_self,
     clippy::clone_on_ref_ptr
 )]
-#![allow(dead_code)]
 
 pub mod compact;
 pub mod garbage_collector;

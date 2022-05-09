@@ -67,19 +67,6 @@ impl WriteInfoServiceImpl {
     }
 }
 
-fn write_summary_error_to_status(e: write_summary::Error) -> tonic::Status {
-    use write_summary::Error;
-
-    match e {
-        // treat "unknown partition error" as a failed precondition
-        // (so the client can distinguish between "write isn't
-        // readable" from "we can't tell if write is readable"
-        e @ Error::UnknownKafkaPartition { .. } => {
-            tonic::Status::failed_precondition(format!("Can not determine status of write: {}", e))
-        }
-    }
-}
-
 fn to_proto_status(status: KafkaPartitionWriteStatus) -> proto::KafkaPartitionStatus {
     match status {
         KafkaPartitionWriteStatus::KafkaPartitionUnknown => proto::KafkaPartitionStatus::Unknown,

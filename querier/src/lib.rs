@@ -8,7 +8,6 @@
     clippy::use_self,
     clippy::clone_on_ref_ptr
 )]
-#![allow(dead_code)]
 
 pub mod cache;
 mod cache_system;

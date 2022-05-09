@@ -34,6 +34,7 @@ pub trait QuerierHandler: Send + Sync {
 type SharedJoinHandle = Shared<BoxFuture<'static, Result<(), Arc<JoinError>>>>;
 
 /// Convert a [`JoinHandle`] into a [`SharedJoinHandle`].
+#[allow(dead_code)]
 fn shared_handle(handle: JoinHandle<()>) -> SharedJoinHandle {
     handle.map_err(Arc::new).boxed().shared()
 }
@@ -51,6 +52,7 @@ pub struct QuerierHandlerImpl {
     shutdown: CancellationToken,
 
     /// Poison pills for testing.
+    #[allow(dead_code)]
     poison_cabinet: Arc<PoisonCabinet>,
 }
 
