@@ -56,6 +56,11 @@ where
 /// The buffering / async return behaviour of the methods on this type are
 /// defined by the behaviour of the underlying [write buffer] implementation.
 ///
+/// Operations that require writing to multiple shards may experience partial
+/// failures - the op may be successfully wrote to one shard, while failing to
+/// write to another shard. Users are expected to retry the partially failed
+/// operation to converge the system.
+///
 /// [write buffer]: write_buffer::core::WriteBufferWriting
 #[derive(Debug)]
 pub struct ShardedWriteBuffer<S> {
@@ -161,7 +166,7 @@ where
 /// the [`DmlOperation`] to its paired [`Sequencer`], executes all the futures
 /// in parallel and gathers any errors.
 ///
-/// Returns a list of the sequences that were written
+/// Returns a list of the sequences that were written.
 async fn parallel_enqueue<T>(v: T) -> Result<Vec<DmlMeta>, ShardError>
 where
     T: Iterator<Item = (Arc<Sequencer>, DmlOperation)> + Send,
