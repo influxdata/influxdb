@@ -100,7 +100,7 @@ EOF
 
 install_go() {
   # install golang latest version
-  go_endpoint="go1.17.3.linux-amd64.tar.gz"
+  go_endpoint="go1.18.1.linux-amd64.tar.gz"
 
   wget "https://dl.google.com/go/$go_endpoint" -O "$working_dir/$go_endpoint"
   rm -rf /usr/local/go
