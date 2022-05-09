@@ -751,9 +751,9 @@ dependencies = [
 
 [[package]]
 name = "cloud-storage"
-version = "0.11.0"
+version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b2b9435bfd253723ba3c59a1b4b4c00a39aa9a3252b470e1b1ecc9c705498aa0"
+checksum = "7602ac4363f68ac757d6b87dd5d850549a14d37489902ae639c06ecec06ad275"
 dependencies = [
  "async-trait",
  "base64 0.13.0",
