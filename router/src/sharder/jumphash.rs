@@ -114,11 +114,6 @@ struct HashKey<'a> {
     namespace: &'a str,
 }
 
-/// A [`JumpHash`] sharder implementation is generic over `P`, the payload type,
-/// enabling it to map any type of payload to a shard as it only considers the
-/// table name and namespace when making a sharding decision.
-///
-
 /// A [`JumpHash`] sharder mapping a [`MutableBatch`] reference according to
 /// the`namespace it is destined for.
 impl<T> Sharder<MutableBatch> for JumpHash<Arc<T>>
@@ -158,11 +153,13 @@ where
         namespace: &DatabaseName<'_>,
         _payload: &DeletePredicate,
     ) -> Self::Item {
-        // A delete
+        // A delete that does not specify a table is mapped to all shards.
         if table.is_empty() {
             return self.shards.iter().map(Arc::clone).collect();
         }
 
+        // A delete that specifies a table is mapped to the shard responsible
+        // for this (namespace, table) tuple.
         vec![Arc::clone(self.hash(&HashKey {
             table,
             namespace: namespace.as_ref(),

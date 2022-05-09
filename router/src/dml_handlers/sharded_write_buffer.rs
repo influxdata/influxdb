@@ -59,7 +59,8 @@ where
 /// Operations that require writing to multiple shards may experience partial
 /// failures - the op may be successfully wrote to one shard, while failing to
 /// write to another shard. Users are expected to retry the partially failed
-/// operation to converge the system.
+/// operation to converge the system. The order of writes across multiple shards
+/// is non-deterministic.
 ///
 /// [write buffer]: write_buffer::core::WriteBufferWriting
 #[derive(Debug)]
