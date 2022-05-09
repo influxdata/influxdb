@@ -1,7 +1,7 @@
 //! This module contains testing scenarios for Delete
 
 use super::{
-    util::{make_n_chunks_scenario_new, ChunkDataNew, DeleteTimeNew, PredNew},
+    util::{make_n_chunks_scenario, ChunkData, DeleteTime, Pred},
     DbScenario, DbSetup,
 };
 use crate::scenarios::util::all_scenarios_for_one_chunk;
@@ -229,39 +229,39 @@ impl DbSetup for ThreeDeleteThreeChunks {
 
         //let preds = vec![&pred1, &pred2, &pred3];
         let preds = vec![
-            PredNew {
+            Pred {
                 predicate: &pred1,
-                delete_time: DeleteTimeNew::End,
+                delete_time: DeleteTime::End,
             },
-            PredNew {
+            Pred {
                 predicate: &pred2,
-                delete_time: DeleteTimeNew::End,
+                delete_time: DeleteTime::End,
             },
-            PredNew {
+            Pred {
                 predicate: &pred3,
-                delete_time: DeleteTimeNew::End,
+                delete_time: DeleteTime::End,
             },
         ];
 
         // Scenarios
         // All threee deletes will be applied to every chunk but due to their predicates,
         // only appropriate data is deleted
-        let scenarios = make_n_chunks_scenario_new(&[
-            ChunkDataNew {
+        let scenarios = make_n_chunks_scenario(&[
+            ChunkData {
                 lp_lines: lp_lines_1,
                 preds: preds.clone(),
                 delete_table_name: Some(table_name),
                 partition_key,
                 ..Default::default()
             },
-            ChunkDataNew {
+            ChunkData {
                 lp_lines: lp_lines_2,
                 preds: preds.clone(),
                 delete_table_name: Some(table_name),
                 partition_key,
                 ..Default::default()
             },
-            ChunkDataNew {
+            ChunkData {
                 lp_lines: lp_lines_3,
                 preds,
                 delete_table_name: Some(table_name),

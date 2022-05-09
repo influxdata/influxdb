@@ -1,10 +1,10 @@
 //! Library of test scenarios that can be used in query_tests
 
 use super::{
-    util::{all_scenarios_for_one_chunk, make_two_chunk_scenarios, ChunkStageNew},
+    util::{all_scenarios_for_one_chunk, make_two_chunk_scenarios, ChunkStage},
     DbScenario, DbSetup,
 };
-use crate::scenarios::util::{make_n_chunks_scenario_new, ChunkDataNew};
+use crate::scenarios::util::{make_n_chunks_scenario, ChunkData};
 use async_trait::async_trait;
 use data_types::{DeleteExpr, DeletePredicate, Op, Scalar, TimestampRange};
 use query::frontend::sql::SqlQueryPlanner;
@@ -408,17 +408,17 @@ impl DbSetup for NewTwoMeasurementsManyFieldsTwoChunks {
             "o2,state=CA temp=79.0 300",
         ];
 
-        let scenarios = make_n_chunks_scenario_new(&[
-            ChunkDataNew {
+        let scenarios = make_n_chunks_scenario(&[
+            ChunkData {
                 lp_lines: lp_lines1,
                 partition_key,
-                chunk_stage: Some(ChunkStageNew::Parquet),
+                chunk_stage: Some(ChunkStage::Parquet),
                 ..Default::default()
             },
-            ChunkDataNew {
+            ChunkData {
                 lp_lines: lp_lines2,
                 partition_key,
-                chunk_stage: Some(ChunkStageNew::Parquet),
+                chunk_stage: Some(ChunkStage::Parquet),
                 ..Default::default()
             },
         ])
@@ -523,23 +523,23 @@ impl DbSetup for OneMeasurementFourChunksWithDuplicates {
             "h2o,state=CA,city=SJ min_temp=75.5,max_temp=84.08 700",
         ];
 
-        let scenarios = make_n_chunks_scenario_new(&[
-            ChunkDataNew {
+        let scenarios = make_n_chunks_scenario(&[
+            ChunkData {
                 lp_lines: lp_lines1,
                 partition_key,
                 ..Default::default()
             },
-            ChunkDataNew {
+            ChunkData {
                 lp_lines: lp_lines2,
                 partition_key,
                 ..Default::default()
             },
-            ChunkDataNew {
+            ChunkData {
                 lp_lines: lp_lines3,
                 partition_key,
                 ..Default::default()
             },
-            ChunkDataNew {
+            ChunkData {
                 lp_lines: lp_lines4,
                 partition_key,
                 ..Default::default()

@@ -44,19 +44,19 @@ use std::{
 
 // STRUCTs & ENUMs
 #[derive(Debug, Clone, Default)]
-pub struct ChunkDataNew<'a, 'b> {
+pub struct ChunkData<'a, 'b> {
     /// Line protocol data of this chunk
     pub lp_lines: Vec<&'a str>,
 
     /// which stage this chunk will be created.
     ///
-    /// If not set, this chunk will be created in [all](ChunkStageNew::all) stages. This can be helpful when the test
+    /// If not set, this chunk will be created in [all](ChunkStage::all) stages. This can be helpful when the test
     /// scenario is not specific to the chunk stage. If this is used for multiple chunks, then all stage permutations
     /// will be generated.
-    pub chunk_stage: Option<ChunkStageNew>,
+    pub chunk_stage: Option<ChunkStage>,
 
     /// Delete predicates
-    pub preds: Vec<PredNew<'b>>,
+    pub preds: Vec<Pred<'b>>,
 
     /// Table that should be deleted.
     pub delete_table_name: Option<&'a str>,
@@ -65,8 +65,8 @@ pub struct ChunkDataNew<'a, 'b> {
     pub partition_key: &'a str,
 }
 
-impl<'a, 'b> ChunkDataNew<'a, 'b> {
-    fn with_chunk_stage(self, chunk_stage: ChunkStageNew) -> Self {
+impl<'a, 'b> ChunkData<'a, 'b> {
+    fn with_chunk_stage(self, chunk_stage: ChunkStage) -> Self {
         assert!(self.chunk_stage.is_none());
 
         Self {
@@ -75,7 +75,7 @@ impl<'a, 'b> ChunkDataNew<'a, 'b> {
         }
     }
 
-    /// Replace [`DeleteTimeNew::Begin`] and [`DeleteTimeNew::End`] with values that correspond to the linked [`ChunkStageNew`].
+    /// Replace [`DeleteTime::Begin`] and [`DeleteTime::End`] with values that correspond to the linked [`ChunkStage`].
     fn replace_begin_and_end_delete_times(self) -> Self {
         Self {
             preds: self
@@ -94,7 +94,7 @@ impl<'a, 'b> ChunkDataNew<'a, 'b> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ChunkStageNew {
+pub enum ChunkStage {
     /// In parquet file.
     Parquet,
 
@@ -102,7 +102,7 @@ pub enum ChunkStageNew {
     Ingester,
 }
 
-impl Display for ChunkStageNew {
+impl Display for ChunkStage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Parquet => write!(f, "Parquet"),
@@ -111,7 +111,7 @@ impl Display for ChunkStageNew {
     }
 }
 
-impl PartialOrd for ChunkStageNew {
+impl PartialOrd for ChunkStage {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         match (self, other) {
             // allow multiple parquet chunks (for the same partition). sequence numbers will be used for ordering.
@@ -127,67 +127,35 @@ impl PartialOrd for ChunkStageNew {
     }
 }
 
-impl ChunkStageNew {
+impl ChunkStage {
     /// return the list of all chunk types
     pub fn all() -> Vec<Self> {
         vec![Self::Parquet, Self::Ingester]
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum ChunkStage {
-    New(ChunkStageNew),
-}
-
-impl Display for ChunkStage {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::New(stage) => write!(f, "New: {}", stage),
-        }
-    }
-}
-
-impl ChunkStage {
-    /// return the list of all chunk types
-    pub fn all() -> Vec<Self> {
-        ChunkStageNew::all()
-            .into_iter()
-            .map(ChunkStage::New)
-            .collect()
-    }
-}
-
 #[derive(Debug, Clone)]
-pub struct PredNew<'a> {
+pub struct Pred<'a> {
     /// Delete predicate
     pub predicate: &'a DeletePredicate,
 
     /// At which chunk stage this predicate is applied
-    pub delete_time: DeleteTimeNew,
+    pub delete_time: DeleteTime,
 }
 
-impl<'a> PredNew<'a> {
-    /// Replace [`DeleteTimeNew::Begin`] and [`DeleteTimeNew::End`] with values that correspond to the linked [`ChunkStageNew`].
-    fn replace_begin_and_end_delete_times(self, stage: ChunkStageNew) -> Self {
+impl<'a> Pred<'a> {
+    /// Replace [`DeleteTime::Begin`] and [`DeleteTime::End`] with values that correspond to the linked [`ChunkStage`].
+    fn replace_begin_and_end_delete_times(self, stage: ChunkStage) -> Self {
         Self {
             delete_time: self.delete_time.replace_begin_and_end_delete_times(stage),
             ..self
         }
     }
-}
 
-#[derive(Debug, Clone)]
-pub enum Pred<'a> {
-    New(PredNew<'a>),
-}
-
-impl<'a> Pred<'a> {
     fn new(predicate: &'a DeletePredicate, delete_time: DeleteTime) -> Self {
-        match delete_time {
-            DeleteTime::New(delete_time) => Self::New(PredNew {
-                predicate,
-                delete_time,
-            }),
+        Pred {
+            predicate,
+            delete_time,
         }
     }
 }
@@ -195,14 +163,14 @@ impl<'a> Pred<'a> {
 /// Describes when a delete predicate was applied.
 ///
 /// # Ordering
-/// Compared to [`ChunkStageNew`], the ordering here may seem a bit confusing. While the latest payload / LP data
+/// Compared to [`ChunkStage`], the ordering here may seem a bit confusing. While the latest payload / LP data
 /// resists in the ingester and is not yet available as a parquet file, the latest tombstones apply to parquet files and
 /// were (past tense!) NOT applied while the LP data was in the ingester.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum DeleteTimeNew {
+pub enum DeleteTime {
     /// Special delete time which marks the first time that could be used from deletion.
     ///
-    /// May depend on [`ChunkStageNew`].
+    /// May depend on [`ChunkStage`].
     Begin,
 
     /// Delete predicate is added while chunk is was still in ingester memory.
@@ -222,15 +190,15 @@ pub enum DeleteTimeNew {
 
     /// Special delete time which marks the last time that could be used from deletion.
     ///
-    /// May depend on [`ChunkStageNew`].
+    /// May depend on [`ChunkStage`].
     End,
 }
 
-impl DeleteTimeNew {
+impl DeleteTime {
     /// Return all DeleteTime at and after the given chunk stage
-    pub fn all_from_and_before(chunk_stage: ChunkStageNew) -> Vec<DeleteTimeNew> {
+    pub fn all_from_and_before(chunk_stage: ChunkStage) -> Vec<DeleteTime> {
         match chunk_stage {
-            ChunkStageNew::Parquet => vec![
+            ChunkStage::Parquet => vec![
                 Self::Ingester {
                     also_in_catalog: true,
                 },
@@ -239,7 +207,7 @@ impl DeleteTimeNew {
                 },
                 Self::Parquet,
             ],
-            ChunkStageNew::Ingester => vec![
+            ChunkStage::Ingester => vec![
                 Self::Ingester {
                     also_in_catalog: true,
                 },
@@ -250,8 +218,8 @@ impl DeleteTimeNew {
         }
     }
 
-    /// Replace [`DeleteTimeNew::Begin`] and [`DeleteTimeNew::End`] with values that correspond to the linked [`ChunkStageNew`].
-    fn replace_begin_and_end_delete_times(self, stage: ChunkStageNew) -> Self {
+    /// Replace [`DeleteTime::Begin`] and [`DeleteTime::End`] with values that correspond to the linked [`ChunkStage`].
+    fn replace_begin_and_end_delete_times(self, stage: ChunkStage) -> Self {
         match self {
             Self::Begin => Self::begin_for(stage),
             Self::End => Self::end_for(stage),
@@ -259,23 +227,23 @@ impl DeleteTimeNew {
         }
     }
 
-    fn begin_for(_stage: ChunkStageNew) -> Self {
+    fn begin_for(_stage: ChunkStage) -> Self {
         Self::Ingester {
             also_in_catalog: true,
         }
     }
 
-    fn end_for(stage: ChunkStageNew) -> Self {
+    fn end_for(stage: ChunkStage) -> Self {
         match stage {
-            ChunkStageNew::Ingester => Self::Ingester {
+            ChunkStage::Ingester => Self::Ingester {
                 also_in_catalog: true,
             },
-            ChunkStageNew::Parquet => Self::Parquet,
+            ChunkStage::Parquet => Self::Parquet,
         }
     }
 }
 
-impl Display for DeleteTimeNew {
+impl Display for DeleteTime {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Begin => write!(f, "Begin"),
@@ -287,35 +255,6 @@ impl Display for DeleteTimeNew {
             } => write!(f, "Ingester w/ catalog entry"),
             Self::Parquet => write!(f, "Parquet"),
             Self::End => write!(f, "End"),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum DeleteTime {
-    New(DeleteTimeNew),
-}
-
-impl DeleteTime {
-    /// Return all DeleteTime at and after the given chunk stage
-    fn all_from_and_before(chunk_stage: ChunkStage) -> Vec<Self> {
-        match chunk_stage {
-            ChunkStage::New(chunk_stage) => DeleteTimeNew::all_from_and_before(chunk_stage)
-                .into_iter()
-                .map(Self::New)
-                .collect(),
-        }
-    }
-
-    fn begin_for(chunk_stage: ChunkStage) -> Self {
-        match chunk_stage {
-            ChunkStage::New(chunk_stage) => Self::New(DeleteTimeNew::begin_for(chunk_stage)),
-        }
-    }
-
-    fn end_for(chunk_stage: ChunkStage) -> Self {
-        match chunk_stage {
-            ChunkStage::New(chunk_stage) => Self::New(DeleteTimeNew::end_for(chunk_stage)),
         }
     }
 }
@@ -370,7 +309,7 @@ pub async fn all_scenarios_for_one_chunk(
                     lp_lines.clone(),
                     chunk_stage,
                     preds,
-                    delete_table_name,
+                    Some(delete_table_name),
                     partition_key,
                 )
                 .await,
@@ -388,38 +327,10 @@ async fn make_chunk_with_deletes_at_different_stages(
     lp_lines: Vec<&str>,
     chunk_stage: ChunkStage,
     preds: Vec<Pred<'_>>,
-    delete_table_name: &str,
-    partition_key: &str,
-) -> DbScenario {
-    match chunk_stage {
-        ChunkStage::New(chunk_stage) => {
-            let preds: Vec<_> = preds
-                .into_iter()
-                .map(|p| match p {
-                    Pred::New(pred) => pred,
-                })
-                .collect();
-
-            make_chunk_with_deletes_at_different_stages_new(
-                lp_lines,
-                chunk_stage,
-                preds,
-                (!delete_table_name.is_empty()).then(|| delete_table_name),
-                partition_key,
-            )
-            .await
-        }
-    }
-}
-
-async fn make_chunk_with_deletes_at_different_stages_new(
-    lp_lines: Vec<&str>,
-    chunk_stage: ChunkStageNew,
-    preds: Vec<PredNew<'_>>,
     delete_table_name: Option<&str>,
     partition_key: &str,
 ) -> DbScenario {
-    let chunk_data = ChunkDataNew {
+    let chunk_data = ChunkData {
         lp_lines,
         chunk_stage: Some(chunk_stage),
         preds,
@@ -445,24 +356,16 @@ pub async fn make_two_chunk_scenarios(
     data1: &str,
     data2: &str,
 ) -> Vec<DbScenario> {
-    make_two_chunk_scenarios_new(partition_key, data1, data2).await
-}
-
-async fn make_two_chunk_scenarios_new(
-    partition_key: &str,
-    data1: &str,
-    data2: &str,
-) -> Vec<DbScenario> {
     let lp_lines1: Vec<_> = data1.split('\n').collect();
     let lp_lines2: Vec<_> = data2.split('\n').collect();
 
-    make_n_chunks_scenario_new(&[
-        ChunkDataNew {
+    make_n_chunks_scenario(&[
+        ChunkData {
             lp_lines: lp_lines1,
             partition_key,
             ..Default::default()
         },
-        ChunkDataNew {
+        ChunkData {
             lp_lines: lp_lines2,
             partition_key,
             ..Default::default()
@@ -471,7 +374,7 @@ async fn make_two_chunk_scenarios_new(
     .await
 }
 
-pub async fn make_n_chunks_scenario_new(chunks: &[ChunkDataNew<'_, '_>]) -> Vec<DbScenario> {
+pub async fn make_n_chunks_scenario(chunks: &[ChunkData<'_, '_>]) -> Vec<DbScenario> {
     let n_stages_unset = chunks
         .iter()
         .filter(|chunk| chunk.chunk_stage.is_none())
@@ -479,7 +382,7 @@ pub async fn make_n_chunks_scenario_new(chunks: &[ChunkDataNew<'_, '_>]) -> Vec<
 
     let mut scenarios = vec![];
 
-    for stages in ChunkStageNew::all()
+    for stages in ChunkStage::all()
         .into_iter()
         .combinations_with_replacement(n_stages_unset)
     {
@@ -524,12 +427,12 @@ pub async fn make_n_chunks_scenario_new(chunks: &[ChunkDataNew<'_, '_>]) -> Vec<
 /// Create given chunk using the given ingester.
 ///
 /// Returns a human-readable chunk description.
-async fn make_ng_chunk(mock_ingester: &mut MockIngester, chunk: ChunkDataNew<'_, '_>) -> String {
+async fn make_ng_chunk(mock_ingester: &mut MockIngester, chunk: ChunkData<'_, '_>) -> String {
     let chunk_stage = chunk.chunk_stage.expect("chunk stage should be set");
 
     // create chunk
     match chunk_stage {
-        ChunkStageNew::Ingester => {
+        ChunkStage::Ingester => {
             // process write
             let (op, _partition_ids) = mock_ingester
                 .simulate_write_routing(&chunk.lp_lines, chunk.partition_key)
@@ -540,23 +443,23 @@ async fn make_ng_chunk(mock_ingester: &mut MockIngester, chunk: ChunkDataNew<'_,
             if let Some(delete_table_name) = chunk.delete_table_name {
                 for pred in &chunk.preds {
                     match pred.delete_time {
-                        DeleteTimeNew::Ingester { .. } => {
+                        DeleteTime::Ingester { .. } => {
                             let op = mock_ingester
                                 .simulate_delete_routing(delete_table_name, pred.predicate.clone())
                                 .await;
                             mock_ingester.buffer_operation(op).await;
                         }
-                        other @ DeleteTimeNew::Parquet => {
+                        other @ DeleteTime::Parquet => {
                             panic!("Cannot have delete time '{other}' for ingester chunk")
                         }
-                        DeleteTimeNew::Begin | DeleteTimeNew::End => {
+                        DeleteTime::Begin | DeleteTime::End => {
                             unreachable!("Begin/end cases should have been replaced with concrete instances at this point")
                         }
                     }
                 }
             }
         }
-        ChunkStageNew::Parquet => {
+        ChunkStage::Parquet => {
             // process write
             let (op, partition_ids) = mock_ingester
                 .simulate_write_routing(&chunk.lp_lines, chunk.partition_key)
@@ -569,7 +472,7 @@ async fn make_ng_chunk(mock_ingester: &mut MockIngester, chunk: ChunkDataNew<'_,
             if let Some(delete_table_name) = chunk.delete_table_name {
                 for pred in &chunk.preds {
                     match pred.delete_time {
-                        DeleteTimeNew::Ingester { .. } => {
+                        DeleteTime::Ingester { .. } => {
                             let ids_pre = mock_ingester.tombstone_ids(delete_table_name).await;
 
                             let op = mock_ingester
@@ -587,10 +490,10 @@ async fn make_ng_chunk(mock_ingester: &mut MockIngester, chunk: ChunkDataNew<'_,
                             }
                             tombstone_ids.push(tombstone_id.expect("No tombstone added?!"));
                         }
-                        DeleteTimeNew::Parquet => {
+                        DeleteTime::Parquet => {
                             // will be attached AFTER the chunk was created
                         }
-                        DeleteTimeNew::Begin | DeleteTimeNew::End => {
+                        DeleteTime::Begin | DeleteTime::End => {
                             unreachable!("Begin/end cases should have been replaced with concrete instances at this point")
                         }
                     }
@@ -604,7 +507,7 @@ async fn make_ng_chunk(mock_ingester: &mut MockIngester, chunk: ChunkDataNew<'_,
                 let mut id_it = tombstone_ids.iter();
                 for pred in &chunk.preds {
                     match pred.delete_time {
-                        DeleteTimeNew::Ingester { also_in_catalog } => {
+                        DeleteTime::Ingester { also_in_catalog } => {
                             // should still have a tombstone
                             let tombstone_id = *id_it.next().unwrap();
                             mock_ingester
@@ -630,14 +533,14 @@ async fn make_ng_chunk(mock_ingester: &mut MockIngester, chunk: ChunkDataNew<'_,
                                     .unwrap();
                             }
                         }
-                        DeleteTimeNew::Parquet => {
+                        DeleteTime::Parquet => {
                             // create new tombstone
                             let op = mock_ingester
                                 .simulate_delete_routing(delete_table_name, pred.predicate.clone())
                                 .await;
                             mock_ingester.buffer_operation(op).await;
                         }
-                        DeleteTimeNew::Begin | DeleteTimeNew::End => {
+                        DeleteTime::Begin | DeleteTime::End => {
                             unreachable!("Begin/end cases should have been replaced with concrete instances at this point")
                         }
                     }
