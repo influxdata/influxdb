@@ -1,7 +1,10 @@
+use std::sync::Arc;
+
 use criterion::{
     criterion_group, criterion_main, measurement::WallTime, BenchmarkGroup, Criterion, Throughput,
 };
 use data_types::DatabaseName;
+use mutable_batch::MutableBatch;
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use router::sharder::{JumpHash, Sharder};
 
@@ -83,12 +86,13 @@ fn benchmark_sharder(
     table: &str,
     namespace: &DatabaseName<'_>,
 ) {
-    let hasher = JumpHash::new(0..num_buckets);
+    let hasher = JumpHash::new((0..num_buckets).map(Arc::new));
+    let batch = MutableBatch::default();
 
     group.throughput(Throughput::Elements(1));
     group.bench_function(bench_name, |b| {
         b.iter(|| {
-            hasher.shard(table, namespace, &0);
+            hasher.shard(table, namespace, &batch);
         });
     });
 }
