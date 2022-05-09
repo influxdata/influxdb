@@ -993,7 +993,7 @@ impl PartitionData {
         self.data.get_persisting_data()
     }
 
-    /// Write the given mb in the bufer
+    /// Write the given mb in the buffer
     pub(crate) fn buffer_write(
         &mut self,
         sequencer_number: SequenceNumber,
