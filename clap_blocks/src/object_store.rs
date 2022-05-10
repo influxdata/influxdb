@@ -298,7 +298,7 @@ fn new_s3(config: &ObjectStoreConfig) -> Result<Arc<DynObjectStore>, ParseError>
 
 #[cfg(not(feature = "aws"))]
 fn new_s3(_: &ObjectStoreConfig) -> Result<Arc<DynObjectStore>, ParseError> {
-    panic!("S3 support not enabled, recompile with the gcp feature enabled")
+    panic!("S3 support not enabled, recompile with the aws feature enabled")
 }
 
 #[cfg(feature = "azure")]

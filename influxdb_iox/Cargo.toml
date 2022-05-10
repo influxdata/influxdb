@@ -77,9 +77,9 @@ test_helpers_end_to_end_ng = { path = "../test_helpers_end_to_end_ng" }
 [features]
 default = ["jemalloc_replacing_malloc"]
 
-azure = ["object_store/azure"] # Optional Azure Object store support
-gcp = ["object_store/gcp"] # Optional GCP object store support
-aws = ["object_store/aws"] # Optional AWS / S3 object store support
+azure = ["clap_blocks/azure"] # Optional Azure Object store support
+gcp = ["clap_blocks/gcp"] # Optional GCP object store support
+aws = ["clap_blocks/aws"] # Optional AWS / S3 object store support
 pprof = ["ioxd_common/pprof"] # Optional http://localhost:8080/debug/pprof/profile support
 
 # Enable tokio_console support (https://github.com/tokio-rs/console)
