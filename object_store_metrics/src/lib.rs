@@ -14,7 +14,7 @@ use iox_time::{SystemProvider, Time, TimeProvider};
 use metric::{Metric, U64Counter, U64Histogram, U64HistogramOptions};
 use pin_project::{pin_project, pinned_drop};
 
-use object_store::{path::Path, GetResult, ListResult, ObjectStoreApi, Result};
+use object_store::{path::Path, GetResult, ListResult, ObjectMeta, ObjectStoreApi, Result};
 
 #[cfg(test)]
 mod dummy;
@@ -244,7 +244,7 @@ impl ObjectStoreApi for ObjectStoreMetrics {
     async fn list<'a>(
         &'a self,
         prefix: Option<&'a Path>,
-    ) -> Result<BoxStream<'a, Result<Vec<Path>>>> {
+    ) -> Result<BoxStream<'a, Result<ObjectMeta>>> {
         let started_at = self.time_provider.now();
 
         let res = self.inner.list(prefix).await;
@@ -316,8 +316,14 @@ impl MetricDelegate for BytesStreamDelegate {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct NopStreamDelegate<T>(PhantomData<T>);
+
+impl<T> Default for NopStreamDelegate<T> {
+    fn default() -> Self {
+        Self(Default::default())
+    }
+}
 
 impl<T> MetricDelegate for NopStreamDelegate<T> {
     type Item = T;

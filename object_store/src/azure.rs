@@ -7,6 +7,7 @@ use crate::{
 use async_trait::async_trait;
 use azure_core::{prelude::*, HttpClient};
 use azure_storage::core::prelude::*;
+use azure_storage_blobs::blob::Blob;
 use azure_storage_blobs::{
     prelude::{AsBlobClient, AsContainerClient, ContainerClient},
     DeleteSnapshotsMethod,
@@ -14,7 +15,7 @@ use azure_storage_blobs::{
 use bytes::Bytes;
 use futures::{
     stream::{self, BoxStream},
-    FutureExt, StreamExt,
+    FutureExt, StreamExt, TryStreamExt,
 };
 use snafu::{ResultExt, Snafu};
 use std::{convert::TryInto, sync::Arc};
@@ -133,7 +134,7 @@ impl ObjectStoreApi for MicrosoftAzure {
     async fn list<'a>(
         &'a self,
         prefix: Option<&'a Path>,
-    ) -> Result<BoxStream<'a, Result<Vec<Path>>>> {
+    ) -> Result<BoxStream<'a, Result<ObjectMeta>>> {
         #[derive(Clone)]
         enum ListState {
             Start,
@@ -161,7 +162,7 @@ impl ObjectStoreApi for MicrosoftAzure {
 
             let resp = match request.execute().await.context(ListSnafu) {
                 Ok(resp) => resp,
-                Err(err) => return Some((Err(err.into()), state)),
+                Err(err) => return Some((Err(crate::Error::from(err)), state)),
             };
 
             let next_state = if let Some(marker) = resp.next_marker {
@@ -170,15 +171,10 @@ impl ObjectStoreApi for MicrosoftAzure {
                 ListState::Done
             };
 
-            let names = resp
-                .blobs
-                .blobs
-                .into_iter()
-                .map(|blob| Path::from_raw(blob.name))
-                .collect();
-
-            Some((Ok(names), next_state))
+            let names = resp.blobs.blobs.into_iter().map(convert_object_meta);
+            Some((Ok(futures::stream::iter(names)), next_state))
         })
+        .try_flatten()
         .boxed())
     }
 
@@ -209,22 +205,8 @@ impl ObjectStoreApi for MicrosoftAzure {
             .blobs
             .blobs
             .into_iter()
-            .map(|blob| {
-                let location = Path::from_raw(blob.name);
-                let last_modified = blob.properties.last_modified;
-                let size = blob
-                    .properties
-                    .content_length
-                    .try_into()
-                    .expect("unsupported size on this platform");
-
-                ObjectMeta {
-                    location,
-                    last_modified,
-                    size,
-                }
-            })
-            .collect();
+            .map(convert_object_meta)
+            .collect::<Result<_>>()?;
 
         Ok(ListResult {
             next_token,
@@ -232,6 +214,22 @@ impl ObjectStoreApi for MicrosoftAzure {
             objects,
         })
     }
+}
+
+fn convert_object_meta(blob: Blob) -> Result<ObjectMeta> {
+    let location = Path::from_raw(blob.name);
+    let last_modified = blob.properties.last_modified;
+    let size = blob
+        .properties
+        .content_length
+        .try_into()
+        .expect("unsupported size on this platform");
+
+    Ok(ObjectMeta {
+        location,
+        last_modified,
+        size,
+    })
 }
 
 #[cfg(feature = "azure_test")]

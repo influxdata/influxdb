@@ -74,20 +74,23 @@ impl ObjectStoreApi for InMemory {
     async fn list<'a>(
         &'a self,
         prefix: Option<&'a Path>,
-    ) -> Result<BoxStream<'a, Result<Vec<Path>>>> {
-        let list = if let Some(prefix) = &prefix {
-            self.storage
-                .read()
-                .await
-                .keys()
-                .filter(|k| k.prefix_matches(prefix))
-                .cloned()
-                .collect()
-        } else {
-            self.storage.read().await.keys().cloned().collect()
-        };
+    ) -> Result<BoxStream<'a, Result<ObjectMeta>>> {
+        let last_modified = Utc::now();
 
-        Ok(futures::stream::once(async move { Ok(list) }).boxed())
+        let storage = self.storage.read().await;
+        let values: Vec<_> = storage
+            .iter()
+            .filter(move |(key, _)| prefix.map(|p| key.prefix_matches(p)).unwrap_or(true))
+            .map(move |(key, value)| {
+                Ok(ObjectMeta {
+                    location: key.clone(),
+                    last_modified,
+                    size: value.len(),
+                })
+            })
+            .collect();
+
+        Ok(futures::stream::iter(values).boxed())
     }
 
     /// The memory implementation returns all results, as opposed to the cloud

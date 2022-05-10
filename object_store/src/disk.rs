@@ -11,7 +11,7 @@ use futures::{
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{collections::BTreeSet, convert::TryFrom, io};
 use tokio::fs;
-use walkdir::WalkDir;
+use walkdir::{DirEntry, WalkDir};
 
 /// A specialized `Error` for filesystem object store-related errors
 #[derive(Debug, Snafu)]
@@ -166,22 +166,27 @@ impl ObjectStoreApi for LocalFileSystem {
     async fn list<'a>(
         &'a self,
         prefix: Option<&'a Path>,
-    ) -> Result<BoxStream<'a, Result<Vec<Path>>>> {
-        let root_path = self.root.to_path_buf();
+    ) -> Result<BoxStream<'a, Result<ObjectMeta>>> {
+        let root_path = match prefix {
+            Some(prefix) => self.path_to_filesystem(prefix),
+            None => self.root.to_path_buf(),
+        };
+
         let walkdir = WalkDir::new(&root_path)
             // Don't include the root directory itself
             .min_depth(1);
 
         let s =
-            walkdir.into_iter().filter_map(move |result_dir_entry| {
+            walkdir.into_iter().flat_map(move |result_dir_entry| {
                 match convert_walkdir_result(result_dir_entry) {
                     Err(e) => Some(Err(e)),
                     Ok(None) => None,
                     Ok(entry @ Some(_)) => entry
                         .filter(|dir_entry| dir_entry.file_type().is_file())
-                        .map(|file| self.filesystem_to_path(file.path()).unwrap())
-                        .filter(|name| prefix.map_or(true, |p| name.prefix_matches(p)))
-                        .map(|name| Ok(vec![name])),
+                        .map(|entry| {
+                            let location = self.filesystem_to_path(entry.path()).unwrap();
+                            convert_metadata(entry, location)
+                        }),
                 }
             });
 
@@ -216,22 +221,7 @@ impl ObjectStoreApi for LocalFileSystem {
                 if is_directory {
                     common_prefixes.insert(prefix.child(common_prefix));
                 } else {
-                    let metadata = entry
-                        .metadata()
-                        .context(UnableToAccessMetadataSnafu { path: entry.path() })?;
-
-                    let last_modified = metadata
-                        .modified()
-                        .expect("Modified file time should be supported on this platform")
-                        .into();
-                    let size = usize::try_from(metadata.len())
-                        .context(FileSizeOverflowedUsizeSnafu { path: entry.path() })?;
-
-                    objects.push(ObjectMeta {
-                        location: entry_location,
-                        last_modified,
-                        size,
-                    });
+                    objects.push(convert_metadata(entry, entry_location)?);
                 }
             }
         }
@@ -242,6 +232,26 @@ impl ObjectStoreApi for LocalFileSystem {
             objects,
         })
     }
+}
+
+fn convert_metadata(entry: DirEntry, location: Path) -> Result<ObjectMeta> {
+    let metadata = entry
+        .metadata()
+        .context(UnableToAccessMetadataSnafu { path: entry.path() })?;
+
+    let last_modified = metadata
+        .modified()
+        .expect("Modified file time should be supported on this platform")
+        .into();
+
+    let size = usize::try_from(metadata.len())
+        .context(FileSizeOverflowedUsizeSnafu { path: entry.path() })?;
+
+    Ok(ObjectMeta {
+        location,
+        last_modified,
+        size,
+    })
 }
 
 /// Convert walkdir results and converts not-found errors into `None`.

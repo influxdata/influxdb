@@ -4,7 +4,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use crate::{GetResult, ListResult, ObjectStoreApi, Path, Result};
+use crate::{GetResult, ListResult, ObjectMeta, ObjectStoreApi, Path, Result};
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::{stream::BoxStream, StreamExt};
@@ -163,7 +163,7 @@ impl<T: ObjectStoreApi> ObjectStoreApi for ThrottledStore<T> {
     async fn list<'a>(
         &'a self,
         prefix: Option<&'a Path>,
-    ) -> Result<BoxStream<'a, Result<Vec<Path>>>> {
+    ) -> Result<BoxStream<'a, Result<ObjectMeta>>> {
         sleep(self.config().wait_list_per_call).await;
 
         // need to copy to avoid moving / referencing `self`
@@ -171,12 +171,11 @@ impl<T: ObjectStoreApi> ObjectStoreApi for ThrottledStore<T> {
 
         self.inner.list(prefix).await.map(|stream| {
             stream
-                .then(move |entries_result| async move {
-                    match entries_result {
-                        Ok(entries) => {
-                            let entries_len = usize_to_u32_saturate(entries.len());
-                            sleep(wait_list_per_entry * entries_len).await;
-                            Ok(entries)
+                .then(move |result| async move {
+                    match result {
+                        Ok(entry) => {
+                            sleep(wait_list_per_entry).await;
+                            Ok(entry)
                         }
                         Err(err) => Err(err),
                     }
@@ -369,15 +368,16 @@ mod tests {
         let prefix = Path::from_raw("foo");
 
         // clean up store
-        for entry in store
+        let entries: Vec<_> = store
             .list(Some(&prefix))
             .await
             .unwrap()
-            .try_concat()
+            .try_collect()
             .await
-            .unwrap()
-        {
-            store.delete(&entry).await.unwrap();
+            .unwrap();
+
+        for entry in entries {
+            store.delete(&entry.location).await.unwrap();
         }
 
         // create new entries
@@ -431,7 +431,7 @@ mod tests {
             .list(Some(&prefix))
             .await
             .unwrap()
-            .try_concat()
+            .try_collect::<Vec<_>>()
             .await
             .unwrap();
 

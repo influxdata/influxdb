@@ -289,18 +289,19 @@ impl ObjectStoreApi for AmazonS3 {
     async fn list<'a>(
         &'a self,
         prefix: Option<&'a Path>,
-    ) -> Result<BoxStream<'a, Result<Vec<Path>>>> {
+    ) -> Result<BoxStream<'a, Result<ObjectMeta>>> {
         Ok(self
             .list_objects_v2(prefix, None)
             .await?
             .map_ok(move |list_objects_v2_result| {
                 let contents = list_objects_v2_result.contents.unwrap_or_default();
-
-                contents
+                let iter = contents
                     .into_iter()
-                    .flat_map(|object| object.key.map(Path::from_raw))
-                    .collect()
+                    .map(|object| convert_object_meta(object, &self.bucket_name));
+
+                futures::stream::iter(iter)
             })
+            .try_flatten()
             .boxed())
     }
 
@@ -319,27 +320,7 @@ impl ObjectStoreApi for AmazonS3 {
                     let contents = list_objects_v2_result.contents.unwrap_or_default();
                     let mut objects = contents
                         .into_iter()
-                        .map(|object| {
-                            let location = Path::from_raw(
-                                object.key.expect("object doesn't exist without a key"),
-                            );
-                            let last_modified = match object.last_modified {
-                                Some(lm) => DateTime::parse_from_rfc3339(&lm)
-                                    .context(UnableToParseLastModifiedSnafu {
-                                        bucket: &self.bucket_name,
-                                    })?
-                                    .with_timezone(&Utc),
-                                None => Utc::now(),
-                            };
-                            let size = usize::try_from(object.size.unwrap_or(0))
-                                .expect("unsupported size on this platform");
-
-                            Ok(ObjectMeta {
-                                location,
-                                last_modified,
-                                size,
-                            })
-                        })
+                        .map(|object| convert_object_meta(object, &self.bucket_name))
                         .collect::<Result<Vec<_>>>()?;
 
                     res.objects.append(&mut objects);
@@ -361,6 +342,24 @@ impl ObjectStoreApi for AmazonS3 {
             )
             .await?)
     }
+}
+
+fn convert_object_meta(object: rusoto_s3::Object, bucket: &str) -> Result<ObjectMeta> {
+    let location = Path::from_raw(object.key.expect("object doesn't exist without a key"));
+    let last_modified = match object.last_modified {
+        Some(lm) => DateTime::parse_from_rfc3339(&lm)
+            .context(UnableToParseLastModifiedSnafu { bucket })?
+            .with_timezone(&Utc),
+        None => Utc::now(),
+    };
+    let size =
+        usize::try_from(object.size.unwrap_or(0)).expect("unsupported size on this platform");
+
+    Ok(ObjectMeta {
+        location,
+        last_modified,
+        size,
+    })
 }
 
 /// Configure a connection to Amazon S3 using the specified credentials in

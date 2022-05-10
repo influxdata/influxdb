@@ -58,7 +58,7 @@ pub trait ObjectStoreApi: std::fmt::Display + Send + Sync + Debug + 'static {
     async fn list<'a>(
         &'a self,
         prefix: Option<&'a Path>,
-    ) -> Result<BoxStream<'a, Result<Vec<Path>>>>;
+    ) -> Result<BoxStream<'a, Result<ObjectMeta>>>;
 
     /// List objects with the given prefix and an implementation specific
     /// delimiter. Returns common prefixes (directories) in addition to object
@@ -66,7 +66,7 @@ pub trait ObjectStoreApi: std::fmt::Display + Send + Sync + Debug + 'static {
     ///
     /// Prefixes are evaluated on a path segment basis, i.e. `foo/bar/` is a prefix of `foo/bar/x` but not of
     /// `foo/bar_baz/x`.
-    async fn list_with_delimiter(&self, prefix: &Path) -> Result<ListResult, Error>;
+    async fn list_with_delimiter(&self, prefix: &Path) -> Result<ListResult>;
 }
 
 /// Result of a list call that includes objects, prefixes (directories) and a
@@ -98,7 +98,7 @@ pub enum GetResult {
     /// A file
     File(tokio::fs::File, std::path::PathBuf),
     /// An asynchronous stream
-    Stream(BoxStream<'static, Result<Bytes, Error>>),
+    Stream(BoxStream<'static, Result<Bytes>>),
 }
 
 impl Debug for GetResult {
@@ -112,7 +112,7 @@ impl Debug for GetResult {
 
 impl GetResult {
     /// Collects the data into a [`Vec<u8>`]
-    pub async fn bytes(self) -> Result<Vec<u8>, Error> {
+    pub async fn bytes(self) -> Result<Vec<u8>> {
         let mut stream = self.into_stream();
         let mut bytes = Vec::new();
 
@@ -124,7 +124,7 @@ impl GetResult {
     }
 
     /// Converts this into a byte stream
-    pub fn into_stream(self) -> BoxStream<'static, Result<Bytes, Error>> {
+    pub fn into_stream(self) -> BoxStream<'static, Result<Bytes>> {
         match self {
             Self::File(file, path) => {
                 tokio_util::codec::FramedRead::new(file, tokio_util::codec::BytesCodec::new())
@@ -170,18 +170,13 @@ pub trait ObjectStoreTestConvenience {
     /// A convenience function for getting all results from a list operation without a prefix. Only
     /// appropriate for tests because production code should handle the stream of potentially a
     /// large number of returned paths.
-    async fn list_all(&self) -> Result<Vec<Path>>;
+    async fn list_all(&self) -> Result<Vec<ObjectMeta>>;
 }
 
 #[async_trait]
 impl ObjectStoreTestConvenience for dyn ObjectStoreApi {
-    async fn list_all(&self) -> Result<Vec<Path>> {
-        self.list(None)
-            .await?
-            .map_ok(|v| futures::stream::iter(v).map(Ok))
-            .try_flatten()
-            .try_collect()
-            .await
+    async fn list_all(&self) -> Result<Vec<ObjectMeta>> {
+        self.list(None).await?.try_collect().await
     }
 }
 
@@ -189,21 +184,18 @@ impl ObjectStoreTestConvenience for dyn ObjectStoreApi {
 mod tests {
     use super::*;
 
-    use futures::stream;
-
     type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
     type Result<T, E = Error> = std::result::Result<T, E>;
 
     async fn flatten_list_stream(
         storage: &DynObjectStore,
-        prefix: Option<&path::Path>,
-    ) -> Result<Vec<path::Path>> {
+        prefix: Option<&Path>,
+    ) -> super::Result<Vec<Path>> {
         storage
             .list(prefix)
             .await?
-            .map_ok(|v| stream::iter(v).map(Ok))
-            .try_flatten()
-            .try_collect()
+            .map_ok(|meta| meta.location)
+            .try_collect::<Vec<Path>>()
             .await
     }
 

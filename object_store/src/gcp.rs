@@ -6,7 +6,7 @@ use crate::{
 };
 use async_trait::async_trait;
 use bytes::Bytes;
-use cloud_storage::Client;
+use cloud_storage::{Client, Object};
 use futures::{stream::BoxStream, StreamExt, TryStreamExt};
 use snafu::{ResultExt, Snafu};
 use std::{convert::TryFrom, env};
@@ -169,7 +169,7 @@ impl ObjectStoreApi for GoogleCloudStorage {
     async fn list<'a>(
         &'a self,
         prefix: Option<&'a Path>,
-    ) -> Result<BoxStream<'a, Result<Vec<Path>>>> {
+    ) -> Result<BoxStream<'a, Result<ObjectMeta>>> {
         let converted_prefix = prefix.map(|p| format!("{}{}", p.to_raw(), DELIMITER));
         let list_request = cloud_storage::ListRequest {
             prefix: converted_prefix,
@@ -187,20 +187,16 @@ impl ObjectStoreApi for GoogleCloudStorage {
         let bucket_name = self.bucket_name.clone();
         let objects = object_lists
             .map_ok(move |list| {
-                list.items
-                    .into_iter()
-                    .map(|o| Path::from_raw(o.name))
-                    .collect::<Vec<_>>()
+                futures::stream::iter(list.items.into_iter().map(|o| Ok(convert_object_meta(&o))))
             })
             .map_err(move |source| {
-                Error::UnableToStreamListData {
+                crate::Error::from(Error::UnableToStreamListData {
                     source,
                     bucket: bucket_name.clone(),
-                }
-                .into()
+                })
             });
 
-        Ok(objects.boxed())
+        Ok(objects.try_flatten().boxed())
     }
 
     async fn list_with_delimiter(&self, prefix: &Path) -> Result<ListResult> {
@@ -236,18 +232,7 @@ impl ObjectStoreApi for GoogleCloudStorage {
                     objects: list_response
                         .items
                         .iter()
-                        .map(|object| {
-                            let location = Path::from_raw(&object.name);
-                            let last_modified = object.updated;
-                            let size = usize::try_from(object.size)
-                                .expect("unsupported size on this platform");
-
-                            ObjectMeta {
-                                location,
-                                last_modified,
-                                size,
-                            }
-                        })
+                        .map(convert_object_meta)
                         .collect(),
                     common_prefixes: list_response.prefixes.iter().map(Path::from_raw).collect(),
                     next_token: list_response.next_page_token,
@@ -256,6 +241,18 @@ impl ObjectStoreApi for GoogleCloudStorage {
         };
 
         Ok(result)
+    }
+}
+
+fn convert_object_meta(object: &Object) -> ObjectMeta {
+    let location = Path::from_raw(&object.name);
+    let last_modified = object.updated;
+    let size = usize::try_from(object.size).expect("unsupported size on this platform");
+
+    ObjectMeta {
+        location,
+        last_modified,
+        size,
     }
 }
 
