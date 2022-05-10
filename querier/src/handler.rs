@@ -6,7 +6,10 @@ use futures::{
     stream::FuturesUnordered,
     FutureExt, StreamExt, TryFutureExt,
 };
+use influxdb_iox_client::schema::generated_types::schema_service_server::SchemaServiceServer;
+use iox_catalog::interface::Catalog;
 use observability_deps::tracing::warn;
+use service_grpc_schema::SchemaService;
 use std::sync::Arc;
 use thiserror::Error;
 use tokio::task::{JoinError, JoinHandle};
@@ -21,6 +24,11 @@ pub enum Error {}
 /// The [`QuerierHandler`] does nothing at this point
 #[async_trait]
 pub trait QuerierHandler: Send + Sync {
+    /// Acquire a [`SchemaService`] gRPC service implementation.
+    ///
+    /// [`SchemaService`]: generated_types::influxdata::iox::schema::v1::schema_service_server::SchemaService.
+    fn schema_service(&self) -> SchemaServiceServer<SchemaService>;
+
     /// Wait until the handler finished  to shutdown.
     ///
     /// Use [`shutdown`](Self::shutdown) to trigger a shutdown.
@@ -42,7 +50,10 @@ fn shared_handle(handle: JoinHandle<()>) -> SharedJoinHandle {
 /// Implementation of the `QuerierHandler` trait (that currently does nothing)
 #[derive(Debug)]
 pub struct QuerierHandlerImpl {
-    /// Database.
+    /// Catalog (for other services)
+    catalog: Arc<dyn Catalog>,
+
+    /// Database that handles query operation
     database: Arc<QuerierDatabase>,
 
     /// Future that resolves when the background worker exits
@@ -58,12 +69,13 @@ pub struct QuerierHandlerImpl {
 
 impl QuerierHandlerImpl {
     /// Initialize the Querier
-    pub fn new(database: Arc<QuerierDatabase>) -> Self {
+    pub fn new(catalog: Arc<dyn Catalog>, database: Arc<QuerierDatabase>) -> Self {
         let shutdown = CancellationToken::new();
         let poison_cabinet = Arc::new(PoisonCabinet::new());
 
         let join_handles = vec![];
         Self {
+            catalog,
             database,
             join_handles,
             shutdown,
@@ -74,6 +86,10 @@ impl QuerierHandlerImpl {
 
 #[async_trait]
 impl QuerierHandler for QuerierHandlerImpl {
+    fn schema_service(&self) -> SchemaServiceServer<SchemaService> {
+        SchemaServiceServer::new(SchemaService::new(Arc::clone(&self.catalog)))
+    }
+
     async fn join(&self) {
         // Need to poll handlers unordered to detect early exists of any worker in the list.
         let mut unordered: FuturesUnordered<_> = self
@@ -147,11 +163,11 @@ mod tests {
     impl TestQuerier {
         fn new() -> Self {
             let metric_registry = Arc::new(metric::Registry::new());
-            let catalog = Arc::new(MemCatalog::new(Arc::clone(&metric_registry)));
+            let catalog = Arc::new(MemCatalog::new(Arc::clone(&metric_registry))) as _;
             let object_store = Arc::new(InMemory::new());
             let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
             let exec = Arc::new(Executor::new(1));
-            let catalog_cache = Arc::new(CatalogCache::new(catalog, time_provider));
+            let catalog_cache = Arc::new(CatalogCache::new(Arc::clone(&catalog), time_provider));
             let database = Arc::new(QuerierDatabase::new(
                 catalog_cache,
                 metric_registry,
@@ -159,7 +175,7 @@ mod tests {
                 exec,
                 create_ingester_connection_for_testing(),
             ));
-            let querier = QuerierHandlerImpl::new(database);
+            let querier = QuerierHandlerImpl::new(catalog, database);
 
             Self { querier }
         }

@@ -4137,6 +4137,7 @@ dependencies = [
  "rand",
  "schema",
  "service_common",
+ "service_grpc_schema",
  "snafu",
  "test_helpers",
  "thiserror",
@@ -4529,6 +4530,7 @@ dependencies = [
  "schema",
  "serde",
  "serde_urlencoded",
+ "service_grpc_schema",
  "siphasher",
  "test_helpers",
  "thiserror",
@@ -5081,6 +5083,20 @@ dependencies = [
  "tokio-stream",
  "tonic",
  "trace_http",
+ "workspace-hack",
+]
+
+[[package]]
+name = "service_grpc_schema"
+version = "0.1.0"
+dependencies = [
+ "data_types",
+ "generated_types",
+ "iox_catalog",
+ "metric",
+ "observability_deps",
+ "tokio",
+ "tonic",
  "workspace-hack",
 ]
 

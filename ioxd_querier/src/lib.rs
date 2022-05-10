@@ -88,6 +88,7 @@ impl<C: QuerierHandler + std::fmt::Debug + 'static> ServerType for QuerierServer
             builder,
             rpc::namespace::namespace_service(Arc::clone(&self.database),)
         );
+        add_service!(builder, self.server.handler().schema_service());
         serve_builder!(builder);
 
         Ok(())
@@ -140,7 +141,10 @@ pub async fn create_querier_server_type(
     exec: Arc<Executor>,
     ingester_addresses: Vec<String>,
 ) -> Arc<dyn ServerType> {
-    let catalog_cache = Arc::new(QuerierCatalogCache::new(catalog, time_provider));
+    let catalog_cache = Arc::new(QuerierCatalogCache::new(
+        Arc::clone(&catalog),
+        time_provider,
+    ));
     let ingester_connection =
         create_ingester_connection(ingester_addresses, Arc::clone(&catalog_cache));
     let database = Arc::new(QuerierDatabase::new(
@@ -150,7 +154,7 @@ pub async fn create_querier_server_type(
         exec,
         ingester_connection,
     ));
-    let querier_handler = Arc::new(QuerierHandlerImpl::new(Arc::clone(&database)));
+    let querier_handler = Arc::new(QuerierHandlerImpl::new(catalog, Arc::clone(&database)));
 
     let querier = QuerierServer::new(metric_registry, querier_handler);
     Arc::new(QuerierServerType::new(querier, database, common_state))

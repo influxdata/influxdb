@@ -59,6 +59,7 @@ members = [
     "service_common",
     "service_grpc_influxrpc",
     "service_grpc_flight",
+    "service_grpc_schema",
     "service_grpc_testing",
     "sqlx-hotswap-pool",
     "test_helpers",

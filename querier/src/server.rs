@@ -15,7 +15,7 @@ pub struct QuerierServer<C: QuerierHandler> {
 }
 
 impl<C: QuerierHandler> QuerierServer<C> {
-    /// Initialise a new [`QuerierServer`] using the provided HTTP and gRPC
+    /// Initialise a new [`QuerierServer`] using the provided gRPC
     /// handlers.
     pub fn new(metrics: Arc<metric::Registry>, handler: Arc<C>) -> Self {
         Self { metrics, handler }
@@ -24,6 +24,11 @@ impl<C: QuerierHandler> QuerierServer<C> {
     /// Return the [`metric::Registry`] used by the router.
     pub fn metric_registry(&self) -> Arc<metric::Registry> {
         Arc::clone(&self.metrics)
+    }
+
+    /// return the handler
+    pub fn handler(&self) -> &Arc<C> {
+        &self.handler
     }
 
     /// Join shutdown worker.

@@ -28,6 +28,7 @@ predicate = { path = "../predicate" }
 schema = { version = "0.1.0", path = "../schema" }
 serde = "1.0"
 serde_urlencoded = "0.7"
+service_grpc_schema = { path = "../service_grpc_schema" }
 siphasher = "0.3"
 thiserror = "1.0"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }

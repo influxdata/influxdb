@@ -166,24 +166,38 @@ async fn schema_cli() {
             )),
             Step::Custom(Box::new(|state: &mut StepTestState| {
                 async {
-                    let router_addr = state.cluster().router().router_grpc_base().to_string();
+                    // should be able to query both router and querier for the schema
+                    let addrs = vec![
+                        (
+                            "router",
+                            state.cluster().router().router_grpc_base().to_string(),
+                        ),
+                        (
+                            "querier",
+                            state.cluster().querier().querier_grpc_base().to_string(),
+                        ),
+                    ];
 
-                    // Validate the output of the schema CLI command
-                    Command::cargo_bin("influxdb_iox")
-                        .unwrap()
-                        .arg("-h")
-                        .arg(&router_addr)
-                        .arg("debug")
-                        .arg("schema")
-                        .arg("get")
-                        .arg(state.cluster().namespace())
-                        .assert()
-                        .success()
-                        .stdout(
-                            predicate::str::contains("my_awesome_table2")
-                                .and(predicate::str::contains("tag1"))
-                                .and(predicate::str::contains("val")),
-                        );
+                    for (addr_type, addr) in addrs {
+                        println!("Trying address {}: {}", addr_type, addr);
+
+                        // Validate the output of the schema CLI command
+                        Command::cargo_bin("influxdb_iox")
+                            .unwrap()
+                            .arg("-h")
+                            .arg(&addr)
+                            .arg("debug")
+                            .arg("schema")
+                            .arg("get")
+                            .arg(state.cluster().namespace())
+                            .assert()
+                            .success()
+                            .stdout(
+                                predicate::str::contains("my_awesome_table2")
+                                    .and(predicate::str::contains("tag1"))
+                                    .and(predicate::str::contains("val")),
+                            );
+                    }
                 }
                 .boxed()
             })),
