@@ -149,3 +149,119 @@ async fn remote_partition_and_get_from_store_and_pull() {
     .run()
     .await
 }
+
+/// Test the schema cli command
+#[tokio::test]
+async fn schema_cli() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+
+    let mut cluster = MiniCluster::create_shared(database_url).await;
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            Step::WriteLineProtocol(String::from(
+                "my_awesome_table2,tag1=A,tag2=B val=42i 123456",
+            )),
+            Step::Custom(Box::new(|state: &mut StepTestState| {
+                async {
+                    let router_addr = state.cluster().router().router_grpc_base().to_string();
+
+                    // Validate the output of the schema CLI command
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(&router_addr)
+                        .arg("debug")
+                        .arg("schema")
+                        .arg("get")
+                        .arg(state.cluster().namespace())
+                        .assert()
+                        .success()
+                        .stdout(
+                            predicate::str::contains("my_awesome_table2")
+                                .and(predicate::str::contains("tag1"))
+                                .and(predicate::str::contains("val")),
+                        );
+                }
+                .boxed()
+            })),
+        ],
+    )
+    .run()
+    .await
+}
+
+/// Test the query_ingester CLI command
+#[tokio::test]
+async fn query_ingester() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+
+    let mut cluster = MiniCluster::create_shared(database_url).await;
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            Step::WriteLineProtocol(String::from(
+                "my_awesome_table2,tag1=A,tag2=B val=42i 123456",
+            )),
+            Step::WaitForReadable,
+            Step::Custom(Box::new(|state: &mut StepTestState| {
+                async {
+                    let ingester_addr = state.cluster().ingester().ingester_grpc_base().to_string();
+
+                    let expected = [
+                        "+------+------+--------------------------------+-----+",
+                        "| tag1 | tag2 | time                           | val |",
+                        "+------+------+--------------------------------+-----+",
+                        "| A    | B    | 1970-01-01T00:00:00.000123456Z | 42  |",
+                        "+------+------+--------------------------------+-----+",
+                    ]
+                    .join("\n");
+
+                    // Validate the output of the query
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(&ingester_addr)
+                        .arg("query-ingester")
+                        .arg(state.cluster().namespace())
+                        .arg("my_awesome_table2")
+                        .assert()
+                        .success()
+                        .stdout(predicate::str::contains(&expected));
+                }
+                .boxed()
+            })),
+            Step::Custom(Box::new(|state: &mut StepTestState| {
+                async {
+                    // now run the query-ingester command against the querier
+                    let querier_addr = state.cluster().querier().querier_grpc_base().to_string();
+
+                    // this is not a good error: it should be
+                    // something like "wrong query protocol" or
+                    // "invalid message" as the querier requires a
+                    // different message format Ticket in the flight protocol
+                    let expected = "Unknown namespace: my_awesome_table2";
+
+                    // Validate that the error message contains a reasonable error
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(&querier_addr)
+                        .arg("query-ingester")
+                        .arg(state.cluster().namespace())
+                        .arg("my_awesome_table2")
+                        .assert()
+                        .failure()
+                        .stderr(predicate::str::contains(expected));
+                }
+                .boxed()
+            })),
+        ],
+    )
+    .run()
+    .await
+}

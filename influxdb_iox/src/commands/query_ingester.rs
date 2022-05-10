@@ -1,8 +1,4 @@
-use influxdb_iox_client::{
-    connection::Connection,
-    flight::{self, generated_types::ReadInfo},
-    format::QueryOutputFormat,
-};
+use influxdb_iox_client::{connection::Connection, flight, format::QueryOutputFormat};
 use std::str::FromStr;
 use thiserror::Error;
 
@@ -17,14 +13,21 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Query the data with SQL
+/// Query the data held by a particular ingester for columns from a
+/// particular table.
+///
+/// Hint: if you don't know the available tables and columns, use the
+/// `debug schema` commands to see them
 #[derive(Debug, clap::Parser)]
 pub struct Config {
     /// The IOx namespace to query
     namespace: String,
 
-    /// The query to run, in SQL format
-    query: String,
+    /// The table for which to retrieve data
+    table: String,
+
+    /// The columns to request
+    columns: Vec<String>,
 
     /// Optional format ('pretty', 'json', or 'csv')
     #[clap(short, long, default_value = "pretty")]
@@ -36,17 +39,23 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
     let Config {
         namespace,
         format,
-        query,
+        table,
+        columns,
     } = config;
 
     let format = QueryOutputFormat::from_str(&format)?;
 
-    let mut query_results = client
-        .perform_query(ReadInfo {
-            namespace_name: namespace,
-            sql_query: query,
-        })
-        .await?;
+    // TODO it mightbe cool to parse / provide a predicate too
+    let predicate = None;
+
+    let request = flight::generated_types::IngesterQueryRequest {
+        table,
+        columns,
+        predicate,
+        namespace,
+    };
+
+    let mut query_results = client.perform_query(request).await?;
 
     // It might be nice to do some sort of streaming write
     // rather than buffering the whole thing.

@@ -30,6 +30,7 @@ mod commands {
     pub mod catalog;
     pub mod debug;
     pub mod query;
+    pub mod query_ingester;
     pub mod remote;
     pub mod run;
     pub mod sql;
@@ -161,6 +162,9 @@ enum Command {
 
     /// Query the data with SQL
     Query(commands::query::Config),
+
+    /// Query the ingester only
+    QueryIngester(commands::query_ingester::Config),
 }
 
 fn main() -> Result<(), std::io::Error> {
@@ -283,6 +287,14 @@ fn main() -> Result<(), std::io::Error> {
                 let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
                 let connection = connection().await;
                 if let Err(e) = commands::query::command(connection, config).await {
+                    eprintln!("{}", e);
+                    std::process::exit(ReturnCode::Failure as _)
+                }
+            }
+            Some(Command::QueryIngester(config)) => {
+                let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
+                let connection = connection().await;
+                if let Err(e) = commands::query_ingester::command(connection, config).await {
                     eprintln!("{}", e);
                     std::process::exit(ReturnCode::Failure as _)
                 }

@@ -101,6 +101,16 @@ impl ServerFixture {
         self.server.addrs().router_grpc_api().client_base()
     }
 
+    /// Return the http base URL for the ingester gRPC API
+    pub fn ingester_grpc_base(&self) -> Arc<str> {
+        self.server.addrs().ingester_grpc_api().client_base()
+    }
+
+    /// Return the http base URL for the querier gRPC API
+    pub fn querier_grpc_base(&self) -> Arc<str> {
+        self.server.addrs().querier_grpc_api().client_base()
+    }
+
     /// Get a weak reference to the underlying `TestServer`
     pub(crate) fn weak(&self) -> Weak<TestServer> {
         Arc::downgrade(&self.server)

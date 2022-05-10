@@ -2,8 +2,11 @@ syntax = "proto3";
 package influxdata.iox.ingester.v1;
 option go_package = "github.com/influxdata/iox/ingester/v1";
 
-// Request from the query service for the data not yet persisted. Serialized as the Ticket value
-// for the Arrow Flight doGet request.
+// Request to the ingester service for data that is not yet
+// persisted. This is how the querier and ingester interact.
+//
+// This type of message is Serialized as the Ticket value for the
+// Arrow Flight doGet request.
 message IngesterQueryRequest {
   // Table to search
   string table = 1;
