@@ -1,4 +1,4 @@
--- IOX_SETUP: NewTwoMeasurementsManyFieldsTwoChunks
+-- IOX_SETUP: TwoMeasurementsManyFieldsTwoChunks
 
 -- validate we have access to information schema for listing system tables
 -- IOX_COMPARE: sorted

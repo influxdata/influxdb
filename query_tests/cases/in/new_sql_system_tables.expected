@@ -1,4 +1,4 @@
--- Test Setup: NewTwoMeasurementsManyFieldsTwoChunks
+-- Test Setup: TwoMeasurementsManyFieldsTwoChunks
 -- SQL: SELECT * from information_schema.tables where table_schema = 'system';
 -- Results After Sorting
 +---------------+--------------+------------+------------+

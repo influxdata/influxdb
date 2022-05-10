@@ -391,9 +391,9 @@ impl DbSetup for TwoMeasurementsManyFieldsOneChunk {
 /// This has two chunks for queries that check the state of the system
 ///
 /// This scenario is NG-specific and can be used for `EXPLAIN` plans and system tables.
-pub struct NewTwoMeasurementsManyFieldsTwoChunks {}
+pub struct TwoMeasurementsManyFieldsTwoChunks {}
 #[async_trait]
-impl DbSetup for NewTwoMeasurementsManyFieldsTwoChunks {
+impl DbSetup for TwoMeasurementsManyFieldsTwoChunks {
     async fn make(&self) -> Vec<DbScenario> {
         let partition_key = "1970-01-01T00";
 
@@ -403,7 +403,7 @@ impl DbSetup for NewTwoMeasurementsManyFieldsTwoChunks {
         ];
 
         let lp_lines2 = vec![
-            "h2o,state=CA,city=Boston other_temp=72.4 350",
+            "h2o,state=CA,city=Boston other_temp=72.4 150",
             "o2,state=MA,city=Boston temp=53.4,reading=51 50",
             "o2,state=CA temp=79.0 300",
         ];
@@ -418,7 +418,7 @@ impl DbSetup for NewTwoMeasurementsManyFieldsTwoChunks {
             ChunkData {
                 lp_lines: lp_lines2,
                 partition_key,
-                chunk_stage: Some(ChunkStage::Parquet),
+                chunk_stage: Some(ChunkStage::Ingester),
                 ..Default::default()
             },
         ])
@@ -440,6 +440,74 @@ impl DbSetup for NewTwoMeasurementsManyFieldsTwoChunks {
             ctx.collect(physical_plan).await.expect("Running plan");
             query_completed_token.set_success()
         }
+
+        scenarios
+    }
+}
+
+#[derive(Debug)]
+/// This has several chunks that represent differnt chunk stage and overlaps for EXPLAIN plans
+pub struct ManyFieldsSeveralChunks {}
+#[async_trait]
+impl DbSetup for ManyFieldsSeveralChunks {
+    async fn make(&self) -> Vec<DbScenario> {
+        let partition_key = "1970-01-01T00";
+
+        // c1: parquet stage
+        let lp_lines1 = vec![
+            "h2o,state=MA,city=Boston temp=70.4 50",
+            "h2o,state=MA,city=Boston other_temp=70.4 250", // duplicate with a row in c4 and will be removed
+        ];
+        let c1 = ChunkData {
+            lp_lines: lp_lines1,
+            partition_key,
+            chunk_stage: Some(ChunkStage::Parquet),
+            ..Default::default()
+        };
+
+        // c2: parquet stage & overlaps with c1
+        let lp_lines2 = vec!["h2o,state=CA,city=Andover other_temp=72.4 150"];
+        let c2 = ChunkData {
+            lp_lines: lp_lines2,
+            partition_key,
+            chunk_stage: Some(ChunkStage::Parquet),
+            ..Default::default()
+        };
+
+        // c3: parquet stage & not overlap with any
+        let lp_lines3 = vec![
+            "h2o,state=MA,city=Boston temp=80.7 350",
+            "h2o,state=MA,city=Boston other_temp=68.2 450",
+        ];
+        let c3 = ChunkData {
+            lp_lines: lp_lines3,
+            partition_key,
+            chunk_stage: Some(ChunkStage::Parquet),
+            ..Default::default()
+        };
+
+        // c4: parquet stage & overlap with c1
+        let lp_lines4 = vec![
+            "h2o,state=MA,city=Boston temp=88.6 230",
+            "h2o,state=MA,city=Boston other_temp=80 250", // duplicate with a row in c1 but more recent => this row is kept
+        ];
+        let c4 = ChunkData {
+            lp_lines: lp_lines4,
+            partition_key,
+            chunk_stage: Some(ChunkStage::Parquet),
+            ..Default::default()
+        };
+
+        // c5: ingester stage & not overlaps with any
+        let lp_lines5 = vec!["h2o,state=CA,city=Andover temp=67.3 500"];
+        let c5 = ChunkData {
+            lp_lines: lp_lines5,
+            partition_key,
+            chunk_stage: Some(ChunkStage::Ingester),
+            ..Default::default()
+        };
+
+        let scenarios = make_n_chunks_scenario(&[c1, c2, c3, c4, c5]).await;
 
         scenarios
     }

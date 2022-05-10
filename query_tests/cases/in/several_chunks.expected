@@ -1,0 +1,62 @@
+-- Test Setup: ManyFieldsSeveralChunks
+-- SQL: SELECT * from h2o;
+-- Results After Sorting
++---------+------------+-------+------+--------------------------------+
+| city    | other_temp | state | temp | time                           |
++---------+------------+-------+------+--------------------------------+
+| Andover | 72.4       | CA    |      | 1970-01-01T00:00:00.000000150Z |
+| Andover |            | CA    | 67.3 | 1970-01-01T00:00:00.000000500Z |
+| Boston  | 68.2       | MA    |      | 1970-01-01T00:00:00.000000450Z |
+| Boston  | 80         | MA    |      | 1970-01-01T00:00:00.000000250Z |
+| Boston  |            | MA    | 70.4 | 1970-01-01T00:00:00.000000050Z |
+| Boston  |            | MA    | 80.7 | 1970-01-01T00:00:00.000000350Z |
+| Boston  |            | MA    | 88.6 | 1970-01-01T00:00:00.000000230Z |
++---------+------------+-------+------+--------------------------------+
+-- SQL: EXPLAIN SELECT * from h2o;
++---------------+---------------------------------------------------------------------------------------------------------------------+
+| plan_type     | plan                                                                                                                |
++---------------+---------------------------------------------------------------------------------------------------------------------+
+| logical_plan  | Projection: #h2o.city, #h2o.other_temp, #h2o.state, #h2o.temp, #h2o.time                                            |
+|               |   TableScan: h2o projection=Some([0, 1, 2, 3, 4])                                                                   |
+| physical_plan | ProjectionExec: expr=[city@0 as city, other_temp@1 as other_temp, state@2 as state, temp@3 as temp, time@4 as time] |
+|               |   UnionExec                                                                                                         |
+|               |     DeduplicateExec: [city@0 ASC,state@2 ASC,time@4 ASC]                                                            |
+|               |       SortPreservingMergeExec: [city@0 ASC,state@2 ASC,time@4 ASC]                                                  |
+|               |         UnionExec                                                                                                   |
+|               |           IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                                           |
+|               |           IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                                           |
+|               |           IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                                           |
+|               |     IOxReadFilterNode: table_name=h2o, chunks=2 predicate=Predicate                                                 |
+|               |                                                                                                                     |
++---------------+---------------------------------------------------------------------------------------------------------------------+
+-- SQL: select temp, other_temp, time from h2o;
++------+------------+--------------------------------+
+| temp | other_temp | time                           |
++------+------------+--------------------------------+
+| 67.3 |            | 1970-01-01T00:00:00.000000500Z |
+| 80.7 |            | 1970-01-01T00:00:00.000000350Z |
+|      | 68.2       | 1970-01-01T00:00:00.000000450Z |
+|      | 72.4       | 1970-01-01T00:00:00.000000150Z |
+| 70.4 |            | 1970-01-01T00:00:00.000000050Z |
+| 88.6 |            | 1970-01-01T00:00:00.000000230Z |
+|      | 80         | 1970-01-01T00:00:00.000000250Z |
++------+------------+--------------------------------+
+-- SQL: EXPLAIN select temp, other_temp, time from h2o;
++---------------+---------------------------------------------------------------------------------------+
+| plan_type     | plan                                                                                  |
++---------------+---------------------------------------------------------------------------------------+
+| logical_plan  | Projection: #h2o.temp, #h2o.other_temp, #h2o.time                                     |
+|               |   TableScan: h2o projection=Some([1, 3, 4])                                           |
+| physical_plan | ProjectionExec: expr=[temp@1 as temp, other_temp@0 as other_temp, time@2 as time]     |
+|               |   UnionExec                                                                           |
+|               |     ProjectionExec: expr=[other_temp@1 as other_temp, temp@3 as temp, time@4 as time] |
+|               |       RepartitionExec: partitioning=RoundRobinBatch(4)                                |
+|               |         DeduplicateExec: [city@0 ASC,state@2 ASC,time@4 ASC]                          |
+|               |           SortPreservingMergeExec: [city@0 ASC,state@2 ASC,time@4 ASC]                |
+|               |             UnionExec                                                                 |
+|               |               IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate         |
+|               |               IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate         |
+|               |               IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate         |
+|               |     IOxReadFilterNode: table_name=h2o, chunks=2 predicate=Predicate                   |
+|               |                                                                                       |
++---------------+---------------------------------------------------------------------------------------+
