@@ -1,7 +1,8 @@
 //! Implementation of command line option for running the compactor
 
 use iox_time::{SystemProvider, TimeProvider};
-use object_store::{instrumentation::ObjectStoreMetrics, DynObjectStore};
+use object_store::DynObjectStore;
+use object_store_metrics::ObjectStoreMetrics;
 use observability_deps::tracing::*;
 use query::exec::Executor;
 use std::sync::Arc;

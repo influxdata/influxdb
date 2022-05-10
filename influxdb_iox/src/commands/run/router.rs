@@ -11,7 +11,8 @@ use ioxd_common::{
     Service,
 };
 use ioxd_router::create_router_server_type;
-use object_store::{instrumentation::ObjectStoreMetrics, DynObjectStore};
+use object_store::DynObjectStore;
+use object_store_metrics::ObjectStoreMetrics;
 use observability_deps::tracing::*;
 use std::sync::Arc;
 use thiserror::Error;

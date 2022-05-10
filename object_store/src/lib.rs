@@ -28,10 +28,6 @@ pub mod memory;
 pub mod path;
 pub mod throttle;
 
-#[cfg(test)]
-mod dummy;
-pub mod instrumentation;
-
 use crate::path::Path;
 use async_trait::async_trait;
 use bytes::Bytes;

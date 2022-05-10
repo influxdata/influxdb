@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use snafu::Snafu;
 
-use crate::{path::Path, GetResult, ListResult, ObjectStoreApi, Result};
+use object_store::{path::Path, GetResult, ListResult, ObjectStoreApi, Result};
 
 /// A specialized `Error` for Azure object store-related errors
 #[derive(Debug, Snafu, Clone)]
@@ -18,7 +18,7 @@ enum Error {
     NotSupported { name: &'static str },
 }
 
-impl From<Error> for super::Error {
+impl From<Error> for object_store::Error {
     fn from(source: Error) -> Self {
         match source {
             Error::NotSupported { name } => Self::Generic {

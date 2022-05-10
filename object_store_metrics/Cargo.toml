@@ -1,0 +1,22 @@
+[package]
+name = "object_store_metrics"
+version = "0.1.0"
+authors = ["Paul Dix <paul@pauldix.net>"]
+edition = "2021"
+
+[dependencies] # In alphabetical order
+async-trait = "0.1.53"
+bytes = "1.1"
+futures = "0.3"
+iox_time = { version = "0.1.0", path = "../iox_time" }
+metric = { version = "0.1.0", path = "../metric" }
+object_store = { path = "../object_store" }
+pin-project = "1.0.10"
+workspace-hack = { path = "../workspace-hack" }
+
+[dev-dependencies] # In alphabetical order
+dotenv = "0.15.0"
+tempfile = "3.1.0"
+snafu = "0.7"
+futures-test = "0.3"
+tokio = { version = "1.18", features = ["macros", "io-util"] }

@@ -14,7 +14,10 @@ use iox_time::{SystemProvider, Time, TimeProvider};
 use metric::{Metric, U64Counter, U64Histogram, U64HistogramOptions};
 use pin_project::{pin_project, pinned_drop};
 
-use crate::{path::Path, GetResult, ListResult, ObjectStoreApi, Result};
+use object_store::{path::Path, GetResult, ListResult, ObjectStoreApi, Result};
+
+#[cfg(test)]
+mod dummy;
 
 /// An instrumentation decorator, wrapping an underlying [`ObjectStoreApi`]
 /// implementation and recording bytes transferred and call latency.
@@ -507,7 +510,8 @@ mod tests {
     use metric::Attributes;
     use tokio::io::AsyncReadExt;
 
-    use crate::{disk::LocalFileSystem, dummy::DummyObjectStore, memory::InMemory};
+    use dummy::DummyObjectStore;
+    use object_store::{disk::LocalFileSystem, memory::InMemory};
 
     use super::*;
 

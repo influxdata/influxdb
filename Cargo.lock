@@ -2149,6 +2149,7 @@ dependencies = [
  "metric",
  "num_cpus",
  "object_store",
+ "object_store_metrics",
  "observability_deps",
  "once_cell",
  "panic_logging",
@@ -3427,12 +3428,9 @@ dependencies = [
  "futures-test",
  "hyper",
  "hyper-rustls",
- "iox_time",
  "itertools",
- "metric",
  "observability_deps",
  "percent-encoding",
- "pin-project",
  "reqwest",
  "rusoto_core",
  "rusoto_credential",
@@ -3442,6 +3440,25 @@ dependencies = [
  "tokio",
  "tokio-util 0.7.1",
  "walkdir",
+ "workspace-hack",
+]
+
+[[package]]
+name = "object_store_metrics"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "bytes",
+ "dotenv",
+ "futures",
+ "futures-test",
+ "iox_time",
+ "metric",
+ "object_store",
+ "pin-project",
+ "snafu",
+ "tempfile",
+ "tokio",
  "workspace-hack",
 ]
 
