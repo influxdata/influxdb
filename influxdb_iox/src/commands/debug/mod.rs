@@ -2,6 +2,7 @@ use futures::Future;
 use influxdb_iox_client::connection::Connection;
 use snafu::prelude::*;
 
+mod namespace;
 mod print_cpu;
 mod schema;
 
@@ -10,6 +11,10 @@ pub enum Error {
     #[snafu(context(false))]
     #[snafu(display("Error in schema subcommand: {}", source))]
     SchemaError { source: schema::Error },
+
+    #[snafu(context(false))]
+    #[snafu(display("Error in namespace subcommand: {}", source))]
+    NamespaceError { source: namespace::Error },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -26,6 +31,10 @@ enum Command {
     /// Prints what CPU features are used by the compiler by default.
     PrintCpu,
 
+    /// Interrogate IOx namespaces
+    Namespace(namespace::Config),
+
+    /// Interrogate the schema of a namespace
     Schema(schema::Config),
 }
 
@@ -36,6 +45,10 @@ where
 {
     match config.command {
         Command::PrintCpu => print_cpu::main(),
+        Command::Namespace(config) => {
+            let connection = connection().await;
+            namespace::command(connection, config).await?
+        }
         Command::Schema(config) => {
             let connection = connection().await;
             schema::command(connection, config).await?

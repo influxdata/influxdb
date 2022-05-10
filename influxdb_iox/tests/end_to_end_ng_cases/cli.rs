@@ -193,6 +193,44 @@ async fn schema_cli() {
     .await
 }
 
+/// Test the schema cli command
+#[tokio::test]
+async fn namespaces_cli() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+
+    let mut cluster = MiniCluster::create_shared(database_url).await;
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            Step::WriteLineProtocol(String::from(
+                "my_awesome_table2,tag1=A,tag2=B val=42i 123456",
+            )),
+            Step::Custom(Box::new(|state: &mut StepTestState| {
+                async {
+                    let querier_addr = state.cluster().querier().querier_grpc_base().to_string();
+
+                    // Validate the output of the schema CLI command
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(&querier_addr)
+                        .arg("debug")
+                        .arg("namespace")
+                        .arg("list")
+                        .assert()
+                        .success()
+                        .stdout(predicate::str::contains(state.cluster().namespace()));
+                }
+                .boxed()
+            })),
+        ],
+    )
+    .run()
+    .await
+}
+
 /// Test the query_ingester CLI command
 #[tokio::test]
 async fn query_ingester() {
