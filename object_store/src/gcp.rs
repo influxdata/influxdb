@@ -300,7 +300,7 @@ mod test {
         () => {{
             dotenv::dotenv().ok();
 
-            let required_vars = ["INFLUXDB_IOX_BUCKET", "GOOGLE_SERVICE_ACCOUNT"];
+            let required_vars = ["OBJECT_STORE_BUCKET", "GOOGLE_SERVICE_ACCOUNT"];
             let unset_vars: Vec<_> = required_vars
                 .iter()
                 .filter_map(|&name| match env::var(name) {
@@ -330,8 +330,8 @@ mod test {
                 return;
             } else {
                 GoogleCloudConfig {
-                    bucket: env::var("INFLUXDB_IOX_BUCKET")
-                        .expect("already checked INFLUXDB_IOX_BUCKET"),
+                    bucket: env::var("OBJECT_STORE_BUCKET")
+                        .expect("already checked OBJECT_STORE_BUCKET"),
                     service_account: env::var("GOOGLE_SERVICE_ACCOUNT")
                         .expect("already checked GOOGLE_SERVICE_ACCOUNT"),
                 }

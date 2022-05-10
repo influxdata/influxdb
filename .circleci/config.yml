@@ -227,7 +227,7 @@ jobs:
       AWS_SECRET_ACCESS_KEY: test
       AWS_ENDPOINT: http://127.0.0.1:4566
       AZURE_USE_EMULATOR: "1"
-      INFLUXDB_IOX_BUCKET: iox-test
+      OBJECT_STORE_BUCKET: iox-test
       POSTGRES_USER: postgres
       TEST_INFLUXDB_IOX_CATALOG_DSN: "postgres://postgres@localhost/iox_shared"
     steps:

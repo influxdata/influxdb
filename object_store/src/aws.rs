@@ -690,7 +690,7 @@ mod tests {
 
             let required_vars = [
                 "AWS_DEFAULT_REGION",
-                "INFLUXDB_IOX_BUCKET",
+                "OBJECT_STORE_BUCKET",
                 "AWS_ACCESS_KEY_ID",
                 "AWS_SECRET_ACCESS_KEY",
             ];
@@ -729,8 +729,8 @@ mod tests {
                         .expect("already checked AWS_SECRET_ACCESS_KEY"),
                     region: env::var("AWS_DEFAULT_REGION")
                         .expect("already checked AWS_DEFAULT_REGION"),
-                    bucket: env::var("INFLUXDB_IOX_BUCKET")
-                        .expect("already checked INFLUXDB_IOX_BUCKET"),
+                    bucket: env::var("OBJECT_STORE_BUCKET")
+                        .expect("already checked OBJECT_STORE_BUCKET"),
                     endpoint: env::var("AWS_ENDPOINT").ok(),
                     token: env::var("AWS_SESSION_TOKEN").ok(),
                 }

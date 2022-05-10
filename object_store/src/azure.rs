@@ -300,7 +300,7 @@ mod tests {
 
             let use_emulator = std::env::var("AZURE_USE_EMULATOR").is_ok();
 
-            let mut required_vars = vec!["INFLUXDB_IOX_BUCKET"];
+            let mut required_vars = vec!["OBJECT_STORE_BUCKET"];
             if !use_emulator {
                 required_vars.push("AZURE_STORAGE_ACCOUNT");
                 required_vars.push("AZURE_STORAGE_ACCESS_KEY");
@@ -336,8 +336,8 @@ mod tests {
                 AzureConfig {
                     storage_account: env::var("AZURE_STORAGE_ACCOUNT").unwrap_or_default(),
                     access_key: env::var("AZURE_STORAGE_ACCESS_KEY").unwrap_or_default(),
-                    bucket: env::var("INFLUXDB_IOX_BUCKET")
-                        .expect("already checked INFLUXDB_IOX_BUCKET"),
+                    bucket: env::var("OBJECT_STORE_BUCKET")
+                        .expect("already checked OBJECT_STORE_BUCKET"),
                     use_emulator,
                 }
             }
