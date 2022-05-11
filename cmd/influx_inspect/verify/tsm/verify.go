@@ -46,7 +46,6 @@ func (cmd *Command) Run(args ...string) error {
 		return err
 	}
 
-	dataPath := filepath.Join(path, "data")
 	tw := tabwriter.NewWriter(cmd.Stdout, 16, 8, 0, '\t', 0)
 
 	var runner verifier
@@ -55,7 +54,7 @@ func (cmd *Command) Run(args ...string) error {
 	} else {
 		runner = &verifyChecksums{}
 	}
-	err := runner.Run(tw, dataPath)
+	err := runner.Run(tw, path)
 	tw.Flush()
 	return err
 }
