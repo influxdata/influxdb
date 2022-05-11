@@ -285,8 +285,9 @@ dependencies = [
 
 [[package]]
 name = "azure_core"
-version = "0.1.1"
-source = "git+https://github.com/Azure/azure-sdk-for-rust.git?rev=15de10cb58cf5cb271334a20e35fa9fbedd10244#15de10cb58cf5cb271334a20e35fa9fbedd10244"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ca4393afee90ad13c987a2cbfeb5bbb0b9fb3c86585e42ed3ed151babaa93da1"
 dependencies = [
  "async-trait",
  "base64 0.13.0",
@@ -307,13 +308,14 @@ dependencies = [
  "serde_json",
  "thiserror",
  "url",
- "uuid 0.8.2",
+ "uuid 1.0.0",
 ]
 
 [[package]]
 name = "azure_storage"
-version = "0.1.0"
-source = "git+https://github.com/Azure/azure-sdk-for-rust.git?rev=15de10cb58cf5cb271334a20e35fa9fbedd10244#15de10cb58cf5cb271334a20e35fa9fbedd10244"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7a9f2aee687da9817f7b332e1e01dda51cd9f7a0a68a5abcfec7c4c494a65546"
 dependencies = [
  "RustyXML",
  "async-trait",
@@ -333,13 +335,14 @@ dependencies = [
  "sha2 0.10.2",
  "thiserror",
  "url",
- "uuid 0.8.2",
+ "uuid 1.0.0",
 ]
 
 [[package]]
 name = "azure_storage_blobs"
-version = "0.1.0"
-source = "git+https://github.com/Azure/azure-sdk-for-rust.git?rev=15de10cb58cf5cb271334a20e35fa9fbedd10244#15de10cb58cf5cb271334a20e35fa9fbedd10244"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d17982127c4a34736a60656ddbd05b1714420686b6e6304145ee3b4501395e75"
 dependencies = [
  "RustyXML",
  "azure_core",
@@ -357,7 +360,7 @@ dependencies = [
  "serde_json",
  "thiserror",
  "url",
- "uuid 0.8.2",
+ "uuid 1.0.0",
 ]
 
 [[package]]
