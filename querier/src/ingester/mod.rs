@@ -29,19 +29,26 @@ pub(crate) mod test_util;
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
 pub enum Error {
-    #[snafu(display("Failed to select columns: {}", source))]
-    SelectColumns { source: schema::Error },
-
-    #[snafu(display("Internal error: ingester record batch for colum '{}' has type '{}' but should have type '{}'",
-                    column_name, actual_data_type, desired_data_type))]
+    #[snafu(display(
+        "Internal error: \
+        ingester record batch for column '{}' has type '{}' but should have type '{}'",
+        column_name,
+        actual_data_type,
+        desired_data_type
+    ))]
     RecordBatchType {
         column_name: String,
         actual_data_type: DataType,
         desired_data_type: DataType,
     },
 
-    #[snafu(display("Internal error: failed to resolve ingester record batch types for column '{}' type '{}': {}",
-                    column_name, data_type, source))]
+    #[snafu(display(
+        "Internal error: \
+        failed to resolve ingester record batch types for column '{}' type '{}': {}",
+        column_name,
+        data_type,
+        source
+    ))]
     ConvertingRecordBatch {
         column_name: String,
         data_type: DataType,
@@ -50,9 +57,6 @@ pub enum Error {
 
     #[snafu(display("Internal error creating record batch: {}", source))]
     CreatingRecordBatch { source: ArrowError },
-
-    #[snafu(display("Internal error creating IOx schema: {}", source))]
-    CreatingSchema { source: schema::Error },
 
     #[snafu(display("Failed ingester query '{}': {}", ingester_address, source))]
     RemoteQuery {
@@ -578,23 +582,24 @@ impl QueryChunk for IngesterPartition {
 /// 2. NULL-column creation
 ///
 /// # Dictionary Type Recovery
-/// Cast arrays in record batch to be the type of schema this is a
-/// workaround for
-/// <https://github.com/influxdata/influxdb_iox/pull/4273> where the
-/// flight API doesn't necessarily return the same schema as was
-/// provided by the ingester.
 ///
-/// Namely, dictionary encoded columns (e.g. tags) are returned as
-/// `DataType::Utf8` even when they were sent as
-/// `DataType::Dictionary(Int32, Utf8)`.
+/// Cast arrays in record batch to be the type of schema. This is a workaround for
+/// <https://github.com/influxdata/influxdb_iox/pull/4273> where the Flight API doesn't necessarily
+/// return the same schema as was provided by the ingester.
+///
+/// Namely, dictionary encoded columns (e.g. tags) are returned as `DataType::Utf8` even when they
+/// were sent as `DataType::Dictionary(Int32, Utf8)`.
 ///
 /// # NULL-column Creation
-/// If a column is absent in an ingester partition it will not be part of record batch even when the querier requests
-/// it. In that case we create it as "all NULL" column with the appropriate type.
 ///
-/// An alternative would be to remove the column from the schema of the appropriate [`IngesterPartition`]. However since
-/// a partition may contain multiple record batches and we do not want to assume that the presence/absence of columns is
-/// identical for all of them, we fix this here.
+/// If a column is absent in an ingester partition it will not be part of record batch even when
+/// the querier requests it. In that case we create it as "all NULL" column with the appropriate
+/// type.
+///
+/// An alternative would be to remove the column from the schema of the appropriate
+/// [`IngesterPartition`]. However, since a partition may contain multiple record batches and we do
+/// not want to assume that the presence/absence of columns is identical for all of them, we fix
+/// this here.
 fn ensure_schema(batch: RecordBatch, expected_schema: &Schema) -> Result<RecordBatch> {
     let actual_schema = batch.schema();
     let desired_fields = expected_schema.iter().map(|(_, f)| f);
