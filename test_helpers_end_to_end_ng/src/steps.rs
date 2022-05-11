@@ -84,6 +84,10 @@ pub enum Step {
     /// Wait for all previously written data to be persisted
     WaitForPersisted,
 
+    /// Ask the ingester if it has persisted the data. For use in tests where the querier doesn't
+    /// know about the ingester, so the test needs to ask the ingester directly.
+    WaitForPersistedAccordingToIngester,
+
     /// Run a query using the FlightSQL interface and verify that the
     /// results match the expected results using the
     /// `assert_batches_eq!` macro
@@ -167,6 +171,17 @@ impl<'a> StepTest<'a> {
                         state.cluster().querier().querier_grpc_connection();
                     for write_token in &state.write_tokens {
                         wait_for_persisted(write_token, querier_grpc_connection.clone()).await;
+                    }
+                    info!("====Done waiting for all write tokens to be persisted");
+                }
+                // Specifically for cases when the querier doesn't know about the ingester so the
+                // test needs to ask the ingester directly.
+                Step::WaitForPersistedAccordingToIngester => {
+                    info!("====Begin waiting for all write tokens to be persisted");
+                    let ingester_grpc_connection =
+                        state.cluster().ingester().ingester_grpc_connection();
+                    for write_token in &state.write_tokens {
+                        wait_for_persisted(write_token, ingester_grpc_connection.clone()).await;
                     }
                     info!("====Done waiting for all write tokens to be persisted");
                 }

@@ -103,8 +103,9 @@ async fn basic_no_ingester_connection() {
         &mut cluster,
         vec![
             Step::WriteLineProtocol(format!("{},tag1=A,tag2=B val=42i 123456", table_name)),
-            // Wait for data to be persisted to parquet
-            Step::WaitForPersisted,
+            // Wait for data to be persisted to parquet, ask the ingester directly because the
+            // querier is not connected to the ingester
+            Step::WaitForPersistedAccordingToIngester,
             Step::Query {
                 sql: format!("select * from {}", table_name),
                 expected: vec![
