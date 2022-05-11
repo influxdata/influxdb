@@ -9,6 +9,7 @@ pub mod generated_types {
         write_info_service_client, write_info_service_server, GetWriteInfoRequest,
         GetWriteInfoResponse, KafkaPartitionInfo, KafkaPartitionStatus,
     };
+    pub use generated_types::write_info::merge_responses;
 }
 
 /// A basic client for fetching information about write tokens from a
