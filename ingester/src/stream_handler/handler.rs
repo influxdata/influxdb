@@ -263,6 +263,16 @@ where
 
     async fn maybe_apply_op(&mut self, op: Option<DmlOperation>) {
         if let Some(op) = op {
+            // Emit per-op debug info.
+            trace!(
+                kafka_topic=%self.kafka_topic_name,
+                kafka_partition=%self.kafka_partition,
+                op_size=op.size(),
+                op_namespace=op.namespace(),
+                op_sequence_number=?op.meta().sequence().map(|s| s.sequence_number),
+                "decoded dml operation"
+            );
+
             // Extract the producer timestamp (added in the router when
             // dispatching the request).
             let produced_at = op.meta().producer_ts();
@@ -272,6 +282,7 @@ where
                     trace!(
                         kafka_topic=%self.kafka_topic_name,
                         kafka_partition=%self.kafka_partition,
+                        %should_pause,
                         "successfully applied dml operation"
                     );
                     should_pause
