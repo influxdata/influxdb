@@ -120,8 +120,8 @@ async fn basic_multi_ingesters() {
     StepTest::new(&mut cluster, test_steps).run().await
 }
 
-/// Return a combined readable response from the ingesters that is
-/// readable for all partitions. Retries forever
+/// Use the WriteInfo API on the querier that will combine write info from all the ingesters it
+/// knows about to get the status of data
 async fn get_multi_ingester_readable_combined_response(
     state: &mut StepTestState<'_>,
 ) -> GetWriteInfoResponse {

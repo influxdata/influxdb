@@ -78,15 +78,19 @@ impl<C: QuerierHandler + std::fmt::Debug + 'static> ServerType for QuerierServer
         let builder = setup_builder!(builder_input, self);
         add_service!(
             builder,
-            rpc::query::make_flight_server(Arc::clone(&self.database),)
+            rpc::query::make_flight_server(Arc::clone(&self.database))
         );
         add_service!(
             builder,
-            rpc::query::make_storage_server(Arc::clone(&self.database),)
+            rpc::query::make_storage_server(Arc::clone(&self.database))
         );
         add_service!(
             builder,
-            rpc::namespace::namespace_service(Arc::clone(&self.database),)
+            rpc::namespace::namespace_service(Arc::clone(&self.database))
+        );
+        add_service!(
+            builder,
+            rpc::write_info::write_info_service(Arc::clone(&self.database))
         );
         add_service!(builder, self.server.handler().schema_service());
         serve_builder!(builder);

@@ -5,13 +5,17 @@ use self::{
 use crate::cache::CatalogCache;
 use arrow::{datatypes::DataType, error::ArrowError, record_batch::RecordBatch};
 use async_trait::async_trait;
+use client_util::connection;
 use data_types::{
     ChunkAddr, ChunkId, ChunkOrder, ColumnSummary, InfluxDbType, PartitionId, SequenceNumber,
     SequencerId, StatValues, Statistics, TableSummary, TimestampMinMax,
 };
 use datafusion_util::MemoryStream;
 use futures::{stream::FuturesUnordered, TryStreamExt};
-use generated_types::ingester::IngesterQueryRequest;
+use generated_types::{
+    influxdata::iox::ingester::v1::GetWriteInfoResponse, ingester::IngesterQueryRequest,
+    write_info::merge_responses,
+};
 use observability_deps::tracing::{debug, trace};
 use predicate::{Predicate, PredicateMatch};
 use query::{
@@ -91,6 +95,24 @@ pub enum Error {
         partition_id: i64,
         ingester_address: String,
     },
+
+    #[snafu(display("Failed to connect to ingester '{}': {}", ingester_address, source))]
+    Connecting {
+        ingester_address: String,
+        source: connection::Error,
+    },
+
+    #[snafu(display(
+        "Error retrieving write info from '{}' for write token '{}': {}",
+        ingester_address,
+        write_token,
+        source,
+    ))]
+    WriteInfo {
+        ingester_address: String,
+        write_token: String,
+        source: influxdb_iox_client::error::Error,
+    },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -125,6 +147,10 @@ pub trait IngesterConnection: std::fmt::Debug + Send + Sync + 'static {
         predicate: &Predicate,
         expected_schema: Arc<Schema>,
     ) -> Result<Vec<Arc<IngesterPartition>>>;
+
+    /// Returns the most recent partition sstatus info across all ingester(s) for the specified
+    /// write token.
+    async fn get_write_info(&self, write_token: &str) -> Result<GetWriteInfoResponse>;
 
     /// Return backend as [`Any`] which can be used to downcast to a specifc implementation.
     fn as_any(&self) -> &dyn Any;
@@ -337,9 +363,39 @@ impl IngesterConnection for IngesterConnectionImpl {
         Ok(ingester_partitions)
     }
 
+    async fn get_write_info(&self, write_token: &str) -> Result<GetWriteInfoResponse> {
+        let responses = self
+            .ingester_addresses
+            .iter()
+            .map(|ingester_address| execute_get_write_infos(ingester_address, write_token))
+            .collect::<FuturesUnordered<_>>()
+            .try_collect::<Vec<_>>()
+            .await?;
+
+        Ok(merge_responses(responses))
+    }
+
     fn as_any(&self) -> &dyn Any {
         self as &dyn Any
     }
+}
+
+async fn execute_get_write_infos(
+    ingester_address: &str,
+    write_token: &str,
+) -> Result<GetWriteInfoResponse, Error> {
+    let connection = connection::Builder::new()
+        .build(ingester_address)
+        .await
+        .context(ConnectingSnafu { ingester_address })?;
+
+    influxdb_iox_client::write_info::Client::new(connection)
+        .get_write_info(write_token)
+        .await
+        .context(WriteInfoSnafu {
+            ingester_address,
+            write_token,
+        })
 }
 
 /// A wrapper around the unpersisted data in a partition returned by

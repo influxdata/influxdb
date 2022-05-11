@@ -1,9 +1,8 @@
-use std::{any::Any, sync::Arc};
-
-use async_trait::async_trait;
-use parking_lot::Mutex;
-
 use super::IngesterConnection;
+use async_trait::async_trait;
+use generated_types::influxdata::iox::ingester::v1::GetWriteInfoResponse;
+use parking_lot::Mutex;
+use std::{any::Any, sync::Arc};
 
 /// IngesterConnection for testing
 #[derive(Debug, Default)]
@@ -38,6 +37,10 @@ impl IngesterConnection for MockIngesterConnection {
             .lock()
             .take()
             .unwrap_or_else(|| Ok(vec![]))
+    }
+
+    async fn get_write_info(&self, _write_token: &str) -> super::Result<GetWriteInfoResponse> {
+        unimplemented!()
     }
 
     fn as_any(&self) -> &dyn Any {

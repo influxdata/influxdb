@@ -154,29 +154,29 @@ impl<'a> StepTest<'a> {
                 }
                 Step::WaitForReadable => {
                     info!("====Begin waiting for all write tokens to be readable");
-                    let ingester_grpc_connection =
-                        state.cluster().ingester().ingester_grpc_connection();
+                    let querier_grpc_connection =
+                        state.cluster().querier().querier_grpc_connection();
                     for write_token in &state.write_tokens {
-                        wait_for_readable(write_token, ingester_grpc_connection.clone()).await;
+                        wait_for_readable(write_token, querier_grpc_connection.clone()).await;
                     }
                     info!("====Done waiting for all write tokens to be readable");
                 }
                 Step::WaitForPersisted => {
                     info!("====Begin waiting for all write tokens to be persisted");
-                    let ingester_grpc_connection =
-                        state.cluster().ingester().ingester_grpc_connection();
+                    let querier_grpc_connection =
+                        state.cluster().querier().querier_grpc_connection();
                     for write_token in &state.write_tokens {
-                        wait_for_persisted(write_token, ingester_grpc_connection.clone()).await;
+                        wait_for_persisted(write_token, querier_grpc_connection.clone()).await;
                     }
                     info!("====Done waiting for all write tokens to be persisted");
                 }
                 Step::AssertNotPersisted => {
                     info!("====Begin checking all tokens not persisted");
-                    let ingester_grpc_connection =
-                        state.cluster().ingester().ingester_grpc_connection();
+                    let querier_grpc_connection =
+                        state.cluster().querier().querier_grpc_connection();
                     for write_token in &state.write_tokens {
                         let persisted =
-                            token_is_persisted(write_token, ingester_grpc_connection.clone()).await;
+                            token_is_persisted(write_token, querier_grpc_connection.clone()).await;
                         assert!(!persisted);
                     }
                     info!("====Done checking all tokens not persisted");
