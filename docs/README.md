@@ -23,6 +23,13 @@ We hold monthly Tech Talks that explain the project's technical underpinnings. Y
 
 ## Table of Contents:
 
+###  User Contents
+
+* [SQL command line tips and tricks](sql.md)
+* [CLI command line tips and tricks](cli.md)
+
+###  Developer Content
+
 * [Rust style and Idiom guide](style_guide.md)
 * [Distributed Tracing Guide](tracing.md)
 * [Logging Guide](logging.md)
@@ -32,7 +39,6 @@ We hold monthly Tech Talks that explain the project's technical underpinnings. Y
 * [Valgrind Guide](valgrind.md)
 * [Protobuf tips and tricks](protobuf.md)
 * [Testing documentation](testing.md) for developers of IOx
-* [SQL command line tips and tricks](sql.md)
 * IOx Architecture
     * [Data Deduplication & Sort Key](dedup_and_sort.md)
     * Transactions and locks (to be written & linked)
