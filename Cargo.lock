@@ -4222,6 +4222,7 @@ dependencies = [
  "mutable_batch_lp",
  "once_cell",
  "predicate",
+ "pretty_assertions",
  "querier",
  "query",
  "schema",
