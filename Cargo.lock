@@ -668,9 +668,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "3.1.17"
+version = "3.1.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "47582c09be7c8b32c0ab3a6181825ababb713fde6fff20fc573a3870dd45c6a0"
+checksum = "d2dbdf4bdacb33466e854ce889eee8dfd5729abf7ccd7664d0a2d60cd384440b"
 dependencies = [
  "atty",
  "bitflags",
@@ -687,7 +687,7 @@ dependencies = [
 name = "clap_blocks"
 version = "0.1.0"
 dependencies = [
- "clap 3.1.17",
+ "clap 3.1.18",
  "futures",
  "humantime",
  "iox_catalog",
@@ -707,9 +707,9 @@ dependencies = [
 
 [[package]]
 name = "clap_derive"
-version = "3.1.7"
+version = "3.1.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a3aab4734e083b809aaf5794e14e756d1c798d2c69c7f7de7a09a2f5214993c1"
+checksum = "25320346e922cffe59c0bbc5410c8d8784509efb321488971081313cb1e1a33c"
 dependencies = [
  "heck 0.4.0",
  "proc-macro-error",
@@ -2124,7 +2124,7 @@ dependencies = [
  "assert_cmd",
  "backtrace",
  "bytes",
- "clap 3.1.17",
+ "clap 3.1.18",
  "clap_blocks",
  "console-subscriber",
  "data_types",
@@ -2376,7 +2376,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "chrono-english",
- "clap 3.1.17",
+ "clap 3.1.18",
  "criterion",
  "futures",
  "handlebars",
@@ -2403,7 +2403,7 @@ dependencies = [
  "assert_matches",
  "async-trait",
  "chrono",
- "clap 3.1.17",
+ "clap 3.1.18",
  "dotenv",
  "futures",
  "k8s-openapi",
@@ -2476,7 +2476,7 @@ dependencies = [
  "async-trait",
  "bytes",
  "chrono",
- "clap 3.1.17",
+ "clap 3.1.18",
  "clap_blocks",
  "data_types",
  "dml",
@@ -2608,7 +2608,7 @@ name = "ioxd_test"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "clap 3.1.17",
+ "clap 3.1.18",
  "hyper",
  "ioxd_common",
  "metric",
@@ -6002,7 +6002,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "chrono",
- "clap 3.1.17",
+ "clap 3.1.18",
  "futures",
  "observability_deps",
  "snafu",
@@ -6148,7 +6148,7 @@ dependencies = [
 name = "trogging"
 version = "0.1.0"
 dependencies = [
- "clap 3.1.17",
+ "clap 3.1.18",
  "logfmt",
  "observability_deps",
  "regex",
