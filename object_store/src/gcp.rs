@@ -66,6 +66,18 @@ pub enum Error {
         path: String,
     },
 
+    #[snafu(display(
+        "Unable to GET data. Bucket: {}, Location: {}, Error: {}",
+        bucket,
+        path,
+        source,
+    ))]
+    UnableToHeadData {
+        source: cloud_storage::Error,
+        bucket: String,
+        path: String,
+    },
+
     NotFound {
         path: String,
         source: cloud_storage::Error,
@@ -148,6 +160,29 @@ impl ObjectStoreApi for GoogleCloudStorage {
 
         let s = futures::stream::once(async move { Ok(bytes.into()) }).boxed();
         Ok(GetResult::Stream(s))
+    }
+
+    async fn head(&self, location: &Path) -> Result<ObjectMeta> {
+        let object = self
+            .client
+            .object()
+            .read(&self.bucket_name, location.to_raw())
+            .await
+            .map_err(|e| match e {
+                cloud_storage::Error::Google(ref error) if error.error.code == 404 => {
+                    Error::NotFound {
+                        path: location.to_string(),
+                        source: e,
+                    }
+                }
+                _ => Error::UnableToHeadData {
+                    bucket: self.bucket_name.clone(),
+                    path: location.to_string(),
+                    source: e,
+                },
+            })?;
+
+        Ok(convert_object_meta(&object))
     }
 
     async fn delete(&self, location: &Path) -> Result<()> {
@@ -353,13 +388,9 @@ mod test {
 
         let location = Path::from_iter([NON_EXISTENT_NAME]);
 
-        let err = get_nonexistent_object(&integration, Some(location))
-            .await
-            .unwrap_err();
+        let err = integration.get(&location).await.unwrap_err();
 
-        if let Some(ObjectStoreError::NotFound { path, source }) =
-            err.downcast_ref::<ObjectStoreError>()
-        {
+        if let ObjectStoreError::NotFound { path, source } = err {
             let source_variant = source.downcast_ref::<cloud_storage::Error>();
             assert!(
                 matches!(source_variant, Some(cloud_storage::Error::Other(_))),
@@ -385,7 +416,7 @@ mod test {
             .unwrap_err()
             .to_string();
 
-        assert!(err.contains("Unable to stream list data"), "{}", err)
+        assert!(err.contains("Unable to GET data"), "{}", err)
     }
 
     #[tokio::test]

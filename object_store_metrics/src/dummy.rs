@@ -59,6 +59,10 @@ impl ObjectStoreApi for DummyObjectStore {
         Ok(NotSupportedSnafu { name: self.name }.fail()?)
     }
 
+    async fn head(&self, _location: &Path) -> Result<ObjectMeta> {
+        Ok(NotSupportedSnafu { name: self.name }.fail()?)
+    }
+
     async fn delete(&self, _location: &Path) -> Result<()> {
         Ok(NotSupportedSnafu { name: self.name }.fail()?)
     }

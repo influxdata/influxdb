@@ -51,19 +51,21 @@ impl ObjectStoreApi for InMemory {
     }
 
     async fn get(&self, location: &Path) -> Result<GetResult> {
-        let data =
-            self.storage
-                .read()
-                .await
-                .get(location)
-                .cloned()
-                .context(NoDataInMemorySnafu {
-                    path: location.to_string(),
-                })?;
+        let data = self.get_bytes(location).await?;
 
         Ok(GetResult::Stream(
             futures::stream::once(async move { Ok(data) }).boxed(),
         ))
+    }
+
+    async fn head(&self, location: &Path) -> Result<ObjectMeta> {
+        let last_modified = Utc::now();
+        let bytes = self.get_bytes(location).await?;
+        Ok(ObjectMeta {
+            location: location.clone(),
+            last_modified,
+            size: bytes.len(),
+        })
     }
 
     async fn delete(&self, location: &Path) -> Result<()> {
@@ -149,6 +151,17 @@ impl InMemory {
         Self {
             storage: RwLock::new(storage),
         }
+    }
+
+    async fn get_bytes(&self, location: &Path) -> Result<Bytes> {
+        let storage = self.storage.read().await;
+        let bytes = storage
+            .get(location)
+            .cloned()
+            .context(NoDataInMemorySnafu {
+                path: location.to_string(),
+            })?;
+        Ok(bytes)
     }
 }
 

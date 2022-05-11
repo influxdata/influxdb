@@ -17,10 +17,10 @@ use walkdir::{DirEntry, WalkDir};
 #[derive(Debug, Snafu)]
 #[allow(missing_docs)]
 pub enum Error {
-    #[snafu(display("File size for {} did not fit in a usize: {}", path.display(), source))]
+    #[snafu(display("File size for {} did not fit in a usize: {}", path, source))]
     FileSizeOverflowedUsize {
         source: std::num::TryFromIntError,
-        path: std::path::PathBuf,
+        path: String,
     },
 
     #[snafu(display("Unable to walk dir: {}", source))]
@@ -28,10 +28,10 @@ pub enum Error {
         source: walkdir::Error,
     },
 
-    #[snafu(display("Unable to access metadata for {}: {}", path.display(), source))]
+    #[snafu(display("Unable to access metadata for {}: {}", path, source))]
     UnableToAccessMetadata {
-        source: walkdir::Error,
-        path: std::path::PathBuf,
+        source: Box<dyn std::error::Error + Send + Sync + 'static>,
+        path: String,
     },
 
     #[snafu(display("Unable to copy data to file: {}", source))]
@@ -136,23 +136,21 @@ impl ObjectStoreApi for LocalFileSystem {
     }
 
     async fn get(&self, location: &Path) -> Result<GetResult> {
-        let path = self.path_to_filesystem(location);
-
-        let file = fs::File::open(&path).await.map_err(|e| {
-            if e.kind() == std::io::ErrorKind::NotFound {
-                Error::NotFound {
-                    path: location.to_string(),
-                    source: e,
-                }
-            } else {
-                Error::UnableToOpenFile {
-                    path: path.clone(),
-                    source: e,
-                }
-            }
-        })?;
-
+        let (file, path) = self.get_file(location).await?;
         Ok(GetResult::File(file, path))
+    }
+
+    async fn head(&self, location: &Path) -> Result<ObjectMeta> {
+        let (file, _) = self.get_file(location).await?;
+        let metadata = file
+            .metadata()
+            .await
+            .map_err(|e| Error::UnableToAccessMetadata {
+                source: e.into(),
+                path: location.to_string(),
+            })?;
+
+        convert_metadata(metadata, location.clone())
     }
 
     async fn delete(&self, location: &Path) -> Result<()> {
@@ -185,7 +183,7 @@ impl ObjectStoreApi for LocalFileSystem {
                         .filter(|dir_entry| dir_entry.file_type().is_file())
                         .map(|entry| {
                             let location = self.filesystem_to_path(entry.path()).unwrap();
-                            convert_metadata(entry, location)
+                            convert_entry(entry, location)
                         }),
                 }
             });
@@ -221,7 +219,7 @@ impl ObjectStoreApi for LocalFileSystem {
                 if is_directory {
                     common_prefixes.insert(prefix.child(common_prefix));
                 } else {
-                    objects.push(convert_metadata(entry, entry_location)?);
+                    objects.push(convert_entry(entry, entry_location)?);
                 }
             }
         }
@@ -234,18 +232,25 @@ impl ObjectStoreApi for LocalFileSystem {
     }
 }
 
-fn convert_metadata(entry: DirEntry, location: Path) -> Result<ObjectMeta> {
+fn convert_entry(entry: DirEntry, location: Path) -> Result<ObjectMeta> {
     let metadata = entry
         .metadata()
-        .context(UnableToAccessMetadataSnafu { path: entry.path() })?;
+        .map_err(|e| Error::UnableToAccessMetadata {
+            source: e.into(),
+            path: location.to_string(),
+        })?;
+    convert_metadata(metadata, location)
+}
 
+fn convert_metadata(metadata: std::fs::Metadata, location: Path) -> Result<ObjectMeta> {
     let last_modified = metadata
         .modified()
         .expect("Modified file time should be supported on this platform")
         .into();
 
-    let size = usize::try_from(metadata.len())
-        .context(FileSizeOverflowedUsizeSnafu { path: entry.path() })?;
+    let size = usize::try_from(metadata.len()).context(FileSizeOverflowedUsizeSnafu {
+        path: location.to_raw(),
+    })?;
 
     Ok(ObjectMeta {
         location,
@@ -297,6 +302,25 @@ impl LocalFileSystem {
         let split = path.split(std::path::MAIN_SEPARATOR);
 
         Some(Path::from_iter(split))
+    }
+
+    async fn get_file(&self, location: &Path) -> Result<(fs::File, std::path::PathBuf)> {
+        let path = self.path_to_filesystem(location);
+
+        let file = fs::File::open(&path).await.map_err(|e| {
+            if e.kind() == std::io::ErrorKind::NotFound {
+                Error::NotFound {
+                    path: location.to_string(),
+                    source: e,
+                }
+            } else {
+                Error::UnableToOpenFile {
+                    path: path.clone(),
+                    source: e,
+                }
+            }
+        })?;
+        Ok((file, path))
     }
 }
 

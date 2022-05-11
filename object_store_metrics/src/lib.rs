@@ -222,6 +222,11 @@ impl ObjectStoreApi for ObjectStoreMetrics {
         }
     }
 
+    async fn head(&self, location: &Path) -> Result<ObjectMeta> {
+        // TODO: Add instrumentation of head requests
+        self.inner.head(location).await
+    }
+
     async fn delete(&self, location: &Path) -> Result<()> {
         let t = self.time_provider.now();
 

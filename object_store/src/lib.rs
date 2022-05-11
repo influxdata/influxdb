@@ -48,6 +48,9 @@ pub trait ObjectStoreApi: std::fmt::Display + Send + Sync + Debug + 'static {
     /// Return the bytes that are stored at the specified location.
     async fn get(&self, location: &Path) -> Result<GetResult>;
 
+    /// Return the metadata for the specified location
+    async fn head(&self, location: &Path) -> Result<ObjectMeta>;
+
     /// Delete the object at the specified location.
     async fn delete(&self, location: &Path) -> Result<()>;
 
@@ -232,10 +235,30 @@ mod tests {
         let read_data = storage.get(&location).await?.bytes().await?;
         assert_eq!(&*read_data, expected_data);
 
+        let head = storage.head(&location).await?;
+        assert_eq!(head.size, expected_data.len());
+
         storage.delete(&location).await?;
 
         let content_list = flatten_list_stream(storage, None).await?;
         assert!(content_list.is_empty());
+
+        // Azure doesn't report semantic errors
+        let is_azure = storage.to_string().starts_with("MicrosoftAzure");
+
+        let err = storage.get(&location).await.unwrap_err();
+        assert!(
+            matches!(err, crate::Error::NotFound { .. }) || is_azure,
+            "{}",
+            err
+        );
+
+        let err = storage.head(&location).await.unwrap_err();
+        assert!(
+            matches!(err, crate::Error::NotFound { .. }) || is_azure,
+            "{}",
+            err
+        );
 
         Ok(())
     }
@@ -340,15 +363,14 @@ mod tests {
         Ok(())
     }
 
-    #[allow(dead_code)]
     pub(crate) async fn get_nonexistent_object(
         storage: &DynObjectStore,
         location: Option<Path>,
     ) -> Result<Vec<u8>> {
         let location = location.unwrap_or_else(|| Path::from_raw("this_file_should_not_exist"));
 
-        let content_list = flatten_list_stream(storage, Some(&location)).await?;
-        assert!(content_list.is_empty());
+        let err = storage.head(&location).await.unwrap_err();
+        assert!(matches!(err, crate::Error::NotFound { .. }));
 
         Ok(storage.get(&location).await?.bytes().await?)
     }

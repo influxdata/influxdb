@@ -60,6 +60,19 @@ enum Error {
     },
 
     #[snafu(display(
+        "Unable to HEAD data. Bucket: {}, Location: {}, Error: {} ({:?})",
+        bucket,
+        path,
+        source,
+        source,
+    ))]
+    UnableToHeadData {
+        source: rusoto_core::RusotoError<rusoto_s3::HeadObjectError>,
+        bucket: String,
+        path: String,
+    },
+
+    #[snafu(display(
         "Unable to GET part of the data. Bucket: {}, Location: {}, Error: {} ({:?})",
         bucket,
         path,
@@ -133,17 +146,14 @@ enum Error {
 
     NotFound {
         path: String,
-        source: rusoto_core::RusotoError<rusoto_s3::GetObjectError>,
+        source: Box<dyn std::error::Error + Send + Sync + 'static>,
     },
 }
 
 impl From<Error> for super::Error {
     fn from(source: Error) -> Self {
         match source {
-            Error::NotFound { path, source } => Self::NotFound {
-                path,
-                source: source.into(),
-            },
+            Error::NotFound { path, source } => Self::NotFound { path, source },
             _ => Self::Generic {
                 store: "S3",
                 source: Box::new(source),
@@ -235,7 +245,7 @@ impl ObjectStoreApi for AmazonS3 {
                 rusoto_core::RusotoError::Service(rusoto_s3::GetObjectError::NoSuchKey(_)) => {
                     Error::NotFound {
                         path: key.clone(),
-                        source: e,
+                        source: e.into(),
                     }
                 }
                 _ => Error::UnableToGetData {
@@ -258,6 +268,61 @@ impl ObjectStoreApi for AmazonS3 {
             .boxed();
 
         Ok(GetResult::Stream(s))
+    }
+
+    async fn head(&self, location: &Path) -> Result<ObjectMeta> {
+        let key = location.to_raw().to_string();
+        let head_request = rusoto_s3::HeadObjectRequest {
+            bucket: self.bucket_name.clone(),
+            key: key.clone(),
+            ..Default::default()
+        };
+        let s = self
+            .client()
+            .await
+            .head_object(head_request)
+            .await
+            .map_err(|e| match e {
+                rusoto_core::RusotoError::Service(rusoto_s3::HeadObjectError::NoSuchKey(_)) => {
+                    Error::NotFound {
+                        path: key.clone(),
+                        source: e.into(),
+                    }
+                }
+                rusoto_core::RusotoError::Unknown(h) if h.status.as_u16() == 404 => {
+                    Error::NotFound {
+                        path: key.clone(),
+                        source: "resource not found".into(),
+                    }
+                }
+                _ => Error::UnableToHeadData {
+                    bucket: self.bucket_name.to_owned(),
+                    path: key.clone(),
+                    source: e,
+                },
+            })?;
+
+        // Note: GetObject and HeadObject return a different date format from ListObjects
+        //
+        // S3 List returns timestamps in the form
+        //     <LastModified>2013-09-17T18:07:53.000Z</LastModified>
+        // S3 GetObject returns timestamps in the form
+        //            Last-Modified: Sun, 1 Jan 2006 12:00:00 GMT
+        let last_modified = match s.last_modified {
+            Some(lm) => DateTime::parse_from_rfc2822(&lm)
+                .context(UnableToParseLastModifiedSnafu {
+                    bucket: &self.bucket_name,
+                })?
+                .with_timezone(&Utc),
+            None => Utc::now(),
+        };
+
+        Ok(ObjectMeta {
+            last_modified,
+            location: location.clone(),
+            size: usize::try_from(s.content_length.unwrap_or(0))
+                .expect("unsupported size on this platform"),
+        })
     }
 
     async fn delete(&self, location: &Path) -> Result<()> {
@@ -815,14 +880,9 @@ mod tests {
 
         let location = Path::from_iter([NON_EXISTENT_NAME]);
 
-        let err = get_nonexistent_object(&integration, Some(location))
-            .await
-            .unwrap_err()
-            .to_string();
-
+        let err = integration.get(&location).await.unwrap_err().to_string();
         assert!(
-            err.contains("The specified bucket does not exist")
-                && err.contains("Unable to list data"),
+            err.contains("The specified bucket does not exist"),
             "{}",
             err
         )

@@ -15,7 +15,7 @@ use azure_storage_blobs::{
 use bytes::Bytes;
 use futures::{
     stream::{self, BoxStream},
-    FutureExt, StreamExt, TryStreamExt,
+    StreamExt, TryStreamExt,
 };
 use snafu::{ResultExt, Snafu};
 use std::{convert::TryInto, sync::Arc};
@@ -32,6 +32,12 @@ enum Error {
 
     #[snafu(display("Unable to GET data. Location: {}, Error: {}", path, source,))]
     Get {
+        source: Box<dyn std::error::Error + Send + Sync>,
+        path: String,
+    },
+
+    #[snafu(display("Unable to HEAD data. Location: {}, Error: {}", path, source,))]
+    Head {
         source: Box<dyn std::error::Error + Send + Sync>,
         path: String,
     },
@@ -97,23 +103,33 @@ impl ObjectStoreApi for MicrosoftAzure {
     }
 
     async fn get(&self, location: &Path) -> Result<GetResult> {
-        let container_client = Arc::clone(&self.container_client);
-        let location = location.to_raw().to_string();
-        let s = async move {
-            let bytes = container_client
-                .as_blob_client(&location)
-                .get()
-                .execute()
-                .await
-                .map(|blob| blob.data)
-                .context(GetSnafu { path: location })?;
+        let blob = self
+            .container_client
+            .as_blob_client(location.to_raw())
+            .get()
+            .execute()
+            .await
+            .context(GetSnafu {
+                path: location.to_raw(),
+            })?;
 
-            Ok(bytes)
-        }
-        .into_stream()
-        .boxed();
+        Ok(GetResult::Stream(
+            futures::stream::once(async move { Ok(blob.data) }).boxed(),
+        ))
+    }
 
-        Ok(GetResult::Stream(s))
+    async fn head(&self, location: &Path) -> Result<ObjectMeta> {
+        let s = self
+            .container_client
+            .as_blob_client(location.to_raw())
+            .get_properties()
+            .execute()
+            .await
+            .context(HeadSnafu {
+                path: location.to_raw(),
+            })?;
+
+        convert_object_meta(s.blob)
     }
 
     async fn delete(&self, location: &Path) -> Result<()> {

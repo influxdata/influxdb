@@ -154,6 +154,11 @@ impl<T: ObjectStoreApi> ObjectStoreApi for ThrottledStore<T> {
         })
     }
 
+    async fn head(&self, location: &Path) -> Result<ObjectMeta> {
+        sleep(self.config().wait_put_per_call).await;
+        self.inner.head(location).await
+    }
+
     async fn delete(&self, location: &Path) -> Result<()> {
         sleep(self.config().wait_delete_per_call).await;
 
