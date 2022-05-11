@@ -12,6 +12,7 @@ use arrow_flight::{
     Action, ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightInfo,
     HandshakeRequest, HandshakeResponse, PutResult, SchemaAsIpc, SchemaResult, Ticket,
 };
+use data_types::KafkaPartitionWriteStatus;
 use futures::{SinkExt, Stream, StreamExt};
 use generated_types::influxdata::iox::ingester::v1::{
     self as proto,
@@ -25,7 +26,7 @@ use std::{pin::Pin, sync::Arc, task::Poll};
 use tokio::task::JoinHandle;
 use tonic::{Request, Response, Streaming};
 use trace::ctx::SpanContext;
-use write_summary::{KafkaPartitionWriteStatus, WriteSummary};
+use write_summary::WriteSummary;
 
 /// This type is responsible for managing all gRPC services exposed by
 /// `ingester`.
