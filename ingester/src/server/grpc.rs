@@ -12,7 +12,6 @@ use arrow_flight::{
     Action, ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightInfo,
     HandshakeRequest, HandshakeResponse, PutResult, SchemaAsIpc, SchemaResult, Ticket,
 };
-use data_types::KafkaPartitionWriteStatus;
 use futures::{SinkExt, Stream, StreamExt};
 use generated_types::influxdata::iox::ingester::v1::{
     self as proto,
@@ -68,15 +67,6 @@ impl WriteInfoServiceImpl {
     }
 }
 
-fn to_proto_status(status: KafkaPartitionWriteStatus) -> proto::KafkaPartitionStatus {
-    match status {
-        KafkaPartitionWriteStatus::KafkaPartitionUnknown => proto::KafkaPartitionStatus::Unknown,
-        KafkaPartitionWriteStatus::Durable => proto::KafkaPartitionStatus::Durable,
-        KafkaPartitionWriteStatus::Readable => proto::KafkaPartitionStatus::Readable,
-        KafkaPartitionWriteStatus::Persisted => proto::KafkaPartitionStatus::Persisted,
-    }
-}
-
 #[tonic::async_trait]
 impl WriteInfoService for WriteInfoServiceImpl {
     async fn get_write_info(
@@ -102,7 +92,7 @@ impl WriteInfoService for WriteInfoServiceImpl {
 
                 Ok(proto::KafkaPartitionInfo {
                     kafka_partition_id: kafka_partition_id.get(),
-                    status: to_proto_status(status).into(),
+                    status: proto::KafkaPartitionStatus::from(status).into(),
                 })
             })
             .collect::<Result<Vec<_>, tonic::Status>>()?;
