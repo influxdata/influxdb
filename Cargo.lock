@@ -2422,25 +2422,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "iox_object_store_service"
-version = "0.1.0"
-dependencies = [
- "bytes",
- "data_types",
- "futures",
- "generated_types",
- "iox_catalog",
- "metric",
- "object_store",
- "observability_deps",
- "parquet_file",
- "tokio",
- "tonic",
- "uuid 0.8.2",
- "workspace-hack",
-]
-
-[[package]]
 name = "iox_tests"
 version = "0.1.0"
 dependencies = [
@@ -4517,7 +4498,6 @@ dependencies = [
  "hyper",
  "iox_catalog",
  "iox_catalog_service",
- "iox_object_store_service",
  "iox_time",
  "lazy_static",
  "metric",
@@ -4534,6 +4514,7 @@ dependencies = [
  "schema",
  "serde",
  "serde_urlencoded",
+ "service_grpc_object_store",
  "service_grpc_schema",
  "siphasher",
  "test_helpers",
@@ -5087,6 +5068,25 @@ dependencies = [
  "tokio-stream",
  "tonic",
  "trace_http",
+ "workspace-hack",
+]
+
+[[package]]
+name = "service_grpc_object_store"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "data_types",
+ "futures",
+ "generated_types",
+ "iox_catalog",
+ "metric",
+ "object_store",
+ "observability_deps",
+ "parquet_file",
+ "tokio",
+ "tonic",
+ "uuid 0.8.2",
  "workspace-hack",
 ]
 
