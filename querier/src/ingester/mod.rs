@@ -5,13 +5,17 @@ use self::{
 use crate::cache::CatalogCache;
 use arrow::{datatypes::DataType, error::ArrowError, record_batch::RecordBatch};
 use async_trait::async_trait;
+use client_util::connection;
 use data_types::{
     ChunkAddr, ChunkId, ChunkOrder, ColumnSummary, InfluxDbType, PartitionId, SequenceNumber,
     SequencerId, StatValues, Statistics, TableSummary, TimestampMinMax,
 };
 use datafusion_util::MemoryStream;
 use futures::{stream::FuturesUnordered, TryStreamExt};
-use generated_types::ingester::IngesterQueryRequest;
+use generated_types::{
+    influxdata::iox::ingester::v1::GetWriteInfoResponse, ingester::IngesterQueryRequest,
+    write_info::merge_responses,
+};
 use observability_deps::tracing::{debug, trace};
 use predicate::{Predicate, PredicateMatch};
 use query::{
@@ -29,19 +33,26 @@ pub(crate) mod test_util;
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
 pub enum Error {
-    #[snafu(display("Failed to select columns: {}", source))]
-    SelectColumns { source: schema::Error },
-
-    #[snafu(display("Internal error: ingester record batch for colum '{}' has type '{}' but should have type '{}'",
-                    column_name, actual_data_type, desired_data_type))]
+    #[snafu(display(
+        "Internal error: \
+        ingester record batch for column '{}' has type '{}' but should have type '{}'",
+        column_name,
+        actual_data_type,
+        desired_data_type
+    ))]
     RecordBatchType {
         column_name: String,
         actual_data_type: DataType,
         desired_data_type: DataType,
     },
 
-    #[snafu(display("Internal error: failed to resolve ingester record batch types for column '{}' type '{}': {}",
-                    column_name, data_type, source))]
+    #[snafu(display(
+        "Internal error: \
+        failed to resolve ingester record batch types for column '{}' type '{}': {}",
+        column_name,
+        data_type,
+        source
+    ))]
     ConvertingRecordBatch {
         column_name: String,
         data_type: DataType,
@@ -50,9 +61,6 @@ pub enum Error {
 
     #[snafu(display("Internal error creating record batch: {}", source))]
     CreatingRecordBatch { source: ArrowError },
-
-    #[snafu(display("Internal error creating IOx schema: {}", source))]
-    CreatingSchema { source: schema::Error },
 
     #[snafu(display("Failed ingester query '{}': {}", ingester_address, source))]
     RemoteQuery {
@@ -86,6 +94,24 @@ pub enum Error {
     UnknownPartitionId {
         partition_id: i64,
         ingester_address: String,
+    },
+
+    #[snafu(display("Failed to connect to ingester '{}': {}", ingester_address, source))]
+    Connecting {
+        ingester_address: String,
+        source: connection::Error,
+    },
+
+    #[snafu(display(
+        "Error retrieving write info from '{}' for write token '{}': {}",
+        ingester_address,
+        write_token,
+        source,
+    ))]
+    WriteInfo {
+        ingester_address: String,
+        write_token: String,
+        source: influxdb_iox_client::error::Error,
     },
 }
 
@@ -121,6 +147,10 @@ pub trait IngesterConnection: std::fmt::Debug + Send + Sync + 'static {
         predicate: &Predicate,
         expected_schema: Arc<Schema>,
     ) -> Result<Vec<Arc<IngesterPartition>>>;
+
+    /// Returns the most recent partition sstatus info across all ingester(s) for the specified
+    /// write token.
+    async fn get_write_info(&self, write_token: &str) -> Result<GetWriteInfoResponse>;
 
     /// Return backend as [`Any`] which can be used to downcast to a specifc implementation.
     fn as_any(&self) -> &dyn Any;
@@ -333,9 +363,39 @@ impl IngesterConnection for IngesterConnectionImpl {
         Ok(ingester_partitions)
     }
 
+    async fn get_write_info(&self, write_token: &str) -> Result<GetWriteInfoResponse> {
+        let responses = self
+            .ingester_addresses
+            .iter()
+            .map(|ingester_address| execute_get_write_infos(ingester_address, write_token))
+            .collect::<FuturesUnordered<_>>()
+            .try_collect::<Vec<_>>()
+            .await?;
+
+        Ok(merge_responses(responses))
+    }
+
     fn as_any(&self) -> &dyn Any {
         self as &dyn Any
     }
+}
+
+async fn execute_get_write_infos(
+    ingester_address: &str,
+    write_token: &str,
+) -> Result<GetWriteInfoResponse, Error> {
+    let connection = connection::Builder::new()
+        .build(ingester_address)
+        .await
+        .context(ConnectingSnafu { ingester_address })?;
+
+    influxdb_iox_client::write_info::Client::new(connection)
+        .get_write_info(write_token)
+        .await
+        .context(WriteInfoSnafu {
+            ingester_address,
+            write_token,
+        })
 }
 
 /// A wrapper around the unpersisted data in a partition returned by
@@ -578,23 +638,24 @@ impl QueryChunk for IngesterPartition {
 /// 2. NULL-column creation
 ///
 /// # Dictionary Type Recovery
-/// Cast arrays in record batch to be the type of schema this is a
-/// workaround for
-/// <https://github.com/influxdata/influxdb_iox/pull/4273> where the
-/// flight API doesn't necessarily return the same schema as was
-/// provided by the ingester.
 ///
-/// Namely, dictionary encoded columns (e.g. tags) are returned as
-/// `DataType::Utf8` even when they were sent as
-/// `DataType::Dictionary(Int32, Utf8)`.
+/// Cast arrays in record batch to be the type of schema. This is a workaround for
+/// <https://github.com/influxdata/influxdb_iox/pull/4273> where the Flight API doesn't necessarily
+/// return the same schema as was provided by the ingester.
+///
+/// Namely, dictionary encoded columns (e.g. tags) are returned as `DataType::Utf8` even when they
+/// were sent as `DataType::Dictionary(Int32, Utf8)`.
 ///
 /// # NULL-column Creation
-/// If a column is absent in an ingester partition it will not be part of record batch even when the querier requests
-/// it. In that case we create it as "all NULL" column with the appropriate type.
 ///
-/// An alternative would be to remove the column from the schema of the appropriate [`IngesterPartition`]. However since
-/// a partition may contain multiple record batches and we do not want to assume that the presence/absence of columns is
-/// identical for all of them, we fix this here.
+/// If a column is absent in an ingester partition it will not be part of record batch even when
+/// the querier requests it. In that case we create it as "all NULL" column with the appropriate
+/// type.
+///
+/// An alternative would be to remove the column from the schema of the appropriate
+/// [`IngesterPartition`]. However, since a partition may contain multiple record batches and we do
+/// not want to assume that the presence/absence of columns is identical for all of them, we fix
+/// this here.
 fn ensure_schema(batch: RecordBatch, expected_schema: &Schema) -> Result<RecordBatch> {
     let actual_schema = batch.schema();
     let desired_fields = expected_schema.iter().map(|(_, f)| f);

@@ -25,7 +25,7 @@ use std::{pin::Pin, sync::Arc, task::Poll};
 use tokio::task::JoinHandle;
 use tonic::{Request, Response, Streaming};
 use trace::ctx::SpanContext;
-use write_summary::{KafkaPartitionWriteStatus, WriteSummary};
+use write_summary::WriteSummary;
 
 /// This type is responsible for managing all gRPC services exposed by
 /// `ingester`.
@@ -67,15 +67,6 @@ impl WriteInfoServiceImpl {
     }
 }
 
-fn to_proto_status(status: KafkaPartitionWriteStatus) -> proto::KafkaPartitionStatus {
-    match status {
-        KafkaPartitionWriteStatus::KafkaPartitionUnknown => proto::KafkaPartitionStatus::Unknown,
-        KafkaPartitionWriteStatus::Durable => proto::KafkaPartitionStatus::Durable,
-        KafkaPartitionWriteStatus::Readable => proto::KafkaPartitionStatus::Readable,
-        KafkaPartitionWriteStatus::Persisted => proto::KafkaPartitionStatus::Persisted,
-    }
-}
-
 #[tonic::async_trait]
 impl WriteInfoService for WriteInfoServiceImpl {
     async fn get_write_info(
@@ -101,7 +92,7 @@ impl WriteInfoService for WriteInfoServiceImpl {
 
                 Ok(proto::KafkaPartitionInfo {
                     kafka_partition_id: kafka_partition_id.get(),
-                    status: to_proto_status(status).into(),
+                    status: proto::KafkaPartitionStatus::from(status).into(),
                 })
             })
             .collect::<Result<Vec<_>, tonic::Status>>()?;

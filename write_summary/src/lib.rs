@@ -1,4 +1,4 @@
-use data_types::{KafkaPartition, SequenceNumber};
+use data_types::{KafkaPartition, KafkaPartitionWriteStatus, SequenceNumber};
 use dml::DmlMeta;
 /// Protobuf to/from conversion
 use generated_types::influxdata::iox::write_summary::v1 as proto;
@@ -35,19 +35,6 @@ pub struct WriteSummary {
     ///
     /// Note: BTreeMap to ensure the output is in a consistent order
     sequencers: BTreeMap<KafkaPartition, Vec<SequenceNumber>>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum KafkaPartitionWriteStatus {
-    /// Nothing is known about this write (e.g. it refers to a kafka
-    /// partition for which we have no information)
-    KafkaPartitionUnknown,
-    /// The data has not yet been processed by the ingester, and thus is unreadable
-    Durable,
-    /// The data is readable, but not yet persisted
-    Readable,
-    /// The data is both readable and persisted to parquet
-    Persisted,
 }
 
 impl WriteSummary {

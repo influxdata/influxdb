@@ -7,10 +7,10 @@ use influxdb_iox_client::{
     connection::Connection,
     flight::generated_types::ReadInfo,
     write::generated_types::{DatabaseBatch, TableBatch, WriteRequest, WriteResponse},
-    write_info::generated_types::{GetWriteInfoResponse, KafkaPartitionInfo, KafkaPartitionStatus},
+    write_info::generated_types::{merge_responses, GetWriteInfoResponse, KafkaPartitionStatus},
 };
 use observability_deps::tracing::info;
-use std::{collections::HashMap, time::Duration};
+use std::time::Duration;
 
 /// Writes the line protocol to the write_base/api/v2/write endpoint (typically on the router)
 pub async fn write_to_router(
@@ -83,12 +83,12 @@ pub fn get_write_token_from_grpc(response: &tonic::Response<WriteResponse>) -> S
         .to_string()
 }
 
-/// returns the write info from ingester_connection for this token
+/// returns the write info from the connection (to either an ingester or a querier) for this token
 pub async fn token_info(
     write_token: impl AsRef<str>,
-    ingester_connection: Connection,
+    connection: Connection,
 ) -> Result<GetWriteInfoResponse, influxdb_iox_client::error::Error> {
-    influxdb_iox_client::write_info::Client::new(ingester_connection)
+    influxdb_iox_client::write_info::Client::new(connection)
         .get_write_info(write_token.as_ref())
         .await
 }
@@ -138,11 +138,8 @@ pub async fn token_is_persisted(
 const MAX_QUERY_RETRY_TIME_SEC: u64 = 20;
 
 /// Waits for the specified predicate to return true
-pub async fn wait_for_token<F>(
-    write_token: impl Into<String>,
-    ingester_connection: Connection,
-    f: F,
-) where
+pub async fn wait_for_token<F>(write_token: impl Into<String>, connection: Connection, f: F)
+where
     F: Fn(&GetWriteInfoResponse) -> bool,
 {
     let write_token = write_token.into();
@@ -151,7 +148,7 @@ pub async fn wait_for_token<F>(
     info!("  write token: {}", write_token);
 
     let retry_duration = Duration::from_secs(MAX_QUERY_RETRY_TIME_SEC);
-    let mut write_info_client = influxdb_iox_client::write_info::Client::new(ingester_connection);
+    let mut write_info_client = influxdb_iox_client::write_info::Client::new(connection);
     tokio::time::timeout(retry_duration, async move {
         let mut interval = tokio::time::interval(Duration::from_millis(500));
         loop {
@@ -175,10 +172,10 @@ pub async fn wait_for_token<F>(
 }
 
 /// Waits for the specified write token to be readable
-pub async fn wait_for_readable(write_token: impl Into<String>, ingester_connection: Connection) {
+pub async fn wait_for_readable(write_token: impl Into<String>, connection: Connection) {
     info!("Waiting for write token to be readable");
 
-    wait_for_token(write_token, ingester_connection, |res| {
+    wait_for_token(write_token, connection, |res| {
         if all_readable(res) {
             info!("Write is readable: {:?}", res);
             true
@@ -190,10 +187,10 @@ pub async fn wait_for_readable(write_token: impl Into<String>, ingester_connecti
 }
 
 /// Waits for the write token to be persisted
-pub async fn wait_for_persisted(write_token: impl Into<String>, ingester_connection: Connection) {
+pub async fn wait_for_persisted(write_token: impl Into<String>, connection: Connection) {
     info!("Waiting for write token to be persisted");
 
-    wait_for_token(write_token, ingester_connection, |res| {
+    wait_for_token(write_token, connection, |res| {
         if all_persisted(res) {
             info!("Write is persisted: {:?}", res);
             true
@@ -225,61 +222,6 @@ pub fn all_persisted(res: &GetWriteInfoResponse) -> bool {
         .all(|info| matches!(info.status(), KafkaPartitionStatus::Persisted))
 }
 
-/// "merges" the partition information for write info responses so
-/// that the "most recent" information is returned
-fn merge_responses(
-    responses: impl IntoIterator<Item = GetWriteInfoResponse>,
-) -> GetWriteInfoResponse {
-    // make kafka partition id to status
-    let mut partition_infos: HashMap<_, KafkaPartitionInfo> = HashMap::new();
-
-    responses
-        .into_iter()
-        .flat_map(|res| res.kafka_partition_infos.into_iter())
-        .for_each(|info| {
-            partition_infos
-                .entry(info.kafka_partition_id)
-                .and_modify(|existing_info| merge_info(existing_info, &info))
-                .or_insert(info);
-        });
-
-    let kafka_partition_infos = partition_infos
-        .into_iter()
-        .map(|(_kafka_partition_id, info)| info)
-        .collect();
-
-    GetWriteInfoResponse {
-        kafka_partition_infos,
-    }
-}
-
-// convert the status to a number such that higher numbers are later
-// in the data lifecycle
-fn status_order(status: KafkaPartitionStatus) -> u8 {
-    match status {
-        KafkaPartitionStatus::Unspecified => panic!("Unspecified status"),
-        KafkaPartitionStatus::Unknown => 0,
-        KafkaPartitionStatus::Durable => 1,
-        KafkaPartitionStatus::Readable => 2,
-        KafkaPartitionStatus::Persisted => 3,
-    }
-}
-
-fn merge_info(left: &mut KafkaPartitionInfo, right: &KafkaPartitionInfo) {
-    info!("existing_info {:?}, info: {:?}", left, right);
-
-    let left_status = left.status();
-    let right_status = right.status();
-
-    let new_status = match status_order(left_status).cmp(&status_order(right_status)) {
-        std::cmp::Ordering::Less => right_status,
-        std::cmp::Ordering::Equal => left_status,
-        std::cmp::Ordering::Greater => left_status,
-    };
-
-    left.set_status(new_status);
-}
-
 /// Runs a query using the flight API on the specified connection
 pub async fn run_query(
     sql: impl Into<String>,
@@ -303,93 +245,4 @@ pub async fn run_query(
         .expect("Error performing query");
 
     response.collect().await.expect("Error executing query")
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_merge_info() {
-        #[derive(Debug)]
-        struct Test<'a> {
-            left: &'a KafkaPartitionInfo,
-            right: &'a KafkaPartitionInfo,
-            expected: &'a KafkaPartitionInfo,
-        }
-
-        let durable = KafkaPartitionInfo {
-            kafka_partition_id: 1,
-            status: KafkaPartitionStatus::Durable.into(),
-        };
-
-        let readable = KafkaPartitionInfo {
-            kafka_partition_id: 1,
-            status: KafkaPartitionStatus::Readable.into(),
-        };
-
-        let persisted = KafkaPartitionInfo {
-            kafka_partition_id: 1,
-            status: KafkaPartitionStatus::Persisted.into(),
-        };
-
-        let unknown = KafkaPartitionInfo {
-            kafka_partition_id: 1,
-            status: KafkaPartitionStatus::Unknown.into(),
-        };
-
-        let tests = vec![
-            Test {
-                left: &unknown,
-                right: &unknown,
-                expected: &unknown,
-            },
-            Test {
-                left: &unknown,
-                right: &durable,
-                expected: &durable,
-            },
-            Test {
-                left: &unknown,
-                right: &readable,
-                expected: &readable,
-            },
-            Test {
-                left: &durable,
-                right: &unknown,
-                expected: &durable,
-            },
-            Test {
-                left: &readable,
-                right: &readable,
-                expected: &readable,
-            },
-            Test {
-                left: &durable,
-                right: &durable,
-                expected: &durable,
-            },
-            Test {
-                left: &readable,
-                right: &durable,
-                expected: &readable,
-            },
-            Test {
-                left: &persisted,
-                right: &durable,
-                expected: &persisted,
-            },
-        ];
-
-        for test in tests {
-            let mut output = test.left.clone();
-
-            merge_info(&mut output, test.right);
-            assert_eq!(
-                &output, test.expected,
-                "Mismatch\n\nOutput:\n{:#?}\n\nTest:\n{:#?}",
-                output, test
-            );
-        }
-    }
 }

@@ -29,7 +29,7 @@ async fn smoke() {
     // wait for data to be persisted to parquet
     assert_eq!(response.status(), StatusCode::NO_CONTENT);
     let write_token = get_write_token(&response);
-    wait_for_persisted(write_token, all_in_one.ingester_grpc_connection()).await;
+    wait_for_persisted(write_token, all_in_one.querier_grpc_connection()).await;
 
     // run query
     let sql = format!("select * from {}", table_name);
