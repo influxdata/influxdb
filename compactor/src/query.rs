@@ -260,8 +260,4 @@ impl QueryChunk for QueryableParquetChunk {
         ChunkOrder::new(seq_num)
             .expect("Sequence number should have been converted to chunk order successfully")
     }
-
-    fn ng_chunk(&self) -> bool {
-        true
-    }
 }
