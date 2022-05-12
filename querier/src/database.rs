@@ -1,16 +1,12 @@
 //! Database for the querier that contains all namespaces.
 
 use crate::{
-    cache::CatalogCache,
-    chunk::ParquetChunkAdapter,
-    ingester::{Error, IngesterConnection},
-    namespace::QuerierNamespace,
-    query_log::QueryLog,
+    cache::CatalogCache, chunk::ParquetChunkAdapter, ingester::IngesterConnection,
+    namespace::QuerierNamespace, query_log::QueryLog,
 };
 use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig};
 use data_types::Namespace;
-use generated_types::influxdata::iox::ingester::v1::GetWriteInfoResponse;
 use object_store::DynObjectStore;
 use parking_lot::RwLock;
 use query::exec::Executor;
@@ -127,9 +123,9 @@ impl QuerierDatabase {
             .expect("retry forever")
     }
 
-    /// Get write info for the given token, by proxing the request to the ingester
-    pub async fn get_write_info(&self, write_token: &str) -> Result<GetWriteInfoResponse, Error> {
-        self.ingester_connection.get_write_info(write_token).await
+    /// Return connection to ingester(s) to get and aggregate information from them
+    pub fn ingester_connection(&self) -> Arc<dyn IngesterConnection> {
+        Arc::clone(&self.ingester_connection)
     }
 
     /// Executor

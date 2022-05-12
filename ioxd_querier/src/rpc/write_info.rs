@@ -33,8 +33,9 @@ impl WriteInfoService for QuerierWriteInfoServiceImpl {
     ) -> Result<tonic::Response<proto::GetWriteInfoResponse>, tonic::Status> {
         let proto::GetWriteInfoRequest { write_token } = request.into_inner();
 
-        let progresses = self
-            .server
+        let ingester_connection = self.server.ingester_connection();
+
+        let progresses = ingester_connection
             .get_write_info(&write_token)
             .await
             .map_err(|e| tonic::Status::internal(e.to_string()))?;
