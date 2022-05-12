@@ -549,7 +549,7 @@ async fn make_chunk(mock_ingester: &mut MockIngester, chunk: ChunkData<'_, '_>) 
         }
     }
 
-    let mut name = format!("NG Chunk {}", chunk_stage);
+    let mut name = format!("Chunk {}", chunk_stage);
     let n_preds = chunk.preds.len();
     if n_preds > 0 {
         let delete_names: Vec<_> = chunk

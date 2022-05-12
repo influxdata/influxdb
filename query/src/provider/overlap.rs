@@ -175,7 +175,6 @@ mod test {
 
     #[test]
     fn one_time_column_overlap_same_min_max() {
-        // no full statistics just time min max for NG test
         let c1 = Arc::new(TestChunk::new("chunk1").with_timestamp_min_max(1, 1));
         let c2 = Arc::new(TestChunk::new("chunk2").with_timestamp_min_max(1, 1));
 
@@ -188,7 +187,6 @@ mod test {
 
     #[test]
     fn one_time_column_overlap_bad_case() {
-        // no full statistics just time min max for NG test
         let c1 = Arc::new(TestChunk::new("chunk1").with_timestamp_min_max(1, 10));
         let c2 = Arc::new(TestChunk::new("chunk2").with_timestamp_min_max(15, 30));
         let c3 = Arc::new(TestChunk::new("chunk3").with_timestamp_min_max(7, 20));
@@ -203,7 +201,6 @@ mod test {
 
     #[test]
     fn one_time_column_overlap_contiguous() {
-        // no full statistics just time min max for NG test
         let c1 = Arc::new(TestChunk::new("chunk1").with_timestamp_min_max(1, 10));
         let c2 = Arc::new(TestChunk::new("chunk2").with_timestamp_min_max(7, 20));
         let c3 = Arc::new(TestChunk::new("chunk3").with_timestamp_min_max(15, 30));
@@ -218,7 +215,6 @@ mod test {
 
     #[test]
     fn one_time_column_overlap_2_groups() {
-        // no full statistics just time min max for NG test
         let c1 = Arc::new(TestChunk::new("chunk1").with_timestamp_min_max(1, 10));
         let c2 = Arc::new(TestChunk::new("chunk2").with_timestamp_min_max(7, 20));
         let c3 = Arc::new(TestChunk::new("chunk3").with_timestamp_min_max(21, 30));
@@ -233,7 +229,6 @@ mod test {
 
     #[test]
     fn one_time_column_overlap_3_groups() {
-        // no full statistics just time min max for NG test
         let c1 = Arc::new(TestChunk::new("chunk1").with_timestamp_min_max(1, 10));
         let c2 = Arc::new(TestChunk::new("chunk2").with_timestamp_min_max(7, 20));
         let c3 = Arc::new(TestChunk::new("chunk3").with_timestamp_min_max(21, 24));
@@ -252,7 +247,6 @@ mod test {
 
     #[test]
     fn one_time_column_overlap_1_chunk() {
-        // no full statistics just time min max for NG test
         let c1 = Arc::new(TestChunk::new("chunk1").with_timestamp_min_max(1, 10));
 
         let groups = group_potential_duplicates(vec![c1]).expect("grouping succeeded");
@@ -272,7 +266,6 @@ mod test {
 
     #[test]
     fn multi_columns_overlap_bad_case() {
-        // no full statistics just time min max for NG test
         let c1 = Arc::new(TestChunk::new("chunk1").with_timestamp_min_max(1, 10));
         let c2 = Arc::new(
             TestChunk::new("chunk2")
@@ -295,7 +288,6 @@ mod test {
 
     #[test]
     fn multi_columns_overlap_1_chunk() {
-        // no full statistics just time min max for NG test
         let c1 = Arc::new(
             TestChunk::new("chunk1")
                 .with_timestamp_min_max(1, 10)
@@ -311,7 +303,6 @@ mod test {
 
     #[test]
     fn multi_columns_overlap_3_groups() {
-        // no full statistics just time min max for NG test
         let c1 = Arc::new(
             TestChunk::new("chunk1")
                 .with_timestamp_min_max(1, 10)

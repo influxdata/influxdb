@@ -579,11 +579,13 @@ impl Deduplicater {
                     sort_key.clone()
                 } else {
                     // This happens either:
-                    //   . In the Ingester to compact ingesting data that is not sorted and not deduplicated yet
-                    //   . In the Querier that also inlcudes data sent from Ingester that is also not not sorted.
-                    //        Note: Data sent from Ingetser is already deduplicated but if it overlaps with
-                    //        othe chunks, it may include duplicated data with those chunks
-                    //   . In OG for data without statistic
+                    //   . In the Ingester to compact ingesting data that is not sorted and not
+                    //     deduplicated yet
+                    //   . In the Querier that also inlcudes data sent from Ingester that is also
+                    //     not yet sorted.
+                    //        Note: Data sent from Ingester is already deduplicated but if it
+                    //        overlaps with other chunks, it may include duplicated data with those
+                    //        chunks
                     debug!(
                         "Sort key is computed during planning for deduplicating overlapped chunks."
                     );

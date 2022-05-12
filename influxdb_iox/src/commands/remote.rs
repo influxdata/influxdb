@@ -1,4 +1,4 @@
-//! This module implements the `remote` CLI command (NG)
+//! This module implements the `remote` CLI command
 
 use influxdb_iox_client::connection::Connection;
 use thiserror::Error;

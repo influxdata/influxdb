@@ -1,4 +1,4 @@
-//! Shared data types in the IOx NG architecture
+//! Shared data types
 
 #![warn(
     missing_copy_implementations,

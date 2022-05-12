@@ -55,9 +55,9 @@ async fn run_table_schema_test_case<D>(
                 );
 
                 // There are a few cases where we don't care about the sort key:
-                // - no "expected" value was provided which is interpreted as "don't care"; some chunk representations
-                //   (like parquet files in OG) are always sorted
-                // - the chunk is in some known-to-be-always-unsorted stage (e.g. MUBs in OG are never sorted)
+                // - no "expected" value was provided which is interpreted as "don't care"; some
+                //   chunk representations are always sorted
+                // - the chunk is in some known-to-be-always-unsorted stage
                 if expected_sort_key.is_some() && !is_unsorted_chunk_type(chunk.as_ref()) {
                     assert_eq!(chunk.sort_key(), expected_sort_key);
                 }
