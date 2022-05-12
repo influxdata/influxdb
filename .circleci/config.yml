@@ -230,6 +230,9 @@ jobs:
       OBJECT_STORE_BUCKET: iox-test
       POSTGRES_USER: postgres
       TEST_INFLUXDB_IOX_CATALOG_DSN: "postgres://postgres@localhost/iox_shared"
+      # When removing this, also remove the ignore on the test in trogging/src/cli.rs
+      RUST_LOG: debug
+      LOG_FILTER: debug
     steps:
       - run:
           name: Setup localstack (AWS emulation)

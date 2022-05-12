@@ -14,6 +14,7 @@ use test_helpers_end_to_end_ng::{
 /// Test with multiple ingesters
 async fn basic_multi_ingesters() {
     let database_url = maybe_skip_integration!();
+    test_helpers::maybe_start_logging();
 
     // write into two different kafka partitions: 0 and 1
     let router_config =
