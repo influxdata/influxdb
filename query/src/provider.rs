@@ -24,7 +24,7 @@ use predicate::{Predicate, PredicateBuilder};
 use schema::{merge::SchemaMerger, sort::SortKey, InfluxColumnType, Schema};
 
 use crate::{
-    chunks_have_stats, compute_sort_key_for_chunks,
+    compute_sort_key_for_chunks,
     exec::IOxSessionContext,
     util::{arrow_sort_key_exprs, df_physical_expr},
     QueryChunk,
@@ -36,7 +36,7 @@ mod adapter;
 mod deduplicate;
 pub mod overlap;
 mod physical;
-use self::overlap::{group_potential_duplicates, group_potential_duplicates_og};
+use self::overlap::group_potential_duplicates;
 pub(crate) use deduplicate::DeduplicateExec;
 pub use deduplicate::RecordBatchDeduplicator;
 pub(crate) use physical::IOxReadFilterNode;
@@ -614,10 +614,7 @@ impl Deduplicater {
         // Get their partition's sort_key
         let partition_sort_key = chunks[0].partition_sort_key();
 
-        // TODO: Remove this line when we remove OG
-        partition_sort_key?;
-
-        // NG case: the chunk must have partition sort key
+        // The chunk must have partition sort key
         let partition_sort_key =
             partition_sort_key.expect("Sorted/persisted chunk without partition id");
 
@@ -649,25 +646,11 @@ impl Deduplicater {
         false
     }
 
-    // TODO: message for OG remover: Remove this function and rename split_overlapped_chunks_ng to split_overlapped_chunks
     /// discover overlaps and split them into three groups:
     ///  1. vector of vector of overlapped chunks
     ///  2. vector of non-overlapped chunks, each have duplicates in itself
     ///  3. vectors of non-overlapped chunks without duplicates
     fn split_overlapped_chunks(&mut self, chunks: Vec<Arc<dyn QueryChunk>>) -> Result<()> {
-        if chunks.iter().all(|c| c.ng_chunk()) {
-            self.split_overlapped_chunks_ng(chunks)
-        } else {
-            self.split_overlapped_chunks_og(chunks)
-        }
-    }
-
-    /// discover overlaps and split them into three groups:
-    ///  1. vector of vector of overlapped chunks
-    ///  2. vector of non-overlapped chunks, each have duplicates in itself
-    ///  3. vectors of non-overlapped chunks without duplicates
-    fn split_overlapped_chunks_ng(&mut self, chunks: Vec<Arc<dyn QueryChunk>>) -> Result<()> {
-        debug!("NG split_overlapped_chunks");
         // -------------------------------
         // Group chunks by partition first
         // Chunks in different partition are guarantee not to ovelap
@@ -705,30 +688,6 @@ impl Deduplicater {
             }
         }
 
-        Ok(())
-    }
-
-    fn split_overlapped_chunks_og(&mut self, chunks: Vec<Arc<dyn QueryChunk>>) -> Result<()> {
-        if !chunks_have_stats(&chunks) {
-            // no statistics, consider all chunks overlap
-            self.overlapped_chunks_set.push(chunks);
-        } else {
-            // Find all groups based on statistics
-            let groups =
-                group_potential_duplicates_og(chunks).context(InternalChunkGroupingSnafu)?;
-
-            for mut group in groups {
-                if group.len() == 1 {
-                    if group[0].may_contain_pk_duplicates() {
-                        self.in_chunk_duplicates_chunks.append(&mut group);
-                    } else {
-                        self.no_duplicates_chunks.append(&mut group);
-                    }
-                } else {
-                    self.overlapped_chunks_set.push(group)
-                }
-            }
-        }
         Ok(())
     }
 
@@ -1306,72 +1265,14 @@ impl ChunkPruner for NoOpPruner {
 
 #[cfg(test)]
 mod test {
-    use std::num::NonZeroU64;
-
+    use super::*;
+    use crate::test::{raw_data, TestChunk};
     use arrow::datatypes::DataType;
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use datafusion::physical_plan::displayable;
     use datafusion_util::test_collect;
     use schema::{builder::SchemaBuilder, TIME_COLUMN_NAME};
-
-    use crate::test::{raw_data, TestChunk};
-
-    use super::*;
-
-    // Original OG test
-    #[test]
-    fn chunk_grouping_og() {
-        // This test just ensures that all the plumbing is connected
-        // for chunk grouping. The logic of the grouping is tested
-        // in the duplicate module
-
-        // c1: no overlaps
-        let c1 = Arc::new(TestChunk::new("t").with_id(1).with_tag_column_with_stats(
-            "tag1",
-            Some("a"),
-            Some("b"),
-        ));
-
-        // c2: over lap with c3
-        let c2 = Arc::new(TestChunk::new("t").with_id(2).with_tag_column_with_stats(
-            "tag1",
-            Some("c"),
-            Some("d"),
-        ));
-
-        // c3: overlap with c2
-        let c3 = Arc::new(TestChunk::new("t").with_id(3).with_tag_column_with_stats(
-            "tag1",
-            Some("c"),
-            Some("d"),
-        ));
-
-        // c4: self overlap
-        let c4 = Arc::new(
-            TestChunk::new("t")
-                .with_id(4)
-                .with_tag_column_with_stats("tag1", Some("e"), Some("f"))
-                .with_may_contain_pk_duplicates(true),
-        );
-
-        let mut deduplicator = Deduplicater::new();
-        deduplicator
-            .split_overlapped_chunks_og(vec![c1, c2, c3, c4])
-            .expect("split chunks");
-
-        assert_eq!(
-            chunk_group_ids(&deduplicator.overlapped_chunks_set),
-            vec!["Group 0: 00000000-0000-0000-0000-000000000002, 00000000-0000-0000-0000-000000000003"]
-        );
-        assert_eq!(
-            chunk_ids(&deduplicator.in_chunk_duplicates_chunks),
-            "00000000-0000-0000-0000-000000000004"
-        );
-        assert_eq!(
-            chunk_ids(&deduplicator.no_duplicates_chunks),
-            "00000000-0000-0000-0000-000000000001"
-        );
-    }
+    use std::num::NonZeroU64;
 
     #[test]
     fn chunk_grouping() {
