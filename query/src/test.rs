@@ -20,8 +20,8 @@ use arrow::{
 };
 use async_trait::async_trait;
 use data_types::{
-    ChunkAddr, ChunkId, ChunkOrder, ColumnSummary, DeletePredicate, InfluxDbType, PartitionId,
-    StatValues, Statistics, TableSummary, TimestampMinMax,
+    ChunkId, ChunkOrder, ColumnSummary, DeletePredicate, InfluxDbType, PartitionId, StatValues,
+    Statistics, TableSummary, TimestampMinMax,
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion_util::stream_from_batches;
@@ -904,15 +904,6 @@ impl fmt::Display for TestChunk {
 impl QueryChunk for TestChunk {
     fn id(&self) -> ChunkId {
         self.id
-    }
-
-    fn addr(&self) -> ChunkAddr {
-        ChunkAddr {
-            db_name: Arc::from("TestChunkDb"),
-            table_name: Arc::from(self.table_name.as_str()),
-            partition_key: Arc::from("TestChunkPartitionKey"),
-            chunk_id: self.id,
-        }
     }
 
     fn table_name(&self) -> &str {

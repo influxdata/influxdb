@@ -893,35 +893,6 @@ pub struct ProcessedTombstone {
     pub parquet_file_id: ParquetFileId,
 }
 
-/// Address of the chunk within the catalog
-#[derive(Debug, Clone, Eq, PartialEq, PartialOrd, Ord, Hash)]
-pub struct ChunkAddr {
-    /// Database name
-    pub db_name: Arc<str>,
-
-    /// What table does the chunk belong to?
-    pub table_name: Arc<str>,
-
-    /// What partition does the chunk belong to?
-    pub partition_key: Arc<str>,
-
-    /// The ID of the chunk
-    pub chunk_id: ChunkId,
-}
-
-impl std::fmt::Display for ChunkAddr {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "Chunk('{}':'{}':'{}':{})",
-            self.db_name,
-            self.table_name,
-            self.partition_key,
-            self.chunk_id.get()
-        )
-    }
-}
-
 /// ID of a chunk.
 ///
 /// This ID is unique within a single partition.

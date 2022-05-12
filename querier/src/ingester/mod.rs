@@ -7,8 +7,8 @@ use arrow::{datatypes::DataType, error::ArrowError, record_batch::RecordBatch};
 use async_trait::async_trait;
 use client_util::connection;
 use data_types::{
-    ChunkAddr, ChunkId, ChunkOrder, ColumnSummary, InfluxDbType, PartitionId, SequenceNumber,
-    SequencerId, StatValues, Statistics, TableSummary, TimestampMinMax,
+    ChunkId, ChunkOrder, ColumnSummary, InfluxDbType, PartitionId, SequenceNumber, SequencerId,
+    StatValues, Statistics, TableSummary, TimestampMinMax,
 };
 use datafusion_util::MemoryStream;
 use futures::{stream::FuturesUnordered, TryStreamExt};
@@ -414,6 +414,7 @@ async fn execute_get_write_infos(
 #[derive(Debug, Clone)]
 pub struct IngesterPartition {
     chunk_id: ChunkId,
+    #[allow(dead_code)]
     namespace_name: Arc<str>,
     table_name: Arc<str>,
     partition_id: PartitionId,
@@ -536,15 +537,6 @@ impl QueryChunkMeta for IngesterPartition {
 impl QueryChunk for IngesterPartition {
     fn id(&self) -> ChunkId {
         self.chunk_id
-    }
-
-    fn addr(&self) -> data_types::ChunkAddr {
-        ChunkAddr {
-            db_name: Arc::clone(&self.namespace_name),
-            table_name: Arc::clone(&self.table_name),
-            partition_key: Arc::clone(&self.old_gen_partition_key),
-            chunk_id: self.chunk_id,
-        }
     }
 
     fn table_name(&self) -> &str {

@@ -10,8 +10,7 @@
 
 use async_trait::async_trait;
 use data_types::{
-    ChunkAddr, ChunkId, ChunkOrder, DeletePredicate, InfluxDbType, PartitionId, TableSummary,
-    TimestampMinMax,
+    ChunkId, ChunkOrder, DeletePredicate, InfluxDbType, PartitionId, TableSummary, TimestampMinMax,
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
 use exec::{stringset::StringSet, IOxSessionContext};
@@ -180,9 +179,6 @@ pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync + 'static {
     /// returns the Id of this chunk. Ids are unique within a
     /// particular partition.
     fn id(&self) -> ChunkId;
-
-    /// Returns the ChunkAddr of this chunk
-    fn addr(&self) -> ChunkAddr;
 
     /// Returns the name of the table stored in this chunk
     fn table_name(&self) -> &str;
