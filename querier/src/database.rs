@@ -127,7 +127,7 @@ impl QuerierDatabase {
             .expect("retry forever")
     }
 
-    /// Get write info for the given token
+    /// Get write info for the given token, by proxing the request to the ingester
     pub async fn get_write_info(&self, write_token: &str) -> Result<GetWriteInfoResponse, Error> {
         self.ingester_connection.get_write_info(write_token).await
     }
