@@ -300,10 +300,6 @@ async fn execute(request: GetPartitionForIngester<'_>) -> Result<Vec<Arc<Ingeste
         // do NOT filter out empty partitions, because the caller of this functions needs the attached metadata
         // to select the right parquet files and tombstones
         let partition_id = PartitionId::new(partition_id);
-        let old_gen_partition_key = catalog_cache
-            .partition()
-            .old_gen_partition_key(partition_id)
-            .await;
         let sequencer_id = catalog_cache.partition().sequencer_id(partition_id).await;
         let ingester_partition = IngesterPartition::try_new(
             ChunkId::new(),
@@ -311,7 +307,6 @@ async fn execute(request: GetPartitionForIngester<'_>) -> Result<Vec<Arc<Ingeste
             Arc::clone(&table_name),
             partition_id,
             sequencer_id,
-            old_gen_partition_key,
             Arc::clone(&expected_schema),
             state.parquet_max_sequence_number.map(SequenceNumber::new),
             state.tombstone_max_sequence_number.map(SequenceNumber::new),
@@ -419,7 +414,6 @@ pub struct IngesterPartition {
     table_name: Arc<str>,
     partition_id: PartitionId,
     sequencer_id: SequencerId,
-    old_gen_partition_key: Arc<str>,
 
     schema: Arc<Schema>,
     /// Maximum sequence number of persisted data for this partition in the ingester
@@ -440,7 +434,6 @@ impl IngesterPartition {
         table_name: Arc<str>,
         partition_id: PartitionId,
         sequencer_id: SequencerId,
-        old_gen_partition_key: Arc<str>,
         expected_schema: Arc<Schema>,
         parquet_max_sequence_number: Option<SequenceNumber>,
         tombstone_max_sequence_number: Option<SequenceNumber>,
@@ -465,7 +458,6 @@ impl IngesterPartition {
             table_name,
             partition_id,
             sequencer_id,
-            old_gen_partition_key,
             schema: expected_schema,
             parquet_max_sequence_number,
             tombstone_max_sequence_number,
@@ -901,7 +893,6 @@ mod tests {
         let p = &partitions[0];
         assert_eq!(p.partition_id.get(), 1);
         assert_eq!(p.sequencer_id.get(), 1);
-        assert_eq!(p.old_gen_partition_key.as_ref(), "1-k1");
         assert_eq!(p.parquet_max_sequence_number, None);
         assert_eq!(p.tombstone_max_sequence_number, None);
         assert_eq!(p.batches.len(), 0);
@@ -1057,7 +1048,6 @@ mod tests {
         let p1 = &partitions[0];
         assert_eq!(p1.partition_id.get(), 1);
         assert_eq!(p1.sequencer_id.get(), 1);
-        assert_eq!(p1.old_gen_partition_key.as_ref(), "1-k1");
         assert_eq!(
             p1.parquet_max_sequence_number,
             Some(SequenceNumber::new(11))
@@ -1071,7 +1061,6 @@ mod tests {
         let p2 = &partitions[1];
         assert_eq!(p2.partition_id.get(), 2);
         assert_eq!(p2.sequencer_id.get(), 1);
-        assert_eq!(p2.old_gen_partition_key.as_ref(), "1-k2");
         assert_eq!(
             p2.parquet_max_sequence_number,
             Some(SequenceNumber::new(21))
@@ -1085,7 +1074,6 @@ mod tests {
         let p3 = &partitions[2];
         assert_eq!(p3.partition_id.get(), 3);
         assert_eq!(p3.sequencer_id.get(), 2);
-        assert_eq!(p3.old_gen_partition_key.as_ref(), "2-k3");
         assert_eq!(
             p3.parquet_max_sequence_number,
             Some(SequenceNumber::new(31))
@@ -1231,7 +1219,6 @@ mod tests {
                 "table".into(),
                 PartitionId::new(1),
                 SequencerId::new(1),
-                Arc::from(String::from("foo")),
                 Arc::clone(&expected_schema),
                 parquet_max_sequence_number,
                 tombstone_max_sequence_number,
@@ -1266,7 +1253,6 @@ mod tests {
             "table".into(),
             PartitionId::new(1),
             SequencerId::new(1),
-            Arc::from(String::from("foo")),
             Arc::clone(&expected_schema),
             parquet_max_sequence_number,
             tombstone_max_sequence_number,
@@ -1297,7 +1283,6 @@ mod tests {
             "table".into(),
             PartitionId::new(1),
             SequencerId::new(1),
-            Arc::from(String::from("foo")),
             Arc::clone(&expected_schema),
             parquet_max_sequence_number,
             tombstone_max_sequence_number,

@@ -500,7 +500,6 @@ mod tests {
                     Arc::from(table.table.name.clone()),
                     partition.partition.id,
                     sequencer.sequencer.id,
-                    Arc::from(String::from("to_test")),
                     Arc::new(SchemaBuilder::new().build().unwrap()),
                     Some(SequenceNumber::new(1)),
                     None,
@@ -613,7 +612,6 @@ mod tests {
                         Arc::from(table.table.name.clone()),
                         partition1.partition.id,
                         sequencer.sequencer.id,
-                        Arc::from(String::from("to_test1")),
                         Arc::new(
                             SchemaBuilder::new()
                                 .influx_field("foo", InfluxFieldType::Integer)
@@ -637,7 +635,6 @@ mod tests {
                         Arc::from(table.table.name.clone()),
                         partition2.partition.id,
                         sequencer.sequencer.id,
-                        Arc::from(String::from("to_test1")),
                         Arc::new(
                             SchemaBuilder::new()
                                 .influx_field("foo", InfluxFieldType::Integer)
