@@ -26,6 +26,7 @@ predicate = { path = "../predicate" }
 schema = { path = "../schema" }
 querier = { path = "../querier" }
 query = { path = "../query" }
+pretty_assertions = "1.2.1"
 workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]

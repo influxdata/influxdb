@@ -15,7 +15,7 @@ metric = { path = "../metric" }
 metric_exporters = { path = "../metric_exporters" }
 mutable_batch_lp = { path = "../mutable_batch_lp" }
 observability_deps = { path = "../observability_deps" }
-pprof = { version = "0.8", default-features = false, features = ["flamegraph", "prost-codec"], optional = true }
+pprof = { version = "0.9", default-features = false, features = ["flamegraph", "prost-codec"], optional = true }
 predicate = { path = "../predicate" }
 service_grpc_testing = { path = "../service_grpc_testing" }
 trace = { path = "../trace" }

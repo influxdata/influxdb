@@ -60,7 +60,7 @@ pub enum Error {
     #[snafu(display(
         "Contents of output '{:?}' does not match contents of expected '{:?}'",
         output_path,
-        expected_path
+        expected_path,
     ))]
     OutputMismatch {
         output_path: PathBuf,
@@ -244,6 +244,7 @@ impl<W: Write> Runner<W> {
             writeln!(self.log, "  diff -du {:?} {:?}", expected_path, output_path)?;
             writeln!(self.log, "  # Update expected")?;
             writeln!(self.log, "  cp -f {:?} {:?}", output_path, expected_path)?;
+
             OutputMismatchSnafu {
                 output_path,
                 expected_path,
@@ -325,7 +326,7 @@ impl<W: Write> Runner<W> {
 /// Return output path for input path.
 ///
 /// This converts `some/prefix/in/foo.sql` (or other file extensions) to `some/prefix/out/foo.out`.
-fn make_output_path(input: &Path) -> Result<PathBuf> {
+pub fn make_output_path(input: &Path) -> Result<PathBuf> {
     let stem = input.file_stem().context(NoFileStemSnafu { path: input })?;
 
     // go two levels up (from file to dir, from dir to parent dir)
@@ -353,6 +354,11 @@ fn make_absolute(path: &Path) -> PathBuf {
     let mut absolute = std::env::current_dir().expect("can not get current working directory");
     absolute.extend(path);
     absolute
+}
+
+pub fn read_file(path: &Path) -> String {
+    let output_contents = std::fs::read(path).expect("Can read file");
+    String::from_utf8(output_contents).expect("utf8")
 }
 
 #[cfg(test)]
@@ -577,11 +583,6 @@ SELECT * from cpu ORDER BY time DESC;
 
         std::fs::write(&file, contents).expect("writing data to temp file");
         (dir, file)
-    }
-
-    fn read_file(path: &Path) -> String {
-        let output_contents = std::fs::read(path).expect("Can read file");
-        String::from_utf8(output_contents).expect("utf8")
     }
 
     fn runner_to_log(runner: Runner<Vec<u8>>) -> String {
