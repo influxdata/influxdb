@@ -25,23 +25,22 @@ specified by a `DSN`, such as
 created automatically.
 
 ### Running
-The end to end tests are run using the `cargo test --test
-end_to_end_ng` command, after setting the `TEST_INTEGRATION` and
-`TEST_INFLUXDB_IOX_CATALOG_DSN` environment variables. NOTE if you
-don't set these variables the tests will "pass" locally (really they
-will be skipped).
+
+The end to end tests are run using the `cargo test --test end_to_end` command, after setting the
+`TEST_INTEGRATION` and `TEST_INFLUXDB_IOX_CATALOG_DSN` environment variables. NOTE if you don't set
+these variables the tests will "pass" locally (really they will be skipped).
 
 For example, to run the end to end tests assuming the example postgres DSN:
+
 ```shell
-TEST_INTEGRATION=1  TEST_INFLUXDB_IOX_CATALOG_DSN=postgresql://localhost:5432/alamb cargo test --test end_to_end_ng
+TEST_INTEGRATION=1 TEST_INFLUXDB_IOX_CATALOG_DSN=postgresql://localhost:5432/alamb cargo test --test end_to_end
 ```
 
 You can also see more logging using the `LOG_FILTER` variable. For example:
 
 ```shell
-LOG_FILTER=debug,sqlx=warn,h2=warn TEST_INTEGRATION=1  TEST_INFLUXDB_IOX_CATALOG_DSN=postgresql://localhost:5432/alamb cargo test --test end_to_end_ng
+LOG_FILTER=debug,sqlx=warn,h2=warn TEST_INTEGRATION=1  TEST_INFLUXDB_IOX_CATALOG_DSN=postgresql://localhost:5432/alamb cargo test --test end_to_end
 ```
-
 
 ## Running the IOx server from source
 

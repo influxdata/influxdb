@@ -3,6 +3,6 @@
 //
 // The servers under test are managed using the code in [test_helpers_end_to_end]
 //
-// The tests are defined in the submodules of [`end_to_end_ng_cases`]
+// The tests are defined in the submodules of [`end_to_end_cases`]
 
-mod end_to_end_ng_cases;
+mod end_to_end_cases;
