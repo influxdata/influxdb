@@ -158,7 +158,7 @@ impl QueryChunk for QueryableParquetChunk {
         let timestamp_nano_u128 =
             u128::try_from(timestamp_nano).expect("Cannot convert timestamp nano to u128 ");
 
-        ChunkId::new_id_for_ng(timestamp_nano_u128)
+        ChunkId::new_id(timestamp_nano_u128)
     }
 
     // This function should not be used in this context
