@@ -2,7 +2,7 @@
 
 -- validate we have access to information schema for listing system tables
 -- IOX_COMPARE: sorted
-SELECT * from h2o;
+SELECT * from h2o order by temp, other_temp, time;
 -- Plan will look like:
 --  . Two chunks (one parquet and one from ingester) neither overlap nor contain duplicate
 --     --> scan in one scan node
@@ -10,5 +10,5 @@ SELECT * from h2o;
 EXPLAIN SELECT * from h2o;
 
 -- Only selct fields and time
-select temp, other_temp, time from h2o;
+select temp, other_temp, time from h2o order by 1, 2;
 EXPLAIN select temp, other_temp, time from h2o;
