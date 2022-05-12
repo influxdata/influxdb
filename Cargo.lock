@@ -2166,7 +2166,7 @@ dependencies = [
  "snafu",
  "tempfile",
  "test_helpers",
- "test_helpers_end_to_end_ng",
+ "test_helpers_end_to_end",
  "thiserror",
  "tikv-jemalloc-ctl",
  "tikv-jemalloc-sys",
@@ -5565,7 +5565,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "test_helpers_end_to_end_ng"
+name = "test_helpers_end_to_end"
 version = "0.1.0"
 dependencies = [
  "arrow",

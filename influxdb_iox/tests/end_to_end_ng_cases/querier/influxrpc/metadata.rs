@@ -6,7 +6,7 @@ use generated_types::{
 };
 use influxdb_storage_client::tag_key_bytes_to_strings;
 use std::sync::Arc;
-use test_helpers_end_to_end_ng::{DataGenerator, GrpcRequestBuilder, StepTestState};
+use test_helpers_end_to_end::{DataGenerator, GrpcRequestBuilder, StepTestState};
 
 #[tokio::test]
 /// Validate that capabilities storage endpoint is hooked up

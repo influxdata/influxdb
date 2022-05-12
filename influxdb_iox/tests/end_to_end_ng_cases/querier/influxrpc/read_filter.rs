@@ -5,7 +5,7 @@ use generated_types::{
 };
 use influxdb_iox_client::connection::Connection;
 use std::sync::Arc;
-use test_helpers_end_to_end_ng::{
+use test_helpers_end_to_end::{
     maybe_skip_integration, DataGenerator, GrpcRequestBuilder, MiniCluster, Step, StepTest,
     StepTestState,
 };

@@ -1,5 +1,5 @@
 use http::StatusCode;
-use test_helpers_end_to_end_ng::{maybe_skip_integration, MiniCluster, TestConfig};
+use test_helpers_end_to_end::{maybe_skip_integration, MiniCluster, TestConfig};
 
 /// Test the namespacea client
 #[tokio::test]

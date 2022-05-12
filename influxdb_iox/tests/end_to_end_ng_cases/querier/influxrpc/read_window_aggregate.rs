@@ -1,7 +1,7 @@
 use super::dump::dump_data_frames;
 use futures::{prelude::*, FutureExt};
 use generated_types::{aggregate::AggregateType, storage_client::StorageClient};
-use test_helpers_end_to_end_ng::{
+use test_helpers_end_to_end::{
     maybe_skip_integration, GrpcRequestBuilder, MiniCluster, Step, StepTest, StepTestState,
 };
 

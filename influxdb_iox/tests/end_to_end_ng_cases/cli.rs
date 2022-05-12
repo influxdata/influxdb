@@ -6,9 +6,7 @@ use predicates::prelude::*;
 use serde_json::Value;
 use std::time::Duration;
 use tempfile::tempdir;
-use test_helpers_end_to_end_ng::{
-    maybe_skip_integration, MiniCluster, Step, StepTest, StepTestState,
-};
+use test_helpers_end_to_end::{maybe_skip_integration, MiniCluster, Step, StepTest, StepTestState};
 
 #[tokio::test]
 async fn default_mode_is_run_all_in_one() {

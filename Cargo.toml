@@ -63,7 +63,7 @@ members = [
     "service_grpc_testing",
     "sqlx-hotswap-pool",
     "test_helpers",
-    "test_helpers_end_to_end_ng",
+    "test_helpers_end_to_end",
     "trace",
     "trace_exporters",
     "trace_http",
