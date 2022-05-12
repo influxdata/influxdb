@@ -1,5 +1,5 @@
 -- Test Setup: ManyFieldsSeveralChunks
--- SQL: SELECT * from h2o order by temp, other_temp, time;
+-- SQL: SELECT * from h2o;
 -- Results After Sorting
 +---------+------------+-------+------+--------------------------------+
 | city    | other_temp | state | temp | time                           |
@@ -29,7 +29,8 @@
 |               |     IOxReadFilterNode: table_name=h2o, chunks=2 predicate=Predicate                                                 |
 |               |                                                                                                                     |
 +---------------+---------------------------------------------------------------------------------------------------------------------+
--- SQL: select temp, other_temp, time from h2o order by 1, 2;
+-- SQL: select temp, other_temp, time from h2o;
+-- Results After Sorting
 +------+------------+--------------------------------+
 | temp | other_temp | time                           |
 +------+------------+--------------------------------+
