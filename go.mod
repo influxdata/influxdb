@@ -16,7 +16,7 @@ require (
 	github.com/golang/mock v1.5.0
 	github.com/golang/snappy v0.0.4
 	github.com/google/go-cmp v0.5.7
-	github.com/influxdata/flux v0.159.0
+	github.com/influxdata/flux v0.166.0
 	github.com/influxdata/httprouter v1.3.1-0.20191122104820-ee83e2772f69
 	github.com/influxdata/influxql v1.1.1-0.20211004132434-7e7d61973256
 	github.com/influxdata/pkg-config v0.2.11
@@ -89,7 +89,6 @@ require (
 	github.com/benbjohnson/immutable v0.3.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bonitoo-io/go-sql-bigquery v0.3.4-1.4.0 // indirect
-	github.com/c-bata/go-prompt v0.2.2 // indirect
 	github.com/cespare/xxhash/v2 v2.1.1 // indirect
 	github.com/deepmap/oapi-codegen v1.6.0 // indirect
 	github.com/denisenkom/go-mssqldb v0.10.0 // indirect
@@ -123,17 +122,14 @@ require (
 	github.com/klauspost/compress v1.13.6 // indirect
 	github.com/klauspost/crc32 v0.0.0-20161016154125-cb6bfca970f6 // indirect
 	github.com/lib/pq v1.0.0 // indirect
-	github.com/mattn/go-colorable v0.1.8 // indirect
 	github.com/mattn/go-ieproxy v0.0.1 // indirect
 	github.com/mattn/go-runewidth v0.0.3 // indirect
-	github.com/mattn/go-tty v0.0.0-20180907095812-13ff1204f104 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.1 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mschoch/smat v0.0.0-20160514031455-90eadee771ae // indirect
 	github.com/philhofer/fwd v1.0.0 // indirect
 	github.com/pierrec/lz4/v4 v4.1.11 // indirect
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8 // indirect
-	github.com/pkg/term v0.0.0-20180730021639-bffc007b7fd5 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/procfs v0.0.11 // indirect
 	github.com/segmentio/kafka-go v0.2.0 // indirect
