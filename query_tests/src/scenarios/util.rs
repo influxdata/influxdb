@@ -877,7 +877,7 @@ impl Partitioner for ConstantPartitioner {
 impl IngesterFlightClient for MockIngester {
     async fn query(
         &self,
-        _ingester_address: &str,
+        _ingester_address: Arc<str>,
         request: IngesterQueryRequest,
     ) -> Result<Box<dyn IngesterFlightClientQueryData>, IngesterFlightClientError> {
         // NOTE: we MUST NOT unwrap errors here because some query tests assert error behavior (e.g. passing predicates
