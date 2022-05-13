@@ -28,7 +28,7 @@ pub struct ParquetFilePath {
 }
 
 impl ParquetFilePath {
-    /// Create parquet file path relevant for the NG storage layout.
+    /// Create parquet file path relevant for the storage layout.
     pub fn new(
         namespace_id: NamespaceId,
         table_id: TableId,

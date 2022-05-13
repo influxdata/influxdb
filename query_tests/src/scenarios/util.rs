@@ -338,7 +338,7 @@ async fn make_chunk_with_deletes_at_different_stages(
         partition_key,
     };
     let mut mock_ingester = MockIngester::new().await;
-    let scenario_name = make_ng_chunk(&mut mock_ingester, chunk_data).await;
+    let scenario_name = make_chunk(&mut mock_ingester, chunk_data).await;
 
     let db = mock_ingester.into_query_namespace().await;
 
@@ -410,7 +410,7 @@ pub async fn make_n_chunks_scenario(chunks: &[ChunkData<'_, '_>]) -> Vec<DbScena
 
             let chunk_data = chunk_data.replace_begin_and_end_delete_times();
 
-            let name = make_ng_chunk(&mut mock_ingester, chunk_data).await;
+            let name = make_chunk(&mut mock_ingester, chunk_data).await;
 
             write!(&mut scenario_name, ", {}", name).unwrap();
         }
@@ -427,7 +427,7 @@ pub async fn make_n_chunks_scenario(chunks: &[ChunkData<'_, '_>]) -> Vec<DbScena
 /// Create given chunk using the given ingester.
 ///
 /// Returns a human-readable chunk description.
-async fn make_ng_chunk(mock_ingester: &mut MockIngester, chunk: ChunkData<'_, '_>) -> String {
+async fn make_chunk(mock_ingester: &mut MockIngester, chunk: ChunkData<'_, '_>) -> String {
     let chunk_stage = chunk.chunk_stage.expect("chunk stage should be set");
 
     // create chunk
@@ -549,7 +549,7 @@ async fn make_ng_chunk(mock_ingester: &mut MockIngester, chunk: ChunkData<'_, '_
         }
     }
 
-    let mut name = format!("NG Chunk {}", chunk_stage);
+    let mut name = format!("Chunk {}", chunk_stage);
     let n_preds = chunk.preds.len();
     if n_preds > 0 {
         let delete_names: Vec<_> = chunk
@@ -877,7 +877,7 @@ impl Partitioner for ConstantPartitioner {
 impl IngesterFlightClient for MockIngester {
     async fn query(
         &self,
-        _ingester_address: &str,
+        _ingester_address: Arc<str>,
         request: IngesterQueryRequest,
     ) -> Result<Box<dyn IngesterFlightClientQueryData>, IngesterFlightClientError> {
         // NOTE: we MUST NOT unwrap errors here because some query tests assert error behavior (e.g. passing predicates

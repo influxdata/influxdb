@@ -243,8 +243,8 @@ impl ParquetChunkAdapter {
 
         let iox_metadata = &decoded_parquet_file.iox_metadata;
 
-        // Somewhat hacky workaround because NG has implicit chunk orders, use min sequence number and hope it doesn't
-        // overflow u32. Order is non-zero, se we need to add 1.
+        // Somewhat hacky workaround because of implicit chunk orders, use min sequence number and
+        // hope it doesn't overflow u32. Order is non-zero, se we need to add 1.
         let order = ChunkOrder::new(1 + iox_metadata.min_sequence_number.get() as u32)
             .expect("cannot be zero");
 

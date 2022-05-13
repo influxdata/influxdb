@@ -2,7 +2,7 @@
 name = "data_types"
 version = "0.1.0"
 edition = "2021"
-description = "Shared data types in the IOx NG architecture"
+description = "Shared data types"
 
 [dependencies]
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }

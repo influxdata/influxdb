@@ -148,6 +148,7 @@ mod tests {
     use super::*;
     use crate::test_util::simple_test;
 
+    #[ignore] // REVERT THIS WHEN REVERTING CIRCLECI LOGGING CONFIG
     #[test]
     fn test_log_verbose_count() {
         let cfg = LoggingConfig::try_parse_from(&["cli"]).unwrap();

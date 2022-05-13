@@ -143,13 +143,14 @@ impl QueryChunkMeta for QueryableParquetChunk {
 }
 
 impl QueryChunk for QueryableParquetChunk {
-    // In NG, this function is needed to distinguish the ParquetChunks further if they happen to have the same creation order.
+    // This function is needed to distinguish the ParquetChunks further if they happen to have the
+    // same creation order.
     // Ref: chunks.sort_unstable_by_key(|c| (c.order(), c.id())); in provider.rs
     // Note: The order of this QueryableParquetChunk is the parquet file's min_sequence_number which
     // will be the same for parquet files of splitted compacted data.
     //
-    // This function returns the parquet file's min_time which will be always different for the parquet files of
-    // same order/min_sequence_number and is good to order the parquet file
+    // This function returns the parquet file's min_time which will be always different for the
+    // parquet files of same order/min_sequence_number and is good to order the parquet file
     //
     // Note: parquet_file's id is an uuid which is also the datatype of the ChunkId. However,
     // it is not safe to use it for sorting chunk
@@ -158,7 +159,7 @@ impl QueryChunk for QueryableParquetChunk {
         let timestamp_nano_u128 =
             u128::try_from(timestamp_nano).expect("Cannot convert timestamp nano to u128 ");
 
-        ChunkId::new_id_for_ng(timestamp_nano_u128)
+        ChunkId::new_id(timestamp_nano_u128)
     }
 
     /// Returns the name of the table stored in this chunk
@@ -254,9 +255,5 @@ impl QueryChunk for QueryableParquetChunk {
             .expect("Sequence number should have been converted to chunk order successfully");
         ChunkOrder::new(seq_num)
             .expect("Sequence number should have been converted to chunk order successfully")
-    }
-
-    fn ng_chunk(&self) -> bool {
-        true
     }
 }

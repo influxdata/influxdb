@@ -72,7 +72,7 @@ impl RecordBatchDeduplicator {
         };
 
         let mut dupe_ranges = self.compute_ranges(&batch)?;
-        debug!("Finish computing range");
+        trace!("Finish computing range");
 
         // The last partition may span batches so we can't emit it
         // until we have seen the next batch (or we are at end of
@@ -80,7 +80,7 @@ impl RecordBatchDeduplicator {
         let last_range = dupe_ranges.ranges.pop();
 
         let output_record_batch = self.output_from_ranges(&batch, &dupe_ranges)?;
-        debug!(
+        trace!(
             num_rows = output_record_batch.num_rows(),
             "Rows of ouput_record_batch"
         );
@@ -91,7 +91,7 @@ impl RecordBatchDeduplicator {
             let last_batch = Self::slice_record_batch(&batch, last_range.start, len)?;
             self.last_batch = Some(last_batch);
         }
-        debug!("done pushing record batch into the indexer");
+        trace!("done pushing record batch into the indexer");
 
         Ok(output_record_batch)
     }

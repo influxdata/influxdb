@@ -15,7 +15,10 @@ metric = { path = "../metric" }
 metric_exporters = { path = "../metric_exporters" }
 mutable_batch_lp = { path = "../mutable_batch_lp" }
 observability_deps = { path = "../observability_deps" }
-pprof = { version = "0.9", default-features = false, features = ["flamegraph", "prost-codec"], optional = true }
+# NOTE: we may not notice that we need the "backtrace-rs" feature if we also build with the heappy feature, which depends on backtrace-rs.
+# (honestly I thought that cargo dependencies were isolated on a per crate basis so I'm a bit surprised that pprof accidentally builds
+# successfully just because another crate happens to depend on backtrace-rs)
+pprof = { version = "0.9", default-features = false, features = ["flamegraph", "prost-codec", "backtrace-rs"], optional = true }
 predicate = { path = "../predicate" }
 service_grpc_testing = { path = "../service_grpc_testing" }
 trace = { path = "../trace" }

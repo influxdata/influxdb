@@ -286,10 +286,6 @@ impl QueryChunk for QueryableBatch {
     fn order(&self) -> ChunkOrder {
         unimplemented!()
     }
-
-    fn ng_chunk(&self) -> bool {
-        true
-    }
 }
 
 #[cfg(test)]

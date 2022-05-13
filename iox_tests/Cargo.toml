@@ -3,7 +3,7 @@ name = "iox_tests"
 version = "0.1.0"
 authors = ["Nga Tran <nga-tran@live.com>"]
 edition = "2021"
-description = "IOx NG test utils and tests"
+description = "IOx test utils and tests"
 
 [dependencies]
 arrow = "13"

@@ -1,11 +1,11 @@
 //! Processed tombstone cache.
 
-use crate::cache_system::{
+use backoff::{Backoff, BackoffConfig};
+use cache_system::{
     backend::ttl::{TtlBackend, TtlProvider},
     driver::Cache,
     loader::FunctionLoader,
 };
-use backoff::{Backoff, BackoffConfig};
 use data_types::{ParquetFileId, TombstoneId};
 use iox_catalog::interface::Catalog;
 use iox_time::TimeProvider;

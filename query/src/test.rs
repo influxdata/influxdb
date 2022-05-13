@@ -983,12 +983,6 @@ impl QueryChunk for TestChunk {
     fn order(&self) -> ChunkOrder {
         self.order
     }
-
-    // The Test Chunk is used for both OG and NG but since OG will go away soon and
-    // this function will be removed, we apply all NG deduplication algorithms for this TestChunk
-    fn ng_chunk(&self) -> bool {
-        true
-    }
 }
 
 impl QueryChunkMeta for TestChunk {

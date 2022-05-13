@@ -1,7 +1,7 @@
 //! Partition cache.
 
-use crate::cache_system::{driver::Cache, loader::FunctionLoader};
 use backoff::{Backoff, BackoffConfig};
+use cache_system::{driver::Cache, loader::FunctionLoader};
 use data_types::{PartitionId, SequencerId};
 use iox_catalog::interface::Catalog;
 use schema::sort::SortKey;

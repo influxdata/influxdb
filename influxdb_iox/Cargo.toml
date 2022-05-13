@@ -72,7 +72,7 @@ predicate = { path = "../predicate" }
 predicates = "2.1.0"
 tempfile = "3.1.0"
 test_helpers = { path = "../test_helpers", features = ["future_timeout"] }
-test_helpers_end_to_end_ng = { path = "../test_helpers_end_to_end_ng" }
+test_helpers_end_to_end = { path = "../test_helpers_end_to_end" }
 
 [features]
 default = ["jemalloc_replacing_malloc"]

@@ -246,9 +246,6 @@ pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync + 'static {
 
     /// Order of this chunk relative to other overlapping chunks.
     fn order(&self) -> ChunkOrder;
-
-    /// TODO: remove after OG code is removed
-    fn ng_chunk(&self) -> bool;
 }
 
 /// Implement ChunkMeta for something wrapped in an Arc (like Chunks often are)
