@@ -1746,6 +1746,16 @@ func (fs *MeasurementFieldSet) IsEmpty() bool {
 	return len(fs.fields) == 0
 }
 
+func (fs *MeasurementFieldSet) MeasurementFields() map[string]*MeasurementFields {
+	fs.mu.RLock()
+	defer fs.mu.RUnlock()
+	fields := make(map[string]*MeasurementFields, len(fs.fields))
+	for m, fs := range fs.fields {
+		fields[m] = fs
+	}
+	return fields
+}
+
 type errorChannel chan<- error
 
 type writeRequest struct {

@@ -38,6 +38,7 @@ The commands are:
     buildtsi             generates tsi1 indexes from tsm1 data
     help                 display this help message
     report               displays a shard level cardinality report
+    report-db            estimates cloud 2 cardinality for a database
     report-disk          displays a shard level disk usage report
     verify               verifies integrity of TSM files
     verify-seriesfile    verifies integrity of the Series file
