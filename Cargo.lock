@@ -3399,7 +3399,9 @@ dependencies = [
 
 [[package]]
 name = "object_store"
-version = "0.1.0"
+version = "0.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "71fc15440e94ba9b3a8bc83c8f94a0d5a2861d72254cdb9ede72fbbd18e015db"
 dependencies = [
  "async-trait",
  "azure_core",
@@ -3408,13 +3410,10 @@ dependencies = [
  "bytes",
  "chrono",
  "cloud-storage",
- "dotenv",
  "futures",
- "futures-test",
  "hyper",
  "hyper-rustls",
  "itertools",
- "observability_deps",
  "percent-encoding",
  "reqwest",
  "rusoto_core",
@@ -3424,8 +3423,8 @@ dependencies = [
  "tempfile",
  "tokio",
  "tokio-util 0.7.1",
+ "tracing",
  "walkdir",
- "workspace-hack",
 ]
 
 [[package]]
@@ -6625,6 +6624,7 @@ dependencies = [
  "num-bigint 0.4.3",
  "num-integer",
  "num-traits",
+ "object_store",
  "once_cell",
  "parquet",
  "predicates",

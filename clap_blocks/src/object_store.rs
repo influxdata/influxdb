@@ -369,7 +369,7 @@ pub fn make_object_store(config: &ObjectStoreConfig) -> Result<Arc<DynObjectStor
             Some(db_dir) => {
                 fs::create_dir_all(db_dir)
                     .context(CreatingDatabaseDirectorySnafu { path: db_dir })?;
-                Ok(Arc::new(object_store::disk::LocalFileSystem::new(&db_dir)))
+                Ok(Arc::new(object_store::local::LocalFileSystem::new(&db_dir)))
             }
             None => MissingObjectStoreConfigSnafu {
                 object_store: ObjectStoreType::File,

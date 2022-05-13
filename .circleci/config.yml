@@ -201,8 +201,6 @@ jobs:
     # setup multiple docker images (see https://circleci.com/docs/2.0/configuration-reference/#docker)
     docker:
       - image: quay.io/influxdb/rust:ci
-      - image: localstack/localstack
-      - image: mcr.microsoft.com/azure-storage/azurite
       - image: vectorized/redpanda:v21.9.2
         command: redpanda start --overprovisioned --smp 1 --memory 1G --reserve-memory 0M
       - image: postgres
@@ -222,38 +220,18 @@ jobs:
       TEST_INTEGRATION: 1
       INFLUXDB_IOX_INTEGRATION_LOCAL: 1
       KAFKA_CONNECT: "localhost:9092"
-      AWS_DEFAULT_REGION: "us-east-1"
-      AWS_ACCESS_KEY_ID: test
-      AWS_SECRET_ACCESS_KEY: test
-      AWS_ENDPOINT: http://127.0.0.1:4566
-      AZURE_USE_EMULATOR: "1"
-      OBJECT_STORE_BUCKET: iox-test
       POSTGRES_USER: postgres
       TEST_INFLUXDB_IOX_CATALOG_DSN: "postgres://postgres@localhost/iox_shared"
       # When removing this, also remove the ignore on the test in trogging/src/cli.rs
       RUST_LOG: debug
       LOG_FILTER: debug
     steps:
-      - run:
-          name: Setup localstack (AWS emulation)
-          command: |
-            cd /tmp
-            curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-            unzip awscliv2.zip
-            sudo ./aws/install
-            aws --endpoint-url=http://localhost:4566 s3 mb s3://iox-test
-      - run:
-          name: Setup Azurite (Azure emulation)
-          # the magical connection string is from https://docs.microsoft.com/en-us/azure/storage/common/storage-use-azurite?tabs=visual-studio#http-connection-strings
-          command: |
-            curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-            az storage container create -n iox-test --connection-string 'DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;QueueEndpoint=http://127.0.0.1:10001/devstoreaccount1;'
       - checkout
       - rust_components
       - cache_restore
       - run:
           name: Cargo test
-          command: cargo test --workspace --features=aws,azure,azure_test
+          command: cargo test --workspace
       - cache_save
 
   # end to end tests with Heappy (heap profiling enabled)

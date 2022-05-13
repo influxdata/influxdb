@@ -94,9 +94,9 @@ impl GarbageCollector {
 mod tests {
     use super::*;
     use data_types::{KafkaPartition, ParquetFile, ParquetFileParams, SequenceNumber};
+    use futures::{StreamExt, TryStreamExt};
     use iox_catalog::interface::INITIAL_COMPACTION_LEVEL;
     use iox_tests::util::TestCatalog;
-    use object_store::ObjectStoreTestConvenience;
     use std::time::Duration;
     use uuid::Uuid;
 
@@ -211,7 +211,9 @@ mod tests {
             1
         );
 
-        assert_eq!(catalog.object_store.list_all().await.unwrap().len(), 1);
+        let list = catalog.object_store.list(None).await.unwrap();
+        let obj_store_paths: Vec<_> = list.try_collect().await.unwrap();
+        assert_eq!(obj_store_paths.len(), 1);
     }
 
     #[tokio::test]
@@ -294,7 +296,10 @@ mod tests {
                 .unwrap(),
             1
         );
-        assert_eq!(catalog.object_store.list_all().await.unwrap().len(), 1);
+
+        let list = catalog.object_store.list(None).await.unwrap();
+        let obj_store_paths: Vec<_> = list.try_collect().await.unwrap();
+        assert_eq!(obj_store_paths.len(), 1);
     }
 
     #[tokio::test]
@@ -377,6 +382,7 @@ mod tests {
                 .unwrap(),
             0
         );
-        assert!(catalog.object_store.list_all().await.unwrap().is_empty());
+        let mut list = catalog.object_store.list(None).await.unwrap();
+        assert!(list.next().await.is_none());
     }
 }

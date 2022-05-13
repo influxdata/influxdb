@@ -98,7 +98,7 @@ mod tests {
     use data_types::{KafkaPartition, ParquetFileParams, SequenceNumber, Timestamp};
     use generated_types::influxdata::iox::object_store::v1::object_store_service_server::ObjectStoreService;
     use iox_catalog::mem::MemCatalog;
-    use object_store::{memory::InMemory, ObjectStoreApi};
+    use object_store::{memory::InMemory, ObjectStore};
     use uuid::Uuid;
 
     #[tokio::test]

@@ -1,4 +1,4 @@
-//! A metric instrumentation wrapper over [`ObjectStoreApi`] implementations.
+//! A metric instrumentation wrapper over [`ObjectStore`] implementations.
 
 use std::sync::Arc;
 use std::{
@@ -14,23 +14,23 @@ use iox_time::{SystemProvider, Time, TimeProvider};
 use metric::{Metric, U64Counter, U64Histogram, U64HistogramOptions};
 use pin_project::{pin_project, pinned_drop};
 
-use object_store::{path::Path, GetResult, ListResult, ObjectMeta, ObjectStoreApi, Result};
+use object_store::{path::Path, GetResult, ListResult, ObjectMeta, ObjectStore, Result};
 
 #[cfg(test)]
 mod dummy;
 
-/// An instrumentation decorator, wrapping an underlying [`ObjectStoreApi`]
+/// An instrumentation decorator, wrapping an underlying [`ObjectStore`]
 /// implementation and recording bytes transferred and call latency.
 ///
 /// # Stream Duration
 ///
-/// The [`ObjectStoreApi::get()`] call can return a [`Stream`] which is polled
+/// The [`ObjectStore::get()`] call can return a [`Stream`] which is polled
 /// by the caller and may yield chunks of a file over a series of polls (as
 /// opposed to all of the file data in one go). Because the caller drives the
 /// polling and therefore fetching of data from the object store over the
-/// lifetime of the [`Stream`], the duration of a [`ObjectStoreApi::get()`]
+/// lifetime of the [`Stream`], the duration of a [`ObjectStore::get()`]
 /// request is measured to be the wall clock difference between the moment the
-/// caller executes the [`ObjectStoreApi::get()`] call, up until the last chunk
+/// caller executes the [`ObjectStore::get()`] call, up until the last chunk
 /// of data is yielded to the caller.
 ///
 /// This means the duration metrics measuring consumption of returned streams
@@ -39,7 +39,7 @@ mod dummy;
 ///
 /// # Stream Errors
 ///
-/// The [`ObjectStoreApi::get()`] method can return a [`Stream`] of [`Result`]
+/// The [`ObjectStore::get()`] method can return a [`Stream`] of [`Result`]
 /// instances, and returning an error when polled is not necessarily a terminal
 /// state. The metric recorder allows for a caller to observe a transient error
 /// and subsequently go on to complete reading the stream, recording this read
@@ -67,7 +67,7 @@ mod dummy;
 /// are not recorded. The bytes transferred metric is not affected.
 #[derive(Debug)]
 pub struct ObjectStoreMetrics {
-    inner: Arc<dyn ObjectStoreApi>,
+    inner: Arc<dyn ObjectStore>,
     time_provider: Arc<dyn TimeProvider>,
 
     put_success_duration_ms: U64Histogram,
@@ -88,7 +88,7 @@ pub struct ObjectStoreMetrics {
 impl ObjectStoreMetrics {
     /// Instrument `T`, pushing to `registry`.
     pub fn new(
-        inner: Arc<dyn ObjectStoreApi>,
+        inner: Arc<dyn ObjectStore>,
         time_provider: Arc<dyn TimeProvider>,
         registry: &metric::Registry,
     ) -> Self {
@@ -162,7 +162,7 @@ impl std::fmt::Display for ObjectStoreMetrics {
 }
 
 #[async_trait]
-impl ObjectStoreApi for ObjectStoreMetrics {
+impl ObjectStore for ObjectStoreMetrics {
     async fn put(&self, location: &Path, bytes: Bytes) -> Result<()> {
         let t = self.time_provider.now();
 
@@ -309,7 +309,7 @@ trait MetricDelegate {
 /// A [`MetricDelegate`] for instrumented streams of [`Bytes`].
 ///
 /// This impl is used to record the number of bytes yielded for
-/// [`ObjectStoreApi::get()`] calls.
+/// [`ObjectStore::get()`] calls.
 #[derive(Debug)]
 struct BytesStreamDelegate(U64Counter);
 
@@ -522,7 +522,7 @@ mod tests {
     use tokio::io::AsyncReadExt;
 
     use dummy::DummyObjectStore;
-    use object_store::{disk::LocalFileSystem, memory::InMemory};
+    use object_store::{local::LocalFileSystem, memory::InMemory};
 
     use super::*;
 

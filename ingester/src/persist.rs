@@ -82,10 +82,10 @@ pub async fn persist(
 mod tests {
     use super::*;
     use data_types::{NamespaceId, PartitionId, SequenceNumber, SequencerId, TableId};
+    use futures::{StreamExt, TryStreamExt};
     use iox_catalog::interface::INITIAL_COMPACTION_LEVEL;
     use iox_time::Time;
     use object_store::memory::InMemory;
-    use object_store::ObjectStoreTestConvenience;
     use query::test::{raw_data, TestChunk};
     use std::sync::Arc;
     use uuid::Uuid;
@@ -124,7 +124,8 @@ mod tests {
             .await
             .unwrap();
 
-        assert!(object_store.list_all().await.unwrap().is_empty());
+        let mut list = object_store.list(None).await.unwrap();
+        assert!(list.next().await.is_none());
     }
 
     #[tokio::test]
@@ -165,7 +166,8 @@ mod tests {
             .await
             .unwrap();
 
-        let obj_store_paths = object_store.list_all().await.unwrap();
+        let list = object_store.list(None).await.unwrap();
+        let obj_store_paths: Vec<_> = list.try_collect().await.unwrap();
         assert_eq!(obj_store_paths.len(), 1);
     }
 }

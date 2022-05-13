@@ -1108,10 +1108,10 @@ mod tests {
     use super::*;
     use arrow_util::assert_batches_sorted_eq;
     use data_types::{ChunkId, KafkaPartition, NamespaceId, ParquetFileParams, SequenceNumber};
+    use futures::TryStreamExt;
     use iox_catalog::interface::INITIAL_COMPACTION_LEVEL;
     use iox_tests::util::TestCatalog;
     use iox_time::SystemProvider;
-    use object_store::ObjectStoreTestConvenience;
     use querier::{
         cache::CatalogCache,
         chunk::{collect_read_filter, ParquetChunkAdapter},
@@ -2488,7 +2488,8 @@ mod tests {
         .await
         .unwrap();
 
-        let object_store_files = compactor.object_store.list_all().await.unwrap();
+        let list = compactor.object_store.list(None).await.unwrap();
+        let object_store_files: Vec<_> = list.try_collect().await.unwrap();
         assert_eq!(object_store_files.len(), 1);
     }
 

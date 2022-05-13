@@ -15,7 +15,7 @@ futures = "0.3"
 generated_types = { path = "../generated_types" }
 iox_time = { path = "../iox_time" }
 metric = { path = "../metric" }
-object_store = { path = "../object_store" }
+object_store = "0.0.1"
 observability_deps = { path = "../observability_deps" }
 parking_lot = "0.12"
 parquet = {version = "13", features = ["experimental"]}

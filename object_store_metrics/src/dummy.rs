@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use snafu::Snafu;
 
-use object_store::{path::Path, GetResult, ListResult, ObjectMeta, ObjectStoreApi, Result};
+use object_store::{path::Path, GetResult, ListResult, ObjectMeta, ObjectStore, Result};
 
 /// A specialized `Error` for Azure object store-related errors
 #[derive(Debug, Snafu, Clone)]
@@ -50,7 +50,7 @@ impl std::fmt::Display for DummyObjectStore {
 }
 
 #[async_trait]
-impl ObjectStoreApi for DummyObjectStore {
+impl ObjectStore for DummyObjectStore {
     async fn put(&self, _location: &Path, _bytes: Bytes) -> Result<()> {
         Ok(NotSupportedSnafu { name: self.name }.fail()?)
     }
