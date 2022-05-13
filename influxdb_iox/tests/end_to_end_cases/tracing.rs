@@ -1,6 +1,6 @@
 use futures::{prelude::*, FutureExt};
 use generated_types::storage_client::StorageClient;
-use test_helpers_end_to_end_ng::{
+use test_helpers_end_to_end::{
     maybe_skip_integration, GrpcRequestBuilder, MiniCluster, Step, StepTest, StepTestState,
     TestConfig, UdpCapture,
 };

@@ -54,7 +54,7 @@ impl<'a> StepTestState<'a> {
 /// ```
 /// use futures::FutureExt;
 /// use futures::future::BoxFuture;
-/// use test_helpers_end_to_end_ng::{FCustom, StepTestState};
+/// use test_helpers_end_to_end::{FCustom, StepTestState};
 ///
 /// let custom_function: FCustom = Box::new(|state: &mut StepTestState| {
 ///   async move {

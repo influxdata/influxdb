@@ -12,7 +12,7 @@ use std::{
 };
 use tokio::sync::Mutex;
 
-/// Structure that holds NG services and helpful accessors
+/// Structure that holds services and helpful accessors
 #[derive(Debug, Default)]
 pub struct MiniCluster {
     /// Standard optional router

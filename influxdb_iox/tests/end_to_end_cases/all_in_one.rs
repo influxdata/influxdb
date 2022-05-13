@@ -1,6 +1,6 @@
 use arrow_util::assert_batches_sorted_eq;
 use http::StatusCode;
-use test_helpers_end_to_end_ng::{
+use test_helpers_end_to_end::{
     get_write_token, maybe_skip_integration, rand_name, run_query, wait_for_persisted,
     write_to_router, ServerFixture, TestConfig,
 };

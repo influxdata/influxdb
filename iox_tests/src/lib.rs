@@ -1,4 +1,4 @@
-//! IOx NG test utils and tests
+//! IOx test utils and tests
 
 #![deny(rustdoc::broken_intra_doc_links, rust_2018_idioms)]
 #![warn(

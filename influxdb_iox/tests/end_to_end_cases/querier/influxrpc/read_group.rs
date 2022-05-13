@@ -2,7 +2,7 @@ use super::{dump::dump_data_frames, read_group_data};
 use futures::{prelude::*, FutureExt};
 use generated_types::storage_client::StorageClient;
 use influxdb_iox_client::connection::Connection;
-use test_helpers_end_to_end_ng::{
+use test_helpers_end_to_end::{
     maybe_skip_integration, GrpcRequestBuilder, MiniCluster, Step, StepTest, StepTestState,
 };
 

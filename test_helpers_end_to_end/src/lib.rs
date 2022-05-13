@@ -74,12 +74,12 @@ macro_rules! maybe_skip_integration {
                 )
             }
             (false, Some(_)) => {
-                eprintln!("skipping NG end-to-end integration tests - set TEST_INTEGRATION to run");
+                eprintln!("skipping end-to-end integration tests - set TEST_INTEGRATION to run");
                 return;
             }
             (false, None) => {
                 eprintln!(
-                    "skipping NG end-to-end integration tests - set TEST_INTEGRATION and \
+                    "skipping end-to-end integration tests - set TEST_INTEGRATION and \
                     TEST_INFLUXDB_IOX_CATALOG_DSN to run"
                 );
                 return;

@@ -2,7 +2,7 @@ pub(crate) mod influxrpc;
 mod multi_ingester;
 
 use futures::FutureExt;
-use test_helpers_end_to_end_ng::{
+use test_helpers_end_to_end::{
     maybe_skip_integration, MiniCluster, Step, StepTest, StepTestState, TestConfig,
 };
 

@@ -7,7 +7,7 @@ mod read_group;
 mod read_window_aggregate;
 
 use std::sync::Arc;
-use test_helpers_end_to_end_ng::{
+use test_helpers_end_to_end::{
     maybe_skip_integration, DataGenerator, FCustom, MiniCluster, Step, StepTest,
 };
 

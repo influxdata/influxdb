@@ -160,8 +160,4 @@ impl QueryChunk for QuerierChunk {
     fn order(&self) -> ChunkOrder {
         self.meta().order()
     }
-
-    fn ng_chunk(&self) -> bool {
-        true
-    }
 }

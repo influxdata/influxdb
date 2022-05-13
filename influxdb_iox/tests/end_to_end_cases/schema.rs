@@ -1,7 +1,5 @@
 use futures::FutureExt;
-use test_helpers_end_to_end_ng::{
-    maybe_skip_integration, MiniCluster, Step, StepTest, StepTestState,
-};
+use test_helpers_end_to_end::{maybe_skip_integration, MiniCluster, Step, StepTest, StepTestState};
 
 /// Test the schema client
 #[tokio::test]

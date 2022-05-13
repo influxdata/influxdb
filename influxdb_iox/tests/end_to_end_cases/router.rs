@@ -1,5 +1,5 @@
 use influxdb_iox_client::write::generated_types::{column, Column, TableBatch};
-use test_helpers_end_to_end_ng::{maybe_skip_integration, MiniCluster, Step, StepTest};
+use test_helpers_end_to_end::{maybe_skip_integration, MiniCluster, Step, StepTest};
 
 #[tokio::test]
 async fn write_via_grpc() {

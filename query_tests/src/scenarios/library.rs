@@ -390,7 +390,7 @@ impl DbSetup for TwoMeasurementsManyFieldsOneChunk {
 #[derive(Debug)]
 /// This has two chunks for queries that check the state of the system
 ///
-/// This scenario is NG-specific and can be used for `EXPLAIN` plans and system tables.
+/// This scenario can be used for `EXPLAIN` plans and system tables.
 pub struct TwoMeasurementsManyFieldsTwoChunks {}
 #[async_trait]
 impl DbSetup for TwoMeasurementsManyFieldsTwoChunks {

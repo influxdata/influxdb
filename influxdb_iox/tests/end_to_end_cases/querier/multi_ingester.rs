@@ -5,7 +5,7 @@ use influxdb_iox_client::write_info::generated_types::{
 };
 use std::time::Duration;
 use test_helpers::timeout::FutureTimeout;
-use test_helpers_end_to_end_ng::{
+use test_helpers_end_to_end::{
     all_readable, combined_token_info, maybe_skip_integration, MiniCluster, Step, StepTest,
     StepTestState, TestConfig,
 };

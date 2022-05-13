@@ -1,4 +1,4 @@
-use test_helpers_end_to_end_ng::{
+use test_helpers_end_to_end::{
     maybe_skip_integration, DataGenerator, MiniCluster, Step, StepTest, TestConfig,
 };
 

@@ -4,7 +4,7 @@ use generated_types::{
 };
 use http::StatusCode;
 use std::collections::BTreeMap;
-use test_helpers_end_to_end_ng::{
+use test_helpers_end_to_end::{
     get_write_token, maybe_skip_integration, wait_for_readable, MiniCluster,
 };
 

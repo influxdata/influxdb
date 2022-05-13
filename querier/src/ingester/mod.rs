@@ -624,10 +624,6 @@ impl QueryChunk for IngesterPartition {
         // partition, put it at the end
         ChunkOrder::new(u32::MAX).unwrap()
     }
-
-    fn ng_chunk(&self) -> bool {
-        true
-    }
 }
 
 /// Ensure that the record batch has the given schema.
