@@ -8,7 +8,7 @@ use arrow::{datatypes::SchemaRef as ArrowSchemaRef, error::ArrowError};
 use datafusion::{
     datasource::TableProvider,
     error::{DataFusionError, Result as DataFusionResult},
-    logical_expr::TableProviderFilterPushDown,
+    logical_expr::{TableProviderFilterPushDown, TableType},
     logical_plan::Expr,
     physical_plan::{
         expressions::{col as physical_col, PhysicalSortExpr},
@@ -299,6 +299,10 @@ impl TableProvider for ChunkTableProvider {
         _filter: &Expr,
     ) -> DataFusionResult<TableProviderFilterPushDown> {
         Ok(TableProviderFilterPushDown::Inexact)
+    }
+
+    fn table_type(&self) -> TableType {
+        TableType::Base
     }
 }
 

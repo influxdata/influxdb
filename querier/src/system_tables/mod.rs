@@ -7,6 +7,7 @@ use datafusion::{
     datasource::TableProvider,
     error::Result as DataFusionResult,
     execution::context::TaskContext,
+    logical_expr::TableType,
     physical_plan::{
         expressions::PhysicalSortExpr, ExecutionPlan, Partitioning, RecordBatchStream,
         SendableRecordBatchStream, Statistics,
@@ -114,6 +115,10 @@ where
             projection: projection.clone(),
             projected_schema,
         }))
+    }
+
+    fn table_type(&self) -> TableType {
+        TableType::Base
     }
 }
 
