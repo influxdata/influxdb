@@ -2372,21 +2372,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "iox_catalog_service"
-version = "0.1.0"
-dependencies = [
- "data_types",
- "generated_types",
- "iox_catalog",
- "metric",
- "observability_deps",
- "tokio",
- "tonic",
- "uuid 0.8.2",
- "workspace-hack",
-]
-
-[[package]]
 name = "iox_data_generator"
 version = "0.1.0"
 dependencies = [
@@ -4512,7 +4497,6 @@ dependencies = [
  "hashbrown 0.12.1",
  "hyper",
  "iox_catalog",
- "iox_catalog_service",
  "iox_time",
  "lazy_static",
  "metric",
@@ -4529,6 +4513,7 @@ dependencies = [
  "schema",
  "serde",
  "serde_urlencoded",
+ "service_grpc_catalog",
  "service_grpc_object_store",
  "service_grpc_schema",
  "siphasher",
@@ -5024,6 +5009,21 @@ dependencies = [
  "datafusion 0.1.0",
  "predicate",
  "query",
+ "workspace-hack",
+]
+
+[[package]]
+name = "service_grpc_catalog"
+version = "0.1.0"
+dependencies = [
+ "data_types",
+ "generated_types",
+ "iox_catalog",
+ "metric",
+ "observability_deps",
+ "tokio",
+ "tonic",
+ "uuid 0.8.2",
  "workspace-hack",
 ]
 

@@ -10,12 +10,12 @@ use generated_types::{
 };
 use hashbrown::HashMap;
 use iox_catalog::interface::Catalog;
-use iox_catalog_service::CatalogService;
 use metric::U64Counter;
 use mutable_batch::MutableBatch;
 use object_store::DynObjectStore;
 use observability_deps::tracing::*;
 use schema::selection::Selection;
+use service_grpc_catalog::CatalogService;
 use service_grpc_object_store::ObjectStoreService;
 use service_grpc_schema::SchemaService;
 use std::sync::Arc;

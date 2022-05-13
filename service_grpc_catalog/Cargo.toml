@@ -1,5 +1,5 @@
 [package]
-name = "iox_catalog_service"
+name = "service_grpc_catalog"
 version = "0.1.0"
 edition = "2021"
 

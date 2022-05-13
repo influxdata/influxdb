@@ -14,7 +14,7 @@ generated_types = { path = "../generated_types" }
 hashbrown = "0.12"
 hyper = "0.14"
 iox_catalog = { path = "../iox_catalog" }
-iox_catalog_service = { path = "../iox_catalog_service"}
+service_grpc_catalog = { path = "../service_grpc_catalog"}
 iox_time = { path = "../iox_time" }
 metric = { path = "../metric" }
 mutable_batch = { path = "../mutable_batch" }
