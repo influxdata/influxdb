@@ -1,3 +1,4 @@
+//! Time-to-live handling.
 use std::{any::Any, fmt::Debug, hash::Hash, marker::PhantomData, sync::Arc, time::Duration};
 
 use iox_time::{Time, TimeProvider};
@@ -552,7 +553,7 @@ mod tests {
 
     #[test]
     fn test_generic() {
-        use crate::cache_system::backend::test_util::test_generic;
+        use crate::backend::test_util::test_generic;
 
         test_generic(|| {
             let ttl_provider = Arc::new(NeverTtlProvider::default());

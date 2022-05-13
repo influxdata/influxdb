@@ -1,3 +1,4 @@
+//! Implementation of an [`AddressableHeap`].
 use std::{
     collections::{HashMap, VecDeque},
     hash::Hash,

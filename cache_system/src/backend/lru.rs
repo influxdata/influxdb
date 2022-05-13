@@ -9,7 +9,7 @@
 //!     sync::Arc,
 //! };
 //! use iox_time::SystemProvider;
-//! use querier::{
+//! use cache_system::backend::{
 //!     CacheBackend,
 //!     lru::{LruBackend, ResourcePool},
 //!     resource_consumption::{Resource, ResourceEstimator},
@@ -1114,7 +1114,7 @@ mod tests {
 
     #[test]
     fn test_generic() {
-        use crate::cache_system::backend::test_util::test_generic;
+        use crate::backend::test_util::test_generic;
 
         #[derive(Debug)]
         struct ZeroSizeProvider {}

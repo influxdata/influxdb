@@ -1,3 +1,4 @@
+//! Cross-populated two caches.
 use std::{any::Any, fmt::Debug, hash::Hash, sync::Arc};
 
 use parking_lot::Mutex;
@@ -310,7 +311,7 @@ mod tests {
 
     #[test]
     fn test_generic1() {
-        use crate::cache_system::backend::test_util::test_generic;
+        use crate::backend::test_util::test_generic;
 
         test_generic(|| {
             let backend1 = Box::new(HashMap::<u8, String>::new());
@@ -328,7 +329,7 @@ mod tests {
 
     #[test]
     fn test_generic2() {
-        use crate::cache_system::backend::test_util::test_generic;
+        use crate::backend::test_util::test_generic;
 
         test_generic(|| {
             let backend1 = Box::new(HashMap::<i8, String>::new());

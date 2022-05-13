@@ -1,3 +1,4 @@
+//! Storage backends to keep and manage cached entries.
 use std::{any::Any, fmt::Debug, hash::Hash};
 
 pub mod addressable_heap;

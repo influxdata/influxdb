@@ -10,7 +10,6 @@
 )]
 
 pub mod cache;
-mod cache_system;
 pub mod chunk;
 mod database;
 mod handler;
@@ -36,11 +35,3 @@ pub use ingester::{
 };
 pub use namespace::QuerierNamespace;
 pub use server::QuerierServer;
-
-// for benchmarks
-pub use cache_system::backend::addressable_heap::AddressableHeap;
-
-// for doctests
-pub use cache_system::backend::lru;
-pub use cache_system::backend::resource_consumption;
-pub use cache_system::backend::CacheBackend;
