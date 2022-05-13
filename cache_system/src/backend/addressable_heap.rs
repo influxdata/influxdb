@@ -1,3 +1,4 @@
+//! Implementation of an [`AddressableHeap`].
 use std::{
     collections::{HashMap, VecDeque},
     hash::Hash,
@@ -42,6 +43,14 @@ where
             key_to_order_and_value: HashMap::new(),
             queue: VecDeque::new(),
         }
+    }
+
+    /// Check if the heap is empty.
+    pub fn is_empty(&self) -> bool {
+        let res1 = self.key_to_order_and_value.is_empty();
+        let res2 = self.queue.is_empty();
+        assert_eq!(res1, res2, "data structures out of sync");
+        res1
     }
 
     /// Insert element.
@@ -396,6 +405,10 @@ mod tests {
             Self { inner: Vec::new() }
         }
 
+        fn is_empty(&self) -> bool {
+            self.inner.is_empty()
+        }
+
         fn insert(&mut self, k: u8, v: String, o: i8) -> Option<(String, i8)> {
             let res = self.remove(&k);
             self.inner.push((k, v, o));
@@ -441,6 +454,7 @@ mod tests {
 
     #[derive(Debug, Clone)]
     enum Action {
+        IsEmpty,
         Insert { k: u8, v: String, o: i8 },
         Peek,
         Pop,
@@ -451,6 +465,7 @@ mod tests {
     // Use a hand-rolled strategy instead of `proptest-derive`, because the latter one is quite a heavy dependency.
     fn action() -> impl Strategy<Value = Action> {
         prop_oneof![
+            Just(Action::IsEmpty),
             (any::<u8>(), ".*", any::<i8>()).prop_map(|(k, v, o)| Action::Insert { k, v, o }),
             Just(Action::Peek),
             Just(Action::Pop),
@@ -467,6 +482,11 @@ mod tests {
 
             for action in actions {
                 match action {
+                    Action::IsEmpty => {
+                        let res1 = heap.is_empty();
+                        let res2 = sim.is_empty();
+                        assert_eq!(res1, res2);
+                    }
                     Action::Insert{k, v, o} => {
                         let res1 = heap.insert(k, v.clone(), o);
                         let res2 = sim.insert(k, v, o);

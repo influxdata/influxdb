@@ -222,8 +222,6 @@ async fn execute(request: GetPartitionForIngester<'_>) -> Result<Vec<Arc<Ingeste
         expected_schema,
     } = request;
 
-    let ingester_address = ingester_address.as_ref();
-
     let ingester_query_request = IngesterQueryRequest {
         namespace: namespace_name.to_string(),
         table: table_name.to_string(),
@@ -232,8 +230,10 @@ async fn execute(request: GetPartitionForIngester<'_>) -> Result<Vec<Arc<Ingeste
     };
 
     let query_res = flight_client
-        .query(ingester_address, ingester_query_request)
+        .query(Arc::clone(&ingester_address), ingester_query_request)
         .await;
+
+    let ingester_address = ingester_address.as_ref();
     if let Err(FlightClientError::Flight {
         source: FlightError::GrpcError(status),
     }) = &query_res
@@ -1202,13 +1202,13 @@ mod tests {
     impl FlightClient for MockFlightClient {
         async fn query(
             &self,
-            ingester_address: &str,
+            ingester_address: Arc<str>,
             _request: IngesterQueryRequest,
         ) -> Result<Box<dyn QueryData>, FlightClientError> {
             self.responses
                 .lock()
                 .await
-                .remove(ingester_address)
+                .remove(ingester_address.as_ref())
                 .expect("Response not mocked")
                 .map(|query_data| Box::new(query_data) as _)
         }

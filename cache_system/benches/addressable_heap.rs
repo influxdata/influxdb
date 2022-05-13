@@ -1,10 +1,10 @@
 use std::mem::size_of;
 
+use cache_system::backend::addressable_heap::AddressableHeap;
 use criterion::{
     criterion_group, criterion_main, measurement::WallTime, AxisScale, BatchSize, BenchmarkGroup,
     BenchmarkId, Criterion, PlotConfiguration, SamplingMode,
 };
-use querier::AddressableHeap;
 use rand::{prelude::SliceRandom, thread_rng, Rng};
 
 /// Payload (`V`) for testing.

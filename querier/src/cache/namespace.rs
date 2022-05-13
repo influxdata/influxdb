@@ -1,6 +1,7 @@
 //! Namespace cache.
 
-use crate::cache_system::{
+use backoff::{Backoff, BackoffConfig};
+use cache_system::{
     backend::{
         dual::dual_backends,
         ttl::{OptionalValueTtlProvider, TtlBackend},
@@ -8,7 +9,6 @@ use crate::cache_system::{
     driver::Cache,
     loader::FunctionLoader,
 };
-use backoff::{Backoff, BackoffConfig};
 use data_types::{NamespaceId, NamespaceSchema};
 use iox_catalog::interface::{get_schema_by_name, Catalog};
 use iox_time::TimeProvider;

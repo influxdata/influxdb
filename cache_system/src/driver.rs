@@ -1,3 +1,4 @@
+//! Main data structure, see [`Cache`].
 use std::{collections::HashMap, hash::Hash, sync::Arc};
 
 use futures::{

@@ -1,3 +1,4 @@
+//! Implements [`CacheBackend`] for [`HashMap`].
 use std::{
     any::Any,
     collections::HashMap,
@@ -43,7 +44,7 @@ mod tests {
 
     #[test]
     fn test_generic() {
-        use crate::cache_system::backend::test_util::test_generic;
+        use crate::backend::test_util::test_generic;
 
         test_generic(HashMap::new);
     }

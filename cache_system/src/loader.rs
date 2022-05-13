@@ -1,8 +1,9 @@
+//! How to load new cache entries.
 use async_trait::async_trait;
 use futures::{future::BoxFuture, FutureExt};
 use std::future::Future;
 
-/// Loader for missing [`Cache`](crate::cache_system::driver::Cache) entries.
+/// Loader for missing [`Cache`](crate::driver::Cache) entries.
 #[async_trait]
 pub trait Loader: std::fmt::Debug + Send + Sync + 'static {
     /// Cache key.

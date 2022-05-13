@@ -450,7 +450,7 @@ jobs:
             RUST_VERSION="$(sed -E -ne 's/channel = "(.*)"/\1/p' rust-toolchain.toml)"
 
             docker buildx build \
-              --build-arg FEATURES="aws,gcp,azure,jemalloc_replacing_malloc,tokio_console" \
+              --build-arg FEATURES="aws,gcp,azure,jemalloc_replacing_malloc,tokio_console,pprof" \
               --build-arg RUST_VERSION="$RUST_VERSION" \
               --build-arg RUSTFLAGS="$RUSTFLAGS" \
               --progress plain \

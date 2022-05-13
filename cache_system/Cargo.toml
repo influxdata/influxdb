@@ -1,0 +1,22 @@
+[package]
+name = "cache_system"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+async-trait = "0.1.53"
+futures = "0.3"
+iox_time = { path = "../iox_time" }
+observability_deps = { path = "../observability_deps" }
+parking_lot = "0.12"
+tokio = { version = "1.18", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
+workspace-hack = { path = "../workspace-hack"}
+
+[dev-dependencies]
+criterion = "0.3"
+proptest = { version = "1", default_features = false, features = ["std"] }
+rand = "0.8.3"
+
+[[bench]]
+name = "addressable_heap"
+harness = false
