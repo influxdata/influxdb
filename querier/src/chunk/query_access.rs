@@ -1,6 +1,6 @@
 use crate::chunk::{ChunkStorage, QuerierChunk};
 use data_types::{
-    ChunkAddr, ChunkId, ChunkOrder, DeletePredicate, PartitionId, TableSummary, TimestampMinMax,
+    ChunkId, ChunkOrder, DeletePredicate, PartitionId, TableSummary, TimestampMinMax,
 };
 use observability_deps::tracing::debug;
 use predicate::PredicateMatch;
@@ -54,15 +54,11 @@ impl QueryChunkMeta for QuerierChunk {
 
 impl QueryChunk for QuerierChunk {
     fn id(&self) -> ChunkId {
-        self.meta().addr().chunk_id
-    }
-
-    fn addr(&self) -> ChunkAddr {
-        self.meta().addr().clone()
+        self.meta().chunk_id
     }
 
     fn table_name(&self) -> &str {
-        self.meta().addr().table_name.as_ref()
+        self.meta().table_name.as_ref()
     }
 
     fn may_contain_pk_duplicates(&self) -> bool {

@@ -4,7 +4,7 @@ use crate::data::{QueryableBatch, SnapshotBatch};
 use arrow::record_batch::RecordBatch;
 use arrow_util::util::merge_record_batches;
 use data_types::{
-    ChunkAddr, ChunkId, ChunkOrder, DeletePredicate, PartitionId, SequenceNumber, TableSummary,
+    ChunkId, ChunkOrder, DeletePredicate, PartitionId, SequenceNumber, TableSummary,
     TimestampMinMax, Tombstone,
 };
 use datafusion::{
@@ -149,11 +149,6 @@ impl QueryChunk for QueryableBatch {
         // always return id 0 for debugging mode
         // TODO: need to see if the same id for all chunks will cause any panics
         ChunkId::new_test(0)
-    }
-
-    // This function should not be used in PersistingBatch context
-    fn addr(&self) -> ChunkAddr {
-        unimplemented!()
     }
 
     /// Returns the name of the table stored in this chunk

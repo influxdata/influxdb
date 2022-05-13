@@ -3,8 +3,8 @@
 use crate::cache::CatalogCache;
 use arrow::record_batch::RecordBatch;
 use data_types::{
-    ChunkAddr, ChunkId, ChunkOrder, DeletePredicate, ParquetFile, ParquetFileId,
-    ParquetFileWithMetadata, PartitionId, SequenceNumber, SequencerId, TimestampMinMax,
+    ChunkId, ChunkOrder, DeletePredicate, ParquetFileId, ParquetFileWithMetadata, PartitionId,
+    SequenceNumber, SequencerId, TimestampMinMax,
 };
 use futures::StreamExt;
 use iox_catalog::interface::Catalog;
@@ -23,8 +23,11 @@ mod query_access;
 /// Immutable metadata attached to a [`QuerierChunk`].
 #[derive(Debug)]
 pub struct ChunkMeta {
-    /// Chunk address.
-    addr: ChunkAddr,
+    /// The ID of the chunk
+    chunk_id: ChunkId,
+
+    /// Table name
+    table_name: Arc<str>,
 
     /// Chunk order.
     order: ChunkOrder,
@@ -49,11 +52,6 @@ pub struct ChunkMeta {
 }
 
 impl ChunkMeta {
-    /// Chunk address.
-    pub fn addr(&self) -> &ChunkAddr {
-        &self.addr
-    }
-
     /// Chunk order.
     pub fn order(&self) -> ChunkOrder {
         self.order
@@ -234,10 +232,13 @@ impl ParquetChunkAdapter {
         parquet_file_with_metadata: ParquetFileWithMetadata,
     ) -> Option<QuerierChunk> {
         let decoded_parquet_file = DecodedParquetFile::new(parquet_file_with_metadata);
+        let parquet_file = decoded_parquet_file.parquet_file;
         let chunk = Arc::new(self.new_parquet_chunk(&decoded_parquet_file).await?);
-
-        let addr = self
-            .old_gen_chunk_addr(&decoded_parquet_file.parquet_file)
+        let chunk_id = ChunkId::from(Uuid::from_u128(parquet_file.id.get() as _));
+        let table_name = self
+            .catalog_cache
+            .table()
+            .name(parquet_file.table_id)
             .await?;
 
         let iox_metadata = &decoded_parquet_file.iox_metadata;
@@ -255,56 +256,18 @@ impl ParquetChunkAdapter {
             .await;
 
         let meta = Arc::new(ChunkMeta {
-            addr,
+            chunk_id,
+            table_name,
             order,
             sort_key: iox_metadata.sort_key.clone(),
             partition_sort_key,
             sequencer_id: iox_metadata.sequencer_id,
             partition_id: iox_metadata.partition_id,
-            min_sequence_number: decoded_parquet_file.parquet_file.min_sequence_number,
-            max_sequence_number: decoded_parquet_file.parquet_file.max_sequence_number,
+            min_sequence_number: parquet_file.min_sequence_number,
+            max_sequence_number: parquet_file.max_sequence_number,
         });
 
-        Some(QuerierChunk::new_parquet(
-            decoded_parquet_file.parquet_file.id,
-            chunk,
-            meta,
-        ))
-    }
-
-    /// Get chunk addr for old gen.
-    ///
-    /// Mapping of NG->old:
-    /// - `namespace.name -> db_name`
-    /// - `table.name -> table_name`
-    /// - `sequencer.id X partition.name -> partition_key`
-    /// - `parquet_file.id -> chunk_id`
-    ///
-    /// Returns `None` if some data required to create this chunk is already gone from the catalog.
-    pub async fn old_gen_chunk_addr(&self, parquet_file: &ParquetFile) -> Option<ChunkAddr> {
-        Some(ChunkAddr {
-            db_name: self
-                .catalog_cache
-                .namespace()
-                .name(
-                    self.catalog_cache
-                        .table()
-                        .namespace_id(parquet_file.table_id)
-                        .await?,
-                )
-                .await?,
-            table_name: self
-                .catalog_cache
-                .table()
-                .name(parquet_file.table_id)
-                .await?,
-            partition_key: self
-                .catalog_cache
-                .partition()
-                .old_gen_partition_key(parquet_file.partition_id)
-                .await,
-            chunk_id: ChunkId::from(Uuid::from_u128(parquet_file.id.get() as _)),
-        })
+        Some(QuerierChunk::new_parquet(parquet_file.id, chunk, meta))
     }
 }
 
@@ -367,12 +330,6 @@ pub mod tests {
 
         // create chunk
         let chunk = adapter.new_querier_chunk(parquet_file).await.unwrap();
-
-        // check chunk addr
-        assert_eq!(
-            chunk.meta().addr().to_string(),
-            "Chunk('ns':'table':'1-part':00000000-0000-0000-0000-000000000001)",
-        );
 
         // check chunk schema
         let expected_schema = SchemaBuilder::new()

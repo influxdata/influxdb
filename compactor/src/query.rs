@@ -1,8 +1,8 @@
 //! Queryable Compactor Data
 
 use data_types::{
-    ChunkAddr, ChunkId, ChunkOrder, DeletePredicate, PartitionId, SequenceNumber, TableSummary,
-    Timestamp, TimestampMinMax, Tombstone,
+    ChunkId, ChunkOrder, DeletePredicate, PartitionId, SequenceNumber, TableSummary, Timestamp,
+    TimestampMinMax, Tombstone,
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
 use observability_deps::tracing::trace;
@@ -160,11 +160,6 @@ impl QueryChunk for QueryableParquetChunk {
             u128::try_from(timestamp_nano).expect("Cannot convert timestamp nano to u128 ");
 
         ChunkId::new_id(timestamp_nano_u128)
-    }
-
-    // This function should not be used in this context
-    fn addr(&self) -> ChunkAddr {
-        unimplemented!()
     }
 
     /// Returns the name of the table stored in this chunk
