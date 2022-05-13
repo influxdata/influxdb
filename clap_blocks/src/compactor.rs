@@ -34,9 +34,8 @@ pub struct CompactorConfig {
     pub split_percentage: i64,
 
     /// The compactor will limit the number of simultaneous compaction jobs based on the
-    /// size of the input files to be compacted. Currently this only takes into account the
-    /// level 0 files, but should later also consider the level 1 files to be compacted. This
-    /// number should be less than 1/10th of the available memory to ensure compactions have
+    /// size of the input files to be compacted.  This number should be less than 1/10th
+    /// of the available memory to ensure compactions have
     /// enough space to run. Default is 100,000,000 (100MB).
     #[clap(
         long = "--compaction-concurrent-size-bytes",

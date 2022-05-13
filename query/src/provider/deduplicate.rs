@@ -24,7 +24,7 @@ use datafusion::{
     },
 };
 use futures::StreamExt;
-use observability_deps::tracing::debug;
+use observability_deps::tracing::{debug, trace};
 use tokio::sync::mpsc;
 
 /// # DeduplicateExec
@@ -186,7 +186,7 @@ impl ExecutionPlan for DeduplicateExec {
         partition: usize,
         context: Arc<TaskContext>,
     ) -> Result<SendableRecordBatchStream> {
-        debug!(partition, "Start DeduplicationExec::execute");
+        trace!(partition, "Start DeduplicationExec::execute");
 
         if partition != 0 {
             return Err(DataFusionError::Internal(

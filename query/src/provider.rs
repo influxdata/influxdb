@@ -19,7 +19,7 @@ use datafusion::{
         ExecutionPlan,
     },
 };
-use observability_deps::tracing::{debug, warn};
+use observability_deps::tracing::{debug, trace, warn};
 use predicate::{Predicate, PredicateBuilder};
 use schema::{merge::SchemaMerger, sort::SortKey, InfluxColumnType, Schema};
 
@@ -244,7 +244,7 @@ impl TableProvider for ChunkTableProvider {
         filters: &[Expr],
         _limit: Option<usize>,
     ) -> std::result::Result<Arc<dyn ExecutionPlan>, DataFusionError> {
-        debug!("Create a scan node for ChunkTableProvider");
+        trace!("Create a scan node for ChunkTableProvider");
 
         // Note that `filters` don't actually need to be evaluated in
         // the scan for the plans to be correct, they are an extra
@@ -657,6 +657,8 @@ impl Deduplicater {
     ///  2. vector of non-overlapped chunks, each have duplicates in itself
     ///  3. vectors of non-overlapped chunks without duplicates
     fn split_overlapped_chunks(&mut self, chunks: Vec<Arc<dyn QueryChunk>>) -> Result<()> {
+        trace!("split_overlapped_chunks");
+
         // -------------------------------
         // Group chunks by partition first
         // Chunks in different partition are guarantee not to ovelap
@@ -989,10 +991,10 @@ impl Deduplicater {
         // 1. ensures that the schema post-projection matches output_schema
         // 2. ensures that all columns necessary to perform the sort are present
         // 3. ensures that all columns necessary to evaluate the delete predicates are present
-        debug!("Build sort plan for a single chunk. Sort node won't be added if the plan is already sorted");
+        trace!("Build sort plan for a single chunk. Sort node won't be added if the plan is already sorted");
         let mut schema_merger = SchemaMerger::new().merge(&output_schema).unwrap();
         let chunk_schema = chunk.schema();
-        debug!(?chunk_schema, "chunk schema");
+        trace!(?chunk_schema, "chunk schema");
 
         // Cols of sort key
         if let Some(key) = sort_key {
@@ -1034,7 +1036,7 @@ impl Deduplicater {
             .map(|pred| Arc::new(pred.as_ref().clone().into()))
             .collect();
 
-        debug!(?del_preds, "Chunk delete predicates");
+        trace!(?del_preds, "Chunk delete predicates");
         let negated_del_expr_val = Predicate::negated_expr(&del_preds[..]);
         if let Some(negated_del_expr) = negated_del_expr_val {
             debug!(?negated_del_expr, "Logical negated expressions");

@@ -100,7 +100,7 @@ impl ParquetFileWithTombstone {
             object_store,
         );
 
-        debug!(
+        trace!(
             parquet_file_id=?decoded_parquet_file.parquet_file.id,
             parquet_file_sequencer_id=?decoded_parquet_file.parquet_file.sequencer_id,
             parquet_file_namespace_id=?decoded_parquet_file.parquet_file.namespace_id,

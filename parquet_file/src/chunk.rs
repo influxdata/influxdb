@@ -230,7 +230,7 @@ impl ParquetChunk {
         predicate: &Predicate,
         selection: Selection<'_>,
     ) -> Result<SendableRecordBatchStream> {
-        debug!(path=?self.path, "fetching parquet data for filtered read");
+        trace!(path=?self.path, "fetching parquet data for filtered read");
         Storage::read_filter(
             predicate,
             selection,

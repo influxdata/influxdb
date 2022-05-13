@@ -20,7 +20,7 @@ use iox_catalog::interface::{Catalog, Transaction, INITIAL_COMPACTION_LEVEL};
 use iox_time::{Time, TimeProvider};
 use metric::{Attributes, Metric, U64Counter, U64Gauge, U64Histogram, U64HistogramOptions};
 use object_store::DynObjectStore;
-use observability_deps::tracing::{debug, info, warn};
+use observability_deps::tracing::{debug, info, trace, warn};
 use parquet_file::{
     metadata::{IoxMetadata, IoxParquetMetaData},
     ParquetFilePath,
@@ -593,9 +593,7 @@ impl Compactor {
         tombstones
     }
 
-    // Compact given files. Assume the given files are overlaped in time.
-    // If the assumption does not meet, we will spend time not to compact anything but put data
-    // together
+    // Compact given files. The given files are either overlaped or contiguous in time.
     // The output will include 2 CompactedData sets, one contains a large amount of data of
     // least recent time and the other has a small amount of data of most recent time. Each
     // will be persisted in its own file. The idea is when new writes come, they will
@@ -605,7 +603,7 @@ impl Compactor {
         overlapped_files: Vec<ParquetFileWithTombstone>,
         sort_key_from_catalog: SortKey,
     ) -> Result<Vec<CompactedData>> {
-        debug!("compact {} overlapped files", overlapped_files.len());
+        debug!(num_files = overlapped_files.len(), "compact files");
 
         let mut compacted = vec![];
         // Nothing to compact
@@ -664,7 +662,7 @@ impl Compactor {
             })
             .collect();
 
-        debug!(
+        trace!(
             n_query_chunks = query_chunks.len(),
             "gathered parquet data to compact"
         );
@@ -719,21 +717,21 @@ impl Compactor {
         let stream_count = physical_plan.output_partitioning().partition_count();
         debug!("running plan with {} streams", stream_count);
         for i in 0..stream_count {
-            debug!(partition = i, "executing datafusion partition");
+            trace!(partition = i, "executing datafusion partition");
 
             let stream = ctx
                 .execute_stream_partitioned(Arc::clone(&physical_plan), i)
                 .await
                 .context(ExecuteCompactPlanSnafu)?;
 
-            debug!(partition = i, "built result stream for partition");
+            trace!(partition = i, "built result stream for partition");
 
             // Collect compacted data into record batches for computing statistics
             let output_batches = datafusion::physical_plan::common::collect(stream)
                 .await
                 .context(CollectStreamSnafu)?;
 
-            debug!(
+            trace!(
                 partition = i,
                 n_batches = output_batches.len(),
                 "collected record batches from partition exec stream"
@@ -745,7 +743,7 @@ impl Compactor {
                 .filter(|b| b.num_rows() != 0)
                 .collect();
 
-            debug!(
+            trace!(
                 partition = i,
                 n_batches = output_batches.len(),
                 "filtered out empty record batches"

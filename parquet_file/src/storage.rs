@@ -203,24 +203,24 @@ impl Storage {
 
         let file = match read_stream {
             GetResult::File(f, _) => {
-                debug!(?path, "Using file directly");
+                trace!(?path, "Using file directly");
                 futures::executor::block_on(f.into_std())
             }
             GetResult::Stream(read_stream) => {
                 // read parquet file to local file
                 let mut file = tempfile::tempfile().context(OpenTempFileSnafu)?;
 
-                debug!(?path, ?file, "Beginning to read parquet to temp file");
+                trace!(?path, ?file, "Beginning to read parquet to temp file");
 
                 for bytes in futures::executor::block_on_stream(read_stream) {
                     let bytes = bytes.context(ReadingObjectStoreSnafu)?;
-                    debug!(len = bytes.len(), "read bytes from object store");
+                    trace!(len = bytes.len(), "read bytes from object store");
                     file.write_all(&bytes).context(WriteTempFileSnafu)?;
                 }
 
                 file.rewind().context(WriteTempFileSnafu)?;
 
-                debug!(?path, "Completed read parquet to tempfile");
+                trace!(?path, "Completed read parquet to tempfile");
                 file
             }
         };
