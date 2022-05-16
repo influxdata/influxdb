@@ -264,7 +264,7 @@ dependencies = [
  "sync_wrapper",
  "tokio",
  "tower",
- "tower-http 0.3.3",
+ "tower-http",
  "tower-layer",
  "tower-service",
 ]
@@ -2061,7 +2061,7 @@ dependencies = [
  "http",
  "hyper",
  "log",
- "rustls 0.20.5",
+ "rustls 0.20.4",
  "rustls-native-certs",
  "tokio",
  "tokio-rustls 0.23.4",
@@ -2717,42 +2717,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "977951a1d7dbce4c6f9c2cbed0711f568df9944010fafa88161a20f7e5163bd3"
 dependencies = [
  "k8s-openapi",
- "kube-client 0.72.0",
- "kube-core 0.72.0",
+ "kube-client",
+ "kube-core",
  "kube-derive",
-]
-
-[[package]]
-name = "kube-client"
-version = "0.71.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f69a504997799340408635d6e351afb8aab2c34ca3165e162f41b3b34a69a79"
-dependencies = [
- "base64 0.13.0",
- "bytes",
- "chrono",
- "dirs-next",
- "either",
- "futures",
- "http",
- "http-body",
- "hyper",
- "hyper-timeout",
- "jsonpath_lib",
- "k8s-openapi",
- "kube-core 0.71.0",
- "pem 1.0.2",
- "pin-project",
- "secrecy",
- "serde",
- "serde_json",
- "serde_yaml",
- "thiserror",
- "tokio",
- "tokio-util 0.7.2",
- "tower",
- "tower-http 0.2.5",
- "tracing",
 ]
 
 [[package]]
@@ -2774,10 +2741,10 @@ dependencies = [
  "hyper-timeout",
  "jsonpath_lib",
  "k8s-openapi",
- "kube-core 0.72.0",
+ "kube-core",
  "pem 1.0.2",
  "pin-project",
- "rustls 0.20.5",
+ "rustls 0.20.4",
  "rustls-pemfile 1.0.0",
  "secrecy",
  "serde",
@@ -2787,25 +2754,8 @@ dependencies = [
  "tokio",
  "tokio-util 0.7.2",
  "tower",
- "tower-http 0.3.3",
+ "tower-http",
  "tracing",
-]
-
-[[package]]
-name = "kube-core"
-version = "0.71.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a4a247487699941baaf93438d65b12d4e32450bea849d619d19ed394e8a4a645"
-dependencies = [
- "chrono",
- "form_urlencoded",
- "http",
- "json-patch",
- "k8s-openapi",
- "once_cell",
- "serde",
- "serde_json",
- "thiserror",
 ]
 
 [[package]]
@@ -2817,6 +2767,7 @@ dependencies = [
  "chrono",
  "form_urlencoded",
  "http",
+ "json-patch",
  "k8s-openapi",
  "once_cell",
  "schemars",
@@ -2840,9 +2791,9 @@ dependencies = [
 
 [[package]]
 name = "kube-runtime"
-version = "0.71.0"
+version = "0.72.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "02ea50e6ed56578e1d1d02548901b12fe6d3edbf110269a396955e285d487973"
+checksum = "bb67002cbacd6cd99d1b1d0890785a84b6408158972f2561317bc4cdc06c981e"
 dependencies = [
  "ahash",
  "backoff 0.4.0",
@@ -2850,7 +2801,7 @@ dependencies = [
  "futures",
  "json-patch",
  "k8s-openapi",
- "kube-client 0.71.0",
+ "kube-client",
  "parking_lot 0.12.0",
  "pin-project",
  "serde",
@@ -4503,7 +4454,7 @@ dependencies = [
  "mime",
  "percent-encoding",
  "pin-project-lite",
- "rustls 0.20.5",
+ "rustls 0.20.4",
  "rustls-pemfile 0.3.0",
  "serde",
  "serde_json",
@@ -4742,9 +4693,9 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.20.5"
+version = "0.20.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a024a432ae760ab3bff924ad91ce1cfa52cb57ed16e1ef32d0d249cfee1a6c13"
+checksum = "4fbfeb8d0ddb84706bc597a5574ab8912817c52a397f819e5b614e2265206921"
 dependencies = [
  "log",
  "ring",
@@ -5567,9 +5518,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "1.0.94"
+version = "1.0.93"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a07e33e919ebcd69113d5be0e4d70c5707004ff45188910106854f38b960df4a"
+checksum = "04066589568b72ec65f42d65a1a52436e954b168773148893c020269563decf2"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5854,7 +5805,7 @@ version = "0.23.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c43ee83903113e03984cb9e5cebe6c04a5116269e900e3ddba8f068a62adda59"
 dependencies = [
- "rustls 0.20.5",
+ "rustls 0.20.4",
  "tokio",
  "webpki 0.22.0",
 ]
@@ -5998,26 +5949,6 @@ dependencies = [
  "slab",
  "tokio",
  "tokio-util 0.7.2",
- "tower-layer",
- "tower-service",
- "tracing",
-]
-
-[[package]]
-name = "tower-http"
-version = "0.2.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aba3f3efabf7fb41fae8534fc20a817013dd1c12cb45441efb6c82e6556b4cd8"
-dependencies = [
- "base64 0.13.0",
- "bitflags",
- "bytes",
- "futures-core",
- "futures-util",
- "http",
- "http-body",
- "http-range-header",
- "pin-project-lite",
  "tower-layer",
  "tower-service",
  "tracing",
@@ -6692,7 +6623,7 @@ dependencies = [
  "regex-automata",
  "regex-syntax",
  "reqwest",
- "rustls 0.20.5",
+ "rustls 0.20.4",
  "scopeguard",
  "serde",
  "serde_json",
@@ -6707,7 +6638,7 @@ dependencies = [
  "tokio-stream",
  "tokio-util 0.7.2",
  "tower",
- "tower-http 0.3.3",
+ "tower-http",
  "tracing",
  "tracing-core",
  "tracing-log",
