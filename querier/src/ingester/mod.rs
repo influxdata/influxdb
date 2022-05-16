@@ -284,7 +284,7 @@ async fn execute(request: GetPartitionForIngester<'_>) -> Result<Vec<Arc<Ingeste
             .push(batch);
         num_batches += 1;
     }
-    debug!(num_batches, "Received batches from ingester");
+    debug!(%ingester_address, num_batches, "Received batches from ingester");
     trace!(?partitions, schema=?perform_query.schema(), "Detailed from ingester");
     ensure!(
         num_batches == partition_ids.len(),

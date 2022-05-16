@@ -14,6 +14,7 @@ use datafusion::{
     },
 };
 use generated_types::ingester::IngesterQueryRequest;
+use observability_deps::tracing::debug;
 use predicate::Predicate;
 use query::{
     exec::{Executor, ExecutorType},
@@ -88,14 +89,17 @@ pub async fn prepare_data_to_querier(
     ingest_data: &Arc<IngesterData>,
     request: &IngesterQueryRequest,
 ) -> Result<IngesterQueryResponse> {
+    debug!(?request, "prepare_data_to_querier");
     let mut schema_merger = SchemaMerger::new();
     let mut unpersisted_partitions = BTreeMap::new();
     let mut found_namespace = false;
     let mut batches = vec![];
     let mut batch_partition_ids = vec![];
-    for (_sequencer_id, sequencer_data) in ingest_data.sequencers() {
+    for (sequencer_id, sequencer_data) in ingest_data.sequencers() {
+        debug!(sequencer_id=%sequencer_id.get());
         let namespace_data = match sequencer_data.namespace(&request.namespace) {
             Some(namespace_data) => {
+                debug!(namespace=%request.namespace, "found namespace");
                 found_namespace = true;
                 namespace_data
             }
@@ -105,7 +109,10 @@ pub async fn prepare_data_to_querier(
         };
 
         let table_data = match namespace_data.table_data(&request.table) {
-            Some(table_data) => table_data,
+            Some(table_data) => {
+                debug!(table_name=%request.table, "found table");
+                table_data
+            }
             None => {
                 continue;
             }
@@ -115,6 +122,7 @@ pub async fn prepare_data_to_querier(
             let table_data = table_data.read().await;
             table_data.unpersisted_partition_data()
         };
+        debug!(?unpersisted_partition_data);
 
         for partition in unpersisted_partition_data {
             // include partition in `unpersisted_partitions` even when there we might filter out all the data, because
@@ -143,6 +151,7 @@ pub async fn prepare_data_to_querier(
             namespace_name: &request.namespace,
         },
     );
+    debug!(?unpersisted_partitions);
     ensure!(
         !unpersisted_partitions.is_empty(),
         TableNotFoundSnafu {
@@ -151,6 +160,11 @@ pub async fn prepare_data_to_querier(
         },
     );
     let schema = schema_merger.build();
+    debug!(
+        num_batches=%batches.len(),
+        table_name=%request.table,
+        "prepare_data_to_querier found batches"
+    );
 
     // ------------------------------------------------
     // Make a stream for this batch
