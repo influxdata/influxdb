@@ -21,7 +21,7 @@ dotenv = "0.15"
 futures = "0.3"
 k8s-openapi = { version = "0.14", features = ["v1_19", "schemars"], default-features = false }
 kube = { version = "0.71", default-features = false, features = ["client", "rustls-tls", "derive"] }
-kube-derive = { version = "0.71", default-features = false } # only needed to opt out of schema
+kube-derive = { version = "0.72", default-features = false } # only needed to opt out of schema
 kube-runtime = "0.71"
 schemars = { version = "0.8.8", features = ["derive"] }
 serde = { version = "1.0", features = ["derive"] }
