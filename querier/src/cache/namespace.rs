@@ -3,7 +3,6 @@
 use backoff::{Backoff, BackoffConfig};
 use cache_system::{
     backend::{
-        dual::dual_backends,
         lru::{LruBackend, ResourcePool},
         resource_consumption::FunctionEstimator,
         ttl::{OptionalValueTtlProvider, TtlBackend},
@@ -11,7 +10,7 @@ use cache_system::{
     driver::Cache,
     loader::FunctionLoader,
 };
-use data_types::{NamespaceId, NamespaceSchema};
+use data_types::NamespaceSchema;
 use iox_catalog::interface::{get_schema_by_name, Catalog};
 use iox_time::TimeProvider;
 use std::{collections::HashMap, mem::size_of_val, sync::Arc, time::Duration};
@@ -24,14 +23,12 @@ pub const TTL_EXISTING: Duration = Duration::from_secs(10);
 /// Duration to keep non-existing namespaces.
 pub const TTL_NON_EXISTING: Duration = Duration::from_secs(60);
 
-type CacheFromId = Cache<NamespaceId, Option<Arc<CachedNamespace>>>;
-type CacheFromName = Cache<Arc<str>, Option<Arc<CachedNamespace>>>;
+type CacheT = Cache<Arc<str>, Option<Arc<CachedNamespace>>>;
 
 /// Cache for namespace-related attributes.
 #[derive(Debug)]
 pub struct NamespaceCache {
-    cache_from_id: CacheFromId,
-    cache_from_name: CacheFromName,
+    cache: CacheT,
 }
 
 impl NamespaceCache {
@@ -42,58 +39,7 @@ impl NamespaceCache {
         time_provider: Arc<dyn TimeProvider>,
         ram_pool: Arc<ResourcePool<RamSize>>,
     ) -> Self {
-        let catalog_captured = Arc::clone(&catalog);
-        let backoff_config_captured = backoff_config.clone();
-        let loader_from_id = Arc::new(FunctionLoader::new(move |namespace_id| {
-            let catalog = Arc::clone(&catalog_captured);
-            let backoff_config = backoff_config_captured.clone();
-
-            async move {
-                let namespace = Backoff::new(&backoff_config)
-                    .retry_all_errors("get namespace name by ID", || async {
-                        catalog
-                            .repositories()
-                            .await
-                            .namespaces()
-                            .get_by_id(namespace_id)
-                            .await
-                    })
-                    .await
-                    .expect("retry forever")?;
-
-                let schema = Backoff::new(&backoff_config)
-                    .retry_all_errors("get namespace schema", || async {
-                        let mut repos = catalog.repositories().await;
-                        match get_schema_by_name(&namespace.name, repos.as_mut()).await {
-                            Ok(schema) => Ok(Some(schema)),
-                            Err(iox_catalog::interface::Error::NamespaceNotFound { .. }) => {
-                                Ok(None)
-                            }
-                            Err(e) => Err(e),
-                        }
-                    })
-                    .await
-                    .expect("retry forever")?;
-
-                Some(Arc::new(CachedNamespace {
-                    name: Arc::from(namespace.name),
-                    schema: Arc::new(schema),
-                }))
-            }
-        }));
-        let backend_from_id = Box::new(TtlBackend::new(
-            Box::new(HashMap::new()),
-            Arc::new(OptionalValueTtlProvider::new(
-                Some(TTL_NON_EXISTING),
-                Some(TTL_EXISTING),
-            )),
-            Arc::clone(&time_provider),
-        ));
-        let mapper_from_id = |_k: &_, maybe_table: &Option<Arc<CachedNamespace>>| {
-            maybe_table.as_ref().map(|n| Arc::clone(&n.name))
-        };
-
-        let loader_from_name = Arc::new(FunctionLoader::new(move |namespace_name: Arc<str>| {
+        let loader = Arc::new(FunctionLoader::new(move |namespace_name: Arc<str>| {
             let catalog = Arc::clone(&catalog);
             let backoff_config = backoff_config.clone();
 
@@ -113,12 +59,11 @@ impl NamespaceCache {
                     .expect("retry forever")?;
 
                 Some(Arc::new(CachedNamespace {
-                    name: namespace_name,
                     schema: Arc::new(schema),
                 }))
             }
         }));
-        let backend_from_name = Box::new(TtlBackend::new(
+        let backend = Box::new(TtlBackend::new(
             Box::new(HashMap::new()),
             Arc::new(OptionalValueTtlProvider::new(
                 Some(TTL_NON_EXISTING),
@@ -126,31 +71,12 @@ impl NamespaceCache {
             )),
             Arc::clone(&time_provider),
         ));
-        let mapper_from_name = |_k: &_, maybe_table: &Option<Arc<CachedNamespace>>| {
-            maybe_table.as_ref().map(|n| n.schema.id)
-        };
 
         // add to memory pool
-        // IMPORTANT: Do that BEFORE crossing so that deletes, because `dual_backends` currently does not
-        //            cross-populates deletes.
-        let backend_from_id = Box::new(LruBackend::new(
-            backend_from_id as _,
+        let backend = Box::new(LruBackend::new(
+            backend as _,
             Arc::clone(&ram_pool),
-            String::from("namespace_from_id"),
-            Arc::new(FunctionEstimator::new(
-                |k, v: &Option<Arc<CachedNamespace>>| {
-                    RamSize(
-                        size_of_val(k)
-                            + size_of_val(v)
-                            + v.as_ref().map(|v| v.size()).unwrap_or_default(),
-                    )
-                },
-            )),
-        ));
-        let backend_from_name = Box::new(LruBackend::new(
-            backend_from_name as _,
-            Arc::clone(&ram_pool),
-            String::from("namespace_from_name"),
+            String::from("namespace"),
             Arc::new(FunctionEstimator::new(
                 |k: &Arc<str>, v: &Option<Arc<CachedNamespace>>| {
                     RamSize(
@@ -163,52 +89,26 @@ impl NamespaceCache {
             )),
         ));
 
-        // cross backends
-        let (backend_from_id, backend_from_name) = dual_backends(
-            backend_from_id,
-            mapper_from_id,
-            backend_from_name,
-            mapper_from_name,
-        );
+        let cache = Cache::new(loader, backend);
 
-        let cache_from_id = Cache::new(loader_from_id, Box::new(backend_from_id));
-        let cache_from_name = Cache::new(loader_from_name, Box::new(backend_from_name));
-
-        Self {
-            cache_from_id,
-            cache_from_name,
-        }
-    }
-
-    /// Get the namespace name for the given namespace ID.
-    ///
-    /// This either uses a cached value or -- if required -- fetches the mapping from the catalog.
-    pub async fn name(&self, id: NamespaceId) -> Option<Arc<str>> {
-        self.cache_from_id
-            .get(id)
-            .await
-            .map(|n| Arc::clone(&n.name))
+        Self { cache }
     }
 
     /// Get namespace schema by name.
     pub async fn schema(&self, name: Arc<str>) -> Option<Arc<NamespaceSchema>> {
-        self.cache_from_name
-            .get(name)
-            .await
-            .map(|n| Arc::clone(&n.schema))
+        self.cache.get(name).await.map(|n| Arc::clone(&n.schema))
     }
 }
 
 #[derive(Debug, Clone)]
 struct CachedNamespace {
-    name: Arc<str>,
     schema: Arc<NamespaceSchema>,
 }
 
 impl CachedNamespace {
     /// RAM-bytes EXCLUDING `self`.
     fn size(&self) -> usize {
-        self.name.len() + self.schema.size() - size_of_val(&self.schema)
+        self.schema.size() - size_of_val(&self.schema)
     }
 }
 
@@ -221,69 +121,6 @@ mod tests {
     use iox_tests::util::TestCatalog;
 
     use super::*;
-
-    #[tokio::test]
-    async fn test_name() {
-        let catalog = TestCatalog::new();
-
-        let ns1 = catalog.create_namespace("ns1").await.namespace.clone();
-        let ns2 = catalog.create_namespace("ns2").await.namespace.clone();
-        assert_ne!(ns1.id, ns2.id);
-
-        let cache = NamespaceCache::new(
-            catalog.catalog(),
-            BackoffConfig::default(),
-            catalog.time_provider(),
-            test_ram_pool(),
-        );
-
-        let name1_a = cache.name(ns1.id).await.unwrap();
-        assert_eq!(name1_a.as_ref(), ns1.name.as_str());
-        assert_histogram_metric_count(&catalog.metric_registry, "namespace_get_by_id", 1);
-
-        let name2 = cache.name(ns2.id).await.unwrap();
-        assert_eq!(name2.as_ref(), ns2.name.as_str());
-        assert_histogram_metric_count(&catalog.metric_registry, "namespace_get_by_id", 2);
-
-        let name1_b = cache.name(ns1.id).await.unwrap();
-        assert!(Arc::ptr_eq(&name1_a, &name1_b));
-        assert_histogram_metric_count(&catalog.metric_registry, "namespace_get_by_id", 2);
-
-        // cache timeout
-        catalog.mock_time_provider().inc(TTL_EXISTING);
-
-        let name1_c = cache.name(ns1.id).await.unwrap();
-        assert_eq!(name1_c.as_ref(), ns1.name.as_str());
-        assert!(!Arc::ptr_eq(&name1_a, &name1_c));
-        assert_histogram_metric_count(&catalog.metric_registry, "namespace_get_by_id", 3);
-    }
-
-    #[tokio::test]
-    async fn test_name_non_existing() {
-        let catalog = TestCatalog::new();
-
-        let cache = NamespaceCache::new(
-            catalog.catalog(),
-            BackoffConfig::default(),
-            catalog.time_provider(),
-            test_ram_pool(),
-        );
-
-        let none = cache.name(NamespaceId::new(i64::MAX)).await;
-        assert!(none.is_none());
-        assert_histogram_metric_count(&catalog.metric_registry, "namespace_get_by_id", 1);
-
-        let none = cache.name(NamespaceId::new(i64::MAX)).await;
-        assert!(none.is_none());
-        assert_histogram_metric_count(&catalog.metric_registry, "namespace_get_by_id", 1);
-
-        // cache timeout
-        catalog.mock_time_provider().inc(TTL_NON_EXISTING);
-
-        let none = cache.name(NamespaceId::new(i64::MAX)).await;
-        assert!(none.is_none());
-        assert_histogram_metric_count(&catalog.metric_registry, "namespace_get_by_id", 2);
-    }
 
     #[tokio::test]
     async fn test_schema() {
@@ -432,37 +269,6 @@ mod tests {
 
         let none = cache.schema(Arc::from(String::from("foo"))).await;
         assert!(none.is_none());
-        assert_histogram_metric_count(&catalog.metric_registry, "namespace_get_by_name", 2);
-    }
-
-    #[tokio::test]
-    async fn test_shared_cache() {
-        let catalog = TestCatalog::new();
-
-        let ns1 = catalog.create_namespace("ns1").await.namespace.clone();
-        let ns2 = catalog.create_namespace("ns2").await.namespace.clone();
-        assert_ne!(ns1.id, ns2.id);
-
-        let cache = NamespaceCache::new(
-            catalog.catalog(),
-            BackoffConfig::default(),
-            catalog.time_provider(),
-            test_ram_pool(),
-        );
-
-        cache.name(ns1.id).await.unwrap();
-        assert_histogram_metric_count(&catalog.metric_registry, "namespace_get_by_id", 1);
-
-        // the schema gathering queries the ID via the name again
-        assert_histogram_metric_count(&catalog.metric_registry, "namespace_get_by_name", 1);
-
-        cache.schema(Arc::from(String::from("ns2"))).await.unwrap();
-        assert_histogram_metric_count(&catalog.metric_registry, "namespace_get_by_name", 2);
-
-        // `name` and `schema` share the same entries
-        cache.name(ns2.id).await.unwrap();
-        cache.schema(Arc::from(String::from("ns1"))).await.unwrap();
-        assert_histogram_metric_count(&catalog.metric_registry, "namespace_get_by_id", 1);
         assert_histogram_metric_count(&catalog.metric_registry, "namespace_get_by_name", 2);
     }
 }
