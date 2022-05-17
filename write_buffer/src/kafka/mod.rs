@@ -313,8 +313,11 @@ async fn setup_topic(
     if let Some(max_message_size) = client_config.max_message_size {
         client_builder = client_builder.max_message_size(max_message_size);
     }
+    if let Some(sock5_proxy) = client_config.socks5_proxy {
+        client_builder = client_builder.socks5_proxy(sock5_proxy);
+    }
     let client = client_builder.build().await?;
-    let controller_client = client.controller_client().await?;
+    let controller_client = client.controller_client()?;
 
     loop {
         // check if topic already exists
@@ -322,7 +325,7 @@ async fn setup_topic(
         if let Some(topic) = topics.into_iter().find(|t| t.name == database_name) {
             let mut partition_clients = BTreeMap::new();
             for partition in topic.partitions {
-                let c = client.partition_client(&database_name, partition).await?;
+                let c = client.partition_client(&database_name, partition)?;
                 let partition = u32::try_from(partition).map_err(WriteBufferError::invalid_data)?;
                 partition_clients.insert(partition, c);
             }
@@ -507,7 +510,6 @@ mod tests {
             .await
             .unwrap()
             .partition_client(ctx.database_name.clone(), sequencer_id as i32)
-            .await
             .unwrap()
             .produce(
                 vec![Record {

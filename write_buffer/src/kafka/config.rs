@@ -9,6 +9,11 @@ pub struct ClientConfig {
     ///
     /// extracted from `max_message_size`. Defaults to `None` (rskafka default).
     pub max_message_size: Option<usize>,
+
+    /// Optional SOCKS5 proxy to use for connecting to the brokers.
+    ///
+    /// extracted from `socks5_proxy`. Defaults to `None`.
+    pub socks5_proxy: Option<String>,
 }
 
 impl TryFrom<&BTreeMap<String, String>> for ClientConfig {
@@ -21,6 +26,7 @@ impl TryFrom<&BTreeMap<String, String>> for ClientConfig {
             //
             //       max_message_size: parse_key(cfg, "max_message_size")?,
             max_message_size: Some(parse_key(cfg, "max_message_size")?.unwrap_or(10485760)),
+            socks5_proxy: parse_key(cfg, "socks5_proxy")?,
         })
     }
 }
@@ -147,6 +153,7 @@ mod tests {
         let actual = ClientConfig::try_from(&BTreeMap::default()).unwrap();
         let expected = ClientConfig {
             max_message_size: Some(10485760),
+            socks5_proxy: None,
         };
         assert_eq!(actual, expected);
     }
@@ -155,11 +162,13 @@ mod tests {
     fn test_client_config_parse() {
         let actual = ClientConfig::try_from(&BTreeMap::from([
             (String::from("max_message_size"), String::from("1024")),
+            (String::from("socks5_proxy"), String::from("my_proxy")),
             (String::from("foo"), String::from("bar")),
         ]))
         .unwrap();
         let expected = ClientConfig {
             max_message_size: Some(1024),
+            socks5_proxy: Some(String::from("my_proxy")),
         };
         assert_eq!(actual, expected);
     }

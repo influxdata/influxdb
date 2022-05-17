@@ -183,6 +183,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b34d609dfbaf33d6889b2b7106d3ca345eacad44200913df5ba02bfd31d2ba9"
 
 [[package]]
+name = "async-socks5"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "77f634add2445eb2c1f785642a67ca1073fedd71e73dc3ca69435ef9b9bdedc7"
+dependencies = [
+ "async-trait",
+ "thiserror",
+ "tokio",
+]
+
+[[package]]
 name = "async-stream"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4545,8 +4556,9 @@ dependencies = [
 [[package]]
 name = "rskafka"
 version = "0.2.0"
-source = "git+https://github.com/influxdata/rskafka.git?rev=39cd7d809fe0b27c0bb5e70d8dda9964d82a5540#39cd7d809fe0b27c0bb5e70d8dda9964d82a5540"
+source = "git+https://github.com/influxdata/rskafka.git?rev=bb5c9c753b9595ea85dad65d9488859ae89c8456#bb5c9c753b9595ea85dad65d9488859ae89c8456"
 dependencies = [
+ "async-socks5",
  "async-trait",
  "bytes",
  "crc32c",
