@@ -117,6 +117,13 @@ impl WriteSummary {
             .get(&kafka_partition)
             .context(UnknownKafkaPartitionSnafu { kafka_partition })?;
 
+        debug!(
+            ?kafka_partition,
+            ?progress,
+            ?sequence_numbers,
+            "write_status"
+        );
+
         if progress.is_empty() {
             return Ok(KafkaPartitionWriteStatus::KafkaPartitionUnknown);
         }

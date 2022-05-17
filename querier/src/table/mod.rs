@@ -107,6 +107,13 @@ impl QuerierTable {
         // ask ingesters for data
         let ingester_partitions = self.ingester_partitions(predicate).await?;
 
+        debug!(
+            namespace=%self.namespace_name,
+            table_name=%self.name(),
+            num_ingester_partitions=%ingester_partitions.len(),
+            "Ingester partitions fetched"
+        );
+
         // get parquet files and tombstones in a single catalog transaction
         // IMPORTANT: this needs to happen AFTER gathering data from the ingesters
         // TODO: figure out some form of caching
@@ -121,6 +128,13 @@ impl QuerierTable {
                         .list_by_table_not_to_delete_with_metadata(self.id)
                         .await?;
 
+                    debug!(
+                        ?parquet_files,
+                        namespace=%self.namespace_name,
+                        table_name=%self.name(),
+                        "Parquet files from catalog"
+                    );
+
                     let tombstones = txn.tombstones().list_by_table(self.id).await?;
 
                     txn.commit().await?;
@@ -134,6 +148,12 @@ impl QuerierTable {
         // fuse ingester and catalog state
         let parquet_files =
             filter_parquet_files(&ingester_partitions, parquet_files).context(StateFusionSnafu)?;
+        debug!(
+            ?parquet_files,
+            namespace=%self.namespace_name,
+            table_name=%self.name(),
+            "Parquet files after filtering"
+        );
         let tombstone_exclusion = tombstone_exclude_list(&ingester_partitions, &tombstones);
 
         // convert parquet files and tombstones to nicer objects
@@ -147,6 +167,7 @@ impl QuerierTable {
                 chunks.push(chunk);
             }
         }
+        debug!(num_chunks=%chunks.len(), "Querier chunks");
         let querier_tombstones: Vec<_> =
             tombstones.into_iter().map(QuerierTombstone::from).collect();
 
@@ -232,6 +253,8 @@ impl QuerierTable {
                 .filter(|c| c.has_batches())
                 .map(|c| c as _),
         );
+
+        debug!(num_chunks2=%chunks2.len(), "Chunks 2");
 
         Ok(chunks2)
     }

@@ -21,7 +21,7 @@ use iox_time::SystemProvider;
 use metric::U64Counter;
 use mutable_batch::MutableBatch;
 use object_store::DynObjectStore;
-use observability_deps::tracing::warn;
+use observability_deps::tracing::{debug, warn};
 use parking_lot::RwLock;
 use predicate::Predicate;
 use query::exec::Executor;
@@ -272,6 +272,7 @@ impl Persister for IngesterData {
                     partition_info.namespace_name, partition_info.partition.sequencer_id
                 )
             });
+        debug!(?partition_info, "Persisting");
 
         let persisting_batch = namespace.snapshot_to_persisting(&partition_info).await;
 
@@ -316,6 +317,11 @@ impl Persister for IngesterData {
                 Backoff::new(&self.backoff_config)
                     .retry_all_errors("add parquet file to catalog", || async {
                         let mut repos = self.catalog.repositories().await;
+                        debug!(
+                            table_name=%iox_meta.table_name,
+                            "adding parquet file to catalog"
+                        );
+
                         repos.parquet_files().create(parquet_file.clone()).await
                     })
                     .await
@@ -338,6 +344,12 @@ impl Persister for IngesterData {
             }
 
             // and remove the persisted data from memory
+            debug!(
+                table_name=%partition_info.table_name,
+                partition_key=%partition_info.partition.partition_key,
+                max_sequence_number=%iox_meta.max_sequence_number.get(),
+                "mark_persisted"
+            );
             namespace
                 .mark_persisted(
                     &partition_info.table_name,

@@ -94,12 +94,12 @@ impl FlightClient for FlightClientImpl {
         ingester_addr: Arc<str>,
         request: IngesterQueryRequest,
     ) -> Result<Box<dyn QueryData>, Error> {
-        let connection = self.connect(ingester_addr).await?;
+        let connection = self.connect(Arc::clone(&ingester_addr)).await?;
 
         let mut client =
             flight::Client::<flight::generated_types::IngesterQueryRequest>::new(connection);
 
-        debug!(?request, "Sending request to ingester");
+        debug!(%ingester_addr, ?request, "Sending request to ingester");
         let request: flight::generated_types::IngesterQueryRequest =
             request.try_into().context(CreatingRequestSnafu)?;
 
