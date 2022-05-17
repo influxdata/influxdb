@@ -15,6 +15,7 @@ use crate::ingester::IngesterPartition;
 use data_types::{
     ParquetFileWithMetadata, PartitionId, SequenceNumber, SequencerId, Tombstone, TombstoneId,
 };
+use observability_deps::tracing::debug;
 use snafu::Snafu;
 use std::{
     collections::{HashMap, HashSet},
@@ -137,6 +138,13 @@ where
     for file in parquet_files {
         if let Some(ingester_partition) = lookup_table.get(&file.partition_id()) {
             if let Some(persisted_max) = ingester_partition.parquet_max_sequence_number() {
+                debug!(
+                    file_partition_id=%file.partition_id(),
+                    file_max_seq_num=%file.max_sequence_number().get(),
+                    file_min_seq_num=%file.min_sequence_number().get(),
+                    persisted_max=%persisted_max.get(),
+                    "Comparing parquet file and ingester parquet max"
+                );
                 if (file.max_sequence_number() > persisted_max)
                     && (file.min_sequence_number() <= persisted_max)
                 {
@@ -147,10 +155,22 @@ where
                     continue;
                 }
             } else {
+                debug!(
+                    file_partition_id=%file.partition_id(),
+                    file_max_seq_num=%file.max_sequence_number().get(),
+                    file_min_seq_num=%file.min_sequence_number().get(),
+                    "ingester thinks it doesn't have data persisted yet"
+                );
                 // ingester thinks it doesn't have any data persisted yet => can safely ignore file
                 continue;
             }
         } else {
+            debug!(
+                file_partition_id=%file.partition_id(),
+                file_max_seq_num=%file.max_sequence_number().get(),
+                file_min_seq_num=%file.min_sequence_number().get(),
+                "partition was not flagged by the ingester as unpersisted"
+            );
             // partition was not flagged by the ingester as "unpersisted", so we can keep the parquet file
         }
 
