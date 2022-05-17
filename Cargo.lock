@@ -3224,6 +3224,7 @@ name = "mutable_batch_pb"
 version = "0.1.0"
 dependencies = [
  "arrow_util",
+ "data_types",
  "dml",
  "generated_types",
  "hashbrown 0.12.1",
