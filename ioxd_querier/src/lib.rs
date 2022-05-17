@@ -135,31 +135,37 @@ impl HttpApiErrorSource for IoxHttpError {
     }
 }
 
+/// Arguments required to create a [`ServerType`] for the querier.
+#[derive(Debug)]
+pub struct QuerierServerTypeArgs<'a> {
+    pub common_state: &'a CommonServerState,
+    pub metric_registry: Arc<metric::Registry>,
+    pub catalog: Arc<dyn Catalog>,
+    pub object_store: Arc<DynObjectStore>,
+    pub time_provider: Arc<dyn TimeProvider>,
+    pub exec: Arc<Executor>,
+    pub ingester_addresses: Vec<String>,
+    pub ram_pool_bytes: usize,
+}
+
 /// Instantiate a querier server
-pub async fn create_querier_server_type(
-    common_state: &CommonServerState,
-    metric_registry: Arc<metric::Registry>,
-    catalog: Arc<dyn Catalog>,
-    object_store: Arc<DynObjectStore>,
-    time_provider: Arc<dyn TimeProvider>,
-    exec: Arc<Executor>,
-    ingester_addresses: Vec<String>,
-) -> Arc<dyn ServerType> {
+pub async fn create_querier_server_type(args: QuerierServerTypeArgs<'_>) -> Arc<dyn ServerType> {
     let catalog_cache = Arc::new(QuerierCatalogCache::new(
-        Arc::clone(&catalog),
-        time_provider,
+        Arc::clone(&args.catalog),
+        args.time_provider,
+        args.ram_pool_bytes,
     ));
     let ingester_connection =
-        create_ingester_connection(ingester_addresses, Arc::clone(&catalog_cache));
+        create_ingester_connection(args.ingester_addresses, Arc::clone(&catalog_cache));
     let database = Arc::new(QuerierDatabase::new(
         catalog_cache,
-        Arc::clone(&metric_registry),
-        object_store,
-        exec,
+        Arc::clone(&args.metric_registry),
+        args.object_store,
+        args.exec,
         ingester_connection,
     ));
-    let querier_handler = Arc::new(QuerierHandlerImpl::new(catalog, Arc::clone(&database)));
+    let querier_handler = Arc::new(QuerierHandlerImpl::new(args.catalog, Arc::clone(&database)));
 
-    let querier = QuerierServer::new(metric_registry, querier_handler);
-    Arc::new(QuerierServerType::new(querier, database, common_state))
+    let querier = QuerierServer::new(args.metric_registry, querier_handler);
+    Arc::new(QuerierServerType::new(querier, database, args.common_state))
 }

@@ -4,6 +4,8 @@ use backoff::{Backoff, BackoffConfig};
 use cache_system::{
     backend::{
         dual::dual_backends,
+        lru::{LruBackend, ResourcePool},
+        resource_consumption::FunctionEstimator,
         ttl::{OptionalValueTtlProvider, TtlBackend},
     },
     driver::Cache,
@@ -12,7 +14,9 @@ use cache_system::{
 use data_types::{NamespaceId, Table, TableId};
 use iox_catalog::interface::Catalog;
 use iox_time::TimeProvider;
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{collections::HashMap, mem::size_of_val, sync::Arc, time::Duration};
+
+use super::ram::RamSize;
 
 /// Duration to keep non-existing tables.
 pub const TTL_NON_EXISTING: Duration = Duration::from_secs(10);
@@ -33,6 +37,7 @@ impl TableCache {
         catalog: Arc<dyn Catalog>,
         backoff_config: BackoffConfig,
         time_provider: Arc<dyn TimeProvider>,
+        ram_pool: Arc<ResourcePool<RamSize>>,
     ) -> Self {
         let catalog_captured = Arc::clone(&catalog);
         let backoff_config_captured = backoff_config.clone();
@@ -97,6 +102,37 @@ impl TableCache {
         let mapper_from_name =
             |_k: &_, maybe_table: &Option<Arc<CachedTable>>| maybe_table.as_ref().map(|t| t.id);
 
+        // add to memory pool
+        // IMPORTANT: Do that BEFORE crossing so that deletes, because `dual_backends` currently does not
+        //            cross-populates deletes.
+        let backend_from_id = Box::new(LruBackend::new(
+            backend_from_id,
+            Arc::clone(&ram_pool),
+            String::from("table_from_id"),
+            Arc::new(FunctionEstimator::new(|k, v: &Option<Arc<CachedTable>>| {
+                RamSize(
+                    size_of_val(k)
+                        + size_of_val(v)
+                        + v.as_ref().map(|v| v.size()).unwrap_or_default(),
+                )
+            })),
+        ));
+        let backend_from_name = Box::new(LruBackend::new(
+            backend_from_name,
+            Arc::clone(&ram_pool),
+            String::from("table_from_name"),
+            Arc::new(FunctionEstimator::new(
+                |k: &(NamespaceId, Arc<str>), v: &Option<Arc<CachedTable>>| {
+                    RamSize(
+                        size_of_val(k)
+                            + k.1.len()
+                            + size_of_val(v)
+                            + v.as_ref().map(|v| v.size()).unwrap_or_default(),
+                    )
+                },
+            )),
+        ));
+
         // cross backends
         let (backend_from_id, backend_from_name) = dual_backends(
             backend_from_id,
@@ -150,6 +186,13 @@ struct CachedTable {
     namespace_id: NamespaceId,
 }
 
+impl CachedTable {
+    /// RAM-bytes EXCLUDING `self`.
+    fn size(&self) -> usize {
+        self.name.len()
+    }
+}
+
 impl From<Table> for CachedTable {
     fn from(table: Table) -> Self {
         Self {
@@ -162,7 +205,7 @@ impl From<Table> for CachedTable {
 
 #[cfg(test)]
 mod tests {
-    use crate::cache::test_util::assert_histogram_metric_count;
+    use crate::cache::{ram::test_util::test_ram_pool, test_util::assert_histogram_metric_count};
     use iox_tests::util::TestCatalog;
 
     use super::*;
@@ -180,6 +223,7 @@ mod tests {
             catalog.catalog(),
             BackoffConfig::default(),
             catalog.time_provider(),
+            test_ram_pool(),
         );
 
         let name1_a = cache.name(t1.id).await.unwrap();
@@ -210,6 +254,7 @@ mod tests {
             catalog.catalog(),
             BackoffConfig::default(),
             catalog.time_provider(),
+            test_ram_pool(),
         );
 
         let none = cache.name(TableId::new(i64::MAX)).await;
@@ -242,6 +287,7 @@ mod tests {
             catalog.catalog(),
             BackoffConfig::default(),
             catalog.time_provider(),
+            test_ram_pool(),
         );
 
         let id1_a = cache.namespace_id(t1.id).await.unwrap();
@@ -272,6 +318,7 @@ mod tests {
             catalog.catalog(),
             BackoffConfig::default(),
             catalog.time_provider(),
+            test_ram_pool(),
         );
 
         let none = cache.namespace_id(TableId::new(i64::MAX)).await;
@@ -305,6 +352,7 @@ mod tests {
             catalog.catalog(),
             BackoffConfig::default(),
             catalog.time_provider(),
+            test_ram_pool(),
         );
 
         // request first ID
@@ -370,6 +418,7 @@ mod tests {
             catalog.catalog(),
             BackoffConfig::default(),
             catalog.time_provider(),
+            test_ram_pool(),
         );
 
         let none = cache
@@ -421,6 +470,7 @@ mod tests {
             catalog.catalog(),
             BackoffConfig::default(),
             catalog.time_provider(),
+            test_ram_pool(),
         );
 
         cache.name(t1.id).await;

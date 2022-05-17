@@ -11,10 +11,12 @@ use crate::{
 
 use super::QuerierTable;
 
+/// Create a [`QuerierTable`] for testing.
 pub async fn querier_table(catalog: &Arc<TestCatalog>, table: &Arc<TestTable>) -> QuerierTable {
     let catalog_cache = Arc::new(CatalogCache::new(
         catalog.catalog(),
         catalog.time_provider(),
+        usize::MAX,
     ));
     let chunk_adapter = Arc::new(ParquetChunkAdapter::new(
         catalog_cache,

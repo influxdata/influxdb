@@ -20,7 +20,7 @@ use std::{
     collections::BTreeMap,
     convert::TryFrom,
     fmt::Write,
-    mem,
+    mem::{self, size_of_val},
     num::{FpCategory, NonZeroU32, NonZeroU64},
     ops::{Add, Deref, RangeInclusive, Sub},
     sync::Arc,
@@ -377,6 +377,16 @@ impl NamespaceSchema {
             query_pool_id,
         }
     }
+
+    /// Estimated Size in bytes including `self`.
+    pub fn size(&self) -> usize {
+        std::mem::size_of_val(self)
+            + self
+                .tables
+                .iter()
+                .map(|(k, v)| size_of_val(k) + k.capacity() + v.size())
+                .sum::<usize>()
+    }
 }
 
 /// Data object for a table
@@ -421,6 +431,16 @@ impl TableSchema {
             ColumnSchema::try_from(col).expect("column is invalid"),
         );
         assert!(old.is_none());
+    }
+
+    /// Estimated Size in bytes including `self`.
+    pub fn size(&self) -> usize {
+        size_of_val(self)
+            + self
+                .columns
+                .iter()
+                .map(|(k, v)| size_of_val(k) + k.capacity() + size_of_val(v))
+                .sum::<usize>()
     }
 }
 
@@ -3039,5 +3059,41 @@ mod tests {
     #[should_panic(expected = "expected min (2) <= max (1)")]
     fn test_timestamp_min_max_invalid() {
         TimestampMinMax::new(2, 1);
+    }
+
+    #[test]
+    fn test_table_schema_size() {
+        let schema1 = TableSchema {
+            id: TableId::new(1),
+            columns: BTreeMap::from([]),
+        };
+        let schema2 = TableSchema {
+            id: TableId::new(2),
+            columns: BTreeMap::from([(
+                String::from("foo"),
+                ColumnSchema {
+                    id: ColumnId::new(1),
+                    column_type: ColumnType::Bool,
+                },
+            )]),
+        };
+        assert!(schema1.size() < schema2.size());
+    }
+
+    #[test]
+    fn test_namespace_schema_size() {
+        let schema1 = NamespaceSchema {
+            id: NamespaceId::new(1),
+            kafka_topic_id: KafkaTopicId::new(2),
+            query_pool_id: QueryPoolId::new(3),
+            tables: BTreeMap::from([]),
+        };
+        let schema2 = NamespaceSchema {
+            id: NamespaceId::new(1),
+            kafka_topic_id: KafkaTopicId::new(2),
+            query_pool_id: QueryPoolId::new(3),
+            tables: BTreeMap::from([(String::from("foo"), TableSchema::new(TableId::new(1)))]),
+        };
+        assert!(schema1.size() < schema2.size());
     }
 }

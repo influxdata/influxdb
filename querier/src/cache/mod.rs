@@ -1,17 +1,19 @@
 //! Caches used by the querier.
 use backoff::BackoffConfig;
+use cache_system::backend::lru::ResourcePool;
 use iox_catalog::interface::Catalog;
 use iox_time::TimeProvider;
 use std::sync::Arc;
 
 use self::{
     namespace::NamespaceCache, partition::PartitionCache,
-    processed_tombstones::ProcessedTombstonesCache, table::TableCache,
+    processed_tombstones::ProcessedTombstonesCache, ram::RamSize, table::TableCache,
 };
 
 pub mod namespace;
 pub mod partition;
 pub mod processed_tombstones;
+mod ram;
 pub mod table;
 
 #[cfg(test)]
@@ -41,24 +43,39 @@ pub struct CatalogCache {
 
 impl CatalogCache {
     /// Create empty cache.
-    pub fn new(catalog: Arc<dyn Catalog>, time_provider: Arc<dyn TimeProvider>) -> Self {
+    pub fn new(
+        catalog: Arc<dyn Catalog>,
+        time_provider: Arc<dyn TimeProvider>,
+        ram_pool_bytes: usize,
+    ) -> Self {
         let backoff_config = BackoffConfig::default();
+        let ram_pool = Arc::new(ResourcePool::new(
+            RamSize(ram_pool_bytes),
+            Arc::clone(&time_provider),
+        ));
 
         let namespace_cache = NamespaceCache::new(
             Arc::clone(&catalog),
             backoff_config.clone(),
             Arc::clone(&time_provider),
+            Arc::clone(&ram_pool),
         );
         let table_cache = TableCache::new(
             Arc::clone(&catalog),
             backoff_config.clone(),
             Arc::clone(&time_provider),
+            Arc::clone(&ram_pool),
         );
-        let partition_cache = PartitionCache::new(Arc::clone(&catalog), backoff_config.clone());
+        let partition_cache = PartitionCache::new(
+            Arc::clone(&catalog),
+            backoff_config.clone(),
+            Arc::clone(&ram_pool),
+        );
         let processed_tombstones = ProcessedTombstonesCache::new(
             Arc::clone(&catalog),
             backoff_config,
             Arc::clone(&time_provider),
+            Arc::clone(&ram_pool),
         );
 
         Self {

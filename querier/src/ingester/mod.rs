@@ -1173,6 +1173,7 @@ mod tests {
                 Arc::new(CatalogCache::new(
                     self.catalog.catalog(),
                     self.catalog.time_provider(),
+                    usize::MAX,
                 )),
             )
         }

@@ -2,6 +2,7 @@
 
 use super::main;
 use clap_blocks::object_store::make_object_store;
+use clap_blocks::querier::QuerierConfig;
 use clap_blocks::{
     catalog_dsn::CatalogDsnConfig, compactor::CompactorConfig, ingester::IngesterConfig,
     object_store::ObjectStoreConfig, run_config::RunConfig, socket_addr::SocketAddr,
@@ -14,7 +15,7 @@ use ioxd_common::{
 };
 use ioxd_compactor::create_compactor_server_type;
 use ioxd_ingester::create_ingester_server_type;
-use ioxd_querier::create_querier_server_type;
+use ioxd_querier::{create_querier_server_type, QuerierServerTypeArgs};
 use ioxd_router::create_router_server_type;
 use object_store::DynObjectStore;
 use observability_deps::tracing::*;
@@ -269,6 +270,14 @@ pub struct Config {
     default_value = DEFAULT_COMPACTOR_GRPC_BIND_ADDR,
     )]
     pub compactor_grpc_bind_address: SocketAddr,
+
+    /// Size of the querier RAM cache pool in bytes.
+    #[clap(
+        long = "--querier-ram-pool-bytes",
+        env = "INFLUXDB_IOX_QUERIER_RAM_POOL_BYTES",
+        default_value = "1073741824"
+    )]
+    pub querier_ram_pool_bytes: usize,
 }
 
 impl Config {
@@ -291,6 +300,7 @@ impl Config {
             querier_grpc_bind_address,
             ingester_grpc_bind_address,
             compactor_grpc_bind_address,
+            querier_ram_pool_bytes,
         } = self;
 
         let object_store_config = ObjectStoreConfig::new(database_directory.clone());
@@ -346,6 +356,12 @@ impl Config {
             compaction_max_size_bytes: 100000,
         };
 
+        let querier_config = QuerierConfig {
+            num_query_threads: None,    // will be ignored
+            ingester_addresses: vec![], // will be ignored
+            ram_pool_bytes: querier_ram_pool_bytes,
+        };
+
         SpecializedConfig {
             router_run_config,
             querier_run_config,
@@ -357,6 +373,7 @@ impl Config {
             write_buffer_config,
             ingester_config,
             compactor_config,
+            querier_config,
         }
     }
 }
@@ -373,6 +390,7 @@ struct SpecializedConfig {
     write_buffer_config: WriteBufferConfig,
     ingester_config: IngesterConfig,
     compactor_config: CompactorConfig,
+    querier_config: QuerierConfig,
 }
 
 pub async fn command(config: Config) -> Result<()> {
@@ -385,6 +403,7 @@ pub async fn command(config: Config) -> Result<()> {
         write_buffer_config,
         ingester_config,
         compactor_config,
+        querier_config,
     } = config.specialize();
 
     let metrics = Arc::new(metric::Registry::default());
@@ -459,15 +478,16 @@ pub async fn command(config: Config) -> Result<()> {
 
     let ingester_addresses = vec![format!("http://{}", ingester_run_config.grpc_bind_address)];
     info!(?ingester_addresses, "starting querier");
-    let querier = create_querier_server_type(
-        &common_state,
-        Arc::clone(&metrics),
+    let querier = create_querier_server_type(QuerierServerTypeArgs {
+        common_state: &common_state,
+        metric_registry: Arc::clone(&metrics),
         catalog,
         object_store,
         time_provider,
         exec,
         ingester_addresses,
-    )
+        ram_pool_bytes: querier_config.ram_pool_bytes(),
+    })
     .await;
 
     info!("starting all in one server");

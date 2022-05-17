@@ -2,14 +2,20 @@
 
 use backoff::{Backoff, BackoffConfig};
 use cache_system::{
-    backend::ttl::{TtlBackend, TtlProvider},
+    backend::{
+        lru::{LruBackend, ResourcePool},
+        resource_consumption::FunctionEstimator,
+        ttl::{TtlBackend, TtlProvider},
+    },
     driver::Cache,
     loader::FunctionLoader,
 };
 use data_types::{ParquetFileId, TombstoneId};
 use iox_catalog::interface::Catalog;
 use iox_time::TimeProvider;
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{collections::HashMap, mem::size_of_val, sync::Arc, time::Duration};
+
+use super::ram::RamSize;
 
 /// Duration to keep "tombstone is NOT processed yet".
 ///
@@ -29,6 +35,7 @@ impl ProcessedTombstonesCache {
         catalog: Arc<dyn Catalog>,
         backoff_config: BackoffConfig,
         time_provider: Arc<dyn TimeProvider>,
+        ram_pool: Arc<ResourcePool<RamSize>>,
     ) -> Self {
         let loader = Arc::new(FunctionLoader::new(
             move |(parquet_file_id, tombstone_id)| {
@@ -56,6 +63,14 @@ impl ProcessedTombstonesCache {
             backend,
             Arc::new(KeepExistsForever {}),
             time_provider,
+        ));
+        let backend = Box::new(LruBackend::new(
+            backend,
+            ram_pool,
+            String::from("processed_tombstones"),
+            Arc::new(FunctionEstimator::new(|k, v| {
+                RamSize(size_of_val(k) + size_of_val(v))
+            })),
         ));
 
         Self {
@@ -92,7 +107,7 @@ mod tests {
     use iox_tests::util::TestCatalog;
     use iox_time::{MockProvider, Time};
 
-    use crate::cache::test_util::assert_histogram_metric_count;
+    use crate::cache::{ram::test_util::test_ram_pool, test_util::assert_histogram_metric_count};
 
     use super::*;
 
@@ -123,6 +138,7 @@ mod tests {
             catalog.catalog(),
             BackoffConfig::default(),
             Arc::clone(&time_provider) as _,
+            test_ram_pool(),
         );
 
         assert!(cache.exists(file1.parquet_file.id, ts1.tombstone.id).await);

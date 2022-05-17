@@ -4,6 +4,8 @@ use backoff::{Backoff, BackoffConfig};
 use cache_system::{
     backend::{
         dual::dual_backends,
+        lru::{LruBackend, ResourcePool},
+        resource_consumption::FunctionEstimator,
         ttl::{OptionalValueTtlProvider, TtlBackend},
     },
     driver::Cache,
@@ -12,7 +14,9 @@ use cache_system::{
 use data_types::{NamespaceId, NamespaceSchema};
 use iox_catalog::interface::{get_schema_by_name, Catalog};
 use iox_time::TimeProvider;
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{collections::HashMap, mem::size_of_val, sync::Arc, time::Duration};
+
+use super::ram::RamSize;
 
 /// Duration to keep existing namespaces.
 pub const TTL_EXISTING: Duration = Duration::from_secs(10);
@@ -36,6 +40,7 @@ impl NamespaceCache {
         catalog: Arc<dyn Catalog>,
         backoff_config: BackoffConfig,
         time_provider: Arc<dyn TimeProvider>,
+        ram_pool: Arc<ResourcePool<RamSize>>,
     ) -> Self {
         let catalog_captured = Arc::clone(&catalog);
         let backoff_config_captured = backoff_config.clone();
@@ -125,6 +130,39 @@ impl NamespaceCache {
             maybe_table.as_ref().map(|n| n.schema.id)
         };
 
+        // add to memory pool
+        // IMPORTANT: Do that BEFORE crossing so that deletes, because `dual_backends` currently does not
+        //            cross-populates deletes.
+        let backend_from_id = Box::new(LruBackend::new(
+            backend_from_id as _,
+            Arc::clone(&ram_pool),
+            String::from("namespace_from_id"),
+            Arc::new(FunctionEstimator::new(
+                |k, v: &Option<Arc<CachedNamespace>>| {
+                    RamSize(
+                        size_of_val(k)
+                            + size_of_val(v)
+                            + v.as_ref().map(|v| v.size()).unwrap_or_default(),
+                    )
+                },
+            )),
+        ));
+        let backend_from_name = Box::new(LruBackend::new(
+            backend_from_name as _,
+            Arc::clone(&ram_pool),
+            String::from("namespace_from_name"),
+            Arc::new(FunctionEstimator::new(
+                |k: &Arc<str>, v: &Option<Arc<CachedNamespace>>| {
+                    RamSize(
+                        size_of_val(k)
+                            + k.len()
+                            + size_of_val(v)
+                            + v.as_ref().map(|v| v.size()).unwrap_or_default(),
+                    )
+                },
+            )),
+        ));
+
         // cross backends
         let (backend_from_id, backend_from_name) = dual_backends(
             backend_from_id,
@@ -167,11 +205,18 @@ struct CachedNamespace {
     schema: Arc<NamespaceSchema>,
 }
 
+impl CachedNamespace {
+    /// RAM-bytes EXCLUDING `self`.
+    fn size(&self) -> usize {
+        self.name.len() + self.schema.size() - size_of_val(&self.schema)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
 
-    use crate::cache::test_util::assert_histogram_metric_count;
+    use crate::cache::{ram::test_util::test_ram_pool, test_util::assert_histogram_metric_count};
     use data_types::{ColumnSchema, ColumnType, TableSchema};
     use iox_tests::util::TestCatalog;
 
@@ -189,6 +234,7 @@ mod tests {
             catalog.catalog(),
             BackoffConfig::default(),
             catalog.time_provider(),
+            test_ram_pool(),
         );
 
         let name1_a = cache.name(ns1.id).await.unwrap();
@@ -220,6 +266,7 @@ mod tests {
             catalog.catalog(),
             BackoffConfig::default(),
             catalog.time_provider(),
+            test_ram_pool(),
         );
 
         let none = cache.name(NamespaceId::new(i64::MAX)).await;
@@ -261,6 +308,7 @@ mod tests {
             catalog.catalog(),
             BackoffConfig::default(),
             catalog.time_provider(),
+            test_ram_pool(),
         );
 
         let schema1_a = cache.schema(Arc::from(String::from("ns1"))).await.unwrap();
@@ -368,6 +416,7 @@ mod tests {
             catalog.catalog(),
             BackoffConfig::default(),
             catalog.time_provider(),
+            test_ram_pool(),
         );
 
         let none = cache.schema(Arc::from(String::from("foo"))).await;
@@ -398,6 +447,7 @@ mod tests {
             catalog.catalog(),
             BackoffConfig::default(),
             catalog.time_provider(),
+            test_ram_pool(),
         );
 
         cache.name(ns1.id).await.unwrap();

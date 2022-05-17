@@ -19,6 +19,7 @@ pub async fn querier_namespace(ns: &Arc<TestNamespace>) -> QuerierNamespace {
     let catalog_cache = Arc::new(QuerierCatalogCache::new(
         ns.catalog.catalog(),
         ns.catalog.time_provider(),
+        usize::MAX,
     ));
     QuerierNamespace::new_testing(
         catalog_cache,

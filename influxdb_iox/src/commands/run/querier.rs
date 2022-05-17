@@ -13,7 +13,7 @@ use clap_blocks::object_store::make_object_store;
 use clap_blocks::{catalog_dsn::CatalogDsnConfig, run_config::RunConfig};
 use ioxd_common::server_type::{CommonServerState, CommonServerStateError};
 use ioxd_common::Service;
-use ioxd_querier::create_querier_server_type;
+use ioxd_querier::{create_querier_server_type, QuerierServerTypeArgs};
 
 use super::main;
 
@@ -94,15 +94,17 @@ pub async fn command(config: Config) -> Result<(), Error> {
     info!(?ingester_addresses, "using ingester addresses");
 
     let exec = Arc::new(Executor::new(num_threads));
-    let server_type = create_querier_server_type(
-        &common_state,
-        Arc::clone(&metric_registry),
+    let ram_pool_bytes = config.querier_config.ram_pool_bytes();
+    let server_type = create_querier_server_type(QuerierServerTypeArgs {
+        common_state: &common_state,
+        metric_registry: Arc::clone(&metric_registry),
         catalog,
         object_store,
         time_provider,
         exec,
         ingester_addresses,
-    )
+        ram_pool_bytes,
+    })
     .await;
 
     info!("starting querier");

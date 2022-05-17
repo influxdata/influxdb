@@ -294,6 +294,46 @@ impl SortKey {
         // Reach here means the long key is the super key of the sort one
         Some(long_key)
     }
+
+    /// Get size of `self.columns` EXCLUDING the type itself (i.e. `size_of_val(&self.columns)`).
+    fn size_columns(&self) -> usize {
+        // Size calculation for `self.columns`:
+        //
+        // - `self.columns` is an `IndexMap`, which is mostly backed by `IndexMapCore`.
+        // - `IndexMapCore` is:
+        //     struct IndexMapCore<K, V> {
+        //         indices: RawTable<usize>,
+        //         entries: Vec<Bucket<K, V>>,
+        //     }
+        // - `Bucket` is:
+        //      struct Bucket<K, V> {
+        //         hash: HashValue,
+        //         key: K,
+        //         value: V,
+        //      }
+        // - `HashValue` is just a newtype `usize`
+        // - We assume that the hashbrown `RawTable` has 1 byte overhead per entry (as mentioned in their README) but
+        //   allocates the whole capacity (which is very conservative).
+        // - the size of `indices` and `entries` can sadly only be guessed, since `IndexMap::capacity` returns the
+        //   minimum of the two capacities.
+        type K = Arc<str>;
+        type V = SortOptions;
+        let capacity_indices = self.columns.capacity();
+        let capacity_entries = capacity_indices;
+        const SIZE_BUCKET: usize =
+            std::mem::size_of::<usize>() + std::mem::size_of::<K>() + std::mem::size_of::<V>();
+        let size_entries = SIZE_BUCKET * capacity_entries;
+        const SIZE_HASHBROWN_ENTRY: usize = std::mem::size_of::<usize>() + 1;
+        let size_indices = SIZE_HASHBROWN_ENTRY * capacity_indices;
+        size_entries + size_indices
+    }
+
+    /// Memory size in bytes including `self`
+    pub fn size(&self) -> usize {
+        std::mem::size_of_val(self)
+            + self.size_columns()
+            + self.columns.keys().map(|k| k.len()).sum::<usize>()
+    }
 }
 
 // Produces a human-readable representation of a sort key that looks like:
@@ -897,5 +937,12 @@ mod tests {
         let data_primary_key = ["host", "env", "zone", "time"];
 
         catalog_sort_key.filter_to(&data_primary_key);
+    }
+
+    #[test]
+    fn test_size() {
+        let key_1 = SortKey::from_columns(vec![TIME_COLUMN_NAME]);
+        let key_2 = SortKey::from_columns(vec!["a", TIME_COLUMN_NAME]);
+        assert!(key_1.size() < key_2.size());
     }
 }

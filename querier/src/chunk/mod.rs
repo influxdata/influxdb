@@ -304,6 +304,7 @@ pub mod tests {
             Arc::new(CatalogCache::new(
                 catalog.catalog(),
                 catalog.time_provider(),
+                usize::MAX,
             )),
             catalog.object_store(),
             catalog.metric_registry(),

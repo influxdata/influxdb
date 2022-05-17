@@ -1,11 +1,20 @@
 //! Partition cache.
 
 use backoff::{Backoff, BackoffConfig};
-use cache_system::{driver::Cache, loader::FunctionLoader};
+use cache_system::{
+    backend::{
+        lru::{LruBackend, ResourcePool},
+        resource_consumption::FunctionEstimator,
+    },
+    driver::Cache,
+    loader::FunctionLoader,
+};
 use data_types::{PartitionId, SequencerId};
 use iox_catalog::interface::Catalog;
 use schema::sort::SortKey;
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, mem::size_of_val, sync::Arc};
+
+use super::ram::RamSize;
 
 /// Cache for partition-related attributes.
 #[derive(Debug)]
@@ -15,7 +24,11 @@ pub struct PartitionCache {
 
 impl PartitionCache {
     /// Create new empty cache.
-    pub fn new(catalog: Arc<dyn Catalog>, backoff_config: BackoffConfig) -> Self {
+    pub fn new(
+        catalog: Arc<dyn Catalog>,
+        backoff_config: BackoffConfig,
+        ram_pool: Arc<ResourcePool<RamSize>>,
+    ) -> Self {
         let loader = Arc::new(FunctionLoader::new(move |partition_id| {
             let catalog = Arc::clone(&catalog);
             let backoff_config = backoff_config.clone();
@@ -41,6 +54,14 @@ impl PartitionCache {
             }
         }));
         let backend = Box::new(HashMap::new());
+        let backend = Box::new(LruBackend::new(
+            backend,
+            ram_pool,
+            String::from("partition"),
+            Arc::new(FunctionEstimator::new(|k, v: &CachedPartition| {
+                RamSize(size_of_val(k) + size_of_val(v) + v.size())
+            })),
+        ));
 
         Self {
             cache: Cache::new(loader, backend),
@@ -64,10 +85,20 @@ struct CachedPartition {
     sort_key: Option<SortKey>,
 }
 
+impl CachedPartition {
+    /// RAM-bytes EXCLUDING `self`.
+    fn size(&self) -> usize {
+        self.sort_key
+            .as_ref()
+            .map(|sk| sk.size() - size_of_val(sk))
+            .unwrap_or_default()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cache::test_util::assert_histogram_metric_count;
+    use crate::cache::{ram::test_util::test_ram_pool, test_util::assert_histogram_metric_count};
     use iox_tests::util::TestCatalog;
 
     #[tokio::test]
@@ -91,7 +122,8 @@ mod tests {
             .partition
             .clone();
 
-        let cache = PartitionCache::new(catalog.catalog(), BackoffConfig::default());
+        let cache =
+            PartitionCache::new(catalog.catalog(), BackoffConfig::default(), test_ram_pool());
 
         let id1 = cache.sequencer_id(p1.id).await;
         assert_eq!(id1, s1.sequencer.id);
@@ -127,7 +159,8 @@ mod tests {
             .partition
             .clone();
 
-        let cache = PartitionCache::new(catalog.catalog(), BackoffConfig::default());
+        let cache =
+            PartitionCache::new(catalog.catalog(), BackoffConfig::default(), test_ram_pool());
 
         let sort_key1 = cache.sort_key(p1.id).await;
         assert_eq!(sort_key1, p1.sort_key());
@@ -169,7 +202,8 @@ mod tests {
             .partition
             .clone();
 
-        let cache = PartitionCache::new(catalog.catalog(), BackoffConfig::default());
+        let cache =
+            PartitionCache::new(catalog.catalog(), BackoffConfig::default(), test_ram_pool());
 
         cache.sequencer_id(p2.id).await;
         cache.sort_key(p3.id).await;

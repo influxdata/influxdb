@@ -66,6 +66,7 @@ mod tests {
         let catalog_cache = Arc::new(QuerierCatalogCache::new(
             catalog.catalog(),
             catalog.time_provider(),
+            usize::MAX,
         ));
         let db = Arc::new(QuerierDatabase::new(
             catalog_cache,
@@ -91,6 +92,7 @@ mod tests {
         let catalog_cache = Arc::new(QuerierCatalogCache::new(
             catalog.catalog(),
             catalog.time_provider(),
+            usize::MAX,
         ));
         let db = Arc::new(QuerierDatabase::new(
             catalog_cache,

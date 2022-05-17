@@ -15,7 +15,7 @@ pub struct QuerierConfig {
     ///
     /// If not specified, defaults to the number of cores on the system
     #[clap(long = "--num-query-threads", env = "INFLUXDB_IOX_NUM_QUERY_THREADS")]
-    num_query_threads: Option<usize>,
+    pub num_query_threads: Option<usize>,
 
     /// gRPC address for the querier to talk with the ingester. For
     /// example:
@@ -36,7 +36,15 @@ pub struct QuerierConfig {
         multiple_values = true,
         use_value_delimiter = true
     )]
-    ingester_addresses: Vec<String>,
+    pub ingester_addresses: Vec<String>,
+
+    /// Size of the RAM cache pool in bytes.
+    #[clap(
+        long = "--ram-pool-bytes",
+        env = "INFLUXDB_IOX_RAM_POOL_BYTES",
+        default_value = "1073741824"
+    )]
+    pub ram_pool_bytes: usize,
 }
 
 impl QuerierConfig {
@@ -61,6 +69,11 @@ impl QuerierConfig {
                 }
             })
             .collect()
+    }
+
+    /// Size of the RAM cache pool in bytes.
+    pub fn ram_pool_bytes(&self) -> usize {
+        self.ram_pool_bytes
     }
 }
 
