@@ -20,7 +20,7 @@ func NewFluxControllerMock() *FluxControllerMock {
 			if err != nil {
 				return nil, err
 			}
-			alloc := &memory.Allocator{}
+			alloc := &memory.ResourceAllocator{}
 			return p.Start(ctx, alloc)
 		},
 	}
