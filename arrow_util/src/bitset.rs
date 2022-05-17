@@ -156,6 +156,8 @@ impl BitSet {
 
     /// Sets a given bit
     pub fn set(&mut self, idx: usize) {
+        assert!(idx <= self.len);
+
         let byte_idx = idx >> 3;
         let bit_idx = idx & 7;
         self.buffer[byte_idx] |= 1 << bit_idx;
@@ -163,6 +165,8 @@ impl BitSet {
 
     /// Returns if the given index is set
     pub fn get(&self, idx: usize) -> bool {
+        assert!(idx <= self.len);
+
         let byte_idx = idx >> 3;
         let bit_idx = idx & 7;
         (self.buffer[byte_idx] >> bit_idx) & 1 != 0
@@ -462,5 +466,19 @@ mod tests {
 
         assert_eq!(collected.as_slice(), buffer.as_slice());
         assert_eq!(buffer.as_slice(), mask_buffer.as_slice());
+    }
+
+    #[test]
+    #[should_panic = "idx <= self.len"]
+    fn test_bitset_set_get_out_of_bounds() {
+        let mut v = BitSet::with_size(4);
+
+        // The bitset is of length 4, which is backed by a single byte with 8
+        // bits of storage capacity.
+        //
+        // Accessing bits past the 4 the bitset "contains" should not succeed.
+
+        v.get(5);
+        v.set(5);
     }
 }
