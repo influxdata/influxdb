@@ -6,7 +6,7 @@ edition = "2021"
 description = "Tests of the query engine against different database configurations"
 
 [dependencies]
-arrow = { version = "13", features = ["prettyprint"] }
+arrow = { version = "14.0.0", features = ["prettyprint"] }
 async-trait = "0.1"
 backoff = { path = "../backoff" }
 data_types = { path = "../data_types" }
@@ -30,7 +30,7 @@ pretty_assertions = "1.2.1"
 workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]
-arrow = { version = "13", features = ["prettyprint"] }
+arrow = { version = "14.0.0", features = ["prettyprint"] }
 arrow_util = { path = "../arrow_util" }
 snafu = "0.7"
 tempfile = "3.1.0"

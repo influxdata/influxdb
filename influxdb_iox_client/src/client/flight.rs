@@ -1,4 +1,4 @@
-use std::{convert::TryFrom, marker::PhantomData, sync::Arc};
+use std::{collections::HashMap, convert::TryFrom, marker::PhantomData, sync::Arc};
 
 use ::generated_types::influxdata::iox::{
     ingester::v1::{IngesterQueryRequest, IngesterQueryResponseMetadata},
@@ -11,7 +11,7 @@ use thiserror::Error;
 use tonic::Streaming;
 
 use arrow::{
-    array::Array,
+    array::ArrayRef,
     datatypes::Schema,
     ipc::{self, reader},
     record_batch::RecordBatch,
@@ -191,7 +191,7 @@ where
     T: Default + Message,
 {
     schema: Arc<Schema>,
-    dictionaries_by_field: Vec<Option<Arc<dyn Array>>>,
+    dictionaries_by_field: HashMap<i64, ArrayRef>,
     response: Streaming<FlightData>,
     app_metadata: T,
 }
@@ -218,7 +218,7 @@ where
 
         let schema = Arc::new(Schema::try_from(&flight_data_schema)?);
 
-        let dictionaries_by_field = vec![None; schema.fields().len()];
+        let dictionaries_by_field = HashMap::new();
 
         Ok(Self {
             schema,

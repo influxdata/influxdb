@@ -16,8 +16,8 @@ pub mod rpc_predicate;
 use data_types::{TimestampRange, MAX_NANO_TIME, MIN_NANO_TIME};
 use datafusion::{
     error::DataFusionError,
+    logical_expr::utils::expr_to_columns,
     logical_plan::{binary_expr, col, lit_timestamp_nano, Expr, Operator},
-    optimizer::utils,
 };
 use datafusion_util::{make_range_expr, AndExprBuilder};
 use observability_deps::tracing::debug;
@@ -397,7 +397,7 @@ impl PredicateBuilder {
             .into_iter()
             .try_for_each::<_, Result<_, DataFusionError>>(|expr| {
                 let mut columns = HashSet::new();
-                utils::expr_to_columns(&expr, &mut columns)?;
+                expr_to_columns(&expr, &mut columns)?;
 
                 if columns.len() == 1 && Self::primitive_binary_expr(&expr) {
                     pushdown_exprs.push(expr);

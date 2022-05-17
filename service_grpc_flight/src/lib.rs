@@ -518,6 +518,7 @@ fn hydrate_dictionary(array: &ArrayRef) -> Result<ArrayRef, Error> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
     use std::sync::Arc;
 
     use arrow::array::StringArray;
@@ -607,9 +608,13 @@ mod tests {
         let (_, flight_data) =
             arrow_flight::utils::flight_data_from_arrow_batch(&optimized_batch, &options);
 
-        let batch =
-            flight_data_to_arrow_batch(&flight_data, Arc::clone(&optimized_schema), &[None, None])
-                .unwrap();
+        let dictionary_by_id = HashMap::new();
+        let batch = flight_data_to_arrow_batch(
+            &flight_data,
+            Arc::clone(&optimized_schema),
+            &dictionary_by_id,
+        )
+        .unwrap();
 
         // Should hydrate string dictionary for transport
         assert_eq!(optimized_schema.field(1).data_type(), &DataType::Utf8);

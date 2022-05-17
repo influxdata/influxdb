@@ -241,7 +241,7 @@ mod tests {
         array::{ArrayRef, Int64Array, StringBuilder},
         datatypes::{DataType, Field, Schema, SchemaRef},
     };
-    use datafusion::logical_plan::LogicalPlanBuilder;
+    use datafusion::{datasource::MemTable, logical_plan::LogicalPlanBuilder};
     use stringset::StringSet;
 
     use super::*;
@@ -444,14 +444,16 @@ mod tests {
 
     // creates a DataFusion plan that reads the RecordBatches into memory
     fn make_plan(schema: SchemaRef, data: Vec<RecordBatch>) -> LogicalPlan {
+        let partitions = vec![data];
+
         let projection = None;
-        LogicalPlanBuilder::scan_memory(
-            vec![data], // model one partition,
-            schema,
-            projection,
-        )
-        .unwrap()
-        .build()
-        .unwrap()
+
+        // model one partition,
+        let table = MemTable::try_new(schema, partitions).unwrap();
+
+        LogicalPlanBuilder::scan("memtable", Arc::new(table), projection)
+            .unwrap()
+            .build()
+            .unwrap()
     }
 }

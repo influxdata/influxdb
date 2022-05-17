@@ -14,6 +14,7 @@ use arrow::{
 };
 
 use datafusion::{
+    datasource::MemTable,
     error::{DataFusionError, Result as DatafusionResult},
     execution::context::ExecutionProps,
     logical_plan::{
@@ -60,7 +61,10 @@ pub fn make_scan_plan(batch: RecordBatch) -> std::result::Result<LogicalPlan, Da
     let schema = batch.schema();
     let partitions = vec![vec![batch]];
     let projection = None; // scan all columns
-    LogicalPlanBuilder::scan_memory(partitions, schema, projection)?.build()
+
+    let table = MemTable::try_new(schema, partitions)?;
+
+    LogicalPlanBuilder::scan("memtable", Arc::new(table), projection)?.build()
 }
 
 /// Returns the pk in arrow's expression used for data sorting
