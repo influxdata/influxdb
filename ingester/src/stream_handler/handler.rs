@@ -2,13 +2,13 @@ use super::DmlSink;
 use crate::lifecycle::{LifecycleHandle, LifecycleHandleImpl};
 use data_types::KafkaPartition;
 use dml::DmlOperation;
-use futures::{pin_mut, FutureExt, Stream, StreamExt};
+use futures::{pin_mut, FutureExt, StreamExt};
 use iox_time::{SystemProvider, TimeProvider};
 use metric::{Attributes, U64Counter, U64Gauge};
 use observability_deps::tracing::*;
 use std::{fmt::Debug, time::Duration};
 use tokio_util::sync::CancellationToken;
-use write_buffer::core::{WriteBufferError, WriteBufferErrorKind};
+use write_buffer::core::{WriteBufferErrorKind, WriteBufferStreamHandler};
 
 /// When the [`LifecycleManager`] indicates that ingest should be paused because
 /// of memory pressure, the sequencer will loop, sleeping this long between
@@ -31,8 +31,8 @@ const INGEST_POLL_INTERVAL: Duration = Duration::from_millis(100);
 /// [`LifecycleHandle::can_resume_ingest()`]: crate::lifecycle::LifecycleHandle::can_resume_ingest()
 #[derive(Debug)]
 pub struct SequencedStreamHandler<I, O, T = SystemProvider> {
-    /// A input stream of DML ops
-    stream: I,
+    /// Creator/manager of the stream of DML ops
+    write_buffer_stream_handler: I,
     /// An output sink that processes DML operations and applies them to
     /// in-memory state.
     sink: O,
@@ -57,6 +57,8 @@ pub struct SequencedStreamHandler<I, O, T = SystemProvider> {
     /// Log context fields - otherwise unused.
     kafka_topic_name: String,
     kafka_partition: KafkaPartition,
+
+    skip_to_oldest_available: bool,
 }
 
 impl<I, O> SequencedStreamHandler<I, O> {
@@ -67,17 +69,19 @@ impl<I, O> SequencedStreamHandler<I, O> {
     /// `stream` once [`SequencedStreamHandler::run()`] is called, and
     /// gracefully stops when `shutdown` is cancelled.
     pub fn new(
-        stream: I,
+        write_buffer_stream_handler: I,
         sink: O,
         lifecycle_handle: LifecycleHandleImpl,
         kafka_topic_name: String,
         kafka_partition: KafkaPartition,
         metrics: &metric::Registry,
+        skip_to_oldest_available: bool,
     ) -> Self {
         // TTBR
         let time_to_be_readable_ms = metrics.register_metric::<U64Gauge>(
             "ingester_ttbr_ms",
-            "duration of time between producer writing to consumer putting into queryable cache in milliseconds",
+            "duration of time between producer writing to consumer putting into queryable cache in \
+            milliseconds",
         ).recorder(metric_attrs(kafka_partition, &kafka_topic_name, None, false));
 
         // Lifecycle-driven ingest pause duration
@@ -117,7 +121,7 @@ impl<I, O> SequencedStreamHandler<I, O> {
         ));
 
         Self {
-            stream,
+            write_buffer_stream_handler,
             sink,
             lifecycle_handle,
             time_provider: SystemProvider::default(),
@@ -129,6 +133,7 @@ impl<I, O> SequencedStreamHandler<I, O> {
             sink_apply_error_count,
             kafka_topic_name,
             kafka_partition,
+            skip_to_oldest_available,
         }
     }
 
@@ -136,7 +141,7 @@ impl<I, O> SequencedStreamHandler<I, O> {
     #[cfg(test)]
     pub(crate) fn with_time_provider<T>(self, provider: T) -> SequencedStreamHandler<I, O, T> {
         SequencedStreamHandler {
-            stream: self.stream,
+            write_buffer_stream_handler: self.write_buffer_stream_handler,
             sink: self.sink,
             lifecycle_handle: self.lifecycle_handle,
             time_provider: provider,
@@ -148,13 +153,14 @@ impl<I, O> SequencedStreamHandler<I, O> {
             sink_apply_error_count: self.sink_apply_error_count,
             kafka_topic_name: self.kafka_topic_name,
             kafka_partition: self.kafka_partition,
+            skip_to_oldest_available: self.skip_to_oldest_available,
         }
     }
 }
 
 impl<I, O, T> SequencedStreamHandler<I, O, T>
 where
-    I: Stream<Item = Result<DmlOperation, WriteBufferError>> + Unpin + Send,
+    I: WriteBufferStreamHandler,
     O: DmlSink,
     T: TimeProvider,
 {
@@ -173,11 +179,14 @@ where
         let shutdown_fut = shutdown.cancelled().fuse();
         pin_mut!(shutdown_fut);
 
+        let mut stream = self.write_buffer_stream_handler.stream().await;
+        let mut reset_to_earliest_once = false;
+
         loop {
             // Wait for a DML operation from the sequencer, or a graceful stop
             // signal.
             let maybe_op = futures::select!(
-                next = self.stream.next().fuse() => next,
+                next = stream.next().fuse() => next,
                 _ = shutdown_fut => {
                     info!(
                         kafka_topic=%self.kafka_topic_name,
@@ -187,6 +196,22 @@ where
                     return;
                 }
             );
+
+            // If we get an unknown sequence number, and we're fine potentially having missed
+            // writes that were too old to be retained, try resetting the stream once and getting
+            // the next operation again.
+            if self.skip_to_oldest_available
+                && !reset_to_earliest_once
+                && matches!(
+                    &maybe_op,
+                    Some(Err(e)) if e.kind() == WriteBufferErrorKind::UnknownSequenceNumber
+                )
+            {
+                self.write_buffer_stream_handler.reset_to_earliest();
+                stream = self.write_buffer_stream_handler.stream().await;
+                reset_to_earliest_once = true;
+                continue;
+            }
 
             // Read a DML op from the write buffer, logging and emitting metrics
             // for any potential errors to enable alerting on potential data
@@ -378,23 +403,24 @@ fn metric_attrs(
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
     use super::*;
     use crate::{
         lifecycle::{LifecycleConfig, LifecycleManager},
         stream_handler::mock_sink::MockDmlSink,
     };
     use assert_matches::assert_matches;
+    use async_trait::async_trait;
     use data_types::{DeletePredicate, Sequence, TimestampRange};
     use dml::{DmlDelete, DmlMeta, DmlWrite};
-    use futures::stream;
+    use futures::stream::{self, BoxStream};
     use iox_time::{SystemProvider, Time};
     use metric::Metric;
     use mutable_batch_lp::lines_to_batches;
+    use std::sync::Arc;
     use test_helpers::timeout::FutureTimeout;
     use tokio::sync::mpsc;
     use tokio_stream::wrappers::ReceiverStream;
+    use write_buffer::core::WriteBufferError;
 
     lazy_static::lazy_static! {
         static ref TEST_TIME: Time = SystemProvider::default().now();
@@ -433,6 +459,32 @@ mod tests {
         DmlDelete::new(name, pred, None, sequence)
     }
 
+    #[derive(Debug)]
+    struct TestWriteBufferStreamHandler {
+        rx: Option<mpsc::Receiver<Result<DmlOperation, WriteBufferError>>>,
+    }
+
+    impl TestWriteBufferStreamHandler {
+        fn new(rx: mpsc::Receiver<Result<DmlOperation, WriteBufferError>>) -> Self {
+            Self { rx: Some(rx) }
+        }
+    }
+
+    #[async_trait]
+    impl WriteBufferStreamHandler for TestWriteBufferStreamHandler {
+        async fn stream(&mut self) -> BoxStream<'static, Result<DmlOperation, WriteBufferError>> {
+            ReceiverStream::new(self.rx.take().unwrap()).boxed()
+        }
+
+        async fn seek(&mut self, _sequence_number: u64) -> Result<(), WriteBufferError> {
+            Ok(())
+        }
+
+        fn reset_to_earliest(&mut self) {
+            // Intentionally left blank
+        }
+    }
+
     // Generates a test that ensures that the handler given $stream_ops makes
     // $want_sink calls.
     //
@@ -452,7 +504,7 @@ mod tests {
                 #[tokio::test]
                 async fn [<test_stream_handler_ $name>]() {
                     let metrics = Arc::new(metric::Registry::default());
-                    let time_provider: Arc< dyn TimeProvider> = Arc::new(SystemProvider::default());
+                    let time_provider: Arc<dyn TimeProvider> = Arc::new(SystemProvider::default());
                     let lifecycle = LifecycleManager::new(
                         LifecycleConfig::new(
                             100, 2, 3, Duration::from_secs(4), Duration::from_secs(5)
@@ -471,13 +523,16 @@ mod tests {
                     // buffer capacity of 1 (used below).
                     let (tx, rx) = mpsc::channel(1);
 
+                    let write_buffer_stream_handler = TestWriteBufferStreamHandler::new(rx);
+
                     let handler = SequencedStreamHandler::new(
-                        ReceiverStream::new(rx),
+                        write_buffer_stream_handler,
                         Arc::clone(&sink),
                         lifecycle.handle(),
                         TEST_KAFKA_TOPIC.to_string(),
                         *TEST_KAFKA_PARTITION,
                         &*metrics,
+                        false,
                     ).with_time_provider(iox_time::MockProvider::new(*TEST_TIME));
 
                     // Run the handler in the background and push inputs to it
@@ -724,11 +779,31 @@ mod tests {
         }
     );
 
+    #[derive(Debug)]
+    struct EmptyWriteBufferStreamHandler {}
+
+    #[async_trait]
+    impl WriteBufferStreamHandler for EmptyWriteBufferStreamHandler {
+        async fn stream(&mut self) -> BoxStream<'static, Result<DmlOperation, WriteBufferError>> {
+            stream::iter([]).boxed()
+        }
+
+        async fn seek(&mut self, _sequence_number: u64) -> Result<(), WriteBufferError> {
+            Ok(())
+        }
+
+        fn reset_to_earliest(&mut self) {
+            // Intentionally left blank
+        }
+    }
+
     // An abnormal end to the steam causes a panic, rather than a silent stream
     // reader exit.
     #[tokio::test]
-    #[should_panic = "sequencer KafkaPartition(42) stream for topic kafka_topic_name ended without graceful \
-        shutdown"]
+    #[should_panic(
+        expected = "sequencer KafkaPartition(42) stream for topic kafka_topic_name ended without \
+                    graceful shutdown"
+    )]
     async fn test_early_stream_end_panic() {
         let metrics = Arc::new(metric::Registry::default());
         let time_provider = Arc::new(SystemProvider::default());
@@ -739,16 +814,17 @@ mod tests {
         );
 
         // An empty stream iter immediately yields none.
-        let stream = stream::iter([]);
+        let write_buffer_stream_handler = EmptyWriteBufferStreamHandler {};
         let sink = MockDmlSink::default();
 
         let handler = SequencedStreamHandler::new(
-            stream,
+            write_buffer_stream_handler,
             sink,
             lifecycle.handle(),
             "kafka_topic_name".to_string(),
             KafkaPartition::new(42),
             &*metrics,
+            false,
         );
 
         handler

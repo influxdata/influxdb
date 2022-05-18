@@ -62,4 +62,14 @@ pub struct IngesterConfig {
         default_value = "300"
     )]
     pub persist_partition_cold_threshold_seconds: u64,
+
+    /// If the catalog's max sequence number for the partition is no longer available in the write
+    /// buffer due to the retention policy, by default the ingester will panic. If this flag is
+    /// specified, the ingester will skip any sequence numbers that have not been retained in the
+    /// write buffer and will start up successfully with the oldest available data.
+    #[clap(
+        long = "--skip-to-oldest-available",
+        env = "INFLUXDB_IOX_SKIP_TO_OLDEST_AVAILABLE"
+    )]
+    pub skip_to_oldest_available: bool,
 }

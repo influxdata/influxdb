@@ -188,16 +188,37 @@ pub trait WriteBufferStreamHandler: Sync + Send + Debug + 'static {
     /// sequence number of the old streams will be the start sequence number for the new streams. If you want to
     /// prevent that either create a new [`WriteBufferStreamHandler`] or use [`seek`](Self::seek).
     ///
-    /// If the sequence number that the stream wants to read is unknown (either because it is in the future or because
-    /// some retention policy removed it already), the stream will return an error with
-    /// [`WriteBufferErrorKind::UnknownSequenceNumber`] and will end immediately.
-    async fn stream(&mut self) -> BoxStream<'_, Result<DmlOperation, WriteBufferError>>;
+    /// If the sequence number that the stream wants to read is unknown (either because it is in
+    /// the future or because some retention policy removed it already), the stream will return an
+    /// error with [`WriteBufferErrorKind::UnknownSequenceNumber`] and will end immediately.
+    async fn stream(&mut self) -> BoxStream<'static, Result<DmlOperation, WriteBufferError>>;
 
-    /// Seek sequencer to given sequence number. The next output of related streams will be an entry with at least
-    /// the given sequence number (the actual sequence number might be skipped due to "holes" in the stream).
+    /// Seek sequencer to given sequence number. The next output of related streams will be an
+    /// entry with at least the given sequence number (the actual sequence number might be skipped
+    /// due to "holes" in the stream).
     ///
     /// Note that due to the mutable borrow, it is not possible to seek while streams exists.
     async fn seek(&mut self, sequence_number: u64) -> Result<(), WriteBufferError>;
+
+    /// Reset the sequencer to whatever is the earliest number available in the retained write
+    /// buffer. Useful to restart if [`WriteBufferErrorKind::UnknownSequenceNumber`] is returned
+    /// from [`stream`](Self::stream) but that isn't a problem.
+    fn reset_to_earliest(&mut self);
+}
+
+#[async_trait]
+impl WriteBufferStreamHandler for Box<dyn WriteBufferStreamHandler> {
+    async fn stream(&mut self) -> BoxStream<'static, Result<DmlOperation, WriteBufferError>> {
+        self.as_mut().stream().await
+    }
+
+    async fn seek(&mut self, sequence_number: u64) -> Result<(), WriteBufferError> {
+        self.as_mut().seek(sequence_number).await
+    }
+
+    fn reset_to_earliest(&mut self) {
+        self.as_mut().reset_to_earliest()
+    }
 }
 
 /// Produce streams (one per sequencer) of [`DmlWrite`]s.
