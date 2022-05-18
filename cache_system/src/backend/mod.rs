@@ -2,7 +2,6 @@
 use std::{any::Any, fmt::Debug, hash::Hash};
 
 pub mod addressable_heap;
-pub mod dual;
 pub mod hash_map;
 pub mod lru;
 pub mod resource_consumption;
