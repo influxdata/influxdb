@@ -3716,6 +3716,7 @@ dependencies = [
  "schema",
  "snafu",
  "tempfile",
+ "thiserror",
  "thrift",
  "tokio",
  "uuid 0.8.2",

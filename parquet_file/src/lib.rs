@@ -10,6 +10,7 @@
 
 pub mod chunk;
 pub mod metadata;
+pub mod serialise;
 pub mod storage;
 
 use data_types::{NamespaceId, PartitionId, SequencerId, TableId};
