@@ -11,9 +11,7 @@ use iox_catalog::interface::Catalog;
 use iox_query::{exec::IOxSessionContext, QueryChunk};
 use iox_time::TimeProvider;
 use object_store::DynObjectStore;
-use parquet_file::chunk::{
-    new_parquet_chunk, ChunkMetrics as ParquetChunkMetrics, DecodedParquetFile, ParquetChunk,
-};
+use parquet_file::chunk::{ChunkMetrics as ParquetChunkMetrics, DecodedParquetFile, ParquetChunk};
 use schema::{selection::Selection, sort::SortKey};
 use std::sync::Arc;
 use uuid::Uuid;
@@ -217,7 +215,7 @@ impl ParquetChunkAdapter {
     ) -> Option<ParquetChunk> {
         let metrics = ParquetChunkMetrics::new(self.metric_registry.as_ref());
 
-        Some(new_parquet_chunk(
+        Some(ParquetChunk::new(
             decoded_parquet_file,
             metrics,
             Arc::clone(&self.object_store),

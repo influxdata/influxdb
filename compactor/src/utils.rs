@@ -8,7 +8,7 @@ use data_types::{
 use object_store::DynObjectStore;
 use observability_deps::tracing::*;
 use parquet_file::{
-    chunk::{new_parquet_chunk, ChunkMetrics, DecodedParquetFile},
+    chunk::{ChunkMetrics, DecodedParquetFile, ParquetChunk},
     metadata::{IoxMetadata, IoxParquetMetaData},
 };
 use schema::sort::SortKey;
@@ -94,7 +94,7 @@ impl ParquetFileWithTombstone {
     ) -> QueryableParquetChunk {
         let decoded_parquet_file = DecodedParquetFile::new((*self.data).clone());
 
-        let parquet_chunk = new_parquet_chunk(
+        let parquet_chunk = ParquetChunk::new(
             &decoded_parquet_file,
             ChunkMetrics::new_unregistered(), // TODO: need to add metrics
             object_store,

@@ -107,61 +107,41 @@ pub struct ParquetChunk {
 }
 
 impl ParquetChunk {
-    /// Creates new chunk from given parquet metadata.
+    /// Create parquet chunk.
     pub fn new(
-        path: &ParquetFilePath,
-        object_store: Arc<DynObjectStore>,
-        file_size_bytes: usize,
-        parquet_metadata: Arc<IoxParquetMetaData>,
+        decoded_parquet_file: &DecodedParquetFile,
         metrics: ChunkMetrics,
-    ) -> Result<Self> {
-        let decoded = parquet_metadata
+        object_store: Arc<DynObjectStore>,
+    ) -> ParquetChunk {
+        let iox_metadata = &decoded_parquet_file.iox_metadata;
+        let path = ParquetFilePath::new(
+            iox_metadata.namespace_id,
+            iox_metadata.table_id,
+            iox_metadata.sequencer_id,
+            iox_metadata.partition_id,
+            iox_metadata.object_store_id,
+        );
+
+        let decoded = decoded_parquet_file
+            .parquet_metadata
+            .as_ref()
             .decode()
-            .context(MetadataDecodeFailedSnafu { path })?;
-        let schema = decoded
-            .read_schema()
-            .context(SchemaReadFailedSnafu { path })?;
-        let columns = decoded
-            .read_statistics(&schema)
-            .context(StatisticsReadFailedSnafu { path })?;
+            .unwrap();
+        let schema = decoded.read_schema().unwrap();
+        let columns = decoded.read_statistics(&schema).unwrap();
         let table_summary = TableSummary { columns };
         let rows = decoded.row_count();
-
-        Ok(Self::new_from_parts(
-            Arc::new(table_summary),
-            schema,
-            path,
-            object_store,
-            file_size_bytes,
-            parquet_metadata,
-            rows,
-            metrics,
-        ))
-    }
-
-    /// Creates a new chunk from given parts w/o parsing anything from the provided parquet
-    /// metadata.
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn new_from_parts(
-        table_summary: Arc<TableSummary>,
-        schema: Arc<Schema>,
-        path: &ParquetFilePath,
-        object_store: Arc<DynObjectStore>,
-        file_size_bytes: usize,
-        parquet_metadata: Arc<IoxParquetMetaData>,
-        rows: usize,
-        metrics: ChunkMetrics,
-    ) -> Self {
         let timestamp_min_max = extract_range(&table_summary);
+        let file_size_bytes = decoded_parquet_file.parquet_file.file_size_bytes as usize;
 
         Self {
-            table_summary,
+            table_summary: Arc::new(table_summary),
             schema,
             timestamp_min_max,
-            path: path.into(),
             object_store,
+            path,
             file_size_bytes,
-            parquet_metadata,
+            parquet_metadata: Arc::clone(&decoded_parquet_file.parquet_metadata),
             rows,
             metrics,
         }
@@ -298,32 +278,4 @@ impl DecodedParquetFile {
             iox_metadata,
         }
     }
-}
-
-/// Create parquet chunk.
-pub fn new_parquet_chunk(
-    decoded_parquet_file: &DecodedParquetFile,
-    metrics: ChunkMetrics,
-    object_store: Arc<DynObjectStore>,
-) -> ParquetChunk {
-    let iox_metadata = &decoded_parquet_file.iox_metadata;
-    let path = ParquetFilePath::new(
-        iox_metadata.namespace_id,
-        iox_metadata.table_id,
-        iox_metadata.sequencer_id,
-        iox_metadata.partition_id,
-        iox_metadata.object_store_id,
-    );
-
-    let parquet_file = &decoded_parquet_file.parquet_file;
-    let file_size_bytes = parquet_file.file_size_bytes as usize;
-
-    ParquetChunk::new(
-        &path,
-        object_store,
-        file_size_bytes,
-        Arc::clone(&decoded_parquet_file.parquet_metadata),
-        metrics,
-    )
-    .expect("cannot create chunk")
 }
