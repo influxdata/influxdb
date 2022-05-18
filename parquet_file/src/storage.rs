@@ -87,22 +87,11 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug, Clone)]
 pub struct Storage {
     object_store: Arc<DynObjectStore>,
-
-    // If `Some`, restricts the size of the row groups created in the parquet file
-    max_row_group_size: Option<usize>,
 }
 
 impl Storage {
     pub fn new(object_store: Arc<DynObjectStore>) -> Self {
-        Self {
-            object_store,
-            max_row_group_size: None,
-        }
-    }
-
-    /// Specify the maximum sized row group to make
-    pub fn set_max_row_group_size(&mut self, max_row_group_size: usize) {
-        self.max_row_group_size = Some(max_row_group_size);
+        Self { object_store }
     }
 
     fn writer_props(&self, metadata_bytes: &[u8]) -> WriterProperties {
@@ -112,12 +101,6 @@ impl Storage {
                 value: Some(base64::encode(&metadata_bytes)),
             }]))
             .set_compression(Compression::ZSTD);
-
-        let builder = if let Some(max_row_group_size) = self.max_row_group_size.as_ref() {
-            builder.set_max_row_group_size(*max_row_group_size)
-        } else {
-            builder
-        };
 
         builder.build()
     }
