@@ -41,7 +41,7 @@ pub async fn persist(
         .expect("record_batches.is_empty was just checked")
         .schema();
 
-    let data = parquet_file::storage::Storage::new(Arc::clone(&object_store))
+    let data = parquet_file::storage::ParquetStorage::new(Arc::clone(&object_store))
         .parquet_bytes(record_batches, schema, metadata)
         .await
         .context(ConvertingToBytesSnafu)?;

@@ -85,11 +85,11 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug, Clone)]
-pub struct Storage {
+pub struct ParquetStorage {
     object_store: Arc<DynObjectStore>,
 }
 
-impl Storage {
+impl ParquetStorage {
     pub fn new(object_store: Arc<DynObjectStore>) -> Self {
         Self { object_store }
     }

@@ -652,7 +652,7 @@ async fn create_parquet_file(
 ) -> (Vec<u8>, usize) {
     let schema = record_batch.schema();
 
-    let data = parquet_file::storage::Storage::new(Arc::clone(&object_store))
+    let data = parquet_file::storage::ParquetStorage::new(Arc::clone(&object_store))
         .parquet_bytes(vec![record_batch], schema, metadata)
         .await
         .unwrap();

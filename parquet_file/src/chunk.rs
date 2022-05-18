@@ -1,6 +1,6 @@
 use crate::{
     metadata::{DecodedIoxParquetMetaData, IoxMetadata, IoxParquetMetaData},
-    storage::Storage,
+    storage::ParquetStorage,
     ParquetFilePath,
 };
 use data_types::{
@@ -211,7 +211,7 @@ impl ParquetChunk {
         selection: Selection<'_>,
     ) -> Result<SendableRecordBatchStream> {
         trace!(path=?self.path, "fetching parquet data for filtered read");
-        Storage::read_filter(
+        ParquetStorage::read_filter(
             predicate,
             selection,
             Arc::clone(&self.schema.as_arrow()),
