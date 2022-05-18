@@ -55,6 +55,7 @@ impl proto::namespace_service_server::NamespaceService for NamespaceServiceImpl 
 mod tests {
     use generated_types::influxdata::iox::namespace::v1::namespace_service_server::NamespaceService;
     use iox_tests::util::TestCatalog;
+    use parquet_file::storage::ParquetStorage;
     use querier::{create_ingester_connection_for_testing, QuerierCatalogCache};
 
     use super::*;
@@ -72,7 +73,7 @@ mod tests {
         let db = Arc::new(QuerierDatabase::new(
             catalog_cache,
             catalog.metric_registry(),
-            catalog.object_store(),
+            ParquetStorage::new(catalog.object_store()),
             catalog.exec(),
             create_ingester_connection_for_testing(),
         ));
@@ -99,7 +100,7 @@ mod tests {
         let db = Arc::new(QuerierDatabase::new(
             catalog_cache,
             catalog.metric_registry(),
-            catalog.object_store(),
+            ParquetStorage::new(catalog.object_store()),
             catalog.exec(),
             create_ingester_connection_for_testing(),
         ));

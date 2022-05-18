@@ -28,6 +28,7 @@ querier = { path = "../querier" }
 iox_query = { path = "../iox_query" }
 pretty_assertions = "1.2.1"
 workspace-hack = { path = "../workspace-hack"}
+parquet_file = { version = "0.1.0", path = "../parquet_file" }
 
 [dev-dependencies]
 arrow = { version = "14.0.0", features = ["prettyprint"] }

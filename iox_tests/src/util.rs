@@ -4,7 +4,6 @@ use arrow::{
     compute::{lexsort, SortColumn, SortOptions},
     record_batch::RecordBatch,
 };
-use bytes::Bytes;
 use data_types::{
     Column, ColumnType, KafkaPartition, KafkaTopic, Namespace, ParquetFile, ParquetFileId,
     ParquetFileParams, ParquetFileWithMetadata, Partition, PartitionId, QueryPool, SequenceNumber,
@@ -21,6 +20,7 @@ use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
 use object_store::{memory::InMemory, DynObjectStore};
 use parquet_file::{
     metadata::{IoxMetadata, IoxParquetMetaData},
+    storage::ParquetStorage,
     ParquetFilePath,
 };
 use schema::{
@@ -530,7 +530,7 @@ impl TestPartition {
             sort_key: Some(sort_key.clone()),
         };
         let (parquet_metadata_bin, real_file_size_bytes) = create_parquet_file(
-            Arc::clone(&self.catalog.object_store),
+            ParquetStorage::new(Arc::clone(&self.catalog.object_store)),
             &metadata,
             record_batch,
         )
@@ -646,13 +646,13 @@ async fn update_catalog_sort_key_if_needed(
 
 /// Create parquet file and return thrift-encoded and zstd-compressed parquet metadata as well as the file size.
 async fn create_parquet_file(
-    object_store: Arc<DynObjectStore>,
+    store: ParquetStorage,
     metadata: &IoxMetadata,
     record_batch: RecordBatch,
 ) -> (Vec<u8>, usize) {
     let schema = record_batch.schema();
 
-    let data = parquet_file::storage::ParquetStorage::new(Arc::clone(&object_store))
+    let data = store
         .parquet_bytes(vec![record_batch], schema, metadata)
         .await
         .unwrap();
@@ -664,7 +664,6 @@ async fn create_parquet_file(
     let data = Arc::try_unwrap(data).expect("dangling reference to data");
 
     let file_size = data.len();
-    let bytes = Bytes::from(data);
 
     let path = ParquetFilePath::new(
         metadata.namespace_id,
@@ -673,9 +672,8 @@ async fn create_parquet_file(
         metadata.partition_id,
         metadata.object_store_id,
     );
-    let path = path.object_store_path();
 
-    object_store.put(&path, bytes).await.unwrap();
+    store.to_object_store(data, &path).await.unwrap();
 
     (parquet_md, file_size)
 }

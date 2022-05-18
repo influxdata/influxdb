@@ -10,8 +10,8 @@ use futures::{
 use iox_catalog::interface::Catalog;
 use iox_query::exec::Executor;
 use iox_time::TimeProvider;
-use object_store::DynObjectStore;
 use observability_deps::tracing::*;
+use parquet_file::storage::ParquetStorage;
 use std::sync::Arc;
 use thiserror::Error;
 use tokio::task::{JoinError, JoinHandle};
@@ -63,7 +63,7 @@ impl CompactorHandlerImpl {
     pub fn new(
         sequencers: Vec<SequencerId>,
         catalog: Arc<dyn Catalog>,
-        object_store: Arc<DynObjectStore>,
+        store: ParquetStorage,
         exec: Arc<Executor>,
         time_provider: Arc<dyn TimeProvider>,
         registry: Arc<metric::Registry>,
@@ -72,7 +72,7 @@ impl CompactorHandlerImpl {
         let compactor_data = Arc::new(Compactor::new(
             sequencers,
             catalog,
-            object_store,
+            store,
             exec,
             time_provider,
             BackoffConfig::default(),

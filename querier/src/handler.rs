@@ -134,6 +134,7 @@ mod tests {
     use iox_query::exec::Executor;
     use iox_time::{MockProvider, Time};
     use object_store::memory::InMemory;
+    use parquet_file::storage::ParquetStorage;
 
     use crate::{cache::CatalogCache, create_ingester_connection_for_testing};
 
@@ -176,7 +177,7 @@ mod tests {
             let database = Arc::new(QuerierDatabase::new(
                 catalog_cache,
                 metric_registry,
-                object_store,
+                ParquetStorage::new(object_store),
                 exec,
                 create_ingester_connection_for_testing(),
             ));

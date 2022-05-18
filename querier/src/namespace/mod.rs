@@ -7,7 +7,7 @@ use crate::{
 use backoff::BackoffConfig;
 use data_types::{NamespaceId, NamespaceSchema};
 use iox_query::exec::Executor;
-use object_store::DynObjectStore;
+use parquet_file::storage::ParquetStorage;
 use schema::Schema;
 use std::{collections::HashMap, sync::Arc};
 
@@ -94,7 +94,7 @@ impl QuerierNamespace {
     #[allow(clippy::too_many_arguments)]
     pub fn new_testing(
         catalog_cache: Arc<CatalogCache>,
-        object_store: Arc<DynObjectStore>,
+        store: ParquetStorage,
         metric_registry: Arc<metric::Registry>,
         name: Arc<str>,
         schema: Arc<NamespaceSchema>,
@@ -104,7 +104,7 @@ impl QuerierNamespace {
         let time_provider = catalog_cache.time_provider();
         let chunk_adapter = Arc::new(ParquetChunkAdapter::new(
             catalog_cache,
-            object_store,
+            store,
             metric_registry,
             Arc::clone(&time_provider),
         ));

@@ -10,7 +10,6 @@ use crate::{
 };
 use arrow::record_batch::RecordBatch;
 use backoff::{Backoff, BackoffConfig};
-use bytes::Bytes;
 use data_types::{
     ParquetFile, ParquetFileId, ParquetFileWithMetadata, PartitionId, SequencerId, TableId,
     Timestamp, Tombstone, TombstoneId,
@@ -26,10 +25,10 @@ use iox_query::{
 };
 use iox_time::{Time, TimeProvider};
 use metric::{Attributes, Metric, U64Counter, U64Gauge, U64Histogram, U64HistogramOptions};
-use object_store::DynObjectStore;
 use observability_deps::tracing::{debug, info, trace, warn};
 use parquet_file::{
     metadata::{IoxMetadata, IoxParquetMetaData},
+    storage::ParquetStorage,
     ParquetFilePath,
 };
 use schema::sort::SortKey;
@@ -141,7 +140,9 @@ pub enum Error {
     },
 
     #[snafu(display("Error writing to object store: {}", source))]
-    WritingToObjectStore { source: object_store::Error },
+    WritingToObjectStore {
+        source: parquet_file::storage::Error,
+    },
 
     #[snafu(display("Error updating catalog {}", source))]
     Update {
@@ -189,7 +190,7 @@ pub struct Compactor {
     /// Sequencers assigned to this compactor
     sequencers: Vec<SequencerId>,
     /// Object store for reading and persistence of parquet files
-    object_store: Arc<DynObjectStore>,
+    store: ParquetStorage,
     /// The global catalog for schema, parquet files and tombstones
     catalog: Arc<dyn Catalog>,
 
@@ -234,7 +235,7 @@ impl Compactor {
     pub fn new(
         sequencers: Vec<SequencerId>,
         catalog: Arc<dyn Catalog>,
-        object_store: Arc<DynObjectStore>,
+        store: ParquetStorage,
         exec: Arc<Executor>,
         time_provider: Arc<dyn TimeProvider>,
         backoff_config: BackoffConfig,
@@ -282,7 +283,7 @@ impl Compactor {
         Self {
             sequencers,
             catalog,
-            object_store,
+            store,
             exec,
             time_provider,
             backoff_config,
@@ -485,7 +486,7 @@ impl Compactor {
                 info!("persisting file {}", meta.object_store_id);
                 let file_size_and_md = Backoff::new(&self.backoff_config)
                     .retry_all_errors("persist to object store", || {
-                        Self::persist(&meta, data.clone(), Arc::clone(&self.object_store))
+                        Self::persist(&meta, data.clone(), self.store.clone())
                     })
                     .await
                     .expect("retry forever");
@@ -654,7 +655,7 @@ impl Compactor {
             .iter()
             .map(|f| {
                 f.to_queryable_parquet_chunk(
-                    Arc::clone(&self.object_store),
+                    self.store.clone(),
                     iox_metadata.table_name.to_string(),
                     iox_metadata.sort_key.clone(),
                     partition_sort_key.clone(),
@@ -793,7 +794,7 @@ impl Compactor {
     async fn persist(
         metadata: &IoxMetadata,
         record_batches: Vec<RecordBatch>,
-        object_store: Arc<DynObjectStore>,
+        store: ParquetStorage,
     ) -> Result<Option<(usize, IoxParquetMetaData)>> {
         if record_batches.is_empty() {
             return Ok(None);
@@ -804,7 +805,7 @@ impl Compactor {
             .expect("record_batches.is_empty was just checked")
             .schema();
 
-        let data = parquet_file::storage::ParquetStorage::new(Arc::clone(&object_store))
+        let data = store
             .parquet_bytes(record_batches, schema, metadata)
             .await
             .context(ConvertingToBytesSnafu)?;
@@ -821,7 +822,6 @@ impl Compactor {
         let data = Arc::try_unwrap(data).expect("dangling reference to data");
 
         let file_size = data.len();
-        let bytes = Bytes::from(data);
 
         let path = ParquetFilePath::new(
             metadata.namespace_id,
@@ -830,10 +830,9 @@ impl Compactor {
             metadata.partition_id,
             metadata.object_store_id,
         );
-        let path = path.object_store_path();
 
-        object_store
-            .put(&path, bytes)
+        store
+            .to_object_store(data, &path)
             .await
             .context(WritingToObjectStoreSnafu)?;
 
@@ -1169,7 +1168,7 @@ mod tests {
         let compactor = Compactor::new(
             vec![sequencer.sequencer.id],
             Arc::clone(&catalog.catalog),
-            Arc::clone(&catalog.object_store),
+            ParquetStorage::new(Arc::clone(&catalog.object_store)),
             Arc::new(Executor::new(1)),
             Arc::new(SystemProvider::new()),
             BackoffConfig::default(),
@@ -1211,7 +1210,7 @@ mod tests {
                 catalog.metric_registry(),
                 usize::MAX,
             )),
-            catalog.object_store(),
+            ParquetStorage::new(catalog.object_store()),
             catalog.metric_registry(),
             catalog.time_provider(),
         );
@@ -1295,7 +1294,7 @@ mod tests {
         let compactor = Compactor::new(
             vec![sequencer.sequencer.id],
             Arc::clone(&catalog.catalog),
-            Arc::clone(&catalog.object_store),
+            ParquetStorage::new(Arc::clone(&catalog.object_store)),
             Arc::new(Executor::new(1)),
             Arc::new(SystemProvider::new()),
             BackoffConfig::default(),
@@ -1421,7 +1420,7 @@ mod tests {
                 catalog.metric_registry(),
                 usize::MAX,
             )),
-            catalog.object_store(),
+            ParquetStorage::new(catalog.object_store()),
             catalog.metric_registry(),
             catalog.time_provider(),
         );
@@ -1485,7 +1484,7 @@ mod tests {
         let compactor = Compactor::new(
             vec![sequencer.sequencer.id],
             Arc::clone(&catalog.catalog),
-            Arc::clone(&catalog.object_store),
+            ParquetStorage::new(Arc::clone(&catalog.object_store)),
             Arc::new(Executor::new(1)),
             Arc::new(SystemProvider::new()),
             BackoffConfig::default(),
@@ -1587,7 +1586,7 @@ mod tests {
         let compactor = Compactor::new(
             vec![sequencer.sequencer.id],
             Arc::clone(&catalog.catalog),
-            Arc::clone(&catalog.object_store),
+            ParquetStorage::new(Arc::clone(&catalog.object_store)),
             Arc::new(Executor::new(1)),
             Arc::new(SystemProvider::new()),
             BackoffConfig::default(),
@@ -1696,7 +1695,7 @@ mod tests {
         let compactor = Compactor::new(
             vec![sequencer.sequencer.id],
             Arc::clone(&catalog.catalog),
-            Arc::clone(&catalog.object_store),
+            ParquetStorage::new(Arc::clone(&catalog.object_store)),
             Arc::new(Executor::new(1)),
             Arc::new(SystemProvider::new()),
             BackoffConfig::default(),
@@ -1850,13 +1849,13 @@ mod tests {
         };
 
         let pc1 = pt1.to_queryable_parquet_chunk(
-            Arc::clone(&catalog.object_store),
+            ParquetStorage::new(Arc::clone(&catalog.object_store)),
             table.table.name.clone(),
             partition.partition.sort_key(),
             partition.partition.sort_key(),
         );
         let pc2 = pt2.to_queryable_parquet_chunk(
-            Arc::clone(&catalog.object_store),
+            ParquetStorage::new(Arc::clone(&catalog.object_store)),
             table.table.name.clone(),
             partition.partition.sort_key(),
             partition.partition.sort_key(),
@@ -2216,7 +2215,7 @@ mod tests {
         let compactor = Compactor::new(
             vec![],
             Arc::clone(&catalog.catalog),
-            Arc::clone(&catalog.object_store),
+            ParquetStorage::new(Arc::clone(&catalog.object_store)),
             Arc::new(Executor::new(1)),
             Arc::new(SystemProvider::new()),
             BackoffConfig::default(),
@@ -2421,7 +2420,7 @@ mod tests {
         let compactor = Compactor::new(
             vec![],
             Arc::clone(&catalog.catalog),
-            Arc::clone(&catalog.object_store),
+            ParquetStorage::new(Arc::clone(&catalog.object_store)),
             Arc::new(Executor::new(1)),
             Arc::new(SystemProvider::new()),
             BackoffConfig::default(),
@@ -2485,12 +2484,13 @@ mod tests {
         Compactor::persist(
             &compacted_data.meta,
             compacted_data.data,
-            Arc::clone(&compactor.object_store),
+            compactor.store.clone(),
         )
         .await
         .unwrap();
 
-        let list = compactor.object_store.list(None).await.unwrap();
+        let object_store = catalog.object_store();
+        let list = object_store.list(None).await.unwrap();
         let object_store_files: Vec<_> = list.try_collect().await.unwrap();
         assert_eq!(object_store_files.len(), 1);
     }
@@ -2502,7 +2502,7 @@ mod tests {
         let compactor = Compactor::new(
             vec![],
             Arc::clone(&catalog.catalog),
-            Arc::clone(&catalog.object_store),
+            ParquetStorage::new(Arc::clone(&catalog.object_store)),
             Arc::new(Executor::new(1)),
             Arc::new(SystemProvider::new()),
             BackoffConfig::default(),
@@ -2832,7 +2832,7 @@ mod tests {
         let compactor = Compactor::new(
             vec![sequencer.id],
             Arc::clone(&catalog.catalog),
-            Arc::clone(&catalog.object_store),
+            ParquetStorage::new(Arc::clone(&catalog.object_store)),
             Arc::new(Executor::new(1)),
             Arc::new(SystemProvider::new()),
             BackoffConfig::default(),
@@ -2906,7 +2906,7 @@ mod tests {
         let compactor = Compactor::new(
             vec![sequencer.sequencer.id],
             Arc::clone(&catalog.catalog),
-            Arc::clone(&catalog.object_store),
+            ParquetStorage::new(Arc::clone(&catalog.object_store)),
             Arc::new(Executor::new(1)),
             Arc::new(SystemProvider::new()),
             BackoffConfig::default(),

@@ -5,11 +5,11 @@ use arrow::record_batch::RecordBatch;
 use data_types::{
     ParquetFileId, ParquetFileParams, ParquetFileWithMetadata, Timestamp, Tombstone, TombstoneId,
 };
-use object_store::DynObjectStore;
 use observability_deps::tracing::*;
 use parquet_file::{
     chunk::{ChunkMetrics, DecodedParquetFile, ParquetChunk},
     metadata::{IoxMetadata, IoxParquetMetaData},
+    storage::ParquetStorage,
 };
 use schema::sort::SortKey;
 use std::{
@@ -87,7 +87,7 @@ impl ParquetFileWithTombstone {
     /// Convert to a QueryableParquetChunk
     pub fn to_queryable_parquet_chunk(
         &self,
-        object_store: Arc<DynObjectStore>,
+        store: ParquetStorage,
         table_name: String,
         sort_key: Option<SortKey>,
         partition_sort_key: Option<SortKey>,
@@ -97,7 +97,7 @@ impl ParquetFileWithTombstone {
         let parquet_chunk = ParquetChunk::new(
             &decoded_parquet_file,
             ChunkMetrics::new_unregistered(), // TODO: need to add metrics
-            object_store,
+            store,
         );
 
         trace!(

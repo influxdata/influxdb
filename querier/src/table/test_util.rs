@@ -3,6 +3,7 @@ use std::sync::Arc;
 use backoff::BackoffConfig;
 use iox_catalog::interface::get_schema_by_name;
 use iox_tests::util::{TestCatalog, TestTable};
+use parquet_file::storage::ParquetStorage;
 use schema::Schema;
 
 use crate::{
@@ -21,7 +22,7 @@ pub async fn querier_table(catalog: &Arc<TestCatalog>, table: &Arc<TestTable>) -
     ));
     let chunk_adapter = Arc::new(ParquetChunkAdapter::new(
         catalog_cache,
-        catalog.object_store(),
+        ParquetStorage::new(catalog.object_store()),
         catalog.metric_registry(),
         catalog.time_provider(),
     ));

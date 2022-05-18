@@ -10,6 +10,7 @@ use iox_query::exec::Executor;
 use iox_time::TimeProvider;
 use metric::Registry;
 use object_store::DynObjectStore;
+use parquet_file::storage::ParquetStorage;
 use querier::{
     create_ingester_connection, QuerierCatalogCache, QuerierDatabase, QuerierHandler,
     QuerierHandlerImpl, QuerierServer,
@@ -161,7 +162,7 @@ pub async fn create_querier_server_type(args: QuerierServerTypeArgs<'_>) -> Arc<
     let database = Arc::new(QuerierDatabase::new(
         catalog_cache,
         Arc::clone(&args.metric_registry),
-        args.object_store,
+        ParquetStorage::new(args.object_store),
         args.exec,
         ingester_connection,
     ));

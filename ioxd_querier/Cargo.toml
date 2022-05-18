@@ -27,6 +27,7 @@ hyper = "0.14"
 tokio = { version = "1.18", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
 tonic = "0.7"
 workspace-hack = { path = "../workspace-hack"}
+parquet_file = { version = "0.1.0", path = "../parquet_file" }
 
 
 [dev-dependencies]

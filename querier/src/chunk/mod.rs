@@ -10,8 +10,10 @@ use futures::StreamExt;
 use iox_catalog::interface::Catalog;
 use iox_query::{exec::IOxSessionContext, QueryChunk};
 use iox_time::TimeProvider;
-use object_store::DynObjectStore;
-use parquet_file::chunk::{ChunkMetrics as ParquetChunkMetrics, DecodedParquetFile, ParquetChunk};
+use parquet_file::{
+    chunk::{ChunkMetrics as ParquetChunkMetrics, DecodedParquetFile, ParquetChunk},
+    storage::ParquetStorage,
+};
 use schema::{selection::Selection, sort::SortKey};
 use std::sync::Arc;
 use uuid::Uuid;
@@ -170,7 +172,7 @@ pub struct ParquetChunkAdapter {
     catalog_cache: Arc<CatalogCache>,
 
     /// Object store.
-    object_store: Arc<DynObjectStore>,
+    store: ParquetStorage,
 
     /// Metric registry.
     metric_registry: Arc<metric::Registry>,
@@ -184,13 +186,13 @@ impl ParquetChunkAdapter {
     /// Create new adapter with empty cache.
     pub fn new(
         catalog_cache: Arc<CatalogCache>,
-        object_store: Arc<DynObjectStore>,
+        store: ParquetStorage,
         metric_registry: Arc<metric::Registry>,
         time_provider: Arc<dyn TimeProvider>,
     ) -> Self {
         Self {
             catalog_cache,
-            object_store,
+            store,
             metric_registry,
             time_provider,
         }
@@ -218,7 +220,7 @@ impl ParquetChunkAdapter {
         Some(ParquetChunk::new(
             decoded_parquet_file,
             metrics,
-            Arc::clone(&self.object_store),
+            self.store.clone(),
         ))
     }
 
@@ -305,7 +307,7 @@ pub mod tests {
                 catalog.metric_registry(),
                 usize::MAX,
             )),
-            catalog.object_store(),
+            ParquetStorage::new(catalog.object_store()),
             catalog.metric_registry(),
             catalog.time_provider(),
         );

@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use iox_catalog::interface::get_schema_by_name;
 use iox_tests::util::TestNamespace;
+use parquet_file::storage::ParquetStorage;
 
 use crate::{create_ingester_connection_for_testing, QuerierCatalogCache};
 
@@ -24,7 +25,7 @@ pub async fn querier_namespace(ns: &Arc<TestNamespace>) -> QuerierNamespace {
     ));
     QuerierNamespace::new_testing(
         catalog_cache,
-        ns.catalog.object_store(),
+        ParquetStorage::new(ns.catalog.object_store()),
         ns.catalog.metric_registry(),
         ns.namespace.name.clone().into(),
         schema,

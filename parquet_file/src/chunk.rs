@@ -7,7 +7,6 @@ use data_types::{
     ParquetFile, ParquetFileWithMetadata, Statistics, TableSummary, TimestampMinMax, TimestampRange,
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
-use object_store::DynObjectStore;
 use observability_deps::tracing::*;
 use predicate::Predicate;
 use schema::{selection::Selection, Schema, TIME_COLUMN_NAME};
@@ -88,7 +87,7 @@ pub struct ParquetChunk {
     timestamp_min_max: Option<TimestampMinMax>,
 
     /// Persists the parquet file within a database's relative path
-    object_store: Arc<DynObjectStore>,
+    store: ParquetStorage,
 
     /// Path in the database's object store.
     path: ParquetFilePath,
@@ -111,8 +110,8 @@ impl ParquetChunk {
     pub fn new(
         decoded_parquet_file: &DecodedParquetFile,
         metrics: ChunkMetrics,
-        object_store: Arc<DynObjectStore>,
-    ) -> ParquetChunk {
+        store: ParquetStorage,
+    ) -> Self {
         let iox_metadata = &decoded_parquet_file.iox_metadata;
         let path = ParquetFilePath::new(
             iox_metadata.namespace_id,
@@ -138,7 +137,7 @@ impl ParquetChunk {
             table_summary: Arc::new(table_summary),
             schema,
             timestamp_min_max,
-            object_store,
+            store,
             path,
             file_size_bytes,
             parquet_metadata: Arc::clone(&decoded_parquet_file.parquet_metadata),
@@ -211,14 +210,14 @@ impl ParquetChunk {
         selection: Selection<'_>,
     ) -> Result<SendableRecordBatchStream> {
         trace!(path=?self.path, "fetching parquet data for filtered read");
-        ParquetStorage::read_filter(
-            predicate,
-            selection,
-            Arc::clone(&self.schema.as_arrow()),
-            self.path,
-            Arc::clone(&self.object_store),
-        )
-        .context(ReadParquetSnafu)
+        self.store
+            .read_filter(
+                predicate,
+                selection,
+                Arc::clone(&self.schema.as_arrow()),
+                self.path,
+            )
+            .context(ReadParquetSnafu)
     }
 
     /// The total number of rows in all row groups in this chunk.
