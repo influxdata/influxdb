@@ -70,7 +70,8 @@ pub struct MockBufferSharedState {
 impl MockBufferSharedState {
     /// Create new shared state w/ N sequencers.
     ///
-    /// This is equivalent to [`uninitialized`](Self::uninitialized) followed by [`init`](Self::init).
+    /// This is equivalent to [`uninitialized`](Self::uninitialized) followed by
+    /// [`init`](Self::init).
     pub fn empty_with_n_sequencers(n_sequencers: NonZeroU32) -> Self {
         let state = Self::uninitialized();
         state.init(n_sequencers);
@@ -87,6 +88,7 @@ impl MockBufferSharedState {
     /// Initialize shared state w/ N sequencers.
     ///
     /// # Panics
+    ///
     /// - when state is already initialized
     pub fn init(&self, n_sequencers: NonZeroU32) {
         let mut guard = self.writes.lock();
@@ -107,6 +109,7 @@ impl MockBufferSharedState {
     /// Push a new delete to the specified sequencer
     ///
     /// # Panics
+    ///
     /// - when delete is not sequenced
     /// - when no sequencer was initialized
     /// - when specified sequencer does not exist
@@ -168,6 +171,7 @@ impl MockBufferSharedState {
     /// Push error to specified sequencer.
     ///
     /// # Panics
+    ///
     /// - when no sequencer was initialized
     /// - when sequencer does not exist
     pub fn push_error(&self, error: WriteBufferError, sequencer_id: u32) {
@@ -183,6 +187,7 @@ impl MockBufferSharedState {
     /// Get messages (entries and errors) for specified sequencer.
     ///
     /// # Panics
+    ///
     /// - when no sequencer was initialized
     /// - when sequencer does not exist
     pub fn get_messages(&self, sequencer_id: u32) -> Vec<Result<DmlOperation, WriteBufferError>> {
@@ -203,6 +208,7 @@ impl MockBufferSharedState {
     /// Provides a way to wipe messages (e.g. to simulate retention periods in Kafka)
     ///
     /// # Panics
+    ///
     /// - when no sequencer was initialized
     /// - when sequencer does not exist
     pub fn clear_messages(&self, sequencer_id: u32) {

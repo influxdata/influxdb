@@ -195,7 +195,7 @@ where
             // If this evaluation results in no viable DML op to apply to the
             // DmlSink, return None rather than continuing the loop to ensure
             // ingest pauses are respected.
-            let maybe_op = match maybe_op {
+            let maybe_op = match dbg!(maybe_op) {
                 Some(Ok(op)) => Some(op),
                 Some(Err(e)) if e.kind() == WriteBufferErrorKind::UnknownSequenceNumber => {
                     error!(
@@ -454,7 +454,9 @@ mod tests {
                     let metrics = Arc::new(metric::Registry::default());
                     let time_provider: Arc< dyn TimeProvider> = Arc::new(SystemProvider::default());
                     let lifecycle = LifecycleManager::new(
-                        LifecycleConfig::new(100, 2, 3, Duration::from_secs(4), Duration::from_secs(5)),
+                        LifecycleConfig::new(
+                            100, 2, 3, Duration::from_secs(4), Duration::from_secs(5)
+                        ),
                         Arc::clone(&metrics),
                         time_provider,
                     );
@@ -465,7 +467,7 @@ mod tests {
                             .with_apply_return($sink_ret)
                     );
 
-                    // Create an channel to pass input to the handler, with a
+                    // Create a channel to pass input to the handler, with a
                     // buffer capacity of 1 (used below).
                     let (tx, rx) = mpsc::channel(1);
 
@@ -702,7 +704,9 @@ mod tests {
             Ok(DmlOperation::Write(make_write("good_op", 2)))
         ],
         sink_rets = [
-            Err(crate::data::Error::Partitioning{source: String::from("Time column not present").into()}),
+            Err(crate::data::Error::Partitioning {
+                source: String::from("Time column not present").into()
+            }),
             Ok(true),
         ],
         want_ttbr = 2,
@@ -723,7 +727,8 @@ mod tests {
     // An abnormal end to the steam causes a panic, rather than a silent stream
     // reader exit.
     #[tokio::test]
-    #[should_panic = "sequencer KafkaPartition(42) stream for topic kafka_topic_name ended without graceful shutdown"]
+    #[should_panic = "sequencer KafkaPartition(42) stream for topic kafka_topic_name ended without graceful \
+        shutdown"]
     async fn test_early_stream_end_panic() {
         let metrics = Arc::new(metric::Registry::default());
         let time_provider = Arc::new(SystemProvider::default());

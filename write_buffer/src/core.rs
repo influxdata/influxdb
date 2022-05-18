@@ -558,8 +558,8 @@ pub mod test_utils {
     /// This tests that:
     /// - seeking is specific to the reader AND sequencer
     /// - forward and backwards seeking works
-    /// - seeking past the end of the known content works (results in "pending" status and remembers sequence number and
-    ///   not just "next entry")
+    /// - seeking past the end of the known content works (results in "pending" status and
+    ///   remembers sequence number and not just "next entry")
     async fn test_seek<T>(adapter: &T)
     where
         T: TestAdapter,

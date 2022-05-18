@@ -641,16 +641,16 @@ mod tests {
             loop {
                 let mut has_measurement = false;
 
-                if let Some(data) = ingester
-                    .data
-                    .sequencer(sequencer.id)
-                {
+                if let Some(data) = ingester.data.sequencer(sequencer.id) {
                     if let Some(data) = data.namespace(&namespace.name) {
                         // verify there's data in the buffer
                         if let Some((b, _)) = data.snapshot("cpu", "1970-01-01").await {
                             if let Some(b) = b.first() {
                                 if b.min_sequencer_number == SequenceNumber::new(1) {
-                                    panic!("initialization did a seek to the beginning rather than the min_unpersisted");
+                                    panic!(
+                                        "initialization did a seek to the beginning rather than \
+                                        the min_unpersisted"
+                                    );
                                 }
 
                                 if b.data.num_rows() == 1 {
@@ -668,8 +668,73 @@ mod tests {
                 tokio::time::sleep(Duration::from_millis(200)).await;
             }
         })
+        .await
+        .expect("timeout");
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "JoinError::Panic")]
+    async fn seeks_on_initialization_unknown_sequence_number() {
+        let metrics: Arc<metric::Registry> = Default::default();
+        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
+
+        let mut txn = catalog.start_transaction().await.unwrap();
+        let kafka_topic = txn.kafka_topics().create_or_get("whatevs").await.unwrap();
+        let query_pool = txn.query_pools().create_or_get("whatevs").await.unwrap();
+        let kafka_partition = KafkaPartition::new(0);
+        let _namespace = txn
+            .namespaces()
+            .create("foo", "inf", kafka_topic.id, query_pool.id)
             .await
-            .expect("timeout");
+            .unwrap();
+        let mut sequencer = txn
+            .sequencers()
+            .create_or_get(&kafka_topic, kafka_partition)
+            .await
+            .unwrap();
+        // update the min unpersisted so we can verify this was what was seeked to later
+        sequencer.min_unpersisted_sequence_number = 2;
+        // this probably isn't necessary, but just in case something changes later
+        txn.sequencers()
+            .update_min_unpersisted_sequence_number(sequencer.id, SequenceNumber::new(2))
+            .await
+            .unwrap();
+
+        let mut sequencer_states = BTreeMap::new();
+        sequencer_states.insert(kafka_partition, sequencer);
+
+        // Create a mock write buffer without pushing anything in; this will return a
+        // `WriteBufferError(UnknownSequenceNumber)` when the stream handler is run
+        let write_buffer_state =
+            MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());
+
+        let reading: Arc<dyn WriteBufferReading> =
+            Arc::new(MockBufferForReading::new(write_buffer_state.clone(), None).unwrap());
+        let object_store = Arc::new(InMemory::new());
+
+        let lifecycle_config = LifecycleConfig::new(
+            1000000,
+            1000,
+            1000,
+            Duration::from_secs(10),
+            Duration::from_secs(10),
+        );
+        let ingester = IngestHandlerImpl::new(
+            lifecycle_config,
+            kafka_topic.clone(),
+            sequencer_states,
+            Arc::clone(&catalog),
+            object_store,
+            reading,
+            Arc::new(Executor::new(1)),
+            Arc::clone(&metrics),
+        )
+        .await
+        .unwrap();
+
+        tokio::time::timeout(Duration::from_millis(1000), ingester.join())
+            .await
+            .unwrap();
     }
 
     struct TestIngester {
