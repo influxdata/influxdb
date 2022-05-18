@@ -233,14 +233,13 @@ async fn execute(request: GetPartitionForIngester<'_>) -> Result<Vec<Arc<Ingeste
         .query(Arc::clone(&ingester_address), ingester_query_request)
         .await;
 
-    let ingester_address = ingester_address.as_ref();
     if let Err(FlightClientError::Flight {
         source: FlightError::GrpcError(status),
     }) = &query_res
     {
         if status.code() == tonic::Code::NotFound {
             debug!(
-                %ingester_address,
+                ingester_address=ingester_address.as_ref(),
                 %namespace_name,
                 %table_name,
                 "Ingester does not know namespace or table, skipping",
@@ -248,7 +247,9 @@ async fn execute(request: GetPartitionForIngester<'_>) -> Result<Vec<Arc<Ingeste
             return Ok(vec![]);
         }
     }
-    let mut perform_query = query_res.context(RemoteQuerySnafu { ingester_address })?;
+    let mut perform_query = query_res.context(RemoteQuerySnafu {
+        ingester_address: ingester_address.as_ref(),
+    })?;
 
     // read unpersisted partitions
     // map partition_id -> (PartitionMetadata, Vec<PartitionData>))
@@ -266,19 +267,21 @@ async fn execute(request: GetPartitionForIngester<'_>) -> Result<Vec<Arc<Ingeste
         .next()
         .await
         .map_err(|source| FlightClientError::Flight { source })
-        .context(RemoteQuerySnafu { ingester_address })?
+        .context(RemoteQuerySnafu {
+            ingester_address: ingester_address.as_ref(),
+        })?
     {
         let partition_id = *partition_ids
             .get(num_batches)
             .context(MissingPartitionIdSnafu {
                 pos: num_batches,
-                ingester_address,
+                ingester_address: ingester_address.as_ref(),
             })?;
         partitions
             .get_mut(&partition_id)
             .context(UnknownPartitionIdSnafu {
                 partition_id,
-                ingester_address,
+                ingester_address: ingester_address.as_ref(),
             })?
             .1
             .push(batch);
@@ -291,7 +294,7 @@ async fn execute(request: GetPartitionForIngester<'_>) -> Result<Vec<Arc<Ingeste
         TooManyPartitionIdsSnafu {
             actual: partition_ids.len(),
             expected: num_batches,
-            ingester_address
+            ingester_address: ingester_address.as_ref(),
         },
     );
 
@@ -302,6 +305,7 @@ async fn execute(request: GetPartitionForIngester<'_>) -> Result<Vec<Arc<Ingeste
         let partition_id = PartitionId::new(partition_id);
         let sequencer_id = catalog_cache.partition().sequencer_id(partition_id).await;
         let ingester_partition = IngesterPartition::try_new(
+            Arc::clone(&ingester_address),
             ChunkId::new(),
             Arc::clone(&namespace_name),
             Arc::clone(&table_name),
@@ -408,6 +412,7 @@ async fn execute_get_write_infos(
 #[allow(missing_copy_implementations)]
 #[derive(Debug, Clone)]
 pub struct IngesterPartition {
+    ingester: Arc<str>,
     chunk_id: ChunkId,
     #[allow(dead_code)]
     namespace_name: Arc<str>,
@@ -429,6 +434,7 @@ impl IngesterPartition {
     /// `RecordBatches` into the correct types
     #[allow(clippy::too_many_arguments)]
     pub fn try_new(
+        ingester: Arc<str>,
         chunk_id: ChunkId,
         namespace_name: Arc<str>,
         table_name: Arc<str>,
@@ -453,6 +459,7 @@ impl IngesterPartition {
         let summary = calculate_summary(&batches, &expected_schema);
 
         Ok(Self {
+            ingester,
             chunk_id,
             namespace_name,
             table_name,
@@ -464,6 +471,10 @@ impl IngesterPartition {
             batches,
             summary,
         })
+    }
+
+    pub(crate) fn ingester(&self) -> &Arc<str> {
+        &self.ingester
     }
 
     pub(crate) fn has_batches(&self) -> bool {
@@ -1211,6 +1222,7 @@ mod tests {
             let tombstone_max_sequence_number = None;
             // Construct a partition and ensure it doesn't error
             let ingester_partition = IngesterPartition::try_new(
+                "ingester".into(),
                 ChunkId::new(),
                 "ns".into(),
                 "table".into(),
@@ -1245,6 +1257,7 @@ mod tests {
         let parquet_max_sequence_number = None;
         let tombstone_max_sequence_number = None;
         let err = IngesterPartition::try_new(
+            "ingester".into(),
             ChunkId::new(),
             "ns".into(),
             "table".into(),
@@ -1275,6 +1288,7 @@ mod tests {
         let parquet_max_sequence_number = None;
         let tombstone_max_sequence_number = None;
         let ingester_partition = IngesterPartition::try_new(
+            "ingester".into(),
             ChunkId::new(),
             "ns".into(),
             "table".into(),

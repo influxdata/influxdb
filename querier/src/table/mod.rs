@@ -7,13 +7,16 @@ use crate::{
     IngesterConnection,
 };
 use backoff::{Backoff, BackoffConfig};
-use data_types::TableId;
+use data_types::{PartitionId, TableId};
 use iox_query::{provider::ChunkPruner, QueryChunk};
 use observability_deps::tracing::debug;
 use predicate::Predicate;
 use schema::Schema;
 use snafu::{ResultExt, Snafu};
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{hash_map::Entry, HashMap},
+    sync::Arc,
+};
 
 mod query_access;
 mod state_reconciler;
@@ -26,6 +29,18 @@ mod test_util;
 pub enum Error {
     #[snafu(display("Error getting partitions from ingester: {}", source))]
     GettingIngesterPartitions { source: ingester::Error },
+
+    #[snafu(display(
+        "Ingester '{}' and '{}' both provide data for partition {}",
+        ingester1,
+        ingester2,
+        partition
+    ))]
+    IngestersOverlap {
+        ingester1: Arc<str>,
+        ingester2: Arc<str>,
+        partition: PartitionId,
+    },
 
     #[snafu(display("Cannot combine ingester data with catalog/cache: {}", source))]
     StateFusion {
@@ -264,6 +279,7 @@ impl QuerierTable {
         Arc::new(QuerierTableChunkPruner {})
     }
 
+    /// Get partitions from ingesters.
     async fn ingester_partitions(
         &self,
         predicate: &Predicate,
@@ -281,7 +297,8 @@ impl QuerierTable {
             .collect();
 
         // get any chunks from the ingster
-        self.ingester_connection
+        let partitions = self
+            .ingester_connection
             .partitions(
                 Arc::clone(&self.namespace_name),
                 Arc::clone(&self.name),
@@ -290,7 +307,26 @@ impl QuerierTable {
                 Arc::clone(&self.schema),
             )
             .await
-            .context(GettingIngesterPartitionsSnafu)
+            .context(GettingIngesterPartitionsSnafu)?;
+
+        // check that partitions from ingesters don't overlap
+        let mut seen = HashMap::with_capacity(partitions.len());
+        for partition in &partitions {
+            match seen.entry(partition.partition_id()) {
+                Entry::Occupied(o) => {
+                    return Err(Error::IngestersOverlap {
+                        ingester1: Arc::clone(o.get()),
+                        ingester2: Arc::clone(partition.ingester()),
+                        partition: partition.partition_id(),
+                    })
+                }
+                Entry::Vacant(v) => {
+                    v.insert(Arc::clone(partition.ingester()));
+                }
+            }
+        }
+
+        Ok(partitions)
     }
 }
 
@@ -518,6 +554,7 @@ mod tests {
             .unwrap()
             .next_response(Ok(vec![Arc::new(
                 IngesterPartition::try_new(
+                    Arc::from("ingester"),
                     ChunkId::new(),
                     Arc::from(ns.namespace.name.clone()),
                     Arc::from(table.table.name.clone()),
@@ -630,6 +667,7 @@ mod tests {
                 // this chunk is kept
                 Arc::new(
                     IngesterPartition::try_new(
+                        Arc::from("ingester"),
                         ingester_chunk_id1,
                         Arc::from(ns.namespace.name.clone()),
                         Arc::from(table.table.name.clone()),
@@ -653,6 +691,7 @@ mod tests {
                 // this chunk is filtered out because it has no record batches but the reconciling still takes place
                 Arc::new(
                     IngesterPartition::try_new(
+                        Arc::from("ingester"),
                         ingester_chunk_id2,
                         Arc::from(ns.namespace.name.clone()),
                         Arc::from(table.table.name.clone()),
@@ -698,6 +737,109 @@ mod tests {
         assert_eq!(chunks[1].delete_predicates().len(), 2);
         // ingester in-mem chunk doesn't need predicates, because the ingester has already materialized them for us
         assert_eq!(chunks[2].delete_predicates().len(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_ingester_overlap_detection() {
+        let pred = Predicate::default();
+        let catalog = TestCatalog::new();
+
+        let ns = catalog.create_namespace("ns").await;
+        let table = ns.create_table("table").await;
+        let sequencer = ns.create_sequencer(1).await;
+        let partition1 = table
+            .with_sequencer(&sequencer)
+            .create_partition("k1")
+            .await;
+        let partition2 = table
+            .with_sequencer(&sequencer)
+            .create_partition("k2")
+            .await;
+
+        let querier_table = querier_table(&catalog, &table).await;
+
+        let ingester_chunk_id1 = ChunkId::new_test(1);
+        let ingester_chunk_id2 = ChunkId::new_test(2);
+        let ingester_chunk_id3 = ChunkId::new_test(3);
+        querier_table
+            .ingester_connection
+            .as_any()
+            .downcast_ref::<MockIngesterConnection>()
+            .unwrap()
+            .next_response(Ok(vec![
+                Arc::new(
+                    IngesterPartition::try_new(
+                        Arc::from("ingester1"),
+                        ingester_chunk_id1,
+                        Arc::from(ns.namespace.name.clone()),
+                        Arc::from(table.table.name.clone()),
+                        partition1.partition.id,
+                        sequencer.sequencer.id,
+                        Arc::new(
+                            SchemaBuilder::new()
+                                .influx_field("foo", InfluxFieldType::Integer)
+                                .timestamp()
+                                .build()
+                                .unwrap(),
+                        ),
+                        // parquet max persisted sequence number
+                        None,
+                        // tombstone max persisted sequence number
+                        None,
+                        vec![lp_to_record_batch("table foo=1i 1")],
+                    )
+                    .unwrap(),
+                ),
+                Arc::new(
+                    IngesterPartition::try_new(
+                        Arc::from("ingester1"),
+                        ingester_chunk_id2,
+                        Arc::from(ns.namespace.name.clone()),
+                        Arc::from(table.table.name.clone()),
+                        partition2.partition.id,
+                        sequencer.sequencer.id,
+                        Arc::new(
+                            SchemaBuilder::new()
+                                .influx_field("foo", InfluxFieldType::Integer)
+                                .timestamp()
+                                .build()
+                                .unwrap(),
+                        ),
+                        // parquet max persisted sequence number
+                        None,
+                        // tombstone max persisted sequence number
+                        None,
+                        vec![lp_to_record_batch("table foo=2i 2")],
+                    )
+                    .unwrap(),
+                ),
+                Arc::new(
+                    IngesterPartition::try_new(
+                        Arc::from("ingester2"),
+                        ingester_chunk_id3,
+                        Arc::from(ns.namespace.name.clone()),
+                        Arc::from(table.table.name.clone()),
+                        partition1.partition.id,
+                        sequencer.sequencer.id,
+                        Arc::new(
+                            SchemaBuilder::new()
+                                .influx_field("foo", InfluxFieldType::Integer)
+                                .timestamp()
+                                .build()
+                                .unwrap(),
+                        ),
+                        // parquet max persisted sequence number
+                        None,
+                        // tombstone max persisted sequence number
+                        None,
+                        vec![lp_to_record_batch("table foo=3i 3")],
+                    )
+                    .unwrap(),
+                ),
+            ]));
+
+        let err = querier_table.chunks(&pred).await.unwrap_err();
+        assert_matches!(err, Error::IngestersOverlap { .. });
     }
 
     fn lp_to_record_batch(lp: &str) -> RecordBatch {
