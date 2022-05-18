@@ -456,7 +456,6 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 			ts.UserService,
 			combinedTaskService,
 			combinedTaskService,
-			executor.WithFlagger(m.flagger),
 		)
 		m.executor = executor
 		m.reg.MustRegister(executorMetrics.PrometheusCollectors()...)

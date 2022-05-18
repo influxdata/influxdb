@@ -62,7 +62,6 @@ type executorConfig struct {
 	maxWorkers             int
 	systemBuildCompiler    CompilerBuilderFunc
 	nonSystemBuildCompiler CompilerBuilderFunc
-	flagger                feature.Flagger
 }
 
 type executorOption func(*executorConfig)
@@ -119,13 +118,6 @@ func WithNonSystemCompilerBuilder(builder CompilerBuilderFunc) executorOption {
 	}
 }
 
-// WithFlagger is an Executor option that allows us to use a feature flagger in the executor
-func WithFlagger(flagger feature.Flagger) executorOption {
-	return func(o *executorConfig) {
-		o.flagger = flagger
-	}
-}
-
 // NewExecutor creates a new task executor
 func NewExecutor(log *zap.Logger, qs query.QueryService, us PermissionService, ts taskmodel.TaskService, tcs backend.TaskControlService, opts ...executorOption) (*Executor, *ExecutorMetrics) {
 	cfg := &executorConfig{
@@ -150,7 +142,6 @@ func NewExecutor(log *zap.Logger, qs query.QueryService, us PermissionService, t
 		limitFunc:              func(*taskmodel.Task, *taskmodel.Run) error { return nil }, // noop
 		systemBuildCompiler:    cfg.systemBuildCompiler,
 		nonSystemBuildCompiler: cfg.nonSystemBuildCompiler,
-		flagger:                cfg.flagger,
 	}
 
 	e.metrics = NewExecutorMetrics(e)
@@ -188,7 +179,6 @@ type Executor struct {
 
 	nonSystemBuildCompiler CompilerBuilderFunc
 	systemBuildCompiler    CompilerBuilderFunc
-	flagger                feature.Flagger
 }
 
 // SetLimitFunc sets the limit func for this task executor

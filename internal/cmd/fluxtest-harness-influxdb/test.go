@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"runtime/debug"
 	"strings"
 
 	"github.com/influxdata/flux"
@@ -31,7 +32,6 @@ type testFlags struct {
 var flags testFlags
 
 type testExecutor struct {
-	ctx         context.Context
 	l           *launcher.TestLauncher
 	writeOptAST *ast.File
 	readOptAST  *ast.File
@@ -40,12 +40,12 @@ type testExecutor struct {
 	failed      bool
 }
 
-func NewTestExecutor(ctx context.Context) (cmd.TestExecutor, error) {
-	e := &testExecutor{ctx: ctx}
+func NewTestExecutor() (cmd.TestExecutor, error) {
+	e := &testExecutor{}
 	e.init()
 
 	e.l = launcher.NewTestLauncher()
-	if err := e.l.Run(e, ctx); err != nil {
+	if err := e.l.Run(e, context.Background()); err != nil {
 		_ = e.l.Shutdown(context.Background())
 		return nil, err
 	}
@@ -54,6 +54,7 @@ func NewTestExecutor(ctx context.Context) (cmd.TestExecutor, error) {
 		_ = e.l.Shutdown(context.Background())
 		return nil, err
 	}
+
 	return e, nil
 }
 
@@ -78,7 +79,8 @@ func (t *testExecutor) Close() error {
 	return nil
 }
 
-func (t *testExecutor) Run(pkg *ast.Package) error {
+func (t *testExecutor) Run(ctx context.Context, pkg *ast.Package) error {
+
 	l := t.l.Launcher
 	b := &influxdb.Bucket{
 		OrgID: t.l.Org.ID,
@@ -87,10 +89,10 @@ func (t *testExecutor) Run(pkg *ast.Package) error {
 	t.i++
 
 	s := l.BucketService()
-	if err := s.CreateBucket(t.ctx, b); err != nil {
+	if err := s.CreateBucket(ctx, b); err != nil {
 		return err
 	}
-	defer func() { _ = s.DeleteBucket(t.ctx, b.ID) }()
+	defer func() { _ = s.DeleteBucket(ctx, b.ID) }()
 
 	// Define bucket and org options
 	bucketOpt := &ast.OptionStatement{
@@ -108,7 +110,7 @@ func (t *testExecutor) Run(pkg *ast.Package) error {
 
 	// During the first execution, we are performing the writes
 	// that are in the testcase.
-	err := t.executeWithOptions(bucketOpt, orgOpt, t.writeOptAST, pkg)
+	err := t.executeWithOptions(ctx, bucketOpt, orgOpt, t.writeOptAST, pkg)
 	if err != nil {
 		// Some test assertions can fail in the first pass, so those errors do not fail the test case.
 		// However those errors can be useful when the error is unexpected, therefore we simply log the error here.
@@ -116,12 +118,12 @@ func (t *testExecutor) Run(pkg *ast.Package) error {
 	}
 
 	// Execute the read pass.
-	err = t.executeWithOptions(bucketOpt, orgOpt, t.readOptAST, pkg)
+	err = t.executeWithOptions(ctx, bucketOpt, orgOpt, t.readOptAST, pkg)
 	if flags.wait {
 		// TODO(nathanielc): When the executor is given access to the test name,
 		// make the configName a function of the test name.
 		configName := "flux-test"
-		err := createInfluxDBConfig(t.ctx, configName, t.l.URL().String(), t.l.Org.Name, t.l.Auth.Token)
+		err := createInfluxDBConfig(ctx, configName, t.l.URL().String(), t.l.Org.Name, t.l.Auth.Token)
 		if err != nil {
 			return err
 		}
@@ -138,9 +140,9 @@ func (t *testExecutor) Run(pkg *ast.Package) error {
 		// wait for input on stdin or context cancelled
 		select {
 		case <-wait:
-		case <-t.ctx.Done():
+		case <-ctx.Done():
 		}
-		err = rmInfluxDBConfig(t.ctx, configName)
+		err = rmInfluxDBConfig(ctx, configName)
 		if err != nil {
 			return err
 		}
@@ -148,7 +150,7 @@ func (t *testExecutor) Run(pkg *ast.Package) error {
 	return err
 }
 
-func (t *testExecutor) executeWithOptions(bucketOpt, orgOpt *ast.OptionStatement, optionsAST *ast.File, pkg *ast.Package) error {
+func (t *testExecutor) executeWithOptions(ctx context.Context, bucketOpt, orgOpt *ast.OptionStatement, optionsAST *ast.File, pkg *ast.Package) error {
 	options := optionsAST.Copy().(*ast.File)
 	options.Body = append([]ast.Statement{bucketOpt, orgOpt}, options.Body...)
 
@@ -166,7 +168,7 @@ func (t *testExecutor) executeWithOptions(bucketOpt, orgOpt *ast.OptionStatement
 		Compiler:       lang.ASTCompiler{AST: bs},
 	}
 
-	r, err := t.l.FluxQueryService().Query(t.ctx, req)
+	r, err := t.l.FluxQueryService().Query(ctx, req)
 	if err != nil {
 		return err
 	}
@@ -267,6 +269,7 @@ func tryExec(cmd *cobra.Command) (err error) {
 			if !ok {
 				err = errors.New(fmt.Sprint(e))
 			}
+			fmt.Println(string(debug.Stack()))
 		}
 	}()
 	err = cmd.Execute()

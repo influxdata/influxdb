@@ -117,7 +117,7 @@ func TestMetrics(t *testing.T) {
 	}
 
 	deps := influxdb.Dependencies{
-		FluxDeps: dependenciestest.Default(),
+		FluxDeps: dependenciestest.DefaultWithoutFlags(),
 		StorageDeps: influxdb.StorageDependencies{
 			FromDeps: influxdb.FromDependencies{
 				Reader:             &mockReader{},
