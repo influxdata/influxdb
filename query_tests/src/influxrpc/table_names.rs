@@ -2,11 +2,11 @@
 use crate::scenarios::*;
 use data_types::{MAX_NANO_TIME, MIN_NANO_TIME};
 use datafusion::logical_plan::{col, lit};
-use predicate::{rpc_predicate::InfluxRpcPredicate, PredicateBuilder};
-use query::{
+use iox_query::{
     exec::stringset::{IntoStringSet, StringSetRef},
     frontend::influxrpc::InfluxRpcPlanner,
 };
+use predicate::{rpc_predicate::InfluxRpcPredicate, PredicateBuilder};
 
 /// runs table_names(predicate) and compares it to the expected
 /// output

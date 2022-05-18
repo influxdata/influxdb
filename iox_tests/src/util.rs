@@ -15,6 +15,7 @@ use iox_catalog::{
     interface::{Catalog, PartitionRepo, INITIAL_COMPACTION_LEVEL},
     mem::MemCatalog,
 };
+use iox_query::{exec::Executor, provider::RecordBatchDeduplicator, util::arrow_sort_key_exprs};
 use iox_time::{MockProvider, Time, TimeProvider};
 use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
 use object_store::{memory::InMemory, DynObjectStore};
@@ -22,7 +23,6 @@ use parquet_file::{
     metadata::{IoxMetadata, IoxParquetMetaData},
     ParquetFilePath,
 };
-use query::{exec::Executor, provider::RecordBatchDeduplicator, util::arrow_sort_key_exprs};
 use schema::{
     selection::Selection,
     sort::{adjust_sort_key_columns, SortKey, SortKeyBuilder},

@@ -7,7 +7,7 @@ use super::{
 use crate::scenarios::util::{make_n_chunks_scenario, ChunkData};
 use async_trait::async_trait;
 use data_types::{DeleteExpr, DeletePredicate, Op, Scalar, TimestampRange};
-use query::frontend::sql::SqlQueryPlanner;
+use iox_query::frontend::sql::SqlQueryPlanner;
 
 #[derive(Debug)]
 pub struct MeasurementWithMaxTime {}

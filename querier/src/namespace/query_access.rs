@@ -1,4 +1,4 @@
-//! This module contains implementations of [query] interfaces for [QuerierNamespace].
+//! This module contains implementations of [`iox_query`] interfaces for [QuerierNamespace].
 
 use crate::{
     namespace::QuerierNamespace,
@@ -12,12 +12,12 @@ use datafusion::{
     catalog::{catalog::CatalogProvider, schema::SchemaProvider},
     datasource::TableProvider,
 };
-use observability_deps::tracing::{debug, trace};
-use predicate::{rpc_predicate::QueryDatabaseMeta, Predicate};
-use query::{
+use iox_query::{
     exec::{ExecutionContextProvider, ExecutorType, IOxSessionContext},
     QueryChunk, QueryCompletedToken, QueryDatabase, QueryDatabaseError, QueryText, DEFAULT_SCHEMA,
 };
+use observability_deps::tracing::{debug, trace};
+use predicate::{rpc_predicate::QueryDatabaseMeta, Predicate};
 use schema::Schema;
 use std::{any::Any, collections::HashMap, sync::Arc};
 use trace::ctx::SpanContext;
@@ -192,8 +192,8 @@ mod tests {
     use arrow::record_batch::RecordBatch;
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use data_types::ColumnType;
+    use iox_query::frontend::sql::SqlQueryPlanner;
     use iox_tests::util::TestCatalog;
-    use query::frontend::sql::SqlQueryPlanner;
 
     #[tokio::test]
     async fn test_query() {

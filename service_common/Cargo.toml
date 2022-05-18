@@ -9,7 +9,7 @@ edition = "2021"
 # Workspace dependencies, in alphabetical order
 datafusion = { path = "../datafusion" }
 predicate = { path = "../predicate" }
-query = { path = "../query" }
+iox_query = { path = "../iox_query" }
 workspace-hack = { path = "../workspace-hack"}
 
 # Crates.io dependencies, in alphabetical order

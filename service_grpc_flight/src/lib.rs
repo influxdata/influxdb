@@ -16,13 +16,13 @@ use data_types::{DatabaseName, DatabaseNameError};
 use datafusion::physical_plan::ExecutionPlan;
 use futures::{SinkExt, Stream, StreamExt};
 use generated_types::influxdata::iox::querier::v1 as proto;
-use observability_deps::tracing::{info, warn};
-use pin_project::{pin_project, pinned_drop};
-use prost::Message;
-use query::{
+use iox_query::{
     exec::{ExecutionContextProvider, IOxSessionContext},
     QueryCompletedToken, QueryDatabase,
 };
+use observability_deps::tracing::{info, warn};
+use pin_project::{pin_project, pinned_drop};
+use prost::Message;
 use serde::Deserialize;
 use service_common::{planner::Planner, QueryDatabaseProvider};
 use snafu::{ResultExt, Snafu};

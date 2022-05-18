@@ -5,7 +5,7 @@ mod setup;
 
 use arrow::record_batch::RecordBatch;
 use arrow_util::{display::pretty_format_batches, test_util::sort_record_batch};
-use query::{
+use iox_query::{
     exec::{Executor, ExecutorType},
     frontend::sql::SqlQueryPlanner,
 };
@@ -22,7 +22,7 @@ use self::{
     setup::TestSetup,
 };
 use crate::scenarios::{DbScenario, DbSetup};
-use query::exec::ExecutorConfig;
+use iox_query::exec::ExecutorConfig;
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Snafu)]

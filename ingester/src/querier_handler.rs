@@ -14,13 +14,13 @@ use datafusion::{
     },
 };
 use generated_types::ingester::IngesterQueryRequest;
-use observability_deps::tracing::debug;
-use predicate::Predicate;
-use query::{
+use iox_query::{
     exec::{Executor, ExecutorType},
     frontend::reorg::ReorgPlanner,
     QueryChunkMeta,
 };
+use observability_deps::tracing::debug;
+use predicate::Predicate;
 use schema::{
     merge::{merge_record_batch_schemas, SchemaMerger},
     selection::Selection,
@@ -37,7 +37,7 @@ pub enum Error {
 
     #[snafu(display("Error building logical plan for querying Ingester data to send to Querier"))]
     LogicalPlan {
-        source: query::frontend::reorg::Error,
+        source: iox_query::frontend::reorg::Error,
     },
 
     #[snafu(display(

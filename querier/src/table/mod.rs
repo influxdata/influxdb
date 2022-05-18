@@ -8,9 +8,9 @@ use crate::{
 };
 use backoff::{Backoff, BackoffConfig};
 use data_types::TableId;
+use iox_query::{provider::ChunkPruner, QueryChunk};
 use observability_deps::tracing::debug;
 use predicate::Predicate;
-use query::{provider::ChunkPruner, QueryChunk};
 use schema::Schema;
 use snafu::{ResultExt, Snafu};
 use std::{collections::HashMap, sync::Arc};

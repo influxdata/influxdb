@@ -13,7 +13,7 @@ data_types = { path = "../data_types" }
 iox_catalog = { path = "../iox_catalog" }
 ioxd_common = { path = "../ioxd_common" }
 metric = { path = "../metric" }
-query = { path = "../query" }
+iox_query = { path = "../iox_query" }
 object_store = "0.0.1"
 iox_time = { path = "../iox_time" }
 trace = { path = "../trace" }

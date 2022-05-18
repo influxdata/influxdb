@@ -9,12 +9,12 @@ use datafusion::{
     logical_plan::Expr,
     physical_plan::ExecutionPlan,
 };
-use predicate::{Predicate, PredicateBuilder};
-use query::{
+use iox_query::{
     provider::{ChunkPruner, ProviderBuilder},
     pruning::{prune_chunks, PruningObserver},
     QueryChunk,
 };
+use predicate::{Predicate, PredicateBuilder};
 use schema::Schema;
 
 use super::QuerierTable;

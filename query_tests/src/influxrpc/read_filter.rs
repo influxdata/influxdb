@@ -16,9 +16,9 @@ use crate::{
     },
 };
 use datafusion::logical_plan::{col, lit, when};
+use iox_query::frontend::influxrpc::InfluxRpcPlanner;
 use predicate::rpc_predicate::InfluxRpcPredicate;
 use predicate::PredicateBuilder;
-use query::frontend::influxrpc::InfluxRpcPlanner;
 use test_helpers::assert_contains;
 
 /// runs read_filter(predicate) and compares it to the expected

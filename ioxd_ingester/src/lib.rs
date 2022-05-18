@@ -8,6 +8,7 @@ use ingester::{
     server::{grpc::GrpcDelegate, http::HttpDelegate, IngesterServer},
 };
 use iox_catalog::interface::Catalog;
+use iox_query::exec::Executor;
 use ioxd_common::{
     add_service,
     http::error::{HttpApiError, HttpApiErrorCode, HttpApiErrorSource},
@@ -18,7 +19,6 @@ use ioxd_common::{
 };
 use metric::Registry;
 use object_store::DynObjectStore;
-use query::exec::Executor;
 use std::{
     collections::BTreeMap,
     fmt::{Debug, Display},

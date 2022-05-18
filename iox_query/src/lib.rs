@@ -383,7 +383,7 @@ pub fn compute_sort_key<'a>(summaries: impl Iterator<Item = &'a TableSummary>) -
 // error[E0433]: failed to resolve: could not find `test` in `storage`
 //   --> src/server/mutable_buffer_routes.rs:353:19
 //     |
-// 353 |     use query::test::TestDatabaseStore;
+// 353 |     use iox_query::test::TestDatabaseStore;
 //     |                ^^^^ could not find `test` in `query`
 
 //

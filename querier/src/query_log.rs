@@ -1,9 +1,9 @@
 //! Ring buffer of queries that have been run with some brief information
 
 use data_types::NamespaceId;
+use iox_query::QueryText;
 use iox_time::{Time, TimeProvider};
 use parking_lot::Mutex;
-use query::QueryText;
 use std::{
     collections::VecDeque,
     sync::{atomic, Arc},

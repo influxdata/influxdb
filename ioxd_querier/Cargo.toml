@@ -14,7 +14,7 @@ ioxd_common = { path = "../ioxd_common" }
 metric = { path = "../metric" }
 object_store = "0.0.1"
 querier = { path = "../querier" }
-query = { path = "../query" }
+iox_query = { path = "../iox_query" }
 service_grpc_flight = { path = "../service_grpc_flight" }
 service_grpc_influxrpc = { path = "../service_grpc_influxrpc" }
 iox_time = { path = "../iox_time" }

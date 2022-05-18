@@ -26,6 +26,8 @@ ignore = [
     # why needed: used by `criterion`
     # upstream issue: https://github.com/bheisler/criterion.rs/issues/534
     "RUSTSEC-2021-0127",
+
+    "query",
 ]
 
 [licenses]

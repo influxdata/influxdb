@@ -131,9 +131,9 @@ mod tests {
     use std::time::Duration;
 
     use iox_catalog::mem::MemCatalog;
+    use iox_query::exec::Executor;
     use iox_time::{MockProvider, Time};
     use object_store::memory::InMemory;
-    use query::exec::Executor;
 
     use crate::{cache::CatalogCache, create_ingester_connection_for_testing};
 

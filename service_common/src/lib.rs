@@ -5,7 +5,7 @@ pub mod planner;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use query::{exec::ExecutionContextProvider, QueryDatabase};
+use iox_query::{exec::ExecutionContextProvider, QueryDatabase};
 
 /// Trait that allows the query engine (which includes flight and storage/InfluxRPC) to access a virtual set of
 /// databases.

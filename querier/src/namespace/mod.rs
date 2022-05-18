@@ -6,8 +6,8 @@ use crate::{
 };
 use backoff::BackoffConfig;
 use data_types::{NamespaceId, NamespaceSchema};
+use iox_query::exec::Executor;
 use object_store::DynObjectStore;
-use query::exec::Executor;
 use schema::Schema;
 use std::{collections::HashMap, sync::Arc};
 

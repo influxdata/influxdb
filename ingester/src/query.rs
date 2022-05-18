@@ -16,15 +16,15 @@ use datafusion::{
     },
 };
 use datafusion_util::batch_filter;
+use iox_query::{
+    exec::{stringset::StringSet, IOxSessionContext},
+    util::{df_physical_expr_from_schema_and_expr, MissingColumnsToNull},
+    QueryChunk, QueryChunkError, QueryChunkMeta,
+};
 use observability_deps::tracing::{debug, trace};
 use predicate::{
     delete_predicate::{tombstones_to_delete_predicates, tombstones_to_delete_predicates_iter},
     Predicate, PredicateMatch,
-};
-use query::{
-    exec::{stringset::StringSet, IOxSessionContext},
-    util::{df_physical_expr_from_schema_and_expr, MissingColumnsToNull},
-    QueryChunk, QueryChunkError, QueryChunkMeta,
 };
 use schema::{merge::merge_record_batch_schemas, selection::Selection, sort::SortKey, Schema};
 use snafu::{ResultExt, Snafu};

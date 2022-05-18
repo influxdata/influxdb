@@ -23,7 +23,7 @@ parking_lot = "0.12"
 parquet_file = { path = "../parquet_file" }
 pin-project = "1.0"
 predicate = { path = "../predicate" }
-query = { path = "../query" }
+iox_query = { path = "../iox_query" }
 rand = "0.8.3"
 service_common = { path = "../service_common" }
 service_grpc_schema = { path = "../service_grpc_schema" }

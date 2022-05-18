@@ -16,7 +16,7 @@ metric = { path = "../metric" }
 mutable_batch_lp = { path = "../mutable_batch_lp" }
 object_store = "0.0.1"
 parquet_file = { path = "../parquet_file" }
-query = { path = "../query" }
+iox_query = { path = "../iox_query" }
 schema = { path = "../schema" }
 uuid = { version = "0.8", features = ["v4"] }
 workspace-hack = { path = "../workspace-hack"}

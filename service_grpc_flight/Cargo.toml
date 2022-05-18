@@ -11,7 +11,7 @@ data_types = { path = "../data_types" }
 datafusion = { path = "../datafusion" }
 generated_types = { path = "../generated_types" }
 observability_deps = { path = "../observability_deps" }
-query = { path = "../query" }
+iox_query = { path = "../iox_query" }
 service_common = { path = "../service_common" }
 
 # Crates.io dependencies, in alphabetical order

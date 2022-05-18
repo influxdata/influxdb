@@ -131,7 +131,7 @@ jobs:
           # https://github.com/EmbarkStudios/cargo-deny/issues/388
           name: Pull advisory-db
           command: |
-            git clone --depth=1 https://github.com/RustSec/advisory-db.git /usr/local/cargo/advisory-dbs/github.com-dfdf83aac62a7e5e
+            git clone --depth=1 https://github.com/RustSec/advisory-db.git /usr/local/cargo/advisory-dbs/github.com-2f857891b7f43c59
       - run:
           name: cargo-deny Checks
           command: cargo deny check -s --disable-fetch

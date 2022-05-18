@@ -1,9 +1,9 @@
 //! Tests for the Influx gRPC queries
 use crate::{influxrpc::util::run_series_set_plan, scenarios::*};
 use datafusion::prelude::*;
+use iox_query::{frontend::influxrpc::InfluxRpcPlanner, Aggregate, WindowDuration};
 use predicate::rpc_predicate::InfluxRpcPredicate;
 use predicate::PredicateBuilder;
-use query::{frontend::influxrpc::InfluxRpcPlanner, Aggregate, WindowDuration};
 
 /// runs read_window_aggregate(predicate) and compares it to the expected
 /// output

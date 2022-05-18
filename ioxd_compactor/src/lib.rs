@@ -7,6 +7,7 @@ use compactor::{
 use data_types::KafkaPartition;
 use hyper::{Body, Request, Response};
 use iox_catalog::interface::Catalog;
+use iox_query::exec::Executor;
 use iox_time::TimeProvider;
 use ioxd_common::{
     add_service,
@@ -18,7 +19,6 @@ use ioxd_common::{
 };
 use metric::Registry;
 use object_store::DynObjectStore;
-use query::exec::Executor;
 use std::{
     fmt::{Debug, Display},
     sync::Arc,

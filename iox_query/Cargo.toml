@@ -1,5 +1,5 @@
 [package]
-name = "query"
+name = "iox_query"
 version = "0.1.0"
 authors = ["Andrew Lamb <andrew@nerdnetworks.org>"]
 edition = "2021"

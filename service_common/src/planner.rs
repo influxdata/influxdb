@@ -2,7 +2,7 @@
 use std::sync::Arc;
 
 use datafusion::physical_plan::ExecutionPlan;
-use query::{
+use iox_query::{
     exec::IOxSessionContext,
     frontend::{influxrpc::InfluxRpcPlanner, sql::SqlQueryPlanner},
     plan::{fieldlist::FieldListPlan, seriesset::SeriesSetPlans, stringset::StringSetPlan},

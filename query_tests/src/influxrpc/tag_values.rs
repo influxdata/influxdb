@@ -1,10 +1,10 @@
 use datafusion::logical_plan::{col, lit};
-use predicate::rpc_predicate::InfluxRpcPredicate;
-use predicate::PredicateBuilder;
-use query::{
+use iox_query::{
     exec::stringset::{IntoStringSet, StringSetRef},
     frontend::influxrpc::InfluxRpcPlanner,
 };
+use predicate::rpc_predicate::InfluxRpcPredicate;
+use predicate::PredicateBuilder;
 
 use crate::scenarios::*;
 

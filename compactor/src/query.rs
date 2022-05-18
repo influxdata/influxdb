@@ -5,13 +5,13 @@ use data_types::{
     TimestampMinMax, Tombstone,
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
-use observability_deps::tracing::trace;
-use parquet_file::chunk::ParquetChunk;
-use predicate::{delete_predicate::tombstones_to_delete_predicates, Predicate, PredicateMatch};
-use query::{
+use iox_query::{
     exec::{stringset::StringSet, IOxSessionContext},
     QueryChunk, QueryChunkError, QueryChunkMeta,
 };
+use observability_deps::tracing::trace;
+use parquet_file::chunk::ParquetChunk;
+use predicate::{delete_predicate::tombstones_to_delete_predicates, Predicate, PredicateMatch};
 use schema::{merge::SchemaMerger, selection::Selection, sort::SortKey, Schema};
 use snafu::{ResultExt, Snafu};
 use std::sync::Arc;

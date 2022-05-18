@@ -1,6 +1,6 @@
 use datafusion::error::DataFusionError;
-use query::exec::IOxSessionContext;
-use query::plan::seriesset::SeriesSetPlans;
+use iox_query::exec::IOxSessionContext;
+use iox_query::plan::seriesset::SeriesSetPlans;
 
 /// Run a series set plan to completion and produce a Vec<String> representation
 ///

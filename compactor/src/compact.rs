@@ -17,6 +17,13 @@ use data_types::{
 };
 use datafusion::error::DataFusionError;
 use iox_catalog::interface::{Catalog, Transaction, INITIAL_COMPACTION_LEVEL};
+use iox_query::{
+    exec::{Executor, ExecutorType},
+    frontend::reorg::ReorgPlanner,
+    provider::overlap::group_potential_duplicates,
+    util::compute_timenanosecond_min_max,
+    QueryChunk,
+};
 use iox_time::{Time, TimeProvider};
 use metric::{Attributes, Metric, U64Counter, U64Gauge, U64Histogram, U64HistogramOptions};
 use object_store::DynObjectStore;
@@ -24,13 +31,6 @@ use observability_deps::tracing::{debug, info, trace, warn};
 use parquet_file::{
     metadata::{IoxMetadata, IoxParquetMetaData},
     ParquetFilePath,
-};
-use query::{
-    exec::{Executor, ExecutorType},
-    frontend::reorg::ReorgPlanner,
-    provider::overlap::group_potential_duplicates,
-    util::compute_timenanosecond_min_max,
-    QueryChunk,
 };
 use schema::sort::SortKey;
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
@@ -87,7 +87,7 @@ pub enum Error {
 
     #[snafu(display("Error building compact logical plan  {}", source))]
     CompactLogicalPlan {
-        source: query::frontend::reorg::Error,
+        source: iox_query::frontend::reorg::Error,
     },
 
     #[snafu(display("Error building compact physical plan  {}", source))]
@@ -103,7 +103,7 @@ pub enum Error {
     RowCountTypeConversion { source: std::num::TryFromIntError },
 
     #[snafu(display("Error computing min and max for record batches: {}", source))]
-    MinMax { source: query::util::Error },
+    MinMax { source: iox_query::util::Error },
 
     #[snafu(display("Error while starting catalog transaction {}", source))]
     Transaction {
@@ -1108,13 +1108,13 @@ mod tests {
     use data_types::{ChunkId, KafkaPartition, NamespaceId, ParquetFileParams, SequenceNumber};
     use futures::TryStreamExt;
     use iox_catalog::interface::INITIAL_COMPACTION_LEVEL;
+    use iox_query::test::{raw_data, TestChunk};
     use iox_tests::util::TestCatalog;
     use iox_time::SystemProvider;
     use querier::{
         cache::CatalogCache,
         chunk::{collect_read_filter, ParquetChunkAdapter},
     };
-    use query::test::{raw_data, TestChunk};
     use std::sync::atomic::{AtomicI64, Ordering};
 
     // Simulate unique ID generation

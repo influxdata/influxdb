@@ -5,14 +5,14 @@ use arrow::record_batch::RecordBatch;
 use data_types::{NamespaceId, PartitionInfo};
 use datafusion::{error::DataFusionError, physical_plan::SendableRecordBatchStream};
 use iox_catalog::interface::INITIAL_COMPACTION_LEVEL;
-use iox_time::{Time, TimeProvider};
-use parquet_file::metadata::IoxMetadata;
-use query::{
+use iox_query::{
     exec::{Executor, ExecutorType},
     frontend::reorg::ReorgPlanner,
     util::compute_timenanosecond_min_max,
     QueryChunk, QueryChunkMeta,
 };
+use iox_time::{Time, TimeProvider};
+use parquet_file::metadata::IoxMetadata;
 use schema::sort::{adjust_sort_key_columns, compute_sort_key, SortKey};
 use snafu::{ResultExt, Snafu};
 use std::sync::Arc;
@@ -22,7 +22,7 @@ use std::sync::Arc;
 pub enum Error {
     #[snafu(display("Error while building logical plan for Ingester's compaction"))]
     LogicalPlan {
-        source: query::frontend::reorg::Error,
+        source: iox_query::frontend::reorg::Error,
     },
 
     #[snafu(display("Error while building physical plan for Ingester's compaction"))]
@@ -46,7 +46,7 @@ pub enum Error {
     RowCountTypeConversion { source: std::num::TryFromIntError },
 
     #[snafu(display("Error computing min and max for record batches: {}", source))]
-    MinMax { source: query::util::Error },
+    MinMax { source: iox_query::util::Error },
 }
 
 /// A specialized `Error` for Ingester's Compact errors

@@ -16,13 +16,13 @@ use generated_types::{
     influxdata::iox::ingester::v1::GetWriteInfoResponse, ingester::IngesterQueryRequest,
     write_info::merge_responses,
 };
-use observability_deps::tracing::{debug, trace};
-use predicate::{Predicate, PredicateMatch};
-use query::{
+use iox_query::{
     exec::{stringset::StringSet, IOxSessionContext},
     util::compute_timenanosecond_min_max,
     QueryChunk, QueryChunkError, QueryChunkMeta,
 };
+use observability_deps::tracing::{debug, trace};
+use predicate::{Predicate, PredicateMatch};
 use schema::{selection::Selection, sort::SortKey, InfluxColumnType, InfluxFieldType, Schema};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{any::Any, collections::HashMap, sync::Arc};

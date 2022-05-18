@@ -5,6 +5,7 @@ use clap_blocks::{
     catalog_dsn::CatalogDsnConfig, ingester::IngesterConfig, run_config::RunConfig,
     write_buffer::WriteBufferConfig,
 };
+use iox_query::exec::Executor;
 use iox_time::{SystemProvider, TimeProvider};
 use ioxd_common::server_type::{CommonServerState, CommonServerStateError};
 use ioxd_common::Service;
@@ -12,7 +13,6 @@ use ioxd_ingester::create_ingester_server_type;
 use object_store::DynObjectStore;
 use object_store_metrics::ObjectStoreMetrics;
 use observability_deps::tracing::*;
-use query::exec::Executor;
 use std::sync::Arc;
 use thiserror::Error;
 

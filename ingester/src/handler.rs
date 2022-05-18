@@ -21,11 +21,11 @@ use futures::{
 };
 use generated_types::ingester::IngesterQueryRequest;
 use iox_catalog::interface::Catalog;
+use iox_query::exec::Executor;
 use iox_time::{SystemProvider, TimeProvider};
 use metric::{Metric, U64Histogram, U64HistogramOptions};
 use object_store::DynObjectStore;
 use observability_deps::tracing::*;
-use query::exec::Executor;
 use snafu::{ResultExt, Snafu};
 use std::{collections::BTreeMap, sync::Arc, time::Duration};
 use tokio::task::{JoinError, JoinHandle};

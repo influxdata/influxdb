@@ -9,7 +9,7 @@ use super::scenarios::*;
 use arrow::record_batch::RecordBatch;
 use arrow_util::assert_batches_sorted_eq;
 use datafusion::error::DataFusionError;
-use query::frontend::sql::SqlQueryPlanner;
+use iox_query::frontend::sql::SqlQueryPlanner;
 use test_helpers::assert_contains;
 
 /// Runs the query in `sql` and compares it to the expected output.

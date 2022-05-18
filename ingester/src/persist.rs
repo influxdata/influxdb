@@ -84,9 +84,9 @@ mod tests {
     use data_types::{NamespaceId, PartitionId, SequenceNumber, SequencerId, TableId};
     use futures::{StreamExt, TryStreamExt};
     use iox_catalog::interface::INITIAL_COMPACTION_LEVEL;
+    use iox_query::test::{raw_data, TestChunk};
     use iox_time::Time;
     use object_store::memory::InMemory;
-    use query::test::{raw_data, TestChunk};
     use std::sync::Arc;
     use uuid::Uuid;
 

@@ -8,10 +8,10 @@ use futures::{
     select, FutureExt, TryFutureExt,
 };
 use iox_catalog::interface::Catalog;
+use iox_query::exec::Executor;
 use iox_time::TimeProvider;
 use object_store::DynObjectStore;
 use observability_deps::tracing::*;
-use query::exec::Executor;
 use std::sync::Arc;
 use thiserror::Error;
 use tokio::task::{JoinError, JoinHandle};

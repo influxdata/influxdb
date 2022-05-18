@@ -20,10 +20,10 @@ use iox_catalog::{
     interface::{Catalog, INITIAL_COMPACTION_LEVEL},
     mem::MemCatalog,
 };
+use iox_query::test::{raw_data, TestChunk};
 use iox_time::{SystemProvider, Time, TimeProvider};
 use object_store::memory::InMemory;
 use parquet_file::metadata::IoxMetadata;
-use query::test::{raw_data, TestChunk};
 use schema::sort::SortKey;
 use std::{collections::BTreeMap, sync::Arc};
 use uuid::Uuid;
@@ -677,7 +677,7 @@ pub fn make_ingester_data(two_partitions: bool, loc: DataLocation) -> IngesterDa
     let metrics: Arc<metric::Registry> = Default::default();
     let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
     let object_store = Arc::new(InMemory::new());
-    let exec = Arc::new(query::exec::Executor::new(1));
+    let exec = Arc::new(iox_query::exec::Executor::new(1));
 
     // Make data for one sequencer/shard and two tables
     let seq_id = SequencerId::new(1);
@@ -730,7 +730,7 @@ pub async fn make_ingester_data_with_tombstones(loc: DataLocation) -> IngesterDa
     let metrics: Arc<metric::Registry> = Default::default();
     let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(metrics));
     let object_store = Arc::new(InMemory::new());
-    let exec = Arc::new(query::exec::Executor::new(1));
+    let exec = Arc::new(iox_query::exec::Executor::new(1));
 
     // Make data for one sequencer/shard and two tables
     let seq_id = SequencerId::new(1);
@@ -845,7 +845,7 @@ pub(crate) fn make_partitions(
 
 /// Make data for one partition with tombstones
 pub(crate) async fn make_one_partition_with_tombstones(
-    exec: &query::exec::Executor,
+    exec: &iox_query::exec::Executor,
     loc: DataLocation,
     sequencer_id: SequencerId,
     table_id: TableId,

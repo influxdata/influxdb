@@ -18,7 +18,7 @@ object_store = "0.0.1"
 observability_deps = { path = "../observability_deps" }
 parquet_file = { path = "../parquet_file" }
 predicate = { path = "../predicate" }
-query = { path = "../query" }
+iox_query = { path = "../iox_query" }
 schema = { path = "../schema" }
 snafu = "0.7"
 thiserror = "1.0"

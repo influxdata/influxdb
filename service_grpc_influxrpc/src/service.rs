@@ -23,14 +23,14 @@ use generated_types::{
     TagValuesGroupedByMeasurementAndTagKeyRequest, TagValuesRequest, TagValuesResponse,
     TimestampRange,
 };
-use observability_deps::tracing::{error, info, trace};
-use query::{
+use iox_query::{
     exec::{
         fieldlist::FieldList, seriesset::converter::Error as SeriesSetError,
         ExecutionContextProvider, IOxSessionContext,
     },
     QueryDatabase, QueryText,
 };
+use observability_deps::tracing::{error, info, trace};
 use service_common::{planner::Planner, QueryDatabaseProvider};
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
@@ -1398,14 +1398,14 @@ mod tests {
         generated_types::*,
         Client as StorageClient, OrgAndBucket,
     };
+    use iox_query::{
+        exec::Executor,
+        test::{TestChunk, TestDatabase},
+    };
     use metric::{Attributes, Metric, U64Counter};
     use panic_logging::SendPanicsToTracing;
     use parking_lot::Mutex;
     use predicate::{PredicateBuilder, PredicateMatch};
-    use query::{
-        exec::Executor,
-        test::{TestChunk, TestDatabase},
-    };
     use service_common::QueryDatabaseProvider;
     use std::{
         collections::BTreeMap,

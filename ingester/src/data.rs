@@ -17,6 +17,7 @@ use data_types::{
 use datafusion::physical_plan::SendableRecordBatchStream;
 use dml::DmlOperation;
 use iox_catalog::interface::Catalog;
+use iox_query::exec::Executor;
 use iox_time::SystemProvider;
 use metric::U64Counter;
 use mutable_batch::MutableBatch;
@@ -24,7 +25,6 @@ use object_store::DynObjectStore;
 use observability_deps::tracing::{debug, warn};
 use parking_lot::RwLock;
 use predicate::Predicate;
-use query::exec::Executor;
 use schema::{selection::Selection, Schema};
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{

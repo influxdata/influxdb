@@ -8,6 +8,7 @@ use clap_blocks::{
     object_store::ObjectStoreConfig, run_config::RunConfig, socket_addr::SocketAddr,
     write_buffer::WriteBufferConfig,
 };
+use iox_query::exec::Executor;
 use iox_time::{SystemProvider, TimeProvider};
 use ioxd_common::{
     server_type::{CommonServerState, CommonServerStateError},
@@ -19,7 +20,6 @@ use ioxd_querier::{create_querier_server_type, QuerierServerTypeArgs};
 use ioxd_router::create_router_server_type;
 use object_store::DynObjectStore;
 use observability_deps::tracing::*;
-use query::exec::Executor;
 use std::{path::PathBuf, sync::Arc};
 use thiserror::Error;
 use trace_exporters::TracingConfig;

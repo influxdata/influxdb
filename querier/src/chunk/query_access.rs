@@ -2,9 +2,9 @@ use crate::chunk::{ChunkStorage, QuerierChunk};
 use data_types::{
     ChunkId, ChunkOrder, DeletePredicate, PartitionId, TableSummary, TimestampMinMax,
 };
+use iox_query::{QueryChunk, QueryChunkError, QueryChunkMeta};
 use observability_deps::tracing::debug;
 use predicate::PredicateMatch;
-use query::{QueryChunk, QueryChunkError, QueryChunkMeta};
 use schema::{sort::SortKey, Schema};
 use snafu::{ResultExt, Snafu};
 use std::sync::Arc;
@@ -86,10 +86,10 @@ impl QueryChunk for QuerierChunk {
 
     fn column_names(
         &self,
-        _ctx: query::exec::IOxSessionContext,
+        _ctx: iox_query::exec::IOxSessionContext,
         predicate: &predicate::Predicate,
         columns: schema::selection::Selection<'_>,
-    ) -> Result<Option<query::exec::stringset::StringSet>, QueryChunkError> {
+    ) -> Result<Option<iox_query::exec::stringset::StringSet>, QueryChunkError> {
         match &self.storage {
             ChunkStorage::Parquet { chunk, .. } => {
                 if !predicate.is_empty() {
@@ -103,10 +103,10 @@ impl QueryChunk for QuerierChunk {
 
     fn column_values(
         &self,
-        _ctx: query::exec::IOxSessionContext,
+        _ctx: iox_query::exec::IOxSessionContext,
         _column_name: &str,
         _predicate: &predicate::Predicate,
-    ) -> Result<Option<query::exec::stringset::StringSet>, QueryChunkError> {
+    ) -> Result<Option<iox_query::exec::stringset::StringSet>, QueryChunkError> {
         match &self.storage {
             ChunkStorage::Parquet { .. } => {
                 // Since DataFusion can read Parquet, there is no advantage to
@@ -118,7 +118,7 @@ impl QueryChunk for QuerierChunk {
 
     fn read_filter(
         &self,
-        mut ctx: query::exec::IOxSessionContext,
+        mut ctx: iox_query::exec::IOxSessionContext,
         predicate: &predicate::Predicate,
         selection: schema::selection::Selection<'_>,
     ) -> Result<datafusion::physical_plan::SendableRecordBatchStream, QueryChunkError> {

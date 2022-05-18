@@ -1,8 +1,8 @@
 use std::{any::Any, sync::Arc};
 
 use datafusion::catalog::catalog::CatalogProvider;
+use iox_query::{exec::ExecutionContextProvider, QueryDatabase};
 use querier::QuerierNamespace;
-use query::{exec::ExecutionContextProvider, QueryDatabase};
 
 /// Abstract database used during testing.
 pub trait AbstractDb: CatalogProvider + ExecutionContextProvider + QueryDatabase {

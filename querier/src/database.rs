@@ -7,9 +7,9 @@ use crate::{
 use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig};
 use data_types::Namespace;
+use iox_query::exec::Executor;
 use object_store::DynObjectStore;
 use parking_lot::RwLock;
-use query::exec::Executor;
 use service_common::QueryDatabaseProvider;
 use std::{collections::HashMap, sync::Arc};
 

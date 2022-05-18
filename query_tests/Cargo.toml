@@ -25,7 +25,7 @@ once_cell = { version = "1.10.0", features = ["parking_lot"] }
 predicate = { path = "../predicate" }
 schema = { path = "../schema" }
 querier = { path = "../querier" }
-query = { path = "../query" }
+iox_query = { path = "../iox_query" }
 pretty_assertions = "1.2.1"
 workspace-hack = { path = "../workspace-hack"}
 

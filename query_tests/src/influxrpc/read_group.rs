@@ -14,9 +14,9 @@ use datafusion::{
     logical_plan::{binary_expr, Operator},
     prelude::*,
 };
+use iox_query::{frontend::influxrpc::InfluxRpcPlanner, Aggregate};
 use predicate::rpc_predicate::InfluxRpcPredicate;
 use predicate::PredicateBuilder;
-use query::{frontend::influxrpc::InfluxRpcPlanner, Aggregate};
 
 /// runs read_group(predicate) and compares it to the expected
 /// output

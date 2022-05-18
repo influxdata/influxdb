@@ -845,6 +845,7 @@ dependencies = [
  "datafusion 0.1.0",
  "futures",
  "iox_catalog",
+ "iox_query",
  "iox_tests",
  "iox_time",
  "metric",
@@ -853,7 +854,6 @@ dependencies = [
  "parquet_file",
  "predicate",
  "querier",
- "query",
  "schema",
  "snafu",
  "test_helpers",
@@ -2181,6 +2181,7 @@ dependencies = [
  "influxdb_storage_client",
  "influxrpc_parser",
  "iox_catalog",
+ "iox_query",
  "iox_time",
  "ioxd_common",
  "ioxd_compactor",
@@ -2200,7 +2201,6 @@ dependencies = [
  "parquet_file",
  "predicate",
  "predicates",
- "query",
  "rustyline",
  "schema",
  "serde_json",
@@ -2312,6 +2312,7 @@ dependencies = [
  "generated_types",
  "hyper",
  "iox_catalog",
+ "iox_query",
  "iox_time",
  "lazy_static",
  "metric",
@@ -2325,7 +2326,6 @@ dependencies = [
  "pin-project",
  "predicate",
  "prost",
- "query",
  "schema",
  "snafu",
  "test_helpers",
@@ -2448,6 +2448,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "iox_query"
+version = "0.1.0"
+dependencies = [
+ "arrow",
+ "arrow_util",
+ "async-trait",
+ "chrono",
+ "croaring",
+ "data_types",
+ "datafusion 0.1.0",
+ "datafusion_util",
+ "executor",
+ "futures",
+ "hashbrown 0.12.1",
+ "itertools",
+ "observability_deps",
+ "parking_lot 0.12.0",
+ "predicate",
+ "query_functions",
+ "schema",
+ "snafu",
+ "test_helpers",
+ "tokio",
+ "tokio-stream",
+ "trace",
+ "workspace-hack",
+]
+
+[[package]]
 name = "iox_tests"
 version = "0.1.0"
 dependencies = [
@@ -2456,12 +2485,12 @@ dependencies = [
  "data_types",
  "datafusion 0.1.0",
  "iox_catalog",
+ "iox_query",
  "iox_time",
  "metric",
  "mutable_batch_lp",
  "object_store",
  "parquet_file",
- "query",
  "schema",
  "uuid 0.8.2",
  "workspace-hack",
@@ -2530,11 +2559,11 @@ dependencies = [
  "data_types",
  "hyper",
  "iox_catalog",
+ "iox_query",
  "iox_time",
  "ioxd_common",
  "metric",
  "object_store",
- "query",
  "thiserror",
  "trace",
  "workspace-hack",
@@ -2550,10 +2579,10 @@ dependencies = [
  "hyper",
  "ingester",
  "iox_catalog",
+ "iox_query",
  "ioxd_common",
  "metric",
  "object_store",
- "query",
  "thiserror",
  "trace",
  "workspace-hack",
@@ -2570,13 +2599,13 @@ dependencies = [
  "generated_types",
  "hyper",
  "iox_catalog",
+ "iox_query",
  "iox_tests",
  "iox_time",
  "ioxd_common",
  "metric",
  "object_store",
  "querier",
- "query",
  "service_grpc_flight",
  "service_grpc_influxrpc",
  "tokio",
@@ -4132,6 +4161,7 @@ dependencies = [
  "generated_types",
  "influxdb_iox_client",
  "iox_catalog",
+ "iox_query",
  "iox_tests",
  "iox_time",
  "metric",
@@ -4142,7 +4172,6 @@ dependencies = [
  "parquet_file",
  "pin-project",
  "predicate",
- "query",
  "rand",
  "schema",
  "service_common",
@@ -4155,35 +4184,6 @@ dependencies = [
  "tonic",
  "trace",
  "uuid 0.8.2",
- "workspace-hack",
-]
-
-[[package]]
-name = "query"
-version = "0.1.0"
-dependencies = [
- "arrow",
- "arrow_util",
- "async-trait",
- "chrono",
- "croaring",
- "data_types",
- "datafusion 0.1.0",
- "datafusion_util",
- "executor",
- "futures",
- "hashbrown 0.12.1",
- "itertools",
- "observability_deps",
- "parking_lot 0.12.0",
- "predicate",
- "query_functions",
- "schema",
- "snafu",
- "test_helpers",
- "tokio",
- "tokio-stream",
- "trace",
  "workspace-hack",
 ]
 
@@ -4222,6 +4222,7 @@ dependencies = [
  "influxdb_iox_client",
  "ingester",
  "iox_catalog",
+ "iox_query",
  "iox_tests",
  "itertools",
  "mutable_batch",
@@ -4230,7 +4231,6 @@ dependencies = [
  "predicate",
  "pretty_assertions",
  "querier",
- "query",
  "schema",
  "snafu",
  "tempfile",
@@ -5033,8 +5033,8 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "datafusion 0.1.0",
+ "iox_query",
  "predicate",
- "query",
  "workspace-hack",
 ]
 
@@ -5064,10 +5064,10 @@ dependencies = [
  "datafusion 0.1.0",
  "futures",
  "generated_types",
+ "iox_query",
  "observability_deps",
  "pin-project",
  "prost",
- "query",
  "serde",
  "serde_json",
  "service_common",
@@ -5088,13 +5088,13 @@ dependencies = [
  "futures",
  "generated_types",
  "influxdb_storage_client",
+ "iox_query",
  "metric",
  "observability_deps",
  "panic_logging",
  "parking_lot 0.12.0",
  "predicate",
  "prost",
- "query",
  "query_functions",
  "regex",
  "schema",
@@ -5291,12 +5291,12 @@ checksum = "45456094d1983e2ee2a18fdfebce3189fa451699d0502cb8e3b49dba5ba41451"
 
 [[package]]
 name = "socket2"
-version = "0.4.5"
+version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ca642ba17f8b2995138b1d7711829c92e98c0a25ea019de790f4f09279c4e296"
+checksum = "66d72b759436ae32898a2af0a14218dbf55efde3feeb170eb623637db85ee1e0"
 dependencies = [
  "libc",
- "windows-sys 0.36.1",
+ "winapi",
 ]
 
 [[package]]

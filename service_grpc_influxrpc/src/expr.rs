@@ -23,12 +23,12 @@ use generated_types::{
 };
 
 use super::{TAG_KEY_FIELD, TAG_KEY_MEASUREMENT};
+use iox_query::{Aggregate as QueryAggregate, WindowDuration};
 use observability_deps::tracing::warn;
 use predicate::{
     rpc_predicate::{InfluxRpcPredicate, FIELD_COLUMN_NAME, MEASUREMENT_COLUMN_NAME},
     PredicateBuilder,
 };
-use query::{Aggregate as QueryAggregate, WindowDuration};
 use snafu::{OptionExt, ResultExt, Snafu};
 
 #[derive(Debug, Snafu)]

@@ -8,12 +8,12 @@ use data_types::{
 };
 use futures::StreamExt;
 use iox_catalog::interface::Catalog;
+use iox_query::{exec::IOxSessionContext, QueryChunk};
 use iox_time::TimeProvider;
 use object_store::DynObjectStore;
 use parquet_file::chunk::{
     new_parquet_chunk, ChunkMetrics as ParquetChunkMetrics, DecodedParquetFile, ParquetChunk,
 };
-use query::{exec::IOxSessionContext, QueryChunk};
 use schema::{selection::Selection, sort::SortKey};
 use std::sync::Arc;
 use uuid::Uuid;
@@ -292,8 +292,8 @@ pub mod tests {
     use super::*;
     use arrow::datatypes::DataType;
     use arrow_util::assert_batches_eq;
+    use iox_query::QueryChunkMeta;
     use iox_tests::util::TestCatalog;
-    use query::QueryChunkMeta;
     use schema::{builder::SchemaBuilder, sort::SortKeyBuilder};
 
     #[tokio::test]

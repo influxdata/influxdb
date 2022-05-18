@@ -5,12 +5,12 @@ use std::{collections::BTreeSet, fmt, sync::Arc};
 
 use arrow::datatypes::DataType as ArrowDataType;
 
-use observability_deps::tracing::trace;
-use predicate::rpc_predicate::{FIELD_COLUMN_NAME, MEASUREMENT_COLUMN_NAME};
-use query::exec::{
+use iox_query::exec::{
     fieldlist::FieldList,
     seriesset::series::{self, Either},
 };
+use observability_deps::tracing::trace;
+use predicate::rpc_predicate::{FIELD_COLUMN_NAME, MEASUREMENT_COLUMN_NAME};
 
 use generated_types::{
     measurement_fields_response::{FieldType, MessageField},
@@ -28,7 +28,7 @@ use snafu::Snafu;
 pub enum Error {
     #[snafu(display("Error converting series set to gRPC: {}", source))]
     ConvertingSeries {
-        source: query::exec::seriesset::series::Error,
+        source: iox_query::exec::seriesset::series::Error,
     },
 
     #[snafu(display("Unsupported field data type in gRPC data translation: {}", data_type))]
@@ -324,7 +324,7 @@ mod tests {
         datatypes::DataType as ArrowDataType,
         record_batch::RecordBatch,
     };
-    use query::exec::{
+    use iox_query::exec::{
         field::FieldIndexes,
         fieldlist::Field,
         seriesset::{
