@@ -196,6 +196,36 @@ impl BitSet {
     pub fn bytes(&self) -> &[u8] {
         &self.buffer
     }
+
+    /// Return `true` if all bits in the [`BitSet`] are currently set.
+    pub fn is_all_set(&self) -> bool {
+        // An empty bitmap has no set bits.
+        if self.len == 0 {
+            return false;
+        }
+
+        // Check all the bytes in the bitmap that have all their bits considered
+        // part of the bit set.
+        let full_blocks = (self.len / 8).saturating_sub(1);
+        if !self.buffer.iter().take(full_blocks).all(|&v| v == u8::MAX) {
+            return false;
+        }
+
+        // Check the last byte of the bitmap that may only be partially part of
+        // the bit set, and therefore need masking to check only the relevant
+        // bits.
+        let mask = match self.len % 8 {
+            1..=8 => !(0xFF << (self.len % 8)), // LSB mask
+            0 => 0xFF,
+            _ => unreachable!(),
+        };
+        *self.buffer.last().unwrap() == mask
+    }
+
+    /// Return `true` if all bits in the [`BitSet`] are currently unset.
+    pub fn is_all_unset(&self) -> bool {
+        self.buffer.iter().all(|&v| v == 0)
+    }
 }
 
 /// Returns an iterator over set bit positions in increasing order
@@ -480,5 +510,78 @@ mod tests {
 
         v.get(5);
         v.set(5);
+    }
+
+    #[test]
+    fn test_all_set_unset() {
+        for i in 1..100 {
+            let mut v = BitSet::new();
+            v.append_set(i);
+            assert!(v.is_all_set());
+            assert!(!v.is_all_unset());
+        }
+    }
+
+    #[test]
+    fn test_all_set_unset_multi_byte() {
+        let mut v = BitSet::new();
+
+        // Bitmap is composed of entirely set bits.
+        v.append_set(100);
+        assert!(v.is_all_set());
+        assert!(!v.is_all_unset());
+
+        // Now the bitmap is neither composed of entirely set, nor entirely
+        // unset bits.
+        v.append_unset(1);
+        assert!(!v.is_all_set());
+        assert!(!v.is_all_unset());
+
+        let mut v = BitSet::new();
+
+        // Bitmap is composed of entirely unset bits.
+        v.append_unset(100);
+        assert!(!v.is_all_set());
+        assert!(v.is_all_unset());
+
+        // And once again, it is neither all set, nor all unset.
+        v.append_set(1);
+        assert!(!v.is_all_set());
+        assert!(!v.is_all_unset());
+    }
+
+    #[test]
+    fn test_all_set_unset_single_byte() {
+        let mut v = BitSet::new();
+
+        // Bitmap is composed of entirely set bits.
+        v.append_set(2);
+        assert!(v.is_all_set());
+        assert!(!v.is_all_unset());
+
+        // Now the bitmap is neither composed of entirely set, nor entirely
+        // unset bits.
+        v.append_unset(1);
+        assert!(!v.is_all_set());
+        assert!(!v.is_all_unset());
+
+        let mut v = BitSet::new();
+
+        // Bitmap is composed of entirely unset bits.
+        v.append_unset(2);
+        assert!(!v.is_all_set());
+        assert!(v.is_all_unset());
+
+        // And once again, it is neither all set, nor all unset.
+        v.append_set(1);
+        assert!(!v.is_all_set());
+        assert!(!v.is_all_unset());
+    }
+
+    #[test]
+    fn test_all_set_unset_empty() {
+        let v = BitSet::new();
+        assert!(!v.is_all_set());
+        assert!(v.is_all_unset());
     }
 }

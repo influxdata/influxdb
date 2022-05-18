@@ -28,7 +28,20 @@ pub fn encode_batch(table_name: &str, batch: &MutableBatch) -> TableBatch {
         table_name: table_name.to_string(),
         columns: batch
             .columns()
-            .map(|(column_name, column)| encode_column(column_name, column))
+            .filter_map(|(column_name, column)| {
+                // Skip encoding any entirely NULL columns.
+                //
+                // This prevents a type-inference error during deserialisation
+                // of the proto wire message.
+                //
+                //  https://github.com/influxdata/influxdb_iox/issues/4272
+                //
+                if column.valid_mask().is_all_unset() {
+                    return None;
+                }
+
+                Some(encode_column(column_name, column))
+            })
             .collect(),
         row_count: batch.rows() as u32,
     }
