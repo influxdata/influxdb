@@ -79,13 +79,12 @@ workflows:
                 arch: arm64
               - os: windows
                 arch: arm64
+      - changelog
       - package-and-release:
-          name: package-snapshot
-          build-type: snapshot
-          filters:
-            branches:
-              ignore: /pull\/[0-9]+/
+          name: package-snapshot # should be "package-and-release-nightly"
+          build-type: nightly
           requires:
+            - changelog
             - build
       - test-downgrade:
           requires:
