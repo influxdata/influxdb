@@ -29,6 +29,7 @@ ignore = [
 
     "query",
 ]
+git-fetch-with-cli = true
 
 [licenses]
 default = "allow"

@@ -125,16 +125,8 @@ jobs:
           name: Install cargo-deny
           command: cargo install --force cargo-deny
       - run:
-          # Manually pull the advisory DB with the git CLI as cargo deny seems
-          # to ignore CARGO_NET_GIT_FETCH_WITH_CLI.
-          #
-          # https://github.com/EmbarkStudios/cargo-deny/issues/388
-          name: Pull advisory-db
-          command: |
-            git clone --depth=1 https://github.com/RustSec/advisory-db.git /usr/local/cargo/advisory-dbs/github.com-2f857891b7f43c59
-      - run:
           name: cargo-deny Checks
-          command: cargo deny check -s --disable-fetch
+          command: cargo deny check -s
       - cache_save
   doc:
     docker:
