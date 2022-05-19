@@ -71,10 +71,13 @@ impl ServerFixture {
 
         let shared_server = SHARED_SERVER.get_or_init(|| parking_lot::Mutex::new(Weak::new()));
 
-        let mut shared_server = shared_server.lock();
+        let shared_upgraded = {
+            let locked = shared_server.lock();
+            locked.upgrade()
+        };
 
         // is a shared server already present?
-        let server = match shared_server.upgrade() {
+        let server = match shared_upgraded {
             Some(server) => server,
             None => {
                 // if not, create one
@@ -86,11 +89,11 @@ impl ServerFixture {
                 // save a reference for other threads that may want to
                 // use this server, but don't prevent it from being
                 // destroyed when going out of scope
+                let mut shared_server = shared_server.lock();
                 *shared_server = Arc::downgrade(&server);
                 server
             }
         };
-        std::mem::drop(shared_server);
 
         Self { server }
     }
