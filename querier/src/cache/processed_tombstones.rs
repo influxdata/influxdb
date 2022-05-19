@@ -8,7 +8,7 @@ use cache_system::{
         ttl::{TtlBackend, TtlProvider},
     },
     driver::Cache,
-    loader::FunctionLoader,
+    loader::{metrics::MetricsLoader, FunctionLoader},
 };
 use data_types::{ParquetFileId, TombstoneId};
 use iox_catalog::interface::Catalog;
@@ -23,6 +23,8 @@ use super::ram::RamSize;
 /// while.
 pub const TTL_NOT_PROCESSED: Duration = Duration::from_secs(100);
 
+const CACHE_ID: &str = "processed_tombstones";
+
 /// Cache for processed tombstones.
 #[derive(Debug)]
 pub struct ProcessedTombstonesCache {
@@ -35,9 +37,10 @@ impl ProcessedTombstonesCache {
         catalog: Arc<dyn Catalog>,
         backoff_config: BackoffConfig,
         time_provider: Arc<dyn TimeProvider>,
+        metric_registry: &metric::Registry,
         ram_pool: Arc<ResourcePool<RamSize>>,
     ) -> Self {
-        let loader = Arc::new(FunctionLoader::new(
+        let loader = Box::new(FunctionLoader::new(
             move |(parquet_file_id, tombstone_id)| {
                 let catalog = Arc::clone(&catalog);
                 let backoff_config = backoff_config.clone();
@@ -57,6 +60,12 @@ impl ProcessedTombstonesCache {
                 }
             },
         ));
+        let loader = Arc::new(MetricsLoader::new(
+            loader,
+            CACHE_ID,
+            Arc::clone(&time_provider),
+            metric_registry,
+        ));
 
         let backend = Box::new(HashMap::new());
         let backend = Box::new(TtlBackend::new(
@@ -67,7 +76,7 @@ impl ProcessedTombstonesCache {
         let backend = Box::new(LruBackend::new(
             backend,
             ram_pool,
-            "processed_tombstones",
+            CACHE_ID,
             Arc::new(FunctionEstimator::new(|k, v| {
                 RamSize(size_of_val(k) + size_of_val(v))
             })),
@@ -105,7 +114,6 @@ impl TtlProvider for KeepExistsForever {
 #[cfg(test)]
 mod tests {
     use iox_tests::util::TestCatalog;
-    use iox_time::{MockProvider, Time};
 
     use crate::cache::{ram::test_util::test_ram_pool, test_util::assert_histogram_metric_count};
 
@@ -133,11 +141,11 @@ mod tests {
 
         ts1.mark_processed(&file1).await;
 
-        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let cache = ProcessedTombstonesCache::new(
             catalog.catalog(),
             BackoffConfig::default(),
-            Arc::clone(&time_provider) as _,
+            catalog.time_provider(),
+            &catalog.metric_registry(),
             test_ram_pool(),
         );
 
@@ -152,11 +160,13 @@ mod tests {
 
         // values are cached for a while
         assert!(TTL_NOT_PROCESSED > Duration::from_millis(1));
-        time_provider.inc(TTL_NOT_PROCESSED - Duration::from_millis(1));
+        catalog
+            .mock_time_provider()
+            .inc(TTL_NOT_PROCESSED - Duration::from_millis(1));
         assert!(!cache.exists(file2.parquet_file.id, ts2.tombstone.id).await);
         assert_histogram_metric_count(&catalog.metric_registry, "processed_tombstone_exist", 4);
 
-        time_provider.inc(Duration::from_millis(1));
+        catalog.mock_time_provider().inc(Duration::from_millis(1));
         assert!(cache.exists(file2.parquet_file.id, ts2.tombstone.id).await);
         assert_histogram_metric_count(&catalog.metric_registry, "processed_tombstone_exist", 5);
 
@@ -170,7 +180,7 @@ mod tests {
         assert!(!cache.exists(file2.parquet_file.id, ts1.tombstone.id).await);
         assert!(cache.exists(file2.parquet_file.id, ts2.tombstone.id).await);
         ts1.mark_processed(&file2).await;
-        time_provider.inc(TTL_NOT_PROCESSED);
+        catalog.mock_time_provider().inc(TTL_NOT_PROCESSED);
         assert!(cache.exists(file1.parquet_file.id, ts1.tombstone.id).await);
         assert!(!cache.exists(file1.parquet_file.id, ts2.tombstone.id).await);
         assert!(cache.exists(file2.parquet_file.id, ts1.tombstone.id).await);

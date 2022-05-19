@@ -8,7 +8,7 @@ use cache_system::{
         ttl::{OptionalValueTtlProvider, TtlBackend},
     },
     driver::Cache,
-    loader::FunctionLoader,
+    loader::{metrics::MetricsLoader, FunctionLoader},
 };
 use data_types::{NamespaceId, Table, TableId};
 use iox_catalog::interface::Catalog;
@@ -19,6 +19,8 @@ use super::ram::RamSize;
 
 /// Duration to keep non-existing tables.
 pub const TTL_NON_EXISTING: Duration = Duration::from_secs(10);
+
+const CACHE_ID: &str = "table";
 
 type CacheT = Cache<TableId, Option<Arc<CachedTable>>>;
 
@@ -34,9 +36,10 @@ impl TableCache {
         catalog: Arc<dyn Catalog>,
         backoff_config: BackoffConfig,
         time_provider: Arc<dyn TimeProvider>,
+        metric_registry: &metric::Registry,
         ram_pool: Arc<ResourcePool<RamSize>>,
     ) -> Self {
-        let loader = Arc::new(FunctionLoader::new(move |table_id| {
+        let loader = Box::new(FunctionLoader::new(move |table_id| {
             let catalog = Arc::clone(&catalog);
             let backoff_config = backoff_config.clone();
 
@@ -56,6 +59,13 @@ impl TableCache {
                 Some(Arc::new(CachedTable::from(table)))
             }
         }));
+        let loader = Arc::new(MetricsLoader::new(
+            loader,
+            CACHE_ID,
+            Arc::clone(&time_provider),
+            metric_registry,
+        ));
+
         let backend = Box::new(TtlBackend::new(
             Box::new(HashMap::new()),
             Arc::new(OptionalValueTtlProvider::new(Some(TTL_NON_EXISTING), None)),
@@ -66,7 +76,7 @@ impl TableCache {
         let backend = Box::new(LruBackend::new(
             backend,
             Arc::clone(&ram_pool),
-            "table",
+            CACHE_ID,
             Arc::new(FunctionEstimator::new(|k, v: &Option<Arc<CachedTable>>| {
                 RamSize(
                     size_of_val(k)
@@ -138,6 +148,7 @@ mod tests {
             catalog.catalog(),
             BackoffConfig::default(),
             catalog.time_provider(),
+            &catalog.metric_registry(),
             test_ram_pool(),
         );
 
@@ -169,6 +180,7 @@ mod tests {
             catalog.catalog(),
             BackoffConfig::default(),
             catalog.time_provider(),
+            &catalog.metric_registry(),
             test_ram_pool(),
         );
 
@@ -202,6 +214,7 @@ mod tests {
             catalog.catalog(),
             BackoffConfig::default(),
             catalog.time_provider(),
+            &catalog.metric_registry(),
             test_ram_pool(),
         );
 
@@ -233,6 +246,7 @@ mod tests {
             catalog.catalog(),
             BackoffConfig::default(),
             catalog.time_provider(),
+            &catalog.metric_registry(),
             test_ram_pool(),
         );
 

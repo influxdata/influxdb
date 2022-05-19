@@ -8,7 +8,7 @@ use cache_system::{
         ttl::{OptionalValueTtlProvider, TtlBackend},
     },
     driver::Cache,
-    loader::FunctionLoader,
+    loader::{metrics::MetricsLoader, FunctionLoader},
 };
 use data_types::NamespaceSchema;
 use iox_catalog::interface::{get_schema_by_name, Catalog};
@@ -22,6 +22,8 @@ pub const TTL_EXISTING: Duration = Duration::from_secs(10);
 
 /// Duration to keep non-existing namespaces.
 pub const TTL_NON_EXISTING: Duration = Duration::from_secs(60);
+
+const CACHE_ID: &str = "namespace";
 
 type CacheT = Cache<Arc<str>, Option<Arc<CachedNamespace>>>;
 
@@ -37,9 +39,10 @@ impl NamespaceCache {
         catalog: Arc<dyn Catalog>,
         backoff_config: BackoffConfig,
         time_provider: Arc<dyn TimeProvider>,
+        metric_registry: &metric::Registry,
         ram_pool: Arc<ResourcePool<RamSize>>,
     ) -> Self {
-        let loader = Arc::new(FunctionLoader::new(move |namespace_name: Arc<str>| {
+        let loader = Box::new(FunctionLoader::new(move |namespace_name: Arc<str>| {
             let catalog = Arc::clone(&catalog);
             let backoff_config = backoff_config.clone();
 
@@ -63,6 +66,13 @@ impl NamespaceCache {
                 }))
             }
         }));
+        let loader = Arc::new(MetricsLoader::new(
+            loader,
+            CACHE_ID,
+            Arc::clone(&time_provider),
+            metric_registry,
+        ));
+
         let backend = Box::new(TtlBackend::new(
             Box::new(HashMap::new()),
             Arc::new(OptionalValueTtlProvider::new(
@@ -76,7 +86,7 @@ impl NamespaceCache {
         let backend = Box::new(LruBackend::new(
             backend as _,
             Arc::clone(&ram_pool),
-            "namespace",
+            CACHE_ID,
             Arc::new(FunctionEstimator::new(
                 |k: &Arc<str>, v: &Option<Arc<CachedNamespace>>| {
                     RamSize(
@@ -145,6 +155,7 @@ mod tests {
             catalog.catalog(),
             BackoffConfig::default(),
             catalog.time_provider(),
+            &catalog.metric_registry(),
             test_ram_pool(),
         );
 
@@ -253,6 +264,7 @@ mod tests {
             catalog.catalog(),
             BackoffConfig::default(),
             catalog.time_provider(),
+            &catalog.metric_registry(),
             test_ram_pool(),
         );
 

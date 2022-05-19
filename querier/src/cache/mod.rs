@@ -54,30 +54,35 @@ impl CatalogCache {
             "ram",
             RamSize(ram_pool_bytes),
             Arc::clone(&time_provider),
-            metric_registry,
+            Arc::clone(&metric_registry),
         ));
 
         let namespace_cache = NamespaceCache::new(
             Arc::clone(&catalog),
             backoff_config.clone(),
             Arc::clone(&time_provider),
+            &metric_registry,
             Arc::clone(&ram_pool),
         );
         let table_cache = TableCache::new(
             Arc::clone(&catalog),
             backoff_config.clone(),
             Arc::clone(&time_provider),
+            &metric_registry,
             Arc::clone(&ram_pool),
         );
         let partition_cache = PartitionCache::new(
             Arc::clone(&catalog),
             backoff_config.clone(),
+            Arc::clone(&time_provider),
+            &metric_registry,
             Arc::clone(&ram_pool),
         );
         let processed_tombstones = ProcessedTombstonesCache::new(
             Arc::clone(&catalog),
             backoff_config,
             Arc::clone(&time_provider),
+            &metric_registry,
             Arc::clone(&ram_pool),
         );
 

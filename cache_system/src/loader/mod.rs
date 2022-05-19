@@ -3,6 +3,8 @@ use async_trait::async_trait;
 use futures::{future::BoxFuture, FutureExt};
 use std::future::Future;
 
+pub mod metrics;
+
 /// Loader for missing [`Cache`](crate::driver::Cache) entries.
 #[async_trait]
 pub trait Loader: std::fmt::Debug + Send + Sync + 'static {

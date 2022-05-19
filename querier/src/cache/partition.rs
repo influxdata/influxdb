@@ -7,14 +7,17 @@ use cache_system::{
         resource_consumption::FunctionEstimator,
     },
     driver::Cache,
-    loader::FunctionLoader,
+    loader::{metrics::MetricsLoader, FunctionLoader},
 };
 use data_types::{PartitionId, SequencerId};
 use iox_catalog::interface::Catalog;
+use iox_time::TimeProvider;
 use schema::sort::SortKey;
 use std::{collections::HashMap, mem::size_of_val, sync::Arc};
 
 use super::ram::RamSize;
+
+const CACHE_ID: &str = "partition";
 
 /// Cache for partition-related attributes.
 #[derive(Debug)]
@@ -27,9 +30,11 @@ impl PartitionCache {
     pub fn new(
         catalog: Arc<dyn Catalog>,
         backoff_config: BackoffConfig,
+        time_provider: Arc<dyn TimeProvider>,
+        metric_registry: &metric::Registry,
         ram_pool: Arc<ResourcePool<RamSize>>,
     ) -> Self {
-        let loader = Arc::new(FunctionLoader::new(move |partition_id| {
+        let loader = Box::new(FunctionLoader::new(move |partition_id| {
             let catalog = Arc::clone(&catalog);
             let backoff_config = backoff_config.clone();
 
@@ -53,11 +58,18 @@ impl PartitionCache {
                 }
             }
         }));
+        let loader = Arc::new(MetricsLoader::new(
+            loader,
+            CACHE_ID,
+            Arc::clone(&time_provider),
+            metric_registry,
+        ));
+
         let backend = Box::new(HashMap::new());
         let backend = Box::new(LruBackend::new(
             backend,
             ram_pool,
-            "partition",
+            CACHE_ID,
             Arc::new(FunctionEstimator::new(|k, v: &CachedPartition| {
                 RamSize(size_of_val(k) + size_of_val(v) + v.size())
             })),
@@ -122,8 +134,13 @@ mod tests {
             .partition
             .clone();
 
-        let cache =
-            PartitionCache::new(catalog.catalog(), BackoffConfig::default(), test_ram_pool());
+        let cache = PartitionCache::new(
+            catalog.catalog(),
+            BackoffConfig::default(),
+            catalog.time_provider(),
+            &catalog.metric_registry(),
+            test_ram_pool(),
+        );
 
         let id1 = cache.sequencer_id(p1.id).await;
         assert_eq!(id1, s1.sequencer.id);
@@ -159,8 +176,13 @@ mod tests {
             .partition
             .clone();
 
-        let cache =
-            PartitionCache::new(catalog.catalog(), BackoffConfig::default(), test_ram_pool());
+        let cache = PartitionCache::new(
+            catalog.catalog(),
+            BackoffConfig::default(),
+            catalog.time_provider(),
+            &catalog.metric_registry(),
+            test_ram_pool(),
+        );
 
         let sort_key1 = cache.sort_key(p1.id).await;
         assert_eq!(sort_key1, p1.sort_key());
@@ -202,8 +224,13 @@ mod tests {
             .partition
             .clone();
 
-        let cache =
-            PartitionCache::new(catalog.catalog(), BackoffConfig::default(), test_ram_pool());
+        let cache = PartitionCache::new(
+            catalog.catalog(),
+            BackoffConfig::default(),
+            catalog.time_provider(),
+            &catalog.metric_registry(),
+            test_ram_pool(),
+        );
 
         cache.sequencer_id(p2.id).await;
         cache.sort_key(p3.id).await;
