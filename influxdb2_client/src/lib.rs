@@ -1,10 +1,11 @@
 #![deny(rustdoc::broken_intra_doc_links, rustdoc::bare_urls, rust_2018_idioms)]
+// `clippy::use_self` is deliberately excluded from the lints this crate uses.
+// See <https://github.com/rust-lang/rust-clippy/issues/6902>.
 #![warn(
     missing_copy_implementations,
     missing_debug_implementations,
     missing_docs,
     clippy::explicit_iter_loop,
-    clippy::use_self,
     clippy::clone_on_ref_ptr,
     clippy::future_not_send
 )]
