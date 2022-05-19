@@ -16,6 +16,7 @@ pub async fn querier_table(catalog: &Arc<TestCatalog>, table: &Arc<TestTable>) -
     let catalog_cache = Arc::new(CatalogCache::new(
         catalog.catalog(),
         catalog.time_provider(),
+        catalog.metric_registry(),
         usize::MAX,
     ));
     let chunk_adapter = Arc::new(ParquetChunkAdapter::new(

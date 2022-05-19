@@ -9,6 +9,16 @@ impl Resource for RamSize {
     fn zero() -> Self {
         Self(0)
     }
+
+    fn unit() -> &'static str {
+        "bytes"
+    }
+}
+
+impl From<RamSize> for u64 {
+    fn from(s: RamSize) -> Self {
+        s.0 as Self
+    }
 }
 
 impl Add for RamSize {
@@ -37,8 +47,10 @@ pub mod test_util {
 
     pub fn test_ram_pool() -> Arc<ResourcePool<RamSize>> {
         Arc::new(ResourcePool::new(
+            "pool",
             RamSize(usize::MAX),
             Arc::new(MockProvider::new(Time::from_timestamp_millis(0))),
+            Arc::new(metric::Registry::new()),
         ))
     }
 }

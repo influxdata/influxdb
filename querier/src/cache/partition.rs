@@ -57,7 +57,7 @@ impl PartitionCache {
         let backend = Box::new(LruBackend::new(
             backend,
             ram_pool,
-            String::from("partition"),
+            "partition",
             Arc::new(FunctionEstimator::new(|k, v: &CachedPartition| {
                 RamSize(size_of_val(k) + size_of_val(v) + v.size())
             })),

@@ -66,7 +66,7 @@ impl TableCache {
         let backend = Box::new(LruBackend::new(
             backend,
             Arc::clone(&ram_pool),
-            String::from("table"),
+            "table",
             Arc::new(FunctionEstimator::new(|k, v: &Option<Arc<CachedTable>>| {
                 RamSize(
                     size_of_val(k)

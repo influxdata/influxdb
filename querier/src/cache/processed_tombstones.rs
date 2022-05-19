@@ -67,7 +67,7 @@ impl ProcessedTombstonesCache {
         let backend = Box::new(LruBackend::new(
             backend,
             ram_pool,
-            String::from("processed_tombstones"),
+            "processed_tombstones",
             Arc::new(FunctionEstimator::new(|k, v| {
                 RamSize(size_of_val(k) + size_of_val(v))
             })),

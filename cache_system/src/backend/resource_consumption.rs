@@ -8,10 +8,15 @@ use std::{
 ///
 /// Can be used to represent in-RAM memory as well as on-disc memory.
 pub trait Resource:
-    Add<Output = Self> + Copy + Debug + PartialOrd + Send + Sub<Output = Self> + 'static
+    Add<Output = Self> + Copy + Debug + Into<u64> + PartialOrd + Send + Sub<Output = Self> + 'static
 {
     /// Create resource consumption of zero.
     fn zero() -> Self;
+
+    /// Unit name.
+    ///
+    /// This must be a single lowercase word.
+    fn unit() -> &'static str;
 }
 
 /// An estimator of [`Resource`] consumption for a given key-value pair.
@@ -99,6 +104,16 @@ mod tests {
     impl Resource for TestSize {
         fn zero() -> Self {
             Self(0)
+        }
+
+        fn unit() -> &'static str {
+            "bytes"
+        }
+    }
+
+    impl From<TestSize> for u64 {
+        fn from(s: TestSize) -> Self {
+            s.0 as Self
         }
     }
 

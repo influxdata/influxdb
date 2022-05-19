@@ -812,6 +812,7 @@ impl MockIngester {
         let catalog_cache = Arc::new(QuerierCatalogCache::new(
             self.catalog.catalog(),
             self.catalog.time_provider(),
+            self.catalog.metric_registry(),
             usize::MAX,
         ));
         let ingester_connection = IngesterConnectionImpl::new_with_flight_client(

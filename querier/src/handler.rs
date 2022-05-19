@@ -170,6 +170,7 @@ mod tests {
             let catalog_cache = Arc::new(CatalogCache::new(
                 Arc::clone(&catalog),
                 time_provider,
+                Arc::clone(&metric_registry),
                 usize::MAX,
             ));
             let database = Arc::new(QuerierDatabase::new(

@@ -7,6 +7,7 @@ edition = "2021"
 async-trait = "0.1.53"
 futures = "0.3"
 iox_time = { path = "../iox_time" }
+metric = { path = "../metric" }
 observability_deps = { path = "../observability_deps" }
 parking_lot = "0.12"
 tokio = { version = "1.18", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }

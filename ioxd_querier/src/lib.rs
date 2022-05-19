@@ -153,6 +153,7 @@ pub async fn create_querier_server_type(args: QuerierServerTypeArgs<'_>) -> Arc<
     let catalog_cache = Arc::new(QuerierCatalogCache::new(
         Arc::clone(&args.catalog),
         args.time_provider,
+        Arc::clone(&args.metric_registry),
         args.ram_pool_bytes,
     ));
     let ingester_connection =

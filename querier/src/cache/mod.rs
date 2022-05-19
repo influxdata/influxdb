@@ -46,12 +46,15 @@ impl CatalogCache {
     pub fn new(
         catalog: Arc<dyn Catalog>,
         time_provider: Arc<dyn TimeProvider>,
+        metric_registry: Arc<metric::Registry>,
         ram_pool_bytes: usize,
     ) -> Self {
         let backoff_config = BackoffConfig::default();
         let ram_pool = Arc::new(ResourcePool::new(
+            "ram",
             RamSize(ram_pool_bytes),
             Arc::clone(&time_provider),
+            metric_registry,
         ));
 
         let namespace_cache = NamespaceCache::new(

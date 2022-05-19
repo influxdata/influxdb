@@ -1208,6 +1208,7 @@ mod tests {
             Arc::new(CatalogCache::new(
                 catalog.catalog(),
                 catalog.time_provider(),
+                catalog.metric_registry(),
                 usize::MAX,
             )),
             catalog.object_store(),
@@ -1417,6 +1418,7 @@ mod tests {
             Arc::new(CatalogCache::new(
                 catalog.catalog(),
                 catalog.time_provider(),
+                catalog.metric_registry(),
                 usize::MAX,
             )),
             catalog.object_store(),

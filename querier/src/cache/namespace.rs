@@ -76,7 +76,7 @@ impl NamespaceCache {
         let backend = Box::new(LruBackend::new(
             backend as _,
             Arc::clone(&ram_pool),
-            String::from("namespace"),
+            "namespace",
             Arc::new(FunctionEstimator::new(
                 |k: &Arc<str>, v: &Option<Arc<CachedNamespace>>| {
                     RamSize(
