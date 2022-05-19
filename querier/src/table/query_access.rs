@@ -41,7 +41,7 @@ impl TableProvider for QuerierTable {
     ) -> Result<Arc<dyn ExecutionPlan>, DataFusionError> {
         // build provider out of all chunks
         // TODO: push down some predicates to catalog
-        let mut builder = ProviderBuilder::new(self.name(), Arc::clone(self.schema()));
+        let mut builder = ProviderBuilder::new(self.table_name(), Arc::clone(self.schema()));
         builder = builder.add_pruner(self.chunk_pruner());
 
         let predicate = filters
