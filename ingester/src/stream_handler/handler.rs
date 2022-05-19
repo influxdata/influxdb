@@ -164,15 +164,15 @@ where
     O: DmlSink,
     T: TimeProvider,
 {
-    /// Run the stream handler, consuming items from [`Stream`] and applying
-    /// them to the [`DmlSink`].
+    /// Run the stream handler, consuming items from the stream provided by the
+    /// [`WriteBufferStreamHandler`] and applying them to the [`DmlSink`].
     ///
     /// This method blocks until gracefully shutdown by cancelling the
     /// `shutdown` [`CancellationToken`]. Once cancelled, this handler will
     /// complete the current operation it is processing before this method
     /// returns.
     ///
-    /// # Panics
+    /// # Panics
     ///
     /// This method panics if the input stream ends (yields a `None`).
     pub async fn run(mut self, shutdown: CancellationToken) {
@@ -183,8 +183,7 @@ where
         let mut reset_to_earliest_once = false;
 
         loop {
-            // Wait for a DML operation from the sequencer, or a graceful stop
-            // signal.
+            // Wait for a DML operation from the sequencer, or a graceful stop signal.
             let maybe_op = futures::select!(
                 next = stream.next().fuse() => next,
                 _ = shutdown_fut => {
@@ -493,12 +492,12 @@ mod tests {
     macro_rules! test_stream_handler {
         (
             $name:ident,
-            stream_ops = $stream_ops:expr,  // An ordered set of stream items to feed to the handler
-            sink_rets = $sink_ret:expr,     // An ordered set of values to return from the mock op sink
+            stream_ops = $stream_ops:expr,  // Ordered set of stream items to feed to the handler
+            sink_rets = $sink_ret:expr,     // Ordered set of values to return from the mock op sink
             want_ttbr = $want_ttbr:literal, // Desired TTBR value in milliseconds
             // Optional set of ingest error metric label / values to assert
             want_err_metrics = [$($metric_name:literal => $metric_count:literal),*],
-            want_sink = $($want_sink:tt)+   // A pattern to match against the calls made to the op sink
+            want_sink = $($want_sink:tt)+   // Pattern to match against calls made to the op sink
         ) => {
             paste::paste! {
                 #[tokio::test]
@@ -797,8 +796,7 @@ mod tests {
         }
     }
 
-    // An abnormal end to the steam causes a panic, rather than a silent stream
-    // reader exit.
+    // An abnormal end to the steam causes a panic, rather than a silent stream reader exit.
     #[tokio::test]
     #[should_panic(
         expected = "sequencer KafkaPartition(42) stream for topic kafka_topic_name ended without \

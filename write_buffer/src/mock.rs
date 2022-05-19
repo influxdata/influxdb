@@ -124,6 +124,7 @@ impl MockBufferSharedState {
     /// Push a new entry to the specified sequencer.
     ///
     /// # Panics
+    ///
     /// - when write is not sequenced
     /// - when no sequencer was initialized
     /// - when specified sequencer does not exist
@@ -135,6 +136,7 @@ impl MockBufferSharedState {
     /// Push a new operation to the specified sequencer
     ///
     /// # Panics
+    ///
     /// - when operation is not sequenced
     /// - when no sequencer was initialized
     /// - when specified sequencer does not exist
