@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig};
 use data_types::Namespace;
 use iox_query::exec::Executor;
-use object_store::DynObjectStore;
+use parquet_file::storage::ParquetStorage;
 use service_common::QueryDatabaseProvider;
 use std::sync::Arc;
 
@@ -59,13 +59,13 @@ impl QuerierDatabase {
     pub fn new(
         catalog_cache: Arc<CatalogCache>,
         metric_registry: Arc<metric::Registry>,
-        object_store: Arc<DynObjectStore>,
+        store: ParquetStorage,
         exec: Arc<Executor>,
         ingester_connection: Arc<dyn IngesterConnection>,
     ) -> Self {
         let chunk_adapter = Arc::new(ParquetChunkAdapter::new(
             Arc::clone(&catalog_cache),
-            Arc::clone(&object_store),
+            store,
             Arc::clone(&metric_registry),
             catalog_cache.time_provider(),
         ));
@@ -144,7 +144,7 @@ mod tests {
         let db = QuerierDatabase::new(
             catalog_cache,
             catalog.metric_registry(),
-            catalog.object_store(),
+            ParquetStorage::new(catalog.object_store()),
             catalog.exec(),
             create_ingester_connection_for_testing(),
         );

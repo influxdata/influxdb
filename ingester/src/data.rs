@@ -24,6 +24,7 @@ use mutable_batch::MutableBatch;
 use object_store::DynObjectStore;
 use observability_deps::tracing::{debug, warn};
 use parking_lot::RwLock;
+use parquet_file::storage::ParquetStorage;
 use predicate::Predicate;
 use schema::{selection::Selection, Schema};
 use snafu::{OptionExt, ResultExt, Snafu};
@@ -111,7 +112,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug)]
 pub struct IngesterData {
     /// Object store for persistence of parquet files
-    object_store: Arc<DynObjectStore>,
+    store: ParquetStorage,
 
     /// The global catalog for schema, parquet files and tombstones
     catalog: Arc<dyn Catalog>,
@@ -142,7 +143,7 @@ impl IngesterData {
         backoff_config: BackoffConfig,
     ) -> Self {
         Self {
-            object_store,
+            store: ParquetStorage::new(object_store),
             catalog,
             sequencers,
             partitioner,
@@ -302,11 +303,7 @@ impl Persister for IngesterData {
             // save the compacted data to a parquet file in object storage
             let file_size_and_md = Backoff::new(&self.backoff_config)
                 .retry_all_errors("persist to object store", || {
-                    persist(
-                        &iox_meta,
-                        record_batches.to_vec(),
-                        Arc::clone(&self.object_store),
-                    )
+                    persist(&iox_meta, record_batches.to_vec(), self.store.clone())
                 })
                 .await
                 .expect("retry forever");

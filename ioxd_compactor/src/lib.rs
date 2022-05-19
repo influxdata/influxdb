@@ -19,6 +19,7 @@ use ioxd_common::{
 };
 use metric::Registry;
 use object_store::DynObjectStore;
+use parquet_file::storage::ParquetStorage;
 use std::{
     fmt::{Debug, Display},
     sync::Arc,
@@ -160,6 +161,8 @@ pub async fn create_compactor_server_type(
     }
     txn.commit().await?;
 
+    let parquet_store = ParquetStorage::new(object_store);
+
     let compactor_config = compactor::handler::CompactorConfig::new(
         compactor_config.split_percentage,
         compactor_config.max_concurrent_compaction_size_bytes,
@@ -168,7 +171,7 @@ pub async fn create_compactor_server_type(
     let compactor_handler = Arc::new(CompactorHandlerImpl::new(
         sequencers,
         catalog,
-        object_store,
+        parquet_store,
         exec,
         time_provider,
         Arc::clone(&metric_registry),

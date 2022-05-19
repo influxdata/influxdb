@@ -1,10 +1,9 @@
 //! Persist compacted data to parquet files in object storage
 
 use arrow::record_batch::RecordBatch;
-use bytes::Bytes;
-use object_store::DynObjectStore;
 use parquet_file::{
     metadata::{IoxMetadata, IoxParquetMetaData},
+    storage::ParquetStorage,
     ParquetFilePath,
 };
 use snafu::{ResultExt, Snafu};
@@ -19,7 +18,9 @@ pub enum Error {
     },
 
     #[snafu(display("Error writing to object store: {}", source))]
-    WritingToObjectStore { source: object_store::Error },
+    WritingToObjectStore {
+        source: parquet_file::storage::Error,
+    },
 }
 
 /// A specialized `Error` for Ingester's persistence errors
@@ -31,7 +32,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 pub async fn persist(
     metadata: &IoxMetadata,
     record_batches: Vec<RecordBatch>,
-    object_store: Arc<DynObjectStore>,
+    store: ParquetStorage,
 ) -> Result<Option<(usize, IoxParquetMetaData)>> {
     if record_batches.is_empty() {
         return Ok(None);
@@ -41,7 +42,7 @@ pub async fn persist(
         .expect("record_batches.is_empty was just checked")
         .schema();
 
-    let data = parquet_file::storage::Storage::new(Arc::clone(&object_store))
+    let data = store
         .parquet_bytes(record_batches, schema, metadata)
         .await
         .context(ConvertingToBytesSnafu)?;
@@ -58,7 +59,6 @@ pub async fn persist(
     let data = Arc::try_unwrap(data).expect("dangling reference to data");
 
     let file_size = data.len();
-    let bytes = Bytes::from(data);
 
     let path = ParquetFilePath::new(
         metadata.namespace_id,
@@ -68,10 +68,8 @@ pub async fn persist(
         metadata.object_store_id,
     );
 
-    let path = path.object_store_path();
-
-    object_store
-        .put(&path, bytes)
+    store
+        .to_object_store(data, &path)
         .await
         .context(WritingToObjectStoreSnafu)?;
 
@@ -86,7 +84,7 @@ mod tests {
     use iox_catalog::interface::INITIAL_COMPACTION_LEVEL;
     use iox_query::test::{raw_data, TestChunk};
     use iox_time::Time;
-    use object_store::memory::InMemory;
+    use object_store::{memory::InMemory, DynObjectStore};
     use std::sync::Arc;
     use uuid::Uuid;
 
@@ -120,9 +118,13 @@ mod tests {
         };
         let object_store = object_store();
 
-        persist(&metadata, vec![], Arc::clone(&object_store))
-            .await
-            .unwrap();
+        persist(
+            &metadata,
+            vec![],
+            ParquetStorage::new(Arc::clone(&object_store)),
+        )
+        .await
+        .unwrap();
 
         let mut list = object_store.list(None).await.unwrap();
         assert!(list.next().await.is_none());
@@ -162,9 +164,13 @@ mod tests {
 
         let object_store = object_store();
 
-        persist(&metadata, batches, Arc::clone(&object_store))
-            .await
-            .unwrap();
+        persist(
+            &metadata,
+            batches,
+            ParquetStorage::new(Arc::clone(&object_store)),
+        )
+        .await
+        .unwrap();
 
         let list = object_store.list(None).await.unwrap();
         let obj_store_paths: Vec<_> = list.try_collect().await.unwrap();

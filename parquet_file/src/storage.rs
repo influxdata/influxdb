@@ -85,11 +85,11 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug, Clone)]
-pub struct Storage {
+pub struct ParquetStorage {
     object_store: Arc<DynObjectStore>,
 }
 
-impl Storage {
+impl ParquetStorage {
     pub fn new(object_store: Arc<DynObjectStore>) -> Self {
         Self { object_store }
     }
@@ -227,11 +227,11 @@ impl Storage {
     }
 
     pub fn read_filter(
+        &self,
         _predicate: &Predicate,
         selection: Selection<'_>,
         schema: SchemaRef,
         path: ParquetFilePath,
-        object_store: Arc<DynObjectStore>,
     ) -> Result<SendableRecordBatchStream> {
         // Indices of columns in the schema needed to read
         let projection: Vec<usize> = Self::column_indices(selection, Arc::clone(&schema));
@@ -249,17 +249,20 @@ impl Storage {
         // Run async dance here to make sure any error returned
         // `download_and_scan_parquet` is sent back to the reader and
         // not silently ignored
-        tokio::task::spawn_blocking(move || {
-            let download_result =
-                Self::download_and_scan_parquet(projection, path, object_store, tx.clone());
+        tokio::task::spawn_blocking({
+            let object_store = Arc::clone(&self.object_store);
+            move || {
+                let download_result =
+                    Self::download_and_scan_parquet(projection, path, object_store, tx.clone());
 
-            // If there was an error returned from download_and_scan_parquet send it back to the receiver.
-            if let Err(e) = download_result {
-                warn!(error=%e, "Parquet download & scan failed");
-                let e = ArrowError::ExternalError(Box::new(e));
-                if let Err(e) = tx.blocking_send(ArrowResult::Err(e)) {
-                    // if no one is listening, there is no one else to hear our screams
-                    debug!(%e, "Error sending result of download function. Receiver is closed.");
+                // If there was an error returned from download_and_scan_parquet send it back to the receiver.
+                if let Err(e) = download_result {
+                    warn!(error=%e, "Parquet download & scan failed");
+                    let e = ArrowError::ExternalError(Box::new(e));
+                    if let Err(e) = tx.blocking_send(ArrowResult::Err(e)) {
+                        // if no one is listening, there is no one else to hear our screams
+                        debug!(%e, "Error sending result of download function. Receiver is closed.");
+                    }
                 }
             }
         });
