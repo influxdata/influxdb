@@ -1866,16 +1866,16 @@ checksum = "eabb4a44450da02c90444cf74558da904edde8fb4e9035a9a6a4e15445af0bd7"
 
 [[package]]
 name = "handlebars"
-version = "4.2.2"
+version = "4.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "99d6a30320f094710245150395bc763ad23128d6a1ebbad7594dc4164b62c56b"
+checksum = "d113a9853e5accd30f43003560b5563ffbb007e3f325e8b103fa0d0029c6e6df"
 dependencies = [
  "log",
  "pest",
  "pest_derive",
- "quick-error 2.0.1",
  "serde",
  "serde_json",
+ "thiserror",
 ]
 
 [[package]]
