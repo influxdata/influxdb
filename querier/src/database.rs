@@ -9,9 +9,8 @@ use backoff::{Backoff, BackoffConfig};
 use data_types::Namespace;
 use iox_query::exec::Executor;
 use object_store::DynObjectStore;
-use parking_lot::RwLock;
 use service_common::QueryDatabaseProvider;
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 /// The number of entries to store in the circular query buffer log.
 ///
@@ -35,14 +34,6 @@ pub struct QuerierDatabase {
     /// Metric registry
     #[allow(dead_code)]
     metric_registry: Arc<metric::Registry>,
-
-    /// Namespaces.
-    #[allow(dead_code)]
-    namespaces: RwLock<HashMap<Arc<str>, Arc<QuerierNamespace>>>,
-
-    /// Object store.
-    #[allow(dead_code)]
-    object_store: Arc<DynObjectStore>,
 
     /// Executor for queries.
     exec: Arc<Executor>,
@@ -85,8 +76,6 @@ impl QuerierDatabase {
             catalog_cache,
             chunk_adapter,
             metric_registry,
-            namespaces: RwLock::new(HashMap::new()),
-            object_store,
             exec,
             ingester_connection,
             query_log,
