@@ -263,3 +263,80 @@ fn download_and_scan_parquet(
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use arrow::array::{ArrayRef, StringBuilder};
+    use data_types::{NamespaceId, PartitionId, SequenceNumber, SequencerId, TableId};
+    use iox_time::Time;
+
+    #[tokio::test]
+    async fn test_parquet_round_trip() {
+        let object_store: Arc<DynObjectStore> = Arc::new(object_store::memory::InMemory::default());
+
+        let store = ParquetStorage::new(object_store);
+
+        let meta = IoxMetadata {
+            object_store_id: Default::default(),
+            creation_timestamp: Time::from_timestamp_nanos(42),
+            namespace_id: NamespaceId::new(1),
+            namespace_name: "bananas".into(),
+            sequencer_id: SequencerId::new(2),
+            table_id: TableId::new(3),
+            table_name: "platanos".into(),
+            partition_id: PartitionId::new(4),
+            partition_key: "potato".into(),
+            time_of_first_write: Time::from_timestamp_nanos(4242),
+            time_of_last_write: Time::from_timestamp_nanos(424242),
+            min_sequence_number: SequenceNumber::new(10),
+            max_sequence_number: SequenceNumber::new(11),
+            row_count: 1000,
+            compaction_level: 1,
+            sort_key: None,
+        };
+        let batch = RecordBatch::try_from_iter([("a", to_string_array(&["value"]))]).unwrap();
+        let schema = batch.schema();
+        let stream = futures::stream::iter([Ok(batch.clone())]);
+
+        // Serialise & upload the record batches.
+        let (file_meta, _file_size) = store
+            .upload(stream, &meta)
+            .await
+            .expect("should serialise and store sucessfully");
+
+        // Extract the various bits of metadata.
+        let file_meta = file_meta.decode().expect("should decode parquet metadata");
+        let got_iox_meta = file_meta
+            .read_iox_metadata_new()
+            .expect("should read IOx metadata from parquet meta");
+
+        // Ensure the metadata in the file decodes to the same IOx metadata we
+        // provided when uploading.
+        assert_eq!(got_iox_meta, meta);
+
+        // Fetch the record batches and compare them to the input batches.
+        let path = ParquetFilePath::from(&meta);
+        let rx = store
+            .read_filter(&Predicate::default(), Selection::All, schema, path)
+            .expect("should read record batches from object store");
+
+        // Drain the retrieved record batch stream
+        let mut got = datafusion::physical_plan::common::collect(rx)
+            .await
+            .expect("failed to drain record stream");
+
+        // And compare to the original input
+        assert_eq!(got.len(), 1);
+        assert_eq!(got.pop().unwrap(), batch);
+    }
+
+    fn to_string_array(strs: &[&str]) -> ArrayRef {
+        let mut builder = StringBuilder::new(strs.len());
+        for s in strs {
+            builder.append_value(s).expect("appending string");
+        }
+        Arc::new(builder.finish())
+    }
+}
