@@ -74,6 +74,7 @@ impl<I, O> SequencedStreamHandler<I, O> {
     /// A [`SequencedStreamHandler`] starts actively consuming items from
     /// `stream` once [`SequencedStreamHandler::run()`] is called, and
     /// gracefully stops when `shutdown` is cancelled.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         write_buffer_stream_handler: I,
         current_sequence_number: SequenceNumber,
@@ -445,7 +446,7 @@ mod tests {
     use mutable_batch_lp::lines_to_batches;
     use std::sync::Arc;
     use test_helpers::timeout::FutureTimeout;
-    use tokio::sync::mpsc;
+    use tokio::sync::{mpsc, oneshot};
     use tokio_stream::wrappers::ReceiverStream;
     use write_buffer::core::WriteBufferError;
 
@@ -488,19 +489,62 @@ mod tests {
 
     #[derive(Debug)]
     struct TestWriteBufferStreamHandler {
-        rx: Option<mpsc::Receiver<Result<DmlOperation, WriteBufferError>>>,
+        stream_ops: Vec<Vec<Result<DmlOperation, WriteBufferError>>>,
+        #[allow(clippy::type_complexity)]
+        completed_tx:
+            Option<oneshot::Sender<(mpsc::Sender<Result<DmlOperation, WriteBufferError>>, usize)>>,
     }
 
     impl TestWriteBufferStreamHandler {
-        fn new(rx: mpsc::Receiver<Result<DmlOperation, WriteBufferError>>) -> Self {
-            Self { rx: Some(rx) }
+        fn new(
+            stream_ops: Vec<Vec<Result<DmlOperation, WriteBufferError>>>,
+            completed_tx: oneshot::Sender<(
+                mpsc::Sender<Result<DmlOperation, WriteBufferError>>,
+                usize,
+            )>,
+        ) -> Self {
+            Self {
+                // reverse the order so we can pop off the end
+                stream_ops: stream_ops.into_iter().rev().collect(),
+                completed_tx: Some(completed_tx),
+            }
         }
     }
 
     #[async_trait]
     impl WriteBufferStreamHandler for TestWriteBufferStreamHandler {
         async fn stream(&mut self) -> BoxStream<'static, Result<DmlOperation, WriteBufferError>> {
-            ReceiverStream::new(self.rx.take().unwrap()).boxed()
+            let stream_ops = self.stream_ops.pop().unwrap();
+
+            // Create a channel to pass input to the handler, with a
+            // buffer capacity of the number of operations to send (used to tell if all
+            // values have been received in the test thread).
+            let capacity = if stream_ops.is_empty() {
+                1 // channels can't have capacity 0, even if we're never sending anything
+            } else {
+                stream_ops.len()
+            };
+            let (tx, rx) = mpsc::channel(capacity);
+
+            // Push all inputs
+            for op in stream_ops {
+                tx.send(op)
+                    .with_timeout_panic(Duration::from_secs(5))
+                    .await
+                    .expect("early handler exit");
+            }
+
+            // If this is the last expected call to stream,
+            // Send the transmitter and the capacity back to the test thread to wait for completion.
+            if self.stream_ops.is_empty() {
+                self.completed_tx
+                    .take()
+                    .unwrap()
+                    .send((tx, capacity))
+                    .unwrap();
+            }
+
+            ReceiverStream::new(rx).boxed()
         }
 
         async fn seek(&mut self, _sequence_number: u64) -> Result<(), WriteBufferError> {
@@ -548,11 +592,11 @@ mod tests {
                             .with_apply_return($sink_ret)
                     );
 
-                    // Create a channel to pass input to the handler, with a
-                    // buffer capacity of 1 (used below).
-                    let (tx, rx) = mpsc::channel(1);
-
-                    let write_buffer_stream_handler = TestWriteBufferStreamHandler::new(rx);
+                    let (completed_tx, completed_rx) = oneshot::channel();
+                    let write_buffer_stream_handler = TestWriteBufferStreamHandler::new(
+                        $stream_ops,
+                        completed_tx
+                    );
 
                     let handler = SequencedStreamHandler::new(
                         write_buffer_stream_handler,
@@ -572,24 +616,22 @@ mod tests {
                         handler.run(handler_shutdown).await;
                     });
 
-                    // Push the input one at a time, wait for the the last
-                    // message to be consumed by the handler (channel capacity
-                    // increases to 1 once the message is read) and then request
-                    // a graceful shutdown.
-                    for op in $stream_ops {
-                        tx.send(op)
-                            .with_timeout_panic(Duration::from_secs(5))
-                            .await
-                            .expect("early handler exit");
-                    }
-                    // Wait for the handler to read the last op, restoring the
-                    // capacity to 1.
-                    let _permit = tx.reserve()
-                        .with_timeout_panic(Duration::from_secs(5))
-                        .await
-                        .expect("early handler exit");
+                    // When all operations have been read through the TestWriteBufferStreamHandler,
+                    let (tx, capacity) = completed_rx.await.unwrap();
 
-                    // Trigger graceful shutdown
+                    // Wait for the handler to read the last op,
+                    async {
+                        loop {
+                            tokio::time::sleep(Duration::from_millis(10)).await;
+                            if tx.capacity() == capacity {
+                                return;
+                            }
+                        }
+                    }.with_timeout_panic(Duration::from_secs(5))
+                        .await;
+
+
+                    // Then trigger graceful shutdown
                     shutdown.cancel();
 
                     // And wait for the handler to stop.
@@ -636,7 +678,7 @@ mod tests {
     test_stream_handler!(
         immediate_shutdown,
         skip_to_oldest_available = false,
-        stream_ops = [],
+        stream_ops = vec![vec![]],
         sink_rets = [],
         want_ttbr = 0, // No ops, no TTBR
         want_err_metrics = [],
@@ -647,8 +689,8 @@ mod tests {
     test_stream_handler!(
         write_ok,
         skip_to_oldest_available = false,
-        stream_ops = [
-            Ok(DmlOperation::Write(make_write("bananas", 42)))
+        stream_ops = vec![
+            vec![Ok(DmlOperation::Write(make_write("bananas", 42)))]
         ],
         sink_rets = [Ok(true)],
         want_ttbr = 42,
@@ -662,8 +704,8 @@ mod tests {
     test_stream_handler!(
         delete_ok,
         skip_to_oldest_available = false,
-        stream_ops = [
-            Ok(DmlOperation::Delete(make_delete("platanos", 24)))
+        stream_ops = vec![
+            vec![Ok(DmlOperation::Delete(make_delete("platanos", 24)))]
         ],
         sink_rets = [Ok(true)],
         want_ttbr = 24,
@@ -678,10 +720,10 @@ mod tests {
     test_stream_handler!(
         non_fatal_stream_io_error,
         skip_to_oldest_available = false,
-        stream_ops = [
+        stream_ops = vec![vec![
             Err(WriteBufferError::new(WriteBufferErrorKind::IO, "explosions")),
             Ok(DmlOperation::Write(make_write("bananas", 13)))
-        ],
+        ]],
         sink_rets = [Ok(true)],
         want_ttbr = 13,
         want_err_metrics = [
@@ -699,10 +741,10 @@ mod tests {
     test_stream_handler!(
         non_fatal_stream_offset_error,
         skip_to_oldest_available = false,
-        stream_ops = [
+        stream_ops = vec![vec![
             Err(WriteBufferError::new(WriteBufferErrorKind::UnknownSequenceNumber, "explosions")),
             Ok(DmlOperation::Write(make_write("bananas", 31)))
-        ],
+        ]],
         sink_rets = [Ok(true)],
         want_ttbr = 31,
         want_err_metrics = [
@@ -719,18 +761,25 @@ mod tests {
     test_stream_handler!(
         skip_to_oldest_on_unknown_sequence_number,
         skip_to_oldest_available = true,
-        stream_ops = [
-            Err(WriteBufferError::new(WriteBufferErrorKind::UnknownSequenceNumber, "explosions")),
-            Ok(DmlOperation::Write(make_write("bananas", 31)))
+        stream_ops = vec![
+            vec![
+                Err(
+                    WriteBufferError::new(
+                        WriteBufferErrorKind::UnknownSequenceNumber,
+                        "explosions"
+                    )
+                )
+            ],
+            vec![Ok(DmlOperation::Write(make_write("bananas", 31)))],
         ],
         sink_rets = [Ok(true)],
         want_ttbr = 31,
         want_err_metrics = [
-            "sequencer_unknown_sequence_number" => 1,
+            "sequencer_unknown_sequence_number" => 0,
             "sequencer_invalid_data" => 0,
             "sequencer_unknown_error" => 0,
             "sink_apply_error" => 0,
-            "skipped_sequence_number_amount" => 0
+            "skipped_sequence_number_amount" => 2
         ],
         want_sink = [DmlOperation::Write(op)] => {
             assert_eq!(op.namespace(), "bananas");
@@ -739,10 +788,10 @@ mod tests {
     test_stream_handler!(
         non_fatal_stream_invalid_data,
         skip_to_oldest_available = false,
-        stream_ops = [
+        stream_ops = vec![vec![
             Err(WriteBufferError::new(WriteBufferErrorKind::InvalidData, "explosions")),
             Ok(DmlOperation::Write(make_write("bananas", 50)))
-        ],
+        ]],
         sink_rets = [Ok(true)],
         want_ttbr = 50,
         want_err_metrics = [
@@ -759,10 +808,10 @@ mod tests {
     test_stream_handler!(
         non_fatal_stream_unknown_error,
         skip_to_oldest_available = false,
-        stream_ops = [
+        stream_ops = vec![vec![
             Err(WriteBufferError::new(WriteBufferErrorKind::Unknown, "explosions")),
             Ok(DmlOperation::Write(make_write("bananas", 60)))
-        ],
+        ]],
         sink_rets = [Ok(true)],
         want_ttbr = 60,
         want_err_metrics = [
@@ -781,10 +830,10 @@ mod tests {
     test_stream_handler!(
         no_success_no_ttbr,
         skip_to_oldest_available = false,
-        stream_ops = [Err(WriteBufferError::new(
+        stream_ops = vec![vec![Err(WriteBufferError::new(
             WriteBufferErrorKind::IO,
             "explosions"
-        )),],
+        ))]],
         sink_rets = [],
         want_ttbr = 0,
         want_err_metrics = [],
@@ -795,12 +844,12 @@ mod tests {
     test_stream_handler!(
         reports_last_ttbr,
         skip_to_oldest_available = false,
-        stream_ops = [
+        stream_ops = vec![vec![
             Ok(DmlOperation::Write(make_write("bananas", 1))),
             Ok(DmlOperation::Write(make_write("bananas", 2))),
             Ok(DmlOperation::Write(make_write("bananas", 3))),
             Ok(DmlOperation::Write(make_write("bananas", 42))),
-        ],
+        ]],
         sink_rets = [Ok(true), Ok(false), Ok(true), Ok(false),],
         want_ttbr = 42,
         want_err_metrics = [
@@ -819,10 +868,10 @@ mod tests {
     test_stream_handler!(
         non_fatal_sink_error,
         skip_to_oldest_available = false,
-        stream_ops = [
+        stream_ops = vec![vec![
             Ok(DmlOperation::Write(make_write("bad_op", 1))),
             Ok(DmlOperation::Write(make_write("good_op", 2)))
-        ],
+        ]],
         sink_rets = [
             Err(crate::data::Error::Partitioning {
                 source: String::from("Time column not present").into()
