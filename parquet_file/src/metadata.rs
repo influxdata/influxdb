@@ -279,9 +279,6 @@ pub struct IoxMetadata {
     /// sequence number of the last write
     pub max_sequence_number: SequenceNumber,
 
-    /// number of rows of data
-    pub row_count: i64,
-
     /// the compaction level of the file
     pub compaction_level: i16,
 
@@ -317,7 +314,6 @@ impl IoxMetadata {
             time_of_last_write: Some(self.time_of_last_write.date_time().into()),
             min_sequence_number: self.min_sequence_number.get(),
             max_sequence_number: self.max_sequence_number.get(),
-            row_count: self.row_count,
             sort_key,
             compaction_level: self.compaction_level as i32,
         };
@@ -377,7 +373,6 @@ impl IoxMetadata {
             time_of_last_write,
             min_sequence_number: SequenceNumber::new(proto_msg.min_sequence_number),
             max_sequence_number: SequenceNumber::new(proto_msg.max_sequence_number),
-            row_count: proto_msg.row_count,
             sort_key,
             compaction_level: proto_msg.compaction_level as i16,
         })
@@ -394,6 +389,7 @@ impl IoxMetadata {
         file_size_bytes: usize,
         metadata: &IoxParquetMetaData,
     ) -> ParquetFileParams {
+        let row_count = metadata.decode().expect("invalid metadata").row_count();
         ParquetFileParams {
             sequencer_id: self.sequencer_id,
             namespace_id: self.namespace_id,
@@ -406,8 +402,8 @@ impl IoxMetadata {
             max_time: Timestamp::new(self.time_of_last_write.timestamp_nanos()),
             file_size_bytes: file_size_bytes as i64,
             parquet_metadata: metadata.thrift_bytes().to_vec(),
-            row_count: self.row_count,
             compaction_level: self.compaction_level,
+            row_count: row_count.try_into().expect("row count overflows i64"),
             created_at: Timestamp::new(self.creation_timestamp.timestamp_nanos()),
         }
     }
@@ -878,7 +874,6 @@ mod tests {
             time_of_last_write: Time::from_timestamp(3234, 3456),
             min_sequence_number: SequenceNumber::new(5),
             max_sequence_number: SequenceNumber::new(6),
-            row_count: 3,
             compaction_level: 0,
             sort_key: Some(sort_key),
         };
@@ -906,7 +901,6 @@ mod tests {
             time_of_last_write: Time::from_timestamp_nanos(424242),
             min_sequence_number: SequenceNumber::new(10),
             max_sequence_number: SequenceNumber::new(11),
-            row_count: 1000,
             compaction_level: 1,
             sort_key: None,
         };

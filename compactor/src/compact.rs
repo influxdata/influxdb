@@ -746,12 +746,8 @@ impl Compactor {
             );
 
             let row_count: usize = output_batches.iter().map(|b| b.num_rows()).sum();
-            let row_count = row_count.try_into().context(RowCountTypeConversionSnafu)?;
 
             debug!("got {} rows from stream {}", row_count, i);
-            if row_count == 0 {
-                continue;
-            }
 
             // Compute min and max of the `time` column
             let (min_time, max_time) =
@@ -771,7 +767,6 @@ impl Compactor {
                 time_of_last_write: Time::from_timestamp_nanos(max_time),
                 min_sequence_number,
                 max_sequence_number,
-                row_count,
                 compaction_level: 1, // compacted result file always have level 1
                 sort_key: Some(sort_key.clone()),
             };
@@ -2410,7 +2405,6 @@ mod tests {
             time_of_last_write: compactor.time_provider.now(),
             min_sequence_number: SequenceNumber::new(5),
             max_sequence_number: SequenceNumber::new(6),
-            row_count: 3,
             compaction_level: 1, // level of compacted data is always 1
             sort_key: Some(SortKey::from_columns(["tag1", "time"])),
         };
@@ -2558,7 +2552,6 @@ mod tests {
             time_of_last_write: compactor.time_provider.now(),
             min_sequence_number: SequenceNumber::new(5),
             max_sequence_number: SequenceNumber::new(6),
-            row_count: 3,
             compaction_level: 1, // file level of compacted file is always 1
             sort_key: None,
         };

@@ -180,7 +180,6 @@ mod tests {
             time_of_last_write: Time::from_timestamp_nanos(424242),
             min_sequence_number: SequenceNumber::new(10),
             max_sequence_number: SequenceNumber::new(11),
-            row_count: 1000,
             compaction_level: 1,
             sort_key: None,
         };

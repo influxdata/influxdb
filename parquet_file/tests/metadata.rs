@@ -47,7 +47,6 @@ async fn test_decoded_iox_metadata() {
         min_sequence_number: SequenceNumber::new(10),
         max_sequence_number: SequenceNumber::new(11),
         compaction_level: 1,
-        row_count: 12341234,
         sort_key: None,
     };
 
@@ -116,7 +115,6 @@ async fn test_derive_parquet_file_params() {
         min_sequence_number: SequenceNumber::new(10),
         max_sequence_number: SequenceNumber::new(11),
         compaction_level: 1,
-        row_count: 12341234,
         sort_key: None,
     };
 
@@ -157,11 +155,11 @@ async fn test_derive_parquet_file_params() {
     assert_eq!(catalog_data.file_size_bytes, file_size as i64);
     assert_eq!(catalog_data.compaction_level, meta.compaction_level);
     assert_eq!(catalog_data.created_at, Timestamp::new(1234));
+    assert_eq!(catalog_data.row_count, 3);
 
     // NOTE: these DO NOT reflect the actual values! These values were not
     // derived from the actual data, but instead trusted from the input
     // IoxMetadata.
-    assert_eq!(catalog_data.row_count, meta.row_count);
     assert_eq!(catalog_data.min_time, Timestamp::new(4242));
     assert_eq!(catalog_data.max_time, Timestamp::new(424242));
 }

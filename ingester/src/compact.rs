@@ -105,9 +105,6 @@ pub async fn compact_persisting_batch(
         .filter(|b| b.num_rows() != 0)
         .collect();
 
-    let row_count: usize = output_batches.iter().map(|b| b.num_rows()).sum();
-    let row_count = row_count.try_into().context(RowCountTypeConversionSnafu)?;
-
     // Compute min and max of the `time` column
     let (min_time, max_time) =
         compute_timenanosecond_min_max(&output_batches).context(MinMaxSnafu)?;
@@ -129,7 +126,6 @@ pub async fn compact_persisting_batch(
         time_of_last_write: Time::from_timestamp_nanos(max_time),
         min_sequence_number: min_seq,
         max_sequence_number: max_seq,
-        row_count,
         compaction_level: INITIAL_COMPACTION_LEVEL,
         sort_key: Some(metadata_sort_key),
     };
@@ -337,7 +333,6 @@ mod tests {
             20000,
             seq_num_start,
             seq_num_end,
-            3,
             INITIAL_COMPACTION_LEVEL,
             Some(SortKey::from_columns(["tag1", "time"])),
         );
@@ -432,7 +427,6 @@ mod tests {
             220000,
             seq_num_start,
             seq_num_end,
-            4,
             INITIAL_COMPACTION_LEVEL,
             // Sort key should now be set
             Some(SortKey::from_columns(["tag1", "tag3", "time"])),
@@ -530,7 +524,6 @@ mod tests {
             220000,
             seq_num_start,
             seq_num_end,
-            4,
             INITIAL_COMPACTION_LEVEL,
             // The sort key in the metadata should be the same as specified (that is, not
             // recomputed)
@@ -628,7 +621,6 @@ mod tests {
             220000,
             seq_num_start,
             seq_num_end,
-            4,
             INITIAL_COMPACTION_LEVEL,
             // The sort key in the metadata should be updated to include the new column just before
             // the time column
@@ -729,7 +721,6 @@ mod tests {
             220000,
             seq_num_start,
             seq_num_end,
-            4,
             INITIAL_COMPACTION_LEVEL,
             // The sort key in the metadata should only contain the columns in this file
             Some(SortKey::from_columns(["tag3", "tag1", "time"])),

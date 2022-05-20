@@ -7,6 +7,13 @@ import "google/protobuf/timestamp.proto";
 // IOx-specific metadata that will be serialized into the file-level key-value Parquet metadata
 // under a single key.
 message IoxMetadata {
+  // Removed as the Parquet metadata itself contains the row count, and
+  // specifying it here creates a dependency that prevents streaming
+  // serialisation (needing to know the number rows before you can serialise
+  // your parquet file with this metadata structure within it)
+  reserved 14;
+  reserved "row_count";
+
   // Object store ID. Used in the parquet filename. 16 bytes in big-endian order.
   bytes object_store_id = 1;
 
@@ -45,9 +52,6 @@ message IoxMetadata {
 
   // The maximum sequence number from a sequencer in this parquet file.
   int64 max_sequence_number = 13;
-
-  // Number of rows of data in this file.
-  int64 row_count = 14;
 
   // The sort key of this chunk
   SortKey sort_key = 15;

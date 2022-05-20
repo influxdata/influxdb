@@ -77,7 +77,6 @@ mod tests {
             time_of_last_write: now(),
             min_sequence_number: SequenceNumber::new(5),
             max_sequence_number: SequenceNumber::new(6),
-            row_count: 0,
             compaction_level: INITIAL_COMPACTION_LEVEL,
             sort_key: None,
         };
@@ -111,7 +110,6 @@ mod tests {
             time_of_last_write: now(),
             min_sequence_number: SequenceNumber::new(5),
             max_sequence_number: SequenceNumber::new(6),
-            row_count: 3,
             compaction_level: INITIAL_COMPACTION_LEVEL,
             sort_key: None,
         };
