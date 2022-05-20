@@ -27,7 +27,7 @@ use datafusion::{
     scalar::ScalarValue,
 };
 
-use datafusion_util::AdapterStream;
+use datafusion_util::{AdapterStream, AutoAbortJoinHandle};
 use futures::StreamExt;
 use observability_deps::tracing::*;
 use parking_lot::Mutex;
@@ -262,17 +262,17 @@ impl StreamSplitExec {
         let split_expr = Arc::clone(&self.split_expr);
 
         // launch the work on a different task, with a task to handle its output values
-        tokio::task::spawn(async move {
+        let handle = tokio::task::spawn(async move {
             // wait for completion, and propagate errors
             // note we ignore errors on send (.ok) as that means the receiver has already shutdown.
-            let worker = tokio::task::spawn(split_the_stream(
+            let worker = AutoAbortJoinHandle::new(tokio::task::spawn(split_the_stream(
                 input_stream,
                 split_expr,
                 tx0.clone(),
                 tx1.clone(),
                 baseline_metrics0,
                 baseline_metrics1,
-            ));
+            )));
 
             let txs = [tx0, tx1];
             match worker.await {
@@ -297,10 +297,19 @@ impl StreamSplitExec {
                 }
             }
         });
+        let handle = Arc::new(AutoAbortJoinHandle::new(handle));
 
         *state = State::Running {
-            stream0: Some(AdapterStream::adapt_unbounded(self.input.schema(), rx0)),
-            stream1: Some(AdapterStream::adapt_unbounded(self.input.schema(), rx1)),
+            stream0: Some(AdapterStream::adapt_unbounded(
+                self.input.schema(),
+                rx0,
+                Some(Arc::clone(&handle)),
+            )),
+            stream1: Some(AdapterStream::adapt_unbounded(
+                self.input.schema(),
+                rx1,
+                Some(handle),
+            )),
         };
         Ok(())
     }

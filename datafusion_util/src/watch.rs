@@ -1,6 +1,8 @@
 use datafusion::arrow::{error::ArrowError, record_batch::RecordBatch};
 use observability_deps::tracing::debug;
-use tokio::{sync::mpsc::Sender, task::JoinHandle};
+use tokio::sync::mpsc::Sender;
+
+use crate::AutoAbortJoinHandle;
 
 /// Watches the output of a tokio task for an error. If the task
 /// errors, send an arror error to the channel.
@@ -10,7 +12,7 @@ use tokio::{sync::mpsc::Sender, task::JoinHandle};
 pub async fn watch_task(
     description: &str,
     tx: Sender<Result<RecordBatch, ArrowError>>,
-    task: JoinHandle<Result<(), ArrowError>>,
+    task: AutoAbortJoinHandle<Result<(), ArrowError>>,
 ) {
     let task_result = task.await;
 

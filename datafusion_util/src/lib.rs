@@ -3,6 +3,7 @@
 
 pub mod watch;
 
+use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
@@ -22,8 +23,10 @@ use datafusion::{
     physical_plan::{RecordBatchStream, SendableRecordBatchStream},
     scalar::ScalarValue,
 };
-use futures::{Stream, StreamExt};
+use futures::{Future, Stream, StreamExt};
+use pin_project::{pin_project, pinned_drop};
 use tokio::sync::mpsc::{Receiver, UnboundedReceiver};
+use tokio::task::{JoinError, JoinHandle};
 use tokio_stream::wrappers::{ReceiverStream, UnboundedReceiverStream};
 
 /// Traits to help creating DataFusion [`Expr`]s
@@ -179,6 +182,10 @@ pub struct AdapterStream<T> {
     schema: SchemaRef,
     /// channel for getting deduplicated batches
     inner: T,
+
+    /// Optional join handles of underlying tasks.
+    #[allow(dead_code)]
+    join_handle: Option<Arc<AutoAbortJoinHandle<()>>>,
 }
 
 impl AdapterStream<ReceiverStream<ArrowResult<RecordBatch>>> {
@@ -190,9 +197,14 @@ impl AdapterStream<ReceiverStream<ArrowResult<RecordBatch>>> {
     pub fn adapt(
         schema: SchemaRef,
         rx: Receiver<ArrowResult<RecordBatch>>,
+        join_handle: Option<Arc<AutoAbortJoinHandle<()>>>,
     ) -> SendableRecordBatchStream {
         let inner = ReceiverStream::new(rx);
-        Box::pin(Self { schema, inner })
+        Box::pin(Self {
+            schema,
+            inner,
+            join_handle,
+        })
     }
 }
 
@@ -205,9 +217,14 @@ impl AdapterStream<UnboundedReceiverStream<ArrowResult<RecordBatch>>> {
     pub fn adapt_unbounded(
         schema: SchemaRef,
         rx: UnboundedReceiver<ArrowResult<RecordBatch>>,
+        join_handle: Option<Arc<AutoAbortJoinHandle<()>>>,
     ) -> SendableRecordBatchStream {
         let inner = UnboundedReceiverStream::new(rx);
-        Box::pin(Self { schema, inner })
+        Box::pin(Self {
+            schema,
+            inner,
+            join_handle,
+        })
     }
 }
 
@@ -329,6 +346,33 @@ pub fn context_with_table(batch: RecordBatch) -> SessionContext {
     let ctx = SessionContext::new();
     ctx.register_table("t", Arc::new(provider)).unwrap();
     ctx
+}
+
+/// A [`JoinHandle`] that is aborted on drop.
+#[pin_project(PinnedDrop)]
+#[derive(Debug)]
+pub struct AutoAbortJoinHandle<T>(#[pin] JoinHandle<T>);
+
+impl<T> AutoAbortJoinHandle<T> {
+    pub fn new(handle: JoinHandle<T>) -> Self {
+        Self(handle)
+    }
+}
+
+#[pinned_drop]
+impl<T> PinnedDrop for AutoAbortJoinHandle<T> {
+    fn drop(self: Pin<&mut Self>) {
+        self.0.abort();
+    }
+}
+
+impl<T> Future for AutoAbortJoinHandle<T> {
+    type Output = Result<T, JoinError>;
+
+    fn poll(self: std::pin::Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = self.project();
+        this.0.poll(cx)
+    }
 }
 
 #[cfg(test)]

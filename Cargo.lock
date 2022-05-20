@@ -1323,6 +1323,7 @@ dependencies = [
  "datafusion 0.1.0",
  "futures",
  "observability_deps",
+ "pin-project",
  "tokio",
  "tokio-stream",
  "workspace-hack",
