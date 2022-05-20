@@ -48,7 +48,7 @@ humantime = "2.1.0"
 itertools = "0.10.1"
 libc = { version = "0.2" }
 num_cpus = "1.13.0"
-once_cell = { version = "1.10.0", features = ["parking_lot"] }
+once_cell = { version = "1.11.0", features = ["parking_lot"] }
 rustyline = { version = "9.0", default-features = false }
 serde_json = "1.0.81"
 snafu = "0.7"
