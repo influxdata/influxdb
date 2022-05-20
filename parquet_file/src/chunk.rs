@@ -1,3 +1,6 @@
+//! A metadata summary of a Parquet file in object storage, with the ability to
+//! download & execute a scan.
+
 use crate::{
     metadata::{DecodedIoxParquetMetaData, IoxMetadata, IoxParquetMetaData},
     storage::ParquetStorage,
@@ -11,7 +14,7 @@ use schema::{selection::Selection, Schema, TIME_COLUMN_NAME};
 use std::{collections::BTreeSet, mem, sync::Arc};
 
 #[derive(Debug)]
-#[allow(missing_copy_implementations)]
+#[allow(missing_copy_implementations, missing_docs)]
 pub struct ChunkMetrics {
     // Placeholder
 }
@@ -25,11 +28,14 @@ impl ChunkMetrics {
         Self {}
     }
 
+    /// This constructor builds nothing.
     pub fn new(_metrics: &metric::Registry) -> Self {
         Self {}
     }
 }
 
+/// A abstract representation of a Parquet file in object storage, with
+/// associated metadata.
 #[derive(Debug)]
 pub struct ParquetChunk {
     /// Meta data of the table
@@ -113,8 +119,8 @@ impl ParquetChunk {
         Arc::clone(&self.schema)
     }
 
-    // Return true if this chunk contains values within the time
-    // range, or if the range is `None`.
+    /// Return true if this chunk contains values within the time range, or if
+    /// the range is `None`.
     pub fn has_timerange(&self, timestamp_range: Option<&TimestampRange>) -> bool {
         match (self.timestamp_min_max, timestamp_range) {
             (Some(timestamp_min_max), Some(timestamp_range)) => {
@@ -127,7 +133,7 @@ impl ParquetChunk {
         }
     }
 
-    // Return the columns names that belong to the given column selection
+    /// Return the columns names that belong to the given column selection
     pub fn column_names(&self, selection: Selection<'_>) -> Option<BTreeSet<String>> {
         let fields = self.schema.inner().fields().iter();
 
@@ -191,8 +197,10 @@ fn extract_range(table_summary: &TableSummary) -> Option<TimestampMinMax> {
         None
     })
 }
-// Parquet file with decoded metadata.
+
+/// Parquet file with decoded metadata.
 #[derive(Debug)]
+#[allow(missing_docs)]
 pub struct DecodedParquetFile {
     pub parquet_file: ParquetFile,
     pub parquet_metadata: Arc<IoxParquetMetaData>,
@@ -201,6 +209,7 @@ pub struct DecodedParquetFile {
 }
 
 impl DecodedParquetFile {
+    /// initialise a [`DecodedParquetFile`] from the provided file & metadata.
     pub fn new(parquet_file_with_metadata: ParquetFileWithMetadata) -> Self {
         let (parquet_file, parquet_metadata) = parquet_file_with_metadata.split_off_metadata();
         let parquet_metadata = Arc::new(IoxParquetMetaData::from_thrift_bytes(parquet_metadata));

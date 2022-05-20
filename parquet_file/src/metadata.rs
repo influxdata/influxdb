@@ -127,6 +127,7 @@ pub const METADATA_VERSION: u32 = 10;
 pub const METADATA_KEY: &str = "IOX:metadata";
 
 #[derive(Debug, Snafu)]
+#[allow(missing_docs)]
 pub enum Error {
     #[snafu(display("Cannot read parquet metadata from bytes: {}", source))]
     ParquetMetaDataRead {
@@ -225,6 +226,8 @@ pub enum Error {
     #[snafu(display("Cannot parse UUID: {}", source))]
     UuidParse { source: uuid::Error },
 }
+
+#[allow(missing_docs)]
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// IOx-specific metadata.
@@ -385,7 +388,7 @@ impl IoxMetadata {
         uuid == self.object_store_id
     }
 
-    // create a corresponding iox catalog's ParquetFile
+    /// Create a corresponding iox catalog's ParquetFile
     pub fn to_parquet_file(
         &self,
         file_size_bytes: usize,

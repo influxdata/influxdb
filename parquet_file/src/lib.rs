@@ -1,3 +1,5 @@
+//! Parquet file generation, storage, and metadata implementations.
+
 #![deny(rustdoc::broken_intra_doc_links, rustdoc::bare_urls, rust_2018_idioms)]
 #![warn(
     missing_copy_implementations,
@@ -5,8 +7,13 @@
     clippy::explicit_iter_loop,
     clippy::future_not_send,
     clippy::use_self,
-    clippy::clone_on_ref_ptr
+    clippy::clone_on_ref_ptr,
+    unreachable_pub,
+    missing_docs,
+    clippy::todo,
+    clippy::dbg_macro
 )]
+#![allow(clippy::missing_docs_in_private_items)]
 
 pub mod chunk;
 pub mod metadata;

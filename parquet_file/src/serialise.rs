@@ -1,3 +1,5 @@
+//! Streaming [`RecordBatch`] / Parquet file encoder routines.
+
 use std::{ops::DerefMut, sync::Arc};
 
 use arrow::{error::ArrowError, record_batch::RecordBatch};
@@ -36,9 +38,11 @@ pub enum CodecError {
     #[error("failed to serialise iox metadata: {0}")]
     MetadataSerialisation(#[from] prost::EncodeError),
 
+    /// Writing the parquet file failed with the specified error.
     #[error("failed to build parquet file: {0}")]
     Writer(#[from] ParquetError),
 
+    /// Attempting to clone a handle to the provided write sink failed.
     #[error("failed to obtain writer handle clone: {0}")]
     CloneSink(std::io::Error),
 }
