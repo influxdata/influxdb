@@ -7,7 +7,6 @@ use data_types::{
     ParquetFile, ParquetFileWithMetadata, Statistics, TableSummary, TimestampMinMax, TimestampRange,
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
-use observability_deps::tracing::*;
 use predicate::Predicate;
 use schema::{selection::Selection, Schema, TIME_COLUMN_NAME};
 use snafu::{ResultExt, Snafu};
@@ -89,14 +88,14 @@ pub struct ParquetChunk {
     /// Persists the parquet file within a database's relative path
     store: ParquetStorage,
 
-    /// Path in the database's object store.
-    path: ParquetFilePath,
-
     /// Size of the data, in object store
     file_size_bytes: usize,
 
     /// Parquet metadata that can be used checkpoint the catalog state.
     parquet_metadata: Arc<IoxParquetMetaData>,
+
+    /// The [`IoxMetadata`] data from the [`DecodedParquetFile`].
+    iox_metadata: IoxMetadata,
 
     /// Number of rows
     rows: usize,
@@ -112,15 +111,6 @@ impl ParquetChunk {
         metrics: ChunkMetrics,
         store: ParquetStorage,
     ) -> Self {
-        let iox_metadata = &decoded_parquet_file.iox_metadata;
-        let path = ParquetFilePath::new(
-            iox_metadata.namespace_id,
-            iox_metadata.table_id,
-            iox_metadata.sequencer_id,
-            iox_metadata.partition_id,
-            iox_metadata.object_store_id,
-        );
-
         let decoded = decoded_parquet_file
             .parquet_metadata
             .as_ref()
@@ -138,17 +128,12 @@ impl ParquetChunk {
             schema,
             timestamp_min_max,
             store,
-            path,
             file_size_bytes,
             parquet_metadata: Arc::clone(&decoded_parquet_file.parquet_metadata),
+            iox_metadata: decoded_parquet_file.iox_metadata.clone(),
             rows,
             metrics,
         }
-    }
-
-    /// Return object store path for this chunk
-    pub fn path(&self) -> &ParquetFilePath {
-        &self.path
     }
 
     /// Returns the summary statistics for this chunk
@@ -162,7 +147,7 @@ impl ParquetChunk {
         mem::size_of::<Self>()
             + self.table_summary.size()
             + mem::size_of_val(&self.schema.as_ref())
-            + mem::size_of_val(&self.path)
+            + mem::size_of_val(&self.iox_metadata)
             + self.parquet_metadata.size()
     }
 
@@ -209,13 +194,12 @@ impl ParquetChunk {
         predicate: &Predicate,
         selection: Selection<'_>,
     ) -> Result<SendableRecordBatchStream> {
-        trace!(path=?self.path, "fetching parquet data for filtered read");
         self.store
             .read_filter(
                 predicate,
                 selection,
                 Arc::clone(&self.schema.as_arrow()),
-                self.path,
+                &self.iox_metadata,
             )
             .context(ReadParquetSnafu)
     }

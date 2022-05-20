@@ -142,8 +142,11 @@ impl ParquetStorage {
         _predicate: &Predicate,
         selection: Selection<'_>,
         schema: SchemaRef,
-        path: ParquetFilePath,
+        meta: &IoxMetadata,
     ) -> Result<SendableRecordBatchStream, ReadError> {
+        let path = ParquetFilePath::from(meta).object_store_path();
+        trace!(path=?path, "fetching parquet data for filtered read");
+
         // Indices of columns in the schema needed to read
         let projection: Vec<usize> = column_indices(selection, Arc::clone(&schema));
 
@@ -214,13 +217,12 @@ fn column_indices(selection: Selection<'_>, schema: SchemaRef) -> Vec<usize> {
 /// spilling it to disk while it is processed.
 fn download_and_scan_parquet(
     projection: Vec<usize>,
-    path: ParquetFilePath,
+    path: object_store::path::Path,
     object_store: Arc<DynObjectStore>,
     tx: tokio::sync::mpsc::Sender<ArrowResult<RecordBatch>>,
 ) -> Result<(), ReadError> {
     // Size of each batch
     let batch_size = 1024; // Todo: make a constant or policy for this
-    let path = path.object_store_path();
 
     let read_stream = futures::executor::block_on(object_store.get(&path))?;
 
@@ -317,9 +319,8 @@ mod tests {
         assert_eq!(got_iox_meta, meta);
 
         // Fetch the record batches and compare them to the input batches.
-        let path = ParquetFilePath::from(&meta);
         let rx = store
-            .read_filter(&Predicate::default(), Selection::All, schema, path)
+            .read_filter(&Predicate::default(), Selection::All, schema, &meta)
             .expect("should read record batches from object store");
 
         // Drain the retrieved record batch stream
