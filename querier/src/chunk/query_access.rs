@@ -13,7 +13,7 @@ use std::sync::Arc;
 pub enum Error {
     #[snafu(display("Parquet File Error in chunk {}: {}", chunk_id, source))]
     ParquetFileChunkError {
-        source: parquet_file::chunk::Error,
+        source: parquet_file::storage::ReadError,
         chunk_id: ChunkId,
     },
 }

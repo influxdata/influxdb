@@ -1,7 +1,6 @@
 use crate::{
     metadata::{DecodedIoxParquetMetaData, IoxMetadata, IoxParquetMetaData},
     storage::ParquetStorage,
-    ParquetFilePath,
 };
 use data_types::{
     ParquetFile, ParquetFileWithMetadata, Statistics, TableSummary, TimestampMinMax, TimestampRange,
@@ -9,49 +8,7 @@ use data_types::{
 use datafusion::physical_plan::SendableRecordBatchStream;
 use predicate::Predicate;
 use schema::{selection::Selection, Schema, TIME_COLUMN_NAME};
-use snafu::{ResultExt, Snafu};
 use std::{collections::BTreeSet, mem, sync::Arc};
-
-#[derive(Debug, Snafu)]
-pub enum Error {
-    #[snafu(display("Table '{}' not found in chunk", table_name))]
-    NamedTableNotFoundInChunk { table_name: String },
-
-    #[snafu(display("Failed to read parquet: {}", source))]
-    ReadParquet { source: crate::storage::ReadError },
-
-    #[snafu(display("Failed to select columns: {}", source))]
-    SelectColumns { source: schema::Error },
-
-    #[snafu(
-        display("Cannot decode parquet metadata from {:?}: {}", path, source),
-        visibility(pub)
-    )]
-    MetadataDecodeFailed {
-        source: crate::metadata::Error,
-        path: ParquetFilePath,
-    },
-
-    #[snafu(
-        display("Cannot read schema from {:?}: {}", path, source),
-        visibility(pub)
-    )]
-    SchemaReadFailed {
-        source: crate::metadata::Error,
-        path: ParquetFilePath,
-    },
-
-    #[snafu(
-        display("Cannot read statistics from {:?}: {}", path, source),
-        visibility(pub)
-    )]
-    StatisticsReadFailed {
-        source: crate::metadata::Error,
-        path: ParquetFilePath,
-    },
-}
-
-pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug)]
 #[allow(missing_copy_implementations)]
@@ -193,15 +150,13 @@ impl ParquetChunk {
         &self,
         predicate: &Predicate,
         selection: Selection<'_>,
-    ) -> Result<SendableRecordBatchStream> {
-        self.store
-            .read_filter(
-                predicate,
-                selection,
-                Arc::clone(&self.schema.as_arrow()),
-                &self.iox_metadata,
-            )
-            .context(ReadParquetSnafu)
+    ) -> Result<SendableRecordBatchStream, crate::storage::ReadError> {
+        self.store.read_filter(
+            predicate,
+            selection,
+            Arc::clone(&self.schema.as_arrow()),
+            &self.iox_metadata,
+        )
     }
 
     /// The total number of rows in all row groups in this chunk.

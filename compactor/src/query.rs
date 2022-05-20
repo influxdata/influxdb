@@ -20,14 +20,16 @@ use std::sync::Arc;
 #[allow(missing_copy_implementations, missing_docs)]
 pub enum Error {
     #[snafu(display("Failed to read parquet: {}", source))]
-    ReadParquet { source: parquet_file::chunk::Error },
+    ReadParquet {
+        source: parquet_file::storage::ReadError,
+    },
 
     #[snafu(display(
         "Error reading IOx Metadata from Parquet IoxParquetMetadata: {}",
         source
     ))]
     ReadParquetMeta {
-        source: parquet_file::metadata::Error,
+        source: parquet_file::storage::ReadError,
     },
 }
 
