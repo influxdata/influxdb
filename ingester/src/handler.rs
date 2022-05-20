@@ -13,7 +13,7 @@ use crate::{
 };
 use async_trait::async_trait;
 use backoff::BackoffConfig;
-use data_types::{KafkaPartition, KafkaTopic, Sequencer};
+use data_types::{KafkaPartition, KafkaTopic, SequenceNumber, Sequencer};
 use futures::{
     future::{BoxFuture, Shared},
     stream::FuturesUnordered,
@@ -218,6 +218,7 @@ impl IngestHandlerImpl {
                 async move {
                     let handler = SequencedStreamHandler::new(
                         op_stream,
+                        SequenceNumber::new(sequencer.min_unpersisted_sequence_number),
                         sink,
                         lifecycle_handle,
                         kafka_topic_name,

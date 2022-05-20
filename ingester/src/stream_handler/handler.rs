@@ -1,6 +1,6 @@
 use super::DmlSink;
 use crate::lifecycle::{LifecycleHandle, LifecycleHandleImpl};
-use data_types::KafkaPartition;
+use data_types::{KafkaPartition, SequenceNumber};
 use dml::DmlOperation;
 use futures::{pin_mut, FutureExt, StreamExt};
 use iox_time::{SystemProvider, TimeProvider};
@@ -33,6 +33,9 @@ const INGEST_POLL_INTERVAL: Duration = Duration::from_millis(100);
 pub struct SequencedStreamHandler<I, O, T = SystemProvider> {
     /// Creator/manager of the stream of DML ops
     write_buffer_stream_handler: I,
+
+    current_sequence_number: SequenceNumber,
+
     /// An output sink that processes DML operations and applies them to
     /// in-memory state.
     sink: O,
@@ -46,13 +49,16 @@ pub struct SequencedStreamHandler<I, O, T = SystemProvider> {
     // Metrics
     time_provider: T,
     time_to_be_readable_ms: U64Gauge,
+
     /// Duration of time ingest is paused at the request of the LifecycleManager
     pause_duration_ms: U64Counter,
+
     /// Errors during op stream reading
     seq_unknown_sequence_number_count: U64Counter,
     seq_invalid_data_count: U64Counter,
     seq_unknown_error_count: U64Counter,
     sink_apply_error_count: U64Counter,
+    skipped_sequence_number_amount: U64Counter,
 
     /// Log context fields - otherwise unused.
     kafka_topic_name: String,
@@ -70,6 +76,7 @@ impl<I, O> SequencedStreamHandler<I, O> {
     /// gracefully stops when `shutdown` is cancelled.
     pub fn new(
         write_buffer_stream_handler: I,
+        current_sequence_number: SequenceNumber,
         sink: O,
         lifecycle_handle: LifecycleHandleImpl,
         kafka_topic_name: String,
@@ -119,9 +126,16 @@ impl<I, O> SequencedStreamHandler<I, O> {
             Some("sink_apply_error"),
             true,
         ));
+        let skipped_sequence_number_amount = ingest_errors.recorder(metric_attrs(
+            kafka_partition,
+            &kafka_topic_name,
+            Some("skipped_sequence_number_amount"),
+            true,
+        ));
 
         Self {
             write_buffer_stream_handler,
+            current_sequence_number,
             sink,
             lifecycle_handle,
             time_provider: SystemProvider::default(),
@@ -131,6 +145,7 @@ impl<I, O> SequencedStreamHandler<I, O> {
             seq_invalid_data_count,
             seq_unknown_error_count,
             sink_apply_error_count,
+            skipped_sequence_number_amount,
             kafka_topic_name,
             kafka_partition,
             skip_to_oldest_available,
@@ -142,6 +157,7 @@ impl<I, O> SequencedStreamHandler<I, O> {
     pub(crate) fn with_time_provider<T>(self, provider: T) -> SequencedStreamHandler<I, O, T> {
         SequencedStreamHandler {
             write_buffer_stream_handler: self.write_buffer_stream_handler,
+            current_sequence_number: self.current_sequence_number,
             sink: self.sink,
             lifecycle_handle: self.lifecycle_handle,
             time_provider: provider,
@@ -151,6 +167,7 @@ impl<I, O> SequencedStreamHandler<I, O> {
             seq_invalid_data_count: self.seq_invalid_data_count,
             seq_unknown_error_count: self.seq_unknown_error_count,
             sink_apply_error_count: self.sink_apply_error_count,
+            skipped_sequence_number_amount: self.skipped_sequence_number_amount,
             kafka_topic_name: self.kafka_topic_name,
             kafka_partition: self.kafka_partition,
             skip_to_oldest_available: self.skip_to_oldest_available,
@@ -180,7 +197,7 @@ where
         pin_mut!(shutdown_fut);
 
         let mut stream = self.write_buffer_stream_handler.stream().await;
-        let mut reset_to_earliest_once = false;
+        let mut sequence_number_before_reset: Option<SequenceNumber> = None;
 
         loop {
             // Wait for a DML operation from the sequencer, or a graceful stop signal.
@@ -204,15 +221,32 @@ where
             // DmlSink, return None rather than continuing the loop to ensure
             // ingest pauses are respected.
             let maybe_op = match maybe_op {
-                Some(Ok(op)) => Some(op),
+                Some(Ok(op)) => {
+                    if let Some(sequence_number) = op.meta().sequence().map(|s| s.sequence_number) {
+                        let sequence_number = SequenceNumber::new(sequence_number as i64);
+                        if let Some(before_reset) = sequence_number_before_reset {
+                            // We've requested the stream to be reset and we've skipped this many
+                            // sequence numbers. Store in a metric once.
+                            if before_reset != sequence_number {
+                                let difference = sequence_number.get() - before_reset.get();
+                                self.skipped_sequence_number_amount.inc(difference as u64);
+                            }
+                            sequence_number_before_reset = None;
+                        }
+                        self.current_sequence_number = sequence_number;
+                    }
+
+                    Some(op)
+                }
                 Some(Err(e)) if e.kind() == WriteBufferErrorKind::UnknownSequenceNumber => {
                     // If we get an unknown sequence number, and we're fine potentially having
                     // missed writes that were too old to be retained, try resetting the stream
                     // once and getting the next operation again.
-                    if self.skip_to_oldest_available && !reset_to_earliest_once {
+                    // Keep the current sequence number to compare with the sequence number
+                    if self.skip_to_oldest_available && sequence_number_before_reset.is_none() {
+                        sequence_number_before_reset = Some(self.current_sequence_number);
                         self.write_buffer_stream_handler.reset_to_earliest();
                         stream = self.write_buffer_stream_handler.stream().await;
-                        reset_to_earliest_once = true;
                         continue;
                     } else {
                         error!(
@@ -486,6 +520,8 @@ mod tests {
     macro_rules! test_stream_handler {
         (
             $name:ident,
+            // Whether to skip to the oldest available sequence number if UnknownSequenceNumber
+            skip_to_oldest_available = $skip_to_oldest_available:expr,
             stream_ops = $stream_ops:expr,  // Ordered set of stream items to feed to the handler
             sink_rets = $sink_ret:expr,     // Ordered set of values to return from the mock op sink
             want_ttbr = $want_ttbr:literal, // Desired TTBR value in milliseconds
@@ -520,12 +556,13 @@ mod tests {
 
                     let handler = SequencedStreamHandler::new(
                         write_buffer_stream_handler,
+                        SequenceNumber::new(0),
                         Arc::clone(&sink),
                         lifecycle.handle(),
                         TEST_KAFKA_TOPIC.to_string(),
                         *TEST_KAFKA_PARTITION,
                         &*metrics,
-                        false,
+                        $skip_to_oldest_available,
                     ).with_time_provider(iox_time::MockProvider::new(*TEST_TIME));
 
                     // Run the handler in the background and push inputs to it
@@ -598,6 +635,7 @@ mod tests {
 
     test_stream_handler!(
         immediate_shutdown,
+        skip_to_oldest_available = false,
         stream_ops = [],
         sink_rets = [],
         want_ttbr = 0, // No ops, no TTBR
@@ -608,6 +646,7 @@ mod tests {
     // Single write op applies OK, then shutdown.
     test_stream_handler!(
         write_ok,
+        skip_to_oldest_available = false,
         stream_ops = [
             Ok(DmlOperation::Write(make_write("bananas", 42)))
         ],
@@ -622,6 +661,7 @@ mod tests {
     // Single delete op applies OK, then shutdown.
     test_stream_handler!(
         delete_ok,
+        skip_to_oldest_available = false,
         stream_ops = [
             Ok(DmlOperation::Delete(make_delete("platanos", 24)))
         ],
@@ -637,6 +677,7 @@ mod tests {
     // affect the next op in the stream.
     test_stream_handler!(
         non_fatal_stream_io_error,
+        skip_to_oldest_available = false,
         stream_ops = [
             Err(WriteBufferError::new(WriteBufferErrorKind::IO, "explosions")),
             Ok(DmlOperation::Write(make_write("bananas", 13)))
@@ -648,7 +689,8 @@ mod tests {
             "sequencer_unknown_sequence_number" => 0,
             "sequencer_invalid_data" => 0,
             "sequencer_unknown_error" => 0,
-            "sink_apply_error" => 0
+            "sink_apply_error" => 0,
+            "skipped_sequence_number_amount" => 0
         ],
         want_sink = [DmlOperation::Write(op)] => {
             assert_eq!(op.namespace(), "bananas");
@@ -656,6 +698,7 @@ mod tests {
     );
     test_stream_handler!(
         non_fatal_stream_offset_error,
+        skip_to_oldest_available = false,
         stream_ops = [
             Err(WriteBufferError::new(WriteBufferErrorKind::UnknownSequenceNumber, "explosions")),
             Ok(DmlOperation::Write(make_write("bananas", 31)))
@@ -666,7 +709,28 @@ mod tests {
             "sequencer_unknown_sequence_number" => 1,
             "sequencer_invalid_data" => 0,
             "sequencer_unknown_error" => 0,
-            "sink_apply_error" => 0
+            "sink_apply_error" => 0,
+            "skipped_sequence_number_amount" => 0
+        ],
+        want_sink = [DmlOperation::Write(op)] => {
+            assert_eq!(op.namespace(), "bananas");
+        }
+    );
+    test_stream_handler!(
+        skip_to_oldest_on_unknown_sequence_number,
+        skip_to_oldest_available = true,
+        stream_ops = [
+            Err(WriteBufferError::new(WriteBufferErrorKind::UnknownSequenceNumber, "explosions")),
+            Ok(DmlOperation::Write(make_write("bananas", 31)))
+        ],
+        sink_rets = [Ok(true)],
+        want_ttbr = 31,
+        want_err_metrics = [
+            "sequencer_unknown_sequence_number" => 1,
+            "sequencer_invalid_data" => 0,
+            "sequencer_unknown_error" => 0,
+            "sink_apply_error" => 0,
+            "skipped_sequence_number_amount" => 0
         ],
         want_sink = [DmlOperation::Write(op)] => {
             assert_eq!(op.namespace(), "bananas");
@@ -674,6 +738,7 @@ mod tests {
     );
     test_stream_handler!(
         non_fatal_stream_invalid_data,
+        skip_to_oldest_available = false,
         stream_ops = [
             Err(WriteBufferError::new(WriteBufferErrorKind::InvalidData, "explosions")),
             Ok(DmlOperation::Write(make_write("bananas", 50)))
@@ -684,7 +749,8 @@ mod tests {
             "sequencer_unknown_sequence_number" => 0,
             "sequencer_invalid_data" => 1,
             "sequencer_unknown_error" => 0,
-            "sink_apply_error" => 0
+            "sink_apply_error" => 0,
+            "skipped_sequence_number_amount" => 0
         ],
         want_sink = [DmlOperation::Write(op)] => {
             assert_eq!(op.namespace(), "bananas");
@@ -692,6 +758,7 @@ mod tests {
     );
     test_stream_handler!(
         non_fatal_stream_unknown_error,
+        skip_to_oldest_available = false,
         stream_ops = [
             Err(WriteBufferError::new(WriteBufferErrorKind::Unknown, "explosions")),
             Ok(DmlOperation::Write(make_write("bananas", 60)))
@@ -702,7 +769,8 @@ mod tests {
             "sequencer_unknown_sequence_number" => 0,
             "sequencer_invalid_data" => 0,
             "sequencer_unknown_error" => 1,
-            "sink_apply_error" => 0
+            "sink_apply_error" => 0,
+            "skipped_sequence_number_amount" => 0
         ],
         want_sink = [DmlOperation::Write(op)] => {
             assert_eq!(op.namespace(), "bananas");
@@ -712,6 +780,7 @@ mod tests {
     // Asserts the TTBR is not set unless an op is successfully sunk.
     test_stream_handler!(
         no_success_no_ttbr,
+        skip_to_oldest_available = false,
         stream_ops = [Err(WriteBufferError::new(
             WriteBufferErrorKind::IO,
             "explosions"
@@ -725,6 +794,7 @@ mod tests {
     // Asserts the TTBR is uses the last value in the stream.
     test_stream_handler!(
         reports_last_ttbr,
+        skip_to_oldest_available = false,
         stream_ops = [
             Ok(DmlOperation::Write(make_write("bananas", 1))),
             Ok(DmlOperation::Write(make_write("bananas", 2))),
@@ -738,7 +808,8 @@ mod tests {
             "sequencer_unknown_sequence_number" => 0,
             "sequencer_invalid_data" => 0,
             "sequencer_unknown_error" => 0,
-            "sink_apply_error" => 0
+            "sink_apply_error" => 0,
+            "skipped_sequence_number_amount" => 0
         ],
         want_sink = _
     );
@@ -747,6 +818,7 @@ mod tests {
     // the next op in the stream from being processed.
     test_stream_handler!(
         non_fatal_sink_error,
+        skip_to_oldest_available = false,
         stream_ops = [
             Ok(DmlOperation::Write(make_write("bad_op", 1))),
             Ok(DmlOperation::Write(make_write("good_op", 2)))
@@ -762,7 +834,8 @@ mod tests {
             "sequencer_unknown_sequence_number" => 0,
             "sequencer_invalid_data" => 0,
             "sequencer_unknown_error" => 0,
-            "sink_apply_error" => 1
+            "sink_apply_error" => 1,
+            "skipped_sequence_number_amount" => 0
         ],
         want_sink = [
             DmlOperation::Write(_),  // First call into sink is bad_op, returning an error
@@ -811,6 +884,7 @@ mod tests {
 
         let handler = SequencedStreamHandler::new(
             write_buffer_stream_handler,
+            SequenceNumber::new(0),
             sink,
             lifecycle.handle(),
             "kafka_topic_name".to_string(),
