@@ -117,14 +117,7 @@ impl ParquetStorage {
             IoxParquetMetaData::try_from(parquet_file_meta).map_err(UploadError::Metadata)?;
 
         // Derive the correct object store path from the metadata.
-        let path = ParquetFilePath::new(
-            meta.namespace_id,
-            meta.table_id,
-            meta.sequencer_id,
-            meta.partition_id,
-            meta.object_store_id,
-        )
-        .object_store_path();
+        let path = ParquetFilePath::from(meta).object_store_path();
 
         let file_size = data.len();
         self.object_store.put(&path, Bytes::from(data)).await?;

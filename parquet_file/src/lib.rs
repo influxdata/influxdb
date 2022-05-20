@@ -72,6 +72,18 @@ impl From<&Self> for ParquetFilePath {
     }
 }
 
+impl From<&crate::metadata::IoxMetadata> for ParquetFilePath {
+    fn from(m: &crate::metadata::IoxMetadata) -> Self {
+        Self {
+            namespace_id: m.namespace_id,
+            table_id: m.table_id,
+            sequencer_id: m.sequencer_id,
+            partition_id: m.partition_id,
+            object_store_id: m.object_store_id,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
