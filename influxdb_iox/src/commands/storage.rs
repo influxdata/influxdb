@@ -141,9 +141,15 @@ pub enum Format {
 /// All possible subcommands for storage
 #[derive(Debug, clap::Parser)]
 enum Command {
+    MeasurementFields(MeasurementFields),
     ReadFilter,
     ReadWindowAggregate(ReadWindowAggregate),
     TagValues(TagValues),
+}
+
+#[derive(Debug, clap::Parser)]
+struct MeasurementFields {
+    measurement: String,
 }
 
 #[derive(Debug, clap::Parser)]
@@ -175,7 +181,7 @@ fn parse_aggregate(aggs: &str) -> Result<AggregateType, ParseError> {
 
 #[derive(Debug, clap::Parser)]
 struct TagValues {
-    // The tag key value to interrogate for tag values.
+    /// The tag key value to interrogate for tag values.
     tag_key: String,
 }
 
@@ -189,6 +195,22 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
     let source = Client::read_source(&config.db_name, 0);
     let now = std::time::Instant::now();
     match config.command {
+        Command::MeasurementFields(m) => {
+            let result = client
+                .measurement_fields(request::measurement_fields(
+                    source,
+                    m.measurement,
+                    config.start,
+                    config.stop,
+                    predicate,
+                ))
+                .await
+                .context(ServerSnafu)?;
+            match config.format {
+                Format::Pretty => response::pretty_print_strings(result).context(ResponseSnafu)?,
+                Format::Quiet => {}
+            }
+        }
         Command::ReadFilter => {
             let result = client
                 .read_filter(request::read_filter(
