@@ -19,7 +19,7 @@ pub enum Error {
     NamedTableNotFoundInChunk { table_name: String },
 
     #[snafu(display("Failed to read parquet: {}", source))]
-    ReadParquet { source: crate::storage::Error },
+    ReadParquet { source: crate::storage::ReadError },
 
     #[snafu(display("Failed to select columns: {}", source))]
     SelectColumns { source: schema::Error },

@@ -15,6 +15,7 @@ use data_types::{
     Timestamp, Tombstone, TombstoneId,
 };
 use datafusion::error::DataFusionError;
+use futures::StreamExt;
 use iox_catalog::interface::{Catalog, Transaction, INITIAL_COMPACTION_LEVEL};
 use iox_query::{
     exec::{Executor, ExecutorType},
@@ -29,7 +30,6 @@ use observability_deps::tracing::{debug, info, trace, warn};
 use parquet_file::{
     metadata::{IoxMetadata, IoxParquetMetaData},
     storage::ParquetStorage,
-    ParquetFilePath,
 };
 use schema::sort::SortKey;
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
@@ -134,16 +134,6 @@ pub enum Error {
         source: iox_catalog::interface::Error,
     },
 
-    #[snafu(display("Error converting the parquet stream to bytes: {}", source))]
-    ConvertingToBytes {
-        source: parquet_file::storage::Error,
-    },
-
-    #[snafu(display("Error writing to object store: {}", source))]
-    WritingToObjectStore {
-        source: parquet_file::storage::Error,
-    },
-
     #[snafu(display("Error updating catalog {}", source))]
     Update {
         source: iox_catalog::interface::Error,
@@ -179,6 +169,11 @@ pub enum Error {
 
     #[snafu(display("Could not find partition {:?}", partition_id))]
     PartitionNotFound { partition_id: PartitionId },
+
+    #[snafu(display("Could not serialise and persist record batches {}", source))]
+    Persist {
+        source: parquet_file::storage::UploadError,
+    },
 }
 
 /// A specialized `Error` for Compactor Data errors
@@ -788,7 +783,7 @@ impl Compactor {
         Ok(compacted)
     }
 
-    /// Write the given data to the given location in the given object storage.
+    /// Write the given data to the parquet store.
     ///
     /// Returns the persisted file size (in bytes) and metadata if a file was created.
     async fn persist(
@@ -799,44 +794,14 @@ impl Compactor {
         if record_batches.is_empty() {
             return Ok(None);
         }
-        // All record batches have the same schema.
-        let schema = record_batches
-            .first()
-            .expect("record_batches.is_empty was just checked")
-            .schema();
 
-        let data = store
-            .parquet_bytes(record_batches, schema, metadata)
-            .await
-            .context(ConvertingToBytesSnafu)?;
+        // TODO(4324): Yield the buffered RecordBatch instances as a stream as a
+        // temporary measure until streaming compaction is complete.
+        let stream = futures::stream::iter(record_batches).map(Ok);
 
-        if data.is_empty() {
-            return Ok(None);
-        }
+        let (meta, file_size) = store.upload(stream, metadata).await.context(PersistSnafu)?;
 
-        // extract metadata
-        let data = Arc::new(data);
-        let md = IoxParquetMetaData::from_file_bytes(Arc::clone(&data))
-            .expect("cannot read parquet file metadata")
-            .expect("no metadata in parquet file");
-        let data = Arc::try_unwrap(data).expect("dangling reference to data");
-
-        let file_size = data.len();
-
-        let path = ParquetFilePath::new(
-            metadata.namespace_id,
-            metadata.table_id,
-            metadata.sequencer_id,
-            metadata.partition_id,
-            metadata.object_store_id,
-        );
-
-        store
-            .to_object_store(data, &path)
-            .await
-            .context(WritingToObjectStoreSnafu)?;
-
-        Ok(Some((file_size, md)))
+        Ok(Some((file_size, meta)))
     }
 
     async fn update_catalog(

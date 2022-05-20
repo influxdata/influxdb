@@ -20,3 +20,4 @@ iox_query = { path = "../iox_query" }
 schema = { path = "../schema" }
 uuid = { version = "0.8", features = ["v4"] }
 workspace-hack = { path = "../workspace-hack"}
+futures = "0.3.21"

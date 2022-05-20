@@ -1,25 +1,19 @@
 //! Persist compacted data to parquet files in object storage
 
 use arrow::record_batch::RecordBatch;
+use futures::StreamExt;
 use parquet_file::{
     metadata::{IoxMetadata, IoxParquetMetaData},
     storage::ParquetStorage,
-    ParquetFilePath,
 };
 use snafu::{ResultExt, Snafu};
-use std::sync::Arc;
 
 #[derive(Debug, Snafu)]
 #[allow(missing_docs)]
 pub enum Error {
-    #[snafu(display("Error converting the parquet stream to bytes: {}", source))]
-    ConvertingToBytes {
-        source: parquet_file::storage::Error,
-    },
-
-    #[snafu(display("Error writing to object store: {}", source))]
-    WritingToObjectStore {
-        source: parquet_file::storage::Error,
+    #[snafu(display("Could not serialise and persist record batches {}", source))]
+    Persist {
+        source: parquet_file::storage::UploadError,
     },
 }
 
@@ -37,43 +31,14 @@ pub async fn persist(
     if record_batches.is_empty() {
         return Ok(None);
     }
-    let schema = record_batches
-        .first()
-        .expect("record_batches.is_empty was just checked")
-        .schema();
 
-    let data = store
-        .parquet_bytes(record_batches, schema, metadata)
-        .await
-        .context(ConvertingToBytesSnafu)?;
+    // TODO(4324): Yield the buffered RecordBatch instances as a stream as a
+    // temporary measure until streaming compaction is complete.
+    let stream = futures::stream::iter(record_batches).map(Ok);
 
-    if data.is_empty() {
-        return Ok(None);
-    }
+    let (meta, file_size) = store.upload(stream, metadata).await.context(PersistSnafu)?;
 
-    // extract metadata
-    let data = Arc::new(data);
-    let md = IoxParquetMetaData::from_file_bytes(Arc::clone(&data))
-        .expect("cannot read parquet file metadata")
-        .expect("no metadata in parquet file");
-    let data = Arc::try_unwrap(data).expect("dangling reference to data");
-
-    let file_size = data.len();
-
-    let path = ParquetFilePath::new(
-        metadata.namespace_id,
-        metadata.table_id,
-        metadata.sequencer_id,
-        metadata.partition_id,
-        metadata.object_store_id,
-    );
-
-    store
-        .to_object_store(data, &path)
-        .await
-        .context(WritingToObjectStoreSnafu)?;
-
-    Ok(Some((file_size, md)))
+    Ok(Some((file_size, meta)))
 }
 
 #[cfg(test)]

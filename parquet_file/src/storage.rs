@@ -1,8 +1,9 @@
-//! This module is responsible for writing the given data to the specified object store and reading
-//! it back.
+//! This module is responsible for writing the given data to the specified
+//! object store and reading it back.
 
 use crate::{
-    metadata::{IoxMetadata, METADATA_KEY},
+    metadata::{IoxMetadata, IoxParquetMetaData},
+    serialise::{self, CodecError},
     ParquetFilePath,
 };
 use arrow::{
@@ -13,228 +14,145 @@ use arrow::{
 use bytes::Bytes;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion_util::{AdapterStream, AutoAbortJoinHandle};
-use futures::{stream, StreamExt};
+use futures::Stream;
 use object_store::{DynObjectStore, GetResult};
 use observability_deps::tracing::*;
-use parking_lot::Mutex;
-use parquet::arrow::{ArrowReader, ParquetFileArrowReader};
-use parquet::file::reader::SerializedFileReader;
 use parquet::{
-    self,
-    arrow::ArrowWriter,
-    basic::Compression,
-    file::{metadata::KeyValue, properties::WriterProperties, writer::TryClone},
+    arrow::{ArrowReader, ParquetFileArrowReader},
+    file::reader::SerializedFileReader,
 };
 use predicate::Predicate;
 use schema::selection::Selection;
-use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
-    io::{Cursor, Seek, SeekFrom, Write},
+    io::{Seek, Write},
     sync::Arc,
 };
+use thiserror::Error;
 
-#[derive(Debug, Snafu)]
-pub enum Error {
-    #[snafu(display("Error opening Parquet Writer: {}", source))]
-    OpeningParquetWriter {
-        source: parquet::errors::ParquetError,
-    },
+/// Errors returned during a Parquet "put" operation, covering [`RecordBatch`]
+/// pull from the provided stream, encoding, and finally uploading the bytes to
+/// the object store.
+#[derive(Debug, Error)]
+pub enum UploadError {
+    /// A codec failure during serialisation.
+    #[error(transparent)]
+    Serialise(#[from] CodecError),
 
-    #[snafu(display("Error reading stream while creating snapshot: {}", source))]
-    ReadingStream { source: ArrowError },
+    /// An error during Parquet metadata conversion when attempting to
+    /// instantiate a valid [`IoxParquetMetaData`] instance.
+    #[error("failed to construct IOx parquet metadata: {0}")]
+    Metadata(crate::metadata::Error),
 
-    #[snafu(display("Error writing Parquet to memory: {}", source))]
-    WritingParquetToMemory {
-        source: parquet::errors::ParquetError,
-    },
-
-    #[snafu(display("Error closing Parquet Writer: {}", source))]
-    ClosingParquetWriter {
-        source: parquet::errors::ParquetError,
-    },
-
-    #[snafu(display("Error writing to object store: {}", source))]
-    WritingToObjectStore { source: object_store::Error },
-
-    #[snafu(display("Error converting to vec[u8]: Nothing else should have a reference here"))]
-    WritingToMemWriter {},
-
-    #[snafu(display("Error opening temp file: {}", source))]
-    OpenTempFile { source: std::io::Error },
-
-    #[snafu(display("Error writing to temp file: {}", source))]
-    WriteTempFile { source: std::io::Error },
-
-    #[snafu(display("Error reading data from object store: {}", source))]
-    ReadingObjectStore { source: object_store::Error },
-
-    #[snafu(display("Cannot extract Parquet metadata from byte array: {}", source))]
-    ExtractingMetadataFailure { source: crate::metadata::Error },
-
-    #[snafu(display("Cannot encode metadata: {}", source))]
-    MetadataEncodeFailure { source: prost::EncodeError },
-
-    #[snafu(display("Error reading parquet: {}", source))]
-    ParquetReader {
-        source: parquet::errors::ParquetError,
-    },
-
-    #[snafu(display("No data to convert to parquet"))]
-    NoData {},
+    /// Uploading the Parquet file to object store failed.
+    #[error("failed to upload to object storage: {0}")]
+    Upload(#[from] object_store::Error),
 }
-pub type Result<T, E = Error> = std::result::Result<T, E>;
 
+/// Errors during Parquet file download & scan.
+#[derive(Debug, Error)]
+pub enum ReadError {
+    /// Failed to create the temporary Parquet file on disk to which the
+    /// downloaded parquet bytes will be spilled.
+    #[error("failed to create temporary file: {0}")]
+    TempFile(std::io::Error),
+
+    /// Error writing the bytes fetched from object store to the temporary
+    /// parquet file on disk.
+    #[error("i/o error writing downloaded parquet: {0}")]
+    IO(#[from] std::io::Error),
+
+    /// An error fetching Parquet file bytes from object store.
+    #[error("failed to read data from object store: {0}")]
+    ObjectStore(#[from] object_store::Error),
+
+    /// An error reading the downloaded Parquet file.
+    #[error("invalid parquet file: {0}")]
+    Parquet(#[from] parquet::errors::ParquetError),
+}
+
+/// The [`ParquetStorage`] type encapsulates [`RecordBatch`] persistence to an
+/// underlying [`ObjectStore`].
+///
+/// [`RecordBatch`] instances are serialised to Parquet files, with IOx specific
+/// metadata ([`IoxParquetMetaData`]) attached.
+///
+/// Code that interacts with Parquet files in object storage should utilise this
+/// type that encapsulates the storage & retrieval implementation.
+///
+/// [`ObjectStore`]: object_store::ObjectStore
 #[derive(Debug, Clone)]
 pub struct ParquetStorage {
     object_store: Arc<DynObjectStore>,
 }
 
 impl ParquetStorage {
+    /// Initialise a new [`ParquetStorage`] using `object_store` as the
+    /// persistence layer.
     pub fn new(object_store: Arc<DynObjectStore>) -> Self {
         Self { object_store }
     }
 
-    fn writer_props(&self, metadata_bytes: &[u8]) -> WriterProperties {
-        let builder = WriterProperties::builder()
-            .set_key_value_metadata(Some(vec![KeyValue {
-                key: METADATA_KEY.to_string(),
-                value: Some(base64::encode(&metadata_bytes)),
-            }]))
-            .set_compression(Compression::ZSTD);
-
-        builder.build()
-    }
-
-    /// Convert the given metadata and RecordBatches to parquet file bytes. Used by `ingester`.
-    pub async fn parquet_bytes(
+    /// Push `batches`, a stream of [`RecordBatch`] instances, to object
+    /// storage.
+    pub async fn upload<S>(
         &self,
-        record_batches: Vec<RecordBatch>,
-        schema: SchemaRef,
-        metadata: &IoxMetadata,
-    ) -> Result<Vec<u8>> {
-        let metadata_bytes = metadata.to_protobuf().context(MetadataEncodeFailureSnafu)?;
+        batches: S,
+        meta: &IoxMetadata,
+    ) -> Result<(IoxParquetMetaData, usize), UploadError>
+    where
+        S: Stream<Item = Result<RecordBatch, ArrowError>> + Send,
+    {
+        // Stream the record batches into a parquet file.
+        //
+        // It would be nice to stream the encoded parquet to disk for this and
+        // eliminate the buffering in memory, but the lack of a streaming object
+        // store put negates any benefit of spilling to disk.
+        //
+        // This is not a huge concern, as the resulting parquet files are
+        // currently smallish on average.
+        let (data, parquet_file_meta) = serialise::to_parquet_bytes(batches, meta).await?;
 
-        let mut stream = Box::pin(stream::iter(record_batches.into_iter().map(Ok)));
+        // Read the IOx-specific parquet metadata from the file metadata
+        let parquet_meta =
+            IoxParquetMetaData::try_from(parquet_file_meta).map_err(UploadError::Metadata)?;
 
-        let props = self.writer_props(&metadata_bytes);
+        // Derive the correct object store path from the metadata.
+        let path = ParquetFilePath::new(
+            meta.namespace_id,
+            meta.table_id,
+            meta.sequencer_id,
+            meta.partition_id,
+            meta.object_store_id,
+        )
+        .object_store_path();
 
-        let mem_writer = MemWriter::default();
-        {
-            let mut writer = ArrowWriter::try_new(mem_writer.clone(), schema, Some(props))
-                .context(OpeningParquetWriterSnafu)?;
-            let mut no_stream_data = true;
-            while let Some(batch) = stream.next().await {
-                no_stream_data = false;
-                let batch = batch.context(ReadingStreamSnafu)?;
-                writer.write(&batch).context(WritingParquetToMemorySnafu)?;
-            }
-            if no_stream_data {
-                return Ok(vec![]);
-            }
-            writer.close().context(ClosingParquetWriterSnafu)?;
-        } // drop the reference to the MemWriter that the SerializedFileWriter has
+        let file_size = data.len();
+        self.object_store.put(&path, Bytes::from(data)).await?;
 
-        mem_writer.into_inner().context(WritingToMemWriterSnafu)
+        Ok((parquet_meta, file_size))
     }
 
-    /// Put the given vector of bytes to the specified location
-    pub async fn to_object_store(&self, data: Vec<u8>, path: &ParquetFilePath) -> Result<()> {
-        let data = Bytes::from(data);
-        let path = path.object_store_path();
-
-        self.object_store
-            .put(&path, data)
-            .await
-            .context(WritingToObjectStoreSnafu)
-    }
-
-    /// Return indices of the schema's fields of the selection columns
-    pub fn column_indices(selection: Selection<'_>, schema: SchemaRef) -> Vec<usize> {
-        let fields = schema.fields().iter();
-
-        match selection {
-            Selection::Some(cols) => fields
-                .enumerate()
-                .filter_map(|(p, x)| {
-                    if cols.contains(&x.name().as_str()) {
-                        Some(p)
-                    } else {
-                        None
-                    }
-                })
-                .collect(),
-            Selection::All => fields.enumerate().map(|(p, _)| p).collect(),
-        }
-    }
-
-    /// Downloads the specified parquet file to a local temporary file
-    /// and uses the `[ParquetExec`]
+    /// Pull the Parquet-encoded [`RecordBatch`] at the file path derived from
+    /// the provided [`ParquetFilePath`].
     ///
-    /// The resulting record batches from Parquet are sent back to `tx`
-    fn download_and_scan_parquet(
-        projection: Vec<usize>,
-        path: ParquetFilePath,
-        object_store: Arc<DynObjectStore>,
-        tx: tokio::sync::mpsc::Sender<ArrowResult<RecordBatch>>,
-    ) -> Result<()> {
-        // Size of each batch
-        let batch_size = 1024; // Todo: make a constant or policy for this
-        let path = path.object_store_path();
-
-        let read_stream = futures::executor::block_on(object_store.get(&path))
-            .context(ReadingObjectStoreSnafu)?;
-
-        let file = match read_stream {
-            GetResult::File(f, _) => {
-                trace!(?path, "Using file directly");
-                futures::executor::block_on(f.into_std())
-            }
-            GetResult::Stream(read_stream) => {
-                // read parquet file to local file
-                let mut file = tempfile::tempfile().context(OpenTempFileSnafu)?;
-
-                trace!(?path, ?file, "Beginning to read parquet to temp file");
-
-                for bytes in futures::executor::block_on_stream(read_stream) {
-                    let bytes = bytes.context(ReadingObjectStoreSnafu)?;
-                    trace!(len = bytes.len(), "read bytes from object store");
-                    file.write_all(&bytes).context(WriteTempFileSnafu)?;
-                }
-
-                file.rewind().context(WriteTempFileSnafu)?;
-
-                trace!(?path, "Completed read parquet to tempfile");
-                file
-            }
-        };
-
-        let file_reader = SerializedFileReader::new(file).context(ParquetReaderSnafu)?;
-        let mut arrow_reader = ParquetFileArrowReader::new(Arc::new(file_reader));
-        let record_batch_reader = arrow_reader
-            .get_record_reader_by_columns(projection, batch_size)
-            .context(ParquetReaderSnafu)?;
-
-        for batch in record_batch_reader {
-            if tx.blocking_send(batch).is_err() {
-                debug!(?path, "Receiver hung up - exiting");
-                break;
-            }
-        }
-
-        debug!(?path, "Completed parquet download & scan");
-
-        Ok(())
-    }
-
+    /// The `selection` projection is pushed down to the Parquet deserialiser.
+    ///
+    /// This impl fetches the associated Parquet file bytes from object storage,
+    /// temporarily persisting them to a local temp file to feed to the arrow
+    /// reader.
+    ///
+    /// No caching is performed by `read_filter()`, and each call to
+    /// `read_filter()` will re-download the parquet file unless the underlying
+    /// object store impl caches the fetched bytes.
     pub fn read_filter(
         &self,
         _predicate: &Predicate,
         selection: Selection<'_>,
         schema: SchemaRef,
         path: ParquetFilePath,
-    ) -> Result<SendableRecordBatchStream> {
+    ) -> Result<SendableRecordBatchStream, ReadError> {
         // Indices of columns in the schema needed to read
-        let projection: Vec<usize> = Self::column_indices(selection, Arc::clone(&schema));
+        let projection: Vec<usize> = column_indices(selection, Arc::clone(&schema));
 
         // Compute final (output) schema after selection
         let schema = Arc::new(Schema::new(
@@ -253,7 +171,7 @@ impl ParquetStorage {
             let object_store = Arc::clone(&self.object_store);
             move || {
                 let download_result =
-                    Self::download_and_scan_parquet(projection, path, object_store, tx.clone());
+                    download_and_scan_parquet(projection, path, object_store, tx.clone());
 
                 // If there was an error returned from download_and_scan_parquet send it back to the receiver.
                 if let Err(e) = download_result {
@@ -276,44 +194,79 @@ impl ParquetStorage {
     }
 }
 
-#[derive(Debug, Default, Clone)]
-pub struct MemWriter {
-    mem: Arc<Mutex<Cursor<Vec<u8>>>>,
-}
+/// Return indices of the schema's fields of the selection columns
+fn column_indices(selection: Selection<'_>, schema: SchemaRef) -> Vec<usize> {
+    let fields = schema.fields().iter();
 
-impl MemWriter {
-    /// Returns the inner buffer as long as there are no other references to the
-    /// Arc.
-    pub fn into_inner(self) -> Option<Vec<u8>> {
-        Arc::try_unwrap(self.mem)
-            .ok()
-            .map(|mutex| mutex.into_inner().into_inner())
+    match selection {
+        Selection::Some(cols) => fields
+            .enumerate()
+            .filter_map(|(p, x)| {
+                if cols.contains(&x.name().as_str()) {
+                    Some(p)
+                } else {
+                    None
+                }
+            })
+            .collect(),
+        Selection::All => fields.enumerate().map(|(p, _)| p).collect(),
     }
 }
 
-impl Write for MemWriter {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        let mut inner = self.mem.lock();
-        inner.write(buf)
+/// Downloads the specified parquet file to a local temporary file
+/// and push the [`RecordBatch`] contents over `tx`, projecting the specified
+/// column indexes.
+///
+/// This call MAY download a parquet file from object storage, temporarily
+/// spilling it to disk while it is processed.
+fn download_and_scan_parquet(
+    projection: Vec<usize>,
+    path: ParquetFilePath,
+    object_store: Arc<DynObjectStore>,
+    tx: tokio::sync::mpsc::Sender<ArrowResult<RecordBatch>>,
+) -> Result<(), ReadError> {
+    // Size of each batch
+    let batch_size = 1024; // Todo: make a constant or policy for this
+    let path = path.object_store_path();
+
+    let read_stream = futures::executor::block_on(object_store.get(&path))?;
+
+    let file = match read_stream {
+        GetResult::File(f, _) => {
+            trace!(?path, "Using file directly");
+            futures::executor::block_on(f.into_std())
+        }
+        GetResult::Stream(read_stream) => {
+            // read parquet file to local file
+            let mut file = tempfile::tempfile().map_err(ReadError::TempFile)?;
+
+            trace!(?path, ?file, "Beginning to read parquet to temp file");
+
+            for bytes in futures::executor::block_on_stream(read_stream) {
+                let bytes = bytes?;
+                trace!(len = bytes.len(), "read bytes from object store");
+                file.write_all(&bytes)?;
+            }
+
+            file.rewind()?;
+
+            trace!(?path, "Completed read parquet to tempfile");
+            file
+        }
+    };
+
+    let file_reader = SerializedFileReader::new(file)?;
+    let mut arrow_reader = ParquetFileArrowReader::new(Arc::new(file_reader));
+    let record_batch_reader = arrow_reader.get_record_reader_by_columns(projection, batch_size)?;
+
+    for batch in record_batch_reader {
+        if tx.blocking_send(batch).is_err() {
+            debug!(?path, "Receiver hung up - exiting");
+            break;
+        }
     }
 
-    fn flush(&mut self) -> std::io::Result<()> {
-        let mut inner = self.mem.lock();
-        inner.flush()
-    }
-}
+    debug!(?path, "Completed parquet download & scan");
 
-impl Seek for MemWriter {
-    fn seek(&mut self, pos: SeekFrom) -> std::io::Result<u64> {
-        let mut inner = self.mem.lock();
-        inner.seek(pos)
-    }
-}
-
-impl TryClone for MemWriter {
-    fn try_clone(&self) -> std::io::Result<Self> {
-        Ok(Self {
-            mem: Arc::clone(&self.mem),
-        })
-    }
+    Ok(())
 }
