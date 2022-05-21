@@ -131,6 +131,7 @@ jobs:
   doc:
     docker:
       - image: quay.io/influxdb/rust:ci
+    resource_class: medium+ # use of a smaller executor runs out of memory
     environment:
       # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
       CARGO_INCREMENTAL: "0"
