@@ -8,7 +8,7 @@ use arrow::{
     error::{ArrowError, Result as ArrowResult},
     record_batch::RecordBatch,
 };
-use datafusion_util::{watch::watch_task, AdapterStream};
+use datafusion_util::{watch::watch_task, AdapterStream, AutoAbortJoinHandle};
 
 pub use self::algo::RecordBatchDeduplicator;
 use datafusion::{
@@ -209,14 +209,22 @@ impl ExecutionPlan for DeduplicateExec {
         ));
 
         // A second task watches the output of the worker task and reports errors
-        tokio::task::spawn(watch_task("deduplicate batches", tx, task));
+        let handle = tokio::task::spawn(watch_task(
+            "deduplicate batches",
+            tx,
+            AutoAbortJoinHandle::new(task),
+        ));
 
         debug!(
             partition,
             "End building stream for DeduplicationExec::execute"
         );
 
-        Ok(AdapterStream::adapt(self.schema(), rx))
+        Ok(AdapterStream::adapt(
+            self.schema(),
+            rx,
+            Some(Arc::new(AutoAbortJoinHandle::new(handle))),
+        ))
     }
 
     fn required_child_distribution(&self) -> Distribution {
@@ -1166,7 +1174,7 @@ mod test {
             }
 
             debug!(partition, "End DummyExec::execute");
-            Ok(AdapterStream::adapt_unbounded(self.schema(), rx))
+            Ok(AdapterStream::adapt_unbounded(self.schema(), rx, None))
         }
 
         fn statistics(&self) -> Statistics {

@@ -1323,6 +1323,7 @@ dependencies = [
  "datafusion 0.1.0",
  "futures",
  "observability_deps",
+ "pin-project",
  "tokio",
  "tokio-stream",
  "workspace-hack",
@@ -3514,11 +3515,11 @@ dependencies = [
 
 [[package]]
 name = "once_cell"
-version = "1.10.0"
+version = "1.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "87f3e037eac156d1775da914196f0f37741a274155e34a0b7e427c35d2a2ecb9"
+checksum = "7b10983b38c53aebdf33f542c6275b0f58a238129d00c4ae0e6fb59738d783ca"
 dependencies = [
- "parking_lot 0.12.0",
+ "parking_lot_core 0.9.3",
 ]
 
 [[package]]
@@ -3918,9 +3919,9 @@ dependencies = [
 
 [[package]]
 name = "pprof"
-version = "0.9.0"
+version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6f9307de92566887d485ac6f20df17b0fe1704fffdbad0bdbc05a3864d3082f6"
+checksum = "a97149c0eacaa6b8f8cedea99f68bb3a0517fa20f8de8d8c24c1a810f38d235d"
 dependencies = [
  "backtrace",
  "cfg-if",
@@ -4054,15 +4055,15 @@ dependencies = [
 
 [[package]]
 name = "prometheus"
-version = "0.13.0"
+version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b7f64969ffd5dd8f39bd57a68ac53c163a095ed9d0fb707146da1b27025a3504"
+checksum = "cface98dfa6d645ea4c789839f176e4b072265d085bfcc48eaa8d137f58d3c39"
 dependencies = [
  "cfg-if",
  "fnv",
  "lazy_static",
  "memchr",
- "parking_lot 0.11.2",
+ "parking_lot 0.12.0",
  "thiserror",
 ]
 

@@ -12,7 +12,7 @@ use arrow::{
 };
 use bytes::Bytes;
 use datafusion::physical_plan::SendableRecordBatchStream;
-use datafusion_util::AdapterStream;
+use datafusion_util::{AdapterStream, AutoAbortJoinHandle};
 use futures::{stream, StreamExt};
 use object_store::{DynObjectStore, GetResult};
 use observability_deps::tracing::*;
@@ -249,7 +249,7 @@ impl ParquetStorage {
         // Run async dance here to make sure any error returned
         // `download_and_scan_parquet` is sent back to the reader and
         // not silently ignored
-        tokio::task::spawn_blocking({
+        let handle = tokio::task::spawn_blocking({
             let object_store = Arc::clone(&self.object_store);
             move || {
                 let download_result =
@@ -268,7 +268,11 @@ impl ParquetStorage {
         });
 
         // returned stream simply reads off the rx channel
-        Ok(AdapterStream::adapt(schema, rx))
+        Ok(AdapterStream::adapt(
+            schema,
+            rx,
+            Some(Arc::new(AutoAbortJoinHandle::new(handle))),
+        ))
     }
 }
 

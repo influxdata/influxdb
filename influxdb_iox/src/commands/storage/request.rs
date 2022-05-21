@@ -18,6 +18,21 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
+pub fn measurement_fields(
+    org_bucket: Any,
+    measurement: String,
+    start: i64,
+    stop: i64,
+    predicate: std::option::Option<Predicate>,
+) -> MeasurementFieldsRequest {
+    generated_types::MeasurementFieldsRequest {
+        source: Some(org_bucket),
+        measurement,
+        range: Some(TimestampRange { start, end: stop }),
+        predicate,
+    }
+}
+
 pub fn read_filter(
     org_bucket: Any,
     start: i64,
@@ -163,4 +178,3 @@ mod test_super {
 // * measurement_names
 // * measurement_tag_keys
 // * measurement_tag_values
-// * measurement_fields
