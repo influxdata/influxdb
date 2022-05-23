@@ -127,6 +127,7 @@ pub const METADATA_VERSION: u32 = 10;
 pub const METADATA_KEY: &str = "IOX:metadata";
 
 #[derive(Debug, Snafu)]
+#[allow(missing_docs)]
 pub enum Error {
     #[snafu(display("Cannot read parquet metadata from bytes: {}", source))]
     ParquetMetaDataRead {
@@ -225,6 +226,8 @@ pub enum Error {
     #[snafu(display("Cannot parse UUID: {}", source))]
     UuidParse { source: uuid::Error },
 }
+
+#[allow(missing_docs)]
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// IOx-specific metadata.
@@ -385,7 +388,7 @@ impl IoxMetadata {
         uuid == self.object_store_id
     }
 
-    // create a corresponding iox catalog's ParquetFile
+    /// Create a corresponding iox catalog's ParquetFile
     pub fn to_parquet_file(
         &self,
         file_size_bytes: usize,
@@ -434,7 +437,7 @@ fn decode_timestamp_from_field(
 }
 
 /// Parquet metadata with IOx-specific wrapper.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct IoxParquetMetaData {
     /// [Apache Parquet] metadata as freestanding [Apache Thrift]-encoded, and [Zstandard]-compressed bytes.
     ///
@@ -523,20 +526,7 @@ impl IoxParquetMetaData {
         };
 
         // step 2: serialize the thrift struct into bytes
-        let mut buffer = Vec::new();
-        {
-            let mut protocol = TCompactOutputProtocol::new(&mut buffer);
-            thrift_file_metadata
-                .write_to_out_protocol(&mut protocol)
-                .context(ThriftWriteFailureSnafu {})?;
-            protocol.flush().context(ThriftWriteFailureSnafu {})?;
-        }
-
-        // step 3: compress data
-        // Note: level 0 is the zstd-provided default
-        let buffer = zstd::encode_all(&buffer[..], 0).context(ZstdEncodeFailureSnafu)?;
-
-        Ok(buffer)
+        Self::try_from(thrift_file_metadata).map(|opt| opt.data)
     }
 
     /// Decode [Apache Parquet] metadata from [Apache Thrift]-encoded, and [Zstandard]-compressed bytes.
@@ -586,6 +576,26 @@ impl IoxParquetMetaData {
     /// In-memory size in bytes, including `self`.
     pub fn size(&self) -> usize {
         std::mem::size_of::<Self>() + self.data.capacity()
+    }
+}
+
+impl TryFrom<parquet_format::FileMetaData> for IoxParquetMetaData {
+    type Error = Error;
+
+    fn try_from(v: parquet_format::FileMetaData) -> Result<Self, Self::Error> {
+        let mut buffer = Vec::new();
+        {
+            let mut protocol = TCompactOutputProtocol::new(&mut buffer);
+            v.write_to_out_protocol(&mut protocol)
+                .context(ThriftWriteFailureSnafu {})?;
+            protocol.flush().context(ThriftWriteFailureSnafu {})?;
+        }
+
+        // step 3: compress data
+        // Note: level 0 is the zstd-provided default
+        let buffer = zstd::encode_all(&buffer[..], 0).context(ZstdEncodeFailureSnafu)?;
+
+        Ok(Self::from_thrift_bytes(buffer))
     }
 }
 
@@ -841,6 +851,11 @@ fn extract_iox_statistics(
 
 #[cfg(test)]
 mod tests {
+    use arrow::{
+        array::{ArrayRef, StringBuilder},
+        record_batch::RecordBatch,
+    };
+
     use super::*;
 
     #[test]
@@ -873,5 +888,51 @@ mod tests {
         let iox_metadata_again = IoxMetadata::from_protobuf(&proto).unwrap();
 
         assert_eq!(iox_metadata, iox_metadata_again);
+    }
+
+    #[tokio::test]
+    async fn test_metadata_from_parquet_metadata() {
+        let meta = IoxMetadata {
+            object_store_id: Default::default(),
+            creation_timestamp: Time::from_timestamp_nanos(42),
+            namespace_id: NamespaceId::new(1),
+            namespace_name: "bananas".into(),
+            sequencer_id: SequencerId::new(2),
+            table_id: TableId::new(3),
+            table_name: "platanos".into(),
+            partition_id: PartitionId::new(4),
+            partition_key: "potato".into(),
+            time_of_first_write: Time::from_timestamp_nanos(4242),
+            time_of_last_write: Time::from_timestamp_nanos(424242),
+            min_sequence_number: SequenceNumber::new(10),
+            max_sequence_number: SequenceNumber::new(11),
+            row_count: 1000,
+            compaction_level: 1,
+            sort_key: None,
+        };
+
+        let mut builder = StringBuilder::new(1);
+        builder.append_value("bananas").expect("appending string");
+        let data: ArrayRef = Arc::new(builder.finish());
+
+        let batch = RecordBatch::try_from_iter([("a", data)]).unwrap();
+        let stream = futures::stream::iter([Ok(batch.clone())]);
+
+        let (bytes, file_meta) = crate::serialise::to_parquet_bytes(stream, &meta)
+            .await
+            .expect("should serialise");
+
+        // Read the metadata from the file bytes.
+        //
+        // This is quite wordy...
+        let iox_parquet_meta = IoxParquetMetaData::from_file_bytes(Arc::new(bytes))
+            .expect("should decode")
+            .expect("should contain metadata");
+
+        // And read the metadata directly from the file metadata returned from
+        // encoding.
+        let file_meta = IoxParquetMetaData::try_from(file_meta)
+            .expect("failed to decode IoxParquetMetaData from file metadata");
+        assert_eq!(file_meta, iox_parquet_meta);
     }
 }

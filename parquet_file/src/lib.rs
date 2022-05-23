@@ -1,3 +1,5 @@
+//! Parquet file generation, storage, and metadata implementations.
+
 #![deny(rustdoc::broken_intra_doc_links, rustdoc::bare_urls, rust_2018_idioms)]
 #![warn(
     missing_copy_implementations,
@@ -5,11 +7,17 @@
     clippy::explicit_iter_loop,
     clippy::future_not_send,
     clippy::use_self,
-    clippy::clone_on_ref_ptr
+    clippy::clone_on_ref_ptr,
+    unreachable_pub,
+    missing_docs,
+    clippy::todo,
+    clippy::dbg_macro
 )]
+#![allow(clippy::missing_docs_in_private_items)]
 
 pub mod chunk;
 pub mod metadata;
+pub mod serialise;
 pub mod storage;
 
 use data_types::{NamespaceId, PartitionId, SequencerId, TableId};
@@ -68,6 +76,18 @@ impl ParquetFilePath {
 impl From<&Self> for ParquetFilePath {
     fn from(borrowed: &Self) -> Self {
         *borrowed
+    }
+}
+
+impl From<&crate::metadata::IoxMetadata> for ParquetFilePath {
+    fn from(m: &crate::metadata::IoxMetadata) -> Self {
+        Self {
+            namespace_id: m.namespace_id,
+            table_id: m.table_id,
+            sequencer_id: m.sequencer_id,
+            partition_id: m.partition_id,
+            object_store_id: m.object_store_id,
+        }
     }
 }
 

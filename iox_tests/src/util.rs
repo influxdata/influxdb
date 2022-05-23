@@ -18,11 +18,7 @@ use iox_query::{exec::Executor, provider::RecordBatchDeduplicator, util::arrow_s
 use iox_time::{MockProvider, Time, TimeProvider};
 use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
 use object_store::{memory::InMemory, DynObjectStore};
-use parquet_file::{
-    metadata::{IoxMetadata, IoxParquetMetaData},
-    storage::ParquetStorage,
-    ParquetFilePath,
-};
+use parquet_file::{metadata::IoxMetadata, storage::ParquetStorage};
 use schema::{
     selection::Selection,
     sort::{adjust_sort_key_columns, SortKey, SortKeyBuilder},
@@ -650,32 +646,12 @@ async fn create_parquet_file(
     metadata: &IoxMetadata,
     record_batch: RecordBatch,
 ) -> (Vec<u8>, usize) {
-    let schema = record_batch.schema();
-
-    let data = store
-        .parquet_bytes(vec![record_batch], schema, metadata)
+    let stream = futures::stream::once(async { Ok(record_batch) });
+    let (meta, file_size) = store
+        .upload(stream, metadata)
         .await
-        .unwrap();
-    let data = Arc::new(data);
-    let md = IoxParquetMetaData::from_file_bytes(Arc::clone(&data))
-        .unwrap()
-        .unwrap();
-    let parquet_md = md.thrift_bytes().to_vec();
-    let data = Arc::try_unwrap(data).expect("dangling reference to data");
-
-    let file_size = data.len();
-
-    let path = ParquetFilePath::new(
-        metadata.namespace_id,
-        metadata.table_id,
-        metadata.sequencer_id,
-        metadata.partition_id,
-        metadata.object_store_id,
-    );
-
-    store.to_object_store(data, &path).await.unwrap();
-
-    (parquet_md, file_size)
+        .expect("persisting parquet file should succeed");
+    (meta.thrift_bytes().to_vec(), file_size)
 }
 
 /// A test parquet file of the catalog

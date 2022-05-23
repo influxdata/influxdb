@@ -1,61 +1,20 @@
+//! A metadata summary of a Parquet file in object storage, with the ability to
+//! download & execute a scan.
+
 use crate::{
     metadata::{DecodedIoxParquetMetaData, IoxMetadata, IoxParquetMetaData},
     storage::ParquetStorage,
-    ParquetFilePath,
 };
 use data_types::{
     ParquetFile, ParquetFileWithMetadata, Statistics, TableSummary, TimestampMinMax, TimestampRange,
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
-use observability_deps::tracing::*;
 use predicate::Predicate;
 use schema::{selection::Selection, Schema, TIME_COLUMN_NAME};
-use snafu::{ResultExt, Snafu};
 use std::{collections::BTreeSet, mem, sync::Arc};
 
-#[derive(Debug, Snafu)]
-pub enum Error {
-    #[snafu(display("Table '{}' not found in chunk", table_name))]
-    NamedTableNotFoundInChunk { table_name: String },
-
-    #[snafu(display("Failed to read parquet: {}", source))]
-    ReadParquet { source: crate::storage::Error },
-
-    #[snafu(display("Failed to select columns: {}", source))]
-    SelectColumns { source: schema::Error },
-
-    #[snafu(
-        display("Cannot decode parquet metadata from {:?}: {}", path, source),
-        visibility(pub)
-    )]
-    MetadataDecodeFailed {
-        source: crate::metadata::Error,
-        path: ParquetFilePath,
-    },
-
-    #[snafu(
-        display("Cannot read schema from {:?}: {}", path, source),
-        visibility(pub)
-    )]
-    SchemaReadFailed {
-        source: crate::metadata::Error,
-        path: ParquetFilePath,
-    },
-
-    #[snafu(
-        display("Cannot read statistics from {:?}: {}", path, source),
-        visibility(pub)
-    )]
-    StatisticsReadFailed {
-        source: crate::metadata::Error,
-        path: ParquetFilePath,
-    },
-}
-
-pub type Result<T, E = Error> = std::result::Result<T, E>;
-
 #[derive(Debug)]
-#[allow(missing_copy_implementations)]
+#[allow(missing_copy_implementations, missing_docs)]
 pub struct ChunkMetrics {
     // Placeholder
 }
@@ -69,11 +28,14 @@ impl ChunkMetrics {
         Self {}
     }
 
+    /// This constructor builds nothing.
     pub fn new(_metrics: &metric::Registry) -> Self {
         Self {}
     }
 }
 
+/// A abstract representation of a Parquet file in object storage, with
+/// associated metadata.
 #[derive(Debug)]
 pub struct ParquetChunk {
     /// Meta data of the table
@@ -89,14 +51,14 @@ pub struct ParquetChunk {
     /// Persists the parquet file within a database's relative path
     store: ParquetStorage,
 
-    /// Path in the database's object store.
-    path: ParquetFilePath,
-
     /// Size of the data, in object store
     file_size_bytes: usize,
 
     /// Parquet metadata that can be used checkpoint the catalog state.
     parquet_metadata: Arc<IoxParquetMetaData>,
+
+    /// The [`IoxMetadata`] data from the [`DecodedParquetFile`].
+    iox_metadata: IoxMetadata,
 
     /// Number of rows
     rows: usize,
@@ -112,15 +74,6 @@ impl ParquetChunk {
         metrics: ChunkMetrics,
         store: ParquetStorage,
     ) -> Self {
-        let iox_metadata = &decoded_parquet_file.iox_metadata;
-        let path = ParquetFilePath::new(
-            iox_metadata.namespace_id,
-            iox_metadata.table_id,
-            iox_metadata.sequencer_id,
-            iox_metadata.partition_id,
-            iox_metadata.object_store_id,
-        );
-
         let decoded = decoded_parquet_file
             .parquet_metadata
             .as_ref()
@@ -138,17 +91,12 @@ impl ParquetChunk {
             schema,
             timestamp_min_max,
             store,
-            path,
             file_size_bytes,
             parquet_metadata: Arc::clone(&decoded_parquet_file.parquet_metadata),
+            iox_metadata: decoded_parquet_file.iox_metadata.clone(),
             rows,
             metrics,
         }
-    }
-
-    /// Return object store path for this chunk
-    pub fn path(&self) -> &ParquetFilePath {
-        &self.path
     }
 
     /// Returns the summary statistics for this chunk
@@ -162,7 +110,7 @@ impl ParquetChunk {
         mem::size_of::<Self>()
             + self.table_summary.size()
             + mem::size_of_val(&self.schema.as_ref())
-            + mem::size_of_val(&self.path)
+            + mem::size_of_val(&self.iox_metadata)
             + self.parquet_metadata.size()
     }
 
@@ -171,8 +119,8 @@ impl ParquetChunk {
         Arc::clone(&self.schema)
     }
 
-    // Return true if this chunk contains values within the time
-    // range, or if the range is `None`.
+    /// Return true if this chunk contains values within the time range, or if
+    /// the range is `None`.
     pub fn has_timerange(&self, timestamp_range: Option<&TimestampRange>) -> bool {
         match (self.timestamp_min_max, timestamp_range) {
             (Some(timestamp_min_max), Some(timestamp_range)) => {
@@ -185,7 +133,7 @@ impl ParquetChunk {
         }
     }
 
-    // Return the columns names that belong to the given column selection
+    /// Return the columns names that belong to the given column selection
     pub fn column_names(&self, selection: Selection<'_>) -> Option<BTreeSet<String>> {
         let fields = self.schema.inner().fields().iter();
 
@@ -208,16 +156,13 @@ impl ParquetChunk {
         &self,
         predicate: &Predicate,
         selection: Selection<'_>,
-    ) -> Result<SendableRecordBatchStream> {
-        trace!(path=?self.path, "fetching parquet data for filtered read");
-        self.store
-            .read_filter(
-                predicate,
-                selection,
-                Arc::clone(&self.schema.as_arrow()),
-                self.path,
-            )
-            .context(ReadParquetSnafu)
+    ) -> Result<SendableRecordBatchStream, crate::storage::ReadError> {
+        self.store.read_filter(
+            predicate,
+            selection,
+            Arc::clone(&self.schema.as_arrow()),
+            &self.iox_metadata,
+        )
     }
 
     /// The total number of rows in all row groups in this chunk.
@@ -252,8 +197,10 @@ fn extract_range(table_summary: &TableSummary) -> Option<TimestampMinMax> {
         None
     })
 }
-// Parquet file with decoded metadata.
+
+/// Parquet file with decoded metadata.
 #[derive(Debug)]
+#[allow(missing_docs)]
 pub struct DecodedParquetFile {
     pub parquet_file: ParquetFile,
     pub parquet_metadata: Arc<IoxParquetMetaData>,
@@ -262,6 +209,7 @@ pub struct DecodedParquetFile {
 }
 
 impl DecodedParquetFile {
+    /// initialise a [`DecodedParquetFile`] from the provided file & metadata.
     pub fn new(parquet_file_with_metadata: ParquetFileWithMetadata) -> Self {
         let (parquet_file, parquet_metadata) = parquet_file_with_metadata.split_off_metadata();
         let parquet_metadata = Arc::new(IoxParquetMetaData::from_thrift_bytes(parquet_metadata));
