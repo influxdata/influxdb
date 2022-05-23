@@ -222,27 +222,41 @@ pub fn all_persisted(res: &GetWriteInfoResponse) -> bool {
         .all(|info| matches!(info.status(), KafkaPartitionStatus::Persisted))
 }
 
-/// Runs a query using the flight API on the specified connection
-pub async fn run_query(
+/// Runs a query using the flight API on the specified connection.
+///
+/// This is similar ot [`run_query`] but does NOT unwrap the result.
+pub async fn try_run_query(
     sql: impl Into<String>,
     namespace: impl Into<String>,
     querier_connection: Connection,
-) -> Vec<RecordBatch> {
+) -> Result<Vec<RecordBatch>, influxdb_iox_client::flight::Error> {
     let namespace = namespace.into();
     let sql = sql.into();
 
     let mut client = influxdb_iox_client::flight::Client::new(querier_connection);
 
     // This does nothing except test the client handshake implementation.
-    client.handshake().await.unwrap();
+    client.handshake().await?;
 
     let mut response = client
         .perform_query(ReadInfo {
             namespace_name: namespace,
             sql_query: sql,
         })
-        .await
-        .expect("Error performing query");
+        .await?;
 
-    response.collect().await.expect("Error executing query")
+    response.collect().await
+}
+
+/// Runs a query using the flight API on the specified connection.
+///
+/// Use [`try_run_query`] if you want to check the error manually.
+pub async fn run_query(
+    sql: impl Into<String>,
+    namespace: impl Into<String>,
+    querier_connection: Connection,
+) -> Vec<RecordBatch> {
+    try_run_query(sql, namespace, querier_connection)
+        .await
+        .expect("Error executing query")
 }

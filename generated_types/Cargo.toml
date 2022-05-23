@@ -5,6 +5,7 @@ authors = ["Paul Dix <paul@pauldix.net>"]
 edition = "2021"
 
 [dependencies] # In alphabetical order
+base64 = "0.13"
 bytes = "1.0"
 data_types = { path = "../data_types", optional = true }
 datafusion = { path = "../datafusion", optional = true }
@@ -15,6 +16,7 @@ predicate = { path = "../predicate", optional = true }
 prost = "0.10"
 query_functions = { path = "../query_functions" }
 serde = { version = "1.0", features = ["derive"] }
+snafu = "0.7"
 tonic = "0.7"
 workspace-hack = { path = "../workspace-hack"}
 
@@ -22,6 +24,11 @@ workspace-hack = { path = "../workspace-hack"}
 tonic-build = "0.7"
 prost-build = "0.10"
 pbjson-build = "0.3"
+
+[dev-dependencies]
+data_types = { path = "../data_types" }
+datafusion = { path = "../datafusion" }
+predicate = { path = "../predicate" }
 
 [features]
 default = ["data_types_conversions"]

@@ -22,7 +22,7 @@ use object_store::DynObjectStore;
 use std::{
     collections::BTreeMap,
     fmt::{Debug, Display},
-    sync::Arc,
+    sync::{atomic::AtomicU64, Arc},
     time::Duration,
 };
 use thiserror::Error;
@@ -198,7 +198,10 @@ pub async fn create_ingester_server_type(
         .await?,
     );
     let http = HttpDelegate::new(Arc::clone(&ingest_handler));
-    let grpc = GrpcDelegate::new(Arc::clone(&ingest_handler));
+    let grpc = GrpcDelegate::new(
+        Arc::clone(&ingest_handler),
+        Arc::new(AtomicU64::new(ingester_config.test_flight_do_get_panic)),
+    );
 
     let ingester = IngesterServer::new(metric_registry, http, grpc, ingest_handler);
     let server_type = Arc::new(IngesterServerType::new(ingester, common_state));

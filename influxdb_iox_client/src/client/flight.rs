@@ -27,7 +27,7 @@ use rand::Rng;
 /// Re-export generated_types
 pub mod generated_types {
     pub use generated_types::influxdata::iox::{
-        ingester::v1::{IngesterQueryRequest, IngesterQueryResponseMetadata},
+        ingester::v1::{IngesterQueryRequest, IngesterQueryResponseMetadata, Predicate},
         querier::v1::*,
     };
 }

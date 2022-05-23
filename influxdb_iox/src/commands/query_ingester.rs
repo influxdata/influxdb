@@ -1,3 +1,6 @@
+use generated_types::ingester::{
+    decode_proto_predicate_from_base64, DecodeProtoPredicateFromBase64Error,
+};
 use influxdb_iox_client::{connection::Connection, flight, format::QueryOutputFormat};
 use std::str::FromStr;
 use thiserror::Error;
@@ -9,6 +12,9 @@ pub enum Error {
 
     #[error("Error querying: {0}")]
     Query(#[from] influxdb_iox_client::flight::Error),
+
+    #[error("Error decoding base64-encoded predicate from argument: {0}")]
+    PredicateFromBase64(#[from] DecodeProtoPredicateFromBase64Error),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -27,7 +33,18 @@ pub struct Config {
     table: String,
 
     /// The columns to request
+    #[clap(
+        long = "--columns",
+        default_value = "",
+        multiple_values = true,
+        use_value_delimiter = true
+    )]
     columns: Vec<String>,
+
+    /// Predicate in base64 protobuf encoded form.
+    /// (logged on error)
+    #[clap(long = "--predicate-base64")]
+    predicate_base64: Option<String>,
 
     /// Optional format ('pretty', 'json', or 'csv')
     #[clap(short, long, default_value = "pretty")]
@@ -41,12 +58,16 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
         format,
         table,
         columns,
+        predicate_base64,
     } = config;
 
     let format = QueryOutputFormat::from_str(&format)?;
 
-    // TODO it mightbe cool to parse / provide a predicate too
-    let predicate = None;
+    let predicate = if let Some(predicate_base64) = predicate_base64 {
+        Some(decode_proto_predicate_from_base64(&predicate_base64)?)
+    } else {
+        None
+    };
 
     let request = flight::generated_types::IngesterQueryRequest {
         table,

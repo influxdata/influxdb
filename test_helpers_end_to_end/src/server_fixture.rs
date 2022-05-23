@@ -111,6 +111,11 @@ impl ServerFixture {
         self.server.addrs().querier_grpc_api().client_base()
     }
 
+    /// Return log path for server process.
+    pub async fn log_path(&self) -> Box<Path> {
+        self.server.server_process.lock().await.log_path.clone()
+    }
+
     /// Get a weak reference to the underlying `TestServer`
     pub(crate) fn weak(&self) -> Weak<TestServer> {
         Arc::downgrade(&self.server)

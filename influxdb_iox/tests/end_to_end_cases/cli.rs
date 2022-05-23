@@ -310,6 +310,35 @@ async fn query_ingester() {
                 }
                 .boxed()
             })),
+            Step::Custom(Box::new(|state: &mut StepTestState| {
+                async {
+                    let ingester_addr = state.cluster().ingester().ingester_grpc_base().to_string();
+
+                    let expected = [
+                        "+------+-----+",
+                        "| tag1 | val |",
+                        "+------+-----+",
+                        "| A    | 42  |",
+                        "+------+-----+",
+                    ]
+                    .join("\n");
+
+                    // Validate the output of the query
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(&ingester_addr)
+                        .arg("query-ingester")
+                        .arg(state.cluster().namespace())
+                        .arg("my_awesome_table2")
+                        .arg("--columns")
+                        .arg("tag1,val")
+                        .assert()
+                        .success()
+                        .stdout(predicate::str::contains(&expected));
+                }
+                .boxed()
+            })),
         ],
     )
     .run()
