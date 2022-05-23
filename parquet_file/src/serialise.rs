@@ -120,7 +120,7 @@ where
 {
     let mut w = InMemoryWriteableCursor::default();
 
-    // w is a ref-counted buffer, so cloning actually passes an owned ref.
+    // Serialise the record batches into the in-memory buffer
     let meta = to_parquet(batches, meta, &mut w).await?;
 
     let mut bytes = w
