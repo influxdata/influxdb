@@ -392,7 +392,7 @@ mod test {
     fn quote_not_printable() {
         assert_eq!(quote_and_escape("foo\nbar"), r#""foo\nbar""#);
         assert_eq!(quote_and_escape("foo\r\nbar"), r#""foo\r\nbar""#);
-        assert_eq!(quote_and_escape("foo\0bar"), r#""foo\u{0}bar""#);
+        assert_eq!(quote_and_escape("foo\0bar"), r#""foo\0bar""#);
     }
 
     #[test]

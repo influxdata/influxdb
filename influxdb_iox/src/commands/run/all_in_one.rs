@@ -334,6 +334,10 @@ impl Config {
         let write_buffer_partition_range_start = 0;
         let write_buffer_partition_range_end = 0;
 
+        // Use whatever data is available in the write buffer rather than erroring if the sequence
+        // number has not been retained in the write buffer.
+        let skip_to_oldest_available = true;
+
         let ingester_config = IngesterConfig {
             write_buffer_partition_range_start,
             write_buffer_partition_range_end,
@@ -342,6 +346,7 @@ impl Config {
             persist_partition_size_threshold_bytes,
             persist_partition_age_threshold_seconds,
             persist_partition_cold_threshold_seconds,
+            skip_to_oldest_available,
         };
 
         // create a CompactorConfig for the all in one server based on

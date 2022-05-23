@@ -11,7 +11,10 @@ use parking_lot::Mutex;
 use std::{
     collections::{BTreeMap, BTreeSet},
     num::NonZeroU32,
-    sync::Arc,
+    sync::{
+        atomic::{AtomicBool, AtomicUsize, Ordering::SeqCst},
+        Arc,
+    },
     task::{Poll, Waker},
 };
 
@@ -70,7 +73,8 @@ pub struct MockBufferSharedState {
 impl MockBufferSharedState {
     /// Create new shared state w/ N sequencers.
     ///
-    /// This is equivalent to [`uninitialized`](Self::uninitialized) followed by [`init`](Self::init).
+    /// This is equivalent to [`uninitialized`](Self::uninitialized) followed by
+    /// [`init`](Self::init).
     pub fn empty_with_n_sequencers(n_sequencers: NonZeroU32) -> Self {
         let state = Self::uninitialized();
         state.init(n_sequencers);
@@ -87,6 +91,7 @@ impl MockBufferSharedState {
     /// Initialize shared state w/ N sequencers.
     ///
     /// # Panics
+    ///
     /// - when state is already initialized
     pub fn init(&self, n_sequencers: NonZeroU32) {
         let mut guard = self.writes.lock();
@@ -107,6 +112,7 @@ impl MockBufferSharedState {
     /// Push a new delete to the specified sequencer
     ///
     /// # Panics
+    ///
     /// - when delete is not sequenced
     /// - when no sequencer was initialized
     /// - when specified sequencer does not exist
@@ -118,6 +124,7 @@ impl MockBufferSharedState {
     /// Push a new entry to the specified sequencer.
     ///
     /// # Panics
+    ///
     /// - when write is not sequenced
     /// - when no sequencer was initialized
     /// - when specified sequencer does not exist
@@ -129,6 +136,7 @@ impl MockBufferSharedState {
     /// Push a new operation to the specified sequencer
     ///
     /// # Panics
+    ///
     /// - when operation is not sequenced
     /// - when no sequencer was initialized
     /// - when specified sequencer does not exist
@@ -168,6 +176,7 @@ impl MockBufferSharedState {
     /// Push error to specified sequencer.
     ///
     /// # Panics
+    ///
     /// - when no sequencer was initialized
     /// - when sequencer does not exist
     pub fn push_error(&self, error: WriteBufferError, sequencer_id: u32) {
@@ -183,6 +192,7 @@ impl MockBufferSharedState {
     /// Get messages (entries and errors) for specified sequencer.
     ///
     /// # Panics
+    ///
     /// - when no sequencer was initialized
     /// - when sequencer does not exist
     pub fn get_messages(&self, sequencer_id: u32) -> Vec<Result<DmlOperation, WriteBufferError>> {
@@ -203,6 +213,7 @@ impl MockBufferSharedState {
     /// Provides a way to wipe messages (e.g. to simulate retention periods in Kafka)
     ///
     /// # Panics
+    ///
     /// - when no sequencer was initialized
     /// - when sequencer does not exist
     pub fn clear_messages(&self, sequencer_id: u32) {
@@ -346,7 +357,7 @@ impl WriteBufferWriting for MockBufferForWritingThatAlwaysErrors {
 
 #[derive(Debug)]
 pub struct MockBufferForReading {
-    shared_state: MockBufferSharedState,
+    shared_state: Arc<MockBufferSharedState>,
     n_sequencers: u32,
 }
 
@@ -369,7 +380,7 @@ impl MockBufferForReading {
         };
 
         Ok(Self {
-            shared_state: state,
+            shared_state: Arc::new(state),
             n_sequencers,
         })
     }
@@ -379,45 +390,55 @@ impl MockBufferForReading {
 #[derive(Debug)]
 pub struct MockBufferStreamHandler {
     /// Shared state.
-    shared_state: MockBufferSharedState,
+    shared_state: Arc<MockBufferSharedState>,
 
     /// Own sequencer ID.
     sequencer_id: u32,
 
     /// Index within the entry vector.
-    vector_index: usize,
+    vector_index: Arc<AtomicUsize>,
 
     /// Offset within the sequencer IDs.
     offset: u64,
 
     /// Flags if the stream is terminated, e.g. due to "offset out of range"
-    terminated: bool,
+    terminated: Arc<AtomicBool>,
 }
 
 #[async_trait]
 impl WriteBufferStreamHandler for MockBufferStreamHandler {
-    async fn stream(&mut self) -> BoxStream<'_, Result<DmlOperation, WriteBufferError>> {
-        futures::stream::poll_fn(|cx| {
-            if self.terminated {
+    async fn stream(&mut self) -> BoxStream<'static, Result<DmlOperation, WriteBufferError>> {
+        // Don't reference `self` in the closure, move these instead
+        let terminated = Arc::clone(&self.terminated);
+        let shared_state = Arc::clone(&self.shared_state);
+        let sequencer_id = self.sequencer_id;
+        let vector_index = Arc::clone(&self.vector_index);
+        let offset = self.offset;
+
+        futures::stream::poll_fn(move |cx| {
+            if terminated.load(SeqCst) {
                 return Poll::Ready(None);
             }
 
-            let mut guard = self.shared_state.writes.lock();
+            let mut guard = shared_state.writes.lock();
             let writes = guard.as_mut().unwrap();
-            let writes_vec = writes.get_mut(&self.sequencer_id).unwrap();
+            let writes_vec = writes.get_mut(&sequencer_id).unwrap();
 
             let entries = &writes_vec.writes;
-            while entries.len() > self.vector_index {
-                let write_result = &entries[self.vector_index];
+            let mut vi = vector_index.load(SeqCst);
+            while entries.len() > vi {
+                let write_result = &entries[vi];
 
                 // consume entry
-                self.vector_index += 1;
+                vi = vector_index
+                    .fetch_update(SeqCst, SeqCst, |n| Some(n + 1))
+                    .unwrap();
 
                 match write_result {
                     Ok(write) => {
                         // found an entry => need to check if it is within the offset
                         let sequence = write.meta().sequence().unwrap();
-                        if sequence.sequence_number >= self.offset {
+                        if sequence.sequence_number >= offset {
                             // within offset => return entry to caller
                             return Poll::Ready(Some(Ok(write.clone())));
                         } else {
@@ -432,7 +453,7 @@ impl WriteBufferStreamHandler for MockBufferStreamHandler {
                 }
             }
 
-            // check if we have seeked to far
+            // check if we have seeked too far
             let next_offset = entries
                 .iter()
                 .filter_map(|write_result| {
@@ -446,8 +467,8 @@ impl WriteBufferStreamHandler for MockBufferStreamHandler {
                 .max()
                 .map(|x| x + 1)
                 .unwrap_or_default();
-            if self.offset > next_offset {
-                self.terminated = true;
+            if offset > next_offset {
+                terminated.store(true, SeqCst);
                 return Poll::Ready(Some(Err(WriteBufferError::unknown_sequence_number(
                     format!("unknown sequence number, high watermark is {next_offset}"),
                 ))));
@@ -464,12 +485,18 @@ impl WriteBufferStreamHandler for MockBufferStreamHandler {
         self.offset = sequence_number;
 
         // reset position to start since seeking might go backwards
-        self.vector_index = 0;
+        self.vector_index.store(0, SeqCst);
 
         // reset termination state
-        self.terminated = false;
+        self.terminated.store(false, SeqCst);
 
         Ok(())
+    }
+
+    fn reset_to_earliest(&mut self) {
+        self.offset = 0;
+        self.vector_index.store(0, SeqCst);
+        self.terminated.store(false, SeqCst);
     }
 }
 
@@ -478,6 +505,7 @@ impl WriteBufferReading for MockBufferForReading {
     fn sequencer_ids(&self) -> BTreeSet<u32> {
         (0..self.n_sequencers).into_iter().collect()
     }
+
     async fn stream_handler(
         &self,
         sequencer_id: u32,
@@ -487,11 +515,11 @@ impl WriteBufferReading for MockBufferForReading {
         }
 
         Ok(Box::new(MockBufferStreamHandler {
-            shared_state: self.shared_state.clone(),
+            shared_state: Arc::clone(&self.shared_state),
             sequencer_id,
-            vector_index: 0,
+            vector_index: Arc::new(AtomicUsize::new(0)),
             offset: 0,
-            terminated: false,
+            terminated: Arc::new(AtomicBool::new(false)),
         }))
     }
 
@@ -521,7 +549,7 @@ pub struct MockStreamHandlerThatAlwaysErrors;
 
 #[async_trait]
 impl WriteBufferStreamHandler for MockStreamHandlerThatAlwaysErrors {
-    async fn stream(&mut self) -> BoxStream<'_, Result<DmlOperation, WriteBufferError>> {
+    async fn stream(&mut self) -> BoxStream<'static, Result<DmlOperation, WriteBufferError>> {
         futures::stream::poll_fn(|_cx| {
             Poll::Ready(Some(Err(String::from(
                 "Something bad happened while reading from stream",
@@ -533,6 +561,10 @@ impl WriteBufferStreamHandler for MockStreamHandlerThatAlwaysErrors {
 
     async fn seek(&mut self, _sequence_number: u64) -> Result<(), WriteBufferError> {
         Err(String::from("Something bad happened while seeking the stream").into())
+    }
+
+    fn reset_to_earliest(&mut self) {
+        // Intentionally left blank
     }
 }
 

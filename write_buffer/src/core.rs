@@ -136,10 +136,11 @@ pub trait WriteBufferWriting: Sync + Send + Debug + 'static {
     ///
     /// The [`dml::DmlMeta`] will be propagated where applicable
     ///
-    /// This call may "async block" (i.e. be in a pending state) to accumulate multiple operations into a single batch.
-    /// After this method returns the operation was actually written (i.e. it is NOT buffered any longer). You may use
-    /// [`flush`](Self::flush) to trigger an early submission (e.g. before some linger time expired), which can be
-    /// helpful for controlled shutdown.
+    /// This call may "async block" (i.e. be in a pending state) to accumulate multiple operations
+    /// into a single batch. After this method returns the operation was actually written (i.e. it
+    /// is NOT buffered any longer). You may use [`flush`](Self::flush) to trigger an early
+    /// submission (e.g. before some linger time expired), which can be helpful for controlled
+    /// shutdown.
     ///
     /// Returns the metadata that was written.
     async fn store_operation(
@@ -168,8 +169,9 @@ pub trait WriteBufferWriting: Sync + Send + Debug + 'static {
     /// Flush all currently blocking store operations ([`store_operation`](Self::store_operation) /
     /// [`store_lp`](Self::store_lp)).
     ///
-    /// This call is pending while outstanding data is being submitted and will return AFTER the flush completed.
-    /// However you still need to poll the store operations to get the metadata for every write.
+    /// This call is pending while outstanding data is being submitted and will return AFTER the
+    /// flush completed. However you still need to poll the store operations to get the metadata
+    /// for every write.
     async fn flush(&self) -> Result<(), WriteBufferError>;
 
     /// Return type (like `"mock"` or `"kafka"`) of this writer.
@@ -183,21 +185,43 @@ pub trait WriteBufferWriting: Sync + Send + Debug + 'static {
 pub trait WriteBufferStreamHandler: Sync + Send + Debug + 'static {
     /// Stream that produces DML operations.
     ///
-    /// Note that due to the mutable borrow, it is not possible to have multiple streams from the same
-    /// [`WriteBufferStreamHandler`] instance at the same time. If all streams are dropped and requested again, the last
-    /// sequence number of the old streams will be the start sequence number for the new streams. If you want to
-    /// prevent that either create a new [`WriteBufferStreamHandler`] or use [`seek`](Self::seek).
+    /// Note that due to the mutable borrow, it is not possible to have multiple streams from the
+    /// same [`WriteBufferStreamHandler`] instance at the same time. If all streams are dropped and
+    /// requested again, the last sequence number of the old streams will be the start sequence
+    /// number for the new streams. If you want to prevent that either create a new
+    /// [`WriteBufferStreamHandler`] or use [`seek`](Self::seek).
     ///
-    /// If the sequence number that the stream wants to read is unknown (either because it is in the future or because
-    /// some retention policy removed it already), the stream will return an error with
-    /// [`WriteBufferErrorKind::UnknownSequenceNumber`] and will end immediately.
-    async fn stream(&mut self) -> BoxStream<'_, Result<DmlOperation, WriteBufferError>>;
+    /// If the sequence number that the stream wants to read is unknown (either because it is in
+    /// the future or because some retention policy removed it already), the stream will return an
+    /// error with [`WriteBufferErrorKind::UnknownSequenceNumber`] and will end immediately.
+    async fn stream(&mut self) -> BoxStream<'static, Result<DmlOperation, WriteBufferError>>;
 
-    /// Seek sequencer to given sequence number. The next output of related streams will be an entry with at least
-    /// the given sequence number (the actual sequence number might be skipped due to "holes" in the stream).
+    /// Seek sequencer to given sequence number. The next output of related streams will be an
+    /// entry with at least the given sequence number (the actual sequence number might be skipped
+    /// due to "holes" in the stream).
     ///
     /// Note that due to the mutable borrow, it is not possible to seek while streams exists.
     async fn seek(&mut self, sequence_number: u64) -> Result<(), WriteBufferError>;
+
+    /// Reset the sequencer to whatever is the earliest number available in the retained write
+    /// buffer. Useful to restart if [`WriteBufferErrorKind::UnknownSequenceNumber`] is returned
+    /// from [`stream`](Self::stream) but that isn't a problem.
+    fn reset_to_earliest(&mut self);
+}
+
+#[async_trait]
+impl WriteBufferStreamHandler for Box<dyn WriteBufferStreamHandler> {
+    async fn stream(&mut self) -> BoxStream<'static, Result<DmlOperation, WriteBufferError>> {
+        self.as_mut().stream().await
+    }
+
+    async fn seek(&mut self, sequence_number: u64) -> Result<(), WriteBufferError> {
+        self.as_mut().seek(sequence_number).await
+    }
+
+    fn reset_to_earliest(&mut self) {
+        self.as_mut().reset_to_earliest()
+    }
 }
 
 /// Produce streams (one per sequencer) of [`DmlWrite`]s.
@@ -231,8 +255,9 @@ pub trait WriteBufferReading: Sync + Send + Debug + 'static {
 
     /// Get high watermark (= what we believe is the next sequence number to be added).
     ///
-    /// Can be used to calculate lag. Note that since the watermark is "next sequence ID number to be added", it starts
-    /// at 0 and after the entry with sequence number 0 is added to the buffer, it is 1.
+    /// Can be used to calculate lag. Note that since the watermark is "next sequence ID number to
+    /// be added", it starts at 0 and after the entry with sequence number 0 is added to the
+    /// buffer, it is 1.
     async fn fetch_high_watermark(&self, sequencer_id: u32) -> Result<u64, WriteBufferError>;
 
     /// Return type (like `"mock"` or `"kafka"`) of this reader.
@@ -273,8 +298,8 @@ pub mod test_utils {
 
         /// Create a new context.
         ///
-        /// This will be called multiple times during the test suite. Each resulting context must represent an isolated
-        /// environment.
+        /// This will be called multiple times during the test suite. Each resulting context must
+        /// represent an isolated environment.
         async fn new_context(&self, n_sequencers: NonZeroU32) -> Self::Context {
             self.new_context_with_time(n_sequencers, Arc::new(iox_time::SystemProvider::new()))
                 .await
@@ -289,7 +314,8 @@ pub mod test_utils {
 
     /// Context used during testing.
     ///
-    /// Represents an isolated environment. Actions like sequencer creations and writes must not leak across context boundaries.
+    /// Represents an isolated environment. Actions like sequencer creations and writes must not
+    /// leak across context boundaries.
     #[async_trait]
     pub trait TestContext: Send + Sync {
         /// Write buffer writer implementation specific to this context and adapter.
@@ -310,10 +336,11 @@ pub mod test_utils {
 
     /// Generic test suite that must be passed by all proper write buffer implementations.
     ///
-    /// See [`TestAdapter`] for how to make a concrete write buffer implementation work with this test suite.
+    /// See [`TestAdapter`] for how to make a concrete write buffer implementation work with this
+    /// test suite.
     ///
-    /// Note that you might need more tests on top of this to assert specific implementation behaviors, edge cases, and
-    /// error handling.
+    /// Note that you might need more tests on top of this to assert specific implementation
+    /// behaviors, edge cases, and error handling.
     pub async fn perform_generic_tests<T>(adapter: T)
     where
         T: TestAdapter,
@@ -323,6 +350,7 @@ pub mod test_utils {
         test_multi_sequencer_io(&adapter).await;
         test_multi_writer_multi_reader(&adapter).await;
         test_seek(&adapter).await;
+        test_reset_to_earliest(&adapter).await;
         test_watermark(&adapter).await;
         test_timestamp(&adapter).await;
         test_sequencer_auto_creation(&adapter).await;
@@ -366,6 +394,7 @@ pub mod test_utils {
     /// Test IO with a single writer and single reader stream.
     ///
     /// This tests that:
+    ///
     /// - streams process data in order
     /// - readers can handle the "pending" state w/o erroring
     /// - readers unblock after being in "pending" state
@@ -410,6 +439,7 @@ pub mod test_utils {
     /// Tests multiple subsequently created streams from a single [`WriteBufferStreamHandler`].
     ///
     /// This tests that:
+    ///
     /// - readers remember their sequence number (and "pending" state) even when streams are dropped
     /// - state is not shared between handlers
     async fn test_multi_stream_io<T>(adapter: &T)
@@ -437,8 +467,8 @@ pub mod test_utils {
         let mut stream = stream_handler.stream().await;
         assert_write_op_eq(&stream.next().await.unwrap().unwrap(), &w1);
 
-        // re-creating stream after reading remembers sequence number, but wait a bit to provoke the stream to buffer
-        // some entries
+        // re-creating stream after reading remembers sequence number, but wait a bit to provoke
+        // the stream to buffer some entries
         tokio::time::sleep(Duration::from_millis(10)).await;
         drop(stream);
         let mut stream = stream_handler.stream().await;
@@ -460,7 +490,9 @@ pub mod test_utils {
     /// Test single reader-writer IO w/ multiple sequencers.
     ///
     /// This tests that:
-    /// - writes go to and reads come from the right sequencer, aka that sequencers provide a namespace-like isolation
+    ///
+    /// - writes go to and reads come from the right sequencer, aka that sequencers provide a
+    ///   namespace-like isolation
     /// - "pending" states are specific to a sequencer
     async fn test_multi_sequencer_io<T>(adapter: &T)
     where
@@ -512,6 +544,7 @@ pub mod test_utils {
     /// Test multiple multiple writers and multiple readers on multiple sequencers.
     ///
     /// This tests that:
+    ///
     /// - writers retrieve consistent sequencer IDs
     /// - writes go to and reads come from the right sequencer, similar
     ///   to [`test_multi_sequencer_io`] but less detailed
@@ -556,10 +589,11 @@ pub mod test_utils {
     /// Test seek implemention of readers.
     ///
     /// This tests that:
+    ///
     /// - seeking is specific to the reader AND sequencer
     /// - forward and backwards seeking works
-    /// - seeking past the end of the known content works (results in "pending" status and remembers sequence number and
-    ///   not just "next entry")
+    /// - seeking past the end of the known content works (results in "pending" status and
+    ///   remembers sequence number and not just "next entry")
     async fn test_seek<T>(adapter: &T)
     where
         T: TestAdapter,
@@ -609,7 +643,8 @@ pub mod test_utils {
         assert_reader_content(&mut handler_1_1_a, &[&w_east_1, &w_east_2]).await;
 
         // seek to far end and then add data
-        // The affected stream should error and then stop. The other streams should still be pending.
+        // The affected stream should error and then stop. The other streams should still be
+        // pending.
         handler_1_1_a.seek(1_000_000).await.unwrap();
         let w_east_3 = write("namespace", &writer, entry_east_3, 0, None).await;
 
@@ -634,9 +669,55 @@ pub mod test_utils {
         assert_reader_content(&mut handler_1_1_a, &[&w_east_1, &w_east_2, &w_east_3]).await;
     }
 
+    /// Test reset to earliest implemention of readers.
+    ///
+    /// This tests that:
+    ///
+    /// - Calling the function jumps to the earliest available sequence number if the earliest
+    ///   available sequence number is earlier than the current sequence number
+    /// - Calling the function jumps to the earliest available sequence number if the earliest
+    ///   available sequence number is later than the current sequence number
+    async fn test_reset_to_earliest<T>(adapter: &T)
+    where
+        T: TestAdapter,
+    {
+        let context = adapter.new_context(NonZeroU32::try_from(2).unwrap()).await;
+
+        let entry_east_1 = "upc,region=east user=1 100";
+        let entry_east_2 = "upc,region=east user=2 200";
+
+        let writer = context.writing(true).await.unwrap();
+
+        let mut sequencer_ids = writer.sequencer_ids();
+        let sequencer_id_1 = set_pop_first(&mut sequencer_ids).unwrap();
+
+        let w_east_1 = write("namespace", &writer, entry_east_1, sequencer_id_1, None).await;
+        let w_east_2 = write("namespace", &writer, entry_east_2, sequencer_id_1, None).await;
+
+        let reader_1 = context.reading(true).await.unwrap();
+
+        let mut handler_1_1_a = reader_1.stream_handler(sequencer_id_1).await.unwrap();
+
+        // forward seek
+        handler_1_1_a
+            .seek(w_east_2.meta().sequence().unwrap().sequence_number)
+            .await
+            .unwrap();
+        assert_reader_content(&mut handler_1_1_a, &[&w_east_2]).await;
+
+        // reset to earliest goes back to 0; stream re-fetches earliest record
+        handler_1_1_a.reset_to_earliest();
+        assert_reader_content(&mut handler_1_1_a, &[&w_east_1, &w_east_2]).await;
+
+        // TODO: https://github.com/influxdata/influxdb_iox/issues/4651
+        // Remove first write operation to simulate retention policies evicting some records
+        // reset to earliest goes to whatever's available
+    }
+
     /// Test watermark fetching.
     ///
     /// This tests that:
+    ///
     /// - watermarks for empty sequencers is 0
     /// - watermarks for non-empty sequencers is "last sequence ID plus 1"
     async fn test_watermark<T>(adapter: &T)
@@ -722,6 +803,7 @@ pub mod test_utils {
     /// Test that sequencer auto-creation works.
     ///
     /// This tests that:
+    ///
     /// - both writer and reader cannot be constructed when sequencers are missing
     /// - both writer and reader can be auto-create sequencers
     async fn test_sequencer_auto_creation<T>(adapter: &T)
@@ -749,6 +831,7 @@ pub mod test_utils {
     /// Test sequencer IDs reporting of readers and writers.
     ///
     /// This tests that:
+    ///
     /// - all sequencers are reported
     async fn test_sequencer_ids<T>(adapter: &T)
     where
@@ -864,6 +947,7 @@ pub mod test_utils {
     /// Test usage w/ multiple namespaces.
     ///
     /// Tests that:
+    ///
     /// - namespace names or propagated correctly from writer to reader
     /// - all namespaces end up in a single stream
     async fn test_multi_namespaces<T>(adapter: &T)
@@ -928,14 +1012,16 @@ pub mod test_utils {
 
     /// Assert that the content of the reader is as expected.
     ///
-    /// This will read `expected_writes.len()` from the reader and then ensures that the stream is pending.
+    /// This will read `expected_writes.len()` from the reader and then ensures that the stream is
+    /// pending.
     async fn assert_reader_content(
         actual_stream_handler: &mut Box<dyn WriteBufferStreamHandler>,
         expected_writes: &[&DmlWrite],
     ) {
         let actual_stream = actual_stream_handler.stream().await;
 
-        // we need to limit the stream to `expected_writes.len()` elements, otherwise it might be pending forever
+        // we need to limit the stream to `expected_writes.len()` elements, otherwise it might be
+        // pending forever
         let actual_writes: Vec<_> = actual_stream
             .take(expected_writes.len())
             .try_collect()
@@ -955,6 +1041,7 @@ pub mod test_utils {
     /// Asserts that given span context are the same or that `second` links back to `first`.
     ///
     /// "Same" means:
+    ///
     /// - identical trace ID
     /// - identical span ID
     /// - identical parent span ID
@@ -983,7 +1070,8 @@ pub mod test_utils {
         assert_eq!(first.parent_span_id, second.parent_span_id);
     }
 
-    /// Assert that all span relations (parents, links) are found within the set of spans or within the set of roots.
+    /// Assert that all span relations (parents, links) are found within the set of spans or within
+    /// the set of roots.
     fn assert_span_relations_closed(spans: &[Span], roots: &[SpanContext]) {
         let all_ids: HashSet<_> = spans
             .iter()
@@ -1003,7 +1091,8 @@ pub mod test_utils {
 
     /// Assert that given stream is pending.
     ///
-    /// This will will try to poll the stream for a bit to ensure that async IO has a chance to catch up.
+    /// This will will try to poll the stream for a bit to ensure that async IO has a chance to
+    /// catch up.
     async fn assert_stream_pending<S>(stream: &mut S)
     where
         S: Stream + Send + Unpin,
@@ -1063,8 +1152,8 @@ pub mod test_utils {
                 }
                 (false, None) => {
                     eprintln!(
-                        "skipping Kafka integration tests - set TEST_INTEGRATION and KAFKA_CONNECT to \
-                        run"
+                        "skipping Kafka integration tests - set TEST_INTEGRATION and KAFKA_CONNECT \
+                        to run"
                     );
                     return;
                 }

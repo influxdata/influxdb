@@ -193,6 +193,7 @@ pub async fn create_ingester_server_type(
             write_buffer,
             exec,
             Arc::clone(&metric_registry),
+            ingester_config.skip_to_oldest_available,
         )
         .await?,
     );

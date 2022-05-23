@@ -2206,8 +2206,8 @@ mod tests {
             .await
             .unwrap();
         {
-            let tables = data.tables.read();
-            let table = tables.get("mem").unwrap().read().await;
+            let table_data = data.table_data("mem").unwrap();
+            let table = table_data.read().await;
             let p = table.partition_data.get("1970-01-01").unwrap();
             assert_eq!(
                 p.data.max_persisted_sequence_number,
@@ -2229,8 +2229,8 @@ mod tests {
         .await
         .unwrap();
 
-        let tables = data.tables.read();
-        let table = tables.get("mem").unwrap().read().await;
+        let table_data = data.table_data("mem").unwrap();
+        let table = table_data.read().await;
         let partition = table.partition_data.get("1970-01-01").unwrap();
         assert_eq!(
             partition.data.buffer.as_ref().unwrap().min_sequence_number,

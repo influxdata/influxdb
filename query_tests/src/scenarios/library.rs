@@ -1322,3 +1322,30 @@ impl DbSetup for MeasurementForDefect2890 {
         all_scenarios_for_one_chunk(vec![], vec![], lp, "mm", partition_key).await
     }
 }
+
+#[derive(Debug)]
+pub struct TwoChunksMissingColumns {}
+#[async_trait]
+impl DbSetup for TwoChunksMissingColumns {
+    async fn make(&self) -> Vec<DbScenario> {
+        let partition_key1 = "a";
+        let partition_key2 = "b";
+
+        let lp_lines1 = vec!["table,tag1=a,tag2=b field1=10,field2=11 100"];
+        let lp_lines2 = vec!["table,tag1=a,tag3=c field1=20,field3=22 200"];
+
+        make_n_chunks_scenario(&[
+            ChunkData {
+                lp_lines: lp_lines1,
+                partition_key: partition_key1,
+                ..Default::default()
+            },
+            ChunkData {
+                lp_lines: lp_lines2,
+                partition_key: partition_key2,
+                ..Default::default()
+            },
+        ])
+        .await
+    }
+}

@@ -130,7 +130,7 @@ pub struct RSKafkaStreamHandler {
 
 #[async_trait]
 impl WriteBufferStreamHandler for RSKafkaStreamHandler {
-    async fn stream(&mut self) -> BoxStream<'_, Result<DmlOperation, WriteBufferError>> {
+    async fn stream(&mut self) -> BoxStream<'static, Result<DmlOperation, WriteBufferError>> {
         if self.terminated.load(Ordering::SeqCst) {
             return futures::stream::empty().boxed();
         }
@@ -161,6 +161,8 @@ impl WriteBufferStreamHandler for RSKafkaStreamHandler {
         }
         let stream = stream_builder.build();
 
+        let sequencer_id = self.sequencer_id;
+
         let stream = stream.map(move |res| {
             let (record, _watermark) = match res {
                 Ok(x) => x,
@@ -185,7 +187,7 @@ impl WriteBufferStreamHandler for RSKafkaStreamHandler {
                 IoxHeaders::from_headers(record.record.headers, trace_collector.as_ref())?;
 
             let sequence = Sequence {
-                sequencer_id: self.sequencer_id,
+                sequencer_id,
                 sequence_number: record
                     .offset
                     .try_into()
@@ -219,6 +221,11 @@ impl WriteBufferStreamHandler for RSKafkaStreamHandler {
         *self.next_offset.lock() = Some(offset);
         self.terminated.store(false, Ordering::SeqCst);
         Ok(())
+    }
+
+    fn reset_to_earliest(&mut self) {
+        *self.next_offset.lock() = None;
+        self.terminated.store(false, Ordering::SeqCst);
     }
 }
 

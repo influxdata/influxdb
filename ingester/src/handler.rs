@@ -13,7 +13,7 @@ use crate::{
 };
 use async_trait::async_trait;
 use backoff::BackoffConfig;
-use data_types::{KafkaPartition, KafkaTopic, Sequencer};
+use data_types::{KafkaPartition, KafkaTopic, SequenceNumber, Sequencer};
 use futures::{
     future::{BoxFuture, Shared},
     stream::FuturesUnordered,
@@ -123,6 +123,7 @@ impl IngestHandlerImpl {
         write_buffer: Arc<dyn WriteBufferReading>,
         exec: Arc<Executor>,
         metric_registry: Arc<metric::Registry>,
+        skip_to_oldest_available: bool,
     ) -> Result<Self> {
         // build the initial ingester data state
         let mut sequencers = BTreeMap::new();
@@ -216,12 +217,14 @@ impl IngestHandlerImpl {
                 let kafka_topic_name = kafka_topic_name.clone();
                 async move {
                     let handler = SequencedStreamHandler::new(
-                        op_stream.stream().await,
+                        op_stream,
+                        SequenceNumber::new(sequencer.min_unpersisted_sequence_number),
                         sink,
                         lifecycle_handle,
                         kafka_topic_name,
                         sequencer.kafka_partition,
                         &*metric_registry,
+                        skip_to_oldest_available,
                     );
 
                     handler.run(shutdown).await
@@ -350,6 +353,7 @@ impl<T> Drop for IngestHandlerImpl<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::data::SnapshotBatch;
     use data_types::{Namespace, NamespaceSchema, QueryPool, Sequence, SequenceNumber};
     use dml::{DmlMeta, DmlWrite};
     use iox_catalog::{mem::MemCatalog, validate_or_insert_schema};
@@ -557,8 +561,11 @@ mod tests {
             .unwrap();
     }
 
-    #[tokio::test]
-    async fn seeks_on_initialization() {
+    async fn ingester_test_setup(
+        write_operations: Vec<DmlWrite>,
+        min_unpersisted_sequence_number: i64,
+        skip_to_oldest_available: bool,
+    ) -> (IngestHandlerImpl, Sequencer, Namespace) {
         let metrics: Arc<metric::Registry> = Default::default();
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
 
@@ -576,11 +583,14 @@ mod tests {
             .create_or_get(&kafka_topic, kafka_partition)
             .await
             .unwrap();
-        // update the min unpersisted so we can verify this was what was seeked to later
-        sequencer.min_unpersisted_sequence_number = 2;
+        // update the min unpersisted
+        sequencer.min_unpersisted_sequence_number = min_unpersisted_sequence_number;
         // this probably isn't necessary, but just in case something changes later
         txn.sequencers()
-            .update_min_unpersisted_sequence_number(sequencer.id, SequenceNumber::new(2))
+            .update_min_unpersisted_sequence_number(
+                sequencer.id,
+                SequenceNumber::new(min_unpersisted_sequence_number),
+            )
             .await
             .unwrap();
 
@@ -591,25 +601,14 @@ mod tests {
             MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());
 
         let schema = NamespaceSchema::new(namespace.id, kafka_topic.id, query_pool.id);
-        let ingest_ts1 = Time::from_timestamp_millis(42);
-        let ingest_ts2 = Time::from_timestamp_millis(1337);
-        let w1 = DmlWrite::new(
-            "foo",
-            lines_to_batches("cpu bar=2 20", 0).unwrap(),
-            DmlMeta::sequenced(Sequence::new(0, 1), ingest_ts1, None, 150),
-        );
-        let _schema = validate_or_insert_schema(w1.tables(), &schema, txn.deref_mut())
-            .await
-            .unwrap()
-            .unwrap();
-        let w2 = DmlWrite::new(
-            "foo",
-            lines_to_batches("cpu bar=2 30", 0).unwrap(),
-            DmlMeta::sequenced(Sequence::new(0, 2), ingest_ts2, None, 150),
-        );
+        for write_operation in write_operations {
+            validate_or_insert_schema(write_operation.tables(), &schema, txn.deref_mut())
+                .await
+                .unwrap()
+                .unwrap();
+            write_buffer_state.push_write(write_operation);
+        }
         txn.commit().await.unwrap();
-        write_buffer_state.push_write(w1);
-        write_buffer_state.push_write(w2);
 
         let reading: Arc<dyn WriteBufferReading> =
             Arc::new(MockBufferForReading::new(write_buffer_state.clone(), None).unwrap());
@@ -631,27 +630,32 @@ mod tests {
             reading,
             Arc::new(Executor::new(1)),
             Arc::clone(&metrics),
+            skip_to_oldest_available,
         )
         .await
         .unwrap();
 
+        (ingester, sequencer, namespace)
+    }
+
+    async fn verify_ingester_buffer_has_data(
+        ingester: IngestHandlerImpl,
+        sequencer: Sequencer,
+        namespace: Namespace,
+        custom_batch_verification: impl Fn(&SnapshotBatch) + Send,
+    ) {
         // give the writes some time to go through the buffer. Exit once we've verified there's
         // data in there
-        tokio::time::timeout(Duration::from_secs(1), async {
+        tokio::time::timeout(Duration::from_secs(1), async move {
             loop {
                 let mut has_measurement = false;
 
-                if let Some(data) = ingester
-                    .data
-                    .sequencer(sequencer.id)
-                {
+                if let Some(data) = ingester.data.sequencer(sequencer.id) {
                     if let Some(data) = data.namespace(&namespace.name) {
                         // verify there's data in the buffer
                         if let Some((b, _)) = data.snapshot("cpu", "1970-01-01").await {
                             if let Some(b) = b.first() {
-                                if b.min_sequencer_number == SequenceNumber::new(1) {
-                                    panic!("initialization did a seek to the beginning rather than the min_unpersisted");
-                                }
+                                custom_batch_verification(b);
 
                                 if b.data.num_rows() == 1 {
                                     has_measurement = true;
@@ -668,8 +672,76 @@ mod tests {
                 tokio::time::sleep(Duration::from_millis(200)).await;
             }
         })
+        .await
+        .expect("timeout");
+    }
+
+    #[tokio::test]
+    async fn seeks_on_initialization() {
+        let ingest_ts1 = Time::from_timestamp_millis(42);
+        let ingest_ts2 = Time::from_timestamp_millis(1337);
+        let write_operations = vec![
+            DmlWrite::new(
+                "foo",
+                lines_to_batches("cpu bar=2 20", 0).unwrap(),
+                DmlMeta::sequenced(Sequence::new(0, 1), ingest_ts1, None, 150),
+            ),
+            DmlWrite::new(
+                "foo",
+                lines_to_batches("cpu bar=2 30", 0).unwrap(),
+                DmlMeta::sequenced(Sequence::new(0, 2), ingest_ts2, None, 150),
+            ),
+        ];
+
+        let (ingester, sequencer, namespace) =
+            ingester_test_setup(write_operations, 2, false).await;
+
+        verify_ingester_buffer_has_data(ingester, sequencer, namespace, |first_batch| {
+            if first_batch.min_sequencer_number == SequenceNumber::new(1) {
+                panic!(
+                    "initialization did a seek to the beginning rather than \
+                    the min_unpersisted"
+                );
+            }
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "JoinError::Panic")]
+    async fn seeks_on_initialization_unknown_sequence_number() {
+        // No write operations means the stream will return unknown sequence number
+        // Ingester will panic because skip_to_oldest_available is false
+        let (ingester, _sequencer, _namespace) = ingester_test_setup(vec![], 2, false).await;
+
+        tokio::time::timeout(Duration::from_millis(1000), ingester.join())
             .await
-            .expect("timeout");
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn seeks_on_initialization_unknown_sequence_number_skip_to_oldest_available() {
+        let ingest_ts1 = Time::from_timestamp_millis(42);
+        let write_operations = vec![DmlWrite::new(
+            "foo",
+            lines_to_batches("cpu bar=2 20", 0).unwrap(),
+            DmlMeta::sequenced(Sequence::new(0, 1), ingest_ts1, None, 150),
+        )];
+
+        // Set the min unpersisted to something bigger than the write's sequence number to
+        // cause an UnknownSequenceNumber error. Skip to oldest available = true, so ingester
+        // should find data
+        let (ingester, sequencer, namespace) =
+            ingester_test_setup(write_operations, 10, true).await;
+
+        verify_ingester_buffer_has_data(ingester, sequencer, namespace, |first_batch| {
+            assert_eq!(
+                first_batch.min_sequencer_number,
+                SequenceNumber::new(1),
+                "re-initialization didn't seek to the beginning",
+            );
+        })
+        .await;
     }
 
     struct TestIngester {
@@ -730,6 +802,7 @@ mod tests {
                 reading,
                 Arc::new(Executor::new(1)),
                 Arc::clone(&metrics),
+                false,
             )
             .await
             .unwrap();

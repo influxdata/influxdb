@@ -15,19 +15,18 @@ pub struct IngesterConfig {
     )]
     pub write_buffer_partition_range_end: i32,
 
-    /// The ingester will continue to pull data and buffer it from Kafka
-    /// as long as it is below this size. If it hits this size it will pause
-    /// ingest from Kafka until persistence goes below this threshold.
+    /// The ingester will continue to pull data and buffer it from the write buffer as long as the
+    /// ingester buffer is below this size. If the ingester buffer hits this size, ingest from the
+    /// write buffer will pause until the ingester buffer goes below this threshold.
     #[clap(
         long = "--pause-ingest-size-bytes",
         env = "INFLUXDB_IOX_PAUSE_INGEST_SIZE_BYTES"
     )]
     pub pause_ingest_size_bytes: usize,
 
-    /// Once the ingester crosses this threshold of data buffered across
-    /// all sequencers, it will pick the largest partitions and persist
-    /// them until it falls below this threshold. An ingester running in
-    /// a steady state is expected to take up this much memory.
+    /// Once the ingester crosses this threshold of data buffered across all sequencers, it will
+    /// pick the largest partitions and persist them until it falls below this threshold. An
+    /// ingester running in a steady state is expected to take up this much memory.
     #[clap(
         long = "--persist-memory-threshold-bytes",
         env = "INFLUXDB_IOX_PERSIST_MEMORY_THRESHOLD_BYTES"
@@ -43,10 +42,9 @@ pub struct IngesterConfig {
     )]
     pub persist_partition_size_threshold_bytes: usize,
 
-    /// If a partition has had data buffered for longer than this period of time
-    /// it will be persisted. This puts an upper bound on how far back the
-    /// ingester may need to read in Kafka on restart or recovery. The default value
-    /// is 30 minutes (in seconds).
+    /// If a partition has had data buffered for longer than this period of time, it will be
+    /// persisted. This puts an upper bound on how far back the ingester may need to read from the
+    /// write buffer on restart or recovery. The default value is 30 minutes (in seconds).
     #[clap(
         long = "--persist-partition-age-threshold-seconds",
         env = "INFLUXDB_IOX_PERSIST_PARTITION_AGE_THRESHOLD_SECONDS",
@@ -62,4 +60,14 @@ pub struct IngesterConfig {
         default_value = "300"
     )]
     pub persist_partition_cold_threshold_seconds: u64,
+
+    /// If the catalog's max sequence number for the partition is no longer available in the write
+    /// buffer due to the retention policy, by default the ingester will panic. If this flag is
+    /// specified, the ingester will skip any sequence numbers that have not been retained in the
+    /// write buffer and will start up successfully with the oldest available data.
+    #[clap(
+        long = "--skip-to-oldest-available",
+        env = "INFLUXDB_IOX_SKIP_TO_OLDEST_AVAILABLE"
+    )]
+    pub skip_to_oldest_available: bool,
 }
