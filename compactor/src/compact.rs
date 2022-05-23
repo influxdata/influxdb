@@ -21,10 +21,9 @@ use iox_query::{
     exec::{Executor, ExecutorType},
     frontend::reorg::ReorgPlanner,
     provider::overlap::group_potential_duplicates,
-    util::compute_timenanosecond_min_max,
     QueryChunk,
 };
-use iox_time::{Time, TimeProvider};
+use iox_time::TimeProvider;
 use metric::{Attributes, Metric, U64Counter, U64Gauge, U64Histogram, U64HistogramOptions};
 use observability_deps::tracing::{debug, info, trace, warn};
 use parquet_file::{
@@ -746,16 +745,8 @@ impl Compactor {
             );
 
             let row_count: usize = output_batches.iter().map(|b| b.num_rows()).sum();
-            let row_count = row_count.try_into().context(RowCountTypeConversionSnafu)?;
 
             debug!("got {} rows from stream {}", row_count, i);
-            if row_count == 0 {
-                continue;
-            }
-
-            // Compute min and max of the `time` column
-            let (min_time, max_time) =
-                compute_timenanosecond_min_max(&output_batches).context(MinMaxSnafu)?;
 
             let meta = IoxMetadata {
                 object_store_id: Uuid::new_v4(),
@@ -767,11 +758,8 @@ impl Compactor {
                 table_name: Arc::<str>::clone(&iox_metadata.table_name),
                 partition_id: iox_metadata.partition_id,
                 partition_key: Arc::<str>::clone(&iox_metadata.partition_key),
-                time_of_first_write: Time::from_timestamp_nanos(min_time),
-                time_of_last_write: Time::from_timestamp_nanos(max_time),
                 min_sequence_number,
                 max_sequence_number,
-                row_count,
                 compaction_level: 1, // compacted result file always have level 1
                 sort_key: Some(sort_key.clone()),
             };
@@ -2406,11 +2394,8 @@ mod tests {
             table_name: "temperature".into(),
             partition_id: PartitionId::new(4),
             partition_key: "somehour".into(),
-            time_of_first_write: compactor.time_provider.now(),
-            time_of_last_write: compactor.time_provider.now(),
             min_sequence_number: SequenceNumber::new(5),
             max_sequence_number: SequenceNumber::new(6),
-            row_count: 3,
             compaction_level: 1, // level of compacted data is always 1
             sort_key: Some(SortKey::from_columns(["tag1", "time"])),
         };
@@ -2554,11 +2539,8 @@ mod tests {
             table_name: "temperature".into(),
             partition_id: PartitionId::new(4),
             partition_key: "somehour".into(),
-            time_of_first_write: compactor.time_provider.now(),
-            time_of_last_write: compactor.time_provider.now(),
             min_sequence_number: SequenceNumber::new(5),
             max_sequence_number: SequenceNumber::new(6),
-            row_count: 3,
             compaction_level: 1, // file level of compacted file is always 1
             sort_key: None,
         };

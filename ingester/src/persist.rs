@@ -73,11 +73,8 @@ mod tests {
             table_name: "temperature".into(),
             partition_id: PartitionId::new(4),
             partition_key: "somehour".into(),
-            time_of_first_write: now(),
-            time_of_last_write: now(),
             min_sequence_number: SequenceNumber::new(5),
             max_sequence_number: SequenceNumber::new(6),
-            row_count: 0,
             compaction_level: INITIAL_COMPACTION_LEVEL,
             sort_key: None,
         };
@@ -107,11 +104,8 @@ mod tests {
             table_name: "temperature".into(),
             partition_id: PartitionId::new(4),
             partition_key: "somehour".into(),
-            time_of_first_write: now(),
-            time_of_last_write: now(),
             min_sequence_number: SequenceNumber::new(5),
             max_sequence_number: SequenceNumber::new(6),
-            row_count: 3,
             compaction_level: INITIAL_COMPACTION_LEVEL,
             sort_key: None,
         };

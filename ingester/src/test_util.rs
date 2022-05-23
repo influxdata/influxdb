@@ -64,8 +64,6 @@ pub async fn make_persisting_batch_with_meta() -> (Arc<PersistingBatch>, Vec<Tom
     let namespace_id = 1;
     let table_id = 1;
     let partition_id = 1;
-    let row_count: usize = batches.iter().map(|b| b.num_rows()).sum();
-    let row_count = row_count.try_into().unwrap();
 
     // make the persisting batch
     let persisting_batch = make_persisting_batch(
@@ -91,11 +89,8 @@ pub async fn make_persisting_batch_with_meta() -> (Arc<PersistingBatch>, Vec<Tom
         table_name,
         partition_id,
         partition_key,
-        5,
-        7000,
         seq_num_start,
         seq_num_end,
-        row_count,
         INITIAL_COMPACTION_LEVEL,
         Some(SortKey::from_columns(vec!["tag1", "tag2", "time"])),
     );
@@ -135,11 +130,8 @@ pub fn make_meta(
     table_name: &str,
     partition_id: i64,
     partition_key: &str,
-    min_time: i64,
-    max_time: i64,
     min_sequence_number: i64,
     max_sequence_number: i64,
-    row_count: i64,
     compaction_level: i16,
     sort_key: Option<SortKey>,
 ) -> IoxMetadata {
@@ -153,11 +145,8 @@ pub fn make_meta(
         table_name: Arc::from(table_name),
         partition_id: PartitionId::new(partition_id),
         partition_key: Arc::from(partition_key),
-        time_of_first_write: Time::from_timestamp_nanos(min_time),
-        time_of_last_write: Time::from_timestamp_nanos(max_time),
         min_sequence_number: SequenceNumber::new(min_sequence_number),
         max_sequence_number: SequenceNumber::new(max_sequence_number),
-        row_count,
         compaction_level,
         sort_key,
     }

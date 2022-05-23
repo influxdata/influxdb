@@ -517,11 +517,8 @@ impl TestPartition {
             table_name: self.table.table.name.clone().into(),
             partition_id: self.partition.id,
             partition_key: self.partition.partition_key.clone().into(),
-            time_of_first_write: Time::from_timestamp_nanos(min_time),
-            time_of_last_write: Time::from_timestamp_nanos(max_time),
             min_sequence_number,
             max_sequence_number,
-            row_count: row_count as i64,
             compaction_level: INITIAL_COMPACTION_LEVEL,
             sort_key: Some(sort_key.clone()),
         };

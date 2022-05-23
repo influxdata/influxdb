@@ -8,10 +8,9 @@ use iox_catalog::interface::INITIAL_COMPACTION_LEVEL;
 use iox_query::{
     exec::{Executor, ExecutorType},
     frontend::reorg::ReorgPlanner,
-    util::compute_timenanosecond_min_max,
     QueryChunk, QueryChunkMeta,
 };
-use iox_time::{Time, TimeProvider};
+use iox_time::TimeProvider;
 use parquet_file::metadata::IoxMetadata;
 use schema::sort::{adjust_sort_key_columns, compute_sort_key, SortKey};
 use snafu::{ResultExt, Snafu};
@@ -105,13 +104,6 @@ pub async fn compact_persisting_batch(
         .filter(|b| b.num_rows() != 0)
         .collect();
 
-    let row_count: usize = output_batches.iter().map(|b| b.num_rows()).sum();
-    let row_count = row_count.try_into().context(RowCountTypeConversionSnafu)?;
-
-    // Compute min and max of the `time` column
-    let (min_time, max_time) =
-        compute_timenanosecond_min_max(&output_batches).context(MinMaxSnafu)?;
-
     // Compute min and max sequence numbers
     let (min_seq, max_seq) = batch.data.min_max_sequence_numbers();
 
@@ -125,11 +117,8 @@ pub async fn compact_persisting_batch(
         table_name: Arc::from(table_name.as_str()),
         partition_id: batch.partition_id,
         partition_key: Arc::from(partition_key.as_str()),
-        time_of_first_write: Time::from_timestamp_nanos(min_time),
-        time_of_last_write: Time::from_timestamp_nanos(max_time),
         min_sequence_number: min_seq,
         max_sequence_number: max_seq,
-        row_count,
         compaction_level: INITIAL_COMPACTION_LEVEL,
         sort_key: Some(metadata_sort_key),
     };
@@ -333,11 +322,8 @@ mod tests {
             table_name,
             partition_id,
             partition_key,
-            8000,
-            20000,
             seq_num_start,
             seq_num_end,
-            3,
             INITIAL_COMPACTION_LEVEL,
             Some(SortKey::from_columns(["tag1", "time"])),
         );
@@ -428,11 +414,8 @@ mod tests {
             table_name,
             partition_id,
             partition_key,
-            28000,
-            220000,
             seq_num_start,
             seq_num_end,
-            4,
             INITIAL_COMPACTION_LEVEL,
             // Sort key should now be set
             Some(SortKey::from_columns(["tag1", "tag3", "time"])),
@@ -526,11 +509,8 @@ mod tests {
             table_name,
             partition_id,
             partition_key,
-            28000,
-            220000,
             seq_num_start,
             seq_num_end,
-            4,
             INITIAL_COMPACTION_LEVEL,
             // The sort key in the metadata should be the same as specified (that is, not
             // recomputed)
@@ -624,11 +604,8 @@ mod tests {
             table_name,
             partition_id,
             partition_key,
-            28000,
-            220000,
             seq_num_start,
             seq_num_end,
-            4,
             INITIAL_COMPACTION_LEVEL,
             // The sort key in the metadata should be updated to include the new column just before
             // the time column
@@ -725,11 +702,8 @@ mod tests {
             table_name,
             partition_id,
             partition_key,
-            28000,
-            220000,
             seq_num_start,
             seq_num_end,
-            4,
             INITIAL_COMPACTION_LEVEL,
             // The sort key in the metadata should only contain the columns in this file
             Some(SortKey::from_columns(["tag3", "tag1", "time"])),
