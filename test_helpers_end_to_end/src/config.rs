@@ -241,6 +241,16 @@ impl TestConfig {
             .copy_env("INFLUXDB_IOX_DB_DIR", other)
     }
 
+    /// Configures ingester to panic in flight `do_get` requests.
+    pub fn with_ingester_flight_do_get_panic(self, times: u64) -> Self {
+        self.with_env("INFLUXDB_IOX_FLIGHT_DO_GET_PANIC", times.to_string())
+    }
+
+    /// Changes the log to JSON for easier parsing.
+    pub fn with_json_logs(self) -> Self {
+        self.with_env("LOG_FORMAT", "json")
+    }
+
     /// Get the test config's server type.
     #[must_use]
     pub fn server_type(&self) -> ServerType {

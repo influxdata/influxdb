@@ -113,6 +113,9 @@ impl Error {
             Self::Query { .. } => Status::internal(self.to_string()),
             Self::InvalidDatabaseName { .. } => Status::invalid_argument(self.to_string()),
             Self::InvalidRecordBatch { .. } => Status::internal(self.to_string()),
+            Self::Planning {
+                source: service_common::planner::Error::External(_),
+            } => Status::internal(self.to_string()),
             Self::Planning { .. } => Status::invalid_argument(self.to_string()),
             Self::DictionaryError { .. } => Status::internal(self.to_string()),
             Self::Serialization { .. } => Status::internal(self.to_string()),

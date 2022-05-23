@@ -347,6 +347,7 @@ impl Config {
             persist_partition_age_threshold_seconds,
             persist_partition_cold_threshold_seconds,
             skip_to_oldest_available,
+            test_flight_do_get_panic: 0,
         };
 
         // create a CompactorConfig for the all in one server based on

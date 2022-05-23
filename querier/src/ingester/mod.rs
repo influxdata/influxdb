@@ -13,7 +13,8 @@ use data_types::{
 use datafusion_util::MemoryStream;
 use futures::{stream::FuturesUnordered, TryStreamExt};
 use generated_types::{
-    influxdata::iox::ingester::v1::GetWriteInfoResponse, ingester::IngesterQueryRequest,
+    influxdata::iox::ingester::v1::GetWriteInfoResponse,
+    ingester::{encode_proto_predicate_as_base64, IngesterQueryRequest},
     write_info::merge_responses,
 };
 use iox_query::{
@@ -21,7 +22,7 @@ use iox_query::{
     util::compute_timenanosecond_min_max,
     QueryChunk, QueryChunkError, QueryChunkMeta,
 };
-use observability_deps::tracing::{debug, trace};
+use observability_deps::tracing::{debug, trace, warn};
 use predicate::{Predicate, PredicateMatch};
 use schema::{selection::Selection, sort::SortKey, InfluxColumnType, InfluxFieldType, Schema};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
@@ -247,9 +248,25 @@ async fn execute(request: GetPartitionForIngester<'_>) -> Result<Vec<Arc<Ingeste
             return Ok(vec![]);
         }
     }
-    let mut perform_query = query_res.context(RemoteQuerySnafu {
-        ingester_address: ingester_address.as_ref(),
-    })?;
+    let mut perform_query = query_res
+        .context(RemoteQuerySnafu {
+            ingester_address: ingester_address.as_ref(),
+        })
+        .map_err(|e| {
+            // generate a warning that is sufficient to replicate the request using CLI tooling
+            warn!(
+                ingester_address=ingester_address.as_ref(),
+                namespace=namespace_name.as_ref(),
+                table=table_name.as_ref(),
+                columns=columns.join(",").as_str(),
+                predicate_str=%predicate,
+                predicate_binary=encode_predicate_as_base64(predicate).as_str(),
+                "Failed to perform ingester query",
+            );
+
+            //  need to return error until https://github.com/rust-lang/rust/issues/91345 is stable
+            e
+        })?;
 
     // read unpersisted partitions
     // map partition_id -> (PartitionMetadata, Vec<PartitionData>))
@@ -320,6 +337,22 @@ async fn execute(request: GetPartitionForIngester<'_>) -> Result<Vec<Arc<Ingeste
     }
 
     Ok(ingester_partitions)
+}
+
+fn encode_predicate_as_base64(predicate: &Predicate) -> String {
+    use generated_types::influxdata::iox::ingester::v1::Predicate as ProtoPredicate;
+
+    let predicate = match ProtoPredicate::try_from(predicate.clone()) {
+        Ok(predicate) => predicate,
+        Err(_) => {
+            return String::from("<invalid>");
+        }
+    };
+
+    match encode_proto_predicate_as_base64(&predicate) {
+        Ok(s) => s,
+        Err(_) => String::from("<encoding-error>"),
+    }
 }
 
 #[async_trait]

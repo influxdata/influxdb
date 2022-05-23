@@ -70,4 +70,14 @@ pub struct IngesterConfig {
         env = "INFLUXDB_IOX_SKIP_TO_OLDEST_AVAILABLE"
     )]
     pub skip_to_oldest_available: bool,
+
+    /// Sets how often `do_get` flight requests should panic for testing purposes.
+    ///
+    /// The first N requests will panic. Requests after this will just pass.
+    #[clap(
+        long = "--test-flight-do-get-panic",
+        env = "INFLUXDB_IOX_FLIGHT_DO_GET_PANIC",
+        default_value = "0"
+    )]
+    pub test_flight_do_get_panic: u64,
 }

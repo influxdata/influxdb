@@ -4,6 +4,8 @@ use datafusion::{
     common::DataFusionError, datafusion_proto::bytes::Serializeable, logical_plan::Expr,
 };
 use predicate::{Predicate, ValueExpr};
+use prost::Message;
+use snafu::{ResultExt, Snafu};
 
 fn expr_to_bytes_violation(field: impl Into<String>, e: DataFusionError) -> FieldViolation {
     FieldViolation {
@@ -194,8 +196,42 @@ impl TryFrom<ValueExpr> for proto::ValueExpr {
     }
 }
 
+#[derive(Debug, Snafu)]
+pub enum EncodeProtoPredicateFromBase64Error {
+    #[snafu(display("Cannot encode protobuf: {source}"))]
+    ProtobufEncode { source: prost::EncodeError },
+}
+
+/// Encodes [`proto::Predicate`] as base64.
+pub fn encode_proto_predicate_as_base64(
+    predicate: &proto::Predicate,
+) -> Result<String, EncodeProtoPredicateFromBase64Error> {
+    let mut buf = vec![];
+    predicate.encode(&mut buf).context(ProtobufEncodeSnafu)?;
+    Ok(base64::encode(&buf))
+}
+
+#[derive(Debug, Snafu)]
+pub enum DecodeProtoPredicateFromBase64Error {
+    #[snafu(display("Cannot decode base64: {source}"))]
+    Base64Decode { source: base64::DecodeError },
+
+    #[snafu(display("Cannot decode protobuf: {source}"))]
+    ProtobufDecode { source: prost::DecodeError },
+}
+
+/// Decodes [`proto::Predicate`] from base64 string.
+pub fn decode_proto_predicate_from_base64(
+    s: &str,
+) -> Result<proto::Predicate, DecodeProtoPredicateFromBase64Error> {
+    let predicate_binary = base64::decode(s).context(Base64DecodeSnafu)?;
+    proto::Predicate::decode(predicate_binary.as_slice()).context(ProtobufDecodeSnafu)
+}
+
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
+
     use super::*;
     use datafusion::prelude::*;
 
@@ -219,5 +255,20 @@ mod tests {
         let rust_query_converted: IngesterQueryRequest = proto_query.try_into().unwrap();
 
         assert_eq!(rust_query, rust_query_converted);
+    }
+
+    #[test]
+    fn predicate_proto_base64_roundtrip() {
+        let predicate = Predicate {
+            field_columns: Some(BTreeSet::from([String::from("foo"), String::from("bar")])),
+            partition_key: Some(String::from("pkey")),
+            range: Some(TimestampRange::new(13, 42)),
+            exprs: vec![Expr::Wildcard],
+            value_expr: vec![col("_value").eq(lit("bar")).try_into().unwrap()],
+        };
+        let predicate: proto::Predicate = predicate.try_into().unwrap();
+        let base64 = encode_proto_predicate_as_base64(&predicate).unwrap();
+        let predicate2 = decode_proto_predicate_from_base64(&base64).unwrap();
+        assert_eq!(predicate, predicate2);
     }
 }

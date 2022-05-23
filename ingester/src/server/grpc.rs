@@ -21,7 +21,14 @@ use observability_deps::tracing::{info, warn};
 use pin_project::{pin_project, pinned_drop};
 use prost::Message;
 use snafu::{ResultExt, Snafu};
-use std::{pin::Pin, sync::Arc, task::Poll};
+use std::{
+    pin::Pin,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
+    task::Poll,
+};
 use tokio::task::JoinHandle;
 use tonic::{Request, Response, Streaming};
 use trace::ctx::SpanContext;
@@ -32,19 +39,28 @@ use write_summary::WriteSummary;
 #[derive(Debug, Default)]
 pub struct GrpcDelegate<I: IngestHandler> {
     ingest_handler: Arc<I>,
+
+    /// How many `do_get` flight requests should panic for testing purposes.
+    ///
+    /// Every panic will decrease the counter until it reaches zero. At zero, no panics will occur.
+    test_flight_do_get_panic: Arc<AtomicU64>,
 }
 
 impl<I: IngestHandler + Send + Sync + 'static> GrpcDelegate<I> {
     /// Initialise a new [`GrpcDelegate`] passing valid requests to the
     /// specified `ingest_handler`.
-    pub fn new(ingest_handler: Arc<I>) -> Self {
-        Self { ingest_handler }
+    pub fn new(ingest_handler: Arc<I>, test_flight_do_get_panic: Arc<AtomicU64>) -> Self {
+        Self {
+            ingest_handler,
+            test_flight_do_get_panic,
+        }
     }
 
     /// Acquire an Arrow Flight gRPC service implementation.
     pub fn flight_service(&self) -> FlightServer<impl Flight> {
         FlightServer::new(FlightService {
             ingest_handler: Arc::clone(&self.ingest_handler),
+            test_flight_do_get_panic: Arc::clone(&self.test_flight_do_get_panic),
         })
     }
 
@@ -200,6 +216,34 @@ impl Error {
 #[derive(Debug)]
 struct FlightService<I: IngestHandler + Send + Sync + 'static> {
     ingest_handler: Arc<I>,
+
+    /// How many `do_get` flight requests should panic for testing purposes.
+    ///
+    /// Every panic will decrease the counter until it reaches zero. At zero, no panics will occur.
+    test_flight_do_get_panic: Arc<AtomicU64>,
+}
+
+impl<I> FlightService<I>
+where
+    I: IngestHandler + Send + Sync + 'static,
+{
+    fn maybe_panic_in_flight_do_get(&self) {
+        loop {
+            let current = self.test_flight_do_get_panic.load(Ordering::SeqCst);
+            if current == 0 {
+                return;
+            }
+            if self
+                .test_flight_do_get_panic
+                .compare_exchange(current, current - 1, Ordering::SeqCst, Ordering::SeqCst)
+                .is_ok()
+            {
+                break;
+            }
+        }
+
+        panic!("Panicking in `do_get` for testing purposes.");
+    }
 }
 
 type TonicStream<T> = Pin<Box<dyn Stream<Item = Result<T, tonic::Status>> + Send + Sync + 'static>>;
@@ -234,6 +278,8 @@ impl<I: IngestHandler + Send + Sync + 'static> Flight for FlightService<I> {
             })?;
 
         let query_request = proto_query_request.try_into().context(InvalidQuerySnafu)?;
+
+        self.maybe_panic_in_flight_do_get();
 
         let query_response =
             self.ingest_handler
