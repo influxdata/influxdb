@@ -440,7 +440,7 @@ impl TestPartition {
         .await
     }
 
-    /// Create a parquet for the partition
+    /// Create a parquet for the partition with the given min/max sequence numbers and min/max time
     pub async fn create_parquet_file_with_min_max(
         self: &Arc<Self>,
         lp: &str,

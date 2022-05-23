@@ -746,6 +746,14 @@ pub struct ParquetFile {
     pub created_at: Timestamp,
 }
 
+impl ParquetFile {
+    /// Estimate the memory consumption of this object and its contents
+    pub fn size(&self) -> usize {
+        // No additional heap allocations
+        std::mem::size_of_val(self)
+    }
+}
+
 /// Data for a parquet file reference that has been inserted in the catalog, including the
 /// `parquet_metadata` field that can be expensive to fetch.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]

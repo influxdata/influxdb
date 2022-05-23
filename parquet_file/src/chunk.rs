@@ -107,7 +107,7 @@ impl ParquetChunk {
     /// Return the approximate memory size of the chunk, in bytes including the
     /// dictionary, tables, and their rows.
     pub fn size(&self) -> usize {
-        mem::size_of::<Self>()
+        mem::size_of_val(self)
             + self.table_summary.size()
             + mem::size_of_val(&self.schema.as_ref())
             + mem::size_of_val(&self.iox_metadata)
@@ -224,5 +224,20 @@ impl DecodedParquetFile {
             decoded_metadata,
             iox_metadata,
         }
+    }
+
+    /// Estimate the memory consumption of this object and its contents
+    pub fn size(&self) -> usize {
+        // note substract size of non Arc'd members as they are
+        // already included in Type::size()
+        mem::size_of_val(self) +
+            self.parquet_file.size() -
+            mem::size_of_val(&self.parquet_file) +
+            self.parquet_metadata.size() +
+            // parquet_metadata is wrapped in Arc so not included in size of self
+            self.decoded_metadata.size()
+            - mem::size_of_val(&self.decoded_metadata)
+            + self.iox_metadata.size()
+            - mem::size_of_val(&self.iox_metadata)
     }
 }

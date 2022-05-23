@@ -111,7 +111,7 @@ use schema::{
     InfluxColumnType, InfluxFieldType, Schema, TIME_COLUMN_NAME,
 };
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
-use std::{convert::TryInto, sync::Arc};
+use std::{convert::TryInto, mem, sync::Arc};
 use thrift::protocol::{TCompactInputProtocol, TCompactOutputProtocol, TOutputProtocol};
 use uuid::Uuid;
 
@@ -429,6 +429,24 @@ impl IoxMetadata {
             created_at: Timestamp::new(self.creation_timestamp.timestamp_nanos()),
         }
     }
+
+    /// Estimate the memory consumption of this object and its contents
+    pub fn size(&self) -> usize {
+        // size of this structure, including inlined size + heap sizes
+        let size_without_sortkey_refs = mem::size_of_val(self)
+            + self.namespace_name.as_bytes().len()
+            + self.table_name.as_bytes().len()
+            + self.partition_key.as_bytes().len();
+
+        if let Some(sort_key) = self.sort_key.as_ref() {
+            size_without_sortkey_refs +
+                sort_key.size()
+            // already included in `size_of_val(self)` above so remove to avoid double counting
+                - mem::size_of_val(sort_key)
+        } else {
+            size_without_sortkey_refs
+        }
+    }
 }
 
 /// Parse big-endian UUID from protobuf.
@@ -593,7 +611,8 @@ impl IoxParquetMetaData {
 
     /// In-memory size in bytes, including `self`.
     pub fn size(&self) -> usize {
-        std::mem::size_of::<Self>() + self.data.capacity()
+        assert_eq!(self.data.len(), self.data.capacity(), "data is not trimmed");
+        mem::size_of_val(self) + self.data.capacity()
     }
 }
 
@@ -685,6 +704,14 @@ impl DecodedIoxParquetMetaData {
         }
 
         Ok(column_summaries)
+    }
+
+    /// Estimate the memory consumption of this object and its contents
+    pub fn size(&self) -> usize {
+        // This is likely a wild under count as it doesn't include
+        // memory pointed to in the `ParquetMetaData` structues.
+        // Feature tracked in arrow-rs: https://github.com/apache/arrow-rs/issues/1729
+        mem::size_of_val(self)
     }
 }
 
