@@ -42,8 +42,6 @@ async fn test_decoded_iox_metadata() {
         table_name: "platanos".into(),
         partition_id: PartitionId::new(4),
         partition_key: "potato".into(),
-        time_of_first_write: Time::from_timestamp_nanos(4242),
-        time_of_last_write: Time::from_timestamp_nanos(424242),
         min_sequence_number: SequenceNumber::new(10),
         max_sequence_number: SequenceNumber::new(11),
         compaction_level: 1,
@@ -92,6 +90,7 @@ async fn test_derive_parquet_file_params() {
     let data = vec![
         to_string_array(&["bananas", "platanos", "manzana"]),
         to_timestamp_array(&[
+            // NOTE: not ordered to ensure min/max extracted, not head/tail
             1646917692000000000,
             1653311292000000000,
             1647695292000000000,
@@ -110,8 +109,6 @@ async fn test_derive_parquet_file_params() {
         table_name: "platanos".into(),
         partition_id: PartitionId::new(4),
         partition_key: "potato".into(),
-        time_of_first_write: Time::from_timestamp_nanos(4242),
-        time_of_last_write: Time::from_timestamp_nanos(424242),
         min_sequence_number: SequenceNumber::new(10),
         max_sequence_number: SequenceNumber::new(11),
         compaction_level: 1,
@@ -156,12 +153,8 @@ async fn test_derive_parquet_file_params() {
     assert_eq!(catalog_data.compaction_level, meta.compaction_level);
     assert_eq!(catalog_data.created_at, Timestamp::new(1234));
     assert_eq!(catalog_data.row_count, 3);
-
-    // NOTE: these DO NOT reflect the actual values! These values were not
-    // derived from the actual data, but instead trusted from the input
-    // IoxMetadata.
-    assert_eq!(catalog_data.min_time, Timestamp::new(4242));
-    assert_eq!(catalog_data.max_time, Timestamp::new(424242));
+    assert_eq!(catalog_data.min_time, Timestamp::new(1646917692000000000));
+    assert_eq!(catalog_data.max_time, Timestamp::new(1653311292000000000));
 }
 
 fn to_string_array(strs: &[&str]) -> ArrayRef {

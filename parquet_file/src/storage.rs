@@ -290,8 +290,6 @@ mod tests {
             table_name: "platanos".into(),
             partition_id: PartitionId::new(4),
             partition_key: "potato".into(),
-            time_of_first_write: Time::from_timestamp_nanos(4242),
-            time_of_last_write: Time::from_timestamp_nanos(424242),
             min_sequence_number: SequenceNumber::new(10),
             max_sequence_number: SequenceNumber::new(11),
             compaction_level: 1,

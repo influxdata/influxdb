@@ -108,7 +108,7 @@ use parquet::{
 use prost::Message;
 use schema::{
     sort::{SortKey, SortKeyBuilder},
-    InfluxColumnType, InfluxFieldType, Schema,
+    InfluxColumnType, InfluxFieldType, Schema, TIME_COLUMN_NAME,
 };
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{convert::TryInto, sync::Arc};
@@ -265,14 +265,6 @@ pub struct IoxMetadata {
     /// parittion key of the data
     pub partition_key: Arc<str>,
 
-    /// Time of the first write of the data
-    /// This is also the min value of the column `time`
-    pub time_of_first_write: Time,
-
-    /// Time of the last write of the data
-    /// This is also the max value of the column `time`
-    pub time_of_last_write: Time,
-
     /// sequence number of the first write
     pub min_sequence_number: SequenceNumber,
 
@@ -310,8 +302,6 @@ impl IoxMetadata {
             table_name: self.table_name.to_string(),
             partition_id: self.partition_id.get(),
             partition_key: self.partition_key.to_string(),
-            time_of_first_write: Some(self.time_of_first_write.date_time().into()),
-            time_of_last_write: Some(self.time_of_last_write.date_time().into()),
             min_sequence_number: self.min_sequence_number.get(),
             max_sequence_number: self.max_sequence_number.get(),
             sort_key,
@@ -334,12 +324,6 @@ impl IoxMetadata {
         // extract creation timestamp
         let creation_timestamp =
             decode_timestamp_from_field(proto_msg.creation_timestamp, "creation_timestamp")?;
-        // extract time of first write
-        let time_of_first_write =
-            decode_timestamp_from_field(proto_msg.time_of_first_write, "time_of_first_write")?;
-        // extract time of last write
-        let time_of_last_write =
-            decode_timestamp_from_field(proto_msg.time_of_last_write, "time_of_last_write")?;
 
         // extract strings
         let namespace_name = Arc::from(proto_msg.namespace_name.as_ref());
@@ -369,8 +353,6 @@ impl IoxMetadata {
             table_name,
             partition_id: PartitionId::new(proto_msg.partition_id),
             partition_key,
-            time_of_first_write,
-            time_of_last_write,
             min_sequence_number: SequenceNumber::new(proto_msg.min_sequence_number),
             max_sequence_number: SequenceNumber::new(proto_msg.max_sequence_number),
             sort_key,
@@ -384,12 +366,52 @@ impl IoxMetadata {
     }
 
     /// Create a corresponding iox catalog's ParquetFile
+    ///
+    /// # Panics
+    ///
+    /// This method panics if the [`IoxParquetMetaData`] structure does not
+    /// contain valid metadata bytes, has no readable schema, or has no field
+    /// statistics.
+    ///
+    /// A [`RecordBatch`] serialised without the embedded metadata found in the
+    /// IOx [`Schema`] type will cause a statistic resolution failure due to
+    /// lack of the IOx field type metadata for the time column. Batches
+    /// produced from the through the IOx write path always include this
+    /// metadata.
+    ///
+    /// [`RecordBatch`]: arrow::record_batch::RecordBatch
     pub fn to_parquet_file(
         &self,
         file_size_bytes: usize,
         metadata: &IoxParquetMetaData,
     ) -> ParquetFileParams {
-        let row_count = metadata.decode().expect("invalid metadata").row_count();
+        let decoded = metadata.decode().expect("invalid IOx metadata");
+        let row_count = decoded.row_count();
+
+        // Derive the min/max timestamp from the Parquet column statistics.
+        let schema = decoded
+            .read_schema()
+            .expect("failed to read encoded schema");
+        let time_summary = decoded
+            .read_statistics(&*schema)
+            .expect("invalid statistics")
+            .into_iter()
+            .find(|v| v.name == TIME_COLUMN_NAME)
+            .expect("no time column in metadata statistics");
+
+        // Sanity check the type of this column before using the values.
+        assert_eq!(time_summary.influxdb_type, Some(InfluxDbType::Timestamp));
+
+        // Extract the min/max timestamps.
+        let (min_time, max_time) = match time_summary.stats {
+            Statistics::I64(stats) => {
+                let min = Timestamp::new(stats.min.expect("no min time statistic"));
+                let max = Timestamp::new(stats.max.expect("no max time statistic"));
+                (min, max)
+            }
+            _ => panic!("unexpected physical type for timestamp column"),
+        };
+
         ParquetFileParams {
             sequencer_id: self.sequencer_id,
             namespace_id: self.namespace_id,
@@ -398,8 +420,8 @@ impl IoxMetadata {
             object_store_id: self.object_store_id,
             min_sequence_number: self.min_sequence_number,
             max_sequence_number: self.max_sequence_number,
-            min_time: Timestamp::new(self.time_of_first_write.timestamp_nanos()),
-            max_time: Timestamp::new(self.time_of_last_write.timestamp_nanos()),
+            min_time,
+            max_time,
             file_size_bytes: file_size_bytes as i64,
             parquet_metadata: metadata.thrift_bytes().to_vec(),
             compaction_level: self.compaction_level,
@@ -870,8 +892,6 @@ mod tests {
             table_name: Arc::from("weather"),
             partition_id: PartitionId::new(4),
             partition_key: Arc::from("part"),
-            time_of_first_write: Time::from_timestamp(3234, 0),
-            time_of_last_write: Time::from_timestamp(3234, 3456),
             min_sequence_number: SequenceNumber::new(5),
             max_sequence_number: SequenceNumber::new(6),
             compaction_level: 0,
@@ -897,8 +917,6 @@ mod tests {
             table_name: "platanos".into(),
             partition_id: PartitionId::new(4),
             partition_key: "potato".into(),
-            time_of_first_write: Time::from_timestamp_nanos(4242),
-            time_of_last_write: Time::from_timestamp_nanos(424242),
             min_sequence_number: SequenceNumber::new(10),
             max_sequence_number: SequenceNumber::new(11),
             compaction_level: 1,

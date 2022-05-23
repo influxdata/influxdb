@@ -8,10 +8,9 @@ use iox_catalog::interface::INITIAL_COMPACTION_LEVEL;
 use iox_query::{
     exec::{Executor, ExecutorType},
     frontend::reorg::ReorgPlanner,
-    util::compute_timenanosecond_min_max,
     QueryChunk, QueryChunkMeta,
 };
-use iox_time::{Time, TimeProvider};
+use iox_time::TimeProvider;
 use parquet_file::metadata::IoxMetadata;
 use schema::sort::{adjust_sort_key_columns, compute_sort_key, SortKey};
 use snafu::{ResultExt, Snafu};
@@ -105,10 +104,6 @@ pub async fn compact_persisting_batch(
         .filter(|b| b.num_rows() != 0)
         .collect();
 
-    // Compute min and max of the `time` column
-    let (min_time, max_time) =
-        compute_timenanosecond_min_max(&output_batches).context(MinMaxSnafu)?;
-
     // Compute min and max sequence numbers
     let (min_seq, max_seq) = batch.data.min_max_sequence_numbers();
 
@@ -122,8 +117,6 @@ pub async fn compact_persisting_batch(
         table_name: Arc::from(table_name.as_str()),
         partition_id: batch.partition_id,
         partition_key: Arc::from(partition_key.as_str()),
-        time_of_first_write: Time::from_timestamp_nanos(min_time),
-        time_of_last_write: Time::from_timestamp_nanos(max_time),
         min_sequence_number: min_seq,
         max_sequence_number: max_seq,
         compaction_level: INITIAL_COMPACTION_LEVEL,
@@ -329,8 +322,6 @@ mod tests {
             table_name,
             partition_id,
             partition_key,
-            8000,
-            20000,
             seq_num_start,
             seq_num_end,
             INITIAL_COMPACTION_LEVEL,
@@ -423,8 +414,6 @@ mod tests {
             table_name,
             partition_id,
             partition_key,
-            28000,
-            220000,
             seq_num_start,
             seq_num_end,
             INITIAL_COMPACTION_LEVEL,
@@ -520,8 +509,6 @@ mod tests {
             table_name,
             partition_id,
             partition_key,
-            28000,
-            220000,
             seq_num_start,
             seq_num_end,
             INITIAL_COMPACTION_LEVEL,
@@ -617,8 +604,6 @@ mod tests {
             table_name,
             partition_id,
             partition_key,
-            28000,
-            220000,
             seq_num_start,
             seq_num_end,
             INITIAL_COMPACTION_LEVEL,
@@ -717,8 +702,6 @@ mod tests {
             table_name,
             partition_id,
             partition_key,
-            28000,
-            220000,
             seq_num_start,
             seq_num_end,
             INITIAL_COMPACTION_LEVEL,
