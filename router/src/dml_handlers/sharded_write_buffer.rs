@@ -119,7 +119,7 @@ where
 
             trace!(
                 %partition_key,
-                sequencer_id=%sequencer.id(),
+                kafka_partition=%sequencer.id(),
                 tables=%dml.table_count(),
                 %namespace,
                 approx_size=%dml.size(),

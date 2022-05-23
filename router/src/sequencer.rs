@@ -45,11 +45,11 @@ impl Sequencer {
         );
 
         let enqueue_success = write.recorder([
-            ("shard_id", Cow::from(id.to_string())),
+            ("kafka_partition", Cow::from(id.to_string())),
             ("result", Cow::from("success")),
         ]);
         let enqueue_error = write.recorder([
-            ("shard_id", Cow::from(id.to_string())),
+            ("kafka_partition", Cow::from(id.to_string())),
             ("result", Cow::from("error")),
         ]);
 

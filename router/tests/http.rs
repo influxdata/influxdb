@@ -227,7 +227,7 @@ async fn test_write_ok() {
         .get_instrument::<Metric<U64Histogram>>("sequencer_enqueue_duration_ms")
         .expect("failed to read metric")
         .get_observer(&Attributes::from(&[
-            ("shard_id", "0"),
+            ("kafka_partition", "0"),
             ("result", "success"),
         ]))
         .expect("failed to get observer")

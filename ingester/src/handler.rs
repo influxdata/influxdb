@@ -453,7 +453,7 @@ mod tests {
             .unwrap()
             .get_observer(&Attributes::from(&[
                 ("kafka_topic", "whatevs"),
-                ("sequencer_id", "0"),
+                ("kafka_partition", "0"),
                 ("result", "success"),
             ]))
             .unwrap()
@@ -467,7 +467,7 @@ mod tests {
             .unwrap()
             .get_observer(&Attributes::from(&[
                 ("kafka_topic", "whatevs"),
-                ("sequencer_id", "0"),
+                ("kafka_partition", "0"),
             ]))
             .unwrap()
             .fetch();
@@ -479,7 +479,7 @@ mod tests {
             .unwrap()
             .get_observer(&Attributes::from(&[
                 ("kafka_topic", "whatevs"),
-                ("sequencer_id", "0"),
+                ("kafka_partition", "0"),
             ]))
             .unwrap()
             .fetch();
@@ -491,7 +491,7 @@ mod tests {
             .unwrap()
             .get_observer(&Attributes::from(&[
                 ("kafka_topic", "whatevs"),
-                ("sequencer_id", "0"),
+                ("kafka_partition", "0"),
             ]))
             .unwrap()
             .fetch();
@@ -503,7 +503,7 @@ mod tests {
             .unwrap()
             .get_observer(&Attributes::from(&[
                 ("kafka_topic", "whatevs"),
-                ("sequencer_id", "0"),
+                ("kafka_partition", "0"),
             ]))
             .unwrap()
             .fetch();
