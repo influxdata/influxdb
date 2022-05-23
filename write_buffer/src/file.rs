@@ -285,7 +285,7 @@ pub struct FileBufferStreamHandler {
 
 #[async_trait]
 impl WriteBufferStreamHandler for FileBufferStreamHandler {
-    async fn stream(&mut self) -> BoxStream<'_, Result<DmlOperation, WriteBufferError>> {
+    async fn stream(&mut self) -> BoxStream<'static, Result<DmlOperation, WriteBufferError>> {
         let committed = self.path.join("committed");
 
         ConsumerStream::new(
@@ -303,6 +303,11 @@ impl WriteBufferStreamHandler for FileBufferStreamHandler {
             .store(sequence_number, Ordering::SeqCst);
         self.terminated.store(false, Ordering::SeqCst);
         Ok(())
+    }
+
+    fn reset_to_earliest(&mut self) {
+        self.next_sequence_number.store(0, Ordering::SeqCst);
+        self.terminated.store(false, Ordering::SeqCst);
     }
 }
 
