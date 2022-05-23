@@ -13,7 +13,7 @@ itertools = "0.10.2"
 lazy_static = "1.4.0"
 observability_deps = { path = "../observability_deps" }
 regex = "1"
-regex-syntax = "0.6.25"
+regex-syntax = "0.6.26"
 schema = { path = "../schema" }
 snafu = "0.7"
 workspace-hack = { path = "../workspace-hack"}

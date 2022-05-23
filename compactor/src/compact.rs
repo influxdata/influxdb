@@ -1887,8 +1887,8 @@ mod tests {
         // They should be 2 groups
         assert_eq!(groups.len(), 2, "There should have been two group");
 
-        groups[0].parquet_files.contains(&pf1);
-        groups[1].parquet_files.contains(&pf2);
+        assert!(groups[0].parquet_files.contains(&pf1));
+        assert!(groups[1].parquet_files.contains(&pf2));
     }
 
     #[test]

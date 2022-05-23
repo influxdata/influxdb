@@ -94,7 +94,7 @@ impl<'a, 'b> ChunkData<'a, 'b> {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ChunkStage {
     /// In parquet file.
     Parquet,
@@ -383,25 +383,17 @@ pub async fn make_n_chunks_scenario(chunks: &[ChunkData<'_, '_>]) -> Vec<DbScena
 
     let mut scenarios = vec![];
 
-    for stages in ChunkStage::all()
+    'stage_combinations: for stages in ChunkStage::all()
         .into_iter()
         .combinations_with_replacement(n_stages_unset)
+        .flat_map(|v| v.into_iter().permutations(n_stages_unset))
+        .unique()
     {
-        // filter out unordered stages
-        if !stages.windows(2).all(|stages| {
-            stages[0]
-                .partial_cmp(&stages[1])
-                .map(|o| o.is_le())
-                .unwrap_or_default()
-        }) {
-            continue;
-        }
-
-        let mut scenario_name = format!("{} chunks:", chunks.len());
+        // combine stages w/ chunks
+        let chunks_orig = chunks;
+        let mut chunks = Vec::with_capacity(chunks.len());
         let mut stages_it = stages.iter();
-        let mut mock_ingester = MockIngester::new().await;
-
-        for chunk_data in chunks {
+        for chunk_data in chunks_orig {
             let mut chunk_data = chunk_data.clone();
 
             if chunk_data.chunk_stage.is_none() {
@@ -411,12 +403,42 @@ pub async fn make_n_chunks_scenario(chunks: &[ChunkData<'_, '_>]) -> Vec<DbScena
 
             let chunk_data = chunk_data.replace_begin_and_end_delete_times();
 
+            chunks.push(chunk_data);
+        }
+        assert!(stages_it.next().is_none(), "generated too many stages");
+
+        // filter out unordered stages
+        let mut stage_by_partition = HashMap::<&str, Vec<ChunkStage>>::new();
+        for chunk_data in &chunks {
+            stage_by_partition
+                .entry(chunk_data.partition_key)
+                .or_default()
+                .push(
+                    chunk_data
+                        .chunk_stage
+                        .expect("Stage should be initialized by now"),
+                );
+        }
+        for stages in stage_by_partition.values() {
+            if !stages.windows(2).all(|stages| {
+                stages[0]
+                    .partial_cmp(&stages[1])
+                    .map(|o| o.is_le())
+                    .unwrap_or_default()
+            }) {
+                continue 'stage_combinations;
+            }
+        }
+
+        // build scenario
+        let mut scenario_name = format!("{} chunks:", chunks.len());
+        let mut mock_ingester = MockIngester::new().await;
+
+        for chunk_data in chunks {
             let name = make_chunk(&mut mock_ingester, chunk_data).await;
 
             write!(&mut scenario_name, ", {}", name).unwrap();
         }
-
-        assert!(stages_it.next().is_none(), "generated too many stages");
 
         let db = mock_ingester.into_query_namespace().await;
         scenarios.push(DbScenario { scenario_name, db });
@@ -550,7 +572,10 @@ async fn make_chunk(mock_ingester: &mut MockIngester, chunk: ChunkData<'_, '_>) 
         }
     }
 
-    let mut name = format!("Chunk {}", chunk_stage);
+    let mut name = format!(
+        "Chunk stage={} partition={}",
+        chunk_stage, chunk.partition_key
+    );
     let n_preds = chunk.preds.len();
     if n_preds > 0 {
         let delete_names: Vec<_> = chunk

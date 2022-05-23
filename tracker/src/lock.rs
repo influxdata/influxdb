@@ -294,9 +294,12 @@ unsafe impl<R: lock_api::RawRwLockUpgrade + Sized> lock_api::RawRwLockUpgrade
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
+    // Clippy isn't recognizing the explicit drops; none of these locks are actually being held
+    // across await points. See <https://github.com/rust-lang/rust-clippy/issues/6446>
+    #![allow(clippy::await_holding_lock)]
 
     use super::*;
+    use std::time::Duration;
 
     #[test]
     fn test_counts() {
