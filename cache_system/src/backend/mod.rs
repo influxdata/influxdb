@@ -5,6 +5,7 @@ pub mod addressable_heap;
 pub mod hash_map;
 pub mod lru;
 pub mod resource_consumption;
+pub mod shared;
 pub mod ttl;
 
 #[cfg(test)]
