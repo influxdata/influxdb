@@ -255,6 +255,7 @@ async fn execute(request: GetPartitionForIngester<'_>) -> Result<Vec<Arc<Ingeste
         .map_err(|e| {
             // generate a warning that is sufficient to replicate the request using CLI tooling
             warn!(
+                e=%e,
                 ingester_address=ingester_address.as_ref(),
                 namespace=namespace_name.as_ref(),
                 table=table_name.as_ref(),
