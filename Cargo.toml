@@ -25,7 +25,6 @@ members = [
     "ingester",
     "iox_catalog",
     "iox_data_generator",
-    "iox_gitops_adapter",
     "iox_query",
     "iox_tests",
     "iox_time",
