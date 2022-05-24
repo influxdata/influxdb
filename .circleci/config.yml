@@ -435,20 +435,11 @@ jobs:
               --progress plain \
               --tag quay.io/influxdb/iox_data_generator:"$COMMIT_SHA" \
               .
-            docker buildx build \
-              --build-arg FEATURES="" \
-              --build-arg PACKAGE="iox_gitops_adapter" \
-              --build-arg RUST_VERSION="$RUST_VERSION" \
-              --build-arg RUSTFLAGS="$RUSTFLAGS" \
-              --progress plain \
-              --tag quay.io/influxdb/iox_gitops_adapter:"$COMMIT_SHA" \
-              .
 
             docker run -it --rm quay.io/influxdb/iox:$COMMIT_SHA debug print-cpu
 
             docker push quay.io/influxdb/iox:"$COMMIT_SHA"
             docker push quay.io/influxdb/iox_data_generator:"$COMMIT_SHA"
-            docker push quay.io/influxdb/iox_gitops_adapter:"$COMMIT_SHA"
           # linking might take a while and doesn't produce CLI output
           no_output_timeout: 30m
       - cache_save
@@ -471,15 +462,12 @@ jobs:
 
             docker pull quay.io/influxdb/iox:"$COMMIT_SHA"
             docker pull quay.io/influxdb/iox_data_generator:"$COMMIT_SHA"
-            docker pull quay.io/influxdb/iox_gitops_adapter:"$COMMIT_SHA"
 
             docker tag quay.io/influxdb/iox:"$COMMIT_SHA" quay.io/influxdb/iox:"$BRANCH"
             docker tag quay.io/influxdb/iox_data_generator:"$COMMIT_SHA" quay.io/influxdb/iox_data_generator:"$BRANCH"
-            docker tag quay.io/influxdb/iox_gitops_adapter:"$COMMIT_SHA" quay.io/influxdb/iox_gitops_adapter:"$BRANCH"
 
             docker push quay.io/influxdb/iox:"$BRANCH"
             docker push quay.io/influxdb/iox_data_generator:"$BRANCH"
-            docker push quay.io/influxdb/iox_gitops_adapter:"$BRANCH"
 
             echo "export COMMIT_SHA=${COMMIT_SHA}" >> $BASH_ENV
       - run:
