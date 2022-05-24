@@ -14,6 +14,7 @@ use data_types::{
     Timestamp, Tombstone, TombstoneId,
 };
 use datafusion::error::DataFusionError;
+use futures::stream::{FuturesUnordered, TryStreamExt};
 use iox_catalog::interface::{Catalog, Transaction, INITIAL_COMPACTION_LEVEL};
 use iox_query::{
     exec::{Executor, ExecutorType},
@@ -407,34 +408,49 @@ impl Compactor {
                 group.parquet_files.iter().map(|f| f.data.id).collect();
             info!("compacting group of files: {:?}", original_parquet_file_ids);
 
-            // compact
-            let split_compacted_files = self
+            // Compact the files concurrently.
+            //
+            // This builds the StreamSplitExec plan & executes both partitions
+            // concurrently, streaming the resulting record batches into the
+            // Parquet serialiser and directly uploads them to object store.
+            //
+            // If an non-object-store upload error occurs, all
+            // executions/uploads are aborted and the error is returned to the
+            // caller. If an error occurs during object store upload, it will be
+            // retried indefinitely.
+            let catalog_update_info = self
                 .compact(group.parquet_files, sort_key_from_catalog.clone())
+                .await?
+                .into_iter()
+                .map(|v| async {
+                    let CompactedData {
+                        data,
+                        meta,
+                        tombstones,
+                    } = v;
+                    debug!(?meta, "executing and uploading compaction StreamSplitExec");
+
+                    let object_store_id = meta.object_store_id;
+                    info!(%object_store_id, "streaming exec to object store");
+
+                    // Stream the record batches from the compaction exec, serialise
+                    // them, and directly upload the resulting Parquet files to
+                    // object storage.
+                    let (parquet_meta, file_size) =
+                        self.store.upload(data, &meta).await.context(PersistSnafu)?;
+
+                    debug!(%object_store_id, "file uploaded to object store");
+
+                    Ok(CatalogUpdate::new(
+                        meta,
+                        file_size,
+                        parquet_meta,
+                        tombstones,
+                    ))
+                })
+                .collect::<FuturesUnordered<_>>()
+                .try_collect::<Vec<_>>()
                 .await?;
-
-            let mut catalog_update_info = Vec::with_capacity(split_compacted_files.len());
-
-            for split_file in split_compacted_files {
-                let CompactedData {
-                    data,
-                    meta,
-                    tombstones,
-                } = split_file;
-
-                // Stream the record batches from the compaction exec, serialise
-                // them, and directly upload the resulting Parquet files to
-                // object storage.
-                info!("streaming exec to object store ID {}", meta.object_store_id);
-                let (parquet_meta, file_size) =
-                    self.store.upload(data, &meta).await.context(PersistSnafu)?;
-
-                catalog_update_info.push(CatalogUpdate::new(
-                    meta,
-                    file_size,
-                    parquet_meta,
-                    tombstones,
-                ));
-            }
 
             output_file_count += catalog_update_info.len();
 
@@ -546,15 +562,14 @@ impl Compactor {
     ) -> Result<Vec<CompactedData>> {
         debug!(num_files = overlapped_files.len(), "compact files");
 
-        let mut compacted = vec![];
         // Nothing to compact
         if overlapped_files.is_empty() {
-            return Ok(compacted);
+            return Ok(vec![]);
         }
 
         // One file without tombstone, no need to compact
         if overlapped_files.len() == 1 && overlapped_files[0].tombstones.is_empty() {
-            return Ok(compacted);
+            return Ok(vec![]);
         }
 
         // Save the parquet metadata for the first file to reuse IDs and names
@@ -656,6 +671,7 @@ impl Compactor {
 
         // Run to collect each stream of the plan
         let stream_count = physical_plan.output_partitioning().partition_count();
+        let mut compacted = Vec::with_capacity(stream_count);
         debug!("running plan with {} streams", stream_count);
         for i in 0..stream_count {
             trace!(partition = i, "executing datafusion partition");
