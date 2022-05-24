@@ -10,7 +10,6 @@ import (
 	"os"
 	"text/tabwriter"
 
-	"github.com/influxdata/influxdb/cmd/influx_inspect/report"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/reporthelper"
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
@@ -67,19 +66,7 @@ func (cmd *Command) Run(args ...string) (err error) {
 		return fmt.Errorf("invalid rollup specified: %q", cmd.rollup)
 	}
 
-	estTitle := " (est.)"
-	newCounterFn := report.NewHLLCounter
-	if cmd.exact {
-		newCounterFn = report.NewExactCounter
-		estTitle = ""
-	}
-
-	var factory *measurementFactory
-	if cmd.detailed {
-		factory = newDetailedMeasurementFactory(newCounterFn, estTitle)
-	} else {
-		factory = newSimpleMeasurementFactory(newCounterFn, estTitle)
-	}
+	factory := CreateNodeFactory(cmd.detailed, cmd.exact)
 
 	dbMap := factory.newNode(true)
 
@@ -106,22 +93,23 @@ func (cmd *Command) Run(args ...string) (err error) {
 			}
 		}()
 
-		dbRp := fmt.Sprintf("%s/%s", db, rp)
 		seriesCount := reader.KeyCount()
 		for i := 0; i < seriesCount; i++ {
 			func() {
 				key, _ := reader.KeyAt(i)
 				seriesKey, field, _ := bytes.Cut(key, []byte("#!~#"))
 				measurement, tags := models.ParseKey(seriesKey)
+				var totalDepth int
 				if cmd.rollup == "m" {
-					initRecord(dbMap, dbRp, key, field, tags, factory.newNode, factory.counter, db, rp, measurement)
+					totalDepth = 3
 				} else if cmd.rollup == "r" {
-					initRecord(dbMap, dbRp, key, field, tags, factory.newNode, factory.counter, db, rp)
+					totalDepth = 2
 				} else if cmd.rollup == "d" {
-					initRecord(dbMap, dbRp, key, field, tags, factory.newNode, factory.counter, db)
+					totalDepth = 1
 				} else {
-					initRecord(dbMap, dbRp, key, field, tags, factory.newNode, factory.counter)
+					totalDepth = 0
 				}
+				initRecord(dbMap, 0, totalDepth, db, rp, measurement, key, field, tags)
 			}()
 		}
 		return nil
@@ -157,9 +145,9 @@ func (cmd *Command) Run(args ...string) (err error) {
 	if err = factory.printDivider(tw); err != nil {
 		return err
 	}
-	for d, db := range dbMap.nextLevel() {
-		for r, rp := range db.nextLevel() {
-			for m, measure := range rp.nextLevel() {
+	for d, db := range dbMap.children() {
+		for r, rp := range db.children() {
+			for m, measure := range rp.children() {
 				if cmd.rollup == "m" {
 					err = measure.print(tw, fmt.Sprintf("%q", d), fmt.Sprintf("%q", r), fmt.Sprintf("%q", m))
 					if err != nil {
@@ -183,18 +171,4 @@ func (cmd *Command) Run(args ...string) (err error) {
 		return err
 	}
 	return tw.Flush()
-}
-
-type nodeMap map[string]node
-type nodeLock interface {
-	Lock()
-	Unlock()
-}
-
-type node interface {
-	nodeLock
-	report.Counter
-	nextLevel() nodeMap
-	recordMeasurement(dbRp string, key, field []byte, tags models.Tags, newCounterFn func() report.Counter)
-	print(tw *tabwriter.Writer, db, rp, ms string) error
 }
