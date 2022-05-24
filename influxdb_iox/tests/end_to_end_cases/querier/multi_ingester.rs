@@ -97,6 +97,7 @@ async fn basic_multi_ingesters() {
     .chain((0..100).map(|i| Step::VerifiedQuery {
         sql: format!("select * from table_{}", i),
         verify: Box::new(move |batches: Vec<RecordBatch>| {
+            println!("Verifing contents of table_{}", i);
             // results look like this:
             // "+------+------+--------------------------------+-----+",
             // "| tag1 | tag2 | time                           | val |",
