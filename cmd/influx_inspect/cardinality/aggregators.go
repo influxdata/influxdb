@@ -75,7 +75,7 @@ func newSimpleNode(inner bool, fn func() report.Counter) *simpleNode {
 	return s
 }
 
-func (s *simpleNode) recordMeasurement(key, _ []byte, _ models.Tags, _ func() report.Counter) {
+func (s *simpleNode) recordMeasurement(dbRp string, key, field []byte, tags models.Tags, newCounterFn func() report.Counter) {
 	s.Add(key)
 }
 
@@ -112,35 +112,38 @@ func newDetailedNode(inner bool, fn func() report.Counter) *detailedNode {
 	return d
 }
 
-func (d *detailedNode) recordMeasurement(key, field []byte, tags models.Tags, newCounterFn func() report.Counter) {
+func (d *detailedNode) recordMeasurement(dbRp string, key, field []byte, tags models.Tags, newCounterFn func() report.Counter) {
 	d.Add(key)
 	d.fields.Add(field)
 	for _, t := range tags {
-		tc, ok := d.tags[string(t.Key)]
+		// Add database and retention policy to correctly aggregate
+		// in inner (non-leaf) nodes
+		canonTag := dbRp + string(t.Key)
+		tc, ok := d.tags[canonTag]
 		if !ok {
 			tc = newCounterFn()
-			d.tags[string(t.Key)] = tc
+			d.tags[canonTag] = tc
 		}
 		tc.Add(t.Value)
 	}
 }
 
 func (d *detailedNode) print(tw *tabwriter.Writer, db, rp, ms string) error {
-	var tagKeys []string
 	seriesN := d.Count()
 	fieldsN := d.fields.Count()
-	if ms != "" {
+	var tagKeys []string
+	tagN := uint64(0)
+
+	if d.nodeMap == nil {
 		tagKeys = make([]string, 0, len(d.tags))
 	}
-	tagN := uint64(0)
 	for k, v := range d.tags {
 		c := v.Count()
 		tagN += c
-		if ms != "" {
+		if d.nodeMap == nil {
 			tagKeys = append(tagKeys, fmt.Sprintf("%q: %d", k, c))
 		}
 	}
-
 	_, err := fmt.Fprintf(tw, "%s\t%s\t%s\t%d\t%d\t%d\t%s\n",
 		db,
 		rp,
@@ -152,9 +155,9 @@ func (d *detailedNode) print(tw *tabwriter.Writer, db, rp, ms string) error {
 	return err
 }
 
-func initRecord(n node, key []byte, field []byte, tags models.Tags, nodeFn func(bool) node, counterFn func() report.Counter, levelKeys ...string) {
+func initRecord(n node, dbRp string, key []byte, field []byte, tags models.Tags, nodeFn func(bool) node, counterFn func() report.Counter, levelKeys ...string) {
 	n.Lock()
-	n.recordMeasurement(key, field, tags, counterFn)
+	n.recordMeasurement(dbRp, key, field, tags, counterFn)
 
 	if len(levelKeys) > 0 && nil != n.nextLevel() {
 		lc, ok := n.nextLevel()[levelKeys[0]]
@@ -163,7 +166,7 @@ func initRecord(n node, key []byte, field []byte, tags models.Tags, nodeFn func(
 		}
 		n.nextLevel()[levelKeys[0]] = lc
 		n.Unlock()
-		initRecord(lc, key, field, tags, nodeFn, counterFn, levelKeys[1:]...)
+		initRecord(lc, dbRp, key, field, tags, nodeFn, counterFn, levelKeys[1:]...)
 	} else {
 		n.Unlock()
 	}

@@ -106,6 +106,7 @@ func (cmd *Command) Run(args ...string) (err error) {
 			}
 		}()
 
+		dbRp := fmt.Sprintf("%s/%s", db, rp)
 		seriesCount := reader.KeyCount()
 		for i := 0; i < seriesCount; i++ {
 			func() {
@@ -113,13 +114,13 @@ func (cmd *Command) Run(args ...string) (err error) {
 				seriesKey, field, _ := bytes.Cut(key, []byte("#!~#"))
 				measurement, tags := models.ParseKey(seriesKey)
 				if cmd.rollup == "m" {
-					initRecord(dbMap, key, field, tags, factory.newNode, factory.counter, db, rp, measurement)
+					initRecord(dbMap, dbRp, key, field, tags, factory.newNode, factory.counter, db, rp, measurement)
 				} else if cmd.rollup == "r" {
-					initRecord(dbMap, key, field, tags, factory.newNode, factory.counter, db, rp)
+					initRecord(dbMap, dbRp, key, field, tags, factory.newNode, factory.counter, db, rp)
 				} else if cmd.rollup == "d" {
-					initRecord(dbMap, key, field, tags, factory.newNode, factory.counter, db)
+					initRecord(dbMap, dbRp, key, field, tags, factory.newNode, factory.counter, db)
 				} else {
-					initRecord(dbMap, key, field, tags, factory.newNode, factory.counter)
+					initRecord(dbMap, dbRp, key, field, tags, factory.newNode, factory.counter)
 				}
 			}()
 		}
@@ -194,6 +195,6 @@ type node interface {
 	nodeLock
 	report.Counter
 	nextLevel() nodeMap
-	recordMeasurement(key, field []byte, tags models.Tags, newCounterFn func() report.Counter)
+	recordMeasurement(dbRp string, key, field []byte, tags models.Tags, newCounterFn func() report.Counter)
 	print(tw *tabwriter.Writer, db, rp, ms string) error
 }
