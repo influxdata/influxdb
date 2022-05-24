@@ -1,10 +1,10 @@
 //! Helpers of the Compactor
 
 use crate::query::QueryableParquetChunk;
-use arrow::record_batch::RecordBatch;
 use data_types::{
     ParquetFileId, ParquetFileParams, ParquetFileWithMetadata, Timestamp, Tombstone, TombstoneId,
 };
+use datafusion::physical_plan::SendableRecordBatchStream;
 use observability_deps::tracing::*;
 use parquet_file::{
     chunk::{ChunkMetrics, DecodedParquetFile, ParquetChunk},
@@ -133,7 +133,7 @@ impl ParquetFileWithTombstone {
 
 /// Struct holding output of a compacted stream
 pub struct CompactedData {
-    pub(crate) data: Vec<RecordBatch>,
+    pub(crate) data: SendableRecordBatchStream,
     pub(crate) meta: IoxMetadata,
     pub(crate) tombstones: BTreeMap<TombstoneId, Tombstone>,
 }
@@ -141,7 +141,7 @@ pub struct CompactedData {
 impl CompactedData {
     /// Initialize compacted data
     pub fn new(
-        data: Vec<RecordBatch>,
+        data: SendableRecordBatchStream,
         meta: IoxMetadata,
         tombstones: BTreeMap<TombstoneId, Tombstone>,
     ) -> Self {

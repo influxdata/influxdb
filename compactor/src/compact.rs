@@ -8,14 +8,12 @@ use crate::{
         ParquetFileWithTombstone,
     },
 };
-use arrow::record_batch::RecordBatch;
-use backoff::{Backoff, BackoffConfig};
+use backoff::BackoffConfig;
 use data_types::{
     ParquetFile, ParquetFileId, ParquetFileWithMetadata, PartitionId, SequencerId, TableId,
     Timestamp, Tombstone, TombstoneId,
 };
 use datafusion::error::DataFusionError;
-use futures::StreamExt;
 use iox_catalog::interface::{Catalog, Transaction, INITIAL_COMPACTION_LEVEL};
 use iox_query::{
     exec::{Executor, ExecutorType},
@@ -26,10 +24,7 @@ use iox_query::{
 use iox_time::TimeProvider;
 use metric::{Attributes, Metric, U64Counter, U64Gauge, U64Histogram, U64HistogramOptions};
 use observability_deps::tracing::{debug, info, trace, warn};
-use parquet_file::{
-    metadata::{IoxMetadata, IoxParquetMetaData},
-    storage::ParquetStorage,
-};
+use parquet_file::{metadata::IoxMetadata, storage::ParquetStorage};
 use schema::sort::SortKey;
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{
@@ -43,12 +38,6 @@ use uuid::Uuid;
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
 pub enum Error {
-    #[snafu(display(
-        "Cannot compact parquet files for unassigned sequencer ID {}",
-        sequencer_id
-    ))]
-    SequencerNotFound { sequencer_id: SequencerId },
-
     #[snafu(display(
         "The given parquet files are not in the same partition ({}, {}, {}), ({}, {}, {})",
         sequencer_id_1,
@@ -66,23 +55,6 @@ pub enum Error {
         table_id_2: TableId,
         partition_id_2: PartitionId,
     },
-
-    #[snafu(display(
-        "Cannot compact parquet files for table ID {} due to an internal error: {}",
-        table_id,
-        source
-    ))]
-    TableNotFound {
-        source: iox_catalog::interface::Error,
-        table_id: TableId,
-    },
-
-    #[snafu(display(
-        "Cannot compact parquet files for an non-existing table ID {}",
-        table_id
-    ))]
-    TableNotExist { table_id: TableId },
-
     #[snafu(display("Error building compact logical plan  {}", source))]
     CompactLogicalPlan {
         source: iox_query::frontend::reorg::Error,
@@ -93,15 +65,6 @@ pub enum Error {
 
     #[snafu(display("Error executing compact plan  {}", source))]
     ExecuteCompactPlan { source: DataFusionError },
-
-    #[snafu(display("Error collecting stream yto record batches  {}", source))]
-    CollectStream { source: DataFusionError },
-
-    #[snafu(display("Could not convert row count to i64"))]
-    RowCountTypeConversion { source: std::num::TryFromIntError },
-
-    #[snafu(display("Error computing min and max for record batches: {}", source))]
-    MinMax { source: iox_query::util::Error },
 
     #[snafu(display("Error while starting catalog transaction {}", source))]
     Transaction {
@@ -123,23 +86,8 @@ pub enum Error {
         source: iox_catalog::interface::Error,
     },
 
-    #[snafu(display("Error while requesting level 1 parquet files {}", source))]
-    Level1 {
-        source: iox_catalog::interface::Error,
-    },
-
-    #[snafu(display("Error while requesting parquet file metadata {}", source))]
-    ParquetMetadata {
-        source: iox_catalog::interface::Error,
-    },
-
     #[snafu(display("Error updating catalog {}", source))]
     Update {
-        source: iox_catalog::interface::Error,
-    },
-
-    #[snafu(display("Error removing processed tombstones {}", source))]
-    RemoveProcessedTombstones {
         source: iox_catalog::interface::Error,
     },
 
@@ -157,9 +105,6 @@ pub enum Error {
     ListParquetFiles {
         source: iox_catalog::interface::Error,
     },
-
-    #[snafu(display("Error joining compaction tasks: {}", source))]
-    CompactionJoin { source: tokio::task::JoinError },
 
     #[snafu(display("Error querying partition {}", source))]
     QueryingPartition {
@@ -466,7 +411,6 @@ impl Compactor {
             let split_compacted_files = self
                 .compact(group.parquet_files, sort_key_from_catalog.clone())
                 .await?;
-            debug!("compacted files");
 
             let mut catalog_update_info = Vec::with_capacity(split_compacted_files.len());
 
@@ -477,17 +421,19 @@ impl Compactor {
                     tombstones,
                 } = split_file;
 
-                info!("persisting file {}", meta.object_store_id);
-                let file_size_and_md = Backoff::new(&self.backoff_config)
-                    .retry_all_errors("persist to object store", || {
-                        Self::persist(&meta, data.clone(), self.store.clone())
-                    })
-                    .await
-                    .expect("retry forever");
+                // Stream the record batches from the compaction exec, serialise
+                // them, and directly upload the resulting Parquet files to
+                // object storage.
+                info!("streaming exec to object store ID {}", meta.object_store_id);
+                let (parquet_meta, file_size) =
+                    self.store.upload(data, &meta).await.context(PersistSnafu)?;
 
-                if let Some((file_size, md)) = file_size_and_md {
-                    catalog_update_info.push(CatalogUpdate::new(meta, file_size, md, tombstones));
-                }
+                catalog_update_info.push(CatalogUpdate::new(
+                    meta,
+                    file_size,
+                    parquet_meta,
+                    tombstones,
+                ));
             }
 
             output_file_count += catalog_update_info.len();
@@ -721,33 +667,6 @@ impl Compactor {
 
             trace!(partition = i, "built result stream for partition");
 
-            // Collect compacted data into record batches for computing statistics
-            let output_batches = datafusion::physical_plan::common::collect(stream)
-                .await
-                .context(CollectStreamSnafu)?;
-
-            trace!(
-                partition = i,
-                n_batches = output_batches.len(),
-                "collected record batches from partition exec stream"
-            );
-
-            // Filter empty record batches
-            let output_batches: Vec<_> = output_batches
-                .into_iter()
-                .filter(|b| b.num_rows() != 0)
-                .collect();
-
-            trace!(
-                partition = i,
-                n_batches = output_batches.len(),
-                "filtered out empty record batches"
-            );
-
-            let row_count: usize = output_batches.iter().map(|b| b.num_rows()).sum();
-
-            debug!("got {} rows from stream {}", row_count, i);
-
             let meta = IoxMetadata {
                 object_store_id: Uuid::new_v4(),
                 creation_timestamp: self.time_provider.now(),
@@ -764,32 +683,11 @@ impl Compactor {
                 sort_key: Some(sort_key.clone()),
             };
 
-            let compacted_data = CompactedData::new(output_batches, meta, tombstone_map.clone());
+            let compacted_data = CompactedData::new(stream, meta, tombstone_map.clone());
             compacted.push(compacted_data);
         }
 
         Ok(compacted)
-    }
-
-    /// Write the given data to the parquet store.
-    ///
-    /// Returns the persisted file size (in bytes) and metadata if a file was created.
-    async fn persist(
-        metadata: &IoxMetadata,
-        record_batches: Vec<RecordBatch>,
-        store: ParquetStorage,
-    ) -> Result<Option<(usize, IoxParquetMetaData)>> {
-        if record_batches.is_empty() {
-            return Ok(None);
-        }
-
-        // TODO(4324): Yield the buffered RecordBatch instances as a stream as a
-        // temporary measure until streaming compaction is complete.
-        let stream = futures::stream::iter(record_batches).map(Ok);
-
-        let (meta, file_size) = store.upload(stream, metadata).await.context(PersistSnafu)?;
-
-        Ok(Some((file_size, meta)))
     }
 
     async fn update_catalog(
@@ -1058,9 +956,8 @@ mod tests {
     use super::*;
     use arrow_util::assert_batches_sorted_eq;
     use data_types::{ChunkId, KafkaPartition, NamespaceId, ParquetFileParams, SequenceNumber};
-    use futures::TryStreamExt;
+    use futures::{stream::FuturesOrdered, StreamExt, TryStreamExt};
     use iox_catalog::interface::INITIAL_COMPACTION_LEVEL;
-    use iox_query::test::{raw_data, TestChunk};
     use iox_tests::util::TestCatalog;
     use iox_time::SystemProvider;
     use querier::{
@@ -1153,6 +1050,13 @@ mod tests {
         // the tombstone is fully processed and should have been removed
         let count = catalog.count_tombstones_for_table(table.table.id).await;
         assert_eq!(count, 0);
+
+        // Verify the files were pushed to the object store
+        let object_store = catalog.object_store();
+        let list = object_store.list(None).await.unwrap();
+        let object_store_files: Vec<_> = list.try_collect().await.unwrap();
+        // Original + 2 compacted
+        assert_eq!(object_store_files.len(), 3);
 
         // ------------------------------------------------
         // Verify the parquet file content
@@ -1477,6 +1381,19 @@ mod tests {
         let batches = compactor.compact(vec![pf], sort_key.clone()).await.unwrap();
         // 2 sets based on the split rule
         assert_eq!(batches.len(), 2);
+
+        // Collect the results for inspection.
+        let batches = batches
+            .into_iter()
+            .map(|v| async {
+                datafusion::physical_plan::common::collect(v.data)
+                    .await
+                    .expect("failed to collect record batches")
+            })
+            .collect::<FuturesOrdered<_>>()
+            .collect::<Vec<_>>()
+            .await;
+
         // Data: row tag1=VT was removed
         // first set contains least recent data
         assert_batches_sorted_eq!(
@@ -1487,7 +1404,7 @@ mod tests {
                 "| 1000      | WA   | 1970-01-01T00:00:00.000008Z |",
                 "+-----------+------+-----------------------------+",
             ],
-            &batches[0].data
+            &batches[0]
         );
         // second set contains most recent data
         assert_batches_sorted_eq!(
@@ -1498,7 +1415,7 @@ mod tests {
                 "| 70        | UT   | 1970-01-01T00:00:00.000020Z |",
                 "+-----------+------+-----------------------------+",
             ],
-            &batches[1].data
+            &batches[1]
         );
     }
 
@@ -1572,6 +1489,18 @@ mod tests {
         // 2 sets based on the split rule
         assert_eq!(batches.len(), 2);
 
+        // Collect the results for inspection.
+        let batches = batches
+            .into_iter()
+            .map(|v| async {
+                datafusion::physical_plan::common::collect(v.data)
+                    .await
+                    .expect("failed to collect record batches")
+            })
+            .collect::<FuturesOrdered<_>>()
+            .collect::<Vec<_>>()
+            .await;
+
         // Data: Should have 4 rows left
         // first set contains least recent 3 rows
         assert_batches_sorted_eq!(
@@ -1584,7 +1513,7 @@ mod tests {
                 "| 70        | UT   | 1970-01-01T00:00:00.000020Z |",
                 "+-----------+------+-----------------------------+",
             ],
-            &batches[0].data
+            &batches[0]
         );
         // second set contains most recent one row
         assert_batches_sorted_eq!(
@@ -1595,7 +1524,7 @@ mod tests {
                 "| 270       | UT   | 1970-01-01T00:00:00.000025Z |",
                 "+-----------+------+-----------------------------+",
             ],
-            &batches[1].data
+            &batches[1]
         );
     }
 
@@ -1692,6 +1621,22 @@ mod tests {
         // 2 sets based on the split rule
         assert_eq!(batches.len(), 2);
 
+        // Sort keys should be the same as was passed in to compact
+        assert_eq!(batches[0].meta.sort_key.as_ref().unwrap(), &sort_key);
+        assert_eq!(batches[1].meta.sort_key.as_ref().unwrap(), &sort_key);
+
+        // Collect the results for inspection.
+        let batches = batches
+            .into_iter()
+            .map(|v| async {
+                datafusion::physical_plan::common::collect(v.data)
+                    .await
+                    .expect("failed to collect record batches")
+            })
+            .collect::<FuturesOrdered<_>>()
+            .collect::<Vec<_>>()
+            .await;
+
         // Data: Should have 6 rows left
         // first set contains least recent 5 rows
         assert_batches_sorted_eq!(
@@ -1706,7 +1651,7 @@ mod tests {
                 "| 70        | UT   |      |      | 1970-01-01T00:00:00.000020Z |",
                 "+-----------+------+------+------+-----------------------------+",
             ],
-            &batches[0].data
+            &batches[0]
         );
         // second set contains most recent one row
         assert_batches_sorted_eq!(
@@ -1717,12 +1662,8 @@ mod tests {
                 "| 270       | UT   |      |      | 1970-01-01T00:00:00.000025Z |",
                 "+-----------+------+------+------+-----------------------------+",
             ],
-            &batches[1].data
+            &batches[1]
         );
-
-        // Sort keys should be the same as was passed in to compact
-        assert_eq!(batches[0].meta.sort_key.as_ref().unwrap(), &sort_key);
-        assert_eq!(batches[1].meta.sort_key.as_ref().unwrap(), &sort_key);
     }
 
     /// A test utility function to make minimially-viable ParquetFile records with particular
@@ -2367,85 +2308,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn persist_adds_to_object_store() {
-        let catalog = TestCatalog::new();
-
-        let compactor = Compactor::new(
-            vec![],
-            Arc::clone(&catalog.catalog),
-            ParquetStorage::new(Arc::clone(&catalog.object_store)),
-            Arc::new(Executor::new(1)),
-            Arc::new(SystemProvider::new()),
-            BackoffConfig::default(),
-            CompactorConfig::new(90, 100000, 100000),
-            Arc::new(metric::Registry::new()),
-        );
-
-        let table_id = TableId::new(3);
-        let sequencer_id = SequencerId::new(2);
-
-        let meta = IoxMetadata {
-            object_store_id: Uuid::new_v4(),
-            creation_timestamp: compactor.time_provider.now(),
-            namespace_id: NamespaceId::new(1),
-            namespace_name: "mydata".into(),
-            sequencer_id,
-            table_id,
-            table_name: "temperature".into(),
-            partition_id: PartitionId::new(4),
-            partition_key: "somehour".into(),
-            min_sequence_number: SequenceNumber::new(5),
-            max_sequence_number: SequenceNumber::new(6),
-            compaction_level: 1, // level of compacted data is always 1
-            sort_key: Some(SortKey::from_columns(["tag1", "time"])),
-        };
-
-        let chunk1 = Arc::new(
-            TestChunk::new("t")
-                .with_id(1)
-                .with_time_column() //_with_full_stats(
-                .with_tag_column("tag1")
-                .with_i64_field_column("field_int")
-                .with_three_rows_of_data(),
-        );
-        let data = raw_data(&[chunk1]).await;
-
-        let t1 = catalog
-            .catalog
-            .repositories()
-            .await
-            .tombstones()
-            .create_or_get(
-                table_id,
-                sequencer_id,
-                SequenceNumber::new(1),
-                Timestamp::new(1),
-                Timestamp::new(1),
-                "whatevs",
-            )
-            .await
-            .unwrap();
-
-        let mut tombstones = BTreeMap::new();
-        tombstones.insert(t1.id, t1);
-
-        let compacted_data = CompactedData::new(data, meta, tombstones);
-
-        Compactor::persist(
-            &compacted_data.meta,
-            compacted_data.data,
-            compactor.store.clone(),
-        )
-        .await
-        .unwrap();
-
-        let object_store = catalog.object_store();
-        let list = object_store.list(None).await.unwrap();
-        let object_store_files: Vec<_> = list.try_collect().await.unwrap();
-        assert_eq!(object_store_files.len(), 1);
-    }
-
-    #[tokio::test]
     async fn test_add_parquet_file_with_tombstones() {
         let catalog = TestCatalog::new();
 
@@ -2878,14 +2740,21 @@ mod tests {
         // 2 sets based on the split rule
         assert_eq!(batches.len(), 2);
 
+        let batches = batches
+            .into_iter()
+            .map(|v| async {
+                datafusion::physical_plan::common::collect(v.data)
+                    .await
+                    .expect("failed to collect record batches")
+            })
+            .collect::<FuturesOrdered<_>>()
+            .collect::<Vec<_>>()
+            .await;
+
         // Verify number of output rows
         // There should be total 1499 output rows (999 from lp1 + 100 from lp2 - 500 duplicates)
-        let mut num_rows: usize = batches[0].data.iter().map(|rb| rb.num_rows()).sum();
-        num_rows += batches[1]
-            .data
-            .iter()
-            .map(|rb| rb.num_rows())
-            .sum::<usize>();
+        let mut num_rows: usize = batches[0].iter().map(|rb| rb.num_rows()).sum();
+        num_rows += batches[1].iter().map(|rb| rb.num_rows()).sum::<usize>();
         assert_eq!(num_rows, 1499);
     }
 }
