@@ -123,6 +123,7 @@ impl MiniCluster {
         let router_config = TestConfig::new_router(&database_url);
         let ingester_config = TestConfig::new_ingester(&router_config);
         let querier_config = TestConfig::new_querier(&ingester_config);
+        let compactor_config = TestConfig::new_compactor(&ingester_config);
 
         // Set up the cluster  ====================================
         Self::new()
@@ -131,6 +132,8 @@ impl MiniCluster {
             .with_ingester(ingester_config)
             .await
             .with_querier(querier_config)
+            .await
+            .with_compactor(compactor_config)
             .await
     }
 
@@ -141,7 +144,9 @@ impl MiniCluster {
             .await
             .with_ingester(test_config.clone())
             .await
-            .with_querier(test_config)
+            .with_querier(test_config.clone())
+            .await
+            .with_compactor(test_config)
             .await
     }
 

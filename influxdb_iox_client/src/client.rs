@@ -20,6 +20,9 @@ pub mod write;
 /// Client for query API (based on Arrow flight)
 pub mod flight;
 
+/// Client for testing purposes.
+pub mod test;
+
 /// Client for fetching write info
 pub mod write_info;
 

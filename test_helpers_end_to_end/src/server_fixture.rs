@@ -91,6 +91,11 @@ impl ServerFixture {
         self.connections.querier_grpc_connection()
     }
 
+    /// Return a channel connected to the compactor gRPC API, panic'ing if not the correct type of server
+    pub fn compactor_grpc_connection(&self) -> Connection {
+        self.connections.compactor_grpc_connection()
+    }
+
     /// Return the http base URL for the router HTTP API
     pub fn router_http_base(&self) -> Arc<str> {
         self.server.addrs().router_http_api().client_base()
@@ -142,6 +147,9 @@ pub struct Connections {
 
     /// connection to querier gRPC, if available
     querier_grpc_connection: Option<Connection>,
+
+    /// connection to compactor gRPC, if available
+    compactor_grpc_connection: Option<Connection>,
 }
 
 impl Connections {
@@ -171,6 +179,14 @@ impl Connections {
         self.querier_grpc_connection
             .as_ref()
             .expect("Server type does not have querier")
+            .clone()
+    }
+
+    /// Return a channel connected to the compactor gRPC API, panic'ing if not the correct type of server
+    pub fn compactor_grpc_connection(&self) -> Connection {
+        self.compactor_grpc_connection
+            .as_ref()
+            .expect("Server type does not have compactor")
             .clone()
     }
 
@@ -215,6 +231,20 @@ impl Connections {
                         .await
                         .map_err(|e| {
                             format!("Can not connect to querier at {}: {}", client_base, e)
+                        })?,
+                )
+            }
+            _ => None,
+        };
+
+        self.compactor_grpc_connection = match server_type {
+            ServerType::AllInOne | ServerType::Compactor => {
+                let client_base = test_config.addrs().compactor_grpc_api().client_base();
+                Some(
+                    grpc_channel(test_config, client_base.as_ref())
+                        .await
+                        .map_err(|e| {
+                            format!("Can not connect to compactor at {}: {}", client_base, e)
                         })?,
                 )
             }
@@ -497,6 +527,16 @@ impl TestServer {
                         return;
                     }
                 }
+                ServerType::Compactor => {
+                    if check_test_service_health(
+                        server_type,
+                        connections.compactor_grpc_connection(),
+                    )
+                    .await
+                    {
+                        return;
+                    }
+                }
                 ServerType::AllInOne => {
                     // ensure we can write and query
                     // TODO also check compactor and ingester
@@ -557,6 +597,26 @@ async fn check_arrow_service_health(server_type: ServerType, connection: Connect
         }
         Err(e) => {
             info!("Flight service {:?} not yet healthy: {:?}", server_type, e);
+            false
+        }
+    }
+}
+
+/// checks the test service health, returning false if the service should be checked again
+async fn check_test_service_health(server_type: ServerType, connection: Connection) -> bool {
+    let mut health = influxdb_iox_client::health::Client::new(connection);
+
+    match health.check("influxdata.platform.storage.IOxTesting").await {
+        Ok(true) => {
+            info!("Test service {:?} is running", server_type);
+            true
+        }
+        Ok(false) => {
+            info!("Test service {:?} is not running", server_type);
+            true
+        }
+        Err(e) => {
+            info!("Test service {:?} not yet healthy: {:?}", server_type, e);
             false
         }
     }

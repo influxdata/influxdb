@@ -1,6 +1,7 @@
 mod all_in_one;
 mod cli;
 mod debug;
+mod error;
 mod ingester;
 mod logging;
 mod metrics;

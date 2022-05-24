@@ -83,6 +83,18 @@ impl TestConfig {
             .with_ingester_addresses(&[ingester_config.ingester_base().as_ref()])
     }
 
+    /// Create a minimal compactor configuration, using the dsn
+    /// configuration from other
+    pub fn new_compactor(other: &TestConfig) -> Self {
+        Self::new(
+            ServerType::Compactor,
+            other.dsn(),
+            other.catalog_schema_name(),
+        )
+        .with_existing_object_store(other)
+        .with_default_compactor_options()
+    }
+
     /// Create a minimal querier configuration from the specified
     /// ingester configuration, using the same dsn and object store
     pub fn new_querier_without_ingester(ingester_config: &TestConfig) -> Self {
@@ -156,6 +168,11 @@ impl TestConfig {
             "INFLUXDB_IOX_INGESTER_ADDRESSES",
             ingester_addresses.join(","),
         )
+    }
+
+    /// Adds default compactor options
+    fn with_default_compactor_options(self) -> Self {
+        self.with_kafka_partition(0)
     }
 
     /// add a name=value environment variable when starting the server

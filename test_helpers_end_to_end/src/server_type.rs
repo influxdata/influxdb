@@ -8,6 +8,7 @@ pub enum ServerType {
     Ingester,
     Router,
     Querier,
+    Compactor,
 }
 
 impl ServerType {
@@ -18,6 +19,7 @@ impl ServerType {
             Self::Ingester => "ingester",
             Self::Router => "router",
             Self::Querier => "querier",
+            Self::Compactor => "compactor",
         }
     }
 }
@@ -77,6 +79,15 @@ impl AddAddrEnv for Command {
                 .env(
                     "INFLUXDB_IOX_GRPC_BIND_ADDR",
                     addrs.querier_grpc_api().bind_addr().as_ref(),
+                ),
+            ServerType::Compactor => self
+                .env(
+                    "INFLUXDB_IOX_BIND_ADDR",
+                    addrs.router_http_api().bind_addr().as_ref(),
+                )
+                .env(
+                    "INFLUXDB_IOX_GRPC_BIND_ADDR",
+                    addrs.compactor_grpc_api().bind_addr().as_ref(),
                 ),
         }
     }
