@@ -26,6 +26,7 @@ use schema::selection::Selection;
 use std::{
     io::{Seek, Write},
     sync::Arc,
+    time::Duration,
 };
 use thiserror::Error;
 
@@ -94,6 +95,11 @@ impl ParquetStorage {
 
     /// Push `batches`, a stream of [`RecordBatch`] instances, to object
     /// storage.
+    ///
+    /// # Retries
+    ///
+    /// This method retries forever in the presence of object store errors. All
+    /// other errors are returned as they occur.
     pub async fn upload<S>(
         &self,
         batches: S,
@@ -120,7 +126,17 @@ impl ParquetStorage {
         let path = ParquetFilePath::from(meta).object_store_path();
 
         let file_size = data.len();
-        self.object_store.put(&path, Bytes::from(data)).await?;
+        let data = Bytes::from(data);
+
+        // Retry uploading the file endlessly.
+        //
+        // This is abort-able by the user by dropping the upload() future.
+        //
+        // Cloning `data` is a ref count inc, rather than a data copy.
+        while let Err(e) = self.object_store.put(&path, data.clone()).await {
+            error!(error=%e, ?meta, "failed to upload parquet file to object storage");
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
 
         Ok((parquet_meta, file_size))
     }

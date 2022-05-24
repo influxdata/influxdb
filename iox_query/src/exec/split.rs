@@ -31,7 +31,7 @@ use datafusion_util::{AdapterStream, AutoAbortJoinHandle};
 use futures::StreamExt;
 use observability_deps::tracing::*;
 use parking_lot::Mutex;
-use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::mpsc::Sender;
 
 /// Implements stream splitting described in `make_stream_split`
 ///
@@ -192,6 +192,12 @@ impl ExecutionPlan for StreamSplitExec {
     ///
     /// * partition 0 are the rows for which the split_expr evaluates to true
     /// * partition 1 are the rows for which the split_expr does not evaluate to true (e.g. Null or false)
+    ///
+    /// # Deadlock
+    ///
+    /// This will deadlock unless both partitions are consumed from
+    /// concurrently. Failing to consume from one partition blocks the other
+    /// partition from progressing.
     fn execute(
         &self,
         partition: usize,
@@ -257,8 +263,8 @@ impl StreamSplitExec {
         trace!("Setting up SplitStreamExec state");
 
         let input_stream = self.input.execute(0, context)?;
-        let (tx0, rx0) = tokio::sync::mpsc::unbounded_channel();
-        let (tx1, rx1) = tokio::sync::mpsc::unbounded_channel();
+        let (tx0, rx0) = tokio::sync::mpsc::channel(2);
+        let (tx1, rx1) = tokio::sync::mpsc::channel(2);
         let split_expr = Arc::clone(&self.split_expr);
 
         // launch the work on a different task, with a task to handle its output values
@@ -277,18 +283,18 @@ impl StreamSplitExec {
             let txs = [tx0, tx1];
             match worker.await {
                 Err(e) => {
-                    error!(%e, "error joining split task");
+                    debug!(%e, "error joining task");
                     for tx in &txs {
                         let err: ArrowError =
                             DataFusionError::Execution(format!("Join Error: {}", e)).into();
-                        tx.send(Err(err)).ok();
+                        tx.send(Err(err)).await.ok();
                     }
                 }
                 Ok(Err(e)) => {
                     debug!(%e, "error in work function");
                     for tx in &txs {
                         let err: ArrowError = DataFusionError::Execution(e.to_string()).into();
-                        tx.send(Err(err)).ok();
+                        tx.send(Err(err)).await.ok();
                     }
                 }
                 // Input task completed successfully
@@ -300,16 +306,12 @@ impl StreamSplitExec {
         let handle = Arc::new(AutoAbortJoinHandle::new(handle));
 
         *state = State::Running {
-            stream0: Some(AdapterStream::adapt_unbounded(
+            stream0: Some(AdapterStream::adapt(
                 self.input.schema(),
                 rx0,
                 Some(Arc::clone(&handle)),
             )),
-            stream1: Some(AdapterStream::adapt_unbounded(
-                self.input.schema(),
-                rx1,
-                Some(handle),
-            )),
+            stream1: Some(AdapterStream::adapt(self.input.schema(), rx1, Some(handle))),
         };
         Ok(())
     }
@@ -321,8 +323,8 @@ impl StreamSplitExec {
 async fn split_the_stream(
     mut input_stream: SendableRecordBatchStream,
     split_expr: Arc<dyn PhysicalExpr>,
-    tx0: UnboundedSender<ArrowResult<RecordBatch>>,
-    tx1: UnboundedSender<ArrowResult<RecordBatch>>,
+    tx0: Sender<ArrowResult<RecordBatch>>,
+    tx1: Sender<ArrowResult<RecordBatch>>,
     baseline_metrics0: BaselineMetrics,
     baseline_metrics1: BaselineMetrics,
 ) -> Result<()> {
@@ -399,12 +401,11 @@ async fn split_the_stream(
         // don't treat a hangup as an error, as it can also be caused
         // by a LIMIT operation where the entire stream is not
         // consumed)
-        if let Err(e) = tx0.send(Ok(true_batch)) {
+        if let Err(e) = tx0.send(Ok(true_batch)).await {
             debug!(%e, "Split tx0 hung up, ignoring");
             tx0_done = true;
         }
-
-        if let Err(e) = tx1.send(Ok(not_true_batch)) {
+        if let Err(e) = tx1.send(Ok(not_true_batch)).await {
             debug!(%e, "Split tx1 hung up, ignoring");
             tx1_done = true;
         }
