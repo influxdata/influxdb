@@ -158,13 +158,13 @@ func newDetailedNode(inner bool, fn func() report.Counter) *detailedNode {
 	return d
 }
 
-func (d *detailedNode) recordSeries(dbRp string, key, field []byte, tags models.Tags) {
-	d.simpleNode.recordSeries(dbRp, key, field, tags)
+func (d *detailedNode) recordSeries(dbRpMs string, key, field []byte, tags models.Tags) {
+	d.simpleNode.recordSeries(dbRpMs, key, field, tags)
 	d.fields.Add(field)
 	for _, t := range tags {
 		// Add database and retention policy to correctly aggregate
 		// in inner (non-leaf) nodes
-		canonTag := dbRp + string(t.Key)
+		canonTag := dbRpMs + string(t.Key)
 		tc, ok := d.tags[canonTag]
 		if !ok {
 			tc = nodeFactory.counter()
@@ -187,7 +187,7 @@ func (d *detailedNode) print(tw *tabwriter.Writer, db, rp, ms string) error {
 		c := v.Count()
 		tagN += c
 		if d.isLeaf() {
-			tagKeys = append(tagKeys, fmt.Sprintf("%q: %d", k, c))
+			tagKeys = append(tagKeys, fmt.Sprintf("%q: %d", k[strings.LastIndex(k, ".")+1:], c))
 		}
 	}
 	_, err := fmt.Fprintf(tw, "%s\t%s\t%s\t%d\t%d\t%d\t%s\n",
@@ -203,13 +203,13 @@ func (d *detailedNode) print(tw *tabwriter.Writer, db, rp, ms string) error {
 
 func initRecord(r rollupNode, depth, totalDepth int, db, rp, measurement string, key []byte, field []byte, tags models.Tags) {
 	r.Lock()
-	dbRp := fmt.Sprintf("%s.%s.", db, rp)
-	r.recordSeries(dbRp, key, field, tags)
+	dbRpMs := fmt.Sprintf("%s.%s.%s.", db, rp, measurement)
+	r.recordSeries(dbRpMs, key, field, tags)
 
 	switch depth {
 	case 2:
 		c := r.child(measurement, true)
-		c.recordSeries(dbRp, key, field, tags)
+		c.recordSeries(dbRpMs, key, field, tags)
 	case 1:
 		c := r.child(rp, depth >= totalDepth)
 		if depth < totalDepth {
