@@ -191,7 +191,7 @@ impl ParquetFileCache {
     ///
     /// If a `max_parquet_sequence_number` is supplied that is not in
     /// our cache, it means the ingester has written new data to the
-    /// catalog and the cacue is out of date.
+    /// catalog and the cache is out of date.
     pub fn expire_on_newly_persisted_files(
         &self,
         table_id: TableId,

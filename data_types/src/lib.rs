@@ -711,6 +711,14 @@ pub struct Tombstone {
     pub serialized_predicate: String,
 }
 
+impl Tombstone {
+    /// Estimate the memory consumption of this object and its contents
+    pub fn size(&self) -> usize {
+        // No additional heap allocations
+        std::mem::size_of_val(self)
+    }
+}
+
 /// Data for a parquet file reference that has been inserted in the catalog.
 #[derive(Debug, Clone, Copy, PartialEq, sqlx::FromRow)]
 pub struct ParquetFile {

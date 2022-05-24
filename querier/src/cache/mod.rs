@@ -16,6 +16,7 @@ pub mod partition;
 pub mod processed_tombstones;
 mod ram;
 pub mod table;
+pub mod tombstones;
 
 #[cfg(test)]
 mod test_util;
