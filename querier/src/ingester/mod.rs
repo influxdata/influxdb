@@ -455,11 +455,19 @@ pub struct IngesterPartition {
     sequencer_id: SequencerId,
 
     schema: Arc<Schema>,
-    /// Maximum sequence number of persisted data for this partition in the ingester
+
+    /// Maximum sequence number of parquet files the ingester has
+    /// persisted for this partition
     parquet_max_sequence_number: Option<SequenceNumber>,
+
+    /// Maximum sequence number of tombstone that the ingester has
+    /// persisted for this partition
     tombstone_max_sequence_number: Option<SequenceNumber>,
 
+    /// The raw table data
     batches: Vec<RecordBatch>,
+
+    /// Summary Statistics
     summary: TableSummary,
 }
 

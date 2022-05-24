@@ -224,16 +224,26 @@ impl ParquetChunkAdapter {
         ))
     }
 
+    /// Create new querier chunk from a catalog record
+    ///
+    /// Returns `None` if some data required to create this chunk is already gone from the catalog.
+    pub async fn new_querier_chunk_from_file_with_metadata(
+        &self,
+        parquet_file_with_metadata: ParquetFileWithMetadata,
+    ) -> Option<QuerierChunk> {
+        let decoded_parquet_file = DecodedParquetFile::new(parquet_file_with_metadata);
+        self.new_querier_chunk(&decoded_parquet_file).await
+    }
+
     /// Create new querier chunk.
     ///
     /// Returns `None` if some data required to create this chunk is already gone from the catalog.
     pub async fn new_querier_chunk(
         &self,
-        parquet_file_with_metadata: ParquetFileWithMetadata,
+        decoded_parquet_file: &DecodedParquetFile,
     ) -> Option<QuerierChunk> {
-        let decoded_parquet_file = DecodedParquetFile::new(parquet_file_with_metadata);
-        let parquet_file = decoded_parquet_file.parquet_file;
-        let chunk = Arc::new(self.new_parquet_chunk(&decoded_parquet_file).await?);
+        let parquet_file = &decoded_parquet_file.parquet_file;
+        let chunk = Arc::new(self.new_parquet_chunk(decoded_parquet_file).await?);
         let chunk_id = ChunkId::from(Uuid::from_u128(parquet_file.id.get() as _));
         let table_name = self
             .catalog_cache
@@ -331,7 +341,10 @@ pub mod tests {
             .parquet_file;
 
         // create chunk
-        let chunk = adapter.new_querier_chunk(parquet_file).await.unwrap();
+        let chunk = adapter
+            .new_querier_chunk(&DecodedParquetFile::new(parquet_file))
+            .await
+            .unwrap();
 
         // check chunk schema
         let expected_schema = SchemaBuilder::new()

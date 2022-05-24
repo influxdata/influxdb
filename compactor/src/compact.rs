@@ -1090,8 +1090,14 @@ mod tests {
         // create chunks for 2 files
         let files1 = files.pop().unwrap();
         let files0 = files.pop().unwrap();
-        let chunk_0 = adapter.new_querier_chunk(files0).await.unwrap();
-        let chunk_1 = adapter.new_querier_chunk(files1).await.unwrap();
+        let chunk_0 = adapter
+            .new_querier_chunk_from_file_with_metadata(files0)
+            .await
+            .unwrap();
+        let chunk_1 = adapter
+            .new_querier_chunk_from_file_with_metadata(files1)
+            .await
+            .unwrap();
         // query the chunks
         // least recent compacted first half (~90%)
         let batches = collect_read_filter(&chunk_0).await;
@@ -1300,8 +1306,14 @@ mod tests {
         // create chunks for 2 files
         let files2 = files.pop().unwrap();
         let files1 = files.pop().unwrap();
-        let chunk_0 = adapter.new_querier_chunk(files1).await.unwrap();
-        let chunk_1 = adapter.new_querier_chunk(files2).await.unwrap();
+        let chunk_0 = adapter
+            .new_querier_chunk_from_file_with_metadata(files1)
+            .await
+            .unwrap();
+        let chunk_1 = adapter
+            .new_querier_chunk_from_file_with_metadata(files2)
+            .await
+            .unwrap();
         // query the chunks
         // least recent compacted first half (~90%)
         let batches = collect_read_filter(&chunk_0).await;
