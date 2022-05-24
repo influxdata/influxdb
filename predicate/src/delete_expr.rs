@@ -225,7 +225,7 @@ mod tests {
     #[test]
     fn test_unsupported_scalar_value() {
         let scalar = datafusion::scalar::ScalarValue::List(
-            Some(Box::new(vec![])),
+            Some(vec![]),
             Box::new(arrow::datatypes::DataType::Float64),
         );
         let res = df_to_scalar(scalar);
@@ -244,7 +244,7 @@ mod tests {
             op: datafusion::logical_plan::Operator::Eq,
             right: Box::new(datafusion::logical_plan::Expr::Literal(
                 datafusion::scalar::ScalarValue::List(
-                    Some(Box::new(vec![])),
+                    Some(vec![]),
                     Box::new(arrow::datatypes::DataType::Float64),
                 ),
             )),

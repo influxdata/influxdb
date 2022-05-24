@@ -18,7 +18,8 @@ use datafusion::{
     error::{DataFusionError, Result as DatafusionResult},
     execution::context::ExecutionProps,
     logical_plan::{
-        lit, DFSchema, Expr, ExprRewriter, ExprSchemable, LogicalPlan, LogicalPlanBuilder,
+        lit, provider_as_source, DFSchema, Expr, ExprRewriter, ExprSchemable, LogicalPlan,
+        LogicalPlanBuilder,
     },
     physical_plan::{
         expressions::{col as physical_col, PhysicalSortExpr},
@@ -64,7 +65,9 @@ pub fn make_scan_plan(batch: RecordBatch) -> std::result::Result<LogicalPlan, Da
 
     let table = MemTable::try_new(schema, partitions)?;
 
-    LogicalPlanBuilder::scan("memtable", Arc::new(table), projection)?.build()
+    let source = provider_as_source(Arc::new(table));
+
+    LogicalPlanBuilder::scan("memtable", source, projection)?.build()
 }
 
 /// Returns the pk in arrow's expression used for data sorting

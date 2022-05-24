@@ -16,8 +16,8 @@ use data_types::ChunkId;
 use datafusion::{
     error::DataFusionError,
     logical_plan::{
-        col, when, DFSchemaRef, Expr, ExprRewritable, ExprSchemable, LogicalPlan,
-        LogicalPlanBuilder,
+        col, provider_as_source, when, DFSchemaRef, Expr, ExprRewritable, ExprSchemable,
+        LogicalPlan, LogicalPlanBuilder,
     },
 };
 use datafusion_util::AsExpr;
@@ -1465,8 +1465,10 @@ impl InfluxRpcPlanner {
             .context(CreatingProviderSnafu { table_name })?;
         let schema = provider.iox_schema();
 
-        let mut plan_builder = LogicalPlanBuilder::scan(table_name, Arc::new(provider), projection)
-            .context(BuildingPlanSnafu)?;
+        let source = provider_as_source(Arc::new(provider));
+
+        let mut plan_builder =
+            LogicalPlanBuilder::scan(table_name, source, projection).context(BuildingPlanSnafu)?;
 
         // Use a filter node to add general predicates + timestamp
         // range, if any

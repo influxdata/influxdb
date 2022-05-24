@@ -241,7 +241,10 @@ mod tests {
         array::{ArrayRef, Int64Array, StringBuilder},
         datatypes::{DataType, Field, Schema, SchemaRef},
     };
-    use datafusion::{datasource::MemTable, logical_plan::LogicalPlanBuilder};
+    use datafusion::{
+        datasource::MemTable,
+        logical_plan::{provider_as_source, LogicalPlanBuilder},
+    };
     use stringset::StringSet;
 
     use super::*;
@@ -450,8 +453,9 @@ mod tests {
 
         // model one partition,
         let table = MemTable::try_new(schema, partitions).unwrap();
+        let source = provider_as_source(Arc::new(table));
 
-        LogicalPlanBuilder::scan("memtable", Arc::new(table), projection)
+        LogicalPlanBuilder::scan("memtable", source, projection)
             .unwrap()
             .build()
             .unwrap()

@@ -2,7 +2,9 @@
 
 use std::sync::Arc;
 
-use datafusion::logical_plan::{col, lit_timestamp_nano, Expr, LogicalPlan, LogicalPlanBuilder};
+use datafusion::logical_plan::{
+    col, lit_timestamp_nano, provider_as_source, Expr, LogicalPlan, LogicalPlanBuilder,
+};
 use observability_deps::tracing::debug;
 use schema::{sort::SortKey, Schema, TIME_COLUMN_NAME};
 
@@ -76,16 +78,13 @@ impl ReorgPlanner {
             .build()
             .context(CreatingProviderSnafu { table_name })?;
 
+        let source = provider_as_source(Arc::new(provider));
+
         // Logical plan to scan given columns and apply predicates
-        let plan = LogicalPlanBuilder::scan_with_filters(
-            table_name,
-            Arc::new(provider) as _,
-            projection,
-            filters,
-        )
-        .context(BuildingPlanSnafu)?
-        .build()
-        .context(BuildingPlanSnafu)?;
+        let plan = LogicalPlanBuilder::scan_with_filters(table_name, source, projection, filters)
+            .context(BuildingPlanSnafu)?
+            .build()
+            .context(BuildingPlanSnafu)?;
 
         debug!(%table_name, plan=%plan.display_indent_schema(),
                "created single chunk scan plan");
@@ -241,13 +240,13 @@ impl ReorgPlanner {
             .context(CreatingProviderSnafu { table_name })?;
 
         let provider = Arc::new(provider);
+        let source = provider_as_source(Arc::clone(&provider) as _);
 
         // Scan all columns
         let projection = None;
 
         let plan_builder =
-            LogicalPlanBuilder::scan(table_name, Arc::clone(&provider) as _, projection)
-                .context(BuildingPlanSnafu)?;
+            LogicalPlanBuilder::scan(table_name, source, projection).context(BuildingPlanSnafu)?;
 
         Ok(ScanPlan {
             plan_builder,
