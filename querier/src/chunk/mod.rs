@@ -1,4 +1,4 @@
-//! Querier Chunk
+//! Querier Chunks
 
 use crate::cache::CatalogCache;
 use arrow::record_batch::RecordBatch;
@@ -20,7 +20,7 @@ use uuid::Uuid;
 
 mod query_access;
 
-/// Immutable metadata attached to a [`QuerierChunk`].
+/// Immutable metadata attached to a [`QuerierParquetChunk`].
 #[derive(Debug)]
 pub struct ChunkMeta {
     /// The ID of the chunk
@@ -99,7 +99,7 @@ pub enum ChunkStorage {
 /// read buffers) but we need to combine all that knowledge into chunk objects because this is what
 /// the query engine (DataFusion and InfluxRPC) expect.
 #[derive(Debug)]
-pub struct QuerierChunk {
+pub struct QuerierParquetChunk {
     /// How the data is currently structured / available for query.
     storage: ChunkStorage,
 
@@ -113,7 +113,7 @@ pub struct QuerierChunk {
     partition_sort_key: Arc<Option<SortKey>>,
 }
 
-impl QuerierChunk {
+impl QuerierParquetChunk {
     /// Create new parquet-backed chunk (object store data).
     pub fn new_parquet(
         parquet_file_id: ParquetFileId,
@@ -240,7 +240,7 @@ impl ParquetChunkAdapter {
     pub async fn new_querier_chunk_from_file_with_metadata(
         &self,
         parquet_file_with_metadata: ParquetFileWithMetadata,
-    ) -> Option<QuerierChunk> {
+    ) -> Option<QuerierParquetChunk> {
         let decoded_parquet_file = DecodedParquetFile::new(parquet_file_with_metadata);
         self.new_querier_chunk(&decoded_parquet_file).await
     }
@@ -251,7 +251,7 @@ impl ParquetChunkAdapter {
     pub async fn new_querier_chunk(
         &self,
         decoded_parquet_file: &DecodedParquetFile,
-    ) -> Option<QuerierChunk> {
+    ) -> Option<QuerierParquetChunk> {
         let parquet_file = &decoded_parquet_file.parquet_file;
         let chunk = Arc::new(self.new_parquet_chunk(decoded_parquet_file).await?);
         let chunk_id = ChunkId::from(Uuid::from_u128(parquet_file.id.get() as _));
@@ -286,7 +286,7 @@ impl ParquetChunkAdapter {
             max_sequence_number: parquet_file.max_sequence_number,
         });
 
-        Some(QuerierChunk::new_parquet(
+        Some(QuerierParquetChunk::new_parquet(
             parquet_file.id,
             chunk,
             meta,
@@ -296,7 +296,7 @@ impl ParquetChunkAdapter {
 }
 
 /// collect data for the given chunk
-pub async fn collect_read_filter(chunk: &QuerierChunk) -> Vec<RecordBatch> {
+pub async fn collect_read_filter(chunk: &QuerierParquetChunk) -> Vec<RecordBatch> {
     chunk
         .read_filter(
             IOxSessionContext::default(),

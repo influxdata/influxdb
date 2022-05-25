@@ -1,4 +1,4 @@
-use crate::chunk::{ChunkStorage, QuerierChunk};
+use crate::chunk::{ChunkStorage, QuerierParquetChunk};
 use data_types::{
     ChunkId, ChunkOrder, DeletePredicate, PartitionId, TableSummary, TimestampMinMax,
 };
@@ -18,7 +18,7 @@ pub enum Error {
     },
 }
 
-impl QueryChunkMeta for QuerierChunk {
+impl QueryChunkMeta for QuerierParquetChunk {
     fn summary(&self) -> Option<&TableSummary> {
         match &self.storage {
             ChunkStorage::Parquet { chunk, .. } => Some(chunk.table_summary().as_ref()),
@@ -52,7 +52,7 @@ impl QueryChunkMeta for QuerierChunk {
     }
 }
 
-impl QueryChunk for QuerierChunk {
+impl QueryChunk for QuerierParquetChunk {
     fn id(&self) -> ChunkId {
         self.meta().chunk_id
     }
