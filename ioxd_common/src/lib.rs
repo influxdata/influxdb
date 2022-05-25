@@ -12,6 +12,7 @@ pub mod reexport {
     pub use tonic;
     pub use tonic_health;
     pub use tonic_reflection;
+    pub use tower_http;
     pub use trace_http;
 }
 

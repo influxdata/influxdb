@@ -1,8 +1,9 @@
+use std::any::Any;
 use std::sync::Arc;
 
 use tokio::net::TcpListener;
 use tokio_util::sync::CancellationToken;
-use tonic::transport::NamedService;
+use tonic::{body::BoxBody, transport::NamedService, Code};
 use tonic_health::server::HealthReporter;
 use trace_http::ctx::TraceHeaderParser;
 
@@ -93,12 +94,18 @@ macro_rules! setup_builder {
             .expect("gRPC reflection data broken");
 
         let builder = $crate::reexport::tonic::transport::Server::builder();
-        let builder = builder.layer($crate::reexport::trace_http::tower::TraceLayer::new(
-            trace_header_parser,
-            $server_type.metric_registry(),
-            $server_type.trace_collector(),
-            true,
-        ));
+        let builder = builder
+            .layer($crate::reexport::trace_http::tower::TraceLayer::new(
+                trace_header_parser,
+                $server_type.metric_registry(),
+                $server_type.trace_collector(),
+                true,
+            ))
+            .layer(
+                $crate::reexport::tower_http::catch_panic::CatchPanicLayer::custom(
+                    $crate::rpc::handle_panic,
+                ),
+            );
 
         let builder = RpcBuilder {
             inner: builder,
@@ -137,6 +144,16 @@ macro_rules! serve_builder {
             .serve_with_incoming_shutdown(stream, shutdown.cancelled())
             .await?;
     }};
+}
+
+pub fn handle_panic(_err: Box<dyn Any + Send + 'static>) -> http::Response<BoxBody> {
+    http::Response::builder()
+        .status(http::StatusCode::OK)
+        .header(http::header::CONTENT_TYPE, "application/grpc")
+        .header("grpc-status", Code::Internal as u32)
+        .header("grpc-message", "internal error, sad kittens") // we don't want to leak the panic message
+        .body(tonic::body::empty_body())
+        .unwrap()
 }
 
 /// Instantiate a server listening on the specified address

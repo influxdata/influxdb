@@ -2475,6 +2475,7 @@ dependencies = [
  "tonic-health",
  "tonic-reflection",
  "tower",
+ "tower-http",
  "trace",
  "trace_exporters",
  "trace_http",
@@ -5689,6 +5690,7 @@ dependencies = [
  "tower",
  "tower-layer",
  "tower-service",
+ "tracing",
 ]
 
 [[package]]
@@ -6342,6 +6344,7 @@ dependencies = [
  "tokio-stream",
  "tokio-util 0.7.2",
  "tower",
+ "tower-http",
  "tracing",
  "tracing-core",
  "tracing-log",

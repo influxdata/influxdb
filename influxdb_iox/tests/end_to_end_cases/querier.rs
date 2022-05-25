@@ -242,7 +242,7 @@ async fn ingester_panic() {
                         // `tag2=C`).
                         if i == 0 {
                             assert.failure().stderr(predicate::str::contains(
-                                "Error querying: status: Unknown, message: \"transport error\"",
+                                "Error querying: status: Internal, message: \"internal error, sad kittens\"",
                             ));
                         } else {
                             assert.success().stdout(
