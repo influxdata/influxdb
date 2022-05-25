@@ -120,7 +120,7 @@ impl Reconciler {
         for parquet_file_with_metadata in parquet_files {
             if let Some(chunk) = self
                 .chunk_adapter
-                .new_querier_chunk_from_file_with_metadata(parquet_file_with_metadata)
+                .new_querier_parquet_chunk_from_file_with_metadata(parquet_file_with_metadata)
                 .await
             {
                 parquet_chunks.push(chunk);

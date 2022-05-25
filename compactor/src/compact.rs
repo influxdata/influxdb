@@ -1218,11 +1218,11 @@ mod tests {
         let files1 = files.pop().unwrap();
         let files0 = files.pop().unwrap();
         let chunk_0 = adapter
-            .new_querier_chunk_from_file_with_metadata(files0)
+            .new_querier_parquet_chunk_from_file_with_metadata(files0)
             .await
             .unwrap();
         let chunk_1 = adapter
-            .new_querier_chunk_from_file_with_metadata(files1)
+            .new_querier_parquet_chunk_from_file_with_metadata(files1)
             .await
             .unwrap();
         // query the chunks
@@ -1439,11 +1439,11 @@ mod tests {
         let files2 = files.pop().unwrap();
         let files1 = files.pop().unwrap();
         let chunk_0 = adapter
-            .new_querier_chunk_from_file_with_metadata(files1)
+            .new_querier_parquet_chunk_from_file_with_metadata(files1)
             .await
             .unwrap();
         let chunk_1 = adapter
-            .new_querier_chunk_from_file_with_metadata(files2)
+            .new_querier_parquet_chunk_from_file_with_metadata(files2)
             .await
             .unwrap();
         // query the chunks

@@ -217,21 +217,21 @@ impl ParquetChunkAdapter {
         ))
     }
 
-    /// Create new querier chunk from a catalog record
+    /// Create new querier Parquet chunk from a catalog record
     ///
     /// Returns `None` if some data required to create this chunk is already gone from the catalog.
-    pub async fn new_querier_chunk_from_file_with_metadata(
+    pub async fn new_querier_parquet_chunk_from_file_with_metadata(
         &self,
         parquet_file_with_metadata: ParquetFileWithMetadata,
     ) -> Option<QuerierParquetChunk> {
         let decoded_parquet_file = DecodedParquetFile::new(parquet_file_with_metadata);
-        self.new_querier_chunk(&decoded_parquet_file).await
+        self.new_querier_parquet_chunk(&decoded_parquet_file).await
     }
 
-    /// Create new querier chunk.
+    /// Create new querier Parquet chunk.
     ///
     /// Returns `None` if some data required to create this chunk is already gone from the catalog.
-    pub async fn new_querier_chunk(
+    pub async fn new_querier_parquet_chunk(
         &self,
         decoded_parquet_file: &DecodedParquetFile,
     ) -> Option<QuerierParquetChunk> {
@@ -339,7 +339,7 @@ pub mod tests {
 
         // create chunk
         let chunk = adapter
-            .new_querier_chunk(&DecodedParquetFile::new(parquet_file))
+            .new_querier_parquet_chunk(&DecodedParquetFile::new(parquet_file))
             .await
             .unwrap();
 
