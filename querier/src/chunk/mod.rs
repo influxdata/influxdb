@@ -106,7 +106,7 @@ pub struct QuerierParquetChunk {
 
 impl QuerierParquetChunk {
     /// Create new parquet-backed chunk (object store data).
-    pub fn new_parquet(
+    pub fn new(
         parquet_file_id: ParquetFileId,
         parquet_chunk: Arc<ParquetChunk>,
         meta: Arc<ChunkMeta>,
@@ -269,7 +269,7 @@ impl ParquetChunkAdapter {
             max_sequence_number: parquet_file.max_sequence_number,
         });
 
-        Some(QuerierParquetChunk::new_parquet(
+        Some(QuerierParquetChunk::new(
             parquet_file.id,
             chunk,
             meta,
