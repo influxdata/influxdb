@@ -10,6 +10,7 @@ import (
 	"os"
 	"text/tabwriter"
 
+	"github.com/influxdata/influxdb/cmd/influx_inspect/cardinality/aggregators"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/reporthelper"
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
@@ -68,8 +69,8 @@ func (cmd *Command) Run(args ...string) (err error) {
 		return fmt.Errorf("invalid rollup specified: %q", cmd.rollup)
 	}
 
-	factory := CreateNodeFactory(cmd.detailed, cmd.exact)
-	totalsTree := &nodeWrapper{factory.newNode(totalDepth == 0)}
+	factory := aggregators.CreateNodeFactory(cmd.detailed, cmd.exact)
+	totalsTree := factory.NewNode(totalDepth == 0)
 
 	g, ctx := errgroup.WithContext(context.Background())
 	g.SetLimit(cmd.concurrency)
@@ -100,7 +101,7 @@ func (cmd *Command) Run(args ...string) (err error) {
 				key, _ := reader.KeyAt(i)
 				seriesKey, field, _ := bytes.Cut(key, []byte("#!~#"))
 				measurement, tags := models.ParseKey(seriesKey)
-				totalsTree.record(0, totalDepth, db, rp, measurement, key, field, tags)
+				totalsTree.Record(0, totalDepth, db, rp, measurement, key, field, tags)
 			}()
 		}
 		return nil
@@ -130,29 +131,29 @@ func (cmd *Command) Run(args ...string) (err error) {
 
 	tw := tabwriter.NewWriter(cmd.Stdout, 8, 2, 1, ' ', 0)
 
-	if err = factory.printHeader(tw); err != nil {
+	if err = factory.PrintHeader(tw); err != nil {
 		return err
 	}
-	if err = factory.printDivider(tw); err != nil {
+	if err = factory.PrintDivider(tw); err != nil {
 		return err
 	}
-	for d, db := range totalsTree.children() {
-		for r, rp := range db.children() {
-			for m, measure := range rp.children() {
-				err = measure.print(tw, true, fmt.Sprintf("%q", d), fmt.Sprintf("%q", r), fmt.Sprintf("%q", m))
+	for d, db := range totalsTree.Children() {
+		for r, rp := range db.Children() {
+			for m, measure := range rp.Children() {
+				err = measure.Print(tw, true, fmt.Sprintf("%q", d), fmt.Sprintf("%q", r), fmt.Sprintf("%q", m))
 				if err != nil {
 					return err
 				}
 			}
-			if err = rp.print(tw, false, fmt.Sprintf("%q", d), fmt.Sprintf("%q", r), ""); err != nil {
+			if err = rp.Print(tw, false, fmt.Sprintf("%q", d), fmt.Sprintf("%q", r), ""); err != nil {
 				return err
 			}
 		}
-		if err = db.print(tw, false, fmt.Sprintf("%q", d), "", ""); err != nil {
+		if err = db.Print(tw, false, fmt.Sprintf("%q", d), "", ""); err != nil {
 			return err
 		}
 	}
-	if err = totalsTree.print(tw, false, "Total"+factory.estTitle, "", ""); err != nil {
+	if err = totalsTree.Print(tw, false, "Total"+factory.EstTitle, "", ""); err != nil {
 		return err
 	}
 	return tw.Flush()

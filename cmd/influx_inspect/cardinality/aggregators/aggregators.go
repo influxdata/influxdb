@@ -1,4 +1,4 @@
-package cardinality
+package aggregators
 
 import (
 	"fmt"
@@ -10,39 +10,39 @@ import (
 	"github.com/influxdata/influxdb/models"
 )
 
-type rollupNodeMap map[string]rollupNode
+type rollupNodeMap map[string]RollupNode
 type rollupNodeLock interface {
 	Lock()
 	Unlock()
 }
 
-type rollupNode interface {
+type RollupNode interface {
 	rollupNodeLock
 	report.Counter
-	children() rollupNodeMap
-	recordSeries(db, rp, ms string, key, field []byte, tags models.Tags)
-	print(tw *tabwriter.Writer, printTags bool, db, rp, ms string) error
+	Children() rollupNodeMap
+	RecordSeries(db, rp, ms string, key, field []byte, tags models.Tags)
+	Print(tw *tabwriter.Writer, printTags bool, db, rp, ms string) error
 	isLeaf() bool
-	child(key string, isLeaf bool) rollupNode
+	child(key string, isLeaf bool) NodeWrapper
 }
 
-type nodeWrapper struct {
-	rollupNode
+type NodeWrapper struct {
+	RollupNode
 }
 
 var detailedHeader = []string{"DB", "RP", "measurement", "series", "fields", "tag total", "tags"}
 var simpleHeader = []string{"DB", "RP", "measurement", "series"}
 
-type rollupNodeFactory struct {
+type RollupNodeFactory struct {
 	header   []string
-	estTitle string
-	newNode  func(inner bool) rollupNode
+	EstTitle string
+	NewNode  func(inner bool) NodeWrapper
 	counter  func() report.Counter
 }
 
-var nodeFactory *rollupNodeFactory
+var nodeFactory *RollupNodeFactory
 
-func CreateNodeFactory(detailed, exact bool) *rollupNodeFactory {
+func CreateNodeFactory(detailed, exact bool) *RollupNodeFactory {
 	estTitle := " (est.)"
 	newCounterFn := report.NewHLLCounter
 	if exact {
@@ -58,18 +58,18 @@ func CreateNodeFactory(detailed, exact bool) *rollupNodeFactory {
 	return nodeFactory
 }
 
-func (f *rollupNodeFactory) printHeader(tw *tabwriter.Writer) error {
+func (f *RollupNodeFactory) PrintHeader(tw *tabwriter.Writer) error {
 	_, err := fmt.Fprintln(tw, strings.Join(f.header, "\t"))
 	return err
 }
 
-func (f *rollupNodeFactory) printDivider(tw *tabwriter.Writer) error {
+func (f *RollupNodeFactory) PrintDivider(tw *tabwriter.Writer) error {
 	divLine := f.makeTabDivider()
 	_, err := fmt.Fprintln(tw, divLine)
 	return err
 }
 
-func (f *rollupNodeFactory) makeTabDivider() string {
+func (f *RollupNodeFactory) makeTabDivider() string {
 	div := make([]string, 0, len(f.header))
 	for _, s := range f.header {
 		div = append(div, strings.Repeat("-", len(s)))
@@ -77,20 +77,20 @@ func (f *rollupNodeFactory) makeTabDivider() string {
 	return strings.Join(div, "\t")
 }
 
-func newSimpleNodeFactory(newCounterFn func() report.Counter, est string) *rollupNodeFactory {
-	return &rollupNodeFactory{
+func newSimpleNodeFactory(newCounterFn func() report.Counter, est string) *RollupNodeFactory {
+	return &RollupNodeFactory{
 		header:   simpleHeader,
-		estTitle: est,
-		newNode:  func(inner bool) rollupNode { return newSimpleNode(inner, newCounterFn) },
+		EstTitle: est,
+		NewNode:  func(inner bool) NodeWrapper { return NodeWrapper{newSimpleNode(inner, newCounterFn)} },
 		counter:  newCounterFn,
 	}
 }
 
-func newDetailedNodeFactory(newCounterFn func() report.Counter, est string) *rollupNodeFactory {
-	return &rollupNodeFactory{
+func newDetailedNodeFactory(newCounterFn func() report.Counter, est string) *RollupNodeFactory {
+	return &RollupNodeFactory{
 		header:   detailedHeader,
-		estTitle: est,
-		newNode:  func(isLeaf bool) rollupNode { return newDetailedNode(isLeaf, newCounterFn) },
+		EstTitle: est,
+		NewNode:  func(isLeaf bool) NodeWrapper { return NodeWrapper{newDetailedNode(isLeaf, newCounterFn)} },
 		counter:  newCounterFn,
 	}
 }
@@ -101,26 +101,26 @@ type simpleNode struct {
 	rollupNodeMap
 }
 
-func (s *simpleNode) children() rollupNodeMap {
+func (s *simpleNode) Children() rollupNodeMap {
 	return s.rollupNodeMap
 }
 
-func (s *simpleNode) child(key string, isLeaf bool) rollupNode {
+func (s *simpleNode) child(key string, isLeaf bool) NodeWrapper {
 	if s.isLeaf() {
 		panic("Trying to get the child to a leaf node")
 	}
 	s.Lock()
 	defer s.Unlock()
-	c, ok := s.children()[key]
+	c, ok := s.Children()[key]
 	if !ok {
-		c = nodeFactory.newNode(isLeaf)
-		s.children()[key] = c
+		c = nodeFactory.NewNode(isLeaf)
+		s.Children()[key] = c
 	}
-	return c
+	return NodeWrapper{c}
 }
 
 func (s *simpleNode) isLeaf() bool {
-	return s.children() == nil
+	return s.Children() == nil
 }
 
 func newSimpleNode(isLeaf bool, fn func() report.Counter) *simpleNode {
@@ -133,7 +133,7 @@ func newSimpleNode(isLeaf bool, fn func() report.Counter) *simpleNode {
 	return s
 }
 
-func (s *simpleNode) recordSeries(db, rp, _ string, key, _ []byte, _ models.Tags) {
+func (s *simpleNode) RecordSeries(db, rp, _ string, key, _ []byte, _ models.Tags) {
 	s.Lock()
 	defer s.Unlock()
 	s.recordSeriesNoLock(db, rp, key)
@@ -143,7 +143,7 @@ func (s *simpleNode) recordSeriesNoLock(db, rp string, key []byte) {
 	s.Add([]byte(fmt.Sprintf("%s.%s.%s", db, rp, key)))
 }
 
-func (s *simpleNode) print(tw *tabwriter.Writer, _ bool, db, rp, ms string) error {
+func (s *simpleNode) Print(tw *tabwriter.Writer, _ bool, db, rp, ms string) error {
 	_, err := fmt.Fprintf(tw, "%s\t%s\t%s\t%d\n",
 		db,
 		rp,
@@ -174,7 +174,7 @@ func newDetailedNode(isLeaf bool, fn func() report.Counter) *detailedNode {
 	return d
 }
 
-func (d *detailedNode) recordSeries(db, rp, ms string, key, field []byte, tags models.Tags) {
+func (d *detailedNode) RecordSeries(db, rp, ms string, key, field []byte, tags models.Tags) {
 	d.Lock()
 	defer d.Unlock()
 	d.simpleNode.recordSeriesNoLock(db, rp, key)
@@ -192,7 +192,7 @@ func (d *detailedNode) recordSeries(db, rp, ms string, key, field []byte, tags m
 	}
 }
 
-func (d *detailedNode) print(tw *tabwriter.Writer, printTags bool, db, rp, ms string) error {
+func (d *detailedNode) Print(tw *tabwriter.Writer, printTags bool, db, rp, ms string) error {
 	seriesN := d.Count()
 	fieldsN := d.fields.Count()
 	var tagKeys []string
@@ -219,27 +219,27 @@ func (d *detailedNode) print(tw *tabwriter.Writer, printTags bool, db, rp, ms st
 	return err
 }
 
-func (r *nodeWrapper) record(depth, totalDepth int, db, rp, measurement string, key []byte, field []byte, tags models.Tags) {
-	r.recordSeries(db, rp, measurement, key, field, tags)
+func (r *NodeWrapper) Record(depth, totalDepth int, db, rp, measurement string, key []byte, field []byte, tags models.Tags) {
+	r.RecordSeries(db, rp, measurement, key, field, tags)
 
 	switch depth {
 	case 2:
 		if depth < totalDepth {
 			// Create measurement level in tree
 			c := r.child(measurement, true)
-			c.recordSeries(db, rp, measurement, key, field, tags)
+			c.RecordSeries(db, rp, measurement, key, field, tags)
 		}
 	case 1:
 		if depth < totalDepth {
 			// Create retention policy level in tree
-			c := nodeWrapper{r.child(rp, (depth+1) == totalDepth)}
-			c.record(depth+1, totalDepth, db, rp, measurement, key, field, tags)
+			c := r.child(rp, (depth+1) == totalDepth)
+			c.Record(depth+1, totalDepth, db, rp, measurement, key, field, tags)
 		}
 	case 0:
 		if depth < totalDepth {
 			// Create database level in tree
-			c := nodeWrapper{r.child(db, (depth+1) == totalDepth)}
-			c.record(depth+1, totalDepth, db, rp, measurement, key, field, tags)
+			c := r.child(db, (depth+1) == totalDepth)
+			c.Record(depth+1, totalDepth, db, rp, measurement, key, field, tags)
 		}
 	default:
 	}
