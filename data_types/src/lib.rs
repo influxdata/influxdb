@@ -121,7 +121,7 @@ impl ColumnId {
 }
 
 /// Unique ID for a `Sequencer`. Note this is NOT the same as the
-/// "sequencer_number" in the `write_buffer` which currently means
+/// "sequencer_id" in the `write_buffer` which currently means
 /// "kafka partition".
 ///
 /// <https://github.com/influxdata/influxdb_iox/issues/4237>

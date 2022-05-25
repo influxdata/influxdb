@@ -414,7 +414,7 @@ fn metric_attrs(
     data_loss: bool,
 ) -> Attributes {
     let mut attr = Attributes::from([
-        ("sequencer_id", partition.to_string().into()),
+        ("kafka_partition", partition.to_string().into()),
         ("kafka_topic", topic.to_string().into()),
     ]);
 
@@ -649,7 +649,7 @@ mod tests {
                         .expect("did not find ttbr metric")
                         .get_observer(&Attributes::from([
                             ("kafka_topic", TEST_KAFKA_TOPIC.into()),
-                            ("sequencer_id", TEST_KAFKA_PARTITION.to_string().into()),
+                            ("kafka_partition", TEST_KAFKA_PARTITION.to_string().into()),
                         ]))
                         .expect("did not match metric attributes")
                         .fetch();

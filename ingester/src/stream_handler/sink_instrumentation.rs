@@ -84,7 +84,7 @@ where
         metrics: &metric::Registry,
     ) -> Self {
         let attr = Attributes::from([
-            ("sequencer_id", kafka_partition.to_string().into()),
+            ("kafka_partition", kafka_partition.to_string().into()),
             ("kafka_topic", kafka_topic_name.into()),
         ]);
 
@@ -199,7 +199,7 @@ where
             .expect("entry from write buffer must be sequenced");
         assert_eq!(
             sequence.sequencer_id as i32, self.sequencer_id,
-            "instrumentation for sequencer {} saw op from sequencer {}",
+            "instrumentation for kafka partition {} saw op from kafka partition {}",
             self.sequencer_id, sequence.sequencer_id,
         );
 
@@ -279,7 +279,7 @@ mod tests {
         /// The attributes assigned to the metrics emitted by the
         /// instrumentation when using the above sequencer / kafka topic values.
         static ref DEFAULT_ATTRS: Attributes = Attributes::from([
-            ("sequencer_id", SEQUENCER_ID.to_string().into()),
+            ("kafka_partition", SEQUENCER_ID.to_string().into()),
             ("kafka_topic", TEST_KAFKA_TOPIC.into()),
         ]);
     }
@@ -621,12 +621,12 @@ mod tests {
 
     // The instrumentation emits per-sequencer metrics, so upon observing an op
     // for a different sequencer it should panic.
-    #[should_panic = "instrumentation for sequencer 42 saw op from sequencer 52"]
+    #[should_panic = "instrumentation for kafka partition 42 saw op from kafka partition 52"]
     #[tokio::test]
     async fn test_op_different_sequencer_id() {
         let metrics = metric::Registry::default();
         let meta = DmlMeta::sequenced(
-            // A different sequencer ID from what the handler is configured to
+            // A different kafka partition ID from what the handler is configured to
             // be instrumenting
             Sequence::new(SEQUENCER_ID + 10, 100),
             *TEST_TIME,

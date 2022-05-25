@@ -47,7 +47,10 @@ impl WriteSummary {
 
         let mut sequencers = BTreeMap::new();
         for s in sequences {
-            let sequencer_id: i32 = s.sequencer_id.try_into().expect("Invalid sequencer id");
+            let sequencer_id: i32 = s
+                .sequencer_id
+                .try_into()
+                .expect("Invalid Kafka Partition id");
 
             // This is super confusing: "sequencer_id" in the router
             //  and other parts of the codebase refers to what the
