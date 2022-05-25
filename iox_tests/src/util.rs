@@ -428,6 +428,27 @@ pub struct TestPartition {
 }
 
 impl TestPartition {
+    /// Update sort key.
+    pub async fn update_sort_key(self: &Arc<Self>, sort_key: SortKey) -> Self {
+        let partition = self
+            .catalog
+            .catalog
+            .repositories()
+            .await
+            .partitions()
+            .update_sort_key(self.partition.id, &sort_key.to_columns())
+            .await
+            .unwrap();
+
+        Self {
+            catalog: Arc::clone(&self.catalog),
+            namespace: Arc::clone(&self.namespace),
+            table: Arc::clone(&self.table),
+            sequencer: Arc::clone(&self.sequencer),
+            partition,
+        }
+    }
+
     /// Create a parquet for the partition
     pub async fn create_parquet_file(self: &Arc<Self>, lp: &str) -> TestParquetFile {
         self.create_parquet_file_with_min_max(

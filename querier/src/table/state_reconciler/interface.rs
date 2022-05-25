@@ -16,7 +16,28 @@ pub trait IngesterPartitionInfo {
     fn tombstone_max_sequence_number(&self) -> Option<SequenceNumber>;
 }
 
-impl IngesterPartitionInfo for Arc<IngesterPartition> {
+impl IngesterPartitionInfo for IngesterPartition {
+    fn partition_id(&self) -> PartitionId {
+        self.deref().partition_id()
+    }
+
+    fn sequencer_id(&self) -> SequencerId {
+        self.deref().sequencer_id()
+    }
+
+    fn parquet_max_sequence_number(&self) -> Option<SequenceNumber> {
+        self.deref().parquet_max_sequence_number()
+    }
+
+    fn tombstone_max_sequence_number(&self) -> Option<SequenceNumber> {
+        self.deref().tombstone_max_sequence_number()
+    }
+}
+
+impl<T> IngesterPartitionInfo for Arc<T>
+where
+    T: IngesterPartitionInfo,
+{
     fn partition_id(&self) -> PartitionId {
         self.deref().partition_id()
     }

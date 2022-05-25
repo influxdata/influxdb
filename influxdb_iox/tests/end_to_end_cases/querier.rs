@@ -132,7 +132,8 @@ async fn table_not_found_on_ingester() {
     let table_name = "the_table";
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_shared(database_url).await;
+    // cannot use shared cluster because we're restarting the ingester
+    let mut cluster = MiniCluster::create_non_shared_standard(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -256,6 +257,159 @@ async fn ingester_panic() {
                 }
                 .boxed()
             })),
+        ],
+    )
+    .run()
+    .await
+}
+
+#[tokio::test]
+async fn issue_4631_a() {
+    // See https://github.com/influxdata/influxdb_iox/issues/4631
+    //
+    // The symptom was that on rare occasion the querier would panic because the query engine was sure there must be a
+    // partition sort key but the querier did not provide any. For this to happen we need overlapping chunks and all
+    // these chunks must be sorted. This is only the case if all chunks are persisted (i.e. parquet-backed, so no
+    // ingester data). The reason why the querier did NOT provide a partition sort key was because it once got queried
+    // when the partition was fresh and only existed within the ingester, so no partition sort key was calculated yet.
+    // During that initial query the querier would cache the partition information (incl. the absence of a partition
+    // sort key) and when queried again (this time all chunks are peristed but overlapping) it would use this stale
+    // information, confusing the query engine.
+    test_helpers::maybe_start_logging();
+
+    let database_url = maybe_skip_integration!();
+
+    let table_name = "the_table";
+
+    // Set up the cluster  ====================================
+    let router_config = TestConfig::new_router(&database_url);
+    let ingester_config =
+        TestConfig::new_ingester(&router_config).with_ingester_persist_memory_threshold(1000);
+    let querier_config = TestConfig::new_querier(&ingester_config);
+    let mut cluster = MiniCluster::new()
+        .with_router(router_config)
+        .await
+        .with_ingester(ingester_config)
+        .await
+        .with_querier(querier_config)
+        .await;
+
+    // We need a trigger for persistence that is not time so the test is as stable as possible. We use a long string to
+    // cross the persistence memory threshold.
+    let mut super_long_string = String::new();
+    for _ in 0..10_000 {
+        super_long_string.push('x');
+    }
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            // create UNPERSISTED ingester data
+            // IMPORTANT: The data MUST NOT be persisted before the first query is executed, because persistence
+            //            calculates the partition sort key. The original bug was that the first query on a completely
+            //            unpersisted partition would cache the NULL/None sort key which would later lead to a panic.
+            Step::WriteLineProtocol(format!("{},tag=A val=\"foo\" 1", table_name)),
+            Step::WaitForReadable,
+            Step::AssertNotPersisted,
+            // cache partition in querier w/o any partition sort key (yet)
+            // This MUST happen after we have some ingester data but before ANYTHING was persisted. In the original bug
+            // the querier would now cache the partition w/o a sort key (and would never invalidate this information).
+            Step::Query {
+                sql: format!("select * from {}", table_name),
+                expected: vec![
+                    "+-----+--------------------------------+-----+",
+                    "| tag | time                           | val |",
+                    "+-----+--------------------------------+-----+",
+                    "| A   | 1970-01-01T00:00:00.000000001Z | foo |",
+                    "+-----+--------------------------------+-----+",
+                ],
+            },
+            // flush ingester data
+            // Here the ingester calculates the partition sort key.
+            Step::WriteLineProtocol(format!(
+                "{},tag=B val=\"{}\" 2\n",
+                table_name, super_long_string
+            )),
+            Step::WaitForPersisted,
+            // create overlapping 2nd parquet file
+            // This is important to trigger the bug within the query engine, because only if there are multiple chunks
+            // that need to be de-duplicated the bug will occur.
+            Step::WriteLineProtocol(format!(
+                "{},tag=A val=\"bar\" 1\n{},tag=B val=\"{}\" 2\n",
+                table_name, table_name, super_long_string
+            )),
+            Step::WaitForPersisted,
+            // query
+            // In the original bug the querier would still use NULL/None as a partition sort key but present two sorted
+            // but overlapping chunks to the query engine.
+            Step::Query {
+                sql: format!("select * from {} where tag='A'", table_name),
+                expected: vec![
+                    "+-----+--------------------------------+-----+",
+                    "| tag | time                           | val |",
+                    "+-----+--------------------------------+-----+",
+                    "| A   | 1970-01-01T00:00:00.000000001Z | bar |",
+                    "+-----+--------------------------------+-----+",
+                ],
+            },
+        ],
+    )
+    .run()
+    .await
+}
+
+#[tokio::test]
+async fn issue_4631_b() {
+    // This is similar to `issue_4631_a` but instead of updating the sort key from NULL/None to something we update it
+    // with a new tag.
+    test_helpers::maybe_start_logging();
+
+    let database_url = maybe_skip_integration!();
+
+    let table_name = "the_table";
+
+    // Set up the cluster  ====================================
+    let mut cluster = MiniCluster::create_shared(database_url).await;
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            // create persisted chunk with a single tag column
+            Step::WriteLineProtocol(format!("{},tag=A val=\"foo\" 1", table_name)),
+            Step::WaitForPersisted,
+            // query to prime the querier caches with partition sort key
+            Step::Query {
+                sql: format!("select * from {}", table_name),
+                expected: vec![
+                    "+-----+--------------------------------+-----+",
+                    "| tag | time                           | val |",
+                    "+-----+--------------------------------+-----+",
+                    "| A   | 1970-01-01T00:00:00.000000001Z | foo |",
+                    "+-----+--------------------------------+-----+",
+                ],
+            },
+            // create 2nd chunk with an additional tag column (which will be included in the partition sort key)
+            Step::WriteLineProtocol(format!("{},tag=A,tag2=B val=\"bar\" 1\n", table_name)),
+            Step::WaitForPersisted,
+            // in the original bug the querier would now panic with:
+            //
+            //     Partition sort key tag, time, does not cover or is sorted on the same order of the chunk sort key tag, tag2, time,
+            //
+            // Note that we cannot query tag2 because the schema is cached for a while.
+            Step::Query {
+                sql: format!(
+                    "select tag, val from {} where tag='A' order by val",
+                    table_name
+                ),
+                expected: vec![
+                    "+-----+-----+",
+                    "| tag | val |",
+                    "+-----+-----+",
+                    "| A   | bar |",
+                    "| A   | foo |",
+                    "+-----+-----+",
+                ],
+            },
         ],
     )
     .run()

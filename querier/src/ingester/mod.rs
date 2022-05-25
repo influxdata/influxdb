@@ -147,7 +147,7 @@ pub trait IngesterConnection: std::fmt::Debug + Send + Sync + 'static {
         columns: Vec<String>,
         predicate: &Predicate,
         expected_schema: Arc<Schema>,
-    ) -> Result<Vec<Arc<IngesterPartition>>>;
+    ) -> Result<Vec<IngesterPartition>>;
 
     /// Returns the most recent partition sstatus info across all ingester(s) for the specified
     /// write token.
@@ -211,7 +211,7 @@ struct GetPartitionForIngester<'a> {
 }
 
 /// Fetches the partitions for a single ingester
-async fn execute(request: GetPartitionForIngester<'_>) -> Result<Vec<Arc<IngesterPartition>>> {
+async fn execute(request: GetPartitionForIngester<'_>) -> Result<Vec<IngesterPartition>> {
     let GetPartitionForIngester {
         flight_client,
         catalog_cache,
@@ -322,6 +322,7 @@ async fn execute(request: GetPartitionForIngester<'_>) -> Result<Vec<Arc<Ingeste
         // to select the right parquet files and tombstones
         let partition_id = PartitionId::new(partition_id);
         let sequencer_id = catalog_cache.partition().sequencer_id(partition_id).await;
+        let partition_sort_key = catalog_cache.partition().sort_key(partition_id).await;
         let ingester_partition = IngesterPartition::try_new(
             Arc::clone(&ingester_address),
             ChunkId::new(),
@@ -332,9 +333,10 @@ async fn execute(request: GetPartitionForIngester<'_>) -> Result<Vec<Arc<Ingeste
             Arc::clone(&expected_schema),
             state.parquet_max_sequence_number.map(SequenceNumber::new),
             state.tombstone_max_sequence_number.map(SequenceNumber::new),
+            partition_sort_key,
             batches,
         )?;
-        ingester_partitions.push(Arc::new(ingester_partition));
+        ingester_partitions.push(ingester_partition);
     }
 
     Ok(ingester_partitions)
@@ -367,8 +369,8 @@ impl IngesterConnection for IngesterConnectionImpl {
         columns: Vec<String>,
         predicate: &Predicate,
         expected_schema: Arc<Schema>,
-    ) -> Result<Vec<Arc<IngesterPartition>>> {
-        let mut ingester_partitions: Vec<Arc<IngesterPartition>> = self
+    ) -> Result<Vec<IngesterPartition>> {
+        let mut ingester_partitions: Vec<IngesterPartition> = self
             .ingester_addresses
             .iter()
             .map(|ingester_address| {
@@ -464,6 +466,9 @@ pub struct IngesterPartition {
     /// persisted for this partition
     tombstone_max_sequence_number: Option<SequenceNumber>,
 
+    /// Partition-wide sort key.
+    partition_sort_key: Arc<Option<SortKey>>,
+
     /// The raw table data
     batches: Vec<RecordBatch>,
 
@@ -485,6 +490,7 @@ impl IngesterPartition {
         expected_schema: Arc<Schema>,
         parquet_max_sequence_number: Option<SequenceNumber>,
         tombstone_max_sequence_number: Option<SequenceNumber>,
+        partition_sort_key: Arc<Option<SortKey>>,
         batches: Vec<RecordBatch>,
     ) -> Result<Self> {
         // ensure that the schema of the batches matches the required
@@ -510,9 +516,17 @@ impl IngesterPartition {
             schema: expected_schema,
             parquet_max_sequence_number,
             tombstone_max_sequence_number,
+            partition_sort_key,
             batches,
             summary,
         })
+    }
+
+    pub(crate) fn with_partition_sort_key(self, partition_sort_key: Arc<Option<SortKey>>) -> Self {
+        Self {
+            partition_sort_key,
+            ..self
+        }
     }
 
     pub(crate) fn ingester(&self) -> &Arc<str> {
@@ -551,7 +565,7 @@ impl QueryChunkMeta for IngesterPartition {
     }
 
     fn partition_sort_key(&self) -> Option<&SortKey> {
-        None // data comes from Ingester is not persisted yet and should not yet attached to any catalog partition
+        self.partition_sort_key.as_ref().as_ref()
     }
 
     fn partition_id(&self) -> Option<PartitionId> {
@@ -1136,7 +1150,7 @@ mod tests {
 
     async fn get_partitions(
         ingester_conn: &IngesterConnectionImpl,
-    ) -> Result<Vec<Arc<IngesterPartition>>, Error> {
+    ) -> Result<Vec<IngesterPartition>, Error> {
         let namespace = Arc::from("namespace");
         let table = Arc::from("table");
         let columns = vec![String::from("col")];
@@ -1274,6 +1288,7 @@ mod tests {
                 Arc::clone(&expected_schema),
                 parquet_max_sequence_number,
                 tombstone_max_sequence_number,
+                Arc::new(None),
                 vec![case],
             )
             .unwrap();
@@ -1309,6 +1324,7 @@ mod tests {
             Arc::clone(&expected_schema),
             parquet_max_sequence_number,
             tombstone_max_sequence_number,
+            Arc::new(None),
             vec![batch],
         )
         .unwrap_err();
@@ -1340,6 +1356,7 @@ mod tests {
             Arc::clone(&expected_schema),
             parquet_max_sequence_number,
             tombstone_max_sequence_number,
+            Arc::new(None),
             vec![batch],
         )
         .unwrap();

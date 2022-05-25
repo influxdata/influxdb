@@ -181,10 +181,7 @@ impl QuerierTable {
     }
 
     /// Get partitions from ingesters.
-    async fn ingester_partitions(
-        &self,
-        predicate: &Predicate,
-    ) -> Result<Vec<Arc<IngesterPartition>>> {
+    async fn ingester_partitions(&self, predicate: &Predicate) -> Result<Vec<IngesterPartition>> {
         // For now, ask for *all* columns in the table from the ingester (need
         // at least all pk (time, tag) columns for
         // deduplication.
@@ -453,21 +450,20 @@ mod tests {
             .as_any()
             .downcast_ref::<MockIngesterConnection>()
             .unwrap()
-            .next_response(Ok(vec![Arc::new(
-                IngesterPartition::try_new(
-                    Arc::from("ingester"),
-                    ChunkId::new(),
-                    Arc::from(ns.namespace.name.clone()),
-                    Arc::from(table.table.name.clone()),
-                    partition.partition.id,
-                    sequencer.sequencer.id,
-                    Arc::new(SchemaBuilder::new().build().unwrap()),
-                    Some(SequenceNumber::new(1)),
-                    None,
-                    vec![],
-                )
-                .unwrap(),
-            )]));
+            .next_response(Ok(vec![IngesterPartition::try_new(
+                Arc::from("ingester"),
+                ChunkId::new(),
+                Arc::from(ns.namespace.name.clone()),
+                Arc::from(table.table.name.clone()),
+                partition.partition.id,
+                sequencer.sequencer.id,
+                Arc::new(SchemaBuilder::new().build().unwrap()),
+                Some(SequenceNumber::new(1)),
+                None,
+                Arc::new(None),
+                vec![],
+            )
+            .unwrap()]));
 
         let err = querier_table.chunks(&pred).await.unwrap_err();
         assert_matches!(err, Error::StateFusion { .. });
@@ -566,53 +562,51 @@ mod tests {
             .unwrap()
             .next_response(Ok(vec![
                 // this chunk is kept
-                Arc::new(
-                    IngesterPartition::try_new(
-                        Arc::from("ingester"),
-                        ingester_chunk_id1,
-                        Arc::from(ns.namespace.name.clone()),
-                        Arc::from(table.table.name.clone()),
-                        partition1.partition.id,
-                        sequencer.sequencer.id,
-                        Arc::new(
-                            SchemaBuilder::new()
-                                .influx_field("foo", InfluxFieldType::Integer)
-                                .timestamp()
-                                .build()
-                                .unwrap(),
-                        ),
-                        // parquet max persisted sequence number
-                        Some(SequenceNumber::new(2)),
-                        // tombstone max persisted sequence number
-                        Some(SequenceNumber::new(10)),
-                        vec![lp_to_record_batch("table foo=3i 33")],
-                    )
-                    .unwrap(),
-                ),
+                IngesterPartition::try_new(
+                    Arc::from("ingester"),
+                    ingester_chunk_id1,
+                    Arc::from(ns.namespace.name.clone()),
+                    Arc::from(table.table.name.clone()),
+                    partition1.partition.id,
+                    sequencer.sequencer.id,
+                    Arc::new(
+                        SchemaBuilder::new()
+                            .influx_field("foo", InfluxFieldType::Integer)
+                            .timestamp()
+                            .build()
+                            .unwrap(),
+                    ),
+                    // parquet max persisted sequence number
+                    Some(SequenceNumber::new(2)),
+                    // tombstone max persisted sequence number
+                    Some(SequenceNumber::new(10)),
+                    Arc::new(None),
+                    vec![lp_to_record_batch("table foo=3i 33")],
+                )
+                .unwrap(),
                 // this chunk is filtered out because it has no record batches but the reconciling still takes place
-                Arc::new(
-                    IngesterPartition::try_new(
-                        Arc::from("ingester"),
-                        ingester_chunk_id2,
-                        Arc::from(ns.namespace.name.clone()),
-                        Arc::from(table.table.name.clone()),
-                        partition2.partition.id,
-                        sequencer.sequencer.id,
-                        Arc::new(
-                            SchemaBuilder::new()
-                                .influx_field("foo", InfluxFieldType::Integer)
-                                .timestamp()
-                                .build()
-                                .unwrap(),
-                        ),
-                        // parquet max persisted sequence number
-                        Some(SequenceNumber::new(3)),
-                        // tombstone max persisted sequence number
-                        Some(SequenceNumber::new(11)),
-                        vec![],
-                    )
-                    .unwrap(),
-                ),
+                IngesterPartition::try_new(
+                    Arc::from("ingester"),
+                    ingester_chunk_id2,
+                    Arc::from(ns.namespace.name.clone()),
+                    Arc::from(table.table.name.clone()),
+                    partition2.partition.id,
+                    sequencer.sequencer.id,
+                    Arc::new(
+                        SchemaBuilder::new()
+                            .influx_field("foo", InfluxFieldType::Integer)
+                            .timestamp()
+                            .build()
+                            .unwrap(),
+                    ),
+                    // parquet max persisted sequence number
+                    Some(SequenceNumber::new(3)),
+                    // tombstone max persisted sequence number
+                    Some(SequenceNumber::new(11)),
+                    Arc::new(None),
+                    vec![],
+                )
+                .unwrap(),
             ]));
 
         let mut chunks = querier_table.chunks(&pred).await.unwrap();
@@ -668,75 +662,72 @@ mod tests {
             .downcast_ref::<MockIngesterConnection>()
             .unwrap()
             .next_response(Ok(vec![
-                Arc::new(
-                    IngesterPartition::try_new(
-                        Arc::from("ingester1"),
-                        ingester_chunk_id1,
-                        Arc::from(ns.namespace.name.clone()),
-                        Arc::from(table.table.name.clone()),
-                        partition1.partition.id,
-                        sequencer.sequencer.id,
-                        Arc::new(
-                            SchemaBuilder::new()
-                                .influx_field("foo", InfluxFieldType::Integer)
-                                .timestamp()
-                                .build()
-                                .unwrap(),
-                        ),
-                        // parquet max persisted sequence number
-                        None,
-                        // tombstone max persisted sequence number
-                        None,
-                        vec![lp_to_record_batch("table foo=1i 1")],
-                    )
-                    .unwrap(),
-                ),
-                Arc::new(
-                    IngesterPartition::try_new(
-                        Arc::from("ingester1"),
-                        ingester_chunk_id2,
-                        Arc::from(ns.namespace.name.clone()),
-                        Arc::from(table.table.name.clone()),
-                        partition2.partition.id,
-                        sequencer.sequencer.id,
-                        Arc::new(
-                            SchemaBuilder::new()
-                                .influx_field("foo", InfluxFieldType::Integer)
-                                .timestamp()
-                                .build()
-                                .unwrap(),
-                        ),
-                        // parquet max persisted sequence number
-                        None,
-                        // tombstone max persisted sequence number
-                        None,
-                        vec![lp_to_record_batch("table foo=2i 2")],
-                    )
-                    .unwrap(),
-                ),
-                Arc::new(
-                    IngesterPartition::try_new(
-                        Arc::from("ingester2"),
-                        ingester_chunk_id3,
-                        Arc::from(ns.namespace.name.clone()),
-                        Arc::from(table.table.name.clone()),
-                        partition1.partition.id,
-                        sequencer.sequencer.id,
-                        Arc::new(
-                            SchemaBuilder::new()
-                                .influx_field("foo", InfluxFieldType::Integer)
-                                .timestamp()
-                                .build()
-                                .unwrap(),
-                        ),
-                        // parquet max persisted sequence number
-                        None,
-                        // tombstone max persisted sequence number
-                        None,
-                        vec![lp_to_record_batch("table foo=3i 3")],
-                    )
-                    .unwrap(),
-                ),
+                IngesterPartition::try_new(
+                    Arc::from("ingester1"),
+                    ingester_chunk_id1,
+                    Arc::from(ns.namespace.name.clone()),
+                    Arc::from(table.table.name.clone()),
+                    partition1.partition.id,
+                    sequencer.sequencer.id,
+                    Arc::new(
+                        SchemaBuilder::new()
+                            .influx_field("foo", InfluxFieldType::Integer)
+                            .timestamp()
+                            .build()
+                            .unwrap(),
+                    ),
+                    // parquet max persisted sequence number
+                    None,
+                    // tombstone max persisted sequence number
+                    None,
+                    Arc::new(None),
+                    vec![lp_to_record_batch("table foo=1i 1")],
+                )
+                .unwrap(),
+                IngesterPartition::try_new(
+                    Arc::from("ingester1"),
+                    ingester_chunk_id2,
+                    Arc::from(ns.namespace.name.clone()),
+                    Arc::from(table.table.name.clone()),
+                    partition2.partition.id,
+                    sequencer.sequencer.id,
+                    Arc::new(
+                        SchemaBuilder::new()
+                            .influx_field("foo", InfluxFieldType::Integer)
+                            .timestamp()
+                            .build()
+                            .unwrap(),
+                    ),
+                    // parquet max persisted sequence number
+                    None,
+                    // tombstone max persisted sequence number
+                    None,
+                    Arc::new(None),
+                    vec![lp_to_record_batch("table foo=2i 2")],
+                )
+                .unwrap(),
+                IngesterPartition::try_new(
+                    Arc::from("ingester2"),
+                    ingester_chunk_id3,
+                    Arc::from(ns.namespace.name.clone()),
+                    Arc::from(table.table.name.clone()),
+                    partition1.partition.id,
+                    sequencer.sequencer.id,
+                    Arc::new(
+                        SchemaBuilder::new()
+                            .influx_field("foo", InfluxFieldType::Integer)
+                            .timestamp()
+                            .build()
+                            .unwrap(),
+                    ),
+                    // parquet max persisted sequence number
+                    None,
+                    // tombstone max persisted sequence number
+                    None,
+                    Arc::new(None),
+                    vec![lp_to_record_batch("table foo=3i 3")],
+                )
+                .unwrap(),
             ]));
 
         let err = querier_table.chunks(&pred).await.unwrap_err();

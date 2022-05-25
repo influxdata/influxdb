@@ -5,6 +5,7 @@ use cache_system::{
     backend::{
         lru::{LruBackend, ResourcePool},
         resource_consumption::FunctionEstimator,
+        shared::SharedBackend,
     },
     driver::Cache,
     loader::{metrics::MetricsLoader, FunctionLoader},
@@ -13,7 +14,11 @@ use data_types::{PartitionId, SequencerId};
 use iox_catalog::interface::Catalog;
 use iox_time::TimeProvider;
 use schema::sort::SortKey;
-use std::{collections::HashMap, mem::size_of_val, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    mem::size_of_val,
+    sync::Arc,
+};
 
 use super::ram::RamSize;
 
@@ -23,6 +28,7 @@ const CACHE_ID: &str = "partition";
 #[derive(Debug)]
 pub struct PartitionCache {
     cache: Cache<PartitionId, CachedPartition>,
+    backend: SharedBackend<PartitionId, CachedPartition>,
 }
 
 impl PartitionCache {
@@ -54,7 +60,7 @@ impl PartitionCache {
 
                 CachedPartition {
                     sequencer_id: partition.sequencer_id,
-                    sort_key: partition.sort_key(),
+                    sort_key: Arc::new(partition.sort_key()),
                 }
             }
         }));
@@ -74,9 +80,11 @@ impl PartitionCache {
                 RamSize(size_of_val(k) + size_of_val(v) + v.size())
             })),
         ));
+        let backend = SharedBackend::new(backend);
 
         Self {
-            cache: Cache::new(loader, backend),
+            cache: Cache::new(loader, Box::new(backend.clone())),
+            backend,
         }
     }
 
@@ -86,21 +94,42 @@ impl PartitionCache {
     }
 
     /// Get sort key
-    pub async fn sort_key(&self, partition_id: PartitionId) -> Option<SortKey> {
+    pub async fn sort_key(&self, partition_id: PartitionId) -> Arc<Option<SortKey>> {
         self.cache.get(partition_id).await.sort_key
+    }
+
+    /// Expire partition if the cached sort key does NOT cover the given set of columns.
+    pub fn expire_if_sort_key_does_not_cover(
+        &self,
+        partition_id: PartitionId,
+        columns: &HashSet<String>,
+    ) {
+        self.backend.remove_if(&partition_id, |cached_partition| {
+            if let Some(sort_key) = cached_partition.sort_key.as_ref().as_ref() {
+                let covered: HashSet<_> = sort_key
+                    .iter()
+                    .map(|(col, _options)| Arc::clone(col))
+                    .collect();
+                columns.iter().any(|col| !covered.contains(col.as_str()))
+            } else {
+                // no sort key at all => need to update
+                true
+            }
+        });
     }
 }
 
 #[derive(Debug, Clone)]
 struct CachedPartition {
     sequencer_id: SequencerId,
-    sort_key: Option<SortKey>,
+    sort_key: Arc<Option<SortKey>>,
 }
 
 impl CachedPartition {
     /// RAM-bytes EXCLUDING `self`.
     fn size(&self) -> usize {
         self.sort_key
+            .as_ref()
             .as_ref()
             .map(|sk| sk.size() - size_of_val(sk))
             .unwrap_or_default()
@@ -185,15 +214,15 @@ mod tests {
         );
 
         let sort_key1 = cache.sort_key(p1.id).await;
-        assert_eq!(sort_key1, p1.sort_key());
+        assert_eq!(sort_key1.as_ref(), &p1.sort_key());
         assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 1);
 
         let sort_key2 = cache.sort_key(p2.id).await;
-        assert_eq!(sort_key2, p2.sort_key());
+        assert_eq!(sort_key2.as_ref(), &p2.sort_key());
         assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 2);
 
         let sort_key1 = cache.sort_key(p1.id).await;
-        assert_eq!(sort_key1, p1.sort_key());
+        assert_eq!(sort_key1.as_ref(), &p1.sort_key());
         assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 2);
     }
 
@@ -243,5 +272,74 @@ mod tests {
         cache.sort_key(p1.id).await;
         cache.sequencer_id(p2.id).await;
         assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 3);
+    }
+
+    #[tokio::test]
+    async fn test_expiration() {
+        let catalog = TestCatalog::new();
+
+        let ns = catalog.create_namespace("ns").await;
+        let t = ns.create_table("table").await;
+        let s = ns.create_sequencer(1).await;
+        let p = t.with_sequencer(&s).create_partition("k1").await;
+        let p_id = p.partition.id;
+        let p_sort_key = p.partition.sort_key();
+
+        let cache = PartitionCache::new(
+            catalog.catalog(),
+            BackoffConfig::default(),
+            catalog.time_provider(),
+            &catalog.metric_registry(),
+            test_ram_pool(),
+        );
+
+        let sort_key = cache.sort_key(p_id).await;
+        assert_eq!(sort_key.as_ref(), &p_sort_key);
+        assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 1);
+
+        // non-existing sort keys always expire
+        assert!(p_sort_key.is_none());
+        cache.expire_if_sort_key_does_not_cover(p_id, &HashSet::new());
+        let sort_key = cache.sort_key(p_id).await;
+        assert_eq!(sort_key.as_ref(), &p_sort_key);
+        assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 2);
+
+        // set sort key
+        let p = p
+            .update_sort_key(SortKey::from_columns(["foo", "bar"]))
+            .await;
+
+        // just changing the sort key doesn't expire, we need a signal
+        let sort_key = cache.sort_key(p_id).await;
+        assert_eq!(sort_key.as_ref(), &p_sort_key);
+        assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 2);
+
+        // expire
+        let p_sort_key = p.partition.sort_key();
+        cache.expire_if_sort_key_does_not_cover(p_id, &HashSet::from([String::from("foo")]));
+        let sort_key = cache.sort_key(p_id).await;
+        assert_eq!(sort_key.as_ref(), &p_sort_key);
+        assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 3);
+
+        // subsets and the full key don't expire
+        cache.expire_if_sort_key_does_not_cover(p_id, &HashSet::new());
+        cache.expire_if_sort_key_does_not_cover(p_id, &HashSet::from([String::from("foo")]));
+        cache.expire_if_sort_key_does_not_cover(p_id, &HashSet::from([String::from("bar")]));
+        cache.expire_if_sort_key_does_not_cover(
+            p_id,
+            &HashSet::from([String::from("foo"), String::from("bar")]),
+        );
+        let sort_key = cache.sort_key(p_id).await;
+        assert_eq!(sort_key.as_ref(), &p_sort_key);
+        assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 3);
+
+        // unknown columns expire
+        cache.expire_if_sort_key_does_not_cover(
+            p_id,
+            &HashSet::from([String::from("foo"), String::from("x")]),
+        );
+        let sort_key = cache.sort_key(p_id).await;
+        assert_eq!(sort_key.as_ref(), &p_sort_key);
+        assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 4);
     }
 }

@@ -7,7 +7,7 @@ use std::{any::Any, sync::Arc};
 /// IngesterConnection for testing
 #[derive(Debug, Default)]
 pub struct MockIngesterConnection {
-    next_response: Mutex<Option<super::Result<Vec<Arc<super::IngesterPartition>>>>>,
+    next_response: Mutex<Option<super::Result<Vec<super::IngesterPartition>>>>,
 }
 
 impl MockIngesterConnection {
@@ -18,7 +18,7 @@ impl MockIngesterConnection {
 
     /// Set next response for this connection.
     #[allow(dead_code)]
-    pub fn next_response(&self, response: super::Result<Vec<Arc<super::IngesterPartition>>>) {
+    pub fn next_response(&self, response: super::Result<Vec<super::IngesterPartition>>) {
         *self.next_response.lock() = Some(response);
     }
 }
@@ -32,7 +32,7 @@ impl IngesterConnection for MockIngesterConnection {
         _columns: Vec<String>,
         _predicate: &predicate::Predicate,
         _expected_schema: Arc<schema::Schema>,
-    ) -> super::Result<Vec<Arc<super::IngesterPartition>>> {
+    ) -> super::Result<Vec<super::IngesterPartition>> {
         self.next_response
             .lock()
             .take()

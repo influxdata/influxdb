@@ -35,9 +35,6 @@ pub struct ChunkMeta {
     /// Sort key.
     sort_key: Option<SortKey>,
 
-    /// Partition sort key
-    partition_sort_key: Option<SortKey>,
-
     /// Sequencer that created the data within this chunk.
     sequencer_id: SequencerId,
 
@@ -60,11 +57,6 @@ impl ChunkMeta {
     /// Sort key.
     pub fn sort_key(&self) -> Option<&SortKey> {
         self.sort_key.as_ref()
-    }
-
-    /// Partition sort key
-    pub fn partition_sort_key(&self) -> Option<&SortKey> {
-        self.partition_sort_key.as_ref()
     }
 
     /// Sequencer that created the data within this chunk.
@@ -115,6 +107,9 @@ pub struct QuerierChunk {
 
     /// Delete predicates of this chunk
     delete_predicates: Vec<Arc<DeletePredicate>>,
+
+    /// Partition sort key
+    partition_sort_key: Arc<Option<SortKey>>,
 }
 
 impl QuerierChunk {
@@ -123,6 +118,7 @@ impl QuerierChunk {
         parquet_file_id: ParquetFileId,
         chunk: Arc<ParquetChunk>,
         meta: Arc<ChunkMeta>,
+        partition_sort_key: Arc<Option<SortKey>>,
     ) -> Self {
         Self {
             storage: ChunkStorage::Parquet {
@@ -131,15 +127,23 @@ impl QuerierChunk {
             },
             meta,
             delete_predicates: Vec::new(),
+            partition_sort_key,
         }
     }
 
     /// Set delete predicates of the given chunk.
     pub fn with_delete_predicates(self, delete_predicates: Vec<Arc<DeletePredicate>>) -> Self {
         Self {
-            storage: self.storage,
-            meta: self.meta,
             delete_predicates,
+            ..self
+        }
+    }
+
+    /// Set partition sort key
+    pub fn with_partition_sort_key(self, partition_sort_key: Arc<Option<SortKey>>) -> Self {
+        Self {
+            partition_sort_key,
+            ..self
         }
     }
 
@@ -162,6 +166,11 @@ impl QuerierChunk {
         match &self.storage {
             ChunkStorage::Parquet { chunk, .. } => chunk.timestamp_min_max(),
         }
+    }
+
+    /// Partition sort key
+    pub fn partition_sort_key(&self) -> Option<&SortKey> {
+        self.partition_sort_key.as_ref().as_ref()
     }
 }
 
@@ -270,14 +279,18 @@ impl ParquetChunkAdapter {
             table_name,
             order,
             sort_key: iox_metadata.sort_key.clone(),
-            partition_sort_key,
             sequencer_id: iox_metadata.sequencer_id,
             partition_id: iox_metadata.partition_id,
             min_sequence_number: parquet_file.min_sequence_number,
             max_sequence_number: parquet_file.max_sequence_number,
         });
 
-        Some(QuerierChunk::new_parquet(parquet_file.id, chunk, meta))
+        Some(QuerierChunk::new_parquet(
+            parquet_file.id,
+            chunk,
+            meta,
+            partition_sort_key,
+        ))
     }
 }
 

@@ -16,13 +16,18 @@ mod interface;
 use data_types::{ParquetFileWithMetadata, PartitionId, SequencerId, Tombstone, TombstoneId};
 use iox_query::QueryChunk;
 use observability_deps::tracing::debug;
+use schema::{sort::SortKey, InfluxColumnType};
 use snafu::Snafu;
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
 };
 
-use crate::{chunk::ParquetChunkAdapter, tombstone::QuerierTombstone, IngesterPartition};
+use crate::{
+    chunk::{ParquetChunkAdapter, QuerierChunk},
+    tombstone::QuerierTombstone,
+    IngesterPartition,
+};
 
 use self::interface::{IngesterPartitionInfo, ParquetFileInfo, TombstoneInfo};
 
@@ -58,11 +63,33 @@ impl Reconciler {
     /// chunks to query
     pub(crate) async fn reconcile(
         &self,
-        ingester_partitions: Vec<Arc<IngesterPartition>>,
+        ingester_partitions: Vec<IngesterPartition>,
         tombstones: Vec<Tombstone>,
         parquet_files: Vec<ParquetFileWithMetadata>,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, ReconcileError> {
-        let tombstone_exclusion = tombstone_exclude_list(&ingester_partitions, &tombstones);
+        let mut chunks = self
+            .build_parquet_chunks(&ingester_partitions, tombstones, parquet_files)
+            .await?;
+        chunks.extend(self.build_ingester_chunks(ingester_partitions));
+        debug!(num_chunks=%chunks.len(), "Final chunk count after reconcilation");
+
+        let chunks = self.sync_partition_sort_keys(chunks).await;
+
+        let chunks: Vec<Arc<dyn QueryChunk>> = chunks
+            .into_iter()
+            .map(|c| c.upcast_to_querier_chunk().into())
+            .collect();
+
+        Ok(chunks)
+    }
+
+    async fn build_parquet_chunks(
+        &self,
+        ingester_partitions: &[IngesterPartition],
+        tombstones: Vec<Tombstone>,
+        parquet_files: Vec<ParquetFileWithMetadata>,
+    ) -> Result<Vec<Box<dyn UpdatableQuerierChunk>>, ReconcileError> {
+        let tombstone_exclusion = tombstone_exclude_list(ingester_partitions, &tombstones);
 
         let querier_tombstones: Vec<_> =
             tombstones.into_iter().map(QuerierTombstone::from).collect();
@@ -79,7 +106,7 @@ impl Reconciler {
         }
 
         //
-        let parquet_files = filter_parquet_files(&ingester_partitions, parquet_files)?;
+        let parquet_files = filter_parquet_files(ingester_partitions, parquet_files)?;
 
         debug!(
             ?parquet_files,
@@ -101,7 +128,7 @@ impl Reconciler {
         }
         debug!(num_chunks=%parquet_chunks.len(), "Created parquet chunks");
 
-        let mut chunks: Vec<Arc<dyn QueryChunk>> =
+        let mut chunks: Vec<Box<dyn UpdatableQuerierChunk>> =
             Vec::with_capacity(parquet_chunks.len() + ingester_partitions.len());
 
         for chunk in parquet_chunks.into_iter() {
@@ -165,21 +192,74 @@ impl Reconciler {
                 chunk
             };
 
-            chunks.push(Arc::new(chunk) as Arc<dyn QueryChunk>);
+            chunks.push(Box::new(chunk) as Box<dyn UpdatableQuerierChunk>);
         }
 
+        Ok(chunks)
+    }
+
+    fn build_ingester_chunks(
+        &self,
+        ingester_partitions: Vec<IngesterPartition>,
+    ) -> impl Iterator<Item = Box<dyn UpdatableQuerierChunk>> {
         // Add ingester chunks to the overall chunk list.
         // - filter out chunks that don't have any record batches
         // - tombstones don't need to be applied since they were already materialized by the ingester
-        let ingester_chunks = ingester_partitions
+        ingester_partitions
             .into_iter()
             .filter(|c| c.has_batches())
-            .map(|c| c as Arc<dyn QueryChunk>);
+            .map(|c| Box::new(c) as Box<dyn UpdatableQuerierChunk>)
+    }
 
-        chunks.extend(ingester_chunks);
-        debug!(num_chunks=%chunks.len(), "Final chunk count after reconcilation");
+    async fn sync_partition_sort_keys(
+        &self,
+        chunks: Vec<Box<dyn UpdatableQuerierChunk>>,
+    ) -> Vec<Box<dyn UpdatableQuerierChunk>> {
+        // collect columns
+        let mut all_columns: HashMap<PartitionId, HashSet<String>> = HashMap::new();
+        for chunk in &chunks {
+            if let Some(partition_id) = chunk.partition_id() {
+                // columns for this partition MUST include the primary key of this chunk
+                all_columns.entry(partition_id).or_default().extend(
+                    chunk
+                        .schema()
+                        .iter()
+                        .filter(|(t, _field)| {
+                            matches!(t, Some(InfluxColumnType::Tag | InfluxColumnType::Timestamp))
+                        })
+                        .map(|(_t, field)| field.name().clone()),
+                );
+            }
+        }
 
-        Ok(chunks)
+        // report expiration signal to cache
+        let partition_cache = self.chunk_adapter.catalog_cache().partition();
+        for (partition_id, columns) in &all_columns {
+            partition_cache.expire_if_sort_key_does_not_cover(*partition_id, columns);
+        }
+
+        // get cached (or fresh) sort keys
+        let mut sort_keys: HashMap<PartitionId, Arc<Option<SortKey>>> =
+            HashMap::with_capacity(all_columns.len());
+        for partition_id in all_columns.into_keys() {
+            let sort_key = partition_cache.sort_key(partition_id).await;
+            sort_keys.insert(partition_id, sort_key);
+        }
+
+        // write partition sort keys to chunks
+        chunks
+            .into_iter()
+            .map(|chunk| {
+                if let Some(partition_id) = chunk.partition_id() {
+                    let sort_key = sort_keys
+                        .get(&partition_id)
+                        .expect("sort key for this partition should be fetched by now");
+                    chunk.update_partition_sort_key(Arc::clone(sort_key))
+                } else {
+                    chunk
+                }
+            })
+            .collect()
     }
 
     #[must_use]
@@ -190,6 +270,41 @@ impl Reconciler {
     #[must_use]
     pub fn namespace_name(&self) -> &str {
         self.namespace_name.as_ref()
+    }
+}
+
+trait UpdatableQuerierChunk: QueryChunk {
+    fn update_partition_sort_key(
+        self: Box<Self>,
+        sort_key: Arc<Option<SortKey>>,
+    ) -> Box<dyn UpdatableQuerierChunk>;
+
+    fn upcast_to_querier_chunk(self: Box<Self>) -> Box<dyn QueryChunk>;
+}
+
+impl UpdatableQuerierChunk for QuerierChunk {
+    fn update_partition_sort_key(
+        self: Box<Self>,
+        sort_key: Arc<Option<SortKey>>,
+    ) -> Box<dyn UpdatableQuerierChunk> {
+        Box::new(self.with_partition_sort_key(sort_key))
+    }
+
+    fn upcast_to_querier_chunk(self: Box<Self>) -> Box<dyn QueryChunk> {
+        self as _
+    }
+}
+
+impl UpdatableQuerierChunk for IngesterPartition {
+    fn update_partition_sort_key(
+        self: Box<Self>,
+        sort_key: Arc<Option<SortKey>>,
+    ) -> Box<dyn UpdatableQuerierChunk> {
+        Box::new(self.with_partition_sort_key(sort_key))
+    }
+
+    fn upcast_to_querier_chunk(self: Box<Self>) -> Box<dyn QueryChunk> {
+        self as _
     }
 }
 

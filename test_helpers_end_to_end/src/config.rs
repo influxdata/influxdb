@@ -146,8 +146,16 @@ impl TestConfig {
     /// Adds default ingester options
     fn with_default_ingester_options(self) -> Self {
         self.with_env("INFLUXDB_IOX_PAUSE_INGEST_SIZE_BYTES", "2000000")
-            .with_env("INFLUXDB_IOX_PERSIST_MEMORY_THRESHOLD_BYTES", "10")
+            .with_ingester_persist_memory_threshold(10)
             .with_kafka_partition(0)
+    }
+
+    /// Sets memory threshold for ingester.
+    pub fn with_ingester_persist_memory_threshold(self, bytes: u64) -> Self {
+        self.with_env(
+            "INFLUXDB_IOX_PERSIST_MEMORY_THRESHOLD_BYTES",
+            bytes.to_string(),
+        )
     }
 
     /// Adds an ingester that ingests from the specified kafka partition

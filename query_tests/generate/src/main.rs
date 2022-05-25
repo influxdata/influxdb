@@ -77,6 +77,8 @@ use crate::runner::Runner;"#
 #[tokio::test]
 // Tests from {:?},
 async fn test_cases_{}() {{
+    test_helpers::maybe_start_logging();
+
     let input_path = Path::new("cases").join("in").join("{}");
     let mut runner = Runner::new();
     runner
