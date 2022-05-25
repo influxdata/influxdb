@@ -143,8 +143,10 @@ version = "0.1.0"
 dependencies = [
  "ahash",
  "arrow",
+ "arrow-flight",
  "chrono",
  "comfy-table",
+ "datafusion 0.1.0",
  "hashbrown 0.12.1",
  "num-traits",
  "rand",
@@ -4766,6 +4768,7 @@ version = "0.1.0"
 dependencies = [
  "arrow",
  "arrow-flight",
+ "arrow_util",
  "bytes",
  "data_types",
  "datafusion 0.1.0",

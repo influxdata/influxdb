@@ -1,17 +1,13 @@
 //! gRPC service implementations for `ingester`.
 
 use crate::{data::IngesterQueryResponse, handler::IngestHandler};
-use arrow::{
-    array::{make_array, ArrayRef, MutableArrayData},
-    datatypes::{DataType, Field, Schema, SchemaRef},
-    error::ArrowError,
-    record_batch::RecordBatch,
-};
+use arrow::error::ArrowError;
 use arrow_flight::{
     flight_service_server::{FlightService as Flight, FlightServiceServer as FlightServer},
     Action, ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightInfo,
     HandshakeRequest, HandshakeResponse, PutResult, SchemaAsIpc, SchemaResult, Ticket,
 };
+use arrow_util::optimize::{optimize_record_batch, optimize_schema};
 use futures::{SinkExt, Stream, StreamExt};
 use generated_types::influxdata::iox::ingester::v1::{
     self as proto,
@@ -122,8 +118,8 @@ impl WriteInfoService for WriteInfoServiceImpl {
 #[derive(Debug, Snafu)]
 #[allow(missing_docs)]
 pub enum Error {
-    #[snafu(display("Failed to hydrate dictionary: {}", source))]
-    Dictionary { source: ArrowError },
+    #[snafu(display("Failed to optimize record batch: {}", source))]
+    Optimize { source: ArrowError },
 
     #[snafu(display("Invalid ticket. Error: {:?} Ticket: {:?}", source, ticket))]
     InvalidTicket {
@@ -135,9 +131,6 @@ pub enum Error {
     InvalidQuery {
         source: generated_types::google::FieldViolation,
     },
-
-    #[snafu(display("Invalid RecordBatch: {}", source))]
-    InvalidRecordBatch { source: ArrowError },
 
     #[snafu(display("Error while performing query: {}", source))]
     Query {
@@ -183,10 +176,9 @@ impl From<Error> for tonic::Status {
                 // development
                 info!(?err, msg)
             }
-            Error::Dictionary { .. }
-            | Error::InvalidRecordBatch { .. }
-            | Error::QueryStream { .. }
-            | Error::Serialization { .. } => warn!(?err, msg),
+            Error::Optimize { .. } | Error::QueryStream { .. } | Error::Serialization { .. } => {
+                warn!(?err, msg)
+            }
         }
         err.to_status()
     }
@@ -201,8 +193,7 @@ impl Error {
                 Status::invalid_argument(self.to_string())
             }
             Self::Query { .. }
-            | Self::InvalidRecordBatch { .. }
-            | Self::Dictionary { .. }
+            | Self::Optimize { .. }
             | Self::QueryStream { .. }
             | Self::Serialization { .. } => Status::internal(self.to_string()),
             Self::NamespaceNotFound { .. } | Self::TableNotFound { .. } => {
@@ -441,7 +432,9 @@ impl GetStream {
                             }
                             Err(e) => {
                                 // failure sending here is OK because we're cutting the stream anyways
-                                tx.send(Err(e.into())).await.ok();
+                                tx.send(Err(Error::Optimize { source: e }.into()))
+                                    .await
+                                    .ok();
 
                                 // end stream
                                 return;
@@ -499,98 +492,5 @@ impl Stream for GetStream {
                 other => other,
             }
         }
-    }
-}
-
-/// Some batches are small slices of the underlying arrays.
-/// At this stage we only know the number of rows in the record batch
-/// and the sizes in bytes of the backing buffers of the column arrays.
-/// There is no straight-forward relationship between these two quantities,
-/// since some columns can host variable length data such as strings.
-///
-/// However we can apply a quick&dirty heuristic:
-/// if the backing buffer is two orders of magnitudes bigger
-/// than the number of rows in the result set, we assume
-/// that deep-copying the record batch is cheaper than the and transfer costs.
-///
-/// Possible improvements: take the type of the columns into consideration
-/// and perhaps sample a few element sizes (taking care of not doing more work
-/// than to always copying the results in the first place).
-///
-/// Or we just fix this upstream in
-/// arrow_flight::utils::flight_data_from_arrow_batch and re-encode the array
-/// into a smaller buffer while we have to copy stuff around anyway.
-///
-/// See rationale and discussions about future improvements on
-/// <https://github.com/influxdata/influxdb_iox/issues/1133>
-fn optimize_record_batch(batch: &RecordBatch, schema: SchemaRef) -> Result<RecordBatch, Error> {
-    let max_buf_len = batch
-        .columns()
-        .iter()
-        .map(|a| a.get_array_memory_size())
-        .max()
-        .unwrap_or_default();
-
-    let columns: Result<Vec<_>, _> = batch
-        .columns()
-        .iter()
-        .map(|column| {
-            if matches!(column.data_type(), DataType::Dictionary(_, _)) {
-                hydrate_dictionary(column)
-            } else if max_buf_len > batch.num_rows() * 100 {
-                Ok(deep_clone_array(column))
-            } else {
-                Ok(Arc::clone(column))
-            }
-        })
-        .collect();
-
-    RecordBatch::try_new(schema, columns?).context(InvalidRecordBatchSnafu)
-}
-
-fn deep_clone_array(array: &ArrayRef) -> ArrayRef {
-    let mut mutable = MutableArrayData::new(vec![array.data()], false, 0);
-    mutable.extend(0, 0, array.len());
-
-    make_array(mutable.freeze())
-}
-
-/// Convert dictionary types to underlying types
-/// See hydrate_dictionary for more information
-fn optimize_schema(schema: &Schema) -> Schema {
-    let fields = schema
-        .fields()
-        .iter()
-        .map(|field| match field.data_type() {
-            DataType::Dictionary(_, value_type) => Field::new(
-                field.name(),
-                value_type.as_ref().clone(),
-                field.is_nullable(),
-            ),
-            _ => field.clone(),
-        })
-        .collect();
-
-    Schema::new(fields)
-}
-
-/// Hydrates a dictionary to its underlying type
-///
-/// An IPC response, streaming or otherwise, defines its schema up front
-/// which defines the mapping from dictionary IDs. It then sends these
-/// dictionaries over the wire.
-///
-/// This requires identifying the different dictionaries in use, assigning
-/// them IDs, and sending new dictionaries, delta or otherwise, when needed
-///
-/// This is tracked by #1318
-///
-/// For now we just hydrate the dictionaries to their underlying type
-fn hydrate_dictionary(array: &ArrayRef) -> Result<ArrayRef, Error> {
-    match array.data_type() {
-        DataType::Dictionary(_, value) => {
-            arrow::compute::cast(array, value).context(DictionarySnafu)
-        }
-        _ => unreachable!("not a dictionary"),
     }
 }

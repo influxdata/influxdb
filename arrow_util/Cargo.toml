@@ -11,10 +11,12 @@ arrow = { version = "14.0.0", features = ["prettyprint"] }
 # used by arrow anyway (needed for printing workaround)
 chrono = { version = "0.4", default-features = false }
 comfy-table = { version = "5.0", default-features = false }
+datafusion = { path = "../datafusion" }
 hashbrown = "0.12"
 num-traits = "0.2"
 snafu = "0.7"
 workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]
+arrow-flight = "14.0.0"
 rand = "0.8.3"

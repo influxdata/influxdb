@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 # Workspace dependencies, in alphabetical order
+arrow_util = { path = "../arrow_util" }
 data_types = { path = "../data_types" }
 datafusion = { path = "../datafusion" }
 generated_types = { path = "../generated_types" }
