@@ -1,6 +1,7 @@
 //! Cache Parquet file data in Read Buffer chunks.
 
 use super::ram::RamSize;
+use backoff::{Backoff, BackoffConfig};
 use cache_system::{
     backend::{
         lru::{LruBackend, ResourcePool},
@@ -10,9 +11,11 @@ use cache_system::{
     driver::Cache,
     loader::{metrics::MetricsLoader, FunctionLoader},
 };
-use data_types::ParquetFileId;
+use data_types::{ParquetFile, ParquetFileId};
+use datafusion::physical_plan::SendableRecordBatchStream;
 use iox_time::TimeProvider;
 use read_buffer::RBChunk;
+use snafu::Snafu;
 use std::{collections::HashMap, mem, sync::Arc};
 
 const CACHE_ID: &str = "read_buffer";
@@ -34,8 +37,22 @@ impl ReadBufferCache {
         ram_pool: Arc<ResourcePool<RamSize>>,
     ) -> Self {
         let loader = Box::new(FunctionLoader::new(
-            move |_parquet_file_id: ParquetFileId| async move {
-                unimplemented!();
+            move |parquet_file_id: ParquetFileId| {
+                let backoff_config = BackoffConfig::default();
+
+                async move {
+                    let rb_chunk = Backoff::new(&backoff_config)
+                        .retry_all_errors("get read buffer chunk by parquet file ID", || async {
+                            let parquet_file = parquet_file_by_id(parquet_file_id);
+                            let table_name = parquet_file_table_name(&parquet_file);
+                            let record_batch_stream = record_batches_stream(&parquet_file);
+                            read_buffer_chunk_from_stream(table_name, record_batch_stream).await
+                        })
+                        .await
+                        .expect("retry forever");
+
+                    Arc::new(rb_chunk)
+                }
             },
         ));
 
@@ -70,6 +87,28 @@ impl ReadBufferCache {
     pub async fn get(&self, parquet_file_id: ParquetFileId) -> Arc<RBChunk> {
         self.cache.get(parquet_file_id).await
     }
+}
+
+fn parquet_file_by_id(_parquet_file_id: ParquetFileId) -> ParquetFile {
+    unimplemented!()
+}
+
+fn parquet_file_table_name(_parquet_file: &ParquetFile) -> &str {
+    unimplemented!()
+}
+
+fn record_batches_stream(_parquet_file: &ParquetFile) -> SendableRecordBatchStream {
+    unimplemented!()
+}
+
+#[derive(Debug, Snafu)]
+enum RBChunkError {}
+
+async fn read_buffer_chunk_from_stream(
+    _table_name: impl Into<String>,
+    _stream: SendableRecordBatchStream,
+) -> Result<RBChunk, RBChunkError> {
+    unimplemented!()
 }
 
 #[cfg(test)]
