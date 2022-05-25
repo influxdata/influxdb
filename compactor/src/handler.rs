@@ -112,6 +112,8 @@ pub struct CompactorConfig {
     /// For non-overlapped and contiguous files, compactor will also compact them into
     /// a larger file of max size defined by this config value.
     compaction_max_size_bytes: i64,
+    /// Limit the number of files to compact into one file
+    compaction_max_file_count: i64,
 }
 
 impl CompactorConfig {
@@ -120,6 +122,7 @@ impl CompactorConfig {
         split_percentage: i64,
         max_concurrent_compaction_size_bytes: i64,
         compaction_max_size_bytes: i64,
+        compaction_max_file_count: i64,
     ) -> Self {
         assert!(split_percentage > 0 && split_percentage <= 100);
 
@@ -127,6 +130,7 @@ impl CompactorConfig {
             split_percentage,
             max_concurrent_compaction_size_bytes,
             compaction_max_size_bytes,
+            compaction_max_file_count,
         }
     }
 
@@ -150,6 +154,11 @@ impl CompactorConfig {
     pub fn compaction_max_size_bytes(&self) -> i64 {
         self.compaction_max_size_bytes
     }
+
+    /// Max number of files to compact at a time
+    pub fn compaction_max_file_count(&self) -> i64 {
+        self.compaction_max_file_count
+    }
 }
 
 /// Checks for candidate partitions to compact and spawns tokio tasks to compact as many
@@ -170,28 +179,50 @@ async fn run_compactor(compactor: Arc<Compactor>, shutdown: CancellationToken) {
         let mut used_size = 0;
         let max_size = compactor.config.max_concurrent_compaction_size_bytes();
         let max_file_size = compactor.config.compaction_max_size_bytes();
+        let max_file_count = compactor.config.compaction_max_file_count();
         let mut handles = vec![];
 
         for c in candidates {
             let compactor = Arc::clone(&compactor);
-            let handle = tokio::task::spawn(async move {
-                debug!(candidate=?c, "compacting candidate");
-                if let Err(e) = compactor
-                    .compact_partition(c.partition_id, max_file_size)
-                    .await
-                {
+            let compact_and_upgrade = compactor
+                .groups_to_compact_and_files_to_upgrade(
+                    c.partition_id,
+                    max_file_size,
+                    max_file_count,
+                )
+                .await;
+
+            match compact_and_upgrade {
+                Err(e) => {
                     warn!(
-                        "compaction on partition {} failed with: {:?}",
+                        "groups file to compact and upgrade on partition {} failed with: {:?}",
                         c.partition_id, e
                     );
                 }
-                debug!(candidate=?c, "compaction complete");
-            });
-            used_size += c.file_size_bytes;
-            handles.push(handle);
-            if used_size > max_size {
-                debug!(%max_size, %used_size, n_compactions=%handles.len(), "reached maximum concurrent compaction size limit");
-                break;
+                Ok(compact_and_upgrade) => {
+                    if compact_and_upgrade.compactable() {
+                        let handle = tokio::task::spawn(async move {
+                            debug!(candidate=?c, "compacting candidate");
+                            let res = compactor
+                                .compact_partition(c.partition_id, compact_and_upgrade)
+                                .await;
+                            if let Err(e) = res {
+                                warn!(
+                                    "compaction on partition {} failed with: {:?}",
+                                    c.partition_id, e
+                                );
+                            }
+                            debug!(candidate=?c, "compaction complete");
+                        });
+
+                        used_size += c.file_size_bytes;
+                        handles.push(handle);
+                        if used_size > max_size {
+                            debug!(%max_size, %used_size, n_compactions=%handles.len(), "reached maximum concurrent compaction size limit");
+                            break;
+                        }
+                    }
+                }
             }
         }
 

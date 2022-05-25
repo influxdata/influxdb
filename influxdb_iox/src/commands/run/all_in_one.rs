@@ -360,6 +360,7 @@ impl Config {
             split_percentage: 90,
             max_concurrent_compaction_size_bytes: 100000,
             compaction_max_size_bytes: 100000,
+            compaction_max_file_count: 10,
         };
 
         let querier_config = QuerierConfig {
