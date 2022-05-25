@@ -13,9 +13,10 @@ use cache_system::{
 };
 use data_types::{ParquetFile, ParquetFileId};
 use datafusion::physical_plan::SendableRecordBatchStream;
+use futures::StreamExt;
 use iox_time::TimeProvider;
 use read_buffer::RBChunk;
-use snafu::Snafu;
+use snafu::{ResultExt, Snafu};
 use std::{collections::HashMap, mem, sync::Arc};
 
 const CACHE_ID: &str = "read_buffer";
@@ -44,7 +45,7 @@ impl ReadBufferCache {
                     let rb_chunk = Backoff::new(&backoff_config)
                         .retry_all_errors("get read buffer chunk by parquet file ID", || async {
                             let parquet_file = parquet_file_by_id(parquet_file_id);
-                            let table_name = parquet_file_table_name(&parquet_file);
+                            let table_name = parquet_file_table_name(&parquet_file).to_string();
                             let record_batch_stream = record_batches_stream(&parquet_file);
                             read_buffer_chunk_from_stream(table_name, record_batch_stream).await
                         })
@@ -102,20 +103,45 @@ fn record_batches_stream(_parquet_file: &ParquetFile) -> SendableRecordBatchStre
 }
 
 #[derive(Debug, Snafu)]
-enum RBChunkError {}
+enum RBChunkError {
+    #[snafu(display("Error streaming record batches: {}", source))]
+    Streaming { source: arrow::error::ArrowError },
+
+    #[snafu(display("Error pushing record batch into chunk: {}", source))]
+    Pushing { source: arrow::error::ArrowError },
+
+    #[snafu(display("Read buffer error: {}", source))]
+    ReadBuffer { source: read_buffer::Error },
+}
 
 async fn read_buffer_chunk_from_stream(
-    _table_name: impl Into<String>,
-    _stream: SendableRecordBatchStream,
+    table_name: String,
+    mut stream: SendableRecordBatchStream,
 ) -> Result<RBChunk, RBChunkError> {
-    unimplemented!()
+    let schema = stream.schema();
+
+    let mut builder = read_buffer::RBChunkBuilder::new(table_name, schema);
+
+    while let Some(record_batch) = stream.next().await {
+        builder
+            .push_record_batch(record_batch.context(StreamingSnafu)?)
+            .context(PushingSnafu)?;
+    }
+
+    builder.build().context(ReadBufferSnafu)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::cache::ram::test_util::test_ram_pool;
+    use arrow::record_batch::RecordBatch;
+    use arrow_util::assert_batches_eq;
+    use datafusion_util::stream_from_batches;
     use iox_tests::util::TestCatalog;
+    use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
+    use read_buffer::Predicate;
+    use schema::selection::Selection;
 
     fn make_cache(catalog: &TestCatalog) -> ReadBufferCache {
         ReadBufferCache::new(
@@ -133,5 +159,43 @@ mod tests {
     async fn test_rb_chunks() {
         let catalog = make_catalog().await;
         let _cache = make_cache(&catalog);
+    }
+
+    fn lp_to_record_batch(lp: &str) -> RecordBatch {
+        let (_table, batch) = lp_to_mutable_batch(lp);
+
+        batch.to_arrow(Selection::All).unwrap()
+    }
+
+    #[tokio::test]
+    async fn build_read_buffer_chunk_from_stream_of_record_batches() {
+        let lines = ["cpu,host=a load=1 11", "cpu,host=a load=2 22"];
+        let batches = lines
+            .into_iter()
+            .map(lp_to_record_batch)
+            .map(Arc::new)
+            .collect();
+
+        let stream = stream_from_batches(batches);
+
+        let rb = read_buffer_chunk_from_stream("cpu".to_string(), stream)
+            .await
+            .unwrap();
+
+        let rb_batches: Vec<RecordBatch> = rb
+            .read_filter(Predicate::default(), Selection::All, vec![])
+            .unwrap()
+            .collect();
+
+        let expected = [
+            "+------+------+--------------------------------+",
+            "| host | load | time                           |",
+            "+------+------+--------------------------------+",
+            "| a    | 1    | 1970-01-01T00:00:00.000000011Z |",
+            "| a    | 2    | 1970-01-01T00:00:00.000000022Z |",
+            "+------+------+--------------------------------+",
+        ];
+
+        assert_batches_eq!(expected, &rb_batches);
     }
 }
