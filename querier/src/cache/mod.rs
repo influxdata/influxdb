@@ -15,6 +15,7 @@ pub mod parquet_file;
 pub mod partition;
 pub mod processed_tombstones;
 mod ram;
+pub mod read_buffer;
 pub mod table;
 pub mod tombstones;
 
