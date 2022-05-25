@@ -243,7 +243,7 @@ async fn ingester_panic() {
                         // `tag2=C`).
                         if i == 0 {
                             assert.failure().stderr(predicate::str::contains(
-                                "Error querying: status: Internal, message: \"internal error, sad kittens\"",
+                                "Error querying: status: Internal, message: \"Panicking in `do_get` for testing purposes.\"",
                             ));
                         } else {
                             assert.success().stdout(

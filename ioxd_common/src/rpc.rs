@@ -146,12 +146,20 @@ macro_rules! serve_builder {
     }};
 }
 
-pub fn handle_panic(_err: Box<dyn Any + Send + 'static>) -> http::Response<BoxBody> {
+pub fn handle_panic(err: Box<dyn Any + Send + 'static>) -> http::Response<BoxBody> {
+    let message = if let Some(s) = err.downcast_ref::<String>() {
+        s.clone()
+    } else if let Some(s) = err.downcast_ref::<&str>() {
+        s.to_string()
+    } else {
+        "unknown internal error".to_string()
+    };
+
     http::Response::builder()
         .status(http::StatusCode::OK)
         .header(http::header::CONTENT_TYPE, "application/grpc")
         .header("grpc-status", Code::Internal as u32)
-        .header("grpc-message", "internal error, sad kittens") // we don't want to leak the panic message
+        .header("grpc-message", message) // we don't want to leak the panic message
         .body(tonic::body::empty_body())
         .unwrap()
 }
