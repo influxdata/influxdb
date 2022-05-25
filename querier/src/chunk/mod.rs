@@ -94,9 +94,10 @@ pub enum ChunkStorage {
 
 /// Chunk representation for the querier.
 ///
-/// These chunks are usually created on-demand. The querier cache system does not really have a notion of chunks (rather
-/// it knows about parquet files, local FS caches, ingester data, cached read buffers) but we need to combine all that
-/// knowledge into chunk objects because this is what the query engine (DataFusion and InfluxRPC) expect.
+/// These chunks are usually created on-demand. The querier cache system does not really have a
+/// notion of chunks (rather it knows about parquet files, local FS caches, ingester data, cached
+/// read buffers) but we need to combine all that knowledge into chunk objects because this is what
+/// the query engine (DataFusion and InfluxRPC) expect.
 #[derive(Debug)]
 pub struct QuerierChunk {
     /// How the data is currently structured / available for query.
