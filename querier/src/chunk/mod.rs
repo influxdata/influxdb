@@ -80,19 +80,7 @@ impl ChunkMeta {
     }
 }
 
-/// Determines how the chunk data is currently accessible.
-#[derive(Debug)]
-pub enum ChunkStorage {
-    /// Data is currently available via parquet file within the object store.
-    Parquet {
-        /// ID of the parquet file if the chunk
-        parquet_file_id: ParquetFileId,
-        /// Chunk of the parquet file
-        chunk: Arc<ParquetChunk>,
-    },
-}
-
-/// Chunk representation for the querier.
+/// Chunk representation of Parquet file chunks for the querier.
 ///
 /// These chunks are usually created on-demand. The querier cache system does not really have a
 /// notion of chunks (rather it knows about parquet files, local FS caches, ingester data, cached
@@ -100,8 +88,11 @@ pub enum ChunkStorage {
 /// the query engine (DataFusion and InfluxRPC) expect.
 #[derive(Debug)]
 pub struct QuerierParquetChunk {
-    /// How the data is currently structured / available for query.
-    storage: ChunkStorage,
+    /// ID of the Parquet file of the chunk
+    parquet_file_id: ParquetFileId,
+
+    /// Chunk of the Parquet file
+    parquet_chunk: Arc<ParquetChunk>,
 
     /// Immutable metadata.
     meta: Arc<ChunkMeta>,
@@ -117,15 +108,13 @@ impl QuerierParquetChunk {
     /// Create new parquet-backed chunk (object store data).
     pub fn new_parquet(
         parquet_file_id: ParquetFileId,
-        chunk: Arc<ParquetChunk>,
+        parquet_chunk: Arc<ParquetChunk>,
         meta: Arc<ChunkMeta>,
         partition_sort_key: Arc<Option<SortKey>>,
     ) -> Self {
         Self {
-            storage: ChunkStorage::Parquet {
-                parquet_file_id,
-                chunk,
-            },
+            parquet_file_id,
+            parquet_chunk,
             meta,
             delete_predicates: Vec::new(),
             partition_sort_key,
@@ -153,20 +142,14 @@ impl QuerierParquetChunk {
         self.meta.as_ref()
     }
 
-    /// Parquet file ID if this chunk is backed by a parquet file.
-    pub fn parquet_file_id(&self) -> Option<ParquetFileId> {
-        match &self.storage {
-            ChunkStorage::Parquet {
-                parquet_file_id, ..
-            } => Some(*parquet_file_id),
-        }
+    /// Parquet file ID
+    pub fn parquet_file_id(&self) -> ParquetFileId {
+        self.parquet_file_id
     }
 
     /// Return time range
     pub fn timestamp_min_max(&self) -> Option<TimestampMinMax> {
-        match &self.storage {
-            ChunkStorage::Parquet { chunk, .. } => chunk.timestamp_min_max(),
-        }
+        self.parquet_chunk.timestamp_min_max()
     }
 
     /// Partition sort key

@@ -1,4 +1,4 @@
-use crate::chunk::{ChunkStorage, QuerierParquetChunk};
+use crate::chunk::QuerierParquetChunk;
 use data_types::{
     ChunkId, ChunkOrder, DeletePredicate, PartitionId, TableSummary, TimestampMinMax,
 };
@@ -20,15 +20,11 @@ pub enum Error {
 
 impl QueryChunkMeta for QuerierParquetChunk {
     fn summary(&self) -> Option<&TableSummary> {
-        match &self.storage {
-            ChunkStorage::Parquet { chunk, .. } => Some(chunk.table_summary().as_ref()),
-        }
+        Some(self.parquet_chunk.table_summary().as_ref())
     }
 
     fn schema(&self) -> Arc<Schema> {
-        match &self.storage {
-            ChunkStorage::Parquet { chunk, .. } => chunk.schema(),
-        }
+        self.parquet_chunk.schema()
     }
 
     fn partition_sort_key(&self) -> Option<&SortKey> {
@@ -62,23 +58,19 @@ impl QueryChunk for QuerierParquetChunk {
     }
 
     fn may_contain_pk_duplicates(&self) -> bool {
-        match &self.storage {
-            ChunkStorage::Parquet { .. } => false,
-        }
+        false
     }
 
     fn apply_predicate_to_metadata(
         &self,
         predicate: &predicate::Predicate,
     ) -> Result<predicate::PredicateMatch, QueryChunkError> {
-        let pred_result = match &self.storage {
-            ChunkStorage::Parquet { chunk, .. } => {
-                if predicate.has_exprs() || chunk.has_timerange(predicate.range.as_ref()) {
-                    PredicateMatch::Unknown
-                } else {
-                    PredicateMatch::Zero
-                }
-            }
+        let pred_result = if predicate.has_exprs()
+            || self.parquet_chunk.has_timerange(predicate.range.as_ref())
+        {
+            PredicateMatch::Unknown
+        } else {
+            PredicateMatch::Zero
         };
 
         Ok(pred_result)
@@ -90,15 +82,11 @@ impl QueryChunk for QuerierParquetChunk {
         predicate: &predicate::Predicate,
         columns: schema::selection::Selection<'_>,
     ) -> Result<Option<iox_query::exec::stringset::StringSet>, QueryChunkError> {
-        match &self.storage {
-            ChunkStorage::Parquet { chunk, .. } => {
-                if !predicate.is_empty() {
-                    // if there is anything in the predicate, bail for now and force a full plan
-                    return Ok(None);
-                }
-                Ok(chunk.column_names(columns))
-            }
+        if !predicate.is_empty() {
+            // if there is anything in the predicate, bail for now and force a full plan
+            return Ok(None);
         }
+        Ok(self.parquet_chunk.column_names(columns))
     }
 
     fn column_values(
@@ -107,13 +95,9 @@ impl QueryChunk for QuerierParquetChunk {
         _column_name: &str,
         _predicate: &predicate::Predicate,
     ) -> Result<Option<iox_query::exec::stringset::StringSet>, QueryChunkError> {
-        match &self.storage {
-            ChunkStorage::Parquet { .. } => {
-                // Since DataFusion can read Parquet, there is no advantage to
-                // manually implementing this vs just letting DataFusion do its thing
-                Ok(None)
-            }
-        }
+        // Since DataFusion can read Parquet, there is no advantage to
+        // manually implementing this vs just letting DataFusion do its thing
+        Ok(None)
     }
 
     fn read_filter(
@@ -134,23 +118,17 @@ impl QueryChunk for QuerierParquetChunk {
         pred_with_deleted_exprs.merge_delete_predicates(&delete_predicates);
         debug!(?pred_with_deleted_exprs, "Merged negated predicate");
 
-        match &self.storage {
-            ChunkStorage::Parquet { chunk, .. } => {
-                ctx.set_metadata("predicate", format!("{}", &pred_with_deleted_exprs));
-                chunk
-                    .read_filter(&pred_with_deleted_exprs, selection)
-                    .context(ParquetFileChunkSnafu {
-                        chunk_id: self.id(),
-                    })
-                    .map_err(|e| Box::new(e) as _)
-            }
-        }
+        ctx.set_metadata("predicate", format!("{}", &pred_with_deleted_exprs));
+        self.parquet_chunk
+            .read_filter(&pred_with_deleted_exprs, selection)
+            .context(ParquetFileChunkSnafu {
+                chunk_id: self.id(),
+            })
+            .map_err(|e| Box::new(e) as _)
     }
 
     fn chunk_type(&self) -> &str {
-        match &self.storage {
-            ChunkStorage::Parquet { .. } => "parquet",
-        }
+        "parquet"
     }
 
     fn order(&self) -> ChunkOrder {

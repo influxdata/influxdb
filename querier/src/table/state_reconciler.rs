@@ -174,12 +174,7 @@ impl Reconciler {
                         .chunk_adapter
                         .catalog_cache()
                         .processed_tombstones()
-                        .exists(
-                            chunk
-                                .parquet_file_id()
-                                .expect("just created from a parquet file"),
-                            tombstone.tombstone_id(),
-                        )
+                        .exists(chunk.parquet_file_id(), tombstone.tombstone_id())
                         .await
                     {
                         continue;
