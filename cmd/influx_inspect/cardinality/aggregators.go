@@ -107,8 +107,10 @@ func (s *simpleNode) children() rollupNodeMap {
 
 func (s *simpleNode) child(key string, isLeaf bool) rollupNode {
 	if s.isLeaf() {
-		return nil
+		panic("Trying to get the child to a leaf node")
 	}
+	s.Lock()
+	defer s.Unlock()
 	c, ok := s.children()[key]
 	if !ok {
 		c = nodeFactory.newNode(isLeaf)
@@ -132,6 +134,12 @@ func newSimpleNode(isLeaf bool, fn func() report.Counter) *simpleNode {
 }
 
 func (s *simpleNode) recordSeries(db, rp, _ string, key, _ []byte, _ models.Tags) {
+	s.Lock()
+	defer s.Unlock()
+	s.recordSeriesNoLock(db, rp, key)
+}
+
+func (s *simpleNode) recordSeriesNoLock(db, rp string, key []byte) {
 	s.Add([]byte(fmt.Sprintf("%s.%s.%s", db, rp, key)))
 }
 
@@ -167,7 +175,9 @@ func newDetailedNode(isLeaf bool, fn func() report.Counter) *detailedNode {
 }
 
 func (d *detailedNode) recordSeries(db, rp, ms string, key, field []byte, tags models.Tags) {
-	d.simpleNode.recordSeries(db, rp, ms, key, field, tags)
+	d.Lock()
+	defer d.Unlock()
+	d.simpleNode.recordSeriesNoLock(db, rp, key)
 	d.fields.Add([]byte(fmt.Sprintf("%s.%s.%s.%s", db, rp, ms, field)))
 	for _, t := range tags {
 		// Add database, retention policy, and measurement
@@ -210,7 +220,6 @@ func (d *detailedNode) print(tw *tabwriter.Writer, printTags bool, db, rp, ms st
 }
 
 func (r *nodeWrapper) record(depth, totalDepth int, db, rp, measurement string, key []byte, field []byte, tags models.Tags) {
-	r.Lock()
 	r.recordSeries(db, rp, measurement, key, field, tags)
 
 	switch depth {
@@ -234,5 +243,4 @@ func (r *nodeWrapper) record(depth, totalDepth int, db, rp, measurement string, 
 		}
 	default:
 	}
-	r.Unlock()
 }
