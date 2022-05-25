@@ -46,7 +46,7 @@ func NewCommand() *Command {
 
 // Run executes the command.
 func (cmd *Command) Run(args ...string) (err error) {
-	var legalRollups = map[string]struct{}{"d": {}, "m": {}, "r": {}, "t": {}}
+	var legalRollups = map[string]int{"m": 3, "r": 2, "d": 1, "t": 0}
 	fs := flag.NewFlagSet("report-db", flag.ExitOnError)
 	fs.StringVar(&cmd.dbPath, "db-path", "", "Path to database. Required.")
 	fs.IntVar(&cmd.concurrency, "c", 1, "Set worker concurrency. Defaults to one.")
@@ -62,13 +62,14 @@ func (cmd *Command) Run(args ...string) (err error) {
 		return errors.New("path to database must be provided")
 	}
 
-	if _, ok := legalRollups[cmd.rollup]; !ok {
+	totalDepth, ok := legalRollups[cmd.rollup]
+
+	if !ok {
 		return fmt.Errorf("invalid rollup specified: %q", cmd.rollup)
 	}
 
 	factory := CreateNodeFactory(cmd.detailed, cmd.exact)
-
-	dbMap := factory.newNode(true)
+	totalsTree := &nodeWrapper{factory.newNode(totalDepth == 0)}
 
 	g, ctx := errgroup.WithContext(context.Background())
 	g.SetLimit(cmd.concurrency)
@@ -99,17 +100,7 @@ func (cmd *Command) Run(args ...string) (err error) {
 				key, _ := reader.KeyAt(i)
 				seriesKey, field, _ := bytes.Cut(key, []byte("#!~#"))
 				measurement, tags := models.ParseKey(seriesKey)
-				var totalDepth int
-				if cmd.rollup == "m" {
-					totalDepth = 3
-				} else if cmd.rollup == "r" {
-					totalDepth = 2
-				} else if cmd.rollup == "d" {
-					totalDepth = 1
-				} else {
-					totalDepth = 0
-				}
-				initRecord(dbMap, 0, totalDepth, db, rp, measurement, key, field, tags)
+				totalsTree.record(0, totalDepth, db, rp, measurement, key, field, tags)
 			}()
 		}
 		return nil
@@ -145,29 +136,23 @@ func (cmd *Command) Run(args ...string) (err error) {
 	if err = factory.printDivider(tw); err != nil {
 		return err
 	}
-	for d, db := range dbMap.children() {
+	for d, db := range totalsTree.children() {
 		for r, rp := range db.children() {
 			for m, measure := range rp.children() {
-				if cmd.rollup == "m" {
-					err = measure.print(tw, fmt.Sprintf("%q", d), fmt.Sprintf("%q", r), fmt.Sprintf("%q", m))
-					if err != nil {
-						return err
-					}
-				}
-			}
-			if cmd.rollup == "m" || cmd.rollup == "r" {
-				if err = rp.print(tw, fmt.Sprintf("%q", d), fmt.Sprintf("%q", r), ""); err != nil {
+				err = measure.print(tw, true, fmt.Sprintf("%q", d), fmt.Sprintf("%q", r), fmt.Sprintf("%q", m))
+				if err != nil {
 					return err
 				}
 			}
-		}
-		if cmd.rollup != "t" {
-			if err = db.print(tw, fmt.Sprintf("%q", d), "", ""); err != nil {
+			if err = rp.print(tw, false, fmt.Sprintf("%q", d), fmt.Sprintf("%q", r), ""); err != nil {
 				return err
 			}
 		}
+		if err = db.print(tw, false, fmt.Sprintf("%q", d), "", ""); err != nil {
+			return err
+		}
 	}
-	if err = dbMap.print(tw, "Total"+factory.estTitle, "", ""); err != nil {
+	if err = totalsTree.print(tw, false, "Total"+factory.estTitle, "", ""); err != nil {
 		return err
 	}
 	return tw.Flush()
