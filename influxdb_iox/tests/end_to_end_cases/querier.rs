@@ -125,6 +125,89 @@ async fn basic_no_ingester_connection() {
 }
 
 #[tokio::test]
+async fn query_after_persist_sees_new_files() {
+    // https://github.com/influxdata/influxdb_iox/issues/4634 added
+    // caching of tombstones and parquet files in the querier. This
+    // test ensures that a query issued after new parquet files are
+    // persisted correctly picks up the new parquet files
+    test_helpers::maybe_start_logging();
+
+    let database_url = maybe_skip_integration!();
+
+    let table_name = "the_table";
+
+    // Set up the cluster  ====================================
+    let router_config = TestConfig::new_router(&database_url);
+    let ingester_config =
+        TestConfig::new_ingester(&router_config).with_ingester_persist_memory_threshold(1000);
+    let querier_config = TestConfig::new_querier(&ingester_config);
+    let mut cluster = MiniCluster::new()
+        .with_router(router_config)
+        .await
+        .with_ingester(ingester_config)
+        .await
+        .with_querier(querier_config)
+        .await;
+
+    // We need a trigger for persistence that is not time so the test
+    // is as stable as possible. We use a long string to cross the
+    // persistence memory threshold.
+    let super_long_string: String = "x".repeat(10_000);
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            // Write data to a parquet file
+            Step::WriteLineProtocol(format!(
+                "{},tag=A val=\"{}\" 2\n",
+                table_name, super_long_string
+            )),
+            Step::WaitForPersisted,
+            Step::Query {
+                sql: format!("select count(*) from {}", table_name),
+                expected: vec![
+                    "+-----------------+",
+                    "| COUNT(UInt8(1)) |",
+                    "+-----------------+",
+                    "| 1               |",
+                    "+-----------------+",
+                ],
+            },
+            // second query, should be the same result
+            Step::Query {
+                sql: format!("select count(*) from {}", table_name),
+                expected: vec![
+                    "+-----------------+",
+                    "| COUNT(UInt8(1)) |",
+                    "+-----------------+",
+                    "| 1               |",
+                    "+-----------------+",
+                ],
+            },
+            // write another parquet file
+            Step::WriteLineProtocol(format!(
+                "{},tag=B val=\"{}\" 2\n",
+                table_name, super_long_string
+            )),
+            Step::WaitForPersisted,
+            // query should correctly see the data in the second parquet file
+            Step::Query {
+                sql: format!("select count(*) from {}", table_name),
+                expected: vec![
+                    "+-----------------+",
+                    "| COUNT(UInt8(1)) |",
+                    "+-----------------+",
+                    "| 2               |",
+                    "+-----------------+",
+                ],
+            },
+        ],
+    )
+    .run()
+    .await
+}
+
+#[tokio::test]
 async fn table_not_found_on_ingester() {
     test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();

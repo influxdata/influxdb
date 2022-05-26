@@ -40,8 +40,8 @@ impl QuerierTombstone {
     }
 }
 
-impl From<Tombstone> for QuerierTombstone {
-    fn from(tombstone: Tombstone) -> Self {
+impl From<&Tombstone> for QuerierTombstone {
+    fn from(tombstone: &Tombstone) -> Self {
         let delete_predicate = Arc::new(
             parse_delete_predicate(
                 &tombstone.min_time.get().to_string(),
@@ -57,5 +57,11 @@ impl From<Tombstone> for QuerierTombstone {
             sequence_number: tombstone.sequence_number,
             tombstone_id: tombstone.id,
         }
+    }
+}
+
+impl From<Arc<Tombstone>> for QuerierTombstone {
+    fn from(tombstone: Arc<Tombstone>) -> Self {
+        tombstone.as_ref().into()
     }
 }

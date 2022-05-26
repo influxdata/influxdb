@@ -273,6 +273,7 @@ pub struct TestSequencer {
 
 /// A test table of a namespace in the catalog
 #[allow(missing_docs)]
+#[derive(Debug)]
 pub struct TestTable {
     pub catalog: Arc<TestCatalog>,
     pub namespace: Arc<TestNamespace>,
@@ -419,6 +420,7 @@ impl TestTableBoundSequencer {
 
 /// A test catalog with specified namespace, sequencer, table, partition
 #[allow(missing_docs)]
+#[derive(Debug)]
 pub struct TestPartition {
     pub catalog: Arc<TestCatalog>,
     pub namespace: Arc<TestNamespace>,

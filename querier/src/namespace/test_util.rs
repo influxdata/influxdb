@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use data_types::TableId;
 use iox_catalog::interface::get_schema_by_name;
 use iox_tests::util::TestNamespace;
 use parquet_file::storage::ParquetStorage;
@@ -32,4 +33,14 @@ pub async fn querier_namespace(ns: &Arc<TestNamespace>) -> QuerierNamespace {
         ns.catalog.exec(),
         create_ingester_connection_for_testing(),
     )
+}
+
+/// Given some tests create parquet files without an ingester to
+/// signal the need for a cache refresh, this function, explictly
+/// trigger the "refresh cache logic"
+pub fn clear_parquet_cache(querier_namespace: &QuerierNamespace, table_id: TableId) {
+    querier_namespace
+        .catalog_cache()
+        .parquet_file()
+        .expire(table_id);
 }

@@ -91,7 +91,6 @@ impl QuerierDatabase {
             .schema(Arc::clone(&name))
             .await?;
         Some(Arc::new(QuerierNamespace::new(
-            self.backoff_config.clone(),
             Arc::clone(&self.chunk_adapter),
             schema,
             name,

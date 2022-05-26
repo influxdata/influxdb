@@ -188,7 +188,7 @@ impl ExecutionContextProvider for QuerierNamespace {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::namespace::test_util::querier_namespace;
+    use crate::namespace::test_util::{clear_parquet_cache, querier_namespace};
     use arrow::record_batch::RecordBatch;
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use data_types::ColumnType;
@@ -362,6 +362,9 @@ mod tests {
             // duplicate row with different field value (load=14)
             .create_parquet_file_with_min_max("cpu,host=a load=14 10001", 2000, 2000, 10001, 10001)
             .await;
+
+        // Since we made a new parquet file, we need to tell querier about it
+        clear_parquet_cache(&querier_namespace, table_cpu.table.id);
 
         assert_query(
             &querier_namespace,

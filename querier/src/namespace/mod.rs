@@ -4,7 +4,6 @@ use crate::{
     cache::CatalogCache, chunk::ParquetChunkAdapter, ingester::IngesterConnection,
     query_log::QueryLog, table::QuerierTable,
 };
-use backoff::BackoffConfig;
 use data_types::{NamespaceId, NamespaceSchema};
 use iox_query::exec::Executor;
 use parquet_file::storage::ParquetStorage;
@@ -37,9 +36,8 @@ pub struct QuerierNamespace {
     /// Executor for queries.
     exec: Arc<Executor>,
 
-    /// Connection to ingester
-    #[allow(dead_code)]
-    ingester_connection: Arc<dyn IngesterConnection>,
+    /// Catalog cache
+    catalog_cache: Arc<CatalogCache>,
 
     /// Query log.
     query_log: Arc<QueryLog>,
@@ -48,7 +46,6 @@ pub struct QuerierNamespace {
 impl QuerierNamespace {
     /// Create new namespace for given schema.
     pub fn new(
-        backoff_config: BackoffConfig,
         chunk_adapter: Arc<ParquetChunkAdapter>,
         schema: Arc<NamespaceSchema>,
         name: Arc<str>,
@@ -66,7 +63,6 @@ impl QuerierNamespace {
 
                 let table = Arc::new(QuerierTable::new(
                     Arc::clone(&name),
-                    backoff_config.clone(),
                     id,
                     Arc::clone(&table_name),
                     Arc::new(schema),
@@ -85,7 +81,7 @@ impl QuerierNamespace {
             name,
             tables: Arc::new(tables),
             exec,
-            ingester_connection,
+            catalog_cache: Arc::clone(chunk_adapter.catalog_cache()),
             query_log,
         }
     }
@@ -111,7 +107,6 @@ impl QuerierNamespace {
         let query_log = Arc::new(QueryLog::new(10, time_provider));
 
         Self::new(
-            BackoffConfig::default(),
             chunk_adapter,
             schema,
             name,
@@ -124,6 +119,12 @@ impl QuerierNamespace {
     /// Namespace name.
     pub fn name(&self) -> Arc<str> {
         Arc::clone(&self.name)
+    }
+
+    #[must_use]
+    /// Return the underlying catalog cache
+    pub fn catalog_cache(&self) -> &Arc<CatalogCache> {
+        &self.catalog_cache
     }
 }
 

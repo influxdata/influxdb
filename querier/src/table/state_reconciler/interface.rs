@@ -1,9 +1,8 @@
 //! Interface for reconciling Ingester and catalog state
 
 use crate::ingester::IngesterPartition;
-use data_types::{
-    ParquetFileWithMetadata, PartitionId, SequenceNumber, SequencerId, Tombstone, TombstoneId,
-};
+use data_types::{PartitionId, SequenceNumber, SequencerId, Tombstone, TombstoneId};
+use parquet_file::chunk::DecodedParquetFile;
 use std::{ops::Deref, sync::Arc};
 
 /// Information about an ingester partition.
@@ -57,24 +56,24 @@ where
 
 /// Information about a parquet file.
 ///
-/// This is mostly the same as [`ParquetFileWithMetadata`] but allows easier mocking.
+/// This is mostly the same as [`DecodedParquetFile`] but allows easier mocking.
 pub trait ParquetFileInfo {
     fn partition_id(&self) -> PartitionId;
     fn min_sequence_number(&self) -> SequenceNumber;
     fn max_sequence_number(&self) -> SequenceNumber;
 }
 
-impl ParquetFileInfo for ParquetFileWithMetadata {
+impl ParquetFileInfo for Arc<DecodedParquetFile> {
     fn partition_id(&self) -> PartitionId {
-        self.partition_id
+        self.parquet_file.partition_id
     }
 
     fn min_sequence_number(&self) -> SequenceNumber {
-        self.min_sequence_number
+        self.parquet_file.min_sequence_number
     }
 
     fn max_sequence_number(&self) -> SequenceNumber {
-        self.max_sequence_number
+        self.parquet_file.max_sequence_number
     }
 }
 
@@ -88,6 +87,20 @@ pub trait TombstoneInfo {
 }
 
 impl TombstoneInfo for Tombstone {
+    fn id(&self) -> TombstoneId {
+        self.id
+    }
+
+    fn sequencer_id(&self) -> SequencerId {
+        self.sequencer_id
+    }
+
+    fn sequence_number(&self) -> SequenceNumber {
+        self.sequence_number
+    }
+}
+
+impl TombstoneInfo for Arc<Tombstone> {
     fn id(&self) -> TombstoneId {
         self.id
     }

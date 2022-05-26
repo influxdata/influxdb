@@ -1,19 +1,8 @@
 //! Logic to reconcile the catalog and ingester state
-//!
-//! # Usage
-//!
-//! The code in this module should be used like this:
-//!
-//! 1. **Ingester Request:** Request data from ingester(s). This will create [`IngesterPartition`]s.
-//! 2. **Catalog Query:** Query parquet files and tombstones from catalog. It is important that
-//!    this happens AFTER the ingester request. This will create [`ParquetFileWithMetadata`] and
-//!    [`Tombstone`].
-//! 3. **Pruning:** Call [`filter_parquet_files`] and [`tombstone_exclude_list`] to filter out
-//!    files and tombstones that are too new (i.e. were created between step 1 and 2).
 
 mod interface;
 
-use data_types::{ParquetFileWithMetadata, PartitionId, SequencerId, Tombstone, TombstoneId};
+use data_types::{PartitionId, SequencerId, Tombstone, TombstoneId};
 use iox_query::QueryChunk;
 use observability_deps::tracing::debug;
 use schema::{sort::SortKey, InfluxColumnType};
@@ -24,6 +13,7 @@ use std::{
 };
 
 use crate::{
+    cache::parquet_file::CachedParquetFiles,
     chunk::{ParquetChunkAdapter, QuerierParquetChunk},
     tombstone::QuerierTombstone,
     IngesterPartition,
@@ -64,8 +54,8 @@ impl Reconciler {
     pub(crate) async fn reconcile(
         &self,
         ingester_partitions: Vec<IngesterPartition>,
-        tombstones: Vec<Tombstone>,
-        parquet_files: Vec<ParquetFileWithMetadata>,
+        tombstones: Vec<Arc<Tombstone>>,
+        parquet_files: Arc<CachedParquetFiles>,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, ReconcileError> {
         let mut chunks = self
             .build_parquet_chunks(&ingester_partitions, tombstones, parquet_files)
@@ -86,9 +76,17 @@ impl Reconciler {
     async fn build_parquet_chunks(
         &self,
         ingester_partitions: &[IngesterPartition],
-        tombstones: Vec<Tombstone>,
-        parquet_files: Vec<ParquetFileWithMetadata>,
+        tombstones: Vec<Arc<Tombstone>>,
+        parquet_files: Arc<CachedParquetFiles>,
     ) -> Result<Vec<Box<dyn UpdatableQuerierChunk>>, ReconcileError> {
+        debug!(
+            namespace=%self.namespace_name(),
+            table_name=%self.table_name(),
+            ?tombstones,
+            num_parquet_files=parquet_files.len(),
+            "Reconciling "
+        );
+
         let tombstone_exclusion = tombstone_exclude_list(ingester_partitions, &tombstones);
 
         let querier_tombstones: Vec<_> =
@@ -105,11 +103,10 @@ impl Reconciler {
                 .push(tombstone);
         }
 
-        //
-        let parquet_files = filter_parquet_files(ingester_partitions, parquet_files)?;
+        let parquet_files = filter_parquet_files(ingester_partitions, parquet_files.vec())?;
 
         debug!(
-            ?parquet_files,
+            parquet_ids=?parquet_files.iter().map(|f| f.parquet_file.id).collect::<Vec<_>>(),
             namespace=%self.namespace_name(),
             table_name=%self.table_name(),
             "Parquet files after filtering"
@@ -117,10 +114,10 @@ impl Reconciler {
 
         // convert parquet files and tombstones into QuerierParquetChunks
         let mut parquet_chunks = Vec::with_capacity(parquet_files.len());
-        for parquet_file_with_metadata in parquet_files {
+        for cached_parquet_file in parquet_files {
             if let Some(chunk) = self
                 .chunk_adapter
-                .new_querier_parquet_chunk_from_file_with_metadata(parquet_file_with_metadata)
+                .new_querier_parquet_chunk(&cached_parquet_file)
                 .await
             {
                 parquet_chunks.push(chunk);
