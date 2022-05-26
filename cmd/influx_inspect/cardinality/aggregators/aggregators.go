@@ -32,7 +32,7 @@ var simpleHeader = []string{"DB", "RP", "measurement", "series"}
 type RollupNodeFactory struct {
 	header   []string
 	EstTitle string
-	NewNode  func(inner bool) NodeWrapper
+	NewNode  func(isLeaf bool) NodeWrapper
 	counter  func() report.Counter
 }
 
@@ -77,7 +77,7 @@ func newSimpleNodeFactory(newCounterFn func() report.Counter, est string) *Rollu
 	return &RollupNodeFactory{
 		header:   simpleHeader,
 		EstTitle: est,
-		NewNode:  func(inner bool) NodeWrapper { return NodeWrapper{newSimpleNode(inner, newCounterFn)} },
+		NewNode:  func(isLeaf bool) NodeWrapper { return NodeWrapper{newSimpleNode(isLeaf, newCounterFn)} },
 		counter:  newCounterFn,
 	}
 }
@@ -194,7 +194,7 @@ func (d *detailedNode) Print(tw *tabwriter.Writer, printTags bool, db, rp, ms st
 	var tagKeys []string
 	tagN := uint64(0)
 
-	if d.isLeaf() {
+	if printTags {
 		tagKeys = make([]string, 0, len(d.tags))
 	}
 	for k, v := range d.tags {
