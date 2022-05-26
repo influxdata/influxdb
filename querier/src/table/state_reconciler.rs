@@ -24,7 +24,7 @@ use std::{
 };
 
 use crate::{
-    chunk::{ParquetChunkAdapter, QuerierChunk},
+    chunk::{ParquetChunkAdapter, QuerierParquetChunk},
     tombstone::QuerierTombstone,
     IngesterPartition,
 };
@@ -115,12 +115,12 @@ impl Reconciler {
             "Parquet files after filtering"
         );
 
-        // convert parquet files and tombstones into QuerierChunks
+        // convert parquet files and tombstones into QuerierParquetChunks
         let mut parquet_chunks = Vec::with_capacity(parquet_files.len());
         for parquet_file_with_metadata in parquet_files {
             if let Some(chunk) = self
                 .chunk_adapter
-                .new_querier_chunk_from_file_with_metadata(parquet_file_with_metadata)
+                .new_querier_parquet_chunk_from_file_with_metadata(parquet_file_with_metadata)
                 .await
             {
                 parquet_chunks.push(chunk);
@@ -174,12 +174,7 @@ impl Reconciler {
                         .chunk_adapter
                         .catalog_cache()
                         .processed_tombstones()
-                        .exists(
-                            chunk
-                                .parquet_file_id()
-                                .expect("just created from a parquet file"),
-                            tombstone.tombstone_id(),
-                        )
+                        .exists(chunk.parquet_file_id(), tombstone.tombstone_id())
                         .await
                     {
                         continue;
@@ -282,7 +277,7 @@ trait UpdatableQuerierChunk: QueryChunk {
     fn upcast_to_querier_chunk(self: Box<Self>) -> Box<dyn QueryChunk>;
 }
 
-impl UpdatableQuerierChunk for QuerierChunk {
+impl UpdatableQuerierChunk for QuerierParquetChunk {
     fn update_partition_sort_key(
         self: Box<Self>,
         sort_key: Arc<Option<SortKey>>,

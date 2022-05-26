@@ -1,4 +1,4 @@
-//! Querier Chunk
+//! Querier Chunks
 
 use crate::cache::CatalogCache;
 use arrow::record_batch::RecordBatch;
@@ -20,7 +20,7 @@ use uuid::Uuid;
 
 mod query_access;
 
-/// Immutable metadata attached to a [`QuerierChunk`].
+/// Immutable metadata attached to a [`QuerierParquetChunk`].
 #[derive(Debug)]
 pub struct ChunkMeta {
     /// The ID of the chunk
@@ -80,27 +80,19 @@ impl ChunkMeta {
     }
 }
 
-/// Determines how the chunk data is currently accessible.
-#[derive(Debug)]
-pub enum ChunkStorage {
-    /// Data is currently available via parquet file within the object store.
-    Parquet {
-        /// ID of the parquet file if the chunk
-        parquet_file_id: ParquetFileId,
-        /// Chunk of the parquet file
-        chunk: Arc<ParquetChunk>,
-    },
-}
-
-/// Chunk representation for the querier.
+/// Chunk representation of Parquet file chunks for the querier.
 ///
-/// These chunks are usually created on-demand. The querier cache system does not really have a notion of chunks (rather
-/// it knows about parquet files, local FS caches, ingester data, cached read buffers) but we need to combine all that
-/// knowledge into chunk objects because this is what the query engine (DataFusion and InfluxRPC) expect.
+/// These chunks are usually created on-demand. The querier cache system does not really have a
+/// notion of chunks (rather it knows about parquet files, local FS caches, ingester data, cached
+/// read buffers) but we need to combine all that knowledge into chunk objects because this is what
+/// the query engine (DataFusion and InfluxRPC) expect.
 #[derive(Debug)]
-pub struct QuerierChunk {
-    /// How the data is currently structured / available for query.
-    storage: ChunkStorage,
+pub struct QuerierParquetChunk {
+    /// ID of the Parquet file of the chunk
+    parquet_file_id: ParquetFileId,
+
+    /// Chunk of the Parquet file
+    parquet_chunk: Arc<ParquetChunk>,
 
     /// Immutable metadata.
     meta: Arc<ChunkMeta>,
@@ -112,19 +104,17 @@ pub struct QuerierChunk {
     partition_sort_key: Arc<Option<SortKey>>,
 }
 
-impl QuerierChunk {
+impl QuerierParquetChunk {
     /// Create new parquet-backed chunk (object store data).
-    pub fn new_parquet(
+    pub fn new(
         parquet_file_id: ParquetFileId,
-        chunk: Arc<ParquetChunk>,
+        parquet_chunk: Arc<ParquetChunk>,
         meta: Arc<ChunkMeta>,
         partition_sort_key: Arc<Option<SortKey>>,
     ) -> Self {
         Self {
-            storage: ChunkStorage::Parquet {
-                parquet_file_id,
-                chunk,
-            },
+            parquet_file_id,
+            parquet_chunk,
             meta,
             delete_predicates: Vec::new(),
             partition_sort_key,
@@ -152,20 +142,14 @@ impl QuerierChunk {
         self.meta.as_ref()
     }
 
-    /// Parquet file ID if this chunk is backed by a parquet file.
-    pub fn parquet_file_id(&self) -> Option<ParquetFileId> {
-        match &self.storage {
-            ChunkStorage::Parquet {
-                parquet_file_id, ..
-            } => Some(*parquet_file_id),
-        }
+    /// Parquet file ID
+    pub fn parquet_file_id(&self) -> ParquetFileId {
+        self.parquet_file_id
     }
 
     /// Return time range
     pub fn timestamp_min_max(&self) -> Option<TimestampMinMax> {
-        match &self.storage {
-            ChunkStorage::Parquet { chunk, .. } => chunk.timestamp_min_max(),
-        }
+        self.parquet_chunk.timestamp_min_max()
     }
 
     /// Partition sort key
@@ -233,24 +217,24 @@ impl ParquetChunkAdapter {
         ))
     }
 
-    /// Create new querier chunk from a catalog record
+    /// Create new querier Parquet chunk from a catalog record
     ///
     /// Returns `None` if some data required to create this chunk is already gone from the catalog.
-    pub async fn new_querier_chunk_from_file_with_metadata(
+    pub async fn new_querier_parquet_chunk_from_file_with_metadata(
         &self,
         parquet_file_with_metadata: ParquetFileWithMetadata,
-    ) -> Option<QuerierChunk> {
+    ) -> Option<QuerierParquetChunk> {
         let decoded_parquet_file = DecodedParquetFile::new(parquet_file_with_metadata);
-        self.new_querier_chunk(&decoded_parquet_file).await
+        self.new_querier_parquet_chunk(&decoded_parquet_file).await
     }
 
-    /// Create new querier chunk.
+    /// Create new querier Parquet chunk.
     ///
     /// Returns `None` if some data required to create this chunk is already gone from the catalog.
-    pub async fn new_querier_chunk(
+    pub async fn new_querier_parquet_chunk(
         &self,
         decoded_parquet_file: &DecodedParquetFile,
-    ) -> Option<QuerierChunk> {
+    ) -> Option<QuerierParquetChunk> {
         let parquet_file = &decoded_parquet_file.parquet_file;
         let chunk = Arc::new(self.new_parquet_chunk(decoded_parquet_file).await?);
         let chunk_id = ChunkId::from(Uuid::from_u128(parquet_file.id.get() as _));
@@ -285,7 +269,7 @@ impl ParquetChunkAdapter {
             max_sequence_number: parquet_file.max_sequence_number,
         });
 
-        Some(QuerierChunk::new_parquet(
+        Some(QuerierParquetChunk::new(
             parquet_file.id,
             chunk,
             meta,
@@ -295,7 +279,7 @@ impl ParquetChunkAdapter {
 }
 
 /// collect data for the given chunk
-pub async fn collect_read_filter(chunk: &QuerierChunk) -> Vec<RecordBatch> {
+pub async fn collect_read_filter(chunk: &QuerierParquetChunk) -> Vec<RecordBatch> {
     chunk
         .read_filter(
             IOxSessionContext::default(),
@@ -355,7 +339,7 @@ pub mod tests {
 
         // create chunk
         let chunk = adapter
-            .new_querier_chunk(&DecodedParquetFile::new(parquet_file))
+            .new_querier_parquet_chunk(&DecodedParquetFile::new(parquet_file))
             .await
             .unwrap();
 
