@@ -81,6 +81,24 @@ async fn test_decoded_iox_metadata() {
         got, meta,
         "embedded metadata does not match original metadata"
     );
+
+    // Repro of 4695
+    let row_group_meta = decoded.parquet_row_group_metadata();
+    println!("row_group_meta: {:#?}", row_group_meta);
+    assert_eq!(row_group_meta.len(), 1);
+    assert_eq!(row_group_meta[0].columns().len(), 2); // time and some_field
+    assert!(row_group_meta[0].column(0).statistics().is_some()); // There is statistics for "time"
+    assert!(row_group_meta[0].column(1).statistics().is_some()); // There is statistics for "some_field"
+
+    let schema = decoded.read_schema().unwrap();
+    let (_, field) = schema.field(0);
+    assert_eq!(field.name(), "time");
+    println!("schema: {:#?}", schema);
+
+    let col_summary = decoded
+        .read_statistics(&*schema) // BUG: should not empty
+        .unwrap();
+    assert!(col_summary.is_empty()); // TODO: must be NOT empty after the fix of 4695
 }
 
 #[tokio::test]

@@ -4,6 +4,7 @@ use std::{ops::DerefMut, sync::Arc};
 
 use arrow::{error::ArrowError, record_batch::RecordBatch};
 use futures::{pin_mut, Stream, StreamExt};
+use observability_deps::tracing::debug;
 use parquet::{
     arrow::ArrowWriter,
     basic::Compression,
@@ -122,6 +123,8 @@ where
 
     // Serialise the record batches into the in-memory buffer
     let meta = to_parquet(batches, meta, &mut w).await?;
+
+    debug!(?meta, "Parquet Metadata");
 
     let mut bytes = w
         .into_inner()

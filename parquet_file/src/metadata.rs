@@ -644,6 +644,16 @@ pub struct DecodedIoxParquetMetaData {
 }
 
 impl DecodedIoxParquetMetaData {
+    /// Return parquet file metadata
+    pub fn parquet_file_meta(&self) -> &ParquetFileMetaData {
+        self.md.file_metadata()
+    }
+
+    /// return row group metadata
+    pub fn parquet_row_group_metadata(&self) -> &[ParquetRowGroupMetaData] {
+        self.md.row_groups()
+    }
+
     /// Return the number of rows in the parquet file
     pub fn row_count(&self) -> usize {
         self.md.file_metadata().num_rows() as usize
@@ -961,6 +971,10 @@ mod tests {
             .await
             .expect("should serialise");
 
+        // Verify if the parquet file meta data has values
+        assert!(!file_meta.row_groups.is_empty());
+        println!("file_meta: {:#?}", file_meta.row_groups);
+
         // Read the metadata from the file bytes.
         //
         // This is quite wordy...
@@ -970,8 +984,33 @@ mod tests {
 
         // And read the metadata directly from the file metadata returned from
         // encoding.
-        let file_meta = IoxParquetMetaData::try_from(file_meta)
+        let iox_from_file_meta = IoxParquetMetaData::try_from(file_meta)
             .expect("failed to decode IoxParquetMetaData from file metadata");
-        assert_eq!(file_meta, iox_parquet_meta);
+        assert_eq!(iox_from_file_meta, iox_parquet_meta);
+
+        // Reproducer of https://github.com/influxdata/influxdb_iox/issues/4695
+        // Convert IOx meta data back to parquet meta data and verify it still the same
+        let decoded = iox_from_file_meta.decode().unwrap();
+
+        let new_file_meta = decoded.parquet_file_meta();
+        assert!(new_file_meta.key_value_metadata().is_some());
+        println!("new_file_meta: {:#?}", new_file_meta);
+
+        let new_row_group_meta = decoded.parquet_row_group_metadata();
+        println!("new_row_group_meta: {:#?}", new_row_group_meta);
+        assert!(!new_row_group_meta.is_empty());
+        let col_meta = new_row_group_meta[0].column(0);
+        assert!(col_meta.statistics().is_some()); // There is statistics for column "a"
+
+        // Exactly used in 4695
+        let schema = decoded.read_schema().unwrap();
+        let (_, field) = schema.field(0);
+        assert_eq!(field.name(), "a");
+        println!("schema: {:#?}", schema);
+
+        let col_summary = decoded
+            .read_statistics(&*schema) // // BUG: should not empty
+            .unwrap();
+        assert!(col_summary.is_empty()); // TODO: must be NOT empty after the fix of 4695
     }
 }
