@@ -11,13 +11,9 @@ import (
 )
 
 type rollupNodeMap map[string]RollupNode
-type rollupNodeLock interface {
-	Lock()
-	Unlock()
-}
 
 type RollupNode interface {
-	rollupNodeLock
+	sync.Locker
 	report.Counter
 	Children() rollupNodeMap
 	RecordSeries(db, rp, ms string, key, field []byte, tags models.Tags)
