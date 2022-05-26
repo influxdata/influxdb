@@ -714,8 +714,7 @@ func (q *Query) Done() {
 				q.err = q.exec.Err()
 			}
 			// Merge the metadata from the program into the controller stats.
-			stats := q.exec.Statistics()
-			q.stats.Metadata = stats.Metadata
+			q.mergeQueryStats(q.exec.Statistics())
 		}
 
 		// Retrieve the runtime errors that have been accumulated.
@@ -747,6 +746,25 @@ func (q *Query) Done() {
 
 	})
 	<-q.doneCh
+}
+
+func (q *Query) mergeQueryStats(other flux.Statistics) {
+	// Clear out the durations and the statistics that we calculate.
+	// We don't want to double count things.
+	other.TotalDuration = 0
+	other.CompileDuration = 0
+	other.QueueDuration = 0
+	other.PlanDuration = 0
+	other.RequeueDuration = 0
+	other.ExecuteDuration = 0
+	other.Concurrency = 0
+	other.MaxAllocated = 0
+	other.TotalAllocated = 0
+	other.RuntimeErrors = nil
+
+	// Now use the Add method to combine the two.
+	// This should pick up any statistics from the other statistics.
+	q.stats = q.stats.Add(other)
 }
 
 // Statistics reports the statistics for the query.
