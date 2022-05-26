@@ -57,6 +57,16 @@ impl CachedTombstones {
             self.tombstones.iter().map(|t| t.size()).sum::<usize>()
     }
 
+    /// return the number of cached tombstones
+    pub fn len(&self) -> usize {
+        self.tombstones.len()
+    }
+
+    /// return true if there are no cached tombestones
+    pub fn is_empty(&self) -> bool {
+        self.tombstones.is_empty()
+    }
+
     /// return the underlying Tombestones
     pub fn to_vec(&self) -> Vec<Arc<Tombstone>> {
         self.tombstones.iter().map(Arc::clone).collect()
@@ -175,7 +185,9 @@ impl TombstoneCache {
                 if let Some(max_cached) = max_cached {
                     max_cached < max_tombstone_sequence_number
                 } else {
-                    false
+                    // a max sequence was provided but there were no
+                    // files in the cache. Means we need to refresh
+                    true
                 }
             })
         } else {
@@ -363,6 +375,49 @@ mod tests {
             &cache.get(table_id).await,
             &[tombstone1, tombstone2, tombstone10],
         );
+        assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 2);
+    }
+
+    #[tokio::test]
+    async fn test_expore_empty() {
+        let catalog = TestCatalog::new();
+        let sequence_number_1 = SequenceNumber::new(1);
+        let ns = catalog.create_namespace("ns").await;
+        let table1 = ns.create_table("table1").await;
+        let sequencer1 = ns.create_sequencer(1).await;
+
+        let table_and_sequencer = table1.with_sequencer(&sequencer1);
+        let table_id = table1.table.id;
+
+        let cache = make_cache(&catalog);
+
+        // no tombstones for the table, cached
+        assert!(cache.get(table_id).await.is_empty());
+        assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
+
+        // second request to should be cached
+        assert!(cache.get(table_id).await.is_empty());
+        assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
+
+        // calls to expire if there are no new known tombstones should not still be cached
+        cache.expire_on_newly_persisted_files(table_id, None);
+        assert!(cache.get(table_id).await.is_empty());
+        assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
+
+        // Create a tombstone
+        let tombstone1 = table_and_sequencer
+            .create_tombstone(sequence_number_1.get(), 1, 100, "foo=1")
+            .await
+            .tombstone
+            .id;
+
+        // cache is stale
+        assert!(cache.get(table_id).await.is_empty());
+        assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
+
+        // Now call to expire with knowledge of new tombstone, will cause a cache refresh
+        cache.expire_on_newly_persisted_files(table_id, Some(sequence_number_1));
+        assert_ids(&cache.get(table_id).await, &[tombstone1]);
         assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 2);
     }
 

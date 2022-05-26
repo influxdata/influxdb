@@ -58,6 +58,16 @@ impl CachedParquetFiles {
         self.files.as_ref().clone()
     }
 
+    /// return the number of cached files
+    pub fn len(&self) -> usize {
+        self.files.len()
+    }
+
+    /// return true if there are no cached files
+    pub fn is_empty(&self) -> bool {
+        self.files.is_empty()
+    }
+
     /// Estimate the memory consumption of this object and its contents
     fn size(&self) -> usize {
         // simplify accounting by ensuring len and capacity of vector are the same
@@ -206,7 +216,9 @@ impl ParquetFileCache {
                 if let Some(max_cached) = max_cached {
                     max_cached < max_parquet_sequence_number
                 } else {
-                    false
+                    // a max sequence was provided but there were no
+                    // files in the cache. Means we need to refresh
+                    true
                 }
             })
         } else {
@@ -385,6 +397,47 @@ mod tests {
             cache.get(table_id).await.ids(),
             ids(&[&tfile1_2, &tfile1_3, &tfile1_10])
         );
+        assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 2);
+    }
+
+    #[tokio::test]
+    async fn test_expire_empty() {
+        let (catalog, table, partition) = make_catalog().await;
+        let cache = make_cache(&catalog);
+        let table_id = table.table.id;
+
+        // no parquet files, sould be none
+        assert!(cache.get(table_id).await.is_empty());
+        assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
+
+        // second request should be cached
+        assert!(cache.get(table_id).await.is_empty());
+        assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
+
+        // Calls to expire if there is no known persisted file, should still be cached
+        cache.expire_on_newly_persisted_files(table_id, None);
+        assert!(cache.get(table_id).await.is_empty());
+        assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
+
+        // make a new parquet file
+        let sequence_number_1 = SequenceNumber::new(1);
+        let tfile = partition
+            .create_parquet_file_with_min_max(
+                "table1 foo=1 11",
+                sequence_number_1.get(),
+                sequence_number_1.get(),
+                0,
+                100,
+            )
+            .await;
+
+        // cache is stale
+        assert!(cache.get(table_id).await.is_empty());
+        assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
+
+        // Now call to expire with knowledge of new file, will cause a cache refresh
+        cache.expire_on_newly_persisted_files(table_id, Some(sequence_number_1));
+        assert_eq!(cache.get(table_id).await.ids(), ids(&[&tfile]));
         assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 2);
     }
 
