@@ -15,6 +15,7 @@ use data_types::{ParquetFile, ParquetFileId};
 use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::StreamExt;
 use iox_time::TimeProvider;
+use parquet_file::chunk::DecodedParquetFile;
 use read_buffer::RBChunk;
 use snafu::{ResultExt, Snafu};
 use std::{collections::HashMap, mem, sync::Arc};
@@ -85,8 +86,10 @@ impl ReadBufferCache {
     }
 
     /// Get read buffer chunks by Parquet file id
-    pub async fn get(&self, parquet_file_id: ParquetFileId) -> Arc<RBChunk> {
-        self.cache.get(parquet_file_id).await
+    pub async fn get(&self, decoded_parquet_file: &DecodedParquetFile) -> Arc<RBChunk> {
+        let parquet_file = &decoded_parquet_file.parquet_file;
+
+        self.cache.get(parquet_file.id).await
     }
 }
 

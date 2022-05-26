@@ -14,7 +14,7 @@ use std::{
 
 use crate::{
     cache::parquet_file::CachedParquetFiles,
-    chunk::{ChunkAdapter, QuerierParquetChunk},
+    chunk::{ChunkAdapter, QuerierParquetChunk, QuerierRBChunk},
     tombstone::QuerierTombstone,
     IngesterPartition,
 };
@@ -279,6 +279,19 @@ trait UpdatableQuerierChunk: QueryChunk {
 }
 
 impl UpdatableQuerierChunk for QuerierParquetChunk {
+    fn update_partition_sort_key(
+        self: Box<Self>,
+        sort_key: Arc<Option<SortKey>>,
+    ) -> Box<dyn UpdatableQuerierChunk> {
+        Box::new(self.with_partition_sort_key(sort_key))
+    }
+
+    fn upcast_to_querier_chunk(self: Box<Self>) -> Box<dyn QueryChunk> {
+        self as _
+    }
+}
+
+impl UpdatableQuerierChunk for QuerierRBChunk {
     fn update_partition_sort_key(
         self: Box<Self>,
         sort_key: Arc<Option<SortKey>>,
