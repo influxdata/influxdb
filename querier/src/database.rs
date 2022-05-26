@@ -1,7 +1,7 @@
 //! Database for the querier that contains all namespaces.
 
 use crate::{
-    cache::CatalogCache, chunk::ParquetChunkAdapter, ingester::IngesterConnection,
+    cache::CatalogCache, chunk::ChunkAdapter, ingester::IngesterConnection,
     namespace::QuerierNamespace, query_log::QueryLog,
 };
 use async_trait::async_trait;
@@ -29,7 +29,7 @@ pub struct QuerierDatabase {
     catalog_cache: Arc<CatalogCache>,
 
     /// Adapter to create chunks.
-    chunk_adapter: Arc<ParquetChunkAdapter>,
+    chunk_adapter: Arc<ChunkAdapter>,
 
     /// Metric registry
     #[allow(dead_code)]
@@ -63,7 +63,7 @@ impl QuerierDatabase {
         exec: Arc<Executor>,
         ingester_connection: Arc<dyn IngesterConnection>,
     ) -> Self {
-        let chunk_adapter = Arc::new(ParquetChunkAdapter::new(
+        let chunk_adapter = Arc::new(ChunkAdapter::new(
             Arc::clone(&catalog_cache),
             store,
             Arc::clone(&metric_registry),

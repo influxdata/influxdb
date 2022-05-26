@@ -1097,7 +1097,7 @@ mod tests {
     use iox_time::SystemProvider;
     use querier::{
         cache::CatalogCache,
-        chunk::{collect_read_filter, ParquetChunkAdapter},
+        chunk::{collect_read_filter, ChunkAdapter},
     };
     use std::sync::atomic::{AtomicI64, Ordering};
 
@@ -1203,7 +1203,7 @@ mod tests {
 
         // ------------------------------------------------
         // Verify the parquet file content
-        let adapter = ParquetChunkAdapter::new(
+        let adapter = ChunkAdapter::new(
             Arc::new(CatalogCache::new(
                 catalog.catalog(),
                 catalog.time_provider(),
@@ -1424,7 +1424,7 @@ mod tests {
 
         // ------------------------------------------------
         // Verify the parquet file content
-        let adapter = ParquetChunkAdapter::new(
+        let adapter = ChunkAdapter::new(
             Arc::new(CatalogCache::new(
                 catalog.catalog(),
                 catalog.time_provider(),

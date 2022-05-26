@@ -160,7 +160,7 @@ impl QuerierParquetChunk {
 
 /// Adapter that can create chunks.
 #[derive(Debug)]
-pub struct ParquetChunkAdapter {
+pub struct ChunkAdapter {
     /// Cache
     catalog_cache: Arc<CatalogCache>,
 
@@ -175,7 +175,7 @@ pub struct ParquetChunkAdapter {
     time_provider: Arc<dyn TimeProvider>,
 }
 
-impl ParquetChunkAdapter {
+impl ChunkAdapter {
     /// Create new adapter with empty cache.
     pub fn new(
         catalog_cache: Arc<CatalogCache>,
@@ -307,7 +307,7 @@ pub mod tests {
     async fn test_create_record() {
         let catalog = TestCatalog::new();
 
-        let adapter = ParquetChunkAdapter::new(
+        let adapter = ChunkAdapter::new(
             Arc::new(CatalogCache::new(
                 catalog.catalog(),
                 catalog.time_provider(),

@@ -1,7 +1,7 @@
 use self::query_access::QuerierTableChunkPruner;
 use self::state_reconciler::Reconciler;
 use crate::{
-    chunk::ParquetChunkAdapter,
+    chunk::ChunkAdapter,
     ingester::{self, IngesterPartition},
     IngesterConnection,
 };
@@ -68,7 +68,7 @@ pub struct QuerierTable {
     ingester_connection: Arc<dyn IngesterConnection>,
 
     /// Interface to create chunks for this table.
-    chunk_adapter: Arc<ParquetChunkAdapter>,
+    chunk_adapter: Arc<ChunkAdapter>,
 
     /// Handle reconciling ingester and catalog data
     reconciler: Reconciler,
@@ -82,7 +82,7 @@ impl QuerierTable {
         table_name: Arc<str>,
         schema: Arc<Schema>,
         ingester_connection: Arc<dyn IngesterConnection>,
-        chunk_adapter: Arc<ParquetChunkAdapter>,
+        chunk_adapter: Arc<ChunkAdapter>,
     ) -> Self {
         let reconciler = Reconciler::new(
             Arc::clone(&table_name),
