@@ -283,7 +283,7 @@ impl QueryChunk for QuerierRBChunk {
 
         // The InfluxRPC frontend only supports getting column values
         // for one column at a time (this is a restriction on the Influx
-        // Read gRPC API too). However, the Read Buffer support multiple
+        // Read gRPC API too). However, the Read Buffer supports multiple
         // columns and will return a map - we just need to pull the
         // column out to get the set of values.
         let values = values
