@@ -75,7 +75,7 @@ async fn test_decoded_iox_metadata() {
         "row count statistics does not match input row count"
     );
 
-    // Repro of 4695
+    // Repro of 4714
     let row_group_meta = decoded.parquet_row_group_metadata();
     println!("ow_group_meta: {:#?}", row_group_meta);
     assert_eq!(row_group_meta.len(), 1);
@@ -92,7 +92,7 @@ async fn test_decoded_iox_metadata() {
     let col_summary = decoded
         .read_statistics(&*schema)
         .expect("Invalid Statistics");
-    assert!(col_summary.is_empty()); // TODO: must NOT be empty after the fix of 4695
+    assert!(col_summary.is_empty()); // TODO: must NOT be empty after the fix of 4714
 
     let got = decoded
         .read_iox_metadata_new()
@@ -108,7 +108,7 @@ async fn test_decoded_many_columns_with_null_cols_iox_metadata() {
     // Increase these values to have larger test
     let num_cols = 10;
     let num_rows = 20;
-    let num_chars = 5;
+    let num_repeats = 5;
 
     let mut data = Vec::with_capacity(num_cols);
 
@@ -116,15 +116,11 @@ async fn test_decoded_many_columns_with_null_cols_iox_metadata() {
     let mut time_arr: Vec<i64> = Vec::with_capacity(num_rows);
     let mut string_arr = Vec::with_capacity(num_rows);
 
-    // Make long strong data
+    // Make long string data
     fn make_long_str(len: usize) -> String {
-        let mut s = "String".to_string();
-        for i in 0..len {
-            s += i.to_string().as_str();
-        }
-        s
+        "Long String Data".repeat(len)
     }
-    let str = make_long_str(num_chars);
+    let str = make_long_str(num_repeats);
 
     // Data of time and string columns
     for i in 0..num_rows {
@@ -211,7 +207,7 @@ async fn test_decoded_many_columns_with_null_cols_iox_metadata() {
     let col_summary = decoded
         .read_statistics(&*schema)
         .expect("Invalid Statistics");
-    assert!(col_summary.is_empty()); // TODO: must NOT be empty after the fix of 4695
+    assert!(col_summary.is_empty()); // TODO: must NOT be empty after the fix of 4714
 
     let got = decoded
         .read_iox_metadata_new()
@@ -220,14 +216,6 @@ async fn test_decoded_many_columns_with_null_cols_iox_metadata() {
         got, meta,
         "embedded metadata does not match original metadata"
     );
-
-    let schema = decoded.read_schema().unwrap();
-    let (_, field) = schema.field(0);
-    assert_eq!(field.name(), "time");
-    println!("schema: {:#?}", schema);
-
-    let col_summary = decoded.read_statistics(&*schema).unwrap();
-    assert!(col_summary.is_empty()); // TODO: must NOT be empty after the fix of 4695
 }
 
 #[tokio::test]
