@@ -14,7 +14,7 @@ use std::{
 
 use crate::{
     cache::parquet_file::CachedParquetFiles,
-    chunk::{ParquetChunkAdapter, QuerierParquetChunk},
+    chunk::{ChunkAdapter, QuerierParquetChunk, QuerierRBChunk},
     tombstone::QuerierTombstone,
     IngesterPartition,
 };
@@ -32,14 +32,14 @@ pub enum ReconcileError {
 pub struct Reconciler {
     table_name: Arc<str>,
     namespace_name: Arc<str>,
-    chunk_adapter: Arc<ParquetChunkAdapter>,
+    chunk_adapter: Arc<ChunkAdapter>,
 }
 
 impl Reconciler {
     pub(crate) fn new(
         table_name: Arc<str>,
         namespace_name: Arc<str>,
-        chunk_adapter: Arc<ParquetChunkAdapter>,
+        chunk_adapter: Arc<ChunkAdapter>,
     ) -> Self {
         Self {
             table_name,
@@ -48,9 +48,8 @@ impl Reconciler {
         }
     }
 
-    /// Reconciles ingester state (ingester_partitions) and catalog
-    /// state (parquet_files and tombstones), producing a list of
-    /// chunks to query
+    /// Reconciles ingester state (ingester_partitions) and catalog state (parquet_files and
+    /// tombstones), producing a list of chunks to query
     pub(crate) async fn reconcile(
         &self,
         ingester_partitions: Vec<IngesterPartition>,
@@ -58,7 +57,7 @@ impl Reconciler {
         parquet_files: Arc<CachedParquetFiles>,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, ReconcileError> {
         let mut chunks = self
-            .build_parquet_chunks(&ingester_partitions, tombstones, parquet_files)
+            .build_chunks_from_parquet(&ingester_partitions, tombstones, parquet_files)
             .await?;
         chunks.extend(self.build_ingester_chunks(ingester_partitions));
         debug!(num_chunks=%chunks.len(), "Final chunk count after reconcilation");
@@ -73,7 +72,7 @@ impl Reconciler {
         Ok(chunks)
     }
 
-    async fn build_parquet_chunks(
+    async fn build_chunks_from_parquet(
         &self,
         ingester_partitions: &[IngesterPartition],
         tombstones: Vec<Arc<Tombstone>>,
@@ -112,29 +111,30 @@ impl Reconciler {
             "Parquet files after filtering"
         );
 
-        // convert parquet files and tombstones into QuerierParquetChunks
-        let mut parquet_chunks = Vec::with_capacity(parquet_files.len());
+        // convert parquet files and tombstones into chunks
+        let mut chunks_from_parquet = Vec::with_capacity(parquet_files.len());
         for cached_parquet_file in parquet_files {
             if let Some(chunk) = self
                 .chunk_adapter
                 .new_querier_parquet_chunk(&cached_parquet_file)
                 .await
             {
-                parquet_chunks.push(chunk);
+                chunks_from_parquet.push(chunk);
             }
         }
-        debug!(num_chunks=%parquet_chunks.len(), "Created parquet chunks");
+        debug!(num_chunks=%chunks_from_parquet.len(), "Created chunks from parquet files");
 
         let mut chunks: Vec<Box<dyn UpdatableQuerierChunk>> =
-            Vec::with_capacity(parquet_chunks.len() + ingester_partitions.len());
+            Vec::with_capacity(chunks_from_parquet.len() + ingester_partitions.len());
 
-        for chunk in parquet_chunks.into_iter() {
+        for chunk in chunks_from_parquet.into_iter() {
             let chunk = if let Some(tombstones) =
                 tombstones_by_sequencer.get(&chunk.meta().sequencer_id())
             {
                 let mut delete_predicates = Vec::with_capacity(tombstones.len());
                 for tombstone in tombstones {
-                    // check conditions that don't need catalog access first to avoid unnecessary catalog load
+                    // check conditions that don't need catalog access first to avoid unnecessary
+                    // catalog load
 
                     // Check if tombstone should be excluded based on the ingester response
                     if tombstone_exclusion
@@ -143,28 +143,31 @@ impl Reconciler {
                         continue;
                     }
 
-                    // Check if tombstone even applies to the sequence number range within the parquet file. There
+                    // Check if tombstone even applies to the sequence number range within the
+                    // parquet file. There
                     // are the following cases here:
                     //
                     // 1. Tombstone comes before chunk min sequencer number:
                     //    There is no way the tombstone can affect the chunk.
                     // 2. Tombstone comes after chunk max sequencer number:
-                    //    Tombstone affects whole chunk (it might be marked as processed though, we'll check that
-                    //    further down).
+                    //    Tombstone affects whole chunk (it might be marked as processed though,
+                    //    we'll check that further down).
                     // 3. Tombstone is in the min-max sequencer number range of the chunk:
-                    //    Technically the querier has NO way to determine the rows that are affected by the tombstone
-                    //    since we have no row-level sequence numbers. Such a file can be created by two sources -- the
-                    //    ingester and the compactor. The ingester must have materialized the tombstone while creating
-                    //    the parquet file, so the querier can skip it. The compactor also materialized the tombstones,
-                    //    so we can skip it as well. In the compactor case the tombstone will even be marked as
-                    //    processed.
+                    //    Technically the querier has NO way to determine the rows that are
+                    //    affected by the tombstone since we have no row-level sequence numbers.
+                    //    Such a file can be created by two sources -- the ingester and the
+                    //    compactor. The ingester must have materialized the tombstone while
+                    //    creating the parquet file, so the querier can skip it. The compactor also
+                    //    materialized the tombstones, so we can skip it as well. In the compactor
+                    //    case the tombstone will even be marked as processed.
                     //
                     // So the querier only needs to consider the tombstone in case 2.
                     if tombstone.sequence_number() <= chunk.meta().max_sequence_number() {
                         continue;
                     }
 
-                    // TODO: also consider time ranges (https://github.com/influxdata/influxdb_iox/issues/4086)
+                    // TODO: also consider time ranges
+                    // (https://github.com/influxdata/influxdb_iox/issues/4086)
 
                     // check if tombstone is marked as processed
                     if self
@@ -196,7 +199,8 @@ impl Reconciler {
     ) -> impl Iterator<Item = Box<dyn UpdatableQuerierChunk>> {
         // Add ingester chunks to the overall chunk list.
         // - filter out chunks that don't have any record batches
-        // - tombstones don't need to be applied since they were already materialized by the ingester
+        // - tombstones don't need to be applied since they were already materialized by the
+        //   ingester
         ingester_partitions
             .into_iter()
             .filter(|c| c.has_batches())
@@ -287,6 +291,19 @@ impl UpdatableQuerierChunk for QuerierParquetChunk {
     }
 }
 
+impl UpdatableQuerierChunk for QuerierRBChunk {
+    fn update_partition_sort_key(
+        self: Box<Self>,
+        sort_key: Arc<Option<SortKey>>,
+    ) -> Box<dyn UpdatableQuerierChunk> {
+        Box::new(self.with_partition_sort_key(sort_key))
+    }
+
+    fn upcast_to_querier_chunk(self: Box<Self>) -> Box<dyn QueryChunk> {
+        self as _
+    }
+}
+
 impl UpdatableQuerierChunk for IngesterPartition {
     fn update_partition_sort_key(
         self: Box<Self>,
@@ -304,14 +321,15 @@ impl UpdatableQuerierChunk for IngesterPartition {
 ///
 /// The caller may only use the returned parquet files.
 ///
-/// This will remove files that are part of the catalog but that contain data that the ingester persisted AFTER the
-/// querier contacted it. See module-level documentation about the order in which the communication and the information
-/// processing should take place.
+/// This will remove files that are part of the catalog but that contain data that the ingester
+/// persisted AFTER the querier contacted it. See module-level documentation about the order in
+/// which the communication and the information processing should take place.
 ///
-/// Note that the querier (and this method) do NOT care about the actual age of the parquet files, since the compactor
-/// is free to to process files at any given moment (e.g. to combine them or to materialize tombstones). However if the
-/// compactor combines files in a way that the querier would need to split it into "desired" data and "too new" data
-/// then we will currently bail out with [`ReconcileError`].
+/// Note that the querier (and this method) do NOT care about the actual age of the parquet files,
+/// since the compactor is free to to process files at any given moment (e.g. to combine them or to
+/// materialize tombstones). However if the compactor combines files in a way that the querier
+/// would need to split it into "desired" data and "too new" data then we will currently bail out
+/// with [`ReconcileError`].
 fn filter_parquet_files<I, P>(
     ingester_partitions: &[I],
     parquet_files: Vec<P>,
@@ -322,8 +340,8 @@ where
 {
     // Build partition-based lookup table.
     //
-    // Note that we don't need to take the sequencer ID into account here because each partition is not only bound to a
-    // table but also to a sequencer.
+    // Note that we don't need to take the sequencer ID into account here because each partition is
+    // not only bound to a table but also to a sequencer.
     let lookup_table: HashMap<PartitionId, &I> = ingester_partitions
         .iter()
         .map(|i| (i.partition_id(), i))
@@ -368,7 +386,8 @@ where
                 file_min_seq_num=%file.min_sequence_number().get(),
                 "partition was not flagged by the ingester as unpersisted"
             );
-            // partition was not flagged by the ingester as "unpersisted", so we can keep the parquet file
+            // partition was not flagged by the ingester as "unpersisted", so we can keep the
+            // parquet file
         }
 
         result.push(file);
@@ -379,9 +398,10 @@ where
 
 /// Generates "exclude" filter for tombstones.
 ///
-/// Since tombstones are sequencer-wide but data persistence is partition-based (which are sub-units of sequencers), we
-/// cannot just remove tombstones entirely but need to decide on a per-partition basis. This function generates a lookup
-/// table of partition-tombstone tuples that later need to be EXCLUDED/IGNORED when pairing tombstones with chunks.
+/// Since tombstones are sequencer-wide but data persistence is partition-based (which are
+/// sub-units of sequencers), we cannot just remove tombstones entirely but need to decide on a
+/// per-partition basis. This function generates a lookup table of partition-tombstone tuples that
+/// later need to be EXCLUDED/IGNORED when pairing tombstones with chunks.
 fn tombstone_exclude_list<I, T>(
     ingester_partitions: &[I],
     tombstones: &[T],
@@ -411,7 +431,8 @@ where
                         // in persisted range => keep
                     }
                 } else {
-                    // partition has no persisted data at all => need to exclude tombstone which is too new
+                    // partition has no persisted data at all => need to exclude tombstone which is
+                    // too new
                     exclude.insert((p.partition_id(), t.id()));
                 }
             }
@@ -423,10 +444,9 @@ where
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use assert_matches::assert_matches;
     use data_types::SequenceNumber;
-
-    use super::*;
 
     #[test]
     fn test_filter_parquet_files_empty() {

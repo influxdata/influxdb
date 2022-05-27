@@ -6,11 +6,11 @@ use crate::{
     storage::ParquetStorage,
 };
 use data_types::{
-    ParquetFile, ParquetFileWithMetadata, Statistics, TableSummary, TimestampMinMax, TimestampRange,
+    ParquetFile, ParquetFileWithMetadata, TableSummary, TimestampMinMax, TimestampRange,
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
 use predicate::Predicate;
-use schema::{selection::Selection, Schema, TIME_COLUMN_NAME};
+use schema::{selection::Selection, Schema};
 use std::{collections::BTreeSet, mem, sync::Arc};
 
 #[derive(Debug)]
@@ -83,7 +83,7 @@ impl ParquetChunk {
         let columns = decoded.read_statistics(&schema).unwrap();
         let table_summary = TableSummary { columns };
         let rows = decoded.row_count();
-        let timestamp_min_max = extract_range(&table_summary);
+        let timestamp_min_max = table_summary.time_range();
         let file_size_bytes = decoded_parquet_file.parquet_file.file_size_bytes as usize;
 
         Self {
@@ -184,18 +184,6 @@ impl ParquetChunk {
     pub fn timestamp_min_max(&self) -> Option<TimestampMinMax> {
         self.timestamp_min_max
     }
-}
-
-/// Extracts min/max values of the timestamp column, from the TableSummary, if possible
-fn extract_range(table_summary: &TableSummary) -> Option<TimestampMinMax> {
-    table_summary.column(TIME_COLUMN_NAME).and_then(|c| {
-        if let Statistics::I64(s) = &c.stats {
-            if let (Some(min), Some(max)) = (s.min, s.max) {
-                return Some(TimestampMinMax::new(min, max));
-            }
-        }
-        None
-    })
 }
 
 /// Parquet file with decoded metadata.

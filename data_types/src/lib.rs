@@ -13,7 +13,10 @@
 use influxdb_line_protocol::FieldValue;
 use observability_deps::tracing::warn;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
-use schema::{builder::SchemaBuilder, sort::SortKey, InfluxColumnType, InfluxFieldType, Schema};
+use schema::{
+    builder::SchemaBuilder, sort::SortKey, InfluxColumnType, InfluxFieldType, Schema,
+    TIME_COLUMN_NAME,
+};
 use snafu::{ResultExt, Snafu};
 use std::{
     borrow::{Borrow, Cow},
@@ -1922,6 +1925,22 @@ impl TableSummary {
         let size: usize = self.columns.iter().map(|c| c.size()).sum();
         size + mem::size_of::<Self>() // Add size of this struct that points to
                                       // table and ColumnSummary
+    }
+
+    /// Extracts min/max values of the timestamp column, if possible
+    pub fn time_range(&self) -> Option<TimestampMinMax> {
+        self.column(TIME_COLUMN_NAME).and_then(|c| {
+            if let Statistics::I64(StatValues {
+                min: Some(min),
+                max: Some(max),
+                ..
+            }) = &c.stats
+            {
+                Some(TimestampMinMax::new(*min, *max))
+            } else {
+                None
+            }
+        })
     }
 }
 

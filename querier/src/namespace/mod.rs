@@ -1,8 +1,8 @@
 //! Namespace within the whole database.
 
 use crate::{
-    cache::CatalogCache, chunk::ParquetChunkAdapter, ingester::IngesterConnection,
-    query_log::QueryLog, table::QuerierTable,
+    cache::CatalogCache, chunk::ChunkAdapter, ingester::IngesterConnection, query_log::QueryLog,
+    table::QuerierTable,
 };
 use data_types::{NamespaceId, NamespaceSchema};
 use iox_query::exec::Executor;
@@ -46,7 +46,7 @@ pub struct QuerierNamespace {
 impl QuerierNamespace {
     /// Create new namespace for given schema.
     pub fn new(
-        chunk_adapter: Arc<ParquetChunkAdapter>,
+        chunk_adapter: Arc<ChunkAdapter>,
         schema: Arc<NamespaceSchema>,
         name: Arc<str>,
         exec: Arc<Executor>,
@@ -98,7 +98,7 @@ impl QuerierNamespace {
         ingester_connection: Arc<dyn IngesterConnection>,
     ) -> Self {
         let time_provider = catalog_cache.time_provider();
-        let chunk_adapter = Arc::new(ParquetChunkAdapter::new(
+        let chunk_adapter = Arc::new(ChunkAdapter::new(
             catalog_cache,
             store,
             metric_registry,

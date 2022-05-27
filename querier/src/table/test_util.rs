@@ -9,7 +9,7 @@ use parquet_file::storage::ParquetStorage;
 use schema::{selection::Selection, sort::SortKey, Schema};
 
 use crate::{
-    cache::CatalogCache, chunk::ParquetChunkAdapter, create_ingester_connection_for_testing,
+    cache::CatalogCache, chunk::ChunkAdapter, create_ingester_connection_for_testing,
     IngesterPartition,
 };
 
@@ -23,7 +23,7 @@ pub async fn querier_table(catalog: &Arc<TestCatalog>, table: &Arc<TestTable>) -
         catalog.metric_registry(),
         usize::MAX,
     ));
-    let chunk_adapter = Arc::new(ParquetChunkAdapter::new(
+    let chunk_adapter = Arc::new(ChunkAdapter::new(
         catalog_cache,
         ParquetStorage::new(catalog.object_store()),
         catalog.metric_registry(),

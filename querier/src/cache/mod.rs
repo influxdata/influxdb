@@ -7,8 +7,8 @@ use std::sync::Arc;
 
 use self::{
     namespace::NamespaceCache, parquet_file::ParquetFileCache, partition::PartitionCache,
-    processed_tombstones::ProcessedTombstonesCache, ram::RamSize, table::TableCache,
-    tombstones::TombstoneCache,
+    processed_tombstones::ProcessedTombstonesCache, ram::RamSize, read_buffer::ReadBufferCache,
+    table::TableCache, tombstones::TombstoneCache,
 };
 
 pub mod namespace;
@@ -160,5 +160,10 @@ impl CatalogCache {
     /// Tombstone cache.
     pub(crate) fn tombstone(&self) -> &TombstoneCache {
         &self.tombstone_cache
+    }
+
+    /// Read buffer chunk cache.
+    pub(crate) fn read_buffer(&self) -> &ReadBufferCache {
+        unimplemented!("Deliberately not hooking up this cache yet");
     }
 }
