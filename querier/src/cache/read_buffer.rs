@@ -85,7 +85,7 @@ impl ReadBufferCache {
         Self { cache, _backend }
     }
 
-    /// Get read buffer chunks by Parquet file id
+    /// Get read buffer chunks from the cache or the Parquet file
     pub async fn get(&self, decoded_parquet_file: &DecodedParquetFile) -> Arc<RBChunk> {
         let parquet_file = &decoded_parquet_file.parquet_file;
 
