@@ -132,7 +132,7 @@ where
     let meta = to_parquet(batches, meta, &mut w).await?;
     if meta.row_groups.is_empty() {
         // panic here to avoid later consequence of reading it for statistics
-        panic!("partition_id={}. Created Parquet FileMetadata has no row groups needed for collecting statistics later: {:#?}", partition_id, meta);
+        panic!("partition_id={}. Created Parquet metadata has no column metadata. HINT a common reason of this is writing empty data to parquet file: {:#?}", partition_id, meta);
     }
 
     debug!(?partition_id, ?meta, "Parquet Metadata");

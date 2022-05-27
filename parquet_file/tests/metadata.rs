@@ -103,6 +103,61 @@ async fn test_decoded_iox_metadata() {
     );
 }
 
+// Reproducer for "https://github.com/influxdata/influxdb_iox/issues/4695"
+// TODO: remove #[ignore] to turn the test on after the fix
+#[ignore]
+#[tokio::test]
+async fn test_decoded_iox_metadata_without_data() {
+    // A representative IOx data sample (with a time column, an invariant upheld
+    // in the IOx write path)
+    let data = [
+        (
+            TIME_COLUMN_NAME,
+            to_timestamp_array(&[]), // No data on purpose to reproduce the panic bug
+        ),
+        ("some_field", to_string_array(&[])),
+    ];
+
+    // And the metadata the batch would be encoded with if it came through the
+    // IOx write path.
+    let meta = IoxMetadata {
+        object_store_id: Default::default(),
+        creation_timestamp: Time::from_timestamp_nanos(42),
+        namespace_id: NamespaceId::new(1),
+        namespace_name: "bananas".into(),
+        sequencer_id: SequencerId::new(2),
+        table_id: TableId::new(3),
+        table_name: "platanos".into(),
+        partition_id: PartitionId::new(4),
+        partition_key: "potato".into(),
+        min_sequence_number: SequenceNumber::new(10),
+        max_sequence_number: SequenceNumber::new(11),
+        compaction_level: 1,
+        sort_key: None,
+    };
+
+    let batch = RecordBatch::try_from_iter(data).unwrap();
+    let stream = futures::stream::iter([Ok(batch.clone())]);
+
+    let object_store: Arc<DynObjectStore> = Arc::new(object_store::memory::InMemory::default());
+    let storage = ParquetStorage::new(object_store);
+
+    let (iox_parquet_meta, _file_size) = storage
+        .upload(stream, &meta)
+        .await
+        .expect("failed to serialise & persist record batch");
+
+    // Decode the IOx metadata embedded in the parquet file metadata.
+    let decoded = iox_parquet_meta
+        .decode()
+        .expect("failed to decode parquet file metadata");
+
+    let schema = decoded.read_schema().unwrap();
+    decoded
+        .read_statistics(&*schema)
+        .expect("Invalid Statistics"); // panic due to the bug
+}
+
 #[tokio::test]
 async fn test_decoded_many_columns_with_null_cols_iox_metadata() {
     // Increase these values to have larger test
