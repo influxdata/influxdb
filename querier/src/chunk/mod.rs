@@ -328,42 +328,38 @@ impl ChunkAdapter {
         &self,
         decoded_parquet_file: &DecodedParquetFile,
     ) -> Option<QuerierParquetChunk> {
-        let parquet_file = &decoded_parquet_file.parquet_file;
-        let chunk = Arc::new(self.new_parquet_chunk(decoded_parquet_file).await?);
-        let chunk_id = ChunkId::from(Uuid::from_u128(parquet_file.id.get() as _));
-        let table_name = self
-            .catalog_cache
-            .table()
-            .name(parquet_file.table_id)
-            .await?;
+        let parquet_file_id = decoded_parquet_file.parquet_file_id();
+        let table_id = decoded_parquet_file.table_id();
 
-        let iox_metadata = &decoded_parquet_file.iox_metadata;
+        let chunk = Arc::new(self.new_parquet_chunk(decoded_parquet_file).await?);
+        let chunk_id = ChunkId::from(Uuid::from_u128(parquet_file_id.get() as _));
+        let table_name = self.catalog_cache.table().name(table_id).await?;
 
         // Somewhat hacky workaround because of implicit chunk orders, use min sequence number and
         // hope it doesn't overflow u32. Order is non-zero, se we need to add 1.
-        let order = ChunkOrder::new(1 + iox_metadata.min_sequence_number.get() as u32)
+        let order = ChunkOrder::new(1 + decoded_parquet_file.min_sequence_number().get() as u32)
             .expect("cannot be zero");
 
         // Read partition sort key
         let partition_sort_key = self
             .catalog_cache()
             .partition()
-            .sort_key(iox_metadata.partition_id)
+            .sort_key(decoded_parquet_file.partition_id())
             .await;
 
         let meta = Arc::new(ChunkMeta {
             chunk_id,
             table_name,
             order,
-            sort_key: iox_metadata.sort_key.clone(),
-            sequencer_id: iox_metadata.sequencer_id,
-            partition_id: iox_metadata.partition_id,
-            min_sequence_number: parquet_file.min_sequence_number,
-            max_sequence_number: parquet_file.max_sequence_number,
+            sort_key: decoded_parquet_file.sort_key().cloned(),
+            sequencer_id: decoded_parquet_file.sequencer_id(),
+            partition_id: decoded_parquet_file.partition_id(),
+            min_sequence_number: decoded_parquet_file.min_sequence_number(),
+            max_sequence_number: decoded_parquet_file.max_sequence_number(),
         });
 
         Some(QuerierParquetChunk::new(
-            parquet_file.id,
+            parquet_file_id,
             chunk,
             meta,
             partition_sort_key,
@@ -375,7 +371,14 @@ impl ChunkAdapter {
         &self,
         decoded_parquet_file: &DecodedParquetFile,
     ) -> Option<QuerierRBChunk> {
-        let parquet_file = &decoded_parquet_file.parquet_file;
+        let parquet_file_id = decoded_parquet_file.parquet_file_id();
+        let schema = decoded_parquet_file.schema();
+        let chunk_id = ChunkId::from(Uuid::from_u128(parquet_file_id.get() as _));
+        let table_name = self
+            .catalog_cache
+            .table()
+            .name(decoded_parquet_file.table_id())
+            .await?;
 
         let rb_chunk = self
             .catalog_cache()
@@ -383,47 +386,31 @@ impl ChunkAdapter {
             .get(decoded_parquet_file)
             .await;
 
-        let decoded = decoded_parquet_file
-            .parquet_metadata
-            .as_ref()
-            .decode()
-            .unwrap();
-        let schema = decoded.read_schema().unwrap();
-
-        let chunk_id = ChunkId::from(Uuid::from_u128(parquet_file.id.get() as _));
-        let table_name = self
-            .catalog_cache
-            .table()
-            .name(parquet_file.table_id)
-            .await?;
-
-        let iox_metadata = &decoded_parquet_file.iox_metadata;
-
         // Somewhat hacky workaround because of implicit chunk orders, use min sequence number and
         // hope it doesn't overflow u32. Order is non-zero, se we need to add 1.
-        let order = ChunkOrder::new(1 + iox_metadata.min_sequence_number.get() as u32)
+        let order = ChunkOrder::new(1 + decoded_parquet_file.min_sequence_number().get() as u32)
             .expect("cannot be zero");
 
         // Read partition sort key
         let partition_sort_key = self
             .catalog_cache()
             .partition()
-            .sort_key(iox_metadata.partition_id)
+            .sort_key(decoded_parquet_file.partition_id())
             .await;
 
         let meta = Arc::new(ChunkMeta {
             chunk_id,
             table_name,
             order,
-            sort_key: iox_metadata.sort_key.clone(),
-            sequencer_id: iox_metadata.sequencer_id,
-            partition_id: iox_metadata.partition_id,
-            min_sequence_number: parquet_file.min_sequence_number,
-            max_sequence_number: parquet_file.max_sequence_number,
+            sort_key: decoded_parquet_file.sort_key().cloned(),
+            sequencer_id: decoded_parquet_file.sequencer_id(),
+            partition_id: decoded_parquet_file.partition_id(),
+            min_sequence_number: decoded_parquet_file.min_sequence_number(),
+            max_sequence_number: decoded_parquet_file.max_sequence_number(),
         });
 
         Some(QuerierRBChunk::new(
-            parquet_file.id,
+            parquet_file_id,
             rb_chunk,
             meta,
             schema,
