@@ -92,7 +92,7 @@ use data_types::{
 };
 use generated_types::influxdata::iox::ingester::v1 as proto;
 use iox_time::Time;
-use observability_deps::tracing::debug;
+use observability_deps::tracing::{debug, trace};
 use parquet::{
     arrow::parquet_to_arrow_schema,
     file::{
@@ -112,7 +112,7 @@ use schema::{
     InfluxColumnType, InfluxFieldType, Schema, TIME_COLUMN_NAME,
 };
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
-use std::{convert::TryInto, mem, sync::Arc};
+use std::{convert::TryInto, fmt::Debug, mem, sync::Arc};
 use thrift::protocol::{TCompactInputProtocol, TCompactOutputProtocol, TOutputProtocol};
 use uuid::Uuid;
 
@@ -388,7 +388,7 @@ impl IoxMetadata {
         metadata: &IoxParquetMetaData,
     ) -> ParquetFileParams {
         let decoded = metadata.decode().expect("invalid IOx metadata");
-        debug!(
+        trace!(
             ?partition_id,
             ?decoded,
             "DecodedIoxParquetMetaData decoded from its IoxParquetMetaData"
@@ -486,7 +486,7 @@ fn decode_timestamp_from_field(
 }
 
 /// Parquet metadata with IOx-specific wrapper.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct IoxParquetMetaData {
     /// [Apache Parquet] metadata as freestanding [Apache Thrift]-encoded, and [Zstandard]-compressed bytes.
     ///
@@ -499,6 +499,14 @@ pub struct IoxParquetMetaData {
     /// [Thrift Compact Protocol]: https://github.com/apache/thrift/blob/master/doc/specs/thrift-compact-protocol.md
     /// [Zstandard]: http://facebook.github.io/zstd/
     data: Vec<u8>,
+}
+
+impl Debug for IoxParquetMetaData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("IoxParquetMetaData")
+            .field("data", &format!("<{} bytes>", self.data.len()))
+            .finish()
+    }
 }
 
 impl IoxParquetMetaData {

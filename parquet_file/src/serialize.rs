@@ -4,7 +4,7 @@ use std::{ops::DerefMut, sync::Arc};
 
 use arrow::{error::ArrowError, record_batch::RecordBatch};
 use futures::{pin_mut, Stream, StreamExt};
-use observability_deps::tracing::debug;
+use observability_deps::tracing::{debug, trace};
 use parquet::{
     arrow::ArrowWriter,
     basic::Compression,
@@ -135,7 +135,7 @@ where
         panic!("partition_id={}. Created Parquet metadata has no column metadata. HINT a common reason of this is writing empty data to parquet file: {:#?}", partition_id, meta);
     }
 
-    debug!(?partition_id, ?meta, "Parquet Metadata");
+    trace!(?partition_id, ?meta, "Parquet Metadata");
 
     let mut bytes = w
         .into_inner()
