@@ -383,17 +383,22 @@ impl IoxMetadata {
     /// [`RecordBatch`]: arrow::record_batch::RecordBatch
     pub fn to_parquet_file(
         &self,
+        partition_id: PartitionId,
         file_size_bytes: usize,
         metadata: &IoxParquetMetaData,
     ) -> ParquetFileParams {
         let decoded = metadata.decode().expect("invalid IOx metadata");
         debug!(
+            ?partition_id,
             ?decoded,
             "DecodedIoxParquetMetaData decoded from its IoxParquetMetaData"
         );
         let row_count = decoded.row_count();
         if decoded.md.row_groups().is_empty() {
-            debug!("Decoded IoxParquetMetaData has no row groups to provide useful statistics");
+            debug!(
+                ?partition_id,
+                "Decoded IoxParquetMetaData has no row groups to provide useful statistics"
+            );
         }
 
         // Derive the min/max timestamp from the Parquet column statistics.
@@ -998,7 +1003,7 @@ mod tests {
             .expect("failed to decode IoxParquetMetaData from file metadata");
         assert_eq!(iox_from_file_meta, iox_parquet_meta);
 
-        // Reproducer of https://github.com/influxdata/influxdb_iox/issues/4695
+        // Reproducer of https://github.com/influxdata/influxdb_iox/issues/4714
         // Convert IOx meta data back to parquet meta data and verify it is still the same
         let decoded = iox_from_file_meta.decode().unwrap();
 
@@ -1012,13 +1017,12 @@ mod tests {
         let col_meta = new_row_group_meta[0].column(0);
         assert!(col_meta.statistics().is_some()); // There is statistics for column "a"
 
-        // Exactly used in 4695
         let schema = decoded.read_schema().unwrap();
         let (_, field) = schema.field(0);
         assert_eq!(field.name(), "a");
         println!("schema: {:#?}", schema);
 
         let col_summary = decoded.read_statistics(&*schema).unwrap();
-        assert!(col_summary.is_empty()); // TODO: must be NOT empty after the fix of 4695
+        assert!(col_summary.is_empty()); // TODO: must be NOT empty after the fix of 4714
     }
 }

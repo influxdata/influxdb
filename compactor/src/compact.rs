@@ -486,10 +486,14 @@ impl Compactor {
                         meta,
                         tombstones,
                     } = v;
-                    debug!(?meta, "executing and uploading compaction StreamSplitExec");
+                    debug!(
+                        ?partition_id,
+                        ?meta,
+                        "executing and uploading compaction StreamSplitExec"
+                    );
 
                     let object_store_id = meta.object_store_id;
-                    info!(%object_store_id, "streaming exec to object store");
+                    info!(?partition_id, %object_store_id, "streaming exec to object store");
 
                     // Stream the record batches from the compaction exec, serialise
                     // them, and directly upload the resulting Parquet files to
@@ -497,9 +501,10 @@ impl Compactor {
                     let (parquet_meta, file_size) =
                         self.store.upload(data, &meta).await.context(PersistSnafu)?;
 
-                    debug!(%object_store_id, "file uploaded to object store");
+                    debug!(?partition_id, %object_store_id, "file uploaded to object store");
 
                     Ok(CatalogUpdate::new(
+                        partition_id,
                         meta,
                         file_size,
                         parquet_meta,

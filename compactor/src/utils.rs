@@ -2,7 +2,8 @@
 
 use crate::query::QueryableParquetChunk;
 use data_types::{
-    ParquetFileId, ParquetFileParams, ParquetFileWithMetadata, Timestamp, Tombstone, TombstoneId,
+    ParquetFileId, ParquetFileParams, ParquetFileWithMetadata, PartitionId, Timestamp, Tombstone,
+    TombstoneId,
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
 use observability_deps::tracing::*;
@@ -165,12 +166,13 @@ pub struct CatalogUpdate {
 impl CatalogUpdate {
     /// Initialize with data received from a persist to object storage
     pub fn new(
+        partition_id: PartitionId,
         meta: IoxMetadata,
         file_size: usize,
         md: IoxParquetMetaData,
         tombstones: BTreeMap<TombstoneId, Tombstone>,
     ) -> Self {
-        let parquet_file = meta.to_parquet_file(file_size, &md);
+        let parquet_file = meta.to_parquet_file(partition_id, file_size, &md);
         Self {
             meta,
             tombstones,

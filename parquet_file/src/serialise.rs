@@ -121,10 +121,21 @@ where
 {
     let mut w = InMemoryWriteableCursor::default();
 
+    let partition_id = meta.partition_id;
+    debug!(
+        ?partition_id,
+        ?meta,
+        "IOxMetaData provided for serializing the data into the in-memory buffer"
+    );
+
     // Serialise the record batches into the in-memory buffer
     let meta = to_parquet(batches, meta, &mut w).await?;
+    if meta.row_groups.is_empty() {
+        // panic here to avoid later consequence of reading it for statistics
+        panic!("partition_id={}. Created Parquet FileMetadata has no row groups needed for collecting statistics later: {:#?}", partition_id, meta);
+    }
 
-    debug!(?meta, "Parquet Metadata");
+    debug!(?partition_id, ?meta, "Parquet Metadata");
 
     let mut bytes = w
         .into_inner()

@@ -234,6 +234,7 @@ async fn test_derive_parquet_file_params() {
 
     // And the metadata the batch would be encoded with if it came through the
     // IOx write path.
+    let partition_id = PartitionId::new(4);
     let meta = IoxMetadata {
         object_store_id: Default::default(),
         creation_timestamp: Time::from_timestamp_nanos(1234),
@@ -242,7 +243,7 @@ async fn test_derive_parquet_file_params() {
         sequencer_id: SequencerId::new(2),
         table_id: TableId::new(3),
         table_name: "platanos".into(),
-        partition_id: PartitionId::new(4),
+        partition_id,
         partition_key: "potato".into(),
         min_sequence_number: SequenceNumber::new(10),
         max_sequence_number: SequenceNumber::new(11),
@@ -272,11 +273,12 @@ async fn test_derive_parquet_file_params() {
 
     // Use the IoxParquetMetaData and original IoxMetadata to derive a
     // ParquetFileParams.
-    let catalog_data = meta.to_parquet_file(file_size, &iox_parquet_meta);
+    let catalog_data = meta.to_parquet_file(partition_id, file_size, &iox_parquet_meta);
 
     // And verify the resulting statistics used in the catalog.
     //
     // NOTE: thrift-encoded metadata not checked
+    // TODO: check thrift-encoded metadata which may be the issue of bug 4695
     assert_eq!(catalog_data.sequencer_id, meta.sequencer_id);
     assert_eq!(catalog_data.namespace_id, meta.namespace_id);
     assert_eq!(catalog_data.table_id, meta.table_id);
