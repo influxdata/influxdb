@@ -39,7 +39,7 @@ fn test_encode_decode() {
 }
 
 // This test asserts columns containing no values do not prevent an encoded
-// batch from being deserialised:
+// batch from being deserialize:
 //
 //  https://github.com/influxdata/influxdb_iox/issues/4272
 //
@@ -68,7 +68,7 @@ fn test_encode_decode() {
 // In both partitions, one column is composed entirely of NULL values.
 //
 // Encoding each of these partitions succeeds, but decoding the partition fails
-// due to the inability to infer a column type from the serialised format which
+// due to the inability to infer a column type from the serialized format which
 // contains no values:
 //
 // ```

@@ -84,8 +84,8 @@ struct EncodeError(prost::EncodeError);
 
 impl From<EncodeError> for tonic::Status {
     fn from(error: EncodeError) -> Self {
-        error!(error=%error.0, "failed to serialise error response details");
-        tonic::Status::unknown(format!("failed to serialise server error: {}", error.0))
+        error!(error=%error.0, "failed to serialize error response details");
+        tonic::Status::unknown(format!("failed to serialize server error: {}", error.0))
     }
 }
 

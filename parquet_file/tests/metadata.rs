@@ -58,7 +58,7 @@ async fn test_decoded_iox_metadata() {
     let (iox_parquet_meta, file_size) = storage
         .upload(stream, &meta)
         .await
-        .expect("failed to serialise & persist record batch");
+        .expect("failed to serialize & persist record batch");
 
     // Sanity check - can't assert the actual value.
     assert!(file_size > 0);
@@ -96,7 +96,7 @@ async fn test_decoded_iox_metadata() {
 
     let got = decoded
         .read_iox_metadata_new()
-        .expect("failed to deserialise embedded IOx metadata");
+        .expect("failed to deserialize embedded IOx metadata");
     assert_eq!(
         got, meta,
         "embedded metadata does not match original metadata"
@@ -181,7 +181,7 @@ async fn test_decoded_many_columns_with_null_cols_iox_metadata() {
     let (iox_parquet_meta, file_size) = storage
         .upload(stream, &meta)
         .await
-        .expect("failed to serialise & persist record batch");
+        .expect("failed to serialize & persist record batch");
     //println!("iox_parquet_meta: {:#?}", iox_parquet_meta);
 
     // Sanity check - can't assert the actual value.
@@ -211,7 +211,7 @@ async fn test_decoded_many_columns_with_null_cols_iox_metadata() {
 
     let got = decoded
         .read_iox_metadata_new()
-        .expect("failed to deserialise embedded IOx metadata");
+        .expect("failed to deserialize embedded IOx metadata");
     assert_eq!(
         got, meta,
         "embedded metadata does not match original metadata"
@@ -269,7 +269,7 @@ async fn test_derive_parquet_file_params() {
     let (iox_parquet_meta, file_size) = storage
         .upload(stream, &meta)
         .await
-        .expect("failed to serialise & persist record batch");
+        .expect("failed to serialize & persist record batch");
 
     // Use the IoxParquetMetaData and original IoxMetadata to derive a
     // ParquetFileParams.

@@ -3,7 +3,7 @@
 
 use crate::{
     metadata::{IoxMetadata, IoxParquetMetaData},
-    serialise::{self, CodecError},
+    serialize::{self, CodecError},
     ParquetFilePath,
 };
 use arrow::{
@@ -74,7 +74,7 @@ pub enum ReadError {
 /// The [`ParquetStorage`] type encapsulates [`RecordBatch`] persistence to an
 /// underlying [`ObjectStore`].
 ///
-/// [`RecordBatch`] instances are serialised to Parquet files, with IOx specific
+/// [`RecordBatch`] instances are serialized to Parquet files, with IOx specific
 /// metadata ([`IoxParquetMetaData`]) attached.
 ///
 /// Code that interacts with Parquet files in object storage should utilise this
@@ -116,10 +116,13 @@ impl ParquetStorage {
         //
         // This is not a huge concern, as the resulting parquet files are
         // currently smallish on average.
-        let (data, parquet_file_meta) = serialise::to_parquet_bytes(batches, meta).await?;
-        // TODO: remove this if after verifying the panic is thrown correctly inside the serialise::to_parquet_bytes above
+        let (data, parquet_file_meta) = serialize::to_parquet_bytes(batches, meta).await?;
+        // TODO: remove this if after verifying the panic is thrown
+        // correctly inside the serialize::to_parquet_bytes above
         if parquet_file_meta.row_groups.is_empty() {
-            debug!(?meta.partition_id, ?parquet_file_meta, "Created parquet_file_meta has no row groups which will introduce panic later when its statistics is read");
+            debug!(
+                ?meta.partition_id, ?parquet_file_meta,
+                "Created parquet_file_meta has no row groups which will introduce panic later when its statistics is read");
         }
 
         // Read the IOx-specific parquet metadata from the file metadata
@@ -153,7 +156,7 @@ impl ParquetStorage {
     /// Pull the Parquet-encoded [`RecordBatch`] at the file path derived from
     /// the provided [`ParquetFilePath`].
     ///
-    /// The `selection` projection is pushed down to the Parquet deserialiser.
+    /// The `selection` projection is pushed down to the Parquet deserializer.
     ///
     /// This impl fetches the associated Parquet file bytes from object storage,
     /// temporarily persisting them to a local temp file to feed to the arrow
@@ -324,11 +327,11 @@ mod tests {
         let schema = batch.schema();
         let stream = futures::stream::iter([Ok(batch.clone())]);
 
-        // Serialise & upload the record batches.
+        // Serialize & upload the record batches.
         let (file_meta, _file_size) = store
             .upload(stream, &meta)
             .await
-            .expect("should serialise and store sucessfully");
+            .expect("should serialize and store sucessfully");
 
         // Extract the various bits of metadata.
         let file_meta = file_meta.decode().expect("should decode parquet metadata");

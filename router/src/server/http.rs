@@ -135,7 +135,7 @@ pub enum OrgBucketError {
     NotSpecified,
 
     /// The request contains invalid parameters.
-    #[error("failed to deserialise org/bucket/precision in request: {0}")]
+    #[error("failed to deserialize org/bucket/precision in request: {0}")]
     DecodeFail(#[from] serde::de::value::Error),
 
     /// The provided org/bucket could not be converted into a database name.

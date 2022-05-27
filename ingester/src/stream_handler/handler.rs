@@ -272,7 +272,7 @@ where
                     None
                 }
                 Some(Err(e)) if e.kind() == WriteBufferErrorKind::InvalidData => {
-                    // The DmlOperation could not be de-serialised from the
+                    // The DmlOperation could not be de-serialized from the
                     // kafka message.
                     //
                     // This is almost certainly data loss as the write will not
@@ -282,7 +282,7 @@ where
                         kafka_topic=%self.kafka_topic_name,
                         kafka_partition=%self.kafka_partition,
                         potential_data_loss=true,
-                        "unable to deserialise dml operation"
+                        "unable to deserialize dml operation"
                     );
 
                     self.seq_invalid_data_count.inc(1);

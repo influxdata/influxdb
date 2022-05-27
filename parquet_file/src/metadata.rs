@@ -374,7 +374,7 @@ impl IoxMetadata {
     /// contain valid metadata bytes, has no readable schema, or has no field
     /// statistics.
     ///
-    /// A [`RecordBatch`] serialised without the embedded metadata found in the
+    /// A [`RecordBatch`] serialized without the embedded metadata found in the
     /// IOx [`Schema`] type will cause a statistic resolution failure due to
     /// lack of the IOx field type metadata for the time column. Batches
     /// produced from the through the IOx write path always include this
@@ -982,9 +982,9 @@ mod tests {
         let batch = RecordBatch::try_from_iter([("a", data)]).unwrap();
         let stream = futures::stream::iter([Ok(batch.clone())]);
 
-        let (bytes, file_meta) = crate::serialise::to_parquet_bytes(stream, &meta)
+        let (bytes, file_meta) = crate::serialize::to_parquet_bytes(stream, &meta)
             .await
-            .expect("should serialise");
+            .expect("should serialize");
 
         // Verify if the parquet file meta data has values
         assert!(!file_meta.row_groups.is_empty());
