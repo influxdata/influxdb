@@ -257,7 +257,7 @@ pub struct ChunkAdapter {
     /// Cache
     catalog_cache: Arc<CatalogCache>,
 
-    /// Object store.
+    /// Object store. Wrapper around an Arc; cheap to clone.
     store: ParquetStorage,
 
     /// Metric registry.
@@ -369,7 +369,7 @@ impl ChunkAdapter {
     /// Create read buffer chunk. May be from the cache, may be from the parquet file.
     pub async fn new_rb_chunk(
         &self,
-        decoded_parquet_file: &DecodedParquetFile,
+        decoded_parquet_file: Arc<DecodedParquetFile>,
     ) -> Option<QuerierRBChunk> {
         let parquet_file_id = decoded_parquet_file.parquet_file_id();
         let schema = decoded_parquet_file.schema();
@@ -383,7 +383,11 @@ impl ChunkAdapter {
         let rb_chunk = self
             .catalog_cache()
             .read_buffer()
-            .get(decoded_parquet_file)
+            .get(
+                Arc::clone(&decoded_parquet_file),
+                Arc::clone(&table_name),
+                self.store.clone(),
+            )
             .await;
 
         // Somewhat hacky workaround because of implicit chunk orders, use min sequence number and
