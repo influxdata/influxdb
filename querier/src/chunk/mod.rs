@@ -370,10 +370,8 @@ impl ChunkAdapter {
         ))
     }
 
-    /// Create new cached chunk.
-    ///
-    /// Returns `None` if some data required to create this chunk is already gone from the catalog.
-    pub async fn new_chunk(
+    /// Create read buffer chunk. May be from the cache, may be from the parquet file.
+    pub async fn new_rb_chunk(
         &self,
         decoded_parquet_file: &DecodedParquetFile,
     ) -> Option<QuerierRBChunk> {
