@@ -28,7 +28,7 @@ const CACHE_ID: &str = "processed_tombstones";
 /// Cache for processed tombstones.
 #[derive(Debug)]
 pub struct ProcessedTombstonesCache {
-    cache: Cache<(ParquetFileId, TombstoneId), bool>,
+    cache: Cache<(ParquetFileId, TombstoneId), bool, ()>,
 }
 
 impl ProcessedTombstonesCache {
@@ -41,7 +41,7 @@ impl ProcessedTombstonesCache {
         ram_pool: Arc<ResourcePool<RamSize>>,
     ) -> Self {
         let loader = Box::new(FunctionLoader::new(
-            move |(parquet_file_id, tombstone_id)| {
+            move |(parquet_file_id, tombstone_id), _extra: ()| {
                 let catalog = Arc::clone(&catalog);
                 let backoff_config = backoff_config.clone();
 
@@ -89,7 +89,7 @@ impl ProcessedTombstonesCache {
 
     /// Check if the specified tombstone is mark as "processed" for the given parquet file.
     pub async fn exists(&self, parquet_file_id: ParquetFileId, tombstone_id: TombstoneId) -> bool {
-        self.cache.get((parquet_file_id, tombstone_id)).await
+        self.cache.get((parquet_file_id, tombstone_id), ()).await
     }
 }
 

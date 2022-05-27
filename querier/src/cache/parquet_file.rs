@@ -98,7 +98,7 @@ impl CachedParquetFiles {
 /// DOES NOT CACHE the actual parquet bytes from object store
 #[derive(Debug)]
 pub struct ParquetFileCache {
-    cache: Cache<TableId, Arc<CachedParquetFiles>>,
+    cache: Cache<TableId, Arc<CachedParquetFiles>, ()>,
 
     /// Handle that allows clearing entries for existing cache entries
     backend: SharedBackend<TableId, Arc<CachedParquetFiles>>,
@@ -113,7 +113,7 @@ impl ParquetFileCache {
         metric_registry: &metric::Registry,
         ram_pool: Arc<ResourcePool<RamSize>>,
     ) -> Self {
-        let loader = Box::new(FunctionLoader::new(move |table_id: TableId| {
+        let loader = Box::new(FunctionLoader::new(move |table_id: TableId, _extra: ()| {
             let catalog = Arc::clone(&catalog);
             let backoff_config = backoff_config.clone();
 
@@ -177,7 +177,7 @@ impl ParquetFileCache {
 
     /// Get list of cached parquet files, by table id
     pub async fn get(&self, table_id: TableId) -> Arc<CachedParquetFiles> {
-        self.cache.get(table_id).await
+        self.cache.get(table_id, ()).await
     }
 
     /// Mark the entry for table_id as expired (and needs a refresh)

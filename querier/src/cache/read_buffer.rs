@@ -25,7 +25,7 @@ const CACHE_ID: &str = "read_buffer";
 /// Cache for parquet file data decoded into read buffer chunks
 #[derive(Debug)]
 pub struct ReadBufferCache {
-    cache: Cache<ParquetFileId, Arc<RBChunk>>,
+    cache: Cache<ParquetFileId, Arc<RBChunk>, ()>,
 
     /// Handle that allows clearing entries for existing cache entries
     _backend: SharedBackend<ParquetFileId, Arc<RBChunk>>,
@@ -39,7 +39,7 @@ impl ReadBufferCache {
         ram_pool: Arc<ResourcePool<RamSize>>,
     ) -> Self {
         let loader = Box::new(FunctionLoader::new(
-            move |parquet_file_id: ParquetFileId| {
+            move |parquet_file_id: ParquetFileId, _extra| {
                 let backoff_config = BackoffConfig::default();
 
                 async move {
@@ -89,7 +89,7 @@ impl ReadBufferCache {
     pub async fn get(&self, decoded_parquet_file: &DecodedParquetFile) -> Arc<RBChunk> {
         let parquet_file = &decoded_parquet_file.parquet_file;
 
-        self.cache.get(parquet_file.id).await
+        self.cache.get(parquet_file.id, ()).await
     }
 }
 

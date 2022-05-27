@@ -81,7 +81,7 @@ impl CachedTombstones {
 /// Cache for tombstones for a particular table
 #[derive(Debug)]
 pub struct TombstoneCache {
-    cache: Cache<TableId, CachedTombstones>,
+    cache: Cache<TableId, CachedTombstones, ()>,
     /// Handle that allows clearing entries for existing cache entries
     backend: SharedBackend<TableId, CachedTombstones>,
 }
@@ -95,7 +95,7 @@ impl TombstoneCache {
         metric_registry: &metric::Registry,
         ram_pool: Arc<ResourcePool<RamSize>>,
     ) -> Self {
-        let loader = Box::new(FunctionLoader::new(move |table_id: TableId| {
+        let loader = Box::new(FunctionLoader::new(move |table_id: TableId, _extra: ()| {
             let catalog = Arc::clone(&catalog);
             let backoff_config = backoff_config.clone();
 
@@ -146,7 +146,7 @@ impl TombstoneCache {
 
     /// Get list of cached tombstones, by table id
     pub async fn get(&self, table_id: TableId) -> CachedTombstones {
-        self.cache.get(table_id).await
+        self.cache.get(table_id, ()).await
     }
 
     /// Mark the entry for table_id as expired / needs a refresh
