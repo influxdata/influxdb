@@ -8,7 +8,7 @@ use data_types::{NamespaceId, PartitionId, SequenceNumber, SequencerId, TableId,
 use iox_time::Time;
 use object_store::DynObjectStore;
 use parquet_file::{metadata::IoxMetadata, storage::ParquetStorage};
-use schema::{builder::SchemaBuilder, InfluxFieldType, TIME_COLUMN_NAME};
+use schema::{builder::SchemaBuilder, sort::SortKey, InfluxFieldType, TIME_COLUMN_NAME};
 
 #[tokio::test]
 async fn test_decoded_iox_metadata() {
@@ -28,6 +28,7 @@ async fn test_decoded_iox_metadata() {
             "some_field",
             to_string_array(&["bananas", "platanos", "manzana"]),
         ),
+        ("null_field", null_array(3)),
     ];
 
     // And the metadata the batch would be encoded with if it came through the
@@ -74,6 +75,144 @@ async fn test_decoded_iox_metadata() {
         "row count statistics does not match input row count"
     );
 
+    // Repro of 4695
+    let row_group_meta = decoded.parquet_row_group_metadata();
+    println!("ow_group_meta: {:#?}", row_group_meta);
+    assert_eq!(row_group_meta.len(), 1);
+    assert_eq!(row_group_meta[0].columns().len(), 3); // time and some_field
+    assert!(row_group_meta[0].column(0).statistics().is_some()); // There is statistics for "time"
+    assert!(row_group_meta[0].column(1).statistics().is_some()); // There is statistics for "some_field"
+    assert!(row_group_meta[0].column(2).statistics().is_some()); // There is statistics for "null_field"
+
+    let schema = decoded.read_schema().unwrap();
+    let (_, field) = schema.field(0);
+    assert_eq!(field.name(), "time");
+    println!("schema: {:#?}", schema);
+
+    let col_summary = decoded
+        .read_statistics(&*schema)
+        .expect("Invalid Statistics");
+    assert!(col_summary.is_empty()); // TODO: must NOT be empty after the fix of 4695
+
+    let got = decoded
+        .read_iox_metadata_new()
+        .expect("failed to deserialise embedded IOx metadata");
+    assert_eq!(
+        got, meta,
+        "embedded metadata does not match original metadata"
+    );
+}
+
+#[tokio::test]
+async fn test_decoded_many_columns_with_null_cols_iox_metadata() {
+    // Increase these values to have larger test
+    let num_cols = 10;
+    let num_rows = 20;
+    let num_chars = 5;
+
+    let mut data = Vec::with_capacity(num_cols);
+
+    let t = 1646917692000000000;
+    let mut time_arr: Vec<i64> = Vec::with_capacity(num_rows);
+    let mut string_arr = Vec::with_capacity(num_rows);
+
+    // Make long strong data
+    fn make_long_str(len: usize) -> String {
+        let mut s = "String".to_string();
+        for i in 0..len {
+            s += i.to_string().as_str();
+        }
+        s
+    }
+    let str = make_long_str(num_chars);
+
+    // Data of time and string columns
+    for i in 0..num_rows {
+        time_arr.push(t + i as i64);
+        string_arr.push(str.as_str());
+    }
+
+    // First column is time
+    data.push((TIME_COLUMN_NAME.to_string(), to_timestamp_array(&time_arr)));
+    // Second column contains all nulls
+    data.push(("column_name_1".to_string(), null_array(num_rows)));
+    // Names of other columns
+    fn make_col_name(i: usize) -> String {
+        "column_name_".to_string() + i.to_string().as_str()
+    }
+    // Data of the rest of the columns
+    for i in 2..num_cols {
+        let col = make_col_name(i);
+        let col_data = (col, to_string_array(&string_arr));
+        data.push(col_data);
+    }
+
+    // And the metadata the batch would be encoded with if it came through the
+    // IOx write path.
+
+    // sort key inlcudes all columns with time column last
+    let mut sort_key_data = Vec::with_capacity(num_cols);
+    for i in 1..num_cols {
+        let col = make_col_name(i);
+        sort_key_data.push(col);
+    }
+    sort_key_data.push(TIME_COLUMN_NAME.to_string());
+    let sort_key = SortKey::from_columns(sort_key_data);
+
+    let meta = IoxMetadata {
+        object_store_id: Default::default(),
+        creation_timestamp: Time::from_timestamp_nanos(42),
+        namespace_id: NamespaceId::new(1),
+        namespace_name: "bananas".into(),
+        sequencer_id: SequencerId::new(2),
+        table_id: TableId::new(3),
+        table_name: "platanos".into(),
+        partition_id: PartitionId::new(4),
+        partition_key: "potato".into(),
+        min_sequence_number: SequenceNumber::new(10),
+        max_sequence_number: SequenceNumber::new(11),
+        compaction_level: 1,
+        sort_key: Some(sort_key),
+    };
+    //println!("IoxMetadata: {:#?}", meta);
+
+    let batch = RecordBatch::try_from_iter(data).unwrap();
+    let stream = futures::stream::iter([Ok(batch.clone())]);
+
+    let object_store: Arc<DynObjectStore> = Arc::new(object_store::memory::InMemory::default());
+    let storage = ParquetStorage::new(object_store);
+
+    let (iox_parquet_meta, file_size) = storage
+        .upload(stream, &meta)
+        .await
+        .expect("failed to serialise & persist record batch");
+    //println!("iox_parquet_meta: {:#?}", iox_parquet_meta);
+
+    // Sanity check - can't assert the actual value.
+    assert!(file_size > 0);
+
+    // Decode the IOx metadata embedded in the parquet file metadata.
+    let decoded = iox_parquet_meta
+        .decode()
+        .expect("failed to decode parquet file metadata");
+
+    // And verify the metadata matches the expected values.
+    assert_eq!(
+        decoded.row_count(),
+        num_rows,
+        "row count statistics does not match input row count"
+    );
+
+    let schema = decoded.read_schema().unwrap();
+    let (_, field) = schema.field(0);
+    assert_eq!(field.name(), "time");
+    //println!("schema: {:#?}", schema);
+
+    let col_summary = decoded
+        .read_statistics(&*schema)
+        .expect("Invalid Statistics");
+    assert!(col_summary.is_empty()); // TODO: must NOT be empty after the fix of 4695
+
     let got = decoded
         .read_iox_metadata_new()
         .expect("failed to deserialise embedded IOx metadata");
@@ -82,23 +221,13 @@ async fn test_decoded_iox_metadata() {
         "embedded metadata does not match original metadata"
     );
 
-    // Repro of 4695
-    let row_group_meta = decoded.parquet_row_group_metadata();
-    println!("row_group_meta: {:#?}", row_group_meta);
-    assert_eq!(row_group_meta.len(), 1);
-    assert_eq!(row_group_meta[0].columns().len(), 2); // time and some_field
-    assert!(row_group_meta[0].column(0).statistics().is_some()); // There is statistics for "time"
-    assert!(row_group_meta[0].column(1).statistics().is_some()); // There is statistics for "some_field"
-
     let schema = decoded.read_schema().unwrap();
     let (_, field) = schema.field(0);
     assert_eq!(field.name(), "time");
     println!("schema: {:#?}", schema);
 
-    let col_summary = decoded
-        .read_statistics(&*schema) // BUG: should not empty
-        .unwrap();
-    assert!(col_summary.is_empty()); // TODO: must be NOT empty after the fix of 4695
+    let col_summary = decoded.read_statistics(&*schema).unwrap();
+    assert!(col_summary.is_empty()); // TODO: must NOT be empty after the fix of 4695
 }
 
 #[tokio::test]
@@ -188,5 +317,13 @@ fn to_timestamp_array(timestamps: &[i64]) -> ArrayRef {
     builder
         .append_slice(timestamps)
         .expect("failed to append timestamp values");
+    Arc::new(builder.finish())
+}
+
+fn null_array(num: usize) -> ArrayRef {
+    let mut builder = StringBuilder::new(num);
+    for _i in 0..num {
+        builder.append_null().expect("failed to append null values");
+    }
     Arc::new(builder.finish())
 }

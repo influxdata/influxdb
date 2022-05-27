@@ -117,10 +117,17 @@ impl ParquetStorage {
         // This is not a huge concern, as the resulting parquet files are
         // currently smallish on average.
         let (data, parquet_file_meta) = serialise::to_parquet_bytes(batches, meta).await?;
+        if parquet_file_meta.row_groups.is_empty() {
+            debug!(?parquet_file_meta, "Created parquet_file_meta has no row groups which will introduce panic later when its statistics is read");
+        }
 
         // Read the IOx-specific parquet metadata from the file metadata
         let parquet_meta =
             IoxParquetMetaData::try_from(parquet_file_meta).map_err(UploadError::Metadata)?;
+        debug!(
+            ?parquet_meta,
+            "IoxParquetMetaData coverted from Row Group Metadata (aka FileMetaDat)"
+        );
 
         // Derive the correct object store path from the metadata.
         let path = ParquetFilePath::from(meta).object_store_path();

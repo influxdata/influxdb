@@ -92,6 +92,7 @@ use data_types::{
 };
 use generated_types::influxdata::iox::ingester::v1 as proto;
 use iox_time::Time;
+use observability_deps::tracing::debug;
 use parquet::{
     arrow::parquet_to_arrow_schema,
     file::{
@@ -386,7 +387,14 @@ impl IoxMetadata {
         metadata: &IoxParquetMetaData,
     ) -> ParquetFileParams {
         let decoded = metadata.decode().expect("invalid IOx metadata");
+        debug!(
+            ?decoded,
+            "DecodedIoxParquetMetaData decoded from its IoxParquetMetaData"
+        );
         let row_count = decoded.row_count();
+        if decoded.md.row_groups().is_empty() {
+            debug!("Decoded IoxParquetMetaData has no row groups to provide useful statistics");
+        }
 
         // Derive the min/max timestamp from the Parquet column statistics.
         let schema = decoded
@@ -771,6 +779,8 @@ fn read_statistics_from_parquet_row_group(
                 }),
                 stats,
             });
+        } else {
+            debug!(?field, "Provided schema of the field does not inlcude IOx Column Type such as Tag, Field, Time");
         }
     }
 
@@ -989,7 +999,7 @@ mod tests {
         assert_eq!(iox_from_file_meta, iox_parquet_meta);
 
         // Reproducer of https://github.com/influxdata/influxdb_iox/issues/4695
-        // Convert IOx meta data back to parquet meta data and verify it still the same
+        // Convert IOx meta data back to parquet meta data and verify it is still the same
         let decoded = iox_from_file_meta.decode().unwrap();
 
         let new_file_meta = decoded.parquet_file_meta();
@@ -1008,9 +1018,7 @@ mod tests {
         assert_eq!(field.name(), "a");
         println!("schema: {:#?}", schema);
 
-        let col_summary = decoded
-            .read_statistics(&*schema) // // BUG: should not empty
-            .unwrap();
+        let col_summary = decoded.read_statistics(&*schema).unwrap();
         assert!(col_summary.is_empty()); // TODO: must be NOT empty after the fix of 4695
     }
 }
