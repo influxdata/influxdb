@@ -56,15 +56,16 @@ async fn basic_multi_ingesters() {
             async {
                 let combined_response = get_multi_ingester_readable_combined_response(state).await;
 
-                // make sure data is spread across all kafka
-                // partitions by ensuring all partition is readable
-                // (and there is none that is unknown)
+                // make sure the data in all partitions is readable or
+                // persisted (and there is none that is unknown)
                 assert!(
-                    combined_response
-                        .kafka_partition_infos
-                        .iter()
-                        .all(|info| info.status() == KafkaPartitionStatus::Readable),
-                    "combined responses: {:?}",
+                    combined_response.kafka_partition_infos.iter().all(|info| {
+                        matches!(
+                            info.status(),
+                            KafkaPartitionStatus::Persisted | KafkaPartitionStatus::Readable
+                        )
+                    }),
+                    "Not all partitions were readable or persisted. Combined responses: {:?}",
                     combined_response
                 );
             }

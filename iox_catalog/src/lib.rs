@@ -37,7 +37,7 @@ pub mod postgres;
 /// it is created and an updated [`NamespaceSchema`] is returned.
 ///
 /// This function pushes schema additions through to the backend catalog, and
-/// relies on the catalog to serialise concurrent additions of a given column,
+/// relies on the catalog to serialize concurrent additions of a given column,
 /// ensuring only one type is ever accepted per column.
 pub async fn validate_or_insert_schema<'a, T, U, R>(
     tables: T,

@@ -92,6 +92,7 @@ use data_types::{
 };
 use generated_types::influxdata::iox::ingester::v1 as proto;
 use iox_time::Time;
+use observability_deps::tracing::debug;
 use parquet::{
     arrow::parquet_to_arrow_schema,
     file::{
@@ -373,7 +374,7 @@ impl IoxMetadata {
     /// contain valid metadata bytes, has no readable schema, or has no field
     /// statistics.
     ///
-    /// A [`RecordBatch`] serialised without the embedded metadata found in the
+    /// A [`RecordBatch`] serialized without the embedded metadata found in the
     /// IOx [`Schema`] type will cause a statistic resolution failure due to
     /// lack of the IOx field type metadata for the time column. Batches
     /// produced from the through the IOx write path always include this
@@ -382,11 +383,23 @@ impl IoxMetadata {
     /// [`RecordBatch`]: arrow::record_batch::RecordBatch
     pub fn to_parquet_file(
         &self,
+        partition_id: PartitionId,
         file_size_bytes: usize,
         metadata: &IoxParquetMetaData,
     ) -> ParquetFileParams {
         let decoded = metadata.decode().expect("invalid IOx metadata");
+        debug!(
+            ?partition_id,
+            ?decoded,
+            "DecodedIoxParquetMetaData decoded from its IoxParquetMetaData"
+        );
         let row_count = decoded.row_count();
+        if decoded.md.row_groups().is_empty() {
+            debug!(
+                ?partition_id,
+                "Decoded IoxParquetMetaData has no row groups to provide useful statistics"
+            );
+        }
 
         // Derive the min/max timestamp from the Parquet column statistics.
         let schema = decoded
@@ -771,6 +784,8 @@ fn read_statistics_from_parquet_row_group(
                 }),
                 stats,
             });
+        } else {
+            debug!(?field, "Provided schema of the field does not inlcude IOx Column Type such as Tag, Field, Time");
         }
     }
 
@@ -967,9 +982,9 @@ mod tests {
         let batch = RecordBatch::try_from_iter([("a", data)]).unwrap();
         let stream = futures::stream::iter([Ok(batch.clone())]);
 
-        let (bytes, file_meta) = crate::serialise::to_parquet_bytes(stream, &meta)
+        let (bytes, file_meta) = crate::serialize::to_parquet_bytes(stream, &meta)
             .await
-            .expect("should serialise");
+            .expect("should serialize");
 
         // Verify if the parquet file meta data has values
         assert!(!file_meta.row_groups.is_empty());
@@ -988,8 +1003,8 @@ mod tests {
             .expect("failed to decode IoxParquetMetaData from file metadata");
         assert_eq!(iox_from_file_meta, iox_parquet_meta);
 
-        // Reproducer of https://github.com/influxdata/influxdb_iox/issues/4695
-        // Convert IOx meta data back to parquet meta data and verify it still the same
+        // Reproducer of https://github.com/influxdata/influxdb_iox/issues/4714
+        // Convert IOx meta data back to parquet meta data and verify it is still the same
         let decoded = iox_from_file_meta.decode().unwrap();
 
         let new_file_meta = decoded.parquet_file_meta();
@@ -1002,15 +1017,12 @@ mod tests {
         let col_meta = new_row_group_meta[0].column(0);
         assert!(col_meta.statistics().is_some()); // There is statistics for column "a"
 
-        // Exactly used in 4695
         let schema = decoded.read_schema().unwrap();
         let (_, field) = schema.field(0);
         assert_eq!(field.name(), "a");
         println!("schema: {:#?}", schema);
 
-        let col_summary = decoded
-            .read_statistics(&*schema) // // BUG: should not empty
-            .unwrap();
-        assert!(col_summary.is_empty()); // TODO: must be NOT empty after the fix of 4695
+        let col_summary = decoded.read_statistics(&*schema).unwrap();
+        assert!(col_summary.is_empty()); // TODO: must be NOT empty after the fix of 4714
     }
 }

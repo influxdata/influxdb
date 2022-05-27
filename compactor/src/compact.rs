@@ -115,7 +115,7 @@ pub enum Error {
     #[snafu(display("Could not find partition {:?}", partition_id))]
     PartitionNotFound { partition_id: PartitionId },
 
-    #[snafu(display("Could not serialise and persist record batches {}", source))]
+    #[snafu(display("Could not serialize and persist record batches {}", source))]
     Persist {
         source: parquet_file::storage::UploadError,
     },
@@ -470,7 +470,7 @@ impl Compactor {
             //
             // This builds the StreamSplitExec plan & executes both partitions
             // concurrently, streaming the resulting record batches into the
-            // Parquet serialiser and directly uploads them to object store.
+            // Parquet serializer and directly uploads them to object store.
             //
             // If an non-object-store upload error occurs, all
             // executions/uploads are aborted and the error is returned to the
@@ -486,20 +486,25 @@ impl Compactor {
                         meta,
                         tombstones,
                     } = v;
-                    debug!(?meta, "executing and uploading compaction StreamSplitExec");
+                    debug!(
+                        ?partition_id,
+                        ?meta,
+                        "executing and uploading compaction StreamSplitExec"
+                    );
 
                     let object_store_id = meta.object_store_id;
-                    info!(%object_store_id, "streaming exec to object store");
+                    info!(?partition_id, %object_store_id, "streaming exec to object store");
 
-                    // Stream the record batches from the compaction exec, serialise
+                    // Stream the record batches from the compaction exec, serialize
                     // them, and directly upload the resulting Parquet files to
                     // object storage.
                     let (parquet_meta, file_size) =
                         self.store.upload(data, &meta).await.context(PersistSnafu)?;
 
-                    debug!(%object_store_id, "file uploaded to object store");
+                    debug!(?partition_id, %object_store_id, "file uploaded to object store");
 
                     Ok(CatalogUpdate::new(
+                        partition_id,
                         meta,
                         file_size,
                         parquet_meta,

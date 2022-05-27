@@ -11,7 +11,7 @@ use snafu::{ResultExt, Snafu};
 #[derive(Debug, Snafu)]
 #[allow(missing_docs)]
 pub enum Error {
-    #[snafu(display("Could not serialise and persist record batches {}", source))]
+    #[snafu(display("Could not serialize and persist record batches {}", source))]
     Persist {
         source: parquet_file::storage::UploadError,
     },

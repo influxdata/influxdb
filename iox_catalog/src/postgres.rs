@@ -2230,7 +2230,7 @@ mod tests {
                 sequence_number,
                 min_timestamp,
                 max_timestamp,
-                "some other serialised predicate which is different",
+                "some other serialized predicate which is different",
             )
             .await
             .expect("should panic before result evaluated");

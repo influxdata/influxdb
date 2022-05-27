@@ -74,7 +74,7 @@ pub enum SchemaError {
 /// (but uncached) columns, returning an error if the requested type does not
 /// match.
 ///
-/// The catalog must serialise column creation to avoid `set(a=tag)` overwriting
+/// The catalog must serialize column creation to avoid `set(a=tag)` overwriting
 /// a prior `set(a=int)` write to the catalog (returning an error that `a` is an
 /// `int` for the second request).
 ///

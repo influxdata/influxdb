@@ -310,7 +310,7 @@ impl Persister for IngesterData {
 
             if let Some((file_size, md)) = file_size_and_md {
                 // Add the parquet file to the catalog until succeed
-                let parquet_file = iox_meta.to_parquet_file(file_size, &md);
+                let parquet_file = iox_meta.to_parquet_file(partition_id, file_size, &md);
                 Backoff::new(&self.backoff_config)
                     .retry_all_errors("add parquet file to catalog", || async {
                         let mut repos = self.catalog.repositories().await;

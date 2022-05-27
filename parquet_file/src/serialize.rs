@@ -36,7 +36,7 @@ pub enum CodecError {
     Arrow(#[from] ArrowError),
 
     /// Serialising the [`IoxMetadata`] to protobuf-encoded bytes failed.
-    #[error("failed to serialise iox metadata: {0}")]
+    #[error("failed to serialize iox metadata: {0}")]
     MetadataSerialisation(#[from] prost::EncodeError),
 
     /// Writing the parquet file failed with the specified error.
@@ -56,10 +56,10 @@ pub enum CodecError {
 /// an error.
 ///
 /// IOx metadata is encoded into the parquet file's metadata under the key
-/// [`METADATA_KEY`], with a base64-wrapped, protobuf serialised
+/// [`METADATA_KEY`], with a base64-wrapped, protobuf serialized
 /// [`proto::IoxMetadata`] structure.
 ///
-/// Returns the serialised [`FileMetaData`] for the encoded parquet file, from
+/// Returns the serialized [`FileMetaData`] for the encoded parquet file, from
 /// which an [`IoxParquetMetaData`] can be derived.
 ///
 /// [`proto::IoxMetadata`]: generated_types::influxdata::iox::ingester::v1
@@ -96,10 +96,10 @@ where
         .map(|v| v.schema())
         .ok_or(CodecError::SchemaPeek)?;
 
-    // Serialise the IoxMetadata to the protobuf bytes.
+    // Serialize the IoxMetadata to the protobuf bytes.
     let props = writer_props(meta)?;
 
-    // Construct the arrow serialiser with the metadata as part of the parquet
+    // Construct the arrow serializer with the metadata as part of the parquet
     // file properties.
     let mut writer = ArrowWriter::try_new(sink, Arc::clone(&schema), Some(props))?;
 
@@ -121,10 +121,21 @@ where
 {
     let mut w = InMemoryWriteableCursor::default();
 
-    // Serialise the record batches into the in-memory buffer
-    let meta = to_parquet(batches, meta, &mut w).await?;
+    let partition_id = meta.partition_id;
+    debug!(
+        ?partition_id,
+        ?meta,
+        "IOxMetaData provided for serializing the data into the in-memory buffer"
+    );
 
-    debug!(?meta, "Parquet Metadata");
+    // Serialize the record batches into the in-memory buffer
+    let meta = to_parquet(batches, meta, &mut w).await?;
+    if meta.row_groups.is_empty() {
+        // panic here to avoid later consequence of reading it for statistics
+        panic!("partition_id={}. Created Parquet metadata has no column metadata. HINT a common reason of this is writing empty data to parquet file: {:#?}", partition_id, meta);
+    }
+
+    debug!(?partition_id, ?meta, "Parquet Metadata");
 
     let mut bytes = w
         .into_inner()
@@ -190,7 +201,7 @@ mod tests {
 
         let (bytes, _file_meta) = to_parquet_bytes(stream, &meta)
             .await
-            .expect("should serialise");
+            .expect("should serialize");
 
         // Read the metadata from the file bytes.
         //
