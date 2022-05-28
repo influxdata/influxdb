@@ -140,6 +140,8 @@ jobs:
       RUSTFLAGS: "-C debuginfo=1"
       # https://github.com/rust-lang/cargo/issues/10280
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+      # Turn warnings into errors
+      RUSTDOCFLAGS: "-D warnings -A rustdoc::private-intra-doc-links"
     steps:
       - checkout
       - rust_components

@@ -5,7 +5,7 @@ use generated_types::influxdata::iox::namespace::v1 as proto;
 use querier::QuerierDatabase;
 use std::sync::Arc;
 
-/// Acquire a [`NamespaceService`] gRPC service implementation.
+/// Acquire a [`NamespaceService`](proto::namespace_service_server::NamespaceService) gRPC service implementation.
 pub fn namespace_service(
     server: Arc<QuerierDatabase>,
 ) -> proto::namespace_service_server::NamespaceServiceServer<

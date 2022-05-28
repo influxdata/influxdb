@@ -1,5 +1,5 @@
 //! This module contains implementations for the storage gRPC service
-//! implemented in terms of the [`QueryDatabase`](query::QueryDatabase).
+//! implemented in terms of the [`QueryDatabase`](iox_query::QueryDatabase).
 
 use super::{TAG_KEY_FIELD, TAG_KEY_MEASUREMENT};
 use crate::{

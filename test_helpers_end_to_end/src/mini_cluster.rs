@@ -54,7 +54,7 @@ impl MiniCluster {
     /// servers but has a new unique namespace and set of connections
     ///
     /// Note this is an internal implementation -- please use
-    /// [create_shared], and [new] to create new MiniClusters.
+    /// [`create_shared`](Self::create_shared), and [`new`](Self::new) to create new MiniClusters.
     fn new_from_fixtures(
         router: Option<ServerFixture>,
         ingester: Option<ServerFixture>,

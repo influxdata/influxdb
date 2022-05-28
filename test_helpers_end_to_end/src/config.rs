@@ -33,8 +33,8 @@ pub struct TestConfig {
 }
 
 impl TestConfig {
-    /// Create a new TestConfig (tests should use one of the specific
-    /// configuration setup below, such as [new_router]
+    /// Create a new TestConfig. Tests should use one of the specific
+    /// configuration setup below, such as [new_router](Self::new_router).
     fn new(
         server_type: ServerType,
         dsn: impl Into<String>,
