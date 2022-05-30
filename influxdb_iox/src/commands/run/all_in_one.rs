@@ -348,6 +348,7 @@ impl Config {
             persist_partition_cold_threshold_seconds,
             skip_to_oldest_available,
             test_flight_do_get_panic: 0,
+            concurrent_request_limit: 10,
         };
 
         // create a CompactorConfig for the all in one server based on

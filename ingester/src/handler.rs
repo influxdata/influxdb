@@ -23,12 +23,15 @@ use generated_types::ingester::IngesterQueryRequest;
 use iox_catalog::interface::Catalog;
 use iox_query::exec::Executor;
 use iox_time::{SystemProvider, TimeProvider};
-use metric::{Metric, U64Histogram, U64HistogramOptions};
+use metric::{Metric, U64Counter, U64Histogram, U64HistogramOptions};
 use object_store::DynObjectStore;
 use observability_deps::tracing::*;
 use snafu::{ResultExt, Snafu};
 use std::{collections::BTreeMap, sync::Arc, time::Duration};
-use tokio::task::{JoinError, JoinHandle};
+use tokio::{
+    sync::{Semaphore, TryAcquireError},
+    task::{JoinError, JoinHandle},
+};
 use tokio_util::sync::CancellationToken;
 use write_buffer::core::WriteBufferReading;
 use write_summary::SequencerProgress;
@@ -109,6 +112,16 @@ pub struct IngestHandlerImpl<T = SystemProvider> {
     /// Query execution duration distribution (milliseconds).
     query_duration_success_ms: U64Histogram,
     query_duration_error_ms: U64Histogram,
+
+    /// Query request rejected due to concurrency limits
+    query_request_limit_rejected: U64Counter,
+
+    // A request limiter to restrict the number of simultaneous requests this
+    // ingester services.
+    //
+    // This allows the ingester to drop a portion of requests when experiencing an
+    // unusual flood of requests
+    request_sem: Semaphore,
 }
 
 impl IngestHandlerImpl {
@@ -124,6 +137,7 @@ impl IngestHandlerImpl {
         exec: Arc<Executor>,
         metric_registry: Arc<metric::Registry>,
         skip_to_oldest_available: bool,
+        max_requests: usize,
     ) -> Result<Self> {
         // build the initial ingester data state
         let mut sequencers = BTreeMap::new();
@@ -261,6 +275,13 @@ impl IngestHandlerImpl {
         let query_duration_success_ms = query_duration.recorder(&[("result", "success")]);
         let query_duration_error_ms = query_duration.recorder(&[("result", "error")]);
 
+        let query_request_limit_rejected = metric_registry
+            .register_metric::<U64Counter>(
+                "query_request_limit_rejected",
+                "number of query requests rejected due to exceeding parallel request limit",
+            )
+            .recorder(&[]);
+
         Ok(Self {
             data,
             kafka_topic: topic,
@@ -268,6 +289,8 @@ impl IngestHandlerImpl {
             shutdown,
             query_duration_success_ms,
             query_duration_error_ms,
+            query_request_limit_rejected,
+            request_sem: Semaphore::new(max_requests),
             time_provider: Default::default(),
         })
     }
@@ -280,6 +303,22 @@ impl IngestHandler for IngestHandlerImpl {
         request: IngesterQueryRequest,
     ) -> Result<IngesterQueryResponse, crate::querier_handler::Error> {
         // TODO(4567): move this into a instrumented query delegate
+
+        // Acquire and hold a permit for the duration of this request, or return
+        // a 503 if the existing requests have already exhausted the allocation.
+        //
+        // Our goal is to limit the number of concurrently executing queries as a
+        // rough way of ensuring we don't explode memory by trying to do too much at
+        // the same time.
+        let _permit = match self.request_sem.try_acquire() {
+            Ok(p) => p,
+            Err(TryAcquireError::NoPermits) => {
+                error!("simultaneous request limit exceeded - dropping request");
+                self.query_request_limit_rejected.inc(1);
+                return Err(crate::querier_handler::Error::RequestLimit);
+            }
+            Err(e) => panic!("request limiter error: {}", e),
+        };
 
         let t = self.time_provider.now();
         let res = prepare_data_to_querier(&self.data, &request).await;
@@ -631,6 +670,7 @@ mod tests {
             Arc::new(Executor::new(1)),
             Arc::clone(&metrics),
             skip_to_oldest_available,
+            1,
         )
         .await
         .unwrap();
@@ -744,6 +784,27 @@ mod tests {
         .await;
     }
 
+    #[tokio::test]
+    async fn limits_concurrent_queries() {
+        let mut ingester = TestIngester::new().await;
+        let request = IngesterQueryRequest {
+            namespace: "foo".to_string(),
+            table: "cpu".to_string(),
+            columns: vec!["asdf".to_string()],
+            predicate: None,
+        };
+
+        let res = ingester.ingester.query(request.clone()).await.unwrap_err();
+        assert!(matches!(
+            res,
+            crate::querier_handler::Error::NamespaceNotFound { .. }
+        ));
+
+        ingester.ingester.request_sem = Semaphore::new(0);
+        let res = ingester.ingester.query(request).await.unwrap_err();
+        assert!(matches!(res, crate::querier_handler::Error::RequestLimit));
+    }
+
     struct TestIngester {
         catalog: Arc<dyn Catalog>,
         sequencer: Sequencer,
@@ -803,6 +864,7 @@ mod tests {
                 Arc::new(Executor::new(1)),
                 Arc::clone(&metrics),
                 false,
+                1,
             )
             .await
             .unwrap();

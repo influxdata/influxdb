@@ -79,6 +79,9 @@ pub enum Error {
 
     #[snafu(display("Error merging schemas: {}", source))]
     MergeSchema { source: schema::merge::Error },
+
+    #[snafu(display("Concurrent query request limit exceeded"))]
+    RequestLimit,
 }
 
 /// A specialized `Error` for Ingester's Query errors

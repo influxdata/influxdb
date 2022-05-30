@@ -80,4 +80,13 @@ pub struct IngesterConfig {
         default_value = "0"
     )]
     pub test_flight_do_get_panic: u64,
+
+    /// Sets how many concurrent requests the ingester will handle before rejecting
+    /// incoming requests.
+    #[clap(
+        long = "--concurrent-request-limit",
+        env = "INFLUXDB_IOX_CONCURRENT_REQEST_LIMIT",
+        default_value = "20"
+    )]
+    pub concurrent_request_limit: usize,
 }
