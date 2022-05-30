@@ -68,35 +68,48 @@ pub(crate) struct IngesterPartitionBuilder {
     partition_sort_key: Arc<Option<SortKey>>,
 
     /// Data returned from the partition, in line protocol format
-    lp: String,
+    lp: Vec<String>,
 }
 
 impl IngesterPartitionBuilder {
     pub(crate) fn new(
-        ns: Arc<TestNamespace>,
-        table: Arc<TestTable>,
-        schema: Arc<Schema>,
-        sequencer: Arc<TestSequencer>,
-        partition: Arc<TestPartition>,
+        ns: &Arc<TestNamespace>,
+        table: &Arc<TestTable>,
+        schema: &Arc<Schema>,
+        sequencer: &Arc<TestSequencer>,
+        partition: &Arc<TestPartition>,
     ) -> Self {
         Self {
-            ns,
-            table,
-            schema,
-            sequencer,
-            partition,
+            ns: Arc::clone(ns),
+            table: Arc::clone(table),
+            schema: Arc::clone(schema),
+            sequencer: Arc::clone(sequencer),
+            partition: Arc::clone(partition),
             ingester_name: Arc::from("ingester1"),
             partition_sort_key: Arc::new(None),
             ingester_chunk_id: 1,
-            lp: "table foo=1i 1".to_string(),
+            lp: Vec::new(),
         }
+    }
+
+    /// set the partition chunk id to use when creating partitons
+    pub(crate) fn with_ingester_chunk_id(mut self, ingester_chunk_id: u128) -> Self {
+        self.ingester_chunk_id = ingester_chunk_id;
+        self
+    }
+
+    /// Set the line protocol that will be present in this partition
+    /// with an interator of `AsRef<str>`s
+    pub(crate) fn with_lp(mut self, lp: impl IntoIterator<Item = impl AsRef<str>>) -> Self {
+        self.lp = lp.into_iter().map(|s| s.as_ref().to_string()).collect();
+        self
     }
 
     /// Create a ingester partition with the specified max parquet sequence number
     pub(crate) fn build_with_max_parquet_sequence_number(
         &self,
         parquet_max_sequence_number: Option<SequenceNumber>,
-    ) -> Arc<IngesterPartition> {
+    ) -> IngesterPartition {
         let tombstone_max_sequence_number = None;
 
         self.build(parquet_max_sequence_number, tombstone_max_sequence_number)
@@ -107,22 +120,22 @@ impl IngesterPartitionBuilder {
         &self,
         parquet_max_sequence_number: Option<SequenceNumber>,
         tombstone_max_sequence_number: Option<SequenceNumber>,
-    ) -> Arc<IngesterPartition> {
-        Arc::new(
-            IngesterPartition::try_new(
-                Arc::clone(&self.ingester_name),
-                ChunkId::new_test(self.ingester_chunk_id),
-                Arc::from(self.ns.namespace.name.as_str()),
-                Arc::from(self.table.table.name.as_str()),
-                self.partition.partition.id,
-                self.sequencer.sequencer.id,
-                Arc::clone(&self.schema),
-                parquet_max_sequence_number,
-                tombstone_max_sequence_number,
-                Arc::clone(&self.partition_sort_key),
-                vec![lp_to_record_batch(&self.lp)],
-            )
-            .unwrap(),
+    ) -> IngesterPartition {
+        let data = self.lp.iter().map(|lp| lp_to_record_batch(lp)).collect();
+
+        IngesterPartition::try_new(
+            Arc::clone(&self.ingester_name),
+            ChunkId::new_test(self.ingester_chunk_id),
+            Arc::from(self.ns.namespace.name.as_str()),
+            Arc::from(self.table.table.name.as_str()),
+            self.partition.partition.id,
+            self.sequencer.sequencer.id,
+            Arc::clone(&self.schema),
+            parquet_max_sequence_number,
+            tombstone_max_sequence_number,
+            Arc::clone(&self.partition_sort_key),
+            data,
         )
+        .unwrap()
     }
 }
