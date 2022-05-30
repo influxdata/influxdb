@@ -635,6 +635,14 @@ impl Compactor {
         // Save the parquet metadata for the first file to reuse IDs and names
         let iox_metadata = overlapped_files[0].iox_metadata();
 
+        // Hold onto various metadata items needed later.
+        let sequencer_id = overlapped_files[0].data.sequencer_id;
+        let namespace_id = overlapped_files[0].data.namespace_id;
+        let table_id = overlapped_files[0].data.table_id;
+
+        // Read the parquet file's sort key.
+        let parquet_sort_key = overlapped_files[0].iox_metadata().sort_key;
+
         //  Collect all unique tombstone
         let mut tombstone_map = overlapped_files[0].tombstones();
 
@@ -658,7 +666,13 @@ impl Compactor {
                         table_id_2: file.data.table_id,
                         partition_id_2: file.data.partition_id
                     }
-                )
+                );
+
+                assert_eq!(file.data.sequencer_id, sequencer_id);
+                assert_eq!(file.data.namespace_id, namespace_id);
+                assert_eq!(file.data.table_id, table_id);
+                assert_eq!(file.data.partition_id, partition.id);
+                assert_eq!(file.iox_metadata().sort_key, parquet_sort_key);
             }
         }
 
@@ -670,7 +684,7 @@ impl Compactor {
                 f.to_queryable_parquet_chunk(
                     self.store.clone(),
                     iox_metadata.table_name.to_string(),
-                    iox_metadata.sort_key.clone(),
+                    parquet_sort_key.clone(),
                     partition.sort_key(),
                 )
             })
