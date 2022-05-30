@@ -14,21 +14,31 @@ use arrow::{
 use bytes::Bytes;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion_util::{AdapterStream, AutoAbortJoinHandle};
-use futures::Stream;
+use futures::{Stream, TryStreamExt};
 use object_store::{DynObjectStore, GetResult};
 use observability_deps::tracing::*;
 use parquet::{
     arrow::{ArrowReader, ParquetFileArrowReader},
     file::reader::SerializedFileReader,
 };
+use pin_project::{pin_project, pinned_drop};
 use predicate::Predicate;
+use rayon::{ThreadPool, ThreadPoolBuilder};
 use schema::selection::Selection;
 use std::{
-    io::{Seek, Write},
-    sync::Arc,
+    future::Future,
+    io::SeekFrom,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
     time::Duration,
 };
 use thiserror::Error;
+use tokio::{
+    fs::File,
+    io::{AsyncSeekExt, AsyncWriteExt},
+};
 
 /// Errors returned during a Parquet "put" operation, covering [`RecordBatch`]
 /// pull from the provided stream, encoding, and finally uploading the bytes to
@@ -69,6 +79,10 @@ pub enum ReadError {
     /// An error reading the downloaded Parquet file.
     #[error("invalid parquet file: {0}")]
     Parquet(#[from] parquet::errors::ParquetError),
+
+    /// Cannot poll arrow blocking wrapper
+    #[error("cannot poll arrow blocking wrapper: {0}")]
+    Poll(#[from] tokio::sync::oneshot::error::RecvError),
 }
 
 /// The [`ParquetStorage`] type encapsulates [`RecordBatch`] persistence to an
@@ -84,13 +98,24 @@ pub enum ReadError {
 #[derive(Debug, Clone)]
 pub struct ParquetStorage {
     object_store: Arc<DynObjectStore>,
+    parquet_io_threadpool: Arc<ThreadPool>,
 }
 
 impl ParquetStorage {
     /// Initialise a new [`ParquetStorage`] using `object_store` as the
     /// persistence layer.
     pub fn new(object_store: Arc<DynObjectStore>) -> Self {
-        Self { object_store }
+        let parquet_io_threadpool = Arc::new(
+            ThreadPoolBuilder::new()
+                .num_threads(8)
+                .thread_name(|i| format!("parquet IO {i}"))
+                .build()
+                .expect("cannot build parquet IO threadpool"),
+        );
+        Self {
+            object_store,
+            parquet_io_threadpool,
+        }
     }
 
     /// Push `batches`, a stream of [`RecordBatch`] instances, to object
@@ -191,20 +216,20 @@ impl ParquetStorage {
         // Run async dance here to make sure any error returned
         // `download_and_scan_parquet` is sent back to the reader and
         // not silently ignored
-        let handle = tokio::task::spawn_blocking({
-            let object_store = Arc::clone(&self.object_store);
-            move || {
-                let download_result =
-                    download_and_scan_parquet(projection, path, object_store, tx.clone());
+        let object_store = Arc::clone(&self.object_store);
+        let thread_pool = Arc::clone(&self.parquet_io_threadpool);
+        let handle = tokio::task::spawn(async move {
+            let download_result =
+                download_and_scan_parquet(projection, path, object_store, tx.clone(), thread_pool)
+                    .await;
 
-                // If there was an error returned from download_and_scan_parquet send it back to the receiver.
-                if let Err(e) = download_result {
-                    warn!(error=%e, "Parquet download & scan failed");
-                    let e = ArrowError::ExternalError(Box::new(e));
-                    if let Err(e) = tx.blocking_send(ArrowResult::Err(e)) {
-                        // if no one is listening, there is no one else to hear our screams
-                        debug!(%e, "Error sending result of download function. Receiver is closed.");
-                    }
+            // If there was an error returned from download_and_scan_parquet send it back to the receiver.
+            if let Err(e) = download_result {
+                warn!(error=%e, "Parquet download & scan failed");
+                let e = ArrowError::ExternalError(Box::new(e));
+                if let Err(e) = tx.send(ArrowResult::Err(e)).await {
+                    // if no one is listening, there is no one else to hear our screams
+                    debug!(%e, "Error sending result of download function. Receiver is closed.");
                 }
             }
         });
@@ -243,55 +268,133 @@ fn column_indices(selection: Selection<'_>, schema: SchemaRef) -> Vec<usize> {
 ///
 /// This call MAY download a parquet file from object storage, temporarily
 /// spilling it to disk while it is processed.
-fn download_and_scan_parquet(
+async fn download_and_scan_parquet(
     projection: Vec<usize>,
     path: object_store::path::Path,
     object_store: Arc<DynObjectStore>,
     tx: tokio::sync::mpsc::Sender<ArrowResult<RecordBatch>>,
+    thread_pool: Arc<ThreadPool>,
 ) -> Result<(), ReadError> {
-    // Size of each batch
-    let batch_size = 1024; // Todo: make a constant or policy for this
-
-    let read_stream = futures::executor::block_on(object_store.get(&path))?;
+    let read_stream = object_store.get(&path).await?;
 
     let file = match read_stream {
         GetResult::File(f, _) => {
             trace!(?path, "Using file directly");
-            futures::executor::block_on(f.into_std())
+            f.into_std().await
         }
-        GetResult::Stream(read_stream) => {
+        GetResult::Stream(mut read_stream) => {
             // read parquet file to local file
-            let mut file = tempfile::tempfile().map_err(ReadError::TempFile)?;
+            let mut file = File::from_std(tempfile::tempfile().map_err(ReadError::TempFile)?);
 
             trace!(?path, ?file, "Beginning to read parquet to temp file");
 
-            for bytes in futures::executor::block_on_stream(read_stream) {
-                let bytes = bytes?;
+            while let Some(bytes) = read_stream.try_next().await? {
                 trace!(len = bytes.len(), "read bytes from object store");
-                file.write_all(&bytes)?;
+                file.write_all(&bytes).await?;
             }
 
-            file.rewind()?;
+            file.seek(SeekFrom::Start(0)).await?;
 
+            let file = file.into_std().await;
             trace!(?path, "Completed read parquet to tempfile");
             file
         }
     };
 
-    let file_reader = SerializedFileReader::new(file)?;
-    let mut arrow_reader = ParquetFileArrowReader::new(Arc::new(file_reader));
-    let record_batch_reader = arrow_reader.get_record_reader_by_columns(projection, batch_size)?;
-
-    for batch in record_batch_reader {
-        if tx.blocking_send(batch).is_err() {
-            debug!(?path, "Receiver hung up - exiting");
-            break;
-        }
-    }
-
+    ParquetBlockingReader::new(file, tx, projection, thread_pool)?.await?;
     debug!(?path, "Completed parquet download & scan");
 
     Ok(())
+}
+
+/// Helper to ensure that arrows file->RecordBatch parquet IO is done in a dedicated IO thread.
+///
+/// This deliberately does NOT use tokio's `spawn_blocking` because this might steal too many threads from our query executor.
+#[pin_project(PinnedDrop)]
+struct ParquetBlockingReader {
+    cancelled: Arc<AtomicBool>,
+
+    #[pin]
+    finished: tokio::sync::oneshot::Receiver<Result<(), ReadError>>,
+}
+
+impl ParquetBlockingReader {
+    fn new(
+        file: std::fs::File,
+        tx: tokio::sync::mpsc::Sender<ArrowResult<RecordBatch>>,
+        projection: Vec<usize>,
+        thread_pool: Arc<ThreadPool>,
+    ) -> Result<Self, ReadError> {
+        let (tx_finished, finished) = tokio::sync::oneshot::channel();
+        let cancelled = Arc::new(AtomicBool::new(false));
+        let cancelled_captured = Arc::clone(&cancelled);
+
+        thread_pool.spawn(move || {
+            // early cancelleation check since this task may have been within the queue for a while
+            if cancelled_captured.load(Ordering::SeqCst) {
+                return;
+            }
+
+            let res = Self::inner(file, tx, projection, cancelled_captured);
+            tx_finished.send(res).ok();
+        });
+
+        Ok(Self {
+            finished,
+            cancelled,
+        })
+    }
+
+    fn inner(
+        file: std::fs::File,
+        tx: tokio::sync::mpsc::Sender<ArrowResult<RecordBatch>>,
+        projection: Vec<usize>,
+        cancelled: Arc<AtomicBool>,
+    ) -> Result<(), ReadError> {
+        // Size of each batch
+        let batch_size = 1024; // Todo: make a constant or policy for this
+
+        let file_reader = SerializedFileReader::new(file)?;
+        let mut arrow_reader = ParquetFileArrowReader::new(Arc::new(file_reader));
+        let record_batch_reader =
+            arrow_reader.get_record_reader_by_columns(projection, batch_size)?;
+
+        if cancelled.load(Ordering::SeqCst) {
+            return Ok(());
+        }
+
+        for batch in record_batch_reader {
+            if tx.blocking_send(batch).is_err() {
+                debug!("Receiver hung up - exiting");
+                break;
+            }
+
+            if cancelled.load(Ordering::SeqCst) {
+                break;
+            }
+        }
+
+        Ok(())
+    }
+}
+
+#[pinned_drop]
+impl PinnedDrop for ParquetBlockingReader {
+    fn drop(self: std::pin::Pin<&mut Self>) {
+        self.cancelled.store(true, Ordering::SeqCst);
+    }
+}
+
+impl Future for ParquetBlockingReader {
+    type Output = Result<(), ReadError>;
+
+    fn poll(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Self::Output> {
+        let this = self.project();
+        this.finished.poll(cx)?
+    }
 }
 
 #[cfg(test)]
