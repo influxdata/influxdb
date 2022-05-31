@@ -1,7 +1,0 @@
-variables:
-  filenameVersion: nightly
-includes:
-  - from_file:
-      path: .goreleaser/_common.yml
-  - from_file:
-      path: .goreleaser/_uploads-nightly.yml

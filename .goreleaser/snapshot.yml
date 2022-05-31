@@ -1,5 +1,0 @@
-variables:
-  filenameVersion: snapshot
-includes:
-  - from_file:
-      path: .goreleaser/_common.yml
