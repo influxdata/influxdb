@@ -10,8 +10,8 @@ use crate::{
 };
 use backoff::BackoffConfig;
 use data_types::{
-    ParquetFile, ParquetFileId, ParquetFileWithMetadata, PartitionId, SequencerId, TableId,
-    Timestamp, Tombstone, TombstoneId,
+    ParquetFile, ParquetFileId, ParquetFileWithMetadata, Partition, PartitionId, SequencerId,
+    TableId, Timestamp, Tombstone, TombstoneId,
 };
 use datafusion::error::DataFusionError;
 use futures::stream::{FuturesUnordered, TryStreamExt};
@@ -26,7 +26,6 @@ use iox_time::TimeProvider;
 use metric::{Attributes, Metric, U64Counter, U64Gauge, U64Histogram, U64HistogramOptions};
 use observability_deps::tracing::{debug, info, trace, warn};
 use parquet_file::{metadata::IoxMetadata, storage::ParquetStorage};
-use schema::sort::SortKey;
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{
     cmp::{max, min, Ordering},
@@ -348,8 +347,8 @@ impl Compactor {
         Ok(candidates)
     }
 
-    /// Fetch the sort key for the partition stored in the catalog, if any.
-    async fn sort_key_from_catalog(&self, partition_id: PartitionId) -> Result<Option<SortKey>> {
+    /// Fetch the partition information stored in the catalog.
+    async fn get_partition_from_catalog(&self, partition_id: PartitionId) -> Result<Partition> {
         let mut repos = self.catalog.repositories().await;
         let partition = repos
             .partitions()
@@ -357,7 +356,7 @@ impl Compactor {
             .await
             .context(QueryingPartitionSnafu)?
             .context(PartitionNotFoundSnafu { partition_id })?;
-        Ok(partition.sort_key())
+        Ok(partition)
     }
 
     /// Group files to be compacted together and level-0 files that will get upgraded
@@ -438,13 +437,7 @@ impl Compactor {
         info!("compacting partition {}", partition_id);
         let start_time = self.time_provider.now();
 
-        let sort_key_from_catalog = self
-            .sort_key_from_catalog(partition_id)
-            .await?
-            // This can happen for data in catalogs created in "the before times"
-            // we do not currently plan to provide an upgrade path (instead we will wipe
-            // old catalogs)
-            .expect("Partition sort key should have been available in the catalog");
+        let partition = self.get_partition_from_catalog(partition_id).await?;
 
         let mut file_count = 0;
 
@@ -477,7 +470,7 @@ impl Compactor {
             // caller. If an error occurs during object store upload, it will be
             // retried indefinitely.
             let catalog_update_info = self
-                .compact(group.parquet_files, sort_key_from_catalog.clone())
+                .compact(group.parquet_files, &partition)
                 .await?
                 .into_iter()
                 .map(|v| async {
@@ -625,7 +618,7 @@ impl Compactor {
     async fn compact(
         &self,
         overlapped_files: Vec<ParquetFileWithTombstone>,
-        sort_key_from_catalog: SortKey,
+        partition: &Partition,
     ) -> Result<Vec<CompactedData>> {
         debug!(num_files = overlapped_files.len(), "compact files");
 
@@ -641,6 +634,11 @@ impl Compactor {
 
         // Save the parquet metadata for the first file to reuse IDs and names
         let iox_metadata = overlapped_files[0].iox_metadata();
+
+        // Hold onto various metadata items needed later.
+        let sequencer_id = overlapped_files[0].data.sequencer_id;
+        let namespace_id = overlapped_files[0].data.namespace_id;
+        let table_id = overlapped_files[0].data.table_id;
 
         //  Collect all unique tombstone
         let mut tombstone_map = overlapped_files[0].tombstones();
@@ -665,22 +663,25 @@ impl Compactor {
                         table_id_2: file.data.table_id,
                         partition_id_2: file.data.partition_id
                     }
-                )
+                );
+
+                assert_eq!(file.data.sequencer_id, sequencer_id);
+                assert_eq!(file.data.namespace_id, namespace_id);
+                assert_eq!(file.data.table_id, table_id);
+                assert_eq!(file.data.partition_id, partition.id);
             }
         }
 
-        // Convert the input files into QueryableParquetChunk for making query plan
-        let partition_sort_key = self
-            .sort_key_from_catalog(iox_metadata.partition_id)
-            .await?;
+        // Convert the input files into QueryableParquetChunk for making query
+        // plan
         let query_chunks: Vec<_> = overlapped_files
             .iter()
             .map(|f| {
                 f.to_queryable_parquet_chunk(
                     self.store.clone(),
                     iox_metadata.table_name.to_string(),
-                    iox_metadata.sort_key.clone(),
-                    partition_sort_key.clone(),
+                    f.iox_metadata().sort_key,
+                    partition.sort_key(),
                 )
             })
             .collect();
@@ -715,7 +716,11 @@ impl Compactor {
             "Number of columns in the merged schema to build query plan"
         );
 
-        let sort_key = sort_key_from_catalog.filter_to(&merged_schema.primary_key());
+        // All partitions in the catalog MUST contain a sort key.
+        let sort_key = partition
+            .sort_key()
+            .expect("no parittion sort key in catalog")
+            .filter_to(&merged_schema.primary_key());
 
         // Identify split time
         let split_time = self.compute_split_time(min_time, max_time);
@@ -1104,6 +1109,7 @@ mod tests {
         cache::CatalogCache,
         chunk::{collect_read_filter, ChunkAdapter},
     };
+    use schema::sort::SortKey;
     use std::sync::atomic::{AtomicI64, Ordering};
 
     // Simulate unique ID generation
@@ -1495,10 +1501,11 @@ mod tests {
         let ns = catalog.create_namespace("ns").await;
         let sequencer = ns.create_sequencer(1).await;
         let table = ns.create_table("table").await;
-        let parquet_file = table
+        let partition = table
             .with_sequencer(&sequencer)
             .create_partition("part")
-            .await
+            .await;
+        let parquet_file = partition
             .create_parquet_file_with_min_max(&lp, 1, 1, 8000, 20000)
             .await
             .parquet_file;
@@ -1515,10 +1522,14 @@ mod tests {
         );
 
         let sort_key = SortKey::from_columns(["tag1", "time"]);
+        let partition = partition.update_sort_key(sort_key).await;
 
         // ------------------------------------------------
         // no files provided
-        let result = compactor.compact(vec![], sort_key.clone()).await.unwrap();
+        let result = compactor
+            .compact(vec![], &partition.partition)
+            .await
+            .unwrap();
         assert!(result.is_empty());
 
         // ------------------------------------------------
@@ -1529,7 +1540,7 @@ mod tests {
         };
         // Nothing compacted for one file without tombstones
         let result = compactor
-            .compact(vec![pf.clone()], sort_key.clone())
+            .compact(vec![pf.clone()], &partition.partition)
             .await
             .unwrap();
         assert!(result.is_empty());
@@ -1543,7 +1554,10 @@ mod tests {
         pf.add_tombstones(vec![tombstone.tombstone.clone()]);
 
         // should have compacted data
-        let batches = compactor.compact(vec![pf], sort_key.clone()).await.unwrap();
+        let batches = compactor
+            .compact(vec![pf], &partition.partition)
+            .await
+            .unwrap();
         // 2 sets based on the split rule
         assert_eq!(batches.len(), 2);
 
@@ -1630,6 +1644,7 @@ mod tests {
         );
 
         let sort_key = SortKey::from_columns(["tag1", "time"]);
+        let partition = partition.update_sort_key(sort_key).await;
 
         // File 1 with tombstone
         let tombstone = table
@@ -1648,7 +1663,7 @@ mod tests {
 
         // Compact them
         let batches = compactor
-            .compact(vec![pf1, pf2], sort_key.clone())
+            .compact(vec![pf1, pf2], &partition.partition)
             .await
             .unwrap();
         // 2 sets based on the split rule
@@ -1753,6 +1768,7 @@ mod tests {
         // The sort key comes from the catalog and should be the union of all tags the
         // ingester has seen
         let sort_key = SortKey::from_columns(["tag1", "tag2", "tag3", "time"]);
+        let partition = partition.update_sort_key(sort_key.clone()).await;
 
         // File 1 with tombstone
         let tombstone = table
@@ -1778,7 +1794,7 @@ mod tests {
         let batches = compactor
             .compact(
                 vec![pf1.clone(), pf2.clone(), pf3.clone()],
-                sort_key.clone(),
+                &partition.partition,
             )
             .await
             .unwrap();
@@ -3091,7 +3107,12 @@ mod tests {
 
         // Compact them
         let sort_key = SortKey::from_columns(["tag1", "time"]);
-        let batches = compactor.compact(vec![pf1, pf2], sort_key).await.unwrap();
+        let partition = partition.update_sort_key(sort_key).await;
+
+        let batches = compactor
+            .compact(vec![pf1, pf2], &partition.partition)
+            .await
+            .unwrap();
 
         // 2 sets based on the split rule
         assert_eq!(batches.len(), 2);
