@@ -930,9 +930,10 @@ fn extract_iox_statistics(
 #[cfg(test)]
 mod tests {
     use arrow::{
-        array::{ArrayRef, StringBuilder},
+        array::{ArrayRef, StringBuilder, TimestampNanosecondBuilder},
         record_batch::RecordBatch,
     };
+    use schema::builder::SchemaBuilder;
 
     use super::*;
 
@@ -987,7 +988,19 @@ mod tests {
         builder.append_value("bananas").expect("appending string");
         let data: ArrayRef = Arc::new(builder.finish());
 
-        let batch = RecordBatch::try_from_iter([("a", data)]).unwrap();
+        let timestamps = to_timestamp_array(&[1647695292000000000]);
+
+        // Build a schema that contains the IOx metadata, ensuring it is
+        // correctly populated in the final parquet file's metadata to be read
+        // back later in the test.
+        let schema = SchemaBuilder::new()
+            .influx_field("a", InfluxFieldType::String)
+            .timestamp()
+            .build()
+            .expect("could not create schema")
+            .as_arrow();
+
+        let batch = RecordBatch::try_new(schema, vec![data, timestamps]).unwrap();
         let stream = futures::stream::iter([Ok(batch.clone())]);
 
         let (bytes, file_meta) = crate::serialize::to_parquet_bytes(stream, &meta)
@@ -996,7 +1009,6 @@ mod tests {
 
         // Verify if the parquet file meta data has values
         assert!(!file_meta.row_groups.is_empty());
-        println!("file_meta: {:#?}", file_meta.row_groups);
 
         // Read the metadata from the file bytes.
         //
@@ -1017,20 +1029,32 @@ mod tests {
 
         let new_file_meta = decoded.parquet_file_meta();
         assert!(new_file_meta.key_value_metadata().is_some());
-        println!("new_file_meta: {:#?}", new_file_meta);
 
         let new_row_group_meta = decoded.parquet_row_group_metadata();
-        println!("new_row_group_meta: {:#?}", new_row_group_meta);
         assert!(!new_row_group_meta.is_empty());
         let col_meta = new_row_group_meta[0].column(0);
         assert!(col_meta.statistics().is_some()); // There is statistics for column "a"
 
+        // Read the schema from the metadata.
+        //
+        // If this is not specified in the metadata when writing, it will be
+        // automatically inferred at read time and will not contain the IOx
+        // metadata.
         let schema = decoded.read_schema().unwrap();
         let (_, field) = schema.field(0);
         assert_eq!(field.name(), "a");
-        println!("schema: {:#?}", schema);
 
+        // Try and access the IOx metadata that was embedded above (with the
+        // SchemaBuilder)
         let col_summary = decoded.read_statistics(&*schema).unwrap();
-        assert!(col_summary.is_empty()); // TODO: must be NOT empty after the fix of 4714
+        assert!(!col_summary.is_empty());
+    }
+
+    fn to_timestamp_array(timestamps: &[i64]) -> ArrayRef {
+        let mut builder = TimestampNanosecondBuilder::new(timestamps.len());
+        builder
+            .append_slice(timestamps)
+            .expect("failed to append timestamp values");
+        Arc::new(builder.finish())
     }
 }
