@@ -29,7 +29,7 @@ const (
 
 var (
 	userAgent = fmt.Sprintf(
-		"influxdb-oss/%s (%s) Sha/%s Date/%s",
+		"influxdb-oss-replication/%s (%s) Sha/%s Date/%s",
 		influxdb.GetBuildInfo().Version,
 		runtime.GOOS,
 		influxdb.GetBuildInfo().Commit,
