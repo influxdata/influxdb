@@ -3505,7 +3505,6 @@ dependencies = [
  "prost",
  "schema",
  "snafu",
- "tempfile",
  "thiserror",
  "thrift",
  "tokio",

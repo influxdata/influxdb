@@ -49,11 +49,6 @@ pub enum UploadError {
 /// Errors during Parquet file download & scan.
 #[derive(Debug, Error)]
 pub enum ReadError {
-    /// Failed to create the temporary Parquet file on disk to which the
-    /// downloaded parquet bytes will be spilled.
-    #[error("failed to create temporary file: {0}")]
-    TempFile(std::io::Error),
-
     /// Error writing the bytes fetched from object store to the temporary
     /// parquet file on disk.
     #[error("i/o error writing downloaded parquet: {0}")]
@@ -66,10 +61,6 @@ pub enum ReadError {
     /// An error reading the downloaded Parquet file.
     #[error("invalid parquet file: {0}")]
     Parquet(#[from] parquet::errors::ParquetError),
-
-    /// Cannot poll arrow blocking wrapper
-    #[error("cannot poll arrow blocking wrapper: {0}")]
-    Poll(#[from] tokio::sync::oneshot::error::RecvError),
 }
 
 /// The [`ParquetStorage`] type encapsulates [`RecordBatch`] persistence to an
