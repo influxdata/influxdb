@@ -11,7 +11,7 @@ require (
 	github.com/apache/arrow/go/v7 v7.0.0
 	github.com/benbjohnson/clock v0.0.0-20161215174838-7dc76406b6d3
 	github.com/benbjohnson/tmpl v1.0.0
-	github.com/buger/jsonparser v0.0.0-20191004114745-ee4c978eae7e
+	github.com/buger/jsonparser v1.1.1
 	github.com/cespare/xxhash v1.1.0
 	github.com/davecgh/go-spew v1.1.1
 	github.com/dgryski/go-bitstream v0.0.0-20180413035011-3522498ce2c8
@@ -71,7 +71,7 @@ require (
 	golang.org/x/tools v0.1.11-0.20220316014157-77aa08bb151a
 	google.golang.org/protobuf v1.27.1
 	gopkg.in/yaml.v2 v2.3.0
-	gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c
+	gopkg.in/yaml.v3 v3.0.1
 	honnef.co/go/tools v0.3.0
 )
 
