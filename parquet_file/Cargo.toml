@@ -21,10 +21,8 @@ parking_lot = "0.12"
 parquet = {version = "14.0.0", features = ["experimental"]}
 parquet-format = "4.0"
 pbjson-types = "0.3"
-pin-project = "1.0"
 predicate = { path = "../predicate" }
 prost = "0.10"
-rayon = "1.5"
 schema = { path = "../schema" }
 snafu = "0.7"
 tempfile = "3.1.0"
