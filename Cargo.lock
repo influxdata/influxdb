@@ -102,7 +102,7 @@ checksum = "0612b6a634de6c3f5e63fdaa6932f7bc598f92de0462ac6e69b0aebd77e093aa"
 dependencies = [
  "bitflags",
  "chrono",
- "comfy-table",
+ "comfy-table 5.0.1",
  "csv",
  "flatbuffers",
  "half",
@@ -145,7 +145,7 @@ dependencies = [
  "arrow",
  "arrow-flight",
  "chrono",
- "comfy-table",
+ "comfy-table 6.0.0",
  "datafusion 0.1.0",
  "hashbrown 0.12.1",
  "num-traits",
@@ -599,7 +599,7 @@ dependencies = [
  "iox_time",
  "metric",
  "observability_deps",
- "parking_lot 0.12.0",
+ "parking_lot 0.12.1",
  "proptest",
  "rand",
  "tokio",
@@ -819,8 +819,19 @@ version = "5.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b103d85ca6e209388771bfb7aa6b68a7aeec4afbf6f0a0264bfbf50360e5212e"
 dependencies = [
- "strum",
- "strum_macros",
+ "strum 0.23.0",
+ "strum_macros 0.23.1",
+ "unicode-width",
+]
+
+[[package]]
+name = "comfy-table"
+version = "6.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "121d8a5b0346092c18a4b2fd6f620d7a06f0eb7ac0a45860939a0884bc579c56"
+dependencies = [
+ "strum 0.24.0",
+ "strum_macros 0.24.0",
  "unicode-width",
 ]
 
@@ -1179,7 +1190,7 @@ dependencies = [
  "log",
  "num_cpus",
  "ordered-float 3.0.0",
- "parking_lot 0.12.0",
+ "parking_lot 0.12.1",
  "parquet",
  "paste",
  "pin-project-lite",
@@ -1212,7 +1223,7 @@ dependencies = [
  "chrono",
  "futures",
  "glob",
- "parking_lot 0.12.0",
+ "parking_lot 0.12.1",
  "tempfile",
  "tokio",
 ]
@@ -1491,7 +1502,7 @@ dependencies = [
  "futures",
  "libc",
  "observability_deps",
- "parking_lot 0.12.0",
+ "parking_lot 0.12.1",
  "pin-project",
  "tokio",
  "tokio-util 0.7.2",
@@ -2103,7 +2114,7 @@ dependencies = [
  "futures",
  "mockito",
  "once_cell",
- "parking_lot 0.12.0",
+ "parking_lot 0.12.1",
  "reqwest",
  "serde",
  "serde_json",
@@ -2279,7 +2290,7 @@ dependencies = [
  "mutable_batch_lp",
  "object_store",
  "observability_deps",
- "parking_lot 0.12.0",
+ "parking_lot 0.12.1",
  "parquet_file",
  "paste",
  "pin-project",
@@ -2398,7 +2409,7 @@ dependencies = [
  "hashbrown 0.12.1",
  "itertools",
  "observability_deps",
- "parking_lot 0.12.0",
+ "parking_lot 0.12.1",
  "predicate",
  "query_functions",
  "schema",
@@ -2436,7 +2447,7 @@ name = "iox_time"
 version = "0.1.0"
 dependencies = [
  "chrono",
- "parking_lot 0.12.0",
+ "parking_lot 0.12.1",
  "workspace-hack",
 ]
 
@@ -2462,7 +2473,7 @@ dependencies = [
  "metric_exporters",
  "mutable_batch_lp",
  "observability_deps",
- "parking_lot 0.12.0",
+ "parking_lot 0.12.1",
  "pprof",
  "predicate",
  "reqwest",
@@ -2780,7 +2791,7 @@ version = "0.1.0"
 dependencies = [
  "observability_deps",
  "once_cell",
- "parking_lot 0.12.0",
+ "parking_lot 0.12.1",
  "regex",
  "tracing-subscriber",
  "workspace-hack",
@@ -2887,7 +2898,7 @@ dependencies = [
 name = "metric"
 version = "0.1.0"
 dependencies = [
- "parking_lot 0.12.0",
+ "parking_lot 0.12.1",
  "workspace-hack",
 ]
 
@@ -3403,9 +3414,9 @@ dependencies = [
 
 [[package]]
 name = "parking_lot"
-version = "0.12.0"
+version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "87f5ec2493a61ac0506c0f4199f99070cbe83857b0337006a30f3e6719b8ef58"
+checksum = "3742b2c103b9f06bc9fff0a37ff4912935851bee6d36f3c02bcc755bcfec228f"
 dependencies = [
  "lock_api",
  "parking_lot_core 0.9.3",
@@ -3486,17 +3497,14 @@ dependencies = [
  "metric",
  "object_store",
  "observability_deps",
- "parking_lot 0.12.0",
+ "parking_lot 0.12.1",
  "parquet",
  "parquet-format",
  "pbjson-types",
- "pin-project",
  "predicate",
  "prost",
- "rayon",
  "schema",
  "snafu",
- "tempfile",
  "thiserror",
  "thrift",
  "tokio",
@@ -3704,7 +3712,7 @@ dependencies = [
  "log",
  "nix 0.24.1",
  "once_cell",
- "parking_lot 0.12.0",
+ "parking_lot 0.12.1",
  "prost",
  "prost-build",
  "prost-derive",
@@ -3836,7 +3844,7 @@ dependencies = [
  "fnv",
  "lazy_static",
  "memchr",
- "parking_lot 0.12.0",
+ "parking_lot 0.12.1",
  "thiserror",
 ]
 
@@ -3946,7 +3954,7 @@ dependencies = [
  "mutable_batch_lp",
  "object_store",
  "observability_deps",
- "parking_lot 0.12.0",
+ "parking_lot 0.12.1",
  "parquet_file",
  "pin-project",
  "predicate",
@@ -4120,9 +4128,9 @@ dependencies = [
 
 [[package]]
 name = "rayon"
-version = "1.5.2"
+version = "1.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fd249e82c21598a9a426a4e00dd7adc1d640b22445ec8545feef801d1a74c221"
+checksum = "bd99e5772ead8baa5215278c9b15bf92087709e9c1b2d1f97cdb5a183c933a7d"
 dependencies = [
  "autocfg",
  "crossbeam-deque",
@@ -4158,7 +4166,7 @@ dependencies = [
  "metric",
  "observability_deps",
  "packers",
- "parking_lot 0.12.0",
+ "parking_lot 0.12.1",
  "permutation",
  "proptest",
  "rand",
@@ -4310,7 +4318,7 @@ dependencies = [
  "mutable_batch_pb",
  "object_store",
  "observability_deps",
- "parking_lot 0.12.0",
+ "parking_lot 0.12.1",
  "paste",
  "predicate",
  "pretty_assertions",
@@ -4344,7 +4352,7 @@ dependencies = [
  "crc32c",
  "futures",
  "integer-encoding 3.0.3",
- "parking_lot 0.12.0",
+ "parking_lot 0.12.1",
  "pin-project-lite",
  "rand",
  "snap",
@@ -4806,7 +4814,7 @@ dependencies = [
  "metric",
  "observability_deps",
  "panic_logging",
- "parking_lot 0.12.0",
+ "parking_lot 0.12.1",
  "predicate",
  "prost",
  "query_functions",
@@ -5202,12 +5210,31 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cae14b91c7d11c9a851d3fbc80a963198998c2a64eec840477fa92d8ce9b70bb"
 
 [[package]]
+name = "strum"
+version = "0.24.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e96acfc1b70604b8b2f1ffa4c57e59176c7dbb05d556c71ecd2f5498a1dee7f8"
+
+[[package]]
 name = "strum_macros"
 version = "0.23.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5bb0dc7ee9c15cea6199cde9a127fa16a4c5819af85395457ad72d68edc85a38"
 dependencies = [
  "heck 0.3.3",
+ "proc-macro2",
+ "quote",
+ "rustversion",
+ "syn",
+]
+
+[[package]]
+name = "strum_macros"
+version = "0.24.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6878079b17446e4d3eba6192bb0a2950d5b14f0ed8424b852310e5a94345d0ef"
+dependencies = [
+ "heck 0.4.0",
  "proc-macro2",
  "quote",
  "rustversion",
@@ -5302,7 +5329,7 @@ dependencies = [
  "async-trait",
  "dotenv",
  "observability_deps",
- "parking_lot 0.12.0",
+ "parking_lot 0.12.1",
  "tempfile",
  "tokio",
  "tracing-log",
@@ -5327,7 +5354,7 @@ dependencies = [
  "nix 0.24.1",
  "observability_deps",
  "once_cell",
- "parking_lot 0.12.0",
+ "parking_lot 0.12.1",
  "prost",
  "rand",
  "reqwest",
@@ -5485,7 +5512,7 @@ dependencies = [
  "mio",
  "num_cpus",
  "once_cell",
- "parking_lot 0.12.0",
+ "parking_lot 0.12.1",
  "pin-project-lite",
  "signal-hook-registry",
  "socket2",
@@ -5718,7 +5745,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "observability_deps",
- "parking_lot 0.12.0",
+ "parking_lot 0.12.1",
  "rand",
  "workspace-hack",
 ]
@@ -5750,7 +5777,7 @@ dependencies = [
  "itertools",
  "metric",
  "observability_deps",
- "parking_lot 0.12.0",
+ "parking_lot 0.12.1",
  "pin-project",
  "snafu",
  "tower",
@@ -5832,7 +5859,7 @@ dependencies = [
  "ansi_term",
  "lazy_static",
  "matchers",
- "parking_lot 0.12.0",
+ "parking_lot 0.12.1",
  "regex",
  "serde",
  "serde_json",
@@ -5855,7 +5882,7 @@ dependencies = [
  "lock_api",
  "metric",
  "observability_deps",
- "parking_lot 0.12.0",
+ "parking_lot 0.12.1",
  "pin-project",
  "tokio",
  "tokio-util 0.7.2",
@@ -6383,7 +6410,7 @@ dependencies = [
  "mutable_batch_lp",
  "mutable_batch_pb",
  "observability_deps",
- "parking_lot 0.12.0",
+ "parking_lot 0.12.1",
  "pin-project",
  "prost",
  "rskafka",
