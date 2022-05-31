@@ -38,6 +38,7 @@ use thiserror::Error;
 use tokio::{
     fs::File,
     io::{AsyncSeekExt, AsyncWriteExt},
+    sync::Semaphore,
 };
 
 /// Errors returned during a Parquet "put" operation, covering [`RecordBatch`]
@@ -97,8 +98,28 @@ pub enum ReadError {
 /// [`ObjectStore`]: object_store::ObjectStore
 #[derive(Debug, Clone)]
 pub struct ParquetStorage {
+    /// Underlying object store.
     object_store: Arc<DynObjectStore>,
+
+    /// Thread pool that limits the number of threads for synchronous parquet file => Arrow IO.
+    ///
+    /// We use a dedicated thread pool instead of tokio's `spawn_blocking` feature because the latter would steal too
+    /// many threads and starve query executor.
     parquet_io_threadpool: Arc<ThreadPool>,
+
+    /// Semaphore that limits the number of temporary files that are used at the same time.
+    ///
+    /// This ensure that we are not running out of file descriptors.
+    tmp_files_semaphore: Arc<Semaphore>,
+
+    /// Semaphore that limits the total file size within the temp pool.
+    ///
+    /// The filesize is in MB because [`Semaphore`] only supports `u32`. Semaphore users must convert bytes to megabytes
+    /// by rounding UP!
+    ///
+    /// This assumes that [`Semaphore`] is backed by some cheap counting mechanism, which for tokio 1.18.2 seems to be
+    /// the case.
+    tmp_filesize_mb_semaphore: Arc<Semaphore>,
 }
 
 impl ParquetStorage {
@@ -112,9 +133,15 @@ impl ParquetStorage {
                 .build()
                 .expect("cannot build parquet IO threadpool"),
         );
+
+        let tmp_files_semaphore = Arc::new(Semaphore::new(32));
+        let tmp_filesize_mb_semaphore = Arc::new(Semaphore::new(1024));
+
         Self {
             object_store,
             parquet_io_threadpool,
+            tmp_files_semaphore,
+            tmp_filesize_mb_semaphore,
         }
     }
 
@@ -218,10 +245,19 @@ impl ParquetStorage {
         // not silently ignored
         let object_store = Arc::clone(&self.object_store);
         let thread_pool = Arc::clone(&self.parquet_io_threadpool);
+        let tmp_files_semaphore = Arc::clone(&self.tmp_files_semaphore);
+        let tmp_filesize_mb_semaphore = Arc::clone(&self.tmp_filesize_mb_semaphore);
         let handle = tokio::task::spawn(async move {
-            let download_result =
-                download_and_scan_parquet(projection, path, object_store, tx.clone(), thread_pool)
-                    .await;
+            let download_result = download_and_scan_parquet(
+                projection,
+                path,
+                object_store,
+                tx.clone(),
+                thread_pool,
+                tmp_files_semaphore,
+                tmp_filesize_mb_semaphore,
+            )
+            .await;
 
             // If there was an error returned from download_and_scan_parquet send it back to the receiver.
             if let Err(e) = download_result {
@@ -274,7 +310,22 @@ async fn download_and_scan_parquet(
     object_store: Arc<DynObjectStore>,
     tx: tokio::sync::mpsc::Sender<ArrowResult<RecordBatch>>,
     thread_pool: Arc<ThreadPool>,
+    tmp_files_semaphore: Arc<Semaphore>,
+    tmp_filesize_mb_semaphore: Arc<Semaphore>,
 ) -> Result<(), ReadError> {
+    let _tmp_file_permit = tmp_files_semaphore
+        .acquire()
+        .await
+        .expect("semaphore must not be closed");
+
+    let file_size = object_store.head(&path).await?.size;
+    let file_size_mb =
+        u32::try_from((file_size + 1024 * 1024 - 1) / (1024 * 1024)).expect("file size overflow");
+    let _tmp_filesize_permit = tmp_filesize_mb_semaphore
+        .acquire_many(file_size_mb)
+        .await
+        .expect("semaphore must not be closed");
+
     let read_stream = object_store.get(&path).await?;
 
     let file = match read_stream {
