@@ -457,7 +457,12 @@ impl Compactor {
             // deleted. These should already be unique, no need to dedupe.
             let original_parquet_file_ids: Vec<_> =
                 group.parquet_files.iter().map(|f| f.data.id).collect();
-            info!("compacting group of files: {:?}", original_parquet_file_ids);
+            let size: i64 = group
+                .parquet_files
+                .iter()
+                .map(|f| f.data.file_size_bytes)
+                .sum();
+            info!(num_files=%group.parquet_files.len(), ?size, ?original_parquet_file_ids, "compacting group of files");
 
             // Compact the files concurrently.
             //
