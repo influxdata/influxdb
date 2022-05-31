@@ -16,7 +16,31 @@ import (
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxql"
+	"github.com/stretchr/testify/require"
 )
+
+func TestShard_ErrorPrinting(t *testing.T) {
+
+	badStrings := []string{
+		string([]byte{'b', 'e', 'n', 't', 'e', 's', 't', '\t', '\n'}),
+		string([]byte{'b', 'e', 'n', 't', 'e', 's', 0, 0, 0, 0xFE, 't'}),
+		string([]byte{'b', 'e', 'n', 't', 'e', 's', 't', 0, 0, 0, 0, 0xFE, '\t', '\n'}),
+	}
+
+	for _, s := range badStrings {
+		f := makePrintable(s)
+		require.True(t, models.ValidKeyToken(f))
+		c := 0
+		for _, r := range f {
+			if r == unPrintReplRune {
+				c++
+				require.LessOrEqual(t, c, unPrintMaxReplRune, "too many repeated %c", unPrintReplRune)
+			} else {
+				c = 0
+			}
+		}
+	}
+}
 
 func TestShard_MapType(t *testing.T) {
 	var sh *TempShard

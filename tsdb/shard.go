@@ -15,6 +15,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode"
 	"unsafe"
 
 	"github.com/influxdata/influxdb/models"
@@ -601,7 +602,7 @@ func (s *Shard) validateSeriesAndFields(points []models.Point, tracker StatsTrac
 		if validateKeys && !models.ValidKeyTokens(string(p.Name()), tags) {
 			dropped++
 			if reason == "" {
-				reason = fmt.Sprintf("key contains invalid unicode: \"%s\"", string(p.Key()))
+				reason = fmt.Sprintf("key contains invalid unicode: %q", makePrintable(string(p.Key())))
 			}
 			continue
 		}
@@ -721,6 +722,39 @@ func (s *Shard) validateSeriesAndFields(points []models.Point, tracker StatsTrac
 	}
 
 	return points[:j], fieldsToCreate, err
+}
+
+const unPrintReplRune = '?'
+const unPrintMaxReplRune = 3
+
+// makePrintable - replace invalid and non-printable unicode characters with a few '?' runes
+func makePrintable(s string) string {
+	b := strings.Builder{}
+	b.Grow(len(s))
+	for _, r := range strings.ToValidUTF8(s, string(unPrintReplRune)) {
+		if !unicode.IsPrint(r) || r == unicode.ReplacementChar {
+			b.WriteRune(unPrintReplRune)
+		} else {
+			b.WriteRune(r)
+		}
+	}
+	return removeRepeats(b.String(), unPrintMaxReplRune, unPrintReplRune)
+}
+
+func removeRepeats(s string, m int, r rune) string {
+	b := strings.Builder{}
+	b.Grow(len(s))
+	c := 0
+	for _, cr := range s {
+		if cr != r {
+			b.WriteRune(cr)
+			c = 0
+		} else if c < m {
+			b.WriteRune(cr)
+			c++
+		}
+	}
+	return b.String()
 }
 
 func (s *Shard) createFieldsAndMeasurements(fieldsToCreate []*FieldCreate) error {
