@@ -300,19 +300,19 @@ mod tests {
     async fn test_answers_are_correct() {
         let (cache, _loader) = setup();
 
-        assert_eq!(cache.get(1, ()).await, String::from("1"));
-        assert_eq!(cache.get(2, ()).await, String::from("2"));
+        assert_eq!(cache.get(1, true).await, String::from("1_true"));
+        assert_eq!(cache.get(2, false).await, String::from("2_false"));
     }
 
     #[tokio::test]
     async fn test_linear_memory() {
         let (cache, loader) = setup();
 
-        assert_eq!(cache.get(1, ()).await, String::from("1"));
-        assert_eq!(cache.get(1, ()).await, String::from("1"));
-        assert_eq!(cache.get(2, ()).await, String::from("2"));
-        assert_eq!(cache.get(2, ()).await, String::from("2"));
-        assert_eq!(cache.get(1, ()).await, String::from("1"));
+        assert_eq!(cache.get(1, true).await, String::from("1_true"));
+        assert_eq!(cache.get(1, false).await, String::from("1_true"));
+        assert_eq!(cache.get(2, false).await, String::from("2_false"));
+        assert_eq!(cache.get(2, false).await, String::from("2_false"));
+        assert_eq!(cache.get(1, true).await, String::from("1_true"));
 
         assert_eq!(loader.loaded(), vec![1, 2]);
     }
@@ -324,16 +324,16 @@ mod tests {
         loader.block();
 
         let cache_captured = Arc::clone(&cache);
-        let handle_1 = tokio::spawn(async move { cache_captured.get(1, ()).await });
-        let handle_2 = tokio::spawn(async move { cache.get(1, ()).await });
+        let handle_1 = tokio::spawn(async move { cache_captured.get(1, true).await });
+        let handle_2 = tokio::spawn(async move { cache.get(1, true).await });
 
         tokio::time::sleep(Duration::from_millis(10)).await;
         // Shouldn't issue concurrent load requests for the same key
         let n_blocked = loader.unblock();
         assert_eq!(n_blocked, 1);
 
-        assert_eq!(handle_1.await.unwrap(), String::from("1"));
-        assert_eq!(handle_2.await.unwrap(), String::from("1"));
+        assert_eq!(handle_1.await.unwrap(), String::from("1_true"));
+        assert_eq!(handle_2.await.unwrap(), String::from("1_true"));
 
         assert_eq!(loader.loaded(), vec![1]);
     }
@@ -345,19 +345,19 @@ mod tests {
         loader.block();
 
         let cache_captured = Arc::clone(&cache);
-        let handle_1 = tokio::spawn(async move { cache_captured.get(1, ()).await });
+        let handle_1 = tokio::spawn(async move { cache_captured.get(1, true).await });
         let cache_captured = Arc::clone(&cache);
-        let handle_2 = tokio::spawn(async move { cache_captured.get(1, ()).await });
-        let handle_3 = tokio::spawn(async move { cache.get(2, ()).await });
+        let handle_2 = tokio::spawn(async move { cache_captured.get(1, true).await });
+        let handle_3 = tokio::spawn(async move { cache.get(2, false).await });
 
         tokio::time::sleep(Duration::from_millis(10)).await;
 
         let n_blocked = loader.unblock();
         assert_eq!(n_blocked, 2);
 
-        assert_eq!(handle_1.await.unwrap(), String::from("1"));
-        assert_eq!(handle_2.await.unwrap(), String::from("1"));
-        assert_eq!(handle_3.await.unwrap(), String::from("2"));
+        assert_eq!(handle_1.await.unwrap(), String::from("1_true"));
+        assert_eq!(handle_2.await.unwrap(), String::from("1_true"));
+        assert_eq!(handle_3.await.unwrap(), String::from("2_false"));
 
         assert_eq!(loader.loaded(), vec![1, 2]);
     }
@@ -369,9 +369,9 @@ mod tests {
         loader.block();
 
         let cache_captured = Arc::clone(&cache);
-        let handle_1 = tokio::spawn(async move { cache_captured.get(1, ()).await });
+        let handle_1 = tokio::spawn(async move { cache_captured.get(1, true).await });
         tokio::time::sleep(Duration::from_millis(10)).await;
-        let handle_2 = tokio::spawn(async move { cache.get(1, ()).await });
+        let handle_2 = tokio::spawn(async move { cache.get(1, false).await });
 
         tokio::time::sleep(Duration::from_millis(10)).await;
 
@@ -382,7 +382,7 @@ mod tests {
         let n_blocked = loader.unblock();
         assert_eq!(n_blocked, 1);
 
-        assert_eq!(handle_2.await.unwrap(), String::from("1"));
+        assert_eq!(handle_2.await.unwrap(), String::from("1_true"));
 
         assert_eq!(loader.loaded(), vec![1]);
     }
@@ -395,11 +395,11 @@ mod tests {
         loader.block();
 
         let cache_captured = Arc::clone(&cache);
-        let handle_1 = tokio::spawn(async move { cache_captured.get(1, ()).await });
+        let handle_1 = tokio::spawn(async move { cache_captured.get(1, true).await });
         tokio::time::sleep(Duration::from_millis(10)).await;
         let cache_captured = Arc::clone(&cache);
-        let handle_2 = tokio::spawn(async move { cache_captured.get(1, ()).await });
-        let handle_3 = tokio::spawn(async move { cache.get(2, ()).await });
+        let handle_2 = tokio::spawn(async move { cache_captured.get(1, false).await });
+        let handle_3 = tokio::spawn(async move { cache.get(2, false).await });
 
         tokio::time::sleep(Duration::from_millis(10)).await;
 
@@ -414,7 +414,7 @@ mod tests {
         handle_2.await.unwrap_err();
 
         // third handle should just work
-        assert_eq!(handle_3.await.unwrap(), String::from("2"));
+        assert_eq!(handle_3.await.unwrap(), String::from("2_false"));
 
         assert_eq!(loader.loaded(), vec![1, 2]);
     }
@@ -425,7 +425,7 @@ mod tests {
 
         loader.block();
 
-        let handle = tokio::spawn(async move { cache.get(1, ()).await });
+        let handle = tokio::spawn(async move { cache.get(1, true).await });
 
         tokio::time::sleep(Duration::from_millis(10)).await;
 
@@ -445,7 +445,7 @@ mod tests {
         cache.set(1, String::from("foo")).await;
 
         // blocked loader is not used
-        let res = tokio::time::timeout(Duration::from_millis(10), cache.get(1, ()))
+        let res = tokio::time::timeout(Duration::from_millis(10), cache.get(1, false))
             .await
             .unwrap();
         assert_eq!(res, String::from("foo"));
@@ -459,7 +459,7 @@ mod tests {
         loader.block();
 
         let cache_captured = Arc::clone(&cache);
-        let handle = tokio::spawn(async move { cache_captured.get(1, ()).await });
+        let handle = tokio::spawn(async move { cache_captured.get(1, true).await });
         tokio::time::sleep(Duration::from_millis(10)).await;
 
         cache.set(1, String::from("foo")).await;
@@ -473,14 +473,14 @@ mod tests {
         assert_eq!(loader.loaded(), vec![1]);
 
         // still cached
-        let res = tokio::time::timeout(Duration::from_millis(10), cache.get(1, ()))
+        let res = tokio::time::timeout(Duration::from_millis(10), cache.get(1, false))
             .await
             .unwrap();
         assert_eq!(res, String::from("foo"));
         assert_eq!(loader.loaded(), vec![1]);
     }
 
-    fn setup() -> (Arc<Cache<u8, String, ()>>, Arc<TestLoader>) {
+    fn setup() -> (Arc<Cache<u8, String, bool>>, Arc<TestLoader>) {
         let loader = Arc::new(TestLoader::default());
         let cache = Arc::new(Cache::new(
             Arc::clone(&loader) as _,
@@ -539,9 +539,9 @@ mod tests {
     impl Loader for TestLoader {
         type K = u8;
         type V = String;
-        type Extra = ();
+        type Extra = bool;
 
-        async fn load(&self, k: u8, _extra: ()) -> String {
+        async fn load(&self, k: u8, extra: bool) -> String {
             self.loaded.lock().push(k);
 
             // need to capture the cloned notify handle, otherwise the lock guard leaks into the
@@ -556,7 +556,7 @@ mod tests {
                 panic!("test");
             }
 
-            k.to_string()
+            format!("{k}_{extra}")
         }
     }
 
