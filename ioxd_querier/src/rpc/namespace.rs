@@ -76,6 +76,7 @@ mod tests {
             ParquetStorage::new(catalog.object_store()),
             catalog.exec(),
             create_ingester_connection_for_testing(),
+            QuerierDatabase::MAX_CONCURRENT_QUERIES_MAX,
         ));
 
         let service = NamespaceServiceImpl::new(db);
@@ -103,6 +104,7 @@ mod tests {
             ParquetStorage::new(catalog.object_store()),
             catalog.exec(),
             create_ingester_connection_for_testing(),
+            QuerierDatabase::MAX_CONCURRENT_QUERIES_MAX,
         ));
 
         let service = NamespaceServiceImpl::new(db);

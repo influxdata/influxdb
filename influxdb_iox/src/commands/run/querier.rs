@@ -95,6 +95,7 @@ pub async fn command(config: Config) -> Result<(), Error> {
 
     let exec = Arc::new(Executor::new(num_threads));
     let ram_pool_bytes = config.querier_config.ram_pool_bytes();
+    let max_concurrent_queries = config.querier_config.max_concurrent_queries();
     let server_type = create_querier_server_type(QuerierServerTypeArgs {
         common_state: &common_state,
         metric_registry: Arc::clone(&metric_registry),
@@ -104,6 +105,7 @@ pub async fn command(config: Config) -> Result<(), Error> {
         exec,
         ingester_addresses,
         ram_pool_bytes,
+        max_concurrent_queries,
     })
     .await;
 

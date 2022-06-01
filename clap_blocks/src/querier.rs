@@ -45,6 +45,14 @@ pub struct QuerierConfig {
         default_value = "1073741824"
     )]
     pub ram_pool_bytes: usize,
+
+    /// Limit the number of concurrent queries.
+    #[clap(
+        long = "--max-concurrent-queries",
+        env = "INFLUXDB_IOX_MAX_CONCURRENT_QUERIES",
+        default_value = "10"
+    )]
+    pub max_concurrent_queries: usize,
 }
 
 impl QuerierConfig {
@@ -74,6 +82,11 @@ impl QuerierConfig {
     /// Size of the RAM cache pool in bytes.
     pub fn ram_pool_bytes(&self) -> usize {
         self.ram_pool_bytes
+    }
+
+    /// Number of namespaces that can be used at once.
+    pub fn max_concurrent_queries(&self) -> usize {
+        self.max_concurrent_queries
     }
 }
 

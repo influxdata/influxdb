@@ -278,6 +278,14 @@ pub struct Config {
         default_value = "1073741824"
     )]
     pub querier_ram_pool_bytes: usize,
+
+    /// Limit the number of concurrent queries.
+    #[clap(
+        long = "--querier-max-concurrent-queries",
+        env = "INFLUXDB_IOX_QUERIER_MAX_CONCURRENT_QUERIES",
+        default_value = "10"
+    )]
+    pub querier_max_concurrent_queries: usize,
 }
 
 impl Config {
@@ -301,6 +309,7 @@ impl Config {
             ingester_grpc_bind_address,
             compactor_grpc_bind_address,
             querier_ram_pool_bytes,
+            querier_max_concurrent_queries,
         } = self;
 
         let object_store_config = ObjectStoreConfig::new(database_directory.clone());
@@ -368,6 +377,7 @@ impl Config {
             num_query_threads: None,    // will be ignored
             ingester_addresses: vec![], // will be ignored
             ram_pool_bytes: querier_ram_pool_bytes,
+            max_concurrent_queries: querier_max_concurrent_queries,
         };
 
         SpecializedConfig {
@@ -495,6 +505,7 @@ pub async fn command(config: Config) -> Result<()> {
         exec,
         ingester_addresses,
         ram_pool_bytes: querier_config.ram_pool_bytes(),
+        max_concurrent_queries: querier_config.max_concurrent_queries(),
     })
     .await;
 

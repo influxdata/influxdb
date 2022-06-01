@@ -147,6 +147,7 @@ pub struct QuerierServerTypeArgs<'a> {
     pub exec: Arc<Executor>,
     pub ingester_addresses: Vec<String>,
     pub ram_pool_bytes: usize,
+    pub max_concurrent_queries: usize,
 }
 
 /// Instantiate a querier server
@@ -165,6 +166,7 @@ pub async fn create_querier_server_type(args: QuerierServerTypeArgs<'_>) -> Arc<
         ParquetStorage::new(args.object_store),
         args.exec,
         ingester_connection,
+        args.max_concurrent_queries,
     ));
     let querier_handler = Arc::new(QuerierHandlerImpl::new(args.catalog, Arc::clone(&database)));
 
