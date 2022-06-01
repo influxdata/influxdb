@@ -13,6 +13,10 @@ async fn default_mode_is_run_all_in_one() {
     Command::cargo_bin("influxdb_iox")
         .unwrap()
         .args(&["-v"])
+        // Do not attempt to connect to the real DB (object store, etc) if the
+        // prod DSN is set - all other tests use TEST_INFLUXDB_IOX_CATALOG_DSN
+        // but this one will use the real env if not cleared.
+        .env_clear()
         .timeout(Duration::from_secs(2))
         .assert()
         .failure()
@@ -24,6 +28,10 @@ async fn default_run_mode_is_all_in_one() {
     Command::cargo_bin("influxdb_iox")
         .unwrap()
         .args(&["run", "-v"])
+        // This test is designed to assert the default running mode is using
+        // in-memory state, so ensure that any outside config does not influence
+        // this.
+        .env_clear()
         .timeout(Duration::from_secs(2))
         .assert()
         .failure()
