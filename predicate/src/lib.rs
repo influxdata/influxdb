@@ -99,6 +99,21 @@ impl Predicate {
         }
     }
 
+    /// Adds all items in new_names into self.field_names
+    pub fn add_field_names<I, S>(&mut self, new_names: I)
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        let mut new_field_columns: BTreeSet<_> = self.field_columns.take().unwrap_or_default();
+
+        let new_names = new_names.into_iter().map(|n| n.into());
+
+        new_field_columns.extend(new_names);
+
+        self.field_columns = Some(new_field_columns);
+    }
+
     /// Creates a DataFusion predicate for appliying a timestamp range:
     ///
     /// `range.start <= time and time < range.end`
@@ -349,7 +364,7 @@ impl PredicateBuilder {
     }
 
     /// Sets field_column restriction
-    pub fn field_columns(mut self, columns: Vec<impl Into<String>>) -> Self {
+    pub fn field_columns(mut self, columns: impl IntoIterator<Item = impl Into<String>>) -> Self {
         // We need to distinguish predicates like `column_name In
         // (foo, bar)` and `column_name = foo and column_name = bar` in order to handle
         // this
