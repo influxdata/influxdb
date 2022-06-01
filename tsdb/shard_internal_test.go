@@ -21,24 +21,32 @@ import (
 
 func TestShard_ErrorPrinting(t *testing.T) {
 
-	badStrings := []string{
-		string([]byte{'b', 'e', 'n', 't', 'e', 's', 't', '\t', '\n'}),
-		string([]byte{'b', 'e', 'n', 't', 'e', 's', 0, 0, 0xFE, 0, 0xFE, 't'}),
-		string([]byte{'b', 'e', 'n', 't', 'e', 's', 't', 0, 0, 0, 0, 0xFE, '\t', '\n', '\t', '\t', '\t'}),
+	tests := []struct {
+		nSeq int
+		raw  string
+	}{
+		{1, string([]byte{'b', 'e', 'n', 't', 'e', 's', 't', '\t', '\n'})},
+		{1, string([]byte{'b', 'e', 'n', 't', 'e', 's', 0, 0, 0xFE, 0, 0xFE, 't'})},
+		{2, string([]byte{0, 0, 0, 0, 0xFE, '\t', '\n', '\t', 'b', 'e', 'n', 't', 'e', 's', 't', 0, 0, 0, 0, 0xFE, '\t', '\n', '\t', '\t', '\t'})},
 	}
 
-	for _, s := range badStrings {
-		f := makePrintable(s)
+	for i, _ := range tests {
+		f := makePrintable(tests[i].raw)
 		require.True(t, models.ValidKeyToken(f))
 		c := 0
+		nSeq := 0
 		for _, r := range f {
 			if r == unPrintReplRune {
 				c++
+				if c == 1 {
+					nSeq++
+				}
 				require.LessOrEqual(t, c, unPrintMaxReplRune, "too many repeated %c", unPrintReplRune)
 			} else {
 				c = 0
 			}
 		}
+		require.Equalf(t, tests[i].nSeq, nSeq, "wrong number of elided sequences of replacement characters")
 	}
 }
 

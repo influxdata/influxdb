@@ -740,6 +740,7 @@ func makePrintable(s string) string {
 			c++
 		} else {
 			b.WriteRune(r)
+			c = 0
 		}
 	}
 	return b.String()
