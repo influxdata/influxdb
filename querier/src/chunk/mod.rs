@@ -257,7 +257,10 @@ pub struct ChunkAdapter {
     /// Cache
     catalog_cache: Arc<CatalogCache>,
 
-    /// Object store. Wrapper around an Arc; cheap to clone.
+    /// Object store.
+    ///
+    /// Internally, `ParquetStorage` wraps the actual store implementation in an `Arc`, so
+    /// `ParquetStorage` is cheap to clone.
     store: ParquetStorage,
 
     /// Metric registry.
