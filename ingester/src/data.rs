@@ -1430,7 +1430,7 @@ pub struct IngesterQueryResponse {
     pub data: SendableRecordBatchStream,
 
     /// The schema of the record batches
-    pub schema: Schema,
+    pub schema: Arc<Schema>,
 
     /// Contains status for every partition that has unpersisted data.
     ///
@@ -1458,7 +1458,7 @@ impl IngesterQueryResponse {
     /// Make a response
     pub fn new(
         data: SendableRecordBatchStream,
-        schema: Schema,
+        schema: Arc<Schema>,
         unpersisted_partitions: BTreeMap<PartitionId, PartitionStatus>,
         batch_partition_ids: Vec<PartitionId>,
     ) -> Self {

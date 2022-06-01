@@ -7,10 +7,12 @@ description = "Tests of the query engine against different database configuratio
 
 [dependencies]
 arrow = { version = "14.0.0", features = ["prettyprint"] }
+arrow_util = { path = "../arrow_util" }
 async-trait = "0.1"
 backoff = { path = "../backoff" }
 data_types = { path = "../data_types" }
 datafusion = { path = "../datafusion" }
+datafusion_util = { path = "../datafusion_util" }
 dml = { path = "../dml" }
 futures = "0.3"
 generated_types = { path = "../generated_types" }

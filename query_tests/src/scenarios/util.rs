@@ -1,14 +1,17 @@
 //! This module contains util functions for testing scenarios
 use super::DbScenario;
 use arrow::record_batch::RecordBatch;
+use arrow_util::optimize::{optimize_record_batch, optimize_schema};
 use async_trait::async_trait;
 use backoff::BackoffConfig;
 use data_types::{
     DeletePredicate, NonEmptyString, PartitionId, Sequence, SequenceNumber, SequencerId,
     TombstoneId,
 };
+use datafusion::physical_plan::RecordBatchStream;
+use datafusion_util::MemoryStream;
 use dml::{DmlDelete, DmlMeta, DmlOperation, DmlWrite};
-use futures::StreamExt;
+use futures::{StreamExt, TryStreamExt};
 use generated_types::{
     influxdata::iox::ingester::v1::{IngesterQueryResponseMetadata, PartitionStatus},
     ingester::IngesterQueryRequest,
@@ -36,6 +39,7 @@ use std::{
     collections::{BTreeMap, HashMap},
     fmt::Display,
     fmt::Write,
+    pin::Pin,
     sync::Arc,
     sync::Mutex,
 };
@@ -917,6 +921,23 @@ impl IngesterFlightClient for MockIngester {
                     e,
                 ))),
             })?;
+
+        // perform the same optimizations that the ingester would use
+        let schema = Arc::new(optimize_schema(&response.schema.as_arrow()));
+        let batches: Vec<RecordBatch> = response
+            .data
+            .map_ok(|batch| optimize_record_batch(&batch, Arc::clone(&schema)).unwrap())
+            .try_collect()
+            .await
+            .unwrap();
+        let data = Box::pin(MemoryStream::new_with_schema(batches, Arc::clone(&schema)))
+            as Pin<Box<dyn RecordBatchStream + Send>>;
+        let schema = Arc::new(schema::Schema::try_from(schema).unwrap());
+        let response = IngesterQueryResponse {
+            data,
+            schema,
+            ..response
+        };
 
         Ok(Box::new(QueryDataAdapter::new(response)))
     }

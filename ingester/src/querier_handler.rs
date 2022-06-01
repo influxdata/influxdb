@@ -3,7 +3,7 @@
 use crate::data::{
     self, IngesterData, IngesterQueryResponse, QueryableBatch, UnpersistedPartitionData,
 };
-use arrow::record_batch::RecordBatch;
+use arrow::{error::ArrowError, record_batch::RecordBatch};
 use arrow_util::util::merge_record_batches;
 use datafusion::{
     error::DataFusionError,
@@ -21,11 +21,7 @@ use iox_query::{
 };
 use observability_deps::tracing::debug;
 use predicate::Predicate;
-use schema::{
-    merge::{merge_record_batch_schemas, SchemaMerger},
-    selection::Selection,
-    Schema,
-};
+use schema::{merge::merge_record_batch_schemas, selection::Selection};
 use snafu::{ensure, ResultExt, Snafu};
 use std::{collections::BTreeMap, sync::Arc};
 
@@ -77,8 +73,11 @@ pub enum Error {
     #[snafu(display("Error concating same-schema record batches: {}", source))]
     ConcatBatches { source: arrow::error::ArrowError },
 
-    #[snafu(display("Error merging schemas: {}", source))]
-    MergeSchema { source: schema::merge::Error },
+    #[snafu(display(
+        "Cannot apply identical schema to record batches of all partitions: {}",
+        source
+    ))]
+    InterPartitionSchemaApplication { source: arrow::error::ArrowError },
 
     #[snafu(display("Concurrent query request limit exceeded"))]
     RequestLimit,
@@ -93,7 +92,6 @@ pub async fn prepare_data_to_querier(
     request: &IngesterQueryRequest,
 ) -> Result<IngesterQueryResponse> {
     debug!(?request, "prepare_data_to_querier");
-    let mut schema_merger = SchemaMerger::new();
     let mut unpersisted_partitions = BTreeMap::new();
     let mut found_namespace = false;
     let mut batches = vec![];
@@ -135,13 +133,10 @@ pub async fn prepare_data_to_querier(
 
             // extract payload
             let partition_id = partition.partition_id;
-            let (schema, batch) =
+            let maybe_batch =
                 prepare_data_to_querier_for_partition(ingest_data.exec(), partition, request)
                     .await?;
-            schema_merger = schema_merger
-                .merge(schema.as_ref())
-                .context(MergeSchemaSnafu)?;
-            if let Some(batch) = batch {
+            if let Some(batch) = maybe_batch {
                 batches.push(Arc::new(batch));
                 batch_partition_ids.push(partition_id);
             }
@@ -162,12 +157,24 @@ pub async fn prepare_data_to_querier(
             table_name: &request.table
         },
     );
-    let schema = schema_merger.build();
     debug!(
         num_batches=%batches.len(),
         table_name=%request.table,
         "prepare_data_to_querier found batches"
     );
+
+    // ------------------------------------------------
+    // ensure consistent record batch schemas
+    //
+    // This is required to be able to transmit the batches via Arrow Flight.
+    //
+    // Note that we need one batch per partition -- not a single batch for all of them -- because the querier also mixes
+    // parquet data in and needs to have per-partition batches for de-duplication.
+    let schema = merge_record_batch_schemas(&batches);
+    let batches = batches
+        .into_iter()
+        .map(|batch| merge_record_batches(schema.as_arrow(), vec![batch]).transpose().expect("Batch should not be empty/non-existing at this point because we have ruled that out earlier.").map(Arc::new))
+        .collect::<Result<Vec<Arc<RecordBatch>>, ArrowError>>().context(InterPartitionSchemaApplicationSnafu)?;
 
     // ------------------------------------------------
     // Make a stream for this batch
@@ -187,7 +194,7 @@ async fn prepare_data_to_querier_for_partition(
     executor: &Executor,
     unpersisted_partition_data: UnpersistedPartitionData,
     request: &IngesterQueryRequest,
-) -> Result<(Arc<Schema>, Option<RecordBatch>)> {
+) -> Result<Option<RecordBatch>> {
     // ------------------------------------------------
     // Accumulate data
 
@@ -248,7 +255,7 @@ async fn prepare_data_to_querier_for_partition(
     let batch = merge_record_batches(schema.as_arrow(), filter_applied_batches)
         .context(ConcatBatchesSnafu)?;
 
-    Ok((schema, batch))
+    Ok(batch)
 }
 
 /// Query a given Queryable Batch, applying selection and filters as appropriate
