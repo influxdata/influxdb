@@ -116,7 +116,7 @@ impl Reconciler {
         for cached_parquet_file in parquet_files {
             if let Some(chunk) = self
                 .chunk_adapter
-                .new_querier_parquet_chunk(&cached_parquet_file)
+                .new_rb_chunk(Arc::clone(&cached_parquet_file))
                 .await
             {
                 chunks_from_parquet.push(chunk);
