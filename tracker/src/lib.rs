@@ -7,8 +7,10 @@
     clippy::future_not_send
 )]
 
+mod async_semaphore;
 mod lock;
 mod task;
 
+pub use async_semaphore::*;
 pub use lock::*;
 pub use task::*;
