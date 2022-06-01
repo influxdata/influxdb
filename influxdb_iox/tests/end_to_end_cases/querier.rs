@@ -133,78 +133,50 @@ async fn query_after_persist_sees_new_files() {
     test_helpers::maybe_start_logging();
 
     let database_url = maybe_skip_integration!();
+    let mut setup = ForcePersistenceSetup::new(database_url).await;
 
-    let table_name = "the_table";
+    let steps = vec![
+        // Write data to a parquet file
+        Step::WriteLineProtocol(setup.lp_to_force_persistence()),
+        Step::WaitForPersisted,
+        Step::Query {
+            sql: setup.count_star_sql(),
+            expected: vec![
+                "+-----------------+",
+                "| COUNT(UInt8(1)) |",
+                "+-----------------+",
+                "| 1               |",
+                "+-----------------+",
+            ],
+        },
+        // second query, should be the same result
+        Step::Query {
+            sql: setup.count_star_sql(),
+            expected: vec![
+                "+-----------------+",
+                "| COUNT(UInt8(1)) |",
+                "+-----------------+",
+                "| 1               |",
+                "+-----------------+",
+            ],
+        },
+        // write another parquet file
+        Step::WriteLineProtocol(setup.lp_to_force_persistence()),
+        Step::WaitForPersisted,
+        // query should correctly see the data in the second parquet file
+        Step::Query {
+            sql: setup.count_star_sql(),
+            expected: vec![
+                "+-----------------+",
+                "| COUNT(UInt8(1)) |",
+                "+-----------------+",
+                "| 2               |",
+                "+-----------------+",
+            ],
+        },
+    ];
 
-    // Set up the cluster  ====================================
-    let router_config = TestConfig::new_router(&database_url);
-    let ingester_config =
-        TestConfig::new_ingester(&router_config).with_ingester_persist_memory_threshold(1000);
-    let querier_config = TestConfig::new_querier(&ingester_config);
-    let mut cluster = MiniCluster::new()
-        .with_router(router_config)
-        .await
-        .with_ingester(ingester_config)
-        .await
-        .with_querier(querier_config)
-        .await;
-
-    // We need a trigger for persistence that is not time so the test
-    // is as stable as possible. We use a long string to cross the
-    // persistence memory threshold.
-    let super_long_string: String = "x".repeat(10_000);
-
-    StepTest::new(
-        &mut cluster,
-        vec![
-            // Write data to a parquet file
-            Step::WriteLineProtocol(format!(
-                "{},tag=A val=\"{}\" 2\n",
-                table_name, super_long_string
-            )),
-            Step::WaitForPersisted,
-            Step::Query {
-                sql: format!("select count(*) from {}", table_name),
-                expected: vec![
-                    "+-----------------+",
-                    "| COUNT(UInt8(1)) |",
-                    "+-----------------+",
-                    "| 1               |",
-                    "+-----------------+",
-                ],
-            },
-            // second query, should be the same result
-            Step::Query {
-                sql: format!("select count(*) from {}", table_name),
-                expected: vec![
-                    "+-----------------+",
-                    "| COUNT(UInt8(1)) |",
-                    "+-----------------+",
-                    "| 1               |",
-                    "+-----------------+",
-                ],
-            },
-            // write another parquet file
-            Step::WriteLineProtocol(format!(
-                "{},tag=B val=\"{}\" 2\n",
-                table_name, super_long_string
-            )),
-            Step::WaitForPersisted,
-            // query should correctly see the data in the second parquet file
-            Step::Query {
-                sql: format!("select count(*) from {}", table_name),
-                expected: vec![
-                    "+-----------------+",
-                    "| COUNT(UInt8(1)) |",
-                    "+-----------------+",
-                    "| 2               |",
-                    "+-----------------+",
-                ],
-            },
-        ],
-    )
-    .run()
-    .await
+    StepTest::new(&mut setup.cluster, steps).run().await
 }
 
 #[tokio::test]
@@ -361,84 +333,64 @@ async fn issue_4631_a() {
     test_helpers::maybe_start_logging();
 
     let database_url = maybe_skip_integration!();
+    let mut setup = ForcePersistenceSetup::new(database_url).await;
 
-    let table_name = "the_table";
+    let steps = vec![
+        // create UNPERSISTED ingester data
+        //
+        // IMPORTANT: The data MUST NOT be persisted before the first query is executed, because persistence
+        //            calculates the partition sort key. The original bug was that the first query on a completely
+        //            unpersisted partition would cache the NULL/None sort key which would later lead to a panic.
+        Step::WriteLineProtocol(format!("{},tag=A val=\"foo\" 1", setup.table_name())),
+        Step::WaitForReadable,
+        Step::AssertNotPersisted,
+        // cache partition in querier w/o any partition sort key (yet)
+        // This MUST happen after we have some ingester data but before ANYTHING was persisted. In the original bug
+        // the querier would now cache the partition w/o a sort key (and would never invalidate this information).
+        Step::Query {
+            sql: format!("select * from {}", setup.table_name()),
+            expected: vec![
+                "+-----+--------------------------------+-----+",
+                "| tag | time                           | val |",
+                "+-----+--------------------------------+-----+",
+                "| A   | 1970-01-01T00:00:00.000000001Z | foo |",
+                "+-----+--------------------------------+-----+",
+            ],
+        },
+        // flush ingester data
+        // Here the ingester calculates the partition sort key.
+        Step::WriteLineProtocol(format!(
+            "{},tag=B val=\"{}\" 2\n",
+            setup.table_name(),
+            setup.super_long_string()
+        )),
+        Step::WaitForPersisted,
+        // create overlapping 2nd parquet file
+        // This is important to trigger the bug within the query engine, because only if there are multiple chunks
+        // that need to be de-duplicated the bug will occur.
+        Step::WriteLineProtocol(format!(
+            "{},tag=A val=\"bar\" 1\n{},tag=B val=\"{}\" 2\n",
+            setup.table_name(),
+            setup.table_name(),
+            setup.super_long_string()
+        )),
+        Step::WaitForPersisted,
+        // query
+        // In the original bug the querier would still use NULL/None as a partition sort key but present two sorted
+        // but overlapping chunks to the query engine.
+        Step::Query {
+            sql: format!("select * from {} where tag='A'", setup.table_name()),
+            expected: vec![
+                "+-----+--------------------------------+-----+",
+                "| tag | time                           | val |",
+                "+-----+--------------------------------+-----+",
+                "| A   | 1970-01-01T00:00:00.000000001Z | bar |",
+                "+-----+--------------------------------+-----+",
+            ],
+        },
+    ];
 
-    // Set up the cluster  ====================================
-    let router_config = TestConfig::new_router(&database_url);
-    let ingester_config =
-        TestConfig::new_ingester(&router_config).with_ingester_persist_memory_threshold(1000);
-    let querier_config = TestConfig::new_querier(&ingester_config);
-    let mut cluster = MiniCluster::new()
-        .with_router(router_config)
-        .await
-        .with_ingester(ingester_config)
-        .await
-        .with_querier(querier_config)
-        .await;
-
-    // We need a trigger for persistence that is not time so the test is as stable as possible. We use a long string to
-    // cross the persistence memory threshold.
-    let mut super_long_string = String::new();
-    for _ in 0..10_000 {
-        super_long_string.push('x');
-    }
-
-    StepTest::new(
-        &mut cluster,
-        vec![
-            // create UNPERSISTED ingester data
-            // IMPORTANT: The data MUST NOT be persisted before the first query is executed, because persistence
-            //            calculates the partition sort key. The original bug was that the first query on a completely
-            //            unpersisted partition would cache the NULL/None sort key which would later lead to a panic.
-            Step::WriteLineProtocol(format!("{},tag=A val=\"foo\" 1", table_name)),
-            Step::WaitForReadable,
-            Step::AssertNotPersisted,
-            // cache partition in querier w/o any partition sort key (yet)
-            // This MUST happen after we have some ingester data but before ANYTHING was persisted. In the original bug
-            // the querier would now cache the partition w/o a sort key (and would never invalidate this information).
-            Step::Query {
-                sql: format!("select * from {}", table_name),
-                expected: vec![
-                    "+-----+--------------------------------+-----+",
-                    "| tag | time                           | val |",
-                    "+-----+--------------------------------+-----+",
-                    "| A   | 1970-01-01T00:00:00.000000001Z | foo |",
-                    "+-----+--------------------------------+-----+",
-                ],
-            },
-            // flush ingester data
-            // Here the ingester calculates the partition sort key.
-            Step::WriteLineProtocol(format!(
-                "{},tag=B val=\"{}\" 2\n",
-                table_name, super_long_string
-            )),
-            Step::WaitForPersisted,
-            // create overlapping 2nd parquet file
-            // This is important to trigger the bug within the query engine, because only if there are multiple chunks
-            // that need to be de-duplicated the bug will occur.
-            Step::WriteLineProtocol(format!(
-                "{},tag=A val=\"bar\" 1\n{},tag=B val=\"{}\" 2\n",
-                table_name, table_name, super_long_string
-            )),
-            Step::WaitForPersisted,
-            // query
-            // In the original bug the querier would still use NULL/None as a partition sort key but present two sorted
-            // but overlapping chunks to the query engine.
-            Step::Query {
-                sql: format!("select * from {} where tag='A'", table_name),
-                expected: vec![
-                    "+-----+--------------------------------+-----+",
-                    "| tag | time                           | val |",
-                    "+-----+--------------------------------+-----+",
-                    "| A   | 1970-01-01T00:00:00.000000001Z | bar |",
-                    "+-----+--------------------------------+-----+",
-                ],
-            },
-        ],
-    )
-    .run()
-    .await
+    StepTest::new(&mut setup.cluster, steps).run().await
 }
 
 #[tokio::test]
@@ -497,4 +449,54 @@ async fn issue_4631_b() {
     )
     .run()
     .await
+}
+
+/// This structure holds information for tests that need to force a parquet file to be persisted
+struct ForcePersistenceSetup {
+    // Set up a cluster that will will persist quickly
+    cluster: MiniCluster,
+}
+
+impl ForcePersistenceSetup {
+    async fn new(database_url: String) -> Self {
+        // Set up the cluster  ====================================
+        let router_config = TestConfig::new_router(&database_url);
+        let ingester_config =
+            TestConfig::new_ingester(&router_config).with_ingester_persist_memory_threshold(1000);
+        let querier_config = TestConfig::new_querier(&ingester_config);
+        let cluster = MiniCluster::new()
+            .with_router(router_config)
+            .await
+            .with_ingester(ingester_config)
+            .await
+            .with_querier(querier_config)
+            .await;
+
+        Self { cluster }
+    }
+
+    pub fn table_name(&self) -> &str {
+        "the_table"
+    }
+
+    /// return `SELECT COUNT(*) FROM table_name` query
+    pub fn count_star_sql(&self) -> String {
+        format!("select count(*) from {}", self.table_name())
+    }
+
+    /// Return line protocol that is so large it will be persisted
+    pub fn lp_to_force_persistence(&self) -> String {
+        format!(
+            "{},tag=A val=\"{}\" 2\n",
+            self.table_name(),
+            self.super_long_string()
+        )
+    }
+
+    /// We need a trigger for persistence that is not time so the test
+    /// is as stable as possible. We use a long string to cross the
+    /// persistence memory threshold.
+    pub fn super_long_string(&self) -> String {
+        "x".repeat(10_000)
+    }
 }
