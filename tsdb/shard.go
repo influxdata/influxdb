@@ -731,27 +731,15 @@ const unPrintMaxReplRune = 3
 func makePrintable(s string) string {
 	b := strings.Builder{}
 	b.Grow(len(s))
-	for _, r := range strings.ToValidUTF8(s, string(unPrintReplRune)) {
+	c := 0
+	for _, r := range strings.ToValidUTF8(s, string(unicode.ReplacementChar)) {
 		if !unicode.IsPrint(r) || r == unicode.ReplacementChar {
-			b.WriteRune(unPrintReplRune)
+			if c < unPrintMaxReplRune {
+				b.WriteRune(unPrintReplRune)
+			}
+			c++
 		} else {
 			b.WriteRune(r)
-		}
-	}
-	return removeRepeats(b.String(), unPrintMaxReplRune, unPrintReplRune)
-}
-
-func removeRepeats(s string, m int, r rune) string {
-	b := strings.Builder{}
-	b.Grow(len(s))
-	c := 0
-	for _, cr := range s {
-		if cr != r {
-			b.WriteRune(cr)
-			c = 0
-		} else if c < m {
-			b.WriteRune(cr)
-			c++
 		}
 	}
 	return b.String()

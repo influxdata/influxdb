@@ -23,8 +23,8 @@ func TestShard_ErrorPrinting(t *testing.T) {
 
 	badStrings := []string{
 		string([]byte{'b', 'e', 'n', 't', 'e', 's', 't', '\t', '\n'}),
-		string([]byte{'b', 'e', 'n', 't', 'e', 's', 0, 0, 0, 0xFE, 't'}),
-		string([]byte{'b', 'e', 'n', 't', 'e', 's', 't', 0, 0, 0, 0, 0xFE, '\t', '\n'}),
+		string([]byte{'b', 'e', 'n', 't', 'e', 's', 0, 0, 0xFE, 0, 0xFE, 't'}),
+		string([]byte{'b', 'e', 'n', 't', 'e', 's', 't', 0, 0, 0, 0, 0xFE, '\t', '\n', '\t', '\t', '\t'}),
 	}
 
 	for _, s := range badStrings {
