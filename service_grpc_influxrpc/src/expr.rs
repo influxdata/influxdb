@@ -1019,7 +1019,8 @@ mod tests {
             .build();
         let predicate = table_predicate(predicate);
 
-        let expected_exprs = vec![col("_field").not_eq(lit("bar"))];
+        // predicate is rewritten to true, and projection is added
+        let expected_exprs = vec![lit(true)];
 
         assert_eq!(
             &expected_exprs, &predicate.exprs,
