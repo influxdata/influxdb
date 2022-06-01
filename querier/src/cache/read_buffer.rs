@@ -185,6 +185,7 @@ mod tests {
     use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
     use read_buffer::Predicate;
     use schema::selection::Selection;
+    use std::time::Duration;
 
     fn make_cache(catalog: &TestCatalog) -> ReadBufferCache {
         ReadBufferCache::new(
@@ -253,6 +254,127 @@ mod tests {
 
         // Load is only called once
         assert_eq!(v, 1);
+    }
+
+    #[tokio::test]
+    async fn test_rb_chunks_lru() {
+        let (catalog, _partition) = make_catalog().await;
+
+        let mut decoded_parquet_files = Vec::with_capacity(3);
+        let ns = catalog.create_namespace("lru_ns").await;
+
+        for i in 1..=3 {
+            let table_name = format!("cached_table{i}");
+            let table = ns.create_table(&table_name).await;
+            let sequencer1 = ns.create_sequencer(1).await;
+
+            let partition = table
+                .with_sequencer(&sequencer1)
+                .create_partition("k")
+                .await;
+
+            let test_parquet_file = partition
+                .create_parquet_file(&format!("{table_name} foo=1 11"))
+                .await;
+            let parquet_file = test_parquet_file.parquet_file;
+            decoded_parquet_files.push(Arc::new(DecodedParquetFile::new(parquet_file)));
+        }
+
+        let storage = ParquetStorage::new(Arc::clone(&catalog.object_store));
+
+        // Create a ram pool big enough to hold 2 read buffer chunks
+        let ram_pool = Arc::new(ResourcePool::new(
+            "pool",
+            RamSize(3600),
+            catalog.time_provider(),
+            Arc::clone(&catalog.metric_registry()),
+        ));
+        let cache = ReadBufferCache::new(
+            catalog.time_provider(),
+            &catalog.metric_registry(),
+            ram_pool,
+        );
+
+        // load 1: Fetch table1 from storage
+        cache
+            .get(
+                Arc::clone(&decoded_parquet_files[0]),
+                "cached_table1".into(),
+                storage.clone(),
+            )
+            .await;
+        catalog.mock_time_provider().inc(Duration::from_millis(1));
+
+        // load 2: Fetch table2 from storage
+        cache
+            .get(
+                Arc::clone(&decoded_parquet_files[1]),
+                "cached_table2".into(),
+                storage.clone(),
+            )
+            .await;
+        catalog.mock_time_provider().inc(Duration::from_millis(1));
+
+        // Fetch table1 from cache, which should update its last used
+        cache
+            .get(
+                Arc::clone(&decoded_parquet_files[0]),
+                "cached_table1".into(),
+                storage.clone(),
+            )
+            .await;
+        catalog.mock_time_provider().inc(Duration::from_millis(1));
+
+        // load 3: Fetch table3 from storage, which should evict table2
+        cache
+            .get(
+                Arc::clone(&decoded_parquet_files[2]),
+                "cached_table3".into(),
+                storage.clone(),
+            )
+            .await;
+        catalog.mock_time_provider().inc(Duration::from_millis(1));
+
+        // load 4: Fetch table2, which will be from storage again, and will evict table1
+        cache
+            .get(
+                Arc::clone(&decoded_parquet_files[1]),
+                "cached_table2".into(),
+                storage.clone(),
+            )
+            .await;
+        catalog.mock_time_provider().inc(Duration::from_millis(1));
+
+        // Fetch table2 from cache
+        cache
+            .get(
+                Arc::clone(&decoded_parquet_files[1]),
+                "cached_table2".into(),
+                storage.clone(),
+            )
+            .await;
+        catalog.mock_time_provider().inc(Duration::from_millis(1));
+
+        // Fetch table3 from cache
+        cache
+            .get(
+                Arc::clone(&decoded_parquet_files[2]),
+                "cached_table3".into(),
+                storage.clone(),
+            )
+            .await;
+
+        let m: Metric<U64Counter> = catalog
+            .metric_registry
+            .get_instrument("cache_load_function_calls")
+            .unwrap();
+        let v = m
+            .get_observer(&Attributes::from(&[("name", "read_buffer")]))
+            .unwrap()
+            .fetch();
+
+        // Load is called 4x
+        assert_eq!(v, 4);
     }
 
     fn lp_to_record_batch(lp: &str) -> RecordBatch {
