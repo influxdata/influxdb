@@ -190,7 +190,25 @@ To compile for development, run:
 cargo build
 ```
 
-This which will create a binary at `target/debug/influxdb_iox`.
+This creates a binary at `target/debug/influxdb_iox`.
+
+### Build a Docker image (optional)
+
+Building the Docker image requires:
+
+* Docker 18.09+
+* BuildKit
+
+To [enable BuildKit] by default, set `{ "features": { "buildkit": true } }` in the Docker engine configuration,
+or run `docker build` with`DOCKER_BUILDKIT=1`
+
+To build the Docker image:
+
+```shell
+DOCKER_BUILDKIT=1 docker build .
+```
+
+[Enable BuildKit]: https://docs.docker.com/develop/develop-images/build_enhancements/#to-enable-buildkit-builds
 
 #### Ephemeral mode
 
@@ -200,7 +218,7 @@ To start InfluxDB IOx and store data in memory, after you've compiled for develo
 ./target/debug/influxdb_iox run all-in-one
 ```
 
-By default the server will start an HTTP server on port `8080` and a gRPC server on port `8082`.
+By default this runs an "all-in-one" server with HTTP server on port `8080`,  router gRPC server on port `8081` and querier gRPC server on port `8082`. When the server is stopped all data lost.
 
 #### Local persistence mode
 
@@ -214,14 +232,8 @@ data across restarts, after you've compiled for development, run:
 where `--catalog-dsn` is a connection URL to the Postgres database you wish to use, and
 `--data-dir` is the directory you wish to use.
 
-### Loading data in local mode
+Note that when the server is stopped all data that has not yet been written to parquet files will be lost.
 
-Because the services run on different gRPC ports, and because the CLI uses the gRPC write API, if
-you're using `influxdb_iox database` you have to set a `--host` with the correct gRPC
-
-```shell
-influxdb_iox -vv database write my_db test_fixtures/lineproto/metrics.lp --host http://localhost:8081
-```
 
 #### Compile and run
 
@@ -249,44 +261,31 @@ cargo run --release -- run all-in-one
 
 #### Running tests
 
-To run all available tests in debug mode, you may want to set min stack size to avoid the current
-known stack overflow issue:
+You can run tests using:
 
 ```shell
-RUST_MIN_STACK=10485760 cargo test --all
+cargo test --all
 ```
 
-### Build a Docker image (optional)
+See  [docs/testing.md] for more information
 
-Building the Docker image requires:
-
-* Docker 18.09+
-* BuildKit
-
-To [enable BuildKit] by default, set `{ "features": { "buildkit": true } }` in the Docker engine configuration,
-or run `docker build` with`DOCKER_BUILDKIT=1`
-
-To build the Docker image:
-
-```shell
-DOCKER_BUILDKIT=1 docker build .
-```
-
-[Enable BuildKit]: https://docs.docker.com/develop/develop-images/build_enhancements/#to-enable-buildkit-builds
 
 ### Write and read data
 
-Data can be stored in InfluxDB IOx by sending it in [line protocol] format to the `/api/v2/write` endpoint or using the CLI.
-For example, here is a command that will send the data in the `test_fixtures/lineproto/metrics.lp` file in this repository, assuming that you're running the server on the default port into the `company_sensors` database, you can use:
+Data can be written to InfluxDB IOx by sending [line protocol] format to the `/api/v2/write` endpoint or using the CLI.
+
+For example, assuming you are running in local mode, this command will send data in the `test_fixtures/lineproto/metrics.lp` file to the `company_sensors` database.
 
 ```shell
-influxdb_iox database write company_sensors test_fixtures/lineproto/metrics.lp
+./target/debug/influxdb_iox -vv write company_sensors test_fixtures/lineproto/metrics.lp --host http://localhost:8081
 ```
 
-To query data stored in the `company_sensors` database:
+Note that `--host http://localhost:8081` is required because the router and query services run on different gRPC ports and the CLI defaults to the querier's port, `8082`.
+
+To query the data stored in the `company_sensors` database:
 
 ```shell
-influxdb_iox database query company_sensors "SELECT * FROM cpu LIMIT 10"
+./target/debug/influxdb_iox query company_sensors "SELECT * FROM cpu LIMIT 10"
 ```
 
 ### Use the CLI
@@ -301,11 +300,11 @@ The CLI itself is documented via built-in help which you can access by running `
 InfluxDB IOx allows seamless interoperability with InfluxDB 2.0.
 
 Where InfluxDB 2.0 stores data in organizations and buckets,
-InfluxDB IOx stores data in _named databases_.
-IOx maps `organization` and `bucket` pairs to databases named with the two parts separated by an underscore (`_`):
+InfluxDB IOx stores data in _namespaces_.
+IOx maps `organization` and `bucket` pairs to namespaces  with the two parts separated by an underscore (`_`):
 `organization_bucket`.
 
-Here's an example using [`curl`] to send data into the `company_sensors` database using the InfluxDB 2.0 `/api/v2/write` API:
+Here's an example using [`curl`] to send data into the `company_sensors` namespace using the InfluxDB 2.0 `/api/v2/write` API:
 
 ```shell
 curl -v "http://127.0.0.1:8080/api/v2/write?org=company&bucket=sensors" --data-binary @test_fixtures/lineproto/metrics.lp
