@@ -30,7 +30,7 @@ func TestShard_ErrorPrinting(t *testing.T) {
 		{2, string([]byte{0, 0, 0, 0, 0xFE, '\t', '\n', '\t', 'b', 'e', 'n', 't', 'e', 's', 't', 0, 0, 0, 0, 0xFE, '\t', '\n', '\t', '\t', '\t'})},
 	}
 
-	for i, _ := range tests {
+	for i := range tests {
 		f := makePrintable(tests[i].raw)
 		require.True(t, models.ValidToken([]byte(f)))
 		c := 0
