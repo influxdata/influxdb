@@ -25,7 +25,7 @@ pub const TTL_NON_EXISTING: Duration = Duration::from_secs(60);
 
 const CACHE_ID: &str = "namespace";
 
-type CacheT = Cache<Arc<str>, Option<Arc<CachedNamespace>>>;
+type CacheT = Cache<Arc<str>, Option<Arc<CachedNamespace>>, ()>;
 
 /// Cache for namespace-related attributes.
 #[derive(Debug)]
@@ -42,30 +42,32 @@ impl NamespaceCache {
         metric_registry: &metric::Registry,
         ram_pool: Arc<ResourcePool<RamSize>>,
     ) -> Self {
-        let loader = Box::new(FunctionLoader::new(move |namespace_name: Arc<str>| {
-            let catalog = Arc::clone(&catalog);
-            let backoff_config = backoff_config.clone();
+        let loader = Box::new(FunctionLoader::new(
+            move |namespace_name: Arc<str>, _extra: ()| {
+                let catalog = Arc::clone(&catalog);
+                let backoff_config = backoff_config.clone();
 
-            async move {
-                let schema = Backoff::new(&backoff_config)
-                    .retry_all_errors("get namespace schema", || async {
-                        let mut repos = catalog.repositories().await;
-                        match get_schema_by_name(&namespace_name, repos.as_mut()).await {
-                            Ok(schema) => Ok(Some(schema)),
-                            Err(iox_catalog::interface::Error::NamespaceNotFound { .. }) => {
-                                Ok(None)
+                async move {
+                    let schema = Backoff::new(&backoff_config)
+                        .retry_all_errors("get namespace schema", || async {
+                            let mut repos = catalog.repositories().await;
+                            match get_schema_by_name(&namespace_name, repos.as_mut()).await {
+                                Ok(schema) => Ok(Some(schema)),
+                                Err(iox_catalog::interface::Error::NamespaceNotFound {
+                                    ..
+                                }) => Ok(None),
+                                Err(e) => Err(e),
                             }
-                            Err(e) => Err(e),
-                        }
-                    })
-                    .await
-                    .expect("retry forever")?;
+                        })
+                        .await
+                        .expect("retry forever")?;
 
-                Some(Arc::new(CachedNamespace {
-                    schema: Arc::new(schema),
-                }))
-            }
-        }));
+                    Some(Arc::new(CachedNamespace {
+                        schema: Arc::new(schema),
+                    }))
+                }
+            },
+        ));
         let loader = Arc::new(MetricsLoader::new(
             loader,
             CACHE_ID,
@@ -106,7 +108,10 @@ impl NamespaceCache {
 
     /// Get namespace schema by name.
     pub async fn schema(&self, name: Arc<str>) -> Option<Arc<NamespaceSchema>> {
-        self.cache.get(name).await.map(|n| Arc::clone(&n.schema))
+        self.cache
+            .get(name, ())
+            .await
+            .map(|n| Arc::clone(&n.schema))
     }
 }
 

@@ -22,7 +22,7 @@ pub const TTL_NON_EXISTING: Duration = Duration::from_secs(10);
 
 const CACHE_ID: &str = "table";
 
-type CacheT = Cache<TableId, Option<Arc<CachedTable>>>;
+type CacheT = Cache<TableId, Option<Arc<CachedTable>>, ()>;
 
 /// Cache for table-related queries.
 #[derive(Debug)]
@@ -39,7 +39,7 @@ impl TableCache {
         metric_registry: &metric::Registry,
         ram_pool: Arc<ResourcePool<RamSize>>,
     ) -> Self {
-        let loader = Box::new(FunctionLoader::new(move |table_id| {
+        let loader = Box::new(FunctionLoader::new(move |table_id: TableId, _extra: ()| {
             let catalog = Arc::clone(&catalog);
             let backoff_config = backoff_config.clone();
 
@@ -95,14 +95,17 @@ impl TableCache {
     ///
     /// This either uses a cached value or -- if required -- fetches the mapping from the catalog.
     pub async fn name(&self, table_id: TableId) -> Option<Arc<str>> {
-        self.cache.get(table_id).await.map(|t| Arc::clone(&t.name))
+        self.cache
+            .get(table_id, ())
+            .await
+            .map(|t| Arc::clone(&t.name))
     }
 
     /// Get the table namespace ID for the given table ID.
     ///
     /// This either uses a cached value or -- if required -- fetches the mapping from the catalog.
     pub async fn namespace_id(&self, table_id: TableId) -> Option<NamespaceId> {
-        self.cache.get(table_id).await.map(|t| t.namespace_id)
+        self.cache.get(table_id, ()).await.map(|t| t.namespace_id)
     }
 }
 

@@ -27,7 +27,7 @@ const CACHE_ID: &str = "partition";
 /// Cache for partition-related attributes.
 #[derive(Debug)]
 pub struct PartitionCache {
-    cache: Cache<PartitionId, CachedPartition>,
+    cache: Cache<PartitionId, CachedPartition, ()>,
     backend: SharedBackend<PartitionId, CachedPartition>,
 }
 
@@ -40,30 +40,32 @@ impl PartitionCache {
         metric_registry: &metric::Registry,
         ram_pool: Arc<ResourcePool<RamSize>>,
     ) -> Self {
-        let loader = Box::new(FunctionLoader::new(move |partition_id| {
-            let catalog = Arc::clone(&catalog);
-            let backoff_config = backoff_config.clone();
+        let loader = Box::new(FunctionLoader::new(
+            move |partition_id: PartitionId, _extra: ()| {
+                let catalog = Arc::clone(&catalog);
+                let backoff_config = backoff_config.clone();
 
-            async move {
-                let partition = Backoff::new(&backoff_config)
-                    .retry_all_errors("get partition_key", || async {
-                        catalog
-                            .repositories()
-                            .await
-                            .partitions()
-                            .get_by_id(partition_id)
-                            .await
-                    })
-                    .await
-                    .expect("retry forever")
-                    .expect("partition gone from catalog?!");
+                async move {
+                    let partition = Backoff::new(&backoff_config)
+                        .retry_all_errors("get partition_key", || async {
+                            catalog
+                                .repositories()
+                                .await
+                                .partitions()
+                                .get_by_id(partition_id)
+                                .await
+                        })
+                        .await
+                        .expect("retry forever")
+                        .expect("partition gone from catalog?!");
 
-                CachedPartition {
-                    sequencer_id: partition.sequencer_id,
-                    sort_key: Arc::new(partition.sort_key()),
+                    CachedPartition {
+                        sequencer_id: partition.sequencer_id,
+                        sort_key: Arc::new(partition.sort_key()),
+                    }
                 }
-            }
-        }));
+            },
+        ));
         let loader = Arc::new(MetricsLoader::new(
             loader,
             CACHE_ID,
@@ -90,12 +92,12 @@ impl PartitionCache {
 
     /// Get sequencer ID.
     pub async fn sequencer_id(&self, partition_id: PartitionId) -> SequencerId {
-        self.cache.get(partition_id).await.sequencer_id
+        self.cache.get(partition_id, ()).await.sequencer_id
     }
 
     /// Get sort key
     pub async fn sort_key(&self, partition_id: PartitionId) -> Arc<Option<SortKey>> {
-        self.cache.get(partition_id).await.sort_key
+        self.cache.get(partition_id, ()).await.sort_key
     }
 
     /// Expire partition if the cached sort key does NOT cover the given set of columns.

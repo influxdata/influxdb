@@ -9,25 +9,27 @@ use metric::{DurationHistogram, U64Counter};
 use super::Loader;
 
 /// Wraps a [`Loader`] and adds metrics.
-pub struct MetricsLoader<K, V>
+pub struct MetricsLoader<K, V, Extra>
 where
     K: Send + 'static,
     V: Send + 'static,
+    Extra: Send + 'static,
 {
-    inner: Box<dyn Loader<K = K, V = V>>,
+    inner: Box<dyn Loader<K = K, V = V, Extra = Extra>>,
     time_provider: Arc<dyn TimeProvider>,
     metric_calls: U64Counter,
     metric_duration: DurationHistogram,
 }
 
-impl<K, V> MetricsLoader<K, V>
+impl<K, V, Extra> MetricsLoader<K, V, Extra>
 where
     K: Send + 'static,
     V: Send + 'static,
+    Extra: Send + 'static,
 {
     /// Create new wrapper.
     pub fn new(
-        inner: Box<dyn Loader<K = K, V = V>>,
+        inner: Box<dyn Loader<K = K, V = V, Extra = Extra>>,
         name: &'static str,
         time_provider: Arc<dyn TimeProvider>,
         metric_registry: &metric::Registry,
@@ -54,10 +56,11 @@ where
     }
 }
 
-impl<K, V> std::fmt::Debug for MetricsLoader<K, V>
+impl<K, V, Extra> std::fmt::Debug for MetricsLoader<K, V, Extra>
 where
     K: Send + 'static,
     V: Send + 'static,
+    Extra: Send + 'static,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("MetricsLoader").finish_non_exhaustive()
@@ -65,19 +68,21 @@ where
 }
 
 #[async_trait]
-impl<K, V> Loader for MetricsLoader<K, V>
+impl<K, V, Extra> Loader for MetricsLoader<K, V, Extra>
 where
     K: Send + 'static,
     V: Send + 'static,
+    Extra: Send + 'static,
 {
     type K = K;
     type V = V;
+    type Extra = Extra;
 
-    async fn load(&self, k: Self::K) -> Self::V {
+    async fn load(&self, k: Self::K, extra: Self::Extra) -> Self::V {
         self.metric_calls.inc(1);
 
         let t_start = self.time_provider.now();
-        let v = self.inner.load(k).await;
+        let v = self.inner.load(k, extra).await;
         let t_end = self.time_provider.now();
 
         self.metric_duration.record(t_end - t_start);
@@ -103,7 +108,7 @@ mod tests {
         let metric_registry = Arc::new(metric::Registry::new());
 
         let time_provider_captured = Arc::clone(&time_provider);
-        let inner_loader = Box::new(FunctionLoader::new(move |x: u64| {
+        let inner_loader = Box::new(FunctionLoader::new(move |x: u64, _extra: ()| {
             let time_provider_captured = Arc::clone(&time_provider_captured);
             async move {
                 time_provider_captured.inc(Duration::from_secs(10));
@@ -134,7 +139,7 @@ mod tests {
             panic!("Wrong observation type");
         }
 
-        assert_eq!(loader.load(42).await, String::from("42"));
+        assert_eq!(loader.load(42, ()).await, String::from("42"));
 
         let mut reporter = RawReporter::default();
         metric_registry.report(&mut reporter);
