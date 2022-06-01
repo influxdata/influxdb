@@ -3521,9 +3521,9 @@ checksum = "0c520e05135d6e763148b6426a837e239041653ba7becd2e538c076c738025fc"
 
 [[package]]
 name = "pbjson"
-version = "0.3.1"
+version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4d1732313025e2e4b635b788636284ab22177fa3052c4050e257341753340c1f"
+checksum = "15ab5b51d009f452712c4f77601f2a5a432d9a2b02b51a3686fa149510336640"
 dependencies = [
  "base64 0.13.0",
  "serde",
