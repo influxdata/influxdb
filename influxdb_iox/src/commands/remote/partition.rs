@@ -1,7 +1,7 @@
 //! This module implements the `remote partition` CLI subcommand
 
 use bytes::Bytes;
-use clap_blocks::object_store::make_object_store;
+use clap_blocks::object_store::{make_object_store, ObjectStoreType};
 use clap_blocks::{catalog_dsn::CatalogDsnConfig, object_store::ObjectStoreConfig};
 use data_types::{
     ColumnType, KafkaPartition, NamespaceId, NamespaceSchema as CatalogNamespaceSchema,
@@ -54,6 +54,12 @@ pub enum Error {
 
     #[error("Partition not found")]
     PartitionNotFound,
+
+    #[error(
+        "The object store is configured to store files in memory which is \
+        unlikely to be useful - try passing --object-store=file"
+    )]
+    SillyObjectStoreConfig,
 }
 
 /// Manage IOx chunks
@@ -132,6 +138,13 @@ pub async fn command(connection: Connection, config: Config) -> Result<(), Error
 
             let partition_mapping =
                 load_partition(&catalog, &schema, &pull.table, &partition).await?;
+
+            match &pull.object_store.object_store {
+                None | Some(ObjectStoreType::Memory | ObjectStoreType::MemoryThrottled) => {
+                    return Err(Error::SillyObjectStoreConfig);
+                }
+                _ => {}
+            }
 
             let object_store =
                 make_object_store(&pull.object_store).map_err(Error::ObjectStoreParsing)?;

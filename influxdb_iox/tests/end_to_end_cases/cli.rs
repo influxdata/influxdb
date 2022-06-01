@@ -119,6 +119,8 @@ async fn remote_partition_and_get_from_store_and_pull() {
                                 .and(predicate::str::contains(filename)),
                         );
 
+                    // Ensure a warning is emitted when specifying (or
+                    // defaulting to) in-memory file storage.
                     Command::cargo_bin("influxdb_iox")
                         .unwrap()
                         .arg("-h")
@@ -130,6 +132,29 @@ async fn remote_partition_and_get_from_store_and_pull() {
                         .arg("memory")
                         .arg("--object-store")
                         .arg("memory")
+                        .arg(&namespace)
+                        .arg("my_awesome_table")
+                        .arg("1970-01-01")
+                        .assert()
+                        .failure()
+                        .stderr(predicate::str::contains("try passing --object-store=file"));
+
+                    // Ensure files are actually wrote to the filesystem
+                    let dir = tempfile::tempdir().expect("could not get temporary directory");
+
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(&router_addr)
+                        .arg("remote")
+                        .arg("partition")
+                        .arg("pull")
+                        .arg("--catalog")
+                        .arg("memory")
+                        .arg("--object-store")
+                        .arg("file")
+                        .arg("--data-dir")
+                        .arg(dir.path().to_str().unwrap())
                         .arg(&namespace)
                         .arg("my_awesome_table")
                         .arg("1970-01-01")
