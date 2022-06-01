@@ -410,7 +410,7 @@ impl Compactor {
             // Only one file without tombstones, no need to compact.
             if group.parquet_files.len() == 1 && group.tombstones.is_empty() {
                 // If it is level 0, upgrade it since it is non-overlapping
-                if group.parquet_files[0].data.compaction_level == INITIAL_COMPACTION_LEVEL {
+                if group.parquet_files[0].compaction_level == INITIAL_COMPACTION_LEVEL {
                     compact_and_upgrade
                         .files_to_upgrade
                         .push(group.parquet_files[0].parquet_file_id())
@@ -456,12 +456,8 @@ impl Compactor {
             // Collect all the parquet file IDs, to be able to set their catalog records to be
             // deleted. These should already be unique, no need to dedupe.
             let original_parquet_file_ids: Vec<_> =
-                group.parquet_files.iter().map(|f| f.data.id).collect();
-            let size: i64 = group
-                .parquet_files
-                .iter()
-                .map(|f| f.data.file_size_bytes)
-                .sum();
+                group.parquet_files.iter().map(|f| f.id).collect();
+            let size: i64 = group.parquet_files.iter().map(|f| f.file_size_bytes).sum();
             info!(num_files=%group.parquet_files.len(), ?size, ?original_parquet_file_ids, "compacting group of files");
 
             // Compact the files concurrently.
@@ -633,7 +629,7 @@ impl Compactor {
         }
 
         // One file without tombstone, no need to compact
-        if overlapped_files.len() == 1 && overlapped_files[0].tombstones.is_empty() {
+        if overlapped_files.len() == 1 && overlapped_files[0].tombstones().is_empty() {
             return Ok(vec![]);
         }
 
@@ -641,39 +637,39 @@ impl Compactor {
         let iox_metadata = overlapped_files[0].iox_metadata();
 
         // Hold onto various metadata items needed later.
-        let sequencer_id = overlapped_files[0].data.sequencer_id;
-        let namespace_id = overlapped_files[0].data.namespace_id;
-        let table_id = overlapped_files[0].data.table_id;
+        let sequencer_id = overlapped_files[0].sequencer_id;
+        let namespace_id = overlapped_files[0].namespace_id;
+        let table_id = overlapped_files[0].table_id;
 
         //  Collect all unique tombstone
-        let mut tombstone_map = overlapped_files[0].tombstones();
+        let mut tombstone_map = overlapped_files[0].tombstone_map();
 
         // Verify if the given files belong to the same partition and collect their tombstones
         //  One tombstone might be relevant to multiple parquet files in this set, so dedupe here.
         if let Some((head, tail)) = overlapped_files.split_first() {
             for file in tail {
-                tombstone_map.append(&mut file.tombstones());
+                tombstone_map.append(&mut file.tombstone_map());
 
-                let is_same = file.data.sequencer_id == head.data.sequencer_id
-                    && file.data.table_id == head.data.table_id
-                    && file.data.partition_id == head.data.partition_id;
+                let is_same = file.sequencer_id == head.sequencer_id
+                    && file.table_id == head.table_id
+                    && file.partition_id == head.partition_id;
 
                 ensure!(
                     is_same,
                     NotSamePartitionSnafu {
-                        sequencer_id_1: head.data.sequencer_id,
-                        table_id_1: head.data.table_id,
-                        partition_id_1: head.data.partition_id,
-                        sequencer_id_2: file.data.sequencer_id,
-                        table_id_2: file.data.table_id,
-                        partition_id_2: file.data.partition_id
+                        sequencer_id_1: head.sequencer_id,
+                        table_id_1: head.table_id,
+                        partition_id_1: head.partition_id,
+                        sequencer_id_2: file.sequencer_id,
+                        table_id_2: file.table_id,
+                        partition_id_2: file.partition_id
                     }
                 );
 
-                assert_eq!(file.data.sequencer_id, sequencer_id);
-                assert_eq!(file.data.namespace_id, namespace_id);
-                assert_eq!(file.data.table_id, table_id);
-                assert_eq!(file.data.partition_id, partition.id);
+                assert_eq!(file.sequencer_id, sequencer_id);
+                assert_eq!(file.namespace_id, namespace_id);
+                assert_eq!(file.table_id, table_id);
+                assert_eq!(file.partition_id, partition.id);
             }
         }
 
@@ -1078,10 +1074,7 @@ impl Compactor {
                         })
                         .collect();
 
-                    ParquetFileWithTombstone {
-                        data: Arc::new(data),
-                        tombstones: relevant_tombstones,
-                    }
+                    ParquetFileWithTombstone::new(Arc::new(data), relevant_tombstones)
                 })
                 .collect();
 
@@ -1550,10 +1543,7 @@ mod tests {
 
         // ------------------------------------------------
         // File without tombstones
-        let mut pf = ParquetFileWithTombstone {
-            data: Arc::new(parquet_file),
-            tombstones: vec![],
-        };
+        let mut pf = ParquetFileWithTombstone::new(Arc::new(parquet_file), vec![]);
         // Nothing compacted for one file without tombstones
         let result = compactor
             .compact(vec![pf.clone()], &partition.partition)
@@ -1657,10 +1647,10 @@ mod tests {
             .with_sequencer(&sequencer)
             .create_tombstone(20, 6000, 12000, "tag1=VT")
             .await;
-        let pf = ParquetFileWithTombstone {
-            data: Arc::new(parquet_file),
-            tombstones: vec![tombstone.tombstone.clone()],
-        };
+        let pf = ParquetFileWithTombstone::new(
+            Arc::new(parquet_file),
+            vec![tombstone.tombstone.clone()],
+        );
 
         // should have compacted datas
         let batches = compactor
@@ -1749,15 +1739,12 @@ mod tests {
             .with_sequencer(&sequencer)
             .create_tombstone(6, 6000, 12000, "tag1=VT")
             .await;
-        let pf1 = ParquetFileWithTombstone {
-            data: Arc::new(parquet_file1),
-            tombstones: vec![tombstone.tombstone.clone()],
-        };
+        let pf1 = ParquetFileWithTombstone::new(
+            Arc::new(parquet_file1),
+            vec![tombstone.tombstone.clone()],
+        );
         // File 2 without tombstones
-        let pf2 = ParquetFileWithTombstone {
-            data: Arc::new(parquet_file2),
-            tombstones: vec![],
-        };
+        let pf2 = ParquetFileWithTombstone::new(Arc::new(parquet_file2), vec![]);
 
         // Compact them
         let batches = compactor
@@ -1873,20 +1860,14 @@ mod tests {
             .with_sequencer(&sequencer)
             .create_tombstone(6, 6000, 12000, "tag1=VT")
             .await;
-        let pf1 = ParquetFileWithTombstone {
-            data: Arc::new(parquet_file1),
-            tombstones: vec![tombstone.tombstone.clone()],
-        };
+        let pf1 = ParquetFileWithTombstone::new(
+            Arc::new(parquet_file1),
+            vec![tombstone.tombstone.clone()],
+        );
         // File 2 without tombstones
-        let pf2 = ParquetFileWithTombstone {
-            data: Arc::new(parquet_file2),
-            tombstones: vec![],
-        };
+        let pf2 = ParquetFileWithTombstone::new(Arc::new(parquet_file2), vec![]);
         // File 3 without tombstones
-        let pf3 = ParquetFileWithTombstone {
-            data: Arc::new(parquet_file3),
-            tombstones: vec![],
-        };
+        let pf3 = ParquetFileWithTombstone::new(Arc::new(parquet_file3), vec![]);
 
         // Compact them
         let batches = compactor
@@ -2012,14 +1993,8 @@ mod tests {
             .parquet_file;
 
         // Build 2 QueryableParquetChunks
-        let pt1 = ParquetFileWithTombstone {
-            data: Arc::new(pf1),
-            tombstones: vec![],
-        };
-        let pt2 = ParquetFileWithTombstone {
-            data: Arc::new(pf2),
-            tombstones: vec![],
-        };
+        let pt1 = ParquetFileWithTombstone::new(Arc::new(pf1), vec![]);
+        let pt2 = ParquetFileWithTombstone::new(Arc::new(pf2), vec![]);
 
         let pc1 = pt1.to_queryable_parquet_chunk(
             ParquetStorage::new(Arc::clone(&catalog.object_store)),
@@ -2732,7 +2707,7 @@ mod tests {
             .find(|pf| pf.parquet_file_id() == pf1.id)
             .unwrap();
         let mut actual_pf1_tombstones: Vec<_> =
-            actual_pf1.tombstones.iter().map(|t| t.id).collect();
+            actual_pf1.tombstones().iter().map(|t| t.id).collect();
         actual_pf1_tombstones.sort();
         assert_eq!(actual_pf1_tombstones, &[t2.id, t4.id]);
 
@@ -2742,7 +2717,7 @@ mod tests {
             .find(|pf| pf.parquet_file_id() == pf2.id)
             .unwrap();
         let mut actual_pf2_tombstones: Vec<_> =
-            actual_pf2.tombstones.iter().map(|t| t.id).collect();
+            actual_pf2.tombstones().iter().map(|t| t.id).collect();
         actual_pf2_tombstones.sort();
         assert_eq!(actual_pf2_tombstones, &[t3.id, t4.id]);
     }
@@ -3193,15 +3168,9 @@ mod tests {
             Arc::new(metric::Registry::new()),
         );
 
-        let pf1 = ParquetFileWithTombstone {
-            data: Arc::new(parquet_file1),
-            tombstones: vec![],
-        };
+        let pf1 = ParquetFileWithTombstone::new(Arc::new(parquet_file1), vec![]);
         // File 2 without tombstones
-        let pf2 = ParquetFileWithTombstone {
-            data: Arc::new(parquet_file2),
-            tombstones: vec![],
-        };
+        let pf2 = ParquetFileWithTombstone::new(Arc::new(parquet_file2), vec![]);
 
         // Compact them
         let sort_key = SortKey::from_columns(["tag1", "time"]);

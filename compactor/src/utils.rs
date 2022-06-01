@@ -52,11 +52,24 @@ pub struct GroupWithMinTimeAndSize {
 #[allow(missing_docs)]
 #[derive(Debug, Clone)]
 pub struct ParquetFileWithTombstone {
-    pub(crate) data: Arc<ParquetFileWithMetadata>,
-    pub(crate) tombstones: Vec<Tombstone>,
+    data: Arc<ParquetFileWithMetadata>,
+    tombstones: Vec<Tombstone>,
+}
+
+impl std::ops::Deref for ParquetFileWithTombstone {
+    type Target = Arc<ParquetFileWithMetadata>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.data
+    }
 }
 
 impl ParquetFileWithTombstone {
+    /// Pair a [`ParquetFileWithMetadata`] with the specified [`Tombstone`] instances.
+    pub fn new(data: Arc<ParquetFileWithMetadata>, tombstones: Vec<Tombstone>) -> Self {
+        Self { data, tombstones }
+    }
+
     /// Return all tombstone ids
     pub fn tombstone_ids(&self) -> HashSet<TombstoneId> {
         self.tombstones.iter().map(|t| t.id).collect()
@@ -67,13 +80,18 @@ impl ParquetFileWithTombstone {
         self.tombstones.is_empty()
     }
 
-    /// Return id of this parquet file
+    /// Return ID of this parquet file
     pub fn parquet_file_id(&self) -> ParquetFileId {
         self.data.id
     }
 
-    /// Return all tombstones in btree map format
-    pub fn tombstones(&self) -> BTreeMap<TombstoneId, Tombstone> {
+    /// Return the tombstones as a slice of [`Tombstone`].
+    pub fn tombstones(&self) -> &[Tombstone] {
+        &self.tombstones
+    }
+
+    /// Return all tombstones as a map keyed by tombstone ID.
+    pub fn tombstone_map(&self) -> BTreeMap<TombstoneId, Tombstone> {
         self.tombstones
             .iter()
             .map(|ts| (ts.id, ts.clone()))
