@@ -43,7 +43,8 @@ pub struct QuerierNamespace {
     /// Query log.
     query_log: Arc<QueryLog>,
 
-    /// Permit that limits the number of active namespaces at the same time.
+    /// Permit that limits the number of concurrent active namespaces (and thus
+    /// also queries)
     #[allow(dead_code)]
     permit: OwnedSemaphorePermit,
 }

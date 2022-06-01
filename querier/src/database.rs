@@ -92,7 +92,7 @@ impl QuerierDatabase {
             catalog_cache.time_provider(),
         ));
         let query_log = Arc::new(QueryLog::new(QUERY_LOG_SIZE, catalog_cache.time_provider()));
-        let namespace_semaphore = Arc::new(Semaphore::new(max_concurrent_queries));
+        let query_execution_semaphore = Arc::new(Semaphore::new(max_concurrent_queries));
 
         Self {
             backoff_config: BackoffConfig::default(),
@@ -102,7 +102,7 @@ impl QuerierDatabase {
             exec,
             ingester_connection,
             query_log,
-            query_execution_semaphore: namespace_semaphore,
+            query_execution_semaphore,
         }
     }
 
@@ -245,7 +245,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_namespace_semaphore() {
+    async fn test_query_execution_semaphore() {
         let catalog = TestCatalog::new();
 
         let catalog_cache = Arc::new(CatalogCache::new(

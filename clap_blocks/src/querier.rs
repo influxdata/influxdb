@@ -84,7 +84,7 @@ impl QuerierConfig {
         self.ram_pool_bytes
     }
 
-    /// Number of namespaces that can be used at once.
+    /// Number of queries allowed to run concurrently
     pub fn max_concurrent_queries(&self) -> usize {
         self.max_concurrent_queries
     }
