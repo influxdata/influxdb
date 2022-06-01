@@ -103,11 +103,17 @@ async fn test_decoded_iox_metadata() {
     );
 }
 
-// Reproducer for "https://github.com/influxdata/influxdb_iox/issues/4695"
-// TODO: remove #[ignore] to turn the test on after the fix
-#[ignore]
+// Ensure that attempting to write an empty parquet file causes a panic for a
+// human to investigate why it is happening.
+//
+// The idea is that currently it is a logical error to be producing empty
+// parquet files at all - this might not always be the case, in which case
+// removing this panic behaviour is perfectly fine too!
+//
+// Relates to "https://github.com/influxdata/influxdb_iox/issues/4695"
 #[tokio::test]
-async fn test_decoded_iox_metadata_without_data() {
+#[should_panic = "serialised empty parquet file"]
+async fn test_empty_parquet_file_panic() {
     // A representative IOx data sample (with a time column, an invariant upheld
     // in the IOx write path)
     let data = [
@@ -142,20 +148,8 @@ async fn test_decoded_iox_metadata_without_data() {
     let object_store: Arc<DynObjectStore> = Arc::new(object_store::memory::InMemory::default());
     let storage = ParquetStorage::new(object_store);
 
-    let (iox_parquet_meta, _file_size) = storage
-        .upload(stream, &meta)
-        .await
-        .expect("failed to serialise & persist record batch");
-
-    // Decode the IOx metadata embedded in the parquet file metadata.
-    let decoded = iox_parquet_meta
-        .decode()
-        .expect("failed to decode parquet file metadata");
-
-    let schema = decoded.read_schema().unwrap();
-    decoded
-        .read_statistics(&*schema)
-        .expect("Invalid Statistics"); // panic due to the bug
+    // Serialising empty data should cause a panic for human investigation.
+    let _ = storage.upload(stream, &meta).await;
 }
 
 #[tokio::test]
