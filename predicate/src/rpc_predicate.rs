@@ -1,17 +1,20 @@
-//! Interface logic between IOx ['Predicate`] and predicates used by the
-//! InfluxDB Storage gRPC API
+//! Interface logic between IOx ['Predicate`] and the predicates used
+//! by the InfluxDB Storage gRPC API
+mod field_rewrite;
+
 use crate::{rewrite, Predicate, ValueExpr};
 
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::context::ExecutionProps;
 use datafusion::logical_plan::{
     lit, Column, Expr, ExprRewritable, ExprRewriter, ExprSchema, ExprSchemable, ExprSimplifiable,
-    Operator, SimplifyInfo,
+    SimplifyInfo,
 };
-use datafusion::scalar::ScalarValue;
 use schema::Schema;
 use std::collections::BTreeSet;
 use std::sync::Arc;
+
+use self::field_rewrite::{FieldProjection, FieldProjectionRewriter};
 
 /// Any column references to this name are rewritten to be
 /// the actual table name by the Influx gRPC planner.
@@ -23,11 +26,18 @@ use std::sync::Arc;
 /// filled in with a literal for the respective name of that field
 pub const MEASUREMENT_COLUMN_NAME: &str = "_measurement";
 
-/// Any equality expressions using this column name are removed and replaced
-/// with projections on the specified column.
+/// A reference to a field's name which is used to represent column
+/// projections in influx RPC predicates.
 ///
-/// This is required to support predicates like
-/// `_field` = temperature
+/// For example, a predicate like
+/// ```text
+/// _field = temperature
+/// ```
+///
+/// Means to select only the (field) column named "temperature"
+///
+/// Any equality expressions using this column name are removed and
+/// replaced with projections on the specified column.
 pub const FIELD_COLUMN_NAME: &str = "_field";
 
 /// Any column references to this name are rewritten to be a disjunctive set of
@@ -155,7 +165,7 @@ fn normalize_predicate(
     predicate: &Predicate,
 ) -> DataFusionResult<Predicate> {
     let mut predicate = predicate.clone();
-    let mut field_projections = BTreeSet::new();
+    let mut field_projections = FieldProjectionRewriter::new();
     let mut field_value_exprs = vec![];
 
     predicate.exprs = predicate
@@ -170,7 +180,7 @@ fn normalize_predicate(
                 // Rewrite any references to `_field = a_field_name` with a literal true
                 // and keep track of referenced field names to add to the field
                 // column projection set.
-                .and_then(|e| rewrite_field_column_references(&mut field_projections, e))
+                .and_then(|e| field_projections.rewrite_field_exprs(e))
                 // apply IOx specific rewrites (that unlock other simplifications)
                 .and_then(rewrite::rewrite)
                 // Call the core DataFusion simplification logic
@@ -186,14 +196,32 @@ fn normalize_predicate(
                 .and_then(rewrite::simplify_predicate)
         })
         .collect::<DataFusionResult<Vec<_>>>()?;
+
     // Store any field value (`_value`) expressions on the `Predicate`.
     predicate.value_expr = field_value_exprs;
 
-    if !field_projections.is_empty() {
-        match &mut predicate.field_columns {
-            Some(field_columns) => field_columns.extend(field_projections.into_iter()),
-            None => predicate.field_columns = Some(field_projections),
-        };
+    match field_projections.into_projection() {
+        FieldProjection::None => {}
+        FieldProjection::Include(include_field_names) => {
+            predicate.add_field_names(include_field_names)
+        }
+        FieldProjection::Exclude(exclude_field_names) => {
+            // if we don't have the schema, it means the table doesn't exist so we can safely ignore
+            if let Some(schema) = schema {
+                // add all fields other than the ones mentioned
+
+                let new_fields = schema.fields_iter().filter_map(|f| {
+                    let field_name = f.name();
+                    if !exclude_field_names.contains(field_name) {
+                        Some(field_name)
+                    } else {
+                        None
+                    }
+                });
+
+                predicate.add_field_names(new_fields)
+            }
+        }
     }
     Ok(predicate)
 }
@@ -312,54 +340,14 @@ impl<'a> ExprRewriter for FieldValueRewriter<'a> {
     }
 }
 
-/// Rewrites a predicate on `_field` as a projection on a specific defined by
-/// the literal in the expression.
-///
-/// For example, the expression `_field = "load4"` is removed from the
-/// normalised expression, and a column "load4" added to the predicate
-/// projection.
-fn rewrite_field_column_references(
-    field_projections: &'_ mut BTreeSet<String>,
-    expr: Expr,
-) -> DataFusionResult<Expr> {
-    let mut rewriter = FieldColumnRewriter { field_projections };
-    expr.rewrite(&mut rewriter)
-}
-
-struct FieldColumnRewriter<'a> {
-    field_projections: &'a mut BTreeSet<String>,
-}
-
-impl<'a> ExprRewriter for FieldColumnRewriter<'a> {
-    fn mutate(&mut self, expr: Expr) -> DataFusionResult<Expr> {
-        Ok(match expr {
-            Expr::BinaryExpr {
-                ref left,
-                op,
-                ref right,
-            } => {
-                if let Expr::Column(inner) = &**left {
-                    if inner.name != FIELD_COLUMN_NAME || op != Operator::Eq {
-                        // TODO(edd): add support for !=
-                        return Ok(expr);
-                    }
-
-                    if let Expr::Literal(ScalarValue::Utf8(Some(name))) = &**right {
-                        self.field_projections.insert(name.to_owned());
-                        return Ok(lit(true));
-                    }
-                }
-                expr
-            }
-            _ => expr,
-        })
-    }
-}
-
 #[cfg(test)]
 mod tests {
+    use crate::PredicateBuilder;
+
     use super::*;
-    use datafusion::logical_plan::{binary_expr, col};
+    use arrow::datatypes::DataType;
+    use datafusion::logical_plan::col;
+    use test_helpers::assert_contains;
 
     #[test]
     fn test_field_value_rewriter() {
@@ -368,18 +356,14 @@ mod tests {
         };
 
         let cases = vec![
-            (
-                binary_expr(col("f1"), Operator::Eq, lit(1.82)),
-                binary_expr(col("f1"), Operator::Eq, lit(1.82)),
-                vec![],
-            ),
+            (col("f1").eq(lit(1.82)), col("f1").eq(lit(1.82)), vec![]),
             (col("t2"), col("t2"), vec![]),
             (
-                binary_expr(col(VALUE_COLUMN_NAME), Operator::Eq, lit(1.82)),
+                col(VALUE_COLUMN_NAME).eq(lit(1.82)),
                 // _value = 1.82 -> true
                 lit(true),
                 vec![ValueExpr {
-                    expr: binary_expr(col(VALUE_COLUMN_NAME), Operator::Eq, lit(1.82)),
+                    expr: col(VALUE_COLUMN_NAME).eq(lit(1.82)),
                 }],
             ),
         ];
@@ -395,56 +379,114 @@ mod tests {
             value_exprs: &mut vec![],
         };
 
-        let input = binary_expr(col(VALUE_COLUMN_NAME), Operator::Gt, lit(1.88));
+        let input = col(VALUE_COLUMN_NAME).gt(lit(1.88));
         let rewritten = input.clone().rewrite(&mut rewriter).unwrap();
         assert_eq!(rewritten, lit(true));
         assert_eq!(rewriter.value_exprs, &mut vec![ValueExpr { expr: input }]);
     }
 
     #[test]
-    fn test_field_column_rewriter() {
-        let mut field_columns = BTreeSet::new();
-        let mut rewriter = FieldColumnRewriter {
-            field_projections: &mut field_columns,
-        };
+    fn test_normalize_predicate_field_rewrite() {
+        let predicate = normalize_predicate(
+            "table",
+            Some(schema()),
+            &PredicateBuilder::new()
+                .add_expr(col("_field").eq(lit("f1")))
+                .build(),
+        )
+        .unwrap();
 
-        let cases = vec![
-            (
-                binary_expr(col("f1"), Operator::Eq, lit(1.82)),
-                binary_expr(col("f1"), Operator::Eq, lit(1.82)),
-                vec![],
-            ),
-            (
-                // TODO - should be rewritten and project onto all field columns
-                binary_expr(col(FIELD_COLUMN_NAME), Operator::NotEq, lit("foo")),
-                binary_expr(col(FIELD_COLUMN_NAME), Operator::NotEq, lit("foo")),
-                vec![],
-            ),
-            (
-                binary_expr(col(FIELD_COLUMN_NAME), Operator::Eq, lit("f1")),
-                lit(true),
-                vec!["f1"],
-            ),
-            (
-                binary_expr(
-                    binary_expr(col(FIELD_COLUMN_NAME), Operator::Eq, lit("f1")),
-                    Operator::Or,
-                    binary_expr(col(FIELD_COLUMN_NAME), Operator::Eq, lit("f2")),
-                ),
-                binary_expr(lit(true), Operator::Or, lit(true)),
-                vec!["f1", "f2"],
-            ),
-        ];
+        let expected = PredicateBuilder::new()
+            .field_columns(vec!["f1"])
+            .add_expr(lit(true))
+            .build();
 
-        for (input, exp_expr, field_columns) in cases {
-            let rewritten = input.rewrite(&mut rewriter).unwrap();
+        assert_eq!(predicate, expected);
+    }
 
-            assert_eq!(rewritten, exp_expr);
-            let mut exp_field_columns = field_columns
-                .into_iter()
-                .map(String::from)
-                .collect::<BTreeSet<String>>();
-            assert_eq!(rewriter.field_projections, &mut exp_field_columns);
-        }
+    #[test]
+    fn test_normalize_predicate_field_rewrite_multi_field() {
+        let predicate = normalize_predicate(
+            "table",
+            Some(schema()),
+            &PredicateBuilder::new()
+                .add_expr(col("_field").eq(lit("f1")).or(col("_field").eq(lit("f2"))))
+                .build(),
+        )
+        .unwrap();
+
+        let expected = PredicateBuilder::new()
+            .field_columns(vec!["f1", "f2"])
+            .add_expr(lit(true))
+            .build();
+
+        assert_eq!(predicate, expected);
+    }
+
+    #[test]
+    fn test_normalize_predicate_field_rewrite_multi_field_unsupported() {
+        let err = normalize_predicate(
+            "table",
+            Some(schema()),
+            &PredicateBuilder::new()
+                // predicate is connected with `and` which is not supported
+                .add_expr(col("_field").eq(lit("f1")).and(col("_field").eq(lit("f2"))))
+                .build(),
+        )
+        .unwrap_err();
+
+        let expected = "Error during planning: Unsupported structure with _field reference";
+
+        assert_contains!(err.to_string(), expected);
+    }
+
+    #[test]
+    fn test_normalize_predicate_field_rewrite_not_eq() {
+        let predicate = normalize_predicate(
+            "table",
+            Some(schema()),
+            &PredicateBuilder::new()
+                .add_expr(col("_field").not_eq(lit("f1")))
+                .build(),
+        )
+        .unwrap();
+
+        let expected = PredicateBuilder::new()
+            .field_columns(vec!["f2"])
+            .add_expr(lit(true))
+            .build();
+
+        assert_eq!(predicate, expected);
+    }
+
+    #[test]
+    fn test_normalize_predicate_unsupported_field_rewrite_field() {
+        let err = normalize_predicate(
+            "table",
+            Some(schema()),
+            &PredicateBuilder::new()
+                // put = and != predicates in *different* exprs
+                .add_expr(col("_field").eq(lit("f1")))
+                .add_expr(col("_field").not_eq(lit("f2")))
+                .build(),
+        )
+        .unwrap_err();
+
+        assert_contains!(
+            err.to_string(),
+            "Unsupported _field predicates: both '=' and '!=' present"
+        );
+    }
+
+    fn schema() -> Arc<Schema> {
+        let schema = schema::builder::SchemaBuilder::new()
+            .tag("t1")
+            .tag("t2")
+            .field("f1", DataType::Int64)
+            .field("f2", DataType::Int64)
+            .build()
+            .unwrap();
+
+        Arc::new(schema)
     }
 }

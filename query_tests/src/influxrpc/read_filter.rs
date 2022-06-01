@@ -728,6 +728,43 @@ async fn test_read_filter_on_field() {
 }
 
 #[tokio::test]
+async fn test_read_filter_on_not_field() {
+    test_helpers::maybe_start_logging();
+
+    // Predicate should pick up all fields other than 'temp' from h2o
+    // (_field != 'temp')
+    let p1 = col("_field").not_eq(lit("temp"));
+    let predicate = PredicateBuilder::default().add_expr(p1).build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
+
+    let expected_results = vec![
+        "Series tags={_measurement=h2o, city=Boston, state=CA, _field=other_temp}\n  FloatPoints timestamps: [350], values: [72.4]",
+        "Series tags={_measurement=h2o, city=Boston, state=MA, _field=moisture}\n  FloatPoints timestamps: [100000], values: [43.0]",
+        "Series tags={_measurement=h2o, city=Boston, state=MA, _field=other_temp}\n  FloatPoints timestamps: [250], values: [70.4]",
+        "Series tags={_measurement=o2, city=Boston, state=MA, _field=reading}\n  FloatPoints timestamps: [50], values: [51.0]",
+    ];
+
+    run_read_filter_test_case(TwoMeasurementsManyFields {}, predicate, expected_results).await;
+}
+
+#[tokio::test]
+async fn test_read_filter_unsupported_predicate() {
+    test_helpers::maybe_start_logging();
+
+    // Predicate should pick up all fields other than 'temp' from h2o
+    // (_field != 'temp')
+    let p1 = col("_field")
+        .not_eq(lit("temp"))
+        .or(col("_field").eq(lit("other_temp")));
+    let predicate = PredicateBuilder::default().add_expr(p1).build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
+
+    let expected_error = "Unsupported _field predicate";
+
+    run_read_filter_error_case(TwoMeasurementsManyFields {}, predicate, expected_error).await;
+}
+
+#[tokio::test]
 async fn test_read_filter_on_field_single_measurement() {
     test_helpers::maybe_start_logging();
 

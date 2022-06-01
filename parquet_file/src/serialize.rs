@@ -107,7 +107,12 @@ where
         writer.write(&maybe_batch?)?;
     }
 
-    writer.close().map_err(CodecError::from)
+    let meta = writer.close().map_err(CodecError::from)?;
+    if meta.num_rows == 0 {
+        panic!("serialised empty parquet file");
+    }
+
+    Ok(meta)
 }
 
 /// A helper function that calls [`to_parquet()`], serialising the parquet file
@@ -130,10 +135,6 @@ where
 
     // Serialize the record batches into the in-memory buffer
     let meta = to_parquet(batches, meta, &mut w).await?;
-    if meta.row_groups.is_empty() {
-        // panic here to avoid later consequence of reading it for statistics
-        panic!("partition_id={}. Created Parquet metadata has no column metadata. HINT a common reason of this is writing empty data to parquet file: {:#?}", partition_id, meta);
-    }
 
     trace!(?partition_id, ?meta, "Parquet Metadata");
 

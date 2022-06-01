@@ -13,6 +13,10 @@ async fn default_mode_is_run_all_in_one() {
     Command::cargo_bin("influxdb_iox")
         .unwrap()
         .args(&["-v"])
+        // Do not attempt to connect to the real DB (object store, etc) if the
+        // prod DSN is set - all other tests use TEST_INFLUXDB_IOX_CATALOG_DSN
+        // but this one will use the real env if not cleared.
+        .env_clear()
         .timeout(Duration::from_secs(2))
         .assert()
         .failure()
@@ -24,6 +28,10 @@ async fn default_run_mode_is_all_in_one() {
     Command::cargo_bin("influxdb_iox")
         .unwrap()
         .args(&["run", "-v"])
+        // This test is designed to assert the default running mode is using
+        // in-memory state, so ensure that any outside config does not influence
+        // this.
+        .env_clear()
         .timeout(Duration::from_secs(2))
         .assert()
         .failure()
@@ -119,6 +127,8 @@ async fn remote_partition_and_get_from_store_and_pull() {
                                 .and(predicate::str::contains(filename)),
                         );
 
+                    // Ensure a warning is emitted when specifying (or
+                    // defaulting to) in-memory file storage.
                     Command::cargo_bin("influxdb_iox")
                         .unwrap()
                         .arg("-h")
@@ -130,6 +140,29 @@ async fn remote_partition_and_get_from_store_and_pull() {
                         .arg("memory")
                         .arg("--object-store")
                         .arg("memory")
+                        .arg(&namespace)
+                        .arg("my_awesome_table")
+                        .arg("1970-01-01")
+                        .assert()
+                        .failure()
+                        .stderr(predicate::str::contains("try passing --object-store=file"));
+
+                    // Ensure files are actually wrote to the filesystem
+                    let dir = tempfile::tempdir().expect("could not get temporary directory");
+
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(&router_addr)
+                        .arg("remote")
+                        .arg("partition")
+                        .arg("pull")
+                        .arg("--catalog")
+                        .arg("memory")
+                        .arg("--object-store")
+                        .arg("file")
+                        .arg("--data-dir")
+                        .arg(dir.path().to_str().unwrap())
                         .arg(&namespace)
                         .arg("my_awesome_table")
                         .arg("1970-01-01")
