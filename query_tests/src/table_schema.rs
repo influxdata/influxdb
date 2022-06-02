@@ -71,7 +71,7 @@ async fn run_table_schema_test_case<D>(
 }
 
 fn is_unsorted_chunk_type(chunk: &dyn QueryChunk) -> bool {
-    (chunk.chunk_type() == "MUB") || (chunk.chunk_type() == "IngesterPartition")
+    chunk.chunk_type() == "IngesterPartition"
 }
 
 #[tokio::test]
