@@ -1341,6 +1341,14 @@ func verifyVersion(r io.Reader) error {
 	return nil
 }
 
+type MmapError struct {
+	error
+}
+
+func (e *MmapError) Unwrap() error {
+	return e.error
+}
+
 func (m *mmapAccessor) init() (*indirectIndex, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -1366,7 +1374,9 @@ func (m *mmapAccessor) init() (*indirectIndex, error) {
 
 	m.b, err = mmap(m.f, 0, int(stat.Size()))
 	if err != nil {
-		return nil, err
+		// Wrap the error to let callers know this was an error
+		// from mmap, and may indicate vm.max_map_count is too low
+		return nil, MmapError{error: err}
 	}
 	if len(m.b) < 8 {
 		return nil, fmt.Errorf("mmapAccessor: byte slice too small for indirectIndex")

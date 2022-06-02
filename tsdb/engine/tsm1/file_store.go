@@ -560,20 +560,30 @@ func (f *FileStore) Open() error {
 				zap.Int("id", idx),
 				zap.Duration("duration", time.Since(start)))
 
-			// If we are unable to read a TSM file then log the error, rename
-			// the file, and continue loading the shard without it.
+			// If we are unable to read a TSM file then log the error.
 			if err != nil {
-				f.logger.Error("Cannot read corrupt tsm file, renaming", zap.String("path", file.Name()), zap.Int("id", idx), zap.Error(err))
 				file.Close()
-				if e := os.Rename(file.Name(), file.Name()+"."+BadTSMFileExtension); e != nil {
-					f.logger.Error("Cannot rename corrupt tsm file", zap.String("path", file.Name()), zap.Int("id", idx), zap.Error(e))
-					readerC <- &res{r: df, err: fmt.Errorf("cannot rename corrupt file %s: %v", file.Name(), e)}
+				if e, ok := err.(MmapError); ok {
+					// An MmapError may indicate we have insufficient
+					// handles for the mmap call, in which case the file should
+					// be left untouched, and the vm.max_map_count be raised.
+					f.logger.Error("Cannot read TSM file, system limit for vm.max_map_count may be too low",
+						zap.String("path", file.Name()), zap.Int("id", idx), zap.Error(e.Unwrap()))
+					readerC <- &res{r: df, err: fmt.Errorf("cannot read file %s, system limit for vm.max_map_count may be too low: %v", file.Name(), e.Unwrap())}
+					return
+				} else {
+					// If the file is corrupt, rename it and
+					// continue loading the shard without it.
+					f.logger.Error("Cannot read corrupt tsm file, renaming", zap.String("path", file.Name()), zap.Int("id", idx), zap.Error(err))
+					if e := os.Rename(file.Name(), file.Name()+"."+BadTSMFileExtension); e != nil {
+						f.logger.Error("Cannot rename corrupt tsm file", zap.String("path", file.Name()), zap.Int("id", idx), zap.Error(e))
+						readerC <- &res{r: df, err: fmt.Errorf("cannot rename corrupt file %s: %v", file.Name(), e)}
+						return
+					}
+					readerC <- &res{r: df, err: fmt.Errorf("cannot read corrupt file %s: %v", file.Name(), err)}
 					return
 				}
-				readerC <- &res{r: df, err: fmt.Errorf("cannot read corrupt file %s: %v", file.Name(), err)}
-				return
 			}
-
 			df.WithObserver(f.obs)
 			readerC <- &res{r: df}
 		}(i, file)
