@@ -41,13 +41,14 @@ pub struct ReadBufferCache {
 impl ReadBufferCache {
     /// Create a new empty cache.
     pub fn new(
+        backoff_config: BackoffConfig,
         time_provider: Arc<dyn TimeProvider>,
         metric_registry: &metric::Registry,
         ram_pool: Arc<ResourcePool<RamSize>>,
     ) -> Self {
         let loader = Box::new(FunctionLoader::new(
             move |_parquet_file_id, extra_fetch_info: ExtraFetchInfo| {
-                let backoff_config = BackoffConfig::default();
+                let backoff_config = backoff_config.clone();
 
                 async move {
                     let rb_chunk = Backoff::new(&backoff_config)
@@ -199,6 +200,7 @@ mod tests {
 
     fn make_cache(catalog: &TestCatalog) -> ReadBufferCache {
         ReadBufferCache::new(
+            BackoffConfig::default(),
             catalog.time_provider(),
             &catalog.metric_registry(),
             test_ram_pool(),
@@ -300,6 +302,7 @@ mod tests {
             Arc::clone(&catalog.metric_registry()),
         ));
         let cache = ReadBufferCache::new(
+            BackoffConfig::default(),
             catalog.time_provider(),
             &catalog.metric_registry(),
             ram_pool,
