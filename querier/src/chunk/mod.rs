@@ -300,6 +300,9 @@ impl ChunkAdapter {
     /// Create parquet chunk.
     ///
     /// Returns `None` if some data required to create this chunk is already gone from the catalog.
+    ///
+    /// CURRENTLY UNUSED: The querier is creating and caching read buffer chunks instead, using
+    /// the `new_rb_chunk` method.
     async fn new_parquet_chunk(
         &self,
         decoded_parquet_file: &DecodedParquetFile,
@@ -316,7 +319,11 @@ impl ChunkAdapter {
     /// Create new querier Parquet chunk from a catalog record
     ///
     /// Returns `None` if some data required to create this chunk is already gone from the catalog.
-    pub async fn new_querier_parquet_chunk_from_file_with_metadata(
+    ///
+    /// CURRENTLY UNUSED: The querier is creating and caching read buffer chunks instead, using
+    /// the `new_rb_chunk` method.
+    #[allow(dead_code)]
+    async fn new_querier_parquet_chunk_from_file_with_metadata(
         &self,
         parquet_file_with_metadata: ParquetFileWithMetadata,
     ) -> Option<QuerierParquetChunk> {
@@ -327,6 +334,9 @@ impl ChunkAdapter {
     /// Create new querier Parquet chunk.
     ///
     /// Returns `None` if some data required to create this chunk is already gone from the catalog.
+    ///
+    /// CURRENTLY UNUSED: The querier is creating and caching read buffer chunks instead, using
+    /// the `new_rb_chunk` method.
     pub async fn new_querier_parquet_chunk(
         &self,
         decoded_parquet_file: &DecodedParquetFile,
@@ -427,7 +437,7 @@ impl ChunkAdapter {
 }
 
 /// collect data for the given chunk
-pub async fn collect_read_filter(chunk: &QuerierParquetChunk) -> Vec<RecordBatch> {
+pub async fn collect_read_filter(chunk: &dyn QueryChunk) -> Vec<RecordBatch> {
     chunk
         .read_filter(
             IOxSessionContext::default(),
@@ -487,7 +497,7 @@ pub mod tests {
 
         // create chunk
         let chunk = adapter
-            .new_querier_parquet_chunk(&DecodedParquetFile::new(parquet_file))
+            .new_rb_chunk(Arc::new(DecodedParquetFile::new(parquet_file)))
             .await
             .unwrap();
 
