@@ -6,11 +6,12 @@ use crate::{
     storage::ParquetStorage,
 };
 use data_types::{
-    ParquetFile, ParquetFileWithMetadata, TableSummary, TimestampMinMax, TimestampRange,
+    ParquetFile, ParquetFileId, ParquetFileWithMetadata, PartitionId, SequenceNumber, SequencerId,
+    TableId, TableSummary, TimestampMinMax, TimestampRange,
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
 use predicate::Predicate;
-use schema::{selection::Selection, Schema};
+use schema::{selection::Selection, sort::SortKey, Schema};
 use std::{collections::BTreeSet, mem, sync::Arc};
 
 #[derive(Debug)]
@@ -212,6 +213,46 @@ impl DecodedParquetFile {
             decoded_metadata,
             iox_metadata,
         }
+    }
+
+    /// The IOx schema from the decoded IOx parquet metadata
+    pub fn schema(&self) -> Arc<Schema> {
+        self.decoded_metadata.read_schema().unwrap()
+    }
+
+    /// The IOx parquet file ID
+    pub fn parquet_file_id(&self) -> ParquetFileId {
+        self.parquet_file.id
+    }
+
+    /// The IOx partition ID
+    pub fn partition_id(&self) -> PartitionId {
+        self.parquet_file.partition_id
+    }
+
+    /// The IOx sequencer ID
+    pub fn sequencer_id(&self) -> SequencerId {
+        self.iox_metadata.sequencer_id
+    }
+
+    /// The IOx table ID
+    pub fn table_id(&self) -> TableId {
+        self.parquet_file.table_id
+    }
+
+    /// The sort key from the IOx metadata
+    pub fn sort_key(&self) -> Option<&SortKey> {
+        self.iox_metadata.sort_key.as_ref()
+    }
+
+    /// The minimum sequence number in this file
+    pub fn min_sequence_number(&self) -> SequenceNumber {
+        self.parquet_file.min_sequence_number
+    }
+
+    /// The maximum sequence number in this file
+    pub fn max_sequence_number(&self) -> SequenceNumber {
+        self.parquet_file.max_sequence_number
     }
 
     /// Estimate the memory consumption of this object and its contents

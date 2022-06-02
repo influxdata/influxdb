@@ -207,6 +207,15 @@ impl ParquetStorage {
             Some(Arc::new(AutoAbortJoinHandle::new(handle))),
         ))
     }
+
+    /// Read all data from the parquet file.
+    pub fn read_all(
+        &self,
+        schema: SchemaRef,
+        meta: &IoxMetadata,
+    ) -> Result<SendableRecordBatchStream, ReadError> {
+        self.read_filter(&Predicate::default(), Selection::All, schema, meta)
+    }
 }
 
 /// Return indices of the schema's fields of the selection columns
