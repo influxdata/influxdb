@@ -12,6 +12,7 @@ use crate::{
     StorageService,
 };
 use data_types::{org_and_bucket_to_database, DatabaseName};
+use futures::Stream;
 use generated_types::{
     google::protobuf::Empty, literal_or_regex::Value as RegexOrLiteralValue,
     offsets_response::PartitionOffsetResponse, storage_server::Storage, tag_key_predicate,
@@ -31,13 +32,14 @@ use iox_query::{
     QueryDatabase, QueryText,
 };
 use observability_deps::tracing::{error, info, trace};
+use pin_project::pin_project;
 use service_common::{planner::Planner, QueryDatabaseProvider};
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
     collections::{BTreeSet, HashMap},
     sync::Arc,
 };
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, OwnedSemaphorePermit};
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::Status;
 
@@ -219,7 +221,8 @@ impl<T> Storage for StorageService<T>
 where
     T: QueryDatabaseProvider + 'static,
 {
-    type ReadFilterStream = futures::stream::Iter<std::vec::IntoIter<Result<ReadResponse, Status>>>;
+    type ReadFilterStream =
+        StreamWithPermit<futures::stream::Iter<std::vec::IntoIter<Result<ReadResponse, Status>>>>;
 
     async fn read_filter(
         &self,
@@ -228,6 +231,7 @@ where
         let span_ctx = req.extensions().get().cloned();
 
         let req = req.into_inner();
+        let permit = self.db_store.acquire_semaphore().await;
         let db_name = get_database_name(&req)?;
         info!(%db_name, ?req.range, predicate=%req.predicate.loggable(), "read filter");
 
@@ -250,10 +254,14 @@ where
             query_completed_token.set_success();
         }
 
-        Ok(tonic::Response::new(futures::stream::iter(results)))
+        Ok(tonic::Response::new(StreamWithPermit::new(
+            futures::stream::iter(results),
+            permit,
+        )))
     }
 
-    type ReadGroupStream = futures::stream::Iter<std::vec::IntoIter<Result<ReadResponse, Status>>>;
+    type ReadGroupStream =
+        StreamWithPermit<futures::stream::Iter<std::vec::IntoIter<Result<ReadResponse, Status>>>>;
 
     async fn read_group(
         &self,
@@ -261,6 +269,7 @@ where
     ) -> Result<tonic::Response<Self::ReadGroupStream>, Status> {
         let span_ctx = req.extensions().get().cloned();
         let req = req.into_inner();
+        let permit = self.db_store.acquire_semaphore().await;
 
         let db_name = get_database_name(&req)?;
         let db = self
@@ -306,11 +315,14 @@ where
             query_completed_token.set_success();
         }
 
-        Ok(tonic::Response::new(futures::stream::iter(results)))
+        Ok(tonic::Response::new(StreamWithPermit::new(
+            futures::stream::iter(results),
+            permit,
+        )))
     }
 
     type ReadWindowAggregateStream =
-        futures::stream::Iter<std::vec::IntoIter<Result<ReadResponse, Status>>>;
+        StreamWithPermit<futures::stream::Iter<std::vec::IntoIter<Result<ReadResponse, Status>>>>;
 
     async fn read_window_aggregate(
         &self,
@@ -318,6 +330,7 @@ where
     ) -> Result<tonic::Response<Self::ReadGroupStream>, Status> {
         let span_ctx = req.extensions().get().cloned();
         let req = req.into_inner();
+        let permit = self.db_store.acquire_semaphore().await;
 
         let db_name = get_database_name(&req)?;
         let db = self
@@ -361,10 +374,13 @@ where
             query_completed_token.set_success();
         }
 
-        Ok(tonic::Response::new(futures::stream::iter(results)))
+        Ok(tonic::Response::new(StreamWithPermit::new(
+            futures::stream::iter(results),
+            permit,
+        )))
     }
 
-    type TagKeysStream = ReceiverStream<Result<StringValuesResponse, Status>>;
+    type TagKeysStream = StreamWithPermit<ReceiverStream<Result<StringValuesResponse, Status>>>;
 
     async fn tag_keys(
         &self,
@@ -374,6 +390,7 @@ where
         let (tx, rx) = mpsc::channel(4);
 
         let req = req.into_inner();
+        let permit = self.db_store.acquire_semaphore().await;
 
         let db_name = get_database_name(&req)?;
         let db = self
@@ -414,10 +431,13 @@ where
             .await
             .expect("sending tag_keys response to server");
 
-        Ok(tonic::Response::new(ReceiverStream::new(rx)))
+        Ok(tonic::Response::new(StreamWithPermit::new(
+            ReceiverStream::new(rx),
+            permit,
+        )))
     }
 
-    type TagValuesStream = ReceiverStream<Result<StringValuesResponse, Status>>;
+    type TagValuesStream = StreamWithPermit<ReceiverStream<Result<StringValuesResponse, Status>>>;
 
     async fn tag_values(
         &self,
@@ -427,6 +447,7 @@ where
         let (tx, rx) = mpsc::channel(4);
 
         let req = req.into_inner();
+        let permit = self.db_store.acquire_semaphore().await;
 
         let db_name = get_database_name(&req)?;
         let db = self
@@ -500,11 +521,15 @@ where
             .await
             .expect("sending tag_values response to server");
 
-        Ok(tonic::Response::new(ReceiverStream::new(rx)))
+        Ok(tonic::Response::new(StreamWithPermit::new(
+            ReceiverStream::new(rx),
+            permit,
+        )))
     }
 
-    type TagValuesGroupedByMeasurementAndTagKeyStream =
-        futures::stream::Iter<std::vec::IntoIter<Result<TagValuesResponse, Status>>>;
+    type TagValuesGroupedByMeasurementAndTagKeyStream = StreamWithPermit<
+        futures::stream::Iter<std::vec::IntoIter<Result<TagValuesResponse, Status>>>,
+    >;
 
     async fn tag_values_grouped_by_measurement_and_tag_key(
         &self,
@@ -513,6 +538,7 @@ where
         let span_ctx = req.extensions().get().cloned();
 
         let req = req.into_inner();
+        let permit = self.db_store.acquire_semaphore().await;
 
         let db_name = get_database_name(&req)?;
         let db = self
@@ -542,7 +568,10 @@ where
             query_completed_token.set_success();
         }
 
-        Ok(tonic::Response::new(futures::stream::iter(results)))
+        Ok(tonic::Response::new(StreamWithPermit::new(
+            futures::stream::iter(results),
+            permit,
+        )))
     }
 
     type ReadSeriesCardinalityStream = ReceiverStream<Result<Int64ValuesResponse, Status>>;
@@ -592,7 +621,8 @@ where
         Ok(tonic::Response::new(caps))
     }
 
-    type MeasurementNamesStream = ReceiverStream<Result<StringValuesResponse, Status>>;
+    type MeasurementNamesStream =
+        StreamWithPermit<ReceiverStream<Result<StringValuesResponse, Status>>>;
 
     async fn measurement_names(
         &self,
@@ -602,6 +632,7 @@ where
         let (tx, rx) = mpsc::channel(4);
 
         let req = req.into_inner();
+        let permit = self.db_store.acquire_semaphore().await;
 
         let db_name = get_database_name(&req)?;
         let db = self
@@ -634,10 +665,14 @@ where
             .await
             .expect("sending measurement names response to server");
 
-        Ok(tonic::Response::new(ReceiverStream::new(rx)))
+        Ok(tonic::Response::new(StreamWithPermit::new(
+            ReceiverStream::new(rx),
+            permit,
+        )))
     }
 
-    type MeasurementTagKeysStream = ReceiverStream<Result<StringValuesResponse, Status>>;
+    type MeasurementTagKeysStream =
+        StreamWithPermit<ReceiverStream<Result<StringValuesResponse, Status>>>;
 
     async fn measurement_tag_keys(
         &self,
@@ -647,6 +682,7 @@ where
         let (tx, rx) = mpsc::channel(4);
 
         let req = req.into_inner();
+        let permit = self.db_store.acquire_semaphore().await;
 
         let db_name = get_database_name(&req)?;
         let db = self
@@ -689,10 +725,14 @@ where
             .await
             .expect("sending measurement_tag_keys response to server");
 
-        Ok(tonic::Response::new(ReceiverStream::new(rx)))
+        Ok(tonic::Response::new(StreamWithPermit::new(
+            ReceiverStream::new(rx),
+            permit,
+        )))
     }
 
-    type MeasurementTagValuesStream = ReceiverStream<Result<StringValuesResponse, Status>>;
+    type MeasurementTagValuesStream =
+        StreamWithPermit<ReceiverStream<Result<StringValuesResponse, Status>>>;
 
     async fn measurement_tag_values(
         &self,
@@ -702,6 +742,7 @@ where
         let (tx, rx) = mpsc::channel(4);
 
         let req = req.into_inner();
+        let permit = self.db_store.acquire_semaphore().await;
 
         let db_name = get_database_name(&req)?;
         let db = self
@@ -746,10 +787,14 @@ where
             .await
             .expect("sending measurement_tag_values response to server");
 
-        Ok(tonic::Response::new(ReceiverStream::new(rx)))
+        Ok(tonic::Response::new(StreamWithPermit::new(
+            ReceiverStream::new(rx),
+            permit,
+        )))
     }
 
-    type MeasurementFieldsStream = ReceiverStream<Result<MeasurementFieldsResponse, Status>>;
+    type MeasurementFieldsStream =
+        StreamWithPermit<ReceiverStream<Result<MeasurementFieldsResponse, Status>>>;
 
     async fn measurement_fields(
         &self,
@@ -759,6 +804,7 @@ where
         let (tx, rx) = mpsc::channel(4);
 
         let req = req.into_inner();
+        let permit = self.db_store.acquire_semaphore().await;
 
         let db_name = get_database_name(&req)?;
         let db = self
@@ -806,7 +852,10 @@ where
             .await
             .expect("sending measurement_fields response to server");
 
-        Ok(tonic::Response::new(ReceiverStream::new(rx)))
+        Ok(tonic::Response::new(StreamWithPermit::new(
+            ReceiverStream::new(rx),
+            permit,
+        )))
     }
 
     async fn offsets(
@@ -1386,10 +1435,39 @@ impl<T, E: std::fmt::Debug> ErrorLogger for Result<T, E> {
     }
 }
 
+/// Helper to keep a semaphore permit attached to a stream.
+#[pin_project]
+pub struct StreamWithPermit<S> {
+    #[pin]
+    stream: S,
+    #[allow(dead_code)]
+    permit: OwnedSemaphorePermit,
+}
+
+impl<S> StreamWithPermit<S> {
+    fn new(stream: S, permit: OwnedSemaphorePermit) -> Self {
+        Self { stream, permit }
+    }
+}
+
+impl<S> Stream for StreamWithPermit<S>
+where
+    S: Stream,
+{
+    type Item = S::Item;
+
+    fn poll_next(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Option<Self::Item>> {
+        let this = self.project();
+        this.stream.poll_next(cx)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use async_trait::async_trait;
     use data_types::ChunkId;
     use datafusion::logical_plan::{col, lit, Expr};
     use generated_types::{i_ox_testing_client::IOxTestingClient, tag_key_predicate::Value};
@@ -1398,22 +1476,18 @@ mod tests {
         generated_types::*,
         Client as StorageClient, OrgAndBucket,
     };
-    use iox_query::{
-        exec::Executor,
-        test::{TestChunk, TestDatabase},
-    };
+    use iox_query::test::TestChunk;
     use metric::{Attributes, Metric, U64Counter};
     use panic_logging::SendPanicsToTracing;
-    use parking_lot::Mutex;
     use predicate::{PredicateBuilder, PredicateMatch};
-    use service_common::QueryDatabaseProvider;
+    use service_common::test_util::TestDatabaseStore;
     use std::{
-        collections::BTreeMap,
         net::{IpAddr, Ipv4Addr, SocketAddr},
         num::NonZeroU64,
         sync::Arc,
     };
     use test_helpers::{assert_contains, tracing::TracingCapture};
+    use tokio::task::JoinHandle;
     use tokio_stream::wrappers::TcpListenerStream;
 
     fn to_str_vec(s: &[&str]) -> Vec<String> {
@@ -2929,13 +3003,18 @@ mod tests {
         iox_client: IOxTestingClient<Connection>,
         storage_client: StorageClient,
         test_storage: Arc<TestDatabaseStore>,
+        join_handle: JoinHandle<()>,
     }
 
     impl Fixture {
         /// Start up a test storage server listening on `port`, returning
         /// a fixture with the test server and clients
         async fn new() -> Result<Self, FixtureError> {
-            let test_storage = Arc::new(TestDatabaseStore::new());
+            Self::new_with_semaphore_size(u16::MAX as usize).await
+        }
+
+        async fn new_with_semaphore_size(semaphore_size: usize) -> Result<Self, FixtureError> {
+            let test_storage = Arc::new(TestDatabaseStore::new_with_semaphore_size(semaphore_size));
 
             // Get a random port from the kernel by asking for port 0.
             let bind_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 0);
@@ -2970,9 +3049,10 @@ mod tests {
                     .serve_with_incoming(stream)
                     .await
                     .log_if_error("Running Tonic Server")
+                    .ok();
             };
 
-            tokio::task::spawn(server);
+            let join_handle = tokio::task::spawn(server);
 
             let conn = ConnectionBuilder::default()
                 .connect_timeout(std::time::Duration::from_secs(30))
@@ -2988,6 +3068,7 @@ mod tests {
                 iox_client,
                 storage_client,
                 test_storage,
+                join_handle,
             })
         }
 
@@ -3017,50 +3098,9 @@ mod tests {
         }
     }
 
-    #[derive(Debug)]
-    pub struct TestDatabaseStore {
-        databases: Mutex<BTreeMap<String, Arc<TestDatabase>>>,
-        executor: Arc<Executor>,
-        pub metric_registry: Arc<metric::Registry>,
-    }
-
-    impl TestDatabaseStore {
-        pub fn new() -> Self {
-            Self::default()
-        }
-
-        async fn db_or_create(&self, name: &str) -> Arc<TestDatabase> {
-            let mut databases = self.databases.lock();
-
-            if let Some(db) = databases.get(name) {
-                Arc::clone(db)
-            } else {
-                let new_db = Arc::new(TestDatabase::new(Arc::clone(&self.executor)));
-                databases.insert(name.to_string(), Arc::clone(&new_db));
-                new_db
-            }
-        }
-    }
-
-    impl Default for TestDatabaseStore {
-        fn default() -> Self {
-            Self {
-                databases: Mutex::new(BTreeMap::new()),
-                executor: Arc::new(Executor::new(1)),
-                metric_registry: Default::default(),
-            }
-        }
-    }
-
-    #[async_trait]
-    impl QueryDatabaseProvider for TestDatabaseStore {
-        type Db = TestDatabase;
-
-        /// Retrieve the database specified name
-        async fn db(&self, name: &str) -> Option<Arc<Self::Db>> {
-            let databases = self.databases.lock();
-
-            databases.get(name).cloned()
+    impl Drop for Fixture {
+        fn drop(&mut self) {
+            self.join_handle.abort();
         }
     }
 }

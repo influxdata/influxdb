@@ -4756,7 +4756,10 @@ dependencies = [
  "async-trait",
  "datafusion 0.1.0",
  "iox_query",
+ "metric",
+ "parking_lot 0.12.1",
  "predicate",
+ "tokio",
  "workspace-hack",
 ]
 
@@ -4816,6 +4819,7 @@ dependencies = [
  "observability_deps",
  "panic_logging",
  "parking_lot 0.12.1",
+ "pin-project",
  "predicate",
  "prost",
  "query_functions",

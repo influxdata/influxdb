@@ -19,6 +19,7 @@ service_common = { path = "../service_common" }
 arrow = { version = "14.0.0", features = ["prettyprint"] }
 async-trait = "0.1"
 futures = "0.3"
+pin-project = "1.0"
 prost = "0.10"
 regex = "1.5.6"
 serde = { version = "1.0", features = ["derive"] }

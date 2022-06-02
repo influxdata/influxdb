@@ -23,7 +23,7 @@ use serde::Deserialize;
 use service_common::{planner::Planner, QueryDatabaseProvider};
 use snafu::{ResultExt, Snafu};
 use std::{fmt::Debug, pin::Pin, sync::Arc, task::Poll};
-use tokio::task::JoinHandle;
+use tokio::{sync::OwnedSemaphorePermit, task::JoinHandle};
 use tonic::{Request, Response, Streaming};
 
 #[allow(clippy::enum_variant_names)]
@@ -196,6 +196,8 @@ where
             }
         };
 
+        let permit = self.server.acquire_semaphore().await;
+
         let database =
             DatabaseName::new(&read_info.database_name).context(InvalidDatabaseNameSnafu)?;
 
@@ -218,6 +220,7 @@ where
             physical_plan,
             read_info.database_name,
             query_completed_token,
+            permit,
         )
         .await?;
 
@@ -286,6 +289,8 @@ struct GetStream {
     rx: futures::channel::mpsc::Receiver<Result<FlightData, tonic::Status>>,
     join_handle: JoinHandle<()>,
     done: bool,
+    #[allow(dead_code)]
+    permit: OwnedSemaphorePermit,
 }
 
 impl GetStream {
@@ -294,6 +299,7 @@ impl GetStream {
         physical_plan: Arc<dyn ExecutionPlan>,
         database_name: String,
         mut query_completed_token: QueryCompletedToken,
+        permit: OwnedSemaphorePermit,
     ) -> Result<Self, tonic::Status> {
         // setup channel
         let (mut tx, rx) = futures::channel::mpsc::channel::<Result<FlightData, tonic::Status>>(1);
@@ -382,6 +388,7 @@ impl GetStream {
             rx,
             join_handle,
             done: false,
+            permit,
         })
     }
 }

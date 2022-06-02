@@ -9,7 +9,6 @@ use iox_query::exec::Executor;
 use parquet_file::storage::ParquetStorage;
 use schema::Schema;
 use std::{collections::HashMap, sync::Arc};
-use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
 mod query_access;
 
@@ -42,11 +41,6 @@ pub struct QuerierNamespace {
 
     /// Query log.
     query_log: Arc<QueryLog>,
-
-    /// Permit that limits the number of concurrent active namespaces (and thus
-    /// also queries)
-    #[allow(dead_code)]
-    permit: OwnedSemaphorePermit,
 }
 
 impl QuerierNamespace {
@@ -58,7 +52,6 @@ impl QuerierNamespace {
         exec: Arc<Executor>,
         ingester_connection: Arc<dyn IngesterConnection>,
         query_log: Arc<QueryLog>,
-        permit: OwnedSemaphorePermit,
     ) -> Self {
         let tables: HashMap<_, _> = schema
             .tables
@@ -90,7 +83,6 @@ impl QuerierNamespace {
             exec,
             catalog_cache: Arc::clone(chunk_adapter.catalog_cache()),
             query_log,
-            permit,
         }
     }
 
@@ -114,9 +106,6 @@ impl QuerierNamespace {
         ));
         let query_log = Arc::new(QueryLog::new(10, time_provider));
 
-        let semaphore = Arc::new(Semaphore::new(1));
-        let permit = semaphore.try_acquire_owned().unwrap();
-
         Self::new(
             chunk_adapter,
             schema,
@@ -124,7 +113,6 @@ impl QuerierNamespace {
             exec,
             ingester_connection,
             query_log,
-            permit,
         )
     }
 

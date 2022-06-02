@@ -11,7 +11,7 @@ use iox_query::exec::Executor;
 use parquet_file::storage::ParquetStorage;
 use service_common::QueryDatabaseProvider;
 use std::sync::Arc;
-use tokio::sync::Semaphore;
+use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
 /// The number of entries to store in the circular query buffer log.
 ///
@@ -59,6 +59,13 @@ impl QueryDatabaseProvider for QuerierDatabase {
 
     async fn db(&self, name: &str) -> Option<Arc<Self::Db>> {
         self.namespace(name).await
+    }
+
+    async fn acquire_semaphore(&self) -> OwnedSemaphorePermit {
+        Arc::clone(&self.query_execution_semaphore)
+            .acquire_owned()
+            .await
+            .expect("Semaphore should not be closed by anyone")
     }
 }
 
@@ -111,12 +118,6 @@ impl QuerierDatabase {
     /// This will await the internal namespace semaphore. Existence of namespaces is checked AFTER a semaphore permit
     /// was acquired since this lowers the chance that we obtain stale data.
     pub async fn namespace(&self, name: &str) -> Option<Arc<QuerierNamespace>> {
-        // get the permit first
-        let permit = Arc::clone(&self.query_execution_semaphore)
-            .acquire_owned()
-            .await
-            .expect("Semaphore should NOT be closed by now");
-
         let name = Arc::from(name.to_owned());
         let schema = self
             .catalog_cache
@@ -130,7 +131,6 @@ impl QuerierDatabase {
             Arc::clone(&self.exec),
             Arc::clone(&self.ingester_connection),
             Arc::clone(&self.query_log),
-            permit,
         )))
     }
 
@@ -158,10 +158,7 @@ impl QuerierDatabase {
 
 #[cfg(test)]
 mod tests {
-    use std::{future::Future, time::Duration};
-
     use iox_tests::util::TestCatalog;
-    use tokio::pin;
 
     use crate::create_ingester_connection_for_testing;
 
@@ -242,80 +239,5 @@ mod tests {
         assert_eq!(namespaces.len(), 2);
         assert_eq!(namespaces[0].name, "ns1");
         assert_eq!(namespaces[1].name, "ns2");
-    }
-
-    #[tokio::test]
-    async fn test_query_execution_semaphore() {
-        let catalog = TestCatalog::new();
-
-        let catalog_cache = Arc::new(CatalogCache::new(
-            catalog.catalog(),
-            catalog.time_provider(),
-            catalog.metric_registry(),
-            usize::MAX,
-        ));
-        let db = QuerierDatabase::new(
-            catalog_cache,
-            catalog.metric_registry(),
-            ParquetStorage::new(catalog.object_store()),
-            catalog.exec(),
-            create_ingester_connection_for_testing(),
-            2,
-        );
-
-        catalog.create_namespace("ns1").await;
-        catalog.create_namespace("ns2").await;
-        catalog.create_namespace("ns3").await;
-
-        // consume all semaphore permits
-        let ns1 = db.namespace("ns1").await.unwrap();
-        let ns2 = db.namespace("ns2").await.unwrap();
-
-        // cannot get any new namespace, even when we already have a namespace for the same name
-        let fut3 = db.namespace("ns3");
-        let fut1 = db.namespace("ns1");
-        let fut9 = db.namespace("ns9");
-        let fut2 = db.namespace("ns2");
-        pin!(fut3);
-        pin!(fut1);
-        pin!(fut9);
-        pin!(fut2);
-        assert_fut_pending(&mut fut3).await;
-        assert_fut_pending(&mut fut1).await;
-        assert_fut_pending(&mut fut9).await;
-        assert_fut_pending(&mut fut2).await;
-
-        // dropping the newest namespace frees a permit
-        drop(ns2);
-        let ns3 = fut3.await.unwrap();
-        assert_fut_pending(&mut fut1).await;
-        assert_fut_pending(&mut fut9).await;
-        assert_fut_pending(&mut fut2).await;
-
-        // dropping the newest namespace frees a permit
-        drop(ns3);
-        let _ns1b = fut1.await.unwrap();
-        assert_fut_pending(&mut fut9).await;
-        assert_fut_pending(&mut fut2).await;
-
-        // dropping the oldest namespace frees a permit
-        drop(ns1);
-        assert!(fut9.await.is_none());
-        // because "ns9" did not exist, we immediately get a new permit
-        fut2.await.unwrap();
-    }
-
-    /// Assert that given future is pending.
-    ///
-    /// This will try to poll the future a bit to ensure that it is not stuck in tokios task preemption.
-    async fn assert_fut_pending<F>(fut: &mut F)
-    where
-        F: Future + Send + Unpin,
-        F::Output: std::fmt::Debug,
-    {
-        tokio::select! {
-            x = fut => panic!("future is not pending, yielded: {x:?}"),
-            _ = tokio::time::sleep(Duration::from_millis(10)) => {},
-        };
     }
 }
