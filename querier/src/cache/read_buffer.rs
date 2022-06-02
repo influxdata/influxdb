@@ -22,7 +22,12 @@ use std::{collections::HashMap, mem, sync::Arc};
 
 const CACHE_ID: &str = "read_buffer";
 
-type ExtraFetchInfo = (Arc<DecodedParquetFile>, Arc<str>, ParquetStorage);
+#[derive(Debug)]
+struct ExtraFetchInfo {
+    decoded_parquet_file: Arc<DecodedParquetFile>,
+    table_name: Arc<str>,
+    store: ParquetStorage,
+}
 
 /// Cache for parquet file data decoded into read buffer chunks
 #[derive(Debug)]
@@ -41,15 +46,16 @@ impl ReadBufferCache {
         ram_pool: Arc<ResourcePool<RamSize>>,
     ) -> Self {
         let loader = Box::new(FunctionLoader::new(
-            move |_parquet_file_id, (decoded_parquet_file, table_name, store): ExtraFetchInfo| {
+            move |_parquet_file_id, extra_fetch_info: ExtraFetchInfo| {
                 let backoff_config = BackoffConfig::default();
 
                 async move {
                     let rb_chunk = Backoff::new(&backoff_config)
                         .retry_all_errors("get read buffer chunk from parquet file", || {
-                            let decoded_parquet_file_for_load = Arc::clone(&decoded_parquet_file);
-                            let table_name_for_load = Arc::clone(&table_name);
-                            let store_for_load = store.clone();
+                            let decoded_parquet_file_for_load =
+                                Arc::clone(&extra_fetch_info.decoded_parquet_file);
+                            let table_name_for_load = Arc::clone(&extra_fetch_info.table_name);
+                            let store_for_load = extra_fetch_info.store.clone();
 
                             async {
                                 load_from_parquet_file(
@@ -105,7 +111,11 @@ impl ReadBufferCache {
         self.cache
             .get(
                 decoded_parquet_file.parquet_file_id(),
-                (decoded_parquet_file, table_name, store),
+                ExtraFetchInfo {
+                    decoded_parquet_file,
+                    table_name,
+                    store,
+                },
             )
             .await
     }
