@@ -759,7 +759,7 @@ impl DbSetup for TwoMeasurementsMultiSeries {
             "o2,state=MA,city=Boston temp=53.4,reading=51 250", // to row 4
         ];
 
-        // Swap around  data is not inserted in series order
+        // Swap around data is not inserted in series order
         lp_lines.swap(0, 2);
         lp_lines.swap(4, 5);
 
@@ -783,7 +783,7 @@ impl DbSetup for TwoMeasurementsMultiSeriesWithDelete {
             "o2,state=MA,city=Boston temp=53.4,reading=51 250", // to row 4
         ];
 
-        // Swap around  data is not inserted in series order
+        // Swap around data is not inserted in series order
         lp_lines.swap(0, 2);
         lp_lines.swap(4, 5);
 
@@ -822,7 +822,7 @@ impl DbSetup for TwoMeasurementsMultiSeriesWithDeleteAll {
             "o2,state=MA,city=Boston temp=53.4,reading=51 250", // to row 4
         ];
 
-        // Swap around  data is not inserted in series order
+        // Swap around data is not inserted in series order
         lp_lines.swap(0, 2);
         lp_lines.swap(4, 5);
 
@@ -978,8 +978,8 @@ impl DbSetup for OneMeasurementNoTagsWithDelete {
     }
 }
 
-/// This will create many scenarios (at least 15), some have a chunk with soft deleted data, some
-/// have no chunks because there is no point to create compacted chunks with all deleted data.
+/// This will create many scenarios: some have a chunk with soft deleted data, some have no chunks
+/// because there is no point to create compacted chunks with all deleted data.
 pub struct OneMeasurementNoTagsWithDeleteAllWithAndWithoutChunk {}
 #[async_trait]
 impl DbSetup for OneMeasurementNoTagsWithDeleteAllWithAndWithoutChunk {
@@ -994,8 +994,8 @@ impl DbSetup for OneMeasurementNoTagsWithDeleteAllWithAndWithoutChunk {
             exprs: vec![],
         };
 
-        // Apply predicate before the chunk is moved if any. There will be
-        // scenario without chunks as a consequence of not-compacting-deleted-data
+        // Apply predicate before the chunk is moved if any. There will be scenarios without chunks
+        // as a consequence of not-compacting-deleted-data
         all_scenarios_for_one_chunk(
             vec![&pred],
             vec![],

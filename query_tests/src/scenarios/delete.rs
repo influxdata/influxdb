@@ -31,7 +31,6 @@ impl DbSetup for OneDeleteSimpleExprOneChunkDeleteAll {
             exprs: vec![],
         };
 
-        // this returns 15 scenarios
         all_scenarios_for_one_chunk(vec![&pred], vec![], lp_lines, table_name, partition_key).await
     }
 }
@@ -58,7 +57,6 @@ impl DbSetup for OneDeleteSimpleExprOneChunk {
             )],
         };
 
-        // this returns 15 scenarios
         all_scenarios_for_one_chunk(vec![&pred], vec![], lp_lines, table_name, partition_key).await
     }
 }
@@ -79,7 +77,6 @@ impl DbSetup for NoDeleteOneChunk {
             "cpu,foo=me bar=1 40",
         ];
 
-        // this returns 15 scenarios
         all_scenarios_for_one_chunk(vec![], vec![], lp_lines, table_name, partition_key).await
     }
 }
@@ -108,7 +105,6 @@ impl DbSetup for OneDeleteMultiExprsOneChunk {
             ],
         };
 
-        // this returns 15 scenarios
         all_scenarios_for_one_chunk(vec![&pred], vec![], lp_lines, table_name, partition_key).await
     }
 }
