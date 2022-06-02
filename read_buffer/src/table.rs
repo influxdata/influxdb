@@ -498,7 +498,16 @@ impl Table {
         }
 
         // Determine if predicate can be applied to table.
-        let predicate: Predicate = meta.validate_exprs(predicate.clone())?.into();
+        let validated_exprs = meta.validate_exprs(predicate.clone());
+
+        // If the exprs contain a column that doesn't exist in this table, then no columns can
+        // match. Return nothing.
+        if let Err(Error::ColumnDoesNotExist { .. }) = validated_exprs {
+            dst.clear();
+            return Ok(dst);
+        }
+
+        let predicate: Predicate = validated_exprs?.into();
 
         // Determine if the negated predicates (deletes) can be applied to the
         // table.
@@ -1389,7 +1398,8 @@ mod test {
         let predicate = Predicate::new(vec![BinaryExpr::from(("region", ">=", "west"))]);
         assert!(table.could_pass_predicate(&predicate));
 
-        // doesn't match either row group no column
+        // doesn't match either row group-- the rows don't have the temp column, so they can't
+        // possibly match the predicate
         let predicate = Predicate::new(vec![BinaryExpr::from(("temp", ">=", 0_u64))]);
         assert!(!table.could_pass_predicate(&predicate));
 
@@ -1768,6 +1778,17 @@ west,host-b,100
             dst.iter().cloned().collect::<Vec<_>>(),
             vec!["time".to_owned()],
         );
+
+        // the column in the predicate isn't present in this table, don't return any columns
+        assert!(table
+            .column_names(
+                &Predicate::new(vec![BinaryExpr::from(("host", "=", "foo"))]),
+                &[],
+                Selection::All,
+                BTreeSet::new(),
+            )
+            .unwrap()
+            .is_empty());
 
         // invalid predicate
         assert!(matches!(
