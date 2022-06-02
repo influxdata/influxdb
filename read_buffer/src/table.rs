@@ -28,6 +28,9 @@ pub enum Error {
 
     #[snafu(display("unsupported column operation on column \"{}\": {}", column_name, msg))]
     UnsupportedColumnOperation { msg: String, column_name: String },
+
+    #[snafu(display("column \"{column_name}\" does not exist"))]
+    ColumnDoesNotExist { column_name: String },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -772,9 +775,8 @@ impl MetaData {
                     }
                 },
                 None => {
-                    return UnsupportedColumnOperationSnafu {
+                    return ColumnDoesNotExistSnafu {
                         column_name: expr.column().to_owned(),
-                        msg: "column does not exist",
                     }
                     .fail()
                 }
@@ -1768,14 +1770,16 @@ west,host-b,100
         );
 
         // invalid predicate
-        assert!(table
-            .column_names(
-                &Predicate::new(vec![BinaryExpr::from(("time", ">=", "not a number"))]),
-                &[],
-                Selection::All,
-                dst,
-            )
-            .is_err());
+        assert!(matches!(
+            table
+                .column_names(
+                    &Predicate::new(vec![BinaryExpr::from(("time", ">=", "not a number"))]),
+                    &[],
+                    Selection::All,
+                    dst,
+                ),
+            Err(Error::UnsupportedColumnOperation { column_name, .. }) if column_name == "time",
+        ));
     }
 
     #[test]
