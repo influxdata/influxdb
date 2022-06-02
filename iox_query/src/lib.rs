@@ -317,7 +317,7 @@ impl QueryChunkMeta for Arc<dyn QueryChunk> {
     }
 }
 
-/// return true if all the chunks inlcude statistics
+/// return true if all the chunks include statistics
 pub fn chunks_have_stats(chunks: &[Arc<dyn QueryChunk>]) -> bool {
     // If at least one of the provided chunk cannot provide stats,
     // do not need to compute potential duplicates. We will treat

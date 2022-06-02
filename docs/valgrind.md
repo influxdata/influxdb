@@ -35,14 +35,14 @@ rules, here are some useful links:
 - <https://www.valgrind.org/docs/manual/manual-core.html#manual-core.suppress>
 - <https://wiki.wxwidgets.org/Valgrind_Suppression_File_Howto>
 
-You may also use the `--gen-suppressions=all` to auto-generate supppression rules:
+You may also use the `--gen-suppressions=all` to auto-generate suppression rules:
 
 ```console
 $ ./scripts/valgrind_leak --gen-suppressions=all ./target/debug/influxdb_iox run ...
 ```
 
 Note that Rust symbols like `influxdb_iox::main` are mangled in a way that [Valgrind] cannot parse them (e.g. to
-`_ZN12influxdb_iox4main17h940b8bf02831a9d8E`). The easiest way is to replace `::` w/ `*` and prepand and append an
+`_ZN12influxdb_iox4main17h940b8bf02831a9d8E`). The easiest way is to replace `::` w/ `*` and prepend and append an
 additional wildcard `*`, so `influxdb_iox::main` gets `*influxdb_iox*main*`.
 
 ## Massif

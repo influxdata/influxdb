@@ -4,7 +4,7 @@ This crate contains a work-in-progress implementation of a Rust client for the [
 
 This client is not the Rust client for IOx. You can find that [here](../influxdb_iox_client).
 
-The InfluxDB IOx project plans to focus its efforts on the subset of the API which are most relevent to IOx, but we accept (welcome!) PRs for adding the other pieces of functionality.
+The InfluxDB IOx project plans to focus its efforts on the subset of the API which are most relevant to IOx, but we accept (welcome!) PRs for adding the other pieces of functionality.
 
 
 ## Design Notes

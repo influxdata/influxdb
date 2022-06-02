@@ -102,7 +102,7 @@ cargo test --workspace
 ### Enabling logging in tests
 
 To enable logging to stderr during a run of `cargo test` set the Rust
-`RUST_LOG` environment varable. For example, to see all INFO messages:
+`RUST_LOG` environment variable. For example, to see all INFO messages:
 
 ```shell
 RUST_LOG=info cargo test --workspace

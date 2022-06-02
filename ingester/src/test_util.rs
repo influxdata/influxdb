@@ -703,7 +703,7 @@ pub fn make_ingester_data(two_partitions: bool, loc: DataLocation) -> IngesterDa
     let mut sequencers = BTreeMap::new();
     sequencers.insert(seq_id, seq_data);
 
-    // Ingester data that inlcudes one sequencer/shard
+    // Ingester data that includes one sequencer/shard
     IngesterData::new(
         object_store,
         catalog,
@@ -748,7 +748,7 @@ pub async fn make_ingester_data_with_tombstones(loc: DataLocation) -> IngesterDa
     let mut sequencers = BTreeMap::new();
     sequencers.insert(seq_id, seq_data);
 
-    // Ingester data that inlcudes one sequencer/shard
+    // Ingester data that includes one sequencer/shard
     IngesterData::new(
         object_store,
         catalog,
@@ -905,7 +905,7 @@ fn make_first_partition_data(
     table_id: TableId,
     table_name: &str,
 ) -> (PartitionData, SequenceNumber) {
-    // In-memory data inlcudes these rows but split between 3 groups go into
+    // In-memory data includes these rows but split between 3 groups go into
     // different batches of parittion p1
     // let expected = vec![
     //         "+------------+-----+------+--------------------------------+",

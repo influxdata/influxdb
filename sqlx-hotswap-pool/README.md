@@ -3,7 +3,7 @@
 This crate implements a workaround for the lack of support for password rotation in the `sqlx` crate.
 
 There is an upstream ticket for this [Support rotating passwords #445](https://github.com/launchbadge/sqlx/issues/445).
-This crate offfers a more quick&dirty solution to the problem.
+This crate offers a more quick&dirty solution to the problem.
 
 ## Problem
 
@@ -22,7 +22,7 @@ This workaround has been designed to solve the problem of updating credentials, 
 
 If the credentials refresh happen before the existing credentials are invalidated, references to the previous pool can still be used for some time.
 
-If the credentials refresh contextually invalidates the exsting credentials, the process will experience connection errors if they used the pool before it has been updated (and if they cloned the `Arc` before the `update` method has been called).
+If the credentials refresh contextually invalidates the existing credentials, the process will experience connection errors if they used the pool before it has been updated (and if they cloned the `Arc` before the `update` method has been called).
 
 Already open connections will keep working in both cases.
 

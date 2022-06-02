@@ -195,7 +195,7 @@ async fn test_decoded_many_columns_with_null_cols_iox_metadata() {
     // And the metadata the batch would be encoded with if it came through the
     // IOx write path.
 
-    // sort key inlcudes all columns with time column last
+    // sort key includes all columns with time column last
     let mut sort_key_data = Vec::with_capacity(num_cols);
     for i in 1..num_cols {
         let col = make_col_name(i);

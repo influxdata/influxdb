@@ -441,7 +441,7 @@ impl Compactor {
 
         let mut file_count = 0;
 
-        // Compact, persist,and update catalog accordingly for each overlaped file
+        // Compact, persist,and update catalog accordingly for each overlapped file
         let mut tombstones = BTreeMap::new();
         let mut output_file_count = 0;
         let sequencer_id = compact_and_upgrade
@@ -611,7 +611,7 @@ impl Compactor {
         tombstones
     }
 
-    // Compact given files. The given files are either overlaped or contiguous in time.
+    // Compact given files. The given files are either overlapped or contiguous in time.
     // The output will include 2 CompactedData sets, one contains a large amount of data of
     // least recent time and the other has a small amount of data of most recent time. Each
     // will be persisted in its own file. The idea is when new writes come, they will
@@ -1161,7 +1161,7 @@ mod tests {
         let count = catalog.count_level_0_files(sequencer.sequencer.id).await;
         assert_eq!(count, 1);
 
-        // One overlaped tombstone
+        // One overlapped tombstone
         let tombstone = table
             .with_sequencer(&sequencer)
             .create_tombstone(20, 6000, 12000, "tag1=VT")

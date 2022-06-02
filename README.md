@@ -166,7 +166,7 @@ The rest of these instructions assume you are in this directory.
 
 ### Configure the server
 
-InfluxDB IOx can be configured using either environment variables or a configutation file,
+InfluxDB IOx can be configured using either environment variables or a configuration file,
 making it suitable for deployment in containerized environments.
 
 For a list of configuration options, run `influxdb_iox --help`.
@@ -335,7 +335,7 @@ status: SERVING
 To manually invoke one of the gRPC APIs, use a gRPC CLI client such as [grpcurl](https://github.com/fullstorydev/grpcurl).
 
 Tonic (the gRPC server library we're using) currently doesn't have support for gRPC reflection, hence you must pass all `.proto` files to your client.
-You can find a conventient `grpcurl` wrapper that does that in the `scripts` directory:
+You can find a convenient `grpcurl` wrapper that does that in the `scripts` directory:
 
 ```console
 $ ./scripts/grpcurl -plaintext 127.0.0.1:8082 list
@@ -357,6 +357,6 @@ We welcome community contributions from anyone!
 
 Read our [Contributing Guide](CONTRIBUTING.md) for instructions on how to run tests and how to make your first contribution.
 
-## Architecture and Technical Documenation
+## Architecture and Technical Documentation
 
 There are a variety of technical documents describing various parts of IOx in the [docs](docs) directory.

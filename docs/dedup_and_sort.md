@@ -72,7 +72,7 @@ Figure 2: A simplified query plan that scans all eight chunks of two partitions 
 ```
 
 If many queries read these two partitions, IOx has to build the same query plan above which we think suboptimal because of sort and deduplication. To avoid this suboptimal query plan, IOx is designed to:
-1. Data in each partition is frequently compacted to only contain a few non-overlaped and non-duplicated chunks as shown in Figure 3 which will help scan fewer chunks and eliminate the `Sort` and `Dedup` operators as illustrated in Figure 4.
+1. Data in each partition is frequently compacted to only contain a few non-overlapped and non-duplicated chunks as shown in Figure 3 which will help scan fewer chunks and eliminate the `Sort` and `Dedup` operators as illustrated in Figure 4.
 2. All **persisted chunks of the same partition are sorted on the same key** to avoid resorting before deduplication. So the plan in Figure 2 is only seen sometimes in IOx (mostly in Ingester and Querier with data sent back from Ingester), instead, you will mostly see the plan in Figure 4 (for data in Figure 3) or in Figure 6 (for data of Figure 5)
 
 ```text
@@ -163,7 +163,7 @@ Chunk 4  | tag2, tag3    | tag2, tag3, time | tag1, tag2, tag3, time
 Chunk 5  | tag1, tag4    | tag1, tag4, time | tag1, tag2, tag3, tag4, time (need catalog update)
 ```
 
-Assuming Chunk 2 and Chunk 3 overlap. As explained above, a query that needs to read those two chunks have to deduplicate them. Their sort key will be read from the Partition Sort Key which is `tag1, tag2, tag3, tag4, time`. Since those chunks do not inlcude `tag4`, it will be eliminated and the actually sort key of those 2 chunks is `tag1, tag2, tag3, time`. To ensure those two chunks have the same columns, IOx adds missing columns with all NULL values while scanning them(`tag1` and `tag3` to Chunk 2 and `tag2` to Chunk 3). Even though adding NULL columns `tag1` and `tag3` to Chunk 2 makes its primary key and sort key now `tag1, tag2, tag3, time`, it is still sorted as it was on its original `tag2, time` only. Hence no sorted needed for Chunk 2. Same to Chunk 3. Figure 7 shows the query plan that reads Chunk 2 and Chunk 3.
+Assuming Chunk 2 and Chunk 3 overlap. As explained above, a query that needs to read those two chunks have to deduplicate them. Their sort key will be read from the Partition Sort Key which is `tag1, tag2, tag3, tag4, time`. Since those chunks do not include `tag4`, it will be eliminated and the actually sort key of those 2 chunks is `tag1, tag2, tag3, time`. To ensure those two chunks have the same columns, IOx adds missing columns with all NULL values while scanning them(`tag1` and `tag3` to Chunk 2 and `tag2` to Chunk 3). Even though adding NULL columns `tag1` and `tag3` to Chunk 2 makes its primary key and sort key now `tag1, tag2, tag3, time`, it is still sorted as it was on its original `tag2, time` only. Hence no sorted needed for Chunk 2. Same to Chunk 3. Figure 7 shows the query plan that reads Chunk 2 and Chunk 3.
 
 ```text
                   ┌────────────────────────────────────────────────────────────────┐                 

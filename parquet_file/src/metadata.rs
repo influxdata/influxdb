@@ -793,7 +793,7 @@ fn read_statistics_from_parquet_row_group(
                 stats,
             });
         } else {
-            debug!(?field, "Provided schema of the field does not inlcude IOx Column Type such as Tag, Field, Time");
+            debug!(?field, "Provided schema of the field does not include IOx Column Type such as Tag, Field, Time");
         }
     }
 

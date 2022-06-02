@@ -585,7 +585,7 @@ impl Deduplicater {
                     // This happens either:
                     //   . In the Ingester to compact ingesting data that is not sorted and not
                     //     deduplicated yet
-                    //   . In the Querier that also inlcudes data sent from Ingester that is also
+                    //   . In the Querier that also includes data sent from Ingester that is also
                     //     not yet sorted.
                     //        Note: Data sent from Ingester is already deduplicated but if it
                     //        overlaps with other chunks, it may include duplicated data with those
@@ -2908,7 +2908,7 @@ mod test {
             )
             .unwrap();
 
-        // plan should inlcude SortExec because chunks are not yet sorted on the specified sort_key
+        // plan should include SortExec because chunks are not yet sorted on the specified sort_key
         let plan_str = format!("{}", displayable(plan.as_ref()).indent());
         // println!("{}", plan_str);
         // The plan should look like this

@@ -2,7 +2,7 @@
 
 This crate contains the code for the IOx Catalog. This includes the definitions of namespaces,
 their tables, the columns of those tables and their types, what Parquet files are in object storage
-and delete tombstones. There's also some configuration information that the overal distributed
+and delete tombstones. There's also some configuration information that the overall distributed
 system uses for operation.
 
 To run this crate's tests you'll need Postgres installed and running locally. You'll also need to
