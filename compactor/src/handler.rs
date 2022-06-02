@@ -227,6 +227,10 @@ async fn run_compactor(compactor: Arc<Compactor>, shutdown: CancellationToken) {
         }
 
         let compactions_run = handles.len();
+        debug!(
+            ?compactions_run,
+            "Number of concurrent partitions are being compacted in this cycle"
+        );
 
         let _ = futures::future::join_all(handles).await;
 
