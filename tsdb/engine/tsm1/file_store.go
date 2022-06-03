@@ -196,6 +196,8 @@ type FileStore struct {
 	obs tsdb.FileStoreObserver
 
 	copyFiles bool
+
+	readerOptions []tsmReaderOption
 }
 
 // FileStat holds information about a TSM file on disk.
@@ -232,7 +234,7 @@ func (f FileStat) ContainsKey(key []byte) bool {
 }
 
 // NewFileStore returns a new instance of FileStore based on the given directory.
-func NewFileStore(dir string) *FileStore {
+func NewFileStore(dir string, options ...tsmReaderOption) *FileStore {
 	logger := zap.NewNop()
 	fs := &FileStore{
 		dir:          dir,
@@ -248,6 +250,7 @@ func NewFileStore(dir string) *FileStore {
 		obs:           noFileStoreObserver{},
 		parseFileName: DefaultParseFileName,
 		copyFiles:     runtime.GOOS == "windows",
+		readerOptions: options,
 	}
 	fs.purger.fileStore = fs
 	return fs
@@ -529,6 +532,9 @@ func (f *FileStore) Open() error {
 		err error
 	}
 
+	options := make([]tsmReaderOption, 0, len(f.readerOptions)+1)
+	options = append(options, f.readerOptions...)
+	options = append(options, WithMadviseWillNeed(f.tsmMMAPWillNeed))
 	readerC := make(chan *res)
 	for i, fn := range files {
 		// Keep track of the latest ID
@@ -554,7 +560,7 @@ func (f *FileStore) Open() error {
 			defer f.openLimiter.Release()
 
 			start := time.Now()
-			df, err := NewTSMReader(file, WithMadviseWillNeed(f.tsmMMAPWillNeed))
+			df, err := NewTSMReader(file, options...)
 			f.logger.Info("Opened file",
 				zap.String("path", file.Name()),
 				zap.Int("id", idx),
@@ -563,13 +569,13 @@ func (f *FileStore) Open() error {
 			// If we are unable to read a TSM file then log the error.
 			if err != nil {
 				file.Close()
-				if e, ok := err.(MmapError); ok {
+				if errors.Is(err, MmapError{}) {
 					// An MmapError may indicate we have insufficient
 					// handles for the mmap call, in which case the file should
 					// be left untouched, and the vm.max_map_count be raised.
 					f.logger.Error("Cannot read TSM file, system limit for vm.max_map_count may be too low",
-						zap.String("path", file.Name()), zap.Int("id", idx), zap.Error(e.Unwrap()))
-					readerC <- &res{r: df, err: fmt.Errorf("cannot read file %s, system limit for vm.max_map_count may be too low: %v", file.Name(), e.Unwrap())}
+						zap.String("path", file.Name()), zap.Int("id", idx), zap.Error(err))
+					readerC <- &res{r: df, err: fmt.Errorf("cannot read file %s, system limit for vm.max_map_count may be too low: %v", file.Name(), err)}
 					return
 				} else {
 					// If the file is corrupt, rename it and
