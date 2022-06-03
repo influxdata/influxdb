@@ -11,7 +11,7 @@ mod column;
 mod metrics;
 mod row_group;
 mod schema;
-mod table;
+pub mod table;
 mod value;
 
 // Identifiers that are exported as part of the public API.
