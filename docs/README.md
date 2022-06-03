@@ -1,8 +1,9 @@
 # InfluxDB IOx Documentation
 
+Please see the main [README](../README.md) for user facing documentation.
+
 This directory contains internal design documentation of potential
-interest for those who wish to understand how the code works. It is
-not intended to be general user facing documentation
+interest for those who wish to understand how the code works.
 
 ## IOx Tech Talks
 
