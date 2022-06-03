@@ -96,6 +96,17 @@ async fn list_tag_columns_predicate() {
 }
 
 #[tokio::test]
+async fn list_tag_columns_predicate_negative_nonexistent_column() {
+    let predicate = PredicateBuilder::default()
+        .add_expr(col("state").eq(lit("MA"))) // state=MA
+        .add_expr(col("host").not_eq(lit("server01"))) // nonexistent column with !=; always true
+        .build();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
+    let expected_tag_keys = vec!["city", "county", "state"];
+    run_tag_keys_test_case(TwoMeasurementsManyNulls {}, predicate, expected_tag_keys).await;
+}
+
+#[tokio::test]
 async fn list_tag_columns_measurement_pred() {
     // Select only the following line using a _measurement predicate
     //
