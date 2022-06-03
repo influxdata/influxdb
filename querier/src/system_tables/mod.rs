@@ -6,7 +6,7 @@ use datafusion::{
     catalog::schema::SchemaProvider,
     datasource::TableProvider,
     error::Result as DataFusionResult,
-    execution::context::TaskContext,
+    execution::context::{SessionState, TaskContext},
     logical_expr::TableType,
     physical_plan::{
         expressions::PhysicalSortExpr, ExecutionPlan, Partitioning, RecordBatchStream,
@@ -99,6 +99,7 @@ where
 
     async fn scan(
         &self,
+        _ctx: &SessionState,
         projection: &Option<Vec<usize>>,
         // It would be cool to push projection and limit down
         _filters: &[datafusion::logical_plan::Expr],

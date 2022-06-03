@@ -21,7 +21,7 @@ iox_time = { path = "../iox_time" }
 trace = { path = "../trace" }
 
 # Crates.io dependencies, in alphabetical order
-arrow-flight = "14.0.0"
+arrow-flight = "15.0.0"
 async-trait = "0.1"
 hyper = "0.14"
 tokio = { version = "1.18", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }

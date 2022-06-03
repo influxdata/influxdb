@@ -1670,18 +1670,16 @@ impl From<Values<'_>> for arrow::array::ArrayRef {
                     values.into_iter().collect::<arrow::array::StringArray>()
                 };
 
-                let mut builder = ArrayDataBuilder::new(DataType::Dictionary(
+                let data = ArrayDataBuilder::new(DataType::Dictionary(
                     Box::new(DataType::Int32),
                     Box::new(DataType::Utf8),
                 ))
                 .len(keys.len())
                 .add_buffer(Buffer::from_iter(keys))
-                .add_child_data(values_arr.data().clone());
-
-                if let Some(bm) = null_bitmap {
-                    builder = builder.null_bit_buffer(bm.to_arrow());
-                }
-                let data = builder.build().unwrap();
+                .add_child_data(values_arr.data().clone())
+                .null_bit_buffer(null_bitmap.map(|bm| bm.to_arrow()))
+                .build()
+                .unwrap();
                 Arc::new(DictionaryArray::<Int32Type>::from(data))
             }
             Values::I64(values) => Arc::new(arrow::array::Int64Array::from(values)),

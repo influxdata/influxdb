@@ -162,16 +162,11 @@ impl PackedStringArray<i32> {
         let offsets = Buffer::from_slice_ref(&self.offsets);
         let values = Buffer::from(self.storage.as_bytes());
 
-        let mut array_builder = ArrayDataBuilder::new(arrow::datatypes::DataType::Utf8)
+        let data = ArrayDataBuilder::new(arrow::datatypes::DataType::Utf8)
             .len(len)
             .add_buffer(offsets)
-            .add_buffer(values);
-
-        if let Some(nulls) = nulls {
-            array_builder = array_builder.null_bit_buffer(nulls);
-        }
-
-        let data = array_builder
+            .add_buffer(values)
+            .null_bit_buffer(nulls)
             .build()
             // TODO consider skipping the validation checks by using
             // `new_unchecked`

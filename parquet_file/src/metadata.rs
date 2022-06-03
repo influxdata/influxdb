@@ -713,7 +713,12 @@ impl DecodedIoxParquetMetaData {
         )
         .context(ArrowFromParquetFailureSnafu {})?;
 
-        let arrow_schema_ref = Arc::new(arrow_schema);
+        // The parquet reader will propagate any metadata keys present in the parquet
+        // metadata onto the arrow schema. This will include the encoded IOxMetadata
+        //
+        // We strip this out to avoid false negatives when comparing schemas for equality,
+        // as this metadata will vary from file to file
+        let arrow_schema_ref = Arc::new(arrow_schema.with_metadata(Default::default()));
 
         let schema: Schema = arrow_schema_ref
             .try_into()

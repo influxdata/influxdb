@@ -8,6 +8,7 @@ use arrow::{datatypes::SchemaRef as ArrowSchemaRef, error::ArrowError};
 use datafusion::{
     datasource::TableProvider,
     error::{DataFusionError, Result as DataFusionResult},
+    execution::context::SessionState,
     logical_expr::{TableProviderFilterPushDown, TableType},
     logical_plan::Expr,
     physical_plan::{
@@ -240,6 +241,7 @@ impl TableProvider for ChunkTableProvider {
 
     async fn scan(
         &self,
+        _ctx: &SessionState,
         projection: &Option<Vec<usize>>,
         filters: &[Expr],
         _limit: Option<usize>,

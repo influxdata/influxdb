@@ -12,7 +12,7 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use bytes::Bytes;
-use datafusion::physical_plan::SendableRecordBatchStream;
+use datafusion::{parquet::arrow::ProjectionMask, physical_plan::SendableRecordBatchStream};
 use datafusion_util::{AdapterStream, AutoAbortJoinHandle};
 use futures::{Stream, TryStreamExt};
 use object_store::{DynObjectStore, GetResult};
@@ -277,7 +277,12 @@ async fn download_and_scan_parquet(
     let cursor = SliceableCursor::new(data);
     let file_reader = SerializedFileReader::new(cursor)?;
     let mut arrow_reader = ParquetFileArrowReader::new(Arc::new(file_reader));
-    let record_batch_reader = arrow_reader.get_record_reader_by_columns(projection, batch_size)?;
+
+    let mask = ProjectionMask::roots(
+        arrow_reader.get_metadata().file_metadata().schema_descr(),
+        projection,
+    );
+    let record_batch_reader = arrow_reader.get_record_reader_by_columns(mask, batch_size)?;
 
     for batch in record_batch_reader {
         if tx.send(batch).await.is_err() {

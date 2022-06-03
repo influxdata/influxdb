@@ -257,7 +257,7 @@ impl Column {
                 let data = ArrayDataBuilder::new(DataType::Float64)
                     .len(data.len())
                     .add_buffer(data.iter().cloned().collect())
-                    .null_bit_buffer(nulls)
+                    .null_bit_buffer(Some(nulls))
                     .build()
                     .context(CreatingArrowArraySnafu)?;
                 Arc::new(Float64Array::from(data))
@@ -267,7 +267,7 @@ impl Column {
                     let data = ArrayDataBuilder::new(TIME_DATA_TYPE())
                         .len(data.len())
                         .add_buffer(data.iter().cloned().collect())
-                        .null_bit_buffer(nulls)
+                        .null_bit_buffer(Some(nulls))
                         .build()
                         .context(CreatingArrowArraySnafu)?;
                     Arc::new(TimestampNanosecondArray::from(data))
@@ -277,7 +277,7 @@ impl Column {
                     let data = ArrayDataBuilder::new(DataType::Int64)
                         .len(data.len())
                         .add_buffer(data.iter().cloned().collect())
-                        .null_bit_buffer(nulls)
+                        .null_bit_buffer(Some(nulls))
                         .build()
                         .context(CreatingArrowArraySnafu)?;
                     Arc::new(Int64Array::from(data))
@@ -288,7 +288,7 @@ impl Column {
                 let data = ArrayDataBuilder::new(DataType::UInt64)
                     .len(data.len())
                     .add_buffer(data.iter().cloned().collect())
-                    .null_bit_buffer(nulls)
+                    .null_bit_buffer(Some(nulls))
                     .build()
                     .context(CreatingArrowArraySnafu)?;
                 Arc::new(UInt64Array::from(data))
@@ -298,7 +298,7 @@ impl Column {
                 let data = ArrayDataBuilder::new(DataType::Boolean)
                     .len(data.len())
                     .add_buffer(data.to_arrow())
-                    .null_bit_buffer(nulls)
+                    .null_bit_buffer(Some(nulls))
                     .build()
                     .context(CreatingArrowArraySnafu)?;
                 Arc::new(BooleanArray::from(data))

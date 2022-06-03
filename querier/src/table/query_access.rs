@@ -5,6 +5,7 @@ use async_trait::async_trait;
 use datafusion::{
     datasource::{TableProvider, TableType},
     error::DataFusionError,
+    execution::context::SessionState,
     logical_expr::TableProviderFilterPushDown,
     logical_plan::Expr,
     physical_plan::ExecutionPlan,
@@ -35,6 +36,7 @@ impl TableProvider for QuerierTable {
 
     async fn scan(
         &self,
+        ctx: &SessionState,
         projection: &Option<Vec<usize>>,
         filters: &[Expr],
         limit: Option<usize>,
@@ -63,7 +65,7 @@ impl TableProvider for QuerierTable {
             Err(e) => panic!("unexpected error: {:?}", e),
         };
 
-        provider.scan(projection, filters, limit).await
+        provider.scan(ctx, projection, filters, limit).await
     }
 
     fn supports_filter_pushdown(

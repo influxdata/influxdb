@@ -1,6 +1,6 @@
 //! Streaming [`RecordBatch`] / Parquet file encoder routines.
 
-use std::{ops::DerefMut, sync::Arc};
+use std::{io::Write, sync::Arc};
 
 use arrow::{error::ArrowError, record_batch::RecordBatch};
 use futures::{pin_mut, Stream, StreamExt};
@@ -9,11 +9,7 @@ use parquet::{
     arrow::ArrowWriter,
     basic::Compression,
     errors::ParquetError,
-    file::{
-        metadata::KeyValue,
-        properties::WriterProperties,
-        writer::{InMemoryWriteableCursor, ParquetWriter},
-    },
+    file::{metadata::KeyValue, properties::WriterProperties},
 };
 use thiserror::Error;
 
@@ -65,20 +61,15 @@ pub enum CodecError {
 /// [`proto::IoxMetadata`]: generated_types::influxdata::iox::ingester::v1
 /// [`FileMetaData`]: parquet_format::FileMetaData
 /// [`IoxParquetMetaData`]: crate::metadata::IoxParquetMetaData
-pub async fn to_parquet<S, W, T>(
+pub async fn to_parquet<S, W>(
     batches: S,
     meta: &IoxMetadata,
     sink: W,
 ) -> Result<parquet_format::FileMetaData, CodecError>
 where
     S: Stream<Item = Result<RecordBatch, ArrowError>> + Send,
-    W: DerefMut<Target = T> + Send,
-    T: ParquetWriter + Send + 'static,
+    W: Write + Send,
 {
-    // Let the caller pass a mutable ref to something that impls ParquetWriter
-    // while still providing the necessary owned impl to the ArrowWriter.
-    let sink = sink.deref().try_clone().map_err(CodecError::CloneSink)?;
-
     let stream = batches.peekable();
     pin_mut!(stream);
 
@@ -124,7 +115,7 @@ pub async fn to_parquet_bytes<S>(
 where
     S: Stream<Item = Result<RecordBatch, ArrowError>> + Send,
 {
-    let mut w = InMemoryWriteableCursor::default();
+    let mut bytes = vec![];
 
     let partition_id = meta.partition_id;
     debug!(
@@ -134,13 +125,13 @@ where
     );
 
     // Serialize the record batches into the in-memory buffer
-    let meta = to_parquet(batches, meta, &mut w).await?;
+    let meta = to_parquet(batches, meta, &mut bytes).await?;
+    if meta.row_groups.is_empty() {
+        // panic here to avoid later consequence of reading it for statistics
+        panic!("partition_id={}. Created Parquet metadata has no column metadata. HINT a common reason of this is writing empty data to parquet file: {:#?}", partition_id, meta);
+    }
 
     trace!(?partition_id, ?meta, "Parquet Metadata");
-
-    let mut bytes = w
-        .into_inner()
-        .expect("mem writer has outstanding reference");
 
     bytes.shrink_to_fit();
 

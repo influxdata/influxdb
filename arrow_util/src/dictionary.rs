@@ -146,21 +146,20 @@ impl StringDictionary<i32> {
         // is entirely non null
         let dictionary_nulls = None;
         let keys = keys.into_iter();
-        let mut array_builder = ArrayDataBuilder::new(DataType::Dictionary(
+
+        let array_data = ArrayDataBuilder::new(DataType::Dictionary(
             Box::new(DataType::Int32),
             Box::new(DataType::Utf8),
         ))
         .len(keys.len())
         .add_buffer(keys.collect())
-        .add_child_data(self.storage.to_arrow(dictionary_nulls).data().clone());
-
-        if let Some(nulls) = nulls {
-            array_builder = array_builder.null_bit_buffer(nulls);
-        }
-
+        .add_child_data(self.storage.to_arrow(dictionary_nulls).data().clone())
+        .null_bit_buffer(nulls)
         // TODO consider skipping the validation checks by using
         // `build_unchecked()`
-        let array_data = array_builder.build().expect("Valid array data");
+        .build()
+        .expect("Valid array data");
+
         DictionaryArray::<Int32Type>::from(array_data)
     }
 }

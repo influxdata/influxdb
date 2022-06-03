@@ -390,7 +390,7 @@ mod tests {
         ))
         .len(keys.len())
         .add_buffer(keys.data().buffers()[0].clone())
-        .null_bit_buffer(keys.data().null_buffer().unwrap().clone())
+        .null_bit_buffer(keys.data().null_buffer().cloned())
         .add_child_data(values.data().clone())
         .build()
         .unwrap();
