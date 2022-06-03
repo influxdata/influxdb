@@ -498,16 +498,7 @@ impl Table {
         }
 
         // Determine if predicate can be applied to table.
-        let validated_exprs = meta.validate_exprs(predicate.clone());
-
-        // If the exprs contain a column that doesn't exist in this table, then no columns can
-        // match. Return nothing.
-        if let Err(Error::ColumnDoesNotExist { .. }) = validated_exprs {
-            dst.clear();
-            return Ok(dst);
-        }
-
-        let predicate: Predicate = validated_exprs?.into();
+        let predicate: Predicate = meta.validate_exprs(predicate.clone())?.into();
 
         // Determine if the negated predicates (deletes) can be applied to the
         // table.
@@ -1398,8 +1389,7 @@ mod test {
         let predicate = Predicate::new(vec![BinaryExpr::from(("region", ">=", "west"))]);
         assert!(table.could_pass_predicate(&predicate));
 
-        // doesn't match either row group-- the rows don't have the temp column, so they can't
-        // possibly match the predicate
+        // doesn't match either row group no column
         let predicate = Predicate::new(vec![BinaryExpr::from(("temp", ">=", 0_u64))]);
         assert!(!table.could_pass_predicate(&predicate));
 
@@ -1779,7 +1769,7 @@ west,host-b,100
             vec!["time".to_owned()],
         );
 
-        // the column in the predicate isn't present in this table, don't return any columns
+        // the column in the predicate isn't present in this table, return an error
         assert!(table
             .column_names(
                 &Predicate::new(vec![BinaryExpr::from(("host", "=", "foo"))]),
@@ -1787,8 +1777,24 @@ west,host-b,100
                 Selection::All,
                 BTreeSet::new(),
             )
-            .unwrap()
-            .is_empty());
+            .is_err());
+
+        // One of the columns in the predicate doesn't exist, but the expr is `!=`, so rows in this
+        // table would always return true. The other expr is valid.
+        // This currently returns an error?
+        assert!(matches!(
+            table
+                .column_names(
+                    &Predicate::new(vec![
+                        BinaryExpr::from(("host", "!=", "foo")),
+                        BinaryExpr::from(("region", "=", "west")),
+                    ]),
+                    &[],
+                    Selection::All,
+                    BTreeSet::new(),
+                ),
+            Err(Error::ColumnDoesNotExist { column_name }) if column_name == "host",
+        ));
 
         // invalid predicate
         assert!(matches!(
