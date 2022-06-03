@@ -1,10 +1,10 @@
 //! Tooling to track/instrument [`tokio::sync::Semaphore`]s.
-use std::{future::Future, sync::Arc, task::Poll, time::Instant};
+use std::{future::Future, marker::PhantomData, sync::Arc, task::Poll, time::Instant};
 
 use futures::{future::BoxFuture, FutureExt};
 use metric::{Attributes, DurationHistogram, MakeMetricObserver, U64Gauge};
 use pin_project::{pin_project, pinned_drop};
-use tokio::sync::{Semaphore, SemaphorePermit};
+use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
 pub use tokio::sync::AcquireError;
 
@@ -88,7 +88,7 @@ impl AsyncSemaphoreMetrics {
         self.permits_total.inc(permits as u64);
 
         InstrumentedAsyncSemaphore {
-            inner: Semaphore::new(permits),
+            inner: Arc::new(Semaphore::new(permits)),
             permits,
             metrics: Arc::clone(self),
         }
@@ -99,7 +99,9 @@ impl AsyncSemaphoreMetrics {
 #[derive(Debug)]
 pub struct InstrumentedAsyncSemaphore {
     /// Underlying sempahore implementation.
-    inner: Semaphore,
+    ///
+    /// This is wrapped into an [`Arc`] so we can use a single implementation for the owned and non-owned implementation.
+    inner: Arc<Semaphore>,
 
     /// Number of total permits (acquired and available).
     permits: usize,
@@ -119,12 +121,42 @@ impl InstrumentedAsyncSemaphore {
     /// Acquire `n` permits.
     ///
     /// See [`tokio::sync::Semaphore::acquire_many`] for details.
-    pub fn acquire_many(
+    pub async fn acquire_many(
         &self,
         n: u32,
-    ) -> impl Future<Output = Result<InstrumentedAsyncSemaphorePermit<'_>, AcquireError>> {
+    ) -> Result<InstrumentedAsyncSemaphorePermit<'_>, AcquireError> {
+        let owned_permit = self.acquire_impl(n).await?;
+        Ok(InstrumentedAsyncSemaphorePermit {
+            owned_permit,
+            phantom: Default::default(),
+        })
+    }
+
+    pub async fn acquire_owned(
+        self: &Arc<Self>,
+    ) -> Result<InstrumentedAsyncOwnedSemaphorePermit, AcquireError> {
+        // NOTE: We deliberately take `self: &Arc<Self>` here even though we strictly don't need it so we have use a
+        //       single implementation for the owned and non-owned variant while still providing a comparable API to
+        //       the ordinary tokio semaphore.
+        self.acquire_impl(1).await
+    }
+
+    pub async fn acquire_many_owned(
+        self: &Arc<Self>,
+        n: u32,
+    ) -> Result<InstrumentedAsyncOwnedSemaphorePermit, AcquireError> {
+        // NOTE: We deliberately take `self: &Arc<Self>` here even though we strictly don't need it so we have use a
+        //       single implementation for the owned and non-owned variant while still providing a comparable API to
+        //       the ordinary tokio semaphore.
+        self.acquire_impl(n).await
+    }
+
+    fn acquire_impl(
+        &self,
+        n: u32,
+    ) -> impl Future<Output = Result<InstrumentedAsyncOwnedSemaphorePermit, AcquireError>> {
         InstrumentedAsyncSemaphoreAcquire {
-            inner: self.inner.acquire_many(n).boxed(),
+            inner: Arc::clone(&self.inner).acquire_many_owned(n).boxed(),
             metrics: Arc::clone(&self.metrics),
             n,
             reported_pending: false,
@@ -146,7 +178,7 @@ impl Drop for InstrumentedAsyncSemaphore {
 struct InstrumentedAsyncSemaphoreAcquire<'a> {
     /// The actual `acquire_many` future.
     #[pin]
-    inner: BoxFuture<'a, Result<SemaphorePermit<'a>, AcquireError>>,
+    inner: BoxFuture<'a, Result<OwnedSemaphorePermit, AcquireError>>,
 
     /// Metrics.
     metrics: Arc<AsyncSemaphoreMetrics>,
@@ -177,7 +209,7 @@ impl<'a> std::fmt::Debug for InstrumentedAsyncSemaphoreAcquire<'a> {
 }
 
 impl<'a> Future for InstrumentedAsyncSemaphoreAcquire<'a> {
-    type Output = Result<InstrumentedAsyncSemaphorePermit<'a>, AcquireError>;
+    type Output = Result<InstrumentedAsyncOwnedSemaphorePermit, AcquireError>;
 
     fn poll(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
         let this = self.project();
@@ -202,7 +234,7 @@ impl<'a> Future for InstrumentedAsyncSemaphoreAcquire<'a> {
                         *this.reported_pending = false;
                     }
 
-                    Poll::Ready(Ok(InstrumentedAsyncSemaphorePermit {
+                    Poll::Ready(Ok(InstrumentedAsyncOwnedSemaphorePermit {
                         inner: permit,
                         n: *this.n,
                         metrics: Arc::clone(this.metrics),
@@ -239,14 +271,14 @@ impl<'a> PinnedDrop for InstrumentedAsyncSemaphoreAcquire<'a> {
     }
 }
 
-/// An instrumented wrapper around [`tokio::sync::SemaphorePermit`].
+/// An instrumented wrapper around [`tokio::sync::OwnedSemaphorePermit`].
 #[derive(Debug)]
-pub struct InstrumentedAsyncSemaphorePermit<'a> {
+pub struct InstrumentedAsyncOwnedSemaphorePermit {
     /// The actual permit.
     ///
     /// This permit is never accessed but we hold it here because dropping it clears the permit.
     #[allow(dead_code)]
-    inner: SemaphorePermit<'a>,
+    inner: OwnedSemaphorePermit,
 
     /// Number of permits that we hold.
     ///
@@ -257,11 +289,23 @@ pub struct InstrumentedAsyncSemaphorePermit<'a> {
     metrics: Arc<AsyncSemaphoreMetrics>,
 }
 
-impl<'a> Drop for InstrumentedAsyncSemaphorePermit<'a> {
+impl Drop for InstrumentedAsyncOwnedSemaphorePermit {
     fn drop(&mut self) {
         self.metrics.holders_acquired.dec(1);
         self.metrics.permits_acquired.dec(self.n as u64);
     }
+}
+
+/// An instrumented wrapper around [`tokio::sync::SemaphorePermit`].
+#[derive(Debug)]
+pub struct InstrumentedAsyncSemaphorePermit<'a> {
+    /// Use the owned variant so we can use a single implementation.
+    #[allow(dead_code)]
+    owned_permit: InstrumentedAsyncOwnedSemaphorePermit,
+
+    /// Phantom data to track the livetime.
+    #[allow(dead_code)]
+    phantom: PhantomData<&'a ()>,
 }
 
 #[cfg(test)]
@@ -279,17 +323,41 @@ mod tests {
         assert_sync(&metrics);
 
         let metrics = Arc::new(metrics);
-        let semaphore = metrics.new_semaphore(1);
+        let semaphore = metrics.new_semaphore(10);
         assert_send(&semaphore);
         assert_sync(&semaphore);
 
         let acquire_fut = semaphore.acquire();
+        let acquire_many_fut = semaphore.acquire_many(1);
         assert_send(&acquire_fut);
-        // future itself is NOT Sync
+        assert_send(&acquire_many_fut);
+        // futures itself are NOT Sync
 
-        let permit = acquire_fut.await.unwrap();
-        assert_send(&permit);
-        assert_sync(&permit);
+        let permit_acquire = acquire_fut.await.unwrap();
+        let permit_acquire_many = acquire_many_fut.await.unwrap();
+        assert_send(&permit_acquire);
+        assert_send(&permit_acquire_many);
+        assert_sync(&permit_acquire);
+        assert_sync(&permit_acquire_many);
+    }
+
+    #[tokio::test]
+    async fn test_send_sync_owned() {
+        let metrics = Arc::new(AsyncSemaphoreMetrics::new_unregistered());
+        let semaphore = Arc::new(metrics.new_semaphore(10));
+
+        let acquire_fut = semaphore.acquire_owned();
+        let acquire_many_fut = semaphore.acquire_many_owned(1);
+        assert_send(&acquire_fut);
+        assert_send(&acquire_many_fut);
+        // futures itself are NOT Sync
+
+        let permit_acquire = acquire_fut.await.unwrap();
+        let permit_acquire_many = acquire_many_fut.await.unwrap();
+        assert_send(&permit_acquire);
+        assert_send(&permit_acquire_many);
+        assert_sync(&permit_acquire);
+        assert_sync(&permit_acquire_many);
     }
 
     #[tokio::test]
@@ -378,28 +446,30 @@ mod tests {
         assert_eq!(metrics.holders_pending.fetch(), 0);
         assert_eq!(metrics.permits_pending.fetch(), 0);
 
-        let mut fut = semaphore.acquire_many(6);
-        assert_fut_pending(&mut fut).await;
+        {
+            let fut = semaphore.acquire_many(6);
+            pin!(fut);
+            assert_fut_pending(&mut fut).await;
 
-        assert_eq!(metrics.holders_pending.fetch(), 1);
-        assert_eq!(metrics.permits_pending.fetch(), 6);
+            assert_eq!(metrics.holders_pending.fetch(), 1);
+            assert_eq!(metrics.permits_pending.fetch(), 6);
 
-        drop(fut);
+            // `fut` is dropped here
+        }
 
         assert_eq!(metrics.holders_pending.fetch(), 0);
         assert_eq!(metrics.permits_pending.fetch(), 0);
 
-        let mut fut = semaphore.acquire_many(6);
-        assert_fut_pending(&mut fut).await;
-
-        assert_eq!(metrics.holders_pending.fetch(), 1);
-        assert_eq!(metrics.permits_pending.fetch(), 6);
-
-        drop(p1);
-
         {
-            // pin in local scope so that `.await` does not consume the future
+            let fut = semaphore.acquire_many(6);
             pin!(fut);
+            assert_fut_pending(&mut fut).await;
+
+            assert_eq!(metrics.holders_pending.fetch(), 1);
+            assert_eq!(metrics.permits_pending.fetch(), 6);
+
+            drop(p1);
+
             let _p2 = (&mut fut).await.unwrap();
 
             assert_eq!(metrics.holders_pending.fetch(), 0);
@@ -425,7 +495,8 @@ mod tests {
 
         let p1 = semaphore.acquire_many(5).await.unwrap();
 
-        let mut fut = semaphore.acquire_many(6);
+        let fut = semaphore.acquire_many(6);
+        pin!(fut);
         assert_fut_pending(&mut fut).await;
 
         tokio::time::sleep(Duration::from_millis(10)).await;
