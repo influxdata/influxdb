@@ -425,3 +425,58 @@ impl Stream for GetStream {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use futures::Future;
+    use service_common::test_util::TestDatabaseStore;
+    use tokio::pin;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_query_semaphore() {
+        let semaphore_size = 2;
+        let test_storage = Arc::new(TestDatabaseStore::new_with_semaphore_size(semaphore_size));
+
+        // add some data
+        test_storage.db_or_create("my_db").await;
+
+        let service = FlightService {
+            server: Arc::clone(&test_storage),
+        };
+        let ticket = Ticket {
+            ticket: br#"{"database_name": "my_db", "sql_query": "SELECT 1;"}"#.to_vec(),
+        };
+        let streaming_resp1 = service
+            .do_get(tonic::Request::new(ticket.clone()))
+            .await
+            .unwrap();
+        let _streaming_resp2 = service
+            .do_get(tonic::Request::new(ticket.clone()))
+            .await
+            .unwrap();
+
+        // 3rd request is pending
+        let fut = service.do_get(tonic::Request::new(ticket.clone()));
+        pin!(fut);
+        assert_fut_pending(&mut fut).await;
+
+        // free permit
+        drop(streaming_resp1);
+        let _streaming_resp3 = fut.await;
+    }
+
+    /// Assert that given future is pending.
+    ///
+    /// This will try to poll the future a bit to ensure that it is not stuck in tokios task preemption.
+    async fn assert_fut_pending<F>(fut: &mut F)
+    where
+        F: Future + Send + Unpin,
+    {
+        tokio::select! {
+            _ = fut => panic!("future is not pending, yielded"),
+            _ = tokio::time::sleep(std::time::Duration::from_millis(10)) => {},
+        };
+    }
+}
