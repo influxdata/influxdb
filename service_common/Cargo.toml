@@ -16,4 +16,4 @@ tokio = { version = "1.18", features = ["macros", "parking_lot", "rt-multi-threa
 workspace-hack = { path = "../workspace-hack"}
 
 # Crates.io dependencies, in alphabetical order
-async-trait = "0.1.53"
+async-trait = "0.1.56"
