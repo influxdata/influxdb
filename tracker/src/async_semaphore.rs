@@ -272,6 +272,15 @@ impl<'a> PinnedDrop for InstrumentedAsyncSemaphoreAcquire<'a> {
 }
 
 /// An instrumented wrapper around [`tokio::sync::OwnedSemaphorePermit`].
+///
+/// Normally you should use the non-owned
+/// [`InstrumentedAsyncSemaphorePermit`] version because the semaphore
+/// is attached to an object and moving it around independently from
+/// object can cause state confusion.
+///
+/// In certain distributed scenarios however, it may make sense to
+/// detach the permit from its origin (with the risk that this
+/// introduces state confusion) and use this owned version.
 #[derive(Debug)]
 pub struct InstrumentedAsyncOwnedSemaphorePermit {
     /// The actual permit.
