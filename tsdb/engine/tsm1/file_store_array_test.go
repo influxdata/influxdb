@@ -93,7 +93,8 @@ func TestFileStore_Array(t *testing.T) {
 			time: 0,
 			asc:  true,
 			reads: []read{
-				[]sel{{3, 0}, {0, 1}, {3, 1}},
+				[]sel{{3, 0}, {0, 1}},
+				[]sel{{3, 1}},
 				[]sel{{2, 0}},
 			},
 		},
@@ -111,9 +112,9 @@ func TestFileStore_Array(t *testing.T) {
 			time: 0,
 			asc:  true,
 			reads: []read{
-				[]sel{{2, 0}, {2, 1}, {3, 0}, {0, 1}},
+				[]sel{{2, 0}, {2, 1}},
+				[]sel{{3, 0}, {0, 1}},
 				[]sel{{1, 1}},
-				[]sel{},
 			},
 		},
 		{

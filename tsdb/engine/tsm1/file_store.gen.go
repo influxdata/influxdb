@@ -67,7 +67,7 @@ LOOP:
 				// Shrink our window so it's the intersection of the first overlapping block and the
 				// first block.  We do this to minimize the region that overlaps and needs to
 				// be merged.
-				if cur.entry.MaxTime > maxT {
+				if cur.entry.MaxTime < maxT {
 					maxT = cur.entry.MaxTime
 				}
 				values = values.Include(minT, maxT)
@@ -130,7 +130,7 @@ LOOP:
 				// Shrink our window so it's the intersection of the first overlapping block and the
 				// first block.  We do this to minimize the region that overlaps and needs to
 				// be merged.
-				if cur.entry.MinTime < minT {
+				if cur.entry.MinTime > minT {
 					minT = cur.entry.MinTime
 				}
 				values = values.Include(minT, maxT)
@@ -253,7 +253,7 @@ LOOP:
 				// Shrink our window so it's the intersection of the first overlapping block and the
 				// first block.  We do this to minimize the region that overlaps and needs to
 				// be merged.
-				if cur.entry.MaxTime > maxT {
+				if cur.entry.MaxTime < maxT {
 					maxT = cur.entry.MaxTime
 				}
 				values = values.Include(minT, maxT)
@@ -316,7 +316,7 @@ LOOP:
 				// Shrink our window so it's the intersection of the first overlapping block and the
 				// first block.  We do this to minimize the region that overlaps and needs to
 				// be merged.
-				if cur.entry.MinTime < minT {
+				if cur.entry.MinTime > minT {
 					minT = cur.entry.MinTime
 				}
 				values = values.Include(minT, maxT)
@@ -439,7 +439,7 @@ LOOP:
 				// Shrink our window so it's the intersection of the first overlapping block and the
 				// first block.  We do this to minimize the region that overlaps and needs to
 				// be merged.
-				if cur.entry.MaxTime > maxT {
+				if cur.entry.MaxTime < maxT {
 					maxT = cur.entry.MaxTime
 				}
 				values = values.Include(minT, maxT)
@@ -502,7 +502,7 @@ LOOP:
 				// Shrink our window so it's the intersection of the first overlapping block and the
 				// first block.  We do this to minimize the region that overlaps and needs to
 				// be merged.
-				if cur.entry.MinTime < minT {
+				if cur.entry.MinTime > minT {
 					minT = cur.entry.MinTime
 				}
 				values = values.Include(minT, maxT)
@@ -625,7 +625,7 @@ LOOP:
 				// Shrink our window so it's the intersection of the first overlapping block and the
 				// first block.  We do this to minimize the region that overlaps and needs to
 				// be merged.
-				if cur.entry.MaxTime > maxT {
+				if cur.entry.MaxTime < maxT {
 					maxT = cur.entry.MaxTime
 				}
 				values = values.Include(minT, maxT)
@@ -688,7 +688,7 @@ LOOP:
 				// Shrink our window so it's the intersection of the first overlapping block and the
 				// first block.  We do this to minimize the region that overlaps and needs to
 				// be merged.
-				if cur.entry.MinTime < minT {
+				if cur.entry.MinTime > minT {
 					minT = cur.entry.MinTime
 				}
 				values = values.Include(minT, maxT)
@@ -811,7 +811,7 @@ LOOP:
 				// Shrink our window so it's the intersection of the first overlapping block and the
 				// first block.  We do this to minimize the region that overlaps and needs to
 				// be merged.
-				if cur.entry.MaxTime > maxT {
+				if cur.entry.MaxTime < maxT {
 					maxT = cur.entry.MaxTime
 				}
 				values = values.Include(minT, maxT)
@@ -874,7 +874,7 @@ LOOP:
 				// Shrink our window so it's the intersection of the first overlapping block and the
 				// first block.  We do this to minimize the region that overlaps and needs to
 				// be merged.
-				if cur.entry.MinTime < minT {
+				if cur.entry.MinTime > minT {
 					minT = cur.entry.MinTime
 				}
 				values = values.Include(minT, maxT)
