@@ -932,17 +932,19 @@ impl Deduplicater {
     /// Return a sort plan for for a given chunk
     /// This plan is applied for every chunk to read data from chunk
     /// The plan will look like this. Reading bottom up:
-    ///   1. First we scan the data in IOxReadFilterNode which represents
-    ///        a custom implemented scan of MUB, RUB, OS. Both Select Predicate of
-    ///        the query and Delete Predicates of the chunk is pushed down
-    ///        here to eliminate as much data as early as possible but it is not guaranteed
-    ///        all filters are applied because only certain expressions work
-    ///        at this low chunk scan level.
-    ///        Delete Predicates are tombstone of deleted data that will be eliminated at read time.
-    ///   2. If the chunk has Delete Predicates, the FilterExec will be added to filter data out
-    ///       We apply delete predicate filter at this low level because the Delete Predicates are chunk specific.
-    ///   3. Then SortExec is added if there is a request to sort this chunk at this stage
-    ///       See the description of function build_scan_plan to see why the sort may be needed
+    ///
+    ///   1. First we scan the data in IOxReadFilterNode which represents a custom implemented scan
+    ///      of the chunk. Both Select Predicate of the query and Delete Predicates of the chunk is
+    ///      pushed down here to eliminate as much data as early as possible but it is not
+    ///      guaranteed all filters are applied because only certain expressions work at this low
+    ///      chunk scan level. Delete Predicates are tombstone of deleted data that will be
+    ///      eliminated at read time.
+    ///   2. If the chunk has Delete Predicates, the FilterExec will be added to filter data out.
+    ///      We apply delete predicate filter at this low level because the Delete Predicates are
+    ///      chunk specific.
+    ///   3. Then SortExec is added if there is a request to sort this chunk at this stage.
+    ///      See the description of function build_scan_plan to see why the sort may be needed.
+    ///
     /// ```text
     ///                ┌─────────────────┐
     ///                │ ProjectionExec  │

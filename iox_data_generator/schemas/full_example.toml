@@ -33,7 +33,7 @@
 
 name = "full_example"
 
-# Values are automatically generated before the agents are intialized. They generate tag key/value pairs
+# Values are automatically generated before the agents are initialized. They generate tag key/value pairs
 # with the name of the value as the tag key and the evaluated template as the value. These pairs
 # can be shared across tagsets and used in the agents as pre-generated data.
 [[values]]
@@ -55,7 +55,7 @@ template = "foo_{{guid}}_{{id}}_{{random 5}}_{{format-time \"%Y-%m-%d\"}}"
 name = "t1"
 template = "t1_{{id}}"
 cardinality = 3
-# each t1 genereated will reference one of t3 and one of foo_bar. As each t1 is generated
+# each t1 generated will reference one of t3 and one of foo_bar. As each t1 is generated
 # it will loop through the t3 and foo_bar collections. So the 3rd t1 that is generated will
 # reference the first t3 and foo_bar
 has_one = ["t3", "foo_bar"]
@@ -85,7 +85,7 @@ name = "example"
 # for_each specifies how to iterate through the values to generate tagsets. If you want to
 # use values that belong_to others or are a has_one, specify their parent first. For values
 # without relationships, you'll get a combined cardinality of each multiplied by the other.
-# In this eaxmple we get cardinality of card(t1) * card(foo_bar) * card(other). The has_one
+# In this example we get cardinality of card(t1) * card(foo_bar) * card(other). The has_one
 # members of t1 don't increase cardinality.
 for_each = [
     "t1",

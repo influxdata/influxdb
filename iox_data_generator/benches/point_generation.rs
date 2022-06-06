@@ -77,7 +77,7 @@ pub fn agent_pre_generated(c: &mut Criterion) {
     let spec: DataSpec = toml::from_str(r#"
 name = "storage_cardinality_example"
 
-# Values are automatically generated before the agents are intialized. They generate tag key/value pairs
+# Values are automatically generated before the agents are initialized. They generate tag key/value pairs
 # with the name of the value as the tag key and the evaluated template as the value. These pairs
 # are Arc wrapped so they can be shared across tagsets and used in the agents as pre-generated data.
 [[values]]
@@ -122,7 +122,7 @@ template = "{{id}}"
 cardinality = 10
 
 # makes a tagset so every bucket appears in every partition. The other tags are descriptive and don't
-# increase the cardiality beyond count(bucket) * count(partition). Later this example will use the
+# increase the cardinality beyond count(bucket) * count(partition). Later this example will use the
 # agent and measurement generation to take this base tagset and increase cardinality on a per-agent basis.
 [[tag_sets]]
 name = "bucket_set"

@@ -40,7 +40,6 @@ impl DbSetup for OneMeasurementRealisticTimes {
             "cpu,region=west user=21.0 1626809430000000000",
         ];
 
-        // return all possible scenarios a chunk: MUB open, MUB frozen, RUB, RUB & OS, OS
         all_scenarios_for_one_chunk(vec![], vec![], lp_lines, "cpu", partition_key).await
     }
 }
@@ -59,7 +58,6 @@ impl DbSetup for OneMeasurementNoTags {
             "h2o level=200.0 300",
         ];
 
-        // return all possible scenarios a chunk: MUB open, MUB frozen, RUB, RUB & OS, OS
         all_scenarios_for_one_chunk(vec![], vec![], lp_lines, "h2o", partition_key).await
     }
 }
@@ -81,7 +79,6 @@ impl DbSetup for OneMeasurementManyNullTags {
             "h2o,state=NY,city=NYC,borough=Brooklyn temp=61.0 600",
         ];
 
-        // return all possible scenarios a chunk: MUB open, MUB frozen, RUB, RUB & OS, OS
         all_scenarios_for_one_chunk(vec![], vec![], lp_lines, "cpu", partition_key).await
     }
 }
@@ -176,7 +173,6 @@ impl DbSetup for TwoMeasurements {
             "disk,region=east bytes=99i 200",
         ];
 
-        // return all possible scenarios a chunk: MUB open, MUB frozen, RUB, RUB & OS, OS
         all_scenarios_for_one_chunk(vec![], vec![], lp_lines, "cpu", partition_key).await
     }
 }
@@ -208,7 +204,8 @@ impl DbSetup for TwoMeasurementsWithDelete {
             )],
         };
 
-        // return all possible combination scenarios of a chunk stage and when the delete predicates are applied
+        // return all possible combination scenarios of a chunk stage and when the delete
+        // predicates are applied
         all_scenarios_for_one_chunk(vec![&pred], vec![], lp_lines, table_name, partition_key).await
     }
 }
@@ -246,7 +243,8 @@ impl DbSetup for TwoMeasurementsWithDeleteAll {
             exprs: vec![],
         };
 
-        // return all possible combination scenarios of a chunk stage and when the delete predicates are applied
+        // return all possible combination scenarios of a chunk stage and when the delete
+        // predicates are applied
         all_scenarios_for_one_chunk(
             vec![&pred1],
             vec![&pred2],
@@ -489,7 +487,8 @@ impl DbSetup for ManyFieldsSeveralChunks {
         // c4: parquet stage & overlap with c1
         let lp_lines4 = vec![
             "h2o,state=MA,city=Boston temp=88.6 230",
-            "h2o,state=MA,city=Boston other_temp=80 250", // duplicate with a row in c1 but more recent => this row is kept
+            "h2o,state=MA,city=Boston other_temp=80 250", // duplicate with a row in c1 but more
+                                                          // recent => this row is kept
         ];
         let c4 = ChunkData {
             lp_lines: lp_lines4,
@@ -559,8 +558,9 @@ impl DbSetup for OneMeasurementFourChunksWithDuplicates {
         //  . time range: 150 - 300
         //  . no duplicates in its own chunk
         let lp_lines2 = vec![
-            "h2o,state=MA,city=Bedford max_temp=78.75,area=742u 150", // new field (area) and update available NULL (max_temp)
-            "h2o,state=MA,city=Boston min_temp=65.4 250",             // update min_temp from NULL
+            // new field (area) and update available NULL (max_temp)
+            "h2o,state=MA,city=Bedford max_temp=78.75,area=742u 150",
+            "h2o,state=MA,city=Boston min_temp=65.4 250", // update min_temp from NULL
             "h2o,state=MA,city=Reading min_temp=53.4, 250",
             "h2o,state=CA,city=SF min_temp=79.0,max_temp=87.2,area=500u 300",
             "h2o,state=CA,city=SJ min_temp=78.5,max_temp=88.0 300",
@@ -696,7 +696,7 @@ impl DbSetup for EndToEndTest {
         ];
 
         let partition_key = "1970-01-01T00";
-        // return all possible scenarios a chunk: MUB open, MUB frozen, RUB, RUB & OS, OS
+
         all_scenarios_for_one_chunk(vec![], vec![], lp_lines, "cpu_load_short", partition_key).await
     }
 }
@@ -759,7 +759,7 @@ impl DbSetup for TwoMeasurementsMultiSeries {
             "o2,state=MA,city=Boston temp=53.4,reading=51 250", // to row 4
         ];
 
-        // Swap around  data is not inserted in series order
+        // Swap around data is not inserted in series order
         lp_lines.swap(0, 2);
         lp_lines.swap(4, 5);
 
@@ -783,7 +783,7 @@ impl DbSetup for TwoMeasurementsMultiSeriesWithDelete {
             "o2,state=MA,city=Boston temp=53.4,reading=51 250", // to row 4
         ];
 
-        // Swap around  data is not inserted in series order
+        // Swap around data is not inserted in series order
         lp_lines.swap(0, 2);
         lp_lines.swap(4, 5);
 
@@ -822,7 +822,7 @@ impl DbSetup for TwoMeasurementsMultiSeriesWithDeleteAll {
             "o2,state=MA,city=Boston temp=53.4,reading=51 250", // to row 4
         ];
 
-        // Swap around  data is not inserted in series order
+        // Swap around data is not inserted in series order
         lp_lines.swap(0, 2);
         lp_lines.swap(4, 5);
 
@@ -978,9 +978,8 @@ impl DbSetup for OneMeasurementNoTagsWithDelete {
     }
 }
 
-/// This will create many scenarios (at least 15), some have a chunk with
-/// soft deleted data, some have no chunks because there is no point to
-/// create a RUB for one or many compacted MUB with all deleted data.
+/// This will create many scenarios: some have a chunk with soft deleted data, some have no chunks
+/// because there is no point to create compacted chunks with all deleted data.
 pub struct OneMeasurementNoTagsWithDeleteAllWithAndWithoutChunk {}
 #[async_trait]
 impl DbSetup for OneMeasurementNoTagsWithDeleteAllWithAndWithoutChunk {
@@ -995,8 +994,8 @@ impl DbSetup for OneMeasurementNoTagsWithDeleteAllWithAndWithoutChunk {
             exprs: vec![],
         };
 
-        // Apply predicate before the chunk is moved if any. There will be
-        // scenario without chunks as a consequence of not-compacting-deleted-data
+        // Apply predicate before the chunk is moved if any. There will be scenarios without chunks
+        // as a consequence of not-compacting-deleted-data
         all_scenarios_for_one_chunk(
             vec![&pred],
             vec![],

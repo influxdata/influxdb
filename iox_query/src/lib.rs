@@ -241,7 +241,7 @@ pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync + 'static {
         selection: Selection<'_>,
     ) -> Result<SendableRecordBatchStream, QueryChunkError>;
 
-    /// Returns chunk type which is either MUB, RUB, OS
+    /// Returns chunk type. Useful in tests and debug logs.
     fn chunk_type(&self) -> &str;
 
     /// Order of this chunk relative to other overlapping chunks.

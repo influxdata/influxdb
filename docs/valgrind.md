@@ -68,7 +68,7 @@ The simplest way to use the massif output is to use [massif-visualizer]:
 ![massif-visualizer screenshot](./images/screenshot_massif_visualizer.jpeg)
 
 [heappy]: https://github.com/mkmik/heappy
-[jemalloc]: ttps://github.com/jemalloc/jemalloc
+[jemalloc]: https://github.com/jemalloc/jemalloc
 [lazycell]: https://crates.io/crates/lazycell
 [Massif]: https://valgrind.org/docs/manual/ms-manual.html
 [massif-visualizer]: https://github.com/KDE/massif-visualizer
