@@ -19,4 +19,4 @@ dotenv = "0.15.0"
 tempfile = "3.1.0"
 snafu = "0.7"
 futures-test = "0.3"
-tokio = { version = "1.18", features = ["macros", "io-util"] }
+tokio = { version = "1.19", features = ["macros", "io-util"] }
