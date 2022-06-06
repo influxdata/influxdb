@@ -28,7 +28,7 @@ func NewStoragePointsWriterRecorder(log *zap.Logger, pw storage.PointsWriter) *S
 
 // Record formats the provided run as a models.Point and writes the resulting
 // point to an underlying storage.PointsWriter
-func (s *StoragePointsWriterRecorder) Record(ctx context.Context, bucket string, bucketID platform.ID, task *taskmodel.Task, run *taskmodel.Run) error {
+func (s *StoragePointsWriterRecorder) Record(ctx context.Context, bucketID platform.ID, bucket string, task *taskmodel.Task, run *taskmodel.Run) error {
 	tags := models.NewTags(map[string]string{
 		statusTag: run.Status,
 		taskIDTag: run.TaskID.String(),

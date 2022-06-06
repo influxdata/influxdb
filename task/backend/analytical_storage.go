@@ -35,7 +35,7 @@ const (
 // RunRecorder is a type which records runs into an influxdb
 // backed storage mechanism
 type RunRecorder interface {
-	Record(ctx context.Context, bucket string, bucketID platform.ID, task *taskmodel.Task, run *taskmodel.Run) error
+	Record(ctx context.Context, bucketID platform.ID, bucket string, task *taskmodel.Task, run *taskmodel.Run) error
 }
 
 // NewAnalyticalStorage creates a new analytical store with access to the necessary systems for storing data and to act as a middleware (deprecated)
@@ -73,7 +73,7 @@ func (as *AnalyticalStorage) FinishRun(ctx context.Context, taskID, runID platfo
 			return run, err
 		}
 
-		return run, as.rr.Record(ctx, influxdb.TasksSystemBucketName, sb.ID, task, run)
+		return run, as.rr.Record(ctx, sb.ID, influxdb.TasksSystemBucketName, task, run)
 	}
 
 	return run, err
