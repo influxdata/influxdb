@@ -1114,6 +1114,7 @@ mod tests {
     use iox_catalog::interface::INITIAL_COMPACTION_LEVEL;
     use iox_tests::util::TestCatalog;
     use iox_time::SystemProvider;
+    use parquet_file::chunk::DecodedParquetFile;
     use querier::{
         cache::CatalogCache,
         chunk::{collect_read_filter, ChunkAdapter},
@@ -1236,13 +1237,17 @@ mod tests {
         );
         // create chunks for 2 files
         let files1 = files.pop().unwrap();
+        let decoded_parquet_files1 = DecodedParquetFile::new(files1);
+
         let files0 = files.pop().unwrap();
+        let decoded_parquet_files0 = DecodedParquetFile::new(files0);
+
         let chunk_0 = adapter
-            .new_querier_parquet_chunk_from_file_with_metadata(files0)
+            .new_rb_chunk(Arc::new(decoded_parquet_files0))
             .await
             .unwrap();
         let chunk_1 = adapter
-            .new_querier_parquet_chunk_from_file_with_metadata(files1)
+            .new_rb_chunk(Arc::new(decoded_parquet_files1))
             .await
             .unwrap();
         // query the chunks
@@ -1457,13 +1462,17 @@ mod tests {
         );
         // create chunks for 2 files
         let files2 = files.pop().unwrap();
+        let decoded_parquet_files2 = DecodedParquetFile::new(files2);
+
         let files1 = files.pop().unwrap();
+        let decoded_parquet_files1 = DecodedParquetFile::new(files1);
+
         let chunk_0 = adapter
-            .new_querier_parquet_chunk_from_file_with_metadata(files1)
+            .new_rb_chunk(Arc::new(decoded_parquet_files1))
             .await
             .unwrap();
         let chunk_1 = adapter
-            .new_querier_parquet_chunk_from_file_with_metadata(files2)
+            .new_rb_chunk(Arc::new(decoded_parquet_files2))
             .await
             .unwrap();
         // query the chunks

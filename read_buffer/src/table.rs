@@ -28,6 +28,9 @@ pub enum Error {
 
     #[snafu(display("unsupported column operation on column \"{}\": {}", column_name, msg))]
     UnsupportedColumnOperation { msg: String, column_name: String },
+
+    #[snafu(display("column \"{column_name}\" does not exist"))]
+    ColumnDoesNotExist { column_name: String },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -772,9 +775,8 @@ impl MetaData {
                     }
                 },
                 None => {
-                    return UnsupportedColumnOperationSnafu {
+                    return ColumnDoesNotExistSnafu {
                         column_name: expr.column().to_owned(),
-                        msg: "column does not exist",
                     }
                     .fail()
                 }
@@ -1767,15 +1769,44 @@ west,host-b,100
             vec!["time".to_owned()],
         );
 
-        // invalid predicate
+        // the column in the predicate isn't present in this table, return an error
         assert!(table
             .column_names(
-                &Predicate::new(vec![BinaryExpr::from(("time", ">=", "not a number"))]),
+                &Predicate::new(vec![BinaryExpr::from(("host", "=", "foo"))]),
                 &[],
                 Selection::All,
-                dst,
+                BTreeSet::new(),
             )
             .is_err());
+
+        // One of the columns in the predicate doesn't exist, but the expr is `!=`, so rows in this
+        // table would always return true. The other expr is valid.
+        // This currently returns an error?
+        assert!(matches!(
+            table
+                .column_names(
+                    &Predicate::new(vec![
+                        BinaryExpr::from(("host", "!=", "foo")),
+                        BinaryExpr::from(("region", "=", "west")),
+                    ]),
+                    &[],
+                    Selection::All,
+                    BTreeSet::new(),
+                ),
+            Err(Error::ColumnDoesNotExist { column_name }) if column_name == "host",
+        ));
+
+        // invalid predicate
+        assert!(matches!(
+            table
+                .column_names(
+                    &Predicate::new(vec![BinaryExpr::from(("time", ">=", "not a number"))]),
+                    &[],
+                    Selection::All,
+                    dst,
+                ),
+            Err(Error::UnsupportedColumnOperation { column_name, .. }) if column_name == "time",
+        ));
     }
 
     #[test]

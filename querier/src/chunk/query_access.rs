@@ -241,15 +241,30 @@ impl QueryChunk for QuerierRBChunk {
         // TODO(edd): wire up delete predicates to be pushed down to
         // the read buffer.
 
-        let names = self
-            .rb_chunk
-            .column_names(rb_predicate, vec![], columns, BTreeSet::new())
-            .context(RBChunkSnafu {
-                chunk_id: self.id(),
-            })?;
-        ctx.set_metadata("output_values", names.len() as i64);
+        let column_names =
+            self.rb_chunk
+                .column_names(rb_predicate, vec![], columns, BTreeSet::new());
 
-        Ok(Some(names))
+        let names = match column_names {
+            Ok(names) => {
+                ctx.set_metadata("output_values", names.len() as i64);
+                Some(names)
+            }
+            Err(read_buffer::Error::TableError {
+                source: read_buffer::table::Error::ColumnDoesNotExist { .. },
+            }) => {
+                ctx.set_metadata("output_values", 0);
+                None
+            }
+            Err(other) => {
+                return Err(Box::new(Error::RBChunk {
+                    source: other,
+                    chunk_id: self.id(),
+                }))
+            }
+        };
+
+        Ok(names)
     }
 
     fn column_values(
