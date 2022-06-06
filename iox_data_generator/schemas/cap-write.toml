@@ -84,7 +84,7 @@ name = "mem"
     i64_range = [0, 10000000]
 
     [[agents.measurements.fields]]
-    name = "avaiable_percent"
+    name = "available_percent"
     f64_range = [0.0, 100.0]
 
     [[agents.measurements.fields]]
