@@ -13,8 +13,8 @@ use data_types::{DeleteExpr, DeletePredicate, Op, Scalar, TimestampRange};
 // when they happen
 
 #[derive(Debug)]
-/// Setup for delete query test with one table and one chunk moved from MUB to RUB to OS
-/// All data will be soft deleted in this setup
+/// Setup for delete query test with one table and one chunk. All data will be soft deleted in this
+/// setup.
 pub struct OneDeleteSimpleExprOneChunkDeleteAll {}
 #[async_trait]
 impl DbSetup for OneDeleteSimpleExprOneChunkDeleteAll {
@@ -31,13 +31,12 @@ impl DbSetup for OneDeleteSimpleExprOneChunkDeleteAll {
             exprs: vec![],
         };
 
-        // this returns 15 scenarios
         all_scenarios_for_one_chunk(vec![&pred], vec![], lp_lines, table_name, partition_key).await
     }
 }
 
 #[derive(Debug)]
-/// Setup for delete query test with one table and one chunk moved from MUB to RUB to OS
+/// Setup for delete query test with one table and one chunk
 pub struct OneDeleteSimpleExprOneChunk {}
 #[async_trait]
 impl DbSetup for OneDeleteSimpleExprOneChunk {
@@ -58,14 +57,12 @@ impl DbSetup for OneDeleteSimpleExprOneChunk {
             )],
         };
 
-        // this returns 15 scenarios
         all_scenarios_for_one_chunk(vec![&pred], vec![], lp_lines, table_name, partition_key).await
     }
 }
 
 #[derive(Debug)]
-/// Setup for many scenario move chunk from from MUB to RUB to OS
-/// No delete in this case
+/// Setup for many scenarios moving the chunk to different stages. No delete in this case.
 pub struct NoDeleteOneChunk {}
 #[async_trait]
 impl DbSetup for NoDeleteOneChunk {
@@ -80,13 +77,12 @@ impl DbSetup for NoDeleteOneChunk {
             "cpu,foo=me bar=1 40",
         ];
 
-        // this returns 15 scenarios
         all_scenarios_for_one_chunk(vec![], vec![], lp_lines, table_name, partition_key).await
     }
 }
 
 #[derive(Debug)]
-/// Setup for multi-expression delete query test with one table and one chunk moved from MUB to RUB to OS
+/// Setup for multi-expression delete query test with one table and one chunk
 pub struct OneDeleteMultiExprsOneChunk {}
 #[async_trait]
 impl DbSetup for OneDeleteMultiExprsOneChunk {
@@ -109,20 +105,19 @@ impl DbSetup for OneDeleteMultiExprsOneChunk {
             ],
         };
 
-        // this returns 15 scenarios
         all_scenarios_for_one_chunk(vec![&pred], vec![], lp_lines, table_name, partition_key).await
     }
 }
 
 #[derive(Debug)]
-/// Setup for multi-expression delete query test with one table and one chunk moved from MUB to RUB to OS
-/// Two deletes at different chunk stages
+/// Setup for multi-expression delete query test with one table and one chunk. Two deletes at
+/// different chunk stages.
 pub struct TwoDeletesMultiExprsOneChunk {}
 #[async_trait]
 impl DbSetup for TwoDeletesMultiExprsOneChunk {
     async fn make(&self) -> Vec<DbScenario> {
-        // The main purpose of these scenarios is the multi-expression delete predicate is added in MUB and
-        // is moved with chunk moving. Then one more delete after moving
+        // The main purpose of these scenarios is the multi-expression delete predicate is added in
+        // the ingester and is moved with chunk moving. Then one more delete after moving.
 
         // General setup for all scenarios
         let partition_key = "1970-01-01T00";
