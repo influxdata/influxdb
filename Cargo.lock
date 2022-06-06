@@ -862,7 +862,7 @@ dependencies = [
  "test_helpers",
  "thiserror",
  "tokio",
- "tokio-util 0.7.2",
+ "tokio-util 0.7.3",
  "uuid 0.8.2",
  "workspace-hack",
 ]
@@ -1522,7 +1522,7 @@ dependencies = [
  "parking_lot 0.12.1",
  "pin-project",
  "tokio",
- "tokio-util 0.7.2",
+ "tokio-util 0.7.3",
  "workspace-hack",
 ]
 
@@ -1846,7 +1846,7 @@ dependencies = [
  "indexmap",
  "slab",
  "tokio",
- "tokio-util 0.7.2",
+ "tokio-util 0.7.3",
  "tracing",
 ]
 
@@ -2200,7 +2200,7 @@ dependencies = [
  "tikv-jemalloc-sys",
  "tokio",
  "tokio-stream",
- "tokio-util 0.7.2",
+ "tokio-util 0.7.3",
  "tonic",
  "trace_exporters",
  "trogging",
@@ -2319,7 +2319,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-stream",
- "tokio-util 0.7.2",
+ "tokio-util 0.7.3",
  "tonic",
  "trace",
  "tracker",
@@ -2501,7 +2501,7 @@ dependencies = [
  "snafu",
  "tokio",
  "tokio-stream",
- "tokio-util 0.7.2",
+ "tokio-util 0.7.3",
  "tonic",
  "tonic-health",
  "tonic-reflection",
@@ -2598,7 +2598,7 @@ dependencies = [
  "router",
  "thiserror",
  "tokio",
- "tokio-util 0.7.2",
+ "tokio-util 0.7.3",
  "trace",
  "workspace-hack",
  "write_buffer",
@@ -2615,7 +2615,7 @@ dependencies = [
  "ioxd_common",
  "metric",
  "snafu",
- "tokio-util 0.7.2",
+ "tokio-util 0.7.3",
  "trace",
  "workspace-hack",
 ]
@@ -3297,7 +3297,7 @@ dependencies = [
  "snafu",
  "tempfile",
  "tokio",
- "tokio-util 0.7.2",
+ "tokio-util 0.7.3",
  "tracing",
  "walkdir",
 ]
@@ -3984,7 +3984,7 @@ dependencies = [
  "test_helpers",
  "thiserror",
  "tokio",
- "tokio-util 0.7.2",
+ "tokio-util 0.7.3",
  "tonic",
  "trace",
  "uuid 0.8.2",
@@ -5384,7 +5384,7 @@ dependencies = [
  "tempfile",
  "test_helpers",
  "tokio",
- "tokio-util 0.7.2",
+ "tokio-util 0.7.3",
  "tonic",
  "workspace-hack",
 ]
@@ -5613,9 +5613,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-util"
-version = "0.7.2"
+version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f988a1a1adc2fb21f9c12aa96441da33a1728193ae0b95d2be22dbd17fcb4e5c"
+checksum = "cc463cd8deddc3770d20f9852143d50bf6094e640b485cb2e189a2099085ff45"
 dependencies = [
  "bytes",
  "futures-core",
@@ -5658,7 +5658,7 @@ dependencies = [
  "prost-derive",
  "tokio",
  "tokio-stream",
- "tokio-util 0.7.2",
+ "tokio-util 0.7.3",
  "tower",
  "tower-layer",
  "tower-service",
@@ -5723,7 +5723,7 @@ dependencies = [
  "rand",
  "slab",
  "tokio",
- "tokio-util 0.7.2",
+ "tokio-util 0.7.3",
  "tower-layer",
  "tower-service",
  "tracing",
@@ -5907,7 +5907,7 @@ dependencies = [
  "parking_lot 0.12.1",
  "pin-project",
  "tokio",
- "tokio-util 0.7.2",
+ "tokio-util 0.7.3",
  "workspace-hack",
 ]
 
@@ -6398,7 +6398,7 @@ dependencies = [
  "syn",
  "tokio",
  "tokio-stream",
- "tokio-util 0.7.2",
+ "tokio-util 0.7.3",
  "tower",
  "tower-http",
  "tracing",
@@ -6440,7 +6440,7 @@ dependencies = [
  "tempfile",
  "test_helpers",
  "tokio",
- "tokio-util 0.7.2",
+ "tokio-util 0.7.3",
  "trace",
  "trace_http",
  "uuid 0.8.2",
