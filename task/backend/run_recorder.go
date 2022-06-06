@@ -50,6 +50,9 @@ func (s *StoragePointsWriterRecorder) Record(ctx context.Context, bucketID platf
 	fields[finishedAtField] = run.FinishedAt.Format(time.RFC3339Nano)
 	fields[scheduledForField] = run.ScheduledFor.Format(time.RFC3339)
 	fields[requestedAtField] = run.RequestedAt.Format(time.RFC3339)
+	fields[fluxField] = run.Flux
+	fields[traceIDField] = run.TraceID
+	fields[traceSampledTag] = run.IsSampled
 
 	startedAt := run.StartedAt
 	if startedAt.IsZero() {

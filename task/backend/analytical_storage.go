@@ -20,6 +20,9 @@ import (
 )
 
 const (
+	traceIDField    = "ot_trace_id"
+	traceSampledTag = "ot_trace_sampled"
+
 	runIDField        = "runID"
 	nameField         = "name"
 	scheduledForField = "scheduledFor"
@@ -27,6 +30,7 @@ const (
 	finishedAtField   = "finishedAt"
 	requestedAtField  = "requestedAt"
 	logField          = "logs"
+	fluxField         = "flux"
 
 	taskIDTag = "taskID"
 	statusTag = "status"
@@ -415,6 +419,12 @@ func (re *runReader) readRuns(cr flux.ColReader) error {
 				r.ScheduledFor = scheduled.UTC()
 			case statusTag:
 				r.Status = cr.Strings(j).Value(i)
+			case fluxField:
+				r.Flux = cr.Strings(j).Value(i)
+			case traceIDField:
+				r.TraceID = cr.Strings(j).Value(i)
+			case traceSampledTag:
+				r.IsSampled = cr.Bools(j).Value(i)
 			case finishedAtField:
 				finished, err := time.Parse(time.RFC3339Nano, cr.Strings(j).Value(i))
 				if err != nil {
