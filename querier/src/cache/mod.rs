@@ -115,7 +115,7 @@ impl CatalogCache {
         let read_buffer_cache = ReadBufferCache::new(
             backoff_config,
             Arc::clone(&time_provider),
-            &metric_registry,
+            metric_registry,
             Arc::clone(&ram_pool),
         );
 
