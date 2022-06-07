@@ -387,7 +387,6 @@ impl Compactor {
         compact_and_upgrade.sequencer_id = Some(parquet_files[0].sequencer_id);
 
         // Group overlapped files
-        // Each group will be limited by thier size and number of files
         let overlapped_file_groups = Self::overlapped_groups(parquet_files);
 
         // Group time-contiguous non-overlapped groups if their total size is smaller than a threshold
@@ -2187,9 +2186,7 @@ mod tests {
     }
 
     // This tests
-    //   1. overlapped_groups which focuses on the detail of both its children:
-    //      1.a. group_potential_duplicates that groups files into overlapped groups
-    //      1.b. split_overlapped_groups that splits each overlapped group further to meet size and/or file limit
+    //   1. overlapped_groups
     //   2. group_small_contiguous_groups that merges non-overlapped group into a larger one if they meet size and file limit
     #[test]
     fn test_group_small_contiguous_overlapped_groups_no_group() {
