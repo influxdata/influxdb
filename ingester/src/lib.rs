@@ -19,7 +19,6 @@ pub mod handler;
 mod job;
 pub mod lifecycle;
 pub mod partioning;
-pub mod persist;
 mod poison;
 pub mod querier_handler;
 pub mod query;

@@ -1,7 +1,6 @@
 //! This module is responsible for compacting Ingester's data
 
 use crate::data::{PersistingBatch, QueryableBatch};
-use arrow::record_batch::RecordBatch;
 use data_types::{NamespaceId, PartitionInfo};
 use datafusion::{error::DataFusionError, physical_plan::SendableRecordBatchStream};
 use iox_catalog::interface::INITIAL_COMPACTION_LEVEL;
@@ -30,9 +29,6 @@ pub enum Error {
     #[snafu(display("Error while executing Ingester's compaction"))]
     ExecutePlan { source: DataFusionError },
 
-    #[snafu(display("Error while collecting Ingester's compaction data into a Record Batch"))]
-    CollectStream { source: DataFusionError },
-
     #[snafu(display("Error while building delete predicate from start time, {}, stop time, {}, and serialized predicate, {}", min, max, predicate))]
     DeletePredicate {
         source: predicate::delete_predicate::Error,
@@ -51,15 +47,17 @@ pub enum Error {
 /// A specialized `Error` for Ingester's Compact errors
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Compact a given persisting batch
-/// Return compacted data with its metadata
+/// Compact a given persisting batch, returning a stream of compacted
+/// [`RecordBatch`] and the associated [`IoxMetadata`].
+///
+/// [`RecordBatch`]: arrow::record_batch::RecordBatch
 pub async fn compact_persisting_batch(
     time_provider: Arc<dyn TimeProvider>,
     executor: &Executor,
     namespace_id: i64,
     partition_info: &PartitionInfo,
     batch: Arc<PersistingBatch>,
-) -> Result<Option<(Vec<RecordBatch>, IoxMetadata, Option<SortKey>)>> {
+) -> Result<Option<(SendableRecordBatchStream, IoxMetadata, Option<SortKey>)>> {
     // Nothing to compact
     if batch.data.data.is_empty() {
         return Ok(None);
@@ -93,16 +91,6 @@ pub async fn compact_persisting_batch(
 
     // Compact
     let stream = compact(executor, Arc::clone(&batch.data), metadata_sort_key.clone()).await?;
-    // Collect compacted data into record batches for computing statistics
-    let output_batches = datafusion::physical_plan::common::collect(stream)
-        .await
-        .context(CollectStreamSnafu {})?;
-
-    // Filter empty record batches
-    let output_batches: Vec<_> = output_batches
-        .into_iter()
-        .filter(|b| b.num_rows() != 0)
-        .collect();
 
     // Compute min and max sequence numbers
     let (min_seq, max_seq) = batch.data.min_max_sequence_numbers();
@@ -123,7 +111,7 @@ pub async fn compact_persisting_batch(
         sort_key: Some(metadata_sort_key),
     };
 
-    Ok(Some((output_batches, meta, sort_key_update)))
+    Ok(Some((stream, meta, sort_key_update)))
 }
 
 /// Compact a given Queryable Batch
@@ -227,11 +215,15 @@ mod tests {
             },
         };
 
-        let (output_batches, _, _) =
+        let (stream, _, _) =
             compact_persisting_batch(time_provider, &exc, 1, &partition_info, persisting_batch)
                 .await
                 .unwrap()
                 .unwrap();
+
+        let output_batches = datafusion::physical_plan::common::collect(stream)
+            .await
+            .expect("should execute plan");
 
         // verify compacted data
         // should be the same as the input but sorted on tag1 & time
@@ -293,11 +285,15 @@ mod tests {
             },
         };
 
-        let (output_batches, meta, sort_key_update) =
+        let (stream, meta, sort_key_update) =
             compact_persisting_batch(time_provider, &exc, 1, &partition_info, persisting_batch)
                 .await
                 .unwrap()
                 .unwrap();
+
+        let output_batches = datafusion::physical_plan::common::collect(stream)
+            .await
+            .expect("should execute plan");
 
         // verify compacted data
         // should be the same as the input but sorted on tag1 & time
@@ -384,11 +380,15 @@ mod tests {
             },
         };
 
-        let (output_batches, meta, sort_key_update) =
+        let (stream, meta, sort_key_update) =
             compact_persisting_batch(time_provider, &exc, 1, &partition_info, persisting_batch)
                 .await
                 .unwrap()
                 .unwrap();
+
+        let output_batches = datafusion::physical_plan::common::collect(stream)
+            .await
+            .expect("should execute plan");
 
         // verify compacted data
         // should be the same as the input but sorted on the computed sort key of tag1, tag3, & time
@@ -478,11 +478,15 @@ mod tests {
             },
         };
 
-        let (output_batches, meta, sort_key_update) =
+        let (stream, meta, sort_key_update) =
             compact_persisting_batch(time_provider, &exc, 1, &partition_info, persisting_batch)
                 .await
                 .unwrap()
                 .unwrap();
+
+        let output_batches = datafusion::physical_plan::common::collect(stream)
+            .await
+            .expect("should execute plan");
 
         // verify compacted data
         // should be the same as the input but sorted on the specified sort key of tag3, tag1, &
@@ -573,11 +577,15 @@ mod tests {
             },
         };
 
-        let (output_batches, meta, sort_key_update) =
+        let (stream, meta, sort_key_update) =
             compact_persisting_batch(time_provider, &exc, 1, &partition_info, persisting_batch)
                 .await
                 .unwrap()
                 .unwrap();
+
+        let output_batches = datafusion::physical_plan::common::collect(stream)
+            .await
+            .expect("should execute plan");
 
         // verify compacted data
         // should be the same as the input but sorted on the specified sort key of tag3, tag1, &
@@ -671,11 +679,15 @@ mod tests {
             },
         };
 
-        let (output_batches, meta, sort_key_update) =
+        let (stream, meta, sort_key_update) =
             compact_persisting_batch(time_provider, &exc, 1, &partition_info, persisting_batch)
                 .await
                 .unwrap()
                 .unwrap();
+
+        let output_batches = datafusion::physical_plan::common::collect(stream)
+            .await
+            .expect("should execute plan");
 
         // verify compacted data
         // should be the same as the input but sorted on the specified sort key of tag3, tag1, &
