@@ -3,7 +3,6 @@ package tsm1_test
 import (
 	"context"
 	"fmt"
-	"github.com/stretchr/testify/assert"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -14,6 +13,7 @@ import (
 
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestFileStore_Read(t *testing.T) {
@@ -2395,15 +2395,28 @@ func TestFileStore_OpenFail(t *testing.T) {
 
 	const mmapErrMsg = "mmap failure in test"
 	const fullMmapErrMsg = "system limit for vm.max_map_count may be too low: " + mmapErrMsg
-	fs := tsm1.NewFileStore(dir, tsm1.TestMmapInitFailOption(tsm1.NewMmapError(fmt.Errorf(mmapErrMsg))))
-	err = fs.Open()
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), fullMmapErrMsg)
-	defer func() { assert.NoError(t, fs.Close(), "unexpected error on FileStore.Close") }()
-	assert.Equal(t, 0, fs.Count(), "file count mismatch")
+	// With an mmap failure, the files should all be left where they are, because they are not corrupt
+	openFail(t, dir, fullMmapErrMsg, tsm1.NewMmapError(fmt.Errorf(mmapErrMsg)))
 	for _, f := range files {
 		assert.FileExistsf(t, f, "file not found, but should not have been moved for mmap failure")
 	}
+
+	// With a non-mmap failure, the first file failing to open should
+	// be moved aside
+	const otherErrMsg = "some Random Init Failure"
+	openFail(t, dir, otherErrMsg, fmt.Errorf(otherErrMsg))
+	f := files[0]
+	assert.NoFileExistsf(t, f, "file found, but should have been moved for open failure")
+	assert.FileExistsf(t, f+"."+tsm1.BadTSMFileExtension, "file not found, but should have been moved here for open failure")
+}
+
+func openFail(t *testing.T, dir string, fullErrMsg string, initErr error) {
+	fs := tsm1.NewFileStore(dir, tsm1.TestMmapInitFailOption(initErr))
+	err := fs.Open()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), fullErrMsg)
+	defer func() { assert.NoError(t, fs.Close(), "unexpected error on FileStore.Close") }()
+	assert.Equal(t, 0, fs.Count(), "file count mismatch")
 }
 
 func TestFileStore_Remove(t *testing.T) {
