@@ -1172,7 +1172,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "8.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=8ddd99c8432fdac2c236040973f984a4146f18b7#8ddd99c8432fdac2c236040973f984a4146f18b7"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=3cd62e91e724ce0d549a2571104c32bbf899c327#3cd62e91e724ce0d549a2571104c32bbf899c327"
 dependencies = [
  "ahash",
  "arrow",
@@ -1210,7 +1210,7 @@ dependencies = [
 [[package]]
 name = "datafusion-common"
 version = "8.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=8ddd99c8432fdac2c236040973f984a4146f18b7#8ddd99c8432fdac2c236040973f984a4146f18b7"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=3cd62e91e724ce0d549a2571104c32bbf899c327#3cd62e91e724ce0d549a2571104c32bbf899c327"
 dependencies = [
  "arrow",
  "ordered-float 3.0.0",
@@ -1221,7 +1221,7 @@ dependencies = [
 [[package]]
 name = "datafusion-data-access"
 version = "8.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=8ddd99c8432fdac2c236040973f984a4146f18b7#8ddd99c8432fdac2c236040973f984a4146f18b7"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=3cd62e91e724ce0d549a2571104c32bbf899c327#3cd62e91e724ce0d549a2571104c32bbf899c327"
 dependencies = [
  "async-trait",
  "chrono",
@@ -1234,7 +1234,7 @@ dependencies = [
 [[package]]
 name = "datafusion-expr"
 version = "8.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=8ddd99c8432fdac2c236040973f984a4146f18b7#8ddd99c8432fdac2c236040973f984a4146f18b7"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=3cd62e91e724ce0d549a2571104c32bbf899c327#3cd62e91e724ce0d549a2571104c32bbf899c327"
 dependencies = [
  "ahash",
  "arrow",
@@ -1245,13 +1245,14 @@ dependencies = [
 [[package]]
 name = "datafusion-optimizer"
 version = "8.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=8ddd99c8432fdac2c236040973f984a4146f18b7#8ddd99c8432fdac2c236040973f984a4146f18b7"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=3cd62e91e724ce0d549a2571104c32bbf899c327#3cd62e91e724ce0d549a2571104c32bbf899c327"
 dependencies = [
  "arrow",
  "async-trait",
  "chrono",
  "datafusion-common",
  "datafusion-expr",
+ "datafusion-physical-expr",
  "hashbrown 0.12.1",
  "log",
 ]
@@ -1259,7 +1260,7 @@ dependencies = [
 [[package]]
 name = "datafusion-physical-expr"
 version = "8.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=8ddd99c8432fdac2c236040973f984a4146f18b7#8ddd99c8432fdac2c236040973f984a4146f18b7"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=3cd62e91e724ce0d549a2571104c32bbf899c327#3cd62e91e724ce0d549a2571104c32bbf899c327"
 dependencies = [
  "ahash",
  "arrow",
@@ -1283,7 +1284,7 @@ dependencies = [
 [[package]]
 name = "datafusion-proto"
 version = "8.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=8ddd99c8432fdac2c236040973f984a4146f18b7#8ddd99c8432fdac2c236040973f984a4146f18b7"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=3cd62e91e724ce0d549a2571104c32bbf899c327#3cd62e91e724ce0d549a2571104c32bbf899c327"
 dependencies = [
  "arrow",
  "datafusion 8.0.0",
@@ -1296,7 +1297,7 @@ dependencies = [
 [[package]]
 name = "datafusion-row"
 version = "8.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=8ddd99c8432fdac2c236040973f984a4146f18b7#8ddd99c8432fdac2c236040973f984a4146f18b7"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=3cd62e91e724ce0d549a2571104c32bbf899c327#3cd62e91e724ce0d549a2571104c32bbf899c327"
 dependencies = [
  "arrow",
  "datafusion-common",
@@ -1307,7 +1308,7 @@ dependencies = [
 [[package]]
 name = "datafusion-sql"
 version = "8.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=8ddd99c8432fdac2c236040973f984a4146f18b7#8ddd99c8432fdac2c236040973f984a4146f18b7"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=3cd62e91e724ce0d549a2571104c32bbf899c327#3cd62e91e724ce0d549a2571104c32bbf899c327"
 dependencies = [
  "ahash",
  "arrow",

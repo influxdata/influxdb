@@ -317,14 +317,14 @@ mod tests {
                 "| plan_type     | plan                                                                                |",
                 "+---------------+-------------------------------------------------------------------------------------+",
                 "| logical_plan  | Projection: #cpu.foo, #cpu.host, #cpu.load, #cpu.time                               |",
-                "|               |   TableScan: cpu projection=Some([0, 1, 2, 3])                                      |",
+                "|               |   TableScan: cpu projection=Some([foo, host, load, time])                           |",
                 "| physical_plan | ProjectionExec: expr=[foo@0 as foo, host@1 as host, load@2 as load, time@3 as time] |",
                 "|               |   IOxReadFilterNode: table_name=cpu, chunks=4 predicate=Predicate                   |",
                 "|               |                                                                                     |",
                 "+---------------+-------------------------------------------------------------------------------------+",
             ],
         )
-        .await;
+            .await;
 
         // 3 chunks but 1 (with time = 1) got pruned by the tombstone  --> 2 chunks left
         // The 2 participated chunks in the plan do not overlap -> no deduplication, no sort. Final sort is for order by
@@ -338,7 +338,7 @@ mod tests {
                 "+---------------+---------------------------------------------------------------------------------+",
                 "| logical_plan  | Sort: #mem.host ASC NULLS LAST, #mem.time ASC NULLS LAST                        |",
                 "|               |   Projection: #mem.host, #mem.perc, #mem.time                                   |",
-                "|               |     TableScan: mem projection=Some([0, 1, 2])                                   |",
+                "|               |     TableScan: mem projection=Some([host, perc, time])                          |",
                 "| physical_plan | SortExec: [host@0 ASC NULLS LAST,time@2 ASC NULLS LAST]                         |",
                 "|               |   CoalescePartitionsExec                                                        |",
                 "|               |     ProjectionExec: expr=[host@0 as host, perc@1 as perc, time@2 as time]       |",
@@ -353,7 +353,7 @@ mod tests {
                 "+---------------+---------------------------------------------------------------------------------+",
             ],
         )
-        .await;
+            .await;
 
         // -----------
         // Add an overlapped chunk
@@ -393,7 +393,7 @@ mod tests {
                 "| plan_type     | plan                                                                                |",
                 "+---------------+-------------------------------------------------------------------------------------+",
                 "| logical_plan  | Projection: #cpu.foo, #cpu.host, #cpu.load, #cpu.time                               |",
-                "|               |   TableScan: cpu projection=Some([0, 1, 2, 3])                                      |",
+                "|               |   TableScan: cpu projection=Some([foo, host, load, time])                           |",
                 "| physical_plan | ProjectionExec: expr=[foo@0 as foo, host@1 as host, load@2 as load, time@3 as time] |",
                 "|               |   UnionExec                                                                         |",
                 "|               |     DeduplicateExec: [host@1 ASC,time@3 ASC]                                        |",
@@ -406,7 +406,7 @@ mod tests {
                 "+---------------+-------------------------------------------------------------------------------------+",
             ],
         )
-        .await;
+            .await;
     }
 
     async fn assert_query(

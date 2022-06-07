@@ -9,9 +9,10 @@ use std::collections::BTreeSet;
 use std::{convert::TryFrom, fmt};
 
 use datafusion::error::DataFusionError;
+use datafusion::logical_expr::binary_expr;
 use datafusion::logical_plan::when;
 use datafusion::{
-    logical_plan::{binary_expr, Expr, Operator},
+    logical_plan::{Expr, Operator},
     prelude::*,
     scalar::ScalarValue,
 };

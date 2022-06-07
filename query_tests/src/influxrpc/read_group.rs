@@ -10,10 +10,7 @@ use crate::{
     },
 };
 
-use datafusion::{
-    logical_plan::{binary_expr, Operator},
-    prelude::*,
-};
+use datafusion::prelude::*;
 use iox_query::{frontend::influxrpc::InfluxRpcPlanner, Aggregate};
 use predicate::rpc_predicate::InfluxRpcPredicate;
 use predicate::PredicateBuilder;
@@ -880,11 +877,7 @@ async fn test_grouped_series_set_plan_group_field_pred_filter_on_multiple_value(
     let predicate = PredicateBuilder::default()
         // 2018-05-22T19:53:26Z, stop: 2018-05-24T00:00:00Z
         .timestamp_range(1527018806000000000, 1527120000000000000)
-        .add_expr(binary_expr(
-            col("_value").eq(lit(1.77)),
-            Operator::Or,
-            col("_value").eq(lit(1.72)),
-        ))
+        .add_expr(col("_value").eq(lit(1.77)).or(col("_value").eq(lit(1.72))))
         .build();
 
     let predicate = InfluxRpcPredicate::new(None, predicate);

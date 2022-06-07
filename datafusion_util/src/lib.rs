@@ -19,7 +19,7 @@ use datafusion::physical_plan::{collect, ExecutionPlan};
 use datafusion::prelude::SessionContext;
 use datafusion::{
     arrow::{datatypes::SchemaRef, error::Result as ArrowResult, record_batch::RecordBatch},
-    logical_plan::{binary_expr, col, lit, Expr, Operator},
+    logical_plan::{col, lit, Expr},
     physical_plan::{RecordBatchStream, SendableRecordBatchStream},
     scalar::ScalarValue,
 };
@@ -105,7 +105,7 @@ impl AndExprBuilder {
         let Self { cur_expr } = self;
 
         let cur_expr = if let Some(cur_expr) = cur_expr {
-            binary_expr(cur_expr, Operator::And, new_expr)
+            cur_expr.and(new_expr)
         } else {
             new_expr
         };

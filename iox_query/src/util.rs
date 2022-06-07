@@ -21,9 +21,9 @@ use datafusion::{
         lit, provider_as_source, DFSchema, Expr, ExprRewriter, ExprSchemable, LogicalPlan,
         LogicalPlanBuilder,
     },
+    physical_expr::create_physical_expr,
     physical_plan::{
         expressions::{col as physical_col, PhysicalSortExpr},
-        planner::create_physical_expr,
         ExecutionPlan, PhysicalExpr,
     },
     scalar::ScalarValue,

@@ -16,8 +16,8 @@ pub mod rpc_predicate;
 use data_types::{TimestampRange, MAX_NANO_TIME, MIN_NANO_TIME};
 use datafusion::{
     error::DataFusionError,
-    logical_expr::utils::expr_to_columns,
-    logical_plan::{binary_expr, col, lit_timestamp_nano, Expr, Operator},
+    logical_expr::{binary_expr, utils::expr_to_columns},
+    logical_plan::{col, lit_timestamp_nano, Expr, Operator},
 };
 use datafusion_util::{make_range_expr, AndExprBuilder};
 use observability_deps::tracing::debug;

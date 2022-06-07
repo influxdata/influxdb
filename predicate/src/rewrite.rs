@@ -1,6 +1,7 @@
 use datafusion::{
     error::Result,
-    logical_plan::{binary_expr, Expr, ExprRewritable, ExprRewriter, Operator},
+    logical_expr::binary_expr,
+    logical_plan::{Expr, ExprRewritable, ExprRewriter, Operator},
 };
 
 /// Special purpose `Expr` rewrite rules for IOx
