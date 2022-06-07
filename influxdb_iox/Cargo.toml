@@ -43,7 +43,7 @@ console-subscriber = { version = "0.1.6", optional = true, features = ["parking_
 dotenv = "0.15.0"
 futures = "0.3"
 hashbrown = "0.12"
-http = "0.2.7"
+http = "0.2.8"
 humantime = "2.1.0"
 itertools = "0.10.1"
 libc = { version = "0.2" }
