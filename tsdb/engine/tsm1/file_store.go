@@ -178,9 +178,8 @@ type FileStore struct {
 	currentGeneration int
 	dir               string
 
-	files           []TSMFile
-	tsmMMAPWillNeed bool          // If true then the kernel will be advised MMAP_WILLNEED for TSM files.
-	openLimiter     limiter.Fixed // limit the number of concurrent opening TSM files.
+	files       []TSMFile
+	openLimiter limiter.Fixed // limit the number of concurrent opening TSM files.
 
 	logger       *zap.Logger // Logger to be used for important messages
 	traceLogger  *zap.Logger // Logger to be used when trace-logging is on.
@@ -532,9 +531,6 @@ func (f *FileStore) Open() error {
 		err error
 	}
 
-	options := make([]tsmReaderOption, 0, len(f.readerOptions)+1)
-	options = append(options, f.readerOptions...)
-	options = append(options, WithMadviseWillNeed(f.tsmMMAPWillNeed))
 	readerC := make(chan *res)
 	for i, fn := range files {
 		// Keep track of the latest ID
@@ -560,7 +556,7 @@ func (f *FileStore) Open() error {
 			defer f.openLimiter.Release()
 
 			start := time.Now()
-			df, err := NewTSMReader(file, options...)
+			df, err := NewTSMReader(file, f.readerOptions...)
 			f.logger.Info("Opened file",
 				zap.String("path", file.Name()),
 				zap.Int("id", idx),
@@ -809,7 +805,7 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 			}
 		}
 
-		tsm, err := NewTSMReader(fd, WithMadviseWillNeed(f.tsmMMAPWillNeed))
+		tsm, err := NewTSMReader(fd, f.readerOptions...)
 		if err != nil {
 			if newName != oldName {
 				if err1 := os.Rename(newName, oldName); err1 != nil {

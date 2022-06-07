@@ -2379,33 +2379,27 @@ func TestFileStore_Open(t *testing.T) {
 func TestFileStore_OpenFail(t *testing.T) {
 	var err error
 	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	defer func() { assert.NoError(t, os.RemoveAll(dir), "failed to remove temporary directory") }()
 
-	// Create 3 TSM files...
-	data := []keyValues{
-		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(0, 1.0)}},
-		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(1, 2.0)}},
-		keyValues{"mem", []tsm1.Value{tsm1.NewValue(0, 1.0)}},
-	}
+	// Create a TSM file...
+	data := keyValues{"cpu", []tsm1.Value{tsm1.NewValue(0, 1.0)}}
 
-	files, err := newFileDir(dir, data...)
+	files, err := newFileDir(dir, data)
 	if err != nil {
 		fatal(t, "creating test files", err)
 	}
+	assert.Equal(t, 1, len(files))
+	f := files[0]
 
 	const mmapErrMsg = "mmap failure in test"
 	const fullMmapErrMsg = "system limit for vm.max_map_count may be too low: " + mmapErrMsg
 	// With an mmap failure, the files should all be left where they are, because they are not corrupt
 	openFail(t, dir, fullMmapErrMsg, tsm1.NewMmapError(fmt.Errorf(mmapErrMsg)))
-	for _, f := range files {
-		assert.FileExistsf(t, f, "file not found, but should not have been moved for mmap failure")
-	}
+	assert.FileExistsf(t, f, "file not found, but should not have been moved for mmap failure")
 
-	// With a non-mmap failure, the first file failing to open should
-	// be moved aside
+	// With a non-mmap failure, the file failing to open should be moved aside
 	const otherErrMsg = "some Random Init Failure"
 	openFail(t, dir, otherErrMsg, fmt.Errorf(otherErrMsg))
-	f := files[0]
 	assert.NoFileExistsf(t, f, "file found, but should have been moved for open failure")
 	assert.FileExistsf(t, f+"."+tsm1.BadTSMFileExtension, "file not found, but should have been moved here for open failure")
 }
