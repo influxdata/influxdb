@@ -218,6 +218,7 @@ var WithMadviseWillNeed = func(willNeed bool) tsmReaderOption {
 	}
 }
 
+// TODO(DSB) - add a tsmReaderOption in a test call that has the mmmapAccessor mock a failure
 // NewTSMReader returns a new TSMReader from the given file.
 func NewTSMReader(f *os.File, options ...tsmReaderOption) (*TSMReader, error) {
 	t := &TSMReader{}
@@ -231,9 +232,11 @@ func NewTSMReader(f *os.File, options ...tsmReaderOption) (*TSMReader, error) {
 	}
 	t.size = stat.Size()
 	t.lastModified = stat.ModTime().UnixNano()
-	t.accessor = &mmapAccessor{
-		f:            f,
-		mmapWillNeed: t.madviseWillNeed,
+	if t.accessor == nil {
+		t.accessor = &mmapAccessor{
+			f:            f,
+			mmapWillNeed: t.madviseWillNeed,
+		}
 	}
 
 	index, err := t.accessor.init()
@@ -1341,6 +1344,24 @@ func verifyVersion(r io.Reader) error {
 	return nil
 }
 
+type MmapError struct {
+	error
+}
+
+func (m *MmapError) Unwrap() error {
+	return m.error
+}
+
+func (m MmapError) Is(e error) bool {
+	_, oks := e.(MmapError)
+	_, okp := e.(*MmapError)
+	return oks || okp
+}
+
+func NewMmapError(e error) MmapError {
+	return MmapError{error: e}
+}
+
 func (m *mmapAccessor) init() (*indirectIndex, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -1366,7 +1387,9 @@ func (m *mmapAccessor) init() (*indirectIndex, error) {
 
 	m.b, err = mmap(m.f, 0, int(stat.Size()))
 	if err != nil {
-		return nil, err
+		// Wrap the error to let callers know this was an error
+		// from mmap, and may indicate vm.max_map_count is too low
+		return nil, NewMmapError(err)
 	}
 	if len(m.b) < 8 {
 		return nil, fmt.Errorf("mmapAccessor: byte slice too small for indirectIndex")
