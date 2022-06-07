@@ -10,7 +10,7 @@ assert_cmd = "2.0.2"
 bytes = "1.0"
 futures = "0.3"
 generated_types = { path = "../generated_types" }
-http = "0.2.7"
+http = "0.2.8"
 hyper = "0.14"
 influxdb_iox_client = { path = "../influxdb_iox_client", features = ["flight", "format", "write_lp"] }
 nix = "0.24"
