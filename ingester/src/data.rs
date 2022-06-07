@@ -4,7 +4,6 @@ use crate::{
     compact::compact_persisting_batch,
     lifecycle::LifecycleHandle,
     partioning::{Partitioner, PartitionerError},
-    persist::persist,
     querier_handler::query,
 };
 use arrow::record_batch::RecordBatch;
@@ -279,7 +278,7 @@ impl Persister for IngesterData {
 
         if let Some(persisting_batch) = persisting_batch {
             // do the CPU intensive work of compaction, de-duplication and sorting
-            let (record_batches, iox_meta, sort_key_update) = match compact_persisting_batch(
+            let (record_stream, iox_meta, sort_key_update) = match compact_persisting_batch(
                 Arc::new(SystemProvider::new()),
                 &self.exec,
                 namespace.namespace_id.get(),
@@ -300,30 +299,29 @@ impl Persister for IngesterData {
                 }
             };
 
-            // save the compacted data to a parquet file in object storage
-            let file_size_and_md = Backoff::new(&self.backoff_config)
-                .retry_all_errors("persist to object store", || {
-                    persist(&iox_meta, record_batches.to_vec(), self.store.clone())
+            // Save the compacted data to a parquet file in object storage.
+            //
+            // This call retries until it completes.
+            let (md, file_size) = self
+                .store
+                .upload(record_stream, &iox_meta)
+                .await
+                .expect("unexpected fatal persist error");
+
+            // Add the parquet file to the catalog until succeed
+            let parquet_file = iox_meta.to_parquet_file(partition_id, file_size, &md);
+            Backoff::new(&self.backoff_config)
+                .retry_all_errors("add parquet file to catalog", || async {
+                    let mut repos = self.catalog.repositories().await;
+                    debug!(
+                        table_name=%iox_meta.table_name,
+                        "adding parquet file to catalog"
+                    );
+
+                    repos.parquet_files().create(parquet_file.clone()).await
                 })
                 .await
                 .expect("retry forever");
-
-            if let Some((file_size, md)) = file_size_and_md {
-                // Add the parquet file to the catalog until succeed
-                let parquet_file = iox_meta.to_parquet_file(partition_id, file_size, &md);
-                Backoff::new(&self.backoff_config)
-                    .retry_all_errors("add parquet file to catalog", || async {
-                        let mut repos = self.catalog.repositories().await;
-                        debug!(
-                            table_name=%iox_meta.table_name,
-                            "adding parquet file to catalog"
-                        );
-
-                        repos.parquet_files().create(parquet_file.clone()).await
-                    })
-                    .await
-                    .expect("retry forever");
-            }
 
             // Update the sort key in the catalog if there are additional columns
             if let Some(new_sort_key) = sort_key_update {
