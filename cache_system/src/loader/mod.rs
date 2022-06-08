@@ -5,7 +5,7 @@ use std::future::Future;
 
 pub mod metrics;
 
-/// Loader for missing [`Cache`](crate::driver::Cache) entries.
+/// Loader for missing [`Cache`](crate::cache::Cache) entries.
 #[async_trait]
 pub trait Loader: std::fmt::Debug + Send + Sync + 'static {
     /// Cache key.

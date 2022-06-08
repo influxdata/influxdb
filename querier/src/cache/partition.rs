@@ -7,7 +7,7 @@ use cache_system::{
         resource_consumption::FunctionEstimator,
         shared::SharedBackend,
     },
-    driver::Cache,
+    cache::{driver::CacheDriver, Cache},
     loader::{metrics::MetricsLoader, FunctionLoader},
 };
 use data_types::{PartitionId, SequencerId};
@@ -24,10 +24,12 @@ use super::ram::RamSize;
 
 const CACHE_ID: &str = "partition";
 
+type CacheT = Box<dyn Cache<K = PartitionId, V = CachedPartition, Extra = ()>>;
+
 /// Cache for partition-related attributes.
 #[derive(Debug)]
 pub struct PartitionCache {
-    cache: Cache<PartitionId, CachedPartition, ()>,
+    cache: CacheT,
     backend: SharedBackend<PartitionId, CachedPartition>,
 }
 
@@ -84,10 +86,9 @@ impl PartitionCache {
         ));
         let backend = SharedBackend::new(backend);
 
-        Self {
-            cache: Cache::new(loader, Box::new(backend.clone())),
-            backend,
-        }
+        let cache = Box::new(CacheDriver::new(loader, Box::new(backend.clone())));
+
+        Self { cache, backend }
     }
 
     /// Get sequencer ID.

@@ -7,7 +7,7 @@ use cache_system::{
         resource_consumption::FunctionEstimator,
         shared::SharedBackend,
     },
-    driver::Cache,
+    cache::{driver::CacheDriver, Cache},
     loader::{metrics::MetricsLoader, FunctionLoader},
 };
 use data_types::{SequenceNumber, TableId, Tombstone};
@@ -78,10 +78,12 @@ impl CachedTombstones {
     }
 }
 
+type CacheT = Box<dyn Cache<K = TableId, V = CachedTombstones, Extra = ()>>;
+
 /// Cache for tombstones for a particular table
 #[derive(Debug)]
 pub struct TombstoneCache {
-    cache: Cache<TableId, CachedTombstones, ()>,
+    cache: CacheT,
     /// Handle that allows clearing entries for existing cache entries
     backend: SharedBackend<TableId, CachedTombstones>,
 }
@@ -139,7 +141,7 @@ impl TombstoneCache {
 
         let backend = SharedBackend::new(backend);
 
-        let cache = Cache::new(loader, Box::new(backend.clone()));
+        let cache = Box::new(CacheDriver::new(loader, Box::new(backend.clone())));
 
         Self { cache, backend }
     }

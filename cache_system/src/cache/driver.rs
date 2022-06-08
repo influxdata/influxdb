@@ -1,6 +1,7 @@
-//! Main data structure, see [`Cache`].
+//! Main data structure, see [`CacheDriver`].
 
-use super::{backend::CacheBackend, loader::Loader};
+use crate::{backend::CacheBackend, loader::Loader};
+use async_trait::async_trait;
 use futures::{
     future::{BoxFuture, Shared},
     FutureExt, TryFutureExt,
@@ -13,25 +14,11 @@ use tokio::{
     task::JoinHandle,
 };
 
-/// High-level cache implementation.
-///
-/// # Concurrency
-///
-/// Multiple cache requests for different keys can run at the same time. When data is requested for
-/// the same key the underlying loader will only be polled once, even when the requests are made
-/// while the loader is still running.
-///
-/// # Cancellation
-///
-/// Canceling a [`get`](Self::get) request will NOT cancel the underlying loader. The data will
-/// still be cached.
-///
-/// # Panic
-///
-/// If the underlying loader panics, all currently running [`get`](Self::get) requests will panic.
-/// The data will NOT be cached.
+use super::Cache;
+
+/// Combine a [`CacheBackend`] and a [`Loader`] into a single [`Cache`]
 #[derive(Debug)]
-pub struct Cache<K, V, Extra>
+pub struct CacheDriver<K, V, Extra>
 where
     K: Clone + Eq + Hash + std::fmt::Debug + Ord + Send + 'static,
     V: Clone + std::fmt::Debug + Send + 'static,
@@ -41,7 +28,7 @@ where
     loader: Arc<dyn Loader<K = K, V = V, Extra = Extra>>,
 }
 
-impl<K, V, Extra> Cache<K, V, Extra>
+impl<K, V, Extra> CacheDriver<K, V, Extra>
 where
     K: Clone + Eq + Hash + std::fmt::Debug + Ord + Send + 'static,
     V: Clone + std::fmt::Debug + Send + 'static,
@@ -61,9 +48,20 @@ where
             loader,
         }
     }
+}
 
-    /// Get value from cache.
-    pub async fn get(&self, k: K, extra: Extra) -> V {
+#[async_trait]
+impl<K, V, Extra> Cache for CacheDriver<K, V, Extra>
+where
+    K: Clone + Eq + Hash + std::fmt::Debug + Ord + Send + 'static,
+    V: Clone + std::fmt::Debug + Send + 'static,
+    Extra: std::fmt::Debug + Send + 'static,
+{
+    type K = K;
+    type V = V;
+    type Extra = Extra;
+
+    async fn get(&self, k: Self::K, extra: Self::Extra) -> Self::V {
         // place state locking into its own scope so it doesn't leak into the generator (async
         // function)
         let receiver = {
@@ -189,11 +187,7 @@ where
             .clone()
     }
 
-    /// Side-load an entry into the cache.
-    ///
-    /// This will also complete a currently running request for this key.
-    #[allow(dead_code)]
-    pub async fn set(&self, k: K, v: V) {
+    async fn set(&self, k: Self::K, v: Self::V) {
         let maybe_join_handle = {
             let mut state = self.state.lock();
 
@@ -223,7 +217,7 @@ where
     }
 }
 
-impl<K, V, Extra> Drop for Cache<K, V, Extra>
+impl<K, V, Extra> Drop for CacheDriver<K, V, Extra>
 where
     K: Clone + Eq + Hash + std::fmt::Debug + Ord + Send + 'static,
     V: Clone + std::fmt::Debug + Send + 'static,
@@ -289,291 +283,23 @@ struct CacheState<K, V> {
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::HashSet, sync::Arc, time::Duration};
+    use std::sync::Arc;
 
-    use async_trait::async_trait;
-    use tokio::sync::Notify;
+    use crate::cache::test_util::TestLoader;
 
     use super::*;
 
     #[tokio::test]
-    async fn test_answers_are_correct() {
-        let (cache, _loader) = setup();
+    async fn test_generic() {
+        use crate::cache::test_util::test_generic;
 
-        assert_eq!(cache.get(1, true).await, String::from("1_true"));
-        assert_eq!(cache.get(2, false).await, String::from("2_false"));
+        test_generic(setup).await;
     }
 
-    #[tokio::test]
-    async fn test_linear_memory() {
-        let (cache, loader) = setup();
-
-        assert_eq!(cache.get(1, true).await, String::from("1_true"));
-        assert_eq!(cache.get(1, false).await, String::from("1_true"));
-        assert_eq!(cache.get(2, false).await, String::from("2_false"));
-        assert_eq!(cache.get(2, false).await, String::from("2_false"));
-        assert_eq!(cache.get(1, true).await, String::from("1_true"));
-
-        assert_eq!(loader.loaded(), vec![1, 2]);
-    }
-
-    #[tokio::test]
-    async fn test_concurrent_query_loads_once() {
-        let (cache, loader) = setup();
-
-        loader.block();
-
-        let cache_captured = Arc::clone(&cache);
-        let handle_1 = tokio::spawn(async move { cache_captured.get(1, true).await });
-        let handle_2 = tokio::spawn(async move { cache.get(1, true).await });
-
-        tokio::time::sleep(Duration::from_millis(10)).await;
-        // Shouldn't issue concurrent load requests for the same key
-        let n_blocked = loader.unblock();
-        assert_eq!(n_blocked, 1);
-
-        assert_eq!(handle_1.await.unwrap(), String::from("1_true"));
-        assert_eq!(handle_2.await.unwrap(), String::from("1_true"));
-
-        assert_eq!(loader.loaded(), vec![1]);
-    }
-
-    #[tokio::test]
-    async fn test_queries_are_parallelized() {
-        let (cache, loader) = setup();
-
-        loader.block();
-
-        let cache_captured = Arc::clone(&cache);
-        let handle_1 = tokio::spawn(async move { cache_captured.get(1, true).await });
-        let cache_captured = Arc::clone(&cache);
-        let handle_2 = tokio::spawn(async move { cache_captured.get(1, true).await });
-        let handle_3 = tokio::spawn(async move { cache.get(2, false).await });
-
-        tokio::time::sleep(Duration::from_millis(10)).await;
-
-        let n_blocked = loader.unblock();
-        assert_eq!(n_blocked, 2);
-
-        assert_eq!(handle_1.await.unwrap(), String::from("1_true"));
-        assert_eq!(handle_2.await.unwrap(), String::from("1_true"));
-        assert_eq!(handle_3.await.unwrap(), String::from("2_false"));
-
-        assert_eq!(loader.loaded(), vec![1, 2]);
-    }
-
-    #[tokio::test]
-    async fn test_cancel_request() {
-        let (cache, loader) = setup();
-
-        loader.block();
-
-        let cache_captured = Arc::clone(&cache);
-        let handle_1 = tokio::spawn(async move { cache_captured.get(1, true).await });
-        tokio::time::sleep(Duration::from_millis(10)).await;
-        let handle_2 = tokio::spawn(async move { cache.get(1, false).await });
-
-        tokio::time::sleep(Duration::from_millis(10)).await;
-
-        // abort first handle
-        handle_1.abort();
-        tokio::time::sleep(Duration::from_millis(10)).await;
-
-        let n_blocked = loader.unblock();
-        assert_eq!(n_blocked, 1);
-
-        assert_eq!(handle_2.await.unwrap(), String::from("1_true"));
-
-        assert_eq!(loader.loaded(), vec![1]);
-    }
-
-    #[tokio::test]
-    async fn test_panic_request() {
-        let (cache, loader) = setup();
-
-        loader.panic_once(1);
-        loader.block();
-
-        let cache_captured = Arc::clone(&cache);
-        let handle_1 = tokio::spawn(async move { cache_captured.get(1, true).await });
-        tokio::time::sleep(Duration::from_millis(10)).await;
-        let cache_captured = Arc::clone(&cache);
-        let handle_2 = tokio::spawn(async move { cache_captured.get(1, false).await });
-        let handle_3 = tokio::spawn(async move { cache.get(2, false).await });
-
-        tokio::time::sleep(Duration::from_millis(10)).await;
-
-        let n_blocked = loader.unblock();
-        assert_eq!(n_blocked, 2);
-
-        // panic first handle
-        handle_1.await.unwrap_err();
-        tokio::time::sleep(Duration::from_millis(10)).await;
-
-        // second handle should also panic
-        handle_2.await.unwrap_err();
-
-        // third handle should just work
-        assert_eq!(handle_3.await.unwrap(), String::from("2_false"));
-
-        assert_eq!(loader.loaded(), vec![1, 2]);
-    }
-
-    #[tokio::test]
-    async fn test_drop_cancels_loader() {
-        let (cache, loader) = setup();
-
-        loader.block();
-
-        let handle = tokio::spawn(async move { cache.get(1, true).await });
-
-        tokio::time::sleep(Duration::from_millis(10)).await;
-
-        handle.abort();
-
-        tokio::time::sleep(Duration::from_millis(10)).await;
-
-        assert_eq!(Arc::strong_count(&loader), 1);
-    }
-
-    #[tokio::test]
-    async fn test_set_before_request() {
-        let (cache, loader) = setup();
-
-        loader.block();
-
-        cache.set(1, String::from("foo")).await;
-
-        // blocked loader is not used
-        let res = tokio::time::timeout(Duration::from_millis(10), cache.get(1, false))
-            .await
-            .unwrap();
-        assert_eq!(res, String::from("foo"));
-        assert_eq!(loader.loaded(), Vec::<u8>::new());
-    }
-
-    #[tokio::test]
-    async fn test_set_during_request() {
-        let (cache, loader) = setup();
-
-        loader.block();
-
-        let cache_captured = Arc::clone(&cache);
-        let handle = tokio::spawn(async move { cache_captured.get(1, true).await });
-        tokio::time::sleep(Duration::from_millis(10)).await;
-
-        cache.set(1, String::from("foo")).await;
-
-        // request succeeds even though the loader is blocked
-        let res = tokio::time::timeout(Duration::from_millis(10), handle)
-            .await
-            .unwrap()
-            .unwrap();
-        assert_eq!(res, String::from("foo"));
-        assert_eq!(loader.loaded(), vec![1]);
-
-        // still cached
-        let res = tokio::time::timeout(Duration::from_millis(10), cache.get(1, false))
-            .await
-            .unwrap();
-        assert_eq!(res, String::from("foo"));
-        assert_eq!(loader.loaded(), vec![1]);
-    }
-
-    fn setup() -> (Arc<Cache<u8, String, bool>>, Arc<TestLoader>) {
-        let loader = Arc::new(TestLoader::default());
-        let cache = Arc::new(Cache::new(
+    fn setup(loader: Arc<TestLoader>) -> Arc<CacheDriver<u8, String, bool>> {
+        Arc::new(CacheDriver::new(
             Arc::clone(&loader) as _,
             Box::new(HashMap::new()),
-        ));
-
-        (cache, loader)
-    }
-
-    /// Flexible loader function for testing.
-    #[derive(Debug, Default)]
-    struct TestLoader {
-        loaded: Mutex<Vec<u8>>,
-        blocked: Mutex<Option<Arc<Notify>>>,
-        panic: Mutex<HashSet<u8>>,
-    }
-
-    impl TestLoader {
-        /// Panic when loading value for `k`.
-        ///
-        /// If this is used together with [`block`](Self::block), the panic will occur AFTER
-        /// blocking.
-        fn panic_once(&self, k: u8) {
-            self.panic.lock().insert(k);
-        }
-
-        /// Block all [`load`](Self::load) requests until [`unblock`](Self::unblock) is called.
-        ///
-        /// If this is used together with [`panic_once`](Self::panic_once), the panic will occur
-        /// AFTER blocking.
-        fn block(&self) {
-            let mut blocked = self.blocked.lock();
-            assert!(blocked.is_none());
-            *blocked = Some(Arc::new(Notify::new()));
-        }
-
-        /// Unblock all requests.
-        ///
-        /// Returns number of requests that were blocked.
-        fn unblock(&self) -> usize {
-            let handle = self.blocked.lock().take().unwrap();
-            let blocked_count = Arc::strong_count(&handle) - 1;
-            handle.notify_waiters();
-            blocked_count
-        }
-
-        /// List all keys that were loaded.
-        ///
-        /// Contains duplicates if keys were loaded multiple times.
-        fn loaded(&self) -> Vec<u8> {
-            self.loaded.lock().clone()
-        }
-    }
-
-    #[async_trait]
-    impl Loader for TestLoader {
-        type K = u8;
-        type V = String;
-        type Extra = bool;
-
-        async fn load(&self, k: u8, extra: bool) -> String {
-            self.loaded.lock().push(k);
-
-            // need to capture the cloned notify handle, otherwise the lock guard leaks into the
-            // generator
-            let maybe_block = self.blocked.lock().clone();
-            if let Some(block) = maybe_block {
-                block.notified().await;
-            }
-
-            // maybe panic
-            if self.panic.lock().remove(&k) {
-                panic!("test");
-            }
-
-            format!("{k}_{extra}")
-        }
-    }
-
-    fn assert_send<T>()
-    where
-        T: Send,
-    {
-    }
-    fn assert_sync<T>()
-    where
-        T: Sync,
-    {
-    }
-
-    #[test]
-    fn test_bounds() {
-        assert_send::<Cache<u8, u8, ()>>();
-        assert_sync::<Cache<u8, u8, ()>>();
+        ))
     }
 }

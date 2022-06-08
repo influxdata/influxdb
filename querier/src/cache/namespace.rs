@@ -7,7 +7,7 @@ use cache_system::{
         resource_consumption::FunctionEstimator,
         ttl::{OptionalValueTtlProvider, TtlBackend},
     },
-    driver::Cache,
+    cache::{driver::CacheDriver, Cache},
     loader::{metrics::MetricsLoader, FunctionLoader},
 };
 use data_types::NamespaceSchema;
@@ -25,7 +25,7 @@ pub const TTL_NON_EXISTING: Duration = Duration::from_secs(60);
 
 const CACHE_ID: &str = "namespace";
 
-type CacheT = Cache<Arc<str>, Option<Arc<CachedNamespace>>, ()>;
+type CacheT = Box<dyn Cache<K = Arc<str>, V = Option<Arc<CachedNamespace>>, Extra = ()>>;
 
 /// Cache for namespace-related attributes.
 #[derive(Debug)]
@@ -101,7 +101,7 @@ impl NamespaceCache {
             )),
         ));
 
-        let cache = Cache::new(loader, backend);
+        let cache = Box::new(CacheDriver::new(loader, backend));
 
         Self { cache }
     }

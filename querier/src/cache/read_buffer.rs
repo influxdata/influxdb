@@ -8,7 +8,7 @@ use cache_system::{
         resource_consumption::FunctionEstimator,
         shared::SharedBackend,
     },
-    driver::Cache,
+    cache::{driver::CacheDriver, Cache},
     loader::{metrics::MetricsLoader, FunctionLoader},
 };
 use data_types::ParquetFileId;
@@ -29,10 +29,12 @@ struct ExtraFetchInfo {
     store: ParquetStorage,
 }
 
+type CacheT = Box<dyn Cache<K = ParquetFileId, V = Arc<RBChunk>, Extra = ExtraFetchInfo>>;
+
 /// Cache for parquet file data decoded into read buffer chunks
 #[derive(Debug)]
 pub struct ReadBufferCache {
-    cache: Cache<ParquetFileId, Arc<RBChunk>, ExtraFetchInfo>,
+    cache: CacheT,
 
     /// Handle that allows clearing entries for existing cache entries
     _backend: SharedBackend<ParquetFileId, Arc<RBChunk>>,
@@ -100,7 +102,7 @@ impl ReadBufferCache {
         // get a direct handle so we can clear out entries as needed
         let _backend = SharedBackend::new(backend);
 
-        let cache = Cache::new(loader, Box::new(_backend.clone()));
+        let cache = Box::new(CacheDriver::new(loader, Box::new(_backend.clone())));
 
         Self { cache, _backend }
     }

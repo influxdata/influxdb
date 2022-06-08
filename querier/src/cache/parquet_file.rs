@@ -7,7 +7,7 @@ use cache_system::{
         resource_consumption::FunctionEstimator,
         shared::SharedBackend,
     },
-    driver::Cache,
+    cache::{driver::CacheDriver, Cache},
     loader::{metrics::MetricsLoader, FunctionLoader},
 };
 use data_types::{ParquetFileWithMetadata, SequenceNumber, TableId};
@@ -93,12 +93,14 @@ impl CachedParquetFiles {
     }
 }
 
+type CacheT = Box<dyn Cache<K = TableId, V = Arc<CachedParquetFiles>, Extra = ()>>;
+
 /// Cache for parquet file information with metadata.
 ///
 /// DOES NOT CACHE the actual parquet bytes from object store
 #[derive(Debug)]
 pub struct ParquetFileCache {
-    cache: Cache<TableId, Arc<CachedParquetFiles>, ()>,
+    cache: CacheT,
 
     /// Handle that allows clearing entries for existing cache entries
     backend: SharedBackend<TableId, Arc<CachedParquetFiles>>,
@@ -170,7 +172,7 @@ impl ParquetFileCache {
         // get a direct handle so we can clear out entries as needed
         let backend = SharedBackend::new(backend);
 
-        let cache = Cache::new(loader, Box::new(backend.clone()));
+        let cache = Box::new(CacheDriver::new(loader, Box::new(backend.clone())));
 
         Self { cache, backend }
     }

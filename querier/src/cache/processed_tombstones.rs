@@ -7,7 +7,7 @@ use cache_system::{
         resource_consumption::FunctionEstimator,
         ttl::{TtlBackend, TtlProvider},
     },
-    driver::Cache,
+    cache::{driver::CacheDriver, Cache},
     loader::{metrics::MetricsLoader, FunctionLoader},
 };
 use data_types::{ParquetFileId, TombstoneId};
@@ -25,10 +25,12 @@ pub const TTL_NOT_PROCESSED: Duration = Duration::from_secs(100);
 
 const CACHE_ID: &str = "processed_tombstones";
 
+type CacheT = Box<dyn Cache<K = (ParquetFileId, TombstoneId), V = bool, Extra = ()>>;
+
 /// Cache for processed tombstones.
 #[derive(Debug)]
 pub struct ProcessedTombstonesCache {
-    cache: Cache<(ParquetFileId, TombstoneId), bool, ()>,
+    cache: CacheT,
 }
 
 impl ProcessedTombstonesCache {
@@ -82,9 +84,9 @@ impl ProcessedTombstonesCache {
             })),
         ));
 
-        Self {
-            cache: Cache::new(loader, backend),
-        }
+        let cache = Box::new(CacheDriver::new(loader, backend));
+
+        Self { cache }
     }
 
     /// Check if the specified tombstone is mark as "processed" for the given parquet file.

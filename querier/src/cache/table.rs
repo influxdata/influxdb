@@ -7,7 +7,7 @@ use cache_system::{
         resource_consumption::FunctionEstimator,
         ttl::{OptionalValueTtlProvider, TtlBackend},
     },
-    driver::Cache,
+    cache::{driver::CacheDriver, Cache},
     loader::{metrics::MetricsLoader, FunctionLoader},
 };
 use data_types::{NamespaceId, Table, TableId};
@@ -22,7 +22,7 @@ pub const TTL_NON_EXISTING: Duration = Duration::from_secs(10);
 
 const CACHE_ID: &str = "table";
 
-type CacheT = Cache<TableId, Option<Arc<CachedTable>>, ()>;
+type CacheT = Box<dyn Cache<K = TableId, V = Option<Arc<CachedTable>>, Extra = ()>>;
 
 /// Cache for table-related queries.
 #[derive(Debug)]
@@ -86,7 +86,7 @@ impl TableCache {
             })),
         ));
 
-        let cache = Cache::new(loader, backend);
+        let cache = Box::new(CacheDriver::new(loader, backend));
 
         Self { cache }
     }
