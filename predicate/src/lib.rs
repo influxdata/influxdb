@@ -120,21 +120,6 @@ impl Predicate {
         }
     }
 
-    /// Adds all items in new_names into self.field_names
-    pub fn add_field_names<I, S>(&mut self, new_names: I)
-    where
-        I: IntoIterator<Item = S>,
-        S: Into<String>,
-    {
-        let mut new_field_columns: BTreeSet<_> = self.field_columns.take().unwrap_or_default();
-
-        let new_names = new_names.into_iter().map(|n| n.into());
-
-        new_field_columns.extend(new_names);
-
-        self.field_columns = Some(new_field_columns);
-    }
-
     /// Creates a DataFusion predicate for appliying a timestamp range:
     ///
     /// `range.start <= time and time < range.end`

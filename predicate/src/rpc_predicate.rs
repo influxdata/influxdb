@@ -203,10 +203,10 @@ fn normalize_predicate(
     // Store any field value (`_value`) expressions on the `Predicate`.
     predicate.value_expr = field_value_exprs;
 
-    match field_projections.into_projection() {
-        FieldProjection::None => {}
+    let predicate = match field_projections.into_projection() {
+        FieldProjection::None => predicate,
         FieldProjection::Include(include_field_names) => {
-            predicate.add_field_names(include_field_names)
+            predicate.field_columns(include_field_names)
         }
         FieldProjection::Exclude(exclude_field_names) => {
             // if we don't have the schema, it means the table doesn't exist so we can safely ignore
@@ -222,10 +222,12 @@ fn normalize_predicate(
                     }
                 });
 
-                predicate.add_field_names(new_fields)
+                predicate.field_columns(new_fields)
+            } else {
+                predicate
             }
         }
-    }
+    };
     Ok(predicate)
 }
 
