@@ -1706,23 +1706,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "57c66a976bf5909d801bbef33416c41372779507e7a6b3a5e25e4749c58f776a"
 
 [[package]]
-name = "futures-test"
-version = "0.3.21"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8c3e9379dbbfb35dd6df79e895d73c0f75558827fe68eb853b858ff417a8ee98"
-dependencies = [
- "futures-core",
- "futures-executor",
- "futures-io",
- "futures-macro",
- "futures-sink",
- "futures-task",
- "futures-util",
- "pin-project",
- "pin-utils",
-]
-
-[[package]]
 name = "futures-util"
 version = "0.3.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3311,13 +3294,11 @@ dependencies = [
  "bytes",
  "dotenv",
  "futures",
- "futures-test",
  "iox_time",
  "metric",
  "object_store",
  "pin-project",
  "snafu",
- "tempfile",
  "tokio",
  "workspace-hack",
 ]
@@ -4036,7 +4017,6 @@ dependencies = [
  "once_cell",
  "parquet_file",
  "predicate",
- "pretty_assertions",
  "querier",
  "schema",
  "snafu",
