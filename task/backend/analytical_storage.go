@@ -20,12 +20,17 @@ import (
 )
 
 const (
+	traceIDField    = "ot_trace_id"
+	traceSampledTag = "ot_trace_sampled"
+
 	runIDField        = "runID"
+	nameField         = "name"
 	scheduledForField = "scheduledFor"
 	startedAtField    = "startedAt"
 	finishedAtField   = "finishedAt"
 	requestedAtField  = "requestedAt"
 	logField          = "logs"
+	fluxField         = "flux"
 
 	taskIDTag = "taskID"
 	statusTag = "status"
@@ -34,7 +39,7 @@ const (
 // RunRecorder is a type which records runs into an influxdb
 // backed storage mechanism
 type RunRecorder interface {
-	Record(ctx context.Context, orgID platform.ID, org string, bucketID platform.ID, bucket string, run *taskmodel.Run) error
+	Record(ctx context.Context, bucketID platform.ID, bucket string, task *taskmodel.Task, run *taskmodel.Run) error
 }
 
 // NewAnalyticalStorage creates a new analytical store with access to the necessary systems for storing data and to act as a middleware (deprecated)
@@ -72,7 +77,7 @@ func (as *AnalyticalStorage) FinishRun(ctx context.Context, taskID, runID platfo
 			return run, err
 		}
 
-		return run, as.rr.Record(ctx, task.OrganizationID, task.Organization, sb.ID, influxdb.TasksSystemBucketName, run)
+		return run, as.rr.Record(ctx, sb.ID, influxdb.TasksSystemBucketName, task, run)
 	}
 
 	return run, err
@@ -414,6 +419,12 @@ func (re *runReader) readRuns(cr flux.ColReader) error {
 				r.ScheduledFor = scheduled.UTC()
 			case statusTag:
 				r.Status = cr.Strings(j).Value(i)
+			case fluxField:
+				r.Flux = cr.Strings(j).Value(i)
+			case traceIDField:
+				r.TraceID = cr.Strings(j).Value(i)
+			case traceSampledTag:
+				r.IsSampled = cr.Bools(j).Value(i)
 			case finishedAtField:
 				finished, err := time.Parse(time.RFC3339Nano, cr.Strings(j).Value(i))
 				if err != nil {
