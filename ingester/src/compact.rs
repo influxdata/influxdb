@@ -128,7 +128,7 @@ pub async fn compact(
 
     // Build physical plan
     let physical_plan = ctx
-        .prepare_plan(&logical_plan)
+        .create_physical_plan(&logical_plan)
         .await
         .context(PhysicalPlanSnafu {})?;
 

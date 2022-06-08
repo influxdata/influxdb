@@ -744,7 +744,7 @@ impl Compactor {
 
         let ctx = self.exec.new_context(ExecutorType::Reorg);
         let physical_plan = ctx
-            .prepare_plan(&plan)
+            .create_physical_plan(&plan)
             .await
             .context(CompactPhysicalPlanSnafu)?;
 

@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 #[cfg(test)]
 use crate::scenarios::{
-    DbScenario, DbSetup, TwoMeasurements, TwoMeasurementsManyFields, TwoMeasurementsWithDelete,
-    TwoMeasurementsWithDeleteAll,
+    DbScenario, DbSetup, EndToEndTest, TwoMeasurements, TwoMeasurementsManyFields,
+    TwoMeasurementsWithDelete, TwoMeasurementsWithDeleteAll,
 };
 use crate::{
     db::AbstractDb,
@@ -15,7 +15,7 @@ use crate::{
         TwoMeasurementsMultiSeriesWithDelete, TwoMeasurementsMultiSeriesWithDeleteAll,
     },
 };
-use datafusion::logical_plan::{col, lit, when};
+use datafusion::logical_plan::{col, lit, when, Expr};
 use iox_query::frontend::influxrpc::InfluxRpcPlanner;
 use predicate::rpc_predicate::InfluxRpcPredicate;
 use predicate::Predicate;
@@ -187,12 +187,7 @@ async fn test_read_filter_invalid_predicate_case() {
         // https://github.com/influxdata/influxdb_iox/issues/3635
         // model what happens when a field is treated like a tag
         // CASE WHEN system" IS NULL THEN '' ELSE system END = 5;
-        .add_expr(
-            when(col("system").is_null(), lit(""))
-                .otherwise(col("system"))
-                .unwrap()
-                .eq(lit(5i32)),
-        );
+        .add_expr(make_empty_tag_ref_expr("system").eq(lit(5i32)));
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let expected_error = "gRPC planner got error creating predicates: Error during planning: 'Utf8 = Int32' can't be evaluated because there isn't a common type to coerce the types to";
@@ -751,6 +746,29 @@ async fn test_read_filter_on_field_single_measurement() {
 }
 
 #[tokio::test]
+async fn test_read_filter_multi_negation() {
+    // reproducer for https://github.com/influxdata/influxdb_iox/issues/4800
+    test_helpers::maybe_start_logging();
+
+    let host = make_empty_tag_ref_expr("host");
+    let p1 = host.clone().eq(lit("server01")).or(host.eq(lit("")));
+    let predicate = Predicate::default().add_expr(p1);
+    let predicate = InfluxRpcPredicate::new(None, predicate);
+
+    let expected_results = vec![
+        "Series tags={_measurement=attributes, _field=color}\n  StringPoints timestamps: [8000], values: [\"blue\"]",
+        "Series tags={_measurement=cpu_load_short, host=server01, _field=value}\n  FloatPoints timestamps: [1000], values: [27.99]",
+        "Series tags={_measurement=cpu_load_short, host=server01, region=us-east, _field=value}\n  FloatPoints timestamps: [3000], values: [1234567.891011]",
+        "Series tags={_measurement=cpu_load_short, host=server01, region=us-west, _field=value}\n  FloatPoints timestamps: [0, 4000], values: [0.64, 3e-6]",
+        "Series tags={_measurement=status, _field=active}\n  BooleanPoints timestamps: [7000], values: [true]",
+        "Series tags={_measurement=swap, host=server01, name=disk0, _field=in}\n  FloatPoints timestamps: [6000], values: [3.0]",
+        "Series tags={_measurement=swap, host=server01, name=disk0, _field=out}\n  FloatPoints timestamps: [6000], values: [4.0]",
+    ];
+
+    run_read_filter_test_case(EndToEndTest {}, predicate, expected_results).await;
+}
+
+#[tokio::test]
 async fn test_read_filter_on_field_multi_measurement() {
     test_helpers::maybe_start_logging();
 
@@ -778,4 +796,14 @@ async fn test_read_filter_on_field_multi_measurement() {
     ];
 
     run_read_filter_test_case(TwoMeasurementsManyFields {}, predicate, expected_results).await;
+}
+
+/// https://github.com/influxdata/influxdb_iox/issues/3635
+/// model what happens when a field is treated like a tag compared to ''
+///
+/// CASE WHEN system" IS NULL THEN '' ELSE system END
+fn make_empty_tag_ref_expr(tag_name: &str) -> Expr {
+    when(col(tag_name).is_null(), lit(""))
+        .otherwise(col(tag_name))
+        .unwrap()
 }

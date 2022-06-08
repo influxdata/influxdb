@@ -342,7 +342,7 @@ mod test {
         let executor = Executor::new(1);
         let physical_plan = executor
             .new_context(ExecutorType::Reorg)
-            .prepare_plan(&scan_plan)
+            .create_physical_plan(&scan_plan)
             .await
             .unwrap();
 
@@ -387,7 +387,7 @@ mod test {
         let executor = Executor::new(1);
         let physical_plan = executor
             .new_context(ExecutorType::Reorg)
-            .prepare_plan(&compact_plan)
+            .create_physical_plan(&compact_plan)
             .await
             .unwrap();
         assert_eq!(
@@ -440,7 +440,7 @@ mod test {
         let executor = Executor::new(1);
         let physical_plan = executor
             .new_context(ExecutorType::Reorg)
-            .prepare_plan(&split_plan)
+            .create_physical_plan(&split_plan)
             .await
             .unwrap();
 
