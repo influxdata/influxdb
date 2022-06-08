@@ -3,7 +3,7 @@ use crate::{influxrpc::util::run_series_set_plan, scenarios::*};
 use datafusion::prelude::*;
 use iox_query::{frontend::influxrpc::InfluxRpcPlanner, Aggregate, WindowDuration};
 use predicate::rpc_predicate::InfluxRpcPredicate;
-use predicate::PredicateBuilder;
+use predicate::Predicate;
 
 /// runs read_window_aggregate(predicate) and compares it to the expected
 /// output
@@ -51,11 +51,10 @@ async fn run_read_window_aggregate_test_case<D>(
 
 #[tokio::test]
 async fn test_read_window_aggregate_nanoseconds() {
-    let predicate = PredicateBuilder::default()
+    let predicate = Predicate::default()
         // city=Boston or city=LA
         .add_expr(col("city").eq(lit("Boston")).or(col("city").eq(lit("LA"))))
-        .timestamp_range(100, 450)
-        .build();
+        .timestamp_range(100, 450);
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let agg = Aggregate::Mean;
@@ -81,15 +80,14 @@ async fn test_read_window_aggregate_nanoseconds() {
 
 #[tokio::test]
 async fn test_read_window_aggregate_nanoseconds_measurement_pred() {
-    let predicate = PredicateBuilder::default()
+    let predicate = Predicate::default()
         // city=Cambridge OR (_measurement != 'other' AND city = LA)
         .add_expr(
             col("city").eq(lit("Boston")).or(col("_measurement")
                 .not_eq(lit("other"))
                 .and(col("city").eq(lit("LA")))),
         )
-        .timestamp_range(100, 450)
-        .build();
+        .timestamp_range(100, 450);
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let agg = Aggregate::Mean;
@@ -115,9 +113,7 @@ async fn test_read_window_aggregate_nanoseconds_measurement_pred() {
 #[tokio::test]
 async fn test_read_window_aggregate_nanoseconds_measurement_count() {
     // Expect that the type of `Count` is Integer
-    let predicate = PredicateBuilder::default()
-        .timestamp_range(100, 450)
-        .build();
+    let predicate = Predicate::default().timestamp_range(100, 450);
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let agg = Aggregate::Count;
@@ -144,10 +140,9 @@ async fn test_read_window_aggregate_nanoseconds_measurement_count() {
 // See https://github.com/influxdata/influxdb_iox/issues/2697
 #[tokio::test]
 async fn test_grouped_series_set_plan_group_aggregate_min_defect_2697() {
-    let predicate = PredicateBuilder::default()
+    let predicate = Predicate::default()
         // time >= '2021-01-01T00:00:01.000000001Z' AND time <= '2021-01-01T00:00:01.000000031Z'
-        .timestamp_range(1609459201000000001, 1609459201000000031)
-        .build();
+        .timestamp_range(1609459201000000001, 1609459201000000031);
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let agg = Aggregate::Min;
@@ -177,10 +172,9 @@ async fn test_grouped_series_set_plan_group_aggregate_min_defect_2697() {
 
 #[tokio::test]
 async fn test_grouped_series_set_plan_group_aggregate_min_defect_2697_with_delete() {
-    let predicate = PredicateBuilder::default()
+    let predicate = Predicate::default()
         // time >= '2021-01-01T00:00:01.000000001Z' AND time <= '2021-01-01T00:00:01.000000031Z'
-        .timestamp_range(1609459201000000001, 1609459201000000031)
-        .build();
+        .timestamp_range(1609459201000000001, 1609459201000000031);
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let agg = Aggregate::Min;
@@ -220,10 +214,9 @@ async fn test_grouped_series_set_plan_group_aggregate_min_defect_2697_with_delet
 // See https://github.com/influxdata/influxdb_iox/issues/2697
 #[tokio::test]
 async fn test_grouped_series_set_plan_group_aggregate_sum_defect_2697() {
-    let predicate = PredicateBuilder::default()
+    let predicate = Predicate::default()
         // time >= '2021-01-01T00:00:01.000000001Z' AND time <= '2021-01-01T00:00:01.000000031Z'
-        .timestamp_range(1609459201000000001, 1609459201000000031)
-        .build();
+        .timestamp_range(1609459201000000001, 1609459201000000031);
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let agg = Aggregate::Sum;
@@ -255,11 +248,10 @@ async fn test_grouped_series_set_plan_group_aggregate_sum_defect_2697() {
 // Adds coverage to window_aggregate plan for filtering on _field.
 #[tokio::test]
 async fn test_grouped_series_set_plan_group_aggregate_filter_on_field() {
-    let predicate = PredicateBuilder::default()
+    let predicate = Predicate::default()
         // time >= '2021-01-01T00:00:01.000000001Z' AND time <= '2021-01-01T00:00:01.000000031Z'
         .timestamp_range(1609459201000000001, 1609459201000000031)
-        .add_expr(col("_field").eq(lit("foo")))
-        .build();
+        .add_expr(col("_field").eq(lit("foo")));
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let agg = Aggregate::Sum;
@@ -286,10 +278,9 @@ async fn test_grouped_series_set_plan_group_aggregate_filter_on_field() {
 
 #[tokio::test]
 async fn test_grouped_series_set_plan_group_aggregate_sum_defect_2697_with_delete() {
-    let predicate = PredicateBuilder::default()
+    let predicate = Predicate::default()
         // time >= '2021-01-01T00:00:01.000000001Z' AND time <= '2021-01-01T00:00:01.000000031Z'
-        .timestamp_range(1609459201000000001, 1609459201000000031)
-        .build();
+        .timestamp_range(1609459201000000001, 1609459201000000031);
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let agg = Aggregate::Sum;
@@ -331,9 +322,7 @@ async fn test_grouped_series_set_plan_group_aggregate_sum_defect_2697_with_delet
 
 #[tokio::test]
 async fn test_read_window_aggregate_overflow() {
-    let predicate = PredicateBuilder::default()
-        .timestamp_range(1609459201000000001, 1609459201000000024)
-        .build();
+    let predicate = Predicate::default().timestamp_range(1609459201000000001, 1609459201000000024);
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let agg = Aggregate::Max;

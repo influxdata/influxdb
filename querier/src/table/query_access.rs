@@ -15,7 +15,7 @@ use iox_query::{
     pruning::{prune_chunks, PruningObserver},
     QueryChunk,
 };
-use predicate::{Predicate, PredicateBuilder};
+use predicate::Predicate;
 use schema::Schema;
 
 use super::QuerierTable;
@@ -48,8 +48,7 @@ impl TableProvider for QuerierTable {
 
         let predicate = filters
             .iter()
-            .fold(PredicateBuilder::new(), |b, expr| b.add_expr(expr.clone()))
-            .build();
+            .fold(Predicate::new(), |b, expr| b.add_expr(expr.clone()));
 
         let chunks = self
             .chunks(&predicate)

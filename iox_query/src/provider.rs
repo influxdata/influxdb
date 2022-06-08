@@ -21,7 +21,7 @@ use datafusion::{
     },
 };
 use observability_deps::tracing::{debug, trace, warn};
-use predicate::{Predicate, PredicateBuilder};
+use predicate::Predicate;
 use schema::{merge::SchemaMerger, sort::SortKey, InfluxColumnType, Schema};
 
 use crate::{
@@ -251,9 +251,7 @@ impl TableProvider for ChunkTableProvider {
         // Note that `filters` don't actually need to be evaluated in
         // the scan for the plans to be correct, they are an extra
         // optimization for providers which can offer them
-        let predicate = PredicateBuilder::default()
-            .add_pushdown_exprs(filters)
-            .build();
+        let predicate = Predicate::default().add_pushdown_exprs(filters);
 
         // Now we have a second attempt to prune out chunks based on
         // metadata using the pushed down predicate (e.g. in SQL).

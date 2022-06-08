@@ -1480,7 +1480,7 @@ mod tests {
     use iox_query::test::TestChunk;
     use metric::{Attributes, Metric, U64Counter};
     use panic_logging::SendPanicsToTracing;
-    use predicate::{PredicateBuilder, PredicateMatch};
+    use predicate::{Predicate, PredicateMatch};
     use service_common::test_util::TestDatabaseStore;
     use std::{
         any::Any,
@@ -1610,9 +1610,7 @@ mod tests {
 
         // also ensure the plumbing is hooked correctly and that the predicate made it
         // down to the chunk
-        let expected_predicate = PredicateBuilder::default()
-            .timestamp_range(150, 200)
-            .build();
+        let expected_predicate = Predicate::default().timestamp_range(150, 200);
 
         fixture
             .expect_predicates(
@@ -1688,10 +1686,9 @@ mod tests {
 
         // also ensure the plumbing is hooked correctly and that the predicate made it
         // down to the chunk
-        let expected_predicate = PredicateBuilder::default()
+        let expected_predicate = Predicate::default()
             .timestamp_range(150, 200)
-            .add_expr(make_state_ma_expr())
-            .build();
+            .add_expr(make_state_ma_expr());
 
         fixture
             .expect_predicates(
@@ -1792,10 +1789,9 @@ mod tests {
 
         // also ensure the plumbing is hooked correctly and that the predicate made it
         // down to the chunk
-        let expected_predicate = PredicateBuilder::default()
+        let expected_predicate = Predicate::default()
             .timestamp_range(150, 200)
-            .add_expr(make_state_ma_expr())
-            .build();
+            .add_expr(make_state_ma_expr());
 
         fixture
             .expect_predicates(
@@ -2469,13 +2465,12 @@ mod tests {
 
         // also ensure the plumbing is hooked correctly and that the predicate made it
         // down to the chunk and it was normalized to namevalue
-        let expected_predicate = PredicateBuilder::default()
+        let expected_predicate = Predicate::default()
             .timestamp_range(0, 10000)
             // should NOT have CASE nonsense for handling empty strings as
             // that should bave been optimized by the time it gets to
             // the chunk
-            .add_expr(col("state").eq(lit("MA")))
-            .build();
+            .add_expr(col("state").eq(lit("MA")));
 
         fixture
             .expect_predicates(
@@ -2533,13 +2528,12 @@ mod tests {
 
         // also ensure the plumbing is hooked correctly and that the predicate made it
         // down to the chunk and it was normalized to namevalue
-        let expected_predicate = PredicateBuilder::default()
+        let expected_predicate = Predicate::default()
             .timestamp_range(0, 10000)
             // comparison to empty string conversion results in a messier translation
             // to handle backwards compatibility semantics
             // #state IS NULL OR #state = Utf8("")
-            .add_expr(col("state").is_null().or(col("state").eq(lit(""))))
-            .build();
+            .add_expr(col("state").is_null().or(col("state").eq(lit(""))));
 
         fixture
             .expect_predicates(
@@ -3158,25 +3152,25 @@ mod tests {
     /// return a gRPC predicate like
     ///
     /// state="MA"
-    fn make_state_eq_ma_predicate() -> Predicate {
+    fn make_state_eq_ma_predicate() -> generated_types::Predicate {
         make_state_predicate(node::Comparison::Equal)
     }
 
     /// return a gRPC predicate like
     ///
     /// state != "MA"
-    fn make_state_neq_ma_predicate() -> Predicate {
+    fn make_state_neq_ma_predicate() -> generated_types::Predicate {
         make_state_predicate(node::Comparison::NotEqual)
     }
 
     /// return a gRPC predicate like
     ///
     /// state >= "MA"
-    fn make_state_geq_ma_predicate() -> Predicate {
+    fn make_state_geq_ma_predicate() -> generated_types::Predicate {
         make_state_predicate(node::Comparison::Gte)
     }
 
-    fn make_state_predicate(op: node::Comparison) -> Predicate {
+    fn make_state_predicate(op: node::Comparison) -> generated_types::Predicate {
         make_tag_predicate("state", "MA", op)
     }
 
@@ -3185,7 +3179,7 @@ mod tests {
         tag_name: impl Into<String>,
         tag_value: impl Into<String>,
         op: node::Comparison,
-    ) -> Predicate {
+    ) -> generated_types::Predicate {
         use node::{Type, Value};
         let root = Node {
             node_type: Type::ComparisonExpression as i32,
@@ -3203,7 +3197,7 @@ mod tests {
                 },
             ],
         };
-        Predicate { root: Some(root) }
+        generated_types::Predicate { root: Some(root) }
     }
 
     /// return an DataFusion Expr predicate like

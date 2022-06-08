@@ -1860,7 +1860,7 @@ fn make_selector_expr<'a>(
 mod tests {
     use datafusion::logical_plan::lit;
     use futures::{future::BoxFuture, FutureExt};
-    use predicate::PredicateBuilder;
+    use predicate::Predicate;
 
     use crate::{
         exec::Executor,
@@ -1991,13 +1991,11 @@ mod tests {
         let expr = when(col("foo").is_null(), lit(""))
             .otherwise(col("foo"))
             .unwrap();
-        let silly_predicate = PredicateBuilder::new()
-            .add_expr(expr.eq(lit("bar")))
-            .build();
+        let silly_predicate = Predicate::new().add_expr(expr.eq(lit("bar")));
 
         // verify that the predicate was rewritten to `foo = 'bar'`
         let expr = col("foo").eq(lit("bar"));
-        let expected_predicate = PredicateBuilder::new().add_expr(expr).build();
+        let expected_predicate = Predicate::new().add_expr(expr);
 
         run_test_with_predicate(&func, silly_predicate, expected_predicate).await;
 
@@ -2006,15 +2004,13 @@ mod tests {
         //
         // https://github.com/influxdata/influxdb_iox/issues/3601
         // _measurement = 'foo'
-        let silly_predicate = PredicateBuilder::new()
-            .add_expr(col("_measurement").eq(lit("foo")))
-            .build();
+        let silly_predicate = Predicate::new().add_expr(col("_measurement").eq(lit("foo")));
 
         // verify that the predicate was rewritten to `false` as the
         // measurement name is `h20`
         let expr = lit(false);
 
-        let expected_predicate = PredicateBuilder::new().add_expr(expr).build();
+        let expected_predicate = Predicate::new().add_expr(expr);
         run_test_with_predicate(&func, silly_predicate, expected_predicate).await;
 
         // ------------- Test 3 ----------------
@@ -2022,19 +2018,17 @@ mod tests {
         //
         // https://github.com/influxdata/influxdb_iox/issues/3601
         // (_measurement = 'foo' or measurement = 'h2o') AND time > 5
-        let silly_predicate = PredicateBuilder::new()
-            .add_expr(
-                col("_measurement")
-                    .eq(lit("foo"))
-                    .or(col("_measurement").eq(lit("h2o")))
-                    .and(col("time").gt(lit(5))),
-            )
-            .build();
+        let silly_predicate = Predicate::new().add_expr(
+            col("_measurement")
+                .eq(lit("foo"))
+                .or(col("_measurement").eq(lit("h2o")))
+                .and(col("time").gt(lit(5))),
+        );
 
         // verify that the predicate was rewritten to time > 5
         let expr = col("time").gt(lit(5));
 
-        let expected_predicate = PredicateBuilder::new().add_expr(expr).build();
+        let expected_predicate = Predicate::new().add_expr(expr);
         run_test_with_predicate(&func, silly_predicate, expected_predicate).await;
     }
 

@@ -28,7 +28,7 @@ use iox_query::{Aggregate as QueryAggregate, WindowDuration};
 use observability_deps::tracing::warn;
 use predicate::{
     rpc_predicate::{InfluxRpcPredicate, FIELD_COLUMN_NAME, MEASUREMENT_COLUMN_NAME},
-    PredicateBuilder,
+    Predicate,
 };
 use snafu::{OptionExt, ResultExt, Snafu};
 
@@ -159,7 +159,7 @@ pub enum GroupByAndAggregate {
 #[derive(Debug, Default)]
 pub struct InfluxRpcPredicateBuilder {
     table_names: Option<BTreeSet<String>>,
-    inner: PredicateBuilder,
+    inner: Predicate,
 }
 
 impl InfluxRpcPredicateBuilder {
@@ -240,7 +240,7 @@ impl InfluxRpcPredicateBuilder {
     }
 
     pub fn build(self) -> InfluxRpcPredicate {
-        InfluxRpcPredicate::new(self.table_names, self.inner.build())
+        InfluxRpcPredicate::new(self.table_names, self.inner)
     }
 }
 
@@ -291,7 +291,7 @@ fn normalize_node(node: RPCNode) -> Result<RPCNode> {
     }
 }
 
-/// Converts the node and updates the `PredicateBuilder`
+/// Converts the node and updates the `Predicate`
 /// appropriately
 ///
 /// It recognizes special predicate patterns. If no patterns are

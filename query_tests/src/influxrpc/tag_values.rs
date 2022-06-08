@@ -4,7 +4,7 @@ use iox_query::{
     frontend::influxrpc::InfluxRpcPlanner,
 };
 use predicate::rpc_predicate::InfluxRpcPredicate;
-use predicate::PredicateBuilder;
+use predicate::Predicate;
 
 use crate::scenarios::*;
 
@@ -51,7 +51,7 @@ async fn run_tag_values_test_case<D>(
 
 #[tokio::test]
 async fn list_tag_values_no_tag() {
-    let predicate = PredicateBuilder::default().build();
+    let predicate = Predicate::default();
     let predicate = InfluxRpcPredicate::new(None, predicate);
     // If the tag is not present, expect no values back (not error)
     let tag_name = "tag_not_in_chunks";
@@ -122,7 +122,7 @@ async fn list_tag_values_no_predicate_city_col() {
 #[tokio::test]
 async fn list_tag_values_timestamp_pred_state_col() {
     let tag_name = "state";
-    let predicate = PredicateBuilder::default().timestamp_range(50, 201).build();
+    let predicate = Predicate::default().timestamp_range(50, 201);
     let predicate = InfluxRpcPredicate::new(None, predicate);
     let expected_tag_keys = vec!["CA", "MA"];
     run_tag_values_test_case(
@@ -137,9 +137,7 @@ async fn list_tag_values_timestamp_pred_state_col() {
 #[tokio::test]
 async fn list_tag_values_state_pred_state_col() {
     let tag_name = "city";
-    let predicate = PredicateBuilder::default()
-        .add_expr(col("state").eq(lit("MA"))) // state=MA
-        .build();
+    let predicate = Predicate::default().add_expr(col("state").eq(lit("MA"))); // state=MA
     let predicate = InfluxRpcPredicate::new(None, predicate);
     let expected_tag_keys = vec!["Boston"];
     run_tag_values_test_case(
@@ -154,10 +152,9 @@ async fn list_tag_values_state_pred_state_col() {
 #[tokio::test]
 async fn list_tag_values_timestamp_and_state_pred_state_col() {
     let tag_name = "state";
-    let predicate = PredicateBuilder::default()
+    let predicate = Predicate::default()
         .timestamp_range(150, 301)
-        .add_expr(col("state").eq(lit("MA"))) // state=MA
-        .build();
+        .add_expr(col("state").eq(lit("MA"))); // state=MA
     let predicate = InfluxRpcPredicate::new(None, predicate);
     let expected_tag_keys = vec!["MA"];
     run_tag_values_test_case(
@@ -200,7 +197,7 @@ async fn list_tag_values_table_pred_city_col() {
 #[tokio::test]
 async fn list_tag_values_table_and_timestamp_and_table_pred_state_col() {
     let tag_name = "state";
-    let predicate = PredicateBuilder::default().timestamp_range(50, 201).build();
+    let predicate = Predicate::default().timestamp_range(50, 201);
     let predicate = InfluxRpcPredicate::new_table("o2", predicate);
     let expected_tag_keys = vec!["MA"];
     run_tag_values_test_case(
@@ -215,9 +212,7 @@ async fn list_tag_values_table_and_timestamp_and_table_pred_state_col() {
 #[tokio::test]
 async fn list_tag_values_table_and_state_pred_state_col() {
     let tag_name = "state";
-    let predicate = PredicateBuilder::default()
-        .add_expr(col("state").eq(lit("NY"))) // state=NY
-        .build();
+    let predicate = Predicate::default().add_expr(col("state").eq(lit("NY"))); // state=NY
     let predicate = InfluxRpcPredicate::new_table("o2", predicate);
     let expected_tag_keys = vec!["NY"];
     run_tag_values_test_case(
@@ -232,10 +227,9 @@ async fn list_tag_values_table_and_state_pred_state_col() {
 #[tokio::test]
 async fn list_tag_values_table_and_timestamp_and_state_pred_state_col() {
     let tag_name = "state";
-    let predicate = PredicateBuilder::default()
+    let predicate = Predicate::default()
         .timestamp_range(1, 550)
-        .add_expr(col("state").eq(lit("NY"))) // state=NY
-        .build();
+        .add_expr(col("state").eq(lit("NY"))); // state=NY
     let predicate = InfluxRpcPredicate::new_table("o2", predicate);
     let expected_tag_keys = vec!["NY"];
     run_tag_values_test_case(
@@ -250,10 +244,9 @@ async fn list_tag_values_table_and_timestamp_and_state_pred_state_col() {
 #[tokio::test]
 async fn list_tag_values_table_and_timestamp_and_state_pred_state_col_no_rows() {
     let tag_name = "state";
-    let predicate = PredicateBuilder::default()
+    let predicate = Predicate::default()
         .timestamp_range(1, 300) // filters out the NY row
-        .add_expr(col("state").eq(lit("NY"))) // state=NY
-        .build();
+        .add_expr(col("state").eq(lit("NY"))); // state=NY
     let predicate = InfluxRpcPredicate::new_table("o2", predicate);
     let expected_tag_keys = vec![];
 
@@ -269,10 +262,9 @@ async fn list_tag_values_table_and_timestamp_and_state_pred_state_col_no_rows() 
 #[tokio::test]
 async fn list_tag_values_measurement_pred() {
     let tag_name = "state";
-    let predicate = PredicateBuilder::default()
+    let predicate = Predicate::default()
         .timestamp_range(1, 600) // filters out the NY row
-        .add_expr(col("_measurement").not_eq(lit("o2")))
-        .build();
+        .add_expr(col("_measurement").not_eq(lit("o2")));
     let predicate = InfluxRpcPredicate::new(None, predicate);
     let expected_tag_keys = vec!["CA", "MA"];
 
@@ -288,7 +280,7 @@ async fn list_tag_values_measurement_pred() {
 #[tokio::test]
 async fn list_tag_values_measurement_pred_and_or() {
     let tag_name = "city";
-    let predicate = PredicateBuilder::default()
+    let predicate = Predicate::default()
         .timestamp_range(1, 600) // filters out the NY row
         // since there is an 'OR' in this predicate, can't answer
         // with metadata alone
@@ -297,8 +289,7 @@ async fn list_tag_values_measurement_pred_and_or() {
             col("_measurement")
                 .eq(lit("o2"))
                 .or(col("temp").gt(lit(70.0))),
-        )
-        .build();
+        );
     let predicate = InfluxRpcPredicate::new(None, predicate);
     let expected_tag_keys = vec!["Boston", "LA", "NYC"];
 
@@ -342,11 +333,10 @@ async fn list_tag_values_field_col_on_tag() {
 #[tokio::test]
 async fn list_tag_values_field_col_does_not_exist() {
     let tag_name = "state";
-    let predicate = PredicateBuilder::default()
+    let predicate = Predicate::default()
         .timestamp_range(0, 1000) // get all rows
         // since this field doesn't exist this predicate should match no values
-        .add_expr(col("_field").eq(lit("not_a_column")))
-        .build();
+        .add_expr(col("_field").eq(lit("not_a_column")));
     let predicate = InfluxRpcPredicate::new(None, predicate);
     let expected_tag_keys = vec![];
 
@@ -362,11 +352,10 @@ async fn list_tag_values_field_col_does_not_exist() {
 #[tokio::test]
 async fn list_tag_values_field_col_does_exist() {
     let tag_name = "state";
-    let predicate = PredicateBuilder::default()
+    let predicate = Predicate::default()
         .timestamp_range(0, 1000) // get all rows
         // this field does exist (but only for rows with CA and MA, not NY)
-        .add_expr(col("_field").eq(lit("county")))
-        .build();
+        .add_expr(col("_field").eq(lit("county")));
     let predicate = InfluxRpcPredicate::new(None, predicate);
     let expected_tag_keys = vec!["MA", "CA"];
 
