@@ -331,6 +331,9 @@ jobs:
       RUSTFLAGS: "-C debuginfo=1"
       # https://github.com/rust-lang/cargo/issues/10280
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+      # The `2xlarge` resource class that we use has 32GB RAM but also 16 CPUs. This means we have 2GB RAM per core on
+      # avarage. At peak this is a bit tight, so lower the CPU count for cargo a bit.
+      CARGO_BUILD_JOBS: "12"
     steps:
       - checkout
       - rust_components
