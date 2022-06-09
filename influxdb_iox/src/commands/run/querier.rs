@@ -66,6 +66,9 @@ pub struct Config {
 
     #[clap(flatten)]
     pub(crate) querier_config: QuerierConfig,
+
+    #[clap(flatten)]
+    pub(crate) write_buffer_config: WriteBufferConfig,
 }
 
 pub async fn command(config: Config) -> Result<(), Error> {
@@ -101,6 +104,7 @@ pub async fn command(config: Config) -> Result<(), Error> {
     let write_buffer_config = WriteBufferConfig::new("iox-shared", None);
 
     let exec = Arc::new(Executor::new(num_threads));
+
     let server_type = create_querier_server_type(QuerierServerTypeArgs {
         common_state: &common_state,
         metric_registry: Arc::clone(&metric_registry),

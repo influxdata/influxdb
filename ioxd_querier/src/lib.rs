@@ -19,7 +19,10 @@ use querier::{
     create_ingester_connection, QuerierCatalogCache, QuerierDatabase, QuerierHandler,
     QuerierHandlerImpl, QuerierServer,
 };
+use router::sequencer::Sequencer;
+use sharder::JumpHash;
 use std::{
+    collections::BTreeSet,
     fmt::{Debug, Display},
     sync::Arc,
 };
@@ -151,7 +154,10 @@ pub struct QuerierServerTypeArgs<'a> {
 }
 
 #[derive(Debug, Error)]
-pub enum Error {}
+pub enum Error {
+    #[error("failed to initialise write buffer connection: {0}")]
+    WriteBuffer(#[from] write_buffer::core::WriteBufferError),
+}
 
 /// Instantiate a querier server
 pub async fn create_querier_server_type(
@@ -163,8 +169,32 @@ pub async fn create_querier_server_type(
         Arc::clone(&args.metric_registry),
         args.querier_config.ram_pool_bytes(),
     ));
+
     let ingester_connection =
         create_ingester_connection(args.ingester_addresses, Arc::clone(&catalog_cache));
+
+    let write_buffer = Arc::new(
+        args.write_buffer_config
+            .writing(
+                Arc::clone(&args.metric_registry),
+                args.common_state.trace_collector(),
+            )
+            .await?,
+    );
+    // Construct the (ordered) set of sequencers.
+    //
+    // The sort order must be deterministic in order for all nodes to shard to
+    // the same sequencers, therefore we type assert the returned set is of the
+    // ordered variety.
+    let shards: BTreeSet<_> = write_buffer.sequencer_ids();
+    //          ^ don't change this to an unordered set
+
+    let _sharder: JumpHash<_> = shards
+        .into_iter()
+        .map(|id| Sequencer::new(id as _, Arc::clone(&write_buffer), &args.metric_registry))
+        .map(Arc::new)
+        .collect();
+
     let database = Arc::new(QuerierDatabase::new(
         catalog_cache,
         Arc::clone(&args.metric_registry),

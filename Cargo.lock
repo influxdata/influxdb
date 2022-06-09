@@ -2156,6 +2156,7 @@ dependencies = [
  "rustyline",
  "schema",
  "serde_json",
+ "sharder",
  "snafu",
  "tempfile",
  "test_helpers",
@@ -2539,13 +2540,16 @@ dependencies = [
  "object_store",
  "parquet_file",
  "querier",
+ "router",
  "service_grpc_flight",
  "service_grpc_influxrpc",
+ "sharder",
  "thiserror",
  "tokio",
  "tonic",
  "trace",
  "workspace-hack",
+ "write_buffer",
 ]
 
 [[package]]
