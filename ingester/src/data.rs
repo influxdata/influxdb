@@ -507,6 +507,47 @@ pub struct NamespaceData {
     tables: RwLock<BTreeMap<String, Arc<tokio::sync::RwLock<TableData>>>>,
 
     table_count: U64Counter,
+
+    /// The sequence number being actively written, if any.
+    ///
+    /// This is used to know when a sequence number is only partially
+    /// buffered for readability reporting. For example, in the
+    /// following diagram a write for SequenceNumber 10 is only
+    /// partially readable because it has been written into partitions
+    /// A and B but not yet C. The max buffered number on each
+    /// PartitionData is not sufficient to determine if the write is
+    /// complete.
+    ///
+    /// ```text
+    /// ╔═══════════════════════════════════════════════╗
+    /// ║                                               ║   DML Operation (write)
+    /// ║  ┏━━━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━━┓  ║   SequenceNumber = 10
+    /// ║  ┃ Data for C  ┃ Data for B  ┃ Data for A  ┃  ║
+    /// ║  ┗━━━━━━━━━━━━━┻━━━━━━━━━━━━━┻━━━━━━━━━━━━━┛  ║
+    /// ║         │             │             │         ║
+    /// ╚═══════════════════════╬═════════════╬═════════╝
+    ///           │             │             │           ┌──────────────────────────────────┐
+    ///                         │             │           │           Partition A            │
+    ///           │             │             └──────────▶│        max buffered = 10         │
+    ///                         │                         └──────────────────────────────────┘
+    ///           │             │
+    ///                         │                         ┌──────────────────────────────────┐
+    ///           │             │                         │           Partition B            │
+    ///                         └────────────────────────▶│        max buffered = 10         │
+    ///           │                                       └──────────────────────────────────┘
+    ///
+    ///           │
+    ///                                                   ┌──────────────────────────────────┐
+    ///           │                                       │           Partition C            │
+    ///            ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ▶│         max buffered = 7         │
+    ///                                                   └──────────────────────────────────┘
+    ///           Write is partially buffered. It has been
+    ///            written to Partitions A and B, but not
+    ///                  yet written to Partition C
+    ///                                                               PartitionData
+    ///                                                       (Ingester state per partition)
+    ///```
+    buffering_sequence_number: RwLock<Option<SequenceNumber>>,
 }
 
 impl NamespaceData {
@@ -523,6 +564,7 @@ impl NamespaceData {
             namespace_id,
             tables: Default::default(),
             table_count,
+            buffering_sequence_number: RwLock::new(None),
         }
     }
 
@@ -536,6 +578,7 @@ impl NamespaceData {
             namespace_id,
             tables: RwLock::new(tables),
             table_count: Default::default(),
+            buffering_sequence_number: RwLock::new(None),
         }
     }
 
@@ -558,6 +601,13 @@ impl NamespaceData {
             .sequence_number;
         let sequence_number = i64::try_from(sequence_number).expect("sequence out of bounds");
         let sequence_number = SequenceNumber::new(sequence_number);
+
+        // Note that this namespace is actively writing this sequence
+        // number. Since there is no namespace wide lock held during a
+        // write, this number is used to detect and update reported
+        // progress during a write
+        let _sequence_number_guard =
+            ScopedSequenceNumber::new(sequence_number, &self.buffering_sequence_number);
 
         match dml_operation {
             DmlOperation::Write(write) => {
@@ -726,12 +776,50 @@ impl NamespaceData {
     async fn progress(&self) -> SequencerProgress {
         let tables: Vec<_> = self.tables.read().values().map(Arc::clone).collect();
 
-        let mut progress = SequencerProgress::new();
+        // Consolidate progtress across partitions.
+        let mut progress = SequencerProgress::new()
+            // Properly account for any sequence number that is
+            // actively buffering and thus not yet completely
+            // readable.
+            .actively_buffering(*self.buffering_sequence_number.read());
+
         for table_data in tables {
             progress = progress.combine(table_data.read().await.progress())
         }
-
         progress
+    }
+}
+
+/// RAAI struct that sets buffering sequence number on creation and clears it on free
+struct ScopedSequenceNumber<'a> {
+    sequence_number: SequenceNumber,
+    buffering_sequence_number: &'a RwLock<Option<SequenceNumber>>,
+}
+
+impl<'a> ScopedSequenceNumber<'a> {
+    fn new(
+        sequence_number: SequenceNumber,
+        buffering_sequence_number: &'a RwLock<Option<SequenceNumber>>,
+    ) -> Self {
+        *buffering_sequence_number.write() = Some(sequence_number);
+
+        Self {
+            sequence_number,
+            buffering_sequence_number,
+        }
+    }
+}
+
+impl<'a> Drop for ScopedSequenceNumber<'a> {
+    fn drop(&mut self) {
+        // clear write on drop
+        let mut buffering_sequence_number = self.buffering_sequence_number.write();
+        assert_eq!(
+            *buffering_sequence_number,
+            Some(self.sequence_number),
+            "multiple operations are being buffered concurrently"
+        );
+        *buffering_sequence_number = None;
     }
 }
 
@@ -1699,7 +1787,6 @@ mod tests {
             lines_to_batches("mem foo=1 10", 0).unwrap(),
             DmlMeta::sequenced(Sequence::new(1, 1), ignored_ts, None, 50),
         );
-        // drop repos so the mem catalog won't deadlock.
         let schema = validate_or_insert_schema(w1.tables(), &schema, repos.deref_mut())
             .await
             .unwrap()
@@ -1715,6 +1802,7 @@ mod tests {
             .unwrap()
             .unwrap();
 
+        // drop repos so the mem catalog won't deadlock.
         std::mem::drop(repos);
         let w3 = DmlWrite::new(
             "foo",
@@ -1738,16 +1826,10 @@ mod tests {
             .await
             .unwrap();
 
-        // check progresses
-        let progresses = data.progresses(vec![kafka_partition]).await;
-        let mut expected_progresses = BTreeMap::new();
-        expected_progresses.insert(
-            kafka_partition,
-            SequencerProgress::new()
-                .with_buffered(SequenceNumber::new(1))
-                .with_buffered(SequenceNumber::new(2)),
-        );
-        assert_eq!(progresses, expected_progresses);
+        let expected_progress = SequencerProgress::new()
+            .with_buffered(SequenceNumber::new(1))
+            .with_buffered(SequenceNumber::new(2));
+        assert_progress(&data, kafka_partition, expected_progress).await;
 
         let sd = data.sequencers.get(&sequencer1.id).unwrap();
         let n = sd.namespace("foo").unwrap();
@@ -1823,15 +1905,10 @@ mod tests {
         );
 
         // check progresses after persist
-        let progresses = data.progresses(vec![kafka_partition]).await;
-        let mut expected_progresses = BTreeMap::new();
-        expected_progresses.insert(
-            kafka_partition,
-            SequencerProgress::new()
-                .with_buffered(SequenceNumber::new(1))
-                .with_persisted(SequenceNumber::new(2)),
-        );
-        assert_eq!(progresses, expected_progresses);
+        let expected_progress = SequencerProgress::new()
+            .with_buffered(SequenceNumber::new(1))
+            .with_persisted(SequenceNumber::new(2));
+        assert_progress(&data, kafka_partition, expected_progress).await;
     }
 
     // Test deletes mixed with writes on a single parittion
@@ -2352,5 +2429,19 @@ mod tests {
                 .tombstone_max_sequence_number(),
             Some(SequenceNumber::new(2)),
         );
+    }
+
+    /// Verifies that the progress in data is the same as expected_progress
+    async fn assert_progress(
+        data: &IngesterData,
+        kafka_partition: KafkaPartition,
+        expected_progress: SequencerProgress,
+    ) {
+        let progresses = data.progresses(vec![kafka_partition]).await;
+        let expected_progresses = [(kafka_partition, expected_progress)]
+            .into_iter()
+            .collect::<BTreeMap<_, _>>();
+
+        assert_eq!(progresses, expected_progresses);
     }
 }

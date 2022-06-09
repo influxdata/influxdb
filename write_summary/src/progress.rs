@@ -22,6 +22,12 @@ pub struct SequencerProgress {
 
     /// Largest sequence number of data that has been written to parquet
     max_persisted: Option<SequenceNumber>,
+
+    /// The sequence number that is actively buffering, if any.  The
+    /// actively buffering sequence number is not yet completely
+    /// buffered to all partitions, and thus is excluded from the
+    /// min/max buffered calculation.
+    actively_buffering: Option<SequenceNumber>,
 }
 
 impl SequencerProgress {
@@ -31,6 +37,13 @@ impl SequencerProgress {
 
     /// Note that `sequence_number` is buffered
     pub fn with_buffered(mut self, sequence_number: SequenceNumber) -> Self {
+        // clamp if there is any actively buffering operation
+        let sequence_number = if let Some(v) = clamp(sequence_number, self.actively_buffering) {
+            v
+        } else {
+            return self;
+        };
+
         self.min_buffered = Some(
             self.min_buffered
                 .take()
@@ -43,6 +56,14 @@ impl SequencerProgress {
                 .map(|cur| cur.max(sequence_number))
                 .unwrap_or(sequence_number),
         );
+        self
+    }
+
+    /// Note that the specified sequence number is still actively
+    /// buffering, and adjusting all subsequent sequence numbers
+    /// accordingly.
+    pub fn actively_buffering(mut self, sequence_number: Option<SequenceNumber>) -> Self {
+        self.actively_buffering = sequence_number;
         self
     }
 
@@ -117,6 +138,28 @@ impl SequencerProgress {
         } else {
             updated
         }
+    }
+}
+
+// Ensures that `buffered` is less than `actively_buffering`,
+// returning the new buffered value
+fn clamp(
+    buffered: SequenceNumber,
+    actively_buffering: Option<SequenceNumber>,
+) -> Option<SequenceNumber> {
+    let completed_buffering = if let Some(val) = actively_buffering {
+        // returns `None` if no sequence number has completed buffering yet
+        let min_sequence = (val.get() as u64).checked_sub(1)?;
+        SequenceNumber::new(min_sequence as i64)
+    } else {
+        return Some(buffered);
+    };
+
+    if buffered > completed_buffering {
+        Some(completed_buffering)
+    } else {
+        // no adjustment needed
+        Some(buffered)
     }
 }
 
@@ -249,5 +292,114 @@ mod tests {
             .with_persisted(eq);
 
         assert_eq!(progress1.combine(progress2), expected);
+    }
+
+    #[test]
+    fn actively_buffering() {
+        let num0 = SequenceNumber::new(0);
+        let num1 = SequenceNumber::new(1);
+        let num2 = SequenceNumber::new(2);
+
+        #[derive(Debug)]
+        struct Expected {
+            min_buffered: Option<SequenceNumber>,
+            max_buffered: Option<SequenceNumber>,
+        }
+
+        let cases = vec![
+            // No buffering
+            (
+                SequencerProgress::new()
+                    .actively_buffering(None)
+                    .with_buffered(num1)
+                    .with_buffered(num2),
+                Expected {
+                    min_buffered: Some(num1),
+                    max_buffered: Some(num2),
+                },
+            ),
+            // actively buffering num2
+            (
+                SequencerProgress::new()
+                    .actively_buffering(Some(num2))
+                    .with_buffered(num1)
+                    .with_buffered(num2),
+                Expected {
+                    min_buffered: Some(num1),
+                    max_buffered: Some(num1),
+                },
+            ),
+            // actively buffering only one
+            (
+                SequencerProgress::new()
+                    .actively_buffering(Some(num1))
+                    .with_buffered(num1),
+                Expected {
+                    min_buffered: Some(num0),
+                    max_buffered: Some(num0),
+                },
+            ),
+            // actively buffering, haven't buffed any yet
+            (
+                SequencerProgress::new()
+                    .actively_buffering(Some(num1))
+                    .with_buffered(num0),
+                Expected {
+                    min_buffered: Some(num0),
+                    max_buffered: Some(num0),
+                },
+            ),
+            // actively buffering, haven't buffered any
+            (
+                SequencerProgress::new().actively_buffering(Some(num0)),
+                Expected {
+                    min_buffered: None,
+                    max_buffered: None,
+                },
+            ),
+            // actively buffering partially buffered
+            (
+                SequencerProgress::new()
+                    .actively_buffering(Some(num0))
+                    .with_buffered(num0),
+                Expected {
+                    min_buffered: None,
+                    max_buffered: None,
+                },
+            ),
+        ];
+
+        for (progress, expected) in cases {
+            println!("Comparing {:?} to {:?}", progress, expected);
+            assert_eq!(
+                progress.min_buffered, expected.min_buffered,
+                "min buffered mismatch"
+            );
+            assert_eq!(
+                progress.max_buffered, expected.max_buffered,
+                "max buffered mismatch"
+            );
+            assert_eq!(progress.max_persisted, None, "unexpected persisted");
+        }
+    }
+
+    #[test]
+    fn test_clamp() {
+        let num0 = SequenceNumber::new(0);
+        let num1 = SequenceNumber::new(1);
+        let num2 = SequenceNumber::new(2);
+
+        assert_eq!(clamp(num0, None), Some(num0));
+
+        // num0 hasn't completed buffering yet
+        assert_eq!(clamp(num0, Some(num0)), None);
+
+        assert_eq!(clamp(num1, Some(num0)), None);
+        assert_eq!(clamp(num1, Some(num1)), Some(num0));
+        assert_eq!(clamp(num1, Some(num2)), Some(num1));
+
+        assert_eq!(clamp(num2, Some(num0)), None);
+        assert_eq!(clamp(num2, Some(num1)), Some(num0));
+        assert_eq!(clamp(num2, Some(num2)), Some(num1));
     }
 }
