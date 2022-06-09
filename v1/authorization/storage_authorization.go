@@ -71,7 +71,7 @@ func (s *Store) CreateAuthorization(ctx context.Context, tx kv.Tx, a *influxdb.A
 
 	ts := tenant.NewStore(s.kvStore)
 	for _, p := range a.Permissions {
-		if p.Resource.ID == nil {
+		if p.Resource.ID == nil || p.Resource.Type != influxdb.BucketsResourceType {
 			continue
 		}
 		_, err := ts.GetBucket(ctx, tx, *p.Resource.ID)
