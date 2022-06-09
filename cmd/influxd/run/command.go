@@ -123,6 +123,8 @@ func (cmd *Command) Run(args ...string) error {
 	// If there was an error on startup when creating the logger, output it now.
 	if logErr != nil {
 		cmd.Logger.Error("Unable to configure logger", zap.Error(logErr))
+	} else {
+		logger.New(cmd.Stderr).Info("configured logger", zap.String("format", config.Logging.Format), zap.String("level", config.Logging.Level.String()))
 	}
 
 	// Write the PID file.
