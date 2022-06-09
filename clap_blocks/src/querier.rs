@@ -1,6 +1,5 @@
-use std::collections::BTreeSet;
-
 use snafu::Snafu;
+use std::collections::BTreeSet;
 
 #[derive(Debug, Snafu)]
 pub enum Error {

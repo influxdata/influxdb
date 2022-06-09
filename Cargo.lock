@@ -2526,6 +2526,7 @@ version = "0.1.0"
 dependencies = [
  "arrow-flight",
  "async-trait",
+ "clap_blocks",
  "data_types",
  "generated_types",
  "hyper",
@@ -2540,6 +2541,7 @@ dependencies = [
  "querier",
  "service_grpc_flight",
  "service_grpc_influxrpc",
+ "thiserror",
  "tokio",
  "tonic",
  "trace",
