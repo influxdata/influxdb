@@ -38,6 +38,13 @@ var (
 		Code: errors.EConflict,
 		Msg:  "token already exists",
 	}
+
+	// ErrBucketNotFound is used when attempting to create an authorization
+	// with a bucket id that does not exist
+	ErrBucketNotFound = &errors.Error{
+		Code: errors.ENotFound,
+		Msg:  "bucket not found when creating auth",
+	}
 )
 
 // ErrInvalidAuthIDError is used when a service was provided an invalid ID.

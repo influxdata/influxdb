@@ -3,6 +3,7 @@ package upgrade
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"sort"
 	"testing"
@@ -200,6 +201,19 @@ func TestUpgradeSecurity(t *testing.T) {
 				token:    oResp.Auth.Token,
 				orgID:    oResp.Auth.OrgID,
 				userID:   oResp.Auth.UserID,
+			}
+
+			for k, v := range tc.db2ids {
+				for i, id := range v {
+					b := &influxdb.Bucket{
+						ID:    id,
+						Name:  fmt.Sprintf("%s_%d", k, id),
+						OrgID: targetOptions.orgID,
+					}
+					err := tenantSvc.CreateBucket(context.Background(), b)
+					require.NoError(t, err)
+					tc.db2ids[k][i] = b.ID
+				}
 			}
 
 			// fill in expected permissions now that we know IDs
