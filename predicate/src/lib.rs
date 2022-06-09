@@ -142,8 +142,7 @@ impl Predicate {
             return None;
         }
 
-        let mut pred = Self::default();
-        pred.merge_delete_predicates(delete_predicates);
+        let pred = Self::default().with_delete_predicates(delete_predicates);
 
         // Make a conjunctive expression of the pred.exprs
         let mut val = None;
@@ -161,7 +160,7 @@ impl Predicate {
     /// Since we want to eliminate data filtered by the delete predicates,
     /// they are first converted into their negated form: NOT(delete_predicate)
     /// then added/merged into the selection one
-    pub fn merge_delete_predicates<S>(&mut self, delete_predicates: &[S])
+    pub fn with_delete_predicates<S>(mut self, delete_predicates: &[S]) -> Self
     where
         S: AsRef<Self>,
     {
@@ -207,6 +206,7 @@ impl Predicate {
                 self.exprs.push(e);
             }
         }
+        self
     }
 
     /// Removes the timestamp range from this predicate, if the range

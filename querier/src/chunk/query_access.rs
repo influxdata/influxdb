@@ -137,8 +137,7 @@ impl QueryChunk for QuerierParquetChunk {
         ctx.set_metadata("delete_predicates", delete_predicates.len() as i64);
 
         // merge the negated delete predicates into the select predicate
-        let mut pred_with_deleted_exprs = predicate.clone();
-        pred_with_deleted_exprs.merge_delete_predicates(&delete_predicates);
+        let pred_with_deleted_exprs = predicate.clone().with_delete_predicates(&delete_predicates);
         debug!(?pred_with_deleted_exprs, "Merged negated predicate");
 
         ctx.set_metadata("predicate", format!("{}", &pred_with_deleted_exprs));
@@ -326,8 +325,7 @@ impl QueryChunk for QuerierRBChunk {
         ctx.set_metadata("delete_predicates", delete_predicates.len() as i64);
 
         // merge the negated delete predicates into the select predicate
-        let mut pred_with_deleted_exprs = predicate.clone();
-        pred_with_deleted_exprs.merge_delete_predicates(&delete_predicates);
+        let pred_with_deleted_exprs = predicate.clone().with_delete_predicates(&delete_predicates);
         debug!(?pred_with_deleted_exprs, "Merged negated predicate");
 
         ctx.set_metadata("predicate", format!("{}", &pred_with_deleted_exprs));
