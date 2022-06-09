@@ -2,59 +2,34 @@ use super::DmlHandler;
 use async_trait::async_trait;
 use data_types::{DatabaseName, DeletePredicate};
 use iox_time::{SystemProvider, TimeProvider};
-use metric::{Metric, U64Histogram, U64HistogramOptions};
+use metric::{DurationHistogram, Metric};
 use trace::{ctx::SpanContext, span::SpanRecorder};
 
-/// An instrumentation decorator recording call latencies for [`DmlHandler`]
-/// implementations.
+/// An instrumentation decorator recording call latencies for [`DmlHandler`] implementations.
 ///
-/// Metrics are broken down by operation (write/delete) and result
-/// (success/error) with call latency reported in milliseconds.
+/// Metrics are broken down by operation (write/delete) and result (success/error).
 #[derive(Debug)]
 pub struct InstrumentationDecorator<T, P = SystemProvider> {
     name: &'static str,
     inner: T,
     time_provider: P,
 
-    write_success: U64Histogram,
-    write_error: U64Histogram,
+    write_success: DurationHistogram,
+    write_error: DurationHistogram,
 
-    delete_success: U64Histogram,
-    delete_error: U64Histogram,
+    delete_success: DurationHistogram,
+    delete_error: DurationHistogram,
 }
 
 impl<T> InstrumentationDecorator<T> {
     /// Wrap a new [`InstrumentationDecorator`] over `T` exposing metrics
     /// labelled with `handler=name`.
     pub fn new(name: &'static str, registry: &metric::Registry, inner: T) -> Self {
-        let buckets = || {
-            U64HistogramOptions::new([
-                5,
-                10,
-                20,
-                40,
-                80,
-                160,
-                320,
-                640,
-                1280,
-                2560,
-                5120,
-                10240,
-                20480,
-                u64::MAX,
-            ])
-        };
-
-        let write: Metric<U64Histogram> = registry.register_metric_with_options(
-            "dml_handler_write_duration_ms",
-            "write handler call duration in milliseconds",
-            buckets,
-        );
-        let delete: Metric<U64Histogram> = registry.register_metric_with_options(
-            "dml_handler_delete_duration_ms",
-            "delete handler call duration in milliseconds",
-            buckets,
+        let write: Metric<DurationHistogram> =
+            registry.register_metric("dml_handler_write_duration", "write handler call duration");
+        let delete: Metric<DurationHistogram> = registry.register_metric(
+            "dml_handler_delete_duration",
+            "delete handler call duration",
         );
 
         let write_success = write.recorder(&[("handler", name), ("result", "success")]);
@@ -106,11 +81,11 @@ where
             match &res {
                 Ok(_) => {
                     span_recorder.ok("success");
-                    self.write_success.record(delta.as_millis() as _)
+                    self.write_success.record(delta)
                 }
                 Err(e) => {
                     span_recorder.error(e.to_string());
-                    self.write_error.record(delta.as_millis() as _)
+                    self.write_error.record(delta)
                 }
             };
         }
@@ -143,11 +118,11 @@ where
             match &res {
                 Ok(_) => {
                     span_recorder.ok("success");
-                    self.delete_success.record(delta.as_millis() as _)
+                    self.delete_success.record(delta)
                 }
                 Err(e) => {
                     span_recorder.error(e.to_string());
-                    self.delete_error.record(delta.as_millis() as _)
+                    self.delete_error.record(delta)
                 }
             };
         }
@@ -175,7 +150,7 @@ mod tests {
         result: &'static str,
     ) {
         let histogram = metrics
-            .get_instrument::<Metric<U64Histogram>>(metric_name)
+            .get_instrument::<Metric<DurationHistogram>>(metric_name)
             .expect("failed to read metric")
             .get_observer(&Attributes::from(&[
                 ("handler", HANDLER_NAME),
@@ -226,7 +201,7 @@ mod tests {
             .await
             .expect("inner handler configured to succeed");
 
-        assert_metric_hit(&*metrics, "dml_handler_write_duration_ms", "success");
+        assert_metric_hit(&*metrics, "dml_handler_write_duration", "success");
         assert_trace(traces, SpanStatus::Ok);
     }
 
@@ -251,7 +226,7 @@ mod tests {
 
         assert_matches!(err, DmlError::DatabaseNotFound(_));
 
-        assert_metric_hit(&*metrics, "dml_handler_write_duration_ms", "error");
+        assert_metric_hit(&*metrics, "dml_handler_write_duration", "error");
         assert_trace(traces, SpanStatus::Err);
     }
 
@@ -276,7 +251,7 @@ mod tests {
             .await
             .expect("inner handler configured to succeed");
 
-        assert_metric_hit(&*metrics, "dml_handler_delete_duration_ms", "success");
+        assert_metric_hit(&*metrics, "dml_handler_delete_duration", "success");
         assert_trace(traces, SpanStatus::Ok);
     }
 
@@ -304,7 +279,7 @@ mod tests {
             .await
             .expect_err("inner handler configured to fail");
 
-        assert_metric_hit(&*metrics, "dml_handler_delete_duration_ms", "error");
+        assert_metric_hit(&*metrics, "dml_handler_delete_duration", "error");
         assert_trace(traces, SpanStatus::Err);
     }
 }

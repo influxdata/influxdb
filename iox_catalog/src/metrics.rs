@@ -13,7 +13,7 @@ use data_types::{
     SequencerId, Table, TableId, TablePartition, Timestamp, Tombstone, TombstoneId,
 };
 use iox_time::{SystemProvider, TimeProvider};
-use metric::{Metric, U64Histogram, U64HistogramOptions};
+use metric::{DurationHistogram, Metric};
 use std::{fmt::Debug, sync::Arc};
 use uuid::Uuid;
 
@@ -21,7 +21,7 @@ use uuid::Uuid;
 /// transactional variant) with instrumentation that emits latency histograms
 /// for each method.
 ///
-/// Values are recorded under the `catalog_op_duration_ms` metric, labelled by
+/// Values are recorded under the `catalog_op_duration` metric, labelled by
 /// operation name and result (success/error).
 #[derive(Debug)]
 pub struct MetricDecorator<T, P = SystemProvider> {
@@ -149,14 +149,9 @@ macro_rules! decorate {
 
             $(
                 async fn $method(&mut self, $($arg : $t),*) -> Result<$out> {
-                    let buckets = || {
-                        U64HistogramOptions::new([5, 10, 20, 40, 80, 160, 320, 640, 1280, 2560, 5120, u64::MAX])
-                    };
-
-                    let observer: Metric<U64Histogram> = self.metrics.register_metric_with_options(
-                        "catalog_op_duration_ms",
-                        "catalog call duration in milliseconds",
-                        buckets,
+                    let observer: Metric<DurationHistogram> = self.metrics.register_metric(
+                        "catalog_op_duration",
+                        "catalog call duration",
                     );
 
                     let t = self.time_provider.now();
@@ -169,7 +164,7 @@ macro_rules! decorate {
                             Ok(_) => "success",
                             Err(_) => "error",
                         };
-                        observer.recorder(&[("op", $metric), ("result", tag)]).record(delta.as_millis() as _);
+                        observer.recorder(&[("op", $metric), ("result", tag)]).record(delta);
                     }
 
                     res

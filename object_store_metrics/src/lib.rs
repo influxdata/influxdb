@@ -11,7 +11,7 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use futures::{stream::BoxStream, Stream, StreamExt};
 use iox_time::{SystemProvider, Time, TimeProvider};
-use metric::{Metric, U64Counter, U64Histogram, U64HistogramOptions};
+use metric::{DurationHistogram, Metric, U64Counter};
 use pin_project::{pin_project, pinned_drop};
 
 use object_store::{path::Path, GetResult, ListResult, ObjectMeta, ObjectStore, Result};
@@ -70,19 +70,19 @@ pub struct ObjectStoreMetrics {
     inner: Arc<dyn ObjectStore>,
     time_provider: Arc<dyn TimeProvider>,
 
-    put_success_duration_ms: U64Histogram,
-    put_error_duration_ms: U64Histogram,
+    put_success_duration: DurationHistogram,
+    put_error_duration: DurationHistogram,
     put_bytes: U64Counter,
 
-    get_success_duration_ms: U64Histogram,
-    get_error_duration_ms: U64Histogram,
+    get_success_duration: DurationHistogram,
+    get_error_duration: DurationHistogram,
     get_bytes: U64Counter,
 
-    delete_success_duration_ms: U64Histogram,
-    delete_error_duration_ms: U64Histogram,
+    delete_success_duration: DurationHistogram,
+    delete_error_duration: DurationHistogram,
 
-    list_success_duration_ms: U64Histogram,
-    list_error_duration_ms: U64Histogram,
+    list_success_duration: DurationHistogram,
+    list_error_duration: DurationHistogram,
 }
 
 impl ObjectStoreMetrics {
@@ -92,25 +92,6 @@ impl ObjectStoreMetrics {
         time_provider: Arc<dyn TimeProvider>,
         registry: &metric::Registry,
     ) -> Self {
-        let buckets = || {
-            U64HistogramOptions::new([
-                5,
-                10,
-                20,
-                40,
-                80,
-                160,
-                320,
-                640,
-                1280,
-                2560,
-                5120,
-                10240,
-                20480,
-                u64::MAX,
-            ])
-        };
-
         // Byte counts up/down
         let bytes = registry.register_metric::<U64Counter>(
             "object_store_transfer_bytes",
@@ -120,10 +101,9 @@ impl ObjectStoreMetrics {
         let get_bytes = bytes.recorder(&[("op", "get")]);
 
         // Call durations broken down by op & result
-        let duration: Metric<U64Histogram> = registry.register_metric_with_options(
-            "object_store_op_duration_ms",
-            "object store operation duration in milliseconds",
-            buckets,
+        let duration: Metric<DurationHistogram> = registry.register_metric(
+            "object_store_op_duration",
+            "object store operation duration",
         );
         let put_success_duration = duration.recorder(&[("op", "put"), ("result", "success")]);
         let put_error_duration = duration.recorder(&[("op", "put"), ("result", "error")]);
@@ -138,19 +118,19 @@ impl ObjectStoreMetrics {
             inner,
             time_provider,
 
-            put_success_duration_ms: put_success_duration,
-            put_error_duration_ms: put_error_duration,
+            put_success_duration,
+            put_error_duration,
             put_bytes,
 
             get_bytes,
-            get_success_duration_ms: get_success_duration,
-            get_error_duration_ms: get_error_duration,
+            get_success_duration,
+            get_error_duration,
 
-            delete_success_duration_ms: delete_success_duration,
-            delete_error_duration_ms: delete_error_duration,
+            delete_success_duration,
+            delete_error_duration,
 
-            list_success_duration_ms: list_success_duration,
-            list_error_duration_ms: list_error_duration,
+            list_success_duration,
+            list_error_duration,
         }
     }
 }
@@ -174,8 +154,8 @@ impl ObjectStore for ObjectStoreMetrics {
         // if it happens.
         if let Some(delta) = self.time_provider.now().checked_duration_since(t) {
             match &res {
-                Ok(_) => self.put_success_duration_ms.record(delta.as_millis() as _),
-                Err(_) => self.put_error_duration_ms.record(delta.as_millis() as _),
+                Ok(_) => self.put_success_duration.record(delta),
+                Err(_) => self.put_error_duration.record(delta),
             };
         }
 
@@ -193,7 +173,7 @@ impl ObjectStore for ObjectStoreMetrics {
                 if let Ok(m) = file.metadata().await {
                     self.get_bytes.inc(m.len());
                     if let Some(d) = self.time_provider.now().checked_duration_since(started_at) {
-                        self.get_success_duration_ms.record(d.as_millis() as _)
+                        self.get_success_duration.record(d)
                     }
                 }
                 Ok(GetResult::File(file, path))
@@ -205,8 +185,8 @@ impl ObjectStore for ObjectStoreMetrics {
                     StreamMetricRecorder::new(
                         s,
                         started_at,
-                        self.get_success_duration_ms.clone(),
-                        self.get_error_duration_ms.clone(),
+                        self.get_success_duration.clone(),
+                        self.get_error_duration.clone(),
                         BytesStreamDelegate(self.get_bytes.clone()),
                     )
                     .fuse(),
@@ -215,7 +195,7 @@ impl ObjectStore for ObjectStoreMetrics {
             Err(e) => {
                 // Record the call duration in the error histogram.
                 if let Some(delta) = self.time_provider.now().checked_duration_since(started_at) {
-                    self.get_error_duration_ms.record(delta.as_millis() as _);
+                    self.get_error_duration.record(delta);
                 }
                 Err(e)
             }
@@ -236,10 +216,8 @@ impl ObjectStore for ObjectStoreMetrics {
         // if it happens.
         if let Some(delta) = self.time_provider.now().checked_duration_since(t) {
             match &res {
-                Ok(_) => self
-                    .delete_success_duration_ms
-                    .record(delta.as_millis() as _),
-                Err(_) => self.delete_error_duration_ms.record(delta.as_millis() as _),
+                Ok(_) => self.delete_success_duration.record(delta),
+                Err(_) => self.delete_error_duration.record(delta),
             };
         }
 
@@ -262,8 +240,8 @@ impl ObjectStore for ObjectStoreMetrics {
                     StreamMetricRecorder::new(
                         s,
                         started_at,
-                        self.list_success_duration_ms.clone(),
-                        self.list_error_duration_ms.clone(),
+                        self.list_success_duration.clone(),
+                        self.list_error_duration.clone(),
                         NopStreamDelegate::default(),
                     )
                     .fuse(),
@@ -272,7 +250,7 @@ impl ObjectStore for ObjectStoreMetrics {
             Err(e) => {
                 // Record the call duration in the error histogram.
                 if let Some(delta) = self.time_provider.now().checked_duration_since(started_at) {
-                    self.list_error_duration_ms.record(delta.as_millis() as _);
+                    self.list_error_duration.record(delta);
                 }
                 Err(e)
             }
@@ -288,8 +266,8 @@ impl ObjectStore for ObjectStoreMetrics {
         // if it happens.
         if let Some(delta) = self.time_provider.now().checked_duration_since(t) {
             match &res {
-                Ok(_) => self.list_success_duration_ms.record(delta.as_millis() as _),
-                Err(_) => self.list_error_duration_ms.record(delta.as_millis() as _),
+                Ok(_) => self.list_success_duration.record(delta),
+                Err(_) => self.list_error_duration.record(delta),
             };
         }
 
@@ -389,8 +367,8 @@ where
     // the `T`.
     metric_delegate: D,
 
-    success_duration_ms: U64Histogram,
-    error_duration_ms: U64Histogram,
+    success_duration: DurationHistogram,
+    error_duration: DurationHistogram,
 }
 
 impl<S, D> StreamMetricRecorder<S, D>
@@ -401,8 +379,8 @@ where
     fn new(
         stream: S,
         started_at: Time,
-        success_duration_ms: U64Histogram,
-        error_duration_ms: U64Histogram,
+        success_duration: DurationHistogram,
+        error_duration: DurationHistogram,
         metric_delegate: D,
     ) -> Self {
         let time_provider = SystemProvider::default();
@@ -420,8 +398,8 @@ where
             started_at,
             time_provider,
 
-            success_duration_ms,
-            error_duration_ms,
+            success_duration,
+            error_duration,
             metric_delegate,
         }
     }
@@ -459,8 +437,8 @@ where
                 // The stream has terminated - record the wall clock duration
                 // immediately.
                 let hist = match this.last_call_ok {
-                    true => this.success_duration_ms,
-                    false => this.error_duration_ms,
+                    true => this.success_duration,
+                    false => this.error_duration,
                 };
 
                 // Take the last_yielded_at option, marking metrics as emitted
@@ -471,7 +449,7 @@ where
                     .expect("no last_yielded_at value for fused stream")
                     .checked_duration_since(*this.started_at)
                 {
-                    hist.record(d.as_millis() as _)
+                    hist.record(d)
                 }
 
                 Poll::Ready(None)
@@ -498,12 +476,12 @@ where
         // therefore last_yielded_at is still Some).
         if let Some(last) = self.last_yielded_at {
             let hist = match self.last_call_ok {
-                true => &self.success_duration_ms,
-                false => &self.error_duration_ms,
+                true => &self.success_duration,
+                false => &self.error_duration,
             };
 
             if let Some(d) = last.checked_duration_since(self.started_at) {
-                hist.record(d.as_millis() as _)
+                hist.record(d)
             }
         }
     }
@@ -532,7 +510,7 @@ mod tests {
         attr: [(&'static str, &'static str); N],
     ) {
         let histogram = metrics
-            .get_instrument::<Metric<U64Histogram>>(name)
+            .get_instrument::<Metric<DurationHistogram>>(name)
             .expect("failed to read histogram")
             .get_observer(&Attributes::from(&attr))
             .expect("failed to get observer")
@@ -575,7 +553,7 @@ mod tests {
         assert_counter_value(&metrics, "object_store_transfer_bytes", [("op", "put")], 5);
         assert_histogram_hit(
             &metrics,
-            "object_store_op_duration_ms",
+            "object_store_op_duration",
             [("op", "put"), ("result", "success")],
         );
     }
@@ -598,7 +576,7 @@ mod tests {
         assert_counter_value(&metrics, "object_store_transfer_bytes", [("op", "put")], 5);
         assert_histogram_hit(
             &metrics,
-            "object_store_op_duration_ms",
+            "object_store_op_duration",
             [("op", "put"), ("result", "error")],
         );
     }
@@ -614,7 +592,7 @@ mod tests {
 
         assert_histogram_hit(
             &metrics,
-            "object_store_op_duration_ms",
+            "object_store_op_duration",
             [("op", "list"), ("result", "success")],
         );
     }
@@ -630,7 +608,7 @@ mod tests {
 
         assert_histogram_hit(
             &metrics,
-            "object_store_op_duration_ms",
+            "object_store_op_duration",
             [("op", "list"), ("result", "error")],
         );
     }
@@ -649,7 +627,7 @@ mod tests {
 
         assert_histogram_hit(
             &metrics,
-            "object_store_op_duration_ms",
+            "object_store_op_duration",
             [("op", "list"), ("result", "success")],
         );
     }
@@ -671,7 +649,7 @@ mod tests {
 
         assert_histogram_hit(
             &metrics,
-            "object_store_op_duration_ms",
+            "object_store_op_duration",
             [("op", "list"), ("result", "error")],
         );
     }
@@ -690,7 +668,7 @@ mod tests {
 
         assert_histogram_hit(
             &metrics,
-            "object_store_op_duration_ms",
+            "object_store_op_duration",
             [("op", "get"), ("result", "error")],
         );
     }
@@ -724,7 +702,7 @@ mod tests {
         assert_counter_value(&metrics, "object_store_transfer_bytes", [("op", "get")], 5);
         assert_histogram_hit(
             &metrics,
-            "object_store_op_duration_ms",
+            "object_store_op_duration",
             [("op", "get"), ("result", "success")],
         );
 
@@ -735,7 +713,7 @@ mod tests {
 
         assert_histogram_hit(
             &metrics,
-            "object_store_op_duration_ms",
+            "object_store_op_duration",
             [("op", "delete"), ("result", "success")],
         );
     }
@@ -763,7 +741,7 @@ mod tests {
         assert_counter_value(&metrics, "object_store_transfer_bytes", [("op", "get")], 5);
         assert_histogram_hit(
             &metrics,
-            "object_store_op_duration_ms",
+            "object_store_op_duration",
             [("op", "get"), ("result", "success")],
         );
     }
@@ -785,10 +763,7 @@ mod tests {
         let time_provider = SystemProvider::default();
 
         let metrics = Arc::new(metric::Registry::default());
-        let hist: Metric<U64Histogram> =
-            metrics.register_metric_with_options("wall_clock", "", || {
-                U64HistogramOptions::new([1, 100, u64::MAX])
-            });
+        let hist: Metric<DurationHistogram> = metrics.register_metric("wall_clock", "");
 
         let bytes = metrics
             .register_metric::<U64Counter>(
@@ -852,7 +827,7 @@ mod tests {
             .fetch()
             .buckets
             .iter()
-            .skip_while(|b| b.le < SLEEP.as_millis() as _) // Skip buckets less than the sleep duration
+            .skip_while(|b| b.le < SLEEP) // Skip buckets less than the sleep duration
             .fold(0, |acc, v| acc + v.count);
         assert_eq!(
             hit_count, 1,
@@ -887,10 +862,7 @@ mod tests {
         let time_provider = SystemProvider::default();
 
         let metrics = Arc::new(metric::Registry::default());
-        let hist: Metric<U64Histogram> =
-            metrics.register_metric_with_options("wall_clock", "", || {
-                U64HistogramOptions::new([1, 100, u64::MAX])
-            });
+        let hist: Metric<DurationHistogram> = metrics.register_metric("wall_clock", "");
 
         let bytes = metrics
             .register_metric::<U64Counter>(
@@ -955,10 +927,7 @@ mod tests {
         let time_provider = SystemProvider::default();
 
         let metrics = Arc::new(metric::Registry::default());
-        let hist: Metric<U64Histogram> =
-            metrics.register_metric_with_options("wall_clock", "", || {
-                U64HistogramOptions::new([1, 100, u64::MAX])
-            });
+        let hist: Metric<DurationHistogram> = metrics.register_metric("wall_clock", "");
 
         let bytes = metrics
             .register_metric::<U64Counter>(
@@ -1023,10 +992,7 @@ mod tests {
         let time_provider = SystemProvider::default();
 
         let metrics = Arc::new(metric::Registry::default());
-        let hist: Metric<U64Histogram> =
-            metrics.register_metric_with_options("wall_clock", "", || {
-                U64HistogramOptions::new([1, 100, u64::MAX])
-            });
+        let hist: Metric<DurationHistogram> = metrics.register_metric("wall_clock", "");
 
         let bytes = metrics
             .register_metric::<U64Counter>(
@@ -1096,10 +1062,7 @@ mod tests {
         let time_provider = SystemProvider::default();
 
         let metrics = Arc::new(metric::Registry::default());
-        let hist: Metric<U64Histogram> =
-            metrics.register_metric_with_options("wall_clock", "", || {
-                U64HistogramOptions::new([1, 100, u64::MAX])
-            });
+        let hist: Metric<DurationHistogram> = metrics.register_metric("wall_clock", "");
 
         let bytes = metrics
             .register_metric::<U64Counter>(
@@ -1145,10 +1108,7 @@ mod tests {
         let time_provider = SystemProvider::default();
 
         let metrics = Arc::new(metric::Registry::default());
-        let hist: Metric<U64Histogram> =
-            metrics.register_metric_with_options("wall_clock", "", || {
-                U64HistogramOptions::new([1, 100, u64::MAX])
-            });
+        let hist: Metric<DurationHistogram> = metrics.register_metric("wall_clock", "");
 
         let bytes = metrics
             .register_metric::<U64Counter>(

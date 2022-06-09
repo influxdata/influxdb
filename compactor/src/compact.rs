@@ -23,7 +23,7 @@ use iox_query::{
     QueryChunk,
 };
 use iox_time::TimeProvider;
-use metric::{Attributes, Metric, U64Counter, U64Gauge, U64Histogram, U64HistogramOptions};
+use metric::{Attributes, DurationHistogram, Metric, U64Counter, U64Gauge};
 use observability_deps::tracing::{debug, info, trace, warn};
 use parquet_file::{metadata::IoxMetadata, storage::ParquetStorage};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
@@ -191,7 +191,7 @@ pub struct Compactor {
     compaction_candidate_bytes_gauge: Metric<U64Gauge>,
 
     /// Histogram for tracking the time to compact a partition
-    compaction_duration_ms: Metric<U64Histogram>,
+    compaction_duration: Metric<DurationHistogram>,
 }
 
 impl Compactor {
@@ -230,14 +230,9 @@ impl Compactor {
             "Counter for level promotion from 0 to 1",
         );
 
-        // buckets for timing compact partition
-        let compaction_duration_buckets_ms =
-            || U64HistogramOptions::new([100, 1000, 5000, 10000, 30000, 60000, 360000, u64::MAX]);
-
-        let compaction_duration_ms: Metric<U64Histogram> = registry.register_metric_with_options(
-            "compactor_compact_partition_duration_ms",
-            "Compact partition duration in milliseconds",
-            compaction_duration_buckets_ms,
+        let compaction_duration: Metric<DurationHistogram> = registry.register_metric(
+            "compactor_compact_partition_duration",
+            "Compact partition duration",
         );
 
         Self {
@@ -254,7 +249,7 @@ impl Compactor {
             level_promotion_counter,
             compaction_candidate_gauge,
             compaction_candidate_bytes_gauge,
-            compaction_duration_ms,
+            compaction_duration,
         }
     }
 
@@ -540,8 +535,8 @@ impl Compactor {
         }
 
         if let Some(delta) = self.time_provider.now().checked_duration_since(start_time) {
-            let duration_ms = self.compaction_duration_ms.recorder(attributes.clone());
-            duration_ms.record(delta.as_millis() as _);
+            let duration = self.compaction_duration.recorder(attributes.clone());
+            duration.record(delta);
         }
 
         let compaction_counter = self.compaction_counter.recorder(attributes.clone());

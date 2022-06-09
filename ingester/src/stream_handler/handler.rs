@@ -4,7 +4,7 @@ use data_types::{KafkaPartition, SequenceNumber};
 use dml::DmlOperation;
 use futures::{pin_mut, FutureExt, StreamExt};
 use iox_time::{SystemProvider, TimeProvider};
-use metric::{Attributes, U64Counter, U64Gauge};
+use metric::{Attributes, DurationCounter, DurationGauge, U64Counter};
 use observability_deps::tracing::*;
 use std::{fmt::Debug, time::Duration};
 use tokio_util::sync::CancellationToken;
@@ -48,10 +48,10 @@ pub struct SequencedStreamHandler<I, O, T = SystemProvider> {
 
     // Metrics
     time_provider: T,
-    time_to_be_readable_ms: U64Gauge,
+    time_to_be_readable: DurationGauge,
 
     /// Duration of time ingest is paused at the request of the LifecycleManager
-    pause_duration_ms: U64Counter,
+    pause_duration: DurationCounter,
 
     /// Errors during op stream reading
     seq_unknown_sequence_number_count: U64Counter,
@@ -86,17 +86,18 @@ impl<I, O> SequencedStreamHandler<I, O> {
         skip_to_oldest_available: bool,
     ) -> Self {
         // TTBR
-        let time_to_be_readable_ms = metrics.register_metric::<U64Gauge>(
-            "ingester_ttbr_ms",
-            "duration of time between producer writing to consumer putting into queryable cache in \
-            milliseconds",
+        let time_to_be_readable = metrics.register_metric::<DurationGauge>(
+            "ingester_ttbr",
+            "duration of time between producer writing to consumer putting into queryable cache",
         ).recorder(metric_attrs(kafka_partition, &kafka_topic_name, None, false));
 
         // Lifecycle-driven ingest pause duration
-        let pause_duration_ms = metrics.register_metric::<U64Counter>(
-            "ingest_paused_duration_ms_total",
-            "duration of time ingestion has been paused by the lifecycle manager in milliseconds",
-        ).recorder(&[]);
+        let pause_duration = metrics
+            .register_metric::<DurationCounter>(
+                "ingest_paused_duration_total",
+                "duration of time ingestion has been paused by the lifecycle manager",
+            )
+            .recorder(&[]);
 
         // Error count metrics
         let ingest_errors = metrics.register_metric::<U64Counter>(
@@ -140,8 +141,8 @@ impl<I, O> SequencedStreamHandler<I, O> {
             sink,
             lifecycle_handle,
             time_provider: SystemProvider::default(),
-            time_to_be_readable_ms,
-            pause_duration_ms,
+            time_to_be_readable,
+            pause_duration,
             seq_unknown_sequence_number_count,
             seq_invalid_data_count,
             seq_unknown_error_count,
@@ -162,8 +163,8 @@ impl<I, O> SequencedStreamHandler<I, O> {
             sink: self.sink,
             lifecycle_handle: self.lifecycle_handle,
             time_provider: provider,
-            time_to_be_readable_ms: self.time_to_be_readable_ms,
-            pause_duration_ms: self.pause_duration_ms,
+            time_to_be_readable: self.time_to_be_readable,
+            pause_duration: self.pause_duration,
             seq_unknown_sequence_number_count: self.seq_unknown_sequence_number_count,
             seq_invalid_data_count: self.seq_invalid_data_count,
             seq_unknown_error_count: self.seq_unknown_error_count,
@@ -357,7 +358,7 @@ where
             if let Some(delta) =
                 produced_at.and_then(|ts| self.time_provider.now().checked_duration_since(ts))
             {
-                self.time_to_be_readable_ms.set(delta.as_millis() as u64);
+                self.time_to_be_readable.set(delta);
             }
 
             if should_pause {
@@ -385,8 +386,7 @@ where
             // While the actual sleep may be slightly longer than
             // INGEST_POLL_INTERVAL, it's not likely to be a useful
             // distinction in the metrics.
-            self.pause_duration_ms
-                .inc(INGEST_POLL_INTERVAL.as_millis() as _);
+            self.pause_duration.inc(INGEST_POLL_INTERVAL);
 
             tokio::time::sleep(INGEST_POLL_INTERVAL).await;
         }
@@ -645,7 +645,7 @@ mod tests {
 
                     // Assert the TTBR metric value
                     let ttbr = metrics
-                        .get_instrument::<Metric<U64Gauge>>("ingester_ttbr_ms")
+                        .get_instrument::<Metric<DurationGauge>>("ingester_ttbr")
                         .expect("did not find ttbr metric")
                         .get_observer(&Attributes::from([
                             ("kafka_topic", TEST_KAFKA_TOPIC.into()),
@@ -653,7 +653,7 @@ mod tests {
                         ]))
                         .expect("did not match metric attributes")
                         .fetch();
-                    assert_eq!(ttbr, $want_ttbr);
+                    assert_eq!(ttbr, Duration::from_millis($want_ttbr));
 
                     // Assert any error metrics in the macro call
                     $(
