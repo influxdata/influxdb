@@ -249,7 +249,7 @@ use std::{
 };
 
 use iox_time::{Time, TimeProvider};
-use metric::U64Gauge;
+use metric::{U64Counter, U64Gauge};
 use parking_lot::{Mutex, MutexGuard};
 
 use super::{
@@ -460,6 +460,7 @@ where
     last_used: AddressableHeap<K, S, Time>,
     metric_count: U64Gauge,
     metric_usage: U64Gauge,
+    metric_evicted: U64Counter,
 }
 
 /// [Cache backend](CacheBackend) that wraps another backend and limits its resource usage.
@@ -512,11 +513,19 @@ where
                 "Resource usage of a given LRU cache pool member",
             )
             .recorder(&[("pool", pool.name), ("member", id), ("unit", S::unit())]);
+        let metric_evicted = pool
+            .metric_registry
+            .register_metric::<U64Counter>(
+                "cache_lru_member_evicted",
+                "Number of entries that were evicted from a given LRU cache pool member",
+            )
+            .recorder(&[("pool", pool.name), ("member", id)]);
         let inner = Arc::new(Mutex::new(LruBackendInner {
             inner_backend,
             last_used: AddressableHeap::new(),
             metric_count,
             metric_usage,
+            metric_evicted,
         }));
 
         pool.inner.lock().register_member(
@@ -729,6 +738,7 @@ where
         self.inner.inner_backend.remove(&k);
         self.inner.metric_count.dec(1);
         self.inner.metric_usage.dec(s.into());
+        self.inner.metric_evicted.inc(1);
         s
     }
 }
@@ -1334,6 +1344,14 @@ mod tests {
                 .unwrap(),
             &Observation::U64Gauge(0)
         );
+        assert_eq!(
+            reporter
+                .metric("cache_lru_member_evicted")
+                .unwrap()
+                .observation(&[("pool", "pool"), ("member", "id")])
+                .unwrap(),
+            &Observation::U64Counter(0)
+        );
 
         backend.set(String::from("a"), 1usize); // usage = 1
         backend.set(String::from("b"), 2usize); // usage = 3
@@ -1375,6 +1393,14 @@ mod tests {
                 .observation(&[("pool", "pool"), ("unit", "bytes"), ("member", "id")])
                 .unwrap(),
             &Observation::U64Gauge(6)
+        );
+        assert_eq!(
+            reporter
+                .metric("cache_lru_member_evicted")
+                .unwrap()
+                .observation(&[("pool", "pool"), ("member", "id")])
+                .unwrap(),
+            &Observation::U64Counter(1)
         );
     }
 
