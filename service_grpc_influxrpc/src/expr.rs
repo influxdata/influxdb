@@ -166,7 +166,7 @@ impl InfluxRpcPredicateBuilder {
     /// Sets the timestamp range
     pub fn set_range(mut self, range: Option<RPCTimestampRange>) -> Self {
         if let Some(range) = range {
-            self.inner = self.inner.timestamp_range(range.start, range.end)
+            self.inner = self.inner.with_range(range.start, range.end)
         }
         self
     }
@@ -310,7 +310,7 @@ fn convert_simple_node(
                 // add the table names as a predicate
                 return Ok(builder.tables(value_list));
             } else if tag_name.is_field() {
-                builder.inner = builder.inner.field_columns(value_list);
+                builder.inner = builder.inner.with_field_columns(value_list);
                 return Ok(builder);
             }
         }
@@ -318,7 +318,7 @@ fn convert_simple_node(
 
     // If no special case applies, fall back to generic conversion
     let expr = convert_node_to_expr(node)?;
-    builder.inner = builder.inner.add_expr(expr);
+    builder.inner = builder.inner.with_expr(expr);
 
     Ok(builder)
 }

@@ -115,7 +115,7 @@ async fn test_read_filter_data_exclusive_predicate() {
     let predicate = Predicate::new()
         // should not return the 350 row as predicate is
         // range.start <= ts < range.end
-        .timestamp_range(349, 350);
+        .with_range(349, 350);
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let expected_results = vec![];
@@ -127,7 +127,7 @@ async fn test_read_filter_data_exclusive_predicate() {
 async fn test_read_filter_data_inclusive_predicate() {
     let predicate = Predicate::new()
         // should return  350 row!
-        .timestamp_range(350, 351);
+        .with_range(350, 351);
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let expected_results = vec![
@@ -141,7 +141,7 @@ async fn test_read_filter_data_inclusive_predicate() {
 async fn test_read_filter_data_exact_predicate() {
     let predicate = Predicate::new()
         // should return  250 rows!
-        .timestamp_range(250, 251);
+        .with_range(250, 251);
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let expected_results = vec![
@@ -157,7 +157,7 @@ async fn test_read_filter_data_exact_predicate() {
 async fn test_read_filter_data_tag_predicate() {
     let predicate = Predicate::new()
         // region = region
-        .add_expr(col("region").eq(col("region")));
+        .with_expr(col("region").eq(col("region")));
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     // expect both series to be returned
@@ -173,7 +173,7 @@ async fn test_read_filter_data_tag_predicate() {
 async fn test_read_filter_invalid_predicate() {
     let predicate = Predicate::new()
         // region > 5 (region is a tag(string) column, so this predicate is invalid)
-        .add_expr(col("region").gt(lit(5i32)));
+        .with_expr(col("region").gt(lit(5i32)));
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let expected_error = "Error during planning: 'Dictionary(Int32, Utf8) > Int32' can't be evaluated because there isn't a common type to coerce the types to";
@@ -187,7 +187,7 @@ async fn test_read_filter_invalid_predicate_case() {
         // https://github.com/influxdata/influxdb_iox/issues/3635
         // model what happens when a field is treated like a tag
         // CASE WHEN system" IS NULL THEN '' ELSE system END = 5;
-        .add_expr(make_empty_tag_ref_expr("system").eq(lit(5i32)));
+        .with_expr(make_empty_tag_ref_expr("system").eq(lit(5i32)));
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let expected_error = "gRPC planner got error creating predicates: Error during planning: 'Utf8 = Int32' can't be evaluated because there isn't a common type to coerce the types to";
@@ -200,7 +200,7 @@ async fn test_read_filter_unknown_column_in_predicate() {
     let predicate = Predicate::new()
         // mystery_region is not a real column, so this predicate is
         // invalid but IOx should be able to handle it (and produce no results)
-        .add_expr(
+        .with_expr(
             col("baz")
                 .eq(lit(4i32))
                 .or(col("bar").and(col("mystery_region").gt(lit(5i32)))),
@@ -250,8 +250,8 @@ async fn test_read_filter_data_no_pred_with_delete_all() {
 async fn test_read_filter_data_filter() {
     // filter out one row in h20
     let predicate = Predicate::default()
-        .timestamp_range(200, 300)
-        .add_expr(col("state").eq(lit("CA"))); // state=CA
+        .with_range(200, 300)
+        .with_expr(col("state").eq(lit("CA"))); // state=CA
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let expected_results = vec![
@@ -267,8 +267,8 @@ async fn test_read_filter_data_filter() {
 
     // Same results via a != predicate.
     let predicate = Predicate::default()
-        .timestamp_range(200, 300)
-        .add_expr(col("state").not_eq(lit("MA"))); // state=CA
+        .with_range(200, 300)
+        .with_expr(col("state").not_eq(lit("MA"))); // state=CA
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     run_read_filter_test_case(TwoMeasurementsMultiSeries {}, predicate, expected_results).await;
@@ -278,8 +278,8 @@ async fn test_read_filter_data_filter() {
 async fn test_read_filter_data_filter_with_delete() {
     // filter out one row in h20 but the leftover row was deleted to nothing will be returned
     let predicate = Predicate::default()
-        .timestamp_range(200, 300)
-        .add_expr(col("state").eq(lit("CA"))); // state=CA
+        .with_range(200, 300)
+        .with_expr(col("state").eq(lit("CA"))); // state=CA
 
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
@@ -294,8 +294,8 @@ async fn test_read_filter_data_filter_with_delete() {
 
     // Same results via a != predicate.
     let predicate = Predicate::default()
-        .timestamp_range(200, 300)
-        .add_expr(col("state").not_eq(lit("MA"))); // state=CA
+        .with_range(200, 300)
+        .with_expr(col("state").not_eq(lit("MA"))); // state=CA
 
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
@@ -308,9 +308,9 @@ async fn test_read_filter_data_filter_with_delete() {
 
     // Use different predicate to have data returned
     let predicate = Predicate::default()
-        .timestamp_range(100, 300)
-        .add_expr(col("state").eq(lit("MA"))) // state=MA
-        .add_expr(col("_measurement").eq(lit("h2o")));
+        .with_range(100, 300)
+        .with_expr(col("state").eq(lit("MA"))) // state=MA
+        .with_expr(col("_measurement").eq(lit("h2o")));
 
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
@@ -330,8 +330,8 @@ async fn test_read_filter_data_filter_with_delete() {
 async fn test_read_filter_data_filter_fields() {
     // filter out one row in h20
     let predicate = Predicate::default()
-        .field_columns(vec!["other_temp"])
-        .add_expr(col("state").eq(lit("CA"))); // state=CA
+        .with_field_columns(vec!["other_temp"])
+        .with_expr(col("state").eq(lit("CA"))); // state=CA
 
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
@@ -349,8 +349,8 @@ async fn test_read_filter_data_filter_fields() {
 async fn test_read_filter_data_filter_measurement_pred() {
     // use an expr on table name to pick just the last row from o2
     let predicate = Predicate::default()
-        .timestamp_range(200, 400)
-        .add_expr(col("_measurement").eq(lit("o2")));
+        .with_range(200, 400)
+        .with_expr(col("_measurement").eq(lit("o2")));
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     // Only expect other_temp in this location
@@ -363,7 +363,7 @@ async fn test_read_filter_data_filter_measurement_pred() {
 
 #[tokio::test]
 async fn test_read_filter_data_pred_refers_to_non_existent_column() {
-    let predicate = Predicate::default().add_expr(col("tag_not_in_h20").eq(lit("foo")));
+    let predicate = Predicate::default().with_expr(col("tag_not_in_h20").eq(lit("foo")));
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let expected_results = vec![] as Vec<&str>;
@@ -373,7 +373,7 @@ async fn test_read_filter_data_pred_refers_to_non_existent_column() {
 
 #[tokio::test]
 async fn test_read_filter_data_pred_refers_to_non_existent_column_with_delete() {
-    let predicate = Predicate::default().add_expr(col("tag_not_in_h20").eq(lit("foo")));
+    let predicate = Predicate::default().with_expr(col("tag_not_in_h20").eq(lit("foo")));
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let expected_results = vec![] as Vec<&str>;
@@ -384,7 +384,7 @@ async fn test_read_filter_data_pred_refers_to_non_existent_column_with_delete() 
 #[tokio::test]
 async fn test_read_filter_data_pred_no_columns() {
     // predicate with no columns,
-    let predicate = Predicate::default().add_expr(lit("foo").eq(lit("foo")));
+    let predicate = Predicate::default().with_expr(lit("foo").eq(lit("foo")));
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let expected_results = vec![
@@ -398,7 +398,7 @@ async fn test_read_filter_data_pred_no_columns() {
 #[tokio::test]
 async fn test_read_filter_data_pred_no_columns_with_delete() {
     // predicate with no columns,
-    let predicate = Predicate::default().add_expr(lit("foo").eq(lit("foo")));
+    let predicate = Predicate::default().with_expr(lit("foo").eq(lit("foo")));
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let expected_results = vec![
@@ -412,7 +412,7 @@ async fn test_read_filter_data_pred_no_columns_with_delete() {
 #[tokio::test]
 async fn test_read_filter_data_pred_no_columns_with_delete_all() {
     // predicate with no columns,
-    let predicate = Predicate::default().add_expr(lit("foo").eq(lit("foo")));
+    let predicate = Predicate::default().with_expr(lit("foo").eq(lit("foo")));
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     // Only table disk has no deleted data
@@ -427,8 +427,8 @@ async fn test_read_filter_data_pred_no_columns_with_delete_all() {
 async fn test_read_filter_data_pred_refers_to_good_and_non_existent_columns() {
     // predicate with both a column that does and does not appear
     let predicate = Predicate::default()
-        .add_expr(col("state").eq(lit("MA")))
-        .add_expr(col("tag_not_in_h20").eq(lit("foo")));
+        .with_expr(col("state").eq(lit("MA")))
+        .with_expr(col("tag_not_in_h20").eq(lit("foo")));
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let expected_results = vec![] as Vec<&str>;
@@ -451,9 +451,9 @@ async fn test_read_filter_data_pred_refers_to_good_and_non_existent_columns() {
 #[tokio::test]
 async fn test_read_filter_data_pred_using_regex_match() {
     let predicate = Predicate::default()
-        .timestamp_range(200, 300)
+        .with_range(200, 300)
         // will match CA state
-        .build_regex_match_expr("state", "C.*");
+        .with_regex_match_expr("state", "C.*");
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let expected_results = vec![
@@ -466,9 +466,9 @@ async fn test_read_filter_data_pred_using_regex_match() {
 #[tokio::test]
 async fn test_read_filter_data_pred_using_regex_match_with_delete() {
     let predicate = Predicate::default()
-        .timestamp_range(200, 300)
+        .with_range(200, 300)
         // will match CA state
-        .build_regex_match_expr("state", "C.*");
+        .with_regex_match_expr("state", "C.*");
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     // the selected row was soft deleted
@@ -482,9 +482,9 @@ async fn test_read_filter_data_pred_using_regex_match_with_delete() {
 
     // Different predicate to have data returned
     let predicate = Predicate::default()
-        .timestamp_range(200, 400)
+        .with_range(200, 400)
         // will match CA state
-        .build_regex_match_expr("state", "C.*");
+        .with_regex_match_expr("state", "C.*");
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let expected_results = vec![
@@ -510,9 +510,9 @@ async fn test_read_filter_data_pred_using_regex_match_with_delete() {
 #[tokio::test]
 async fn test_read_filter_data_pred_using_regex_not_match() {
     let predicate = Predicate::default()
-        .timestamp_range(200, 300)
+        .with_range(200, 300)
         // will filter out any rows with a state that matches "CA"
-        .build_regex_not_match_expr("state", "C.*");
+        .with_regex_not_match_expr("state", "C.*");
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let expected_results = vec![
@@ -528,7 +528,7 @@ async fn test_read_filter_data_pred_using_regex_not_match() {
 async fn test_read_filter_data_pred_regex_escape() {
     let predicate = Predicate::default()
         // Came from InfluxQL like `SELECT value FROM db0.rp0.status_code WHERE url =~ /https\:\/\/influxdb\.com/`,
-        .build_regex_match_expr("url", r#"https\://influxdb\.com"#);
+        .with_regex_match_expr("url", r#"https\://influxdb\.com"#);
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     // expect one series with influxdb.com
@@ -543,7 +543,7 @@ async fn test_read_filter_data_pred_regex_escape() {
 async fn test_read_filter_data_pred_not_match_regex_escape() {
     let predicate = Predicate::default()
         // Came from InfluxQL like `SELECT value FROM db0.rp0.status_code WHERE url !~ /https\:\/\/influxdb\.com/`,
-        .build_regex_not_match_expr("url", r#"https\://influxdb\.com"#);
+        .with_regex_not_match_expr("url", r#"https\://influxdb\.com"#);
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     // expect one series with influxdb.com
@@ -563,7 +563,7 @@ async fn test_read_filter_data_pred_unsupported_in_scan() {
 
     // (STATE = 'CA') OR (READING > 0)
     let predicate =
-        Predicate::default().add_expr(col("state").eq(lit("CA")).or(col("reading").gt(lit(0))));
+        Predicate::default().with_expr(col("state").eq(lit("CA")).or(col("reading").gt(lit(0))));
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     // Note these results include data from both o2 and h2o
@@ -585,7 +585,7 @@ async fn test_read_filter_data_pred_unsupported_in_scan_with_delete() {
 
     // (STATE = 'CA') OR (READING > 0)
     let predicate =
-        Predicate::default().add_expr(col("state").eq(lit("CA")).or(col("reading").gt(lit(0))));
+        Predicate::default().with_expr(col("state").eq(lit("CA")).or(col("reading").gt(lit(0))));
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     // Note these results include data from both o2 and h2o
@@ -659,8 +659,8 @@ async fn test_read_filter_filter_on_value() {
     test_helpers::maybe_start_logging();
 
     let predicate = Predicate::default()
-        .add_expr(col("_value").eq(lit(1.77)))
-        .add_expr(col("_field").eq(lit("load4")));
+        .with_expr(col("_value").eq(lit(1.77)))
+        .with_expr(col("_field").eq(lit("load4")));
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let expected_results = vec![
@@ -677,7 +677,7 @@ async fn test_read_filter_on_field() {
     // Predicate should pick 'temp' field from h2o
     // (_field = 'temp')
     let p1 = col("_field").eq(lit("temp"));
-    let predicate = Predicate::default().add_expr(p1);
+    let predicate = Predicate::default().with_expr(p1);
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let expected_results = vec![
@@ -696,7 +696,7 @@ async fn test_read_filter_on_not_field() {
     // Predicate should pick up all fields other than 'temp' from h2o
     // (_field != 'temp')
     let p1 = col("_field").not_eq(lit("temp"));
-    let predicate = Predicate::default().add_expr(p1);
+    let predicate = Predicate::default().with_expr(p1);
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let expected_results = vec![
@@ -718,7 +718,7 @@ async fn test_read_filter_unsupported_predicate() {
     let p1 = col("_field")
         .not_eq(lit("temp"))
         .or(col("_field").eq(lit("other_temp")));
-    let predicate = Predicate::default().add_expr(p1);
+    let predicate = Predicate::default().with_expr(p1);
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let expected_error = "Unsupported _field predicate";
@@ -735,7 +735,7 @@ async fn test_read_filter_on_field_single_measurement() {
     let p1 = col("_field")
         .eq(lit("temp"))
         .and(col("_measurement").eq(lit("h2o")));
-    let predicate = Predicate::default().add_expr(p1);
+    let predicate = Predicate::default().with_expr(p1);
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let expected_results = vec![
@@ -752,7 +752,7 @@ async fn test_read_filter_multi_negation() {
 
     let host = make_empty_tag_ref_expr("host");
     let p1 = host.clone().eq(lit("server01")).or(host.eq(lit("")));
-    let predicate = Predicate::default().add_expr(p1);
+    let predicate = Predicate::default().with_expr(p1);
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let expected_results = vec![
@@ -781,7 +781,7 @@ async fn test_read_filter_on_field_multi_measurement() {
     let p2 = col("_field")
         .eq(lit("temp"))
         .and(col("_measurement").eq(lit("o2")));
-    let predicate = Predicate::default().add_expr(p1.or(p2));
+    let predicate = Predicate::default().with_expr(p1.or(p2));
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     // SHOULD NOT contain temp from h2o

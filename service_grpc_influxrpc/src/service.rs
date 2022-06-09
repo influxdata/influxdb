@@ -1610,7 +1610,7 @@ mod tests {
 
         // also ensure the plumbing is hooked correctly and that the predicate made it
         // down to the chunk
-        let expected_predicate = Predicate::default().timestamp_range(150, 200);
+        let expected_predicate = Predicate::default().with_range(150, 200);
 
         fixture
             .expect_predicates(
@@ -1687,8 +1687,8 @@ mod tests {
         // also ensure the plumbing is hooked correctly and that the predicate made it
         // down to the chunk
         let expected_predicate = Predicate::default()
-            .timestamp_range(150, 200)
-            .add_expr(make_state_ma_expr());
+            .with_range(150, 200)
+            .with_expr(make_state_ma_expr());
 
         fixture
             .expect_predicates(
@@ -1790,8 +1790,8 @@ mod tests {
         // also ensure the plumbing is hooked correctly and that the predicate made it
         // down to the chunk
         let expected_predicate = Predicate::default()
-            .timestamp_range(150, 200)
-            .add_expr(make_state_ma_expr());
+            .with_range(150, 200)
+            .with_expr(make_state_ma_expr());
 
         fixture
             .expect_predicates(
@@ -2466,11 +2466,11 @@ mod tests {
         // also ensure the plumbing is hooked correctly and that the predicate made it
         // down to the chunk and it was normalized to namevalue
         let expected_predicate = Predicate::default()
-            .timestamp_range(0, 10000)
+            .with_range(0, 10000)
             // should NOT have CASE nonsense for handling empty strings as
             // that should bave been optimized by the time it gets to
             // the chunk
-            .add_expr(col("state").eq(lit("MA")));
+            .with_expr(col("state").eq(lit("MA")));
 
         fixture
             .expect_predicates(
@@ -2529,11 +2529,11 @@ mod tests {
         // also ensure the plumbing is hooked correctly and that the predicate made it
         // down to the chunk and it was normalized to namevalue
         let expected_predicate = Predicate::default()
-            .timestamp_range(0, 10000)
+            .with_range(0, 10000)
             // comparison to empty string conversion results in a messier translation
             // to handle backwards compatibility semantics
             // #state IS NULL OR #state = Utf8("")
-            .add_expr(col("state").is_null().or(col("state").eq(lit(""))));
+            .with_expr(col("state").is_null().or(col("state").eq(lit(""))));
 
         fixture
             .expect_predicates(

@@ -444,7 +444,7 @@ mod tests {
         let batch = make_queryable_batch("test_table", 1, batches);
         // tag1 = VT
         let expr = col("tag1").eq(lit("VT"));
-        let pred = Predicate::default().add_expr(expr);
+        let pred = Predicate::default().with_expr(expr);
 
         let stream = batch
             .read_filter(IOxSessionContext::default(), &pred, Selection::All)
@@ -469,7 +469,7 @@ mod tests {
         let batch = make_queryable_batch("test_table", 1, batches);
         // foo = VT
         let expr = col("foo").eq(lit("VT")); // `foo` column not available
-        let pred = Predicate::default().add_expr(expr);
+        let pred = Predicate::default().with_expr(expr);
 
         let stream = batch
             .read_filter(IOxSessionContext::default(), &pred, Selection::All)
@@ -489,7 +489,7 @@ mod tests {
         let batch = make_queryable_batch("test_table", 1, batches);
         // foo is NULL
         let expr = col("foo").is_null();
-        let pred = Predicate::default().add_expr(expr);
+        let pred = Predicate::default().with_expr(expr);
 
         let stream = batch
             .read_filter(IOxSessionContext::default(), &pred, Selection::All)
@@ -579,7 +579,7 @@ mod tests {
 
         // foo is NULL AND tag1=CT
         let expr = col("foo").is_null().and(col("tag1").eq(lit("CT")));
-        let pred = Predicate::default().add_expr(expr);
+        let pred = Predicate::default().with_expr(expr);
 
         let stream = batch
             .read_filter(IOxSessionContext::default(), &pred, selection)

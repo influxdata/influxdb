@@ -122,7 +122,7 @@ async fn list_tag_values_no_predicate_city_col() {
 #[tokio::test]
 async fn list_tag_values_timestamp_pred_state_col() {
     let tag_name = "state";
-    let predicate = Predicate::default().timestamp_range(50, 201);
+    let predicate = Predicate::default().with_range(50, 201);
     let predicate = InfluxRpcPredicate::new(None, predicate);
     let expected_tag_keys = vec!["CA", "MA"];
     run_tag_values_test_case(
@@ -137,7 +137,7 @@ async fn list_tag_values_timestamp_pred_state_col() {
 #[tokio::test]
 async fn list_tag_values_state_pred_state_col() {
     let tag_name = "city";
-    let predicate = Predicate::default().add_expr(col("state").eq(lit("MA"))); // state=MA
+    let predicate = Predicate::default().with_expr(col("state").eq(lit("MA"))); // state=MA
     let predicate = InfluxRpcPredicate::new(None, predicate);
     let expected_tag_keys = vec!["Boston"];
     run_tag_values_test_case(
@@ -153,8 +153,8 @@ async fn list_tag_values_state_pred_state_col() {
 async fn list_tag_values_timestamp_and_state_pred_state_col() {
     let tag_name = "state";
     let predicate = Predicate::default()
-        .timestamp_range(150, 301)
-        .add_expr(col("state").eq(lit("MA"))); // state=MA
+        .with_range(150, 301)
+        .with_expr(col("state").eq(lit("MA"))); // state=MA
     let predicate = InfluxRpcPredicate::new(None, predicate);
     let expected_tag_keys = vec!["MA"];
     run_tag_values_test_case(
@@ -197,7 +197,7 @@ async fn list_tag_values_table_pred_city_col() {
 #[tokio::test]
 async fn list_tag_values_table_and_timestamp_and_table_pred_state_col() {
     let tag_name = "state";
-    let predicate = Predicate::default().timestamp_range(50, 201);
+    let predicate = Predicate::default().with_range(50, 201);
     let predicate = InfluxRpcPredicate::new_table("o2", predicate);
     let expected_tag_keys = vec!["MA"];
     run_tag_values_test_case(
@@ -212,7 +212,7 @@ async fn list_tag_values_table_and_timestamp_and_table_pred_state_col() {
 #[tokio::test]
 async fn list_tag_values_table_and_state_pred_state_col() {
     let tag_name = "state";
-    let predicate = Predicate::default().add_expr(col("state").eq(lit("NY"))); // state=NY
+    let predicate = Predicate::default().with_expr(col("state").eq(lit("NY"))); // state=NY
     let predicate = InfluxRpcPredicate::new_table("o2", predicate);
     let expected_tag_keys = vec!["NY"];
     run_tag_values_test_case(
@@ -228,8 +228,8 @@ async fn list_tag_values_table_and_state_pred_state_col() {
 async fn list_tag_values_table_and_timestamp_and_state_pred_state_col() {
     let tag_name = "state";
     let predicate = Predicate::default()
-        .timestamp_range(1, 550)
-        .add_expr(col("state").eq(lit("NY"))); // state=NY
+        .with_range(1, 550)
+        .with_expr(col("state").eq(lit("NY"))); // state=NY
     let predicate = InfluxRpcPredicate::new_table("o2", predicate);
     let expected_tag_keys = vec!["NY"];
     run_tag_values_test_case(
@@ -245,8 +245,8 @@ async fn list_tag_values_table_and_timestamp_and_state_pred_state_col() {
 async fn list_tag_values_table_and_timestamp_and_state_pred_state_col_no_rows() {
     let tag_name = "state";
     let predicate = Predicate::default()
-        .timestamp_range(1, 300) // filters out the NY row
-        .add_expr(col("state").eq(lit("NY"))); // state=NY
+        .with_range(1, 300) // filters out the NY row
+        .with_expr(col("state").eq(lit("NY"))); // state=NY
     let predicate = InfluxRpcPredicate::new_table("o2", predicate);
     let expected_tag_keys = vec![];
 
@@ -263,8 +263,8 @@ async fn list_tag_values_table_and_timestamp_and_state_pred_state_col_no_rows() 
 async fn list_tag_values_measurement_pred() {
     let tag_name = "state";
     let predicate = Predicate::default()
-        .timestamp_range(1, 600) // filters out the NY row
-        .add_expr(col("_measurement").not_eq(lit("o2")));
+        .with_range(1, 600) // filters out the NY row
+        .with_expr(col("_measurement").not_eq(lit("o2")));
     let predicate = InfluxRpcPredicate::new(None, predicate);
     let expected_tag_keys = vec!["CA", "MA"];
 
@@ -281,11 +281,11 @@ async fn list_tag_values_measurement_pred() {
 async fn list_tag_values_measurement_pred_and_or() {
     let tag_name = "city";
     let predicate = Predicate::default()
-        .timestamp_range(1, 600) // filters out the NY row
+        .with_range(1, 600) // filters out the NY row
         // since there is an 'OR' in this predicate, can't answer
         // with metadata alone
         // _measurement = 'o2' OR temp > 70.0
-        .add_expr(
+        .with_expr(
             col("_measurement")
                 .eq(lit("o2"))
                 .or(col("temp").gt(lit(70.0))),
@@ -334,9 +334,9 @@ async fn list_tag_values_field_col_on_tag() {
 async fn list_tag_values_field_col_does_not_exist() {
     let tag_name = "state";
     let predicate = Predicate::default()
-        .timestamp_range(0, 1000) // get all rows
+        .with_range(0, 1000) // get all rows
         // since this field doesn't exist this predicate should match no values
-        .add_expr(col("_field").eq(lit("not_a_column")));
+        .with_expr(col("_field").eq(lit("not_a_column")));
     let predicate = InfluxRpcPredicate::new(None, predicate);
     let expected_tag_keys = vec![];
 
@@ -353,9 +353,9 @@ async fn list_tag_values_field_col_does_not_exist() {
 async fn list_tag_values_field_col_does_exist() {
     let tag_name = "state";
     let predicate = Predicate::default()
-        .timestamp_range(0, 1000) // get all rows
+        .with_range(0, 1000) // get all rows
         // this field does exist (but only for rows with CA and MA, not NY)
-        .add_expr(col("_field").eq(lit("county")));
+        .with_expr(col("_field").eq(lit("county")));
     let predicate = InfluxRpcPredicate::new(None, predicate);
     let expected_tag_keys = vec!["MA", "CA"];
 

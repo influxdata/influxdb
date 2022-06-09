@@ -50,7 +50,7 @@ async fn run_field_columns_test_case<D>(
 
 #[tokio::test]
 async fn test_field_columns_no_predicate() {
-    let predicate = Predicate::default().add_expr(col("state").eq(lit("MA"))); // state=MA
+    let predicate = Predicate::default().with_expr(col("state").eq(lit("MA"))); // state=MA
     let predicate = InfluxRpcPredicate::new_table("NoSuchTable", predicate);
     let expected_fields = FieldList::default();
     run_field_columns_test_case(TwoMeasurementsManyFields {}, predicate, expected_fields).await;
@@ -61,7 +61,7 @@ async fn test_field_columns_no_predicate() {
 #[tokio::test]
 async fn test_field_columns_with_pred() {
     // get only fields from h20 (but both chunks)
-    let predicate = Predicate::default().add_expr(col("state").eq(lit("MA"))); // state=MA
+    let predicate = Predicate::default().with_expr(col("state").eq(lit("MA"))); // state=MA
     let predicate = InfluxRpcPredicate::new_table("h2o", predicate);
 
     let expected_fields = FieldList {
@@ -90,7 +90,7 @@ async fn test_field_columns_with_pred() {
 #[tokio::test]
 async fn test_field_columns_measurement_pred() {
     // get only fields from h2o using a _measurement predicate
-    let predicate = Predicate::default().add_expr(col("_measurement").eq(lit("h2o")));
+    let predicate = Predicate::default().with_expr(col("_measurement").eq(lit("h2o")));
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let expected_fields = FieldList {
@@ -119,8 +119,8 @@ async fn test_field_columns_measurement_pred() {
 #[tokio::test]
 async fn test_field_columns_with_ts_pred() {
     let predicate = Predicate::default()
-        .timestamp_range(200, 300)
-        .add_expr(col("state").eq(lit("MA"))); // state=MA
+        .with_range(200, 300)
+        .with_expr(col("state").eq(lit("MA"))); // state=MA
     let predicate = InfluxRpcPredicate::new_table("h2o", predicate);
 
     let expected_fields = FieldList {
@@ -138,7 +138,7 @@ async fn test_field_columns_with_ts_pred() {
 async fn test_field_name_plan() {
     test_helpers::maybe_start_logging();
 
-    let predicate = Predicate::default().timestamp_range(0, 2000);
+    let predicate = Predicate::default().with_range(0, 2000);
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let expected_fields = FieldList {
@@ -173,7 +173,7 @@ async fn test_field_name_plan() {
 async fn test_field_name_plan_with_delete() {
     test_helpers::maybe_start_logging();
 
-    let predicate = Predicate::default().timestamp_range(0, 2000);
+    let predicate = Predicate::default().with_range(0, 2000);
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let expected_fields = FieldList {
@@ -206,7 +206,7 @@ async fn test_field_name_plan_with_delete() {
 
 #[tokio::test]
 async fn list_field_columns_max_time() {
-    let predicate = Predicate::default().timestamp_range(MIN_NANO_TIME, MAX_NANO_TIME);
+    let predicate = Predicate::default().with_range(MIN_NANO_TIME, MAX_NANO_TIME);
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let expected_fields = FieldList {
@@ -222,7 +222,7 @@ async fn list_field_columns_max_time() {
 
 #[tokio::test]
 async fn list_field_columns_max_i64() {
-    let predicate = Predicate::default().timestamp_range(i64::MIN, i64::MAX);
+    let predicate = Predicate::default().with_range(i64::MIN, i64::MAX);
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let expected_fields = FieldList {
@@ -240,7 +240,7 @@ async fn list_field_columns_max_i64() {
 async fn list_field_columns_max_time_less_one() {
     let predicate = Predicate::default()
         // one less than max timestamp
-        .timestamp_range(MIN_NANO_TIME, MAX_NANO_TIME - 1);
+        .with_range(MIN_NANO_TIME, MAX_NANO_TIME - 1);
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let expected_fields = FieldList { fields: vec![] };
@@ -250,7 +250,7 @@ async fn list_field_columns_max_time_less_one() {
 
 #[tokio::test]
 async fn list_field_columns_max_time_greater_one() {
-    let predicate = Predicate::default().timestamp_range(MIN_NANO_TIME + 1, MAX_NANO_TIME);
+    let predicate = Predicate::default().with_range(MIN_NANO_TIME + 1, MAX_NANO_TIME);
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let expected_fields = FieldList { fields: vec![] };

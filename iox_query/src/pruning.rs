@@ -258,7 +258,7 @@ mod test {
             Some(10.0),
         ));
 
-        let predicate = Predicate::new().add_expr(col("column1").gt(lit(100.0)));
+        let predicate = Predicate::new().with_expr(col("column1").gt(lit(100.0)));
 
         let pruned = prune_chunks(&observer, c1.schema(), vec![c1], &predicate);
         assert_eq!(observer.events(), vec!["chunk1: Pruned"]);
@@ -278,7 +278,7 @@ mod test {
             Some(10),
         ));
 
-        let predicate = Predicate::new().add_expr(col("column1").gt(lit(100)));
+        let predicate = Predicate::new().with_expr(col("column1").gt(lit(100)));
 
         let pruned = prune_chunks(&observer, c1.schema(), vec![c1], &predicate);
 
@@ -299,7 +299,7 @@ mod test {
             Some(10),
         ));
 
-        let predicate = Predicate::new().add_expr(col("column1").gt(lit(100)));
+        let predicate = Predicate::new().with_expr(col("column1").gt(lit(100)));
 
         let pruned = prune_chunks(&observer, c1.schema(), vec![c1], &predicate);
 
@@ -320,7 +320,7 @@ mod test {
             Some(false),
         ));
 
-        let predicate = Predicate::new().add_expr(col("column1"));
+        let predicate = Predicate::new().with_expr(col("column1"));
 
         let pruned = prune_chunks(&observer, c1.schema(), vec![c1], &predicate);
 
@@ -343,7 +343,7 @@ mod test {
             ),
         );
 
-        let predicate = Predicate::new().add_expr(col("column1").gt(lit("z")));
+        let predicate = Predicate::new().with_expr(col("column1").gt(lit("z")));
 
         let pruned = prune_chunks(&observer, c1.schema(), vec![c1], &predicate);
 
@@ -363,7 +363,7 @@ mod test {
             Some(10.0),
         ));
 
-        let predicate = Predicate::new().add_expr(col("column1").lt(lit(100.0)));
+        let predicate = Predicate::new().with_expr(col("column1").lt(lit(100.0)));
 
         let pruned = prune_chunks(&observer, c1.schema(), vec![c1], &predicate);
         assert!(observer.events().is_empty());
@@ -383,7 +383,7 @@ mod test {
             Some(10),
         ));
 
-        let predicate = Predicate::new().add_expr(col("column1").lt(lit(100)));
+        let predicate = Predicate::new().with_expr(col("column1").lt(lit(100)));
 
         let pruned = prune_chunks(&observer, c1.schema(), vec![c1], &predicate);
 
@@ -404,7 +404,7 @@ mod test {
             Some(10),
         ));
 
-        let predicate = Predicate::new().add_expr(col("column1").lt(lit(100)));
+        let predicate = Predicate::new().with_expr(col("column1").lt(lit(100)));
 
         let pruned = prune_chunks(&observer, c1.schema(), vec![c1], &predicate);
 
@@ -425,7 +425,7 @@ mod test {
             Some(true),
         ));
 
-        let predicate = Predicate::new().add_expr(col("column1"));
+        let predicate = Predicate::new().with_expr(col("column1"));
 
         let pruned = prune_chunks(&observer, c1.schema(), vec![c1], &predicate);
 
@@ -448,7 +448,7 @@ mod test {
             ),
         );
 
-        let predicate = Predicate::new().add_expr(col("column1").lt(lit("z")));
+        let predicate = Predicate::new().with_expr(col("column1").lt(lit("z")));
 
         let pruned = prune_chunks(&observer, c1.schema(), vec![c1], &predicate);
 
@@ -493,7 +493,7 @@ mod test {
         let c4 = Arc::new(TestChunk::new("chunk4").with_i64_field_column_no_stats("column1"))
             as Arc<dyn QueryChunk>;
 
-        let predicate = Predicate::new().add_expr(col("column1").gt(lit(100)));
+        let predicate = Predicate::new().with_expr(col("column1").gt(lit(100)));
 
         let chunks = vec![c1, c2, c3, c4];
         let schema = merge_schema(&chunks);
@@ -550,7 +550,7 @@ mod test {
             Some(20),
         )) as Arc<dyn QueryChunk>;
 
-        let predicate = Predicate::new().add_expr(col("column1").gt(lit(100)));
+        let predicate = Predicate::new().with_expr(col("column1").gt(lit(100)));
 
         let chunks = vec![c1, c2, c3, c4, c5, c6];
         let schema = merge_schema(&chunks);
@@ -590,7 +590,7 @@ mod test {
             Some(4),
         )) as Arc<dyn QueryChunk>;
 
-        let predicate = Predicate::new().add_expr(col("column1").gt(lit(100)));
+        let predicate = Predicate::new().with_expr(col("column1").gt(lit(100)));
 
         let chunks = vec![c1, c2, c3];
         let schema = merge_schema(&chunks);
@@ -644,7 +644,7 @@ mod test {
             ),
         ) as Arc<dyn QueryChunk>;
 
-        let predicate = Predicate::new().add_expr(
+        let predicate = Predicate::new().with_expr(
             col("column1")
                 .is_null()
                 .not()
@@ -709,7 +709,7 @@ mod test {
         ) as Arc<dyn QueryChunk>;
 
         let predicate =
-            Predicate::new().add_expr(col("column1").gt(lit(100)).and(col("column2").lt(lit(5))));
+            Predicate::new().with_expr(col("column1").gt(lit(100)).and(col("column2").lt(lit(5))));
 
         let chunks = vec![c1, c2, c3, c4, c5, c6];
         let schema = merge_schema(&chunks);

@@ -400,7 +400,7 @@ mod tests {
 
         // tag1=VT
         let expr = col("tag1").eq(lit("VT"));
-        let pred = Predicate::default().add_expr(expr);
+        let pred = Predicate::default().with_expr(expr);
 
         let exc = Executor::new(1);
         let stream = query(&exc, batch, pred, selection).await.unwrap();
@@ -438,7 +438,7 @@ mod tests {
 
         // tag1=UT
         let expr = col("tag1").eq(lit("UT"));
-        let pred = Predicate::default().add_expr(expr);
+        let pred = Predicate::default().with_expr(expr);
 
         let exc = Executor::new(1);
         let stream = query(&exc, batch, pred, selection).await.unwrap();
@@ -534,7 +534,7 @@ mod tests {
         // read data from all scenarios, filter out column day, city Medford, time outside range [0, 42)
         request.columns = ["city", "temp", "time"].map(Into::into).into();
         let expr = col("city").not_eq(lit("Medford"));
-        let pred = Predicate::default().add_expr(expr).timestamp_range(0, 42);
+        let pred = Predicate::default().with_expr(expr).with_range(0, 42);
         request.predicate = Some(pred);
         let expected = vec![
             "+------------+------+--------------------------------+",
@@ -651,7 +651,7 @@ mod tests {
         // read data from all scenarios, filter out column day, city Medford, time outside range [0, 42)
         request.columns = vec!["city".to_string(), "temp".to_string(), "time".to_string()];
         let expr = col("city").not_eq(lit("Medford"));
-        let pred = Predicate::default().add_expr(expr).timestamp_range(0, 42);
+        let pred = Predicate::default().with_expr(expr).with_range(0, 42);
         request.predicate = Some(pred);
         let expected = vec![
             "+------------+------+--------------------------------+",

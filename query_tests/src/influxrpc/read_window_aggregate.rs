@@ -53,8 +53,8 @@ async fn run_read_window_aggregate_test_case<D>(
 async fn test_read_window_aggregate_nanoseconds() {
     let predicate = Predicate::default()
         // city=Boston or city=LA
-        .add_expr(col("city").eq(lit("Boston")).or(col("city").eq(lit("LA"))))
-        .timestamp_range(100, 450);
+        .with_expr(col("city").eq(lit("Boston")).or(col("city").eq(lit("LA"))))
+        .with_range(100, 450);
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let agg = Aggregate::Mean;
@@ -82,12 +82,12 @@ async fn test_read_window_aggregate_nanoseconds() {
 async fn test_read_window_aggregate_nanoseconds_measurement_pred() {
     let predicate = Predicate::default()
         // city=Cambridge OR (_measurement != 'other' AND city = LA)
-        .add_expr(
+        .with_expr(
             col("city").eq(lit("Boston")).or(col("_measurement")
                 .not_eq(lit("other"))
                 .and(col("city").eq(lit("LA")))),
         )
-        .timestamp_range(100, 450);
+        .with_range(100, 450);
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let agg = Aggregate::Mean;
@@ -113,7 +113,7 @@ async fn test_read_window_aggregate_nanoseconds_measurement_pred() {
 #[tokio::test]
 async fn test_read_window_aggregate_nanoseconds_measurement_count() {
     // Expect that the type of `Count` is Integer
-    let predicate = Predicate::default().timestamp_range(100, 450);
+    let predicate = Predicate::default().with_range(100, 450);
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let agg = Aggregate::Count;
@@ -142,7 +142,7 @@ async fn test_read_window_aggregate_nanoseconds_measurement_count() {
 async fn test_grouped_series_set_plan_group_aggregate_min_defect_2697() {
     let predicate = Predicate::default()
         // time >= '2021-01-01T00:00:01.000000001Z' AND time <= '2021-01-01T00:00:01.000000031Z'
-        .timestamp_range(1609459201000000001, 1609459201000000031);
+        .with_range(1609459201000000001, 1609459201000000031);
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let agg = Aggregate::Min;
@@ -174,7 +174,7 @@ async fn test_grouped_series_set_plan_group_aggregate_min_defect_2697() {
 async fn test_grouped_series_set_plan_group_aggregate_min_defect_2697_with_delete() {
     let predicate = Predicate::default()
         // time >= '2021-01-01T00:00:01.000000001Z' AND time <= '2021-01-01T00:00:01.000000031Z'
-        .timestamp_range(1609459201000000001, 1609459201000000031);
+        .with_range(1609459201000000001, 1609459201000000031);
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let agg = Aggregate::Min;
@@ -216,7 +216,7 @@ async fn test_grouped_series_set_plan_group_aggregate_min_defect_2697_with_delet
 async fn test_grouped_series_set_plan_group_aggregate_sum_defect_2697() {
     let predicate = Predicate::default()
         // time >= '2021-01-01T00:00:01.000000001Z' AND time <= '2021-01-01T00:00:01.000000031Z'
-        .timestamp_range(1609459201000000001, 1609459201000000031);
+        .with_range(1609459201000000001, 1609459201000000031);
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let agg = Aggregate::Sum;
@@ -250,8 +250,8 @@ async fn test_grouped_series_set_plan_group_aggregate_sum_defect_2697() {
 async fn test_grouped_series_set_plan_group_aggregate_filter_on_field() {
     let predicate = Predicate::default()
         // time >= '2021-01-01T00:00:01.000000001Z' AND time <= '2021-01-01T00:00:01.000000031Z'
-        .timestamp_range(1609459201000000001, 1609459201000000031)
-        .add_expr(col("_field").eq(lit("foo")));
+        .with_range(1609459201000000001, 1609459201000000031)
+        .with_expr(col("_field").eq(lit("foo")));
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let agg = Aggregate::Sum;
@@ -280,7 +280,7 @@ async fn test_grouped_series_set_plan_group_aggregate_filter_on_field() {
 async fn test_grouped_series_set_plan_group_aggregate_sum_defect_2697_with_delete() {
     let predicate = Predicate::default()
         // time >= '2021-01-01T00:00:01.000000001Z' AND time <= '2021-01-01T00:00:01.000000031Z'
-        .timestamp_range(1609459201000000001, 1609459201000000031);
+        .with_range(1609459201000000001, 1609459201000000031);
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let agg = Aggregate::Sum;
@@ -322,7 +322,7 @@ async fn test_grouped_series_set_plan_group_aggregate_sum_defect_2697_with_delet
 
 #[tokio::test]
 async fn test_read_window_aggregate_overflow() {
-    let predicate = Predicate::default().timestamp_range(1609459201000000001, 1609459201000000024);
+    let predicate = Predicate::default().with_range(1609459201000000001, 1609459201000000024);
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let agg = Aggregate::Max;

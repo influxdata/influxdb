@@ -53,8 +53,8 @@ pub const EMPTY_PREDICATE: Predicate = Predicate {
 /// use datafusion::logical_plan::{col, lit};
 ///
 /// let p = Predicate::new()
-///    .timestamp_range(1, 100)
-///    .add_expr(col("foo").eq(lit(42)));
+///    .with_range(1, 100)
+///    .with_expr(col("foo").eq(lit(42)));
 ///
 /// assert_eq!(
 ///   p.to_string(),
@@ -214,7 +214,7 @@ impl Predicate {
     ///
     /// This is used in certain cases to retain compatibility with the
     /// existing storage engine
-    pub(crate) fn clear_timestamp_if_max_range(mut self) -> Self {
+    pub(crate) fn with_clear_timestamp_if_max_range(mut self) -> Self {
         self.range = self.range.take().and_then(|range| {
             if range.start() <= MIN_NANO_TIME && range.end() >= MAX_NANO_TIME {
                 None
@@ -285,7 +285,7 @@ pub enum PredicateMatch {
 
 impl Predicate {
     /// Sets the timestamp range
-    pub fn timestamp_range(mut self, start: i64, end: i64) -> Self {
+    pub fn with_range(mut self, start: i64, end: i64) -> Self {
         // Without more thought, redefining the timestamp range would
         // lose the old range. Asser that that cannot happen.
         assert!(
@@ -298,7 +298,7 @@ impl Predicate {
     }
 
     /// sets the optional timestamp range, if any
-    pub fn timestamp_range_option(mut self, range: Option<TimestampRange>) -> Self {
+    pub fn with_maybe_timestamp_range(mut self, range: Option<TimestampRange>) -> Self {
         // Without more thought, redefining the timestamp range would
         // lose the old range. Asser that that cannot happen.
         assert!(
@@ -310,35 +310,36 @@ impl Predicate {
     }
 
     /// Adds an expression to the list of general purpose predicates
-    pub fn add_expr(mut self, expr: Expr) -> Self {
+    pub fn with_expr(mut self, expr: Expr) -> Self {
         self.exprs.push(expr);
         self
     }
 
     /// Adds a ValueExpr to the list of value expressons
-    pub fn add_value_expr(mut self, value_expr: ValueExpr) -> Self {
+    pub fn with_value_expr(mut self, value_expr: ValueExpr) -> Self {
         self.value_expr.push(value_expr);
         self
     }
 
     /// Builds a regex matching expression from the provided column name and
     /// pattern. Values not matching the regex will be filtered out.
-    pub fn build_regex_match_expr(mut self, column: &str, pattern: impl Into<String>) -> Self {
+    pub fn with_regex_match_expr(self, column: &str, pattern: impl Into<String>) -> Self {
         let expr = query_functions::regex_match_expr(col(column), pattern.into());
-        self.exprs.push(expr);
-        self
+        self.with_expr(expr)
     }
 
     /// Builds a regex "not matching" expression from the provided column name
     /// and pattern. Values *matching* the regex will be filtered out.
-    pub fn build_regex_not_match_expr(mut self, column: &str, pattern: impl Into<String>) -> Self {
+    pub fn with_regex_not_match_expr(self, column: &str, pattern: impl Into<String>) -> Self {
         let expr = query_functions::regex_not_match_expr(col(column), pattern.into());
-        self.exprs.push(expr);
-        self
+        self.with_expr(expr)
     }
 
     /// Sets field_column restriction
-    pub fn field_columns(mut self, columns: impl IntoIterator<Item = impl Into<String>>) -> Self {
+    pub fn with_field_columns(
+        mut self,
+        columns: impl IntoIterator<Item = impl Into<String>>,
+    ) -> Self {
         // We need to distinguish predicates like `column_name In
         // (foo, bar)` and `column_name = foo and column_name = bar` in order to handle
         // this
@@ -356,7 +357,7 @@ impl Predicate {
     }
 
     /// Set the partition key restriction
-    pub fn partition_key(mut self, partition_key: impl Into<String>) -> Self {
+    pub fn with_partition_key(mut self, partition_key: impl Into<String>) -> Self {
         assert!(
             self.partition_key.is_none(),
             "multiple partition key predicates not suported"
@@ -367,7 +368,7 @@ impl Predicate {
 
     /// Adds only the expressions from `filters` that can be pushed down to
     /// execution engines.
-    pub fn add_pushdown_exprs(mut self, filters: &[Expr]) -> Self {
+    pub fn with_pushdown_exprs(mut self, filters: &[Expr]) -> Self {
         // For each expression of the filters, recursively split it, if it is is an AND conjunction
         // For example, expression (x AND y) will be split into a vector of 2 expressions [x, y]
         let mut exprs = vec![];
@@ -502,7 +503,7 @@ mod tests {
 
     #[test]
     fn test_non_default_predicate_is_not_empty() {
-        let p = Predicate::new().timestamp_range(1, 100);
+        let p = Predicate::new().with_range(1, 100);
 
         assert!(!p.is_empty());
     }
@@ -582,7 +583,7 @@ mod tests {
         println!(" --------------- Filters: {:#?}", filters);
 
         // Expected pushdown predicates: [state = CA, price > 10, a < 10, b >= 50, f <= 60, city = Boston, city != Braintree, 5 = city]
-        let predicate = Predicate::default().add_pushdown_exprs(&filters);
+        let predicate = Predicate::default().with_pushdown_exprs(&filters);
 
         println!(" ------------- Predicates: {:#?}", predicate);
         assert_eq!(predicate.exprs.len(), 8);
@@ -598,7 +599,7 @@ mod tests {
     #[test]
     fn predicate_display_ts() {
         // TODO make this a doc example?
-        let p = Predicate::new().timestamp_range(1, 100);
+        let p = Predicate::new().with_range(1, 100);
 
         assert_eq!(p.to_string(), "Predicate range: [1 - 100]");
     }
@@ -606,8 +607,8 @@ mod tests {
     #[test]
     fn predicate_display_ts_and_expr() {
         let p = Predicate::new()
-            .timestamp_range(1, 100)
-            .add_expr(col("foo").eq(lit(42)).and(col("bar").lt(lit(11))));
+            .with_range(1, 100)
+            .with_expr(col("foo").eq(lit(42)).and(col("bar").lt(lit(11))));
 
         assert_eq!(
             p.to_string(),
@@ -618,10 +619,10 @@ mod tests {
     #[test]
     fn predicate_display_full() {
         let p = Predicate::new()
-            .timestamp_range(1, 100)
-            .add_expr(col("foo").eq(lit(42)))
-            .field_columns(vec!["f1", "f2"])
-            .partition_key("the_key");
+            .with_range(1, 100)
+            .with_expr(col("foo").eq(lit(42)))
+            .with_field_columns(vec!["f1", "f2"])
+            .with_partition_key("the_key");
 
         assert_eq!(p.to_string(), "Predicate field_columns: {f1, f2} partition_key: 'the_key' range: [1 - 100] exprs: [#foo = Int32(42)]");
     }
@@ -629,47 +630,47 @@ mod tests {
     #[test]
     fn test_clear_timestamp_if_max_range_out_of_range() {
         let p = Predicate::new()
-            .timestamp_range(1, 100)
-            .add_expr(col("foo").eq(lit(42)));
+            .with_range(1, 100)
+            .with_expr(col("foo").eq(lit(42)));
 
         let expected = p.clone();
 
         // no rewrite
-        assert_eq!(p.clear_timestamp_if_max_range(), expected);
+        assert_eq!(p.with_clear_timestamp_if_max_range(), expected);
     }
 
     #[test]
     fn test_clear_timestamp_if_max_range_out_of_range_low() {
         let p = Predicate::new()
-            .timestamp_range(MIN_NANO_TIME, 100)
-            .add_expr(col("foo").eq(lit(42)));
+            .with_range(MIN_NANO_TIME, 100)
+            .with_expr(col("foo").eq(lit(42)));
 
         let expected = p.clone();
 
         // no rewrite
-        assert_eq!(p.clear_timestamp_if_max_range(), expected);
+        assert_eq!(p.with_clear_timestamp_if_max_range(), expected);
     }
 
     #[test]
     fn test_clear_timestamp_if_max_range_out_of_range_high() {
         let p = Predicate::new()
-            .timestamp_range(0, MAX_NANO_TIME)
-            .add_expr(col("foo").eq(lit(42)));
+            .with_range(0, MAX_NANO_TIME)
+            .with_expr(col("foo").eq(lit(42)));
 
         let expected = p.clone();
 
         // no rewrite
-        assert_eq!(p.clear_timestamp_if_max_range(), expected);
+        assert_eq!(p.with_clear_timestamp_if_max_range(), expected);
     }
 
     #[test]
     fn test_clear_timestamp_if_max_range_in_range() {
         let p = Predicate::new()
-            .timestamp_range(MIN_NANO_TIME, MAX_NANO_TIME)
-            .add_expr(col("foo").eq(lit(42)));
+            .with_range(MIN_NANO_TIME, MAX_NANO_TIME)
+            .with_expr(col("foo").eq(lit(42)));
 
-        let expected = Predicate::new().add_expr(col("foo").eq(lit(42)));
+        let expected = Predicate::new().with_expr(col("foo").eq(lit(42)));
         // rewrite
-        assert_eq!(p.clear_timestamp_if_max_range(), expected);
+        assert_eq!(p.with_clear_timestamp_if_max_range(), expected);
     }
 }

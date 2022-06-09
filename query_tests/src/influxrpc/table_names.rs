@@ -75,9 +75,9 @@ async fn list_table_names_no_non_null_data_passes() {
     // only a single row with a null field passes this predicate (expect no table names)
     let predicate = Predicate::default()
         // only get last row of o2 (timestamp = 300)
-        .timestamp_range(200, 400)
+        .with_range(200, 400)
         // model predicate like _field='reading' which last row does not have
-        .field_columns(vec!["reading"]);
+        .with_field_columns(vec!["reading"]);
     let predicate = InfluxRpcPredicate::new_table("o2", predicate);
 
     run_table_names_test_case(TwoMeasurementsManyFields {}, predicate, vec![]).await;
@@ -90,11 +90,11 @@ async fn list_table_names_no_non_null_general_data_passes() {
     // force a generic plan
     let predicate = Predicate::default()
         // only get last row of o2 (timestamp = 300)
-        .timestamp_range(200, 400)
+        .with_range(200, 400)
         // model predicate like _field='reading' which last row does not have
-        .field_columns(vec!["reading"])
+        .with_field_columns(vec!["reading"])
         // (state = CA) OR (temp > 50)
-        .add_expr(col("state").eq(lit("CA")).or(col("temp").gt(lit(50))));
+        .with_expr(col("state").eq(lit("CA")).or(col("temp").gt(lit(50))));
     let predicate = InfluxRpcPredicate::new_table("o2", predicate);
 
     run_table_names_test_case(TwoMeasurementsManyFields {}, predicate, vec![]).await;
@@ -248,7 +248,7 @@ async fn list_table_names_max_time_greater_one() {
 
 // make a single timestamp predicate between r1 and r2
 fn tsp(r1: i64, r2: i64) -> InfluxRpcPredicate {
-    InfluxRpcPredicate::new(None, Predicate::default().timestamp_range(r1, r2))
+    InfluxRpcPredicate::new(None, Predicate::default().with_range(r1, r2))
 }
 
 fn to_stringset(v: &[&str]) -> StringSetRef {
