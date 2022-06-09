@@ -7,7 +7,7 @@ use cache_system::{
         resource_consumption::FunctionEstimator,
         shared::SharedBackend,
     },
-    cache::{driver::CacheDriver, Cache},
+    cache::{driver::CacheDriver, metrics::CacheWithMetrics, Cache},
     loader::{metrics::MetricsLoader, FunctionLoader},
 };
 use data_types::{PartitionId, SequencerId};
@@ -87,6 +87,12 @@ impl PartitionCache {
         let backend = SharedBackend::new(backend);
 
         let cache = Box::new(CacheDriver::new(loader, Box::new(backend.clone())));
+        let cache = Box::new(CacheWithMetrics::new(
+            cache,
+            CACHE_ID,
+            time_provider,
+            metric_registry,
+        ));
 
         Self { cache, backend }
     }

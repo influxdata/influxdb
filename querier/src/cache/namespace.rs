@@ -7,7 +7,7 @@ use cache_system::{
         resource_consumption::FunctionEstimator,
         ttl::{OptionalValueTtlProvider, TtlBackend},
     },
-    cache::{driver::CacheDriver, Cache},
+    cache::{driver::CacheDriver, metrics::CacheWithMetrics, Cache},
     loader::{metrics::MetricsLoader, FunctionLoader},
 };
 use data_types::NamespaceSchema;
@@ -102,6 +102,12 @@ impl NamespaceCache {
         ));
 
         let cache = Box::new(CacheDriver::new(loader, backend));
+        let cache = Box::new(CacheWithMetrics::new(
+            cache,
+            CACHE_ID,
+            time_provider,
+            metric_registry,
+        ));
 
         Self { cache }
     }

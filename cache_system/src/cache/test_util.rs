@@ -336,7 +336,7 @@ impl TestLoader {
     ///
     /// If this is used together with [`block`](Self::block), the panic will occur AFTER
     /// blocking.
-    fn panic_once(&self, k: u8) {
+    pub fn panic_once(&self, k: u8) {
         self.panic.lock().insert(k);
     }
 
@@ -344,7 +344,7 @@ impl TestLoader {
     ///
     /// If this is used together with [`panic_once`](Self::panic_once), the panic will occur
     /// AFTER blocking.
-    fn block(&self) {
+    pub fn block(&self) {
         let mut blocked = self.blocked.lock();
         assert!(blocked.is_none());
         *blocked = Some(Arc::new(Notify::new()));
@@ -353,7 +353,7 @@ impl TestLoader {
     /// Unblock all requests.
     ///
     /// Returns number of requests that were blocked.
-    fn unblock(&self) -> usize {
+    pub fn unblock(&self) -> usize {
         let handle = self.blocked.lock().take().unwrap();
         let blocked_count = Arc::strong_count(&handle) - 1;
         handle.notify_waiters();
@@ -363,7 +363,7 @@ impl TestLoader {
     /// List all keys that were loaded.
     ///
     /// Contains duplicates if keys were loaded multiple times.
-    fn loaded(&self) -> Vec<u8> {
+    pub fn loaded(&self) -> Vec<u8> {
         self.loaded.lock().clone()
     }
 }
@@ -394,7 +394,7 @@ impl Loader for TestLoader {
 }
 
 #[async_trait]
-trait EnsurePendingExt {
+pub trait EnsurePendingExt {
     type Out;
 
     /// Ensure that the future is pending. In the pending case, try to pass the given barrier. Afterwards await the future again.
@@ -422,7 +422,7 @@ where
 }
 
 #[async_trait]
-trait AbortAndWaitExt {
+pub trait AbortAndWaitExt {
     /// Abort handle and wait for completion.
     ///
     /// Note that this is NOT just a "wait with timeout or panic". This extension is specific to [`JoinHandle`] and will:

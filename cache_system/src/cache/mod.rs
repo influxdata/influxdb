@@ -8,6 +8,7 @@ use std::{fmt::Debug, hash::Hash};
 use async_trait::async_trait;
 
 pub mod driver;
+pub mod metrics;
 
 #[cfg(test)]
 mod test_util;
