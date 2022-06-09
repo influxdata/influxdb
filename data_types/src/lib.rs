@@ -265,7 +265,7 @@ impl Sub<i64> for SequenceNumber {
     }
 }
 
-/// A time in nanoseconds from epoch
+/// A time in nanoseconds from epoch.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
 #[sqlx(transparent)]
 pub struct Timestamp(i64);
@@ -280,19 +280,35 @@ impl Timestamp {
     }
 }
 
+impl Add for Timestamp {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self {
+        Self(self.0.checked_add(other.0).expect("timestamp wraparound"))
+    }
+}
+
+impl Sub for Timestamp {
+    type Output = Self;
+
+    fn sub(self, other: Self) -> Self {
+        Self(self.0.checked_sub(other.0).expect("timestamp wraparound"))
+    }
+}
+
 impl Add<i64> for Timestamp {
     type Output = Self;
 
-    fn add(self, other: i64) -> Self {
-        Self(self.0 + other)
+    fn add(self, rhs: i64) -> Self::Output {
+        self + Self(rhs)
     }
 }
 
 impl Sub<i64> for Timestamp {
     type Output = Self;
 
-    fn sub(self, other: i64) -> Self {
-        Self(self.0 - other)
+    fn sub(self, rhs: i64) -> Self::Output {
+        self - Self(rhs)
     }
 }
 
@@ -3130,5 +3146,29 @@ mod tests {
             tables: BTreeMap::from([(String::from("foo"), TableSchema::new(TableId::new(1)))]),
         };
         assert!(schema1.size() < schema2.size());
+    }
+
+    #[test]
+    #[should_panic = "timestamp wraparound"]
+    fn test_timestamp_wraparound_panic_add_i64() {
+        let _ = Timestamp::new(i64::MAX) + 1;
+    }
+
+    #[test]
+    #[should_panic = "timestamp wraparound"]
+    fn test_timestamp_wraparound_panic_sub_i64() {
+        let _ = Timestamp::new(i64::MIN) - 1;
+    }
+
+    #[test]
+    #[should_panic = "timestamp wraparound"]
+    fn test_timestamp_wraparound_panic_add_timestamp() {
+        let _ = Timestamp::new(i64::MAX) + Timestamp::new(1);
+    }
+
+    #[test]
+    #[should_panic = "timestamp wraparound"]
+    fn test_timestamp_wraparound_panic_sub_timestamp() {
+        let _ = Timestamp::new(i64::MIN) - Timestamp::new(1);
     }
 }
