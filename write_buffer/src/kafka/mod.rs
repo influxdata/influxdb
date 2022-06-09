@@ -11,7 +11,7 @@ use crate::{
     },
 };
 use async_trait::async_trait;
-use data_types::Sequence;
+use data_types::{Sequence, SequenceNumber};
 use dml::{DmlMeta, DmlOperation};
 use futures::{stream::BoxStream, StreamExt};
 use iox_time::{Time, TimeProvider};
@@ -188,10 +188,7 @@ impl WriteBufferStreamHandler for RSKafkaStreamHandler {
 
             let sequence = Sequence {
                 sequencer_id,
-                sequence_number: record
-                    .offset
-                    .try_into()
-                    .map_err(WriteBufferError::invalid_data)?,
+                sequence_number: SequenceNumber::new(record.offset),
             };
 
             let timestamp_millis =
@@ -216,8 +213,8 @@ impl WriteBufferStreamHandler for RSKafkaStreamHandler {
         stream.boxed()
     }
 
-    async fn seek(&mut self, sequence_number: u64) -> Result<(), WriteBufferError> {
-        let offset = i64::try_from(sequence_number).map_err(WriteBufferError::invalid_input)?;
+    async fn seek(&mut self, sequence_number: SequenceNumber) -> Result<(), WriteBufferError> {
+        let offset = sequence_number.get();
         *self.next_offset.lock() = Some(offset);
         self.terminated.store(false, Ordering::SeqCst);
         Ok(())
@@ -292,7 +289,10 @@ impl WriteBufferReading for RSKafkaConsumer {
         }))
     }
 
-    async fn fetch_high_watermark(&self, sequencer_id: u32) -> Result<u64, WriteBufferError> {
+    async fn fetch_high_watermark(
+        &self,
+        sequencer_id: u32,
+    ) -> Result<SequenceNumber, WriteBufferError> {
         let partition_client = self
             .partition_clients
             .get(&sequencer_id)
@@ -301,7 +301,7 @@ impl WriteBufferReading for RSKafkaConsumer {
             })?;
 
         let watermark = partition_client.get_offset(OffsetAt::Latest).await?;
-        u64::try_from(watermark).map_err(WriteBufferError::invalid_data)
+        Ok(SequenceNumber::new(watermark))
     }
 
     fn type_name(&self) -> &'static str {

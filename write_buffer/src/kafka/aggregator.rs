@@ -1,5 +1,5 @@
 use crate::codec::{ContentType, IoxHeaders};
-use data_types::Sequence;
+use data_types::{Sequence, SequenceNumber};
 use dml::{DmlMeta, DmlOperation, DmlWrite};
 use hashbrown::{hash_map::Entry, HashMap};
 use iox_time::{Time, TimeProvider};
@@ -521,7 +521,7 @@ impl StatusDeaggregator for Deaggregator {
         let md = &self.metadata[record];
 
         Ok(DmlMeta::sequenced(
-            Sequence::new(self.sequencer_id, offset.try_into()?),
+            Sequence::new(self.sequencer_id, SequenceNumber::new(offset)),
             md.timestamp,
             md.span_ctx.clone(),
             md.kafka_write_size,

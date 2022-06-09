@@ -29,7 +29,6 @@ use schema::{selection::Selection, Schema};
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
     collections::{btree_map::Entry, BTreeMap},
-    convert::TryFrom,
     sync::Arc,
 };
 use uuid::Uuid;
@@ -599,8 +598,6 @@ impl NamespaceData {
             .sequence()
             .expect("must have sequence number")
             .sequence_number;
-        let sequence_number = i64::try_from(sequence_number).expect("sequence out of bounds");
-        let sequence_number = SequenceNumber::new(sequence_number);
 
         // Note that this namespace is actively writing this sequence
         // number. Since there is no namespace wide lock held during a
@@ -1697,7 +1694,12 @@ mod tests {
         let w1 = DmlWrite::new(
             "foo",
             lines_to_batches("mem foo=1 10", 0).unwrap(),
-            DmlMeta::sequenced(Sequence::new(1, 1), ignored_ts, None, 50),
+            DmlMeta::sequenced(
+                Sequence::new(1, SequenceNumber::new(1)),
+                ignored_ts,
+                None,
+                50,
+            ),
         );
 
         let _ = validate_or_insert_schema(w1.tables(), &schema, repos.deref_mut())
@@ -1785,7 +1787,12 @@ mod tests {
         let w1 = DmlWrite::new(
             "foo",
             lines_to_batches("mem foo=1 10", 0).unwrap(),
-            DmlMeta::sequenced(Sequence::new(1, 1), ignored_ts, None, 50),
+            DmlMeta::sequenced(
+                Sequence::new(1, SequenceNumber::new(1)),
+                ignored_ts,
+                None,
+                50,
+            ),
         );
         let schema = validate_or_insert_schema(w1.tables(), &schema, repos.deref_mut())
             .await
@@ -1795,7 +1802,12 @@ mod tests {
         let w2 = DmlWrite::new(
             "foo",
             lines_to_batches("cpu foo=1 10", 1).unwrap(),
-            DmlMeta::sequenced(Sequence::new(2, 1), ignored_ts, None, 50),
+            DmlMeta::sequenced(
+                Sequence::new(2, SequenceNumber::new(1)),
+                ignored_ts,
+                None,
+                50,
+            ),
         );
         let _ = validate_or_insert_schema(w2.tables(), &schema, repos.deref_mut())
             .await
@@ -1807,7 +1819,12 @@ mod tests {
         let w3 = DmlWrite::new(
             "foo",
             lines_to_batches("mem foo=1 30", 2).unwrap(),
-            DmlMeta::sequenced(Sequence::new(1, 2), ignored_ts, None, 50),
+            DmlMeta::sequenced(
+                Sequence::new(1, SequenceNumber::new(2)),
+                ignored_ts,
+                None,
+                50,
+            ),
         );
 
         let manager = LifecycleManager::new(
@@ -2189,12 +2206,22 @@ mod tests {
         let w1 = DmlWrite::new(
             "foo",
             lines_to_batches("mem foo=1 10", 0).unwrap(),
-            DmlMeta::sequenced(Sequence::new(1, 1), ignored_ts, None, 50),
+            DmlMeta::sequenced(
+                Sequence::new(1, SequenceNumber::new(1)),
+                ignored_ts,
+                None,
+                50,
+            ),
         );
         let w2 = DmlWrite::new(
             "foo",
             lines_to_batches("mem foo=1 10", 0).unwrap(),
-            DmlMeta::sequenced(Sequence::new(1, 2), ignored_ts, None, 50),
+            DmlMeta::sequenced(
+                Sequence::new(1, SequenceNumber::new(2)),
+                ignored_ts,
+                None,
+                50,
+            ),
         );
 
         let _ = validate_or_insert_schema(w1.tables(), &schema, repos.deref_mut())
@@ -2361,7 +2388,12 @@ mod tests {
         let w1 = DmlWrite::new(
             "foo",
             lines_to_batches("mem foo=1 10", 0).unwrap(),
-            DmlMeta::sequenced(Sequence::new(1, 1), ignored_ts, None, 50),
+            DmlMeta::sequenced(
+                Sequence::new(1, SequenceNumber::new(1)),
+                ignored_ts,
+                None,
+                50,
+            ),
         );
 
         let _ = validate_or_insert_schema(w1.tables(), &schema, repos.deref_mut())
@@ -2411,7 +2443,12 @@ mod tests {
             "foo",
             predicate,
             Some(NonEmptyString::new("mem").unwrap()),
-            DmlMeta::sequenced(Sequence::new(1, 2), ignored_ts, None, 1337),
+            DmlMeta::sequenced(
+                Sequence::new(1, SequenceNumber::new(2)),
+                ignored_ts,
+                None,
+                1337,
+            ),
         );
         data.buffer_operation(sequencer1.id, DmlOperation::Delete(d1), &manager.handle())
             .await

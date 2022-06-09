@@ -3,7 +3,7 @@ use crate::{
     core::{WriteBufferError, WriteBufferReading, WriteBufferStreamHandler, WriteBufferWriting},
 };
 use async_trait::async_trait;
-use data_types::Sequence;
+use data_types::{Sequence, SequenceNumber};
 use dml::{DmlDelete, DmlMeta, DmlOperation, DmlWrite};
 use futures::{stream::BoxStream, StreamExt};
 use iox_time::TimeProvider;
@@ -21,7 +21,7 @@ use std::{
 #[derive(Debug, Default)]
 struct WriteResVec {
     /// The maximum sequence number in the entries
-    max_seqno: Option<u64>,
+    max_seqno: Option<i64>,
 
     /// The writes
     writes: Vec<Result<DmlOperation, WriteBufferError>>,
@@ -38,8 +38,8 @@ impl WriteResVec {
         if let Ok(entry) = &val {
             if let Some(seqno) = entry.meta().sequence() {
                 self.max_seqno = Some(match self.max_seqno {
-                    Some(current) => current.max(seqno.sequence_number),
-                    None => seqno.sequence_number,
+                    Some(current) => current.max(seqno.sequence_number.get()),
+                    None => seqno.sequence_number.get(),
                 });
             }
         }
@@ -156,9 +156,9 @@ impl MockBufferSharedState {
 
         if let Some(max_sequence_number) = writes_vec.max_seqno {
             assert!(
-                max_sequence_number < sequence.sequence_number,
+                max_sequence_number < sequence.sequence_number.get(),
                 "sequence number {} is less/equal than current max sequencer number {}",
-                sequence.sequence_number,
+                sequence.sequence_number.get(),
                 max_sequence_number
             );
         }
@@ -291,7 +291,7 @@ impl WriteBufferWriting for MockBufferForWriting {
 
         let sequence = Sequence {
             sequencer_id,
-            sequence_number,
+            sequence_number: SequenceNumber::new(sequence_number),
         };
 
         let timestamp = operation
@@ -399,7 +399,7 @@ pub struct MockBufferStreamHandler {
     vector_index: Arc<AtomicUsize>,
 
     /// Offset within the sequencer IDs.
-    offset: u64,
+    offset: i64,
 
     /// Flags if the stream is terminated, e.g. due to "offset out of range"
     terminated: Arc<AtomicBool>,
@@ -438,7 +438,7 @@ impl WriteBufferStreamHandler for MockBufferStreamHandler {
                     Ok(write) => {
                         // found an entry => need to check if it is within the offset
                         let sequence = write.meta().sequence().unwrap();
-                        if sequence.sequence_number >= offset {
+                        if sequence.sequence_number.get() >= offset {
                             // within offset => return entry to caller
                             return Poll::Ready(Some(Ok(write.clone())));
                         } else {
@@ -459,7 +459,7 @@ impl WriteBufferStreamHandler for MockBufferStreamHandler {
                 .filter_map(|write_result| {
                     if let Ok(write) = write_result {
                         let sequence = write.meta().sequence().unwrap();
-                        Some(sequence.sequence_number)
+                        Some(sequence.sequence_number.get())
                     } else {
                         None
                     }
@@ -481,8 +481,8 @@ impl WriteBufferStreamHandler for MockBufferStreamHandler {
         .boxed()
     }
 
-    async fn seek(&mut self, sequence_number: u64) -> Result<(), WriteBufferError> {
-        self.offset = sequence_number;
+    async fn seek(&mut self, sequence_number: SequenceNumber) -> Result<(), WriteBufferError> {
+        self.offset = sequence_number.get();
 
         // reset position to start since seeking might go backwards
         self.vector_index.store(0, SeqCst);
@@ -523,7 +523,10 @@ impl WriteBufferReading for MockBufferForReading {
         }))
     }
 
-    async fn fetch_high_watermark(&self, sequencer_id: u32) -> Result<u64, WriteBufferError> {
+    async fn fetch_high_watermark(
+        &self,
+        sequencer_id: u32,
+    ) -> Result<SequenceNumber, WriteBufferError> {
         let guard = self.shared_state.writes.lock();
         let entries = guard.as_ref().unwrap();
         let entry_vec = entries
@@ -533,7 +536,7 @@ impl WriteBufferReading for MockBufferForReading {
             })?;
         let watermark = entry_vec.max_seqno.map(|n| n + 1).unwrap_or(0);
 
-        Ok(watermark)
+        Ok(SequenceNumber::new(watermark))
     }
 
     fn type_name(&self) -> &'static str {
@@ -559,7 +562,7 @@ impl WriteBufferStreamHandler for MockStreamHandlerThatAlwaysErrors {
         .boxed()
     }
 
-    async fn seek(&mut self, _sequence_number: u64) -> Result<(), WriteBufferError> {
+    async fn seek(&mut self, _sequence_number: SequenceNumber) -> Result<(), WriteBufferError> {
         Err(String::from("Something bad happened while seeking the stream").into())
     }
 
@@ -581,7 +584,10 @@ impl WriteBufferReading for MockBufferForReadingThatAlwaysErrors {
         Ok(Box::new(MockStreamHandlerThatAlwaysErrors {}))
     }
 
-    async fn fetch_high_watermark(&self, _sequencer_id: u32) -> Result<u64, WriteBufferError> {
+    async fn fetch_high_watermark(
+        &self,
+        _sequencer_id: u32,
+    ) -> Result<SequenceNumber, WriteBufferError> {
         Err(String::from("Something bad happened while fetching the high watermark").into())
     }
 
@@ -686,14 +692,20 @@ mod tests {
     fn test_state_push_write_panic_wrong_sequencer() {
         let state =
             MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(2).unwrap());
-        state.push_lp(Sequence::new(2, 0), "upc,region=east user=1 100");
+        state.push_lp(
+            Sequence::new(2, SequenceNumber::new(0)),
+            "upc,region=east user=1 100",
+        );
     }
 
     #[test]
     #[should_panic(expected = "no sequencers initialized")]
     fn test_state_push_write_panic_uninitialized() {
         let state = MockBufferSharedState::uninitialized();
-        state.push_lp(Sequence::new(0, 0), "upc,region=east user=1 100");
+        state.push_lp(
+            Sequence::new(0, SequenceNumber::new(0)),
+            "upc,region=east user=1 100",
+        );
     }
 
     #[test]
@@ -703,8 +715,14 @@ mod tests {
     fn test_state_push_write_panic_wrong_sequence_number_equal() {
         let state =
             MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(2).unwrap());
-        state.push_lp(Sequence::new(0, 13), "upc,region=east user=1 100");
-        state.push_lp(Sequence::new(0, 13), "upc,region=east user=1 100");
+        state.push_lp(
+            Sequence::new(0, SequenceNumber::new(13)),
+            "upc,region=east user=1 100",
+        );
+        state.push_lp(
+            Sequence::new(0, SequenceNumber::new(13)),
+            "upc,region=east user=1 100",
+        );
     }
 
     #[test]
@@ -714,8 +732,14 @@ mod tests {
     fn test_state_push_write_panic_wrong_sequence_number_less() {
         let state =
             MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(2).unwrap());
-        state.push_lp(Sequence::new(0, 13), "upc,region=east user=1 100");
-        state.push_lp(Sequence::new(0, 12), "upc,region=east user=1 100");
+        state.push_lp(
+            Sequence::new(0, SequenceNumber::new(13)),
+            "upc,region=east user=1 100",
+        );
+        state.push_lp(
+            Sequence::new(0, SequenceNumber::new(12)),
+            "upc,region=east user=1 100",
+        );
     }
 
     #[test]
@@ -770,8 +794,8 @@ mod tests {
         let state =
             MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(2).unwrap());
 
-        state.push_lp(Sequence::new(0, 11), "upc user=1 100");
-        state.push_lp(Sequence::new(1, 12), "upc user=1 100");
+        state.push_lp(Sequence::new(0, SequenceNumber::new(11)), "upc user=1 100");
+        state.push_lp(Sequence::new(1, SequenceNumber::new(12)), "upc user=1 100");
 
         assert_eq!(state.get_messages(0).len(), 1);
         assert_eq!(state.get_messages(1).len(), 1);
@@ -798,7 +822,11 @@ mod tests {
         let mut stream_handler = reader.stream_handler(0).await.unwrap();
 
         assert_contains!(
-            stream_handler.seek(0).await.unwrap_err().to_string(),
+            stream_handler
+                .seek(SequenceNumber::new(0))
+                .await
+                .unwrap_err()
+                .to_string(),
             "Something bad happened while seeking the stream"
         );
 
@@ -837,7 +865,7 @@ mod tests {
         let state = MockBufferSharedState::uninitialized();
         state.init(NonZeroU32::try_from(2).unwrap());
 
-        state.push_lp(Sequence::new(0, 11), "upc user=1 100");
+        state.push_lp(Sequence::new(0, SequenceNumber::new(11)), "upc user=1 100");
 
         assert_eq!(state.get_messages(0).len(), 1);
         assert_eq!(state.get_messages(1).len(), 0);
@@ -875,7 +903,7 @@ mod tests {
         let state =
             MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());
 
-        state.push_lp(Sequence::new(0, 0), "mem foo=1 10");
+        state.push_lp(Sequence::new(0, SequenceNumber::new(0)), "mem foo=1 10");
 
         let read = MockBufferForReading::new(state.clone(), None).unwrap();
 
@@ -892,7 +920,7 @@ mod tests {
         // Wait for consumer to read first entry
         barrier.wait().await;
 
-        state.push_lp(Sequence::new(0, 1), "mem foo=2 20");
+        state.push_lp(Sequence::new(0, SequenceNumber::new(1)), "mem foo=2 20");
 
         tokio::time::timeout(Duration::from_millis(100), consumer)
             .await

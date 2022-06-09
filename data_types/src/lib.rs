@@ -673,7 +673,7 @@ pub struct Sequencer {
     /// can be persisted at different times, it is possible some data has been persisted
     /// with a higher sequence number than this. However, all data with a sequence number
     /// lower than this must have been persisted to Parquet.
-    pub min_unpersisted_sequence_number: i64,
+    pub min_unpersisted_sequence_number: SequenceNumber,
 }
 
 /// Data object for a partition. The combination of sequencer, table and key are unique (i.e. only
@@ -1966,12 +1966,12 @@ pub struct Sequence {
     /// The sequencer id (kafka partition id)
     pub sequencer_id: u32,
     /// The sequence number (kafka offset)
-    pub sequence_number: u64,
+    pub sequence_number: SequenceNumber,
 }
 
 impl Sequence {
     /// Create a new Sequence
-    pub fn new(sequencer_id: u32, sequence_number: u64) -> Self {
+    pub fn new(sequencer_id: u32, sequence_number: SequenceNumber) -> Self {
         Self {
             sequencer_id,
             sequence_number,

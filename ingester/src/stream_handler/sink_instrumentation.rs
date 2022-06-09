@@ -17,7 +17,7 @@ use trace::span::SpanRecorder;
 /// Implementations may cache the watermark and return inaccurate values.
 pub trait WatermarkFetcher: Debug + Send + Sync {
     /// Return a watermark if available.
-    fn watermark(&self) -> Option<u64>;
+    fn watermark(&self) -> Option<i64>;
 }
 
 /// A [`SinkInstrumentation`] decorates a [`DmlSink`] implementation and records
@@ -205,14 +205,15 @@ where
 
         // Record the "last read sequence number" write buffer metric.
         self.write_buffer_last_sequence_number
-            .set(sequence.sequence_number);
+            .set(sequence.sequence_number.get() as u64);
 
         // If it is possible to obtain the sequence number of the most recent op
         // inserted into the queue, record how far behind the op is.
         if let Some(watermark) = self.watermark_fetcher.watermark() {
+            let watermark = watermark as u64;
             self.write_buffer_sequence_number_lag.set(
                 watermark
-                    .saturating_sub(sequence.sequence_number)
+                    .saturating_sub(sequence.sequence_number.get() as u64)
                     .saturating_sub(1),
             );
         }
@@ -254,7 +255,7 @@ mod tests {
     use std::sync::Arc;
 
     use assert_matches::assert_matches;
-    use data_types::Sequence;
+    use data_types::{Sequence, SequenceNumber};
     use dml::{DmlMeta, DmlWrite};
     use iox_time::Time;
     use metric::{Metric, MetricObserver, Observation};
@@ -310,7 +311,7 @@ mod tests {
         op: impl Into<DmlOperation> + Send,
         metrics: &metric::Registry,
         with_sink_return: Result<bool, crate::data::Error>,
-        with_fetcher_return: Option<u64>,
+        with_fetcher_return: Option<i64>,
     ) -> Result<bool, crate::data::Error> {
         let op = op.into();
         let inner = MockDmlSink::default().with_apply_return([with_sink_return]);
@@ -352,7 +353,7 @@ mod tests {
 
         let meta = DmlMeta::sequenced(
             // Op is offset 100 for sequencer 42
-            Sequence::new(SEQUENCER_ID, 100),
+            Sequence::new(SEQUENCER_ID, SequenceNumber::new(100)),
             *TEST_TIME,
             Some(span),
             4242,
@@ -417,7 +418,7 @@ mod tests {
 
         let meta = DmlMeta::sequenced(
             // Op is offset 100 for sequencer 42
-            Sequence::new(SEQUENCER_ID, 100),
+            Sequence::new(SEQUENCER_ID, SequenceNumber::new(100)),
             *TEST_TIME,
             Some(span),
             4242,
@@ -487,7 +488,7 @@ mod tests {
 
         let meta = DmlMeta::sequenced(
             // Op is offset 100 for sequencer 42
-            Sequence::new(SEQUENCER_ID, 100),
+            Sequence::new(SEQUENCER_ID, SequenceNumber::new(100)),
             *TEST_TIME,
             Some(span),
             4242,
@@ -552,7 +553,7 @@ mod tests {
 
         let meta = DmlMeta::sequenced(
             // Op is offset 100 for sequencer 42
-            Sequence::new(SEQUENCER_ID, 100),
+            Sequence::new(SEQUENCER_ID, SequenceNumber::new(100)),
             *TEST_TIME,
             Some(span),
             4242,
@@ -628,7 +629,7 @@ mod tests {
         let meta = DmlMeta::sequenced(
             // A different kafka partition ID from what the handler is configured to
             // be instrumenting
-            Sequence::new(SEQUENCER_ID + 10, 100),
+            Sequence::new(SEQUENCER_ID + 10, SequenceNumber::new(100)),
             *TEST_TIME,
             None,
             4242,

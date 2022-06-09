@@ -643,7 +643,7 @@ struct MockIngester {
     /// Next sequence number.
     ///
     /// This is kinda a poor-mans write buffer.
-    sequence_counter: u64,
+    sequence_counter: i64,
 }
 
 impl MockIngester {
@@ -692,9 +692,7 @@ impl MockIngester {
 
         // set up partitioner for writes
         if matches!(dml_operation, DmlOperation::Write(_)) {
-            let sequence_number = SequenceNumber::new(
-                dml_operation.meta().sequence().unwrap().sequence_number as i64,
-            );
+            let sequence_number = dml_operation.meta().sequence().unwrap().sequence_number;
             self.partitioner
                 .set(self.partition_keys.get(&sequence_number).unwrap().clone());
         }
@@ -719,10 +717,10 @@ impl MockIngester {
     }
 
     /// Draws new sequence number.
-    fn next_sequence_number(&mut self) -> u64 {
+    fn next_sequence_number(&mut self) -> SequenceNumber {
         let next = self.sequence_counter;
         self.sequence_counter += 1;
-        next
+        SequenceNumber::new(next)
     }
 
     /// Simulate what the router would do when it encounters the given set of line protocol lines.
@@ -775,10 +773,8 @@ impl MockIngester {
         }
 
         let sequence_number = self.next_sequence_number();
-        self.partition_keys.insert(
-            SequenceNumber::new(sequence_number as i64),
-            partition_key.to_string(),
-        );
+        self.partition_keys
+            .insert(sequence_number, partition_key.to_string());
         let meta = DmlMeta::sequenced(
             Sequence::new(self.sequencer.sequencer.id.get() as u32, sequence_number),
             self.catalog.time_provider().now(),

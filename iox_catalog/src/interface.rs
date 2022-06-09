@@ -1265,7 +1265,10 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         assert_eq!(updated_sequencer.id, sequencer.id);
-        assert_eq!(updated_sequencer.min_unpersisted_sequence_number, 53);
+        assert_eq!(
+            updated_sequencer.min_unpersisted_sequence_number,
+            SequenceNumber::new(53)
+        );
 
         let sequencer = repos
             .sequencers()

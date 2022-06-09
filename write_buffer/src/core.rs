@@ -6,6 +6,7 @@ use std::{
 };
 
 use async_trait::async_trait;
+use data_types::SequenceNumber;
 use dml::{DmlMeta, DmlOperation, DmlWrite};
 use futures::stream::BoxStream;
 
@@ -201,7 +202,7 @@ pub trait WriteBufferStreamHandler: Sync + Send + Debug + 'static {
     /// due to "holes" in the stream).
     ///
     /// Note that due to the mutable borrow, it is not possible to seek while streams exists.
-    async fn seek(&mut self, sequence_number: u64) -> Result<(), WriteBufferError>;
+    async fn seek(&mut self, sequence_number: SequenceNumber) -> Result<(), WriteBufferError>;
 
     /// Reset the sequencer to whatever is the earliest number available in the retained write
     /// buffer. Useful to restart if [`WriteBufferErrorKind::UnknownSequenceNumber`] is returned
@@ -215,7 +216,7 @@ impl WriteBufferStreamHandler for Box<dyn WriteBufferStreamHandler> {
         self.as_mut().stream().await
     }
 
-    async fn seek(&mut self, sequence_number: u64) -> Result<(), WriteBufferError> {
+    async fn seek(&mut self, sequence_number: SequenceNumber) -> Result<(), WriteBufferError> {
         self.as_mut().seek(sequence_number).await
     }
 
@@ -258,7 +259,10 @@ pub trait WriteBufferReading: Sync + Send + Debug + 'static {
     /// Can be used to calculate lag. Note that since the watermark is "next sequence ID number to
     /// be added", it starts at 0 and after the entry with sequence number 0 is added to the
     /// buffer, it is 1.
-    async fn fetch_high_watermark(&self, sequencer_id: u32) -> Result<u64, WriteBufferError>;
+    async fn fetch_high_watermark(
+        &self,
+        sequencer_id: u32,
+    ) -> Result<SequenceNumber, WriteBufferError>;
 
     /// Return type (like `"mock"` or `"kafka"`) of this reader.
     fn type_name(&self) -> &'static str;
@@ -272,6 +276,7 @@ pub mod test_utils {
         WriteBufferError, WriteBufferReading, WriteBufferStreamHandler, WriteBufferWriting,
     };
     use async_trait::async_trait;
+    use data_types::SequenceNumber;
     use dml::{test_util::assert_write_op_eq, DmlMeta, DmlOperation, DmlWrite};
     use futures::{stream::FuturesUnordered, Stream, StreamExt, TryStreamExt};
     use iox_time::{Time, TimeProvider};
@@ -639,13 +644,16 @@ pub mod test_utils {
         assert_reader_content(&mut handler_2_2, &[&w_west_1]).await;
 
         // backward seek
-        handler_1_1_a.seek(0).await.unwrap();
+        handler_1_1_a.seek(SequenceNumber::new(0)).await.unwrap();
         assert_reader_content(&mut handler_1_1_a, &[&w_east_1, &w_east_2]).await;
 
         // seek to far end and then add data
         // The affected stream should error and then stop. The other streams should still be
         // pending.
-        handler_1_1_a.seek(1_000_000).await.unwrap();
+        handler_1_1_a
+            .seek(SequenceNumber::new(1_000_000))
+            .await
+            .unwrap();
         let w_east_3 = write("namespace", &writer, entry_east_3, 0, None).await;
 
         let err = handler_1_1_a
@@ -665,7 +673,7 @@ pub mod test_utils {
         assert_stream_pending(&mut handler_2_2.stream().await).await;
 
         // seeking again should recover the stream
-        handler_1_1_a.seek(0).await.unwrap();
+        handler_1_1_a.seek(SequenceNumber::new(0)).await.unwrap();
         assert_reader_content(&mut handler_1_1_a, &[&w_east_1, &w_east_2, &w_east_3]).await;
     }
 
@@ -740,11 +748,11 @@ pub mod test_utils {
         // start at watermark 0
         assert_eq!(
             reader.fetch_high_watermark(sequencer_id_1).await.unwrap(),
-            0
+            SequenceNumber::new(0),
         );
         assert_eq!(
             reader.fetch_high_watermark(sequencer_id_2).await.unwrap(),
-            0
+            SequenceNumber::new(0)
         );
 
         // high water mark moves

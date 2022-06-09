@@ -609,7 +609,7 @@ impl SequencerRepo for MemTxn {
                     id: SequencerId::new(stage.sequencers.len() as i64 + 1),
                     kafka_topic_id: topic.id,
                     kafka_partition: partition,
-                    min_unpersisted_sequence_number: 0,
+                    min_unpersisted_sequence_number: SequenceNumber::new(0),
                 };
                 stage.sequencers.push(sequencer);
                 stage.sequencers.last().unwrap()
@@ -660,7 +660,7 @@ impl SequencerRepo for MemTxn {
         let stage = self.stage();
 
         if let Some(s) = stage.sequencers.iter_mut().find(|s| s.id == sequencer_id) {
-            s.min_unpersisted_sequence_number = sequence_number.get()
+            s.min_unpersisted_sequence_number = sequence_number
         };
 
         Ok(())
