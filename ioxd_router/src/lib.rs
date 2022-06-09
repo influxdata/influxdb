@@ -27,8 +27,8 @@ use router::{
     },
     sequencer::Sequencer,
     server::{grpc::GrpcDelegate, http::HttpDelegate, RouterServer},
-    sharder::JumpHash,
 };
+use sharder::JumpHash;
 use std::{
     collections::BTreeSet,
     fmt::{Debug, Display},

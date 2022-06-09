@@ -10,8 +10,8 @@ use router::{
     namespace_cache::{MemoryNamespaceCache, ShardedCache},
     sequencer::Sequencer,
     server::http::HttpDelegate,
-    sharder::JumpHash,
 };
+use sharder::JumpHash;
 use std::{collections::BTreeSet, iter, sync::Arc};
 use tokio::runtime::Runtime;
 use write_buffer::{

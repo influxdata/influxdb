@@ -2562,6 +2562,7 @@ dependencies = [
  "object_store",
  "observability_deps",
  "router",
+ "sharder",
  "thiserror",
  "tokio",
  "tokio-util",
@@ -4321,7 +4322,7 @@ dependencies = [
  "service_grpc_catalog",
  "service_grpc_object_store",
  "service_grpc_schema",
- "siphasher",
+ "sharder",
  "test_helpers",
  "thiserror",
  "tokio",
@@ -4922,6 +4923,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "900fba806f70c630b0a382d0d825e17a0f19fcd059a2ade1ff237bcddf446b31"
 dependencies = [
  "lazy_static",
+]
+
+[[package]]
+name = "sharder"
+version = "0.1.0"
+dependencies = [
+ "criterion",
+ "data_types",
+ "hashbrown 0.12.1",
+ "mutable_batch",
+ "mutable_batch_lp",
+ "parking_lot 0.12.1",
+ "rand",
+ "siphasher",
+ "workspace-hack",
 ]
 
 [[package]]
