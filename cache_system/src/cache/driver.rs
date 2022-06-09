@@ -14,7 +14,7 @@ use tokio::{
     task::JoinHandle,
 };
 
-use super::Cache;
+use super::{Cache, CacheGetStatus};
 
 /// Combine a [`CacheBackend`] and a [`Loader`] into a single [`Cache`]
 #[derive(Debug)]
@@ -61,20 +61,23 @@ where
     type V = V;
     type Extra = Extra;
 
-    async fn get(&self, k: Self::K, extra: Self::Extra) -> Self::V {
+    async fn get_with_status(&self, k: Self::K, extra: Self::Extra) -> (Self::V, CacheGetStatus) {
         // place state locking into its own scope so it doesn't leak into the generator (async
         // function)
-        let receiver = {
+        let (receiver, status) = {
             let mut state = self.state.lock();
 
             // check if the entry has already been cached
             if let Some(v) = state.cached_entries.get(&k) {
-                return v;
+                return (v, CacheGetStatus::Hit);
             }
 
             // check if there is already a query for this key running
             if let Some(running_query) = state.running_queries.get(&k) {
-                running_query.recv.clone()
+                (
+                    running_query.recv.clone(),
+                    CacheGetStatus::MissAlreadyLoading,
+                )
             } else {
                 // requires new query
                 let (tx_main, rx_main) = tokio::sync::oneshot::channel();
@@ -176,15 +179,17 @@ where
                         tag,
                     },
                 );
-                receiver
+                (receiver, CacheGetStatus::Miss)
             }
         };
 
-        receiver
+        let v = receiver
             .await
             .expect("cache loader panicked, see logs")
             .lock()
-            .clone()
+            .clone();
+
+        (v, status)
     }
 
     async fn set(&self, k: Self::K, v: Self::V) {

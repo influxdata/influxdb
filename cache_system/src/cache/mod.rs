@@ -12,6 +12,20 @@ pub mod driver;
 #[cfg(test)]
 mod test_util;
 
+/// Status of a [`Cache`] GET request.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CacheGetStatus {
+    /// The requested entry was present in the storage backend.
+    Hit,
+
+    /// The requested entry was NOT present in the storage backend and the loader had no previous query running.
+    Miss,
+
+    /// The requested entry was NOT present in the storage backend, but there was already a loader query running for
+    /// this particular key.
+    MissAlreadyLoading,
+}
+
 /// High-level cache implementation.
 ///
 /// # Concurrency
@@ -41,7 +55,16 @@ pub trait Cache: Debug + Send + Sync + 'static {
     type Extra: Debug + Send + 'static;
 
     /// Get value from cache.
-    async fn get(&self, k: Self::K, extra: Self::Extra) -> Self::V;
+    ///
+    /// Note that `extra` is only used if the key is missing from the storage backend and no loader query is running yet.
+    async fn get(&self, k: Self::K, extra: Self::Extra) -> Self::V {
+        self.get_with_status(k, extra).await.0
+    }
+
+    /// Get value from cache and the status.
+    ///
+    /// Note that `extra` is only used if the key is missing from the storage backend and no loader query is running yet.
+    async fn get_with_status(&self, k: Self::K, extra: Self::Extra) -> (Self::V, CacheGetStatus);
 
     /// Side-load an entry into the cache.
     ///
