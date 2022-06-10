@@ -90,11 +90,11 @@ type Partition struct {
 // NewPartition returns a new instance of Partition.
 func NewPartition(sfile *tsdb.SeriesFile, path string) *Partition {
 	return &Partition{
-		closing:     make(chan struct{}),
-		path:        path,
-		sfile:       sfile,
-		seriesIDSet: tsdb.NewSeriesIDSet(),
-
+		closing:        make(chan struct{}),
+		path:           path,
+		sfile:          sfile,
+		seriesIDSet:    tsdb.NewSeriesIDSet(),
+		fileSet:        &FileSet{},
 		MaxLogFileSize: tsdb.DefaultMaxIndexLogFileSize,
 
 		// compactionEnabled: true,
@@ -144,7 +144,7 @@ func (p *Partition) bytes() int {
 var ErrIncompatibleVersion = errors.New("incompatible tsi1 index MANIFEST")
 
 // Open opens the partition.
-func (p *Partition) Open() error {
+func (p *Partition) Open() (rErr error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -190,6 +190,12 @@ func (p *Partition) Open() error {
 
 	// Open each file in the manifest.
 	var files []File
+	defer func() {
+		if rErr != nil {
+			Files(files).Close()
+		}
+	}()
+
 	for _, filename := range m.Files {
 		switch filepath.Ext(filename) {
 		case LogFileExt:
@@ -230,7 +236,7 @@ func (p *Partition) Open() error {
 		}
 	}
 
-	// Build series existance set.
+	// Build series existence set.
 	if err := p.buildSeriesSet(); err != nil {
 		return err
 	}
@@ -242,6 +248,10 @@ func (p *Partition) Open() error {
 	go p.runPeriodicCompaction()
 
 	return nil
+}
+
+func (p *Partition) IsOpen() bool {
+	return p.opened
 }
 
 // openLogFile opens a log file and appends it to the index.
