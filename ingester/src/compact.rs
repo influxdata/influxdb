@@ -211,7 +211,7 @@ mod tests {
                 sequencer_id: SequencerId::new(seq_id),
                 table_id: TableId::new(table_id),
                 partition_key: partition_key.into(),
-                sort_key: None,
+                sort_key: vec![],
             },
         };
 
@@ -281,7 +281,7 @@ mod tests {
                 sequencer_id: SequencerId::new(seq_id),
                 table_id: TableId::new(table_id),
                 partition_key: partition_key.into(),
-                sort_key: None,
+                sort_key: vec![],
             },
         };
 
@@ -376,7 +376,7 @@ mod tests {
                 table_id: TableId::new(table_id),
                 partition_key: partition_key.into(),
                 // NO SORT KEY from the catalog here, first persisting batch
-                sort_key: None,
+                sort_key: vec![],
             },
         };
 
@@ -474,7 +474,7 @@ mod tests {
                 partition_key: partition_key.into(),
                 // SPECIFY A SORT KEY HERE to simulate a sort key being stored in the catalog
                 // this is NOT what the computed sort key would be based on this data's cardinality
-                sort_key: Some("tag3,tag1,time".into()),
+                sort_key: vec!["tag3".to_string(), "tag1".to_string(), "time".to_string()],
             },
         };
 
@@ -573,7 +573,7 @@ mod tests {
                 // SPECIFY A SORT KEY HERE to simulate a sort key being stored in the catalog
                 // this is NOT what the computed sort key would be based on this data's cardinality
                 // The new column, tag1, should get added just before the time column
-                sort_key: Some("tag3,time".into()),
+                sort_key: vec!["tag3".to_string(), "time".to_string()],
             },
         };
 
@@ -675,7 +675,12 @@ mod tests {
                 // SPECIFY A SORT KEY HERE to simulate a sort key being stored in the catalog
                 // this is NOT what the computed sort key would be based on this data's cardinality
                 // This contains a sort key, "tag4", that doesn't appear in the data.
-                sort_key: Some("tag3,tag1,tag4,time".into()),
+                sort_key: vec![
+                    "tag3".to_string(),
+                    "tag1".to_string(),
+                    "tag4".to_string(),
+                    "time".to_string(),
+                ],
             },
         };
 

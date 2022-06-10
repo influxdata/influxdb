@@ -688,17 +688,26 @@ pub struct Partition {
     pub table_id: TableId,
     /// the string key of the partition
     pub partition_key: String,
-    /// The sort key for the partition. Should be computed on the first persist operation for
-    /// this partition and updated if new tag columns are added.
-    pub sort_key: Option<String>,
+    /// Sort key is a vector of names of all tags and time of the data that belongs to this partition.
+    /// Since we allow data in each chunk (aka data in a parquet file) contains different set of columns,
+    /// different partitions may contain different set of sort_key but they must be subsets of PK of the table.
+    ///
+    /// When the partition is first created before its data is saved in the parquet_file table,
+    /// this sort_key is empty and means it is not yet set or unknown.
+    /// The sort_key is computed and updated as needed on persist operations for this partition. The update
+    /// happens when the data of this partition is first persisted (must at least include `time` column if no tags)
+    /// and, later on, when data with new tags are ingested into this partition
+    pub sort_key: Vec<String>,
 }
 
 impl Partition {
     /// The sort key for the partition, if present, structured as a `SortKey`
     pub fn sort_key(&self) -> Option<SortKey> {
-        self.sort_key
-            .as_ref()
-            .map(|s| SortKey::from_columns(s.split(',')))
+        if self.sort_key.is_empty() {
+            return None;
+        }
+
+        Some(SortKey::from_columns(self.sort_key.iter().map(|s| &**s)))
     }
 }
 

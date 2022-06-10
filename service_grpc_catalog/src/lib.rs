@@ -108,7 +108,7 @@ fn to_partition(p: data_types::Partition) -> Partition {
         sequencer_id: p.sequencer_id.get(),
         key: p.partition_key,
         table_id: p.table_id.get(),
-        sort_key: p.sort_key.unwrap_or_else(|| "".to_string()),
+        array_sort_key: p.sort_key,
     }
 }
 

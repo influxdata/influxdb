@@ -451,7 +451,7 @@ impl Deduplicater {
                 assert!(
                     pk_schema.len() <= sort_key.len(),
                     "output_sort_key ({:?}) must be at least as long as the primary key ({:?})",
-                    sort_key.to_columns(),
+                    sort_key.to_columns().collect::<Vec<_>>(),
                     pk_schema,
                 );
                 assert!(

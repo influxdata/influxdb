@@ -327,13 +327,13 @@ impl Persister for IngesterData {
 
             // Update the sort key in the catalog if there are additional columns
             if let Some(new_sort_key) = sort_key_update {
-                let sort_key_string = new_sort_key.to_columns();
+                let sort_key = new_sort_key.to_columns().collect::<Vec<_>>();
                 Backoff::new(&self.backoff_config)
                     .retry_all_errors("update_sort_key", || async {
                         let mut repos = self.catalog.repositories().await;
                         repos
                             .partitions()
-                            .update_sort_key(partition_id, &sort_key_string)
+                            .update_sort_key(partition_id, &sort_key)
                             .await
                     })
                     .await
@@ -1881,7 +1881,7 @@ mod tests {
                 .await
                 .unwrap()
                 .unwrap();
-            assert!(partition_info.partition.sort_key.is_none());
+            assert!(partition_info.partition.sort_key.is_empty());
         }
 
         data.persist(partition_id).await;
@@ -1921,7 +1921,7 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
-        assert_eq!(partition_info.partition.sort_key.unwrap(), "time");
+        assert_eq!(partition_info.partition.sort_key, vec!["time"]);
 
         let mem_table = n.table_data("mem").unwrap();
         let mem_table = mem_table.read().await;

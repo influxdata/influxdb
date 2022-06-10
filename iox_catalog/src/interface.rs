@@ -433,7 +433,7 @@ pub trait PartitionRepo: Send + Sync {
     async fn update_sort_key(
         &mut self,
         partition_id: PartitionId,
-        sort_key: &str,
+        sort_key: &[&str],
     ) -> Result<Partition>;
 }
 
@@ -1404,29 +1404,13 @@ pub(crate) mod test_helpers {
             .collect();
         assert_eq!(expected, listed);
 
-        // sort_key should be None on creation
-        assert_eq!(other_partition.sort_key, None);
+        // sort_key should be empty on creation
+        assert!(other_partition.sort_key.is_empty());
 
         // test update_sort_key from None to Some
         repos
             .partitions()
-            .update_sort_key(other_partition.id, "tag2,tag1,time")
-            .await
-            .unwrap();
-
-        // test getting the new sort key
-        let updated_other_partition = repos
-            .partitions()
-            .get_by_id(other_partition.id)
-            .await
-            .unwrap()
-            .unwrap();
-        assert_eq!(updated_other_partition.sort_key.unwrap(), "tag2,tag1,time");
-
-        // test update_sort_key from Some value to Some other value
-        repos
-            .partitions()
-            .update_sort_key(other_partition.id, "tag2,tag1,tag3,time")
+            .update_sort_key(other_partition.id, &["tag2", "tag1", "time"])
             .await
             .unwrap();
 
@@ -1438,8 +1422,30 @@ pub(crate) mod test_helpers {
             .unwrap()
             .unwrap();
         assert_eq!(
-            updated_other_partition.sort_key.unwrap(),
-            "tag2,tag1,tag3,time"
+            updated_other_partition.sort_key,
+            vec!["tag2", "tag1", "time"]
+        );
+
+        // test update_sort_key from Some value to Some other value
+        repos
+            .partitions()
+            .update_sort_key(
+                other_partition.id,
+                &["tag2", "tag1", "tag3 , with comma", "time"],
+            )
+            .await
+            .unwrap();
+
+        // test getting the new sort key
+        let updated_other_partition = repos
+            .partitions()
+            .get_by_id(other_partition.id)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            updated_other_partition.sort_key,
+            vec!["tag2", "tag1", "tag3 , with comma", "time"]
         );
     }
 

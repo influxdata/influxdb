@@ -151,8 +151,8 @@ impl SortKey {
         builder.build()
     }
 
-    pub fn to_columns(&self) -> String {
-        self.columns.keys().join(",")
+    pub fn to_columns(&self) -> impl Iterator<Item = &str> {
+        self.columns.keys().map(|k| k.as_ref())
     }
 
     /// Gets the ColumnSort for a given column name

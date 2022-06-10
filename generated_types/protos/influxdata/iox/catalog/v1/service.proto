@@ -23,6 +23,9 @@ message GetParquetFilesByPartitionIdResponse {
 }
 
 message Partition {
+    reserved 5;
+    reserved "sort_key";
+
     // the partition id
     int64 id = 1;
     // the sequencer the partition is under
@@ -32,7 +35,7 @@ message Partition {
     // the partition key
     string key = 4;
     // the sort key for data in parquet files in the partition
-    string sort_key = 5;
+    repeated string array_sort_key = 6;
 }
 
 message GetPartitionsByTableIdRequest {
