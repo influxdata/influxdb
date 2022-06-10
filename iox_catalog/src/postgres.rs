@@ -1950,7 +1950,7 @@ mod tests {
     use super::*;
     use crate::create_or_get_default_records;
     use assert_matches::assert_matches;
-    use metric::{Attributes, Metric, U64Histogram};
+    use metric::{Attributes, DurationHistogram, Metric};
     use rand::Rng;
     use sqlx::migrate::MigrateDatabase;
     use std::{env, io::Write, ops::DerefMut, sync::Arc, time::Instant};
@@ -2005,7 +2005,7 @@ mod tests {
 
     fn assert_metric_hit(metrics: &metric::Registry, name: &'static str) {
         let histogram = metrics
-            .get_instrument::<Metric<U64Histogram>>("catalog_op_duration_ms")
+            .get_instrument::<Metric<DurationHistogram>>("catalog_op_duration")
             .expect("failed to read metric")
             .get_observer(&Attributes::from(&[("op", name), ("result", "success")]))
             .expect("failed to get observer")

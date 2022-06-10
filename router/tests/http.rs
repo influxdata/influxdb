@@ -4,7 +4,7 @@ use dml::DmlOperation;
 use hashbrown::HashMap;
 use hyper::{Body, Request, StatusCode};
 use iox_catalog::{interface::Catalog, mem::MemCatalog};
-use metric::{Attributes, Metric, Registry, U64Counter, U64Histogram};
+use metric::{Attributes, DurationHistogram, Metric, Registry, U64Counter};
 use mutable_batch::MutableBatch;
 use router::{
     dml_handlers::{
@@ -201,7 +201,7 @@ async fn test_write_ok() {
     // Ensure the metric instrumentation was hit
     let histogram = ctx
         .metrics()
-        .get_instrument::<Metric<U64Histogram>>("dml_handler_write_duration_ms")
+        .get_instrument::<Metric<DurationHistogram>>("dml_handler_write_duration")
         .expect("failed to read metric")
         .get_observer(&Attributes::from(&[
             ("handler", "request"),
@@ -224,7 +224,7 @@ async fn test_write_ok() {
 
     let histogram = ctx
         .metrics()
-        .get_instrument::<Metric<U64Histogram>>("sequencer_enqueue_duration_ms")
+        .get_instrument::<Metric<DurationHistogram>>("sequencer_enqueue_duration")
         .expect("failed to read metric")
         .get_observer(&Attributes::from(&[
             ("kafka_partition", "0"),

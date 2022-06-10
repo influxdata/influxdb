@@ -16,13 +16,17 @@ pub async fn test_metrics() {
             Step::WriteLineProtocol(lp),
             Step::WaitForReadable,
             Step::VerifiedMetrics(Box::new(|_state, metrics| {
+                let metrics_lines: Vec<_> = metrics.trim().split('\n').collect();
+                let catalog_op_metrics_count = metrics_lines
+                    .iter()
+                    .filter(|x| x.starts_with("catalog_op_duration_seconds_bucket"))
+                    .count();
+
                 assert!(
+                    catalog_op_metrics_count >= 180,
+                    "Expected at least 180 catalog op metrics, got: {}\n\n{}",
+                    catalog_op_metrics_count,
                     metrics
-                        .trim()
-                        .split('\n')
-                        .filter(|x| x.starts_with("catalog_op_duration_ms_bucket"))
-                        .count()
-                        >= 180
                 );
             })),
         ],

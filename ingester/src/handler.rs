@@ -23,7 +23,7 @@ use generated_types::ingester::IngesterQueryRequest;
 use iox_catalog::interface::Catalog;
 use iox_query::exec::Executor;
 use iox_time::{SystemProvider, TimeProvider};
-use metric::{Metric, U64Counter, U64Histogram, U64HistogramOptions};
+use metric::{DurationHistogram, Metric, U64Counter};
 use object_store::DynObjectStore;
 use observability_deps::tracing::*;
 use snafu::{ResultExt, Snafu};
@@ -109,9 +109,9 @@ pub struct IngestHandlerImpl<T = SystemProvider> {
 
     time_provider: T,
 
-    /// Query execution duration distribution (milliseconds).
-    query_duration_success_ms: U64Histogram,
-    query_duration_error_ms: U64Histogram,
+    /// Query execution duration distribution.
+    query_duration_success: DurationHistogram,
+    query_duration_error: DurationHistogram,
 
     /// Query request rejected due to concurrency limits
     query_request_limit_rejected: U64Counter,
@@ -250,30 +250,12 @@ impl IngestHandlerImpl {
         }
 
         // Record query duration metrics, broken down by query execution result
-        let query_duration: Metric<U64Histogram> = metric_registry.register_metric_with_options(
-            "flight_query_duration_ms",
-            "flight request query execution duration in milliseconds",
-            || {
-                U64HistogramOptions::new([
-                    5,
-                    10,
-                    20,
-                    40,
-                    80,
-                    160,
-                    320,
-                    640,
-                    1280,
-                    2560,
-                    5120,
-                    10240,
-                    20480,
-                    u64::MAX,
-                ])
-            },
+        let query_duration: Metric<DurationHistogram> = metric_registry.register_metric(
+            "flight_query_duration",
+            "flight request query execution duration",
         );
-        let query_duration_success_ms = query_duration.recorder(&[("result", "success")]);
-        let query_duration_error_ms = query_duration.recorder(&[("result", "error")]);
+        let query_duration_success = query_duration.recorder(&[("result", "success")]);
+        let query_duration_error = query_duration.recorder(&[("result", "error")]);
 
         let query_request_limit_rejected = metric_registry
             .register_metric::<U64Counter>(
@@ -287,8 +269,8 @@ impl IngestHandlerImpl {
             kafka_topic: topic,
             join_handles,
             shutdown,
-            query_duration_success_ms,
-            query_duration_error_ms,
+            query_duration_success,
+            query_duration_error,
             query_request_limit_rejected,
             request_sem: Semaphore::new(max_requests),
             time_provider: Default::default(),
@@ -325,10 +307,8 @@ impl IngestHandler for IngestHandlerImpl {
 
         if let Some(delta) = self.time_provider.now().checked_duration_since(t) {
             match &res {
-                Ok(_) => self
-                    .query_duration_success_ms
-                    .record(delta.as_millis() as _),
-                Err(_) => self.query_duration_error_ms.record(delta.as_millis() as _),
+                Ok(_) => self.query_duration_success.record(delta),
+                Err(_) => self.query_duration_error.record(delta),
             };
         }
 
@@ -397,7 +377,7 @@ mod tests {
     use dml::{DmlMeta, DmlWrite};
     use iox_catalog::{mem::MemCatalog, validate_or_insert_schema};
     use iox_time::Time;
-    use metric::{Attributes, Metric, U64Counter, U64Gauge, U64Histogram};
+    use metric::{Attributes, Metric, U64Counter, U64Gauge};
     use mutable_batch_lp::lines_to_batches;
     use object_store::memory::InMemory;
     use std::{num::NonZeroU32, ops::DerefMut};
@@ -504,7 +484,7 @@ mod tests {
 
         let observation = ingester
             .metrics
-            .get_instrument::<Metric<U64Histogram>>("ingester_op_apply_duration_ms")
+            .get_instrument::<Metric<DurationHistogram>>("ingester_op_apply_duration")
             .unwrap()
             .get_observer(&Attributes::from(&[
                 ("kafka_topic", "whatevs"),

@@ -1,10 +1,9 @@
 //! A representation of a single operation sequencer.
 
-use std::{borrow::Cow, hash::Hash, sync::Arc};
-
 use dml::{DmlMeta, DmlOperation};
 use iox_time::{SystemProvider, TimeProvider};
-use metric::{Metric, U64Histogram, U64HistogramOptions};
+use metric::{DurationHistogram, Metric};
+use std::{borrow::Cow, hash::Hash, sync::Arc};
 use write_buffer::core::{WriteBufferError, WriteBufferWriting};
 
 /// A sequencer tags an write buffer with a sequencer ID.
@@ -14,8 +13,8 @@ pub struct Sequencer<P = SystemProvider> {
     inner: Arc<dyn WriteBufferWriting>,
     time_provider: P,
 
-    enqueue_success: U64Histogram,
-    enqueue_error: U64Histogram,
+    enqueue_success: DurationHistogram,
+    enqueue_error: DurationHistogram,
 }
 
 impl Eq for Sequencer {}
@@ -35,13 +34,9 @@ impl Hash for Sequencer {
 impl Sequencer {
     /// Tag `inner` with the specified `id`.
     pub fn new(id: usize, inner: Arc<dyn WriteBufferWriting>, metrics: &metric::Registry) -> Self {
-        let buckets = || {
-            U64HistogramOptions::new([5, 10, 20, 40, 80, 160, 320, 640, 1280, 2560, 5120, u64::MAX])
-        };
-        let write: Metric<U64Histogram> = metrics.register_metric_with_options(
-            "sequencer_enqueue_duration_ms",
-            "sequencer enqueue call duration in milliseconds",
-            buckets,
+        let write: Metric<DurationHistogram> = metrics.register_metric(
+            "sequencer_enqueue_duration",
+            "sequencer enqueue call duration",
         );
 
         let enqueue_success = write.recorder([
@@ -79,8 +74,8 @@ impl Sequencer {
 
         if let Some(delta) = self.time_provider.now().checked_duration_since(t) {
             match &res {
-                Ok(_) => self.enqueue_success.record(delta.as_millis() as _),
-                Err(_) => self.enqueue_error.record(delta.as_millis() as _),
+                Ok(_) => self.enqueue_success.record(delta),
+                Err(_) => self.enqueue_error.record(delta),
             }
         }
 

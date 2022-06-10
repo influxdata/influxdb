@@ -3,7 +3,7 @@
 use super::NamespaceCache;
 use data_types::{DatabaseName, NamespaceSchema};
 use iox_time::{SystemProvider, TimeProvider};
-use metric::{Metric, U64Gauge, U64Histogram, U64HistogramOptions};
+use metric::{DurationHistogram, Metric, U64Gauge};
 use std::sync::Arc;
 
 /// An [`InstrumentedCache`] decorates a [`NamespaceCache`] with cache read
@@ -18,36 +18,26 @@ pub struct InstrumentedCache<T, P = SystemProvider> {
     column_count: U64Gauge,
 
     /// A cache read hit
-    get_hit: U64Histogram,
+    get_hit: DurationHistogram,
     /// A cache read miss
-    get_miss: U64Histogram,
+    get_miss: DurationHistogram,
 
     /// A cache put for a namespace that did not previously exist.
-    put_insert: U64Histogram,
+    put_insert: DurationHistogram,
     /// A cache put replacing a namespace that previously had a cache entry.
-    put_update: U64Histogram,
+    put_update: DurationHistogram,
 }
 
 impl<T> InstrumentedCache<T> {
     /// Instrument `T`, recording cache operations to `registry`.
     pub fn new(inner: T, registry: &metric::Registry) -> Self {
-        let buckets = || {
-            U64HistogramOptions::new([5, 10, 20, 40, 80, 160, 320, 640, 1280, 2560, 5120, u64::MAX])
-        };
-
-        let get_counter: Metric<U64Histogram> = registry.register_metric_with_options(
-            "namespace_cache_get_duration_ms",
-            "cache read call duration in milliseconds",
-            buckets,
-        );
+        let get_counter: Metric<DurationHistogram> =
+            registry.register_metric("namespace_cache_get_duration", "cache read call duration");
         let get_hit = get_counter.recorder(&[("result", "hit")]);
         let get_miss = get_counter.recorder(&[("result", "miss")]);
 
-        let put_counter: Metric<U64Histogram> = registry.register_metric_with_options(
-            "namespace_cache_put_duration_ms",
-            "cache put call duration in milliseconds",
-            buckets,
-        );
+        let put_counter: Metric<DurationHistogram> =
+            registry.register_metric("namespace_cache_put_duration", "cache put call duration");
         let put_insert = put_counter.recorder(&[("op", "insert")]);
         let put_update = put_counter.recorder(&[("op", "update")]);
 
@@ -90,8 +80,8 @@ where
         // if it happens.
         if let Some(delta) = self.time_provider.now().checked_duration_since(t) {
             match &res {
-                Some(_) => self.get_hit.record(delta.as_millis() as _),
-                None => self.get_miss.record(delta.as_millis() as _),
+                Some(_) => self.get_hit.record(delta),
+                None => self.get_miss.record(delta),
             };
         }
 
@@ -112,7 +102,7 @@ where
         match res {
             Some(v) => {
                 if let Some(delta) = self.time_provider.now().checked_duration_since(t) {
-                    self.put_update.record(delta.as_millis() as _);
+                    self.put_update.record(delta);
                 }
 
                 // Figure out the difference between the new namespace and the
@@ -129,7 +119,7 @@ where
             }
             None => {
                 if let Some(delta) = self.time_provider.now().checked_duration_since(t) {
-                    self.put_insert.record(delta.as_millis() as _);
+                    self.put_insert.record(delta);
                 }
 
                 // Add the new namespace stats to the counts.
@@ -215,7 +205,7 @@ mod tests {
         count: u64,
     ) {
         let histogram = metrics
-            .get_instrument::<Metric<U64Histogram>>(metric_name)
+            .get_instrument::<Metric<DurationHistogram>>(metric_name)
             .expect("failed to read metric")
             .get_observer(&Attributes::from(&[attr]))
             .expect("failed to get observer")
@@ -240,13 +230,13 @@ mod tests {
         assert!(cache.put_schema(ns.clone(), schema).is_none());
         assert_histogram_hit(
             &registry,
-            "namespace_cache_put_duration_ms",
+            "namespace_cache_put_duration",
             ("op", "insert"),
             1,
         );
         assert_histogram_hit(
             &registry,
-            "namespace_cache_put_duration_ms",
+            "namespace_cache_put_duration",
             ("op", "update"),
             0,
         );
@@ -258,13 +248,13 @@ mod tests {
         assert!(cache.put_schema(ns.clone(), schema).is_some());
         assert_histogram_hit(
             &registry,
-            "namespace_cache_put_duration_ms",
+            "namespace_cache_put_duration",
             ("op", "insert"),
             1,
         ); // Unchanged
         assert_histogram_hit(
             &registry,
-            "namespace_cache_put_duration_ms",
+            "namespace_cache_put_duration",
             ("op", "update"),
             1,
         );
@@ -276,13 +266,13 @@ mod tests {
         assert!(cache.put_schema(ns.clone(), schema).is_some());
         assert_histogram_hit(
             &registry,
-            "namespace_cache_put_duration_ms",
+            "namespace_cache_put_duration",
             ("op", "insert"),
             1,
         ); // Unchanged
         assert_histogram_hit(
             &registry,
-            "namespace_cache_put_duration_ms",
+            "namespace_cache_put_duration",
             ("op", "update"),
             2,
         );
@@ -294,13 +284,13 @@ mod tests {
         assert!(cache.put_schema(ns.clone(), schema).is_some());
         assert_histogram_hit(
             &registry,
-            "namespace_cache_put_duration_ms",
+            "namespace_cache_put_duration",
             ("op", "insert"),
             1,
         ); // Unchanged
         assert_histogram_hit(
             &registry,
-            "namespace_cache_put_duration_ms",
+            "namespace_cache_put_duration",
             ("op", "update"),
             3,
         );
@@ -312,13 +302,13 @@ mod tests {
         assert!(cache.put_schema(ns.clone(), schema).is_some());
         assert_histogram_hit(
             &registry,
-            "namespace_cache_put_duration_ms",
+            "namespace_cache_put_duration",
             ("op", "insert"),
             1,
         ); // Unchanged
         assert_histogram_hit(
             &registry,
-            "namespace_cache_put_duration_ms",
+            "namespace_cache_put_duration",
             ("op", "update"),
             4,
         );
@@ -330,13 +320,13 @@ mod tests {
         assert!(cache.put_schema(ns.clone(), schema).is_some());
         assert_histogram_hit(
             &registry,
-            "namespace_cache_put_duration_ms",
+            "namespace_cache_put_duration",
             ("op", "insert"),
             1,
         ); // Unchanged
         assert_histogram_hit(
             &registry,
-            "namespace_cache_put_duration_ms",
+            "namespace_cache_put_duration",
             ("op", "update"),
             5,
         );
@@ -348,13 +338,13 @@ mod tests {
         assert!(cache.put_schema(ns, schema).is_some());
         assert_histogram_hit(
             &registry,
-            "namespace_cache_put_duration_ms",
+            "namespace_cache_put_duration",
             ("op", "insert"),
             1,
         ); // Unchanged
         assert_histogram_hit(
             &registry,
-            "namespace_cache_put_duration_ms",
+            "namespace_cache_put_duration",
             ("op", "update"),
             6,
         );
@@ -367,13 +357,13 @@ mod tests {
         assert!(cache.put_schema(ns.clone(), schema).is_none());
         assert_histogram_hit(
             &registry,
-            "namespace_cache_put_duration_ms",
+            "namespace_cache_put_duration",
             ("op", "insert"),
             2,
         );
         assert_histogram_hit(
             &registry,
-            "namespace_cache_put_duration_ms",
+            "namespace_cache_put_duration",
             ("op", "update"),
             6,
         );
@@ -383,7 +373,7 @@ mod tests {
         let _got = cache.get_schema(&ns).expect("should exist");
         assert_histogram_hit(
             &registry,
-            "namespace_cache_get_duration_ms",
+            "namespace_cache_get_duration",
             ("result", "hit"),
             1,
         );

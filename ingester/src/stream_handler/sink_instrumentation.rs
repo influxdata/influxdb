@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use data_types::KafkaPartition;
 use dml::DmlOperation;
 use iox_time::{SystemProvider, TimeProvider};
-use metric::{Attributes, U64Counter, U64Gauge, U64Histogram, U64HistogramOptions};
+use metric::{Attributes, DurationHistogram, U64Counter, U64Gauge};
 use std::fmt::Debug;
 use trace::span::SpanRecorder;
 
@@ -52,8 +52,8 @@ pub struct SinkInstrumentation<F, T, P = SystemProvider> {
 
     /// Op application success/failure call latency histograms (which include
     /// counters)
-    op_apply_success_ms: U64Histogram,
-    op_apply_error_ms: U64Histogram,
+    op_apply_success: DurationHistogram,
+    op_apply_error: DurationHistogram,
 
     /// Write buffer metrics
     write_buffer_bytes_read: U64Counter,
@@ -111,37 +111,16 @@ where
             )
             .recorder(attr.clone());
 
-        // The buckets for the op apply histogram
-        let buckets = || {
-            U64HistogramOptions::new([
-                5,
-                10,
-                20,
-                40,
-                80,
-                160,
-                320,
-                640,
-                1280,
-                2560,
-                5120,
-                10240,
-                20480,
-                u64::MAX,
-            ])
-        };
-
-        let op_apply = metrics.register_metric_with_options::<U64Histogram, _>(
-            "ingester_op_apply_duration_ms",
+        let op_apply = metrics.register_metric::<DurationHistogram>(
+            "ingester_op_apply_duration",
             "The duration of time taken to process an operation read from the sequencer",
-            buckets,
         );
-        let op_apply_success_ms = op_apply.recorder({
+        let op_apply_success = op_apply.recorder({
             let mut attr = attr.clone();
             attr.insert("result", "success");
             attr
         });
-        let op_apply_error_ms = op_apply.recorder({
+        let op_apply_error = op_apply.recorder({
             let mut attr = attr;
             attr.insert("result", "error");
             attr
@@ -152,8 +131,8 @@ where
             watermark_fetcher,
             sequencer_id: kafka_partition.get(),
 
-            op_apply_success_ms,
-            op_apply_error_ms,
+            op_apply_success,
+            op_apply_error,
 
             write_buffer_bytes_read,
             write_buffer_last_sequence_number,
@@ -235,14 +214,14 @@ where
             let metric = match &res {
                 Ok(_) => {
                     span_recorder.ok("success");
-                    &self.op_apply_success_ms
+                    &self.op_apply_success
                 }
                 Err(e) => {
                     span_recorder.error(e.to_string());
-                    &self.op_apply_error_ms
+                    &self.op_apply_error
                 }
             };
-            metric.record(delta.as_millis() as _);
+            metric.record(delta);
         }
 
         // Return the result from the inner handler unmodified
@@ -394,12 +373,12 @@ mod tests {
         );
 
         // Validate the success histogram was hit
-        let hist = get_metric::<U64Histogram>(&metrics, "ingester_op_apply_duration_ms", &{
+        let hist = get_metric::<DurationHistogram>(&metrics, "ingester_op_apply_duration", &{
             let mut attrs = DEFAULT_ATTRS.clone();
             attrs.insert("result", "success");
             attrs
         });
-        assert_matches!(hist, Observation::U64Histogram(h) => {
+        assert_matches!(hist, Observation::DurationHistogram(h) => {
             let hits: u64 = h.buckets.iter().map(|b| b.count).sum();
             assert_eq!(hits, 1);
         });
@@ -465,12 +444,12 @@ mod tests {
         );
 
         // Validate the histogram was hit even on error
-        let hist = get_metric::<U64Histogram>(&metrics, "ingester_op_apply_duration_ms", &{
+        let hist = get_metric::<DurationHistogram>(&metrics, "ingester_op_apply_duration", &{
             let mut attrs = DEFAULT_ATTRS.clone();
             attrs.insert("result", "error");
             attrs
         });
-        assert_matches!(hist, Observation::U64Histogram(h) => {
+        assert_matches!(hist, Observation::DurationHistogram(h) => {
             let hits: u64 = h.buckets.iter().map(|b| b.count).sum();
             assert_eq!(hits, 1);
         });
@@ -529,12 +508,12 @@ mod tests {
         );
 
         // Validate the success histogram was hit
-        let hist = get_metric::<U64Histogram>(&metrics, "ingester_op_apply_duration_ms", &{
+        let hist = get_metric::<DurationHistogram>(&metrics, "ingester_op_apply_duration", &{
             let mut attrs = DEFAULT_ATTRS.clone();
             attrs.insert("result", "success");
             attrs
         });
-        assert_matches!(hist, Observation::U64Histogram(h) => {
+        assert_matches!(hist, Observation::DurationHistogram(h) => {
             let hits: u64 = h.buckets.iter().map(|b| b.count).sum();
             assert_eq!(hits, 1);
         });
@@ -594,12 +573,12 @@ mod tests {
         );
 
         // Validate the success histogram was hit
-        let hist = get_metric::<U64Histogram>(&metrics, "ingester_op_apply_duration_ms", &{
+        let hist = get_metric::<DurationHistogram>(&metrics, "ingester_op_apply_duration", &{
             let mut attrs = DEFAULT_ATTRS.clone();
             attrs.insert("result", "success");
             attrs
         });
-        assert_matches!(hist, Observation::U64Histogram(h) => {
+        assert_matches!(hist, Observation::DurationHistogram(h) => {
             let hits: u64 = h.buckets.iter().map(|b| b.count).sum();
             assert_eq!(hits, 1);
         });
