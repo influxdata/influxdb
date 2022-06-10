@@ -1,3 +1,4 @@
+pub(crate) mod common;
 pub mod influxrpc;
 pub mod reorg;
 pub mod sql;
