@@ -195,6 +195,7 @@ func (p *Partition) Open() error {
 		case LogFileExt:
 			f, err := p.openLogFile(filepath.Join(p.path, filename))
 			if err != nil {
+				Files(files).Close()
 				return err
 			}
 			files = append(files, f)
@@ -208,6 +209,7 @@ func (p *Partition) Open() error {
 		case IndexFileExt:
 			f, err := p.openIndexFile(filepath.Join(p.path, filename))
 			if err != nil {
+				Files(files).Close()
 				return err
 			}
 			files = append(files, f)
@@ -242,6 +244,10 @@ func (p *Partition) Open() error {
 	go p.runPeriodicCompaction()
 
 	return nil
+}
+
+func (p *Partition) IsOpen() bool {
+	return p.opened
 }
 
 // openLogFile opens a log file and appends it to the index.

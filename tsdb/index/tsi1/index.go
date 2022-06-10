@@ -21,6 +21,7 @@ import (
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 )
 
 // IndexName is the name of the index.
@@ -281,35 +282,25 @@ func (i *Index) Open() error {
 	partitionN := len(i.partitions)
 	n := i.availableThreads()
 
-	// Store results.
-	errC := make(chan error, partitionN)
-
 	// Run fn on each partition using a fixed number of goroutines.
-	var pidx uint32 // Index of maximum Partition being worked on.
-	for k := 0; k < n; k++ {
-		go func(k int) {
-			for {
-				idx := int(atomic.AddUint32(&pidx, 1) - 1) // Get next partition to work on.
-				if idx >= partitionN {
-					return // No more work.
-				}
-				err := i.partitions[idx].Open()
-				errC <- err
-			}
-		}(k)
-	}
 
-	// Check for error
-	for i := 0; i < partitionN; i++ {
-		if err := <-errC; err != nil {
-			return err
-		}
+	g := new(errgroup.Group)
+	g.SetLimit(n)
+	for idx := 0; idx < partitionN; idx++ {
+		g.Go(i.partitions[idx].Open)
+	}
+	err := g.Wait()
+	if err != nil {
+		i.cleanUpFail()
+		return err
 	}
 
 	// Refresh cached sketches.
 	if err := i.updateSeriesSketches(); err != nil {
+		i.cleanUpFail()
 		return err
 	} else if err := i.updateMeasurementSketches(); err != nil {
+		i.cleanUpFail()
 		return err
 	}
 
@@ -317,6 +308,14 @@ func (i *Index) Open() error {
 	i.opened = true
 	i.logger.Info(fmt.Sprintf("index opened with %d partitions", partitionN))
 	return nil
+}
+
+func (i *Index) cleanUpFail() {
+	for _, p := range i.partitions {
+		if (p != nil) && p.IsOpen() {
+			p.Close()
+		}
+	}
 }
 
 // Compact requests a compaction of partitions.
