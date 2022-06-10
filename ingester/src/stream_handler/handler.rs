@@ -225,7 +225,6 @@ where
             let maybe_op = match maybe_op {
                 Some(Ok(op)) => {
                     if let Some(sequence_number) = op.meta().sequence().map(|s| s.sequence_number) {
-                        let sequence_number = SequenceNumber::new(sequence_number as i64);
                         if let Some(before_reset) = sequence_number_before_reset {
                             // We've requested the stream to be reset and we've skipped this many
                             // sequence numbers. Store in a metric once.
@@ -460,7 +459,7 @@ mod tests {
     fn make_write(name: impl Into<String>, write_time: u64) -> DmlWrite {
         let tables = lines_to_batches("bananas level=42 4242", 0).unwrap();
         let sequence = DmlMeta::sequenced(
-            Sequence::new(1, 2),
+            Sequence::new(1, SequenceNumber::new(2)),
             TEST_TIME
                 .checked_sub(Duration::from_millis(write_time))
                 .unwrap(),
@@ -477,7 +476,7 @@ mod tests {
             exprs: vec![],
         };
         let sequence = DmlMeta::sequenced(
-            Sequence::new(1, 2),
+            Sequence::new(1, SequenceNumber::new(2)),
             TEST_TIME
                 .checked_sub(Duration::from_millis(write_time))
                 .unwrap(),
@@ -547,7 +546,7 @@ mod tests {
             ReceiverStream::new(rx).boxed()
         }
 
-        async fn seek(&mut self, _sequence_number: u64) -> Result<(), WriteBufferError> {
+        async fn seek(&mut self, _sequence_number: SequenceNumber) -> Result<(), WriteBufferError> {
             Ok(())
         }
 
@@ -903,7 +902,7 @@ mod tests {
             stream::iter([]).boxed()
         }
 
-        async fn seek(&mut self, _sequence_number: u64) -> Result<(), WriteBufferError> {
+        async fn seek(&mut self, _sequence_number: SequenceNumber) -> Result<(), WriteBufferError> {
             Ok(())
         }
 

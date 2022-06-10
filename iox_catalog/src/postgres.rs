@@ -1094,12 +1094,15 @@ impl PartitionRepo for PostgresTxn {
         sequencer_id: SequencerId,
         table_id: TableId,
     ) -> Result<Partition> {
+        // Note: since sort_key is now an array, we must explicitly insert '{}' which is an empty array
+        // rather than NULL which sqlx will throw `UnexpectedNullError` while is is doing `ColumnDecode`
+
         let v = sqlx::query_as::<_, Partition>(
             r#"
 INSERT INTO partition
-    ( partition_key, sequencer_id, table_id )
+    ( partition_key, sequencer_id, table_id, sort_key)
 VALUES
-    ( $1, $2, $3 )
+    ( $1, $2, $3, '{}')
 ON CONFLICT ON CONSTRAINT partition_key_unique
 DO UPDATE SET partition_key = partition.partition_key
 RETURNING *;
@@ -1220,7 +1223,7 @@ WHERE partition.id = $1;
     async fn update_sort_key(
         &mut self,
         partition_id: PartitionId,
-        sort_key: &str,
+        sort_key: &[&str],
     ) -> Result<Partition> {
         let rec = sqlx::query_as::<_, Partition>(
             r#"
@@ -2240,9 +2243,16 @@ mod tests {
 
     #[tokio::test]
     async fn test_partition_create_or_get_idempotent() {
-        // If running an integration test on your laptop, this requires that you have Postgres
-        // running and that you've done the sqlx migrations. See the README in this crate for
-        // info to set it up.
+        // If running an integration test on your laptop, this requires that you have Postgres running
+        //
+        // This is a command to run this test on your laptop
+        //    TEST_INTEGRATION=1 TEST_INFLUXDB_IOX_CATALOG_DSN=postgres:postgres://$USER@localhost/iox_shared RUST_BACKTRACE=1 cargo test --package iox_catalog --lib -- postgres::tests::test_partition_create_or_get_idempotent --exact --nocapture
+        //
+        // If you do not have Postgres's iox_shared db, here are commands to install Postgres (on mac) and create iox_shared db
+        //    brew install postgresql
+        //    initdb pg
+        //    createdb iox_shared
+
         maybe_skip_integration!();
 
         let postgres = setup_db().await;

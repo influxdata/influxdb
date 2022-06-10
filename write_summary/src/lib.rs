@@ -62,15 +62,12 @@ impl WriteSummary {
             // https://github.com/influxdata/influxdb_iox/issues/4237
             let kafka_partition = KafkaPartition::new(sequencer_id);
 
-            let sequence_number: i64 = s
-                .sequence_number
-                .try_into()
-                .expect("Invalid sequencer number");
+            let sequence_number = s.sequence_number;
 
             sequencers
                 .entry(kafka_partition)
                 .or_insert_with(Vec::new)
-                .push(SequenceNumber::new(sequence_number))
+                .push(sequence_number)
         }
 
         Self { sequencers }
@@ -211,7 +208,7 @@ mod tests {
 
     #[test]
     fn one() {
-        let metas = vec![vec![make_meta(Sequence::new(1, 2))]];
+        let metas = vec![vec![make_meta(Sequence::new(1, SequenceNumber::new(2)))]];
         let summary: proto::WriteSummary = WriteSummary::new(metas).into();
 
         let expected = proto::WriteSummary {
@@ -228,10 +225,10 @@ mod tests {
     fn many() {
         let metas = vec![
             vec![
-                make_meta(Sequence::new(1, 2)),
-                make_meta(Sequence::new(10, 20)),
+                make_meta(Sequence::new(1, SequenceNumber::new(2))),
+                make_meta(Sequence::new(10, SequenceNumber::new(20))),
             ],
-            vec![make_meta(Sequence::new(1, 3))],
+            vec![make_meta(Sequence::new(1, SequenceNumber::new(3)))],
         ];
         let summary: proto::WriteSummary = WriteSummary::new(metas).into();
 
@@ -255,14 +252,14 @@ mod tests {
     fn different_order() {
         // order in sequences shouldn't matter
         let metas1 = vec![vec![
-            make_meta(Sequence::new(1, 2)),
-            make_meta(Sequence::new(2, 3)),
+            make_meta(Sequence::new(1, SequenceNumber::new(2))),
+            make_meta(Sequence::new(2, SequenceNumber::new(3))),
         ]];
 
         // order in sequences shouldn't matter
         let metas2 = vec![vec![
-            make_meta(Sequence::new(2, 3)),
-            make_meta(Sequence::new(1, 2)),
+            make_meta(Sequence::new(2, SequenceNumber::new(3))),
+            make_meta(Sequence::new(1, SequenceNumber::new(2))),
         ]];
 
         let summary1: proto::WriteSummary = WriteSummary::new(metas1).into();
@@ -287,11 +284,11 @@ mod tests {
 
     #[test]
     fn token_creation() {
-        let metas = vec![vec![make_meta(Sequence::new(1, 2))]];
+        let metas = vec![vec![make_meta(Sequence::new(1, SequenceNumber::new(2)))]];
         let summary = WriteSummary::new(metas.clone());
         let summary_copy = WriteSummary::new(metas);
 
-        let metas2 = vec![vec![make_meta(Sequence::new(2, 3))]];
+        let metas2 = vec![vec![make_meta(Sequence::new(2, SequenceNumber::new(3)))]];
         let summary2 = WriteSummary::new(metas2);
 
         let token = summary.to_token();
@@ -319,7 +316,7 @@ mod tests {
 
     #[test]
     fn token_parsing() {
-        let metas = vec![vec![make_meta(Sequence::new(1, 2))]];
+        let metas = vec![vec![make_meta(Sequence::new(1, SequenceNumber::new(2)))]];
         let summary = WriteSummary::new(metas);
 
         let token = summary.clone().to_token();
@@ -442,9 +439,9 @@ mod tests {
     /// kafka_partition 2 --> sequence 1
     fn test_summary() -> WriteSummary {
         let metas = vec![vec![
-            make_meta(Sequence::new(1, 2)),
-            make_meta(Sequence::new(1, 3)),
-            make_meta(Sequence::new(2, 1)),
+            make_meta(Sequence::new(1, SequenceNumber::new(2))),
+            make_meta(Sequence::new(1, SequenceNumber::new(3))),
+            make_meta(Sequence::new(2, SequenceNumber::new(1))),
         ]];
         WriteSummary::new(metas)
     }

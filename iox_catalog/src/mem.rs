@@ -609,7 +609,7 @@ impl SequencerRepo for MemTxn {
                     id: SequencerId::new(stage.sequencers.len() as i64 + 1),
                     kafka_topic_id: topic.id,
                     kafka_partition: partition,
-                    min_unpersisted_sequence_number: 0,
+                    min_unpersisted_sequence_number: SequenceNumber::new(0),
                 };
                 stage.sequencers.push(sequencer);
                 stage.sequencers.last().unwrap()
@@ -660,7 +660,7 @@ impl SequencerRepo for MemTxn {
         let stage = self.stage();
 
         if let Some(s) = stage.sequencers.iter_mut().find(|s| s.id == sequencer_id) {
-            s.min_unpersisted_sequence_number = sequence_number.get()
+            s.min_unpersisted_sequence_number = sequence_number
         };
 
         Ok(())
@@ -687,7 +687,7 @@ impl PartitionRepo for MemTxn {
                     sequencer_id,
                     table_id,
                     partition_key: key.to_string(),
-                    sort_key: None,
+                    sort_key: vec![],
                 };
                 stage.partitions.push(p);
                 stage.partitions.last().unwrap()
@@ -788,12 +788,12 @@ impl PartitionRepo for MemTxn {
     async fn update_sort_key(
         &mut self,
         partition_id: PartitionId,
-        sort_key: &str,
+        sort_key: &[&str],
     ) -> Result<Partition> {
         let stage = self.stage();
         match stage.partitions.iter_mut().find(|p| p.id == partition_id) {
             Some(p) => {
-                p.sort_key = Some(sort_key.to_string());
+                p.sort_key = sort_key.iter().map(|s| s.to_string()).collect();
                 Ok(p.clone())
             }
             None => Err(Error::PartitionNotFound { id: partition_id }),

@@ -203,7 +203,7 @@ mod tests {
         let s2 = ns.create_sequencer(2).await;
         let p1 = t
             .with_sequencer(&s1)
-            .create_partition_with_sort_key("k1", "tag,time")
+            .create_partition_with_sort_key("k1", &["tag", "time"])
             .await
             .partition
             .clone();
@@ -245,7 +245,7 @@ mod tests {
         let s2 = ns.create_sequencer(2).await;
         let p1 = t
             .with_sequencer(&s1)
-            .create_partition_with_sort_key("k1", "tag,time")
+            .create_partition_with_sort_key("k1", &["tag", "time"])
             .await
             .partition
             .clone();

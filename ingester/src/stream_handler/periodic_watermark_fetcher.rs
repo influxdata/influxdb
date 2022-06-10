@@ -4,7 +4,7 @@ use metric::U64Counter;
 use observability_deps::tracing::*;
 use std::{
     sync::{
-        atomic::{AtomicU64, Ordering},
+        atomic::{AtomicI64, Ordering},
         Arc,
     },
     time::{Duration, Instant},
@@ -23,7 +23,7 @@ use write_buffer::core::WriteBufferReading;
 /// increments once per fetch error.
 #[derive(Debug)]
 pub struct PeriodicWatermarkFetcher {
-    last_watermark: Arc<AtomicU64>,
+    last_watermark: Arc<AtomicI64>,
     poll_handle: JoinHandle<()>,
 }
 
@@ -59,7 +59,7 @@ impl PeriodicWatermarkFetcher {
     ///
     /// If the watermark value has yet to be observed (i.e. due to continuous
     /// fetch errors) `None` is returned.
-    pub fn cached_watermark(&self) -> Option<u64> {
+    pub fn cached_watermark(&self) -> Option<i64> {
         match self.last_watermark.load(Ordering::Relaxed) {
             // A value of 0 means "never observed a watermark".
             0 => None,
@@ -97,7 +97,7 @@ struct Poller {
 
     // The last observed maximum kafka offset, 0 if never observed (i.e. due to
     // error).
-    last_watermark: Arc<AtomicU64>,
+    last_watermark: Arc<AtomicI64>,
 }
 
 impl Poller {
@@ -110,8 +110,8 @@ impl Poller {
         write_buffer: Arc<dyn WriteBufferReading>,
         partition: KafkaPartition,
         metrics: &metric::Registry,
-    ) -> (Self, Arc<AtomicU64>) {
-        let last_watermark = Arc::new(AtomicU64::new(0));
+    ) -> (Self, Arc<AtomicI64>) {
+        let last_watermark = Arc::new(AtomicI64::new(0));
         let rx = Arc::clone(&last_watermark);
 
         let error_count = metrics
@@ -156,7 +156,7 @@ impl Poller {
             match maybe_offset {
                 Ok(v) => {
                     // Publish the new offset
-                    self.last_watermark.store(v, Ordering::Relaxed);
+                    self.last_watermark.store(v.get(), Ordering::Relaxed);
                     last_successful_poll = now;
                 }
                 Err(e) => {
@@ -178,14 +178,14 @@ impl Poller {
 }
 
 impl WatermarkFetcher for PeriodicWatermarkFetcher {
-    fn watermark(&self) -> Option<u64> {
+    fn watermark(&self) -> Option<i64> {
         self.cached_watermark()
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use data_types::Sequence;
+    use data_types::{Sequence, SequenceNumber};
     use metric::{Attributes, Metric};
     use test_helpers::timeout::FutureTimeout;
     use write_buffer::mock::{
@@ -221,7 +221,7 @@ mod tests {
     #[tokio::test]
     async fn test_fetch_ok() {
         let state = MockBufferSharedState::empty_with_n_sequencers(1.try_into().unwrap());
-        state.push_lp(Sequence::new(0, 41), "cpu,t=1 v=2");
+        state.push_lp(Sequence::new(0, SequenceNumber::new(41)), "cpu,t=1 v=2");
 
         let write_buffer = Arc::new(
             MockBufferForReading::new(state, None).expect("failed to init mock write buffer"),

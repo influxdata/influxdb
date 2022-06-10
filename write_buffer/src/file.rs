@@ -129,7 +129,7 @@ use crate::{
     core::{WriteBufferError, WriteBufferReading, WriteBufferStreamHandler, WriteBufferWriting},
 };
 use async_trait::async_trait;
-use data_types::Sequence;
+use data_types::{Sequence, SequenceNumber};
 use dml::{DmlMeta, DmlOperation};
 use futures::{stream::BoxStream, Stream, StreamExt};
 use iox_time::{Time, TimeProvider};
@@ -140,7 +140,7 @@ use std::{
     pin::Pin,
     str::FromStr,
     sync::{
-        atomic::{AtomicBool, AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicI64, AtomicU64, Ordering},
         Arc,
     },
 };
@@ -224,7 +224,7 @@ impl WriteBufferWriting for FileBufferProducer {
 
         // scan existing files to figure out new sequence number
         let committed = sequencer_path.join("committed");
-        let existing_files = scan_dir::<u64>(&committed, FileType::File).await?;
+        let existing_files = scan_dir::<i64>(&committed, FileType::File).await?;
         let mut sequence_number = if let Some(max) = existing_files.keys().max() {
             max.checked_add(1).ok_or_else::<WriteBufferError, _>(|| {
                 "Overflow during sequence number calculation"
@@ -257,7 +257,7 @@ impl WriteBufferWriting for FileBufferProducer {
         tokio::fs::remove_file(&temp_file).await.ok();
 
         Ok(DmlMeta::sequenced(
-            Sequence::new(sequencer_id, sequence_number),
+            Sequence::new(sequencer_id, SequenceNumber::new(sequence_number)),
             now,
             operation.meta().span_context().cloned(),
             message.len(),
@@ -278,7 +278,7 @@ impl WriteBufferWriting for FileBufferProducer {
 pub struct FileBufferStreamHandler {
     sequencer_id: u32,
     path: PathBuf,
-    next_sequence_number: Arc<AtomicU64>,
+    next_sequence_number: Arc<AtomicI64>,
     terminated: Arc<AtomicBool>,
     trace_collector: Option<Arc<dyn TraceCollector>>,
 }
@@ -298,9 +298,9 @@ impl WriteBufferStreamHandler for FileBufferStreamHandler {
         .boxed()
     }
 
-    async fn seek(&mut self, sequence_number: u64) -> Result<(), WriteBufferError> {
+    async fn seek(&mut self, sequence_number: SequenceNumber) -> Result<(), WriteBufferError> {
         self.next_sequence_number
-            .store(sequence_number, Ordering::SeqCst);
+            .store(sequence_number.get(), Ordering::SeqCst);
         self.terminated.store(false, Ordering::SeqCst);
         Ok(())
     }
@@ -360,13 +360,16 @@ impl WriteBufferReading for FileBufferConsumer {
         Ok(Box::new(FileBufferStreamHandler {
             sequencer_id,
             path: path.clone(),
-            next_sequence_number: Arc::new(AtomicU64::new(0)),
+            next_sequence_number: Arc::new(AtomicI64::new(0)),
             terminated: Arc::new(AtomicBool::new(false)),
             trace_collector: self.trace_collector.clone(),
         }))
     }
 
-    async fn fetch_high_watermark(&self, sequencer_id: u32) -> Result<u64, WriteBufferError> {
+    async fn fetch_high_watermark(
+        &self,
+        sequencer_id: u32,
+    ) -> Result<SequenceNumber, WriteBufferError> {
         let (path, _next_sequence_number) = self
             .dirs
             .get(&sequencer_id)
@@ -375,7 +378,8 @@ impl WriteBufferReading for FileBufferConsumer {
             })?;
         let committed = path.join("committed");
 
-        watermark(&committed).await
+        let sequence_number = watermark(&committed).await?;
+        Ok(SequenceNumber::new(sequence_number))
     }
 
     fn type_name(&self) -> &'static str {
@@ -388,7 +392,7 @@ struct ConsumerStream {
     fut: ReusableBoxFuture<'static, Option<Result<DmlOperation, WriteBufferError>>>,
     sequencer_id: u32,
     path: PathBuf,
-    next_sequence_number: Arc<AtomicU64>,
+    next_sequence_number: Arc<AtomicI64>,
     terminated: Arc<AtomicBool>,
     trace_collector: Option<Arc<dyn TraceCollector>>,
 }
@@ -397,7 +401,7 @@ impl ConsumerStream {
     fn new(
         sequencer_id: u32,
         path: PathBuf,
-        next_sequence_number: Arc<AtomicU64>,
+        next_sequence_number: Arc<AtomicI64>,
         terminated: Arc<AtomicBool>,
         trace_collector: Option<Arc<dyn TraceCollector>>,
     ) -> Self {
@@ -420,7 +424,7 @@ impl ConsumerStream {
     async fn poll_next_inner(
         sequencer_id: u32,
         path: PathBuf,
-        next_sequence_number: Arc<AtomicU64>,
+        next_sequence_number: Arc<AtomicI64>,
         terminated: Arc<AtomicBool>,
         trace_collector: Option<Arc<dyn TraceCollector>>,
     ) -> Option<Result<DmlOperation, WriteBufferError>> {
@@ -438,7 +442,7 @@ impl ConsumerStream {
                     // decode file
                     let sequence = Sequence {
                         sequencer_id,
-                        sequence_number,
+                        sequence_number: SequenceNumber::new(sequence_number),
                     };
                     match Self::decode_file(data, sequence, trace_collector.clone()) {
                         Ok(write) => {
@@ -693,8 +697,8 @@ where
     Ok(results)
 }
 
-async fn watermark(path: &Path) -> Result<u64, WriteBufferError> {
-    let files = scan_dir::<u64>(path, FileType::File).await?;
+async fn watermark(path: &Path) -> Result<i64, WriteBufferError> {
+    let files = scan_dir::<i64>(path, FileType::File).await?;
     let watermark = files.keys().max().map(|n| n + 1).unwrap_or(0);
     Ok(watermark)
 }
@@ -702,12 +706,14 @@ async fn watermark(path: &Path) -> Result<u64, WriteBufferError> {
 pub mod test_utils {
     use std::path::Path;
 
+    use data_types::SequenceNumber;
+
     /// Remove specific entry from write buffer.
     pub async fn remove_entry(
         write_buffer_path: &Path,
         database_name: &str,
         sequencer_id: u32,
-        sequence_number: u64,
+        sequence_number: SequenceNumber,
     ) {
         tokio::fs::remove_file(
             write_buffer_path
@@ -715,7 +721,7 @@ pub mod test_utils {
                 .join("active")
                 .join(sequencer_id.to_string())
                 .join("committed")
-                .join(sequence_number.to_string()),
+                .join(sequence_number.get().to_string()),
         )
         .await
         .unwrap()

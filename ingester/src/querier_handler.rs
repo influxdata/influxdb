@@ -1,8 +1,6 @@
 //! Handle all requests from Querier
 
-use crate::data::{
-    self, IngesterData, IngesterQueryResponse, QueryableBatch, UnpersistedPartitionData,
-};
+use crate::data::{IngesterData, IngesterQueryResponse, QueryableBatch, UnpersistedPartitionData};
 use arrow::{error::ArrowError, record_batch::RecordBatch};
 use arrow_util::util::merge_record_batches;
 use datafusion::{
@@ -28,9 +26,6 @@ use std::{collections::BTreeMap, sync::Arc};
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
 pub enum Error {
-    #[snafu(display("Failed to select columns: {}", source))]
-    SelectColumns { source: schema::Error },
-
     #[snafu(display("Error building logical plan for querying Ingester data to send to Querier"))]
     LogicalPlan {
         source: iox_query::frontend::reorg::Error,
@@ -66,9 +61,6 @@ pub enum Error {
         namespace_name: String,
         table_name: String,
     },
-
-    #[snafu(display("Error snapshotting non-persisting data: {}", source))]
-    SnapshotNonPersistingData { source: data::Error },
 
     #[snafu(display("Error concating same-schema record batches: {}", source))]
     ConcatBatches { source: arrow::error::ArrowError },
@@ -260,7 +252,7 @@ async fn prepare_data_to_querier_for_partition(
 
 /// Query a given Queryable Batch, applying selection and filters as appropriate
 /// Return one record batch
-pub async fn run_query(
+async fn run_query(
     executor: &Executor,
     data: Arc<QueryableBatch>,
     predicate: Predicate,

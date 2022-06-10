@@ -13,7 +13,7 @@ use crate::{
 };
 use async_trait::async_trait;
 use backoff::BackoffConfig;
-use data_types::{KafkaPartition, KafkaTopic, SequenceNumber, Sequencer};
+use data_types::{KafkaPartition, KafkaTopic, Sequencer};
 use futures::{
     future::{BoxFuture, Shared},
     stream::FuturesUnordered,
@@ -193,11 +193,11 @@ impl IngestHandlerImpl {
                 .context(WriteBufferSnafu)?;
             debug!(
                 kafka_partition = kafka_partition.get(),
-                min_unpersisted_sequence_number = sequencer.min_unpersisted_sequence_number,
+                min_unpersisted_sequence_number = sequencer.min_unpersisted_sequence_number.get(),
                 "Seek stream",
             );
             op_stream
-                .seek(sequencer.min_unpersisted_sequence_number as u64)
+                .seek(sequencer.min_unpersisted_sequence_number)
                 .await
                 .context(WriteBufferSnafu)?;
 
@@ -232,7 +232,7 @@ impl IngestHandlerImpl {
                 async move {
                     let handler = SequencedStreamHandler::new(
                         op_stream,
-                        SequenceNumber::new(sequencer.min_unpersisted_sequence_number),
+                        sequencer.min_unpersisted_sequence_number,
                         sink,
                         lifecycle_handle,
                         kafka_topic_name,
@@ -398,7 +398,12 @@ mod tests {
         let w1 = DmlWrite::new(
             "foo",
             lines_to_batches("mem foo=1 10", 0).unwrap(),
-            DmlMeta::sequenced(Sequence::new(0, 0), ingest_ts1, None, 50),
+            DmlMeta::sequenced(
+                Sequence::new(0, SequenceNumber::new(0)),
+                ingest_ts1,
+                None,
+                50,
+            ),
         );
         let schema = validate_or_insert_schema(w1.tables(), &schema, txn.deref_mut())
             .await
@@ -408,7 +413,12 @@ mod tests {
         let w2 = DmlWrite::new(
             "foo",
             lines_to_batches("cpu bar=2 20\ncpu bar=3 30", 0).unwrap(),
-            DmlMeta::sequenced(Sequence::new(0, 7), ingest_ts2, None, 150),
+            DmlMeta::sequenced(
+                Sequence::new(0, SequenceNumber::new(7)),
+                ingest_ts2,
+                None,
+                150,
+            ),
         );
         let _schema = validate_or_insert_schema(w2.tables(), &schema, txn.deref_mut())
             .await
@@ -418,7 +428,12 @@ mod tests {
         let w3 = DmlWrite::new(
             "foo",
             lines_to_batches("a b=2 200", 0).unwrap(),
-            DmlMeta::sequenced(Sequence::new(0, 9), ingest_ts2, None, 150),
+            DmlMeta::sequenced(
+                Sequence::new(0, SequenceNumber::new(9)),
+                ingest_ts2,
+                None,
+                150,
+            ),
         );
         let _schema = validate_or_insert_schema(w3.tables(), &schema, txn.deref_mut())
             .await
@@ -456,7 +471,8 @@ mod tests {
                     .await
                     .unwrap();
 
-                if has_measurement && seq.min_unpersisted_sequence_number == 9 {
+                if has_measurement && seq.min_unpersisted_sequence_number == SequenceNumber::new(9)
+                {
                     break;
                 }
 
@@ -603,7 +619,8 @@ mod tests {
             .await
             .unwrap();
         // update the min unpersisted
-        sequencer.min_unpersisted_sequence_number = min_unpersisted_sequence_number;
+        sequencer.min_unpersisted_sequence_number =
+            SequenceNumber::new(min_unpersisted_sequence_number);
         // this probably isn't necessary, but just in case something changes later
         txn.sequencers()
             .update_min_unpersisted_sequence_number(
@@ -704,12 +721,22 @@ mod tests {
             DmlWrite::new(
                 "foo",
                 lines_to_batches("cpu bar=2 20", 0).unwrap(),
-                DmlMeta::sequenced(Sequence::new(0, 1), ingest_ts1, None, 150),
+                DmlMeta::sequenced(
+                    Sequence::new(0, SequenceNumber::new(1)),
+                    ingest_ts1,
+                    None,
+                    150,
+                ),
             ),
             DmlWrite::new(
                 "foo",
                 lines_to_batches("cpu bar=2 30", 0).unwrap(),
-                DmlMeta::sequenced(Sequence::new(0, 2), ingest_ts2, None, 150),
+                DmlMeta::sequenced(
+                    Sequence::new(0, SequenceNumber::new(2)),
+                    ingest_ts2,
+                    None,
+                    150,
+                ),
             ),
         ];
 
@@ -745,7 +772,12 @@ mod tests {
         let write_operations = vec![DmlWrite::new(
             "foo",
             lines_to_batches("cpu bar=2 20", 0).unwrap(),
-            DmlMeta::sequenced(Sequence::new(0, 1), ingest_ts1, None, 150),
+            DmlMeta::sequenced(
+                Sequence::new(0, SequenceNumber::new(1)),
+                ingest_ts1,
+                None,
+                150,
+            ),
         )];
 
         // Set the min unpersisted to something bigger than the write's sequence number to

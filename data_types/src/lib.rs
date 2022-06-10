@@ -673,7 +673,7 @@ pub struct Sequencer {
     /// can be persisted at different times, it is possible some data has been persisted
     /// with a higher sequence number than this. However, all data with a sequence number
     /// lower than this must have been persisted to Parquet.
-    pub min_unpersisted_sequence_number: i64,
+    pub min_unpersisted_sequence_number: SequenceNumber,
 }
 
 /// Data object for a partition. The combination of sequencer, table and key are unique (i.e. only
@@ -688,17 +688,26 @@ pub struct Partition {
     pub table_id: TableId,
     /// the string key of the partition
     pub partition_key: String,
-    /// The sort key for the partition. Should be computed on the first persist operation for
-    /// this partition and updated if new tag columns are added.
-    pub sort_key: Option<String>,
+    /// Sort key is a vector of names of all tags and time of the data that belongs to this partition.
+    /// Since we allow data in each chunk (aka data in a parquet file) contains different set of columns,
+    /// different partitions may contain different set of sort_key but they must be subsets of PK of the table.
+    ///
+    /// When the partition is first created before its data is saved in the parquet_file table,
+    /// this sort_key is empty and means it is not yet set or unknown.
+    /// The sort_key is computed and updated as needed on persist operations for this partition. The update
+    /// happens when the data of this partition is first persisted (must at least include `time` column if no tags)
+    /// and, later on, when data with new tags are ingested into this partition
+    pub sort_key: Vec<String>,
 }
 
 impl Partition {
     /// The sort key for the partition, if present, structured as a `SortKey`
     pub fn sort_key(&self) -> Option<SortKey> {
-        self.sort_key
-            .as_ref()
-            .map(|s| SortKey::from_columns(s.split(',')))
+        if self.sort_key.is_empty() {
+            return None;
+        }
+
+        Some(SortKey::from_columns(self.sort_key.iter().map(|s| &**s)))
     }
 }
 
@@ -1966,12 +1975,12 @@ pub struct Sequence {
     /// The sequencer id (kafka partition id)
     pub sequencer_id: u32,
     /// The sequence number (kafka offset)
-    pub sequence_number: u64,
+    pub sequence_number: SequenceNumber,
 }
 
 impl Sequence {
     /// Create a new Sequence
-    pub fn new(sequencer_id: u32, sequence_number: u64) -> Self {
+    pub fn new(sequencer_id: u32, sequence_number: SequenceNumber) -> Self {
         Self {
             sequencer_id,
             sequence_number,

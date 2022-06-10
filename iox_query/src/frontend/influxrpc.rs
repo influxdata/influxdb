@@ -2,23 +2,19 @@
 
 use crate::{
     exec::{field::FieldColumns, make_non_null_checker, make_schema_pivot, IOxSessionContext},
+    frontend::common::{scan_and_filter, TableScanAndFilter},
     plan::{
         fieldlist::FieldListPlan,
         seriesset::{SeriesSetPlan, SeriesSetPlans},
         stringset::{Error as StringSetError, StringSetPlan, StringSetPlanBuilder},
     },
-    provider::ProviderBuilder,
-    util::MissingColumnsToNull,
     QueryChunk, QueryDatabase,
 };
 use arrow::datatypes::DataType;
 use data_types::ChunkId;
 use datafusion::{
     error::DataFusionError,
-    logical_plan::{
-        col, provider_as_source, when, DFSchemaRef, Expr, ExprRewritable, ExprSchemable,
-        LogicalPlan, LogicalPlanBuilder,
-    },
+    logical_plan::{col, when, DFSchemaRef, Expr, ExprSchemable, LogicalPlan, LogicalPlanBuilder},
 };
 use datafusion_util::AsExpr;
 use hashbrown::HashSet;
@@ -92,16 +88,6 @@ pub enum Error {
     #[snafu(display("gRPC planner got error creating string set plan: {}", source))]
     CreatingStringSet { source: StringSetError },
 
-    #[snafu(display(
-        "gRPC planner got error adding chunk for table {}: {}",
-        table_name,
-        source
-    ))]
-    CreatingProvider {
-        table_name: String,
-        source: crate::provider::Error,
-    },
-
     #[snafu(display("gRPC planner got error creating predicates: {}", source))]
     CreatingPredicates {
         source: datafusion::error::DataFusionError,
@@ -153,6 +139,9 @@ pub enum Error {
         source: query_functions::group_by::Error,
     },
 
+    #[snafu(display("Error creating scan:  {}", source))]
+    CreatingScan { source: super::common::Error },
+
     #[snafu(display(
         "gRPC planner got error casting aggregate {:?} for {}: {}",
         agg,
@@ -173,19 +162,15 @@ pub enum Error {
 
     #[snafu(display("Table was removed while planning query: {}", table_name))]
     TableRemoved { table_name: String },
-
-    #[snafu(display(
-        "Internal gRPC planner rewriting predicate for {}: {}",
-        table_name,
-        source
-    ))]
-    RewritingFilterPredicate {
-        table_name: String,
-        source: datafusion::error::DataFusionError,
-    },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+impl From<super::common::Error> for Error {
+    fn from(source: super::common::Error) -> Self {
+        Self::CreatingScan { source }
+    }
+}
 
 /// Plans queries that originate from the InfluxDB Storage gRPC
 /// interface, which are in terms of the InfluxDB Data model (e.g.
@@ -608,7 +593,7 @@ impl InfluxRpcPlanner {
                     .table_schema(table_name)
                     .context(TableRemovedSnafu { table_name })?;
 
-                let scan_and_filter = self.scan_and_filter(
+                let scan_and_filter = scan_and_filter(
                     ctx.child_ctx("scan_and_filter planning"),
                     table_name,
                     schema,
@@ -933,7 +918,7 @@ impl InfluxRpcPlanner {
         predicate: &Predicate,
         chunks: Vec<Arc<dyn QueryChunk>>,
     ) -> Result<Option<StringSetPlan>> {
-        let scan_and_filter = self.scan_and_filter(
+        let scan_and_filter = scan_and_filter(
             ctx.child_ctx("scan_and_filter planning"),
             table_name,
             schema,
@@ -1005,7 +990,7 @@ impl InfluxRpcPlanner {
         predicate: &Predicate,
         chunks: Vec<Arc<dyn QueryChunk>>,
     ) -> Result<Option<LogicalPlan>> {
-        let scan_and_filter = self.scan_and_filter(
+        let scan_and_filter = scan_and_filter(
             ctx.child_ctx("scan_and_filter planning"),
             table_name,
             schema,
@@ -1067,7 +1052,7 @@ impl InfluxRpcPlanner {
         chunks: Vec<Arc<dyn QueryChunk>>,
     ) -> Result<Option<LogicalPlan>> {
         debug!(%table_name, "Creating table_name full plan");
-        let scan_and_filter = self.scan_and_filter(
+        let scan_and_filter = scan_and_filter(
             self.ctx.child_ctx("scan_and_filter planning"),
             table_name,
             schema,
@@ -1118,7 +1103,7 @@ impl InfluxRpcPlanner {
         chunks: Vec<Arc<dyn QueryChunk>>,
     ) -> Result<Option<SeriesSetPlan>> {
         let table_name = table_name.as_ref();
-        let scan_and_filter = self.scan_and_filter(
+        let scan_and_filter = scan_and_filter(
             ctx.child_ctx("scan_and_filter planning"),
             table_name,
             schema,
@@ -1231,7 +1216,7 @@ impl InfluxRpcPlanner {
         agg: Aggregate,
         chunks: Vec<Arc<dyn QueryChunk>>,
     ) -> Result<Option<SeriesSetPlan>> {
-        let scan_and_filter = self.scan_and_filter(
+        let scan_and_filter = scan_and_filter(
             ctx.child_ctx("scan_and_filter planning"),
             table_name,
             schema,
@@ -1349,7 +1334,7 @@ impl InfluxRpcPlanner {
         chunks: Vec<Arc<dyn QueryChunk>>,
     ) -> Result<Option<SeriesSetPlan>> {
         let table_name = table_name.into();
-        let scan_and_filter = self.scan_and_filter(
+        let scan_and_filter = scan_and_filter(
             ctx.child_ctx("scan_and_filter planning"),
             &table_name,
             schema,
@@ -1408,89 +1393,6 @@ impl InfluxRpcPlanner {
             tag_columns,
             field_columns,
         )))
-    }
-
-    /// Create a plan that scans the specified table, and applies any
-    /// filtering specified on the predicate, if any.
-    ///
-    /// If the table can produce no rows based on predicate
-    /// evaluation, returns Ok(None)
-    ///
-    /// The created plan looks like:
-    ///
-    /// ```text
-    ///   Filter(predicate) [optional]
-    ///     Scan
-    /// ```
-    fn scan_and_filter(
-        &self,
-        ctx: IOxSessionContext,
-        table_name: &str,
-        schema: Arc<Schema>,
-        predicate: &Predicate,
-        chunks: Vec<Arc<dyn QueryChunk>>,
-    ) -> Result<Option<TableScanAndFilter>> {
-        // Scan all columns to begin with (DataFusion projection
-        // push-down optimization will prune out unneeded columns later)
-        let projection = None;
-
-        // Prepare the scan of the table
-        let mut builder = ProviderBuilder::new(table_name, schema)
-            .with_execution_context(ctx.child_ctx("provider_builder"));
-
-        // Since the entire predicate is used in the call to
-        // `database.chunks()` there will not be any additional
-        // predicates that get pushed down here
-        //
-        // However, in the future if DataFusion adds extra synthetic
-        // predicates that could be pushed down and used for
-        // additional pruning we may want to add an extra layer of
-        // pruning here.
-        builder = builder.add_no_op_pruner();
-
-        for chunk in chunks {
-            // check that it is consistent with this table_name
-            assert_eq!(
-                chunk.table_name(),
-                table_name,
-                "Chunk {} expected table mismatch",
-                chunk.id(),
-            );
-
-            builder = builder.add_chunk(chunk);
-        }
-
-        let provider = builder
-            .build()
-            .context(CreatingProviderSnafu { table_name })?;
-        let schema = provider.iox_schema();
-
-        let source = provider_as_source(Arc::new(provider));
-
-        let mut plan_builder =
-            LogicalPlanBuilder::scan(table_name, source, projection).context(BuildingPlanSnafu)?;
-
-        // Use a filter node to add general predicates + timestamp
-        // range, if any
-        if let Some(filter_expr) = predicate.filter_expr() {
-            // Rewrite expression so it only refers to columns in this chunk
-            trace!(table_name, ?filter_expr, "Adding filter expr");
-            let mut rewriter = MissingColumnsToNull::new(&schema);
-            let filter_expr = filter_expr
-                .rewrite(&mut rewriter)
-                .context(RewritingFilterPredicateSnafu { table_name })?;
-
-            trace!(?filter_expr, "Rewritten filter_expr");
-
-            plan_builder = plan_builder
-                .filter(filter_expr)
-                .context(BuildingPlanSnafu)?;
-        }
-
-        Ok(Some(TableScanAndFilter {
-            plan_builder,
-            schema,
-        }))
     }
 }
 
@@ -1585,13 +1487,6 @@ fn cast_aggregates(
         .collect::<Result<Vec<_>>>()?;
 
     plan_builder.project(cast_exprs).context(BuildingPlanSnafu)
-}
-
-struct TableScanAndFilter {
-    /// Represents plan that scans a table and applies optional filtering
-    plan_builder: LogicalPlanBuilder,
-    /// The IOx schema of the result
-    schema: Arc<Schema>,
 }
 
 /// Helper for creating aggregates

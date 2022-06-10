@@ -358,11 +358,11 @@ impl TestTableBoundSequencer {
         })
     }
 
-    /// Creat a partition with a specifiyed sory key for the table
+    /// Creat a partition with a specified sort key for the table
     pub async fn create_partition_with_sort_key(
         self: &Arc<Self>,
         key: &str,
-        sort_key: &str,
+        sort_key: &[&str],
     ) -> Arc<TestPartition> {
         let mut repos = self.catalog.catalog.repositories().await;
 
@@ -438,7 +438,10 @@ impl TestPartition {
             .repositories()
             .await
             .partitions()
-            .update_sort_key(self.partition.id, &sort_key.to_columns())
+            .update_sort_key(
+                self.partition.id,
+                &sort_key.to_columns().collect::<Vec<_>>(),
+            )
             .await
             .unwrap();
 
@@ -633,14 +636,13 @@ async fn update_catalog_sort_key_if_needed(
     // columns onto the end
     match partition.sort_key() {
         Some(catalog_sort_key) => {
-            let sort_key_string = sort_key.to_columns();
-            let new_sort_key: Vec<_> = sort_key_string.split(',').collect();
+            let new_sort_key = sort_key.to_columns().collect::<Vec<_>>();
             let (_metadata, update) = adjust_sort_key_columns(&catalog_sort_key, &new_sort_key);
             if let Some(new_sort_key) = update {
-                let new_columns = new_sort_key.to_columns();
+                let new_columns = new_sort_key.to_columns().collect::<Vec<_>>();
                 dbg!(
                     "Updating sort key from {:?} to {:?}",
-                    catalog_sort_key.to_columns(),
+                    catalog_sort_key.to_columns().collect::<Vec<_>>(),
                     &new_columns,
                 );
                 partitions_catalog
@@ -650,8 +652,8 @@ async fn update_catalog_sort_key_if_needed(
             }
         }
         None => {
-            let new_columns = sort_key.to_columns();
-            dbg!("Updating sort key from None to {:?}", &new_columns,);
+            let new_columns = sort_key.to_columns().collect::<Vec<_>>();
+            dbg!("Updating sort key from None to {:?}", &new_columns);
             partitions_catalog
                 .update_sort_key(partition_id, &new_columns)
                 .await
