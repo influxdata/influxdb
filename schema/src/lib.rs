@@ -304,26 +304,31 @@ impl Schema {
     /// in this schema. An error is returned if the selection refers to
     /// columns that do not exist.
     pub fn select(&self, selection: Selection<'_>) -> Result<Self> {
-        Ok(match selection {
-            Selection::All => self.clone(),
-            Selection::Some(columns) => {
-                let columns = self.compute_select_indicies(columns)?;
-                self.select_by_indices(&columns)
-            }
+        Ok(match self.df_projection(selection)? {
+            None => self.clone(),
+            Some(indicies) => self.select_by_indices(&indicies),
         })
     }
 
-    /// Returns the field indexes for a given selection
+    /// Returns a DataFusion style "projection" when the selection is
+    /// applied to this schema.
     ///
-    /// Returns an error if a corresponding column isn't found
-    pub fn compute_select_indicies(&self, columns: &[&str]) -> Result<Vec<usize>> {
-        columns
-            .iter()
-            .map(|&column_name| {
-                self.find_index_of(column_name)
-                    .context(ColumnNotFoundSnafu { column_name })
-            })
-            .collect()
+    /// * `None` means "all columns"
+    /// * `Some(indicies)` means the subset
+    pub fn df_projection(&self, selection: Selection<'_>) -> Result<Option<Vec<usize>>> {
+        Ok(match selection {
+            Selection::All => None,
+            Selection::Some(columns) => {
+                let projection = columns
+                    .iter()
+                    .map(|&column_name| {
+                        self.find_index_of(column_name)
+                            .context(ColumnNotFoundSnafu { column_name })
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+                Some(projection)
+            }
+        })
     }
 
     /// Returns a Schema for the given (sub)set of column projects
@@ -1027,6 +1032,35 @@ mod test {
         assert_eq!(
             get_type(&schema3, TIME_COLUMN_NAME),
             InfluxColumnType::Timestamp
+        );
+    }
+
+    #[test]
+    fn test_df_projection() {
+        let schema = SchemaBuilder::new()
+            .influx_field("the_field", String)
+            .tag("the_tag")
+            .timestamp()
+            .measurement("the_measurement")
+            .build()
+            .unwrap();
+
+        assert_eq!(schema.df_projection(Selection::All).unwrap(), None);
+        assert_eq!(
+            schema.df_projection(Selection::Some(&["the_tag"])).unwrap(),
+            Some(vec![1])
+        );
+        assert_eq!(
+            schema
+                .df_projection(Selection::Some(&["the_tag", "the_field"]))
+                .unwrap(),
+            Some(vec![1, 0])
+        );
+
+        let res = schema.df_projection(Selection::Some(&["the_tag", "unknown_field"]));
+        assert_eq!(
+            res.unwrap_err().to_string(),
+            "Column not found 'unknown_field'"
         );
     }
 

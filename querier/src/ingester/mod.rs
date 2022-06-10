@@ -645,21 +645,13 @@ impl QueryChunk for IngesterPartition {
         trace!(?predicate, ?selection, input_batches=?self.batches, "Reading data");
 
         // Apply selection to in-memory batch
-        let batches = match selection {
-            Selection::All => self.batches.clone(),
-            Selection::Some(columns) => {
-                let projection = self
-                    .schema
-                    .compute_select_indicies(columns)
-                    // TODO real error
-                    .expect("error with selection");
-
-                self.batches
-                    .iter()
-                    .map(|batch| batch.project(&projection))
-                    .collect::<std::result::Result<Vec<_>, ArrowError>>()
-                    .expect("error with projection to batches")
-            }
+        let batches = match self.schema.df_projection(selection)? {
+            None => self.batches.clone(),
+            Some(projection) => self
+                .batches
+                .iter()
+                .map(|batch| batch.project(&projection))
+                .collect::<std::result::Result<Vec<_>, ArrowError>>()?,
         };
         trace!(?predicate, ?selection, output_batches=?batches, input_batches=?self.batches, "Reading data");
 

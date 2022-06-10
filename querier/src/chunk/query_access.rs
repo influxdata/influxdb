@@ -8,7 +8,7 @@ use iox_query::{QueryChunk, QueryChunkError, QueryChunkMeta};
 use observability_deps::tracing::debug;
 use predicate::PredicateMatch;
 use read_buffer::ReadFilterResults;
-use schema::{sort::SortKey, Schema};
+use schema::{selection::Selection, sort::SortKey, Schema};
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -103,7 +103,7 @@ impl QueryChunk for QuerierParquetChunk {
         &self,
         _ctx: iox_query::exec::IOxSessionContext,
         predicate: &predicate::Predicate,
-        columns: schema::selection::Selection<'_>,
+        columns: Selection<'_>,
     ) -> Result<Option<iox_query::exec::stringset::StringSet>, QueryChunkError> {
         if !predicate.is_empty() {
             // if there is anything in the predicate, bail for now and force a full plan
@@ -127,7 +127,7 @@ impl QueryChunk for QuerierParquetChunk {
         &self,
         mut ctx: iox_query::exec::IOxSessionContext,
         predicate: &predicate::Predicate,
-        selection: schema::selection::Selection<'_>,
+        selection: Selection<'_>,
     ) -> Result<datafusion::physical_plan::SendableRecordBatchStream, QueryChunkError> {
         let delete_predicates: Vec<_> = self
             .delete_predicates()
@@ -218,7 +218,7 @@ impl QueryChunk for QuerierRBChunk {
         &self,
         mut ctx: iox_query::exec::IOxSessionContext,
         predicate: &predicate::Predicate,
-        columns: schema::selection::Selection<'_>,
+        columns: Selection<'_>,
     ) -> Result<Option<iox_query::exec::stringset::StringSet>, QueryChunkError> {
         ctx.set_metadata("storage", "read_buffer");
         ctx.set_metadata("projection", format!("{}", columns));
@@ -291,7 +291,7 @@ impl QueryChunk for QuerierRBChunk {
 
         let mut values = self.rb_chunk.column_values(
             rb_predicate,
-            schema::selection::Selection::Some(&[column_name]),
+            Selection::Some(&[column_name]),
             BTreeMap::new(),
         )?;
 
@@ -315,7 +315,7 @@ impl QueryChunk for QuerierRBChunk {
         &self,
         mut ctx: iox_query::exec::IOxSessionContext,
         predicate: &predicate::Predicate,
-        selection: schema::selection::Selection<'_>,
+        selection: Selection<'_>,
     ) -> Result<datafusion::physical_plan::SendableRecordBatchStream, QueryChunkError> {
         let delete_predicates: Vec<_> = self
             .delete_predicates()
