@@ -93,6 +93,7 @@ func NewPartition(sfile *tsdb.SeriesFile, path string) *Partition {
 		path:        path,
 		sfile:       sfile,
 		seriesIDSet: tsdb.NewSeriesIDSet(),
+		fileSet:     &FileSet{},
 
 		MaxLogFileSize: tsdb.DefaultMaxIndexLogFileSize,
 		MaxLogFileAge:  tsdb.DefaultCompactFullWriteColdDuration,

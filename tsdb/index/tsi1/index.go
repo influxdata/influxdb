@@ -252,7 +252,7 @@ func (i *Index) SeriesIDSet() *tsdb.SeriesIDSet {
 }
 
 // Open opens the index.
-func (i *Index) Open() error {
+func (i *Index) Open() (rErr error) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 
@@ -299,11 +299,30 @@ func (i *Index) Open() error {
 		}(k)
 	}
 
-	// Check for error
+	// Check for error (also wait for all partitions to be open)
+	var openErr error
 	for i := 0; i < partitionN; i++ {
 		if err := <-errC; err != nil {
-			return err
+			openErr = err
 		}
+	}
+
+	// If we have an error later, clean up after partitions
+	defer func() {
+		if rErr != nil {
+			for _, p := range i.partitions {
+				if p.opened {
+					if closeErr := p.Close(); closeErr != nil {
+						i.logger.Warn("Failed to clean up partition")
+					}
+				}
+			}
+		}
+	}()
+
+	// actually check for an error opening partitions
+	if openErr != nil {
+		return openErr
 	}
 
 	// Refresh cached sketches.
