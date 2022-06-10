@@ -29,7 +29,7 @@ use crate::error::Error;
 /// client
 ///     .write_lp("bananas", "cpu,region=west user=23.2 100",0)
 ///     .await
-///     .expect("failed to create database");
+///     .expect("failed to write to IOx");
 /// # }
 /// ```
 #[derive(Debug, Clone)]
