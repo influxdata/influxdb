@@ -3960,6 +3960,7 @@ dependencies = [
  "schema",
  "service_common",
  "service_grpc_schema",
+ "sharder",
  "snafu",
  "test_helpers",
  "thiserror",

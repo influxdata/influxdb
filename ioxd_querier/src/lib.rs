@@ -1,5 +1,6 @@
 use async_trait::async_trait;
-use clap_blocks::{querier::QuerierConfig, write_buffer::WriteBufferConfig};
+use clap_blocks::{querier::QuerierConfig, write_buffer::OptionalWriteBufferConfig};
+use data_types::KafkaPartition;
 use hyper::{Body, Request, Response};
 use iox_catalog::interface::Catalog;
 use iox_query::exec::Executor;
@@ -19,7 +20,6 @@ use querier::{
     create_ingester_connection, QuerierCatalogCache, QuerierDatabase, QuerierHandler,
     QuerierHandlerImpl, QuerierServer,
 };
-use router::sequencer::Sequencer;
 use sharder::JumpHash;
 use std::{
     collections::BTreeSet,
@@ -147,7 +147,7 @@ pub struct QuerierServerTypeArgs<'a> {
     pub catalog: Arc<dyn Catalog>,
     pub object_store: Arc<DynObjectStore>,
     pub exec: Arc<Executor>,
-    pub write_buffer_config: &'a WriteBufferConfig,
+    pub optional_write_buffer_config: &'a OptionalWriteBufferConfig,
     pub time_provider: Arc<dyn TimeProvider>,
     pub ingester_addresses: Vec<String>,
     pub querier_config: QuerierConfig,
@@ -157,6 +157,9 @@ pub struct QuerierServerTypeArgs<'a> {
 pub enum Error {
     #[error("failed to initialise write buffer connection: {0}")]
     WriteBuffer(#[from] write_buffer::core::WriteBufferError),
+
+    #[error("failed to create KafkaPartition from id: {0}")]
+    InvalidData(#[from] std::num::TryFromIntError),
 }
 
 /// Instantiate a querier server
@@ -173,27 +176,12 @@ pub async fn create_querier_server_type(
     let ingester_connection =
         create_ingester_connection(args.ingester_addresses, Arc::clone(&catalog_cache));
 
-    let write_buffer = Arc::new(
-        args.write_buffer_config
-            .writing(
-                Arc::clone(&args.metric_registry),
-                args.common_state.trace_collector(),
-            )
-            .await?,
-    );
-    // Construct the (ordered) set of sequencers.
-    //
-    // The sort order must be deterministic in order for all nodes to shard to
-    // the same sequencers, therefore we type assert the returned set is of the
-    // ordered variety.
-    let shards: BTreeSet<_> = write_buffer.sequencer_ids();
-    //          ^ don't change this to an unordered set
-
-    let _sharder: JumpHash<_> = shards
-        .into_iter()
-        .map(|id| Sequencer::new(id as _, Arc::clone(&write_buffer), &args.metric_registry))
-        .map(Arc::new)
-        .collect();
+    let sharder = maybe_sharder(
+        args.optional_write_buffer_config,
+        Arc::clone(&args.metric_registry),
+        args.common_state.trace_collector(),
+    )
+    .await?;
 
     let database = Arc::new(QuerierDatabase::new(
         catalog_cache,
@@ -202,6 +190,7 @@ pub async fn create_querier_server_type(
         args.exec,
         ingester_connection,
         args.querier_config.max_concurrent_queries(),
+        sharder,
     ));
     let querier_handler = Arc::new(QuerierHandlerImpl::new(args.catalog, Arc::clone(&database)));
 
@@ -211,4 +200,32 @@ pub async fn create_querier_server_type(
         database,
         args.common_state,
     )))
+}
+
+pub async fn maybe_sharder(
+    optional_write_buffer_config: &OptionalWriteBufferConfig,
+    metric_registry: Arc<metric::Registry>,
+    trace_collector: Option<Arc<dyn TraceCollector>>,
+) -> Result<Option<JumpHash<Arc<KafkaPartition>>>, Error> {
+    optional_write_buffer_config
+        .writing(metric_registry, trace_collector)
+        .await?
+        .map(|write_buffer| {
+            // Construct the (ordered) set of sequencers.
+            //
+            // The sort order must be deterministic in order for all nodes to shard to
+            // the same sequencers, therefore we type assert the returned set is of the
+            // ordered variety.
+            let shards: BTreeSet<_> = write_buffer.sequencer_ids();
+            //          ^ don't change this to an unordered set
+
+            Ok(shards
+                .into_iter()
+                .map(|id| Ok(KafkaPartition::new(id.try_into()?)))
+                .collect::<Result<Vec<KafkaPartition>, Error>>()?
+                .into_iter()
+                .map(Arc::new)
+                .collect::<JumpHash<_>>())
+        })
+        .transpose()
 }

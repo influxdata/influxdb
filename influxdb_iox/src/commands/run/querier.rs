@@ -3,7 +3,7 @@
 use super::main;
 use clap_blocks::{
     catalog_dsn::CatalogDsnConfig, object_store::make_object_store, querier::QuerierConfig,
-    run_config::RunConfig, write_buffer::WriteBufferConfig,
+    run_config::RunConfig, write_buffer::OptionalWriteBufferConfig,
 };
 use iox_query::exec::Executor;
 use iox_time::{SystemProvider, TimeProvider};
@@ -68,7 +68,7 @@ pub struct Config {
     pub(crate) querier_config: QuerierConfig,
 
     #[clap(flatten)]
-    pub(crate) write_buffer_config: WriteBufferConfig,
+    pub(crate) optional_write_buffer_config: OptionalWriteBufferConfig,
 }
 
 pub async fn command(config: Config) -> Result<(), Error> {
@@ -100,9 +100,6 @@ pub async fn command(config: Config) -> Result<(), Error> {
     let ingester_addresses = config.querier_config.ingester_addresses()?;
     info!(?ingester_addresses, "using ingester addresses");
 
-    // Sharding needs to know about the write buffer sequencer_ids. For now, this is fake.
-    let write_buffer_config = WriteBufferConfig::new("iox-shared", None);
-
     let exec = Arc::new(Executor::new(num_threads));
 
     let server_type = create_querier_server_type(QuerierServerTypeArgs {
@@ -111,7 +108,7 @@ pub async fn command(config: Config) -> Result<(), Error> {
         catalog,
         object_store,
         exec,
-        write_buffer_config: &write_buffer_config,
+        optional_write_buffer_config: &config.optional_write_buffer_config,
         time_provider,
         ingester_addresses,
         querier_config: config.querier_config,

@@ -6,10 +6,11 @@ use crate::{
 };
 use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig};
-use data_types::Namespace;
+use data_types::{KafkaPartition, Namespace};
 use iox_query::exec::Executor;
 use parquet_file::storage::ParquetStorage;
 use service_common::QueryDatabaseProvider;
+use sharder::JumpHash;
 use std::sync::Arc;
 use tracker::{
     AsyncSemaphoreMetrics, InstrumentedAsyncOwnedSemaphorePermit, InstrumentedAsyncSemaphore,
@@ -53,6 +54,10 @@ pub struct QuerierDatabase {
     ///
     /// If the same database is requested twice for different queries, it is counted twice.
     query_execution_semaphore: Arc<InstrumentedAsyncSemaphore>,
+
+    /// Optional sharder to determine which ingesters to query for a particular table and
+    /// namespace. If not specified, all ingesters will be queried.
+    _sharder: Option<JumpHash<Arc<KafkaPartition>>>,
 }
 
 #[async_trait]
@@ -74,8 +79,9 @@ impl QueryDatabaseProvider for QuerierDatabase {
 impl QuerierDatabase {
     /// The maximum value for `max_concurrent_queries` that is allowed.
     ///
-    /// This limit exists because [`tokio::sync::Semaphore`] has an internal limit and semaphore creation beyond that
-    /// will panic. The tokio limit is not exposed though so we pick a reasonable but smaller number.
+    /// This limit exists because [`tokio::sync::Semaphore`] has an internal limit and semaphore
+    /// creation beyond that will panic. The tokio limit is not exposed though so we pick a
+    /// reasonable but smaller number.
     pub const MAX_CONCURRENT_QUERIES_MAX: usize = u16::MAX as usize;
 
     /// Create new database.
@@ -86,6 +92,7 @@ impl QuerierDatabase {
         exec: Arc<Executor>,
         ingester_connection: Arc<dyn IngesterConnection>,
         max_concurrent_queries: usize,
+        sharder: Option<JumpHash<Arc<KafkaPartition>>>,
     ) -> Self {
         assert!(
             max_concurrent_queries <= Self::MAX_CONCURRENT_QUERIES_MAX,
@@ -117,13 +124,14 @@ impl QuerierDatabase {
             ingester_connection,
             query_log,
             query_execution_semaphore,
+            _sharder: sharder,
         }
     }
 
     /// Get namespace if it exists.
     ///
-    /// This will await the internal namespace semaphore. Existence of namespaces is checked AFTER a semaphore permit
-    /// was acquired since this lowers the chance that we obtain stale data.
+    /// This will await the internal namespace semaphore. Existence of namespaces is checked AFTER
+    /// a semaphore permit was acquired since this lowers the chance that we obtain stale data.
     pub async fn namespace(&self, name: &str) -> Option<Arc<QuerierNamespace>> {
         let name = Arc::from(name.to_owned());
         let schema = self
@@ -191,6 +199,7 @@ mod tests {
             catalog.exec(),
             create_ingester_connection_for_testing(),
             QuerierDatabase::MAX_CONCURRENT_QUERIES_MAX.saturating_add(1),
+            None,
         );
     }
 
@@ -211,6 +220,7 @@ mod tests {
             catalog.exec(),
             create_ingester_connection_for_testing(),
             QuerierDatabase::MAX_CONCURRENT_QUERIES_MAX,
+            None,
         );
 
         catalog.create_namespace("ns1").await;
@@ -236,6 +246,7 @@ mod tests {
             catalog.exec(),
             create_ingester_connection_for_testing(),
             QuerierDatabase::MAX_CONCURRENT_QUERIES_MAX,
+            None,
         );
 
         catalog.create_namespace("ns1").await;
