@@ -278,8 +278,6 @@ func (i *Index) Open() (rErr error) {
 		i.partitions[j] = p
 	}
 
-	defer i.cleanUpFail(&rErr)
-
 	// Open all the Partitions in parallel.
 	partitionN := len(i.partitions)
 	n := i.availableThreads()
@@ -291,6 +289,7 @@ func (i *Index) Open() (rErr error) {
 		g.Go(i.partitions[idx].Open)
 	}
 	err := g.Wait()
+	defer i.cleanUpFail(&rErr)
 	if err != nil {
 		return err
 	}
