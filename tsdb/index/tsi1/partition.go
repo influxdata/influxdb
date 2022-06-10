@@ -89,11 +89,11 @@ type Partition struct {
 // NewPartition returns a new instance of Partition.
 func NewPartition(sfile *tsdb.SeriesFile, path string) *Partition {
 	return &Partition{
-		closing:     make(chan struct{}),
-		path:        path,
-		sfile:       sfile,
-		seriesIDSet: tsdb.NewSeriesIDSet(),
-
+		closing:        make(chan struct{}),
+		path:           path,
+		sfile:          sfile,
+		seriesIDSet:    tsdb.NewSeriesIDSet(),
+		fileSet:        &FileSet{},
 		MaxLogFileSize: tsdb.DefaultMaxIndexLogFileSize,
 		MaxLogFileAge:  tsdb.DefaultCompactFullWriteColdDuration,
 
@@ -144,7 +144,7 @@ func (p *Partition) bytes() int {
 var ErrIncompatibleVersion = errors.New("incompatible tsi1 index MANIFEST")
 
 // Open opens the partition.
-func (p *Partition) Open() error {
+func (p *Partition) Open() (rErr error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -190,12 +190,17 @@ func (p *Partition) Open() error {
 
 	// Open each file in the manifest.
 	var files []File
+	defer func() {
+		if rErr != nil {
+			Files(files).Close()
+		}
+	}()
+
 	for _, filename := range m.Files {
 		switch filepath.Ext(filename) {
 		case LogFileExt:
 			f, err := p.openLogFile(filepath.Join(p.path, filename))
 			if err != nil {
-				Files(files).Close()
 				return err
 			}
 			files = append(files, f)
@@ -209,7 +214,6 @@ func (p *Partition) Open() error {
 		case IndexFileExt:
 			f, err := p.openIndexFile(filepath.Join(p.path, filename))
 			if err != nil {
-				Files(files).Close()
 				return err
 			}
 			files = append(files, f)
@@ -232,7 +236,7 @@ func (p *Partition) Open() error {
 		}
 	}
 
-	// Build series existance set.
+	// Build series existence set.
 	if err := p.buildSeriesSet(); err != nil {
 		return err
 	}

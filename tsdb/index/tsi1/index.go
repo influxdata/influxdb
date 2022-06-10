@@ -253,7 +253,7 @@ func (i *Index) SeriesIDSet() *tsdb.SeriesIDSet {
 }
 
 // Open opens the index.
-func (i *Index) Open() error {
+func (i *Index) Open() (rErr error) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 
@@ -278,12 +278,13 @@ func (i *Index) Open() error {
 		i.partitions[j] = p
 	}
 
+	defer i.cleanUpFail(&rErr)
+
 	// Open all the Partitions in parallel.
 	partitionN := len(i.partitions)
 	n := i.availableThreads()
 
 	// Run fn on each partition using a fixed number of goroutines.
-
 	g := new(errgroup.Group)
 	g.SetLimit(n)
 	for idx := 0; idx < partitionN; idx++ {
@@ -291,16 +292,13 @@ func (i *Index) Open() error {
 	}
 	err := g.Wait()
 	if err != nil {
-		i.cleanUpFail()
 		return err
 	}
 
 	// Refresh cached sketches.
 	if err := i.updateSeriesSketches(); err != nil {
-		i.cleanUpFail()
 		return err
 	} else if err := i.updateMeasurementSketches(); err != nil {
-		i.cleanUpFail()
 		return err
 	}
 
@@ -310,10 +308,14 @@ func (i *Index) Open() error {
 	return nil
 }
 
-func (i *Index) cleanUpFail() {
-	for _, p := range i.partitions {
-		if (p != nil) && p.IsOpen() {
-			p.Close()
+func (i *Index) cleanUpFail(err *error) {
+	if nil != *err {
+		for _, p := range i.partitions {
+			if (p != nil) && p.IsOpen() {
+				if e := p.Close(); e != nil {
+					i.logger.Warn("Failed to clean up partition")
+				}
+			}
 		}
 	}
 }
