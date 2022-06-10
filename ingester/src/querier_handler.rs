@@ -5,6 +5,7 @@ use arrow::{error::ArrowError, record_batch::RecordBatch};
 use arrow_util::util::merge_record_batches;
 use datafusion::{
     error::DataFusionError,
+    logical_plan::LogicalPlanBuilder,
     physical_plan::{
         common::SizedRecordBatchStream,
         metrics::{ExecutionPlanMetricsSet, MemTrackingMetrics},
@@ -26,10 +27,13 @@ use std::{collections::BTreeMap, sync::Arc};
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
 pub enum Error {
-    #[snafu(display("Error building logical plan for querying Ingester data to send to Querier"))]
-    LogicalPlan {
+    #[snafu(display("Error in ReorgPlanner reorg for querying Ingester data to send to Querier"))]
+    ReorgPlanner {
         source: iox_query::frontend::reorg::Error,
     },
+
+    #[snafu(display("Error building logical plan for querying Ingester data to send to Querier"))]
+    LogicalPlan { source: DataFusionError },
 
     #[snafu(display(
         "Error building physical plan for querying Ingester data to send to Querier: {}",
@@ -277,7 +281,7 @@ async fn run_query(
 
 /// Query a given Queryable Batch, applying selection and filters as appropriate
 /// Return stream of record batches
-pub async fn query(
+pub(crate) async fn query(
     executor: &Executor,
     data: Arc<QueryableBatch>,
     predicate: Predicate,
@@ -285,19 +289,6 @@ pub async fn query(
 ) -> Result<SendableRecordBatchStream> {
     // Build logical plan for filtering data
     // Note that this query will also apply the delete predicates that go with the QueryableBatch
-
-    let indices = match selection {
-        Selection::All => None,
-        Selection::Some(columns) => {
-            let schema = data.schema();
-            Some(
-                columns
-                    .iter()
-                    .flat_map(|&column_name| schema.find_index_of(column_name))
-                    .collect(),
-            )
-        }
-    };
 
     let mut expr = vec![];
     if let Some(filter_expr) = predicate.filter_expr() {
@@ -308,8 +299,29 @@ pub async fn query(
     // we may want to add more types into the ExecutorType to have better log and resource managment
     let ctx = executor.new_context(ExecutorType::Query);
     let logical_plan = ReorgPlanner::new()
-        .scan_single_chunk_plan_with_filter(data.schema(), data, indices, expr)
-        .context(LogicalPlanSnafu {})?;
+        .scan_single_chunk_plan_with_filter(data.schema(), data, &predicate)
+        .context(ReorgPlannerSnafu {})?;
+
+    // Now, restrict to all columns that are relevant
+    let logical_plan = match selection {
+        Selection::All => logical_plan,
+        Selection::Some(cols) => {
+            // filter out columns that are not in the schema
+            let schema = Arc::clone(logical_plan.schema());
+            let cols = cols.iter().filter_map(|col_name| {
+                schema
+                    .index_of_column_by_name(None, col_name)
+                    .ok()
+                    .map(|_| datafusion::prelude::col(col_name))
+            });
+
+            LogicalPlanBuilder::from(logical_plan)
+                .project(cols)
+                .context(LogicalPlanSnafu)?
+                .build()
+                .context(LogicalPlanSnafu)?
+        }
+    };
 
     // Build physical plan
     let physical_plan = ctx

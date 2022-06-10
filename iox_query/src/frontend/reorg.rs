@@ -3,17 +3,19 @@
 use std::sync::Arc;
 
 use datafusion::logical_plan::{
-    col, lit_timestamp_nano, provider_as_source, Expr, LogicalPlan, LogicalPlanBuilder,
+    col, lit_timestamp_nano, provider_as_source, LogicalPlan, LogicalPlanBuilder,
 };
-use observability_deps::tracing::debug;
+use observability_deps::tracing::{debug, trace};
+use predicate::Predicate;
 use schema::{sort::SortKey, Schema, TIME_COLUMN_NAME};
 
 use crate::{
-    exec::make_stream_split,
+    exec::{make_stream_split, IOxSessionContext},
+    frontend::common::{scan_and_filter, TableScanAndFilter},
     provider::{ChunkTableProvider, ProviderBuilder},
     QueryChunk,
 };
-use snafu::{ResultExt, Snafu};
+use snafu::{OptionExt, ResultExt, Snafu};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -25,6 +27,9 @@ pub enum Error {
         source: datafusion::error::DataFusionError,
     },
 
+    #[snafu(display("Reorg planner had no data for: {}", table_name))]
+    NoRows { table_name: String },
+
     #[snafu(display(
         "Reorg planner got error adding chunk for table {}: {}",
         table_name,
@@ -33,6 +38,16 @@ pub enum Error {
     CreatingProvider {
         table_name: String,
         source: crate::provider::Error,
+    },
+
+    #[snafu(display(
+        "Reorg planner got error adding creating scan for {}: {}",
+        table_name,
+        source
+    ))]
+    CreatingScan {
+        table_name: String,
+        source: super::common::Error,
     },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -55,7 +70,7 @@ impl ReorgPlanner {
         schema: Arc<Schema>,
         chunk: Arc<dyn QueryChunk>,
     ) -> Result<LogicalPlan> {
-        self.scan_single_chunk_plan_with_filter(schema, chunk, None, vec![])
+        self.scan_single_chunk_plan_with_filter(schema, chunk, &Predicate::default())
     }
 
     /// Creates an execution plan for a scan and filter data of a single chunk
@@ -63,28 +78,34 @@ impl ReorgPlanner {
         &self,
         schema: Arc<Schema>,
         chunk: Arc<dyn QueryChunk>,
-        projection: Option<Vec<usize>>,
-        filters: Vec<Expr>,
+        predicate: &Predicate,
     ) -> Result<LogicalPlan> {
-        let table_name = chunk.table_name();
         // Prepare the plan for the table
-        let mut builder = ProviderBuilder::new(table_name, schema);
+        let table_name = chunk.table_name().to_string();
+        debug!(%table_name, ?predicate, "Creating single chunk scan plan");
+        trace!(?schema, chunk_schema=?chunk.schema(), "Schemas");
 
-        // There are no predicates in these plans, so no need to prune them
-        builder = builder.add_no_op_pruner();
-        builder = builder.add_chunk(Arc::clone(&chunk));
+        let ctx = IOxSessionContext::default();
 
-        let provider = builder
-            .build()
-            .context(CreatingProviderSnafu { table_name })?;
+        let scan_and_filter = scan_and_filter(
+            ctx.child_ctx("scan_and_filter planning"),
+            &table_name,
+            schema,
+            predicate,
+            vec![chunk],
+        )
+        .context(CreatingScanSnafu {
+            table_name: &table_name,
+        })?;
 
-        let source = provider_as_source(Arc::new(provider));
+        let TableScanAndFilter {
+            plan_builder,
+            schema: _,
+        } = scan_and_filter.context(NoRowsSnafu {
+            table_name: &table_name,
+        })?;
 
-        // Logical plan to scan given columns and apply predicates
-        let plan = LogicalPlanBuilder::scan_with_filters(table_name, source, projection, filters)
-            .context(BuildingPlanSnafu)?
-            .build()
-            .context(BuildingPlanSnafu)?;
+        let plan = plan_builder.build().context(BuildingPlanSnafu)?;
 
         debug!(%table_name, plan=%plan.display_indent_schema(),
                "created single chunk scan plan");

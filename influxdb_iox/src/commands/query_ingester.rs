@@ -33,12 +33,7 @@ pub struct Config {
     table: String,
 
     /// The columns to request
-    #[clap(
-        long = "--columns",
-        default_value = "",
-        multiple_values = true,
-        use_value_delimiter = true
-    )]
+    #[clap(long = "--columns", multiple_values = true, use_value_delimiter = true)]
     columns: Vec<String>,
 
     /// Predicate in base64 protobuf encoded form.
