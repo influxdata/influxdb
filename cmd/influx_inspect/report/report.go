@@ -53,11 +53,11 @@ func (cmd *Command) Run(args ...string) error {
 		return err
 	}
 
-	newCounterFn := newHLLCounter
+	newCounterFn := NewHLLCounter
 	estTitle := " (est)"
 	if cmd.exact {
 		estTitle = ""
-		newCounterFn = newExactCounter
+		newCounterFn = NewExactCounter
 	}
 
 	cmd.dir = fs.Arg(0)
@@ -68,11 +68,11 @@ func (cmd *Command) Run(args ...string) error {
 	}
 
 	totalSeries := newCounterFn()
-	tagCardinalities := map[string]counter{}
-	measCardinalities := map[string]counter{}
-	fieldCardinalities := map[string]counter{}
+	tagCardinalities := map[string]Counter{}
+	measCardinalities := map[string]Counter{}
+	fieldCardinalities := map[string]Counter{}
 
-	dbCardinalities := map[string]counter{}
+	dbCardinalities := map[string]Counter{}
 
 	start := time.Now()
 
@@ -210,7 +210,7 @@ func (cmd *Command) Run(args ...string) error {
 }
 
 // sortKeys is a quick helper to return the sorted set of a map's keys
-func sortKeys(vals map[string]counter) (keys []string) {
+func sortKeys(vals map[string]Counter) (keys []string) {
 	for k := range vals {
 		keys = append(keys, k)
 	}
@@ -238,14 +238,14 @@ Usage: influx_inspect report [flags]
 	fmt.Fprintf(cmd.Stdout, usage)
 }
 
-// counter abstracts a a method of counting keys.
-type counter interface {
+// Counter abstracts a a method of counting keys.
+type Counter interface {
 	Add(key []byte)
 	Count() uint64
 }
 
-// newHLLCounter returns an approximate counter using HyperLogLogs for cardinality estimation.
-func newHLLCounter() counter {
+// NewHLLCounter returns an approximate Counter using HyperLogLogs for cardinality estimation.
+func NewHLLCounter() Counter {
 	return hllpp.New()
 }
 
@@ -262,7 +262,7 @@ func (c *exactCounter) Count() uint64 {
 	return uint64(len(c.m))
 }
 
-func newExactCounter() counter {
+func NewExactCounter() Counter {
 	return &exactCounter{
 		m: make(map[string]struct{}),
 	}
