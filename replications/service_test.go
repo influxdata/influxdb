@@ -794,14 +794,14 @@ disk,host=C value=1.3 1000000000`)
 	require.NoError(t, err)
 
 	expectedPoints, err := models.ParsePointsString(`
-cpu,host=0,instance-id=hello-edge value=1.1 6000000000
-cpu,host=A,instance-id=hello-edge value=1.2 2000000000
-cpu,host=A,instance-id=hello-edge value=1.3 3000000000
-cpu,host=B,instance-id=hello-edge value=1.3 4000000000
-cpu,host=B,instance-id=hello-edge value=1.3 5000000000
-cpu,host=C,instance-id=hello-edge value=1.3 1000000000
-mem,host=C,instance-id=hello-edge value=1.3 1000000000
-disk,host=C,instance-id=hello-edge value=1.3 1000000000`)
+cpu,host=0,_instance_id=hello-edge value=1.1 6000000000
+cpu,host=A,_instance_id=hello-edge value=1.2 2000000000
+cpu,host=A,_instance_id=hello-edge value=1.3 3000000000
+cpu,host=B,_instance_id=hello-edge value=1.3 4000000000
+cpu,host=B,_instance_id=hello-edge value=1.3 5000000000
+cpu,host=C,_instance_id=hello-edge value=1.3 1000000000
+mem,host=C,_instance_id=hello-edge value=1.3 1000000000
+disk,host=C,_instance_id=hello-edge value=1.3 1000000000`)
 	require.NoError(t, err)
 
 	// Points should successfully write to local TSM.

@@ -321,7 +321,7 @@ func (s *service) WritePoints(ctx context.Context, orgID platform.ID, bucketID p
 
 	if s.instanceID != "" {
 		for i := range points {
-			points[i].AddTag("instance-id", s.instanceID)
+			points[i].AddTag("_instance_id", s.instanceID)
 		}
 	}
 
