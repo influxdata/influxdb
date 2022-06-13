@@ -14,6 +14,7 @@ import (
 	"github.com/influxdata/influxdb/v2/pkg/pointer"
 	"github.com/influxdata/influxdb/v2/tenant"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -233,12 +234,9 @@ func TestAuthBucketNotExists(t *testing.T) {
 	}
 
 	ts, err := NewStore(store)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	bucketID := platform.ID(1)
-
 	tenant := tenant.NewStore(store)
 	err = tenant.Update(context.Background(), func(tx kv.Tx) error {
 		err := tenant.CreateBucket(context.Background(), tx, &influxdb.Bucket{
@@ -259,9 +257,7 @@ func TestAuthBucketNotExists(t *testing.T) {
 
 		return nil
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	perm1, err := influxdb.NewPermissionAtID(
 		bucketID,
@@ -269,9 +265,7 @@ func TestAuthBucketNotExists(t *testing.T) {
 		influxdb.BucketsResourceType,
 		platform.ID(10),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	perm2, err := influxdb.NewPermissionAtID(
 		platform.ID(2),
@@ -279,9 +273,7 @@ func TestAuthBucketNotExists(t *testing.T) {
 		influxdb.BucketsResourceType,
 		platform.ID(10),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	err = ts.Update(context.Background(), func(tx kv.Tx) error {
 		err = ts.CreateAuthorization(context.Background(), tx, &influxdb.Authorization{
@@ -298,9 +290,7 @@ func TestAuthBucketNotExists(t *testing.T) {
 		return err
 	})
 
-	if err != nil {
-		t.Fatalf("Authorization creating should have succeeded [Error]: %v", err)
-	}
+	require.NoErrorf(t, err, "Authorization creating should have succeeded")
 
 	err = ts.Update(context.Background(), func(tx kv.Tx) error {
 		err = ts.CreateAuthorization(context.Background(), tx, &influxdb.Authorization{
