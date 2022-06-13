@@ -25,7 +25,7 @@ const (
 )
 
 type remoteWriter interface {
-	Write(data []byte, attempt int) (time.Duration, bool, error)
+	Write(data []byte, attempt int) (time.Duration, error)
 }
 
 type replicationQueue struct {
@@ -142,9 +142,13 @@ func (rq *replicationQueue) run() {
 	sendWrite := func() {
 		for {
 			waitForRetry, shouldRetry := rq.SendWrite()
+
+			// immediately retry if the wait time is zero
 			if shouldRetry && waitForRetry == 0 {
 				continue
 			}
+
+			// otherwise, wait until the specified amount of time to retry
 			if shouldRetry {
 				if !retry.Stop() {
 					<-retry.C
@@ -217,11 +221,11 @@ func (rq *replicationQueue) SendWrite() (waitForRetry time.Duration, shouldRetry
 			rq.logger.Info("Segment read error.", zap.Error(scan.Err()))
 		}
 
-		if waitForRetry, shouldRetry, err := rq.remoteWriter.Write(scan.Bytes(), rq.failedWrites); err != nil {
+		if waitForRetry, err := rq.remoteWriter.Write(scan.Bytes(), rq.failedWrites); err != nil {
 			rq.failedWrites++
 			// We failed the remote write. Do not advance the scanner
 			rq.logger.Error("Error in replication stream", zap.Error(err), zap.Int("retries", rq.failedWrites))
-			return waitForRetry, shouldRetry
+			return waitForRetry, true
 		}
 
 		// a successful write resets the number of failed write attempts to zero
