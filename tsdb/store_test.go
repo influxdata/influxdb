@@ -27,6 +27,7 @@ import (
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/index/inmem"
 	"github.com/influxdata/influxql"
+	"github.com/stretchr/testify/require"
 )
 
 // Ensure the store can delete a retention policy and all shards under
@@ -140,6 +141,31 @@ func TestStore_CreateShard(t *testing.T) {
 
 	for _, index := range tsdb.RegisteredIndexes() {
 		t.Run(index, func(t *testing.T) { test(index) })
+	}
+}
+
+func TestStore_BadShard(t *testing.T) {
+	const errStr = "a shard open error"
+	indexes := tsdb.RegisteredIndexes()
+	for _, idx := range indexes {
+		func() {
+			s := MustOpenStore(idx)
+			defer require.NoErrorf(t, s.Close(), "closing store with index type: %s", idx)
+
+			sh := tsdb.NewTempShard(idx)
+			err := s.OpenShard(sh.Shard, false)
+			require.NoError(t, err, "opening temp shard")
+			defer require.NoError(t, sh.Close(), "closing temporary shard")
+
+			s.SetShardOpenErrorForTest(sh.ID(), errors.New(errStr))
+			err2 := s.OpenShard(sh.Shard, false)
+			require.Error(t, err2, "no error opening bad shard")
+			require.True(t, errors.Is(err2, tsdb.ErrPreviousShardFail{}), "exp: ErrPreviousShardFail, got: %v", err2)
+			require.EqualError(t, err2, "opening shard previously failed with: "+errStr)
+
+			// This should succeed with the force (and because opening an open shard automatically succeeds)
+			require.NoError(t, s.OpenShard(sh.Shard, true), "forced re-opening previously failing shard")
+		}()
 	}
 }
 
@@ -2048,7 +2074,7 @@ func TestStore_MeasurementNames_ConcurrentDropShard(t *testing.T) {
 							return
 						}
 						time.Sleep(500 * time.Microsecond)
-						if err := sh.Open(); err != nil {
+						if err := s.OpenShard(sh, false); err != nil {
 							errC <- err
 							return
 						}
@@ -2133,7 +2159,7 @@ func TestStore_TagKeys_ConcurrentDropShard(t *testing.T) {
 							return
 						}
 						time.Sleep(500 * time.Microsecond)
-						if err := sh.Open(); err != nil {
+						if err := s.OpenShard(sh, false); err != nil {
 							errC <- err
 							return
 						}
@@ -2224,7 +2250,7 @@ func TestStore_TagValues_ConcurrentDropShard(t *testing.T) {
 							return
 						}
 						time.Sleep(500 * time.Microsecond)
-						if err := sh.Open(); err != nil {
+						if err := s.OpenShard(sh, false); err != nil {
 							errC <- err
 							return
 						}
