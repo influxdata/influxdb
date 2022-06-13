@@ -3,7 +3,9 @@ use std::{collections::BTreeMap, sync::Arc};
 use async_trait::async_trait;
 use iox_query::{exec::Executor, test::TestDatabase};
 use parking_lot::Mutex;
-use tokio::sync::{OwnedSemaphorePermit, Semaphore};
+use tracker::{
+    AsyncSemaphoreMetrics, InstrumentedAsyncOwnedSemaphorePermit, InstrumentedAsyncSemaphore,
+};
 
 use crate::QueryDatabaseProvider;
 
@@ -12,7 +14,7 @@ pub struct TestDatabaseStore {
     databases: Mutex<BTreeMap<String, Arc<TestDatabase>>>,
     executor: Arc<Executor>,
     pub metric_registry: Arc<metric::Registry>,
-    pub query_semaphore: Arc<Semaphore>,
+    pub query_semaphore: Arc<InstrumentedAsyncSemaphore>,
 }
 
 impl TestDatabaseStore {
@@ -21,9 +23,16 @@ impl TestDatabaseStore {
     }
 
     pub fn new_with_semaphore_size(semaphore_size: usize) -> Self {
+        let metric_registry = Arc::new(metric::Registry::default());
+        let semaphore_metrics = Arc::new(AsyncSemaphoreMetrics::new(
+            &metric_registry,
+            &[("semaphore", "query_execution")],
+        ));
         Self {
-            query_semaphore: Arc::new(Semaphore::new(semaphore_size)),
-            ..Default::default()
+            databases: Mutex::new(BTreeMap::new()),
+            executor: Arc::new(Executor::new(1)),
+            metric_registry,
+            query_semaphore: Arc::new(semaphore_metrics.new_semaphore(semaphore_size)),
         }
     }
 
@@ -42,12 +51,7 @@ impl TestDatabaseStore {
 
 impl Default for TestDatabaseStore {
     fn default() -> Self {
-        Self {
-            databases: Mutex::new(BTreeMap::new()),
-            executor: Arc::new(Executor::new(1)),
-            metric_registry: Default::default(),
-            query_semaphore: Arc::new(Semaphore::new(u16::MAX as usize)),
-        }
+        Self::new_with_semaphore_size(u16::MAX as usize)
     }
 }
 
@@ -62,7 +66,7 @@ impl QueryDatabaseProvider for TestDatabaseStore {
         databases.get(name).cloned()
     }
 
-    async fn acquire_semaphore(&self) -> OwnedSemaphorePermit {
+    async fn acquire_semaphore(&self) -> InstrumentedAsyncOwnedSemaphorePermit {
         Arc::clone(&self.query_semaphore)
             .acquire_owned()
             .await

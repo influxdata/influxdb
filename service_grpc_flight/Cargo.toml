@@ -14,6 +14,7 @@ generated_types = { path = "../generated_types" }
 observability_deps = { path = "../observability_deps" }
 iox_query = { path = "../iox_query" }
 service_common = { path = "../service_common" }
+tracker = { path = "../tracker" }
 
 # Crates.io dependencies, in alphabetical order
 arrow = { version = "15.0.0", features = ["prettyprint"] }
@@ -28,3 +29,6 @@ snafu = "0.7"
 tokio = { version = "1.19", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
 tonic = "0.7"
 workspace-hack = { path = "../workspace-hack"}
+
+[dev-dependencies]
+metric = { path = "../metric" }

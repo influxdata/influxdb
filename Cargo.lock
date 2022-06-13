@@ -3969,6 +3969,7 @@ dependencies = [
  "tokio-util 0.7.3",
  "tonic",
  "trace",
+ "tracker",
  "uuid 0.8.2",
  "workspace-hack",
 ]
@@ -4757,7 +4758,7 @@ dependencies = [
  "metric",
  "parking_lot 0.12.1",
  "predicate",
- "tokio",
+ "tracker",
  "workspace-hack",
 ]
 
@@ -4789,6 +4790,7 @@ dependencies = [
  "futures",
  "generated_types",
  "iox_query",
+ "metric",
  "observability_deps",
  "pin-project",
  "prost",
@@ -4798,6 +4800,7 @@ dependencies = [
  "snafu",
  "tokio",
  "tonic",
+ "tracker",
  "workspace-hack",
 ]
 
@@ -4834,6 +4837,7 @@ dependencies = [
  "tokio-stream",
  "tonic",
  "trace_http",
+ "tracker",
  "workspace-hack",
 ]
 

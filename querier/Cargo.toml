@@ -36,6 +36,7 @@ tokio = { version = "1.19", features = ["macros", "parking_lot", "rt-multi-threa
 tokio-util = { version = "0.7.3" }
 tonic = { version = "0.7" }
 trace = { path = "../trace" }
+tracker = { path = "../tracker" }
 uuid = { version = "0.8", features = ["v4"] }
 workspace-hack = { path = "../workspace-hack"}
 

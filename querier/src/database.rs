@@ -11,7 +11,9 @@ use iox_query::exec::Executor;
 use parquet_file::storage::ParquetStorage;
 use service_common::QueryDatabaseProvider;
 use std::sync::Arc;
-use tokio::sync::{OwnedSemaphorePermit, Semaphore};
+use tracker::{
+    AsyncSemaphoreMetrics, InstrumentedAsyncOwnedSemaphorePermit, InstrumentedAsyncSemaphore,
+};
 
 /// The number of entries to store in the circular query buffer log.
 ///
@@ -50,7 +52,7 @@ pub struct QuerierDatabase {
     /// This should be a 1-to-1 relation to the number of active queries.
     ///
     /// If the same database is requested twice for different queries, it is counted twice.
-    query_execution_semaphore: Arc<Semaphore>,
+    query_execution_semaphore: Arc<InstrumentedAsyncSemaphore>,
 }
 
 #[async_trait]
@@ -61,7 +63,7 @@ impl QueryDatabaseProvider for QuerierDatabase {
         self.namespace(name).await
     }
 
-    async fn acquire_semaphore(&self) -> OwnedSemaphorePermit {
+    async fn acquire_semaphore(&self) -> InstrumentedAsyncOwnedSemaphorePermit {
         Arc::clone(&self.query_execution_semaphore)
             .acquire_owned()
             .await
@@ -99,7 +101,12 @@ impl QuerierDatabase {
             catalog_cache.time_provider(),
         ));
         let query_log = Arc::new(QueryLog::new(QUERY_LOG_SIZE, catalog_cache.time_provider()));
-        let query_execution_semaphore = Arc::new(Semaphore::new(max_concurrent_queries));
+        let semaphore_metrics = Arc::new(AsyncSemaphoreMetrics::new(
+            &metric_registry,
+            &[("semaphore", "query_execution")],
+        ));
+        let query_execution_semaphore =
+            Arc::new(semaphore_metrics.new_semaphore(max_concurrent_queries));
 
         Self {
             backoff_config: BackoffConfig::default(),

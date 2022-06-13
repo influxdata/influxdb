@@ -39,9 +39,10 @@ use std::{
     collections::{BTreeSet, HashMap},
     sync::Arc,
 };
-use tokio::sync::{mpsc, OwnedSemaphorePermit};
+use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::Status;
+use tracker::InstrumentedAsyncOwnedSemaphorePermit;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -1441,11 +1442,11 @@ pub struct StreamWithPermit<S> {
     #[pin]
     stream: S,
     #[allow(dead_code)]
-    permit: OwnedSemaphorePermit,
+    permit: InstrumentedAsyncOwnedSemaphorePermit,
 }
 
 impl<S> StreamWithPermit<S> {
-    fn new(stream: S, permit: OwnedSemaphorePermit) -> Self {
+    fn new(stream: S, permit: InstrumentedAsyncOwnedSemaphorePermit) -> Self {
         Self { stream, permit }
     }
 }
@@ -1478,7 +1479,7 @@ mod tests {
         Client as StorageClient, OrgAndBucket,
     };
     use iox_query::test::TestChunk;
-    use metric::{Attributes, Metric, U64Counter};
+    use metric::{Attributes, Metric, U64Counter, U64Gauge};
     use panic_logging::SendPanicsToTracing;
     use predicate::{Predicate, PredicateMatch};
     use service_common::test_util::TestDatabaseStore;
@@ -3131,17 +3132,118 @@ mod tests {
             let service = StorageService {
                 db_store: Arc::clone(&test_storage),
             };
+
+            assert_semaphore_metric(
+                &test_storage.metric_registry,
+                "iox_async_semaphore_permits_total",
+                2,
+            );
+            assert_semaphore_metric(
+                &test_storage.metric_registry,
+                "iox_async_semaphore_permits_pending",
+                0,
+            );
+            assert_semaphore_metric(
+                &test_storage.metric_registry,
+                "iox_async_semaphore_permits_acquired",
+                0,
+            );
+
             let streaming_resp1 = t.request(&service).await;
-            let _streaming_resp2 = t.request(&service).await;
+
+            assert_semaphore_metric(
+                &test_storage.metric_registry,
+                "iox_async_semaphore_permits_total",
+                2,
+            );
+            assert_semaphore_metric(
+                &test_storage.metric_registry,
+                "iox_async_semaphore_permits_pending",
+                0,
+            );
+            assert_semaphore_metric(
+                &test_storage.metric_registry,
+                "iox_async_semaphore_permits_acquired",
+                1,
+            );
+
+            let streaming_resp2 = t.request(&service).await;
+
+            assert_semaphore_metric(
+                &test_storage.metric_registry,
+                "iox_async_semaphore_permits_total",
+                2,
+            );
+            assert_semaphore_metric(
+                &test_storage.metric_registry,
+                "iox_async_semaphore_permits_pending",
+                0,
+            );
+            assert_semaphore_metric(
+                &test_storage.metric_registry,
+                "iox_async_semaphore_permits_acquired",
+                2,
+            );
 
             // 3rd request is pending
             let fut = t.request(&service);
             pin!(fut);
             assert_fut_pending(&mut fut).await;
 
+            assert_semaphore_metric(
+                &test_storage.metric_registry,
+                "iox_async_semaphore_permits_total",
+                2,
+            );
+            assert_semaphore_metric(
+                &test_storage.metric_registry,
+                "iox_async_semaphore_permits_pending",
+                1,
+            );
+            assert_semaphore_metric(
+                &test_storage.metric_registry,
+                "iox_async_semaphore_permits_acquired",
+                2,
+            );
+
             // free permit
             drop(streaming_resp1);
-            let _streaming_resp3 = fut.await;
+            let streaming_resp3 = fut.await;
+
+            assert_semaphore_metric(
+                &test_storage.metric_registry,
+                "iox_async_semaphore_permits_total",
+                2,
+            );
+            assert_semaphore_metric(
+                &test_storage.metric_registry,
+                "iox_async_semaphore_permits_pending",
+                0,
+            );
+            assert_semaphore_metric(
+                &test_storage.metric_registry,
+                "iox_async_semaphore_permits_acquired",
+                2,
+            );
+
+            drop(streaming_resp2);
+            drop(streaming_resp3);
+
+            assert_semaphore_metric(
+                &test_storage.metric_registry,
+                "iox_async_semaphore_permits_total",
+                2,
+            );
+            assert_semaphore_metric(
+                &test_storage.metric_registry,
+                "iox_async_semaphore_permits_pending",
+                0,
+            );
+            assert_semaphore_metric(
+                &test_storage.metric_registry,
+                "iox_async_semaphore_permits_acquired",
+                0,
+            );
         }
     }
 
@@ -3338,5 +3440,15 @@ mod tests {
             _ = fut => panic!("future is not pending, yielded"),
             _ = tokio::time::sleep(std::time::Duration::from_millis(10)) => {},
         };
+    }
+
+    fn assert_semaphore_metric(registry: &metric::Registry, name: &'static str, expected: u64) {
+        let actual = registry
+            .get_instrument::<Metric<U64Gauge>>(name)
+            .expect("failed to read metric")
+            .get_observer(&Attributes::from(&[("semaphore", "query_execution")]))
+            .expect("failed to get observer")
+            .fetch();
+        assert_eq!(actual, expected);
     }
 }
