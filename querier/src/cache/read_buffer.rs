@@ -277,7 +277,10 @@ mod tests {
             .get_instrument("cache_load_function_calls")
             .unwrap();
         let v = m
-            .get_observer(&Attributes::from(&[("name", "read_buffer")]))
+            .get_observer(&Attributes::from(&[
+                ("name", "read_buffer"),
+                ("status", "new"),
+            ]))
             .unwrap()
             .fetch();
 
@@ -398,13 +401,24 @@ mod tests {
             .metric_registry
             .get_instrument("cache_load_function_calls")
             .unwrap();
-        let v = m
-            .get_observer(&Attributes::from(&[("name", "read_buffer")]))
+        let v_new = m
+            .get_observer(&Attributes::from(&[
+                ("name", "read_buffer"),
+                ("status", "new"),
+            ]))
+            .unwrap()
+            .fetch();
+        let v_probably_reloaded = m
+            .get_observer(&Attributes::from(&[
+                ("name", "read_buffer"),
+                ("status", "probably_reloaded"),
+            ]))
             .unwrap()
             .fetch();
 
-        // Load is called 4x
-        assert_eq!(v, 4);
+        // Load is called 3x with new data and 1x for a chunk that we've loaded before
+        assert_eq!(v_new, 3);
+        assert_eq!(v_probably_reloaded, 1);
     }
 
     fn lp_to_record_batch(lp: &str) -> RecordBatch {

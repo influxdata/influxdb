@@ -23,6 +23,7 @@ crossbeam-utils = { version = "0.8", features = ["lazy_static", "std"] }
 crypto-common = { version = "0.1", default-features = false, features = ["std"] }
 digest = { version = "0.10", features = ["alloc", "block-buffer", "core-api", "mac", "std", "subtle"] }
 either = { version = "1", features = ["use_std"] }
+fixedbitset = { version = "0.4", features = ["std"] }
 futures-channel = { version = "0.3", features = ["alloc", "futures-sink", "sink", "std"] }
 futures-core = { version = "0.3", features = ["alloc", "std"] }
 futures-sink = { version = "0.3", features = ["alloc", "std"] }
@@ -82,6 +83,7 @@ crossbeam-utils = { version = "0.8", features = ["lazy_static", "std"] }
 crypto-common = { version = "0.1", default-features = false, features = ["std"] }
 digest = { version = "0.10", features = ["alloc", "block-buffer", "core-api", "mac", "std", "subtle"] }
 either = { version = "1", features = ["use_std"] }
+fixedbitset = { version = "0.4", features = ["std"] }
 futures-channel = { version = "0.3", features = ["alloc", "futures-sink", "sink", "std"] }
 futures-core = { version = "0.3", features = ["alloc", "std"] }
 futures-sink = { version = "0.3", features = ["alloc", "std"] }

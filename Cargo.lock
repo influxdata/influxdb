@@ -600,6 +600,7 @@ dependencies = [
  "metric",
  "observability_deps",
  "parking_lot 0.12.1",
+ "pdatastructs",
  "proptest",
  "rand",
  "tokio",
@@ -3556,6 +3557,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "pdatastructs"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4bdcb4943c3c68659690124771ffb2fd93b73900bd0fb47e934f7b8b2e6687fa"
+dependencies = [
+ "fixedbitset",
+]
+
+[[package]]
 name = "peeking_take_while"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6349,6 +6359,7 @@ dependencies = [
  "crypto-common",
  "digest 0.10.3",
  "either",
+ "fixedbitset",
  "futures-channel",
  "futures-core",
  "futures-sink",
