@@ -516,14 +516,12 @@ pub async fn command(config: Config) -> Result<()> {
 
     let ingester_addresses = vec![format!("http://{}", ingester_run_config.grpc_bind_address)];
     info!(?ingester_addresses, "starting querier");
-    let optional_write_buffer_config = write_buffer_config.into();
     let querier = create_querier_server_type(QuerierServerTypeArgs {
         common_state: &common_state,
         metric_registry: Arc::clone(&metrics),
         catalog,
         object_store,
         exec,
-        optional_write_buffer_config: &optional_write_buffer_config,
         time_provider,
         ingester_addresses,
         querier_config,

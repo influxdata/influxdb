@@ -3,7 +3,7 @@
 use super::main;
 use clap_blocks::{
     catalog_dsn::CatalogDsnConfig, object_store::make_object_store, querier::QuerierConfig,
-    run_config::RunConfig, write_buffer::OptionalWriteBufferConfig,
+    run_config::RunConfig,
 };
 use iox_query::exec::Executor;
 use iox_time::{SystemProvider, TimeProvider};
@@ -66,9 +66,6 @@ pub struct Config {
 
     #[clap(flatten)]
     pub(crate) querier_config: QuerierConfig,
-
-    #[clap(flatten)]
-    pub(crate) optional_write_buffer_config: OptionalWriteBufferConfig,
 }
 
 pub async fn command(config: Config) -> Result<(), Error> {
@@ -108,7 +105,6 @@ pub async fn command(config: Config) -> Result<(), Error> {
         catalog,
         object_store,
         exec,
-        optional_write_buffer_config: &config.optional_write_buffer_config,
         time_provider,
         ingester_addresses,
         querier_config: config.querier_config,

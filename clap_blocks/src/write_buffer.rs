@@ -63,57 +63,6 @@ pub struct WriteBufferConfig {
     pub(crate) auto_create_topics: Option<NonZeroU32>,
 }
 
-/// For use by the querier. If these options are specified, the querier can use the same sharding
-/// that the  router uses to know the subset of ingesters to query. If these options are not
-/// specified, the querier will ask all ingesters.
-#[derive(Debug, clap::Parser)]
-pub struct OptionalWriteBufferConfig {
-    /// The type of write buffer to use.
-    ///
-    /// Valid options are: file, kafka
-    #[clap(long = "--write-buffer", env = "INFLUXDB_IOX_WRITE_BUFFER_TYPE")]
-    pub(crate) type_: Option<String>,
-
-    /// The address to the write buffer.
-    #[clap(long = "--write-buffer-addr", env = "INFLUXDB_IOX_WRITE_BUFFER_ADDR")]
-    pub(crate) connection_string: Option<String>,
-
-    /// Write buffer topic/database that should be used.
-    #[clap(
-        long = "--write-buffer-topic",
-        env = "INFLUXDB_IOX_WRITE_BUFFER_TOPIC",
-        default_value = "iox-shared"
-    )]
-    pub(crate) topic: String,
-
-    /// Write buffer connection config.
-    ///
-    /// The concrete options depend on the write buffer type.
-    ///
-    /// Command line arguments are passed as
-    /// `--write-buffer-connection-config key1=value1 key2=value2` or
-    /// `--write-buffer-connection-config key1=value1,key2=value2`.
-    ///
-    /// Environment variables are passed as `key1=value1,key2=value2,...`.
-    #[clap(
-        long = "--write-buffer-connection-config",
-        env = "INFLUXDB_IOX_WRITE_BUFFER_CONNECTION_CONFIG",
-        default_value = "",
-        multiple_values = true,
-        use_value_delimiter = true,
-        action
-    )]
-    pub(crate) connection_config: Vec<String>,
-
-    /// The number of topics to create automatically, if any. Default is to not create any topics.
-    #[clap(
-        long = "--write-buffer-auto-create-topics",
-        env = "INFLUXDB_IOX_WRITE_BUFFER_AUTO_CREATE_TOPICS",
-        action
-    )]
-    pub(crate) auto_create_topics: Option<NonZeroU32>,
-}
-
 impl WriteBufferConfig {
     /// Create a new instance for all-in-one mode, only allowing some arguments.
     /// If `database_directory` is not specified, creates a new temporary directory.
@@ -215,47 +164,6 @@ impl WriteBufferConfig {
     /// Set the write buffer config's auto create topics.
     pub fn set_auto_create_topics(&mut self, auto_create_topics: Option<NonZeroU32>) {
         self.auto_create_topics = auto_create_topics;
-    }
-}
-
-impl From<WriteBufferConfig> for OptionalWriteBufferConfig {
-    fn from(write_buffer_config: WriteBufferConfig) -> Self {
-        Self {
-            type_: Some(write_buffer_config.type_.clone()),
-            connection_string: Some(write_buffer_config.connection_string.clone()),
-            topic: write_buffer_config.topic.clone(),
-            connection_config: write_buffer_config.connection_config.clone(),
-            auto_create_topics: write_buffer_config.auto_create_topics,
-        }
-    }
-}
-
-impl OptionalWriteBufferConfig {
-    /// Initialize a [`WriteBufferWriting`] if the options are specified
-    pub async fn writing(
-        &self,
-        metrics: Arc<metric::Registry>,
-        trace_collector: Option<Arc<dyn TraceCollector>>,
-    ) -> Result<Option<Arc<dyn WriteBufferWriting>>, WriteBufferError> {
-        match (self.type_.as_ref(), self.connection_string.as_ref()) {
-            (Some(type_), Some(connection_string)) => {
-                let write_buffer_config = WriteBufferConfig {
-                    type_: type_.to_string(),
-                    connection_string: connection_string.to_string(),
-                    topic: self.topic.clone(),
-                    connection_config: self.connection_config.clone(),
-                    auto_create_topics: self.auto_create_topics,
-                };
-                let conn = write_buffer_config.conn();
-                let factory = WriteBufferConfig::factory(metrics);
-                Ok(Some(
-                    factory
-                        .new_config_write(&self.topic, trace_collector.as_ref(), &conn)
-                        .await?,
-                ))
-            }
-            _ => Ok(None),
-        }
     }
 }
 

@@ -2422,6 +2422,7 @@ dependencies = [
  "observability_deps",
  "parquet_file",
  "schema",
+ "sharder",
  "uuid 0.8.2",
  "workspace-hack",
 ]
