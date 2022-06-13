@@ -10,15 +10,17 @@ package mmap
 import (
 	"os"
 	"syscall"
+
+	errors2 "github.com/influxdata/influxdb/pkg/errors"
 )
 
 // Map memory-maps a file.
-func Map(path string, sz int64) ([]byte, error) {
+func Map(path string, sz int64) (data []byte, err error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer errors2.Capture(&err, f.Close)()
 
 	fi, err := f.Stat()
 	if err != nil {
@@ -32,7 +34,7 @@ func Map(path string, sz int64) ([]byte, error) {
 		sz = fi.Size()
 	}
 
-	data, err := syscall.Mmap(int(f.Fd()), 0, int(sz), syscall.PROT_READ, syscall.MAP_SHARED)
+	data, err = syscall.Mmap(int(f.Fd()), 0, int(sz), syscall.PROT_READ, syscall.MAP_SHARED)
 	if err != nil {
 		return nil, err
 	}
