@@ -2438,6 +2438,7 @@ dependencies = [
  "metric",
  "mutable_batch_lp",
  "object_store",
+ "observability_deps",
  "parquet_file",
  "schema",
  "uuid 0.8.2",

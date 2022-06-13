@@ -18,6 +18,7 @@ use iox_query::{exec::Executor, provider::RecordBatchDeduplicator, util::arrow_s
 use iox_time::{MockProvider, Time, TimeProvider};
 use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
 use object_store::{memory::InMemory, DynObjectStore};
+use observability_deps::tracing::debug;
 use parquet_file::{metadata::IoxMetadata, storage::ParquetStorage};
 use schema::{
     selection::Selection,
@@ -640,7 +641,7 @@ async fn update_catalog_sort_key_if_needed(
             let (_metadata, update) = adjust_sort_key_columns(&catalog_sort_key, &new_sort_key);
             if let Some(new_sort_key) = update {
                 let new_columns = new_sort_key.to_columns().collect::<Vec<_>>();
-                dbg!(
+                debug!(
                     "Updating sort key from {:?} to {:?}",
                     catalog_sort_key.to_columns().collect::<Vec<_>>(),
                     &new_columns,
@@ -653,7 +654,7 @@ async fn update_catalog_sort_key_if_needed(
         }
         None => {
             let new_columns = sort_key.to_columns().collect::<Vec<_>>();
-            dbg!("Updating sort key from None to {:?}", &new_columns);
+            debug!("Updating sort key from None to {:?}", &new_columns);
             partitions_catalog
                 .update_sort_key(partition_id, &new_columns)
                 .await
