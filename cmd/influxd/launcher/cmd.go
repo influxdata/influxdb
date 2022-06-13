@@ -153,6 +153,8 @@ type InfluxdOpts struct {
 	SecretStore string
 	VaultConfig vault.Config
 
+	InstanceID string
+
 	HttpBindAddress       string
 	HttpReadHeaderTimeout time.Duration
 	HttpReadTimeout       time.Duration
@@ -474,6 +476,12 @@ func (o *InfluxdOpts) BindCliOpts() []cli.Opt {
 			DestP: &o.FeatureFlags,
 			Flag:  "feature-flags",
 			Desc:  "feature flag overrides",
+		},
+		{
+			DestP:   &o.InstanceID,
+			Flag:    "instance-id",
+			Default: "",
+			Desc:    "add an instance id for replications to prevent collisions and allow querying by edge node",
 		},
 
 		// storage configuration
