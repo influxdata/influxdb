@@ -86,6 +86,7 @@
 //! [Apache Parquet]: https://parquet.apache.org/
 //! [Apache Thrift]: https://thrift.apache.org/
 //! [Thrift Compact Protocol]: https://github.com/apache/thrift/blob/master/doc/specs/thrift-compact-protocol.md
+use bytes::Bytes;
 use data_types::{
     ColumnSummary, InfluxDbType, NamespaceId, ParquetFileParams, PartitionId, PartitionKey,
     SequenceNumber, SequencerId, StatValues, Statistics, TableId, Timestamp,
@@ -101,7 +102,7 @@ use parquet::{
             RowGroupMetaData as ParquetRowGroupMetaData,
         },
         reader::FileReader,
-        serialized_reader::{SerializedFileReader, SliceableCursor},
+        serialized_reader::SerializedFileReader,
         statistics::Statistics as ParquetStatistics,
     },
     schema::types::SchemaDescriptor as ParquetSchemaDescriptor,
@@ -511,13 +512,12 @@ impl Debug for IoxParquetMetaData {
 
 impl IoxParquetMetaData {
     /// Read parquet metadata from a parquet file.
-    pub fn from_file_bytes(data: Arc<Vec<u8>>) -> Result<Option<Self>> {
+    pub fn from_file_bytes(data: Bytes) -> Result<Option<Self>> {
         if data.is_empty() {
             return Ok(None);
         }
 
-        let cursor = SliceableCursor::new(data);
-        let reader = SerializedFileReader::new(cursor).context(ParquetMetaDataReadSnafu {})?;
+        let reader = SerializedFileReader::new(data).context(ParquetMetaDataReadSnafu {})?;
         let parquet_md = reader.metadata().clone();
 
         let data = Self::parquet_md_to_thrift(parquet_md)?;
@@ -1018,7 +1018,7 @@ mod tests {
         // Read the metadata from the file bytes.
         //
         // This is quite wordy...
-        let iox_parquet_meta = IoxParquetMetaData::from_file_bytes(Arc::new(bytes))
+        let iox_parquet_meta = IoxParquetMetaData::from_file_bytes(Bytes::from(bytes))
             .expect("should decode")
             .expect("should contain metadata");
 

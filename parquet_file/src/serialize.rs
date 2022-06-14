@@ -159,11 +159,12 @@ mod tests {
     use std::sync::Arc;
 
     use arrow::array::{ArrayRef, StringBuilder};
+    use bytes::Bytes;
     use data_types::{NamespaceId, PartitionId, SequenceNumber, SequencerId, TableId};
     use iox_time::Time;
     use parquet::{
         arrow::{ArrowReader, ParquetFileArrowReader},
-        file::serialized_reader::{SerializedFileReader, SliceableCursor},
+        file::serialized_reader::SerializedFileReader,
     };
 
     use crate::metadata::IoxParquetMetaData;
@@ -195,10 +196,11 @@ mod tests {
             .await
             .expect("should serialize");
 
+        let bytes = Bytes::from(bytes);
         // Read the metadata from the file bytes.
         //
         // This is quite wordy...
-        let iox_parquet_meta = IoxParquetMetaData::from_file_bytes(Arc::new(bytes.clone()))
+        let iox_parquet_meta = IoxParquetMetaData::from_file_bytes(bytes.clone())
             .expect("should decode")
             .expect("should contain metadata")
             .decode()
@@ -208,8 +210,7 @@ mod tests {
         assert_eq!(iox_parquet_meta, meta);
 
         // Read the parquet file back to arrow records
-        let cursor = SliceableCursor::new(bytes);
-        let file_reader = SerializedFileReader::new(cursor).expect("should init reader");
+        let file_reader = SerializedFileReader::new(bytes).expect("should init reader");
         let mut arrow_reader = ParquetFileArrowReader::new(Arc::new(file_reader));
 
         let mut record_batches = arrow_reader

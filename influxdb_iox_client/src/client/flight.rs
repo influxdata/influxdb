@@ -254,6 +254,7 @@ where
                     .ok_or(Error::CouldNotGetDictionaryBatch)?,
                 schema,
                 dictionaries_by_field,
+                &message.version(),
             )?;
 
             data = match response.next().await {

@@ -19,7 +19,7 @@ use object_store::{DynObjectStore, GetResult};
 use observability_deps::tracing::*;
 use parquet::{
     arrow::{ArrowReader, ParquetFileArrowReader},
-    file::{reader::SerializedFileReader, serialized_reader::SliceableCursor},
+    file::reader::SerializedFileReader,
 };
 use predicate::Predicate;
 use schema::selection::Selection;
@@ -273,15 +273,10 @@ async fn download_and_scan_parquet(
 
     // Size of each batch
     let batch_size = 1024; // Todo: make a constant or policy for this
-
-    let cursor = SliceableCursor::new(data);
-    let file_reader = SerializedFileReader::new(cursor)?;
+    let file_reader = SerializedFileReader::new(Bytes::from(data))?;
     let mut arrow_reader = ParquetFileArrowReader::new(Arc::new(file_reader));
 
-    let mask = ProjectionMask::roots(
-        arrow_reader.get_metadata().file_metadata().schema_descr(),
-        projection,
-    );
+    let mask = ProjectionMask::roots(arrow_reader.parquet_schema(), projection);
     let record_batch_reader = arrow_reader.get_record_reader_by_columns(mask, batch_size)?;
 
     for batch in record_batch_reader {
