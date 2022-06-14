@@ -22,7 +22,7 @@ pub struct Config {
     /// `SET FORMAT` command
     ///
     /// Optional format ('pretty', 'json', or 'csv')
-    #[clap(short, long, default_value = "pretty")]
+    #[clap(short, long, default_value = "pretty", action)]
     format: String,
 }
 

@@ -23,7 +23,8 @@ pub struct Config {
 /// Get the schema of a namespace
 #[derive(Debug, clap::Parser)]
 struct Get {
-    // The name of the namespace for which you want to fetch the schema
+    /// The name of the namespace for which you want to fetch the schema
+    #[clap(action)]
     namespace: String,
 }
 

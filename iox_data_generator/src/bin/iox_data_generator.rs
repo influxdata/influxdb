@@ -12,15 +12,16 @@
 
 use chrono::prelude::*;
 use chrono_english::{parse_date_string, Dialect};
-use clap::{crate_authors, crate_version, Arg, Command};
 use iox_data_generator::{specification::DataSpec, write::PointsWriterBuilder};
 use std::fs::File;
 use std::io::{self, BufRead};
 use tracing::info;
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let help = r#"IOx data point generator
+#[derive(clap::Parser)]
+#[clap(
+    name = "iox_data_generator",
+    about = "IOx data point generator",
+    long_about = r#"IOx data point generator
 
 Examples:
     # Generate data points using the specification in `spec.toml` and save in the `lp` directory
@@ -43,130 +44,93 @@ Logging:
 
     # Enable INFO level logging for all of iox_data_generator
     RUST_LOG=iox_data_generator=info iox_data_generator -s spec.toml -o lp
+"#,
+    author,
+    version
+)]
+struct Config {
+    /// Path to the specification TOML file describing the data generation
+    #[clap(long, short, action)]
+    specification: String,
 
+    /// Print the generated line protocol from a single sample collection to the terminal
+    #[clap(long, action)]
+    print: bool,
 
-"#;
+    /// Runs the generation with agents writing to a sink. Useful for quick stress test to see how much resources the generator will take
+    #[clap(long, action)]
+    noop: bool,
 
-    let matches = Command::new(help)
-        .version(crate_version!())
-        .author(crate_authors!())
-        .about("IOx data point generator")
-        .arg(
-            Arg::new("SPECIFICATION")
-                .short('s')
-                .long("spec")
-                .help("Path to the specification TOML file describing the data generation")
-                .takes_value(true)
-                .required(true),
-        )
-        .arg(Arg::new("PRINT")
-                .long("print")
-            .help("Print the generated line protocol from a single sample collection to the terminal")
-        )
-        .arg(Arg::new("NOOP")
-                .long("noop")
-            .help("Runs the generation with agents writing to a sink. Useful for quick stress test to see how much resources the generator will take")
-        )
-        .arg(
-            Arg::new("OUTPUT")
-                .short('o')
-                .long("output")
-                .help("The filename to write line protocol")
-                .takes_value(true),
-        )
-        .arg(
-            Arg::new("HOST")
-                .short('h')
-                .long("host")
-                .help("The host name part of the API endpoint to write to")
-                .takes_value(true),
-        )
-        .arg(
-            Arg::new("ORG")
-                .long("org")
-                .help("The organization name to write to")
-                .takes_value(true),
-        )
-        .arg(
-            Arg::new("BUCKET")
-                .long("bucket")
-                .help("The bucket name to write to")
-                .takes_value(true),
-        )
-        .arg(
-            Arg::new("DATABASE_LIST")
-                .long("database_list")
-                .help("File name with a list of databases. 1 per line with <org>_<bucket> format")
-                .takes_value(true),
-        )
-        .arg(
-            Arg::new("TOKEN")
-                .long("token")
-                .help("The API authorization token used for all requests")
-                .takes_value(true),
-        )
-        .arg(
-            Arg::new("START")
-                .long("start")
-                .help(
-                    "The date and time at which to start the timestamps of the generated data. \
-                       Can be an exact datetime like `2020-01-01T01:23:45-05:00` or a fuzzy \
-                       specification like `1 hour ago`. If not specified, defaults to now.",
-                )
-                .takes_value(true),
-        )
-        .arg(
-            Arg::new("END")
-                .long("end")
-                .help(
-                    "The date and time at which to stop the timestamps of the generated data. \
-                       Can be an exact datetime like `2020-01-01T01:23:45-05:00` or a fuzzy \
-                       specification like `1 hour ago`. If not specified, defaults to now.",
-                )
-                .takes_value(true),
-        )
-        .arg(Arg::new("continue").long("continue").help(
-            "Generate live data using the intervals from the spec after generating historical  \
-              data. This option has no effect if you specify an end time.",
-        ))
-        .arg(
-            Arg::new("batch_size")
-                .long("batch_size")
-                .help("Generate this many samplings to batch into a single API call. Good for sending a bunch of historical data in quickly if paired with a start time from long ago.")
-                .takes_value(true)
-        )
-        .arg(
-            Arg::new("jaeger_debug_header")
-                .long("jaeger_debug_header")
-                .help("Generate jaeger debug header with given key during write")
-                .takes_value(true)
-        )
-        .get_matches();
+    /// The filename to write line protocol
+    #[clap(long, short, action)]
+    output: Option<String>,
 
-    let disable_log_output = matches.is_present("PRINT");
-    if !disable_log_output {
+    /// The host name part of the API endpoint to write to
+    #[clap(long, short, action)]
+    host: Option<String>,
+
+    /// The organization name to write to
+    #[clap(long, action)]
+    org: Option<String>,
+
+    /// The bucket name to write to
+    #[clap(long, action)]
+    bucket: Option<String>,
+
+    /// File name with a list of databases. 1 per line with <org>_<bucket> format
+    #[clap(long, action)]
+    database_list: Option<String>,
+
+    /// The API authorization token used for all requests
+    #[clap(long, action)]
+    token: Option<String>,
+
+    /// The date and time at which to start the timestamps of the generated data.
+    ///
+    /// Can be an exact datetime like `2020-01-01T01:23:45-05:00` or a fuzzy
+    /// specification like `1 hour ago`. If not specified, defaults to no.
+    #[clap(long, action)]
+    start: Option<String>,
+
+    /// The date and time at which to stop the timestamps of the generated data.
+    ///
+    /// Can be an exact datetime like `2020-01-01T01:23:45-05:00` or a fuzzy
+    /// specification like `1 hour ago`. If not specified, defaults to now.
+    #[clap(long, action)]
+    end: Option<String>,
+
+    /// Generate live data using the intervals from the spec after generating historical data.
+    ///
+    /// This option has no effect if you specify an end time.
+    #[clap(long = "continue", action)]
+    do_continue: bool,
+
+    /// Generate this many samplings to batch into a single API call. Good for sending a bunch of historical data in quickly if paired with a start time from long ago.
+    #[clap(long, action, default_value = "1")]
+    batch_size: usize,
+
+    /// Generate jaeger debug header with given key during write
+    #[clap(long, action)]
+    jaeger_debug_header: Option<String>,
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let config: Config = clap::Parser::parse();
+
+    if !config.print {
         tracing_subscriber::fmt::init();
     }
 
-    let spec_filename = matches
-        .value_of("SPECIFICATION")
-        // This should never fail if clap is working properly
-        .expect("SPECIFICATION is a required argument");
-
     let execution_start_time = Local::now();
 
-    let start_datetime = datetime_nanoseconds(matches.value_of("START"), execution_start_time);
-    let end_datetime = datetime_nanoseconds(matches.value_of("END"), execution_start_time);
+    let start_datetime = datetime_nanoseconds(config.start.as_deref(), execution_start_time);
+    let end_datetime = datetime_nanoseconds(config.end.as_deref(), execution_start_time);
 
     let start_display = start_datetime.unwrap_or_else(|| execution_start_time.timestamp_nanos());
     let end_display = end_datetime.unwrap_or_else(|| execution_start_time.timestamp_nanos());
 
-    let continue_on = matches.is_present("continue");
-
-    let batch_size = matches
-        .value_of("batch_size")
-        .map(|v| v.parse::<usize>().unwrap())
-        .unwrap_or(1);
+    let continue_on = config.do_continue;
 
     info!(
         "Starting at {}, ending at {} ({}){}",
@@ -176,32 +140,25 @@ Logging:
         if continue_on { " then continuing" } else { "" },
     );
 
-    let data_spec = DataSpec::from_file(spec_filename)?;
+    let data_spec = DataSpec::from_file(&config.specification)?;
 
     // TODO: parquet output
 
-    let mut points_writer_builder = if let Some(line_protocol_filename) = matches.value_of("OUTPUT")
-    {
+    let mut points_writer_builder = if let Some(line_protocol_filename) = config.output {
         PointsWriterBuilder::new_file(line_protocol_filename)?
-    } else if let Some(host) = matches.value_of("HOST") {
-        let token = matches
-            .value_of("TOKEN")
-            .expect("--token must be specified");
+    } else if let Some(host) = config.host {
+        let token = config.token.expect("--token must be specified");
 
-        PointsWriterBuilder::new_api(host, token, matches.value_of("jaeger_debug_header")).await?
-    } else if matches.is_present("PRINT") {
+        PointsWriterBuilder::new_api(host, token, config.jaeger_debug_header.as_deref()).await?
+    } else if config.print {
         PointsWriterBuilder::new_std_out()
-    } else if matches.is_present("NOOP") {
+    } else if config.noop {
         PointsWriterBuilder::new_no_op(true)
     } else {
         panic!("One of --print or --output or --host must be provided.");
     };
 
-    let buckets = match (
-        matches.value_of("ORG"),
-        matches.value_of("BUCKET"),
-        matches.value_of("DATABASE_LIST"),
-    ) {
+    let buckets = match (config.org, config.bucket, config.database_list) {
         (Some(org), Some(bucket), None) => {
             vec![format!("{}_{}", org, bucket)]
         }
@@ -224,14 +181,14 @@ Logging:
         end_datetime,
         execution_start_time.timestamp_nanos(),
         continue_on,
-        batch_size,
-        disable_log_output,
+        config.batch_size,
+        config.print,
     )
     .await;
 
     match result {
         Ok(total_points) => {
-            if !disable_log_output {
+            if !config.print {
                 eprintln!("Submitted {} total points", total_points);
             }
         }

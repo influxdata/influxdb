@@ -67,7 +67,8 @@ Possible values (case insensitive):
 * google: Google Cloud Storage. Must also set `--bucket` and `--google-service-account`.
 * azure: Microsoft Azure blob storage. Must also set `--bucket`, `--azure-storage-account`,
    and `--azure-storage-access-key`.
-        "#
+        "#,
+        action
     )]
     pub object_store: Option<ObjectStoreType>,
 
@@ -85,11 +86,11 @@ Possible values (case insensitive):
     /// container you've created in the associated storage account, under
     /// Blob Service > Containers. Must also set `--azure-storage-account` and
     /// `--azure-storage-access-key`.
-    #[clap(long = "--bucket", env = "INFLUXDB_IOX_BUCKET")]
+    #[clap(long = "--bucket", env = "INFLUXDB_IOX_BUCKET", action)]
     pub bucket: Option<String>,
 
     /// The location InfluxDB IOx will use to store files locally.
-    #[clap(long = "--data-dir", env = "INFLUXDB_IOX_DB_DIR")]
+    #[clap(long = "--data-dir", env = "INFLUXDB_IOX_DB_DIR", action)]
     pub database_directory: Option<PathBuf>,
 
     /// When using Amazon S3 as the object store, set this to an access key that
@@ -101,7 +102,7 @@ Possible values (case insensitive):
     ///
     /// Prefer the environment variable over the command line flag in shared
     /// environments.
-    #[clap(long = "--aws-access-key-id", env = "AWS_ACCESS_KEY_ID")]
+    #[clap(long = "--aws-access-key-id", env = "AWS_ACCESS_KEY_ID", action)]
     pub aws_access_key_id: Option<String>,
 
     /// When using Amazon S3 as the object store, set this to the secret access
@@ -112,7 +113,11 @@ Possible values (case insensitive):
     ///
     /// Prefer the environment variable over the command line flag in shared
     /// environments.
-    #[clap(long = "--aws-secret-access-key", env = "AWS_SECRET_ACCESS_KEY")]
+    #[clap(
+        long = "--aws-secret-access-key",
+        env = "AWS_SECRET_ACCESS_KEY",
+        action
+    )]
     pub aws_secret_access_key: Option<String>,
 
     /// When using Amazon S3 as the object store, set this to the region
@@ -122,9 +127,10 @@ Possible values (case insensitive):
     /// Must also set `--object-store=s3`, `--bucket`, `--aws-access-key-id`,
     /// and `--aws-secret-access-key`.
     #[clap(
-    long = "--aws-default-region",
-    env = "AWS_DEFAULT_REGION",
-    default_value = FALLBACK_AWS_REGION,
+        long = "--aws-default-region",
+        env = "AWS_DEFAULT_REGION",
+        default_value = FALLBACK_AWS_REGION,
+        action,
     )]
     pub aws_default_region: String,
 
@@ -136,7 +142,7 @@ Possible values (case insensitive):
     ///
     /// Prefer the environment variable over the command line flag in shared
     /// environments.
-    #[clap(long = "--aws-endpoint", env = "AWS_ENDPOINT")]
+    #[clap(long = "--aws-endpoint", env = "AWS_ENDPOINT", action)]
     pub aws_endpoint: Option<String>,
 
     /// When using Amazon S3 as an object store, set this to the session token. This is handy when using a federated
@@ -146,18 +152,22 @@ Possible values (case insensitive):
     ///
     /// Prefer the environment variable over the command line flag in shared
     /// environments.
-    #[clap(long = "--aws-session-token", env = "AWS_SESSION_TOKEN")]
+    #[clap(long = "--aws-session-token", env = "AWS_SESSION_TOKEN", action)]
     pub aws_session_token: Option<String>,
 
     /// Allow unencrypted HTTP connection to AWS.
-    #[clap(long = "--aws-allow-http", env = "AWS_ALLOW_HTTP")]
+    #[clap(long = "--aws-allow-http", env = "AWS_ALLOW_HTTP", action)]
     pub aws_allow_http: bool,
 
     /// When using Google Cloud Storage as the object store, set this to the
     /// path to the JSON file that contains the Google credentials.
     ///
     /// Must also set `--object-store=google` and `--bucket`.
-    #[clap(long = "--google-service-account", env = "GOOGLE_SERVICE_ACCOUNT")]
+    #[clap(
+        long = "--google-service-account",
+        env = "GOOGLE_SERVICE_ACCOUNT",
+        action
+    )]
     pub google_service_account: Option<String>,
 
     /// When using Microsoft Azure as the object store, set this to the
@@ -165,7 +175,11 @@ Possible values (case insensitive):
     ///
     /// Must also set `--object-store=azure`, `--bucket`, and
     /// `--azure-storage-access-key`.
-    #[clap(long = "--azure-storage-account", env = "AZURE_STORAGE_ACCOUNT")]
+    #[clap(
+        long = "--azure-storage-account",
+        env = "AZURE_STORAGE_ACCOUNT",
+        action
+    )]
     pub azure_storage_account: Option<String>,
 
     /// When using Microsoft Azure as the object store, set this to one of the
@@ -176,14 +190,19 @@ Possible values (case insensitive):
     ///
     /// Prefer the environment variable over the command line flag in shared
     /// environments.
-    #[clap(long = "--azure-storage-access-key", env = "AZURE_STORAGE_ACCESS_KEY")]
+    #[clap(
+        long = "--azure-storage-access-key",
+        env = "AZURE_STORAGE_ACCESS_KEY",
+        action
+    )]
     pub azure_storage_access_key: Option<String>,
 
     /// When using a network-based object store, limit the number of connection to this value.
     #[clap(
         long = "--object-store-connection-limit",
         env = "OBJECT_STORE_CONNECTION_LIMIT",
-        default_value = "16"
+        default_value = "16",
+        action
     )]
     pub object_store_connection_limit: NonZeroUsize,
 }

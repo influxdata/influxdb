@@ -47,7 +47,8 @@ pub struct TracingConfig {
     #[clap(
         long = "--traces-exporter",
         env = "TRACES_EXPORTER",
-        default_value = "none"
+        default_value = "none",
+        action
     )]
     pub traces_exporter: TracesExporter,
 
@@ -59,7 +60,8 @@ pub struct TracingConfig {
     #[clap(
         long = "--traces-exporter-jaeger-agent-host",
         env = "TRACES_EXPORTER_JAEGER_AGENT_HOST",
-        default_value = "0.0.0.0"
+        default_value = "0.0.0.0",
+        action
     )]
     pub traces_exporter_jaeger_agent_host: String,
 
@@ -71,7 +73,8 @@ pub struct TracingConfig {
     #[clap(
         long = "--traces-exporter-jaeger-agent-port",
         env = "TRACES_EXPORTER_JAEGER_AGENT_PORT",
-        default_value = "6831"
+        default_value = "6831",
+        action
     )]
     pub traces_exporter_jaeger_agent_port: NonZeroU16,
 
@@ -81,7 +84,8 @@ pub struct TracingConfig {
     #[clap(
         long = "--traces-exporter-jaeger-service-name",
         env = "TRACES_EXPORTER_JAEGER_SERVICE_NAME",
-        default_value = "iox-conductor"
+        default_value = "iox-conductor",
+        action
     )]
     pub traces_exporter_jaeger_service_name: String,
 
@@ -91,7 +95,8 @@ pub struct TracingConfig {
     #[clap(
         long = "--traces-exporter-jaeger-trace-context-header-name",
         env = "TRACES_EXPORTER_JAEGER_TRACE_CONTEXT_HEADER_NAME",
-        default_value = DEFAULT_JAEGER_TRACE_CONTEXT_HEADER_NAME
+        default_value = DEFAULT_JAEGER_TRACE_CONTEXT_HEADER_NAME,
+        action,
     )]
     pub traces_jaeger_trace_context_header_name: String,
 
@@ -101,7 +106,8 @@ pub struct TracingConfig {
     #[clap(
         long = "--traces-jaeger-debug-name",
         env = "TRACES_EXPORTER_JAEGER_DEBUG_NAME",
-        default_value = "jaeger-debug-id"
+        default_value = "jaeger-debug-id",
+        action
     )]
     pub traces_jaeger_debug_name: String,
 
@@ -114,7 +120,7 @@ pub struct TracingConfig {
         long = "--traces-jaeger-tags",
         env = "TRACES_EXPORTER_JAEGER_TAGS",
         value_delimiter = ',',
-        parse(try_from_str)
+        action
     )]
     pub traces_jaeger_tags: Option<Vec<JaegerTag>>,
 }

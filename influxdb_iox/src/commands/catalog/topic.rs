@@ -30,6 +30,7 @@ struct Update {
     catalog_dsn: CatalogDsnConfig,
 
     /// The name of the topic
+    #[clap(action)]
     db_name: String,
 }
 

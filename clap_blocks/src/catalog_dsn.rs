@@ -50,12 +50,13 @@ pub struct CatalogDsnConfig {
         arg_enum,
         long = "--catalog",
         env = "INFLUXDB_IOX_CATALOG_TYPE",
-        default_value = "postgres"
+        default_value = "postgres",
+        action
     )]
     pub(crate) catalog_type_: CatalogType,
 
     /// Postgres connection string. Required if catalog is set to postgres.
-    #[clap(long = "--catalog-dsn", env = "INFLUXDB_IOX_CATALOG_DSN")]
+    #[clap(long = "--catalog-dsn", env = "INFLUXDB_IOX_CATALOG_DSN", action)]
     pub dsn: Option<String>,
 
     /// Maximum number of connections allowed to the catalog at any one time.
@@ -63,6 +64,7 @@ pub struct CatalogDsnConfig {
         long = "--catalog-max-connections",
         env = "INFLUXDB_IOX_CATALOG_MAX_CONNECTIONS",
         default_value = default_max_connections(),
+        action,
     )]
     pub max_catalog_connections: u32,
 
@@ -71,6 +73,7 @@ pub struct CatalogDsnConfig {
         long = "--catalog-postgres-schema-name",
         env = "INFLUXDB_IOX_CATALOG_POSTGRES_SCHEMA_NAME",
         default_value = PostgresConnectionOptions::DEFAULT_SCHEMA_NAME,
+        action,
     )]
     pub postgres_schema_name: String,
 
@@ -79,7 +82,7 @@ pub struct CatalogDsnConfig {
         long = "--catalog-connect-timeout",
         env = "INFLUXDB_IOX_CATALOG_CONNECT_TIMEOUT",
         default_value = default_connect_timeout(),
-        parse(try_from_str = humantime::parse_duration),
+        value_parser = humantime::parse_duration,
     )]
     pub connect_timeout: Duration,
 
@@ -88,7 +91,7 @@ pub struct CatalogDsnConfig {
         long = "--catalog-idle-timeout",
         env = "INFLUXDB_IOX_CATALOG_IDLE_TIMEOUT",
         default_value = default_idle_timeout(),
-        parse(try_from_str = humantime::parse_duration),
+        value_parser = humantime::parse_duration,
     )]
     pub idle_timeout: Duration,
 
@@ -100,7 +103,7 @@ pub struct CatalogDsnConfig {
         long = "--catalog-hotswap-poll-interval",
         env = "INFLUXDB_IOX_CATALOG_HOTSWAP_POLL_INTERVAL",
         default_value = default_hotswap_poll_interval_timeout(),
-        parse(try_from_str = humantime::parse_duration),
+        value_parser = humantime::parse_duration,
     )]
     pub hotswap_poll_interval: Duration,
 }

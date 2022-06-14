@@ -103,29 +103,35 @@ struct Config {
         long,
         global = true,
         env = "IOX_ADDR",
-        default_value = "http://127.0.0.1:8082"
+        default_value = "http://127.0.0.1:8082",
+        action
     )]
     host: String,
 
     /// Additional headers to add to CLI requests
     ///
     /// Values should be key value pairs separated by ':'
-    #[clap(long, global = true)]
+    #[clap(long, global = true, action)]
     header: Vec<KeyValue<http::header::HeaderName, http::HeaderValue>>,
 
     /// Configure the request timeout for CLI requests
-    #[clap(long, global = true, default_value = "30s", parse(try_from_str = humantime::parse_duration))]
+    #[clap(
+        long,
+        global = true,
+        default_value = "30s",
+        value_parser = humantime::parse_duration,
+    )]
     rpc_timeout: Duration,
 
     /// Automatically generate an uber-trace-id header for CLI requests
     ///
     /// The generated trace ID will be emitted at the beginning of the response.
-    #[clap(long, global = true)]
+    #[clap(long, global = true, action)]
     gen_trace_id: bool,
 
     /// Set the maximum number of threads to use. Defaults to the number of
     /// cores on the system
-    #[clap(long)]
+    #[clap(long, action)]
     num_threads: Option<usize>,
 
     /// Supports having all-in-one be the default command.

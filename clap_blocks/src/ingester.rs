@@ -4,14 +4,16 @@ pub struct IngesterConfig {
     /// Write buffer partition number to start (inclusive) range with
     #[clap(
         long = "--write-buffer-partition-range-start",
-        env = "INFLUXDB_IOX_WRITE_BUFFER_PARTITION_RANGE_START"
+        env = "INFLUXDB_IOX_WRITE_BUFFER_PARTITION_RANGE_START",
+        action
     )]
     pub write_buffer_partition_range_start: i32,
 
     /// Write buffer partition number to end (inclusive) range with
     #[clap(
         long = "--write-buffer-partition-range-end",
-        env = "INFLUXDB_IOX_WRITE_BUFFER_PARTITION_RANGE_END"
+        env = "INFLUXDB_IOX_WRITE_BUFFER_PARTITION_RANGE_END",
+        action
     )]
     pub write_buffer_partition_range_end: i32,
 
@@ -20,7 +22,8 @@ pub struct IngesterConfig {
     /// write buffer will pause until the ingester buffer goes below this threshold.
     #[clap(
         long = "--pause-ingest-size-bytes",
-        env = "INFLUXDB_IOX_PAUSE_INGEST_SIZE_BYTES"
+        env = "INFLUXDB_IOX_PAUSE_INGEST_SIZE_BYTES",
+        action
     )]
     pub pause_ingest_size_bytes: usize,
 
@@ -29,7 +32,8 @@ pub struct IngesterConfig {
     /// ingester running in a steady state is expected to take up this much memory.
     #[clap(
         long = "--persist-memory-threshold-bytes",
-        env = "INFLUXDB_IOX_PERSIST_MEMORY_THRESHOLD_BYTES"
+        env = "INFLUXDB_IOX_PERSIST_MEMORY_THRESHOLD_BYTES",
+        action
     )]
     pub persist_memory_threshold_bytes: usize,
 
@@ -38,7 +42,8 @@ pub struct IngesterConfig {
     #[clap(
         long = "--persist-partition-size-threshold-bytes",
         env = "INFLUXDB_IOX_PERSIST_PARTITION_SIZE_THRESHOLD_BYTES",
-        default_value = "314572800"
+        default_value = "314572800",
+        action
     )]
     pub persist_partition_size_threshold_bytes: usize,
 
@@ -48,7 +53,8 @@ pub struct IngesterConfig {
     #[clap(
         long = "--persist-partition-age-threshold-seconds",
         env = "INFLUXDB_IOX_PERSIST_PARTITION_AGE_THRESHOLD_SECONDS",
-        default_value = "1800"
+        default_value = "1800",
+        action
     )]
     pub persist_partition_age_threshold_seconds: u64,
 
@@ -57,7 +63,8 @@ pub struct IngesterConfig {
     #[clap(
         long = "--persist-partition-cold-threshold-seconds",
         env = "INFLUXDB_IOX_PERSIST_PARTITION_COLD_THRESHOLD_SECONDS",
-        default_value = "300"
+        default_value = "300",
+        action
     )]
     pub persist_partition_cold_threshold_seconds: u64,
 
@@ -67,7 +74,8 @@ pub struct IngesterConfig {
     /// write buffer and will start up successfully with the oldest available data.
     #[clap(
         long = "--skip-to-oldest-available",
-        env = "INFLUXDB_IOX_SKIP_TO_OLDEST_AVAILABLE"
+        env = "INFLUXDB_IOX_SKIP_TO_OLDEST_AVAILABLE",
+        action
     )]
     pub skip_to_oldest_available: bool,
 
@@ -77,7 +85,8 @@ pub struct IngesterConfig {
     #[clap(
         long = "--test-flight-do-get-panic",
         env = "INFLUXDB_IOX_FLIGHT_DO_GET_PANIC",
-        default_value = "0"
+        default_value = "0",
+        action
     )]
     pub test_flight_do_get_panic: u64,
 
@@ -86,7 +95,8 @@ pub struct IngesterConfig {
     #[clap(
         long = "--concurrent-request-limit",
         env = "INFLUXDB_IOX_CONCURRENT_REQEST_LIMIT",
-        default_value = "20"
+        default_value = "20",
+        action
     )]
     pub concurrent_request_limit: usize,
 }

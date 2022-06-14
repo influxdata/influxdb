@@ -68,7 +68,8 @@ pub struct Config {
     #[clap(
         long = "--query-exec-thread-count",
         env = "INFLUXDB_IOX_QUERY_EXEC_THREAD_COUNT",
-        default_value = "4"
+        default_value = "4",
+        action
     )]
     pub query_exec_thread_count: usize,
 }

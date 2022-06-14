@@ -47,7 +47,8 @@ pub struct Config {
         long = "--test-action",
         env = "IOX_TEST_ACTION",
         default_value = "None",
-        ignore_case = true
+        ignore_case = true,
+        action
     )]
     test_action: TestAction,
 }

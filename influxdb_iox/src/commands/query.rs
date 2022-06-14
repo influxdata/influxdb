@@ -21,13 +21,15 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug, clap::Parser)]
 pub struct Config {
     /// The IOx namespace to query
+    #[clap(action)]
     namespace: String,
 
     /// The query to run, in SQL format
+    #[clap(action)]
     query: String,
 
     /// Optional format ('pretty', 'json', or 'csv')
-    #[clap(short, long, default_value = "pretty")]
+    #[clap(short, long, default_value = "pretty", action)]
     format: String,
 }
 

@@ -6,21 +6,24 @@ pub struct CompactorConfig {
     #[clap(
         long = "--write-buffer-topic",
         env = "INFLUXDB_IOX_WRITE_BUFFER_TOPIC",
-        default_value = "iox-shared"
+        default_value = "iox-shared",
+        action
     )]
     pub topic: String,
 
     /// Write buffer partition number to start (inclusive) range with
     #[clap(
         long = "--write-buffer-partition-range-start",
-        env = "INFLUXDB_IOX_WRITE_BUFFER_PARTITION_RANGE_START"
+        env = "INFLUXDB_IOX_WRITE_BUFFER_PARTITION_RANGE_START",
+        action
     )]
     pub write_buffer_partition_range_start: i32,
 
     /// Write buffer partition number to end (inclusive) range with
     #[clap(
         long = "--write-buffer-partition-range-end",
-        env = "INFLUXDB_IOX_WRITE_BUFFER_PARTITION_RANGE_END"
+        env = "INFLUXDB_IOX_WRITE_BUFFER_PARTITION_RANGE_END",
+        action
     )]
     pub write_buffer_partition_range_end: i32,
 
@@ -29,7 +32,8 @@ pub struct CompactorConfig {
     #[clap(
         long = "--compaction-split-percentage",
         env = "INFLUXDB_IOX_COMPACTION_SPLIT_PERCENTAGE",
-        default_value = "100"
+        default_value = "100",
+        action
     )]
     pub split_percentage: i64,
 
@@ -40,7 +44,8 @@ pub struct CompactorConfig {
     #[clap(
         long = "--compaction-concurrent-size-bytes",
         env = "INFLUXDB_IOX_COMPACTION_CONCURRENT_SIZE_BYTES",
-        default_value = "1000000000"
+        default_value = "1000000000",
+        action
     )]
     pub max_concurrent_compaction_size_bytes: i64,
 
@@ -50,7 +55,8 @@ pub struct CompactorConfig {
     #[clap(
         long = "--compaction-max-size-bytes",
         env = "INFLUXDB_IOX_COMPACTION_MAX_SIZE_BYTES",
-        default_value = "100000000"
+        default_value = "100000000",
+        action
     )]
     pub compaction_max_size_bytes: i64,
 
@@ -59,7 +65,8 @@ pub struct CompactorConfig {
     #[clap(
         long = "--compaction-max-file-count",
         env = "INFLUXDB_IOX_COMPACTION_MAX_FILE_COUNT",
-        default_value = "100"
+        default_value = "100",
+        action
     )]
     pub compaction_max_file_count: i64,
 }

@@ -48,22 +48,44 @@ pub struct Config {
     command: Command,
 
     /// The name of the database
-    #[clap(parse(try_from_str = parse_db_name))]
+    #[clap(
+        value_parser = parse_db_name,
+    )]
     db_name: OrgAndBucket,
 
     /// The requested start time (inclusive) of the time-range (also accepts RFC3339 format).
-    #[clap(global = true, long, default_value = "-9223372036854775806", parse(try_from_str = parse_range))]
+    #[clap(
+        global = true,
+        long,
+        default_value = "-9223372036854775806",
+        value_parser = parse_range,
+    )]
     pub start: i64,
 
     /// The requested stop time (exclusive) of the time-range (also accepts RFC3339 format).
-    #[clap(global = true, long, default_value = "9223372036854775806", parse(try_from_str = parse_range))]
+    #[clap(
+        global = true,
+        long,
+        default_value = "9223372036854775806",
+        value_parser = parse_range,
+        )]
     pub stop: i64,
 
     /// A predicate to filter results by. Effectively InfluxQL predicate format (see examples).
-    #[clap(global = true, long, default_value = "", parse(try_from_str = parse_predicate))]
+    #[clap(
+        global = true,
+        long,
+        default_value = "",
+        value_parser = parse_predicate,
+    )]
     pub predicate: Predicate,
 
-    #[clap(global = true, long, default_value = "pretty", parse(try_from_str = parse_format))]
+    #[clap(
+        global = true,
+        long,
+        default_value = "pretty",
+        value_parser = parse_format,
+    )]
     pub format: Format,
 }
 
@@ -132,7 +154,7 @@ fn parse_format(format: &str) -> Result<Format, ParseError> {
     }
 }
 
-#[derive(Debug, clap::Parser)]
+#[derive(Clone, Copy, Debug, clap::Parser)]
 pub enum Format {
     Pretty,
     Quiet,
@@ -149,18 +171,28 @@ enum Command {
 
 #[derive(Debug, clap::Parser)]
 struct MeasurementFields {
+    #[clap(action)]
     measurement: String,
 }
 
 #[derive(Debug, clap::Parser)]
 struct ReadWindowAggregate {
-    #[clap(long, parse(try_from_str = humantime::parse_duration))]
+    #[clap(
+        long,
+        value_parser = humantime::parse_duration,
+    )]
     window_every: Duration,
 
-    #[clap(long, parse(try_from_str = humantime::parse_duration))]
+    #[clap(
+        long,
+        value_parser = humantime::parse_duration,
+    )]
     offset: Duration,
 
-    #[clap(long, parse(try_from_str = parse_aggregate))]
+    #[clap(
+        long,
+        value_parser = parse_aggregate,
+    )]
     aggregate: Vec<AggregateType>,
 }
 
@@ -182,6 +214,7 @@ fn parse_aggregate(aggs: &str) -> Result<AggregateType, ParseError> {
 #[derive(Debug, clap::Parser)]
 struct TagValues {
     /// The tag key value to interrogate for tag values.
+    #[clap(action)]
     tag_key: String,
 }
 

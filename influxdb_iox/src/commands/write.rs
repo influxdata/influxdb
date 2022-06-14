@@ -22,9 +22,11 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug, clap::Parser)]
 pub struct Config {
     /// The name of the database
+    #[clap(action)]
     name: String,
 
     /// File with data to load. Currently supported formats are .lp
+    #[clap(action)]
     file_name: PathBuf,
 }
 

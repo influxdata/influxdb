@@ -66,7 +66,8 @@ pub struct Config {
     #[clap(
         long = "--query-pool",
         env = "INFLUXDB_IOX_QUERY_POOL_NAME",
-        default_value = "iox-shared"
+        default_value = "iox-shared",
+        action
     )]
     pub(crate) query_pool_name: String,
 
@@ -82,7 +83,8 @@ pub struct Config {
     #[clap(
         long = "--max-http-requests",
         env = "INFLUXDB_IOX_MAX_HTTP_REQUESTS",
-        default_value = "200"
+        default_value = "200",
+        action
     )]
     pub(crate) http_request_limit: usize,
 }

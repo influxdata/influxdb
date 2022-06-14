@@ -30,8 +30,11 @@ pub struct Config {
 #[derive(Debug, clap::Parser)]
 struct Get {
     /// The object store uuid of the parquet file
+    #[clap(action)]
     uuid: String,
+
     /// The filename to write the data to
+    #[clap(action)]
     file_name: String,
 }
 

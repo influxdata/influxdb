@@ -14,7 +14,11 @@ pub struct QuerierConfig {
     /// The number of threads to use for queries.
     ///
     /// If not specified, defaults to the number of cores on the system
-    #[clap(long = "--num-query-threads", env = "INFLUXDB_IOX_NUM_QUERY_THREADS")]
+    #[clap(
+        long = "--num-query-threads",
+        env = "INFLUXDB_IOX_NUM_QUERY_THREADS",
+        action
+    )]
     pub num_query_threads: Option<usize>,
 
     /// gRPC address for the querier to talk with the ingester. For
@@ -34,7 +38,8 @@ pub struct QuerierConfig {
         long = "--ingester-address",
         env = "INFLUXDB_IOX_INGESTER_ADDRESSES",
         multiple_values = true,
-        use_value_delimiter = true
+        use_value_delimiter = true,
+        action
     )]
     pub ingester_addresses: Vec<String>,
 
@@ -42,7 +47,8 @@ pub struct QuerierConfig {
     #[clap(
         long = "--ram-pool-bytes",
         env = "INFLUXDB_IOX_RAM_POOL_BYTES",
-        default_value = "1073741824"
+        default_value = "1073741824",
+        action
     )]
     pub ram_pool_bytes: usize,
 
@@ -50,7 +56,8 @@ pub struct QuerierConfig {
     #[clap(
         long = "--max-concurrent-queries",
         env = "INFLUXDB_IOX_MAX_CONCURRENT_QUERIES",
-        default_value = "10"
+        default_value = "10",
+        action
     )]
     pub max_concurrent_queries: usize,
 }

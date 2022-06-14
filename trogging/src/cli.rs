@@ -23,7 +23,7 @@ pub struct LoggingConfig {
     ///
     /// If None, [`crate::Builder`] sets a default, by default [`crate::Builder::DEFAULT_LOG_FILTER`],
     /// but overrideable with [`crate::Builder::with_default_log_filter`].
-    #[clap(long = "--log-filter", env = "LOG_FILTER")]
+    #[clap(long = "--log-filter", env = "LOG_FILTER", action)]
     pub log_filter: Option<String>,
 
     /// Logs: filter short-hand
@@ -39,9 +39,8 @@ pub struct LoggingConfig {
     #[clap(
         short = 'v',
         long = "--verbose",
-        multiple_occurrences = true,
         takes_value = false,
-        parse(from_occurrences)
+        action = clap::ArgAction::Count,
     )]
     pub log_verbose_count: u8,
 
@@ -54,7 +53,8 @@ pub struct LoggingConfig {
         long = "--log-destination",
         env = "LOG_DESTINATION",
         default_value = "stdout",
-        verbatim_doc_comment
+        verbatim_doc_comment,
+        action
     )]
     pub log_destination: LogDestination,
 
@@ -93,7 +93,13 @@ pub struct LoggingConfig {
     ///   level=info msg="This is an info message" target="logging" location="logfmt/tests/logging.rs:36" time=1612181556329599000
     ///   level=debug msg="This is a debug message" target="logging" location="logfmt/tests/logging.rs:37" time=1612181556329618000
     ///   level=trace msg="This is a trace message" target="logging" location="logfmt/tests/logging.rs:38" time=1612181556329634000
-    #[clap(long = "--log-format", env = "LOG_FORMAT", default_value = "full", verbatim_doc_comment)]
+    #[clap(
+        long = "--log-format",
+        env = "LOG_FORMAT",
+        default_value = "full",
+        verbatim_doc_comment,
+        action,
+    )]
     pub log_format: LogFormat,
 }
 

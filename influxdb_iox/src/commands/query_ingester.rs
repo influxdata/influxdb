@@ -27,22 +27,29 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug, clap::Parser)]
 pub struct Config {
     /// The IOx namespace to query
+    #[clap(action)]
     namespace: String,
 
     /// The table for which to retrieve data
+    #[clap(action)]
     table: String,
 
     /// The columns to request
-    #[clap(long = "--columns", multiple_values = true, use_value_delimiter = true)]
+    #[clap(
+        long = "--columns",
+        multiple_values = true,
+        use_value_delimiter = true,
+        action
+    )]
     columns: Vec<String>,
 
     /// Predicate in base64 protobuf encoded form.
     /// (logged on error)
-    #[clap(long = "--predicate-base64")]
+    #[clap(long = "--predicate-base64", action)]
     predicate_base64: Option<String>,
 
     /// Optional format ('pretty', 'json', or 'csv')
-    #[clap(short, long, default_value = "pretty")]
+    #[clap(short, long, default_value = "pretty", action)]
     format: String,
 }
 

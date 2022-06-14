@@ -73,6 +73,7 @@ pub struct Config {
 #[derive(Debug, clap::Parser)]
 struct Show {
     /// The id of the partition
+    #[clap(action)]
     id: i64,
 }
 
@@ -86,12 +87,15 @@ struct Pull {
     object_store: ObjectStoreConfig,
 
     /// The namespace we're getting the partition from
+    #[clap(action)]
     namespace: String,
 
     /// The table name
+    #[clap(action)]
     table: String,
 
     /// The partition key
+    #[clap(action)]
     partition_key: String,
 }
 
