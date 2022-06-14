@@ -147,6 +147,8 @@ impl Default for DurationHistogramOptions {
     fn default() -> Self {
         Self {
             buckets: vec![
+                Duration::from_millis(1),
+                Duration::from_micros(2_500),
                 Duration::from_millis(5),
                 Duration::from_millis(10),
                 Duration::from_millis(25),
