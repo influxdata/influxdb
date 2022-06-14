@@ -302,6 +302,15 @@ impl IngestHandler for IngestHandlerImpl {
             Err(e) => panic!("request limiter error: {}", e),
         };
 
+        // TEMP(alamb): Log details about what was requested
+        // temporarily so we can track down potentially "killer"
+        // requests from the querier to ingester
+        info!(namespace=%request.namespace,
+              table=%request.table,
+              columns=?request.columns,
+              predicate=?request.predicate,
+              "Handling querier request");
+
         let t = self.time_provider.now();
         let res = prepare_data_to_querier(&self.data, &request).await;
 
