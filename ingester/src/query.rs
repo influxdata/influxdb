@@ -71,6 +71,12 @@ impl QueryableBatch {
         }
     }
 
+    /// Add snapshots to this batch
+    pub fn with_data(mut self, mut data: Vec<Arc<SnapshotBatch>>) -> Self {
+        self.data.append(&mut data);
+        self
+    }
+
     /// Add more tombstones
     pub fn add_tombstones(&mut self, deletes: &[Tombstone]) {
         let delete_predicates = tombstones_to_delete_predicates_iter(deletes);
