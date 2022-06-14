@@ -168,7 +168,7 @@ pub async fn prepare_data_to_querier(
     let schema = merge_record_batch_schemas(&batches);
     let batches = batches
         .into_iter()
-        .map(|batch| merge_record_batches(schema.as_arrow(), vec![batch]).transpose().expect("Batch should not be empty/non-existing at this point because we have ruled that out earlier.").map(Arc::new))
+        .map(|batch| merge_record_batches(&schema.as_arrow(), vec![batch]).transpose().expect("Batch should not be empty/non-existing at this point because we have ruled that out earlier.").map(Arc::new))
         .collect::<Result<Vec<Arc<RecordBatch>>, ArrowError>>().context(InterPartitionSchemaApplicationSnafu)?;
 
     // ------------------------------------------------

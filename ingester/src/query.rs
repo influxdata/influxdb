@@ -2,26 +2,21 @@
 
 use crate::data::{QueryableBatch, SnapshotBatch};
 use arrow::record_batch::RecordBatch;
-use arrow_util::util::merge_record_batches;
+use arrow_util::util::ensure_schema;
 use data_types::{
     ChunkId, ChunkOrder, DeletePredicate, PartitionId, SequenceNumber, TableSummary,
     TimestampMinMax, Tombstone,
 };
-use datafusion::{
-    logical_plan::ExprRewritable,
-    physical_plan::{
-        common::SizedRecordBatchStream,
-        metrics::{ExecutionPlanMetricsSet, MemTrackingMetrics},
-        SendableRecordBatchStream,
-    },
+use datafusion::physical_plan::{
+    common::SizedRecordBatchStream,
+    metrics::{ExecutionPlanMetricsSet, MemTrackingMetrics},
+    SendableRecordBatchStream,
 };
-use datafusion_util::batch_filter;
 use iox_query::{
     exec::{stringset::StringSet, IOxSessionContext},
-    util::{df_physical_expr_from_schema_and_expr, MissingColumnsToNull},
     QueryChunk, QueryChunkError, QueryChunkMeta,
 };
-use observability_deps::tracing::{debug, trace};
+use observability_deps::tracing::trace;
 use predicate::{
     delete_predicate::{tombstones_to_delete_predicates, tombstones_to_delete_predicates_iter},
     Predicate, PredicateMatch,
@@ -35,23 +30,13 @@ use std::sync::Arc;
 #[allow(missing_copy_implementations, missing_docs)]
 pub enum Error {
     #[snafu(display("Internal error concatenating record batches {}", source))]
+    Schema { source: schema::Error },
+
+    #[snafu(display("Internal error concatenating record batches {}", source))]
     ConcatBatches { source: arrow::error::ArrowError },
 
     #[snafu(display("Internal error filtering columns from a record batch {}", source))]
     FilterColumns { source: crate::data::Error },
-
-    #[snafu(display("Internal error rewriting predicate for QueryableBatch: {}", source))]
-    RewritingFilterPredicate {
-        source: datafusion::error::DataFusionError,
-    },
-
-    #[snafu(display(
-        "Internal error converting logical expression to physical one: {}",
-        source
-    ))]
-    ToPhysicalExpr {
-        source: datafusion::error::DataFusionError,
-    },
 
     #[snafu(display("Internal error filtering record batch: {}", source))]
     FilterBatch { source: arrow::error::ArrowError },
@@ -210,76 +195,42 @@ impl QueryChunk for QueryableBatch {
     }
 
     /// Provides access to raw `QueryChunk` data as an
-    /// asynchronous stream of `RecordBatch`es filtered by a *required*
-    /// predicate. Note that not all chunks can evaluate all types of
-    /// predicates and this function will return an error
-    /// if requested to evaluate with a predicate that is not supported
-    ///
-    /// This is the analog of the `TableProvider` in DataFusion
-    ///
-    /// The reason we can't simply use the `TableProvider` trait
-    /// directly is that the data for a particular Table lives in
-    /// several chunks within a partition, so there needs to be an
-    /// implementation of `TableProvider` that stitches together the
-    /// streams from several different `QueryChunk`s.
+    /// asynchronous stream of `RecordBatch`es
     fn read_filter(
         &self,
         mut ctx: IOxSessionContext,
-        predicate: &Predicate,
+        _predicate: &Predicate,
         selection: Selection<'_>,
     ) -> Result<SendableRecordBatchStream, QueryChunkError> {
         ctx.set_metadata("storage", "ingester");
         ctx.set_metadata("projection", format!("{}", selection));
         trace!(?selection, "selection");
 
+        let schema = self.schema().select(selection).context(SchemaSnafu)?;
+
         // Get all record batches from their snapshots
-        let mut batches = vec![];
-        for snapshot in &self.data {
-            // Only return columns in the selection
-            let batch = snapshot.scan(selection).context(FilterColumnsSnafu {})?;
-            if let Some(batch) = batch {
-                batches.push(batch);
-            }
-        }
-
-        // Combine record batches into one batch and padding null values as needed
-        // Schema of all record batches after mergeing
-        let schema = merge_record_batch_schemas(&batches);
-        let batch =
-            merge_record_batches(schema.as_arrow(), batches).context(ConcatBatchesSnafu {})?;
-
-        let mut stream_batches = vec![];
-        if let Some(mut batch) = batch {
-            // Apply predicate to filter data
-            if let Some(filter_expr) = predicate.filter_expr() {
-                // Since the predicate may include columns that the batches do not have,
-                // we need to rewrite the predicate to replace those column names with NULL
-                let mut rewriter = MissingColumnsToNull::new(&schema);
-                let filter_expr = filter_expr
-                    .rewrite(&mut rewriter)
-                    .context(RewritingFilterPredicateSnafu {})?;
-                let df_phy_expr =
-                    df_physical_expr_from_schema_and_expr(schema.as_arrow(), filter_expr)
-                        .context(ToPhysicalExprSnafu)?;
-                let num_rows_before = batch.num_rows();
-                batch = batch_filter(&batch, &df_phy_expr).context(FilterBatchSnafu)?;
-                let num_rows_after = batch.num_rows();
-                debug!(
-                    ?num_rows_before,
-                    ?num_rows_after,
-                    "predicate pushdown for QueryableBatch"
-                );
-            }
-
-            if batch.num_rows() > 0 {
-                stream_batches.push(Arc::new(batch));
-            }
-        }
+        let batches = self
+            .data
+            .iter()
+            .filter_map(|snapshot| {
+                let batch = snapshot
+                    // Only return columns in the selection
+                    .scan(selection)
+                    .context(FilterColumnsSnafu {})
+                    .transpose()?
+                    // ensure batch has desired schema
+                    .and_then(|batch| {
+                        ensure_schema(&schema.as_arrow(), &batch).context(ConcatBatchesSnafu {})
+                    })
+                    .map(Arc::new);
+                Some(batch)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
 
         // Return stream of data
         let dummy_metrics = ExecutionPlanMetricsSet::new();
         let mem_metrics = MemTrackingMetrics::new(&dummy_metrics, 0);
-        let stream = SizedRecordBatchStream::new(schema.as_arrow(), stream_batches, mem_metrics);
+        let stream = SizedRecordBatchStream::new(schema.as_arrow(), batches, mem_metrics);
         Ok(Box::pin(stream))
     }
 
@@ -297,11 +248,7 @@ impl QueryChunk for QueryableBatch {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_util::{
-        create_batches_with_influxtype_different_columns_different_order,
-        create_one_record_batch_with_influxtype_no_duplicates, create_tombstone,
-        make_queryable_batch,
-    };
+    use crate::test_util::create_tombstone;
     use arrow::{
         array::{
             ArrayRef, BooleanArray, DictionaryArray, Float64Array, Int64Array, StringArray,
@@ -309,10 +256,7 @@ mod tests {
         },
         datatypes::{DataType, Int32Type, TimeUnit},
     };
-    use arrow_util::assert_batches_eq;
     use data_types::{DeleteExpr, Op, Scalar, TimestampRange};
-    use datafusion::logical_plan::{col, lit};
-    use predicate::Predicate;
 
     #[tokio::test]
     async fn test_merge_batch_schema() {
@@ -388,241 +332,6 @@ mod tests {
         ];
 
         assert_eq!(expected, predicates);
-    }
-
-    #[tokio::test]
-    async fn test_read_filter() {
-        let batches = create_one_record_batch_with_influxtype_no_duplicates().await;
-        let batch = make_queryable_batch("test_table", 1, batches);
-        let stream = batch
-            .read_filter(
-                IOxSessionContext::default(),
-                &Predicate::default(),
-                Selection::All,
-            ) // return all columns
-            .unwrap();
-        let batches = datafusion::physical_plan::common::collect(stream)
-            .await
-            .unwrap();
-
-        let expected = vec![
-            "+-----------+------+-----------------------------+",
-            "| field_int | tag1 | time                        |",
-            "+-----------+------+-----------------------------+",
-            "| 1000      | WA   | 1970-01-01T00:00:00.000008Z |",
-            "| 10        | VT   | 1970-01-01T00:00:00.000010Z |",
-            "| 70        | UT   | 1970-01-01T00:00:00.000020Z |",
-            "+-----------+------+-----------------------------+",
-        ];
-        assert_batches_eq!(&expected, &batches);
-    }
-
-    #[tokio::test]
-    async fn test_read_filter_columns() {
-        let batches = create_one_record_batch_with_influxtype_no_duplicates().await;
-        let batch = make_queryable_batch("test_table", 1, batches);
-        let stream = batch
-            .read_filter(
-                IOxSessionContext::default(),
-                &Predicate::default(),
-                Selection::Some(&["time", "field_int"]), // return 2 out of 3 columns
-            )
-            .unwrap();
-        let batches = datafusion::physical_plan::common::collect(stream)
-            .await
-            .unwrap();
-
-        let expected = vec![
-            "+-----------+-----------------------------+",
-            "| field_int | time                        |",
-            "+-----------+-----------------------------+",
-            "| 1000      | 1970-01-01T00:00:00.000008Z |",
-            "| 10        | 1970-01-01T00:00:00.000010Z |",
-            "| 70        | 1970-01-01T00:00:00.000020Z |",
-            "+-----------+-----------------------------+",
-        ];
-        assert_batches_eq!(&expected, &batches);
-    }
-
-    #[tokio::test]
-    async fn test_read_filter_predicate() {
-        let batches = create_one_record_batch_with_influxtype_no_duplicates().await;
-        let batch = make_queryable_batch("test_table", 1, batches);
-        // tag1 = VT
-        let expr = col("tag1").eq(lit("VT"));
-        let pred = Predicate::default().with_expr(expr);
-
-        let stream = batch
-            .read_filter(IOxSessionContext::default(), &pred, Selection::All)
-            .unwrap();
-        let batches = datafusion::physical_plan::common::collect(stream)
-            .await
-            .unwrap();
-
-        let expected = vec![
-            "+-----------+------+-----------------------------+",
-            "| field_int | tag1 | time                        |",
-            "+-----------+------+-----------------------------+",
-            "| 10        | VT   | 1970-01-01T00:00:00.000010Z |",
-            "+-----------+------+-----------------------------+",
-        ];
-        assert_batches_eq!(&expected, &batches);
-    }
-
-    #[tokio::test]
-    async fn test_read_filter_predicate_on_missing_column() {
-        let batches = create_one_record_batch_with_influxtype_no_duplicates().await;
-        let batch = make_queryable_batch("test_table", 1, batches);
-        // foo = VT
-        let expr = col("foo").eq(lit("VT")); // `foo` column not available
-        let pred = Predicate::default().with_expr(expr);
-
-        let stream = batch
-            .read_filter(IOxSessionContext::default(), &pred, Selection::All)
-            .unwrap();
-        let batches = datafusion::physical_plan::common::collect(stream)
-            .await
-            .unwrap();
-
-        // missing_column = "VT" -> return nothing
-        let expected = vec!["++", "++"];
-        assert_batches_eq!(&expected, &batches);
-    }
-
-    #[tokio::test]
-    async fn test_read_filter_predicate_on_missing_column_is_null() {
-        let batches = create_one_record_batch_with_influxtype_no_duplicates().await;
-        let batch = make_queryable_batch("test_table", 1, batches);
-        // foo is NULL
-        let expr = col("foo").is_null();
-        let pred = Predicate::default().with_expr(expr);
-
-        let stream = batch
-            .read_filter(IOxSessionContext::default(), &pred, Selection::All)
-            .unwrap();
-        let batches = datafusion::physical_plan::common::collect(stream)
-            .await
-            .unwrap();
-
-        // missing_column is NULL  --> return everything
-        let expected = vec![
-            "+-----------+------+-----------------------------+",
-            "| field_int | tag1 | time                        |",
-            "+-----------+------+-----------------------------+",
-            "| 1000      | WA   | 1970-01-01T00:00:00.000008Z |",
-            "| 10        | VT   | 1970-01-01T00:00:00.000010Z |",
-            "| 70        | UT   | 1970-01-01T00:00:00.000020Z |",
-            "+-----------+------+-----------------------------+",
-        ];
-        assert_batches_eq!(&expected, &batches);
-    }
-
-    #[tokio::test]
-    async fn test_read_filter_not_exist_columns() {
-        let batches = create_one_record_batch_with_influxtype_no_duplicates().await;
-        let batch = make_queryable_batch("test_table", 1, batches);
-        let stream = batch
-            .read_filter(
-                IOxSessionContext::default(),
-                &Predicate::default(),
-                Selection::Some(&["foo"]), // column not exist
-            )
-            .unwrap();
-        let batches = datafusion::physical_plan::common::collect(stream)
-            .await
-            .unwrap();
-
-        let expected = vec!["++", "++"];
-        assert_batches_eq!(&expected, &batches);
-    }
-
-    #[tokio::test]
-    async fn test_read_filter_many_batches() {
-        let batches = create_batches_with_influxtype_different_columns_different_order().await;
-        let batch = make_queryable_batch("test_table", 1, batches);
-        let stream = batch
-            .read_filter(
-                IOxSessionContext::default(),
-                &Predicate::default(),
-                Selection::All,
-            ) // return all columns
-            .unwrap();
-        let batches = datafusion::physical_plan::common::collect(stream)
-            .await
-            .unwrap();
-
-        let expected = vec![
-            "+-----------+------+------+--------------------------------+",
-            "| field_int | tag1 | tag2 | time                           |",
-            "+-----------+------+------+--------------------------------+",
-            "| 1000      | MT   | CT   | 1970-01-01T00:00:00.000001Z    |",
-            "| 10        | MT   | AL   | 1970-01-01T00:00:00.000007Z    |",
-            "| 70        | CT   | CT   | 1970-01-01T00:00:00.000000100Z |",
-            "| 100       | AL   | MA   | 1970-01-01T00:00:00.000000050Z |",
-            "| 5         | MT   | AL   | 1970-01-01T00:00:00.000000005Z |",
-            "| 1000      | MT   | CT   | 1970-01-01T00:00:00.000002Z    |",
-            "| 20        | MT   | AL   | 1970-01-01T00:00:00.000007Z    |",
-            "| 70        | CT   | CT   | 1970-01-01T00:00:00.000000500Z |",
-            "| 10        | AL   | MA   | 1970-01-01T00:00:00.000000050Z |",
-            "| 30        | MT   | AL   | 1970-01-01T00:00:00.000000005Z |",
-            "| 1000      |      | CT   | 1970-01-01T00:00:00.000001Z    |",
-            "| 10        |      | AL   | 1970-01-01T00:00:00.000007Z    |",
-            "| 70        |      | CT   | 1970-01-01T00:00:00.000000100Z |",
-            "| 100       |      | MA   | 1970-01-01T00:00:00.000000050Z |",
-            "| 5         |      | AL   | 1970-01-01T00:00:00.000005Z    |",
-            "+-----------+------+------+--------------------------------+",
-        ];
-        assert_batches_eq!(&expected, &batches);
-    }
-
-    #[tokio::test]
-    async fn test_read_filter_many_batches_filer_columns_predicates() {
-        let batches = create_batches_with_influxtype_different_columns_different_order().await;
-        let batch = make_queryable_batch("test_table", 1, batches);
-
-        // Only read 2 columns: "tag1" and "time"
-        let selection = Selection::Some(&["tag1", "time"]);
-
-        // foo is NULL AND tag1=CT
-        let expr = col("foo").is_null().and(col("tag1").eq(lit("CT")));
-        let pred = Predicate::default().with_expr(expr);
-
-        let stream = batch
-            .read_filter(IOxSessionContext::default(), &pred, selection)
-            .unwrap();
-        let batches = datafusion::physical_plan::common::collect(stream)
-            .await
-            .unwrap();
-
-        // missing_column is NULL AND tag1=CT --> return 2 columns with tag1=CT only
-        let expected = vec![
-            "+------+--------------------------------+",
-            "| tag1 | time                           |",
-            "+------+--------------------------------+",
-            "| CT   | 1970-01-01T00:00:00.000000100Z |",
-            "| CT   | 1970-01-01T00:00:00.000000500Z |",
-            "+------+--------------------------------+",
-        ];
-        assert_batches_eq!(&expected, &batches);
-    }
-
-    #[tokio::test]
-    async fn test_read_filter_many_batches_not_exist_columns() {
-        let batches = create_batches_with_influxtype_different_columns_different_order().await;
-        let batch = make_queryable_batch("test_table", 1, batches);
-        let stream = batch
-            .read_filter(
-                IOxSessionContext::default(),
-                &Predicate::default(),
-                Selection::Some(&["foo", "bar"]), // column not exist
-            )
-            .unwrap();
-        let batches = datafusion::physical_plan::common::collect(stream)
-            .await
-            .unwrap();
-
-        let expected = vec!["++", "++"];
-        assert_batches_eq!(&expected, &batches);
     }
 
     // ----------------------------------------------------------------------------------------------
