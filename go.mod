@@ -32,7 +32,6 @@ require (
 	github.com/influxdata/flux v0.169.0
 	github.com/influxdata/httprouter v1.3.1-0.20191122104820-ee83e2772f69
 	github.com/influxdata/influx-cli/v2 v2.2.1-0.20220318222112-88ba3464cd07
-	github.com/influxdata/influxdb v1.9.7
 	github.com/influxdata/influxql v1.1.1-0.20211004132434-7e7d61973256
 	github.com/influxdata/line-protocol v0.0.0-20200327222509-2487e7298839
 	github.com/influxdata/pkg-config v0.2.11

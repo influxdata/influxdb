@@ -11,7 +11,7 @@ import (
 	"os"
 	"syscall"
 
-	errors2 "github.com/influxdata/influxdb/pkg/errors"
+	errors2 "github.com/influxdata/influxdb/v2/pkg/errors"
 )
 
 // Map memory-maps a file.
