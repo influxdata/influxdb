@@ -209,7 +209,7 @@ async fn test_write_ok() {
         ]))
         .expect("failed to get observer")
         .fetch();
-    let hit_count = histogram.buckets.iter().fold(0, |acc, v| acc + v.count);
+    let hit_count = histogram.sample_count();
     assert_eq!(hit_count, 1);
 
     assert_eq!(
@@ -232,7 +232,7 @@ async fn test_write_ok() {
         ]))
         .expect("failed to get observer")
         .fetch();
-    let hit_count = histogram.buckets.iter().fold(0, |acc, v| acc + v.count);
+    let hit_count = histogram.sample_count();
     assert_eq!(hit_count, 1);
 }
 

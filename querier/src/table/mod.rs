@@ -8,7 +8,8 @@ use crate::{
 use data_types::{PartitionId, TableId};
 use futures::join;
 use iox_query::{provider::ChunkPruner, QueryChunk};
-use observability_deps::tracing::debug;
+use metric::{DurationHistogram, Metric};
+use observability_deps::tracing::{debug, info};
 use predicate::Predicate;
 use schema::Schema;
 use snafu::{ResultExt, Snafu};
@@ -72,6 +73,12 @@ pub struct QuerierTable {
 
     /// Handle reconciling ingester and catalog data
     reconciler: Reconciler,
+
+    /// Time spent waiting for successful ingester queries
+    ingester_duration_success: DurationHistogram,
+
+    /// Time spent waiting for unsuccessful ingester queries
+    ingester_duration_error: DurationHistogram,
 }
 
 impl QuerierTable {
@@ -90,6 +97,15 @@ impl QuerierTable {
             Arc::clone(&chunk_adapter),
         );
 
+        let metric_registry = chunk_adapter.metric_registry();
+
+        let ingester_duration: Metric<DurationHistogram> = metric_registry.register_metric(
+            "ingester_duration",
+            "ingester request query execution duration",
+        );
+        let ingester_duration_success = ingester_duration.recorder(&[("result", "success")]);
+        let ingester_duration_error = ingester_duration.recorder(&[("result", "error")]);
+
         Self {
             namespace_name,
             table_name,
@@ -98,6 +114,8 @@ impl QuerierTable {
             ingester_connection,
             chunk_adapter,
             reconciler,
+            ingester_duration_success,
+            ingester_duration_error,
         }
     }
 
@@ -121,7 +139,12 @@ impl QuerierTable {
     ///
     /// This currently contains all parquet files linked to their unprocessed tombstones.
     pub async fn chunks(&self, predicate: &Predicate) -> Result<Vec<Arc<dyn QueryChunk>>> {
-        debug!(?predicate, namespace=%self.namespace_name, table_name=%self.table_name(), "Fetching all chunks");
+        debug!(
+            ?predicate,
+            namespace=%self.namespace_name,
+            table_name=%self.table_name(),
+            "Fetching all chunks"
+        );
 
         let catalog_cache = self.chunk_adapter.catalog_cache();
 
@@ -178,8 +201,10 @@ impl QuerierTable {
             .map(|(_, f)| f.name().to_string())
             .collect();
 
+        let ingester_time_start = self.chunk_adapter.catalog_cache().time_provider().now();
+
         // get any chunks from the ingster
-        let partitions = self
+        let partitions_result = self
             .ingester_connection
             .partitions(
                 Arc::clone(&self.namespace_name),
@@ -189,7 +214,28 @@ impl QuerierTable {
                 Arc::clone(&self.schema),
             )
             .await
-            .context(GettingIngesterPartitionsSnafu)?;
+            .context(GettingIngesterPartitionsSnafu);
+
+        if let Some(ingester_duration) = self
+            .chunk_adapter
+            .catalog_cache()
+            .time_provider()
+            .now()
+            .checked_duration_since(ingester_time_start)
+        {
+            match &partitions_result {
+                Ok(_) => self.ingester_duration_success.record(ingester_duration),
+                Err(_) => self.ingester_duration_error.record(ingester_duration),
+            }
+            info!(
+                ?predicate,
+                namespace=%self.namespace_name,
+                table_name=%self.table_name,
+                ?ingester_duration,
+                "Time spent in ingester"
+            );
+        }
+        let partitions = partitions_result?;
 
         // check that partitions from ingesters don't overlap
         let mut seen = HashMap::with_capacity(partitions.len());
@@ -269,20 +315,19 @@ impl QuerierTable {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
-    use assert_matches::assert_matches;
-    use data_types::{ChunkId, ColumnType, SequenceNumber};
-    use iox_tests::util::{now, TestCatalog, TestTable};
-    use predicate::Predicate;
-    use schema::{builder::SchemaBuilder, InfluxFieldType};
-    use test_helpers::maybe_start_logging;
-
     use super::*;
     use crate::{
         ingester::{test_util::MockIngesterConnection, IngesterPartition},
         table::test_util::{querier_table, IngesterPartitionBuilder},
     };
+    use assert_matches::assert_matches;
+    use data_types::{ChunkId, ColumnType, SequenceNumber};
+    use iox_tests::util::{now, TestCatalog, TestTable};
+    use metric::Attributes;
+    use predicate::Predicate;
+    use schema::{builder::SchemaBuilder, InfluxFieldType};
+    use std::sync::Arc;
+    use test_helpers::maybe_start_logging;
 
     #[tokio::test]
     async fn test_parquet_chunks() {
@@ -450,10 +495,38 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_ingester_metrics() {
+        maybe_start_logging();
+
+        let catalog = TestCatalog::new();
+        let metrics = catalog.metric_registry();
+
+        let ns = catalog.create_namespace("ns").await;
+        let table = ns.create_table("table").await;
+
+        let querier_table = TestQuerierTable::new(&catalog, &table).await;
+
+        querier_table
+            .inner()
+            .ingester_partitions(&Predicate::default())
+            .await
+            .unwrap();
+
+        let histogram = metrics
+            .get_instrument::<Metric<DurationHistogram>>("ingester_duration")
+            .expect("failed to read metric")
+            .get_observer(&Attributes::from(&[("result", "success")]))
+            .expect("failed to get observer")
+            .fetch();
+
+        let hit_count = histogram.sample_count();
+        assert!(hit_count > 0, "metric did not record any calls");
+    }
+
+    #[tokio::test]
     async fn test_state_reconcile() {
         maybe_start_logging();
         let catalog = TestCatalog::new();
-
         let ns = catalog.create_namespace("ns").await;
         let table = ns.create_table("table").await;
         let sequencer = ns.create_sequencer(1).await;

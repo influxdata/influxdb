@@ -3090,7 +3090,7 @@ pub(crate) mod test_helpers {
             .expect("failed to get observer")
             .fetch();
 
-        let hit_count = histogram.buckets.iter().fold(0, |acc, v| acc + v.count);
+        let hit_count = histogram.sample_count();
         assert!(hit_count > 1, "metric did not record any calls");
     }
 }

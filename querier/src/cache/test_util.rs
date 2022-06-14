@@ -8,6 +8,6 @@ pub fn assert_histogram_metric_count(metrics: &metric::Registry, name: &'static 
         .expect("failed to get observer")
         .fetch();
 
-    let hit_count = histogram.buckets.iter().fold(0, |acc, v| acc + v.count);
+    let hit_count = histogram.sample_count();
     assert_eq!(hit_count, n);
 }

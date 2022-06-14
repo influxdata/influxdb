@@ -516,7 +516,7 @@ mod tests {
             .expect("failed to get observer")
             .fetch();
 
-        let hit_count = histogram.buckets.iter().fold(0, |acc, v| acc + v.count);
+        let hit_count = histogram.sample_count();
         assert!(hit_count > 0, "metric {} did not record any calls", name);
     }
 
@@ -814,21 +814,18 @@ mod tests {
 
         // Now the stream is complete, the wall clock duration must have been
         // recorded.
-        let hit_count = success_hist
-            .fetch()
-            .buckets
-            .iter()
-            .fold(0, |acc, v| acc + v.count);
+        let hit_count = success_hist.fetch().sample_count();
         assert_eq!(hit_count, 1, "wall clock duration recorded incorrectly");
         assert_counter_value(&metrics, "object_store_transfer_bytes", [], 4);
 
         // And it must be in a SLEEP or higher bucket.
-        let hit_count = success_hist
+        let hit_count: u64 = success_hist
             .fetch()
             .buckets
             .iter()
             .skip_while(|b| b.le < SLEEP) // Skip buckets less than the sleep duration
-            .fold(0, |acc, v| acc + v.count);
+            .map(|v| v.count)
+            .sum();
         assert_eq!(
             hit_count, 1,
             "wall clock duration not recorded in correct bucket"
@@ -836,11 +833,7 @@ mod tests {
 
         // Metrics must not be duplicated when the decorator is dropped
         drop(stream);
-        let hit_count = success_hist
-            .fetch()
-            .buckets
-            .iter()
-            .fold(0, |acc, v| acc + v.count);
+        let hit_count = success_hist.fetch().sample_count();
         assert_eq!(hit_count, 1, "wall clock duration duplicated");
         assert_counter_value(&metrics, "object_store_transfer_bytes", [], 4);
     }
@@ -901,9 +894,7 @@ mod tests {
             .get_observer(&metric::Attributes::from(&[("result", "success")]))
             .expect("failed to get observer")
             .fetch()
-            .buckets
-            .iter()
-            .fold(0, |acc, v| acc + v.count);
+            .sample_count();
         assert_eq!(hit_count, 1, "wall clock duration recorded incorrectly");
 
         // And the number of bytes read must match the pre-drop value.
@@ -966,9 +957,7 @@ mod tests {
             .get_observer(&metric::Attributes::from(&[("result", "error")]))
             .expect("failed to get observer")
             .fetch()
-            .buckets
-            .iter()
-            .fold(0, |acc, v| acc + v.count);
+            .sample_count();
         assert_eq!(hit_count, 1, "wall clock duration recorded incorrectly");
 
         // And the number of bytes read must match
@@ -1040,9 +1029,7 @@ mod tests {
             .get_observer(&metric::Attributes::from(&[("result", "success")]))
             .expect("failed to get observer")
             .fetch()
-            .buckets
-            .iter()
-            .fold(0, |acc, v| acc + v.count);
+            .sample_count();
         assert_eq!(hit_count, 1, "wall clock duration recorded incorrectly");
 
         // And the number of bytes read must match
@@ -1087,9 +1074,7 @@ mod tests {
             .get_observer(&metric::Attributes::from(&[("result", "success")]))
             .expect("failed to get observer")
             .fetch()
-            .buckets
-            .iter()
-            .fold(0, |acc, v| acc + v.count);
+            .sample_count();
         assert_eq!(hit_count, 1, "wall clock duration recorded incorrectly");
 
         // And the number of bytes read must match
@@ -1133,9 +1118,7 @@ mod tests {
             .get_observer(&metric::Attributes::from(&[("result", "success")]))
             .expect("failed to get observer")
             .fetch()
-            .buckets
-            .iter()
-            .fold(0, |acc, v| acc + v.count);
+            .sample_count();
         assert_eq!(hit_count, 1, "wall clock duration recorded incorrectly");
 
         // And the number of bytes read must match

@@ -287,6 +287,11 @@ impl ChunkAdapter {
         }
     }
 
+    /// Metric registry getter.
+    pub fn metric_registry(&self) -> Arc<metric::Registry> {
+        Arc::clone(&self.metric_registry)
+    }
+
     /// Get underlying catalog cache.
     pub fn catalog_cache(&self) -> &Arc<CatalogCache> {
         &self.catalog_cache

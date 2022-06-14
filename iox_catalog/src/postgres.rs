@@ -2011,7 +2011,7 @@ mod tests {
             .expect("failed to get observer")
             .fetch();
 
-        let hit_count = histogram.buckets.iter().fold(0, |acc, v| acc + v.count);
+        let hit_count = histogram.sample_count();
         assert!(hit_count > 0, "metric did not record any calls");
     }
 

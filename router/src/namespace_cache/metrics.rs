@@ -211,7 +211,7 @@ mod tests {
             .expect("failed to get observer")
             .fetch();
 
-        let hit_count = histogram.buckets.iter().fold(0, |acc, v| acc + v.count);
+        let hit_count = histogram.sample_count();
         assert_eq!(
             hit_count, count,
             "metric did not record correct number of calls"
