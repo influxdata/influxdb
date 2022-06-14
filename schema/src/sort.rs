@@ -7,6 +7,7 @@ use arrow::{
 };
 use indexmap::{map::Iter, IndexMap};
 use itertools::Itertools;
+use observability_deps::tracing::debug;
 use snafu::Snafu;
 use std::{
     collections::{HashMap, HashSet},
@@ -383,7 +384,10 @@ pub fn compute_sort_key<'a>(
         builder = builder.with_col(col)
     }
     builder = builder.with_col(TIME_COLUMN_NAME);
-    builder.build()
+    let sort_key = builder.build();
+
+    debug!(?primary_key, ?sort_key, "Computed sort key");
+    sort_key
 }
 
 /// Takes batches of data and the columns that make up the primary key. Computes the number of
@@ -510,6 +514,8 @@ pub fn adjust_sort_key_columns(
                 .chain(std::iter::once(Arc::from(TIME_COLUMN_NAME))),
         ))
     };
+
+    debug!(?primary_key, input_catalog_sort_key=?catalog_sort_key, output_chunk_sort_key=?metadata_sort_key, output_catalog_sort_key=?catalog_update, "Adjusted sort key");
 
     (metadata_sort_key, catalog_update)
 }

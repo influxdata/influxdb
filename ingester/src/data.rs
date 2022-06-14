@@ -274,7 +274,7 @@ impl Persister for IngesterData {
                     partition_info.namespace_name, partition_info.partition.sequencer_id
                 )
             });
-        debug!(?partition_info, "Persisting");
+        debug!(?partition_id, ?partition_info, "Persisting");
 
         let persisting_batch = namespace.snapshot_to_persisting(&partition_info).await;
 
@@ -300,6 +300,11 @@ impl Persister for IngesterData {
                     return;
                 }
             };
+            debug!(
+                ?partition_id,
+                ?sort_key_update,
+                "Adjusted sort key during compacting the persting batch"
+            );
 
             // Save the compacted data to a parquet file in object storage.
             //
@@ -328,6 +333,12 @@ impl Persister for IngesterData {
             // Update the sort key in the catalog if there are additional columns
             if let Some(new_sort_key) = sort_key_update {
                 let sort_key = new_sort_key.to_columns().collect::<Vec<_>>();
+                debug!(
+                    ?partition_id,
+                    ?sort_key,
+                    ?partition_id,
+                    "Adjusted sort key to be updated to the catalog"
+                );
                 Backoff::new(&self.backoff_config)
                     .retry_all_errors("update_sort_key", || async {
                         let mut repos = self.catalog.repositories().await;
@@ -342,6 +353,7 @@ impl Persister for IngesterData {
 
             // and remove the persisted data from memory
             debug!(
+                ?partition_id,
                 table_name=%partition_info.table_name,
                 partition_key=%partition_info.partition.partition_key,
                 max_sequence_number=%iox_meta.max_sequence_number.get(),

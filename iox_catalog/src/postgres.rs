@@ -17,7 +17,7 @@ use data_types::{
     Sequencer, SequencerId, Table, TableId, TablePartition, Timestamp, Tombstone, TombstoneId,
 };
 use iox_time::{SystemProvider, TimeProvider};
-use observability_deps::tracing::{info, warn};
+use observability_deps::tracing::{debug, info, warn};
 use sqlx::{
     migrate::Migrator, postgres::PgPoolOptions, types::Uuid, Acquire, Executor, Postgres, Row,
 };
@@ -1242,6 +1242,8 @@ RETURNING *;
             sqlx::Error::RowNotFound => Error::PartitionNotFound { id: partition_id },
             _ => Error::SqlxError { source: e },
         })?;
+
+        debug!(?partition_id, input_sort_key=?sort_key, partition_after_catalog_update=?partition, "Paritition after updating sort key");
 
         Ok(partition)
     }

@@ -4597,6 +4597,7 @@ dependencies = [
  "hashbrown 0.12.1",
  "indexmap",
  "itertools",
+ "observability_deps",
  "snafu",
  "workspace-hack",
 ]
