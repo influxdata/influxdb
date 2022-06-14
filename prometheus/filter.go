@@ -35,7 +35,7 @@ func NewMatcher() Matcher {
 	return Matcher{}
 }
 
-// Family helps constuct match by adding a metric family to match to.
+// Family helps construct match by adding a metric family to match to.
 func (m Matcher) Family(name string, lps ...*dto.LabelPair) Matcher {
 	// prometheus metrics labels are sorted by label name.
 	sort.Slice(lps, func(i, j int) bool {

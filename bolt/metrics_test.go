@@ -38,6 +38,8 @@ func TestInitialMetrics(t *testing.T) {
 		"influxdb_users_total":         0,
 		"influxdb_tokens_total":        0,
 		"influxdb_dashboards_total":    0,
+		"influxdb_remotes_total":       0,
+		"influxdb_replications_total":  0,
 		"boltdb_reads_total":           0,
 	}
 	for name, count := range metrics {
