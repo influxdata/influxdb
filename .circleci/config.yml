@@ -1,6 +1,7 @@
 version: "2.1"
 
 orbs:
+  aws-s3:    circleci/aws-s3@2.0.0
   terraform: circleci/terraform@2.1.0
 
 executors:
@@ -29,91 +30,135 @@ executors:
       resource_class: windows.medium
     shell: bash.exe -eo pipefail
 
+# Unlike when a commit is pushed to a branch, CircleCI does not automatically
+# execute a workflow when a tag is pushed to a repository. These filters
+# allow the corresponding workflow to execute on any branch or tag.
+any_filter: &any_filter
+  filters:
+    tags:
+      only: /.*/
+    branches:
+      only: /.*/
+
+release_filter: &release_filter
+  filters:
+    tags:
+      # This regex matches what is found in 'scripts/get-version' with the
+      # '[[:digit:]]' transformed into '\d'. This also excludes release
+      # candidate detection, because this filter only matches against
+      # full releases.
+      only: /^v(\d+)(?:\.(\d+))?(?:\.(\d+))?$/
+    branches:
+      ignore: /.*/
+
+nofork_filter: &nofork_filter
+  filters:
+    branches:
+      ignore: /pull\/[0-9]+/
+
 workflows:
   version: 2
   build:
     jobs:
-      - test-race
+      - test-race:
+          <<: *any_filter
       - test-build:
+          <<: *any_filter
           name: test-build-<< matrix.os >>-<< matrix.arch >>
           matrix:
             parameters:
               os: [ linux, darwin, windows ]
               arch: [ amd64, arm64 ]
             exclude:
-              - os: darwin
-                arch: arm64
-              - os: windows
-                arch: arm64
+              - { os: darwin,  arch: arm64 }
+              - { os: windows, arch: arm64 }
               # linux/amd64 can be tested directly from our cross-builder image
               # to save time & enable running with the race detector.
-              - os: linux
-                arch: amd64
+              - { os: linux,   arch: amd64 }
       - test-prebuilt:
+          <<: *any_filter
           name: test-linux-arm64
           executor: linux-arm64
           requires:
             - test-build-linux-arm64
       - test-prebuilt:
+          <<: *any_filter
           name: test-darwin
           executor: darwin
           requires:
             - test-build-darwin-amd64
       - test-prebuilt:
+          <<: *any_filter
           name: test-windows
           executor: windows
           requires:
             - test-build-windows-amd64
-      - fluxtest
-      - tlstest
-      - lint
+      - fluxtest:
+          <<: *any_filter
+      - tlstest:
+          <<: *any_filter
+      - lint:
+          <<: *any_filter
       - build:
+          <<: *any_filter
           name: build-snapshot-<< matrix.os >>-<< matrix.arch >>
           build-type: snapshot
           matrix:
             parameters:
-              os: [ linux, darwin, windows ]
+              os:   [ linux, darwin, windows ]
               arch: [ amd64, arm64 ]
             exclude:
-              - os: darwin
-                arch: arm64
-              - os: windows
-                arch: arm64
-      - package-and-release:
-          name: package-snapshot
-          build-type: snapshot
-          filters:
-            branches:
-              ignore: /pull\/[0-9]+/
+              - { os: darwin,  arch: arm64 }
+              - { os: windows, arch: arm64 }
+      - build-package:
+          <<: *any_filter
+          name: build-package-<< matrix.os >>-<< matrix.arch >>
           requires:
-            - build
+            - build-snapshot-<< matrix.os >>-<< matrix.arch >>
+          matrix:
+            parameters:
+              os:   [ linux, darwin, windows ]
+              arch: [ amd64, arm64 ]
+            exclude:
+              - { os: darwin,  arch: arm64 }
+              - { os: windows, arch: arm64 }
       - test-downgrade:
+          <<: *any_filter
           requires:
             - build-snapshot-linux-amd64
       - e2e-monitor-ci:
-          filters:
-            branches:
-              ignore: /pull\/[0-9]+/
+          <<: *nofork_filter
           requires:
             - build-snapshot-linux-amd64
       - test-linux-packages:
-          filters:
-            branches:
-              ignore: /pull\/[0-9]+/
+          <<: *nofork_filter
           requires:
-            - package-snapshot
+            - build-package-linux-amd64
+      - publish-packages-s3:
+          <<: *release_filter
+          requires:
+            - test-linux-packages
+            - build-package-darwin-amd64
+            - build-package-linux-amd64
+            - build-package-linux-arm64
+            - build-package-windows-amd64
       - perf-test:
           record_results: true
           requires:
-            - package-snapshot
+            - build-package-darwin-amd64
+            - build-package-linux-amd64
+            - build-package-linux-arm64
+            - build-package-windows-amd64
           filters:
             branches:
               only:
                 - master
       - grace-test:
+          <<: *any_filter
           requires:
             - build-snapshot-linux-amd64
       - litmus-smoke-test:
+          <<: *any_filter
           requires:
             - build-snapshot-linux-amd64
       - litmus-full-test:
@@ -152,22 +197,22 @@ workflows:
                 - master
     jobs:
       - changelog
+      - publish-changelog-s3:
+          requires:
+            - changelog
       - test-race
       - test-build:
           name: test-build-<< matrix.os >>-<< matrix.arch >>
           matrix:
             parameters:
-              os: [ linux, darwin, windows ]
+              os:   [ linux, darwin, windows ]
               arch: [ amd64, arm64 ]
             exclude:
-              - os: darwin
-                arch: arm64
-              - os: windows
-                arch: arm64
+              - { os: darwin,  arch: arm64 }
+              - { os: windows, arch: arm64 }
               # linux/amd64 can be tested directly from our cross-builder image
               # to save time & enable running with the race detector.
-              - os: linux
-                arch: amd64
+              - { os: linux,   arch: amd64 }
       - test-prebuilt:
           name: test-linux-arm64
           executor: linux-arm64
@@ -191,19 +236,23 @@ workflows:
           build-type: nightly
           matrix:
             parameters:
-              os: [ linux, darwin, windows ]
+              os:   [ linux, darwin, windows ]
               arch: [ amd64, arm64 ]
             exclude:
-              - os: darwin
-                arch: arm64
-              - os: windows
-                arch: arm64
-      - package-and-release:
-          name: package-and-upload-nightly
-          build-type: nightly
+              - { os: darwin,  arch: arm64 }
+              - { os: windows, arch: arm64 }
+      - build-package:
+          name: build-package-<< matrix.os >>-<< matrix.arch >>
           requires:
-            - build
+            - build-nightly-<< matrix.os >>-<< matrix.arch >>
             - changelog
+          matrix:
+            parameters:
+              os:   [ linux, darwin, windows ]
+              arch: [ amd64, arm64 ]
+            exclude:
+              - { os: darwin,  arch: arm64 }
+              - { os: windows, arch: arm64 }
       - litmus-full-test:
           requires:
             - build-nightly-linux-amd64
@@ -287,7 +336,7 @@ jobs:
       - persist_to_workspace:
           root: .
           paths:
-            - ./test-bin
+            - test-bin
 
   test-prebuilt:
     parameters:
@@ -347,61 +396,79 @@ jobs:
           paths:
             - bin
 
-  package-and-release:
-    executor: cross-builder
+  build-package:
+    executor: linux-amd64
     parameters:
-      build-type:
+      os:
+        type: string
+      arch:
         type: string
     steps:
       - checkout
       - attach_workspace:
           at: .
       - run:
-          name: Compute artifact version
-          command: echo "export GORELEASER_CURRENT_TAG='$(build-version.sh << parameters.build-type >>)'" >> $BASH_ENV
-      - unless:
-          condition:
-            equal: [ release, << parameters.build-type >> ]
-          steps:
-            - run:
-                name: Tag commit locally to pass goreleaser validation
-                command: git tag "$GORELEASER_CURRENT_TAG"
-      - run:
-          name: Import GPG key
+          name: Install Package Dependencies
           command: |
-            echo -e "$GPG_PRIVATE_KEY" > private.key
-            gpg --batch --import private.key
+            export DEBIAN_FRONTEND=noninteractive
+            sudo apt-get update
+            sudo apt-get install --yes \
+              build-essential          \
+              rpm                      \
+              ruby-dev
+
+            gem install fpm
       - run:
-          name: Install goreleaser-pro
-          environment:
-            GORELEASER_VERSION: 0.184.0
-            # checksum from `checksums.txt` file at https://github.com/goreleaser/goreleaser-pro/releases
-            GORELEASER_SHA: def0b9882e0fbb91727c73bcc033917c4562aa5f9e89317884faff2b114c6b9c
+          name: Get Package Versions
           command: |
-            curl --proto '=https' --tlsv1.2 -sSfL --max-redirs 1 -O \
-              https://github.com/goreleaser/goreleaser-pro/releases/download/v${GORELEASER_VERSION}-pro/goreleaser-pro_Linux_x86_64.tar.gz
-            echo "${GORELEASER_SHA}  goreleaser-pro_Linux_x86_64.tar.gz" | sha256sum --check -
-            # Extract goreleaser binary only.
-            tar --extract --file=goreleaser-pro_Linux_x86_64.tar.gz goreleaser
-            rm goreleaser-pro_Linux_x86_64.tar.gz
-            # Move goreleaser binary out of project dir so it doesn't dirty the git state.
-            mv goreleaser /go/bin/
+            PREFIX=2.x .circleci/scripts/get-version
       - run:
-          name: Run goreleaser
-          command: goreleaser --debug release --config .goreleaser/<< parameters.build-type >>.yml
-      # goreleaser generates some temp files in the dist/
-      # directory alongside the artifacts we want to save.
-      - run:
-          name: Clean up artifacts
+          name: Build Package
           command: |
-            mkdir artifacts
-            mv dist/influx* artifacts/
-      - store_artifacts:
-          path: artifacts
+            export PLAT=<< parameters.os >>
+            export ARCH=<< parameters.arch >>
+            .circleci/scripts/build-package
       - persist_to_workspace:
-          root: .
+          root: /
           paths:
             - artifacts
+      - store_artifacts:
+          path: /artifacts
+          destination: artifacts
+
+  publish-packages-s3:
+    docker:
+      # `cimg/python` may seem incorrect, but apparently it includes `curl`
+      # which is required for `aws-s3/sync` to work. This image is also
+      # suggested by the orb's documentation:
+      # https://circleci.com/developer/orbs/orb/circleci/aws-s3#usage-examples
+      - image: cimg/python:3.6
+    steps:
+      - attach_workspace:
+          at: /tmp/workspace
+      - aws-s3/sync:
+          arguments: |
+            --acl public-read
+          aws-region:            RELEASE_AWS_REGION
+          aws-access-key-id:     RELEASE_AWS_ACCESS_KEY_ID
+          aws-secret-access-key: RELEASE_AWS_SECRET_ACCESS_KEY
+          from: /tmp/workspace/artifacts
+          to:   s3://dl.influxdata.com/influxdb/releases
+
+  publish-changelog-s3:
+    docker:
+      - image: cimg/python:3.6
+    steps:
+      - attach_workspace:
+          at: /tmp/workspace
+      - aws-s3/sync:
+          arguments: |
+            --acl public-read
+          aws-region:            RELEASE_AWS_REGION
+          aws-access-key-id:     RELEASE_AWS_ACCESS_KEY_ID
+          aws-secret-access-key: RELEASE_AWS_SECRET_ACCESS_KEY
+          from: /tmp/workspace/changelog_artifacts/
+          to:   s3://dl.influxdata.com/platform/nightlies/master
 
   test-linux-packages:
     executor: terraform/default

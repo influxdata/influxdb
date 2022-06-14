@@ -1,0 +1,146 @@
+#!/bin/bash
+set -o errexit  \
+    -o nounset  \
+    -o pipefail
+
+function run_fpm()
+{
+  if [[ ${1} == rpm ]]
+  then
+    case ${ARCH} in
+      arm64)
+        ARCH=aarch64
+        ;;
+      amd64)
+        ARCH=x86_64
+        ;;
+    esac
+  fi
+
+  pushd "${workspace}"
+
+    fpm \
+      --log            error                               \
+      `# package description`                              \
+      --name           influxdb2                           \
+      --vendor         InfluxData                          \
+      --description    'Distributed time-series database.' \
+      --url            https://influxdata.com              \
+      --maintainer     support@influxdb.com                \
+      --license        MIT                                 \
+      `# package configuration`                            \
+      --input-type     dir                                 \
+      --output-type    "${1}"                              \
+      --architecture   "${ARCH}"                           \
+      --version        "${VERSION}"                        \
+      --iteration      1                                   \
+      `# package relationships`                            \
+      --deb-recommends influxdb2-cli                       \
+      --conflicts      influxdb                            \
+      --depends        curl                                \
+      `# package scripts`                                  \
+      --before-install control/preinst                     \
+      --after-install  control/postinst                    \
+      --after-remove   control/postrm                      \
+      `# package files`                                    \
+      --chdir          fs/                                 \
+      --package        /artifacts
+
+    popd
+
+    # `goreleaser` stripped off the package revision and replaced '_' with
+    # '-'. Since the dockerfiles expect the previous naming convention,
+    # this rewrites the package names to match. Version information is
+    # also stored as metadata within the package.
+    case ${1} in
+      deb)
+        mv "/artifacts/influxdb2_${VERSION}-1_${ARCH}.deb" \
+           "/artifacts/influxdb2-${VERSION}-${ARCH}.deb"
+        ;;
+      rpm)
+        mv "/artifacts/influxdb2-${VERSION//-/_}-1.${ARCH}.rpm" \
+           "/artifacts/influxdb2-${VERSION//-/_}-${ARCH}.rpm"
+        ;;
+    esac
+}
+
+sudo bash <<'EOF'
+mkdir /artifacts && chown -R circleci: /artifacts
+EOF
+
+build_tarfile()
+{
+  workspace="$(mktemp -d)"
+
+  mkdir "${workspace}/influxdb2_${PLAT}_${ARCH}"
+
+  # `failglob` is required because `bin/influxd_${PLAT}_${ARCH}/*` may
+  # not expand. This will prevent the package from being built without
+  # the included binary files. This will also display as an error
+  # from CircleCI interface.
+  shopt -s failglob
+  cp -p LICENSE README.md "bin/influxd_${PLAT}_${ARCH}/"* \
+    "${workspace}/influxdb2_${PLAT}_${ARCH}/"
+
+  pushd "${workspace}"
+
+    # Using `find .. -type f` to supply a list of files to `tar` serves two
+    # purposes. The first being that `tar` wont construct a '.' directory
+    # in the root of the tarfile. The second being that this excludes
+    # empty directories from the tarfile.
+    find "influxdb2_${PLAT}_${ARCH}/" -type f \
+      | tar -czf "/artifacts/influxdb2_${VERSION}_${PLAT}_${ARCH}.tar.gz" -T -
+
+  popd
+}
+
+build_package_linux()
+{
+  if [[ ${PLAT} != linux ]]
+  then
+    return 0
+  fi
+
+  workspace="$(mktemp -d)"
+
+  mkdir -p "${workspace}/fs/usr/bin"
+
+  # (see reasoning above)
+  shopt -s failglob
+  cp -rp .circleci/package/. "${workspace}/"
+  cp -p "bin/influxd_${PLAT}_${ARCH}/"* "${workspace}/fs/usr/bin"
+
+  run_fpm deb
+  run_fpm rpm
+}
+
+sign_artifacts()
+{
+  # If this is not a release version, don't sign the artifacts. This
+  # prevents unathorized PRs and branches from being signed with our
+  # signing key.
+  if [[ ! ${RELEASE:-} ]]
+  then
+    return 0
+  fi
+
+  # CircleCI mangles environment variables with newlines. This key contians
+  # escaped newlines. For `gpg` to import the key, it requires `echo -e` to
+  # expand the escape sequences.
+  gpg --batch --import <<<"$(echo -e "${GPG_PRIVATE_KEY}")"
+
+  # TODO(bnpfeife): replace with code signing server
+  for target in /artifacts/*
+  do
+    gpg                            \
+      --batch                      \
+      --pinentry-mode=loopback     \
+      --passphrase "${PASSPHRASE}" \
+      --detach-sign                \
+      --armor "${target}"
+  done
+}
+
+build_tarfile
+build_package_linux
+sign_artifacts
