@@ -55,7 +55,8 @@ input = "
 "
 
 testcase multi_measure {
-    got = testing.loadStorage(csv: input)
+    got = csv.from(csv: input)
+        |> testing.load()
         |> range(start: 2018-01-01T00:00:00Z, stop: 2019-01-01T00:00:00Z)
         |> filter(fn: (r) => r["_measurement"] == "system" or r["_measurement"] == "sys") 
         |> filter(fn: (r) => r["_field"] == "load1" or r["_field"] == "load3")
@@ -83,7 +84,8 @@ testcase multi_measure {
 }
 
 testcase multi_measure_match_all {
-    got = testing.loadStorage(csv: input)
+    got = csv.from(csv: input)
+        |> testing.load()
         |> range(start: 2018-01-01T00:00:00Z, stop: 2019-01-01T00:00:00Z)
         |> filter(fn: (r) => r["_measurement"] == "system" or r["_measurement"] == "sys" or r["_measurement"] == "var" or r["_measurement"] == "swap") 
         |> filter(fn: (r) => r["_field"] == "load1" or r["_field"] == "load3" or r["_field"] == "load5" or r["_field"] == "used_percent")
@@ -129,7 +131,8 @@ testcase multi_measure_match_all {
 }
 
 testcase multi_measure_tag_filter {
-    got = testing.loadStorage(csv: input)
+    got = csv.from(csv: input)
+        |> testing.load()
         |> range(start: 2018-01-01T00:00:00Z, stop: 2019-01-01T00:00:00Z)
         |> filter(fn: (r) => r["_measurement"] == "system" or r["_measurement"] == "swap")
         |> filter(fn: (r) => r["_field"] == "load1" or r["_field"] == "load3" or r["_field"] == "used_percent")
@@ -158,7 +161,8 @@ testcase multi_measure_tag_filter {
 }
 
 testcase multi_measure_complex_or {
-    got = testing.loadStorage(csv: input)
+    got = csv.from(csv: input)
+        |> testing.load()
         |> range(start: 2018-01-01T00:00:00Z, stop: 2019-01-01T00:00:00Z)
         |> filter(fn: (r) => (r["_measurement"] == "system" or r["_measurement"] == "swap") or (r["_measurement"] != "var" and r["host"] == "host.local")) 
         |> drop(columns: ["_start", "_stop"])
@@ -197,7 +201,8 @@ testcase multi_measure_complex_or {
 }
 
 testcase multi_measure_complex_and {
-    got = testing.loadStorage(csv: input)
+    got = csv.from(csv: input)
+        |> testing.load()
         |> range(start: 2018-01-01T00:00:00Z, stop: 2019-01-01T00:00:00Z)
         |> filter(fn: (r) => r["_measurement"] != "system" or r["_measurement"] == "swap") 
         |> filter(fn: (r) => r["_measurement"] == "swap" or r["_measurement"] == "var") 
@@ -225,7 +230,8 @@ testcase multi_measure_complex_and {
 }
 
 testcase multi_measure_negation {
-    got = testing.loadStorage(csv: input)
+    got = csv.from(csv: input)
+        |> testing.load()
         |> range(start: 2018-01-01T00:00:00Z, stop: 2019-01-01T00:00:00Z)
         |> filter(fn: (r) => r["_measurement"] != "system")
         |> filter(fn: (r) => r["host"] == "host.local" or not exists r["host"])

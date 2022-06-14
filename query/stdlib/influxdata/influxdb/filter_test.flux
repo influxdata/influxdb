@@ -33,7 +33,8 @@ testcase filter {
 ,,0,2018-05-22T19:53:36Z,system,host.local,load1,1.63
 ")
 
-    got = testing.loadStorage(csv: input)
+    got = csv.from(csv: input)
+        |> testing.load()
         |> range(start: -100y)
         |> filter(fn: (r) => r._measurement == "system" and r._field == "load1")
         |> drop(columns: ["_start", "_stop"])
