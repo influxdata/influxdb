@@ -3,11 +3,14 @@ use std::sync::Arc;
 use datafusion::logical_plan::{provider_as_source, ExprRewritable, LogicalPlanBuilder};
 use observability_deps::tracing::trace;
 use predicate::Predicate;
-use schema::Schema;
+use schema::{sort::SortKey, Schema};
 use snafu::{ResultExt, Snafu};
 
 use crate::{
-    exec::IOxSessionContext, provider::ProviderBuilder, util::MissingColumnsToNull, QueryChunk,
+    exec::IOxSessionContext,
+    provider::{ChunkTableProvider, ProviderBuilder},
+    util::MissingColumnsToNull,
+    QueryChunk,
 };
 
 #[derive(Debug, Snafu)]
@@ -40,18 +43,31 @@ pub enum Error {
 
 pub(crate) type Result<T, E = Error> = std::result::Result<T, E>;
 
-pub(crate) struct TableScanAndFilter {
-    /// Represents plan that scans a table and applies optional filtering
+/// Represents scanning one or more [`QueryChunk`]s.
+pub struct ScanPlan {
     pub plan_builder: LogicalPlanBuilder,
-    /// The IOx schema of the result
-    pub schema: Arc<Schema>,
+    pub provider: Arc<ChunkTableProvider>,
 }
 
-/// Create a plan that scans the specified table, and applies any
-/// filtering specified on the predicate, if any.
-///
-/// If the table can produce no rows based on predicate
-/// evaluation, returns Ok(None)
+impl std::fmt::Debug for ScanPlan {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ScanPlan")
+            .field("plan_builder", &"<...>")
+            .field("provider", &self.provider)
+            .finish()
+    }
+}
+
+impl ScanPlan {
+    /// Return the schema of the source (the merged schema across all tables)
+    pub fn schema(&self) -> Arc<Schema> {
+        self.provider.iox_schema()
+    }
+}
+
+/// Builder for [`ScanPlan`]s which scan the data  1 or more [`QueryChunk`] for
+/// IOx's custom query frontends (InfluxRPC and Reorg at the time of
+/// writing).
 ///
 /// The created plan looks like:
 ///
@@ -64,65 +80,141 @@ pub(crate) struct TableScanAndFilter {
 /// based on statistics and will not attempt to prune them
 /// further. Some frontends like influxrpc or the reorg planner manage
 /// (and thus prune) their own chunklist.
-pub(crate) fn scan_and_filter(
-    ctx: IOxSessionContext,
-    table_name: &str,
-    schema: Arc<Schema>,
-    predicate: &Predicate,
+
+#[derive(Debug)]
+pub struct ScanPlanBuilder<'a> {
+    ctx: Option<IOxSessionContext>,
+    table_name: Option<String>,
+    /// The schema of the resulting table (any chunks that don't have
+    /// all the necessary columns will be extended appropriately)
+    table_schema: Arc<Schema>,
     chunks: Vec<Arc<dyn QueryChunk>>,
-) -> Result<Option<TableScanAndFilter>> {
-    // Scan all columns to begin with (DataFusion projection
-    // push-down optimization will prune out unneeded columns later)
-    let projection = None;
+    /// The sort key that describes the desired output sort order
+    sort_key: Option<SortKey>,
+    predicate: Option<&'a Predicate>,
+}
 
-    // Prepare the scan of the table
-    let mut builder = ProviderBuilder::new(table_name, schema)
-        .with_execution_context(ctx.child_ctx("provider_builder"));
+impl<'a> ScanPlanBuilder<'a> {
+    pub fn new(table_schema: Arc<Schema>) -> Self {
+        Self {
+            ctx: None,
+            table_name: None,
+            table_schema,
+            chunks: vec![],
+            sort_key: None,
+            predicate: None,
+        }
+    }
 
-    // No extra pruning (assumes the caller has already done this)
-    builder = builder.add_no_op_pruner();
+    /// Adds `chunks` to the list of Chunks to scan
+    pub fn with_chunks(mut self, chunks: impl IntoIterator<Item = Arc<dyn QueryChunk>>) -> Self {
+        self.chunks.extend(chunks.into_iter());
+        self
+    }
 
-    for chunk in chunks {
-        // check that it is consistent with this table_name
-        assert_eq!(
-            chunk.table_name(),
+    /// Sets the desired output sort key. If the output of this plan
+    /// is not already sorted this way, it will be re-sorted to conform
+    /// to this key
+    pub fn with_sort_key(mut self, sort_key: SortKey) -> Self {
+        assert!(self.sort_key.is_none());
+        self.sort_key = Some(sort_key);
+        self
+    }
+
+    /// Sets the session context (for profiling) if any
+    pub fn with_session_context(mut self, ctx: IOxSessionContext) -> Self {
+        assert!(self.ctx.is_none());
+        self.ctx = Some(ctx);
+        self
+    }
+
+    /// Sets the predicate
+    pub fn with_predicate(mut self, predicate: &'a Predicate) -> Self {
+        assert!(self.predicate.is_none());
+        self.predicate = Some(predicate);
+        self
+    }
+
+    /// Creates a `ScanPlan` from the specified chunks
+    pub fn build(self) -> Result<ScanPlan> {
+        let Self {
+            ctx,
             table_name,
-            "Chunk {} expected table mismatch",
-            chunk.id(),
-        );
+            chunks,
+            sort_key,
+            table_schema,
+            predicate,
+        } = self;
 
-        builder = builder.add_chunk(chunk);
+        assert!(!chunks.is_empty(), "no chunks provided");
+
+        let table_name = table_name.unwrap_or_else(|| chunks[0].table_name().to_string());
+        let table_name = &table_name;
+
+        // Prepare the plan for the table
+        let mut builder = ProviderBuilder::new(table_name, table_schema)
+            // Assumes the caller has picked exactly what chunks they want
+            // so no need to prune them
+            .add_no_op_pruner();
+
+        if let Some(ctx) = ctx {
+            builder = builder.with_execution_context(ctx.child_ctx("provider_builder"));
+        }
+
+        if let Some(sort_key) = sort_key {
+            // Tell the scan of this provider to sort its output on the given sort_key
+            builder = builder.with_sort_key(sort_key);
+        }
+
+        for chunk in chunks {
+            // check that it is consistent with this table_name
+            assert_eq!(
+                chunk.table_name(),
+                table_name,
+                "Chunk {} expected table mismatch",
+                chunk.id(),
+            );
+
+            builder = builder.add_chunk(chunk);
+        }
+
+        let provider = builder
+            .build()
+            .context(CreatingProviderSnafu { table_name })?;
+
+        let provider = Arc::new(provider);
+        let source = provider_as_source(Arc::clone(&provider) as _);
+
+        // Scan all columns (DataFusion optimizer will prune this
+        // later if possible)
+        let projection = None;
+
+        let mut plan_builder =
+            LogicalPlanBuilder::scan(table_name, source, projection).context(BuildingPlanSnafu)?;
+
+        // Use a filter node to add general predicates + timestamp
+        // range, if any
+        if let Some(predicate) = predicate {
+            if let Some(filter_expr) = predicate.filter_expr() {
+                // Rewrite expression so it only refers to columns in this chunk
+                let schema = provider.iox_schema();
+                trace!(%table_name, ?filter_expr, "Adding filter expr");
+                let mut rewriter = MissingColumnsToNull::new(&schema);
+                let filter_expr = filter_expr
+                    .rewrite(&mut rewriter)
+                    .context(RewritingFilterPredicateSnafu { table_name })?;
+
+                trace!(?filter_expr, "Rewritten filter_expr");
+
+                plan_builder = plan_builder
+                    .filter(filter_expr)
+                    .context(BuildingPlanSnafu)?;
+            }
+        }
+
+        Ok(ScanPlan {
+            plan_builder,
+            provider,
+        })
     }
-
-    let provider = builder
-        .build()
-        .context(CreatingProviderSnafu { table_name })?;
-    let schema = provider.iox_schema();
-
-    let source = provider_as_source(Arc::new(provider));
-
-    let mut plan_builder =
-        LogicalPlanBuilder::scan(table_name, source, projection).context(BuildingPlanSnafu)?;
-
-    // Use a filter node to add general predicates + timestamp
-    // range, if any
-    if let Some(filter_expr) = predicate.filter_expr() {
-        // Rewrite expression so it only refers to columns in this chunk
-        trace!(table_name, ?filter_expr, "Adding filter expr");
-        let mut rewriter = MissingColumnsToNull::new(&schema);
-        let filter_expr = filter_expr
-            .rewrite(&mut rewriter)
-            .context(RewritingFilterPredicateSnafu { table_name })?;
-
-        trace!(?filter_expr, "Rewritten filter_expr");
-
-        plan_builder = plan_builder
-            .filter(filter_expr)
-            .context(BuildingPlanSnafu)?;
-    }
-
-    Ok(Some(TableScanAndFilter {
-        plan_builder,
-        schema,
-    }))
 }

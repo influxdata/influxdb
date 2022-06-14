@@ -15,8 +15,7 @@ use datafusion::{
 use generated_types::ingester::IngesterQueryRequest;
 use iox_query::{
     exec::{Executor, ExecutorType},
-    frontend::reorg::ReorgPlanner,
-    QueryChunkMeta,
+    QueryChunk, QueryChunkMeta, ScanPlanBuilder,
 };
 use observability_deps::tracing::debug;
 use predicate::Predicate;
@@ -27,9 +26,9 @@ use std::{collections::BTreeMap, sync::Arc};
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
 pub enum Error {
-    #[snafu(display("Error in ReorgPlanner reorg for querying Ingester data to send to Querier"))]
-    ReorgPlanner {
-        source: iox_query::frontend::reorg::Error,
+    #[snafu(display("Error creating plan for querying Ingester data to send to Querier"))]
+    FrontendError {
+        source: iox_query::frontend::common::Error,
     },
 
     #[snafu(display("Error building logical plan for querying Ingester data to send to Querier"))]
@@ -295,12 +294,30 @@ pub(crate) async fn query(
         expr.push(filter_expr);
     }
 
-    // TODO: Since we have different type of servers (router, ingester, compactor, and querier),
-    // we may want to add more types into the ExecutorType to have better log and resource managment
+    // TODO: Since we have different type of servers (router,
+    // ingester, compactor, and querier), we may want to add more
+    // types into the ExecutorType to have better log and resource
+    // managment
     let ctx = executor.new_context(ExecutorType::Query);
-    let logical_plan = ReorgPlanner::new()
-        .scan_single_chunk_plan_with_filter(data.schema(), data, &predicate)
-        .context(ReorgPlannerSnafu {})?;
+
+    // Creates an execution plan for a scan and filter data of a single chunk
+    let schema = data.schema();
+    let table_name = data.table_name().to_string();
+
+    debug!(%table_name, ?predicate, "Creating single chunk scan plan");
+
+    let logical_plan = ScanPlanBuilder::new(schema)
+        .with_session_context(ctx.child_ctx("scan_and_filter planning"))
+        .with_predicate(&predicate)
+        .with_chunks([data as _])
+        .build()
+        .context(FrontendSnafu)?
+        .plan_builder
+        .build()
+        .context(LogicalPlanSnafu)?;
+
+    debug!(%table_name, plan=%logical_plan.display_indent_schema(),
+           "created single chunk scan plan");
 
     // Now, restrict to all columns that are relevant
     let logical_plan = match selection {

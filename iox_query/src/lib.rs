@@ -33,6 +33,7 @@ pub mod statistics;
 pub mod util;
 
 pub use exec::context::{DEFAULT_CATALOG, DEFAULT_SCHEMA};
+pub use frontend::common::ScanPlanBuilder;
 pub use query_functions::group_by::{Aggregate, WindowDuration};
 
 /// Trait for an object (designed to be a Chunk) which can provide
