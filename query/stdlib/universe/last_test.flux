@@ -46,7 +46,8 @@ testcase last_multi_shard {
 ,,0,2021-01-26T08:00:00Z,-1099,bank,pge_bill
 ",
     )
-    result = testing.loadStorage(csv: input)
+    result = csv.from(csv: input)
+        |> testing.load()
         |> range(start: -3y)
         |> filter(fn: (r) => r._measurement == "pge_bill" and r._field == "bank")
         |> last()
