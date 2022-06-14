@@ -451,7 +451,7 @@ mod tests {
                 if let Some(data) = ingester.ingester.data.sequencer(ingester.sequencer.id) {
                     if let Some(data) = data.namespace(&ingester.namespace.name) {
                         // verify there's data in the buffer
-                        if let Some((b, _)) = data.snapshot("a", "1970-01-01").await {
+                        if let Some((b, _)) = data.snapshot("a", &"1970-01-01".into()).await {
                             if let Some(b) = b.first() {
                                 if b.data.num_rows() > 0 {
                                     has_measurement = true;
@@ -690,7 +690,7 @@ mod tests {
                 if let Some(data) = ingester.data.sequencer(sequencer.id) {
                     if let Some(data) = data.namespace(&namespace.name) {
                         // verify there's data in the buffer
-                        if let Some((b, _)) = data.snapshot("cpu", "1970-01-01").await {
+                        if let Some((b, _)) = data.snapshot("cpu", &"1970-01-01".into()).await {
                             if let Some(b) = b.first() {
                                 custom_batch_verification(b);
 

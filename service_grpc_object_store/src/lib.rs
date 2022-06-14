@@ -136,7 +136,7 @@ mod tests {
                 .unwrap();
             let partition = repos
                 .partitions()
-                .create_or_get("foo", sequencer.id, table.id)
+                .create_or_get(&"foo".into(), sequencer.id, table.id)
                 .await
                 .unwrap();
             let p1params = ParquetFileParams {

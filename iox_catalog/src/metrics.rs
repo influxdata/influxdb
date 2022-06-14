@@ -9,8 +9,8 @@ use async_trait::async_trait;
 use data_types::{
     Column, ColumnType, KafkaPartition, KafkaTopic, KafkaTopicId, Namespace, NamespaceId,
     ParquetFile, ParquetFileId, ParquetFileParams, ParquetFileWithMetadata, Partition, PartitionId,
-    PartitionInfo, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Sequencer,
-    SequencerId, Table, TableId, TablePartition, Timestamp, Tombstone, TombstoneId,
+    PartitionInfo, PartitionKey, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber,
+    Sequencer, SequencerId, Table, TableId, TablePartition, Timestamp, Tombstone, TombstoneId,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use metric::{DurationHistogram, Metric};
@@ -237,7 +237,7 @@ decorate!(
 decorate!(
     impl_trait = PartitionRepo,
     methods = [
-        "partition_create_or_get" = create_or_get(&mut self, key: &str, sequencer_id: SequencerId, table_id: TableId) -> Result<Partition>;
+        "partition_create_or_get" = create_or_get(&mut self, key: &PartitionKey, sequencer_id: SequencerId, table_id: TableId) -> Result<Partition>;
         "partition_get_by_id" = get_by_id(&mut self, partition_id: PartitionId) -> Result<Option<Partition>>;
         "partition_list_by_sequencer" = list_by_sequencer(&mut self, sequencer_id: SequencerId) -> Result<Vec<Partition>>;
         "partition_list_by_namespace" = list_by_namespace(&mut self, namespace_id: NamespaceId) -> Result<Vec<Partition>>;

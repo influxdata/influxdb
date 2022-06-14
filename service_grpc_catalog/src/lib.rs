@@ -106,7 +106,7 @@ fn to_partition(p: data_types::Partition) -> Partition {
     Partition {
         id: p.id.get(),
         sequencer_id: p.sequencer_id.get(),
-        key: p.partition_key,
+        key: p.partition_key.to_string(),
         table_id: p.table_id.get(),
         array_sort_key: p.sort_key,
     }
@@ -157,7 +157,7 @@ mod tests {
                 .unwrap();
             let partition = repos
                 .partitions()
-                .create_or_get("foo", sequencer.id, table.id)
+                .create_or_get(&"foo".into(), sequencer.id, table.id)
                 .await
                 .unwrap();
             let p1params = ParquetFileParams {
@@ -240,12 +240,12 @@ mod tests {
                 .unwrap();
             partition1 = repos
                 .partitions()
-                .create_or_get("foo", sequencer.id, table.id)
+                .create_or_get(&"foo".into(), sequencer.id, table.id)
                 .await
                 .unwrap();
             partition2 = repos
                 .partitions()
-                .create_or_get("bar", sequencer.id, table.id)
+                .create_or_get(&"bar".into(), sequencer.id, table.id)
                 .await
                 .unwrap();
             let sequencer2 = repos
@@ -255,7 +255,7 @@ mod tests {
                 .unwrap();
             partition3 = repos
                 .partitions()
-                .create_or_get("foo", sequencer2.id, table.id)
+                .create_or_get(&"foo".into(), sequencer2.id, table.id)
                 .await
                 .unwrap();
 

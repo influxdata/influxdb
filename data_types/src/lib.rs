@@ -22,7 +22,7 @@ use std::{
     borrow::{Borrow, Cow},
     collections::BTreeMap,
     convert::TryFrom,
-    fmt::Write,
+    fmt::{Display, Write},
     mem::{self, size_of_val},
     num::{FpCategory, NonZeroU32, NonZeroU64},
     ops::{Add, Deref, RangeInclusive, Sub},
@@ -676,6 +676,58 @@ pub struct Sequencer {
     pub min_unpersisted_sequence_number: SequenceNumber,
 }
 
+/// A reference-counted partition key, serialisable to the Postgres VARCHAR data
+/// type.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct PartitionKey(Arc<str>);
+
+impl Display for PartitionKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl From<String> for PartitionKey {
+    fn from(s: String) -> Self {
+        Self(s.into())
+    }
+}
+
+impl From<&str> for PartitionKey {
+    fn from(s: &str) -> Self {
+        Self(s.into())
+    }
+}
+
+impl<DB> sqlx::Type<DB> for PartitionKey
+where
+    DB: sqlx::Database<TypeInfo = sqlx::postgres::PgTypeInfo>,
+{
+    fn type_info() -> DB::TypeInfo {
+        // Store this type as VARCHAR
+        sqlx::postgres::PgTypeInfo::with_name("VARCHAR")
+    }
+}
+
+impl sqlx::Encode<'_, sqlx::Postgres> for PartitionKey {
+    fn encode_by_ref(
+        &self,
+        buf: &mut <sqlx::Postgres as sqlx::database::HasArguments<'_>>::ArgumentBuffer,
+    ) -> sqlx::encode::IsNull {
+        <&str as sqlx::Encode<sqlx::Postgres>>::encode(&self.0, buf)
+    }
+}
+
+impl sqlx::Decode<'_, sqlx::Postgres> for PartitionKey {
+    fn decode(
+        value: <sqlx::Postgres as sqlx::database::HasValueRef<'_>>::ValueRef,
+    ) -> Result<Self, Box<dyn std::error::Error + 'static + Send + Sync>> {
+        Ok(Self(
+            <String as sqlx::Decode<sqlx::Postgres>>::decode(value)?.into(),
+        ))
+    }
+}
+
 /// Data object for a partition. The combination of sequencer, table and key are unique (i.e. only
 /// one record can exist for each combo)
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
@@ -687,7 +739,7 @@ pub struct Partition {
     /// the table the partition is under
     pub table_id: TableId,
     /// the string key of the partition
-    pub partition_key: String,
+    pub partition_key: PartitionKey,
     /// Sort key is a vector of names of all tags and time of the data that belongs to this partition.
     /// Since we allow data in each chunk (aka data in a parquet file) contains different set of columns,
     /// different partitions may contain different set of sort_key but they must be subsets of PK of the table.

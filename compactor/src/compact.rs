@@ -771,7 +771,7 @@ impl Compactor {
                 table_id: iox_metadata.table_id,
                 table_name: Arc::<str>::clone(&iox_metadata.table_name),
                 partition_id: iox_metadata.partition_id,
-                partition_key: Arc::<str>::clone(&iox_metadata.partition_key),
+                partition_key: iox_metadata.partition_key.clone(),
                 min_sequence_number,
                 max_sequence_number,
                 compaction_level: 1, // compacted result file always have level 1
@@ -2590,7 +2590,7 @@ mod tests {
             .unwrap();
         let partition = txn
             .partitions()
-            .create_or_get("one", sequencer.id, table.id)
+            .create_or_get(&"one".into(), sequencer.id, table.id)
             .await
             .unwrap();
 
@@ -2794,7 +2794,7 @@ mod tests {
             .unwrap();
         let partition = txn
             .partitions()
-            .create_or_get("one", sequencer.id, table.id)
+            .create_or_get(&"one".into(), sequencer.id, table.id)
             .await
             .unwrap();
 
@@ -3018,22 +3018,22 @@ mod tests {
             .unwrap();
         let partition = txn
             .partitions()
-            .create_or_get("one", sequencer.id, table.id)
+            .create_or_get(&"one".into(), sequencer.id, table.id)
             .await
             .unwrap();
         let partition2 = txn
             .partitions()
-            .create_or_get("two", sequencer.id, table.id)
+            .create_or_get(&"two".into(), sequencer.id, table.id)
             .await
             .unwrap();
         let partition3 = txn
             .partitions()
-            .create_or_get("three", sequencer.id, table.id)
+            .create_or_get(&"three".into(), sequencer.id, table.id)
             .await
             .unwrap();
         let partition4 = txn
             .partitions()
-            .create_or_get("four", sequencer.id, table.id)
+            .create_or_get(&"four".into(), sequencer.id, table.id)
             .await
             .unwrap();
 

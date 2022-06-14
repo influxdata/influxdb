@@ -346,7 +346,11 @@ impl TestTableBoundSequencer {
 
         let partition = repos
             .partitions()
-            .create_or_get(key, self.sequencer.sequencer.id, self.table.table.id)
+            .create_or_get(
+                &key.into(),
+                self.sequencer.sequencer.id,
+                self.table.table.id,
+            )
             .await
             .unwrap();
 
@@ -369,7 +373,11 @@ impl TestTableBoundSequencer {
 
         let partition = repos
             .partitions()
-            .create_or_get(key, self.sequencer.sequencer.id, self.table.table.id)
+            .create_or_get(
+                &key.into(),
+                self.sequencer.sequencer.id,
+                self.table.table.id,
+            )
             .await
             .unwrap();
 
@@ -543,7 +551,7 @@ impl TestPartition {
             table_id: self.table.table.id,
             table_name: self.table.table.name.clone().into(),
             partition_id: self.partition.id,
-            partition_key: self.partition.partition_key.clone().into(),
+            partition_key: self.partition.partition_key.clone(),
             min_sequence_number,
             max_sequence_number,
             compaction_level: INITIAL_COMPACTION_LEVEL,
