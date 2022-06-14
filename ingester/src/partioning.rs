@@ -1,5 +1,6 @@
 //! Temporary partioning implementation until partitions are properly transmitted by the router.
 use chrono::{format::StrftimeItems, TimeZone, Utc};
+use data_types::PartitionKey;
 use mutable_batch::{column::ColumnData, MutableBatch};
 use schema::TIME_COLUMN_NAME;
 
@@ -11,7 +12,7 @@ pub type PartitionerError = Box<dyn std::error::Error + Send + Sync + 'static>;
 /// This is a temporary solution until the partition keys/IDs are properly transmitted by the router.
 pub trait Partitioner: std::fmt::Debug + Send + Sync + 'static {
     /// Calculate partition key for given mutable batch.
-    fn partition_key(&self, batch: &MutableBatch) -> Result<String, PartitionerError>;
+    fn partition_key(&self, batch: &MutableBatch) -> Result<PartitionKey, PartitionerError>;
 }
 
 /// Default partitioner that matches the current router implementation.
@@ -20,7 +21,7 @@ pub trait Partitioner: std::fmt::Debug + Send + Sync + 'static {
 pub struct DefaultPartitioner {}
 
 impl Partitioner for DefaultPartitioner {
-    fn partition_key(&self, batch: &MutableBatch) -> Result<String, PartitionerError> {
+    fn partition_key(&self, batch: &MutableBatch) -> Result<PartitionKey, PartitionerError> {
         let (_, col) = batch
             .columns()
             .find(|(name, _)| *name == TIME_COLUMN_NAME)
@@ -34,6 +35,7 @@ impl Partitioner for DefaultPartitioner {
             "{}",
             Utc.timestamp_nanos(timestamp)
                 .format_with_items(StrftimeItems::new("%Y-%m-%d"))
-        ))
+        )
+        .into())
     }
 }

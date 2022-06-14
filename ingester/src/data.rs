@@ -10,8 +10,8 @@ use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig};
 use data_types::{
-    DeletePredicate, KafkaPartition, NamespaceId, PartitionId, PartitionInfo, SequenceNumber,
-    SequencerId, TableId, Timestamp, Tombstone,
+    DeletePredicate, KafkaPartition, NamespaceId, PartitionId, PartitionInfo, PartitionKey,
+    SequenceNumber, SequencerId, TableId, Timestamp, Tombstone,
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
 use dml::DmlOperation;
@@ -675,7 +675,7 @@ impl NamespaceData {
     pub async fn snapshot(
         &self,
         table_name: &str,
-        partition_key: &str,
+        partition_key: &PartitionKey,
     ) -> Option<(Vec<Arc<SnapshotBatch>>, Option<Arc<PersistingBatch>>)> {
         if let Some(t) = self.table_data(table_name) {
             let mut t = t.write().await;
@@ -764,7 +764,7 @@ impl NamespaceData {
     async fn mark_persisted(
         &self,
         table_name: &str,
-        partition_key: &str,
+        partition_key: &PartitionKey,
         sequence_number: SequenceNumber,
     ) {
         if let Some(t) = self.table_data(table_name) {
@@ -838,7 +838,7 @@ pub(crate) struct TableData {
     // the max sequence number for a tombstone associated with this table
     tombstone_max_sequence_number: Option<SequenceNumber>,
     // Map pf partition key to its data
-    partition_data: BTreeMap<String, PartitionData>,
+    partition_data: BTreeMap<PartitionKey, PartitionData>,
 }
 
 impl TableData {
@@ -856,7 +856,7 @@ impl TableData {
     pub fn new_for_test(
         table_id: TableId,
         tombstone_max_sequence_number: Option<SequenceNumber>,
-        partitions: BTreeMap<String, PartitionData>,
+        partitions: BTreeMap<PartitionKey, PartitionData>,
     ) -> Self {
         Self {
             table_id,
@@ -979,7 +979,7 @@ impl TableData {
 
     async fn insert_partition(
         &mut self,
-        partition_key: &str,
+        partition_key: &PartitionKey,
         sequencer_id: SequencerId,
         catalog: &dyn Catalog,
     ) -> Result<()> {
@@ -1867,7 +1867,7 @@ mod tests {
             let mem_table = n.table_data("mem").unwrap();
             assert!(n.table_data("cpu").is_some());
             let mem_table = mem_table.write().await;
-            let p = mem_table.partition_data.get("1970-01-01").unwrap();
+            let p = mem_table.partition_data.get(&"1970-01-01".into()).unwrap();
 
             table_id = mem_table.table_id;
             partition_id = p.id;
@@ -2381,12 +2381,12 @@ mod tests {
             .unwrap();
         let partition = repos
             .partitions()
-            .create_or_get("1970-01-01", sequencer.id, table.id)
+            .create_or_get(&"1970-01-01".into(), sequencer.id, table.id)
             .await
             .unwrap();
         let partition2 = repos
             .partitions()
-            .create_or_get("1970-01-02", sequencer.id, table.id)
+            .create_or_get(&"1970-01-02".into(), sequencer.id, table.id)
             .await
             .unwrap();
 
@@ -2454,7 +2454,7 @@ mod tests {
         {
             let table_data = data.table_data("mem").unwrap();
             let table = table_data.read().await;
-            let p = table.partition_data.get("1970-01-01").unwrap();
+            let p = table.partition_data.get(&"1970-01-01".into()).unwrap();
             assert_eq!(
                 p.data.max_persisted_sequence_number,
                 Some(SequenceNumber::new(1))
@@ -2477,7 +2477,7 @@ mod tests {
 
         let table_data = data.table_data("mem").unwrap();
         let table = table_data.read().await;
-        let partition = table.partition_data.get("1970-01-01").unwrap();
+        let partition = table.partition_data.get(&"1970-01-01".into()).unwrap();
         assert_eq!(
             partition.data.buffer.as_ref().unwrap().min_sequence_number,
             SequenceNumber::new(2)

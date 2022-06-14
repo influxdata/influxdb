@@ -314,8 +314,8 @@ mod tests {
         // includes timestamps, etc)
         let slop_budget = 10;
 
-        let single_file_size = 1066;
-        let two_file_size = 2097;
+        let single_file_size = 1079;
+        let two_file_size = 2130;
         assert!(single_file_size < two_file_size);
 
         let cache = make_cache(&catalog);

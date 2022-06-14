@@ -5,8 +5,8 @@ use arrow_util::optimize::{optimize_record_batch, optimize_schema};
 use async_trait::async_trait;
 use backoff::BackoffConfig;
 use data_types::{
-    DeletePredicate, NonEmptyString, PartitionId, Sequence, SequenceNumber, SequencerId,
-    TombstoneId,
+    DeletePredicate, NonEmptyString, PartitionId, PartitionKey, Sequence, SequenceNumber,
+    SequencerId, TombstoneId,
 };
 use datafusion::physical_plan::RecordBatchStream;
 use datafusion_util::MemoryStream;
@@ -912,8 +912,8 @@ impl ConstantPartitioner {
 }
 
 impl Partitioner for ConstantPartitioner {
-    fn partition_key(&self, _batch: &MutableBatch) -> Result<String, PartitionerError> {
-        Ok(self.partition_key.lock().unwrap().clone())
+    fn partition_key(&self, _batch: &MutableBatch) -> Result<PartitionKey, PartitionerError> {
+        Ok(self.partition_key.lock().unwrap().clone().into())
     }
 }
 

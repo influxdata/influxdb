@@ -14,8 +14,8 @@ use async_trait::async_trait;
 use data_types::{
     Column, ColumnId, ColumnType, KafkaPartition, KafkaTopic, KafkaTopicId, Namespace, NamespaceId,
     ParquetFile, ParquetFileId, ParquetFileParams, ParquetFileWithMetadata, Partition, PartitionId,
-    PartitionInfo, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Sequencer,
-    SequencerId, Table, TableId, TablePartition, Timestamp, Tombstone, TombstoneId,
+    PartitionInfo, PartitionKey, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber,
+    Sequencer, SequencerId, Table, TableId, TablePartition, Timestamp, Tombstone, TombstoneId,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::warn;
@@ -671,14 +671,14 @@ impl SequencerRepo for MemTxn {
 impl PartitionRepo for MemTxn {
     async fn create_or_get(
         &mut self,
-        key: &str,
+        key: &PartitionKey,
         sequencer_id: SequencerId,
         table_id: TableId,
     ) -> Result<Partition> {
         let stage = self.stage();
 
         let partition = match stage.partitions.iter().find(|p| {
-            p.partition_key == key && p.sequencer_id == sequencer_id && p.table_id == table_id
+            p.partition_key == *key && p.sequencer_id == sequencer_id && p.table_id == table_id
         }) {
             Some(p) => p,
             None => {
@@ -686,7 +686,7 @@ impl PartitionRepo for MemTxn {
                     id: PartitionId::new(stage.partitions.len() as i64 + 1),
                     sequencer_id,
                     table_id,
-                    partition_key: key.to_string(),
+                    partition_key: key.clone(),
                     sort_key: vec![],
                 };
                 stage.partitions.push(p);

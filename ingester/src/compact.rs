@@ -104,7 +104,7 @@ pub async fn compact_persisting_batch(
         table_id: batch.table_id,
         table_name: Arc::from(table_name.as_str()),
         partition_id: batch.partition_id,
-        partition_key: Arc::from(partition_key.as_str()),
+        partition_key: partition_key.clone(),
         min_sequence_number: min_seq,
         max_sequence_number: max_seq,
         compaction_level: INITIAL_COMPACTION_LEVEL,

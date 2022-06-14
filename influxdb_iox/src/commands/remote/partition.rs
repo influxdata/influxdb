@@ -316,7 +316,7 @@ async fn load_partition(
         .expect("table should have been loaded");
     let partition = repos
         .partitions()
-        .create_or_get(&remote_partition.key, sequencer.id, table.id)
+        .create_or_get(&remote_partition.key.clone().into(), sequencer.id, table.id)
         .await?;
 
     Ok(PartitionMapping {
@@ -538,7 +538,7 @@ mod tests {
                 .unwrap();
             partition = repos
                 .partitions()
-                .create_or_get("1970-01-01", sequencer.id, table.id)
+                .create_or_get(&"1970-01-01".into(), sequencer.id, table.id)
                 .await
                 .unwrap();
         }
