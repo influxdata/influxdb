@@ -69,6 +69,28 @@ func (d *databaseState) removeIndexType(indexType string) {
 // hasMultipleIndexTypes returns true if the database has multiple index types.
 func (d *databaseState) hasMultipleIndexTypes() bool { return d != nil && len(d.indexTypes) > 1 }
 
+type shardErrorMap struct {
+	mu          sync.Mutex
+	shardErrors map[uint64]error
+}
+
+func (se *shardErrorMap) setShardOpenError(shardID uint64, err error) {
+	se.mu.Lock()
+	defer se.mu.Unlock()
+	if err == nil {
+		delete(se.shardErrors, shardID)
+	} else {
+		se.shardErrors[shardID] = &ErrPreviousShardFail{error: fmt.Errorf("opening shard previously failed with: %w", err)}
+	}
+}
+
+func (se *shardErrorMap) shardError(shardID uint64) (error, bool) {
+	se.mu.Lock()
+	defer se.mu.Unlock()
+	oldErr, hasErr := se.shardErrors[shardID]
+	return oldErr, hasErr
+}
+
 // Store manages shards and indexes for databases.
 type Store struct {
 	mu                sync.RWMutex
@@ -81,6 +103,9 @@ type Store struct {
 	// Maintains a set of shards that are in the process of deletion.
 	// This prevents new shards from being created while old ones are being deleted.
 	pendingShardDeletes map[uint64]struct{}
+
+	// Maintains a set of shards that failed to open
+	badShards shardErrorMap
 
 	// Epoch tracker helps serialize writes and deletes that may conflict. It
 	// is stored by shard.
@@ -104,6 +129,7 @@ func NewStore(path string) *Store {
 		path:                path,
 		sfiles:              make(map[string]*SeriesFile),
 		pendingShardDeletes: make(map[uint64]struct{}),
+		badShards:           shardErrorMap{shardErrors: make(map[uint64]error)},
 		epochs:              make(map[uint64]*epochTracker),
 		EngineOptions:       NewEngineOptions(),
 		Logger:              zap.NewNop(),
@@ -416,7 +442,7 @@ func (s *Store) loadShards(ctx context.Context) error {
 					shard.CompactionDisabled = s.EngineOptions.CompactionDisabled
 					shard.WithLogger(s.baseLogger)
 
-					err = shard.Open(ctx)
+					err = s.OpenShard(ctx, shard, false)
 					if err != nil {
 						log.Error("Failed to open shard", logger.Shard(shardID), zap.Error(err))
 						resC <- &res{err: fmt.Errorf("failed to open shard: %d: %s", shardID, err)}
@@ -555,6 +581,42 @@ func (s *Store) Shard(id uint64) *Shard {
 	return sh
 }
 
+type ErrPreviousShardFail struct {
+	error
+}
+
+func (e ErrPreviousShardFail) Unwrap() error {
+	return e.error
+}
+
+func (e ErrPreviousShardFail) Is(err error) bool {
+	_, sOk := err.(ErrPreviousShardFail)
+	_, pOk := err.(*ErrPreviousShardFail)
+	return sOk || pOk
+}
+
+func (e ErrPreviousShardFail) Error() string {
+	return e.error.Error()
+}
+
+func (s *Store) OpenShard(ctx context.Context, sh *Shard, force bool) error {
+	if sh == nil {
+		return errors.New("cannot open nil shard")
+	}
+	oldErr, bad := s.badShards.shardError(sh.ID())
+	if force || !bad {
+		err := sh.Open(ctx)
+		s.badShards.setShardOpenError(sh.ID(), err)
+		return err
+	} else {
+		return oldErr
+	}
+}
+
+func (s *Store) SetShardOpenErrorForTest(shardID uint64, err error) {
+	s.badShards.setShardOpenError(shardID, err)
+}
+
 // Shards returns a list of shards by id.
 func (s *Store) Shards(ids []uint64) []*Shard {
 	s.mu.RLock()
@@ -641,7 +703,7 @@ func (s *Store) CreateShard(ctx context.Context, database, retentionPolicy strin
 	shard.WithLogger(s.baseLogger)
 	shard.EnableOnOpen = enabled
 
-	if err := shard.Open(ctx); err != nil {
+	if err := s.OpenShard(ctx, shard, false); err != nil {
 		return err
 	}
 
