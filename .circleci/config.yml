@@ -602,7 +602,17 @@ jobs:
               fi
               sleep 1
             done
-      - run: docker run --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project/results:/grace/test-results/grace-results quay.io/influxdb/grace:daily
+      - run:
+          name: Run grace test driver
+          command: |
+            docker run -v ~/project/results:/grace/test-results/grace-results \
+              --env GRACE_BASE_URL="http://172.17.0.1:8086" \
+              --env GRACE_ORG_NAME="daily-org" \
+              --env GRACE_BUCKET_NAME="daily-bucket" \
+              --env GRACE_USER="daily@influxdata.com" \
+              --env GRACE_PASS="dailyPassword" \
+              --env GRACE_VALIDATE_OPENAPI=1 \
+              quay.io/influxdb/grace:latest-cd
       - store_artifacts:
           path: ~/project/results
       - store_test_results:
