@@ -2,8 +2,9 @@ package transport
 
 import (
 	"context"
-	"github.com/influxdata/influxdb/v2/kv"
 	"net/http"
+
+	"github.com/influxdata/influxdb/v2/kv"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
