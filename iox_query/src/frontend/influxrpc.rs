@@ -305,9 +305,8 @@ impl InfluxRpcPlanner {
                     .table_schema(table_name)
                     .context(TableRemovedSnafu { table_name })?;
 
-                if let Some(plan) = self.table_name_plan(table_name, schema, predicate, chunks)? {
-                    builder = builder.append_other(plan.into());
-                }
+                let plan = self.table_name_plan(table_name, schema, predicate, chunks)?;
+                builder = builder.append_other(plan.into());
             }
         }
 
@@ -672,14 +671,14 @@ impl InfluxRpcPlanner {
                 .table_schema(table_name)
                 .context(TableRemovedSnafu { table_name })?;
 
-            if let Some(plan) = self.field_columns_plan(
+            let plan = self.field_columns_plan(
                 ctx.child_ctx("field_columns plan"),
                 schema,
                 predicate,
                 chunks,
-            )? {
-                field_list_plan = field_list_plan.append(plan);
-            }
+            )?;
+
+            field_list_plan = field_list_plan.append(plan);
         }
 
         Ok(field_list_plan)
@@ -737,10 +736,7 @@ impl InfluxRpcPlanner {
                 predicate,
                 chunks,
             )?;
-            // If we have to do real work, add it to the list of plans
-            if let Some(ss_plan) = ss_plan {
-                ss_plans.push(ss_plan);
-            }
+            ss_plans.push(ss_plan);
         }
 
         Ok(SeriesSetPlans::new(ss_plans))
@@ -813,11 +809,7 @@ impl InfluxRpcPlanner {
                     chunks,
                 )?,
             };
-
-            // If we have to do real work, add it to the list of plans
-            if let Some(ss_plan) = ss_plan {
-                ss_plans.push(ss_plan);
-            }
+            ss_plans.push(ss_plan);
         }
 
         let plan = SeriesSetPlans::new(ss_plans);
@@ -881,11 +873,7 @@ impl InfluxRpcPlanner {
                 offset,
                 chunks,
             )?;
-
-            // If we have to do real work, add it to the list of plans
-            if let Some(ss_plan) = ss_plan {
-                ss_plans.push(ss_plan);
-            }
+            ss_plans.push(ss_plan);
         }
 
         Ok(SeriesSetPlans::new(ss_plans))
@@ -971,7 +959,7 @@ impl InfluxRpcPlanner {
         schema: Arc<Schema>,
         predicate: &Predicate,
         chunks: Vec<Arc<dyn QueryChunk>>,
-    ) -> Result<Option<LogicalPlan>> {
+    ) -> Result<LogicalPlan> {
         let scan_and_filter = ScanPlanBuilder::new(schema)
             .with_session_context(ctx.child_ctx("scan_and_filter planning"))
             .with_predicate(predicate)
@@ -997,7 +985,7 @@ impl InfluxRpcPlanner {
             .build()
             .context(BuildingPlanSnafu)?;
 
-        Ok(Some(plan))
+        Ok(plan)
     }
 
     /// Creates a DataFusion LogicalPlan that returns the values in
@@ -1025,7 +1013,7 @@ impl InfluxRpcPlanner {
         schema: Arc<Schema>,
         predicate: &Predicate,
         chunks: Vec<Arc<dyn QueryChunk>>,
-    ) -> Result<Option<LogicalPlan>> {
+    ) -> Result<LogicalPlan> {
         debug!(%table_name, "Creating table_name full plan");
         let scan_and_filter = ScanPlanBuilder::new(schema)
             .with_session_context(self.ctx.child_ctx("scan_and_filter planning"))
@@ -1048,7 +1036,7 @@ impl InfluxRpcPlanner {
         // Add the final node that outputs the table name or not, depending
         let plan = make_non_null_checker(table_name, plan);
 
-        Ok(Some(plan))
+        Ok(plan)
     }
 
     /// Creates a plan for computing series sets for a given table,
@@ -1068,7 +1056,7 @@ impl InfluxRpcPlanner {
         schema: Arc<Schema>,
         predicate: &Predicate,
         chunks: Vec<Arc<dyn QueryChunk>>,
-    ) -> Result<Option<SeriesSetPlan>> {
+    ) -> Result<SeriesSetPlan> {
         let table_name = table_name.as_ref();
         let scan_and_filter = ScanPlanBuilder::new(schema)
             .with_session_context(ctx.child_ctx("scan_and_filter planning"))
@@ -1124,7 +1112,7 @@ impl InfluxRpcPlanner {
             field_columns,
         );
 
-        Ok(Some(ss_plan))
+        Ok(ss_plan)
     }
 
     /// Creates a GroupedSeriesSet plan that produces an output table
@@ -1175,7 +1163,7 @@ impl InfluxRpcPlanner {
         predicate: &Predicate,
         agg: Aggregate,
         chunks: Vec<Arc<dyn QueryChunk>>,
-    ) -> Result<Option<SeriesSetPlan>> {
+    ) -> Result<SeriesSetPlan> {
         let scan_and_filter = ScanPlanBuilder::new(schema)
             .with_session_context(ctx.child_ctx("scan_and_filter planning"))
             .with_predicate(predicate)
@@ -1242,7 +1230,7 @@ impl InfluxRpcPlanner {
             field_columns,
         );
 
-        Ok(Some(ss_plan))
+        Ok(ss_plan)
     }
 
     /// Creates a SeriesSetPlan that produces an output table with rows
@@ -1284,7 +1272,7 @@ impl InfluxRpcPlanner {
         every: WindowDuration,
         offset: WindowDuration,
         chunks: Vec<Arc<dyn QueryChunk>>,
-    ) -> Result<Option<SeriesSetPlan>> {
+    ) -> Result<SeriesSetPlan> {
         let table_name = table_name.into();
         let scan_and_filter = ScanPlanBuilder::new(schema)
             .with_session_context(ctx.child_ctx("scan_and_filter planning"))
@@ -1330,12 +1318,12 @@ impl InfluxRpcPlanner {
             .map(|field| Arc::from(field.name().as_str()))
             .collect();
 
-        Ok(Some(SeriesSetPlan::new(
+        Ok(SeriesSetPlan::new(
             Arc::from(table_name),
             plan,
             tag_columns,
             field_columns,
-        )))
+        ))
     }
 }
 
