@@ -216,7 +216,7 @@ mod tests {
     fn lp_to_writes(lp: &str) -> Partitioned<HashMap<String, MutableBatch>> {
         let (writes, _) = mutable_batch_lp::lines_to_batches_stats(lp, 42)
             .expect("failed to build test writes from LP");
-        Partitioned::new("key".to_owned(), writes)
+        Partitioned::new("key".into(), writes)
     }
 
     // Init a mock write buffer with the given number of sequencers.

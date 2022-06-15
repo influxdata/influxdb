@@ -134,7 +134,7 @@ fn test_encode_decode_null_columns_issue_4272() {
     // Round-trip the "1970-01-01" partition
     let mut got = MutableBatch::default();
     partitions
-        .remove("1970-01-01")
+        .remove(&"1970-01-01".into())
         .expect("partition not found")
         .write_to_batch(&mut got)
         .expect("should write");
@@ -156,7 +156,7 @@ fn test_encode_decode_null_columns_issue_4272() {
     // And finally assert the "1970-07-05" round-trip
     let mut got = MutableBatch::default();
     partitions
-        .remove("1970-07-05")
+        .remove(&"1970-07-05".into())
         .expect("partition not found")
         .write_to_batch(&mut got)
         .expect("should write");
