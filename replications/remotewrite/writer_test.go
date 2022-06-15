@@ -194,10 +194,6 @@ func TestWrite(t *testing.T) {
 		require.Equal(t, invalidResponseCode(http.StatusBadRequest), actualErr)
 	})
 
-	t.Run("", func(t *testing.T) {
-
-	})
-
 	t.Run("uses wait time from response header if present", func(t *testing.T) {
 		numSeconds := 5
 		waitTimeFromHeader := 5 * time.Second
