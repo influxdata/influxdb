@@ -318,7 +318,7 @@ jobs:
   # Build a dev binary.
   #
   # Compiles a binary with the default ("dev") cargo profile from the iox source
-  # using the latest ci_image.
+  # using the latest ci_image and ensures various targets compile successfully
   build_dev:
     docker:
       - image: quay.io/influxdb/rust:ci
@@ -342,11 +342,15 @@ jobs:
           name: Cargo build
           command: cargo build --workspace
       - run:
-          name: Build benches
-          command: cargo test --workspace --benches --no-run
+          name: Check benches compile
+          command: cargo check --workspace --benches
       - run:
-          name: Build with object store + exporter support + HEAP profiling
-          command: cargo build --no-default-features --features="aws,gcp,azure,heappy,pprof"
+          name: Check object store + exporter support + HEAP profiling compiles
+          command: cargo check --no-default-features --features="aws,gcp,azure,heappy,pprof"
+      - run:
+          # Validate that the data generator compiles (in the same way as it does in release builds)
+          name: Check iox_data_generator compiles
+          command: cargo check  --package="iox_data_generator"  --no-default-features
       - cache_save
 
   # Lint protobufs.
