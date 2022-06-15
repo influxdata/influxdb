@@ -32,6 +32,7 @@ test.key
 /fluxd
 /transpilerd
 /bin
+/internal/cmd/kvmigrate/kvmigrate
 
 # Project tools that you might install with go build.
 /editorconfig-checker

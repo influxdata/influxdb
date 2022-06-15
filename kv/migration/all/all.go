@@ -45,5 +45,7 @@ var Migrations = [...]migration.Spec{
 	Migration0018_RepairMissingShardGroupDurations,
 	// add remotes and replications resource types to operator and all-access tokens
 	Migration0019_AddRemotesReplicationsToTokens,
+	// add_remotes_replications_metrics_buckets
+	Migration0020_Add_remotes_replications_metrics_buckets,
 	// {{ do_not_edit . }}
 }

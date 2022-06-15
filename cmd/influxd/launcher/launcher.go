@@ -367,7 +367,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 
 	replicationSvc, replicationsMetrics := replications.NewService(m.sqlStore, ts, pointsWriter, m.log.With(zap.String("service", "replications")), opts.EnginePath)
 	replicationServer := replicationTransport.NewInstrumentedReplicationHandler(
-		m.log.With(zap.String("handler", "replications")), m.reg, replicationSvc)
+		m.log.With(zap.String("handler", "replications")), m.reg, m.kvStore, replicationSvc)
 	ts.BucketService = replications.NewBucketService(
 		m.log.With(zap.String("service", "replication_buckets")), ts.BucketService, replicationSvc)
 
