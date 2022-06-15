@@ -1,21 +1,22 @@
 //! Implementation of command line option for running the querier
 
-use clap_blocks::querier::QuerierConfig;
+use super::main;
+use clap_blocks::{
+    catalog_dsn::CatalogDsnConfig, object_store::make_object_store, querier::QuerierConfig,
+    run_config::RunConfig,
+};
 use iox_query::exec::Executor;
 use iox_time::{SystemProvider, TimeProvider};
+use ioxd_common::{
+    server_type::{CommonServerState, CommonServerStateError},
+    Service,
+};
+use ioxd_querier::{create_querier_server_type, QuerierServerTypeArgs};
 use object_store::DynObjectStore;
 use object_store_metrics::ObjectStoreMetrics;
 use observability_deps::tracing::*;
 use std::sync::Arc;
 use thiserror::Error;
-
-use clap_blocks::object_store::make_object_store;
-use clap_blocks::{catalog_dsn::CatalogDsnConfig, run_config::RunConfig};
-use ioxd_common::server_type::{CommonServerState, CommonServerStateError};
-use ioxd_common::Service;
-use ioxd_querier::{create_querier_server_type, QuerierServerTypeArgs};
-
-use super::main;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -36,6 +37,9 @@ pub enum Error {
 
     #[error("Cannot parse object store config: {0}")]
     ObjectStoreParsing(#[from] clap_blocks::object_store::ParseError),
+
+    #[error("Querier error: {0}")]
+    Querier(#[from] ioxd_querier::Error),
 }
 
 #[derive(Debug, clap::Parser)]
@@ -87,27 +91,25 @@ pub async fn command(config: Config) -> Result<(), Error> {
     let time_provider = Arc::new(SystemProvider::new());
 
     let num_query_threads = config.querier_config.num_query_threads();
-    let ingester_addresses = config.querier_config.ingester_addresses()?;
-
     let num_threads = num_query_threads.unwrap_or_else(num_cpus::get);
     info!(%num_threads, "using specified number of threads per thread pool");
+
+    let ingester_addresses = config.querier_config.ingester_addresses()?;
     info!(?ingester_addresses, "using ingester addresses");
 
     let exec = Arc::new(Executor::new(num_threads));
-    let ram_pool_bytes = config.querier_config.ram_pool_bytes();
-    let max_concurrent_queries = config.querier_config.max_concurrent_queries();
+
     let server_type = create_querier_server_type(QuerierServerTypeArgs {
         common_state: &common_state,
         metric_registry: Arc::clone(&metric_registry),
         catalog,
         object_store,
-        time_provider,
         exec,
+        time_provider,
         ingester_addresses,
-        ram_pool_bytes,
-        max_concurrent_queries,
+        querier_config: config.querier_config,
     })
-    .await;
+    .await?;
 
     info!("starting querier");
 

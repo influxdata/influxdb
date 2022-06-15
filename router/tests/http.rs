@@ -15,8 +15,8 @@ use router::{
     namespace_cache::{MemoryNamespaceCache, ShardedCache},
     sequencer::Sequencer,
     server::http::HttpDelegate,
-    sharder::JumpHash,
 };
+use sharder::JumpHash;
 use std::{collections::BTreeSet, iter, string::String, sync::Arc};
 use write_buffer::{
     core::WriteBufferWriting,
@@ -83,17 +83,22 @@ impl TestContext {
 
         let shards: BTreeSet<_> = write_buffer.sequencer_ids();
         let sharded_write_buffer = ShardedWriteBuffer::new(
-            shards
-                .into_iter()
-                .map(|id| Sequencer::new(id as _, Arc::clone(&write_buffer), &metrics))
-                .map(Arc::new)
-                .collect::<JumpHash<_>>(),
+            JumpHash::new(
+                shards
+                    .into_iter()
+                    .map(|id| Sequencer::new(id as _, Arc::clone(&write_buffer), &metrics))
+                    .map(Arc::new),
+            )
+            .unwrap(),
         );
 
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
-        let ns_cache = Arc::new(ShardedCache::new(
-            iter::repeat_with(|| Arc::new(MemoryNamespaceCache::default())).take(10),
-        ));
+        let ns_cache = Arc::new(
+            ShardedCache::new(
+                iter::repeat_with(|| Arc::new(MemoryNamespaceCache::default())).take(10),
+            )
+            .unwrap(),
+        );
 
         let ns_creator = NamespaceAutocreation::new(
             Arc::clone(&catalog),

@@ -1,6 +1,6 @@
 use super::NamespaceCache;
-use crate::sharder::JumpHash;
 use data_types::{DatabaseName, NamespaceSchema};
+use sharder::JumpHash;
 use std::sync::Arc;
 
 /// A decorator sharding the [`NamespaceCache`] keyspace into a set of `T`.
@@ -12,10 +12,10 @@ pub struct ShardedCache<T> {
 impl<T> ShardedCache<T> {
     /// initialise a [`ShardedCache`] splitting the keyspace over the given
     /// instances of `T`.
-    pub fn new(shards: impl IntoIterator<Item = T>) -> Self {
-        Self {
-            shards: JumpHash::new(shards),
-        }
+    pub fn new(shards: impl IntoIterator<Item = T>) -> Result<Self, sharder::Error> {
+        Ok(Self {
+            shards: JumpHash::new(shards)?,
+        })
     }
 }
 
@@ -71,9 +71,12 @@ mod tests {
         // The number of shards to hash into.
         const SHARDS: usize = 10;
 
-        let cache = Arc::new(ShardedCache::new(
-            iter::repeat_with(|| Arc::new(MemoryNamespaceCache::default())).take(SHARDS),
-        ));
+        let cache = Arc::new(
+            ShardedCache::new(
+                iter::repeat_with(|| Arc::new(MemoryNamespaceCache::default())).take(SHARDS),
+            )
+            .unwrap(),
+        );
 
         // Build a set of namespace -> unique integer to validate the shard
         // mapping later.

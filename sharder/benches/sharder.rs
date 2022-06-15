@@ -6,7 +6,7 @@ use criterion::{
 use data_types::DatabaseName;
 use mutable_batch::MutableBatch;
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
-use router::sharder::{JumpHash, Sharder};
+use sharder::{JumpHash, Sharder};
 
 fn get_random_string(length: usize) -> String {
     thread_rng()
@@ -86,7 +86,7 @@ fn benchmark_sharder(
     table: &str,
     namespace: &DatabaseName<'_>,
 ) {
-    let hasher = JumpHash::new((0..num_buckets).map(Arc::new));
+    let hasher = JumpHash::new((0..num_buckets).map(Arc::new)).unwrap();
     let batch = MutableBatch::default();
 
     group.throughput(Throughput::Elements(1));

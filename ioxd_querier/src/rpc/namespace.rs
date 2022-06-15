@@ -53,16 +53,18 @@ impl proto::namespace_service_server::NamespaceService for NamespaceServiceImpl 
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use generated_types::influxdata::iox::namespace::v1::namespace_service_server::NamespaceService;
     use iox_tests::util::TestCatalog;
     use parquet_file::storage::ParquetStorage;
     use querier::{create_ingester_connection_for_testing, QuerierCatalogCache};
 
-    use super::*;
-
     #[tokio::test]
     async fn test_get_namespaces_empty() {
         let catalog = TestCatalog::new();
+
+        // QuerierDatabase::new returns an error if there are no sequencers in the catalog
+        catalog.create_sequencer(0).await;
 
         let catalog_cache = Arc::new(QuerierCatalogCache::new(
             catalog.catalog(),
@@ -70,14 +72,18 @@ mod tests {
             catalog.metric_registry(),
             usize::MAX,
         ));
-        let db = Arc::new(QuerierDatabase::new(
-            catalog_cache,
-            catalog.metric_registry(),
-            ParquetStorage::new(catalog.object_store()),
-            catalog.exec(),
-            create_ingester_connection_for_testing(),
-            QuerierDatabase::MAX_CONCURRENT_QUERIES_MAX,
-        ));
+        let db = Arc::new(
+            QuerierDatabase::new(
+                catalog_cache,
+                catalog.metric_registry(),
+                ParquetStorage::new(catalog.object_store()),
+                catalog.exec(),
+                create_ingester_connection_for_testing(),
+                QuerierDatabase::MAX_CONCURRENT_QUERIES_MAX,
+            )
+            .await
+            .unwrap(),
+        );
 
         let service = NamespaceServiceImpl::new(db);
 
@@ -92,20 +98,27 @@ mod tests {
     async fn test_get_namespaces() {
         let catalog = TestCatalog::new();
 
+        // QuerierDatabase::new returns an error if there are no sequencers in the catalog
+        catalog.create_sequencer(0).await;
+
         let catalog_cache = Arc::new(QuerierCatalogCache::new(
             catalog.catalog(),
             catalog.time_provider(),
             catalog.metric_registry(),
             usize::MAX,
         ));
-        let db = Arc::new(QuerierDatabase::new(
-            catalog_cache,
-            catalog.metric_registry(),
-            ParquetStorage::new(catalog.object_store()),
-            catalog.exec(),
-            create_ingester_connection_for_testing(),
-            QuerierDatabase::MAX_CONCURRENT_QUERIES_MAX,
-        ));
+        let db = Arc::new(
+            QuerierDatabase::new(
+                catalog_cache,
+                catalog.metric_registry(),
+                ParquetStorage::new(catalog.object_store()),
+                catalog.exec(),
+                create_ingester_connection_for_testing(),
+                QuerierDatabase::MAX_CONCURRENT_QUERIES_MAX,
+            )
+            .await
+            .unwrap(),
+        );
 
         let service = NamespaceServiceImpl::new(db);
         catalog.create_namespace("namespace2").await;

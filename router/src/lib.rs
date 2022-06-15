@@ -9,7 +9,6 @@
 //!     * Deriving the partition key of each DML operation.
 //!     * Applying sharding logic.
 //!     * Push resulting operations into the appropriate kafka topics.
-//!
 
 #![deny(
     rustdoc::broken_intra_doc_links,
@@ -30,4 +29,3 @@ pub mod dml_handlers;
 pub mod namespace_cache;
 pub mod sequencer;
 pub mod server;
-pub mod sharder;

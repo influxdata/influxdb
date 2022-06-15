@@ -60,6 +60,7 @@ members = [
     "service_grpc_catalog",
     "service_grpc_schema",
     "service_grpc_testing",
+    "sharder",
     "sqlx-hotswap-pool",
     "test_helpers",
     "test_helpers_end_to_end",

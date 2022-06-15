@@ -91,7 +91,26 @@ impl TestCatalog {
         Arc::clone(&self.exec)
     }
 
-    /// Create a namesapce in teh catalog
+    /// Create a sequencer in the catalog
+    pub async fn create_sequencer(self: &Arc<Self>, sequencer: i32) -> Arc<Sequencer> {
+        let mut repos = self.catalog.repositories().await;
+
+        let kafka_topic = repos
+            .kafka_topics()
+            .create_or_get("kafka_topic")
+            .await
+            .unwrap();
+        let kafka_partition = KafkaPartition::new(sequencer);
+        Arc::new(
+            repos
+                .sequencers()
+                .create_or_get(&kafka_topic, kafka_partition)
+                .await
+                .unwrap(),
+        )
+    }
+
+    /// Create a namesapce in the catalog
     pub async fn create_namespace(self: &Arc<Self>, name: &str) -> Arc<TestNamespace> {
         let mut repos = self.catalog.repositories().await;
 

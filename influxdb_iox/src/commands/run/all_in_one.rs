@@ -1,11 +1,14 @@
 //! Implementation of command line option for running all in one mode
 
 use super::main;
-use clap_blocks::object_store::make_object_store;
-use clap_blocks::querier::QuerierConfig;
 use clap_blocks::{
-    catalog_dsn::CatalogDsnConfig, compactor::CompactorConfig, ingester::IngesterConfig,
-    object_store::ObjectStoreConfig, run_config::RunConfig, socket_addr::SocketAddr,
+    catalog_dsn::CatalogDsnConfig,
+    compactor::CompactorConfig,
+    ingester::IngesterConfig,
+    object_store::{make_object_store, ObjectStoreConfig},
+    querier::QuerierConfig,
+    run_config::RunConfig,
+    socket_addr::SocketAddr,
     write_buffer::WriteBufferConfig,
 };
 use iox_query::exec::Executor;
@@ -65,6 +68,9 @@ pub enum Error {
 
     #[error("error initializing compactor: {0}")]
     Compactor(#[from] ioxd_compactor::Error),
+
+    #[error("Querier error: {0}")]
+    Querier(#[from] ioxd_querier::Error),
 
     #[error("Invalid config: {0}")]
     InvalidConfig(#[from] CommonServerStateError),
@@ -515,13 +521,12 @@ pub async fn command(config: Config) -> Result<()> {
         metric_registry: Arc::clone(&metrics),
         catalog,
         object_store,
-        time_provider,
         exec,
+        time_provider,
         ingester_addresses,
-        ram_pool_bytes: querier_config.ram_pool_bytes(),
-        max_concurrent_queries: querier_config.max_concurrent_queries(),
+        querier_config,
     })
-    .await;
+    .await?;
 
     info!("starting all in one server");
 

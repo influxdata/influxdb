@@ -128,21 +128,19 @@ impl Drop for QuerierHandlerImpl {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
-
+    use super::*;
+    use crate::{cache::CatalogCache, create_ingester_connection_for_testing};
+    use data_types::KafkaPartition;
     use iox_catalog::mem::MemCatalog;
     use iox_query::exec::Executor;
     use iox_time::{MockProvider, Time};
     use object_store::memory::InMemory;
     use parquet_file::storage::ParquetStorage;
-
-    use crate::{cache::CatalogCache, create_ingester_connection_for_testing};
-
-    use super::*;
+    use std::time::Duration;
 
     #[tokio::test]
     async fn test_shutdown() {
-        let querier = TestQuerier::new().querier;
+        let querier = TestQuerier::new().await.querier;
 
         // does not exit w/o shutdown
         tokio::select! {
@@ -162,7 +160,7 @@ mod tests {
     }
 
     impl TestQuerier {
-        fn new() -> Self {
+        async fn new() -> Self {
             let metric_registry = Arc::new(metric::Registry::new());
             let catalog = Arc::new(MemCatalog::new(Arc::clone(&metric_registry))) as _;
             let object_store = Arc::new(InMemory::new());
@@ -174,14 +172,35 @@ mod tests {
                 Arc::clone(&metric_registry),
                 usize::MAX,
             ));
-            let database = Arc::new(QuerierDatabase::new(
-                catalog_cache,
-                metric_registry,
-                ParquetStorage::new(object_store),
-                exec,
-                create_ingester_connection_for_testing(),
-                QuerierDatabase::MAX_CONCURRENT_QUERIES_MAX,
-            ));
+            // QuerierDatabase::new returns an error if there are no sequencers in the catalog
+            {
+                let mut repos = catalog.repositories().await;
+
+                let kafka_topic = repos
+                    .kafka_topics()
+                    .create_or_get("kafka_topic")
+                    .await
+                    .unwrap();
+                let kafka_partition = KafkaPartition::new(0);
+                repos
+                    .sequencers()
+                    .create_or_get(&kafka_topic, kafka_partition)
+                    .await
+                    .unwrap();
+            }
+
+            let database = Arc::new(
+                QuerierDatabase::new(
+                    catalog_cache,
+                    metric_registry,
+                    ParquetStorage::new(object_store),
+                    exec,
+                    create_ingester_connection_for_testing(),
+                    QuerierDatabase::MAX_CONCURRENT_QUERIES_MAX,
+                )
+                .await
+                .unwrap(),
+            );
             let querier = QuerierHandlerImpl::new(catalog, database);
 
             Self { querier }

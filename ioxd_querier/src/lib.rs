@@ -1,22 +1,9 @@
-use std::{
-    fmt::{Debug, Display},
-    sync::Arc,
-};
-
 use async_trait::async_trait;
+use clap_blocks::querier::QuerierConfig;
 use hyper::{Body, Request, Response};
 use iox_catalog::interface::Catalog;
 use iox_query::exec::Executor;
 use iox_time::TimeProvider;
-use metric::Registry;
-use object_store::DynObjectStore;
-use parquet_file::storage::ParquetStorage;
-use querier::{
-    create_ingester_connection, QuerierCatalogCache, QuerierDatabase, QuerierHandler,
-    QuerierHandlerImpl, QuerierServer,
-};
-use trace::TraceCollector;
-
 use ioxd_common::{
     add_service,
     http::error::{HttpApiError, HttpApiErrorCode, HttpApiErrorSource},
@@ -25,6 +12,19 @@ use ioxd_common::{
     server_type::{CommonServerState, RpcError, ServerType},
     setup_builder,
 };
+use metric::Registry;
+use object_store::DynObjectStore;
+use parquet_file::storage::ParquetStorage;
+use querier::{
+    create_ingester_connection, QuerierCatalogCache, QuerierDatabase, QuerierHandler,
+    QuerierHandlerImpl, QuerierServer,
+};
+use std::{
+    fmt::{Debug, Display},
+    sync::Arc,
+};
+use thiserror::Error;
+use trace::TraceCollector;
 
 mod rpc;
 
@@ -143,33 +143,55 @@ pub struct QuerierServerTypeArgs<'a> {
     pub metric_registry: Arc<metric::Registry>,
     pub catalog: Arc<dyn Catalog>,
     pub object_store: Arc<DynObjectStore>,
-    pub time_provider: Arc<dyn TimeProvider>,
     pub exec: Arc<Executor>,
+    pub time_provider: Arc<dyn TimeProvider>,
     pub ingester_addresses: Vec<String>,
-    pub ram_pool_bytes: usize,
-    pub max_concurrent_queries: usize,
+    pub querier_config: QuerierConfig,
+}
+
+#[derive(Debug, Error)]
+pub enum Error {
+    #[error("failed to initialise write buffer connection: {0}")]
+    WriteBuffer(#[from] write_buffer::core::WriteBufferError),
+
+    #[error("failed to create KafkaPartition from id: {0}")]
+    InvalidData(#[from] std::num::TryFromIntError),
+
+    #[error("querier error: {0}")]
+    Querier(#[from] querier::QuerierDatabaseError),
 }
 
 /// Instantiate a querier server
-pub async fn create_querier_server_type(args: QuerierServerTypeArgs<'_>) -> Arc<dyn ServerType> {
+pub async fn create_querier_server_type(
+    args: QuerierServerTypeArgs<'_>,
+) -> Result<Arc<dyn ServerType>, Error> {
     let catalog_cache = Arc::new(QuerierCatalogCache::new(
         Arc::clone(&args.catalog),
         args.time_provider,
         Arc::clone(&args.metric_registry),
-        args.ram_pool_bytes,
+        args.querier_config.ram_pool_bytes(),
     ));
+
     let ingester_connection =
         create_ingester_connection(args.ingester_addresses, Arc::clone(&catalog_cache));
-    let database = Arc::new(QuerierDatabase::new(
-        catalog_cache,
-        Arc::clone(&args.metric_registry),
-        ParquetStorage::new(args.object_store),
-        args.exec,
-        ingester_connection,
-        args.max_concurrent_queries,
-    ));
+
+    let database = Arc::new(
+        QuerierDatabase::new(
+            catalog_cache,
+            Arc::clone(&args.metric_registry),
+            ParquetStorage::new(args.object_store),
+            args.exec,
+            ingester_connection,
+            args.querier_config.max_concurrent_queries(),
+        )
+        .await?,
+    );
     let querier_handler = Arc::new(QuerierHandlerImpl::new(args.catalog, Arc::clone(&database)));
 
     let querier = QuerierServer::new(args.metric_registry, querier_handler);
-    Arc::new(QuerierServerType::new(querier, database, args.common_state))
+    Ok(Arc::new(QuerierServerType::new(
+        querier,
+        database,
+        args.common_state,
+    )))
 }

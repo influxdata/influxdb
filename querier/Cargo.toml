@@ -29,6 +29,7 @@ read_buffer = { path = "../read_buffer" }
 service_common = { path = "../service_common" }
 service_grpc_schema = { path = "../service_grpc_schema" }
 schema = { path = "../schema" }
+sharder = { path = "../sharder" }
 snafu = "0.7"
 thiserror = "1.0"
 iox_time = { path = "../iox_time" }

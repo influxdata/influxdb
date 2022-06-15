@@ -27,8 +27,8 @@ use router::{
     },
     sequencer::Sequencer,
     server::{grpc::GrpcDelegate, http::HttpDelegate, RouterServer},
-    sharder::JumpHash,
 };
+use sharder::JumpHash;
 use std::{
     collections::BTreeSet,
     fmt::{Debug, Display},
@@ -49,6 +49,9 @@ pub enum Error {
 
     #[error("Catalog DSN error: {0}")]
     CatalogDsn(#[from] clap_blocks::catalog_dsn::Error),
+
+    #[error("failed to initialize sharded cache: {0}")]
+    Sharder(#[from] sharder::Error),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -175,7 +178,7 @@ pub async fn create_router_server_type(
     let ns_cache = Arc::new(InstrumentedCache::new(
         Arc::new(ShardedCache::new(
             std::iter::repeat_with(|| Arc::new(MemoryNamespaceCache::default())).take(10),
-        )),
+        )?),
         &*metrics,
     ));
 
@@ -319,13 +322,12 @@ async fn init_write_buffer(
         "connected to write buffer topic",
     );
 
-    Ok(ShardedWriteBuffer::new(
+    Ok(ShardedWriteBuffer::new(JumpHash::new(
         shards
             .into_iter()
             .map(|id| Sequencer::new(id as _, Arc::clone(&write_buffer), &metrics))
-            .map(Arc::new)
-            .collect::<JumpHash<_>>(),
-    ))
+            .map(Arc::new),
+    )?))
 }
 
 /// Pre-populate `cache` with the all existing schemas in `catalog`.
