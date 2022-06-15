@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"fmt"
 
 	"github.com/influxdata/influxdb/v2/kit/platform"
 
@@ -61,7 +62,7 @@ func (t telemetryService) CreateReplication(ctx context.Context, request influxd
 		}
 		bucket, err := tx.Bucket(replicationsBucket)
 		if err != nil {
-			return err // todo wrap a better error here?
+			return err
 		}
 		count, err := t.countReplications(ctx, request.OrgID)
 		if err != nil {
@@ -69,9 +70,9 @@ func (t telemetryService) CreateReplication(ctx context.Context, request influxd
 		}
 		return bucket.Put(encodedID, count)
 	}); err != nil {
-		return nil, err // todo wrap a better error here?
+		return nil, fmt.Errorf("updating telemetry failed: %v", err)
 	}
-	return conn, err
+	return conn, nil
 }
 
 func (t telemetryService) DeleteReplication(ctx context.Context, id platform.ID) error {
@@ -85,7 +86,7 @@ func (t telemetryService) DeleteReplication(ctx context.Context, id platform.ID)
 	if err != nil {
 		return err
 	}
-	return t.kv.Update(ctx, func(tx kv.Tx) error {
+	if err := t.kv.Update(ctx, func(tx kv.Tx) error {
 		encodedID, err := orgID.Encode()
 		if err != nil {
 			return err
@@ -111,7 +112,11 @@ func (t telemetryService) DeleteReplication(ctx context.Context, id platform.ID)
 		}
 
 		return bucket.Put(encodedID, b)
-	})
+	}); err != nil {
+		return fmt.Errorf("updating telemetry failed: %v", err)
+	}
+
+	return nil
 }
 
 func (t telemetryService) countReplications(ctx context.Context, orgID platform.ID) ([]byte, error) {
@@ -120,7 +125,7 @@ func (t telemetryService) countReplications(ctx context.Context, orgID platform.
 	}
 	list, err := t.underlying.ListReplications(ctx, req)
 	if err != nil {
-		return nil, err // todo wrap a better error here?
+		return nil, err
 	}
 	return t.marshalCount(int64(len(list.Replications)))
 }

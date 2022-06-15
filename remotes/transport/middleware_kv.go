@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"fmt"
 
 	"github.com/influxdata/influxdb/v2/kit/platform"
 
@@ -49,7 +50,7 @@ func (t telemetryService) CreateRemoteConnection(ctx context.Context, request in
 		}
 		bucket, err := tx.Bucket(remotesBucket)
 		if err != nil {
-			return err // todo wrap a better error here?
+			return err
 		}
 		count, err := t.countRemotes(ctx, request.OrgID)
 		if err != nil {
@@ -57,9 +58,9 @@ func (t telemetryService) CreateRemoteConnection(ctx context.Context, request in
 		}
 		return bucket.Put(encodedID, count)
 	}); err != nil {
-		return nil, err // todo wrap a better error here?
+		return nil, fmt.Errorf("updating telemetry failed: %v", err)
 	}
-	return conn, err
+	return conn, nil
 }
 
 func (t telemetryService) DeleteRemoteConnection(ctx context.Context, id platform.ID) error {
@@ -73,7 +74,7 @@ func (t telemetryService) DeleteRemoteConnection(ctx context.Context, id platfor
 	if err != nil {
 		return err
 	}
-	return t.kv.Update(ctx, func(tx kv.Tx) error {
+	if err := t.kv.Update(ctx, func(tx kv.Tx) error {
 		encodedID, err := orgID.Encode()
 		if err != nil {
 			return err
@@ -99,7 +100,11 @@ func (t telemetryService) DeleteRemoteConnection(ctx context.Context, id platfor
 		}
 
 		return bucket.Put(encodedID, b)
-	})
+	}); err != nil {
+		return fmt.Errorf("updating telemetry failed: %v", err)
+	}
+
+	return nil
 }
 
 // todo this might be able to be done in a smarter way
@@ -109,7 +114,7 @@ func (t telemetryService) countRemotes(ctx context.Context, orgID platform.ID) (
 	}
 	list, err := t.underlying.ListRemoteConnections(ctx, req)
 	if err != nil {
-		return nil, err // todo wrap a better error here?
+		return nil, err
 	}
 	return t.marshalCount(int64(len(list.Remotes)))
 }
