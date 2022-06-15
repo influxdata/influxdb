@@ -296,6 +296,11 @@ impl LifecycleManager {
             let sized_out = s.bytes_written > self.config.partition_size_threshold;
             if sized_out {
                 self.persist_size_counter.inc(1);
+                info!(sequencer_id=%s.sequencer_id,
+                      partition_id=%s.partition_id,
+                      bytes_written=s.bytes_written,
+                      partition_size_threshold=self.config.partition_size_threshold,
+                      "Partition is over size threshold, persisting");
             }
 
             aged_out || sized_out || is_cold
