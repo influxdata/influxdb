@@ -107,7 +107,6 @@ func (t telemetryService) DeleteRemoteConnection(ctx context.Context, id platfor
 	return nil
 }
 
-// todo this might be able to be done in a smarter way
 func (t telemetryService) countRemotes(ctx context.Context, orgID platform.ID) ([]byte, error) {
 	req := influxdb.RemoteConnectionListFilter{
 		OrgID: orgID,
