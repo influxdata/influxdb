@@ -484,7 +484,7 @@ func TestSendWrite(t *testing.T) {
 	// Send the write to the "remote" with a success
 	rq.SendWrite()
 	// Make sure the data is no longer in the queue
-	scan, err = rq.queue.NewScanner()
+	_, err = rq.queue.NewScanner()
 	require.Equal(t, io.EOF, err)
 
 	// Write second point
@@ -509,7 +509,7 @@ func TestSendWrite(t *testing.T) {
 	shouldFailThisWrite = false
 	rq.SendWrite()
 	// Make sure the data is no longer in the queue
-	scan, err = rq.queue.NewScanner()
+	_, err = rq.queue.NewScanner()
 	require.Equal(t, io.EOF, err)
 }
 
