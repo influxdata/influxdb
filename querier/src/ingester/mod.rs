@@ -7,8 +7,8 @@ use arrow::{datatypes::DataType, error::ArrowError, record_batch::RecordBatch};
 use async_trait::async_trait;
 use client_util::connection;
 use data_types::{
-    ChunkId, ChunkOrder, ColumnSummary, InfluxDbType, PartitionId, SequenceNumber, SequencerId,
-    StatValues, Statistics, TableSummary, TimestampMinMax,
+    ChunkId, ChunkOrder, ColumnSummary, InfluxDbType, KafkaPartition, PartitionId, SequenceNumber,
+    SequencerId, StatValues, Statistics, TableSummary, TimestampMinMax,
 };
 use datafusion_util::MemoryStream;
 use futures::{stream::FuturesUnordered, TryStreamExt};
@@ -136,6 +136,26 @@ pub fn create_ingester_connection(
     ))
 }
 
+/// Create a new set of connections given a map of sequencer IDs to Ingester addresses, such as:
+///
+/// ```json
+/// {
+///     "0": { "addr": "http://ingester-1:8082" },
+///     "1": { "addr": "http://ingester-1:8082" },
+///     ...
+///     "25": { "addr": "http://ingester-2:8082" },
+/// }
+/// ```
+pub fn create_ingester_connections_by_sequencer(
+    sequencer_to_ingester: HashMap<KafkaPartition, String>,
+    catalog_cache: Arc<CatalogCache>,
+) -> Arc<dyn IngesterConnection> {
+    Arc::new(IngesterConnectionImpl::by_sequencer(
+        sequencer_to_ingester,
+        catalog_cache,
+    ))
+}
+
 /// Create a new ingester suitable for testing
 pub fn create_ingester_connection_for_testing() -> Arc<dyn IngesterConnection> {
     Arc::new(MockIngesterConnection::new())
@@ -257,7 +277,8 @@ impl<'a> Drop for ObserveIngesterRequest<'a> {
 /// IngesterConnection that communicates with an ingester.
 #[derive(Debug)]
 pub struct IngesterConnectionImpl {
-    ingester_addresses: Vec<Arc<str>>,
+    sequencer_to_ingester: HashMap<KafkaPartition, String>,
+    unique_ingester_addresses: HashSet<Arc<str>>,
     flight_client: Arc<dyn FlightClient>,
     catalog_cache: Arc<CatalogCache>,
     metrics: Arc<IngesterConnectionMetrics>,
@@ -276,14 +297,15 @@ impl IngesterConnectionImpl {
 
     /// Create new ingester connection with specific flight client implementation.
     ///
-    /// This is helpful for testing, i.e. when the flight client should not be backed by normal network communication.
+    /// This is helpful for testing, i.e. when the flight client should not be backed by normal
+    /// network communication.
     pub fn new_with_flight_client(
         ingester_addresses: Vec<String>,
         flight_client: Arc<dyn FlightClient>,
         catalog_cache: Arc<CatalogCache>,
     ) -> Self {
-        let ingester_addresses = ingester_addresses
-            .into_iter()
+        let unique_ingester_addresses: HashSet<_> = ingester_addresses
+            .iter()
             .map(|addr| Arc::from(addr.as_str()))
             .collect();
 
@@ -291,7 +313,51 @@ impl IngesterConnectionImpl {
         let metrics = Arc::new(IngesterConnectionMetrics::new(&metric_registry));
 
         Self {
-            ingester_addresses,
+            sequencer_to_ingester: HashMap::new(),
+            unique_ingester_addresses,
+            flight_client,
+            catalog_cache,
+        }
+    }
+
+    /// Create a new set of connections given a map of sequencer IDs to Ingester addresses, such as:
+    ///
+    /// ```json
+    /// {
+    ///     "0": { "addr": "http://ingester-1:8082" },
+    ///     "1": { "addr": "http://ingester-1:8082" },
+    ///     ...
+    ///     "25": { "addr": "http://ingester-2:8082" },
+    /// }
+    /// ```
+    pub fn by_sequencer(
+        sequencer_to_ingester: HashMap<KafkaPartition, String>,
+        catalog_cache: Arc<CatalogCache>,
+    ) -> Self {
+        Self::by_sequencer_with_flight_client(
+            sequencer_to_ingester,
+            Arc::new(FlightClientImpl::new()),
+            catalog_cache,
+        )
+    }
+
+    /// Create new set of connections with specific flight client implementation.
+    ///
+    /// This is helpful for testing, i.e. when the flight client should not be backed by normal
+    /// network communication.
+    pub fn by_sequencer_with_flight_client(
+        sequencer_to_ingester: HashMap<KafkaPartition, String>,
+        flight_client: Arc<dyn FlightClient>,
+        catalog_cache: Arc<CatalogCache>,
+    ) -> Self {
+        let unique_ingester_addresses: HashSet<_> = sequencer_to_ingester
+            .values()
+            .map(|addr| Arc::from(addr.as_str()))
+            .collect();
+
+        Self {
+            sequencer_to_ingester,
+            unique_ingester_addresses,
             flight_client,
             catalog_cache,
             metrics,
@@ -600,7 +666,7 @@ impl IngesterConnection for IngesterConnectionImpl {
         let metrics = Arc::clone(&self.metrics);
 
         let mut ingester_partitions: Vec<IngesterPartition> = self
-            .ingester_addresses
+            .unique_ingester_addresses
             .iter()
             .map(move |ingester_address| {
                 let request = GetPartitionForIngester {
@@ -643,7 +709,7 @@ impl IngesterConnection for IngesterConnectionImpl {
 
     async fn get_write_info(&self, write_token: &str) -> Result<GetWriteInfoResponse> {
         let responses = self
-            .ingester_addresses
+            .unique_ingester_addresses
             .iter()
             .map(|ingester_address| execute_get_write_infos(ingester_address, write_token))
             .collect::<FuturesUnordered<_>>()
