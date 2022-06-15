@@ -113,6 +113,8 @@ impl QuerierDatabase {
             Self::MAX_CONCURRENT_QUERIES_MAX,
         );
 
+        let backoff_config = BackoffConfig::default();
+
         let chunk_adapter = Arc::new(ChunkAdapter::new(
             Arc::clone(&catalog_cache),
             store,
@@ -127,10 +129,11 @@ impl QuerierDatabase {
         let query_execution_semaphore =
             Arc::new(semaphore_metrics.new_semaphore(max_concurrent_queries));
 
-        let _sharder = create_sharder(catalog_cache.catalog().as_ref()).await?;
+        let _sharder =
+            create_sharder(catalog_cache.catalog().as_ref(), backoff_config.clone()).await?;
 
         Ok(Self {
-            backoff_config: BackoffConfig::default(),
+            backoff_config,
             catalog_cache,
             chunk_adapter,
             metric_registry,
@@ -185,14 +188,16 @@ impl QuerierDatabase {
     }
 }
 
-pub async fn create_sharder(catalog: &dyn Catalog) -> Result<JumpHash<Arc<KafkaPartition>>, Error> {
-    let sequencers = catalog
-        .repositories()
+pub async fn create_sharder(
+    catalog: &dyn Catalog,
+    backoff_config: BackoffConfig,
+) -> Result<JumpHash<Arc<KafkaPartition>>, Error> {
+    let sequencers = Backoff::new(&backoff_config)
+        .retry_all_errors("get sequencers", || async {
+            catalog.repositories().await.sequencers().list().await
+        })
         .await
-        .sequencers()
-        .list()
-        .await
-        .context(CatalogSnafu)?;
+        .expect("retry forever");
 
     // Construct the (ordered) set of sequencers.
     //
