@@ -237,7 +237,7 @@ decorate!(
 decorate!(
     impl_trait = PartitionRepo,
     methods = [
-        "partition_create_or_get" = create_or_get(&mut self, key: &PartitionKey, sequencer_id: SequencerId, table_id: TableId) -> Result<Partition>;
+        "partition_create_or_get" = create_or_get(&mut self, key: PartitionKey, sequencer_id: SequencerId, table_id: TableId) -> Result<Partition>;
         "partition_get_by_id" = get_by_id(&mut self, partition_id: PartitionId) -> Result<Option<Partition>>;
         "partition_list_by_sequencer" = list_by_sequencer(&mut self, sequencer_id: SequencerId) -> Result<Vec<Partition>>;
         "partition_list_by_namespace" = list_by_namespace(&mut self, namespace_id: NamespaceId) -> Result<Vec<Partition>>;

@@ -157,7 +157,7 @@ mod tests {
                 .unwrap();
             let partition = repos
                 .partitions()
-                .create_or_get(&"foo".into(), sequencer.id, table.id)
+                .create_or_get("foo".into(), sequencer.id, table.id)
                 .await
                 .unwrap();
             let p1params = ParquetFileParams {
@@ -240,12 +240,12 @@ mod tests {
                 .unwrap();
             partition1 = repos
                 .partitions()
-                .create_or_get(&"foo".into(), sequencer.id, table.id)
+                .create_or_get("foo".into(), sequencer.id, table.id)
                 .await
                 .unwrap();
             partition2 = repos
                 .partitions()
-                .create_or_get(&"bar".into(), sequencer.id, table.id)
+                .create_or_get("bar".into(), sequencer.id, table.id)
                 .await
                 .unwrap();
             let sequencer2 = repos
@@ -255,7 +255,7 @@ mod tests {
                 .unwrap();
             partition3 = repos
                 .partitions()
-                .create_or_get(&"foo".into(), sequencer2.id, table.id)
+                .create_or_get("foo".into(), sequencer2.id, table.id)
                 .await
                 .unwrap();
 

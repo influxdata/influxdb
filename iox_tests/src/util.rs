@@ -346,11 +346,7 @@ impl TestTableBoundSequencer {
 
         let partition = repos
             .partitions()
-            .create_or_get(
-                &key.into(),
-                self.sequencer.sequencer.id,
-                self.table.table.id,
-            )
+            .create_or_get(key.into(), self.sequencer.sequencer.id, self.table.table.id)
             .await
             .unwrap();
 
@@ -373,11 +369,7 @@ impl TestTableBoundSequencer {
 
         let partition = repos
             .partitions()
-            .create_or_get(
-                &key.into(),
-                self.sequencer.sequencer.id,
-                self.table.table.id,
-            )
+            .create_or_get(key.into(), self.sequencer.sequencer.id, self.table.table.id)
             .await
             .unwrap();
 

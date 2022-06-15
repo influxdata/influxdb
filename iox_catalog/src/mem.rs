@@ -671,14 +671,14 @@ impl SequencerRepo for MemTxn {
 impl PartitionRepo for MemTxn {
     async fn create_or_get(
         &mut self,
-        key: &PartitionKey,
+        key: PartitionKey,
         sequencer_id: SequencerId,
         table_id: TableId,
     ) -> Result<Partition> {
         let stage = self.stage();
 
         let partition = match stage.partitions.iter().find(|p| {
-            p.partition_key == *key && p.sequencer_id == sequencer_id && p.table_id == table_id
+            p.partition_key == key && p.sequencer_id == sequencer_id && p.table_id == table_id
         }) {
             Some(p) => p,
             None => {
@@ -686,7 +686,7 @@ impl PartitionRepo for MemTxn {
                     id: PartitionId::new(stage.partitions.len() as i64 + 1),
                     sequencer_id,
                     table_id,
-                    partition_key: key.clone(),
+                    partition_key: key,
                     sort_key: vec![],
                 };
                 stage.partitions.push(p);

@@ -2590,7 +2590,7 @@ mod tests {
             .unwrap();
         let partition = txn
             .partitions()
-            .create_or_get(&"one".into(), sequencer.id, table.id)
+            .create_or_get("one".into(), sequencer.id, table.id)
             .await
             .unwrap();
 
@@ -2794,7 +2794,7 @@ mod tests {
             .unwrap();
         let partition = txn
             .partitions()
-            .create_or_get(&"one".into(), sequencer.id, table.id)
+            .create_or_get("one".into(), sequencer.id, table.id)
             .await
             .unwrap();
 
@@ -3018,22 +3018,22 @@ mod tests {
             .unwrap();
         let partition = txn
             .partitions()
-            .create_or_get(&"one".into(), sequencer.id, table.id)
+            .create_or_get("one".into(), sequencer.id, table.id)
             .await
             .unwrap();
         let partition2 = txn
             .partitions()
-            .create_or_get(&"two".into(), sequencer.id, table.id)
+            .create_or_get("two".into(), sequencer.id, table.id)
             .await
             .unwrap();
         let partition3 = txn
             .partitions()
-            .create_or_get(&"three".into(), sequencer.id, table.id)
+            .create_or_get("three".into(), sequencer.id, table.id)
             .await
             .unwrap();
         let partition4 = txn
             .partitions()
-            .create_or_get(&"four".into(), sequencer.id, table.id)
+            .create_or_get("four".into(), sequencer.id, table.id)
             .await
             .unwrap();
 

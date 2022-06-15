@@ -405,7 +405,7 @@ pub trait PartitionRepo: Send + Sync {
     /// create or get a partition record for the given partition key, sequencer and table
     async fn create_or_get(
         &mut self,
-        key: &PartitionKey,
+        key: PartitionKey,
         sequencer_id: SequencerId,
         table_id: TableId,
     ) -> Result<Partition>;
@@ -1307,14 +1307,14 @@ pub(crate) mod test_helpers {
         for key in ["foo", "bar"] {
             let partition = repos
                 .partitions()
-                .create_or_get(&key.into(), sequencer.id, table.id)
+                .create_or_get(key.into(), sequencer.id, table.id)
                 .await
                 .expect("failed to create partition");
             created.insert(partition.id, partition);
         }
         let other_partition = repos
             .partitions()
-            .create_or_get(&"asdf".into(), other_sequencer.id, table.id)
+            .create_or_get("asdf".into(), other_sequencer.id, table.id)
             .await
             .unwrap();
 
@@ -1383,7 +1383,7 @@ pub(crate) mod test_helpers {
             .unwrap();
         repos
             .partitions()
-            .create_or_get(&"some_key".into(), sequencer.id, table2.id)
+            .create_or_get("some_key".into(), sequencer.id, table2.id)
             .await
             .expect("failed to create partition");
         let listed = repos
@@ -1648,7 +1648,7 @@ pub(crate) mod test_helpers {
             .unwrap();
         let partition = repos
             .partitions()
-            .create_or_get(&"one".into(), sequencer.id, table.id)
+            .create_or_get("one".into(), sequencer.id, table.id)
             .await
             .unwrap();
 
@@ -1858,12 +1858,12 @@ pub(crate) mod test_helpers {
             .unwrap();
         let partition = repos
             .partitions()
-            .create_or_get(&"one".into(), sequencer.id, table.id)
+            .create_or_get("one".into(), sequencer.id, table.id)
             .await
             .unwrap();
         let other_partition = repos
             .partitions()
-            .create_or_get(&"one".into(), sequencer.id, other_table.id)
+            .create_or_get("one".into(), sequencer.id, other_table.id)
             .await
             .unwrap();
 
@@ -2029,7 +2029,7 @@ pub(crate) mod test_helpers {
             .unwrap();
         let partition2 = repos
             .partitions()
-            .create_or_get(&"foo".into(), sequencer.id, table2.id)
+            .create_or_get("foo".into(), sequencer.id, table2.id)
             .await
             .unwrap();
         let files = repos
@@ -2220,7 +2220,7 @@ pub(crate) mod test_helpers {
 
         let partition = repos
             .partitions()
-            .create_or_get(&"one".into(), sequencer.id, table.id)
+            .create_or_get("one".into(), sequencer.id, table.id)
             .await
             .unwrap();
 
@@ -2343,12 +2343,12 @@ pub(crate) mod test_helpers {
             .unwrap();
         let partition = repos
             .partitions()
-            .create_or_get(&"one".into(), sequencer.id, table.id)
+            .create_or_get("one".into(), sequencer.id, table.id)
             .await
             .unwrap();
         let other_partition = repos
             .partitions()
-            .create_or_get(&"two".into(), sequencer.id, table.id)
+            .create_or_get("two".into(), sequencer.id, table.id)
             .await
             .unwrap();
 
@@ -2551,12 +2551,12 @@ pub(crate) mod test_helpers {
 
         let partition = repos
             .partitions()
-            .create_or_get(&"one".into(), sequencer.id, table.id)
+            .create_or_get("one".into(), sequencer.id, table.id)
             .await
             .unwrap();
         let partition2 = repos
             .partitions()
-            .create_or_get(&"two".into(), sequencer.id, table.id)
+            .create_or_get("two".into(), sequencer.id, table.id)
             .await
             .unwrap();
 
@@ -2673,7 +2673,7 @@ pub(crate) mod test_helpers {
             .unwrap();
         let partition = repos
             .partitions()
-            .create_or_get(&"one".into(), sequencer.id, table.id)
+            .create_or_get("one".into(), sequencer.id, table.id)
             .await
             .unwrap();
 
@@ -2794,7 +2794,7 @@ pub(crate) mod test_helpers {
             .unwrap();
         let partition = repos
             .partitions()
-            .create_or_get(&"one".into(), sequencer.id, table.id)
+            .create_or_get("one".into(), sequencer.id, table.id)
             .await
             .unwrap();
 

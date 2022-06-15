@@ -676,8 +676,11 @@ pub struct Sequencer {
     pub min_unpersisted_sequence_number: SequenceNumber,
 }
 
-/// A reference-counted partition key, serialisable to the Postgres VARCHAR data
-/// type.
+/// Defines an partition via an arbitrary string within a table within
+/// a namespace.
+///
+/// Implemented as a reference-counted string, serialisable to
+/// the Postgres VARCHAR data type.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PartitionKey(Arc<str>);
 

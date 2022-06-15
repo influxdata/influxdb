@@ -910,7 +910,7 @@ impl TableData {
         let partition_data = match self.partition_data.get_mut(&partition_key) {
             Some(p) => p,
             None => {
-                self.insert_partition(&partition_key, sequencer_id, catalog)
+                self.insert_partition(partition_key.clone(), sequencer_id, catalog)
                     .await?;
                 self.partition_data.get_mut(&partition_key).unwrap()
             }
@@ -991,7 +991,7 @@ impl TableData {
 
     async fn insert_partition(
         &mut self,
-        partition_key: &PartitionKey,
+        partition_key: PartitionKey,
         sequencer_id: SequencerId,
         catalog: &dyn Catalog,
     ) -> Result<()> {
@@ -2393,12 +2393,12 @@ mod tests {
             .unwrap();
         let partition = repos
             .partitions()
-            .create_or_get(&"1970-01-01".into(), sequencer.id, table.id)
+            .create_or_get("1970-01-01".into(), sequencer.id, table.id)
             .await
             .unwrap();
         let partition2 = repos
             .partitions()
-            .create_or_get(&"1970-01-02".into(), sequencer.id, table.id)
+            .create_or_get("1970-01-02".into(), sequencer.id, table.id)
             .await
             .unwrap();
 

@@ -1090,7 +1090,7 @@ WHERE kafka_topic_id = $1
 impl PartitionRepo for PostgresTxn {
     async fn create_or_get(
         &mut self,
-        key: &PartitionKey,
+        key: PartitionKey,
         sequencer_id: SequencerId,
         table_id: TableId,
     ) -> Result<Partition> {
@@ -2290,7 +2290,7 @@ mod tests {
             .repositories()
             .await
             .partitions()
-            .create_or_get(&key.into(), sequencer_id, table_id)
+            .create_or_get(key.into(), sequencer_id, table_id)
             .await
             .expect("should create OK");
 
@@ -2301,7 +2301,7 @@ mod tests {
             .repositories()
             .await
             .partitions()
-            .create_or_get(&key.into(), sequencer_id, table_id)
+            .create_or_get(key.into(), sequencer_id, table_id)
             .await
             .expect("idempotent write should succeed");
 
@@ -2361,7 +2361,7 @@ mod tests {
             .repositories()
             .await
             .partitions()
-            .create_or_get(&key.into(), sequencers[0].id, table_id)
+            .create_or_get(key.into(), sequencers[0].id, table_id)
             .await
             .expect("should create OK");
 
@@ -2371,7 +2371,7 @@ mod tests {
             .repositories()
             .await
             .partitions()
-            .create_or_get(&key.into(), sequencers[1].id, table_id)
+            .create_or_get(key.into(), sequencers[1].id, table_id)
             .await
             .expect("result should not be evaluated");
 
