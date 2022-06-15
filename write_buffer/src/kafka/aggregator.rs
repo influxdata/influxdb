@@ -1,5 +1,5 @@
 use crate::codec::{ContentType, IoxHeaders};
-use data_types::{Sequence, SequenceNumber};
+use data_types::{PartitionKey, Sequence, SequenceNumber};
 use dml::{DmlMeta, DmlOperation, DmlWrite};
 use hashbrown::{hash_map::Entry, HashMap};
 use iox_time::{Time, TimeProvider};
@@ -34,6 +34,9 @@ struct WriteAggregator {
     /// Data for every table.
     tables: HashMap<String, MutableBatch>,
 
+    /// The partition key derived for these batches.
+    partition_key: PartitionKey,
+
     /// Span recorder to link spans from incoming writes to aggregated write.
     span_recorder: Option<SpanRecorder>,
 
@@ -49,9 +52,15 @@ impl WriteAggregator {
         let mut span_recorder = None;
         Self::record_span(&mut span_recorder, write.meta().span_context(), &collector);
 
+        let partition_key = write
+            .partition_key()
+            .cloned()
+            .expect("enqueuing unpartitioned write into kafka");
+
         Self {
             namespace: write.namespace().to_owned(),
             tables: write.into_tables().collect(),
+            partition_key,
             span_recorder,
             tag,
             collector,
@@ -90,6 +99,11 @@ impl WriteAggregator {
     /// Check if we can push the given write to this aggregator (mostly if the schemas match).
     fn can_push(&self, write: &DmlWrite) -> bool {
         assert_eq!(write.namespace(), self.namespace);
+
+        // Only batch together writes for the same partition.
+        if write.partition_key() != Some(&self.partition_key) {
+            return false;
+        }
 
         for (table, batch) in write.tables() {
             if let Some(existing) = self.tables.get(table) {
@@ -151,7 +165,12 @@ impl WriteAggregator {
         };
 
         let meta = DmlMeta::unsequenced(ctx);
-        DmlWrite::new(self.namespace.clone(), self.tables.clone(), None, meta)
+        DmlWrite::new(
+            self.namespace.clone(),
+            self.tables.clone(),
+            Some(self.partition_key.clone()),
+            meta,
+        )
     }
 }
 
