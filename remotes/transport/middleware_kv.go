@@ -1,6 +1,7 @@
 package transport
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 
@@ -114,12 +115,14 @@ func (t telemetryService) countRemotes(ctx context.Context, orgID platform.ID) (
 }
 
 func (t telemetryService) unmarshalCount(buf []byte) (int64, error) {
-	count := binary.BigEndian.Uint64(buf)
-	return int64(count), nil
+	var count int64
+	err := binary.Read(bytes.NewReader(buf), binary.BigEndian, &count)
+	return count, err
 }
 
 func (t telemetryService) marshalCount(count int64) ([]byte, error) {
-	b := make([]byte, 8)
-	binary.BigEndian.PutUint64(b, uint64(count))
-	return b, nil
+	b := make([]byte, 0, 8)
+	buf := bytes.NewBuffer(b)
+	err := binary.Write(buf, binary.BigEndian, count)
+	return buf.Bytes(), err
 }
