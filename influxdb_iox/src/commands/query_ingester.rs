@@ -1,7 +1,11 @@
 use generated_types::ingester::{
     decode_proto_predicate_from_base64, DecodeProtoPredicateFromBase64Error,
 };
-use influxdb_iox_client::{connection::Connection, flight, format::QueryOutputFormat};
+use influxdb_iox_client::{
+    connection::Connection,
+    flight::{self, low_level::LowLevelMessage},
+    format::QueryOutputFormat,
+};
 use std::str::FromStr;
 use thiserror::Error;
 
@@ -54,7 +58,7 @@ pub struct Config {
 }
 
 pub async fn command(connection: Connection, config: Config) -> Result<()> {
-    let mut client = flight::Client::new(connection);
+    let mut client = flight::low_level::Client::new(connection);
     let Config {
         namespace,
         format,
@@ -83,8 +87,10 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
     // It might be nice to do some sort of streaming write
     // rather than buffering the whole thing.
     let mut batches = vec![];
-    while let Some(data) = query_results.next().await? {
-        batches.push(data);
+    while let Some((msg, _md)) = query_results.next().await? {
+        if let LowLevelMessage::RecordBatch(batch) = msg {
+            batches.push(batch);
+        }
     }
 
     let formatted_result = format.format(&batches)?;

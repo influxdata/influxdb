@@ -3,6 +3,7 @@ use generated_types::{
     influxdata::iox::ingester::v1::PartitionStatus, ingester::IngesterQueryRequest,
 };
 use http::StatusCode;
+use influxdb_iox_client::flight::low_level::LowLevelMessage;
 use std::collections::BTreeMap;
 use test_helpers_end_to_end::{
     get_write_token, maybe_skip_integration, wait_for_readable, MiniCluster,
@@ -27,7 +28,7 @@ async fn ingester_flight_api() {
     let write_token = get_write_token(&response);
     wait_for_readable(write_token, cluster.ingester().ingester_grpc_connection()).await;
 
-    let mut querier_flight = influxdb_iox_client::flight::Client::<
+    let mut querier_flight = influxdb_iox_client::flight::low_level::Client::<
         influxdb_iox_client::flight::generated_types::IngesterQueryRequest,
     >::new(cluster.ingester().ingester_grpc_connection());
 
@@ -43,7 +44,9 @@ async fn ingester_flight_api() {
         .await
         .unwrap();
 
-    let unpersisted_partitions = &performed_query.app_metadata().unpersisted_partitions;
+    let (msg, app_metadata) = performed_query.next().await.unwrap().unwrap();
+    let schema = msg.unwrap_schema();
+    let unpersisted_partitions = &app_metadata.unpersisted_partitions;
     let partition_id = *unpersisted_partitions.keys().next().unwrap();
     assert_eq!(
         unpersisted_partitions,
@@ -56,13 +59,15 @@ async fn ingester_flight_api() {
         )]),
     );
 
-    let query_results = performed_query.collect().await.unwrap();
+    let mut query_results = vec![];
+    while let Some((msg, _md)) = performed_query.next().await.unwrap() {
+        if let LowLevelMessage::RecordBatch(batch) = msg {
+            query_results.push(batch);
+        }
+    }
 
     // check if batch-level metadata is present
-    assert_eq!(
-        performed_query.app_metadata().batch_partition_ids.len(),
-        query_results.len()
-    );
+    assert_eq!(app_metadata.batch_partition_ids.len(), query_results.len());
 
     let expected = [
         "+------+------+--------------------------------+-----+",
@@ -77,7 +82,7 @@ async fn ingester_flight_api() {
     // reported by the performed_query.
     query_results.iter().enumerate().for_each(|(i, b)| {
         assert_eq!(
-            performed_query.schema(),
+            schema,
             b.schema(),
             "Schema mismatch for returned batch {}",
             i
@@ -95,7 +100,7 @@ async fn ingester_flight_api_namespace_not_found() {
     // Set up cluster
     let cluster = MiniCluster::create_shared(database_url).await;
 
-    let mut querier_flight = influxdb_iox_client::flight::Client::<
+    let mut querier_flight = influxdb_iox_client::flight::low_level::Client::<
         influxdb_iox_client::flight::generated_types::IngesterQueryRequest,
     >::new(cluster.ingester().ingester_grpc_connection());
 
@@ -134,7 +139,7 @@ async fn ingester_flight_api_table_not_found() {
     let write_token = get_write_token(&response);
     wait_for_readable(write_token, cluster.ingester().ingester_grpc_connection()).await;
 
-    let mut querier_flight = influxdb_iox_client::flight::Client::<
+    let mut querier_flight = influxdb_iox_client::flight::low_level::Client::<
         influxdb_iox_client::flight::generated_types::IngesterQueryRequest,
     >::new(cluster.ingester().ingester_grpc_connection());
 

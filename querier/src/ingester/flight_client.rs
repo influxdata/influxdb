@@ -2,7 +2,10 @@ use arrow::{datatypes::Schema, record_batch::RecordBatch};
 use async_trait::async_trait;
 use client_util::connection::{self, Connection};
 use generated_types::ingester::IngesterQueryRequest;
-use influxdb_iox_client::flight::{self, generated_types::IngesterQueryResponseMetadata};
+use influxdb_iox_client::flight::{
+    generated_types as proto,
+    low_level::{Client as LowLevelFlightClient, LowLevelMessage, PerformQuery},
+};
 use observability_deps::tracing::debug;
 use snafu::{ResultExt, Snafu};
 use std::{
@@ -12,7 +15,7 @@ use std::{
     sync::Arc,
 };
 
-pub use flight::{Error as FlightError, PerformQuery};
+pub use influxdb_iox_client::flight::Error as FlightError;
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
@@ -36,6 +39,9 @@ pub enum Error {
 
     #[snafu(display("Failed to perform flight request: {}", source))]
     Flight { source: FlightError },
+
+    #[snafu(display("Cannot find schema in flight response"))]
+    SchemaMissing,
 }
 
 /// Abstract Flight client.
@@ -96,15 +102,24 @@ impl FlightClient for FlightClientImpl {
     ) -> Result<Box<dyn QueryData>, Error> {
         let connection = self.connect(Arc::clone(&ingester_addr)).await?;
 
-        let mut client =
-            flight::Client::<flight::generated_types::IngesterQueryRequest>::new(connection);
+        let mut client = LowLevelFlightClient::<proto::IngesterQueryRequest>::new(connection);
 
         debug!(%ingester_addr, ?request, "Sending request to ingester");
-        let request: flight::generated_types::IngesterQueryRequest =
+        let request: proto::IngesterQueryRequest =
             request.try_into().context(CreatingRequestSnafu)?;
 
-        let perform_query = client.perform_query(request).await.context(FlightSnafu)?;
-        Ok(Box::new(perform_query))
+        let mut perform_query = client.perform_query(request).await.context(FlightSnafu)?;
+        let (schema, app_metadata) = match perform_query.next().await.context(FlightSnafu)? {
+            Some((LowLevelMessage::Schema(schema), app_metadata)) => (schema, app_metadata),
+            _ => {
+                return Err(Error::SchemaMissing);
+            }
+        };
+        Ok(Box::new(PerformQueryAdapter {
+            inner: perform_query,
+            schema,
+            app_metadata,
+        }))
     }
 }
 
@@ -118,7 +133,7 @@ pub trait QueryData: Debug + Send + 'static {
     async fn next(&mut self) -> Result<Option<RecordBatch>, FlightError>;
 
     /// App metadata that was part of the response.
-    fn app_metadata(&self) -> &IngesterQueryResponseMetadata;
+    fn app_metadata(&self) -> &proto::IngesterQueryResponseMetadata;
 
     /// Schema.
     fn schema(&self) -> Arc<Schema>;
@@ -133,7 +148,7 @@ where
         self.deref_mut().next().await
     }
 
-    fn app_metadata(&self) -> &IngesterQueryResponseMetadata {
+    fn app_metadata(&self) -> &proto::IngesterQueryResponseMetadata {
         self.deref().app_metadata()
     }
 
@@ -142,18 +157,36 @@ where
     }
 }
 
+#[derive(Debug)]
+struct PerformQueryAdapter {
+    inner: PerformQuery<proto::IngesterQueryResponseMetadata>,
+    app_metadata: proto::IngesterQueryResponseMetadata,
+    schema: Arc<Schema>,
+}
+
 #[async_trait]
-impl QueryData for PerformQuery<IngesterQueryResponseMetadata> {
+impl QueryData for PerformQueryAdapter {
     async fn next(&mut self) -> Result<Option<RecordBatch>, FlightError> {
-        self.next().await
+        loop {
+            match self.inner.next().await? {
+                None => {
+                    return Ok(None);
+                }
+                Some((LowLevelMessage::RecordBatch(batch), _)) => {
+                    return Ok(Some(batch));
+                }
+                // ignore all other message types for now
+                Some((LowLevelMessage::None | LowLevelMessage::Schema(_), _)) => (),
+            }
+        }
     }
 
-    fn app_metadata(&self) -> &IngesterQueryResponseMetadata {
-        self.app_metadata()
+    fn app_metadata(&self) -> &proto::IngesterQueryResponseMetadata {
+        &self.app_metadata
     }
 
     fn schema(&self) -> Arc<Schema> {
-        self.schema()
+        Arc::clone(&self.schema)
     }
 }
 
@@ -191,9 +224,8 @@ impl CachedConnection {
                 .context(ConnectingSnafu { ingester_address })?;
 
             // sanity check w/ a handshake
-            let mut client = flight::Client::<flight::generated_types::IngesterQueryRequest>::new(
-                connection.clone(),
-            );
+            let mut client =
+                LowLevelFlightClient::<proto::IngesterQueryRequest>::new(connection.clone());
 
             // make contact with the ingester
             client
