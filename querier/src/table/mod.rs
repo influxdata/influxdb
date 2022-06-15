@@ -5,7 +5,7 @@ use crate::{
     ingester::{self, IngesterPartition},
     IngesterConnection,
 };
-use data_types::{PartitionId, TableId};
+use data_types::{KafkaPartition, PartitionId, TableId};
 use futures::join;
 use iox_query::{provider::ChunkPruner, QueryChunk};
 use observability_deps::tracing::debug;
@@ -52,6 +52,9 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// Table representation for the querier.
 #[derive(Debug)]
 pub struct QuerierTable {
+    /// Sequencer the table is in
+    sequencer_id: KafkaPartition,
+
     /// Namespace the table is in
     namespace_name: Arc<str>,
 
@@ -77,6 +80,7 @@ pub struct QuerierTable {
 impl QuerierTable {
     /// Create new table.
     pub fn new(
+        sequencer_id: KafkaPartition,
         namespace_name: Arc<str>,
         id: TableId,
         table_name: Arc<str>,
@@ -91,6 +95,7 @@ impl QuerierTable {
         );
 
         Self {
+            sequencer_id,
             namespace_name,
             table_name,
             id,
@@ -187,6 +192,7 @@ impl QuerierTable {
         let partitions_result = self
             .ingester_connection
             .partitions(
+                self.sequencer_id,
                 Arc::clone(&self.namespace_name),
                 Arc::clone(&self.table_name),
                 columns,

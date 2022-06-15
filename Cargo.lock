@@ -3957,6 +3957,7 @@ dependencies = [
  "predicate",
  "querier",
  "schema",
+ "sharder",
  "snafu",
  "tempfile",
  "test_helpers",

@@ -1,19 +1,16 @@
-use std::sync::Arc;
-
+use super::QuerierTable;
+use crate::{
+    cache::CatalogCache, chunk::ChunkAdapter, create_ingester_connection_for_testing,
+    IngesterPartition,
+};
 use arrow::record_batch::RecordBatch;
-use data_types::{ChunkId, SequenceNumber};
+use data_types::{ChunkId, KafkaPartition, SequenceNumber};
 use iox_catalog::interface::get_schema_by_name;
 use iox_tests::util::{TestCatalog, TestPartition, TestSequencer, TestTable};
 use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
 use parquet_file::storage::ParquetStorage;
 use schema::{selection::Selection, sort::SortKey, Schema};
-
-use crate::{
-    cache::CatalogCache, chunk::ChunkAdapter, create_ingester_connection_for_testing,
-    IngesterPartition,
-};
-
-use super::QuerierTable;
+use std::sync::Arc;
 
 /// Create a [`QuerierTable`] for testing.
 pub async fn querier_table(catalog: &Arc<TestCatalog>, table: &Arc<TestTable>) -> QuerierTable {
@@ -40,6 +37,7 @@ pub async fn querier_table(catalog: &Arc<TestCatalog>, table: &Arc<TestTable>) -
     let namespace_name = Arc::from(table.namespace.namespace.name.as_str());
 
     QuerierTable::new(
+        KafkaPartition::new(0),
         namespace_name,
         table.table.id,
         table.table.name.clone().into(),

@@ -1,13 +1,11 @@
-use std::sync::Arc;
-
-use data_types::TableId;
+use super::QuerierNamespace;
+use crate::{create_ingester_connection_for_testing, QuerierCatalogCache};
+use data_types::{KafkaPartition, TableId};
 use iox_catalog::interface::get_schema_by_name;
 use iox_tests::util::TestNamespace;
 use parquet_file::storage::ParquetStorage;
-
-use crate::{create_ingester_connection_for_testing, QuerierCatalogCache};
-
-use super::QuerierNamespace;
+use sharder::JumpHash;
+use std::sync::Arc;
 
 /// Create [`QuerierNamespace`] for testing.
 pub async fn querier_namespace(ns: &Arc<TestNamespace>) -> QuerierNamespace {
@@ -24,6 +22,9 @@ pub async fn querier_namespace(ns: &Arc<TestNamespace>) -> QuerierNamespace {
         ns.catalog.metric_registry(),
         usize::MAX,
     ));
+
+    let sharder = Arc::new(JumpHash::new((0..1).map(KafkaPartition::new).map(Arc::new)).unwrap());
+
     QuerierNamespace::new_testing(
         catalog_cache,
         ParquetStorage::new(ns.catalog.object_store()),
@@ -32,6 +33,7 @@ pub async fn querier_namespace(ns: &Arc<TestNamespace>) -> QuerierNamespace {
         schema,
         ns.catalog.exec(),
         create_ingester_connection_for_testing(),
+        sharder,
     )
 }
 

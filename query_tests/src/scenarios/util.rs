@@ -3,8 +3,8 @@ use super::DbScenario;
 use async_trait::async_trait;
 use backoff::BackoffConfig;
 use data_types::{
-    DeletePredicate, NonEmptyString, PartitionId, PartitionKey, Sequence, SequenceNumber,
-    SequencerId, TombstoneId,
+    DeletePredicate, KafkaPartition, NonEmptyString, PartitionId, PartitionKey, Sequence,
+    SequenceNumber, SequencerId, TombstoneId,
 };
 use dml::{DmlDelete, DmlMeta, DmlOperation, DmlWrite};
 use futures::StreamExt;
@@ -30,6 +30,7 @@ use querier::{
     IngesterFlightClientQueryData, QuerierCatalogCache, QuerierNamespace,
 };
 use schema::selection::Selection;
+use sharder::JumpHash;
 use std::{
     cmp::Ordering,
     collections::{BTreeMap, HashMap},
@@ -845,6 +846,8 @@ impl MockIngester {
             Arc::clone(&catalog_cache),
         );
         let ingester_connection = Arc::new(ingester_connection);
+        let sharder =
+            Arc::new(JumpHash::new((0..1).map(KafkaPartition::new).map(Arc::new)).unwrap());
 
         Arc::new(QuerierNamespace::new_testing(
             catalog_cache,
@@ -854,6 +857,7 @@ impl MockIngester {
             schema,
             catalog.exec(),
             ingester_connection,
+            sharder,
         ))
     }
 }

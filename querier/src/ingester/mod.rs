@@ -147,7 +147,7 @@ pub fn create_ingester_connection(
 /// }
 /// ```
 pub fn create_ingester_connections_by_sequencer(
-    sequencer_to_ingester: HashMap<KafkaPartition, String>,
+    sequencer_to_ingester: HashMap<KafkaPartition, Arc<str>>,
     catalog_cache: Arc<CatalogCache>,
 ) -> Arc<dyn IngesterConnection> {
     Arc::new(IngesterConnectionImpl::by_sequencer(
@@ -168,6 +168,7 @@ pub trait IngesterConnection: std::fmt::Debug + Send + Sync + 'static {
     /// Returns all partitions ingester(s) know about for the specified table.
     async fn partitions(
         &self,
+        sequencer_id: KafkaPartition,
         namespace_name: Arc<str>,
         table_name: Arc<str>,
         columns: Vec<String>,
@@ -277,7 +278,7 @@ impl<'a> Drop for ObserveIngesterRequest<'a> {
 /// IngesterConnection that communicates with an ingester.
 #[derive(Debug)]
 pub struct IngesterConnectionImpl {
-    sequencer_to_ingester: HashMap<KafkaPartition, String>,
+    sequencer_to_ingester: HashMap<KafkaPartition, Arc<str>>,
     unique_ingester_addresses: HashSet<Arc<str>>,
     flight_client: Arc<dyn FlightClient>,
     catalog_cache: Arc<CatalogCache>,
@@ -317,6 +318,7 @@ impl IngesterConnectionImpl {
             unique_ingester_addresses,
             flight_client,
             catalog_cache,
+            metrics,
         }
     }
 
@@ -331,7 +333,7 @@ impl IngesterConnectionImpl {
     /// }
     /// ```
     pub fn by_sequencer(
-        sequencer_to_ingester: HashMap<KafkaPartition, String>,
+        sequencer_to_ingester: HashMap<KafkaPartition, Arc<str>>,
         catalog_cache: Arc<CatalogCache>,
     ) -> Self {
         Self::by_sequencer_with_flight_client(
@@ -346,14 +348,15 @@ impl IngesterConnectionImpl {
     /// This is helpful for testing, i.e. when the flight client should not be backed by normal
     /// network communication.
     pub fn by_sequencer_with_flight_client(
-        sequencer_to_ingester: HashMap<KafkaPartition, String>,
+        sequencer_to_ingester: HashMap<KafkaPartition, Arc<str>>,
         flight_client: Arc<dyn FlightClient>,
         catalog_cache: Arc<CatalogCache>,
     ) -> Self {
-        let unique_ingester_addresses: HashSet<_> = sequencer_to_ingester
-            .values()
-            .map(|addr| Arc::from(addr.as_str()))
-            .collect();
+        let unique_ingester_addresses: HashSet<_> =
+            sequencer_to_ingester.values().map(Arc::clone).collect();
+
+        let metric_registry = catalog_cache.metric_registry();
+        let metrics = Arc::new(IngesterConnectionMetrics::new(&metric_registry));
 
         Self {
             sequencer_to_ingester,
@@ -653,10 +656,10 @@ fn encode_predicate_as_base64(predicate: &Predicate) -> String {
 
 #[async_trait]
 impl IngesterConnection for IngesterConnectionImpl {
-    /// Retrieve chunks from the ingester for the particular table and
-    /// predicate
+    /// Retrieve chunks from the ingester for the particular table, sequencer, and predicate
     async fn partitions(
         &self,
+        sequencer_id: KafkaPartition,
         namespace_name: Arc<str>,
         table_name: Arc<str>,
         columns: Vec<String>,
@@ -665,43 +668,52 @@ impl IngesterConnection for IngesterConnectionImpl {
     ) -> Result<Vec<IngesterPartition>> {
         let metrics = Arc::clone(&self.metrics);
 
-        let mut ingester_partitions: Vec<IngesterPartition> = self
-            .unique_ingester_addresses
-            .iter()
-            .map(move |ingester_address| {
-                let request = GetPartitionForIngester {
-                    flight_client: Arc::clone(&self.flight_client),
-                    catalog_cache: Arc::clone(&self.catalog_cache),
-                    ingester_address: Arc::clone(ingester_address),
-                    namespace_name: Arc::clone(&namespace_name),
-                    table_name: Arc::clone(&table_name),
-                    columns: columns.clone(),
-                    predicate,
-                    expected_schema: Arc::clone(&expected_schema),
-                };
-                let metrics = Arc::clone(&metrics);
+        let measured_ingester_request = |ingester_address| {
+            let request = GetPartitionForIngester {
+                flight_client: Arc::clone(&self.flight_client),
+                catalog_cache: Arc::clone(&self.catalog_cache),
+                ingester_address: Arc::clone(ingester_address),
+                namespace_name: Arc::clone(&namespace_name),
+                table_name: Arc::clone(&table_name),
+                columns: columns.clone(),
+                predicate,
+                expected_schema: Arc::clone(&expected_schema),
+            };
+            let metrics = Arc::clone(&metrics);
 
-                // wrap `execute` into an additional future so that we can measure the request time
-                // INFO: create the measurement structure outside of the async block so cancellation is always measured
-                let measure_me = ObserveIngesterRequest::new(request.clone(), metrics);
-                async move {
-                    let res = execute(request.clone()).await;
+            // wrap `execute` into an additional future so that we can measure the request time
+            // INFO: create the measurement structure outside of the async block so cancellation is always measured
+            let measure_me = ObserveIngesterRequest::new(request.clone(), metrics);
+            async move {
+                let res = execute(request.clone()).await;
 
-                    match &res {
-                        Ok(_) => measure_me.set_ok(),
-                        Err(_) => measure_me.set_err(),
-                    }
-
-                    res
+                match &res {
+                    Ok(_) => measure_me.set_ok(),
+                    Err(_) => measure_me.set_err(),
                 }
-            })
-            .collect::<FuturesUnordered<_>>()
-            .try_collect::<Vec<_>>()
-            .await?
-            // We have a Vec<Vec<..>> flatten to Vec<_>
-            .into_iter()
-            .flatten()
-            .collect();
+
+                res
+            }
+        };
+
+        // Look up the ingester needed for the sequencer
+        let mut ingester_partitions =
+            if let Some(ingester_address) = dbg!(self.sequencer_to_ingester.get(&sequencer_id)) {
+                // If found, only query that ingester
+                measured_ingester_request(ingester_address).await?
+            } else {
+                // If a specific ingester for the sequencer isn't found, query all ingesters
+                self.unique_ingester_addresses
+                    .iter()
+                    .map(move |ingester_address| measured_ingester_request(ingester_address))
+                    .collect::<FuturesUnordered<_>>()
+                    .try_collect::<Vec<_>>()
+                    .await?
+                    // We have a Vec<Vec<..>> flatten to Vec<_>
+                    .into_iter()
+                    .flatten()
+                    .collect()
+            };
 
         ingester_partitions.sort_by_key(|p| p.partition_id);
         Ok(ingester_partitions)
@@ -1148,8 +1160,7 @@ fn calculate_summary(batches: &[RecordBatch], schema: &Schema) -> TableSummary {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-
+    use super::{flight_client::QueryData, *};
     use arrow::{
         array::{ArrayRef, DictionaryArray, Int64Array, StringArray, TimestampNanosecondArray},
         datatypes::Int32Type,
@@ -1161,9 +1172,8 @@ mod tests {
     use metric::Attributes;
     use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
     use schema::{builder::SchemaBuilder, InfluxFieldType};
+    use std::collections::{BTreeSet, HashMap};
     use tokio::sync::Mutex;
-
-    use super::{flight_client::QueryData, *};
 
     #[tokio::test]
     async fn test_flight_handshake_error() {
@@ -1178,7 +1188,7 @@ mod tests {
             .await,
         );
         let ingester_conn = mock_flight_client.ingester_conn().await;
-        let err = get_partitions(&ingester_conn).await.unwrap_err();
+        let err = get_partitions(&ingester_conn, 0).await.unwrap_err();
         assert_matches!(err, Error::RemoteQuery { .. });
     }
 
@@ -1194,7 +1204,7 @@ mod tests {
             .await,
         );
         let ingester_conn = mock_flight_client.ingester_conn().await;
-        let err = get_partitions(&ingester_conn).await.unwrap_err();
+        let err = get_partitions(&ingester_conn, 0).await.unwrap_err();
         assert_matches!(err, Error::RemoteQuery { .. });
     }
 
@@ -1210,7 +1220,7 @@ mod tests {
             .await,
         );
         let ingester_conn = mock_flight_client.ingester_conn().await;
-        let partitions = get_partitions(&ingester_conn).await.unwrap();
+        let partitions = get_partitions(&ingester_conn, 0).await.unwrap();
         assert!(partitions.is_empty());
     }
 
@@ -1228,7 +1238,7 @@ mod tests {
             .await,
         );
         let ingester_conn = mock_flight_client.ingester_conn().await;
-        let err = get_partitions(&ingester_conn).await.unwrap_err();
+        let err = get_partitions(&ingester_conn, 0).await.unwrap_err();
         assert_matches!(err, Error::RemoteQuery { .. });
     }
 
@@ -1238,7 +1248,7 @@ mod tests {
             MockFlightClient::new([("addr1", Ok(MockQueryData { results: vec![] }))]).await,
         );
         let ingester_conn = mock_flight_client.ingester_conn().await;
-        let partitions = get_partitions(&ingester_conn).await.unwrap();
+        let partitions = get_partitions(&ingester_conn, 0).await.unwrap();
         assert!(partitions.is_empty());
     }
 
@@ -1264,7 +1274,7 @@ mod tests {
         );
         let ingester_conn = mock_flight_client.ingester_conn().await;
 
-        let partitions = get_partitions(&ingester_conn).await.unwrap();
+        let partitions = get_partitions(&ingester_conn, 0).await.unwrap();
         assert_eq!(partitions.len(), 1);
 
         let p = &partitions[0];
@@ -1293,7 +1303,7 @@ mod tests {
             .await,
         );
         let ingester_conn = mock_flight_client.ingester_conn().await;
-        let err = get_partitions(&ingester_conn).await.unwrap_err();
+        let err = get_partitions(&ingester_conn, 0).await.unwrap_err();
         assert_matches!(err, Error::PartitionStatusMissing { .. });
     }
 
@@ -1340,7 +1350,7 @@ mod tests {
             .await,
         );
         let ingester_conn = mock_flight_client.ingester_conn().await;
-        let err = get_partitions(&ingester_conn).await.unwrap_err();
+        let err = get_partitions(&ingester_conn, 0).await.unwrap_err();
         assert_matches!(err, Error::DuplicatePartitionInfo { .. });
     }
 
@@ -1360,7 +1370,7 @@ mod tests {
             .await,
         );
         let ingester_conn = mock_flight_client.ingester_conn().await;
-        let err = get_partitions(&ingester_conn).await.unwrap_err();
+        let err = get_partitions(&ingester_conn, 0).await.unwrap_err();
         assert_matches!(err, Error::ChunkWithoutPartition { .. });
     }
 
@@ -1380,12 +1390,12 @@ mod tests {
             .await,
         );
         let ingester_conn = mock_flight_client.ingester_conn().await;
-        let err = get_partitions(&ingester_conn).await.unwrap_err();
+        let err = get_partitions(&ingester_conn, 0).await.unwrap_err();
         assert_matches!(err, Error::BatchWithoutChunk { .. });
     }
 
     #[tokio::test]
-    async fn test_flight_many_batches() {
+    async fn test_flight_many_batches_no_sequencer() {
         let record_batch_1_1_1 = lp_to_record_batch("table foo=1 1");
         let record_batch_1_1_2 = lp_to_record_batch("table foo=2 2");
         let record_batch_1_2 = lp_to_record_batch("table bar=20,foo=2 2");
@@ -1485,7 +1495,7 @@ mod tests {
         );
         let ingester_conn = mock_flight_client.ingester_conn().await;
 
-        let partitions = get_partitions(&ingester_conn).await.unwrap();
+        let partitions = get_partitions(&ingester_conn, 0).await.unwrap();
         assert_eq!(partitions.len(), 3);
 
         let p1 = &partitions[0];
@@ -1566,7 +1576,7 @@ mod tests {
             .await,
         );
         let ingester_conn = mock_flight_client.ingester_conn().await;
-        get_partitions(&ingester_conn).await.ok();
+        get_partitions(&ingester_conn, 0).await.ok();
 
         let histogram_error = mock_flight_client
             .catalog
@@ -1607,15 +1617,102 @@ mod tests {
         assert_eq!(hit_count_success + hit_count_cancelled, 4);
     }
 
+    #[tokio::test]
+    async fn test_flight_per_sequencer_querying() {
+        let record_batch_1_1 = lp_to_record_batch("table foo=1 1");
+        let schema_1_1 = record_batch_1_1.schema();
+
+        let mock_flight_client = Arc::new(
+            MockFlightClient::new([
+                (
+                    "addr1",
+                    Ok(MockQueryData {
+                        results: vec![
+                            Ok((
+                                LowLevelMessage::None,
+                                IngesterQueryResponseMetadata {
+                                    partition_id: 1,
+                                    status: Some(PartitionStatus {
+                                        parquet_max_sequence_number: Some(11),
+                                        tombstone_max_sequence_number: Some(12),
+                                    }),
+                                    ..Default::default()
+                                },
+                            )),
+                            Ok((
+                                LowLevelMessage::Schema(Arc::clone(&schema_1_1)),
+                                IngesterQueryResponseMetadata::default(),
+                            )),
+                            Ok((
+                                LowLevelMessage::RecordBatch(record_batch_1_1),
+                                IngesterQueryResponseMetadata::default(),
+                            )),
+                        ],
+                    }),
+                ),
+                (
+                    "addr2",
+                    Err(FlightClientError::Flight {
+                        source: FlightError::GrpcError(tonic::Status::internal(
+                            "if this is queried, the test should fail",
+                        )),
+                    }),
+                ),
+            ])
+            .await,
+        );
+        let ingester_conn = mock_flight_client
+            .ingester_conn_with_sequencer_config()
+            .await;
+
+        let partitions = get_partitions(&ingester_conn, 1).await.unwrap();
+        assert_eq!(partitions.len(), 2);
+
+        let p1 = &partitions[0];
+        assert_eq!(p1.partition_id.get(), 1);
+        assert_eq!(p1.sequencer_id.get(), 1);
+        assert_eq!(
+            p1.parquet_max_sequence_number,
+            Some(SequenceNumber::new(11))
+        );
+        assert_eq!(
+            p1.tombstone_max_sequence_number,
+            Some(SequenceNumber::new(12))
+        );
+        assert_eq!(p1.chunks.len(), 2);
+
+        let p2 = &partitions[1];
+        assert_eq!(p2.partition_id.get(), 2);
+        assert_eq!(p2.sequencer_id.get(), 1);
+        assert_eq!(
+            p2.parquet_max_sequence_number,
+            Some(SequenceNumber::new(21))
+        );
+        assert_eq!(
+            p2.tombstone_max_sequence_number,
+            Some(SequenceNumber::new(22))
+        );
+        assert_eq!(p2.chunks.len(), 1);
+    }
+
     async fn get_partitions(
         ingester_conn: &IngesterConnectionImpl,
+        sequencer_id: i32,
     ) -> Result<Vec<IngesterPartition>, Error> {
+        let sequencer_id = KafkaPartition::new(sequencer_id);
         let namespace = Arc::from("namespace");
         let table = Arc::from("table");
         let columns = vec![String::from("col")];
         let schema = schema();
         ingester_conn
-            .partitions(namespace, table, columns, &Predicate::default(), schema)
+            .partitions(
+                sequencer_id,
+                namespace,
+                table,
+                columns,
+                &Predicate::default(),
+                schema,
+            )
             .await
     }
 
@@ -1689,6 +1786,34 @@ mod tests {
             let ingester_addresses = self.responses.lock().await.keys().cloned().collect();
             IngesterConnectionImpl::new_with_flight_client(
                 ingester_addresses,
+                Arc::clone(self) as _,
+                Arc::new(CatalogCache::new(
+                    self.catalog.catalog(),
+                    self.catalog.time_provider(),
+                    self.catalog.metric_registry(),
+                    usize::MAX,
+                )),
+            )
+        }
+
+        // Assign one sequencer per address, sorted consistently
+        async fn ingester_conn_with_sequencer_config(self: &Arc<Self>) -> IngesterConnectionImpl {
+            let ingester_addresses: BTreeSet<_> =
+                self.responses.lock().await.keys().cloned().collect();
+
+            let sequencer_to_ingester = ingester_addresses
+                .into_iter()
+                .enumerate()
+                .map(|(sequencer_id, ingester_address)| {
+                    (
+                        KafkaPartition::new(sequencer_id as i32 + 1),
+                        Arc::from(ingester_address.as_str()),
+                    )
+                })
+                .collect();
+
+            IngesterConnectionImpl::by_sequencer_with_flight_client(
+                sequencer_to_ingester,
                 Arc::clone(self) as _,
                 Arc::new(CatalogCache::new(
                     self.catalog.catalog(),
