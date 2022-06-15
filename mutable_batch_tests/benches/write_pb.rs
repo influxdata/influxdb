@@ -12,7 +12,12 @@ fn generate_pbdata_bytes() -> Vec<(String, (usize, Bytes))> {
         .into_iter()
         .map(|(bench, lp)| {
             let batches = lines_to_batches(&lp, 0).unwrap();
-            let write = DmlWrite::new("test_db", batches, Default::default());
+            let write = DmlWrite::new(
+                "test_db",
+                batches,
+                Some("bananas".into()),
+                Default::default(),
+            );
             let database_batch = mutable_batch_pb::encode::encode_write("db", &write);
 
             let mut bytes = BytesMut::new();

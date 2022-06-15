@@ -196,6 +196,8 @@ pub fn decode(
                     Ok(DmlOperation::Write(DmlWrite::new(
                         headers.namespace,
                         tables,
+                        // TODO(3603): propagate partition key through kafka
+                        None,
                         meta,
                     )))
                 }

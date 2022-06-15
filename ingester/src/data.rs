@@ -1717,6 +1717,7 @@ mod tests {
         let w1 = DmlWrite::new(
             "foo",
             lines_to_batches("mem foo=1 10", 0).unwrap(),
+            Some("1970-01-01".into()),
             DmlMeta::sequenced(
                 Sequence::new(1, SequenceNumber::new(1)),
                 ignored_ts,
@@ -1810,6 +1811,7 @@ mod tests {
         let w1 = DmlWrite::new(
             "foo",
             lines_to_batches("mem foo=1 10", 0).unwrap(),
+            Some("1970-01-01".into()),
             DmlMeta::sequenced(
                 Sequence::new(1, SequenceNumber::new(1)),
                 ignored_ts,
@@ -1825,6 +1827,7 @@ mod tests {
         let w2 = DmlWrite::new(
             "foo",
             lines_to_batches("cpu foo=1 10", 1).unwrap(),
+            Some("1970-01-01".into()),
             DmlMeta::sequenced(
                 Sequence::new(2, SequenceNumber::new(1)),
                 ignored_ts,
@@ -1842,6 +1845,7 @@ mod tests {
         let w3 = DmlWrite::new(
             "foo",
             lines_to_batches("mem foo=1 30", 2).unwrap(),
+            Some("1970-01-01".into()),
             DmlMeta::sequenced(
                 Sequence::new(1, SequenceNumber::new(2)),
                 ignored_ts,
@@ -2004,6 +2008,7 @@ mod tests {
         let w1 = DmlWrite::new(
             "foo",
             lines_to_batches("mem foo=1 10", 0).unwrap(),
+            Some("1970-01-01".into()),
             DmlMeta::sequenced(
                 Sequence::new(1, SequenceNumber::new(1)),
                 ignored_ts,
@@ -2020,6 +2025,7 @@ mod tests {
         let w2 = DmlWrite::new(
             "foo",
             lines_to_batches("mem foo=1 30\ncpu bar=1 20", 0).unwrap(),
+            Some("1970-01-01".into()),
             DmlMeta::sequenced(
                 Sequence::new(1, SequenceNumber::new(2)),
                 ignored_ts,
@@ -2362,6 +2368,7 @@ mod tests {
         let w1 = DmlWrite::new(
             "foo",
             lines_to_batches("mem foo=1 10", 0).unwrap(),
+            Some("1970-01-01".into()),
             DmlMeta::sequenced(
                 Sequence::new(1, SequenceNumber::new(1)),
                 ignored_ts,
@@ -2372,6 +2379,7 @@ mod tests {
         let w2 = DmlWrite::new(
             "foo",
             lines_to_batches("mem foo=1 10", 0).unwrap(),
+            Some("1970-01-01".into()),
             DmlMeta::sequenced(
                 Sequence::new(1, SequenceNumber::new(2)),
                 ignored_ts,
@@ -2544,6 +2552,7 @@ mod tests {
         let w1 = DmlWrite::new(
             "foo",
             lines_to_batches("mem foo=1 10", 0).unwrap(),
+            Some("1970-01-01".into()),
             DmlMeta::sequenced(
                 Sequence::new(1, SequenceNumber::new(1)),
                 ignored_ts,

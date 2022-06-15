@@ -535,6 +535,7 @@ mod tests {
             "table foo=1 1",
             sequencer_id,
             None,
+            None,
         )
         .await;
 
@@ -682,7 +683,12 @@ mod tests {
     ) -> DmlMeta {
         let span_ctx = SpanContext::new(Arc::clone(trace_collector) as Arc<_>);
         let tables = mutable_batch_lp::lines_to_batches("table foo=1", 0).unwrap();
-        let write = DmlWrite::new(namespace, tables, DmlMeta::unsequenced(Some(span_ctx)));
+        let write = DmlWrite::new(
+            namespace,
+            tables,
+            None,
+            DmlMeta::unsequenced(Some(span_ctx)),
+        );
         let op = DmlOperation::Write(write);
         producer.store_operation(sequencer_id, &op).await.unwrap()
     }

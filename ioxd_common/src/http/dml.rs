@@ -231,7 +231,7 @@ pub trait HttpDrivenDml: ServerType {
             "inserting lines into database",
         );
 
-        let write = DmlWrite::new(&db_name, tables, DmlMeta::unsequenced(span_ctx));
+        let write = DmlWrite::new(&db_name, tables, None, DmlMeta::unsequenced(span_ctx));
 
         match self.write(&db_name, DmlOperation::Write(write)).await {
             Ok(_) => {
@@ -447,6 +447,7 @@ pub mod test_utils {
         DmlWrite::new(
             "MyOrg_MyBucket",
             lines_to_batches(lp_data, 0).unwrap(),
+            None,
             Default::default(),
         )
     }
@@ -483,6 +484,7 @@ pub mod test_utils {
         DmlWrite::new(
             "MyOrg_MyBucket",
             lines_to_batches(lp_data, 0).unwrap(),
+            None,
             Default::default(),
         )
     }
@@ -571,6 +573,7 @@ pub mod test_utils {
                 DmlWrite::new(
                     "MyOrg_MyBucket",
                     lines_to_batches(lp, 0).unwrap(),
+                    None,
                     Default::default(),
                 )
             })

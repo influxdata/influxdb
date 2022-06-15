@@ -115,7 +115,12 @@ where
         }
 
         let iter = collated.into_iter().map(|(sequencer, batch)| {
-            let dml = DmlWrite::new(namespace, batch, DmlMeta::unsequenced(span_ctx.clone()));
+            let dml = DmlWrite::new(
+                namespace,
+                batch,
+                Some(partition_key.clone()),
+                DmlMeta::unsequenced(span_ctx.clone()),
+            );
 
             trace!(
                 %partition_key,
