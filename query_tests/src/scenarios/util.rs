@@ -11,12 +11,12 @@ use data_types::{
 use datafusion::physical_plan::RecordBatchStream;
 use datafusion_util::MemoryStream;
 use dml::{DmlDelete, DmlMeta, DmlOperation, DmlWrite};
-use futures::{StreamExt, TryStreamExt};
+use futures::TryStreamExt;
 use generated_types::{
     influxdata::iox::ingester::v1::{IngesterQueryResponseMetadata, PartitionStatus},
     ingester::IngesterQueryRequest,
 };
-use influxdb_iox_client::flight::Error as FlightError;
+use influxdb_iox_client::flight::{low_level::LowLevelMessage, Error as FlightError};
 use ingester::{
     data::{IngesterData, IngesterQueryResponse, Persister, SequencerData},
     lifecycle::LifecycleHandle,
@@ -784,6 +784,7 @@ impl MockIngester {
         let op = DmlOperation::Write(DmlWrite::new(
             self.ns.namespace.name.clone(),
             mutable_batches,
+            None,
             meta,
         ));
         (op, partition_ids)
@@ -951,66 +952,79 @@ impl IngesterFlightClient for MockIngester {
             ..response
         };
 
-        Ok(Box::new(QueryDataAdapter::new(response)))
+        Ok(Box::new(QueryDataAdapter::new(response).await))
     }
 }
 
 /// Helper struct to present [`IngesterQueryResponse`] (produces by the ingester) as a
 /// [`IngesterFlightClientQueryData`] (used by the querier) without doing any real gRPC IO.
-#[derive(Debug)]
 struct QueryDataAdapter {
-    response: IngesterQueryResponse,
-    app_metadata: IngesterQueryResponseMetadata,
+    messages: Box<dyn Iterator<Item = (LowLevelMessage, IngesterQueryResponseMetadata)> + Send>,
+}
+
+impl std::fmt::Debug for QueryDataAdapter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("QueryDataAdapter").finish_non_exhaustive()
+    }
 }
 
 impl QueryDataAdapter {
     /// Create new adapter.
     ///
     /// This pre-calculates some data structure that we are going to need later.
-    fn new(response: IngesterQueryResponse) -> Self {
-        let app_metadata = IngesterQueryResponseMetadata {
-            unpersisted_partitions: response
-                .unpersisted_partitions
-                .iter()
-                .map(|(id, status)| {
-                    (
-                        id.get(),
-                        PartitionStatus {
-                            parquet_max_sequence_number: status
-                                .parquet_max_sequence_number
-                                .map(|x| x.get()),
-                            tombstone_max_sequence_number: status
-                                .tombstone_max_sequence_number
-                                .map(|x| x.get()),
-                        },
-                    )
-                })
-                .collect(),
-            batch_partition_ids: response
-                .batch_partition_ids
-                .iter()
-                .map(|id| id.get())
-                .collect(),
-        };
+    async fn new(mut response: IngesterQueryResponse) -> Self {
+        let mut partitions: BTreeMap<_, _> = response
+            .unpersisted_partitions
+            .into_iter()
+            .map(|(partition_id, status)| (partition_id, (status, vec![])))
+            .collect();
+
+        let mut id_it = response.batch_partition_ids.into_iter();
+        while let Some(batch) = response.data.try_next().await.unwrap() {
+            let partition_id = id_it.next().unwrap();
+            partitions.get_mut(&partition_id).unwrap().1.push(batch);
+        }
+
+        let mut messages = vec![];
+        for (partition_id, (status, batches)) in partitions {
+            let status = PartitionStatus {
+                parquet_max_sequence_number: status.parquet_max_sequence_number.map(|x| x.get()),
+                tombstone_max_sequence_number: status
+                    .tombstone_max_sequence_number
+                    .map(|x| x.get()),
+            };
+            messages.push((
+                LowLevelMessage::None,
+                IngesterQueryResponseMetadata {
+                    partition_id: partition_id.get(),
+                    status: Some(status),
+                    ..Default::default()
+                },
+            ));
+
+            for batch in batches {
+                messages.push((
+                    LowLevelMessage::Schema(batch.schema()),
+                    IngesterQueryResponseMetadata::default(),
+                ));
+                messages.push((
+                    LowLevelMessage::RecordBatch(batch),
+                    IngesterQueryResponseMetadata::default(),
+                ));
+            }
+        }
 
         Self {
-            response,
-            app_metadata,
+            messages: Box::new(messages.into_iter()),
         }
     }
 }
 
 #[async_trait]
 impl IngesterFlightClientQueryData for QueryDataAdapter {
-    async fn next(&mut self) -> Result<Option<RecordBatch>, FlightError> {
-        Ok(self.response.data.next().await.map(|x| x.unwrap()))
-    }
-
-    fn app_metadata(&self) -> &IngesterQueryResponseMetadata {
-        &self.app_metadata
-    }
-
-    fn schema(&self) -> Arc<arrow::datatypes::Schema> {
-        self.response.schema.as_arrow()
+    async fn next(
+        &mut self,
+    ) -> Result<Option<(LowLevelMessage, IngesterQueryResponseMetadata)>, FlightError> {
+        Ok(self.messages.next())
     }
 }

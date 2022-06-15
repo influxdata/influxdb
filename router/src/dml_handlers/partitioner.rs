@@ -1,6 +1,6 @@
 use super::DmlHandler;
 use async_trait::async_trait;
-use data_types::{DatabaseName, DeletePredicate, PartitionTemplate};
+use data_types::{DatabaseName, DeletePredicate, PartitionKey, PartitionTemplate};
 use hashbrown::HashMap;
 use mutable_batch::{MutableBatch, PartitionWrite, WritePayload};
 use observability_deps::tracing::*;
@@ -18,13 +18,13 @@ pub enum PartitionError {
 /// A decorator of `T`, tagging it with the partition key derived from it.
 #[derive(Debug, PartialEq, Clone)]
 pub struct Partitioned<T> {
-    key: String,
+    key: PartitionKey,
     payload: T,
 }
 
 impl<T> Partitioned<T> {
     /// Wrap `payload` with a partition `key`.
-    pub fn new(key: String, payload: T) -> Self {
+    pub fn new(key: PartitionKey, payload: T) -> Self {
         Self { key, payload }
     }
 
@@ -34,7 +34,7 @@ impl<T> Partitioned<T> {
     }
 
     /// Unwrap `Self` returning the inner payload `T` and the partition key.
-    pub fn into_parts(self) -> (String, T) {
+    pub fn into_parts(self) -> (PartitionKey, T) {
         (self.key, self.payload)
     }
 }
@@ -74,7 +74,7 @@ impl DmlHandler for Partitioner {
         _span_ctx: Option<SpanContext>,
     ) -> Result<Self::WriteOutput, Self::WriteError> {
         // A collection of partition-keyed, per-table MutableBatch instances.
-        let mut partitions: HashMap<_, HashMap<_, MutableBatch>> = HashMap::default();
+        let mut partitions: HashMap<PartitionKey, HashMap<_, MutableBatch>> = HashMap::default();
 
         for (table_name, batch) in batch {
             // Partition the table batch according to the configured partition
@@ -94,10 +94,7 @@ impl DmlHandler for Partitioner {
 
         Ok(partitions
             .into_iter()
-            .map(|(key, batch)| Partitioned {
-                key,
-                payload: batch,
-            })
+            .map(|(key, batch)| Partitioned::new(key, batch))
             .collect::<Vec<_>>())
     }
 
@@ -185,11 +182,11 @@ mod tests {
         (@assert_writes, $got:ident, $($partition_key:expr => $want_tables:expr, )*) => {
             // Construct the desired writes, keyed by partition key
             #[allow(unused_mut)]
-            let mut want_writes: HashMap<String, _> = Default::default();
+            let mut want_writes: HashMap<PartitionKey, _> = Default::default();
             $(
                 let mut want: Vec<String> = $want_tables.into_iter().map(|t| t.to_string()).collect();
                 want.sort();
-                want_writes.insert($partition_key.to_string(), want);
+                want_writes.insert(PartitionKey::from($partition_key), want);
             )*
 
             pretty_assertions::assert_eq!(want_writes, $got);

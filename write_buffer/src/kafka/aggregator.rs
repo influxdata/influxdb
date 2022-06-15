@@ -151,7 +151,7 @@ impl WriteAggregator {
         };
 
         let meta = DmlMeta::unsequenced(ctx);
-        DmlWrite::new(self.namespace.clone(), self.tables.clone(), meta)
+        DmlWrite::new(self.namespace.clone(), self.tables.clone(), None, meta)
     }
 }
 

@@ -1,6 +1,7 @@
 use arrow::{datatypes::Schema, record_batch::RecordBatch};
 use async_trait::async_trait;
 use client_util::connection::{self, Connection};
+use data_types::PartitionId;
 use generated_types::ingester::IngesterQueryRequest;
 use influxdb_iox_client::flight::{
     generated_types as proto,
@@ -8,12 +9,7 @@ use influxdb_iox_client::flight::{
 };
 use observability_deps::tracing::debug;
 use snafu::{ResultExt, Snafu};
-use std::{
-    collections::HashMap,
-    fmt::Debug,
-    ops::{Deref, DerefMut},
-    sync::Arc,
-};
+use std::{collections::HashMap, fmt::Debug, ops::DerefMut, sync::Arc};
 
 pub use influxdb_iox_client::flight::Error as FlightError;
 
@@ -119,6 +115,8 @@ impl FlightClient for FlightClientImpl {
             inner: perform_query,
             schema,
             app_metadata,
+            batch_counter: 0,
+            state: Default::default(),
         }))
     }
 }
@@ -128,15 +126,11 @@ impl FlightClient for FlightClientImpl {
 /// This is mostly the same as [`PerformQuery`] but allows some easier mocking.
 #[async_trait]
 pub trait QueryData: Debug + Send + 'static {
-    /// Returns the next `RecordBatch` available for this query, or `None` if
+    /// Returns the next [`LowLevelMessage`] available for this query, or `None` if
     /// there are no further results available.
-    async fn next(&mut self) -> Result<Option<RecordBatch>, FlightError>;
-
-    /// App metadata that was part of the response.
-    fn app_metadata(&self) -> &proto::IngesterQueryResponseMetadata;
-
-    /// Schema.
-    fn schema(&self) -> Arc<Schema>;
+    async fn next(
+        &mut self,
+    ) -> Result<Option<(LowLevelMessage, proto::IngesterQueryResponseMetadata)>, FlightError>;
 }
 
 #[async_trait]
@@ -144,16 +138,67 @@ impl<T> QueryData for Box<T>
 where
     T: QueryData + ?Sized,
 {
-    async fn next(&mut self) -> Result<Option<RecordBatch>, FlightError> {
+    async fn next(
+        &mut self,
+    ) -> Result<Option<(LowLevelMessage, proto::IngesterQueryResponseMetadata)>, FlightError> {
         self.deref_mut().next().await
     }
+}
 
-    fn app_metadata(&self) -> &proto::IngesterQueryResponseMetadata {
-        self.deref().app_metadata()
-    }
+/// Protocol state.
+///
+/// ```text
+///
+/// [NoPartitionYet]
+///      |
+///      +-----------------------o
+///      |                       |
+///      V                       |
+/// [NewPartition]<-----------o  |
+///      |                    |  |
+///      V                    |  |
+/// [PartitionAnnounced]<--o  |  |
+///      |                 |  |  |
+///      V                 |  |  |
+/// [SchemaAnnounced]      |  |  |
+///      |                 |  |  |
+///      V                 |  |  |
+/// [BatchTransmitted]     |  |  |
+///      |                 |  |  |
+///      +-----------------+--+  |
+///      |                       |
+///      | o---------------------o
+///      | |
+///      V V
+///     [End]<--o
+///       |     |
+///       o-----o
+///
+/// ```
+#[derive(Debug)]
+enum PerformQueryAdapterState {
+    NoPartitionYet,
+    NewPartition {
+        partition_id: PartitionId,
+        batch: RecordBatch,
+    },
+    PartitionAnnounced {
+        partition_id: PartitionId,
+        batch: RecordBatch,
+    },
+    SchemaAnnounced {
+        partition_id: PartitionId,
+        batch: RecordBatch,
+    },
+    BatchTransmitted {
+        partition_id: PartitionId,
+    },
+    End,
+}
 
-    fn schema(&self) -> Arc<Schema> {
-        self.deref().schema()
+impl Default for PerformQueryAdapterState {
+    fn default() -> Self {
+        Self::NoPartitionYet
     }
 }
 
@@ -162,18 +207,25 @@ struct PerformQueryAdapter {
     inner: PerformQuery<proto::IngesterQueryResponseMetadata>,
     app_metadata: proto::IngesterQueryResponseMetadata,
     schema: Arc<Schema>,
+    batch_counter: usize,
+    state: PerformQueryAdapterState,
 }
 
-#[async_trait]
-impl QueryData for PerformQueryAdapter {
-    async fn next(&mut self) -> Result<Option<RecordBatch>, FlightError> {
+impl PerformQueryAdapter {
+    /// Get next batch from underlying [`PerformQuery`] alongside with a batch index (which in turn can be used to
+    /// look up the batch partition).
+    ///
+    /// Returns `Ok(None)` if the stream has ended.
+    async fn next_batch(&mut self) -> Result<Option<(RecordBatch, usize)>, FlightError> {
         loop {
             match self.inner.next().await? {
                 None => {
                     return Ok(None);
                 }
                 Some((LowLevelMessage::RecordBatch(batch), _)) => {
-                    return Ok(Some(batch));
+                    let pos = self.batch_counter;
+                    self.batch_counter += 1;
+                    return Ok(Some((batch, pos)));
                 }
                 // ignore all other message types for now
                 Some((LowLevelMessage::None | LowLevelMessage::Schema(_), _)) => (),
@@ -181,12 +233,118 @@ impl QueryData for PerformQueryAdapter {
         }
     }
 
-    fn app_metadata(&self) -> &proto::IngesterQueryResponseMetadata {
-        &self.app_metadata
+    /// Announce new partition (id and its persistence status).
+    fn announce_partition(
+        &mut self,
+        partition_id: PartitionId,
+    ) -> (LowLevelMessage, proto::IngesterQueryResponseMetadata) {
+        let meta = proto::IngesterQueryResponseMetadata {
+            partition_id: partition_id.get(),
+            status: Some(
+                self.app_metadata
+                    .unpersisted_partitions
+                    .remove(&partition_id.get())
+                    .unwrap(),
+            ),
+            ..Default::default()
+        };
+        (LowLevelMessage::None, meta)
     }
+}
 
-    fn schema(&self) -> Arc<Schema> {
-        Arc::clone(&self.schema)
+#[async_trait]
+impl QueryData for PerformQueryAdapter {
+    async fn next(
+        &mut self,
+    ) -> Result<Option<(LowLevelMessage, proto::IngesterQueryResponseMetadata)>, FlightError> {
+        loop {
+            match std::mem::take(&mut self.state) {
+                PerformQueryAdapterState::End => {
+                    if let Some(partition_id) =
+                        self.app_metadata.unpersisted_partitions.keys().next()
+                    {
+                        let partition_id = PartitionId::new(*partition_id);
+                        return Ok(Some(self.announce_partition(partition_id)));
+                    } else {
+                        return Ok(None);
+                    }
+                }
+                PerformQueryAdapterState::NoPartitionYet => {
+                    let (batch, pos) = if let Some(x) = self.next_batch().await? {
+                        x
+                    } else {
+                        self.state = PerformQueryAdapterState::End;
+                        continue;
+                    };
+                    let partition_id = PartitionId::new(self.app_metadata.batch_partition_ids[pos]);
+
+                    self.state = PerformQueryAdapterState::NewPartition {
+                        partition_id,
+                        batch,
+                    };
+                    continue;
+                }
+                PerformQueryAdapterState::NewPartition {
+                    partition_id,
+                    batch,
+                } => {
+                    self.state = PerformQueryAdapterState::PartitionAnnounced {
+                        partition_id,
+                        batch,
+                    };
+
+                    return Ok(Some(self.announce_partition(partition_id)));
+                }
+                PerformQueryAdapterState::PartitionAnnounced {
+                    partition_id,
+                    batch,
+                } => {
+                    self.state = PerformQueryAdapterState::SchemaAnnounced {
+                        partition_id,
+                        batch,
+                    };
+
+                    let meta = Default::default();
+                    return Ok(Some((
+                        LowLevelMessage::Schema(Arc::clone(&self.schema)),
+                        meta,
+                    )));
+                }
+                PerformQueryAdapterState::SchemaAnnounced {
+                    partition_id,
+                    batch,
+                } => {
+                    self.state = PerformQueryAdapterState::BatchTransmitted { partition_id };
+
+                    let meta = Default::default();
+                    return Ok(Some((LowLevelMessage::RecordBatch(batch), meta)));
+                }
+                PerformQueryAdapterState::BatchTransmitted { partition_id } => {
+                    let (batch, pos) = if let Some(x) = self.next_batch().await? {
+                        x
+                    } else {
+                        self.state = PerformQueryAdapterState::End;
+                        continue;
+                    };
+                    let partition_id2 =
+                        PartitionId::new(self.app_metadata.batch_partition_ids[pos]);
+
+                    if partition_id == partition_id2 {
+                        self.state = PerformQueryAdapterState::PartitionAnnounced {
+                            partition_id,
+                            batch,
+                        };
+                        continue;
+                    } else {
+                        self.state = PerformQueryAdapterState::NewPartition {
+                            partition_id: partition_id2,
+                            batch,
+                        };
+                        continue;
+                    }
+                }
+            }
+        }
     }
 }
 

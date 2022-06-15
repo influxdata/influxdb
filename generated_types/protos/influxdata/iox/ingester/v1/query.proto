@@ -38,8 +38,7 @@ message IngesterQueryRequest {
 }
 
 // Metadata that the ingester provides to the query service along with the results. Serialized
-// in the FlightData's app_metadata for the schema that is returned as the first item from the
-// Arrow Flight doGet request.
+// in every FlightData's app_metadata .
 message IngesterQueryResponseMetadata {
   // There was no field 1, oops.
   reserved 1;
@@ -65,6 +64,18 @@ message IngesterQueryResponseMetadata {
 
   // Map each record batch to a partition ID.
   repeated int64 batch_partition_ids = 6;
+
+  // Partition id for this batch.
+  //
+  // This field is currently NOT used by the ingester but will be soon.
+  int64 partition_id = 7;
+
+  // Optional partition status.
+  //
+  // If this is given, then no schema and no batch will be part of this FlightData object.
+  //
+  // This field is currently NOT used by the ingester but will be soon.
+  PartitionStatus status = 8;
 }
 
 // Status of a partition that has unpersisted data.

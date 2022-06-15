@@ -17,6 +17,7 @@ use generated_types::{
     ingester::{encode_proto_predicate_as_base64, IngesterQueryRequest},
     write_info::merge_responses,
 };
+use influxdb_iox_client::flight::low_level::LowLevelMessage;
 use iox_query::{
     exec::{stringset::StringSet, IOxSessionContext},
     util::compute_timenanosecond_min_max,
@@ -69,34 +70,6 @@ pub enum Error {
         source: FlightClientError,
     },
 
-    #[snafu(display("Batch {} is missing partition id from '{}'", pos, ingester_address))]
-    MissingPartitionId {
-        pos: usize,
-        ingester_address: String,
-    },
-
-    #[snafu(display(
-        "Got too many partition IDs from '{}', expected {} but got {}",
-        ingester_address,
-        expected,
-        actual
-    ))]
-    TooManyPartitionIds {
-        expected: usize,
-        actual: usize,
-        ingester_address: String,
-    },
-
-    #[snafu(display(
-        "Got batch for partition id {} that was not marked as unpersisted from '{}'",
-        partition_id,
-        ingester_address,
-    ))]
-    UnknownPartitionId {
-        partition_id: i64,
-        ingester_address: String,
-    },
-
     #[snafu(display("Failed to connect to ingester '{}': {}", ingester_address, source))]
     Connecting {
         ingester_address: String,
@@ -113,6 +86,27 @@ pub enum Error {
         ingester_address: String,
         write_token: String,
         source: influxdb_iox_client::error::Error,
+    },
+
+    #[snafu(display(
+        "Partition status missing for partition {partition_id}, ingestger: {ingester_address}"
+    ))]
+    PartitionStatusMissing {
+        partition_id: i64,
+        ingester_address: String,
+    },
+
+    #[snafu(display(
+        "Got batch without partition information from ingestger: {ingester_address}"
+    ))]
+    BatchWithoutPartition { ingester_address: String },
+
+    #[snafu(display(
+        "Duplicate partition info for partition {partition_id}, ingestger: {ingester_address}"
+    ))]
+    DuplicatePartitionInfo {
+        partition_id: i64,
+        ingester_address: String,
     },
 }
 
@@ -271,17 +265,12 @@ async fn execute(request: GetPartitionForIngester<'_>) -> Result<Vec<IngesterPar
 
     // read unpersisted partitions
     // map partition_id -> (PartitionMetadata, Vec<PartitionData>))
-    let mut partitions: HashMap<_, _> = perform_query
-        .app_metadata()
-        .unpersisted_partitions
-        .iter()
-        .map(|(id, state)| (*id, (state.clone(), vec![])))
-        .collect();
+    let mut partitions: HashMap<_, _> = HashMap::new();
 
     // sort batches into partitions
     let mut num_batches = 0usize;
-    let partition_ids = perform_query.app_metadata().batch_partition_ids.clone();
-    while let Some(batch) = perform_query
+    let mut current_partition_id = None;
+    while let Some((msg, md)) = perform_query
         .next()
         .await
         .map_err(|source| FlightClientError::Flight { source })
@@ -289,32 +278,41 @@ async fn execute(request: GetPartitionForIngester<'_>) -> Result<Vec<IngesterPar
             ingester_address: ingester_address.as_ref(),
         })?
     {
-        let partition_id = *partition_ids
-            .get(num_batches)
-            .context(MissingPartitionIdSnafu {
-                pos: num_batches,
-                ingester_address: ingester_address.as_ref(),
-            })?;
-        partitions
-            .get_mut(&partition_id)
-            .context(UnknownPartitionIdSnafu {
-                partition_id,
-                ingester_address: ingester_address.as_ref(),
-            })?
-            .1
-            .push(batch);
-        num_batches += 1;
+        match msg {
+            LowLevelMessage::None => {
+                // new partition announced
+                let partition_id = md.partition_id;
+                let status = md.status.context(PartitionStatusMissingSnafu {
+                    partition_id,
+                    ingester_address: ingester_address.as_ref(),
+                })?;
+                let existing = partitions.insert(partition_id, (status, vec![]));
+                ensure!(
+                    existing.is_none(),
+                    DuplicatePartitionInfoSnafu {
+                        partition_id,
+                        ingester_address: ingester_address.as_ref()
+                    },
+                );
+                current_partition_id = Some(partition_id);
+            }
+            LowLevelMessage::Schema(_) => {
+                // can be ignored, schemas are propagated to the batches automatically by the low-level client
+            }
+            LowLevelMessage::RecordBatch(batch) => {
+                let partition_id = current_partition_id.context(BatchWithoutPartitionSnafu {
+                    ingester_address: ingester_address.as_ref(),
+                })?;
+                partitions
+                    .get_mut(&partition_id)
+                    .expect("current partition should have been inserted")
+                    .1
+                    .push(batch);
+                num_batches += 1;
+            }
+        }
     }
     debug!(%ingester_address, num_batches, "Received batches from ingester");
-    trace!(?partitions, schema=?perform_query.schema(), "Detailed from ingester");
-    ensure!(
-        num_batches == partition_ids.len(),
-        TooManyPartitionIdsSnafu {
-            actual: partition_ids.len(),
-            expected: num_batches,
-            ingester_address: ingester_address.as_ref(),
-        },
-    );
 
     let mut ingester_partitions = vec![];
     for (partition_id, (state, batches)) in partitions {
@@ -330,6 +328,7 @@ async fn execute(request: GetPartitionForIngester<'_>) -> Result<Vec<IngesterPar
             Arc::clone(&table_name),
             partition_id,
             sequencer_id,
+            // TODO(marco): project schema to the columns that are present within this partition
             Arc::clone(&expected_schema),
             state.parquet_max_sequence_number.map(SequenceNumber::new),
             state.tombstone_max_sequence_number.map(SequenceNumber::new),
@@ -809,7 +808,7 @@ fn calculate_summary(batches: &[RecordBatch], schema: &Schema) -> TableSummary {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::{BTreeMap, HashMap};
+    use std::collections::HashMap;
 
     use arrow::{
         array::{ArrayRef, DictionaryArray, Int64Array, StringArray, TimestampNanosecondArray},
@@ -883,11 +882,6 @@ mod tests {
                     results: vec![Err(FlightError::GrpcError(tonic::Status::internal(
                         "don't know",
                     )))],
-                    app_metadata: IngesterQueryResponseMetadata {
-                        unpersisted_partitions: BTreeMap::new(),
-                        batch_partition_ids: vec![],
-                    },
-                    schema: schema().as_arrow(),
                 }),
             )])
             .await,
@@ -900,18 +894,7 @@ mod tests {
     #[tokio::test]
     async fn test_flight_no_partitions() {
         let mock_flight_client = Arc::new(
-            MockFlightClient::new([(
-                "addr1",
-                Ok(MockQueryData {
-                    results: vec![],
-                    app_metadata: IngesterQueryResponseMetadata {
-                        unpersisted_partitions: BTreeMap::new(),
-                        batch_partition_ids: vec![],
-                    },
-                    schema: schema().as_arrow(),
-                }),
-            )])
-            .await,
+            MockFlightClient::new([("addr1", Ok(MockQueryData { results: vec![] }))]).await,
         );
         let ingester_conn = mock_flight_client.ingester_conn().await;
         let partitions = get_partitions(&ingester_conn).await.unwrap();
@@ -924,18 +907,17 @@ mod tests {
             MockFlightClient::new([(
                 "addr1",
                 Ok(MockQueryData {
-                    results: vec![],
-                    app_metadata: IngesterQueryResponseMetadata {
-                        unpersisted_partitions: BTreeMap::from([(
-                            1,
-                            PartitionStatus {
+                    results: vec![Ok((
+                        LowLevelMessage::None,
+                        IngesterQueryResponseMetadata {
+                            partition_id: 1,
+                            status: Some(PartitionStatus {
                                 parquet_max_sequence_number: None,
                                 tombstone_max_sequence_number: None,
-                            },
-                        )]),
-                        batch_partition_ids: vec![],
-                    },
-                    schema: schema().as_arrow(),
+                            }),
+                            ..Default::default()
+                        },
+                    ))],
                 }),
             )])
             .await,
@@ -954,142 +936,189 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_flight_err_missing_partition_id() {
-        let record_batch = lp_to_record_batch("table foo=1 1");
+    async fn test_flight_err_partition_status_missing() {
         let mock_flight_client = Arc::new(
             MockFlightClient::new([(
                 "addr1",
                 Ok(MockQueryData {
-                    results: vec![Ok(record_batch)],
-                    app_metadata: IngesterQueryResponseMetadata {
-                        unpersisted_partitions: BTreeMap::from([(
-                            1,
-                            PartitionStatus {
-                                parquet_max_sequence_number: Some(1),
-                                tombstone_max_sequence_number: Some(2),
-                            },
-                        )]),
-                        batch_partition_ids: vec![],
-                    },
-                    schema: schema().as_arrow(),
+                    results: vec![Ok((
+                        LowLevelMessage::None,
+                        IngesterQueryResponseMetadata {
+                            partition_id: 1,
+                            status: None,
+                            ..Default::default()
+                        },
+                    ))],
                 }),
             )])
             .await,
         );
         let ingester_conn = mock_flight_client.ingester_conn().await;
         let err = get_partitions(&ingester_conn).await.unwrap_err();
-        assert_matches!(err, Error::MissingPartitionId { .. });
+        assert_matches!(err, Error::PartitionStatusMissing { .. });
     }
 
     #[tokio::test]
-    async fn test_flight_err_too_many_partition_ids() {
-        let record_batch = lp_to_record_batch("table foo=1 1");
+    async fn test_flight_err_duplicate_partition_info() {
         let mock_flight_client = Arc::new(
             MockFlightClient::new([(
                 "addr1",
                 Ok(MockQueryData {
-                    results: vec![Ok(record_batch)],
-                    app_metadata: IngesterQueryResponseMetadata {
-                        unpersisted_partitions: BTreeMap::from([(
-                            1,
-                            PartitionStatus {
-                                parquet_max_sequence_number: Some(1),
-                                tombstone_max_sequence_number: Some(2),
+                    results: vec![
+                        Ok((
+                            LowLevelMessage::None,
+                            IngesterQueryResponseMetadata {
+                                partition_id: 1,
+                                status: Some(PartitionStatus {
+                                    parquet_max_sequence_number: None,
+                                    tombstone_max_sequence_number: None,
+                                }),
+                                ..Default::default()
                             },
-                        )]),
-                        batch_partition_ids: vec![1, 2],
-                    },
-                    schema: schema().as_arrow(),
+                        )),
+                        Ok((
+                            LowLevelMessage::None,
+                            IngesterQueryResponseMetadata {
+                                partition_id: 2,
+                                status: Some(PartitionStatus {
+                                    parquet_max_sequence_number: None,
+                                    tombstone_max_sequence_number: None,
+                                }),
+                                ..Default::default()
+                            },
+                        )),
+                        Ok((
+                            LowLevelMessage::None,
+                            IngesterQueryResponseMetadata {
+                                partition_id: 1,
+                                status: Some(PartitionStatus {
+                                    parquet_max_sequence_number: None,
+                                    tombstone_max_sequence_number: None,
+                                }),
+                                ..Default::default()
+                            },
+                        )),
+                    ],
                 }),
             )])
             .await,
         );
         let ingester_conn = mock_flight_client.ingester_conn().await;
         let err = get_partitions(&ingester_conn).await.unwrap_err();
-        assert_matches!(err, Error::TooManyPartitionIds { .. });
+        assert_matches!(err, Error::DuplicatePartitionInfo { .. });
     }
 
     #[tokio::test]
-    async fn test_flight_err_unknown_partition_id() {
+    async fn test_flight_err_batch_without_partition() {
         let record_batch = lp_to_record_batch("table foo=1 1");
         let mock_flight_client = Arc::new(
             MockFlightClient::new([(
                 "addr1",
                 Ok(MockQueryData {
-                    results: vec![Ok(record_batch)],
-                    app_metadata: IngesterQueryResponseMetadata {
-                        unpersisted_partitions: BTreeMap::from([(
-                            1,
-                            PartitionStatus {
-                                parquet_max_sequence_number: Some(1),
-                                tombstone_max_sequence_number: Some(2),
-                            },
-                        )]),
-                        batch_partition_ids: vec![42],
-                    },
-                    schema: schema().as_arrow(),
+                    results: vec![Ok((
+                        LowLevelMessage::RecordBatch(record_batch),
+                        IngesterQueryResponseMetadata::default(),
+                    ))],
                 }),
             )])
             .await,
         );
         let ingester_conn = mock_flight_client.ingester_conn().await;
         let err = get_partitions(&ingester_conn).await.unwrap_err();
-        assert_matches!(err, Error::UnknownPartitionId { .. });
+        assert_matches!(err, Error::BatchWithoutPartition { .. });
     }
 
     #[tokio::test]
     async fn test_flight_many_batches() {
         let record_batch_1_1 = lp_to_record_batch("table foo=1 1");
-        let record_batch_1_2 = lp_to_record_batch("table foo=2 2");
+        let record_batch_1_2 = lp_to_record_batch("table bar=20,foo=2 2");
         let record_batch_2_1 = lp_to_record_batch("table foo=3 3");
-        let record_batch_3_1 = lp_to_record_batch("table foo=4 4");
+        let record_batch_3_1 = lp_to_record_batch("table baz=40,foo=4 4");
+
+        let schema_1_1 = record_batch_1_1.schema();
+        let schema_1_2 = record_batch_1_2.schema();
+        let schema_2_1 = record_batch_2_1.schema();
+        let schema_3_1 = record_batch_3_1.schema();
+
         let mock_flight_client = Arc::new(
             MockFlightClient::new([
                 (
                     "addr1",
                     Ok(MockQueryData {
                         results: vec![
-                            Ok(record_batch_1_1),
-                            Ok(record_batch_1_2),
-                            Ok(record_batch_2_1),
-                        ],
-                        app_metadata: IngesterQueryResponseMetadata {
-                            unpersisted_partitions: BTreeMap::from([
-                                (
-                                    1,
-                                    PartitionStatus {
+                            Ok((
+                                LowLevelMessage::None,
+                                IngesterQueryResponseMetadata {
+                                    partition_id: 1,
+                                    status: Some(PartitionStatus {
                                         parquet_max_sequence_number: Some(11),
                                         tombstone_max_sequence_number: Some(12),
-                                    },
-                                ),
-                                (
-                                    2,
-                                    PartitionStatus {
+                                    }),
+                                    ..Default::default()
+                                },
+                            )),
+                            Ok((
+                                LowLevelMessage::Schema(Arc::clone(&schema_1_1)),
+                                IngesterQueryResponseMetadata::default(),
+                            )),
+                            Ok((
+                                LowLevelMessage::RecordBatch(record_batch_1_1),
+                                IngesterQueryResponseMetadata::default(),
+                            )),
+                            Ok((
+                                LowLevelMessage::Schema(Arc::clone(&schema_1_2)),
+                                IngesterQueryResponseMetadata::default(),
+                            )),
+                            Ok((
+                                LowLevelMessage::RecordBatch(record_batch_1_2),
+                                IngesterQueryResponseMetadata::default(),
+                            )),
+                            Ok((
+                                LowLevelMessage::None,
+                                IngesterQueryResponseMetadata {
+                                    partition_id: 2,
+                                    status: Some(PartitionStatus {
                                         parquet_max_sequence_number: Some(21),
                                         tombstone_max_sequence_number: Some(22),
-                                    },
-                                ),
-                            ]),
-                            batch_partition_ids: vec![1, 1, 2],
-                        },
-                        schema: schema().as_arrow(),
+                                    }),
+                                    ..Default::default()
+                                },
+                            )),
+                            Ok((
+                                LowLevelMessage::Schema(Arc::clone(&schema_2_1)),
+                                IngesterQueryResponseMetadata::default(),
+                            )),
+                            Ok((
+                                LowLevelMessage::RecordBatch(record_batch_2_1),
+                                IngesterQueryResponseMetadata::default(),
+                            )),
+                        ],
                     }),
                 ),
                 (
                     "addr2",
                     Ok(MockQueryData {
-                        results: vec![Ok(record_batch_3_1)],
-                        app_metadata: IngesterQueryResponseMetadata {
-                            unpersisted_partitions: BTreeMap::from([(
-                                3,
-                                PartitionStatus {
-                                    parquet_max_sequence_number: Some(31),
-                                    tombstone_max_sequence_number: Some(32),
+                        results: vec![
+                            Ok((
+                                LowLevelMessage::None,
+                                IngesterQueryResponseMetadata {
+                                    partition_id: 3,
+                                    status: Some(PartitionStatus {
+                                        parquet_max_sequence_number: Some(31),
+                                        tombstone_max_sequence_number: Some(32),
+                                    }),
+                                    ..Default::default()
                                 },
-                            )]),
-                            batch_partition_ids: vec![3],
-                        },
-                        schema: schema().as_arrow(),
+                            )),
+                            Ok((
+                                LowLevelMessage::Schema(Arc::clone(&schema_3_1)),
+                                IngesterQueryResponseMetadata::default(),
+                            )),
+                            Ok((
+                                LowLevelMessage::RecordBatch(record_batch_3_1),
+                                IngesterQueryResponseMetadata::default(),
+                            )),
+                        ],
                     }),
                 ),
             ])
@@ -1112,6 +1141,8 @@ mod tests {
             Some(SequenceNumber::new(12))
         );
         assert_eq!(p1.batches.len(), 2);
+        assert_eq!(p1.batches[0].schema(), schema().as_arrow());
+        assert_eq!(p1.batches[1].schema(), schema().as_arrow());
 
         let p2 = &partitions[1];
         assert_eq!(p2.partition_id.get(), 2);
@@ -1125,6 +1156,7 @@ mod tests {
             Some(SequenceNumber::new(22))
         );
         assert_eq!(p2.batches.len(), 1);
+        assert_eq!(p2.batches[0].schema(), schema().as_arrow());
 
         let p3 = &partitions[2];
         assert_eq!(p3.partition_id.get(), 3);
@@ -1138,6 +1170,7 @@ mod tests {
             Some(SequenceNumber::new(32))
         );
         assert_eq!(p3.batches.len(), 1);
+        assert_eq!(p3.batches[0].schema(), schema().as_arrow());
     }
 
     async fn get_partitions(
@@ -1155,7 +1188,9 @@ mod tests {
     fn schema() -> Arc<Schema> {
         Arc::new(
             SchemaBuilder::new()
-                .influx_field("col", InfluxFieldType::Integer)
+                .influx_field("bar", InfluxFieldType::Float)
+                .influx_field("baz", InfluxFieldType::Float)
+                .influx_field("foo", InfluxFieldType::Float)
                 .timestamp()
                 .build()
                 .unwrap(),
@@ -1168,27 +1203,19 @@ mod tests {
 
     #[derive(Debug)]
     struct MockQueryData {
-        results: Vec<Result<RecordBatch, FlightError>>,
-        app_metadata: IngesterQueryResponseMetadata,
-        schema: Arc<arrow::datatypes::Schema>,
+        results: Vec<Result<(LowLevelMessage, IngesterQueryResponseMetadata), FlightError>>,
     }
 
     #[async_trait]
     impl QueryData for MockQueryData {
-        async fn next(&mut self) -> Result<Option<RecordBatch>, FlightError> {
+        async fn next(
+            &mut self,
+        ) -> Result<Option<(LowLevelMessage, IngesterQueryResponseMetadata)>, FlightError> {
             if self.results.is_empty() {
                 Ok(None)
             } else {
                 self.results.remove(0).map(Some)
             }
-        }
-
-        fn app_metadata(&self) -> &IngesterQueryResponseMetadata {
-            &self.app_metadata
-        }
-
-        fn schema(&self) -> Arc<arrow::datatypes::Schema> {
-            Arc::clone(&self.schema)
         }
     }
 

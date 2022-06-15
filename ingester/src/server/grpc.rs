@@ -398,6 +398,7 @@ impl GetStream {
                 })
                 .collect(),
             batch_partition_ids: batch_partition_ids.into_iter().map(|id| id.get()).collect(),
+            ..Default::default()
         };
         prost::Message::encode(&app_metadata, &mut bytes).context(SerializationSnafu)?;
         schema_flight_data.app_metadata = bytes.to_vec();
