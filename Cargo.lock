@@ -688,16 +688,16 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "3.2.1"
+version = "3.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a836566fa5f52f7ddf909a8a2f9029b9f78ca584cd95cf7e87f8073110f4c5c9"
+checksum = "6d20de3739b4fb45a17837824f40aa1769cc7655d7a83e68739a77fe7b30c87a"
 dependencies = [
  "atty",
  "bitflags",
  "clap_derive",
  "clap_lex",
  "indexmap",
- "lazy_static",
+ "once_cell",
  "strsim",
  "termcolor",
  "textwrap 0.15.0",
@@ -707,7 +707,7 @@ dependencies = [
 name = "clap_blocks"
 version = "0.1.0"
 dependencies = [
- "clap 3.2.1",
+ "clap 3.2.4",
  "futures",
  "humantime",
  "iox_catalog",
@@ -727,9 +727,9 @@ dependencies = [
 
 [[package]]
 name = "clap_derive"
-version = "3.2.1"
+version = "3.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "986fd75d1dfd2c34eb8c9275ae38ad87ea9478c9b79e87f1801f7d866dfb1e37"
+checksum = "026baf08b89ffbd332836002ec9378ef0e69648cbfadd68af7cd398ca5bf98f7"
 dependencies = [
  "heck",
  "proc-macro-error",
@@ -2117,7 +2117,7 @@ dependencies = [
  "assert_cmd",
  "backtrace",
  "bytes",
- "clap 3.2.1",
+ "clap 3.2.4",
  "clap_blocks",
  "console-subscriber",
  "data_types",
@@ -2354,7 +2354,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "chrono-english",
- "clap 3.2.1",
+ "clap 3.2.4",
  "criterion",
  "futures",
  "handlebars",
@@ -2441,7 +2441,7 @@ dependencies = [
  "async-trait",
  "bytes",
  "chrono",
- "clap 3.2.1",
+ "clap 3.2.4",
  "clap_blocks",
  "data_types",
  "dml",
@@ -2576,7 +2576,7 @@ name = "ioxd_test"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "clap 3.2.1",
+ "clap 3.2.4",
  "hyper",
  "ioxd_common",
  "metric",
@@ -5714,7 +5714,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "chrono",
- "clap 3.2.1",
+ "clap 3.2.4",
  "futures",
  "observability_deps",
  "snafu",
@@ -5851,7 +5851,7 @@ dependencies = [
 name = "trogging"
 version = "0.1.0"
 dependencies = [
- "clap 3.2.1",
+ "clap 3.2.4",
  "logfmt",
  "observability_deps",
  "regex",
