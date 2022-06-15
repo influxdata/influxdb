@@ -115,7 +115,12 @@ where
         }
 
         let iter = collated.into_iter().map(|(sequencer, batch)| {
-            let dml = DmlWrite::new(namespace, batch, DmlMeta::unsequenced(span_ctx.clone()));
+            let dml = DmlWrite::new(
+                namespace,
+                batch,
+                Some(partition_key.clone()),
+                DmlMeta::unsequenced(span_ctx.clone()),
+            );
 
             trace!(
                 %partition_key,
@@ -216,7 +221,7 @@ mod tests {
     fn lp_to_writes(lp: &str) -> Partitioned<HashMap<String, MutableBatch>> {
         let (writes, _) = mutable_batch_lp::lines_to_batches_stats(lp, 42)
             .expect("failed to build test writes from LP");
-        Partitioned::new("key".to_owned(), writes)
+        Partitioned::new("key".into(), writes)
     }
 
     // Init a mock write buffer with the given number of sequencers.

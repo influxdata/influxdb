@@ -407,6 +407,7 @@ mod tests {
         let w1 = DmlWrite::new(
             "foo",
             lines_to_batches("mem foo=1 10", 0).unwrap(),
+            Some("1970-01-01".into()),
             DmlMeta::sequenced(
                 Sequence::new(0, SequenceNumber::new(0)),
                 ingest_ts1,
@@ -422,6 +423,7 @@ mod tests {
         let w2 = DmlWrite::new(
             "foo",
             lines_to_batches("cpu bar=2 20\ncpu bar=3 30", 0).unwrap(),
+            Some("1970-01-01".into()),
             DmlMeta::sequenced(
                 Sequence::new(0, SequenceNumber::new(7)),
                 ingest_ts2,
@@ -437,6 +439,7 @@ mod tests {
         let w3 = DmlWrite::new(
             "foo",
             lines_to_batches("a b=2 200", 0).unwrap(),
+            Some("1970-01-01".into()),
             DmlMeta::sequenced(
                 Sequence::new(0, SequenceNumber::new(9)),
                 ingest_ts2,
@@ -730,6 +733,7 @@ mod tests {
             DmlWrite::new(
                 "foo",
                 lines_to_batches("cpu bar=2 20", 0).unwrap(),
+                Some("1970-01-01".into()),
                 DmlMeta::sequenced(
                     Sequence::new(0, SequenceNumber::new(1)),
                     ingest_ts1,
@@ -740,6 +744,7 @@ mod tests {
             DmlWrite::new(
                 "foo",
                 lines_to_batches("cpu bar=2 30", 0).unwrap(),
+                Some("1970-01-01".into()),
                 DmlMeta::sequenced(
                     Sequence::new(0, SequenceNumber::new(2)),
                     ingest_ts2,
@@ -781,6 +786,7 @@ mod tests {
         let write_operations = vec![DmlWrite::new(
             "foo",
             lines_to_batches("cpu bar=2 20", 0).unwrap(),
+            Some("1970-01-01".into()),
             DmlMeta::sequenced(
                 Sequence::new(0, SequenceNumber::new(1)),
                 ingest_ts1,

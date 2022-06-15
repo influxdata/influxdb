@@ -11,7 +11,7 @@
     clippy::clone_on_ref_ptr
 )]
 
-use data_types::{DeletePredicate, NonEmptyString, Sequence, StatValues, Statistics};
+use data_types::{DeletePredicate, NonEmptyString, PartitionKey, Sequence, StatValues, Statistics};
 use hashbrown::HashMap;
 use iox_time::Time;
 use mutable_batch::MutableBatch;
@@ -170,6 +170,11 @@ pub struct DmlWrite {
     meta: DmlMeta,
     min_timestamp: i64,
     max_timestamp: i64,
+    /// An optional partition key for this write.
+    ///
+    /// NOTE: all rows in this batch MUST map to this partition key if
+    /// specified.
+    partition_key: Option<PartitionKey>,
 }
 
 impl DmlWrite {
@@ -185,6 +190,7 @@ impl DmlWrite {
     pub fn new(
         namespace: impl Into<String>,
         tables: HashMap<String, MutableBatch>,
+        partition_key: Option<PartitionKey>,
         meta: DmlMeta,
     ) -> Self {
         assert_ne!(tables.len(), 0);
@@ -208,6 +214,7 @@ impl DmlWrite {
         Self {
             namespace: namespace.into(),
             tables,
+            partition_key,
             meta,
             min_timestamp: stats.min.unwrap(),
             max_timestamp: stats.max.unwrap(),
@@ -271,7 +278,13 @@ impl DmlWrite {
                 .map(|(k, v)| std::mem::size_of_val(k) + k.capacity() + v.size())
                 .sum::<usize>()
             + self.meta.size()
+            + std::mem::size_of::<PartitionKey>()
             - std::mem::size_of::<DmlMeta>()
+    }
+
+    /// Return the partition key derived for this op.
+    pub fn partition_key(&self) -> Option<&PartitionKey> {
+        self.partition_key.as_ref()
     }
 }
 

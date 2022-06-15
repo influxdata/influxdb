@@ -62,7 +62,7 @@ impl Client {
             .map_err(|e| Error::Client(Box::new(e)))?;
 
         let meta = dml::DmlMeta::unsequenced(None);
-        let write = dml::DmlWrite::new(db_name.as_ref().to_string(), tables, meta);
+        let write = dml::DmlWrite::new(db_name.as_ref().to_string(), tables, None, meta);
         let lines = write.tables().map(|(_, table)| table.rows()).sum();
 
         let database_batch = mutable_batch_pb::encode::encode_write(db_name.as_ref(), &write);

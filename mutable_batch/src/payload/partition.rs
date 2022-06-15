@@ -31,6 +31,7 @@ pub fn partition_batch<'a>(
 enum Template<'a> {
     Table(&'a str),
     Column(&'a Column, &'a str),
+    MissingColumn(&'a str),
     TimeFormat(&'a [i64], StrftimeItems<'a>),
 }
 
@@ -58,7 +59,9 @@ impl<'a> Template<'a> {
                     }
                 }
             }
-            Template::Column(_, _) => Ok(()),
+            Template::Column(_, col_name) | Template::MissingColumn(col_name) => {
+                out.write_str(col_name)
+            }
             Template::TimeFormat(t, format) => {
                 let formatted = Utc
                     .timestamp_nanos(t[idx])
@@ -84,13 +87,13 @@ fn partition_keys<'a>(
     let cols: Vec<_> = template
         .parts
         .iter()
-        // If a column isn't present it can be skipped as it has no impact on partition key
-        .filter_map(|part| match part {
-            TemplatePart::Table => Some(Template::Table(table_name)),
-            TemplatePart::Column(name) => Some(Template::Column(batch.column(name).ok()?, name)),
-            TemplatePart::TimeFormat(fmt) => {
-                Some(Template::TimeFormat(time, StrftimeItems::new(fmt)))
-            }
+        .map(|part| match part {
+            TemplatePart::Table => Template::Table(table_name),
+            TemplatePart::Column(name) => batch.column(name).map_or_else(
+                |_| Template::MissingColumn(name),
+                |col| Template::Column(col, name),
+            ),
+            TemplatePart::TimeFormat(fmt) => Template::TimeFormat(time, StrftimeItems::new(fmt)),
             TemplatePart::RegexCapture(_) => unimplemented!(),
             TemplatePart::StrftimeColumn(_) => unimplemented!(),
         })
@@ -212,6 +215,7 @@ mod tests {
                 TemplatePart::TimeFormat("%Y-%m-%d %H:%M:%S".to_string()),
                 TemplatePart::Column("f64".to_string()),
                 TemplatePart::Column("region".to_string()),
+                TemplatePart::Column("bananas".to_string()),
             ],
         };
 
@@ -222,11 +226,11 @@ mod tests {
         assert_eq!(
             keys,
             vec![
-                "foo-1970-01-01 00:00:00-f64_2-".to_string(),
-                "foo-1970-01-01 00:00:00-f64_4.5-region_west".to_string(),
-                "foo-1970-01-01 00:00:00-f64_6-".to_string(),
-                "foo-1970-01-01 00:00:00-f64_3-region_east".to_string(),
-                "foo-1970-01-01 00:00:00-f64_6-".to_string()
+                "foo-1970-01-01 00:00:00-f64_2-region-bananas".to_string(),
+                "foo-1970-01-01 00:00:00-f64_4.5-region_west-bananas".to_string(),
+                "foo-1970-01-01 00:00:00-f64_6-region-bananas".to_string(),
+                "foo-1970-01-01 00:00:00-f64_3-region_east-bananas".to_string(),
+                "foo-1970-01-01 00:00:00-f64_6-region-bananas".to_string()
             ]
         )
     }

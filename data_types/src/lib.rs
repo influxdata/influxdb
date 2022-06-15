@@ -692,12 +692,14 @@ impl Display for PartitionKey {
 
 impl From<String> for PartitionKey {
     fn from(s: String) -> Self {
+        assert!(!s.is_empty());
         Self(s.into())
     }
 }
 
 impl From<&str> for PartitionKey {
     fn from(s: &str) -> Self {
+        assert!(!s.is_empty());
         Self(s.into())
     }
 }
