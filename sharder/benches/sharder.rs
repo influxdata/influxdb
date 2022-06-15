@@ -86,7 +86,7 @@ fn benchmark_sharder(
     table: &str,
     namespace: &DatabaseName<'_>,
 ) {
-    let hasher = JumpHash::new((0..num_buckets).map(Arc::new));
+    let hasher = JumpHash::new((0..num_buckets).map(Arc::new)).unwrap();
     let batch = MutableBatch::default();
 
     group.throughput(Throughput::Elements(1));

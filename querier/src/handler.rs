@@ -172,7 +172,7 @@ mod tests {
                 Arc::clone(&metric_registry),
                 usize::MAX,
             ));
-            // QuerierDatabase::new panics if there are no sequencers in the catalog
+            // QuerierDatabase::new returns an error if there are no sequencers in the catalog
             {
                 let mut repos = catalog.repositories().await;
 

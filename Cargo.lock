@@ -4945,6 +4945,8 @@ dependencies = [
  "parking_lot 0.12.1",
  "rand",
  "siphasher",
+ "snafu",
+ "test_helpers",
  "workspace-hack",
 ]
 

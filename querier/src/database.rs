@@ -30,6 +30,9 @@ pub enum Error {
     Catalog {
         source: iox_catalog::interface::Error,
     },
+
+    #[snafu(display("Sharder error: {source}"))]
+    Sharder { source: sharder::Error },
 }
 
 /// Database for the querier.
@@ -202,16 +205,15 @@ pub async fn create_sharder(catalog: &dyn Catalog) -> Result<JumpHash<Arc<KafkaP
         .map(|sequencer| sequencer.kafka_partition)
         .collect();
 
-    Ok(shards.into_iter().map(Arc::new).collect())
+    JumpHash::new(shards.into_iter().map(Arc::new)).context(SharderSnafu)
 }
 
 #[cfg(test)]
 mod tests {
-    use iox_tests::util::TestCatalog;
-
-    use crate::create_ingester_connection_for_testing;
-
     use super::*;
+    use crate::create_ingester_connection_for_testing;
+    use iox_tests::util::TestCatalog;
+    use test_helpers::assert_error;
 
     #[tokio::test]
     #[should_panic(
@@ -239,7 +241,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[should_panic(expected = "cannot initialise sharder with no shards")]
     async fn sequencers_in_catalog_are_required_for_startup() {
         let catalog = TestCatalog::new();
 
@@ -250,22 +251,26 @@ mod tests {
             usize::MAX,
         ));
 
-        QuerierDatabase::new(
-            catalog_cache,
-            catalog.metric_registry(),
-            ParquetStorage::new(catalog.object_store()),
-            catalog.exec(),
-            create_ingester_connection_for_testing(),
-            QuerierDatabase::MAX_CONCURRENT_QUERIES_MAX,
-        )
-        .await
-        .unwrap();
+        assert_error!(
+            QuerierDatabase::new(
+                catalog_cache,
+                catalog.metric_registry(),
+                ParquetStorage::new(catalog.object_store()),
+                catalog.exec(),
+                create_ingester_connection_for_testing(),
+                QuerierDatabase::MAX_CONCURRENT_QUERIES_MAX,
+            )
+            .await,
+            Error::Sharder {
+                source: sharder::Error::NoShards
+            },
+        );
     }
 
     #[tokio::test]
     async fn test_namespace() {
         let catalog = TestCatalog::new();
-        // QuerierDatabase::new panics if there are no sequencers in the catalog
+        // QuerierDatabase::new returns an error if there are no sequencers in the catalog
         catalog.create_sequencer(0).await;
 
         let catalog_cache = Arc::new(CatalogCache::new(
@@ -294,7 +299,7 @@ mod tests {
     #[tokio::test]
     async fn test_namespaces() {
         let catalog = TestCatalog::new();
-        // QuerierDatabase::new panics if there are no sequencers in the catalog
+        // QuerierDatabase::new returns an error if there are no sequencers in the catalog
         catalog.create_sequencer(0).await;
 
         let catalog_cache = Arc::new(CatalogCache::new(
