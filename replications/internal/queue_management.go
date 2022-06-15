@@ -139,23 +139,19 @@ func (rq *replicationQueue) run() {
 	retry := time.NewTimer(math.MaxInt64)
 	purgeTicker := time.NewTicker(purgeInterval)
 
-	sendWrite := func() {
+	sendWrite := func() time.Duration {
 		for {
 			waitForRetry, shouldRetry := rq.SendWrite()
 
-			// immediately retry if the wait time is zero
-			if shouldRetry && waitForRetry == 0 {
-				continue
+			if !shouldRetry {
+				return math.MaxInt64
 			}
 
-			// otherwise, wait until the specified amount of time to retry
-			if shouldRetry {
-				if !retry.Stop() {
-					<-retry.C
-				}
-				retry.Reset(waitForRetry)
+			// immediately retry if the wait time is zero
+			if waitForRetry == 0 {
+				continue
 			}
-			break
+			return waitForRetry
 		}
 	}
 
@@ -171,9 +167,14 @@ func (rq *replicationQueue) run() {
 			// that rq.SendWrite will be called again in this situation and not leave data in the queue. Outside of this
 			// specific scenario, the buffer might result in an extra call to rq.SendWrite that will immediately return on
 			// EOF.
-			sendWrite()
+			retryTime := sendWrite()
+			if !retry.Stop() {
+				<-retry.C
+			}
+			retry.Reset(retryTime)
 		case <-retry.C:
-			sendWrite()
+			retryTime := sendWrite()
+			retry.Reset(retryTime)
 		case <-purgeTicker.C:
 			if rq.maxAge != 0 {
 				rq.queue.PurgeOlderThan(time.Now().Add(-rq.maxAge))
