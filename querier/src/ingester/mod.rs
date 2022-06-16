@@ -23,7 +23,9 @@ use iox_query::{
     util::compute_timenanosecond_min_max,
     QueryChunk, QueryChunkError, QueryChunkMeta,
 };
-use observability_deps::tracing::{debug, trace, warn};
+use iox_time::{Time, TimeProvider};
+use metric::{DurationHistogram, Metric};
+use observability_deps::tracing::{debug, info, trace, warn};
 use predicate::{Predicate, PredicateMatch};
 use schema::{selection::Selection, sort::SortKey, InfluxColumnType, InfluxFieldType, Schema};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
@@ -151,13 +153,104 @@ pub trait IngesterConnection: std::fmt::Debug + Send + Sync + 'static {
     fn as_any(&self) -> &dyn Any;
 }
 
+/// Structure that holds metrics for ingester connections.
+#[derive(Debug)]
+struct IngesterConnectionMetrics {
+    /// Time spent waiting for successful ingester queries
+    ingester_duration_success: DurationHistogram,
+
+    /// Time spent waiting for unsuccessful ingester queries
+    ingester_duration_error: DurationHistogram,
+
+    /// Time spent waiting for a request that was cancelled.
+    ingester_duration_cancelled: DurationHistogram,
+}
+
+impl IngesterConnectionMetrics {
+    fn new(metric_registry: &metric::Registry) -> Self {
+        let ingester_duration: Metric<DurationHistogram> = metric_registry.register_metric(
+            "ingester_duration",
+            "ingester request query execution duration",
+        );
+        let ingester_duration_success = ingester_duration.recorder(&[("result", "success")]);
+        let ingester_duration_error = ingester_duration.recorder(&[("result", "error")]);
+        let ingester_duration_cancelled = ingester_duration.recorder(&[("result", "cancelled")]);
+
+        Self {
+            ingester_duration_success,
+            ingester_duration_error,
+            ingester_duration_cancelled,
+        }
+    }
+}
+
+/// Helper to observe a single ingester request.
+///
+/// Use [`set_ok`](Self::set_ok) or [`set_err`](Self::set_err) if an ingester result was observered. Otherwise the
+/// request will count as "cancelled".
+struct ObserveIngesterRequest<'a> {
+    res: Option<Result<(), ()>>,
+    t_start: Time,
+    time_provider: Arc<dyn TimeProvider>,
+    metrics: Arc<IngesterConnectionMetrics>,
+    request: GetPartitionForIngester<'a>,
+}
+
+impl<'a> ObserveIngesterRequest<'a> {
+    fn new(request: GetPartitionForIngester<'a>, metrics: Arc<IngesterConnectionMetrics>) -> Self {
+        let time_provider = request.catalog_cache.time_provider();
+        let t_start = time_provider.now();
+
+        Self {
+            res: None,
+            t_start,
+            time_provider,
+            metrics,
+            request,
+        }
+    }
+
+    fn set_ok(mut self) {
+        self.res = Some(Ok(()));
+    }
+
+    fn set_err(mut self) {
+        self.res = Some(Err(()));
+    }
+}
+
+impl<'a> Drop for ObserveIngesterRequest<'a> {
+    fn drop(&mut self) {
+        let t_end = self.time_provider.now();
+
+        if let Some(ingester_duration) = t_end.checked_duration_since(self.t_start) {
+            let (metric, status) = match self.res {
+                None => (&self.metrics.ingester_duration_cancelled, "cancelled"),
+                Some(Ok(())) => (&self.metrics.ingester_duration_success, "success"),
+                Some(Err(())) => (&self.metrics.ingester_duration_error, "error"),
+            };
+
+            metric.record(ingester_duration);
+
+            info!(
+                predicate=?self.request.predicate,
+                namespace=%self.request.namespace_name,
+                table_name=%self.request.table_name,
+                ?ingester_duration,
+                status,
+                "Time spent in ingester"
+            );
+        }
+    }
+}
+
 /// IngesterConnection that communicates with an ingester.
-#[allow(missing_copy_implementations)]
 #[derive(Debug)]
 pub struct IngesterConnectionImpl {
     ingester_addresses: Vec<Arc<str>>,
     flight_client: Arc<dyn FlightClient>,
     catalog_cache: Arc<CatalogCache>,
+    metrics: Arc<IngesterConnectionMetrics>,
 }
 
 impl IngesterConnectionImpl {
@@ -184,15 +277,20 @@ impl IngesterConnectionImpl {
             .map(|addr| Arc::from(addr.as_str()))
             .collect();
 
+        let metric_registry = catalog_cache.metric_registry();
+        let metrics = Arc::new(IngesterConnectionMetrics::new(&metric_registry));
+
         Self {
             ingester_addresses,
             flight_client,
             catalog_cache,
+            metrics,
         }
     }
 }
 
 /// Struct that names all parameters to `execute`
+#[derive(Debug, Clone)]
 struct GetPartitionForIngester<'a> {
     flight_client: Arc<dyn FlightClient>,
     catalog_cache: Arc<CatalogCache>,
@@ -369,10 +467,12 @@ impl IngesterConnection for IngesterConnectionImpl {
         predicate: &Predicate,
         expected_schema: Arc<Schema>,
     ) -> Result<Vec<IngesterPartition>> {
+        let metrics = Arc::clone(&self.metrics);
+
         let mut ingester_partitions: Vec<IngesterPartition> = self
             .ingester_addresses
             .iter()
-            .map(|ingester_address| {
+            .map(move |ingester_address| {
                 let request = GetPartitionForIngester {
                     flight_client: Arc::clone(&self.flight_client),
                     catalog_cache: Arc::clone(&self.catalog_cache),
@@ -383,7 +483,21 @@ impl IngesterConnection for IngesterConnectionImpl {
                     predicate,
                     expected_schema: Arc::clone(&expected_schema),
                 };
-                execute(request)
+                let metrics = Arc::clone(&metrics);
+
+                // wrap `execute` into an additional future so that we can measure the request time
+                // INFO: create the measurement structure outside of the async block so cancellation is always measured
+                let measure_me = ObserveIngesterRequest::new(request.clone(), metrics);
+                async move {
+                    let res = execute(request.clone()).await;
+
+                    match &res {
+                        Ok(_) => measure_me.set_ok(),
+                        Err(_) => measure_me.set_err(),
+                    }
+
+                    res
+                }
             })
             .collect::<FuturesUnordered<_>>()
             .try_collect::<Vec<_>>()
@@ -818,6 +932,7 @@ mod tests {
     use generated_types::influxdata::iox::ingester::v1::PartitionStatus;
     use influxdb_iox_client::flight::generated_types::IngesterQueryResponseMetadata;
     use iox_tests::util::TestCatalog;
+    use metric::Attributes;
     use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
     use schema::{builder::SchemaBuilder, InfluxFieldType};
     use tokio::sync::Mutex;
@@ -1163,6 +1278,72 @@ mod tests {
         );
         assert_eq!(p3.batches.len(), 1);
         assert_eq!(p3.batches[0].schema(), schema().as_arrow());
+    }
+
+    #[tokio::test]
+    async fn test_ingester_metrics() {
+        let mock_flight_client = Arc::new(
+            MockFlightClient::new([
+                ("addr1", Ok(MockQueryData { results: vec![] })),
+                ("addr2", Ok(MockQueryData { results: vec![] })),
+                (
+                    "addr3",
+                    Err(FlightClientError::Handshake {
+                        ingester_address: String::from("addr3"),
+                        source: FlightError::GrpcError(tonic::Status::internal("don't know")),
+                    }),
+                ),
+                (
+                    "addr4",
+                    Err(FlightClientError::Handshake {
+                        ingester_address: String::from("addr4"),
+                        source: FlightError::GrpcError(tonic::Status::internal("don't know")),
+                    }),
+                ),
+                ("addr5", Ok(MockQueryData { results: vec![] })),
+            ])
+            .await,
+        );
+        let ingester_conn = mock_flight_client.ingester_conn().await;
+        get_partitions(&ingester_conn).await.ok();
+
+        let histogram_error = mock_flight_client
+            .catalog
+            .metric_registry()
+            .get_instrument::<Metric<DurationHistogram>>("ingester_duration")
+            .expect("failed to read metric")
+            .get_observer(&Attributes::from(&[("result", "error")]))
+            .expect("failed to get observer")
+            .fetch();
+
+        // only one error got counted because the other got cancelled
+        let hit_count_error = histogram_error.sample_count();
+        assert_eq!(hit_count_error, 1);
+
+        let histogram_success = mock_flight_client
+            .catalog
+            .metric_registry()
+            .get_instrument::<Metric<DurationHistogram>>("ingester_duration")
+            .expect("failed to read metric")
+            .get_observer(&Attributes::from(&[("result", "success")]))
+            .expect("failed to get observer")
+            .fetch();
+
+        let hit_count_success = histogram_success.sample_count();
+
+        let histogram_cancelled = mock_flight_client
+            .catalog
+            .metric_registry()
+            .get_instrument::<Metric<DurationHistogram>>("ingester_duration")
+            .expect("failed to read metric")
+            .get_observer(&Attributes::from(&[("result", "cancelled")]))
+            .expect("failed to get observer")
+            .fetch();
+
+        let hit_count_cancelled = histogram_cancelled.sample_count();
+
+        // we don't know how errors are propagated because the futures are polled unordered
+        assert_eq!(hit_count_success + hit_count_cancelled, 4);
     }
 
     async fn get_partitions(

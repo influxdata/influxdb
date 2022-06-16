@@ -50,6 +50,9 @@ pub struct CatalogCache {
     /// Read buffer chunk cache
     read_buffer_cache: ReadBufferCache,
 
+    /// Metric registry
+    metric_registry: Arc<metric::Registry>,
+
     /// Time provider.
     time_provider: Arc<dyn TimeProvider>,
 }
@@ -115,7 +118,7 @@ impl CatalogCache {
         let read_buffer_cache = ReadBufferCache::new(
             backoff_config,
             Arc::clone(&time_provider),
-            metric_registry,
+            Arc::clone(&metric_registry),
             Arc::clone(&ram_pool),
         );
 
@@ -128,6 +131,7 @@ impl CatalogCache {
             parquet_file_cache,
             tombstone_cache,
             read_buffer_cache,
+            metric_registry,
             time_provider,
         }
     }
@@ -135,6 +139,11 @@ impl CatalogCache {
     /// Get underlying catalog
     pub(crate) fn catalog(&self) -> Arc<dyn Catalog> {
         Arc::clone(&self.catalog)
+    }
+
+    /// Get underlying metric registry.
+    pub(crate) fn metric_registry(&self) -> Arc<metric::Registry> {
+        Arc::clone(&self.metric_registry)
     }
 
     /// Get underlying time provider
