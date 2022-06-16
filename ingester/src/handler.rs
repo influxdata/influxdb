@@ -320,6 +320,7 @@ impl IngestHandler for IngestHandlerImpl {
               "Handling querier request");
 
         let t = self.time_provider.now();
+        let request = Arc::new(request);
         let res = prepare_data_to_querier(&self.data, &request).await;
 
         if let Some(delta) = self.time_provider.now().checked_duration_since(t) {

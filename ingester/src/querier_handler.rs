@@ -4,16 +4,12 @@ use crate::data::{
     IngesterData, IngesterQueryPartition, IngesterQueryResponse, QueryableBatch,
     UnpersistedPartitionData,
 };
-use arrow::record_batch::RecordBatch;
+use arrow::error::ArrowError;
 use datafusion::{
-    error::DataFusionError,
-    logical_plan::LogicalPlanBuilder,
-    physical_plan::{
-        common::SizedRecordBatchStream,
-        metrics::{ExecutionPlanMetricsSet, MemTrackingMetrics},
-        SendableRecordBatchStream,
-    },
+    error::DataFusionError, logical_plan::LogicalPlanBuilder,
+    physical_plan::SendableRecordBatchStream,
 };
+use futures::StreamExt;
 use generated_types::ingester::IngesterQueryRequest;
 use iox_query::{
     exec::{Executor, ExecutorType},
@@ -86,7 +82,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// Return data to send as a response back to the Querier per its request
 pub async fn prepare_data_to_querier(
     ingest_data: &Arc<IngesterData>,
-    request: &IngesterQueryRequest,
+    request: &Arc<IngesterQueryRequest>,
 ) -> Result<IngesterQueryResponse> {
     debug!(?request, "prepare_data_to_querier");
     let mut unpersisted_partitions = vec![];
@@ -114,40 +110,13 @@ pub async fn prepare_data_to_querier(
             }
         };
 
-        let unpersisted_partition_data = {
+        let mut unpersisted_partition_data = {
             let table_data = table_data.read().await;
             table_data.unpersisted_partition_data()
         };
         debug!(?unpersisted_partition_data);
 
-        for partition in unpersisted_partition_data {
-            // extract payload
-            let partition_id = partition.partition_id;
-            let status = partition.partition_status.clone();
-            let snapshots: Vec<_> =
-                prepare_data_to_querier_for_partition(ingest_data.exec(), partition, request)
-                    .await?
-                    .into_iter()
-                    .map(|batch| {
-                        let schema = batch.schema();
-
-                        // Make a stream for this batch
-                        let dummy_metrics = ExecutionPlanMetricsSet::new();
-                        let mem_metrics = MemTrackingMetrics::new(&dummy_metrics, 0);
-                        let stream =
-                            SizedRecordBatchStream::new(schema, vec![Arc::new(batch)], mem_metrics);
-                        Ok(Box::pin(stream) as _)
-                    })
-                    .collect();
-
-            // Note: include partition in `unpersisted_partitions` even when there we might filter out all the data, because
-            // the metadata (e.g. max persisted parquet file) is important for the querier.
-            unpersisted_partitions.push(Ok(IngesterQueryPartition::new(
-                Box::pin(futures::stream::iter(snapshots)),
-                partition_id,
-                status,
-            )));
-        }
+        unpersisted_partitions.append(&mut unpersisted_partition_data);
     }
 
     ensure!(
@@ -164,16 +133,42 @@ pub async fn prepare_data_to_querier(
         },
     );
 
-    Ok(IngesterQueryResponse::new(Box::pin(futures::stream::iter(
-        unpersisted_partitions,
-    ))))
+    let ingest_data = Arc::clone(ingest_data);
+    let request = Arc::clone(request);
+    let partitions = futures::stream::iter(unpersisted_partitions).then(move |partition| {
+        let ingest_data = Arc::clone(&ingest_data);
+        let request = Arc::clone(&request);
+
+        async move {
+            // extract payload
+            let partition_id = partition.partition_id;
+            let status = partition.partition_status.clone();
+            let snapshots: Vec<_> =
+                prepare_data_to_querier_for_partition(ingest_data.exec(), partition, &request)
+                    .await
+                    .map_err(|e| ArrowError::ExternalError(Box::new(e)))?
+                    .into_iter()
+                    .map(Ok)
+                    .collect();
+
+            // Note: include partition in `unpersisted_partitions` even when there we might filter out all the data, because
+            // the metadata (e.g. max persisted parquet file) is important for the querier.
+            Ok(IngesterQueryPartition::new(
+                Box::pin(futures::stream::iter(snapshots)),
+                partition_id,
+                status,
+            ))
+        }
+    });
+
+    Ok(IngesterQueryResponse::new(Box::pin(partitions)))
 }
 
 async fn prepare_data_to_querier_for_partition(
     executor: &Executor,
     unpersisted_partition_data: UnpersistedPartitionData,
     request: &IngesterQueryRequest,
-) -> Result<Option<RecordBatch>> {
+) -> Result<Option<SendableRecordBatchStream>> {
     // ------------------------------------------------
     // Accumulate data
 
@@ -197,38 +192,14 @@ async fn prepare_data_to_querier_for_partition(
         return Ok(None);
     }
 
-    run_query(
+    query(
         executor,
         Arc::new(queryable_batch),
         predicate.clone(),
         selection,
     )
     .await
-}
-
-/// Query a given Queryable Batch, applying selection and filters as appropriate
-/// Return one record batch
-async fn run_query(
-    executor: &Executor,
-    data: Arc<QueryableBatch>,
-    predicate: Predicate,
-    selection: Selection<'_>,
-) -> Result<Option<RecordBatch>> {
-    let stream = query(executor, data, predicate, selection).await?;
-
-    let record_batches = datafusion::physical_plan::common::collect(stream)
-        .await
-        .context(CollectStreamSnafu)?;
-
-    if record_batches.is_empty() {
-        return Ok(None);
-    }
-
-    // concat all same-schema record batches into one batch
-    let record_batch = RecordBatch::concat(&record_batches[0].schema(), &record_batches)
-        .context(ConcatBatchesSnafu)?;
-
-    Ok(Some(record_batch))
+    .map(Some)
 }
 
 /// Query a given Queryable Batch, applying selection and filters as appropriate
@@ -319,6 +290,7 @@ mod tests {
             make_queryable_batch_with_deletes, DataLocation, TEST_NAMESPACE, TEST_TABLE,
         },
     };
+    use arrow::record_batch::RecordBatch;
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use assert_matches::assert_matches;
     use datafusion::logical_plan::{col, lit};
@@ -450,12 +422,12 @@ mod tests {
         }
 
         // read data from all scenarios without any filters
-        let mut request = IngesterQueryRequest::new(
+        let request = Arc::new(IngesterQueryRequest::new(
             TEST_NAMESPACE.to_string(),
             TEST_TABLE.to_string(),
             vec![],
             None,
-        );
+        ));
         let expected = vec![
             "+------------+-----+------+--------------------------------+",
             "| city       | day | temp | time                           |",
@@ -478,7 +450,12 @@ mod tests {
         }
 
         // read data from all scenarios and filter out column day
-        request.columns = vec!["city".to_string(), "temp".to_string(), "time".to_string()];
+        let request = Arc::new(IngesterQueryRequest::new(
+            TEST_NAMESPACE.to_string(),
+            TEST_TABLE.to_string(),
+            vec!["city".to_string(), "temp".to_string(), "time".to_string()],
+            None,
+        ));
         let expected = vec![
             "+------------+------+--------------------------------+",
             "| city       | temp | time                           |",
@@ -501,10 +478,14 @@ mod tests {
         }
 
         // read data from all scenarios, filter out column day, city Medford, time outside range [0, 42)
-        request.columns = ["city", "temp", "time"].map(Into::into).into();
         let expr = col("city").not_eq(lit("Medford"));
         let pred = Predicate::default().with_expr(expr).with_range(0, 42);
-        request.predicate = Some(pred);
+        let request = Arc::new(IngesterQueryRequest::new(
+            TEST_NAMESPACE.to_string(),
+            TEST_TABLE.to_string(),
+            vec!["city".to_string(), "temp".to_string(), "time".to_string()],
+            Some(pred),
+        ));
         let expected = vec![
             "+------------+------+--------------------------------+",
             "| city       | temp | time                           |",
@@ -524,7 +505,12 @@ mod tests {
         }
 
         // test "table not found" handling
-        request.table = String::from("table_does_not_exist");
+        let request = Arc::new(IngesterQueryRequest::new(
+            TEST_NAMESPACE.to_string(),
+            "table_does_not_exist".to_string(),
+            vec![],
+            None,
+        ));
         for (loc, scenario) in &scenarios {
             println!("Location: {loc:?}");
             let err = prepare_data_to_querier(scenario, &request)
@@ -534,7 +520,12 @@ mod tests {
         }
 
         // test "namespace not found" handling
-        request.namespace = String::from("namespace_does_not_exist");
+        let request = Arc::new(IngesterQueryRequest::new(
+            "namespace_does_not_exist".to_string(),
+            TEST_TABLE.to_string(),
+            vec![],
+            None,
+        ));
         for (loc, scenario) in &scenarios {
             println!("Location: {loc:?}");
             let err = prepare_data_to_querier(scenario, &request)
@@ -564,12 +555,12 @@ mod tests {
         }
 
         // read data from all scenarios without any filters
-        let mut request = IngesterQueryRequest::new(
+        let request = Arc::new(IngesterQueryRequest::new(
             TEST_NAMESPACE.to_string(),
             TEST_TABLE.to_string(),
             vec![],
             None,
-        );
+        ));
         let expected = vec![
             "+------------+-----+------+--------------------------------+",
             "| city       | day | temp | time                           |",
@@ -589,7 +580,12 @@ mod tests {
         }
 
         // read data from all scenarios and filter out column day
-        request.columns = vec!["city".to_string(), "temp".to_string(), "time".to_string()];
+        let request = Arc::new(IngesterQueryRequest::new(
+            TEST_NAMESPACE.to_string(),
+            TEST_TABLE.to_string(),
+            vec!["city".to_string(), "temp".to_string(), "time".to_string()],
+            None,
+        ));
         let expected = vec![
             "+------------+------+--------------------------------+",
             "| city       | temp | time                           |",
@@ -609,10 +605,14 @@ mod tests {
         }
 
         // read data from all scenarios, filter out column day, city Medford, time outside range [0, 42)
-        request.columns = vec!["city".to_string(), "temp".to_string(), "time".to_string()];
         let expr = col("city").not_eq(lit("Medford"));
         let pred = Predicate::default().with_expr(expr).with_range(0, 42);
-        request.predicate = Some(pred);
+        let request = Arc::new(IngesterQueryRequest::new(
+            TEST_NAMESPACE.to_string(),
+            TEST_TABLE.to_string(),
+            vec!["city".to_string(), "temp".to_string(), "time".to_string()],
+            Some(pred),
+        ));
         let expected = vec![
             "+------------+------+--------------------------------+",
             "| city       | temp | time                           |",

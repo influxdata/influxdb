@@ -7,7 +7,7 @@ use data_types::{
     SequencerId, TombstoneId,
 };
 use dml::{DmlDelete, DmlMeta, DmlOperation, DmlWrite};
-use futures::TryStreamExt;
+use futures::StreamExt;
 use generated_types::{
     influxdata::iox::ingester::v1::{IngesterQueryResponseMetadata, PartitionStatus},
     ingester::IngesterQueryRequest,
@@ -924,6 +924,7 @@ impl IngesterFlightClient for MockIngester {
     ) -> Result<Box<dyn IngesterFlightClientQueryData>, IngesterFlightClientError> {
         // NOTE: we MUST NOT unwrap errors here because some query tests assert error behavior
         // (e.g. passing predicates of wrong types)
+        let request = Arc::new(request);
         let response = prepare_data_to_querier(&self.ingester_data, &request)
             .await
             .map_err(|e| IngesterFlightClientError::Flight {
@@ -939,7 +940,10 @@ impl IngesterFlightClient for MockIngester {
 /// Helper struct to present [`IngesterQueryResponse`] (produces by the ingester) as a
 /// [`IngesterFlightClientQueryData`] (used by the querier) without doing any real gRPC IO.
 struct QueryDataAdapter {
-    messages: Box<dyn Iterator<Item = (LowLevelMessage, IngesterQueryResponseMetadata)> + Send>,
+    messages: Box<
+        dyn Iterator<Item = Result<(LowLevelMessage, IngesterQueryResponseMetadata), FlightError>>
+            + Send,
+    >,
 }
 
 impl std::fmt::Debug for QueryDataAdapter {
@@ -955,35 +959,42 @@ impl QueryDataAdapter {
     async fn new(response: IngesterQueryResponse) -> Self {
         let mut messages = vec![];
         let mut stream = response.flatten();
-        while let Some(msg) = stream.try_next().await.unwrap() {
-            let (msg, md) = match msg {
-                FlatIngesterQueryResponse::StartPartition {
-                    partition_id,
-                    status,
-                } => (
-                    LowLevelMessage::None,
-                    IngesterQueryResponseMetadata {
-                        partition_id: partition_id.get(),
-                        status: Some(PartitionStatus {
-                            parquet_max_sequence_number: status
-                                .parquet_max_sequence_number
-                                .map(|x| x.get()),
-                            tombstone_max_sequence_number: status
-                                .tombstone_max_sequence_number
-                                .map(|x| x.get()),
-                        }),
-                    },
-                ),
-                FlatIngesterQueryResponse::StartSnapshot { schema } => (
-                    LowLevelMessage::Schema(schema),
-                    IngesterQueryResponseMetadata::default(),
-                ),
-                FlatIngesterQueryResponse::RecordBatch { batch } => (
-                    LowLevelMessage::RecordBatch(batch),
-                    IngesterQueryResponseMetadata::default(),
-                ),
-            };
-            messages.push((msg, md));
+        while let Some(msg_res) = stream.next().await {
+            match msg_res {
+                Ok(msg) => {
+                    let (msg, md) = match msg {
+                        FlatIngesterQueryResponse::StartPartition {
+                            partition_id,
+                            status,
+                        } => (
+                            LowLevelMessage::None,
+                            IngesterQueryResponseMetadata {
+                                partition_id: partition_id.get(),
+                                status: Some(PartitionStatus {
+                                    parquet_max_sequence_number: status
+                                        .parquet_max_sequence_number
+                                        .map(|x| x.get()),
+                                    tombstone_max_sequence_number: status
+                                        .tombstone_max_sequence_number
+                                        .map(|x| x.get()),
+                                }),
+                            },
+                        ),
+                        FlatIngesterQueryResponse::StartSnapshot { schema } => (
+                            LowLevelMessage::Schema(schema),
+                            IngesterQueryResponseMetadata::default(),
+                        ),
+                        FlatIngesterQueryResponse::RecordBatch { batch } => (
+                            LowLevelMessage::RecordBatch(batch),
+                            IngesterQueryResponseMetadata::default(),
+                        ),
+                    };
+                    messages.push(Ok((msg, md)));
+                }
+                Err(e) => {
+                    messages.push(Err(FlightError::ArrowError(e)));
+                }
+            }
         }
 
         Self {
@@ -997,6 +1008,6 @@ impl IngesterFlightClientQueryData for QueryDataAdapter {
     async fn next(
         &mut self,
     ) -> Result<Option<(LowLevelMessage, IngesterQueryResponseMetadata)>, FlightError> {
-        Ok(self.messages.next())
+        self.messages.next().transpose()
     }
 }
