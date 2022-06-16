@@ -213,6 +213,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		zap.String("version", info.Version),
 		zap.String("commit", info.Commit),
 		zap.String("build_date", info.Date),
+		zap.String("log_level", opts.LogLevel.String()),
 	)
 	m.initTracing(opts)
 
