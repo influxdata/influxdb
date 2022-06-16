@@ -1,8 +1,10 @@
 //! Handle all requests from Querier
 
-use crate::data::{IngesterData, IngesterQueryResponse, QueryableBatch, UnpersistedPartitionData};
-use arrow::{error::ArrowError, record_batch::RecordBatch};
-use arrow_util::util::merge_record_batches;
+use crate::data::{
+    IngesterData, IngesterQueryPartition, IngesterQueryResponse, QueryableBatch,
+    UnpersistedPartitionData,
+};
+use arrow::record_batch::RecordBatch;
 use datafusion::{
     error::DataFusionError,
     logical_plan::LogicalPlanBuilder,
@@ -19,9 +21,9 @@ use iox_query::{
 };
 use observability_deps::tracing::debug;
 use predicate::Predicate;
-use schema::{merge::merge_record_batch_schemas, selection::Selection};
+use schema::selection::Selection;
 use snafu::{ensure, ResultExt, Snafu};
-use std::{collections::BTreeMap, sync::Arc};
+use std::sync::Arc;
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
@@ -87,10 +89,8 @@ pub async fn prepare_data_to_querier(
     request: &IngesterQueryRequest,
 ) -> Result<IngesterQueryResponse> {
     debug!(?request, "prepare_data_to_querier");
-    let mut unpersisted_partitions = BTreeMap::new();
+    let mut unpersisted_partitions = vec![];
     let mut found_namespace = false;
-    let mut batches = vec![];
-    let mut batch_partition_ids = vec![];
     for (sequencer_id, sequencer_data) in ingest_data.sequencers() {
         debug!(sequencer_id=%sequencer_id.get());
         let namespace_data = match sequencer_data.namespace(&request.namespace) {
@@ -121,20 +121,32 @@ pub async fn prepare_data_to_querier(
         debug!(?unpersisted_partition_data);
 
         for partition in unpersisted_partition_data {
-            // include partition in `unpersisted_partitions` even when there we might filter out all the data, because
-            // the metadata (e.g. max persisted parquet file) is important for the querier.
-            unpersisted_partitions
-                .insert(partition.partition_id, partition.partition_status.clone());
-
             // extract payload
             let partition_id = partition.partition_id;
-            let maybe_batch =
+            let status = partition.partition_status.clone();
+            let snapshots: Vec<_> =
                 prepare_data_to_querier_for_partition(ingest_data.exec(), partition, request)
-                    .await?;
-            if let Some(batch) = maybe_batch {
-                batches.push(Arc::new(batch));
-                batch_partition_ids.push(partition_id);
-            }
+                    .await?
+                    .into_iter()
+                    .map(|batch| {
+                        let schema = batch.schema();
+
+                        // Make a stream for this batch
+                        let dummy_metrics = ExecutionPlanMetricsSet::new();
+                        let mem_metrics = MemTrackingMetrics::new(&dummy_metrics, 0);
+                        let stream =
+                            SizedRecordBatchStream::new(schema, vec![Arc::new(batch)], mem_metrics);
+                        Ok(Box::pin(stream) as _)
+                    })
+                    .collect();
+
+            // Note: include partition in `unpersisted_partitions` even when there we might filter out all the data, because
+            // the metadata (e.g. max persisted parquet file) is important for the querier.
+            unpersisted_partitions.push(Ok(IngesterQueryPartition::new(
+                Box::pin(futures::stream::iter(snapshots)),
+                partition_id,
+                status,
+            )));
         }
     }
 
@@ -144,7 +156,6 @@ pub async fn prepare_data_to_querier(
             namespace_name: &request.namespace,
         },
     );
-    debug!(?unpersisted_partitions);
     ensure!(
         !unpersisted_partitions.is_empty(),
         TableNotFoundSnafu {
@@ -152,37 +163,10 @@ pub async fn prepare_data_to_querier(
             table_name: &request.table
         },
     );
-    debug!(
-        num_batches=%batches.len(),
-        table_name=%request.table,
-        "prepare_data_to_querier found batches"
-    );
 
-    // ------------------------------------------------
-    // ensure consistent record batch schemas
-    //
-    // This is required to be able to transmit the batches via Arrow Flight.
-    //
-    // Note that we need one batch per partition -- not a single batch for all of them -- because the querier also mixes
-    // parquet data in and needs to have per-partition batches for de-duplication.
-    let schema = merge_record_batch_schemas(&batches);
-    let batches = batches
-        .into_iter()
-        .map(|batch| merge_record_batches(&schema.as_arrow(), vec![batch]).transpose().expect("Batch should not be empty/non-existing at this point because we have ruled that out earlier.").map(Arc::new))
-        .collect::<Result<Vec<Arc<RecordBatch>>, ArrowError>>().context(InterPartitionSchemaApplicationSnafu)?;
-
-    // ------------------------------------------------
-    // Make a stream for this batch
-    let dummy_metrics = ExecutionPlanMetricsSet::new();
-    let mem_metrics = MemTrackingMetrics::new(&dummy_metrics, 0);
-    let stream = SizedRecordBatchStream::new(schema.as_arrow(), batches, mem_metrics);
-
-    Ok(IngesterQueryResponse::new(
-        Box::pin(stream),
-        schema,
+    Ok(IngesterQueryResponse::new(Box::pin(futures::stream::iter(
         unpersisted_partitions,
-        batch_partition_ids,
-    ))
+    ))))
 }
 
 async fn prepare_data_to_querier_for_partition(
@@ -326,18 +310,19 @@ pub(crate) async fn query(
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
-
     use super::*;
-    use crate::test_util::{
-        create_one_record_batch_with_influxtype_no_duplicates, create_tombstone,
-        make_ingester_data, make_ingester_data_with_tombstones, make_queryable_batch,
-        make_queryable_batch_with_deletes, DataLocation, TEST_NAMESPACE, TEST_TABLE,
+    use crate::{
+        data::FlatIngesterQueryResponse,
+        test_util::{
+            create_one_record_batch_with_influxtype_no_duplicates, create_tombstone,
+            make_ingester_data, make_ingester_data_with_tombstones, make_queryable_batch,
+            make_queryable_batch_with_deletes, DataLocation, TEST_NAMESPACE, TEST_TABLE,
+        },
     };
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use assert_matches::assert_matches;
-    use data_types::PartitionId;
     use datafusion::logical_plan::{col, lit};
+    use futures::TryStreamExt;
     use predicate::Predicate;
 
     #[tokio::test]
@@ -488,11 +473,8 @@ mod tests {
         for (loc, scenario) in &scenarios {
             println!("Location: {loc:?}");
             let stream = prepare_data_to_querier(scenario, &request).await.unwrap();
-            let result = datafusion::physical_plan::common::collect(stream.data)
-                .await
-                .unwrap();
+            let result = ingester_response_to_record_batches(stream).await;
             assert_batches_sorted_eq!(&expected, &result);
-            assert_batch_partition_ids(&result, &stream.batch_partition_ids);
         }
 
         // read data from all scenarios and filter out column day
@@ -514,11 +496,8 @@ mod tests {
         for (loc, scenario) in &scenarios {
             println!("Location: {loc:?}");
             let stream = prepare_data_to_querier(scenario, &request).await.unwrap();
-            let result = datafusion::physical_plan::common::collect(stream.data)
-                .await
-                .unwrap();
+            let result = ingester_response_to_record_batches(stream).await;
             assert_batches_sorted_eq!(&expected, &result);
-            assert_batch_partition_ids(&result, &stream.batch_partition_ids);
         }
 
         // read data from all scenarios, filter out column day, city Medford, time outside range [0, 42)
@@ -540,11 +519,8 @@ mod tests {
         for (loc, scenario) in &scenarios {
             println!("Location: {loc:?}");
             let stream = prepare_data_to_querier(scenario, &request).await.unwrap();
-            let result = datafusion::physical_plan::common::collect(stream.data)
-                .await
-                .unwrap();
+            let result = ingester_response_to_record_batches(stream).await;
             assert_batches_sorted_eq!(&expected, &result);
-            assert_batch_partition_ids(&result, &stream.batch_partition_ids);
         }
 
         // test "table not found" handling
@@ -608,11 +584,8 @@ mod tests {
         ];
         for scenario in &scenarios {
             let stream = prepare_data_to_querier(scenario, &request).await.unwrap();
-            let result = datafusion::physical_plan::common::collect(stream.data)
-                .await
-                .unwrap();
+            let result = ingester_response_to_record_batches(stream).await;
             assert_batches_sorted_eq!(&expected, &result);
-            assert_batch_partition_ids(&result, &stream.batch_partition_ids);
         }
 
         // read data from all scenarios and filter out column day
@@ -631,11 +604,8 @@ mod tests {
         ];
         for scenario in &scenarios {
             let stream = prepare_data_to_querier(scenario, &request).await.unwrap();
-            let result = datafusion::physical_plan::common::collect(stream.data)
-                .await
-                .unwrap();
+            let result = ingester_response_to_record_batches(stream).await;
             assert_batches_sorted_eq!(&expected, &result);
-            assert_batch_partition_ids(&result, &stream.batch_partition_ids);
         }
 
         // read data from all scenarios, filter out column day, city Medford, time outside range [0, 42)
@@ -654,19 +624,32 @@ mod tests {
         ];
         for scenario in &scenarios {
             let stream = prepare_data_to_querier(scenario, &request).await.unwrap();
-            let result = datafusion::physical_plan::common::collect(stream.data)
-                .await
-                .unwrap();
+            let result = ingester_response_to_record_batches(stream).await;
             assert_batches_sorted_eq!(&expected, &result);
-            assert_batch_partition_ids(&result, &stream.batch_partition_ids);
         }
     }
 
-    fn assert_batch_partition_ids(batches: &[RecordBatch], partition_ids: &[PartitionId]) {
-        assert_eq!(batches.len(), partition_ids.len());
+    async fn ingester_response_to_record_batches(
+        response: IngesterQueryResponse,
+    ) -> Vec<RecordBatch> {
+        let mut last_schema = None;
+        let mut batches = vec![];
 
-        // at the moment there is at most one record batch per partition ID
-        let partition_ids_unique: HashSet<_> = partition_ids.iter().collect();
-        assert_eq!(batches.len(), partition_ids_unique.len());
+        let mut stream = response.flatten();
+        while let Some(msg) = stream.try_next().await.unwrap() {
+            match msg {
+                FlatIngesterQueryResponse::StartPartition { .. } => (),
+                FlatIngesterQueryResponse::RecordBatch { batch } => {
+                    let last_schema = last_schema.as_ref().unwrap();
+                    assert_eq!(&batch.schema(), last_schema);
+                    batches.push(batch);
+                }
+                FlatIngesterQueryResponse::StartSnapshot { schema } => {
+                    last_schema = Some(schema);
+                }
+            }
+        }
+
+        batches
     }
 }

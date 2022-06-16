@@ -1,7 +1,5 @@
-use arrow::{datatypes::Schema, record_batch::RecordBatch};
 use async_trait::async_trait;
 use client_util::connection::{self, Connection};
-use data_types::PartitionId;
 use generated_types::ingester::IngesterQueryRequest;
 use influxdb_iox_client::flight::{
     generated_types as proto,
@@ -35,9 +33,6 @@ pub enum Error {
 
     #[snafu(display("Failed to perform flight request: {}", source))]
     Flight { source: FlightError },
-
-    #[snafu(display("Cannot find schema in flight response"))]
-    SchemaMissing,
 }
 
 /// Abstract Flight client.
@@ -104,20 +99,8 @@ impl FlightClient for FlightClientImpl {
         let request: proto::IngesterQueryRequest =
             request.try_into().context(CreatingRequestSnafu)?;
 
-        let mut perform_query = client.perform_query(request).await.context(FlightSnafu)?;
-        let (schema, app_metadata) = match perform_query.next().await.context(FlightSnafu)? {
-            Some((LowLevelMessage::Schema(schema), app_metadata)) => (schema, app_metadata),
-            _ => {
-                return Err(Error::SchemaMissing);
-            }
-        };
-        Ok(Box::new(PerformQueryAdapter {
-            inner: perform_query,
-            schema,
-            app_metadata,
-            batch_counter: 0,
-            state: Default::default(),
-        }))
+        let perform_query = client.perform_query(request).await.context(FlightSnafu)?;
+        Ok(Box::new(perform_query))
     }
 }
 
@@ -145,206 +128,12 @@ where
     }
 }
 
-/// Protocol state.
-///
-/// ```text
-///
-/// [NoPartitionYet]
-///      |
-///      +-----------------------o
-///      |                       |
-///      V                       |
-/// [NewPartition]<-----------o  |
-///      |                    |  |
-///      V                    |  |
-/// [PartitionAnnounced]<--o  |  |
-///      |                 |  |  |
-///      V                 |  |  |
-/// [SchemaAnnounced]      |  |  |
-///      |                 |  |  |
-///      V                 |  |  |
-/// [BatchTransmitted]     |  |  |
-///      |                 |  |  |
-///      +-----------------+--+  |
-///      |                       |
-///      | o---------------------o
-///      | |
-///      V V
-///     [End]<--o
-///       |     |
-///       o-----o
-///
-/// ```
-#[derive(Debug)]
-enum PerformQueryAdapterState {
-    NoPartitionYet,
-    NewPartition {
-        partition_id: PartitionId,
-        batch: RecordBatch,
-    },
-    PartitionAnnounced {
-        partition_id: PartitionId,
-        batch: RecordBatch,
-    },
-    SchemaAnnounced {
-        partition_id: PartitionId,
-        batch: RecordBatch,
-    },
-    BatchTransmitted {
-        partition_id: PartitionId,
-    },
-    End,
-}
-
-impl Default for PerformQueryAdapterState {
-    fn default() -> Self {
-        Self::NoPartitionYet
-    }
-}
-
-#[derive(Debug)]
-struct PerformQueryAdapter {
-    inner: PerformQuery<proto::IngesterQueryResponseMetadata>,
-    app_metadata: proto::IngesterQueryResponseMetadata,
-    schema: Arc<Schema>,
-    batch_counter: usize,
-    state: PerformQueryAdapterState,
-}
-
-impl PerformQueryAdapter {
-    /// Get next batch from underlying [`PerformQuery`] alongside with a batch index (which in turn can be used to
-    /// look up the batch partition).
-    ///
-    /// Returns `Ok(None)` if the stream has ended.
-    async fn next_batch(&mut self) -> Result<Option<(RecordBatch, usize)>, FlightError> {
-        loop {
-            match self.inner.next().await? {
-                None => {
-                    return Ok(None);
-                }
-                Some((LowLevelMessage::RecordBatch(batch), _)) => {
-                    let pos = self.batch_counter;
-                    self.batch_counter += 1;
-                    return Ok(Some((batch, pos)));
-                }
-                // ignore all other message types for now
-                Some((LowLevelMessage::None | LowLevelMessage::Schema(_), _)) => (),
-            }
-        }
-    }
-
-    /// Announce new partition (id and its persistence status).
-    fn announce_partition(
-        &mut self,
-        partition_id: PartitionId,
-    ) -> (LowLevelMessage, proto::IngesterQueryResponseMetadata) {
-        let meta = proto::IngesterQueryResponseMetadata {
-            partition_id: partition_id.get(),
-            status: Some(
-                self.app_metadata
-                    .unpersisted_partitions
-                    .remove(&partition_id.get())
-                    .unwrap(),
-            ),
-            ..Default::default()
-        };
-        (LowLevelMessage::None, meta)
-    }
-}
-
 #[async_trait]
-impl QueryData for PerformQueryAdapter {
+impl QueryData for PerformQuery<proto::IngesterQueryResponseMetadata> {
     async fn next(
         &mut self,
     ) -> Result<Option<(LowLevelMessage, proto::IngesterQueryResponseMetadata)>, FlightError> {
-        loop {
-            match std::mem::take(&mut self.state) {
-                PerformQueryAdapterState::End => {
-                    if let Some(partition_id) =
-                        self.app_metadata.unpersisted_partitions.keys().next()
-                    {
-                        let partition_id = PartitionId::new(*partition_id);
-                        return Ok(Some(self.announce_partition(partition_id)));
-                    } else {
-                        return Ok(None);
-                    }
-                }
-                PerformQueryAdapterState::NoPartitionYet => {
-                    let (batch, pos) = if let Some(x) = self.next_batch().await? {
-                        x
-                    } else {
-                        self.state = PerformQueryAdapterState::End;
-                        continue;
-                    };
-                    let partition_id = PartitionId::new(self.app_metadata.batch_partition_ids[pos]);
-
-                    self.state = PerformQueryAdapterState::NewPartition {
-                        partition_id,
-                        batch,
-                    };
-                    continue;
-                }
-                PerformQueryAdapterState::NewPartition {
-                    partition_id,
-                    batch,
-                } => {
-                    self.state = PerformQueryAdapterState::PartitionAnnounced {
-                        partition_id,
-                        batch,
-                    };
-
-                    return Ok(Some(self.announce_partition(partition_id)));
-                }
-                PerformQueryAdapterState::PartitionAnnounced {
-                    partition_id,
-                    batch,
-                } => {
-                    self.state = PerformQueryAdapterState::SchemaAnnounced {
-                        partition_id,
-                        batch,
-                    };
-
-                    let meta = Default::default();
-                    return Ok(Some((
-                        LowLevelMessage::Schema(Arc::clone(&self.schema)),
-                        meta,
-                    )));
-                }
-                PerformQueryAdapterState::SchemaAnnounced {
-                    partition_id,
-                    batch,
-                } => {
-                    self.state = PerformQueryAdapterState::BatchTransmitted { partition_id };
-
-                    let meta = Default::default();
-                    return Ok(Some((LowLevelMessage::RecordBatch(batch), meta)));
-                }
-                PerformQueryAdapterState::BatchTransmitted { partition_id } => {
-                    let (batch, pos) = if let Some(x) = self.next_batch().await? {
-                        x
-                    } else {
-                        self.state = PerformQueryAdapterState::End;
-                        continue;
-                    };
-                    let partition_id2 =
-                        PartitionId::new(self.app_metadata.batch_partition_ids[pos]);
-
-                    if partition_id == partition_id2 {
-                        self.state = PerformQueryAdapterState::PartitionAnnounced {
-                            partition_id,
-                            batch,
-                        };
-                        continue;
-                    } else {
-                        self.state = PerformQueryAdapterState::NewPartition {
-                            partition_id: partition_id2,
-                            batch,
-                        };
-                        continue;
-                    }
-                }
-            }
-        }
+        self.next().await
     }
 }
 

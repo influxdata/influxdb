@@ -915,7 +915,6 @@ mod tests {
                                 parquet_max_sequence_number: None,
                                 tombstone_max_sequence_number: None,
                             }),
-                            ..Default::default()
                         },
                     ))],
                 }),
@@ -946,7 +945,6 @@ mod tests {
                         IngesterQueryResponseMetadata {
                             partition_id: 1,
                             status: None,
-                            ..Default::default()
                         },
                     ))],
                 }),
@@ -973,7 +971,6 @@ mod tests {
                                     parquet_max_sequence_number: None,
                                     tombstone_max_sequence_number: None,
                                 }),
-                                ..Default::default()
                             },
                         )),
                         Ok((
@@ -984,7 +981,6 @@ mod tests {
                                     parquet_max_sequence_number: None,
                                     tombstone_max_sequence_number: None,
                                 }),
-                                ..Default::default()
                             },
                         )),
                         Ok((
@@ -995,7 +991,6 @@ mod tests {
                                     parquet_max_sequence_number: None,
                                     tombstone_max_sequence_number: None,
                                 }),
-                                ..Default::default()
                             },
                         )),
                     ],
@@ -1054,7 +1049,6 @@ mod tests {
                                         parquet_max_sequence_number: Some(11),
                                         tombstone_max_sequence_number: Some(12),
                                     }),
-                                    ..Default::default()
                                 },
                             )),
                             Ok((
@@ -1081,7 +1075,6 @@ mod tests {
                                         parquet_max_sequence_number: Some(21),
                                         tombstone_max_sequence_number: Some(22),
                                     }),
-                                    ..Default::default()
                                 },
                             )),
                             Ok((
@@ -1107,7 +1100,6 @@ mod tests {
                                         parquet_max_sequence_number: Some(31),
                                         tombstone_max_sequence_number: Some(32),
                                     }),
-                                    ..Default::default()
                                 },
                             )),
                             Ok((

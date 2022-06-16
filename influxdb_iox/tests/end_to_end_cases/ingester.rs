@@ -3,8 +3,7 @@ use generated_types::{
     influxdata::iox::ingester::v1::PartitionStatus, ingester::IngesterQueryRequest,
 };
 use http::StatusCode;
-use influxdb_iox_client::flight::low_level::LowLevelMessage;
-use std::collections::BTreeMap;
+use influxdb_iox_client::flight::generated_types::IngesterQueryResponseMetadata;
 use test_helpers_end_to_end::{
     get_write_token, maybe_skip_integration, wait_for_readable, MiniCluster,
 };
@@ -45,29 +44,27 @@ async fn ingester_flight_api() {
         .unwrap();
 
     let (msg, app_metadata) = performed_query.next().await.unwrap().unwrap();
-    let schema = msg.unwrap_schema();
-    let unpersisted_partitions = &app_metadata.unpersisted_partitions;
-    let partition_id = *unpersisted_partitions.keys().next().unwrap();
+    msg.unwrap_none();
+    let partition_id = app_metadata.partition_id;
     assert_eq!(
-        unpersisted_partitions,
-        &BTreeMap::from([(
+        app_metadata,
+        IngesterQueryResponseMetadata {
             partition_id,
-            PartitionStatus {
+            status: Some(PartitionStatus {
                 parquet_max_sequence_number: None,
                 tombstone_max_sequence_number: None
-            }
-        )]),
+            })
+        },
     );
+
+    let (msg, _) = performed_query.next().await.unwrap().unwrap();
+    let schema = msg.unwrap_schema();
 
     let mut query_results = vec![];
     while let Some((msg, _md)) = performed_query.next().await.unwrap() {
-        if let LowLevelMessage::RecordBatch(batch) = msg {
-            query_results.push(batch);
-        }
+        let batch = msg.unwrap_record_batch();
+        query_results.push(batch);
     }
-
-    // check if batch-level metadata is present
-    assert_eq!(app_metadata.batch_partition_ids.len(), query_results.len());
 
     let expected = [
         "+------+------+--------------------------------+-----+",

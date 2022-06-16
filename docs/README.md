@@ -46,3 +46,4 @@ We hold monthly Tech Talks that explain the project's technical underpinnings. Y
 * [Thoughts on using multiple cores / thread pools](multi_core_tasks.md)
 * [Query Engine Docs](../iox_query/README.md)
 * [Notes on the use of local filesystems](local_filesystems.md)
+* [Querier <> Ingester Query Protocol](ingester_querier_protocol.md)

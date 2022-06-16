@@ -1,15 +1,11 @@
 //! This module contains util functions for testing scenarios
 use super::DbScenario;
-use arrow::record_batch::RecordBatch;
-use arrow_util::optimize::{optimize_record_batch, optimize_schema};
 use async_trait::async_trait;
 use backoff::BackoffConfig;
 use data_types::{
     DeletePredicate, NonEmptyString, PartitionId, PartitionKey, Sequence, SequenceNumber,
     SequencerId, TombstoneId,
 };
-use datafusion::physical_plan::RecordBatchStream;
-use datafusion_util::MemoryStream;
 use dml::{DmlDelete, DmlMeta, DmlOperation, DmlWrite};
 use futures::TryStreamExt;
 use generated_types::{
@@ -18,7 +14,9 @@ use generated_types::{
 };
 use influxdb_iox_client::flight::{low_level::LowLevelMessage, Error as FlightError};
 use ingester::{
-    data::{IngesterData, IngesterQueryResponse, Persister, SequencerData},
+    data::{
+        FlatIngesterQueryResponse, IngesterData, IngesterQueryResponse, Persister, SequencerData,
+    },
     lifecycle::LifecycleHandle,
     partioning::{Partitioner, PartitionerError},
     querier_handler::prepare_data_to_querier,
@@ -39,7 +37,6 @@ use std::{
     collections::{BTreeMap, HashMap},
     fmt::Display,
     fmt::Write,
-    pin::Pin,
     sync::Arc,
     sync::Mutex,
 };
@@ -935,23 +932,6 @@ impl IngesterFlightClient for MockIngester {
                 ))),
             })?;
 
-        // perform the same optimizations that the ingester would use
-        let schema = Arc::new(optimize_schema(&response.schema.as_arrow()));
-        let batches: Vec<RecordBatch> = response
-            .data
-            .map_ok(|batch| optimize_record_batch(&batch, Arc::clone(&schema)).unwrap())
-            .try_collect()
-            .await
-            .unwrap();
-        let data = Box::pin(MemoryStream::new_with_schema(batches, Arc::clone(&schema)))
-            as Pin<Box<dyn RecordBatchStream + Send>>;
-        let schema = Arc::new(schema::Schema::try_from(schema).unwrap());
-        let response = IngesterQueryResponse {
-            data,
-            schema,
-            ..response
-        };
-
         Ok(Box::new(QueryDataAdapter::new(response).await))
     }
 }
@@ -972,46 +952,38 @@ impl QueryDataAdapter {
     /// Create new adapter.
     ///
     /// This pre-calculates some data structure that we are going to need later.
-    async fn new(mut response: IngesterQueryResponse) -> Self {
-        let mut partitions: BTreeMap<_, _> = response
-            .unpersisted_partitions
-            .into_iter()
-            .map(|(partition_id, status)| (partition_id, (status, vec![])))
-            .collect();
-
-        let mut id_it = response.batch_partition_ids.into_iter();
-        while let Some(batch) = response.data.try_next().await.unwrap() {
-            let partition_id = id_it.next().unwrap();
-            partitions.get_mut(&partition_id).unwrap().1.push(batch);
-        }
-
+    async fn new(response: IngesterQueryResponse) -> Self {
         let mut messages = vec![];
-        for (partition_id, (status, batches)) in partitions {
-            let status = PartitionStatus {
-                parquet_max_sequence_number: status.parquet_max_sequence_number.map(|x| x.get()),
-                tombstone_max_sequence_number: status
-                    .tombstone_max_sequence_number
-                    .map(|x| x.get()),
-            };
-            messages.push((
-                LowLevelMessage::None,
-                IngesterQueryResponseMetadata {
-                    partition_id: partition_id.get(),
-                    status: Some(status),
-                    ..Default::default()
-                },
-            ));
-
-            for batch in batches {
-                messages.push((
-                    LowLevelMessage::Schema(batch.schema()),
+        let mut stream = response.flatten();
+        while let Some(msg) = stream.try_next().await.unwrap() {
+            let (msg, md) = match msg {
+                FlatIngesterQueryResponse::StartPartition {
+                    partition_id,
+                    status,
+                } => (
+                    LowLevelMessage::None,
+                    IngesterQueryResponseMetadata {
+                        partition_id: partition_id.get(),
+                        status: Some(PartitionStatus {
+                            parquet_max_sequence_number: status
+                                .parquet_max_sequence_number
+                                .map(|x| x.get()),
+                            tombstone_max_sequence_number: status
+                                .tombstone_max_sequence_number
+                                .map(|x| x.get()),
+                        }),
+                    },
+                ),
+                FlatIngesterQueryResponse::StartSnapshot { schema } => (
+                    LowLevelMessage::Schema(schema),
                     IngesterQueryResponseMetadata::default(),
-                ));
-                messages.push((
+                ),
+                FlatIngesterQueryResponse::RecordBatch { batch } => (
                     LowLevelMessage::RecordBatch(batch),
                     IngesterQueryResponseMetadata::default(),
-                ));
-            }
+                ),
+            };
+            messages.push((msg, md));
         }
 
         Self {

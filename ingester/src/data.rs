@@ -6,7 +6,8 @@ use crate::{
     partioning::{Partitioner, PartitionerError},
     querier_handler::query,
 };
-use arrow::record_batch::RecordBatch;
+use arrow::{error::ArrowError, record_batch::RecordBatch};
+use arrow_util::optimize::{optimize_record_batch, optimize_schema};
 use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig};
 use data_types::{
@@ -15,6 +16,7 @@ use data_types::{
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
 use dml::DmlOperation;
+use futures::{Stream, StreamExt};
 use iox_catalog::interface::Catalog;
 use iox_query::exec::Executor;
 use iox_time::SystemProvider;
@@ -25,10 +27,11 @@ use observability_deps::tracing::{debug, warn};
 use parking_lot::RwLock;
 use parquet_file::storage::ParquetStorage;
 use predicate::Predicate;
-use schema::{selection::Selection, Schema};
+use schema::selection::Selection;
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
     collections::{btree_map::Entry, BTreeMap},
+    pin::Pin,
     sync::Arc,
 };
 use uuid::Uuid;
@@ -1530,51 +1533,142 @@ pub struct PartitionStatus {
     pub tombstone_max_sequence_number: Option<SequenceNumber>,
 }
 
-/// Response sending to the query service per its request defined in IngesterQueryRequest
+/// Stream of snapshots.
+///
+/// Every snapshot is a dedicated [`SendableRecordBatchStream`].
+pub(crate) type SnapshotStream =
+    Pin<Box<dyn Stream<Item = Result<SendableRecordBatchStream, ArrowError>> + Send>>;
+
+/// Response data for a single partition.
+pub(crate) struct IngesterQueryPartition {
+    /// Stream of snapshots.
+    snapshots: SnapshotStream,
+
+    /// Partition ID.
+    id: PartitionId,
+
+    /// Partition persistence status.
+    status: PartitionStatus,
+}
+
+impl std::fmt::Debug for IngesterQueryPartition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("IngesterQueryPartition")
+            .field("snapshots", &"<SNAPSHOT STREAM>")
+            .field("id", &self.id)
+            .field("status", &self.status)
+            .finish()
+    }
+}
+
+impl IngesterQueryPartition {
+    pub(crate) fn new(snapshots: SnapshotStream, id: PartitionId, status: PartitionStatus) -> Self {
+        Self {
+            snapshots,
+            id,
+            status,
+        }
+    }
+}
+
+/// Stream of partitions in this response.
+pub(crate) type IngesterQueryPartitionStream =
+    Pin<Box<dyn Stream<Item = Result<IngesterQueryPartition, ArrowError>> + Send>>;
+
+/// Response streams for querier<>ingester requests.
+///
+/// The data structure is constructed to allow lazy/streaming data generation. For easier consumption according to the
+/// wire protocol, use the [`flatten`](Self::flatten) method.
 pub struct IngesterQueryResponse {
-    /// Stream of RecordBatch results that match the requested query
-    pub data: SendableRecordBatchStream,
-
-    /// The schema of the record batches
-    pub schema: Arc<Schema>,
-
-    /// Contains status for every partition that has unpersisted data.
-    ///
-    /// If a partition does NOT appear within this map, then either all data was persisted or the
-    /// ingester has never seen data for this partition. In either case the querier may just read
-    /// all parquet files for the missing partition.
-    pub unpersisted_partitions: BTreeMap<PartitionId, PartitionStatus>,
-
-    /// Map each record batch to a partition ID.
-    pub batch_partition_ids: Vec<PartitionId>,
+    /// Stream of partitions.
+    partitions: IngesterQueryPartitionStream,
 }
 
 impl std::fmt::Debug for IngesterQueryResponse {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("IngesterQueryResponse")
-            .field("data", &"<RECORDBATCH STREAM>")
-            .field("schema", &self.schema)
-            .field("unpersisted_partitions", &self.unpersisted_partitions)
-            .field("batch_partition_ids", &self.batch_partition_ids)
+            .field("partitions", &"<PARTITION STREAM>")
             .finish()
     }
 }
 
 impl IngesterQueryResponse {
     /// Make a response
-    pub fn new(
-        data: SendableRecordBatchStream,
-        schema: Arc<Schema>,
-        unpersisted_partitions: BTreeMap<PartitionId, PartitionStatus>,
-        batch_partition_ids: Vec<PartitionId>,
-    ) -> Self {
-        Self {
-            data,
-            schema,
-            unpersisted_partitions,
-            batch_partition_ids,
-        }
+    pub(crate) fn new(partitions: IngesterQueryPartitionStream) -> Self {
+        Self { partitions }
     }
+
+    /// Flattens the data according to the wire protocol.
+    pub fn flatten(
+        self,
+    ) -> Pin<Box<dyn Stream<Item = Result<FlatIngesterQueryResponse, ArrowError>> + Send>> {
+        self.partitions
+            .flat_map(|partition_res| match partition_res {
+                Ok(partition) => {
+                    let head = futures::stream::once(async move {
+                        Ok(FlatIngesterQueryResponse::StartPartition {
+                            partition_id: partition.id,
+                            status: partition.status,
+                        })
+                    });
+                    let tail = partition
+                        .snapshots
+                        .flat_map(|snapshot_res| match snapshot_res {
+                            Ok(snapshot) => {
+                                let schema = Arc::new(optimize_schema(&snapshot.schema()));
+
+                                let schema_captured = Arc::clone(&schema);
+                                let head = futures::stream::once(async {
+                                    Ok(FlatIngesterQueryResponse::StartSnapshot {
+                                        schema: schema_captured,
+                                    })
+                                });
+
+                                let tail = snapshot.map(move |batch_res| match batch_res {
+                                    Ok(batch) => Ok(FlatIngesterQueryResponse::RecordBatch {
+                                        batch: optimize_record_batch(&batch, Arc::clone(&schema))?,
+                                    }),
+                                    Err(e) => Err(e),
+                                });
+
+                                head.chain(tail).boxed()
+                            }
+                            Err(e) => futures::stream::once(async { Err(e) }).boxed(),
+                        });
+
+                    head.chain(tail).boxed()
+                }
+                Err(e) => futures::stream::once(async { Err(e) }).boxed(),
+            })
+            .boxed()
+    }
+}
+
+/// Element within the flat wire protocol.
+#[derive(Debug)]
+pub enum FlatIngesterQueryResponse {
+    /// Start a new partition.
+    StartPartition {
+        /// Partition ID.
+        partition_id: PartitionId,
+
+        /// Partition persistence status.
+        status: PartitionStatus,
+    },
+
+    /// Start a new snapshot.
+    ///
+    /// The snapshot belongs  to the partition of the last [`StartPartition`](Self::StartPartition) message.
+    StartSnapshot {
+        /// Snapshot schema.
+        schema: Arc<arrow::datatypes::Schema>,
+    },
+
+    /// Add a record batch to the snapshot that was announced by the last [`StartSnapshot`](Self::StartSnapshot) message.
+    RecordBatch {
+        /// Record batch.
+        batch: RecordBatch,
+    },
 }
 
 #[cfg(test)]

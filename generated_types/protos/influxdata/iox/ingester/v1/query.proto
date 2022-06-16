@@ -55,15 +55,12 @@ message IngesterQueryResponseMetadata {
   reserved "tombstone_max_sequence_number";
   reserved 4;
 
-  // Map partition_id to status for every partition that has unpersisted data.
-  //
-  // If a partition does NOT appear within this map, then either all data was persisted or the ingester has never seen
-  // data for this partition. In either case the querier may just read all parquet files for the missing partition
-  // and ensure it has a complete dataset
-  map<int64, PartitionStatus> unpersisted_partitions = 5;
-
-  // Map each record batch to a partition ID.
-  repeated int64 batch_partition_ids = 6;
+  // Fields from a time when this metadata was sent once at the beginning of the response stream instead of once per
+  // partition.
+  reserved "unpersisted_partitions";
+  reserved 5;
+  reserved "batch_partition_ids";
+  reserved 6;
 
   // Partition id for this batch.
   //

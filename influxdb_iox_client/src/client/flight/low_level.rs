@@ -210,6 +210,12 @@ where
                 .map_err(|e| Error::InvalidFlatbuffer(e.to_string()))?;
 
             match message.header_type() {
+                ipc::MessageHeader::NONE => {
+                    let app_metadata = &data.app_metadata[..];
+                    let app_metadata = prost::Message::decode(app_metadata)?;
+
+                    return Ok(Some((LowLevelMessage::None, app_metadata)));
+                }
                 ipc::MessageHeader::Schema => {
                     let app_metadata = &data.app_metadata[..];
                     let app_metadata = prost::Message::decode(app_metadata)?;
