@@ -94,14 +94,14 @@ impl<I, O> SequencedStreamHandler<I, O> {
         // Lifecycle-driven ingest pause duration
         let pause_duration = metrics
             .register_metric::<DurationCounter>(
-                "ingest_paused_duration_total",
+                "ingester_paused_duration_total",
                 "duration of time ingestion has been paused by the lifecycle manager",
             )
             .recorder(&[]);
 
         // Error count metrics
         let ingest_errors = metrics.register_metric::<U64Counter>(
-            "ingest_stream_handler_error",
+            "ingester_stream_handler_error",
             "ingester op fetching and buffering errors",
         );
         let seq_unknown_sequence_number_count = ingest_errors.recorder(metric_attrs(
@@ -657,7 +657,7 @@ mod tests {
                     // Assert any error metrics in the macro call
                     $(
                         let got = metrics
-                            .get_instrument::<Metric<U64Counter>>("ingest_stream_handler_error")
+                            .get_instrument::<Metric<U64Counter>>("ingester_stream_handler_error")
                             .expect("did not find error metric")
                             .get_observer(&metric_attrs(
                                 *TEST_KAFKA_PARTITION,
