@@ -86,7 +86,7 @@ func NewWriter(replicationID platform.ID, store HttpConfigStore, metrics *metric
 	}
 }
 
-func (w *writer) Write(data []byte, attempts int) (backoff time.Duration, shouldRetry bool, err error) {
+func (w *writer) Write(data []byte, attempts int) (backoff time.Duration, err error) {
 	cancelOnce := &sync.Once{}
 	// Cancel any outstanding HTTP requests if the replicationQueue is closed.
 	ctx, cancel := context.WithCancel(context.Background())
@@ -107,31 +107,31 @@ func (w *writer) Write(data []byte, attempts int) (backoff time.Duration, should
 	// Get the most recent config on every attempt, in case the user has updated the config to correct errors.
 	conf, err := w.configStore.GetFullHTTPConfig(ctx, w.replicationID)
 	if err != nil {
-		return w.backoff(attempts), true, err
+		return w.backoff(attempts), err
 	}
 
 	res, postWriteErr := PostWrite(ctx, conf, data, w.clientTimeout)
 	res, msg, ok := normalizeResponse(res, postWriteErr)
 	if !ok {
 		// bail out
-		return w.backoff(attempts), true, postWriteErr
+		return w.backoff(attempts), postWriteErr
 	}
 
 	// Update metrics and most recent error diagnostic information.
 	if err := w.configStore.UpdateResponseInfo(ctx, w.replicationID, res.StatusCode, msg); err != nil {
 		// TODO: We shouldn't fail/retry a successful remote write for not successfully writing to the config store
-		// we should log instead of returning, like:
-		// w.logger.Warn("failed to update config store with latest remote write response info", zap.Error(err))
+		// we should only log instead of returning, like:
+		w.logger.Debug("failed to update config store with latest remote write response info", zap.Error(err))
 		// Unfortunately this will mess up a lot of tests that are using UpdateResponseInfo failures as a proxy for
 		// write failures.
-		return w.backoff(attempts), true, err
+		return w.backoff(attempts), err
 	}
 
 	if postWriteErr == nil {
 		// Successful write
 		w.metrics.RemoteWriteSent(w.replicationID, len(data))
 		w.logger.Debug("remote write successful", zap.Int("attempt", attempts), zap.Int("bytes", len(data)))
-		return 0, true, nil
+		return 0, nil
 	}
 
 	w.metrics.RemoteWriteError(w.replicationID, res.StatusCode)
@@ -147,7 +147,7 @@ func (w *writer) Write(data []byte, attempts int) (backoff time.Duration, should
 			res.Body.Read(errBody)
 			w.logger.Warn("dropped data", zap.Int("bytes", len(data)), zap.String("reason", string(errBody)))
 			w.metrics.RemoteWriteDropped(w.replicationID, len(data))
-			return 0, false, nil
+			return 0, nil
 		}
 	case http.StatusTooManyRequests:
 		headerTime := w.waitTimeFromHeader(res)
@@ -161,7 +161,7 @@ func (w *writer) Write(data []byte, attempts int) (backoff time.Duration, should
 		waitTime = w.backoff(attempts)
 	}
 
-	return waitTime, true, postWriteErr
+	return waitTime, postWriteErr
 }
 
 // normalizeResponse returns a guaranteed non-nil value for *http.Response, and an extracted error message string for use

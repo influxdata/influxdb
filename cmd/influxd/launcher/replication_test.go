@@ -1,11 +1,16 @@
 package launcher_test
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"fmt"
+	"io"
+	"math/rand"
 	nethttp "net/http"
 	"net/http/httptest"
 	"net/http/httputil"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -296,6 +301,120 @@ csv.from(csv: csvData) |> to(bucket: %q)
 	require.Equal(t, exp2, l.FluxQueryOrFail(t, l.Org, l.Auth.Token, fmt.Sprintf(qs, localBucketName)))
 	require.Equal(t, exp2, l.FluxQueryOrFail(t, l.Org, l.Auth.Token, fmt.Sprintf(qs, remote1BucketName)))
 	require.Equal(t, exp3, l.FluxQueryOrFail(t, l.Org, l.Auth.Token, fmt.Sprintf(qs, remote2BucketName)))
+}
+
+func TestReplicationStreamEndToEndRemoteFailures(t *testing.T) {
+	// Points that will be written to the local bucket.
+	testPoints := []string{
+		`m,k=v0 f=100i 946684800000000000`,
+		`m,k=v1 f=200i 946684800000000000`,
+		`m,k=v2 f=300i 946684800000000000`,
+		`m,k=v3 f=400i 946684800000000000`,
+	}
+
+	// Format string to be used as a flux query to get data from a bucket.
+	qs := `from(bucket:%q) |> range(start:2000-01-01T00:00:00Z,stop:2000-01-02T00:00:00Z)`
+
+	// Data that should be in a bucket which received all the testPoints.
+	exp := `,result,table,_start,_stop,_time,_value,_field,_measurement,k` + "\r\n" +
+		`,_result,0,2000-01-01T00:00:00Z,2000-01-02T00:00:00Z,2000-01-01T00:00:00Z,100,f,m,v0` + "\r\n" +
+		`,_result,1,2000-01-01T00:00:00Z,2000-01-02T00:00:00Z,2000-01-01T00:00:00Z,200,f,m,v1` + "\r\n" +
+		`,_result,2,2000-01-01T00:00:00Z,2000-01-02T00:00:00Z,2000-01-01T00:00:00Z,300,f,m,v2` + "\r\n" +
+		`,_result,3,2000-01-01T00:00:00Z,2000-01-02T00:00:00Z,2000-01-01T00:00:00Z,400,f,m,v3` + "\r\n\r\n"
+
+	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t)
+	defer l.ShutdownOrFail(t, ctx)
+	client := l.APIClient(t)
+
+	localBucketName := l.Bucket.Name
+	remoteBucketName := "remote"
+
+	random := rand.New(rand.NewSource(1000))
+	pointsIndex := 0
+
+	// Create a proxy for use in testing. This will proxy requests to the server, and also decrement the waitGroup to
+	// allow for synchronization.
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	proxyHandler := httputil.NewSingleHostReverseProxy(l.URL())
+	proxy := httptest.NewServer(nethttp.HandlerFunc(func(w nethttp.ResponseWriter, r *nethttp.Request) {
+		mu.Lock()
+		defer mu.Unlock()
+
+		// Read the current point off of the request.
+		body, _ := io.ReadAll(r.Body)
+		reader, _ := gzip.NewReader(bytes.NewBuffer(body))
+		unzipBody, _ := io.ReadAll(reader)
+
+		// Fix the Body on the request.
+		r.Body.Close()
+		r.Body = io.NopCloser(bytes.NewBuffer(body))
+
+		// "Randomly" fail on remote write to test retries.
+		if random.Intn(2) == 0 {
+			// Increment the index if the proper point succeeds.
+			// This is needed since the replication queue will currently send the same
+			// data several times if a failure is reached, since there is not enough
+			// data to warrant a call to scan.Advance().
+			if strings.Contains(string(unzipBody), fmt.Sprintf("v%d", pointsIndex)) {
+				pointsIndex++
+			}
+			proxyHandler.ServeHTTP(w, r)
+
+			// Decrement the waitGroup if all points have succeeded in writing.
+			if pointsIndex == len(testPoints) {
+				wg.Done()
+			}
+		} else {
+			w.WriteHeader(nethttp.StatusGatewayTimeout)
+		}
+	}))
+	defer proxy.Close()
+
+	// Create a "remote" connection to the launcher from itself via the test proxy.
+	remote, err := client.RemoteConnectionsApi.PostRemoteConnection(ctx).
+		RemoteConnectionCreationRequest(api.RemoteConnectionCreationRequest{
+			Name:             "self",
+			OrgID:            l.Org.ID.String(),
+			RemoteURL:        proxy.URL,
+			RemoteAPIToken:   l.Auth.Token,
+			RemoteOrgID:      l.Org.ID.String(),
+			AllowInsecureTLS: false,
+		}).Execute()
+	require.NoError(t, err)
+
+	// Create separate buckets to act as the target for remote writes.
+	svc := l.BucketService(t)
+	remoteBucket := &influxdb.Bucket{
+		OrgID: l.Org.ID,
+		Name:  remoteBucketName,
+	}
+	require.NoError(t, svc.CreateBucket(ctx, remoteBucket))
+
+	// Create a replication for the remote bucket.
+	replicationCreateReq := api.ReplicationCreationRequest{
+		Name:              "test1",
+		OrgID:             l.Org.ID.String(),
+		RemoteID:          remote.Id,
+		LocalBucketID:     l.Bucket.ID.String(),
+		RemoteBucketID:    remoteBucket.ID.String(),
+		MaxQueueSizeBytes: influxdb.DefaultReplicationMaxQueueSizeBytes,
+		MaxAgeSeconds:     influxdb.DefaultReplicationMaxAge,
+	}
+
+	_, err = client.ReplicationsApi.PostReplication(ctx).ReplicationCreationRequest(replicationCreateReq).Execute()
+	require.NoError(t, err)
+
+	// Write the set of points to the launcher bucket. This is the local bucket in the replication.
+	wg.Add(1)
+	for _, p := range testPoints {
+		l.WritePointsOrFail(t, p)
+	}
+	wg.Wait()
+
+	// Data should now be in the local bucket and in the replication remote bucket.
+	require.Equal(t, exp, l.FluxQueryOrFail(t, l.Org, l.Auth.Token, fmt.Sprintf(qs, localBucketName)))
+	require.Equal(t, exp, l.FluxQueryOrFail(t, l.Org, l.Auth.Token, fmt.Sprintf(qs, remoteBucketName)))
 }
 
 func TestReplicationsLocalWriteAndShutdownBlocking(t *testing.T) {
