@@ -91,18 +91,9 @@ func (t telemetryService) countRemotes(ctx context.Context, orgID platform.ID) (
 	if err != nil {
 		return nil, err
 	}
-	return t.marshalCount(int64(len(list.Remotes)))
-}
 
-func (t telemetryService) unmarshalCount(buf []byte) (int64, error) {
-	var count int64
-	err := binary.Read(bytes.NewReader(buf), binary.BigEndian, &count)
-	return count, err
-}
-
-func (t telemetryService) marshalCount(count int64) ([]byte, error) {
 	b := make([]byte, 0, 8)
 	buf := bytes.NewBuffer(b)
-	err := binary.Write(buf, binary.BigEndian, count)
+	err = binary.Write(buf, binary.BigEndian, int64(len(list.Remotes)))
 	return buf.Bytes(), err
 }
