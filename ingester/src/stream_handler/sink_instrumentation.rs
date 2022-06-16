@@ -90,23 +90,23 @@ where
 
         let write_buffer_bytes_read = metrics
             .register_metric::<U64Counter>(
-                "write_buffer_read_bytes",
+                "ingester_write_buffer_read_bytes",
                 "Total number of bytes read from sequencer",
             )
             .recorder(attr.clone());
         let write_buffer_last_sequence_number = metrics
             .register_metric::<U64Gauge>(
-                "write_buffer_last_sequence_number",
+                "ingester_write_buffer_last_sequence_number",
                 "Last consumed sequence number (e.g. Kafka offset)",
             )
             .recorder(attr.clone());
         let write_buffer_sequence_number_lag = metrics.register_metric::<U64Gauge>(
-            "write_buffer_sequence_number_lag",
+            "ingester_write_buffer_sequence_number_lag",
             "The difference between the the last sequence number available (e.g. Kafka offset) and (= minus) last consumed sequence number",
         ).recorder(attr.clone());
         let write_buffer_last_ingest_ts = metrics
             .register_metric::<U64Gauge>(
-                "write_buffer_last_ingest_ts",
+                "ingester_write_buffer_last_ingest_ts",
                 "Last seen ingest timestamp as unix timestamp in nanoseconds",
             )
             .recorder(attr.clone());
@@ -344,13 +344,17 @@ mod tests {
 
         // Validate the various write buffer metrics
         assert_matches!(
-            get_metric::<U64Counter>(&metrics, "write_buffer_read_bytes", &*DEFAULT_ATTRS),
+            get_metric::<U64Counter>(
+                &metrics,
+                "ingester_write_buffer_read_bytes",
+                &*DEFAULT_ATTRS
+            ),
             Observation::U64Counter(4242)
         );
         assert_matches!(
             get_metric::<U64Gauge>(
                 &metrics,
-                "write_buffer_last_sequence_number",
+                "ingester_write_buffer_last_sequence_number",
                 &*DEFAULT_ATTRS
             ),
             Observation::U64Gauge(100)
@@ -358,14 +362,14 @@ mod tests {
         assert_matches!(
             get_metric::<U64Gauge>(
                 &metrics,
-                "write_buffer_sequence_number_lag",
+                "ingester_write_buffer_sequence_number_lag",
                 &*DEFAULT_ATTRS
             ),
             // 12345 - 100 - 1
             Observation::U64Gauge(12_244)
         );
         assert_matches!(
-            get_metric::<U64Gauge>(&metrics, "write_buffer_last_ingest_ts", &*DEFAULT_ATTRS),
+            get_metric::<U64Gauge>(&metrics, "ingester_write_buffer_last_ingest_ts", &*DEFAULT_ATTRS),
             // 12345 - 100 - 1
             Observation::U64Gauge(t) => {
                 assert_eq!(t, TEST_TIME.timestamp_nanos() as u64);
@@ -415,13 +419,17 @@ mod tests {
 
         // Validate the various write buffer metrics
         assert_matches!(
-            get_metric::<U64Counter>(&metrics, "write_buffer_read_bytes", &*DEFAULT_ATTRS),
+            get_metric::<U64Counter>(
+                &metrics,
+                "ingester_write_buffer_read_bytes",
+                &*DEFAULT_ATTRS
+            ),
             Observation::U64Counter(4242)
         );
         assert_matches!(
             get_metric::<U64Gauge>(
                 &metrics,
-                "write_buffer_last_sequence_number",
+                "ingester_write_buffer_last_sequence_number",
                 &*DEFAULT_ATTRS
             ),
             Observation::U64Gauge(100)
@@ -429,14 +437,14 @@ mod tests {
         assert_matches!(
             get_metric::<U64Gauge>(
                 &metrics,
-                "write_buffer_sequence_number_lag",
+                "ingester_write_buffer_sequence_number_lag",
                 &*DEFAULT_ATTRS
             ),
             // 12345 - 100 - 1
             Observation::U64Gauge(12_244)
         );
         assert_matches!(
-            get_metric::<U64Gauge>(&metrics, "write_buffer_last_ingest_ts", &*DEFAULT_ATTRS),
+            get_metric::<U64Gauge>(&metrics, "ingester_write_buffer_last_ingest_ts", &*DEFAULT_ATTRS),
             // 12345 - 100 - 1
             Observation::U64Gauge(t) => {
                 assert_eq!(t, TEST_TIME.timestamp_nanos() as u64);
@@ -479,13 +487,17 @@ mod tests {
 
         // Validate the various write buffer metrics
         assert_matches!(
-            get_metric::<U64Counter>(&metrics, "write_buffer_read_bytes", &*DEFAULT_ATTRS),
+            get_metric::<U64Counter>(
+                &metrics,
+                "ingester_write_buffer_read_bytes",
+                &*DEFAULT_ATTRS
+            ),
             Observation::U64Counter(4242)
         );
         assert_matches!(
             get_metric::<U64Gauge>(
                 &metrics,
-                "write_buffer_last_sequence_number",
+                "ingester_write_buffer_last_sequence_number",
                 &*DEFAULT_ATTRS
             ),
             Observation::U64Gauge(100)
@@ -493,14 +505,14 @@ mod tests {
         assert_matches!(
             get_metric::<U64Gauge>(
                 &metrics,
-                "write_buffer_sequence_number_lag",
+                "ingester_write_buffer_sequence_number_lag",
                 &*DEFAULT_ATTRS
             ),
             // No value recorded because no watermark was available
             Observation::U64Gauge(0)
         );
         assert_matches!(
-            get_metric::<U64Gauge>(&metrics, "write_buffer_last_ingest_ts", &*DEFAULT_ATTRS),
+            get_metric::<U64Gauge>(&metrics, "ingester_write_buffer_last_ingest_ts", &*DEFAULT_ATTRS),
             // 12345 - 100 - 1
             Observation::U64Gauge(t) => {
                 assert_eq!(t, TEST_TIME.timestamp_nanos() as u64);
@@ -544,13 +556,17 @@ mod tests {
 
         // Validate the various write buffer metrics
         assert_matches!(
-            get_metric::<U64Counter>(&metrics, "write_buffer_read_bytes", &*DEFAULT_ATTRS),
+            get_metric::<U64Counter>(
+                &metrics,
+                "ingester_write_buffer_read_bytes",
+                &*DEFAULT_ATTRS
+            ),
             Observation::U64Counter(4242)
         );
         assert_matches!(
             get_metric::<U64Gauge>(
                 &metrics,
-                "write_buffer_last_sequence_number",
+                "ingester_write_buffer_last_sequence_number",
                 &*DEFAULT_ATTRS
             ),
             Observation::U64Gauge(100)
@@ -558,14 +574,14 @@ mod tests {
         assert_matches!(
             get_metric::<U64Gauge>(
                 &metrics,
-                "write_buffer_sequence_number_lag",
+                "ingester_write_buffer_sequence_number_lag",
                 &*DEFAULT_ATTRS
             ),
             // The current sequence number is not behind the high watermark
             Observation::U64Gauge(0)
         );
         assert_matches!(
-            get_metric::<U64Gauge>(&metrics, "write_buffer_last_ingest_ts", &*DEFAULT_ATTRS),
+            get_metric::<U64Gauge>(&metrics, "ingester_write_buffer_last_ingest_ts", &*DEFAULT_ATTRS),
             // 12345 - 100 - 1
             Observation::U64Gauge(t) => {
                 assert_eq!(t, TEST_TIME.timestamp_nanos() as u64);

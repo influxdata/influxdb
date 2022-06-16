@@ -256,7 +256,7 @@ impl IngestHandlerImpl {
 
         // Record query duration metrics, broken down by query execution result
         let query_duration: Metric<DurationHistogram> = metric_registry.register_metric(
-            "flight_query_duration",
+            "ingester_flight_query_duration",
             "flight request query execution duration",
         );
         let query_duration_success = query_duration.recorder(&[("result", "success")]);
@@ -521,7 +521,7 @@ mod tests {
 
         let observation = ingester
             .metrics
-            .get_instrument::<Metric<U64Counter>>("write_buffer_read_bytes")
+            .get_instrument::<Metric<U64Counter>>("ingester_write_buffer_read_bytes")
             .unwrap()
             .get_observer(&Attributes::from(&[
                 ("kafka_topic", "whatevs"),
@@ -533,7 +533,7 @@ mod tests {
 
         let observation = ingester
             .metrics
-            .get_instrument::<Metric<U64Gauge>>("write_buffer_last_sequence_number")
+            .get_instrument::<Metric<U64Gauge>>("ingester_write_buffer_last_sequence_number")
             .unwrap()
             .get_observer(&Attributes::from(&[
                 ("kafka_topic", "whatevs"),
@@ -545,7 +545,7 @@ mod tests {
 
         let observation = ingester
             .metrics
-            .get_instrument::<Metric<U64Gauge>>("write_buffer_sequence_number_lag")
+            .get_instrument::<Metric<U64Gauge>>("ingester_write_buffer_sequence_number_lag")
             .unwrap()
             .get_observer(&Attributes::from(&[
                 ("kafka_topic", "whatevs"),
@@ -557,7 +557,7 @@ mod tests {
 
         let observation = ingester
             .metrics
-            .get_instrument::<Metric<U64Gauge>>("write_buffer_last_ingest_ts")
+            .get_instrument::<Metric<U64Gauge>>("ingester_write_buffer_last_ingest_ts")
             .unwrap()
             .get_observer(&Attributes::from(&[
                 ("kafka_topic", "whatevs"),

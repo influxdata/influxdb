@@ -116,7 +116,7 @@ impl Poller {
 
         let error_count = metrics
             .register_metric::<U64Counter>(
-                "write_buffer_watermark_fetch_errors",
+                "ingester_write_buffer_watermark_fetch_errors",
                 "The total number of errors observed while trying to query for the high watermark",
             )
             .recorder([]);
@@ -210,7 +210,7 @@ mod tests {
         assert_eq!(fetcher.cached_watermark(), None);
 
         let hits = metrics
-            .get_instrument::<Metric<U64Counter>>("write_buffer_watermark_fetch_errors")
+            .get_instrument::<Metric<U64Counter>>("ingester_write_buffer_watermark_fetch_errors")
             .expect("failed to read metric")
             .get_observer(&Attributes::from([]))
             .expect("failed to get observer")
@@ -252,7 +252,7 @@ mod tests {
         .await;
 
         let hits = metrics
-            .get_instrument::<Metric<U64Counter>>("write_buffer_watermark_fetch_errors")
+            .get_instrument::<Metric<U64Counter>>("ingester_write_buffer_watermark_fetch_errors")
             .expect("failed to read metric")
             .get_observer(&Attributes::from([]))
             .expect("failed to get observer")
