@@ -10,6 +10,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
+	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
@@ -78,7 +79,9 @@ type ReplicationHandler struct {
 	replicationsService ReplicationService
 }
 
-func NewInstrumentedReplicationHandler(log *zap.Logger, reg prometheus.Registerer, svc ReplicationService) *ReplicationHandler {
+func NewInstrumentedReplicationHandler(log *zap.Logger, reg prometheus.Registerer, kv kv.Store, svc ReplicationService) *ReplicationHandler {
+	// Collect telemetry
+	svc = newTelemetryCollectingService(kv, svc)
 	// Collect metrics.
 	svc = newMetricCollectingService(reg, svc)
 	// Wrap logging.

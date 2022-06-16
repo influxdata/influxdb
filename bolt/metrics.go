@@ -21,6 +21,8 @@ var (
 	scraperBucket         = []byte("scraperv2")
 	telegrafBucket        = []byte("telegrafv1")
 	telegrafPluginsBucket = []byte("telegrafPluginsv1")
+	remoteBucket          = []byte("remotesv2")
+	replicationBucket     = []byte("replicationsv2")
 	userBucket            = []byte("usersv1")
 )
 
@@ -65,6 +67,16 @@ var (
 		"Number of individual telegraf plugins configured",
 		[]string{"plugin"}, nil)
 
+	remoteDesc = prometheus.NewDesc(
+		"influxdb_remotes_total",
+		"Number of total remote connections configured on the server",
+		nil, nil)
+
+	replicationDesc = prometheus.NewDesc(
+		"influxdb_replications_total",
+		"Number of total replication configurations on the server",
+		nil, nil)
+
 	boltWritesDesc = prometheus.NewDesc(
 		"boltdb_writes_total",
 		"Total number of boltdb writes",
@@ -85,6 +97,8 @@ func (c *Client) Describe(ch chan<- *prometheus.Desc) {
 	ch <- dashboardsDesc
 	ch <- scrapersDesc
 	ch <- telegrafsDesc
+	ch <- remoteDesc
+	ch <- replicationDesc
 	ch <- boltWritesDesc
 	ch <- boltReadsDesc
 
@@ -209,12 +223,15 @@ func (c *Client) Collect(ch chan<- prometheus.Metric) {
 
 	orgs, buckets, users, tokens := 0, 0, 0, 0
 	dashboards, scrapers, telegrafs := 0, 0, 0
+	remotes, replications := 0, 0
 	_ = c.db.View(func(tx *bolt.Tx) error {
 		buckets = tx.Bucket(bucketBucket).Stats().KeyN
 		dashboards = tx.Bucket(dashboardBucket).Stats().KeyN
 		orgs = tx.Bucket(organizationBucket).Stats().KeyN
 		scrapers = tx.Bucket(scraperBucket).Stats().KeyN
 		telegrafs = tx.Bucket(telegrafBucket).Stats().KeyN
+		remotes = tx.Bucket(remoteBucket).Stats().KeyN
+		replications = tx.Bucket(replicationBucket).Stats().KeyN
 		tokens = tx.Bucket(authorizationBucket).Stats().KeyN
 		users = tx.Bucket(userBucket).Stats().KeyN
 		return nil
@@ -260,6 +277,18 @@ func (c *Client) Collect(ch chan<- prometheus.Metric) {
 		telegrafsDesc,
 		prometheus.CounterValue,
 		float64(telegrafs),
+	)
+
+	ch <- prometheus.MustNewConstMetric(
+		remoteDesc,
+		prometheus.CounterValue,
+		float64(remotes),
+	)
+
+	ch <- prometheus.MustNewConstMetric(
+		replicationDesc,
+		prometheus.CounterValue,
+		float64(replications),
 	)
 
 	c.pluginsCollector.Collect(ch)

@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/influxdata/influxdb/v2/kv"
+
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	"github.com/influxdata/influxdb/v2"
@@ -56,7 +58,9 @@ type RemoteConnectionHandler struct {
 	remotesService RemoteConnectionService
 }
 
-func NewInstrumentedRemotesHandler(log *zap.Logger, reg prometheus.Registerer, svc RemoteConnectionService) *RemoteConnectionHandler {
+func NewInstrumentedRemotesHandler(log *zap.Logger, reg prometheus.Registerer, kv kv.Store, svc RemoteConnectionService) *RemoteConnectionHandler {
+	// Collect telemetry.
+	svc = newTelemetryCollectingService(kv, svc)
 	// Collect metrics.
 	svc = newMetricCollectingService(reg, svc)
 	// Wrap logging.

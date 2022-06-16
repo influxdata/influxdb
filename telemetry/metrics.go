@@ -21,6 +21,8 @@ var telemetryMatcher = pr.NewMatcher().
 	Family("influxdb_scrapers_total").
 	Family("influxdb_telegrafs_total").
 	Family("influxdb_telegraf_plugins_count").
+	Family("influxdb_remotes_total").
+	Family("influxdb_replications_total").
 	Family("task_scheduler_claims_active"). // Count of currently active tasks
 	/*
 	 * Count of API requests including success and failure
