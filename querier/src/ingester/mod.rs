@@ -147,7 +147,7 @@ pub fn create_ingester_connection(
 /// }
 /// ```
 pub fn create_ingester_connections_by_sequencer(
-    sequencer_to_ingester: HashMap<KafkaPartition, Arc<str>>,
+    sequencer_to_ingester: HashMap<i32, Arc<str>>,
     catalog_cache: Arc<CatalogCache>,
 ) -> Arc<dyn IngesterConnection> {
     Arc::new(IngesterConnectionImpl::by_sequencer(
@@ -333,7 +333,7 @@ impl IngesterConnectionImpl {
     /// }
     /// ```
     pub fn by_sequencer(
-        sequencer_to_ingester: HashMap<KafkaPartition, Arc<str>>,
+        sequencer_to_ingester: HashMap<i32, Arc<str>>,
         catalog_cache: Arc<CatalogCache>,
     ) -> Self {
         Self::by_sequencer_with_flight_client(
@@ -348,12 +348,18 @@ impl IngesterConnectionImpl {
     /// This is helpful for testing, i.e. when the flight client should not be backed by normal
     /// network communication.
     pub fn by_sequencer_with_flight_client(
-        sequencer_to_ingester: HashMap<KafkaPartition, Arc<str>>,
+        sequencer_to_ingester: HashMap<i32, Arc<str>>,
         flight_client: Arc<dyn FlightClient>,
         catalog_cache: Arc<CatalogCache>,
     ) -> Self {
         let unique_ingester_addresses: HashSet<_> =
             sequencer_to_ingester.values().map(Arc::clone).collect();
+        let sequencer_to_ingester = sequencer_to_ingester
+            .into_iter()
+            .map(|(sequencer_id, ingester_address)| {
+                (KafkaPartition::new(sequencer_id), ingester_address)
+            })
+            .collect();
 
         let metric_registry = catalog_cache.metric_registry();
         let metrics = Arc::new(IngesterConnectionMetrics::new(&metric_registry));
@@ -698,7 +704,7 @@ impl IngesterConnection for IngesterConnectionImpl {
 
         // Look up the ingester needed for the sequencer
         let mut ingester_partitions =
-            if let Some(ingester_address) = dbg!(self.sequencer_to_ingester.get(&sequencer_id)) {
+            if let Some(ingester_address) = self.sequencer_to_ingester.get(&sequencer_id) {
                 // If found, only query that ingester
                 measured_ingester_request(ingester_address).await?
             } else {
@@ -1636,7 +1642,6 @@ mod tests {
                                         parquet_max_sequence_number: Some(11),
                                         tombstone_max_sequence_number: Some(12),
                                     }),
-                                    ..Default::default()
                                 },
                             )),
                             Ok((
@@ -1666,7 +1671,7 @@ mod tests {
             .await;
 
         let partitions = get_partitions(&ingester_conn, 1).await.unwrap();
-        assert_eq!(partitions.len(), 2);
+        assert_eq!(partitions.len(), 1);
 
         let p1 = &partitions[0];
         assert_eq!(p1.partition_id.get(), 1);
@@ -1679,20 +1684,7 @@ mod tests {
             p1.tombstone_max_sequence_number,
             Some(SequenceNumber::new(12))
         );
-        assert_eq!(p1.chunks.len(), 2);
-
-        let p2 = &partitions[1];
-        assert_eq!(p2.partition_id.get(), 2);
-        assert_eq!(p2.sequencer_id.get(), 1);
-        assert_eq!(
-            p2.parquet_max_sequence_number,
-            Some(SequenceNumber::new(21))
-        );
-        assert_eq!(
-            p2.tombstone_max_sequence_number,
-            Some(SequenceNumber::new(22))
-        );
-        assert_eq!(p2.chunks.len(), 1);
+        assert_eq!(p1.chunks.len(), 1);
     }
 
     async fn get_partitions(
@@ -1806,7 +1798,7 @@ mod tests {
                 .enumerate()
                 .map(|(sequencer_id, ingester_address)| {
                     (
-                        KafkaPartition::new(sequencer_id as i32 + 1),
+                        sequencer_id as i32 + 1,
                         Arc::from(ingester_address.as_str()),
                     )
                 })

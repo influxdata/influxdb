@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use clap_blocks::querier::QuerierConfig;
+use clap_blocks::querier::{IngesterAddresses, QuerierConfig};
 use hyper::{Body, Request, Response};
 use iox_catalog::interface::Catalog;
 use iox_query::exec::Executor;
@@ -16,8 +16,8 @@ use metric::Registry;
 use object_store::DynObjectStore;
 use parquet_file::storage::ParquetStorage;
 use querier::{
-    create_ingester_connection, QuerierCatalogCache, QuerierDatabase, QuerierHandler,
-    QuerierHandlerImpl, QuerierServer,
+    create_ingester_connection, create_ingester_connections_by_sequencer, QuerierCatalogCache,
+    QuerierDatabase, QuerierHandler, QuerierHandlerImpl, QuerierServer,
 };
 use std::{
     fmt::{Debug, Display},
@@ -145,7 +145,7 @@ pub struct QuerierServerTypeArgs<'a> {
     pub object_store: Arc<DynObjectStore>,
     pub exec: Arc<Executor>,
     pub time_provider: Arc<dyn TimeProvider>,
-    pub ingester_addresses: Vec<String>,
+    pub ingester_addresses: IngesterAddresses,
     pub querier_config: QuerierConfig,
 }
 
@@ -172,8 +172,14 @@ pub async fn create_querier_server_type(
         args.querier_config.ram_pool_bytes(),
     ));
 
-    let ingester_connection =
-        create_ingester_connection(args.ingester_addresses, Arc::clone(&catalog_cache));
+    let ingester_connection = match args.ingester_addresses {
+        IngesterAddresses::List(list) => {
+            create_ingester_connection(list, Arc::clone(&catalog_cache))
+        }
+        IngesterAddresses::BySequencer(map) => {
+            create_ingester_connections_by_sequencer(map, Arc::clone(&catalog_cache))
+        }
+    };
 
     let database = Arc::new(
         QuerierDatabase::new(
