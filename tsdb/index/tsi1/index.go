@@ -1009,6 +1009,7 @@ func (i *Index) TagValueSeriesIDIterator(name, key, value []byte) (tsdb.SeriesID
 	for _, p := range i.partitions {
 		itr, err := p.TagValueSeriesIDIterator(name, key, value)
 		if err != nil {
+			tsdb.SeriesIDIterators(a).Close()
 			return nil, err
 		} else if itr != nil {
 			a = append(a, itr)
