@@ -116,16 +116,21 @@ func TestReplicationDeleteKVUpdate(t *testing.T) {
 	replication2 := replication1
 	replication2.ID = platform.ID(2)
 
-	remoteConnections := influxdb.Replications{
+	remoteConnectionsPreDelete := influxdb.Replications{
 		Replications: []influxdb.Replication{replication1, replication2},
+	}
+
+	remoteConnectionsPostDelete := influxdb.Replications{
+		Replications: []influxdb.Replication{replication1},
 	}
 
 	mockRemote.EXPECT().CreateReplication(ctx, req).Return(&replication1, nil).Times(1)
 	mockRemote.EXPECT().CreateReplication(ctx, req2).Return(&replication2, nil).Times(1)
-	mockRemote.EXPECT().ListReplications(ctx, influxdb.ReplicationListFilter{OrgID: req.OrgID}).Return(&remoteConnections, nil).Times(2)
+	mockRemote.EXPECT().ListReplications(ctx, influxdb.ReplicationListFilter{OrgID: req.OrgID}).Return(&remoteConnectionsPreDelete, nil).Times(2)
 
 	mockRemote.EXPECT().DeleteReplication(ctx, replication1.ID).Return(nil).Times(1)
 	mockRemote.EXPECT().GetReplication(ctx, replication1.ID).Return(&replication1, nil).Times(1)
+	mockRemote.EXPECT().ListReplications(ctx, influxdb.ReplicationListFilter{OrgID: req.OrgID}).Return(&remoteConnectionsPostDelete, nil).Times(1)
 
 	_, err = telemetry.CreateReplication(ctx, req)
 	require.NoError(t, err)

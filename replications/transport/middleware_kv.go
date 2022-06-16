@@ -55,24 +55,8 @@ func (t telemetryService) CreateReplication(ctx context.Context, request influxd
 	if err != nil {
 		return conn, err
 	}
-	if err := t.kv.Update(ctx, func(tx kv.Tx) error {
-		encodedID, err := request.OrgID.Encode()
-		if err != nil {
-			return platform.ErrInvalidID
-		}
-		bucket, err := tx.Bucket(replicationsBucket)
-		if err != nil {
-			return err
-		}
-		count, err := t.countReplications(ctx, request.OrgID)
-		if err != nil {
-			return err
-		}
-		return bucket.Put(encodedID, count)
-	}); err != nil {
-		return nil, fmt.Errorf("updating telemetry failed: %v", err)
-	}
-	return conn, nil
+	err = t.storeReplicationMetrics(ctx, request.OrgID)
+	return conn, err
 }
 
 func (t telemetryService) DeleteReplication(ctx context.Context, id platform.ID) error {
@@ -80,42 +64,32 @@ func (t telemetryService) DeleteReplication(ctx context.Context, id platform.ID)
 	if err != nil {
 		return err
 	}
-	orgID := rc.OrgID
 
 	err = t.underlying.DeleteReplication(ctx, id)
 	if err != nil {
 		return err
 	}
+	return t.storeReplicationMetrics(ctx, rc.OrgID)
+}
+
+func (t telemetryService) storeReplicationMetrics(ctx context.Context, orgID platform.ID) error {
 	if err := t.kv.Update(ctx, func(tx kv.Tx) error {
 		encodedID, err := orgID.Encode()
 		if err != nil {
-			return err
+			return platform.ErrInvalidID
 		}
 		bucket, err := tx.Bucket(replicationsBucket)
 		if err != nil {
 			return err
 		}
-		count, err := bucket.Get(encodedID)
+		count, err := t.countReplications(ctx, orgID)
 		if err != nil {
 			return err
 		}
-
-		c, err := t.unmarshalCount(count)
-		if err != nil {
-			return err
-		}
-		c--
-
-		b, err := t.marshalCount(int64(c))
-		if err != nil {
-			return err
-		}
-
-		return bucket.Put(encodedID, b)
+		return bucket.Put(encodedID, count)
 	}); err != nil {
 		return fmt.Errorf("updating telemetry failed: %v", err)
 	}
-
 	return nil
 }
 
