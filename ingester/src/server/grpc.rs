@@ -1,7 +1,7 @@
 //! gRPC service implementations for `ingester`.
 
 use crate::{
-    data::{FlatIngesterQueryResponse, IngesterQueryResponse},
+    data::{FlatIngesterQueryResponse, FlatIngesterQueryResponseStream},
     handler::IngestHandler,
 };
 use arrow::error::ArrowError;
@@ -290,7 +290,7 @@ impl<I: IngestHandler + Send + Sync + 'static> Flight for FlightService<I> {
                     },
                 })?;
 
-        let output = GetStream::new(query_response).await?;
+        let output = GetStream::new(query_response.flatten());
 
         Ok(Response::new(Box::pin(output) as Self::DoGetStream))
     }
@@ -360,14 +360,12 @@ struct GetStream {
 }
 
 impl GetStream {
-    async fn new(query_response: IngesterQueryResponse) -> Result<Self, tonic::Status> {
-        let inner = query_response.flatten();
-
-        Ok(Self {
+    fn new(inner: FlatIngesterQueryResponseStream) -> Self {
+        Self {
             inner,
             done: false,
             buffer: vec![],
-        })
+        }
     }
 }
 
@@ -457,4 +455,165 @@ fn build_none_flight_msg() -> Vec<u8> {
     fbb.finish(data, None);
 
     fbb.finished_data().to_vec()
+}
+
+#[cfg(test)]
+mod tests {
+    use arrow::ipc::MessageHeader;
+    use data_types::PartitionId;
+    use futures::StreamExt;
+    use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
+    use schema::selection::Selection;
+
+    use crate::data::PartitionStatus;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_get_stream_empty() {
+        assert_get_stream(vec![], vec![]).await;
+    }
+
+    #[tokio::test]
+    async fn test_get_stream_all_types() {
+        let batch = lp_to_mutable_batch("table z=1 0")
+            .1
+            .to_arrow(Selection::All)
+            .unwrap();
+        let schema = batch.schema();
+
+        assert_get_stream(
+            vec![
+                Ok(FlatIngesterQueryResponse::StartPartition {
+                    partition_id: PartitionId::new(1),
+                    status: PartitionStatus {
+                        parquet_max_sequence_number: None,
+                        tombstone_max_sequence_number: None,
+                    },
+                }),
+                Ok(FlatIngesterQueryResponse::StartSnapshot { schema }),
+                Ok(FlatIngesterQueryResponse::RecordBatch { batch }),
+            ],
+            vec![
+                Ok(DecodedFlightData {
+                    header_type: MessageHeader::NONE,
+                    app_metadata: proto::IngesterQueryResponseMetadata {
+                        partition_id: 1,
+                        status: Some(proto::PartitionStatus {
+                            parquet_max_sequence_number: None,
+                            tombstone_max_sequence_number: None,
+                        }),
+                    },
+                }),
+                Ok(DecodedFlightData {
+                    header_type: MessageHeader::Schema,
+                    app_metadata: proto::IngesterQueryResponseMetadata::default(),
+                }),
+                Ok(DecodedFlightData {
+                    header_type: MessageHeader::RecordBatch,
+                    app_metadata: proto::IngesterQueryResponseMetadata::default(),
+                }),
+            ],
+        )
+        .await;
+    }
+
+    #[tokio::test]
+    async fn test_get_stream_shortcuts_err() {
+        assert_get_stream(
+            vec![
+                Ok(FlatIngesterQueryResponse::StartPartition {
+                    partition_id: PartitionId::new(1),
+                    status: PartitionStatus {
+                        parquet_max_sequence_number: None,
+                        tombstone_max_sequence_number: None,
+                    },
+                }),
+                Err(ArrowError::IoError("foo".into())),
+                Ok(FlatIngesterQueryResponse::StartPartition {
+                    partition_id: PartitionId::new(1),
+                    status: PartitionStatus {
+                        parquet_max_sequence_number: None,
+                        tombstone_max_sequence_number: None,
+                    },
+                }),
+            ],
+            vec![
+                Ok(DecodedFlightData {
+                    header_type: MessageHeader::NONE,
+                    app_metadata: proto::IngesterQueryResponseMetadata {
+                        partition_id: 1,
+                        status: Some(proto::PartitionStatus {
+                            parquet_max_sequence_number: None,
+                            tombstone_max_sequence_number: None,
+                        }),
+                    },
+                }),
+                Err(tonic::Code::Internal),
+            ],
+        )
+        .await;
+    }
+
+    #[tokio::test]
+    async fn test_get_stream_dictionary_batches() {
+        let batch = lp_to_mutable_batch("table,x=\"foo\",y=\"bar\" z=1 0")
+            .1
+            .to_arrow(Selection::All)
+            .unwrap();
+
+        assert_get_stream(
+            vec![Ok(FlatIngesterQueryResponse::RecordBatch { batch })],
+            vec![
+                Ok(DecodedFlightData {
+                    header_type: MessageHeader::DictionaryBatch,
+                    app_metadata: proto::IngesterQueryResponseMetadata::default(),
+                }),
+                Ok(DecodedFlightData {
+                    header_type: MessageHeader::DictionaryBatch,
+                    app_metadata: proto::IngesterQueryResponseMetadata::default(),
+                }),
+                Ok(DecodedFlightData {
+                    header_type: MessageHeader::RecordBatch,
+                    app_metadata: proto::IngesterQueryResponseMetadata::default(),
+                }),
+            ],
+        )
+        .await;
+    }
+
+    struct DecodedFlightData {
+        header_type: MessageHeader,
+        app_metadata: proto::IngesterQueryResponseMetadata,
+    }
+
+    async fn assert_get_stream(
+        inputs: Vec<Result<FlatIngesterQueryResponse, ArrowError>>,
+        expected: Vec<Result<DecodedFlightData, tonic::Code>>,
+    ) {
+        let inner = Box::pin(futures::stream::iter(inputs));
+        let stream = GetStream::new(inner);
+        let actual: Vec<_> = stream.collect().await;
+        assert_eq!(actual.len(), expected.len());
+
+        for (actual, expected) in actual.into_iter().zip(expected) {
+            match (actual, expected) {
+                (Ok(actual), Ok(expected)) => {
+                    let header_type = arrow::ipc::root_as_message(&actual.data_header[..])
+                        .unwrap()
+                        .header_type();
+                    assert_eq!(header_type, expected.header_type);
+
+                    let app_metadata: proto::IngesterQueryResponseMetadata =
+                        prost::Message::decode(&actual.app_metadata[..]).unwrap();
+                    assert_eq!(app_metadata, expected.app_metadata);
+                }
+                (Err(actual), Err(expected)) => {
+                    assert_eq!(actual.code(), expected);
+                }
+                (Ok(_), Err(_)) => panic!("Actual is Ok but expected is Err"),
+                (Err(_), Ok(_)) => panic!("Actual is Err but expected is Ok"),
+            }
+        }
+    }
 }
