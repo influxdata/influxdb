@@ -257,9 +257,18 @@ impl QueryChunk for QueryableParquetChunk {
     // Order of the chunk so they can be deduplicate correctly
     fn order(&self) -> ChunkOrder {
         let seq_num = self.min_sequence_number.get();
-        let seq_num = u32::try_from(seq_num)
-            .expect("Sequence number should have been converted to chunk order successfully");
-        ChunkOrder::new(seq_num)
-            .expect("Sequence number should have been converted to chunk order successfully")
+        let seq_num_u32 = u32::try_from(seq_num).unwrap_or_else(|_| {
+            panic!(
+                "Error converting i64 sequence number {} to u32 for partition {}",
+                seq_num, self.partition_id
+            );
+        });
+
+        ChunkOrder::new(seq_num_u32).unwrap_or_else(|| {
+            panic!(
+                "Error converting u32 sequence number {} to ChunkOrder for partition {}",
+                seq_num_u32, self.partition_id
+            );
+        })
     }
 }
