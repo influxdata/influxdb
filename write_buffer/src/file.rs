@@ -732,6 +732,7 @@ pub mod test_utils {
 mod tests {
     use std::{num::NonZeroU32, time::Duration};
 
+    use data_types::PartitionKey;
     use dml::test_util::assert_write_op_eq;
     use tempfile::TempDir;
     use trace::RingBufferTraceCollector;
@@ -841,7 +842,7 @@ mod tests {
             &writer,
             entry_1,
             sequencer_id,
-            None,
+            PartitionKey::from("bananas"),
             None,
         )
         .await;
@@ -850,7 +851,7 @@ mod tests {
             &writer,
             entry_2,
             sequencer_id,
-            None,
+            PartitionKey::from("bananas"),
             None,
         )
         .await;
@@ -859,7 +860,7 @@ mod tests {
             &writer,
             entry_3,
             sequencer_id,
-            None,
+            PartitionKey::from("bananas"),
             None,
         )
         .await;
@@ -868,7 +869,7 @@ mod tests {
             &writer,
             entry_4,
             sequencer_id,
-            None,
+            PartitionKey::from("bananas"),
             None,
         )
         .await;
@@ -911,7 +912,7 @@ mod tests {
             &writer,
             entry_1,
             sequencer_id,
-            None,
+            PartitionKey::from("bananas"),
             None,
         )
         .await;
@@ -920,7 +921,7 @@ mod tests {
             &writer,
             entry_2,
             sequencer_id,
-            None,
+            PartitionKey::from("bananas"),
             None,
         )
         .await;
