@@ -109,9 +109,14 @@ pub struct IngestHandlerImpl<T = SystemProvider> {
 
     time_provider: T,
 
-    /// Query execution duration distribution.
+    /// Query execution duration distribution for successes.
     query_duration_success: DurationHistogram,
-    query_duration_error: DurationHistogram,
+
+    /// Query execution duration distribution for "not found" errors
+    query_duration_error_not_found: DurationHistogram,
+
+    /// Query execution duration distribution for all other errors
+    query_duration_error_other: DurationHistogram,
 
     /// Query request rejected due to concurrency limits
     query_request_limit_rejected: U64Counter,
@@ -255,7 +260,9 @@ impl IngestHandlerImpl {
             "flight request query execution duration",
         );
         let query_duration_success = query_duration.recorder(&[("result", "success")]);
-        let query_duration_error = query_duration.recorder(&[("result", "error")]);
+        let query_duration_error_not_found =
+            query_duration.recorder(&[("result", "error_not_found")]);
+        let query_duration_error_other = query_duration.recorder(&[("result", "error_other")]);
 
         let query_request_limit_rejected = metric_registry
             .register_metric::<U64Counter>(
@@ -270,7 +277,8 @@ impl IngestHandlerImpl {
             join_handles,
             shutdown,
             query_duration_success,
-            query_duration_error,
+            query_duration_error_not_found,
+            query_duration_error_other,
             query_request_limit_rejected,
             request_sem: Semaphore::new(max_requests),
             time_provider: Default::default(),
@@ -317,7 +325,10 @@ impl IngestHandler for IngestHandlerImpl {
         if let Some(delta) = self.time_provider.now().checked_duration_since(t) {
             match &res {
                 Ok(_) => self.query_duration_success.record(delta),
-                Err(_) => self.query_duration_error.record(delta),
+                Err(crate::querier_handler::Error::TableNotFound { .. }) => {
+                    self.query_duration_error_not_found.record(delta)
+                }
+                Err(_) => self.query_duration_error_other.record(delta),
             };
         }
 
