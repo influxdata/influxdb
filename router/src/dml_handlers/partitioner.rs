@@ -240,4 +240,48 @@ mod tests {
         ],
         want_handler_ret = Ok(_)
     );
+
+    test_write!(
+        use_case_backfill_forwards,
+        lp = [
+            "bananas,tag1=A,tag2=B val=42i 1560433177000000000", // 2019-06-13T13:39:37Z
+            "bananas,tag1=A,tag2=B val=42i 1592055577000000000", // 2020-06-13T13:39:37Z
+            "bananas,tag1=A,tag2=B val=42i 1623591577000000000", // 2021-06-13T13:39:37Z
+            "bananas,tag1=A,tag2=B val=42i 1655127577000000000", // 2022-06-13T13:39:37Z
+            // Same as above, different table
+            "platanos,tag2=wat val=42i 1560433177000000000", // 2019-06-13T13:39:37Z
+            "platanos,tag2=wat val=42i 1592055577000000000", // 2020-06-13T13:39:37Z
+            "platanos,tag2=wat val=42i 1623591577000000000", // 2021-06-13T13:39:37Z
+            "platanos,tag2=wat val=42i 1655127577000000000", // 2022-06-13T13:39:37Z
+        ].join("\n").as_str(),
+        want_writes = [
+            "2022-06-13" => ["bananas", "platanos"],
+            "2021-06-13" => ["bananas", "platanos"],
+            "2020-06-13" => ["bananas", "platanos"],
+            "2019-06-13" => ["bananas", "platanos"],
+        ],
+        want_handler_ret = Ok(_)
+    );
+
+    test_write!(
+        use_case_backfill_backwards,
+        lp = [
+            "bananas,tag1=A,tag2=B val=42i 1655127577000000000", // 2022-06-13T13:39:37Z
+            "bananas,tag1=A,tag2=B val=42i 1623591577000000000", // 2021-06-13T13:39:37Z
+            "bananas,tag1=A,tag2=B val=42i 1592055577000000000", // 2020-06-13T13:39:37Z
+            "bananas,tag1=A,tag2=B val=42i 1560433177000000000", // 2019-06-13T13:39:37Z
+            // Same as above, different table
+            "platanos,tag2=wat val=42i 1655127577000000000", // 2022-06-13T13:39:37Z
+            "platanos,tag2=wat val=42i 1623591577000000000", // 2021-06-13T13:39:37Z
+            "platanos,tag2=wat val=42i 1592055577000000000", // 2020-06-13T13:39:37Z
+            "platanos,tag2=wat val=42i 1560433177000000000", // 2019-06-13T13:39:37Z
+        ].join("\n").as_str(),
+        want_writes = [
+            "2022-06-13" => ["bananas", "platanos"],
+            "2021-06-13" => ["bananas", "platanos"],
+            "2020-06-13" => ["bananas", "platanos"],
+            "2019-06-13" => ["bananas", "platanos"],
+        ],
+        want_handler_ret = Ok(_)
+    );
 }
