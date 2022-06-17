@@ -3,6 +3,20 @@ set -o errexit  \
     -o nounset  \
     -o pipefail
 
+REGEX_RELEASE_VERSION='[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+'
+
+if [[ ${RELEASE:-} ]]
+then
+  # This ensures that release packages are built with valid versions.
+  # Unfortunately, `fpm` is fairly permissive with what version tags
+  # it accepts. This becomes a problem when `apt` or `dpkg` is used
+  # to install the package (both have strict version requirements).
+  if ! [[ ${VERSION} =~ ^${REGEX_RELEASE_VERSION}$ ]]
+  then
+    printf 'Release version is invalid!\n' >&2 && exit 1
+  fi
+fi
+
 function run_fpm()
 {
   if [[ ${1} == rpm ]]
@@ -59,7 +73,7 @@ function run_fpm()
         ;;
       rpm)
         mv "/artifacts/influxdb2-${VERSION//-/_}-1.${ARCH}.rpm" \
-           "/artifacts/influxdb2-${VERSION//-/_}-${ARCH}.rpm"
+           "/artifacts/influxdb2-${VERSION//-/_}.${ARCH}.rpm"
         ;;
     esac
 }
@@ -89,7 +103,7 @@ build_tarfile()
     # in the root of the tarfile. The second being that this excludes
     # empty directories from the tarfile.
     find "influxdb2_${PLAT}_${ARCH}/" -type f \
-      | tar -czf "/artifacts/influxdb2_${VERSION}_${PLAT}_${ARCH}.tar.gz" -T -
+      | tar -czf "/artifacts/influxdb2-${VERSION}-${PLAT}-${ARCH}.tar.gz" -T -
 
   popd
 }

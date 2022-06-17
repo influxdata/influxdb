@@ -101,7 +101,7 @@ workflows:
           <<: *any_filter
       - build:
           <<: *any_filter
-          name: build-snapshot-<< matrix.os >>-<< matrix.arch >>
+          name: build-<< matrix.os >>-<< matrix.arch >>
           build-type: snapshot
           matrix:
             parameters:
@@ -114,7 +114,7 @@ workflows:
           <<: *any_filter
           name: build-package-<< matrix.os >>-<< matrix.arch >>
           requires:
-            - build-snapshot-<< matrix.os >>-<< matrix.arch >>
+            - build-<< matrix.os >>-<< matrix.arch >>
           matrix:
             parameters:
               os:   [ linux, darwin, windows ]
@@ -125,11 +125,11 @@ workflows:
       - test-downgrade:
           <<: *any_filter
           requires:
-            - build-snapshot-linux-amd64
+            - build-linux-amd64
       - e2e-monitor-ci:
           <<: *nofork_filter
           requires:
-            - build-snapshot-linux-amd64
+            - build-linux-amd64
       - test-linux-packages:
           <<: *nofork_filter
           requires:
@@ -156,14 +156,14 @@ workflows:
       - grace-test:
           <<: *any_filter
           requires:
-            - build-snapshot-linux-amd64
+            - build-linux-amd64
       - litmus-smoke-test:
           <<: *any_filter
           requires:
-            - build-snapshot-linux-amd64
+            - build-linux-amd64
       - litmus-full-test:
           requires:
-            - build-snapshot-linux-amd64
+            - build-linux-amd64
           filters:
             branches:
               only: master
@@ -381,14 +381,32 @@ jobs:
     steps:
       - checkout
       - run:
+          name: Get InfluxDB version
+          command: |
+            PREFIX=2.x .circleci/scripts/get-version
+      - run:
           name: Generate UI assets
           command: make generate-web-assets
       - run:
           name: Build binaries
           command: |
+            build_type="<< parameters.build-type >>"
+
+            # release builds occur from the "build" pipeline
+            if [[ ${build_type} == snapshot ]]
+            then
+              # `get-version` determines whether this is a release build. If
+              # this is a release build, ensure that the proper version is
+              # templated into the go binary.
+              if [[ ${RELEASE:-} ]]
+              then
+                build_type=release
+              fi
+            fi
+
             export GOOS=<< parameters.os >>
             export GOARCH=<< parameters.arch >>
-            ./scripts/ci/build.sh "bin/influxd_$(go env GOOS)_$(go env GOARCH)" "<< parameters.build-type >>" ./cmd/influxd
+            ./scripts/ci/build.sh "bin/influxd_$(go env GOOS)_$(go env GOARCH)" "${build_type}" ./cmd/influxd
       - store_artifacts:
           path: bin
       - persist_to_workspace:
