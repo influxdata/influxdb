@@ -1,3 +1,175 @@
+## v2.3.0 [2022-06-16]
+----------------------
+
+### Bug Fixes
+
+1. [c535994](https://github.com/influxdata//commit/c535994): Remove controller 64bit misalignment
+1. [30a9fd4](https://github.com/influxdata//commit/30a9fd4): MeasurementsCardinality should not be less than 0
+1. [9c33764](https://github.com/influxdata//commit/9c33764): Do not panic on cleaning up failed iterators
+1. [8c9768c](https://github.com/influxdata//commit/8c9768c): Replace unprintable and invalid characters in errors
+1. [a9df3f8](https://github.com/influxdata//commit/a9df3f8): Fully clean up partially opened TSI
+1. [53580ea](https://github.com/influxdata//commit/53580ea): Remember shards that fail Open(), avoid repeated attempts
+1. [9e55686](https://github.com/influxdata//commit/9e55686): Replications remote write failure can deadlock remote writer
+1. [8bd4fc5](https://github.com/influxdata//commit/8bd4fc5): Lost TSI reference / close TagValueSeriesIDIterator in error case
+
+### Features
+
+1. [9e20f9f](https://github.com/influxdata//commit/9e20f9f): Add signifier to replication user agent
+1. [a10adf6](https://github.com/influxdata//commit/a10adf6): Add fields to tasks bucket to match cloud
+1. [d705841](https://github.com/influxdata//commit/d705841): Error when creating v1 auth with a nonexistent bucket id
+1. [692b0d5](https://github.com/influxdata//commit/692b0d5): Add instance-id flag for identifying edge nodes
+1. [090f681](https://github.com/influxdata//commit/090f681): Add remotes and replications to telemetry
+
+### Other
+
+1. [72c4c55](https://github.com/influxdata//commit/72c4c55): Build(flux): update flux to v0.162.0
+1. [bb84905](https://github.com/influxdata//commit/bb84905): Build(flux): update flux to v0.163.0
+1. [cf1f2e2](https://github.com/influxdata//commit/cf1f2e2): Build(flux): update flux to v0.164.0
+1. [82d1123](https://github.com/influxdata//commit/82d1123): Build: upgrade to Go 1.18.1
+1. [24f64a7](https://github.com/influxdata//commit/24f64a7): Fix(annotations): skip flaky annotation tests
+1. [05840ce](https://github.com/influxdata//commit/05840ce): Fix(systemd): fix operator in host detection
+1. [1805f4b](https://github.com/influxdata//commit/1805f4b): Build(flux): update flux to v0.164.1
+1. [438eadc](https://github.com/influxdata//commit/438eadc): Chore: use common semantic PR and commit message checks
+1. [71a02c2](https://github.com/influxdata//commit/71a02c2): Chore: remove previous semantic pull request config
+1. [d906507](https://github.com/influxdata//commit/d906507): Chore: upgrade flux to v0.167.0
+1. [6222ea2](https://github.com/influxdata//commit/6222ea2): Build(flux): update flux to v0.168.0
+1. [afd0b99](https://github.com/influxdata//commit/afd0b99): Build: update changelogger to ignore case when parsing verbs
+1. [2e9e174](https://github.com/influxdata//commit/2e9e174): Fix(query/control): add all of the statistics from flux statistics instead of only metadata
+1. [8f54774](https://github.com/influxdata//commit/8f54774): Build(flux): update flux to v0.169.0
+1. [ab8be80](https://github.com/influxdata//commit/ab8be80): Chore: update jsonparser to 1.1.1 and yaml.v3 to 3.0.1
+1. [910d5a2](https://github.com/influxdata//commit/910d5a2): Build: upgrade Go to 1.18.3
+1. [a8054f8](https://github.com/influxdata//commit/a8054f8): Test: add openapi spec validation to OSS grace tests
+1. [841be3c](https://github.com/influxdata//commit/841be3c): Build: remove goreleaser for build workflow
+1. [a492993](https://github.com/influxdata//commit/a492993): Build(flux): update flux to v0.171.0
+
+## v2.2.0 [2022-03-29]
+----------------------
+
+### Bug Fixes
+
+1. [84776d7](https://github.com/influxdata//commit/84776d7): Manual task runs are scheduled asyncronously
+1. [5e6b0d5](https://github.com/influxdata//commit/5e6b0d5): Extend snapshot copy to filesystems that cannot link
+1. [88afa92](https://github.com/influxdata//commit/88afa92): Detect misquoted tag values and return an error
+1. [2bace77](https://github.com/influxdata//commit/2bace77): Unhandled errors returned by Sketch.Merge
+1. [fa9ba8e](https://github.com/influxdata//commit/fa9ba8e): Duplicated X-version and X-Build headers for /ping endpoint
+1. [8aa3a8f](https://github.com/influxdata//commit/8aa3a8f): Add causal error when meta.db is missing
+1. [5ce164f](https://github.com/influxdata//commit/5ce164f): Remove influx CLI output from CONTRIBUTING
+1. [e4e1633](https://github.com/influxdata//commit/e4e1633): Replications remote writes do not block server shutdown
+1. [e5cbd27](https://github.com/influxdata//commit/e5cbd27): Advance replications queue after successful remote writes
+1. [4fd4bd0](https://github.com/influxdata//commit/4fd4bd0): Use copy when a rename spans volumes
+1. [0c30afd](https://github.com/influxdata//commit/0c30afd): Updating a check does not require an owner id
+1. [b8ccf5b](https://github.com/influxdata//commit/b8ccf5b): Correctly handle PartialWriteError
+1. [e20b5e9](https://github.com/influxdata//commit/e20b5e9): Remove nats for scraper processing
+1. [0bd28f6](https://github.com/influxdata//commit/0bd28f6): Update 422 dry-run response to conform to API spec
+1. [e5ccbb8](https://github.com/influxdata//commit/e5ccbb8): Forbid reading OSS buckets for a token with only write permissions
+1. [49ce57c](https://github.com/influxdata//commit/49ce57c): Remove telegraf endpoint pagination
+1. [7c0ec4d](https://github.com/influxdata//commit/7c0ec4d): Replications replicates flux to() writes
+1. [df01d93](https://github.com/influxdata//commit/df01d93): Allow flux http calls to be unlimited
+1. [3ec5a57](https://github.com/influxdata//commit/3ec5a57): Tell browser about cookie expiry
+1. [e304ef9](https://github.com/influxdata//commit/e304ef9): Add write permissions check for DELETE and DROP MEASUREMENT
+1. [a2f8538](https://github.com/influxdata//commit/a2f8538): Pin UI to OSS-2.1.2 so tokens can be accessed
+
+### Features
+
+1. [504f0e4](https://github.com/influxdata//commit/504f0e4): Passing `type=basic` returns task metadata without query text
+1. [58139c4](https://github.com/influxdata//commit/58139c4): Add auth to remotes & replications APIs
+1. [8825cd5](https://github.com/influxdata//commit/8825cd5): Replication apis durable queue management
+1. [cd0243d](https://github.com/influxdata//commit/cd0243d): Added replications queue management to launcher tasks
+1. [6b56af3](https://github.com/influxdata//commit/6b56af3): Mirror writes to registered replications
+1. [40d9587](https://github.com/influxdata//commit/40d9587): Add replications queue scanner
+1. [ad52815](https://github.com/influxdata//commit/ad52815): Add field for dropping data resulting in non-retryable errors to individual replications
+1. [fea3037](https://github.com/influxdata//commit/fea3037): Configure perf tests with yaml
+1. [dece95d](https://github.com/influxdata//commit/dece95d): Tsm compaction metrics via prometheus
+1. [3a81166](https://github.com/influxdata//commit/3a81166): Added metrics collection for replications
+1. [0a74085](https://github.com/influxdata//commit/0a74085): Point write requests have metrics
+1. [a74e051](https://github.com/influxdata//commit/a74e051): Disk size metrics per shard
+1. [feb459c](https://github.com/influxdata//commit/feb459c): Metrics for cache subsystem
+1. [edb21ab](https://github.com/influxdata//commit/edb21ab): Metrics for wal subsystem
+1. [9873ccd](https://github.com/influxdata//commit/9873ccd): Remote write function for replications
+1. [f05d013](https://github.com/influxdata//commit/f05d013): Metrics collection for replications remote writes
+1. [3460f1c](https://github.com/influxdata//commit/3460f1c): Replication remote writes do not block local writes
+1. [b970e35](https://github.com/influxdata//commit/b970e35): Remaining storage metrics from OSS engine
+1. [28bcd41](https://github.com/influxdata//commit/28bcd41): Batch replications remote writes to avoid payload limit errors
+1. [6096ee2](https://github.com/influxdata//commit/6096ee2): Replications metrics include failure to enqueue
+1. [a7a5233](https://github.com/influxdata//commit/a7a5233): Advance queue scanner periodically instead of every remote write
+1. [5a919b6](https://github.com/influxdata//commit/5a919b6): Enable remotes and replication streams feature
+1. [c51a0df](https://github.com/influxdata//commit/c51a0df): Error out when config file contains 1.x config values
+1. [afb167a](https://github.com/influxdata//commit/afb167a): `query-memory-bytes` zero-value is unlimited
+1. [f78f9ed](https://github.com/influxdata//commit/f78f9ed): Api/v2/config endpoint displays runtime configuration
+1. [4f74049](https://github.com/influxdata//commit/4f74049): Add downgrade target for 2.1
+1. [b02c89e](https://github.com/influxdata//commit/b02c89e): Option to log flux queries cancelled because of server shutdown
+1. [4e08604](https://github.com/influxdata//commit/4e08604): Add MeasurementNames method to MeasurementFieldSet
+1. [a40e12b](https://github.com/influxdata//commit/a40e12b): Allow changing a password with `influxd recovery user update`
+1. [2c930fd](https://github.com/influxdata//commit/2c930fd): Add --hardening-enabled option to limit flux/pkger HTTP requests
+1. [359fcc4](https://github.com/influxdata//commit/359fcc4): Add maximum age to replication queues
+
+### Other
+
+1. [05e6dc6](https://github.com/influxdata//commit/05e6dc6): Build(flux): update flux to v0.135.0
+1. [de7f052](https://github.com/influxdata//commit/de7f052): Chore: fix `dump_tsi` deadlock
+1. [fba7fac](https://github.com/influxdata//commit/fba7fac): Build(flux): update flux to v0.136.0
+1. [b93f3a3](https://github.com/influxdata//commit/b93f3a3): Build(flux): update flux to v0.137.0
+1. [f4e9ae9](https://github.com/influxdata//commit/f4e9ae9): Build: upgrade protobuf library
+1. [ca633cd](https://github.com/influxdata//commit/ca633cd): Chore: Remove outdated query readme
+1. [a7f3b67](https://github.com/influxdata//commit/a7f3b67): Chore: clean up protobuf loose ends
+1. [1aac92c](https://github.com/influxdata//commit/1aac92c): Refactor: remove replications.current_queue_size_bytes from sqlite
+1. [f6568a7](https://github.com/influxdata//commit/f6568a7): Build(flux): update flux to v0.140.0
+1. [5a0051a](https://github.com/influxdata//commit/5a0051a): Build: Remove additional commit file
+1. [0ecde93](https://github.com/influxdata//commit/0ecde93): Build: stop building & pushing images to quay.io
+1. [11f6052](https://github.com/influxdata//commit/11f6052): Build: better versioning and verification for releases
+1. [16e3b16](https://github.com/influxdata//commit/16e3b16): Chore: refactor performance test to generate queries and data together
+1. [0572ae0](https://github.com/influxdata//commit/0572ae0): Build: replace cross_build job with parallelized build matrix
+1. [e7a77f0](https://github.com/influxdata//commit/e7a77f0): Build: follow-up fixes after CI refactor
+1. [a5f6431](https://github.com/influxdata//commit/a5f6431): Build: pull SHA-specific image before tagging it as latest
+1. [9d8173c](https://github.com/influxdata//commit/9d8173c): Chore: delete dead pprof related code
+1. [90baa80](https://github.com/influxdata//commit/90baa80): Chore: use tagged version of pkg-config
+1. [b9b86a1](https://github.com/influxdata//commit/b9b86a1): Chore: remove remote validation code
+1. [6ee4727](https://github.com/influxdata//commit/6ee4727): Refactor: use remote write func in NewDurableQueueManager
+1. [5a1e375](https://github.com/influxdata//commit/5a1e375): Build: allow to build on FreeBSD
+1. [f47d514](https://github.com/influxdata//commit/f47d514): Refactor: move replications store functionality to separate package
+1. [4ee93a9](https://github.com/influxdata//commit/4ee93a9): Chore: fix up message when build fails due to OS
+1. [9308b65](https://github.com/influxdata//commit/9308b65): Chore: remove unused member from TagSet
+1. [799d349](https://github.com/influxdata//commit/799d349): Fix(tsi): sync index file before close
+1. [9060150](https://github.com/influxdata//commit/9060150): Test: add e2e test for replication streams
+1. [39eeb3e](https://github.com/influxdata//commit/39eeb3e): Fix(restore): fix race condition which could cause restore command to fail
+1. [e3ff434](https://github.com/influxdata//commit/e3ff434): Test: fix flaky replications tests
+1. [0e5b14f](https://github.com/influxdata//commit/0e5b14f): Chore: increase replications batch size limits
+1. [f78c189](https://github.com/influxdata//commit/f78c189): Build(flux): update flux to v0.146.0
+1. [6023496](https://github.com/influxdata//commit/6023496): Refactor: replications local write optimization
+1. [b0a0e73](https://github.com/influxdata//commit/b0a0e73): Chore: remove unused user http code
+1. [a8ca413](https://github.com/influxdata//commit/a8ca413): Chore: add deprecation notice for print-config command
+1. [c889d0f](https://github.com/influxdata//commit/c889d0f): Chore: remove outdated `/docs` folder
+1. [11c0081](https://github.com/influxdata//commit/11c0081): Fix(templates): disable use of jsonnet with `/api/v2/templates/apply`
+1. [c1d384d](https://github.com/influxdata//commit/c1d384d): Test: fix flaky enqueue test
+1. [a812d8b](https://github.com/influxdata//commit/a812d8b): Build(flux): update flux to v0.148.0
+1. [888f82c](https://github.com/influxdata//commit/888f82c): Build(flux): update flux to v0.150.0
+1. [2a957c9](https://github.com/influxdata//commit/2a957c9): Chore(query/influxql): remove the influxql transpiler
+1. [64615f4](https://github.com/influxdata//commit/64615f4): Chore: remove unused dockerfile
+1. [f68758b](https://github.com/influxdata//commit/f68758b): Build(flux): update flux to v0.152.0
+1. [34c150f](https://github.com/influxdata//commit/34c150f): Build(flux): update flux to v0.154.0
+1. [c4717ef](https://github.com/influxdata//commit/c4717ef): Refactor(query): remove detailed query traces
+1. [afb9733](https://github.com/influxdata//commit/afb9733): Build(flux): update flux to v0.156.0
+1. [adf29df](https://github.com/influxdata//commit/adf29df): Feat(kit/feature): allow influxdb to set flux feature flags
+1. [0c5bedf](https://github.com/influxdata//commit/0c5bedf): Refactor: improve logging during influxd upgrade to give mapping metadata at info level
+1. [355d32b](https://github.com/influxdata//commit/355d32b): Chore: update OSS ci pipeline to match the updates to monitor-ci
+1. [36df687](https://github.com/influxdata//commit/36df687): Build(flux): update flux to v0.158.0
+1. [7d310c2](https://github.com/influxdata//commit/7d310c2): Build(flux): update flux to v0.159.0
+1. [253451b](https://github.com/influxdata//commit/253451b): Test: unskip flux group tests
+1. [dedaa7f](https://github.com/influxdata//commit/dedaa7f): Chore: upgrade to go1.17.8
+1. [5e3ea7b](https://github.com/influxdata//commit/5e3ea7b): Refactor(flux): convert the allocator into an interface
+1. [0504498](https://github.com/influxdata//commit/0504498): Fix(models): reset provided slice correctly
+1. [5231d2d](https://github.com/influxdata//commit/5231d2d): Feat(query): enable the mqtt pool dialer by default
+1. [89916ec](https://github.com/influxdata//commit/89916ec): Build(flux): update flux to v0.161.0
+
+
+## v2.1.1 [2021-11-08]
+----------------------
+
+### Other
+
+1. [688b8c9](https://github.com/influxdata//commit/688b8c9): Build: updated changelog automation
+1. [657e183](https://github.com/influxdata//commit/657e183): Chore: don't look for non-existent changelog file in release job
+
 ## v2.1.0 [2021-11-04]
 
 ### `influx` CLI moved to separate repository
@@ -104,7 +276,7 @@ Support for Notebooks and Annotations is included with this release.
 
 ### WARNING: Upcoming changes to CLI packaging
 
-Beginning with the next minor version, the `influx` CLI will no longer be packaged in releases from `influxdb`. 
+Beginning with the next minor version, the `influx` CLI will no longer be packaged in releases from `influxdb`.
 Future versions of the CLI will instead be released from the [`influx-cli`](https://github.com/influxdata/influx-cli)
 repository.
 
@@ -397,7 +569,7 @@ Additionally, v2 specific path defaults are now defined and helper scripts are p
 
 1. [19992](https://github.com/influxdata/influxdb/pull/19992): Fix various typos. Thanks @kumakichi!
 1. [19999](https://github.com/influxdata/influxdb/pull/19999): Use --skip-verify flag for backup/restore CLI command.
-1. [19999](https://github.com/influxdata/influxdb/pull/19999): Suggest running with -h on error instead of printing usage when launching `influxd`. 
+1. [19999](https://github.com/influxdata/influxdb/pull/19999): Suggest running with -h on error instead of printing usage when launching `influxd`.
 1. [20047](https://github.com/influxdata/influxdb/pull/20072): Allow self signed certificates for scraper targets. Thanks @cmackenzie1!
 1. [20072](https://github.com/influxdata/influxdb/pull/20072): Add locking during TSI iterator creation.
 1. [20072](https://github.com/influxdata/influxdb/pull/20072): Do not use global viper APIs, which breaks testing.
@@ -408,7 +580,7 @@ Additionally, v2 specific path defaults are now defined and helper scripts are p
 1. [20072](https://github.com/influxdata/influxdb/pull/20072): Reinstate minimal read-only document store for dashboard template.
 1. [20072](https://github.com/influxdata/influxdb/pull/20072): UI: Skip dashboard index CRUD case.
 1. [20072](https://github.com/influxdata/influxdb/pull/20072): Task: Fixed logic checking time filter exists.
-1. [20072](https://github.com/influxdata/influxdb/pull/20072): Task: Fixed error message semantic. 
+1. [20072](https://github.com/influxdata/influxdb/pull/20072): Task: Fixed error message semantic.
 1. [20072](https://github.com/influxdata/influxdb/pull/20072): Track seen databases in map and skip duplicates.
 1. [20072](https://github.com/influxdata/influxdb/pull/20072): Build: Remove lint-feature-flag job from OSS.
 1. [20072](https://github.com/influxdata/influxdb/pull/20072): CLI: Don't validate unused paths in `upgrade`.
@@ -419,7 +591,7 @@ Additionally, v2 specific path defaults are now defined and helper scripts are p
 1. [20089](https://github.com/influxdata/influxdb/pull/20089): UI: UX improvements and bug fixes to dbrp commands.
 1. [20089](https://github.com/influxdata/influxdb/pull/20089): API: Make the dbrp api match the swagger spec.
 1. [20089](https://github.com/influxdata/influxdb/pull/20089): Revert changes to API page-sizes.
-1. [20089](https://github.com/influxdata/influxdb/pull/20089): Exclude pkger\_test.go from linting 
+1. [20089](https://github.com/influxdata/influxdb/pull/20089): Exclude pkger\_test.go from linting
 1. [20091](https://github.com/influxdata/influxdb/pull/20091): Make the DBRP http API match the swagger spec.
 
 ## v2.0.1 [2020-11-10]
