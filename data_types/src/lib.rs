@@ -24,7 +24,7 @@ use std::{
     convert::TryFrom,
     fmt::{Display, Write},
     mem::{self, size_of_val},
-    num::{FpCategory, NonZeroU32, NonZeroU64},
+    num::{FpCategory, NonZeroU64},
     ops::{Add, Deref, RangeInclusive, Sub},
     sync::Arc,
 };
@@ -1077,16 +1077,15 @@ impl From<Uuid> for ChunkId {
 /// 1. **upsert order:** chunks with higher order overwrite data in chunks with lower order
 /// 2. **locking order:** chunks must be locked in consistent (ascending) order
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ChunkOrder(NonZeroU32);
+pub struct ChunkOrder(i64);
 
 impl ChunkOrder {
     /// The minimum ordering value a chunk could have. Currently only used in testing.
-    // TODO: remove `unsafe` once https://github.com/rust-lang/rust/issues/51999 is fixed
-    pub const MIN: Self = Self(unsafe { NonZeroU32::new_unchecked(1) });
+    pub const MIN: Self = Self(0);
 
     /// Create a ChunkOrder from the given value.
-    pub fn new(order: u32) -> Option<Self> {
-        NonZeroU32::new(order).map(Self)
+    pub fn new(order: i64) -> Option<Self> {
+        Some(Self(order))
     }
 }
 
