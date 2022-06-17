@@ -8,7 +8,7 @@ description = "IOx Schema definition"
 [dependencies]
 arrow = { version = "16.0.0", features = ["prettyprint"] }
 hashbrown = "0.12"
-indexmap = { version = "1.8", features = ["std"] }
+indexmap = { version = "1.9", features = ["std"] }
 itertools = "0.10.1"
 observability_deps = { path = "../observability_deps" }
 snafu = "0.7"
