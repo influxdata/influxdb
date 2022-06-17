@@ -3,7 +3,7 @@ set -o errexit  \
     -o nounset  \
     -o pipefail
 
-REGEX_RELEASE_VERSION='[[:digit:]]+\.[[:digit:]]\.[[:digit:]]'
+REGEX_RELEASE_VERSION='[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+'
 
 if [[ ${RELEASE:-} ]]
 then
