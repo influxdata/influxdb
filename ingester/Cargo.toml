@@ -39,7 +39,7 @@ iox_time = { path = "../iox_time" }
 tokio = { version = "1.19", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
 tonic = { version = "0.7" }
 tracker = { path = "../tracker" }
-uuid = { version = "0.8", features = ["v4"] }
+uuid = { version = "1", features = ["v4"] }
 workspace-hack = { path = "../workspace-hack"}
 write_buffer = { path = "../write_buffer" }
 write_summary = { path = "../write_summary" }

@@ -14,4 +14,4 @@ workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]
 metric = { path = "../metric" }
-uuid = { version = "0.8", features = ["v4"] }
+uuid = { version = "1", features = ["v4"] }

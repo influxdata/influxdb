@@ -17,7 +17,7 @@ tempfile = "3.1.0"
 trace = { path = "../trace" }
 trace_exporters = { path = "../trace_exporters" }
 trogging = { path = "../trogging", default-features = false, features = ["clap"] }
-uuid = { version = "0.8", features = ["v4"] }
+uuid = { version = "1", features = ["v4"] }
 workspace-hack = { path = "../workspace-hack" }
 write_buffer = { path = "../write_buffer" }
 

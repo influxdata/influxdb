@@ -56,8 +56,8 @@ serde = { version = "1", features = ["derive", "rc", "serde_derive", "std"] }
 serde_json = { version = "1", features = ["indexmap", "preserve_order", "raw_value", "std"] }
 sha2 = { version = "0.10", features = ["std"] }
 smallvec = { version = "1", default-features = false, features = ["union"] }
-sqlx = { version = "0.5", features = ["_rt-tokio", "json", "macros", "migrate", "postgres", "runtime-tokio-rustls", "sqlx-macros", "tls", "uuid"] }
-sqlx-core = { version = "0.5", default-features = false, features = ["_rt-tokio", "_tls-rustls", "base64", "crc", "dirs", "hkdf", "hmac", "json", "md-5", "migrate", "postgres", "rand", "runtime-tokio-rustls", "rustls", "serde", "serde_json", "sha-1", "sha2", "tokio-stream", "uuid", "webpki", "webpki-roots", "whoami"] }
+sqlx = { version = "0.6", features = ["_rt-tokio", "json", "macros", "migrate", "postgres", "runtime-tokio-rustls", "sqlx-macros", "tls", "uuid"] }
+sqlx-core = { version = "0.6", default-features = false, features = ["_rt-tokio", "_tls-rustls", "any", "base64", "crc", "dirs", "hkdf", "hmac", "json", "md-5", "migrate", "postgres", "rand", "runtime-tokio-rustls", "rustls", "rustls-pemfile", "serde", "serde_json", "sha-1", "sha2", "tokio-stream", "uuid", "webpki-roots", "whoami"] }
 tokio = { version = "1", features = ["bytes", "fs", "io-std", "io-util", "libc", "macros", "memchr", "mio", "net", "num_cpus", "once_cell", "parking_lot", "rt", "rt-multi-thread", "signal", "signal-hook-registry", "socket2", "sync", "time", "tokio-macros", "tracing"] }
 tokio-stream = { version = "0.1", features = ["fs", "net", "time"] }
 tokio-util = { version = "0.7", features = ["codec", "io", "tracing"] }
@@ -67,7 +67,7 @@ tracing = { version = "0.1", features = ["attributes", "log", "max_level_trace",
 tracing-core = { version = "0.1", features = ["lazy_static", "std"] }
 tracing-log = { version = "0.1", features = ["log-tracer", "std", "trace-logger"] }
 tracing-subscriber = { version = "0.3", features = ["alloc", "ansi", "ansi_term", "env-filter", "fmt", "json", "lazy_static", "matchers", "parking_lot", "regex", "registry", "serde", "serde_json", "sharded-slab", "smallvec", "std", "thread_local", "tracing", "tracing-log", "tracing-serde"] }
-uuid = { version = "0.8", features = ["getrandom", "std", "v4"] }
+uuid = { version = "1", features = ["private_getrandom", "rng", "std", "v4"] }
 zstd = { version = "0.11", features = ["arrays", "legacy", "zdict_builder"] }
 zstd-safe = { version = "5", default-features = false, features = ["arrays", "legacy", "std", "zdict_builder"] }
 zstd-sys = { version = "2", default-features = false, features = ["legacy", "std", "zdict_builder"] }
@@ -107,12 +107,12 @@ serde = { version = "1", features = ["derive", "rc", "serde_derive", "std"] }
 serde_json = { version = "1", features = ["indexmap", "preserve_order", "raw_value", "std"] }
 sha2 = { version = "0.10", features = ["std"] }
 smallvec = { version = "1", default-features = false, features = ["union"] }
-sqlx-core = { version = "0.5", default-features = false, features = ["_rt-tokio", "_tls-rustls", "base64", "crc", "dirs", "hkdf", "hmac", "json", "md-5", "migrate", "postgres", "rand", "runtime-tokio-rustls", "rustls", "serde", "serde_json", "sha-1", "sha2", "tokio-stream", "uuid", "webpki", "webpki-roots", "whoami"] }
-sqlx-macros = { version = "0.5", default-features = false, features = ["_rt-tokio", "json", "migrate", "postgres", "runtime-tokio-rustls", "serde_json", "sha2", "uuid"] }
+sqlx-core = { version = "0.6", default-features = false, features = ["_rt-tokio", "_tls-rustls", "any", "base64", "crc", "dirs", "hkdf", "hmac", "json", "md-5", "migrate", "postgres", "rand", "runtime-tokio-rustls", "rustls", "rustls-pemfile", "serde", "serde_json", "sha-1", "sha2", "tokio-stream", "uuid", "webpki-roots", "whoami"] }
+sqlx-macros = { version = "0.6", default-features = false, features = ["_rt-tokio", "json", "migrate", "postgres", "runtime-tokio-rustls", "serde_json", "sha2", "uuid"] }
 syn = { version = "1", features = ["clone-impls", "derive", "extra-traits", "full", "parsing", "printing", "proc-macro", "quote", "visit", "visit-mut"] }
 tokio = { version = "1", features = ["bytes", "fs", "io-std", "io-util", "libc", "macros", "memchr", "mio", "net", "num_cpus", "once_cell", "parking_lot", "rt", "rt-multi-thread", "signal", "signal-hook-registry", "socket2", "sync", "time", "tokio-macros", "tracing"] }
 tokio-stream = { version = "0.1", features = ["fs", "net", "time"] }
-uuid = { version = "0.8", features = ["getrandom", "std", "v4"] }
+uuid = { version = "1", features = ["private_getrandom", "rng", "std", "v4"] }
 
 [target.x86_64-unknown-linux-gnu.dependencies]
 getrandom = { version = "0.2", default-features = false, features = ["std"] }

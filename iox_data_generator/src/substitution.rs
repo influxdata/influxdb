@@ -149,11 +149,10 @@ impl HelperDef for GuidHelper {
 
         let mut bytes = [0u8; 16];
         rng.fill_bytes(&mut bytes);
-        let uid = uuid::Builder::from_bytes(bytes)
-            .set_variant(uuid::Variant::RFC4122)
-            .set_version(uuid::Version::Random)
-            .build()
-            .to_string();
+        let mut uid_builder = uuid::Builder::from_bytes(bytes);
+        uid_builder.set_variant(uuid::Variant::RFC4122);
+        uid_builder.set_version(uuid::Version::Random);
+        let uid = uid_builder.into_uuid().to_string();
 
         out.write(&uid)?;
 

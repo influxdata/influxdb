@@ -334,10 +334,10 @@ async fn new_raw_pool(
     let pool = PgPoolOptions::new()
         .min_connections(1)
         .max_connections(options.max_conns)
-        .connect_timeout(options.connect_timeout)
+        .acquire_timeout(options.connect_timeout)
         .idle_timeout(options.idle_timeout)
         .test_before_acquire(true)
-        .after_connect(move |c| {
+        .after_connect(move |c, _meta| {
             let app_name = app_name.to_owned();
             let schema_name = schema_name.to_owned();
             Box::pin(async move {

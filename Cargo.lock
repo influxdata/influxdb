@@ -147,7 +147,7 @@ dependencies = [
  "chrono",
  "comfy-table",
  "datafusion 0.1.0",
- "hashbrown 0.12.1",
+ "hashbrown",
  "num-traits",
  "rand",
  "snafu",
@@ -229,9 +229,9 @@ dependencies = [
 
 [[package]]
 name = "atoi"
-version = "0.4.0"
+version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "616896e05fc0e2649463a93a15183c6a16bf03413a7af88ef1285ddedfa9cda5"
+checksum = "d7c57d12312ff59c811c0643f4d80830505833c9ffaebd193d819392b265be8e"
 dependencies = [
  "num-traits",
 ]
@@ -720,7 +720,7 @@ dependencies = [
  "trace",
  "trace_exporters",
  "trogging",
- "uuid 0.8.2",
+ "uuid 1.0.0",
  "workspace-hack",
  "write_buffer",
 ]
@@ -853,7 +853,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-util",
- "uuid 0.8.2",
+ "uuid 1.0.0",
  "workspace-hack",
 ]
 
@@ -936,18 +936,18 @@ dependencies = [
 
 [[package]]
 name = "crc"
-version = "2.1.0"
+version = "3.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "49fc9a695bca7f35f5f4c15cddc84415f66a74ea78eef08e90c5024f2b540e23"
+checksum = "53757d12b596c16c78b83458d732a5d1a17ab3f53f2f7412f6fb57cc8a140ab3"
 dependencies = [
  "crc-catalog",
 ]
 
 [[package]]
 name = "crc-catalog"
-version = "1.1.1"
+version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ccaeedb56da03b09f598226e25e80088cb4cd25f316e6e4df7d695f0feeb1403"
+checksum = "2d0165d2900ae6778e36e80bbc4da3b5eefccee9ba939761f9c2882a5d9af3ff"
 
 [[package]]
 name = "crc32c"
@@ -1146,7 +1146,7 @@ dependencies = [
  "snafu",
  "sqlx",
  "test_helpers",
- "uuid 0.8.2",
+ "uuid 1.0.0",
  "workspace-hack",
 ]
 
@@ -1177,7 +1177,7 @@ dependencies = [
  "datafusion-sql",
  "futures",
  "glob",
- "hashbrown 0.12.1",
+ "hashbrown",
  "itertools",
  "lazy_static",
  "log",
@@ -1243,7 +1243,7 @@ dependencies = [
  "datafusion-common",
  "datafusion-expr",
  "datafusion-physical-expr",
- "hashbrown 0.12.1",
+ "hashbrown",
  "log",
 ]
 
@@ -1260,7 +1260,7 @@ dependencies = [
  "datafusion-common",
  "datafusion-expr",
  "datafusion-row",
- "hashbrown 0.12.1",
+ "hashbrown",
  "lazy_static",
  "md-5 0.10.1",
  "ordered-float 3.0.0",
@@ -1304,7 +1304,7 @@ dependencies = [
  "arrow",
  "datafusion-common",
  "datafusion-expr",
- "hashbrown 0.12.1",
+ "hashbrown",
  "sqlparser",
  "tokio",
 ]
@@ -1419,7 +1419,7 @@ version = "0.1.0"
 dependencies = [
  "arrow_util",
  "data_types",
- "hashbrown 0.12.1",
+ "hashbrown",
  "iox_time",
  "mutable_batch",
  "schema",
@@ -1846,15 +1846,6 @@ dependencies = [
 
 [[package]]
 name = "hashbrown"
-version = "0.11.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ab5ef0d4909ef3724cc8cce6ccc8572c5c817592e9285f5464f8e86f8bd3726e"
-dependencies = [
- "ahash",
-]
-
-[[package]]
-name = "hashbrown"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "db0d4cf898abf0081f964436dc980e96670a0f36863e4b83aaacdb65c9d7ccc3"
@@ -1864,11 +1855,11 @@ dependencies = [
 
 [[package]]
 name = "hashlink"
-version = "0.7.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7249a3129cbc1ffccd74857f81464a323a152173cdb134e0fd81bc803b29facf"
+checksum = "d452c155cb93fecdfb02a73dd57b5d8e442c2063bd7aac72f1bc5e4263a43086"
 dependencies = [
- "hashbrown 0.11.2",
+ "hashbrown",
 ]
 
 [[package]]
@@ -2030,11 +2021,11 @@ dependencies = [
  "http",
  "hyper",
  "log",
- "rustls 0.20.6",
+ "rustls",
  "rustls-native-certs",
  "tokio",
- "tokio-rustls 0.23.4",
- "webpki-roots 0.22.3",
+ "tokio-rustls",
+ "webpki-roots",
 ]
 
 [[package]]
@@ -2067,7 +2058,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6c6392766afd7964e2531940894cffe4bd8d7d17dbc3c1c4857040fd4b33bdb3"
 dependencies = [
  "autocfg",
- "hashbrown 0.12.1",
+ "hashbrown",
 ]
 
 [[package]]
@@ -2104,7 +2095,7 @@ dependencies = [
  "test_helpers",
  "tokio",
  "url",
- "uuid 0.8.2",
+ "uuid 1.0.0",
 ]
 
 [[package]]
@@ -2125,7 +2116,7 @@ dependencies = [
  "dotenv",
  "futures",
  "generated_types",
- "hashbrown 0.12.1",
+ "hashbrown",
  "heappy",
  "http",
  "humantime",
@@ -2170,7 +2161,7 @@ dependencies = [
  "tonic",
  "trace_exporters",
  "trogging",
- "uuid 0.8.2",
+ "uuid 1.0.0",
  "workspace-hack",
 ]
 
@@ -2290,7 +2281,7 @@ dependencies = [
  "tonic",
  "trace",
  "tracker",
- "uuid 0.8.2",
+ "uuid 1.0.0",
  "workspace-hack",
  "write_buffer",
  "write_summary",
@@ -2346,7 +2337,7 @@ dependencies = [
  "tempfile",
  "test_helpers",
  "tokio",
- "uuid 0.8.2",
+ "uuid 1.0.0",
  "workspace-hack",
 ]
 
@@ -2373,7 +2364,7 @@ dependencies = [
  "toml",
  "tracing",
  "tracing-subscriber",
- "uuid 0.8.2",
+ "uuid 1.0.0",
 ]
 
 [[package]]
@@ -2390,7 +2381,7 @@ dependencies = [
  "datafusion_util",
  "executor",
  "futures",
- "hashbrown 0.12.1",
+ "hashbrown",
  "itertools",
  "observability_deps",
  "parking_lot 0.12.1",
@@ -2424,7 +2415,7 @@ dependencies = [
  "parquet_file",
  "schema",
  "sharder",
- "uuid 0.8.2",
+ "uuid 1.0.0",
  "workspace-hack",
 ]
 
@@ -2451,7 +2442,7 @@ dependencies = [
  "flate2",
  "futures",
  "generated_types",
- "hashbrown 0.12.1",
+ "hashbrown",
  "http",
  "hyper",
  "log",
@@ -2561,7 +2552,7 @@ dependencies = [
  "async-trait",
  "clap_blocks",
  "data_types",
- "hashbrown 0.12.1",
+ "hashbrown",
  "hyper",
  "iox_catalog",
  "ioxd_common",
@@ -2990,7 +2981,7 @@ dependencies = [
  "arrow_util",
  "chrono",
  "data_types",
- "hashbrown 0.12.1",
+ "hashbrown",
  "iox_time",
  "itertools",
  "rand",
@@ -3006,7 +2997,7 @@ dependencies = [
  "arrow_util",
  "assert_matches",
  "criterion",
- "hashbrown 0.12.1",
+ "hashbrown",
  "influxdb_line_protocol",
  "mutable_batch",
  "schema",
@@ -3022,7 +3013,7 @@ dependencies = [
  "data_types",
  "dml",
  "generated_types",
- "hashbrown 0.12.1",
+ "hashbrown",
  "mutable_batch",
  "mutable_batch_lp",
  "schema",
@@ -3498,7 +3489,7 @@ dependencies = [
  "thiserror",
  "thrift",
  "tokio",
- "uuid 0.8.2",
+ "uuid 1.0.0",
  "workspace-hack",
  "zstd",
 ]
@@ -3971,7 +3962,7 @@ dependencies = [
  "tonic",
  "trace",
  "tracker",
- "uuid 0.8.2",
+ "uuid 1.0.0",
  "workspace-hack",
 ]
 
@@ -4162,7 +4153,7 @@ dependencies = [
  "data_types",
  "datafusion 0.1.0",
  "either",
- "hashbrown 0.12.1",
+ "hashbrown",
  "itertools",
  "metric",
  "observability_deps",
@@ -4255,20 +4246,20 @@ dependencies = [
  "mime",
  "percent-encoding",
  "pin-project-lite",
- "rustls 0.20.6",
+ "rustls",
  "rustls-pemfile",
  "serde",
  "serde_json",
  "serde_urlencoded",
  "tokio",
- "tokio-rustls 0.23.4",
+ "tokio-rustls",
  "tokio-util",
  "tower-service",
  "url",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
- "webpki-roots 0.22.3",
+ "webpki-roots",
  "winreg",
 ]
 
@@ -4309,7 +4300,7 @@ dependencies = [
  "flate2",
  "futures",
  "generated_types",
- "hashbrown 0.12.1",
+ "hashbrown",
  "hyper",
  "iox_catalog",
  "iox_time",
@@ -4483,27 +4474,14 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.19.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "35edb675feee39aec9c99fa5ff985081995a06d594114ae14cbe797ad7b7a6d7"
-dependencies = [
- "base64 0.13.0",
- "log",
- "ring",
- "sct 0.6.1",
- "webpki 0.21.4",
-]
-
-[[package]]
-name = "rustls"
 version = "0.20.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5aab8ee6c7097ed6057f43c187a62418d0c05a4bd5f18b3571db50ee0f9ce033"
 dependencies = [
  "log",
  "ring",
- "sct 0.7.0",
- "webpki 0.22.0",
+ "sct",
+ "webpki",
 ]
 
 [[package]]
@@ -4604,7 +4582,7 @@ name = "schema"
 version = "0.1.0"
 dependencies = [
  "arrow",
- "hashbrown 0.12.1",
+ "hashbrown",
  "indexmap",
  "itertools",
  "observability_deps",
@@ -4617,16 +4595,6 @@ name = "scopeguard"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d29ab0c6d3fc0ee92fe66e2d99f700eab17a8d57d1c1d3b748380fb20baa78cd"
-
-[[package]]
-name = "sct"
-version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b362b83898e0e69f38515b82ee15aa80636befe47c3b6d3d89a911e78fc228ce"
-dependencies = [
- "ring",
- "untrusted",
-]
 
 [[package]]
 name = "sct"
@@ -4767,7 +4735,7 @@ dependencies = [
  "observability_deps",
  "tokio",
  "tonic",
- "uuid 0.8.2",
+ "uuid 1.0.0",
  "workspace-hack",
 ]
 
@@ -4850,7 +4818,7 @@ dependencies = [
  "parquet_file",
  "tokio",
  "tonic",
- "uuid 0.8.2",
+ "uuid 1.0.0",
  "workspace-hack",
 ]
 
@@ -4940,7 +4908,7 @@ version = "0.1.0"
 dependencies = [
  "criterion",
  "data_types",
- "hashbrown 0.12.1",
+ "hashbrown",
  "mutable_batch",
  "mutable_batch_lp",
  "parking_lot 0.12.1",
@@ -5076,9 +5044,9 @@ dependencies = [
 
 [[package]]
 name = "sqlx"
-version = "0.5.13"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "551873805652ba0d912fec5bbb0f8b4cdd96baf8e2ebf5970e5671092966019b"
+checksum = "1f82cbe94f41641d6c410ded25bbf5097c240cefdf8e3b06d04198d0a96af6a4"
 dependencies = [
  "sqlx-core",
  "sqlx-macros",
@@ -5086,9 +5054,9 @@ dependencies = [
 
 [[package]]
 name = "sqlx-core"
-version = "0.5.13"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e48c61941ccf5ddcada342cd59e3e5173b007c509e1e8e990dafc830294d9dc5"
+checksum = "6b69bf218860335ddda60d6ce85ee39f6cf6e5630e300e19757d1de15886a093"
 dependencies = [
  "ahash",
  "atoi",
@@ -5119,7 +5087,8 @@ dependencies = [
  "paste",
  "percent-encoding",
  "rand",
- "rustls 0.19.1",
+ "rustls",
+ "rustls-pemfile",
  "serde",
  "serde_json",
  "sha-1 0.10.0",
@@ -5131,9 +5100,8 @@ dependencies = [
  "thiserror",
  "tokio-stream",
  "url",
- "uuid 0.8.2",
- "webpki 0.21.4",
- "webpki-roots 0.21.1",
+ "uuid 1.0.0",
+ "webpki-roots",
  "whoami",
 ]
 
@@ -5152,9 +5120,9 @@ dependencies = [
 
 [[package]]
 name = "sqlx-macros"
-version = "0.5.13"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc0fba2b0cae21fc00fe6046f8baa4c7fcb49e379f0f592b04696607f69ed2e1"
+checksum = "f40c63177cf23d356b159b60acd27c54af7423f1736988502e36bae9a712118f"
 dependencies = [
  "dotenv",
  "either",
@@ -5172,13 +5140,13 @@ dependencies = [
 
 [[package]]
 name = "sqlx-rt"
-version = "0.5.13"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4db708cd3e459078f85f39f96a00960bd841f66ee2a669e90bf36907f5a79aae"
+checksum = "874e93a365a598dc3dadb197565952cb143ae4aa716f7bcc933a8d836f6bf89f"
 dependencies = [
  "once_cell",
  "tokio",
- "tokio-rustls 0.22.0",
+ "tokio-rustls",
 ]
 
 [[package]]
@@ -5543,24 +5511,13 @@ dependencies = [
 
 [[package]]
 name = "tokio-rustls"
-version = "0.22.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc6844de72e57df1980054b38be3a9f4702aba4858be64dd700181a8a6d0e1b6"
-dependencies = [
- "rustls 0.19.1",
- "tokio",
- "webpki 0.21.4",
-]
-
-[[package]]
-name = "tokio-rustls"
 version = "0.23.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c43ee83903113e03984cb9e5cebe6c04a5116269e900e3ddba8f068a62adda59"
 dependencies = [
- "rustls 0.20.6",
+ "rustls",
  "tokio",
- "webpki 0.22.0",
+ "webpki",
 ]
 
 [[package]]
@@ -5756,7 +5713,7 @@ name = "trace_http"
 version = "0.1.0"
 dependencies = [
  "futures",
- "hashbrown 0.12.1",
+ "hashbrown",
  "http",
  "http-body",
  "itertools",
@@ -5862,7 +5819,7 @@ name = "tracker"
 version = "0.1.0"
 dependencies = [
  "futures",
- "hashbrown 0.12.1",
+ "hashbrown",
  "iox_time",
  "lock_api",
  "metric",
@@ -5975,9 +5932,6 @@ name = "uuid"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bc5cf98d8186244414c848017f0e2676b3fcb46807f6668a97dfe67359a3c4b7"
-dependencies = [
- "getrandom",
-]
 
 [[package]]
 name = "uuid"
@@ -6114,16 +6068,6 @@ dependencies = [
 
 [[package]]
 name = "webpki"
-version = "0.21.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b8e38c0608262c46d4a56202ebabdeb094cef7e560ca7a226c6bf055188aa4ea"
-dependencies = [
- "ring",
- "untrusted",
-]
-
-[[package]]
-name = "webpki"
 version = "0.22.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f095d78192e208183081cc07bc5515ef55216397af48b873e5edcd72637fa1bd"
@@ -6134,20 +6078,11 @@ dependencies = [
 
 [[package]]
 name = "webpki-roots"
-version = "0.21.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aabe153544e473b775453675851ecc86863d2a81d786d741f6b76778f2a48940"
-dependencies = [
- "webpki 0.21.4",
-]
-
-[[package]]
-name = "webpki-roots"
 version = "0.22.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "44d8de8415c823c8abd270ad483c6feeac771fad964890779f9a8cb24fbbc1bf"
 dependencies = [
- "webpki 0.22.0",
+ "webpki",
 ]
 
 [[package]]
@@ -6319,7 +6254,7 @@ dependencies = [
  "futures-task",
  "futures-util",
  "getrandom",
- "hashbrown 0.12.1",
+ "hashbrown",
  "heck",
  "hyper",
  "hyper-rustls",
@@ -6362,7 +6297,7 @@ dependencies = [
  "tracing-core",
  "tracing-log",
  "tracing-subscriber",
- "uuid 0.8.2",
+ "uuid 1.0.0",
  "winapi",
  "windows-sys 0.36.1",
  "zstd",
@@ -6380,7 +6315,7 @@ dependencies = [
  "dotenv",
  "futures",
  "generated_types",
- "hashbrown 0.12.1",
+ "hashbrown",
  "http",
  "httparse",
  "iox_time",
@@ -6400,7 +6335,7 @@ dependencies = [
  "tokio-util",
  "trace",
  "trace_http",
- "uuid 0.8.2",
+ "uuid 1.0.0",
  "workspace-hack",
 ]
 

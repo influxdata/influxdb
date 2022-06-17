@@ -201,10 +201,10 @@ mod tests {
         PgPoolOptions::new()
             .min_connections(1)
             .max_connections(5)
-            .connect_timeout(Duration::from_secs(2))
+            .acquire_timeout(Duration::from_secs(2))
             .idle_timeout(Duration::from_secs(500))
             .test_before_acquire(true)
-            .after_connect(move |c| {
+            .after_connect(move |c, _meta| {
                 let captured_schema_name = captured_schema_name.clone();
                 Box::pin(async move {
                     // Tag the connection with the provided application name.

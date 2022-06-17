@@ -38,7 +38,7 @@ tokio-util = { version = "0.7.3" }
 tonic = { version = "0.7" }
 trace = { path = "../trace" }
 tracker = { path = "../tracker" }
-uuid = { version = "0.8", features = ["v4"] }
+uuid = { version = "1", features = ["v4"] }
 workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]
