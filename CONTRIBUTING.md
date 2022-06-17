@@ -1,19 +1,21 @@
 # Contributing to InfluxDB v2
 
-## Bug reports
-Before you file an issue, please search existing issues in case it has already been filed, or perhaps even fixed.
-If you file an issue, please include the following.
-* Full details of your operating system (or distribution) e.g. `64bit Ubuntu 18.04`.
-* The version of InfluxDB you are running
-* Whether you installed it using a pre-built package, or built it from source.
-* Clear steps to reproduce the issue described, if at all possible.
+## Report a bug
 
-The easier it is for us to reproduce the problem, the easier it is for us to fix it.
-If you have never written a bug report before, or if you want to brush up on your bug reporting skills, we recommend reading [Simon Tatham's essay "How to Report Bugs Effectively."](http://www.chiark.greenend.org.uk/~sgtatham/bugs.html)
+Before you file an issue, please search existing issues to see if it's been filed (or fixed).
+If you file an issue, please include the following:
 
+- Full details of your operating system (or distribution) e.g. `64bit Ubuntu 18.04`.
+- The version of InfluxDB you're running.
+- Whether you installed InfluxDB from a pre-built package, or built it from source.
+- Clear steps to reproduce the issue described, if possible.
 
-Ideally, test cases would be in the form of `curl` commands.
-For example:
+The easier for us to reproduce the problem, the easier we can fix it.
+If you've never written a bug report before, or want to brush up on your bug reporting skills,
+we recommend reading [Simon Tatham's essay "How to Report Bugs Effectively."](http://www.chiark.greenend.org.uk/~sgtatham/bugs.html)
+
+Please provide tests in the form of `curl` commands, as in the following example:
+
 ```bash
 # write data
 curl -XPOST "http://localhost:8086/api/v2/write?org=YOUR_ORG&bucket=YOUR_BUCKET&precision=s" \
@@ -32,9 +34,9 @@ curl http://localhost:8086/api/v2/query?org=my-org -XPOST -sS \
     |> sum()'
 ```
 
-Test cases with `influx` commands are also helpful.
-For example:
-```
+Test cases with `influx` commands are also helpful, as in the following example:
+
+```bash
 # write data
 influx write -o YOUR_ORG -b YOUR_BUCKET -p s -t YOURAUTHTOKEN \
   "mem,host=host1 used_percent=23.43234543 1556896326"
@@ -47,27 +49,35 @@ influx query -o YOUR_ORG -t YOURAUTHTOKEN 'from(bucket:"example-bucket")
   |> sum()'
 ```
 
-If you don't include a clear test case like this it will be very difficult for us to investigate your issue.
+If you don't include a clear test case like the example above,
+we won't be able to investigate your issue as quickly.
 If writing the data is too difficult, please zip up your data directory and include a link to it in your bug report.
 
-Please note that issues are *not the place to file general support requests* such as "how do I use collectd with InfluxDB?"
-Questions of this nature should be sent to the [InfluxData Community](https://community.influxdata.com/), not filed as issues.
+Please note that issues are *not* the place to file general support requests.
+Please send support questions like *"How do I use collectd with InfluxDB?"* to the [InfluxData Community](https://community.influxdata.com/), not to Github issues.
 
-## Feature requests
-We really like to receive feature requests as it helps us prioritize our work.
-Please be clear about your requirements and goals, help us to understand what you would like to see added to InfluxD with examples and the reasons why it is important to you.
-If you find your feature request already exists as a Github issue please indicate your support for that feature by using the "thumbs up" reaction.
+## Request a feature
 
-## Submitting a pull request
-To submit a pull request you should fork the InfluxDB repository, and make your change on a feature branch of your fork.
-Then generate a pull request from your branch against *master* of the InfluxDB repository.
-Include in your pull request details of your change -- the why *and* the how -- as well as the testing your performed.
-Also, be sure to run the test suite with your change in place.
-Changes that cause tests to fail cannot be merged.
+We welcome your feature requests as they help us prioritize our work.
+When submitting feature requests, please keep the following in mind:
 
-There will usually be some back and forth as we finalize the change, but once that completes it may be merged.
+- Be clear about your requirements and goals.
+- Provide examples of the enhancement that you would like to see and tell us why it's important to you.
+- If you find your feature request already exists as a Github issue, please add a "thumbs up" reaction to indicate your support for that feature.
 
-To assist in review for the PR, please add the following to your pull request comment:
+## Submit a pull request
+
+To submit a pull request, follow these steps:
+
+1. Fork the `influxdata/influxdb` repository.
+2. Checkout a feature branch in your fork.
+3. In your feature branch, make your change and run the test suite (given you won't be able to merge if tests fail).
+4. Commit your change.
+5. Generate a pull request (PR) from your branch against the **master** branch of `influxdata/influxdb`.
+6. In your PR, provide details of your change--the why *and* the how--as well as the testing you performed.
+7. Expect some deliberation as we finalize the change, but once that completes it may be merged.
+
+To help our review, please add the following in your PR comment:
 
 ```md
 - [ ] CHANGELOG.md updated
@@ -76,50 +86,56 @@ To assist in review for the PR, please add the following to your pull request co
 - [ ] Sign [CLA](https://influxdata.com/community/cla/) (if not already signed)
 ```
 
-## Security Vulnerability Reporting
-InfluxData takes security and our users' trust very seriously.
+## Report security vulnerabilities
+
+InfluxDB takes security and our users' trust very seriously.
 If you believe you have found a security issue in any of our open source projects, please responsibly disclose it by contacting security@influxdata.com.
-More details about security vulnerability reporting, including our GPG key, [can be found here](https://www.influxdata.com/how-to-report-security-vulnerabilities/).
+For more information, see [how to report security vulnerabilities](https://www.influxdata.com/how-to-report-security-vulnerabilities/).
 
-## Signing the CLA
+## Sign the CLA
 
-If you are going to be contributing back to InfluxDB please take a second to sign our CLA, which can be found [on our website](https://influxdata.com/community/cla/).
+Before you contribute to InfluxDB, take a second to sign our CLA, which can be found [on our website](https://influxdata.com/community/cla/).
 
-## Building from Source
+## Build InfluxDB from Source
 
-### Installing Go
+### Install Go
 
-InfluxDB requires Go 1.17.
+InfluxDB requires Go 1.18.
 
-At InfluxData we find `gvm`, a Go version manager, useful for installing Go.
-For instructions on how to install it see [the gvm page on github](https://github.com/moovweb/gvm).
+At InfluxData, we use the `gvm` Go version manager to install Go.
+For installation instructions, see [the gvm page on github](https://github.com/moovweb/gvm).
 
-After installing gvm you can install and set the default go version by running the following:
+With `gvm` installed, run the following commands to install the required go version and set it as the default.
+
 ```bash
-$ gvm install go1.17
-$ gvm use go1.17 --default
+gvm install go1.18
+gvm use go1.18 --default
 ```
 
-InfluxDB requires Go module support. Set `GO111MODULE=on` or build the project outside of your `GOPATH` for it to succeed. For information about modules, please refer to the [wiki](https://github.com/golang/go/wiki/Modules).
+InfluxDB requires Go module support. Set `GO111MODULE=on` or build the project outside your `GOPATH` for it to succeed.
+For more information about modules, see the [Go wiki](https://github.com/golang/go/wiki/Modules).
 
-### Revision Control Systems
+### Install revision control systems
 
-Go has the ability to import remote packages via revision control systems with the `go get` command.
-To ensure that you can retrieve any remote package, be sure to install the following rcs software to your system.
-Currently the project only depends on `git` and `bzr`.
+With the `go get` command, you can import remote Go packages from revision control systems (RCS).
+To install `git` and `bzr` RCS for InfluxDB, follow the instructions:
 
- * [Install Git](http://git-scm.com/book/en/Getting-Started-Installing-Git)
- * [Install Bazaar](http://doc.bazaar.canonical.com/latest/en/user-guide/installing_bazaar.html)
+- [Install Git](http://git-scm.com/book/en/Getting-Started-Installing-Git)
+- [Install Bazaar](http://doc.bazaar.canonical.com/latest/en/user-guide/installing_bazaar.html)
 
-### Additional Dependencies
+### Install additional dependencies
 
-You need a recent stable version of Rust. We recommend using [rustup](https://rustup.rs/) to install Rust.
+With the [revision control systems](#install-revision-control-systems) installed,
+you're ready to install the remaining dependencies.
+
+You need a recent stable version of Rust.
+We recommend using [rustup](https://rustup.rs/) to install Rust.
 
 You also need `clang`, `make`, `pkg-config`, and `protobuf` installed.
 
-- OSX: `brew install pkg-config protobuf`
-    - For OSX, you must have [HomeBrew](https://brew.sh) installed.
-    - You will also need the [Developer Tools](https://webkit.org/build-tools/), which includes `make`.
+- macOS:
+  1. Install [HomeBrew](https://brew.sh) (which provides `brew`) and [Developer Tools](https://webkit.org/build-tools/) (which provides `make`).
+  2. Run `brew install pkg-config protobuf`
 - Linux (Arch): `pacman -S clang make pkgconf protobuf`
 - Linux (Ubuntu): `sudo apt install make clang pkg-config protobuf-compiler libprotobuf-dev`
 - Linux (RHEL): See below
@@ -128,7 +144,7 @@ You also need `clang`, `make`, `pkg-config`, and `protobuf` installed.
 
 For RedHat, you must enable the [EPEL](https://fedoraproject.org/wiki/EPEL)
 
-### Building with make
+### Build influxd with make
 
 `influxd` is the InfluxDB service.
 
@@ -138,99 +154,102 @@ Once you've installed the dependencies,
 follow these steps to build `influxd` from source and start the service:
 
 1. Clone this repo (influxdb).
-2. In your influxdb directory, run `make`.
+2. In your influxdb directory, run `make` to encode dependencies.
 
-   `make` generates the influxd binary at a platform-dependent path:
-
+   ```bash
+   make
    ```
-   $ make
-   ...
+
+3. Run the following `go build` command to compile the influxd binary at a platform-dependent path.
+
+   ```bash
    env GO111MODULE=on go build -tags 'assets ' -o bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influxd ./cmd/influxd
    ```
 
-3. Start the `influxd` service.
+4. Start the `influxd` service.
 
-   ```
-   $ bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influxd
+   ```bash
+   bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influxd
    ```
 
    `influxd` logs to stdout by default.
 
-### Testing
+### Run tests
 
-This project is built from various languages. To run test for all languages and components use:
-
-```bash
-$ make test
-```
-
-To run tests for just the Go/Rust components use:
+This project is built from various languages.
+To run tests for all languages and components, run the following:
 
 ```bash
-$ make test-go
+make test
 ```
 
+To run tests for only Go/Rust components, run the following:
+
+```bash
+make test-go
+```
 
 ## Generated Google Protobuf code
 
 Most changes to the source do not require that the generated protocol buffer code be changed.
 But if you need to modify the protocol buffer code, you'll first need to install the protocol buffers toolchain.
 
-First install the [protocol buffer compiler](https://developers.google.com/protocol-buffers/
-) 3.17.3 or later for your OS.
+First install the [protocol buffer compiler](https://developers.google.com/protocol-buffers/) 3.17.3 or later for your OS.
 
 Then run `go generate` after updating any `*.proto` file:
 
 ```bash
-$ go generate ./...
+go generate ./...
 ```
-**Troubleshooting**
 
-If generating the protobuf code is failing for you, check each of the following:
-* Ensure the protobuf library can be found. Make sure that `LD_LIBRARY_PATH` includes the directory in which the library `libprotoc.so` has been installed.
-* Ensure the command `protoc-gen-go`, found in `GOPATH/bin`, is on your path. This can be done by adding `GOPATH/bin` to `PATH`.
+**Troubleshoot protobuf**
 
+If generating the protobuf code is failing for you, check the following:
+
+- Ensure Go can find the protobuf library on your system--check that `LD_LIBRARY_PATH` includes the directory where the `libprotoc.so` library is installed.
+- Ensure the `protoc-gen-go` executable in `GOPATH/bin` is on your system path by adding `GOPATH/bin` to `PATH`.
 
 ## Generated Go Templates
 
-The query engine requires optimized data structures for each data type so instead of writing each implementation several times we use templates.
+The query engine requires optimized data structures for each data type so instead of writing each implementation several times, we use templates.
 _Do not change code that ends in a `.gen.go` extension!_
-Instead you must edit the `.gen.go.tmpl` file that was used to generate it.
+Instead, edit the `.gen.go.tmpl` file that was used to generate it.
 
 Once you've edited the template file, you'll need the [`tmpl`][tmpl] utility to generate the code:
 
 ```sh
-$ go get github.com/benbjohnson/tmpl
+go get github.com/benbjohnson/tmpl
 ```
 
 Then you can regenerate all templates in the project:
 
 ```sh
-$ go generate ./...
+go generate ./...
 ```
 
 [tmpl]: https://github.com/benbjohnson/tmpl
 
 ## Profiling
 
-When troubleshooting problems with CPU or memory the Go toolchain can be helpful.
-You can start InfluxDB with CPU and memory profiling turned on.
-For example:
+Go profiling tools can help you troubleshoot problems with CPU or memory.
+To start InfluxDB with CPU and memory profiling enabled, pass the profiling flags, as in the following example:
 
 ```bash
-# start influx with profiling
+# Start influx with profiling.
 
 $ ./influxd -cpuprofile influxdcpu.prof -memprof influxdmem.prof
 
-# run queries, writes, whatever you're testing
+# Run queries, writes, or whatever you're testing.
 # Quit out of influxd and influxd.prof will then be written.
-# open up pprof to examine the profiling data.
+# Run pprof to examine the profiling data.
 
 $ go tool pprof ./influxd influxd.prof
 
-# once inside run "web", opens up browser with the CPU graph
-# can also run "web <function name>" to zoom in. Or "list <function name>" to see specific lines
+# At the prompt, run "web" to view the CPU graph in a browser.
+# To zoom in, run "web <function name>".
+# To see specific lines, run "list <function name>".
 ```
+
 Note that when you pass the binary to `go tool pprof` *you must specify the path to the binary*.
 
 If you are profiling benchmarks built with the `testing` package, you may wish
@@ -244,3 +263,5 @@ func BenchmarkSomething(b *testing.B) {
   // do something that you want to profile...
 }
 ```
+
+To learn more about profiling and debugging in InfluxDB, see [InfluxDB OSS runtime](https://docs.influxdata.com/influxdb/latest/reference/internals/runtime/).
