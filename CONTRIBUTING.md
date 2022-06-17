@@ -169,8 +169,7 @@ follow these steps to build `influxd` from source and start the service:
 
 **Troubleshooting**
 
-- If you've changed go or rust versions and are having trouble building, consider running `go clean -r -x -cache -testcache -modcache ./`
-- This will clear out any old build artifacts that may be incompatible.
+- If you've changed go or rust versions and are having trouble building, consider running `go clean -r -x -cache -testcache -modcache ./`. This will clear out any old build artifacts that may be incompatible.
 
 ### Testing
 
