@@ -1,0 +1,20 @@
+[package]
+name = "iox_objectstore_garbage_collect"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# Workspace dependencies, in alphabetical order
+iox_catalog = { path = "../iox_catalog" }
+metric = { path = "../metric" }
+
+# Crates.io dependencies, in alphabetical order
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+clap = { version = "3", features = ["derive", "env"] }
+futures = "0.3"
+object_store = { version = "0.0.1", features = ["aws"] }
+snafu = "0.7"
+tokio = { version = "1", features = ["macros", "rt", "sync"] }
+uuid = { version = "1", features = ["v4"] }

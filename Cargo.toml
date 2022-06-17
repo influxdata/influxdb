@@ -23,6 +23,7 @@ members = [
     "ingester",
     "iox_catalog",
     "iox_data_generator",
+    "iox_objectstore_garbage_collect",
     "iox_query",
     "iox_tests",
     "iox_time",

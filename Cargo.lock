@@ -2327,6 +2327,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "iox_objectstore_garbage_collect"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "clap 3.2.5",
+ "futures",
+ "iox_catalog",
+ "metric",
+ "object_store",
+ "snafu",
+ "tokio",
+ "uuid 1.0.0",
+]
+
+[[package]]
 name = "iox_query"
 version = "0.1.0"
 dependencies = [
