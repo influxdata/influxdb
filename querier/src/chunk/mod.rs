@@ -353,10 +353,8 @@ impl ChunkAdapter {
         let chunk_id = ChunkId::from(Uuid::from_u128(parquet_file_id.get() as _));
         let table_name = self.catalog_cache.table().name(table_id).await?;
 
-        // Somewhat hacky workaround because of implicit chunk orders, use min sequence number and
-        // hope it doesn't overflow u32. Order is non-zero, se we need to add 1.
-        let order = ChunkOrder::new(1 + decoded_parquet_file.min_sequence_number().get() as u32)
-            .expect("cannot be zero");
+        let order = ChunkOrder::new(decoded_parquet_file.min_sequence_number().get())
+            .expect("Error converting min sequence number to chunk order");
 
         // Read partition sort key
         let partition_sort_key = self
@@ -408,10 +406,8 @@ impl ChunkAdapter {
             )
             .await;
 
-        // Somewhat hacky workaround because of implicit chunk orders, use min sequence number and
-        // hope it doesn't overflow u32. Order is non-zero, se we need to add 1.
-        let order = ChunkOrder::new(1 + decoded_parquet_file.min_sequence_number().get() as u32)
-            .expect("cannot be zero");
+        let order = ChunkOrder::new(decoded_parquet_file.min_sequence_number().get())
+            .expect("Error converting min sequence number to chunk order");
 
         // Read partition sort key
         let partition_sort_key = self
