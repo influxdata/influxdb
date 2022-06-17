@@ -3,7 +3,7 @@ set -o nounset  \
     -o errexit  \
     -o pipefail
 
-REGEX_TAG='v[[:digit:]]+\.[[:digit:]]\.[[:digit:]]'
+REGEX_TAG='v[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+'
 
 function semver_tags()
 {
@@ -31,7 +31,7 @@ TAG=$(head -n 1 <<<"$(semver_tags)")
 if [[ ${TAG:-} ]]
 then
   cat <<EOF >>"${BASH_ENV}"
-export VERSION="${TAG}"
+export VERSION="${TAG:1}"
 export RELEASE=1
 EOF
 else
