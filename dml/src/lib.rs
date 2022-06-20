@@ -381,6 +381,7 @@ pub mod test_util {
     pub fn assert_writes_eq(a: &DmlWrite, b: &DmlWrite) {
         assert_eq!(a.namespace, b.namespace);
         assert_eq!(a.meta(), b.meta());
+        assert_eq!(a.partition_key(), b.partition_key());
 
         assert_eq!(a.table_count(), b.table_count());
 

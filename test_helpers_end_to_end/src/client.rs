@@ -50,6 +50,7 @@ pub async fn write_to_router_grpc(
         database_batch: Some(DatabaseBatch {
             database_name: namespace.into(),
             table_batches,
+            partition_key: Default::default(),
         }),
     };
 
