@@ -60,12 +60,15 @@ impl QuerierNamespace {
             .iter()
             .map(|(table_name, table_schema)| {
                 let table_name = Arc::from(table_name.clone());
-                let sequencer_id = **sharder.shard_for_query(&table_name, &name);
                 let id = table_schema.id;
                 let schema = Schema::try_from(table_schema.clone()).expect("cannot build schema");
 
+                // Currently, the sharder will only return one sequencer ID per table, but in the
+                // near future, the sharder might return more than one sequencer ID for one table.
+                let sequencer_ids = vec![**sharder.shard_for_query(&table_name, &name)];
+
                 let table = Arc::new(QuerierTable::new(
-                    sequencer_id,
+                    sequencer_ids,
                     Arc::clone(&name),
                     id,
                     Arc::clone(&table_name),

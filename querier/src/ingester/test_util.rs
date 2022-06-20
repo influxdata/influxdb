@@ -28,7 +28,7 @@ impl MockIngesterConnection {
 impl IngesterConnection for MockIngesterConnection {
     async fn partitions(
         &self,
-        _sequencer_id: KafkaPartition,
+        _sequencer_ids: &[KafkaPartition],
         _namespace_name: Arc<str>,
         _table_name: Arc<str>,
         _columns: Vec<String>,

@@ -37,7 +37,7 @@ pub async fn querier_table(catalog: &Arc<TestCatalog>, table: &Arc<TestTable>) -
     let namespace_name = Arc::from(table.namespace.namespace.name.as_str());
 
     QuerierTable::new(
-        KafkaPartition::new(0),
+        vec![KafkaPartition::new(0)],
         namespace_name,
         table.table.id,
         table.table.name.clone().into(),

@@ -52,8 +52,8 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// Table representation for the querier.
 #[derive(Debug)]
 pub struct QuerierTable {
-    /// Sequencer the table is in
-    sequencer_id: KafkaPartition,
+    /// Sequencers responsible for the table's data that need to be queried for unpersisted data
+    sequencer_ids: Vec<KafkaPartition>,
 
     /// Namespace the table is in
     namespace_name: Arc<str>,
@@ -80,7 +80,7 @@ pub struct QuerierTable {
 impl QuerierTable {
     /// Create new table.
     pub fn new(
-        sequencer_id: KafkaPartition,
+        sequencer_ids: Vec<KafkaPartition>,
         namespace_name: Arc<str>,
         id: TableId,
         table_name: Arc<str>,
@@ -95,7 +95,7 @@ impl QuerierTable {
         );
 
         Self {
-            sequencer_id,
+            sequencer_ids,
             namespace_name,
             table_name,
             id,
@@ -188,11 +188,11 @@ impl QuerierTable {
             .map(|(_, f)| f.name().to_string())
             .collect();
 
-        // get any chunks from the ingster
+        // get any chunks from the ingester
         let partitions_result = self
             .ingester_connection
             .partitions(
-                self.sequencer_id,
+                &self.sequencer_ids,
                 Arc::clone(&self.namespace_name),
                 Arc::clone(&self.table_name),
                 columns,
