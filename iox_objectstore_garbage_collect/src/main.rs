@@ -17,21 +17,14 @@
 
 use chrono::{DateTime, Utc};
 use clap::Parser;
-use core::fmt;
-use iox_catalog::{
-    interface::Catalog,
-    mem::MemCatalog,
-    postgres::{PostgresCatalog, PostgresConnectionOptions},
+use clap_blocks::{
+    catalog_dsn::CatalogDsnConfig,
+    object_store::{make_object_store, ObjectStoreConfig},
 };
-use object_store::ObjectStore;
+use iox_catalog::interface::Catalog;
+use object_store::DynObjectStore;
 use snafu::prelude::*;
-use std::{
-    num::{NonZeroUsize, ParseIntError},
-    process::ExitCode,
-    str::FromStr,
-    sync::Arc,
-    time::Duration,
-};
+use std::{process::ExitCode, sync::Arc};
 use tokio::sync::mpsc;
 
 const BATCH_SIZE: usize = 1000;
@@ -76,165 +69,33 @@ async fn inner_main() -> Result<()> {
 #[derive(Debug, Parser)]
 pub struct Args {
     #[clap(flatten)]
-    aws: AwsArgs,
+    object_store: ObjectStoreConfig,
 
     #[clap(flatten)]
-    postgres: PostgresArgs,
+    catalog_dsn: CatalogDsnConfig,
 
     #[clap(long, default_value_t = false)]
     dry_run: bool,
 }
 
 impl Args {
-    async fn object_store(&self) -> object_store::Result<impl ObjectStore> {
-        Ok({
-            let x = object_store::memory::InMemory::new();
-            use object_store::path::Path;
-            x.put(&Path::from_raw("/gravy"), b"boat"[..].into())
-                .await
-                .unwrap();
-            x
-        })
-
-        // TODO: use the real Object Store
-        // self.aws.object_store()
+    async fn object_store(
+        &self,
+    ) -> Result<Arc<DynObjectStore>, clap_blocks::object_store::ParseError> {
+        make_object_store(&self.object_store)
     }
 
-    async fn catalog(&self) -> iox_catalog::interface::Result<impl Catalog> {
+    async fn catalog(&self) -> Result<Arc<dyn Catalog>, clap_blocks::catalog_dsn::Error> {
         let metrics = metric::Registry::default().into();
 
-        Ok(MemCatalog::new(metrics))
-
-        // TODO: use the real Catalog
-        // self.postgres.catalog(metrics).await
+        self.catalog_dsn
+            .get_catalog("iox_objectstore_garbage_collect", metrics)
+            .await
     }
 
     fn cutoff(&self) -> DateTime<Utc> {
         // TODO: parameterize the days
         Utc::now() - chrono::Duration::days(14)
-    }
-}
-
-// TODO: All these fields were copy-pasted and I don't know if all of
-// them are needed. We should pick defaults when possible.
-//
-// TODO: The default values I picked haven't had deep thought.
-#[derive(Debug, Clone, clap::Args)]
-struct AwsArgs {
-    #[clap(long)]
-    access_key_id: Option<String>,
-
-    #[clap(long)]
-    secret_access_key: Option<String>,
-
-    #[clap(long)]
-    region: String,
-
-    #[clap(long)]
-    bucket_name: String,
-
-    #[clap(long)]
-    endpoint: Option<String>,
-
-    #[clap(long)]
-    session_token: Option<String>,
-
-    #[clap(long, default_value_t = NonZeroUsize::new(2).unwrap())]
-    max_connections: NonZeroUsize,
-
-    #[clap(long, default_value_t = false)]
-    allow_http: bool,
-}
-
-impl AwsArgs {
-    fn object_store(&self) -> object_store::Result<impl ObjectStore> {
-        let this = self.clone();
-
-        object_store::aws::new_s3(
-            this.access_key_id,
-            this.secret_access_key,
-            this.region,
-            this.bucket_name,
-            this.endpoint,
-            this.session_token,
-            this.max_connections,
-            this.allow_http,
-        )
-    }
-}
-
-// TODO: All these fields were copy-pasted and I don't know if all of
-// them are needed. We should pick defaults when possible.
-//
-// TODO: The default values I picked haven't had deep thought.
-#[derive(Debug, Clone, clap::Args)]
-struct PostgresArgs {
-    #[clap(long)]
-    pub app_name: String,
-
-    #[clap(long)]
-    pub schema_name: String,
-
-    #[clap(long)]
-    pub dsn: String,
-
-    #[clap(long)]
-    pub max_conns: u32,
-
-    #[clap(long, default_value_t = PrettyDuration::from_secs(10))]
-    pub connect_timeout: PrettyDuration,
-
-    #[clap(long, default_value_t = PrettyDuration::from_secs(60))]
-    pub idle_timeout: PrettyDuration,
-
-    #[clap(long, default_value_t = PrettyDuration::from_secs(60))]
-    pub hotswap_poll_interval: PrettyDuration,
-}
-
-#[derive(Debug, Clone)]
-struct PrettyDuration(Duration);
-
-impl FromStr for PrettyDuration {
-    type Err = ParseIntError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let s = s
-            .trim_end_matches('s')
-            .trim_end_matches("second")
-            .trim_end();
-        s.parse().map(Duration::from_secs).map(Self)
-    }
-}
-
-impl PrettyDuration {
-    fn from_secs(secs: u64) -> Self {
-        Self(Duration::from_secs(secs))
-    }
-}
-
-impl fmt::Display for PrettyDuration {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} seconds", self.0.as_secs())
-    }
-}
-
-impl PostgresArgs {
-    async fn catalog(
-        &self,
-        metrics: Arc<metric::Registry>,
-    ) -> iox_catalog::interface::Result<impl Catalog> {
-        let this = self.clone();
-
-        let options = PostgresConnectionOptions {
-            app_name: this.app_name,
-            schema_name: this.schema_name,
-            dsn: this.dsn,
-            max_conns: this.max_conns,
-            connect_timeout: this.connect_timeout.0,
-            idle_timeout: this.idle_timeout.0,
-            hotswap_poll_interval: this.hotswap_poll_interval.0,
-        };
-        PostgresCatalog::connect(options, metrics).await
     }
 }
 
@@ -263,7 +124,7 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 
 mod lister {
     use futures::prelude::*;
-    use object_store::{ObjectMeta, ObjectStore};
+    use object_store::ObjectMeta;
     use snafu::prelude::*;
     use std::sync::Arc;
     use tokio::sync::mpsc;
@@ -290,7 +151,9 @@ mod lister {
     #[derive(Debug, Snafu)]
     pub(crate) enum Error {
         #[snafu(display("Could not create the object store"))]
-        CreatingObjectStore { source: object_store::Error },
+        CreatingObjectStore {
+            source: clap_blocks::object_store::ParseError,
+        },
 
         #[snafu(display("The prefix could not be listed"))]
         Listing { source: object_store::Error },
@@ -309,7 +172,6 @@ mod lister {
 }
 
 mod checker {
-    use iox_catalog::interface::Catalog;
     use object_store::ObjectMeta;
     use snafu::prelude::*;
     use std::sync::Arc;
@@ -358,7 +220,7 @@ mod checker {
     pub(crate) enum Error {
         #[snafu(display("Could not create the catalog"))]
         CreatingCatalog {
-            source: iox_catalog::interface::Error,
+            source: clap_blocks::catalog_dsn::Error,
         },
 
         #[snafu(display("Expected a file name"))]
@@ -383,7 +245,7 @@ mod checker {
 }
 
 mod deleter {
-    use object_store::{ObjectMeta, ObjectStore};
+    use object_store::ObjectMeta;
     use snafu::prelude::*;
     use std::sync::Arc;
     use tokio::sync::mpsc;
@@ -416,7 +278,9 @@ mod deleter {
     #[derive(Debug, Snafu)]
     pub(crate) enum Error {
         #[snafu(display("Could not create the object store"))]
-        CreatingObjectStore { source: object_store::Error },
+        CreatingObjectStore {
+            source: clap_blocks::object_store::ParseError,
+        },
 
         #[snafu(display("{path} could not be deleted"))]
         Deleting {

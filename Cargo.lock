@@ -2332,6 +2332,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "clap 3.2.5",
+ "clap_blocks",
  "futures",
  "iox_catalog",
  "metric",

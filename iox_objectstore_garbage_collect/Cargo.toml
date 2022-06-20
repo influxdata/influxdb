@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 clap = { version = "3", features = ["derive", "env"] }
+clap_blocks = { path = "../clap_blocks" }
 iox_catalog = { path = "../iox_catalog" }
 futures = "0.3"
 metric = { path = "../metric" }
