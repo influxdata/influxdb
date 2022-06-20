@@ -1,3 +1,20 @@
+//! Tool to clean up old object store files that don't appear in the catalog.
+
+#![deny(
+    rustdoc::broken_intra_doc_links,
+    rust_2018_idioms,
+    missing_debug_implementations,
+    unreachable_pub
+)]
+#![warn(
+    missing_docs,
+    clippy::todo,
+    clippy::dbg_macro,
+    clippy::clone_on_ref_ptr,
+    clippy::future_not_send
+)]
+#![allow(clippy::missing_docs_in_private_items)]
+
 use chrono::{DateTime, Utc};
 use clap::Parser;
 use core::fmt;
@@ -55,6 +72,7 @@ async fn inner_main() -> Result<()> {
     Ok(())
 }
 
+/// Command-line arguments
 #[derive(Debug, Parser)]
 pub struct Args {
     #[clap(flatten)]
