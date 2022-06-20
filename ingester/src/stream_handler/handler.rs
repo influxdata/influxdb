@@ -872,9 +872,7 @@ mod tests {
             Ok(DmlOperation::Write(make_write("good_op", 2)))
         ]],
         sink_rets = [
-            Err(crate::data::Error::Partitioning {
-                source: String::from("Time column not present").into()
-            }),
+            Err(crate::data::Error::TableNotPresent),
             Ok(true),
         ],
         want_ttbr = 2,

@@ -1,10 +1,7 @@
 //! Data for the lifecycle of the Ingester
 
 use crate::{
-    compact::compact_persisting_batch,
-    lifecycle::LifecycleHandle,
-    partioning::{Partitioner, PartitionerError},
-    querier_handler::query,
+    compact::compact_persisting_batch, lifecycle::LifecycleHandle, querier_handler::query,
 };
 use arrow::{error::ArrowError, record_batch::RecordBatch};
 use arrow_util::optimize::{optimize_record_batch, optimize_schema};
@@ -90,9 +87,6 @@ pub enum Error {
     ))]
     PersistingNotMatch,
 
-    #[snafu(display("Cannot partition data: {}", source))]
-    Partitioning { source: PartitionerError },
-
     #[snafu(display("Snapshot error: {}", source))]
     Snapshot { source: mutable_batch::Error },
 
@@ -126,9 +120,6 @@ pub struct IngesterData {
     /// get ingested.
     sequencers: BTreeMap<SequencerId, SequencerData>,
 
-    /// Partitioner.
-    partitioner: Arc<dyn Partitioner>,
-
     /// Executor for running queries and compacting and persisting
     exec: Arc<Executor>,
 
@@ -142,7 +133,6 @@ impl IngesterData {
         object_store: Arc<DynObjectStore>,
         catalog: Arc<dyn Catalog>,
         sequencers: BTreeMap<SequencerId, SequencerData>,
-        partitioner: Arc<dyn Partitioner>,
         exec: Arc<Executor>,
         backoff_config: BackoffConfig,
     ) -> Self {
@@ -150,7 +140,6 @@ impl IngesterData {
             store: ParquetStorage::new(object_store),
             catalog,
             sequencers,
-            partitioner,
             exec,
             backoff_config,
         }
@@ -194,7 +183,6 @@ impl IngesterData {
                 sequencer_id,
                 self.catalog.as_ref(),
                 lifecycle_handle,
-                self.partitioner.as_ref(),
                 &self.exec,
             )
             .await
@@ -446,7 +434,6 @@ impl SequencerData {
         sequencer_id: SequencerId,
         catalog: &dyn Catalog,
         lifecycle_handle: &dyn LifecycleHandle,
-        partitioner: &dyn Partitioner,
         executor: &Executor,
     ) -> Result<bool> {
         let namespace_data = match self.namespace(dml_operation.namespace()) {
@@ -463,7 +450,6 @@ impl SequencerData {
                 sequencer_id,
                 catalog,
                 lifecycle_handle,
-                partitioner,
                 executor,
             )
             .await
@@ -613,7 +599,6 @@ impl NamespaceData {
         sequencer_id: SequencerId,
         catalog: &dyn Catalog,
         lifecycle_handle: &dyn LifecycleHandle,
-        partitioner: &dyn Partitioner,
         executor: &Executor,
     ) -> Result<bool> {
         let sequence_number = dml_operation
@@ -633,6 +618,12 @@ impl NamespaceData {
             DmlOperation::Write(write) => {
                 let mut pause_writes = false;
 
+                // Extract the partition key derived by the router.
+                let partition_key = write
+                    .partition_key()
+                    .expect("no partition key in dml write")
+                    .clone();
+
                 for (t, b) in write.into_tables() {
                     let table_data = match self.table_data(&t) {
                         Some(t) => t,
@@ -646,10 +637,10 @@ impl NamespaceData {
                             .buffer_table_write(
                                 sequence_number,
                                 b,
+                                partition_key.clone(),
                                 sequencer_id,
                                 catalog,
                                 lifecycle_handle,
-                                partitioner,
                             )
                             .await?;
                         pause_writes = pause_writes || should_pause;
@@ -901,15 +892,11 @@ impl TableData {
         &mut self,
         sequence_number: SequenceNumber,
         batch: MutableBatch,
+        partition_key: PartitionKey,
         sequencer_id: SequencerId,
         catalog: &dyn Catalog,
         lifecycle_handle: &dyn LifecycleHandle,
-        partitioner: &dyn Partitioner,
     ) -> Result<bool> {
-        let partition_key = partitioner
-            .partition_key(&batch)
-            .context(PartitioningSnafu)?;
-
         let partition_data = match self.partition_data.get_mut(&partition_key) {
             Some(p) => p,
             None => {
@@ -1678,7 +1665,6 @@ mod tests {
     use super::*;
     use crate::{
         lifecycle::{LifecycleConfig, LifecycleManager},
-        partioning::DefaultPartitioner,
         test_util::create_tombstone,
     };
     use arrow::datatypes::SchemaRef;
@@ -1807,7 +1793,6 @@ mod tests {
             Arc::clone(&object_store),
             Arc::clone(&catalog),
             sequencers,
-            Arc::new(DefaultPartitioner::default()),
             Arc::new(Executor::new(1)),
             BackoffConfig::default(),
         ));
@@ -1901,7 +1886,6 @@ mod tests {
             Arc::clone(&object_store),
             Arc::clone(&catalog),
             sequencers,
-            Arc::new(DefaultPartitioner::default()),
             Arc::new(Executor::new(1)),
             BackoffConfig::default(),
         ));
@@ -2097,7 +2081,6 @@ mod tests {
             Arc::clone(&object_store),
             Arc::clone(&catalog),
             sequencers,
-            Arc::new(DefaultPartitioner::default()),
             Arc::new(Executor::new(1)),
             BackoffConfig::default(),
         ));
@@ -2557,7 +2540,6 @@ mod tests {
             Arc::clone(&metrics),
             Arc::new(SystemProvider::new()),
         );
-        let partitioner = DefaultPartitioner::default();
         let exec = Executor::new(1);
 
         let data = NamespaceData::new(namespace.id, &*metrics);
@@ -2569,7 +2551,6 @@ mod tests {
                 sequencer.id,
                 catalog.as_ref(),
                 &manager.handle(),
-                &partitioner,
                 &exec,
             )
             .await
@@ -2592,7 +2573,6 @@ mod tests {
             sequencer.id,
             catalog.as_ref(),
             &manager.handle(),
-            &partitioner,
             &exec,
         )
         .await
@@ -2643,7 +2623,6 @@ mod tests {
             Arc::clone(&object_store),
             Arc::clone(&catalog),
             sequencers,
-            Arc::new(DefaultPartitioner::default()),
             Arc::new(Executor::new(1)),
             BackoffConfig::default(),
         ));
