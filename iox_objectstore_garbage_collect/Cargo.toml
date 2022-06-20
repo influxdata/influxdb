@@ -10,7 +10,12 @@ clap_blocks = { path = "../clap_blocks" }
 iox_catalog = { path = "../iox_catalog" }
 futures = "0.3"
 metric = { path = "../metric" }
-object_store = { version = "0.0.1", features = ["aws"] }
+object_store = { version = "0.3.0", features = ["aws"] }
 snafu = "0.7"
 tokio = { version = "1", features = ["macros", "rt", "sync"] }
 uuid = { version = "1", features = ["v4"] }
+
+[dev-dependencies]
+data_types = { path = "../data_types" }
+once_cell = { version = "1.12.0", features = ["parking_lot"] }
+parquet_file = { path = "../parquet_file" }

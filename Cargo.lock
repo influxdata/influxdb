@@ -2331,15 +2331,18 @@ name = "iox_objectstore_garbage_collect"
 version = "0.1.0"
 dependencies = [
  "chrono",
- "clap 3.2.5",
+ "clap 3.2.6",
  "clap_blocks",
+ "data_types",
  "futures",
  "iox_catalog",
  "metric",
  "object_store",
+ "once_cell",
+ "parquet_file",
  "snafu",
  "tokio",
- "uuid 1.0.0",
+ "uuid 1.1.2",
 ]
 
 [[package]]
