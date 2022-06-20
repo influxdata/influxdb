@@ -5,7 +5,15 @@ package influxdata.pbdata.v1;
 option go_package = "github.com/influxdata/influxdb-pb-data-protocol/golang;influxdbpbdataprotocol";
 
 message DatabaseBatch {
+    // The destination database name / namespace for this write.
     string database_name = 1;
+
+    // An optional partition key for this batch.
+    //
+    // If specified, all batches in this write MUST map to this partition key.
+    // Violating this invariant MAY cause data to become unqueryable, degrade
+    // query performance, or other bad things.
+    string partition_key = 3;
 
     // Table data. Data for a given table may appear in multiple table batches.
     repeated TableBatch table_batches = 2;

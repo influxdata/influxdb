@@ -265,6 +265,7 @@ mod tests {
             database_batch: Some(DatabaseBatch {
                 database_name: "".to_owned(),
                 table_batches: vec![],
+                partition_key: Default::default(),
             }),
         };
 
@@ -287,6 +288,26 @@ mod tests {
             database_batch: Some(DatabaseBatch {
                 database_name: "bananas".to_owned(),
                 table_batches: vec![],
+                partition_key: Default::default(),
+            }),
+        };
+
+        grpc.write(Request::new(req))
+            .await
+            .expect("rpc request should succeed");
+    }
+
+    #[tokio::test]
+    async fn test_write_ok_with_partition_key() {
+        let metrics = Arc::new(metric::Registry::default());
+        let handler = Arc::new(MockDmlHandler::default().with_write_return([Ok(summary())]));
+        let grpc = super::WriteService::new(Arc::clone(&handler), &metrics);
+
+        let req = WriteRequest {
+            database_batch: Some(DatabaseBatch {
+                database_name: "bananas".to_owned(),
+                table_batches: vec![],
+                partition_key: "platanos".to_owned(),
             }),
         };
 
@@ -308,6 +329,7 @@ mod tests {
             database_batch: Some(DatabaseBatch {
                 database_name: "bananas".to_owned(),
                 table_batches: vec![],
+                partition_key: Default::default(),
             }),
         };
 
