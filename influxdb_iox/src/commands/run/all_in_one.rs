@@ -401,6 +401,7 @@ impl Config {
             num_query_threads: None,          // will be ignored
             ingester_addresses: vec![],       // will be ignored
             sequencer_to_ingester_file: None, // will be ignored
+            sequencer_to_ingester: None,      // will be ignored
             ram_pool_bytes: querier_ram_pool_bytes,
             max_concurrent_queries: querier_max_concurrent_queries,
         };
