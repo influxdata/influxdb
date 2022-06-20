@@ -30,7 +30,7 @@ workspace-hack = { path = "../workspace-hack"}
 [dev-dependencies] # In alphabetical order
 criterion = "0.3.3"
 packers = { path = "../packers" }
-proptest = "1.0.0"
+proptest = { version = "1.0.0", default_features = false, features = ["std"] }
 rand = "0.8.3"
 rand_distr = "0.4.2"
 

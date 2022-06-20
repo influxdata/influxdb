@@ -13,8 +13,6 @@ members = [
     "dml",
     "executor",
     "generated_types",
-    "grpc-router",
-    "grpc-router-test-gen",
     "influxdb_iox",
     "influxdb_iox_client",
     "influxdb_line_protocol",

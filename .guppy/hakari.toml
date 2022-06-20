@@ -29,8 +29,6 @@ platforms = [
 # as those are usually off in development.
 [traversal-excludes]
 workspace-members = [
-    "grpc-router",
-    "grpc-router-test-gen",
     "influxdb_iox_client",
     "influxdb2_client",
     "iox_data_generator",
