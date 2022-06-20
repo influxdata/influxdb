@@ -3,7 +3,7 @@ use std::sync::Arc;
 use arrow::record_batch::RecordBatch;
 use data_types::{ChunkId, SequenceNumber};
 use iox_catalog::interface::get_schema_by_name;
-use iox_tests::util::{TestCatalog, TestNamespace, TestPartition, TestSequencer, TestTable};
+use iox_tests::util::{TestCatalog, TestPartition, TestSequencer, TestTable};
 use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
 use parquet_file::storage::ParquetStorage;
 use schema::{selection::Selection, sort::SortKey, Schema};
@@ -57,7 +57,6 @@ pub(crate) fn lp_to_record_batch(lp: &str) -> RecordBatch {
 /// Helper for creating IngesterPartitions
 #[derive(Debug, Clone)]
 pub(crate) struct IngesterPartitionBuilder {
-    ns: Arc<TestNamespace>,
     table: Arc<TestTable>,
     schema: Arc<Schema>,
     sequencer: Arc<TestSequencer>,
@@ -73,14 +72,12 @@ pub(crate) struct IngesterPartitionBuilder {
 
 impl IngesterPartitionBuilder {
     pub(crate) fn new(
-        ns: &Arc<TestNamespace>,
         table: &Arc<TestTable>,
         schema: &Arc<Schema>,
         sequencer: &Arc<TestSequencer>,
         partition: &Arc<TestPartition>,
     ) -> Self {
         Self {
-            ns: Arc::clone(ns),
             table: Arc::clone(table),
             schema: Arc::clone(schema),
             sequencer: Arc::clone(sequencer),
@@ -123,17 +120,18 @@ impl IngesterPartitionBuilder {
     ) -> IngesterPartition {
         let data = self.lp.iter().map(|lp| lp_to_record_batch(lp)).collect();
 
-        IngesterPartition::try_new(
+        IngesterPartition::new(
             Arc::clone(&self.ingester_name),
-            ChunkId::new_test(self.ingester_chunk_id),
-            Arc::from(self.ns.namespace.name.as_str()),
             Arc::from(self.table.table.name.as_str()),
             self.partition.partition.id,
             self.sequencer.sequencer.id,
-            Arc::clone(&self.schema),
             parquet_max_sequence_number,
             tombstone_max_sequence_number,
             Arc::clone(&self.partition_sort_key),
+        )
+        .try_add_chunk(
+            ChunkId::new_test(self.ingester_chunk_id),
+            Arc::clone(&self.schema),
             data,
         )
         .unwrap()

@@ -17,7 +17,9 @@ use generated_types::{
     ingester::{encode_proto_predicate_as_base64, IngesterQueryRequest},
     write_info::merge_responses,
 };
-use influxdb_iox_client::flight::low_level::LowLevelMessage;
+use influxdb_iox_client::flight::{
+    generated_types::IngesterQueryResponseMetadata, low_level::LowLevelMessage,
+};
 use iox_query::{
     exec::{stringset::StringSet, IOxSessionContext},
     util::compute_timenanosecond_min_max,
@@ -63,6 +65,9 @@ pub enum Error {
         source: ArrowError,
     },
 
+    #[snafu(display("Cannot convert schema: {}", source))]
+    ConvertingSchema { source: schema::Error },
+
     #[snafu(display("Internal error creating record batch: {}", source))]
     CreatingRecordBatch { source: ArrowError },
 
@@ -94,20 +99,21 @@ pub enum Error {
         "Partition status missing for partition {partition_id}, ingestger: {ingester_address}"
     ))]
     PartitionStatusMissing {
-        partition_id: i64,
+        partition_id: PartitionId,
         ingester_address: String,
     },
 
-    #[snafu(display(
-        "Got batch without partition information from ingestger: {ingester_address}"
-    ))]
-    BatchWithoutPartition { ingester_address: String },
+    #[snafu(display("Got batch without chunk information from ingester: {ingester_address}"))]
+    BatchWithoutChunk { ingester_address: String },
+
+    #[snafu(display("Got chunk without partition information from ingester: {ingester_address}"))]
+    ChunkWithoutPartition { ingester_address: String },
 
     #[snafu(display(
         "Duplicate partition info for partition {partition_id}, ingestger: {ingester_address}"
     ))]
     DuplicatePartitionInfo {
-        partition_id: i64,
+        partition_id: PartitionId,
         ingester_address: String,
     },
 }
@@ -361,14 +367,10 @@ async fn execute(request: GetPartitionForIngester<'_>) -> Result<Vec<IngesterPar
             e
         })?;
 
-    // read unpersisted partitions
-    // map partition_id -> (PartitionMetadata, Vec<PartitionData>))
-    let mut partitions: HashMap<_, _> = HashMap::new();
-
-    // sort batches into partitions
-    let mut num_batches = 0usize;
-    let mut current_partition_id = None;
-    while let Some((msg, md)) = perform_query
+    // collect data from IO stream
+    // Drain data from ingester so we don't block the ingester while performing catalog IO or CPU computations
+    let mut messages = vec![];
+    while let Some(data) = perform_query
         .next()
         .await
         .map_err(|source| FlightClientError::Flight { source })
@@ -376,67 +378,172 @@ async fn execute(request: GetPartitionForIngester<'_>) -> Result<Vec<IngesterPar
             ingester_address: ingester_address.as_ref(),
         })?
     {
+        messages.push(data);
+    }
+
+    // reconstruct partitions
+    let mut decoder =
+        IngesterStreamDecoder::new(ingester_address, table_name, catalog_cache, expected_schema);
+    for (msg, md) in messages {
+        decoder.register(msg, md).await?;
+    }
+
+    decoder.finalize()
+}
+
+/// Helper to disassemble the data from the ingester Apache Flight arrow stream.
+///
+/// This should be used AFTER the stream was drained because we will perform some catalog IO and this should likely not
+/// block the ingester.
+struct IngesterStreamDecoder {
+    finished_partitions: HashMap<PartitionId, IngesterPartition>,
+    current_partition: Option<IngesterPartition>,
+    current_chunk: Option<(Schema, Vec<RecordBatch>)>,
+    ingester_address: Arc<str>,
+    table_name: Arc<str>,
+    catalog_cache: Arc<CatalogCache>,
+    expected_schema: Arc<Schema>,
+}
+
+impl IngesterStreamDecoder {
+    /// Create empty decoder.
+    fn new(
+        ingester_address: Arc<str>,
+        table_name: Arc<str>,
+        catalog_cache: Arc<CatalogCache>,
+        expected_schema: Arc<Schema>,
+    ) -> Self {
+        Self {
+            finished_partitions: HashMap::new(),
+            current_partition: None,
+            current_chunk: None,
+            ingester_address,
+            table_name,
+            catalog_cache,
+            expected_schema,
+        }
+    }
+
+    /// FLush current chunk, if any.
+    fn flush_chunk(&mut self) -> Result<()> {
+        if let Some((schema, batches)) = self.current_chunk.take() {
+            let current_partition = self
+                .current_partition
+                .take()
+                .expect("Partition should have been checked before chunk creation");
+            self.current_partition =
+                Some(current_partition.try_add_chunk(ChunkId::new(), Arc::new(schema), batches)?);
+        }
+
+        Ok(())
+    }
+
+    /// FLush current partition, if any.
+    ///
+    /// This will also flush the current chunk.
+    fn flush_partition(&mut self) -> Result<()> {
+        self.flush_chunk()?;
+
+        if let Some(current_partition) = self.current_partition.take() {
+            self.finished_partitions
+                .insert(current_partition.partition_id, current_partition);
+        }
+
+        Ok(())
+    }
+
+    /// Register a new message and its metadata from the Flight stream.
+    async fn register(
+        &mut self,
+        msg: LowLevelMessage,
+        md: IngesterQueryResponseMetadata,
+    ) -> Result<(), Error> {
         match msg {
             LowLevelMessage::None => {
                 // new partition announced
-                let partition_id = md.partition_id;
+                self.flush_partition()?;
+
+                let partition_id = PartitionId::new(md.partition_id);
                 let status = md.status.context(PartitionStatusMissingSnafu {
                     partition_id,
-                    ingester_address: ingester_address.as_ref(),
+                    ingester_address: self.ingester_address.as_ref(),
                 })?;
-                let existing = partitions.insert(partition_id, (status, vec![]));
                 ensure!(
-                    existing.is_none(),
+                    !self.finished_partitions.contains_key(&partition_id),
                     DuplicatePartitionInfoSnafu {
                         partition_id,
-                        ingester_address: ingester_address.as_ref()
+                        ingester_address: self.ingester_address.as_ref()
                     },
                 );
-                current_partition_id = Some(partition_id);
+                let sequencer_id = self
+                    .catalog_cache
+                    .partition()
+                    .sequencer_id(partition_id)
+                    .await;
+                let partition_sort_key =
+                    self.catalog_cache.partition().sort_key(partition_id).await;
+                let partition = IngesterPartition::new(
+                    Arc::clone(&self.ingester_address),
+                    Arc::clone(&self.table_name),
+                    partition_id,
+                    sequencer_id,
+                    status.parquet_max_sequence_number.map(SequenceNumber::new),
+                    status
+                        .tombstone_max_sequence_number
+                        .map(SequenceNumber::new),
+                    partition_sort_key,
+                );
+                self.current_partition = Some(partition);
             }
-            LowLevelMessage::Schema(_) => {
-                // can be ignored, schemas are propagated to the batches automatically by the low-level client
+            LowLevelMessage::Schema(schema) => {
+                self.flush_chunk()?;
+                ensure!(
+                    self.current_partition.is_some(),
+                    ChunkWithoutPartitionSnafu {
+                        ingester_address: self.ingester_address.as_ref()
+                    }
+                );
+
+                // don't use the transmitted arrow schema to construct the IOx schema because some metadata might be
+                // missing. Instead select the right columns from the expected schema.
+                let column_names: Vec<_> =
+                    schema.fields().iter().map(|f| f.name().as_str()).collect();
+                let schema = self
+                    .expected_schema
+                    .select_by_names(&column_names)
+                    .context(ConvertingSchemaSnafu)?;
+                self.current_chunk = Some((schema, vec![]));
             }
             LowLevelMessage::RecordBatch(batch) => {
-                let partition_id = current_partition_id.context(BatchWithoutPartitionSnafu {
-                    ingester_address: ingester_address.as_ref(),
-                })?;
-                partitions
-                    .get_mut(&partition_id)
-                    .expect("current partition should have been inserted")
-                    .1
-                    .push(batch);
-                num_batches += 1;
+                let current_chunk =
+                    self.current_chunk
+                        .as_mut()
+                        .context(BatchWithoutChunkSnafu {
+                            ingester_address: self.ingester_address.as_ref(),
+                        })?;
+                current_chunk.1.push(batch);
             }
         }
-    }
-    debug!(%ingester_address, num_batches, "Received batches from ingester");
 
-    let mut ingester_partitions = vec![];
-    for (partition_id, (state, batches)) in partitions {
-        // do NOT filter out empty partitions, because the caller of this functions needs the attached metadata
-        // to select the right parquet files and tombstones
-        let partition_id = PartitionId::new(partition_id);
-        let sequencer_id = catalog_cache.partition().sequencer_id(partition_id).await;
-        let partition_sort_key = catalog_cache.partition().sort_key(partition_id).await;
-        let ingester_partition = IngesterPartition::try_new(
-            Arc::clone(&ingester_address),
-            ChunkId::new(),
-            Arc::clone(&namespace_name),
-            Arc::clone(&table_name),
-            partition_id,
-            sequencer_id,
-            // TODO(marco): project schema to the columns that are present within this partition
-            Arc::clone(&expected_schema),
-            state.parquet_max_sequence_number.map(SequenceNumber::new),
-            state.tombstone_max_sequence_number.map(SequenceNumber::new),
-            partition_sort_key,
-            batches,
-        )?;
-        ingester_partitions.push(ingester_partition);
+        Ok(())
     }
 
-    Ok(ingester_partitions)
+    /// Flush internal state and return sorted set of partitions.
+    fn finalize(mut self) -> Result<Vec<IngesterPartition>> {
+        self.flush_partition()?;
+
+        let mut ids: Vec<_> = self.finished_partitions.keys().copied().collect();
+        ids.sort();
+
+        Ok(ids
+            .into_iter()
+            .map(|id| {
+                self.finished_partitions
+                    .remove(&id)
+                    .expect("just got key from this map")
+            })
+            .collect())
+    }
 }
 
 fn encode_predicate_as_base64(predicate: &Predicate) -> String {
@@ -549,7 +656,7 @@ async fn execute_get_write_infos(
 /// A wrapper around the unpersisted data in a partition returned by
 /// the ingester that (will) implement the `QueryChunk` interface
 ///
-/// Given the catalog heirarchy:
+/// Given the catalog hierarchy:
 ///
 /// ```text
 /// (Catalog) Sequencer -> (Catalog) Table --> (Catalog) Partition
@@ -558,18 +665,12 @@ async fn execute_get_write_infos(
 /// An IngesterPartition contains the unpersisted data for a catalog
 /// partition from a sequencer. Thus, there can be more than one
 /// IngesterPartition for each table the ingester knows about.
-#[allow(missing_copy_implementations)]
 #[derive(Debug, Clone)]
 pub struct IngesterPartition {
     ingester: Arc<str>,
-    chunk_id: ChunkId,
-    #[allow(dead_code)]
-    namespace_name: Arc<str>,
     table_name: Arc<str>,
     partition_id: PartitionId,
     sequencer_id: SequencerId,
-
-    schema: Arc<Schema>,
 
     /// Maximum sequence number of parquet files the ingester has
     /// persisted for this partition
@@ -582,30 +683,45 @@ pub struct IngesterPartition {
     /// Partition-wide sort key.
     partition_sort_key: Arc<Option<SortKey>>,
 
-    /// The raw table data
-    batches: Vec<RecordBatch>,
-
-    /// Summary Statistics
-    summary: TableSummary,
+    chunks: Vec<IngesterChunk>,
 }
 
 impl IngesterPartition {
     /// Creates a new IngesterPartition, translating the passed
     /// `RecordBatches` into the correct types
-    #[allow(clippy::too_many_arguments)]
-    pub fn try_new(
+    pub fn new(
         ingester: Arc<str>,
-        chunk_id: ChunkId,
-        namespace_name: Arc<str>,
         table_name: Arc<str>,
         partition_id: PartitionId,
         sequencer_id: SequencerId,
-        expected_schema: Arc<Schema>,
         parquet_max_sequence_number: Option<SequenceNumber>,
         tombstone_max_sequence_number: Option<SequenceNumber>,
         partition_sort_key: Arc<Option<SortKey>>,
+    ) -> Self {
+        Self {
+            ingester,
+            table_name,
+            partition_id,
+            sequencer_id,
+            parquet_max_sequence_number,
+            tombstone_max_sequence_number,
+            partition_sort_key,
+            chunks: vec![],
+        }
+    }
+
+    /// Try to add a new chunk to this partition.
+    pub fn try_add_chunk(
+        mut self,
+        chunk_id: ChunkId,
+        expected_schema: Arc<Schema>,
         batches: Vec<RecordBatch>,
     ) -> Result<Self> {
+        // ignore chunk if there are no batches
+        if batches.is_empty() {
+            return Ok(self);
+        }
+
         // ensure that the schema of the batches matches the required
         // output schema by CAST'ing to the needed type.
         //
@@ -619,35 +735,23 @@ impl IngesterPartition {
 
         let summary = calculate_summary(&batches, &expected_schema);
 
-        Ok(Self {
-            ingester,
+        let chunk = IngesterChunk {
             chunk_id,
-            namespace_name,
-            table_name,
-            partition_id,
-            sequencer_id,
+            table_name: Arc::clone(&self.table_name),
+            partition_id: self.partition_id,
             schema: expected_schema,
-            parquet_max_sequence_number,
-            tombstone_max_sequence_number,
-            partition_sort_key,
+            partition_sort_key: Arc::clone(&self.partition_sort_key),
             batches,
             summary,
-        })
-    }
+        };
 
-    pub(crate) fn with_partition_sort_key(self, partition_sort_key: Arc<Option<SortKey>>) -> Self {
-        Self {
-            partition_sort_key,
-            ..self
-        }
+        self.chunks.push(chunk);
+
+        Ok(self)
     }
 
     pub(crate) fn ingester(&self) -> &Arc<str> {
         &self.ingester
-    }
-
-    pub(crate) fn has_batches(&self) -> bool {
-        !self.batches.is_empty()
     }
 
     pub(crate) fn partition_id(&self) -> PartitionId {
@@ -665,15 +769,45 @@ impl IngesterPartition {
     pub(crate) fn tombstone_max_sequence_number(&self) -> Option<SequenceNumber> {
         self.tombstone_max_sequence_number
     }
+
+    pub(crate) fn into_chunks(self) -> Vec<IngesterChunk> {
+        self.chunks
+    }
 }
 
-impl QueryChunkMeta for IngesterPartition {
+#[derive(Debug, Clone)]
+pub struct IngesterChunk {
+    chunk_id: ChunkId,
+    table_name: Arc<str>,
+    partition_id: PartitionId,
+    schema: Arc<Schema>,
+
+    /// Partition-wide sort key.
+    partition_sort_key: Arc<Option<SortKey>>,
+
+    /// The raw table data
+    batches: Vec<RecordBatch>,
+
+    /// Summary Statistics
+    summary: TableSummary,
+}
+
+impl IngesterChunk {
+    pub(crate) fn with_partition_sort_key(self, partition_sort_key: Arc<Option<SortKey>>) -> Self {
+        Self {
+            partition_sort_key,
+            ..self
+        }
+    }
+}
+
+impl QueryChunkMeta for IngesterChunk {
     fn summary(&self) -> Option<&TableSummary> {
         Some(&self.summary)
     }
 
     fn schema(&self) -> Arc<Schema> {
-        trace!(schema=?self.schema, "IngesterPartition schema");
+        trace!(schema=?self.schema, "IngesterChunk schema");
         Arc::clone(&self.schema)
     }
 
@@ -682,7 +816,7 @@ impl QueryChunkMeta for IngesterPartition {
     }
 
     fn partition_id(&self) -> Option<PartitionId> {
-        Some(self.partition_id())
+        Some(self.partition_id)
     }
 
     fn sort_key(&self) -> Option<&SortKey> {
@@ -706,7 +840,7 @@ impl QueryChunkMeta for IngesterPartition {
     }
 }
 
-impl QueryChunk for IngesterPartition {
+impl QueryChunk for IngesterChunk {
     fn id(&self) -> ChunkId {
         self.chunk_id
     }
@@ -784,13 +918,7 @@ impl QueryChunk for IngesterPartition {
 
 /// Ensure that the record batch has the given schema.
 ///
-/// This does multiple things:
-///
-/// 1. Dictionary type recovery
-/// 2. NULL-column creation
-///
 /// # Dictionary Type Recovery
-///
 /// Cast arrays in record batch to be the type of schema. This is a workaround for
 /// <https://github.com/influxdata/influxdb_iox/pull/4273> where the Flight API doesn't necessarily
 /// return the same schema as was provided by the ingester.
@@ -798,16 +926,8 @@ impl QueryChunk for IngesterPartition {
 /// Namely, dictionary encoded columns (e.g. tags) are returned as `DataType::Utf8` even when they
 /// were sent as `DataType::Dictionary(Int32, Utf8)`.
 ///
-/// # NULL-column Creation
-///
-/// If a column is absent in an ingester partition it will not be part of record batch even when
-/// the querier requests it. In that case we create it as "all NULL" column with the appropriate
-/// type.
-///
-/// An alternative would be to remove the column from the schema of the appropriate
-/// [`IngesterPartition`]. However, since a partition may contain multiple record batches and we do
-/// not want to assume that the presence/absence of columns is identical for all of them, we fix
-/// this here.
+/// # Panic
+/// Panics when a column was not found in the given batch.
 fn ensure_schema(batch: RecordBatch, expected_schema: &Schema) -> Result<RecordBatch> {
     let actual_schema = batch.schema();
     let desired_fields = expected_schema.iter().map(|(_, f)| f);
@@ -846,7 +966,7 @@ fn ensure_schema(batch: RecordBatch, expected_schema: &Schema) -> Result<RecordB
                         Ok(Arc::clone(col))
                     }
                 }
-                None => Ok(arrow::array::new_null_array(desired_type, batch.num_rows())),
+                None => panic!("Column not found: {}", desired_field.name()),
             }
         })
         .collect::<Result<Vec<_>>>()?;
@@ -1046,7 +1166,7 @@ mod tests {
         assert_eq!(p.sequencer_id.get(), 1);
         assert_eq!(p.parquet_max_sequence_number, None);
         assert_eq!(p.tombstone_max_sequence_number, None);
-        assert_eq!(p.batches.len(), 0);
+        assert_eq!(p.chunks.len(), 0);
     }
 
     #[tokio::test]
@@ -1119,7 +1239,27 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_flight_err_batch_without_partition() {
+    async fn test_flight_err_chunk_without_partition() {
+        let record_batch = lp_to_record_batch("table foo=1 1");
+        let mock_flight_client = Arc::new(
+            MockFlightClient::new([(
+                "addr1",
+                Ok(MockQueryData {
+                    results: vec![Ok((
+                        LowLevelMessage::Schema(record_batch.schema()),
+                        IngesterQueryResponseMetadata::default(),
+                    ))],
+                }),
+            )])
+            .await,
+        );
+        let ingester_conn = mock_flight_client.ingester_conn().await;
+        let err = get_partitions(&ingester_conn).await.unwrap_err();
+        assert_matches!(err, Error::ChunkWithoutPartition { .. });
+    }
+
+    #[tokio::test]
+    async fn test_flight_err_batch_without_chunk() {
         let record_batch = lp_to_record_batch("table foo=1 1");
         let mock_flight_client = Arc::new(
             MockFlightClient::new([(
@@ -1135,17 +1275,19 @@ mod tests {
         );
         let ingester_conn = mock_flight_client.ingester_conn().await;
         let err = get_partitions(&ingester_conn).await.unwrap_err();
-        assert_matches!(err, Error::BatchWithoutPartition { .. });
+        assert_matches!(err, Error::BatchWithoutChunk { .. });
     }
 
     #[tokio::test]
     async fn test_flight_many_batches() {
-        let record_batch_1_1 = lp_to_record_batch("table foo=1 1");
+        let record_batch_1_1_1 = lp_to_record_batch("table foo=1 1");
+        let record_batch_1_1_2 = lp_to_record_batch("table foo=2 2");
         let record_batch_1_2 = lp_to_record_batch("table bar=20,foo=2 2");
         let record_batch_2_1 = lp_to_record_batch("table foo=3 3");
         let record_batch_3_1 = lp_to_record_batch("table baz=40,foo=4 4");
 
-        let schema_1_1 = record_batch_1_1.schema();
+        let schema_1_1 = record_batch_1_1_1.schema();
+        assert_eq!(schema_1_1, record_batch_1_1_2.schema());
         let schema_1_2 = record_batch_1_2.schema();
         let schema_2_1 = record_batch_2_1.schema();
         let schema_3_1 = record_batch_3_1.schema();
@@ -1171,7 +1313,11 @@ mod tests {
                                 IngesterQueryResponseMetadata::default(),
                             )),
                             Ok((
-                                LowLevelMessage::RecordBatch(record_batch_1_1),
+                                LowLevelMessage::RecordBatch(record_batch_1_1_1),
+                                IngesterQueryResponseMetadata::default(),
+                            )),
+                            Ok((
+                                LowLevelMessage::RecordBatch(record_batch_1_1_2),
                                 IngesterQueryResponseMetadata::default(),
                             )),
                             Ok((
@@ -1247,9 +1393,14 @@ mod tests {
             p1.tombstone_max_sequence_number,
             Some(SequenceNumber::new(12))
         );
-        assert_eq!(p1.batches.len(), 2);
-        assert_eq!(p1.batches[0].schema(), schema().as_arrow());
-        assert_eq!(p1.batches[1].schema(), schema().as_arrow());
+        assert_eq!(p1.chunks.len(), 2);
+        assert_eq!(p1.chunks[0].schema().as_arrow(), schema_1_1);
+        assert_eq!(p1.chunks[0].batches.len(), 2);
+        assert_eq!(p1.chunks[0].batches[0].schema(), schema_1_1);
+        assert_eq!(p1.chunks[0].batches[1].schema(), schema_1_1);
+        assert_eq!(p1.chunks[1].schema().as_arrow(), schema_1_2);
+        assert_eq!(p1.chunks[1].batches.len(), 1);
+        assert_eq!(p1.chunks[1].batches[0].schema(), schema_1_2);
 
         let p2 = &partitions[1];
         assert_eq!(p2.partition_id.get(), 2);
@@ -1262,8 +1413,10 @@ mod tests {
             p2.tombstone_max_sequence_number,
             Some(SequenceNumber::new(22))
         );
-        assert_eq!(p2.batches.len(), 1);
-        assert_eq!(p2.batches[0].schema(), schema().as_arrow());
+        assert_eq!(p2.chunks.len(), 1);
+        assert_eq!(p2.chunks[0].schema().as_arrow(), schema_2_1);
+        assert_eq!(p2.chunks[0].batches.len(), 1);
+        assert_eq!(p2.chunks[0].batches[0].schema(), schema_2_1);
 
         let p3 = &partitions[2];
         assert_eq!(p3.partition_id.get(), 3);
@@ -1276,8 +1429,10 @@ mod tests {
             p3.tombstone_max_sequence_number,
             Some(SequenceNumber::new(32))
         );
-        assert_eq!(p3.batches.len(), 1);
-        assert_eq!(p3.batches[0].schema(), schema().as_arrow());
+        assert_eq!(p3.chunks.len(), 1);
+        assert_eq!(p3.chunks[0].schema().as_arrow(), schema_3_1);
+        assert_eq!(p3.chunks[0].batches.len(), 1);
+        assert_eq!(p3.chunks[0].batches[0].schema(), schema_3_1);
     }
 
     #[tokio::test]
@@ -1470,22 +1625,19 @@ mod tests {
             let parquet_max_sequence_number = None;
             let tombstone_max_sequence_number = None;
             // Construct a partition and ensure it doesn't error
-            let ingester_partition = IngesterPartition::try_new(
+            let ingester_partition = IngesterPartition::new(
                 "ingester".into(),
-                ChunkId::new(),
-                "ns".into(),
                 "table".into(),
                 PartitionId::new(1),
                 SequencerId::new(1),
-                Arc::clone(&expected_schema),
                 parquet_max_sequence_number,
                 tombstone_max_sequence_number,
                 Arc::new(None),
-                vec![case],
             )
+            .try_add_chunk(ChunkId::new(), Arc::clone(&expected_schema), vec![case])
             .unwrap();
 
-            for batch in &ingester_partition.batches {
+            for batch in &ingester_partition.chunks[0].batches {
                 assert_eq!(batch.schema(), expected_schema.as_arrow());
             }
         }
@@ -1506,60 +1658,19 @@ mod tests {
 
         let parquet_max_sequence_number = None;
         let tombstone_max_sequence_number = None;
-        let err = IngesterPartition::try_new(
+        let err = IngesterPartition::new(
             "ingester".into(),
-            ChunkId::new(),
-            "ns".into(),
             "table".into(),
             PartitionId::new(1),
             SequencerId::new(1),
-            Arc::clone(&expected_schema),
             parquet_max_sequence_number,
             tombstone_max_sequence_number,
             Arc::new(None),
-            vec![batch],
         )
+        .try_add_chunk(ChunkId::new(), Arc::clone(&expected_schema), vec![batch])
         .unwrap_err();
 
         assert_matches!(err, Error::RecordBatchType { .. });
-    }
-
-    #[test]
-    fn test_ingester_partition_null_column() {
-        let expected_schema = Arc::new(
-            SchemaBuilder::new()
-                .field("b", DataType::Boolean)
-                .timestamp()
-                .build()
-                .unwrap(),
-        );
-
-        let batch = RecordBatch::try_from_iter(vec![("time", ts_array())]).unwrap();
-
-        let parquet_max_sequence_number = None;
-        let tombstone_max_sequence_number = None;
-        let ingester_partition = IngesterPartition::try_new(
-            "ingester".into(),
-            ChunkId::new(),
-            "ns".into(),
-            "table".into(),
-            PartitionId::new(1),
-            SequencerId::new(1),
-            Arc::clone(&expected_schema),
-            parquet_max_sequence_number,
-            tombstone_max_sequence_number,
-            Arc::new(None),
-            vec![batch],
-        )
-        .unwrap();
-
-        assert_eq!(ingester_partition.batches.len(), 1);
-        let batch = &ingester_partition.batches[0];
-        assert_eq!(batch.column(0).data_type(), &DataType::Boolean);
-        assert!(arrow::compute::is_null(batch.column(0))
-            .unwrap()
-            .into_iter()
-            .all(|x| x.unwrap()));
     }
 
     fn ts_array() -> ArrayRef {

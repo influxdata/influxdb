@@ -15,6 +15,7 @@ use std::{
 use crate::{
     cache::parquet_file::CachedParquetFiles,
     chunk::{ChunkAdapter, QuerierParquetChunk, QuerierRBChunk},
+    ingester::IngesterChunk,
     tombstone::QuerierTombstone,
     IngesterPartition,
 };
@@ -203,7 +204,7 @@ impl Reconciler {
         //   ingester
         ingester_partitions
             .into_iter()
-            .filter(|c| c.has_batches())
+            .flat_map(|c| c.into_chunks().into_iter())
             .map(|c| Box::new(c) as Box<dyn UpdatableQuerierChunk>)
     }
 
@@ -304,7 +305,7 @@ impl UpdatableQuerierChunk for QuerierRBChunk {
     }
 }
 
-impl UpdatableQuerierChunk for IngesterPartition {
+impl UpdatableQuerierChunk for IngesterChunk {
     fn update_partition_sort_key(
         self: Box<Self>,
         sort_key: Arc<Option<SortKey>>,
