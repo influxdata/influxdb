@@ -11,12 +11,13 @@ use cache_system::{
     cache::{driver::CacheDriver, metrics::CacheWithMetrics, Cache},
     loader::{metrics::MetricsLoader, FunctionLoader},
 };
-use data_types::ParquetFileId;
+use data_types::{ParquetFile, ParquetFileId};
 use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::StreamExt;
 use iox_time::TimeProvider;
-use parquet_file::{chunk::DecodedParquetFile, storage::ParquetStorage, ParquetFilePath};
+use parquet_file::{storage::ParquetStorage, ParquetFilePath};
 use read_buffer::{ChunkMetrics, RBChunk};
+use schema::Schema;
 use snafu::{ResultExt, Snafu};
 use std::{collections::HashMap, mem, sync::Arc};
 
@@ -24,7 +25,8 @@ const CACHE_ID: &str = "read_buffer";
 
 #[derive(Debug)]
 struct ExtraFetchInfo {
-    decoded_parquet_file: Arc<DecodedParquetFile>,
+    parquet_file: Arc<ParquetFile>,
+    schema: Arc<Schema>,
     store: ParquetStorage,
 }
 
@@ -56,13 +58,13 @@ impl ReadBufferCache {
                 async move {
                     let rb_chunk = Backoff::new(&backoff_config)
                         .retry_all_errors("get read buffer chunk from parquet file", || {
-                            let decoded_parquet_file_for_load =
-                                Arc::clone(&extra_fetch_info.decoded_parquet_file);
+                            let schema_for_load = Arc::clone(&extra_fetch_info.schema);
                             let store_for_load = extra_fetch_info.store.clone();
 
                             async {
                                 load_from_parquet_file(
-                                    decoded_parquet_file_for_load,
+                                    &extra_fetch_info.parquet_file,
+                                    schema_for_load,
                                     store_for_load,
                                     &metric_registry,
                                 )
@@ -113,14 +115,16 @@ impl ReadBufferCache {
     /// Get read buffer chunks from the cache or the Parquet file
     pub async fn get(
         &self,
-        decoded_parquet_file: Arc<DecodedParquetFile>,
+        parquet_file: Arc<ParquetFile>,
+        schema: Arc<Schema>,
         store: ParquetStorage,
     ) -> Arc<RBChunk> {
         self.cache
             .get(
-                decoded_parquet_file.parquet_file_id(),
+                parquet_file.id,
                 ExtraFetchInfo {
-                    decoded_parquet_file,
+                    parquet_file,
+                    schema,
                     store,
                 },
             )
@@ -140,24 +144,23 @@ enum LoadError {
 }
 
 async fn load_from_parquet_file(
-    decoded_parquet_file: Arc<DecodedParquetFile>,
+    parquet_file: &ParquetFile,
+    schema: Arc<Schema>,
     store: ParquetStorage,
     metric_registry: &metric::Registry,
 ) -> Result<RBChunk, LoadError> {
     let record_batch_stream =
-        record_batches_stream(decoded_parquet_file, store).context(ReadingFromStorageSnafu)?;
+        record_batches_stream(parquet_file, schema, store).context(ReadingFromStorageSnafu)?;
     read_buffer_chunk_from_stream(record_batch_stream, metric_registry)
         .await
         .context(BuildingChunkSnafu)
 }
 
 fn record_batches_stream(
-    decoded_parquet_file: Arc<DecodedParquetFile>,
+    parquet_file: &ParquetFile,
+    schema: Arc<Schema>,
     store: ParquetStorage,
 ) -> Result<SendableRecordBatchStream, parquet_file::storage::ReadError> {
-    let schema = decoded_parquet_file.schema().as_arrow();
-
-    let parquet_file = &decoded_parquet_file.parquet_file;
     let path = ParquetFilePath::new(
         parquet_file.namespace_id,
         parquet_file.table_id,
@@ -166,7 +169,7 @@ fn record_batches_stream(
         parquet_file.object_store_id,
     );
 
-    store.read_all(schema, &path)
+    store.read_all(schema.as_arrow(), &path)
 }
 
 #[derive(Debug, Snafu)]
@@ -244,13 +247,19 @@ mod tests {
         let (catalog, partition) = make_catalog().await;
 
         let test_parquet_file = partition.create_parquet_file("table1 foo=1 11").await;
-        let parquet_file = test_parquet_file.parquet_file;
-        let decoded = Arc::new(DecodedParquetFile::new(parquet_file));
+        let schema = test_parquet_file.schema();
+        let parquet_file = Arc::new(test_parquet_file.parquet_file_no_metadata());
         let storage = ParquetStorage::new(Arc::clone(&catalog.object_store));
 
         let cache = make_cache(&catalog);
 
-        let rb = cache.get(Arc::clone(&decoded), storage.clone()).await;
+        let rb = cache
+            .get(
+                Arc::clone(&parquet_file),
+                Arc::clone(&schema),
+                storage.clone(),
+            )
+            .await;
 
         let rb_batches: Vec<RecordBatch> = rb
             .read_filter(Predicate::default(), Selection::All, vec![])
@@ -268,7 +277,7 @@ mod tests {
         assert_batches_eq!(expected, &rb_batches);
 
         // This should fetch from the cache
-        let _rb_again = cache.get(decoded, storage).await;
+        let _rb_again = cache.get(parquet_file, schema, storage).await;
 
         let m: Metric<U64Counter> = catalog
             .metric_registry
@@ -290,7 +299,8 @@ mod tests {
     async fn test_rb_chunks_lru() {
         let (catalog, _partition) = make_catalog().await;
 
-        let mut decoded_parquet_files = Vec::with_capacity(3);
+        let mut parquet_files = Vec::with_capacity(3);
+        let mut schemas = Vec::with_capacity(3);
         let ns = catalog.create_namespace("lru_ns").await;
 
         for i in 1..=3 {
@@ -306,8 +316,10 @@ mod tests {
             let test_parquet_file = partition
                 .create_parquet_file(&format!("{table_name} foo=1 11"))
                 .await;
-            let parquet_file = test_parquet_file.parquet_file;
-            decoded_parquet_files.push(Arc::new(DecodedParquetFile::new(parquet_file)));
+            let schema = test_parquet_file.schema();
+            let parquet_file = Arc::new(test_parquet_file.parquet_file_no_metadata());
+            parquet_files.push(parquet_file);
+            schemas.push(schema);
         }
 
         let storage = ParquetStorage::new(Arc::clone(&catalog.object_store));
@@ -328,43 +340,71 @@ mod tests {
 
         // load 1: Fetch table1 from storage
         cache
-            .get(Arc::clone(&decoded_parquet_files[0]), storage.clone())
+            .get(
+                Arc::clone(&parquet_files[0]),
+                Arc::clone(&schemas[0]),
+                storage.clone(),
+            )
             .await;
         catalog.mock_time_provider().inc(Duration::from_millis(1));
 
         // load 2: Fetch table2 from storage
         cache
-            .get(Arc::clone(&decoded_parquet_files[1]), storage.clone())
+            .get(
+                Arc::clone(&parquet_files[1]),
+                Arc::clone(&schemas[1]),
+                storage.clone(),
+            )
             .await;
         catalog.mock_time_provider().inc(Duration::from_millis(1));
 
         // Fetch table1 from cache, which should update its last used
         cache
-            .get(Arc::clone(&decoded_parquet_files[0]), storage.clone())
+            .get(
+                Arc::clone(&parquet_files[0]),
+                Arc::clone(&schemas[0]),
+                storage.clone(),
+            )
             .await;
         catalog.mock_time_provider().inc(Duration::from_millis(1));
 
         // load 3: Fetch table3 from storage, which should evict table2
         cache
-            .get(Arc::clone(&decoded_parquet_files[2]), storage.clone())
+            .get(
+                Arc::clone(&parquet_files[2]),
+                Arc::clone(&schemas[2]),
+                storage.clone(),
+            )
             .await;
         catalog.mock_time_provider().inc(Duration::from_millis(1));
 
         // load 4: Fetch table2, which will be from storage again, and will evict table1
         cache
-            .get(Arc::clone(&decoded_parquet_files[1]), storage.clone())
+            .get(
+                Arc::clone(&parquet_files[1]),
+                Arc::clone(&schemas[1]),
+                storage.clone(),
+            )
             .await;
         catalog.mock_time_provider().inc(Duration::from_millis(1));
 
         // Fetch table2 from cache
         cache
-            .get(Arc::clone(&decoded_parquet_files[1]), storage.clone())
+            .get(
+                Arc::clone(&parquet_files[1]),
+                Arc::clone(&schemas[1]),
+                storage.clone(),
+            )
             .await;
         catalog.mock_time_provider().inc(Duration::from_millis(1));
 
         // Fetch table3 from cache
         cache
-            .get(Arc::clone(&decoded_parquet_files[2]), storage.clone())
+            .get(
+                Arc::clone(&parquet_files[2]),
+                Arc::clone(&schemas[2]),
+                storage.clone(),
+            )
             .await;
 
         let m: Metric<U64Counter> = catalog
@@ -436,13 +476,13 @@ mod tests {
         let (catalog, partition) = make_catalog().await;
 
         let test_parquet_file = partition.create_parquet_file("table1 foo=1 11").await;
-        let parquet_file = test_parquet_file.parquet_file;
-        let decoded = Arc::new(DecodedParquetFile::new(parquet_file));
+        let schema = test_parquet_file.schema();
+        let parquet_file = Arc::new(test_parquet_file.parquet_file_no_metadata());
         let storage = ParquetStorage::new(Arc::clone(&catalog.object_store));
 
         let cache = make_cache(&catalog);
 
-        let _rb = cache.get(Arc::clone(&decoded), storage.clone()).await;
+        let _rb = cache.get(parquet_file, schema, storage.clone()).await;
 
         let g: Metric<CumulativeGauge> = catalog
             .metric_registry

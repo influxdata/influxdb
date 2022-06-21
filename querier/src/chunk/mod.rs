@@ -399,7 +399,11 @@ impl ChunkAdapter {
         let rb_chunk = self
             .catalog_cache()
             .read_buffer()
-            .get(Arc::clone(&decoded_parquet_file), self.store.clone())
+            .get(
+                Arc::new(decoded_parquet_file.parquet_file.clone()),
+                Arc::clone(&schema),
+                self.store.clone(),
+            )
             .await;
 
         let order = ChunkOrder::new(decoded_parquet_file.min_sequence_number().get())

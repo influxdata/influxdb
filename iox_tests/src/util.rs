@@ -19,7 +19,7 @@ use iox_time::{MockProvider, Time, TimeProvider};
 use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
 use object_store::{memory::InMemory, DynObjectStore};
 use observability_deps::tracing::debug;
-use parquet_file::{metadata::IoxMetadata, storage::ParquetStorage};
+use parquet_file::{chunk::DecodedParquetFile, metadata::IoxMetadata, storage::ParquetStorage};
 use schema::{
     selection::Selection,
     sort::{adjust_sort_key_columns, SortKey, SortKeyBuilder},
@@ -720,6 +720,11 @@ impl TestParquetFile {
     /// When only the ParquetFile is needed without the metadata, use this instead of the field
     pub fn parquet_file_no_metadata(self) -> ParquetFile {
         self.parquet_file.split_off_metadata().0
+    }
+
+    /// Get Parquet file schema.
+    pub fn schema(&self) -> Arc<Schema> {
+        DecodedParquetFile::new(self.parquet_file.clone()).schema()
     }
 }
 
