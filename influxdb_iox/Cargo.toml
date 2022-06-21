@@ -62,7 +62,6 @@ tonic = "0.7"
 uuid = { version = "1", features = ["v4"] }
 # jemalloc-sys with unprefixed_malloc_on_supported_platforms feature and heappy are mutually exclusive
 tikv-jemalloc-sys = { version = "0.4.0", optional = true, features = ["unprefixed_malloc_on_supported_platforms"] }
-heappy = { git = "https://github.com/mkmik/heappy", rev = "5d47dff152b8430e1dc1aea5a54c91c0c3099219", features = ["enable_heap_profiler", "jemalloc_shim", "measure_free"], optional = true }
 workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]
@@ -82,6 +81,7 @@ azure = ["clap_blocks/azure"] # Optional Azure Object store support
 gcp = ["clap_blocks/gcp"] # Optional GCP object store support
 aws = ["clap_blocks/aws"] # Optional AWS / S3 object store support
 pprof = ["ioxd_common/pprof"] # Optional http://localhost:8080/debug/pprof/profile support
+heappy = ["ioxd_common/heappy"] # Optional http://localhost:8080/debug/pproc/alloc support
 
 # Enable tokio_console support (https://github.com/tokio-rs/console)
 #
