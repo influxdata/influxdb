@@ -5,9 +5,9 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use data_types::{
-    Column, ColumnType, KafkaPartition, KafkaTopic, Namespace, ParquetFile, ParquetFileId,
-    ParquetFileParams, ParquetFileWithMetadata, Partition, PartitionId, QueryPool, SequenceNumber,
-    Sequencer, SequencerId, Table, TableId, Timestamp, Tombstone, TombstoneId,
+    Column, ColumnSet, ColumnType, KafkaPartition, KafkaTopic, Namespace, ParquetFile,
+    ParquetFileId, ParquetFileParams, ParquetFileWithMetadata, Partition, PartitionId, QueryPool,
+    SequenceNumber, Sequencer, SequencerId, Table, TableId, Timestamp, Tombstone, TombstoneId,
 };
 use datafusion::physical_plan::metrics::Count;
 use iox_catalog::{
@@ -590,6 +590,7 @@ impl TestPartition {
             row_count: row_count as i64,
             created_at: Timestamp::new(creation_time),
             compaction_level: INITIAL_COMPACTION_LEVEL,
+            column_set: ColumnSet::new(["col1", "col2"]),
         };
         let parquet_file = repos
             .parquet_files()

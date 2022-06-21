@@ -951,6 +951,7 @@ impl ParquetFileRepo for MemTxn {
             row_count,
             compaction_level,
             created_at,
+            column_set,
         } = parquet_file_params;
 
         if stage
@@ -977,6 +978,7 @@ impl ParquetFileRepo for MemTxn {
             file_size_bytes,
             compaction_level,
             created_at,
+            column_set,
         };
 
         stage
@@ -984,7 +986,7 @@ impl ParquetFileRepo for MemTxn {
             .insert(parquet_file.id, parquet_metadata);
 
         stage.parquet_files.push(parquet_file);
-        Ok(*stage.parquet_files.last().unwrap())
+        Ok(stage.parquet_files.last().unwrap().clone())
     }
 
     async fn flag_for_delete(&mut self, id: ParquetFileId) -> Result<()> {
@@ -1059,11 +1061,13 @@ impl ParquetFileRepo for MemTxn {
             .filter(|f| table_id == f.table_id && f.to_delete.is_none())
             .cloned()
             .map(|f| {
+                let parquet_file_id = f.id;
+
                 ParquetFileWithMetadata::new(
                     f,
                     stage
                         .parquet_file_metadata
-                        .get(&f.id)
+                        .get(&parquet_file_id)
                         .cloned()
                         .unwrap_or_default(),
                 )
@@ -1151,11 +1155,13 @@ impl ParquetFileRepo for MemTxn {
             .filter(|f| f.partition_id == partition_id && f.to_delete.is_none())
             .cloned()
             .map(|f| {
+                let parquet_file_id = f.id;
+
                 ParquetFileWithMetadata::new(
                     f,
                     stage
                         .parquet_file_metadata
-                        .get(&f.id)
+                        .get(&parquet_file_id)
                         .cloned()
                         .unwrap_or_default(),
                 )

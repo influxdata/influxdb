@@ -1104,7 +1104,9 @@ pub struct PartitionCompactionCandidate {
 mod tests {
     use super::*;
     use arrow_util::assert_batches_sorted_eq;
-    use data_types::{ChunkId, KafkaPartition, NamespaceId, ParquetFileParams, SequenceNumber};
+    use data_types::{
+        ChunkId, ColumnSet, KafkaPartition, NamespaceId, ParquetFileParams, SequenceNumber,
+    };
     use futures::{stream::FuturesOrdered, StreamExt, TryStreamExt};
     use iox_catalog::interface::INITIAL_COMPACTION_LEVEL;
     use iox_tests::util::TestCatalog;
@@ -1959,6 +1961,7 @@ mod tests {
             row_count: 0,
             compaction_level: INITIAL_COMPACTION_LEVEL, // level of file of new writes
             created_at: Timestamp::new(1),
+            column_set: ColumnSet::new(["col1", "col2"]),
         }
     }
 
@@ -2609,6 +2612,7 @@ mod tests {
             row_count: 0,
             created_at: Timestamp::new(1),
             compaction_level: INITIAL_COMPACTION_LEVEL,
+            column_set: ColumnSet::new(["col1", "col2"]),
         };
 
         let p2 = ParquetFileParams {
@@ -2869,8 +2873,8 @@ mod tests {
             parquet_metadata: b"md1".to_vec(),
             compaction_level: INITIAL_COMPACTION_LEVEL, // level of file of new writes
             row_count: 0,
-
             created_at: Timestamp::new(1),
+            column_set: ColumnSet::new(["col1", "col2"]),
         };
         let other_parquet = ParquetFileParams {
             object_store_id: Uuid::new_v4(),
@@ -3052,6 +3056,7 @@ mod tests {
             row_count: 0,
             compaction_level: INITIAL_COMPACTION_LEVEL, // level of file of new writes
             created_at: Timestamp::new(1),
+            column_set: ColumnSet::new(["col1", "col2"]),
         };
 
         let p2 = ParquetFileParams {

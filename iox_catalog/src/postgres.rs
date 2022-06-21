@@ -1469,6 +1469,7 @@ impl ParquetFileRepo for PostgresTxn {
             row_count,
             compaction_level,
             created_at,
+            column_set,
         } = parquet_file_params;
 
         let rec = sqlx::query_as::<_, ParquetFile>(
@@ -1476,8 +1477,8 @@ impl ParquetFileRepo for PostgresTxn {
 INSERT INTO parquet_file (
     sequencer_id, table_id, partition_id, object_store_id, min_sequence_number,
     max_sequence_number, min_time, max_time, file_size_bytes, parquet_metadata,
-    row_count, compaction_level, created_at, namespace_id )
-VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14 )
+    row_count, compaction_level, created_at, namespace_id, column_set )
+VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15 )
 RETURNING *;
         "#,
         )
@@ -1495,6 +1496,7 @@ RETURNING *;
         .bind(compaction_level) // $12
         .bind(created_at) // $13
         .bind(namespace_id) // $14
+        .bind(column_set) // $15
         .fetch_one(&mut self.inner)
         .await
         .map_err(|e| {
@@ -1534,7 +1536,7 @@ RETURNING *;
             r#"
 SELECT id, sequencer_id, namespace_id, table_id, partition_id, object_store_id,
        min_sequence_number, max_sequence_number, min_time, max_time, to_delete, file_size_bytes,
-       row_count, compaction_level, created_at
+       row_count, compaction_level, created_at, column_set
 FROM parquet_file
 WHERE sequencer_id = $1
   AND max_sequence_number > $2
@@ -1560,7 +1562,7 @@ SELECT parquet_file.id, parquet_file.sequencer_id, parquet_file.namespace_id,
        parquet_file.table_id, parquet_file.partition_id, parquet_file.object_store_id,
        parquet_file.min_sequence_number, parquet_file.max_sequence_number, parquet_file.min_time,
        parquet_file.max_time, parquet_file.to_delete, parquet_file.file_size_bytes,
-       parquet_file.row_count, parquet_file.compaction_level, parquet_file.created_at
+       parquet_file.row_count, parquet_file.compaction_level, parquet_file.created_at, parquet_file.column_set
 FROM parquet_file
 INNER JOIN table_name on table_name.id = parquet_file.table_id
 WHERE table_name.namespace_id = $1
@@ -1580,7 +1582,7 @@ WHERE table_name.namespace_id = $1
             r#"
 SELECT id, sequencer_id, namespace_id, table_id, partition_id, object_store_id,
        min_sequence_number, max_sequence_number, min_time, max_time, to_delete, file_size_bytes,
-       row_count, compaction_level, created_at
+       row_count, compaction_level, created_at, column_set
 FROM parquet_file
 WHERE table_id = $1 AND to_delete IS NULL;
              "#,
@@ -1632,7 +1634,7 @@ RETURNING *;
             r#"
 SELECT id, sequencer_id, namespace_id, table_id, partition_id, object_store_id,
        min_sequence_number, max_sequence_number, min_time, max_time, to_delete, file_size_bytes,
-       row_count, compaction_level, created_at
+       row_count, compaction_level, created_at, column_set
 FROM parquet_file
 WHERE parquet_file.sequencer_id = $1
   AND parquet_file.compaction_level = 0
@@ -1658,7 +1660,7 @@ WHERE parquet_file.sequencer_id = $1
             r#"
 SELECT id, sequencer_id, namespace_id, table_id, partition_id, object_store_id,
        min_sequence_number, max_sequence_number, min_time, max_time, to_delete, file_size_bytes,
-       row_count, compaction_level, created_at
+       row_count, compaction_level, created_at, column_set
 FROM parquet_file
 WHERE parquet_file.sequencer_id = $1
   AND parquet_file.table_id = $2
@@ -1689,7 +1691,7 @@ WHERE parquet_file.sequencer_id = $1
             r#"
 SELECT id, sequencer_id, namespace_id, table_id, partition_id, object_store_id,
        min_sequence_number, max_sequence_number, min_time, max_time, to_delete, file_size_bytes,
-       row_count, compaction_level, created_at
+       row_count, compaction_level, created_at, column_set
 FROM parquet_file
 WHERE parquet_file.partition_id = $1
   AND parquet_file.to_delete IS NULL;
@@ -1818,7 +1820,7 @@ WHERE table_id = $1
             r#"
 SELECT id, sequencer_id, namespace_id, table_id, partition_id, object_store_id,
        min_sequence_number, max_sequence_number, min_time, max_time, to_delete, file_size_bytes,
-       row_count, compaction_level, created_at
+       row_count, compaction_level, created_at, column_set
 FROM parquet_file
 WHERE object_store_id = $1;
              "#,

@@ -804,8 +804,51 @@ impl Tombstone {
     }
 }
 
+/// Set of columns.
+#[derive(Debug, Clone, PartialEq, sqlx::Type)]
+#[sqlx(transparent)]
+pub struct ColumnSet(Vec<String>);
+
+impl ColumnSet {
+    /// Create new column set.
+    ///
+    /// The order of the passed columns will NOT be preserved.
+    ///
+    /// # Panic
+    /// Panics when the set of passed columns contains duplicates.
+    pub fn new<T, I>(columns: I) -> Self
+    where
+        T: Into<String>,
+        I: IntoIterator<Item = T>,
+    {
+        let mut columns: Vec<String> = columns.into_iter().map(|c| c.into()).collect();
+        columns.sort();
+
+        let len_pre_dedup = columns.len();
+        columns.dedup();
+        let len_post_dedup = columns.len();
+        assert_eq!(len_pre_dedup, len_post_dedup, "set contains duplicates");
+
+        Self(columns)
+    }
+}
+
+impl From<ColumnSet> for Vec<String> {
+    fn from(set: ColumnSet) -> Self {
+        set.0
+    }
+}
+
+impl Deref for ColumnSet {
+    type Target = [String];
+
+    fn deref(&self) -> &Self::Target {
+        self.0.deref()
+    }
+}
+
 /// Data for a parquet file reference that has been inserted in the catalog.
-#[derive(Debug, Clone, Copy, PartialEq, sqlx::FromRow)]
+#[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct ParquetFile {
     /// the id of the file in the catalog
     pub id: ParquetFileId,
@@ -837,6 +880,21 @@ pub struct ParquetFile {
     pub compaction_level: i16,
     /// the creation time of the parquet file
     pub created_at: Timestamp,
+    /// Set of columns within this parquet file.
+    ///
+    /// # Relation to Table-wide Column Set
+    /// Columns within this set may or may not be part of the table-wide schema.
+    ///
+    /// Columns that are NOT part of the table-wide schema must be ignored. It is likely that these
+    /// columns were originally part of the table but were later removed.
+    ///
+    /// # Column Types
+    /// Column types are identical to the table-wide types.
+    ///
+    /// # Column Order & Sort Key
+    /// The columns that are present in the table-wide schema are sorted according to the partition
+    /// sort key. The occur in the parquet file according to this order.
+    pub column_set: ColumnSet,
 }
 
 impl ParquetFile {
@@ -883,6 +941,10 @@ pub struct ParquetFileWithMetadata {
     pub compaction_level: i16,
     /// the creation time of the parquet file
     pub created_at: Timestamp,
+    /// Set of columns within this parquet file.
+    ///
+    /// See [`ParquetFile::column_set`].
+    pub column_set: ColumnSet,
 }
 
 impl ParquetFileWithMetadata {
@@ -905,6 +967,7 @@ impl ParquetFileWithMetadata {
             row_count,
             compaction_level,
             created_at,
+            column_set: columns,
         } = parquet_file;
 
         Self {
@@ -924,6 +987,7 @@ impl ParquetFileWithMetadata {
             row_count,
             compaction_level,
             created_at,
+            column_set: columns,
         }
     }
 
@@ -947,6 +1011,7 @@ impl ParquetFileWithMetadata {
             row_count,
             compaction_level,
             created_at,
+            column_set: columns,
         } = self;
 
         (
@@ -966,6 +1031,7 @@ impl ParquetFileWithMetadata {
                 row_count,
                 compaction_level,
                 created_at,
+                column_set: columns,
             },
             parquet_metadata,
         )
@@ -1003,6 +1069,8 @@ pub struct ParquetFileParams {
     pub compaction_level: i16,
     /// the creation time of the parquet file
     pub created_at: Timestamp,
+    /// columns in this file.
+    pub column_set: ColumnSet,
 }
 
 /// Data for a processed tombstone reference in the catalog.
@@ -3235,5 +3303,11 @@ mod tests {
     #[should_panic = "timestamp wraparound"]
     fn test_timestamp_wraparound_panic_sub_timestamp() {
         let _ = Timestamp::new(i64::MIN) - Timestamp::new(1);
+    }
+
+    #[test]
+    #[should_panic = "set contains duplicates"]
+    fn test_column_set_duplicates() {
+        ColumnSet::new(["foo", "bar", "foo"]);
     }
 }

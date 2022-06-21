@@ -33,4 +33,6 @@ message ParquetFile {
     int32 compaction_level = 14;
     // the creation timestamp of the parquet file
     int64 created_at = 15;
+    // Set of columns within this parquet file.
+    repeated string column_set = 16;
 }

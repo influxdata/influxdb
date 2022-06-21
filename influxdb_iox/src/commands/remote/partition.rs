@@ -4,7 +4,7 @@ use bytes::Bytes;
 use clap_blocks::object_store::{make_object_store, ObjectStoreType};
 use clap_blocks::{catalog_dsn::CatalogDsnConfig, object_store::ObjectStoreConfig};
 use data_types::{
-    ColumnType, KafkaPartition, NamespaceId, NamespaceSchema as CatalogNamespaceSchema,
+    ColumnSet, ColumnType, KafkaPartition, NamespaceId, NamespaceSchema as CatalogNamespaceSchema,
     ParquetFile as CatalogParquetFile, ParquetFileParams, PartitionId, SequenceNumber, SequencerId,
     TableId, Timestamp,
 };
@@ -364,6 +364,7 @@ async fn load_parquet_files(
                     row_count: p.row_count,
                     compaction_level: p.compaction_level as i16,
                     created_at: Timestamp::new(p.created_at),
+                    column_set: ColumnSet::new(p.column_set),
                 };
 
                 repos.parquet_files().create(params).await?
@@ -583,6 +584,7 @@ mod tests {
                 row_count,
                 compaction_level: 0,
                 created_at: created_at.get(),
+                column_set: vec!["col1".into(), "col2".into()],
             }],
         )
         .await
@@ -607,6 +609,7 @@ mod tests {
             row_count,
             compaction_level: 0,
             created_at,
+            column_set: ColumnSet::new(["col1", "col2"]),
         }];
         assert_eq!(expected, files);
     }

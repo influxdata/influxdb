@@ -88,8 +88,8 @@
 //! [Thrift Compact Protocol]: https://github.com/apache/thrift/blob/master/doc/specs/thrift-compact-protocol.md
 use bytes::Bytes;
 use data_types::{
-    ColumnSummary, InfluxDbType, NamespaceId, ParquetFileParams, PartitionId, PartitionKey,
-    SequenceNumber, SequencerId, StatValues, Statistics, TableId, Timestamp,
+    ColumnSet, ColumnSummary, InfluxDbType, NamespaceId, ParquetFileParams, PartitionId,
+    PartitionKey, SequenceNumber, SequencerId, StatValues, Statistics, TableId, Timestamp,
 };
 use generated_types::influxdata::iox::ingester::v1 as proto;
 use iox_time::Time;
@@ -406,9 +406,11 @@ impl IoxMetadata {
         let schema = decoded
             .read_schema()
             .expect("failed to read encoded schema");
-        let time_summary = decoded
+        let stats = decoded
             .read_statistics(&*schema)
-            .expect("invalid statistics")
+            .expect("invalid statistics");
+        let columns: Vec<String> = stats.iter().map(|v| v.name.clone()).collect();
+        let time_summary = stats
             .into_iter()
             .find(|v| v.name == TIME_COLUMN_NAME)
             .expect("no time column in metadata statistics");
@@ -441,6 +443,7 @@ impl IoxMetadata {
             compaction_level: self.compaction_level,
             row_count: row_count.try_into().expect("row count overflows i64"),
             created_at: Timestamp::new(self.creation_timestamp.timestamp_nanos()),
+            column_set: ColumnSet::new(columns),
         }
     }
 

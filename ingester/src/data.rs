@@ -1685,7 +1685,7 @@ mod tests {
     use arrow_util::assert_batches_sorted_eq;
     use assert_matches::assert_matches;
     use data_types::{
-        NamespaceSchema, NonEmptyString, ParquetFileParams, Sequence, TimestampRange,
+        ColumnSet, NamespaceSchema, NonEmptyString, ParquetFileParams, Sequence, TimestampRange,
     };
     use datafusion::physical_plan::RecordBatchStream;
     use dml::{DmlDelete, DmlMeta, DmlWrite};
@@ -2527,6 +2527,7 @@ mod tests {
             row_count: 0,
             compaction_level: INITIAL_COMPACTION_LEVEL,
             created_at: Timestamp::new(1),
+            column_set: ColumnSet::new(["col1", "col2"]),
         };
         repos
             .parquet_files()
