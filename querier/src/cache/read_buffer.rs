@@ -15,7 +15,7 @@ use data_types::ParquetFileId;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::StreamExt;
 use iox_time::TimeProvider;
-use parquet_file::{chunk::DecodedParquetFile, storage::ParquetStorage};
+use parquet_file::{chunk::DecodedParquetFile, storage::ParquetStorage, ParquetFilePath};
 use read_buffer::{ChunkMetrics, RBChunk};
 use snafu::{ResultExt, Snafu};
 use std::{collections::HashMap, mem, sync::Arc};
@@ -162,9 +162,17 @@ fn record_batches_stream(
     store: ParquetStorage,
 ) -> Result<SendableRecordBatchStream, parquet_file::storage::ReadError> {
     let schema = decoded_parquet_file.schema().as_arrow();
-    let iox_metadata = &decoded_parquet_file.iox_metadata;
 
-    store.read_all(schema, iox_metadata)
+    let parquet_file = &decoded_parquet_file.parquet_file;
+    let path = ParquetFilePath::new(
+        parquet_file.namespace_id,
+        parquet_file.table_id,
+        parquet_file.sequencer_id,
+        parquet_file.partition_id,
+        parquet_file.object_store_id,
+    );
+
+    store.read_all(schema, &path)
 }
 
 #[derive(Debug, Snafu)]

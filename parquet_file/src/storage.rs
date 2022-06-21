@@ -163,9 +163,9 @@ impl ParquetStorage {
         _predicate: &Predicate,
         selection: Selection<'_>,
         schema: SchemaRef,
-        meta: &IoxMetadata,
+        path: &ParquetFilePath,
     ) -> Result<SendableRecordBatchStream, ReadError> {
-        let path = ParquetFilePath::from(meta).object_store_path();
+        let path = path.object_store_path();
         trace!(path=?path, "fetching parquet data for filtered read");
 
         // Indices of columns in the schema needed to read
@@ -212,9 +212,9 @@ impl ParquetStorage {
     pub fn read_all(
         &self,
         schema: SchemaRef,
-        meta: &IoxMetadata,
+        path: &ParquetFilePath,
     ) -> Result<SendableRecordBatchStream, ReadError> {
-        self.read_filter(&Predicate::default(), Selection::All, schema, meta)
+        self.read_filter(&Predicate::default(), Selection::All, schema, path)
     }
 }
 
@@ -341,8 +341,9 @@ mod tests {
         assert_eq!(got_iox_meta, meta);
 
         // Fetch the record batches and compare them to the input batches.
+        let path: ParquetFilePath = (&meta).into();
         let rx = store
-            .read_filter(&Predicate::default(), Selection::All, schema, &meta)
+            .read_filter(&Predicate::default(), Selection::All, schema, &path)
             .expect("should read record batches from object store");
 
         // Drain the retrieved record batch stream

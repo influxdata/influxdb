@@ -4,6 +4,7 @@
 use crate::{
     metadata::{DecodedIoxParquetMetaData, IoxMetadata, IoxParquetMetaData},
     storage::ParquetStorage,
+    ParquetFilePath,
 };
 use data_types::{
     ParquetFile, ParquetFileId, ParquetFileWithMetadata, PartitionId, SequenceNumber, SequencerId,
@@ -158,11 +159,12 @@ impl ParquetChunk {
         predicate: &Predicate,
         selection: Selection<'_>,
     ) -> Result<SendableRecordBatchStream, crate::storage::ReadError> {
+        let path: ParquetFilePath = (&self.iox_metadata).into();
         self.store.read_filter(
             predicate,
             selection,
             Arc::clone(&self.schema.as_arrow()),
-            &self.iox_metadata,
+            &path,
         )
     }
 
