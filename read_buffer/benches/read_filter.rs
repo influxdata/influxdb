@@ -18,7 +18,7 @@ pub fn read_filter(c: &mut Criterion) {
     let mut rng = rand::thread_rng();
 
     let row_group = generate_row_group(200_000, &mut rng);
-    let chunk = read_buffer::benchmarks::new_from_row_group("table", row_group);
+    let chunk = read_buffer::benchmarks::new_from_row_group(row_group);
 
     read_filter_no_pred_vary_proj(c, &chunk);
     read_filter_with_pred_vary_proj(c, &chunk);

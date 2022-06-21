@@ -39,7 +39,7 @@ pub mod benchmarks {
     use crate::{ChunkMetrics, RBChunk};
 
     // Allow external benchmarks to use this crate-only test method
-    pub fn new_from_row_group(table_name: impl Into<String>, row_group: RowGroup) -> RBChunk {
-        RBChunk::new_from_row_group(table_name, row_group, ChunkMetrics::new_unregistered())
+    pub fn new_from_row_group(row_group: RowGroup) -> RBChunk {
+        RBChunk::new_from_row_group(row_group, ChunkMetrics::new_unregistered())
     }
 }

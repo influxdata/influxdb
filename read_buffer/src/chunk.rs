@@ -29,23 +29,14 @@ pub enum Error {
     #[snafu(display("error generating schema for table: {}", source))]
     TableSchemaError { source: SchemaError },
 
-    #[snafu(display("table '{}' does not exist", table_name))]
-    TableNotFound { table_name: String },
+    #[snafu(display("no data to build chunk"))]
+    ChunkBuilderNoInput,
 
-    #[snafu(display("no data to build chunk for table '{}'", table_name))]
-    ChunkBuilderNoInput { table_name: String },
+    #[snafu(display("error building chunk: {}", source))]
+    ChunkBuilderError { source: arrow::error::ArrowError },
 
-    #[snafu(display("error building chunk for table '{}': {}", table_name, source))]
-    ChunkBuilderError {
-        table_name: String,
-        source: arrow::error::ArrowError,
-    },
-
-    #[snafu(display("column '{}' does not exist in table '{}'", column_name, table_name))]
-    ColumnDoesNotExist {
-        column_name: String,
-        table_name: String,
-    },
+    #[snafu(display("column '{}' does not exist", column_name))]
+    ColumnDoesNotExist { column_name: String },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -61,25 +52,20 @@ pub struct Chunk {
 
 impl Chunk {
     /// Start a new Chunk from the given record batch.
-    pub fn new(table_name: impl Into<String>, table_data: RecordBatch, metrics: Metrics) -> Self {
-        let table_name = table_name.into();
-        let row_group = record_batch_to_row_group(&table_name, table_data);
+    pub fn new(table_data: RecordBatch, metrics: Metrics) -> Self {
+        let row_group = record_batch_to_row_group(table_data);
 
-        Self::new_from_row_group(table_name, row_group, metrics)
+        Self::new_from_row_group(row_group, metrics)
     }
 
     // Only used in tests and benchmarks
-    pub(crate) fn new_from_row_group(
-        table_name: impl Into<String>,
-        row_group: RowGroup,
-        mut metrics: Metrics,
-    ) -> Self {
+    pub(crate) fn new_from_row_group(row_group: RowGroup, mut metrics: Metrics) -> Self {
         let storage_statistics = row_group.column_storage_statistics();
         metrics.update_column_storage_statistics(&storage_statistics);
 
         Self {
             metrics,
-            table: Table::with_row_group(table_name, row_group),
+            table: Table::with_row_group(row_group),
         }
     }
 
@@ -135,9 +121,7 @@ impl Chunk {
     /// The data is converted to a `RowGroup` outside of any locking so the
     /// caller does not need to be concerned about the size of the update.
     pub fn upsert_table(&mut self, table_data: RecordBatch) {
-        let table_name = self.table.name();
-
-        let row_group = record_batch_to_row_group(table_name, table_data);
+        let row_group = record_batch_to_row_group(table_data);
 
         self.upsert_table_with_row_group(row_group)
     }
@@ -263,7 +247,6 @@ impl Chunk {
                 if !table_meta.has_column(column_name) {
                     return ColumnDoesNotExistSnafu {
                         column_name: column_name.to_string(),
-                        table_name: self.table.name().to_owned(),
                     }
                     .fail();
                 }
@@ -343,11 +326,11 @@ impl Chunk {
     }
 }
 
-fn record_batch_to_row_group(table_name: &str, rb: RecordBatch) -> RowGroup {
+fn record_batch_to_row_group(rb: RecordBatch) -> RowGroup {
     let now = std::time::Instant::now();
     let row_group = RowGroup::from(rb);
     debug!(rows=row_group.rows(), columns=row_group.columns(), size_bytes=row_group.size(),
-        raw_size_null=row_group.size_raw(true), raw_size_no_null=row_group.size_raw(true), table_name=?table_name, compressing_took=?now.elapsed(), "row group added");
+        raw_size_null=row_group.size_raw(true), raw_size_no_null=row_group.size_raw(true), compressing_took=?now.elapsed(), "row group added");
     row_group
 }
 
@@ -362,7 +345,6 @@ impl std::fmt::Debug for Chunk {
 /// count is met, reducing the overall memory footprint during the building
 /// phase.
 pub struct ChunkBuilder {
-    table_name: String,
     schema: arrow::datatypes::SchemaRef,
 
     current_rows: usize, // current total rows of below vec
@@ -374,9 +356,8 @@ pub struct ChunkBuilder {
 }
 
 impl ChunkBuilder {
-    pub fn new(table_name: impl Into<String>, schema: arrow::datatypes::SchemaRef) -> Self {
+    pub fn new(schema: arrow::datatypes::SchemaRef) -> Self {
         Self {
-            table_name: table_name.into(),
             schema,
             current_rows: 0,
             record_batches: vec![],
@@ -430,7 +411,7 @@ impl ChunkBuilder {
             arrow::record_batch::RecordBatch::concat(&self.schema, &self.record_batches)?;
 
         self.row_groups
-            .push(record_batch_to_row_group(&self.table_name, concat_batch));
+            .push(record_batch_to_row_group(concat_batch));
 
         // clear pending batches
         self.record_batches.clear();
@@ -451,21 +432,15 @@ impl ChunkBuilder {
         // No batches or row groups is an error because we have nothing to build
         // chunk with.
         if self.is_empty() {
-            return ChunkBuilderNoInputSnafu {
-                table_name: self.table_name.clone(),
-            }
-            .fail();
+            return ChunkBuilderNoInputSnafu.fail();
             // Snapshot remaining batches to a row group (accepting that it may
             // be smaller than desired)
         } else if !self.record_batches.is_empty() {
-            self.snapshot_rowgroup().context(ChunkBuilderSnafu {
-                table_name: self.table_name.clone(),
-            })?;
+            self.snapshot_rowgroup().context(ChunkBuilderSnafu)?;
         }
 
         // Create new chunk
         let mut chunk = Chunk::new_from_row_group(
-            self.table_name.clone(),
             self.row_groups.remove(0),
             match self.chunk_metrics.take() {
                 // avoid partial move of self
@@ -706,7 +681,7 @@ mod test {
         let registry = metric::Registry::new();
 
         let rb = gen_recordbatch();
-        let mut chunk = ChunkBuilder::new("mydb", rb.schema())
+        let mut chunk = ChunkBuilder::new(rb.schema())
             .with_metrics(Metrics::new(&registry, "mydb"))
             .with_record_batch(rb)
             .must_build();
@@ -844,7 +819,7 @@ mod test {
     #[test]
     fn read_filter_table_schema() {
         let rb = gen_recordbatch();
-        let chunk = ChunkBuilder::new("mydb", rb.schema())
+        let chunk = ChunkBuilder::new(rb.schema())
             .with_record_batch(rb)
             .must_build();
 
@@ -939,7 +914,7 @@ mod test {
 
         // Add a record batch to a single partition
         let rb = RecordBatch::try_new(schema.into(), data).unwrap();
-        let mut chunk_builder = ChunkBuilder::new("a_table", rb.schema());
+        let mut chunk_builder = ChunkBuilder::new(rb.schema());
         chunk_builder.must_push_record_batch(rb);
         let chunk = chunk_builder.must_build();
 
@@ -1052,7 +1027,7 @@ mod test {
             .build()
             .unwrap();
 
-        let mut chunk_builder = ChunkBuilder::new("Coolverine", schema.clone().into());
+        let mut chunk_builder = ChunkBuilder::new(schema.clone().into());
 
         // Add a bunch of row groups to a single table in a single chunk
         for &i in &[100, 200, 300] {
@@ -1242,7 +1217,7 @@ mod test {
     #[test]
     fn could_pass_predicate() {
         let rb = gen_recordbatch();
-        let mut chunk_builder = ChunkBuilder::new("table", rb.schema());
+        let mut chunk_builder = ChunkBuilder::new(rb.schema());
         chunk_builder.must_push_record_batch(rb);
         let chunk = chunk_builder.must_build();
 
@@ -1267,7 +1242,7 @@ mod test {
         ];
         let rg = RowGroup::new(6, columns);
 
-        let chunk = Chunk::new_from_row_group("table_1", rg, Metrics::new_unregistered());
+        let chunk = Chunk::new_from_row_group(rg, Metrics::new_unregistered());
 
         // No predicate so at least one row matches
         assert!(chunk.satisfies_predicate(&Predicate::default()));
@@ -1325,7 +1300,7 @@ mod test {
 
         // Create the chunk with the above table
         let rb = RecordBatch::try_new(schema, data).unwrap();
-        let mut chunk_builder = ChunkBuilder::new("Utopia", rb.schema());
+        let mut chunk_builder = ChunkBuilder::new(rb.schema());
         chunk_builder.must_push_record_batch(rb);
         let chunk = chunk_builder.must_build();
 
@@ -1396,7 +1371,7 @@ mod test {
 
         // Create the chunk with the above table
         let rb = RecordBatch::try_new(schema, data).unwrap();
-        let mut chunk_builder = ChunkBuilder::new("Utopia", rb.schema());
+        let mut chunk_builder = ChunkBuilder::new(rb.schema());
         chunk_builder.must_push_record_batch(rb);
         let chunk = chunk_builder.must_build();
 
@@ -1483,7 +1458,7 @@ mod test {
 
         // Create the chunk with the above table
         let rb = RecordBatch::try_new(schema, data).unwrap();
-        let mut chunk_builder = ChunkBuilder::new("my_table", rb.schema());
+        let mut chunk_builder = ChunkBuilder::new(rb.schema());
         chunk_builder.must_push_record_batch(rb);
         let chunk = chunk_builder.must_build();
 
@@ -1544,7 +1519,7 @@ mod test {
     fn chunk_builder() {
         // test row group configuration
         let rb = gen_recordbatch();
-        let chunk = ChunkBuilder::new("table_a", rb.schema())
+        let chunk = ChunkBuilder::new(rb.schema())
             .with_record_batch(rb)
             .must_build();
 
@@ -1552,24 +1527,23 @@ mod test {
         assert_eq!(chunk.rows(), 3);
 
         let rb = gen_recordbatch();
-        let mut builder = ChunkBuilder::new("table_a", rb.schema()).set_row_group_min_size(3);
+        let mut builder = ChunkBuilder::new(rb.schema()).set_row_group_min_size(3);
         builder.must_push_record_batch(rb);
         builder.must_push_record_batch(gen_recordbatch());
         builder.must_push_record_batch(gen_recordbatch());
 
         let chunk = builder.must_build();
-        assert_eq!(chunk.table.name(), "table_a");
         assert_eq!(chunk.row_groups(), 3);
         assert_eq!(chunk.rows(), 9);
 
         // when the chunk is empty an error is returned on build
         let rb = gen_recordbatch();
-        let builder = ChunkBuilder::new("table_a", rb.schema());
+        let builder = ChunkBuilder::new(rb.schema());
         assert!(builder.build().is_err());
 
         // empty record batches are not stored for snapshotting
         let rb = gen_recordbatch();
-        let mut builder = ChunkBuilder::new("table_a", rb.schema());
+        let mut builder = ChunkBuilder::new(rb.schema());
         assert!(builder
             .push_record_batch(RecordBatch::new_empty(rb.schema()))
             .is_ok());

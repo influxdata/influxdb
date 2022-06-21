@@ -54,8 +54,6 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 ///
 /// Tables must contain at least one row group with at least one row.
 pub struct Table {
-    name: String,
-
     // A table's data is held in a collection of immutable row groups and
     // mutable meta data (`RowGroupData`).
     //
@@ -84,9 +82,8 @@ struct RowGroupData {
 
 impl Table {
     /// Create a new table with the provided row_group. Creating an empty table is not possible.
-    pub fn with_row_group(name: impl Into<String>, rg: RowGroup) -> Self {
+    pub fn with_row_group(rg: RowGroup) -> Self {
         Self {
-            name: name.into(),
             table_data: RwLock::new(RowGroupData {
                 meta: Arc::new(MetaData::new(&rg)),
                 data: vec![Arc::new(rg)],
@@ -127,11 +124,6 @@ impl Table {
         Ok(())
     }
 
-    /// The name of the table (equivalent to measurement or table name).
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
     /// Determines if this table contains no row groups.
     pub fn is_empty(&self) -> bool {
         self.table_data.read().data.is_empty()
@@ -144,7 +136,7 @@ impl Table {
 
     /// An estimation of the total size of the table in bytes in memory
     pub fn size(&self) -> usize {
-        let base_size = std::mem::size_of::<Self>() + self.name.len();
+        let base_size = std::mem::size_of::<Self>();
         // meta.size accounts for all the row group data.
         base_size + self.table_data.read().meta.size()
     }
@@ -1179,7 +1171,7 @@ mod test {
         ];
         let row_group = RowGroup::new(1, columns);
 
-        let table = Table::with_row_group("cpu", row_group);
+        let table = Table::with_row_group(row_group);
 
         let predicate = Predicate::default();
         assert!(table.meta().validate_exprs(predicate).is_ok());
@@ -1266,7 +1258,7 @@ mod test {
         let columns = vec![("time".to_owned(), tc)];
 
         let rg = RowGroup::new(3, columns);
-        let mut table = Table::with_row_group("cpu", rg);
+        let mut table = Table::with_row_group(rg);
 
         assert_eq!(table.rows(), 3);
 
@@ -1308,7 +1300,7 @@ mod test {
         let fc = ColumnType::Field(Column::from(&[1000_u64, 1002, 1200][..]));
         let columns = vec![("time".to_owned(), tc), ("count".to_owned(), fc)];
         let row_group = RowGroup::new(3, columns);
-        let mut table = Table::with_row_group("cpu", row_group);
+        let mut table = Table::with_row_group(row_group);
 
         // add another row group
         let tc = ColumnType::Time(Column::from(&[1_i64, 2, 3, 4, 5, 6][..]));
@@ -1342,7 +1334,7 @@ mod test {
             ("count".to_owned(), fc),
         ];
         let row_group = RowGroup::new(3, columns);
-        let mut table = Table::with_row_group("cpu", row_group);
+        let mut table = Table::with_row_group(row_group);
 
         // add another row group
         let tc = ColumnType::Time(Column::from(&[1_i64, 2, 3, 4, 5, 6][..]));
@@ -1425,7 +1417,7 @@ mod test {
         ];
 
         let rg = RowGroup::new(6, columns);
-        let mut table = Table::with_row_group("cpu", rg);
+        let mut table = Table::with_row_group(rg);
 
         let exp_col_types = vec![
             ("region", LogicalDataType::String),
@@ -1557,7 +1549,7 @@ mod test {
             ),
         ];
         let rg = RowGroup::new(3, columns);
-        let mut table = Table::with_row_group("cpu", rg);
+        let mut table = Table::with_row_group(rg);
 
         // Build another row group.
         let columns = vec![
@@ -1699,7 +1691,7 @@ west,host-b,100
         let columns = vec![("time".to_owned(), tc), ("region".to_owned(), rc)];
 
         let rg = RowGroup::new(3, columns);
-        let mut table = Table::with_row_group("cpu", rg);
+        let mut table = Table::with_row_group(rg);
 
         // add another row group
         let tc = ColumnType::Time(Column::from(&[200_i64, 300, 400][..]));
@@ -1820,7 +1812,7 @@ west,host-b,100
         ];
 
         let rg = RowGroup::new(4, columns);
-        let table = Table::with_row_group("cpu", rg);
+        let table = Table::with_row_group(rg);
 
         assert_eq!(table.time_range().unwrap(), (-100, 3));
     }
