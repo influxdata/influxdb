@@ -1103,6 +1103,7 @@ pub struct PartitionCompactionCandidate {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use arrow::record_batch::RecordBatch;
     use arrow_util::assert_batches_sorted_eq;
     use data_types::{
         ChunkId, ColumnSet, KafkaPartition, NamespaceId, ParquetFileParams, SequenceNumber,
@@ -1111,11 +1112,7 @@ mod tests {
     use iox_catalog::interface::INITIAL_COMPACTION_LEVEL;
     use iox_tests::util::TestCatalog;
     use iox_time::SystemProvider;
-    use parquet_file::chunk::DecodedParquetFile;
-    use querier::{
-        cache::CatalogCache,
-        chunk::{collect_read_filter, ChunkAdapter},
-    };
+    use parquet_file::{chunk::DecodedParquetFile, ParquetFilePath};
     use schema::sort::SortKey;
     use std::sync::atomic::{AtomicI64, Ordering};
 
@@ -1221,47 +1218,11 @@ mod tests {
 
         // ------------------------------------------------
         // Verify the parquet file content
-        let adapter = ChunkAdapter::new(
-            Arc::new(CatalogCache::new(
-                catalog.catalog(),
-                catalog.time_provider(),
-                catalog.metric_registry(),
-                usize::MAX,
-            )),
-            ParquetStorage::new(catalog.object_store()),
-            catalog.metric_registry(),
-            catalog.time_provider(),
-        );
-        // create chunks for 2 files
-        let files1 = files.pop().unwrap();
-        let decoded_parquet_files1 = DecodedParquetFile::new(files1);
-
-        let files0 = files.pop().unwrap();
-        let decoded_parquet_files0 = DecodedParquetFile::new(files0);
-
-        let chunk_0 = adapter
-            .new_rb_chunk(Arc::new(decoded_parquet_files0))
-            .await
-            .unwrap();
-        let chunk_1 = adapter
-            .new_rb_chunk(Arc::new(decoded_parquet_files1))
-            .await
-            .unwrap();
+        let parquet_storage = ParquetStorage::new(catalog.object_store());
         // query the chunks
-        // least recent compacted first half (~90%)
-        let batches = collect_read_filter(&chunk_0).await;
-        assert_batches_sorted_eq!(
-            &[
-                "+-----------+------+-----------------------------+",
-                "| field_int | tag1 | time                        |",
-                "+-----------+------+-----------------------------+",
-                "| 1000      | WA   | 1970-01-01T00:00:00.000008Z |",
-                "+-----------+------+-----------------------------+",
-            ],
-            &batches
-        );
         // most recent compacted second half (~10%)
-        let batches = collect_read_filter(&chunk_1).await;
+        let files1 = files.pop().unwrap();
+        let batches = read_parquet_file(&parquet_storage, files1).await;
         assert_batches_sorted_eq!(
             &[
                 "+-----------+------+-----------------------------+",
@@ -1272,6 +1233,20 @@ mod tests {
             ],
             &batches
         );
+        // least recent compacted first half (~90%)
+        let files2 = files.pop().unwrap();
+        let batches = read_parquet_file(&parquet_storage, files2).await;
+        assert_batches_sorted_eq!(
+            &[
+                "+-----------+------+-----------------------------+",
+                "| field_int | tag1 | time                        |",
+                "+-----------+------+-----------------------------+",
+                "| 1000      | WA   | 1970-01-01T00:00:00.000008Z |",
+                "+-----------+------+-----------------------------+",
+            ],
+            &batches
+        );
+        assert!(files.is_empty());
     }
 
     // A quite sophisticated integration test
@@ -1446,35 +1421,25 @@ mod tests {
 
         // ------------------------------------------------
         // Verify the parquet file content
-        let adapter = ChunkAdapter::new(
-            Arc::new(CatalogCache::new(
-                catalog.catalog(),
-                catalog.time_provider(),
-                catalog.metric_registry(),
-                usize::MAX,
-            )),
-            ParquetStorage::new(catalog.object_store()),
-            catalog.metric_registry(),
-            catalog.time_provider(),
-        );
-        // create chunks for 2 files
-        let files2 = files.pop().unwrap();
-        let decoded_parquet_files2 = DecodedParquetFile::new(files2);
-
-        let files1 = files.pop().unwrap();
-        let decoded_parquet_files1 = DecodedParquetFile::new(files1);
-
-        let chunk_0 = adapter
-            .new_rb_chunk(Arc::new(decoded_parquet_files1))
-            .await
-            .unwrap();
-        let chunk_1 = adapter
-            .new_rb_chunk(Arc::new(decoded_parquet_files2))
-            .await
-            .unwrap();
+        let parquet_storage = ParquetStorage::new(catalog.object_store());
         // query the chunks
+        // most recent compacted second half (~10%)
+        let files1 = files.pop().unwrap();
+        let batches = read_parquet_file(&parquet_storage, files1).await;
+        assert_batches_sorted_eq!(
+            &[
+                "+-----------+------+------+------+-----------------------------+",
+                "| field_int | tag1 | tag2 | tag3 | time                        |",
+                "+-----------+------+------+------+-----------------------------+",
+                "| 1600      |      | WA   | 10   | 1970-01-01T00:00:00.000028Z |",
+                "| 20        |      | VT   | 20   | 1970-01-01T00:00:00.000026Z |",
+                "+-----------+------+------+------+-----------------------------+",
+            ],
+            &batches
+        );
         // least recent compacted first half (~90%)
-        let batches = collect_read_filter(&chunk_0).await;
+        let files2 = files.pop().unwrap();
+        let batches = read_parquet_file(&parquet_storage, files2).await;
         assert_batches_sorted_eq!(
             &[
                 "+-----------+------+------+------+-----------------------------+",
@@ -1488,19 +1453,21 @@ mod tests {
             ],
             &batches
         );
-        // most recent compacted second half (~10%)
-        let batches = collect_read_filter(&chunk_1).await;
+        // this is the level 1 data again
+        let files3 = files.pop().unwrap();
+        let batches = read_parquet_file(&parquet_storage, files3).await;
         assert_batches_sorted_eq!(
             &[
-                "+-----------+------+------+------+-----------------------------+",
-                "| field_int | tag1 | tag2 | tag3 | time                        |",
-                "+-----------+------+------+------+-----------------------------+",
-                "| 1600      |      | WA   | 10   | 1970-01-01T00:00:00.000028Z |",
-                "| 20        |      | VT   | 20   | 1970-01-01T00:00:00.000026Z |",
-                "+-----------+------+------+------+-----------------------------+",
+                "+-----------+------+--------------------------------+",
+                "| field_int | tag1 | time                           |",
+                "+-----------+------+--------------------------------+",
+                "| 10        | VT   | 1970-01-01T00:00:00.000000020Z |",
+                "| 1000      | WA   | 1970-01-01T00:00:00.000000010Z |",
+                "+-----------+------+--------------------------------+",
             ],
             &batches
         );
+        assert!(files.is_empty());
     }
 
     #[tokio::test]
@@ -3207,5 +3174,18 @@ mod tests {
         let mut num_rows: usize = batches[0].iter().map(|rb| rb.num_rows()).sum();
         num_rows += batches[1].iter().map(|rb| rb.num_rows()).sum::<usize>();
         assert_eq!(num_rows, 1499);
+    }
+
+    async fn read_parquet_file(
+        storage: &ParquetStorage,
+        file: ParquetFileWithMetadata,
+    ) -> Vec<RecordBatch> {
+        let decoded_parquet_file = DecodedParquetFile::new(file);
+        let schema = decoded_parquet_file.schema();
+        let path: ParquetFilePath = (&decoded_parquet_file.iox_metadata).into();
+        let rx = storage.read_all(schema.as_arrow(), &path).unwrap();
+        datafusion::physical_plan::common::collect(rx)
+            .await
+            .unwrap()
     }
 }

@@ -9,8 +9,8 @@
     clippy::clone_on_ref_ptr
 )]
 
-pub mod cache;
-pub mod chunk;
+mod cache;
+mod chunk;
 mod database;
 mod handler;
 mod ingester;

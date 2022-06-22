@@ -29,9 +29,6 @@ pub enum Error {
     },
 }
 
-/// A specialized `Error` for errors (needed to make Backoff happy for some reason)
-pub type Result<T, E = Error> = std::result::Result<T, E>;
-
 /// Holds decoded catalog information about a parquet file
 #[derive(Debug, Clone)]
 pub struct CachedTombstones {
@@ -55,16 +52,6 @@ impl CachedTombstones {
             // Size of Arcs in Vec
             (self.tombstones.capacity() * mem::size_of::<Arc<Tombstone>>()) +
             self.tombstones.iter().map(|t| t.size()).sum::<usize>()
-    }
-
-    /// return the number of cached tombstones
-    pub fn len(&self) -> usize {
-        self.tombstones.len()
-    }
-
-    /// return true if there are no cached tombestones
-    pub fn is_empty(&self) -> bool {
-        self.tombstones.is_empty()
     }
 
     /// return the underlying Tombestones
@@ -400,16 +387,16 @@ mod tests {
         let cache = make_cache(&catalog);
 
         // no tombstones for the table, cached
-        assert!(cache.get(table_id).await.is_empty());
+        assert!(cache.get(table_id).await.tombstones.is_empty());
         assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
 
         // second request to should be cached
-        assert!(cache.get(table_id).await.is_empty());
+        assert!(cache.get(table_id).await.tombstones.is_empty());
         assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
 
         // calls to expire if there are no new known tombstones should not still be cached
         cache.expire_on_newly_persisted_files(table_id, None);
-        assert!(cache.get(table_id).await.is_empty());
+        assert!(cache.get(table_id).await.tombstones.is_empty());
         assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
 
         // Create a tombstone
@@ -420,7 +407,7 @@ mod tests {
             .id;
 
         // cache is stale
-        assert!(cache.get(table_id).await.is_empty());
+        assert!(cache.get(table_id).await.tombstones.is_empty());
         assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
 
         // Now call to expire with knowledge of new tombstone, will cause a cache refresh

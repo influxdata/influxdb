@@ -30,9 +30,6 @@ pub enum Error {
     },
 }
 
-/// A specialized `Error` for errors (needed to make Backoff happy for some reason)
-pub type Result<T, E = Error> = std::result::Result<T, E>;
-
 #[derive(Debug)]
 /// Holds decoded catalog information about a parquet file
 pub struct CachedParquetFiles {
@@ -61,11 +58,6 @@ impl CachedParquetFiles {
     /// return the number of cached files
     pub fn len(&self) -> usize {
         self.files.len()
-    }
-
-    /// return true if there are no cached files
-    pub fn is_empty(&self) -> bool {
-        self.files.is_empty()
     }
 
     /// Estimate the memory consumption of this object and its contents
@@ -415,16 +407,16 @@ mod tests {
         let table_id = table.table.id;
 
         // no parquet files, sould be none
-        assert!(cache.get(table_id).await.is_empty());
+        assert!(cache.get(table_id).await.files.is_empty());
         assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
 
         // second request should be cached
-        assert!(cache.get(table_id).await.is_empty());
+        assert!(cache.get(table_id).await.files.is_empty());
         assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
 
         // Calls to expire if there is no known persisted file, should still be cached
         cache.expire_on_newly_persisted_files(table_id, None);
-        assert!(cache.get(table_id).await.is_empty());
+        assert!(cache.get(table_id).await.files.is_empty());
         assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
 
         // make a new parquet file
@@ -440,7 +432,7 @@ mod tests {
             .await;
 
         // cache is stale
-        assert!(cache.get(table_id).await.is_empty());
+        assert!(cache.get(table_id).await.files.is_empty());
         assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
 
         // Now call to expire with knowledge of new file, will cause a cache refresh

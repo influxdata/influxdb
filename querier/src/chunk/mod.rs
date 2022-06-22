@@ -1,21 +1,18 @@
 //! Querier Chunks
 
 use crate::cache::CatalogCache;
-use arrow::record_batch::RecordBatch;
 use data_types::{
     ChunkId, ChunkOrder, DeletePredicate, ParquetFileId, ParquetFileWithMetadata, PartitionId,
     SequenceNumber, SequencerId, TableSummary, TimestampMinMax, TimestampRange,
 };
-use futures::StreamExt;
 use iox_catalog::interface::Catalog;
-use iox_query::{exec::IOxSessionContext, QueryChunk};
 use iox_time::TimeProvider;
 use parquet_file::{
     chunk::{ChunkMetrics as ParquetChunkMetrics, DecodedParquetFile, ParquetChunk},
     storage::ParquetStorage,
 };
 use read_buffer::RBChunk;
-use schema::{selection::Selection, sort::SortKey, Schema};
+use schema::{sort::SortKey, Schema};
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -437,30 +434,15 @@ impl ChunkAdapter {
     }
 }
 
-/// collect data for the given chunk
-pub async fn collect_read_filter(chunk: &dyn QueryChunk) -> Vec<RecordBatch> {
-    chunk
-        .read_filter(
-            IOxSessionContext::default(),
-            &Default::default(),
-            Selection::All,
-        )
-        .unwrap()
-        .collect::<Vec<_>>()
-        .await
-        .into_iter()
-        .map(Result::unwrap)
-        .collect()
-}
-
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use arrow::datatypes::DataType;
+    use arrow::{datatypes::DataType, record_batch::RecordBatch};
     use arrow_util::assert_batches_eq;
-    use iox_query::QueryChunkMeta;
+    use futures::StreamExt;
+    use iox_query::{exec::IOxSessionContext, QueryChunk, QueryChunkMeta};
     use iox_tests::util::TestCatalog;
-    use schema::{builder::SchemaBuilder, sort::SortKeyBuilder};
+    use schema::{builder::SchemaBuilder, selection::Selection, sort::SortKeyBuilder};
 
     #[tokio::test]
     async fn test_create_record() {
@@ -534,5 +516,21 @@ pub mod tests {
             ],
             &batches
         );
+    }
+
+    /// collect data for the given chunk
+    async fn collect_read_filter(chunk: &dyn QueryChunk) -> Vec<RecordBatch> {
+        chunk
+            .read_filter(
+                IOxSessionContext::default(),
+                &Default::default(),
+                Selection::All,
+            )
+            .unwrap()
+            .collect::<Vec<_>>()
+            .await
+            .into_iter()
+            .map(Result::unwrap)
+            .collect()
     }
 }

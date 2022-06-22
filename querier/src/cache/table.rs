@@ -110,6 +110,7 @@ impl TableCache {
     /// Get the table namespace ID for the given table ID.
     ///
     /// This either uses a cached value or -- if required -- fetches the mapping from the catalog.
+    #[allow(dead_code)]
     pub async fn namespace_id(&self, table_id: TableId) -> Option<NamespaceId> {
         self.cache.get(table_id, ()).await.map(|t| t.namespace_id)
     }

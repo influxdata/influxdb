@@ -820,7 +820,6 @@ dependencies = [
  "observability_deps",
  "parquet_file",
  "predicate",
- "querier",
  "schema",
  "snafu",
  "test_helpers",

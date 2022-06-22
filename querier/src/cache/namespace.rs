@@ -129,6 +129,7 @@ impl NamespaceCache {
     }
 
     /// Expire namespace if the cached schema does NOT cover the given set of columns.
+    #[allow(dead_code)]
     pub fn expire_if_schema_does_not_cover(
         &self,
         namespace_name: Arc<str>,
