@@ -7,7 +7,7 @@ use crate::{
     ParquetFilePath,
 };
 use arrow::{
-    datatypes::{Schema, SchemaRef},
+    datatypes::{Field, Schema, SchemaRef},
     error::{ArrowError, Result as ArrowResult},
     record_batch::RecordBatch,
 };
@@ -23,7 +23,7 @@ use parquet::{
 };
 use predicate::Predicate;
 use schema::selection::Selection;
-use std::{sync::Arc, time::Duration};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 use thiserror::Error;
 use tokio::io::AsyncReadExt;
 
@@ -48,6 +48,7 @@ pub enum UploadError {
 
 /// Errors during Parquet file download & scan.
 #[derive(Debug, Error)]
+#[allow(clippy::large_enum_variant)]
 pub enum ReadError {
     /// Error writing the bytes fetched from object store to the temporary
     /// parquet file on disk.
@@ -63,10 +64,13 @@ pub enum ReadError {
     Parquet(#[from] parquet::errors::ParquetError),
 
     /// Schema mismatch
-    #[error("Schema mismatch (expected VS actual parquet file) for file: {path}")]
+    #[error("Schema mismatch (expected VS actual parquet file) for file '{path}': {source}")]
     SchemaMismatch {
         /// Path of the affected parquet file.
         path: object_store::path::Path,
+
+        /// Source error
+        source: ProjectionError,
     },
 }
 
@@ -179,12 +183,7 @@ impl ParquetStorage {
         let projection: Vec<usize> = column_indices(selection, Arc::clone(&schema));
 
         // Compute final (output) schema after selection
-        let schema = Arc::new(Schema::new(
-            projection
-                .iter()
-                .map(|i| schema.field(*i).clone())
-                .collect(),
-        ));
+        let schema = Arc::new(project_schema(&schema, &projection));
 
         let (tx, rx) = tokio::sync::mpsc::channel(2);
 
@@ -194,14 +193,8 @@ impl ParquetStorage {
         let object_store = Arc::clone(&self.object_store);
         let schema_captured = Arc::clone(&schema);
         let handle = tokio::task::spawn(async move {
-            let download_result = download_and_scan_parquet(
-                projection,
-                schema_captured,
-                path,
-                object_store,
-                tx.clone(),
-            )
-            .await;
+            let download_result =
+                download_and_scan_parquet(schema_captured, path, object_store, tx.clone()).await;
 
             // If there was an error returned from download_and_scan_parquet send it back to the receiver.
             if let Err(e) = download_result {
@@ -234,21 +227,31 @@ impl ParquetStorage {
 
 /// Return indices of the schema's fields of the selection columns
 fn column_indices(selection: Selection<'_>, schema: SchemaRef) -> Vec<usize> {
-    let fields = schema.fields().iter();
-
     match selection {
-        Selection::Some(cols) => fields
-            .enumerate()
-            .filter_map(|(p, x)| {
-                if cols.contains(&x.name().as_str()) {
-                    Some(p)
-                } else {
-                    None
-                }
-            })
-            .collect(),
-        Selection::All => fields.enumerate().map(|(p, _)| p).collect(),
+        Selection::Some(cols) => {
+            let fields_lookup: HashMap<_, _> = schema
+                .fields()
+                .iter()
+                .map(|f| f.name().as_str())
+                .enumerate()
+                .map(|(v, k)| (k, v))
+                .collect();
+            cols.iter()
+                .filter_map(|c| fields_lookup.get(c).cloned())
+                .collect()
+        }
+        Selection::All => (0..schema.fields().len()).collect(),
     }
+}
+
+fn project_schema(schema: &Schema, projection: &[usize]) -> Schema {
+    Schema::new_with_metadata(
+        projection
+            .iter()
+            .map(|i| schema.field(*i).clone())
+            .collect(),
+        schema.metadata().clone(),
+    )
 }
 
 /// Downloads the specified parquet file to a local temporary file
@@ -258,7 +261,6 @@ fn column_indices(selection: Selection<'_>, schema: SchemaRef) -> Vec<usize> {
 /// This call MAY download a parquet file from object storage, temporarily
 /// spilling it to disk while it is processed.
 async fn download_and_scan_parquet(
-    projection: Vec<usize>,
     expected_schema: SchemaRef,
     path: object_store::path::Path,
     object_store: Arc<DynObjectStore>,
@@ -291,18 +293,30 @@ async fn download_and_scan_parquet(
     let file_reader = SerializedFileReader::new(Bytes::from(data))?;
     let mut arrow_reader = ParquetFileArrowReader::new(Arc::new(file_reader));
 
-    // Check schema but ignore the metadata
-    let schema = arrow_reader
-        .get_schema()?
-        .with_metadata(expected_schema.metadata().clone());
-    if expected_schema.as_ref() != &schema {
-        return Err(ReadError::SchemaMismatch { path });
-    }
+    // Check schema and calculate `file->expected` projections
+    let file_schema = arrow_reader.get_schema()?;
+    let (mask, reorder_projection) =
+        match project_for_parquet_reader(&file_schema, &expected_schema) {
+            Ok((mask, reorder_projection)) => (mask, reorder_projection),
+            Err(e) => {
+                return Err(ReadError::SchemaMismatch { path, source: e });
+            }
+        };
 
-    let mask = ProjectionMask::roots(arrow_reader.parquet_schema(), projection);
+    let mask = ProjectionMask::roots(arrow_reader.parquet_schema(), mask);
     let record_batch_reader = arrow_reader.get_record_reader_by_columns(mask, batch_size)?;
 
     for batch in record_batch_reader {
+        let batch = batch.map(|batch| {
+            // project to fix column order
+            let batch = batch
+                .project(&reorder_projection)
+                .expect("bug in projection calculation");
+
+            // attach potential metadata
+            RecordBatch::try_new(Arc::clone(&expected_schema), batch.columns().to_vec())
+                .expect("bug in schema handling")
+        });
         if tx.send(batch).await.is_err() {
             debug!("Receiver hung up - exiting");
             break;
@@ -312,6 +326,73 @@ async fn download_and_scan_parquet(
     debug!(?path, "Completed parquet download & scan");
 
     Ok(())
+}
+
+/// Error during projecting parquet file data to an expected schema.
+#[derive(Debug, Error)]
+#[allow(clippy::large_enum_variant)]
+pub enum ProjectionError {
+    /// Unknown field.
+    #[error("Unknown field: {0}")]
+    UnknownField(String),
+
+    /// Field type mismatch
+    #[error("Type mismatch, expected {expected:?} but got {actual:?}")]
+    FieldTypeMismatch {
+        /// Expected field.
+        expected: Field,
+
+        /// Actual field.
+        actual: Field,
+    },
+}
+
+/// Calculate project for the parquet-rs reader.
+///
+/// Expects the schema that was extracted from the actual parquet file and the desired output schema.
+///
+/// Returns two masks:
+///
+/// 1. A mask that can be passed to the parquet reader. Since the parquet reader however ignores the mask order, the
+///    resulting record batches will have the same order as in the file (i.e. NOT the order in the desired schema).
+/// 2. A re-order mask that can be used to reorder the output batches to actually match the desired schema.
+///
+/// Will fail the desired schema contains a column that is unknown or the field types in the two schemas do not match.
+fn project_for_parquet_reader(
+    file_schema: &Schema,
+    expected_schema: &Schema,
+) -> Result<(Vec<usize>, Vec<usize>), ProjectionError> {
+    let file_column_indices: HashMap<_, _> = file_schema
+        .fields()
+        .iter()
+        .map(|f| f.name().as_str())
+        .enumerate()
+        .map(|(v, k)| (k, v))
+        .collect();
+    let mut mask = Vec::with_capacity(expected_schema.fields().len());
+    for field in expected_schema.fields() {
+        let file_idx = if let Some(idx) = file_column_indices.get(field.name().as_str()) {
+            *idx
+        } else {
+            return Err(ProjectionError::UnknownField(field.name().clone()));
+        };
+        let file_field = file_schema.field(file_idx);
+        if field != file_field {
+            return Err(ProjectionError::FieldTypeMismatch {
+                expected: field.clone(),
+                actual: file_field.clone(),
+            });
+        }
+        mask.push(file_idx);
+    }
+
+    // for some weird reason, the parquet-rs projection system only filters columns but ignores the mask order, so we
+    // need to calculate a reorder projection
+    let mut mask_with_index: Vec<(usize, usize)> = mask.iter().copied().enumerate().collect();
+    mask_with_index.sort_by_key(|(_a, b)| *b);
+    let reorder_projection: Vec<usize> = mask_with_index.into_iter().map(|(a, _b)| a).collect();
+
+    Ok((mask, reorder_projection))
 }
 
 #[cfg(test)]
@@ -326,21 +407,16 @@ mod tests {
     use iox_time::Time;
 
     #[tokio::test]
-    async fn test_parquet_round_trip() {
+    async fn test_upload_metadata() {
         let object_store: Arc<DynObjectStore> = Arc::new(object_store::memory::InMemory::default());
 
         let store = ParquetStorage::new(object_store);
 
         let meta = meta();
         let batch = RecordBatch::try_from_iter([("a", to_string_array(&["value"]))]).unwrap();
-        let schema = batch.schema();
-        let stream = futures::stream::iter([Ok(batch.clone())]);
 
         // Serialize & upload the record batches.
-        let (file_meta, _file_size) = store
-            .upload(stream, &meta)
-            .await
-            .expect("should serialize and store sucessfully");
+        let (file_meta, _file_size) = upload(&store, &meta, batch.clone()).await;
 
         // Extract the various bits of metadata.
         let file_meta = file_meta.decode().expect("should decode parquet metadata");
@@ -351,61 +427,128 @@ mod tests {
         // Ensure the metadata in the file decodes to the same IOx metadata we
         // provided when uploading.
         assert_eq!(got_iox_meta, meta);
-
-        // Fetch the record batches and compare them to the input batches.
-        let path: ParquetFilePath = (&meta).into();
-        let rx = store
-            .read_filter(&Predicate::default(), Selection::All, schema, &path)
-            .expect("should read record batches from object store");
-
-        // Drain the retrieved record batch stream
-        let mut got = datafusion::physical_plan::common::collect(rx)
-            .await
-            .expect("failed to drain record stream");
-
-        // And compare to the original input
-        assert_eq!(got.len(), 1);
-        assert_eq!(got.pop().unwrap(), batch);
     }
 
     #[tokio::test]
-    async fn test_schema_check_fail() {
-        let object_store: Arc<DynObjectStore> = Arc::new(object_store::memory::InMemory::default());
+    async fn test_simple_roundtrip() {
+        let batch = RecordBatch::try_from_iter([("a", to_string_array(&["value"]))]).unwrap();
+        let schema = batch.schema();
 
-        let store = ParquetStorage::new(object_store);
+        assert_roundtrip(batch.clone(), Selection::All, schema, batch).await;
+    }
 
-        let meta = meta();
+    #[tokio::test]
+    async fn test_selection() {
+        let batch = RecordBatch::try_from_iter([
+            ("a", to_string_array(&["value"])),
+            ("b", to_int_array(&[1])),
+            ("c", to_string_array(&["foo"])),
+            ("d", to_int_array(&[2])),
+        ])
+        .unwrap();
+        let schema = batch.schema();
+
+        let expected_batch = RecordBatch::try_from_iter([
+            ("d", to_int_array(&[2])),
+            ("c", to_string_array(&["foo"])),
+        ])
+        .unwrap();
+        assert_roundtrip(batch, Selection::Some(&["d", "c"]), schema, expected_batch).await;
+    }
+
+    #[tokio::test]
+    async fn test_selection_unknown() {
+        let batch = RecordBatch::try_from_iter([
+            ("a", to_string_array(&["value"])),
+            ("b", to_int_array(&[1])),
+        ])
+        .unwrap();
+        let schema = batch.schema();
+
+        let expected_batch = RecordBatch::try_from_iter([("b", to_int_array(&[1]))]).unwrap();
+        assert_roundtrip(batch, Selection::Some(&["b", "c"]), schema, expected_batch).await;
+    }
+
+    #[tokio::test]
+    async fn test_file_has_different_column_order() {
+        let file_batch = RecordBatch::try_from_iter([
+            ("a", to_string_array(&["value"])),
+            ("b", to_int_array(&[1])),
+        ])
+        .unwrap();
+        let schema_batch = RecordBatch::try_from_iter([
+            ("b", to_int_array(&[1])),
+            ("a", to_string_array(&["value"])),
+        ])
+        .unwrap();
+        let schema = schema_batch.schema();
+        assert_roundtrip(file_batch, Selection::All, schema, schema_batch).await;
+    }
+
+    #[tokio::test]
+    async fn test_file_has_different_column_order_with_selection() {
+        let batch = RecordBatch::try_from_iter([
+            ("a", to_string_array(&["value"])),
+            ("b", to_int_array(&[1])),
+            ("c", to_string_array(&["foo"])),
+            ("d", to_int_array(&[2])),
+        ])
+        .unwrap();
+        let schema_batch = RecordBatch::try_from_iter([
+            ("b", to_int_array(&[1])),
+            ("d", to_int_array(&[2])),
+            ("c", to_string_array(&["foo"])),
+            ("a", to_string_array(&["value"])),
+        ])
+        .unwrap();
+        let schema = schema_batch.schema();
+
+        let expected_batch = RecordBatch::try_from_iter([
+            ("d", to_int_array(&[2])),
+            ("c", to_string_array(&["foo"])),
+        ])
+        .unwrap();
+        assert_roundtrip(batch, Selection::Some(&["d", "c"]), schema, expected_batch).await;
+    }
+
+    #[tokio::test]
+    async fn test_schema_check_fail_different_types() {
         let batch = RecordBatch::try_from_iter([("a", to_string_array(&["value"]))]).unwrap();
         let other_batch = RecordBatch::try_from_iter([("a", to_int_array(&[1]))]).unwrap();
         let schema = batch.schema();
-        let stream = futures::stream::iter([Ok(other_batch)]);
+        assert_schema_check_fail(
+            other_batch,
+            schema,
+            "Schema mismatch (expected VS actual parquet file) for file '1/3/2/4/00000000-0000-0000-0000-000000000000.parquet': Type mismatch, expected Field { name: \"a\", data_type: Utf8, nullable: false, dict_id: 0, dict_is_ordered: false, metadata: None } but got Field { name: \"a\", data_type: Int64, nullable: false, dict_id: 0, dict_is_ordered: false, metadata: None }",
+        ).await;
+    }
 
-        // Serialize & upload the record batches.
-        store
-            .upload(stream, &meta)
-            .await
-            .expect("should serialize and store sucessfully");
+    #[tokio::test]
+    async fn test_schema_check_fail_different_names() {
+        let batch = RecordBatch::try_from_iter([("a", to_string_array(&["value"]))]).unwrap();
+        let other_batch = RecordBatch::try_from_iter([("b", to_string_array(&["value"]))]).unwrap();
+        let schema = batch.schema();
+        assert_schema_check_fail(
+            other_batch,
+            schema,
+            "Schema mismatch (expected VS actual parquet file) for file '1/3/2/4/00000000-0000-0000-0000-000000000000.parquet': Unknown field: a",
+        ).await;
+    }
 
-        // Fetch the record batches and compare them to the input batches.
-        let path: ParquetFilePath = (&meta).into();
-        let rx = store
-            .read_filter(&Predicate::default(), Selection::All, schema, &path)
-            .expect("should read record batches from object store");
-
-        // Drain the retrieved record batch stream
-        let err = datafusion::physical_plan::common::collect(rx)
-            .await
-            .unwrap_err();
-
-        // And compare to the original input
-        if let DataFusionError::ArrowError(ArrowError::ExternalError(err)) = err {
-            assert_eq!(
-                err.to_string(),
-                "Schema mismatch (expected VS actual parquet file) for file: 1/3/2/4/00000000-0000-0000-0000-000000000000.parquet",
-            );
-        } else {
-            panic!("Wrong error type: {err}");
-        }
+    #[tokio::test]
+    async fn test_schema_check_fail_unknown_column() {
+        let batch = RecordBatch::try_from_iter([
+            ("a", to_string_array(&["value"])),
+            ("b", to_string_array(&["value"])),
+        ])
+        .unwrap();
+        let other_batch = RecordBatch::try_from_iter([("a", to_string_array(&["value"]))]).unwrap();
+        let schema = batch.schema();
+        assert_schema_check_fail(
+            other_batch,
+            schema,
+            "Schema mismatch (expected VS actual parquet file) for file '1/3/2/4/00000000-0000-0000-0000-000000000000.parquet': Unknown field: b",
+        ).await;
     }
 
     #[tokio::test]
@@ -417,13 +560,9 @@ mod tests {
         let meta = meta();
         let batch = RecordBatch::try_from_iter([("a", to_string_array(&["value"]))]).unwrap();
         let schema = batch.schema();
-        let stream = futures::stream::iter([Ok(batch)]);
 
         // Serialize & upload the record batches.
-        store
-            .upload(stream, &meta)
-            .await
-            .expect("should serialize and store sucessfully");
+        upload(&store, &meta, batch).await;
 
         // add metadata to reference schema
         let schema = Arc::new(
@@ -432,15 +571,7 @@ mod tests {
                 .clone()
                 .with_metadata(HashMap::from([(String::from("foo"), String::from("bar"))])),
         );
-
-        // Fetch the record batches and compare them to the input batches.
-        let path: ParquetFilePath = (&meta).into();
-        let rx = store
-            .read_filter(&Predicate::default(), Selection::All, schema, &path)
-            .expect("should read record batches from object store");
-
-        // Drain the retrieved record batch stream
-        datafusion::physical_plan::common::collect(rx)
+        download(&store, &meta, Selection::All, schema)
             .await
             .unwrap();
     }
@@ -465,24 +596,125 @@ mod tests {
             batch.columns().to_vec(),
         )
         .unwrap();
-        let stream = futures::stream::iter([Ok(batch)]);
 
         // Serialize & upload the record batches.
-        store
-            .upload(stream, &meta)
-            .await
-            .expect("should serialize and store sucessfully");
+        upload(&store, &meta, batch).await;
 
-        // Fetch the record batches and compare them to the input batches.
-        let path: ParquetFilePath = (&meta).into();
-        let rx = store
-            .read_filter(&Predicate::default(), Selection::All, schema, &path)
-            .expect("should read record batches from object store");
-
-        // Drain the retrieved record batch stream
-        datafusion::physical_plan::common::collect(rx)
+        download(&store, &meta, Selection::All, schema)
             .await
             .unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_schema_check_ignores_extra_column_in_file() {
+        let file_batch = RecordBatch::try_from_iter([
+            ("a", to_string_array(&["value"])),
+            ("b", to_string_array(&["value"])),
+        ])
+        .unwrap();
+        let expected_batch =
+            RecordBatch::try_from_iter([("a", to_string_array(&["value"]))]).unwrap();
+        let schema = expected_batch.schema();
+        assert_roundtrip(file_batch, Selection::All, schema, expected_batch).await;
+    }
+
+    #[tokio::test]
+    async fn test_schema_check_ignores_type_for_unselected_column() {
+        let file_batch = RecordBatch::try_from_iter([
+            ("a", to_string_array(&["value"])),
+            ("b", to_string_array(&["value"])),
+        ])
+        .unwrap();
+        let schema_batch = RecordBatch::try_from_iter([
+            ("a", to_string_array(&["value"])),
+            ("b", to_int_array(&[1])),
+        ])
+        .unwrap();
+        let schema = schema_batch.schema();
+        let expected_batch =
+            RecordBatch::try_from_iter([("a", to_string_array(&["value"]))]).unwrap();
+        assert_roundtrip(file_batch, Selection::Some(&["a"]), schema, expected_batch).await;
+    }
+
+    #[test]
+    fn test_project_for_parquet_reader() {
+        assert_eq!(
+            run_project_for_parquet_reader(&[], &[]).unwrap(),
+            (vec![], vec![]),
+        );
+
+        assert_eq!(
+            run_project_for_parquet_reader(&[("a", ColType::Int), ("b", ColType::String)], &[])
+                .unwrap(),
+            (vec![], vec![]),
+        );
+
+        assert_eq!(
+            run_project_for_parquet_reader(
+                &[("a", ColType::Int), ("b", ColType::String)],
+                &[("a", ColType::Int), ("b", ColType::String)]
+            )
+            .unwrap(),
+            (vec![0, 1], vec![0, 1]),
+        );
+
+        assert_eq!(
+            run_project_for_parquet_reader(
+                &[("a", ColType::Int), ("b", ColType::String)],
+                &[("b", ColType::String), ("a", ColType::Int)]
+            )
+            .unwrap(),
+            (vec![1, 0], vec![1, 0]),
+        );
+
+        assert_eq!(
+            run_project_for_parquet_reader(
+                &[
+                    ("a", ColType::Int),
+                    ("b", ColType::String),
+                    ("c", ColType::String)
+                ],
+                &[("c", ColType::String), ("a", ColType::Int)]
+            )
+            .unwrap(),
+            (vec![2, 0], vec![1, 0]),
+        );
+
+        assert_eq!(
+            run_project_for_parquet_reader(
+                &[
+                    ("a", ColType::Int),
+                    ("b", ColType::String),
+                    ("c", ColType::String),
+                    ("d", ColType::Int)
+                ],
+                &[
+                    ("c", ColType::String),
+                    ("b", ColType::String),
+                    ("d", ColType::Int)
+                ]
+            )
+            .unwrap(),
+            (vec![2, 1, 3], vec![1, 0, 2]),
+        );
+
+        assert!(matches!(
+            run_project_for_parquet_reader(
+                &[("a", ColType::Int), ("b", ColType::String)],
+                &[("a", ColType::Int), ("c", ColType::String)]
+            )
+            .unwrap_err(),
+            ProjectionError::UnknownField(_),
+        ));
+
+        assert!(matches!(
+            run_project_for_parquet_reader(
+                &[("a", ColType::Int), ("b", ColType::String)],
+                &[("a", ColType::Int), ("b", ColType::Int)]
+            )
+            .unwrap_err(),
+            ProjectionError::FieldTypeMismatch { .. },
+        ));
     }
 
     fn to_string_array(strs: &[&str]) -> ArrayRef {
@@ -517,5 +749,115 @@ mod tests {
             compaction_level: 1,
             sort_key: None,
         }
+    }
+
+    async fn upload(
+        store: &ParquetStorage,
+        meta: &IoxMetadata,
+        batch: RecordBatch,
+    ) -> (IoxParquetMetaData, usize) {
+        let stream = futures::stream::iter([Ok(batch)]);
+        store
+            .upload(stream, meta)
+            .await
+            .expect("should serialize and store sucessfully")
+    }
+
+    async fn download<'a>(
+        store: &ParquetStorage,
+        meta: &IoxMetadata,
+        selection: Selection<'_>,
+        expected_schema: SchemaRef,
+    ) -> Result<RecordBatch, DataFusionError> {
+        let path: ParquetFilePath = meta.into();
+        let rx = store
+            .read_filter(&Predicate::default(), selection, expected_schema, &path)
+            .expect("should read record batches from object store");
+        let schema = rx.schema();
+        datafusion::physical_plan::common::collect(rx)
+            .await
+            .map(|mut batches| {
+                assert_eq!(batches.len(), 1);
+                let batch = batches.remove(0);
+                assert_eq!(batch.schema(), schema);
+                batch
+            })
+    }
+
+    async fn assert_roundtrip(
+        upload_batch: RecordBatch,
+        selection: Selection<'_>,
+        expected_schema: SchemaRef,
+        expected_batch: RecordBatch,
+    ) {
+        let object_store: Arc<DynObjectStore> = Arc::new(object_store::memory::InMemory::default());
+
+        let store = ParquetStorage::new(object_store);
+
+        // Serialize & upload the record batches.
+        let meta = meta();
+        upload(&store, &meta, upload_batch).await;
+
+        // And compare to the original input
+        let actual_batch = download(&store, &meta, selection, expected_schema)
+            .await
+            .unwrap();
+        assert_eq!(actual_batch, expected_batch);
+    }
+
+    async fn assert_schema_check_fail(
+        persisted_batch: RecordBatch,
+        expected_schema: SchemaRef,
+        msg: &str,
+    ) {
+        let object_store: Arc<DynObjectStore> = Arc::new(object_store::memory::InMemory::default());
+
+        let store = ParquetStorage::new(object_store);
+
+        let meta = meta();
+        upload(&store, &meta, persisted_batch).await;
+
+        let err = download(&store, &meta, Selection::All, expected_schema)
+            .await
+            .unwrap_err();
+
+        // And compare to the original input
+        if let DataFusionError::ArrowError(ArrowError::ExternalError(err)) = err {
+            assert_eq!(&err.to_string(), msg,);
+        } else {
+            panic!("Wrong error type: {err}");
+        }
+    }
+
+    enum ColType {
+        Int,
+        String,
+    }
+
+    fn build_schema(cols: &[(&str, ColType)]) -> Schema {
+        let batch = RecordBatch::try_from_iter(
+            cols.iter()
+                .map(|(c, t)| {
+                    let array = match t {
+                        ColType::Int => to_int_array(&[1]),
+                        ColType::String => to_string_array(&["foo"]),
+                    };
+
+                    (*c, array)
+                })
+                .chain(std::iter::once(("_not_empty", to_int_array(&[1])))),
+        )
+        .unwrap();
+        let indices: Vec<_> = (0..cols.len()).collect();
+        batch.schema().project(&indices).unwrap()
+    }
+
+    fn run_project_for_parquet_reader(
+        cols_file: &[(&str, ColType)],
+        cols_expected: &[(&str, ColType)],
+    ) -> Result<(Vec<usize>, Vec<usize>), ProjectionError> {
+        let file_schema = build_schema(cols_file);
+        let expected_schema = build_schema(cols_expected);
+        project_for_parquet_reader(&file_schema, &expected_schema)
     }
 }
