@@ -2,12 +2,9 @@
 
 #![allow(missing_docs)]
 
-use crate::{
-    data::{
-        IngesterData, NamespaceData, PartitionData, PersistingBatch, QueryableBatch, SequencerData,
-        SnapshotBatch, TableData,
-    },
-    partioning::DefaultPartitioner,
+use crate::data::{
+    IngesterData, NamespaceData, PartitionData, PersistingBatch, QueryableBatch, SequencerData,
+    SnapshotBatch, TableData,
 };
 use arrow::record_batch::RecordBatch;
 use arrow_util::assert_batches_eq;
@@ -708,7 +705,6 @@ pub fn make_ingester_data(two_partitions: bool, loc: DataLocation) -> IngesterDa
         object_store,
         catalog,
         sequencers,
-        Arc::new(DefaultPartitioner::default()),
         exec,
         backoff::BackoffConfig::default(),
     )
@@ -753,7 +749,6 @@ pub async fn make_ingester_data_with_tombstones(loc: DataLocation) -> IngesterDa
         object_store,
         catalog,
         sequencers,
-        Arc::new(DefaultPartitioner::default()),
         exec,
         backoff::BackoffConfig::default(),
     )

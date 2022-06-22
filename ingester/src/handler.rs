@@ -3,7 +3,6 @@
 use crate::{
     data::{IngesterData, IngesterQueryResponse, SequencerData},
     lifecycle::{run_lifecycle_manager, LifecycleConfig, LifecycleManager},
-    partioning::DefaultPartitioner,
     poison::PoisonCabinet,
     querier_handler::prepare_data_to_querier,
     stream_handler::{
@@ -156,7 +155,6 @@ impl IngestHandlerImpl {
             object_store,
             catalog,
             sequencers,
-            Arc::new(DefaultPartitioner::default()),
             exec,
             BackoffConfig::default(),
         ));
