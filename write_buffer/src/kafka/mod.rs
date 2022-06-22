@@ -709,7 +709,7 @@ mod tests {
     #[tokio::test]
     #[should_panic = "enqueuing unpartitioned write into kafka"]
     async fn test_enqueue_no_partition_key() {
-        let conn = maybe_skip_kafka_integration!();
+        let conn = maybe_skip_kafka_integration!("enqueuing unpartitioned write into kafka");
         let adapter = RSKafkaTestAdapter::new(conn);
         let ctx = adapter.new_context(NonZeroU32::new(1).unwrap()).await;
 

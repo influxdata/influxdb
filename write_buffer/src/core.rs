@@ -1345,9 +1345,14 @@ pub mod test_utils {
     /// If `TEST_INTEGRATION` is not set, skip the calling test by returning early.
     #[macro_export]
     macro_rules! maybe_skip_kafka_integration {
-        () => {{
+        () => {
+            maybe_skip_kafka_integration!("")
+        };
+        ($panic_msg:expr) => {{
             use std::env;
             dotenv::dotenv().ok();
+
+            let panic_msg: &'static str = $panic_msg;
 
             match (
                 env::var("TEST_INTEGRATION").is_ok(),
@@ -1368,14 +1373,22 @@ pub mod test_utils {
                 }
                 (false, Some(_)) => {
                     eprintln!("skipping Kafka integration tests - set TEST_INTEGRATION to run");
-                    return;
+                    if !panic_msg.is_empty() {
+                        panic!("{}", panic_msg);
+                    } else {
+                        return;
+                    }
                 }
                 (false, None) => {
                     eprintln!(
                         "skipping Kafka integration tests - set TEST_INTEGRATION and KAFKA_CONNECT \
                         to run"
                     );
-                    return;
+                    if !panic_msg.is_empty() {
+                        panic!("{}", panic_msg);
+                    } else {
+                        return;
+                    }
                 }
             }
         }};
