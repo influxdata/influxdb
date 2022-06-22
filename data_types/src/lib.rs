@@ -821,7 +821,14 @@ impl ColumnSet {
         T: Into<String>,
         I: IntoIterator<Item = T>,
     {
-        let mut columns: Vec<String> = columns.into_iter().map(|c| c.into()).collect();
+        let mut columns: Vec<String> = columns
+            .into_iter()
+            .map(|c| {
+                let mut col: String = c.into();
+                col.shrink_to_fit();
+                col
+            })
+            .collect();
         columns.sort();
 
         let len_pre_dedup = columns.len();
@@ -829,7 +836,16 @@ impl ColumnSet {
         let len_post_dedup = columns.len();
         assert_eq!(len_pre_dedup, len_post_dedup, "set contains duplicates");
 
+        columns.shrink_to_fit();
+
         Self(columns)
+    }
+
+    /// Estimate the memory consumption of this object and its contents
+    pub fn size(&self) -> usize {
+        std::mem::size_of_val(self)
+            + (std::mem::size_of::<String>() * self.0.capacity())
+            + self.0.iter().map(|s| s.len()).sum::<usize>()
     }
 }
 
@@ -900,8 +916,8 @@ pub struct ParquetFile {
 impl ParquetFile {
     /// Estimate the memory consumption of this object and its contents
     pub fn size(&self) -> usize {
-        // No additional heap allocations
-        std::mem::size_of_val(self)
+        std::mem::size_of_val(self) + self.column_set.size()
+            - std::mem::size_of_val(&self.column_set)
     }
 }
 
