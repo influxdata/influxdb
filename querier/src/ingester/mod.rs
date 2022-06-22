@@ -147,11 +147,11 @@ pub fn create_ingester_connection(
 /// }
 /// ```
 pub fn create_ingester_connections_by_sequencer(
-    sequencer_to_ingester: HashMap<i32, Arc<str>>,
+    sequencer_to_ingesters: HashMap<i32, Vec<Arc<str>>>,
     catalog_cache: Arc<CatalogCache>,
 ) -> Arc<dyn IngesterConnection> {
     Arc::new(IngesterConnectionImpl::by_sequencer(
-        sequencer_to_ingester,
+        sequencer_to_ingesters,
         catalog_cache,
     ))
 }
@@ -278,7 +278,7 @@ impl<'a> Drop for ObserveIngesterRequest<'a> {
 /// IngesterConnection that communicates with an ingester.
 #[derive(Debug)]
 pub struct IngesterConnectionImpl {
-    sequencer_to_ingester: HashMap<KafkaPartition, Arc<str>>,
+    sequencer_to_ingesters: HashMap<KafkaPartition, Vec<Arc<str>>>,
     unique_ingester_addresses: HashSet<Arc<str>>,
     flight_client: Arc<dyn FlightClient>,
     catalog_cache: Arc<CatalogCache>,
@@ -314,7 +314,7 @@ impl IngesterConnectionImpl {
         let metrics = Arc::new(IngesterConnectionMetrics::new(&metric_registry));
 
         Self {
-            sequencer_to_ingester: HashMap::new(),
+            sequencer_to_ingesters: HashMap::new(),
             unique_ingester_addresses,
             flight_client,
             catalog_cache,
@@ -326,18 +326,23 @@ impl IngesterConnectionImpl {
     ///
     /// ```json
     /// {
-    ///     "0": { "addr": "http://ingester-1:8082" },
-    ///     "1": { "addr": "http://ingester-1:8082" },
-    ///     ...
-    ///     "25": { "addr": "http://ingester-2:8082" },
+    ///   "sequencers": {
+    ///     "0": {
+    ///       "ingesters": [
+    ///         {"addr": "http://ingester-0:8082"},
+    ///         {"addr": "http://ingester-3:8082"}
+    ///       ]
+    ///     },
+    ///     "1": { "ingesters": [{"addr": "http://ingester-1:8082"}]},
+    ///   }
     /// }
     /// ```
     pub fn by_sequencer(
-        sequencer_to_ingester: HashMap<i32, Arc<str>>,
+        sequencer_to_ingesters: HashMap<i32, Vec<Arc<str>>>,
         catalog_cache: Arc<CatalogCache>,
     ) -> Self {
         Self::by_sequencer_with_flight_client(
-            sequencer_to_ingester,
+            sequencer_to_ingesters,
             Arc::new(FlightClientImpl::new()),
             catalog_cache,
         )
@@ -348,13 +353,16 @@ impl IngesterConnectionImpl {
     /// This is helpful for testing, i.e. when the flight client should not be backed by normal
     /// network communication.
     pub fn by_sequencer_with_flight_client(
-        sequencer_to_ingester: HashMap<i32, Arc<str>>,
+        sequencer_to_ingesters: HashMap<i32, Vec<Arc<str>>>,
         flight_client: Arc<dyn FlightClient>,
         catalog_cache: Arc<CatalogCache>,
     ) -> Self {
-        let unique_ingester_addresses: HashSet<_> =
-            sequencer_to_ingester.values().map(Arc::clone).collect();
-        let sequencer_to_ingester = sequencer_to_ingester
+        let unique_ingester_addresses: HashSet<_> = sequencer_to_ingesters
+            .values()
+            .map(|v| v.into_iter().map(Arc::clone))
+            .flatten()
+            .collect();
+        let sequencer_to_ingesters = sequencer_to_ingesters
             .into_iter()
             .map(|(sequencer_id, ingester_address)| {
                 (KafkaPartition::new(sequencer_id), ingester_address)
@@ -365,7 +373,7 @@ impl IngesterConnectionImpl {
         let metrics = Arc::new(IngesterConnectionMetrics::new(&metric_registry));
 
         Self {
-            sequencer_to_ingester,
+            sequencer_to_ingesters,
             unique_ingester_addresses,
             flight_client,
             catalog_cache,
@@ -708,7 +716,12 @@ impl IngesterConnection for IngesterConnectionImpl {
         // sequencer_ids relevant to this query.
         let relevant_ingester_addresses: HashSet<_> = sequencer_ids
             .iter()
-            .flat_map(|sequencer_id| self.sequencer_to_ingester.get(sequencer_id).map(Arc::clone))
+            .flat_map(|sequencer_id| {
+                self.sequencer_to_ingesters
+                    .get(sequencer_id)
+                    .map(|v| v.into_iter().map(Arc::clone))
+            })
+            .flatten()
             .collect();
 
         let relevant_ingester_addresses = if relevant_ingester_addresses.is_empty() {
@@ -1801,19 +1814,19 @@ mod tests {
             let ingester_addresses: BTreeSet<_> =
                 self.responses.lock().await.keys().cloned().collect();
 
-            let sequencer_to_ingester = ingester_addresses
+            let sequencer_to_ingesters = ingester_addresses
                 .into_iter()
                 .enumerate()
                 .map(|(sequencer_id, ingester_address)| {
                     (
                         sequencer_id as i32 + 1,
-                        Arc::from(ingester_address.as_str()),
+                        vec![Arc::from(ingester_address.as_str())],
                     )
                 })
                 .collect();
 
             IngesterConnectionImpl::by_sequencer_with_flight_client(
-                sequencer_to_ingester,
+                sequencer_to_ingesters,
                 Arc::clone(self) as _,
                 Arc::new(CatalogCache::new(
                     self.catalog.catalog(),

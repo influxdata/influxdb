@@ -398,10 +398,10 @@ impl Config {
         };
 
         let querier_config = QuerierConfig {
-            num_query_threads: None,          // will be ignored
-            ingester_addresses: vec![],       // will be ignored
-            sequencer_to_ingester_file: None, // will be ignored
-            sequencer_to_ingester: None,      // will be ignored
+            num_query_threads: None,           // will be ignored
+            ingester_addresses: vec![],        // will be ignored
+            sequencer_to_ingesters_file: None, // will be ignored
+            sequencer_to_ingesters: None,      // will be ignored
             ram_pool_bytes: querier_ram_pool_bytes,
             max_concurrent_queries: querier_max_concurrent_queries,
         };
@@ -523,7 +523,9 @@ pub async fn command(config: Config) -> Result<()> {
     let ingester_addresses = IngesterAddresses::BySequencer(
         [(
             0,
-            Arc::from(format!("http://{}", ingester_run_config.grpc_bind_address).as_str()),
+            vec![Arc::from(
+                format!("http://{}", ingester_run_config.grpc_bind_address).as_str(),
+            )],
         )]
         .into_iter()
         .collect(),

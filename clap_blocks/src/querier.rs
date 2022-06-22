@@ -54,43 +54,49 @@ pub struct QuerierConfig {
     )]
     pub ingester_addresses: Vec<String>,
 
-    /// Path to a JSON file containing a Sequencer ID to ingester gRPC mapping. For example:
+    /// Path to a JSON file containing a Sequencer ID to ingesters gRPC mapping. For example:
     ///
     /// ```json
     /// {
-    ///    "sequencers": {
-    ///      "0": { "addr": "http://ingester-1:8082" },
-    ///      "1": { "addr": "http://ingester-1:8082" },
-    ///      ...
-    ///      "25": { "addr": "http://ingester-2:8082" }
-    ///    }
+    ///   "sequencers": {
+    ///     "0": {
+    ///       "ingesters": [
+    ///         {"addr": "http://ingester-0:8082"},
+    ///         {"addr": "http://ingester-3:8082"}
+    ///       ]
+    ///     },
+    ///     "1": { "ingesters": [{"addr": "http://ingester-1:8082"}]},
+    ///   }
     /// }
     /// ```
     #[clap(
-        long = "--sequencer-to-ingester-file",
-        env = "INFLUXDB_IOX_SEQUENCER_TO_INGESTER_FILE",
+        long = "--sequencer-to-ingesters-file",
+        env = "INFLUXDB_IOX_SEQUENCER_TO_INGESTERS_FILE",
         action
     )]
-    pub sequencer_to_ingester_file: Option<PathBuf>,
+    pub sequencer_to_ingesters_file: Option<PathBuf>,
 
-    /// JSON containing a Sequencer ID to ingester gRPC mapping. For example:
+    /// JSON containing a Sequencer ID to ingesters gRPC mapping. For example:
     ///
     /// ```json
     /// {
-    ///    "sequencers": {
-    ///      "0": { "addr": "http://ingester-1:8082" },
-    ///      "1": { "addr": "http://ingester-1:8082" },
-    ///      ...
-    ///      "25": { "addr": "http://ingester-2:8082" }
-    ///    }
+    ///   "sequencers": {
+    ///     "0": {
+    ///       "ingesters": [
+    ///         {"addr": "http://ingester-0:8082"},
+    ///         {"addr": "http://ingester-3:8082"}
+    ///       ]
+    ///     },
+    ///     "1": { "ingesters": [{"addr": "http://ingester-1:8082"}]},
+    ///   }
     /// }
     /// ```
     #[clap(
-        long = "--sequencer-to-ingester",
-        env = "INFLUXDB_IOX_SEQUENCER_TO_INGESTER",
+        long = "--sequencer-to-ingesters",
+        env = "INFLUXDB_IOX_SEQUENCER_TO_INGESTERS",
         action
     )]
-    pub sequencer_to_ingester: Option<String>,
+    pub sequencer_to_ingesters: Option<String>,
 
     /// Size of the RAM cache pool in bytes.
     #[clap(
@@ -120,16 +126,16 @@ impl QuerierConfig {
 
     /// Return the querier config's ingester addresses. If `--ingester-address` is used to specify
     /// a list of addresses, this returns `Err` if any of the addresses are repeated. If
-    /// `--sequencer-to-ingester-file` is used to specify a JSON file containing sequencer to
+    /// `--sequencer-to-ingesters-file` is used to specify a JSON file containing sequencer to
     /// ingester address mappings, this returns `Err` if there are any problems reading or
     /// deserializing the file.
     pub fn ingester_addresses(&self) -> Result<IngesterAddresses, Error> {
-        if let Some(file) = &self.sequencer_to_ingester_file {
+        if let Some(file) = &self.sequencer_to_ingesters_file {
             let contents =
                 fs::read_to_string(file).context(SequencerToIngesterFileReadingSnafu { file })?;
             let map = deserialize_sequencer_ingester_map(&contents)?;
             Ok(IngesterAddresses::BySequencer(map))
-        } else if let Some(contents) = &self.sequencer_to_ingester {
+        } else if let Some(contents) = &self.sequencer_to_ingesters {
             let map = deserialize_sequencer_ingester_map(contents)?;
             Ok(IngesterAddresses::BySequencer(map))
         } else {
@@ -161,27 +167,43 @@ impl QuerierConfig {
     }
 }
 
-fn deserialize_sequencer_ingester_map(contents: &str) -> Result<HashMap<i32, Arc<str>>, Error> {
+fn deserialize_sequencer_ingester_map(
+    contents: &str,
+) -> Result<HashMap<i32, Vec<Arc<str>>>, Error> {
     let ingesters_config: IngestersConfig =
         serde_json::from_str(contents).context(SequencerToIngesterDeserializingSnafu)?;
 
     Ok(ingesters_config
         .sequencers
         .into_iter()
-        .map(|(seq_id, ingester)| (seq_id, ingester.addr))
+        .map(|(seq_id, ingesters)| {
+            (
+                seq_id,
+                ingesters
+                    .ingesters
+                    .into_iter()
+                    .map(|ingester| ingester.addr)
+                    .collect(),
+            )
+        })
         .collect())
 }
 
-/// Either specify a list of ingester addresses or a mapping from sequencer ID to ingester
+/// Either specify a list of ingester addresses or a mapping from sequencer ID to ingesters
 #[derive(Debug, PartialEq)]
 pub enum IngesterAddresses {
     List(Vec<String>),
-    BySequencer(HashMap<i32, Arc<str>>),
+    BySequencer(HashMap<i32, Vec<Arc<str>>>),
 }
 
 #[derive(Debug, Deserialize)]
 struct IngestersConfig {
-    sequencers: HashMap<i32, Ingester>,
+    sequencers: HashMap<i32, Ingesters>,
+}
+
+#[derive(Debug, Deserialize)]
+struct Ingesters {
+    ingesters: Vec<Ingester>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -273,12 +295,16 @@ mod tests {
     fn supply_json_value() {
         let actual = QuerierConfig::try_parse_from([
             "my_binary",
-            "--sequencer-to-ingester",
+            "--sequencer-to-ingesters",
             r#"{
               "sequencers": {
-                 "0": { "addr": "http://ingester-1:8082" },
-                 "1": { "addr": "http://ingester-1:8082" },
-                 "25": { "addr": "http://ingester-2:8082" }
+                "0": {
+                  "ingesters": [
+                    {"addr": "http://ingester-1:8082"},
+                    {"addr": "http://ingester-3:8082"}
+                  ]
+                },
+                "1": { "ingesters": [{"addr": "http://ingester-1:8082"}]}
               }
             }"#,
         ])
@@ -286,12 +312,11 @@ mod tests {
 
         let expected = IngesterAddresses::BySequencer(
             [
-                (0, "http://ingester-1:8082"),
-                (1, "http://ingester-1:8082"),
-                (25, "http://ingester-2:8082"),
+                (0, vec!["http://ingester-1:8082", "http://ingester-3:8082"]),
+                (1, vec!["http://ingester-1:8082"]),
             ]
             .into_iter()
-            .map(|(seq_id, addr)| (seq_id, Arc::from(addr)))
+            .map(|(seq_id, addrs)| (seq_id, addrs.into_iter().map(Arc::from).collect()))
             .collect(),
         );
 
@@ -301,21 +326,24 @@ mod tests {
     #[test]
     fn successful_deserialization() {
         let contents = r#"{
-              "sequencers": {
-                 "0": { "addr": "http://ingester-1:8082" },
-                 "1": { "addr": "http://ingester-1:8082" },
-                 "25": { "addr": "http://ingester-2:8082" }
-              }
-            }"#;
+          "sequencers": {
+            "0": {
+              "ingesters": [
+                {"addr": "http://ingester-1:8082"},
+                {"addr": "http://ingester-3:8082"}
+              ]
+            },
+            "1": { "ingesters": [{"addr": "http://ingester-1:8082"}]}
+          }
+        }"#;
         let map = deserialize_sequencer_ingester_map(contents).unwrap();
 
         let expected = [
-            (0, "http://ingester-1:8082"),
-            (1, "http://ingester-1:8082"),
-            (25, "http://ingester-2:8082"),
+            (0, vec!["http://ingester-1:8082", "http://ingester-3:8082"]),
+            (1, vec!["http://ingester-1:8082"]),
         ]
         .into_iter()
-        .map(|(seq_id, addr)| (seq_id, Arc::from(addr)))
+        .map(|(seq_id, addrs)| (seq_id, addrs.into_iter().map(Arc::from).collect()))
         .collect();
 
         assert_eq!(map, expected);
