@@ -24,12 +24,22 @@ async fn basic_multi_ingesters() {
     let ingester_config = TestConfig::new_ingester(&router_config).with_kafka_partition(0);
     let ingester2_config = TestConfig::new_ingester(&router_config).with_kafka_partition(1);
 
+    let json = format!(
+        r#"
+    {{
+      "sequencers": {{
+        "0": {{ "ingesters": [{{"addr": "{}"}}] }},
+        "1": {{ "ingesters": [{{"addr": "{}"}}] }}
+      }}
+    }}
+    "#,
+        ingester_config.ingester_base(),
+        ingester2_config.ingester_base()
+    );
+
     let querier_config = TestConfig::new_querier_without_ingester(&ingester_config)
         // Configure to talk with both the ingesters
-        .with_ingester_addresses(&[
-            ingester_config.ingester_base().as_ref(),
-            ingester2_config.ingester_base().as_ref(),
-        ]);
+        .with_sequencer_to_ingesters_mapping(&json);
 
     // Set up the cluster  ====================================
     let mut cluster = MiniCluster::new()

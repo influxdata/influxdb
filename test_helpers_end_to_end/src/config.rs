@@ -172,10 +172,28 @@ impl TestConfig {
 
     /// Adds the ingester addresses
     pub fn with_ingester_addresses(self, ingester_addresses: &[&str]) -> Self {
-        self.with_env(
-            "INFLUXDB_IOX_INGESTER_ADDRESSES",
-            ingester_addresses.join(","),
-        )
+        let mut mapping_json = String::from(
+            r#"{
+          "sequencers": {
+            "0": {
+              "ingesters": [
+        "#,
+        );
+
+        let addresses: String = ingester_addresses
+            .iter()
+            .map(|addr| format!("{{\"addr\": \"{addr}\"}}"))
+            .collect::<Vec<_>>()
+            .join(",");
+
+        mapping_json += &addresses;
+        mapping_json += r#"]}}}"#;
+
+        self.with_env("INFLUXDB_IOX_SEQUENCER_TO_INGESTERS", mapping_json)
+    }
+
+    pub fn with_sequencer_to_ingesters_mapping(self, mapping_json: &str) -> Self {
+        self.with_env("INFLUXDB_IOX_SEQUENCER_TO_INGESTERS", mapping_json)
     }
 
     /// Adds default compactor options

@@ -840,8 +840,9 @@ impl MockIngester {
             self.catalog.metric_registry(),
             usize::MAX,
         ));
-        let ingester_connection = IngesterConnectionImpl::new_with_flight_client(
-            vec![String::from("some_address")],
+        let sequencer_to_ingesters = [(0, vec![Arc::from("some_address")])].into_iter().collect();
+        let ingester_connection = IngesterConnectionImpl::by_sequencer_with_flight_client(
+            sequencer_to_ingesters,
             Arc::new(self),
             Arc::clone(&catalog_cache),
         );

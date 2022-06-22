@@ -166,6 +166,10 @@ pub fn create_ingester_connection_for_testing() -> Arc<dyn IngesterConnection> {
 #[async_trait]
 pub trait IngesterConnection: std::fmt::Debug + Send + Sync + 'static {
     /// Returns all partitions ingester(s) know about for the specified table.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the list of sequencer_ids is empty.
     async fn partitions(
         &self,
         sequencer_ids: &[KafkaPartition],
@@ -275,10 +279,29 @@ impl<'a> Drop for ObserveIngesterRequest<'a> {
     }
 }
 
+/// This enum is temporary to support migration from `--ingester-addresses` to specifying the
+/// sequencer to ingesters mapping. This can be simplified to the HashMap inside the
+/// SequencerToIngestersMap variant when nothing is using `--ingester-addresses` anymore.
+#[derive(Debug)]
+enum TemporaryMigrationSupport {
+    SequencerToIngestersMap(HashMap<KafkaPartition, Vec<Arc<str>>>),
+    IngesterAddresses(Vec<Arc<str>>),
+}
+
+impl TemporaryMigrationSupport {
+    fn get(&self, key: &KafkaPartition) -> Option<&[Arc<str>]> {
+        use TemporaryMigrationSupport::*;
+        match self {
+            SequencerToIngestersMap(map) => map.get(key).map(Vec::as_slice),
+            IngesterAddresses(list) => Some(list),
+        }
+    }
+}
+
 /// IngesterConnection that communicates with an ingester.
 #[derive(Debug)]
 pub struct IngesterConnectionImpl {
-    sequencer_to_ingesters: HashMap<KafkaPartition, Vec<Arc<str>>>,
+    sequencer_to_ingesters: TemporaryMigrationSupport,
     unique_ingester_addresses: HashSet<Arc<str>>,
     flight_client: Arc<dyn FlightClient>,
     catalog_cache: Arc<CatalogCache>,
@@ -314,7 +337,9 @@ impl IngesterConnectionImpl {
         let metrics = Arc::new(IngesterConnectionMetrics::new(&metric_registry));
 
         Self {
-            sequencer_to_ingesters: HashMap::new(),
+            sequencer_to_ingesters: TemporaryMigrationSupport::IngesterAddresses(
+                unique_ingester_addresses.iter().cloned().collect(),
+            ),
             unique_ingester_addresses,
             flight_client,
             catalog_cache,
@@ -359,15 +384,16 @@ impl IngesterConnectionImpl {
     ) -> Self {
         let unique_ingester_addresses: HashSet<_> = sequencer_to_ingesters
             .values()
-            .map(|v| v.into_iter().map(Arc::clone))
-            .flatten()
+            .flat_map(|v| v.iter().map(Arc::clone))
             .collect();
-        let sequencer_to_ingesters = sequencer_to_ingesters
-            .into_iter()
-            .map(|(sequencer_id, ingester_address)| {
-                (KafkaPartition::new(sequencer_id), ingester_address)
-            })
-            .collect();
+        let sequencer_to_ingesters = TemporaryMigrationSupport::SequencerToIngestersMap(
+            sequencer_to_ingesters
+                .into_iter()
+                .map(|(sequencer_id, ingester_address)| {
+                    (KafkaPartition::new(sequencer_id), ingester_address)
+                })
+                .collect(),
+        );
 
         let metric_registry = catalog_cache.metric_registry();
         let metrics = Arc::new(IngesterConnectionMetrics::new(&metric_registry));
@@ -680,6 +706,13 @@ impl IngesterConnection for IngesterConnectionImpl {
         predicate: &Predicate,
         expected_schema: Arc<Schema>,
     ) -> Result<Vec<IngesterPartition>> {
+        // If no sequencer IDs are specified, no ingester addresses can be found. This is a
+        // configuration problem somewhere.
+        assert!(
+            !sequencer_ids.is_empty(),
+            "Called `IngesterConnection.partitions` with an empty `sequencer_ids` list",
+        );
+
         let metrics = Arc::clone(&self.metrics);
 
         let measured_ingester_request = |ingester_address| {
@@ -719,17 +752,17 @@ impl IngesterConnection for IngesterConnectionImpl {
             .flat_map(|sequencer_id| {
                 self.sequencer_to_ingesters
                     .get(sequencer_id)
-                    .map(|v| v.into_iter().map(Arc::clone))
+                    .map(|v| v.iter().map(Arc::clone))
             })
             .flatten()
             .collect();
 
-        let relevant_ingester_addresses = if relevant_ingester_addresses.is_empty() {
-            // If specific ingesters for the sequencers aren't found, query all ingesters
-            self.unique_ingester_addresses.clone()
-        } else {
-            relevant_ingester_addresses
-        };
+        // If the sequencer to ingester map doesn't return any ingesters, this is a configuration
+        // error somewhere.
+        assert!(
+            !relevant_ingester_addresses.is_empty(),
+            "Could not find ingester addresses for sequencer IDs {sequencer_ids:?}"
+        );
 
         let mut ingester_partitions: Vec<IngesterPartition> = relevant_ingester_addresses
             .into_iter()
@@ -1215,7 +1248,7 @@ mod tests {
             .await,
         );
         let ingester_conn = mock_flight_client.ingester_conn().await;
-        let err = get_partitions(&ingester_conn, 0).await.unwrap_err();
+        let err = get_partitions(&ingester_conn, &[1]).await.unwrap_err();
         assert_matches!(err, Error::RemoteQuery { .. });
     }
 
@@ -1231,7 +1264,7 @@ mod tests {
             .await,
         );
         let ingester_conn = mock_flight_client.ingester_conn().await;
-        let err = get_partitions(&ingester_conn, 0).await.unwrap_err();
+        let err = get_partitions(&ingester_conn, &[1]).await.unwrap_err();
         assert_matches!(err, Error::RemoteQuery { .. });
     }
 
@@ -1247,7 +1280,7 @@ mod tests {
             .await,
         );
         let ingester_conn = mock_flight_client.ingester_conn().await;
-        let partitions = get_partitions(&ingester_conn, 0).await.unwrap();
+        let partitions = get_partitions(&ingester_conn, &[1]).await.unwrap();
         assert!(partitions.is_empty());
     }
 
@@ -1265,7 +1298,7 @@ mod tests {
             .await,
         );
         let ingester_conn = mock_flight_client.ingester_conn().await;
-        let err = get_partitions(&ingester_conn, 0).await.unwrap_err();
+        let err = get_partitions(&ingester_conn, &[1]).await.unwrap_err();
         assert_matches!(err, Error::RemoteQuery { .. });
     }
 
@@ -1275,8 +1308,20 @@ mod tests {
             MockFlightClient::new([("addr1", Ok(MockQueryData { results: vec![] }))]).await,
         );
         let ingester_conn = mock_flight_client.ingester_conn().await;
-        let partitions = get_partitions(&ingester_conn, 0).await.unwrap();
+        let partitions = get_partitions(&ingester_conn, &[1]).await.unwrap();
         assert!(partitions.is_empty());
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "Could not find ingester addresses for sequencer IDs")]
+    async fn no_ingester_addresses_found_is_a_configuration_error() {
+        let mock_flight_client = Arc::new(
+            MockFlightClient::new([("addr1", Ok(MockQueryData { results: vec![] }))]).await,
+        );
+        let ingester_conn = mock_flight_client.ingester_conn().await;
+
+        // Sequencer ID 0 doesn't have an associated ingester address in the test setup
+        get_partitions(&ingester_conn, &[0]).await.unwrap();
     }
 
     #[tokio::test]
@@ -1301,7 +1346,7 @@ mod tests {
         );
         let ingester_conn = mock_flight_client.ingester_conn().await;
 
-        let partitions = get_partitions(&ingester_conn, 0).await.unwrap();
+        let partitions = get_partitions(&ingester_conn, &[1]).await.unwrap();
         assert_eq!(partitions.len(), 1);
 
         let p = &partitions[0];
@@ -1330,7 +1375,7 @@ mod tests {
             .await,
         );
         let ingester_conn = mock_flight_client.ingester_conn().await;
-        let err = get_partitions(&ingester_conn, 0).await.unwrap_err();
+        let err = get_partitions(&ingester_conn, &[1]).await.unwrap_err();
         assert_matches!(err, Error::PartitionStatusMissing { .. });
     }
 
@@ -1377,7 +1422,7 @@ mod tests {
             .await,
         );
         let ingester_conn = mock_flight_client.ingester_conn().await;
-        let err = get_partitions(&ingester_conn, 0).await.unwrap_err();
+        let err = get_partitions(&ingester_conn, &[1]).await.unwrap_err();
         assert_matches!(err, Error::DuplicatePartitionInfo { .. });
     }
 
@@ -1397,7 +1442,7 @@ mod tests {
             .await,
         );
         let ingester_conn = mock_flight_client.ingester_conn().await;
-        let err = get_partitions(&ingester_conn, 0).await.unwrap_err();
+        let err = get_partitions(&ingester_conn, &[1]).await.unwrap_err();
         assert_matches!(err, Error::ChunkWithoutPartition { .. });
     }
 
@@ -1417,7 +1462,7 @@ mod tests {
             .await,
         );
         let ingester_conn = mock_flight_client.ingester_conn().await;
-        let err = get_partitions(&ingester_conn, 0).await.unwrap_err();
+        let err = get_partitions(&ingester_conn, &[1]).await.unwrap_err();
         assert_matches!(err, Error::BatchWithoutChunk { .. });
     }
 
@@ -1522,7 +1567,7 @@ mod tests {
         );
         let ingester_conn = mock_flight_client.ingester_conn().await;
 
-        let partitions = get_partitions(&ingester_conn, 0).await.unwrap();
+        let partitions = get_partitions(&ingester_conn, &[1, 2]).await.unwrap();
         assert_eq!(partitions.len(), 3);
 
         let p1 = &partitions[0];
@@ -1603,7 +1648,7 @@ mod tests {
             .await,
         );
         let ingester_conn = mock_flight_client.ingester_conn().await;
-        get_partitions(&ingester_conn, 0).await.ok();
+        get_partitions(&ingester_conn, &[1, 2, 3, 4, 5]).await.ok();
 
         let histogram_error = mock_flight_client
             .catalog
@@ -1687,11 +1732,11 @@ mod tests {
             ])
             .await,
         );
-        let ingester_conn = mock_flight_client
-            .ingester_conn_with_sequencer_config()
-            .await;
+        let ingester_conn = mock_flight_client.ingester_conn().await;
 
-        let partitions = get_partitions(&ingester_conn, 1).await.unwrap();
+        // Only use sequencer ID 1, which will correspond to only querying the ingester at
+        // "addr1"
+        let partitions = get_partitions(&ingester_conn, &[1]).await.unwrap();
         assert_eq!(partitions.len(), 1);
 
         let p1 = &partitions[0];
@@ -1710,9 +1755,13 @@ mod tests {
 
     async fn get_partitions(
         ingester_conn: &IngesterConnectionImpl,
-        sequencer_id: i32,
+        sequencer_ids: &[i32],
     ) -> Result<Vec<IngesterPartition>, Error> {
-        let sequencer_ids = vec![KafkaPartition::new(sequencer_id)];
+        let sequencer_ids: Vec<_> = sequencer_ids
+            .iter()
+            .copied()
+            .map(KafkaPartition::new)
+            .collect();
         let namespace = Arc::from("namespace");
         let table = Arc::from("table");
         let columns = vec![String::from("col")];
@@ -1795,22 +1844,9 @@ mod tests {
             }
         }
 
+        // Assign one sequencer per address, sorted consistently.
+        // Don't assign any addresses to sequencer ID 0 to test error case
         async fn ingester_conn(self: &Arc<Self>) -> IngesterConnectionImpl {
-            let ingester_addresses = self.responses.lock().await.keys().cloned().collect();
-            IngesterConnectionImpl::new_with_flight_client(
-                ingester_addresses,
-                Arc::clone(self) as _,
-                Arc::new(CatalogCache::new(
-                    self.catalog.catalog(),
-                    self.catalog.time_provider(),
-                    self.catalog.metric_registry(),
-                    usize::MAX,
-                )),
-            )
-        }
-
-        // Assign one sequencer per address, sorted consistently
-        async fn ingester_conn_with_sequencer_config(self: &Arc<Self>) -> IngesterConnectionImpl {
             let ingester_addresses: BTreeSet<_> =
                 self.responses.lock().await.keys().cloned().collect();
 

@@ -65,7 +65,7 @@ pub struct QuerierConfig {
     ///         {"addr": "http://ingester-3:8082"}
     ///       ]
     ///     },
-    ///     "1": { "ingesters": [{"addr": "http://ingester-1:8082"}]},
+    ///     "1": { "ingesters": [{"addr": "http://ingester-1:8082"}]}
     ///   }
     /// }
     /// ```
@@ -87,7 +87,7 @@ pub struct QuerierConfig {
     ///         {"addr": "http://ingester-3:8082"}
     ///       ]
     ///     },
-    ///     "1": { "ingesters": [{"addr": "http://ingester-1:8082"}]},
+    ///     "1": { "ingesters": [{"addr": "http://ingester-1:8082"}]}
     ///   }
     /// }
     /// ```

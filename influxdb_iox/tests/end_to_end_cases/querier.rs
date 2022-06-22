@@ -78,53 +78,6 @@ async fn basic_on_parquet() {
 }
 
 #[tokio::test]
-async fn basic_no_ingester_connection() {
-    test_helpers::maybe_start_logging();
-    let database_url = maybe_skip_integration!();
-
-    let table_name = "the_table";
-
-    let router_config = TestConfig::new_router(&database_url);
-    // fast parquet
-    let ingester_config = TestConfig::new_ingester(&router_config);
-
-    // specially create a querier config that is NOT connected to the ingester
-    let querier_config = TestConfig::new_querier_without_ingester(&ingester_config);
-
-    // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::new()
-        .with_router(router_config)
-        .await
-        .with_ingester(ingester_config)
-        .await
-        .with_querier(querier_config)
-        .await;
-
-    // Write some data into the v2 HTTP API ==============
-    StepTest::new(
-        &mut cluster,
-        vec![
-            Step::WriteLineProtocol(format!("{},tag1=A,tag2=B val=42i 123456", table_name)),
-            // Wait for data to be persisted to parquet, ask the ingester directly because the
-            // querier is not connected to the ingester
-            Step::WaitForPersistedAccordingToIngester,
-            Step::Query {
-                sql: format!("select * from {}", table_name),
-                expected: vec![
-                    "+------+------+--------------------------------+-----+",
-                    "| tag1 | tag2 | time                           | val |",
-                    "+------+------+--------------------------------+-----+",
-                    "| A    | B    | 1970-01-01T00:00:00.000123456Z | 42  |",
-                    "+------+------+--------------------------------+-----+",
-                ],
-            },
-        ],
-    )
-    .run()
-    .await
-}
-
-#[tokio::test]
 async fn query_after_persist_sees_new_files() {
     // https://github.com/influxdata/influxdb_iox/issues/4634 added
     // caching of tombstones and parquet files in the querier. This
