@@ -61,6 +61,13 @@ pub enum ReadError {
     /// An error reading the downloaded Parquet file.
     #[error("invalid parquet file: {0}")]
     Parquet(#[from] parquet::errors::ParquetError),
+
+    /// Schema mismatch
+    #[error("Schema mismatch (expected VS actual parquet file) for file: {path}")]
+    SchemaMismatch {
+        /// Path of the affected parquet file.
+        path: object_store::path::Path,
+    },
 }
 
 /// The [`ParquetStorage`] type encapsulates [`RecordBatch`] persistence to an
@@ -185,9 +192,16 @@ impl ParquetStorage {
         // `download_and_scan_parquet` is sent back to the reader and
         // not silently ignored
         let object_store = Arc::clone(&self.object_store);
+        let schema_captured = Arc::clone(&schema);
         let handle = tokio::task::spawn(async move {
-            let download_result =
-                download_and_scan_parquet(projection, path, object_store, tx.clone()).await;
+            let download_result = download_and_scan_parquet(
+                projection,
+                schema_captured,
+                path,
+                object_store,
+                tx.clone(),
+            )
+            .await;
 
             // If there was an error returned from download_and_scan_parquet send it back to the receiver.
             if let Err(e) = download_result {
@@ -245,6 +259,7 @@ fn column_indices(selection: Selection<'_>, schema: SchemaRef) -> Vec<usize> {
 /// spilling it to disk while it is processed.
 async fn download_and_scan_parquet(
     projection: Vec<usize>,
+    expected_schema: SchemaRef,
     path: object_store::path::Path,
     object_store: Arc<DynObjectStore>,
     tx: tokio::sync::mpsc::Sender<ArrowResult<RecordBatch>>,
@@ -276,6 +291,14 @@ async fn download_and_scan_parquet(
     let file_reader = SerializedFileReader::new(Bytes::from(data))?;
     let mut arrow_reader = ParquetFileArrowReader::new(Arc::new(file_reader));
 
+    // Check schema but ignore the metadata
+    let schema = arrow_reader
+        .get_schema()?
+        .with_metadata(expected_schema.metadata().clone());
+    if expected_schema.as_ref() != &schema {
+        return Err(ReadError::SchemaMismatch { path });
+    }
+
     let mask = ProjectionMask::roots(arrow_reader.parquet_schema(), projection);
     let record_batch_reader = arrow_reader.get_record_reader_by_columns(mask, batch_size)?;
 
@@ -293,10 +316,13 @@ async fn download_and_scan_parquet(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use super::*;
 
-    use arrow::array::{ArrayRef, StringBuilder};
+    use arrow::array::{ArrayRef, Int64Builder, StringBuilder};
     use data_types::{NamespaceId, PartitionId, SequenceNumber, SequencerId, TableId};
+    use datafusion::common::DataFusionError;
     use iox_time::Time;
 
     #[tokio::test]
@@ -305,21 +331,7 @@ mod tests {
 
         let store = ParquetStorage::new(object_store);
 
-        let meta = IoxMetadata {
-            object_store_id: Default::default(),
-            creation_timestamp: Time::from_timestamp_nanos(42),
-            namespace_id: NamespaceId::new(1),
-            namespace_name: "bananas".into(),
-            sequencer_id: SequencerId::new(2),
-            table_id: TableId::new(3),
-            table_name: "platanos".into(),
-            partition_id: PartitionId::new(4),
-            partition_key: "potato".into(),
-            min_sequence_number: SequenceNumber::new(10),
-            max_sequence_number: SequenceNumber::new(11),
-            compaction_level: 1,
-            sort_key: None,
-        };
+        let meta = meta();
         let batch = RecordBatch::try_from_iter([("a", to_string_array(&["value"]))]).unwrap();
         let schema = batch.schema();
         let stream = futures::stream::iter([Ok(batch.clone())]);
@@ -356,11 +368,154 @@ mod tests {
         assert_eq!(got.pop().unwrap(), batch);
     }
 
+    #[tokio::test]
+    async fn test_schema_check_fail() {
+        let object_store: Arc<DynObjectStore> = Arc::new(object_store::memory::InMemory::default());
+
+        let store = ParquetStorage::new(object_store);
+
+        let meta = meta();
+        let batch = RecordBatch::try_from_iter([("a", to_string_array(&["value"]))]).unwrap();
+        let other_batch = RecordBatch::try_from_iter([("a", to_int_array(&[1]))]).unwrap();
+        let schema = batch.schema();
+        let stream = futures::stream::iter([Ok(other_batch)]);
+
+        // Serialize & upload the record batches.
+        store
+            .upload(stream, &meta)
+            .await
+            .expect("should serialize and store sucessfully");
+
+        // Fetch the record batches and compare them to the input batches.
+        let path: ParquetFilePath = (&meta).into();
+        let rx = store
+            .read_filter(&Predicate::default(), Selection::All, schema, &path)
+            .expect("should read record batches from object store");
+
+        // Drain the retrieved record batch stream
+        let err = datafusion::physical_plan::common::collect(rx)
+            .await
+            .unwrap_err();
+
+        // And compare to the original input
+        if let DataFusionError::ArrowError(ArrowError::ExternalError(err)) = err {
+            assert_eq!(
+                err.to_string(),
+                "Schema mismatch (expected VS actual parquet file) for file: 1/3/2/4/00000000-0000-0000-0000-000000000000.parquet",
+            );
+        } else {
+            panic!("Wrong error type: {err}");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_schema_check_ignore_additional_metadata_in_mem() {
+        let object_store: Arc<DynObjectStore> = Arc::new(object_store::memory::InMemory::default());
+
+        let store = ParquetStorage::new(object_store);
+
+        let meta = meta();
+        let batch = RecordBatch::try_from_iter([("a", to_string_array(&["value"]))]).unwrap();
+        let schema = batch.schema();
+        let stream = futures::stream::iter([Ok(batch)]);
+
+        // Serialize & upload the record batches.
+        store
+            .upload(stream, &meta)
+            .await
+            .expect("should serialize and store sucessfully");
+
+        // add metadata to reference schema
+        let schema = Arc::new(
+            schema
+                .as_ref()
+                .clone()
+                .with_metadata(HashMap::from([(String::from("foo"), String::from("bar"))])),
+        );
+
+        // Fetch the record batches and compare them to the input batches.
+        let path: ParquetFilePath = (&meta).into();
+        let rx = store
+            .read_filter(&Predicate::default(), Selection::All, schema, &path)
+            .expect("should read record batches from object store");
+
+        // Drain the retrieved record batch stream
+        datafusion::physical_plan::common::collect(rx)
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_schema_check_ignore_additional_metadata_in_file() {
+        let object_store: Arc<DynObjectStore> = Arc::new(object_store::memory::InMemory::default());
+
+        let store = ParquetStorage::new(object_store);
+
+        let meta = meta();
+        let batch = RecordBatch::try_from_iter([("a", to_string_array(&["value"]))]).unwrap();
+        let schema = batch.schema();
+        // add metadata to stored batch
+        let batch = RecordBatch::try_new(
+            Arc::new(
+                schema
+                    .as_ref()
+                    .clone()
+                    .with_metadata(HashMap::from([(String::from("foo"), String::from("bar"))])),
+            ),
+            batch.columns().to_vec(),
+        )
+        .unwrap();
+        let stream = futures::stream::iter([Ok(batch)]);
+
+        // Serialize & upload the record batches.
+        store
+            .upload(stream, &meta)
+            .await
+            .expect("should serialize and store sucessfully");
+
+        // Fetch the record batches and compare them to the input batches.
+        let path: ParquetFilePath = (&meta).into();
+        let rx = store
+            .read_filter(&Predicate::default(), Selection::All, schema, &path)
+            .expect("should read record batches from object store");
+
+        // Drain the retrieved record batch stream
+        datafusion::physical_plan::common::collect(rx)
+            .await
+            .unwrap();
+    }
+
     fn to_string_array(strs: &[&str]) -> ArrayRef {
         let mut builder = StringBuilder::new(strs.len());
         for s in strs {
             builder.append_value(s).expect("appending string");
         }
         Arc::new(builder.finish())
+    }
+
+    fn to_int_array(vals: &[i64]) -> ArrayRef {
+        let mut builder = Int64Builder::new(vals.len());
+        for x in vals {
+            builder.append_value(*x).expect("appending string");
+        }
+        Arc::new(builder.finish())
+    }
+
+    fn meta() -> IoxMetadata {
+        IoxMetadata {
+            object_store_id: Default::default(),
+            creation_timestamp: Time::from_timestamp_nanos(42),
+            namespace_id: NamespaceId::new(1),
+            namespace_name: "bananas".into(),
+            sequencer_id: SequencerId::new(2),
+            table_id: TableId::new(3),
+            table_name: "platanos".into(),
+            partition_id: PartitionId::new(4),
+            partition_key: "potato".into(),
+            min_sequence_number: SequenceNumber::new(10),
+            max_sequence_number: SequenceNumber::new(11),
+            compaction_level: 1,
+            sort_key: None,
+        }
     }
 }

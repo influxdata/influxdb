@@ -11,6 +11,7 @@ clap_blocks = { path = "../clap_blocks" }
 data_types = { path = "../data_types" }
 dml = { path = "../dml" }
 generated_types = { path = "../generated_types" }
+heappy = { git = "https://github.com/mkmik/heappy", rev = "5d47dff152b8430e1dc1aea5a54c91c0c3099219", features = ["enable_heap_profiler", "jemalloc_shim", "measure_free"], optional = true }
 metric = { path = "../metric" }
 metric_exporters = { path = "../metric_exporters" }
 mutable_batch_lp = { path = "../mutable_batch_lp" }

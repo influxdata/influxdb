@@ -451,7 +451,7 @@ pub struct TestPartition {
 
 impl TestPartition {
     /// Update sort key.
-    pub async fn update_sort_key(self: &Arc<Self>, sort_key: SortKey) -> Self {
+    pub async fn update_sort_key(self: &Arc<Self>, sort_key: SortKey) -> Arc<Self> {
         let partition = self
             .catalog
             .catalog
@@ -465,13 +465,13 @@ impl TestPartition {
             .await
             .unwrap();
 
-        Self {
+        Arc::new(Self {
             catalog: Arc::clone(&self.catalog),
             namespace: Arc::clone(&self.namespace),
             table: Arc::clone(&self.table),
             sequencer: Arc::clone(&self.sequencer),
             partition,
-        }
+        })
     }
 
     /// Create a parquet for the partition
@@ -568,6 +568,13 @@ impl TestPartition {
             compaction_level: INITIAL_COMPACTION_LEVEL,
             sort_key: Some(sort_key.clone()),
         };
+        let column_set = ColumnSet::new(
+            record_batch
+                .schema()
+                .fields()
+                .iter()
+                .map(|f| f.name().clone()),
+        );
         let (parquet_metadata_bin, real_file_size_bytes) = create_parquet_file(
             ParquetStorage::new(Arc::clone(&self.catalog.object_store)),
             &metadata,
@@ -590,7 +597,7 @@ impl TestPartition {
             row_count: row_count as i64,
             created_at: Timestamp::new(creation_time),
             compaction_level: INITIAL_COMPACTION_LEVEL,
-            column_set: ColumnSet::new(["col1", "col2"]),
+            column_set,
         };
         let parquet_file = repos
             .parquet_files()

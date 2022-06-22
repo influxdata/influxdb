@@ -54,3 +54,21 @@ For example, if you aim your browser at an IOx server with a URL such as http://
 You will see a beautiful flame graph such as
 
 ![Flame Graph](images/flame_graph.png)
+
+
+# IOx — Heap Profiling
+
+IOx includes a memory heap profile tool as well as a CPU profiler. The memory usage tool is based on [heappy](https://github.com/mkmik/heappy)
+
+Support is is not compiled in by defauly, but must be enabled via the `heappy` feature:
+
+```shell
+# Compile and run IOx with heap profiling enabled
+cargo run --no-default-features --features=heappy  -- run all-in-one
+```
+
+Now, you aim your browser at an IOx server with a URL such as http://localhost:8080/debug/pprof/allocs?seconds=5
+
+You will see a green flamegraph such as
+
+![Heappy Graph](images/heappy_graph.png)
