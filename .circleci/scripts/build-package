@@ -82,7 +82,7 @@ sudo bash <<'EOF'
 mkdir /artifacts && chown -R circleci: /artifacts
 EOF
 
-build_tarfile()
+build_archive()
 {
   workspace="$(mktemp -d)"
 
@@ -98,12 +98,19 @@ build_tarfile()
 
   pushd "${workspace}"
 
+  if [[ ${PLAT} != windows ]]
+  then
     # Using `find .. -type f` to supply a list of files to `tar` serves two
     # purposes. The first being that `tar` wont construct a '.' directory
     # in the root of the tarfile. The second being that this excludes
     # empty directories from the tarfile.
     find "influxdb2_${PLAT}_${ARCH}/" -type f \
       | tar -czf "/artifacts/influxdb2-${VERSION}-${PLAT}-${ARCH}.tar.gz" -T -
+  else
+    # windows uses zip
+    find "influxdb2_${PLAT}_${ARCH}/" -type f \
+      | zip -r "/artifacts/influxdb2-${VERSION}-${PLAT}-${ARCH}.zip" -@
+  fi
 
   popd
 }
@@ -155,6 +162,6 @@ sign_artifacts()
   done
 }
 
-build_tarfile
+build_archive
 build_package_linux
 sign_artifacts
