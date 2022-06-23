@@ -82,7 +82,7 @@ TRACES_EXPORTER_JAEGER_AGENT_PORT=6831
 For example, a command such as this should do the trick:
 
 ```shell
-TRACES_EXPORTER=jaeger TRACES_EXPORTER_JAEGER_AGENT_HOST=localhost TRACES_EXPORTER_JAEGER_AGENT_PORT=6831 cargo run -- run -v --server-id=42
+TRACES_EXPORTER=jaeger TRACES_EXPORTER_JAEGER_AGENT_HOST=localhost TRACES_EXPORTER_JAEGER_AGENT_PORT=6831 cargo run -- run all-in-one -v
 ```
 
 Additional trace granularity, in particular traces with spans for each DataFusion partition, can be enabled with
@@ -99,12 +99,10 @@ For IOx to emit traces, the request must have a span context set. You can use th
 so. For example
 
 ```shell
-# create db
-./target/debug/influxdb_iox database create my_db
 # load data
-./target/debug/influxdb_iox database write my_db tests/fixtures/lineproto/metrics.lp
+curl -v "http://127.0.0.1:8080/api/v2/write?org=26f7e5a4b7be365b&bucket=917b97a92e883afc" --data-binary @tests/fixtures/lineproto/metrics.lp
 # run a query and start a new trace 
-./target/debug/influxdb_iox database query my_db  'show tables' --header jaeger-debug-id:tracing-is-a-great-idea
+./target/debug/influxdb_iox query 26f7e5a4b7be365b_917b97a92e883afc  'show tables' --header jaeger-debug-id:tracing-is-a-great-idea
 ```
 
 ### Step 4: Explore Spans in the UI
