@@ -106,7 +106,7 @@ impl Reconciler {
         let parquet_files = filter_parquet_files(ingester_partitions, parquet_files.vec())?;
 
         debug!(
-            parquet_ids=?parquet_files.iter().map(|f| f.parquet_file.id).collect::<Vec<_>>(),
+            parquet_ids=?parquet_files.iter().map(|f| f.id).collect::<Vec<_>>(),
             namespace=%self.namespace_name(),
             table_name=%self.table_name(),
             "Parquet files after filtering"
@@ -117,10 +117,7 @@ impl Reconciler {
         for cached_parquet_file in parquet_files {
             if let Some(chunk) = self
                 .chunk_adapter
-                .new_rb_chunk(
-                    Arc::clone(&self.namespace_name),
-                    Arc::new(cached_parquet_file.parquet_file.clone()),
-                )
+                .new_rb_chunk(Arc::clone(&self.namespace_name), cached_parquet_file)
                 .await
             {
                 chunks_from_parquet.push(chunk);
