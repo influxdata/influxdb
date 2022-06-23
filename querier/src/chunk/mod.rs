@@ -2,8 +2,8 @@
 
 use crate::cache::CatalogCache;
 use data_types::{
-    ChunkId, ChunkOrder, DeletePredicate, ParquetFileId, ParquetFileWithMetadata, PartitionId,
-    SequenceNumber, SequencerId, TableSummary, TimestampMinMax, TimestampRange,
+    ChunkId, ChunkOrder, DeletePredicate, ParquetFile, ParquetFileId, ParquetFileWithMetadata,
+    PartitionId, SequenceNumber, SequencerId, TableSummary, TimestampMinMax, TimestampRange,
 };
 use iox_catalog::interface::Catalog;
 use iox_time::TimeProvider;
@@ -12,8 +12,11 @@ use parquet_file::{
     storage::ParquetStorage,
 };
 use read_buffer::RBChunk;
-use schema::{sort::SortKey, Schema};
-use std::sync::Arc;
+use schema::{
+    sort::{SortKey, SortKeyBuilder},
+    Schema,
+};
+use std::{collections::HashSet, sync::Arc};
 use uuid::Uuid;
 
 mod query_access;
@@ -354,10 +357,12 @@ impl ChunkAdapter {
             .expect("Error converting min sequence number to chunk order");
 
         // Read partition sort key
+        let schema = decoded_parquet_file.schema();
+        let pk_columns: HashSet<&str> = schema.primary_key().into_iter().collect();
         let partition_sort_key = self
             .catalog_cache()
             .partition()
-            .sort_key(decoded_parquet_file.partition_id())
+            .sort_key(decoded_parquet_file.partition_id(), &pk_columns)
             .await;
 
         let meta = Arc::new(ChunkMeta {
@@ -382,50 +387,120 @@ impl ChunkAdapter {
     /// Create read buffer chunk. May be from the cache, may be from the parquet file.
     pub async fn new_rb_chunk(
         &self,
-        decoded_parquet_file: Arc<DecodedParquetFile>,
+        namespace_name: Arc<str>,
+        parquet_file: Arc<ParquetFile>,
     ) -> Option<QuerierRBChunk> {
-        let parquet_file_id = decoded_parquet_file.parquet_file_id();
-        let schema = decoded_parquet_file.schema();
-        let chunk_id = ChunkId::from(Uuid::from_u128(parquet_file_id.get() as _));
+        // gather schema information
+        let file_columns: HashSet<&str> =
+            parquet_file.column_set.iter().map(|s| s.as_str()).collect();
         let table_name = self
             .catalog_cache
             .table()
-            .name(decoded_parquet_file.table_id())
+            .name(parquet_file.table_id)
             .await?;
+        let namespace_schema = self
+            .catalog_cache
+            .namespace()
+            .schema(namespace_name, &[(&table_name, &file_columns)])
+            .await?;
+        let table_schema: Schema = namespace_schema
+            .tables
+            .get(table_name.as_ref())?
+            .clone()
+            .try_into()
+            .expect("Invalid table schema in catalog");
+        let table_columns: HashSet<&str> = table_schema
+            .iter()
+            .map(|(_t, field)| field.name().as_str())
+            .collect();
+        for file_col in &file_columns {
+            assert!(
+                table_columns.contains(*file_col),
+                "Column '{file_col}' occurs in parquet file but is not part of the table schema",
+            )
+        }
+
+        // gather partition sort key
+        let relevant_pk_columns: HashSet<&str> = table_schema
+            .primary_key()
+            .into_iter()
+            .filter(|c| file_columns.contains(c))
+            .collect();
+        let partition_sort_key = self
+            .catalog_cache
+            .partition()
+            .sort_key(parquet_file.partition_id, &relevant_pk_columns)
+            .await;
+        let partition_sort_key_ref = partition_sort_key
+            .as_ref()
+            .as_ref()
+            .expect("partition sort key should be set when a parquet file exists");
+
+        // NOTE: Because we've looked up the sort key AFTER the namespace schema, it may contain columns for which we
+        //       don't have any schema information yet. This is OK because we've ensured that all file columns are known
+        //       withing the schema and if a column is NOT part of the file, it will also not be part of the chunk sort
+        //       key, so we have consistency here.
+
+        // calculate sort key
+        let sort_key = partition_sort_key_ref
+            .iter()
+            .filter(|(column_name, _sort_options)| file_columns.contains(column_name.as_ref()))
+            .map(|(column_name, sort_options)| (Arc::clone(column_name), *sort_options))
+            .fold(
+                SortKeyBuilder::new(),
+                |builder, (column_name, sort_options)| {
+                    builder.with_col_sort_opts(column_name, sort_options)
+                },
+            )
+            .build();
+        assert!(
+            !sort_key.is_empty(),
+            "Sort key can never be empty because there should at least be a time column",
+        );
+
+        // calculate schema
+        // IMPORTANT: Do NOT use the sort key to list columns because the sort key only contains primary-key columns.
+        // NOTE: The schema that we calculate here may have a different column order than the actual parquet file. This
+        //       is OK because the IOx parquet reader can deal with that (see #4921).
+        let column_names: Vec<_> = table_schema
+            .iter()
+            .map(|(_t, field)| field.name().as_str())
+            .filter(|col| file_columns.contains(*col))
+            .collect();
+        let schema = Arc::new(
+            table_schema
+                .select_by_names(&column_names)
+                .expect("Bug in schema projection"),
+        );
+
+        let chunk_id = ChunkId::from(Uuid::from_u128(parquet_file.id.get() as _));
 
         let rb_chunk = self
             .catalog_cache()
             .read_buffer()
             .get(
-                Arc::new(decoded_parquet_file.parquet_file.clone()),
+                Arc::clone(&parquet_file),
                 Arc::clone(&schema),
                 self.store.clone(),
             )
             .await;
 
-        let order = ChunkOrder::new(decoded_parquet_file.min_sequence_number().get())
+        let order = ChunkOrder::new(parquet_file.min_sequence_number.get())
             .expect("Error converting min sequence number to chunk order");
-
-        // Read partition sort key
-        let partition_sort_key = self
-            .catalog_cache()
-            .partition()
-            .sort_key(decoded_parquet_file.partition_id())
-            .await;
 
         let meta = Arc::new(ChunkMeta {
             chunk_id,
             table_name,
             order,
-            sort_key: decoded_parquet_file.sort_key().cloned(),
-            sequencer_id: decoded_parquet_file.sequencer_id(),
-            partition_id: decoded_parquet_file.partition_id(),
-            min_sequence_number: decoded_parquet_file.min_sequence_number(),
-            max_sequence_number: decoded_parquet_file.max_sequence_number(),
+            sort_key: Some(sort_key),
+            sequencer_id: parquet_file.sequencer_id,
+            partition_id: parquet_file.partition_id,
+            min_sequence_number: parquet_file.min_sequence_number,
+            max_sequence_number: parquet_file.max_sequence_number,
         });
 
         Some(QuerierRBChunk::new(
-            parquet_file_id,
+            parquet_file.id,
             rb_chunk,
             meta,
             schema,
@@ -439,13 +514,17 @@ pub mod tests {
     use super::*;
     use arrow::{datatypes::DataType, record_batch::RecordBatch};
     use arrow_util::assert_batches_eq;
+    use data_types::ColumnType;
     use futures::StreamExt;
     use iox_query::{exec::IOxSessionContext, QueryChunk, QueryChunkMeta};
     use iox_tests::util::TestCatalog;
+    use metric::{Attributes, Observation, RawReporter};
     use schema::{builder::SchemaBuilder, selection::Selection, sort::SortKeyBuilder};
+    use test_helpers::maybe_start_logging;
 
     #[tokio::test]
-    async fn test_create_record() {
+    async fn test_new_rb_chunk() {
+        maybe_start_logging();
         let catalog = TestCatalog::new();
 
         let adapter = ChunkAdapter::new(
@@ -470,19 +549,33 @@ pub mod tests {
         let ns = catalog.create_namespace("ns").await;
         let sequencer = ns.create_sequencer(1).await;
         let table = ns.create_table("table").await;
-        let parquet_file = table
+        table.create_column("tag1", ColumnType::Tag).await;
+        table.create_column("tag2", ColumnType::Tag).await;
+        table.create_column("tag3", ColumnType::Tag).await;
+        table.create_column("field_int", ColumnType::I64).await;
+        table.create_column("field_float", ColumnType::F64).await;
+        table.create_column("time", ColumnType::Time).await;
+        let partition = table
             .with_sequencer(&sequencer)
             .create_partition("part")
             .await
-            .create_parquet_file(&lp)
-            .await
-            .parquet_file;
+            .update_sort_key(SortKey::from_columns(["tag1", "tag2", "tag4", "time"]))
+            .await;
+        let parquet_file = Arc::new(
+            partition
+                .create_parquet_file(&lp)
+                .await
+                .parquet_file_no_metadata(),
+        );
 
         // create chunk
         let chunk = adapter
-            .new_rb_chunk(Arc::new(DecodedParquetFile::new(parquet_file)))
+            .new_rb_chunk(ns.namespace.name.clone().into(), Arc::clone(&parquet_file))
             .await
             .unwrap();
+
+        // measure catalog access
+        let catalog_metrics1 = get_catalog_access_metrics(&catalog.metric_registry());
 
         // check chunk schema
         let expected_schema = SchemaBuilder::new()
@@ -516,6 +609,14 @@ pub mod tests {
             ],
             &batches
         );
+
+        // retrieving the chunk again should not require any catalog requests
+        adapter
+            .new_rb_chunk(ns.namespace.name.clone().into(), parquet_file)
+            .await
+            .unwrap();
+        let catalog_metrics2 = get_catalog_access_metrics(&catalog.metric_registry());
+        assert_eq!(catalog_metrics1, catalog_metrics2);
     }
 
     /// collect data for the given chunk
@@ -532,5 +633,29 @@ pub mod tests {
             .into_iter()
             .map(Result::unwrap)
             .collect()
+    }
+
+    /// get catalog access metrics from metric registry
+    fn get_catalog_access_metrics(metric_registry: &metric::Registry) -> Vec<(Attributes, u64)> {
+        let mut reporter = RawReporter::default();
+        metric_registry.report(&mut reporter);
+
+        let mut metrics: Vec<_> = reporter
+            .observations()
+            .iter()
+            .find(|o| o.metric_name == "catalog_op_duration")
+            .expect("failed to read metric")
+            .observations
+            .iter()
+            .map(|(a, o)| {
+                if let Observation::DurationHistogram(h) = o {
+                    (a.clone(), h.sample_count())
+                } else {
+                    panic!("wrong metric type")
+                }
+            })
+            .collect();
+        metrics.sort();
+        metrics
     }
 }

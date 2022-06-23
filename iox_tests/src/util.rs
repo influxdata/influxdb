@@ -22,7 +22,7 @@ use observability_deps::tracing::debug;
 use parquet_file::{chunk::DecodedParquetFile, metadata::IoxMetadata, storage::ParquetStorage};
 use schema::{
     selection::Selection,
-    sort::{adjust_sort_key_columns, SortKey, SortKeyBuilder},
+    sort::{adjust_sort_key_columns, compute_sort_key, SortKey},
     Schema,
 };
 use std::sync::Arc;
@@ -766,15 +766,8 @@ pub fn now() -> Time {
 
 /// Sort arrow record batch into arrow record batch and sort key.
 fn sort_batch(record_batch: RecordBatch, schema: Schema) -> (RecordBatch, SortKey) {
-    // build dummy sort key
-    let mut sort_key_builder = SortKeyBuilder::new();
-    for field in schema.tags_iter() {
-        sort_key_builder = sort_key_builder.with_col(field.name().clone());
-    }
-    for field in schema.time_iter() {
-        sort_key_builder = sort_key_builder.with_col(field.name().clone());
-    }
-    let sort_key = sort_key_builder.build();
+    // calculate realistic sort key
+    let sort_key = compute_sort_key(&schema, std::iter::once(&record_batch));
 
     // set up sorting
     let mut sort_columns = Vec::with_capacity(record_batch.num_columns());

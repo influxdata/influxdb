@@ -5,7 +5,7 @@ mod interface;
 use data_types::{PartitionId, SequencerId, Tombstone, TombstoneId};
 use iox_query::QueryChunk;
 use observability_deps::tracing::debug;
-use schema::{sort::SortKey, InfluxColumnType};
+use schema::sort::SortKey;
 use snafu::Snafu;
 use std::{
     collections::{HashMap, HashSet},
@@ -117,7 +117,10 @@ impl Reconciler {
         for cached_parquet_file in parquet_files {
             if let Some(chunk) = self
                 .chunk_adapter
-                .new_rb_chunk(Arc::clone(&cached_parquet_file))
+                .new_rb_chunk(
+                    Arc::clone(&self.namespace_name),
+                    Arc::new(cached_parquet_file.parquet_file.clone()),
+                )
                 .await
             {
                 chunks_from_parquet.push(chunk);
@@ -213,33 +216,25 @@ impl Reconciler {
         chunks: Vec<Box<dyn UpdatableQuerierChunk>>,
     ) -> Vec<Box<dyn UpdatableQuerierChunk>> {
         // collect columns
-        let mut all_columns: HashMap<PartitionId, HashSet<String>> = HashMap::new();
-        for chunk in &chunks {
-            if let Some(partition_id) = chunk.partition_id() {
-                // columns for this partition MUST include the primary key of this chunk
-                all_columns.entry(partition_id).or_default().extend(
-                    chunk
-                        .schema()
-                        .iter()
-                        .filter(|(t, _field)| {
-                            matches!(t, Some(InfluxColumnType::Tag | InfluxColumnType::Timestamp))
-                        })
-                        .map(|(_t, field)| field.name().clone()),
-                );
-            }
-        }
-
-        // report expiration signal to cache
-        let partition_cache = self.chunk_adapter.catalog_cache().partition();
-        for (partition_id, columns) in &all_columns {
-            partition_cache.expire_if_sort_key_does_not_cover(*partition_id, columns);
+        let chunk_schemas: Vec<_> = chunks
+            .iter()
+            .filter_map(|c| c.partition_id().map(|id| (id, c.schema())))
+            .collect();
+        let mut all_columns: HashMap<PartitionId, HashSet<&str>> = HashMap::new();
+        for (partition_id, schema) in &chunk_schemas {
+            // columns for this partition MUST include the primary key of this chunk
+            all_columns
+                .entry(*partition_id)
+                .or_default()
+                .extend(schema.primary_key().iter());
         }
 
         // get cached (or fresh) sort keys
+        let partition_cache = self.chunk_adapter.catalog_cache().partition();
         let mut sort_keys: HashMap<PartitionId, Arc<Option<SortKey>>> =
             HashMap::with_capacity(all_columns.len());
-        for partition_id in all_columns.into_keys() {
-            let sort_key = partition_cache.sort_key(partition_id).await;
+        for (partition_id, columns) in all_columns.into_iter() {
+            let sort_key = partition_cache.sort_key(partition_id, &columns).await;
             sort_keys.insert(partition_id, sort_key);
         }
 

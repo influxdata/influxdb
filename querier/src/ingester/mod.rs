@@ -31,7 +31,11 @@ use observability_deps::tracing::{debug, info, trace, warn};
 use predicate::{Predicate, PredicateMatch};
 use schema::{selection::Selection, sort::SortKey, InfluxColumnType, InfluxFieldType, Schema};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
-use std::{any::Any, collections::HashMap, sync::Arc};
+use std::{
+    any::Any,
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
 pub(crate) mod flight_client;
 pub(crate) mod test_util;
@@ -388,7 +392,7 @@ async fn execute(request: GetPartitionForIngester<'_>) -> Result<Vec<IngesterPar
         decoder.register(msg, md).await?;
     }
 
-    decoder.finalize()
+    decoder.finalize().await
 }
 
 /// Helper to disassemble the data from the ingester Apache Flight arrow stream.
@@ -441,10 +445,26 @@ impl IngesterStreamDecoder {
     /// FLush current partition, if any.
     ///
     /// This will also flush the current chunk.
-    fn flush_partition(&mut self) -> Result<()> {
+    async fn flush_partition(&mut self) -> Result<()> {
         self.flush_chunk()?;
 
         if let Some(current_partition) = self.current_partition.take() {
+            let schemas: Vec<_> = current_partition
+                .chunks()
+                .iter()
+                .map(|c| c.schema())
+                .collect();
+            let primary_keys: Vec<_> = schemas.iter().map(|s| s.primary_key()).collect();
+            let primary_key: HashSet<_> = primary_keys
+                .iter()
+                .flat_map(|pk| pk.iter().copied())
+                .collect();
+            let partition_sort_key = self
+                .catalog_cache
+                .partition()
+                .sort_key(current_partition.partition_id(), &primary_key)
+                .await;
+            let current_partition = current_partition.with_partition_sort_key(partition_sort_key);
             self.finished_partitions
                 .insert(current_partition.partition_id, current_partition);
         }
@@ -461,7 +481,7 @@ impl IngesterStreamDecoder {
         match msg {
             LowLevelMessage::None => {
                 // new partition announced
-                self.flush_partition()?;
+                self.flush_partition().await?;
 
                 let partition_id = PartitionId::new(md.partition_id);
                 let status = md.status.context(PartitionStatusMissingSnafu {
@@ -480,8 +500,11 @@ impl IngesterStreamDecoder {
                     .partition()
                     .sequencer_id(partition_id)
                     .await;
-                let partition_sort_key =
-                    self.catalog_cache.partition().sort_key(partition_id).await;
+
+                // Use a temporary empty partition sort key. We are going to fetch this AFTER we know all chunks because
+                // then we are able to detect all relevant primary key columns that the sort key must cover.
+                let partition_sort_key = Arc::new(None);
+
                 let partition = IngesterPartition::new(
                     Arc::clone(&self.ingester_address),
                     Arc::clone(&self.table_name),
@@ -529,8 +552,8 @@ impl IngesterStreamDecoder {
     }
 
     /// Flush internal state and return sorted set of partitions.
-    fn finalize(mut self) -> Result<Vec<IngesterPartition>> {
-        self.flush_partition()?;
+    async fn finalize(mut self) -> Result<Vec<IngesterPartition>> {
+        self.flush_partition().await?;
 
         let mut ids: Vec<_> = self.finished_partitions.keys().copied().collect();
         ids.sort();
@@ -711,7 +734,7 @@ impl IngesterPartition {
     }
 
     /// Try to add a new chunk to this partition.
-    pub fn try_add_chunk(
+    pub(crate) fn try_add_chunk(
         mut self,
         chunk_id: ChunkId,
         expected_schema: Arc<Schema>,
@@ -750,6 +773,19 @@ impl IngesterPartition {
         Ok(self)
     }
 
+    /// Update partition sort key
+    pub(crate) fn with_partition_sort_key(self, partition_sort_key: Arc<Option<SortKey>>) -> Self {
+        Self {
+            partition_sort_key: Arc::clone(&partition_sort_key),
+            chunks: self
+                .chunks
+                .into_iter()
+                .map(|c| c.with_partition_sort_key(Arc::clone(&partition_sort_key)))
+                .collect(),
+            ..self
+        }
+    }
+
     pub(crate) fn ingester(&self) -> &Arc<str> {
         &self.ingester
     }
@@ -768,6 +804,10 @@ impl IngesterPartition {
 
     pub(crate) fn tombstone_max_sequence_number(&self) -> Option<SequenceNumber> {
         self.tombstone_max_sequence_number
+    }
+
+    pub(crate) fn chunks(&self) -> &[IngesterChunk] {
+        &self.chunks
     }
 
     pub(crate) fn into_chunks(self) -> Vec<IngesterChunk> {

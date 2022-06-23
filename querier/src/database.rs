@@ -154,7 +154,11 @@ impl QuerierDatabase {
         let schema = self
             .catalog_cache
             .namespace()
-            .schema(Arc::clone(&name))
+            .schema(
+                Arc::clone(&name),
+                // we have no specific need for any tables or columns at this point, so nothing to cover
+                &[],
+            )
             .await?;
         Some(Arc::new(QuerierNamespace::new(
             Arc::clone(&self.chunk_adapter),
