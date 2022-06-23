@@ -467,7 +467,6 @@ mod tests {
     use iox_time::MockProvider;
     use metric::{Attributes, Registry};
     use std::collections::BTreeSet;
-    use test_helpers::timeout::FutureTimeout;
 
     #[derive(Default)]
     struct TestPersister {
@@ -546,8 +545,8 @@ mod tests {
         assert_eq!(p2.first_write, Time::from_timestamp_nanos(10));
     }
 
-    #[tokio::test]
-    async fn pausing_and_resuming_ingest() {
+    #[test]
+    fn pausing_and_resuming_ingest() {
         let config = LifecycleConfig {
             pause_ingest_size: 20,
             persist_memory_threshold: 10,
@@ -555,46 +554,29 @@ mod tests {
             partition_age_threshold: Duration::from_nanos(0),
             partition_cold_threshold: Duration::from_secs(500),
         };
-        let TestLifecycleManger { mut m, .. } = TestLifecycleManger::new(config);
+        let TestLifecycleManger { m, .. } = TestLifecycleManger::new(config);
         let sequencer_id = SequencerId::new(1);
         let h = m.handle();
 
-        let partition_id = PartitionId::new(1);
-
-        assert!(!h.log_write(partition_id, sequencer_id, SequenceNumber::new(1), 15));
+        assert!(!h.log_write(
+            PartitionId::new(1),
+            sequencer_id,
+            SequenceNumber::new(1),
+            15
+        ));
 
         // now it should indicate a pause
-        assert!(h.log_write(partition_id, sequencer_id, SequenceNumber::new(2), 10));
+        assert!(h.log_write(
+            PartitionId::new(1),
+            sequencer_id,
+            SequenceNumber::new(2),
+            10
+        ));
         assert!(!h.can_resume_ingest());
 
-        // Trigger a persistence job that succeeds.
-        let persister = Arc::new(TestPersister::default());
-        m.maybe_persist(&persister).await;
-
-        // Wait for the persist op to complete
-        async {
-            loop {
-                if persister.persist_called_for(partition_id) {
-                    // Persist has completed, but the memory may be released next,
-                    // so loop looking for the ingest resumption signal.
-                    if h.can_resume_ingest() {
-                        // This is the expected case.
-                        //
-                        // Persistence has completed and the memory accounting has
-                        // been adjusted to reflect the freed partition data.
-                        return;
-                    }
-                }
-
-                tokio::time::sleep(Duration::from_millis(50)).await;
-            }
-        }
-        .with_timeout_panic(Duration::from_secs(5))
-        .await;
-
-        // Now the limit has dropped back down, writes should not return
-        // pause=true
-        assert!(!h.log_write(partition_id, sequencer_id, SequenceNumber::new(3), 3));
+        m.remove(PartitionId::new(1));
+        assert!(h.can_resume_ingest());
+        assert!(!h.log_write(PartitionId::new(1), sequencer_id, SequenceNumber::new(3), 3));
     }
 
     #[tokio::test]
