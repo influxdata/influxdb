@@ -472,6 +472,9 @@ func TestSendWrite(t *testing.T) {
 	rq, ok := qm.replicationQueues[id1]
 	require.True(t, ok)
 	closeRq(rq)
+	t.Cleanup(func() {
+		require.NoError(t, rq.queue.Close())
+	})
 	go func() { <-rq.receive }() // absorb the receive to avoid testcase deadlock
 
 	// Create custom remote writer that does some expected behavior
