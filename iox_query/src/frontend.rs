@@ -64,7 +64,7 @@ mod test {
 
         // Use a split plan as it has StreamSplitExec, DeduplicateExec and IOxReadFilternode
         let split_plan = ReorgPlanner::new()
-            .split_plan(schema, chunks, sort_key, 1000)
+            .split_plan(schema, chunks, sort_key, vec![1000])
             .expect("created compact plan");
 
         let executor = Executor::new(1);

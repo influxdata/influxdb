@@ -125,16 +125,22 @@ impl ExtensionPlanner for IOxExtensionPlanner {
                 "Inconsistent number of physical inputs"
             );
 
-            let split_expr = planner.create_physical_expr(
-                stream_split.split_expr(),
-                logical_inputs[0].schema(),
-                &physical_inputs[0].schema(),
-                session_state,
-            )?;
+            let split_exprs = stream_split
+                .split_exprs()
+                .iter()
+                .map(|e| {
+                    planner.create_physical_expr(
+                        e,
+                        logical_inputs[0].schema(),
+                        &physical_inputs[0].schema(),
+                        session_state,
+                    )
+                })
+                .collect::<Result<Vec<_>>>()?;
 
             Some(Arc::new(StreamSplitExec::new(
                 Arc::clone(&physical_inputs[0]),
-                split_expr,
+                split_exprs,
             )) as Arc<dyn ExecutionPlan>)
         } else {
             None

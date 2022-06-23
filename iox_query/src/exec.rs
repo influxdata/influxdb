@@ -194,7 +194,7 @@ pub fn make_non_null_checker(table_name: &str, input: LogicalPlan) -> LogicalPla
 }
 
 /// Create a StreamSplit node which takes an input stream of record
-/// batches and produces two output streams based on a predicate
+/// batches and produces multiple output streams based on a predicate
 ///
 /// For example, if the input looks like:
 /// ```text
@@ -205,15 +205,20 @@ pub fn make_non_null_checker(table_name: &str, input: LogicalPlan) -> LogicalPla
 ///  c | 2000
 /// ```
 ///
-/// A StreamSplit with split_expr = `time <= 2000` will produce the
-/// following two output streams (output DataFusion Partitions):
+/// A StreamSplit with split_exprs = [`time <= 1000`, `1000 < time <=2000`] will produce the
+/// following three output streams (output DataFusion Partitions):
 ///
 ///
 /// ```text
 ///  X | time
 /// ---+-----
 ///  a | 1000
-///  c | 2000
+/// ```
+///
+/// ```text
+///  X | time
+/// ---+-----
+///  b | 2000
 /// ```
 /// and
 /// ```text
@@ -221,11 +226,14 @@ pub fn make_non_null_checker(table_name: &str, input: LogicalPlan) -> LogicalPla
 /// ---+-----
 ///  b | 4000
 /// ```
-pub fn make_stream_split(input: LogicalPlan, split_expr: Expr) -> LogicalPlan {
+pub fn make_stream_split(input: LogicalPlan, split_exprs: Vec<Expr>) -> LogicalPlan {
     // rewrite the input expression so that it is fully qualified with the input schema
-    let split_expr = normalize_col(split_expr, &input).expect("normalize is infallable");
+    let split_exprs = split_exprs
+        .into_iter()
+        .map(|split_expr| normalize_col(split_expr, &input).expect("normalize is infallable"))
+        .collect::<Vec<_>>();
 
-    let node = Arc::new(StreamSplitNode::new(input, split_expr));
+    let node = Arc::new(StreamSplitNode::new(input, split_exprs));
     LogicalPlan::Extension(Extension { node })
 }
 

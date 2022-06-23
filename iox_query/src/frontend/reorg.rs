@@ -101,9 +101,10 @@ impl ReorgPlanner {
     ///   (Sort on output_sort)
     ///     (Scan chunks) <-- any needed deduplication happens here
     ///
-    /// The output execution plan has two "output streams" (DataFusion partition):
-    /// 1. Rows that have `time` *on or before* the split_time
-    /// 2. Rows that have `time` *after* the split_time
+    /// The output execution plan has n "output streams" (DataFusion partition):
+    /// Stream 0: Rows that have `time` *on or before* the `split_times[0]`
+    /// Stream i (0 < i < split_times's length): Rows that have  `time` in range `(split_times[i-1], split_times[i]]`
+    /// Stream n (n = split_times.len()): Rows that have `time` *after* all the split_times and NULL rows
     ///
     /// For example, if the input looks like:
     /// ```text
@@ -115,7 +116,7 @@ impl ReorgPlanner {
     ///  d | 2000
     ///  e | 3000
     /// ```
-    /// A split plan with `sort=time` and `split_time=2000` will produce the following two output streams
+    /// A split plan with `sort=time` and `split_times=[2000, 3000]` will produce the following three output streams
     ///
     /// ```text
     ///  X | time
@@ -124,11 +125,16 @@ impl ReorgPlanner {
     ///  b | 2000
     ///  d | 2000
     /// ```
-    /// and
+    ///
     /// ```text
     ///  X | time
     /// ---+-----
     ///  e | 3000
+    /// ```
+    ///
+    /// ```text
+    ///  X | time
+    /// ---+-----
     ///  c | 4000
     /// ```
     pub fn split_plan<I>(
@@ -136,22 +142,45 @@ impl ReorgPlanner {
         schema: Arc<Schema>,
         chunks: I,
         sort_key: SortKey,
-        split_time: i64,
+        split_times: Vec<i64>,
     ) -> Result<LogicalPlan>
     where
         I: IntoIterator<Item = Arc<dyn QueryChunk>>,
     {
+        // split_times must have values
+        if split_times.is_empty() {
+            panic!("Split plan does not accept empty split_times");
+        }
+
         let scan_plan = ScanPlanBuilder::new(schema)
             .with_chunks(chunks)
             .with_sort_key(sort_key)
             .build()
             .context(BuildingScanSnafu)?;
 
-        // time <= split_time
-        let split_expr = col(TIME_COLUMN_NAME).lt_eq(lit_timestamp_nano(split_time));
+        let mut split_exprs = Vec::with_capacity(split_times.len());
+        // time <= split_times[0]
+        split_exprs.push(col(TIME_COLUMN_NAME).lt_eq(lit_timestamp_nano(split_times[0])));
+        // split_times[i-1] , time <= split_time[i]
+        for i in 1..split_times.len() {
+            if split_times[i - 1] >= split_times[i] {
+                panic!(
+                    "split_times[{}]: {} must be smaller than split_times[{}]: {}",
+                    i - 1,
+                    split_times[i - 1],
+                    i,
+                    split_times[i]
+                );
+            }
+            split_exprs.push(
+                col(TIME_COLUMN_NAME)
+                    .gt(lit_timestamp_nano(split_times[i - 1]))
+                    .and(col(TIME_COLUMN_NAME).lt_eq(lit_timestamp_nano(split_times[i]))),
+            );
+        }
 
         let plan = scan_plan.plan_builder.build().context(BuildingPlanSnafu)?;
-        let plan = make_stream_split(plan, split_expr);
+        let plan = make_stream_split(plan, split_exprs);
 
         debug!(table_name=scan_plan.provider.table_name(), plan=%plan.display_indent_schema(),
                "created split plan for table");
@@ -295,7 +324,7 @@ mod test {
 
         // split on 1000 should have timestamps 1000, 5000, and 7000
         let split_plan = ReorgPlanner::new()
-            .split_plan(schema, chunks, sort_key, 1000)
+            .split_plan(schema, chunks, sort_key, vec![1000])
             .expect("created compact plan");
 
         let executor = Executor::new(1);
@@ -345,5 +374,120 @@ mod test {
         assert_batches_eq!(&expected, &batches1);
 
         executor.join().await;
+    }
+
+    #[tokio::test]
+    async fn test_split_plan_multi_exps() {
+        test_helpers::maybe_start_logging();
+        // validate that the plumbing is all hooked up. The logic of
+        // the operator is tested in its own module.
+        let (schema, chunks) = get_test_chunks().await;
+
+        let sort_key = SortKeyBuilder::with_capacity(2)
+            .with_col_opts("time", false, false)
+            .with_col_opts("tag1", false, true)
+            .build();
+
+        // split on 1000 and 7000
+        let split_plan = ReorgPlanner::new()
+            .split_plan(schema, chunks, sort_key, vec![1000, 7000])
+            .expect("created compact plan");
+
+        let executor = Executor::new(1);
+        let physical_plan = executor
+            .new_context(ExecutorType::Reorg)
+            .create_physical_plan(&split_plan)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            physical_plan.output_partitioning().partition_count(),
+            3,
+            "{:?}",
+            physical_plan.output_partitioning()
+        );
+
+        // Verify that the stream was split
+
+        // Note sorted on time
+        // Should include time <= 1000
+        let batches0 = test_collect_partition(Arc::clone(&physical_plan), 0).await;
+        let expected = vec![
+            "+-----------+------------+------+--------------------------------+",
+            "| field_int | field_int2 | tag1 | time                           |",
+            "+-----------+------------+------+--------------------------------+",
+            "| 100       |            | AL   | 1970-01-01T00:00:00.000000050Z |",
+            "| 70        |            | CT   | 1970-01-01T00:00:00.000000100Z |",
+            "| 1000      |            | MT   | 1970-01-01T00:00:00.000001Z    |",
+            "+-----------+------------+------+--------------------------------+",
+        ];
+        assert_batches_eq!(&expected, &batches0);
+
+        // Sorted on time
+        // Should include 1000 < time <= 7000
+        let batches1 = test_collect_partition(Arc::clone(&physical_plan), 1).await;
+        let expected = vec![
+            "+-----------+------------+------+-----------------------------+",
+            "| field_int | field_int2 | tag1 | time                        |",
+            "+-----------+------------+------+-----------------------------+",
+            "| 5         |            | MT   | 1970-01-01T00:00:00.000005Z |",
+            "| 10        |            | MT   | 1970-01-01T00:00:00.000007Z |",
+            "+-----------+------------+------+-----------------------------+",
+        ];
+        assert_batches_eq!(&expected, &batches1);
+
+        // Sorted on time
+        // Should include 7000 < time
+        let batches2 = test_collect_partition(physical_plan, 2).await;
+        let expected = vec![
+            "+-----------+------------+------+-----------------------------+",
+            "| field_int | field_int2 | tag1 | time                        |",
+            "+-----------+------------+------+-----------------------------+",
+            "| 1000      | 1000       | WA   | 1970-01-01T00:00:00.000028Z |",
+            "| 50        | 50         | VT   | 1970-01-01T00:00:00.000210Z |",
+            "| 70        | 70         | UT   | 1970-01-01T00:00:00.000220Z |",
+            "+-----------+------------+------+-----------------------------+",
+        ];
+        assert_batches_eq!(&expected, &batches2);
+
+        executor.join().await;
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "Split plan does not accept empty split_times")]
+    async fn test_split_plan_panic_empty() {
+        test_helpers::maybe_start_logging();
+        // validate that the plumbing is all hooked up. The logic of
+        // the operator is tested in its own module.
+        let (schema, chunks) = get_test_chunks().await;
+
+        let sort_key = SortKeyBuilder::with_capacity(2)
+            .with_col_opts("time", false, false)
+            .with_col_opts("tag1", false, true)
+            .build();
+
+        // split on 1000 and 7000
+        let _split_plan = ReorgPlanner::new()
+            .split_plan(schema, chunks, sort_key, vec![]) // reason of panic: empty split_times
+            .expect("created compact plan");
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "split_times[0]: 1000 must be smaller than split_times[1]: 500")]
+    async fn test_split_plan_panic_times() {
+        test_helpers::maybe_start_logging();
+        // validate that the plumbing is all hooked up. The logic of
+        // the operator is tested in its own module.
+        let (schema, chunks) = get_test_chunks().await;
+
+        let sort_key = SortKeyBuilder::with_capacity(2)
+            .with_col_opts("time", false, false)
+            .with_col_opts("tag1", false, true)
+            .build();
+
+        // split on 1000 and 7000
+        let _split_plan = ReorgPlanner::new()
+            .split_plan(schema, chunks, sort_key, vec![1000, 500]) // reason of panic: split_times not in ascending order
+            .expect("created compact plan");
     }
 }

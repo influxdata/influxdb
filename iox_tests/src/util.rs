@@ -616,7 +616,30 @@ impl TestPartition {
         }
     }
 
-    /// Create a parquet for the partition with fake sizew for testing
+    /// Create a parquet for the partition with fake size for testing
+    #[allow(clippy::too_many_arguments)]
+    pub async fn create_parquet_file_with_min_max_size(
+        self: &Arc<Self>,
+        lp: &str,
+        min_seq: i64,
+        max_seq: i64,
+        min_time: i64,
+        max_time: i64,
+        file_size_bytes: i64,
+    ) -> TestParquetFile {
+        self.create_parquet_file_with_min_max_size_and_creation_time(
+            lp,
+            min_seq,
+            max_seq,
+            min_time,
+            max_time,
+            file_size_bytes,
+            1,
+        )
+        .await
+    }
+
+    /// Create a parquet for the partition with fake size for testing
     #[allow(clippy::too_many_arguments)]
     pub async fn create_parquet_file_with_min_max_size_and_creation_time(
         self: &Arc<Self>,
