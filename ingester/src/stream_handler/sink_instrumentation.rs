@@ -411,11 +411,11 @@ mod tests {
         let got = test(
             op,
             &metrics,
-            Err(crate::data::Error::PersistingEmpty),
+            Err(crate::data::Error::TableNotPresent),
             Some(12345),
         )
         .await;
-        assert_matches!(got, Err(crate::data::Error::PersistingEmpty));
+        assert_matches!(got, Err(crate::data::Error::TableNotPresent));
 
         // Validate the various write buffer metrics
         assert_matches!(

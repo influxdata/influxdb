@@ -40,26 +40,8 @@ use self::triggers::TestTriggers;
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
 pub enum Error {
-    #[snafu(display("Error while reading Topic {}", name))]
-    ReadTopic {
-        source: iox_catalog::interface::Error,
-        name: String,
-    },
-
-    #[snafu(display("Error while reading Kafka Partition id {}", id.get()))]
-    ReadSequencer {
-        source: iox_catalog::interface::Error,
-        id: KafkaPartition,
-    },
-
     #[snafu(display("Sequencer {} not found in data map", sequencer_id))]
     SequencerNotFound { sequencer_id: SequencerId },
-
-    #[snafu(display(
-        "Sequencer not found for kafka partition {} in data map",
-        kafka_partition
-    ))]
-    SequencerForPartitionNotFound { kafka_partition: KafkaPartition },
 
     #[snafu(display("Namespace {} not found in catalog", namespace))]
     NamespaceNotFound { namespace: String },
@@ -75,26 +57,11 @@ pub enum Error {
         source: iox_catalog::interface::Error,
     },
 
-    #[snafu(display("The persisting is in progress. Cannot accept more persisting batch"))]
-    PersistingNotEmpty,
-
-    #[snafu(display("Nothing in the Persisting list to get removed"))]
-    PersistingEmpty,
-
-    #[snafu(display(
-        "The given batch does not match any in the Persisting list. \
-        Nothing is removed from the Persisting list"
-    ))]
-    PersistingNotMatch,
-
     #[snafu(display("Snapshot error: {}", source))]
     Snapshot { source: mutable_batch::Error },
 
     #[snafu(display("Error while filtering columns from snapshot: {}", source))]
     FilterColumn { source: arrow::error::ArrowError },
-
-    #[snafu(display("Partition not found: {}", partition_id))]
-    PartitionNotFound { partition_id: PartitionId },
 
     #[snafu(display("Error while copying buffer to snapshot: {}", source))]
     BufferToSnapshot { source: mutable_batch::Error },
