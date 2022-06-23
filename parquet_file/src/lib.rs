@@ -20,7 +20,7 @@ pub mod metadata;
 pub mod serialize;
 pub mod storage;
 
-use data_types::{NamespaceId, PartitionId, SequencerId, TableId};
+use data_types::{NamespaceId, ParquetFile, PartitionId, SequencerId, TableId};
 use object_store::path::Path;
 use uuid::Uuid;
 
@@ -87,6 +87,18 @@ impl From<&crate::metadata::IoxMetadata> for ParquetFilePath {
             sequencer_id: m.sequencer_id,
             partition_id: m.partition_id,
             object_store_id: m.object_store_id,
+        }
+    }
+}
+
+impl From<&ParquetFile> for ParquetFilePath {
+    fn from(f: &ParquetFile) -> Self {
+        Self {
+            namespace_id: f.namespace_id,
+            table_id: f.table_id,
+            sequencer_id: f.sequencer_id,
+            partition_id: f.partition_id,
+            object_store_id: f.object_store_id,
         }
     }
 }

@@ -161,14 +161,7 @@ fn record_batches_stream(
     schema: Arc<Schema>,
     store: ParquetStorage,
 ) -> Result<SendableRecordBatchStream, parquet_file::storage::ReadError> {
-    let path = ParquetFilePath::new(
-        parquet_file.namespace_id,
-        parquet_file.table_id,
-        parquet_file.sequencer_id,
-        parquet_file.partition_id,
-        parquet_file.object_store_id,
-    );
-
+    let path: ParquetFilePath = parquet_file.into();
     store.read_all(schema.as_arrow(), &path)
 }
 

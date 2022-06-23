@@ -43,7 +43,8 @@ pub enum Error {
 
 impl QueryChunkMeta for QuerierParquetChunk {
     fn summary(&self) -> Option<&TableSummary> {
-        Some(self.parquet_chunk.table_summary().as_ref())
+        // TODO: fetch stats to improve perf
+        None
     }
 
     fn schema(&self) -> Arc<Schema> {

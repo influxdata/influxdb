@@ -8,7 +8,7 @@ use data_types::{
 use datafusion::physical_plan::SendableRecordBatchStream;
 use observability_deps::tracing::*;
 use parquet_file::{
-    chunk::{ChunkMetrics, DecodedParquetFile, ParquetChunk},
+    chunk::{DecodedParquetFile, ParquetChunk},
     metadata::{IoxMetadata, IoxParquetMetaData},
     storage::ParquetStorage,
 };
@@ -114,8 +114,8 @@ impl ParquetFileWithTombstone {
         let decoded_parquet_file = DecodedParquetFile::new((*self.data).clone());
 
         let parquet_chunk = ParquetChunk::new(
-            &decoded_parquet_file,
-            ChunkMetrics::new_unregistered(), // TODO: need to add metrics
+            Arc::new(decoded_parquet_file.parquet_file.clone()),
+            decoded_parquet_file.schema(),
             store,
         );
 

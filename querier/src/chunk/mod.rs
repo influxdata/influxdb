@@ -8,7 +8,7 @@ use data_types::{
 use iox_catalog::interface::Catalog;
 use iox_time::TimeProvider;
 use parquet_file::{
-    chunk::{ChunkMetrics as ParquetChunkMetrics, DecodedParquetFile, ParquetChunk},
+    chunk::{DecodedParquetFile, ParquetChunk},
     storage::ParquetStorage,
 };
 use read_buffer::RBChunk;
@@ -242,7 +242,7 @@ impl QuerierParquetChunk {
 
     /// Return time range
     pub fn timestamp_min_max(&self) -> Option<TimestampMinMax> {
-        self.parquet_chunk.timestamp_min_max()
+        Some(self.parquet_chunk.timestamp_min_max())
     }
 
     /// Partition sort key
@@ -312,11 +312,9 @@ impl ChunkAdapter {
         &self,
         decoded_parquet_file: &DecodedParquetFile,
     ) -> Option<ParquetChunk> {
-        let metrics = ParquetChunkMetrics::new(self.metric_registry.as_ref());
-
         Some(ParquetChunk::new(
-            decoded_parquet_file,
-            metrics,
+            Arc::new(decoded_parquet_file.parquet_file.clone()),
+            decoded_parquet_file.schema(),
             self.store.clone(),
         ))
     }
