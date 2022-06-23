@@ -467,6 +467,7 @@ mod tests {
     use iox_time::MockProvider;
     use metric::{Attributes, Registry};
     use std::collections::BTreeSet;
+    use tokio::sync::Barrier;
 
     #[derive(Default)]
     struct TestPersister {
@@ -500,6 +501,91 @@ mod tests {
         fn update_min_calls(&self) -> Vec<(SequencerId, SequenceNumber)> {
             let u = self.update_min_calls.lock();
             u.clone()
+        }
+    }
+
+    #[derive(Debug, Clone)]
+    /// Synchronizes waiting on some test event
+    struct EventBarrier {
+        before: Arc<Barrier>,
+        after: Arc<Barrier>,
+    }
+
+    impl EventBarrier {
+        fn new() -> Self {
+            Self {
+                before: Arc::new(Barrier::new(2)),
+                after: Arc::new(Barrier::new(2)),
+            }
+        }
+    }
+
+    /// This persister will pause after persist is called
+    struct PausablePersister {
+        inner: TestPersister,
+        events: Mutex<BTreeMap<PartitionId, EventBarrier>>,
+    }
+
+    impl PausablePersister {
+        fn new() -> Self {
+            Self {
+                inner: TestPersister::default(),
+                events: Mutex::new(BTreeMap::new()),
+            }
+        }
+    }
+
+    #[async_trait]
+    impl Persister for PausablePersister {
+        async fn persist(&self, partition_id: PartitionId) {
+            self.inner.persist(partition_id).await;
+            if let Some(event) = self.event(partition_id) {
+                event.before.wait().await;
+                event.after.wait().await;
+            }
+        }
+
+        async fn update_min_unpersisted_sequence_number(
+            &self,
+            sequencer_id: SequencerId,
+            sequence_number: SequenceNumber,
+        ) {
+            self.inner
+                .update_min_unpersisted_sequence_number(sequencer_id, sequence_number)
+                .await
+        }
+    }
+
+    impl PausablePersister {
+        /// Wait until the persist operation has started
+        async fn wait_for_persist(&self, partition_id: PartitionId) {
+            let event = self
+                .event(partition_id)
+                .expect("partition not configured to wait");
+            event.before.wait().await;
+        }
+
+        /// Allow the persist operation to complete
+        async fn complete_persist(&self, partition_id: PartitionId) {
+            let event = self
+                .take_event(partition_id)
+                .expect("partition not configured to wait");
+            event.after.wait().await;
+        }
+
+        /// reset so a persist operation can begin again
+        fn pause_next(&self, partition_id: PartitionId) {
+            self.events.lock().insert(partition_id, EventBarrier::new());
+        }
+
+        /// get the event barrier configured for the specified partition
+        fn event(&self, partition_id: PartitionId) -> Option<EventBarrier> {
+            self.events.lock().get(&partition_id).cloned()
+        }
+
+        /// get the event barrier configured for the specified partition removing it
+        fn take_event(&self, partition_id: PartitionId) -> Option<EventBarrier> {
+            self.events.lock().remove(&partition_id)
         }
     }
 
@@ -545,8 +631,8 @@ mod tests {
         assert_eq!(p2.first_write, Time::from_timestamp_nanos(10));
     }
 
-    #[test]
-    fn pausing_and_resuming_ingest() {
+    #[tokio::test]
+    async fn pausing_and_resuming_ingest() {
         let config = LifecycleConfig {
             pause_ingest_size: 20,
             persist_memory_threshold: 10,
@@ -554,29 +640,71 @@ mod tests {
             partition_age_threshold: Duration::from_nanos(0),
             partition_cold_threshold: Duration::from_secs(500),
         };
-        let TestLifecycleManger { m, .. } = TestLifecycleManger::new(config);
+        let partition_id = PartitionId::new(1);
+        let TestLifecycleManger { mut m, .. } = TestLifecycleManger::new(config);
         let sequencer_id = SequencerId::new(1);
         let h = m.handle();
 
-        assert!(!h.log_write(
-            PartitionId::new(1),
-            sequencer_id,
-            SequenceNumber::new(1),
-            15
-        ));
+        // write more than the limit (10)
+        assert!(!h.log_write(partition_id, sequencer_id, SequenceNumber::new(1), 15));
 
-        // now it should indicate a pause
-        assert!(h.log_write(
-            PartitionId::new(1),
-            sequencer_id,
-            SequenceNumber::new(2),
-            10
-        ));
+        // all subsequent writes should also indicate a pause
+        assert!(h.log_write(partition_id, sequencer_id, SequenceNumber::new(2), 10));
         assert!(!h.can_resume_ingest());
 
-        m.remove(PartitionId::new(1));
+        // persist the partition
+        let persister = Arc::new(TestPersister::default());
+        m.maybe_persist(&persister).await;
+
+        // ingest can resume
         assert!(h.can_resume_ingest());
-        assert!(!h.log_write(PartitionId::new(1), sequencer_id, SequenceNumber::new(3), 3));
+        assert!(!h.log_write(partition_id, sequencer_id, SequenceNumber::new(3), 3));
+    }
+
+    #[tokio::test]
+    async fn pausing_ingest_waits_until_persist_completes() {
+        let config = LifecycleConfig {
+            pause_ingest_size: 20,
+            persist_memory_threshold: 10,
+            partition_size_threshold: 5,
+            partition_age_threshold: Duration::from_nanos(0),
+            partition_cold_threshold: Duration::from_secs(500),
+        };
+        let partition_id = PartitionId::new(1);
+        let TestLifecycleManger { mut m, .. } = TestLifecycleManger::new(config);
+        let sequencer_id = SequencerId::new(1);
+        let h = m.handle();
+
+        // write more than the limit (20)
+        h.log_write(partition_id, sequencer_id, SequenceNumber::new(1), 25);
+
+        // can not resume ingest as we are overall the pause ingest limit
+        assert!(!h.can_resume_ingest());
+
+        // persist the partition, pausing once it starts
+        let persister = Arc::new(PausablePersister::new());
+        persister.pause_next(partition_id);
+
+        let captured_persister = Arc::clone(&persister);
+        let persist = tokio::task::spawn(async move {
+            m.maybe_persist(&captured_persister).await;
+            m
+        });
+
+        // wait for persist to have started
+        persister.wait_for_persist(partition_id).await;
+
+        // until persist completes, ingest can not proceed (as the
+        // ingester is still over the limit).
+        assert!(!h.can_resume_ingest());
+
+        // allow persist to complete
+        persister.complete_persist(partition_id).await;
+        persist.await.expect("task panic'd");
+
+        // ingest can resume
+        assert!(h.can_resume_ingest());
+        assert!(!h.log_write(partition_id, sequencer_id, SequenceNumber::new(2), 3));
     }
 
     #[tokio::test]
