@@ -139,7 +139,7 @@ impl UserDefinedLogicalNode for NonNullCheckerNode {
         &self,
         exprs: &[Expr],
         inputs: &[LogicalPlan],
-    ) -> Arc<dyn UserDefinedLogicalNode + Send + Sync> {
+    ) -> Arc<dyn UserDefinedLogicalNode> {
         assert_eq!(inputs.len(), 1, "NonNullChecker: input sizes inconistent");
         assert_eq!(
             exprs.len(),

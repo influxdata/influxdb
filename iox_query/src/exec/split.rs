@@ -137,7 +137,7 @@ impl UserDefinedLogicalNode for StreamSplitNode {
         &self,
         exprs: &[Expr],
         inputs: &[LogicalPlan],
-    ) -> Arc<dyn UserDefinedLogicalNode + Send + Sync> {
+    ) -> Arc<dyn UserDefinedLogicalNode> {
         assert_eq!(inputs.len(), 1, "StreamSplitNode: input sizes inconistent");
         assert_eq!(
             exprs.len(),

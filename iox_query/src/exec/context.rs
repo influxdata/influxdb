@@ -88,9 +88,10 @@ impl QueryPlanner for IOxQueryPlanner {
 /// Physical planner for InfluxDB IOx extension plans
 struct IOxExtensionPlanner {}
 
+#[async_trait]
 impl ExtensionPlanner for IOxExtensionPlanner {
     /// Create a physical plan for an extension node
-    fn plan_extension(
+    async fn plan_extension(
         &self,
         planner: &dyn PhysicalPlanner,
         node: &dyn UserDefinedLogicalNode,
