@@ -14,6 +14,7 @@ use datafusion::physical_plan::SendableRecordBatchStream;
 use predicate::Predicate;
 use schema::{selection::Selection, sort::SortKey, Schema};
 use std::{collections::BTreeSet, mem, sync::Arc};
+use uuid::Uuid;
 
 /// A abstract representation of a Parquet file in object storage, with
 /// associated metadata.
@@ -37,6 +38,11 @@ impl ParquetChunk {
             schema,
             store,
         }
+    }
+
+    /// Return object store id
+    pub fn object_store_id(&self) -> Uuid {
+        self.parquet_file.object_store_id
     }
 
     /// Return the approximate memory size of the chunk, in bytes including the

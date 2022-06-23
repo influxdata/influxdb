@@ -137,9 +137,9 @@ impl QueryChunkMeta for QueryableBatch {
 impl QueryChunk for QueryableBatch {
     // This function should not be used in QueryBatch context
     fn id(&self) -> ChunkId {
-        // always return id 0 for debugging mode
-        // TODO: need to see if the same id for all chunks will cause any panics
-        ChunkId::new_test(0)
+        // To return a value for debugging and make it consistent with ChunkId created in Compactor,
+        // use Uuid for this
+        ChunkId::new()
     }
 
     /// Returns the name of the table stored in this chunk

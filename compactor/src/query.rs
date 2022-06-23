@@ -15,6 +15,7 @@ use predicate::{delete_predicate::tombstones_to_delete_predicates, Predicate, Pr
 use schema::{merge::SchemaMerger, selection::Selection, sort::SortKey, Schema};
 use snafu::{ResultExt, Snafu};
 use std::sync::Arc;
+use uuid::Uuid;
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
@@ -109,6 +110,11 @@ impl QueryableParquetChunk {
     pub fn max_time(&self) -> i64 {
         self.max_time.get()
     }
+
+    /// Return the parquet file's object store id
+    pub fn object_store_id(&self) -> Uuid {
+        self.data.object_store_id()
+    }
 }
 
 impl QueryChunkMeta for QueryableParquetChunk {
@@ -153,19 +159,10 @@ impl QueryChunk for QueryableParquetChunk {
     //
     // This function returns the parquet file's min_time which will be always different for the
     // parquet files of same order/min_sequence_number and is good to order the parquet file
-    //
-    // Note: parquet_file's id is an uuid which is also the datatype of the ChunkId. However,
-    // it is not safe to use it for sorting chunk
     fn id(&self) -> ChunkId {
-        let timestamp_nano = self.min_time.get();
-        let timestamp_nano_u128 = u128::try_from(timestamp_nano).unwrap_or_else(|_| {
-            panic!(
-                "Cannot convert timestamp nano to u128. Timestamp nano: {}, Paritition id: {}",
-                timestamp_nano, self.partition_id
-            )
-        });
-
-        ChunkId::new_id(timestamp_nano_u128)
+        // When we need the order to split overlapped chunks, the ChunkOrder is already different.
+        // ChunkId is used as tiebreaker does not matter much, so use the object store id
+        self.object_store_id().into()
     }
 
     /// Returns the name of the table stored in this chunk

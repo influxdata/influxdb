@@ -1162,9 +1162,7 @@ mod tests {
     use super::*;
     use arrow::record_batch::RecordBatch;
     use arrow_util::assert_batches_sorted_eq;
-    use data_types::{
-        ChunkId, ColumnSet, KafkaPartition, NamespaceId, ParquetFileParams, SequenceNumber,
-    };
+    use data_types::{ColumnSet, KafkaPartition, NamespaceId, ParquetFileParams, SequenceNumber};
     use futures::{stream::FuturesOrdered, StreamExt, TryStreamExt};
     use iox_catalog::interface::INITIAL_COMPACTION_LEVEL;
     use iox_tests::util::TestCatalog;
@@ -2149,18 +2147,11 @@ mod tests {
         );
 
         // Vector of chunks
-        let mut chunks = vec![pc2, pc1];
+        let chunks = vec![pc2, pc1];
         // must same order/min_sequnce_number
         assert_eq!(chunks[0].order(), chunks[1].order());
-        // different id/min_time
-        assert_eq!(chunks[0].id(), ChunkId::new_test(28000));
-        assert_eq!(chunks[1].id(), ChunkId::new_test(8000));
-
-        // Sort the chunk per order(min_sequnce_number) and id (min_time)
-        chunks.sort_unstable_by_key(|c| (c.order(), c.id()));
-        // now the location of the chunk in the vector is reversed
-        assert_eq!(chunks[0].id(), ChunkId::new_test(8000));
-        assert_eq!(chunks[1].id(), ChunkId::new_test(28000));
+        // different chunk ids
+        assert!(chunks[0].id() != chunks[1].id());
     }
 
     #[test]
