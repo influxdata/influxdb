@@ -3,6 +3,7 @@ package transport
 import (
 	"context"
 	"net/http"
+	"strings"
 
 	"github.com/influxdata/influxdb/v2/kv"
 
@@ -29,6 +30,11 @@ var (
 	errBadId = &errors.Error{
 		Code: errors.EInvalid,
 		Msg:  "remote-connection ID is invalid",
+	}
+
+	errForeignKey = &errors.Error{
+		Code: errors.EInternal,
+		Msg:  "remote-connection cannot be deleted as a replication references it",
 	}
 )
 
@@ -198,7 +204,11 @@ func (h *RemoteConnectionHandler) handleDeleteRemote(w http.ResponseWriter, r *h
 	}
 
 	if err := h.remotesService.DeleteRemoteConnection(r.Context(), *id); err != nil {
-		h.api.Err(w, r, err)
+		if strings.Contains(strings.ToLower(err.Error()), "foreign key constraint failed") {
+			h.api.Err(w, r, errForeignKey)
+		} else {
+			h.api.Err(w, r, err)
+		}
 		return
 	}
 	h.api.Respond(w, r, http.StatusNoContent, nil)
