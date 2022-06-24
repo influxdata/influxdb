@@ -149,6 +149,13 @@ func (m *UserResourceMapping) ownerPerms() ([]Permission, error) {
 		return OwnerPermissions(m.ResourceID), nil
 	}
 
+	if m.ResourceType == InstanceResourceType {
+		return []Permission{
+			{Action: ReadAction, Resource: Resource{Type: InstanceResourceType}},
+			{Action: WriteAction, Resource: Resource{Type: InstanceResourceType}},
+		}, nil
+	}
+
 	ps := []Permission{
 		// TODO: Uncomment these once the URM system is no longer being used for find lookups for:
 		// 	Telegraf

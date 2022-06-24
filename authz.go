@@ -143,6 +143,8 @@ const (
 	RemotesResourceType = ResourceType("remotes") // 20
 	// ReplicationsResourceType gives permission to one or more replications.
 	ReplicationsResourceType = ResourceType("replications") // 21
+	// InstanceResourceType is a special permission that allows ownership of the entire instance (creating orgs/operator tokens/etc)
+	InstanceResourceType = ResourceType("instance") // 22
 )
 
 // AllResourceTypes is the list of all known resource types.
@@ -169,6 +171,7 @@ var AllResourceTypes = []ResourceType{
 	AnnotationsResourceType,          // 19
 	RemotesResourceType,              // 20
 	ReplicationsResourceType,         // 21
+	InstanceResourceType,             // 22
 	// NOTE: when modifying this list, please update the swagger for components.schemas.Permission resource enum.
 }
 
@@ -202,6 +205,7 @@ func (t ResourceType) Valid() (err error) {
 	case AnnotationsResourceType: // 19
 	case RemotesResourceType: // 20
 	case ReplicationsResourceType: // 21
+	case InstanceResourceType: // 22
 	default:
 		err = ErrInvalidResourceType
 	}
@@ -238,6 +242,10 @@ func (p Permission) Matches(perm Permission) bool {
 func (p Permission) matchesV1(perm Permission) bool {
 	if p.Action != perm.Action {
 		return false
+	}
+
+	if p.Resource.Type == InstanceResourceType {
+		return true
 	}
 
 	if p.Resource.Type != perm.Resource.Type {
@@ -281,6 +289,10 @@ func (p Permission) matchesV1(perm Permission) bool {
 func (p Permission) matchesV2(perm Permission) bool {
 	if p.Action != perm.Action {
 		return false
+	}
+
+	if p.Resource.Type == InstanceResourceType {
+		return true
 	}
 
 	if p.Resource.Type != perm.Resource.Type {
