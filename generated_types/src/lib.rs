@@ -117,6 +117,25 @@ pub mod influxdata {
                     env!("OUT_DIR"),
                     "/influxdata.iox.schema.v1.serde.rs"
                 ));
+
+                impl TryFrom<column_schema::ColumnType> for data_types::ColumnType {
+                    type Error = Box<dyn std::error::Error>;
+
+                    fn try_from(value: column_schema::ColumnType) -> Result<Self, Self::Error> {
+                        Ok(match value {
+                            column_schema::ColumnType::I64 => data_types::ColumnType::I64,
+                            column_schema::ColumnType::U64 => data_types::ColumnType::U64,
+                            column_schema::ColumnType::F64 => data_types::ColumnType::F64,
+                            column_schema::ColumnType::Bool => data_types::ColumnType::Bool,
+                            column_schema::ColumnType::String => data_types::ColumnType::String,
+                            column_schema::ColumnType::Time => data_types::ColumnType::Time,
+                            column_schema::ColumnType::Tag => data_types::ColumnType::Tag,
+                            column_schema::ColumnType::Unspecified => {
+                                return Err("unknown column type".into())
+                            }
+                        })
+                    }
+                }
             }
         }
 
@@ -238,5 +257,41 @@ mod tests {
 
         // The URL must start with the type.googleapis.com prefix
         assert!(!protobuf_type_url_eq(STORAGE_SERVICE, STORAGE_SERVICE,));
+    }
+
+    #[test]
+    fn test_column_schema() {
+        use influxdata::iox::schema::v1::*;
+
+        assert_eq!(
+            data_types::ColumnType::try_from(column_schema::ColumnType::I64).unwrap(),
+            data_types::ColumnType::I64,
+        );
+        assert_eq!(
+            data_types::ColumnType::try_from(column_schema::ColumnType::U64).unwrap(),
+            data_types::ColumnType::U64,
+        );
+        assert_eq!(
+            data_types::ColumnType::try_from(column_schema::ColumnType::F64).unwrap(),
+            data_types::ColumnType::F64,
+        );
+        assert_eq!(
+            data_types::ColumnType::try_from(column_schema::ColumnType::Bool).unwrap(),
+            data_types::ColumnType::Bool,
+        );
+        assert_eq!(
+            data_types::ColumnType::try_from(column_schema::ColumnType::String).unwrap(),
+            data_types::ColumnType::String,
+        );
+        assert_eq!(
+            data_types::ColumnType::try_from(column_schema::ColumnType::Time).unwrap(),
+            data_types::ColumnType::Time,
+        );
+        assert_eq!(
+            data_types::ColumnType::try_from(column_schema::ColumnType::Tag).unwrap(),
+            data_types::ColumnType::Tag,
+        );
+
+        assert!(data_types::ColumnType::try_from(column_schema::ColumnType::Unspecified).is_err());
     }
 }

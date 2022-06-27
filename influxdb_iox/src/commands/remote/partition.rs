@@ -268,8 +268,8 @@ async fn load_schema(
             .create_or_get(table_name, namespace.id)
             .await?;
         for (column_name, column_schema) in &table_schema.columns {
-            let column_type = column_schema.column_type as i16;
-            let column_type: ColumnType = column_type
+            let column_type: ColumnType = column_schema
+                .column_type()
                 .try_into()
                 .expect("column type from remote not valid");
             let _column = repos
