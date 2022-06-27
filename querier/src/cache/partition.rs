@@ -136,6 +136,9 @@ struct CachedPartition {
 impl CachedPartition {
     /// RAM-bytes EXCLUDING `self`.
     fn size(&self) -> usize {
+        // Arc heap allocation
+        size_of_val(self.sort_key.as_ref()) +
+        // Arc content
         self.sort_key
             .as_ref()
             .as_ref()

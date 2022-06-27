@@ -12,9 +12,9 @@ use crate::{
 use async_trait::async_trait;
 use data_types::{
     Column, ColumnType, KafkaPartition, KafkaTopic, KafkaTopicId, Namespace, NamespaceId,
-    ParquetFile, ParquetFileId, ParquetFileParams, ParquetFileWithMetadata, Partition, PartitionId,
-    PartitionInfo, PartitionKey, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber,
-    Sequencer, SequencerId, Table, TableId, TablePartition, Timestamp, Tombstone, TombstoneId,
+    ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionInfo,
+    PartitionKey, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Sequencer,
+    SequencerId, Table, TableId, TablePartition, Timestamp, Tombstone, TombstoneId,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::{debug, info, warn};
@@ -1465,7 +1465,6 @@ impl ParquetFileRepo for PostgresTxn {
             min_time,
             max_time,
             file_size_bytes,
-            parquet_metadata,
             row_count,
             compaction_level,
             created_at,
@@ -1476,9 +1475,9 @@ impl ParquetFileRepo for PostgresTxn {
             r#"
 INSERT INTO parquet_file (
     sequencer_id, table_id, partition_id, object_store_id, min_sequence_number,
-    max_sequence_number, min_time, max_time, file_size_bytes, parquet_metadata,
+    max_sequence_number, min_time, max_time, file_size_bytes,
     row_count, compaction_level, created_at, namespace_id, column_set )
-VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15 )
+VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14 )
 RETURNING *;
         "#,
         )
@@ -1491,12 +1490,11 @@ RETURNING *;
         .bind(min_time) // $7
         .bind(max_time) // $8
         .bind(file_size_bytes) // $9
-        .bind(parquet_metadata) // $10
-        .bind(row_count) // $11
-        .bind(compaction_level) // $12
-        .bind(created_at) // $13
-        .bind(namespace_id) // $14
-        .bind(column_set) // $15
+        .bind(row_count) // $10
+        .bind(compaction_level) // $11
+        .bind(created_at) // $12
+        .bind(namespace_id) // $13
+        .bind(column_set) // $14
         .fetch_one(&mut self.inner)
         .await
         .map_err(|e| {
@@ -1583,23 +1581,6 @@ WHERE table_name.namespace_id = $1
 SELECT id, sequencer_id, namespace_id, table_id, partition_id, object_store_id,
        min_sequence_number, max_sequence_number, min_time, max_time, to_delete, file_size_bytes,
        row_count, compaction_level, created_at, column_set
-FROM parquet_file
-WHERE table_id = $1 AND to_delete IS NULL;
-             "#,
-        )
-        .bind(&table_id) // $1
-        .fetch_all(&mut self.inner)
-        .await
-        .map_err(|e| Error::SqlxError { source: e })
-    }
-
-    async fn list_by_table_not_to_delete_with_metadata(
-        &mut self,
-        table_id: TableId,
-    ) -> Result<Vec<ParquetFileWithMetadata>> {
-        sqlx::query_as::<_, ParquetFileWithMetadata>(
-            r#"
-SELECT *
 FROM parquet_file
 WHERE table_id = $1 AND to_delete IS NULL;
              "#,
@@ -1703,24 +1684,6 @@ WHERE parquet_file.partition_id = $1
         .map_err(|e| Error::SqlxError { source: e })
     }
 
-    async fn list_by_partition_not_to_delete_with_metadata(
-        &mut self,
-        partition_id: PartitionId,
-    ) -> Result<Vec<ParquetFileWithMetadata>> {
-        sqlx::query_as::<_, ParquetFileWithMetadata>(
-            r#"
-SELECT *
-FROM parquet_file
-WHERE parquet_file.partition_id = $1
-  AND parquet_file.to_delete IS NULL;
-             "#,
-        )
-        .bind(&partition_id) // $1
-        .fetch_all(&mut self.inner)
-        .await
-        .map_err(|e| Error::SqlxError { source: e })
-    }
-
     async fn update_to_level_1(
         &mut self,
         parquet_file_ids: &[ParquetFileId],
@@ -1755,17 +1718,6 @@ RETURNING id;
         .map_err(|e| Error::SqlxError { source: e })?;
 
         Ok(read_result.count > 0)
-    }
-
-    async fn parquet_metadata(&mut self, id: ParquetFileId) -> Result<Vec<u8>> {
-        let read_result =
-            sqlx::query(r#"SELECT parquet_metadata FROM parquet_file WHERE id = $1;"#)
-                .bind(&id) // $1
-                .fetch_one(&mut self.inner)
-                .await
-                .map_err(|e| Error::SqlxError { source: e })?;
-
-        Ok(read_result.get("parquet_metadata"))
     }
 
     async fn count(&mut self) -> Result<i64> {

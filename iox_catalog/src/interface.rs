@@ -3,10 +3,10 @@
 use async_trait::async_trait;
 use data_types::{
     Column, ColumnSchema, ColumnType, KafkaPartition, KafkaTopic, KafkaTopicId, Namespace,
-    NamespaceId, NamespaceSchema, ParquetFile, ParquetFileId, ParquetFileParams,
-    ParquetFileWithMetadata, Partition, PartitionId, PartitionInfo, PartitionKey,
-    ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Sequencer, SequencerId, Table,
-    TableId, TablePartition, TableSchema, Timestamp, Tombstone, TombstoneId,
+    NamespaceId, NamespaceSchema, ParquetFile, ParquetFileId, ParquetFileParams, Partition,
+    PartitionId, PartitionInfo, PartitionKey, ProcessedTombstone, QueryPool, QueryPoolId,
+    SequenceNumber, Sequencer, SequencerId, Table, TableId, TablePartition, TableSchema, Timestamp,
+    Tombstone, TombstoneId,
 };
 use iox_time::TimeProvider;
 use snafu::{OptionExt, Snafu};
@@ -525,13 +525,6 @@ pub trait ParquetFileRepo: Send + Sync {
     /// [`to_delete`](ParquetFile::to_delete).
     async fn list_by_table_not_to_delete(&mut self, table_id: TableId) -> Result<Vec<ParquetFile>>;
 
-    /// List all parquet files and their metadata within a given table that are NOT marked as
-    /// [`to_delete`](ParquetFile::to_delete). Fetching metadata can be expensive.
-    async fn list_by_table_not_to_delete_with_metadata(
-        &mut self,
-        table_id: TableId,
-    ) -> Result<Vec<ParquetFileWithMetadata>>;
-
     /// Delete all parquet files that were marked to be deleted earlier than the specified time.
     /// Returns the deleted records.
     async fn delete_old(&mut self, older_than: Timestamp) -> Result<Vec<ParquetFile>>;
@@ -557,13 +550,6 @@ pub trait ParquetFileRepo: Send + Sync {
         partition_id: PartitionId,
     ) -> Result<Vec<ParquetFile>>;
 
-    /// List parquet files and their metadata for a given partition that are NOT marked as
-    /// [`to_delete`](ParquetFile::to_delete). Fetching metadata can be expensive.
-    async fn list_by_partition_not_to_delete_with_metadata(
-        &mut self,
-        partition_id: PartitionId,
-    ) -> Result<Vec<ParquetFileWithMetadata>>;
-
     /// Update the compaction level of the specified parquet files to level 1. Returns the IDs
     /// of the files that were successfully updated.
     async fn update_to_level_1(
@@ -573,9 +559,6 @@ pub trait ParquetFileRepo: Send + Sync {
 
     /// Verify if the parquet file exists by selecting its id
     async fn exist(&mut self, id: ParquetFileId) -> Result<bool>;
-
-    /// Fetch the parquet_metadata bytes for the given id. Potentially expensive.
-    async fn parquet_metadata(&mut self, id: ParquetFileId) -> Result<Vec<u8>>;
 
     /// Return count
     async fn count(&mut self) -> Result<i64>;
@@ -1691,7 +1674,6 @@ pub(crate) mod test_helpers {
             min_time,
             max_time,
             file_size_bytes: 1337,
-            parquet_metadata: b"md1".to_vec(),
             row_count: 0,
             compaction_level: INITIAL_COMPACTION_LEVEL,
             created_at: Timestamp::new(1),
@@ -1903,7 +1885,6 @@ pub(crate) mod test_helpers {
             min_time: Timestamp::new(1),
             max_time: Timestamp::new(10),
             file_size_bytes: 1337,
-            parquet_metadata: b"md1".to_vec(),
             row_count: 0,
             compaction_level: INITIAL_COMPACTION_LEVEL,
             created_at: Timestamp::new(1),
@@ -1922,13 +1903,6 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         assert_eq!(parquet_file, pfg.unwrap());
-
-        let metadata = repos
-            .parquet_files()
-            .parquet_metadata(parquet_file.id)
-            .await
-            .unwrap();
-        assert_eq!(metadata, b"md1".to_vec());
 
         // verify that trying to create a file with the same UUID throws an error
         let err = repos
@@ -2024,23 +1998,6 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         assert_eq!(files, vec![other_file.clone()]);
-
-        // test list_by_table_not_to_delete_with_metadata
-        let files = repos
-            .parquet_files()
-            .list_by_table_not_to_delete_with_metadata(table.id)
-            .await
-            .unwrap();
-        assert_eq!(files, vec![]);
-        let files = repos
-            .parquet_files()
-            .list_by_table_not_to_delete_with_metadata(other_table.id)
-            .await
-            .unwrap();
-        assert_eq!(
-            files,
-            vec![ParquetFileWithMetadata::new(other_file, b"md1".to_vec())]
-        );
 
         // test list_by_namespace_not_to_delete
         let namespace2 = repos
@@ -2264,7 +2221,6 @@ pub(crate) mod test_helpers {
             min_time,
             max_time,
             file_size_bytes: 1337,
-            parquet_metadata: b"md1".to_vec(),
             row_count: 0,
             compaction_level: INITIAL_COMPACTION_LEVEL,
             created_at: Timestamp::new(1),
@@ -2395,7 +2351,6 @@ pub(crate) mod test_helpers {
             min_time: query_min_time + 1,
             max_time: query_max_time - 1,
             file_size_bytes: 1337,
-            parquet_metadata: b"md1".to_vec(),
             row_count: 0,
             compaction_level: INITIAL_COMPACTION_LEVEL,
             created_at: Timestamp::new(1),
@@ -2602,7 +2557,6 @@ pub(crate) mod test_helpers {
             min_time,
             max_time,
             file_size_bytes: 1337,
-            parquet_metadata: b"md1".to_vec(),
             row_count: 0,
             compaction_level: INITIAL_COMPACTION_LEVEL,
             created_at: Timestamp::new(1),
@@ -2661,19 +2615,6 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         assert_eq!(files, vec![parquet_file.clone(), level1_file.clone()]);
-
-        let files = repos
-            .parquet_files()
-            .list_by_partition_not_to_delete_with_metadata(partition.id)
-            .await
-            .unwrap();
-        assert_eq!(
-            files,
-            vec![
-                ParquetFileWithMetadata::new(parquet_file, b"md1".to_vec()),
-                ParquetFileWithMetadata::new(level1_file, b"md1".to_vec()),
-            ]
-        );
     }
 
     async fn test_update_to_compaction_level_1(catalog: Arc<dyn Catalog>) {
@@ -2722,7 +2663,6 @@ pub(crate) mod test_helpers {
             min_time: query_min_time + 1,
             max_time: query_max_time - 1,
             file_size_bytes: 1337,
-            parquet_metadata: b"md1".to_vec(),
             row_count: 0,
             compaction_level: INITIAL_COMPACTION_LEVEL,
             created_at: Timestamp::new(1),
@@ -2840,7 +2780,6 @@ pub(crate) mod test_helpers {
             min_time: Timestamp::new(100),
             max_time: Timestamp::new(250),
             file_size_bytes: 1337,
-            parquet_metadata: b"md1".to_vec(),
             row_count: 0,
             compaction_level: INITIAL_COMPACTION_LEVEL,
             created_at: Timestamp::new(1),

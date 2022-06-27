@@ -8,9 +8,9 @@ use crate::interface::{
 use async_trait::async_trait;
 use data_types::{
     Column, ColumnType, KafkaPartition, KafkaTopic, KafkaTopicId, Namespace, NamespaceId,
-    ParquetFile, ParquetFileId, ParquetFileParams, ParquetFileWithMetadata, Partition, PartitionId,
-    PartitionInfo, PartitionKey, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber,
-    Sequencer, SequencerId, Table, TableId, TablePartition, Timestamp, Tombstone, TombstoneId,
+    ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionInfo,
+    PartitionKey, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Sequencer,
+    SequencerId, Table, TableId, TablePartition, Timestamp, Tombstone, TombstoneId,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use metric::{DurationHistogram, Metric};
@@ -268,15 +268,12 @@ decorate!(
         "parquet_list_by_sequencer_greater_than" = list_by_sequencer_greater_than(&mut self, sequencer_id: SequencerId, sequence_number: SequenceNumber) -> Result<Vec<ParquetFile>>;
         "parquet_list_by_namespace_not_to_delete" = list_by_namespace_not_to_delete(&mut self, namespace_id: NamespaceId) -> Result<Vec<ParquetFile>>;
         "parquet_list_by_table_not_to_delete" = list_by_table_not_to_delete(&mut self, table_id: TableId) -> Result<Vec<ParquetFile>>;
-        "parquet_list_by_table_not_to_delete_with_metadata" = list_by_table_not_to_delete_with_metadata(&mut self, table_id: TableId) -> Result<Vec<ParquetFileWithMetadata>>;
         "parquet_delete_old" = delete_old(&mut self, older_than: Timestamp) -> Result<Vec<ParquetFile>>;
         "parquet_list_by_partition_not_to_delete" = list_by_partition_not_to_delete(&mut self, partition_id: PartitionId) -> Result<Vec<ParquetFile>>;
-        "parquet_list_by_partition_not_to_delete_with_metadata" = list_by_partition_not_to_delete_with_metadata(&mut self, partition_id: PartitionId) -> Result<Vec<ParquetFileWithMetadata>>;
         "parquet_level_0" = level_0(&mut self, sequencer_id: SequencerId) -> Result<Vec<ParquetFile>>;
         "parquet_level_1" = level_1(&mut self, table_partition: TablePartition, min_time: Timestamp, max_time: Timestamp) -> Result<Vec<ParquetFile>>;
         "parquet_update_to_level_1" = update_to_level_1(&mut self, parquet_file_ids: &[ParquetFileId]) -> Result<Vec<ParquetFileId>>;
         "parquet_exist" = exist(&mut self, id: ParquetFileId) -> Result<bool>;
-        "parquet_metadata" = parquet_metadata(&mut self, id: ParquetFileId) -> Result<Vec<u8>>;
         "parquet_count" = count(&mut self) -> Result<i64>;
         "parquet_count_by_overlaps" = count_by_overlaps(&mut self, table_id: TableId, sequencer_id: SequencerId, min_time: Timestamp, max_time: Timestamp, sequence_number: SequenceNumber) -> Result<i64>;
         "parquet_get_by_object_store_id" = get_by_object_store_id(&mut self, object_store_id: Uuid) -> Result<Option<ParquetFile>>;

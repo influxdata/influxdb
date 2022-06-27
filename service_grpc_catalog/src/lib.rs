@@ -172,7 +172,6 @@ mod tests {
                 min_time: Timestamp::new(1),
                 max_time: Timestamp::new(5),
                 file_size_bytes: 2343,
-                parquet_metadata: vec![],
                 row_count: 29,
                 compaction_level: 0,
                 created_at: Timestamp::new(2343),

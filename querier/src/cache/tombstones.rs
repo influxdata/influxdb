@@ -275,8 +275,8 @@ mod tests {
 
         let cache = make_cache(&catalog);
 
-        let single_tombstone_size = 96;
-        let two_tombstone_size = 176;
+        let single_tombstone_size = 101;
+        let two_tombstone_size = 186;
         assert!(single_tombstone_size < two_tombstone_size);
 
         // Create tombstone 1

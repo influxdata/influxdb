@@ -360,7 +360,6 @@ async fn load_parquet_files(
                     min_time: Timestamp::new(p.min_time),
                     max_time: Timestamp::new(p.max_time),
                     file_size_bytes: p.file_size_bytes,
-                    parquet_metadata: vec![],
                     row_count: p.row_count,
                     compaction_level: p.compaction_level as i16,
                     created_at: Timestamp::new(p.created_at),

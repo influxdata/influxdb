@@ -1276,11 +1276,11 @@ mod tests {
         ColumnSet, ColumnType, KafkaPartition, NamespaceId, ParquetFileParams, SequenceNumber,
     };
     use futures::{stream::FuturesOrdered, StreamExt, TryStreamExt};
-    use iox_catalog::interface::{get_schema_by_id, INITIAL_COMPACTION_LEVEL};
-    use iox_tests::util::TestCatalog;
+    use iox_catalog::interface::INITIAL_COMPACTION_LEVEL;
+    use iox_tests::util::{TestCatalog, TestTable};
     use iox_time::SystemProvider;
     use parquet_file::ParquetFilePath;
-    use schema::{selection::Selection, sort::SortKey, Schema};
+    use schema::{selection::Selection, sort::SortKey};
     use std::sync::atomic::{AtomicI64, Ordering};
     use test_helpers::maybe_start_logging;
 
@@ -1338,7 +1338,7 @@ mod tests {
         table.create_column("tag1", ColumnType::Tag).await;
         table.create_column("field_int", ColumnType::I64).await;
         table.create_column("time", ColumnType::Time).await;
-        let table_schema = read_table_schema(&catalog, ns.namespace.id, &table.table.name).await;
+        let table_schema = table.schema().await;
 
         // One parquet file
         let partition = table
@@ -1440,7 +1440,7 @@ mod tests {
         // query the chunks
         // most recent compacted second half (~10%)
         let files1 = files.pop().unwrap();
-        let batches = read_parquet_file(&catalog, files1).await;
+        let batches = read_parquet_file(&table, files1).await;
         assert_batches_sorted_eq!(
             &[
                 "+-----------+------+-----------------------------+",
@@ -1453,7 +1453,7 @@ mod tests {
         );
         // least recent compacted first half (~90%)
         let files2 = files.pop().unwrap();
-        let batches = read_parquet_file(&catalog, files2).await;
+        let batches = read_parquet_file(&table, files2).await;
         assert_batches_sorted_eq!(
             &[
                 "+-----------+------+-----------------------------+",
@@ -1513,7 +1513,7 @@ mod tests {
         table.create_column("tag3", ColumnType::Tag).await;
         table.create_column("field_int", ColumnType::I64).await;
         table.create_column("time", ColumnType::Time).await;
-        let table_schema = read_table_schema(&catalog, ns.namespace.id, &table.table.name).await;
+        let table_schema = table.schema().await;
         let partition = table
             .with_sequencer(&sequencer)
             .create_partition("part")
@@ -1666,7 +1666,7 @@ mod tests {
 
         // Compacted file
         let file2 = files.pop().unwrap();
-        let batches = read_parquet_file(&catalog, file2).await;
+        let batches = read_parquet_file(&table, file2).await;
         assert_batches_sorted_eq!(
             &[
                 "+-----------+------+------+------+-----------------------------+",
@@ -1684,7 +1684,7 @@ mod tests {
         );
         // Non-compacted file
         let file1 = files.pop().unwrap();
-        let batches = read_parquet_file(&catalog, file1).await;
+        let batches = read_parquet_file(&table, file1).await;
         assert_batches_sorted_eq!(
             &[
                 "+-----------+------+--------------------------------+",
@@ -1716,7 +1716,7 @@ mod tests {
         table.create_column("tag1", ColumnType::Tag).await;
         table.create_column("field_int", ColumnType::I64).await;
         table.create_column("time", ColumnType::Time).await;
-        let table_schema = read_table_schema(&catalog, ns.namespace.id, &table.table.name).await;
+        let table_schema = table.schema().await;
         let partition = table
             .with_sequencer(&sequencer)
             .create_partition("part")
@@ -1724,9 +1724,7 @@ mod tests {
         let parquet_file = partition
             .create_parquet_file_with_min_max(&lp, 1, 1, 8000, 20000)
             .await
-            .parquet_file
-            .split_off_metadata()
-            .0;
+            .parquet_file;
 
         let split_percentage = 90;
         let max_concurrent_compaction_size_bytes = 100000;
@@ -1848,7 +1846,7 @@ mod tests {
         table.create_column("tag1", ColumnType::Tag).await;
         table.create_column("field_int", ColumnType::I64).await;
         table.create_column("time", ColumnType::Time).await;
-        let table_schema = read_table_schema(&catalog, ns.namespace.id, &table.table.name).await;
+        let table_schema = table.schema().await;
         let partition = table
             .with_sequencer(&sequencer)
             .create_partition("part")
@@ -1856,9 +1854,7 @@ mod tests {
         let parquet_file = partition
             .create_parquet_file_with_min_max(&lp, 1, 1, 8000, 20000)
             .await
-            .parquet_file
-            .split_off_metadata()
-            .0;
+            .parquet_file;
 
         let split_percentage = 100;
         let max_concurrent_compaction_size_bytes = 100000;
@@ -1960,7 +1956,7 @@ mod tests {
         table.create_column("tag1", ColumnType::Tag).await;
         table.create_column("field_int", ColumnType::I64).await;
         table.create_column("time", ColumnType::Time).await;
-        let table_schema = read_table_schema(&catalog, ns.namespace.id, &table.table.name).await;
+        let table_schema = table.schema().await;
         let partition = table
             .with_sequencer(&sequencer)
             .create_partition("part")
@@ -1969,15 +1965,11 @@ mod tests {
         let parquet_file1 = partition
             .create_parquet_file_with_min_max_size(&lp1, 1, 5, 8000, 20000, 140000)
             .await
-            .parquet_file
-            .split_off_metadata()
-            .0;
+            .parquet_file;
         let parquet_file2 = partition
             .create_parquet_file_with_min_max_size(&lp2, 10, 15, 6000, 25000, 100000)
             .await
-            .parquet_file
-            .split_off_metadata()
-            .0;
+            .parquet_file;
 
         let split_percentage = 90;
         let max_concurrent_compaction_size_bytes = 100000;
@@ -2110,7 +2102,7 @@ mod tests {
         table.create_column("tag3", ColumnType::Tag).await;
         table.create_column("field_int", ColumnType::I64).await;
         table.create_column("time", ColumnType::Time).await;
-        let table_schema = read_table_schema(&catalog, ns.namespace.id, &table.table.name).await;
+        let table_schema = table.schema().await;
         let partition = table
             .with_sequencer(&sequencer)
             .create_partition("part")
@@ -2121,21 +2113,15 @@ mod tests {
         let parquet_file1 = partition
             .create_parquet_file_with_min_max_size(&lp1, 1, 5, 8000, 20000, 50000)
             .await
-            .parquet_file
-            .split_off_metadata()
-            .0;
+            .parquet_file;
         let parquet_file2 = partition
             .create_parquet_file_with_min_max_size(&lp2, 10, 15, 6000, 25000, 50000)
             .await
-            .parquet_file
-            .split_off_metadata()
-            .0;
+            .parquet_file;
         let parquet_file3 = partition
             .create_parquet_file_with_min_max_size(&lp3, 20, 25, 6000, 8000, 20000)
             .await
-            .parquet_file
-            .split_off_metadata()
-            .0;
+            .parquet_file;
 
         let split_percentage = 90;
         let max_concurrent_compaction_size_bytes = 100000;
@@ -2292,7 +2278,7 @@ mod tests {
         table.create_column("tag1", ColumnType::Tag).await;
         table.create_column("field_int", ColumnType::I64).await;
         table.create_column("time", ColumnType::Time).await;
-        let table_schema = read_table_schema(&catalog, ns.namespace.id, &table.table.name).await;
+        let table_schema = table.schema().await;
         let partition = table
             .with_sequencer(&sequencer)
             .create_partition("part")
@@ -2301,15 +2287,11 @@ mod tests {
         let pf1 = partition
             .create_parquet_file_with_min_max(&lp1, 1, 5, 8000, 20000)
             .await
-            .parquet_file
-            .split_off_metadata()
-            .0;
+            .parquet_file;
         let pf2 = partition
             .create_parquet_file_with_min_max(&lp2, 1, 5, 28000, 35000)
             .await
-            .parquet_file
-            .split_off_metadata()
-            .0;
+            .parquet_file;
 
         // Build 2 QueryableParquetChunks
         let pt1 = ParquetFileWithTombstone::new(Arc::new(pf1), vec![]);
@@ -2356,7 +2338,7 @@ mod tests {
         table.create_column("field_int", ColumnType::I64).await;
         table.create_column("field_float", ColumnType::F64).await;
         table.create_column("time", ColumnType::Time).await;
-        let table_schema = read_table_schema(&catalog, ns.namespace.id, &table.table.name).await;
+        let table_schema = table.schema().await;
         let partition = table
             .with_sequencer(&sequencer)
             .create_partition("part")
@@ -2364,12 +2346,7 @@ mod tests {
             .update_sort_key(SortKey::from_columns(["tag1", "tag2", "time"]))
             .await;
 
-        let pf = partition
-            .create_parquet_file(&lp)
-            .await
-            .parquet_file
-            .split_off_metadata()
-            .0;
+        let pf = partition.create_parquet_file(&lp).await.parquet_file;
 
         let pt = ParquetFileWithTombstone::new(Arc::new(pf), vec![]);
 
@@ -2990,7 +2967,6 @@ mod tests {
             min_time: Timestamp::new(1),
             max_time: Timestamp::new(5),
             file_size_bytes: 1337,
-            parquet_metadata: b"md1".to_vec(),
             row_count: 0,
             created_at: Timestamp::new(1),
             compaction_level: INITIAL_COMPACTION_LEVEL,
@@ -3257,7 +3233,6 @@ mod tests {
             min_time,
             max_time,
             file_size_bytes: 1337,
-            parquet_metadata: b"md1".to_vec(),
             compaction_level: INITIAL_COMPACTION_LEVEL, // level of file of new writes
             row_count: 0,
             created_at: Timestamp::new(1),
@@ -3439,7 +3414,6 @@ mod tests {
             min_time: Timestamp::new(1),
             max_time: Timestamp::new(5),
             file_size_bytes: 1337,
-            parquet_metadata: b"md1".to_vec(),
             row_count: 0,
             compaction_level: INITIAL_COMPACTION_LEVEL, // level of file of new writes
             created_at: Timestamp::new(1),
@@ -3553,7 +3527,7 @@ mod tests {
         table.create_column("tag1", ColumnType::Tag).await;
         table.create_column("ifield", ColumnType::I64).await;
         table.create_column("time", ColumnType::Time).await;
-        let table_schema = read_table_schema(&catalog, ns.namespace.id, &table.table.name).await;
+        let table_schema = table.schema().await;
         let partition = table
             .with_sequencer(&sequencer)
             .create_partition("part")
@@ -3562,15 +3536,11 @@ mod tests {
         let parquet_file1 = partition
             .create_parquet_file_with_min_max_size(&lp1, 1, 5, 1, 1000, 60000)
             .await
-            .parquet_file
-            .split_off_metadata()
-            .0;
+            .parquet_file;
         let parquet_file2 = partition
             .create_parquet_file_with_min_max_size(&lp2, 10, 15, 500, 1500, 60000)
             .await
-            .parquet_file
-            .split_off_metadata()
-            .0;
+            .parquet_file;
 
         let split_percentage = 90;
         let max_concurrent_compaction_size_bytes = 100000;
@@ -3633,38 +3603,11 @@ mod tests {
         assert_eq!(num_rows, 1499);
     }
 
-    async fn read_table_schema(
-        catalog: &TestCatalog,
-        namespace_id: NamespaceId,
-        table_name: &str,
-    ) -> Schema {
-        let mut repos = catalog.catalog().repositories().await;
-        let namespace_schema = get_schema_by_id(namespace_id, repos.as_mut())
-            .await
-            .unwrap();
-        namespace_schema
-            .tables
-            .get(table_name)
-            .unwrap()
-            .clone()
-            .try_into()
-            .unwrap()
-    }
-
-    async fn read_parquet_file(catalog: &TestCatalog, file: ParquetFile) -> Vec<RecordBatch> {
-        let storage = ParquetStorage::new(catalog.object_store());
+    async fn read_parquet_file(table: &Arc<TestTable>, file: ParquetFile) -> Vec<RecordBatch> {
+        let storage = ParquetStorage::new(table.catalog.object_store());
 
         // get schema
-        let mut repos = catalog.catalog().repositories().await;
-        let table_name = repos
-            .tables()
-            .get_by_id(file.table_id)
-            .await
-            .unwrap()
-            .unwrap()
-            .name;
-        drop(repos);
-        let table_schema = read_table_schema(catalog, file.namespace_id, &table_name).await;
+        let table_schema = table.schema().await;
         let selection: Vec<_> = file.column_set.iter().map(|s| s.as_str()).collect();
         let schema = table_schema.select_by_names(&selection).unwrap();
 

@@ -5,13 +5,13 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use data_types::{
-    Column, ColumnSet, ColumnType, KafkaPartition, KafkaTopic, Namespace, ParquetFile,
-    ParquetFileId, ParquetFileParams, ParquetFileWithMetadata, Partition, PartitionId, QueryPool,
-    SequenceNumber, Sequencer, SequencerId, Table, TableId, Timestamp, Tombstone, TombstoneId,
+    Column, ColumnSet, ColumnType, KafkaPartition, KafkaTopic, Namespace, NamespaceSchema,
+    ParquetFile, ParquetFileParams, Partition, PartitionId, QueryPool, SequenceNumber, Sequencer,
+    SequencerId, Table, TableId, Timestamp, Tombstone, TombstoneId,
 };
 use datafusion::physical_plan::metrics::Count;
 use iox_catalog::{
-    interface::{Catalog, PartitionRepo, INITIAL_COMPACTION_LEVEL},
+    interface::{get_schema_by_id, Catalog, PartitionRepo, INITIAL_COMPACTION_LEVEL},
     mem::MemCatalog,
 };
 use iox_query::{exec::Executor, provider::RecordBatchDeduplicator, util::arrow_sort_key_exprs};
@@ -19,7 +19,7 @@ use iox_time::{MockProvider, Time, TimeProvider};
 use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
 use object_store::{memory::InMemory, DynObjectStore};
 use observability_deps::tracing::debug;
-use parquet_file::{chunk::DecodedParquetFile, metadata::IoxMetadata, storage::ParquetStorage};
+use parquet_file::{metadata::IoxMetadata, storage::ParquetStorage};
 use schema::{
     selection::Selection,
     sort::{adjust_sort_key_columns, compute_sort_key, SortKey},
@@ -209,31 +209,6 @@ impl TestCatalog {
             .await
             .unwrap()
     }
-
-    /// List all non-deleted files with their metadata
-    pub async fn list_by_table_not_to_delete_with_metadata(
-        self: &Arc<Self>,
-        table_id: TableId,
-    ) -> Vec<ParquetFileWithMetadata> {
-        self.catalog
-            .repositories()
-            .await
-            .parquet_files()
-            .list_by_table_not_to_delete_with_metadata(table_id)
-            .await
-            .unwrap()
-    }
-
-    /// Get a parquet file's metadata bytes
-    pub async fn parquet_metadata(&self, parquet_file_id: ParquetFileId) -> Vec<u8> {
-        self.catalog
-            .repositories()
-            .await
-            .parquet_files()
-            .parquet_metadata(parquet_file_id)
-            .await
-            .unwrap()
-    }
 }
 
 /// A test namespace
@@ -279,6 +254,14 @@ impl TestNamespace {
             namespace: Arc::clone(self),
             sequencer,
         })
+    }
+
+    /// Get namespace schema for this namespace.
+    pub async fn schema(&self) -> NamespaceSchema {
+        let mut repos = self.catalog.catalog.repositories().await;
+        get_schema_by_id(self.namespace.id, repos.as_mut())
+            .await
+            .unwrap()
     }
 }
 
@@ -337,6 +320,19 @@ impl TestTable {
             table: Arc::clone(self),
             column,
         })
+    }
+
+    /// Get schema for this table.
+    pub async fn schema(&self) -> Schema {
+        self.namespace
+            .schema()
+            .await
+            .tables
+            .get(&self.table.name)
+            .unwrap()
+            .clone()
+            .try_into()
+            .unwrap()
     }
 }
 
@@ -575,7 +571,7 @@ impl TestPartition {
                 .iter()
                 .map(|f| f.name().clone()),
         );
-        let (parquet_metadata_bin, real_file_size_bytes) = create_parquet_file(
+        let real_file_size_bytes = create_parquet_file(
             ParquetStorage::new(Arc::clone(&self.catalog.object_store)),
             &metadata,
             record_batch,
@@ -593,7 +589,6 @@ impl TestPartition {
             min_time: Timestamp::new(min_time),
             max_time: Timestamp::new(max_time),
             file_size_bytes: file_size_bytes.unwrap_or(real_file_size_bytes as i64),
-            parquet_metadata: parquet_metadata_bin.clone(),
             row_count: row_count as i64,
             created_at: Timestamp::new(creation_time),
             compaction_level: INITIAL_COMPACTION_LEVEL,
@@ -605,13 +600,14 @@ impl TestPartition {
             .await
             .unwrap();
 
-        let parquet_file = ParquetFileWithMetadata::new(parquet_file, parquet_metadata_bin);
-
         update_catalog_sort_key_if_needed(repos.partitions(), self.partition.id, sort_key).await;
 
         TestParquetFile {
             catalog: Arc::clone(&self.catalog),
             namespace: Arc::clone(&self.namespace),
+            table: Arc::clone(&self.table),
+            sequencer: Arc::clone(&self.sequencer),
+            partition: Arc::clone(self),
             parquet_file,
         }
     }
@@ -713,18 +709,18 @@ async fn update_catalog_sort_key_if_needed(
     }
 }
 
-/// Create parquet file and return thrift-encoded and zstd-compressed parquet metadata as well as the file size.
+/// Create parquet file and return file size.
 async fn create_parquet_file(
     store: ParquetStorage,
     metadata: &IoxMetadata,
     record_batch: RecordBatch,
-) -> (Vec<u8>, usize) {
+) -> usize {
     let stream = futures::stream::once(async { Ok(record_batch) });
-    let (meta, file_size) = store
+    let (_meta, file_size) = store
         .upload(stream, metadata)
         .await
         .expect("persisting parquet file should succeed");
-    (meta.thrift_bytes().to_vec(), file_size)
+    file_size
 }
 
 /// A test parquet file of the catalog
@@ -732,7 +728,10 @@ async fn create_parquet_file(
 pub struct TestParquetFile {
     pub catalog: Arc<TestCatalog>,
     pub namespace: Arc<TestNamespace>,
-    pub parquet_file: ParquetFileWithMetadata,
+    pub table: Arc<TestTable>,
+    pub sequencer: Arc<TestSequencer>,
+    pub partition: Arc<TestPartition>,
+    pub parquet_file: ParquetFile,
 }
 
 impl TestParquetFile {
@@ -747,14 +746,16 @@ impl TestParquetFile {
             .unwrap()
     }
 
-    /// When only the ParquetFile is needed without the metadata, use this instead of the field
-    pub fn parquet_file_no_metadata(self) -> ParquetFile {
-        self.parquet_file.split_off_metadata().0
-    }
-
     /// Get Parquet file schema.
-    pub fn schema(&self) -> Arc<Schema> {
-        DecodedParquetFile::new(self.parquet_file.clone()).schema()
+    pub async fn schema(&self) -> Arc<Schema> {
+        let table_schema = self.table.schema().await;
+        let selection: Vec<_> = self
+            .parquet_file
+            .column_set
+            .iter()
+            .map(|s| s.as_str())
+            .collect();
+        Arc::new(table_schema.select_by_names(&selection).unwrap())
     }
 }
 
