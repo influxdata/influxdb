@@ -10,12 +10,12 @@ use crate::{
 };
 use backoff::BackoffConfig;
 use data_types::{
-    Namespace, NamespaceId, ParquetFile, ParquetFileId, ParquetFileWithMetadata, Partition,
-    PartitionId, SequencerId, Table, TableId, Timestamp, Tombstone, TombstoneId,
+    Namespace, NamespaceId, ParquetFile, ParquetFileId, Partition, PartitionId, SequencerId, Table,
+    TableId, Timestamp, Tombstone, TombstoneId,
 };
 use datafusion::error::DataFusionError;
 use futures::stream::{FuturesUnordered, TryStreamExt};
-use iox_catalog::interface::{Catalog, Transaction, INITIAL_COMPACTION_LEVEL};
+use iox_catalog::interface::{get_schema_by_id, Catalog, Transaction, INITIAL_COMPACTION_LEVEL};
 use iox_query::{
     exec::{Executor, ExecutorType},
     frontend::reorg::ReorgPlanner,
@@ -26,6 +26,7 @@ use iox_time::TimeProvider;
 use metric::{Attributes, DurationHistogram, Metric, U64Counter, U64Gauge};
 use observability_deps::tracing::{debug, info, trace, warn};
 use parquet_file::{metadata::IoxMetadata, storage::ParquetStorage};
+use schema::Schema;
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{
     cmp::{max, min, Ordering},
@@ -369,17 +370,6 @@ impl Compactor {
         let table_ids: HashSet<_> = partitions.iter().map(|p| p.table_id).collect();
         let namespace_ids: HashSet<_> = partitions.iter().map(|p| p.namespace_id).collect();
 
-        let mut tables = HashMap::with_capacity(table_ids.len());
-        for id in table_ids {
-            let table = repos
-                .tables()
-                .get_by_id(id)
-                .await
-                .context(QueryingTableSnafu)?
-                .context(TableNotFoundSnafu { table_id: id })?;
-            tables.insert(id, Arc::new(table));
-        }
-
         let mut namespaces = HashMap::with_capacity(namespace_ids.len());
         for id in namespace_ids {
             let namespace = repos
@@ -388,15 +378,46 @@ impl Compactor {
                 .await
                 .context(QueryingNamespaceSnafu)?
                 .context(NamespaceNotFoundSnafu { namespace_id: id })?;
-            namespaces.insert(id, Arc::new(namespace));
+            let schema = get_schema_by_id(namespace.id, repos.as_mut())
+                .await
+                .context(QueryingNamespaceSnafu)?;
+            namespaces.insert(id, (Arc::new(namespace), schema));
+        }
+
+        let mut tables = HashMap::with_capacity(table_ids.len());
+        for id in table_ids {
+            let table = repos
+                .tables()
+                .get_by_id(id)
+                .await
+                .context(QueryingTableSnafu)?
+                .context(TableNotFoundSnafu { table_id: id })?;
+            let schema: Schema = namespaces
+                .get(&table.namespace_id)
+                .expect("just queried")
+                .1
+                .tables
+                .get(&table.name)
+                .context(TableNotFoundSnafu { table_id: id })?
+                .clone()
+                .try_into()
+                .expect("broken catalog schema");
+            tables.insert(id, (Arc::new(table), Arc::new(schema)));
         }
 
         Ok(partitions
             .iter()
-            .map(|p| PartitionCompactionCandidateWithInfo {
-                table: Arc::clone(tables.get(&p.table_id).expect("just queried")),
-                namespace: Arc::clone(namespaces.get(&p.namespace_id).expect("just queried")),
-                candidate: p.clone(),
+            .map(|p| {
+                let (table, table_schema) = tables.get(&p.table_id).expect("just queried");
+
+                PartitionCompactionCandidateWithInfo {
+                    table: Arc::clone(table),
+                    table_schema: Arc::clone(table_schema),
+                    namespace: Arc::clone(
+                        &namespaces.get(&p.namespace_id).expect("just queried").0,
+                    ),
+                    candidate: p.clone(),
+                }
             })
             .collect())
     }
@@ -432,7 +453,7 @@ impl Compactor {
             .repositories()
             .await
             .parquet_files()
-            .list_by_partition_not_to_delete_with_metadata(partition_id)
+            .list_by_partition_not_to_delete(partition_id)
             .await
             .context(ListParquetFilesSnafu)?;
         if parquet_files.is_empty() {
@@ -489,6 +510,7 @@ impl Compactor {
         &self,
         namespace: &Namespace,
         table: &Table,
+        table_schema: &Schema,
         partition_id: PartitionId,
         compact_and_upgrade: CompactAndUpgrade,
         max_desired_file_size: i64,
@@ -538,6 +560,7 @@ impl Compactor {
                     group.parquet_files,
                     namespace,
                     table,
+                    table_schema,
                     &partition,
                     max_desired_file_size,
                 )
@@ -632,7 +655,7 @@ impl Compactor {
         mut file_groups: Vec<GroupWithMinTimeAndSize>,
         compaction_max_size_bytes: i64,
         compaction_max_file_count: i64,
-    ) -> Vec<Vec<ParquetFileWithMetadata>> {
+    ) -> Vec<Vec<ParquetFile>> {
         let mut groups = Vec::with_capacity(file_groups.len());
         if file_groups.is_empty() {
             return groups;
@@ -690,6 +713,7 @@ impl Compactor {
         overlapped_files: Vec<ParquetFileWithTombstone>,
         namespace: &Namespace,
         table: &Table,
+        table_schema: &Schema,
         partition: &Partition,
         max_desired_file_size: i64,
     ) -> Result<Vec<CompactedData>> {
@@ -756,6 +780,7 @@ impl Compactor {
                 f.to_queryable_parquet_chunk(
                     self.store.clone(),
                     table.name.clone(),
+                    table_schema,
                     partition.sort_key(),
                 )
             })
@@ -911,12 +936,11 @@ impl Compactor {
     // their size are too large. The files are sorted by their min time before splitting so files
     // are guarannteed to be overlapped in each new group
     fn split_overlapped_groups(
-        groups: &mut Vec<Vec<ParquetFileWithMetadata>>,
+        groups: &mut Vec<Vec<ParquetFile>>,
         max_size_bytes: i64,
         max_file_count: i64,
-    ) -> Vec<Vec<ParquetFileWithMetadata>> {
-        let mut overlapped_groups: Vec<Vec<ParquetFileWithMetadata>> =
-            Vec::with_capacity(groups.len() * 2);
+    ) -> Vec<Vec<ParquetFile>> {
+        let mut overlapped_groups: Vec<Vec<ParquetFile>> = Vec::with_capacity(groups.len() * 2);
         let max_count = max_file_count.try_into().unwrap();
         for group in groups {
             let total_size_bytes: i64 = group.iter().map(|f| f.file_size_bytes).sum();
@@ -961,7 +985,7 @@ impl Compactor {
     // If there are so mnay files in an overlapped group, the group will be split to ensure each
     // group contains limited number of files
     fn overlapped_groups(
-        parquet_files: Vec<ParquetFileWithMetadata>,
+        parquet_files: Vec<ParquetFile>,
         max_size_bytes: i64,
         max_file_count: i64,
     ) -> Vec<GroupWithMinTimeAndSize> {
@@ -1127,7 +1151,7 @@ impl Compactor {
 
     async fn add_tombstones_to_groups(
         &self,
-        groups: Vec<Vec<ParquetFileWithMetadata>>,
+        groups: Vec<Vec<ParquetFile>>,
     ) -> Result<Vec<GroupWithTombstones>> {
         let mut repo = self.catalog.repositories().await;
         let tombstone_repo = repo.tombstones();
@@ -1238,6 +1262,9 @@ pub struct PartitionCompactionCandidateWithInfo {
 
     /// Table.
     pub table: Arc<Table>,
+
+    /// Table schema
+    pub table_schema: Arc<Schema>,
 }
 
 #[cfg(test)]
@@ -1253,8 +1280,9 @@ mod tests {
     use iox_tests::util::TestCatalog;
     use iox_time::SystemProvider;
     use parquet_file::ParquetFilePath;
-    use schema::{sort::SortKey, Schema};
+    use schema::{selection::Selection, sort::SortKey, Schema};
     use std::sync::atomic::{AtomicI64, Ordering};
+    use test_helpers::maybe_start_logging;
 
     // Simulate unique ID generation
     static NEXT_ID: AtomicI64 = AtomicI64::new(0);
@@ -1310,6 +1338,7 @@ mod tests {
         table.create_column("tag1", ColumnType::Tag).await;
         table.create_column("field_int", ColumnType::I64).await;
         table.create_column("time", ColumnType::Time).await;
+        let table_schema = read_table_schema(&catalog, ns.namespace.id, &table.table.name).await;
 
         // One parquet file
         let partition = table
@@ -1374,6 +1403,7 @@ mod tests {
             .compact_partition(
                 &ns.namespace,
                 &table.table,
+                &table_schema,
                 partition.partition.id,
                 compact_and_upgrade,
                 compaction_max_size_bytes,
@@ -1442,6 +1472,7 @@ mod tests {
     // to have a combination of needed tests in this test function
     #[tokio::test]
     async fn test_compact_partition_many_files_many_tombstones() {
+        maybe_start_logging();
         let catalog = TestCatalog::new();
 
         // lp1 does not overlap with any
@@ -1482,6 +1513,7 @@ mod tests {
         table.create_column("tag3", ColumnType::Tag).await;
         table.create_column("field_int", ColumnType::I64).await;
         table.create_column("time", ColumnType::Time).await;
+        let table_schema = read_table_schema(&catalog, ns.namespace.id, &table.table.name).await;
         let partition = table
             .with_sequencer(&sequencer)
             .create_partition("part")
@@ -1601,6 +1633,7 @@ mod tests {
             .compact_partition(
                 &ns.namespace,
                 &table.table,
+                &table_schema,
                 partition.partition.id,
                 compact_and_upgrade,
                 compactor.config.compaction_max_size_bytes(),
@@ -1672,14 +1705,18 @@ mod tests {
         let catalog = TestCatalog::new();
 
         let lp = vec![
-            "table,tag1=WA field_int=1000 8000",
-            "table,tag1=VT field_int=10 10000",
-            "table,tag1=UT field_int=70 20000",
+            "table,tag1=WA field_int=1000i 8000",
+            "table,tag1=VT field_int=10i 10000",
+            "table,tag1=UT field_int=70i 20000",
         ]
         .join("\n");
         let ns = catalog.create_namespace("ns").await;
         let sequencer = ns.create_sequencer(1).await;
         let table = ns.create_table("table").await;
+        table.create_column("tag1", ColumnType::Tag).await;
+        table.create_column("field_int", ColumnType::I64).await;
+        table.create_column("time", ColumnType::Time).await;
+        let table_schema = read_table_schema(&catalog, ns.namespace.id, &table.table.name).await;
         let partition = table
             .with_sequencer(&sequencer)
             .create_partition("part")
@@ -1687,7 +1724,9 @@ mod tests {
         let parquet_file = partition
             .create_parquet_file_with_min_max(&lp, 1, 1, 8000, 20000)
             .await
-            .parquet_file;
+            .parquet_file
+            .split_off_metadata()
+            .0;
 
         let split_percentage = 90;
         let max_concurrent_compaction_size_bytes = 100000;
@@ -1719,6 +1758,7 @@ mod tests {
                 vec![],
                 &ns.namespace,
                 &table.table,
+                &table_schema,
                 &partition.partition,
                 compactor.config.compaction_max_size_bytes(),
             )
@@ -1735,6 +1775,7 @@ mod tests {
                 vec![pf.clone()],
                 &ns.namespace,
                 &table.table,
+                &table_schema,
                 &partition.partition,
                 compactor.config.compaction_max_size_bytes(),
             )
@@ -1756,6 +1797,7 @@ mod tests {
                 vec![pf],
                 &ns.namespace,
                 &table.table,
+                &table_schema,
                 &partition.partition,
                 compactor.config.compaction_max_size_bytes(),
             )
@@ -1795,14 +1837,18 @@ mod tests {
         let catalog = TestCatalog::new();
 
         let lp = vec![
-            "table,tag1=WA field_int=1000 8000",
-            "table,tag1=VT field_int=10 10000",
-            "table,tag1=UT field_int=70 20000",
+            "table,tag1=WA field_int=1000i 8000",
+            "table,tag1=VT field_int=10i 10000",
+            "table,tag1=UT field_int=70i 20000",
         ]
         .join("\n");
         let ns = catalog.create_namespace("ns").await;
         let sequencer = ns.create_sequencer(1).await;
         let table = ns.create_table("table").await;
+        table.create_column("tag1", ColumnType::Tag).await;
+        table.create_column("field_int", ColumnType::I64).await;
+        table.create_column("time", ColumnType::Time).await;
+        let table_schema = read_table_schema(&catalog, ns.namespace.id, &table.table.name).await;
         let partition = table
             .with_sequencer(&sequencer)
             .create_partition("part")
@@ -1810,7 +1856,9 @@ mod tests {
         let parquet_file = partition
             .create_parquet_file_with_min_max(&lp, 1, 1, 8000, 20000)
             .await
-            .parquet_file;
+            .parquet_file
+            .split_off_metadata()
+            .0;
 
         let split_percentage = 100;
         let max_concurrent_compaction_size_bytes = 100000;
@@ -1853,6 +1901,7 @@ mod tests {
                 vec![pf],
                 &ns.namespace,
                 &table.table,
+                &table_schema,
                 &partition.partition,
                 compactor.config.compaction_max_size_bytes(),
             )
@@ -1892,22 +1941,26 @@ mod tests {
         let catalog = TestCatalog::new();
 
         let lp1 = vec![
-            "table,tag1=WA field_int=1000 8000", // will be eliminated due to duplicate
-            "table,tag1=VT field_int=10 10000",  // will be deleted
-            "table,tag1=UT field_int=70 20000",
+            "table,tag1=WA field_int=1000i 8000", // will be eliminated due to duplicate
+            "table,tag1=VT field_int=10i 10000",  // will be deleted
+            "table,tag1=UT field_int=70i 20000",
         ]
         .join("\n");
 
         let lp2 = vec![
-            "table,tag1=WA field_int=1500 8000", // latest duplicate and kept
-            "table,tag1=VT field_int=10 6000",
-            "table,tag1=UT field_int=270 25000",
+            "table,tag1=WA field_int=1500i 8000", // latest duplicate and kept
+            "table,tag1=VT field_int=10i 6000",
+            "table,tag1=UT field_int=270i 25000",
         ]
         .join("\n");
 
         let ns = catalog.create_namespace("ns").await;
         let sequencer = ns.create_sequencer(1).await;
         let table = ns.create_table("table").await;
+        table.create_column("tag1", ColumnType::Tag).await;
+        table.create_column("field_int", ColumnType::I64).await;
+        table.create_column("time", ColumnType::Time).await;
+        let table_schema = read_table_schema(&catalog, ns.namespace.id, &table.table.name).await;
         let partition = table
             .with_sequencer(&sequencer)
             .create_partition("part")
@@ -1916,11 +1969,15 @@ mod tests {
         let parquet_file1 = partition
             .create_parquet_file_with_min_max_size(&lp1, 1, 5, 8000, 20000, 140000)
             .await
-            .parquet_file;
+            .parquet_file
+            .split_off_metadata()
+            .0;
         let parquet_file2 = partition
             .create_parquet_file_with_min_max_size(&lp2, 10, 15, 6000, 25000, 100000)
             .await
-            .parquet_file;
+            .parquet_file
+            .split_off_metadata()
+            .0;
 
         let split_percentage = 90;
         let max_concurrent_compaction_size_bytes = 100000;
@@ -1963,6 +2020,7 @@ mod tests {
                 vec![pf1, pf2],
                 &ns.namespace,
                 &table.table,
+                &table_schema,
                 &partition.partition,
                 compactor.config.compaction_max_size_bytes(),
             )
@@ -2025,28 +2083,34 @@ mod tests {
         let catalog = TestCatalog::new();
 
         let lp1 = vec![
-            "table,tag1=WA field_int=1000 8000", // will be eliminated due to duplicate
-            "table,tag1=VT field_int=10 10000",  // will be deleted
-            "table,tag1=UT field_int=70 20000",
+            "table,tag1=WA field_int=1000i 8000", // will be eliminated due to duplicate
+            "table,tag1=VT field_int=10i 10000",  // will be deleted
+            "table,tag1=UT field_int=70i 20000",
         ]
         .join("\n");
 
         let lp2 = vec![
-            "table,tag1=WA field_int=1500 8000", // latest duplicate and kept
-            "table,tag1=VT field_int=10 6000",
-            "table,tag1=UT field_int=270 25000",
+            "table,tag1=WA field_int=1500i 8000", // latest duplicate and kept
+            "table,tag1=VT field_int=10i 6000",
+            "table,tag1=UT field_int=270i 25000",
         ]
         .join("\n");
 
         let lp3 = vec![
-            "table,tag2=WA,tag3=10 field_int=1500 8000",
-            "table,tag2=VT,tag3=20 field_int=10 6000",
+            "table,tag2=WA,tag3=10 field_int=1500i 8000",
+            "table,tag2=VT,tag3=20 field_int=10i 6000",
         ]
         .join("\n");
 
         let ns = catalog.create_namespace("ns").await;
         let sequencer = ns.create_sequencer(1).await;
         let table = ns.create_table("table").await;
+        table.create_column("tag1", ColumnType::Tag).await;
+        table.create_column("tag2", ColumnType::Tag).await;
+        table.create_column("tag3", ColumnType::Tag).await;
+        table.create_column("field_int", ColumnType::I64).await;
+        table.create_column("time", ColumnType::Time).await;
+        let table_schema = read_table_schema(&catalog, ns.namespace.id, &table.table.name).await;
         let partition = table
             .with_sequencer(&sequencer)
             .create_partition("part")
@@ -2057,15 +2121,21 @@ mod tests {
         let parquet_file1 = partition
             .create_parquet_file_with_min_max_size(&lp1, 1, 5, 8000, 20000, 50000)
             .await
-            .parquet_file;
+            .parquet_file
+            .split_off_metadata()
+            .0;
         let parquet_file2 = partition
             .create_parquet_file_with_min_max_size(&lp2, 10, 15, 6000, 25000, 50000)
             .await
-            .parquet_file;
+            .parquet_file
+            .split_off_metadata()
+            .0;
         let parquet_file3 = partition
             .create_parquet_file_with_min_max_size(&lp3, 20, 25, 6000, 8000, 20000)
             .await
-            .parquet_file;
+            .parquet_file
+            .split_off_metadata()
+            .0;
 
         let split_percentage = 90;
         let max_concurrent_compaction_size_bytes = 100000;
@@ -2112,6 +2182,7 @@ mod tests {
                 vec![pf1.clone(), pf2.clone(), pf3.clone()],
                 &ns.namespace,
                 &table.table,
+                &table_schema,
                 &partition.partition,
                 compactor.config.compaction_max_size_bytes(),
             )
@@ -2168,7 +2239,7 @@ mod tests {
 
     /// A test utility function to make minimially-viable ParquetFile records with particular
     /// min/max times. Does not involve the catalog at all.
-    fn arbitrary_parquet_file(min_time: i64, max_time: i64) -> ParquetFileWithMetadata {
+    fn arbitrary_parquet_file(min_time: i64, max_time: i64) -> ParquetFile {
         arbitrary_parquet_file_with_size(min_time, max_time, 100)
     }
 
@@ -2176,9 +2247,9 @@ mod tests {
         min_time: i64,
         max_time: i64,
         file_size_bytes: i64,
-    ) -> ParquetFileWithMetadata {
+    ) -> ParquetFile {
         let id = NEXT_ID.fetch_add(1, Ordering::SeqCst);
-        ParquetFileWithMetadata {
+        ParquetFile {
             id: ParquetFileId::new(id),
             sequencer_id: SequencerId::new(0),
             namespace_id: NamespaceId::new(0),
@@ -2191,7 +2262,6 @@ mod tests {
             max_time: Timestamp::new(max_time),
             to_delete: None,
             file_size_bytes,
-            parquet_metadata: vec![],
             row_count: 0,
             compaction_level: INITIAL_COMPACTION_LEVEL, // level of file of new writes
             created_at: Timestamp::new(1),
@@ -2204,21 +2274,25 @@ mod tests {
         let catalog = TestCatalog::new();
 
         let lp1 = vec![
-            "table,tag1=WA field_int=1000 8000",
-            "table,tag1=VT field_int=10 10000",
-            "table,tag1=UT field_int=70 20000",
+            "table,tag1=WA field_int=1000i 8000",
+            "table,tag1=VT field_int=10i 10000",
+            "table,tag1=UT field_int=70i 20000",
         ]
         .join("\n");
 
         let lp2 = vec![
-            "table,tag1=WA field_int=1500 28000",
-            "table,tag1=UT field_int=270 35000",
+            "table,tag1=WA field_int=1500i 28000",
+            "table,tag1=UT field_int=270i 35000",
         ]
         .join("\n");
 
         let ns = catalog.create_namespace("ns").await;
         let sequencer = ns.create_sequencer(1).await;
         let table = ns.create_table("table").await;
+        table.create_column("tag1", ColumnType::Tag).await;
+        table.create_column("field_int", ColumnType::I64).await;
+        table.create_column("time", ColumnType::Time).await;
+        let table_schema = read_table_schema(&catalog, ns.namespace.id, &table.table.name).await;
         let partition = table
             .with_sequencer(&sequencer)
             .create_partition("part")
@@ -2227,11 +2301,15 @@ mod tests {
         let pf1 = partition
             .create_parquet_file_with_min_max(&lp1, 1, 5, 8000, 20000)
             .await
-            .parquet_file;
+            .parquet_file
+            .split_off_metadata()
+            .0;
         let pf2 = partition
             .create_parquet_file_with_min_max(&lp2, 1, 5, 28000, 35000)
             .await
-            .parquet_file;
+            .parquet_file
+            .split_off_metadata()
+            .0;
 
         // Build 2 QueryableParquetChunks
         let pt1 = ParquetFileWithTombstone::new(Arc::new(pf1), vec![]);
@@ -2240,11 +2318,13 @@ mod tests {
         let pc1 = pt1.to_queryable_parquet_chunk(
             ParquetStorage::new(Arc::clone(&catalog.object_store)),
             table.table.name.clone(),
+            &table_schema,
             partition.partition.sort_key(),
         );
         let pc2 = pt2.to_queryable_parquet_chunk(
             ParquetStorage::new(Arc::clone(&catalog.object_store)),
             table.table.name.clone(),
+            &table_schema,
             partition.partition.sort_key(),
         );
 
@@ -2254,6 +2334,74 @@ mod tests {
         assert_eq!(chunks[0].order(), chunks[1].order());
         // different chunk ids
         assert!(chunks[0].id() != chunks[1].id());
+    }
+
+    #[tokio::test]
+    async fn test_query_queryable_parquet_chunk() {
+        let catalog = TestCatalog::new();
+
+        let lp = vec![
+            "table,tag1=WA field_int=1000i 8000",
+            "table,tag1=VT field_int=10i 10000",
+            "table,tag1=UT field_int=70i 20000",
+        ]
+        .join("\n");
+
+        let ns = catalog.create_namespace("ns").await;
+        let sequencer = ns.create_sequencer(1).await;
+        let table = ns.create_table("table").await;
+        table.create_column("tag1", ColumnType::Tag).await;
+        table.create_column("tag2", ColumnType::Tag).await;
+        table.create_column("tag3", ColumnType::Tag).await;
+        table.create_column("field_int", ColumnType::I64).await;
+        table.create_column("field_float", ColumnType::F64).await;
+        table.create_column("time", ColumnType::Time).await;
+        let table_schema = read_table_schema(&catalog, ns.namespace.id, &table.table.name).await;
+        let partition = table
+            .with_sequencer(&sequencer)
+            .create_partition("part")
+            .await
+            .update_sort_key(SortKey::from_columns(["tag1", "tag2", "time"]))
+            .await;
+
+        let pf = partition
+            .create_parquet_file(&lp)
+            .await
+            .parquet_file
+            .split_off_metadata()
+            .0;
+
+        let pt = ParquetFileWithTombstone::new(Arc::new(pf), vec![]);
+
+        let pc = pt.to_queryable_parquet_chunk(
+            ParquetStorage::new(Arc::clone(&catalog.object_store)),
+            table.table.name.clone(),
+            &table_schema,
+            partition.partition.sort_key(),
+        );
+        let stream = pc
+            .read_filter(
+                catalog.exec().new_context(ExecutorType::Query),
+                &predicate::Predicate::new(),
+                Selection::All,
+            )
+            .unwrap();
+        let batches = datafusion::physical_plan::common::collect(stream)
+            .await
+            .unwrap();
+        assert_eq!(batches.len(), 1);
+        assert_batches_sorted_eq!(
+            &[
+                "+-----------+------+-----------------------------+",
+                "| field_int | tag1 | time                        |",
+                "+-----------+------+-----------------------------+",
+                "| 10        | VT   | 1970-01-01T00:00:00.000010Z |",
+                "| 1000      | WA   | 1970-01-01T00:00:00.000008Z |",
+                "| 70        | UT   | 1970-01-01T00:00:00.000020Z |",
+                "+-----------+------+-----------------------------+",
+            ],
+            &batches
+        );
     }
 
     #[test]
@@ -2858,11 +3006,7 @@ mod tests {
             ..p1.clone()
         };
         let pf1 = txn.parquet_files().create(p1).await.unwrap();
-        let pf1_metadata = txn.parquet_files().parquet_metadata(pf1.id).await.unwrap();
-        let pf1 = ParquetFileWithMetadata::new(pf1, pf1_metadata);
         let pf2 = txn.parquet_files().create(p2).await.unwrap();
-        let pf2_metadata = txn.parquet_files().parquet_metadata(pf2.id).await.unwrap();
-        let pf2 = ParquetFileWithMetadata::new(pf2, pf2_metadata);
 
         let parquet_files = vec![pf1.clone(), pf2.clone()];
         let groups = vec![
@@ -3406,6 +3550,10 @@ mod tests {
         let ns = catalog.create_namespace("ns").await;
         let sequencer = ns.create_sequencer(1).await;
         let table = ns.create_table("table").await;
+        table.create_column("tag1", ColumnType::Tag).await;
+        table.create_column("ifield", ColumnType::I64).await;
+        table.create_column("time", ColumnType::Time).await;
+        let table_schema = read_table_schema(&catalog, ns.namespace.id, &table.table.name).await;
         let partition = table
             .with_sequencer(&sequencer)
             .create_partition("part")
@@ -3414,11 +3562,15 @@ mod tests {
         let parquet_file1 = partition
             .create_parquet_file_with_min_max_size(&lp1, 1, 5, 1, 1000, 60000)
             .await
-            .parquet_file;
+            .parquet_file
+            .split_off_metadata()
+            .0;
         let parquet_file2 = partition
             .create_parquet_file_with_min_max_size(&lp2, 10, 15, 500, 1500, 60000)
             .await
-            .parquet_file;
+            .parquet_file
+            .split_off_metadata()
+            .0;
 
         let split_percentage = 90;
         let max_concurrent_compaction_size_bytes = 100000;
@@ -3453,6 +3605,7 @@ mod tests {
                 vec![pf1, pf2],
                 &ns.namespace,
                 &table.table,
+                &table_schema,
                 &partition.partition,
                 compactor.config.compaction_max_size_bytes(),
             )
@@ -3480,14 +3633,29 @@ mod tests {
         assert_eq!(num_rows, 1499);
     }
 
+    async fn read_table_schema(
+        catalog: &TestCatalog,
+        namespace_id: NamespaceId,
+        table_name: &str,
+    ) -> Schema {
+        let mut repos = catalog.catalog().repositories().await;
+        let namespace_schema = get_schema_by_id(namespace_id, repos.as_mut())
+            .await
+            .unwrap();
+        namespace_schema
+            .tables
+            .get(table_name)
+            .unwrap()
+            .clone()
+            .try_into()
+            .unwrap()
+    }
+
     async fn read_parquet_file(catalog: &TestCatalog, file: ParquetFile) -> Vec<RecordBatch> {
         let storage = ParquetStorage::new(catalog.object_store());
 
         // get schema
         let mut repos = catalog.catalog().repositories().await;
-        let namespace_schema = get_schema_by_id(file.namespace_id, repos.as_mut())
-            .await
-            .unwrap();
         let table_name = repos
             .tables()
             .get_by_id(file.table_id)
@@ -3495,13 +3663,8 @@ mod tests {
             .unwrap()
             .unwrap()
             .name;
-        let table_schema: Schema = namespace_schema
-            .tables
-            .get(&table_name)
-            .unwrap()
-            .clone()
-            .try_into()
-            .unwrap();
+        drop(repos);
+        let table_schema = read_table_schema(catalog, file.namespace_id, &table_name).await;
         let selection: Vec<_> = file.column_set.iter().map(|s| s.as_str()).collect();
         let schema = table_schema.select_by_names(&selection).unwrap();
 
