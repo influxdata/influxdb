@@ -60,7 +60,7 @@ You will see a beautiful flame graph such as
 
 IOx includes a memory heap profile tool as well as a CPU profiler. The memory usage tool is based on [heappy](https://github.com/mkmik/heappy)
 
-Support is is not compiled in by defauly, but must be enabled via the `heappy` feature:
+Support is is not compiled in by default, but must be enabled via the `heappy` feature:
 
 ```shell
 # Compile and run IOx with heap profiling enabled

@@ -14,7 +14,7 @@ The `DoGet` ticket contains a [Protocol Buffer] message `influxdata.iox.ingester
   just ignore that column (i.e. the resulting data is the intersection of the request and the ingester data).
 - **predicate:** Predicate for row-filtering on the ingester side.
 
-The request does NOT contain a selection of partitions or sequencer. The ingester must respond with all partititions and
+The request does NOT contain a selection of partitions or sequencer. The ingester must respond with all partitions and
 sequencers it knows for that specified namespace-table combination.
 
 
@@ -67,7 +67,7 @@ Imagine the following ingester state:
   - partition P3:
     - no persisted parquet file
     - no max. persisted tombstone
-    - no snaphots (all deleted)
+    - no snapshots (all deleted)
   - partition P4:
     - no persisted parquet file
     - no max. persisted tombstone

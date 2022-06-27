@@ -27,7 +27,7 @@ fn main() {
 
     let mut client = Client::new(connection);
 
-    // write a line of line procol data
+    // write a line of line protocol data
     client
         .write_lp("bananas", "cpu,region=west user=23.2 100",0)
         .await
