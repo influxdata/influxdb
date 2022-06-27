@@ -433,6 +433,11 @@ func NewPermissionAtID(id platform.ID, a Action, rt ResourceType, orgID platform
 func OperPermissions() []Permission {
 	ps := []Permission{}
 	for _, r := range AllResourceTypes {
+		// For now, we are only allowing instance permissions when logged in through session auth
+		// That is handled in user resource mapping
+		if r == InstanceResourceType {
+			continue
+		}
 		for _, a := range actions {
 			ps = append(ps, Permission{Action: a, Resource: Resource{Type: r}})
 		}
@@ -446,6 +451,11 @@ func OperPermissions() []Permission {
 func ReadAllPermissions() []Permission {
 	ps := make([]Permission, len(AllResourceTypes))
 	for i, t := range AllResourceTypes {
+		// For now, we are only allowing instance permissions when logged in through session auth
+		// That is handled in user resource mapping
+		if t == InstanceResourceType {
+			continue
+		}
 		ps[i] = Permission{Action: ReadAction, Resource: Resource{Type: t}}
 	}
 	return ps
@@ -455,6 +465,11 @@ func ReadAllPermissions() []Permission {
 func OwnerPermissions(orgID platform.ID) []Permission {
 	ps := []Permission{}
 	for _, r := range AllResourceTypes {
+		// For now, we are only allowing instance permissions when logged in through session auth
+		// That is handled in user resource mapping
+		if r == InstanceResourceType {
+			continue
+		}
 		for _, a := range actions {
 			if r == OrgsResourceType {
 				ps = append(ps, Permission{Action: a, Resource: Resource{Type: r, ID: &orgID}})
@@ -480,6 +495,11 @@ func MePermissions(userID platform.ID) []Permission {
 func MemberPermissions(orgID platform.ID) []Permission {
 	ps := []Permission{}
 	for _, r := range AllResourceTypes {
+		// For now, we are only allowing instance permissions when logged in through session auth
+		// That is handled in user resource mapping
+		if r == InstanceResourceType {
+			continue
+		}
 		if r == OrgsResourceType {
 			ps = append(ps, Permission{Action: ReadAction, Resource: Resource{Type: r, ID: &orgID}})
 			continue

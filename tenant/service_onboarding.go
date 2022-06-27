@@ -157,7 +157,7 @@ func (s *OnboardService) onboardUser(ctx context.Context, req *influxdb.Onboardi
 		UserType:     influxdb.Owner,
 		MappingType:  influxdb.UserMappingType,
 		ResourceType: influxdb.InstanceResourceType,
-		ResourceID:   platform.ID(1), // TODO: What resourceID here??
+		ResourceID:   platform.ID(1), // The instance doesn't have a resourceid
 	}); err != nil {
 		return nil, err
 	}

@@ -45,6 +45,7 @@ func TestResourceListHandler(t *testing.T) {
 		string(influxdb.AnnotationsResourceType),
 		string(influxdb.RemotesResourceType),
 		string(influxdb.ReplicationsResourceType),
+		string(influxdb.InstanceResourceType),
 	}
 
 	resp := w.Result()
