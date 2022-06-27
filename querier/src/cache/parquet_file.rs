@@ -223,7 +223,7 @@ mod tests {
     use std::collections::HashSet;
 
     use super::*;
-    use data_types::{ParquetFile, ParquetFileId};
+    use data_types::ParquetFileId;
     use iox_tests::util::{TestCatalog, TestNamespace, TestParquetFile, TestPartition, TestTable};
 
     use crate::cache::{ram::test_util::test_ram_pool, test_util::assert_histogram_metric_count};
@@ -239,8 +239,8 @@ mod tests {
         let cached_files = cache.get(table.table.id).await.vec();
 
         assert_eq!(cached_files.len(), 1);
-        let expected_parquet_file = to_file(tfile);
-        assert_eq!(cached_files[0].as_ref(), &expected_parquet_file);
+        let expected_parquet_file = &tfile.parquet_file;
+        assert_eq!(cached_files[0].as_ref(), expected_parquet_file);
 
         // validate a second request doens't result in a catalog request
         assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
@@ -263,13 +263,13 @@ mod tests {
 
         let cached_files = cache.get(table1.table.id).await.vec();
         assert_eq!(cached_files.len(), 1);
-        let expected_parquet_file = to_file(tfile1);
-        assert_eq!(cached_files[0].as_ref(), &expected_parquet_file);
+        let expected_parquet_file = &tfile1.parquet_file;
+        assert_eq!(cached_files[0].as_ref(), expected_parquet_file);
 
         let cached_files = cache.get(table2.table.id).await.vec();
         assert_eq!(cached_files.len(), 1);
-        let expected_parquet_file = to_file(tfile2);
-        assert_eq!(cached_files[0].as_ref(), &expected_parquet_file);
+        let expected_parquet_file = &tfile2.parquet_file;
+        assert_eq!(cached_files[0].as_ref(), expected_parquet_file);
     }
 
     #[tokio::test]
@@ -478,10 +478,5 @@ mod tests {
             &catalog.metric_registry(),
             test_ram_pool(),
         )
-    }
-
-    fn to_file(tfile: TestParquetFile) -> ParquetFile {
-        let (parquet_file, _meta) = tfile.parquet_file.split_off_metadata();
-        parquet_file
     }
 }

@@ -203,6 +203,7 @@ mod tests {
     use crate::cache::ram::test_util::test_ram_pool;
     use arrow::record_batch::RecordBatch;
     use arrow_util::assert_batches_eq;
+    use data_types::ColumnType;
     use datafusion_util::stream_from_batches;
     use iox_tests::util::{TestCatalog, TestPartition};
     use metric::{Attributes, CumulativeGauge, Metric, U64Counter};
@@ -225,6 +226,8 @@ mod tests {
         let ns = catalog.create_namespace("ns").await;
 
         let table = ns.create_table("table1").await;
+        table.create_column("foo", ColumnType::F64).await;
+        table.create_column("time", ColumnType::Time).await;
         let sequencer1 = ns.create_sequencer(1).await;
 
         let partition = table
@@ -240,8 +243,8 @@ mod tests {
         let (catalog, partition) = make_catalog().await;
 
         let test_parquet_file = partition.create_parquet_file("table1 foo=1 11").await;
-        let schema = test_parquet_file.schema();
-        let parquet_file = Arc::new(test_parquet_file.parquet_file_no_metadata());
+        let schema = test_parquet_file.schema().await;
+        let parquet_file = Arc::new(test_parquet_file.parquet_file.clone());
         let storage = ParquetStorage::new(Arc::clone(&catalog.object_store));
 
         let cache = make_cache(&catalog);
@@ -299,6 +302,8 @@ mod tests {
         for i in 1..=3 {
             let table_name = format!("cached_table{i}");
             let table = ns.create_table(&table_name).await;
+            table.create_column("foo", ColumnType::F64).await;
+            table.create_column("time", ColumnType::Time).await;
             let sequencer1 = ns.create_sequencer(1).await;
 
             let partition = table
@@ -309,8 +314,8 @@ mod tests {
             let test_parquet_file = partition
                 .create_parquet_file(&format!("{table_name} foo=1 11"))
                 .await;
-            let schema = test_parquet_file.schema();
-            let parquet_file = Arc::new(test_parquet_file.parquet_file_no_metadata());
+            let schema = test_parquet_file.schema().await;
+            let parquet_file = Arc::new(test_parquet_file.parquet_file.clone());
             parquet_files.push(parquet_file);
             schemas.push(schema);
         }
@@ -469,8 +474,8 @@ mod tests {
         let (catalog, partition) = make_catalog().await;
 
         let test_parquet_file = partition.create_parquet_file("table1 foo=1 11").await;
-        let schema = test_parquet_file.schema();
-        let parquet_file = Arc::new(test_parquet_file.parquet_file_no_metadata());
+        let schema = test_parquet_file.schema().await;
+        let parquet_file = Arc::new(test_parquet_file.parquet_file.clone());
         let storage = ParquetStorage::new(Arc::clone(&catalog.object_store));
 
         let cache = make_cache(&catalog);

@@ -2,15 +2,12 @@
 
 use crate::cache::CatalogCache;
 use data_types::{
-    ChunkId, ChunkOrder, DeletePredicate, ParquetFile, ParquetFileId, ParquetFileWithMetadata,
-    PartitionId, SequenceNumber, SequencerId, TableSummary, TimestampMinMax, TimestampRange,
+    ChunkId, ChunkOrder, DeletePredicate, ParquetFile, ParquetFileId, PartitionId, SequenceNumber,
+    SequencerId, TableSummary, TimestampMinMax, TimestampRange,
 };
 use iox_catalog::interface::Catalog;
 use iox_time::TimeProvider;
-use parquet_file::{
-    chunk::{DecodedParquetFile, ParquetChunk},
-    storage::ParquetStorage,
-};
+use parquet_file::{chunk::ParquetChunk, storage::ParquetStorage};
 use read_buffer::RBChunk;
 use schema::{sort::SortKey, Schema};
 use std::{collections::HashSet, sync::Arc};
@@ -299,83 +296,31 @@ impl ChunkAdapter {
         self.catalog_cache.catalog()
     }
 
-    /// Create parquet chunk.
-    ///
-    /// Returns `None` if some data required to create this chunk is already gone from the catalog.
-    ///
-    /// CURRENTLY UNUSED: The querier is creating and caching read buffer chunks instead, using
-    /// the `new_rb_chunk` method.
-    async fn new_parquet_chunk(
-        &self,
-        decoded_parquet_file: &DecodedParquetFile,
-    ) -> Option<ParquetChunk> {
-        Some(ParquetChunk::new(
-            Arc::new(decoded_parquet_file.parquet_file.clone()),
-            decoded_parquet_file.schema(),
-            self.store.clone(),
-        ))
-    }
-
-    /// Create new querier Parquet chunk from a catalog record
-    ///
-    /// Returns `None` if some data required to create this chunk is already gone from the catalog.
-    ///
-    /// CURRENTLY UNUSED: The querier is creating and caching read buffer chunks instead, using
-    /// the `new_rb_chunk` method.
-    #[allow(dead_code)]
-    async fn new_querier_parquet_chunk_from_file_with_metadata(
-        &self,
-        parquet_file_with_metadata: ParquetFileWithMetadata,
-    ) -> Option<QuerierParquetChunk> {
-        let decoded_parquet_file = DecodedParquetFile::new(parquet_file_with_metadata);
-        self.new_querier_parquet_chunk(&decoded_parquet_file).await
-    }
-
     /// Create new querier Parquet chunk.
     ///
     /// Returns `None` if some data required to create this chunk is already gone from the catalog.
     ///
     /// CURRENTLY UNUSED: The querier is creating and caching read buffer chunks instead, using
     /// the `new_rb_chunk` method.
-    pub async fn new_querier_parquet_chunk(
+    pub async fn new_parquet_chunk(
         &self,
-        decoded_parquet_file: &DecodedParquetFile,
+        namespace_name: Arc<str>,
+        parquet_file: Arc<ParquetFile>,
     ) -> Option<QuerierParquetChunk> {
-        let parquet_file_id = decoded_parquet_file.parquet_file_id();
-        let table_id = decoded_parquet_file.table_id();
-
-        let chunk = Arc::new(self.new_parquet_chunk(decoded_parquet_file).await?);
-        let chunk_id = ChunkId::from(Uuid::from_u128(parquet_file_id.get() as _));
-        let table_name = self.catalog_cache.table().name(table_id).await?;
-
-        let order = ChunkOrder::new(decoded_parquet_file.min_sequence_number().get())
-            .expect("Error converting min sequence number to chunk order");
-
-        // Read partition sort key
-        let schema = decoded_parquet_file.schema();
-        let pk_columns: HashSet<&str> = schema.primary_key().into_iter().collect();
-        let partition_sort_key = self
-            .catalog_cache()
-            .partition()
-            .sort_key(decoded_parquet_file.partition_id(), &pk_columns)
-            .await;
-
-        let meta = Arc::new(ChunkMeta {
-            chunk_id,
-            table_name,
-            order,
-            sort_key: decoded_parquet_file.sort_key().cloned(),
-            sequencer_id: decoded_parquet_file.sequencer_id(),
-            partition_id: decoded_parquet_file.partition_id(),
-            min_sequence_number: decoded_parquet_file.min_sequence_number(),
-            max_sequence_number: decoded_parquet_file.max_sequence_number(),
-        });
+        let parts = self
+            .chunk_parts(namespace_name, Arc::clone(&parquet_file))
+            .await?;
+        let chunk = Arc::new(ParquetChunk::new(
+            parquet_file,
+            parts.schema,
+            self.store.clone(),
+        ));
 
         Some(QuerierParquetChunk::new(
-            parquet_file_id,
+            parts.parquet_file_id,
             chunk,
-            meta,
-            partition_sort_key,
+            parts.meta,
+            parts.partition_sort_key,
         ))
     }
 
@@ -385,6 +330,30 @@ impl ChunkAdapter {
         namespace_name: Arc<str>,
         parquet_file: Arc<ParquetFile>,
     ) -> Option<QuerierRBChunk> {
+        let parts = self
+            .chunk_parts(namespace_name, Arc::clone(&parquet_file))
+            .await?;
+
+        let rb_chunk = self
+            .catalog_cache()
+            .read_buffer()
+            .get(parquet_file, Arc::clone(&parts.schema), self.store.clone())
+            .await;
+
+        Some(QuerierRBChunk::new(
+            parts.parquet_file_id,
+            rb_chunk,
+            parts.meta,
+            parts.schema,
+            parts.partition_sort_key,
+        ))
+    }
+
+    async fn chunk_parts(
+        &self,
+        namespace_name: Arc<str>,
+        parquet_file: Arc<ParquetFile>,
+    ) -> Option<ChunkParts> {
         // gather schema information
         let file_columns: HashSet<&str> =
             parquet_file.column_set.iter().map(|s| s.as_str()).collect();
@@ -461,16 +430,6 @@ impl ChunkAdapter {
 
         let chunk_id = ChunkId::from(Uuid::from_u128(parquet_file.id.get() as _));
 
-        let rb_chunk = self
-            .catalog_cache()
-            .read_buffer()
-            .get(
-                Arc::clone(&parquet_file),
-                Arc::clone(&schema),
-                self.store.clone(),
-            )
-            .await;
-
         let order = ChunkOrder::new(parquet_file.min_sequence_number.get())
             .expect("Error converting min sequence number to chunk order");
 
@@ -485,14 +444,20 @@ impl ChunkAdapter {
             max_sequence_number: parquet_file.max_sequence_number,
         });
 
-        Some(QuerierRBChunk::new(
-            parquet_file.id,
-            rb_chunk,
+        Some(ChunkParts {
+            parquet_file_id: parquet_file.id,
             meta,
             schema,
             partition_sort_key,
-        ))
+        })
     }
+}
+
+struct ChunkParts {
+    parquet_file_id: ParquetFileId,
+    meta: Arc<ChunkMeta>,
+    schema: Arc<Schema>,
+    partition_sort_key: Arc<Option<SortKey>>,
 }
 
 #[cfg(test)]
@@ -547,12 +512,7 @@ pub mod tests {
             .await
             .update_sort_key(SortKey::from_columns(["tag1", "tag2", "tag4", "time"]))
             .await;
-        let parquet_file = Arc::new(
-            partition
-                .create_parquet_file(&lp)
-                .await
-                .parquet_file_no_metadata(),
-        );
+        let parquet_file = Arc::new(partition.create_parquet_file(&lp).await.parquet_file);
 
         // create chunk
         let chunk = adapter
