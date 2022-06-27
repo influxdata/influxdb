@@ -214,6 +214,7 @@ async fn run_compactor(compactor: Arc<Compactor>, shutdown: CancellationToken) {
                                 .compact_partition(
                                     &c.namespace,
                                     &c.table,
+                                    &c.table_schema,
                                     c.candidate.partition_id,
                                     compact_and_upgrade,
                                     max_desired_file_size,

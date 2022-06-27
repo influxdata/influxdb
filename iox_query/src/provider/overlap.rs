@@ -5,8 +5,7 @@
 
 use crate::QueryChunkMeta;
 use data_types::{
-    DeletePredicate, ParquetFileWithMetadata, PartitionId, Statistics, TableSummary,
-    TimestampMinMax,
+    DeletePredicate, ParquetFile, PartitionId, Statistics, TableSummary, TimestampMinMax,
 };
 use observability_deps::tracing::debug;
 use schema::{sort::SortKey, Schema};
@@ -37,7 +36,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 // Implement QueryChunkMeta for ParquetFileWithMetadata to have group_potential_duplicates
 // work on ParquetFileWithMetadata. Since group_potential_duplicates only needs 2 functions
 // partition_id and timestamp_min_max, other functions are left `umimplemneted` on purpose
-impl QueryChunkMeta for ParquetFileWithMetadata {
+impl QueryChunkMeta for ParquetFile {
     fn summary(&self) -> Option<&TableSummary> {
         unimplemented!()
     }

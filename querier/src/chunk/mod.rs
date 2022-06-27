@@ -12,10 +12,7 @@ use parquet_file::{
     storage::ParquetStorage,
 };
 use read_buffer::RBChunk;
-use schema::{
-    sort::{SortKey, SortKeyBuilder},
-    Schema,
-};
+use schema::{sort::SortKey, Schema};
 use std::{collections::HashSet, sync::Arc};
 use uuid::Uuid;
 
@@ -439,23 +436,6 @@ impl ChunkAdapter {
         //       withing the schema and if a column is NOT part of the file, it will also not be part of the chunk sort
         //       key, so we have consistency here.
 
-        // calculate sort key
-        let sort_key = partition_sort_key_ref
-            .iter()
-            .filter(|(column_name, _sort_options)| file_columns.contains(column_name.as_ref()))
-            .map(|(column_name, sort_options)| (Arc::clone(column_name), *sort_options))
-            .fold(
-                SortKeyBuilder::new(),
-                |builder, (column_name, sort_options)| {
-                    builder.with_col_sort_opts(column_name, sort_options)
-                },
-            )
-            .build();
-        assert!(
-            !sort_key.is_empty(),
-            "Sort key can never be empty because there should at least be a time column",
-        );
-
         // calculate schema
         // IMPORTANT: Do NOT use the sort key to list columns because the sort key only contains primary-key columns.
         // NOTE: The schema that we calculate here may have a different column order than the actual parquet file. This
@@ -469,6 +449,14 @@ impl ChunkAdapter {
             table_schema
                 .select_by_names(&column_names)
                 .expect("Bug in schema projection"),
+        );
+
+        // calculate sort key
+        let pk_cols = schema.primary_key();
+        let sort_key = partition_sort_key_ref.filter_to(&pk_cols);
+        assert!(
+            !sort_key.is_empty(),
+            "Sort key can never be empty because there should at least be a time column",
         );
 
         let chunk_id = ChunkId::from(Uuid::from_u128(parquet_file.id.get() as _));
