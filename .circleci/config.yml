@@ -241,6 +241,24 @@ workflows:
             exclude:
               - { os: darwin,  arch: arm64 }
               - { os: windows, arch: arm64 }
+      - build-docker-nightly:
+          name:           build-docker-nightly-arm64
+          resource_class: arm.medium
+          arch:           arm64
+          arch_docker:    arm64v8
+          requires:
+            - build-nightly-linux-arm64
+      - build-docker-nightly:
+          name:           build-docker-nightly-amd64
+          resource_class: medium
+          arch:           amd64
+          arch_docker:    amd64
+          requires:
+            - build-nightly-linux-amd64
+      - docker-nightly-manifest:
+          requires:
+            - build-docker-nightly-amd64
+            - build-docker-nightly-arm64
       - build-package:
           name: build-package-<< matrix.os >>-<< matrix.arch >>
           requires:
@@ -487,6 +505,62 @@ jobs:
           aws-secret-access-key: RELEASE_AWS_SECRET_ACCESS_KEY
           from: /tmp/workspace/changelog_artifacts/
           to:   s3://dl.influxdata.com/platform/nightlies/master
+
+  build-docker-nightly:
+    parameters:
+      resource_class:
+        type: string
+      arch:
+        type: string
+      arch_docker:
+        type: string
+    machine:
+      image: ubuntu-2004:current
+    resource_class: << parameters.resource_class >>
+    steps:
+      - attach_workspace:
+          at: /tmp/workspace
+      - checkout
+      - quay_login
+      - run:
+          name: Install Dependencies
+          command: |
+            export DEBIAN_FRONTEND=noninteractive
+            sudo apt-get update
+            sudo apt-get install -y docker
+      - run:
+          name: Build Docker Container
+          command: |
+            # The Dockerfile requires `influxd` to build the container. This
+            # is written into `/tmp/workspace/bin/` by `build-binaries`. For
+            # the Dockerfile to build successfully, copy `influxd` to
+            # the current directory.
+            cp /tmp/workspace/bin/influxd_linux_<< parameters.arch >>/influxd .
+
+            docker build -f docker/influxd/Dockerfile -t quay.io/influxdb/influxdb-<< parameters.arch_docker >>:nightly .
+
+            docker push quay.io/influxdb/influxdb-<< parameters.arch_docker >>:nightly
+
+  docker-nightly-manifest:
+    machine:
+      image: ubuntu-2004:current
+    steps:
+      - run:
+          name: Install Dependencies
+          command: |
+            export DEBIAN_FRONTEND=noninteractive
+            sudo apt-get update
+            sudo apt-get install -y docker
+      - quay_login
+      - run:
+          name: Update Docker Manifests
+          command: |
+            docker manifest create                    \
+              quay.io/influxdb/influxdb:nightly       \
+              quay.io/influxdb/influxdb-amd64:nightly \
+              quay.io/influxdb/influxdb-arm64v8:nightly
+            docker manifest push \
+              quay.io/influxdb/influxdb:nightly
 
   test-linux-packages:
     executor: terraform/default
