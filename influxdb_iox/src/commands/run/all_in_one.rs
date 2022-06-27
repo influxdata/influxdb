@@ -208,8 +208,12 @@ pub struct Config {
     )]
     pub persist_memory_threshold_bytes: usize,
 
-    /// If an individual partition crosses this size threshold, it will be persisted.
-    /// The default value is 300MB (in bytes).
+    /// If the total bytes written to an individual partition crosses
+    /// this size threshold, it will be persisted.  The default value
+    /// is 300MB (in bytes).
+    ///
+    /// NOTE: This number is related, but *NOT* the same as the size
+    /// of the memory used to keep the partition buffered.
     #[clap(
         long = "--persist-partition-size-threshold-bytes",
         env = "INFLUXDB_IOX_PERSIST_PARTITION_SIZE_THRESHOLD_BYTES",

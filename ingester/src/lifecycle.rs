@@ -136,8 +136,14 @@ pub struct LifecycleConfig {
     /// partitions currently buffered until it falls below this threshold. An ingester running
     /// in a steady state should operate around this amount of memory usage.
     persist_memory_threshold: usize,
-    /// If an individual partition crosses this threshold, it will be persisted. The purpose of this
-    /// setting to to ensure the ingester doesn't create Parquet files that are too large.
+    /// If the total bytes written to an individual partition crosses
+    /// this threshold, it will be persisted.
+    ///
+    /// NOTE: This number is related, but *NOT* the same as the size
+    /// of the memory used to keep the partition buffered.
+    ///
+    /// The purpose of this setting to to ensure the ingester doesn't
+    /// create Parquet files that are too large.
     partition_size_threshold: usize,
     /// If an individual partitiion has had data buffered for longer than this period of time, the
     /// manager will persist it. This setting is to ensure we have an upper bound on how far back
