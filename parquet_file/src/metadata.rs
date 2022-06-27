@@ -439,7 +439,6 @@ impl IoxMetadata {
             min_time,
             max_time,
             file_size_bytes: file_size_bytes as i64,
-            parquet_metadata: metadata.thrift_bytes().to_vec(),
             compaction_level: self.compaction_level,
             row_count: row_count.try_into().expect("row count overflows i64"),
             created_at: Timestamp::new(self.creation_timestamp.timestamp_nanos()),

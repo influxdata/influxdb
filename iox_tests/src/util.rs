@@ -6,8 +6,8 @@ use arrow::{
 };
 use data_types::{
     Column, ColumnSet, ColumnType, KafkaPartition, KafkaTopic, Namespace, NamespaceSchema,
-    ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId, QueryPool,
-    SequenceNumber, Sequencer, SequencerId, Table, TableId, Timestamp, Tombstone, TombstoneId,
+    ParquetFile, ParquetFileParams, Partition, PartitionId, QueryPool, SequenceNumber, Sequencer,
+    SequencerId, Table, TableId, Timestamp, Tombstone, TombstoneId,
 };
 use datafusion::physical_plan::metrics::Count;
 use iox_catalog::{
@@ -206,17 +206,6 @@ impl TestCatalog {
             .await
             .parquet_files()
             .list_by_table_not_to_delete(table_id)
-            .await
-            .unwrap()
-    }
-
-    /// Get a parquet file's metadata bytes
-    pub async fn parquet_metadata(&self, parquet_file_id: ParquetFileId) -> Vec<u8> {
-        self.catalog
-            .repositories()
-            .await
-            .parquet_files()
-            .parquet_metadata(parquet_file_id)
             .await
             .unwrap()
     }
@@ -582,7 +571,7 @@ impl TestPartition {
                 .iter()
                 .map(|f| f.name().clone()),
         );
-        let (parquet_metadata_bin, real_file_size_bytes) = create_parquet_file(
+        let real_file_size_bytes = create_parquet_file(
             ParquetStorage::new(Arc::clone(&self.catalog.object_store)),
             &metadata,
             record_batch,
@@ -600,7 +589,6 @@ impl TestPartition {
             min_time: Timestamp::new(min_time),
             max_time: Timestamp::new(max_time),
             file_size_bytes: file_size_bytes.unwrap_or(real_file_size_bytes as i64),
-            parquet_metadata: parquet_metadata_bin.clone(),
             row_count: row_count as i64,
             created_at: Timestamp::new(creation_time),
             compaction_level: INITIAL_COMPACTION_LEVEL,
@@ -721,18 +709,18 @@ async fn update_catalog_sort_key_if_needed(
     }
 }
 
-/// Create parquet file and return thrift-encoded and zstd-compressed parquet metadata as well as the file size.
+/// Create parquet file and return file size.
 async fn create_parquet_file(
     store: ParquetStorage,
     metadata: &IoxMetadata,
     record_batch: RecordBatch,
-) -> (Vec<u8>, usize) {
+) -> usize {
     let stream = futures::stream::once(async { Ok(record_batch) });
-    let (meta, file_size) = store
+    let (_meta, file_size) = store
         .upload(stream, metadata)
         .await
         .expect("persisting parquet file should succeed");
-    (meta.thrift_bytes().to_vec(), file_size)
+    file_size
 }
 
 /// A test parquet file of the catalog

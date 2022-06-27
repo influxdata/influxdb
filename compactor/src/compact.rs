@@ -2967,7 +2967,6 @@ mod tests {
             min_time: Timestamp::new(1),
             max_time: Timestamp::new(5),
             file_size_bytes: 1337,
-            parquet_metadata: b"md1".to_vec(),
             row_count: 0,
             created_at: Timestamp::new(1),
             compaction_level: INITIAL_COMPACTION_LEVEL,
@@ -3234,7 +3233,6 @@ mod tests {
             min_time,
             max_time,
             file_size_bytes: 1337,
-            parquet_metadata: b"md1".to_vec(),
             compaction_level: INITIAL_COMPACTION_LEVEL, // level of file of new writes
             row_count: 0,
             created_at: Timestamp::new(1),
@@ -3416,7 +3414,6 @@ mod tests {
             min_time: Timestamp::new(1),
             max_time: Timestamp::new(5),
             file_size_bytes: 1337,
-            parquet_metadata: b"md1".to_vec(),
             row_count: 0,
             compaction_level: INITIAL_COMPACTION_LEVEL, // level of file of new writes
             created_at: Timestamp::new(1),
