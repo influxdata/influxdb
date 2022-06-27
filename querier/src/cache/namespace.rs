@@ -60,7 +60,7 @@ impl NamespaceCache {
                             let mut repos = catalog.repositories().await;
                             match get_schema_by_name(&namespace_name, repos.as_mut()).await {
                                 Ok(schema) => Ok(Some(schema)),
-                                Err(iox_catalog::interface::Error::NamespaceNotFound {
+                                Err(iox_catalog::interface::Error::NamespaceNotFoundByName {
                                     ..
                                 }) => Ok(None),
                                 Err(e) => Err(e),

@@ -332,7 +332,7 @@ impl NamespaceRepo for MemTxn {
                 n.max_tables = new_max;
                 Ok(n.clone())
             }
-            None => Err(Error::NamespaceNotFound {
+            None => Err(Error::NamespaceNotFoundByName {
                 name: name.to_string(),
             }),
         }
@@ -345,7 +345,7 @@ impl NamespaceRepo for MemTxn {
                 n.max_columns_per_table = new_max;
                 Ok(n.clone())
             }
-            None => Err(Error::NamespaceNotFound {
+            None => Err(Error::NamespaceNotFoundByName {
                 name: name.to_string(),
             }),
         }
@@ -364,7 +364,7 @@ impl TableRepo for MemTxn {
             .iter()
             .find(|n| n.id == namespace_id)
             .cloned()
-            .ok_or_else(|| Error::NamespaceNotFound {
+            .ok_or_else(|| Error::NamespaceNotFoundByName {
                 // we're never going to use this error, this is just for flow control,
                 // so it doesn't matter that we only have the ID, not the name
                 name: "".to_string(),
@@ -497,7 +497,7 @@ impl ColumnRepo for MemTxn {
                     .iter()
                     .find(|n| n.id == t.namespace_id)
                     .cloned()
-                    .ok_or_else(|| Error::NamespaceNotFound {
+                    .ok_or_else(|| Error::NamespaceNotFoundByName {
                         // we're never going to use this error, this is just for flow control,
                         // so it doesn't matter that we only have the ID, not the name
                         name: "".to_string(),

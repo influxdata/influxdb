@@ -45,7 +45,10 @@ pub enum Error {
     UnknownColumnType { data_type: i16, name: String },
 
     #[snafu(display("namespace {} not found", name))]
-    NamespaceNotFound { name: String },
+    NamespaceNotFoundByName { name: String },
+
+    #[snafu(display("namespace {} not found", id))]
+    NamespaceNotFoundById { id: NamespaceId },
 
     #[snafu(display("table {} not found", id))]
     TableNotFound { id: TableId },
@@ -621,6 +624,20 @@ pub trait ProcessedTombstoneRepo: Send + Sync {
 }
 
 /// Gets the namespace schema including all tables and columns.
+pub async fn get_schema_by_id<R>(id: NamespaceId, repos: &mut R) -> Result<NamespaceSchema>
+where
+    R: RepoCollection + ?Sized,
+{
+    let namespace = repos
+        .namespaces()
+        .get_by_id(id)
+        .await?
+        .context(NamespaceNotFoundByIdSnafu { id })?;
+
+    get_schema_internal(namespace, repos).await
+}
+
+/// Gets the namespace schema including all tables and columns.
 pub async fn get_schema_by_name<R>(name: &str, repos: &mut R) -> Result<NamespaceSchema>
 where
     R: RepoCollection + ?Sized,
@@ -629,8 +646,15 @@ where
         .namespaces()
         .get_by_name(name)
         .await?
-        .context(NamespaceNotFoundSnafu { name })?;
+        .context(NamespaceNotFoundByNameSnafu { name })?;
 
+    get_schema_internal(namespace, repos).await
+}
+
+async fn get_schema_internal<R>(namespace: Namespace, repos: &mut R) -> Result<NamespaceSchema>
+where
+    R: RepoCollection + ?Sized,
+{
     // get the columns first just in case someone else is creating schema while we're doing this.
     let columns = repos.columns().list_by_namespace_id(namespace.id).await?;
     let tables = repos.tables().list_by_namespace_id(namespace.id).await?;

@@ -672,7 +672,7 @@ RETURNING *;
         .await;
 
         let namespace = rec.map_err(|e| match e {
-            sqlx::Error::RowNotFound => Error::NamespaceNotFound {
+            sqlx::Error::RowNotFound => Error::NamespaceNotFoundByName {
                 name: name.to_string(),
             },
             _ => Error::SqlxError { source: e },
@@ -696,7 +696,7 @@ RETURNING *;
         .await;
 
         let namespace = rec.map_err(|e| match e {
-            sqlx::Error::RowNotFound => Error::NamespaceNotFound {
+            sqlx::Error::RowNotFound => Error::NamespaceNotFoundByName {
                 name: name.to_string(),
             },
             _ => Error::SqlxError { source: e },

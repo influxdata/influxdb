@@ -172,6 +172,12 @@ async fn run_compactor(compactor: Arc<Compactor>, shutdown: CancellationToken) {
             })
             .await
             .expect("retry forever");
+        let candidates = Backoff::new(&compactor.backoff_config)
+            .retry_all_errors("partitions_to_compact", || async {
+                compactor.add_info_to_partitions(&candidates).await
+            })
+            .await
+            .expect("retry forever");
 
         let n_candidates = candidates.len();
         debug!(n_candidates, "found compaction candidates");
@@ -186,7 +192,7 @@ async fn run_compactor(compactor: Arc<Compactor>, shutdown: CancellationToken) {
             let compactor = Arc::clone(&compactor);
             let compact_and_upgrade = compactor
                 .groups_to_compact_and_files_to_upgrade(
-                    c.partition_id,
+                    c.candidate.partition_id,
                     max_desired_file_size,
                     max_file_count,
                 )
@@ -196,16 +202,19 @@ async fn run_compactor(compactor: Arc<Compactor>, shutdown: CancellationToken) {
                 Err(e) => {
                     warn!(
                         "groups file to compact and upgrade on partition {} failed with: {:?}",
-                        c.partition_id, e
+                        c.candidate.partition_id, e
                     );
                 }
                 Ok(compact_and_upgrade) => {
                     if compact_and_upgrade.compactable() {
+                        used_size += c.candidate.file_size_bytes;
                         let handle = tokio::task::spawn(async move {
                             debug!(candidate=?c, "compacting candidate");
                             let res = compactor
                                 .compact_partition(
-                                    c.partition_id,
+                                    &c.namespace,
+                                    &c.table,
+                                    c.candidate.partition_id,
                                     compact_and_upgrade,
                                     max_desired_file_size,
                                 )
@@ -213,13 +222,11 @@ async fn run_compactor(compactor: Arc<Compactor>, shutdown: CancellationToken) {
                             if let Err(e) = res {
                                 warn!(
                                     "compaction on partition {} failed with: {:?}",
-                                    c.partition_id, e
+                                    c.candidate.partition_id, e
                                 );
                             }
                             debug!(candidate=?c, "compaction complete");
                         });
-
-                        used_size += c.file_size_bytes;
                         handles.push(handle);
                         if used_size > max_size {
                             debug!(%max_size, %used_size, n_compactions=%handles.len(), "reached maximum concurrent compaction size limit");

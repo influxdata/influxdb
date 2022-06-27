@@ -10,8 +10,8 @@ use crate::{
 };
 use backoff::BackoffConfig;
 use data_types::{
-    ParquetFile, ParquetFileId, ParquetFileWithMetadata, Partition, PartitionId, SequencerId,
-    TableId, Timestamp, Tombstone, TombstoneId,
+    Namespace, NamespaceId, ParquetFile, ParquetFileId, ParquetFileWithMetadata, Partition,
+    PartitionId, SequencerId, Table, TableId, Timestamp, Tombstone, TombstoneId,
 };
 use datafusion::error::DataFusionError;
 use futures::stream::{FuturesUnordered, TryStreamExt};
@@ -29,7 +29,7 @@ use parquet_file::{metadata::IoxMetadata, storage::ParquetStorage};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{
     cmp::{max, min, Ordering},
-    collections::{BTreeMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     ops::DerefMut,
     sync::Arc,
 };
@@ -111,8 +111,24 @@ pub enum Error {
         source: iox_catalog::interface::Error,
     },
 
+    #[snafu(display("Error querying table {}", source))]
+    QueryingTable {
+        source: iox_catalog::interface::Error,
+    },
+
+    #[snafu(display("Error querying namespace {}", source))]
+    QueryingNamespace {
+        source: iox_catalog::interface::Error,
+    },
+
     #[snafu(display("Could not find partition {:?}", partition_id))]
     PartitionNotFound { partition_id: PartitionId },
+
+    #[snafu(display("Could not find table {:?}", table_id))]
+    TableNotFound { table_id: TableId },
+
+    #[snafu(display("Could not find namespace {:?}", namespace_id))]
+    NamespaceNotFound { namespace_id: NamespaceId },
 
     #[snafu(display("Could not serialize and persist record batches {}", source))]
     Persist {
@@ -301,6 +317,7 @@ impl Compactor {
                 let mut p = partitions.entry(f.partition_id).or_insert_with(|| {
                     PartitionCompactionCandidate {
                         sequencer_id: *sequencer_id,
+                        namespace_id: f.namespace_id,
                         table_id: f.table_id,
                         partition_id: f.partition_id,
                         level_0_file_count: 0,
@@ -342,15 +359,59 @@ impl Compactor {
         Ok(candidates)
     }
 
+    /// Add namespace and table information to partition candidates.
+    pub async fn add_info_to_partitions(
+        &self,
+        partitions: &[PartitionCompactionCandidate],
+    ) -> Result<Vec<PartitionCompactionCandidateWithInfo>> {
+        let mut repos = self.catalog.repositories().await;
+
+        let table_ids: HashSet<_> = partitions.iter().map(|p| p.table_id).collect();
+        let namespace_ids: HashSet<_> = partitions.iter().map(|p| p.namespace_id).collect();
+
+        let mut tables = HashMap::with_capacity(table_ids.len());
+        for id in table_ids {
+            let table = repos
+                .tables()
+                .get_by_id(id)
+                .await
+                .context(QueryingTableSnafu)?
+                .context(TableNotFoundSnafu { table_id: id })?;
+            tables.insert(id, Arc::new(table));
+        }
+
+        let mut namespaces = HashMap::with_capacity(namespace_ids.len());
+        for id in namespace_ids {
+            let namespace = repos
+                .namespaces()
+                .get_by_id(id)
+                .await
+                .context(QueryingNamespaceSnafu)?
+                .context(NamespaceNotFoundSnafu { namespace_id: id })?;
+            namespaces.insert(id, Arc::new(namespace));
+        }
+
+        Ok(partitions
+            .iter()
+            .map(|p| PartitionCompactionCandidateWithInfo {
+                table: Arc::clone(tables.get(&p.table_id).expect("just queried")),
+                namespace: Arc::clone(namespaces.get(&p.namespace_id).expect("just queried")),
+                candidate: p.clone(),
+            })
+            .collect())
+    }
+
     /// Fetch the partition information stored in the catalog.
     async fn get_partition_from_catalog(&self, partition_id: PartitionId) -> Result<Partition> {
         let mut repos = self.catalog.repositories().await;
+
         let partition = repos
             .partitions()
             .get_by_id(partition_id)
             .await
             .context(QueryingPartitionSnafu)?
             .context(PartitionNotFoundSnafu { partition_id })?;
+
         Ok(partition)
     }
 
@@ -426,6 +487,8 @@ impl Compactor {
     /// on the input time range
     pub async fn compact_partition(
         &self,
+        namespace: &Namespace,
+        table: &Table,
         partition_id: PartitionId,
         compact_and_upgrade: CompactAndUpgrade,
         max_desired_file_size: i64,
@@ -471,7 +534,13 @@ impl Compactor {
             // caller. If an error occurs during object store upload, it will be
             // retried indefinitely.
             let catalog_update_info = self
-                .compact(group.parquet_files, &partition, max_desired_file_size)
+                .compact(
+                    group.parquet_files,
+                    namespace,
+                    table,
+                    &partition,
+                    max_desired_file_size,
+                )
                 .await?
                 .into_iter()
                 .map(|v| async {
@@ -619,6 +688,8 @@ impl Compactor {
     async fn compact(
         &self,
         overlapped_files: Vec<ParquetFileWithTombstone>,
+        namespace: &Namespace,
+        table: &Table,
         partition: &Partition,
         max_desired_file_size: i64,
     ) -> Result<Vec<CompactedData>> {
@@ -634,13 +705,10 @@ impl Compactor {
             return Ok(vec![]);
         }
 
-        // Save the parquet metadata for the first file to reuse IDs and names
-        let iox_metadata = overlapped_files[0].iox_metadata();
-
         // Hold onto various metadata items needed later.
-        let sequencer_id = overlapped_files[0].sequencer_id;
-        let namespace_id = overlapped_files[0].namespace_id;
-        let table_id = overlapped_files[0].table_id;
+        let sequencer_id = partition.sequencer_id;
+        let namespace_id = table.namespace_id;
+        let table_id = table.id;
 
         // Total size of all files
         let total_size = overlapped_files
@@ -687,8 +755,7 @@ impl Compactor {
             .map(|f| {
                 f.to_queryable_parquet_chunk(
                     self.store.clone(),
-                    iox_metadata.table_name.to_string(),
-                    f.iox_metadata().sort_key,
+                    table.name.clone(),
                     partition.sort_key(),
                 )
             })
@@ -778,13 +845,13 @@ impl Compactor {
             let meta = IoxMetadata {
                 object_store_id: Uuid::new_v4(),
                 creation_timestamp: self.time_provider.now(),
-                sequencer_id: iox_metadata.sequencer_id,
-                namespace_id: iox_metadata.namespace_id,
-                namespace_name: Arc::<str>::clone(&iox_metadata.namespace_name),
-                table_id: iox_metadata.table_id,
-                table_name: Arc::<str>::clone(&iox_metadata.table_name),
-                partition_id: iox_metadata.partition_id,
-                partition_key: iox_metadata.partition_key.clone(),
+                sequencer_id: partition.sequencer_id,
+                namespace_id: table.namespace_id,
+                namespace_name: namespace.name.clone().into(),
+                table_id: table.id,
+                table_name: table.name.clone().into(),
+                partition_id: partition.id,
+                partition_key: partition.partition_key.clone(),
                 min_sequence_number,
                 max_sequence_number,
                 compaction_level: 1, // compacted result file always have level 1
@@ -1141,7 +1208,8 @@ impl Compactor {
 }
 
 /// Summary information for a partition that is a candidate for compaction.
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq)]
+#[allow(missing_copy_implementations)] // shouldn't be silently cloned
 pub struct PartitionCompactionCandidate {
     /// the sequencer the partition is in
     pub sequencer_id: SequencerId,
@@ -1149,6 +1217,8 @@ pub struct PartitionCompactionCandidate {
     pub table_id: TableId,
     /// the partition for compaction
     pub partition_id: PartitionId,
+    /// namespace ID
+    pub namespace_id: NamespaceId,
     /// the number of level 0 files in the partition
     pub level_0_file_count: usize,
     /// the total bytes of the level 0 files to compact
@@ -1157,18 +1227,33 @@ pub struct PartitionCompactionCandidate {
     pub oldest_file: Timestamp,
 }
 
+/// [`PartitionCompactionCandidate`] with some information about its table and namespace.
+#[derive(Debug)]
+pub struct PartitionCompactionCandidateWithInfo {
+    /// Partition compaction candidate.
+    pub candidate: PartitionCompactionCandidate,
+
+    /// Namespace.
+    pub namespace: Arc<Namespace>,
+
+    /// Table.
+    pub table: Arc<Table>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use arrow::record_batch::RecordBatch;
     use arrow_util::assert_batches_sorted_eq;
-    use data_types::{ColumnSet, KafkaPartition, NamespaceId, ParquetFileParams, SequenceNumber};
+    use data_types::{
+        ColumnSet, ColumnType, KafkaPartition, NamespaceId, ParquetFileParams, SequenceNumber,
+    };
     use futures::{stream::FuturesOrdered, StreamExt, TryStreamExt};
-    use iox_catalog::interface::INITIAL_COMPACTION_LEVEL;
+    use iox_catalog::interface::{get_schema_by_id, INITIAL_COMPACTION_LEVEL};
     use iox_tests::util::TestCatalog;
     use iox_time::SystemProvider;
-    use parquet_file::{chunk::DecodedParquetFile, ParquetFilePath};
-    use schema::sort::SortKey;
+    use parquet_file::ParquetFilePath;
+    use schema::{sort::SortKey, Schema};
     use std::sync::atomic::{AtomicI64, Ordering};
 
     // Simulate unique ID generation
@@ -1214,14 +1299,17 @@ mod tests {
         let catalog = TestCatalog::new();
 
         let lp = vec![
-            "table,tag1=WA field_int=1000 8000",
-            "table,tag1=VT field_int=10 10000",
-            "table,tag1=UT field_int=70 20000",
+            "table,tag1=WA field_int=1000i 8000",
+            "table,tag1=VT field_int=10i 10000",
+            "table,tag1=UT field_int=70i 20000",
         ]
         .join("\n");
         let ns = catalog.create_namespace("ns").await;
         let sequencer = ns.create_sequencer(1).await;
         let table = ns.create_table("table").await;
+        table.create_column("tag1", ColumnType::Tag).await;
+        table.create_column("field_int", ColumnType::I64).await;
+        table.create_column("time", ColumnType::Time).await;
 
         // One parquet file
         let partition = table
@@ -1284,6 +1372,8 @@ mod tests {
             .unwrap();
         compactor
             .compact_partition(
+                &ns.namespace,
+                &table.table,
                 partition.partition.id,
                 compact_and_upgrade,
                 compaction_max_size_bytes,
@@ -1292,9 +1382,7 @@ mod tests {
             .unwrap();
 
         // should have 2 non-deleted level_0 files. The original file was marked deleted and not counted
-        let mut files = catalog
-            .list_by_table_not_to_delete_with_metadata(table.table.id)
-            .await;
+        let mut files = catalog.list_by_table_not_to_delete(table.table.id).await;
         assert_eq!(files.len(), 2);
         // 2 newly created level-1 files as the result of compaction
         assert_eq!((files[0].id.get(), files[0].compaction_level), (2, 1));
@@ -1318,11 +1406,11 @@ mod tests {
 
         // ------------------------------------------------
         // Verify the parquet file content
-        let parquet_storage = ParquetStorage::new(catalog.object_store());
+
         // query the chunks
         // most recent compacted second half (~10%)
         let files1 = files.pop().unwrap();
-        let batches = read_parquet_file(&parquet_storage, files1).await;
+        let batches = read_parquet_file(&catalog, files1).await;
         assert_batches_sorted_eq!(
             &[
                 "+-----------+------+-----------------------------+",
@@ -1335,7 +1423,7 @@ mod tests {
         );
         // least recent compacted first half (~90%)
         let files2 = files.pop().unwrap();
-        let batches = read_parquet_file(&parquet_storage, files2).await;
+        let batches = read_parquet_file(&catalog, files2).await;
         assert_batches_sorted_eq!(
             &[
                 "+-----------+------+-----------------------------+",
@@ -1358,37 +1446,42 @@ mod tests {
 
         // lp1 does not overlap with any
         let lp1 = vec![
-            "table,tag1=WA field_int=1000 10",
-            "table,tag1=VT field_int=10 20",
+            "table,tag1=WA field_int=1000i 10",
+            "table,tag1=VT field_int=10i 20",
         ]
         .join("\n");
 
         // lp2 overlaps with lp3
         let lp2 = vec![
-            "table,tag1=WA field_int=1000 8000", // will be eliminated due to duplicate
-            "table,tag1=VT field_int=10 10000",  // will be deleted by ts2
-            "table,tag1=UT field_int=70 20000",
+            "table,tag1=WA field_int=1000i 8000", // will be eliminated due to duplicate
+            "table,tag1=VT field_int=10i 10000",  // will be deleted by ts2
+            "table,tag1=UT field_int=70i 20000",
         ]
         .join("\n");
 
         // lp3 overlaps with lp2
         let lp3 = vec![
-            "table,tag1=WA field_int=1500 8000", // latest duplicate and kept
-            "table,tag1=VT field_int=10 6000",
-            "table,tag1=UT field_int=270 25000",
+            "table,tag1=WA field_int=1500i 8000", // latest duplicate and kept
+            "table,tag1=VT field_int=10i 6000",
+            "table,tag1=UT field_int=270i 25000",
         ]
         .join("\n");
 
         // lp4 does not overlapp with any
         let lp4 = vec![
-            "table,tag2=WA,tag3=10 field_int=1600 28000",
-            "table,tag2=VT,tag3=20 field_int=20 26000",
+            "table,tag2=WA,tag3=10 field_int=1600i 28000",
+            "table,tag2=VT,tag3=20 field_int=20i 26000",
         ]
         .join("\n");
 
         let ns = catalog.create_namespace("ns").await;
         let sequencer = ns.create_sequencer(1).await;
         let table = ns.create_table("table").await;
+        table.create_column("tag1", ColumnType::Tag).await;
+        table.create_column("tag2", ColumnType::Tag).await;
+        table.create_column("tag3", ColumnType::Tag).await;
+        table.create_column("field_int", ColumnType::I64).await;
+        table.create_column("time", ColumnType::Time).await;
         let partition = table
             .with_sequencer(&sequencer)
             .create_partition("part")
@@ -1506,6 +1599,8 @@ mod tests {
             .unwrap();
         compactor
             .compact_partition(
+                &ns.namespace,
+                &table.table,
                 partition.partition.id,
                 compact_and_upgrade,
                 compactor.config.compaction_max_size_bytes(),
@@ -1515,9 +1610,7 @@ mod tests {
 
         // Should have 2 non-soft-deleted files: pf1 not compacted and stay, and 1 newly created
         // after compacting pf2, pf3, pf4 all very small into one file
-        let mut files = catalog
-            .list_by_table_not_to_delete_with_metadata(table.table.id)
-            .await;
+        let mut files = catalog.list_by_table_not_to_delete(table.table.id).await;
         assert_eq!(files.len(), 2);
         // pf1 upgraded to level 1
         assert_eq!((files[0].id.get(), files[0].compaction_level), (1, 1));
@@ -1537,11 +1630,10 @@ mod tests {
 
         // ------------------------------------------------
         // Verify the parquet file content
-        let parquet_storage = ParquetStorage::new(catalog.object_store());
 
         // Compacted file
         let file2 = files.pop().unwrap();
-        let batches = read_parquet_file(&parquet_storage, file2).await;
+        let batches = read_parquet_file(&catalog, file2).await;
         assert_batches_sorted_eq!(
             &[
                 "+-----------+------+------+------+-----------------------------+",
@@ -1559,7 +1651,7 @@ mod tests {
         );
         // Non-compacted file
         let file1 = files.pop().unwrap();
-        let batches = read_parquet_file(&parquet_storage, file1).await;
+        let batches = read_parquet_file(&catalog, file1).await;
         assert_batches_sorted_eq!(
             &[
                 "+-----------+------+--------------------------------+",
@@ -1625,6 +1717,8 @@ mod tests {
         let result = compactor
             .compact(
                 vec![],
+                &ns.namespace,
+                &table.table,
                 &partition.partition,
                 compactor.config.compaction_max_size_bytes(),
             )
@@ -1639,6 +1733,8 @@ mod tests {
         let result = compactor
             .compact(
                 vec![pf.clone()],
+                &ns.namespace,
+                &table.table,
                 &partition.partition,
                 compactor.config.compaction_max_size_bytes(),
             )
@@ -1658,6 +1754,8 @@ mod tests {
         let batches = compactor
             .compact(
                 vec![pf],
+                &ns.namespace,
+                &table.table,
                 &partition.partition,
                 compactor.config.compaction_max_size_bytes(),
             )
@@ -1753,6 +1851,8 @@ mod tests {
         let batches = compactor
             .compact(
                 vec![pf],
+                &ns.namespace,
+                &table.table,
                 &partition.partition,
                 compactor.config.compaction_max_size_bytes(),
             )
@@ -1861,6 +1961,8 @@ mod tests {
         let batches = compactor
             .compact(
                 vec![pf1, pf2],
+                &ns.namespace,
+                &table.table,
                 &partition.partition,
                 compactor.config.compaction_max_size_bytes(),
             )
@@ -2008,6 +2110,8 @@ mod tests {
         let batches = compactor
             .compact(
                 vec![pf1.clone(), pf2.clone(), pf3.clone()],
+                &ns.namespace,
+                &table.table,
                 &partition.partition,
                 compactor.config.compaction_max_size_bytes(),
             )
@@ -2137,12 +2241,10 @@ mod tests {
             ParquetStorage::new(Arc::clone(&catalog.object_store)),
             table.table.name.clone(),
             partition.partition.sort_key(),
-            partition.partition.sort_key(),
         );
         let pc2 = pt2.to_queryable_parquet_chunk(
             ParquetStorage::new(Arc::clone(&catalog.object_store)),
             table.table.name.clone(),
-            partition.partition.sort_key(),
             partition.partition.sort_key(),
         );
 
@@ -3257,6 +3359,7 @@ mod tests {
                 sequencer_id: sequencer.id,
                 table_id: table.id,
                 partition_id: partition.id,
+                namespace_id: namespace.id,
                 level_0_file_count: 2,
                 file_size_bytes: 1337 * 2,
                 oldest_file: pf1.created_at,
@@ -3265,6 +3368,7 @@ mod tests {
                 sequencer_id: sequencer.id,
                 table_id: table.id,
                 partition_id: partition3.id,
+                namespace_id: namespace.id,
                 level_0_file_count: 1,
                 file_size_bytes: 20000,
                 oldest_file: pf4.created_at,
@@ -3273,6 +3377,7 @@ mod tests {
                 sequencer_id: sequencer.id,
                 table_id: table.id,
                 partition_id: partition2.id,
+                namespace_id: namespace.id,
                 level_0_file_count: 1,
                 file_size_bytes: 1337,
                 oldest_file: pf3.created_at,
@@ -3346,6 +3451,8 @@ mod tests {
         let batches = compactor
             .compact(
                 vec![pf1, pf2],
+                &ns.namespace,
+                &table.table,
                 &partition.partition,
                 compactor.config.compaction_max_size_bytes(),
             )
@@ -3373,13 +3480,32 @@ mod tests {
         assert_eq!(num_rows, 1499);
     }
 
-    async fn read_parquet_file(
-        storage: &ParquetStorage,
-        file: ParquetFileWithMetadata,
-    ) -> Vec<RecordBatch> {
-        let decoded_parquet_file = DecodedParquetFile::new(file);
-        let schema = decoded_parquet_file.schema();
-        let path: ParquetFilePath = (&decoded_parquet_file.iox_metadata).into();
+    async fn read_parquet_file(catalog: &TestCatalog, file: ParquetFile) -> Vec<RecordBatch> {
+        let storage = ParquetStorage::new(catalog.object_store());
+
+        // get schema
+        let mut repos = catalog.catalog().repositories().await;
+        let namespace_schema = get_schema_by_id(file.namespace_id, repos.as_mut())
+            .await
+            .unwrap();
+        let table_name = repos
+            .tables()
+            .get_by_id(file.table_id)
+            .await
+            .unwrap()
+            .unwrap()
+            .name;
+        let table_schema: Schema = namespace_schema
+            .tables
+            .get(&table_name)
+            .unwrap()
+            .clone()
+            .try_into()
+            .unwrap();
+        let selection: Vec<_> = file.column_set.iter().map(|s| s.as_str()).collect();
+        let schema = table_schema.select_by_names(&selection).unwrap();
+
+        let path: ParquetFilePath = (&file).into();
         let rx = storage.read_all(schema.as_arrow(), &path).unwrap();
         datafusion::physical_plan::common::collect(rx)
             .await
