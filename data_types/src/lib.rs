@@ -799,8 +799,7 @@ pub struct Tombstone {
 impl Tombstone {
     /// Estimate the memory consumption of this object and its contents
     pub fn size(&self) -> usize {
-        // No additional heap allocations
-        std::mem::size_of_val(self)
+        std::mem::size_of_val(self) + self.serialized_predicate.capacity()
     }
 }
 
