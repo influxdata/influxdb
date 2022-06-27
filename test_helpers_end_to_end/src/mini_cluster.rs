@@ -102,7 +102,10 @@ impl MiniCluster {
                 // others to proceed
                 std::mem::drop(shared_servers);
                 let new_self = cluster.create().await;
-                info!(total_wait=?start.elapsed(), "created new new mini cluster from existing cluster");
+                info!(
+                    total_wait=?start.elapsed(),
+                    "created new new mini cluster from existing cluster"
+                );
                 return new_self;
             } else {
                 info!("some server proceses of previous cluster have already returned");

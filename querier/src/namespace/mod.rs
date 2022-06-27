@@ -51,7 +51,7 @@ impl QuerierNamespace {
         schema: Arc<NamespaceSchema>,
         name: Arc<str>,
         exec: Arc<Executor>,
-        ingester_connection: Arc<dyn IngesterConnection>,
+        ingester_connection: Option<Arc<dyn IngesterConnection>>,
         query_log: Arc<QueryLog>,
         sharder: Arc<JumpHash<Arc<KafkaPartition>>>,
     ) -> Self {
@@ -73,7 +73,7 @@ impl QuerierNamespace {
                     id,
                     Arc::clone(&table_name),
                     Arc::new(schema),
-                    Arc::clone(&ingester_connection),
+                    ingester_connection.clone(),
                     Arc::clone(&chunk_adapter),
                 ));
 
@@ -102,7 +102,7 @@ impl QuerierNamespace {
         name: Arc<str>,
         schema: Arc<NamespaceSchema>,
         exec: Arc<Executor>,
-        ingester_connection: Arc<dyn IngesterConnection>,
+        ingester_connection: Option<Arc<dyn IngesterConnection>>,
         sharder: Arc<JumpHash<Arc<KafkaPartition>>>,
     ) -> Self {
         let time_provider = catalog_cache.time_provider();

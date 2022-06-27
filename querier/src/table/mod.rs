@@ -68,7 +68,7 @@ pub struct QuerierTable {
     schema: Arc<Schema>,
 
     /// Connection to ingester
-    ingester_connection: Arc<dyn IngesterConnection>,
+    ingester_connection: Option<Arc<dyn IngesterConnection>>,
 
     /// Interface to create chunks for this table.
     chunk_adapter: Arc<ChunkAdapter>,
@@ -85,7 +85,7 @@ impl QuerierTable {
         id: TableId,
         table_name: Arc<str>,
         schema: Arc<Schema>,
-        ingester_connection: Arc<dyn IngesterConnection>,
+        ingester_connection: Option<Arc<dyn IngesterConnection>>,
         chunk_adapter: Arc<ChunkAdapter>,
     ) -> Self {
         let reconciler = Reconciler::new(
@@ -176,52 +176,56 @@ impl QuerierTable {
 
     /// Get partitions from ingesters.
     async fn ingester_partitions(&self, predicate: &Predicate) -> Result<Vec<IngesterPartition>> {
-        // For now, ask for *all* columns in the table from the ingester (need
-        // at least all pk (time, tag) columns for
-        // deduplication.
-        //
-        // As a future optimization, might be able to fetch only
-        // fields that are needed in query
-        let columns: Vec<String> = self
-            .schema
-            .iter()
-            .map(|(_, f)| f.name().to_string())
-            .collect();
+        if let Some(ingester_connection) = &self.ingester_connection {
+            // For now, ask for *all* columns in the table from the ingester (need
+            // at least all pk (time, tag) columns for
+            // deduplication.
+            //
+            // As a future optimization, might be able to fetch only
+            // fields that are needed in query
+            let columns: Vec<String> = self
+                .schema
+                .iter()
+                .map(|(_, f)| f.name().to_string())
+                .collect();
 
-        // get any chunks from the ingester
-        let partitions_result = self
-            .ingester_connection
-            .partitions(
-                &self.sequencer_ids,
-                Arc::clone(&self.namespace_name),
-                Arc::clone(&self.table_name),
-                columns,
-                predicate,
-                Arc::clone(&self.schema),
-            )
-            .await
-            .context(GettingIngesterPartitionsSnafu);
+            // get any chunks from the ingester
+            let partitions_result = ingester_connection
+                .partitions(
+                    &self.sequencer_ids,
+                    Arc::clone(&self.namespace_name),
+                    Arc::clone(&self.table_name),
+                    columns,
+                    predicate,
+                    Arc::clone(&self.schema),
+                )
+                .await
+                .context(GettingIngesterPartitionsSnafu);
 
-        let partitions = partitions_result?;
+            let partitions = partitions_result?;
 
-        // check that partitions from ingesters don't overlap
-        let mut seen = HashMap::with_capacity(partitions.len());
-        for partition in &partitions {
-            match seen.entry(partition.partition_id()) {
-                Entry::Occupied(o) => {
-                    return Err(Error::IngestersOverlap {
-                        ingester1: Arc::clone(o.get()),
-                        ingester2: Arc::clone(partition.ingester()),
-                        partition: partition.partition_id(),
-                    })
-                }
-                Entry::Vacant(v) => {
-                    v.insert(Arc::clone(partition.ingester()));
+            // check that partitions from ingesters don't overlap
+            let mut seen = HashMap::with_capacity(partitions.len());
+            for partition in &partitions {
+                match seen.entry(partition.partition_id()) {
+                    Entry::Occupied(o) => {
+                        return Err(Error::IngestersOverlap {
+                            ingester1: Arc::clone(o.get()),
+                            ingester2: Arc::clone(partition.ingester()),
+                            partition: partition.partition_id(),
+                        })
+                    }
+                    Entry::Vacant(v) => {
+                        v.insert(Arc::clone(partition.ingester()));
+                    }
                 }
             }
-        }
 
-        Ok(partitions)
+            Ok(partitions)
+        } else {
+            // No ingesters are configured
+            Ok(vec![])
+        }
     }
 
     /// Handles invalidating parquet and tombstone caches if the
@@ -820,6 +824,8 @@ mod tests {
 
             self.querier_table
                 .ingester_connection
+                .as_ref()
+                .unwrap()
                 .as_any()
                 .downcast_ref::<MockIngesterConnection>()
                 .unwrap()

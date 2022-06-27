@@ -42,7 +42,7 @@ pub async fn querier_table(catalog: &Arc<TestCatalog>, table: &Arc<TestTable>) -
         table.table.id,
         table.table.name.clone().into(),
         schema,
-        create_ingester_connection_for_testing(),
+        Some(create_ingester_connection_for_testing()),
         chunk_adapter,
     )
 }

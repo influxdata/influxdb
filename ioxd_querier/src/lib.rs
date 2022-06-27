@@ -174,11 +174,13 @@ pub async fn create_querier_server_type(
 
     let ingester_connection = match args.ingester_addresses {
         IngesterAddresses::List(list) => {
-            create_ingester_connection(list, Arc::clone(&catalog_cache))
+            Some(create_ingester_connection(list, Arc::clone(&catalog_cache)))
         }
-        IngesterAddresses::BySequencer(map) => {
-            create_ingester_connections_by_sequencer(map, Arc::clone(&catalog_cache))
-        }
+        IngesterAddresses::None => None,
+        IngesterAddresses::BySequencer(map) => Some(create_ingester_connections_by_sequencer(
+            map,
+            Arc::clone(&catalog_cache),
+        )),
     };
 
     let database = Arc::new(

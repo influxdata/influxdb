@@ -11,6 +11,7 @@ use clap_blocks::{
     socket_addr::SocketAddr,
     write_buffer::WriteBufferConfig,
 };
+use data_types::IngesterMapping;
 use iox_query::exec::Executor;
 use iox_time::{SystemProvider, TimeProvider};
 use ioxd_common::{
@@ -523,9 +524,9 @@ pub async fn command(config: Config) -> Result<()> {
     let ingester_addresses = IngesterAddresses::BySequencer(
         [(
             0,
-            vec![Arc::from(
+            IngesterMapping::Addr(Arc::from(
                 format!("http://{}", ingester_run_config.grpc_bind_address).as_str(),
-            )],
+            )),
         )]
         .into_iter()
         .collect(),

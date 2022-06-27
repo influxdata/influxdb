@@ -32,7 +32,7 @@ pub async fn querier_namespace(ns: &Arc<TestNamespace>) -> QuerierNamespace {
         ns.namespace.name.clone().into(),
         schema,
         ns.catalog.exec(),
-        create_ingester_connection_for_testing(),
+        Some(create_ingester_connection_for_testing()),
         sharder,
     )
 }

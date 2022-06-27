@@ -80,7 +80,7 @@ impl TestConfig {
 
         Self::new_querier_without_ingester(ingester_config)
             // Configure to talk with the ingester
-            .with_ingester_addresses(&[ingester_config.ingester_base().as_ref()])
+            .with_ingester_mapping(ingester_config.ingester_base().as_ref())
     }
 
     /// Create a minimal compactor configuration, using the dsn
@@ -104,6 +104,7 @@ impl TestConfig {
             ingester_config.catalog_schema_name(),
         )
         .with_existing_object_store(ingester_config)
+        .with_sequencer_to_ingesters_mapping("{\"ignoreAll\": true}")
     }
 
     /// Create a minimal all in one configuration
@@ -170,26 +171,26 @@ impl TestConfig {
         )
     }
 
-    /// Adds the ingester addresses
-    pub fn with_ingester_addresses(self, ingester_addresses: &[&str]) -> Self {
+    /// Adds the ingester mapping configuration; Kafka partition 0 is mapped to the specified
+    /// ingester address
+    pub fn with_ingester_mapping(self, ingester_address: &str) -> Self {
         let mut mapping_json = String::from(
             r#"{
-          "sequencers": {
-            "0": {
-              "ingesters": [
-        "#,
+              "ingesters": {
+                "i1": {
+                  "addr": ""#,
         );
+        mapping_json += ingester_address;
+        mapping_json += r#""}
+              },
+              "sequencers": {
+                "0": {
+                  "ingester": "i1"
+                }
+            }
+        }"#;
 
-        let addresses: String = ingester_addresses
-            .iter()
-            .map(|addr| format!("{{\"addr\": \"{addr}\"}}"))
-            .collect::<Vec<_>>()
-            .join(",");
-
-        mapping_json += &addresses;
-        mapping_json += r#"]}}}"#;
-
-        self.with_env("INFLUXDB_IOX_SEQUENCER_TO_INGESTERS", mapping_json)
+        self.with_sequencer_to_ingesters_mapping(&mapping_json)
     }
 
     pub fn with_sequencer_to_ingesters_mapping(self, mapping_json: &str) -> Self {

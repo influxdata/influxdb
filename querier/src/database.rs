@@ -57,7 +57,7 @@ pub struct QuerierDatabase {
     exec: Arc<Executor>,
 
     /// Connection to ingester(s)
-    ingester_connection: Arc<dyn IngesterConnection>,
+    ingester_connection: Option<Arc<dyn IngesterConnection>>,
 
     /// Query log.
     query_log: Arc<QueryLog>,
@@ -103,7 +103,7 @@ impl QuerierDatabase {
         metric_registry: Arc<metric::Registry>,
         store: ParquetStorage,
         exec: Arc<Executor>,
-        ingester_connection: Arc<dyn IngesterConnection>,
+        ingester_connection: Option<Arc<dyn IngesterConnection>>,
         max_concurrent_queries: usize,
     ) -> Result<Self, Error> {
         assert!(
@@ -166,7 +166,7 @@ impl QuerierDatabase {
             schema,
             name,
             Arc::clone(&self.exec),
-            Arc::clone(&self.ingester_connection),
+            self.ingester_connection.clone(),
             Arc::clone(&self.query_log),
             Arc::clone(&self.sharder),
         )))
@@ -184,8 +184,8 @@ impl QuerierDatabase {
     }
 
     /// Return connection to ingester(s) to get and aggregate information from them
-    pub fn ingester_connection(&self) -> Arc<dyn IngesterConnection> {
-        Arc::clone(&self.ingester_connection)
+    pub fn ingester_connection(&self) -> Option<Arc<dyn IngesterConnection>> {
+        self.ingester_connection.clone()
     }
 
     /// Executor
@@ -244,7 +244,7 @@ mod tests {
             catalog.metric_registry(),
             ParquetStorage::new(catalog.object_store()),
             catalog.exec(),
-            create_ingester_connection_for_testing(),
+            Some(create_ingester_connection_for_testing()),
             QuerierDatabase::MAX_CONCURRENT_QUERIES_MAX.saturating_add(1),
         )
         .await
@@ -268,7 +268,7 @@ mod tests {
                 catalog.metric_registry(),
                 ParquetStorage::new(catalog.object_store()),
                 catalog.exec(),
-                create_ingester_connection_for_testing(),
+                Some(create_ingester_connection_for_testing()),
                 QuerierDatabase::MAX_CONCURRENT_QUERIES_MAX,
             )
             .await,
@@ -295,7 +295,7 @@ mod tests {
             catalog.metric_registry(),
             ParquetStorage::new(catalog.object_store()),
             catalog.exec(),
-            create_ingester_connection_for_testing(),
+            Some(create_ingester_connection_for_testing()),
             QuerierDatabase::MAX_CONCURRENT_QUERIES_MAX,
         )
         .await
@@ -324,7 +324,7 @@ mod tests {
             catalog.metric_registry(),
             ParquetStorage::new(catalog.object_store()),
             catalog.exec(),
-            create_ingester_connection_for_testing(),
+            Some(create_ingester_connection_for_testing()),
             QuerierDatabase::MAX_CONCURRENT_QUERIES_MAX,
         )
         .await

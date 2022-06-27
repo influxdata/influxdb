@@ -25,14 +25,24 @@ async fn basic_multi_ingesters() {
     let ingester2_config = TestConfig::new_ingester(&router_config).with_kafka_partition(1);
 
     let json = format!(
-        r#"
-    {{
-      "sequencers": {{
-        "0": {{ "ingesters": [{{"addr": "{}"}}] }},
-        "1": {{ "ingesters": [{{"addr": "{}"}}] }}
-      }}
-    }}
-    "#,
+        r#"{{
+          "ingesters": {{
+            "i1": {{
+              "addr": "{}"
+            }},
+            "i2": {{
+              "addr": "{}"
+            }}
+          }},
+          "sequencers": {{
+            "0": {{
+              "ingester": "i1"
+            }},
+            "1": {{
+              "ingester": "i2"
+            }}
+          }}
+        }}"#,
         ingester_config.ingester_base(),
         ingester2_config.ingester_base()
     );

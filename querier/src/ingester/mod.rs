@@ -7,8 +7,8 @@ use arrow::{datatypes::DataType, error::ArrowError, record_batch::RecordBatch};
 use async_trait::async_trait;
 use client_util::connection;
 use data_types::{
-    ChunkId, ChunkOrder, ColumnSummary, InfluxDbType, KafkaPartition, PartitionId, SequenceNumber,
-    SequencerId, StatValues, Statistics, TableSummary, TimestampMinMax,
+    ChunkId, ChunkOrder, ColumnSummary, InfluxDbType, IngesterMapping, KafkaPartition, PartitionId,
+    SequenceNumber, SequencerId, StatValues, Statistics, TableSummary, TimestampMinMax,
 };
 use datafusion_util::MemoryStream;
 use futures::{stream::FuturesUnordered, TryStreamExt};
@@ -120,6 +120,16 @@ pub enum Error {
         partition_id: PartitionId,
         ingester_address: String,
     },
+
+    #[snafu(display(
+        "No ingester found in sequencer to ingester mapping for sequencer {sequencer_id}"
+    ))]
+    NoIngesterFoundForSequencer { sequencer_id: KafkaPartition },
+
+    #[snafu(display(
+        "Sequencer {sequencer_id} was neither mapped to an ingester nor marked ignore"
+    ))]
+    SequencerNotMapped { sequencer_id: KafkaPartition },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -136,18 +146,9 @@ pub fn create_ingester_connection(
     ))
 }
 
-/// Create a new set of connections given a map of sequencer IDs to Ingester addresses, such as:
-///
-/// ```json
-/// {
-///     "0": { "addr": "http://ingester-1:8082" },
-///     "1": { "addr": "http://ingester-1:8082" },
-///     ...
-///     "25": { "addr": "http://ingester-2:8082" },
-/// }
-/// ```
+/// Create a new set of connections given a map of sequencer IDs to Ingester configurations
 pub fn create_ingester_connections_by_sequencer(
-    sequencer_to_ingesters: HashMap<i32, Vec<Arc<str>>>,
+    sequencer_to_ingesters: HashMap<i32, IngesterMapping>,
     catalog_cache: Arc<CatalogCache>,
 ) -> Arc<dyn IngesterConnection> {
     Arc::new(IngesterConnectionImpl::by_sequencer(
@@ -284,16 +285,18 @@ impl<'a> Drop for ObserveIngesterRequest<'a> {
 /// SequencerToIngestersMap variant when nothing is using `--ingester-addresses` anymore.
 #[derive(Debug)]
 enum TemporaryMigrationSupport {
-    SequencerToIngestersMap(HashMap<KafkaPartition, Vec<Arc<str>>>),
+    SequencerToIngestersMap(HashMap<KafkaPartition, IngesterMapping>),
     IngesterAddresses(Vec<Arc<str>>),
 }
 
 impl TemporaryMigrationSupport {
-    fn get(&self, key: &KafkaPartition) -> Option<&[Arc<str>]> {
+    fn get(&self, key: &KafkaPartition) -> Option<Vec<IngesterMapping>> {
         use TemporaryMigrationSupport::*;
         match self {
-            SequencerToIngestersMap(map) => map.get(key).map(Vec::as_slice),
-            IngesterAddresses(list) => Some(list),
+            SequencerToIngestersMap(map) => map.get(key).map(|ingester| vec![ingester.to_owned()]),
+            IngesterAddresses(list) => {
+                Some(list.iter().cloned().map(IngesterMapping::Addr).collect())
+            }
         }
     }
 }
@@ -363,7 +366,7 @@ impl IngesterConnectionImpl {
     /// }
     /// ```
     pub fn by_sequencer(
-        sequencer_to_ingesters: HashMap<i32, Vec<Arc<str>>>,
+        sequencer_to_ingesters: HashMap<i32, IngesterMapping>,
         catalog_cache: Arc<CatalogCache>,
     ) -> Self {
         Self::by_sequencer_with_flight_client(
@@ -378,13 +381,17 @@ impl IngesterConnectionImpl {
     /// This is helpful for testing, i.e. when the flight client should not be backed by normal
     /// network communication.
     pub fn by_sequencer_with_flight_client(
-        sequencer_to_ingesters: HashMap<i32, Vec<Arc<str>>>,
+        sequencer_to_ingesters: HashMap<i32, IngesterMapping>,
         flight_client: Arc<dyn FlightClient>,
         catalog_cache: Arc<CatalogCache>,
     ) -> Self {
         let unique_ingester_addresses: HashSet<_> = sequencer_to_ingesters
             .values()
-            .flat_map(|v| v.iter().map(Arc::clone))
+            .flat_map(|v| match v {
+                IngesterMapping::Addr(addr) => Some(addr),
+                _ => None,
+            })
+            .cloned()
             .collect();
         let sequencer_to_ingesters = TemporaryMigrationSupport::SequencerToIngestersMap(
             sequencer_to_ingesters
@@ -747,22 +754,37 @@ impl IngesterConnection for IngesterConnectionImpl {
         // Look up the ingesters needed for the sequencer. Collect into a HashSet to avoid making
         // multiple requests to the same ingester if that ingester is responsible for multiple
         // sequencer_ids relevant to this query.
-        let relevant_ingester_addresses: HashSet<_> = sequencer_ids
-            .iter()
-            .flat_map(|sequencer_id| {
-                self.sequencer_to_ingesters
-                    .get(sequencer_id)
-                    .map(|v| v.iter().map(Arc::clone))
-            })
-            .flatten()
-            .collect();
+        let mut relevant_ingester_addresses = HashSet::new();
 
-        // If the sequencer to ingester map doesn't return any ingesters, this is a configuration
-        // error somewhere.
-        assert!(
-            !relevant_ingester_addresses.is_empty(),
-            "Could not find ingester addresses for sequencer IDs {sequencer_ids:?}"
-        );
+        for sequencer_id in sequencer_ids {
+            match self.sequencer_to_ingesters.get(sequencer_id) {
+                None => {
+                    return NoIngesterFoundForSequencerSnafu {
+                        sequencer_id: *sequencer_id,
+                    }
+                    .fail()
+                }
+                Some(list)
+                    if list.is_empty()
+                        || list.iter().all(|a| matches!(a, IngesterMapping::Ignore)) => {}
+                Some(list) => {
+                    for mapping in list {
+                        match mapping {
+                            IngesterMapping::Addr(addr) => {
+                                relevant_ingester_addresses.insert(Arc::clone(&addr));
+                            }
+                            IngesterMapping::Ignore => (),
+                            IngesterMapping::NotMapped => {
+                                return SequencerNotMappedSnafu {
+                                    sequencer_id: *sequencer_id,
+                                }
+                                .fail()
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         let mut ingester_partitions: Vec<IngesterPartition> = relevant_ingester_addresses
             .into_iter()
@@ -1233,6 +1255,7 @@ mod tests {
     use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
     use schema::{builder::SchemaBuilder, InfluxFieldType};
     use std::collections::{BTreeSet, HashMap};
+    use test_helpers::assert_error;
     use tokio::sync::Mutex;
 
     #[tokio::test]
@@ -1313,7 +1336,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[should_panic(expected = "Could not find ingester addresses for sequencer IDs")]
     async fn no_ingester_addresses_found_is_a_configuration_error() {
         let mock_flight_client = Arc::new(
             MockFlightClient::new([("addr1", Ok(MockQueryData { results: vec![] }))]).await,
@@ -1321,7 +1343,10 @@ mod tests {
         let ingester_conn = mock_flight_client.ingester_conn().await;
 
         // Sequencer ID 0 doesn't have an associated ingester address in the test setup
-        get_partitions(&ingester_conn, &[0]).await.unwrap();
+        assert_error!(
+            get_partitions(&ingester_conn, &[0]).await,
+            Error::NoIngesterFoundForSequencer { .. },
+        );
     }
 
     #[tokio::test]
@@ -1856,7 +1881,7 @@ mod tests {
                 .map(|(sequencer_id, ingester_address)| {
                     (
                         sequencer_id as i32 + 1,
-                        vec![Arc::from(ingester_address.as_str())],
+                        IngesterMapping::Addr(Arc::from(ingester_address.as_str())),
                     )
                 })
                 .collect();
