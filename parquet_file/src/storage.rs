@@ -388,8 +388,20 @@ fn project_for_parquet_reader(
 
     // for some weird reason, the parquet-rs projection system only filters columns but ignores the mask order, so we
     // need to calculate a reorder projection
+    // 1. remember for each mask element where it should go in the expected schema
     let mut mask_with_index: Vec<(usize, usize)> = mask.iter().copied().enumerate().collect();
+    // 2. perform re-order as parquet-rs would do that (it just uses the mask and sorts it)
     mask_with_index.sort_by_key(|(_a, b)| *b);
+    // 3. since we need to transform the re-ordered (i.e. messed up) view back into the mask, throw away the original
+    //    mask, keep the expected schema position (added in step 1) and add the index within the parquet-rs output
+    let mut mask_with_index: Vec<(usize, usize)> = mask_with_index
+        .into_iter()
+        .map(|(a, _b)| a)
+        .enumerate()
+        .collect();
+    // 4. sort by the index within the expected schema (added in step 1, forwared in step 3)
+    mask_with_index.sort_by_key(|(_a, b)| *b);
+    // 5. just keep the index within the parquet-rs output (added in step 3)
     let reorder_projection: Vec<usize> = mask_with_index.into_iter().map(|(a, _b)| a).collect();
 
     Ok((mask, reorder_projection))
@@ -696,6 +708,27 @@ mod tests {
             )
             .unwrap(),
             (vec![2, 1, 3], vec![1, 0, 2]),
+        );
+
+        assert_eq!(
+            run_project_for_parquet_reader(
+                &[
+                    ("field_int", ColType::Int),
+                    ("tag1", ColType::String),
+                    ("tag2", ColType::String),
+                    ("tag3", ColType::String),
+                    ("time", ColType::Int),
+                ],
+                &[
+                    ("tag1", ColType::String),
+                    ("tag2", ColType::String),
+                    ("tag3", ColType::String),
+                    ("field_int", ColType::Int),
+                    ("time", ColType::Int),
+                ]
+            )
+            .unwrap(),
+            (vec![1, 2, 3, 0, 4], vec![1, 2, 3, 0, 4]),
         );
 
         assert!(matches!(
