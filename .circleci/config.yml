@@ -420,8 +420,6 @@ jobs:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
       - checkout
-      - run: |
-          echo "$QUAY_INFLUXDB_IOX_PASS" | docker login quay.io --username $QUAY_INFLUXDB_IOX_USER --password-stdin
       - run:
           name: Cargo release build with target arch set for CRoaring
           command: |
@@ -447,10 +445,17 @@ jobs:
 
             docker run -it --rm quay.io/influxdb/iox:$COMMIT_SHA debug print-cpu
 
-            docker push quay.io/influxdb/iox:"$COMMIT_SHA"
-            docker push quay.io/influxdb/iox_data_generator:"$COMMIT_SHA"
+            mkdir /tmp/images
+            docker save quay.io/influxdb/iox:"$COMMIT_SHA" | gzip > /tmp/iox.tar.gz
+            docker save quay.io/influxdb/iox_data_generator:"$COMMIT_SHA" | gzip > /tmp/iox_data_generator.tar.gz
           # linking might take a while and doesn't produce CLI output
           no_output_timeout: 30m
+      - store_artifacts:
+          path: /tmp/images
+      - persist_to_workspace:
+          root: /tmp/images
+          paths:
+            - '*.tar.gz'
       - cache_save
 
   deploy_release:
@@ -461,29 +466,28 @@ jobs:
           version: 19.03.13
           docker_layer_caching: true
       - checkout
-      - run: |
-          echo "$QUAY_INFLUXDB_IOX_PASS" | docker login quay.io --username $QUAY_INFLUXDB_IOX_USER --password-stdin
+      - attach_workspace:
+          at: /tmp/images
       - run:
-          name: Update docker branch tags
+          name: quay login
+          command: |
+            echo "$QUAY_INFLUXDB_IOX_PASS" | docker login quay.io --username $QUAY_INFLUXDB_IOX_USER --password-stdin
+      - run:
+          name: Upload images
           command: |
             COMMIT_SHA="$(git rev-parse --short HEAD)"
             BRANCH="$(echo "$CIRCLE_BRANCH" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/_/g')"
 
-            docker pull quay.io/influxdb/iox:"$COMMIT_SHA"
-            docker pull quay.io/influxdb/iox_data_generator:"$COMMIT_SHA"
+            docker load -i /tmp/iox.tar.gz
+            docker load -i /tmp/iox_data_generator.tar.gz
 
             docker tag quay.io/influxdb/iox:"$COMMIT_SHA" quay.io/influxdb/iox:"$BRANCH"
             docker tag quay.io/influxdb/iox_data_generator:"$COMMIT_SHA" quay.io/influxdb/iox_data_generator:"$BRANCH"
 
+            docker push quay.io/influxdb/iox:"$COMMIT_SHA"
+            docker push quay.io/influxdb/iox_data_generator:"$COMMIT_SHA"
             docker push quay.io/influxdb/iox:"$BRANCH"
             docker push quay.io/influxdb/iox_data_generator:"$BRANCH"
-
-            echo "export COMMIT_SHA=${COMMIT_SHA}" >> $BASH_ENV
-      - run:
-          name: Deploy tags
-          command: |
-            echo "$QUAY_PASS" | docker login quay.io --username $QUAY_USER --password-stdin
-            ./.circleci/get-deploy-tags.sh "${COMMIT_SHA}"
 
   # Prepare the CI image used for other tasks.
   #
