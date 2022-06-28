@@ -3,6 +3,7 @@
 mod interface;
 
 use data_types::{PartitionId, SequencerId, Tombstone, TombstoneId};
+use futures::StreamExt;
 use iox_query::QueryChunk;
 use observability_deps::tracing::debug;
 use schema::sort::SortKey;
@@ -113,16 +114,21 @@ impl Reconciler {
         );
 
         // convert parquet files and tombstones into chunks
-        let mut chunks_from_parquet = Vec::with_capacity(parquet_files.len());
-        for cached_parquet_file in parquet_files {
-            if let Some(chunk) = self
-                .chunk_adapter
-                .new_rb_chunk(Arc::clone(&self.namespace_name), cached_parquet_file)
-                .await
-            {
-                chunks_from_parquet.push(chunk);
-            }
-        }
+        let chunks_from_parquet: Vec<_> = futures::stream::iter(parquet_files)
+            // use `.map` instead of `then` or `filter_map` because the next step is `buffered_unordered` and that
+            // requires a stream of futures
+            .map(|cached_parquet_file| async {
+                self.chunk_adapter
+                    .new_rb_chunk(Arc::clone(&self.namespace_name), cached_parquet_file)
+                    .await
+            })
+            // fetch multiple RB chunks in parallel to hide latency
+            // TODO(marco): expose this as a config
+            .buffer_unordered(2)
+            // there doesn't seem to be a non-async version of `filter_map`
+            .filter_map(|x| async { x })
+            .collect()
+            .await;
         debug!(num_chunks=%chunks_from_parquet.len(), "Created chunks from parquet files");
 
         let mut chunks: Vec<Box<dyn UpdatableQuerierChunk>> =
