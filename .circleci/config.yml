@@ -446,8 +446,8 @@ jobs:
             docker run -it --rm quay.io/influxdb/iox:$COMMIT_SHA debug print-cpu
 
             mkdir /tmp/images
-            docker save quay.io/influxdb/iox:"$COMMIT_SHA" | gzip > /tmp/iox.tar.gz
-            docker save quay.io/influxdb/iox_data_generator:"$COMMIT_SHA" | gzip > /tmp/iox_data_generator.tar.gz
+            docker save quay.io/influxdb/iox:"$COMMIT_SHA" | gzip > /tmp/images/iox.tar.gz
+            docker save quay.io/influxdb/iox_data_generator:"$COMMIT_SHA" | gzip > /tmp/images/iox_data_generator.tar.gz
           # linking might take a while and doesn't produce CLI output
           no_output_timeout: 30m
       - store_artifacts:
