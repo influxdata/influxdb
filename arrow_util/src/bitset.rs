@@ -192,7 +192,7 @@ impl BitSet {
         self.buffer.len()
     }
 
-    /// Return the raw packed bytes used by thie bitset
+    /// Return the raw packed bytes used by this bitset
     pub fn bytes(&self) -> &[u8] {
         &self.buffer
     }

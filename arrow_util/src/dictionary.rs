@@ -142,7 +142,7 @@ impl StringDictionary<i32> {
         I: IntoIterator<Item = i32>,
         I::IntoIter: ExactSizeIterator,
     {
-        // the nulls are recored in the keys array, the dictionary itself
+        // the nulls are recorded in the keys array, the dictionary itself
         // is entirely non null
         let dictionary_nulls = None;
         let keys = keys.into_iter();

@@ -143,7 +143,7 @@
 //!
 //! This has the following consequences:
 //!
-//! - **Cyclic Structure:** The LRU backends communicate with the pool, but the pool also neeeds to communicate with
+//! - **Cyclic Structure:** The LRU backends communicate with the pool, but the pool also needs to communicate with
 //!   all the backends. This creates some form of cyclic data structure.
 //! - **Type Erasure:** The pool is only specific to the resource type, not the key and value types of the
 //!   participating backends. So at some place we need to perform type erasure.
@@ -228,7 +228,7 @@
 //! 3. Check if the entry already exists and remove it.
 //! 4. Drop lock of [`LruBackendInner`] so that the pool can use it to free up space.
 //! 5. Request to add more data to the pool:
-//!    1. Check if we need to free up space, otherwise we can already procede to step 6.
+//!    1. Check if we need to free up space, otherwise we can already proceed to step 6.
 //!    2. Lock all pool members ([`PoolMember::lock`] which ultimately locks [`LruBackendInner`])
 //!    3. Loop:
 //!       1. Ask pool members if they have anything to free.
@@ -662,7 +662,7 @@ trait PoolMember: Debug + Send + 'static {
 
 /// The only implementation of [`PoolMember`].
 ///
-/// In constast to the trait, this still contains `K` and `V`.
+/// In contrast to the trait, this still contains `K` and `V`.
 #[derive(Debug)]
 pub struct PoolMemberImpl<K, V, S>
 where
@@ -710,7 +710,7 @@ trait PoolMemberGuard: Debug {
 
 /// The only implementation of [`PoolMemberGuard`].
 ///
-/// In constast to the trait, this still contains `K` and `V`.
+/// In contrast to the trait, this still contains `K` and `V`.
 #[derive(Debug)]
 pub struct PoolMemberGuardImpl<'a, K, V, S>
 where
@@ -802,7 +802,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "Member 'id' already registered")]
-    fn test_panic_id_collission() {
+    fn test_panic_id_collision() {
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let pool = Arc::new(ResourcePool::new(
             "pool",

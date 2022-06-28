@@ -116,7 +116,7 @@ impl AsyncSemaphoreMetrics {
 /// Instrumented version of [`tokio::sync::Semaphore`].
 #[derive(Debug)]
 pub struct InstrumentedAsyncSemaphore {
-    /// Underlying sempahore implementation.
+    /// Underlying semaphore implementation.
     ///
     /// This is wrapped into an [`Arc`] so we can use a single implementation for the owned and non-owned implementation.
     inner: Arc<Semaphore>,
@@ -241,7 +241,7 @@ impl<'a> Future for InstrumentedAsyncSemaphoreAcquire<'a> {
                     let elapsed = this.t_start.elapsed();
                     this.metrics.acquire_duration.record(elapsed);
 
-                    // reset "pendig" metrics if we've reported any
+                    // reset "pending" metrics if we've reported any
                     if *this.reported_pending {
                         this.metrics.permits_pending.dec(*this.n as u64);
                         this.metrics.holders_pending.dec(1);
@@ -261,7 +261,7 @@ impl<'a> Future for InstrumentedAsyncSemaphoreAcquire<'a> {
                 Err(e) => Poll::Ready(Err(e)),
             },
             Poll::Pending => {
-                // report "pendig" metrics once
+                // report "pending" metrics once
                 if !*this.reported_pending {
                     this.metrics.permits_pending.inc(*this.n as u64);
                     this.metrics.holders_pending.inc(1);
@@ -281,7 +281,7 @@ impl<'a> PinnedDrop for InstrumentedAsyncSemaphoreAcquire<'a> {
     fn drop(self: std::pin::Pin<&mut Self>) {
         let this = self.project();
 
-        // reset "pendig" metrics if we've reported any
+        // reset "pending" metrics if we've reported any
         if *this.reported_pending {
             this.metrics.permits_pending.dec(*this.n as u64);
             this.metrics.holders_pending.dec(1);

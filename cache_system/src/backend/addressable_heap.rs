@@ -28,7 +28,7 @@ where
     ///
     /// The order goes first, the key goes second.
     ///
-    /// Note: This is not really a heap, but it fullfills the interface that we need.
+    /// Note: This is not really a heap, but it fulfills the interface that we need.
     queue: VecDeque<(O, K)>,
 }
 

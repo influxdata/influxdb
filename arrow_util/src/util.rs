@@ -47,7 +47,7 @@ pub fn ensure_schema(
                 // The column available, use it
                 Arc::clone(batch.column(batch_field_index))
             } else {
-                // the column not avaialble, add it with all null values
+                // the column not available, add it with all null values
                 new_null_array(output_field.data_type(), batch.num_rows())
             }
         })
@@ -56,8 +56,8 @@ pub fn ensure_schema(
     RecordBatch::try_new(Arc::clone(output_schema), batch_output_columns)
 }
 
-/// Merge the record bacthes into one record batch
-/// and padd null values to columns that are not available in certain bacthes
+/// Merge the record batches into one record batch
+/// and pad null values to columns that are not available in certain batches
 pub fn merge_record_batches(
     output_schema: &SchemaRef,
     batches: Vec<Arc<RecordBatch>>,

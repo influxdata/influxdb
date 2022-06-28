@@ -127,7 +127,7 @@ where
                 .collect();
 
             RecordBatch::try_new(batch.schema(), new_columns)
-                .expect("error occured during normalization")
+                .expect("error occurred during normalization")
         })
         .collect()
 }

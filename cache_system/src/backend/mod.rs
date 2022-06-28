@@ -37,6 +37,6 @@ pub trait CacheBackend: Debug + Send + 'static {
     /// Check if backend is empty.
     fn is_empty(&self) -> bool;
 
-    /// Return backend as [`Any`] which can be used to downcast to a specifc implementation.
+    /// Return backend as [`Any`] which can be used to downcast to a specific implementation.
     fn as_any(&self) -> &dyn Any;
 }
