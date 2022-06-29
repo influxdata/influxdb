@@ -387,7 +387,7 @@ struct PartitionMapping {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use data_types::{ColumnType, ParquetFileId};
+    use data_types::{ColumnType, ParquetFileId, INITIAL_COMPACTION_LEVEL};
     use influxdb_iox_client::schema::generated_types::*;
     use iox_catalog::mem::MemCatalog;
     use std::collections::HashMap;
@@ -581,7 +581,7 @@ mod tests {
                 to_delete: 0,
                 file_size_bytes,
                 row_count,
-                compaction_level: 0,
+                compaction_level: INITIAL_COMPACTION_LEVEL as i32,
                 created_at: created_at.get(),
                 column_set: vec!["col1".into(), "col2".into()],
             }],
@@ -606,7 +606,7 @@ mod tests {
             to_delete: None,
             file_size_bytes,
             row_count,
-            compaction_level: 0,
+            compaction_level: INITIAL_COMPACTION_LEVEL,
             created_at,
             column_set: ColumnSet::new(["col1", "col2"]),
         }];

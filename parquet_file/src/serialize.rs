@@ -160,7 +160,10 @@ mod tests {
 
     use arrow::array::{ArrayRef, StringBuilder};
     use bytes::Bytes;
-    use data_types::{NamespaceId, PartitionId, SequenceNumber, SequencerId, TableId};
+    use data_types::{
+        NamespaceId, PartitionId, SequenceNumber, SequencerId, TableId,
+        FILE_NON_OVERLAPPED_COMAPCTION_LEVEL,
+    };
     use iox_time::Time;
     use parquet::{
         arrow::{ArrowReader, ParquetFileArrowReader},
@@ -185,7 +188,7 @@ mod tests {
             partition_key: "potato".into(),
             min_sequence_number: SequenceNumber::new(10),
             max_sequence_number: SequenceNumber::new(11),
-            compaction_level: 1,
+            compaction_level: FILE_NON_OVERLAPPED_COMAPCTION_LEVEL,
             sort_key: None,
         };
 

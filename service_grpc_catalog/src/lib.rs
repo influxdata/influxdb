@@ -116,7 +116,10 @@ fn to_partition(p: data_types::Partition) -> Partition {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use data_types::{ColumnSet, KafkaPartition, ParquetFileParams, SequenceNumber, Timestamp};
+    use data_types::{
+        ColumnSet, KafkaPartition, ParquetFileParams, SequenceNumber, Timestamp,
+        INITIAL_COMPACTION_LEVEL,
+    };
     use generated_types::influxdata::iox::catalog::v1::catalog_service_server::CatalogService;
     use iox_catalog::mem::MemCatalog;
     use uuid::Uuid;
@@ -173,7 +176,7 @@ mod tests {
                 max_time: Timestamp::new(5),
                 file_size_bytes: 2343,
                 row_count: 29,
-                compaction_level: 0,
+                compaction_level: INITIAL_COMPACTION_LEVEL,
                 created_at: Timestamp::new(2343),
                 column_set: ColumnSet::new(["col1", "col2"]),
             };

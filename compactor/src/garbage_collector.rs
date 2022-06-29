@@ -93,9 +93,11 @@ impl GarbageCollector {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use data_types::{ColumnSet, KafkaPartition, ParquetFile, ParquetFileParams, SequenceNumber};
+    use data_types::{
+        ColumnSet, KafkaPartition, ParquetFile, ParquetFileParams, SequenceNumber,
+        INITIAL_COMPACTION_LEVEL,
+    };
     use futures::{StreamExt, TryStreamExt};
-    use iox_catalog::interface::INITIAL_COMPACTION_LEVEL;
     use iox_tests::util::TestCatalog;
     use std::time::Duration;
     use uuid::Uuid;

@@ -274,6 +274,16 @@ pub struct IoxMetadata {
     pub max_sequence_number: SequenceNumber,
 
     /// the compaction level of the file
+    ///  . 0 (INITIAL_COMPACTION_LEVEL): represents a level-0 file that is persisted by an Ingester.
+    ///       Partitions with level-0 files are usually hot/recent partitions.
+    ///  . 1 (FILE_OVERLAPPED_COMPACTION_LEVEL): represents a level-1 file that is persisted by a
+    ///       Compactor and potentially overlaps with other level-1 files. Partitions with level-1 files
+    ///       are partitions with a lot of or/and large overlapped files that have to go through many
+    ///       compaction cycles before they are fully compacted to non-overlapped files.
+    ///  . 2 (FILE_NON_OVERLAPPED_COMAPCTION_LEVEL): represents a level-2 file that is persisted by a
+    ///       Compactor and does not overlap with other files except level 0 ones. Eventually,
+    ///       cold partitions (partitions that no longer needs to get compacted) will only include
+    ///       one or many level-2 files
     pub compaction_level: i16,
 
     /// Sort key of this chunk
@@ -940,6 +950,7 @@ mod tests {
         array::{ArrayRef, StringBuilder, TimestampNanosecondBuilder},
         record_batch::RecordBatch,
     };
+    use data_types::{FILE_NON_OVERLAPPED_COMAPCTION_LEVEL, INITIAL_COMPACTION_LEVEL};
     use schema::builder::SchemaBuilder;
 
     use super::*;
@@ -962,7 +973,7 @@ mod tests {
             partition_key: PartitionKey::from("part"),
             min_sequence_number: SequenceNumber::new(5),
             max_sequence_number: SequenceNumber::new(6),
-            compaction_level: 0,
+            compaction_level: INITIAL_COMPACTION_LEVEL,
             sort_key: Some(sort_key),
         };
 
@@ -987,7 +998,7 @@ mod tests {
             partition_key: "potato".into(),
             min_sequence_number: SequenceNumber::new(10),
             max_sequence_number: SequenceNumber::new(11),
-            compaction_level: 1,
+            compaction_level: FILE_NON_OVERLAPPED_COMAPCTION_LEVEL,
             sort_key: None,
         };
 

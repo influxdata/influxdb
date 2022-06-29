@@ -1,9 +1,8 @@
 //! This module is responsible for compacting Ingester's data
 
 use crate::data::{PersistingBatch, QueryableBatch};
-use data_types::{NamespaceId, PartitionInfo};
+use data_types::{NamespaceId, PartitionInfo, INITIAL_COMPACTION_LEVEL};
 use datafusion::{error::DataFusionError, physical_plan::SendableRecordBatchStream};
-use iox_catalog::interface::INITIAL_COMPACTION_LEVEL;
 use iox_query::{
     exec::{Executor, ExecutorType},
     frontend::reorg::ReorgPlanner,

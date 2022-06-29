@@ -16,6 +16,7 @@ use data_types::{
     ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionInfo,
     PartitionKey, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Sequencer,
     SequencerId, Table, TableId, TablePartition, Timestamp, Tombstone, TombstoneId,
+    FILE_NON_OVERLAPPED_COMAPCTION_LEVEL,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::warn;
@@ -1063,7 +1064,7 @@ impl ParquetFileRepo for MemTxn {
             .collect())
     }
 
-    async fn level_1(
+    async fn level_2(
         &mut self,
         table_partition: TablePartition,
         min_time: Timestamp,
@@ -1078,7 +1079,7 @@ impl ParquetFileRepo for MemTxn {
                 f.sequencer_id == table_partition.sequencer_id
                     && f.table_id == table_partition.table_id
                     && f.partition_id == table_partition.partition_id
-                    && f.compaction_level == 1
+                    && f.compaction_level == FILE_NON_OVERLAPPED_COMAPCTION_LEVEL
                     && f.to_delete.is_none()
                     && ((f.min_time <= min_time && f.max_time >= min_time)
                         || (f.min_time > min_time && f.min_time <= max_time))
@@ -1101,7 +1102,7 @@ impl ParquetFileRepo for MemTxn {
             .collect())
     }
 
-    async fn update_to_level_1(
+    async fn update_to_level_2(
         &mut self,
         parquet_file_ids: &[ParquetFileId],
     ) -> Result<Vec<ParquetFileId>> {
@@ -1114,7 +1115,7 @@ impl ParquetFileRepo for MemTxn {
             .iter_mut()
             .filter(|p| parquet_file_ids.contains(&p.id))
         {
-            f.compaction_level = 1;
+            f.compaction_level = FILE_NON_OVERLAPPED_COMAPCTION_LEVEL;
             updated.push(f.id);
         }
 

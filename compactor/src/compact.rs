@@ -11,11 +11,12 @@ use crate::{
 use backoff::BackoffConfig;
 use data_types::{
     Namespace, NamespaceId, ParquetFile, ParquetFileId, Partition, PartitionId, SequencerId, Table,
-    TableId, Timestamp, Tombstone, TombstoneId,
+    TableId, Timestamp, Tombstone, TombstoneId, FILE_NON_OVERLAPPED_COMAPCTION_LEVEL,
+    INITIAL_COMPACTION_LEVEL,
 };
 use datafusion::error::DataFusionError;
 use futures::stream::{FuturesUnordered, TryStreamExt};
-use iox_catalog::interface::{get_schema_by_id, Catalog, Transaction, INITIAL_COMPACTION_LEVEL};
+use iox_catalog::interface::{get_schema_by_id, Catalog, Transaction};
 use iox_query::{
     exec::{Executor, ExecutorType},
     frontend::reorg::ReorgPlanner,
@@ -280,12 +281,12 @@ impl Compactor {
             .context(Level0Snafu)
     }
 
-    async fn update_to_level_1(&self, parquet_file_ids: &[ParquetFileId]) -> Result<()> {
+    async fn update_to_level_2(&self, parquet_file_ids: &[ParquetFileId]) -> Result<()> {
         let mut repos = self.catalog.repositories().await;
 
         let updated = repos
             .parquet_files()
-            .update_to_level_1(parquet_file_ids)
+            .update_to_level_2(parquet_file_ids)
             .await
             .context(UpdateSnafu)?;
 
@@ -627,7 +628,7 @@ impl Compactor {
         self.remove_fully_processed_tombstones(tombstones).await?;
 
         // Upgrade old level-0 to level 1
-        self.update_to_level_1(&compact_and_upgrade.files_to_upgrade)
+        self.update_to_level_2(&compact_and_upgrade.files_to_upgrade)
             .await?;
 
         let attributes = Attributes::from([("sequencer_id", format!("{}", sequencer_id).into())]);
@@ -879,7 +880,8 @@ impl Compactor {
                 partition_key: partition.partition_key.clone(),
                 min_sequence_number,
                 max_sequence_number,
-                compaction_level: 1, // compacted result file always have level 1
+                // TODO before merging: this can either level-1 or level-2
+                compaction_level: FILE_NON_OVERLAPPED_COMAPCTION_LEVEL,
                 sort_key: Some(sort_key.clone()),
             };
 
@@ -1276,7 +1278,6 @@ mod tests {
         ColumnSet, ColumnType, KafkaPartition, NamespaceId, ParquetFileParams, SequenceNumber,
     };
     use futures::{stream::FuturesOrdered, StreamExt, TryStreamExt};
-    use iox_catalog::interface::INITIAL_COMPACTION_LEVEL;
     use iox_tests::util::{TestCatalog, TestTable};
     use iox_time::SystemProvider;
     use parquet_file::ParquetFilePath;
@@ -1415,8 +1416,14 @@ mod tests {
         let mut files = catalog.list_by_table_not_to_delete(table.table.id).await;
         assert_eq!(files.len(), 2);
         // 2 newly created level-1 files as the result of compaction
-        assert_eq!((files[0].id.get(), files[0].compaction_level), (2, 1));
-        assert_eq!((files[1].id.get(), files[1].compaction_level), (3, 1));
+        assert_eq!(
+            (files[0].id.get(), files[0].compaction_level),
+            (2, FILE_NON_OVERLAPPED_COMAPCTION_LEVEL)
+        );
+        assert_eq!(
+            (files[1].id.get(), files[1].compaction_level),
+            (3, FILE_NON_OVERLAPPED_COMAPCTION_LEVEL)
+        );
 
         // processed tombstones created and deleted inside compact_partition function
         let count = catalog
@@ -1645,10 +1652,16 @@ mod tests {
         // after compacting pf2, pf3, pf4 all very small into one file
         let mut files = catalog.list_by_table_not_to_delete(table.table.id).await;
         assert_eq!(files.len(), 2);
-        // pf1 upgraded to level 1
-        assert_eq!((files[0].id.get(), files[0].compaction_level), (1, 1));
-        // 1 newly created level-1 files as the result of compaction
-        assert_eq!((files[1].id.get(), files[1].compaction_level), (5, 1));
+        // pf1 upgraded to level FILE_NON_OVERLAPPED_COMAPCTION_LEVEL
+        assert_eq!(
+            (files[0].id.get(), files[0].compaction_level),
+            (1, FILE_NON_OVERLAPPED_COMAPCTION_LEVEL)
+        );
+        // 1 newly created level FILE_NON_OVERLAPPED_COMAPCTION_LEVEL files as the result of compaction
+        assert_eq!(
+            (files[1].id.get(), files[1].compaction_level),
+            (5, FILE_NON_OVERLAPPED_COMAPCTION_LEVEL)
+        );
 
         // should have ts1 and ts3 that not involved in the commpaction process
         // ts2 was removed because it was fully processed
@@ -3217,7 +3230,8 @@ mod tests {
             partition_key: "somehour".into(),
             min_sequence_number: SequenceNumber::new(5),
             max_sequence_number: SequenceNumber::new(6),
-            compaction_level: 1, // file level of compacted file is always 1
+            // TODO: cpnsider to add level-1 tests before merging
+            compaction_level: FILE_NON_OVERLAPPED_COMAPCTION_LEVEL,
             sort_key: None,
         };
 
@@ -3446,7 +3460,7 @@ mod tests {
         let pf4 = txn.parquet_files().create(p4).await.unwrap();
         let pf5 = txn.parquet_files().create(p5).await.unwrap();
         txn.parquet_files()
-            .update_to_level_1(&[pf5.id])
+            .update_to_level_2(&[pf5.id])
             .await
             .unwrap();
         txn.commit().await.unwrap();

@@ -7,11 +7,11 @@ use arrow::{
 use data_types::{
     Column, ColumnSet, ColumnType, KafkaPartition, KafkaTopic, Namespace, NamespaceSchema,
     ParquetFile, ParquetFileParams, Partition, PartitionId, QueryPool, SequenceNumber, Sequencer,
-    SequencerId, Table, TableId, Timestamp, Tombstone, TombstoneId,
+    SequencerId, Table, TableId, Timestamp, Tombstone, TombstoneId, INITIAL_COMPACTION_LEVEL,
 };
 use datafusion::physical_plan::metrics::Count;
 use iox_catalog::{
-    interface::{get_schema_by_id, Catalog, PartitionRepo, INITIAL_COMPACTION_LEVEL},
+    interface::{get_schema_by_id, Catalog, PartitionRepo},
     mem::MemCatalog,
 };
 use iox_query::{exec::Executor, provider::RecordBatchDeduplicator, util::arrow_sort_key_exprs};

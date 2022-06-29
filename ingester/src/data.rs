@@ -1639,13 +1639,12 @@ mod tests {
     use assert_matches::assert_matches;
     use data_types::{
         ColumnSet, NamespaceSchema, NonEmptyString, ParquetFileParams, Sequence, TimestampRange,
+        INITIAL_COMPACTION_LEVEL,
     };
     use datafusion::physical_plan::RecordBatchStream;
     use dml::{DmlDelete, DmlMeta, DmlWrite};
     use futures::TryStreamExt;
-    use iox_catalog::{
-        interface::INITIAL_COMPACTION_LEVEL, mem::MemCatalog, validate_or_insert_schema,
-    };
+    use iox_catalog::{mem::MemCatalog, validate_or_insert_schema};
     use iox_time::Time;
     use metric::{MetricObserver, Observation};
     use mutable_batch_lp::{lines_to_batches, test_helpers::lp_to_mutable_batch};

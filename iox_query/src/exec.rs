@@ -194,7 +194,9 @@ pub fn make_non_null_checker(table_name: &str, input: LogicalPlan) -> LogicalPla
 }
 
 /// Create a StreamSplit node which takes an input stream of record
-/// batches and produces multiple output streams based on a predicate
+/// batches and produces multiple output streams based on  a list of `N` predicates.
+/// The output will have `N+1` streams, and each row is sent to the stream
+/// corresponding to the first predicate that evaluates to true, or the last stream if none do.
 ///
 /// For example, if the input looks like:
 /// ```text

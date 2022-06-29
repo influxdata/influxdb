@@ -11,12 +11,9 @@ use arrow_util::assert_batches_eq;
 use bitflags::bitflags;
 use data_types::{
     KafkaPartition, NamespaceId, PartitionId, PartitionKey, SequenceNumber, SequencerId, TableId,
-    Timestamp, Tombstone, TombstoneId,
+    Timestamp, Tombstone, TombstoneId, INITIAL_COMPACTION_LEVEL,
 };
-use iox_catalog::{
-    interface::{Catalog, INITIAL_COMPACTION_LEVEL},
-    mem::MemCatalog,
-};
+use iox_catalog::{interface::Catalog, mem::MemCatalog};
 use iox_query::test::{raw_data, TestChunk};
 use iox_time::{SystemProvider, Time, TimeProvider};
 use object_store::memory::InMemory;
