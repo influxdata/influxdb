@@ -12,22 +12,10 @@ ignore = [
     # upstream issue: https://github.com/chronotope/chrono/issues/553
     "RUSTSEC-2020-0071",
 
-    # title: Potential segfault in `localtime_r` invocations
-    # why needed: bug in `chrono`
-    # upstream issue: https://github.com/chronotope/chrono/issues/499
-    "RUSTSEC-2020-0159",
-
     # title: Generated code can read and write out of bounds in safe code
     # why needed: part of `arrow`
     # upstream issue: https://github.com/google/flatbuffers/issues/6627
     "RUSTSEC-2021-0122",
-
-    # title: serde_cbor is unmaintained
-    # why needed: used by `criterion`
-    # upstream issue: https://github.com/bheisler/criterion.rs/issues/534
-    "RUSTSEC-2021-0127",
-
-    "query",
 ]
 git-fetch-with-cli = true
 
