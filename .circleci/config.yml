@@ -478,8 +478,8 @@ jobs:
             COMMIT_SHA="$(git rev-parse --short HEAD)"
             BRANCH="$(echo "$CIRCLE_BRANCH" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/_/g')"
 
-            docker load -i /tmp/iox.tar.gz
-            docker load -i /tmp/iox_data_generator.tar.gz
+            docker load -i /tmp/images/iox.tar.gz
+            docker load -i /tmp/images/iox_data_generator.tar.gz
 
             docker tag quay.io/influxdb/iox:"$COMMIT_SHA" quay.io/influxdb/iox:"$BRANCH"
             docker tag quay.io/influxdb/iox_data_generator:"$COMMIT_SHA" quay.io/influxdb/iox_data_generator:"$BRANCH"
