@@ -5,12 +5,11 @@ use datafusion::{
     logical_expr::{AggregateUDF, ScalarUDF},
     logical_plan::FunctionRegistry,
 };
+use once_cell::sync::Lazy;
 
 use crate::{regex, window};
 
-lazy_static::lazy_static! {
-    static ref REGISTRY: IOxFunctionRegistry =  IOxFunctionRegistry::new();
-}
+static REGISTRY: Lazy<IOxFunctionRegistry> = Lazy::new(IOxFunctionRegistry::new);
 
 /// Lookup for all DataFusion User Defined Functions used by IOx
 #[derive(Debug)]
@@ -52,5 +51,5 @@ impl FunctionRegistry for IOxFunctionRegistry {
 
 /// Return a reference to the global function registry
 pub(crate) fn instance() -> &'static IOxFunctionRegistry {
-    &REGISTRY
+    &*REGISTRY
 }

@@ -6,6 +6,7 @@ use data_types::DatabaseName;
 use hashbrown::HashMap;
 use iox_catalog::mem::MemCatalog;
 use mutable_batch::MutableBatch;
+use once_cell::sync::Lazy;
 use router::{
     dml_handlers::{DmlHandler, SchemaValidator},
     namespace_cache::{MemoryNamespaceCache, ShardedCache},
@@ -14,9 +15,7 @@ use schema::selection::Selection;
 use std::{iter, sync::Arc};
 use tokio::runtime::Runtime;
 
-lazy_static::lazy_static! {
-    static ref NAMESPACE: DatabaseName<'static> = "bananas".try_into().unwrap();
-}
+static NAMESPACE: Lazy<DatabaseName<'static>> = Lazy::new(|| "bananas".try_into().unwrap());
 
 fn runtime() -> Runtime {
     tokio::runtime::Builder::new_current_thread()

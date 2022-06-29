@@ -15,6 +15,7 @@ use datafusion::{
     prelude::*,
     scalar::ScalarValue,
 };
+use once_cell::sync::Lazy;
 
 use crate::group_by::WindowDuration;
 
@@ -24,29 +25,27 @@ pub use datafusion::error::{DataFusionError, Result as DataFusionResult};
 /// The name of the window_bounds UDF given to DataFusion.
 pub(crate) const WINDOW_BOUNDS_UDF_NAME: &str = "WindowBounds";
 
-lazy_static::lazy_static! {
-    /// Implementation of window_bounds
-    pub(crate) static ref WINDOW_BOUNDS_UDF: Arc<ScalarUDF> = Arc::new(
-        create_udf(
-            WINDOW_BOUNDS_UDF_NAME,
-            // takes 7 arguments (see [`window_bounds_udf`] for details)
-            vec![
-                TIME_DATA_TYPE(),
-                // encoded every
-                DataType::Utf8,
-                DataType::Int64,
-                DataType::Boolean,
-                // encoded offset
-                DataType::Utf8,
-                DataType::Int64,
-                DataType::Boolean,
-            ],
-            Arc::new(TIME_DATA_TYPE()),
-            Volatility::Stable,
-            Arc::new(window_bounds_udf),
-        )
-    );
-}
+/// Implementation of window_bounds
+pub(crate) static WINDOW_BOUNDS_UDF: Lazy<Arc<ScalarUDF>> = Lazy::new(|| {
+    Arc::new(create_udf(
+        WINDOW_BOUNDS_UDF_NAME,
+        // takes 7 arguments (see [`window_bounds_udf`] for details)
+        vec![
+            TIME_DATA_TYPE(),
+            // encoded every
+            DataType::Utf8,
+            DataType::Int64,
+            DataType::Boolean,
+            // encoded offset
+            DataType::Utf8,
+            DataType::Int64,
+            DataType::Boolean,
+        ],
+        Arc::new(TIME_DATA_TYPE()),
+        Volatility::Stable,
+        Arc::new(window_bounds_udf),
+    ))
+});
 
 /// Implement the window bounds function as a DataFusion UDF where
 /// each of the two `WindowDuration` argument has been encoded as

@@ -11,6 +11,7 @@ use datafusion::{
     physical_plan::ColumnarValue,
     scalar::ScalarValue,
 };
+use once_cell::sync::Lazy;
 
 /// The name of the regex_match UDF given to DataFusion.
 pub(crate) const REGEX_MATCH_UDF_NAME: &str = "RegexMatch";
@@ -18,33 +19,29 @@ pub(crate) const REGEX_MATCH_UDF_NAME: &str = "RegexMatch";
 /// The name of the not_regex_match UDF given to DataFusion.
 pub(crate) const REGEX_NOT_MATCH_UDF_NAME: &str = "RegexNotMatch";
 
-lazy_static::lazy_static! {
-    /// Implementation of regexp_match
-    pub(crate) static ref REGEX_MATCH_UDF: Arc<ScalarUDF> = Arc::new(
-        create_udf(
-            REGEX_MATCH_UDF_NAME,
-            // takes two arguments: regex, pattern
-            vec![DataType::Utf8, DataType::Utf8],
-            Arc::new(DataType::Boolean),
-            Volatility::Stable,
-            regex_match_expr_impl(true),
-        )
-    );
-}
+/// Implementation of regexp_match
+pub(crate) static REGEX_MATCH_UDF: Lazy<Arc<ScalarUDF>> = Lazy::new(|| {
+    Arc::new(create_udf(
+        REGEX_MATCH_UDF_NAME,
+        // takes two arguments: regex, pattern
+        vec![DataType::Utf8, DataType::Utf8],
+        Arc::new(DataType::Boolean),
+        Volatility::Stable,
+        regex_match_expr_impl(true),
+    ))
+});
 
-lazy_static::lazy_static! {
-    /// Implementation of regexp_not_match
-    pub(crate) static ref REGEX_NOT_MATCH_UDF: Arc<ScalarUDF> = Arc::new(
-        create_udf(
-            REGEX_NOT_MATCH_UDF_NAME,
-            // takes two arguments: regex, pattern
-            vec![DataType::Utf8, DataType::Utf8],
-            Arc::new(DataType::Boolean),
-            Volatility::Stable,
-            regex_match_expr_impl(false),
-        )
-    );
-}
+/// Implementation of regexp_not_match
+pub(crate) static REGEX_NOT_MATCH_UDF: Lazy<Arc<ScalarUDF>> = Lazy::new(|| {
+    Arc::new(create_udf(
+        REGEX_NOT_MATCH_UDF_NAME,
+        // takes two arguments: regex, pattern
+        vec![DataType::Utf8, DataType::Utf8],
+        Arc::new(DataType::Boolean),
+        Volatility::Stable,
+        regex_match_expr_impl(false),
+    ))
+});
 
 /// Given a column containing string values and a single regex pattern,
 /// `regex_match_expr` determines which values satisfy the pattern and which do
