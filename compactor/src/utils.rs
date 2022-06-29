@@ -45,6 +45,33 @@ pub struct GroupWithMinTimeAndSize {
 
     /// total size of all file
     pub(crate) total_file_size_bytes: i64,
+
+    /// true if this group was split from a group of many overlapped files
+    pub(crate) overlapped_with_other_groups: bool,
+}
+
+impl GroupWithMinTimeAndSize {
+    /// Make GroupWithMinTimeAndSize for a given set of parquet files
+    pub fn new(files: Vec<ParquetFile>, overlaped: bool) -> Self {
+        let mut group = Self {
+            parquet_files: files,
+            min_time: Timestamp::new(i64::MAX),
+            total_file_size_bytes: 0,
+            overlapped_with_other_groups: overlaped,
+        };
+
+        assert!(
+            !group.parquet_files.is_empty(),
+            "invalid empty group for computing min time and total size"
+        );
+
+        for file in &group.parquet_files {
+            group.min_time = group.min_time.min(file.min_time);
+            group.total_file_size_bytes += file.file_size_bytes;
+        }
+
+        group
+    }
 }
 
 /// Wrapper of a parquet file and its tombstones
