@@ -11,7 +11,7 @@ ingester = { path = "../ingester" }
 iox_catalog = { path = "../iox_catalog" }
 ioxd_common = { path = "../ioxd_common" }
 metric = { path = "../metric" }
-object_store = "0.0.1"
+object_store = "0.3.0"
 iox_query = { path = "../iox_query" }
 trace = { path = "../trace" }
 write_buffer = { path = "../write_buffer" }

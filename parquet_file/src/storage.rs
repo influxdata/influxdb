@@ -269,8 +269,9 @@ async fn download_and_scan_parquet(
     let read_stream = object_store.get(&path).await?;
 
     let data = match read_stream {
-        GetResult::File(mut f, _) => {
+        GetResult::File(f, _) => {
             trace!(?path, "Using file directly");
+            let mut f = tokio::fs::File::from_std(f);
             let l = f.metadata().await?.len();
             let mut buf = Vec::with_capacity(l as usize);
             f.read_to_end(&mut buf).await?;

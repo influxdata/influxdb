@@ -22,7 +22,7 @@ ioxd_router = { path = "../ioxd_router"}
 ioxd_querier = { path = "../ioxd_querier"}
 ioxd_test = { path = "../ioxd_test"}
 metric = { path = "../metric" }
-object_store = "0.0.1"
+object_store = "0.3.0"
 object_store_metrics = { path = "../object_store_metrics" }
 observability_deps = { path = "../observability_deps" }
 panic_logging = { path = "../panic_logging" }

@@ -17,7 +17,7 @@ generated_types = { path = "../generated_types" }
 influxdb_iox_client = { path = "../influxdb_iox_client" }
 iox_catalog = { path = "../iox_catalog" }
 metric = { path = "../metric" }
-object_store = "0.0.1"
+object_store = "0.3.0"
 observability_deps = { path = "../observability_deps" }
 parking_lot = "0.12"
 parquet_file = { path = "../parquet_file" }

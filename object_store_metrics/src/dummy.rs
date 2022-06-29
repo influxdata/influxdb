@@ -4,6 +4,7 @@
 use async_trait::async_trait;
 use bytes::Bytes;
 use snafu::Snafu;
+use std::ops::Range;
 
 use object_store::{path::Path, GetResult, ListResult, ObjectMeta, ObjectStore, Result};
 
@@ -59,6 +60,10 @@ impl ObjectStore for DummyObjectStore {
         Ok(NotSupportedSnafu { name: self.name }.fail()?)
     }
 
+    async fn get_range(&self, _location: &Path, _range: Range<usize>) -> Result<Bytes> {
+        Ok(NotSupportedSnafu { name: self.name }.fail()?)
+    }
+
     async fn head(&self, _location: &Path) -> Result<ObjectMeta> {
         Ok(NotSupportedSnafu { name: self.name }.fail()?)
     }
@@ -67,14 +72,22 @@ impl ObjectStore for DummyObjectStore {
         Ok(NotSupportedSnafu { name: self.name }.fail()?)
     }
 
-    async fn list<'a>(
-        &'a self,
-        _prefix: Option<&'a Path>,
-    ) -> Result<futures::stream::BoxStream<'a, Result<ObjectMeta>>> {
+    async fn list(
+        &self,
+        _prefix: Option<&Path>,
+    ) -> Result<futures::stream::BoxStream<'_, Result<ObjectMeta>>> {
         Ok(NotSupportedSnafu { name: self.name }.fail()?)
     }
 
-    async fn list_with_delimiter(&self, _prefix: &Path) -> Result<ListResult> {
+    async fn list_with_delimiter(&self, _prefix: Option<&Path>) -> Result<ListResult> {
+        Ok(NotSupportedSnafu { name: self.name }.fail()?)
+    }
+
+    async fn copy(&self, _from: &Path, _to: &Path) -> Result<()> {
+        Ok(NotSupportedSnafu { name: self.name }.fail()?)
+    }
+
+    async fn copy_if_not_exists(&self, _from: &Path, _to: &Path) -> Result<()> {
         Ok(NotSupportedSnafu { name: self.name }.fail()?)
     }
 }

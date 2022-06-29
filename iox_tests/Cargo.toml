@@ -14,7 +14,7 @@ iox_catalog = { path = "../iox_catalog" }
 iox_time = { path = "../iox_time" }
 metric = { path = "../metric" }
 mutable_batch_lp = { path = "../mutable_batch_lp" }
-object_store = "0.0.1"
+object_store = "0.3.0"
 observability_deps = { path = "../observability_deps" }
 parquet_file = { path = "../parquet_file" }
 iox_query = { path = "../iox_query" }

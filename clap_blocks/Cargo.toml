@@ -10,7 +10,7 @@ humantime = "2.1.0"
 iox_catalog = { path = "../iox_catalog" }
 iox_time = { path = "../iox_time" }
 metric = { path = "../metric" }
-object_store = "0.0.1"
+object_store = "0.3.0"
 observability_deps = { path = "../observability_deps" }
 snafu = "0.7"
 tempfile = "3.1.0"

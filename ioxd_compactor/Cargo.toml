@@ -14,7 +14,7 @@ iox_catalog = { path = "../iox_catalog" }
 ioxd_common = { path = "../ioxd_common" }
 metric = { path = "../metric" }
 iox_query = { path = "../iox_query" }
-object_store = "0.0.1"
+object_store = "0.3.0"
 iox_time = { path = "../iox_time" }
 trace = { path = "../trace" }
 

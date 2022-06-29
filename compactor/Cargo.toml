@@ -14,7 +14,7 @@ datafusion = { path = "../datafusion" }
 futures = "0.3"
 iox_catalog = { path = "../iox_catalog" }
 metric = { path = "../metric" }
-object_store = "0.0.1"
+object_store = "0.3.0"
 observability_deps = { path = "../observability_deps" }
 parquet_file = { path = "../parquet_file" }
 predicate = { path = "../predicate" }
