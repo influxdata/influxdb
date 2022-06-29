@@ -489,6 +489,15 @@ jobs:
             docker push quay.io/influxdb/iox:"$BRANCH"
             docker push quay.io/influxdb/iox_data_generator:"$BRANCH"
 
+            # for next step
+            echo "export COMMIT_SHA=${COMMIT_SHA}" >> $BASH_ENV
+      # currently we still need to PUSH our image tag. This will be replaced by a pull-based approach soon.
+      - run:
+          name: Push to c2updater
+          command: |
+            echo "$QUAY_PASS" | docker login quay.io --username $QUAY_USER --password-stdin
+            ./.circleci/get-deploy-tags.sh "${COMMIT_SHA}"
+
   # Prepare the CI image used for other tasks.
   #
   # A nightly job (scheduled below in the `workflows` section) to build the CI
