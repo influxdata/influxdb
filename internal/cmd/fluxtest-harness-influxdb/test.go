@@ -262,9 +262,16 @@ func main() {
 	c.Use = "fluxtest-harness-influxdb"
 	c.Flags().BoolVarP(&flags.wait, "wait", "w", false, "Wait for a kill signal before shutting down the InfluxDB test instances.")
 	if err := tryExec(c); err != nil {
-		fmt.Println(err)
+		if _, ok := err.(silentError); !ok {
+			fmt.Fprintln(c.OutOrStderr(), err)
+		}
 		os.Exit(1)
 	}
+}
+
+// silentError indicates the error should not be printed to stderr.
+type silentError interface {
+	Silent()
 }
 
 func createInfluxDBConfig(ctx context.Context, name, host, org, token string) error {
