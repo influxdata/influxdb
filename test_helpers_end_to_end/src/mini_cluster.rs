@@ -6,6 +6,7 @@ use http::Response;
 use hyper::Body;
 use influxdb_iox_client::write::generated_types::{TableBatch, WriteResponse};
 use observability_deps::tracing::{debug, info};
+use once_cell::sync::Lazy;
 use std::{
     sync::{Arc, Weak},
     time::Instant,
@@ -360,6 +361,4 @@ fn server_from_weak(server: Option<&Weak<TestServer>>) -> Option<Option<Arc<Test
     }
 }
 
-lazy_static::lazy_static! {
-    static ref GLOBAL_SHARED_SERVERS: Mutex<Option<SharedServers>> = Mutex::new(None);
-}
+static GLOBAL_SHARED_SERVERS: Lazy<Mutex<Option<SharedServers>>> = Lazy::new(|| Mutex::new(None));

@@ -443,16 +443,15 @@ mod tests {
     use iox_time::{SystemProvider, Time};
     use metric::Metric;
     use mutable_batch_lp::lines_to_batches;
+    use once_cell::sync::Lazy;
     use std::sync::Arc;
     use test_helpers::timeout::FutureTimeout;
     use tokio::sync::{mpsc, oneshot};
     use tokio_stream::wrappers::ReceiverStream;
     use write_buffer::core::WriteBufferError;
 
-    lazy_static::lazy_static! {
-        static ref TEST_TIME: Time = SystemProvider::default().now();
-        static ref TEST_KAFKA_PARTITION: KafkaPartition = KafkaPartition::new(42);
-    }
+    static TEST_TIME: Lazy<Time> = Lazy::new(|| SystemProvider::default().now());
+    static TEST_KAFKA_PARTITION: Lazy<KafkaPartition> = Lazy::new(|| KafkaPartition::new(42));
     static TEST_KAFKA_TOPIC: &str = "kafka_topic_name";
 
     // Return a DmlWrite with the given namespace and a single table.

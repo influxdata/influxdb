@@ -239,6 +239,7 @@ mod tests {
     use iox_time::Time;
     use metric::{Metric, MetricObserver, Observation};
     use mutable_batch_lp::lines_to_batches;
+    use once_cell::sync::Lazy;
     use trace::{ctx::SpanContext, span::SpanStatus, RingBufferTraceCollector, TraceCollector};
 
     use crate::stream_handler::{
@@ -253,16 +254,16 @@ mod tests {
 
     static TEST_KAFKA_TOPIC: &str = "kafka_topic_name";
 
-    lazy_static::lazy_static! {
-        static ref TEST_TIME: Time = SystemProvider::default().now();
+    static TEST_TIME: Lazy<Time> = Lazy::new(|| SystemProvider::default().now());
 
-        /// The attributes assigned to the metrics emitted by the
-        /// instrumentation when using the above sequencer / kafka topic values.
-        static ref DEFAULT_ATTRS: Attributes = Attributes::from([
+    /// The attributes assigned to the metrics emitted by the
+    /// instrumentation when using the above sequencer / kafka topic values.
+    static DEFAULT_ATTRS: Lazy<Attributes> = Lazy::new(|| {
+        Attributes::from([
             ("kafka_partition", SEQUENCER_ID.to_string().into()),
             ("kafka_topic", TEST_KAFKA_TOPIC.into()),
-        ]);
-    }
+        ])
+    });
 
     /// Return a DmlWrite with the given metadata and a single table.
     fn make_write(meta: DmlMeta) -> DmlWrite {

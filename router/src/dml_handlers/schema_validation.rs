@@ -258,11 +258,10 @@ mod tests {
     use assert_matches::assert_matches;
     use data_types::{ColumnType, KafkaTopicId, QueryPoolId, TimestampRange};
     use iox_catalog::mem::MemCatalog;
+    use once_cell::sync::Lazy;
     use std::sync::Arc;
 
-    lazy_static::lazy_static! {
-        static ref NAMESPACE: DatabaseName<'static> = "bananas".try_into().unwrap();
-    }
+    static NAMESPACE: Lazy<DatabaseName<'static>> = Lazy::new(|| "bananas".try_into().unwrap());
 
     // Parse `lp` into a table-keyed MutableBatch map.
     fn lp_to_writes(lp: &str) -> HashMap<String, MutableBatch> {
