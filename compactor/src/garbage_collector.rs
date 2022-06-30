@@ -94,7 +94,7 @@ impl GarbageCollector {
 mod tests {
     use super::*;
     use data_types::{
-        ColumnSet, KafkaPartition, ParquetFile, ParquetFileParams, SequenceNumber,
+        ColumnId, ColumnSet, KafkaPartition, ParquetFile, ParquetFileParams, SequenceNumber,
         INITIAL_COMPACTION_LEVEL,
     };
     use futures::{StreamExt, TryStreamExt};
@@ -187,7 +187,7 @@ mod tests {
             row_count: 0,
             created_at: Timestamp::new(1),
             compaction_level: INITIAL_COMPACTION_LEVEL,
-            column_set: ColumnSet::new(["col1", "col2"]),
+            column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
         };
         let parquet_file = txn
             .parquet_files()
@@ -269,7 +269,7 @@ mod tests {
             row_count: 0,
             created_at: Timestamp::new(1),
             compaction_level: INITIAL_COMPACTION_LEVEL,
-            column_set: ColumnSet::new(["col1", "col2"]),
+            column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
         };
         let parquet_file = txn
             .parquet_files()
@@ -355,7 +355,7 @@ mod tests {
             row_count: 0,
             created_at: Timestamp::new(1),
             compaction_level: INITIAL_COMPACTION_LEVEL,
-            column_set: ColumnSet::new(["col1", "col2"]),
+            column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
         };
         let parquet_file = txn
             .parquet_files()

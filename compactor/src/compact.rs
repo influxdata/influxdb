@@ -11,7 +11,7 @@ use crate::{
 use backoff::BackoffConfig;
 use data_types::{
     Namespace, NamespaceId, ParquetFile, ParquetFileId, Partition, PartitionId, SequencerId, Table,
-    TableId, Timestamp, Tombstone, TombstoneId, FILE_NON_OVERLAPPED_COMAPCTION_LEVEL,
+    TableId, TableSchema, Timestamp, Tombstone, TombstoneId, FILE_NON_OVERLAPPED_COMAPCTION_LEVEL,
     INITIAL_COMPACTION_LEVEL,
 };
 use datafusion::error::DataFusionError;
@@ -27,7 +27,6 @@ use iox_time::TimeProvider;
 use metric::{Attributes, DurationHistogram, Metric, U64Counter, U64Gauge};
 use observability_deps::tracing::{debug, info, trace, warn};
 use parquet_file::{metadata::IoxMetadata, storage::ParquetStorage};
-use schema::Schema;
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{
     cmp::{max, min, Ordering},
@@ -142,6 +141,7 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Data of parquet files to compact and upgrade
+#[derive(Debug)]
 pub struct CompactAndUpgrade {
     // sequencer ID of all files in this struct
     sequencer_id: Option<SequencerId>,
@@ -393,16 +393,14 @@ impl Compactor {
                 .await
                 .context(QueryingTableSnafu)?
                 .context(TableNotFoundSnafu { table_id: id })?;
-            let schema: Schema = namespaces
+            let schema = namespaces
                 .get(&table.namespace_id)
                 .expect("just queried")
                 .1
                 .tables
                 .get(&table.name)
                 .context(TableNotFoundSnafu { table_id: id })?
-                .clone()
-                .try_into()
-                .expect("broken catalog schema");
+                .clone();
             tables.insert(id, (Arc::new(table), Arc::new(schema)));
         }
 
@@ -511,7 +509,7 @@ impl Compactor {
         &self,
         namespace: &Namespace,
         table: &Table,
-        table_schema: &Schema,
+        table_schema: &TableSchema,
         partition_id: PartitionId,
         compact_and_upgrade: CompactAndUpgrade,
         max_desired_file_size: i64,
@@ -596,6 +594,7 @@ impl Compactor {
                         file_size,
                         parquet_meta,
                         tombstones,
+                        table_schema,
                     ))
                 })
                 .collect::<FuturesUnordered<_>>()
@@ -715,7 +714,7 @@ impl Compactor {
         overlapped_files: Vec<ParquetFileWithTombstone>,
         namespace: &Namespace,
         table: &Table,
-        table_schema: &Schema,
+        table_schema: &TableSchema,
         partition: &Partition,
         max_desired_file_size: i64,
     ) -> Result<Vec<CompactedData>> {
@@ -1375,7 +1374,7 @@ pub struct PartitionCompactionCandidateWithInfo {
     pub table: Arc<Table>,
 
     /// Table schema
-    pub table_schema: Arc<Schema>,
+    pub table_schema: Arc<TableSchema>,
 }
 
 #[cfg(test)]
@@ -1384,7 +1383,8 @@ mod tests {
     use arrow::record_batch::RecordBatch;
     use arrow_util::assert_batches_sorted_eq;
     use data_types::{
-        ColumnSet, ColumnType, KafkaPartition, NamespaceId, ParquetFileParams, SequenceNumber,
+        ColumnId, ColumnSet, ColumnType, KafkaPartition, NamespaceId, ParquetFileParams,
+        SequenceNumber,
     };
     use futures::{stream::FuturesOrdered, StreamExt, TryStreamExt};
     use iox_tests::util::{TestCatalog, TestTable};
@@ -1445,10 +1445,10 @@ mod tests {
         let ns = catalog.create_namespace("ns").await;
         let sequencer = ns.create_sequencer(1).await;
         let table = ns.create_table("table").await;
-        table.create_column("tag1", ColumnType::Tag).await;
         table.create_column("field_int", ColumnType::I64).await;
+        table.create_column("tag1", ColumnType::Tag).await;
         table.create_column("time", ColumnType::Time).await;
-        let table_schema = table.schema().await;
+        let table_schema = table.catalog_schema().await;
 
         // One parquet file
         let partition = table
@@ -1624,12 +1624,12 @@ mod tests {
         let ns = catalog.create_namespace("ns").await;
         let sequencer = ns.create_sequencer(1).await;
         let table = ns.create_table("table").await;
+        table.create_column("field_int", ColumnType::I64).await;
         table.create_column("tag1", ColumnType::Tag).await;
         table.create_column("tag2", ColumnType::Tag).await;
         table.create_column("tag3", ColumnType::Tag).await;
-        table.create_column("field_int", ColumnType::I64).await;
         table.create_column("time", ColumnType::Time).await;
-        let table_schema = table.schema().await;
+        let table_schema = table.catalog_schema().await;
         let partition = table
             .with_sequencer(&sequencer)
             .create_partition("part")
@@ -1838,7 +1838,7 @@ mod tests {
         table.create_column("tag1", ColumnType::Tag).await;
         table.create_column("field_int", ColumnType::I64).await;
         table.create_column("time", ColumnType::Time).await;
-        let table_schema = table.schema().await;
+        let table_schema = table.catalog_schema().await;
         let partition = table
             .with_sequencer(&sequencer)
             .create_partition("part")
@@ -1954,6 +1954,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_compact_one_file_no_split() {
+        maybe_start_logging();
         let catalog = TestCatalog::new();
 
         let lp = vec![
@@ -1968,7 +1969,7 @@ mod tests {
         table.create_column("tag1", ColumnType::Tag).await;
         table.create_column("field_int", ColumnType::I64).await;
         table.create_column("time", ColumnType::Time).await;
-        let table_schema = table.schema().await;
+        let table_schema = table.catalog_schema().await;
         let partition = table
             .with_sequencer(&sequencer)
             .create_partition("part")
@@ -2078,7 +2079,7 @@ mod tests {
         table.create_column("tag1", ColumnType::Tag).await;
         table.create_column("field_int", ColumnType::I64).await;
         table.create_column("time", ColumnType::Time).await;
-        let table_schema = table.schema().await;
+        let table_schema = table.catalog_schema().await;
         let partition = table
             .with_sequencer(&sequencer)
             .create_partition("part")
@@ -2224,7 +2225,7 @@ mod tests {
         table.create_column("tag3", ColumnType::Tag).await;
         table.create_column("field_int", ColumnType::I64).await;
         table.create_column("time", ColumnType::Time).await;
-        let table_schema = table.schema().await;
+        let table_schema = table.catalog_schema().await;
         let partition = table
             .with_sequencer(&sequencer)
             .create_partition("part")
@@ -2375,7 +2376,7 @@ mod tests {
             row_count: 0,
             compaction_level: INITIAL_COMPACTION_LEVEL, // level of file of new writes
             created_at: Timestamp::new(1),
-            column_set: ColumnSet::new(["col1", "col2"]),
+            column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
         }
     }
 
@@ -2416,7 +2417,7 @@ mod tests {
         table.create_column("tag1", ColumnType::Tag).await;
         table.create_column("field_int", ColumnType::I64).await;
         table.create_column("time", ColumnType::Time).await;
-        let table_schema = table.schema().await;
+        let table_schema = table.catalog_schema().await;
         let partition = table
             .with_sequencer(&sequencer)
             .create_partition("part")
@@ -2470,13 +2471,13 @@ mod tests {
         let ns = catalog.create_namespace("ns").await;
         let sequencer = ns.create_sequencer(1).await;
         let table = ns.create_table("table").await;
+        table.create_column("field_int", ColumnType::I64).await;
+        table.create_column("field_float", ColumnType::F64).await;
         table.create_column("tag1", ColumnType::Tag).await;
         table.create_column("tag2", ColumnType::Tag).await;
         table.create_column("tag3", ColumnType::Tag).await;
-        table.create_column("field_int", ColumnType::I64).await;
-        table.create_column("field_float", ColumnType::F64).await;
         table.create_column("time", ColumnType::Time).await;
-        let table_schema = table.schema().await;
+        let table_schema = table.catalog_schema().await;
         let partition = table
             .with_sequencer(&sequencer)
             .create_partition("part")
@@ -3372,7 +3373,7 @@ mod tests {
             row_count: 0,
             created_at: Timestamp::new(1),
             compaction_level: INITIAL_COMPACTION_LEVEL,
-            column_set: ColumnSet::new(["col1", "col2"]),
+            column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
         };
 
         let p2 = ParquetFileParams {
@@ -3639,7 +3640,7 @@ mod tests {
             compaction_level: INITIAL_COMPACTION_LEVEL, // level of file of new writes
             row_count: 0,
             created_at: Timestamp::new(1),
-            column_set: ColumnSet::new(["col1", "col2"]),
+            column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
         };
         let other_parquet = ParquetFileParams {
             object_store_id: Uuid::new_v4(),
@@ -3820,7 +3821,7 @@ mod tests {
             row_count: 0,
             compaction_level: INITIAL_COMPACTION_LEVEL, // level of file of new writes
             created_at: Timestamp::new(1),
-            column_set: ColumnSet::new(["col1", "col2"]),
+            column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
         };
 
         let p2 = ParquetFileParams {
@@ -3930,7 +3931,7 @@ mod tests {
         table.create_column("tag1", ColumnType::Tag).await;
         table.create_column("ifield", ColumnType::I64).await;
         table.create_column("time", ColumnType::Time).await;
-        let table_schema = table.schema().await;
+        let table_schema = table.catalog_schema().await;
         let partition = table
             .with_sequencer(&sequencer)
             .create_partition("part")
@@ -4010,8 +4011,14 @@ mod tests {
         let storage = ParquetStorage::new(table.catalog.object_store());
 
         // get schema
+        let table_catalog_schema = table.catalog_schema().await;
+        let column_id_lookup = table_catalog_schema.column_id_map();
         let table_schema = table.schema().await;
-        let selection: Vec<_> = file.column_set.iter().map(|s| s.as_str()).collect();
+        let selection: Vec<_> = file
+            .column_set
+            .iter()
+            .map(|id| *column_id_lookup.get(id).unwrap())
+            .collect();
         let schema = table_schema.select_by_names(&selection).unwrap();
 
         let path: ParquetFilePath = (&file).into();

@@ -1,11 +1,11 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use arrow::{
     array::{ArrayRef, StringBuilder, TimestampNanosecondBuilder},
     record_batch::RecordBatch,
 };
 use data_types::{
-    NamespaceId, PartitionId, SequenceNumber, SequencerId, TableId, Timestamp,
+    ColumnId, NamespaceId, PartitionId, SequenceNumber, SequencerId, TableId, Timestamp,
     FILE_NON_OVERLAPPED_COMAPCTION_LEVEL,
 };
 use iox_time::Time;
@@ -325,7 +325,13 @@ async fn test_derive_parquet_file_params() {
 
     // Use the IoxParquetMetaData and original IoxMetadata to derive a
     // ParquetFileParams.
-    let catalog_data = meta.to_parquet_file(partition_id, file_size, &iox_parquet_meta);
+    let column_id_map: HashMap<String, ColumnId> = HashMap::from([
+        ("some_field".into(), ColumnId::new(1)),
+        ("time".into(), ColumnId::new(2)),
+    ]);
+    let catalog_data = meta.to_parquet_file(partition_id, file_size, &iox_parquet_meta, |name| {
+        *column_id_map.get(name).unwrap()
+    });
 
     // And verify the resulting statistics used in the catalog.
     //

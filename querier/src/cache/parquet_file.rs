@@ -223,7 +223,7 @@ mod tests {
     use std::collections::HashSet;
 
     use super::*;
-    use data_types::ParquetFileId;
+    use data_types::{ColumnType, ParquetFileId};
     use iox_tests::util::{TestCatalog, TestNamespace, TestParquetFile, TestPartition, TestTable};
 
     use crate::cache::{ram::test_util::test_ram_pool, test_util::assert_histogram_metric_count};
@@ -291,8 +291,8 @@ mod tests {
         partition.create_parquet_file("table1 foo=1 11").await;
         let table_id = table.table.id;
 
-        let single_file_size = 247;
-        let two_file_size = 462;
+        let single_file_size = 224;
+        let two_file_size = 416;
         assert!(single_file_size < two_file_size);
 
         let cache = make_cache(&catalog);
@@ -452,6 +452,8 @@ mod tests {
         let ns = catalog.create_namespace("ns").await;
 
         let (table, partition) = make_table_and_partition("table1", &ns).await;
+        table.create_column("foo", ColumnType::F64).await;
+        table.create_column("time", ColumnType::Time).await;
         (catalog, table, partition)
     }
 
@@ -460,6 +462,8 @@ mod tests {
         ns: &Arc<TestNamespace>,
     ) -> (Arc<TestTable>, Arc<TestPartition>) {
         let table = ns.create_table(table_name).await;
+        table.create_column("foo", ColumnType::F64).await;
+        table.create_column("time", ColumnType::Time).await;
         let sequencer1 = ns.create_sequencer(1).await;
 
         let partition = table

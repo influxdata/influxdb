@@ -88,7 +88,7 @@
 //! [Thrift Compact Protocol]: https://github.com/apache/thrift/blob/master/doc/specs/thrift-compact-protocol.md
 use bytes::Bytes;
 use data_types::{
-    ColumnSet, ColumnSummary, InfluxDbType, NamespaceId, ParquetFileParams, PartitionId,
+    ColumnId, ColumnSet, ColumnSummary, InfluxDbType, NamespaceId, ParquetFileParams, PartitionId,
     PartitionKey, SequenceNumber, SequencerId, StatValues, Statistics, TableId, Timestamp,
 };
 use generated_types::influxdata::iox::ingester::v1 as proto;
@@ -392,12 +392,16 @@ impl IoxMetadata {
     /// metadata.
     ///
     /// [`RecordBatch`]: arrow::record_batch::RecordBatch
-    pub fn to_parquet_file(
+    pub fn to_parquet_file<F>(
         &self,
         partition_id: PartitionId,
         file_size_bytes: usize,
         metadata: &IoxParquetMetaData,
-    ) -> ParquetFileParams {
+        column_id_map: F,
+    ) -> ParquetFileParams
+    where
+        F: for<'a> Fn(&'a str) -> ColumnId,
+    {
         let decoded = metadata.decode().expect("invalid IOx metadata");
         trace!(
             ?partition_id,
@@ -419,7 +423,7 @@ impl IoxMetadata {
         let stats = decoded
             .read_statistics(&*schema)
             .expect("invalid statistics");
-        let columns: Vec<String> = stats.iter().map(|v| v.name.clone()).collect();
+        let columns: Vec<_> = stats.iter().map(|v| column_id_map(&v.name)).collect();
         let time_summary = stats
             .into_iter()
             .find(|v| v.name == TIME_COLUMN_NAME)

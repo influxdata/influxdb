@@ -7,11 +7,12 @@ use arrow::{
 use data_types::{
     Column, ColumnSet, ColumnType, KafkaPartition, KafkaTopic, Namespace, NamespaceSchema,
     ParquetFile, ParquetFileParams, Partition, PartitionId, QueryPool, SequenceNumber, Sequencer,
-    SequencerId, Table, TableId, Timestamp, Tombstone, TombstoneId, INITIAL_COMPACTION_LEVEL,
+    SequencerId, Table, TableId, TableSchema, Timestamp, Tombstone, TombstoneId,
+    INITIAL_COMPACTION_LEVEL,
 };
 use datafusion::physical_plan::metrics::Count;
 use iox_catalog::{
-    interface::{get_schema_by_id, Catalog, PartitionRepo},
+    interface::{get_schema_by_id, get_table_schema_by_id, Catalog, PartitionRepo},
     mem::MemCatalog,
 };
 use iox_query::{exec::Executor, provider::RecordBatchDeduplicator, util::arrow_sort_key_exprs};
@@ -322,17 +323,18 @@ impl TestTable {
         })
     }
 
+    /// Get catalog schema.
+    pub async fn catalog_schema(&self) -> TableSchema {
+        let mut repos = self.catalog.catalog.repositories().await;
+
+        get_table_schema_by_id(self.table.id, repos.as_mut())
+            .await
+            .unwrap()
+    }
+
     /// Get schema for this table.
     pub async fn schema(&self) -> Schema {
-        self.namespace
-            .schema()
-            .await
-            .tables
-            .get(&self.table.name)
-            .unwrap()
-            .clone()
-            .try_into()
-            .unwrap()
+        self.catalog_schema().await.try_into().unwrap()
     }
 }
 
@@ -539,8 +541,6 @@ impl TestPartition {
         file_size_bytes: Option<i64>,
         creation_time: i64,
     ) -> TestParquetFile {
-        let mut repos = self.catalog.catalog.repositories().await;
-
         let row_count = record_batch.num_rows();
         assert!(row_count > 0, "Parquet file must have at least 1 row");
         let (record_batch, sort_key) = sort_batch(record_batch, schema);
@@ -564,13 +564,14 @@ impl TestPartition {
             compaction_level: INITIAL_COMPACTION_LEVEL,
             sort_key: Some(sort_key.clone()),
         };
-        let column_set = ColumnSet::new(
-            record_batch
-                .schema()
-                .fields()
-                .iter()
-                .map(|f| f.name().clone()),
-        );
+        let table_catalog_schema = self.table.catalog_schema().await;
+        let column_set = ColumnSet::new(record_batch.schema().fields().iter().map(|f| {
+            table_catalog_schema
+                .columns
+                .get(f.name())
+                .expect("Column registered")
+                .id
+        }));
         let real_file_size_bytes = create_parquet_file(
             ParquetStorage::new(Arc::clone(&self.catalog.object_store)),
             &metadata,
@@ -594,12 +595,13 @@ impl TestPartition {
             compaction_level: INITIAL_COMPACTION_LEVEL,
             column_set,
         };
+
+        let mut repos = self.catalog.catalog.repositories().await;
         let parquet_file = repos
             .parquet_files()
             .create(parquet_file_params)
             .await
             .unwrap();
-
         update_catalog_sort_key_if_needed(repos.partitions(), self.partition.id, sort_key).await;
 
         TestParquetFile {
@@ -748,13 +750,15 @@ impl TestParquetFile {
 
     /// Get Parquet file schema.
     pub async fn schema(&self) -> Arc<Schema> {
-        let table_schema = self.table.schema().await;
+        let table_schema = self.table.catalog_schema().await;
+        let column_id_lookup = table_schema.column_id_map();
         let selection: Vec<_> = self
             .parquet_file
             .column_set
             .iter()
-            .map(|s| s.as_str())
+            .map(|id| *column_id_lookup.get(id).unwrap())
             .collect();
+        let table_schema: Schema = table_schema.clone().try_into().unwrap();
         Arc::new(table_schema.select_by_names(&selection).unwrap())
     }
 }

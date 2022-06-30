@@ -4,9 +4,9 @@ use bytes::Bytes;
 use clap_blocks::object_store::{make_object_store, ObjectStoreType};
 use clap_blocks::{catalog_dsn::CatalogDsnConfig, object_store::ObjectStoreConfig};
 use data_types::{
-    ColumnSet, ColumnType, KafkaPartition, NamespaceId, NamespaceSchema as CatalogNamespaceSchema,
-    ParquetFile as CatalogParquetFile, ParquetFileParams, PartitionId, SequenceNumber, SequencerId,
-    TableId, Timestamp,
+    ColumnId, ColumnSet, ColumnType, KafkaPartition, NamespaceId,
+    NamespaceSchema as CatalogNamespaceSchema, ParquetFile as CatalogParquetFile,
+    ParquetFileParams, PartitionId, SequenceNumber, SequencerId, TableId, Timestamp,
 };
 use futures::future::join_all;
 use influxdb_iox_client::{
@@ -363,7 +363,7 @@ async fn load_parquet_files(
                     row_count: p.row_count,
                     compaction_level: p.compaction_level as i16,
                     created_at: Timestamp::new(p.created_at),
-                    column_set: ColumnSet::new(p.column_set),
+                    column_set: ColumnSet::new(p.column_set.into_iter().map(ColumnId::new)),
                 };
 
                 repos.parquet_files().create(params).await?
@@ -583,7 +583,7 @@ mod tests {
                 row_count,
                 compaction_level: INITIAL_COMPACTION_LEVEL as i32,
                 created_at: created_at.get(),
-                column_set: vec!["col1".into(), "col2".into()],
+                column_set: vec![1, 2],
             }],
         )
         .await
@@ -608,7 +608,7 @@ mod tests {
             row_count,
             compaction_level: INITIAL_COMPACTION_LEVEL,
             created_at,
-            column_set: ColumnSet::new(["col1", "col2"]),
+            column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
         }];
         assert_eq!(expected, files);
     }

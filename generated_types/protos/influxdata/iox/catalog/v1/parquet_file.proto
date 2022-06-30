@@ -34,5 +34,5 @@ message ParquetFile {
     // the creation timestamp of the parquet file
     int64 created_at = 15;
     // Set of columns within this parquet file.
-    repeated string column_set = 16;
+    repeated int64 column_set = 16;
 }

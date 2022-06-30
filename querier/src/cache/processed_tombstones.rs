@@ -121,6 +121,7 @@ impl TtlProvider for KeepExistsForever {
 
 #[cfg(test)]
 mod tests {
+    use data_types::ColumnType;
     use iox_tests::util::TestCatalog;
 
     use crate::cache::{ram::test_util::test_ram_pool, test_util::assert_histogram_metric_count};
@@ -133,6 +134,8 @@ mod tests {
 
         let ns = catalog.create_namespace("ns").await;
         let table = ns.create_table("table").await;
+        table.create_column("foo", ColumnType::F64).await;
+        table.create_column("time", ColumnType::Time).await;
         let sequencer = ns.create_sequencer(1).await;
         let partition = table.with_sequencer(&sequencer).create_partition("k").await;
 

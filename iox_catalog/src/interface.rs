@@ -366,6 +366,9 @@ pub trait ColumnRepo: Send + Sync {
     /// Lists all columns in the passed in namespace id.
     async fn list_by_namespace_id(&mut self, namespace_id: NamespaceId) -> Result<Vec<Column>>;
 
+    /// List all columns for the given table ID.
+    async fn list_by_table_id(&mut self, table_id: TableId) -> Result<Vec<Column>>;
+
     /// List all columns.
     async fn list(&mut self) -> Result<Vec<Column>>;
 }
@@ -676,6 +679,37 @@ where
     }
 
     Ok(namespace)
+}
+
+/// Gets the table schema including all columns.
+pub async fn get_table_schema_by_id<R>(id: TableId, repos: &mut R) -> Result<TableSchema>
+where
+    R: RepoCollection + ?Sized,
+{
+    let columns = repos.columns().list_by_table_id(id).await?;
+    let mut schema = TableSchema::new(id);
+
+    for c in columns {
+        match ColumnType::try_from(c.column_type) {
+            Ok(column_type) => {
+                schema.columns.insert(
+                    c.name,
+                    ColumnSchema {
+                        id: c.id,
+                        column_type,
+                    },
+                );
+            }
+            _ => {
+                return Err(Error::UnknownColumnType {
+                    data_type: c.column_type,
+                    name: c.name,
+                });
+            }
+        }
+    }
+
+    Ok(schema)
 }
 
 /// Fetch all [`NamespaceSchema`] in the catalog.
@@ -1189,9 +1223,14 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
 
-        let mut want = vec![c, ccc];
-        want.extend(cols3);
+        let mut want = vec![c.clone(), ccc];
+        want.extend(cols3.clone());
         assert_eq!(want, columns);
+
+        let columns = repos.columns().list_by_table_id(table.id).await.unwrap();
+
+        let want2 = vec![c, cols3[1].clone()];
+        assert_eq!(want2, columns);
 
         // Listing columns should return all columns in the catalog
         let list = repos.columns().list().await.unwrap();
@@ -1676,7 +1715,7 @@ pub(crate) mod test_helpers {
             row_count: 0,
             compaction_level: INITIAL_COMPACTION_LEVEL,
             created_at: Timestamp::new(1),
-            column_set: ColumnSet::new(["col1", "col2"]),
+            column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
         };
         let parquet_file = repos
             .parquet_files()
@@ -1887,7 +1926,7 @@ pub(crate) mod test_helpers {
             row_count: 0,
             compaction_level: INITIAL_COMPACTION_LEVEL,
             created_at: Timestamp::new(1),
-            column_set: ColumnSet::new(["col1", "col2"]),
+            column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
         };
         let parquet_file = repos
             .parquet_files()
@@ -2223,7 +2262,7 @@ pub(crate) mod test_helpers {
             row_count: 0,
             compaction_level: INITIAL_COMPACTION_LEVEL,
             created_at: Timestamp::new(1),
-            column_set: ColumnSet::new(["col1", "col2"]),
+            column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
         };
 
         let parquet_file = repos
@@ -2353,7 +2392,7 @@ pub(crate) mod test_helpers {
             row_count: 0,
             compaction_level: INITIAL_COMPACTION_LEVEL,
             created_at: Timestamp::new(1),
-            column_set: ColumnSet::new(["col1", "col2"]),
+            column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
         };
         let parquet_file = repos
             .parquet_files()
@@ -2559,7 +2598,7 @@ pub(crate) mod test_helpers {
             row_count: 0,
             compaction_level: INITIAL_COMPACTION_LEVEL,
             created_at: Timestamp::new(1),
-            column_set: ColumnSet::new(["col1", "col2"]),
+            column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
         };
 
         let parquet_file = repos
@@ -2665,7 +2704,7 @@ pub(crate) mod test_helpers {
             row_count: 0,
             compaction_level: INITIAL_COMPACTION_LEVEL,
             created_at: Timestamp::new(1),
-            column_set: ColumnSet::new(["col1", "col2"]),
+            column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
         };
         let parquet_file = repos
             .parquet_files()
@@ -2782,7 +2821,7 @@ pub(crate) mod test_helpers {
             row_count: 0,
             compaction_level: INITIAL_COMPACTION_LEVEL,
             created_at: Timestamp::new(1),
-            column_set: ColumnSet::new(["col1", "col2"]),
+            column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
         };
         let p1 = repos
             .parquet_files()

@@ -2,8 +2,8 @@
 
 use crate::cache::CatalogCache;
 use data_types::{
-    ChunkId, ChunkOrder, DeletePredicate, ParquetFile, ParquetFileId, PartitionId, SequenceNumber,
-    SequencerId, TableSummary, TimestampMinMax, TimestampRange,
+    ChunkId, ChunkOrder, ColumnId, DeletePredicate, ParquetFile, ParquetFileId, PartitionId,
+    SequenceNumber, SequencerId, TableSummary, TimestampMinMax, TimestampRange,
 };
 use iox_catalog::interface::Catalog;
 use iox_time::TimeProvider;
@@ -355,8 +355,7 @@ impl ChunkAdapter {
         parquet_file: Arc<ParquetFile>,
     ) -> Option<ChunkParts> {
         // gather schema information
-        let file_columns: HashSet<&str> =
-            parquet_file.column_set.iter().map(|s| s.as_str()).collect();
+        let file_column_ids: HashSet<ColumnId> = parquet_file.column_set.iter().copied().collect();
         let table_name = self
             .catalog_cache
             .table()
@@ -365,11 +364,15 @@ impl ChunkAdapter {
         let namespace_schema = self
             .catalog_cache
             .namespace()
-            .schema(namespace_name, &[(&table_name, &file_columns)])
+            .schema(namespace_name, &[(&table_name, &file_column_ids)])
             .await?;
-        let table_schema: Schema = namespace_schema
-            .tables
-            .get(table_name.as_ref())?
+        let table_schema_catalog = namespace_schema.tables.get(table_name.as_ref())?;
+        let column_id_lookup = table_schema_catalog.column_id_map();
+        let file_columns: HashSet<&str> = file_column_ids
+            .iter()
+            .flat_map(|id| column_id_lookup.get(id).copied())
+            .collect();
+        let table_schema: Schema = table_schema_catalog
             .clone()
             .try_into()
             .expect("Invalid table schema in catalog");

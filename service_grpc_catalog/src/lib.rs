@@ -98,7 +98,7 @@ fn to_parquet_file(p: data_types::ParquetFile) -> ParquetFile {
         row_count: p.row_count,
         compaction_level: p.compaction_level as i32,
         created_at: p.created_at.get(),
-        column_set: p.column_set.into(),
+        column_set: p.column_set.iter().map(|id| id.get()).collect(),
     }
 }
 
@@ -117,7 +117,7 @@ fn to_partition(p: data_types::Partition) -> Partition {
 mod tests {
     use super::*;
     use data_types::{
-        ColumnSet, KafkaPartition, ParquetFileParams, SequenceNumber, Timestamp,
+        ColumnId, ColumnSet, KafkaPartition, ParquetFileParams, SequenceNumber, Timestamp,
         INITIAL_COMPACTION_LEVEL,
     };
     use generated_types::influxdata::iox::catalog::v1::catalog_service_server::CatalogService;
@@ -178,7 +178,7 @@ mod tests {
                 row_count: 29,
                 compaction_level: INITIAL_COMPACTION_LEVEL,
                 created_at: Timestamp::new(2343),
-                column_set: ColumnSet::new(["col1", "col2"]),
+                column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
             };
             let p2params = ParquetFileParams {
                 object_store_id: Uuid::new_v4(),

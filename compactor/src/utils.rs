@@ -2,7 +2,8 @@
 
 use crate::query::QueryableParquetChunk;
 use data_types::{
-    ParquetFile, ParquetFileId, ParquetFileParams, PartitionId, Timestamp, Tombstone, TombstoneId,
+    ParquetFile, ParquetFileId, ParquetFileParams, PartitionId, TableSchema, Timestamp, Tombstone,
+    TombstoneId,
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
 use observability_deps::tracing::*;
@@ -134,10 +135,19 @@ impl ParquetFileWithTombstone {
         &self,
         store: ParquetStorage,
         table_name: String,
-        table_schema: &Schema,
+        table_schema: &TableSchema,
         partition_sort_key: Option<SortKey>,
     ) -> QueryableParquetChunk {
-        let selection: Vec<_> = self.column_set.iter().map(|s| s.as_str()).collect();
+        let column_id_lookup = table_schema.column_id_map();
+        let selection: Vec<_> = self
+            .column_set
+            .iter()
+            .flat_map(|id| column_id_lookup.get(id).copied())
+            .collect();
+        let table_schema: Schema = table_schema
+            .clone()
+            .try_into()
+            .expect("table schema is broken");
         let schema = table_schema
             .select_by_names(&selection)
             .expect("schema in-sync");
@@ -210,8 +220,11 @@ impl CatalogUpdate {
         file_size: usize,
         md: IoxParquetMetaData,
         tombstones: BTreeMap<TombstoneId, Tombstone>,
+        table_schema: &TableSchema,
     ) -> Self {
-        let parquet_file = meta.to_parquet_file(partition_id, file_size, &md);
+        let parquet_file = meta.to_parquet_file(partition_id, file_size, &md, |name| {
+            table_schema.columns.get(name).expect("unknown column").id
+        });
         Self {
             meta,
             tombstones,

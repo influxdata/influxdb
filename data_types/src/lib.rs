@@ -18,9 +18,10 @@ use schema::{
     TIME_COLUMN_NAME,
 };
 use snafu::{ResultExt, Snafu};
+use sqlx::postgres::PgHasArrayType;
 use std::{
     borrow::{Borrow, Cow},
-    collections::BTreeMap,
+    collections::{BTreeMap, HashMap},
     convert::TryFrom,
     fmt::{Display, Write},
     mem::{self, size_of_val},
@@ -128,6 +129,12 @@ impl ColumnId {
     }
     pub fn get(&self) -> i64 {
         self.0
+    }
+}
+
+impl PgHasArrayType for ColumnId {
+    fn array_type_info() -> sqlx::postgres::PgTypeInfo {
+        <i64 as PgHasArrayType>::array_type_info()
     }
 }
 
@@ -482,6 +489,14 @@ impl TableSchema {
                 .map(|(k, v)| size_of_val(k) + k.capacity() + size_of_val(v))
                 .sum::<usize>()
     }
+
+    /// Create `ID->name` map for columns.
+    pub fn column_id_map(&self) -> HashMap<ColumnId, &str> {
+        self.columns
+            .iter()
+            .map(|(name, c)| (c.id, name.as_str()))
+            .collect()
+    }
 }
 
 /// Data object for a column
@@ -827,7 +842,7 @@ impl Tombstone {
 /// Set of columns.
 #[derive(Debug, Clone, PartialEq, sqlx::Type)]
 #[sqlx(transparent)]
-pub struct ColumnSet(Vec<String>);
+pub struct ColumnSet(Vec<ColumnId>);
 
 impl ColumnSet {
     /// Create new column set.
@@ -836,19 +851,11 @@ impl ColumnSet {
     ///
     /// # Panic
     /// Panics when the set of passed columns contains duplicates.
-    pub fn new<T, I>(columns: I) -> Self
+    pub fn new<I>(columns: I) -> Self
     where
-        T: Into<String>,
-        I: IntoIterator<Item = T>,
+        I: IntoIterator<Item = ColumnId>,
     {
-        let mut columns: Vec<String> = columns
-            .into_iter()
-            .map(|c| {
-                let mut col: String = c.into();
-                col.shrink_to_fit();
-                col
-            })
-            .collect();
+        let mut columns: Vec<ColumnId> = columns.into_iter().collect();
         columns.sort();
 
         let len_pre_dedup = columns.len();
@@ -863,20 +870,18 @@ impl ColumnSet {
 
     /// Estimate the memory consumption of this object and its contents
     pub fn size(&self) -> usize {
-        std::mem::size_of_val(self)
-            + (std::mem::size_of::<String>() * self.0.capacity())
-            + self.0.iter().map(|s| s.len()).sum::<usize>()
+        std::mem::size_of_val(self) + (std::mem::size_of::<ChunkId>() * self.0.capacity())
     }
 }
 
-impl From<ColumnSet> for Vec<String> {
+impl From<ColumnSet> for Vec<ColumnId> {
     fn from(set: ColumnSet) -> Self {
         set.0
     }
 }
 
 impl Deref for ColumnSet {
-    type Target = [String];
+    type Target = [ColumnId];
 
     fn deref(&self) -> &Self::Target {
         self.0.deref()
@@ -3219,6 +3224,6 @@ mod tests {
     #[test]
     #[should_panic = "set contains duplicates"]
     fn test_column_set_duplicates() {
-        ColumnSet::new(["foo", "bar", "foo"]);
+        ColumnSet::new([ColumnId::new(1), ColumnId::new(2), ColumnId::new(1)]);
     }
 }

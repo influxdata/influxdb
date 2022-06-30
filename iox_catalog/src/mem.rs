@@ -578,6 +578,19 @@ impl ColumnRepo for MemTxn {
         Ok(columns)
     }
 
+    async fn list_by_table_id(&mut self, table_id: TableId) -> Result<Vec<Column>> {
+        let stage = self.stage();
+
+        let columns: Vec<_> = stage
+            .columns
+            .iter()
+            .filter(|c| c.table_id == table_id)
+            .cloned()
+            .collect();
+
+        Ok(columns)
+    }
+
     async fn list(&mut self) -> Result<Vec<Column>> {
         let stage = self.stage();
         Ok(stage.columns.clone())
