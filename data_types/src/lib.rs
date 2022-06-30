@@ -1068,8 +1068,8 @@ impl ChunkOrder {
     pub const MIN: Self = Self(0);
 
     /// Create a ChunkOrder from the given value.
-    pub fn new(order: i64) -> Option<Self> {
-        Some(Self(order))
+    pub fn new(order: i64) -> Self {
+        Self(order)
     }
 }
 
