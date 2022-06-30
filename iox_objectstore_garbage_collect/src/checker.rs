@@ -35,11 +35,11 @@ pub(crate) type Result<T, E = Error> = std::result::Result<T, E>;
 
 pub(crate) async fn perform(
     args: Arc<crate::Args>,
+    cutoff: DateTime<Utc>,
     mut items: mpsc::Receiver<ObjectMeta>,
     deleter: mpsc::Sender<ObjectMeta>,
 ) -> Result<()> {
     let catalog = args.catalog().await.context(CreatingCatalogSnafu)?;
-    let cutoff = args.cutoff();
 
     let mut repositories = catalog.repositories().await;
     let parquet_files = repositories.parquet_files();

@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
+chrono-english = "0.1.4"
 clap = { version = "3", features = ["derive", "env"] }
 clap_blocks = { path = "../clap_blocks", features = ["aws"] }
 dotenv = "0.15.0"

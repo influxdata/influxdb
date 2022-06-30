@@ -2331,6 +2331,7 @@ name = "iox_objectstore_garbage_collect"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "chrono-english",
  "clap 3.2.6",
  "clap_blocks",
  "data_types",

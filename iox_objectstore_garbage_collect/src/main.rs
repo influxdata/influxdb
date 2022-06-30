@@ -16,6 +16,7 @@
 #![allow(clippy::missing_docs_in_private_items)]
 
 use chrono::{DateTime, Utc};
+use chrono_english::{parse_date_string, Dialect};
 use clap::Parser;
 use clap_blocks::{
     catalog_dsn::CatalogDsnConfig,
@@ -64,11 +65,17 @@ async fn inner_main() -> Result<()> {
     let args = Arc::new(Args::parse());
     let _tracing_guard = init_logs_and_tracing(&args.logging_config);
 
+    let cutoff = args.cutoff().context(ParsingCutoffSnafu)?;
+    info!(
+        cutoff_arg = %args.cutoff,
+        cutoff_parsed = %cutoff,
+    );
+
     let (tx1, rx1) = mpsc::channel(BATCH_SIZE);
     let (tx2, rx2) = mpsc::channel(BATCH_SIZE);
 
     let lister = tokio::spawn(lister::perform(args.clone(), tx1));
-    let checker = tokio::spawn(checker::perform(args.clone(), rx1, tx2));
+    let checker = tokio::spawn(checker::perform(args.clone(), cutoff, rx1, tx2));
     let deleter = tokio::spawn(deleter::perform(args.clone(), rx2));
 
     let (lister, checker, deleter) = futures::join!(lister, checker, deleter);
@@ -97,6 +104,13 @@ pub struct Args {
     /// that would be deleted if this flag wasn't specified.
     #[clap(long)]
     dry_run: bool,
+
+    /// The date and time at which to start the timestamps of the generated data.
+    ///
+    /// Can be an exact datetime like `2020-01-01T01:23:45-05:00` or a fuzzy
+    /// specification like `1 hour ago`. If not specified, defaults to 14 days ago.
+    #[clap(long, default_value_t = String::from("14 days ago"))]
+    cutoff: String,
 }
 
 impl Args {
@@ -114,9 +128,8 @@ impl Args {
             .await
     }
 
-    fn cutoff(&self) -> DateTime<Utc> {
-        // TODO: parameterize the days
-        Utc::now() - chrono::Duration::days(14)
+    fn cutoff(&self) -> Result<DateTime<Utc>, chrono_english::DateError> {
+        parse_date_string(&self.cutoff, Utc::now(), Dialect::Us)
     }
 }
 
@@ -139,6 +152,11 @@ enum Error {
     Deleter { source: deleter::Error },
     #[snafu(display("The deleter task panicked"))]
     DeleterPanic { source: tokio::task::JoinError },
+
+    #[snafu(display("Could not parse the cutoff argument"))]
+    ParsingCutoff {
+        source: chrono_english::DateError,
+    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
