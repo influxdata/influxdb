@@ -26,13 +26,12 @@ fn default_max_connections() -> &'static str {
 
 fn default_connect_timeout() -> &'static str {
     let s =
-        humantime::format_duration(PostgresConnectionOptions::DEFAULT_CONNECT_TIMETOUT).to_string();
+        humantime::format_duration(PostgresConnectionOptions::DEFAULT_CONNECT_TIMEOUT).to_string();
     Box::leak(Box::new(s))
 }
 
 fn default_idle_timeout() -> &'static str {
-    let s =
-        humantime::format_duration(PostgresConnectionOptions::DEFAULT_IDLE_TIMETOUT).to_string();
+    let s = humantime::format_duration(PostgresConnectionOptions::DEFAULT_IDLE_TIMEOUT).to_string();
     Box::leak(Box::new(s))
 }
 
@@ -125,8 +124,8 @@ impl CatalogDsnConfig {
             dsn: None,
             max_catalog_connections: PostgresConnectionOptions::DEFAULT_MAX_CONNS,
             postgres_schema_name: PostgresConnectionOptions::DEFAULT_SCHEMA_NAME.to_string(),
-            connect_timeout: PostgresConnectionOptions::DEFAULT_CONNECT_TIMETOUT,
-            idle_timeout: PostgresConnectionOptions::DEFAULT_IDLE_TIMETOUT,
+            connect_timeout: PostgresConnectionOptions::DEFAULT_CONNECT_TIMEOUT,
+            idle_timeout: PostgresConnectionOptions::DEFAULT_IDLE_TIMEOUT,
             hotswap_poll_interval: PostgresConnectionOptions::DEFAULT_HOTSWAP_POLL_INTERVAL,
         }
     }
@@ -140,8 +139,8 @@ impl CatalogDsnConfig {
             dsn: Some(dsn),
             max_catalog_connections: PostgresConnectionOptions::DEFAULT_MAX_CONNS,
             postgres_schema_name,
-            connect_timeout: PostgresConnectionOptions::DEFAULT_CONNECT_TIMETOUT,
-            idle_timeout: PostgresConnectionOptions::DEFAULT_IDLE_TIMETOUT,
+            connect_timeout: PostgresConnectionOptions::DEFAULT_CONNECT_TIMEOUT,
+            idle_timeout: PostgresConnectionOptions::DEFAULT_IDLE_TIMEOUT,
             hotswap_poll_interval: PostgresConnectionOptions::DEFAULT_HOTSWAP_POLL_INTERVAL,
         }
     }

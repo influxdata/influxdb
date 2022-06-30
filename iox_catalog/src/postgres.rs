@@ -65,10 +65,10 @@ impl PostgresConnectionOptions {
     pub const DEFAULT_MAX_CONNS: u32 = 10;
 
     /// Default value for [`connect_timeout`](Self::connect_timeout).
-    pub const DEFAULT_CONNECT_TIMETOUT: Duration = Duration::from_secs(2);
+    pub const DEFAULT_CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
 
     /// Default value for [`idle_timeout`](Self::idle_timeout).
-    pub const DEFAULT_IDLE_TIMETOUT: Duration = Duration::from_secs(10);
+    pub const DEFAULT_IDLE_TIMEOUT: Duration = Duration::from_secs(10);
 
     /// Default value for [`hotswap_poll_interval`](Self::hotswap_poll_interval).
     pub const DEFAULT_HOTSWAP_POLL_INTERVAL: Duration = Duration::from_secs(5);
@@ -81,8 +81,8 @@ impl Default for PostgresConnectionOptions {
             schema_name: String::from(Self::DEFAULT_SCHEMA_NAME),
             dsn: String::new(),
             max_conns: Self::DEFAULT_MAX_CONNS,
-            connect_timeout: Self::DEFAULT_CONNECT_TIMETOUT,
-            idle_timeout: Self::DEFAULT_IDLE_TIMETOUT,
+            connect_timeout: Self::DEFAULT_CONNECT_TIMEOUT,
+            idle_timeout: Self::DEFAULT_IDLE_TIMEOUT,
             hotswap_poll_interval: Self::DEFAULT_HOTSWAP_POLL_INTERVAL,
         }
     }
