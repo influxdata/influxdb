@@ -177,6 +177,19 @@ impl std::fmt::Display for KafkaPartition {
     }
 }
 
+/// Potential configurations of ingester connections for the querier to associate with a sequencer.
+#[derive(Debug, Clone, PartialEq)]
+pub enum IngesterMapping {
+    /// Deliberately not mapping this sequencer to an ingester. If the querier gets a query for
+    /// this sequencer, it should return an error.
+    NotMapped,
+    /// Deliberately not contacting ingesters for this sequencer. If the querier gets a query for
+    /// this sequencer, it should only return persisted data.
+    Ignore,
+    /// The address of the ingester to contact for this sequencer.
+    Addr(Arc<str>),
+}
+
 /// Unique ID for a `Partition`
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
 #[sqlx(transparent)]

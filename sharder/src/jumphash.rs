@@ -105,6 +105,14 @@ impl<T> JumpHash<T> {
             .get(b as usize)
             .expect("sharder mapped input to non-existant bucket")
     }
+
+    /// Consistently hash a table and namespace to a `T`. For use in a situation where you don't
+    /// have a payload.
+    pub fn shard_for_query(&self, table: &str, namespace: &str) -> &T {
+        // The derived hash impl for HashKey is hardened against prefix
+        // collisions when combining the two fields.
+        self.hash(&HashKey { table, namespace })
+    }
 }
 
 #[derive(Hash)]
@@ -114,7 +122,9 @@ struct HashKey<'a> {
 }
 
 /// A [`JumpHash`] sharder mapping a [`MutableBatch`] reference according to
-/// the`namespace it is destined for.
+/// the namespace it is destined for.
+/// This currently doesn't use any information about the payload, just encodes that a MutableBatch
+/// will always be sharded to one `Arc<T>`.
 impl<T> Sharder<MutableBatch> for JumpHash<Arc<T>>
 where
     T: Debug + Send + Sync,
@@ -127,12 +137,7 @@ where
         namespace: &DatabaseName<'_>,
         _payload: &MutableBatch,
     ) -> Self::Item {
-        // The derived hash impl for HashKey is hardened against prefix
-        // collisions when combining the two fields.
-        Arc::clone(self.hash(&HashKey {
-            table,
-            namespace: namespace.as_ref(),
-        }))
+        Arc::clone(self.shard_for_query(table, namespace.as_ref()))
     }
 }
 

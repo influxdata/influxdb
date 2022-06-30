@@ -4,10 +4,11 @@ use crate::{
     cache::CatalogCache, chunk::ChunkAdapter, ingester::IngesterConnection, query_log::QueryLog,
     table::QuerierTable,
 };
-use data_types::{NamespaceId, NamespaceSchema};
+use data_types::{KafkaPartition, NamespaceId, NamespaceSchema};
 use iox_query::exec::Executor;
 use parquet_file::storage::ParquetStorage;
 use schema::Schema;
+use sharder::JumpHash;
 use std::{collections::HashMap, sync::Arc};
 
 mod query_access;
@@ -50,8 +51,9 @@ impl QuerierNamespace {
         schema: Arc<NamespaceSchema>,
         name: Arc<str>,
         exec: Arc<Executor>,
-        ingester_connection: Arc<dyn IngesterConnection>,
+        ingester_connection: Option<Arc<dyn IngesterConnection>>,
         query_log: Arc<QueryLog>,
+        sharder: Arc<JumpHash<Arc<KafkaPartition>>>,
     ) -> Self {
         let tables: HashMap<_, _> = schema
             .tables
@@ -61,12 +63,17 @@ impl QuerierNamespace {
                 let id = table_schema.id;
                 let schema = Schema::try_from(table_schema.clone()).expect("cannot build schema");
 
+                // Currently, the sharder will only return one sequencer ID per table, but in the
+                // near future, the sharder might return more than one sequencer ID for one table.
+                let sequencer_ids = vec![**sharder.shard_for_query(&table_name, &name)];
+
                 let table = Arc::new(QuerierTable::new(
+                    sequencer_ids,
                     Arc::clone(&name),
                     id,
                     Arc::clone(&table_name),
                     Arc::new(schema),
-                    Arc::clone(&ingester_connection),
+                    ingester_connection.clone(),
                     Arc::clone(&chunk_adapter),
                 ));
 
@@ -95,7 +102,8 @@ impl QuerierNamespace {
         name: Arc<str>,
         schema: Arc<NamespaceSchema>,
         exec: Arc<Executor>,
-        ingester_connection: Arc<dyn IngesterConnection>,
+        ingester_connection: Option<Arc<dyn IngesterConnection>>,
+        sharder: Arc<JumpHash<Arc<KafkaPartition>>>,
     ) -> Self {
         let time_provider = catalog_cache.time_provider();
         let chunk_adapter = Arc::new(ChunkAdapter::new(
@@ -113,6 +121,7 @@ impl QuerierNamespace {
             exec,
             ingester_connection,
             query_log,
+            sharder,
         )
     }
 

@@ -26,6 +26,7 @@ mutable_batch_lp = { path = "../mutable_batch_lp" }
 once_cell = { version = "1.12.0", features = ["parking_lot"] }
 predicate = { path = "../predicate" }
 schema = { path = "../schema" }
+sharder = { path = "../sharder" }
 querier = { path = "../querier" }
 iox_query = { path = "../iox_query" }
 workspace-hack = { path = "../workspace-hack"}

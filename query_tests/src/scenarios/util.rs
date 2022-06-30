@@ -3,8 +3,8 @@ use super::DbScenario;
 use async_trait::async_trait;
 use backoff::BackoffConfig;
 use data_types::{
-    DeletePredicate, NonEmptyString, PartitionId, PartitionKey, Sequence, SequenceNumber,
-    SequencerId, TombstoneId,
+    DeletePredicate, IngesterMapping, KafkaPartition, NonEmptyString, PartitionId, PartitionKey,
+    Sequence, SequenceNumber, SequencerId, TombstoneId,
 };
 use dml::{DmlDelete, DmlMeta, DmlOperation, DmlWrite};
 use futures::StreamExt;
@@ -30,6 +30,7 @@ use querier::{
     IngesterFlightClientQueryData, QuerierCatalogCache, QuerierNamespace,
 };
 use schema::selection::Selection;
+use sharder::JumpHash;
 use std::{
     cmp::Ordering,
     collections::{BTreeMap, HashMap},
@@ -839,12 +840,17 @@ impl MockIngester {
             self.catalog.metric_registry(),
             usize::MAX,
         ));
-        let ingester_connection = IngesterConnectionImpl::new_with_flight_client(
-            vec![String::from("some_address")],
+        let sequencer_to_ingesters = [(0, IngesterMapping::Addr(Arc::from("some_address")))]
+            .into_iter()
+            .collect();
+        let ingester_connection = IngesterConnectionImpl::by_sequencer_with_flight_client(
+            sequencer_to_ingesters,
             Arc::new(self),
             Arc::clone(&catalog_cache),
         );
         let ingester_connection = Arc::new(ingester_connection);
+        let sharder =
+            Arc::new(JumpHash::new((0..1).map(KafkaPartition::new).map(Arc::new)).unwrap());
 
         Arc::new(QuerierNamespace::new_testing(
             catalog_cache,
@@ -853,7 +859,8 @@ impl MockIngester {
             ns.namespace.name.clone().into(),
             schema,
             catalog.exec(),
-            ingester_connection,
+            Some(ingester_connection),
+            sharder,
         ))
     }
 }

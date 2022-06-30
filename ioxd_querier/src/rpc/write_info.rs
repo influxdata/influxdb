@@ -33,7 +33,10 @@ impl WriteInfoService for QuerierWriteInfoServiceImpl {
     ) -> Result<tonic::Response<proto::GetWriteInfoResponse>, tonic::Status> {
         let proto::GetWriteInfoRequest { write_token } = request.into_inner();
 
-        let ingester_connection = self.server.ingester_connection();
+        let ingester_connection = self
+            .server
+            .ingester_connection()
+            .expect("Ingester connections must be configured to get write info");
 
         let progresses = ingester_connection
             .get_write_info(&write_token)
