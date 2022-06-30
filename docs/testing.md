@@ -18,28 +18,58 @@ Each of these tests starts up IOx as a sub process (aka runs the
 CLI. These tests should *not* manipulate or use the contents of any
 subsystem crate.
 
-### Prerequisites
-The end to end tests currently require a connection to postgres
-specified by a `DSN`, such as
-`postgresql://localhost:5432/alamb`. Note that the required schema is
-created automatically.
-
 ### Running
 
 The end to end tests are run using the `cargo test --test end_to_end` command, after setting the
 `TEST_INTEGRATION` and `TEST_INFLUXDB_IOX_CATALOG_DSN` environment variables. NOTE if you don't set
 these variables the tests will "pass" locally (really they will be skipped).
 
-For example, to run the end to end tests assuming the example postgres DSN:
+By default, the integration tests for the Kafka-based write buffer are not run. To run these
+you need to set the `KAFKA_CONNECT` environment variable and `TEST_INTEGRATION=1`.
+
+For example, you can run this docker compose to get redpanda (a kafka-compatible message queue)
+and postgres running:
 
 ```shell
-TEST_INTEGRATION=1 TEST_INFLUXDB_IOX_CATALOG_DSN=postgresql://localhost:5432/alamb cargo test --test end_to_end
+docker-compose -f integration-docker-compose.yml up
+```
+
+In another terminal window, you can run:
+
+```shell
+export TEST_INTEGRATION=1
+export KAFKA_CONNECT=localhost:9092
+export TEST_INFLUXDB_IOX_CATALOG_DSN=postgresql://postgres@localhost:5432/postgres
+cargo test --workspace
+```
+
+Or for just the end-to-end tests (and not general tests or kafka):
+
+```shell
+TEST_INTEGRATION=1 TEST_INFLUXDB_IOX_CATALOG_DSN=postgresql://postgres@localhost:5432/postgres cargo test --test end_to_end
+```
+
+If you are debugging a failing end-to-end test, you will likely want to run with `--nocapture` to also get the logs from the test execution in addition to the server:
+
+```
+cargo test --test end_to_end -- my_failing_test --nocapture
+```
+
+If running multiple tests in parallel:
+
+* The output may be interleaved
+* Multiple tests may share the same server instance and thus the server logs may be captured in the output of a different test than the one that is failing.
+
+When debugging a failing test it is therefore recommended you run a single test, or disable parallel test execution
+
+```
+cargo test --test end_to_end -- --test-threads 1
 ```
 
 You can also see more logging using the `LOG_FILTER` variable. For example:
 
 ```shell
-LOG_FILTER=debug,sqlx=warn,h2=warn TEST_INTEGRATION=1  TEST_INFLUXDB_IOX_CATALOG_DSN=postgresql://localhost:5432/alamb cargo test --test end_to_end
+LOG_FILTER=debug,sqlx=warn,h2=warn
 ```
 
 ## Object storage
@@ -79,46 +109,3 @@ integration tests against `influxd` running in a Docker container.
 If you do not want to use Docker locally, but you do have `influxd` for InfluxDB
 2.0 locally, you can use that instead by running the tests with the environment variable
 `INFLUXDB_IOX_INTEGRATION_LOCAL=1`.
-
-## Kafka Write Buffer
-
-By default, the integration tests for the Kafka-based write buffer are not run.
-
-In order to run them you must set two environment variables:
-
-* `TEST_INTEGRATION=1`
-* `KAFKA_CONNECT` to a host and port where the tests can connect to a running Kafka broker
-
-### Running Kafka Locally
-
-[Redpanda](https://vectorized.io/redpanda/) is a Kafka-compatible broker that can be used to run the tests, and is used
-by the CI to test IOx.
-
-Either follow the instructions on the website to install redpanda directly onto your system, or alternatively
-it can be run in a docker container with:
-
-```
-docker run -d --pull=always --name=redpanda-1 --rm \
-    -p 9092:9092 \
-    -p 9644:9644 \
-    docker.vectorized.io/vectorized/redpanda:latest \
-    redpanda start \
-    --overprovisioned \
-    --smp 1  \
-    --memory 1G \
-    --reserve-memory 0M \
-    --node-id 0 \
-    --check=false
-```
-
-It is then just a case of setting the environment variables and running the tests as normal
-
-```
-TEST_INTEGRATION=1 KAFKA_CONNECT=localhost:9093 cargo test
-```
-
-Or to just run the Kafka tests
-
-```
-TEST_INTEGRATION=1 KAFKA_CONNECT=localhost:9093 cargo test -p write_buffer kafka --nocapture
-```

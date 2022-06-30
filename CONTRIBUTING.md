@@ -124,36 +124,7 @@ See [logging.md](docs/logging.md) for more information on logging.
 
 There are end-to-end tests that spin up a server and make requests via the client library and API. They can be found in `tests/end_to_end_cases`
 
-They are run by `cargo test --workspace` command but can be run exclusively with:
-
-```
-cargo test --test end_to_end
-```
-
-Each server writes its logs to a temporary file and this is captured when the server shutsdown.
-
-If you are debugging a failing end-to-end test, you will likely want to run with `--nocapture` to also get the logs from the test execution in addition to the server:
-
-```
-cargo test --test end_to_end -- my_failing_test --nocapture
-```
-
-If running multiple tests in parallel:
-
-* The output may be interleaved
-* Multiple tests may share the same server instance and thus the server logs may be captured in the output of a different test than the one that is failing.
-
-When debugging a failing test it is therefore recommended you run a single test, or disable parallel test execution
-
-```
-cargo test --test end_to_end -- --test-threads 1
-```
-
-Finally, if you wish to increase the verbosity of the server logging, you can set `LOG_FILTER` as you would for a normal IOx instance.
-
-```
-env LOG_FILTER=debug cargo test --package influxdb_iox --test end_to_end end_to_end_cases::operations_api::test_operations -- --nocapture
-```
+These require additional setup as described in [testing.md](docs/testing.md).
 
 ### Visually showing explain plans
 

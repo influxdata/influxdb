@@ -10,6 +10,8 @@ use test_helpers_end_to_end::{maybe_skip_integration, MiniCluster, Step, StepTes
 
 #[tokio::test]
 async fn default_mode_is_run_all_in_one() {
+    let tmpdir = tempdir().unwrap();
+
     Command::cargo_bin("influxdb_iox")
         .unwrap()
         .args(&["-v"])
@@ -17,6 +19,8 @@ async fn default_mode_is_run_all_in_one() {
         // prod DSN is set - all other tests use TEST_INFLUXDB_IOX_CATALOG_DSN
         // but this one will use the real env if not cleared.
         .env_clear()
+        // Without this, we have errors about writing read-only root filesystem on macos.
+        .env("HOME", tmpdir.path())
         .timeout(Duration::from_secs(2))
         .assert()
         .failure()
@@ -25,6 +29,7 @@ async fn default_mode_is_run_all_in_one() {
 
 #[tokio::test]
 async fn default_run_mode_is_all_in_one() {
+    let tmpdir = tempdir().unwrap();
     Command::cargo_bin("influxdb_iox")
         .unwrap()
         .args(&["run", "-v"])
@@ -32,6 +37,7 @@ async fn default_run_mode_is_all_in_one() {
         // in-memory state, so ensure that any outside config does not influence
         // this.
         .env_clear()
+        .env("HOME", tmpdir.path())
         .timeout(Duration::from_secs(2))
         .assert()
         .failure()
