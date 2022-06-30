@@ -21,6 +21,7 @@ use clap_blocks::{
     catalog_dsn::CatalogDsnConfig,
     object_store::{make_object_store, ObjectStoreConfig},
 };
+use dotenv::dotenv;
 use iox_catalog::interface::Catalog;
 use object_store::DynObjectStore;
 use snafu::prelude::*;
@@ -34,6 +35,9 @@ mod lister;
 const BATCH_SIZE: usize = 1000;
 
 fn main() -> ExitCode {
+    // load all environment variables from .env before doing anything
+    load_dotenv();
+
     if let Err(e) = inner_main() {
         use snafu::ErrorCompat;
 
@@ -78,7 +82,9 @@ pub struct Args {
     #[clap(flatten)]
     catalog_dsn: CatalogDsnConfig,
 
-    #[clap(long, default_value_t = false)]
+    /// If this flag is specified, don't delete the files in object storage. Only print the files
+    /// that would be deleted if this flag wasn't specified.
+    #[clap(long)]
     dry_run: bool,
 }
 
@@ -125,3 +131,18 @@ enum Error {
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
+
+fn load_dotenv() {
+    match dotenv() {
+        Ok(_) => {}
+        Err(dotenv::Error::Io(err)) if err.kind() == std::io::ErrorKind::NotFound => {
+            // Ignore this - a missing env file is not an error, defaults will
+            // be applied when initialising the Config struct.
+        }
+        Err(e) => {
+            eprintln!("FATAL Error loading config from: {}", e);
+            eprintln!("Aborting");
+            std::process::exit(1);
+        }
+    };
+}

@@ -2334,6 +2334,7 @@ dependencies = [
  "clap 3.2.6",
  "clap_blocks",
  "data_types",
+ "dotenv",
  "futures",
  "iox_catalog",
  "metric",
