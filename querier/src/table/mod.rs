@@ -11,6 +11,7 @@ use iox_query::{provider::ChunkPruner, QueryChunk};
 use observability_deps::tracing::debug;
 use predicate::Predicate;
 use schema::Schema;
+use sharder::JumpHash;
 use snafu::{ResultExt, Snafu};
 use std::{
     collections::{hash_map::Entry, HashMap},
@@ -52,8 +53,8 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// Table representation for the querier.
 #[derive(Debug)]
 pub struct QuerierTable {
-    /// Sequencers responsible for the table's data that need to be queried for unpersisted data
-    sequencer_ids: Vec<KafkaPartition>,
+    /// Sharder to query for which sequencers are responsible for the table's data
+    sharder: Arc<JumpHash<Arc<KafkaPartition>>>,
 
     /// Namespace the table is in
     namespace_name: Arc<str>,
@@ -80,7 +81,7 @@ pub struct QuerierTable {
 impl QuerierTable {
     /// Create new table.
     pub fn new(
-        sequencer_ids: Vec<KafkaPartition>,
+        sharder: Arc<JumpHash<Arc<KafkaPartition>>>,
         namespace_name: Arc<str>,
         id: TableId,
         table_name: Arc<str>,
@@ -95,7 +96,7 @@ impl QuerierTable {
         );
 
         Self {
-            sequencer_ids,
+            sharder,
             namespace_name,
             table_name,
             id,
@@ -189,10 +190,18 @@ impl QuerierTable {
                 .map(|(_, f)| f.name().to_string())
                 .collect();
 
-            // get any chunks from the ingester
+            // Get the sequencer IDs responsible for this table's data from the sharder to
+            // determine which ingester(s) to query.
+            // Currently, the sharder will only return one sequencer ID per table, but in the
+            // near future, the sharder might return more than one sequencer ID for one table.
+            let sequencer_ids = vec![**self
+                .sharder
+                .shard_for_query(&self.table_name, &self.namespace_name)];
+
+            // get any chunks from the ingester(s)
             let partitions_result = ingester_connection
                 .partitions(
-                    &self.sequencer_ids,
+                    &sequencer_ids,
                     Arc::clone(&self.namespace_name),
                     Arc::clone(&self.table_name),
                     columns,
