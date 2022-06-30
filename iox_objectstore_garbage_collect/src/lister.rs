@@ -1,5 +1,6 @@
 use futures::prelude::*;
 use object_store::ObjectMeta;
+use observability_deps::tracing::*;
 use snafu::prelude::*;
 use std::sync::Arc;
 use tokio::sync::mpsc;
@@ -17,6 +18,7 @@ pub(crate) async fn perform(
 
     while let Some(item) = items.next().await {
         let item = item.context(MalformedSnafu)?;
+        info!(location = %item.location);
         checker.send(item).await?;
     }
 

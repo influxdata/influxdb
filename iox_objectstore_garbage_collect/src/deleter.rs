@@ -1,4 +1,5 @@
 use object_store::ObjectMeta;
+use observability_deps::tracing::*;
 use snafu::prelude::*;
 use std::sync::Arc;
 use tokio::sync::mpsc;
@@ -21,7 +22,11 @@ pub(crate) async fn perform(
             object_store
                 .delete(&path)
                 .await
-                .context(DeletingSnafu { path })?;
+                .with_context(|_| DeletingSnafu { path: path.clone() })?;
+            info!(
+                location = %path,
+                deleted = true,
+            );
         }
     }
 

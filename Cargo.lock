@@ -2339,10 +2339,12 @@ dependencies = [
  "iox_catalog",
  "metric",
  "object_store",
+ "observability_deps",
  "once_cell",
  "parquet_file",
  "snafu",
  "tokio",
+ "trogging",
  "uuid 1.1.2",
 ]
 

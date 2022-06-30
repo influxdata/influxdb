@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
 use iox_catalog::interface::ParquetFileRepo;
 use object_store::ObjectMeta;
+use observability_deps::tracing::*;
 use snafu::prelude::*;
 use std::sync::Arc;
 use tokio::sync::mpsc;
@@ -58,6 +59,13 @@ async fn should_delete(
     parquet_files: &mut dyn ParquetFileRepo,
 ) -> Result<bool> {
     if cutoff < item.last_modified {
+        info!(
+            location = %item.location,
+            deleting = false,
+            reason = "too new",
+            cutoff = %cutoff,
+            last_modified = %item.last_modified,
+        );
         // Not old enough; do not delete
         return Ok(false);
     }
@@ -72,10 +80,35 @@ async fn should_delete(
                 .context(GetFileSnafu { object_store_id })?;
 
             if parquet_file.is_some() {
+                info!(
+                    location = %item.location,
+                    deleting = false,
+                    reason = "exists in catalog",
+                );
                 // We have a reference to this file; do not delete
                 return Ok(false);
+            } else {
+                info!(
+                    location = %item.location,
+                    deleting = true,
+                    reason = "not in catalog",
+                );
             }
+        } else {
+            info!(
+                location = %item.location,
+                deleting = true,
+                uuid,
+                reason = "not a valid UUID",
+            );
         }
+    } else {
+        info!(
+            location = %item.location,
+            deleting = true,
+            file_name = %file_name.as_ref(),
+            reason = "not a .parquet file",
+        );
     }
 
     Ok(true)

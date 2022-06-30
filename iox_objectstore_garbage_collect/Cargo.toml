@@ -12,8 +12,10 @@ iox_catalog = { path = "../iox_catalog" }
 futures = "0.3"
 metric = { path = "../metric" }
 object_store = { version = "0.3.0", features = ["aws"] }
+observability_deps = { path = "../observability_deps" }
 snafu = "0.7"
 tokio = { version = "1", features = ["macros", "rt", "sync"] }
+trogging = { path = "../trogging", default-features = false, features = ["clap"] }
 uuid = { version = "1", features = ["v4"] }
 
 [dev-dependencies]

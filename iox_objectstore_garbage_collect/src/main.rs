@@ -24,9 +24,15 @@ use clap_blocks::{
 use dotenv::dotenv;
 use iox_catalog::interface::Catalog;
 use object_store::DynObjectStore;
+use observability_deps::tracing::*;
 use snafu::prelude::*;
 use std::{process::ExitCode, sync::Arc};
 use tokio::sync::mpsc;
+use trogging::{
+    cli::LoggingConfig,
+    tracing_subscriber::{prelude::*, Registry},
+    TroggingGuard,
+};
 
 mod checker;
 mod deleter;
@@ -56,6 +62,7 @@ fn main() -> ExitCode {
 #[tokio::main(flavor = "current_thread")]
 async fn inner_main() -> Result<()> {
     let args = Arc::new(Args::parse());
+    let _tracing_guard = init_logs_and_tracing(&args.logging_config);
 
     let (tx1, rx1) = mpsc::channel(BATCH_SIZE);
     let (tx2, rx2) = mpsc::channel(BATCH_SIZE);
@@ -81,6 +88,10 @@ pub struct Args {
 
     #[clap(flatten)]
     catalog_dsn: CatalogDsnConfig,
+
+    /// logging options
+    #[clap(flatten)]
+    pub(crate) logging_config: LoggingConfig,
 
     /// If this flag is specified, don't delete the files in object storage. Only print the files
     /// that would be deleted if this flag wasn't specified.
@@ -145,4 +156,11 @@ fn load_dotenv() {
             std::process::exit(1);
         }
     };
+}
+
+fn init_logs_and_tracing(logging_config: &LoggingConfig) -> TroggingGuard {
+    let log_layer = logging_config.to_builder().build().unwrap();
+    let subscriber = Registry::default().with(log_layer);
+    subscriber::set_global_default(subscriber).unwrap();
+    TroggingGuard
 }
