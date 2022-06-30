@@ -16,7 +16,7 @@ arrow_util = { path = "../arrow_util" }
 croaring = "0.6"
 data_types = { path = "../data_types" }
 datafusion = { path = "../datafusion" }
-either = "1.6.1"
+either = "1.7.0"
 hashbrown = "0.12"
 itertools = "0.10.1"
 metric = { path = "../metric" }
