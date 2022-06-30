@@ -57,8 +57,7 @@ use arrow::{
     array::{as_boolean_array, Array, ArrayRef, BooleanArray},
     compute::{self, filter_record_batch},
     datatypes::SchemaRef,
-    error::ArrowError,
-    error::Result as ArrowResult,
+    error::{ArrowError, Result as ArrowResult},
     record_batch::RecordBatch,
 };
 use datafusion::{
@@ -74,7 +73,7 @@ use datafusion::{
     scalar::ScalarValue,
 };
 
-use datafusion_util::{AdapterStream, AutoAbortJoinHandle};
+use datafusion_util::{watch::WatchedTask, AdapterStream};
 use futures::StreamExt;
 use observability_deps::tracing::*;
 use parking_lot::Mutex;
@@ -310,39 +309,8 @@ impl StreamSplitExec {
         }
 
         // launch the work on a different task, with a task to handle its output values
-        let handle = tokio::task::spawn(async move {
-            // wait for completion, and propagate errors
-            // note we ignore errors on send (.ok) as that means the receiver has already shutdown.
-            let worker = AutoAbortJoinHandle::new(tokio::task::spawn(split_the_stream(
-                input_stream,
-                split_exprs,
-                txs.clone(),
-                baseline_metrics,
-            )));
-
-            match worker.await {
-                Err(e) => {
-                    debug!(%e, "error joining task");
-                    for tx in &txs {
-                        let err: ArrowError =
-                            DataFusionError::Execution(format!("Join Error: {}", e)).into();
-                        tx.send(Err(err)).await.ok();
-                    }
-                }
-                Ok(Err(e)) => {
-                    debug!(%e, "error in work function");
-                    for tx in &txs {
-                        let err: ArrowError = DataFusionError::Execution(e.to_string()).into();
-                        tx.send(Err(err)).await.ok();
-                    }
-                }
-                // Input task completed successfully
-                Ok(Ok(())) => {
-                    trace!("All input tasks completed successfully");
-                }
-            }
-        });
-        let handle = Arc::new(AutoAbortJoinHandle::new(handle));
+        let fut = split_the_stream(input_stream, split_exprs, txs.clone(), baseline_metrics);
+        let handle = WatchedTask::new(fut, txs, "split");
 
         let streams = rxs
             .into_iter()
@@ -350,7 +318,7 @@ impl StreamSplitExec {
                 Some(AdapterStream::adapt(
                     self.input.schema(),
                     rx,
-                    Some(Arc::clone(&handle)),
+                    Arc::clone(&handle),
                 ))
             })
             .collect::<Vec<_>>();
@@ -369,7 +337,7 @@ async fn split_the_stream(
     split_exprs: Vec<Arc<dyn PhysicalExpr>>,
     tx: Vec<Sender<ArrowResult<RecordBatch>>>,
     baseline_metrics: Vec<BaselineMetrics>,
-) -> Result<()> {
+) -> std::result::Result<(), ArrowError> {
     assert_eq!(split_exprs.len() + 1, tx.len());
     assert_eq!(tx.len(), baseline_metrics.len());
 

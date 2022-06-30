@@ -1286,10 +1286,12 @@ dependencies = [
 name = "datafusion_util"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "datafusion 0.1.0",
  "futures",
  "observability_deps",
  "pin-project",
+ "schema",
  "tokio",
  "tokio-stream",
  "workspace-hack",

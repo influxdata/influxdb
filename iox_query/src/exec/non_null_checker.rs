@@ -60,7 +60,7 @@ use datafusion::{
     },
 };
 
-use datafusion_util::{watch::watch_task, AdapterStream, AutoAbortJoinHandle};
+use datafusion_util::{watch::WatchedTask, AdapterStream};
 use observability_deps::tracing::debug;
 use tokio::sync::mpsc;
 use tokio_stream::StreamExt;
@@ -261,28 +261,20 @@ impl ExecutionPlan for NonNullCheckerExec {
 
         let (tx, rx) = mpsc::channel(1);
 
-        let task = tokio::task::spawn(check_for_nulls(
+        let fut = check_for_nulls(
             input_stream,
             Arc::clone(&self.schema),
             baseline_metrics,
             Arc::clone(&self.value),
             tx.clone(),
-        ));
+        );
 
         // A second task watches the output of the worker task and
         // reports errors
-        let handle = tokio::task::spawn(watch_task(
-            "non_null_checker",
-            tx,
-            AutoAbortJoinHandle::new(task),
-        ));
+        let handle = WatchedTask::new(fut, vec![tx], "non_null_checker");
 
         debug!(partition, "End NonNullCheckerExec::execute");
-        Ok(AdapterStream::adapt(
-            self.schema(),
-            rx,
-            Some(Arc::new(AutoAbortJoinHandle::new(handle))),
-        ))
+        Ok(AdapterStream::adapt(self.schema(), rx, handle))
     }
 
     fn fmt_as(&self, t: DisplayFormatType, f: &mut fmt::Formatter<'_>) -> fmt::Result {

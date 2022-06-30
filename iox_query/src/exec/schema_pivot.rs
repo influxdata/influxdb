@@ -43,7 +43,7 @@ use datafusion::{
     },
 };
 
-use datafusion_util::{watch::watch_task, AdapterStream, AutoAbortJoinHandle};
+use datafusion_util::{watch::WatchedTask, AdapterStream};
 use observability_deps::tracing::debug;
 use tokio::sync::mpsc;
 use tokio_stream::StreamExt;
@@ -235,27 +235,19 @@ impl ExecutionPlan for SchemaPivotExec {
         // then sent via a channel to the output
         let (tx, rx) = mpsc::channel(1);
 
-        let task = tokio::task::spawn(schema_pivot(
+        let fut = schema_pivot(
             input_stream,
             input_schema,
             self.schema(),
             tx.clone(),
             baseline_metrics,
-        ));
+        );
 
         // A second task watches the output of the worker task and reports errors
-        let handle = tokio::task::spawn(watch_task(
-            "schema_pivot",
-            tx,
-            AutoAbortJoinHandle::new(task),
-        ));
+        let handle = WatchedTask::new(fut, vec![tx], "schema_pivot");
 
         debug!(partition, "End SchemaPivotExec::execute");
-        Ok(AdapterStream::adapt(
-            self.schema(),
-            rx,
-            Some(Arc::new(AutoAbortJoinHandle::new(handle))),
-        ))
+        Ok(AdapterStream::adapt(self.schema(), rx, handle))
     }
 
     fn fmt_as(&self, t: DisplayFormatType, f: &mut fmt::Formatter<'_>) -> fmt::Result {

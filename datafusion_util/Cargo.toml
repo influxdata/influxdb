@@ -6,6 +6,7 @@ edition = "2021"
 description = "Datafusion utilities"
 
 [dependencies]
+async-trait = "0.1"
 datafusion = { path = "../datafusion" }
 futures = "0.3"
 observability_deps = { path = "../observability_deps" }
@@ -13,3 +14,6 @@ pin-project = "1.0"
 tokio = { version = "1.19", features = ["parking_lot", "sync"] }
 tokio-stream = "0.1"
 workspace-hack = { path = "../workspace-hack"}
+
+[dev-dependencies]
+schema = { path = "../schema" }

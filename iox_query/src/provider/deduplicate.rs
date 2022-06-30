@@ -8,7 +8,7 @@ use arrow::{
     error::{ArrowError, Result as ArrowResult},
     record_batch::RecordBatch,
 };
-use datafusion_util::{watch::watch_task, AdapterStream, AutoAbortJoinHandle};
+use datafusion_util::{watch::WatchedTask, AdapterStream};
 
 pub use self::algo::RecordBatchDeduplicator;
 use datafusion::{
@@ -201,30 +201,22 @@ impl ExecutionPlan for DeduplicateExec {
         // then sent via a channel to the output
         let (tx, rx) = mpsc::channel(1);
 
-        let task = tokio::task::spawn(deduplicate(
+        let fut = deduplicate(
             input_stream,
             self.sort_keys.clone(),
             tx.clone(),
             deduplicate_metrics,
-        ));
+        );
 
         // A second task watches the output of the worker task and reports errors
-        let handle = tokio::task::spawn(watch_task(
-            "deduplicate batches",
-            tx,
-            AutoAbortJoinHandle::new(task),
-        ));
+        let handle = WatchedTask::new(fut, vec![tx], "deduplicate batches");
 
         debug!(
             partition,
             "End building stream for DeduplicationExec::execute"
         );
 
-        Ok(AdapterStream::adapt(
-            self.schema(),
-            rx,
-            Some(Arc::new(AutoAbortJoinHandle::new(handle))),
-        ))
+        Ok(AdapterStream::adapt(self.schema(), rx, handle))
     }
 
     fn required_child_distribution(&self) -> Distribution {
@@ -1166,15 +1158,26 @@ mod test {
             let (tx, rx) = mpsc::unbounded_channel();
 
             // queue up all the results
-            for r in &self.batches {
-                match r {
-                    Ok(batch) => tx.send(Ok(batch.clone())).unwrap(),
-                    Err(e) => tx.send(Err(clone_error(e))).unwrap(),
+            let batches: Vec<_> = self
+                .batches
+                .iter()
+                .map(|r| match r {
+                    Ok(batch) => Ok(batch.clone()),
+                    Err(e) => Err(clone_error(e)),
+                })
+                .collect();
+            let tx_captured = tx.clone();
+            let fut = async move {
+                for r in batches {
+                    tx_captured.send(r).unwrap();
                 }
-            }
+
+                Ok(())
+            };
+            let handle = WatchedTask::new(fut, vec![tx], "dummy send");
 
             debug!(partition, "End DummyExec::execute");
-            Ok(AdapterStream::adapt_unbounded(self.schema(), rx, None))
+            Ok(AdapterStream::adapt_unbounded(self.schema(), rx, handle))
         }
 
         fn statistics(&self) -> Statistics {
