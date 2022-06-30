@@ -75,7 +75,8 @@ messageFn = (r) => "whoa! {r[\"dead\"]}"
 data
     |> v1["fieldsAsCols"]()
     |> monitor["deadman"](t: experimental["subDuration"](from: now(), d: 60s))
-    |> monitor["check"](data: check, messageFn: messageFn, info: info)`,
+    |> monitor["check"](data: check, messageFn: messageFn, info: info)
+`,
 			},
 		},
 		{
@@ -129,7 +130,8 @@ messageFn = (r) => "whoa! {r[\"dead\"]}"
 data
     |> v1["fieldsAsCols"]()
     |> monitor["deadman"](t: experimental["subDuration"](from: now(), d: 60s))
-    |> monitor["check"](data: check, messageFn: messageFn, info: info)`,
+    |> monitor["check"](data: check, messageFn: messageFn, info: info)
+`,
 			},
 		},
 		{
@@ -183,7 +185,8 @@ messageFn = (r) => "whoa! {r[\"dead\"]}"
 data
     |> v1["fieldsAsCols"]()
     |> monitor["deadman"](t: experimental["subDuration"](from: now(), d: 60s))
-    |> monitor["check"](data: check, messageFn: messageFn, info: info)`,
+    |> monitor["check"](data: check, messageFn: messageFn, info: info)
+`,
 			},
 		},
 	}

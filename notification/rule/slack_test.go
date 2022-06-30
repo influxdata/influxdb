@@ -75,7 +75,8 @@ all_statuses
                                 "good",
                     }),
             ),
-    )`,
+    )
+`,
 			rule: &rule.Slack{
 				Channel:         "bar",
 				MessageTemplate: "blah",
@@ -157,7 +158,8 @@ all_statuses
                                 "good",
                     }),
             ),
-    )`,
+    )
+`,
 			rule: &rule.Slack{
 				Channel:         "bar",
 				MessageTemplate: "blah",
@@ -244,7 +246,8 @@ all_statuses
                                 "good",
                     }),
             ),
-    )`,
+    )
+`,
 			rule: &rule.Slack{
 				Channel:         "bar",
 				MessageTemplate: "blah",
@@ -333,7 +336,8 @@ all_statuses
                                 "good",
                     }),
             ),
-    )`,
+    )
+`,
 			rule: &rule.Slack{
 				Channel:         "bar",
 				MessageTemplate: "blah",

@@ -97,7 +97,8 @@ all_statuses
                         timestamp: time(v: r["_source_timestamp"]),
                     }),
             ),
-    )`,
+    )
+`,
 		},
 		{
 			name: "notify on info to crit",
@@ -180,7 +181,8 @@ all_statuses
                         timestamp: time(v: r["_source_timestamp"]),
                     }),
             ),
-    )`,
+    )
+`,
 		},
 		{
 			name: "notify on crit or ok to warn",
@@ -270,7 +272,8 @@ all_statuses
                         timestamp: time(v: r["_source_timestamp"]),
                     }),
             ),
-    )`,
+    )
+`,
 		},
 	}
 

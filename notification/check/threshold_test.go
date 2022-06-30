@@ -104,7 +104,8 @@ data
         info: info,
         warn: warn,
         crit: crit,
-    )`,
+    )
+`,
 			},
 		},
 		{
@@ -184,7 +185,8 @@ data
         info: info,
         warn: warn,
         crit: crit,
-    )`,
+    )
+`,
 			},
 		},
 		{
@@ -264,7 +266,8 @@ data
         info: info,
         warn: warn,
         crit: crit,
-    )`,
+    )
+`,
 			},
 		},
 		{
@@ -344,7 +347,8 @@ data
         info: info,
         warn: warn,
         crit: crit,
-    )`,
+    )
+`,
 			},
 		},
 	}

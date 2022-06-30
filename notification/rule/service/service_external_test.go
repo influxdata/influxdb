@@ -332,7 +332,8 @@ all_statuses
                                 "good",
                     }),
             ),
-    )`,
+    )
+`,
 					Every: "1h",
 				},
 			},

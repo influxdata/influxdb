@@ -133,7 +133,8 @@ all_statuses
                         silent: if r["_level"] == "crit" then true else if r["_level"] == "warn" then true else false,
                     }),
             ),
-    )`,
+    )
+`,
 		},
 		{
 			name: "with DisableWebPagePreview and ParseMode",
@@ -208,7 +209,8 @@ all_statuses
                         silent: if r["_level"] == "crit" then true else if r["_level"] == "warn" then true else false,
                     }),
             ),
-    )`,
+    )
+`,
 		},
 	}
 

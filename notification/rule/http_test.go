@@ -44,7 +44,8 @@ all_statuses
                     return {headers: headers, data: json["encode"](v: body)}
                 },
             ),
-    )`
+    )
+`
 
 	s := &rule.HTTP{
 		Base: rule.Base{
@@ -120,7 +121,8 @@ all_statuses
                     return {headers: headers, data: json["encode"](v: body)}
                 },
             ),
-    )`
+    )
+`
 	s := &rule.HTTP{
 		Base: rule.Base{
 			ID:         1,
@@ -198,7 +200,8 @@ all_statuses
                     return {headers: headers, data: json["encode"](v: body)}
                 },
             ),
-    )`
+    )
+`
 
 	s := &rule.HTTP{
 		Base: rule.Base{
@@ -274,7 +277,8 @@ all_statuses
                     return {headers: headers, data: json["encode"](v: body)}
                 },
             ),
-    )`
+    )
+`
 
 	s := &rule.HTTP{
 		Base: rule.Base{

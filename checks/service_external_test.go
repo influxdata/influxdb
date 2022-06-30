@@ -317,7 +317,7 @@ func CreateCheck(
 						Organization:   "theorg",
 						OwnerID:        MustIDBase16("020f755c3c082001"),
 						Status:         "active",
-						Flux:           "import \"influxdata/influxdb/monitor\"\nimport \"experimental\"\nimport \"influxdata/influxdb/v1\"\n\ndata = from(bucket: \"telegraf\") |> range(start: -1h) |> filter(fn: (r) => r._field == \"usage_user\")\n\noption task = {name: \"name1\", every: 1m}\n\ncheck = {_check_id: \"020f755c3c082000\", _check_name: \"name1\", _type: \"deadman\", tags: {k1: \"v1\", k2: \"v2\"}}\ncrit = (r) => r[\"dead\"]\nmessageFn = (r) => \"msg1\"\n\ndata\n    |> v1[\"fieldsAsCols\"]()\n    |> monitor[\"deadman\"](t: experimental[\"subDuration\"](from: now(), d: 21s))\n    |> monitor[\"check\"](data: check, messageFn: messageFn, crit: crit)",
+						Flux:           "import \"influxdata/influxdb/monitor\"\nimport \"experimental\"\nimport \"influxdata/influxdb/v1\"\n\ndata = from(bucket: \"telegraf\") |> range(start: -1h) |> filter(fn: (r) => r._field == \"usage_user\")\n\noption task = {name: \"name1\", every: 1m}\n\ncheck = {_check_id: \"020f755c3c082000\", _check_name: \"name1\", _type: \"deadman\", tags: {k1: \"v1\", k2: \"v2\"}}\ncrit = (r) => r[\"dead\"]\nmessageFn = (r) => \"msg1\"\n\ndata\n    |> v1[\"fieldsAsCols\"]()\n    |> monitor[\"deadman\"](t: experimental[\"subDuration\"](from: now(), d: 21s))\n    |> monitor[\"check\"](data: check, messageFn: messageFn, crit: crit)\n",
 						Every:          "1m",
 					},
 				},
@@ -468,7 +468,8 @@ data
         ok: ok,
         warn: warn,
         info: info,
-    )`,
+    )
+`,
 					},
 				},
 			},
@@ -605,7 +606,7 @@ data
 						OwnerID:        MustIDBase16("020f755c3c082001"),
 						Status:         "active",
 						Every:          "1m",
-						Flux:           "import \"influxdata/influxdb/monitor\"\nimport \"influxdata/influxdb/v1\"\n\ndata = from(bucket: \"telegraf\") |> range(start: -1m) |> filter(fn: (r) => r._field == \"usage_user\")\n\noption task = {name: \"name1\", every: 1m}\n\ncheck = {_check_id: \"020f755c3c082001\", _check_name: \"name1\", _type: \"threshold\", tags: {k11: \"v11\", k22: \"v22\"}}\nmessageFn = (r) => \"msg2\"\n\ndata |> v1[\"fieldsAsCols\"]() |> monitor[\"check\"](data: check, messageFn: messageFn)",
+						Flux:           "import \"influxdata/influxdb/monitor\"\nimport \"influxdata/influxdb/v1\"\n\ndata = from(bucket: \"telegraf\") |> range(start: -1m) |> filter(fn: (r) => r._field == \"usage_user\")\n\noption task = {name: \"name1\", every: 1m}\n\ncheck = {_check_id: \"020f755c3c082001\", _check_name: \"name1\", _type: \"threshold\", tags: {k11: \"v11\", k22: \"v22\"}}\nmessageFn = (r) => \"msg2\"\n\ndata |> v1[\"fieldsAsCols\"]() |> monitor[\"check\"](data: check, messageFn: messageFn)\n",
 					},
 				},
 				checks: []influxdb.Check{
