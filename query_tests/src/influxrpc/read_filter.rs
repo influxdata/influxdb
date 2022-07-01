@@ -16,13 +16,15 @@ use crate::{
     },
 };
 use datafusion::{
-    logical_plan::{col, lit, when, Expr},
+    logical_plan::{col, lit},
     scalar::ScalarValue,
 };
 use iox_query::frontend::influxrpc::InfluxRpcPlanner;
 use predicate::rpc_predicate::InfluxRpcPredicate;
 use predicate::Predicate;
 use test_helpers::assert_contains;
+
+use super::util::make_empty_tag_ref_expr;
 
 /// runs read_filter(predicate) and compares it to the expected
 /// output
@@ -801,14 +803,4 @@ async fn test_read_filter_on_field_multi_measurement() {
     ];
 
     run_read_filter_test_case(TwoMeasurementsManyFields {}, predicate, expected_results).await;
-}
-
-/// https://github.com/influxdata/influxdb_iox/issues/3635
-/// model what happens when a field is treated like a tag compared to ''
-///
-/// CASE WHEN system" IS NULL THEN '' ELSE system END
-fn make_empty_tag_ref_expr(tag_name: &str) -> Expr {
-    when(col(tag_name).is_null(), lit(""))
-        .otherwise(col(tag_name))
-        .unwrap()
 }

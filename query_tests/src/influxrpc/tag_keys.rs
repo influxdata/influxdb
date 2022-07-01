@@ -7,6 +7,8 @@ use iox_query::{
 };
 use predicate::{rpc_predicate::InfluxRpcPredicate, Predicate};
 
+use super::util::make_empty_tag_ref_expr;
+
 /// Creates and loads several database scenarios using the db_setup function.
 ///
 /// Runs table_column_names(predicate) and compares it to the expected output.
@@ -92,14 +94,12 @@ async fn list_tag_columns_predicate() {
 }
 
 #[tokio::test]
-async fn list_tag_columns_predicate_negative_nonexistent_column() {
+async fn list_tag_columns_predicate_negative_nonexistent_column2() {
     let predicate = Predicate::default()
         .with_expr(col("state").eq(lit("MA"))) // state=MA
-        .with_expr(col("host").not_eq(lit("server01"))); // nonexistent column with !=; always true
+        .with_expr(make_empty_tag_ref_expr("host").not_eq(lit("server01"))); // nonexistent column with !=; always true
     let predicate = InfluxRpcPredicate::new(None, predicate);
-    // This currently returns nothing, which is incorrect, it should return "city", "county",
-    // "state" because a nonexistent column is always not equal to anything.
-    let expected_tag_keys = vec![];
+    let expected_tag_keys = vec!["city", "county", "state"];
     run_tag_keys_test_case(TwoMeasurementsManyNulls {}, predicate, expected_tag_keys).await;
 }
 
