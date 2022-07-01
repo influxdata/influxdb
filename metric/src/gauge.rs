@@ -41,7 +41,7 @@ impl U64Gauge {
         if delta > 0 {
             self.inc(delta as _);
         } else {
-            self.dec(delta.abs() as _);
+            self.dec(delta.unsigned_abs());
         }
     }
 

@@ -1,3 +1,3 @@
 [toolchain]
-channel = "1.61"
+channel = "1.62"
 components = [ "rustfmt", "clippy" ]

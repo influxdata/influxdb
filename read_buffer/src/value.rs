@@ -1077,7 +1077,7 @@ impl std::ops::AddAssign<&Self> for Scalar {
     }
 }
 
-impl<'a> std::ops::AddAssign<&Scalar> for &mut Scalar {
+impl std::ops::AddAssign<&Scalar> for &mut Scalar {
     fn add_assign(&mut self, rhs: &Scalar) {
         match self {
             Scalar::F64(v) => {

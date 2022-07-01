@@ -441,13 +441,11 @@ impl RowGroup {
                 RowIDsOption::Some(row_ids) => {
                     let now = std::time::Instant::now();
                     if result_row_ids.is_empty() {
-                        let row_ids = result_row_ids.union(&row_ids);
+                        result_row_ids.union(&row_ids);
                         trace!(elapsed=?now.elapsed(), "unioning row IDs");
-                        row_ids
                     } else {
-                        let row_ids = result_row_ids.intersect(&row_ids);
+                        result_row_ids.intersect(&row_ids);
                         trace!(elapsed=?now.elapsed(), "intersecting row IDs");
-                        row_ids
                     }
 
                     // before evaluating the next expression check if we have
@@ -1480,7 +1478,7 @@ pub enum Literal {
     Boolean(bool),
 }
 
-impl<'a> TryFrom<&DFScalarValue> for Literal {
+impl TryFrom<&DFScalarValue> for Literal {
     type Error = String;
 
     fn try_from(value: &DFScalarValue) -> Result<Self, Self::Error> {
