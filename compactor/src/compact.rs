@@ -1017,11 +1017,24 @@ impl Compactor {
                 // contain contiguous sequnce numbers
                 group.sort_by_key(|f| f.min_sequence_number);
 
-                // Verify that the sorted ranges of [min_sequence_number, max_sequence_number] do not overlap
+                // Verify that the sorted ranges of [min_sequence_number, max_sequence_number] do not
+                // overlap if their time ranges overlap
+                // Note that: `https://github.com/influxdata/conductor/issues/1009`
+                //  1. the input groups includes time-overlaped files but 2 files in them may NOT overlap but
+                //     both overlap with a third file
+                //  2. Since we split large compacted result into many files in previous cycles, files
+                //     in this cycle can have exact same range of sequence numbers
+                // Points 1 and 2 together will lead to many non-time-overlapped files with same sequence number ranges
+                // can end up in the same time-overlapped group
                 for i in 1..group.len() {
-                    if group[i - 1].max_sequence_number >= group[i].min_sequence_number {
+                    if ((group[i - 1].min_time >= group[i].min_time
+                        && group[i - 1].min_time <= group[i].max_time)
+                        || (group[i].min_time >= group[i - 1].min_time
+                            && group[i].min_time <= group[i - 1].max_time))
+                        && (group[i - 1].max_sequence_number >= group[i].min_sequence_number)
+                    {
                         panic!(
-                            "Two files with overlapped range sequence numbers. \
+                            "Two time-overlapped files with overlapped range sequence numbers. \
                             File id 1: {}, file id 2: {}, sequence number range 1: [{}, {}], \
                             sequence number range 2: [{}, {}], partition id: {}",
                             group[i - 1].id,
@@ -2698,6 +2711,26 @@ mod tests {
         let mut groups = vec![vec![f1, f2]];
 
         // will panic becasue of
+        Compactor::split_overlapped_groups(&mut groups, max_size_bytes, max_file_count);
+    }
+
+    // test of `https://github.com/influxdata/conductor/issues/1009`
+    #[test]
+    fn test_split_overlapped_same_sequence_for_non_time_overlapped() {
+        let max_size_bytes = 1000;
+        let max_file_count = 2;
+
+        // f1 anf f2 are not time-overlapped but have same sequence number range [5, 6]
+        // f3 overlaps with both f1 and f2 but have higher range sequence number [7, 7]
+        let f1 =
+            arbitrary_parquet_file_with_size_and_sequence_number(5, 10, 5, 6, max_size_bytes - 10);
+        let f2 =
+            arbitrary_parquet_file_with_size_and_sequence_number(11, 20, 5, 6, max_size_bytes - 10);
+        let f3 =
+            arbitrary_parquet_file_with_size_and_sequence_number(8, 12, 7, 7, max_size_bytes - 10);
+        let mut groups = vec![vec![f1, f2, f3]];
+
+        // should not panic
         Compactor::split_overlapped_groups(&mut groups, max_size_bytes, max_file_count);
     }
 
