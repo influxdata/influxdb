@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use iox_catalog::interface::ParquetFileRepo;
+use iox_catalog::interface::{Catalog, ParquetFileRepo};
 use object_store::ObjectMeta;
 use observability_deps::tracing::*;
 use snafu::prelude::*;
@@ -8,11 +8,6 @@ use tokio::sync::mpsc;
 
 #[derive(Debug, Snafu)]
 pub(crate) enum Error {
-    #[snafu(display("Could not create the catalog"))]
-    CreatingCatalog {
-        source: clap_blocks::catalog_dsn::Error,
-    },
-
     #[snafu(display("Expected a file name"))]
     FileNameMissing,
 
@@ -34,13 +29,11 @@ pub(crate) enum Error {
 pub(crate) type Result<T, E = Error> = std::result::Result<T, E>;
 
 pub(crate) async fn perform(
-    args: Arc<crate::Args>,
+    catalog: Arc<dyn Catalog>,
     cutoff: DateTime<Utc>,
     mut items: mpsc::Receiver<ObjectMeta>,
     deleter: mpsc::Sender<ObjectMeta>,
 ) -> Result<()> {
-    let catalog = args.catalog().await.context(CreatingCatalogSnafu)?;
-
     let mut repositories = catalog.repositories().await;
     let parquet_files = repositories.parquet_files();
 

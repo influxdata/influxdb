@@ -1,19 +1,14 @@
 use futures::prelude::*;
-use object_store::ObjectMeta;
+use object_store::{DynObjectStore, ObjectMeta};
 use observability_deps::tracing::*;
 use snafu::prelude::*;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 
 pub(crate) async fn perform(
-    args: Arc<crate::Args>,
+    object_store: Arc<DynObjectStore>,
     checker: mpsc::Sender<ObjectMeta>,
 ) -> Result<()> {
-    let object_store = args
-        .object_store()
-        .await
-        .context(CreatingObjectStoreSnafu)?;
-
     let mut items = object_store.list(None).await.context(ListingSnafu)?;
 
     while let Some(item) = items.next().await {
@@ -27,11 +22,6 @@ pub(crate) async fn perform(
 
 #[derive(Debug, Snafu)]
 pub(crate) enum Error {
-    #[snafu(display("Could not create the object store"))]
-    CreatingObjectStore {
-        source: clap_blocks::object_store::ParseError,
-    },
-
     #[snafu(display("The prefix could not be listed"))]
     Listing { source: object_store::Error },
 
