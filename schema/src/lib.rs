@@ -223,7 +223,7 @@ impl Schema {
         self.inner.fields().len()
     }
 
-    /// Returns the number of columns defined in this schema
+    /// Returns `true` if the schema contains no fields.
     pub fn is_empty(&self) -> bool {
         self.inner.fields().is_empty()
     }
