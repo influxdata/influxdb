@@ -208,6 +208,11 @@ impl QuerierParquetChunk {
         }
     }
 
+    /// Return raw parquet file metadata.
+    pub fn parquet_file(&self) -> &Arc<ParquetFile> {
+        self.parquet_chunk.parquet_file()
+    }
+
     /// Set delete predicates of the given chunk.
     pub fn with_delete_predicates(self, delete_predicates: Vec<Arc<DeletePredicate>>) -> Self {
         Self {
@@ -433,8 +438,7 @@ impl ChunkAdapter {
 
         let chunk_id = ChunkId::from(Uuid::from_u128(parquet_file.id.get() as _));
 
-        let order = ChunkOrder::new(parquet_file.min_sequence_number.get())
-            .expect("Error converting min sequence number to chunk order");
+        let order = ChunkOrder::new(parquet_file.min_sequence_number.get());
 
         let meta = Arc::new(ChunkMeta {
             chunk_id,

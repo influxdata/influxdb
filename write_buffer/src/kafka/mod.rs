@@ -191,18 +191,10 @@ impl WriteBufferStreamHandler for RSKafkaStreamHandler {
                 sequence_number: SequenceNumber::new(record.offset),
             };
 
-            let timestamp_millis =
-                i64::try_from(record.record.timestamp.unix_timestamp_nanos() / 1_000_000)
-                    .map_err(WriteBufferError::invalid_data)?;
+            let timestamp_nanos = i64::try_from(record.record.timestamp.unix_timestamp_nanos())
+                .map_err(WriteBufferError::invalid_data)?;
 
-            let timestamp = Time::from_timestamp_millis_opt(timestamp_millis)
-                .ok_or_else::<WriteBufferError, _>(|| {
-                    format!(
-                        "Cannot parse timestamp for milliseconds: {}",
-                        timestamp_millis
-                    )
-                    .into()
-                })?;
+            let timestamp = Time::from_timestamp_nanos(timestamp_nanos);
 
             let value = record
                 .record

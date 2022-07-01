@@ -33,6 +33,11 @@ impl ParquetChunk {
         }
     }
 
+    /// Return raw parquet file metadata.
+    pub fn parquet_file(&self) -> &Arc<ParquetFile> {
+        &self.parquet_file
+    }
+
     /// Return object store id
     pub fn object_store_id(&self) -> Uuid {
         self.parquet_file.object_store_id

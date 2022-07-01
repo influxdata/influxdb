@@ -1,6 +1,6 @@
 //! Interface for reconciling Ingester and catalog state
 
-use crate::ingester::IngesterPartition;
+use crate::{chunk::QuerierParquetChunk, ingester::IngesterPartition};
 use data_types::{ParquetFile, PartitionId, SequenceNumber, SequencerId, Tombstone, TombstoneId};
 use std::{ops::Deref, sync::Arc};
 
@@ -73,6 +73,20 @@ impl ParquetFileInfo for Arc<ParquetFile> {
 
     fn max_sequence_number(&self) -> SequenceNumber {
         self.max_sequence_number
+    }
+}
+
+impl ParquetFileInfo for QuerierParquetChunk {
+    fn partition_id(&self) -> PartitionId {
+        self.parquet_file().partition_id
+    }
+
+    fn min_sequence_number(&self) -> SequenceNumber {
+        self.parquet_file().min_sequence_number
+    }
+
+    fn max_sequence_number(&self) -> SequenceNumber {
+        self.parquet_file().max_sequence_number
     }
 }
 

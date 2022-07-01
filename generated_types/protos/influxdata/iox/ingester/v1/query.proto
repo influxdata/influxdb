@@ -92,8 +92,9 @@ message Predicate {
   // have *at least one* of the fields in field_columns.
   repeated string field_columns = 1;
 
-  // Optional partition key filter
-  optional string partition_key = 2;
+  // partition key is no longer part of the predicate
+  reserved 2;
+  reserved "partition_key";
 
   // Optional timestamp range: only rows within this range are included in results. Other rows are
   // excluded.

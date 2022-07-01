@@ -1039,7 +1039,7 @@ const TAG_VALUE_DELIMITERS: &[char] = TAG_KEY_DELIMITERS;
 const FIELD_KEY_DELIMITERS: &[char] = TAG_KEY_DELIMITERS;
 
 /// Characters to escape when writing string values in fields
-const FIELD_VALUE_STRING_DELIMITERS: &[char] = &['"'];
+const FIELD_VALUE_STRING_DELIMITERS: &[char] = &['"']; // " Close quotes for buggy editor
 
 /// Writes a str value to f, escaping all caracters in
 /// escaping_escaping specificiation.
@@ -1144,19 +1144,16 @@ mod test {
 
     #[test]
     fn test_trim_leading() {
-        assert_eq!(trim_leading(&String::from("")), "");
-        assert_eq!(trim_leading(&String::from("  a b c ")), "a b c ");
-        assert_eq!(trim_leading(&String::from("  a ")), "a ");
-        assert_eq!(trim_leading(&String::from("\n  a ")), "a ");
-        assert_eq!(trim_leading(&String::from("\t  a ")), "a ");
+        assert_eq!(trim_leading(""), "");
+        assert_eq!(trim_leading("  a b c "), "a b c ");
+        assert_eq!(trim_leading("  a "), "a ");
+        assert_eq!(trim_leading("\n  a "), "a ");
+        assert_eq!(trim_leading("\t  a "), "a ");
 
         // comments
-        assert_eq!(trim_leading(&String::from("  #comment\n a ")), "a ");
-        assert_eq!(trim_leading(&String::from("#comment\tcomment")), "");
-        assert_eq!(
-            trim_leading(&String::from("#comment\n #comment2\n#comment\na")),
-            "a"
-        );
+        assert_eq!(trim_leading("  #comment\n a "), "a ");
+        assert_eq!(trim_leading("#comment\tcomment"), "");
+        assert_eq!(trim_leading("#comment\n #comment2\n#comment\na"), "a");
     }
 
     #[test]

@@ -254,11 +254,6 @@ impl QueryChunk for QueryableParquetChunk {
     // Order of the chunk so they can be deduplicate correctly
     fn order(&self) -> ChunkOrder {
         let seq_num = self.min_sequence_number.get();
-        ChunkOrder::new(seq_num).unwrap_or_else(|| {
-            panic!(
-                "Error converting sequence number {} to ChunkOrder for partition {}",
-                seq_num, self.partition_id
-            );
-        })
+        ChunkOrder::new(seq_num)
     }
 }

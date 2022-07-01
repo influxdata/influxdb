@@ -1112,7 +1112,7 @@ impl QueryChunk for IngesterChunk {
     fn order(&self) -> ChunkOrder {
         // since this is always the 'most recent' chunk for this
         // partition, put it at the end
-        ChunkOrder::new(i64::MAX).unwrap()
+        ChunkOrder::new(i64::MAX)
     }
 }
 

@@ -95,7 +95,6 @@ impl TryFrom<Predicate> for proto::Predicate {
     fn try_from(pred: Predicate) -> Result<Self, Self::Error> {
         let Predicate {
             field_columns,
-            partition_key,
             range,
             exprs,
             value_expr,
@@ -122,7 +121,6 @@ impl TryFrom<Predicate> for proto::Predicate {
 
         Ok(Self {
             field_columns,
-            partition_key,
             range,
             exprs,
             value_expr,
@@ -136,7 +134,6 @@ impl TryFrom<proto::Predicate> for Predicate {
     fn try_from(proto: proto::Predicate) -> Result<Self, Self::Error> {
         let proto::Predicate {
             field_columns,
-            partition_key,
             range,
             exprs,
             value_expr,
@@ -173,7 +170,6 @@ impl TryFrom<proto::Predicate> for Predicate {
 
         Ok(Self {
             field_columns,
-            partition_key,
             range,
             exprs,
             value_expr,
@@ -260,7 +256,6 @@ mod tests {
     fn predicate_proto_base64_roundtrip() {
         let predicate = Predicate {
             field_columns: Some(BTreeSet::from([String::from("foo"), String::from("bar")])),
-            partition_key: Some(String::from("pkey")),
             range: Some(TimestampRange::new(13, 42)),
             exprs: vec![Expr::Wildcard],
             value_expr: vec![col("_value").eq(lit("bar")).try_into().unwrap()],

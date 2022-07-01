@@ -901,7 +901,7 @@ impl RLE {
     }
 }
 
-impl<'a> From<Vec<&str>> for RLE {
+impl From<Vec<&str>> for RLE {
     fn from(vec: Vec<&str>) -> Self {
         let mut drle = Self::default();
         for v in vec {
@@ -911,7 +911,7 @@ impl<'a> From<Vec<&str>> for RLE {
     }
 }
 
-impl<'a> From<Vec<String>> for RLE {
+impl From<Vec<String>> for RLE {
     fn from(vec: Vec<String>) -> Self {
         let mut drle = Self::default();
         for v in vec {
@@ -921,7 +921,7 @@ impl<'a> From<Vec<String>> for RLE {
     }
 }
 
-impl<'a> From<Vec<Option<&str>>> for RLE {
+impl From<Vec<Option<&str>>> for RLE {
     fn from(vec: Vec<Option<&str>>) -> Self {
         let mut drle = Self::default();
         for v in vec {
@@ -934,7 +934,7 @@ impl<'a> From<Vec<Option<&str>>> for RLE {
     }
 }
 
-impl<'a> From<Vec<Option<String>>> for RLE {
+impl From<Vec<Option<String>>> for RLE {
     fn from(vec: Vec<Option<String>>) -> Self {
         let mut drle = Self::default();
         for v in vec {
@@ -947,7 +947,7 @@ impl<'a> From<Vec<Option<String>>> for RLE {
     }
 }
 
-impl<'a> From<StringArray> for RLE {
+impl From<StringArray> for RLE {
     fn from(arr: StringArray) -> Self {
         let mut drle = Self::default();
         for i in 0..arr.len() {
