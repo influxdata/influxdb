@@ -48,7 +48,7 @@ macro_rules! typed_packer_accessors {
     };
 }
 
-impl<'a> Packers {
+impl Packers {
     pub fn chunk_values(&self, chunk_size: usize) -> PackerChunker<'_> {
         match self {
             Self::Float(p) => PackerChunker::Float(p.values.chunks(chunk_size)),

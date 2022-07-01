@@ -84,7 +84,7 @@ struct StringVisitor {
     string: String,
 }
 
-impl<'a> tracing::field::Visit for StringVisitor {
+impl tracing::field::Visit for StringVisitor {
     fn record_debug(&mut self, field: &Field, value: &dyn fmt::Debug) {
         use std::fmt::Write;
         write!(self.string, "{} = {:?}; ", field.name(), value).unwrap();

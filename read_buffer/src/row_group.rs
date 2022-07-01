@@ -1480,7 +1480,7 @@ pub enum Literal {
     Boolean(bool),
 }
 
-impl<'a> TryFrom<&DFScalarValue> for Literal {
+impl TryFrom<&DFScalarValue> for Literal {
     type Error = String;
 
     fn try_from(value: &DFScalarValue) -> Result<Self, Self::Error> {

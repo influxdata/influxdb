@@ -792,7 +792,7 @@ impl Dictionary {
     }
 }
 
-impl<'a> From<Vec<&str>> for Dictionary {
+impl From<Vec<&str>> for Dictionary {
     fn from(vec: Vec<&str>) -> Self {
         let mut enc = Self::default();
         for v in vec {
@@ -802,7 +802,7 @@ impl<'a> From<Vec<&str>> for Dictionary {
     }
 }
 
-impl<'a> From<Vec<String>> for Dictionary {
+impl From<Vec<String>> for Dictionary {
     fn from(vec: Vec<String>) -> Self {
         let mut enc = Self::default();
         for v in vec {
@@ -812,7 +812,7 @@ impl<'a> From<Vec<String>> for Dictionary {
     }
 }
 
-impl<'a> From<Vec<Option<&str>>> for Dictionary {
+impl From<Vec<Option<&str>>> for Dictionary {
     fn from(vec: Vec<Option<&str>>) -> Self {
         let mut drle = Self::default();
         for v in vec {
@@ -825,7 +825,7 @@ impl<'a> From<Vec<Option<&str>>> for Dictionary {
     }
 }
 
-impl<'a> From<Vec<Option<String>>> for Dictionary {
+impl From<Vec<Option<String>>> for Dictionary {
     fn from(vec: Vec<Option<String>>) -> Self {
         let mut drle = Self::default();
         for v in vec {
@@ -838,7 +838,7 @@ impl<'a> From<Vec<Option<String>>> for Dictionary {
     }
 }
 
-impl<'a> From<StringArray> for Dictionary {
+impl From<StringArray> for Dictionary {
     fn from(arr: StringArray) -> Self {
         let mut drle = Self::default();
         for i in 0..arr.len() {
