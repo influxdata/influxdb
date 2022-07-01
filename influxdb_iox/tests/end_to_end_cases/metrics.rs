@@ -5,7 +5,7 @@ use test_helpers_end_to_end::{
 #[tokio::test]
 pub async fn test_metrics() {
     let database_url = maybe_skip_integration!();
-    let test_config = TestConfig::new_all_in_one(database_url);
+    let test_config = TestConfig::new_all_in_one(Some(database_url));
     let mut cluster = MiniCluster::create_all_in_one(test_config).await;
 
     let lp = DataGenerator::new().line_protocol().to_owned();
@@ -41,7 +41,7 @@ pub async fn test_jemalloc_metrics() {
     use test_helpers::assert_contains;
 
     let database_url = maybe_skip_integration!();
-    let test_config = TestConfig::new_all_in_one(database_url);
+    let test_config = TestConfig::new_all_in_one(Some(database_url));
     let mut cluster = MiniCluster::create_all_in_one(test_config).await;
 
     StepTest::new(
