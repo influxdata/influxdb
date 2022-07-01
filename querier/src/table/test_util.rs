@@ -10,6 +10,7 @@ use iox_tests::util::{TestCatalog, TestPartition, TestSequencer, TestTable};
 use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
 use parquet_file::storage::ParquetStorage;
 use schema::{selection::Selection, sort::SortKey, Schema};
+use sharder::JumpHash;
 use std::sync::Arc;
 
 /// Create a [`QuerierTable`] for testing.
@@ -37,7 +38,7 @@ pub async fn querier_table(catalog: &Arc<TestCatalog>, table: &Arc<TestTable>) -
     let namespace_name = Arc::from(table.namespace.namespace.name.as_str());
 
     QuerierTable::new(
-        vec![KafkaPartition::new(0)],
+        Arc::new(JumpHash::new((0..1).map(KafkaPartition::new).map(Arc::new)).unwrap()),
         namespace_name,
         table.table.id,
         table.table.name.clone().into(),

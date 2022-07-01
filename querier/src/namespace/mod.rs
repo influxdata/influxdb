@@ -19,10 +19,13 @@ mod test_util;
 /// Maps a catalog namespace to all the in-memory resources and sync-state that the querier needs.
 ///
 /// # Data Structures & Sync
-/// Tables and schemas are created when [`QuerierNamespace`] is created because DataFusion does not implement async
-/// schema inspection. The actual payload (chunks and tombstones) are only queried on demand.
 ///
-/// Most access to the [IOx Catalog](iox_catalog::interface::Catalog) are cached via [`CatalogCache`].
+/// Tables and schemas are created when [`QuerierNamespace`] is created because DataFusion does not
+/// implement async schema inspection. The actual payload (chunks and tombstones) are only queried
+/// on demand.
+///
+/// Most accesses to the [IOx Catalog](iox_catalog::interface::Catalog) are cached via
+/// [`CatalogCache`].
 #[derive(Debug)]
 pub struct QuerierNamespace {
     /// ID of this namespace.
@@ -37,7 +40,7 @@ pub struct QuerierNamespace {
     /// Executor for queries.
     exec: Arc<Executor>,
 
-    /// Catalog cache
+    /// Catalog cache.
     catalog_cache: Arc<CatalogCache>,
 
     /// Query log.
@@ -63,12 +66,8 @@ impl QuerierNamespace {
                 let id = table_schema.id;
                 let schema = Schema::try_from(table_schema.clone()).expect("cannot build schema");
 
-                // Currently, the sharder will only return one sequencer ID per table, but in the
-                // near future, the sharder might return more than one sequencer ID for one table.
-                let sequencer_ids = vec![**sharder.shard_for_query(&table_name, &name)];
-
                 let table = Arc::new(QuerierTable::new(
-                    sequencer_ids,
+                    Arc::clone(&sharder),
                     Arc::clone(&name),
                     id,
                     Arc::clone(&table_name),
