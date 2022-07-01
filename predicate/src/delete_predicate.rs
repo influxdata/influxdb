@@ -68,7 +68,6 @@ impl From<DeletePredicate> for crate::Predicate {
     fn from(pred: DeletePredicate) -> Self {
         Self {
             field_columns: None,
-            partition_key: None,
             range: Some(pred.range),
             exprs: pred.exprs.into_iter().map(expr_to_df).collect(),
             value_expr: vec![],

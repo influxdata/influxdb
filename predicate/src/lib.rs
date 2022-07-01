@@ -33,7 +33,6 @@ pub const EMPTY_PREDICATE: Predicate = Predicate {
     field_columns: None,
     exprs: vec![],
     range: None,
-    partition_key: None,
     value_expr: vec![],
 };
 
@@ -66,9 +65,6 @@ pub struct Predicate {
     /// Optional field restriction. If present, restricts the results to only
     /// tables which have *at least one* of the fields in field_columns.
     pub field_columns: Option<BTreeSet<String>>,
-
-    /// Optional partition key filter
-    pub partition_key: Option<String>,
 
     /// Optional timestamp range: only rows within this range are included in
     /// results. Other rows are excluded
@@ -245,10 +241,6 @@ impl fmt::Display for Predicate {
             write!(f, " field_columns: {{{}}}", iter_to_str(field_columns))?;
         }
 
-        if let Some(partition_key) = &self.partition_key {
-            write!(f, " partition_key: '{}'", partition_key)?;
-        }
-
         if let Some(range) = &self.range {
             // TODO: could be nice to show this as actual timestamps (not just numbers)?
             write!(f, " range: [{} - {}]", range.start(), range.end())?;
@@ -353,16 +345,6 @@ impl Predicate {
             .collect::<BTreeSet<_>>();
 
         self.field_columns = Some(column_names);
-        self
-    }
-
-    /// Set the partition key restriction
-    pub fn with_partition_key(mut self, partition_key: impl Into<String>) -> Self {
-        assert!(
-            self.partition_key.is_none(),
-            "multiple partition key predicates not suported"
-        );
-        self.partition_key = Some(partition_key.into());
         self
     }
 
@@ -621,10 +603,12 @@ mod tests {
         let p = Predicate::new()
             .with_range(1, 100)
             .with_expr(col("foo").eq(lit(42)))
-            .with_field_columns(vec!["f1", "f2"])
-            .with_partition_key("the_key");
+            .with_field_columns(vec!["f1", "f2"]);
 
-        assert_eq!(p.to_string(), "Predicate field_columns: {f1, f2} partition_key: 'the_key' range: [1 - 100] exprs: [#foo = Int32(42)]");
+        assert_eq!(
+            p.to_string(),
+            "Predicate field_columns: {f1, f2} range: [1 - 100] exprs: [#foo = Int32(42)]"
+        );
     }
 
     #[test]
