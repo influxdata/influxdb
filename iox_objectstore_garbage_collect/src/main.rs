@@ -44,8 +44,10 @@ const BATCH_SIZE: usize = 1000;
 fn main() -> ExitCode {
     // load all environment variables from .env before doing anything
     load_dotenv();
+    let args = Args::parse();
+    let _tracing_guard = init_logs_and_tracing(&args.logging_config);
 
-    if let Err(e) = inner_main() {
+    if let Err(e) = inner_main(args) {
         use snafu::ErrorCompat;
 
         eprintln!("{e}");
@@ -61,9 +63,8 @@ fn main() -> ExitCode {
 }
 
 #[tokio::main(flavor = "current_thread")]
-async fn inner_main() -> Result<()> {
-    let args = Arc::new(Args::parse());
-    let _tracing_guard = init_logs_and_tracing(&args.logging_config);
+async fn inner_main(args: Args) -> Result<()> {
+    let args = Arc::new(args);
 
     let cutoff = args.cutoff().context(ParsingCutoffSnafu)?;
     info!(
@@ -154,9 +155,7 @@ enum Error {
     DeleterPanic { source: tokio::task::JoinError },
 
     #[snafu(display("Could not parse the cutoff argument"))]
-    ParsingCutoff {
-        source: chrono_english::DateError,
-    },
+    ParsingCutoff { source: chrono_english::DateError },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -181,4 +180,80 @@ fn init_logs_and_tracing(logging_config: &LoggingConfig) -> TroggingGuard {
     let subscriber = Registry::default().with(log_layer);
     subscriber::set_global_default(subscriber).unwrap();
     TroggingGuard
+}
+
+#[cfg(test)]
+mod tests {
+    use filetime::FileTime;
+    use std::{fs, path::PathBuf};
+    use tempfile::TempDir;
+
+    use super::*;
+
+    #[test]
+    fn deletes_untracked_files_older_than_the_cutoff() {
+        let setup = OldFileSetup::new();
+
+        #[rustfmt::skip]
+        let args = Args::parse_from([
+            "dummy-program-name",
+            "--object-store", "file",
+            "--data-dir", setup.data_dir_arg(),
+            "--catalog", "memory",
+        ]);
+        inner_main(args).unwrap();
+
+        assert!(
+            !setup.file_path.exists(),
+            "The path {} should have been deleted",
+            setup.file_path.as_path().display(),
+        );
+    }
+
+    #[test]
+    fn preserves_untracked_files_newer_than_the_cutoff() {
+        let setup = OldFileSetup::new();
+
+        #[rustfmt::skip]
+        let args = Args::parse_from([
+            "dummy-program-name",
+            "--object-store", "file",
+            "--data-dir", setup.data_dir_arg(),
+            "--catalog", "memory",
+            "--cutoff", "10 years ago",
+        ]);
+        inner_main(args).unwrap();
+
+        assert!(
+            setup.file_path.exists(),
+            "The path {} should not have been deleted",
+            setup.file_path.as_path().display(),
+        );
+    }
+
+    struct OldFileSetup {
+        data_dir: TempDir,
+        file_path: PathBuf,
+    }
+
+    impl OldFileSetup {
+        const APRIL_9_2018: FileTime = FileTime::from_unix_time(1523308536, 0);
+
+        fn new() -> Self {
+            let data_dir = TempDir::new().unwrap();
+
+            let file_path = data_dir.path().join("some-old-file");
+            fs::write(&file_path, "dummy content").unwrap();
+            filetime::set_file_mtime(&file_path, Self::APRIL_9_2018).unwrap();
+
+            Self {
+                data_dir,
+                file_path,
+            }
+        }
+
+        fn data_dir_arg(&self) -> &str {
+            self.data_dir.path().to_str().unwrap()
+        }
+    }
 }

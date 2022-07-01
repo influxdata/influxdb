@@ -21,5 +21,7 @@ uuid = { version = "1", features = ["v4"] }
 
 [dev-dependencies]
 data_types = { path = "../data_types" }
+filetime = "0.2"
 once_cell = { version = "1.12.0", features = ["parking_lot"] }
 parquet_file = { path = "../parquet_file" }
+tempfile = "3"
