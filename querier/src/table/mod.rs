@@ -6,10 +6,10 @@ use crate::{
     IngesterConnection,
 };
 use data_types::{KafkaPartition, PartitionId, TableId};
-use futures::join;
+use futures::{join, StreamExt, TryStreamExt};
 use iox_query::{provider::ChunkPruner, QueryChunk};
 use observability_deps::tracing::debug;
-use predicate::Predicate;
+use predicate::{Predicate, PredicateMatch};
 use schema::Schema;
 use snafu::{ResultExt, Snafu};
 use std::{
@@ -161,6 +161,41 @@ impl QuerierTable {
         let (parquet_files, tombstones) = join!(
             catalog_cache.parquet_file().get(self.id()),
             catalog_cache.tombstone().get(self.id())
+        );
+
+        // filter out parquet files early
+        let n_parquet_files_pre_filter = parquet_files.files.len();
+        let parquet_files: Vec<_> = futures::stream::iter(parquet_files.files.iter())
+            .filter_map(|cached_parquet_file| {
+                let chunk_adapter = Arc::clone(&self.chunk_adapter);
+                async move {
+                    chunk_adapter
+                        .new_parquet_chunk(
+                            Arc::clone(&self.namespace_name),
+                            Arc::clone(cached_parquet_file),
+                        )
+                        .await
+                }
+            })
+            .filter_map(|chunk| {
+                let res = chunk
+                    .apply_predicate_to_metadata(predicate)
+                    .map(|pmatch| {
+                        let keep = !matches!(pmatch, PredicateMatch::Zero);
+                        keep.then(|| chunk)
+                    })
+                    .transpose();
+                async move { res }
+            })
+            .try_collect()
+            .await
+            .unwrap();
+        debug!(
+            namespace=%self.namespace_name,
+            table_name=%self.table_name(),
+            n_parquet_files_pre_filter,
+            n_parquet_files_post_filter=parquet_files.len(),
+            "Applied predicate-based filter to parquet file"
         );
 
         self.reconciler
@@ -336,25 +371,28 @@ mod tests {
         assert!(querier_table.chunks().await.unwrap().is_empty());
 
         let file111 = partition11
-            .create_parquet_file_with_min_max("table1 foo=1 11", 1, 2, now_nanos(), now_nanos())
+            .create_parquet_file_with_min_max("table1 foo=1 11", 1, 2, 11, 11)
             .await;
         let file112 = partition11
-            .create_parquet_file_with_min_max("table1 foo=2 22", 3, 4, now_nanos(), now_nanos())
+            .create_parquet_file_with_min_max("table1 foo=2 22", 3, 4, 22, 22)
             .await;
         let file113 = partition11
-            .create_parquet_file_with_min_max("table1 foo=3 33", 5, 6, now_nanos(), now_nanos())
+            .create_parquet_file_with_min_max("table1 foo=3 33", 5, 6, 33, 33)
             .await;
         let file114 = partition11
-            .create_parquet_file_with_min_max("table1 foo=4 44", 7, 8, now_nanos(), now_nanos())
+            .create_parquet_file_with_min_max("table1 foo=4 44", 7, 8, 44, 44)
             .await;
         let file115 = partition11
-            .create_parquet_file_with_min_max("table1 foo=5 55", 9, 10, now_nanos(), now_nanos())
+            .create_parquet_file_with_min_max("table1 foo=5 55", 9, 10, 55, 55)
             .await;
         let file121 = partition12
-            .create_parquet_file_with_min_max("table1 foo=5 55", 1, 2, now_nanos(), now_nanos())
+            .create_parquet_file_with_min_max("table1 foo=5 55", 1, 2, 55, 55)
+            .await;
+        let _file122 = partition12
+            .create_parquet_file_with_min_max("table1 foo=10 100", 1, 2, 100, 100)
             .await;
         let _file211 = partition21
-            .create_parquet_file_with_min_max("table2 foo=6 66", 1, 2, now_nanos(), now_nanos())
+            .create_parquet_file_with_min_max("table2 foo=6 66", 1, 2, 66, 66)
             .await;
 
         file111.flag_for_delete().await;
@@ -377,8 +415,10 @@ mod tests {
         // now we have some files
         // this contains all files except for:
         // - file111: marked for delete
+        // - file122: filtered by predicate
         // - file221: wrong table
-        let mut chunks = querier_table.chunks().await.unwrap();
+        let pred = Predicate::new().with_range(0, 100);
+        let mut chunks = querier_table.chunks_with_predicate(&pred).await.unwrap();
         chunks.sort_by_key(|c| c.id());
         assert_eq!(chunks.len(), 5);
 
@@ -821,7 +861,14 @@ mod tests {
         /// Invokes querier_table.chunks modeling the ingester sending the partitions in this table
         async fn chunks(&self) -> Result<Vec<Arc<dyn QueryChunk>>> {
             let pred = Predicate::default();
+            self.chunks_with_predicate(&pred).await
+        }
 
+        /// Invokes querier_table.chunks modeling the ingester sending the partitions in this table
+        async fn chunks_with_predicate(
+            &self,
+            pred: &Predicate,
+        ) -> Result<Vec<Arc<dyn QueryChunk>>> {
             self.querier_table
                 .ingester_connection
                 .as_ref()
@@ -831,7 +878,7 @@ mod tests {
                 .unwrap()
                 .next_response(Ok(self.ingester_partitions.clone()));
 
-            self.querier_table.chunks(&pred).await
+            self.querier_table.chunks(pred).await
         }
     }
 

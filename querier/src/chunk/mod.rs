@@ -208,6 +208,11 @@ impl QuerierParquetChunk {
         }
     }
 
+    /// Return raw parquet file metadata.
+    pub fn parquet_file(&self) -> &Arc<ParquetFile> {
+        self.parquet_chunk.parquet_file()
+    }
+
     /// Set delete predicates of the given chunk.
     pub fn with_delete_predicates(self, delete_predicates: Vec<Arc<DeletePredicate>>) -> Self {
         Self {

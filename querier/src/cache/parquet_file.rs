@@ -46,13 +46,9 @@ impl CachedParquetFiles {
     }
 
     /// return the underying files as a new Vec
-    pub fn vec(&self) -> Vec<Arc<ParquetFile>> {
+    #[cfg(test)]
+    fn vec(&self) -> Vec<Arc<ParquetFile>> {
         self.files.as_ref().clone()
-    }
-
-    /// return the number of cached files
-    pub fn len(&self) -> usize {
-        self.files.len()
     }
 
     /// Estimate the memory consumption of this object and its contents

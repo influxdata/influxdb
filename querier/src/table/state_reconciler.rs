@@ -14,7 +14,6 @@ use std::{
 };
 
 use crate::{
-    cache::parquet_file::CachedParquetFiles,
     chunk::{ChunkAdapter, QuerierParquetChunk, QuerierRBChunk},
     ingester::IngesterChunk,
     tombstone::QuerierTombstone,
@@ -56,7 +55,7 @@ impl Reconciler {
         &self,
         ingester_partitions: Vec<IngesterPartition>,
         tombstones: Vec<Arc<Tombstone>>,
-        parquet_files: Arc<CachedParquetFiles>,
+        parquet_files: Vec<QuerierParquetChunk>,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, ReconcileError> {
         let mut chunks = self
             .build_chunks_from_parquet(&ingester_partitions, tombstones, parquet_files)
@@ -78,7 +77,7 @@ impl Reconciler {
         &self,
         ingester_partitions: &[IngesterPartition],
         tombstones: Vec<Arc<Tombstone>>,
-        parquet_files: Arc<CachedParquetFiles>,
+        parquet_files: Vec<QuerierParquetChunk>,
     ) -> Result<Vec<Box<dyn UpdatableQuerierChunk>>, ReconcileError> {
         debug!(
             namespace=%self.namespace_name(),
@@ -104,10 +103,10 @@ impl Reconciler {
                 .push(tombstone);
         }
 
-        let parquet_files = filter_parquet_files(ingester_partitions, parquet_files.vec())?;
+        let parquet_files = filter_parquet_files(ingester_partitions, parquet_files)?;
 
         debug!(
-            parquet_ids=?parquet_files.iter().map(|f| f.id).collect::<Vec<_>>(),
+            parquet_ids=?parquet_files.iter().map(|f| f.parquet_file().id).collect::<Vec<_>>(),
             namespace=%self.namespace_name(),
             table_name=%self.table_name(),
             "Parquet files after filtering"
@@ -117,10 +116,13 @@ impl Reconciler {
         let chunks_from_parquet: Vec<_> = futures::stream::iter(parquet_files)
             // use `.map` instead of `then` or `filter_map` because the next step is `buffered_unordered` and that
             // requires a stream of futures
-            .map(|cached_parquet_file| async {
-                self.chunk_adapter
-                    .new_rb_chunk(Arc::clone(&self.namespace_name), cached_parquet_file)
-                    .await
+            .map(|chunk| {
+                let parquet_file = Arc::clone(chunk.parquet_file());
+                async {
+                    self.chunk_adapter
+                        .new_rb_chunk(Arc::clone(&self.namespace_name), parquet_file)
+                        .await
+                }
             })
             // fetch multiple RB chunks in parallel to hide latency
             // TODO(marco): expose this as a config

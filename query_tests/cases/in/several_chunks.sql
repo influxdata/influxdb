@@ -13,3 +13,6 @@ EXPLAIN SELECT * from h2o;
 -- IOX_COMPARE: sorted
 select temp, other_temp, time from h2o;
 EXPLAIN select temp, other_temp, time from h2o;
+
+-- early pruning
+EXPLAIN SELECT * from h2o where time >= to_timestamp('1970-01-01T00:00:00.000000250+00:00');
