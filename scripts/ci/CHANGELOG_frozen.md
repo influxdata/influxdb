@@ -1,179 +1,659 @@
-v1.9.0 [unreleased]
+## v1.9.7 [2022-04-27]
+----------------------
+
+### Bug Fixes
+
+1. [85580fa](https://github.com/influxdata//commit/85580fa): Correctly handle MaxSeriesPerDatabaseExceeded
+1. [f04ccfd](https://github.com/influxdata//commit/f04ccfd): Add additional testing for MaxSeriesPerDatabase
+1. [72989c5](https://github.com/influxdata//commit/72989c5): Add database to MaxSeriesPerDatabase error message
+1. [107807c](https://github.com/influxdata//commit/107807c): Return underlying error creating a subscription
+
+### Other
+
+1. [33e48e9](https://github.com/influxdata//commit/33e48e9): Chore: upgrade flux to v0.159.0
+1. [47f209f](https://github.com/influxdata//commit/47f209f): Chore: update flux to latest version
+1. [715975d](https://github.com/influxdata//commit/715975d): Build: upgrade Go to 1.17.9
+1. [39faef2](https://github.com/influxdata//commit/39faef2): Fix(restore): fix race condition which causes restore command to fail
+1. [f49c5ec](https://github.com/influxdata//commit/f49c5ec): Fix(flux): inject sane defaults dependency for flux
+
+
+## v1.9.6 [2022-01-31]
+----------------------
+
+### Bug Fixes
+
+1. [be940bc](https://github.com/influxdata//commit/be940bc): Create shards without overlaps
+1. [b5825b3](https://github.com/influxdata//commit/b5825b3): Better error for no data from snapshots
+1. [9d3508c](https://github.com/influxdata//commit/9d3508c): For Windows, close temp file before removing
+1. [159b105](https://github.com/influxdata//commit/159b105): For Windows, copy snapshot files being backed up
+1. [6448e16](https://github.com/influxdata//commit/6448e16): Test runner uses gotestsum for better junit test capture
+1. [effd948](https://github.com/influxdata//commit/effd948): Extend snapshot copy to filesystems that cannot link
+1. [2b10745](https://github.com/influxdata//commit/2b10745): Detect misquoted tag values and return an error
+1. [d899617](https://github.com/influxdata//commit/d899617): Log at Debug level in influx_tools compact-shard
+1. [30d6aec](https://github.com/influxdata//commit/30d6aec): Allow limiting shards during flux iterator reads
+1. [7b9b4e8](https://github.com/influxdata//commit/7b9b4e8): Fix typo in sample config
 
 ### Features
 
--	[#20873](https://github.com/influxdata/influxdb/pull/20873): feat: add arguments to flux to function
--	[#20793](https://github.com/influxdata/influxdb/pull/20793): feat: Add WITH KEY to show tag keys
--	[#20745](https://github.com/influxdata/influxdb/pull/20745): feat: use count_hll for 'show series cardinality' queries
--	[#20603](https://github.com/influxdata/influxdb/pull/20603): feat(query): Hyper log log operators in influxql
--	[#20700](https://github.com/influxdata/influxdb/pull/20700): feat: series creation ingress metrics
--	[#20687](https://github.com/influxdata/influxdb/pull/20687): feat: measurement metrics by login
--	[#20677](https://github.com/influxdata/influxdb/pull/20677): feat: Ingress metrics by measurement
--	[#20544](https://github.com/influxdata/influxdb/pull/20544): feat(tsi): optimize series iteration
--	[#17814](https://github.com/influxdata/influxdb/pull/17814): feat(prometheus): update prometheus remote protocol
--	[#17596](https://github.com/influxdata/influxdb/pull/17596): improvement(query): performance improvement for sorted merge iterator [Tristan Su]
--	[#21015](https://github.com/influxdata/influxdb/pull/21015): build: upgrade to go 1.15.10
--	[#21100](https://github.com/influxdata/influxdb/pull/21100): feat: add memory and concurrency limits in flux controller
--	[#21108](https://github.com/influxdata/influxdb/pull/21108): feat: make flux controller limits configurable
--	[#21124](https://github.com/influxdata/influxdb/pull/21124): feat: implement rewrite rules for window and bare aggregates
--	[#21281](https://github.com/influxdata/influxdb/pull/21281): feat: flux upgrade to v0.113.0
--	[#21291](https://github.com/influxdata/influxdb/pull/21291): feat: meancount aggregation for WindowAggregate pushdown in enterprise
+1. [875c538](https://github.com/influxdata//commit/875c538): Add thread-safe access to CountingWriter byte total
+1. [7f8441e](https://github.com/influxdata//commit/7f8441e): Optionally dump queries to log on SIGTERM
+1. [a9e321c](https://github.com/influxdata//commit/a9e321c): Configurable DELETE concurrency
 
-### Bugfixes
+### Other
 
--	[#21183](https://github.com/influxdata/influxdb/pull/21183): fix: flux regression in buckets query
--	[#21156](https://github.com/influxdata/influxdb/pull/21156): fix: redundant registration for prometheus collector metrics
--	[#21052](https://github.com/influxdata/influxdb/pull/21052): fix: help text for influx_inspect
--	[#20889](https://github.com/influxdata/influxdb/pull/20889): fix: Add back flux CLI (#20889)
--	[#20802](https://github.com/influxdata/influxdb/pull/20802): fix(tsm1): fix data race and validation in cache ring
--	[#20694](https://github.com/influxdata/influxdb/pull/20694): fix: consistent error for missing shard
--	[#20183](https://github.com/influxdata/influxdb/pull/20183): fix: Properly shutdown multiple http servers
--	[#20063](https://github.com/influxdata/influxdb/pull/20063): fix(tsm1): "snapshot in progress" error during backup
--	[#19631](https://github.com/influxdata/influxdb/pull/19631): fix(CORS): allow PATCH
--	[#17060](https://github.com/influxdata/influxdb/pull/17060): fix(tsdb): return error on nonexistent shard id
--	[#18410](https://github.com/influxdata/influxdb/pull/18410): fix(handler): allow CORS in v2 compatibility endpoints
--	[#18410](https://github.com/influxdata/influxdb/pull/18410): fix(handler): add User-Agent to allowed CORS headers
--	[#18429](https://github.com/influxdata/influxdb/pull/18429): fix(httpd): add option to authenticate prometheus remote read
--	[#18136](https://github.com/influxdata/influxdb/pull/18136): fix(query): address staticcheck warning S1020
--	[#18140](https://github.com/influxdata/influxdb/pull/18140): fix(client/v2): use non-nil context.Context value
--	[#18135](https://github.com/influxdata/influxdb/pull/18135): fix: address static check warning s1039
--	[#18127](https://github.com/influxdata/influxdb/pull/18127): fix(tsdb): address staticcheck warning SA4006
--	[#18126](https://github.com/influxdata/influxdb/pull/18126): fix(tsdb): address staticcheck warning st1006
--	[#18129](https://github.com/influxdata/influxdb/pull/18129): fix(tsdb): Fix variables masked by a declaration
--	[#18004](https://github.com/influxdata/influxdb/pull/18004): fix(httpd): Fixes key collisions when serializing /debug/vars
--	[#17798](https://github.com/influxdata/influxdb/pull/17798): fix(docs): Update docs to reflect tooling changes
--	[#17685](https://github.com/influxdata/influxdb/pull/17685): fix(tsm1): Fix temp directory search bug
--	[#17495](https://github.com/influxdata/influxdb/pull/17495): fix(snapshotter): properly read payload
--	[#21139](https://github.com/influxdata/influxdb/pull/21139): fix(tsdb): exclude stop time from array cursors
--	[#21124](https://github.com/influxdata/influxdb/pull/21124): fix(storage): Detect need for descending cursor in WindowAggregate
--	[#21285](https://github.com/influxdata/influxdb/pull/21281): fix(storage): Detect need for descending cursor in GroupAggregate
--	[#21036](https://github.com/influxdata/influxdb/pull/21306): fix(models): grow tag index buffer if needed
--	[#21275](https://github.com/influxdata/influxdb/pull/21275): fix: Anti-Entropy loops endlessly with empty shard
--	[#21334](https://github.com/influxdata/influxdb/pull/21334): fix: summation should be in native type for new meancount iterator
--	[#21347](https://github.com/influxdata/influxdb/pull/21347): fix(storage): cursor requests are [start, stop] instead of [start, stop)
--	[#21358](https://github.com/influxdata/influxdb/pull/21358): fix: disable MergeFiltersRule until it is more stable
--	[#21452](https://github.com/influxdata/influxdb/pull/21452): chore(ae): add more logging
--	[#21516](https://github.com/influxdata/influxdb/pull/21516): fix: FGA enablement
+1. [92a524e](https://github.com/influxdata//commit/92a524e): Chore: increase timer to 5 seconds
+1. [a083fa9](https://github.com/influxdata//commit/a083fa9): Test: fix DiskSizeBytes flakiness
+1. [993bdb2](https://github.com/influxdata//commit/993bdb2): Fix(restore): enforce the -db parameter when -newdb used
+1. [74631f0](https://github.com/influxdata//commit/74631f0): Build: upgrade protobuf library
+1. [68e2455](https://github.com/influxdata//commit/68e2455): Chore: fix deadlock in `influx_inspect dumptsi`
+1. [834632d](https://github.com/influxdata//commit/834632d): Chore: increase timeout timers for `TestMonitor` tests
+1. [159776d](https://github.com/influxdata//commit/159776d): Chore: upgrade `influx_tools` to new protobuf library
+1. [b6fcbbb](https://github.com/influxdata//commit/b6fcbbb): Chore: restore "fix(tsdb): sync series segment to disk after writing
+1. [2a7cf82](https://github.com/influxdata//commit/2a7cf82): Chore: auto-generate changelog
+1. [547dc3f](https://github.com/influxdata//commit/547dc3f): Chore: upgrade Go to 1.17
+1. [0541db5](https://github.com/influxdata//commit/0541db5): Chore: upgrade Flux, restore `rules_test.go`
+1. [367b0c2](https://github.com/influxdata//commit/367b0c2): Build: bigger stack for musl builds
+1. [d7f910c](https://github.com/influxdata//commit/d7f910c): Build: enable version 1.x builds in circleci
 
-v1.8.7 [2021-07-21]
--------------------
 
--	[#21750](https://github.com/influxdata/influxdb/pull/21750): fix: rename arm rpms with yum-compatible names
--	[#21777](https://github.com/influxdata/influxdb/pull/21777): fix: convert arm arch names for rpms during builds via docker
--	[#21895](https://github.com/influxdata/influxdb/pull/21895): fix: systemd unit should block on startup until http endpoint is ready
--	[#21882](https://github.com/influxdata/influxdb/pull/21882): chore: update protobuf library versions and remove influx_tsm
+## v1.9.5 [2021-09-30]
+----------------------
 
-v1.8.6 [2021-05-21]
--------------------
+### Bug Fixes
 
-Note: No OSS specific changes were made in this release.  This release was created to support InfluxDB Enterprise 1.8.6.
+1. [6493ce1](https://github.com/influxdata//commit/6493ce1): Update flux dependency to v0.131.0
 
--	[#21290](https://github.com/influxdata/influxdb/pull/21290): fix: Anti-Entropy loops endlessly with empty shard
--	[#21452](https://github.com/influxdata/influxdb/pull/21452): chore(ae): add more logging
--	[#21518](https://github.com/influxdata/influxdb/pull/21518): fix: FGA enablement
+### Other
 
-v1.8.5 [2021-04-19]
--------------------
+1. [995e530](https://github.com/influxdata//commit/995e530): Build: automate changelog
+1. [6692a14](https://github.com/influxdata//commit/6692a14): Fix(tsdb): sync series segment to disk after writing
+1. [10c242c](https://github.com/influxdata//commit/10c242c): Chore: Revert "fix(tsdb): sync series segment to disk after writing
+
+
+## v1.9.4 [2021-09-13]
+----------------------
+
+### Bug Fixes
+
+1. [4e2fa68](https://github.com/influxdata//commit/4e2fa68): Don't access a field in a nil struct
+1. [08dd23f](https://github.com/influxdata//commit/08dd23f): Restore portable backup error
+1. [9c42ea8](https://github.com/influxdata//commit/9c42ea8): Export example and fix adjacent shards
+1. [05744ea](https://github.com/influxdata//commit/05744ea): Copy names from mmapped memory before closing iterator
+1. [1585d0f](https://github.com/influxdata//commit/1585d0f): Tsi index should compact old or too-large log files
+1. [fcdc980](https://github.com/influxdata//commit/fcdc980): Old tsl files should be compacted without new writes
+1. [5fcbf37](https://github.com/influxdata//commit/5fcbf37): Hard limit on field size while parsing line protocol
+1. [3630bfe](https://github.com/influxdata//commit/3630bfe): Ensure log formatting (JSON) is respected
+1. [372fbef](https://github.com/influxdata//commit/372fbef): Systemd service -- handle https, 40x, and block indefinitely
+1. [0ff2196](https://github.com/influxdata//commit/0ff2196): Avoid compaction queue stats flutter.
+1. [509d34e](https://github.com/influxdata//commit/509d34e): Require database authorization to see continuous queries
+1. [d6aa0e6](https://github.com/influxdata//commit/d6aa0e6): Return correct count of ErrNotExecuted
+1. [65aba7b](https://github.com/influxdata//commit/65aba7b): TSI logfile race
+1. [b519b63](https://github.com/influxdata//commit/b519b63): Correct error return shadowing
+1. [1907281](https://github.com/influxdata//commit/1907281): Flux error properly read by cloud
+1. [25e21c9](https://github.com/influxdata//commit/25e21c9): Discard excessive errors
+1. [3037d9f](https://github.com/influxdata//commit/3037d9f): Influxdb packages should depend on curl bc of use in systemd script
 
 ### Features
 
--	[#20917](https://github.com/influxdata/influxdb/pull/20917): feat(inspect): Add report-disk for disk usage by measurement
--	[#20118](https://github.com/influxdata/influxdb/pull/20118): feat: Optimize shard lookups in groups containing only one shard. Thanks @StoneYunZhao!
--	[#20910](https://github.com/influxdata/influxdb/pull/20910): feat: Make meta queries respect QueryTimeout values
--	[#20977](https://github.com/influxdata/influxdb/pull/20977): feat: influx_inspect export to standard out
--	[#20993](https://github.com/influxdata/influxdb/pull/20993): feat: Log query text for POST requests
+1. [34c1b5c](https://github.com/influxdata//commit/34c1b5c): SHOW TAG VALUES should produce results from one specific RP
+1. [71a1e5a](https://github.com/influxdata//commit/71a1e5a): Add subscription buffer size usage metric
+1. [9892f01](https://github.com/influxdata//commit/9892f01): Update flux components to use flux/array instead of arrow/array
 
-### Bugfixes
+### Other
 
--	[#20101](https://github.com/influxdata/influxdb/pull/20101): fix(write): Successful writes increment write error statistics incorrectly.
--	[#20276](https://github.com/influxdata/influxdb/pull/20276): fix(error): unsupported value: +Inf" error not handled gracefully.
--	[#20277](https://github.com/influxdata/influxdb/pull/20277): fix(query): Group By queries with offset that crosses a DST boundary can fail.
--	[#20295](https://github.com/influxdata/influxdb/pull/20295): fix: cp.Mux.Serve() closes all net.Listener instances silently on error.
--	[#19832](https://github.com/influxdata/influxdb/pull/19832): fix(prometheus): regexp handling should comply with PromQL.
--	[#20432](https://github.com/influxdata/influxdb/pull/20432): fix(error): SELECT INTO doesn't return error with unsupported value
--	[#20033](https://github.com/influxdata/influxdb/pull/20033): fix(tsm1): "snapshot in progress" error during backup
--	[#20909](https://github.com/influxdata/influxdb/pull/20909): fix(tsm1): data race when accessing tombstone stats
--	[#20912](https://github.com/influxdata/influxdb/pull/20912): fix(tsdb): minimize lock contention when adding new fields or measure
--	[#20914](https://github.com/influxdata/influxdb/pull/20914): fix: infinite recursion bug (#20862)
+1. [9cf7b88](https://github.com/influxdata//commit/9cf7b88): Chore: use community maintained golang-jwt
+1. [c522965](https://github.com/influxdata//commit/c522965): Chore: pin rust version
+1. [8616669](https://github.com/influxdata//commit/8616669): Test: ensure compile takes time
+1. [6fc7a8e](https://github.com/influxdata//commit/6fc7a8e): Fix(tsi): clean up FileSet fields
+1. [7bb93f1](https://github.com/influxdata//commit/7bb93f1): Test: fix order of index teardown
+1. [1a321b3](https://github.com/influxdata//commit/1a321b3): Chore: update flux dependency
+1. [9d69445](https://github.com/influxdata//commit/9d69445): Test: expose tcpaddr for enterprise tests
+1. [d565159](https://github.com/influxdata//commit/d565159): Test: add extra logging when disk size test fails
+1. [ff2c99a](https://github.com/influxdata//commit/ff2c99a): Build: update circle jobs to use cross build container
+1. [d9a144b](https://github.com/influxdata//commit/d9a144b): Build: upgrade flux to 0.127.3
+1. [daa4bc4](https://github.com/influxdata//commit/daa4bc4): Chore: update changelog for 1.9.4rc2
 
-v1.8.4 [2021-01-27]
--------------------
 
-### Bugfixes
+## v1.9.3 [2021-07-09]
+----------------------
 
--	[#19696](https://github.com/influxdata/influxdb/pull/19697): fix(flux): add durations to Flux logging
+### Bug Fixes
 
-v1.8.3 [2020-09-30]
--------------------
-
-### Features
-
--	[#19187](https://github.com/influxdata/influxdb/pull/19187): feat: Collect values written stats.
--	[#19611](https://github.com/influxdata/influxdb/pull/19611): feat: Add -lponly flag to export sub-command.
-
-### Bugfixes
-
--	[#19409](https://github.com/influxdata/influxdb/pull/19409): chore: update uuid library from satori to gofrs.
--	[#19439](https://github.com/influxdata/influxdb/pull/19439): fix(storage): ArrayFilterCursor truncation for multi-block data.
--	[#19460](https://github.com/influxdata/influxdb/pull/19460): chore: Use latest version of influxql package.
--	[#19512](https://github.com/influxdata/influxdb/pull/19512): chore: Quiet static analysis tools.
--	[#19592](https://github.com/influxdata/influxdb/pull/19592): fix(services/storage): multi measurement queries return all applicable series.
--	[#19612](https://github.com/influxdata/influxdb/pull/19612): fix: lock map before writes.
-
-v1.8.2 [2020-08-13]
--------------------
-
-### Bugfixes
-
--	[#19253](https://github.com/influxdata/influxdb/pull/19253): fix(tsdb): Revert disable series id set cache size by default.
-
-v1.8.1 [2020-07-08]
--------------------
+1. [1661b6f](https://github.com/influxdata//commit/1661b6f): Avoid rewriting fields.idx unnecessarily
+1. [9355183](https://github.com/influxdata//commit/9355183): Do not close connection twice in DigestWithOptions
+1. [ae851d9](https://github.com/influxdata//commit/ae851d9): Do not panic on cleaning up failed iterators
+1. [8577807](https://github.com/influxdata//commit/8577807): Do not send non-UTF-8 characters to subscriptions
+1. [1aaaee3](https://github.com/influxdata//commit/1aaaee3): Show shards gives empty expiry time for inf duration shards
+1. [6f9f551](https://github.com/influxdata//commit/6f9f551): Error instead of panic for statement rewrite failure
+1. [8bd4a61](https://github.com/influxdata//commit/8bd4a61): A few suddenly flaky tests involving randomness
 
 ### Features
 
--	[#18457](https://github.com/influxdata/influxdb/pull/18457): feat(query): Parallelize field iterator planning.
--	[#18886](https://github.com/influxdata/influxdb/pull/18886): feat(http): Allow user supplied HTTP headers.
+1. [d38f5f5](https://github.com/influxdata//commit/d38f5f5): Add total-buffer-bytes config parameter to subscriptions
 
-### Bugfixes
+### Other
 
--	[#17319](https://github.com/influxdata/influxdb/pull/17319): fix(flux): buckets call no longer panics.
--	[#18212](https://github.com/influxdata/influxdb/pull/18212): fix(tsdb): Defer closing of underlying SeriesIDSetIterators.
--	[#18286](https://github.com/influxdata/influxdb/pull/18286): fix(tsdb): Disable series id set cache size by default.
--	[#18299](https://github.com/influxdata/influxdb/pull/18299): refactor(http): Simplify Authorizer.
--	[#18694](https://github.com/influxdata/influxdb/pull/18694): fix(tsi1): wait deleting epoch before dropping shard.
--	[#18687](https://github.com/influxdata/influxdb/pull/18687): perf(tsi1): batch write tombstone entries when dropping/deleting.
--	[#18826](https://github.com/influxdata/influxdb/pull/18826): fix: gracefully handle errors when creating snapshots.
--	[#18849](https://github.com/influxdata/influxdb/pull/18849): chore(build): remove all of the go1.12 references from build.
+1. [392bc12](https://github.com/influxdata//commit/392bc12): Chore: add logging to compaction
+1. [d23f2d6](https://github.com/influxdata//commit/d23f2d6): Chore: changelog for recent backports
+1. [2d857df](https://github.com/influxdata//commit/2d857df): Chore: update flux to v0.120.1
 
-v1.8.0 [2020-04-11]
--------------------
+
+## v1.9.2 [2021-06-08]
+----------------------
+
+### Bug Fixes
+
+1. [c8e8025](https://github.com/influxdata//commit/c8e8025): Avoid rewriting fields.idx unnecessarily
+
+### Other
+
+1. [1b27b8d](https://github.com/influxdata//commit/1b27b8d): Chore: minor refactor suggested by go lint
+1. [260876c](https://github.com/influxdata//commit/260876c): Chore: backport group-by fix and revert fields.idx from 1.9.2
+
+
+## v1.9.0 [2021-05-19]
+----------------------
+
+### Bug Fixes
+
+1. [3b9be01](https://github.com/influxdata//commit/3b9be01): Address static check warning s1039
+1. [72fde1b](https://github.com/influxdata//commit/72fde1b): Properly shutdown multiple http servers
+1. [3261231](https://github.com/influxdata//commit/3261231): Minor test fixes for go1.15 and also flaky timeouts
+1. [117341f](https://github.com/influxdata//commit/117341f): Move value metric down to tsdb store
+1. [b3e763d](https://github.com/influxdata//commit/b3e763d): Consistent error for missing shard
+1. [bf7ddda](https://github.com/influxdata//commit/bf7ddda): Add back flux CLI
+1. [fed8ca1](https://github.com/influxdata//commit/fed8ca1): Redundant registration for prometheus collector metrics
+1. [c37d164](https://github.com/influxdata//commit/c37d164): Flux regression in buckets query
+1. [aa18ef6](https://github.com/influxdata//commit/aa18ef6): Summation should be in native type for mean,count iterator
+1. [b26a2f7](https://github.com/influxdata//commit/b26a2f7): Disable MergeFiltersRule until it is more stable
 
 ### Features
 
--	[#15952](https://github.com/influxdata/influxdb/pull/15952): Add influx_inspect verify-tombstone tool.
--	[#16542](https://github.com/influxdata/influxdb/pull/16542): Add offline series compaction to influx_inspect buildtsi.
--	[#16599](https://github.com/influxdata/influxdb/pull/16599): Make influx CLI support custom HTTP endpoint.
--	[#16908](https://github.com/influxdata/influxdb/pull/16908): Add support for InfluxDB 2.0 write API.
--	[#17621](https://github.com/influxdata/influxdb/pull/17621): Update Flux to v0.65.0.
--	[#17188](https://github.com/influxdata/influxdb/pull/17188): Enhance support for bound parameters.
+1. [eb92c99](https://github.com/influxdata//commit/eb92c99): Ingress metrics by measurement
+1. [dd3baf6](https://github.com/influxdata//commit/dd3baf6): Measurement metrics by login
+1. [21823db](https://github.com/influxdata//commit/21823db): Series creation ingress metrics
+1. [de1a0eb](https://github.com/influxdata//commit/de1a0eb): Use count_hll for 'show series cardinality' queries
+1. [17b9ea8](https://github.com/influxdata//commit/17b9ea8): Add WITH KEY to show tag keys
+1. [7a992da](https://github.com/influxdata//commit/7a992da): Add arguments to flux to function
+1. [b9ee9e5](https://github.com/influxdata//commit/b9ee9e5): Add memory and concurrency limits in flux controller
+1. [f1aa051](https://github.com/influxdata//commit/f1aa051): Make flux controller limits configurable
+1. [fed88cf](https://github.com/influxdata//commit/fed88cf): Flux upgrade to v0.112.1
+1. [d45eb2a](https://github.com/influxdata//commit/d45eb2a): Mean,count aggregation for WindowAggregate pushdown in enterprise
 
-### Bugfixes
+### Other
 
--	[#10503](https://github.com/influxdata/influxdb/pull/10503): Delete rebuilds series index when series to be deleted are only found in cache.
--	[#10504](https://github.com/influxdata/influxdb/issue/10504): Delete rebuilds series index when series to be deleted are outside timerange.
--	[#14485](https://github.com/influxdata/influxdb/pull/14485): Parse Accept header correctly.
--	[#16524](https://github.com/influxdata/influxdb/pull/16524): Upgrade compaction error log from `Info` to `Warn`.
--	[#16525](https://github.com/influxdata/influxdb/pull/16525): Remove double increment of meta index.
--	[#16595](https://github.com/influxdata/influxdb/pull/16595): Improve series cardinality limit for inmem index.
--	[#16606](https://github.com/influxdata/influxdb/pull/16606): Ensure all block data returned.
--	[#16627](https://github.com/influxdata/influxdb/pull/16627): Skip WriteSnapshot during backup if snapshotter is busy.
--	[#16709](https://github.com/influxdata/influxdb/pull/16709): Reduce influxd and influx startup time if Flux isn't used.
--	[#16762](https://github.com/influxdata/influxdb/pull/16762): Fix bugs in -compact-series-file.
--	[#16944](https://github.com/influxdata/influxdb/pull/16944): Update to Go 1.13.8 and Go modules.
--	[#17032](https://github.com/influxdata/influxdb/pull/17032): Fix a SIGSEGV when accessing tsi active log.
--	[#17656](https://github.com/influxdata/influxdb/pull/17656): Verify precision in write requests.
--	[#17698](https://github.com/influxdata/influxdb/pull/17698): Enable configuration of TLS 1.3.
+1. [2f1344f](https://github.com/influxdata//commit/2f1344f): Fix(snapshotter): properly read payload
+1. [d3d372f](https://github.com/influxdata//commit/d3d372f): Fix(go.mod): set minimum go version in go.mod file to 1.13
+1. [3f59d4b](https://github.com/influxdata//commit/3f59d4b): Fix(tsdb): Fix error lists
+1. [a0f2e0c](https://github.com/influxdata//commit/a0f2e0c): Fix(tsm1): Fix temp directory search bug
+1. [af8e66c](https://github.com/influxdata//commit/af8e66c): Improvement(query): performance improvement for sorted merge iterator
+1. [96bbe2e](https://github.com/influxdata//commit/96bbe2e): Fix(docs): Update docs to reflect tooling changes
+1. [8843a01](https://github.com/influxdata//commit/8843a01): Fix(httpd): Fixes key collisions when serializing /debug/vars
+1. [d14acea](https://github.com/influxdata//commit/d14acea): Chore: clean up unused functions
+1. [4cbc6a4](https://github.com/influxdata//commit/4cbc6a4): Fix(tsdb): Fix variables masked by a declaration
+1. [1a22af7](https://github.com/influxdata//commit/1a22af7): Fix(tsdb): address staticcheck warning st1006
+1. [c0e3919](https://github.com/influxdata//commit/c0e3919): Fix(tsdb): address staticcheck warning SA4006
+1. [c0fe2c3](https://github.com/influxdata//commit/c0fe2c3): Fix(client/v2): use non-nil context.Context value
+1. [b7d3d21](https://github.com/influxdata//commit/b7d3d21): Refactor(http): replace string(w.Body.Bytes()) with w.Body.String()
+1. [6808702](https://github.com/influxdata//commit/6808702): Refactor(query): reuse matchAllRegex
+1. [2529799](https://github.com/influxdata//commit/2529799): Refactor: Change ToLower comparisons to EqualFold
+1. [9dae8c9](https://github.com/influxdata//commit/9dae8c9): Fix(query): address staticcheck warning S1020
+1. [6160628](https://github.com/influxdata//commit/6160628): Chore(handler): add 2.0 compatible health endpoint from v1.8
+1. [0e458e7](https://github.com/influxdata//commit/0e458e7): Fix(handler): add User-Agent to allowed CORS headers
+1. [0c6940d](https://github.com/influxdata//commit/0c6940d): Fix(handler): allow CORS in v2 compatibility endpoints
+1. [7be913d](https://github.com/influxdata//commit/7be913d): Chore(tsdb): clean up unused ShardID in EngineOptions
+1. [17d192e](https://github.com/influxdata//commit/17d192e): Chore(dumptsm): clean up dead code
+1. [f24f644](https://github.com/influxdata//commit/f24f644): Chore: fix code format
+1. [b31bf6a](https://github.com/influxdata//commit/b31bf6a): Chore: fix missing eol
+1. [1e7a2e2](https://github.com/influxdata//commit/1e7a2e2): Fix(test): use go 1.13 in test scripts
+1. [57ea78e](https://github.com/influxdata//commit/57ea78e): Fix(httpd): add option to authenticate prometheus remote read
+1. [2ff7311](https://github.com/influxdata//commit/2ff7311): Merge branch 'master-1.x' into 18391/cors_v1
+1. [0453685](https://github.com/influxdata//commit/0453685): Merge branch 'master-1.x' into new-http-headers
+1. [3f3b7b5](https://github.com/influxdata//commit/3f3b7b5): Chore: update some dependencies
+1. [6910c53](https://github.com/influxdata//commit/6910c53): Feat(prometheus): update prometheus remote protocol
+1. [94a4a34](https://github.com/influxdata//commit/94a4a34): Fix(tsdb): revert disable series id set cache size by default
+1. [3436db4](https://github.com/influxdata//commit/3436db4): Refactor: Use binary.Read() instead of io.ReadFull()
+1. [6297ede](https://github.com/influxdata//commit/6297ede): Fix(tsdb): return error on nonexistent shard id
+1. [4ef4fe9](https://github.com/influxdata//commit/4ef4fe9): Fix(tsi1): Acquire a lock when modifying measurement map
+1. [e8f7b78](https://github.com/influxdata//commit/e8f7b78): Fix(CORS): allow PATCH
+1. [f7eb697](https://github.com/influxdata//commit/f7eb697): Refactor: Use filepath.Walk
+1. [c05c557](https://github.com/influxdata//commit/c05c557): Chore: remove CHANGELOG.md changes
+1. [d1a1e4b](https://github.com/influxdata//commit/d1a1e4b): Chore: restore ImportShard
+1. [98a76a1](https://github.com/influxdata//commit/98a76a1): Feat(tsi): optimize series iteration
+1. [3a31e23](https://github.com/influxdata//commit/3a31e23): Fix(inspect): bad pattern matching
+1. [b0d26fe](https://github.com/influxdata//commit/b0d26fe): Chore: add goimports to ci checks
+1. [8a16bf0](https://github.com/influxdata//commit/8a16bf0): Chore: run goimports -w ./
+1. [053fae9](https://github.com/influxdata//commit/053fae9): Chore: update docs with install instructions for goimports
+1. [ec40d5c](https://github.com/influxdata//commit/ec40d5c): Chore: Fix spaces
+1. [6795ec6](https://github.com/influxdata//commit/6795ec6): Refactor: do not use context value anti-pattern
+1. [903b8cd](https://github.com/influxdata//commit/903b8cd): Feat(query): Hyper log log operators in influxql
+1. [a8b2129](https://github.com/influxdata//commit/a8b2129): Chore: move context.Context to first argument in methods per convention
+1. [e85a102](https://github.com/influxdata//commit/e85a102): Fix(tsm1): fix data race and validation in cache ring
+1. [de491da](https://github.com/influxdata//commit/de491da): Refactor: Remove unused function add and unused variable keysHint
+1. [7210fa6](https://github.com/influxdata//commit/7210fa6): Chore: Upgrade 1.x to the latest flux
+1. [6b8ec8c](https://github.com/influxdata//commit/6b8ec8c): Chore: remove deprecated tool influx_stress
+1. [532a23d](https://github.com/influxdata//commit/532a23d): Chore: remove Jenkinsfile
+1. [178a1d0](https://github.com/influxdata//commit/178a1d0): Chore: 1.9.0 rc0 changelog
+1. [1e53bf1](https://github.com/influxdata//commit/1e53bf1): Chore: fix release build scripts
+1. [52f939e](https://github.com/influxdata//commit/52f939e): Chore: fix oss unit tests
+1. [274f33b](https://github.com/influxdata//commit/274f33b): Chore: add back hashing of build tarball
+1. [d73df4e](https://github.com/influxdata//commit/d73df4e): Chore: updated CONTRIBUTING.md for new package config script
+1. [7677768](https://github.com/influxdata//commit/7677768): Build: make windows and arm64 builds possible
+1. [d1a5c06](https://github.com/influxdata//commit/d1a5c06): Chore: Upgrade to go1.15.10 and flux 0.108.1
+1. [adee278](https://github.com/influxdata//commit/adee278): Build: fix windows build for go1.15
+1. [6edfe99](https://github.com/influxdata//commit/6edfe99): Build: set 'noasm' tag when building ARM64 binaries
+1. [fbfd4b4](https://github.com/influxdata//commit/fbfd4b4): Test: add fluxtest harness
+1. [78724e5](https://github.com/influxdata//commit/78724e5): Chore: Add kit
+1. [6dd2d58](https://github.com/influxdata//commit/6dd2d58): Build: fix/add `go generate` calls for flux-related `.proto` files
+1. [a2154f1](https://github.com/influxdata//commit/a2154f1): Feat(storage): add support for window aggregate queries
+1. [31d4d74](https://github.com/influxdata//commit/31d4d74): Refactor: rearrange flux-related storage code to match 2.x
+1. [56e91fa](https://github.com/influxdata//commit/56e91fa): Chore: Improve circle automation structure in prep for moving out of Jenkins
+1. [333cff1](https://github.com/influxdata//commit/333cff1): Fix(tsdb): exclude the stop time from the array cursor
+1. [247bb14](https://github.com/influxdata//commit/247bb14): Feat(flux): implement rewrite rules for window and bare aggregates
+1. [befaf5c](https://github.com/influxdata//commit/befaf5c): Chore: remove changelog job in circle config
+1. [cfb4213](https://github.com/influxdata//commit/cfb4213): Feat(flux): enable group > min/max pushdown
+1. [b685dae](https://github.com/influxdata//commit/b685dae): Fix(models): grow tag index buffer if needed [Backport to 1.9]
+1. [ebe3b97](https://github.com/influxdata//commit/ebe3b97): Chore: refactor to make it easier for enterprise to share functionality
+1. [2ab49e3](https://github.com/influxdata//commit/2ab49e3): Fix(storage): cursor requests are [start, stop] instead of [start, stop)
+
+
+## v1.8.9 [2021-08-04]
+----------------------
+
+### Bug Fixes
+
+1. [7e0e246](https://github.com/influxdata//commit/7e0e246): Error instead of panic when enterprise tries to restore with OSS
+
+### Other
+
+1. [d9b5632](https://github.com/influxdata//commit/d9b5632): Chore: update changelog for v1.8.9 release
+
+
+## v1.8.8 [2021-08-03]
+----------------------
+
+### Bug Fixes
+
+1. [33d6e6f](https://github.com/influxdata//commit/33d6e6f): Prevent silently dropped writes with overlapping shards
+1. [16fbef3](https://github.com/influxdata//commit/16fbef3): Restore portable backup bug
+1. [df8d3d3](https://github.com/influxdata//commit/df8d3d3): Systemd-start script should be executable by group and others
+1. [b0b7af7](https://github.com/influxdata//commit/b0b7af7): Handle https in systemd wrapper, and prevent it from looping forever
+
+### Other
+
+1. [e9866c1](https://github.com/influxdata//commit/e9866c1): Chore: update changelog for v1.8.8 release
+
+
+## v1.8.7 [2021-07-21]
+----------------------
+
+### Bug Fixes
+
+1. [600b39a](https://github.com/influxdata//commit/600b39a): Rename arm rpms with yum-compatible names
+1. [e7cdaec](https://github.com/influxdata//commit/e7cdaec): Convert arm arch names for rpms during builds via docker
+1. [4f30e20](https://github.com/influxdata//commit/4f30e20): Systemd unit should block on startup until http endpoint is ready
+
+### Other
+
+1. [5507add](https://github.com/influxdata//commit/5507add): Chore: enable ingest performance tests
+1. [5e25e89](https://github.com/influxdata//commit/5e25e89): Chore: correct shell syntax in aws nightly teardown
+1. [91b16da](https://github.com/influxdata//commit/91b16da): Chore: adjust ingest perf tests for 1.8 to bring in line with 2.0
+1. [9ebac08](https://github.com/influxdata//commit/9ebac08): Chore: enable log retention for performance tests
+1. [673dc6a](https://github.com/influxdata//commit/673dc6a): Chore: change commit and branch keys to fields instead of tags
+1. [fea9262](https://github.com/influxdata//commit/fea9262): Chore: enable query performance tests
+1. [51600c8](https://github.com/influxdata//commit/51600c8): Chore: update protobuf library versions and remove influx_tsm
+1. [aaba5ef](https://github.com/influxdata//commit/aaba5ef): Chore: adjust packaging procedure to enable correct systemd behavior
+1. [4b59ead](https://github.com/influxdata//commit/4b59ead): Chore: changelog update for v1.8.7 release
+
+
+## v1.8.6 [2021-05-20]
+----------------------
+
+### Bug Fixes
+
+1. [e234aa7](https://github.com/influxdata//commit/e234aa7): Anti-Entropy loops endlessly with empty shard
+1. [a7c8794](https://github.com/influxdata//commit/a7c8794): FGA enablement
+
+### Other
+
+1. [2130824](https://github.com/influxdata//commit/2130824): Chore: Update names of creds in Jenkins
+1. [7490053](https://github.com/influxdata//commit/7490053): Fix(models): grow tag index buffer if needed
+1. [bf45841](https://github.com/influxdata//commit/bf45841): Chore(ae): add more logging
+1. [3631a48](https://github.com/influxdata//commit/3631a48): Chore: Update changelog for 1.8.6 release
+
+
+## v1.8.5 [2021-04-19]
+----------------------
+
+### Bug Fixes
+
+1. [c6f38a8](https://github.com/influxdata//commit/c6f38a8): Upgrade version of jwt-go package to v4.0.0
+1. [d6962a0](https://github.com/influxdata//commit/d6962a0): Properly shutdown http server on Close()
+1. [4c098bb](https://github.com/influxdata//commit/4c098bb): Reuse http server
+1. [8ecf0d2](https://github.com/influxdata//commit/8ecf0d2): Cp.Mux.Serve() closes all net.Listener instances silently on error
+1. [8a31b0e](https://github.com/influxdata//commit/8a31b0e): Infinite recursion bug
+1. [fd3d32c](https://github.com/influxdata//commit/fd3d32c): Set go version to 1.13 in go.mod; see influxdata/plutonium#3339
+1. [ad06a9c](https://github.com/influxdata//commit/ad06a9c): Fix help test for influx_inspect
+
+### Features
+
+1. [86118d2](https://github.com/influxdata//commit/86118d2): Allow disable compaction per shard
+1. [025cfe9](https://github.com/influxdata//commit/025cfe9): Generate modern profiles
+1. [a3a07fb](https://github.com/influxdata//commit/a3a07fb): Optimize shard lookups in groups containing only one shard
+1. [9c6e401](https://github.com/influxdata//commit/9c6e401): Make meta queries respect QueryTimeout values
+1. [67e2fcb](https://github.com/influxdata//commit/67e2fcb): Influx_inspect export to standard out
+1. [7561226](https://github.com/influxdata//commit/7561226): Log query text for POST requests
+
+### Other
+
+1. [25fb107](https://github.com/influxdata//commit/25fb107): Fix(flux): add durations to Flux logging
+1. [729a880](https://github.com/influxdata//commit/729a880): Update changelog
+1. [0b1ee04](https://github.com/influxdata//commit/0b1ee04): Fix(tsm1): "snapshot in progress" error during backup
+1. [196f600](https://github.com/influxdata//commit/196f600): Fix(tsm1): "snapshot in progress" error during backup
+1. [07a9c0e](https://github.com/influxdata//commit/07a9c0e): Fix(tsm1): "snapshot in progress" error during backup
+1. [dfa6aa8](https://github.com/influxdata//commit/dfa6aa8): Fix(tsm1): "snapshot in progress" error during backup
+1. [4406b97](https://github.com/influxdata//commit/4406b97): Chore(tsm1): fix formatting
+1. [5a9213b](https://github.com/influxdata//commit/5a9213b): Fix(write): Successful writes increment write error statistics incorrectly.
+1. [6125bfa](https://github.com/influxdata//commit/6125bfa): Chore: update CHANGELOG.md
+1. [bf6992a](https://github.com/influxdata//commit/bf6992a): Chore: update CHANGELOG.md correctly
+1. [b95fbde](https://github.com/influxdata//commit/b95fbde): Update changelog
+1. [61cd56f](https://github.com/influxdata//commit/61cd56f): Update changelog
+1. [926a6ce](https://github.com/influxdata//commit/926a6ce): Chore: fix clustering build
+1. [0212d3c](https://github.com/influxdata//commit/0212d3c): Fix(error): unsupported value: +Inf" error not handled gracefully
+1. [5b3668d](https://github.com/influxdata//commit/5b3668d): Update changelog
+1. [5a84f77](https://github.com/influxdata//commit/5a84f77): Fix(query): Group By queries with offset that crosses a DST boundary can fail
+1. [a4e1dd6](https://github.com/influxdata//commit/a4e1dd6): Update changelog
+1. [2e9fcaf](https://github.com/influxdata//commit/2e9fcaf): Chore: fix CHANGELOG formating
+1. [7a58271](https://github.com/influxdata//commit/7a58271): Update changelog
+1. [5296fe9](https://github.com/influxdata//commit/5296fe9): Fix(prometheus): regexp handling should comply with PromQL
+1. [35ae464](https://github.com/influxdata//commit/35ae464): Chore: update CHANGELOG.md for typo and community PR
+1. [ab020f7](https://github.com/influxdata//commit/ab020f7): Build: switch tested centos base images
+1. [b2cb862](https://github.com/influxdata//commit/b2cb862): Fix(error): SELECT INTO doesn't return error with unsupported value
+1. [54d8d01](https://github.com/influxdata//commit/54d8d01): Chore: run goimports on 1.8 branch to bring it up to new check-in standards
+1. [f0edf1d](https://github.com/influxdata//commit/f0edf1d): Update changelog
+1. [55fefdd](https://github.com/influxdata//commit/55fefdd): Fix(tsm1): fix data race when accessing tombstone stats
+1. [283ea0e](https://github.com/influxdata//commit/283ea0e): Fix(tsdb): minimize lock contention when adding new fields or measure
+1. [e95a6a4](https://github.com/influxdata//commit/e95a6a4): Feat(inspect): Add report-disk for disk usage by measurement
+1. [79168cf](https://github.com/influxdata//commit/79168cf): Refactor: separate coarse and fine permission interfaces
+1. [0dd3d1f](https://github.com/influxdata//commit/0dd3d1f): Chore: Late to the party fix for influxdata/plutonium#3339
+1. [3d16c63](https://github.com/influxdata//commit/3d16c63): Chore: Update Changelog for v1.8.5 release
+
+
+## v1.8.3 [2020-09-30]
+----------------------
+
+### Features
+
+1. [9d26f53](https://github.com/influxdata//commit/9d26f53): Collect values written stats
+1. [59fd82b](https://github.com/influxdata//commit/59fd82b): Add -lponly flag to export sub-command
+
+### Other
+
+1. [d33068b](https://github.com/influxdata//commit/d33068b): Chore: update uuid library from satori to gofrs
+1. [77d1a41](https://github.com/influxdata//commit/77d1a41): Fix(storage): ArrayFilterCursor truncation for multi-block data
+1. [7079919](https://github.com/influxdata//commit/7079919): Chore: do not use alpine image, it does not have gcc compiler.
+1. [520fa6d](https://github.com/influxdata//commit/520fa6d): Chore: Use latest version of influxql package
+1. [ceead88](https://github.com/influxdata//commit/ceead88): Fix(services/storage): multi measurement queries return all applicable series
+1. [7ff5b1c](https://github.com/influxdata//commit/7ff5b1c): Chore: Quiet static analysis tools
+1. [b8c9a12](https://github.com/influxdata//commit/b8c9a12): Chore: since it is not an alpine image, apk command is no available. Using apt-get instead
+1. [563e6c3](https://github.com/influxdata//commit/563e6c3): Chore: update CHANGELOG for 1.8.3GA
+
+
+## v1.8.2 [2020-08-13]
+----------------------
+
+### Other
+
+1. [6903a1b](https://github.com/influxdata//commit/6903a1b): Fix(tsdb): Revert disable series id set cache size by default.
+1. [6a1299e](https://github.com/influxdata//commit/6a1299e): Chore: update CHANGELOG
+
+
+## v1.8.1 [2020-07-08]
+----------------------
+
+### Bug Fixes
+
+1. [fe59e34](https://github.com/influxdata//commit/fe59e34): Handle snapshot related errors
+
+### Other
+
+1. [d05fe9c](https://github.com/influxdata//commit/d05fe9c): Fix(tsdb): Defer closing of underlying SeriesIDSetIterators
+1. [90b7ea9](https://github.com/influxdata//commit/90b7ea9): Fix(tsdb): Disable series id set cache size by default.
+1. [33d78a1](https://github.com/influxdata//commit/33d78a1): Refactor(http): Simplify Authorizer
+1. [565c613](https://github.com/influxdata//commit/565c613): Chore: update CHANGELOG with 1.8.1
+1. [c1f54cf](https://github.com/influxdata//commit/c1f54cf): Feat(query): Parallelize field iterator planning
+1. [7a084b9](https://github.com/influxdata//commit/7a084b9): Fix(tsi1): wait deleting epoch before dropping shard
+1. [fbd0161](https://github.com/influxdata//commit/fbd0161): Perf(tsi1): batch write tombstone entries when dropping/deleting
+1. [637ca24](https://github.com/influxdata//commit/637ca24): Fix(flux): buckets call no longer panics
+1. [28268fd](https://github.com/influxdata//commit/28268fd): Chore(build): remove all of the go1.12 references from build
+1. [58a324a](https://github.com/influxdata//commit/58a324a): Feat(http): Allow user supplied HTTP headers
+1. [8a72b6e](https://github.com/influxdata//commit/8a72b6e): Chore: update CHANGELOG.md
+1. [db0ce8c](https://github.com/influxdata//commit/db0ce8c): Update changelog
+1. [af02378](https://github.com/influxdata//commit/af02378): Update changelog
+
+## v1.8.0 [2020-04-11]
+----------------------
+
+### Bug Fixes
+
+1. [c3d7f3d](https://github.com/influxdata//commit/c3d7f3d): Allow compactor to make progress if v.MaxTime() != entry.MaxTime
+1. [30dab03](https://github.com/influxdata//commit/30dab03): Remove some unsafe marshalling to reduce risk of segfault
+1. [b93bac1](https://github.com/influxdata//commit/b93bac1): Typo in error message
+1. [0fcb240](https://github.com/influxdata//commit/0fcb240): Use highest verbosity level specified
+1. [fca2ee0](https://github.com/influxdata//commit/fca2ee0): Update package comment
+1. [6951924](https://github.com/influxdata//commit/6951924): Services/httpd: parse correctly Accept header with extra test case
+1. [cc675ad](https://github.com/influxdata//commit/cc675ad): Ensure proper go versions
+1. [2852bf0](https://github.com/influxdata//commit/2852bf0): Storage read service should not return a nil cursor
+1. [275b02e](https://github.com/influxdata//commit/275b02e): Verify precision parameter in write requests
+
+### Features
+
+1. [8d3496f](https://github.com/influxdata//commit/8d3496f): Add support for complex bound parameters
+
+### Other
+
+1. [26b61c6](https://github.com/influxdata//commit/26b61c6): Add test case for #9522
+1. [7c41781](https://github.com/influxdata//commit/7c41781): Hash ring's hash mod
+1. [b2adf54](https://github.com/influxdata//commit/b2adf54): Client/v2: support custom dialer, not just socks proxy
+1. [1a138e7](https://github.com/influxdata//commit/1a138e7): Fix legacy restore bug #10072
+1. [51bf753](https://github.com/influxdata//commit/51bf753): Add pull reference #10206 to bugfixes
+1. [343ce42](https://github.com/influxdata//commit/343ce42): Fix #10261 ABS(int64)
+1. [5622355](https://github.com/influxdata//commit/5622355): Simplify s[:] to s where s is a slice
+1. [216feed](https://github.com/influxdata//commit/216feed): Fix linting errors in the errlist package
+1. [d8d73f4](https://github.com/influxdata//commit/d8d73f4): Modify context key type
+1. [ea8182d](https://github.com/influxdata//commit/ea8182d): Fix linting warnings for snapshotter package
+1. [b36353b](https://github.com/influxdata//commit/b36353b): Update comment
+1. [9061245](https://github.com/influxdata//commit/9061245): Fix golint warnings
+1. [e4d0f3c](https://github.com/influxdata//commit/e4d0f3c): To fix the dead link
+1. [7e0be6f](https://github.com/influxdata//commit/7e0be6f): Fix(flux): Fix empty results when using _value in filter expression
+1. [b075de6](https://github.com/influxdata//commit/b075de6): Fix(storage): Fix go:generate line to refer to correct proto file
+1. [9200d6a](https://github.com/influxdata//commit/9200d6a): Refactor writeToShard of PointsWriter
+1. [5d08388](https://github.com/influxdata//commit/5d08388): Chore: Compactor test which replicates issue #10465
+1. [a4305dd](https://github.com/influxdata//commit/a4305dd): Fix(simple8b): Fix incorrect encoding for a run of 119 or 239 1s
+1. [e640104](https://github.com/influxdata//commit/e640104): Fix ApplyEnvOverrides when a type that implements Unmarshaler is in a slice
+1. [926f78d](https://github.com/influxdata//commit/926f78d): Do not rebuild series index on delete when the series still exists in the cache.
+1. [7708e12](https://github.com/influxdata//commit/7708e12): Added changelog.
+1. [1d5463e](https://github.com/influxdata//commit/1d5463e): Do not rebuild series index on delete for series not overlapping in time.
+1. [fd21a0b](https://github.com/influxdata//commit/fd21a0b): Added changelog.
+1. [f1bf1aa](https://github.com/influxdata//commit/f1bf1aa): Fixed changelog.
+1. [8f397e0](https://github.com/influxdata//commit/8f397e0): Fixed changelog.
+1. [4670b8d](https://github.com/influxdata//commit/4670b8d): Removed file that should not have been added.
+1. [c4a3ecf](https://github.com/influxdata//commit/c4a3ecf): Fix verify seriesfile in presence of tombstones
+1. [dde5e16](https://github.com/influxdata//commit/dde5e16): Chore: Use influxdata/platform@sgc-reader for distributed query support
+1. [369bc8c](https://github.com/influxdata//commit/369bc8c): Feat(flux): Optional query parameter to limit Flux query to single node
+1. [a797529](https://github.com/influxdata//commit/a797529): Feat(flux): Resolve db / rp during from spec creation
+1. [a52f96e](https://github.com/influxdata//commit/a52f96e): Feat(storage): Export GetReadSource API for Enterprise reuse
+1. [7c37b6e](https://github.com/influxdata//commit/7c37b6e): Chore: Update to platform@master
+1. [030adf4](https://github.com/influxdata//commit/030adf4): Tsdb: don't allow deletes to a database in mixed index mode
+1. [4cad51a](https://github.com/influxdata//commit/4cad51a): Tsdb: conflict based concurrency resolution
+1. [2177727](https://github.com/influxdata//commit/2177727): Fix compaction logic on infrequent cache snapshots
+1. [32e28c7](https://github.com/influxdata//commit/32e28c7): Remove "Verbose" option from controller.Config (loggler log level will be used instead)
+1. [0a2f619](https://github.com/influxdata//commit/0a2f619): Tsdb: clean up fields index for every kind of delete
+1. [259f3fe](https://github.com/influxdata//commit/259f3fe): Tsdb: consider measurement drops per shard on inmem
+1. [298eddb](https://github.com/influxdata//commit/298eddb): Skip and warn series files in retention policy directory.
+1. [39a3d23](https://github.com/influxdata//commit/39a3d23): Chore(flux): Update to Flux 0.7.1
+1. [f96e55c](https://github.com/influxdata//commit/f96e55c): Chore: update Flux to v0.7.2
+1. [40db64d](https://github.com/influxdata//commit/40db64d): Limit force-full and cold compaction size.
+1. [809ac4f](https://github.com/influxdata//commit/809ac4f): Chore: Update copyright information
+1. [a346109](https://github.com/influxdata//commit/a346109): Do not acquire a lock upon closing a SeriesFile when called from Open() method
+1. [fbfcfa0](https://github.com/influxdata//commit/fbfcfa0): Reproduction for #10540
+1. [be97f36](https://github.com/influxdata//commit/be97f36): Trace on SeriesFile.Open() failure
+1. [9f26eb7](https://github.com/influxdata//commit/9f26eb7): Drop NaN values when writing back points
+1. [71ac013](https://github.com/influxdata//commit/71ac013): Clientv2 - implements QueryCtx()
+1. [9f1ac41](https://github.com/influxdata//commit/9f1ac41): Pass the query authorizer to subqueries
+1. [f8c08d1](https://github.com/influxdata//commit/f8c08d1): Chore: update Flux to v0.8.0
+1. [23d1281](https://github.com/influxdata//commit/23d1281): Feat(influx_tools): Add gen-init and gen-exec commands
+1. [72876b1](https://github.com/influxdata//commit/72876b1): Build: update Flux to v0.9.0
+1. [881f27f](https://github.com/influxdata//commit/881f27f): Fix(flux): Call storage API to correctly map group mode
+1. [0a39786](https://github.com/influxdata//commit/0a39786): Tsdb: mixed shard tests
+1. [0331214](https://github.com/influxdata//commit/0331214): Chore(platform): Update platform to resolve panic with group push down
+1. [8575378](https://github.com/influxdata//commit/8575378): Fix #10110: limit db & rp name length to 255
+1. [348dac1](https://github.com/influxdata//commit/348dac1): Add repro test case for UTF-8 issue
+1. [77fe5a9](https://github.com/influxdata//commit/77fe5a9): Treat fields and measurements as raw bytes
+1. [41a4616](https://github.com/influxdata//commit/41a4616): Update flux to 0.11.0
+1. [fa7cafe](https://github.com/influxdata//commit/fa7cafe): Fixed issue where nil reads.ResultSet.Close() is called resulting in a panic
+1. [216cfa3](https://github.com/influxdata//commit/216cfa3): Feat(flux): Add user authentication and authorization support
+1. [7666694](https://github.com/influxdata//commit/7666694): Services/http/handler_test.go: Added unit test to test for case when Store.Read() returns nil, nil
+1. [d7fdd7d](https://github.com/influxdata//commit/d7fdd7d): Add repo change announcment to readme
+1. [8aba6f7](https://github.com/influxdata//commit/8aba6f7): Feat(influx_inspect): Add -check-utf8 to verify sub-command
+1. [7ecab55](https://github.com/influxdata//commit/7ecab55): Chore: update Flux to v0.12.0
+1. [b2bc1cd](https://github.com/influxdata//commit/b2bc1cd): Fixing date; capitalization of InfluxDB
+1. [8026cd6](https://github.com/influxdata//commit/8026cd6): Fix #10595: fix panic in Prometheus read API
+1. [865e6a0](https://github.com/influxdata//commit/865e6a0): Marked functions that always return floats as always returning floats
+1. [3a055a6](https://github.com/influxdata//commit/3a055a6): Fix cardinality estimation error
+1. [c47a3ea](https://github.com/influxdata//commit/c47a3ea): Feat(flux): Add support for optionally logging Flux queries
+1. [beb6848](https://github.com/influxdata//commit/beb6848): Only update the changelog on 1.x branches
+1. [e20541d](https://github.com/influxdata//commit/e20541d): Expose functional option for setting TSI cache size
+1. [efdddbb](https://github.com/influxdata//commit/efdddbb): Allow TSI bitset cache size to be configured
+1. [301ab71](https://github.com/influxdata//commit/301ab71): Remove copy-on-write when caching bitmaps
+1. [6133f91](https://github.com/influxdata//commit/6133f91): Merge branch '1.8' into master
+1. [35638ab](https://github.com/influxdata//commit/35638ab): Linting all udp error messages
+1. [c6cd433](https://github.com/influxdata//commit/c6cd433): Golint logger package
+1. [e9bada0](https://github.com/influxdata//commit/e9bada0): Fix misspelling identified by misspell
+1. [6afad6e](https://github.com/influxdata//commit/6afad6e): Merge branch '1.8' into modify-contextkey
+1. [4083ae0](https://github.com/influxdata//commit/4083ae0): Merge branch '1.8' into hpb-no-series-rebuild-on-delete-when-series-still-in-cache
+1. [d2e6b91](https://github.com/influxdata//commit/d2e6b91): Updated servePromRead to match #10617 and updated handler_test.go to reflect changes
+1. [4bd67c5](https://github.com/influxdata//commit/4bd67c5): Merge branch '1.8' into fix-null-pointer-reference
+1. [9aace18](https://github.com/influxdata//commit/9aace18): Add back newline
+1. [502ac29](https://github.com/influxdata//commit/502ac29): Move resp after Store.Read
+1. [cb9b890](https://github.com/influxdata//commit/cb9b890): Add back newlines to minimize changes
+1. [5525240](https://github.com/influxdata//commit/5525240): Reuse ValuerEval objects
+1. [fb3c837](https://github.com/influxdata//commit/fb3c837): Code review sugestions applied
+1. [8448cf4](https://github.com/influxdata//commit/8448cf4): Build fixed
+1. [0350557](https://github.com/influxdata//commit/0350557): Use Systemd for Amazon Linux 2 packages
+1. [2dd913d](https://github.com/influxdata//commit/2dd913d): Revert "Limit force-full and cold compaction size."
+1. [198f6fd](https://github.com/influxdata//commit/198f6fd): Fix deleteSeriesRange() race condition.
+1. [b87605f](https://github.com/influxdata//commit/b87605f): Fix shard epoch race.
+1. [6e52264](https://github.com/influxdata//commit/6e52264): Convert TagValueSeriesIDCache to use string fields.
+1. [40d2b70](https://github.com/influxdata//commit/40d2b70): Ensure that cached series id sets are Go heap backed
+1. [c61db43](https://github.com/influxdata//commit/c61db43): Update tagKeyValue mutex to write lock.
+1. [1d9ce86](https://github.com/influxdata//commit/1d9ce86): Fix some more shard epoch races
+1. [926fa7b](https://github.com/influxdata//commit/926fa7b): Fix typos
+1. [9b7ffd3](https://github.com/influxdata//commit/9b7ffd3): Feat(influx_tools): Add support for describing schema via a TOML file
+1. [4ff74ff](https://github.com/influxdata//commit/4ff74ff): Feedback(influx_tools): Add +ve and -ve test cases for processing schema
+1. [75ce049](https://github.com/influxdata//commit/75ce049): Chore(influx_tools): Remove platform dependency
+1. [90e9099](https://github.com/influxdata//commit/90e9099): Expose port Docker port 6060
+1. [e67a024](https://github.com/influxdata//commit/e67a024): Tls: fix incorrect tls1.0 version mapping
+1. [a438529](https://github.com/influxdata//commit/a438529): Chore(gen): Back port improvements and changes from OSS 2.0
+1. [1d2be75](https://github.com/influxdata//commit/1d2be75): Fixes #10490
+1. [09a9d34](https://github.com/influxdata//commit/09a9d34): Fix(influx): Ensure credentials are passed for Flux queries
+1. [3ec2ac4](https://github.com/influxdata//commit/3ec2ac4): Fix(httpd): fail bearerauth if shared secret blank
+1. [2edbc90](https://github.com/influxdata//commit/2edbc90): Add nil check for tagKeyValueEntry.setIDs()
+1. [0ab2a30](https://github.com/influxdata//commit/0ab2a30): Fix(httpd): log when auth enabled & secret blank
+1. [31501c9](https://github.com/influxdata//commit/31501c9): Upgrade flux to the latest version and remove the platform dependency
+1. [093639d](https://github.com/influxdata//commit/093639d): Document process for building distribution files locally.
+1. [b222dfb](https://github.com/influxdata//commit/b222dfb): Fix(storage): Update predicate key mapping to match 2.x behavior
+1. [02613f4](https://github.com/influxdata//commit/02613f4): Add a version constraint for influxql
+1. [e153f3f](https://github.com/influxdata//commit/e153f3f): Fix the sort order for aggregates so that they are sorted by tag and then time
+1. [6833c4d](https://github.com/influxdata//commit/6833c4d): Fix(influx_inspect): verify-seriesfile with deleted index entries
+1. [3372d3b](https://github.com/influxdata//commit/3372d3b): Fix(fill): fill resets the previous value when a new series or window is encountered
+1. [65b6b1d](https://github.com/influxdata//commit/65b6b1d): Use the timezone when evaluating time literals in subqueries
+1. [94ee5a5](https://github.com/influxdata//commit/94ee5a5): Fix csv decoder bug where empty tag values cause an array index panic
+1. [decbf4e](https://github.com/influxdata//commit/decbf4e): Remove query language from version command
+1. [83b1f48](https://github.com/influxdata//commit/83b1f48): Fix(package): make rpm verify pass after installation
+1. [12a52a0](https://github.com/influxdata//commit/12a52a0): Fix(series file): Sync series segment after truncate
+1. [f55d2e8](https://github.com/influxdata//commit/f55d2e8): Fix(releng): update releng to match build.py
+1. [f1e1164](https://github.com/influxdata//commit/f1e1164): Fix(storage): Don't panic when length of source slice is too large
+1. [86734e7](https://github.com/influxdata//commit/86734e7): Fix(storage): Don't panic when length of source slice is too large
+1. [a0f7c15](https://github.com/influxdata//commit/a0f7c15): Chore: Fix constant for 32-bit architecture
+1. [23bb499](https://github.com/influxdata//commit/23bb499): Fix(storage): replace panic with error in influx_inspect verify
+1. [7ca4e64](https://github.com/influxdata//commit/7ca4e64): Update flux version to v0.33.2
+1. [ecff62b](https://github.com/influxdata//commit/ecff62b): Test(storage): add test for reproducing #14229
+1. [43e144a](https://github.com/influxdata//commit/43e144a): Fix(storage): ensure WAL size correctly set on startup
+1. [9091d72](https://github.com/influxdata//commit/9091d72): Initial commit for 1.8
+1. [9bfd111](https://github.com/influxdata//commit/9bfd111): Fix(storage): Fix issue where fields re-appear
+1. [f4413d7](https://github.com/influxdata//commit/f4413d7): Test(storage): skip flaky test
+1. [2dfafe8](https://github.com/influxdata//commit/2dfafe8): Remove stray fmt.Println in tsm1.StringArrayEncodeAll
+1. [c6c0a5d](https://github.com/influxdata//commit/c6c0a5d): Change log level from info to error
+1. [2fccaaa](https://github.com/influxdata//commit/2fccaaa): Remove a debugging println call
+1. [86f7852](https://github.com/influxdata//commit/86f7852): Feat(go): Update Go version to 1.12
+1. [893bede](https://github.com/influxdata//commit/893bede): Add GOCACHE env to Jenkinsfile
+1. [80af94b](https://github.com/influxdata//commit/80af94b): Another try at the Jenkinsfile syntax
+1. [707d5ed](https://github.com/influxdata//commit/707d5ed): Another try
+1. [8a83953](https://github.com/influxdata//commit/8a83953): Set GOCACHE=/tmp
+1. [27f870f](https://github.com/influxdata//commit/27f870f): Removed mkdir cache dir;set ENV GOCACHE in Dockerfile
+1. [7be7d3b](https://github.com/influxdata//commit/7be7d3b): Bump Appveyor to Go 1.12
+1. [be719e4](https://github.com/influxdata//commit/be719e4): Update Go version to 1.12
+1. [c381389](https://github.com/influxdata//commit/c381389): Subquery ordering with aggregates in descending mode was wrong
+1. [c676491](https://github.com/influxdata//commit/c676491): Fix the http handler to not mislabel series as partial
+1. [d6e34bb](https://github.com/influxdata//commit/d6e34bb): Fix(query): make show series exact cardinality count only distinct series
+1. [7cdebbe](https://github.com/influxdata//commit/7cdebbe): Fix(query): add additional unit tests for series cardinality query rewriting
+1. [b731cc5](https://github.com/influxdata//commit/b731cc5): Feat(storage): Limit concurrent series partition compaction
+1. [fb99e61](https://github.com/influxdata//commit/fb99e61): Update README.md
+1. [5274a45](https://github.com/influxdata//commit/5274a45): Update README.md
+1. [ec32b3a](https://github.com/influxdata//commit/ec32b3a): Fix(query/compile.go): time range was exceeding min/max bounds under certain conditions
+1. [f6e9ad4](https://github.com/influxdata//commit/f6e9ad4): Fix(storage): guard against compaction burst throughput limit
+1. [14d45c9](https://github.com/influxdata//commit/14d45c9): Fix(tsi1): replace TSI compaction wait group with counter
+1. [046261e](https://github.com/influxdata//commit/046261e): Fix(tsi1): replace TSI compaction wait group with counter
+1. [0c4703a](https://github.com/influxdata//commit/0c4703a): Feat(httpd): Add option to authenticate debug/pprof and ping endpoints
+1. [1618c25](https://github.com/influxdata//commit/1618c25): Feat(httpd): Add option to authenticate debug/pprof and ping e…
+1. [8a57712](https://github.com/influxdata//commit/8a57712): Fix documentation links
+1. [8a463e8](https://github.com/influxdata//commit/8a463e8): Revert "Fix documentation links
+1. [dd3821c](https://github.com/influxdata//commit/dd3821c): Revert "Revert "Fix documentation links
+1. [65e0ceb](https://github.com/influxdata//commit/65e0ceb): Chore: update influxql dependency
+1. [4f1c8cc](https://github.com/influxdata//commit/4f1c8cc): Chore(build): remove Godeps file
+1. [589d278](https://github.com/influxdata//commit/589d278): Fix(http): honor insecure-skip-very even if custom tls config is specified
+1. [a4bb108](https://github.com/influxdata//commit/a4bb108): Fix(storage): Renaming corrupt data files fails
+1. [40a7a57](https://github.com/influxdata//commit/40a7a57): Update flux version to v0.50.2
+1. [cac4c89](https://github.com/influxdata//commit/cac4c89): Fix(tsi1): index defect with negated equality filters
+1. [102fcd6](https://github.com/influxdata//commit/102fcd6): Fix(tsm1): make Digest() safe for concurrent use
+1. [42b3914](https://github.com/influxdata//commit/42b3914): Chore: ignore 2.0 build artefacts
+1. [f7f19c5](https://github.com/influxdata//commit/f7f19c5): Refactor(storage): add tombstone extension
+1. [92b9bde](https://github.com/influxdata//commit/92b9bde): Feat(inspect): add verify-tombstone
+1. [8f665ec](https://github.com/influxdata//commit/8f665ec): Fix(storage): simple8b passes checkptr
+1. [f1d2665](https://github.com/influxdata//commit/f1d2665): Fix(storage): skip TSM files with block read errors
+1. [fe55d72](https://github.com/influxdata//commit/fe55d72): Fix(tsm1): Compaction log error
+1. [c1e11e7](https://github.com/influxdata//commit/c1e11e7): Fix(meta): remove double index increment of set meta
+1. [924927c](https://github.com/influxdata//commit/924927c): Chore: Updated CHANGELOG.md with link to PR #16524
+1. [a6b1811](https://github.com/influxdata//commit/a6b1811): Chore: Correction to CHANGELOG - Moved link to PR #16524 from Features to Bugfixes under 1.8
+1. [22798fa](https://github.com/influxdata//commit/22798fa): Fix(storage): ensure all block data returned
+1. [fe517fd](https://github.com/influxdata//commit/fe517fd): Feat(influxdb): Add proxy path to cli
+1. [6a621bf](https://github.com/influxdata//commit/6a621bf): Fix(influx): fixes parsing of url on connect
+1. [903d2c2](https://github.com/influxdata//commit/903d2c2): Fix(tsm1): improve series cardinality limit
+1. [c2c864d](https://github.com/influxdata//commit/c2c864d): Feat(influxdb): Add test around CLI proxy path
+1. [5b58a81](https://github.com/influxdata//commit/5b58a81): Fix(flux): Flux startup costs should only be paid if Flux is used
+1. [59d3f6f](https://github.com/influxdata//commit/59d3f6f): Docs: Update CHANGELOG
+1. [34c0fda](https://github.com/influxdata//commit/34c0fda): Feat(storage): Offline series file compaction
+1. [85b5efc](https://github.com/influxdata//commit/85b5efc): Refactor(influxdb): Refactor trace code for clarity and reliability
+1. [30621ca](https://github.com/influxdata//commit/30621ca): Chore(tsm1): skip WriteSnapshot during backup if snapshotter is busy
+1. [7a9eb14](https://github.com/influxdata//commit/7a9eb14): Fix(tsdb): Fix -compact-series-file flag
+1. [35c07d0](https://github.com/influxdata//commit/35c07d0): Feat(modules): Use modules & remove Gopkg.*
+1. [5f47c38](https://github.com/influxdata//commit/5f47c38): Chore(influxdb): Forward port 16999
+1. [f24bdb3](https://github.com/influxdata//commit/f24bdb3): Feat(handler): Add 2.0 compatible write endpoint
+1. [b1ea8ef](https://github.com/influxdata//commit/b1ea8ef): Refactor(query): save an indent level when checking r.prev.Nil
+1. [636a27e](https://github.com/influxdata//commit/636a27e): Build(flux): update Flux to v0.64.0
+1. [7ea8fdb](https://github.com/influxdata//commit/7ea8fdb): Chore: update CHANGELOG.md
+1. [7cc8eb4](https://github.com/influxdata//commit/7cc8eb4): Ci: use go mod vendor instead of dep ensure for constructing vendor
+1. [9a71298](https://github.com/influxdata//commit/9a71298): Fix(query): use query dialect annotations specified in request
+1. [4d5a688](https://github.com/influxdata//commit/4d5a688): Fix(logger): Ensure default level value is info
+1. [3f61a0d](https://github.com/influxdata//commit/3f61a0d): Fix(tsdb): Revert "fix: remove some unsafe marshalling to reduce risk of segfault"
+1. [e49ff0a](https://github.com/influxdata//commit/e49ff0a): Fix(tsdb): Replace panic with error while de/encoding corrupt data
+1. [7047d87](https://github.com/influxdata//commit/7047d87): Feat(handler): Add 2.0 compatible health endpoint
+1. [5399cc9](https://github.com/influxdata//commit/5399cc9): Build(flux): update Flux to v0.65.0
+1. [e4e6648](https://github.com/influxdata//commit/e4e6648): Fix(storage/reads): update sortKey sorting method to use null byte as delimeter
+1. [4013c14](https://github.com/influxdata//commit/4013c14): Fix(tls): Enable configuration of TLS 1.3
+1. [5d54a2c](https://github.com/influxdata//commit/5d54a2c): Update CHANGELOG.md
+1. [97baa2f](https://github.com/influxdata//commit/97baa2f): Chore: update changelog
 
 v1.7.0 [unreleased]
 -------------------
