@@ -1913,6 +1913,14 @@ impl Statistics {
             Self::String(_) => "String",
         }
     }
+
+    /// Extract i64 type.
+    pub fn as_i64(&self) -> Option<&StatValues<i64>> {
+        match self {
+            Self::I64(val) => Some(val),
+            _ => None,
+        }
+    }
 }
 
 impl StatValues<String> {
