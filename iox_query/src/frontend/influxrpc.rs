@@ -49,6 +49,9 @@ pub enum Error {
         source: Box<dyn std::error::Error + Send + Sync>,
     },
 
+    #[snafu(display("gRPC planner table {} not found", table_name))]
+    GettingTableSchema { table_name: String },
+
     #[snafu(display("gRPC planner got error finding column values: {}", source))]
     FindingColumnValues {
         source: Box<dyn std::error::Error + Send + Sync>,
@@ -345,6 +348,19 @@ impl InfluxRpcPlanner {
             .table_predicates(database.as_meta())
             .context(CreatingPredicatesSnafu)?;
         for (table_name, predicate) in &table_predicates {
+            if predicate.is_empty() {
+                // special case - return the columns from metadata only.
+                // Note that columns with all rows deleted will still show here
+                known_columns.extend(
+                    database
+                        .table_schema(table_name)
+                        .context(GettingTableSchemaSnafu { table_name })?
+                        .tags_iter()
+                        .map(|f| f.name().clone()),
+                );
+                continue;
+            }
+
             let chunks = database
                 .chunks(table_name, predicate)
                 .await

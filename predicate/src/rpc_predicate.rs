@@ -8,6 +8,7 @@ use crate::{rewrite, Predicate};
 
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::context::ExecutionProps;
+use datafusion::logical_expr::lit;
 use datafusion::logical_plan::{
     Column, Expr, ExprSchema, ExprSchemable, ExprSimplifiable, SimplifyInfo,
 };
@@ -198,6 +199,11 @@ fn normalize_predicate(
                 })
                 .and_then(rewrite::simplify_predicate)
         })
+        // Filter out literal true so is_empty works correctly
+        .filter(|f| match f {
+            Err(_) => true,
+            Ok(expr) => (*expr) != lit(true),
+        })
         .collect::<DataFusionResult<Vec<_>>>()?;
 
     // Store any field value (`_value`) expressions on the `Predicate`.
@@ -306,9 +312,7 @@ mod tests {
         )
         .unwrap();
 
-        let expected = Predicate::new()
-            .with_field_columns(vec!["f1"])
-            .with_expr(lit(true));
+        let expected = Predicate::new().with_field_columns(vec!["f1"]);
 
         assert_eq!(predicate, expected);
     }
@@ -323,9 +327,7 @@ mod tests {
         )
         .unwrap();
 
-        let expected = Predicate::new()
-            .with_field_columns(vec!["f1", "f2"])
-            .with_expr(lit(true));
+        let expected = Predicate::new().with_field_columns(vec!["f1", "f2"]);
 
         assert_eq!(predicate, expected);
     }
@@ -355,9 +357,7 @@ mod tests {
         )
         .unwrap();
 
-        let expected = Predicate::new()
-            .with_field_columns(vec!["f2"])
-            .with_expr(lit(true));
+        let expected = Predicate::new().with_field_columns(vec!["f2"]);
 
         assert_eq!(predicate, expected);
     }

@@ -721,7 +721,7 @@ impl DbSetup for EndToEndTestWithDelete {
         let partition_key = "1970-01-01T00";
 
         // pred: delete from swap where 6000 <= time <= 6000 and name=disk0
-        // 1 rows of h2o with timestamp 250 will be deleted
+        // 1 rows of swap with name=disk0 will be deleted
         let delete_table_name = "swap";
         let pred = DeletePredicate {
             range: TimestampRange::new(6000, 6000),

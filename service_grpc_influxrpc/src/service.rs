@@ -1726,7 +1726,8 @@ mod tests {
         // ---
         let request = TagKeysRequest {
             tags_source: source.clone(),
-            range: None,
+            // add some time range or predicate, otherwise we do a pure metadata lookup
+            range: Some(make_timestamp_range(150, 200)),
             predicate: None,
         };
 
@@ -1814,7 +1815,7 @@ mod tests {
 
         let db_info = org_and_bucket();
 
-        // predicate specifies m4, so this is filtered out
+        // predicate specifies m5
         let chunk = TestChunk::new("m5").with_error("This is an error");
 
         fixture
@@ -1831,7 +1832,8 @@ mod tests {
         let request = MeasurementTagKeysRequest {
             measurement: "m5".into(),
             source: source.clone(),
-            range: None,
+            // add some time range or predicate, otherwise we do a pure metadata lookup
+            range: Some(make_timestamp_range(150, 200)),
             predicate: None,
         };
 

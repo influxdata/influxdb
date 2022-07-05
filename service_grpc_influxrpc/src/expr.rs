@@ -873,7 +873,7 @@ fn format_comparison(v: i32, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 #[cfg(test)]
 mod tests {
     use generated_types::node::Type as RPCNodeType;
-    use predicate::{rpc_predicate::QueryDatabaseMeta, Predicate};
+    use predicate::{rpc_predicate::QueryDatabaseMeta, Predicate, EMPTY_PREDICATE};
     use std::{collections::BTreeSet, sync::Arc};
 
     use super::*;
@@ -1020,13 +1020,13 @@ mod tests {
             .build();
         let predicate = table_predicate(predicate);
 
-        // predicate is rewritten to true, and projection is added
-        let expected_exprs = vec![lit(true)];
+        // predicate is rewritten to true (which is simplified to an empty predicate list), and projection is added
+        // but, the table schema is not specified in the test, so the projection is also empty.
 
         assert_eq!(
-            &expected_exprs, &predicate.exprs,
+            predicate, EMPTY_PREDICATE,
             "expected '{:#?}' doesn't match actual '{:#?}'",
-            expected_exprs, predicate.exprs,
+            predicate, EMPTY_PREDICATE,
         );
     }
 
