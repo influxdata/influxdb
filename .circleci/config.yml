@@ -360,7 +360,7 @@ jobs:
       - run:
           name: Cargo release build with target arch set for CRoaring
           command: |
-            COMMIT_SHA="$(git rev-parse --short HEAD)"
+            COMMIT_SHA="$(git rev-parse HEAD)"
 
             RUST_VERSION="$(sed -E -ne 's/channel = "(.*)"/\1/p' rust-toolchain.toml)"
 
@@ -392,7 +392,7 @@ jobs:
       - persist_to_workspace:
           root: /tmp/images
           paths:
-            - '*.tar.gz'
+            - "*.tar.gz"
       - cache_save
 
   deploy_release:
@@ -412,7 +412,7 @@ jobs:
       - run:
           name: Upload images
           command: |
-            COMMIT_SHA="$(git rev-parse --short HEAD)"
+            COMMIT_SHA="$(git rev-parse HEAD)"
             BRANCH="$(echo "$CIRCLE_BRANCH" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/_/g')"
 
             docker load -i /tmp/images/iox.tar.gz
@@ -428,12 +428,6 @@ jobs:
 
             # for next step
             echo "export COMMIT_SHA=${COMMIT_SHA}" >> $BASH_ENV
-      # currently we still need to PUSH our image tag. This will be replaced by a pull-based approach soon.
-      - run:
-          name: Push to c2updater
-          command: |
-            echo "$QUAY_PASS" | docker login quay.io --username $QUAY_USER --password-stdin
-            ./.circleci/get-deploy-tags.sh "${COMMIT_SHA}"
 
   # Prepare the CI image used for other tasks.
   #
