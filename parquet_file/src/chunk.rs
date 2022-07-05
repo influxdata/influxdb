@@ -2,7 +2,7 @@
 //! download & execute a scan.
 
 use crate::{storage::ParquetStorage, ParquetFilePath};
-use data_types::{ParquetFile, TimestampMinMax, TimestampRange};
+use data_types::{ParquetFile, TimestampMinMax};
 use datafusion::physical_plan::SendableRecordBatchStream;
 use predicate::Predicate;
 use schema::{selection::Selection, Schema};
@@ -52,17 +52,6 @@ impl ParquetChunk {
     /// Infallably return the full schema (for all columns) for this chunk
     pub fn schema(&self) -> Arc<Schema> {
         Arc::clone(&self.schema)
-    }
-
-    /// Return true if this chunk contains values within the time range, or if
-    /// the range is `None`.
-    pub fn has_timerange(&self, timestamp_range: Option<&TimestampRange>) -> bool {
-        if let Some(timestamp_range) = timestamp_range {
-            self.timestamp_min_max().overlaps(*timestamp_range)
-        } else {
-            // no range specified
-            true
-        }
     }
 
     /// Return the columns names that belong to the given column selection

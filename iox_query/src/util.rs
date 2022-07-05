@@ -13,6 +13,7 @@ use arrow::{
     record_batch::RecordBatch,
 };
 
+use data_types::TimestampMinMax;
 use datafusion::{
     datasource::MemTable,
     error::{DataFusionError, Result as DatafusionResult},
@@ -235,7 +236,7 @@ impl<'a> ExprRewriter for MissingColumnsToNull<'a> {
 }
 
 /// Return min and max for column `time` of the given set of record batches
-pub fn compute_timenanosecond_min_max(batches: &[RecordBatch]) -> Result<(i64, i64)> {
+pub fn compute_timenanosecond_min_max(batches: &[RecordBatch]) -> Result<TimestampMinMax> {
     let mut min_time = i64::MAX;
     let mut max_time = i64::MIN;
     for batch in batches {
@@ -243,7 +244,10 @@ pub fn compute_timenanosecond_min_max(batches: &[RecordBatch]) -> Result<(i64, i
         min_time = min(min_time, mi);
         max_time = max(max_time, ma);
     }
-    Ok((min_time, max_time))
+    Ok(TimestampMinMax {
+        min: min_time,
+        max: max_time,
+    })
 }
 
 /// Return min and max for column `time` in the given record batch

@@ -6,7 +6,6 @@ use data_types::{
 use datafusion::physical_plan::RecordBatchStream;
 use iox_query::{QueryChunk, QueryChunkError, QueryChunkMeta};
 use observability_deps::tracing::debug;
-use predicate::PredicateMatch;
 use read_buffer::ReadFilterResults;
 use schema::{selection::Selection, sort::SortKey, Schema};
 use snafu::{OptionExt, ResultExt, Snafu};
@@ -43,8 +42,7 @@ pub enum Error {
 
 impl QueryChunkMeta for QuerierParquetChunk {
     fn summary(&self) -> Option<&TableSummary> {
-        // TODO: fetch stats to improve perf
-        None
+        Some(&self.table_summary)
     }
 
     fn schema(&self) -> Arc<Schema> {
@@ -83,21 +81,6 @@ impl QueryChunk for QuerierParquetChunk {
 
     fn may_contain_pk_duplicates(&self) -> bool {
         false
-    }
-
-    fn apply_predicate_to_metadata(
-        &self,
-        predicate: &predicate::Predicate,
-    ) -> Result<predicate::PredicateMatch, QueryChunkError> {
-        let pred_result = if predicate.has_exprs()
-            || self.parquet_chunk.has_timerange(predicate.range.as_ref())
-        {
-            PredicateMatch::Unknown
-        } else {
-            PredicateMatch::Zero
-        };
-
-        Ok(pred_result)
     }
 
     fn column_names(
@@ -200,19 +183,6 @@ impl QueryChunk for QuerierRBChunk {
 
     fn may_contain_pk_duplicates(&self) -> bool {
         false
-    }
-
-    fn apply_predicate_to_metadata(
-        &self,
-        predicate: &predicate::Predicate,
-    ) -> Result<predicate::PredicateMatch, QueryChunkError> {
-        let pred_result = if predicate.has_exprs() || self.has_timerange(predicate.range.as_ref()) {
-            PredicateMatch::Unknown
-        } else {
-            PredicateMatch::Zero
-        };
-
-        Ok(pred_result)
     }
 
     fn column_names(

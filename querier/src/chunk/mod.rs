@@ -3,7 +3,7 @@
 use crate::cache::CatalogCache;
 use data_types::{
     ChunkId, ChunkOrder, ColumnId, DeletePredicate, ParquetFile, ParquetFileId, PartitionId,
-    SequenceNumber, SequencerId, TableSummary, TimestampMinMax, TimestampRange,
+    SequenceNumber, SequencerId, TableSummary, TimestampMinMax,
 };
 use iox_catalog::interface::Catalog;
 use iox_time::TimeProvider;
@@ -13,7 +13,10 @@ use schema::{sort::SortKey, Schema};
 use std::{collections::HashSet, sync::Arc};
 use uuid::Uuid;
 
+use self::util::create_basic_summary;
+
 mod query_access;
+pub(crate) mod util;
 
 /// Immutable metadata attached to a [`QuerierParquetChunk`].
 #[derive(Debug)]
@@ -152,19 +155,6 @@ impl QuerierRBChunk {
             ..self
         }
     }
-
-    /// Return true if this chunk contains values within the time range, or if the range is `None`.
-    pub fn has_timerange(&self, timestamp_range: Option<&TimestampRange>) -> bool {
-        match (self.timestamp_min_max, timestamp_range) {
-            (Some(timestamp_min_max), Some(timestamp_range)) => {
-                timestamp_min_max.overlaps(*timestamp_range)
-            }
-            // If this chunk doesn't have a time column it can't match
-            (None, Some(_)) => false,
-            // If there no range specified,
-            (_, None) => true,
-        }
-    }
 }
 
 /// Chunk representation of Parquet file chunks for the querier.
@@ -189,6 +179,9 @@ pub struct QuerierParquetChunk {
 
     /// Partition sort key
     partition_sort_key: Arc<Option<SortKey>>,
+
+    /// Table summary
+    table_summary: TableSummary,
 }
 
 impl QuerierParquetChunk {
@@ -199,12 +192,18 @@ impl QuerierParquetChunk {
         meta: Arc<ChunkMeta>,
         partition_sort_key: Arc<Option<SortKey>>,
     ) -> Self {
+        let table_summary = create_basic_summary(
+            parquet_chunk.rows() as u64,
+            &parquet_chunk.schema(),
+            parquet_chunk.timestamp_min_max(),
+        );
         Self {
             parquet_file_id,
             parquet_chunk,
             meta,
             delete_predicates: Vec::new(),
             partition_sort_key,
+            table_summary,
         }
     }
 

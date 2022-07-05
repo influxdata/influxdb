@@ -197,7 +197,12 @@ pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync + 'static {
     fn apply_predicate_to_metadata(
         &self,
         predicate: &Predicate,
-    ) -> Result<PredicateMatch, QueryChunkError>;
+    ) -> Result<PredicateMatch, QueryChunkError> {
+        Ok(self
+            .summary()
+            .map(|summary| predicate.apply_to_table_summary(summary, self.schema().as_arrow()))
+            .unwrap_or(PredicateMatch::Unknown))
+    }
 
     /// Returns a set of Strings with column names from the specified
     /// table that have at least one row that matches `predicate`, if
