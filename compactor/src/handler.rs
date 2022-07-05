@@ -243,6 +243,11 @@ async fn run_compactor(compactor: Arc<Compactor>, shutdown: CancellationToken) {
                             debug!(%max_size, %used_size, n_compactions=%handles.len(), "reached maximum concurrent compaction size limit");
                             break;
                         }
+                    } else {
+                        // All candidates should be compactable (have files to compact and/or upgrade)
+                        // Reaching here means we do not choose the right candidates and
+                        // it would be a waste of time to repeat this cycle
+                        warn!("The candidate partition {} has no files to be either compacted or upgraded", c.candidate.partition_id);
                     }
                 }
             }
