@@ -104,16 +104,19 @@ pub struct CompactorConfig {
     split_percentage: i64,
     /// The compactor will limit the number of simultaneous compaction jobs based on the
     /// size of the input files to be compacted. Currently this only takes into account the
-    /// level 0 files, but should later also consider the level 1 files to be compacted. This
+    /// level 0 and 1 files, but should later also consider the level 2 files to be compacted. This
     /// number should be less than 1/10th of the available memory to ensure compactions have
     /// enough space to run.
     max_concurrent_compaction_size_bytes: i64,
-    /// The compactor will compact overlapped files no matter how much large they are.
-    /// For non-overlapped and contiguous files, compactor will also compact them into
-    /// a larger file of max size defined by this config value.
+    /// The compactor will compact overlapped files but if the total size of the files
+    /// exceeds this value, the content of each files will be split in the current compaction cycle
+    /// so in the next cycle, they will be small enough to get compacted
     compaction_max_size_bytes: i64,
     /// Limit the number of files to compact into one file
-    compaction_max_file_count: i64,
+    compaction_max_file_count: i64, // TODO: remove this value
+    /// If the compacted result is larger than this value, it will be persisted into
+    /// many files, each is estimated smaller than this value
+    compaction_max_desired_file_size_bytes: i64,
 }
 
 impl CompactorConfig {
@@ -123,6 +126,7 @@ impl CompactorConfig {
         max_concurrent_compaction_size_bytes: i64,
         compaction_max_size_bytes: i64,
         compaction_max_file_count: i64,
+        compaction_max_desired_file_size_bytes: i64,
     ) -> Self {
         assert!(split_percentage > 0 && split_percentage <= 100);
 
@@ -131,6 +135,7 @@ impl CompactorConfig {
             max_concurrent_compaction_size_bytes,
             compaction_max_size_bytes,
             compaction_max_file_count,
+            compaction_max_desired_file_size_bytes,
         }
     }
 
@@ -159,6 +164,11 @@ impl CompactorConfig {
     pub fn compaction_max_file_count(&self) -> i64 {
         self.compaction_max_file_count
     }
+
+    /// max desired persisted file size by the compactor (estimate)
+    pub fn compaction_max_desired_file_size_bytes(&self) -> i64 {
+        self.compaction_max_desired_file_size_bytes
+    }
 }
 
 /// Checks for candidate partitions to compact and spawns tokio tasks to compact as many
@@ -184,7 +194,7 @@ async fn run_compactor(compactor: Arc<Compactor>, shutdown: CancellationToken) {
 
         let mut used_size = 0;
         let max_size = compactor.config.max_concurrent_compaction_size_bytes();
-        let max_desired_file_size = compactor.config.compaction_max_size_bytes();
+        let max_desired_file_size = compactor.config.compaction_max_desired_file_size_bytes();
         let max_file_count = compactor.config.compaction_max_file_count();
         let mut handles = vec![];
 

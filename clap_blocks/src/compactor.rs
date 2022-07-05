@@ -69,4 +69,15 @@ pub struct CompactorConfig {
         action
     )]
     pub compaction_max_file_count: i64,
+
+    /// If the compacted result is too large, the compactor will split it into many files each
+    /// estimated to be smaller than this value
+    /// Default is 30,000,000 (30MB)
+    #[clap(
+        long = "--compaction-max-desired-size-bytes",
+        env = "INFLUXDB_IOX_COMPACTION_MAX_DESIRED_FILE_SIZE_BYTES",
+        default_value = "30000000",
+        action
+    )]
+    pub compaction_max_desired_file_size_bytes: i64,
 }

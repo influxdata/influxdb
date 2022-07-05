@@ -1027,25 +1027,7 @@ impl Compactor {
                 // Points 1 and 2 together will lead to many non-time-overlapped files with same sequence number ranges
                 // can end up in the same time-overlapped group
                 for i in 1..group.len() {
-                    if ((group[i - 1].min_time >= group[i].min_time
-                        && group[i - 1].min_time <= group[i].max_time)
-                        || (group[i].min_time >= group[i - 1].min_time
-                            && group[i].min_time <= group[i - 1].max_time))
-                        && (group[i - 1].max_sequence_number >= group[i].min_sequence_number)
-                    {
-                        panic!(
-                            "Two time-overlapped files with overlapped range sequence numbers. \
-                            File id 1: {}, file id 2: {}, sequence number range 1: [{}, {}], \
-                            sequence number range 2: [{}, {}], partition id: {}",
-                            group[i - 1].id,
-                            group[i].id,
-                            group[i - 1].min_sequence_number.get(),
-                            group[i - 1].max_sequence_number.get(),
-                            group[i].min_sequence_number.get(),
-                            group[i].max_sequence_number.get(),
-                            group[i].partition_id,
-                        )
-                    }
+                    Self::verify_contiguous_files(&group[i - 1], &group[i]);
                 }
 
                 while !group.is_empty() {
@@ -1078,6 +1060,33 @@ impl Compactor {
         }
 
         overlapped_groups
+    }
+
+    // Panic if the two given time are both time-overlapped and sequence-number-overlapped
+    //  . file_1 and file_2 must belong to the same partition
+    //  . file_1 must have range sequence number <= file_s' range sequence number
+    fn verify_contiguous_files(file_1: &ParquetFile, file_2: &ParquetFile) {
+        assert!(file_1.partition_id == file_2.partition_id);
+        assert!(file_1.min_sequence_number <= file_2.min_sequence_number);
+
+        // Overlap on both time and sequence number
+        if ((file_1.min_time >= file_2.min_time && file_1.min_time <= file_2.max_time)
+            || (file_2.min_time >= file_1.min_time && file_2.min_time <= file_1.max_time))
+            && (file_1.max_sequence_number >= file_2.min_sequence_number)
+        {
+            panic!(
+                "Two time-overlapped files with overlapped range sequence numbers. \
+                File id 1: {}, file id 2: {}, sequence number range 1: [{}, {}], \
+                sequence number range 2: [{}, {}], partition id: {}",
+                file_1.id,
+                file_2.id,
+                file_1.min_sequence_number.get(),
+                file_1.max_sequence_number.get(),
+                file_2.min_sequence_number.get(),
+                file_2.max_sequence_number.get(),
+                file_1.partition_id,
+            )
+        }
     }
 
     // Given a list of parquet files that come from the same Table Partition, group files together
@@ -1498,6 +1507,7 @@ mod tests {
         let max_concurrent_compaction_size_bytes = 100000;
         let compaction_max_size_bytes = 100000;
         let compaction_max_file_count = 10;
+        let compaction_max_desired_file_size_bytes = 30000;
         let compactor = Compactor::new(
             vec![sequencer.sequencer.id],
             Arc::clone(&catalog.catalog),
@@ -1510,6 +1520,7 @@ mod tests {
                 max_concurrent_compaction_size_bytes,
                 compaction_max_size_bytes,
                 compaction_max_file_count,
+                compaction_max_desired_file_size_bytes,
             ),
             Arc::new(metric::Registry::new()),
         );
@@ -1652,6 +1663,7 @@ mod tests {
         let max_concurrent_compaction_size_bytes = 100000;
         let compaction_max_size_bytes = 100000;
         let compaction_max_file_count = 10;
+        let compaction_max_desired_file_size_bytes = 30000;
         let compactor = Compactor::new(
             vec![sequencer.sequencer.id],
             Arc::clone(&catalog.catalog),
@@ -1664,6 +1676,7 @@ mod tests {
                 max_concurrent_compaction_size_bytes,
                 compaction_max_size_bytes,
                 compaction_max_file_count,
+                compaction_max_desired_file_size_bytes,
             ),
             Arc::new(metric::Registry::new()),
         );
@@ -1865,6 +1878,7 @@ mod tests {
         let max_concurrent_compaction_size_bytes = 100000;
         let compaction_max_size_bytes = 100000;
         let compaction_max_file_count = 10;
+        let compaction_max_desired_file_size_bytes = 30000;
         let compactor = Compactor::new(
             vec![sequencer.sequencer.id],
             Arc::clone(&catalog.catalog),
@@ -1877,6 +1891,7 @@ mod tests {
                 max_concurrent_compaction_size_bytes,
                 compaction_max_size_bytes,
                 compaction_max_file_count,
+                compaction_max_desired_file_size_bytes,
             ),
             Arc::new(metric::Registry::new()),
         );
@@ -1996,6 +2011,7 @@ mod tests {
         let max_concurrent_compaction_size_bytes = 100000;
         let compaction_max_size_bytes = 100000;
         let compaction_max_file_count = 10;
+        let compaction_max_desired_file_size_bytes = 30000;
         let compactor = Compactor::new(
             vec![sequencer.sequencer.id],
             Arc::clone(&catalog.catalog),
@@ -2009,6 +2025,7 @@ mod tests {
                 max_concurrent_compaction_size_bytes,
                 compaction_max_size_bytes,
                 compaction_max_file_count,
+                compaction_max_desired_file_size_bytes,
             ),
             Arc::new(metric::Registry::new()),
         );
@@ -2111,6 +2128,7 @@ mod tests {
         let max_concurrent_compaction_size_bytes = 100000;
         let compaction_max_size_bytes = 100000;
         let compaction_max_file_count = 10;
+        let compaction_max_desired_file_size_bytes = 30000;
         let compactor = Compactor::new(
             vec![sequencer.sequencer.id],
             Arc::clone(&catalog.catalog),
@@ -2123,6 +2141,7 @@ mod tests {
                 max_concurrent_compaction_size_bytes,
                 compaction_max_size_bytes,
                 compaction_max_file_count,
+                compaction_max_desired_file_size_bytes,
             ),
             Arc::new(metric::Registry::new()),
         );
@@ -2263,6 +2282,7 @@ mod tests {
         let max_concurrent_compaction_size_bytes = 100000;
         let compaction_max_size_bytes = 100000;
         let compaction_max_file_count = 10;
+        let compaction_max_desired_file_size_bytes = 30000;
         let compactor = Compactor::new(
             vec![sequencer.sequencer.id],
             Arc::clone(&catalog.catalog),
@@ -2275,6 +2295,7 @@ mod tests {
                 max_concurrent_compaction_size_bytes,
                 compaction_max_size_bytes,
                 compaction_max_file_count,
+                compaction_max_desired_file_size_bytes,
             ),
             Arc::new(metric::Registry::new()),
         );
@@ -3346,6 +3367,7 @@ mod tests {
         let max_concurrent_compaction_size_bytes = 100000;
         let compaction_max_size_bytes = 100000;
         let compaction_max_file_count = 10;
+        let compaction_max_desired_file_size_bytes = 30000;
         let compactor = Compactor::new(
             vec![],
             Arc::clone(&catalog.catalog),
@@ -3358,6 +3380,7 @@ mod tests {
                 max_concurrent_compaction_size_bytes,
                 compaction_max_size_bytes,
                 compaction_max_file_count,
+                compaction_max_desired_file_size_bytes,
             ),
             Arc::new(metric::Registry::new()),
         );
@@ -3556,6 +3579,7 @@ mod tests {
         let max_concurrent_compaction_size_bytes = 100000;
         let compaction_max_size_bytes = 100000;
         let compaction_max_file_count = 10;
+        let compaction_max_desired_file_size_bytes = 30000;
         let compactor = Compactor::new(
             vec![],
             Arc::clone(&catalog.catalog),
@@ -3568,6 +3592,7 @@ mod tests {
                 max_concurrent_compaction_size_bytes,
                 compaction_max_size_bytes,
                 compaction_max_file_count,
+                compaction_max_desired_file_size_bytes,
             ),
             Arc::new(metric::Registry::new()),
         );
@@ -3892,6 +3917,7 @@ mod tests {
         let max_concurrent_compaction_size_bytes = 100000;
         let compaction_max_size_bytes = 100000;
         let compaction_max_file_count = 10;
+        let compaction_max_desired_file_size_bytes = 30000;
         let compactor = Compactor::new(
             vec![sequencer.id],
             Arc::clone(&catalog.catalog),
@@ -3904,6 +3930,7 @@ mod tests {
                 max_concurrent_compaction_size_bytes,
                 compaction_max_size_bytes,
                 compaction_max_file_count,
+                compaction_max_desired_file_size_bytes,
             ),
             Arc::new(metric::Registry::new()),
         );
@@ -3983,6 +4010,7 @@ mod tests {
         let max_concurrent_compaction_size_bytes = 100000;
         let compaction_max_size_bytes = 100000;
         let compaction_max_file_count = 10;
+        let compaction_max_desired_file_size_bytes = 30000;
         let compactor = Compactor::new(
             vec![sequencer.sequencer.id],
             Arc::clone(&catalog.catalog),
@@ -3995,6 +4023,7 @@ mod tests {
                 max_concurrent_compaction_size_bytes,
                 compaction_max_size_bytes,
                 compaction_max_file_count,
+                compaction_max_desired_file_size_bytes,
             ),
             Arc::new(metric::Registry::new()),
         );
