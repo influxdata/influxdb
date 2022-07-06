@@ -11,9 +11,6 @@ pub(crate) enum Error {
     #[snafu(display("Expected a file name"))]
     FileNameMissing,
 
-    #[snafu(display(r#""{uuid}" is not a valid ID"#))]
-    MalformedId { source: uuid::Error, uuid: String },
-
     #[snafu(display("The catalog could not be queried for {object_store_id}"))]
     GetFile {
         source: iox_catalog::interface::Error,
