@@ -186,7 +186,7 @@ impl WriteBufferWriting for FileBufferProducer {
     async fn store_operation(
         &self,
         sequencer_id: u32,
-        operation: &DmlOperation,
+        operation: DmlOperation,
     ) -> Result<DmlMeta, WriteBufferError> {
         let sequencer_path = self
             .dirs
@@ -216,7 +216,7 @@ impl WriteBufferWriting for FileBufferProducer {
 
         message.extend(b"\n");
 
-        crate::codec::encode_operation(&self.db_name, operation, &mut message)?;
+        crate::codec::encode_operation(&self.db_name, &operation, &mut message)?;
 
         // write data to scratchpad file in temp directory
         let temp_file = sequencer_path.join("temp").join(Uuid::new_v4().to_string());

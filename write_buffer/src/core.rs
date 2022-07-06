@@ -147,7 +147,7 @@ pub trait WriteBufferWriting: Sync + Send + Debug + 'static {
     async fn store_operation(
         &self,
         sequencer_id: u32,
-        operation: &DmlOperation,
+        operation: DmlOperation,
     ) -> Result<DmlMeta, WriteBufferError>;
 
     /// Sends line protocol to the write buffer - primarily intended for testing
@@ -162,7 +162,7 @@ pub trait WriteBufferWriting: Sync + Send + Debug + 'static {
 
         self.store_operation(
             sequencer_id,
-            &DmlOperation::Write(DmlWrite::new("test_db", tables, None, Default::default())),
+            DmlOperation::Write(DmlWrite::new("test_db", tables, None, Default::default())),
         )
         .await
     }
@@ -385,7 +385,7 @@ pub mod test_utils {
         let operation = DmlOperation::Write(write);
 
         let meta = writer
-            .store_operation(sequencer_id, &operation)
+            .store_operation(sequencer_id, operation.clone())
             .await
             .unwrap();
 
@@ -1135,7 +1135,7 @@ pub mod test_utils {
         // flip bits to get an unknown sequencer
         let sequencer_id = !set_pop_first(&mut writer.sequencer_ids()).unwrap();
         writer
-            .store_operation(sequencer_id, &operation)
+            .store_operation(sequencer_id, operation)
             .await
             .unwrap_err();
     }

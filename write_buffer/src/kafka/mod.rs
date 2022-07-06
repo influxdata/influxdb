@@ -93,7 +93,7 @@ impl WriteBufferWriting for RSKafkaProducer {
     async fn store_operation(
         &self,
         sequencer_id: u32,
-        operation: &DmlOperation,
+        operation: DmlOperation,
     ) -> Result<DmlMeta, WriteBufferError> {
         let producer = self
             .producers
@@ -102,8 +102,7 @@ impl WriteBufferWriting for RSKafkaProducer {
                 format!("Unknown partition: {}", sequencer_id).into()
             })?;
 
-        // TODO: don't clone!
-        Ok(producer.produce(operation.clone()).await?)
+        Ok(producer.produce(operation).await?)
     }
 
     async fn flush(&self) -> Result<(), WriteBufferError> {
@@ -712,7 +711,7 @@ mod tests {
 
         let sequencer_id = set_pop_first(&mut producer.sequencer_ids()).unwrap();
         producer
-            .store_operation(sequencer_id, &DmlOperation::Write(write))
+            .store_operation(sequencer_id, DmlOperation::Write(write))
             .await
             .unwrap();
     }
@@ -733,7 +732,7 @@ mod tests {
             DmlMeta::unsequenced(Some(span_ctx)),
         );
         let op = DmlOperation::Write(write);
-        producer.store_operation(sequencer_id, &op).await.unwrap()
+        producer.store_operation(sequencer_id, op).await.unwrap()
     }
 
     async fn delete(
@@ -752,6 +751,6 @@ mod tests {
             None,
             DmlMeta::unsequenced(Some(span_ctx)),
         ));
-        producer.store_operation(sequencer_id, &op).await.unwrap()
+        producer.store_operation(sequencer_id, op).await.unwrap()
     }
 }

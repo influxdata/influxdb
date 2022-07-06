@@ -277,7 +277,7 @@ impl WriteBufferWriting for MockBufferForWriting {
     async fn store_operation(
         &self,
         sequencer_id: u32,
-        operation: &DmlOperation,
+        mut operation: DmlOperation,
     ) -> Result<DmlMeta, WriteBufferError> {
         let mut guard = self.state.writes.lock();
         let writes = guard.as_mut().unwrap();
@@ -306,7 +306,6 @@ impl WriteBufferWriting for MockBufferForWriting {
             0,
         );
 
-        let mut operation = operation.clone();
         operation.set_meta(meta.clone());
 
         writes_vec.push(Ok(operation));
@@ -337,7 +336,7 @@ impl WriteBufferWriting for MockBufferForWritingThatAlwaysErrors {
     async fn store_operation(
         &self,
         _sequencer_id: u32,
-        _operation: &DmlOperation,
+        _operation: DmlOperation,
     ) -> Result<DmlMeta, WriteBufferError> {
         Err(String::from(
             "Something bad happened on the way to writing an entry in the write buffer",
@@ -858,7 +857,7 @@ mod tests {
 
         assert_contains!(
             writer
-                .store_operation(0, &operation)
+                .store_operation(0, operation)
                 .await
                 .unwrap_err()
                 .to_string(),

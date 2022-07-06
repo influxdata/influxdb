@@ -70,7 +70,7 @@ impl Sequencer {
     pub async fn enqueue<'a>(&self, op: DmlOperation) -> Result<DmlMeta, WriteBufferError> {
         let t = self.time_provider.now();
 
-        let res = self.inner.store_operation(self.id as u32, &op).await;
+        let res = self.inner.store_operation(self.id as u32, op).await;
 
         if let Some(delta) = self.time_provider.now().checked_duration_since(t) {
             match &res {
