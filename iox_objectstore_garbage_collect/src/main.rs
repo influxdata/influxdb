@@ -108,7 +108,8 @@ pub struct Args {
     #[clap(long)]
     dry_run: bool,
 
-    /// The date and time at which to start the timestamps of the generated data.
+    /// Items in the object store that are older than this timestamp and also unreferenced in the
+    /// catalog will be deleted.
     ///
     /// Can be an exact datetime like `2020-01-01T01:23:45-05:00` or a fuzzy
     /// specification like `1 hour ago`. If not specified, defaults to 14 days ago.
