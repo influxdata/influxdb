@@ -55,6 +55,7 @@ async fn should_delete(
             reason = "too new",
             cutoff = %cutoff,
             last_modified = %item.last_modified,
+            "Ignoring object",
         );
         // Not old enough; do not delete
         return Ok(false);
@@ -70,18 +71,20 @@ async fn should_delete(
                 .context(GetFileSnafu { object_store_id })?;
 
             if parquet_file.is_some() {
+                // We have a reference to this file; do not delete
                 info!(
                     location = %item.location,
                     deleting = false,
                     reason = "exists in catalog",
+                    "Ignoring object",
                 );
-                // We have a reference to this file; do not delete
                 return Ok(false);
             } else {
                 info!(
                     location = %item.location,
                     deleting = true,
                     reason = "not in catalog",
+                    "Scheduling file for deletion",
                 );
             }
         } else {
@@ -90,6 +93,7 @@ async fn should_delete(
                 deleting = true,
                 uuid,
                 reason = "not a valid UUID",
+                "Scheduling file for deletion",
             );
         }
     } else {
@@ -98,6 +102,7 @@ async fn should_delete(
             deleting = true,
             file_name = %file_name.as_ref(),
             reason = "not a .parquet file",
+            "Scheduling file for deletion",
         );
     }
 
