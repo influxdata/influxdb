@@ -2908,7 +2908,7 @@ mod tests {
         let request = MeasurementFieldsRequest {
             source: source.clone(),
             measurement: "TheMeasurement".into(),
-            range: None,
+            range: Some(make_timestamp_range(i64::MIN, i64::MAX - 1)),
             predicate: None,
         };
 

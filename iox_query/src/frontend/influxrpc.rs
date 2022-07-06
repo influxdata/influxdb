@@ -1,7 +1,10 @@
 //! Query frontend for InfluxDB Storage gRPC requests
 
 use crate::{
-    exec::{field::FieldColumns, make_non_null_checker, make_schema_pivot, IOxSessionContext},
+    exec::{
+        field::FieldColumns, fieldlist::Field, make_non_null_checker, make_schema_pivot,
+        IOxSessionContext,
+    },
     frontend::common::ScanPlanBuilder,
     plan::{
         fieldlist::FieldListPlan,
@@ -48,9 +51,6 @@ pub enum Error {
     FindingColumnNames {
         source: Box<dyn std::error::Error + Send + Sync>,
     },
-
-    #[snafu(display("gRPC planner table {} not found", table_name))]
-    GettingTableSchema { table_name: String },
 
     #[snafu(display("gRPC planner got error finding column values: {}", source))]
     FindingColumnValues {
@@ -354,7 +354,7 @@ impl InfluxRpcPlanner {
                 known_columns.extend(
                     database
                         .table_schema(table_name)
-                        .context(GettingTableSchemaSnafu { table_name })?
+                        .context(TableRemovedSnafu { table_name })?
                         .tags_iter()
                         .map(|f| f.name().clone()),
                 );
@@ -670,9 +670,25 @@ impl InfluxRpcPlanner {
         let table_predicates = rpc_predicate
             .table_predicates(database.as_meta())
             .context(CreatingPredicatesSnafu)?;
-        let mut field_list_plan = FieldListPlan::with_capacity(table_predicates.len());
+        let mut field_list_plan = FieldListPlan::new();
 
         for (table_name, predicate) in &table_predicates {
+            if predicate.is_empty() {
+                // optimization: just get the field columns from metadata.
+                // note this both ignores field keys, and sets the timestamp data 'incorrectly'.
+                let schema = database
+                    .table_schema(table_name)
+                    .context(TableRemovedSnafu { table_name })?;
+                let fields = schema.fields_iter().map(|f| Field {
+                    name: f.name().clone(),
+                    data_type: f.data_type().clone(),
+                    last_timestamp: 0,
+                });
+                for field in fields {
+                    field_list_plan.append_field(field);
+                }
+                continue;
+            }
             let chunks = database
                 .chunks(table_name, predicate)
                 .await
@@ -694,7 +710,7 @@ impl InfluxRpcPlanner {
                 chunks,
             )?;
 
-            field_list_plan = field_list_plan.append(plan);
+            field_list_plan = field_list_plan.append_other(plan.into());
         }
 
         Ok(field_list_plan)

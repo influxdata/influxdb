@@ -90,7 +90,9 @@ async fn test_field_columns_with_pred() {
 #[tokio::test]
 async fn test_field_columns_measurement_pred() {
     // get only fields from h2o using a _measurement predicate
-    let predicate = Predicate::default().with_expr(col("_measurement").eq(lit("h2o")));
+    let predicate = Predicate::default()
+        .with_expr(col("_measurement").eq(lit("h2o")))
+        .with_range(i64::MIN, i64::MAX - 1);
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let expected_fields = FieldList {
@@ -109,6 +111,36 @@ async fn test_field_columns_measurement_pred() {
                 name: "temp".into(),
                 data_type: DataType::Float64,
                 last_timestamp: 100000,
+            },
+        ],
+    };
+
+    run_field_columns_test_case(TwoMeasurementsManyFields {}, predicate, expected_fields).await;
+}
+
+#[tokio::test]
+async fn test_field_columns_measurement_pred_all_time() {
+    // get only fields from h2o using a _measurement predicate
+    let predicate = Predicate::default().with_expr(col("_measurement").eq(lit("h2o")));
+    let predicate = InfluxRpcPredicate::new(None, predicate);
+
+    // optimized all-time case returns zero last_timestamp
+    let expected_fields = FieldList {
+        fields: vec![
+            Field {
+                name: "moisture".into(),
+                data_type: DataType::Float64,
+                last_timestamp: 0,
+            },
+            Field {
+                name: "other_temp".into(),
+                data_type: DataType::Float64,
+                last_timestamp: 0,
+            },
+            Field {
+                name: "temp".into(),
+                data_type: DataType::Float64,
+                last_timestamp: 0,
             },
         ],
     };
@@ -205,8 +237,72 @@ async fn test_field_name_plan_with_delete() {
 }
 
 #[tokio::test]
-async fn list_field_columns_max_time() {
-    let predicate = Predicate::default().with_range(MIN_NANO_TIME, MAX_NANO_TIME);
+async fn test_field_name_plan_with_delete_all_time() {
+    test_helpers::maybe_start_logging();
+
+    let predicate = Predicate::default();
+    let predicate = InfluxRpcPredicate::new(None, predicate);
+
+    let expected_fields = FieldList {
+        fields: vec![
+            Field {
+                name: "field1".into(),
+                data_type: DataType::Float64,
+                last_timestamp: 0, // all time queries are optimized but do not return timestamps
+            },
+            Field {
+                name: "field2".into(),
+                data_type: DataType::Utf8,
+                last_timestamp: 0,
+            },
+            Field {
+                name: "field3".into(),
+                data_type: DataType::Float64,
+                last_timestamp: 0,
+            },
+            Field {
+                name: "field4".into(),
+                data_type: DataType::Boolean,
+                last_timestamp: 0,
+            },
+            Field {
+                name: "field5".into(),
+                data_type: DataType::Boolean,
+                last_timestamp: 0,
+            },
+        ],
+    };
+
+    run_field_columns_test_case(
+        OneMeasurementManyFieldsWithDelete {},
+        predicate,
+        expected_fields,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn list_field_columns_all_time() {
+    let predicate = Predicate::default().with_range(MIN_NANO_TIME, i64::MAX);
+    let predicate = InfluxRpcPredicate::new(None, predicate);
+
+    let expected_fields = FieldList {
+        fields: vec![Field {
+            name: "value".into(),
+            data_type: DataType::Float64,
+            last_timestamp: 0, // we hit the optimized case that ignores timestamps
+        }],
+    };
+
+    run_field_columns_test_case(MeasurementWithMaxTime {}, predicate, expected_fields).await;
+}
+
+#[tokio::test]
+async fn list_field_columns_max_time_included() {
+    // if the range started at i64:MIN, we would hit the optimized case for 'all time'
+    // and get the 'wrong' timestamp, since in the optimized case we don't check what timestamps
+    // exist
+    let predicate = Predicate::default().with_range(MIN_NANO_TIME + 1, MAX_NANO_TIME + 1);
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let expected_fields = FieldList {
@@ -221,36 +317,10 @@ async fn list_field_columns_max_time() {
 }
 
 #[tokio::test]
-async fn list_field_columns_max_i64() {
-    let predicate = Predicate::default().with_range(i64::MIN, i64::MAX);
-    let predicate = InfluxRpcPredicate::new(None, predicate);
-
-    let expected_fields = FieldList {
-        fields: vec![Field {
-            name: "value".into(),
-            data_type: DataType::Float64,
-            last_timestamp: MAX_NANO_TIME,
-        }],
-    };
-
-    run_field_columns_test_case(MeasurementWithMaxTime {}, predicate, expected_fields).await;
-}
-
-#[tokio::test]
-async fn list_field_columns_max_time_less_one() {
+async fn list_field_columns_max_time_excluded() {
     let predicate = Predicate::default()
         // one less than max timestamp
-        .with_range(MIN_NANO_TIME, MAX_NANO_TIME - 1);
-    let predicate = InfluxRpcPredicate::new(None, predicate);
-
-    let expected_fields = FieldList { fields: vec![] };
-
-    run_field_columns_test_case(MeasurementWithMaxTime {}, predicate, expected_fields).await;
-}
-
-#[tokio::test]
-async fn list_field_columns_max_time_greater_one() {
-    let predicate = Predicate::default().with_range(MIN_NANO_TIME + 1, MAX_NANO_TIME);
+        .with_range(MIN_NANO_TIME + 1, MAX_NANO_TIME);
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let expected_fields = FieldList { fields: vec![] };

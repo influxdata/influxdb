@@ -201,43 +201,32 @@ async fn list_table_names_data_pred_250_300_with_delete_all() {
 }
 
 #[tokio::test]
-async fn list_table_names_max_time() {
+async fn list_table_names_max_time_included() {
     run_table_names_test_case(
         MeasurementWithMaxTime {},
-        tsp(MIN_NANO_TIME, MAX_NANO_TIME),
+        tsp(MIN_NANO_TIME + 1, MAX_NANO_TIME + 1),
         vec!["cpu"],
     )
     .await;
 }
 
 #[tokio::test]
-async fn list_table_names_max_i64() {
+async fn list_table_names_max_time_excluded() {
     run_table_names_test_case(
         MeasurementWithMaxTime {},
         // outside valid timestamp range
-        tsp(i64::MIN, i64::MAX),
-        vec!["cpu"],
-    )
-    .await;
-}
-
-#[tokio::test]
-async fn list_table_names_time_less_one() {
-    run_table_names_test_case(
-        MeasurementWithMaxTime {},
-        tsp(MIN_NANO_TIME, MAX_NANO_TIME - 1),
-        vec![],
-    )
-    .await;
-}
-
-#[tokio::test]
-async fn list_table_names_max_time_greater_one() {
-    run_table_names_test_case(
-        MeasurementWithMaxTime {},
-        // one more than max timestamp
         tsp(MIN_NANO_TIME + 1, MAX_NANO_TIME),
         vec![],
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn list_table_names_all_time() {
+    run_table_names_test_case(
+        MeasurementWithMaxTime {},
+        tsp(MIN_NANO_TIME, MAX_NANO_TIME + 1),
+        vec!["cpu"],
     )
     .await;
 }

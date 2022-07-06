@@ -466,10 +466,13 @@ impl IOxSessionContext {
 
     /// Executes `plan` and return the resulting FieldList on the query executor
     pub async fn to_field_list(&self, plan: FieldListPlan) -> Result<FieldList> {
-        let FieldListPlan { plans } = plan;
+        let FieldListPlan {
+            known_values,
+            extra_plans,
+        } = plan;
 
         // Run the plans in parallel
-        let handles = plans
+        let handles = extra_plans
             .into_iter()
             .map(|plan| {
                 let ctx = self.child_ctx("to_field_list");
@@ -492,6 +495,12 @@ impl IOxSessionContext {
 
         // collect them all up and combine them
         let mut results = Vec::new();
+
+        if !known_values.is_empty() {
+            let list = known_values.into_iter().map(|f| f.1).collect();
+            results.push(FieldList { fields: list })
+        }
+
         for join_handle in handles {
             let fieldlist = join_handle.await?;
 
