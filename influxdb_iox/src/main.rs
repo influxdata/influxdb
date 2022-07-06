@@ -175,7 +175,7 @@ enum Command {
 
     /// Clean up old object store files that don't appear in the catalog.
     #[clap(name = "objectstore_garbage_collect")]
-    ObjectStoreGarbageCollect(commands::objectstore_garbage_collect::Config),
+    ObjectStoreGarbageCollect(Box<commands::objectstore_garbage_collect::Config>),
 }
 
 fn main() -> Result<(), std::io::Error> {
@@ -312,7 +312,7 @@ fn main() -> Result<(), std::io::Error> {
             }
             Some(Command::ObjectStoreGarbageCollect(config)) => {
                 let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
-                if let Err(e) = commands::objectstore_garbage_collect::command(config).await {
+                if let Err(e) = commands::objectstore_garbage_collect::command(*config).await {
                     use snafu::ErrorCompat;
                     eprintln!("{}", e);
                     for cause in ErrorCompat::iter_chain(&e).skip(1) {
