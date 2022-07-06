@@ -22,55 +22,32 @@ use clap_blocks::{
     catalog_dsn::CatalogDsnConfig,
     object_store::{make_object_store, ObjectStoreConfig},
 };
-use dotenv::dotenv;
 use iox_catalog::interface::Catalog;
 use object_store::DynObjectStore;
 use observability_deps::tracing::*;
 use snafu::prelude::*;
-use std::{process::ExitCode, sync::Arc};
+use std::sync::Arc;
 use tokio::sync::mpsc;
-use trogging::{
-    cli::LoggingConfig,
-    tracing_subscriber::{prelude::*, Registry},
-    TroggingGuard,
-};
+use trogging::cli::LoggingConfig;
 
-mod checker;
-mod deleter;
-mod lister;
+/// Logic for checking if a file in object storage should be deleted or not.
+pub mod checker;
+/// Logic for deleting a file from object storage.
+pub mod deleter;
+/// Logic for listing all files in object storage.
+pub mod lister;
 
 const BATCH_SIZE: usize = 1000;
 
-fn main() -> ExitCode {
-    // load all environment variables from .env before doing anything
-    load_dotenv();
-    let args = Args::parse();
-    let _tracing_guard = init_logs_and_tracing(&args.logging_config);
+/// Run the tasks that clean up old object store files that don't appear in the catalog.
+pub async fn inner_main(config: Config) -> Result<()> {
+    let object_store = config.object_store()?;
+    let catalog = config.catalog().await?;
 
-    if let Err(e) = inner_main(args) {
-        use snafu::ErrorCompat;
-
-        eprintln!("{e}");
-
-        for cause in ErrorCompat::iter_chain(&e).skip(1) {
-            eprintln!("Caused by: {cause}");
-        }
-
-        return ExitCode::FAILURE;
-    }
-
-    ExitCode::SUCCESS
-}
-
-#[tokio::main(flavor = "current_thread")]
-async fn inner_main(args: Args) -> Result<()> {
-    let object_store = args.object_store()?;
-    let catalog = args.catalog().await?;
-
-    let dry_run = args.dry_run;
-    let cutoff = args.cutoff()?;
+    let dry_run = config.dry_run;
+    let cutoff = config.cutoff()?;
     info!(
-        cutoff_arg = %args.cutoff,
+        cutoff_arg = %config.cutoff,
         cutoff_parsed = %cutoff,
     );
 
@@ -90,9 +67,9 @@ async fn inner_main(args: Args) -> Result<()> {
     Ok(())
 }
 
-/// Command-line arguments
+/// Clean up old object store files that don't appear in the catalog.
 #[derive(Debug, Parser)]
-pub struct Args {
+pub struct Config {
     #[clap(flatten)]
     object_store: ObjectStoreConfig,
 
@@ -117,7 +94,7 @@ pub struct Args {
     cutoff: String,
 }
 
-impl Args {
+impl Config {
     fn object_store(&self) -> Result<Arc<DynObjectStore>> {
         make_object_store(&self.object_store).context(CreatingObjectStoreSnafu)
     }
@@ -139,7 +116,8 @@ impl Args {
 }
 
 #[derive(Debug, Snafu)]
-enum Error {
+#[allow(missing_docs)]
+pub enum Error {
     #[snafu(display("Could not create the object store"))]
     CreatingObjectStore {
         source: clap_blocks::object_store::ParseError,
@@ -177,28 +155,6 @@ enum Error {
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
-fn load_dotenv() {
-    match dotenv() {
-        Ok(_) => {}
-        Err(dotenv::Error::Io(err)) if err.kind() == std::io::ErrorKind::NotFound => {
-            // Ignore this - a missing env file is not an error, defaults will
-            // be applied when initialising the Config struct.
-        }
-        Err(e) => {
-            eprintln!("FATAL Error loading config from: {}", e);
-            eprintln!("Aborting");
-            std::process::exit(1);
-        }
-    };
-}
-
-fn init_logs_and_tracing(logging_config: &LoggingConfig) -> TroggingGuard {
-    let log_layer = logging_config.to_builder().build().unwrap();
-    let subscriber = Registry::default().with(log_layer);
-    subscriber::set_global_default(subscriber).unwrap();
-    TroggingGuard
-}
-
 #[cfg(test)]
 mod tests {
     use filetime::FileTime;
@@ -207,18 +163,18 @@ mod tests {
 
     use super::*;
 
-    #[test]
-    fn deletes_untracked_files_older_than_the_cutoff() {
+    #[tokio::test]
+    async fn deletes_untracked_files_older_than_the_cutoff() {
         let setup = OldFileSetup::new();
 
         #[rustfmt::skip]
-        let args = Args::parse_from([
+        let config = Config::parse_from([
             "dummy-program-name",
             "--object-store", "file",
             "--data-dir", setup.data_dir_arg(),
             "--catalog", "memory",
         ]);
-        inner_main(args).unwrap();
+        inner_main(config).await.unwrap();
 
         assert!(
             !setup.file_path.exists(),
@@ -227,19 +183,19 @@ mod tests {
         );
     }
 
-    #[test]
-    fn preserves_untracked_files_newer_than_the_cutoff() {
+    #[tokio::test]
+    async fn preserves_untracked_files_newer_than_the_cutoff() {
         let setup = OldFileSetup::new();
 
         #[rustfmt::skip]
-        let args = Args::parse_from([
+        let config = Config::parse_from([
             "dummy-program-name",
             "--object-store", "file",
             "--data-dir", setup.data_dir_arg(),
             "--catalog", "memory",
             "--cutoff", "10 years ago",
         ]);
-        inner_main(args).unwrap();
+        inner_main(config).await.unwrap();
 
         assert!(
             setup.file_path.exists(),

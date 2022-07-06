@@ -7,7 +7,8 @@ use std::sync::Arc;
 use tokio::sync::mpsc;
 
 #[derive(Debug, Snafu)]
-pub(crate) enum Error {
+#[allow(missing_docs)]
+pub enum Error {
     #[snafu(display("Expected a file name"))]
     FileNameMissing,
 

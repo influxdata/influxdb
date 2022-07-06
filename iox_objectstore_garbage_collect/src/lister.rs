@@ -21,7 +21,8 @@ pub(crate) async fn perform(
 }
 
 #[derive(Debug, Snafu)]
-pub(crate) enum Error {
+#[allow(missing_docs)]
+pub enum Error {
     #[snafu(display("The prefix could not be listed"))]
     Listing { source: object_store::Error },
 

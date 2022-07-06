@@ -25,7 +25,8 @@ pub(crate) async fn perform(
 }
 
 #[derive(Debug, Snafu)]
-pub(crate) enum Error {
+#[allow(missing_docs)]
+pub enum Error {
     #[snafu(display("{path} could not be deleted"))]
     Deleting {
         source: object_store::Error,
