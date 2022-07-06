@@ -27,7 +27,15 @@ use super::ram::RamSize;
 pub const TTL_EXISTING: Duration = Duration::from_secs(10);
 
 /// Duration to keep non-existing namespaces.
-pub const TTL_NON_EXISTING: Duration = Duration::from_secs(60);
+///
+/// TODO(marco): Caching non-existing namespaces is virtually disabled until
+///              <https://github.com/influxdata/influxdb_iox/issues/4617> is implemented because the flux integration
+///              tests fail otherwise, see <https://github.com/influxdata/conductor/issues/997>.
+///              The very short duration is only used so that tests can assert easily that non-existing entries have
+///              SOME TTL mechanism attached.
+///              The TTL is not relevant for prod at the moment because other layers should prevent/filter queries for
+///              non-existing namespaces.
+pub const TTL_NON_EXISTING: Duration = Duration::from_nanos(1);
 
 const CACHE_ID: &str = "namespace";
 
