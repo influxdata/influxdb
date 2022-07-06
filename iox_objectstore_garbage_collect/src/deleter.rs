@@ -1,5 +1,4 @@
 use object_store::{DynObjectStore, ObjectMeta};
-use observability_deps::tracing::*;
 use snafu::prelude::*;
 use std::sync::Arc;
 use tokio::sync::mpsc;
@@ -14,14 +13,11 @@ pub(crate) async fn perform(
         if dry_run {
             eprintln!("Not deleting {path} due to dry run");
         } else {
+            println!("Deleting {path}");
             object_store
                 .delete(&path)
                 .await
-                .with_context(|_| DeletingSnafu { path: path.clone() })?;
-            info!(
-                location = %path,
-                deleted = true,
-            );
+                .context(DeletingSnafu { path })?;
         }
     }
 
