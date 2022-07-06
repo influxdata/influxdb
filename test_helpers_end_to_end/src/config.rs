@@ -16,8 +16,8 @@ pub struct TestConfig {
     /// Server type
     server_type: ServerType,
 
-    /// Catalog DSN value
-    dsn: String,
+    /// Catalog DSN value. Required unless you're running all-in-one in ephemeral mode.
+    dsn: Option<String>,
 
     /// Catalog schema name
     catalog_schema_name: String,
@@ -37,14 +37,14 @@ impl TestConfig {
     /// configuration setup below, such as [new_router](Self::new_router).
     fn new(
         server_type: ServerType,
-        dsn: impl Into<String>,
+        dsn: Option<String>,
         catalog_schema_name: impl Into<String>,
     ) -> Self {
         Self {
             env: HashMap::new(),
             client_headers: vec![],
             server_type,
-            dsn: dsn.into(),
+            dsn,
             catalog_schema_name: catalog_schema_name.into(),
             write_buffer_dir: None,
             object_store_dir: None,
@@ -54,6 +54,7 @@ impl TestConfig {
 
     /// Create a minimal router configuration
     pub fn new_router(dsn: impl Into<String>) -> Self {
+        let dsn = Some(dsn.into());
         Self::new(ServerType::Router, dsn, random_catalog_schema_name())
             .with_new_write_buffer()
             .with_new_object_store()
@@ -64,7 +65,7 @@ impl TestConfig {
     pub fn new_ingester(other: &TestConfig) -> Self {
         Self::new(
             ServerType::Ingester,
-            other.dsn(),
+            other.dsn().to_owned(),
             other.catalog_schema_name(),
         )
         .with_existing_write_buffer(other)
@@ -88,7 +89,7 @@ impl TestConfig {
     pub fn new_compactor(other: &TestConfig) -> Self {
         Self::new(
             ServerType::Compactor,
-            other.dsn(),
+            other.dsn().to_owned(),
             other.catalog_schema_name(),
         )
         .with_existing_object_store(other)
@@ -100,7 +101,7 @@ impl TestConfig {
     pub fn new_querier_without_ingester(ingester_config: &TestConfig) -> Self {
         Self::new(
             ServerType::Querier,
-            ingester_config.dsn(),
+            ingester_config.dsn().to_owned(),
             ingester_config.catalog_schema_name(),
         )
         .with_existing_object_store(ingester_config)
@@ -108,7 +109,7 @@ impl TestConfig {
     }
 
     /// Create a minimal all in one configuration
-    pub fn new_all_in_one(dsn: impl Into<String>) -> Self {
+    pub fn new_all_in_one(dsn: Option<String>) -> Self {
         Self::new(ServerType::AllInOne, dsn, random_catalog_schema_name())
             .with_new_write_buffer()
             .with_new_object_store()
@@ -134,8 +135,8 @@ impl TestConfig {
             .with_client_header(custom_debug_name, "some-debug-id")
     }
 
-    // Get the catalog DSN URL and panic if it's not set
-    pub fn dsn(&self) -> &str {
+    // Get the catalog DSN URL if set.
+    pub fn dsn(&self) -> &Option<String> {
         &self.dsn
     }
 

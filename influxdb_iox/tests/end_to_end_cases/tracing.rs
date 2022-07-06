@@ -10,7 +10,7 @@ pub async fn test_tracing_sql() {
     let database_url = maybe_skip_integration!();
     let table_name = "the_table";
     let udp_capture = UdpCapture::new().await;
-    let test_config = TestConfig::new_all_in_one(database_url).with_tracing(&udp_capture);
+    let test_config = TestConfig::new_all_in_one(Some(database_url)).with_tracing(&udp_capture);
     let mut cluster = MiniCluster::create_all_in_one(test_config).await;
 
     StepTest::new(
@@ -56,7 +56,7 @@ pub async fn test_tracing_storage_api() {
     let database_url = maybe_skip_integration!();
     let table_name = "the_table";
     let udp_capture = UdpCapture::new().await;
-    let test_config = TestConfig::new_all_in_one(database_url).with_tracing(&udp_capture);
+    let test_config = TestConfig::new_all_in_one(Some(database_url)).with_tracing(&udp_capture);
     let mut cluster = MiniCluster::create_all_in_one(test_config).await;
 
     StepTest::new(
@@ -111,7 +111,7 @@ pub async fn test_tracing_create_trace() {
     let database_url = maybe_skip_integration!();
     let table_name = "the_table";
     let udp_capture = UdpCapture::new().await;
-    let test_config = TestConfig::new_all_in_one(database_url)
+    let test_config = TestConfig::new_all_in_one(Some(database_url))
         .with_tracing(&udp_capture)
         .with_tracing_debug_name("force-trace");
     let mut cluster = MiniCluster::create_all_in_one(test_config).await;

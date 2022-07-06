@@ -362,22 +362,31 @@ impl TestServer {
 
         let run_command = server_type.run_command();
 
-        let dsn = test_config.dsn();
-        let schema_name = test_config.catalog_schema_name();
-        initialize_db(dsn, schema_name).await;
-
+        // Build the command
         // This will inherit environment from the test runner
         // in particular `LOG_FILTER`
-        let child = Command::cargo_bin("influxdb_iox")
-            .unwrap()
+        let mut command = Command::cargo_bin("influxdb_iox").unwrap();
+        let mut command = command
             .arg("run")
             .arg(run_command)
             .env("LOG_FILTER", log_filter)
-            .env("INFLUXDB_IOX_CATALOG_DSN", dsn)
-            .env("INFLUXDB_IOX_CATALOG_POSTGRES_SCHEMA_NAME", schema_name)
             // add http/grpc address information
             .add_addr_env(server_type, test_config.addrs())
-            .envs(test_config.env())
+            .envs(test_config.env());
+
+        let dsn = test_config.dsn();
+
+        // If this isn't running all-in-one in ephemeral mode, use the DSN
+        if !(server_type == ServerType::AllInOne && dsn.is_none()) {
+            let dsn = dsn.as_ref().expect("dsn is required for this mode");
+            let schema_name = test_config.catalog_schema_name();
+            initialize_db(dsn, schema_name).await;
+            command = command
+                .env("INFLUXDB_IOX_CATALOG_DSN", dsn)
+                .env("INFLUXDB_IOX_CATALOG_POSTGRES_SCHEMA_NAME", schema_name);
+        }
+
+        let child = command
             // redirect output to log file
             .stdout(stdout_log_file)
             .stderr(stderr_log_file)
