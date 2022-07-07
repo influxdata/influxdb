@@ -12,7 +12,7 @@ snafu = "0.7"
 workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]
-criterion = { version = "0.3.4", features = ["async_tokio", "html_reports"] }
+criterion = { version = "0.3.6", features = ["async_tokio", "html_reports"] }
 hashbrown = "0.12"
 mutable_batch_lp = { path = "../mutable_batch_lp" }
 rand = "0.8.3"

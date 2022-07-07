@@ -13,7 +13,7 @@ parquet = "16.0.0"
 workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies] # In alphabetical order
-criterion = "0.3.3"
+criterion = "0.3.6"
 rand = "0.8.3"
 
 [[bench]]
