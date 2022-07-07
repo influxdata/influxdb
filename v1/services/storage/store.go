@@ -543,14 +543,24 @@ func (s *Store) measurementFields(ctx context.Context, mqAttrs *metaqueryAttribu
 		Condition:  mqAttrs.pred,
 		Authorizer: query.OpenAuthorizer,
 	}
+	// This can return a nil iterator and nil err
+	// see tsdb/engine/tsm1/Engine.CreateIterator
 	iter, err := sg.CreateIterator(ctx, ms, opts)
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = iter.Close() }()
+	defer func() {
+		if iter != nil {
+			_ = iter.Close()
+		}
+	}()
 
 	var fieldNames []string
-	fitr := iter.(query.FloatIterator)
+	fitr, ok := iter.(query.FloatIterator)
+	if !ok {
+		return cursors.NewStringSliceIterator(fieldNames), nil
+	}
+
 	for p, _ := fitr.Next(); p != nil; p, _ = fitr.Next() {
 		if len(p.Aux) >= 1 {
 			fieldNames = append(fieldNames, p.Aux[0].(string))
