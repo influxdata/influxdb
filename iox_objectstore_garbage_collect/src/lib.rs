@@ -40,7 +40,7 @@ pub mod lister;
 const BATCH_SIZE: usize = 1000;
 
 /// Run the tasks that clean up old object store files that don't appear in the catalog.
-pub async fn inner_main(config: Config) -> Result<()> {
+pub async fn main(config: Config) -> Result<()> {
     let object_store = config.object_store()?;
     let catalog = config.catalog().await?;
 
@@ -174,7 +174,7 @@ mod tests {
             "--data-dir", setup.data_dir_arg(),
             "--catalog", "memory",
         ]);
-        inner_main(config).await.unwrap();
+        main(config).await.unwrap();
 
         assert!(
             !setup.file_path.exists(),
@@ -195,7 +195,7 @@ mod tests {
             "--catalog", "memory",
             "--cutoff", "10 years ago",
         ]);
-        inner_main(config).await.unwrap();
+        main(config).await.unwrap();
 
         assert!(
             setup.file_path.exists(),
