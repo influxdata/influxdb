@@ -521,12 +521,14 @@ impl Compactor {
         Ok(compact_and_upgrade)
     }
 
-    /// Runs compaction in a partition resolving any tombstones and compacting data so that parquet
-    /// files will be non-overlapping in time.
-    /// If the compacted result is too large, it will be plit into many non-overlapped files, each is
-    /// likely smaller than max_desired_file_size. There is still possibility the file sizes are larger
-    /// than the desired becasue the process to split the result is estimated using percentage size based
-    /// on the input time range
+    /// Runs compaction in a partition resolving any tombstones and deduplicating data
+    ///
+    /// Expectation: After a partition of a table has not received any writes for some
+    /// amount of time, the compactor will ensure it is stored in object store as N parquet files which:
+    ///   . have non overlapping time ranges
+    ///   . each does not exceed a size specified by config param max_desired_file_size_bytes.
+    ///
+    /// TODO: will need some code changes until we reach the expectation
     pub async fn compact_partition(
         &self,
         namespace: &Namespace,
