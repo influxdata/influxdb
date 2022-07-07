@@ -342,7 +342,7 @@ jobs:
     # need a machine executor to have a full-powered docker daemon (the `setup_remote_docker` system just provides a
     # kinda small node)
     machine:
-      image: ubuntu-2004:202201-02
+      image: ubuntu-2004:2022.04.2
     resource_class: xlarge # use of a smaller executor tends crashes on link
     environment:
       # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
@@ -442,7 +442,7 @@ jobs:
     # - we only run this job once a day, so the additional startup delay of 30-60s doesn't really matter
     machine:
       # https://circleci.com/docs/2.0/configuration-reference/#available-machine-images
-      image: ubuntu-2004:202201-02
+      image: ubuntu-2004:2022.04.2
     resource_class: xlarge
     steps:
       - checkout
