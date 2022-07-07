@@ -358,6 +358,7 @@ pub mod test_utils {
         test_reset_to_earliest(&adapter).await;
         test_watermark(&adapter).await;
         test_timestamp(&adapter).await;
+        test_timestamp_batching(&adapter).await;
         test_sequencer_auto_creation(&adapter).await;
         test_sequencer_ids(&adapter).await;
         test_span_context(&adapter).await;
@@ -986,6 +987,104 @@ pub mod test_utils {
         assert_eq!(reported_ts, t0);
     }
 
+    /// Test that batching multiple messages to the same partition and
+    /// sequencer correctly preserves the timestamps
+    ///
+    /// Coverage of <https://github.com/influxdata/conductor/issues/1000>
+    async fn test_timestamp_batching<T>(adapter: &T)
+    where
+        T: TestAdapter,
+    {
+        // Note: Roundtrips are only guaranteed for millisecond-precision
+        let t0 = Time::from_timestamp_millis(129);
+        let time_provider = Arc::new(iox_time::MockProvider::new(t0));
+        let context = adapter
+            .new_context_with_time(
+                NonZeroU32::try_from(1).unwrap(),
+                Arc::clone(&time_provider) as _,
+            )
+            .await;
+
+        let writer = context.writing(true).await.unwrap();
+        let reader = context.reading(true).await.unwrap();
+
+        let sequencer_id = set_pop_first(&mut writer.sequencer_ids()).unwrap();
+
+        let bananas_key = PartitionKey::from("bananas");
+        let platanos_key = PartitionKey::from("platanos");
+
+        // Two ops with the same partition keys, first write at time 100
+        time_provider.set(time_provider.inc(Duration::from_millis(100)));
+        write(
+            "ns1",
+            &writer,
+            "table foo=1",
+            sequencer_id,
+            bananas_key.clone(),
+            None,
+        )
+        .await;
+
+        // second write @ time 200
+        time_provider.set(time_provider.inc(Duration::from_millis(100)));
+        write(
+            "ns1",
+            &writer,
+            "table foo=1",
+            sequencer_id,
+            bananas_key.clone(),
+            None,
+        )
+        .await;
+
+        // third write @ time 300
+        time_provider.set(time_provider.inc(Duration::from_millis(100)));
+        write(
+            "ns1",
+            &writer,
+            "table foo=1",
+            sequencer_id,
+            platanos_key.clone(),
+            None,
+        )
+        .await;
+        drop(writer);
+
+        // now at time 400
+        time_provider.set(time_provider.inc(Duration::from_millis(100)));
+
+        let mut handler = reader.stream_handler(sequencer_id).await.unwrap();
+
+        let mut stream = handler.stream().await;
+
+        let dml_op = stream.next().await.unwrap().unwrap();
+        assert_eq!(partition_key(&dml_op), Some(&bananas_key));
+        assert_eq!(
+            dml_op
+                .meta()
+                .duration_since_production(time_provider.as_ref()),
+            Some(Duration::from_millis(300))
+        );
+
+        let dml_op = stream.next().await.unwrap().unwrap();
+        assert_eq!(partition_key(&dml_op), Some(&bananas_key));
+        assert_eq!(
+            dml_op
+                .meta()
+                .duration_since_production(time_provider.as_ref()),
+            Some(Duration::from_millis(200))
+        );
+
+        let dml_op = stream.next().await.unwrap().unwrap();
+        assert_eq!(partition_key(&dml_op), Some(&platanos_key));
+        assert_eq!(
+            dml_op
+                .meta()
+                .duration_since_production(time_provider.as_ref()),
+            Some(Duration::from_millis(100))
+        );
+    }
+
     /// Test that sequencer auto-creation works.
     ///
     /// This tests that:
@@ -1392,5 +1491,12 @@ pub mod test_utils {
                 }
             }
         }};
+    }
+
+    fn partition_key(dml_op: &DmlOperation) -> Option<&PartitionKey> {
+        match dml_op {
+            DmlOperation::Write(w) => w.partition_key(),
+            DmlOperation::Delete(_) => None,
+        }
     }
 }

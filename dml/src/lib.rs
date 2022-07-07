@@ -11,9 +11,11 @@
     clippy::clone_on_ref_ptr
 )]
 
+use std::time::Duration;
+
 use data_types::{DeletePredicate, NonEmptyString, PartitionKey, Sequence, StatValues, Statistics};
 use hashbrown::HashMap;
-use iox_time::Time;
+use iox_time::{Time, TimeProvider};
 use mutable_batch::MutableBatch;
 use trace::ctx::SpanContext;
 
@@ -67,6 +69,12 @@ impl DmlMeta {
     /// Gets the producer timestamp associated with the write if any
     pub fn producer_ts(&self) -> Option<Time> {
         self.producer_ts
+    }
+
+    /// returns the Duration since this DmlMeta was produced, if any
+    pub fn duration_since_production(&self, time_provider: &dyn TimeProvider) -> Option<Duration> {
+        self.producer_ts
+            .and_then(|ts| time_provider.now().checked_duration_since(ts))
     }
 
     /// Gets the span context if any

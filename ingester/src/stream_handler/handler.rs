@@ -326,9 +326,11 @@ where
                 "decoded dml operation"
             );
 
-            // Extract the producer timestamp (added in the router when
-            // dispatching the request).
-            let produced_at = op.meta().producer_ts();
+            // Calculate how long it has been since production by
+            // checking the producer timestamp (added in the router
+            // when dispatching the request).
+            let duration_since_production =
+                op.meta().duration_since_production(&self.time_provider);
 
             let should_pause = match self.sink.apply(op).await {
                 Ok(should_pause) => {
@@ -353,10 +355,8 @@ where
                 }
             };
 
-            // Update the TTBR metric before potentially sleeping.
-            if let Some(delta) =
-                produced_at.and_then(|ts| self.time_provider.now().checked_duration_since(ts))
-            {
+            if let Some(delta) = duration_since_production {
+                // Update the TTBR metric before potentially sleeping.
                 self.time_to_be_readable.set(delta);
             }
 
