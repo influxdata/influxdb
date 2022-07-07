@@ -1,0 +1,26 @@
+[package]
+name = "iox_objectstore_garbage_collect"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+chrono = { version = "0.4", default-features = false }
+chrono-english = "0.1.4"
+clap = { version = "3", features = ["derive", "env"] }
+clap_blocks = { path = "../clap_blocks" }
+iox_catalog = { path = "../iox_catalog" }
+futures = "0.3"
+metric = { path = "../metric" }
+object_store = { version = "0.3.0" }
+observability_deps = { path = "../observability_deps" }
+snafu = "0.7"
+tokio = { version = "1", features = ["macros", "rt", "sync"] }
+trogging = { path = "../trogging", default-features = false, features = ["clap"] }
+uuid = { version = "1", features = ["v4"] }
+
+[dev-dependencies]
+data_types = { path = "../data_types" }
+filetime = "0.2"
+once_cell = { version = "1.12.0", features = ["parking_lot"] }
+parquet_file = { path = "../parquet_file" }
+tempfile = "3"

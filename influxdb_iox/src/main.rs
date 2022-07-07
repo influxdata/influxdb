@@ -29,6 +29,7 @@ use tokio::runtime::Runtime;
 mod commands {
     pub mod catalog;
     pub mod debug;
+    pub mod objectstore_garbage_collect;
     pub mod query;
     pub mod query_ingester;
     pub mod remote;
@@ -171,6 +172,10 @@ enum Command {
 
     /// Query the ingester only
     QueryIngester(commands::query_ingester::Config),
+
+    /// Clean up old object store files that don't appear in the catalog.
+    #[clap(name = "objectstore_garbage_collect")]
+    ObjectStoreGarbageCollect(Box<commands::objectstore_garbage_collect::Config>),
 }
 
 fn main() -> Result<(), std::io::Error> {
@@ -302,6 +307,17 @@ fn main() -> Result<(), std::io::Error> {
                 let connection = connection().await;
                 if let Err(e) = commands::query_ingester::command(connection, config).await {
                     eprintln!("{}", e);
+                    std::process::exit(ReturnCode::Failure as _)
+                }
+            }
+            Some(Command::ObjectStoreGarbageCollect(config)) => {
+                let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
+                if let Err(e) = commands::objectstore_garbage_collect::command(*config).await {
+                    use snafu::ErrorCompat;
+                    eprintln!("{}", e);
+                    for cause in ErrorCompat::iter_chain(&e).skip(1) {
+                        eprintln!("Caused by: {cause}");
+                    }
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }

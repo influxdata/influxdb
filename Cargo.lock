@@ -1529,6 +1529,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "filetime"
+version = "0.2.16"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c0408e2626025178a6a7f7ffc05a25bc47103229f19c113755de7bf63816290c"
+dependencies = [
+ "cfg-if",
+ "libc",
+ "redox_syscall",
+ "winapi",
+]
+
+[[package]]
 name = "findshlibs"
 version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2083,6 +2095,7 @@ dependencies = [
  "influxdb_storage_client",
  "influxrpc_parser",
  "iox_catalog",
+ "iox_objectstore_garbage_collect",
  "iox_query",
  "iox_time",
  "ioxd_common",
@@ -2323,6 +2336,30 @@ dependencies = [
  "toml",
  "tracing",
  "tracing-subscriber",
+ "uuid 1.1.2",
+]
+
+[[package]]
+name = "iox_objectstore_garbage_collect"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "chrono-english",
+ "clap 3.2.8",
+ "clap_blocks",
+ "data_types",
+ "filetime",
+ "futures",
+ "iox_catalog",
+ "metric",
+ "object_store",
+ "observability_deps",
+ "once_cell",
+ "parquet_file",
+ "snafu",
+ "tempfile",
+ "tokio",
+ "trogging",
  "uuid 1.1.2",
 ]
 
