@@ -94,7 +94,7 @@ impl QueryableBatch {
 }
 
 impl QueryChunkMeta for QueryableBatch {
-    fn summary(&self) -> Option<&TableSummary> {
+    fn summary(&self) -> Option<Arc<TableSummary>> {
         None
     }
 

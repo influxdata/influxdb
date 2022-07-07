@@ -118,7 +118,7 @@ impl QueryableParquetChunk {
 }
 
 impl QueryChunkMeta for QueryableParquetChunk {
-    fn summary(&self) -> Option<&TableSummary> {
+    fn summary(&self) -> Option<Arc<TableSummary>> {
         None
     }
 

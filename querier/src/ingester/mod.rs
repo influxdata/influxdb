@@ -920,7 +920,11 @@ impl IngesterPartition {
         let ts_min_max = compute_timenanosecond_min_max(&batches).expect("Should have time range");
 
         let row_count = batches.iter().map(|batch| batch.num_rows()).sum::<usize>() as u64;
-        let summary = create_basic_summary(row_count, &expected_schema, ts_min_max);
+        let summary = Arc::new(create_basic_summary(
+            row_count,
+            &expected_schema,
+            ts_min_max,
+        ));
 
         let chunk = IngesterChunk {
             chunk_id,
@@ -997,7 +1001,7 @@ pub struct IngesterChunk {
     ts_min_max: TimestampMinMax,
 
     /// Summary Statistics
-    summary: TableSummary,
+    summary: Arc<TableSummary>,
 }
 
 impl IngesterChunk {
@@ -1010,8 +1014,8 @@ impl IngesterChunk {
 }
 
 impl QueryChunkMeta for IngesterChunk {
-    fn summary(&self) -> Option<&TableSummary> {
-        Some(&self.summary)
+    fn summary(&self) -> Option<Arc<TableSummary>> {
+        Some(Arc::clone(&self.summary))
     }
 
     fn schema(&self) -> Arc<Schema> {

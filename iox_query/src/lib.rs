@@ -39,8 +39,8 @@ pub use query_functions::group_by::{Aggregate, WindowDuration};
 /// Trait for an object (designed to be a Chunk) which can provide
 /// metadata
 pub trait QueryChunkMeta {
-    /// Return a reference to the summary of the data
-    fn summary(&self) -> Option<&TableSummary>;
+    /// Return a summary of the data
+    fn summary(&self) -> Option<Arc<TableSummary>>;
 
     /// return a reference to the summary of the data held in this chunk
     fn schema(&self) -> Arc<Schema>;
@@ -200,7 +200,7 @@ pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync + 'static {
     ) -> Result<PredicateMatch, QueryChunkError> {
         Ok(self
             .summary()
-            .map(|summary| predicate.apply_to_table_summary(summary, self.schema().as_arrow()))
+            .map(|summary| predicate.apply_to_table_summary(&summary, self.schema().as_arrow()))
             .unwrap_or(PredicateMatch::Unknown))
     }
 
@@ -259,7 +259,7 @@ impl<P> QueryChunkMeta for Arc<P>
 where
     P: QueryChunkMeta,
 {
-    fn summary(&self) -> Option<&TableSummary> {
+    fn summary(&self) -> Option<Arc<TableSummary>> {
         self.as_ref().summary()
     }
 
@@ -292,7 +292,7 @@ where
 
 /// Implement ChunkMeta for Arc<dyn QueryChunk>
 impl QueryChunkMeta for Arc<dyn QueryChunk> {
-    fn summary(&self) -> Option<&TableSummary> {
+    fn summary(&self) -> Option<Arc<TableSummary>> {
         self.as_ref().summary()
     }
 
@@ -344,12 +344,15 @@ pub fn compute_sort_key_for_chunks(schema: &Schema, chunks: &[Arc<dyn QueryChunk
     }
 }
 
-/// Compute a sort key that orders lower cardinality columns first
+/// Compute a sort key that orders lower _estimated_ cardinality columns first
 ///
 /// In the absence of more precise information, this should yield a
-/// good ordering for RLE compression
-pub fn compute_sort_key<'a>(summaries: impl Iterator<Item = &'a TableSummary>) -> SortKey {
-    let mut cardinalities: HashMap<&str, u64> = Default::default();
+/// good ordering for RLE compression.
+///
+/// The cardinality is estimated by the sum of unique counts over all summaries. This may overestimate cardinality since
+/// it does not account for shared/repeated values.
+fn compute_sort_key(summaries: impl Iterator<Item = Arc<TableSummary>>) -> SortKey {
+    let mut cardinalities: HashMap<String, u64> = Default::default();
     for summary in summaries {
         for column in &summary.columns {
             if column.influxdb_type != Some(InfluxDbType::Tag) {
@@ -360,7 +363,7 @@ pub fn compute_sort_key<'a>(summaries: impl Iterator<Item = &'a TableSummary>) -
             if let Some(count) = column.stats.distinct_count() {
                 cnt = count.get();
             }
-            *cardinalities.entry(column.name.as_str()).or_default() += cnt;
+            *cardinalities.entry_ref(column.name.as_str()).or_default() += cnt;
         }
     }
 
@@ -368,7 +371,8 @@ pub fn compute_sort_key<'a>(summaries: impl Iterator<Item = &'a TableSummary>) -
 
     let mut cardinalities: Vec<_> = cardinalities.into_iter().collect();
     // Sort by (cardinality, column_name) to have deterministic order if same cardinality
-    cardinalities.sort_by_key(|x| (x.1, x.0));
+    cardinalities
+        .sort_by(|(name_1, card_1), (name_2, card_2)| (card_1, name_1).cmp(&(card_2, name_2)));
 
     let mut builder = SortKeyBuilder::with_capacity(cardinalities.len() + 1);
     for (col, _) in cardinalities {

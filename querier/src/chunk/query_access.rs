@@ -41,8 +41,8 @@ pub enum Error {
 }
 
 impl QueryChunkMeta for QuerierParquetChunk {
-    fn summary(&self) -> Option<&TableSummary> {
-        Some(&self.table_summary)
+    fn summary(&self) -> Option<Arc<TableSummary>> {
+        Some(Arc::clone(&self.table_summary))
     }
 
     fn schema(&self) -> Arc<Schema> {
@@ -143,8 +143,8 @@ impl QueryChunk for QuerierParquetChunk {
 }
 
 impl QueryChunkMeta for QuerierRBChunk {
-    fn summary(&self) -> Option<&TableSummary> {
-        Some(&self.table_summary)
+    fn summary(&self) -> Option<Arc<TableSummary>> {
+        Some(Arc::clone(&self.table_summary))
     }
 
     fn schema(&self) -> Arc<Schema> {

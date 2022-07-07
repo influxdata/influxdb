@@ -183,7 +183,7 @@ impl Reconciler {
                         .chunk_adapter
                         .catalog_cache()
                         .processed_tombstones()
-                        .exists(chunk.parquet_file_id(), tombstone.tombstone_id())
+                        .exists(chunk.meta().parquet_file_id(), tombstone.tombstone_id())
                         .await
                     {
                         continue;

@@ -21,6 +21,9 @@ pub(crate) mod util;
 /// Immutable metadata attached to a [`QuerierParquetChunk`].
 #[derive(Debug)]
 pub struct ChunkMeta {
+    /// ID of the Parquet file of the chunk
+    parquet_file_id: ParquetFileId,
+
     /// The ID of the chunk
     chunk_id: ChunkId,
 
@@ -47,6 +50,11 @@ pub struct ChunkMeta {
 }
 
 impl ChunkMeta {
+    /// ID of the Parquet file of the chunk
+    pub fn parquet_file_id(&self) -> ParquetFileId {
+        self.parquet_file_id
+    }
+
     /// Chunk order.
     pub fn order(&self) -> ChunkOrder {
         self.order
@@ -81,14 +89,11 @@ impl ChunkMeta {
 /// Chunk representation of `read_buffer::RBChunk`s for the querier.
 #[derive(Debug)]
 pub struct QuerierRBChunk {
-    /// ID of the Parquet file of the chunk
-    parquet_file_id: ParquetFileId,
-
     /// Underlying read buffer chunk
     rb_chunk: Arc<RBChunk>,
 
     /// Table summary
-    table_summary: TableSummary,
+    table_summary: Arc<TableSummary>,
 
     /// min/max time range of this table (extracted from TableSummary), if known
     timestamp_min_max: Option<TimestampMinMax>,
@@ -109,17 +114,15 @@ pub struct QuerierRBChunk {
 impl QuerierRBChunk {
     /// Create new read-buffer-backed chunk
     pub fn new(
-        parquet_file_id: ParquetFileId,
         rb_chunk: Arc<RBChunk>,
         meta: Arc<ChunkMeta>,
         schema: Arc<Schema>,
         partition_sort_key: Arc<Option<SortKey>>,
     ) -> Self {
-        let table_summary = rb_chunk.table_summary();
+        let table_summary = Arc::new(rb_chunk.table_summary());
         let timestamp_min_max = table_summary.time_range();
 
         Self {
-            parquet_file_id,
             rb_chunk,
             table_summary,
             timestamp_min_max,
@@ -143,11 +146,6 @@ impl QuerierRBChunk {
         self.meta.as_ref()
     }
 
-    /// Parquet file ID
-    pub fn parquet_file_id(&self) -> ParquetFileId {
-        self.parquet_file_id
-    }
-
     /// Set partition sort key
     pub fn with_partition_sort_key(self, partition_sort_key: Arc<Option<SortKey>>) -> Self {
         Self {
@@ -165,9 +163,6 @@ impl QuerierRBChunk {
 /// the query engine (DataFusion and InfluxRPC) expect.
 #[derive(Debug)]
 pub struct QuerierParquetChunk {
-    /// ID of the Parquet file of the chunk
-    parquet_file_id: ParquetFileId,
-
     /// Chunk of the Parquet file
     parquet_chunk: Arc<ParquetChunk>,
 
@@ -181,24 +176,22 @@ pub struct QuerierParquetChunk {
     partition_sort_key: Arc<Option<SortKey>>,
 
     /// Table summary
-    table_summary: TableSummary,
+    table_summary: Arc<TableSummary>,
 }
 
 impl QuerierParquetChunk {
     /// Create new parquet-backed chunk (object store data).
     pub fn new(
-        parquet_file_id: ParquetFileId,
         parquet_chunk: Arc<ParquetChunk>,
         meta: Arc<ChunkMeta>,
         partition_sort_key: Arc<Option<SortKey>>,
     ) -> Self {
-        let table_summary = create_basic_summary(
+        let table_summary = Arc::new(create_basic_summary(
             parquet_chunk.rows() as u64,
             &parquet_chunk.schema(),
             parquet_chunk.timestamp_min_max(),
-        );
+        ));
         Self {
-            parquet_file_id,
             parquet_chunk,
             meta,
             delete_predicates: Vec::new(),
@@ -231,11 +224,6 @@ impl QuerierParquetChunk {
     /// Get metadata attached to the given chunk.
     pub fn meta(&self) -> &ChunkMeta {
         self.meta.as_ref()
-    }
-
-    /// Parquet file ID
-    pub fn parquet_file_id(&self) -> ParquetFileId {
-        self.parquet_file_id
     }
 
     /// Return time range
@@ -321,7 +309,6 @@ impl ChunkAdapter {
         ));
 
         Some(QuerierParquetChunk::new(
-            parts.parquet_file_id,
             chunk,
             parts.meta,
             parts.partition_sort_key,
@@ -345,7 +332,6 @@ impl ChunkAdapter {
             .await;
 
         Some(QuerierRBChunk::new(
-            parts.parquet_file_id,
             rb_chunk,
             parts.meta,
             parts.schema,
@@ -440,6 +426,7 @@ impl ChunkAdapter {
         let order = ChunkOrder::new(parquet_file.min_sequence_number.get());
 
         let meta = Arc::new(ChunkMeta {
+            parquet_file_id: parquet_file.id,
             chunk_id,
             table_name,
             order,
@@ -451,7 +438,6 @@ impl ChunkAdapter {
         });
 
         Some(ChunkParts {
-            parquet_file_id: parquet_file.id,
             meta,
             schema,
             partition_sort_key,
@@ -460,7 +446,6 @@ impl ChunkAdapter {
 }
 
 struct ChunkParts {
-    parquet_file_id: ParquetFileId,
     meta: Arc<ChunkMeta>,
     schema: Arc<Schema>,
     partition_sort_key: Arc<Option<SortKey>>,

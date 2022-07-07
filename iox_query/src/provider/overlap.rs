@@ -37,7 +37,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 // work on ParquetFileWithMetadata. Since group_potential_duplicates only needs 2 functions
 // partition_id and timestamp_min_max, other functions are left `umimplemneted` on purpose
 impl QueryChunkMeta for ParquetFile {
-    fn summary(&self) -> Option<&TableSummary> {
+    fn summary(&self) -> Option<Arc<TableSummary>> {
         unimplemented!()
     }
 

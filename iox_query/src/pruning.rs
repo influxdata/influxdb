@@ -120,10 +120,10 @@ impl<'a> ChunkPruningStatistics<'a> {
     fn column_summaries<'b: 'a>(
         &self,
         column: &'b Column,
-    ) -> impl Iterator<Item = Option<&Statistics>> + 'a {
+    ) -> impl Iterator<Item = Option<Statistics>> + 'a {
         self.chunks
             .iter()
-            .map(|chunk| Some(&chunk.summary()?.column(&column.name)?.stats))
+            .map(|chunk| Some(chunk.summary()?.column(&column.name)?.stats.clone()))
     }
 }
 
@@ -155,54 +155,59 @@ impl<'a> PruningStatistics for ChunkPruningStatistics<'a> {
 
 /// Collects an [`ArrayRef`] containing the aggregate statistic corresponding to
 /// `aggregate` for each of the provided [`Statistics`]
-fn collect_pruning_stats<'a>(
+fn collect_pruning_stats(
     data_type: &DataType,
-    statistics: impl Iterator<Item = Option<&'a Statistics>>,
+    statistics: impl Iterator<Item = Option<Statistics>>,
     aggregate: Aggregate,
 ) -> Option<ArrayRef> {
     match data_type {
         DataType::Int64 | DataType::Timestamp(TimeUnit::Nanosecond, None) => {
-            let values = statistics.map(|s| match &s {
+            let values = statistics.map(|s| match s {
                 Some(Statistics::I64(v)) => get_aggregate(v, aggregate),
-                _ => &None,
+                _ => None,
             });
             Some(Arc::new(Int64Array::from_iter(values)))
         }
         DataType::UInt64 => {
-            let values = statistics.map(|s| match &s {
+            let values = statistics.map(|s| match s {
                 Some(Statistics::U64(v)) => get_aggregate(v, aggregate),
-                _ => &None,
+                _ => None,
             });
             Some(Arc::new(UInt64Array::from_iter(values)))
         }
         DataType::Float64 => {
-            let values = statistics.map(|s| match &s {
+            let values = statistics.map(|s| match s {
                 Some(Statistics::F64(v)) => get_aggregate(v, aggregate),
-                _ => &None,
+                _ => None,
             });
             Some(Arc::new(Float64Array::from_iter(values)))
         }
         DataType::Boolean => {
-            let values = statistics.map(|s| match &s {
+            let values = statistics.map(|s| match s {
                 Some(Statistics::Bool(v)) => get_aggregate(v, aggregate),
-                _ => &None,
+                _ => None,
             });
             Some(Arc::new(BooleanArray::from_iter(values)))
         }
         DataType::Utf8 => {
-            let values = statistics.map(|s| match &s {
+            let values = statistics.map(|s| match s {
                 Some(Statistics::String(v)) => get_aggregate(v, aggregate),
-                _ => &None,
+                _ => None,
             });
             Some(Arc::new(StringArray::from_iter(values)))
         }
         DataType::Dictionary(key, value)
             if key.as_ref() == &DataType::Int32 && value.as_ref() == &DataType::Utf8 =>
         {
-            let values = statistics.map(|s| match &s {
-                Some(Statistics::String(v)) => get_aggregate(v, aggregate).as_deref(),
+            let values = statistics.map(|s| match s {
+                Some(Statistics::String(v)) => get_aggregate(v, aggregate),
                 _ => None,
             });
+
+            // DictionaryArray can only be built from string references (`str`), not from owned strings (`String`), so
+            // we need to collect the strings first
+            let values: Vec<_> = values.collect();
+            let values = values.iter().map(|s| s.as_deref());
             Some(Arc::new(DictionaryArray::<Int32Type>::from_iter(values)))
         }
         _ => None,
@@ -210,11 +215,11 @@ fn collect_pruning_stats<'a>(
 }
 
 /// Returns the aggregate statistic corresponding to `aggregate` from `stats`
-fn get_aggregate<T>(stats: &StatValues<T>, aggregate: Aggregate) -> &Option<T> {
+fn get_aggregate<T>(stats: StatValues<T>, aggregate: Aggregate) -> Option<T> {
     match aggregate {
-        Aggregate::Min => &stats.min,
-        Aggregate::Max => &stats.max,
-        _ => &None,
+        Aggregate::Min => stats.min,
+        Aggregate::Max => stats.max,
+        _ => None,
     }
 }
 
