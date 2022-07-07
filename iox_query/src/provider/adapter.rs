@@ -305,9 +305,9 @@ mod tests {
         // input has subset of columns of the desired otuput. d and e are not present
         let output_schema = Arc::new(Schema::new(vec![
             Field::new("c", DataType::Utf8, false),
-            Field::new("e", DataType::Float64, false),
+            Field::new("e", DataType::Float64, true),
             Field::new("b", DataType::Int32, false),
-            Field::new("d", DataType::Float32, false),
+            Field::new("d", DataType::Float32, true),
             Field::new("a", DataType::Int32, false),
         ]));
         let input_stream = stream_from_batch(batch);

@@ -591,10 +591,10 @@ mod test {
         // define a schema for input
         // (value) and timestamp
         let schema = Arc::new(Schema::new(vec![
-            Field::new("f64_value", DataType::Float64, false),
-            Field::new("i64_value", DataType::Int64, false),
-            Field::new("string_value", DataType::Utf8, false),
-            Field::new("bool_value", DataType::Boolean, false),
+            Field::new("f64_value", DataType::Float64, true),
+            Field::new("i64_value", DataType::Int64, true),
+            Field::new("string_value", DataType::Utf8, true),
+            Field::new("bool_value", DataType::Boolean, true),
             Field::new("time", TIME_DATA_TYPE(), true),
         ]));
 

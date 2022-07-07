@@ -26,7 +26,7 @@ use datafusion::{
     logical_plan::{col, lit_timestamp_nano, Expr, Operator},
     physical_optimizer::pruning::{PruningPredicate, PruningStatistics},
 };
-use datafusion_util::{make_range_expr, AndExprBuilder};
+use datafusion_util::{make_range_expr, nullable_schema, AndExprBuilder};
 use observability_deps::tracing::debug;
 use rpc_predicate::VALUE_COLUMN_NAME;
 use schema::TIME_COLUMN_NAME;
@@ -239,6 +239,11 @@ impl Predicate {
         let summary = SummaryWrapper {
             summary: table_summary,
         };
+
+        // If we don't have statistics for a particular column, its
+        // value will be null, so we need to ensure the schema we used
+        // in pruning predicates allows for null.
+        let schema = nullable_schema(schema);
 
         if let Some(expr) = self.filter_expr() {
             match PruningPredicate::try_new(expr.clone(), Arc::clone(&schema)) {

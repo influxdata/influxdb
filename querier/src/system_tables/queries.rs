@@ -93,10 +93,10 @@ fn queries_schema(include_namespace_id: bool) -> SchemaRef {
         Field::new(
             "completed_duration",
             DataType::Duration(TimeUnit::Nanosecond),
-            false,
+            true,
         ),
         Field::new("success", DataType::Boolean, false),
-        Field::new("trace_id", DataType::Utf8, false),
+        Field::new("trace_id", DataType::Utf8, true),
     ]);
 
     Arc::new(Schema::new(columns))

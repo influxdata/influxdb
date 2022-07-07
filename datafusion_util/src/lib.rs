@@ -18,7 +18,11 @@ use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MemTrackingMet
 use datafusion::physical_plan::{collect, ExecutionPlan};
 use datafusion::prelude::SessionContext;
 use datafusion::{
-    arrow::{datatypes::SchemaRef, error::Result as ArrowResult, record_batch::RecordBatch},
+    arrow::{
+        datatypes::{Field, Schema, SchemaRef},
+        error::Result as ArrowResult,
+        record_batch::RecordBatch,
+    },
     logical_plan::{col, lit, Expr},
     physical_plan::{RecordBatchStream, SendableRecordBatchStream},
     scalar::ScalarValue,
@@ -347,8 +351,33 @@ pub fn context_with_table(batch: RecordBatch) -> SessionContext {
     ctx
 }
 
+/// Returns a new schema where all the fields are nullable
+pub fn nullable_schema(schema: SchemaRef) -> SchemaRef {
+    // they are all already nullable
+    if schema.fields().iter().all(|f| f.is_nullable()) {
+        schema
+    } else {
+        // make a new schema with all nullable fields
+        let new_fields = schema
+            .fields()
+            .iter()
+            .map(|f| {
+                // make a copy of the field, but allow it to be nullable
+                Field::new(f.name(), f.data_type().clone(), true)
+                    .with_metadata(f.metadata().cloned())
+            })
+            .collect();
+
+        Arc::new(Schema::new_with_metadata(
+            new_fields,
+            schema.metadata().clone(),
+        ))
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use datafusion::arrow::datatypes::DataType;
     use schema::builder::SchemaBuilder;
 
     use super::*;
@@ -363,6 +392,33 @@ mod tests {
         let actual_string = format!("{:?}", ts_predicate_expr);
 
         assert_eq!(actual_string, expected_string);
+    }
+
+    #[test]
+    fn test_nullable_schema_nullable() {
+        // schema is all nullable
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("foo", DataType::Int32, true),
+            Field::new("bar", DataType::Utf8, true),
+        ]));
+
+        assert_eq!(schema, nullable_schema(schema.clone()))
+    }
+
+    #[test]
+    fn test_nullable_schema_non_nullable() {
+        // schema has one nullable column
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("foo", DataType::Int32, false),
+            Field::new("bar", DataType::Utf8, true),
+        ]));
+
+        let expected_schema = Arc::new(Schema::new(vec![
+            Field::new("foo", DataType::Int32, true),
+            Field::new("bar", DataType::Utf8, true),
+        ]));
+
+        assert_eq!(expected_schema, nullable_schema(schema))
     }
 
     #[tokio::test]

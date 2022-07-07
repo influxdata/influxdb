@@ -715,11 +715,11 @@ mod test {
 
         let f2 = Float64Array::from(vec![Some(2.0), None, Some(5.0)]);
 
-        let batch1 = RecordBatch::try_from_iter(vec![
-            ("t1", Arc::new(t1) as ArrayRef),
-            ("t2", Arc::new(t2) as ArrayRef),
-            ("f1", Arc::new(f1) as ArrayRef),
-            ("f2", Arc::new(f2) as ArrayRef),
+        let batch1 = RecordBatch::try_from_iter_with_nullable(vec![
+            ("t1", Arc::new(t1) as ArrayRef, true),
+            ("t2", Arc::new(t2) as ArrayRef, true),
+            ("f1", Arc::new(f1) as ArrayRef, true),
+            ("f2", Arc::new(f2) as ArrayRef, true),
         ])
         .unwrap();
 
@@ -731,11 +731,11 @@ mod test {
 
         let f2 = Float64Array::from(vec![Some(6.0), Some(8.0)]);
 
-        let batch2 = RecordBatch::try_from_iter(vec![
-            ("t1", Arc::new(t1) as ArrayRef),
-            ("t2", Arc::new(t2) as ArrayRef),
-            ("f1", Arc::new(f1) as ArrayRef),
-            ("f2", Arc::new(f2) as ArrayRef),
+        let batch2 = RecordBatch::try_from_iter_with_nullable(vec![
+            ("t1", Arc::new(t1) as ArrayRef, true),
+            ("t2", Arc::new(t2) as ArrayRef, true),
+            ("f1", Arc::new(f1) as ArrayRef, true),
+            ("f2", Arc::new(f2) as ArrayRef, true),
         ])
         .unwrap();
 
@@ -991,11 +991,11 @@ mod test {
         let f1 = Float64Array::from(vec![Some(1.0), Some(3.0), Some(4.0)]);
         let f2 = Float64Array::from(vec![Some(2.0), None, Some(5.0)]);
 
-        let batch1 = RecordBatch::try_from_iter(vec![
-            ("t1", Arc::new(t1) as ArrayRef),
-            ("t2", Arc::new(t2) as ArrayRef),
-            ("f1", Arc::new(f1) as ArrayRef),
-            ("f2", Arc::new(f2) as ArrayRef),
+        let batch1 = RecordBatch::try_from_iter_with_nullable(vec![
+            ("t1", Arc::new(t1) as ArrayRef, true),
+            ("t2", Arc::new(t2) as ArrayRef, true),
+            ("f1", Arc::new(f1) as ArrayRef, true),
+            ("f2", Arc::new(f2) as ArrayRef, true),
         ])
         .unwrap();
 
@@ -1004,11 +1004,11 @@ mod test {
         let f1 = Float64Array::from(vec![None, Some(7.0)]);
         let f2 = Float64Array::from(vec![Some(6.0), Some(8.0)]);
 
-        let batch2 = RecordBatch::try_from_iter(vec![
-            ("t1", Arc::new(t1) as ArrayRef),
-            ("t2", Arc::new(t2) as ArrayRef),
-            ("f1", Arc::new(f1) as ArrayRef),
-            ("f2", Arc::new(f2) as ArrayRef),
+        let batch2 = RecordBatch::try_from_iter_with_nullable(vec![
+            ("t1", Arc::new(t1) as ArrayRef, true),
+            ("t2", Arc::new(t2) as ArrayRef, true),
+            ("f1", Arc::new(f1) as ArrayRef, true),
+            ("f2", Arc::new(f2) as ArrayRef, true),
         ])
         .unwrap();
 

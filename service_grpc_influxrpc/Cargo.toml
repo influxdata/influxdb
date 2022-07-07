@@ -17,7 +17,7 @@ service_common = { path = "../service_common" }
 tracker = { path = "../tracker" }
 
 # Crates.io dependencies, in alphabetical order
-arrow = { version = "16.0.0", features = ["prettyprint"] }
+arrow = { version = "17.0.0", features = ["prettyprint"] }
 async-trait = "0.1"
 futures = "0.3"
 pin-project = "1.0"

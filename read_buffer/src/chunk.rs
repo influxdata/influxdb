@@ -1446,7 +1446,7 @@ mod test {
                     .collect::<DictionaryArray<Int32Type>>(),
             ),
             Arc::new(
-                vec![Some("prod"), None, Some("stag")]
+                vec![Some("prod"), Some("prod"), Some("stag")]
                     .into_iter()
                     .collect::<DictionaryArray<Int32Type>>(),
             ),
