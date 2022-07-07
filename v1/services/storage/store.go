@@ -543,8 +543,6 @@ func (s *Store) measurementFields(ctx context.Context, mqAttrs *metaqueryAttribu
 		Condition:  mqAttrs.pred,
 		Authorizer: query.OpenAuthorizer,
 	}
-	// This can return a nil iterator and nil err
-	// see tsdb/engine/tsm1/Engine.CreateIterator
 	iter, err := sg.CreateIterator(ctx, ms, opts)
 	if err != nil {
 		return nil, err
