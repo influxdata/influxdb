@@ -8,7 +8,10 @@ use tokio::{
     task::JoinHandle,
 };
 
-use crate::{cache::CacheGetStatus, loader::Loader};
+use crate::{
+    cache::{CacheGetStatus, CachePeekStatus},
+    loader::Loader,
+};
 
 use super::Cache;
 
@@ -41,13 +44,16 @@ where
     C: Cache<K = u8, V = String, Extra = bool>,
 {
     assert_eq!(cache.get(1, true).await, String::from("1_true"));
+    assert_eq!(cache.peek(1).await, Some(String::from("1_true")));
     assert_eq!(cache.get(2, false).await, String::from("2_false"));
+    assert_eq!(cache.peek(2).await, Some(String::from("2_false")));
 }
 
 async fn test_linear_memory<C>(cache: Arc<C>, loader: Arc<TestLoader>)
 where
     C: Cache<K = u8, V = String, Extra = bool>,
 {
+    assert_eq!(cache.peek_with_status(1).await, None,);
     assert_eq!(
         cache.get_with_status(1, true).await,
         (String::from("1_true"), CacheGetStatus::Miss),
@@ -55,6 +61,10 @@ where
     assert_eq!(
         cache.get_with_status(1, false).await,
         (String::from("1_true"), CacheGetStatus::Hit),
+    );
+    assert_eq!(
+        cache.peek_with_status(1).await,
+        Some((String::from("1_true"), CachePeekStatus::Hit)),
     );
     assert_eq!(
         cache.get_with_status(2, false).await,
@@ -67,6 +77,10 @@ where
     assert_eq!(
         cache.get_with_status(1, true).await,
         (String::from("1_true"), CacheGetStatus::Hit),
+    );
+    assert_eq!(
+        cache.peek_with_status(1).await,
+        Some((String::from("1_true"), CachePeekStatus::Hit)),
     );
 
     assert_eq!(loader.loaded(), vec![1, 2]);
@@ -89,12 +103,23 @@ where
     });
 
     barrier_pending_1.wait().await;
-    let barrier_pending_2 = Arc::new(Barrier::new(2));
+
+    let barrier_pending_2 = Arc::new(Barrier::new(3));
+
+    let cache_captured = Arc::clone(&cache);
     let barrier_pending_2_captured = Arc::clone(&barrier_pending_2);
     let handle_2 = tokio::spawn(async move {
         // use a different `extra` here to proof that the first one was used
-        cache
+        cache_captured
             .get_with_status(1, false)
+            .ensure_pending(barrier_pending_2_captured)
+            .await
+    });
+    let barrier_pending_2_captured = Arc::clone(&barrier_pending_2);
+    let handle_3 = tokio::spawn(async move {
+        // use a different `extra` here to proof that the first one was used
+        cache
+            .peek_with_status(1)
             .ensure_pending(barrier_pending_2_captured)
             .await
     });
@@ -111,6 +136,10 @@ where
     assert_eq!(
         handle_2.await.unwrap(),
         (String::from("1_true"), CacheGetStatus::MissAlreadyLoading),
+    );
+    assert_eq!(
+        handle_3.await.unwrap(),
+        Some((String::from("1_true"), CachePeekStatus::MissAlreadyLoading)),
     );
 
     assert_eq!(loader.loaded(), vec![1]);
@@ -204,50 +233,70 @@ where
     loader.panic_once(1);
     loader.block();
 
-    let barrier_pending_1 = Arc::new(Barrier::new(2));
-    let barrier_pending_1_captured = Arc::clone(&barrier_pending_1);
+    // set up initial panicking request
+    let barrier_pending_get_panic = Arc::new(Barrier::new(2));
+    let barrier_pending_get_panic_captured = Arc::clone(&barrier_pending_get_panic);
     let cache_captured = Arc::clone(&cache);
-    let handle_1 = tokio::spawn(async move {
+    let handle_get_panic = tokio::spawn(async move {
         cache_captured
             .get(1, true)
-            .ensure_pending(barrier_pending_1_captured)
+            .ensure_pending(barrier_pending_get_panic_captured)
             .await
     });
 
-    barrier_pending_1.wait().await;
-    let barrier_pending_23 = Arc::new(Barrier::new(3));
-    let barrier_pending_23_captured = Arc::clone(&barrier_pending_23);
+    barrier_pending_get_panic.wait().await;
+
+    // set up other requests
+    let barrier_pending_others = Arc::new(Barrier::new(4));
+
+    let barrier_pending_others_captured = Arc::clone(&barrier_pending_others);
     let cache_captured = Arc::clone(&cache);
-    let handle_2 = tokio::spawn(async move {
+    let handle_get_while_loading_panic = tokio::spawn(async move {
         cache_captured
             .get(1, false)
-            .ensure_pending(barrier_pending_23_captured)
-            .await
-    });
-    let barrier_pending_23_captured = Arc::clone(&barrier_pending_23);
-    let handle_3 = tokio::spawn(async move {
-        cache
-            .get(2, false)
-            .ensure_pending(barrier_pending_23_captured)
+            .ensure_pending(barrier_pending_others_captured)
             .await
     });
 
-    barrier_pending_23.wait().await;
+    let barrier_pending_others_captured = Arc::clone(&barrier_pending_others);
+    let cache_captured = Arc::clone(&cache);
+    let handle_peek_while_loading_panic = tokio::spawn(async move {
+        cache_captured
+            .peek(1)
+            .ensure_pending(barrier_pending_others_captured)
+            .await
+    });
+
+    let barrier_pending_others_captured = Arc::clone(&barrier_pending_others);
+    let cache_captured = Arc::clone(&cache);
+    let handle_get_other_key = tokio::spawn(async move {
+        cache_captured
+            .get(2, false)
+            .ensure_pending(barrier_pending_others_captured)
+            .await
+    });
+
+    barrier_pending_others.wait().await;
 
     let n_blocked = loader.unblock();
     assert_eq!(n_blocked, 2);
 
-    // panic first handle
-    handle_1.await.unwrap_err();
-    tokio::time::sleep(Duration::from_millis(10)).await;
+    // panic of initial request
+    handle_get_panic.await.unwrap_err();
 
-    // second handle should also panic
-    handle_2.await.unwrap_err();
+    // requests that use the same loading status also panic
+    handle_get_while_loading_panic.await.unwrap_err();
+    handle_peek_while_loading_panic.await.unwrap_err();
 
-    // third handle should just work
-    assert_eq!(handle_3.await.unwrap(), String::from("2_false"));
+    // unrelated request should succeed
+    assert_eq!(handle_get_other_key.await.unwrap(), String::from("2_false"));
 
+    // failing key was tried exactly once (and the other unrelated key as well)
     assert_eq!(loader.loaded(), vec![1, 2]);
+
+    // loading after panic just works (no poisoning)
+    assert_eq!(cache.get(1, false).await, String::from("1_false"));
+    assert_eq!(loader.loaded(), vec![1, 2, 1]);
 }
 
 async fn test_drop_cancels_loader<C>(cache: Arc<C>, loader: Arc<TestLoader>)

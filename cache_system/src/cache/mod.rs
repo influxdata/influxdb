@@ -13,7 +13,7 @@ pub mod metrics;
 #[cfg(test)]
 mod test_util;
 
-/// Status of a [`Cache`] GET request.
+/// Status of a [`Cache`] [GET](Cache::get_with_status) request.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CacheGetStatus {
     /// The requested entry was present in the storage backend.
@@ -21,6 +21,17 @@ pub enum CacheGetStatus {
 
     /// The requested entry was NOT present in the storage backend and the loader had no previous query running.
     Miss,
+
+    /// The requested entry was NOT present in the storage backend, but there was already a loader query running for
+    /// this particular key.
+    MissAlreadyLoading,
+}
+
+/// Status of a [`Cache`] [PEEK](Cache::peek_with_status) request.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CachePeekStatus {
+    /// The requested entry was present in the storage backend.
+    Hit,
 
     /// The requested entry was NOT present in the storage backend, but there was already a loader query running for
     /// this particular key.
@@ -62,10 +73,24 @@ pub trait Cache: Debug + Send + Sync + 'static {
         self.get_with_status(k, extra).await.0
     }
 
-    /// Get value from cache and the status.
+    /// Get value from cache and the [status](CacheGetStatus).
     ///
     /// Note that `extra` is only used if the key is missing from the storage backend and no loader query is running yet.
     async fn get_with_status(&self, k: Self::K, extra: Self::Extra) -> (Self::V, CacheGetStatus);
+
+    /// Peek value from cache.
+    ///
+    /// In contrast to [`get`](Self::get) this will only return a value if there is a stored value or the value loading
+    /// is already in progress. This will NOT start a new loading task.
+    async fn peek(&self, k: Self::K) -> Option<Self::V> {
+        self.peek_with_status(k).await.map(|(v, _status)| v)
+    }
+
+    /// Peek value from cache and the [status](CachePeekStatus).
+    ///
+    /// In contrast to [`get_with_status`](Self::get_with_status) this will only return a value if there is a stored
+    /// value or the value loading is already in progress. This will NOT start a new loading task.
+    async fn peek_with_status(&self, k: Self::K) -> Option<(Self::V, CachePeekStatus)>;
 
     /// Side-load an entry into the cache.
     ///

@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use iox_time::{Time, TimeProvider};
 use metric::{Attributes, DurationHistogram, U64Counter};
 
-use super::{Cache, CacheGetStatus};
+use super::{Cache, CacheGetStatus, CachePeekStatus};
 
 /// Struct containing all the metrics
 #[derive(Debug)]
@@ -15,6 +15,10 @@ struct Metrics {
     metric_get_miss: DurationHistogram,
     metric_get_miss_already_loading: DurationHistogram,
     metric_get_cancelled: DurationHistogram,
+    metric_peek_hit: DurationHistogram,
+    metric_peek_miss: DurationHistogram,
+    metric_peek_miss_already_loading: DurationHistogram,
+    metric_peek_cancelled: DurationHistogram,
     metric_set: U64Counter,
 }
 
@@ -42,6 +46,22 @@ impl Metrics {
         attributes_get.insert("status", "cancelled");
         let metric_get_cancelled = metric_get.recorder(attributes_get);
 
+        let mut attributes_peek = attributes.clone();
+        let metric_peek = metric_registry
+            .register_metric::<DurationHistogram>("iox_cache_peek", "Cache PEEK requests");
+
+        attributes_peek.insert("status", "hit");
+        let metric_peek_hit = metric_peek.recorder(attributes_peek.clone());
+
+        attributes_peek.insert("status", "miss");
+        let metric_peek_miss = metric_peek.recorder(attributes_peek.clone());
+
+        attributes_peek.insert("status", "miss_already_loading");
+        let metric_peek_miss_already_loading = metric_peek.recorder(attributes_peek.clone());
+
+        attributes_peek.insert("status", "cancelled");
+        let metric_peek_cancelled = metric_peek.recorder(attributes_peek);
+
         let metric_set = metric_registry
             .register_metric::<U64Counter>("iox_cache_set", "Cache SET requests.")
             .recorder(attributes);
@@ -52,6 +72,10 @@ impl Metrics {
             metric_get_miss,
             metric_get_miss_already_loading,
             metric_get_cancelled,
+            metric_peek_hit,
+            metric_peek_miss,
+            metric_peek_miss_already_loading,
+            metric_peek_cancelled,
             metric_set,
         }
     }
@@ -108,6 +132,14 @@ where
         (v, status)
     }
 
+    async fn peek_with_status(&self, k: Self::K) -> Option<(Self::V, CachePeekStatus)> {
+        let mut set_on_drop = SetPeekMetricOnDrop::new(&self.metrics);
+        let res = self.inner.peek_with_status(k).await;
+        set_on_drop.status = Some(res.as_ref().map(|(_v, status)| *status));
+
+        res
+    }
+
     async fn set(&self, k: Self::K, v: Self::V) {
         self.inner.set(k, v).await;
         self.metrics.metric_set.inc(1);
@@ -147,6 +179,44 @@ impl<'a> Drop for SetGetMetricOnDrop<'a> {
                 &self.metrics.metric_get_miss_already_loading
             }
             None => &self.metrics.metric_get_cancelled,
+        }
+        .record(t_end - self.t_start);
+    }
+}
+
+/// Helper that set's PEEK metrics on drop depending on the `status`.
+///
+/// A drop might happen due to completion (in which case the `status` should be set) or if the future is cancelled (in
+/// which case the `status` is `None`).
+struct SetPeekMetricOnDrop<'a> {
+    metrics: &'a Metrics,
+    t_start: Time,
+    status: Option<Option<CachePeekStatus>>,
+}
+
+impl<'a> SetPeekMetricOnDrop<'a> {
+    fn new(metrics: &'a Metrics) -> Self {
+        let t_start = metrics.time_provider.now();
+
+        Self {
+            metrics,
+            t_start,
+            status: None,
+        }
+    }
+}
+
+impl<'a> Drop for SetPeekMetricOnDrop<'a> {
+    fn drop(&mut self) {
+        let t_end = self.metrics.time_provider.now();
+
+        match self.status {
+            Some(Some(CachePeekStatus::Hit)) => &self.metrics.metric_peek_hit,
+            Some(Some(CachePeekStatus::MissAlreadyLoading)) => {
+                &self.metrics.metric_peek_miss_already_loading
+            }
+            Some(None) => &self.metrics.metric_peek_miss,
+            None => &self.metrics.metric_peek_cancelled,
         }
         .record(t_end - self.t_start);
     }
@@ -272,6 +342,115 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_peek() {
+        let test_cache = TestMetricsCache::new();
+
+        let mut reporter = RawReporter::default();
+        test_cache.metric_registry.report(&mut reporter);
+
+        for status in ["hit", "miss", "miss_already_loading", "cancelled"] {
+            let hist = get_metric_cache_peek(&reporter, status);
+            assert_eq!(hist.sample_count(), 0);
+            assert_eq!(hist.total, Duration::from_secs(0));
+        }
+
+        test_cache.loader.block();
+
+        test_cache.cache.peek(1).await;
+
+        let barrier_pending_1 = Arc::new(Barrier::new(2));
+        let barrier_pending_1_captured = Arc::clone(&barrier_pending_1);
+        let cache_captured = Arc::clone(&test_cache.cache);
+        let join_handle_1 = tokio::task::spawn(async move {
+            cache_captured
+                .get(1, true)
+                .ensure_pending(barrier_pending_1_captured)
+                .await
+        });
+
+        barrier_pending_1.wait().await;
+        let d1 = Duration::from_secs(1);
+        test_cache.time_provider.inc(d1);
+        let barrier_pending_2 = Arc::new(Barrier::new(2));
+        let barrier_pending_2_captured = Arc::clone(&barrier_pending_2);
+        let cache_captured = Arc::clone(&test_cache.cache);
+        let n_miss_already_loading = 10;
+        let join_handle_2 = tokio::task::spawn(async move {
+            (0..n_miss_already_loading)
+                .map(|_| cache_captured.peek(1))
+                .collect::<FuturesUnordered<_>>()
+                .collect::<Vec<_>>()
+                .ensure_pending(barrier_pending_2_captured)
+                .await
+        });
+
+        barrier_pending_2.wait().await;
+        let d2 = Duration::from_secs(3);
+        test_cache.time_provider.inc(d2);
+        test_cache.loader.unblock();
+
+        join_handle_1.await.unwrap();
+        join_handle_2.await.unwrap();
+
+        test_cache.loader.block();
+        test_cache.time_provider.inc(Duration::from_secs(10));
+        let n_hit = 100;
+        for _ in 0..n_hit {
+            test_cache.cache.peek(1).await;
+        }
+
+        let n_cancelled = 200;
+        let barrier_pending_3 = Arc::new(Barrier::new(2));
+        let barrier_pending_3_captured = Arc::clone(&barrier_pending_3);
+        let cache_captured = Arc::clone(&test_cache.cache);
+        tokio::task::spawn(async move {
+            cache_captured
+                .get(2, true)
+                .ensure_pending(barrier_pending_3_captured)
+                .await
+        });
+        barrier_pending_3.wait().await;
+        let barrier_pending_4 = Arc::new(Barrier::new(2));
+        let barrier_pending_4_captured = Arc::clone(&barrier_pending_4);
+        let cache_captured = Arc::clone(&test_cache.cache);
+        let join_handle_3 = tokio::task::spawn(async move {
+            (0..n_cancelled)
+                .map(|_| cache_captured.peek(2))
+                .collect::<FuturesUnordered<_>>()
+                .collect::<Vec<_>>()
+                .ensure_pending(barrier_pending_4_captured)
+                .await
+        });
+
+        barrier_pending_4.wait().await;
+        let d3 = Duration::from_secs(20);
+        test_cache.time_provider.inc(d3);
+        join_handle_3.abort_and_wait().await;
+
+        let mut reporter = RawReporter::default();
+        test_cache.metric_registry.report(&mut reporter);
+
+        let hist = get_metric_cache_peek(&reporter, "hit");
+        assert_eq!(hist.sample_count(), n_hit);
+        // "hit"s are instant because there's no lock contention
+        assert_eq!(hist.total, Duration::from_secs(0));
+
+        let hist = get_metric_cache_peek(&reporter, "miss");
+        let n = 1;
+        assert_eq!(hist.sample_count(), n);
+        // "miss"es are instant
+        assert_eq!(hist.total, Duration::from_secs(0));
+
+        let hist = get_metric_cache_peek(&reporter, "miss_already_loading");
+        assert_eq!(hist.sample_count(), n_miss_already_loading);
+        assert_eq!(hist.total, (n_miss_already_loading as u32) * d2);
+
+        let hist = get_metric_cache_peek(&reporter, "cancelled");
+        assert_eq!(hist.sample_count(), n_cancelled);
+        assert_eq!(hist.total, (n_cancelled as u32) * d3);
+    }
+
+    #[tokio::test]
     async fn test_set() {
         let test_cache = TestMetricsCache::new();
 
@@ -341,6 +520,22 @@ mod tests {
     ) -> HistogramObservation<Duration> {
         if let Observation::DurationHistogram(hist) = reporter
             .metric("iox_cache_get")
+            .unwrap()
+            .observation(&[("name", "test"), ("status", status)])
+            .unwrap()
+        {
+            hist.clone()
+        } else {
+            panic!("Wrong observation type");
+        }
+    }
+
+    fn get_metric_cache_peek(
+        reporter: &RawReporter,
+        status: &'static str,
+    ) -> HistogramObservation<Duration> {
+        if let Observation::DurationHistogram(hist) = reporter
+            .metric("iox_cache_peek")
             .unwrap()
             .observation(&[("name", "test"), ("status", status)])
             .unwrap()

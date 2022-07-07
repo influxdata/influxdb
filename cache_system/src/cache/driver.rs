@@ -14,7 +14,7 @@ use tokio::{
     task::JoinHandle,
 };
 
-use super::{Cache, CacheGetStatus};
+use super::{Cache, CacheGetStatus, CachePeekStatus};
 
 /// Combine a [`CacheBackend`] and a [`Loader`] into a single [`Cache`]
 #[derive(Debug)]
@@ -99,37 +99,16 @@ where
                 let k_captured = k.clone();
                 let handle = tokio::spawn(async move {
                     let loader_fut = async move {
-                        // need to clone K and bind it so rustc doesn't require `K: Sync`
-                        let k_for_loader = k_captured.clone();
+                        let submitter =
+                            ResultSubmitter::new(state_captured, k_captured.clone(), tag);
 
                         // execute the loader
                         // If we panic here then `tx` will be dropped and the receivers will be
                         // notified.
-                        let v = loader.load(k_for_loader, extra).await;
+                        let v = loader.load(k_captured, extra).await;
 
                         // remove "running" state and store result
-                        let was_running = {
-                            let mut state = state_captured.lock();
-
-                            match state.running_queries.get(&k_captured) {
-                                Some(running_query) if running_query.tag == tag => {
-                                    state.running_queries.remove(&k_captured);
-
-                                    // this very query is in charge of the key, so store in in the
-                                    // underlying cache
-                                    state.cached_entries.set(k_captured, v.clone());
-
-                                    true
-                                }
-                                _ => {
-                                    // This query is actually not really running any longer but got
-                                    // shut down, e.g. due to side loading. Do NOT store the
-                                    // generated value in the underlying cache.
-
-                                    false
-                                }
-                            }
-                        };
+                        let was_running = submitter.submit(v.clone());
 
                         if !was_running {
                             // value was side-loaded, so we cannot populate `v`. Instead block this
@@ -183,13 +162,36 @@ where
             }
         };
 
-        let v = receiver
-            .await
-            .expect("cache loader panicked, see logs")
-            .lock()
-            .clone();
+        let v = retrieve_from_shared(receiver).await;
 
         (v, status)
+    }
+
+    async fn peek_with_status(&self, k: Self::K) -> Option<(Self::V, CachePeekStatus)> {
+        // place state locking into its own scope so it doesn't leak into the generator (async
+        // function)
+        let (receiver, status) = {
+            let mut state = self.state.lock();
+
+            // check if the entry has already been cached
+            if let Some(v) = state.cached_entries.get(&k) {
+                return Some((v, CachePeekStatus::Hit));
+            }
+
+            // check if there is already a query for this key running
+            if let Some(running_query) = state.running_queries.get(&k) {
+                (
+                    running_query.recv.clone(),
+                    CachePeekStatus::MissAlreadyLoading,
+                )
+            } else {
+                return None;
+            }
+        };
+
+        let v = retrieve_from_shared(receiver).await;
+
+        Some((v, status))
     }
 
     async fn set(&self, k: Self::K, v: Self::V) {
@@ -239,6 +241,86 @@ where
     }
 }
 
+/// Helper to submit results of running queries.
+///
+/// Ensures that running query is removed when dropped (e.g. during panic).
+struct ResultSubmitter<K, V>
+where
+    K: Clone + Eq + Hash + std::fmt::Debug + Ord + Send + 'static,
+    V: Clone + std::fmt::Debug + Send + 'static,
+{
+    state: Arc<Mutex<CacheState<K, V>>>,
+    tag: u64,
+    k: Option<K>,
+    v: Option<V>,
+}
+
+impl<K, V> ResultSubmitter<K, V>
+where
+    K: Clone + Eq + Hash + std::fmt::Debug + Ord + Send + 'static,
+    V: Clone + std::fmt::Debug + Send + 'static,
+{
+    fn new(state: Arc<Mutex<CacheState<K, V>>>, k: K, tag: u64) -> Self {
+        Self {
+            state,
+            tag,
+            k: Some(k),
+            v: None,
+        }
+    }
+
+    /// Submit value.
+    ///
+    /// Returns `true` if this very query was running.
+    fn submit(mut self, v: V) -> bool {
+        assert!(self.v.is_none());
+        self.v = Some(v);
+        self.finalize()
+    }
+
+    /// Finalize request.
+    ///
+    /// Returns `true` if this very query was running.
+    fn finalize(&mut self) -> bool {
+        let k = self.k.take().expect("finalized twice");
+        let mut state = self.state.lock();
+
+        match state.running_queries.get(&k) {
+            Some(running_query) if running_query.tag == self.tag => {
+                state.running_queries.remove(&k);
+
+                if let Some(v) = self.v.take() {
+                    // this very query is in charge of the key, so store in in the
+                    // underlying cache
+                    state.cached_entries.set(k, v);
+                }
+
+                true
+            }
+            _ => {
+                // This query is actually not really running any longer but got
+                // shut down, e.g. due to side loading. Do NOT store the
+                // generated value in the underlying cache.
+
+                false
+            }
+        }
+    }
+}
+
+impl<K, V> Drop for ResultSubmitter<K, V>
+where
+    K: Clone + Eq + Hash + std::fmt::Debug + Ord + Send + 'static,
+    V: Clone + std::fmt::Debug + Send + 'static,
+{
+    fn drop(&mut self) {
+        if self.k.is_some() {
+            // not finalized yet
+            self.finalize();
+        }
+    }
+}
+
 /// A [`tokio::sync::oneshot::Receiver`] that can be cloned.
 ///
 /// The types are:
@@ -250,6 +332,18 @@ where
 ///   Arc<RecvError>>` results in a kinda messy type and we wanna erase that.
 /// - `Shared`: Allow the receiver to be cloned and be awaited from multiple places.
 type SharedReceiver<V> = Shared<BoxFuture<'static, Result<Arc<Mutex<V>>, Arc<RecvError>>>>;
+
+/// Retrieve data from shared receiver.
+async fn retrieve_from_shared<V>(receiver: SharedReceiver<V>) -> V
+where
+    V: Clone + Send,
+{
+    receiver
+        .await
+        .expect("cache loader panicked, see logs")
+        .lock()
+        .clone()
+}
 
 /// State for coordinating the execution of a single running query.
 #[derive(Debug)]
