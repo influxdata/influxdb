@@ -194,18 +194,13 @@ async fn run_compactor(compactor: Arc<Compactor>, shutdown: CancellationToken) {
 
         let mut used_size = 0;
         let max_size = compactor.config.max_concurrent_compaction_size_bytes();
-        let max_desired_file_size = compactor.config.compaction_max_desired_file_size_bytes();
-        let max_file_count = compactor.config.compaction_max_file_count();
+
         let mut handles = vec![];
 
         for c in candidates {
             let compactor = Arc::clone(&compactor);
             let compact_and_upgrade = compactor
-                .groups_to_compact_and_files_to_upgrade(
-                    c.candidate.partition_id,
-                    max_desired_file_size,
-                    max_file_count,
-                )
+                .groups_to_compact_and_files_to_upgrade(c.candidate.partition_id)
                 .await;
 
             match compact_and_upgrade {
@@ -227,7 +222,6 @@ async fn run_compactor(compactor: Arc<Compactor>, shutdown: CancellationToken) {
                                     &c.table_schema,
                                     c.candidate.partition_id,
                                     compact_and_upgrade,
-                                    max_desired_file_size,
                                 )
                                 .await;
                             if let Err(e) = res {
