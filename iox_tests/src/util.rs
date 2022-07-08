@@ -5,10 +5,10 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use data_types::{
-    Column, ColumnSet, ColumnType, KafkaPartition, KafkaTopic, Namespace, NamespaceSchema,
-    ParquetFile, ParquetFileParams, Partition, PartitionId, QueryPool, SequenceNumber, Sequencer,
-    SequencerId, Table, TableId, TableSchema, Timestamp, Tombstone, TombstoneId,
-    INITIAL_COMPACTION_LEVEL,
+    Column, ColumnSet, ColumnType, CompactionLevel, KafkaPartition, KafkaTopic, Namespace,
+    NamespaceSchema, ParquetFile, ParquetFileParams, Partition, PartitionId, QueryPool,
+    SequenceNumber, Sequencer, SequencerId, Table, TableId, TableSchema, Timestamp, Tombstone,
+    TombstoneId,
 };
 use datafusion::physical_plan::metrics::Count;
 use iox_catalog::{
@@ -485,75 +485,33 @@ impl TestPartition {
         })
     }
 
-    /// Create a parquet for the partition
-    pub async fn create_parquet_file(self: &Arc<Self>, lp: &str) -> TestParquetFile {
-        self.create_parquet_file_with_min_max(
-            lp,
-            1,
-            100,
-            now().timestamp_nanos(),
-            now().timestamp_nanos(),
-        )
-        .await
-    }
-
-    /// Create a parquet for the partition with the given min/max sequence numbers and min/max time
-    pub async fn create_parquet_file_with_min_max(
+    /// Create a Parquet file in this partition with attributes specified by the builder
+    pub async fn create_parquet_file(
         self: &Arc<Self>,
-        lp: &str,
-        min_seq: i64,
-        max_seq: i64,
-        min_time: i64,
-        max_time: i64,
+        builder: TestParquetFileBuilder,
     ) -> TestParquetFile {
-        self.create_parquet_file_with_min_max_and_creation_time(
-            lp, min_seq, max_seq, min_time, max_time, 1,
-        )
-        .await
-    }
-
-    /// Create a parquet for the partition
-    pub async fn create_parquet_file_with_min_max_and_creation_time(
-        self: &Arc<Self>,
-        lp: &str,
-        min_seq: i64,
-        max_seq: i64,
-        min_time: i64,
-        max_time: i64,
-        creation_time: i64,
-    ) -> TestParquetFile {
-        let (table, batch) = lp_to_mutable_batch(lp);
-        assert_eq!(table, self.table.table.name);
-
-        let schema = batch.schema(Selection::All).unwrap();
-        let record_batch = batch.to_arrow(Selection::All).unwrap();
-
-        self.create_parquet_file_with_batch(
+        let TestParquetFileBuilder {
             record_batch,
+            table,
             schema,
             min_seq,
             max_seq,
             min_time,
             max_time,
-            None,
+            file_size_bytes,
             creation_time,
-        )
-        .await
-    }
+            compaction_level,
+        } = builder;
 
-    /// Create a parquet with the data in the specified `record_batch` for the partition
-    #[allow(clippy::too_many_arguments)]
-    pub async fn create_parquet_file_with_batch(
-        self: &Arc<Self>,
-        record_batch: RecordBatch,
-        schema: Schema,
-        min_seq: i64,
-        max_seq: i64,
-        min_time: i64,
-        max_time: i64,
-        file_size_bytes: Option<i64>,
-        creation_time: i64,
-    ) -> TestParquetFile {
+        let record_batch = record_batch.expect("A record batch is required");
+        let table = table.expect("A table is required");
+        let schema = schema.expect("A schema is required");
+
+        assert_eq!(
+            table, self.table.table.name,
+            "Table name of line protocol and partition should have matched",
+        );
+
         let row_count = record_batch.num_rows();
         assert!(row_count > 0, "Parquet file must have at least 1 row");
         let (record_batch, sort_key) = sort_batch(record_batch, schema);
@@ -574,7 +532,7 @@ impl TestPartition {
             partition_key: self.partition.partition_key.clone(),
             min_sequence_number,
             max_sequence_number,
-            compaction_level: INITIAL_COMPACTION_LEVEL,
+            compaction_level: CompactionLevel::Initial,
             sort_key: Some(sort_key.clone()),
         };
         let table_catalog_schema = self.table.catalog_schema().await;
@@ -605,7 +563,7 @@ impl TestPartition {
             file_size_bytes: file_size_bytes.unwrap_or(real_file_size_bytes as i64),
             row_count: row_count as i64,
             created_at: Timestamp::new(creation_time),
-            compaction_level: INITIAL_COMPACTION_LEVEL,
+            compaction_level,
             column_set,
         };
 
@@ -626,59 +584,108 @@ impl TestPartition {
             parquet_file,
         }
     }
+}
 
-    /// Create a parquet for the partition with fake size for testing
-    #[allow(clippy::too_many_arguments)]
-    pub async fn create_parquet_file_with_min_max_size(
-        self: &Arc<Self>,
-        lp: &str,
-        min_seq: i64,
-        max_seq: i64,
-        min_time: i64,
-        max_time: i64,
-        file_size_bytes: i64,
-    ) -> TestParquetFile {
-        self.create_parquet_file_with_min_max_size_and_creation_time(
-            lp,
-            min_seq,
-            max_seq,
-            min_time,
-            max_time,
-            file_size_bytes,
-            1,
-        )
-        .await
+/// A builder for creating parquet files within partitions.
+#[derive(Debug, Clone)]
+pub struct TestParquetFileBuilder {
+    record_batch: Option<RecordBatch>,
+    table: Option<String>,
+    schema: Option<Schema>,
+    min_seq: i64,
+    max_seq: i64,
+    min_time: i64,
+    max_time: i64,
+    file_size_bytes: Option<i64>,
+    creation_time: i64,
+    compaction_level: CompactionLevel,
+}
+
+impl Default for TestParquetFileBuilder {
+    fn default() -> Self {
+        Self {
+            record_batch: None,
+            table: None,
+            schema: None,
+            min_seq: 1,
+            max_seq: 100,
+            min_time: now().timestamp_nanos(),
+            max_time: now().timestamp_nanos(),
+            file_size_bytes: None,
+            creation_time: 1,
+            compaction_level: CompactionLevel::Initial,
+        }
     }
+}
 
-    /// Create a parquet for the partition with fake size for testing
-    #[allow(clippy::too_many_arguments)]
-    pub async fn create_parquet_file_with_min_max_size_and_creation_time(
-        self: &Arc<Self>,
-        lp: &str,
-        min_seq: i64,
-        max_seq: i64,
-        min_time: i64,
-        max_time: i64,
-        file_size_bytes: i64,
-        creation_time: i64,
-    ) -> TestParquetFile {
-        let (table, batch) = lp_to_mutable_batch(lp);
-        assert_eq!(table, self.table.table.name);
+impl TestParquetFileBuilder {
+    /// Specify the line protocol that should become the record batch in this parquet file.
+    pub fn with_line_protocol(self, line_protocol: &str) -> Self {
+        let (table, batch) = lp_to_mutable_batch(line_protocol);
 
         let schema = batch.schema(Selection::All).unwrap();
         let record_batch = batch.to_arrow(Selection::All).unwrap();
 
-        self.create_parquet_file_with_batch(
-            record_batch,
-            schema,
-            min_seq,
-            max_seq,
-            min_time,
-            max_time,
-            Some(file_size_bytes),
-            creation_time,
-        )
-        .await
+        self.with_record_batch(record_batch)
+            .with_table(table)
+            .with_schema(schema)
+    }
+
+    fn with_record_batch(mut self, record_batch: RecordBatch) -> Self {
+        self.record_batch = Some(record_batch);
+        self
+    }
+
+    fn with_table(mut self, table: String) -> Self {
+        self.table = Some(table);
+        self
+    }
+
+    fn with_schema(mut self, schema: Schema) -> Self {
+        self.schema = Some(schema);
+        self
+    }
+
+    /// Specify the minimum sequence number for the parquet file metadata.
+    pub fn with_min_seq(mut self, min_seq: i64) -> Self {
+        self.min_seq = min_seq;
+        self
+    }
+
+    /// Specify the maximum sequence number for the parquet file metadata.
+    pub fn with_max_seq(mut self, max_seq: i64) -> Self {
+        self.max_seq = max_seq;
+        self
+    }
+
+    /// Specify the minimum time for the parquet file metadata.
+    pub fn with_min_time(mut self, min_time: i64) -> Self {
+        self.min_time = min_time;
+        self
+    }
+
+    /// Specify the maximum time for the parquet file metadata.
+    pub fn with_max_time(mut self, max_time: i64) -> Self {
+        self.max_time = max_time;
+        self
+    }
+
+    /// Specify the file size, in bytes, for the parquet file metadata.
+    pub fn with_file_size_bytes(mut self, file_size_bytes: i64) -> Self {
+        self.file_size_bytes = Some(file_size_bytes);
+        self
+    }
+
+    /// Specify the creation time for the parquet file metadata.
+    pub fn with_creation_time(mut self, creation_time: i64) -> Self {
+        self.creation_time = creation_time;
+        self
+    }
+
+    /// Specify the compaction level for the parquet file metadata.
+    pub fn with_compaction_level(mut self, compaction_level: CompactionLevel) -> Self {
+        self.compaction_level = compaction_level;
+        self
     }
 }
 

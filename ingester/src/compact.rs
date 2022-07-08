@@ -1,7 +1,7 @@
 //! This module is responsible for compacting Ingester's data
 
 use crate::data::{PersistingBatch, QueryableBatch};
-use data_types::{NamespaceId, PartitionInfo, INITIAL_COMPACTION_LEVEL};
+use data_types::{CompactionLevel, NamespaceId, PartitionInfo};
 use datafusion::{error::DataFusionError, physical_plan::SendableRecordBatchStream};
 use iox_query::{
     exec::{Executor, ExecutorType},
@@ -106,7 +106,7 @@ pub async fn compact_persisting_batch(
         partition_key: partition_key.clone(),
         min_sequence_number: min_seq,
         max_sequence_number: max_seq,
-        compaction_level: INITIAL_COMPACTION_LEVEL,
+        compaction_level: CompactionLevel::Initial,
         sort_key: Some(metadata_sort_key),
     };
 
@@ -319,7 +319,7 @@ mod tests {
             partition_key,
             seq_num_start,
             seq_num_end,
-            INITIAL_COMPACTION_LEVEL,
+            CompactionLevel::Initial,
             Some(SortKey::from_columns(["tag1", "time"])),
         );
         assert_eq!(expected_meta, meta);
@@ -415,7 +415,7 @@ mod tests {
             partition_key,
             seq_num_start,
             seq_num_end,
-            INITIAL_COMPACTION_LEVEL,
+            CompactionLevel::Initial,
             // Sort key should now be set
             Some(SortKey::from_columns(["tag1", "tag3", "time"])),
         );
@@ -514,7 +514,7 @@ mod tests {
             partition_key,
             seq_num_start,
             seq_num_end,
-            INITIAL_COMPACTION_LEVEL,
+            CompactionLevel::Initial,
             // The sort key in the metadata should be the same as specified (that is, not
             // recomputed)
             Some(SortKey::from_columns(["tag3", "tag1", "time"])),
@@ -613,7 +613,7 @@ mod tests {
             partition_key,
             seq_num_start,
             seq_num_end,
-            INITIAL_COMPACTION_LEVEL,
+            CompactionLevel::Initial,
             // The sort key in the metadata should be updated to include the new column just before
             // the time column
             Some(SortKey::from_columns(["tag3", "tag1", "time"])),
@@ -720,7 +720,7 @@ mod tests {
             partition_key,
             seq_num_start,
             seq_num_end,
-            INITIAL_COMPACTION_LEVEL,
+            CompactionLevel::Initial,
             // The sort key in the metadata should only contain the columns in this file
             Some(SortKey::from_columns(["tag3", "tag1", "time"])),
         );

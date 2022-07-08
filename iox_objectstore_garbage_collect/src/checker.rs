@@ -115,8 +115,8 @@ mod tests {
     use super::*;
     use chrono::TimeZone;
     use data_types::{
-        ColumnId, ColumnSet, KafkaPartition, NamespaceId, ParquetFile, ParquetFileParams,
-        PartitionId, SequenceNumber, SequencerId, TableId, Timestamp, INITIAL_COMPACTION_LEVEL,
+        ColumnId, ColumnSet, CompactionLevel, KafkaPartition, NamespaceId, ParquetFile,
+        ParquetFileParams, PartitionId, SequenceNumber, SequencerId, TableId, Timestamp,
     };
     use iox_catalog::{interface::Catalog, mem::MemCatalog};
     use object_store::path::Path;
@@ -168,7 +168,7 @@ mod tests {
             max_time: Timestamp::new(10),
             file_size_bytes: 1337,
             row_count: 0,
-            compaction_level: INITIAL_COMPACTION_LEVEL,
+            compaction_level: CompactionLevel::Initial,
             created_at: Timestamp::new(1),
             column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
         };

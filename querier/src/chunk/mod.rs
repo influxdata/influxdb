@@ -506,7 +506,7 @@ pub mod tests {
     use data_types::ColumnType;
     use futures::StreamExt;
     use iox_query::{exec::IOxSessionContext, QueryChunk, QueryChunkMeta};
-    use iox_tests::util::{TestCatalog, TestNamespace};
+    use iox_tests::util::{TestCatalog, TestNamespace, TestParquetFileBuilder};
     use metric::{Attributes, Observation, RawReporter};
     use schema::{builder::SchemaBuilder, selection::Selection, sort::SortKeyBuilder};
     use test_helpers::maybe_start_logging;
@@ -676,7 +676,8 @@ pub mod tests {
                 .await
                 .update_sort_key(SortKey::from_columns(["tag1", "tag2", "tag4", "time"]))
                 .await;
-            let parquet_file = Arc::new(partition.create_parquet_file(&lp).await.parquet_file);
+            let builder = TestParquetFileBuilder::default().with_line_protocol(&lp);
+            let parquet_file = Arc::new(partition.create_parquet_file(builder).await.parquet_file);
 
             let adapter = ChunkAdapter::new(
                 Arc::new(CatalogCache::new_testing(

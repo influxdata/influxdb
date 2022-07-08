@@ -222,16 +222,22 @@ mod tests {
 
     use super::*;
     use data_types::{ColumnType, ParquetFileId};
-    use iox_tests::util::{TestCatalog, TestNamespace, TestParquetFile, TestPartition, TestTable};
+    use iox_tests::util::{
+        TestCatalog, TestNamespace, TestParquetFile, TestParquetFileBuilder, TestPartition,
+        TestTable,
+    };
 
     use crate::cache::{ram::test_util::test_ram_pool, test_util::assert_histogram_metric_count};
 
     const METRIC_NAME: &str = "parquet_list_by_table_not_to_delete";
+    const TABLE1_LINE_PROTOCOL: &str = "table1 foo=1 11";
+    const TABLE2_LINE_PROTOCOL: &str = "table2 foo=1 11";
 
     #[tokio::test]
     async fn test_parquet_chunks() {
         let (catalog, table, partition) = make_catalog().await;
-        let tfile = partition.create_parquet_file("table1 foo=1 11").await;
+        let builder = TestParquetFileBuilder::default().with_line_protocol(TABLE1_LINE_PROTOCOL);
+        let tfile = partition.create_parquet_file(builder).await;
 
         let cache = make_cache(&catalog);
         let cached_files = cache.get(table.table.id).await.vec();
@@ -254,8 +260,10 @@ mod tests {
         let (table1, partition1) = make_table_and_partition("table1", &ns).await;
         let (table2, partition2) = make_table_and_partition("table2", &ns).await;
 
-        let tfile1 = partition1.create_parquet_file("table1 foo=1 11").await;
-        let tfile2 = partition2.create_parquet_file("table2 foo=1 11").await;
+        let builder = TestParquetFileBuilder::default().with_line_protocol(TABLE1_LINE_PROTOCOL);
+        let tfile1 = partition1.create_parquet_file(builder).await;
+        let builder = TestParquetFileBuilder::default().with_line_protocol(TABLE2_LINE_PROTOCOL);
+        let tfile2 = partition2.create_parquet_file(builder).await;
 
         let cache = make_cache(&catalog);
 
@@ -273,7 +281,8 @@ mod tests {
     #[tokio::test]
     async fn test_table_does_not_exist() {
         let (_catalog, table, partition) = make_catalog().await;
-        partition.create_parquet_file("table1 foo=1 11").await;
+        let builder = TestParquetFileBuilder::default().with_line_protocol(TABLE1_LINE_PROTOCOL);
+        partition.create_parquet_file(builder).await;
 
         // check in a different catalog where the table doesn't exist (yet)
         let different_catalog = TestCatalog::new();
@@ -286,7 +295,8 @@ mod tests {
     #[tokio::test]
     async fn test_size_estimation() {
         let (catalog, table, partition) = make_catalog().await;
-        partition.create_parquet_file("table1 foo=1 11").await;
+        let builder = TestParquetFileBuilder::default().with_line_protocol(TABLE1_LINE_PROTOCOL);
+        partition.create_parquet_file(builder).await;
         let table_id = table.table.id;
 
         let single_file_size = 224;
@@ -298,7 +308,8 @@ mod tests {
         assert_eq!(cached_files.size(), single_file_size);
 
         // add a second file, and force the cache to find it
-        partition.create_parquet_file("table1 foo=1 11").await;
+        let builder = TestParquetFileBuilder::default().with_line_protocol(TABLE1_LINE_PROTOCOL);
+        partition.create_parquet_file(builder).await;
         cache.expire(table_id);
         let cached_files = cache.get(table_id).await;
         assert_eq!(cached_files.size(), two_file_size);
@@ -312,24 +323,21 @@ mod tests {
         let sequence_number_3 = SequenceNumber::new(3);
         let sequence_number_10 = SequenceNumber::new(10);
 
-        let tfile1_2 = partition
-            .create_parquet_file_with_min_max(
-                "table1 foo=1 11",
-                sequence_number_1.get(),
-                sequence_number_2.get(),
-                0,
-                100,
-            )
-            .await;
-        let tfile1_3 = partition
-            .create_parquet_file_with_min_max(
-                "table1 foo=1 11",
-                sequence_number_2.get(),
-                sequence_number_3.get(),
-                0,
-                100,
-            )
-            .await;
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(TABLE1_LINE_PROTOCOL)
+            .with_min_seq(sequence_number_1.get())
+            .with_max_seq(sequence_number_2.get())
+            .with_min_time(0)
+            .with_max_time(100);
+        let tfile1_2 = partition.create_parquet_file(builder).await;
+
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(TABLE1_LINE_PROTOCOL)
+            .with_min_seq(sequence_number_2.get())
+            .with_max_seq(sequence_number_3.get())
+            .with_min_time(0)
+            .with_max_time(100);
+        let tfile1_3 = partition.create_parquet_file(builder).await;
 
         let cache = make_cache(&catalog);
         let table_id = table.table.id;
@@ -358,15 +366,13 @@ mod tests {
         assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
 
         // new file is created, but cache is stale
-        let tfile1_10 = partition
-            .create_parquet_file_with_min_max(
-                "table1 foo=1 11",
-                sequence_number_2.get(),
-                sequence_number_10.get(),
-                0,
-                100,
-            )
-            .await;
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(TABLE1_LINE_PROTOCOL)
+            .with_min_seq(sequence_number_2.get())
+            .with_max_seq(sequence_number_10.get())
+            .with_min_time(0)
+            .with_max_time(100);
+        let tfile1_10 = partition.create_parquet_file(builder).await;
         // cache doesn't have tfile1_10
         assert_eq!(
             cache.get(table_id).await.ids(),
@@ -404,15 +410,13 @@ mod tests {
 
         // make a new parquet file
         let sequence_number_1 = SequenceNumber::new(1);
-        let tfile = partition
-            .create_parquet_file_with_min_max(
-                "table1 foo=1 11",
-                sequence_number_1.get(),
-                sequence_number_1.get(),
-                0,
-                100,
-            )
-            .await;
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(TABLE1_LINE_PROTOCOL)
+            .with_min_seq(sequence_number_1.get())
+            .with_max_seq(sequence_number_1.get())
+            .with_min_time(0)
+            .with_max_time(100);
+        let tfile = partition.create_parquet_file(builder).await;
 
         // cache is stale
         assert!(cache.get(table_id).await.files.is_empty());

@@ -96,8 +96,8 @@ mod tests {
     use super::*;
     use bytes::Bytes;
     use data_types::{
-        ColumnId, ColumnSet, KafkaPartition, ParquetFileParams, SequenceNumber, Timestamp,
-        INITIAL_COMPACTION_LEVEL,
+        ColumnId, ColumnSet, CompactionLevel, KafkaPartition, ParquetFileParams, SequenceNumber,
+        Timestamp,
     };
     use generated_types::influxdata::iox::object_store::v1::object_store_service_server::ObjectStoreService;
     use iox_catalog::mem::MemCatalog;
@@ -154,7 +154,7 @@ mod tests {
                 max_time: Timestamp::new(5),
                 file_size_bytes: 2343,
                 row_count: 29,
-                compaction_level: INITIAL_COMPACTION_LEVEL,
+                compaction_level: CompactionLevel::Initial,
                 created_at: Timestamp::new(2343),
                 column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
             };
