@@ -1656,7 +1656,6 @@ mod tests {
             .await;
 
         // Data: Should have 4 rows left
-        // first set contains least recent 2 rows
         assert_batches_sorted_eq!(
             &[
                 "+-----------+------+-----------------------------+",
