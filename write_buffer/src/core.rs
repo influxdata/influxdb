@@ -42,6 +42,10 @@ impl WriteBufferError {
         Self::new(WriteBufferErrorKind::UnknownSequenceNumber, e)
     }
 
+    pub fn unknown(e: impl Into<Box<dyn std::error::Error + Sync + Send>>) -> Self {
+        Self::new(WriteBufferErrorKind::Unknown, e)
+    }
+
     /// Returns the kind of error this was
     pub fn kind(&self) -> WriteBufferErrorKind {
         self.kind
