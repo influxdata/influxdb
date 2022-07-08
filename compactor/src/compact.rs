@@ -8,7 +8,7 @@ use crate::{
 use backoff::BackoffConfig;
 use data_types::{
     Namespace, NamespaceId, ParquetFile, ParquetFileId, Partition, PartitionId, SequencerId, Table,
-    TableId, TableSchema, Timestamp, Tombstone, TombstoneId, FILE_NON_OVERLAPPED_COMAPCTION_LEVEL,
+    TableId, TableSchema, Timestamp, Tombstone, TombstoneId, FILE_NON_OVERLAPPED_COMPACTION_LEVEL,
     INITIAL_COMPACTION_LEVEL,
 };
 use datafusion::error::DataFusionError;
@@ -840,7 +840,7 @@ impl Compactor {
                 min_sequence_number,
                 max_sequence_number,
                 // TODO before merging: this can either level-1 or level-2
-                compaction_level: FILE_NON_OVERLAPPED_COMAPCTION_LEVEL,
+                compaction_level: FILE_NON_OVERLAPPED_COMPACTION_LEVEL,
                 sort_key: Some(sort_key.clone()),
             };
 
@@ -1205,7 +1205,7 @@ mod tests {
         // 1 newly created level-1 file as the result of compaction
         assert_eq!(
             (files[0].id.get(), files[0].compaction_level),
-            (2, FILE_NON_OVERLAPPED_COMAPCTION_LEVEL)
+            (2, FILE_NON_OVERLAPPED_COMPACTION_LEVEL)
         );
 
         // processed tombstones created and deleted inside compact_partition function
@@ -1431,7 +1431,7 @@ mod tests {
         // compaction
         assert_eq!(
             (files[0].id.get(), files[0].compaction_level),
-            (5, FILE_NON_OVERLAPPED_COMAPCTION_LEVEL)
+            (5, FILE_NON_OVERLAPPED_COMPACTION_LEVEL)
         );
 
         // should have ts1 and ts3 that not involved in the commpaction process
@@ -2045,7 +2045,7 @@ mod tests {
             min_sequence_number: SequenceNumber::new(5),
             max_sequence_number: SequenceNumber::new(6),
             // TODO: cpnsider to add level-1 tests before merging
-            compaction_level: FILE_NON_OVERLAPPED_COMAPCTION_LEVEL,
+            compaction_level: FILE_NON_OVERLAPPED_COMPACTION_LEVEL,
             sort_key: None,
         };
 

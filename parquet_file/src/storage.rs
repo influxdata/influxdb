@@ -418,7 +418,7 @@ mod tests {
     use arrow::array::{ArrayRef, Int64Builder, StringBuilder};
     use data_types::{
         NamespaceId, PartitionId, SequenceNumber, SequencerId, TableId,
-        FILE_NON_OVERLAPPED_COMAPCTION_LEVEL,
+        FILE_NON_OVERLAPPED_COMPACTION_LEVEL,
     };
     use datafusion::common::DataFusionError;
     use iox_time::Time;
@@ -784,7 +784,7 @@ mod tests {
             partition_key: "potato".into(),
             min_sequence_number: SequenceNumber::new(10),
             max_sequence_number: SequenceNumber::new(11),
-            compaction_level: FILE_NON_OVERLAPPED_COMAPCTION_LEVEL,
+            compaction_level: FILE_NON_OVERLAPPED_COMPACTION_LEVEL,
             sort_key: None,
         }
     }

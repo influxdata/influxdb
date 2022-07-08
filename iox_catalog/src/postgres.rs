@@ -15,7 +15,7 @@ use data_types::{
     ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionInfo,
     PartitionKey, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Sequencer,
     SequencerId, Table, TableId, TablePartition, Timestamp, Tombstone, TombstoneId,
-    FILE_NON_OVERLAPPED_COMAPCTION_LEVEL,
+    FILE_NON_OVERLAPPED_COMPACTION_LEVEL,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::{debug, info, warn};
@@ -1671,7 +1671,7 @@ WHERE parquet_file.sequencer_id = $1
         .bind(&table_partition.sequencer_id) // $1
         .bind(&table_partition.table_id) // $2
         .bind(&table_partition.partition_id) // $3
-        .bind(FILE_NON_OVERLAPPED_COMAPCTION_LEVEL) // $4
+        .bind(FILE_NON_OVERLAPPED_COMPACTION_LEVEL) // $4
         .bind(min_time) // $5
         .bind(max_time) // $6
         .fetch_all(&mut self.inner)
@@ -1716,7 +1716,7 @@ WHERE id = ANY($2)
 RETURNING id;
         "#,
         )
-        .bind(FILE_NON_OVERLAPPED_COMAPCTION_LEVEL) // $1
+        .bind(FILE_NON_OVERLAPPED_COMPACTION_LEVEL) // $1
         .bind(&ids[..]) // $2
         .fetch_all(&mut self.inner)
         .await

@@ -6,7 +6,7 @@ use arrow::{
 };
 use data_types::{
     ColumnId, NamespaceId, PartitionId, SequenceNumber, SequencerId, TableId, Timestamp,
-    FILE_NON_OVERLAPPED_COMAPCTION_LEVEL,
+    FILE_NON_OVERLAPPED_COMPACTION_LEVEL,
 };
 use iox_time::Time;
 use object_store::DynObjectStore;
@@ -48,7 +48,7 @@ async fn test_decoded_iox_metadata() {
         partition_key: "potato".into(),
         min_sequence_number: SequenceNumber::new(10),
         max_sequence_number: SequenceNumber::new(11),
-        compaction_level: FILE_NON_OVERLAPPED_COMAPCTION_LEVEL,
+        compaction_level: FILE_NON_OVERLAPPED_COMPACTION_LEVEL,
         sort_key: None,
     };
 
@@ -141,7 +141,7 @@ async fn test_empty_parquet_file_panic() {
         partition_key: "potato".into(),
         min_sequence_number: SequenceNumber::new(10),
         max_sequence_number: SequenceNumber::new(11),
-        compaction_level: FILE_NON_OVERLAPPED_COMAPCTION_LEVEL,
+        compaction_level: FILE_NON_OVERLAPPED_COMPACTION_LEVEL,
         sort_key: None,
     };
 
@@ -219,7 +219,7 @@ async fn test_decoded_many_columns_with_null_cols_iox_metadata() {
         partition_key: "potato".into(),
         min_sequence_number: SequenceNumber::new(10),
         max_sequence_number: SequenceNumber::new(11),
-        compaction_level: FILE_NON_OVERLAPPED_COMAPCTION_LEVEL,
+        compaction_level: FILE_NON_OVERLAPPED_COMPACTION_LEVEL,
         sort_key: Some(sort_key),
     };
     //println!("IoxMetadata: {:#?}", meta);
@@ -299,7 +299,7 @@ async fn test_derive_parquet_file_params() {
         partition_key: "potato".into(),
         min_sequence_number: SequenceNumber::new(10),
         max_sequence_number: SequenceNumber::new(11),
-        compaction_level: FILE_NON_OVERLAPPED_COMAPCTION_LEVEL,
+        compaction_level: FILE_NON_OVERLAPPED_COMPACTION_LEVEL,
         sort_key: None,
     };
 

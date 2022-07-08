@@ -954,7 +954,7 @@ mod tests {
         array::{ArrayRef, StringBuilder, TimestampNanosecondBuilder},
         record_batch::RecordBatch,
     };
-    use data_types::{FILE_NON_OVERLAPPED_COMAPCTION_LEVEL, INITIAL_COMPACTION_LEVEL};
+    use data_types::{FILE_NON_OVERLAPPED_COMPACTION_LEVEL, INITIAL_COMPACTION_LEVEL};
     use schema::builder::SchemaBuilder;
 
     use super::*;
@@ -1002,7 +1002,7 @@ mod tests {
             partition_key: "potato".into(),
             min_sequence_number: SequenceNumber::new(10),
             max_sequence_number: SequenceNumber::new(11),
-            compaction_level: FILE_NON_OVERLAPPED_COMAPCTION_LEVEL,
+            compaction_level: FILE_NON_OVERLAPPED_COMPACTION_LEVEL,
             sort_key: None,
         };
 

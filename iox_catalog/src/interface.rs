@@ -550,7 +550,8 @@ pub trait ParquetFileRepo: Send + Sync {
         partition_id: PartitionId,
     ) -> Result<Vec<ParquetFile>>;
 
-    /// Update the compaction level of the specified parquet files to level FILE_NON_OVERLAPPED_COMPACTION_LEVEL
+    /// Update the compaction level of the specified parquet files to level
+    /// `FILE_NON_OVERLAPPED_COMPACTION_LEVEL`
     /// Returns the IDs of the files that were successfully updated.
     async fn update_to_level_2(
         &mut self,
@@ -812,7 +813,7 @@ pub(crate) mod test_helpers {
     use super::*;
     use ::test_helpers::{assert_contains, tracing::TracingCapture};
     use data_types::{
-        ColumnId, ColumnSet, FILE_NON_OVERLAPPED_COMAPCTION_LEVEL, INITIAL_COMPACTION_LEVEL,
+        ColumnId, ColumnSet, FILE_NON_OVERLAPPED_COMPACTION_LEVEL, INITIAL_COMPACTION_LEVEL,
     };
     use metric::{Attributes, DurationHistogram, Metric};
     use std::{
@@ -2634,7 +2635,7 @@ pub(crate) mod test_helpers {
             .update_to_level_2(&[level1_file.id])
             .await
             .unwrap();
-        level1_file.compaction_level = FILE_NON_OVERLAPPED_COMAPCTION_LEVEL;
+        level1_file.compaction_level = FILE_NON_OVERLAPPED_COMPACTION_LEVEL;
 
         let other_partition_params = ParquetFileParams {
             partition_id: partition2.id,
