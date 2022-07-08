@@ -1,5 +1,4 @@
 //! IOx compactor implementation.
-//!
 
 #![deny(rustdoc::broken_intra_doc_links, rust_2018_idioms)]
 #![warn(

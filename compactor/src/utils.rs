@@ -232,3 +232,86 @@ impl CatalogUpdate {
         }
     }
 }
+
+/// Compute time to split data
+/// Return a list of times at which we want data to be split. The times are computed
+/// based on the max_desired_file_size each file should not exceed and the total_size this input
+/// time range [min_time, max_time] contains.
+/// The split times assume that the data is evenly distributed in the time range and if
+/// that is not the case the resulting files are not guaranteed to be below max_desired_file_size
+/// Hence, the range between two contiguous returned time is pecentage of
+/// max_desired_file_size/total_size of the time range
+/// Example:
+///  . Input
+///      min_time = 1
+///      max_time = 21
+///      total_size = 100
+///      max_desired_file_size = 30
+///
+///  . Pecentage = 70/100 = 0.3
+///  . Time range between 2 times = (21 - 1) * 0.3 = 6
+///
+///  . Output = [7, 13, 19] in which
+///     7 = 1 (min_time) + 6 (time range)
+///     13 = 7 (previous time) + 6 (time range)
+///     19 = 13 (previous time) + 6 (time range)
+#[allow(dead_code)] // This is temporarily not being used anywhere
+fn compute_split_time(
+    min_time: i64,
+    max_time: i64,
+    total_size: i64,
+    max_desired_file_size: i64,
+) -> Vec<i64> {
+    // Too small to split
+    if total_size <= max_desired_file_size {
+        return vec![max_time];
+    }
+
+    let mut split_times = vec![];
+    let percentage = max_desired_file_size as f64 / total_size as f64;
+    let mut min = min_time;
+    loop {
+        let split_time = min + ((max_time - min_time) as f64 * percentage).floor() as i64;
+        if split_time < max_time {
+            split_times.push(split_time);
+            min = split_time;
+        } else {
+            break;
+        }
+    }
+
+    split_times
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_compute_split_time() {
+        let min_time = 1;
+        let max_time = 11;
+        let total_size = 100;
+        let max_desired_file_size = 100;
+
+        // no split
+        let result = compute_split_time(min_time, max_time, total_size, max_desired_file_size);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0], max_time);
+
+        // split 70% and 30%
+        let max_desired_file_size = 70;
+        let result = compute_split_time(min_time, max_time, total_size, max_desired_file_size);
+        // only need to store the last split time
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0], 8); // = 1 (min_time) + 7
+
+        // split 40%, 40%, 20%
+        let max_desired_file_size = 40;
+        let result = compute_split_time(min_time, max_time, total_size, max_desired_file_size);
+        // store first and second split time
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0], 5); // = 1 (min_time) + 4
+        assert_eq!(result[1], 9); // = 5 (previous split_time) + 4
+    }
+}
