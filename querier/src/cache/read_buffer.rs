@@ -130,6 +130,12 @@ impl ReadBufferCache {
             )
             .await
     }
+
+    /// Get existing or "loading" read buffer chunk from cache.
+    #[allow(dead_code)]
+    pub async fn peek(&self, parquet_file_id: ParquetFileId) -> Option<Arc<RBChunk>> {
+        self.cache.peek(parquet_file_id).await
+    }
 }
 
 #[derive(Debug, Snafu)]
@@ -488,6 +494,59 @@ mod tests {
             .unwrap();
         let v = g
             .get_observer(&Attributes::from(&[("db_name", "iox_shared")]))
+            .unwrap()
+            .fetch();
+
+        // Load is only called once
+        assert_eq!(v, 1);
+    }
+
+    #[tokio::test]
+    async fn test_peek() {
+        let (catalog, partition) = make_catalog().await;
+
+        let test_parquet_file = partition.create_parquet_file("table1 foo=1 11").await;
+        let schema = test_parquet_file.schema().await;
+        let parquet_file = Arc::new(test_parquet_file.parquet_file.clone());
+        let storage = ParquetStorage::new(Arc::clone(&catalog.object_store));
+
+        let cache = make_cache(&catalog);
+
+        assert!(cache.peek(parquet_file.id).await.is_none());
+        cache
+            .get(
+                Arc::clone(&parquet_file),
+                Arc::clone(&schema),
+                storage.clone(),
+            )
+            .await;
+
+        let rb = cache.peek(parquet_file.id).await.unwrap();
+
+        let rb_batches: Vec<RecordBatch> = rb
+            .read_filter(Predicate::default(), Selection::All, vec![])
+            .unwrap()
+            .collect();
+
+        let expected = [
+            "+-----+--------------------------------+",
+            "| foo | time                           |",
+            "+-----+--------------------------------+",
+            "| 1   | 1970-01-01T00:00:00.000000011Z |",
+            "+-----+--------------------------------+",
+        ];
+
+        assert_batches_eq!(expected, &rb_batches);
+
+        let m: Metric<U64Counter> = catalog
+            .metric_registry
+            .get_instrument("cache_load_function_calls")
+            .unwrap();
+        let v = m
+            .get_observer(&Attributes::from(&[
+                ("name", "read_buffer"),
+                ("status", "new"),
+            ]))
             .unwrap()
             .fetch();
 
