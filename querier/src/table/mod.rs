@@ -171,7 +171,7 @@ impl QuerierTable {
                 let chunk_adapter = Arc::clone(&self.chunk_adapter);
                 async move {
                     chunk_adapter
-                        .new_parquet_chunk(
+                        .new_chunk(
                             Arc::clone(&self.namespace_name),
                             Arc::clone(cached_parquet_file),
                         )

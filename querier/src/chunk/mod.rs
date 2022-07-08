@@ -7,6 +7,7 @@ use data_types::{
 };
 use iox_catalog::interface::Catalog;
 use iox_time::TimeProvider;
+use parking_lot::RwLock;
 use parquet_file::{chunk::ParquetChunk, storage::ParquetStorage};
 use read_buffer::RBChunk;
 use schema::{sort::SortKey, Schema};
@@ -18,7 +19,7 @@ use self::util::create_basic_summary;
 mod query_access;
 pub(crate) mod util;
 
-/// Immutable metadata attached to a [`QuerierParquetChunk`].
+/// Immutable metadata attached to a [`QuerierChunk`].
 #[derive(Debug)]
 pub struct ChunkMeta {
     /// ID of the Parquet file of the chunk
@@ -86,123 +87,149 @@ impl ChunkMeta {
     }
 }
 
-/// Chunk representation of `read_buffer::RBChunk`s for the querier.
+/// Internal [`QuerierChunk`] stage, i.e. how the data is loaded/organized.
 #[derive(Debug)]
-pub struct QuerierRBChunk {
-    /// Underlying read buffer chunk
-    rb_chunk: Arc<RBChunk>,
+enum ChunkStage {
+    ReadBuffer {
+        /// Underlying read buffer chunk
+        rb_chunk: Arc<RBChunk>,
 
-    /// Table summary
-    table_summary: Arc<TableSummary>,
+        /// Table summary
+        table_summary: Arc<TableSummary>,
+    },
+    Parquet {
+        /// Chunk of the Parquet file
+        parquet_chunk: Arc<ParquetChunk>,
 
-    /// min/max time range of this table (extracted from TableSummary), if known
-    timestamp_min_max: Option<TimestampMinMax>,
+        /// Table summary
+        table_summary: Arc<TableSummary>,
+    },
+}
 
+impl ChunkStage {
+    /// Get stage-specific table summary.
+    ///
+    /// The table summary may improve if we have more chunk information (e.g. when the actual data was loaded into
+    /// memory).
+    pub fn table_summary(&self) -> &Arc<TableSummary> {
+        match self {
+            Self::Parquet { table_summary, .. } => table_summary,
+            Self::ReadBuffer { table_summary, .. } => table_summary,
+        }
+    }
+
+    /// Machine- and human-readable name of the stage.
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::Parquet { .. } => "parquet",
+            Self::ReadBuffer { .. } => "read_buffer",
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct QuerierChunk {
     /// Immutable chunk metadata
     meta: Arc<ChunkMeta>,
 
     /// Schema of the chunk
     schema: Arc<Schema>,
 
+    /// min/max time range of this table (extracted from TableSummary), if known
+    timestamp_min_max: Option<TimestampMinMax>,
+
     /// Delete predicates to be combined with the chunk
     delete_predicates: Vec<Arc<DeletePredicate>>,
 
     /// Partition sort key (how does the read buffer use this?)
     partition_sort_key: Arc<Option<SortKey>>,
+
+    /// Cache
+    catalog_cache: Arc<CatalogCache>,
+
+    /// Object store.
+    ///
+    /// Internally, `ParquetStorage` wraps the actual store implementation in an `Arc`, so
+    /// `ParquetStorage` is cheap to clone.
+    store: ParquetStorage,
+
+    /// Current stage.
+    stage: RwLock<ChunkStage>,
 }
 
-impl QuerierRBChunk {
-    /// Create new read-buffer-backed chunk
-    pub fn new(
-        rb_chunk: Arc<RBChunk>,
-        meta: Arc<ChunkMeta>,
-        schema: Arc<Schema>,
-        partition_sort_key: Arc<Option<SortKey>>,
-    ) -> Self {
-        let table_summary = Arc::new(rb_chunk.table_summary());
-        let timestamp_min_max = table_summary.time_range();
-
-        Self {
-            rb_chunk,
-            table_summary,
-            timestamp_min_max,
-            meta,
-            schema,
-            delete_predicates: Vec::new(),
-            partition_sort_key,
-        }
-    }
-
-    /// Set delete predicates of the given chunk.
-    pub fn with_delete_predicates(self, delete_predicates: Vec<Arc<DeletePredicate>>) -> Self {
-        Self {
-            delete_predicates,
-            ..self
-        }
-    }
-
-    /// Get metadata attached to the given chunk.
-    pub fn meta(&self) -> &ChunkMeta {
-        self.meta.as_ref()
-    }
-
-    /// Set partition sort key
-    pub fn with_partition_sort_key(self, partition_sort_key: Arc<Option<SortKey>>) -> Self {
-        Self {
-            partition_sort_key,
-            ..self
-        }
-    }
-}
-
-/// Chunk representation of Parquet file chunks for the querier.
-///
-/// These chunks are usually created on-demand. The querier cache system does not really have a
-/// notion of chunks (rather it knows about parquet files, local FS caches, ingester data, cached
-/// read buffers) but we need to combine all that knowledge into chunk objects because this is what
-/// the query engine (DataFusion and InfluxRPC) expect.
-#[derive(Debug)]
-pub struct QuerierParquetChunk {
-    /// Chunk of the Parquet file
-    parquet_chunk: Arc<ParquetChunk>,
-
-    /// Immutable metadata.
-    meta: Arc<ChunkMeta>,
-
-    /// Delete predicates of this chunk
-    delete_predicates: Vec<Arc<DeletePredicate>>,
-
-    /// Partition sort key
-    partition_sort_key: Arc<Option<SortKey>>,
-
-    /// Table summary
-    table_summary: Arc<TableSummary>,
-}
-
-impl QuerierParquetChunk {
+impl QuerierChunk {
     /// Create new parquet-backed chunk (object store data).
-    pub fn new(
+    pub async fn new(
         parquet_chunk: Arc<ParquetChunk>,
         meta: Arc<ChunkMeta>,
         partition_sort_key: Arc<Option<SortKey>>,
+        catalog_cache: Arc<CatalogCache>,
+        store: ParquetStorage,
     ) -> Self {
         let table_summary = Arc::new(create_basic_summary(
             parquet_chunk.rows() as u64,
             &parquet_chunk.schema(),
             parquet_chunk.timestamp_min_max(),
         ));
-        Self {
+        let schema = parquet_chunk.schema();
+        let timestamp_min_max = table_summary.time_range();
+        let stage = ChunkStage::Parquet {
             parquet_chunk,
+            table_summary,
+        };
+        // TODO: peek RB cache and try to upgrade
+        Self {
             meta,
             delete_predicates: Vec::new(),
             partition_sort_key,
-            table_summary,
+            catalog_cache,
+            schema,
+            timestamp_min_max,
+            stage: RwLock::new(stage),
+            store,
         }
     }
 
-    /// Return raw parquet file metadata.
-    pub fn parquet_file(&self) -> &Arc<ParquetFile> {
-        self.parquet_chunk.parquet_file()
+    /// Upgrade chunks internal data structure from "parquet" to "read buffer"
+    pub async fn load_to_read_buffer(&self) {
+        let parquet_file = {
+            let stage = self.stage.read();
+
+            match &*stage {
+                ChunkStage::Parquet { parquet_chunk, .. } => {
+                    Arc::clone(parquet_chunk.parquet_file())
+                }
+                ChunkStage::ReadBuffer { .. } => {
+                    // RB already loaded
+                    return;
+                }
+            }
+        };
+
+        let rb_chunk = self
+            .catalog_cache
+            .read_buffer()
+            .get(parquet_file, Arc::clone(&self.schema), self.store.clone())
+            .await;
+        self.load_to_read_buffer_internal(rb_chunk);
+    }
+
+    fn load_to_read_buffer_internal(&self, rb_chunk: Arc<RBChunk>) {
+        let mut stage = self.stage.write();
+
+        match &*stage {
+            ChunkStage::Parquet { .. } => {
+                let table_summary = Arc::new(rb_chunk.table_summary());
+
+                *stage = ChunkStage::ReadBuffer {
+                    rb_chunk,
+                    table_summary,
+                };
+            }
+            ChunkStage::ReadBuffer { .. } => {
+                // RB already loaded
+            }
+        }
     }
 
     /// Set delete predicates of the given chunk.
@@ -213,27 +240,17 @@ impl QuerierParquetChunk {
         }
     }
 
+    /// Get metadata attached to the given chunk.
+    pub fn meta(&self) -> &ChunkMeta {
+        self.meta.as_ref()
+    }
+
     /// Set partition sort key
     pub fn with_partition_sort_key(self, partition_sort_key: Arc<Option<SortKey>>) -> Self {
         Self {
             partition_sort_key,
             ..self
         }
-    }
-
-    /// Get metadata attached to the given chunk.
-    pub fn meta(&self) -> &ChunkMeta {
-        self.meta.as_ref()
-    }
-
-    /// Return time range
-    pub fn timestamp_min_max(&self) -> Option<TimestampMinMax> {
-        Some(self.parquet_chunk.timestamp_min_max())
-    }
-
-    /// Partition sort key
-    pub fn partition_sort_key(&self) -> Option<&SortKey> {
-        self.partition_sort_key.as_ref().as_ref()
     }
 }
 
@@ -288,55 +305,31 @@ impl ChunkAdapter {
         self.catalog_cache.catalog()
     }
 
-    /// Create new querier Parquet chunk.
-    ///
-    /// Returns `None` if some data required to create this chunk is already gone from the catalog.
-    ///
-    /// CURRENTLY UNUSED: The querier is creating and caching read buffer chunks instead, using
-    /// the `new_rb_chunk` method.
-    pub async fn new_parquet_chunk(
+    pub async fn new_chunk(
         &self,
         namespace_name: Arc<str>,
         parquet_file: Arc<ParquetFile>,
-    ) -> Option<QuerierParquetChunk> {
+    ) -> Option<QuerierChunk> {
         let parts = self
             .chunk_parts(namespace_name, Arc::clone(&parquet_file))
             .await?;
-        let chunk = Arc::new(ParquetChunk::new(
+
+        let parquet_chunk = Arc::new(ParquetChunk::new(
             parquet_file,
             parts.schema,
             self.store.clone(),
         ));
 
-        Some(QuerierParquetChunk::new(
-            chunk,
-            parts.meta,
-            parts.partition_sort_key,
-        ))
-    }
-
-    /// Create read buffer chunk. May be from the cache, may be from the parquet file.
-    pub async fn new_rb_chunk(
-        &self,
-        namespace_name: Arc<str>,
-        parquet_file: Arc<ParquetFile>,
-    ) -> Option<QuerierRBChunk> {
-        let parts = self
-            .chunk_parts(namespace_name, Arc::clone(&parquet_file))
-            .await?;
-
-        let rb_chunk = self
-            .catalog_cache()
-            .read_buffer()
-            .get(parquet_file, Arc::clone(&parts.schema), self.store.clone())
-            .await;
-
-        Some(QuerierRBChunk::new(
-            rb_chunk,
-            parts.meta,
-            parts.schema,
-            parts.partition_sort_key,
-        ))
+        Some(
+            QuerierChunk::new(
+                parquet_chunk,
+                parts.meta,
+                parts.partition_sort_key,
+                Arc::clone(&self.catalog_cache),
+                self.store.clone(),
+            )
+            .await,
+        )
     }
 
     async fn chunk_parts(
@@ -507,7 +500,7 @@ pub mod tests {
 
         // create chunk
         let chunk = adapter
-            .new_rb_chunk(ns.namespace.name.clone().into(), Arc::clone(&parquet_file))
+            .new_chunk(ns.namespace.name.clone().into(), Arc::clone(&parquet_file))
             .await
             .unwrap();
 
@@ -549,7 +542,7 @@ pub mod tests {
 
         // retrieving the chunk again should not require any catalog requests
         adapter
-            .new_rb_chunk(ns.namespace.name.clone().into(), parquet_file)
+            .new_chunk(ns.namespace.name.clone().into(), parquet_file)
             .await
             .unwrap();
         let catalog_metrics2 = get_catalog_access_metrics(&catalog.metric_registry());

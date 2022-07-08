@@ -1,11 +1,15 @@
-use crate::chunk::{QuerierParquetChunk, QuerierRBChunk};
+use crate::chunk::QuerierChunk;
 use arrow::{datatypes::SchemaRef, error::Result as ArrowResult, record_batch::RecordBatch};
 use data_types::{
     ChunkId, ChunkOrder, DeletePredicate, PartitionId, TableSummary, TimestampMinMax,
 };
-use datafusion::physical_plan::RecordBatchStream;
-use iox_query::{QueryChunk, QueryChunkError, QueryChunkMeta};
+use datafusion::physical_plan::{RecordBatchStream, SendableRecordBatchStream};
+use iox_query::{
+    exec::{stringset::StringSet, IOxSessionContext},
+    QueryChunk, QueryChunkError, QueryChunkMeta,
+};
 use observability_deps::tracing::debug;
+use predicate::Predicate;
 use read_buffer::ReadFilterResults;
 use schema::{selection::Selection, sort::SortKey, Schema};
 use snafu::{OptionExt, ResultExt, Snafu};
@@ -14,6 +18,8 @@ use std::{
     sync::Arc,
     task::{Context, Poll},
 };
+
+use super::ChunkStage;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -40,111 +46,9 @@ pub enum Error {
     },
 }
 
-impl QueryChunkMeta for QuerierParquetChunk {
+impl QueryChunkMeta for QuerierChunk {
     fn summary(&self) -> Option<Arc<TableSummary>> {
-        Some(Arc::clone(&self.table_summary))
-    }
-
-    fn schema(&self) -> Arc<Schema> {
-        self.parquet_chunk.schema()
-    }
-
-    fn partition_sort_key(&self) -> Option<&SortKey> {
-        self.partition_sort_key()
-    }
-
-    fn partition_id(&self) -> Option<PartitionId> {
-        Some(self.meta.partition_id())
-    }
-
-    fn sort_key(&self) -> Option<&SortKey> {
-        self.meta().sort_key()
-    }
-
-    fn delete_predicates(&self) -> &[Arc<DeletePredicate>] {
-        &self.delete_predicates
-    }
-
-    fn timestamp_min_max(&self) -> Option<TimestampMinMax> {
-        self.timestamp_min_max()
-    }
-}
-
-impl QueryChunk for QuerierParquetChunk {
-    fn id(&self) -> ChunkId {
-        self.meta().chunk_id
-    }
-
-    fn table_name(&self) -> &str {
-        self.meta().table_name.as_ref()
-    }
-
-    fn may_contain_pk_duplicates(&self) -> bool {
-        false
-    }
-
-    fn column_names(
-        &self,
-        _ctx: iox_query::exec::IOxSessionContext,
-        predicate: &predicate::Predicate,
-        columns: Selection<'_>,
-    ) -> Result<Option<iox_query::exec::stringset::StringSet>, QueryChunkError> {
-        if !predicate.is_empty() {
-            // if there is anything in the predicate, bail for now and force a full plan
-            return Ok(None);
-        }
-        Ok(self.parquet_chunk.column_names(columns))
-    }
-
-    fn column_values(
-        &self,
-        _ctx: iox_query::exec::IOxSessionContext,
-        _column_name: &str,
-        _predicate: &predicate::Predicate,
-    ) -> Result<Option<iox_query::exec::stringset::StringSet>, QueryChunkError> {
-        // Since DataFusion can read Parquet, there is no advantage to
-        // manually implementing this vs just letting DataFusion do its thing
-        Ok(None)
-    }
-
-    fn read_filter(
-        &self,
-        mut ctx: iox_query::exec::IOxSessionContext,
-        predicate: &predicate::Predicate,
-        selection: Selection<'_>,
-    ) -> Result<datafusion::physical_plan::SendableRecordBatchStream, QueryChunkError> {
-        let delete_predicates: Vec<_> = self
-            .delete_predicates()
-            .iter()
-            .map(|pred| Arc::new(pred.as_ref().clone().into()))
-            .collect();
-        ctx.set_metadata("delete_predicates", delete_predicates.len() as i64);
-
-        // merge the negated delete predicates into the select predicate
-        let pred_with_deleted_exprs = predicate.clone().with_delete_predicates(&delete_predicates);
-        debug!(?pred_with_deleted_exprs, "Merged negated predicate");
-
-        ctx.set_metadata("predicate", format!("{}", &pred_with_deleted_exprs));
-        self.parquet_chunk
-            .read_filter(&pred_with_deleted_exprs, selection)
-            .context(ParquetFileChunkSnafu {
-                chunk_id: self.id(),
-            })
-            .map_err(|e| Box::new(e) as _)
-    }
-
-    fn chunk_type(&self) -> &str {
-        "parquet"
-    }
-
-    fn order(&self) -> ChunkOrder {
-        self.meta().order()
-    }
-}
-
-impl QueryChunkMeta for QuerierRBChunk {
-    fn summary(&self) -> Option<Arc<TableSummary>> {
-        Some(Arc::clone(&self.table_summary))
+        Some(Arc::clone(self.stage.read().table_summary()))
     }
 
     fn schema(&self) -> Arc<Schema> {
@@ -156,7 +60,7 @@ impl QueryChunkMeta for QuerierRBChunk {
     }
 
     fn partition_id(&self) -> Option<PartitionId> {
-        Some(self.meta.partition_id())
+        Some(self.meta().partition_id())
     }
 
     fn sort_key(&self) -> Option<&SortKey> {
@@ -172,7 +76,7 @@ impl QueryChunkMeta for QuerierRBChunk {
     }
 }
 
-impl QueryChunk for QuerierRBChunk {
+impl QueryChunk for QuerierChunk {
     fn id(&self) -> ChunkId {
         self.meta().chunk_id
     }
@@ -187,107 +91,130 @@ impl QueryChunk for QuerierRBChunk {
 
     fn column_names(
         &self,
-        mut ctx: iox_query::exec::IOxSessionContext,
-        predicate: &predicate::Predicate,
+        mut ctx: IOxSessionContext,
+        predicate: &Predicate,
         columns: Selection<'_>,
-    ) -> Result<Option<iox_query::exec::stringset::StringSet>, QueryChunkError> {
-        ctx.set_metadata("storage", "read_buffer");
+    ) -> Result<Option<StringSet>, QueryChunkError> {
         ctx.set_metadata("projection", format!("{}", columns));
         ctx.set_metadata("predicate", format!("{}", &predicate));
 
-        let rb_predicate = match to_read_buffer_predicate(predicate) {
-            Ok(rb_predicate) => rb_predicate,
-            Err(e) => {
-                debug!(
-                    ?predicate,
-                    %e,
-                    "read buffer predicate not supported for column_names, falling back"
-                );
-                return Ok(None);
-            }
-        };
-        ctx.set_metadata("rb_predicate", format!("{}", &rb_predicate));
+        let stage = self.stage.read();
+        ctx.set_metadata("storage", stage.name());
 
-        // TODO(edd): wire up delete predicates to be pushed down to
-        // the read buffer.
-
-        let column_names =
-            self.rb_chunk
-                .column_names(rb_predicate, vec![], columns, BTreeSet::new());
-
-        let names = match column_names {
-            Ok(names) => {
-                ctx.set_metadata("output_values", names.len() as i64);
-                Some(names)
+        match &*stage {
+            ChunkStage::Parquet { parquet_chunk, .. } => {
+                if !predicate.is_empty() {
+                    // if there is anything in the predicate, bail for now and force a full plan
+                    return Ok(None);
+                }
+                Ok(parquet_chunk.column_names(columns))
             }
-            Err(read_buffer::Error::TableError {
-                source: read_buffer::table::Error::ColumnDoesNotExist { .. },
-            }) => {
-                ctx.set_metadata("output_values", 0);
-                None
-            }
-            Err(other) => {
-                return Err(Box::new(Error::RBChunk {
-                    source: other,
-                    chunk_id: self.id(),
-                }))
-            }
-        };
+            ChunkStage::ReadBuffer { rb_chunk, .. } => {
+                let rb_predicate = match to_read_buffer_predicate(predicate) {
+                    Ok(rb_predicate) => rb_predicate,
+                    Err(e) => {
+                        debug!(
+                            ?predicate,
+                            %e,
+                            "read buffer predicate not supported for column_names, falling back"
+                        );
+                        return Ok(None);
+                    }
+                };
+                ctx.set_metadata("rb_predicate", format!("{}", &rb_predicate));
 
-        Ok(names)
+                // TODO(edd): wire up delete predicates to be pushed down to
+                // the read buffer.
+
+                let column_names =
+                    rb_chunk.column_names(rb_predicate, vec![], columns, BTreeSet::new());
+
+                let names = match column_names {
+                    Ok(names) => {
+                        ctx.set_metadata("output_values", names.len() as i64);
+                        Some(names)
+                    }
+                    Err(read_buffer::Error::TableError {
+                        source: read_buffer::table::Error::ColumnDoesNotExist { .. },
+                    }) => {
+                        ctx.set_metadata("output_values", 0);
+                        None
+                    }
+                    Err(other) => {
+                        return Err(Box::new(Error::RBChunk {
+                            source: other,
+                            chunk_id: self.id(),
+                        }))
+                    }
+                };
+
+                Ok(names)
+            }
+        }
     }
 
     fn column_values(
         &self,
-        mut ctx: iox_query::exec::IOxSessionContext,
+        mut ctx: IOxSessionContext,
         column_name: &str,
-        predicate: &predicate::Predicate,
-    ) -> Result<Option<iox_query::exec::stringset::StringSet>, QueryChunkError> {
-        ctx.set_metadata("storage", "read_buffer");
+        predicate: &Predicate,
+    ) -> Result<Option<StringSet>, QueryChunkError> {
         ctx.set_metadata("column_name", column_name.to_string());
         ctx.set_metadata("predicate", format!("{}", &predicate));
 
-        let rb_predicate = match to_read_buffer_predicate(predicate) {
-            Ok(rb_predicate) => rb_predicate,
-            Err(e) => {
-                debug!(
-                    ?predicate,
-                    %e,
-                    "read buffer predicate not supported for column_values, falling back"
-                );
-                return Ok(None);
+        let stage = self.stage.read();
+        ctx.set_metadata("storage", stage.name());
+
+        match &*stage {
+            ChunkStage::Parquet { .. } => {
+                // Since DataFusion can read Parquet, there is no advantage to
+                // manually implementing this vs just letting DataFusion do its thing
+                Ok(None)
             }
-        };
-        ctx.set_metadata("rb_predicate", format!("{}", &rb_predicate));
+            ChunkStage::ReadBuffer { rb_chunk, .. } => {
+                let rb_predicate = match to_read_buffer_predicate(predicate) {
+                    Ok(rb_predicate) => rb_predicate,
+                    Err(e) => {
+                        debug!(
+                            ?predicate,
+                            %e,
+                            "read buffer predicate not supported for column_values, falling back"
+                        );
+                        return Ok(None);
+                    }
+                };
+                ctx.set_metadata("rb_predicate", format!("{}", &rb_predicate));
 
-        let mut values = self.rb_chunk.column_values(
-            rb_predicate,
-            Selection::Some(&[column_name]),
-            BTreeMap::new(),
-        )?;
+                let mut values = rb_chunk.column_values(
+                    rb_predicate,
+                    Selection::Some(&[column_name]),
+                    BTreeMap::new(),
+                )?;
 
-        // The InfluxRPC frontend only supports getting column values
-        // for one column at a time (this is a restriction on the Influx
-        // Read gRPC API too). However, the Read Buffer supports multiple
-        // columns and will return a map - we just need to pull the
-        // column out to get the set of values.
-        let values = values
-            .remove(column_name)
-            .context(ColumnNameNotFoundSnafu {
-                chunk_id: self.id(),
-                column_name,
-            })?;
-        ctx.set_metadata("output_values", values.len() as i64);
+                // The InfluxRPC frontend only supports getting column values
+                // for one column at a time (this is a restriction on the Influx
+                // Read gRPC API too). However, the Read Buffer supports multiple
+                // columns and will return a map - we just need to pull the
+                // column out to get the set of values.
+                let values = values
+                    .remove(column_name)
+                    .context(ColumnNameNotFoundSnafu {
+                        chunk_id: self.id(),
+                        column_name,
+                    })?;
+                ctx.set_metadata("output_values", values.len() as i64);
 
-        Ok(Some(values))
+                Ok(Some(values))
+            }
+        }
     }
 
     fn read_filter(
         &self,
-        mut ctx: iox_query::exec::IOxSessionContext,
-        predicate: &predicate::Predicate,
+        mut ctx: IOxSessionContext,
+        predicate: &Predicate,
         selection: Selection<'_>,
-    ) -> Result<datafusion::physical_plan::SendableRecordBatchStream, QueryChunkError> {
+    ) -> Result<SendableRecordBatchStream, QueryChunkError> {
         let delete_predicates: Vec<_> = self
             .delete_predicates()
             .iter()
@@ -300,50 +227,60 @@ impl QueryChunk for QuerierRBChunk {
         debug!(?pred_with_deleted_exprs, "Merged negated predicate");
 
         ctx.set_metadata("predicate", format!("{}", &pred_with_deleted_exprs));
-        ctx.set_metadata("storage", "read_buffer");
         ctx.set_metadata("projection", format!("{}", selection));
 
-        // Only apply pushdownable predicates
-        let rb_predicate = self
-            .rb_chunk
-            // A predicate unsupported by the Read Buffer or against this chunk's schema is
-            // replaced with a default empty predicate.
-            .validate_predicate(to_read_buffer_predicate(predicate).unwrap_or_default())
-            .unwrap_or_default();
-        debug!(?rb_predicate, "RB predicate");
-        ctx.set_metadata("predicate", format!("{}", &rb_predicate));
+        let stage = self.stage.read();
+        ctx.set_metadata("storage", stage.name());
 
-        // combine all delete expressions to RB's negated ones
-        let negated_delete_exprs = to_read_buffer_negated_predicates(&delete_predicates)?
-            .into_iter()
-            // Any delete predicates unsupported by the Read Buffer will be elided.
-            .filter_map(|p| self.rb_chunk.validate_predicate(p).ok())
-            .collect::<Vec<_>>();
+        match &*stage {
+            ChunkStage::Parquet { parquet_chunk, .. } => parquet_chunk
+                .read_filter(&pred_with_deleted_exprs, selection)
+                .context(ParquetFileChunkSnafu {
+                    chunk_id: self.id(),
+                })
+                .map_err(|e| Box::new(e) as _),
+            ChunkStage::ReadBuffer { rb_chunk, .. } => {
+                // Only apply pushdownable predicates
+                let rb_predicate = rb_chunk
+                    // A predicate unsupported by the Read Buffer or against this chunk's schema is
+                    // replaced with a default empty predicate.
+                    .validate_predicate(to_read_buffer_predicate(predicate).unwrap_or_default())
+                    .unwrap_or_default();
+                debug!(?rb_predicate, "RB predicate");
+                ctx.set_metadata("rb_predicate", format!("{}", &rb_predicate));
 
-        debug!(?negated_delete_exprs, "Negated Predicate pushed down to RB");
+                // combine all delete expressions to RB's negated ones
+                let negated_delete_exprs = to_read_buffer_negated_predicates(&delete_predicates)?
+                    .into_iter()
+                    // Any delete predicates unsupported by the Read Buffer will be elided.
+                    .filter_map(|p| rb_chunk.validate_predicate(p).ok())
+                    .collect::<Vec<_>>();
 
-        let read_results = self
-            .rb_chunk
-            .read_filter(rb_predicate, selection, negated_delete_exprs)
-            .context(RBChunkSnafu {
-                chunk_id: self.id(),
-            })?;
-        let schema = self
-            .rb_chunk
-            .read_filter_table_schema(selection)
-            .context(RBChunkSnafu {
-                chunk_id: self.id(),
-            })?;
+                debug!(?negated_delete_exprs, "Negated Predicate pushed down to RB");
 
-        Ok(Box::pin(ReadFilterResultsStream::new(
-            ctx,
-            read_results,
-            schema.into(),
-        )))
+                let read_results = rb_chunk
+                    .read_filter(rb_predicate, selection, negated_delete_exprs)
+                    .context(RBChunkSnafu {
+                        chunk_id: self.id(),
+                    })?;
+                let schema =
+                    rb_chunk
+                        .read_filter_table_schema(selection)
+                        .context(RBChunkSnafu {
+                            chunk_id: self.id(),
+                        })?;
+
+                Ok(Box::pin(ReadFilterResultsStream::new(
+                    ctx,
+                    read_results,
+                    schema.into(),
+                )))
+            }
+        }
     }
 
     fn chunk_type(&self) -> &str {
-        "read_buffer"
+        self.stage.read().name()
     }
 
     fn order(&self) -> ChunkOrder {
@@ -354,7 +291,7 @@ impl QueryChunk for QuerierRBChunk {
 #[derive(Debug)]
 struct ReadBufferPredicateConversionError {
     msg: String,
-    predicate: predicate::Predicate,
+    predicate: Predicate,
 }
 
 impl std::fmt::Display for ReadBufferPredicateConversionError {
@@ -378,7 +315,7 @@ impl std::error::Error for ReadBufferPredicateConversionError {}
 /// Callers should validate predicates against chunks they are to be executed against using
 /// `read_buffer::Chunk::validate_predicate`
 fn to_read_buffer_predicate(
-    predicate: &predicate::Predicate,
+    predicate: &Predicate,
 ) -> Result<read_buffer::Predicate, ReadBufferPredicateConversionError> {
     // Try to convert non-time column expressions into binary expressions that are compatible with
     // the read buffer.
@@ -410,7 +347,7 @@ fn to_read_buffer_predicate(
 /// Callers should validate predicates against chunks they are to be executed against using
 /// `read_buffer::Chunk::validate_predicate`
 fn to_read_buffer_negated_predicates(
-    delete_predicates: &[Arc<predicate::Predicate>],
+    delete_predicates: &[Arc<Predicate>],
 ) -> Result<Vec<read_buffer::Predicate>, ReadBufferPredicateConversionError> {
     let mut rb_preds: Vec<read_buffer::Predicate> = vec![];
     for pred in delete_predicates {
@@ -426,15 +363,11 @@ fn to_read_buffer_negated_predicates(
 pub struct ReadFilterResultsStream {
     read_results: ReadFilterResults,
     schema: SchemaRef,
-    ctx: iox_query::exec::IOxSessionContext,
+    ctx: IOxSessionContext,
 }
 
 impl ReadFilterResultsStream {
-    pub fn new(
-        ctx: iox_query::exec::IOxSessionContext,
-        read_results: ReadFilterResults,
-        schema: SchemaRef,
-    ) -> Self {
+    pub fn new(ctx: IOxSessionContext, read_results: ReadFilterResults, schema: SchemaRef) -> Self {
         Self {
             ctx,
             read_results,

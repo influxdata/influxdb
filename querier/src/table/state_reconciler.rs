@@ -14,7 +14,7 @@ use std::{
 };
 
 use crate::{
-    chunk::{ChunkAdapter, QuerierParquetChunk, QuerierRBChunk},
+    chunk::{ChunkAdapter, QuerierChunk},
     ingester::IngesterChunk,
     tombstone::QuerierTombstone,
     IngesterPartition,
@@ -55,7 +55,7 @@ impl Reconciler {
         &self,
         ingester_partitions: Vec<IngesterPartition>,
         tombstones: Vec<Arc<Tombstone>>,
-        parquet_files: Vec<QuerierParquetChunk>,
+        parquet_files: Vec<QuerierChunk>,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, ReconcileError> {
         let mut chunks = self
             .build_chunks_from_parquet(&ingester_partitions, tombstones, parquet_files)
@@ -77,7 +77,7 @@ impl Reconciler {
         &self,
         ingester_partitions: &[IngesterPartition],
         tombstones: Vec<Arc<Tombstone>>,
-        parquet_files: Vec<QuerierParquetChunk>,
+        parquet_files: Vec<QuerierChunk>,
     ) -> Result<Vec<Box<dyn UpdatableQuerierChunk>>, ReconcileError> {
         debug!(
             namespace=%self.namespace_name(),
@@ -106,7 +106,7 @@ impl Reconciler {
         let parquet_files = filter_parquet_files(ingester_partitions, parquet_files)?;
 
         debug!(
-            parquet_ids=?parquet_files.iter().map(|f| f.parquet_file().id).collect::<Vec<_>>(),
+            parquet_ids=?parquet_files.iter().map(|f| f.meta().parquet_file_id()).collect::<Vec<_>>(),
             namespace=%self.namespace_name(),
             table_name=%self.table_name(),
             "Parquet files after filtering"
@@ -116,19 +116,15 @@ impl Reconciler {
         let chunks_from_parquet: Vec<_> = futures::stream::iter(parquet_files)
             // use `.map` instead of `then` or `filter_map` because the next step is `buffered_unordered` and that
             // requires a stream of futures
-            .map(|chunk| {
-                let parquet_file = Arc::clone(chunk.parquet_file());
-                async {
-                    self.chunk_adapter
-                        .new_rb_chunk(Arc::clone(&self.namespace_name), parquet_file)
-                        .await
-                }
+            .map(|chunk| async move {
+                // TODO(marco): remove this and rely on lazy upgrades
+                chunk.load_to_read_buffer().await;
+                chunk
             })
             // fetch multiple RB chunks in parallel to hide latency
             // TODO(marco): expose this as a config
             .buffer_unordered(2)
             // there doesn't seem to be a non-async version of `filter_map`
-            .filter_map(|x| async { x })
             .collect()
             .await;
         debug!(num_chunks=%chunks_from_parquet.len(), "Created chunks from parquet files");
@@ -279,20 +275,7 @@ trait UpdatableQuerierChunk: QueryChunk {
     fn upcast_to_querier_chunk(self: Box<Self>) -> Box<dyn QueryChunk>;
 }
 
-impl UpdatableQuerierChunk for QuerierParquetChunk {
-    fn update_partition_sort_key(
-        self: Box<Self>,
-        sort_key: Arc<Option<SortKey>>,
-    ) -> Box<dyn UpdatableQuerierChunk> {
-        Box::new(self.with_partition_sort_key(sort_key))
-    }
-
-    fn upcast_to_querier_chunk(self: Box<Self>) -> Box<dyn QueryChunk> {
-        self as _
-    }
-}
-
-impl UpdatableQuerierChunk for QuerierRBChunk {
+impl UpdatableQuerierChunk for QuerierChunk {
     fn update_partition_sort_key(
         self: Box<Self>,
         sort_key: Arc<Option<SortKey>>,
