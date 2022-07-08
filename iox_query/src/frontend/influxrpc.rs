@@ -31,6 +31,7 @@ use query_functions::{
 use schema::{selection::Selection, InfluxColumnType, Schema, TIME_COLUMN_NAME};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{
+    cmp::Reverse,
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
 };
@@ -245,7 +246,7 @@ impl InfluxRpcPlanner {
                 .chunks(table_name, predicate)
                 .await
                 .context(GettingChunksSnafu { table_name })?;
-            for chunk in chunks {
+            for chunk in cheap_chunk_first(chunks) {
                 trace!(chunk_id=%chunk.id(), %table_name, "Considering table");
 
                 // Table is already in the returned table list, no longer needs to discover it from other chunks
@@ -365,7 +366,7 @@ impl InfluxRpcPlanner {
                 .chunks(table_name, predicate)
                 .await
                 .context(GettingChunksSnafu { table_name })?;
-            for chunk in chunks {
+            for chunk in cheap_chunk_first(chunks) {
                 // If there are delete predicates, we need to scan (or do full plan) the data to eliminate
                 // deleted data before getting tag keys
                 let mut do_full_plan = chunk.has_delete_predicates();
@@ -507,7 +508,7 @@ impl InfluxRpcPlanner {
                 .chunks(table_name, predicate)
                 .await
                 .context(GettingChunksSnafu { table_name })?;
-            for chunk in chunks {
+            for chunk in cheap_chunk_first(chunks) {
                 // If there are delete predicates, we need to scan (or do full plan) the data to eliminate
                 // deleted data before getting tag values
                 let mut do_full_plan = chunk.has_delete_predicates();
@@ -1712,6 +1713,15 @@ fn make_selector_expr<'a>(
     Ok(uda
         .call(vec![field.expr, col(TIME_COLUMN_NAME)])
         .alias(col_name))
+}
+
+/// Orders chunks so it is likely that the ones that already have cached data are pulled first.
+///
+/// We use the inverse chunk order as a heuristic here. See <https://github.com/influxdata/influxdb_iox/issues/5037> for
+/// a more advanced variant.
+fn cheap_chunk_first(mut chunks: Vec<Arc<dyn QueryChunk>>) -> Vec<Arc<dyn QueryChunk>> {
+    chunks.sort_by_key(|chunk| Reverse(chunk.order()));
+    chunks
 }
 
 #[cfg(test)]
