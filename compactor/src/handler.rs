@@ -200,7 +200,11 @@ async fn run_compactor(compactor: Arc<Compactor>, shutdown: CancellationToken) {
         for c in candidates {
             let compactor = Arc::clone(&compactor);
             let compact_and_upgrade = compactor
-                .groups_to_compact_and_files_to_upgrade(c.candidate.partition_id)
+                .groups_to_compact_and_files_to_upgrade(
+                    c.candidate.partition_id,
+                    &c.namespace.name,
+                    &c.table.name,
+                )
                 .await;
 
             match compact_and_upgrade {
