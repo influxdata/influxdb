@@ -47,5 +47,7 @@ var Migrations = [...]migration.Spec{
 	Migration0019_AddRemotesReplicationsToTokens,
 	// add_remotes_replications_metrics_buckets
 	Migration0020_Add_remotes_replications_metrics_buckets,
+	// create_dbrp_for_existing_buckets
+	Migration0021_Create_dbrp_for_existing_buckets,
 	// {{ do_not_edit . }}
 }
