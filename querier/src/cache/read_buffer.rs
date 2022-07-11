@@ -48,6 +48,7 @@ impl ReadBufferCache {
         time_provider: Arc<dyn TimeProvider>,
         metric_registry: Arc<metric::Registry>,
         ram_pool: Arc<ResourcePool<RamSize>>,
+        testing: bool,
     ) -> Self {
         let metric_registry_captured = Arc::clone(&metric_registry);
         let loader = Box::new(FunctionLoader::new(
@@ -84,6 +85,7 @@ impl ReadBufferCache {
             CACHE_ID,
             Arc::clone(&time_provider),
             &metric_registry,
+            testing,
         ));
 
         // add to memory pool
@@ -224,6 +226,7 @@ mod tests {
             catalog.time_provider(),
             catalog.metric_registry(),
             test_ram_pool(),
+            true,
         )
     }
 
@@ -340,6 +343,8 @@ mod tests {
             catalog.time_provider(),
             catalog.metric_registry(),
             ram_pool,
+            // need proper load-reload metrics down below
+            false,
         );
 
         // load 1: Fetch table1 from storage

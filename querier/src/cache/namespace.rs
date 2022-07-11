@@ -56,6 +56,7 @@ impl NamespaceCache {
         time_provider: Arc<dyn TimeProvider>,
         metric_registry: &metric::Registry,
         ram_pool: Arc<ResourcePool<RamSize>>,
+        testing: bool,
     ) -> Self {
         let loader = Box::new(FunctionLoader::new(
             move |namespace_name: Arc<str>, _extra: ()| {
@@ -88,6 +89,7 @@ impl NamespaceCache {
             CACHE_ID,
             Arc::clone(&time_provider),
             metric_registry,
+            testing,
         ));
 
         let backend = Box::new(TtlBackend::new(
@@ -208,6 +210,7 @@ mod tests {
             catalog.time_provider(),
             &catalog.metric_registry(),
             test_ram_pool(),
+            true,
         );
 
         let schema1_a = cache
@@ -329,6 +332,7 @@ mod tests {
             catalog.time_provider(),
             &catalog.metric_registry(),
             test_ram_pool(),
+            true,
         );
 
         let none = cache.schema(Arc::from(String::from("foo")), &[]).await;
@@ -357,6 +361,7 @@ mod tests {
             catalog.time_provider(),
             &catalog.metric_registry(),
             test_ram_pool(),
+            true,
         );
 
         // ========== namespace unknown ==========

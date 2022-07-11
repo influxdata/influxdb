@@ -66,7 +66,7 @@ mod tests {
         // QuerierDatabase::new returns an error if there are no sequencers in the catalog
         catalog.create_sequencer(0).await;
 
-        let catalog_cache = Arc::new(QuerierCatalogCache::new(
+        let catalog_cache = Arc::new(QuerierCatalogCache::new_testing(
             catalog.catalog(),
             catalog.time_provider(),
             catalog.metric_registry(),
@@ -101,7 +101,7 @@ mod tests {
         // QuerierDatabase::new returns an error if there are no sequencers in the catalog
         catalog.create_sequencer(0).await;
 
-        let catalog_cache = Arc::new(QuerierCatalogCache::new(
+        let catalog_cache = Arc::new(QuerierCatalogCache::new_testing(
             catalog.catalog(),
             catalog.time_provider(),
             catalog.metric_registry(),

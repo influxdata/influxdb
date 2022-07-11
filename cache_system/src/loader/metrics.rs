@@ -32,11 +32,16 @@ where
     Extra: Send + 'static,
 {
     /// Create new wrapper.
+    ///
+    /// # Testing
+    /// If `testing` is set, the "seen" metrics will NOT be processed correctly because the underlying data structure is
+    /// too expensive to create many times a second in an un-optimized debug build.
     pub fn new(
         inner: Box<dyn Loader<K = K, V = V, Extra = Extra>>,
         name: &'static str,
         time_provider: Arc<dyn TimeProvider>,
         metric_registry: &metric::Registry,
+        testing: bool,
     ) -> Self {
         let metric_calls = metric_registry.register_metric::<U64Counter>(
             "cache_load_function_calls",
@@ -52,41 +57,47 @@ where
             )
             .recorder(&[("name", name)]);
 
-        // Set up bloom filter for "probably reloaded" test:
-        //
-        // - input size: we expect 10M elements
-        // - reliability: probability of false positives should be <= 1%
-        // - CPU efficiency: number of hash functions should be <= 10
-        // - RAM efficiency: size should be <= 15MB
-        //
-        //
-        // A bloom filter was chosen here because of the following properties:
-        //
-        // - memory bound: The storage size is bound even when the set of "probably reloaded" entries approaches
-        //   infinite sizes.
-        // - memory efficiency: We do not need to store the actual keys.
-        // - infallible: Inserting new data into the filter never fails (in contrast to for example a CuckooFilter or
-        //   QuotientFilter).
-        //
-        // The fact that a filter can produce false positives (i.e. it classifies an actual new entry as "probably
-        // reloaded") is considered to be OK since the metric is more of an estimate and a guide for cache tuning. We
-        // might want to use a more efficient (i.e. more modern) filter design at one point though.
-        let seen = BloomFilter::with_properties(10_000_000, 1.0 / 100.0);
-        const BOUND_HASH_FUNCTIONS: usize = 10;
-        assert!(
-            seen.k() <= BOUND_HASH_FUNCTIONS,
-            "number of hash functions for bloom filter should be <= {} but is {}",
-            BOUND_HASH_FUNCTIONS,
-            seen.k(),
-        );
-        const BOUND_SIZE_BYTES: usize = 15_000_000;
-        let size_bytes = (seen.m() + 7) / 8;
-        assert!(
-            size_bytes <= BOUND_SIZE_BYTES,
-            "size of bloom filter should be <= {} bytes but is {} bytes",
-            BOUND_SIZE_BYTES,
-            size_bytes,
-        );
+        let seen = if testing {
+            BloomFilter::with_params(1, 1)
+        } else {
+            // Set up bloom filter for "probably reloaded" test:
+            //
+            // - input size: we expect 10M elements
+            // - reliability: probability of false positives should be <= 1%
+            // - CPU efficiency: number of hash functions should be <= 10
+            // - RAM efficiency: size should be <= 15MB
+            //
+            //
+            // A bloom filter was chosen here because of the following properties:
+            //
+            // - memory bound: The storage size is bound even when the set of "probably reloaded" entries approaches
+            //   infinite sizes.
+            // - memory efficiency: We do not need to store the actual keys.
+            // - infallible: Inserting new data into the filter never fails (in contrast to for example a CuckooFilter or
+            //   QuotientFilter).
+            //
+            // The fact that a filter can produce false positives (i.e. it classifies an actual new entry as "probably
+            // reloaded") is considered to be OK since the metric is more of an estimate and a guide for cache tuning. We
+            // might want to use a more efficient (i.e. more modern) filter design at one point though.
+            let seen = BloomFilter::with_properties(10_000_000, 1.0 / 100.0);
+            const BOUND_HASH_FUNCTIONS: usize = 10;
+            assert!(
+                seen.k() <= BOUND_HASH_FUNCTIONS,
+                "number of hash functions for bloom filter should be <= {} but is {}",
+                BOUND_HASH_FUNCTIONS,
+                seen.k(),
+            );
+            const BOUND_SIZE_BYTES: usize = 15_000_000;
+            let size_bytes = (seen.m() + 7) / 8;
+            assert!(
+                size_bytes <= BOUND_SIZE_BYTES,
+                "size of bloom filter should be <= {} bytes but is {} bytes",
+                BOUND_SIZE_BYTES,
+                size_bytes,
+            );
+
+            seen
+        };
 
         Self {
             inner,
@@ -169,7 +180,13 @@ mod tests {
             }
         }));
 
-        let loader = MetricsLoader::new(inner_loader, "my_loader", time_provider, &metric_registry);
+        let loader = MetricsLoader::new(
+            inner_loader,
+            "my_loader",
+            time_provider,
+            &metric_registry,
+            false,
+        );
 
         let mut reporter = RawReporter::default();
         metric_registry.report(&mut reporter);

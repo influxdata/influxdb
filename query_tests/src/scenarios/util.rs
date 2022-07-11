@@ -846,7 +846,7 @@ impl MockIngester {
 
         let catalog = Arc::clone(&self.catalog);
         let ns = Arc::clone(&self.ns);
-        let catalog_cache = Arc::new(QuerierCatalogCache::new(
+        let catalog_cache = Arc::new(QuerierCatalogCache::new_testing(
             self.catalog.catalog(),
             self.catalog.time_provider(),
             self.catalog.metric_registry(),

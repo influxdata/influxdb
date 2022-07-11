@@ -16,7 +16,7 @@ pub async fn querier_namespace(ns: &Arc<TestNamespace>) -> QuerierNamespace {
             .unwrap(),
     );
 
-    let catalog_cache = Arc::new(QuerierCatalogCache::new(
+    let catalog_cache = Arc::new(QuerierCatalogCache::new_testing(
         ns.catalog.catalog(),
         ns.catalog.time_provider(),
         ns.catalog.metric_registry(),

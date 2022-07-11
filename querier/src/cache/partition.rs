@@ -41,6 +41,7 @@ impl PartitionCache {
         time_provider: Arc<dyn TimeProvider>,
         metric_registry: &metric::Registry,
         ram_pool: Arc<ResourcePool<RamSize>>,
+        testing: bool,
     ) -> Self {
         let loader = Box::new(FunctionLoader::new(
             move |partition_id: PartitionId, _extra: ()| {
@@ -73,6 +74,7 @@ impl PartitionCache {
             CACHE_ID,
             Arc::clone(&time_provider),
             metric_registry,
+            testing,
         ));
 
         let backend = Box::new(HashMap::new());
@@ -180,6 +182,7 @@ mod tests {
             catalog.time_provider(),
             &catalog.metric_registry(),
             test_ram_pool(),
+            true,
         );
 
         let id1 = cache.sequencer_id(p1.id).await;
@@ -222,6 +225,7 @@ mod tests {
             catalog.time_provider(),
             &catalog.metric_registry(),
             test_ram_pool(),
+            true,
         );
 
         let sort_key1 = cache.sort_key(p1.id, &HashSet::new()).await;
@@ -270,6 +274,7 @@ mod tests {
             catalog.time_provider(),
             &catalog.metric_registry(),
             test_ram_pool(),
+            true,
         );
 
         cache.sequencer_id(p2.id).await;
@@ -302,6 +307,7 @@ mod tests {
             catalog.time_provider(),
             &catalog.metric_registry(),
             test_ram_pool(),
+            true,
         );
 
         let sort_key = cache.sort_key(p_id, &HashSet::new()).await;

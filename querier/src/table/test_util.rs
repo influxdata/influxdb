@@ -15,7 +15,7 @@ use std::sync::Arc;
 
 /// Create a [`QuerierTable`] for testing.
 pub async fn querier_table(catalog: &Arc<TestCatalog>, table: &Arc<TestTable>) -> QuerierTable {
-    let catalog_cache = Arc::new(CatalogCache::new(
+    let catalog_cache = Arc::new(CatalogCache::new_testing(
         catalog.catalog(),
         catalog.time_provider(),
         catalog.metric_registry(),

@@ -233,7 +233,7 @@ mod tests {
     async fn test_semaphore_limit_is_checked() {
         let catalog = TestCatalog::new();
 
-        let catalog_cache = Arc::new(CatalogCache::new(
+        let catalog_cache = Arc::new(CatalogCache::new_testing(
             catalog.catalog(),
             catalog.time_provider(),
             catalog.metric_registry(),
@@ -255,7 +255,7 @@ mod tests {
     async fn sequencers_in_catalog_are_required_for_startup() {
         let catalog = TestCatalog::new();
 
-        let catalog_cache = Arc::new(CatalogCache::new(
+        let catalog_cache = Arc::new(CatalogCache::new_testing(
             catalog.catalog(),
             catalog.time_provider(),
             catalog.metric_registry(),
@@ -284,7 +284,7 @@ mod tests {
         // QuerierDatabase::new returns an error if there are no sequencers in the catalog
         catalog.create_sequencer(0).await;
 
-        let catalog_cache = Arc::new(CatalogCache::new(
+        let catalog_cache = Arc::new(CatalogCache::new_testing(
             catalog.catalog(),
             catalog.time_provider(),
             catalog.metric_registry(),
@@ -313,7 +313,7 @@ mod tests {
         // QuerierDatabase::new returns an error if there are no sequencers in the catalog
         catalog.create_sequencer(0).await;
 
-        let catalog_cache = Arc::new(CatalogCache::new(
+        let catalog_cache = Arc::new(CatalogCache::new_testing(
             catalog.catalog(),
             catalog.time_provider(),
             catalog.metric_registry(),

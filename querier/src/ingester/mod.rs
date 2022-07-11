@@ -1821,7 +1821,7 @@ mod tests {
             IngesterConnectionImpl::by_sequencer_with_flight_client(
                 sequencer_to_ingesters,
                 Arc::clone(self) as _,
-                Arc::new(CatalogCache::new(
+                Arc::new(CatalogCache::new_testing(
                     self.catalog.catalog(),
                     self.catalog.time_provider(),
                     self.catalog.metric_registry(),

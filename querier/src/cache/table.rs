@@ -38,6 +38,7 @@ impl TableCache {
         time_provider: Arc<dyn TimeProvider>,
         metric_registry: &metric::Registry,
         ram_pool: Arc<ResourcePool<RamSize>>,
+        testing: bool,
     ) -> Self {
         let loader = Box::new(FunctionLoader::new(move |table_id: TableId, _extra: ()| {
             let catalog = Arc::clone(&catalog);
@@ -64,6 +65,7 @@ impl TableCache {
             CACHE_ID,
             Arc::clone(&time_provider),
             metric_registry,
+            testing,
         ));
 
         let backend = Box::new(TtlBackend::new(
@@ -160,6 +162,7 @@ mod tests {
             catalog.time_provider(),
             &catalog.metric_registry(),
             test_ram_pool(),
+            true,
         );
 
         let name1_a = cache.name(t1.id).await.unwrap();
@@ -192,6 +195,7 @@ mod tests {
             catalog.time_provider(),
             &catalog.metric_registry(),
             test_ram_pool(),
+            true,
         );
 
         let none = cache.name(TableId::new(i64::MAX)).await;
@@ -226,6 +230,7 @@ mod tests {
             catalog.time_provider(),
             &catalog.metric_registry(),
             test_ram_pool(),
+            true,
         );
 
         let id1_a = cache.namespace_id(t1.id).await.unwrap();
@@ -258,6 +263,7 @@ mod tests {
             catalog.time_provider(),
             &catalog.metric_registry(),
             test_ram_pool(),
+            true,
         );
 
         let none = cache.namespace_id(TableId::new(i64::MAX)).await;

@@ -41,6 +41,7 @@ impl ProcessedTombstonesCache {
         time_provider: Arc<dyn TimeProvider>,
         metric_registry: &metric::Registry,
         ram_pool: Arc<ResourcePool<RamSize>>,
+        testing: bool,
     ) -> Self {
         let loader = Box::new(FunctionLoader::new(
             move |(parquet_file_id, tombstone_id), _extra: ()| {
@@ -67,6 +68,7 @@ impl ProcessedTombstonesCache {
             CACHE_ID,
             Arc::clone(&time_provider),
             metric_registry,
+            testing,
         ));
 
         let backend = Box::new(HashMap::new());
@@ -158,6 +160,7 @@ mod tests {
             catalog.time_provider(),
             &catalog.metric_registry(),
             test_ram_pool(),
+            true,
         );
 
         assert!(cache.exists(file1.parquet_file.id, ts1.tombstone.id).await);

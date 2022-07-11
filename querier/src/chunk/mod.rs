@@ -463,7 +463,7 @@ pub mod tests {
         let catalog = TestCatalog::new();
 
         let adapter = ChunkAdapter::new(
-            Arc::new(CatalogCache::new(
+            Arc::new(CatalogCache::new_testing(
                 catalog.catalog(),
                 catalog.time_provider(),
                 catalog.metric_registry(),
