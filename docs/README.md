@@ -47,3 +47,4 @@ We hold monthly Tech Talks that explain the project's technical underpinnings. Y
 * [Query Engine Docs](../iox_query/README.md)
 * [Notes on the use of local filesystems](local_filesystems.md)
 * [Querier <> Ingester Query Protocol](ingester_querier_protocol.md)
+* [Underground Guide to Running IOx Locally](underground_guide.md)
