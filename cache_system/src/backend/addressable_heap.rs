@@ -9,8 +9,7 @@ use std::{
 /// Stores a value `V` together with a key `K` and an order `O`. Elements are sorted by `O` and the smallest element can
 /// be peeked/popped. At the same time elements can be addressed via `K`.
 ///
-/// Note that `K` requires [`Ord`] to implement the inner data structure as a tie breaker.
-/// structure.
+/// Note that `K` requires the inner data structure to implement [`Ord`] as a tie breaker.
 #[derive(Debug, Clone)]
 pub struct AddressableHeap<K, V, O>
 where
