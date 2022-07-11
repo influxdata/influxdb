@@ -20,6 +20,7 @@ use iox_time::{MockProvider, Time, TimeProvider};
 use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
 use object_store::{memory::InMemory, DynObjectStore};
 use observability_deps::tracing::debug;
+use once_cell::sync::Lazy;
 use parquet_file::{metadata::IoxMetadata, storage::ParquetStorage};
 use schema::{
     selection::Selection,
@@ -28,6 +29,9 @@ use schema::{
 };
 use std::sync::Arc;
 use uuid::Uuid;
+
+/// Global executor used by all test catalogs.
+static GLOBAL_EXEC: Lazy<Arc<Executor>> = Lazy::new(|| Arc::new(Executor::new(1)));
 
 /// Catalog for tests
 #[derive(Debug)]
@@ -42,12 +46,21 @@ pub struct TestCatalog {
 
 impl TestCatalog {
     /// Initialize the catalog
+    ///
+    /// All test catalogs use the same [`Executor`]. Use [`with_exec`](Self::with_exec) if you need a special or
+    /// dedicated executor.
     pub fn new() -> Arc<Self> {
+        let exec = Arc::clone(&GLOBAL_EXEC);
+
+        Self::with_exec(exec)
+    }
+
+    /// Initialize with given executor.
+    pub fn with_exec(exec: Arc<Executor>) -> Arc<Self> {
         let metric_registry = Arc::new(metric::Registry::new());
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metric_registry)));
         let object_store = Arc::new(InMemory::new());
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp(0, 0)));
-        let exec = Arc::new(Executor::new(1));
 
         Arc::new(Self {
             metric_registry,

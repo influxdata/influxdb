@@ -21,9 +21,11 @@ use ingester::{
     querier_handler::prepare_data_to_querier,
 };
 use iox_catalog::interface::get_schema_by_name;
+use iox_query::exec::{Executor, ExecutorConfig};
 use iox_tests::util::{TestCatalog, TestNamespace, TestSequencer};
 use itertools::Itertools;
 use mutable_batch_lp::LinesConverter;
+use once_cell::sync::Lazy;
 use parquet_file::storage::ParquetStorage;
 use querier::{
     IngesterConnectionImpl, IngesterFlightClient, IngesterFlightClientError,
@@ -638,10 +640,20 @@ struct MockIngester {
     sequence_counter: i64,
 }
 
+/// Query-test specific executor with static properties that may be relevant for the query optimizer and therefore may
+/// change `EXPLAIN` plans.
+static GLOBAL_EXEC: Lazy<Arc<Executor>> = Lazy::new(|| {
+    Arc::new(Executor::new_with_config(ExecutorConfig {
+        num_threads: 1,
+        target_query_partitions: 4,
+    }))
+});
+
 impl MockIngester {
     /// Create new empty ingester.
     async fn new() -> Self {
-        let catalog = TestCatalog::new();
+        let exec = Arc::clone(&GLOBAL_EXEC);
+        let catalog = TestCatalog::with_exec(exec);
         let ns = catalog.create_namespace("test_db").await;
         let sequencer = ns.create_sequencer(1).await;
 
