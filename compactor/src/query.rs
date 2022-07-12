@@ -240,7 +240,7 @@ impl QueryChunk for QueryableParquetChunk {
 
     // Order of the chunk so they can be deduplicate correctly
     fn order(&self) -> ChunkOrder {
-        let seq_num = self.min_sequence_number.get();
+        let seq_num = self.max_sequence_number.get();
         ChunkOrder::new(seq_num)
     }
 }

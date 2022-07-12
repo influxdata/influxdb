@@ -416,7 +416,7 @@ impl ChunkAdapter {
 
         let chunk_id = ChunkId::from(Uuid::from_u128(parquet_file.id.get() as _));
 
-        let order = ChunkOrder::new(parquet_file.min_sequence_number.get());
+        let order = ChunkOrder::new(parquet_file.max_sequence_number.get());
 
         let meta = Arc::new(ChunkMeta {
             parquet_file_id: parquet_file.id,
