@@ -19,7 +19,7 @@ base64 = { version = "0.13", features = ["std"] }
 bitflags = { version = "1" }
 byteorder = { version = "1", features = ["std"] }
 bytes = { version = "1", features = ["std"] }
-chrono = { version = "0.4", default-features = false, features = ["alloc", "clock", "libc", "std", "winapi"] }
+chrono = { version = "0.4", default-features = false, features = ["alloc", "clock", "libc", "serde", "std", "winapi"] }
 crossbeam-utils = { version = "0.8", features = ["lazy_static", "std"] }
 crypto-common = { version = "0.1", default-features = false, features = ["std"] }
 digest = { version = "0.10", features = ["alloc", "block-buffer", "core-api", "mac", "std", "subtle"] }
@@ -42,7 +42,7 @@ memchr = { version = "2", features = ["std"] }
 nom = { version = "7", features = ["alloc", "std"] }
 num-integer = { version = "0.1", default-features = false, features = ["i128", "std"] }
 num-traits = { version = "0.2", features = ["i128", "libm", "std"] }
-object_store = { version = "0.3", default-features = false, features = ["aws", "azure", "azure_core", "azure_storage", "azure_storage_blobs", "cloud-storage", "gcp", "hyper", "hyper-rustls", "reqwest", "rusoto_core", "rusoto_credential", "rusoto_s3"] }
+object_store = { git = "https://github.com/influxdata/object_store_rs", rev = "3c51870ac41a90942c2e45bb499a893d514ed1da", default-features = false, features = ["aws", "azure", "azure_core", "azure_storage", "azure_storage_blobs", "base64", "gcp", "hyper", "hyper-rustls", "reqwest", "rusoto_core", "rusoto_credential", "rusoto_s3", "rusoto_sts", "rustls-pemfile", "serde", "serde_json"] }
 once_cell = { version = "1", features = ["alloc", "parking_lot", "parking_lot_core", "race", "std"] }
 parquet = { version = "17", features = ["arrow", "base64", "brotli", "experimental", "flate2", "lz4", "snap", "zstd"] }
 predicates = { version = "2", features = ["diff", "difflib", "float-cmp", "normalize-line-endings", "regex"] }
@@ -52,7 +52,8 @@ rand = { version = "0.8", features = ["alloc", "getrandom", "libc", "rand_chacha
 regex = { version = "1", features = ["aho-corasick", "memchr", "perf", "perf-cache", "perf-dfa", "perf-inline", "perf-literal", "std", "unicode", "unicode-age", "unicode-bool", "unicode-case", "unicode-gencat", "unicode-perl", "unicode-script", "unicode-segment"] }
 regex-automata = { version = "0.1", features = ["regex-syntax", "std"] }
 regex-syntax = { version = "0.6", features = ["unicode", "unicode-age", "unicode-bool", "unicode-case", "unicode-gencat", "unicode-perl", "unicode-script", "unicode-segment"] }
-reqwest = { version = "0.11", default-features = false, features = ["__rustls", "__tls", "hyper-rustls", "json", "rustls", "rustls-pemfile", "rustls-tls", "rustls-tls-webpki-roots", "serde_json", "tokio-rustls", "webpki-roots"] }
+reqwest = { version = "0.11", default-features = false, features = ["__rustls", "__tls", "hyper-rustls", "json", "rustls", "rustls-pemfile", "rustls-tls", "rustls-tls-webpki-roots", "serde_json", "stream", "tokio-rustls", "tokio-util", "webpki-roots"] }
+ring = { version = "0.16", features = ["alloc", "dev_urandom_fallback", "once_cell", "std"] }
 serde = { version = "1", features = ["derive", "rc", "serde_derive", "std"] }
 serde_json = { version = "1", features = ["indexmap", "preserve_order", "raw_value", "std"] }
 sha2 = { version = "0.10", features = ["std"] }
@@ -107,6 +108,7 @@ prost-types = { version = "0.10", features = ["std"] }
 rand = { version = "0.8", features = ["alloc", "getrandom", "libc", "rand_chacha", "rand_hc", "small_rng", "std", "std_rng"] }
 regex = { version = "1", features = ["aho-corasick", "memchr", "perf", "perf-cache", "perf-dfa", "perf-inline", "perf-literal", "std", "unicode", "unicode-age", "unicode-bool", "unicode-case", "unicode-gencat", "unicode-perl", "unicode-script", "unicode-segment"] }
 regex-syntax = { version = "0.6", features = ["unicode", "unicode-age", "unicode-bool", "unicode-case", "unicode-gencat", "unicode-perl", "unicode-script", "unicode-segment"] }
+ring = { version = "0.16", features = ["alloc", "dev_urandom_fallback", "once_cell", "std"] }
 serde = { version = "1", features = ["derive", "rc", "serde_derive", "std"] }
 serde_derive = { version = "1" }
 serde_json = { version = "1", features = ["indexmap", "preserve_order", "raw_value", "std"] }
@@ -122,6 +124,7 @@ uuid = { version = "1", features = ["private_getrandom", "rng", "std", "v4"] }
 [target.x86_64-unknown-linux-gnu.dependencies]
 getrandom = { version = "0.2", default-features = false, features = ["std"] }
 hyper-rustls = { version = "0.23", default-features = false, features = ["http1", "http2", "tls12", "tokio-runtime", "webpki-roots", "webpki-tokio"] }
+tokio-util = { version = "0.7", default-features = false, features = ["io"] }
 
 [target.x86_64-unknown-linux-gnu.build-dependencies]
 getrandom = { version = "0.2", default-features = false, features = ["std"] }
@@ -129,6 +132,7 @@ getrandom = { version = "0.2", default-features = false, features = ["std"] }
 [target.x86_64-apple-darwin.dependencies]
 getrandom = { version = "0.2", default-features = false, features = ["std"] }
 hyper-rustls = { version = "0.23", default-features = false, features = ["http1", "http2", "tls12", "tokio-runtime", "webpki-roots", "webpki-tokio"] }
+tokio-util = { version = "0.7", default-features = false, features = ["io"] }
 
 [target.x86_64-apple-darwin.build-dependencies]
 getrandom = { version = "0.2", default-features = false, features = ["std"] }
@@ -136,6 +140,7 @@ getrandom = { version = "0.2", default-features = false, features = ["std"] }
 [target.aarch64-apple-darwin.dependencies]
 getrandom = { version = "0.2", default-features = false, features = ["std"] }
 hyper-rustls = { version = "0.23", default-features = false, features = ["http1", "http2", "tls12", "tokio-runtime", "webpki-roots", "webpki-tokio"] }
+tokio-util = { version = "0.7", default-features = false, features = ["io"] }
 
 [target.aarch64-apple-darwin.build-dependencies]
 getrandom = { version = "0.2", default-features = false, features = ["std"] }
@@ -145,6 +150,7 @@ getrandom = { version = "0.2", default-features = false, features = ["std"] }
 hyper-rustls = { version = "0.23", default-features = false, features = ["http1", "http2", "tls12", "tokio-runtime", "webpki-roots", "webpki-tokio"] }
 scopeguard = { version = "1", features = ["use_std"] }
 tokio = { version = "1", default-features = false, features = ["winapi"] }
+tokio-util = { version = "0.7", default-features = false, features = ["io"] }
 winapi = { version = "0.3", default-features = false, features = ["basetsd", "consoleapi", "errhandlingapi", "fileapi", "handleapi", "impl-debug", "impl-default", "knownfolders", "libloaderapi", "minwinbase", "minwindef", "mswsock", "namedpipeapi", "ntsecapi", "ntstatus", "objbase", "processenv", "shellapi", "shlobj", "std", "stringapiset", "synchapi", "timezoneapi", "winbase", "wincon", "winerror", "winnt", "winreg", "winsock2", "winuser", "ws2ipdef", "ws2tcpip", "wtypesbase"] }
 windows-sys = { version = "0.36", features = ["Win32", "Win32_Foundation", "Win32_Networking", "Win32_Networking_WinSock", "Win32_Security", "Win32_Storage", "Win32_Storage_FileSystem", "Win32_System", "Win32_System_IO", "Win32_System_LibraryLoader", "Win32_System_Pipes", "Win32_System_SystemServices", "Win32_System_WindowsProgramming"] }
 
