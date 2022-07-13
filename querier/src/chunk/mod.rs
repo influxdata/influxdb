@@ -281,30 +281,6 @@ impl QuerierChunk {
         }
     }
 
-    /// Upgrade chunks internal data structure from "parquet" to "read buffer"
-    pub async fn load_to_read_buffer(&self) {
-        let parquet_file = {
-            let stage = self.stage.read();
-
-            match &*stage {
-                ChunkStage::Parquet { parquet_chunk, .. } => {
-                    Arc::clone(parquet_chunk.parquet_file())
-                }
-                ChunkStage::ReadBuffer { .. } => {
-                    // RB already loaded
-                    return;
-                }
-            }
-        };
-
-        let rb_chunk = self
-            .catalog_cache
-            .read_buffer()
-            .get(parquet_file, Arc::clone(&self.schema), self.store.clone())
-            .await;
-        self.stage.write().load_to_read_buffer(rb_chunk);
-    }
-
     /// Set delete predicates of the given chunk.
     pub fn with_delete_predicates(self, delete_predicates: Vec<Arc<DeletePredicate>>) -> Self {
         Self {
