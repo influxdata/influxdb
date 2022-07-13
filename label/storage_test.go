@@ -221,13 +221,14 @@ func TestLabels(t *testing.T) {
 				}
 
 				if len(l) != 9 {
-					t.Fatalf("expected 2 labels, got: %d", len(l))
+					t.Fatalf("expected 9 labels, got: %d", len(l))
 				}
 			},
 		},
 	}
 
-	for _, testScenario := range tt {
+	for _, ts := range tt {
+		testScenario := ts
 		t.Run(testScenario.name, func(t *testing.T) {
 			t.Parallel()
 
