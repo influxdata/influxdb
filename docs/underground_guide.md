@@ -169,24 +169,5 @@ posting fairly large requests (necessitating the
 
 
 # Step 6: Profile
-You can profile using https://github.com/google/pprof
 
-## Capture and view "live"
-
-Aim `pprof` tool at http port.
-
-For example look at the router:
-```shell
-go tool pprof -http=localhost:6060 'http://localhost:8080/debug/pprof/profile?seconds=30'
-```
-
-## Capture to a file and view afterwards
-
-You can also capture to a file and then view with pprof afterwards
-
-```shell
-# write data to profile.proto
-curl 'http://localhost:8080/debug/pprof/profile?seconds=30' -o profile.proto
-# view with pprof tool
-go tool pprof -http=localhost:6060 profile.proto
-```
+See [`profiling.md`](./profiling.md).
