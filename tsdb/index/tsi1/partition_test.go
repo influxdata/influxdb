@@ -1,6 +1,7 @@
 package tsi1_test
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -61,7 +62,7 @@ func TestPartition_Open(t *testing.T) {
 			// Opening this index should return an error because the MANIFEST has an
 			// incompatible version.
 			err = p.Open()
-			if err != tsi1.ErrIncompatibleVersion {
+			if !errors.Is(err, tsi1.ErrIncompatibleVersion) {
 				p.Close()
 				t.Fatalf("got error %v, expected %v", err, tsi1.ErrIncompatibleVersion)
 			}
