@@ -31,18 +31,19 @@ jobs:
             # Start either with the exact right cache, or completely fresh.
             - influxdb-cache-v1-{{ checksum "go.mod" }}
       - run:
+          name: Get InfluxDB Version
+          command: |
+            PREFIX=1.x .circleci/scripts/get-version
+      - run:
           name: Build source tarball
           command: |
             set -x
-
-            INFLUXDB_COMMIT=$(git rev-parse --short HEAD)
-            INFLUXDB_VERSION=$(releng/get-version -p 1.x)
 
             printf '{
                 "version": "%s",
                 "branch": "%s",
                 "sha": "%s"
-            }' "${INFLUXDB_VERSION}" "${CIRCLE_BRANCH}" "${INFLUXDB_COMMIT}" >"$(pwd)/.metadata.json"
+            }' "${VERSION}" "${CIRCLE_BRANCH}" "${CIRCLE_SHA1}" >"$(pwd)/.metadata.json"
 
             #
             # Prebuild the man pages so that consumers of the source tarball don't have to build it themselves.
@@ -74,9 +75,6 @@ jobs:
             export CC=/usr/local/bin/xcc.sh
             export CGO_ENABLED=1
 
-            INFLUXDB_COMMIT=$(git rev-parse --short HEAD)
-            INFLUXDB_VERSION=$(releng/get-version)
-
             # linux amd64 (static build)
             TMPOUTDIR=$(mktemp -d)
             export GOOS=linux
@@ -87,9 +85,9 @@ jobs:
                 -o "${TMPOUTDIR}/$(basename $cmd)" \
                 -tags "netgo osusergo static_build" \
                 -ldflags="-s
-                  -X main.version=${INFLUXDB_VERSION}
-                  -X main.branch=${CIRCLE_BRANCH}
-                  -X main.commit=${INFLUXDB_COMMIT}
+                  -X \"main.version=${VERSION}\"
+                  -X \"main.branch=${CIRCLE_BRANCH}\"
+                  -X \"main.commit=${CIRCLE_SHA1}\"
                   -extldflags \"-fno-PIC -Wl,-z,stack-size=8388608\"" \
                 ${cmd}
             done
@@ -109,6 +107,9 @@ jobs:
             - /root/.cargo
             - /root/.cache/go-build
   build_packages:
+    parameters:
+      build_type:
+        type: string
     machine:
       enabled: true
       docker_layer_caching: true
@@ -262,12 +263,48 @@ jobs:
           from: changelog_artifacts/CHANGELOG.md
           to: s3://dl.influxdata.com/platform/nightlies/<< pipeline.git.branch >>/CHANGELOG.md
 
+release_filter: &release_filter
+  filters:
+    tags:
+      # This regex matches what is found in 'scripts/get-version' with the
+      # '[[:digit:]]' transformed into '\d'. This also excludes release
+      # candidate detection, because this filter only matches against
+      # full releases.
+      only: /^v(\d+)(?:\.(\d+))?(?:\.(\d+))?$/
+    branches:
+      ignore: /.*/
+
 workflows:
   version: 2.1
+  release:
+    jobs:
+      - build_binaries:
+          <<: *release_filter
+      - build_packages:
+          <<: *release_filter
+          build_type: release
+          requires:
+            - build_binaries
+      - test_pkgs_64bit:
+          <<: *release_filter
+          requires:
+            - build_packages
+      - static_code_checks:
+          <<: *release_filter
+      - fluxtest:
+          <<: *release_filter
+      - unit_test:
+          <<: *release_filter
+      - unit_test_tsi:
+          <<: *release_filter
+      - unit_test_race:
+          <<: *release_filter
+
   on_push:
     jobs:
       - build_binaries
       - build_packages:
+          build_type: snapshot
           requires:
             - build_binaries
       - test_pkgs_64bit:
