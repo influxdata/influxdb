@@ -309,8 +309,22 @@ jobs:
                 ;;
             esac
 
+  s3-publish-packages:
+    docker:
+      - image: ubuntu:latest
+    steps:
+      - attach_workspace:
+          at: /tmp/workspace
+      - checkout
+      - run:
+          name: Publish Packages to S3
+          command: |
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update
+            apt-get install -y awscli
 
-# << pipeline.git.tag >>
+            aws s3 sync /tmp/workspace/packages "s3://dl.influxdata.com/influxdb/releases"
+
 release_filter: &release_filter
   filters:
     tags:
@@ -347,6 +361,10 @@ workflows:
           build_type: release
           requires:
             - changelog
+      - s3-publish-packages:
+          <<: *release_filter
+          requires:
+            - sign_packages
       - static_code_checks:
           <<: *release_filter
       - fluxtest:
