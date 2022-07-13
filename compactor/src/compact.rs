@@ -1512,7 +1512,7 @@ mod tests {
             .unwrap()
             .get_observer(&Attributes::from(&[
                 ("sequencer_id", "1"),
-                ("compaction_level", "2"),
+                ("compaction_level", "1"),
             ]))
             .unwrap()
             .fetch();

@@ -33,16 +33,13 @@ use std::{
 use uuid::Uuid;
 
 /// Compaction levels
-#[allow(non_camel_case_types)]
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Hash, sqlx::Type)]
 #[repr(i16)]
 pub enum CompactionLevel {
     /// The starting compaction level for parquet files persisted by an Ingester is zero.
     Initial = 0,
-    /// Level of files persisted by a Compactor that overlapped with other level-1 files
-    FileOverlapped = 1,
-    /// Level of files persisted by a Compactor that do not over lap with non-level-0 files
-    FileNonOverlapped = 2,
+    /// Level of files persisted by a Compactor that do not overlap with non-level-0 files.
+    FileNonOverlapped = 1,
 }
 
 impl TryFrom<i32> for CompactionLevel {
@@ -51,7 +48,6 @@ impl TryFrom<i32> for CompactionLevel {
     fn try_from(value: i32) -> Result<Self, Self::Error> {
         match value {
             x if x == Self::Initial as i32 => Ok(Self::Initial),
-            x if x == Self::FileOverlapped as i32 => Ok(Self::FileOverlapped),
             x if x == Self::FileNonOverlapped as i32 => Ok(Self::FileNonOverlapped),
             _ => Err("invalid compaction level value".into()),
         }
