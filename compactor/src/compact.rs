@@ -1157,11 +1157,7 @@ mod tests {
 
         // ------------------------------------------------
         // Compact
-        let split_percentage = 90;
-        let max_concurrent_compaction_size_bytes = 100000;
-        let compaction_max_size_bytes = 100000;
-        let compaction_max_file_count = 10;
-        let compaction_max_desired_file_size_bytes = 30000;
+        let config = make_compactor_config();
         let compactor = Compactor::new(
             vec![sequencer.sequencer.id],
             Arc::clone(&catalog.catalog),
@@ -1169,13 +1165,7 @@ mod tests {
             Arc::new(Executor::new(1)),
             Arc::new(SystemProvider::new()),
             BackoffConfig::default(),
-            CompactorConfig::new(
-                split_percentage,
-                max_concurrent_compaction_size_bytes,
-                compaction_max_size_bytes,
-                compaction_max_file_count,
-                compaction_max_desired_file_size_bytes,
-            ),
+            config,
             Arc::new(metric::Registry::new()),
         );
 
@@ -1296,11 +1286,7 @@ mod tests {
             .create_partition("part")
             .await;
         let time = Arc::new(SystemProvider::new());
-        let split_percentage = 90;
-        let max_concurrent_compaction_size_bytes = 100000;
-        let compaction_max_size_bytes = 100000;
-        let compaction_max_file_count = 10;
-        let compaction_max_desired_file_size_bytes = 30000;
+        let config = make_compactor_config();
         let compactor = Compactor::new(
             vec![sequencer.sequencer.id],
             Arc::clone(&catalog.catalog),
@@ -1308,13 +1294,7 @@ mod tests {
             Arc::new(Executor::new(1)),
             Arc::new(SystemProvider::new()),
             BackoffConfig::default(),
-            CompactorConfig::new(
-                split_percentage,
-                max_concurrent_compaction_size_bytes,
-                compaction_max_size_bytes,
-                compaction_max_file_count,
-                compaction_max_desired_file_size_bytes,
-            ),
+            config,
             Arc::new(metric::Registry::new()),
         );
 
@@ -1329,7 +1309,7 @@ mod tests {
                 1,
                 10,
                 20,
-                compactor.config.compaction_max_size_bytes() + 10,
+                config.compaction_max_desired_file_size_bytes() + 10,
                 20,
             )
             .await;
@@ -1498,11 +1478,7 @@ mod tests {
             .await
             .parquet_file;
 
-        let split_percentage = 90;
-        let max_concurrent_compaction_size_bytes = 100000;
-        let compaction_max_size_bytes = 100000;
-        let compaction_max_file_count = 10;
-        let compaction_max_desired_file_size_bytes = 30000;
+        let config = make_compactor_config();
         let compactor = Compactor::new(
             vec![sequencer.sequencer.id],
             Arc::clone(&catalog.catalog),
@@ -1510,13 +1486,7 @@ mod tests {
             Arc::new(Executor::new(1)),
             Arc::new(SystemProvider::new()),
             BackoffConfig::default(),
-            CompactorConfig::new(
-                split_percentage,
-                max_concurrent_compaction_size_bytes,
-                compaction_max_size_bytes,
-                compaction_max_file_count,
-                compaction_max_desired_file_size_bytes,
-            ),
+            config,
             Arc::new(metric::Registry::new()),
         );
 
@@ -1593,11 +1563,7 @@ mod tests {
             .await
             .parquet_file;
 
-        let split_percentage = 90;
-        let max_concurrent_compaction_size_bytes = 100000;
-        let compaction_max_size_bytes = 100000;
-        let compaction_max_file_count = 10;
-        let compaction_max_desired_file_size_bytes = 30000;
+        let config = make_compactor_config();
         let compactor = Compactor::new(
             vec![sequencer.sequencer.id],
             Arc::clone(&catalog.catalog),
@@ -1605,13 +1571,7 @@ mod tests {
             Arc::new(Executor::new(1)),
             Arc::new(SystemProvider::new()),
             BackoffConfig::default(),
-            CompactorConfig::new(
-                split_percentage,
-                max_concurrent_compaction_size_bytes,
-                compaction_max_size_bytes,
-                compaction_max_file_count,
-                compaction_max_desired_file_size_bytes,
-            ),
+            config,
             Arc::new(metric::Registry::new()),
         );
 
@@ -1724,11 +1684,7 @@ mod tests {
             .await
             .parquet_file;
 
-        let split_percentage = 90;
-        let max_concurrent_compaction_size_bytes = 100000;
-        let compaction_max_size_bytes = 100000;
-        let compaction_max_file_count = 10;
-        let compaction_max_desired_file_size_bytes = 30000;
+        let config = make_compactor_config();
         let compactor = Compactor::new(
             vec![sequencer.sequencer.id],
             Arc::clone(&catalog.catalog),
@@ -1736,13 +1692,7 @@ mod tests {
             Arc::new(Executor::new(1)),
             Arc::new(SystemProvider::new()),
             BackoffConfig::default(),
-            CompactorConfig::new(
-                split_percentage,
-                max_concurrent_compaction_size_bytes,
-                compaction_max_size_bytes,
-                compaction_max_file_count,
-                compaction_max_desired_file_size_bytes,
-            ),
+            config,
             Arc::new(metric::Registry::new()),
         );
 
@@ -1941,11 +1891,7 @@ mod tests {
     async fn test_add_parquet_file_with_tombstones() {
         let catalog = TestCatalog::new();
 
-        let split_percentage = 90;
-        let max_concurrent_compaction_size_bytes = 100000;
-        let compaction_max_size_bytes = 100000;
-        let compaction_max_file_count = 10;
-        let compaction_max_desired_file_size_bytes = 30000;
+        let config = make_compactor_config();
         let compactor = Compactor::new(
             vec![],
             Arc::clone(&catalog.catalog),
@@ -1953,13 +1899,7 @@ mod tests {
             Arc::new(Executor::new(1)),
             Arc::new(SystemProvider::new()),
             BackoffConfig::default(),
-            CompactorConfig::new(
-                split_percentage,
-                max_concurrent_compaction_size_bytes,
-                compaction_max_size_bytes,
-                compaction_max_file_count,
-                compaction_max_desired_file_size_bytes,
-            ),
+            config,
             Arc::new(metric::Registry::new()),
         );
 
@@ -2279,11 +2219,7 @@ mod tests {
             .unwrap();
         txn.commit().await.unwrap();
 
-        let split_percentage = 90;
-        let max_concurrent_compaction_size_bytes = 100000;
-        let compaction_max_size_bytes = 100000;
-        let compaction_max_file_count = 10;
-        let compaction_max_desired_file_size_bytes = 30000;
+        let config = make_compactor_config();
         let compactor = Compactor::new(
             vec![sequencer.id],
             Arc::clone(&catalog.catalog),
@@ -2291,13 +2227,7 @@ mod tests {
             Arc::new(Executor::new(1)),
             Arc::new(SystemProvider::new()),
             BackoffConfig::default(),
-            CompactorConfig::new(
-                split_percentage,
-                max_concurrent_compaction_size_bytes,
-                compaction_max_size_bytes,
-                compaction_max_file_count,
-                compaction_max_desired_file_size_bytes,
-            ),
+            config,
             Arc::new(metric::Registry::new()),
         );
 
@@ -2372,11 +2302,7 @@ mod tests {
             .await
             .parquet_file;
 
-        let split_percentage = 90;
-        let max_concurrent_compaction_size_bytes = 100000;
-        let compaction_max_size_bytes = 100000;
-        let compaction_max_file_count = 10;
-        let compaction_max_desired_file_size_bytes = 30000;
+        let config = make_compactor_config();
         let compactor = Compactor::new(
             vec![sequencer.sequencer.id],
             Arc::clone(&catalog.catalog),
@@ -2384,13 +2310,7 @@ mod tests {
             Arc::new(Executor::new(1)),
             Arc::new(SystemProvider::new()),
             BackoffConfig::default(),
-            CompactorConfig::new(
-                split_percentage,
-                max_concurrent_compaction_size_bytes,
-                compaction_max_size_bytes,
-                compaction_max_file_count,
-                compaction_max_desired_file_size_bytes,
-            ),
+            config,
             Arc::new(metric::Registry::new()),
         );
 
@@ -2451,5 +2371,20 @@ mod tests {
         datafusion::physical_plan::common::collect(rx)
             .await
             .unwrap()
+    }
+
+    fn make_compactor_config() -> CompactorConfig {
+        let compaction_max_number_level_0_files = 3;
+        let compaction_max_desired_file_size_bytes = 10_000;
+        let compaction_percentage_max_file_size = 30;
+        let compaction_split_percentage = 80;
+        let max_concurrent_compaction_size_bytes = 100_000;
+        CompactorConfig::new(
+            compaction_max_number_level_0_files,
+            compaction_max_desired_file_size_bytes,
+            compaction_percentage_max_file_size,
+            compaction_split_percentage,
+            max_concurrent_compaction_size_bytes,
+        )
     }
 }

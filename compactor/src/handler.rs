@@ -99,49 +99,74 @@ impl CompactorHandlerImpl {
 /// The configuration options for the compactor.
 #[derive(Debug, Clone, Copy)]
 pub struct CompactorConfig {
-    /// Percentage of least recent data we want to split to reduce compacting non-overlapped data
-    /// Must be between 0 and 100.
-    split_percentage: i64,
+    /// Max number of level-0 files (written by ingester) we want to compact with level-1 each time
+    compaction_max_number_level_0_files: i32,
+
+    /// Desired max size of compacted parquet files
+    /// It is a target desired value than a guarantee
+    compaction_max_desired_file_size_bytes: i64,
+
+    /// Percentage of desired max file size.
+    /// If the estimated compacted result is too small, no need to split it.
+    /// This percentage is to determine how small it is:
+    ///    < compaction_percentage_max_file_size * compaction_max_desired_file_size_bytes:
+    /// This value must be between (0, 100)
+    compaction_percentage_max_file_size: i16,
+
+    /// Split file percentage
+    /// If the estimated compacted result is neither too small nor too large, it will be split
+    /// into 2 files determined by this percentage.
+    ///    . Too small means: < compaction_percentage_max_file_size * compaction_max_desired_file_size_bytes
+    ///    . Too large means: > compaction_max_desired_file_size_bytes
+    ///    . Any size in the middle will be considered neither too small nor too large
+    /// This value must be between (0, 100)
+    compaction_split_percentage: i16,
+
     /// The compactor will limit the number of simultaneous compaction jobs based on the
-    /// size of the input files to be compacted. Currently this only takes into account the
-    /// level 0 and 1 files, but should later also consider the level 2 files to be compacted. This
-    /// number should be less than 1/10th of the available memory to ensure compactions have
+    /// size of the input files to be compacted.  This number should be less than 1/10th
+    /// of the available memory to ensure compactions have
     /// enough space to run.
     max_concurrent_compaction_size_bytes: i64,
-    /// The compactor will compact overlapped files but if the total size of the files
-    /// exceeds this value, the content of each files will be split in the current compaction cycle
-    /// so in the next cycle, they will be small enough to get compacted
-    compaction_max_size_bytes: i64,
-    /// Limit the number of files to compact into one file
-    compaction_max_file_count: i64, // TODO: remove this value
-    /// If the compacted result is larger than this value, it will be persisted into
-    /// many files, each is estimated smaller than this value
-    compaction_max_desired_file_size_bytes: i64,
 }
 
 impl CompactorConfig {
     /// Initialize a valid config
     pub fn new(
-        split_percentage: i64,
-        max_concurrent_compaction_size_bytes: i64,
-        compaction_max_size_bytes: i64,
-        compaction_max_file_count: i64,
+        compaction_max_number_level_0_files: i32,
         compaction_max_desired_file_size_bytes: i64,
+        compaction_percentage_max_file_size: i16,
+        compaction_split_percentage: i16,
+        max_concurrent_compaction_size_bytes: i64,
     ) -> Self {
-        assert!(split_percentage > 0 && split_percentage <= 100);
+        assert!(compaction_split_percentage > 0 && compaction_split_percentage <= 100);
 
         Self {
-            split_percentage,
-            max_concurrent_compaction_size_bytes,
-            compaction_max_size_bytes,
-            compaction_max_file_count,
+            compaction_max_number_level_0_files,
             compaction_max_desired_file_size_bytes,
+            compaction_percentage_max_file_size,
+            compaction_split_percentage,
+            max_concurrent_compaction_size_bytes,
         }
     }
 
+    /// Max number of level-0 files we want to compact with level-1 each time
+    pub fn compaction_max_number_level_0_files(&self) -> i32 {
+        self.compaction_max_number_level_0_files
+    }
+
+    /// Desired max file of a compacted file
+    pub fn compaction_max_desired_file_size_bytes(&self) -> i64 {
+        self.compaction_max_desired_file_size_bytes
+    }
+
+    /// Percentage of desired max file size to determine a size is too small
+    pub fn compaction_percentage_max_file_size(&self) -> i16 {
+        self.compaction_percentage_max_file_size
+    }
+
     /// Percentage of least recent data we want to split to reduce compacting non-overlapped data
-    pub fn split_percentage(&self) -> i64 {
-        self.split_percentage
+    pub fn compaction_split_percentage(&self) -> i16 {
+        self.compaction_split_percentage
     }
 
     /// The compactor will limit the number of simultaneous compaction jobs based on the
@@ -151,23 +176,6 @@ impl CompactorConfig {
     /// enough space to run.
     pub fn max_concurrent_compaction_size_bytes(&self) -> i64 {
         self.max_concurrent_compaction_size_bytes
-    }
-
-    /// The compactor will compact overlapped files no matter how much large they are.
-    /// For non-overlapped and contiguous files, compactor will also compact them into
-    /// a larger file of max size defined by this config value.
-    pub fn compaction_max_size_bytes(&self) -> i64 {
-        self.compaction_max_size_bytes
-    }
-
-    /// Max number of files to compact at a time
-    pub fn compaction_max_file_count(&self) -> i64 {
-        self.compaction_max_file_count
-    }
-
-    /// max desired persisted file size by the compactor (estimate)
-    pub fn compaction_max_desired_file_size_bytes(&self) -> i64 {
-        self.compaction_max_desired_file_size_bytes
     }
 }
 
