@@ -99,11 +99,12 @@ impl WriteAggregator {
     /// Check if we can push the given write to this aggregator (mostly if the schemas match).
     fn can_push(&self, write: &DmlWrite) -> bool {
         assert_eq!(write.namespace(), self.namespace);
-
-        // Only batch together writes for the same partition.
-        if write.partition_key() != Some(&self.partition_key) {
-            return false;
-        }
+        assert_eq!(
+            write
+                .partition_key()
+                .expect("enqueuing unpartitioned write into kafka"),
+            &self.partition_key
+        );
 
         for (table, batch) in write.tables() {
             if let Some(existing) = self.tables.get(table) {
@@ -127,6 +128,12 @@ impl WriteAggregator {
     /// The caller MUST call [`can_push`](Self::can_push) beforehand to check if the schemas match.
     fn push(&mut self, write: DmlWrite) {
         assert_eq!(write.namespace(), self.namespace);
+        assert_eq!(
+            write
+                .partition_key()
+                .expect("enqueuing unpartitioned write into kafka"),
+            &self.partition_key
+        );
 
         Self::record_span(
             &mut self.span_recorder,
@@ -181,8 +188,8 @@ struct DmlAggregatorState {
     /// Completed (i.e. aggregated or flushed) operations in correct order.
     completed_ops: Vec<(Record, Metadata)>,
 
-    /// Current writes per namespace.
-    current_writes: HashMap<String, (WriteAggregator, Record, Metadata)>,
+    /// Current writes per namespace and partition.
+    current_writes: HashMap<String, HashMap<PartitionKey, (WriteAggregator, Record, Metadata)>>,
 
     /// Maps tags to record.
     tag_to_record: Vec<usize>,
@@ -198,8 +205,17 @@ impl DmlAggregatorState {
             + self
                 .current_writes
                 .values()
+                .flat_map(|writes| writes.values())
                 .map(|(_agg, record, _md)| record.approximate_size())
                 .sum::<usize>()
+    }
+
+    /// Number of active aggregators.
+    fn n_aggregators(&self) -> usize {
+        self.current_writes
+            .values()
+            .map(|writes| writes.len())
+            .sum::<usize>()
     }
 
     /// Reserve so it can be used with [`push_op`](Self::push_op).
@@ -230,10 +246,12 @@ impl DmlAggregatorState {
     ///
     /// This is a no-op if no active write exists.
     fn flush_write(&mut self, namespace: &str) {
-        if let Some((agg, record, md)) = self.current_writes.remove(namespace) {
-            let tag = agg.tag;
-            agg.finalize_span();
-            self.push_op(record, md, tag);
+        if let Some(writes) = self.current_writes.remove(namespace) {
+            for (agg, record, md) in writes.into_values() {
+                let tag = agg.tag;
+                agg.finalize_span();
+                self.push_op(record, md, tag);
+            }
         }
     }
 
@@ -242,10 +260,12 @@ impl DmlAggregatorState {
         let mut writes: Vec<_> = self.current_writes.drain().collect();
         writes.sort_by_key(|(k, _v)| k.clone());
 
-        for (_k, (agg, record, md)) in writes {
-            let tag = agg.tag;
-            agg.finalize_span();
-            self.push_op(record, md, tag);
+        for (_namespace_name, writes) in writes {
+            for (_partition_key, (agg, record, md)) in writes {
+                let tag = agg.tag;
+                agg.finalize_span();
+                self.push_op(record, md, tag);
+            }
         }
     }
 }
@@ -318,10 +338,17 @@ impl Aggregator for DmlAggregator {
 
         match op {
             DmlOperation::Write(write) => {
+                let partition_key = write
+                    .partition_key()
+                    .cloned()
+                    .expect("enqueuing unpartitioned write into kafka");
+
                 let tag = match self
                     .state
                     .current_writes
                     .entry(write.namespace().to_string())
+                    .or_default()
+                    .entry(partition_key)
                 {
                     Entry::Occupied(mut o) => {
                         // Open write aggregator => check if we can push to it.
@@ -402,7 +429,7 @@ impl Aggregator for DmlAggregator {
         let completed_tags = self.state.tag_to_record.len() - remaining_tags;
         let completed_ops = self.state.completed_ops.len();
 
-        let remaining_aggregators = self.state.current_writes.len();
+        let remaining_aggregators = self.state.n_aggregators();
         assert_eq!(remaining_tags, remaining_aggregators, "missing aggregators");
         assert_eq!(
             completed_ops, completed_tags,
@@ -412,7 +439,7 @@ impl Aggregator for DmlAggregator {
         let mut state = std::mem::take(&mut self.state);
         state.flush_writes();
 
-        assert_eq!(self.state.current_writes.len(), 0, "incomplete flush");
+        assert_eq!(self.state.n_aggregators(), 0, "incomplete flush");
         assert_eq!(
             self.state.completed_ops.len(),
             self.state.tag_to_record.len(),

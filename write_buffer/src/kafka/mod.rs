@@ -770,7 +770,7 @@ mod tests {
 
         let sequencer_id = set_pop_first(&mut producer.sequencer_ids()).unwrap();
 
-        let (w1, w2, w3) = tokio::join!(
+        let (w1, w2, w3, w4) = tokio::join!(
             // These two ops have the same partition key, and therefore can be
             // merged together.
             write("ns1", &producer, &trace_collector, sequencer_id, "bananas"),
@@ -778,11 +778,14 @@ mod tests {
             // However this op has a different partition_key and cannot be
             // merged with the others.
             write("ns1", &producer, &trace_collector, sequencer_id, "platanos"),
+            // this operation can still go into the first write, no need to start yet another one
+            write("ns1", &producer, &trace_collector, sequencer_id, "bananas"),
         );
 
-        // Assert ops 1 and 2 were merged, by asserting they have the same
+        // Assert ops 1+2+4 were merged, by asserting they have the same
         // sequence number.
         assert_eq!(w1.sequence().unwrap(), w2.sequence().unwrap());
+        assert_eq!(w1.sequence().unwrap(), w4.sequence().unwrap());
 
         // And assert the third op was not merged because of the differing
         // partition key.
