@@ -19,9 +19,15 @@ use futures::Stream;
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Snafu)]
 pub enum Error {
-    #[snafu(display("Internal error creating SchemaAdapterStream: field '{}' does not appear in the output schema",
-                    field_name,))]
-    InternalLostInputField { field_name: String },
+    #[snafu(display(
+        "Internal error creating SchemaAdapterStream: field '{}' does not appear in the output schema, known fields are: {:?}",
+        field_name,
+        known_fields,
+    ))]
+    InternalLostInputField {
+        field_name: String,
+        known_fields: Vec<String>,
+    },
 
     #[snafu(display("Internal error creating SchemaAdapterStream: input field '{}' had type '{:?}' which is different than output field '{}' which had type '{:?}'",
                     input_field_name, input_field_type, output_field_name, output_field_type,))]
@@ -139,6 +145,11 @@ impl SchemaAdapterStream {
             {
                 return InternalLostInputFieldSnafu {
                     field_name: input_field.name(),
+                    known_fields: output_schema
+                        .fields()
+                        .iter()
+                        .map(|f| f.name().clone())
+                        .collect::<Vec<String>>(),
                 }
                 .fail();
             }

@@ -3,8 +3,8 @@ use super::DbScenario;
 use async_trait::async_trait;
 use backoff::BackoffConfig;
 use data_types::{
-    DeletePredicate, IngesterMapping, KafkaPartition, NonEmptyString, PartitionId, PartitionKey,
-    Sequence, SequenceNumber, SequencerId, TombstoneId,
+    DeletePredicate, IngesterMapping, KafkaPartition, NonEmptyString, ParquetFileId, PartitionId,
+    PartitionKey, Sequence, SequenceNumber, SequencerId, TombstoneId,
 };
 use dml::{DmlDelete, DmlMeta, DmlOperation, DmlWrite};
 use futures::StreamExt;
@@ -29,13 +29,13 @@ use once_cell::sync::Lazy;
 use parquet_file::storage::ParquetStorage;
 use querier::{
     IngesterConnectionImpl, IngesterFlightClient, IngesterFlightClientError,
-    IngesterFlightClientQueryData, QuerierCatalogCache, QuerierNamespace,
+    IngesterFlightClientQueryData, QuerierCatalogCache, QuerierChunkLoadSetting, QuerierNamespace,
 };
 use schema::selection::Selection;
 use sharder::JumpHash;
 use std::{
     cmp::Ordering,
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, HashSet},
     fmt::Display,
     fmt::Write,
     sync::Arc,
@@ -101,6 +101,12 @@ pub enum ChunkStage {
     /// In parquet file, persisted by the ingester. Now managed by the querier.
     Parquet,
 
+    /// In parquet file, persisted by the ingester. Loaded into memory by querier.
+    ReadBuffer,
+
+    /// In parquet file, persisted by the ingester. Loaded from file into memory by querier on-demand.
+    OnDemand,
+
     /// In ingester.
     Ingester,
 }
@@ -109,6 +115,8 @@ impl Display for ChunkStage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Parquet => write!(f, "Parquet"),
+            Self::ReadBuffer => write!(f, "ReadBuffer"),
+            Self::OnDemand => write!(f, "OnDemand"),
             Self::Ingester => write!(f, "Ingester"),
         }
     }
@@ -119,12 +127,19 @@ impl PartialOrd for ChunkStage {
         match (self, other) {
             // allow multiple parquet chunks (for the same partition). sequence numbers will be
             // used for ordering.
-            (Self::Parquet, Self::Parquet) => Some(Ordering::Equal),
+            (
+                Self::Parquet | Self::ReadBuffer | Self::OnDemand,
+                Self::Parquet | Self::ReadBuffer | Self::OnDemand,
+            ) => Some(Ordering::Equal),
 
             // "parquet" chunks are older (i.e. come earlier) than chunks that still life in the
             // ingester
-            (Self::Parquet, Self::Ingester) => Some(Ordering::Less),
-            (Self::Ingester, Self::Parquet) => Some(Ordering::Greater),
+            (Self::Parquet | Self::ReadBuffer | Self::OnDemand, Self::Ingester) => {
+                Some(Ordering::Less)
+            }
+            (Self::Ingester, Self::Parquet | Self::ReadBuffer | Self::OnDemand) => {
+                Some(Ordering::Greater)
+            }
 
             // it's impossible for two chunks (for the same partition) to be in the ingester stage
             (Self::Ingester, Self::Ingester) => None,
@@ -135,7 +150,12 @@ impl PartialOrd for ChunkStage {
 impl ChunkStage {
     /// return the list of all chunk types
     pub fn all() -> Vec<Self> {
-        vec![Self::Parquet, Self::Ingester]
+        vec![
+            Self::Parquet,
+            Self::ReadBuffer,
+            Self::OnDemand,
+            Self::Ingester,
+        ]
     }
 }
 
@@ -208,7 +228,7 @@ impl DeleteTime {
     /// Return all DeleteTime at and after the given chunk stage
     pub fn all_from_and_before(chunk_stage: ChunkStage) -> Vec<DeleteTime> {
         match chunk_stage {
-            ChunkStage::Parquet => vec![
+            ChunkStage::Parquet | ChunkStage::ReadBuffer | ChunkStage::OnDemand => vec![
                 Self::Ingester {
                     also_in_catalog: true,
                 },
@@ -249,7 +269,7 @@ impl DeleteTime {
             ChunkStage::Ingester => Self::Ingester {
                 also_in_catalog: true,
             },
-            ChunkStage::Parquet => Self::Parquet,
+            ChunkStage::Parquet | ChunkStage::ReadBuffer | ChunkStage::OnDemand => Self::Parquet,
         }
     }
 }
@@ -489,7 +509,7 @@ async fn make_chunk(mock_ingester: &mut MockIngester, chunk: ChunkData<'_, '_>) 
                 }
             }
         }
-        ChunkStage::Parquet => {
+        ChunkStage::Parquet | ChunkStage::ReadBuffer | ChunkStage::OnDemand => {
             // process write
             let (op, partition_ids) = mock_ingester
                 .simulate_write_routing(&chunk.lp_lines, chunk.partition_key)
@@ -534,7 +554,18 @@ async fn make_chunk(mock_ingester: &mut MockIngester, chunk: ChunkData<'_, '_>) 
                 }
             }
 
-            mock_ingester.persist(&partition_ids).await;
+            let parquet_files = mock_ingester.persist(&partition_ids).await;
+
+            // set up load setting for querier
+            for id in parquet_files {
+                let load_setting = match chunk_stage {
+                    ChunkStage::Parquet => QuerierChunkLoadSetting::ParquetOnly,
+                    ChunkStage::ReadBuffer => QuerierChunkLoadSetting::ReadBufferOnly,
+                    ChunkStage::OnDemand => QuerierChunkLoadSetting::OnDemand,
+                    ChunkStage::Ingester => unreachable!("ingester chunks should not end up here"),
+                };
+                mock_ingester.register_load_setting(id, load_setting);
+            }
 
             // model post-persist delete predicates
             if let Some(delete_table_name) = chunk.delete_table_name {
@@ -638,6 +669,9 @@ struct MockIngester {
     ///
     /// This is kinda a poor-mans write buffer.
     sequence_counter: i64,
+
+    /// Load settings for to-be-created querier.
+    querier_load_settings: HashMap<ParquetFileId, QuerierChunkLoadSetting>,
 }
 
 /// Query-test specific executor with static properties that may be relevant for the query optimizer and therefore may
@@ -679,6 +713,7 @@ impl MockIngester {
             partition_keys: Default::default(),
             ingester_data,
             sequence_counter: 0,
+            querier_load_settings: Default::default(),
         }
     }
 
@@ -704,10 +739,44 @@ impl MockIngester {
     }
 
     /// Persists the given set of partitions.
-    async fn persist(&mut self, partition_ids: &[PartitionId]) {
+    ///
+    /// Returns newly created parquet file IDs.
+    async fn persist(&mut self, partition_ids: &[PartitionId]) -> Vec<ParquetFileId> {
+        let mut result = vec![];
+
         for partition_id in partition_ids {
+            let parquet_files_pre: HashSet<ParquetFileId> = self
+                .catalog
+                .catalog
+                .repositories()
+                .await
+                .parquet_files()
+                .list_by_partition_not_to_delete(*partition_id)
+                .await
+                .unwrap()
+                .into_iter()
+                .map(|f| f.id)
+                .collect();
+
             self.ingester_data.persist(*partition_id).await;
+
+            result.extend(
+                self.catalog
+                    .catalog
+                    .repositories()
+                    .await
+                    .parquet_files()
+                    .list_by_partition_not_to_delete(*partition_id)
+                    .await
+                    .unwrap()
+                    .into_iter()
+                    .map(|f| f.id)
+                    .filter(|id| !parquet_files_pre.contains(id)),
+            )
         }
+
+        result.sort();
+        result
     }
 
     /// Draws new sequence number.
@@ -832,6 +901,18 @@ impl MockIngester {
         tombstones.iter().map(|t| t.id).collect()
     }
 
+    /// Register load setting for given parquet file.
+    fn register_load_setting(
+        &mut self,
+        parquet_file_id: ParquetFileId,
+        load_setting: QuerierChunkLoadSetting,
+    ) {
+        let existing = self
+            .querier_load_settings
+            .insert(parquet_file_id, load_setting);
+        assert!(existing.is_none());
+    }
+
     /// Finalizes the ingester and creates a querier namespace that can be used for query tests.
     ///
     /// The querier namespace will hold a simulated connection to the ingester to be able to query
@@ -855,6 +936,7 @@ impl MockIngester {
         let sequencer_to_ingesters = [(0, IngesterMapping::Addr(Arc::from("some_address")))]
             .into_iter()
             .collect();
+        let load_settings = self.querier_load_settings.clone();
         let ingester_connection = IngesterConnectionImpl::by_sequencer_with_flight_client(
             sequencer_to_ingesters,
             Arc::new(self),
@@ -873,6 +955,7 @@ impl MockIngester {
             catalog.exec(),
             Some(ingester_connection),
             sharder,
+            load_settings,
         ))
     }
 }

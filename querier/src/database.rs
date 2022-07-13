@@ -119,7 +119,7 @@ impl QuerierDatabase {
             Arc::clone(&catalog_cache),
             store,
             Arc::clone(&metric_registry),
-            catalog_cache.time_provider(),
+            Default::default(),
         ));
         let query_log = Arc::new(QueryLog::new(QUERY_LOG_SIZE, catalog_cache.time_provider()));
         let semaphore_metrics = Arc::new(AsyncSemaphoreMetrics::new(

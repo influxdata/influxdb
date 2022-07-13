@@ -1,9 +1,16 @@
-use crate::chunk::QuerierChunk;
-use arrow::{datatypes::SchemaRef, error::Result as ArrowResult, record_batch::RecordBatch};
+use crate::{chunk::QuerierChunk, QuerierChunkLoadSetting};
+use arrow::{
+    datatypes::SchemaRef,
+    error::{ArrowError, Result as ArrowResult},
+    record_batch::RecordBatch,
+};
 use data_types::{
     ChunkId, ChunkOrder, DeletePredicate, PartitionId, TableSummary, TimestampMinMax,
 };
-use datafusion::physical_plan::{RecordBatchStream, SendableRecordBatchStream};
+use datafusion::physical_plan::{
+    stream::RecordBatchStreamAdapter, RecordBatchStream, SendableRecordBatchStream,
+};
+use futures::{Stream, TryStreamExt};
 use iox_query::{
     exec::{stringset::StringSet, IOxSessionContext},
     QueryChunk, QueryChunkError, QueryChunkMeta,
@@ -11,10 +18,15 @@ use iox_query::{
 use observability_deps::tracing::debug;
 use predicate::Predicate;
 use read_buffer::ReadFilterResults;
-use schema::{selection::Selection, sort::SortKey, Schema};
+use schema::{
+    selection::{select_schema, HalfOwnedSelection, OwnedSelection, Selection},
+    sort::SortKey,
+    Schema,
+};
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
     collections::{BTreeMap, BTreeSet},
+    pin::Pin,
     sync::Arc,
     task::{Context, Poll},
 };
@@ -46,6 +58,12 @@ pub enum Error {
     },
 }
 
+impl From<Error> for ArrowError {
+    fn from(e: Error) -> Self {
+        Self::ExternalError(Box::new(e))
+    }
+}
+
 impl QueryChunkMeta for QuerierChunk {
     fn summary(&self) -> Option<Arc<TableSummary>> {
         Some(Arc::clone(self.stage.read().table_summary()))
@@ -72,7 +90,7 @@ impl QueryChunkMeta for QuerierChunk {
     }
 
     fn timestamp_min_max(&self) -> Option<TimestampMinMax> {
-        self.timestamp_min_max
+        Some(self.timestamp_min_max)
     }
 }
 
@@ -229,54 +247,88 @@ impl QueryChunk for QuerierChunk {
         ctx.set_metadata("predicate", format!("{}", &pred_with_deleted_exprs));
         ctx.set_metadata("projection", format!("{}", selection));
 
-        let stage = self.stage.read();
-        ctx.set_metadata("storage", stage.name());
+        let output_schema = select_schema(selection, &self.schema.as_arrow());
 
-        match &*stage {
-            ChunkStage::Parquet { parquet_chunk, .. } => parquet_chunk
-                .read_filter(&pred_with_deleted_exprs, selection)
-                .context(ParquetFileChunkSnafu {
-                    chunk_id: self.id(),
-                })
-                .map_err(|e| Box::new(e) as _),
-            ChunkStage::ReadBuffer { rb_chunk, .. } => {
-                // Only apply pushdownable predicates
-                let rb_predicate = rb_chunk
-                    // A predicate unsupported by the Read Buffer or against this chunk's schema is
-                    // replaced with a default empty predicate.
-                    .validate_predicate(to_read_buffer_predicate(predicate).unwrap_or_default())
-                    .unwrap_or_default();
-                debug!(?rb_predicate, "RB predicate");
-                ctx.set_metadata("rb_predicate", format!("{}", &rb_predicate));
+        let load_setting = self.load_setting;
+        let chunk_id = self.id();
+        let stage = Arc::clone(&self.stage);
+        let selection: OwnedSelection = selection.into();
+        let predicate = predicate.clone();
+        let store = self.store.clone();
+        let schema = Arc::clone(&self.schema);
+        let catalog_cache = Arc::clone(&self.catalog_cache);
+        Ok(Box::pin(RecordBatchStreamAdapter::new(
+            output_schema,
+            futures::stream::once(async move {
+                if load_setting == QuerierChunkLoadSetting::OnDemand {
+                    // maybe load RB
+                    let parquet_file = match &*stage.read() {
+                        ChunkStage::Parquet { parquet_chunk, .. } => {
+                            Some(Arc::clone(parquet_chunk.parquet_file()))
+                        }
+                        ChunkStage::ReadBuffer { .. } => None,
+                    };
 
-                // combine all delete expressions to RB's negated ones
-                let negated_delete_exprs = to_read_buffer_negated_predicates(&delete_predicates)?
-                    .into_iter()
-                    // Any delete predicates unsupported by the Read Buffer will be elided.
-                    .filter_map(|p| rb_chunk.validate_predicate(p).ok())
-                    .collect::<Vec<_>>();
+                    if let Some(parquet_file) = parquet_file {
+                        let rb_chunk = catalog_cache
+                            .read_buffer()
+                            .get(parquet_file, schema, store)
+                            .await;
+                        stage.write().load_to_read_buffer(rb_chunk);
+                    }
+                }
 
-                debug!(?negated_delete_exprs, "Negated Predicate pushed down to RB");
+                let stage = stage.read();
+                ctx.set_metadata("storage", stage.name());
 
-                let read_results = rb_chunk
-                    .read_filter(rb_predicate, selection, negated_delete_exprs)
-                    .context(RBChunkSnafu {
-                        chunk_id: self.id(),
-                    })?;
-                let schema =
-                    rb_chunk
-                        .read_filter_table_schema(selection)
-                        .context(RBChunkSnafu {
-                            chunk_id: self.id(),
-                        })?;
+                let selection: HalfOwnedSelection<'_> = (&selection).into();
+                let selection: Selection<'_> = (&selection).into();
 
-                Ok(Box::pin(ReadFilterResultsStream::new(
-                    ctx,
-                    read_results,
-                    schema.into(),
-                )))
-            }
-        }
+                let stream_res: ArrowResult<SendableRecordBatchStream> = match &*stage {
+                    ChunkStage::Parquet { parquet_chunk, .. } => Ok(parquet_chunk
+                        .read_filter(&pred_with_deleted_exprs, selection)
+                        .context(ParquetFileChunkSnafu { chunk_id })?),
+                    ChunkStage::ReadBuffer { rb_chunk, .. } => {
+                        // Only apply pushdownable predicates
+                        let rb_predicate = rb_chunk
+                            // A predicate unsupported by the Read Buffer or against this chunk's schema is
+                            // replaced with a default empty predicate.
+                            .validate_predicate(
+                                to_read_buffer_predicate(&predicate).unwrap_or_default(),
+                            )
+                            .unwrap_or_default();
+                        debug!(?rb_predicate, "RB predicate");
+                        ctx.set_metadata("rb_predicate", format!("{}", &rb_predicate));
+
+                        // combine all delete expressions to RB's negated ones
+                        let negated_delete_exprs =
+                            to_read_buffer_negated_predicates(&delete_predicates)?
+                                .into_iter()
+                                // Any delete predicates unsupported by the Read Buffer will be elided.
+                                .filter_map(|p| rb_chunk.validate_predicate(p).ok())
+                                .collect::<Vec<_>>();
+
+                        debug!(?negated_delete_exprs, "Negated Predicate pushed down to RB");
+
+                        let read_results = rb_chunk
+                            .read_filter(rb_predicate, selection, negated_delete_exprs)
+                            .context(RBChunkSnafu { chunk_id })?;
+                        let schema = rb_chunk
+                            .read_filter_table_schema(selection)
+                            .context(RBChunkSnafu { chunk_id })?;
+
+                        Ok(Box::pin(ReadFilterResultsStream::new(
+                            ctx,
+                            read_results,
+                            schema.into(),
+                        )) as _)
+                    }
+                };
+
+                stream_res
+            })
+            .try_flatten(),
+        )))
     }
 
     fn chunk_type(&self) -> &str {
@@ -305,6 +357,12 @@ impl std::fmt::Display for ReadBufferPredicateConversionError {
 }
 
 impl std::error::Error for ReadBufferPredicateConversionError {}
+
+impl From<ReadBufferPredicateConversionError> for ArrowError {
+    fn from(e: ReadBufferPredicateConversionError) -> Self {
+        Self::ExternalError(Box::new(e))
+    }
+}
 
 /// Converts a [`predicate::Predicate`] into [`read_buffer::Predicate`], suitable for evaluating on
 /// the ReadBuffer.
@@ -382,13 +440,10 @@ impl RecordBatchStream for ReadFilterResultsStream {
     }
 }
 
-impl futures::Stream for ReadFilterResultsStream {
+impl Stream for ReadFilterResultsStream {
     type Item = ArrowResult<RecordBatch>;
 
-    fn poll_next(
-        mut self: std::pin::Pin<&mut Self>,
-        _: &mut Context<'_>,
-    ) -> Poll<Option<Self::Item>> {
+    fn poll_next(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut ctx = self.ctx.child_ctx("next_row_group");
         let rb = self.read_results.next();
         if let Some(rb) = &rb {

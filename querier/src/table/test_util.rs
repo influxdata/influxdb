@@ -25,7 +25,7 @@ pub async fn querier_table(catalog: &Arc<TestCatalog>, table: &Arc<TestTable>) -
         catalog_cache,
         ParquetStorage::new(catalog.object_store()),
         catalog.metric_registry(),
-        catalog.time_provider(),
+        Default::default(),
     ));
 
     let mut repos = catalog.catalog.repositories().await;

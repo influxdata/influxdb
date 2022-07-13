@@ -263,13 +263,14 @@ impl<W: Write> Runner<W> {
         let sql = query.sql();
         let mut previous_results = vec![];
 
+        writeln!(self.log, "SQL: '{:#?}'", sql)?;
+
         for scenario in db_setup.make().await {
             let DbScenario {
                 scenario_name, db, ..
             } = scenario;
 
-            writeln!(self.log, "Running scenario '{}'", scenario_name)?;
-            writeln!(self.log, "SQL: '{:#?}'", sql)?;
+            writeln!(self.log, "  Running scenario '{}'", scenario_name)?;
             let planner = SqlQueryPlanner::default();
             let ctx = db.new_query_context(None);
 
@@ -302,7 +303,7 @@ impl<W: Write> Runner<W> {
                     current_results,
                 }
                 .build();
-                writeln!(self.log, "{}", err)?;
+                writeln!(self.log, "    Err: {}", err)?;
                 return Err(err);
             }
             previous_results = current_results;

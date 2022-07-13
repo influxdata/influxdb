@@ -2,9 +2,9 @@
 
 use crate::{
     cache::CatalogCache, chunk::ChunkAdapter, ingester::IngesterConnection, query_log::QueryLog,
-    table::QuerierTable,
+    table::QuerierTable, QuerierChunkLoadSetting,
 };
-use data_types::{KafkaPartition, NamespaceId, NamespaceSchema};
+use data_types::{KafkaPartition, NamespaceId, NamespaceSchema, ParquetFileId};
 use iox_query::exec::Executor;
 use parquet_file::storage::ParquetStorage;
 use schema::Schema;
@@ -103,13 +103,14 @@ impl QuerierNamespace {
         exec: Arc<Executor>,
         ingester_connection: Option<Arc<dyn IngesterConnection>>,
         sharder: Arc<JumpHash<Arc<KafkaPartition>>>,
+        load_settings: HashMap<ParquetFileId, QuerierChunkLoadSetting>,
     ) -> Self {
         let time_provider = catalog_cache.time_provider();
         let chunk_adapter = Arc::new(ChunkAdapter::new(
             catalog_cache,
             store,
             metric_registry,
-            Arc::clone(&time_provider),
+            load_settings,
         ));
         let query_log = Arc::new(QueryLog::new(10, time_provider));
 

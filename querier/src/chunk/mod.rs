@@ -6,12 +6,14 @@ use data_types::{
     SequenceNumber, SequencerId, TableSummary, TimestampMinMax,
 };
 use iox_catalog::interface::Catalog;
-use iox_time::TimeProvider;
 use parking_lot::RwLock;
 use parquet_file::{chunk::ParquetChunk, storage::ParquetStorage};
 use read_buffer::RBChunk;
 use schema::{sort::SortKey, Schema};
-use std::{collections::HashSet, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 use uuid::Uuid;
 
 use self::util::create_basic_summary;
@@ -125,6 +127,66 @@ impl ChunkStage {
             Self::ReadBuffer { .. } => "read_buffer",
         }
     }
+
+    pub fn load_to_read_buffer(&mut self, rb_chunk: Arc<RBChunk>) {
+        match self {
+            Self::Parquet { .. } => {
+                let table_summary = Arc::new(rb_chunk.table_summary());
+
+                *self = Self::ReadBuffer {
+                    rb_chunk,
+                    table_summary,
+                };
+            }
+            Self::ReadBuffer { .. } => {
+                // RB already loaded
+            }
+        }
+    }
+}
+
+impl From<Arc<ParquetChunk>> for ChunkStage {
+    fn from(parquet_chunk: Arc<ParquetChunk>) -> Self {
+        let table_summary = Arc::new(create_basic_summary(
+            parquet_chunk.rows() as u64,
+            &parquet_chunk.schema(),
+            parquet_chunk.timestamp_min_max(),
+        ));
+        Self::Parquet {
+            parquet_chunk,
+            table_summary,
+        }
+    }
+}
+
+impl From<Arc<RBChunk>> for ChunkStage {
+    fn from(rb_chunk: Arc<RBChunk>) -> Self {
+        let table_summary = Arc::new(rb_chunk.table_summary());
+        Self::ReadBuffer {
+            rb_chunk,
+            table_summary,
+        }
+    }
+}
+
+/// Controls if/how data for a [`QuerierChunk`] is loaded
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum QuerierChunkLoadSetting {
+    /// Only stay in parquet mode and never use read buffer data.
+    ParquetOnly,
+
+    /// Only use read buffer data.
+    ///
+    /// This forces the querier to load the read buffer for this chunk.
+    ReadBufferOnly,
+
+    /// Default "on-demand" handling.
+    ///
+    /// When the chunk is created, it will look up if there is already read buffer data loaded (or loading is already in
+    /// progress) and is that. Otherwise it will parquet. If the actual payload is request (via
+    /// [`QueryChunk::read_filter`](iox_query::QueryChunk::read_filter)) then it will force-load the read buffer.
+    #[default]
+    OnDemand,
 }
 
 #[derive(Debug)]
@@ -135,8 +197,8 @@ pub struct QuerierChunk {
     /// Schema of the chunk
     schema: Arc<Schema>,
 
-    /// min/max time range of this table (extracted from TableSummary), if known
-    timestamp_min_max: Option<TimestampMinMax>,
+    /// min/max time range of this chunk
+    timestamp_min_max: TimestampMinMax,
 
     /// Delete predicates to be combined with the chunk
     delete_predicates: Vec<Arc<DeletePredicate>>,
@@ -154,7 +216,12 @@ pub struct QuerierChunk {
     store: ParquetStorage,
 
     /// Current stage.
-    stage: RwLock<ChunkStage>,
+    ///
+    /// Wrapped in an `Arc` so we can move it into a future/stream this is detached from `self`.
+    stage: Arc<RwLock<ChunkStage>>,
+
+    /// Load setting.
+    load_setting: QuerierChunkLoadSetting,
 }
 
 impl QuerierChunk {
@@ -165,19 +232,42 @@ impl QuerierChunk {
         partition_sort_key: Arc<Option<SortKey>>,
         catalog_cache: Arc<CatalogCache>,
         store: ParquetStorage,
+        load_setting: QuerierChunkLoadSetting,
     ) -> Self {
-        let table_summary = Arc::new(create_basic_summary(
-            parquet_chunk.rows() as u64,
-            &parquet_chunk.schema(),
-            parquet_chunk.timestamp_min_max(),
-        ));
         let schema = parquet_chunk.schema();
-        let timestamp_min_max = table_summary.time_range();
-        let stage = ChunkStage::Parquet {
-            parquet_chunk,
-            table_summary,
+        let timestamp_min_max = parquet_chunk.timestamp_min_max();
+
+        // maybe load read buffer
+        let rb_chunk = match load_setting {
+            QuerierChunkLoadSetting::ParquetOnly => {
+                // never load
+                None
+            }
+            QuerierChunkLoadSetting::OnDemand => {
+                // depends on cache state
+                catalog_cache.read_buffer().peek(meta.parquet_file_id).await
+            }
+            QuerierChunkLoadSetting::ReadBufferOnly => {
+                // force load
+                Some(
+                    catalog_cache
+                        .read_buffer()
+                        .get(
+                            Arc::clone(parquet_chunk.parquet_file()),
+                            Arc::clone(&schema),
+                            store.clone(),
+                        )
+                        .await,
+                )
+            }
         };
-        // TODO: peek RB cache and try to upgrade
+
+        let stage: ChunkStage = if let Some(rb_chunk) = rb_chunk {
+            rb_chunk.into()
+        } else {
+            parquet_chunk.into()
+        };
+
         Self {
             meta,
             delete_predicates: Vec::new(),
@@ -185,8 +275,9 @@ impl QuerierChunk {
             catalog_cache,
             schema,
             timestamp_min_max,
-            stage: RwLock::new(stage),
+            stage: Arc::new(RwLock::new(stage)),
             store,
+            load_setting,
         }
     }
 
@@ -211,25 +302,7 @@ impl QuerierChunk {
             .read_buffer()
             .get(parquet_file, Arc::clone(&self.schema), self.store.clone())
             .await;
-        self.load_to_read_buffer_internal(rb_chunk);
-    }
-
-    fn load_to_read_buffer_internal(&self, rb_chunk: Arc<RBChunk>) {
-        let mut stage = self.stage.write();
-
-        match &*stage {
-            ChunkStage::Parquet { .. } => {
-                let table_summary = Arc::new(rb_chunk.table_summary());
-
-                *stage = ChunkStage::ReadBuffer {
-                    rb_chunk,
-                    table_summary,
-                };
-            }
-            ChunkStage::ReadBuffer { .. } => {
-                // RB already loaded
-            }
-        }
+        self.stage.write().load_to_read_buffer(rb_chunk);
     }
 
     /// Set delete predicates of the given chunk.
@@ -269,9 +342,8 @@ pub struct ChunkAdapter {
     /// Metric registry.
     metric_registry: Arc<metric::Registry>,
 
-    /// Time provider.
-    #[allow(dead_code)]
-    time_provider: Arc<dyn TimeProvider>,
+    /// Load settings for chunks
+    load_settings: HashMap<ParquetFileId, QuerierChunkLoadSetting>,
 }
 
 impl ChunkAdapter {
@@ -280,13 +352,13 @@ impl ChunkAdapter {
         catalog_cache: Arc<CatalogCache>,
         store: ParquetStorage,
         metric_registry: Arc<metric::Registry>,
-        time_provider: Arc<dyn TimeProvider>,
+        load_settings: HashMap<ParquetFileId, QuerierChunkLoadSetting>,
     ) -> Self {
         Self {
             catalog_cache,
             store,
             metric_registry,
-            time_provider,
+            load_settings,
         }
     }
 
@@ -319,6 +391,11 @@ impl ChunkAdapter {
             parts.schema,
             self.store.clone(),
         ));
+        let load_settings = self
+            .load_settings
+            .get(&parts.meta.parquet_file_id)
+            .copied()
+            .unwrap_or_default();
 
         Some(
             QuerierChunk::new(
@@ -327,6 +404,7 @@ impl ChunkAdapter {
                 parts.partition_sort_key,
                 Arc::clone(&self.catalog_cache),
                 self.store.clone(),
+                load_settings,
             )
             .await,
         )
@@ -452,7 +530,7 @@ pub mod tests {
     use data_types::ColumnType;
     use futures::StreamExt;
     use iox_query::{exec::IOxSessionContext, QueryChunk, QueryChunkMeta};
-    use iox_tests::util::TestCatalog;
+    use iox_tests::util::{TestCatalog, TestNamespace};
     use metric::{Attributes, Observation, RawReporter};
     use schema::{builder::SchemaBuilder, selection::Selection, sort::SortKeyBuilder};
     use test_helpers::maybe_start_logging;
@@ -460,92 +538,117 @@ pub mod tests {
     #[tokio::test]
     async fn test_new_rb_chunk() {
         maybe_start_logging();
-        let catalog = TestCatalog::new();
-
-        let adapter = ChunkAdapter::new(
-            Arc::new(CatalogCache::new_testing(
-                catalog.catalog(),
-                catalog.time_provider(),
-                catalog.metric_registry(),
-                usize::MAX,
-            )),
-            ParquetStorage::new(catalog.object_store()),
-            catalog.metric_registry(),
-            catalog.time_provider(),
-        );
-
-        // set up catalog
-        let lp = vec![
-            "table,tag1=WA field_int=1000i 8000",
-            "table,tag1=VT field_int=10i 10000",
-            "table,tag1=UT field_int=70i 20000",
-        ]
-        .join("\n");
-        let ns = catalog.create_namespace("ns").await;
-        let sequencer = ns.create_sequencer(1).await;
-        let table = ns.create_table("table").await;
-        table.create_column("tag1", ColumnType::Tag).await;
-        table.create_column("tag2", ColumnType::Tag).await;
-        table.create_column("tag3", ColumnType::Tag).await;
-        table.create_column("field_int", ColumnType::I64).await;
-        table.create_column("field_float", ColumnType::F64).await;
-        table.create_column("time", ColumnType::Time).await;
-        let partition = table
-            .with_sequencer(&sequencer)
-            .create_partition("part")
-            .await
-            .update_sort_key(SortKey::from_columns(["tag1", "tag2", "tag4", "time"]))
-            .await;
-        let parquet_file = Arc::new(partition.create_parquet_file(&lp).await.parquet_file);
+        let test_data = TestData::new(QuerierChunkLoadSetting::ReadBufferOnly).await;
 
         // create chunk
-        let chunk = adapter
-            .new_chunk(ns.namespace.name.clone().into(), Arc::clone(&parquet_file))
-            .await
-            .unwrap();
+        let chunk = test_data.chunk().await;
+
+        // check state
+        assert_eq!(chunk.chunk_type(), "read_buffer");
 
         // measure catalog access
-        let catalog_metrics1 = get_catalog_access_metrics(&catalog.metric_registry());
+        let catalog_metrics1 = test_data.get_catalog_access_metrics();
 
         // check chunk schema
-        let expected_schema = SchemaBuilder::new()
-            .field("field_int", DataType::Int64)
-            .tag("tag1")
-            .timestamp()
-            .build()
-            .unwrap();
-        let actual_schema = chunk.schema();
-        assert_eq!(actual_schema.as_ref(), &expected_schema);
+        assert_schema(&chunk);
 
         // check sort key
-        let expected_sort_key = SortKeyBuilder::new()
-            .with_col("tag1")
-            .with_col("time")
-            .build();
-        let actual_sort_key = chunk.sort_key().unwrap();
-        assert_eq!(actual_sort_key, &expected_sort_key);
+        assert_sort_key(&chunk);
+
+        // back up table summary
+        let table_summary_1 = chunk.summary().unwrap();
 
         // check if chunk can be queried
-        let batches = collect_read_filter(&chunk).await;
-        assert_batches_eq!(
-            &[
-                "+-----------+------+-----------------------------+",
-                "| field_int | tag1 | time                        |",
-                "+-----------+------+-----------------------------+",
-                "| 70        | UT   | 1970-01-01T00:00:00.000020Z |",
-                "| 10        | VT   | 1970-01-01T00:00:00.000010Z |",
-                "| 1000      | WA   | 1970-01-01T00:00:00.000008Z |",
-                "+-----------+------+-----------------------------+",
-            ],
-            &batches
-        );
+        assert_content(&chunk).await;
+
+        // check state again
+        assert_eq!(chunk.chunk_type(), "read_buffer");
+
+        // summary has NOT changed
+        let table_summary_2 = chunk.summary().unwrap();
+        assert_eq!(table_summary_1, table_summary_2);
 
         // retrieving the chunk again should not require any catalog requests
-        adapter
-            .new_chunk(ns.namespace.name.clone().into(), parquet_file)
-            .await
-            .unwrap();
-        let catalog_metrics2 = get_catalog_access_metrics(&catalog.metric_registry());
+        test_data.chunk().await;
+        let catalog_metrics2 = test_data.get_catalog_access_metrics();
+        assert_eq!(catalog_metrics1, catalog_metrics2);
+    }
+
+    #[tokio::test]
+    async fn test_new_parquet_chunk() {
+        maybe_start_logging();
+        let test_data = TestData::new(QuerierChunkLoadSetting::ParquetOnly).await;
+
+        // create chunk
+        let chunk = test_data.chunk().await;
+
+        // check state
+        assert_eq!(chunk.chunk_type(), "parquet");
+
+        // measure catalog access
+        let catalog_metrics1 = test_data.get_catalog_access_metrics();
+
+        // check chunk schema
+        assert_schema(&chunk);
+
+        // check sort key
+        assert_sort_key(&chunk);
+
+        // back up table summary
+        let table_summary_1 = chunk.summary().unwrap();
+
+        // check if chunk can be queried
+        assert_content(&chunk).await;
+
+        // check state again
+        assert_eq!(chunk.chunk_type(), "parquet");
+
+        // summary has NOT changed
+        let table_summary_2 = chunk.summary().unwrap();
+        assert_eq!(table_summary_1, table_summary_2);
+
+        // retrieving the chunk again should not require any catalog requests
+        test_data.chunk().await;
+        let catalog_metrics2 = test_data.get_catalog_access_metrics();
+        assert_eq!(catalog_metrics1, catalog_metrics2);
+    }
+
+    #[tokio::test]
+    async fn test_new_on_demand_chunk() {
+        maybe_start_logging();
+        let test_data = TestData::new(QuerierChunkLoadSetting::OnDemand).await;
+
+        // create chunk
+        let chunk = test_data.chunk().await;
+
+        // check state
+        assert_eq!(chunk.chunk_type(), "parquet");
+
+        // measure catalog access
+        let catalog_metrics1 = test_data.get_catalog_access_metrics();
+
+        // check chunk schema
+        assert_schema(&chunk);
+
+        // check sort key
+        assert_sort_key(&chunk);
+
+        // back up table summary
+        let table_summary_1 = chunk.summary().unwrap();
+
+        // check if chunk can be queried
+        assert_content(&chunk).await;
+
+        // check state again
+        assert_eq!(chunk.chunk_type(), "read_buffer");
+
+        // summary has changed
+        let table_summary_2 = chunk.summary().unwrap();
+        assert_ne!(table_summary_1, table_summary_2);
+
+        // retrieving the chunk again should not require any catalog requests
+        test_data.chunk().await;
+        let catalog_metrics2 = test_data.get_catalog_access_metrics();
         assert_eq!(catalog_metrics1, catalog_metrics2);
     }
 
@@ -565,27 +668,130 @@ pub mod tests {
             .collect()
     }
 
-    /// get catalog access metrics from metric registry
-    fn get_catalog_access_metrics(metric_registry: &metric::Registry) -> Vec<(Attributes, u64)> {
-        let mut reporter = RawReporter::default();
-        metric_registry.report(&mut reporter);
+    struct TestData {
+        catalog: Arc<TestCatalog>,
+        ns: Arc<TestNamespace>,
+        parquet_file: Arc<ParquetFile>,
+        adapter: ChunkAdapter,
+    }
 
-        let mut metrics: Vec<_> = reporter
-            .observations()
-            .iter()
-            .find(|o| o.metric_name == "catalog_op_duration")
-            .expect("failed to read metric")
-            .observations
-            .iter()
-            .map(|(a, o)| {
-                if let Observation::DurationHistogram(h) = o {
-                    (a.clone(), h.sample_count())
-                } else {
-                    panic!("wrong metric type")
-                }
-            })
-            .collect();
-        metrics.sort();
-        metrics
+    impl TestData {
+        async fn new(load_settings: QuerierChunkLoadSetting) -> Self {
+            let catalog = TestCatalog::new();
+
+            let lp = vec![
+                "table,tag1=WA field_int=1000i 8000",
+                "table,tag1=VT field_int=10i 10000",
+                "table,tag1=UT field_int=70i 20000",
+            ]
+            .join("\n");
+            let ns = catalog.create_namespace("ns").await;
+            let sequencer = ns.create_sequencer(1).await;
+            let table = ns.create_table("table").await;
+            table.create_column("tag1", ColumnType::Tag).await;
+            table.create_column("tag2", ColumnType::Tag).await;
+            table.create_column("tag3", ColumnType::Tag).await;
+            table.create_column("field_int", ColumnType::I64).await;
+            table.create_column("field_float", ColumnType::F64).await;
+            table.create_column("time", ColumnType::Time).await;
+            let partition = table
+                .with_sequencer(&sequencer)
+                .create_partition("part")
+                .await
+                .update_sort_key(SortKey::from_columns(["tag1", "tag2", "tag4", "time"]))
+                .await;
+            let parquet_file = Arc::new(partition.create_parquet_file(&lp).await.parquet_file);
+
+            let adapter = ChunkAdapter::new(
+                Arc::new(CatalogCache::new_testing(
+                    catalog.catalog(),
+                    catalog.time_provider(),
+                    catalog.metric_registry(),
+                    usize::MAX,
+                )),
+                ParquetStorage::new(catalog.object_store()),
+                catalog.metric_registry(),
+                HashMap::from([(parquet_file.id, load_settings)]),
+            );
+
+            Self {
+                catalog,
+                ns,
+                parquet_file,
+                adapter,
+            }
+        }
+
+        async fn chunk(&self) -> QuerierChunk {
+            self.adapter
+                .new_chunk(
+                    self.ns.namespace.name.clone().into(),
+                    Arc::clone(&self.parquet_file),
+                )
+                .await
+                .unwrap()
+        }
+
+        /// get catalog access metrics from metric registry
+        fn get_catalog_access_metrics(&self) -> Vec<(Attributes, u64)> {
+            let mut reporter = RawReporter::default();
+            self.catalog.metric_registry.report(&mut reporter);
+
+            let mut metrics: Vec<_> = reporter
+                .observations()
+                .iter()
+                .find(|o| o.metric_name == "catalog_op_duration")
+                .expect("failed to read metric")
+                .observations
+                .iter()
+                .map(|(a, o)| {
+                    if let Observation::DurationHistogram(h) = o {
+                        (a.clone(), h.sample_count())
+                    } else {
+                        panic!("wrong metric type")
+                    }
+                })
+                .collect();
+            metrics.sort();
+            assert!(!metrics.is_empty());
+            metrics
+        }
+    }
+
+    fn assert_schema(chunk: &QuerierChunk) {
+        let expected_schema = SchemaBuilder::new()
+            .field("field_int", DataType::Int64)
+            .tag("tag1")
+            .timestamp()
+            .build()
+            .unwrap();
+        let actual_schema = chunk.schema();
+        assert_eq!(actual_schema.as_ref(), &expected_schema);
+    }
+
+    fn assert_sort_key(chunk: &QuerierChunk) {
+        let expected_sort_key = SortKeyBuilder::new()
+            .with_col("tag1")
+            .with_col("time")
+            .build();
+        let actual_sort_key = chunk.sort_key().unwrap();
+        assert_eq!(actual_sort_key, &expected_sort_key);
+    }
+
+    async fn assert_content(chunk: &QuerierChunk) {
+        let batches = collect_read_filter(chunk).await;
+
+        assert_batches_eq!(
+            &[
+                "+-----------+------+-----------------------------+",
+                "| field_int | tag1 | time                        |",
+                "+-----------+------+-----------------------------+",
+                "| 70        | UT   | 1970-01-01T00:00:00.000020Z |",
+                "| 10        | VT   | 1970-01-01T00:00:00.000010Z |",
+                "| 1000      | WA   | 1970-01-01T00:00:00.000008Z |",
+                "+-----------+------+-----------------------------+",
+            ],
+            &batches
+        );
     }
 }

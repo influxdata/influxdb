@@ -22,7 +22,7 @@ use parquet::{
     file::reader::SerializedFileReader,
 };
 use predicate::Predicate;
-use schema::selection::Selection;
+use schema::selection::{select_schema, Selection};
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use thiserror::Error;
 use tokio::io::AsyncReadExt;
@@ -179,11 +179,8 @@ impl ParquetStorage {
         let path = path.object_store_path();
         trace!(path=?path, "fetching parquet data for filtered read");
 
-        // Indices of columns in the schema needed to read
-        let projection: Vec<usize> = column_indices(selection, Arc::clone(&schema));
-
         // Compute final (output) schema after selection
-        let schema = Arc::new(project_schema(&schema, &projection));
+        let schema = select_schema(selection, &schema);
 
         let (tx, rx) = tokio::sync::mpsc::channel(2);
 
@@ -224,35 +221,6 @@ impl ParquetStorage {
     ) -> Result<SendableRecordBatchStream, ReadError> {
         self.read_filter(&Predicate::default(), Selection::All, schema, path)
     }
-}
-
-/// Return indices of the schema's fields of the selection columns
-fn column_indices(selection: Selection<'_>, schema: SchemaRef) -> Vec<usize> {
-    match selection {
-        Selection::Some(cols) => {
-            let fields_lookup: HashMap<_, _> = schema
-                .fields()
-                .iter()
-                .map(|f| f.name().as_str())
-                .enumerate()
-                .map(|(v, k)| (k, v))
-                .collect();
-            cols.iter()
-                .filter_map(|c| fields_lookup.get(c).cloned())
-                .collect()
-        }
-        Selection::All => (0..schema.fields().len()).collect(),
-    }
-}
-
-fn project_schema(schema: &Schema, projection: &[usize]) -> Schema {
-    Schema::new_with_metadata(
-        projection
-            .iter()
-            .map(|i| schema.field(*i).clone())
-            .collect(),
-        schema.metadata().clone(),
-    )
 }
 
 /// Downloads the specified parquet file to a local temporary file
