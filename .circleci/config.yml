@@ -106,9 +106,6 @@ jobs:
             - /root/.cargo
             - /root/.cache/go-build
   build_packages:
-    parameters:
-      build_type:
-        type: string
     machine:
       enabled: true
       docker_layer_caching: true
@@ -139,6 +136,27 @@ jobs:
           root: .
           paths:
             - packages
+
+  sign_packages:
+    machine:
+      enabled: true
+      docker_layer_caching: true
+      image: ubuntu-2004:202107-02
+    steps:
+      - attach_workspace:
+          at: /tmp/workspace
+      - checkout
+      - run:
+          name: Sign Package Artifacts
+          command: |
+            .circleci/scripts/sign-packages
+      - store_artifacts:
+          path: packages/
+      - persist_to_workspace:
+          root: .
+          paths:
+            - packages
+
   test_pkgs_64bit:
     machine:
       enabled: true
@@ -282,9 +300,12 @@ workflows:
           <<: *release_filter
       - build_packages:
           <<: *release_filter
-          build_type: release
           requires:
             - build_binaries
+      - sign_packages:
+          <<: *release_filter
+          requires:
+            - build_packages
       - test_pkgs_64bit:
           <<: *release_filter
           requires:
@@ -304,7 +325,6 @@ workflows:
     jobs:
       - build_binaries
       - build_packages:
-          build_type: snapshot
           requires:
             - build_binaries
       - test_pkgs_64bit:
