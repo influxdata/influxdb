@@ -3,7 +3,7 @@ set -o nounset  \
     -o errexit  \
     -o pipefail
 
-REGEX_TAG='v[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+'
+REGEX_TAG='v([[:digit:]]+)\.([[:digit:]]+)\.([[:digit:]]+)'
 
 function semver_tags()
 {
@@ -28,15 +28,21 @@ TAG=$(head -n 1 <<<"$(semver_tags)")
 # is being built from an unversioned branch. In which case, this will
 # construct a version that is compatible with Debian versioning:
 # ${PREFIX}-<< short commit hash >>
-if [[ ${TAG:-} ]]
+if [[ ${TAG} =~ ^${REGEX_TAG}$ ]]
 then
   cat <<EOF >>"${BASH_ENV}"
 export VERSION="${TAG:1}"
+export MAJOR=${BASH_REMATCH[1]}
+export MINOR=${BASH_REMATCH[2]}
+export PATCH=${BASH_REMATCH[3]}
 export RELEASE=1
 EOF
 else
   cat <<EOF >>"${BASH_ENV}"
 export VERSION="${PREFIX}-$(git rev-parse --short HEAD)"
+export MAJOR=
+export MINOR=
+export PATCH=
 export RELEASE=
 EOF
 fi

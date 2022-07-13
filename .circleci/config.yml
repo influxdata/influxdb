@@ -134,7 +134,9 @@ workflows:
           <<: *nofork_filter
           requires:
             - build-package-linux-amd64
-      - publish-packages-s3:
+      - changelog:
+          <<: *any_filter
+      - s3-publish-packages:
           <<: *release_filter
           requires:
             - test-linux-packages
@@ -142,6 +144,11 @@ workflows:
             - build-package-linux-amd64
             - build-package-linux-arm64
             - build-package-windows-amd64
+      - s3-publish-changelog:
+          <<: *release_filter
+          publish-type: release
+          requires:
+            - changelog
       - perf-test:
           record_results: true
           requires:
@@ -197,7 +204,8 @@ workflows:
                 - master
     jobs:
       - changelog
-      - publish-changelog-s3:
+      - s3-publish-changelog:
+          publish-type: nightly
           requires:
             - changelog
       - test-race
@@ -381,7 +389,13 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Get InfluxDB version
+          name: Install Package Dependencies
+          command: |
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update
+            apt-get install --yes git
+      - run:
+          name: Get InfluxDB Version
           command: |
             PREFIX=2.x .circleci/scripts/get-version
       - run:
@@ -432,12 +446,13 @@ jobs:
             sudo apt-get update
             sudo apt-get install --yes \
               build-essential          \
+              git                      \
               rpm                      \
               ruby-dev
 
             gem install fpm
       - run:
-          name: Get Package Versions
+          name: Get InfluxDB Version
           command: |
             PREFIX=2.x .circleci/scripts/get-version
       - run:
@@ -454,39 +469,65 @@ jobs:
           path: /artifacts
           destination: artifacts
 
-  publish-packages-s3:
+  s3-publish-packages:
     docker:
-      # `cimg/python` may seem incorrect, but apparently it includes `curl`
-      # which is required for `aws-s3/sync` to work. This image is also
-      # suggested by the orb's documentation:
-      # https://circleci.com/developer/orbs/orb/circleci/aws-s3#usage-examples
-      - image: cimg/python:3.6
+      - image: ubuntu:latest
     steps:
       - attach_workspace:
           at: /tmp/workspace
-      - aws-s3/sync:
-          arguments: |
-            --acl public-read
-          aws-region:            RELEASE_AWS_REGION
-          aws-access-key-id:     RELEASE_AWS_ACCESS_KEY_ID
-          aws-secret-access-key: RELEASE_AWS_SECRET_ACCESS_KEY
-          from: /tmp/workspace/artifacts
-          to:   s3://dl.influxdata.com/influxdb/releases
+      - checkout
+      - run:
+          name: Publish Packages to S3
+          command: |
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update
+            apt-get install --yes awscli git
 
-  publish-changelog-s3:
+            PREFIX=2.x .circleci/scripts/get-version
+            source "${BASH_ENV}"
+
+            # required for sha256sum generate the correct paths
+            pushd /tmp/workspace/artifacts
+
+            # Since the artifacts are generated in parallel, the checksums
+            # cannot be calculated until all artifacts are complete. This
+            # excludes `CHANGELOG.md`. Historically, `CHANGELOG.md` was
+            # not included in the checksums.
+            sha256sum * | tee influxdb.${VERSION}.sha256
+
+            aws s3 sync . 's3://dl.influxdata.com/influxdb/releases'
+
+  s3-publish-changelog:
+    parameters:
+      publish-type:
+        type: string
     docker:
-      - image: cimg/python:3.6
+      - image: ubuntu:latest
     steps:
       - attach_workspace:
           at: /tmp/workspace
-      - aws-s3/sync:
-          arguments: |
-            --acl public-read
-          aws-region:            RELEASE_AWS_REGION
-          aws-access-key-id:     RELEASE_AWS_ACCESS_KEY_ID
-          aws-secret-access-key: RELEASE_AWS_SECRET_ACCESS_KEY
-          from: /tmp/workspace/changelog_artifacts/
-          to:   s3://dl.influxdata.com/platform/nightlies/master
+      - checkout
+      - run:
+          name: Publish Changelog to S3
+          command: |
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update
+            apt-get install --yes awscli git
+
+            PREFIX=2.x .circleci/scripts/get-version
+            source "${BASH_ENV}"
+
+            pushd /tmp/workspace/changelog_artifacts
+
+            case "<< parameters.publish-type >>"
+            in
+              release)
+                aws s3 cp CHANGELOG.md "s3://dl.influxdata.com/influxdb/releases/CHANGELOG.${VERSION}.md"
+              ;;
+              nightly)
+                aws s3 cp CHANGELOG.md "s3://dl.influxdata.com/platform/nightlies/<< pipeline.git.branch >>/CHANGELOG.md"
+              ;;
+            esac
 
   test-linux-packages:
     executor: terraform/default
@@ -729,41 +770,21 @@ jobs:
 
   changelog:
     docker:
-      - image: quay.io/influxdb/changelogger:903e73f266155f9bcd78356ea7fdb051b6db74b3
+      - image: quay.io/influxdb/changelogger:d7093c409adedd8837ef51fa84be0d0f8319177a
     steps:
       - checkout
       - run:
           name: Generate changelog
           command: |
-            BRANCH="<< pipeline.git.branch >>"
-            VERSION="v$BRANCH"
-            DOCS_LINKS_VERSION="$VERSION"
+            PREFIX=2.x .circleci/scripts/get-version
+            source "${BASH_ENV}"
 
-            # Runs triggered by pushed tags do not have the pipeline.git.branch parameter available.
-            if [ -n "<< pipeline.git.tag >>" ]; then
-              VERSION="<< pipeline.git.tag >>"
-              DOCS_LINKS_VERSION="$(echo "$VERSION" | sed 's/\.[^.]*$//')"
-              BRANCH="$(echo "$DOCS_LINKS_VERSION" | sed 's/v//' )"
+            if [[ "${RELEASE:-}" ]]
+            then
+              export DESCRIPTION="In addition to the list of changes below, please also see the [official release notes](https://docs.influxdata.com/influxdb/${VERSION}/reference/release-notes/influxdb/) for other important information about this release."
             fi
 
-            mkdir changelog_artifacts
-
-            echo -e "CHANGELOG for InfluxDB OSS $VERSION commit ${CIRCLE_SHA1}\n" > changelog_artifacts/CHANGELOG.md
-
-            if [[ ! "$BRANCH" == "master" ]] ;  then
-              echo -e "In addition to the list of changes below, please also see the [official release notes](https://docs.influxdata.com/influxdb/$DOCS_LINKS_VERSION/reference/release-notes/influxdb/) for other important information about this release.\n" >> changelog_artifacts/CHANGELOG.md
-            fi
-
-            if [[ "$BRANCH" == "master" ]] ;  then
-               LATEST_21X="$(git tag | grep '^v2\.1\.[0-9]*$' | sort -V | tail -1)"
-               # build 2.1.0 to 2.1.x changelog, plus unreleased from master
-               build-multibranch-changelog.sh HEAD "$LATEST_21X" v2.1.0 >> changelog_artifacts/CHANGELOG.md
-            elif [[ "$BRANCH" == "2.1" ]] ;  then
-               # build 2.1.0 to current 2.1 changelog
-               build-simple-changelog.sh HEAD v2.1.0 >> changelog_artifacts/CHANGELOG.md
-            fi
-
-            cat ./scripts/ci/CHANGELOG_frozen.md >> changelog_artifacts/CHANGELOG.md
+            PRODUCT="OSS" changelogger
       - store_artifacts:
           path: changelog_artifacts/
       - persist_to_workspace:
