@@ -594,7 +594,7 @@ func (s *Service) Apply(ctx context.Context, orgID, userID influxdb.ID, pkg *Pkg
 
 Looking at the above you may have noticed we have groups of appliers. The second group contains the label resources. Each group's individual resources are applied concurrently. The `coordinator.runTilEnd(ctx, orgID, userID, group...)` call takes the group, and fans out all the state changes and processes them concurrently for writes. The label resources are guaranteed to have succeeded before processing the primary resources which can have relationships with the label.
 
-When an issue is encountered that cannot be recovered from, and error is returned, and upon seeing that error we roll back all changes. The `defer coordinator.rollback(s.log, &e, orgID)` line rollsback all resources to their prexisting state. For a more in depth look at that check out [here](https://github.com/influxdata/influxdb/blob/c926accb42d87c407bcac6bbda753f9a03f9ec95/pkger/service.go#L2118-L2167).
+When an issue is encountered that cannot be recovered from, and error is returned, and upon seeing that error we roll back all changes. The `defer coordinator.rollback(s.log, &e, orgID)` line rollsback all resources to their preexisting state. For a more in depth look at that check out [here](https://github.com/influxdata/influxdb/blob/c926accb42d87c407bcac6bbda753f9a03f9ec95/pkger/service.go#L2118-L2167).
 
 #### Exporting existing resources as a package
 
