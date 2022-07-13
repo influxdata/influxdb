@@ -379,17 +379,14 @@ fn project_for_parquet_reader(
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-
     use super::*;
-
     use arrow::array::{ArrayRef, Int64Builder, StringBuilder};
     use data_types::{
-        NamespaceId, PartitionId, SequenceNumber, SequencerId, TableId,
-        FILE_NON_OVERLAPPED_COMPACTION_LEVEL,
+        CompactionLevel, NamespaceId, PartitionId, SequenceNumber, SequencerId, TableId,
     };
     use datafusion::common::DataFusionError;
     use iox_time::Time;
+    use std::collections::HashMap;
 
     #[tokio::test]
     async fn test_upload_metadata() {
@@ -752,7 +749,7 @@ mod tests {
             partition_key: "potato".into(),
             min_sequence_number: SequenceNumber::new(10),
             max_sequence_number: SequenceNumber::new(11),
-            compaction_level: FILE_NON_OVERLAPPED_COMPACTION_LEVEL,
+            compaction_level: CompactionLevel::FileNonOverlapped,
             sort_key: None,
         }
     }

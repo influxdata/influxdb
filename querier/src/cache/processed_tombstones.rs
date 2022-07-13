@@ -123,12 +123,12 @@ impl TtlProvider for KeepExistsForever {
 
 #[cfg(test)]
 mod tests {
-    use data_types::ColumnType;
-    use iox_tests::util::TestCatalog;
-
-    use crate::cache::{ram::test_util::test_ram_pool, test_util::assert_histogram_metric_count};
-
     use super::*;
+    use crate::cache::{ram::test_util::test_ram_pool, test_util::assert_histogram_metric_count};
+    use data_types::ColumnType;
+    use iox_tests::util::{TestCatalog, TestParquetFileBuilder};
+
+    const TABLE_LINE_PROTOCOL: &str = "table foo=1 11";
 
     #[tokio::test]
     async fn test() {
@@ -141,8 +141,9 @@ mod tests {
         let sequencer = ns.create_sequencer(1).await;
         let partition = table.with_sequencer(&sequencer).create_partition("k").await;
 
-        let file1 = partition.create_parquet_file("table foo=1 11").await;
-        let file2 = partition.create_parquet_file("table foo=1 11").await;
+        let builder = TestParquetFileBuilder::default().with_line_protocol(TABLE_LINE_PROTOCOL);
+        let file1 = partition.create_parquet_file(builder.clone()).await;
+        let file2 = partition.create_parquet_file(builder).await;
         let ts1 = table
             .with_sequencer(&sequencer)
             .create_tombstone(1, 1, 10, "foo=1")

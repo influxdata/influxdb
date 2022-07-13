@@ -5,8 +5,8 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use data_types::{
-    ColumnId, NamespaceId, PartitionId, SequenceNumber, SequencerId, TableId, Timestamp,
-    FILE_NON_OVERLAPPED_COMPACTION_LEVEL,
+    ColumnId, CompactionLevel, NamespaceId, PartitionId, SequenceNumber, SequencerId, TableId,
+    Timestamp,
 };
 use iox_time::Time;
 use object_store::DynObjectStore;
@@ -48,7 +48,7 @@ async fn test_decoded_iox_metadata() {
         partition_key: "potato".into(),
         min_sequence_number: SequenceNumber::new(10),
         max_sequence_number: SequenceNumber::new(11),
-        compaction_level: FILE_NON_OVERLAPPED_COMPACTION_LEVEL,
+        compaction_level: CompactionLevel::FileNonOverlapped,
         sort_key: None,
     };
 
@@ -141,7 +141,7 @@ async fn test_empty_parquet_file_panic() {
         partition_key: "potato".into(),
         min_sequence_number: SequenceNumber::new(10),
         max_sequence_number: SequenceNumber::new(11),
-        compaction_level: FILE_NON_OVERLAPPED_COMPACTION_LEVEL,
+        compaction_level: CompactionLevel::FileNonOverlapped,
         sort_key: None,
     };
 
@@ -219,10 +219,9 @@ async fn test_decoded_many_columns_with_null_cols_iox_metadata() {
         partition_key: "potato".into(),
         min_sequence_number: SequenceNumber::new(10),
         max_sequence_number: SequenceNumber::new(11),
-        compaction_level: FILE_NON_OVERLAPPED_COMPACTION_LEVEL,
+        compaction_level: CompactionLevel::FileNonOverlapped,
         sort_key: Some(sort_key),
     };
-    //println!("IoxMetadata: {:#?}", meta);
 
     let batch = RecordBatch::try_from_iter(data).unwrap();
     let stream = futures::stream::iter([Ok(batch.clone())]);
@@ -234,7 +233,6 @@ async fn test_decoded_many_columns_with_null_cols_iox_metadata() {
         .upload(stream, &meta)
         .await
         .expect("failed to serialize & persist record batch");
-    //println!("iox_parquet_meta: {:#?}", iox_parquet_meta);
 
     // Sanity check - can't assert the actual value.
     assert!(file_size > 0);
@@ -254,7 +252,6 @@ async fn test_decoded_many_columns_with_null_cols_iox_metadata() {
     let schema = decoded.read_schema().unwrap();
     let (_, field) = schema.field(0);
     assert_eq!(field.name(), "time");
-    //println!("schema: {:#?}", schema);
 
     let col_summary = decoded
         .read_statistics(&*schema)
@@ -299,7 +296,7 @@ async fn test_derive_parquet_file_params() {
         partition_key: "potato".into(),
         min_sequence_number: SequenceNumber::new(10),
         max_sequence_number: SequenceNumber::new(11),
-        compaction_level: FILE_NON_OVERLAPPED_COMPACTION_LEVEL,
+        compaction_level: CompactionLevel::FileNonOverlapped,
         sort_key: None,
     };
 

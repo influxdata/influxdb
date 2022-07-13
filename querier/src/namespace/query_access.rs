@@ -193,7 +193,7 @@ mod tests {
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use data_types::ColumnType;
     use iox_query::frontend::sql::SqlQueryPlanner;
-    use iox_tests::util::TestCatalog;
+    use iox_tests::util::{TestCatalog, TestParquetFileBuilder};
 
     #[tokio::test]
     async fn test_query() {
@@ -238,34 +238,86 @@ mod tests {
             .create_partition("c")
             .await;
 
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol("cpu,host=a load=1 11")
+            .with_min_seq(1)
+            .with_max_seq(1)
+            .with_min_time(11)
+            .with_max_time(11);
+        partition_cpu_a_1.create_parquet_file(builder).await;
+
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol("cpu,host=a load=2 22")
+            .with_min_seq(2)
+            .with_max_seq(2)
+            .with_min_time(22)
+            .with_max_time(22);
         partition_cpu_a_1
-            .create_parquet_file_with_min_max("cpu,host=a load=1 11", 1, 1, 11, 11)
-            .await;
-        partition_cpu_a_1
-            .create_parquet_file_with_min_max("cpu,host=a load=2 22", 2, 2, 22, 22)
+            .create_parquet_file(builder)
             .await
             .flag_for_delete() // will be pruned because of soft delete
             .await;
-        partition_cpu_a_1
-            .create_parquet_file_with_min_max("cpu,host=a load=3 33", 3, 3, 33, 33)
-            .await;
-        partition_cpu_a_2
-            .create_parquet_file_with_min_max("cpu,host=a load=4 10001", 4, 4, 10001, 10001)
-            .await;
-        partition_cpu_b_1
-            .create_parquet_file_with_min_max("cpu,host=b load=5 11", 5, 5, 11, 11)
-            .await;
-        partition_mem_c_1
-            .create_parquet_file_with_min_max("mem,host=c perc=50 11\nmem,host=c perc=51 12\nmem,host=d perc=52 13\nmem,host=d perc=53 14", 6, 6, 11, 14)
-            .await; // row `host=d perc=52 13` will be removed by the tombstone
+
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol("cpu,host=a load=3 33")
+            .with_min_seq(3)
+            .with_max_seq(3)
+            .with_min_time(33)
+            .with_max_time(33);
+        partition_cpu_a_1.create_parquet_file(builder).await;
+
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol("cpu,host=a load=4 10001")
+            .with_min_seq(4)
+            .with_max_seq(4)
+            .with_min_time(10_001)
+            .with_max_time(10_001);
+        partition_cpu_a_2.create_parquet_file(builder).await;
+
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol("cpu,host=b load=5 11")
+            .with_min_seq(5)
+            .with_max_seq(5)
+            .with_min_time(11)
+            .with_max_time(11);
+        partition_cpu_b_1.create_parquet_file(builder).await;
+
+        // row `host=d perc=52 13` will be removed by the tombstone
+        let lp = [
+            "mem,host=c perc=50 11",
+            "mem,host=c perc=51 12",
+            "mem,host=d perc=52 13",
+            "mem,host=d perc=53 14",
+        ]
+        .join("\n");
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(&lp)
+            .with_min_seq(6)
+            .with_max_seq(6)
+            .with_min_time(11)
+            .with_max_time(14);
+        partition_mem_c_1.create_parquet_file(builder).await;
+
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol("mem,host=c perc=50 1001")
+            .with_min_seq(7)
+            .with_max_seq(7)
+            .with_min_time(1001)
+            .with_max_time(1001);
         partition_mem_c_2
-            .create_parquet_file_with_min_max("mem,host=c perc=50 1001", 7, 7, 1001, 1001)
+            .create_parquet_file(builder)
             .await
             .flag_for_delete()
             .await;
-        partition_mem_c_1
-            .create_parquet_file_with_min_max("mem,host=d perc=55 1", 7, 7, 1, 1) // will be pruned by the tombstone
-            .await;
+
+        // will be pruned by the tombstone
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol("mem,host=d perc=55 1")
+            .with_min_seq(7)
+            .with_max_seq(7)
+            .with_min_time(1)
+            .with_max_time(1);
+        partition_mem_c_1.create_parquet_file(builder).await;
 
         table_mem
             .with_sequencer(&sequencer1)
@@ -358,10 +410,14 @@ mod tests {
         // -----------
         // Add an overlapped chunk
         // (overlaps `partition_cpu_a_2`)
-        partition_cpu_a_2
+        let builder = TestParquetFileBuilder::default()
             // duplicate row with different field value (load=14)
-            .create_parquet_file_with_min_max("cpu,host=a load=14 10001", 2000, 2000, 10001, 10001)
-            .await;
+            .with_line_protocol("cpu,host=a load=14 10001")
+            .with_min_seq(2_000)
+            .with_max_seq(2_000)
+            .with_min_time(10_001)
+            .with_max_time(10_001);
+        partition_cpu_a_2.create_parquet_file(builder).await;
 
         // Since we made a new parquet file, we need to tell querier about it
         clear_parquet_cache(&querier_namespace, table_cpu.table.id);

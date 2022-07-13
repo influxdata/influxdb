@@ -1655,8 +1655,8 @@ mod tests {
     use arrow_util::assert_batches_sorted_eq;
     use assert_matches::assert_matches;
     use data_types::{
-        ColumnId, ColumnSet, NamespaceSchema, NonEmptyString, ParquetFileParams, Sequence,
-        TimestampRange, INITIAL_COMPACTION_LEVEL,
+        ColumnId, ColumnSet, CompactionLevel, NamespaceSchema, NonEmptyString, ParquetFileParams,
+        Sequence, TimestampRange,
     };
     use datafusion::physical_plan::RecordBatchStream;
     use dml::{DmlDelete, DmlMeta, DmlWrite};
@@ -2490,7 +2490,7 @@ mod tests {
             max_time: Timestamp::new(1),
             file_size_bytes: 0,
             row_count: 0,
-            compaction_level: INITIAL_COMPACTION_LEVEL,
+            compaction_level: CompactionLevel::Initial,
             created_at: Timestamp::new(1),
             column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
         };

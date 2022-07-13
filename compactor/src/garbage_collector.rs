@@ -94,8 +94,8 @@ impl GarbageCollector {
 mod tests {
     use super::*;
     use data_types::{
-        ColumnId, ColumnSet, KafkaPartition, ParquetFile, ParquetFileParams, SequenceNumber,
-        INITIAL_COMPACTION_LEVEL,
+        ColumnId, ColumnSet, CompactionLevel, KafkaPartition, ParquetFile, ParquetFileParams,
+        SequenceNumber,
     };
     use futures::{StreamExt, TryStreamExt};
     use iox_tests::util::TestCatalog;
@@ -186,7 +186,7 @@ mod tests {
             file_size_bytes: 1337,
             row_count: 0,
             created_at: Timestamp::new(1),
-            compaction_level: INITIAL_COMPACTION_LEVEL,
+            compaction_level: CompactionLevel::Initial,
             column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
         };
         let parquet_file = txn
@@ -268,7 +268,7 @@ mod tests {
             file_size_bytes: 1337,
             row_count: 0,
             created_at: Timestamp::new(1),
-            compaction_level: INITIAL_COMPACTION_LEVEL,
+            compaction_level: CompactionLevel::Initial,
             column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
         };
         let parquet_file = txn
@@ -354,7 +354,7 @@ mod tests {
             file_size_bytes: 1337,
             row_count: 0,
             created_at: Timestamp::new(1),
-            compaction_level: INITIAL_COMPACTION_LEVEL,
+            compaction_level: CompactionLevel::Initial,
             column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
         };
         let parquet_file = txn

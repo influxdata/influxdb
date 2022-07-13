@@ -213,12 +213,14 @@ mod tests {
     use arrow_util::assert_batches_eq;
     use data_types::ColumnType;
     use datafusion_util::stream_from_batches;
-    use iox_tests::util::{TestCatalog, TestPartition};
+    use iox_tests::util::{TestCatalog, TestParquetFileBuilder, TestPartition};
     use metric::{Attributes, CumulativeGauge, Metric, U64Counter};
     use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
     use read_buffer::Predicate;
     use schema::selection::Selection;
     use std::time::Duration;
+
+    const TABLE1_LINE_PROTOCOL: &str = "table1 foo=1 11";
 
     fn make_cache(catalog: &TestCatalog) -> ReadBufferCache {
         ReadBufferCache::new(
@@ -251,7 +253,8 @@ mod tests {
     async fn test_rb_chunks() {
         let (catalog, partition) = make_catalog().await;
 
-        let test_parquet_file = partition.create_parquet_file("table1 foo=1 11").await;
+        let builder = TestParquetFileBuilder::default().with_line_protocol(TABLE1_LINE_PROTOCOL);
+        let test_parquet_file = partition.create_parquet_file(builder).await;
         let schema = test_parquet_file.schema().await;
         let parquet_file = Arc::new(test_parquet_file.parquet_file.clone());
         let storage = ParquetStorage::new(Arc::clone(&catalog.object_store));
@@ -320,9 +323,9 @@ mod tests {
                 .create_partition("k")
                 .await;
 
-            let test_parquet_file = partition
-                .create_parquet_file(&format!("{table_name} foo=1 11"))
-                .await;
+            let builder = TestParquetFileBuilder::default()
+                .with_line_protocol(&format!("{table_name} foo=1 11"));
+            let test_parquet_file = partition.create_parquet_file(builder).await;
             let schema = test_parquet_file.schema().await;
             let parquet_file = Arc::new(test_parquet_file.parquet_file.clone());
             parquet_files.push(parquet_file);
@@ -484,7 +487,8 @@ mod tests {
     async fn test_rb_metrics() {
         let (catalog, partition) = make_catalog().await;
 
-        let test_parquet_file = partition.create_parquet_file("table1 foo=1 11").await;
+        let builder = TestParquetFileBuilder::default().with_line_protocol(TABLE1_LINE_PROTOCOL);
+        let test_parquet_file = partition.create_parquet_file(builder).await;
         let schema = test_parquet_file.schema().await;
         let parquet_file = Arc::new(test_parquet_file.parquet_file.clone());
         let storage = ParquetStorage::new(Arc::clone(&catalog.object_store));
@@ -510,7 +514,8 @@ mod tests {
     async fn test_peek() {
         let (catalog, partition) = make_catalog().await;
 
-        let test_parquet_file = partition.create_parquet_file("table1 foo=1 11").await;
+        let builder = TestParquetFileBuilder::default().with_line_protocol(TABLE1_LINE_PROTOCOL);
+        let test_parquet_file = partition.create_parquet_file(builder).await;
         let schema = test_parquet_file.schema().await;
         let parquet_file = Arc::new(test_parquet_file.parquet_file.clone());
         let storage = ParquetStorage::new(Arc::clone(&catalog.object_store));

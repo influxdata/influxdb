@@ -11,11 +11,10 @@ use crate::{
 };
 use async_trait::async_trait;
 use data_types::{
-    Column, ColumnType, KafkaPartition, KafkaTopic, KafkaTopicId, Namespace, NamespaceId,
-    ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionInfo,
-    PartitionKey, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Sequencer,
-    SequencerId, Table, TableId, TablePartition, Timestamp, Tombstone, TombstoneId,
-    FILE_NON_OVERLAPPED_COMPACTION_LEVEL,
+    Column, ColumnType, CompactionLevel, KafkaPartition, KafkaTopic, KafkaTopicId, Namespace,
+    NamespaceId, ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId,
+    PartitionInfo, PartitionKey, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber,
+    Sequencer, SequencerId, Table, TableId, TablePartition, Timestamp, Tombstone, TombstoneId,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::{debug, info, warn};
@@ -1671,7 +1670,7 @@ WHERE parquet_file.sequencer_id = $1
         .bind(&table_partition.sequencer_id) // $1
         .bind(&table_partition.table_id) // $2
         .bind(&table_partition.partition_id) // $3
-        .bind(FILE_NON_OVERLAPPED_COMPACTION_LEVEL) // $4
+        .bind(CompactionLevel::FileNonOverlapped) // $4
         .bind(min_time) // $5
         .bind(max_time) // $6
         .fetch_all(&mut self.inner)
@@ -1716,7 +1715,7 @@ WHERE id = ANY($2)
 RETURNING id;
         "#,
         )
-        .bind(FILE_NON_OVERLAPPED_COMPACTION_LEVEL) // $1
+        .bind(CompactionLevel::FileNonOverlapped) // $1
         .bind(&ids[..]) // $2
         .fetch_all(&mut self.inner)
         .await

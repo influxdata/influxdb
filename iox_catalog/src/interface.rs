@@ -550,8 +550,8 @@ pub trait ParquetFileRepo: Send + Sync {
         partition_id: PartitionId,
     ) -> Result<Vec<ParquetFile>>;
 
-    /// Update the compaction level of the specified parquet files to level
-    /// `FILE_NON_OVERLAPPED_COMPACTION_LEVEL`
+    /// Update the compaction level of the specified parquet files to
+    /// `CompactionLevel::FileNonOverlapped`
     /// Returns the IDs of the files that were successfully updated.
     async fn update_to_level_2(
         &mut self,
@@ -812,9 +812,7 @@ pub(crate) mod test_helpers {
 
     use super::*;
     use ::test_helpers::{assert_contains, tracing::TracingCapture};
-    use data_types::{
-        ColumnId, ColumnSet, FILE_NON_OVERLAPPED_COMPACTION_LEVEL, INITIAL_COMPACTION_LEVEL,
-    };
+    use data_types::{ColumnId, ColumnSet, CompactionLevel};
     use metric::{Attributes, DurationHistogram, Metric};
     use std::{
         ops::{Add, DerefMut},
@@ -1714,7 +1712,7 @@ pub(crate) mod test_helpers {
             max_time,
             file_size_bytes: 1337,
             row_count: 0,
-            compaction_level: INITIAL_COMPACTION_LEVEL,
+            compaction_level: CompactionLevel::Initial,
             created_at: Timestamp::new(1),
             column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
         };
@@ -1925,7 +1923,7 @@ pub(crate) mod test_helpers {
             max_time: Timestamp::new(10),
             file_size_bytes: 1337,
             row_count: 0,
-            compaction_level: INITIAL_COMPACTION_LEVEL,
+            compaction_level: CompactionLevel::Initial,
             created_at: Timestamp::new(1),
             column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
         };
@@ -2261,7 +2259,7 @@ pub(crate) mod test_helpers {
             max_time,
             file_size_bytes: 1337,
             row_count: 0,
-            compaction_level: INITIAL_COMPACTION_LEVEL,
+            compaction_level: CompactionLevel::Initial,
             created_at: Timestamp::new(1),
             column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
         };
@@ -2391,7 +2389,7 @@ pub(crate) mod test_helpers {
             max_time: query_max_time - 1,
             file_size_bytes: 1337,
             row_count: 0,
-            compaction_level: INITIAL_COMPACTION_LEVEL,
+            compaction_level: CompactionLevel::Initial,
             created_at: Timestamp::new(1),
             column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
         };
@@ -2597,7 +2595,7 @@ pub(crate) mod test_helpers {
             max_time,
             file_size_bytes: 1337,
             row_count: 0,
-            compaction_level: INITIAL_COMPACTION_LEVEL,
+            compaction_level: CompactionLevel::Initial,
             created_at: Timestamp::new(1),
             column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
         };
@@ -2635,7 +2633,7 @@ pub(crate) mod test_helpers {
             .update_to_level_2(&[level1_file.id])
             .await
             .unwrap();
-        level1_file.compaction_level = FILE_NON_OVERLAPPED_COMPACTION_LEVEL;
+        level1_file.compaction_level = CompactionLevel::FileNonOverlapped;
 
         let other_partition_params = ParquetFileParams {
             partition_id: partition2.id,
@@ -2703,7 +2701,7 @@ pub(crate) mod test_helpers {
             max_time: query_max_time - 1,
             file_size_bytes: 1337,
             row_count: 0,
-            compaction_level: INITIAL_COMPACTION_LEVEL,
+            compaction_level: CompactionLevel::Initial,
             created_at: Timestamp::new(1),
             column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
         };
@@ -2820,7 +2818,7 @@ pub(crate) mod test_helpers {
             max_time: Timestamp::new(250),
             file_size_bytes: 1337,
             row_count: 0,
-            compaction_level: INITIAL_COMPACTION_LEVEL,
+            compaction_level: CompactionLevel::Initial,
             created_at: Timestamp::new(1),
             column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
         };

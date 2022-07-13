@@ -7,9 +7,8 @@ use crate::{
 };
 use backoff::BackoffConfig;
 use data_types::{
-    Namespace, NamespaceId, ParquetFile, ParquetFileId, Partition, PartitionId, SequencerId, Table,
-    TableId, TableSchema, Timestamp, Tombstone, TombstoneId, FILE_NON_OVERLAPPED_COMPACTION_LEVEL,
-    INITIAL_COMPACTION_LEVEL,
+    CompactionLevel, Namespace, NamespaceId, ParquetFile, ParquetFileId, Partition, PartitionId,
+    SequencerId, Table, TableId, TableSchema, Timestamp, Tombstone, TombstoneId,
 };
 use datafusion::error::DataFusionError;
 use futures::stream::{FuturesUnordered, TryStreamExt};
@@ -505,7 +504,7 @@ impl Compactor {
                 );
                 // If it is level 0, upgrade it
                 if files_with_tombstones.parquet_files[0].compaction_level
-                    == INITIAL_COMPACTION_LEVEL
+                    == CompactionLevel::Initial
                 {
                     compact_and_upgrade
                         .files_to_upgrade
@@ -547,7 +546,7 @@ impl Compactor {
 
         let partition = self.get_partition_from_catalog(partition_id).await?;
 
-        let mut file_count = 0;
+        let mut files_by_level = BTreeMap::new();
 
         // Compact, persist,and update catalog accordingly for each overlapped file
         let mut tombstones = BTreeMap::new();
@@ -556,7 +555,9 @@ impl Compactor {
             .sequencer_id()
             .expect("Should have sequencer ID");
         for group in compact_and_upgrade.groups_to_compact {
-            file_count += group.parquet_files.len();
+            for compaction_level in group.parquet_files.iter().map(|p| p.compaction_level) {
+                *files_by_level.entry(compaction_level).or_default() += 1;
+            }
 
             // keep tombstone ids
             tombstones = Self::union_tombstones(tombstones, &group);
@@ -672,8 +673,12 @@ impl Compactor {
             duration.record(delta);
         }
 
-        let compaction_counter = self.compaction_counter.recorder(attributes.clone());
-        compaction_counter.inc(file_count as u64);
+        for (compaction_level, file_count) in files_by_level {
+            let mut attributes = attributes.clone();
+            attributes.insert("compaction_level", format!("{}", compaction_level as i32));
+            let compaction_counter = self.compaction_counter.recorder(attributes);
+            compaction_counter.inc(file_count);
+        }
 
         let compaction_output_counter = self.compaction_output_counter.recorder(attributes);
         compaction_output_counter.inc(output_file_count as u64);
@@ -840,7 +845,7 @@ impl Compactor {
                 min_sequence_number,
                 max_sequence_number,
                 // TODO before merging: this can either level-1 or level-2
-                compaction_level: FILE_NON_OVERLAPPED_COMPACTION_LEVEL,
+                compaction_level: CompactionLevel::FileNonOverlapped,
                 sort_key: Some(sort_key.clone()),
             };
 
@@ -1100,7 +1105,7 @@ mod tests {
         SequenceNumber,
     };
     use futures::{stream::FuturesOrdered, StreamExt, TryStreamExt};
-    use iox_tests::util::{TestCatalog, TestTable};
+    use iox_tests::util::{TestCatalog, TestParquetFileBuilder, TestTable};
     use iox_time::SystemProvider;
     use parquet_file::ParquetFilePath;
     use schema::{selection::Selection, sort::SortKey};
@@ -1126,22 +1131,23 @@ mod tests {
         table.create_column("time", ColumnType::Time).await;
         let table_schema = table.catalog_schema().await;
 
-        // One parquet file
         let partition = table
             .with_sequencer(&sequencer)
             .create_partition("part")
             .await;
-        partition
-            .create_parquet_file_with_min_max_size_and_creation_time(
-                &lp,
-                1,
-                1,
-                8000,
-                20000,
-                120000, // file size > compaction_max_size_bytes to have it split into 2 files
-                catalog.time_provider.now().timestamp_nanos(),
-            )
-            .await;
+
+        // One parquet file
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(&lp)
+            .with_min_seq(1)
+            .with_max_seq(1)
+            .with_min_time(8_000)
+            .with_max_time(20_000)
+            // file size > compaction_max_size_bytes to have it split into 2 files
+            .with_file_size_bytes(120_000)
+            .with_creation_time(catalog.time_provider.now().timestamp_nanos());
+        partition.create_parquet_file(builder).await;
+
         // should have 1 level-0 file
         let count = catalog.count_level_0_files(sequencer.sequencer.id).await;
         assert_eq!(count, 1);
@@ -1158,6 +1164,7 @@ mod tests {
         // ------------------------------------------------
         // Compact
         let config = make_compactor_config();
+        let metrics = Arc::new(metric::Registry::new());
         let compactor = Compactor::new(
             vec![sequencer.sequencer.id],
             Arc::clone(&catalog.catalog),
@@ -1166,7 +1173,7 @@ mod tests {
             Arc::new(SystemProvider::new()),
             BackoffConfig::default(),
             config,
-            Arc::new(metric::Registry::new()),
+            Arc::clone(&metrics),
         );
 
         let compact_and_upgrade = compactor
@@ -1195,7 +1202,7 @@ mod tests {
         // 1 newly created level-1 file as the result of compaction
         assert_eq!(
             (files[0].id.get(), files[0].compaction_level),
-            (2, FILE_NON_OVERLAPPED_COMPACTION_LEVEL)
+            (2, CompactionLevel::FileNonOverlapped)
         );
 
         // processed tombstones created and deleted inside compact_partition function
@@ -1232,6 +1239,27 @@ mod tests {
             &batches
         );
         assert!(files.is_empty());
+
+        // Verify the metrics
+        let level_initial_file_counter = metrics
+            .get_instrument::<Metric<U64Counter>>("compactor_compacted_files_total")
+            .unwrap()
+            .get_observer(&Attributes::from(&[
+                ("sequencer_id", "1"),
+                ("compaction_level", "0"),
+            ]))
+            .unwrap()
+            .fetch();
+        assert_eq!(level_initial_file_counter, 1);
+
+        assert!(metrics
+            .get_instrument::<Metric<U64Counter>>("compactor_compacted_files_total")
+            .unwrap()
+            .get_observer(&Attributes::from(&[
+                ("sequencer_id", "1"),
+                ("compaction_level", "2"),
+            ]))
+            .is_none());
     }
 
     // A quite sophisticated integration test
@@ -1265,10 +1293,17 @@ mod tests {
         ]
         .join("\n");
 
-        // lp4 does not overlapp with any
+        // lp4 does not overlap with any
         let lp4 = vec![
             "table,tag2=WA,tag3=10 field_int=1600i 28000",
             "table,tag2=VT,tag3=20 field_int=20i 26000",
+        ]
+        .join("\n");
+
+        // lp5 does not overlap with any
+        let lp5 = vec![
+            "table,tag2=PA,tag3=15 field_int=1601i 30000",
+            "table,tag2=OH,tag3=21 field_int=21i 36000",
         ]
         .join("\n");
 
@@ -1287,6 +1322,7 @@ mod tests {
             .await;
         let time = Arc::new(SystemProvider::new());
         let config = make_compactor_config();
+        let metrics = Arc::new(metric::Registry::new());
         let compactor = Compactor::new(
             vec![sequencer.sequencer.id],
             Arc::clone(&catalog.catalog),
@@ -1295,61 +1331,67 @@ mod tests {
             Arc::new(SystemProvider::new()),
             BackoffConfig::default(),
             config,
-            Arc::new(metric::Registry::new()),
+            Arc::clone(&metrics),
         );
 
         // parquet files that are all in the same partition and should all end up in the same
         // compacted file
 
         // pf1 does not overlap with any and is very large
-        partition
-            .create_parquet_file_with_min_max_size_and_creation_time(
-                &lp1,
-                1,
-                1,
-                10,
-                20,
-                config.compaction_max_desired_file_size_bytes() + 10,
-                20,
-            )
-            .await;
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(&lp1)
+            .with_min_seq(1)
+            .with_max_seq(1)
+            .with_min_time(10)
+            .with_max_time(20)
+            .with_file_size_bytes(compactor.config.compaction_max_desired_file_size_bytes() + 10)
+            .with_creation_time(20);
+        partition.create_parquet_file(builder).await;
+
         // pf2 overlaps with pf3
-        partition
-            .create_parquet_file_with_min_max_size_and_creation_time(
-                &lp2,
-                4,
-                5,
-                8000,
-                20000,
-                100, // small file
-                time.now().timestamp_nanos(),
-            )
-            .await;
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(&lp2)
+            .with_min_seq(4)
+            .with_max_seq(5)
+            .with_min_time(8_000)
+            .with_max_time(20_000)
+            .with_file_size_bytes(100) // small file
+            .with_creation_time(time.now().timestamp_nanos());
+        partition.create_parquet_file(builder).await;
+
         // pf3 overlaps with pf2
-        partition
-            .create_parquet_file_with_min_max_size_and_creation_time(
-                &lp3,
-                8,
-                10,
-                6000,
-                25000,
-                100, // small file
-                time.now().timestamp_nanos(),
-            )
-            .await;
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(&lp3)
+            .with_min_seq(8)
+            .with_max_seq(10)
+            .with_min_time(6_000)
+            .with_max_time(25_000)
+            .with_file_size_bytes(100) // small file
+            .with_creation_time(time.now().timestamp_nanos());
+        partition.create_parquet_file(builder).await;
 
         // pf4 does not overlap with any but is small
-        partition
-            .create_parquet_file_with_min_max_size_and_creation_time(
-                &lp4,
-                18,
-                18,
-                26000,
-                28000,
-                100, // small file
-                time.now().timestamp_nanos(),
-            )
-            .await;
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(&lp4)
+            .with_min_seq(18)
+            .with_max_seq(18)
+            .with_min_time(26_000)
+            .with_max_time(28_000)
+            .with_file_size_bytes(100) // small file
+            .with_creation_time(time.now().timestamp_nanos());
+        partition.create_parquet_file(builder).await;
+
+        // pf5 was created in a previous compaction cycle
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(&lp5)
+            .with_min_seq(20)
+            .with_max_seq(20)
+            .with_min_time(30_000)
+            .with_max_time(36_000)
+            .with_file_size_bytes(100) // small file
+            .with_creation_time(time.now().timestamp_nanos())
+            .with_compaction_level(CompactionLevel::FileNonOverlapped);
+        partition.create_parquet_file(builder).await;
 
         // should have 4 level-0 files before compacting
         let count = catalog.count_level_0_files(sequencer.sequencer.id).await;
@@ -1407,11 +1449,11 @@ mod tests {
         // pf3, pf4 all into one file
         let mut files = catalog.list_by_table_not_to_delete(table.table.id).await;
         assert_eq!(files.len(), 1);
-        // 1 newly created level-FILE_NON_OVERLAPPED_COMAPCTION_LEVEL file as the result of
+        // 1 newly created CompactionLevel::FileNonOverlapped file as the result of
         // compaction
         assert_eq!(
             (files[0].id.get(), files[0].compaction_level),
-            (5, FILE_NON_OVERLAPPED_COMPACTION_LEVEL)
+            (6, CompactionLevel::FileNonOverlapped)
         );
 
         // should have ts1 and ts3 that not involved in the commpaction process
@@ -1444,12 +1486,37 @@ mod tests {
                 "| 70        | UT   |      |      | 1970-01-01T00:00:00.000020Z    |",
                 "| 1600      |      | WA   | 10   | 1970-01-01T00:00:00.000028Z    |",
                 "| 20        |      | VT   | 20   | 1970-01-01T00:00:00.000026Z    |",
+                "| 1601      |      | PA   | 15   | 1970-01-01T00:00:00.000030Z    |",
+                "| 21        |      | OH   | 21   | 1970-01-01T00:00:00.000036Z    |",
                 "+-----------+------+------+------+--------------------------------+",
             ],
             &batches
         );
         // No more files
         assert!(files.is_empty());
+
+        // Verify the metrics
+        let level_initial_file_counter = metrics
+            .get_instrument::<Metric<U64Counter>>("compactor_compacted_files_total")
+            .unwrap()
+            .get_observer(&Attributes::from(&[
+                ("sequencer_id", "1"),
+                ("compaction_level", "0"),
+            ]))
+            .unwrap()
+            .fetch();
+        assert_eq!(level_initial_file_counter, 4);
+
+        let level_non_overlapped_file_counter = metrics
+            .get_instrument::<Metric<U64Counter>>("compactor_compacted_files_total")
+            .unwrap()
+            .get_observer(&Attributes::from(&[
+                ("sequencer_id", "1"),
+                ("compaction_level", "2"),
+            ]))
+            .unwrap()
+            .fetch();
+        assert_eq!(level_non_overlapped_file_counter, 1);
     }
 
     #[tokio::test]
@@ -1473,10 +1540,13 @@ mod tests {
             .with_sequencer(&sequencer)
             .create_partition("part")
             .await;
-        let parquet_file = partition
-            .create_parquet_file_with_min_max(&lp, 1, 1, 8000, 20000)
-            .await
-            .parquet_file;
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(&lp)
+            .with_min_seq(1)
+            .with_max_seq(1)
+            .with_min_time(8_000)
+            .with_max_time(20_000);
+        let parquet_file = partition.create_parquet_file(builder).await.parquet_file;
 
         let config = make_compactor_config();
         let compactor = Compactor::new(
@@ -1553,15 +1623,25 @@ mod tests {
             .with_sequencer(&sequencer)
             .create_partition("part")
             .await;
+
         // Create 2 parquet files in the same partition
-        let parquet_file1 = partition
-            .create_parquet_file_with_min_max_size(&lp1, 1, 5, 8000, 20000, 140000)
-            .await
-            .parquet_file;
-        let parquet_file2 = partition
-            .create_parquet_file_with_min_max_size(&lp2, 10, 15, 6000, 25000, 100000)
-            .await
-            .parquet_file;
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(&lp1)
+            .with_min_seq(1)
+            .with_max_seq(5)
+            .with_min_time(8_000)
+            .with_max_time(20_000)
+            .with_file_size_bytes(140_000);
+        let parquet_file1 = partition.create_parquet_file(builder).await.parquet_file;
+
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(&lp2)
+            .with_min_seq(10)
+            .with_max_seq(15)
+            .with_min_time(6_000)
+            .with_max_time(25_000)
+            .with_file_size_bytes(100_000);
+        let parquet_file2 = partition.create_parquet_file(builder).await.parquet_file;
 
         let config = make_compactor_config();
         let compactor = Compactor::new(
@@ -1668,21 +1748,36 @@ mod tests {
             .with_sequencer(&sequencer)
             .create_partition("part")
             .await;
+
         // Sequence numbers are important here.
         // Time/sequence order from small to large: parquet_file_1, parquet_file_2, parquet_file_3
         // total file size = 50000 (file1) + 50000 (file2) + 20000 (file3)
-        let parquet_file1 = partition
-            .create_parquet_file_with_min_max_size(&lp1, 1, 5, 8000, 20000, 50000)
-            .await
-            .parquet_file;
-        let parquet_file2 = partition
-            .create_parquet_file_with_min_max_size(&lp2, 10, 15, 6000, 25000, 50000)
-            .await
-            .parquet_file;
-        let parquet_file3 = partition
-            .create_parquet_file_with_min_max_size(&lp3, 20, 25, 6000, 8000, 20000)
-            .await
-            .parquet_file;
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(&lp1)
+            .with_min_seq(1)
+            .with_max_seq(5)
+            .with_min_time(8_000)
+            .with_max_time(20_000)
+            .with_file_size_bytes(50_000);
+        let parquet_file1 = partition.create_parquet_file(builder).await.parquet_file;
+
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(&lp2)
+            .with_min_seq(10)
+            .with_max_seq(15)
+            .with_min_time(6_000)
+            .with_max_time(25_000)
+            .with_file_size_bytes(50_000);
+        let parquet_file2 = partition.create_parquet_file(builder).await.parquet_file;
+
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(&lp3)
+            .with_min_seq(20)
+            .with_max_seq(25)
+            .with_min_time(6_000)
+            .with_max_time(8_000)
+            .with_file_size_bytes(20_000);
+        let parquet_file3 = partition.create_parquet_file(builder).await.parquet_file;
 
         let config = make_compactor_config();
         let compactor = Compactor::new(
@@ -1790,14 +1885,20 @@ mod tests {
             .create_partition("part")
             .await;
         // 2 files with same min_sequence_number
-        let pf1 = partition
-            .create_parquet_file_with_min_max(&lp1, 1, 5, 8000, 20000)
-            .await
-            .parquet_file;
-        let pf2 = partition
-            .create_parquet_file_with_min_max(&lp2, 1, 5, 28000, 35000)
-            .await
-            .parquet_file;
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(&lp1)
+            .with_min_seq(1)
+            .with_max_seq(5)
+            .with_min_time(8_000)
+            .with_max_time(20_000);
+        let pf1 = partition.create_parquet_file(builder).await.parquet_file;
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(&lp2)
+            .with_min_seq(1)
+            .with_max_seq(5)
+            .with_min_time(28_000)
+            .with_max_time(35_000);
+        let pf2 = partition.create_parquet_file(builder).await.parquet_file;
 
         // Build 2 QueryableParquetChunks
         let pt1 = ParquetFileWithTombstone::new(Arc::new(pf1), vec![]);
@@ -1852,7 +1953,8 @@ mod tests {
             .update_sort_key(SortKey::from_columns(["tag1", "tag2", "time"]))
             .await;
 
-        let pf = partition.create_parquet_file(&lp).await.parquet_file;
+        let builder = TestParquetFileBuilder::default().with_line_protocol(&lp);
+        let pf = partition.create_parquet_file(builder).await.parquet_file;
 
         let pt = ParquetFileWithTombstone::new(Arc::new(pf), vec![]);
 
@@ -1984,8 +2086,8 @@ mod tests {
             partition_key: "somehour".into(),
             min_sequence_number: SequenceNumber::new(5),
             max_sequence_number: SequenceNumber::new(6),
-            // TODO: cpnsider to add level-1 tests before merging
-            compaction_level: FILE_NON_OVERLAPPED_COMPACTION_LEVEL,
+            // TODO: consider to add level-1 tests before merging
+            compaction_level: CompactionLevel::FileNonOverlapped,
             sort_key: None,
         };
 
@@ -2001,7 +2103,7 @@ mod tests {
             min_time,
             max_time,
             file_size_bytes: 1337,
-            compaction_level: INITIAL_COMPACTION_LEVEL, // level of file of new writes
+            compaction_level: CompactionLevel::Initial, // level of file of new writes
             row_count: 0,
             created_at: Timestamp::new(1),
             column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
@@ -2183,7 +2285,7 @@ mod tests {
             max_time: Timestamp::new(5),
             file_size_bytes: 1337,
             row_count: 0,
-            compaction_level: INITIAL_COMPACTION_LEVEL, // level of file of new writes
+            compaction_level: CompactionLevel::Initial, // level of file of new writes
             created_at: Timestamp::new(1),
             column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
         };
@@ -2292,15 +2394,25 @@ mod tests {
             .with_sequencer(&sequencer)
             .create_partition("part")
             .await;
+
         // total file size = 60000 + 60000 = 120000
-        let parquet_file1 = partition
-            .create_parquet_file_with_min_max_size(&lp1, 1, 5, 1, 1000, 60000)
-            .await
-            .parquet_file;
-        let parquet_file2 = partition
-            .create_parquet_file_with_min_max_size(&lp2, 10, 15, 500, 1500, 60000)
-            .await
-            .parquet_file;
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(&lp1)
+            .with_min_seq(1)
+            .with_max_seq(1)
+            .with_min_time(1)
+            .with_max_time(1_000)
+            .with_file_size_bytes(60_000);
+        let parquet_file1 = partition.create_parquet_file(builder).await.parquet_file;
+
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(&lp2)
+            .with_min_seq(10)
+            .with_max_seq(15)
+            .with_min_time(500)
+            .with_max_time(1_500)
+            .with_file_size_bytes(60_000);
+        let parquet_file2 = partition.create_parquet_file(builder).await.parquet_file;
 
         let config = make_compactor_config();
         let compactor = Compactor::new(

@@ -1,12 +1,13 @@
 //! Shared data types
 
+// `clippy::use_self` is deliberately excluded from the lints this crate uses.
+// See <https://github.com/rust-lang/rust-clippy/issues/6902>.
 #![warn(
     missing_copy_implementations,
     missing_debug_implementations,
     missing_docs,
     clippy::explicit_iter_loop,
     clippy::future_not_send,
-    clippy::use_self,
     clippy::clone_on_ref_ptr
 )]
 
@@ -32,12 +33,30 @@ use std::{
 use uuid::Uuid;
 
 /// Compaction levels
-/// The starting compaction level for parquet files persisted by an Ingester is zero.
-pub const INITIAL_COMPACTION_LEVEL: i16 = 0;
-/// Level of files persisted by a Compactor that overlapped with other level-1 files
-pub const FILE_OVERLAPPED_COMPACTION_LEVEL: i16 = 1;
-/// Level of files persisted by a Compactor that do not over lap with non-level-0 files
-pub const FILE_NON_OVERLAPPED_COMPACTION_LEVEL: i16 = 2;
+#[allow(non_camel_case_types)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Hash, sqlx::Type)]
+#[repr(i16)]
+pub enum CompactionLevel {
+    /// The starting compaction level for parquet files persisted by an Ingester is zero.
+    Initial = 0,
+    /// Level of files persisted by a Compactor that overlapped with other level-1 files
+    FileOverlapped = 1,
+    /// Level of files persisted by a Compactor that do not over lap with non-level-0 files
+    FileNonOverlapped = 2,
+}
+
+impl TryFrom<i32> for CompactionLevel {
+    type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
+
+    fn try_from(value: i32) -> Result<Self, Self::Error> {
+        match value {
+            x if x == Self::Initial as i32 => Ok(Self::Initial),
+            x if x == Self::FileOverlapped as i32 => Ok(Self::FileOverlapped),
+            x if x == Self::FileNonOverlapped as i32 => Ok(Self::FileNonOverlapped),
+            _ => Err("invalid compaction level value".into()),
+        }
+    }
+}
 
 /// Unique ID for a `Namespace`
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
@@ -917,19 +936,20 @@ pub struct ParquetFile {
     pub file_size_bytes: i64,
     /// the number of rows of data in this file
     pub row_count: i64,
-    /// the compaction level of the file
-    ///  . 0 (INITIAL_COMPACTION_LEVEL): represents a level-0 file that is persisted by an Ingester.
-    ///       Partitions with level-0 files are usually hot/recent partitions.
-    ///  . 1 (FILE_OVERLAPPED_COMPACTION_LEVEL): represents a level-1 file that is persisted by a
-    ///       Compactor and potentially overlaps with other level-1 files. Partitions with level-1
-    ///       files are partitions with a lot of or/and large overlapped files that have to go
-    ///       through many compaction cycles before they are fully compacted to non-overlapped
-    ///       files.
-    ///  . 2 (FILE_NON_OVERLAPPED_COMPACTION_LEVEL): represents a level-2 file that is persisted by
-    ///       a Compactor and does not overlap with other files except level 0 ones. Eventually,
-    ///       cold partitions (partitions that no longer needs to get compacted) will only include
-    ///       one or many level-2 files
-    pub compaction_level: i16,
+    /// The compaction level of the file.
+    ///
+    ///  * 0 (`CompactionLevel::Initial`): represents a level-0 file that is persisted by an
+    ///      Ingester. Partitions with level-0 files are usually hot/recent partitions.
+    ///  * 1 (`CompactionLevel::FileOverlapped`): represents a level-1 file that is persisted by a
+    ///      Compactor and potentially overlaps with other level-1 files. Partitions with level-1
+    ///      files are partitions with a lot of or/and large overlapped files that have to go
+    ///      through many compaction cycles before they are fully compacted to non-overlapped
+    ///      files.
+    ///  * 2 (`CompactionLevel::FileNonOverlapped`): represents a level-2 file that is persisted by
+    ///      a Compactor and does not overlap with other files except level 0 ones. Eventually,
+    ///      cold partitions (partitions that no longer needs to get compacted) will only include
+    ///      one or many level-2 files
+    pub compaction_level: CompactionLevel,
     /// the creation time of the parquet file
     pub created_at: Timestamp,
     /// Set of columns within this parquet file.
@@ -983,7 +1003,7 @@ pub struct ParquetFileParams {
     /// the number of rows of data in this file
     pub row_count: i64,
     /// the compaction level of the file
-    pub compaction_level: i16,
+    pub compaction_level: CompactionLevel,
     /// the creation time of the parquet file
     pub created_at: Timestamp,
     /// columns in this file.

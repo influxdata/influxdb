@@ -10,8 +10,8 @@ use arrow::record_batch::RecordBatch;
 use arrow_util::assert_batches_eq;
 use bitflags::bitflags;
 use data_types::{
-    KafkaPartition, NamespaceId, PartitionId, PartitionKey, SequenceNumber, SequencerId, TableId,
-    Timestamp, Tombstone, TombstoneId, INITIAL_COMPACTION_LEVEL,
+    CompactionLevel, KafkaPartition, NamespaceId, PartitionId, PartitionKey, SequenceNumber,
+    SequencerId, TableId, Timestamp, Tombstone, TombstoneId,
 };
 use iox_catalog::{interface::Catalog, mem::MemCatalog};
 use iox_query::test::{raw_data, TestChunk};
@@ -85,7 +85,7 @@ pub async fn make_persisting_batch_with_meta() -> (Arc<PersistingBatch>, Vec<Tom
         partition_key,
         seq_num_start,
         seq_num_end,
-        INITIAL_COMPACTION_LEVEL,
+        CompactionLevel::Initial,
         Some(SortKey::from_columns(vec!["tag1", "tag2", "time"])),
     );
 
@@ -126,7 +126,7 @@ pub fn make_meta(
     partition_key: &str,
     min_sequence_number: i64,
     max_sequence_number: i64,
-    compaction_level: i16,
+    compaction_level: CompactionLevel,
     sort_key: Option<SortKey>,
 ) -> IoxMetadata {
     IoxMetadata {

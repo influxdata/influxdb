@@ -361,7 +361,10 @@ async fn load_parquet_files(
                     max_time: Timestamp::new(p.max_time),
                     file_size_bytes: p.file_size_bytes,
                     row_count: p.row_count,
-                    compaction_level: p.compaction_level as i16,
+                    compaction_level: p
+                        .compaction_level
+                        .try_into()
+                        .expect("compaction level should be valid"),
                     created_at: Timestamp::new(p.created_at),
                     column_set: ColumnSet::new(p.column_set.into_iter().map(ColumnId::new)),
                 };
@@ -387,7 +390,7 @@ struct PartitionMapping {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use data_types::{ColumnType, ParquetFileId, INITIAL_COMPACTION_LEVEL};
+    use data_types::{ColumnType, CompactionLevel, ParquetFileId};
     use influxdb_iox_client::schema::generated_types::*;
     use iox_catalog::mem::MemCatalog;
     use std::collections::HashMap;
@@ -581,7 +584,7 @@ mod tests {
                 to_delete: 0,
                 file_size_bytes,
                 row_count,
-                compaction_level: INITIAL_COMPACTION_LEVEL as i32,
+                compaction_level: CompactionLevel::Initial as i32,
                 created_at: created_at.get(),
                 column_set: vec![1, 2],
             }],
@@ -606,7 +609,7 @@ mod tests {
             to_delete: None,
             file_size_bytes,
             row_count,
-            compaction_level: INITIAL_COMPACTION_LEVEL,
+            compaction_level: CompactionLevel::Initial,
             created_at,
             column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
         }];
