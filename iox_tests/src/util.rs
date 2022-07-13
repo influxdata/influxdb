@@ -501,6 +501,7 @@ impl TestPartition {
             file_size_bytes,
             creation_time,
             compaction_level,
+            to_delete,
         } = builder;
 
         let record_batch = record_batch.expect("A record batch is required");
@@ -575,6 +576,14 @@ impl TestPartition {
             .unwrap();
         update_catalog_sort_key_if_needed(repos.partitions(), self.partition.id, sort_key).await;
 
+        if to_delete {
+            repos
+                .parquet_files()
+                .flag_for_delete(parquet_file.id)
+                .await
+                .unwrap();
+        }
+
         TestParquetFile {
             catalog: Arc::clone(&self.catalog),
             namespace: Arc::clone(&self.namespace),
@@ -599,6 +608,7 @@ pub struct TestParquetFileBuilder {
     file_size_bytes: Option<i64>,
     creation_time: i64,
     compaction_level: CompactionLevel,
+    to_delete: bool,
 }
 
 impl Default for TestParquetFileBuilder {
@@ -614,6 +624,7 @@ impl Default for TestParquetFileBuilder {
             file_size_bytes: None,
             creation_time: 1,
             compaction_level: CompactionLevel::Initial,
+            to_delete: false,
         }
     }
 }
@@ -685,6 +696,12 @@ impl TestParquetFileBuilder {
     /// Specify the compaction level for the parquet file metadata.
     pub fn with_compaction_level(mut self, compaction_level: CompactionLevel) -> Self {
         self.compaction_level = compaction_level;
+        self
+    }
+
+    /// Specify whether the parquet file should be marked as deleted or not.
+    pub fn with_to_delete(mut self, to_delete: bool) -> Self {
+        self.to_delete = to_delete;
         self
     }
 }

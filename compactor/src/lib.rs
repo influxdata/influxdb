@@ -13,6 +13,7 @@
 pub mod compact;
 pub mod garbage_collector;
 pub mod handler;
+pub(crate) mod parquet_file_lookup;
 pub mod query;
 pub mod server;
 pub mod utils;
