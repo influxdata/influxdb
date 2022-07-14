@@ -662,9 +662,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "3.2.10"
+version = "3.2.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "69c5a7f9997be616e47f0577ee38c91decb33392c5be4866494f34cdf329a9aa"
+checksum = "d646c7ade5eb07c4aa20e907a922750df0c448892513714fd3e4acbc7130829f"
 dependencies = [
  "atty",
  "bitflags",
@@ -681,7 +681,7 @@ dependencies = [
 name = "clap_blocks"
 version = "0.1.0"
 dependencies = [
- "clap 3.2.10",
+ "clap 3.2.11",
  "data_types",
  "futures",
  "humantime",
@@ -2056,7 +2056,7 @@ dependencies = [
  "assert_cmd",
  "backtrace",
  "bytes",
- "clap 3.2.10",
+ "clap 3.2.11",
  "clap_blocks",
  "console-subscriber",
  "data_types",
@@ -2295,7 +2295,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "chrono-english",
- "clap 3.2.10",
+ "clap 3.2.11",
  "criterion",
  "futures",
  "handlebars",
@@ -2321,7 +2321,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "chrono-english",
- "clap 3.2.10",
+ "clap 3.2.11",
  "clap_blocks",
  "data_types",
  "filetime",
@@ -2408,7 +2408,7 @@ dependencies = [
  "async-trait",
  "bytes",
  "chrono",
- "clap 3.2.10",
+ "clap 3.2.11",
  "clap_blocks",
  "data_types",
  "dml",
@@ -2550,7 +2550,7 @@ name = "ioxd_test"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "clap 3.2.10",
+ "clap 3.2.11",
  "hyper",
  "ioxd_common",
  "metric",
@@ -5624,7 +5624,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "chrono",
- "clap 3.2.10",
+ "clap 3.2.11",
  "futures",
  "observability_deps",
  "snafu",
@@ -5761,7 +5761,7 @@ dependencies = [
 name = "trogging"
 version = "0.1.0"
 dependencies = [
- "clap 3.2.10",
+ "clap 3.2.11",
  "logfmt",
  "observability_deps",
  "regex",
