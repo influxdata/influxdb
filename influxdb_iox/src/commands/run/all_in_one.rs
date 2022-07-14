@@ -396,7 +396,7 @@ impl Config {
             max_desired_file_size_bytes: 30000,
             percentage_max_file_size: 30,
             split_percentage: 80,
-            max_concurrent_compaction_size_bytes: 100000,
+            max_concurrent_size_bytes: 100000,
             max_number_partitions_per_sequencer: 1,
             min_number_recent_ingested_files_per_partition: 1,
         };

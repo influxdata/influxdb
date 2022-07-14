@@ -91,7 +91,7 @@ pub struct CompactorConfig {
         default_value = "1073741824",
         action
     )]
-    pub max_concurrent_compaction_size_bytes: u64,
+    pub max_concurrent_size_bytes: i64,
 
     /// Max number of partitions per sequencer we want to compact per cycle
     /// Default: 1
