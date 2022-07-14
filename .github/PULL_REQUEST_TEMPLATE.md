@@ -10,15 +10,15 @@
 ### Context
 Why was this added? What value does it add? What are risks/best practices?
 
-### Affected areas (if applicable):
+### Affected areas (delete section if not relevant):
 List of user-visible changes. As a user, what would I need to see in docs?
 Examples:
 CLI commands, subcommands, and flags
 API changes
 Configuration (sample config blocks)
 
-### Severity (optional)
- i.e., ("recommend to upgrade immediately", "upgrade at your leasure", etc.)
+### Severity (delete section if not relevant)
+ i.e., ("recommend to upgrade immediately", "upgrade at your leisure", etc.)
 
 ### Note for reviewers:
 Check the semantic commit type:
