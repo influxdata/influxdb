@@ -28,17 +28,19 @@ jobs:
             - influxdb-cache-v1-{{ checksum "go.mod" }}
             - influxdb-cache-v1
       - run:
+          name: Get InfluxDB Version
+          command: |
+            PREFIX=1.x .circleci/scripts/get-version
+      - run:
           name: Build source tarball
           command: |
             set -x
-
-            INFLUXDB_VERSION=$(git describe --tags HEAD | sed 's|^v||')
 
             printf '{
                 "version": "%s",
                 "branch": "%s",
                 "sha": "%s"
-            }' "${INFLUXDB_VERSION}" "${CIRCLE_BRANCH}" "${CIRCLE_SHA1}" >"$(pwd)/.metadata.json"
+            }' "${VERSION}" "${CIRCLE_BRANCH}" "${CIRCLE_SHA1}" >"$(pwd)/.metadata.json"
 
             #
             # Prebuild the man pages so that consumers of the source tarball don't have to build it themselves.
@@ -72,8 +74,6 @@ jobs:
             export CC=/usr/local/bin/xcc.sh
             export CGO_ENABLED=1
 
-            INFLUXDB_VERSION=$(git describe --tags HEAD | sed 's|^v||')
-
             # linux amd64 (static build)
             TMPOUTDIR=$(mktemp -d)
             export GOOS=linux
@@ -84,9 +84,9 @@ jobs:
                 -o "${TMPOUTDIR}/$(basename $cmd)" \
                 -tags "netgo osusergo static_build" \
                 -ldflags="-s
-                  -X main.version=\"${INFLUXDB_VERSION}\"
-                  -X main.branch=\"${CIRCLE_BRANCH}\"
-                  -X main.commit=\"${CIRCLE_SHA1}\"
+                  -X \"main.version=${VERSION}\"
+                  -X \"main.branch=${CIRCLE_BRANCH}\"
+                  -X \"main.commit=${CIRCLE_SHA1}\"
                   -extldflags \"-fno-PIC -Wl,-z,stack-size=8388608\"" \
                 ${cmd}
             done
@@ -136,6 +136,27 @@ jobs:
           root: .
           paths:
             - packages
+
+  sign_packages:
+    machine:
+      enabled: true
+      docker_layer_caching: true
+      image: ubuntu-2004:202107-02
+    steps:
+      - attach_workspace:
+          at: /tmp/workspace
+      - checkout
+      - run:
+          name: Sign Package Artifacts
+          command: |
+            .circleci/scripts/sign-packages
+      - store_artifacts:
+          path: packages/
+      - persist_to_workspace:
+          root: .
+          paths:
+            - packages
+
   test_pkgs_64bit:
     machine:
       enabled: true
@@ -242,7 +263,8 @@ jobs:
           name: Execute test
           command: ./test-flux.sh || exit 1
           no_output_timeout: 1500s
-  changelog_nightly:
+
+  changelog:
     docker:
       - image: quay.io/influxdb/changelogger:d7093c409adedd8837ef51fa84be0d0f8319177a
     steps:
@@ -253,15 +275,107 @@ jobs:
             PRODUCT=OSS changelogger
       - store_artifacts:
           path: changelog_artifacts/
-      - aws-s3/copy:
-          arguments: |
-            --acl public-read
-          aws-region: AWS_S3_REGION
-          from: changelog_artifacts/CHANGELOG.md
-          to: s3://dl.influxdata.com/platform/nightlies/<< pipeline.git.branch >>/CHANGELOG.md
+      - persist_to_workspace:
+          root: .
+          paths:
+            - changelog_artifacts
+
+  s3-publish-changelog:
+    parameters:
+      build_type:
+        type: string
+    docker:
+      - image: ubuntu:latest
+    steps:
+      - attach_workspace:
+          at: /tmp/workspace
+      - checkout
+      - run:
+          name: Publish CHANGELOG.md to S3
+          command: |
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update
+            apt-get install -y awscli
+
+            pushd /tmp/workspace/changelog_artifacts/
+
+            case "<< parameters.build_type >>"
+            in
+              nightly)
+                aws s3 cp CHANGELOG.md "s3://dl.influxdata.com/platform/nightlies/<< pipeline.git.branch >>/CHANGELOG.md"
+                ;;
+              release)
+                aws s3 cp CHANGELOG.md "s3://dl.influxdata.com/influxdb/releases/CHANGELOG.<< pipeline.git.tag >>.md"
+                ;;
+            esac
+
+  s3-publish-packages:
+    docker:
+      - image: ubuntu:latest
+    steps:
+      - attach_workspace:
+          at: /tmp/workspace
+      - checkout
+      - run:
+          name: Publish Packages to S3
+          command: |
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update
+            apt-get install -y awscli
+
+            aws s3 sync /tmp/workspace/packages "s3://dl.influxdata.com/influxdb/releases"
+
+release_filter: &release_filter
+  filters:
+    tags:
+      # This regex matches what is found in 'scripts/get-version' with the
+      # '[[:digit:]]' transformed into '\d'. This also excludes release
+      # candidate detection, because this filter only matches against
+      # full releases.
+      only: /^v(\d+)(?:\.(\d+))?(?:\.(\d+))?$/
+    branches:
+      ignore: /.*/
 
 workflows:
   version: 2.1
+  release:
+    jobs:
+      - build_binaries:
+          <<: *release_filter
+      - build_packages:
+          <<: *release_filter
+          requires:
+            - build_binaries
+      - sign_packages:
+          <<: *release_filter
+          requires:
+            - build_packages
+      - test_pkgs_64bit:
+          <<: *release_filter
+          requires:
+            - build_packages
+      - changelog:
+          <<: *release_filter
+      - s3-publish-changelog:
+          <<: *release_filter
+          build_type: release
+          requires:
+            - changelog
+      - s3-publish-packages:
+          <<: *release_filter
+          requires:
+            - sign_packages
+      - static_code_checks:
+          <<: *release_filter
+      - fluxtest:
+          <<: *release_filter
+      - unit_test:
+          <<: *release_filter
+      - unit_test_tsi:
+          <<: *release_filter
+      - unit_test_race:
+          <<: *release_filter
+
   on_push:
     jobs:
       - build_binaries
@@ -287,7 +401,11 @@ workflows:
                 - "master-1.x"
                 - "1.9"
     jobs:
-      - changelog_nightly
+      - changelog
+      - s3-publish-changelog:
+          build_type: nightly
+          requires:
+            - changelog
       - static_code_checks
       - fluxtest
       - unit_test
@@ -295,7 +413,7 @@ workflows:
       - unit_test_race
       - build_binaries:
           requires:
-            - changelog_nightly
+            - changelog
             - static_code_checks
             - fluxtest
             - unit_test
