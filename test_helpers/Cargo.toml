@@ -13,7 +13,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 observability_deps = { path = "../observability_deps" }
 workspace-hack = { path = "../workspace-hack"}
 async-trait = { version = "0.1.56", optional = true }
-tokio = { version = "1.19.2", optional = true, default_features = false, features = ["time"] }
+tokio = { version = "1.20.0", optional = true, default_features = false, features = ["time"] }
 
 [features]
 default = []
