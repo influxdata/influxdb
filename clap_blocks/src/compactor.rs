@@ -100,4 +100,13 @@ pub struct CompactorConfig {
         action
     )]
     pub min_number_recent_ingested_files_per_partition: usize,
+
+    /// TODO: Describe this. Multiplier?
+    #[clap(
+        long = "--new-param",
+        env = "INFLUXDB_IOX_COMPACTION_NEW_PARAM",
+        default_value = "3",
+        action
+    )]
+    pub new_param: u64,
 }

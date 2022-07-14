@@ -218,7 +218,7 @@ pub struct Compactor {
     store: ParquetStorage,
 
     /// The global catalog for schema, parquet files and tombstones
-    catalog: Arc<dyn Catalog>,
+    pub(crate) catalog: Arc<dyn Catalog>,
 
     /// Executor for running queries, compacting, and persisting
     exec: Arc<Executor>,
@@ -244,6 +244,12 @@ pub struct Compactor {
 
     /// Gauge for the number of compaction partition candidates
     compaction_candidate_gauge: Metric<U64Gauge>,
+
+    /// Gauge for the number of Parquet file candidates
+    pub(crate) parquet_file_candidate_gauge: Metric<U64Gauge>,
+
+    /// Gauge for the number of bytes of Parquet file candidates
+    pub(crate) parquet_file_candidate_bytes_gauge: Metric<U64Gauge>,
 
     /// Histogram for tracking the time to compact a partition
     compaction_duration: Metric<DurationHistogram>,
@@ -276,6 +282,17 @@ impl Compactor {
             "compactor_candidates",
             "gauge for the number of compaction candidates that are found when checked",
         );
+
+        let parquet_file_candidate_gauge = registry.register_metric(
+            "parquet_file_candidates",
+            "Number of Parquet file candidates",
+        );
+
+        let parquet_file_candidate_bytes_gauge = registry.register_metric(
+            "parquet_file_candidate_bytes",
+            "Number of bytes of Parquet file candidates",
+        );
+
         let level_promotion_counter = registry.register_metric(
             "compactor_level_promotions_total",
             "Counter for level promotion from 0 to 1",
@@ -298,6 +315,8 @@ impl Compactor {
             compaction_output_counter,
             level_promotion_counter,
             compaction_candidate_gauge,
+            parquet_file_candidate_gauge,
+            parquet_file_candidate_bytes_gauge,
             compaction_duration,
         }
     }
@@ -2594,6 +2613,7 @@ mod tests {
         let max_concurrent_size_bytes = 100_000;
         let max_number_partitions_per_sequencer = 1;
         let min_number_recent_ingested_per_partition = 1;
+        let new_param = 3;
         CompactorConfig::new(
             max_desired_file_size_bytes,
             percentage_max_file_size,
@@ -2601,6 +2621,7 @@ mod tests {
             max_concurrent_size_bytes,
             max_number_partitions_per_sequencer,
             min_number_recent_ingested_per_partition,
+            new_param,
         )
     }
 }

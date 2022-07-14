@@ -129,6 +129,9 @@ pub struct CompactorConfig {
 
     /// Min number of recent ingested files a partition needs to be considered for compacting
     min_number_recent_ingested_files_per_partition: usize,
+
+    /// TODO: describe this. Multiplier?
+    new_param: u64,
 }
 
 impl CompactorConfig {
@@ -140,6 +143,7 @@ impl CompactorConfig {
         max_concurrent_compaction_size_bytes: u64,
         max_number_partitions_per_sequencer: usize,
         min_number_recent_ingested_files_per_partition: usize,
+        new_param: u64,
     ) -> Self {
         assert!(split_percentage > 0 && split_percentage <= 100);
 
@@ -150,6 +154,7 @@ impl CompactorConfig {
             max_concurrent_compaction_size_bytes,
             max_number_partitions_per_sequencer,
             min_number_recent_ingested_files_per_partition,
+            new_param,
         }
     }
 
@@ -185,6 +190,11 @@ impl CompactorConfig {
     /// Min number of recent ingested files a partition needs to be considered for compacting
     pub fn min_number_recent_ingested_files_per_partition(&self) -> usize {
         self.min_number_recent_ingested_files_per_partition
+    }
+
+    /// TODO: Describe this. Multiplier?
+    pub fn new_param(&self) -> u64 {
+        self.new_param
     }
 }
 
