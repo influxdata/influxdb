@@ -98,9 +98,6 @@ impl CompactorHandlerImpl {
 /// The configuration options for the compactor.
 #[derive(Debug, Clone, Copy)]
 pub struct CompactorConfig {
-    /// Max number of level-0 files (written by ingester) we want to compact with level-1 each time
-    max_number_level_0_files: u32,
-
     /// Desired max size of compacted parquet files
     /// It is a target desired value than a guarantee
     max_desired_file_size_bytes: u64,
@@ -137,7 +134,6 @@ pub struct CompactorConfig {
 impl CompactorConfig {
     /// Initialize a valid config
     pub fn new(
-        max_number_level_0_files: u32,
         max_desired_file_size_bytes: u64,
         percentage_max_file_size: u16,
         split_percentage: u16,
@@ -148,7 +144,6 @@ impl CompactorConfig {
         assert!(split_percentage > 0 && split_percentage <= 100);
 
         Self {
-            max_number_level_0_files,
             max_desired_file_size_bytes,
             percentage_max_file_size,
             split_percentage,
@@ -156,11 +151,6 @@ impl CompactorConfig {
             max_number_partitions_per_sequencer,
             min_number_recent_ingested_files_per_partition,
         }
-    }
-
-    /// Max number of level-0 files we want to compact with level-1 each time
-    pub fn max_number_level_0_files(&self) -> u32 {
-        self.max_number_level_0_files
     }
 
     /// Desired max file of a compacted file

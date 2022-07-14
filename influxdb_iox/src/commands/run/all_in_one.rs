@@ -392,7 +392,6 @@ impl Config {
             topic: QUERY_POOL_NAME.to_string(),
             write_buffer_partition_range_start,
             write_buffer_partition_range_end,
-            max_number_level_0_files: 3,
             max_desired_file_size_bytes: 30000,
             percentage_max_file_size: 30,
             split_percentage: 80,

@@ -2588,19 +2588,17 @@ mod tests {
     }
 
     fn make_compactor_config() -> CompactorConfig {
-        let max_number_level_0_files = 3;
         let max_desired_file_size_bytes = 10_000;
         let percentage_max_file_size = 30;
         let split_percentage = 80;
-        let max_concurrent_compaction_size_bytes = 100_000;
+        let max_concurrent_size_bytes = 100_000;
         let max_number_partitions_per_sequencer = 1;
         let min_number_recent_ingested_per_partition = 1;
         CompactorConfig::new(
-            max_number_level_0_files,
             max_desired_file_size_bytes,
             percentage_max_file_size,
             split_percentage,
-            max_concurrent_compaction_size_bytes,
+            max_concurrent_size_bytes,
             max_number_partitions_per_sequencer,
             min_number_recent_ingested_per_partition,
         )
