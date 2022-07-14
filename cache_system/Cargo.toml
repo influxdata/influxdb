@@ -11,7 +11,7 @@ metric = { path = "../metric" }
 observability_deps = { path = "../observability_deps" }
 parking_lot = "0.12"
 pdatastructs = { version = "0.7", default-features = false, features = ["fixedbitset"] }
-tokio = { version = "1.19", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
+tokio = { version = "1.20", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
 workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]

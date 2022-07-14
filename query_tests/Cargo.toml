@@ -38,4 +38,4 @@ arrow_util = { path = "../arrow_util" }
 snafu = "0.7"
 tempfile = "3.1.0"
 test_helpers = { path = "../test_helpers" }
-tokio = { version = "1.19", features = ["macros", "parking_lot", "rt-multi-thread", "time"] }
+tokio = { version = "1.20", features = ["macros", "parking_lot", "rt-multi-thread", "time"] }
