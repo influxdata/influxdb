@@ -1395,9 +1395,35 @@ func (m *Manifest) Write() (int64, error) {
 	}
 	buf = append(buf, '\n')
 
-	if err := os.WriteFile(m.path, buf, 0666); err != nil {
+	f, err := os.CreateTemp(filepath.Dir(m.path), ManifestFileName)
+
+	if err != nil {
 		return 0, err
 	}
+
+	tmp := f.Name()
+	// In correct operation, Remove() should fail because the file was renamed
+	defer os.Remove(tmp)
+	err = func() (rErr error) {
+		// Close() before rename for Windows
+		defer errors2.Capture(&rErr, f.Close)()
+		if _, err = f.Write(buf); err != nil {
+			return fmt.Errorf("failed writing temporary manifest file %q: %w", tmp, err)
+		}
+		return nil
+	}()
+	if err != nil {
+		return 0, err
+	}
+
+	if err = os.Chmod(tmp, 0666); err != nil {
+		return 0, err
+	}
+
+	if err = os.Rename(tmp, m.path); err != nil {
+		return 0, err
+	}
+
 	return int64(len(buf)), nil
 }
 
