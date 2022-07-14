@@ -30,4 +30,4 @@ thiserror = "1.0.31"
 tonic = { version = "0.7" }
 
 [dev-dependencies] # In alphabetical order
-tokio = { version = "1.19", features = ["macros", "parking_lot", "rt-multi-thread"] }
+tokio = { version = "1.20", features = ["macros", "parking_lot", "rt-multi-thread"] }
