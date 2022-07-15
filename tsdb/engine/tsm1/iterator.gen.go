@@ -9,6 +9,7 @@ package tsm1
 import (
 	"fmt"
 	"runtime"
+	"runtime/debug"
 	"sort"
 	"sync"
 
@@ -131,10 +132,11 @@ const statsBufferCopyIntervalN = 100
 type floatFinalizerIterator struct {
 	query.FloatIterator
 	logger *zap.Logger
+	stack  []byte
 }
 
 func newFloatFinalizerIterator(inner query.FloatIterator, logger *zap.Logger) *floatFinalizerIterator {
-	itr := &floatFinalizerIterator{FloatIterator: inner, logger: logger}
+	itr := &floatFinalizerIterator{FloatIterator: inner, logger: logger, stack: debug.Stack()}
 	runtime.SetFinalizer(itr, (*floatFinalizerIterator).closeGC)
 	return itr
 }
@@ -142,11 +144,14 @@ func newFloatFinalizerIterator(inner query.FloatIterator, logger *zap.Logger) *f
 func (itr *floatFinalizerIterator) closeGC() {
 	go func() {
 		itr.logger.Error("FloatIterator finalized by GC")
+		itr.logger.Error("FloatIterator creation stack")
+		itr.logger.Error(string(itr.stack))
 		itr.Close()
 	}()
 }
 
 func (itr *floatFinalizerIterator) Close() error {
+	itr.stack = nil
 	runtime.SetFinalizer(itr, nil)
 	return itr.FloatIterator.Close()
 }
@@ -611,10 +616,11 @@ func (c *floatDescendingCursor) nextTSM() {
 type integerFinalizerIterator struct {
 	query.IntegerIterator
 	logger *zap.Logger
+	stack  []byte
 }
 
 func newIntegerFinalizerIterator(inner query.IntegerIterator, logger *zap.Logger) *integerFinalizerIterator {
-	itr := &integerFinalizerIterator{IntegerIterator: inner, logger: logger}
+	itr := &integerFinalizerIterator{IntegerIterator: inner, logger: logger, stack: debug.Stack()}
 	runtime.SetFinalizer(itr, (*integerFinalizerIterator).closeGC)
 	return itr
 }
@@ -622,11 +628,14 @@ func newIntegerFinalizerIterator(inner query.IntegerIterator, logger *zap.Logger
 func (itr *integerFinalizerIterator) closeGC() {
 	go func() {
 		itr.logger.Error("IntegerIterator finalized by GC")
+		itr.logger.Error("IntegerIterator creation stack")
+		itr.logger.Error(string(itr.stack))
 		itr.Close()
 	}()
 }
 
 func (itr *integerFinalizerIterator) Close() error {
+	itr.stack = nil
 	runtime.SetFinalizer(itr, nil)
 	return itr.IntegerIterator.Close()
 }
@@ -1091,10 +1100,11 @@ func (c *integerDescendingCursor) nextTSM() {
 type unsignedFinalizerIterator struct {
 	query.UnsignedIterator
 	logger *zap.Logger
+	stack  []byte
 }
 
 func newUnsignedFinalizerIterator(inner query.UnsignedIterator, logger *zap.Logger) *unsignedFinalizerIterator {
-	itr := &unsignedFinalizerIterator{UnsignedIterator: inner, logger: logger}
+	itr := &unsignedFinalizerIterator{UnsignedIterator: inner, logger: logger, stack: debug.Stack()}
 	runtime.SetFinalizer(itr, (*unsignedFinalizerIterator).closeGC)
 	return itr
 }
@@ -1102,11 +1112,14 @@ func newUnsignedFinalizerIterator(inner query.UnsignedIterator, logger *zap.Logg
 func (itr *unsignedFinalizerIterator) closeGC() {
 	go func() {
 		itr.logger.Error("UnsignedIterator finalized by GC")
+		itr.logger.Error("UnsignedIterator creation stack")
+		itr.logger.Error(string(itr.stack))
 		itr.Close()
 	}()
 }
 
 func (itr *unsignedFinalizerIterator) Close() error {
+	itr.stack = nil
 	runtime.SetFinalizer(itr, nil)
 	return itr.UnsignedIterator.Close()
 }
@@ -1571,10 +1584,11 @@ func (c *unsignedDescendingCursor) nextTSM() {
 type stringFinalizerIterator struct {
 	query.StringIterator
 	logger *zap.Logger
+	stack  []byte
 }
 
 func newStringFinalizerIterator(inner query.StringIterator, logger *zap.Logger) *stringFinalizerIterator {
-	itr := &stringFinalizerIterator{StringIterator: inner, logger: logger}
+	itr := &stringFinalizerIterator{StringIterator: inner, logger: logger, stack: debug.Stack()}
 	runtime.SetFinalizer(itr, (*stringFinalizerIterator).closeGC)
 	return itr
 }
@@ -1582,11 +1596,14 @@ func newStringFinalizerIterator(inner query.StringIterator, logger *zap.Logger) 
 func (itr *stringFinalizerIterator) closeGC() {
 	go func() {
 		itr.logger.Error("StringIterator finalized by GC")
+		itr.logger.Error("StringIterator creation stack")
+		itr.logger.Error(string(itr.stack))
 		itr.Close()
 	}()
 }
 
 func (itr *stringFinalizerIterator) Close() error {
+	itr.stack = nil
 	runtime.SetFinalizer(itr, nil)
 	return itr.StringIterator.Close()
 }
@@ -2051,10 +2068,11 @@ func (c *stringDescendingCursor) nextTSM() {
 type booleanFinalizerIterator struct {
 	query.BooleanIterator
 	logger *zap.Logger
+	stack  []byte
 }
 
 func newBooleanFinalizerIterator(inner query.BooleanIterator, logger *zap.Logger) *booleanFinalizerIterator {
-	itr := &booleanFinalizerIterator{BooleanIterator: inner, logger: logger}
+	itr := &booleanFinalizerIterator{BooleanIterator: inner, logger: logger, stack: debug.Stack()}
 	runtime.SetFinalizer(itr, (*booleanFinalizerIterator).closeGC)
 	return itr
 }
@@ -2062,11 +2080,14 @@ func newBooleanFinalizerIterator(inner query.BooleanIterator, logger *zap.Logger
 func (itr *booleanFinalizerIterator) closeGC() {
 	go func() {
 		itr.logger.Error("BooleanIterator finalized by GC")
+		itr.logger.Error("BooleanIterator creation stack")
+		itr.logger.Error(string(itr.stack))
 		itr.Close()
 	}()
 }
 
 func (itr *booleanFinalizerIterator) Close() error {
+	itr.stack = nil
 	runtime.SetFinalizer(itr, nil)
 	return itr.BooleanIterator.Close()
 }

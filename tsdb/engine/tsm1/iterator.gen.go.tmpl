@@ -4,6 +4,7 @@ import (
 	"sort"
 	"fmt"
 	"runtime"
+	"runtime/debug"
 	"sync"
 
 	"github.com/influxdata/influxdb/pkg/metrics"
@@ -127,10 +128,11 @@ const statsBufferCopyIntervalN = 100
 type {{.name}}FinalizerIterator struct {
 	query.{{.Name}}Iterator
 	logger *zap.Logger
+	stack  []byte
 }
 
 func new{{.Name}}FinalizerIterator(inner query.{{.Name}}Iterator, logger *zap.Logger) *{{.name}}FinalizerIterator {
-	itr := &{{.name}}FinalizerIterator{ {{.Name}}Iterator: inner, logger: logger}
+	itr := &{{.name}}FinalizerIterator{ {{.Name}}Iterator: inner, logger: logger, stack: debug.Stack()}
 	runtime.SetFinalizer(itr, (*{{.name}}FinalizerIterator).closeGC)
 	return itr
 }
@@ -138,11 +140,14 @@ func new{{.Name}}FinalizerIterator(inner query.{{.Name}}Iterator, logger *zap.Lo
 func (itr *{{.name}}FinalizerIterator) closeGC() {
 	go func() {
 		itr.logger.Error("{{.Name}}Iterator finalized by GC")
+		itr.logger.Error("{{.Name}}Iterator creation stack")
+        itr.logger.Error(string(itr.stack))
 		itr.Close()
 	}()
 }
 
 func (itr *{{.name}}FinalizerIterator) Close() error {
+	itr.stack = nil
 	runtime.SetFinalizer(itr, nil)
 	return itr.{{.Name}}Iterator.Close()
 }
