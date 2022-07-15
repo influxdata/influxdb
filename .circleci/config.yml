@@ -142,13 +142,6 @@ workflows:
       - tlstest:
           requires:
             - godeps
-      - deploy_nightly:
-          requires:
-            - changelog
-            - gotest
-            - golint
-            - fluxtest
-            - tlstest
   build_and_sign_workflow:
     when:
       and:
@@ -360,9 +353,6 @@ commands:
     parameters:
       publish_release:
         type: boolean
-      nightly:
-        type: boolean
-        default: false
       build_tag:
         default: ""
         type: string
@@ -370,10 +360,7 @@ commands:
       - attach_workspace:
           at: /tmp/workspace
       - when:
-          condition:
-            or:
-              - << parameters.publish_release >>
-              - << parameters.nightly >>
+          condition: << parameters.publish_release >>
           steps:
             - run:
                 name: Import GPG key
@@ -440,10 +427,7 @@ commands:
             docker buildx build --target dependency-base --platform linux/amd64,linux/arm64 docker/influxd
       - install_cross_bin_deps
       - unless:
-          condition:
-            or:
-              - << parameters.publish_release >>
-              - << parameters.nightly >>
+          condition: << parameters.publish_release >>
           steps:
             - run:
                 name: Build release
@@ -489,20 +473,6 @@ commands:
                 command: |
                   S3_FOLDER="platform/nightlies/test" \
                   VERSION=2.0-${CIRCLE_TAG} \
-                  goreleaser \
-                    --debug \
-                    release \
-                      -p 1 \
-                      --rm-dist \
-                      --skip-validate
-      - when:
-          condition: << parameters.nightly >>
-          steps:
-            - run:
-                name: Publish nightly
-                command: |
-                  S3_FOLDER="platform/nightlies/2.0" \
-                  VERSION="2.0-nightly" \
                   goreleaser \
                     --debug \
                     release \
@@ -899,33 +869,6 @@ jobs:
           paths:
             - etc/litmus_success_notify.sh
             - etc/litmus_fail_notify.sh
-
-  deploy_nightly:
-    executor: linux-machine
-    environment:
-      TMPDIR: /mnt/ramdisk
-    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
-    steps:
-      - checkout
-      - run:
-          name: Create RAM disk
-          command: |
-            sudo mkdir -p ${TMPDIR}
-            sudo mount -t tmpfs -o size=4G tmpfs ${TMPDIR}
-      - restore_cache:
-          name: Restore GOPATH/pkg/mod
-          keys:
-            - influxdb-gomod-sum-{{ checksum "go.sum" }}
-      - install_core_deps
-      - upgrade_go
-      - run_goreleaser:
-          publish_release: false
-          nightly: true
-      - persist_to_workspace:
-          root: .
-          paths:
-            - dist/influxd_linux_amd64/influxd
-
 
   #################################
   ### e2e/integration test jobs ###
