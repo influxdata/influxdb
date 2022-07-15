@@ -14,6 +14,7 @@ use service_common::QueryDatabaseProvider;
 use sharder::JumpHash;
 use snafu::{ResultExt, Snafu};
 use std::{collections::BTreeSet, sync::Arc};
+use trace::span::Span;
 use tracker::{
     AsyncSemaphoreMetrics, InstrumentedAsyncOwnedSemaphorePermit, InstrumentedAsyncSemaphore,
 };
@@ -81,9 +82,9 @@ impl QueryDatabaseProvider for QuerierDatabase {
         self.namespace(name).await
     }
 
-    async fn acquire_semaphore(&self) -> InstrumentedAsyncOwnedSemaphorePermit {
+    async fn acquire_semaphore(&self, span: Option<Span>) -> InstrumentedAsyncOwnedSemaphorePermit {
         Arc::clone(&self.query_execution_semaphore)
-            .acquire_owned()
+            .acquire_owned(span)
             .await
             .expect("Semaphore should not be closed by anyone")
     }

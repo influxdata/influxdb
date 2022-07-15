@@ -12,6 +12,7 @@ predicate = { path = "../predicate" }
 iox_query = { path = "../iox_query" }
 metric = { path = "../metric" }
 parking_lot = "0.12"
+trace = { path = "../trace" }
 tracker = { path = "../tracker" }
 workspace-hack = { path = "../workspace-hack"}
 

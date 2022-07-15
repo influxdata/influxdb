@@ -42,6 +42,7 @@ use std::{
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::Status;
+use trace::ctx::SpanContext;
 use tracker::InstrumentedAsyncOwnedSemaphorePermit;
 
 #[derive(Debug, Snafu)]
@@ -229,10 +230,17 @@ where
         &self,
         req: tonic::Request<ReadFilterRequest>,
     ) -> Result<tonic::Response<Self::ReadFilterStream>, Status> {
-        let span_ctx = req.extensions().get().cloned();
+        let span_ctx: Option<SpanContext> = req.extensions().get().cloned();
 
         let req = req.into_inner();
-        let permit = self.db_store.acquire_semaphore().await;
+        let permit = self
+            .db_store
+            .acquire_semaphore(
+                span_ctx
+                    .as_ref()
+                    .map(|span| span.child("query rate limit semaphore")),
+            )
+            .await;
         let db_name = get_database_name(&req)?;
         info!(%db_name, ?req.range, predicate=%req.predicate.loggable(), "read filter");
 
@@ -268,9 +276,16 @@ where
         &self,
         req: tonic::Request<ReadGroupRequest>,
     ) -> Result<tonic::Response<Self::ReadGroupStream>, Status> {
-        let span_ctx = req.extensions().get().cloned();
+        let span_ctx: Option<SpanContext> = req.extensions().get().cloned();
         let req = req.into_inner();
-        let permit = self.db_store.acquire_semaphore().await;
+        let permit = self
+            .db_store
+            .acquire_semaphore(
+                span_ctx
+                    .as_ref()
+                    .map(|span| span.child("query rate limit semaphore")),
+            )
+            .await;
 
         let db_name = get_database_name(&req)?;
         let db = self
@@ -329,9 +344,16 @@ where
         &self,
         req: tonic::Request<ReadWindowAggregateRequest>,
     ) -> Result<tonic::Response<Self::ReadGroupStream>, Status> {
-        let span_ctx = req.extensions().get().cloned();
+        let span_ctx: Option<SpanContext> = req.extensions().get().cloned();
         let req = req.into_inner();
-        let permit = self.db_store.acquire_semaphore().await;
+        let permit = self
+            .db_store
+            .acquire_semaphore(
+                span_ctx
+                    .as_ref()
+                    .map(|span| span.child("query rate limit semaphore")),
+            )
+            .await;
 
         let db_name = get_database_name(&req)?;
         let db = self
@@ -387,11 +409,18 @@ where
         &self,
         req: tonic::Request<TagKeysRequest>,
     ) -> Result<tonic::Response<Self::TagKeysStream>, Status> {
-        let span_ctx = req.extensions().get().cloned();
+        let span_ctx: Option<SpanContext> = req.extensions().get().cloned();
         let (tx, rx) = mpsc::channel(4);
 
         let req = req.into_inner();
-        let permit = self.db_store.acquire_semaphore().await;
+        let permit = self
+            .db_store
+            .acquire_semaphore(
+                span_ctx
+                    .as_ref()
+                    .map(|span| span.child("query rate limit semaphore")),
+            )
+            .await;
 
         let db_name = get_database_name(&req)?;
         let db = self
@@ -444,11 +473,18 @@ where
         &self,
         req: tonic::Request<TagValuesRequest>,
     ) -> Result<tonic::Response<Self::TagValuesStream>, Status> {
-        let span_ctx = req.extensions().get().cloned();
+        let span_ctx: Option<SpanContext> = req.extensions().get().cloned();
         let (tx, rx) = mpsc::channel(4);
 
         let req = req.into_inner();
-        let permit = self.db_store.acquire_semaphore().await;
+        let permit = self
+            .db_store
+            .acquire_semaphore(
+                span_ctx
+                    .as_ref()
+                    .map(|span| span.child("query rate limit semaphore")),
+            )
+            .await;
 
         let db_name = get_database_name(&req)?;
         let db = self
@@ -536,10 +572,17 @@ where
         &self,
         req: tonic::Request<TagValuesGroupedByMeasurementAndTagKeyRequest>,
     ) -> Result<tonic::Response<Self::TagValuesGroupedByMeasurementAndTagKeyStream>, Status> {
-        let span_ctx = req.extensions().get().cloned();
+        let span_ctx: Option<SpanContext> = req.extensions().get().cloned();
 
         let req = req.into_inner();
-        let permit = self.db_store.acquire_semaphore().await;
+        let permit = self
+            .db_store
+            .acquire_semaphore(
+                span_ctx
+                    .as_ref()
+                    .map(|span| span.child("query rate limit semaphore")),
+            )
+            .await;
 
         let db_name = get_database_name(&req)?;
         let db = self
@@ -629,11 +672,18 @@ where
         &self,
         req: tonic::Request<MeasurementNamesRequest>,
     ) -> Result<tonic::Response<Self::MeasurementNamesStream>, Status> {
-        let span_ctx = req.extensions().get().cloned();
+        let span_ctx: Option<SpanContext> = req.extensions().get().cloned();
         let (tx, rx) = mpsc::channel(4);
 
         let req = req.into_inner();
-        let permit = self.db_store.acquire_semaphore().await;
+        let permit = self
+            .db_store
+            .acquire_semaphore(
+                span_ctx
+                    .as_ref()
+                    .map(|span| span.child("query rate limit semaphore")),
+            )
+            .await;
 
         let db_name = get_database_name(&req)?;
         let db = self
@@ -679,11 +729,18 @@ where
         &self,
         req: tonic::Request<MeasurementTagKeysRequest>,
     ) -> Result<tonic::Response<Self::MeasurementTagKeysStream>, Status> {
-        let span_ctx = req.extensions().get().cloned();
+        let span_ctx: Option<SpanContext> = req.extensions().get().cloned();
         let (tx, rx) = mpsc::channel(4);
 
         let req = req.into_inner();
-        let permit = self.db_store.acquire_semaphore().await;
+        let permit = self
+            .db_store
+            .acquire_semaphore(
+                span_ctx
+                    .as_ref()
+                    .map(|span| span.child("query rate limit semaphore")),
+            )
+            .await;
 
         let db_name = get_database_name(&req)?;
         let db = self
@@ -739,11 +796,18 @@ where
         &self,
         req: tonic::Request<MeasurementTagValuesRequest>,
     ) -> Result<tonic::Response<Self::MeasurementTagValuesStream>, Status> {
-        let span_ctx = req.extensions().get().cloned();
+        let span_ctx: Option<SpanContext> = req.extensions().get().cloned();
         let (tx, rx) = mpsc::channel(4);
 
         let req = req.into_inner();
-        let permit = self.db_store.acquire_semaphore().await;
+        let permit = self
+            .db_store
+            .acquire_semaphore(
+                span_ctx
+                    .as_ref()
+                    .map(|span| span.child("query rate limit semaphore")),
+            )
+            .await;
 
         let db_name = get_database_name(&req)?;
         let db = self
@@ -801,11 +865,18 @@ where
         &self,
         req: tonic::Request<MeasurementFieldsRequest>,
     ) -> Result<tonic::Response<Self::MeasurementFieldsStream>, Status> {
-        let span_ctx = req.extensions().get().cloned();
+        let span_ctx: Option<SpanContext> = req.extensions().get().cloned();
         let (tx, rx) = mpsc::channel(4);
 
         let req = req.into_inner();
-        let permit = self.db_store.acquire_semaphore().await;
+        let permit = self
+            .db_store
+            .acquire_semaphore(
+                span_ctx
+                    .as_ref()
+                    .map(|span| span.child("query rate limit semaphore")),
+            )
+            .await;
 
         let db_name = get_database_name(&req)?;
         let db = self

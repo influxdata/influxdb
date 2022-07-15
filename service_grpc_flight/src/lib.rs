@@ -25,6 +25,7 @@ use snafu::{ResultExt, Snafu};
 use std::{fmt::Debug, pin::Pin, sync::Arc, task::Poll};
 use tokio::task::JoinHandle;
 use tonic::{Request, Response, Streaming};
+use trace::ctx::SpanContext;
 use tracker::InstrumentedAsyncOwnedSemaphorePermit;
 
 #[allow(clippy::enum_variant_names)]
@@ -185,7 +186,7 @@ where
         &self,
         request: Request<Ticket>,
     ) -> Result<Response<Self::DoGetStream>, tonic::Status> {
-        let span_ctx = request.extensions().get().cloned();
+        let span_ctx: Option<SpanContext> = request.extensions().get().cloned();
         let ticket = request.into_inner();
 
         // decode ticket
@@ -197,7 +198,14 @@ where
             }
         };
 
-        let permit = self.server.acquire_semaphore().await;
+        let permit = self
+            .server
+            .acquire_semaphore(
+                span_ctx
+                    .as_ref()
+                    .map(|span| span.child("query rate limit semaphore")),
+            )
+            .await;
 
         let database =
             DatabaseName::new(&read_info.database_name).context(InvalidDatabaseNameSnafu)?;

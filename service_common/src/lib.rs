@@ -7,6 +7,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use iox_query::{exec::ExecutionContextProvider, QueryDatabase};
+use trace::span::Span;
 use tracker::InstrumentedAsyncOwnedSemaphorePermit;
 
 /// Trait that allows the query engine (which includes flight and storage/InfluxRPC) to access a virtual set of
@@ -22,5 +23,5 @@ pub trait QueryDatabaseProvider: std::fmt::Debug + Send + Sync + 'static {
     async fn db(&self, name: &str) -> Option<Arc<Self::Db>>;
 
     /// Acquire concurrency-limiting sempahore
-    async fn acquire_semaphore(&self) -> InstrumentedAsyncOwnedSemaphorePermit;
+    async fn acquire_semaphore(&self, span: Option<Span>) -> InstrumentedAsyncOwnedSemaphorePermit;
 }

@@ -4656,6 +4656,7 @@ dependencies = [
  "metric",
  "parking_lot 0.12.1",
  "predicate",
+ "trace",
  "tracker",
  "workspace-hack",
 ]
@@ -4698,6 +4699,7 @@ dependencies = [
  "snafu",
  "tokio",
  "tonic",
+ "trace",
  "tracker",
  "workspace-hack",
 ]
@@ -4734,6 +4736,7 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tonic",
+ "trace",
  "trace_http",
  "tracker",
  "workspace-hack",
@@ -5754,6 +5757,7 @@ dependencies = [
  "pin-project",
  "tokio",
  "tokio-util",
+ "trace",
  "workspace-hack",
 ]
 
@@ -6145,7 +6149,6 @@ dependencies = [
  "futures-sink",
  "futures-task",
  "futures-util",
- "getrandom",
  "hashbrown",
  "heck",
  "hex",

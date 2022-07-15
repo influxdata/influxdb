@@ -3,6 +3,7 @@ use std::{collections::BTreeMap, sync::Arc};
 use async_trait::async_trait;
 use iox_query::{exec::Executor, test::TestDatabase};
 use parking_lot::Mutex;
+use trace::span::Span;
 use tracker::{
     AsyncSemaphoreMetrics, InstrumentedAsyncOwnedSemaphorePermit, InstrumentedAsyncSemaphore,
 };
@@ -66,9 +67,9 @@ impl QueryDatabaseProvider for TestDatabaseStore {
         databases.get(name).cloned()
     }
 
-    async fn acquire_semaphore(&self) -> InstrumentedAsyncOwnedSemaphorePermit {
+    async fn acquire_semaphore(&self, span: Option<Span>) -> InstrumentedAsyncOwnedSemaphorePermit {
         Arc::clone(&self.query_semaphore)
-            .acquire_owned()
+            .acquire_owned(span)
             .await
             .unwrap()
     }

@@ -7,6 +7,7 @@ use pin_project::{pin_project, pinned_drop};
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
 pub use tokio::sync::AcquireError;
+use trace::span::{Span, SpanRecorder};
 
 /// Metrics that can be used to create a [`InstrumentedAsyncSemaphore`].
 #[derive(Debug)]
@@ -114,6 +115,13 @@ impl AsyncSemaphoreMetrics {
 }
 
 /// Instrumented version of [`tokio::sync::Semaphore`].
+///
+/// # Tracing
+/// All `acquire*` methods take an optional span. This span will be exported as:
+///
+/// - **happy acquire path:** `<start>...<acquire event>...<end>` with OK status
+/// - **acquire failure:** `<start>...<end>` with ERROR status
+/// - **canceled during acquire:** `<start>...<end>` with UNKNOWN status
 #[derive(Debug)]
 pub struct InstrumentedAsyncSemaphore {
     /// Underlying semaphore implementation.
@@ -132,8 +140,11 @@ impl InstrumentedAsyncSemaphore {
     /// Acquire a single permit.
     ///
     /// See [`tokio::sync::Semaphore::acquire`] for details.
-    pub async fn acquire(&self) -> Result<InstrumentedAsyncSemaphorePermit<'_>, AcquireError> {
-        self.acquire_many(1).await
+    pub async fn acquire(
+        &self,
+        span: Option<Span>,
+    ) -> Result<InstrumentedAsyncSemaphorePermit<'_>, AcquireError> {
+        self.acquire_many(1, span).await
     }
 
     /// Acquire `n` permits.
@@ -142,8 +153,9 @@ impl InstrumentedAsyncSemaphore {
     pub async fn acquire_many(
         &self,
         n: u32,
+        span: Option<Span>,
     ) -> Result<InstrumentedAsyncSemaphorePermit<'_>, AcquireError> {
-        let owned_permit = self.acquire_impl(n).await?;
+        let owned_permit = self.acquire_impl(n, span).await?;
         Ok(InstrumentedAsyncSemaphorePermit {
             owned_permit,
             phantom: Default::default(),
@@ -152,26 +164,29 @@ impl InstrumentedAsyncSemaphore {
 
     pub async fn acquire_owned(
         self: &Arc<Self>,
+        span: Option<Span>,
     ) -> Result<InstrumentedAsyncOwnedSemaphorePermit, AcquireError> {
         // NOTE: We deliberately take `self: &Arc<Self>` here even though we strictly don't need it so we have use a
         //       single implementation for the owned and non-owned variant while still providing a comparable API to
         //       the ordinary tokio semaphore.
-        self.acquire_impl(1).await
+        self.acquire_impl(1, span).await
     }
 
     pub async fn acquire_many_owned(
         self: &Arc<Self>,
         n: u32,
+        span: Option<Span>,
     ) -> Result<InstrumentedAsyncOwnedSemaphorePermit, AcquireError> {
         // NOTE: We deliberately take `self: &Arc<Self>` here even though we strictly don't need it so we have use a
         //       single implementation for the owned and non-owned variant while still providing a comparable API to
         //       the ordinary tokio semaphore.
-        self.acquire_impl(n).await
+        self.acquire_impl(n, span).await
     }
 
     fn acquire_impl(
         &self,
         n: u32,
+        span: Option<Span>,
     ) -> impl Future<Output = Result<InstrumentedAsyncOwnedSemaphorePermit, AcquireError>> {
         InstrumentedAsyncSemaphoreAcquire {
             inner: Arc::clone(&self.inner).acquire_many_owned(n).boxed(),
@@ -179,6 +194,7 @@ impl InstrumentedAsyncSemaphore {
             n,
             reported_pending: false,
             t_start: Instant::now(),
+            span_recorder: Some(SpanRecorder::new(span)),
         }
     }
 }
@@ -213,6 +229,11 @@ struct InstrumentedAsyncSemaphoreAcquire<'a> {
 
     /// Start time of the "acquire" action.
     t_start: Instant,
+
+    /// Span recorder for the entire semaphore interaction.
+    ///
+    /// Wrapped into an [`Option`] to allow the handover between the acquire-future and the permit.
+    span_recorder: Option<SpanRecorder>,
 }
 
 impl<'a> std::fmt::Debug for InstrumentedAsyncSemaphoreAcquire<'a> {
@@ -252,13 +273,27 @@ impl<'a> Future for InstrumentedAsyncSemaphoreAcquire<'a> {
                         *this.reported_pending = false;
                     }
 
+                    let mut span_recorder = this
+                        .span_recorder
+                        .take()
+                        .expect("span recorder should still be present");
+                    span_recorder.ok("acquired");
+
                     Poll::Ready(Ok(InstrumentedAsyncOwnedSemaphorePermit {
                         inner: permit,
                         n: *this.n,
                         metrics: Arc::clone(this.metrics),
+                        span_recorder,
                     }))
                 }
-                Err(e) => Poll::Ready(Err(e)),
+                Err(e) => {
+                    this.span_recorder
+                        .take()
+                        .expect("span recorder should still be present")
+                        .error("AcquireError");
+
+                    Poll::Ready(Err(e))
+                }
             },
             Poll::Pending => {
                 // report "pending" metrics once
@@ -319,6 +354,12 @@ pub struct InstrumentedAsyncOwnedSemaphorePermit {
 
     /// Metrics.
     metrics: Arc<AsyncSemaphoreMetrics>,
+
+    /// Span recorder for the entire semaphore interaction.
+    ///
+    /// No direct interaction, will be exported during drop (aka the end of the span will be set).
+    #[allow(dead_code)]
+    span_recorder: SpanRecorder,
 }
 
 impl Drop for InstrumentedAsyncOwnedSemaphorePermit {
@@ -345,6 +386,7 @@ mod tests {
     use std::time::Duration;
 
     use tokio::{pin, sync::Barrier};
+    use trace::{ctx::SpanContext, span::SpanStatus, RingBufferTraceCollector};
 
     use super::*;
 
@@ -359,8 +401,8 @@ mod tests {
         assert_send(&semaphore);
         assert_sync(&semaphore);
 
-        let acquire_fut = semaphore.acquire();
-        let acquire_many_fut = semaphore.acquire_many(1);
+        let acquire_fut = semaphore.acquire(None);
+        let acquire_many_fut = semaphore.acquire_many(1, None);
         assert_send(&acquire_fut);
         assert_send(&acquire_many_fut);
         // futures itself are NOT Sync
@@ -378,8 +420,8 @@ mod tests {
         let metrics = Arc::new(AsyncSemaphoreMetrics::new_unregistered());
         let semaphore = Arc::new(metrics.new_semaphore(10));
 
-        let acquire_fut = semaphore.acquire_owned();
-        let acquire_many_fut = semaphore.acquire_many_owned(1);
+        let acquire_fut = semaphore.acquire_owned(None);
+        let acquire_many_fut = semaphore.acquire_many_owned(1, None);
         assert_send(&acquire_fut);
         assert_send(&acquire_many_fut);
         // futures itself are NOT Sync
@@ -418,8 +460,8 @@ mod tests {
         assert_eq!(metrics.holders_acquired.fetch(), 0);
         assert_eq!(metrics.permits_acquired.fetch(), 0);
 
-        let p1 = semaphore.acquire().await.unwrap();
-        let p2 = semaphore.acquire_many(5).await.unwrap();
+        let p1 = semaphore.acquire(None).await.unwrap();
+        let p2 = semaphore.acquire_many(5, None).await.unwrap();
 
         let pending_barrier = Arc::new(Barrier::new(2));
         let pending_barrier_captured = Arc::clone(&pending_barrier);
@@ -429,7 +471,7 @@ mod tests {
         let semaphore_captured = Arc::clone(&semaphore);
         let drop_permit_barrier_captured = Arc::clone(&drop_permit_barrier);
         let task = tokio::task::spawn(async move {
-            let fut = semaphore_captured.acquire_many(7).fuse();
+            let fut = semaphore_captured.acquire_many(7, None).fuse();
             pin!(fut);
             futures::select_biased! {
                 _ = fut => panic!("should be pending"),
@@ -475,7 +517,7 @@ mod tests {
         assert_eq!(metrics.holders_cancelled_while_pending.fetch(), 0);
         assert_eq!(metrics.permits_cancelled_while_pending.fetch(), 0);
 
-        let p1 = semaphore.acquire_many(5).await.unwrap();
+        let p1 = semaphore.acquire_many(5, None).await.unwrap();
 
         assert_eq!(metrics.holders_pending.fetch(), 0);
         assert_eq!(metrics.permits_pending.fetch(), 0);
@@ -483,7 +525,7 @@ mod tests {
         assert_eq!(metrics.permits_cancelled_while_pending.fetch(), 0);
 
         {
-            let fut = semaphore.acquire_many(6);
+            let fut = semaphore.acquire_many(6, None);
             pin!(fut);
             assert_fut_pending(&mut fut).await;
 
@@ -501,7 +543,7 @@ mod tests {
         assert_eq!(metrics.permits_cancelled_while_pending.fetch(), 6);
 
         {
-            let fut = semaphore.acquire_many(6);
+            let fut = semaphore.acquire_many(6, None);
             pin!(fut);
             assert_fut_pending(&mut fut).await;
 
@@ -539,9 +581,9 @@ mod tests {
             Duration::from_millis(0)
         );
 
-        let p1 = semaphore.acquire_many(5).await.unwrap();
+        let p1 = semaphore.acquire_many(5, None).await.unwrap();
 
-        let fut = semaphore.acquire_many(6);
+        let fut = semaphore.acquire_many(6, None);
         pin!(fut);
         assert_fut_pending(&mut fut).await;
 
@@ -561,11 +603,52 @@ mod tests {
         let metrics = Arc::new(AsyncSemaphoreMetrics::new_unregistered());
         let semaphore = Arc::new(metrics.new_semaphore(1));
 
-        let fut = semaphore.acquire();
+        let fut = semaphore.acquire(None);
 
         pin!(fut);
         (&mut fut).await.unwrap();
         (&mut fut).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_tracing() {
+        let metrics = Arc::new(AsyncSemaphoreMetrics::new_unregistered());
+        let semaphore = Arc::new(metrics.new_semaphore(1));
+
+        // happy path
+        let traces = Arc::new(RingBufferTraceCollector::new(5));
+        let span = SpanContext::new(Arc::clone(&traces) as _).child("semaphore");
+        semaphore.acquire(Some(span)).await.unwrap();
+
+        let span = traces
+            .spans()
+            .into_iter()
+            .find(|s| s.name == "semaphore")
+            .expect("tracing span not found");
+
+        assert_eq!(span.status, SpanStatus::Ok);
+        assert_eq!(span.events.len(), 1);
+        assert_eq!(span.events[0].msg, "acquired");
+
+        // canceled
+        let traces = Arc::new(RingBufferTraceCollector::new(5));
+        let span = SpanContext::new(Arc::clone(&traces) as _).child("semaphore");
+        let _permit = semaphore.acquire(None).await.unwrap();
+        {
+            let fut = semaphore.acquire(Some(span));
+            pin!(fut);
+            assert_fut_pending(&mut fut).await;
+            // `fut` is dropped here
+        }
+
+        let span = traces
+            .spans()
+            .into_iter()
+            .find(|s| s.name == "semaphore")
+            .expect("tracing span not found");
+
+        assert_eq!(span.status, SpanStatus::Unknown);
+        assert_eq!(span.events.len(), 0);
     }
 
     /// Check that a given object implements [`Send`].
