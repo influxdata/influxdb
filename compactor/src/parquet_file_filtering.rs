@@ -7,12 +7,15 @@ use metric::{Attributes, Metric, U64Gauge};
 use observability_deps::tracing::*;
 
 /// Given a list of level 0 files sorted by max sequence number and a list of level 1 files for a
-/// partition, compute a set of files that:
+/// partition, select a subset set of files that:
 ///
+/// - Has a subset of the level 0 files selected, from the start of the sorted level 0 list
 /// - Has a total size less than `max_bytes`
+/// - Has a total number of files less than `input_file_count_threshold`
 /// - Has only level 1 files that overlap in time with the level 0 files
 ///
-/// The returned files will be ordered with the level 1 files first, then the level 0 files ordered /// in ascending order by their max sequence number.
+/// The returned files will be ordered with the level 1 files first, then the level 0 files ordered
+/// in ascending order by their max sequence number.
 #[allow(dead_code)] // TODO: Call this during a compaction operation
 pub(crate) fn filter_parquet_files(
     // Level 0 files sorted by max sequence number and level 1 files in arbitrary order for one
