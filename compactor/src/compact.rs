@@ -245,10 +245,13 @@ pub struct Compactor {
     /// Gauge for the number of compaction partition candidates
     compaction_candidate_gauge: Metric<U64Gauge>,
 
-    /// Gauge for the number of Parquet file candidates
+    /// Gauge for the number of Parquet file candidates. The recorded values have attributes for
+    /// the compaction level of the file and whether the file was selected for compaction or not.
     pub(crate) parquet_file_candidate_gauge: Metric<U64Gauge>,
 
-    /// Gauge for the number of bytes of Parquet file candidates
+    /// Gauge for the number of bytes of Parquet file candidates. The recorded values have
+    /// attributes for  the compaction level of the file and whether the file was selected for
+    /// compaction or not.
     pub(crate) parquet_file_candidate_bytes_gauge: Metric<U64Gauge>,
 
     /// Histogram for tracking the time to compact a partition
