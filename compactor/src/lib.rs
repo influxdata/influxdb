@@ -47,11 +47,9 @@ pub(crate) async fn compact_partition(
         .await
         .context(ParquetFileLookupSnafu)?;
 
-    let max_bytes = compactor.config.max_desired_file_size_bytes() * compactor.config.new_param();
-
     let _to_compact = parquet_file_filtering::filter_parquet_files(
         parquet_files_for_compaction,
-        max_bytes,
+        compactor.config.input_size_threshold_bytes(),
         &compactor.parquet_file_candidate_gauge,
         &compactor.parquet_file_candidate_bytes_gauge,
     );

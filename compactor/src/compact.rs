@@ -2613,7 +2613,7 @@ mod tests {
         let max_concurrent_size_bytes = 100_000;
         let max_number_partitions_per_sequencer = 1;
         let min_number_recent_ingested_per_partition = 1;
-        let new_param = 3;
+        let input_size_threshold_bytes = 300 * 1024 * 1024;
         CompactorConfig::new(
             max_desired_file_size_bytes,
             percentage_max_file_size,
@@ -2621,7 +2621,7 @@ mod tests {
             max_concurrent_size_bytes,
             max_number_partitions_per_sequencer,
             min_number_recent_ingested_per_partition,
-            new_param,
+            input_size_threshold_bytes,
         )
     }
 }

@@ -72,7 +72,7 @@ pub struct CompactorConfig {
     /// The compactor will limit the number of simultaneous compaction jobs based on the
     /// size of the input files to be compacted. This number should be less than 1/10th
     /// of the available memory to ensure compactions have
-    /// enough space to run. Default is 1,073,741,824 bytes (1GB ).
+    /// enough space to run. Default is 1,073,741,824 bytes (1GB).
     #[clap(
         long = "--compaction-concurrent-size-bytes",
         env = "INFLUXDB_IOX_COMPACTION_CONCURRENT_SIZE_BYTES",
@@ -101,12 +101,14 @@ pub struct CompactorConfig {
     )]
     pub min_number_recent_ingested_files_per_partition: usize,
 
-    /// TODO: Describe this. Multiplier?
+    /// A compaction operation will gather as many L0 files with their overlapping L1 files to
+    /// compact together until the total size of input files crosses this threshold. Later
+    /// compactions will pick up the remaining L0 files. Default is 314,572,800 bytes (300MB).
     #[clap(
-        long = "--new-param",
-        env = "INFLUXDB_IOX_COMPACTION_NEW_PARAM",
-        default_value = "3",
+        long = "--compaction-input-size-threshold-bytes",
+        env = "INFLUXDB_IOX_COMPACTION_INPUT_SIZE_THRESHOLD_BYTES",
+        default_value = "314572800",
         action
     )]
-    pub new_param: u64,
+    pub input_size_threshold_bytes: u64,
 }

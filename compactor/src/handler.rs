@@ -130,8 +130,10 @@ pub struct CompactorConfig {
     /// Min number of recent ingested files a partition needs to be considered for compacting
     min_number_recent_ingested_files_per_partition: usize,
 
-    /// TODO: describe this. Multiplier?
-    new_param: u64,
+    /// A compaction operation will gather as many L0 files with their overlapping L1 files to
+    /// compact together until the total size of input files crosses this threshold. Later
+    /// compactions will pick up the remaining L0 files.
+    input_size_threshold_bytes: u64,
 }
 
 impl CompactorConfig {
@@ -143,7 +145,7 @@ impl CompactorConfig {
         max_concurrent_compaction_size_bytes: u64,
         max_number_partitions_per_sequencer: usize,
         min_number_recent_ingested_files_per_partition: usize,
-        new_param: u64,
+        input_size_threshold_bytes: u64,
     ) -> Self {
         assert!(split_percentage > 0 && split_percentage <= 100);
 
@@ -154,7 +156,7 @@ impl CompactorConfig {
             max_concurrent_compaction_size_bytes,
             max_number_partitions_per_sequencer,
             min_number_recent_ingested_files_per_partition,
-            new_param,
+            input_size_threshold_bytes,
         }
     }
 
@@ -192,9 +194,11 @@ impl CompactorConfig {
         self.min_number_recent_ingested_files_per_partition
     }
 
-    /// TODO: Describe this. Multiplier?
-    pub fn new_param(&self) -> u64 {
-        self.new_param
+    /// A compaction operation will gather as many L0 files with their overlapping L1 files to
+    /// compact together until the total size of input files crosses this threshold. Later
+    /// compactions will pick up the remaining L0 files.
+    pub fn input_size_threshold_bytes(&self) -> u64 {
+        self.input_size_threshold_bytes
     }
 }
 
