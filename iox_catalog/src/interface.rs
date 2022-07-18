@@ -4,9 +4,9 @@ use async_trait::async_trait;
 use data_types::{
     Column, ColumnSchema, ColumnType, KafkaPartition, KafkaTopic, KafkaTopicId, Namespace,
     NamespaceId, NamespaceSchema, ParquetFile, ParquetFileId, ParquetFileParams, Partition,
-    PartitionId, PartitionInfo, PartitionKey, ProcessedTombstone, QueryPool, QueryPoolId,
-    SequenceNumber, Sequencer, SequencerId, Table, TableId, TablePartition, TableSchema, Timestamp,
-    Tombstone, TombstoneId,
+    PartitionId, PartitionInfo, PartitionKey, PartitionParam, ProcessedTombstone, QueryPool,
+    QueryPoolId, SequenceNumber, Sequencer, SequencerId, Table, TableId, TablePartition,
+    TableSchema, Timestamp, Tombstone, TombstoneId,
 };
 use iox_time::TimeProvider;
 use snafu::{OptionExt, Snafu};
@@ -543,6 +543,22 @@ pub trait ParquetFileRepo: Send + Sync {
         max_time: Timestamp,
     ) -> Result<Vec<ParquetFile>>;
 
+    /// List the most recent highest throughput partition for a given sequencer
+    async fn recent_highest_throughput_partitions(
+        &mut self,
+        sequencer_id: SequencerId,
+        num_hours: u32,
+        min_num_files: usize,
+        num_partitions: usize,
+    ) -> Result<Vec<PartitionParam>>;
+
+    /// List partitions with the most level 0 files for a given sequencer
+    async fn most_level_0_files_partitions(
+        &mut self,
+        sequencer_id: SequencerId,
+        num_partitions: usize,
+    ) -> Result<Vec<PartitionParam>>;
+
     /// List parquet files for a given partition that are NOT marked as
     /// [`to_delete`](ParquetFile::to_delete).
     async fn list_by_partition_not_to_delete(
@@ -834,6 +850,8 @@ pub(crate) mod test_helpers {
         test_parquet_file(Arc::clone(&catalog)).await;
         test_parquet_file_compaction_level_0(Arc::clone(&catalog)).await;
         test_parquet_file_compaction_level_1(Arc::clone(&catalog)).await;
+        test_most_level_0_files_partitions(Arc::clone(&catalog)).await;
+        test_recent_highest_throughput_partitions(Arc::clone(&catalog)).await;
         test_update_to_compaction_level_1(Arc::clone(&catalog)).await;
         test_processed_tombstones(Arc::clone(&catalog)).await;
         test_list_by_partiton_not_to_delete(Arc::clone(&catalog)).await;
@@ -2542,6 +2560,444 @@ pub(crate) mod test_helpers {
             "\nlevel 1: {:#?}\nexpected: {:#?}",
             level_1, expected,
         );
+    }
+
+    async fn test_most_level_0_files_partitions(catalog: Arc<dyn Catalog>) {
+        let mut repos = catalog.repositories().await;
+        let kafka = repos
+            .kafka_topics()
+            .create_or_get("most_level_0")
+            .await
+            .unwrap();
+        let pool = repos
+            .query_pools()
+            .create_or_get("most_level_0")
+            .await
+            .unwrap();
+        let namespace = repos
+            .namespaces()
+            .create(
+                "test_most_level_0_files_partitions",
+                "inf",
+                kafka.id,
+                pool.id,
+            )
+            .await
+            .unwrap();
+        let table = repos
+            .tables()
+            .create_or_get("test_table", namespace.id)
+            .await
+            .unwrap();
+        let sequencer = repos
+            .sequencers()
+            .create_or_get(&kafka, KafkaPartition::new(100))
+            .await
+            .unwrap();
+
+        let num_partitions = 2;
+
+        // Db has no partition
+        let partitions = repos
+            .parquet_files()
+            .most_level_0_files_partitions(sequencer.id, num_partitions)
+            .await
+            .unwrap();
+        println!("partitions: {:#?}", partitions);
+        assert!(partitions.is_empty());
+
+        // The DB has 1 partition but it does not have any file
+        let partition = repos
+            .partitions()
+            .create_or_get("one".into(), sequencer.id, table.id)
+            .await
+            .unwrap();
+        let partitions = repos
+            .parquet_files()
+            .most_level_0_files_partitions(sequencer.id, num_partitions)
+            .await
+            .unwrap();
+        assert!(partitions.is_empty());
+
+        // The partition has one deleted file
+        let parquet_file_params = ParquetFileParams {
+            sequencer_id: sequencer.id,
+            namespace_id: namespace.id,
+            table_id: partition.table_id,
+            partition_id: partition.id,
+            object_store_id: Uuid::new_v4(),
+            min_sequence_number: SequenceNumber::new(10),
+            max_sequence_number: SequenceNumber::new(140),
+            min_time: Timestamp::new(1),
+            max_time: Timestamp::new(10),
+            file_size_bytes: 1337,
+            row_count: 0,
+            compaction_level: CompactionLevel::Initial,
+            created_at: Timestamp::new(1),
+            column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
+        };
+        let delete_l0_file = repos
+            .parquet_files()
+            .create(parquet_file_params.clone())
+            .await
+            .unwrap();
+        repos
+            .parquet_files()
+            .flag_for_delete(delete_l0_file.id)
+            .await
+            .unwrap();
+        let partitions = repos
+            .parquet_files()
+            .most_level_0_files_partitions(sequencer.id, num_partitions)
+            .await
+            .unwrap();
+        assert!(partitions.is_empty());
+
+        // The partition has one non-deleted level 0 files
+        let l0_file_params = ParquetFileParams {
+            object_store_id: Uuid::new_v4(),
+            ..parquet_file_params.clone()
+        };
+        repos
+            .parquet_files()
+            .create(l0_file_params.clone())
+            .await
+            .unwrap();
+        let partitions = repos
+            .parquet_files()
+            .most_level_0_files_partitions(sequencer.id, num_partitions)
+            .await
+            .unwrap();
+        assert_eq!(partitions.len(), 1);
+
+        // The DB has 2 partitions both has non-deleled L0 files
+        let another_partition = repos
+            .partitions()
+            .create_or_get("two".into(), sequencer.id, table.id)
+            .await
+            .unwrap();
+        let another_file_params = ParquetFileParams {
+            object_store_id: Uuid::new_v4(),
+            partition_id: another_partition.id,
+            ..parquet_file_params.clone()
+        };
+        // The new partition has 2 non-deleted L0 files
+        repos
+            .parquet_files()
+            .create(another_file_params.clone())
+            .await
+            .unwrap();
+        let another_file_params_for_second_l0 = ParquetFileParams {
+            object_store_id: Uuid::new_v4(),
+            ..another_file_params.clone()
+        };
+        repos
+            .parquet_files()
+            .create(another_file_params_for_second_l0.clone())
+            .await
+            .unwrap();
+        // Must return 2 partitions
+        let partitions = repos
+            .parquet_files()
+            .most_level_0_files_partitions(sequencer.id, num_partitions)
+            .await
+            .unwrap();
+        assert_eq!(partitions.len(), 2);
+        // They must be in order another_partition (more L0 files), partition
+        assert_eq!(partitions[0].partition_id, another_partition.id); // 2 files
+        assert_eq!(partitions[1].partition_id, partition.id); // 1 file
+
+        // The DB has 3 partitions with non-deleted L0 files
+        let third_partition = repos
+            .partitions()
+            .create_or_get("three".into(), sequencer.id, table.id)
+            .await
+            .unwrap();
+        let file_params = ParquetFileParams {
+            object_store_id: Uuid::new_v4(),
+            partition_id: third_partition.id,
+            ..parquet_file_params.clone()
+        };
+        repos
+            .parquet_files()
+            .create(file_params.clone())
+            .await
+            .unwrap();
+        // Still return 2 partitions the limit num_partitions=2
+        let partitions = repos
+            .parquet_files()
+            .most_level_0_files_partitions(sequencer.id, num_partitions)
+            .await
+            .unwrap();
+        assert_eq!(partitions.len(), 2);
+        // and the first one should stil be the one with the most L0 files
+        assert_eq!(partitions[0].partition_id, another_partition.id);
+    }
+
+    async fn test_recent_highest_throughput_partitions(catalog: Arc<dyn Catalog>) {
+        let mut repos = catalog.repositories().await;
+        let kafka = repos
+            .kafka_topics()
+            .create_or_get("highest_throughput")
+            .await
+            .unwrap();
+        let pool = repos
+            .query_pools()
+            .create_or_get("highest_throughput")
+            .await
+            .unwrap();
+        let namespace = repos
+            .namespaces()
+            .create(
+                "test_recent_highest_throughput_partitions",
+                "inf",
+                kafka.id,
+                pool.id,
+            )
+            .await
+            .unwrap();
+        let table = repos
+            .tables()
+            .create_or_get("test_table", namespace.id)
+            .await
+            .unwrap();
+        let sequencer = repos
+            .sequencers()
+            .create_or_get(&kafka, KafkaPartition::new(100))
+            .await
+            .unwrap();
+
+        // params for the tests
+        let num_hours = 4;
+        let min_num_files = 2;
+        let num_partitions = 2;
+
+        // Case 1
+        // Db has no partition
+        let partitions = repos
+            .parquet_files()
+            .recent_highest_throughput_partitions(
+                sequencer.id,
+                num_hours,
+                min_num_files,
+                num_partitions,
+            )
+            .await
+            .unwrap();
+        assert!(partitions.is_empty());
+
+        // Case 2
+        // The DB has 1 partition but it does not have any file
+        let partition = repos
+            .partitions()
+            .create_or_get("one".into(), sequencer.id, table.id)
+            .await
+            .unwrap();
+        let partitions = repos
+            .parquet_files()
+            .recent_highest_throughput_partitions(
+                sequencer.id,
+                num_hours,
+                min_num_files,
+                num_partitions,
+            )
+            .await
+            .unwrap();
+        assert!(partitions.is_empty());
+
+        // Time for testing
+        let time_now = Timestamp::new(catalog.time_provider().now().timestamp_nanos());
+        let time_one_hour_ago = Timestamp::new(
+            (catalog.time_provider().now() - Duration::from_secs(60 * 60)).timestamp_nanos(),
+        );
+        let time_two_hour_ago = Timestamp::new(
+            (catalog.time_provider().now() - Duration::from_secs(60 * 60 * 2)).timestamp_nanos(),
+        );
+        let time_three_hour_ago = Timestamp::new(
+            (catalog.time_provider().now() - Duration::from_secs(60 * 60 * 3)).timestamp_nanos(),
+        );
+        let time_five_hour_ago = Timestamp::new(
+            (catalog.time_provider().now() - Duration::from_secs(60 * 60 * 5)).timestamp_nanos(),
+        );
+        let time_ten_hour_ago = Timestamp::new(
+            (catalog.time_provider().now() - Duration::from_secs(60 * 60 * 10)).timestamp_nanos(),
+        );
+
+        // Case 3
+        // The partition has one deleted file
+        let parquet_file_params = ParquetFileParams {
+            sequencer_id: sequencer.id,
+            namespace_id: namespace.id,
+            table_id: partition.table_id,
+            partition_id: partition.id,
+            object_store_id: Uuid::new_v4(),
+            min_sequence_number: SequenceNumber::new(10),
+            max_sequence_number: SequenceNumber::new(140),
+            min_time: Timestamp::new(1),
+            max_time: Timestamp::new(10),
+            file_size_bytes: 1337,
+            row_count: 0,
+            compaction_level: CompactionLevel::Initial,
+            created_at: time_now,
+            column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
+        };
+        let delete_l0_file = repos
+            .parquet_files()
+            .create(parquet_file_params.clone())
+            .await
+            .unwrap();
+        repos
+            .parquet_files()
+            .flag_for_delete(delete_l0_file.id)
+            .await
+            .unwrap();
+        let partitions = repos
+            .parquet_files()
+            .recent_highest_throughput_partitions(
+                sequencer.id,
+                num_hours,
+                min_num_files,
+                num_partitions,
+            )
+            .await
+            .unwrap();
+        assert!(partitions.is_empty());
+
+        // Case 4
+        // Partition has only 1 file created recently
+        let l0_one_hour_ago_file_params = ParquetFileParams {
+            object_store_id: Uuid::new_v4(),
+            created_at: time_one_hour_ago,
+            ..parquet_file_params.clone()
+        };
+        repos
+            .parquet_files()
+            .create(l0_one_hour_ago_file_params.clone())
+            .await
+            .unwrap();
+        // Case 4.1: min_num_files = 2
+        let partitions = repos
+            .parquet_files()
+            .recent_highest_throughput_partitions(
+                sequencer.id,
+                num_hours,
+                min_num_files,
+                num_partitions,
+            )
+            .await
+            .unwrap();
+        // nothing return because the partition has only one recent L0 file which is smaller than min_num_files = 2
+        assert!(partitions.is_empty());
+        // Case 4.2: min_num_files = 1
+        let partitions = repos
+            .parquet_files()
+            .recent_highest_throughput_partitions(sequencer.id, num_hours, 1, num_partitions)
+            .await
+            .unwrap();
+        // and have one partition
+        assert_eq!(partitions.len(), 1);
+
+        // Case 5
+        // Let us create another partition with 2 L0 recent files
+        let another_partition = repos
+            .partitions()
+            .create_or_get("two".into(), sequencer.id, table.id)
+            .await
+            .unwrap();
+        let l0_2_hours_ago_file_params = ParquetFileParams {
+            object_store_id: Uuid::new_v4(),
+            created_at: time_two_hour_ago,
+            partition_id: another_partition.id,
+            ..parquet_file_params.clone()
+        };
+        repos
+            .parquet_files()
+            .create(l0_2_hours_ago_file_params)
+            .await
+            .unwrap();
+        let l0_3_hours_ago_file_params = ParquetFileParams {
+            object_store_id: Uuid::new_v4(),
+            created_at: time_three_hour_ago,
+            partition_id: another_partition.id,
+            ..parquet_file_params.clone()
+        };
+        repos
+            .parquet_files()
+            .create(l0_3_hours_ago_file_params)
+            .await
+            .unwrap();
+        // Case 5.1: min_num_files = 2
+        let partitions = repos
+            .parquet_files()
+            .recent_highest_throughput_partitions(
+                sequencer.id,
+                num_hours,
+                min_num_files,
+                num_partitions,
+            )
+            .await
+            .unwrap();
+        assert_eq!(partitions.len(), 1);
+        assert_eq!(partitions[0].partition_id, another_partition.id); // must be the partition with 2 files
+                                                                      //
+                                                                      // Case 5.2: min_num_files = 1
+        let partitions = repos
+            .parquet_files()
+            .recent_highest_throughput_partitions(sequencer.id, num_hours, 1, num_partitions)
+            .await
+            .unwrap();
+        assert_eq!(partitions.len(), 2);
+        assert_eq!(partitions[0].partition_id, another_partition.id); // partition with 2 files must be first
+        assert_eq!(partitions[1].partition_id, partition.id);
+
+        // Case 6
+        // Add 2 not-recent files to the first partition
+        let l0_5_hours_ago_file_params = ParquetFileParams {
+            object_store_id: Uuid::new_v4(),
+            created_at: time_five_hour_ago,
+            partition_id: partition.id,
+            ..parquet_file_params.clone()
+        };
+        repos
+            .parquet_files()
+            .create(l0_5_hours_ago_file_params)
+            .await
+            .unwrap();
+        let l0_10_hours_ago_file_params = ParquetFileParams {
+            object_store_id: Uuid::new_v4(),
+            created_at: time_ten_hour_ago,
+            partition_id: partition.id,
+            ..parquet_file_params.clone()
+        };
+        repos
+            .parquet_files()
+            .create(l0_10_hours_ago_file_params)
+            .await
+            .unwrap();
+        // Case 6.1: min_num_files = 2
+        let partitions = repos
+            .parquet_files()
+            .recent_highest_throughput_partitions(
+                sequencer.id,
+                num_hours,
+                min_num_files,
+                num_partitions,
+            )
+            .await
+            .unwrap();
+        // result still 1 partition because the old files do not contribute to recent throughput
+        assert_eq!(partitions.len(), 1);
+        assert_eq!(partitions[0].partition_id, another_partition.id); // must be the partition with 2 files
+                                                                      //
+                                                                      // Case 6.2: min_num_files = 1
+        let partitions = repos
+            .parquet_files()
+            .recent_highest_throughput_partitions(sequencer.id, num_hours, 1, num_partitions)
+            .await
+            .unwrap();
+        assert_eq!(partitions.len(), 2);
+        assert_eq!(partitions[0].partition_id, another_partition.id); // partition with 2 files must be first
+        assert_eq!(partitions[1].partition_id, partition.id);
     }
 
     async fn test_list_by_partiton_not_to_delete(catalog: Arc<dyn Catalog>) {

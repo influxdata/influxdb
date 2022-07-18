@@ -780,7 +780,7 @@ mod test {
 
         let mut second_highest_cardinality = vec![Some(1.0); 7];
         second_highest_cardinality.append(&mut vec![Some(2.0); 3]);
-        let second_higest_cardinality =
+        let second_highest_cardinality =
             Arc::new(Float64Array::from(second_highest_cardinality)) as ArrayRef;
 
         let mut highest_cardinality = vec![Some(1), Some(1), Some(3), Some(4), Some(4)];
@@ -793,7 +793,7 @@ mod test {
 
         let batch = RecordBatch::try_from_iter(vec![
             ("lowest_cardinality", lowest_cardinality),
-            ("second_highest_cardinality", second_higest_cardinality),
+            ("second_highest_cardinality", second_highest_cardinality),
             ("highest_cardinality", highest_cardinality),
             ("time", time),
         ])

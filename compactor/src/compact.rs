@@ -8,7 +8,7 @@ use crate::{
 use backoff::BackoffConfig;
 use data_types::{
     CompactionLevel, Namespace, NamespaceId, ParquetFile, ParquetFileId, Partition, PartitionId,
-    SequencerId, Table, TableId, TableSchema, Timestamp, Tombstone, TombstoneId,
+    PartitionParam, SequencerId, Table, TableId, TableSchema, Tombstone, TombstoneId,
 };
 use datafusion::error::DataFusionError;
 use futures::stream::{FuturesUnordered, TryStreamExt};
@@ -24,7 +24,7 @@ use observability_deps::tracing::{debug, info, trace, warn};
 use parquet_file::{metadata::IoxMetadata, storage::ParquetStorage};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{
-    cmp::{max, min, Ordering},
+    cmp::{max, min},
     collections::{BTreeMap, HashMap, HashSet},
     ops::DerefMut,
     sync::Arc,
@@ -152,6 +152,26 @@ pub enum Error {
         max_seq_2: i64,
         partition_id: PartitionId,
     },
+
+    #[snafu(display(
+        "Error getting the most recent highest ingested throughput partitions for sequencer {}. {}",
+        sequencer_id,
+        source
+    ))]
+    HighestThroughputPartitions {
+        source: iox_catalog::interface::Error,
+        sequencer_id: SequencerId,
+    },
+
+    #[snafu(display(
+        "Error getting the most level 0 file partitions for sequencer {}. {}",
+        sequencer_id,
+        source
+    ))]
+    MostL0Partitions {
+        source: iox_catalog::interface::Error,
+        sequencer_id: SequencerId,
+    },
 }
 
 /// A specialized `Error` for Compactor Data errors
@@ -225,9 +245,6 @@ pub struct Compactor {
     /// Gauge for the number of compaction partition candidates
     compaction_candidate_gauge: Metric<U64Gauge>,
 
-    /// Gauge for the number of bytes of level-0 files across compaction partition candidates
-    compaction_candidate_bytes_gauge: Metric<U64Gauge>,
-
     /// Histogram for tracking the time to compact a partition
     compaction_duration: Metric<DurationHistogram>,
 }
@@ -259,10 +276,6 @@ impl Compactor {
             "compactor_candidates",
             "gauge for the number of compaction candidates that are found when checked",
         );
-        let compaction_candidate_bytes_gauge = registry.register_metric(
-            "compactor_candidate_bytes",
-            "gauge for the total bytes for compaction candidates",
-        );
         let level_promotion_counter = registry.register_metric(
             "compactor_level_promotions_total",
             "Counter for level promotion from 0 to 1",
@@ -282,23 +295,11 @@ impl Compactor {
             backoff_config,
             config,
             compaction_counter,
-            // compaction_actual_counter,
             compaction_output_counter,
             level_promotion_counter,
             compaction_candidate_gauge,
-            compaction_candidate_bytes_gauge,
             compaction_duration,
         }
-    }
-
-    async fn level_0_parquet_files(&self, sequencer_id: SequencerId) -> Result<Vec<ParquetFile>> {
-        let mut repos = self.catalog.repositories().await;
-
-        repos
-            .parquet_files()
-            .level_0(sequencer_id)
-            .await
-            .context(Level0Snafu)
     }
 
     async fn update_to_level_1(&self, parquet_file_ids: &[ParquetFileId]) -> Result<()> {
@@ -324,59 +325,80 @@ impl Compactor {
         Ok(())
     }
 
-    /// Returns a list of partitions that have level 0 files to compact along with some summary
-    /// statistics that the scheduler can use to decide which partitions to prioritize. Orders
-    /// them by the number of level 0 files and then size.
-    pub async fn partitions_to_compact(&self) -> Result<Vec<PartitionCompactionCandidate>> {
-        let mut candidates = vec![];
+    /// Return a list of the most recent highest ingested throughput partitions.
+    /// The highest throughput partitions are prioritized as follows:
+    ///  1. If there are partitions with new ingested files within the last 4 hours, pick them.
+    ///  2. If no new ingested files in the last 4 hours, will look for partitions with new writes
+    ///     within the last 24 hours.
+    ///  3. If there are no ingested files within the last 24 hours, will look for partitions
+    ///     with any new ingested files in the past.
+    ///
+    /// . New ingested files means non-deleted L0 files
+    /// . In all cases above, for each sequencer, N partitions with the most new ingested files will be selected
+    ///     and the return list will include at most, P = N * S, partitions where S is the number of
+    ///     sequencers this compactor handles.
+    pub async fn partitions_to_compact(
+        &self,
+        //  Max number of the most recent highest ingested throughput partitions
+        // per sequencer we want to read
+        max_num_partitions_per_sequencer: usize,
+        // Minimum number of the most recent writes per partition we want to count
+        // to prioritize partitions
+        min_recent_ingested_files: usize,
+    ) -> Result<Vec<PartitionParam>> {
+        let mut candidates =
+            Vec::with_capacity(self.sequencers.len() * max_num_partitions_per_sequencer);
+        let mut repos = self.catalog.repositories().await;
 
         for sequencer_id in &self.sequencers {
-            // Read level-0 parquet files
-            let level_0_files = self.level_0_parquet_files(*sequencer_id).await?;
-
-            let mut partitions = BTreeMap::new();
-            for f in level_0_files {
-                let mut p = partitions.entry(f.partition_id).or_insert_with(|| {
-                    PartitionCompactionCandidate {
-                        sequencer_id: *sequencer_id,
-                        namespace_id: f.namespace_id,
-                        table_id: f.table_id,
-                        partition_id: f.partition_id,
-                        level_0_file_count: 0,
-                        file_size_bytes: 0,
-                        oldest_file: f.created_at,
-                    }
-                });
-                p.file_size_bytes += f.file_size_bytes;
-                p.level_0_file_count += 1;
-                p.oldest_file = p.oldest_file.min(f.created_at);
-            }
-
-            let mut partitions: Vec<_> = partitions.into_values().collect();
-
-            let total_size = partitions.iter().fold(0, |t, p| t + p.file_size_bytes);
             let attributes =
                 Attributes::from([("sequencer_id", format!("{}", *sequencer_id).into())]);
 
+            // Get the most recent highest ingested throughput partitions within
+            // the last 4 hours. If nothing, increase to 24 hours
+            let mut num_partitions = 0;
+            for num_hours in [4, 24] {
+                let mut partitions = repos
+                    .parquet_files()
+                    .recent_highest_throughput_partitions(
+                        *sequencer_id,
+                        num_hours,
+                        min_recent_ingested_files,
+                        max_num_partitions_per_sequencer,
+                    )
+                    .await
+                    .context(HighestThroughputPartitionsSnafu {
+                        sequencer_id: *sequencer_id,
+                    })?;
+
+                if !partitions.is_empty() {
+                    num_partitions = partitions.len();
+                    candidates.append(&mut partitions);
+                    break;
+                }
+            }
+
+            // No active ingesting partitions the last 24 hours,
+            // get partition with the most level-0 files
+            if num_partitions == 0 {
+                let mut partitions = repos
+                    .parquet_files()
+                    .most_level_0_files_partitions(*sequencer_id, max_num_partitions_per_sequencer)
+                    .await
+                    .context(MostL0PartitionsSnafu {
+                        sequencer_id: *sequencer_id,
+                    })?;
+
+                if !partitions.is_empty() {
+                    num_partitions = partitions.len();
+                    candidates.append(&mut partitions);
+                }
+            }
+
+            // Record metric for candidates per sequencer
             let number_gauge = self.compaction_candidate_gauge.recorder(attributes.clone());
-            number_gauge.set(partitions.len() as u64);
-            let size_gauge = self.compaction_candidate_bytes_gauge.recorder(attributes);
-            size_gauge.set(total_size as u64);
-
-            candidates.append(&mut partitions);
+            number_gauge.set(num_partitions as u64);
         }
-
-        candidates.sort_by(
-            |a, b| match b.level_0_file_count.cmp(&a.level_0_file_count) {
-                Ordering::Equal => b.file_size_bytes.cmp(&a.file_size_bytes),
-                o => o,
-            },
-        );
-
-        debug!(
-            candidate_num = candidates.len(),
-            "Number of candidate partitions to be considered to compact"
-        );
 
         Ok(candidates)
     }
@@ -384,7 +406,7 @@ impl Compactor {
     /// Add namespace and table information to partition candidates.
     pub async fn add_info_to_partitions(
         &self,
-        partitions: &[PartitionCompactionCandidate],
+        partitions: &[PartitionParam],
     ) -> Result<Vec<PartitionCompactionCandidateWithInfo>> {
         let mut repos = self.catalog.repositories().await;
 
@@ -435,7 +457,7 @@ impl Compactor {
                     namespace: Arc::clone(
                         &namespaces.get(&p.namespace_id).expect("just queried").0,
                     ),
-                    candidate: p.clone(),
+                    candidate: *p,
                 }
             })
             .collect())
@@ -1058,31 +1080,11 @@ impl Compactor {
     }
 }
 
-/// Summary information for a partition that is a candidate for compaction.
-#[derive(Debug, Clone, Eq, PartialEq)]
-#[allow(missing_copy_implementations)] // shouldn't be silently cloned
-pub struct PartitionCompactionCandidate {
-    /// the sequencer the partition is in
-    pub sequencer_id: SequencerId,
-    /// the table the partition is in
-    pub table_id: TableId,
-    /// the partition for compaction
-    pub partition_id: PartitionId,
-    /// namespace ID
-    pub namespace_id: NamespaceId,
-    /// the number of level 0 files in the partition
-    pub level_0_file_count: usize,
-    /// the total bytes of the level 0 files to compact
-    pub file_size_bytes: i64,
-    /// the created_at time of the oldest level 0 file in the partition
-    pub oldest_file: Timestamp,
-}
-
-/// [`PartitionCompactionCandidate`] with some information about its table and namespace.
+/// [`PartitionParam`] with some information about its table and namespace.
 #[derive(Debug)]
 pub struct PartitionCompactionCandidateWithInfo {
     /// Partition compaction candidate.
-    pub candidate: PartitionCompactionCandidate,
+    pub candidate: PartitionParam,
 
     /// Namespace.
     pub namespace: Arc<Namespace>,
@@ -1096,12 +1098,14 @@ pub struct PartitionCompactionCandidateWithInfo {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use super::*;
     use arrow::record_batch::RecordBatch;
     use arrow_util::assert_batches_sorted_eq;
     use data_types::{
         ColumnId, ColumnSet, ColumnType, KafkaPartition, NamespaceId, ParquetFileParams,
-        SequenceNumber,
+        SequenceNumber, Timestamp,
     };
     use futures::{stream::FuturesOrdered, StreamExt, TryStreamExt};
     use iox_tests::util::{TestCatalog, TestParquetFileBuilder, TestTable};
@@ -1343,7 +1347,7 @@ mod tests {
             .with_max_seq(1)
             .with_min_time(10)
             .with_max_time(20)
-            .with_file_size_bytes(compactor.config.compaction_max_desired_file_size_bytes() + 10)
+            .with_file_size_bytes(compactor.config.max_desired_file_size_bytes() + 10)
             .with_creation_time(20);
         partition.create_parquet_file(builder).await;
 
@@ -2232,6 +2236,7 @@ mod tests {
     async fn test_candidate_partitions() {
         let catalog = TestCatalog::new();
 
+        // Create a db with 2 sequencers, one with 4 emppty partitions and the other one with one empty partition
         let mut txn = catalog.catalog.start_transaction().await.unwrap();
 
         let kafka = txn.kafka_topics().create_or_get("foo").await.unwrap();
@@ -2251,7 +2256,7 @@ mod tests {
             .create_or_get(&kafka, KafkaPartition::new(1))
             .await
             .unwrap();
-        let partition = txn
+        let partition1 = txn
             .partitions()
             .create_or_get("one".into(), sequencer.id, table.id)
             .await
@@ -2271,12 +2276,63 @@ mod tests {
             .create_or_get("four".into(), sequencer.id, table.id)
             .await
             .unwrap();
+        // other sequencer
+        let another_table = txn
+            .tables()
+            .create_or_get("another_test_table", namespace.id)
+            .await
+            .unwrap();
+        let another_sequencer = txn
+            .sequencers()
+            .create_or_get(&kafka, KafkaPartition::new(2))
+            .await
+            .unwrap();
+        let another_partition = txn
+            .partitions()
+            .create_or_get(
+                "another_partition".into(),
+                another_sequencer.id,
+                another_table.id,
+            )
+            .await
+            .unwrap();
+        txn.commit().await.unwrap();
 
+        // Create a compactor
+        let time_provider = Arc::new(SystemProvider::new());
+        let config = make_compactor_config();
+        let compactor = Compactor::new(
+            vec![sequencer.id, another_sequencer.id],
+            Arc::clone(&catalog.catalog),
+            ParquetStorage::new(Arc::clone(&catalog.object_store)),
+            Arc::new(Executor::new(1)),
+            time_provider,
+            BackoffConfig::default(),
+            config,
+            Arc::new(metric::Registry::new()),
+        );
+
+        // Some times in the past to set to created_at of the files
+        let time_now = Timestamp::new(compactor.time_provider.now().timestamp_nanos());
+        let _time_one_hour_ago = Timestamp::new(
+            (compactor.time_provider.now() - Duration::from_secs(60 * 60)).timestamp_nanos(),
+        );
+        let time_three_hour_ago = Timestamp::new(
+            (compactor.time_provider.now() - Duration::from_secs(60 * 60 * 3)).timestamp_nanos(),
+        );
+        let time_five_hour_ago = Timestamp::new(
+            (compactor.time_provider.now() - Duration::from_secs(60 * 60 * 5)).timestamp_nanos(),
+        );
+        let time_38_hour_ago = Timestamp::new(
+            (compactor.time_provider.now() - Duration::from_secs(60 * 60 * 38)).timestamp_nanos(),
+        );
+
+        // Basic parquet info
         let p1 = ParquetFileParams {
             sequencer_id: sequencer.id,
             namespace_id: namespace.id,
             table_id: table.id,
-            partition_id: partition.id,
+            partition_id: partition1.id,
             object_store_id: Uuid::new_v4(),
             min_sequence_number: SequenceNumber::new(4),
             max_sequence_number: SequenceNumber::new(100),
@@ -2285,84 +2341,131 @@ mod tests {
             file_size_bytes: 1337,
             row_count: 0,
             compaction_level: CompactionLevel::Initial, // level of file of new writes
-            created_at: Timestamp::new(1),
+            created_at: time_now,
             column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
         };
 
+        // Note: The order of the test cases below is important and should not be changed
+        // becasue they depend on the  order of the writes and their content. For example,
+        // in order to test `Case 3`, we do not need to add asserts for `Case 1` and `Case 2`,
+        // but all the writes, deletes and updates in Cases 1 and 2 are a must for testing Case 3.
+        // In order words, the last Case needs all content of previous tests.
+        // This shows the priority of selecting compaction candidates
+
+        // --------------------------------------
+        // Case 1: no files yet --> no partition candidates
+        //
+        let candidates = compactor.partitions_to_compact(1, 1).await.unwrap();
+        assert!(candidates.is_empty());
+
+        // --------------------------------------
+        // Case 2: no non-deleleted L0 files -->  no partition candidates
+        //
+        // partition1 has a deleted L0
+        let mut txn = catalog.catalog.start_transaction().await.unwrap();
+        let pf1 = txn.parquet_files().create(p1.clone()).await.unwrap();
+        txn.parquet_files().flag_for_delete(pf1.id).await.unwrap();
+        //
+        // partition2 has a non-L0 file
         let p2 = ParquetFileParams {
-            object_store_id: Uuid::new_v4(),
-            ..p1.clone()
-        };
-        let p3 = ParquetFileParams {
             object_store_id: Uuid::new_v4(),
             partition_id: partition2.id,
             ..p1.clone()
         };
-        let p4 = ParquetFileParams {
-            object_store_id: Uuid::new_v4(),
-            partition_id: partition3.id,
-            file_size_bytes: 20000,
-            ..p1.clone()
-        };
-        let p5 = ParquetFileParams {
-            object_store_id: Uuid::new_v4(),
-            partition_id: partition4.id,
-            ..p1.clone()
-        };
-        let pf1 = txn.parquet_files().create(p1).await.unwrap();
-        let _pf2 = txn.parquet_files().create(p2).await.unwrap();
-        let pf3 = txn.parquet_files().create(p3).await.unwrap();
-        let pf4 = txn.parquet_files().create(p4).await.unwrap();
-        let pf5 = txn.parquet_files().create(p5).await.unwrap();
+        let pf2 = txn.parquet_files().create(p2).await.unwrap();
         txn.parquet_files()
-            .update_to_level_1(&[pf5.id])
+            .update_to_level_1(&[pf2.id])
             .await
             .unwrap();
         txn.commit().await.unwrap();
+        // No non-deleted level 0 files yet --> no candidates
+        let candidates = compactor.partitions_to_compact(1, 1).await.unwrap();
+        assert!(candidates.is_empty());
 
-        let config = make_compactor_config();
-        let compactor = Compactor::new(
-            vec![sequencer.id],
-            Arc::clone(&catalog.catalog),
-            ParquetStorage::new(Arc::clone(&catalog.object_store)),
-            Arc::new(Executor::new(1)),
-            Arc::new(SystemProvider::new()),
-            BackoffConfig::default(),
-            config,
-            Arc::new(metric::Registry::new()),
-        );
+        // --------------------------------------
+        // Case 3: no new recent writes (within the last 24 hours) --> return candidates with the most L0
+        //
+        // partition2 has an old (more 24 hours ago) non-deleted level 0 file
+        let mut txn = catalog.catalog.start_transaction().await.unwrap();
+        let p3 = ParquetFileParams {
+            object_store_id: Uuid::new_v4(),
+            partition_id: partition2.id,
+            created_at: time_38_hour_ago,
+            ..p1.clone()
+        };
+        let _pf3 = txn.parquet_files().create(p3).await.unwrap();
+        txn.commit().await.unwrap();
+        //
+        // Has at least one partition with a L0 file --> make it a candidate
+        let candidates = compactor.partitions_to_compact(1, 1).await.unwrap();
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].partition_id, partition2.id);
 
-        let candidates = compactor.partitions_to_compact().await.unwrap();
-        let expect: Vec<PartitionCompactionCandidate> = vec![
-            PartitionCompactionCandidate {
-                sequencer_id: sequencer.id,
-                table_id: table.id,
-                partition_id: partition.id,
-                namespace_id: namespace.id,
-                level_0_file_count: 2,
-                file_size_bytes: 1337 * 2,
-                oldest_file: pf1.created_at,
-            },
-            PartitionCompactionCandidate {
-                sequencer_id: sequencer.id,
-                table_id: table.id,
-                partition_id: partition3.id,
-                namespace_id: namespace.id,
-                level_0_file_count: 1,
-                file_size_bytes: 20000,
-                oldest_file: pf4.created_at,
-            },
-            PartitionCompactionCandidate {
-                sequencer_id: sequencer.id,
-                table_id: table.id,
-                partition_id: partition2.id,
-                namespace_id: namespace.id,
-                level_0_file_count: 1,
-                file_size_bytes: 1337,
-                oldest_file: pf3.created_at,
-            },
-        ];
-        assert_eq!(expect, candidates);
+        // --------------------------------------
+        // Case 4: has one partition with recent writes (5 hours ago) --> return that partition
+        //
+        // partition4 has a new write 5 hours ago
+        let mut txn = catalog.catalog.start_transaction().await.unwrap();
+        let p4 = ParquetFileParams {
+            object_store_id: Uuid::new_v4(),
+            partition_id: partition4.id,
+            created_at: time_five_hour_ago,
+            ..p1.clone()
+        };
+        let _pf4 = txn.parquet_files().create(p4).await.unwrap();
+        txn.commit().await.unwrap();
+        //
+        // Has at least one partition with a recent write --> make it a candidate
+        let candidates = compactor.partitions_to_compact(1, 1).await.unwrap();
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].partition_id, partition4.id);
+
+        // --------------------------------------
+        // Case 5: has 2 partitions with 2 different groups of recent writes:
+        //  1. Within the last 4 hours
+        //  2. Within the last 24 hours but older than 4 hours ago
+        // When we have group 1, we will ignore partitions in group 2
+        //
+        // partition3 has a new write 3 hours ago
+        let mut txn = catalog.catalog.start_transaction().await.unwrap();
+        let p5 = ParquetFileParams {
+            object_store_id: Uuid::new_v4(),
+            partition_id: partition3.id,
+            created_at: time_three_hour_ago,
+            ..p1.clone()
+        };
+        let _pf5 = txn.parquet_files().create(p5).await.unwrap();
+        txn.commit().await.unwrap();
+        //
+        // make partitions in the most recent group candidates
+        let candidates = compactor.partitions_to_compact(1, 1).await.unwrap();
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].partition_id, partition3.id);
+
+        // --------------------------------------
+        // Case 6: has partittion candidates for 2 sequecers
+        //
+        // The another_sequencer now has non-deleted level-0 file ingested 38 hours ago
+        let mut txn = catalog.catalog.start_transaction().await.unwrap();
+        let p6 = ParquetFileParams {
+            object_store_id: Uuid::new_v4(),
+            sequencer_id: another_sequencer.id,
+            table_id: another_table.id,
+            partition_id: another_partition.id,
+            created_at: time_38_hour_ago,
+            ..p1.clone()
+        };
+        let _pf6 = txn.parquet_files().create(p6).await.unwrap();
+        txn.commit().await.unwrap();
+        //
+        // Will have 2 candidates, one for each sequencer
+        let mut candidates = compactor.partitions_to_compact(1, 1).await.unwrap();
+        candidates.sort();
+        assert_eq!(candidates.len(), 2);
+        assert_eq!(candidates[0].partition_id, partition3.id);
+        assert_eq!(candidates[0].sequencer_id, sequencer.id);
+        assert_eq!(candidates[1].partition_id, another_partition.id);
+        assert_eq!(candidates[1].sequencer_id, another_sequencer.id);
     }
 
     #[tokio::test]
@@ -2485,17 +2588,21 @@ mod tests {
     }
 
     fn make_compactor_config() -> CompactorConfig {
-        let compaction_max_number_level_0_files = 3;
-        let compaction_max_desired_file_size_bytes = 10_000;
-        let compaction_percentage_max_file_size = 30;
-        let compaction_split_percentage = 80;
+        let max_number_level_0_files = 3;
+        let max_desired_file_size_bytes = 10_000;
+        let percentage_max_file_size = 30;
+        let split_percentage = 80;
         let max_concurrent_compaction_size_bytes = 100_000;
+        let max_number_partitions_per_sequencer = 1;
+        let min_number_recent_ingested_per_partition = 1;
         CompactorConfig::new(
-            compaction_max_number_level_0_files,
-            compaction_max_desired_file_size_bytes,
-            compaction_percentage_max_file_size,
-            compaction_split_percentage,
+            max_number_level_0_files,
+            max_desired_file_size_bytes,
+            percentage_max_file_size,
+            split_percentage,
             max_concurrent_compaction_size_bytes,
+            max_number_partitions_per_sequencer,
+            min_number_recent_ingested_per_partition,
         )
     }
 }

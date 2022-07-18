@@ -164,11 +164,13 @@ pub async fn create_compactor_server_type(
     let parquet_store = ParquetStorage::new(object_store);
 
     let compactor_config = compactor::handler::CompactorConfig::new(
-        compactor_config.compaction_max_number_level_0_files,
-        compactor_config.compaction_max_desired_file_size_bytes,
-        compactor_config.compaction_percentage_max_file_size,
-        compactor_config.compaction_split_percentage,
+        compactor_config.max_number_level_0_files,
+        compactor_config.max_desired_file_size_bytes,
+        compactor_config.percentage_max_file_size,
+        compactor_config.split_percentage,
         compactor_config.max_concurrent_compaction_size_bytes,
+        compactor_config.max_number_partitions_per_sequencer,
+        compactor_config.min_number_recent_ingested_files_per_partition,
     );
     let compactor_handler = Arc::new(CompactorHandlerImpl::new(
         sequencers,

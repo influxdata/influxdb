@@ -392,11 +392,13 @@ impl Config {
             topic: QUERY_POOL_NAME.to_string(),
             write_buffer_partition_range_start,
             write_buffer_partition_range_end,
-            compaction_max_number_level_0_files: 3,
-            compaction_max_desired_file_size_bytes: 30000,
-            compaction_percentage_max_file_size: 30,
-            compaction_split_percentage: 80,
+            max_number_level_0_files: 3,
+            max_desired_file_size_bytes: 30000,
+            percentage_max_file_size: 30,
+            split_percentage: 80,
             max_concurrent_compaction_size_bytes: 100000,
+            max_number_partitions_per_sequencer: 1,
+            min_number_recent_ingested_files_per_partition: 1,
         };
 
         let querier_config = QuerierConfig {

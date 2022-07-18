@@ -561,7 +561,7 @@ impl TestPartition {
             max_sequence_number,
             min_time: Timestamp::new(min_time),
             max_time: Timestamp::new(max_time),
-            file_size_bytes: file_size_bytes.unwrap_or(real_file_size_bytes as i64),
+            file_size_bytes: file_size_bytes.unwrap_or(real_file_size_bytes as u64) as i64,
             row_count: row_count as i64,
             created_at: Timestamp::new(creation_time),
             compaction_level,
@@ -605,7 +605,7 @@ pub struct TestParquetFileBuilder {
     max_seq: i64,
     min_time: i64,
     max_time: i64,
-    file_size_bytes: Option<i64>,
+    file_size_bytes: Option<u64>,
     creation_time: i64,
     compaction_level: CompactionLevel,
     to_delete: bool,
@@ -682,7 +682,7 @@ impl TestParquetFileBuilder {
     }
 
     /// Specify the file size, in bytes, for the parquet file metadata.
-    pub fn with_file_size_bytes(mut self, file_size_bytes: i64) -> Self {
+    pub fn with_file_size_bytes(mut self, file_size_bytes: u64) -> Self {
         self.file_size_bytes = Some(file_size_bytes);
         self
     }

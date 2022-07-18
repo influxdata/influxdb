@@ -37,7 +37,7 @@ pub struct CompactorConfig {
         default_value = "3",
         action
     )]
-    pub compaction_max_number_level_0_files: i32,
+    pub max_number_level_0_files: u32,
 
     /// Desired max size of compacted parquet files
     /// It is a target desired value than a guarantee
@@ -48,12 +48,12 @@ pub struct CompactorConfig {
         default_value = "100000000",
         action
     )]
-    pub compaction_max_desired_file_size_bytes: i64,
+    pub max_desired_file_size_bytes: u64,
 
     /// Percentage of desired max file size.
     /// If the estimated compacted result is too small, no need to split it.
     /// This percentage is to determine how small it is:
-    ///    < compaction_percentage_max_file_size * compaction_max_desired_file_size_bytes:
+    ///    < percentage_max_file_size * max_desired_file_size_bytes:
     /// This value must be between (0, 100)
     /// Default is 30
     #[clap(
@@ -62,13 +62,13 @@ pub struct CompactorConfig {
         default_value = "30",
         action
     )]
-    pub compaction_percentage_max_file_size: i16,
+    pub percentage_max_file_size: u16,
 
     /// Split file percentage
     /// If the estimated compacted result is neither too small nor too large, it will be split
     /// into 2 files determined by this percentage.
-    ///    . Too small means: < compaction_percentage_max_file_size * compaction_max_desired_file_size_bytes
-    ///    . Too large means: > compaction_max_desired_file_size_bytes
+    ///    . Too small means: < percentage_max_file_size * max_desired_file_size_bytes
+    ///    . Too large means: > max_desired_file_size_bytes
     ///    . Any size in the middle will be considered neither too small nor too large
     /// This value must be between (0, 100)
     /// Default is 80
@@ -78,7 +78,7 @@ pub struct CompactorConfig {
         default_value = "80",
         action
     )]
-    pub compaction_split_percentage: i16,
+    pub split_percentage: u16,
 
     /// The compactor will limit the number of simultaneous compaction jobs based on the
     /// size of the input files to be compacted.  This number should be less than 1/10th
@@ -90,5 +90,25 @@ pub struct CompactorConfig {
         default_value = "100000000",
         action
     )]
-    pub max_concurrent_compaction_size_bytes: i64,
+    pub max_concurrent_compaction_size_bytes: u64,
+
+    /// Max number of partitions per sequencer we want to compact per cycle
+    /// Default: 1
+    #[clap(
+        long = "--compaction-max-number-partitions-per-sequencer",
+        env = "INFLUXDB_IOX_COMPACTION_MAX_NUMBER_PARTITIONS_PER_SEQUENCER",
+        default_value = "1",
+        action
+    )]
+    pub max_number_partitions_per_sequencer: usize,
+
+    /// Min number of recent ingested files a partition needs to be considered for compacting
+    /// Default: 1
+    #[clap(
+        long = "--compaction-min-number-recent-ingested-files-per-partition",
+        env = "INFLUXDB_IOX_COMPACTION_MIN_NUMBER_RECENT_INGESTED_FILES_PER_PARTITION",
+        default_value = "1",
+        action
+    )]
+    pub min_number_recent_ingested_files_per_partition: usize,
 }
