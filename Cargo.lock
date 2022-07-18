@@ -3020,9 +3020,9 @@ dependencies = [
 
 [[package]]
 name = "nix"
-version = "0.24.1"
+version = "0.24.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8f17df307904acd05aa8e32e97bb20f2a0df1728bbc2d771ae8f9a90463441e9"
+checksum = "195cdbc1741b8134346d515b3a56a1c94b0912758009cfd53f99ea0f57b065fc"
 dependencies = [
  "bitflags",
  "cfg-if",
@@ -3641,7 +3641,7 @@ dependencies = [
  "inferno",
  "libc",
  "log",
- "nix 0.24.1",
+ "nix 0.24.2",
  "once_cell",
  "parking_lot 0.12.1",
  "prost",
@@ -5245,7 +5245,7 @@ dependencies = [
  "http",
  "hyper",
  "influxdb_iox_client",
- "nix 0.24.1",
+ "nix 0.24.2",
  "observability_deps",
  "once_cell",
  "parking_lot 0.12.1",
