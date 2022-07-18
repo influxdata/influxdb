@@ -216,13 +216,13 @@ pub struct Compactor {
     sequencers: Vec<SequencerId>,
 
     /// Object store for reading and persistence of parquet files
-    store: ParquetStorage,
+    pub(crate) store: ParquetStorage,
 
     /// The global catalog for schema, parquet files and tombstones
     pub(crate) catalog: Arc<dyn Catalog>,
 
     /// Executor for running queries, compacting, and persisting
-    exec: Arc<Executor>,
+    pub(crate) exec: Arc<Executor>,
 
     /// Time provider for all activities in this compactor
     pub time_provider: Arc<dyn TimeProvider>,
@@ -833,8 +833,8 @@ impl Compactor {
             "gathered parquet data to compact"
         );
 
-        // Compute min & max sequence numbers and time
-        // unwrap here will work becasue the len of the query_chunks already >= 1
+        // Compute max sequence numbers and min/max time
+        // unwrap here will work because the len of the query_chunks already >= 1
         let (head, tail) = query_chunks.split_first().unwrap();
         let mut max_sequence_number = head.max_sequence_number();
         let mut min_time = head.min_time();
@@ -1170,6 +1170,28 @@ pub struct PartitionCompactionCandidateWithInfo {
 
     /// partition_key
     pub partition_key: PartitionKey,
+}
+
+impl PartitionCompactionCandidateWithInfo {
+    /// Partition ID
+    pub fn id(&self) -> PartitionId {
+        self.candidate.partition_id
+    }
+
+    /// Partition sequencer ID
+    pub fn sequencer_id(&self) -> SequencerId {
+        self.candidate.sequencer_id
+    }
+
+    /// Partition namespace ID
+    pub fn namespace_id(&self) -> NamespaceId {
+        self.candidate.namespace_id
+    }
+
+    /// Partition table ID
+    pub fn table_id(&self) -> TableId {
+        self.candidate.table_id
+    }
 }
 
 #[cfg(test)]
