@@ -96,16 +96,18 @@ checksum = "8da52d66c7071e2e3fa2a1e5c6d088fec47b593032b254f5e980de8ea54454d6"
 
 [[package]]
 name = "arrow"
-version = "17.0.0"
+version = "18.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "20f88d9bd22ae87d3d9faa19316b51ebb692a3b402f8a5e02916ad33c2435d2b"
+checksum = "a5f89d2bc04fa746ee395d20c4cbfa508e4cce5c00bae816f0fae434fcfb9853"
 dependencies = [
+ "ahash",
  "bitflags",
  "chrono",
  "comfy-table",
  "csv",
  "flatbuffers",
  "half 2.0.0",
+ "hashbrown",
  "hex",
  "indexmap",
  "lazy_static",
@@ -121,9 +123,9 @@ dependencies = [
 
 [[package]]
 name = "arrow-flight"
-version = "17.0.0"
+version = "18.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0d3a1f1484ac9d752de1362ad82440b0b978dc0cd1c19a7d8457a6d984a35deb"
+checksum = "30421ea30c815daae635003d8a40875922a627d55bc098a581ab215f7b7f5d35"
 dependencies = [
  "arrow",
  "base64",
@@ -1107,22 +1109,22 @@ dependencies = [
 name = "datafusion"
 version = "0.1.0"
 dependencies = [
- "datafusion 9.0.0",
+ "datafusion 10.0.0",
  "datafusion-proto",
  "workspace-hack",
 ]
 
 [[package]]
 name = "datafusion"
-version = "9.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=85ca8be669dc1fbba4b2eefbf99fc2ed1546cc0c#85ca8be669dc1fbba4b2eefbf99fc2ed1546cc0c"
+version = "10.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=6cb695fc62140bf93977f2ef274a5bd83f88672f#6cb695fc62140bf93977f2ef274a5bd83f88672f"
 dependencies = [
  "ahash",
  "arrow",
  "async-trait",
+ "bytes",
  "chrono",
  "datafusion-common",
- "datafusion-data-access",
  "datafusion-expr",
  "datafusion-optimizer",
  "datafusion-physical-expr",
@@ -1135,6 +1137,7 @@ dependencies = [
  "lazy_static",
  "log",
  "num_cpus",
+ "object_store",
  "ordered-float 3.0.0",
  "parking_lot 0.12.1",
  "parquet",
@@ -1152,32 +1155,20 @@ dependencies = [
 
 [[package]]
 name = "datafusion-common"
-version = "9.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=85ca8be669dc1fbba4b2eefbf99fc2ed1546cc0c#85ca8be669dc1fbba4b2eefbf99fc2ed1546cc0c"
+version = "10.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=6cb695fc62140bf93977f2ef274a5bd83f88672f#6cb695fc62140bf93977f2ef274a5bd83f88672f"
 dependencies = [
  "arrow",
+ "object_store",
  "ordered-float 3.0.0",
  "parquet",
  "sqlparser",
 ]
 
 [[package]]
-name = "datafusion-data-access"
-version = "9.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=85ca8be669dc1fbba4b2eefbf99fc2ed1546cc0c#85ca8be669dc1fbba4b2eefbf99fc2ed1546cc0c"
-dependencies = [
- "async-trait",
- "chrono",
- "futures",
- "parking_lot 0.12.1",
- "tempfile",
- "tokio",
-]
-
-[[package]]
 name = "datafusion-expr"
-version = "9.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=85ca8be669dc1fbba4b2eefbf99fc2ed1546cc0c#85ca8be669dc1fbba4b2eefbf99fc2ed1546cc0c"
+version = "10.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=6cb695fc62140bf93977f2ef274a5bd83f88672f#6cb695fc62140bf93977f2ef274a5bd83f88672f"
 dependencies = [
  "ahash",
  "arrow",
@@ -1187,8 +1178,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-optimizer"
-version = "9.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=85ca8be669dc1fbba4b2eefbf99fc2ed1546cc0c#85ca8be669dc1fbba4b2eefbf99fc2ed1546cc0c"
+version = "10.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=6cb695fc62140bf93977f2ef274a5bd83f88672f#6cb695fc62140bf93977f2ef274a5bd83f88672f"
 dependencies = [
  "arrow",
  "async-trait",
@@ -1202,8 +1193,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-physical-expr"
-version = "9.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=85ca8be669dc1fbba4b2eefbf99fc2ed1546cc0c#85ca8be669dc1fbba4b2eefbf99fc2ed1546cc0c"
+version = "10.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=6cb695fc62140bf93977f2ef274a5bd83f88672f#6cb695fc62140bf93977f2ef274a5bd83f88672f"
 dependencies = [
  "ahash",
  "arrow",
@@ -1226,21 +1217,21 @@ dependencies = [
 
 [[package]]
 name = "datafusion-proto"
-version = "9.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=85ca8be669dc1fbba4b2eefbf99fc2ed1546cc0c#85ca8be669dc1fbba4b2eefbf99fc2ed1546cc0c"
+version = "10.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=6cb695fc62140bf93977f2ef274a5bd83f88672f#6cb695fc62140bf93977f2ef274a5bd83f88672f"
 dependencies = [
  "arrow",
- "datafusion 9.0.0",
+ "datafusion 10.0.0",
  "datafusion-common",
  "datafusion-expr",
  "prost",
- "tonic-build",
+ "prost-build",
 ]
 
 [[package]]
 name = "datafusion-row"
-version = "9.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=85ca8be669dc1fbba4b2eefbf99fc2ed1546cc0c#85ca8be669dc1fbba4b2eefbf99fc2ed1546cc0c"
+version = "10.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=6cb695fc62140bf93977f2ef274a5bd83f88672f#6cb695fc62140bf93977f2ef274a5bd83f88672f"
 dependencies = [
  "arrow",
  "datafusion-common",
@@ -1250,8 +1241,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-sql"
-version = "9.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=85ca8be669dc1fbba4b2eefbf99fc2ed1546cc0c#85ca8be669dc1fbba4b2eefbf99fc2ed1546cc0c"
+version = "10.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=6cb695fc62140bf93977f2ef274a5bd83f88672f#6cb695fc62140bf93977f2ef274a5bd83f88672f"
 dependencies = [
  "ahash",
  "arrow",
@@ -3357,9 +3348,9 @@ dependencies = [
 
 [[package]]
 name = "parquet"
-version = "17.0.0"
+version = "18.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "367d46126e60d229e9e47e3d793c622a18c0e60a749573b7936bf3b0701cb8a3"
+checksum = "65f61759af307fad711e7656c705218402a8a79b776c893c20fef96e8ffd2a7d"
 dependencies = [
  "arrow",
  "base64",
@@ -3368,6 +3359,7 @@ dependencies = [
  "bytes",
  "chrono",
  "flate2",
+ "futures",
  "lz4",
  "num",
  "num-bigint",
@@ -3375,6 +3367,7 @@ dependencies = [
  "rand",
  "snap",
  "thrift",
+ "tokio",
  "zstd",
 ]
 
@@ -6148,6 +6141,7 @@ dependencies = [
  "tokio-stream",
  "tokio-util",
  "tonic",
+ "tonic-build",
  "tower",
  "tower-http",
  "tracing",

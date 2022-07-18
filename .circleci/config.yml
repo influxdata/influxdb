@@ -201,7 +201,7 @@ jobs:
       - image: postgres
         environment:
           POSTGRES_HOST_AUTH_METHOD: trust
-    resource_class: 2xlarge # use of a smaller executor tends crashes on link
+    resource_class: 2xlarge+ # use of a smaller executor tends crashes on link
     environment:
       # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
       CARGO_INCREMENTAL: "0"

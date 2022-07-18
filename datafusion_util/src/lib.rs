@@ -19,7 +19,7 @@ use datafusion::physical_plan::{collect, ExecutionPlan};
 use datafusion::prelude::SessionContext;
 use datafusion::{
     arrow::{
-        datatypes::{Field, Schema, SchemaRef},
+        datatypes::{Schema, SchemaRef},
         error::Result as ArrowResult,
         record_batch::RecordBatch,
     },
@@ -363,8 +363,7 @@ pub fn nullable_schema(schema: SchemaRef) -> SchemaRef {
             .iter()
             .map(|f| {
                 // make a copy of the field, but allow it to be nullable
-                Field::new(f.name(), f.data_type().clone(), true)
-                    .with_metadata(f.metadata().cloned())
+                f.clone().with_nullable(true)
             })
             .collect();
 
@@ -377,7 +376,7 @@ pub fn nullable_schema(schema: SchemaRef) -> SchemaRef {
 
 #[cfg(test)]
 mod tests {
-    use datafusion::arrow::datatypes::DataType;
+    use datafusion::arrow::datatypes::{DataType, Field};
     use schema::builder::SchemaBuilder;
 
     use super::*;
