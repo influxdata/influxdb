@@ -3,18 +3,36 @@ use object_store::{DynObjectStore, ObjectMeta};
 use observability_deps::tracing::*;
 use snafu::prelude::*;
 use std::sync::Arc;
-use tokio::sync::mpsc;
+use tokio::{
+    select,
+    sync::{broadcast, mpsc},
+};
 
 pub(crate) async fn perform(
+    mut shutdown: broadcast::Receiver<()>,
     object_store: Arc<DynObjectStore>,
     checker: mpsc::Sender<ObjectMeta>,
 ) -> Result<()> {
     let mut items = object_store.list(None).await.context(ListingSnafu)?;
 
-    while let Some(item) = items.next().await {
-        let item = item.context(MalformedSnafu)?;
-        info!(location = %item.location);
-        checker.send(item).await?;
+    loop {
+        select! {
+            _ = shutdown.recv() => {
+                break
+            },
+            item = items.next() => {
+                match item {
+                    Some(item) => {
+                        let item = item.context(MalformedSnafu)?;
+                        info!(location = %item.location);
+                        checker.send(item).await?;
+                    }
+                    None => {
+                        break;
+                    }
+                }
+            }
+        }
     }
 
     Ok(())

@@ -1,0 +1,18 @@
+[package]
+name = "ioxd_objectstore_garbage_collect"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+async-trait = "0.1"
+futures = "0.3"
+hyper = "0.14"
+iox_objectstore_garbage_collect = { path = "../iox_objectstore_garbage_collect" }
+ioxd_common = { path = "../ioxd_common" }
+metric = { path = "../metric" }
+snafu = "0.7"
+tokio = { version = "1", features = ["sync"] }
+trace = { path = "../trace" }
+workspace-hack = { path = "../workspace-hack"}

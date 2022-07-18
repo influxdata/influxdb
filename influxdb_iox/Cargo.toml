@@ -15,12 +15,12 @@ influxdb_iox_client = { path = "../influxdb_iox_client", features = ["flight", "
 influxdb_storage_client = { path = "../influxdb_storage_client" }
 influxrpc_parser = { path = "../influxrpc_parser"}
 iox_catalog = { path = "../iox_catalog" }
-iox_objectstore_garbage_collect = { path = "../iox_objectstore_garbage_collect" }
 ioxd_common = { path = "../ioxd_common"}
 ioxd_compactor = { path = "../ioxd_compactor"}
 ioxd_ingester = { path = "../ioxd_ingester"}
-ioxd_router = { path = "../ioxd_router"}
+ioxd_objectstore_garbage_collect = { path = "../ioxd_objectstore_garbage_collect" }
 ioxd_querier = { path = "../ioxd_querier"}
+ioxd_router = { path = "../ioxd_router"}
 ioxd_test = { path = "../ioxd_test"}
 metric = { path = "../metric" }
 object_store = "0.3.0"

@@ -2056,12 +2056,12 @@ dependencies = [
  "influxdb_storage_client",
  "influxrpc_parser",
  "iox_catalog",
- "iox_objectstore_garbage_collect",
  "iox_query",
  "iox_time",
  "ioxd_common",
  "ioxd_compactor",
  "ioxd_ingester",
+ "ioxd_objectstore_garbage_collect",
  "ioxd_querier",
  "ioxd_router",
  "ioxd_test",
@@ -2320,7 +2320,6 @@ dependencies = [
  "snafu",
  "tempfile",
  "tokio",
- "trogging",
  "uuid 1.1.2",
 ]
 
@@ -2471,6 +2470,22 @@ dependencies = [
  "trace",
  "workspace-hack",
  "write_buffer",
+]
+
+[[package]]
+name = "ioxd_objectstore_garbage_collect"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "futures",
+ "hyper",
+ "iox_objectstore_garbage_collect",
+ "ioxd_common",
+ "metric",
+ "snafu",
+ "tokio",
+ "trace",
+ "workspace-hack",
 ]
 
 [[package]]

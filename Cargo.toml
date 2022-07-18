@@ -30,6 +30,7 @@ members = [
     "ioxd_common",
     "ioxd_compactor",
     "ioxd_ingester",
+    "ioxd_objectstore_garbage_collect",
     "ioxd_querier",
     "ioxd_router",
     "ioxd_test",
