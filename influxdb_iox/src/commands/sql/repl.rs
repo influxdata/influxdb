@@ -45,6 +45,9 @@ pub enum Error {
 
     #[snafu(display("Error running observer query: {}", source))]
     RunningObserverQuery { source: super::observer::Error },
+
+    #[snafu(display("Cannot create REPL: {}", source))]
+    ReplCreation { source: ReadlineError },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -172,11 +175,11 @@ impl Repl {
     }
 
     /// Create a new Repl instance, connected to the specified URL
-    pub fn new(connection: Connection) -> Self {
+    pub fn new(connection: Connection) -> Result<Self> {
         let namespace_client = influxdb_iox_client::namespace::Client::new(connection.clone());
         let flight_client = influxdb_iox_client::flight::Client::new(connection.clone());
 
-        let mut rl = Editor::new();
+        let mut rl = Editor::new().context(ReplCreationSnafu)?;
         rl.set_helper(Some(RustylineHelper::default()));
         let history_file = history_file();
 
@@ -188,7 +191,7 @@ impl Repl {
 
         let output_format = QueryOutputFormat::Pretty;
 
-        Self {
+        Ok(Self {
             rl,
             prompt,
             connection,
@@ -196,7 +199,7 @@ impl Repl {
             flight_client,
             query_engine: None,
             output_format,
-        }
+        })
     }
 
     /// Read Evaluate Print Loop (interactive command line) for SQL

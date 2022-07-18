@@ -123,14 +123,17 @@ uuid = { version = "1", features = ["private_getrandom", "rng", "std", "v4"] }
 
 [target.x86_64-unknown-linux-gnu.dependencies]
 hyper-rustls = { version = "0.23", default-features = false, features = ["http1", "http2", "tls12", "tokio-runtime", "webpki-roots", "webpki-tokio"] }
+nix = { version = "0.24", features = ["acct", "aio", "dir", "env", "event", "feature", "fs", "hostname", "inotify", "ioctl", "kmod", "memoffset", "mman", "mount", "mqueue", "net", "personality", "poll", "process", "pthread", "ptrace", "quota", "reboot", "resource", "sched", "signal", "socket", "term", "time", "ucontext", "uio", "user", "zerocopy"] }
 tokio-util = { version = "0.7", default-features = false, features = ["io"] }
 
 [target.x86_64-apple-darwin.dependencies]
 hyper-rustls = { version = "0.23", default-features = false, features = ["http1", "http2", "tls12", "tokio-runtime", "webpki-roots", "webpki-tokio"] }
+nix = { version = "0.24", features = ["acct", "aio", "dir", "env", "event", "feature", "fs", "hostname", "inotify", "ioctl", "kmod", "memoffset", "mman", "mount", "mqueue", "net", "personality", "poll", "process", "pthread", "ptrace", "quota", "reboot", "resource", "sched", "signal", "socket", "term", "time", "ucontext", "uio", "user", "zerocopy"] }
 tokio-util = { version = "0.7", default-features = false, features = ["io"] }
 
 [target.aarch64-apple-darwin.dependencies]
 hyper-rustls = { version = "0.23", default-features = false, features = ["http1", "http2", "tls12", "tokio-runtime", "webpki-roots", "webpki-tokio"] }
+nix = { version = "0.24", features = ["acct", "aio", "dir", "env", "event", "feature", "fs", "hostname", "inotify", "ioctl", "kmod", "memoffset", "mman", "mount", "mqueue", "net", "personality", "poll", "process", "pthread", "ptrace", "quota", "reboot", "resource", "sched", "signal", "socket", "term", "time", "ucontext", "uio", "user", "zerocopy"] }
 tokio-util = { version = "0.7", default-features = false, features = ["io"] }
 
 [target.x86_64-pc-windows-msvc.dependencies]
