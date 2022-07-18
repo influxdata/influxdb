@@ -50,7 +50,7 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
 
     println!("Connected to IOx Server");
 
-    let mut repl = repl::Repl::new(connection);
+    let mut repl = repl::Repl::new(connection).context(ReplSnafu)?;
 
     repl.set_output_format(config.format).context(ReplSnafu)?;
 
