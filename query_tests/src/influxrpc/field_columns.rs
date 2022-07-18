@@ -28,8 +28,8 @@ async fn run_field_columns_test_case<D>(
         } = scenario;
         println!("Running scenario '{}'", scenario_name);
         println!("Predicate: '{:#?}'", predicate);
-        let planner = InfluxRpcPlanner::default();
         let ctx = db.new_query_context(None);
+        let planner = InfluxRpcPlanner::new(ctx.child_ctx("planner"));
 
         let plan = planner
             .field_columns(db.as_query_database(), predicate.clone())

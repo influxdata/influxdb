@@ -61,14 +61,14 @@ async fn run_read_filter(
     predicate: InfluxRpcPredicate,
     db: Arc<dyn AbstractDb>,
 ) -> Result<Vec<String>, String> {
-    let planner = InfluxRpcPlanner::default();
+    let ctx = db.new_query_context(None);
+    let planner = InfluxRpcPlanner::new(ctx.child_ctx("planner"));
 
     let plan = planner
         .read_filter(db.as_query_database(), predicate)
         .await
         .map_err(|e| e.to_string())?;
 
-    let ctx = db.new_query_context(None);
     run_series_set_plan_maybe_error(&ctx, plan)
         .await
         .map_err(|e| e.to_string())
