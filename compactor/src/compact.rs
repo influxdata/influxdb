@@ -218,7 +218,7 @@ pub struct Compactor {
     store: ParquetStorage,
 
     /// The global catalog for schema, parquet files and tombstones
-    catalog: Arc<dyn Catalog>,
+    pub(crate) catalog: Arc<dyn Catalog>,
 
     /// Executor for running queries, compacting, and persisting
     exec: Arc<Executor>,
@@ -244,6 +244,15 @@ pub struct Compactor {
 
     /// Gauge for the number of compaction partition candidates
     compaction_candidate_gauge: Metric<U64Gauge>,
+
+    /// Gauge for the number of Parquet file candidates. The recorded values have attributes for
+    /// the compaction level of the file and whether the file was selected for compaction or not.
+    pub(crate) parquet_file_candidate_gauge: Metric<U64Gauge>,
+
+    /// Gauge for the number of bytes of Parquet file candidates. The recorded values have
+    /// attributes for  the compaction level of the file and whether the file was selected for
+    /// compaction or not.
+    pub(crate) parquet_file_candidate_bytes_gauge: Metric<U64Gauge>,
 
     /// Histogram for tracking the time to compact a partition
     compaction_duration: Metric<DurationHistogram>,
@@ -276,6 +285,17 @@ impl Compactor {
             "compactor_candidates",
             "gauge for the number of compaction candidates that are found when checked",
         );
+
+        let parquet_file_candidate_gauge = registry.register_metric(
+            "parquet_file_candidates",
+            "Number of Parquet file candidates",
+        );
+
+        let parquet_file_candidate_bytes_gauge = registry.register_metric(
+            "parquet_file_candidate_bytes",
+            "Number of bytes of Parquet file candidates",
+        );
+
         let level_promotion_counter = registry.register_metric(
             "compactor_level_promotions_total",
             "Counter for level promotion from 0 to 1",
@@ -298,6 +318,8 @@ impl Compactor {
             compaction_output_counter,
             level_promotion_counter,
             compaction_candidate_gauge,
+            parquet_file_candidate_gauge,
+            parquet_file_candidate_bytes_gauge,
             compaction_duration,
         }
     }
@@ -2588,21 +2610,23 @@ mod tests {
     }
 
     fn make_compactor_config() -> CompactorConfig {
-        let max_number_level_0_files = 3;
         let max_desired_file_size_bytes = 10_000;
         let percentage_max_file_size = 30;
         let split_percentage = 80;
-        let max_concurrent_compaction_size_bytes = 100_000;
+        let max_concurrent_size_bytes = 100_000;
         let max_number_partitions_per_sequencer = 1;
         let min_number_recent_ingested_per_partition = 1;
+        let input_size_threshold_bytes = 300 * 1024 * 1024;
+        let input_file_count_threshold = 100;
         CompactorConfig::new(
-            max_number_level_0_files,
             max_desired_file_size_bytes,
             percentage_max_file_size,
             split_percentage,
-            max_concurrent_compaction_size_bytes,
+            max_concurrent_size_bytes,
             max_number_partitions_per_sequencer,
             min_number_recent_ingested_per_partition,
+            input_size_threshold_bytes,
+            input_file_count_threshold,
         )
     }
 }

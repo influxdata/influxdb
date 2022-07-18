@@ -26,10 +26,10 @@ pub(crate) enum PartitionFilesFromPartitionError {
 pub(crate) struct ParquetFilesForCompaction {
     /// Parquet files for a partition with `CompactionLevel::Initial`. Ordered by ascending max
     /// sequence number.
-    level_0: Vec<ParquetFile>,
+    pub(crate) level_0: Vec<ParquetFile>,
 
     /// Parquet files for a partition with `CompactionLevel::FileNonOverlapped`. Arbitrary order.
-    level_1: Vec<ParquetFile>,
+    pub(crate) level_1: Vec<ParquetFile>,
 }
 
 impl ParquetFilesForCompaction {
