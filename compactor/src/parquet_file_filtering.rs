@@ -92,8 +92,9 @@ pub(crate) fn filter_parquet_files(
         // Move the level 0 file into the list of level 0 files to return
         level_0_to_return.push(level_0_file);
 
-        // Stop considering level 0 files if the total size of all files is over `max_bytes`
-        if (total_level_0_bytes + total_level_1_bytes) > max_bytes {
+        // Stop considering level 0 files if the total size of all files is over or equal to
+        // `max_bytes`
+        if (total_level_0_bytes + total_level_1_bytes) >= max_bytes {
             break;
         }
     }
@@ -479,6 +480,36 @@ mod tests {
 
         // Increase max size; 1st two level 0 files & their overlapping level 1 files get returned
         let max_size = 40;
+        let (files_metric, bytes_metric) = metrics();
+        let files = filter_parquet_files(
+            parquet_files_for_compaction.clone(),
+            max_size,
+            DEFAULT_INPUT_FILE_COUNT,
+            &files_metric,
+            &bytes_metric,
+        );
+        let ids: Vec<_> = files.iter().map(|f| f.id.get()).collect();
+        assert_eq!(ids, [102, 103, 104, 105, 1, 2]);
+        assert_eq!(
+            extract_file_metrics(&files_metric),
+            ExtractedFileMetrics {
+                level_0_selected: 2,
+                level_0_not_selected: 1,
+                level_1_selected: 4,
+                level_1_not_selected: 3,
+            }
+        );
+        assert_eq!(
+            extract_byte_metrics(&bytes_metric),
+            ExtractedByteMetrics {
+                level_0: 20,
+                level_1: 40,
+            }
+        );
+
+        // Increase max size to be exactly equal to the size of the 1st two level 0 files & their
+        // overlapping level 1 files, which is all that should get returned
+        let max_size = 60;
         let (files_metric, bytes_metric) = metrics();
         let files = filter_parquet_files(
             parquet_files_for_compaction.clone(),
