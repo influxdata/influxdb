@@ -534,9 +534,9 @@ pub trait ParquetFileRepo: Send + Sync {
     async fn level_0(&mut self, sequencer_id: SequencerId) -> Result<Vec<ParquetFile>>;
 
     /// List parquet files for a given table partition, in a given time range, with compaction
-    /// level 2, and other criteria that define a file as a candidate for compaction with a level 0
+    /// level 1, and other criteria that define a file as a candidate for compaction with a level 0
     /// file
-    async fn level_2(
+    async fn level_1(
         &mut self,
         table_partition: TablePartition,
         min_time: Timestamp,
@@ -553,7 +553,7 @@ pub trait ParquetFileRepo: Send + Sync {
     /// Update the compaction level of the specified parquet files to
     /// `CompactionLevel::FileNonOverlapped`
     /// Returns the IDs of the files that were successfully updated.
-    async fn update_to_level_2(
+    async fn update_to_level_1(
         &mut self,
         parquet_file_ids: &[ParquetFileId],
     ) -> Result<Vec<ParquetFileId>>;
@@ -833,8 +833,8 @@ pub(crate) mod test_helpers {
         test_tombstones_by_parquet_file(Arc::clone(&catalog)).await;
         test_parquet_file(Arc::clone(&catalog)).await;
         test_parquet_file_compaction_level_0(Arc::clone(&catalog)).await;
-        test_parquet_file_compaction_level_2(Arc::clone(&catalog)).await;
-        test_update_to_compaction_level_2(Arc::clone(&catalog)).await;
+        test_parquet_file_compaction_level_1(Arc::clone(&catalog)).await;
+        test_update_to_compaction_level_1(Arc::clone(&catalog)).await;
         test_processed_tombstones(Arc::clone(&catalog)).await;
         test_list_by_partiton_not_to_delete(Arc::clone(&catalog)).await;
         test_txn_isolation(Arc::clone(&catalog)).await;
@@ -2299,15 +2299,15 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
 
-        // Create a compaction level 2 file
-        let level_2_params = ParquetFileParams {
+        // Create a compaction level 1 file
+        let level_1_params = ParquetFileParams {
             object_store_id: Uuid::new_v4(),
             ..parquet_file_params.clone()
         };
-        let level_2_file = repos.parquet_files().create(level_2_params).await.unwrap();
+        let level_1_file = repos.parquet_files().create(level_1_params).await.unwrap();
         repos
             .parquet_files()
-            .update_to_level_2(&[level_2_file.id])
+            .update_to_level_1(&[level_1_file.id])
             .await
             .unwrap();
 
@@ -2327,14 +2327,14 @@ pub(crate) mod test_helpers {
         );
     }
 
-    async fn test_parquet_file_compaction_level_2(catalog: Arc<dyn Catalog>) {
+    async fn test_parquet_file_compaction_level_1(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
         let kafka = repos.kafka_topics().create_or_get("foo").await.unwrap();
         let pool = repos.query_pools().create_or_get("foo").await.unwrap();
         let namespace = repos
             .namespaces()
             .create(
-                "namespace_parquet_file_compaction_level_2_test",
+                "namespace_parquet_file_compaction_level_1_test",
                 "inf",
                 kafka.id,
                 pool.id,
@@ -2509,7 +2509,7 @@ pub(crate) mod test_helpers {
         // Make all but _level_0_file compaction level 1
         repos
             .parquet_files()
-            .update_to_level_2(&[
+            .update_to_level_1(&[
                 parquet_file.id,
                 too_early_file.id,
                 too_late_file.id,
@@ -2526,21 +2526,21 @@ pub(crate) mod test_helpers {
         // Level 1 parquet files for a sequencer should contain only those that match the right
         // criteria
         let table_partition = TablePartition::new(sequencer.id, table.id, partition.id);
-        let level_2 = repos
+        let level_1 = repos
             .parquet_files()
-            .level_2(table_partition, query_min_time, query_max_time)
+            .level_1(table_partition, query_min_time, query_max_time)
             .await
             .unwrap();
-        let mut level_2_ids: Vec<_> = level_2.iter().map(|pf| pf.id).collect();
-        level_2_ids.sort();
+        let mut level_1_ids: Vec<_> = level_1.iter().map(|pf| pf.id).collect();
+        level_1_ids.sort();
         let expected = vec![parquet_file, overlap_lower_file, overlap_upper_file];
         let mut expected_ids: Vec<_> = expected.iter().map(|pf| pf.id).collect();
         expected_ids.sort();
 
         assert_eq!(
-            level_2_ids, expected_ids,
-            "\nlevel 2: {:#?}\nexpected: {:#?}",
-            level_2, expected,
+            level_1_ids, expected_ids,
+            "\nlevel 1: {:#?}\nexpected: {:#?}",
+            level_1, expected,
         );
     }
 
@@ -2630,7 +2630,7 @@ pub(crate) mod test_helpers {
             .unwrap();
         repos
             .parquet_files()
-            .update_to_level_2(&[level1_file.id])
+            .update_to_level_1(&[level1_file.id])
             .await
             .unwrap();
         level1_file.compaction_level = CompactionLevel::FileNonOverlapped;
@@ -2654,14 +2654,14 @@ pub(crate) mod test_helpers {
         assert_eq!(files, vec![parquet_file.clone(), level1_file.clone()]);
     }
 
-    async fn test_update_to_compaction_level_2(catalog: Arc<dyn Catalog>) {
+    async fn test_update_to_compaction_level_1(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
         let kafka = repos.kafka_topics().create_or_get("foo").await.unwrap();
         let pool = repos.query_pools().create_or_get("foo").await.unwrap();
         let namespace = repos
             .namespaces()
             .create(
-                "namespace_update_to_compaction_level_2_test",
+                "namespace_update_to_compaction_level_1_test",
                 "inf",
                 kafka.id,
                 pool.id,
@@ -2738,7 +2738,7 @@ pub(crate) mod test_helpers {
         // should succeed
         let updated = repos
             .parquet_files()
-            .update_to_level_2(&[parquet_file.id, nonexistent_parquet_file_id])
+            .update_to_level_1(&[parquet_file.id, nonexistent_parquet_file_id])
             .await
             .unwrap();
         assert_eq!(updated, vec![parquet_file.id]);
@@ -2759,19 +2759,19 @@ pub(crate) mod test_helpers {
         // Level 1 parquet files for a sequencer should only contain parquet_file
         let expected = vec![parquet_file];
         let table_partition = TablePartition::new(sequencer.id, table.id, partition.id);
-        let level_2 = repos
+        let level_1 = repos
             .parquet_files()
-            .level_2(table_partition, query_min_time, query_max_time)
+            .level_1(table_partition, query_min_time, query_max_time)
             .await
             .unwrap();
-        let mut level_2_ids: Vec<_> = level_2.iter().map(|pf| pf.id).collect();
-        level_2_ids.sort();
+        let mut level_1_ids: Vec<_> = level_1.iter().map(|pf| pf.id).collect();
+        level_1_ids.sort();
         let mut expected_ids: Vec<_> = expected.iter().map(|pf| pf.id).collect();
         expected_ids.sort();
         assert_eq!(
-            level_2_ids, expected_ids,
+            level_1_ids, expected_ids,
             "\nlevel 1: {:#?}\nexpected: {:#?}",
-            level_2, expected,
+            level_1, expected,
         );
     }
 

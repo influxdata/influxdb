@@ -301,12 +301,12 @@ impl Compactor {
             .context(Level0Snafu)
     }
 
-    async fn update_to_level_2(&self, parquet_file_ids: &[ParquetFileId]) -> Result<()> {
+    async fn update_to_level_1(&self, parquet_file_ids: &[ParquetFileId]) -> Result<()> {
         let mut repos = self.catalog.repositories().await;
 
         let updated = repos
             .parquet_files()
-            .update_to_level_2(parquet_file_ids)
+            .update_to_level_1(parquet_file_ids)
             .await
             .context(UpdateSnafu)?;
 
@@ -659,7 +659,7 @@ impl Compactor {
         self.remove_fully_processed_tombstones(tombstones).await?;
 
         // Upgrade old level-0 to level 1
-        self.update_to_level_2(&compact_and_upgrade.files_to_upgrade)
+        self.update_to_level_1(&compact_and_upgrade.files_to_upgrade)
             .await?;
 
         let attributes = Attributes::from([("sequencer_id", format!("{}", sequencer_id).into())]);
@@ -844,7 +844,6 @@ impl Compactor {
                 partition_key: partition.partition_key.clone(),
                 min_sequence_number,
                 max_sequence_number,
-                // TODO before merging: this can either level-1 or level-2
                 compaction_level: CompactionLevel::FileNonOverlapped,
                 sort_key: Some(sort_key.clone()),
             };
@@ -2316,7 +2315,7 @@ mod tests {
         let pf4 = txn.parquet_files().create(p4).await.unwrap();
         let pf5 = txn.parquet_files().create(p5).await.unwrap();
         txn.parquet_files()
-            .update_to_level_2(&[pf5.id])
+            .update_to_level_1(&[pf5.id])
             .await
             .unwrap();
         txn.commit().await.unwrap();

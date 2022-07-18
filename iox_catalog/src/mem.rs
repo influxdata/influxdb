@@ -1078,7 +1078,7 @@ impl ParquetFileRepo for MemTxn {
             .collect())
     }
 
-    async fn level_2(
+    async fn level_1(
         &mut self,
         table_partition: TablePartition,
         min_time: Timestamp,
@@ -1116,7 +1116,7 @@ impl ParquetFileRepo for MemTxn {
             .collect())
     }
 
-    async fn update_to_level_2(
+    async fn update_to_level_1(
         &mut self,
         parquet_file_ids: &[ParquetFileId],
     ) -> Result<Vec<ParquetFileId>> {

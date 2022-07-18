@@ -289,10 +289,10 @@ pub struct IoxMetadata {
     ///      files are partitions with a lot of or/and large overlapped files that have to go
     ///      through many compaction cycles before they are fully compacted to non-overlapped
     ///      files.
-    ///  * 2 (`CompactionLevel::FileNonOverlapped`): represents a level-2 file that is persisted by
+    ///  * 2 (`CompactionLevel::FileNonOverlapped`): represents a level-1 file that is persisted by
     ///      a Compactor and does not overlap with other files except level 0 ones. Eventually,
     ///      cold partitions (partitions that no longer needs to get compacted) will only include
-    ///      one or many level-2 files
+    ///      one or many level-1 files
     pub compaction_level: CompactionLevel,
 
     /// Sort key of this chunk
