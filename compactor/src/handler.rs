@@ -133,11 +133,23 @@ pub struct CompactorConfig {
     /// A compaction operation will gather as many L0 files with their overlapping L1 files to
     /// compact together until the total size of input files crosses this threshold. Later
     /// compactions will pick up the remaining L0 files.
+    ///
+    /// A compaction operation will be limited by this or by the file count threshold, whichever is
+    /// hit first.
     input_size_threshold_bytes: u64,
+
+    /// A compaction operation will gather as many L0 files with their overlapping L1 files to
+    /// compact together until the total number of L0 + L1 files crosses this threshold. Later
+    /// compactions will pick up the remaining L0 files.
+    ///
+    /// A compaction operation will be limited by this or by the input size threshold, whichever is
+    /// hit first.
+    input_file_count_threshold: usize,
 }
 
 impl CompactorConfig {
     /// Initialize a valid config
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         max_desired_file_size_bytes: u64,
         percentage_max_file_size: u16,
@@ -146,6 +158,7 @@ impl CompactorConfig {
         max_number_partitions_per_sequencer: usize,
         min_number_recent_ingested_files_per_partition: usize,
         input_size_threshold_bytes: u64,
+        input_file_count_threshold: usize,
     ) -> Self {
         assert!(split_percentage > 0 && split_percentage <= 100);
 
@@ -157,6 +170,7 @@ impl CompactorConfig {
             max_number_partitions_per_sequencer,
             min_number_recent_ingested_files_per_partition,
             input_size_threshold_bytes,
+            input_file_count_threshold,
         }
     }
 
@@ -197,8 +211,21 @@ impl CompactorConfig {
     /// A compaction operation will gather as many L0 files with their overlapping L1 files to
     /// compact together until the total size of input files crosses this threshold. Later
     /// compactions will pick up the remaining L0 files.
+    ///
+    /// A compaction operation will be limited by this or by the file count threshold, whichever is
+    /// hit first.
     pub fn input_size_threshold_bytes(&self) -> u64 {
         self.input_size_threshold_bytes
+    }
+
+    /// A compaction operation will gather as many L0 files with their overlapping L1 files to
+    /// compact together until the total number of L0 + L1 files crosses this threshold. Later
+    /// compactions will pick up the remaining L0 files.
+    ///
+    /// A compaction operation will be limited by this or by the input size threshold, whichever is
+    /// hit first.
+    pub fn input_file_count_threshold(&self) -> usize {
+        self.input_file_count_threshold
     }
 }
 

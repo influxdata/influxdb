@@ -103,7 +103,12 @@ pub struct CompactorConfig {
 
     /// A compaction operation will gather as many L0 files with their overlapping L1 files to
     /// compact together until the total size of input files crosses this threshold. Later
-    /// compactions will pick up the remaining L0 files. Default is 314,572,800 bytes (300MB).
+    /// compactions will pick up the remaining L0 files.
+    ///
+    /// A compaction operation will be limited by this or by the file count threshold, whichever is
+    /// hit first.
+    ///
+    /// Default is 314,572,800 bytes (300MB).
     #[clap(
         long = "--compaction-input-size-threshold-bytes",
         env = "INFLUXDB_IOX_COMPACTION_INPUT_SIZE_THRESHOLD_BYTES",
@@ -111,4 +116,20 @@ pub struct CompactorConfig {
         action
     )]
     pub input_size_threshold_bytes: u64,
+
+    /// A compaction operation will gather as many L0 files with their overlapping L1 files to
+    /// compact together until the total number of L0 + L1 files crosses this threshold. Later
+    /// compactions will pick up the remaining L0 files.
+    ///
+    /// A compaction operation will be limited by this or by the input size threshold, whichever is
+    /// hit first.
+    ///
+    /// Default is 100.
+    #[clap(
+        long = "--compaction-input-file-count-threshold",
+        env = "INFLUXDB_IOX_COMPACTION_INPUT_FILE_COUNT_THRESHOLD",
+        default_value = "100",
+        action
+    )]
+    pub input_file_count_threshold: usize,
 }

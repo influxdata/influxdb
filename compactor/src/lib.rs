@@ -50,6 +50,7 @@ pub(crate) async fn compact_partition(
     let _to_compact = parquet_file_filtering::filter_parquet_files(
         parquet_files_for_compaction,
         compactor.config.input_size_threshold_bytes(),
+        compactor.config.input_file_count_threshold(),
         &compactor.parquet_file_candidate_gauge,
         &compactor.parquet_file_candidate_bytes_gauge,
     );
