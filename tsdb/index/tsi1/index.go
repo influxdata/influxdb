@@ -269,7 +269,7 @@ func (i *Index) Open() (rErr error) {
 	// Initialize index partitions.
 	i.partitions = make([]*Partition, i.PartitionN)
 	for j := 0; j < len(i.partitions); j++ {
-		p := NewPartition(i, i.sfile, filepath.Join(i.path, fmt.Sprint(j)))
+		p := NewPartition(i.sfile, filepath.Join(i.path, fmt.Sprint(j)))
 		p.MaxLogFileSize = i.maxLogFileSize
 		p.MaxLogFileAge = i.maxLogFileAge
 		p.nosync = i.disableFsync

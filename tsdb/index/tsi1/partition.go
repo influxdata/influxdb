@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -87,14 +86,11 @@ type Partition struct {
 	// Index's version.
 	version int
 
-	// owning index
-	owner io.Closer
-
 	manifestPathFn func() string
 }
 
 // NewPartition returns a new instance of Partition.
-func NewPartition(owner io.Closer, sfile *tsdb.SeriesFile, path string) *Partition {
+func NewPartition(sfile *tsdb.SeriesFile, path string) *Partition {
 	p := &Partition{
 		closing:        make(chan struct{}),
 		path:           path,
@@ -109,7 +105,6 @@ func NewPartition(owner io.Closer, sfile *tsdb.SeriesFile, path string) *Partiti
 
 		logger:  zap.NewNop(),
 		version: Version,
-		owner:   owner,
 	}
 	p.manifestPathFn = p.manifestPath
 	return p
@@ -375,9 +370,6 @@ func (p *Partition) Close() error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	// Clear owning Index struct
-	p.owner = nil
-
 	var err error
 
 	// Close log files.
@@ -427,20 +419,6 @@ func (p *Partition) ManifestPath() string {
 // ManifestPath returns the path to the index's manifest file.
 func (p *Partition) manifestPath() string {
 	return filepath.Join(p.path, ManifestFileName)
-}
-
-// closeOwner - Close owning index.
-// Should only be run while partition
-// mutex is locked
-func (p *Partition) closeOwner() {
-	var c io.Closer
-	c, p.owner = p.owner, nil
-
-	if c != nil {
-		// Run asynchronously
-		// because our index mutex lock state varies
-		go c.Close()
-	}
 }
 
 // Manifest returns a manifest for the index.
@@ -520,7 +498,8 @@ func (p *Partition) prependActiveLogFile() error {
 	if err != nil {
 		return err
 	}
-	p.activeLogFile = f
+	var oldActiveFile *LogFile
+	p.activeLogFile, oldActiveFile = f, p.activeLogFile
 
 	// Prepend and generate new fileset but do not yet update the partition
 	newFileSet := p.fileSet.PrependLogFile(f)
@@ -529,7 +508,9 @@ func (p *Partition) prependActiveLogFile() error {
 	manifestSize, err := p.manifest(newFileSet).Write()
 	if err != nil {
 		p.logger.Error("manifest write failed, index is potentially damaged", zap.String("path", p.ManifestPath()), zap.Error(err))
-		p.closeOwner()
+		// close the new file.
+		f.Close()
+		p.activeLogFile = oldActiveFile
 		return err
 	}
 	p.manifestSize = manifestSize
@@ -1175,8 +1156,8 @@ func (p *Partition) compactToLevel(files []*IndexFile, level int, interrupt <-ch
 		manifestSize, err := p.manifest(newFileSet).Write()
 		if err != nil {
 			p.logger.Error("manifest write failed, index is potentially damaged", zap.String("path", p.ManifestPath()), zap.Error(err))
-			// Close index if write fails.
-			p.closeOwner()
+			// Close the new file to avoid leaks.
+			file.Close()
 			return err
 		}
 		p.manifestSize = manifestSize
@@ -1328,7 +1309,8 @@ func (p *Partition) compactLogFile(logFile *LogFile) {
 		manifestSize, err := p.manifest(newFileSet).Write()
 		if err != nil {
 			p.logger.Error("manifest write failed, index is potentially damaged", zap.String("path", p.ManifestPath()), zap.Error(err))
-			p.closeOwner()
+			// close new file
+			file.Close()
 			return err
 		}
 		// Store the new FileSet in the partition now that the manifest has been written

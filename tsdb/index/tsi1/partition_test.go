@@ -3,11 +3,9 @@ package tsi1_test
 import (
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"testing"
 
 	"github.com/influxdata/influxdb/tsdb"
@@ -19,7 +17,7 @@ func TestPartition_Open(t *testing.T) {
 	defer sfile.Close()
 
 	// Opening a fresh index should set the MANIFEST version to current version.
-	p := NewPartition(nil, sfile.SeriesFile)
+	p := NewPartition(sfile.SeriesFile)
 	t.Run("open new index", func(t *testing.T) {
 		if err := p.Open(); err != nil {
 			t.Fatal(err)
@@ -45,7 +43,7 @@ func TestPartition_Open(t *testing.T) {
 	incompatibleVersions := []int{-1, 0, 2}
 	for _, v := range incompatibleVersions {
 		t.Run(fmt.Sprintf("incompatible index version: %d", v), func(t *testing.T) {
-			p = NewPartition(nil, sfile.SeriesFile)
+			p = NewPartition(sfile.SeriesFile)
 			// Manually create a MANIFEST file for an incompatible index version.
 			mpath := filepath.Join(p.Path(), tsi1.ManifestFileName)
 			m := tsi1.NewManifest(mpath)
@@ -78,7 +76,7 @@ func TestPartition_Manifest(t *testing.T) {
 		sfile := MustOpenSeriesFile()
 		defer sfile.Close()
 
-		p := MustOpenPartition(nil, sfile.SeriesFile)
+		p := MustOpenPartition(sfile.SeriesFile)
 		if got, exp := p.Manifest().Version, tsi1.Version; got != exp {
 			t.Fatalf("got MANIFEST version %d, expected %d", got, exp)
 		}
@@ -104,9 +102,7 @@ func TestPartition_PrependLogFile_Write_Fail(t *testing.T) {
 		sfile := MustOpenSeriesFile()
 		defer sfile.Close()
 
-		o := &OwnerMock{}
-		o.Add(1)
-		p := MustOpenPartition(o, sfile.SeriesFile)
+		p := MustOpenPartition(sfile.SeriesFile)
 		defer func() {
 			if err := p.Close(); err != nil {
 				t.Fatalf("error closing partition: %v", err)
@@ -124,7 +120,6 @@ func TestPartition_PrependLogFile_Write_Fail(t *testing.T) {
 		if fileN != p.FileN() {
 			t.Fatalf("manifest write failed: expected %d files, got %d files", fileN, p.FileN())
 		}
-		o.Wait()
 	})
 }
 
@@ -134,9 +129,7 @@ func TestPartition_Compact_Write_Fail(t *testing.T) {
 		sfile := MustOpenSeriesFile()
 		defer sfile.Close()
 
-		o := &OwnerMock{}
-		o.Add(1)
-		p := MustOpenPartition(o, sfile.SeriesFile)
+		p := MustOpenPartition(sfile.SeriesFile)
 		defer func() {
 			if err := p.Close(); err != nil {
 				t.Fatalf("error closing partition: %v", err)
@@ -154,7 +147,6 @@ func TestPartition_Compact_Write_Fail(t *testing.T) {
 		if fileN != p.FileN() {
 			t.Fatalf("manifest write failed: expected %d files, got %d files", fileN, p.FileN())
 		}
-		o.Wait()
 	})
 }
 
@@ -163,23 +155,14 @@ type Partition struct {
 	*tsi1.Partition
 }
 
-type OwnerMock struct {
-	sync.WaitGroup
-}
-
-func (o *OwnerMock) Close() error {
-	o.Done()
-	return nil
-}
-
 // NewPartition returns a new instance of Partition at a temporary path.
-func NewPartition(owner io.Closer, sfile *tsdb.SeriesFile) *Partition {
-	return &Partition{Partition: tsi1.NewPartition(owner, sfile, MustTempPartitionDir())}
+func NewPartition(sfile *tsdb.SeriesFile) *Partition {
+	return &Partition{Partition: tsi1.NewPartition(sfile, MustTempPartitionDir())}
 }
 
 // MustOpenPartition returns a new, open index. Panic on error.
-func MustOpenPartition(owner io.Closer, sfile *tsdb.SeriesFile) *Partition {
-	p := NewPartition(owner, sfile)
+func MustOpenPartition(sfile *tsdb.SeriesFile) *Partition {
+	p := NewPartition(sfile)
 	if err := p.Open(); err != nil {
 		panic(err)
 	}
@@ -199,6 +182,6 @@ func (p *Partition) Reopen() error {
 	}
 
 	sfile, path := p.SeriesFile(), p.Path()
-	p.Partition = tsi1.NewPartition(nil, sfile, path)
+	p.Partition = tsi1.NewPartition(sfile, path)
 	return p.Open()
 }
