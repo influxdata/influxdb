@@ -5,7 +5,7 @@ use object_store::memory::InMemory;
 use object_store::path::Path;
 use object_store::throttle::ThrottledStore;
 use object_store::{throttle::ThrottleConfig, DynObjectStore};
-use observability_deps::tracing::info;
+use observability_deps::tracing::{info, warn};
 use snafu::{ResultExt, Snafu};
 use std::sync::Arc;
 use std::{fs, num::NonZeroUsize, path::PathBuf, time::Duration};
@@ -365,6 +365,13 @@ fn new_azure(_: &ObjectStoreConfig) -> Result<Arc<DynObjectStore>, ParseError> {
 }
 
 pub fn make_object_store(config: &ObjectStoreConfig) -> Result<Arc<DynObjectStore>, ParseError> {
+    if let Some(data_dir) = &config.database_directory {
+        if !matches!(&config.object_store, Some(ObjectStoreType::File)) {
+            warn!(?data_dir, object_store_type=?config.object_store,
+                  "--data-dir / `INFLUXDB_IOX_DB_DIR` ignored. It only affects 'file' object stores");
+        }
+    }
+
     match &config.object_store {
         Some(ObjectStoreType::Memory) | None => Ok(Arc::new(InMemory::new())),
         Some(ObjectStoreType::MemoryThrottled) => {
