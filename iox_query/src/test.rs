@@ -107,6 +107,7 @@ impl QueryDatabase for TestDatabase {
         &self,
         table_name: &str,
         predicate: &Predicate,
+        _ctx: IOxSessionContext,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, QueryDatabaseError> {
         // save last predicate
         *self.chunks_predicate.lock() = predicate.clone();

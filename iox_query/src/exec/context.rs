@@ -27,7 +27,7 @@ use futures::TryStreamExt;
 use observability_deps::tracing::debug;
 use trace::{
     ctx::SpanContext,
-    span::{MetaValue, SpanRecorder},
+    span::{MetaValue, Span, SpanRecorder},
 };
 
 use crate::exec::{
@@ -51,7 +51,6 @@ use crate::plan::{
 
 // Reuse DataFusion error and Result types for this module
 pub use datafusion::error::{DataFusionError as Error, Result};
-use trace::span::Span;
 
 use super::{
     non_null_checker::NonNullCheckerNode, seriesset::series::Either, split::StreamSplitNode,
@@ -236,11 +235,7 @@ impl IOxSessionConfig {
 
         let maybe_span = self.span_ctx.map(|ctx| ctx.child("Query Execution"));
 
-        IOxSessionContext {
-            inner,
-            exec: Some(self.exec),
-            recorder: SpanRecorder::new(maybe_span),
-        }
+        IOxSessionContext::new(inner, Some(self.exec), SpanRecorder::new(maybe_span))
     }
 }
 
@@ -281,6 +276,24 @@ impl fmt::Debug for IOxSessionContext {
 }
 
 impl IOxSessionContext {
+    /// Private constructor
+    fn new(inner: SessionContext, exec: Option<DedicatedExecutor>, recorder: SpanRecorder) -> Self {
+        // attach span to DataFusion session
+        {
+            let mut state = inner.state.write();
+            state.config = state
+                .config
+                .clone()
+                .with_extension(Arc::new(recorder.span().cloned()));
+        }
+
+        Self {
+            inner,
+            exec,
+            recorder,
+        }
+    }
+
     /// returns a reference to the inner datafusion execution context
     pub fn inner(&self) -> &SessionContext {
         &self.inner
@@ -574,11 +587,11 @@ impl IOxSessionContext {
 
     /// Returns a IOxSessionContext with a SpanRecorder that is a child of the current
     pub fn child_ctx(&self, name: &'static str) -> Self {
-        Self {
-            inner: self.inner.clone(),
-            exec: self.exec.clone(),
-            recorder: self.recorder.child(name),
-        }
+        Self::new(
+            self.inner.clone(),
+            self.exec.clone(),
+            self.recorder.child(name),
+        )
     }
 
     /// Record an event on the span recorder
@@ -599,5 +612,19 @@ impl IOxSessionContext {
     /// Number of currently active tasks.
     pub fn tasks(&self) -> usize {
         self.exec.as_ref().map(|e| e.tasks()).unwrap_or_default()
+    }
+}
+
+/// Extension trait to pull IOx spans out of DataFusion contexts.
+pub trait SessionContextIOxExt {
+    /// Get child span of the current context.
+    fn child_span(&self, name: &'static str) -> Option<Span>;
+}
+
+impl SessionContextIOxExt for SessionState {
+    fn child_span(&self, name: &'static str) -> Option<Span> {
+        self.config
+            .get_extension::<Option<Span>>()
+            .and_then(|span| span.as_ref().as_ref().map(|span| span.child(name)))
     }
 }

@@ -36,8 +36,9 @@ async fn run_table_schema_test_case<D>(
         // Make sure at least one table has data
         let mut chunks_with_table = 0;
 
+        let ctx = db.new_query_context(None);
         let chunks = db
-            .chunks(table_name, &Default::default())
+            .chunks(table_name, &Default::default(), ctx)
             .await
             .expect("error getting chunks");
         for chunk in chunks {

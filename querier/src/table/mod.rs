@@ -17,6 +17,7 @@ use std::{
     collections::{hash_map::Entry, HashMap},
     sync::Arc,
 };
+use trace::span::{Span, SpanRecorder};
 
 mod query_access;
 mod state_reconciler;
@@ -126,7 +127,25 @@ impl QuerierTable {
     /// Query all chunks within this table.
     ///
     /// This currently contains all parquet files linked to their unprocessed tombstones.
-    pub async fn chunks(&self, predicate: &Predicate) -> Result<Vec<Arc<dyn QueryChunk>>> {
+    pub async fn chunks(
+        &self,
+        predicate: &Predicate,
+        span: Option<Span>,
+    ) -> Result<Vec<Arc<dyn QueryChunk>>> {
+        let mut span_recorder = SpanRecorder::new(span);
+        match self.chunks_inner(predicate).await {
+            Ok(chunks) => {
+                span_recorder.ok("got chunks");
+                Ok(chunks)
+            }
+            Err(e) => {
+                span_recorder.error("failed to get chunks");
+                Err(e)
+            }
+        }
+    }
+
+    async fn chunks_inner(&self, predicate: &Predicate) -> Result<Vec<Arc<dyn QueryChunk>>> {
         debug!(
             ?predicate,
             namespace=%self.namespace_name,
@@ -964,7 +983,7 @@ mod tests {
                 .unwrap()
                 .next_response(Ok(self.ingester_partitions.clone()));
 
-            self.querier_table.chunks(pred).await
+            self.querier_table.chunks(pred, None).await
         }
     }
 

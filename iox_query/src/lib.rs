@@ -156,6 +156,7 @@ pub trait QueryDatabase: QueryDatabaseMeta + Debug + Send + Sync {
         &self,
         table_name: &str,
         predicate: &Predicate,
+        ctx: IOxSessionContext,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, QueryDatabaseError>;
 
     /// Record that particular type of query was run / planned

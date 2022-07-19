@@ -21,7 +21,7 @@ use datafusion::{
     logical_plan::{normalize_col, plan::Extension, Expr, LogicalPlan},
 };
 
-pub use context::{IOxSessionConfig, IOxSessionContext};
+pub use context::{IOxSessionConfig, IOxSessionContext, SessionContextIOxExt};
 use schema_pivot::SchemaPivotNode;
 
 use self::{non_null_checker::NonNullCheckerNode, split::StreamSplitNode};
