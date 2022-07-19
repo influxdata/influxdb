@@ -40,6 +40,7 @@ The commands are:
     report               displays a shard level cardinality report
     report-db            estimates cloud 2 cardinality for a database
     report-disk          displays a shard level disk usage report
+    reporttsi            reports series cardinality in one or more TSI indexes.
     verify               verifies integrity of TSM files
     verify-seriesfile    verifies integrity of the Series file
 
