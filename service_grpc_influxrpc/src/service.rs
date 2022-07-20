@@ -642,6 +642,10 @@ where
             ("KeySortCapability", vec!["ReadFilter"]),
             ("Group", vec!["First", "Last", "Min", "Max"]),
             (
+                "TagKeyMetaNamesCapability",
+                vec!["TagKeyMetaNamesWindowAggregate"],
+            ),
+            (
                 "WindowAggregate",
                 vec![
                     "Count", "Sum", // "First"
@@ -1605,6 +1609,10 @@ mod tests {
         // Test response from storage server
         let mut expected_capabilities: HashMap<String, Vec<String>> = HashMap::new();
         expected_capabilities.insert("KeySortCapability".into(), to_str_vec(&["ReadFilter"]));
+        expected_capabilities.insert(
+            "TagKeyMetaNamesCapability".into(),
+            to_str_vec(&["TagKeyMetaNamesWindowAggregate"]),
+        );
         expected_capabilities.insert("Group".into(), to_str_vec(&["First", "Last", "Min", "Max"]));
         expected_capabilities.insert(
             "WindowAggregate".into(),

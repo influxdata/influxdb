@@ -22,7 +22,7 @@ async fn capabilities() {
                 .into_inner();
             assert_eq!(
                 capabilities_response.caps.len(),
-                3,
+                4,
                 "Response: {:?}",
                 capabilities_response
             );
