@@ -1151,7 +1151,7 @@ func (p *Partition) compactToLevel(files []*IndexFile, level int, interrupt <-ch
 	}
 
 	// Obtain lock to swap in index file and write manifest.
-	if err := func() error {
+	if err := func() (rErr error) {
 		p.mu.Lock()
 		defer p.mu.Unlock()
 
@@ -1160,10 +1160,15 @@ func (p *Partition) compactToLevel(files []*IndexFile, level int, interrupt <-ch
 
 		// Write new manifest.
 		manifestSize, err := p.manifest(newFileSet).Write()
+		defer errors2.Capture(&rErr, func() error {
+			if rErr != nil {
+				// Close the new file to avoid leaks.
+				file.Close()
+			}
+			return rErr
+		})()
 		if err != nil {
-			p.logger.Error("manifest write failed, index is potentially damaged", zap.String("path", p.ManifestPath()), zap.Error(err))
-			// Close the new file to avoid leaks.
-			file.Close()
+			p.logger.Error("manifest file write failed compacting index", zap.String("path", p.ManifestPath()), zap.Error(err))
 			return err
 		}
 		p.manifestSize = manifestSize
@@ -1304,7 +1309,7 @@ func (p *Partition) compactLogFile(logFile *LogFile) {
 	}
 
 	// Obtain lock to swap in index file and write manifest.
-	if err := func() error {
+	if err := func() (rErr error) {
 		p.mu.Lock()
 		defer p.mu.Unlock()
 
@@ -1313,10 +1318,16 @@ func (p *Partition) compactLogFile(logFile *LogFile) {
 
 		// Write new manifest.
 		manifestSize, err := p.manifest(newFileSet).Write()
+
+		defer errors2.Capture(&rErr, func() error {
+			if rErr != nil {
+				// close new file
+				file.Close()
+			}
+			return rErr
+		})()
 		if err != nil {
-			p.logger.Error("manifest write failed, index is potentially damaged", zap.String("path", p.ManifestPath()), zap.Error(err))
-			// close new file
-			file.Close()
+			p.logger.Error("manifest file write failed compacting log file", zap.String("path", p.ManifestPath()), zap.Error(err))
 			return err
 		}
 		// Store the new FileSet in the partition now that the manifest has been written

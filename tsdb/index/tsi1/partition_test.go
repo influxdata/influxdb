@@ -112,13 +112,13 @@ func TestPartition_PrependLogFile_Write_Fail(t *testing.T) {
 		fileN := p.FileN()
 		p.CheckLogFile()
 		if fileN >= p.FileN() {
-			t.Fatalf("manifest write succeeded: expected more than %d files, got %d files", fileN, p.FileN())
+			t.Fatalf("manifest write prepending log file should have succeeded but number of files did not change correctly: expected more than %d files, got %d files", fileN, p.FileN())
 		}
 		p.SetManifestPathForTest(badManifestPath)
 		fileN = p.FileN()
 		p.CheckLogFile()
 		if fileN != p.FileN() {
-			t.Fatalf("manifest write failed: expected %d files, got %d files", fileN, p.FileN())
+			t.Fatalf("manifest write prepending log file should have failed, but number of files changed: expected %d files, got %d files", fileN, p.FileN())
 		}
 	})
 }
