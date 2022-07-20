@@ -5,7 +5,7 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use observability_deps::tracing::{debug, info};
-use rustyline::{error::ReadlineError, Editor};
+use rustyline::{error::ReadlineError, hint::Hinter, Editor};
 use snafu::{ResultExt, Snafu};
 
 use super::repl_command::ReplCommand;
@@ -142,6 +142,21 @@ impl rustyline::highlight::Highlighter for RustylineHelper {
 
 impl rustyline::completion::Completer for RustylineHelper {
     type Candidate = String;
+
+    fn complete(
+        &self,
+        line: &str,
+        pos: usize,
+        ctx: &rustyline::Context<'_>,
+    ) -> rustyline::Result<(usize, Vec<Self::Candidate>)> {
+        // If there is a hint, use that as the auto-complete when user hits `tab`
+        if let Some(hint) = self.hinter.hint(line, pos, ctx) {
+            let start_pos = pos;
+            Ok((start_pos, vec![hint]))
+        } else {
+            Ok((0, Vec::with_capacity(0)))
+        }
+    }
 }
 
 /// Captures the state of the repl, gathers commands and executes them
