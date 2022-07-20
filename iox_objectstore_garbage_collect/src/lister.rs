@@ -24,7 +24,7 @@ pub(crate) async fn perform(
                 match item {
                     Some(item) => {
                         let item = item.context(MalformedSnafu)?;
-                        info!(location = %item.location);
+                        debug!(location = %item.location, "Object store item");
                         checker.send(item).await?;
                     }
                     None => {

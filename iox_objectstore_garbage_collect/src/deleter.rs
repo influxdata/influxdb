@@ -1,4 +1,5 @@
 use object_store::{DynObjectStore, ObjectMeta};
+use observability_deps::tracing::info;
 use snafu::prelude::*;
 use std::sync::Arc;
 use tokio::sync::mpsc;
@@ -11,9 +12,9 @@ pub(crate) async fn perform(
     while let Some(item) = items.recv().await {
         let path = item.location;
         if dry_run {
-            eprintln!("Not deleting {path} due to dry run");
+            info!(?path, "Not deleting due to dry run");
         } else {
-            println!("Deleting {path}");
+            info!("Deleting {path}");
             object_store
                 .delete(&path)
                 .await

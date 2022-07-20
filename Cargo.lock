@@ -2482,6 +2482,7 @@ dependencies = [
  "iox_objectstore_garbage_collect",
  "ioxd_common",
  "metric",
+ "observability_deps",
  "snafu",
  "tokio",
  "trace",

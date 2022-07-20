@@ -31,18 +31,24 @@ use ioxd_common::{
 };
 use metric::Registry;
 use snafu::prelude::*;
-use std::{sync::Arc, time::Duration};
+use std::{fmt::Debug, sync::Arc, time::Duration};
 use tokio::{select, sync::broadcast, task::JoinError, time};
 use trace::TraceCollector;
 
 pub use iox_objectstore_garbage_collect::{Config, SubConfig};
 
 /// The object store garbage collection server
-#[derive(Debug)]
 pub struct Server {
     metric_registry: Arc<metric::Registry>,
     worker: SharedCloneError<(), JoinError>,
     shutdown_tx: broadcast::Sender<()>,
+}
+
+impl Debug for Server {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Server(GarbageCollector)")
+            .finish_non_exhaustive()
+    }
 }
 
 impl Server {

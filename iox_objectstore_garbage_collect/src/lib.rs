@@ -22,7 +22,7 @@ use iox_catalog::interface::Catalog;
 use object_store::DynObjectStore;
 use observability_deps::tracing::*;
 use snafu::prelude::*;
-use std::sync::Arc;
+use std::{fmt::Debug, sync::Arc};
 use tokio::sync::{broadcast, mpsc};
 
 /// Logic for checking if a file in object storage should be deleted or not.
@@ -40,12 +40,17 @@ pub async fn main(config: Config) -> Result<()> {
 }
 
 /// The tasks that clean up old object store files that don't appear in the catalog.
-#[derive(Debug)]
 pub struct GarbageCollector {
     shutdown_tx: broadcast::Sender<()>,
     lister: tokio::task::JoinHandle<Result<(), lister::Error>>,
     checker: tokio::task::JoinHandle<Result<(), checker::Error>>,
     deleter: tokio::task::JoinHandle<Result<(), deleter::Error>>,
+}
+
+impl Debug for GarbageCollector {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GarbageCollector").finish_non_exhaustive()
+    }
 }
 
 impl GarbageCollector {
@@ -62,6 +67,7 @@ impl GarbageCollector {
         info!(
             cutoff_arg = %sub_config.cutoff,
             cutoff_parsed = %cutoff,
+            "GarbageCollector starting"
         );
 
         let (shutdown_tx, shutdown_rx) = broadcast::channel(1);
@@ -109,7 +115,7 @@ impl GarbageCollector {
 }
 
 /// Configuration to run the object store garbage collector
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Config {
     /// The object store to garbage collect
     pub object_store: Arc<DynObjectStore>,
@@ -119,6 +125,14 @@ pub struct Config {
 
     /// The garbage collector specific configuration
     pub sub_config: SubConfig,
+}
+
+impl Debug for Config {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Config (GarbageCollector")
+            .field("sub_config", &self.sub_config)
+            .finish_non_exhaustive()
+    }
 }
 
 /// Configuration specific to the object store garbage collector

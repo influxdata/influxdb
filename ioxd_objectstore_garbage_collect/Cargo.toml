@@ -12,6 +12,7 @@ hyper = "0.14"
 iox_objectstore_garbage_collect = { path = "../iox_objectstore_garbage_collect" }
 ioxd_common = { path = "../ioxd_common" }
 metric = { path = "../metric" }
+observability_deps = { path = "../observability_deps" }
 snafu = "0.7"
 tokio = { version = "1", features = ["sync"] }
 trace = { path = "../trace" }
