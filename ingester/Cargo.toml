@@ -10,7 +10,7 @@ arrow-flight = "18.0.0"
 arrow_util = { path = "../arrow_util" }
 async-trait = "0.1.56"
 backoff = { path = "../backoff" }
-bytes = "1.0"
+bytes = "1.2"
 datafusion = { path = "../datafusion" }
 datafusion_util = { path = "../datafusion_util" }
 data_types = { path = "../data_types" }

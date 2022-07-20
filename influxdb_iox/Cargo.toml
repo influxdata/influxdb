@@ -39,7 +39,7 @@ trogging = { path = "../trogging", default-features = false, features = ["clap"]
 ansi_term = "0.12"
 arrow = { version = "18.0.0", features = ["prettyprint"] }
 backtrace = "0.3"
-bytes = "1.0"
+bytes = "1.2"
 clap = { version = "3", features = ["derive", "env"] }
 console-subscriber = { version = "0.1.6", optional = true, features = ["parking_lot"] }
 dotenv = "0.15.0"

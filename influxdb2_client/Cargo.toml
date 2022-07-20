@@ -5,7 +5,7 @@ authors = ["Paul Dix <paul@pauldix.net>"]
 edition = "2021"
 
 [dependencies] # In alphabetical order
-bytes = "1.0"
+bytes = "1.2"
 futures = { version = "0.3", default-features = false }
 reqwest = { version = "0.11", default-features = false, features = ["stream", "json", "rustls-tls"] }
 serde = { version = "1.0", features = ["derive"] }

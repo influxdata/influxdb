@@ -8,7 +8,7 @@ edition = "2021"
 arrow = { version = "18.0.0", features = ["prettyprint"] }
 async-trait = "0.1.56"
 backoff = { path = "../backoff" }
-bytes = "1.0"
+bytes = "1.2"
 data_types = { path = "../data_types" }
 datafusion = { path = "../datafusion" }
 futures = "0.3"

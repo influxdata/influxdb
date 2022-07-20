@@ -6,7 +6,7 @@ edition = "2021"
 
 [dependencies] # In alphabetical order
 base64 = "0.13"
-bytes = "1.0"
+bytes = "1.2"
 data_types = { path = "../data_types", optional = true }
 datafusion = { path = "../datafusion", optional = true }
 observability_deps = { path = "../observability_deps" }
