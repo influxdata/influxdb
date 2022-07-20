@@ -9,7 +9,7 @@ executors:
     docker:
       # NOTE: To upgrade the Go version, first push the upgrade to the cross-builder Dockerfile
       # in the edge repo, then update the version here to match.
-      - image: quay.io/influxdb/cross-builder:go1.18.3-c75d304717395a43913dcc3d576d4f3545375253
+      - image: quay.io/influxdb/cross-builder:go1.18.4-906fbe93f953b47185818364a186604209dc8da0
     resource_class: large
   linux-amd64:
     machine:
