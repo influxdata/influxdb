@@ -16,6 +16,7 @@ import (
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/bytesutil"
+	errors2 "github.com/influxdata/influxdb/pkg/errors"
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
@@ -151,14 +152,14 @@ func (p *Partition) Open() (rErr error) {
 	p.closing = make(chan struct{})
 
 	if p.opened {
-		return errors.New("index partition already open")
+		return fmt.Errorf("index partition already open: %q", p.path)
 	}
 
 	// Validate path is correct.
 	p.id = filepath.Base(p.path)
 	_, err := strconv.Atoi(p.id)
 	if err != nil {
-		return err
+		return fmt.Errorf("poorly formed manifest file path, %q: %w", p.path, err)
 	}
 
 	// Create directory if it doesn't exist.
@@ -166,8 +167,9 @@ func (p *Partition) Open() (rErr error) {
 		return err
 	}
 
+	filename := filepath.Join(p.path, ManifestFileName)
 	// Read manifest file.
-	m, manifestSize, err := ReadManifestFile(filepath.Join(p.path, ManifestFileName))
+	m, manifestSize, err := ReadManifestFile(filename)
 	if os.IsNotExist(err) {
 		m = NewManifest(p.ManifestPath())
 	} else if err != nil {
@@ -277,12 +279,12 @@ func (p *Partition) openIndexFile(path string) (*IndexFile, error) {
 }
 
 // deleteNonManifestFiles removes all files not in the manifest.
-func (p *Partition) deleteNonManifestFiles(m *Manifest) error {
+func (p *Partition) deleteNonManifestFiles(m *Manifest) (rErr error) {
 	dir, err := os.Open(p.path)
 	if err != nil {
 		return err
 	}
-	defer dir.Close()
+	defer errors2.Capture(&rErr, dir.Close)()
 
 	fis, err := dir.Readdir(-1)
 	if err != nil {
@@ -301,7 +303,7 @@ func (p *Partition) deleteNonManifestFiles(m *Manifest) error {
 		}
 	}
 
-	return dir.Close()
+	return nil
 }
 
 func (p *Partition) buildSeriesSet() error {
@@ -1385,7 +1387,7 @@ func (m *Manifest) Validate() error {
 	// If we don't have an explicit version in the manifest file then we know
 	// it's not compatible with the latest tsi1 Index.
 	if m.Version != Version {
-		return ErrIncompatibleVersion
+		return fmt.Errorf("%q: %w", m.path, ErrIncompatibleVersion)
 	}
 	return nil
 }
@@ -1395,7 +1397,7 @@ func (m *Manifest) Validate() error {
 func (m *Manifest) Write() (int64, error) {
 	buf, err := json.MarshalIndent(m, "", "  ")
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("failed marshaling %q: %w", m.path, err)
 	}
 	buf = append(buf, '\n')
 
@@ -1416,7 +1418,7 @@ func ReadManifestFile(path string) (*Manifest, int64, error) {
 	// Decode manifest.
 	var m Manifest
 	if err := json.Unmarshal(buf, &m); err != nil {
-		return nil, 0, err
+		return nil, 0, fmt.Errorf("failed unmarshaling %q: %w", path, err)
 	}
 
 	// Set the path of the manifest.
