@@ -230,8 +230,7 @@ pub(crate) async fn query(
 
     debug!(%table_name, ?predicate, "Creating single chunk scan plan");
 
-    let logical_plan = ScanPlanBuilder::new(schema)
-        .with_session_context(ctx.child_ctx("scan_and_filter planning"))
+    let logical_plan = ScanPlanBuilder::new(schema, ctx.child_ctx("scan_and_filter planning"))
         .with_predicate(&predicate)
         .with_chunks([data as _])
         .build()

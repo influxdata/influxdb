@@ -12,13 +12,18 @@ pub(crate) mod split;
 pub mod stringset;
 pub use context::{DEFAULT_CATALOG, DEFAULT_SCHEMA};
 use executor::DedicatedExecutor;
+use trace::span::SpanRecorder;
 
 use std::sync::Arc;
 
 use datafusion::{
     self,
-    execution::runtime_env::{RuntimeConfig, RuntimeEnv},
+    execution::{
+        context::SessionState,
+        runtime_env::{RuntimeConfig, RuntimeEnv},
+    },
     logical_plan::{normalize_col, plan::Extension, Expr, LogicalPlan},
+    prelude::SessionContext,
 };
 
 pub use context::{IOxSessionConfig, IOxSessionContext, SessionContextIOxExt};
@@ -98,6 +103,18 @@ impl Executor {
         let exec = self.executor(executor_type).clone();
         IOxSessionConfig::new(exec, Arc::clone(&self.runtime))
             .with_target_partitions(self.config.target_query_partitions)
+    }
+
+    /// Get IOx context from DataFusion state.
+    pub fn new_context_from_df(
+        &self,
+        executor_type: ExecutorType,
+        state: &SessionState,
+    ) -> IOxSessionContext {
+        let inner = SessionContext::with_state(state.clone());
+        let exec = self.executor(executor_type).clone();
+        let recorder = SpanRecorder::new(state.span_ctx().map(|ctx| ctx.child("Query Execution")));
+        IOxSessionContext::new(inner, Some(exec), recorder)
     }
 
     /// Create a new execution context, suitable for executing a new query or system task

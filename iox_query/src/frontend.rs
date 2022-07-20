@@ -16,7 +16,7 @@ mod test {
     use schema::{merge::SchemaMerger, sort::SortKey, Schema};
 
     use crate::{
-        exec::{split::StreamSplitExec, Executor, ExecutorType},
+        exec::{split::StreamSplitExec, Executor, ExecutorType, IOxSessionContext},
         frontend::reorg::ReorgPlanner,
         provider::{DeduplicateExec, IOxReadFilterNode},
         test::TestChunk,
@@ -63,7 +63,7 @@ mod test {
         let sort_key = SortKey::from_columns(vec!["time", "tag1"]);
 
         // Use a split plan as it has StreamSplitExec, DeduplicateExec and IOxReadFilternode
-        let split_plan = ReorgPlanner::new()
+        let split_plan = ReorgPlanner::new(IOxSessionContext::with_testing())
             .split_plan(schema, chunks, sort_key, vec![1000])
             .expect("created compact plan");
 

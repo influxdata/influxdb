@@ -121,7 +121,7 @@ pub async fn compact(
 ) -> Result<SendableRecordBatchStream> {
     // Build logical plan for compaction
     let ctx = executor.new_context(ExecutorType::Reorg);
-    let logical_plan = ReorgPlanner::new()
+    let logical_plan = ReorgPlanner::new(ctx.child_ctx("ReorgPlanner"))
         .compact_plan(data.schema(), [data as Arc<dyn QueryChunk>], sort_key)
         .context(LogicalPlanSnafu {})?;
 

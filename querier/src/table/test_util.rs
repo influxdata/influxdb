@@ -49,6 +49,7 @@ pub async fn querier_table(
         schema,
         Some(create_ingester_connection_for_testing()),
         chunk_adapter,
+        catalog.exec(),
     )
 }
 

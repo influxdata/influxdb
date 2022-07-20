@@ -74,6 +74,7 @@ impl QuerierNamespace {
                     Arc::new(schema),
                     ingester_connection.clone(),
                     Arc::clone(&chunk_adapter),
+                    Arc::clone(&exec),
                 ));
 
                 (table_name, table)

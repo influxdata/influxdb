@@ -11,7 +11,7 @@ use datafusion::{
     physical_plan::ExecutionPlan,
 };
 use iox_query::{
-    exec::SessionContextIOxExt,
+    exec::{ExecutorType, SessionContextIOxExt},
     provider::{ChunkPruner, ProviderBuilder},
     pruning::{prune_chunks, PruningObserver},
     QueryChunk,
@@ -44,7 +44,10 @@ impl TableProvider for QuerierTable {
     ) -> Result<Arc<dyn ExecutionPlan>, DataFusionError> {
         // build provider out of all chunks
         // TODO: push down some predicates to catalog
-        let mut builder = ProviderBuilder::new(self.table_name(), Arc::clone(self.schema()));
+        let iox_ctx = self.exec.new_context_from_df(ExecutorType::Query, ctx);
+
+        let mut builder =
+            ProviderBuilder::new(self.table_name(), Arc::clone(self.schema()), iox_ctx);
         builder = builder.add_pruner(self.chunk_pruner());
 
         let predicate = filters

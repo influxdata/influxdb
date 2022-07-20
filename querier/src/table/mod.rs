@@ -7,7 +7,7 @@ use crate::{
 };
 use data_types::{KafkaPartition, PartitionId, TableId};
 use futures::{join, StreamExt, TryStreamExt};
-use iox_query::{provider::ChunkPruner, QueryChunk};
+use iox_query::{exec::Executor, provider::ChunkPruner, QueryChunk};
 use observability_deps::tracing::debug;
 use predicate::{Predicate, PredicateMatch};
 use schema::Schema;
@@ -77,10 +77,14 @@ pub struct QuerierTable {
 
     /// Handle reconciling ingester and catalog data
     reconciler: Reconciler,
+
+    /// Executor for queries.
+    exec: Arc<Executor>,
 }
 
 impl QuerierTable {
     /// Create new table.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         sharder: Arc<JumpHash<Arc<KafkaPartition>>>,
         namespace_name: Arc<str>,
@@ -89,6 +93,7 @@ impl QuerierTable {
         schema: Arc<Schema>,
         ingester_connection: Option<Arc<dyn IngesterConnection>>,
         chunk_adapter: Arc<ChunkAdapter>,
+        exec: Arc<Executor>,
     ) -> Self {
         let reconciler = Reconciler::new(
             Arc::clone(&table_name),
@@ -105,6 +110,7 @@ impl QuerierTable {
             ingester_connection,
             chunk_adapter,
             reconciler,
+            exec,
         }
     }
 

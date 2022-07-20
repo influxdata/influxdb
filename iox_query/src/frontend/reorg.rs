@@ -6,7 +6,10 @@ use datafusion::logical_plan::{col, lit_timestamp_nano, LogicalPlan};
 use observability_deps::tracing::debug;
 use schema::{sort::SortKey, Schema, TIME_COLUMN_NAME};
 
-use crate::{exec::make_stream_split, QueryChunk};
+use crate::{
+    exec::{make_stream_split, IOxSessionContext},
+    QueryChunk,
+};
 use snafu::{ResultExt, Snafu};
 
 use super::common::ScanPlanBuilder;
@@ -46,12 +49,14 @@ impl From<datafusion::error::DataFusionError> for Error {
 
 /// Planner for physically rearranging chunk data. This planner
 /// creates COMPACT and SPLIT plans for use in the database lifecycle manager
-#[derive(Debug, Default)]
-pub struct ReorgPlanner {}
+#[derive(Debug)]
+pub struct ReorgPlanner {
+    ctx: IOxSessionContext,
+}
 
 impl ReorgPlanner {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(ctx: IOxSessionContext) -> Self {
+        Self { ctx }
     }
 
     /// Creates an execution plan for the COMPACT operations which does the following:
@@ -73,7 +78,7 @@ impl ReorgPlanner {
     where
         I: IntoIterator<Item = Arc<dyn QueryChunk>>,
     {
-        let scan_plan = ScanPlanBuilder::new(schema)
+        let scan_plan = ScanPlanBuilder::new(schema, self.ctx.child_ctx("compact_plan"))
             .with_chunks(chunks)
             .with_sort_key(sort_key)
             .build()
@@ -152,7 +157,7 @@ impl ReorgPlanner {
             panic!("Split plan does not accept empty split_times");
         }
 
-        let scan_plan = ScanPlanBuilder::new(schema)
+        let scan_plan = ScanPlanBuilder::new(schema, self.ctx.child_ctx("split_plan"))
             .with_chunks(chunks)
             .with_sort_key(sort_key)
             .build()
@@ -270,7 +275,7 @@ mod test {
             .with_col_opts(TIME_COLUMN_NAME, false, false)
             .build();
 
-        let compact_plan = ReorgPlanner::new()
+        let compact_plan = ReorgPlanner::new(IOxSessionContext::with_testing())
             .compact_plan(schema, chunks, sort_key)
             .expect("created compact plan");
 
@@ -323,7 +328,7 @@ mod test {
             .build();
 
         // split on 1000 should have timestamps 1000, 5000, and 7000
-        let split_plan = ReorgPlanner::new()
+        let split_plan = ReorgPlanner::new(IOxSessionContext::with_testing())
             .split_plan(schema, chunks, sort_key, vec![1000])
             .expect("created compact plan");
 
@@ -389,7 +394,7 @@ mod test {
             .build();
 
         // split on 1000 and 7000
-        let split_plan = ReorgPlanner::new()
+        let split_plan = ReorgPlanner::new(IOxSessionContext::with_testing())
             .split_plan(schema, chunks, sort_key, vec![1000, 7000])
             .expect("created compact plan");
 
@@ -467,7 +472,7 @@ mod test {
             .build();
 
         // split on 1000 and 7000
-        let _split_plan = ReorgPlanner::new()
+        let _split_plan = ReorgPlanner::new(IOxSessionContext::with_testing())
             .split_plan(schema, chunks, sort_key, vec![]) // reason of panic: empty split_times
             .expect("created compact plan");
     }
@@ -486,7 +491,7 @@ mod test {
             .build();
 
         // split on 1000 and 7000
-        let _split_plan = ReorgPlanner::new()
+        let _split_plan = ReorgPlanner::new(IOxSessionContext::with_testing())
             .split_plan(schema, chunks, sort_key, vec![1000, 500]) // reason of panic: split_times not in ascending order
             .expect("created compact plan");
     }

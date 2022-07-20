@@ -603,11 +603,11 @@ impl InfluxRpcPlanner {
                     .table_schema(table_name)
                     .context(TableRemovedSnafu { table_name })?;
 
-                let scan_and_filter = ScanPlanBuilder::new(schema)
-                    .with_session_context(ctx.child_ctx("scan_and_filter planning"))
-                    .with_chunks(chunks)
-                    .with_predicate(predicate)
-                    .build()?;
+                let scan_and_filter =
+                    ScanPlanBuilder::new(schema, ctx.child_ctx("scan_and_filter planning"))
+                        .with_chunks(chunks)
+                        .with_predicate(predicate)
+                        .build()?;
 
                 let tag_name_is_not_null = Expr::Column(tag_name.into()).is_not_null();
 
@@ -924,11 +924,11 @@ impl InfluxRpcPlanner {
         predicate: &Predicate,
         chunks: Vec<Arc<dyn QueryChunk>>,
     ) -> Result<Option<StringSetPlan>> {
-        let scan_and_filter = ScanPlanBuilder::new(schema)
-            .with_session_context(ctx.child_ctx("scan_and_filter planning"))
-            .with_predicate(predicate)
-            .with_chunks(chunks)
-            .build()?;
+        let scan_and_filter =
+            ScanPlanBuilder::new(schema, ctx.child_ctx("scan_and_filter planning"))
+                .with_predicate(predicate)
+                .with_chunks(chunks)
+                .build()?;
 
         // now, select only the tag columns
         let select_exprs = scan_and_filter
@@ -987,11 +987,11 @@ impl InfluxRpcPlanner {
         predicate: &Predicate,
         chunks: Vec<Arc<dyn QueryChunk>>,
     ) -> Result<LogicalPlan> {
-        let scan_and_filter = ScanPlanBuilder::new(schema)
-            .with_session_context(ctx.child_ctx("scan_and_filter planning"))
-            .with_predicate(predicate)
-            .with_chunks(chunks)
-            .build()?;
+        let scan_and_filter =
+            ScanPlanBuilder::new(schema, ctx.child_ctx("scan_and_filter planning"))
+                .with_predicate(predicate)
+                .with_chunks(chunks)
+                .build()?;
 
         // Selection of only fields and time
         let select_exprs = scan_and_filter
@@ -1042,11 +1042,11 @@ impl InfluxRpcPlanner {
         chunks: Vec<Arc<dyn QueryChunk>>,
     ) -> Result<LogicalPlan> {
         debug!(%table_name, "Creating table_name full plan");
-        let scan_and_filter = ScanPlanBuilder::new(schema)
-            .with_session_context(self.ctx.child_ctx("scan_and_filter planning"))
-            .with_predicate(predicate)
-            .with_chunks(chunks)
-            .build()?;
+        let scan_and_filter =
+            ScanPlanBuilder::new(schema, self.ctx.child_ctx("scan_and_filter planning"))
+                .with_predicate(predicate)
+                .with_chunks(chunks)
+                .build()?;
 
         // Select only fields requested
         let select_exprs: Vec<_> = filtered_fields_iter(&scan_and_filter.schema(), predicate)
@@ -1085,11 +1085,11 @@ impl InfluxRpcPlanner {
         chunks: Vec<Arc<dyn QueryChunk>>,
     ) -> Result<SeriesSetPlan> {
         let table_name = table_name.as_ref();
-        let scan_and_filter = ScanPlanBuilder::new(schema)
-            .with_session_context(ctx.child_ctx("scan_and_filter planning"))
-            .with_predicate(predicate)
-            .with_chunks(chunks)
-            .build()?;
+        let scan_and_filter =
+            ScanPlanBuilder::new(schema, ctx.child_ctx("scan_and_filter planning"))
+                .with_predicate(predicate)
+                .with_chunks(chunks)
+                .build()?;
 
         let tags_and_timestamp: Vec<_> = scan_and_filter
             .schema()
@@ -1191,11 +1191,11 @@ impl InfluxRpcPlanner {
         agg: Aggregate,
         chunks: Vec<Arc<dyn QueryChunk>>,
     ) -> Result<SeriesSetPlan> {
-        let scan_and_filter = ScanPlanBuilder::new(schema)
-            .with_session_context(ctx.child_ctx("scan_and_filter planning"))
-            .with_predicate(predicate)
-            .with_chunks(chunks)
-            .build()?;
+        let scan_and_filter =
+            ScanPlanBuilder::new(schema, ctx.child_ctx("scan_and_filter planning"))
+                .with_predicate(predicate)
+                .with_chunks(chunks)
+                .build()?;
 
         // order the tag columns so that the group keys come first (we
         // will group and
@@ -1301,11 +1301,11 @@ impl InfluxRpcPlanner {
         chunks: Vec<Arc<dyn QueryChunk>>,
     ) -> Result<SeriesSetPlan> {
         let table_name = table_name.into();
-        let scan_and_filter = ScanPlanBuilder::new(schema)
-            .with_session_context(ctx.child_ctx("scan_and_filter planning"))
-            .with_predicate(predicate)
-            .with_chunks(chunks)
-            .build()?;
+        let scan_and_filter =
+            ScanPlanBuilder::new(schema, ctx.child_ctx("scan_and_filter planning"))
+                .with_predicate(predicate)
+                .with_chunks(chunks)
+                .build()?;
 
         let schema = scan_and_filter.schema();
 
@@ -1735,7 +1735,7 @@ mod tests {
     async fn test_predicate_rewrite_table_names() {
         run_test(|test_db, rpc_predicate| {
             async move {
-                InfluxRpcPlanner::new(IOxSessionContext::default())
+                InfluxRpcPlanner::new(IOxSessionContext::with_testing())
                     .table_names(test_db, rpc_predicate)
                     .await
                     .expect("creating plan");
@@ -1749,7 +1749,7 @@ mod tests {
     async fn test_predicate_rewrite_tag_keys() {
         run_test(|test_db, rpc_predicate| {
             async move {
-                InfluxRpcPlanner::new(IOxSessionContext::default())
+                InfluxRpcPlanner::new(IOxSessionContext::with_testing())
                     .tag_keys(test_db, rpc_predicate)
                     .await
                     .expect("creating plan");
@@ -1763,7 +1763,7 @@ mod tests {
     async fn test_predicate_rewrite_tag_values() {
         run_test(|test_db, rpc_predicate| {
             async move {
-                InfluxRpcPlanner::new(IOxSessionContext::default())
+                InfluxRpcPlanner::new(IOxSessionContext::with_testing())
                     .tag_values(test_db, "foo", rpc_predicate)
                     .await
                     .expect("creating plan");
@@ -1777,7 +1777,7 @@ mod tests {
     async fn test_predicate_rewrite_field_columns() {
         run_test(|test_db, rpc_predicate| {
             async move {
-                InfluxRpcPlanner::new(IOxSessionContext::default())
+                InfluxRpcPlanner::new(IOxSessionContext::with_testing())
                     .field_columns(test_db, rpc_predicate)
                     .await
                     .expect("creating plan");
@@ -1791,7 +1791,7 @@ mod tests {
     async fn test_predicate_rewrite_read_filter() {
         run_test(|test_db, rpc_predicate| {
             async move {
-                InfluxRpcPlanner::new(IOxSessionContext::default())
+                InfluxRpcPlanner::new(IOxSessionContext::with_testing())
                     .read_filter(test_db, rpc_predicate)
                     .await
                     .expect("creating plan");
@@ -1807,7 +1807,7 @@ mod tests {
             async move {
                 let agg = Aggregate::None;
                 let group_columns = &["foo"];
-                InfluxRpcPlanner::new(IOxSessionContext::default())
+                InfluxRpcPlanner::new(IOxSessionContext::with_testing())
                     .read_group(test_db, rpc_predicate, agg, group_columns)
                     .await
                     .expect("creating plan");
@@ -1824,7 +1824,7 @@ mod tests {
                 let agg = Aggregate::First;
                 let every = WindowDuration::from_months(1, false);
                 let offset = WindowDuration::from_months(1, false);
-                InfluxRpcPlanner::new(IOxSessionContext::default())
+                InfluxRpcPlanner::new(IOxSessionContext::with_testing())
                     .read_window_aggregate(test_db, rpc_predicate, agg, every, offset)
                     .await
                     .expect("creating plan");

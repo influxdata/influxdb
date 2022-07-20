@@ -83,7 +83,7 @@ impl ScanPlan {
 
 #[derive(Debug)]
 pub struct ScanPlanBuilder<'a> {
-    ctx: Option<IOxSessionContext>,
+    ctx: IOxSessionContext,
     table_name: Option<String>,
     /// The schema of the resulting table (any chunks that don't have
     /// all the necessary columns will be extended appropriately)
@@ -95,9 +95,9 @@ pub struct ScanPlanBuilder<'a> {
 }
 
 impl<'a> ScanPlanBuilder<'a> {
-    pub fn new(table_schema: Arc<Schema>) -> Self {
+    pub fn new(table_schema: Arc<Schema>, ctx: IOxSessionContext) -> Self {
         Self {
-            ctx: None,
+            ctx,
             table_name: None,
             table_schema,
             chunks: vec![],
@@ -118,13 +118,6 @@ impl<'a> ScanPlanBuilder<'a> {
     pub fn with_sort_key(mut self, sort_key: SortKey) -> Self {
         assert!(self.sort_key.is_none());
         self.sort_key = Some(sort_key);
-        self
-    }
-
-    /// Sets the session context (for profiling) if any
-    pub fn with_session_context(mut self, ctx: IOxSessionContext) -> Self {
-        assert!(self.ctx.is_none());
-        self.ctx = Some(ctx);
         self
     }
 
@@ -152,14 +145,11 @@ impl<'a> ScanPlanBuilder<'a> {
         let table_name = &table_name;
 
         // Prepare the plan for the table
-        let mut builder = ProviderBuilder::new(table_name, table_schema)
-            // Assumes the caller has picked exactly what chunks they want
-            // so no need to prune them
-            .add_no_op_pruner();
-
-        if let Some(ctx) = ctx {
-            builder = builder.with_execution_context(ctx.child_ctx("provider_builder"));
-        }
+        let mut builder =
+            ProviderBuilder::new(table_name, table_schema, ctx.child_ctx("provider_builder"))
+                // Assumes the caller has picked exactly what chunks they want
+                // so no need to prune them
+                .add_no_op_pruner();
 
         if let Some(sort_key) = sort_key {
             // Tell the scan of this provider to sort its output on the given sort_key

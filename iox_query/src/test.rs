@@ -1027,7 +1027,7 @@ pub async fn raw_data(chunks: &[Arc<dyn QueryChunk>]) -> Vec<RecordBatch> {
         let pred = Predicate::default();
         let selection = Selection::All;
         let mut stream = c
-            .read_filter(IOxSessionContext::default(), &pred, selection)
+            .read_filter(IOxSessionContext::with_testing(), &pred, selection)
             .expect("Error in read_filter");
         while let Some(b) = stream.next().await {
             let b = b.expect("Error in stream");

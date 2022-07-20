@@ -848,11 +848,11 @@ impl Compactor {
             .filter_to(&merged_schema.primary_key());
 
         // Build compact logical plan, compacting everything into one file
-        let plan = ReorgPlanner::new()
+        let ctx = self.exec.new_context(ExecutorType::Reorg);
+        let plan = ReorgPlanner::new(ctx.child_ctx("ReorgPlanner"))
             .compact_plan(Arc::clone(&merged_schema), query_chunks, sort_key.clone())
             .context(CompactLogicalPlanSnafu)?;
 
-        let ctx = self.exec.new_context(ExecutorType::Reorg);
         let physical_plan = ctx
             .create_physical_plan(&plan)
             .await

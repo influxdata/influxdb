@@ -90,7 +90,7 @@ impl ExecutionPlan for IOxReadFilterNode {
         // For some reason when I used an automatically derived `Clone` implementation
         // the compiler didn't recognize the trait implementation
         let new_self = Self {
-            ctx: IOxSessionContext::default(), // FIXME: we can't clone context because we shouldn't clone span recorder bits
+            ctx: self.ctx.child_ctx("with_new_children"),
             table_name: Arc::clone(&self.table_name),
             iox_schema: Arc::clone(&self.iox_schema),
             chunks,

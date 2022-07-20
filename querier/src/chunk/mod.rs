@@ -632,7 +632,7 @@ pub mod tests {
     async fn collect_read_filter(chunk: &dyn QueryChunk) -> Vec<RecordBatch> {
         chunk
             .read_filter(
-                IOxSessionContext::default(),
+                IOxSessionContext::with_testing(),
                 &Default::default(),
                 Selection::All,
             )
