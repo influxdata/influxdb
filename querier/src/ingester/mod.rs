@@ -36,6 +36,7 @@ use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
 };
+use trace::span::{Span, SpanRecorder};
 
 pub(crate) mod flight_client;
 pub(crate) mod test_util;
@@ -171,6 +172,7 @@ pub trait IngesterConnection: std::fmt::Debug + Send + Sync + 'static {
     /// # Panics
     ///
     /// Panics if the list of sequencer_ids is empty.
+    #[allow(clippy::too_many_arguments)]
     async fn partitions(
         &self,
         sequencer_ids: &[KafkaPartition],
@@ -179,6 +181,7 @@ pub trait IngesterConnection: std::fmt::Debug + Send + Sync + 'static {
         columns: Vec<String>,
         predicate: &Predicate,
         expected_schema: Arc<Schema>,
+        span: Option<Span>,
     ) -> Result<Vec<IngesterPartition>>;
 
     /// Returns the most recent partition sstatus info across all ingester(s) for the specified
@@ -230,12 +233,18 @@ struct ObserveIngesterRequest<'a> {
     time_provider: Arc<dyn TimeProvider>,
     metrics: Arc<IngesterConnectionMetrics>,
     request: GetPartitionForIngester<'a>,
+    span_recorder: SpanRecorder,
 }
 
 impl<'a> ObserveIngesterRequest<'a> {
-    fn new(request: GetPartitionForIngester<'a>, metrics: Arc<IngesterConnectionMetrics>) -> Self {
+    fn new(
+        request: GetPartitionForIngester<'a>,
+        metrics: Arc<IngesterConnectionMetrics>,
+        span_recorder: &SpanRecorder,
+    ) -> Self {
         let time_provider = request.catalog_cache.time_provider();
         let t_start = time_provider.now();
+        let span_recorder = span_recorder.child("flight request");
 
         Self {
             res: None,
@@ -243,15 +252,18 @@ impl<'a> ObserveIngesterRequest<'a> {
             time_provider,
             metrics,
             request,
+            span_recorder,
         }
     }
 
     fn set_ok(mut self) {
         self.res = Some(Ok(()));
+        self.span_recorder.ok("done");
     }
 
     fn set_err(mut self) {
         self.res = Some(Err(()));
+        self.span_recorder.error("failed");
     }
 }
 
@@ -712,6 +724,7 @@ impl IngesterConnection for IngesterConnectionImpl {
         columns: Vec<String>,
         predicate: &Predicate,
         expected_schema: Arc<Schema>,
+        span: Option<Span>,
     ) -> Result<Vec<IngesterPartition>> {
         // If no sequencer IDs are specified, no ingester addresses can be found. This is a
         // configuration problem somewhere.
@@ -719,6 +732,7 @@ impl IngesterConnection for IngesterConnectionImpl {
             !sequencer_ids.is_empty(),
             "Called `IngesterConnection.partitions` with an empty `sequencer_ids` list",
         );
+        let mut span_recorder = SpanRecorder::new(span);
 
         let metrics = Arc::clone(&self.metrics);
 
@@ -738,7 +752,7 @@ impl IngesterConnection for IngesterConnectionImpl {
             // wrap `execute` into an additional future so that we can measure the request time
             // INFO: create the measurement structure outside of the async block so cancellation is
             // always measured
-            let measure_me = ObserveIngesterRequest::new(request.clone(), metrics);
+            let measure_me = ObserveIngesterRequest::new(request.clone(), metrics, &span_recorder);
             async move {
                 let res = execute(request.clone()).await;
 
@@ -791,13 +805,18 @@ impl IngesterConnection for IngesterConnectionImpl {
             .map(move |ingester_address| measured_ingester_request(ingester_address))
             .collect::<FuturesUnordered<_>>()
             .try_collect::<Vec<_>>()
-            .await?
+            .await
+            .map_err(|e| {
+                span_recorder.error("failed");
+                e
+            })?
             // We have a Vec<Vec<..>> flatten to Vec<_>
             .into_iter()
             .flatten()
             .collect();
 
         ingester_partitions.sort_by_key(|p| p.partition_id);
+        span_recorder.ok("done");
         Ok(ingester_partitions)
     }
 
@@ -1189,6 +1208,7 @@ mod tests {
     use std::collections::{BTreeSet, HashMap};
     use test_helpers::assert_error;
     use tokio::sync::Mutex;
+    use trace::{span::SpanStatus, RingBufferTraceCollector};
 
     #[tokio::test]
     async fn test_flight_handshake_error() {
@@ -1581,7 +1601,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_ingester_metrics() {
+    async fn test_ingester_metrics_and_tracing() {
         let mock_flight_client = Arc::new(
             MockFlightClient::new([
                 ("addr1", Ok(MockQueryData { results: vec![] })),
@@ -1605,7 +1625,14 @@ mod tests {
             .await,
         );
         let ingester_conn = mock_flight_client.ingester_conn().await;
-        get_partitions(&ingester_conn, &[1, 2, 3, 4, 5]).await.ok();
+        let traces = Arc::new(RingBufferTraceCollector::new(100));
+        get_partitions_with_span(
+            &ingester_conn,
+            &[1, 2, 3, 4, 5],
+            Some(Span::root("root", Arc::clone(&traces) as _)),
+        )
+        .await
+        .unwrap_err();
 
         let histogram_error = mock_flight_client
             .catalog
@@ -1644,6 +1671,29 @@ mod tests {
 
         // we don't know how errors are propagated because the futures are polled unordered
         assert_eq!(hit_count_success + hit_count_cancelled, 4);
+
+        // check spans
+        let root_span = traces
+            .spans()
+            .into_iter()
+            .find(|s| s.name == "root")
+            .expect("root span not found");
+        assert_eq!(root_span.status, SpanStatus::Err);
+        let n_spans_err = traces
+            .spans()
+            .into_iter()
+            .filter(|s| (s.name == "flight request") && (s.status == SpanStatus::Err))
+            .count();
+        assert_eq!(n_spans_err, 1);
+        let n_spans_ok_or_cancelled = traces
+            .spans()
+            .into_iter()
+            .filter(|s| {
+                (s.name == "flight request")
+                    && ((s.status == SpanStatus::Ok) || (s.status == SpanStatus::Unknown))
+            })
+            .count();
+        assert_eq!(n_spans_ok_or_cancelled, 4);
     }
 
     #[tokio::test]
@@ -1714,6 +1764,14 @@ mod tests {
         ingester_conn: &IngesterConnectionImpl,
         sequencer_ids: &[i32],
     ) -> Result<Vec<IngesterPartition>, Error> {
+        get_partitions_with_span(ingester_conn, sequencer_ids, None).await
+    }
+
+    async fn get_partitions_with_span(
+        ingester_conn: &IngesterConnectionImpl,
+        sequencer_ids: &[i32],
+        span: Option<Span>,
+    ) -> Result<Vec<IngesterPartition>, Error> {
         let sequencer_ids: Vec<_> = sequencer_ids
             .iter()
             .copied()
@@ -1731,6 +1789,7 @@ mod tests {
                 columns,
                 &Predicate::default(),
                 schema,
+                span,
             )
             .await
     }

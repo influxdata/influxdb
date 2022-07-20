@@ -133,7 +133,7 @@ impl QuerierTable {
         span: Option<Span>,
     ) -> Result<Vec<Arc<dyn QueryChunk>>> {
         let mut span_recorder = SpanRecorder::new(span);
-        match self.chunks_inner(predicate).await {
+        match self.chunks_inner(predicate, &span_recorder).await {
             Ok(chunks) => {
                 span_recorder.ok("got chunks");
                 Ok(chunks)
@@ -145,7 +145,11 @@ impl QuerierTable {
         }
     }
 
-    async fn chunks_inner(&self, predicate: &Predicate) -> Result<Vec<Arc<dyn QueryChunk>>> {
+    async fn chunks_inner(
+        &self,
+        predicate: &Predicate,
+        span_recorder: &SpanRecorder,
+    ) -> Result<Vec<Arc<dyn QueryChunk>>> {
         debug!(
             ?predicate,
             namespace=%self.namespace_name,
@@ -158,7 +162,12 @@ impl QuerierTable {
         // ask ingesters for data, also optimistically fetching catalog
         // contents at the same time to pre-warm cache
         let (partitions, _parquet_files, _tombstones) = join!(
-            self.ingester_partitions(predicate),
+            self.ingester_partitions(
+                predicate,
+                span_recorder
+                    .span()
+                    .map(|span| span.child("ingester partitions"))
+            ),
             catalog_cache.parquet_file().get(self.id()),
             catalog_cache.tombstone().get(self.id()),
         );
@@ -230,65 +239,100 @@ impl QuerierTable {
     }
 
     /// Get partitions from ingesters.
-    async fn ingester_partitions(&self, predicate: &Predicate) -> Result<Vec<IngesterPartition>> {
+    async fn ingester_partitions(
+        &self,
+        predicate: &Predicate,
+        span: Option<Span>,
+    ) -> Result<Vec<IngesterPartition>> {
+        let mut span_recorder = SpanRecorder::new(span);
+
         if let Some(ingester_connection) = &self.ingester_connection {
-            // For now, ask for *all* columns in the table from the ingester (need
-            // at least all pk (time, tag) columns for
-            // deduplication.
-            //
-            // As a future optimization, might be able to fetch only
-            // fields that are needed in query
-            let columns: Vec<String> = self
-                .schema
-                .iter()
-                .map(|(_, f)| f.name().to_string())
-                .collect();
-
-            // Get the sequencer IDs responsible for this table's data from the sharder to
-            // determine which ingester(s) to query.
-            // Currently, the sharder will only return one sequencer ID per table, but in the
-            // near future, the sharder might return more than one sequencer ID for one table.
-            let sequencer_ids = vec![**self
-                .sharder
-                .shard_for_query(&self.table_name, &self.namespace_name)];
-
-            // get any chunks from the ingester(s)
-            let partitions_result = ingester_connection
-                .partitions(
-                    &sequencer_ids,
-                    Arc::clone(&self.namespace_name),
-                    Arc::clone(&self.table_name),
-                    columns,
+            match self
+                .ingester_partitions_inner(
+                    Arc::clone(ingester_connection),
                     predicate,
-                    Arc::clone(&self.schema),
+                    &span_recorder,
                 )
                 .await
-                .context(GettingIngesterPartitionsSnafu);
-
-            let partitions = partitions_result?;
-
-            // check that partitions from ingesters don't overlap
-            let mut seen = HashMap::with_capacity(partitions.len());
-            for partition in &partitions {
-                match seen.entry(partition.partition_id()) {
-                    Entry::Occupied(o) => {
-                        return Err(Error::IngestersOverlap {
-                            ingester1: Arc::clone(o.get()),
-                            ingester2: Arc::clone(partition.ingester()),
-                            partition: partition.partition_id(),
-                        })
-                    }
-                    Entry::Vacant(v) => {
-                        v.insert(Arc::clone(partition.ingester()));
-                    }
+            {
+                Ok(partitions) => {
+                    span_recorder.ok("Got partitions");
+                    Ok(partitions)
+                }
+                Err(e) => {
+                    span_recorder.error("failed");
+                    Err(e)
                 }
             }
-
-            Ok(partitions)
         } else {
             // No ingesters are configured
+            span_recorder.ok("No ingesters configured");
             Ok(vec![])
         }
+    }
+
+    async fn ingester_partitions_inner(
+        &self,
+        ingester_connection: Arc<dyn IngesterConnection>,
+        predicate: &Predicate,
+        span_recorder: &SpanRecorder,
+    ) -> Result<Vec<IngesterPartition>> {
+        // For now, ask for *all* columns in the table from the ingester (need
+        // at least all pk (time, tag) columns for
+        // deduplication.
+        //
+        // As a future optimization, might be able to fetch only
+        // fields that are needed in query
+        let columns: Vec<String> = self
+            .schema
+            .iter()
+            .map(|(_, f)| f.name().to_string())
+            .collect();
+
+        // Get the sequencer IDs responsible for this table's data from the sharder to
+        // determine which ingester(s) to query.
+        // Currently, the sharder will only return one sequencer ID per table, but in the
+        // near future, the sharder might return more than one sequencer ID for one table.
+        let sequencer_ids = vec![**self
+            .sharder
+            .shard_for_query(&self.table_name, &self.namespace_name)];
+
+        // get any chunks from the ingester(s)
+        let partitions_result = ingester_connection
+            .partitions(
+                &sequencer_ids,
+                Arc::clone(&self.namespace_name),
+                Arc::clone(&self.table_name),
+                columns,
+                predicate,
+                Arc::clone(&self.schema),
+                span_recorder
+                    .span()
+                    .map(|span| span.child("IngesterConnection partitions")),
+            )
+            .await
+            .context(GettingIngesterPartitionsSnafu);
+
+        let partitions = partitions_result?;
+
+        // check that partitions from ingesters don't overlap
+        let mut seen = HashMap::with_capacity(partitions.len());
+        for partition in &partitions {
+            match seen.entry(partition.partition_id()) {
+                Entry::Occupied(o) => {
+                    return Err(Error::IngestersOverlap {
+                        ingester1: Arc::clone(o.get()),
+                        ingester2: Arc::clone(partition.ingester()),
+                        partition: partition.partition_id(),
+                    })
+                }
+                Entry::Vacant(v) => {
+                    v.insert(Arc::clone(partition.ingester()));
+                }
+            }
+        }
+
+        Ok(partitions)
     }
 
     /// Handles invalidating parquet and tombstone caches if the
@@ -362,6 +406,7 @@ mod tests {
     use schema::{builder::SchemaBuilder, InfluxFieldType};
     use std::sync::Arc;
     use test_helpers::maybe_start_logging;
+    use trace::{span::SpanStatus, RingBufferTraceCollector};
 
     #[tokio::test]
     async fn test_parquet_chunks() {
@@ -714,6 +759,22 @@ mod tests {
         assert_eq!(chunks[1].delete_predicates().len(), 2);
         // ingester in-mem chunk doesn't need predicates, because the ingester has already materialized them for us
         assert_eq!(chunks[2].delete_predicates().len(), 0);
+
+        // check spans
+        let root_span = querier_table
+            .traces
+            .spans()
+            .into_iter()
+            .find(|s| s.name == "root")
+            .expect("root span not found");
+        assert_eq!(root_span.status, SpanStatus::Ok);
+        let ip_span = querier_table
+            .traces
+            .spans()
+            .into_iter()
+            .find(|s| s.name == "ingester partitions")
+            .expect("ingester partitions span not found");
+        assert_eq!(ip_span.status, SpanStatus::Ok);
     }
 
     #[tokio::test]
@@ -920,10 +981,14 @@ mod tests {
     /// are fed to the ingester connection on the next call to
     /// `chunks()`
     struct TestQuerierTable {
-        // The underling table
+        /// The underling table
         querier_table: QuerierTable,
+
         /// Ingester partitions
         ingester_partitions: Vec<IngesterPartition>,
+
+        /// Trace collector
+        traces: Arc<RingBufferTraceCollector>,
     }
 
     impl TestQuerierTable {
@@ -943,6 +1008,7 @@ mod tests {
             Self {
                 querier_table: querier_table(catalog, table, load_settings).await,
                 ingester_partitions: vec![],
+                traces: Arc::new(RingBufferTraceCollector::new(100)),
             }
         }
 
@@ -983,7 +1049,8 @@ mod tests {
                 .unwrap()
                 .next_response(Ok(self.ingester_partitions.clone()));
 
-            self.querier_table.chunks(pred, None).await
+            let span = Some(Span::root("root", Arc::clone(&self.traces) as _));
+            self.querier_table.chunks(pred, span).await
         }
     }
 

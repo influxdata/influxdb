@@ -4,6 +4,7 @@ use data_types::KafkaPartition;
 use generated_types::influxdata::iox::ingester::v1::GetWriteInfoResponse;
 use parking_lot::Mutex;
 use std::{any::Any, sync::Arc};
+use trace::span::Span;
 
 /// IngesterConnection for testing
 #[derive(Debug, Default)]
@@ -34,6 +35,7 @@ impl IngesterConnection for MockIngesterConnection {
         _columns: Vec<String>,
         _predicate: &predicate::Predicate,
         _expected_schema: Arc<schema::Schema>,
+        _span: Option<Span>,
     ) -> super::Result<Vec<super::IngesterPartition>> {
         self.next_response
             .lock()
