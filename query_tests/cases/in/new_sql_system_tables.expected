@@ -1,11 +1,11 @@
 -- Test Setup: TwoMeasurementsManyFieldsTwoChunks
 -- SQL: SELECT * from information_schema.tables where table_schema = 'system';
 -- Results After Sorting
-+---------------+--------------+------------+------------+------------+
-| table_catalog | table_schema | table_name | table_type | definition |
-+---------------+--------------+------------+------------+------------+
-| public        | system       | queries    | BASE TABLE |            |
-+---------------+--------------+------------+------------+------------+
++---------------+--------------+------------+------------+
+| table_catalog | table_schema | table_name | table_type |
++---------------+--------------+------------+------------+
+| public        | system       | queries    | BASE TABLE |
++---------------+--------------+------------+------------+
 -- SQL: SELECT issue_time, query_type, query_text, success FROM system.queries;
 -- Results After Sorting
 +----------------------+------------+------------+---------+
