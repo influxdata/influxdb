@@ -30,7 +30,8 @@ struct ExtraFetchInfo {
     store: ParquetStorage,
 }
 
-type CacheT = Box<dyn Cache<K = ParquetFileId, V = Arc<RBChunk>, Extra = ExtraFetchInfo>>;
+type CacheT =
+    Box<dyn Cache<K = ParquetFileId, V = Arc<RBChunk>, GetExtra = ExtraFetchInfo, PeekExtra = ()>>;
 
 /// Cache for parquet file data decoded into read buffer chunks
 #[derive(Debug)]
@@ -136,7 +137,7 @@ impl ReadBufferCache {
     /// Get existing or "loading" read buffer chunk from cache.
     #[allow(dead_code)]
     pub async fn peek(&self, parquet_file_id: ParquetFileId) -> Option<Arc<RBChunk>> {
-        self.cache.peek(parquet_file_id).await
+        self.cache.peek(parquet_file_id, ()).await
     }
 }
 

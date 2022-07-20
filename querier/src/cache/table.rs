@@ -22,7 +22,8 @@ pub const TTL_NON_EXISTING: Duration = Duration::from_secs(10);
 
 const CACHE_ID: &str = "table";
 
-type CacheT = Box<dyn Cache<K = TableId, V = Option<Arc<CachedTable>>, Extra = ()>>;
+type CacheT =
+    Box<dyn Cache<K = TableId, V = Option<Arc<CachedTable>>, GetExtra = (), PeekExtra = ()>>;
 
 /// Cache for table-related queries.
 #[derive(Debug)]

@@ -63,34 +63,46 @@ pub trait Cache: Debug + Send + Sync + 'static {
     /// Cache value.
     type V: Clone + Debug + Send + 'static;
 
-    /// Extra data that is provided during loading but that is NOT part of the cache key.
-    type Extra: Debug + Send + 'static;
+    /// Extra data that is provided during [`GET`](Self::get) but that is NOT part of the cache key.
+    type GetExtra: Debug + Send + 'static;
+
+    /// Extra data that is provided during [`PEEK`](Self::peek) but that is NOT part of the cache key.
+    type PeekExtra: Debug + Send + 'static;
 
     /// Get value from cache.
     ///
     /// Note that `extra` is only used if the key is missing from the storage backend and no loader query is running yet.
-    async fn get(&self, k: Self::K, extra: Self::Extra) -> Self::V {
+    async fn get(&self, k: Self::K, extra: Self::GetExtra) -> Self::V {
         self.get_with_status(k, extra).await.0
     }
 
     /// Get value from cache and the [status](CacheGetStatus).
     ///
     /// Note that `extra` is only used if the key is missing from the storage backend and no loader query is running yet.
-    async fn get_with_status(&self, k: Self::K, extra: Self::Extra) -> (Self::V, CacheGetStatus);
+    async fn get_with_status(&self, k: Self::K, extra: Self::GetExtra)
+        -> (Self::V, CacheGetStatus);
 
     /// Peek value from cache.
     ///
     /// In contrast to [`get`](Self::get) this will only return a value if there is a stored value or the value loading
     /// is already in progress. This will NOT start a new loading task.
-    async fn peek(&self, k: Self::K) -> Option<Self::V> {
-        self.peek_with_status(k).await.map(|(v, _status)| v)
+    ///
+    /// Note that `extra` is only used if the key is missing from the storage backend and no loader query is running yet.
+    async fn peek(&self, k: Self::K, extra: Self::PeekExtra) -> Option<Self::V> {
+        self.peek_with_status(k, extra).await.map(|(v, _status)| v)
     }
 
     /// Peek value from cache and the [status](CachePeekStatus).
     ///
     /// In contrast to [`get_with_status`](Self::get_with_status) this will only return a value if there is a stored
     /// value or the value loading is already in progress. This will NOT start a new loading task.
-    async fn peek_with_status(&self, k: Self::K) -> Option<(Self::V, CachePeekStatus)>;
+    ///
+    /// Note that `extra` is only used if the key is missing from the storage backend and no loader query is running yet.
+    async fn peek_with_status(
+        &self,
+        k: Self::K,
+        extra: Self::PeekExtra,
+    ) -> Option<(Self::V, CachePeekStatus)>;
 
     /// Side-load an entry into the cache.
     ///

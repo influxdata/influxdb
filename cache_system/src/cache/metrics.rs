@@ -83,25 +83,27 @@ impl Metrics {
 
 /// Wraps given cache with metrics.
 #[derive(Debug)]
-pub struct CacheWithMetrics<K, V, Extra>
+pub struct CacheWithMetrics<K, V, GetExtra, PeekExtra>
 where
     K: Clone + Eq + Hash + Debug + Ord + Send + 'static,
     V: Clone + Debug + Send + 'static,
-    Extra: Debug + Send + 'static,
+    GetExtra: Debug + Send + 'static,
+    PeekExtra: Debug + Send + 'static,
 {
-    inner: Box<dyn Cache<K = K, V = V, Extra = Extra>>,
+    inner: Box<dyn Cache<K = K, V = V, GetExtra = GetExtra, PeekExtra = PeekExtra>>,
     metrics: Metrics,
 }
 
-impl<K, V, Extra> CacheWithMetrics<K, V, Extra>
+impl<K, V, GetExtra, PeekExtra> CacheWithMetrics<K, V, GetExtra, PeekExtra>
 where
     K: Clone + Eq + Hash + Debug + Ord + Send + 'static,
     V: Clone + Debug + Send + 'static,
-    Extra: Debug + Send + 'static,
+    GetExtra: Debug + Send + 'static,
+    PeekExtra: Debug + Send + 'static,
 {
     /// Create new metrics wrapper around given cache.
     pub fn new(
-        inner: Box<dyn Cache<K = K, V = V, Extra = Extra>>,
+        inner: Box<dyn Cache<K = K, V = V, GetExtra = GetExtra, PeekExtra = PeekExtra>>,
         name: &'static str,
         time_provider: Arc<dyn TimeProvider>,
         metric_registry: &metric::Registry,
@@ -114,17 +116,23 @@ where
 }
 
 #[async_trait]
-impl<K, V, Extra> Cache for CacheWithMetrics<K, V, Extra>
+impl<K, V, GetExtra, PeekExtra> Cache for CacheWithMetrics<K, V, GetExtra, PeekExtra>
 where
     K: Clone + Eq + Hash + Debug + Ord + Send + 'static,
     V: Clone + Debug + Send + 'static,
-    Extra: Debug + Send + 'static,
+    GetExtra: Debug + Send + 'static,
+    PeekExtra: Debug + Send + 'static,
 {
     type K = K;
     type V = V;
-    type Extra = Extra;
+    type GetExtra = GetExtra;
+    type PeekExtra = PeekExtra;
 
-    async fn get_with_status(&self, k: Self::K, extra: Self::Extra) -> (Self::V, CacheGetStatus) {
+    async fn get_with_status(
+        &self,
+        k: Self::K,
+        extra: Self::GetExtra,
+    ) -> (Self::V, CacheGetStatus) {
         let mut set_on_drop = SetGetMetricOnDrop::new(&self.metrics);
         let (v, status) = self.inner.get_with_status(k, extra).await;
         set_on_drop.status = Some(status);
@@ -132,9 +140,13 @@ where
         (v, status)
     }
 
-    async fn peek_with_status(&self, k: Self::K) -> Option<(Self::V, CachePeekStatus)> {
+    async fn peek_with_status(
+        &self,
+        k: Self::K,
+        extra: Self::PeekExtra,
+    ) -> Option<(Self::V, CachePeekStatus)> {
         let mut set_on_drop = SetPeekMetricOnDrop::new(&self.metrics);
-        let res = self.inner.peek_with_status(k).await;
+        let res = self.inner.peek_with_status(k, extra).await;
         set_on_drop.status = Some(res.as_ref().map(|(_v, status)| *status));
 
         res
@@ -356,7 +368,7 @@ mod tests {
 
         test_cache.loader.block();
 
-        test_cache.cache.peek(1).await;
+        test_cache.cache.peek(1, ()).await;
 
         let barrier_pending_1 = Arc::new(Barrier::new(2));
         let barrier_pending_1_captured = Arc::clone(&barrier_pending_1);
@@ -377,7 +389,7 @@ mod tests {
         let n_miss_already_loading = 10;
         let join_handle_2 = tokio::task::spawn(async move {
             (0..n_miss_already_loading)
-                .map(|_| cache_captured.peek(1))
+                .map(|_| cache_captured.peek(1, ()))
                 .collect::<FuturesUnordered<_>>()
                 .collect::<Vec<_>>()
                 .ensure_pending(barrier_pending_2_captured)
@@ -396,7 +408,7 @@ mod tests {
         test_cache.time_provider.inc(Duration::from_secs(10));
         let n_hit = 100;
         for _ in 0..n_hit {
-            test_cache.cache.peek(1).await;
+            test_cache.cache.peek(1, ()).await;
         }
 
         let n_cancelled = 200;
@@ -415,7 +427,7 @@ mod tests {
         let cache_captured = Arc::clone(&test_cache.cache);
         let join_handle_3 = tokio::task::spawn(async move {
             (0..n_cancelled)
-                .map(|_| cache_captured.peek(2))
+                .map(|_| cache_captured.peek(2, ()))
                 .collect::<FuturesUnordered<_>>()
                 .collect::<Vec<_>>()
                 .ensure_pending(barrier_pending_4_captured)
@@ -483,7 +495,7 @@ mod tests {
         loader: Arc<TestLoader>,
         time_provider: Arc<MockProvider>,
         metric_registry: metric::Registry,
-        cache: Arc<CacheWithMetrics<u8, String, bool>>,
+        cache: Arc<CacheWithMetrics<u8, String, bool, ()>>,
     }
 
     impl TestMetricsCache {

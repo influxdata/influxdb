@@ -24,7 +24,7 @@ use super::ram::RamSize;
 
 const CACHE_ID: &str = "partition";
 
-type CacheT = Box<dyn Cache<K = PartitionId, V = CachedPartition, Extra = ()>>;
+type CacheT = Box<dyn Cache<K = PartitionId, V = CachedPartition, GetExtra = (), PeekExtra = ()>>;
 
 /// Cache for partition-related attributes.
 #[derive(Debug)]

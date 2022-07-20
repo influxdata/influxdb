@@ -25,7 +25,8 @@ pub const TTL_NOT_PROCESSED: Duration = Duration::from_secs(100);
 
 const CACHE_ID: &str = "processed_tombstones";
 
-type CacheT = Box<dyn Cache<K = (ParquetFileId, TombstoneId), V = bool, Extra = ()>>;
+type CacheT =
+    Box<dyn Cache<K = (ParquetFileId, TombstoneId), V = bool, GetExtra = (), PeekExtra = ()>>;
 
 /// Cache for processed tombstones.
 #[derive(Debug)]

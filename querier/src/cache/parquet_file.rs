@@ -73,7 +73,8 @@ impl CachedParquetFiles {
     }
 }
 
-type CacheT = Box<dyn Cache<K = TableId, V = Arc<CachedParquetFiles>, Extra = ()>>;
+type CacheT =
+    Box<dyn Cache<K = TableId, V = Arc<CachedParquetFiles>, GetExtra = (), PeekExtra = ()>>;
 
 /// Cache for parquet file information.
 ///

@@ -65,7 +65,7 @@ impl CachedTombstones {
     }
 }
 
-type CacheT = Box<dyn Cache<K = TableId, V = CachedTombstones, Extra = ()>>;
+type CacheT = Box<dyn Cache<K = TableId, V = CachedTombstones, GetExtra = (), PeekExtra = ()>>;
 
 /// Cache for tombstones for a particular table
 #[derive(Debug)]

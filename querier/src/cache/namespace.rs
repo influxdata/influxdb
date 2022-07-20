@@ -39,7 +39,8 @@ pub const TTL_NON_EXISTING: Duration = Duration::from_nanos(1);
 
 const CACHE_ID: &str = "namespace";
 
-type CacheT = Box<dyn Cache<K = Arc<str>, V = Option<Arc<CachedNamespace>>, Extra = ()>>;
+type CacheT =
+    Box<dyn Cache<K = Arc<str>, V = Option<Arc<CachedNamespace>>, GetExtra = (), PeekExtra = ()>>;
 
 /// Cache for namespace-related attributes.
 #[derive(Debug)]

@@ -8,7 +8,7 @@ use futures::{
 };
 use observability_deps::tracing::debug;
 use parking_lot::Mutex;
-use std::{collections::HashMap, hash::Hash, sync::Arc};
+use std::{collections::HashMap, fmt::Debug, hash::Hash, sync::Arc};
 use tokio::{
     sync::oneshot::{error::RecvError, Sender},
     task::JoinHandle,
@@ -18,25 +18,25 @@ use super::{Cache, CacheGetStatus, CachePeekStatus};
 
 /// Combine a [`CacheBackend`] and a [`Loader`] into a single [`Cache`]
 #[derive(Debug)]
-pub struct CacheDriver<K, V, Extra>
+pub struct CacheDriver<K, V, GetExtra>
 where
-    K: Clone + Eq + Hash + std::fmt::Debug + Ord + Send + 'static,
-    V: Clone + std::fmt::Debug + Send + 'static,
-    Extra: std::fmt::Debug + Send + 'static,
+    K: Clone + Eq + Hash + Debug + Ord + Send + 'static,
+    V: Clone + Debug + Send + 'static,
+    GetExtra: Debug + Send + 'static,
 {
     state: Arc<Mutex<CacheState<K, V>>>,
-    loader: Arc<dyn Loader<K = K, V = V, Extra = Extra>>,
+    loader: Arc<dyn Loader<K = K, V = V, Extra = GetExtra>>,
 }
 
-impl<K, V, Extra> CacheDriver<K, V, Extra>
+impl<K, V, GetExtra> CacheDriver<K, V, GetExtra>
 where
-    K: Clone + Eq + Hash + std::fmt::Debug + Ord + Send + 'static,
-    V: Clone + std::fmt::Debug + Send + 'static,
-    Extra: std::fmt::Debug + Send + 'static,
+    K: Clone + Eq + Hash + Debug + Ord + Send + 'static,
+    V: Clone + Debug + Send + 'static,
+    GetExtra: Debug + Send + 'static,
 {
     /// Create new, empty cache with given loader function.
     pub fn new(
-        loader: Arc<dyn Loader<K = K, V = V, Extra = Extra>>,
+        loader: Arc<dyn Loader<K = K, V = V, Extra = GetExtra>>,
         backend: Box<dyn CacheBackend<K = K, V = V>>,
     ) -> Self {
         Self {
@@ -51,17 +51,22 @@ where
 }
 
 #[async_trait]
-impl<K, V, Extra> Cache for CacheDriver<K, V, Extra>
+impl<K, V, GetExtra> Cache for CacheDriver<K, V, GetExtra>
 where
-    K: Clone + Eq + Hash + std::fmt::Debug + Ord + Send + 'static,
-    V: Clone + std::fmt::Debug + Send + 'static,
-    Extra: std::fmt::Debug + Send + 'static,
+    K: Clone + Eq + Hash + Debug + Ord + Send + 'static,
+    V: Clone + Debug + Send + 'static,
+    GetExtra: Debug + Send + 'static,
 {
     type K = K;
     type V = V;
-    type Extra = Extra;
+    type GetExtra = GetExtra;
+    type PeekExtra = ();
 
-    async fn get_with_status(&self, k: Self::K, extra: Self::Extra) -> (Self::V, CacheGetStatus) {
+    async fn get_with_status(
+        &self,
+        k: Self::K,
+        extra: Self::GetExtra,
+    ) -> (Self::V, CacheGetStatus) {
         // place state locking into its own scope so it doesn't leak into the generator (async
         // function)
         let (receiver, status) = {
@@ -167,7 +172,11 @@ where
         (v, status)
     }
 
-    async fn peek_with_status(&self, k: Self::K) -> Option<(Self::V, CachePeekStatus)> {
+    async fn peek_with_status(
+        &self,
+        k: Self::K,
+        _extra: Self::PeekExtra,
+    ) -> Option<(Self::V, CachePeekStatus)> {
         // place state locking into its own scope so it doesn't leak into the generator (async
         // function)
         let (receiver, status) = {
@@ -224,11 +233,11 @@ where
     }
 }
 
-impl<K, V, Extra> Drop for CacheDriver<K, V, Extra>
+impl<K, V, GetExtra> Drop for CacheDriver<K, V, GetExtra>
 where
-    K: Clone + Eq + Hash + std::fmt::Debug + Ord + Send + 'static,
-    V: Clone + std::fmt::Debug + Send + 'static,
-    Extra: std::fmt::Debug + Send + 'static,
+    K: Clone + Eq + Hash + Debug + Ord + Send + 'static,
+    V: Clone + Debug + Send + 'static,
+    GetExtra: Debug + Send + 'static,
 {
     fn drop(&mut self) {
         for (_k, running_query) in self.state.lock().running_queries.drain() {
@@ -246,8 +255,8 @@ where
 /// Ensures that running query is removed when dropped (e.g. during panic).
 struct ResultSubmitter<K, V>
 where
-    K: Clone + Eq + Hash + std::fmt::Debug + Ord + Send + 'static,
-    V: Clone + std::fmt::Debug + Send + 'static,
+    K: Clone + Eq + Hash + Debug + Ord + Send + 'static,
+    V: Clone + Debug + Send + 'static,
 {
     state: Arc<Mutex<CacheState<K, V>>>,
     tag: u64,
@@ -257,8 +266,8 @@ where
 
 impl<K, V> ResultSubmitter<K, V>
 where
-    K: Clone + Eq + Hash + std::fmt::Debug + Ord + Send + 'static,
-    V: Clone + std::fmt::Debug + Send + 'static,
+    K: Clone + Eq + Hash + Debug + Ord + Send + 'static,
+    V: Clone + Debug + Send + 'static,
 {
     fn new(state: Arc<Mutex<CacheState<K, V>>>, k: K, tag: u64) -> Self {
         Self {
@@ -310,8 +319,8 @@ where
 
 impl<K, V> Drop for ResultSubmitter<K, V>
 where
-    K: Clone + Eq + Hash + std::fmt::Debug + Ord + Send + 'static,
-    V: Clone + std::fmt::Debug + Send + 'static,
+    K: Clone + Eq + Hash + Debug + Ord + Send + 'static,
+    V: Clone + Debug + Send + 'static,
 {
     fn drop(&mut self) {
         if self.k.is_some() {

@@ -25,7 +25,7 @@ macro_rules! run {
 
 pub async fn test_generic<C, F>(constructor: F)
 where
-    C: Cache<K = u8, V = String, Extra = bool>,
+    C: Cache<K = u8, V = String, GetExtra = bool, PeekExtra = ()>,
     F: (Fn(Arc<TestLoader>) -> Arc<C>) + Send + Sync,
 {
     run!(test_answers_are_correct, constructor);
@@ -41,19 +41,19 @@ where
 
 async fn test_answers_are_correct<C>(cache: Arc<C>, _loader: Arc<TestLoader>)
 where
-    C: Cache<K = u8, V = String, Extra = bool>,
+    C: Cache<K = u8, V = String, GetExtra = bool, PeekExtra = ()>,
 {
     assert_eq!(cache.get(1, true).await, String::from("1_true"));
-    assert_eq!(cache.peek(1).await, Some(String::from("1_true")));
+    assert_eq!(cache.peek(1, ()).await, Some(String::from("1_true")));
     assert_eq!(cache.get(2, false).await, String::from("2_false"));
-    assert_eq!(cache.peek(2).await, Some(String::from("2_false")));
+    assert_eq!(cache.peek(2, ()).await, Some(String::from("2_false")));
 }
 
 async fn test_linear_memory<C>(cache: Arc<C>, loader: Arc<TestLoader>)
 where
-    C: Cache<K = u8, V = String, Extra = bool>,
+    C: Cache<K = u8, V = String, GetExtra = bool, PeekExtra = ()>,
 {
-    assert_eq!(cache.peek_with_status(1).await, None,);
+    assert_eq!(cache.peek_with_status(1, ()).await, None,);
     assert_eq!(
         cache.get_with_status(1, true).await,
         (String::from("1_true"), CacheGetStatus::Miss),
@@ -63,7 +63,7 @@ where
         (String::from("1_true"), CacheGetStatus::Hit),
     );
     assert_eq!(
-        cache.peek_with_status(1).await,
+        cache.peek_with_status(1, ()).await,
         Some((String::from("1_true"), CachePeekStatus::Hit)),
     );
     assert_eq!(
@@ -79,7 +79,7 @@ where
         (String::from("1_true"), CacheGetStatus::Hit),
     );
     assert_eq!(
-        cache.peek_with_status(1).await,
+        cache.peek_with_status(1, ()).await,
         Some((String::from("1_true"), CachePeekStatus::Hit)),
     );
 
@@ -88,7 +88,7 @@ where
 
 async fn test_concurrent_query_loads_once<C>(cache: Arc<C>, loader: Arc<TestLoader>)
 where
-    C: Cache<K = u8, V = String, Extra = bool>,
+    C: Cache<K = u8, V = String, GetExtra = bool, PeekExtra = ()>,
 {
     loader.block();
 
@@ -119,7 +119,7 @@ where
     let handle_3 = tokio::spawn(async move {
         // use a different `extra` here to proof that the first one was used
         cache
-            .peek_with_status(1)
+            .peek_with_status(1, ())
             .ensure_pending(barrier_pending_2_captured)
             .await
     });
@@ -147,7 +147,7 @@ where
 
 async fn test_queries_are_parallelized<C>(cache: Arc<C>, loader: Arc<TestLoader>)
 where
-    C: Cache<K = u8, V = String, Extra = bool>,
+    C: Cache<K = u8, V = String, GetExtra = bool, PeekExtra = ()>,
 {
     loader.block();
 
@@ -189,7 +189,7 @@ where
 
 async fn test_cancel_request<C>(cache: Arc<C>, loader: Arc<TestLoader>)
 where
-    C: Cache<K = u8, V = String, Extra = bool>,
+    C: Cache<K = u8, V = String, GetExtra = bool, PeekExtra = ()>,
 {
     loader.block();
 
@@ -228,7 +228,7 @@ where
 
 async fn test_panic_request<C>(cache: Arc<C>, loader: Arc<TestLoader>)
 where
-    C: Cache<K = u8, V = String, Extra = bool>,
+    C: Cache<K = u8, V = String, GetExtra = bool, PeekExtra = ()>,
 {
     loader.panic_once(1);
     loader.block();
@@ -262,7 +262,7 @@ where
     let cache_captured = Arc::clone(&cache);
     let handle_peek_while_loading_panic = tokio::spawn(async move {
         cache_captured
-            .peek(1)
+            .peek(1, ())
             .ensure_pending(barrier_pending_others_captured)
             .await
     });
@@ -301,7 +301,7 @@ where
 
 async fn test_drop_cancels_loader<C>(cache: Arc<C>, loader: Arc<TestLoader>)
 where
-    C: Cache<K = u8, V = String, Extra = bool>,
+    C: Cache<K = u8, V = String, GetExtra = bool, PeekExtra = ()>,
 {
     loader.block();
 
@@ -323,7 +323,7 @@ where
 
 async fn test_set_before_request<C>(cache: Arc<C>, loader: Arc<TestLoader>)
 where
-    C: Cache<K = u8, V = String, Extra = bool>,
+    C: Cache<K = u8, V = String, GetExtra = bool, PeekExtra = ()>,
 {
     loader.block();
 
@@ -339,7 +339,7 @@ where
 
 async fn test_set_during_request<C>(cache: Arc<C>, loader: Arc<TestLoader>)
 where
-    C: Cache<K = u8, V = String, Extra = bool>,
+    C: Cache<K = u8, V = String, GetExtra = bool, PeekExtra = ()>,
 {
     loader.block();
 
