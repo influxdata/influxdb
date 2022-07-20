@@ -139,13 +139,13 @@ func TestPartition_Compact_Write_Fail(t *testing.T) {
 		fileN := p.FileN()
 		p.Compact()
 		if (1 + fileN) != p.FileN() {
-			t.Fatalf("manifest write succeeded: expected more than %d files, got %d files", fileN, p.FileN())
+			t.Fatalf("manifest write in compaction should have succeeded, but number of files did not change correctly: expected %d files, got %d files", fileN+1, p.FileN())
 		}
 		p.SetManifestPathForTest(badManifestPath)
 		fileN = p.FileN()
 		p.Compact()
 		if fileN != p.FileN() {
-			t.Fatalf("manifest write failed: expected %d files, got %d files", fileN, p.FileN())
+			t.Fatalf("manifest write should have failed the compaction, but number of files changed: expected %d files, got %d files", fileN, p.FileN())
 		}
 	})
 }

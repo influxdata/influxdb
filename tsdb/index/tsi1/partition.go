@@ -492,7 +492,7 @@ func (p *Partition) retainFileSet() *FileSet {
 func (p *Partition) FileN() int { return len(p.fileSet.files) }
 
 // prependActiveLogFile adds a new log file so that the current log file can be compacted.
-func (p *Partition) prependActiveLogFile() error {
+func (p *Partition) prependActiveLogFile() (rErr error) {
 	// Open file and insert it into the first position.
 	f, err := p.openLogFile(filepath.Join(p.path, FormatLogFileName(p.nextSequence())))
 	if err != nil {
@@ -504,13 +504,19 @@ func (p *Partition) prependActiveLogFile() error {
 	// Prepend and generate new fileset but do not yet update the partition
 	newFileSet := p.fileSet.PrependLogFile(f)
 
+	errors2.Capture(&rErr, func() error {
+		if rErr != nil {
+			// close the new file.
+			f.Close()
+			p.activeLogFile = oldActiveFile
+		}
+		return rErr
+	})()
+
 	// Write new manifest.
 	manifestSize, err := p.manifest(newFileSet).Write()
 	if err != nil {
 		p.logger.Error("manifest write failed, index is potentially damaged", zap.String("path", p.ManifestPath()), zap.Error(err))
-		// close the new file.
-		f.Close()
-		p.activeLogFile = oldActiveFile
 		return err
 	}
 	p.manifestSize = manifestSize
