@@ -489,7 +489,11 @@ func (p *Partition) retainFileSet() *FileSet {
 }
 
 // FileN returns the active files in the file set.
-func (p *Partition) FileN() int { return len(p.fileSet.files) }
+func (p *Partition) FileN() int {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return len(p.fileSet.files)
+}
 
 // prependActiveLogFile adds a new log file so that the current log file can be compacted.
 func (p *Partition) prependActiveLogFile() (rErr error) {
