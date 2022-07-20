@@ -156,7 +156,8 @@ fn group_to_frame(group: series::Group) -> Frame {
 
 /// Convert the tag=value pairs from Arc<str> to Vec<u8> for gRPC transport
 fn convert_tags(tags: Vec<series::Tag>, tag_key_binary_format: bool) -> Vec<Tag> {
-    tags.into_iter()
+    let mut res: Vec<Tag> = tags
+        .into_iter()
         .map(|series::Tag { key, value }| Tag {
             key: match tag_key_binary_format {
                 true => match key.as_ref() {
@@ -168,7 +169,13 @@ fn convert_tags(tags: Vec<series::Tag>, tag_key_binary_format: bool) -> Vec<Tag>
             },
             value: value.bytes().collect(),
         })
-        .collect()
+        .collect();
+    // tags must be returned in lexicographical order; when we rename the tags
+    // to use the binary encoding, we fiddle with the existing ordering and need to re-sort.
+    if tag_key_binary_format {
+        res.sort_unstable_by(|a, b| a.key.cmp(&b.key));
+    }
+    res
 }
 
 fn arcs_to_bytes(s: Vec<Arc<str>>) -> Vec<Vec<u8>> {
@@ -381,15 +388,15 @@ mod tests {
         let response = series_or_groups_to_read_response(series.clone(), false);
         let dumped_frames = dump_frames(&response.frames);
         let expected_frames = vec![
-            "SeriesFrame, tags: _measurement=the_table,tag1=val1,_field=string_field, type: 4",
+            "SeriesFrame, tags: _field=string_field,_measurement=the_table,tag1=val1, type: 4",
             "StringPointsFrame, timestamps: [2000, 3000], values: bar,baz",
-            "SeriesFrame, tags: _measurement=the_table,tag1=val1,_field=int_field, type: 1",
+            "SeriesFrame, tags: _field=int_field,_measurement=the_table,tag1=val1, type: 1",
             "IntegerPointsFrame, timestamps: [2000, 3000], values: \"2,3\"",
-            "SeriesFrame, tags: _measurement=the_table,tag1=val1,_field=uint_field, type: 2",
+            "SeriesFrame, tags: _field=uint_field,_measurement=the_table,tag1=val1, type: 2",
             "UnsignedPointsFrame, timestamps: [2000, 3000], values: \"22,33\"",
-            "SeriesFrame, tags: _measurement=the_table,tag1=val1,_field=float_field, type: 0",
+            "SeriesFrame, tags: _field=float_field,_measurement=the_table,tag1=val1, type: 0",
             "FloatPointsFrame, timestamps: [2000, 3000], values: \"20.1,30.1\"",
-            "SeriesFrame, tags: _measurement=the_table,tag1=val1,_field=boolean_field, type: 3",
+            "SeriesFrame, tags: _field=boolean_field,_measurement=the_table,tag1=val1, type: 3",
             "BooleanPointsFrame, timestamps: [2000, 3000], values: false,true",
         ];
 

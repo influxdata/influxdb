@@ -133,6 +133,7 @@ pub(crate) fn df_to_scalar(
 
 #[cfg(test)]
 mod tests {
+    use arrow::datatypes::Field;
     use test_helpers::assert_contains;
 
     use super::*;
@@ -226,7 +227,11 @@ mod tests {
     fn test_unsupported_scalar_value() {
         let scalar = datafusion::scalar::ScalarValue::List(
             Some(vec![]),
-            Box::new(arrow::datatypes::DataType::Float64),
+            Box::new(Field::new(
+                "field",
+                arrow::datatypes::DataType::Float64,
+                true,
+            )),
         );
         let res = df_to_scalar(scalar);
         assert_contains!(res.unwrap_err().to_string(), "unsupported scalar value:");
@@ -245,7 +250,11 @@ mod tests {
             right: Box::new(datafusion::logical_plan::Expr::Literal(
                 datafusion::scalar::ScalarValue::List(
                     Some(vec![]),
-                    Box::new(arrow::datatypes::DataType::Float64),
+                    Box::new(Field::new(
+                        "field",
+                        arrow::datatypes::DataType::Float64,
+                        true,
+                    )),
                 ),
             )),
         };

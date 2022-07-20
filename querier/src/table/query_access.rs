@@ -11,6 +11,7 @@ use datafusion::{
     physical_plan::ExecutionPlan,
 };
 use iox_query::{
+    exec::SessionContextIOxExt,
     provider::{ChunkPruner, ProviderBuilder},
     pruning::{prune_chunks, PruningObserver},
     QueryChunk,
@@ -51,7 +52,7 @@ impl TableProvider for QuerierTable {
             .fold(Predicate::new(), |b, expr| b.with_expr(expr.clone()));
 
         let chunks = self
-            .chunks(&predicate)
+            .chunks(&predicate, ctx.child_span("querier table chunks"))
             .await
             .map_err(|e| DataFusionError::External(Box::new(e)))?;
 

@@ -67,10 +67,10 @@ pub async fn read_window_aggregate_test() {
                     let actual_frames = dump_data_frames(&frames);
 
                     let expected_frames = vec![
-                        "SeriesFrame, tags: _measurement=h2o,city=Boston,state=MA,_field=temp, type: 0",
+                        "SeriesFrame, tags: _field=temp,_measurement=h2o,city=Boston,state=MA, type: 0",
                         "FloatPointsFrame, timestamps: [400, 600], values: \"143,147\"",
-                        "SeriesFrame, tags: _measurement=h2o,city=Cambridge,state=MA,_field=temp, type: 0",
-                        "FloatPointsFrame, timestamps: [400, 600], values: \"163,167\"",
+                        "SeriesFrame, tags: _field=temp,_measurement=h2o,city=Cambridge,state=MA, type: 0",
+                        "FloatPointsFrame, timestamps: [400, 600], values: \"163,167\""
                     ];
 
                     assert_eq!(
