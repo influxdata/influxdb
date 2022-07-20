@@ -39,15 +39,15 @@ async fn read_filter() {
             let actual_frames = dump_data_frames(&frames);
 
             let expected_frames = generator.substitute_nanos(&[
-                "SeriesFrame, tags: _measurement=cpu_load_short,host=server01,_field=value, type: 0",
+                "SeriesFrame, tags: _field=value,_measurement=cpu_load_short,host=server01, type: 0",
                 "FloatPointsFrame, timestamps: [ns1], values: \"27.99\"",
-                "SeriesFrame, tags: _measurement=cpu_load_short,host=server01,region=us-east,_field=value, type: 0",
+                "SeriesFrame, tags: _field=value,_measurement=cpu_load_short,host=server01,region=us-east, type: 0",
                 "FloatPointsFrame, timestamps: [ns3], values: \"1234567.891011\"",
-                "SeriesFrame, tags: _measurement=cpu_load_short,host=server01,region=us-west,_field=value, type: 0",
+                "SeriesFrame, tags: _field=value,_measurement=cpu_load_short,host=server01,region=us-west, type: 0",
                 "FloatPointsFrame, timestamps: [ns0, ns4], values: \"0.64,0.000003\"",
-                "SeriesFrame, tags: _measurement=swap,host=server01,name=disk0,_field=in, type: 1",
+                "SeriesFrame, tags: _field=in,_measurement=swap,host=server01,name=disk0, type: 1",
                 "IntegerPointsFrame, timestamps: [ns6], values: \"3\"",
-                "SeriesFrame, tags: _measurement=swap,host=server01,name=disk0,_field=out, type: 1",
+                "SeriesFrame, tags: _field=out,_measurement=swap,host=server01,name=disk0, type: 1",
                 "IntegerPointsFrame, timestamps: [ns6], values: \"4\""
             ]);
 
@@ -70,13 +70,13 @@ pub async fn read_filter_regex_operator() {
             .timestamp_range(0, 2001) // include all data
             .regex_match_predicate("host", "^b.+"),
         vec![
-            "SeriesFrame, tags: _measurement=cpu,cpu=cpu1,host=bar,_field=usage_system, type: 0",
+            "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu1,host=bar, type: 0",
             "FloatPointsFrame, timestamps: [1000, 2000], values: \"20,21\"",
-            "SeriesFrame, tags: _measurement=cpu,cpu=cpu1,host=bar,_field=usage_user, type: 0",
+            "SeriesFrame, tags: _field=usage_user,_measurement=cpu,cpu=cpu1,host=bar, type: 0",
             "FloatPointsFrame, timestamps: [1000, 2000], values: \"81,82\"",
-            "SeriesFrame, tags: _measurement=cpu,cpu=cpu2,host=bar,_field=usage_system, type: 0",
+            "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu2,host=bar, type: 0",
             "FloatPointsFrame, timestamps: [1000, 2000], values: \"40,41\"",
-            "SeriesFrame, tags: _measurement=cpu,cpu=cpu2,host=bar,_field=usage_user, type: 0",
+            "SeriesFrame, tags: _field=usage_user,_measurement=cpu,cpu=cpu2,host=bar, type: 0",
             "FloatPointsFrame, timestamps: [1000, 2000], values: \"51,52\"",
         ],
     )
@@ -93,7 +93,7 @@ pub async fn read_filter_empty_tag_eq() {
             // host = '' means where host is not present
             .tag_predicate("host", ""),
         vec![
-            "SeriesFrame, tags: _measurement=cpu,_field=value, type: 0",
+            "SeriesFrame, tags: _field=value,_measurement=cpu, type: 0",
             "FloatPointsFrame, timestamps: [1000], values: \"1\"",
         ],
     )
@@ -110,7 +110,7 @@ pub async fn read_filter_empty_tag_not_regex() {
             // host !~ /^server01$/ means where host doesn't start with `server01`
             .not_regex_match_predicate("host", "^server01"),
         vec![
-            "SeriesFrame, tags: _measurement=cpu,_field=value, type: 0",
+            "SeriesFrame, tags: _field=value,_measurement=cpu, type: 0",
             "FloatPointsFrame, timestamps: [1000], values: \"1\"",
         ],
     )
@@ -126,7 +126,7 @@ pub async fn read_filter_empty_tag_regex() {
             // host =~ /.+/ means where host is at least one character
             .regex_match_predicate("host", ".+"),
         vec![
-            "SeriesFrame, tags: _measurement=cpu,host=server01,_field=value, type: 0",
+            "SeriesFrame, tags: _field=value,_measurement=cpu,host=server01, type: 0",
             "FloatPointsFrame, timestamps: [2000], values: \"2\"",
         ],
     )
