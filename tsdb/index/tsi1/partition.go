@@ -516,8 +516,7 @@ func (p *Partition) prependActiveLogFile() (rErr error) {
 	// Write new manifest.
 	manifestSize, err := p.manifest(newFileSet).Write()
 	if err != nil {
-		p.logger.Error("manifest write failed, index is potentially damaged", zap.String("path", p.ManifestPath()), zap.Error(err))
-		return err
+		return fmt.Errorf("manifest write failed for %q: %w", p.ManifestPath(), err)
 	}
 	p.manifestSize = manifestSize
 	// Store the new FileSet in the partition now that the manifest has been written
@@ -1168,8 +1167,7 @@ func (p *Partition) compactToLevel(files []*IndexFile, level int, interrupt <-ch
 			return rErr
 		})()
 		if err != nil {
-			p.logger.Error("manifest file write failed compacting index", zap.String("path", p.ManifestPath()), zap.Error(err))
-			return err
+			return fmt.Errorf("manifest file write failed compacting index %q: %w", p.ManifestPath(), err)
 		}
 		p.manifestSize = manifestSize
 		// Store the new FileSet in the partition now that the manifest has been written
@@ -1316,9 +1314,6 @@ func (p *Partition) compactLogFile(logFile *LogFile) {
 		// Replace previous log file with index file.
 		newFileSet := p.fileSet.MustReplace([]File{logFile}, file)
 
-		// Write new manifest.
-		manifestSize, err := p.manifest(newFileSet).Write()
-
 		defer errors2.Capture(&rErr, func() error {
 			if rErr != nil {
 				// close new file
@@ -1326,9 +1321,12 @@ func (p *Partition) compactLogFile(logFile *LogFile) {
 			}
 			return rErr
 		})()
+
+		// Write new manifest.
+		manifestSize, err := p.manifest(newFileSet).Write()
+
 		if err != nil {
-			p.logger.Error("manifest file write failed compacting log file", zap.String("path", p.ManifestPath()), zap.Error(err))
-			return err
+			return fmt.Errorf("manifest file write failed compacting log file %q: %w", p.ManifestPath(), err)
 		}
 		// Store the new FileSet in the partition now that the manifest has been written
 		p.fileSet = newFileSet
