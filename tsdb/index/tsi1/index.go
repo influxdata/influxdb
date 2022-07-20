@@ -309,13 +309,7 @@ func (i *Index) Open() (rErr error) {
 
 func (i *Index) cleanUpFail(err *error) {
 	if nil != *err {
-		for _, p := range i.partitions {
-			if (p != nil) && p.IsOpen() {
-				if e := p.Close(); e != nil {
-					i.logger.Warn("Failed to clean up partition")
-				}
-			}
-		}
+		i.close()
 	}
 }
 
@@ -352,16 +346,24 @@ func (i *Index) Close() error {
 	// Lock index and close partitions.
 	i.mu.Lock()
 	defer i.mu.Unlock()
+	return i.close()
+}
 
+// close closes the index without locking
+func (i *Index) close() (rErr error) {
 	for _, p := range i.partitions {
-		if err := p.Close(); err != nil {
-			return err
+		if (p != nil) && p.IsOpen() {
+			if pErr := p.Close(); pErr != nil {
+				i.logger.Warn("Failed to clean up partition", zap.String("path", p.Path()))
+				if rErr == nil {
+					rErr = pErr
+				}
+			}
 		}
 	}
-
 	// Mark index as closed.
 	i.opened = false
-	return nil
+	return rErr
 }
 
 // Path returns the path the index was opened with.
