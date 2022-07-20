@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/influxdata/influxdb/tsdb"
@@ -78,6 +79,73 @@ func TestPartition_Manifest(t *testing.T) {
 		p := MustOpenPartition(sfile.SeriesFile)
 		if got, exp := p.Manifest().Version, tsi1.Version; got != exp {
 			t.Fatalf("got MANIFEST version %d, expected %d", got, exp)
+		}
+	})
+}
+
+var badManifestPath string = filepath.Join(os.DevNull, tsi1.ManifestFileName)
+
+func TestPartition_Manifest_Write_Fail(t *testing.T) {
+	const expectedError = "not a directory"
+	t.Run("write MANIFEST", func(t *testing.T) {
+		m := tsi1.NewManifest(badManifestPath)
+		_, err := m.Write()
+		if !strings.Contains(err.Error(), expectedError) {
+			t.Fatalf("expected: %q, got: %q", expectedError, err.Error())
+		}
+	})
+}
+
+func TestPartition_PrependLogFile_Write_Fail(t *testing.T) {
+	const expectedError = "not a directory"
+	t.Run("write MANIFEST", func(t *testing.T) {
+		sfile := MustOpenSeriesFile()
+		defer sfile.Close()
+
+		p := MustOpenPartition(sfile.SeriesFile)
+		defer func() {
+			if err := p.Close(); err != nil {
+				t.Fatalf("error closing partition: %v", err)
+			}
+		}()
+		p.Partition.MaxLogFileSize = -1
+		fileN := p.FileN()
+		p.CheckLogFile()
+		if fileN >= p.FileN() {
+			t.Fatalf("manifest write prepending log file should have succeeded but number of files did not change correctly: expected more than %d files, got %d files", fileN, p.FileN())
+		}
+		p.SetManifestPathForTest(badManifestPath)
+		fileN = p.FileN()
+		p.CheckLogFile()
+		if fileN != p.FileN() {
+			t.Fatalf("manifest write prepending log file should have failed, but number of files changed: expected %d files, got %d files", fileN, p.FileN())
+		}
+	})
+}
+
+func TestPartition_Compact_Write_Fail(t *testing.T) {
+	const expectedError = "not a directory"
+	t.Run("write MANIFEST", func(t *testing.T) {
+		sfile := MustOpenSeriesFile()
+		defer sfile.Close()
+
+		p := MustOpenPartition(sfile.SeriesFile)
+		defer func() {
+			if err := p.Close(); err != nil {
+				t.Fatalf("error closing partition: %v", err)
+			}
+		}()
+		p.Partition.MaxLogFileSize = -1
+		fileN := p.FileN()
+		p.Compact()
+		if (1 + fileN) != p.FileN() {
+			t.Fatalf("manifest write in compaction should have succeeded, but number of files did not change correctly: expected %d files, got %d files", fileN+1, p.FileN())
+		}
+		p.SetManifestPathForTest(badManifestPath)
+		fileN = p.FileN()
+		p.Compact()
+		if fileN != p.FileN() {
+			t.Fatalf("manifest write should have failed the compaction, but number of files changed: expected %d files, got %d files", fileN, p.FileN())
 		}
 	})
 }
