@@ -226,7 +226,9 @@ func TestIndex_OpenFail(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, tslFile.Close())
 	idx.Index = tsi1.NewIndex(idx.SeriesFile.SeriesFile, "db0", tsi1.WithPath(idx.Index.Path()))
-	require.EqualError(t, idx.Index.Open(), "parsing binary-encoded uint64 value failed; binary.Uvarint() returned -11")
+	err = idx.Index.Open()
+	require.Error(t, err, "expected an error on opening the index")
+	require.Contains(t, err.Error(), ".tsl\": parsing binary-encoded uint64 value failed; binary.Uvarint() returned -11")
 	// ensure each partition is closed:
 	for i := 0; i < int(idx.Index.PartitionN); i++ {
 		assert.Equal(t, idx.Index.PartitionAt(i).FileN(), 0)
