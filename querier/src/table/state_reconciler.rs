@@ -72,7 +72,14 @@ impl Reconciler {
         chunks.extend(self.build_ingester_chunks(ingester_partitions));
         debug!(num_chunks=%chunks.len(), "Final chunk count after reconcilation");
 
-        let chunks = self.sync_partition_sort_keys(chunks).await;
+        let chunks = self
+            .sync_partition_sort_keys(
+                chunks,
+                span_recorder
+                    .span()
+                    .map(|span| span.child("sync_partition_sort_key")),
+            )
+            .await;
 
         let chunks: Vec<Arc<dyn QueryChunk>> = chunks
             .into_iter()
@@ -217,7 +224,10 @@ impl Reconciler {
     async fn sync_partition_sort_keys(
         &self,
         chunks: Vec<Box<dyn UpdatableQuerierChunk>>,
+        span: Option<Span>,
     ) -> Vec<Box<dyn UpdatableQuerierChunk>> {
+        let span_recorder = SpanRecorder::new(span);
+
         // collect columns
         let chunk_schemas: Vec<_> = chunks
             .iter()
@@ -237,7 +247,15 @@ impl Reconciler {
         let mut sort_keys: HashMap<PartitionId, Arc<Option<SortKey>>> =
             HashMap::with_capacity(all_columns.len());
         for (partition_id, columns) in all_columns.into_iter() {
-            let sort_key = partition_cache.sort_key(partition_id, &columns).await;
+            let sort_key = partition_cache
+                .sort_key(
+                    partition_id,
+                    &columns,
+                    span_recorder
+                        .span()
+                        .map(|span| span.child("cache GET partition sort key")),
+                )
+                .await;
             sort_keys.insert(partition_id, sort_key);
         }
 

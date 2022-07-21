@@ -14,7 +14,7 @@ use service_common::QueryDatabaseProvider;
 use sharder::JumpHash;
 use snafu::{ResultExt, Snafu};
 use std::{collections::BTreeSet, sync::Arc};
-use trace::span::Span;
+use trace::span::{Span, SpanRecorder};
 use tracker::{
     AsyncSemaphoreMetrics, InstrumentedAsyncOwnedSemaphorePermit, InstrumentedAsyncSemaphore,
 };
@@ -78,8 +78,8 @@ pub struct QuerierDatabase {
 impl QueryDatabaseProvider for QuerierDatabase {
     type Db = QuerierNamespace;
 
-    async fn db(&self, name: &str) -> Option<Arc<Self::Db>> {
-        self.namespace(name).await
+    async fn db(&self, name: &str, span: Option<Span>) -> Option<Arc<Self::Db>> {
+        self.namespace(name, span).await
     }
 
     async fn acquire_semaphore(&self, span: Option<Span>) -> InstrumentedAsyncOwnedSemaphorePermit {
@@ -151,7 +151,8 @@ impl QuerierDatabase {
     ///
     /// This will await the internal namespace semaphore. Existence of namespaces is checked AFTER
     /// a semaphore permit was acquired since this lowers the chance that we obtain stale data.
-    pub async fn namespace(&self, name: &str) -> Option<Arc<QuerierNamespace>> {
+    pub async fn namespace(&self, name: &str, span: Option<Span>) -> Option<Arc<QuerierNamespace>> {
+        let span_recorder = SpanRecorder::new(span);
         let name = Arc::from(name.to_owned());
         let schema = self
             .catalog_cache
@@ -160,6 +161,9 @@ impl QuerierDatabase {
                 Arc::clone(&name),
                 // we have no specific need for any tables or columns at this point, so nothing to cover
                 &[],
+                span_recorder
+                    .span()
+                    .map(|span| span.child("cache GET namespace schema")),
             )
             .await?;
         Some(Arc::new(QuerierNamespace::new(
@@ -304,8 +308,8 @@ mod tests {
 
         catalog.create_namespace("ns1").await;
 
-        assert!(db.namespace("ns1").await.is_some());
-        assert!(db.namespace("ns2").await.is_none());
+        assert!(db.namespace("ns1", None).await.is_some());
+        assert!(db.namespace("ns2", None).await.is_none());
     }
 
     #[tokio::test]
