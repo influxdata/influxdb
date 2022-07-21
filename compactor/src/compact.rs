@@ -8,7 +8,7 @@ use crate::{
 use backoff::BackoffConfig;
 use data_types::{
     CompactionLevel, Namespace, NamespaceId, ParquetFile, ParquetFileId, Partition, PartitionId,
-    PartitionParam, SequencerId, Table, TableId, TableSchema, Tombstone, TombstoneId,
+    PartitionKey, PartitionParam, SequencerId, Table, TableId, TableSchema, Tombstone, TombstoneId,
 };
 use datafusion::error::DataFusionError;
 use futures::stream::{FuturesUnordered, TryStreamExt};
@@ -22,6 +22,7 @@ use iox_time::TimeProvider;
 use metric::{Attributes, DurationHistogram, Metric, U64Counter, U64Gauge};
 use observability_deps::tracing::{debug, info, trace, warn};
 use parquet_file::{metadata::IoxMetadata, storage::ParquetStorage};
+use schema::sort::SortKey;
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{
     cmp::{max, min},
@@ -468,10 +469,24 @@ impl Compactor {
             tables.insert(id, (Arc::new(table), Arc::new(schema)));
         }
 
+        let mut parts = HashMap::with_capacity(partitions.len());
+        for p in partitions {
+            let partition = repos
+                .partitions()
+                .get_by_id(p.partition_id)
+                .await
+                .context(QueryingPartitionSnafu)?
+                .context(PartitionNotFoundSnafu {
+                    partition_id: p.partition_id,
+                })?;
+            parts.insert(p.partition_id, partition);
+        }
+
         Ok(partitions
             .iter()
             .map(|p| {
                 let (table, table_schema) = tables.get(&p.table_id).expect("just queried");
+                let part = parts.get(&p.partition_id).expect("just queried");
 
                 PartitionCompactionCandidateWithInfo {
                     table: Arc::clone(table),
@@ -480,6 +495,8 @@ impl Compactor {
                         &namespaces.get(&p.namespace_id).expect("just queried").0,
                     ),
                     candidate: *p,
+                    sort_key: part.sort_key(),
+                    partition_key: part.partition_key.clone(),
                 }
             })
             .collect())
@@ -1147,6 +1164,12 @@ pub struct PartitionCompactionCandidateWithInfo {
 
     /// Table schema
     pub table_schema: Arc<TableSchema>,
+
+    /// Sort key of the partition
+    pub sort_key: Option<SortKey>,
+
+    /// partition_key
+    pub partition_key: PartitionKey,
 }
 
 #[cfg(test)]
@@ -2331,6 +2354,12 @@ mod tests {
             )
             .await
             .unwrap();
+        // update sort key for this another_partition
+        let another_partition = txn
+            .partitions()
+            .update_sort_key(another_partition.id, &["tag1", "time"])
+            .await
+            .unwrap();
         txn.commit().await.unwrap();
 
         // Create a compactor
@@ -2500,6 +2529,29 @@ mod tests {
         assert_eq!(candidates[0].sequencer_id, sequencer.id);
         assert_eq!(candidates[1].partition_id, another_partition.id);
         assert_eq!(candidates[1].sequencer_id, another_sequencer.id);
+
+        // Add info to partition
+        let partitions_with_info = compactor.add_info_to_partitions(&candidates).await.unwrap();
+        assert_eq!(partitions_with_info.len(), 2);
+        //
+        assert_eq!(*partitions_with_info[0].namespace, namespace);
+        assert_eq!(*partitions_with_info[0].table, table);
+        assert_eq!(
+            partitions_with_info[0].partition_key,
+            partition3.partition_key
+        );
+        assert_eq!(partitions_with_info[0].sort_key, partition3.sort_key()); // this sort key is None
+                                                                             //
+        assert_eq!(*partitions_with_info[1].namespace, namespace);
+        assert_eq!(*partitions_with_info[1].table, another_table);
+        assert_eq!(
+            partitions_with_info[1].partition_key,
+            another_partition.partition_key
+        );
+        assert_eq!(
+            partitions_with_info[1].sort_key,
+            another_partition.sort_key()
+        ); // this sort key is Some(tag1, time)
     }
 
     #[tokio::test]
