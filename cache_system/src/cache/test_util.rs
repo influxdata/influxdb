@@ -16,12 +16,26 @@ use crate::{
 use super::Cache;
 
 /// Interface between generic tests and a concrete cache type.
-pub trait TestAdapter: Send + Sync {
+pub trait TestAdapter: Send + Sync + 'static {
+    /// Extra information for GET.
+    type GetExtra: Send;
+
+    /// Extra information for PEEK.
+    type PeekExtra: Send;
+
     /// Cache type.
-    type Cache: Cache<K = u8, V = String, GetExtra = bool, PeekExtra = ()>;
+    type Cache: Cache<K = u8, V = String, GetExtra = Self::GetExtra, PeekExtra = Self::PeekExtra>;
 
     /// Create new cache with given loader.
     fn construct(&self, loader: Arc<TestLoader>) -> Arc<Self::Cache>;
+
+    /// Build [`GetExtra`](Self::GetExtra).
+    ///
+    /// Must contain a [`bool`] payload that is later included into the value string for testing purposes.
+    fn get_extra(&self, inner: bool) -> Self::GetExtra;
+
+    /// Build [`PeekExtra`](Self::PeekExtra).
+    fn peek_extra(&self) -> Self::PeekExtra;
 }
 
 /// Setup test.
@@ -38,82 +52,97 @@ pub async fn run_test_generic<T>(adapter: T)
 where
     T: TestAdapter,
 {
-    test_answers_are_correct(&adapter).await;
-    test_linear_memory(&adapter).await;
-    test_concurrent_query_loads_once(&adapter).await;
-    test_queries_are_parallelized(&adapter).await;
-    test_cancel_request(&adapter).await;
-    test_panic_request(&adapter).await;
-    test_drop_cancels_loader(&adapter).await;
-    test_set_before_request(&adapter).await;
-    test_set_during_request(&adapter).await;
+    let adapter = Arc::new(adapter);
+
+    test_answers_are_correct(Arc::clone(&adapter)).await;
+    test_linear_memory(Arc::clone(&adapter)).await;
+    test_concurrent_query_loads_once(Arc::clone(&adapter)).await;
+    test_queries_are_parallelized(Arc::clone(&adapter)).await;
+    test_cancel_request(Arc::clone(&adapter)).await;
+    test_panic_request(Arc::clone(&adapter)).await;
+    test_drop_cancels_loader(Arc::clone(&adapter)).await;
+    test_set_before_request(Arc::clone(&adapter)).await;
+    test_set_during_request(Arc::clone(&adapter)).await;
 }
 
-async fn test_answers_are_correct<T>(adapter: &T)
+async fn test_answers_are_correct<T>(adapter: Arc<T>)
 where
     T: TestAdapter,
 {
-    let (cache, _loader) = setup(adapter);
+    let (cache, _loader) = setup(adapter.as_ref());
 
-    assert_eq!(cache.get(1, true).await, String::from("1_true"));
-    assert_eq!(cache.peek(1, ()).await, Some(String::from("1_true")));
-    assert_eq!(cache.get(2, false).await, String::from("2_false"));
-    assert_eq!(cache.peek(2, ()).await, Some(String::from("2_false")));
-}
-
-async fn test_linear_memory<T>(adapter: &T)
-where
-    T: TestAdapter,
-{
-    let (cache, loader) = setup(adapter);
-
-    assert_eq!(cache.peek_with_status(1, ()).await, None,);
     assert_eq!(
-        cache.get_with_status(1, true).await,
+        cache.get(1, adapter.get_extra(true)).await,
+        String::from("1_true")
+    );
+    assert_eq!(
+        cache.peek(1, adapter.peek_extra()).await,
+        Some(String::from("1_true"))
+    );
+    assert_eq!(
+        cache.get(2, adapter.get_extra(false)).await,
+        String::from("2_false")
+    );
+    assert_eq!(
+        cache.peek(2, adapter.peek_extra()).await,
+        Some(String::from("2_false"))
+    );
+}
+
+async fn test_linear_memory<T>(adapter: Arc<T>)
+where
+    T: TestAdapter,
+{
+    let (cache, loader) = setup(adapter.as_ref());
+
+    assert_eq!(cache.peek_with_status(1, adapter.peek_extra()).await, None,);
+    assert_eq!(
+        cache.get_with_status(1, adapter.get_extra(true)).await,
         (String::from("1_true"), CacheGetStatus::Miss),
     );
     assert_eq!(
-        cache.get_with_status(1, false).await,
+        cache.get_with_status(1, adapter.get_extra(false)).await,
         (String::from("1_true"), CacheGetStatus::Hit),
     );
     assert_eq!(
-        cache.peek_with_status(1, ()).await,
+        cache.peek_with_status(1, adapter.peek_extra()).await,
         Some((String::from("1_true"), CachePeekStatus::Hit)),
     );
     assert_eq!(
-        cache.get_with_status(2, false).await,
+        cache.get_with_status(2, adapter.get_extra(false)).await,
         (String::from("2_false"), CacheGetStatus::Miss),
     );
     assert_eq!(
-        cache.get_with_status(2, false).await,
+        cache.get_with_status(2, adapter.get_extra(false)).await,
         (String::from("2_false"), CacheGetStatus::Hit),
     );
     assert_eq!(
-        cache.get_with_status(1, true).await,
+        cache.get_with_status(1, adapter.get_extra(true)).await,
         (String::from("1_true"), CacheGetStatus::Hit),
     );
     assert_eq!(
-        cache.peek_with_status(1, ()).await,
+        cache.peek_with_status(1, adapter.peek_extra()).await,
         Some((String::from("1_true"), CachePeekStatus::Hit)),
     );
 
     assert_eq!(loader.loaded(), vec![1, 2]);
 }
 
-async fn test_concurrent_query_loads_once<T>(adapter: &T)
+async fn test_concurrent_query_loads_once<T>(adapter: Arc<T>)
 where
     T: TestAdapter,
 {
-    let (cache, loader) = setup(adapter);
+    let (cache, loader) = setup(adapter.as_ref());
 
     loader.block();
 
+    let adapter_captured = Arc::clone(&adapter);
     let cache_captured = Arc::clone(&cache);
     let barrier_pending_1 = Arc::new(Barrier::new(2));
     let barrier_pending_1_captured = Arc::clone(&barrier_pending_1);
     let handle_1 = tokio::spawn(async move {
         cache_captured
-            .get_with_status(1, true)
+            .get_with_status(1, adapter_captured.get_extra(true))
             .ensure_pending(barrier_pending_1_captured)
             .await
     });
@@ -122,12 +151,13 @@ where
 
     let barrier_pending_2 = Arc::new(Barrier::new(3));
 
+    let adapter_captured = Arc::clone(&adapter);
     let cache_captured = Arc::clone(&cache);
     let barrier_pending_2_captured = Arc::clone(&barrier_pending_2);
     let handle_2 = tokio::spawn(async move {
         // use a different `extra` here to proof that the first one was used
         cache_captured
-            .get_with_status(1, false)
+            .get_with_status(1, adapter_captured.get_extra(false))
             .ensure_pending(barrier_pending_2_captured)
             .await
     });
@@ -135,7 +165,7 @@ where
     let handle_3 = tokio::spawn(async move {
         // use a different `extra` here to proof that the first one was used
         cache
-            .peek_with_status(1, ())
+            .peek_with_status(1, adapter.peek_extra())
             .ensure_pending(barrier_pending_2_captured)
             .await
     });
@@ -161,37 +191,43 @@ where
     assert_eq!(loader.loaded(), vec![1]);
 }
 
-async fn test_queries_are_parallelized<T>(adapter: &T)
+async fn test_queries_are_parallelized<T>(adapter: Arc<T>)
 where
     T: TestAdapter,
 {
-    let (cache, loader) = setup(adapter);
+    let (cache, loader) = setup(adapter.as_ref());
 
     loader.block();
 
     let barrier = Arc::new(Barrier::new(4));
 
+    let adapter_captured = Arc::clone(&adapter);
     let cache_captured = Arc::clone(&cache);
     let barrier_captured = Arc::clone(&barrier);
     let handle_1 = tokio::spawn(async move {
         cache_captured
-            .get(1, true)
+            .get(1, adapter_captured.get_extra(true))
             .ensure_pending(barrier_captured)
             .await
     });
 
+    let adapter_captured = Arc::clone(&adapter);
     let cache_captured = Arc::clone(&cache);
     let barrier_captured = Arc::clone(&barrier);
     let handle_2 = tokio::spawn(async move {
         cache_captured
-            .get(1, true)
+            .get(1, adapter_captured.get_extra(true))
             .ensure_pending(barrier_captured)
             .await
     });
 
     let barrier_captured = Arc::clone(&barrier);
-    let handle_3 =
-        tokio::spawn(async move { cache.get(2, false).ensure_pending(barrier_captured).await });
+    let handle_3 = tokio::spawn(async move {
+        cache
+            .get(2, adapter.get_extra(false))
+            .ensure_pending(barrier_captured)
+            .await
+    });
 
     barrier.wait().await;
 
@@ -205,20 +241,21 @@ where
     assert_eq!(loader.loaded(), vec![1, 2]);
 }
 
-async fn test_cancel_request<T>(adapter: &T)
+async fn test_cancel_request<T>(adapter: Arc<T>)
 where
     T: TestAdapter,
 {
-    let (cache, loader) = setup(adapter);
+    let (cache, loader) = setup(adapter.as_ref());
 
     loader.block();
 
     let barrier_pending_1 = Arc::new(Barrier::new(2));
     let barrier_pending_1_captured = Arc::clone(&barrier_pending_1);
+    let adapter_captured = Arc::clone(&adapter);
     let cache_captured = Arc::clone(&cache);
     let handle_1 = tokio::spawn(async move {
         cache_captured
-            .get(1, true)
+            .get(1, adapter_captured.get_extra(true))
             .ensure_pending(barrier_pending_1_captured)
             .await
     });
@@ -228,7 +265,7 @@ where
     let barrier_pending_2_captured = Arc::clone(&barrier_pending_2);
     let handle_2 = tokio::spawn(async move {
         cache
-            .get(1, false)
+            .get(1, adapter.get_extra(false))
             .ensure_pending(barrier_pending_2_captured)
             .await
     });
@@ -246,11 +283,11 @@ where
     assert_eq!(loader.loaded(), vec![1]);
 }
 
-async fn test_panic_request<T>(adapter: &T)
+async fn test_panic_request<T>(adapter: Arc<T>)
 where
     T: TestAdapter,
 {
-    let (cache, loader) = setup(adapter);
+    let (cache, loader) = setup(adapter.as_ref());
 
     loader.panic_once(1);
     loader.block();
@@ -258,10 +295,11 @@ where
     // set up initial panicking request
     let barrier_pending_get_panic = Arc::new(Barrier::new(2));
     let barrier_pending_get_panic_captured = Arc::clone(&barrier_pending_get_panic);
+    let adapter_captured = Arc::clone(&adapter);
     let cache_captured = Arc::clone(&cache);
     let handle_get_panic = tokio::spawn(async move {
         cache_captured
-            .get(1, true)
+            .get(1, adapter_captured.get_extra(true))
             .ensure_pending(barrier_pending_get_panic_captured)
             .await
     });
@@ -272,28 +310,31 @@ where
     let barrier_pending_others = Arc::new(Barrier::new(4));
 
     let barrier_pending_others_captured = Arc::clone(&barrier_pending_others);
+    let adapter_captured = Arc::clone(&adapter);
     let cache_captured = Arc::clone(&cache);
     let handle_get_while_loading_panic = tokio::spawn(async move {
         cache_captured
-            .get(1, false)
+            .get(1, adapter_captured.get_extra(false))
             .ensure_pending(barrier_pending_others_captured)
             .await
     });
 
     let barrier_pending_others_captured = Arc::clone(&barrier_pending_others);
+    let adapter_captured = Arc::clone(&adapter);
     let cache_captured = Arc::clone(&cache);
     let handle_peek_while_loading_panic = tokio::spawn(async move {
         cache_captured
-            .peek(1, ())
+            .peek(1, adapter_captured.peek_extra())
             .ensure_pending(barrier_pending_others_captured)
             .await
     });
 
     let barrier_pending_others_captured = Arc::clone(&barrier_pending_others);
+    let adapter_captured = Arc::clone(&adapter);
     let cache_captured = Arc::clone(&cache);
     let handle_get_other_key = tokio::spawn(async move {
         cache_captured
-            .get(2, false)
+            .get(2, adapter_captured.get_extra(false))
             .ensure_pending(barrier_pending_others_captured)
             .await
     });
@@ -317,15 +358,18 @@ where
     assert_eq!(loader.loaded(), vec![1, 2]);
 
     // loading after panic just works (no poisoning)
-    assert_eq!(cache.get(1, false).await, String::from("1_false"));
+    assert_eq!(
+        cache.get(1, adapter.get_extra(false)).await,
+        String::from("1_false")
+    );
     assert_eq!(loader.loaded(), vec![1, 2, 1]);
 }
 
-async fn test_drop_cancels_loader<T>(adapter: &T)
+async fn test_drop_cancels_loader<T>(adapter: Arc<T>)
 where
     T: TestAdapter,
 {
-    let (cache, loader) = setup(adapter);
+    let (cache, loader) = setup(adapter.as_ref());
 
     loader.block();
 
@@ -333,7 +377,7 @@ where
     let barrier_pending_captured = Arc::clone(&barrier_pending);
     let handle = tokio::spawn(async move {
         cache
-            .get(1, true)
+            .get(1, adapter.get_extra(true))
             .ensure_pending(barrier_pending_captured)
             .await
     });
@@ -345,38 +389,42 @@ where
     assert_eq!(Arc::strong_count(&loader), 1);
 }
 
-async fn test_set_before_request<T>(adapter: &T)
+async fn test_set_before_request<T>(adapter: Arc<T>)
 where
     T: TestAdapter,
 {
-    let (cache, loader) = setup(adapter);
+    let (cache, loader) = setup(adapter.as_ref());
 
     loader.block();
 
     cache.set(1, String::from("foo")).await;
 
     // blocked loader is not used
-    let res = tokio::time::timeout(Duration::from_millis(10), cache.get(1, false))
-        .await
-        .unwrap();
+    let res = tokio::time::timeout(
+        Duration::from_millis(10),
+        cache.get(1, adapter.get_extra(false)),
+    )
+    .await
+    .unwrap();
     assert_eq!(res, String::from("foo"));
     assert_eq!(loader.loaded(), Vec::<u8>::new());
 }
 
-async fn test_set_during_request<T>(adapter: &T)
+async fn test_set_during_request<T>(adapter: Arc<T>)
 where
     T: TestAdapter,
 {
-    let (cache, loader) = setup(adapter);
+    let (cache, loader) = setup(adapter.as_ref());
 
     loader.block();
 
+    let adapter_captured = Arc::clone(&adapter);
     let cache_captured = Arc::clone(&cache);
     let barrier_pending = Arc::new(Barrier::new(2));
     let barrier_pending_captured = Arc::clone(&barrier_pending);
     let handle = tokio::spawn(async move {
         cache_captured
-            .get(1, true)
+            .get(1, adapter_captured.get_extra(true))
             .ensure_pending(barrier_pending_captured)
             .await
     });
@@ -393,9 +441,12 @@ where
     assert_eq!(loader.loaded(), vec![1]);
 
     // still cached
-    let res = tokio::time::timeout(Duration::from_millis(10), cache.get(1, false))
-        .await
-        .unwrap();
+    let res = tokio::time::timeout(
+        Duration::from_millis(10),
+        cache.get(1, adapter.get_extra(false)),
+    )
+    .await
+    .unwrap();
     assert_eq!(res, String::from("foo"));
     assert_eq!(loader.loaded(), vec![1]);
 }

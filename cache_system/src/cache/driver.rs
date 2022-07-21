@@ -405,6 +405,8 @@ mod tests {
     struct MyTestAdapter;
 
     impl TestAdapter for MyTestAdapter {
+        type GetExtra = bool;
+        type PeekExtra = ();
         type Cache = CacheDriver<u8, String, bool>;
 
         fn construct(&self, loader: Arc<TestLoader>) -> Arc<Self::Cache> {
@@ -413,5 +415,11 @@ mod tests {
                 Box::new(HashMap::new()),
             ))
         }
+
+        fn get_extra(&self, inner: bool) -> Self::GetExtra {
+            inner
+        }
+
+        fn peek_extra(&self) -> Self::PeekExtra {}
     }
 }

@@ -15,6 +15,7 @@ use iox_catalog::interface::Catalog;
 use iox_time::TimeProvider;
 use snafu::{ResultExt, Snafu};
 use std::{collections::HashMap, mem, sync::Arc};
+use trace::span::Span;
 
 use super::ram::RamSize;
 
@@ -65,7 +66,14 @@ impl CachedTombstones {
     }
 }
 
-type CacheT = Box<dyn Cache<K = TableId, V = CachedTombstones, GetExtra = (), PeekExtra = ()>>;
+type CacheT = Box<
+    dyn Cache<
+        K = TableId,
+        V = CachedTombstones,
+        GetExtra = ((), Option<Span>),
+        PeekExtra = ((), Option<Span>),
+    >,
+>;
 
 /// Cache for tombstones for a particular table
 #[derive(Debug)]
@@ -143,7 +151,8 @@ impl TombstoneCache {
 
     /// Get list of cached tombstones, by table id
     pub async fn get(&self, table_id: TableId) -> CachedTombstones {
-        self.cache.get(table_id, ()).await
+        // TODO(marco): pass span
+        self.cache.get(table_id, ((), None)).await
     }
 
     /// Mark the entry for table_id as expired / needs a refresh

@@ -19,12 +19,20 @@ use std::{
     mem::size_of_val,
     sync::Arc,
 };
+use trace::span::Span;
 
 use super::ram::RamSize;
 
 const CACHE_ID: &str = "partition";
 
-type CacheT = Box<dyn Cache<K = PartitionId, V = CachedPartition, GetExtra = (), PeekExtra = ()>>;
+type CacheT = Box<
+    dyn Cache<
+        K = PartitionId,
+        V = CachedPartition,
+        GetExtra = ((), Option<Span>),
+        PeekExtra = ((), Option<Span>),
+    >,
+>;
 
 /// Cache for partition-related attributes.
 #[derive(Debug)]
@@ -101,7 +109,8 @@ impl PartitionCache {
 
     /// Get sequencer ID.
     pub async fn sequencer_id(&self, partition_id: PartitionId) -> SequencerId {
-        self.cache.get(partition_id, ()).await.sequencer_id
+        // TODO(marco): pass span
+        self.cache.get(partition_id, ((), None)).await.sequencer_id
     }
 
     /// Get sort key
@@ -125,7 +134,8 @@ impl PartitionCache {
             }
         });
 
-        self.cache.get(partition_id, ()).await.sort_key
+        // TODO(marco): pass span
+        self.cache.get(partition_id, ((), None)).await.sort_key
     }
 }
 

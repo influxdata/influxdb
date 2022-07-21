@@ -27,6 +27,17 @@ pub enum CacheGetStatus {
     MissAlreadyLoading,
 }
 
+impl CacheGetStatus {
+    /// Get human and machine readable name.
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::Hit => "hit",
+            Self::Miss => "miss",
+            Self::MissAlreadyLoading => "miss_already_loading",
+        }
+    }
+}
+
 /// Status of a [`Cache`] [PEEK](Cache::peek_with_status) request.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CachePeekStatus {
@@ -36,6 +47,16 @@ pub enum CachePeekStatus {
     /// The requested entry was NOT present in the storage backend, but there was already a loader query running for
     /// this particular key.
     MissAlreadyLoading,
+}
+
+impl CachePeekStatus {
+    /// Get human and machine redable name.
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::Hit => "hit",
+            Self::MissAlreadyLoading => "miss_already_loading",
+        }
+    }
 }
 
 /// High-level cache implementation.

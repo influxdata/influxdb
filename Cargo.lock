@@ -574,6 +574,7 @@ dependencies = [
  "proptest",
  "rand",
  "tokio",
+ "trace",
  "workspace-hack",
 ]
 

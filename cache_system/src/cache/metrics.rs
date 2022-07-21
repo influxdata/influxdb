@@ -4,6 +4,7 @@ use std::{fmt::Debug, hash::Hash, sync::Arc};
 use async_trait::async_trait;
 use iox_time::{Time, TimeProvider};
 use metric::{Attributes, DurationHistogram, U64Counter};
+use trace::span::{Span, SpanRecorder};
 
 use super::{Cache, CacheGetStatus, CachePeekStatus};
 
@@ -125,15 +126,16 @@ where
 {
     type K = K;
     type V = V;
-    type GetExtra = GetExtra;
-    type PeekExtra = PeekExtra;
+    type GetExtra = (GetExtra, Option<Span>);
+    type PeekExtra = (PeekExtra, Option<Span>);
 
     async fn get_with_status(
         &self,
         k: Self::K,
         extra: Self::GetExtra,
     ) -> (Self::V, CacheGetStatus) {
-        let mut set_on_drop = SetGetMetricOnDrop::new(&self.metrics);
+        let (extra, span) = extra;
+        let mut set_on_drop = SetGetMetricOnDrop::new(&self.metrics, span);
         let (v, status) = self.inner.get_with_status(k, extra).await;
         set_on_drop.status = Some(status);
 
@@ -145,7 +147,8 @@ where
         k: Self::K,
         extra: Self::PeekExtra,
     ) -> Option<(Self::V, CachePeekStatus)> {
-        let mut set_on_drop = SetPeekMetricOnDrop::new(&self.metrics);
+        let (extra, span) = extra;
+        let mut set_on_drop = SetPeekMetricOnDrop::new(&self.metrics, span);
         let res = self.inner.peek_with_status(k, extra).await;
         set_on_drop.status = Some(res.as_ref().map(|(_v, status)| *status));
 
@@ -166,16 +169,18 @@ struct SetGetMetricOnDrop<'a> {
     metrics: &'a Metrics,
     t_start: Time,
     status: Option<CacheGetStatus>,
+    span_recorder: SpanRecorder,
 }
 
 impl<'a> SetGetMetricOnDrop<'a> {
-    fn new(metrics: &'a Metrics) -> Self {
+    fn new(metrics: &'a Metrics, span: Option<Span>) -> Self {
         let t_start = metrics.time_provider.now();
 
         Self {
             metrics,
             t_start,
             status: None,
+            span_recorder: SpanRecorder::new(span),
         }
     }
 }
@@ -193,6 +198,10 @@ impl<'a> Drop for SetGetMetricOnDrop<'a> {
             None => &self.metrics.metric_get_cancelled,
         }
         .record(t_end - self.t_start);
+
+        if let Some(status) = self.status {
+            self.span_recorder.ok(status.name());
+        }
     }
 }
 
@@ -204,16 +213,18 @@ struct SetPeekMetricOnDrop<'a> {
     metrics: &'a Metrics,
     t_start: Time,
     status: Option<Option<CachePeekStatus>>,
+    span_recorder: SpanRecorder,
 }
 
 impl<'a> SetPeekMetricOnDrop<'a> {
-    fn new(metrics: &'a Metrics) -> Self {
+    fn new(metrics: &'a Metrics, span: Option<Span>) -> Self {
         let t_start = metrics.time_provider.now();
 
         Self {
             metrics,
             t_start,
             status: None,
+            span_recorder: SpanRecorder::new(span),
         }
     }
 }
@@ -231,6 +242,11 @@ impl<'a> Drop for SetPeekMetricOnDrop<'a> {
             None => &self.metrics.metric_peek_cancelled,
         }
         .record(t_end - self.t_start);
+
+        if let Some(status) = self.status {
+            self.span_recorder
+                .ok(status.map(|status| status.name()).unwrap_or("miss"));
+        }
     }
 }
 
@@ -242,6 +258,7 @@ mod tests {
     use iox_time::{MockProvider, Time};
     use metric::{HistogramObservation, Observation, RawReporter};
     use tokio::sync::Barrier;
+    use trace::{span::SpanStatus, RingBufferTraceCollector};
 
     use crate::cache::{
         driver::CacheDriver,
@@ -258,16 +275,28 @@ mod tests {
     struct MyTestAdapter;
 
     impl TestAdapter for MyTestAdapter {
+        type GetExtra = (bool, Option<Span>);
+        type PeekExtra = ((), Option<Span>);
         type Cache = CacheWithMetrics<u8, String, bool, ()>;
 
         fn construct(&self, loader: Arc<TestLoader>) -> Arc<Self::Cache> {
             TestMetricsCache::new_with_loader(loader).cache
+        }
+
+        fn get_extra(&self, inner: bool) -> Self::GetExtra {
+            (inner, None)
+        }
+
+        fn peek_extra(&self) -> Self::PeekExtra {
+            ((), None)
         }
     }
 
     #[tokio::test]
     async fn test_get() {
         let test_cache = TestMetricsCache::new();
+
+        let traces = Arc::new(RingBufferTraceCollector::new(1_000));
 
         let mut reporter = RawReporter::default();
         test_cache.metric_registry.report(&mut reporter);
@@ -282,10 +311,17 @@ mod tests {
 
         let barrier_pending_1 = Arc::new(Barrier::new(2));
         let barrier_pending_1_captured = Arc::clone(&barrier_pending_1);
+        let traces_captured = Arc::clone(&traces);
         let cache_captured = Arc::clone(&test_cache.cache);
         let join_handle_1 = tokio::task::spawn(async move {
             cache_captured
-                .get(1, true)
+                .get(
+                    1,
+                    (
+                        true,
+                        Some(Span::root("miss", Arc::clone(&traces_captured) as _)),
+                    ),
+                )
                 .ensure_pending(barrier_pending_1_captured)
                 .await
         });
@@ -295,11 +331,23 @@ mod tests {
         test_cache.time_provider.inc(d1);
         let barrier_pending_2 = Arc::new(Barrier::new(2));
         let barrier_pending_2_captured = Arc::clone(&barrier_pending_2);
+        let traces_captured = Arc::clone(&traces);
         let cache_captured = Arc::clone(&test_cache.cache);
         let n_miss_already_loading = 10;
         let join_handle_2 = tokio::task::spawn(async move {
             (0..n_miss_already_loading)
-                .map(|_| cache_captured.get(1, true))
+                .map(|_| {
+                    cache_captured.get(
+                        1,
+                        (
+                            true,
+                            Some(Span::root(
+                                "miss_already_loading",
+                                Arc::clone(&traces_captured) as _,
+                            )),
+                        ),
+                    )
+                })
                 .collect::<FuturesUnordered<_>>()
                 .collect::<Vec<_>>()
                 .ensure_pending(barrier_pending_2_captured)
@@ -318,16 +366,28 @@ mod tests {
         test_cache.time_provider.inc(Duration::from_secs(10));
         let n_hit = 100;
         for _ in 0..n_hit {
-            test_cache.cache.get(1, true).await;
+            test_cache
+                .cache
+                .get(1, (true, Some(Span::root("hit", Arc::clone(&traces) as _))))
+                .await;
         }
 
         let n_cancelled = 200;
         let barrier_pending_3 = Arc::new(Barrier::new(2));
         let barrier_pending_3_captured = Arc::clone(&barrier_pending_3);
+        let traces_captured = Arc::clone(&traces);
         let cache_captured = Arc::clone(&test_cache.cache);
         let join_handle_3 = tokio::task::spawn(async move {
             (0..n_cancelled)
-                .map(|_| cache_captured.get(2, true))
+                .map(|_| {
+                    cache_captured.get(
+                        2,
+                        (
+                            true,
+                            Some(Span::root("cancelled", Arc::clone(&traces_captured) as _)),
+                        ),
+                    )
+                })
                 .collect::<FuturesUnordered<_>>()
                 .collect::<Vec<_>>()
                 .ensure_pending(barrier_pending_3_captured)
@@ -359,11 +419,29 @@ mod tests {
         let hist = get_metric_cache_get(&reporter, "cancelled");
         assert_eq!(hist.sample_count(), n_cancelled);
         assert_eq!(hist.total, (n_cancelled as u32) * d3);
+
+        // check spans
+        assert_n_spans(&traces, "hit", SpanStatus::Ok, n_hit as usize);
+        assert_n_spans(&traces, "miss", SpanStatus::Ok, 1);
+        assert_n_spans(
+            &traces,
+            "miss_already_loading",
+            SpanStatus::Ok,
+            n_miss_already_loading as usize,
+        );
+        assert_n_spans(
+            &traces,
+            "cancelled",
+            SpanStatus::Unknown,
+            n_cancelled as usize,
+        );
     }
 
     #[tokio::test]
     async fn test_peek() {
         let test_cache = TestMetricsCache::new();
+
+        let traces = Arc::new(RingBufferTraceCollector::new(1_000));
 
         let mut reporter = RawReporter::default();
         test_cache.metric_registry.report(&mut reporter);
@@ -376,14 +454,17 @@ mod tests {
 
         test_cache.loader.block();
 
-        test_cache.cache.peek(1, ()).await;
+        test_cache
+            .cache
+            .peek(1, ((), Some(Span::root("miss", Arc::clone(&traces) as _))))
+            .await;
 
         let barrier_pending_1 = Arc::new(Barrier::new(2));
         let barrier_pending_1_captured = Arc::clone(&barrier_pending_1);
         let cache_captured = Arc::clone(&test_cache.cache);
         let join_handle_1 = tokio::task::spawn(async move {
             cache_captured
-                .get(1, true)
+                .get(1, (true, None))
                 .ensure_pending(barrier_pending_1_captured)
                 .await
         });
@@ -393,11 +474,23 @@ mod tests {
         test_cache.time_provider.inc(d1);
         let barrier_pending_2 = Arc::new(Barrier::new(2));
         let barrier_pending_2_captured = Arc::clone(&barrier_pending_2);
+        let traces_captured = Arc::clone(&traces);
         let cache_captured = Arc::clone(&test_cache.cache);
         let n_miss_already_loading = 10;
         let join_handle_2 = tokio::task::spawn(async move {
             (0..n_miss_already_loading)
-                .map(|_| cache_captured.peek(1, ()))
+                .map(|_| {
+                    cache_captured.peek(
+                        1,
+                        (
+                            (),
+                            Some(Span::root(
+                                "miss_already_loading",
+                                Arc::clone(&traces_captured) as _,
+                            )),
+                        ),
+                    )
+                })
                 .collect::<FuturesUnordered<_>>()
                 .collect::<Vec<_>>()
                 .ensure_pending(barrier_pending_2_captured)
@@ -416,7 +509,10 @@ mod tests {
         test_cache.time_provider.inc(Duration::from_secs(10));
         let n_hit = 100;
         for _ in 0..n_hit {
-            test_cache.cache.peek(1, ()).await;
+            test_cache
+                .cache
+                .peek(1, ((), Some(Span::root("hit", Arc::clone(&traces) as _))))
+                .await;
         }
 
         let n_cancelled = 200;
@@ -425,17 +521,26 @@ mod tests {
         let cache_captured = Arc::clone(&test_cache.cache);
         tokio::task::spawn(async move {
             cache_captured
-                .get(2, true)
+                .get(2, (true, None))
                 .ensure_pending(barrier_pending_3_captured)
                 .await
         });
         barrier_pending_3.wait().await;
         let barrier_pending_4 = Arc::new(Barrier::new(2));
         let barrier_pending_4_captured = Arc::clone(&barrier_pending_4);
+        let traces_captured = Arc::clone(&traces);
         let cache_captured = Arc::clone(&test_cache.cache);
         let join_handle_3 = tokio::task::spawn(async move {
             (0..n_cancelled)
-                .map(|_| cache_captured.peek(2, ()))
+                .map(|_| {
+                    cache_captured.peek(
+                        2,
+                        (
+                            (),
+                            Some(Span::root("cancelled", Arc::clone(&traces_captured) as _)),
+                        ),
+                    )
+                })
                 .collect::<FuturesUnordered<_>>()
                 .collect::<Vec<_>>()
                 .ensure_pending(barrier_pending_4_captured)
@@ -468,6 +573,22 @@ mod tests {
         let hist = get_metric_cache_peek(&reporter, "cancelled");
         assert_eq!(hist.sample_count(), n_cancelled);
         assert_eq!(hist.total, (n_cancelled as u32) * d3);
+
+        // check spans
+        assert_n_spans(&traces, "hit", SpanStatus::Ok, n_hit as usize);
+        assert_n_spans(&traces, "miss", SpanStatus::Ok, 1);
+        assert_n_spans(
+            &traces,
+            "miss_already_loading",
+            SpanStatus::Ok,
+            n_miss_already_loading as usize,
+        );
+        assert_n_spans(
+            &traces,
+            "cancelled",
+            SpanStatus::Unknown,
+            n_cancelled as usize,
+        );
     }
 
     #[tokio::test]
@@ -564,5 +685,19 @@ mod tests {
         } else {
             panic!("Wrong observation type");
         }
+    }
+
+    fn assert_n_spans(
+        traces: &RingBufferTraceCollector,
+        name: &'static str,
+        status: SpanStatus,
+        expected: usize,
+    ) {
+        let actual = traces
+            .spans()
+            .into_iter()
+            .filter(|span| (span.name == name) && (span.status == status))
+            .count();
+        assert_eq!(actual, expected);
     }
 }

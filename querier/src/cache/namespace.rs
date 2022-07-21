@@ -20,6 +20,7 @@ use std::{
     sync::Arc,
     time::Duration,
 };
+use trace::span::Span;
 
 use super::ram::RamSize;
 
@@ -39,8 +40,14 @@ pub const TTL_NON_EXISTING: Duration = Duration::from_nanos(1);
 
 const CACHE_ID: &str = "namespace";
 
-type CacheT =
-    Box<dyn Cache<K = Arc<str>, V = Option<Arc<CachedNamespace>>, GetExtra = (), PeekExtra = ()>>;
+type CacheT = Box<
+    dyn Cache<
+        K = Arc<str>,
+        V = Option<Arc<CachedNamespace>>,
+        GetExtra = ((), Option<Span>),
+        PeekExtra = ((), Option<Span>),
+    >,
+>;
 
 /// Cache for namespace-related attributes.
 #[derive(Debug)]
@@ -157,8 +164,9 @@ impl NamespaceCache {
             }
         });
 
+        // TODO(marco): pass span
         self.cache
-            .get(name, ())
+            .get(name, ((), None))
             .await
             .map(|n| Arc::clone(&n.schema))
     }

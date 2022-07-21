@@ -12,6 +12,7 @@ observability_deps = { path = "../observability_deps" }
 parking_lot = "0.12"
 pdatastructs = { version = "0.7", default-features = false, features = ["fixedbitset"] }
 tokio = { version = "1.20", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
+trace = { path = "../trace"}
 workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]

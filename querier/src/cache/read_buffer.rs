@@ -20,6 +20,7 @@ use read_buffer::{ChunkMetrics, RBChunk};
 use schema::Schema;
 use snafu::{ResultExt, Snafu};
 use std::{collections::HashMap, mem, sync::Arc};
+use trace::span::Span;
 
 const CACHE_ID: &str = "read_buffer";
 
@@ -30,8 +31,14 @@ struct ExtraFetchInfo {
     store: ParquetStorage,
 }
 
-type CacheT =
-    Box<dyn Cache<K = ParquetFileId, V = Arc<RBChunk>, GetExtra = ExtraFetchInfo, PeekExtra = ()>>;
+type CacheT = Box<
+    dyn Cache<
+        K = ParquetFileId,
+        V = Arc<RBChunk>,
+        GetExtra = (ExtraFetchInfo, Option<Span>),
+        PeekExtra = ((), Option<Span>),
+    >,
+>;
 
 /// Cache for parquet file data decoded into read buffer chunks
 #[derive(Debug)]
@@ -122,22 +129,26 @@ impl ReadBufferCache {
         schema: Arc<Schema>,
         store: ParquetStorage,
     ) -> Arc<RBChunk> {
+        // TODO(marco): pass span
         self.cache
             .get(
                 parquet_file.id,
-                ExtraFetchInfo {
-                    parquet_file,
-                    schema,
-                    store,
-                },
+                (
+                    ExtraFetchInfo {
+                        parquet_file,
+                        schema,
+                        store,
+                    },
+                    None,
+                ),
             )
             .await
     }
 
     /// Get existing or "loading" read buffer chunk from cache.
-    #[allow(dead_code)]
     pub async fn peek(&self, parquet_file_id: ParquetFileId) -> Option<Arc<RBChunk>> {
-        self.cache.peek(parquet_file_id, ()).await
+        // TODO(marco): pass span
+        self.cache.peek(parquet_file_id, ((), None)).await
     }
 }
 

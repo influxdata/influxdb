@@ -14,6 +14,7 @@ use data_types::{NamespaceId, Table, TableId};
 use iox_catalog::interface::Catalog;
 use iox_time::TimeProvider;
 use std::{collections::HashMap, mem::size_of_val, sync::Arc, time::Duration};
+use trace::span::Span;
 
 use super::ram::RamSize;
 
@@ -22,8 +23,14 @@ pub const TTL_NON_EXISTING: Duration = Duration::from_secs(10);
 
 const CACHE_ID: &str = "table";
 
-type CacheT =
-    Box<dyn Cache<K = TableId, V = Option<Arc<CachedTable>>, GetExtra = (), PeekExtra = ()>>;
+type CacheT = Box<
+    dyn Cache<
+        K = TableId,
+        V = Option<Arc<CachedTable>>,
+        GetExtra = ((), Option<Span>),
+        PeekExtra = ((), Option<Span>),
+    >,
+>;
 
 /// Cache for table-related queries.
 #[derive(Debug)]
@@ -104,8 +111,9 @@ impl TableCache {
     ///
     /// This either uses a cached value or -- if required -- fetches the mapping from the catalog.
     pub async fn name(&self, table_id: TableId) -> Option<Arc<str>> {
+        // TODO(marco): pass span
         self.cache
-            .get(table_id, ())
+            .get(table_id, ((), None))
             .await
             .map(|t| Arc::clone(&t.name))
     }
@@ -115,7 +123,11 @@ impl TableCache {
     /// This either uses a cached value or -- if required -- fetches the mapping from the catalog.
     #[allow(dead_code)]
     pub async fn namespace_id(&self, table_id: TableId) -> Option<NamespaceId> {
-        self.cache.get(table_id, ()).await.map(|t| t.namespace_id)
+        // TODO(marco): pass span
+        self.cache
+            .get(table_id, ((), None))
+            .await
+            .map(|t| t.namespace_id)
     }
 }
 
