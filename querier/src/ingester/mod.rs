@@ -256,6 +256,10 @@ impl<'a> ObserveIngesterRequest<'a> {
         }
     }
 
+    fn span_recorder(&self) -> &SpanRecorder {
+        &self.span_recorder
+    }
+
     fn set_ok(mut self) {
         self.res = Some(Ok(()));
         self.span_recorder.ok("done");
@@ -441,7 +445,10 @@ struct GetPartitionForIngester<'a> {
 }
 
 /// Fetches the partitions for a single ingester
-async fn execute(request: GetPartitionForIngester<'_>) -> Result<Vec<IngesterPartition>> {
+async fn execute(
+    request: GetPartitionForIngester<'_>,
+    span_recorder: &SpanRecorder,
+) -> Result<Vec<IngesterPartition>> {
     let GetPartitionForIngester {
         flight_client,
         catalog_cache,
@@ -514,8 +521,15 @@ async fn execute(request: GetPartitionForIngester<'_>) -> Result<Vec<IngesterPar
     }
 
     // reconstruct partitions
-    let mut decoder =
-        IngesterStreamDecoder::new(ingester_address, table_name, catalog_cache, expected_schema);
+    let mut decoder = IngesterStreamDecoder::new(
+        ingester_address,
+        table_name,
+        catalog_cache,
+        expected_schema,
+        span_recorder
+            .span()
+            .map(|span| span.child("IngesterStreamDecoder")),
+    );
     for (msg, md) in messages {
         decoder.register(msg, md).await?;
     }
@@ -535,6 +549,7 @@ struct IngesterStreamDecoder {
     table_name: Arc<str>,
     catalog_cache: Arc<CatalogCache>,
     expected_schema: Arc<Schema>,
+    span_recorder: SpanRecorder,
 }
 
 impl IngesterStreamDecoder {
@@ -544,6 +559,7 @@ impl IngesterStreamDecoder {
         table_name: Arc<str>,
         catalog_cache: Arc<CatalogCache>,
         expected_schema: Arc<Schema>,
+        span: Option<Span>,
     ) -> Self {
         Self {
             finished_partitions: HashMap::new(),
@@ -553,6 +569,7 @@ impl IngesterStreamDecoder {
             table_name,
             catalog_cache,
             expected_schema,
+            span_recorder: SpanRecorder::new(span),
         }
     }
 
@@ -590,7 +607,13 @@ impl IngesterStreamDecoder {
             let partition_sort_key = self
                 .catalog_cache
                 .partition()
-                .sort_key(current_partition.partition_id(), &primary_key)
+                .sort_key(
+                    current_partition.partition_id(),
+                    &primary_key,
+                    self.span_recorder
+                        .span()
+                        .map(|span| span.child("cache GET partition sort key")),
+                )
                 .await;
             let current_partition = current_partition.with_partition_sort_key(partition_sort_key);
             self.finished_partitions
@@ -626,7 +649,12 @@ impl IngesterStreamDecoder {
                 let sequencer_id = self
                     .catalog_cache
                     .partition()
-                    .sequencer_id(partition_id)
+                    .sequencer_id(
+                        partition_id,
+                        self.span_recorder
+                            .span()
+                            .map(|span| span.child("cache GET partition sequencer ID")),
+                    )
                     .await;
 
                 // Use a temporary empty partition sort key. We are going to fetch this AFTER we know all chunks because
@@ -686,14 +714,16 @@ impl IngesterStreamDecoder {
         let mut ids: Vec<_> = self.finished_partitions.keys().copied().collect();
         ids.sort();
 
-        Ok(ids
+        let partitions = ids
             .into_iter()
             .map(|id| {
                 self.finished_partitions
                     .remove(&id)
                     .expect("just got key from this map")
             })
-            .collect())
+            .collect();
+        self.span_recorder.ok("finished");
+        Ok(partitions)
     }
 }
 
@@ -754,7 +784,7 @@ impl IngesterConnection for IngesterConnectionImpl {
             // always measured
             let measure_me = ObserveIngesterRequest::new(request.clone(), metrics, &span_recorder);
             async move {
-                let res = execute(request.clone()).await;
+                let res = execute(request.clone(), measure_me.span_recorder()).await;
 
                 match &res {
                     Ok(_) => measure_me.set_ok(),

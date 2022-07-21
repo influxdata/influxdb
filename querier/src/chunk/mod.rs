@@ -464,7 +464,13 @@ impl ChunkAdapter {
         let partition_sort_key = self
             .catalog_cache
             .partition()
-            .sort_key(parquet_file.partition_id, &relevant_pk_columns)
+            .sort_key(
+                parquet_file.partition_id,
+                &relevant_pk_columns,
+                span_recorder
+                    .span()
+                    .map(|span| span.child("cache GET partition sort key")),
+            )
             .await;
         let partition_sort_key_ref = partition_sort_key
             .as_ref()
