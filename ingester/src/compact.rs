@@ -92,7 +92,7 @@ pub async fn compact_persisting_batch(
     let stream = compact(executor, Arc::clone(&batch.data), metadata_sort_key.clone()).await?;
 
     // Compute min and max sequence numbers
-    let (min_seq, max_seq) = batch.data.min_max_sequence_numbers();
+    let (_min_seq, max_seq) = batch.data.min_max_sequence_numbers();
 
     let meta = IoxMetadata {
         object_store_id: batch.object_store_id,
@@ -104,7 +104,6 @@ pub async fn compact_persisting_batch(
         table_name: Arc::from(table_name.as_str()),
         partition_id: batch.partition_id,
         partition_key: partition_key.clone(),
-        min_sequence_number: min_seq,
         max_sequence_number: max_seq,
         compaction_level: CompactionLevel::Initial,
         sort_key: Some(metadata_sort_key),
@@ -317,7 +316,6 @@ mod tests {
             table_name,
             partition_id,
             partition_key,
-            seq_num_start,
             seq_num_end,
             CompactionLevel::Initial,
             Some(SortKey::from_columns(["tag1", "time"])),
@@ -413,7 +411,6 @@ mod tests {
             table_name,
             partition_id,
             partition_key,
-            seq_num_start,
             seq_num_end,
             CompactionLevel::Initial,
             // Sort key should now be set
@@ -512,7 +509,6 @@ mod tests {
             table_name,
             partition_id,
             partition_key,
-            seq_num_start,
             seq_num_end,
             CompactionLevel::Initial,
             // The sort key in the metadata should be the same as specified (that is, not
@@ -611,7 +607,6 @@ mod tests {
             table_name,
             partition_id,
             partition_key,
-            seq_num_start,
             seq_num_end,
             CompactionLevel::Initial,
             // The sort key in the metadata should be updated to include the new column just before
@@ -718,7 +713,6 @@ mod tests {
             table_name,
             partition_id,
             partition_key,
-            seq_num_start,
             seq_num_end,
             CompactionLevel::Initial,
             // The sort key in the metadata should only contain the columns in this file

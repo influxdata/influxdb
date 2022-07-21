@@ -46,7 +46,6 @@ async fn test_decoded_iox_metadata() {
         table_name: "platanos".into(),
         partition_id: PartitionId::new(4),
         partition_key: "potato".into(),
-        min_sequence_number: SequenceNumber::new(10),
         max_sequence_number: SequenceNumber::new(11),
         compaction_level: CompactionLevel::FileNonOverlapped,
         sort_key: None,
@@ -139,7 +138,6 @@ async fn test_empty_parquet_file_panic() {
         table_name: "platanos".into(),
         partition_id: PartitionId::new(4),
         partition_key: "potato".into(),
-        min_sequence_number: SequenceNumber::new(10),
         max_sequence_number: SequenceNumber::new(11),
         compaction_level: CompactionLevel::FileNonOverlapped,
         sort_key: None,
@@ -217,7 +215,6 @@ async fn test_decoded_many_columns_with_null_cols_iox_metadata() {
         table_name: "platanos".into(),
         partition_id: PartitionId::new(4),
         partition_key: "potato".into(),
-        min_sequence_number: SequenceNumber::new(10),
         max_sequence_number: SequenceNumber::new(11),
         compaction_level: CompactionLevel::FileNonOverlapped,
         sort_key: Some(sort_key),
@@ -294,7 +291,6 @@ async fn test_derive_parquet_file_params() {
         table_name: "platanos".into(),
         partition_id,
         partition_key: "potato".into(),
-        min_sequence_number: SequenceNumber::new(10),
         max_sequence_number: SequenceNumber::new(11),
         compaction_level: CompactionLevel::FileNonOverlapped,
         sort_key: None,
@@ -339,7 +335,6 @@ async fn test_derive_parquet_file_params() {
     assert_eq!(catalog_data.table_id, meta.table_id);
     assert_eq!(catalog_data.partition_id, meta.partition_id);
     assert_eq!(catalog_data.object_store_id, meta.object_store_id);
-    assert_eq!(catalog_data.min_sequence_number, meta.min_sequence_number);
     assert_eq!(catalog_data.max_sequence_number, meta.max_sequence_number);
     assert_eq!(catalog_data.file_size_bytes, file_size as i64);
     assert_eq!(catalog_data.compaction_level, meta.compaction_level);

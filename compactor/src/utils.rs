@@ -171,7 +171,6 @@ impl ParquetFileWithTombstone {
             self.data.partition_id,
             Arc::new(parquet_chunk),
             &self.tombstones,
-            self.data.min_sequence_number,
             self.data.max_sequence_number,
             self.data.min_time,
             self.data.max_time,

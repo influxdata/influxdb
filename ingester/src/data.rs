@@ -1994,7 +1994,6 @@ mod tests {
         assert_eq!(pf.table_id, table_id);
         assert_eq!(pf.min_time, Timestamp::new(10));
         assert_eq!(pf.max_time, Timestamp::new(30));
-        assert_eq!(pf.min_sequence_number, SequenceNumber::new(1));
         assert_eq!(pf.max_sequence_number, SequenceNumber::new(2));
         assert_eq!(pf.sequencer_id, sequencer1.id);
         assert!(pf.to_delete.is_none());
@@ -2484,7 +2483,6 @@ mod tests {
             table_id: table.id,
             partition_id: partition.id,
             object_store_id: Uuid::new_v4(),
-            min_sequence_number: SequenceNumber::new(0),
             max_sequence_number: SequenceNumber::new(1),
             min_time: Timestamp::new(1),
             max_time: Timestamp::new(1),
@@ -2504,7 +2502,6 @@ mod tests {
         // sequence number. We want to make sure that this doesn't cause our write in the other
         // partition to get ignored.
         let other_file_params = ParquetFileParams {
-            min_sequence_number: SequenceNumber::new(12),
             max_sequence_number: SequenceNumber::new(15),
             object_store_id: Uuid::new_v4(),
             partition_id: partition2.id,

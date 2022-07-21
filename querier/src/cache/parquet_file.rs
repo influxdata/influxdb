@@ -308,8 +308,8 @@ mod tests {
         partition.create_parquet_file(builder).await;
         let table_id = table.table.id;
 
-        let single_file_size = 224;
-        let two_file_size = 416;
+        let single_file_size = 216;
+        let two_file_size = 400;
         assert!(single_file_size < two_file_size);
 
         let cache = make_cache(&catalog);
@@ -327,14 +327,13 @@ mod tests {
     #[tokio::test]
     async fn test_max_persisted_sequence_number() {
         let (catalog, table, partition) = make_catalog().await;
-        let sequence_number_1 = SequenceNumber::new(1);
+        let _sequence_number_1 = SequenceNumber::new(1);
         let sequence_number_2 = SequenceNumber::new(2);
         let sequence_number_3 = SequenceNumber::new(3);
         let sequence_number_10 = SequenceNumber::new(10);
 
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(TABLE1_LINE_PROTOCOL)
-            .with_min_seq(sequence_number_1.get())
             .with_max_seq(sequence_number_2.get())
             .with_min_time(0)
             .with_max_time(100);
@@ -342,7 +341,6 @@ mod tests {
 
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(TABLE1_LINE_PROTOCOL)
-            .with_min_seq(sequence_number_2.get())
             .with_max_seq(sequence_number_3.get())
             .with_min_time(0)
             .with_max_time(100);
@@ -377,7 +375,6 @@ mod tests {
         // new file is created, but cache is stale
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(TABLE1_LINE_PROTOCOL)
-            .with_min_seq(sequence_number_2.get())
             .with_max_seq(sequence_number_10.get())
             .with_min_time(0)
             .with_max_time(100);
@@ -421,7 +418,6 @@ mod tests {
         let sequence_number_1 = SequenceNumber::new(1);
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(TABLE1_LINE_PROTOCOL)
-            .with_min_seq(sequence_number_1.get())
             .with_max_seq(sequence_number_1.get())
             .with_min_time(0)
             .with_max_time(100);

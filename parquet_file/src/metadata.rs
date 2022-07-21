@@ -274,9 +274,6 @@ pub struct IoxMetadata {
     /// parittion key of the data
     pub partition_key: PartitionKey,
 
-    /// sequence number of the first write
-    pub min_sequence_number: SequenceNumber,
-
     /// sequence number of the last write
     pub max_sequence_number: SequenceNumber,
 
@@ -323,7 +320,6 @@ impl IoxMetadata {
             table_name: self.table_name.to_string(),
             partition_id: self.partition_id.get(),
             partition_key: self.partition_key.to_string(),
-            min_sequence_number: self.min_sequence_number.get(),
             max_sequence_number: self.max_sequence_number.get(),
             sort_key,
             compaction_level: self.compaction_level as i32,
@@ -374,7 +370,6 @@ impl IoxMetadata {
             table_name,
             partition_id: PartitionId::new(proto_msg.partition_id),
             partition_key,
-            min_sequence_number: SequenceNumber::new(proto_msg.min_sequence_number),
             max_sequence_number: SequenceNumber::new(proto_msg.max_sequence_number),
             sort_key,
             compaction_level: proto_msg.compaction_level.try_into().context(
@@ -461,7 +456,6 @@ impl IoxMetadata {
             table_id: self.table_id,
             partition_id: self.partition_id,
             object_store_id: self.object_store_id,
-            min_sequence_number: self.min_sequence_number,
             max_sequence_number: self.max_sequence_number,
             min_time,
             max_time,
@@ -987,7 +981,6 @@ mod tests {
             table_name: Arc::from("weather"),
             partition_id: PartitionId::new(4),
             partition_key: PartitionKey::from("part"),
-            min_sequence_number: SequenceNumber::new(5),
             max_sequence_number: SequenceNumber::new(6),
             compaction_level: CompactionLevel::Initial,
             sort_key: Some(sort_key),
@@ -1012,7 +1005,6 @@ mod tests {
             table_name: "platanos".into(),
             partition_id: PartitionId::new(4),
             partition_key: "potato".into(),
-            min_sequence_number: SequenceNumber::new(10),
             max_sequence_number: SequenceNumber::new(11),
             compaction_level: CompactionLevel::FileNonOverlapped,
             sort_key: None,

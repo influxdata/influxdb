@@ -1,7 +1,9 @@
 //! Interface for reconciling Ingester and catalog state
 
 use crate::{chunk::QuerierChunk, ingester::IngesterPartition};
-use data_types::{ParquetFile, PartitionId, SequenceNumber, SequencerId, Tombstone, TombstoneId};
+use data_types::{
+    CompactionLevel, ParquetFile, PartitionId, SequenceNumber, SequencerId, Tombstone, TombstoneId,
+};
 use std::{ops::Deref, sync::Arc};
 
 /// Information about an ingester partition.
@@ -58,8 +60,8 @@ where
 /// This is mostly the same as [`ParquetFile`] but allows easier mocking.
 pub trait ParquetFileInfo {
     fn partition_id(&self) -> PartitionId;
-    fn min_sequence_number(&self) -> SequenceNumber;
     fn max_sequence_number(&self) -> SequenceNumber;
+    fn compaction_level(&self) -> CompactionLevel;
 }
 
 impl ParquetFileInfo for Arc<ParquetFile> {
@@ -67,12 +69,12 @@ impl ParquetFileInfo for Arc<ParquetFile> {
         self.partition_id
     }
 
-    fn min_sequence_number(&self) -> SequenceNumber {
-        self.min_sequence_number
-    }
-
     fn max_sequence_number(&self) -> SequenceNumber {
         self.max_sequence_number
+    }
+
+    fn compaction_level(&self) -> CompactionLevel {
+        self.compaction_level
     }
 }
 
@@ -81,12 +83,12 @@ impl ParquetFileInfo for QuerierChunk {
         self.meta().partition_id()
     }
 
-    fn min_sequence_number(&self) -> SequenceNumber {
-        self.meta().min_sequence_number()
-    }
-
     fn max_sequence_number(&self) -> SequenceNumber {
         self.meta().max_sequence_number()
+    }
+
+    fn compaction_level(&self) -> CompactionLevel {
+        self.meta().compaction_level()
     }
 }
 

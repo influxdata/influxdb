@@ -182,7 +182,6 @@ mod tests {
             table_name: "platanos".into(),
             partition_id: PartitionId::new(4),
             partition_key: "potato".into(),
-            min_sequence_number: SequenceNumber::new(10),
             max_sequence_number: SequenceNumber::new(11),
             compaction_level: CompactionLevel::FileNonOverlapped,
             sort_key: None,

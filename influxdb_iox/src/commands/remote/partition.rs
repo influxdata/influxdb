@@ -355,7 +355,6 @@ async fn load_parquet_files(
                     table_id: partition_mapping.table_id,
                     partition_id: partition_mapping.partition_id,
                     object_store_id: uuid,
-                    min_sequence_number: SequenceNumber::new(p.min_sequence_number),
                     max_sequence_number: SequenceNumber::new(p.max_sequence_number),
                     min_time: Timestamp::new(p.min_time),
                     max_time: Timestamp::new(p.max_time),
@@ -558,7 +557,6 @@ mod tests {
         };
 
         let object_store_id = uuid::Uuid::new_v4();
-        let min_sequence_number = SequenceNumber::new(4);
         let max_sequence_number = SequenceNumber::new(23);
         let min_time = Timestamp::new(123);
         let max_time = Timestamp::new(456);
@@ -577,7 +575,6 @@ mod tests {
                 table_id: 100,
                 partition_id: 100,
                 object_store_id: object_store_id.to_string(),
-                min_sequence_number: min_sequence_number.get(),
                 max_sequence_number: max_sequence_number.get(),
                 min_time: min_time.get(),
                 max_time: max_time.get(),
@@ -602,7 +599,6 @@ mod tests {
             table_id: table.id,
             partition_id: partition.id,
             object_store_id,
-            min_sequence_number,
             max_sequence_number,
             min_time,
             max_time,

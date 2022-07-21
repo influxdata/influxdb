@@ -580,16 +580,26 @@ pub trait ParquetFileRepo: Send + Sync {
     /// Return count
     async fn count(&mut self) -> Result<i64>;
 
-    /// Return count of files of given tableId and sequenceId that
+    /// Return count of level-0 files of given tableId and sequenceId that
     /// overlap with the given min_time and max_time and have sequencer number
     /// smaller the given one
-    async fn count_by_overlaps(
+    async fn count_by_overlaps_with_level_0(
         &mut self,
         table_id: TableId,
         sequencer_id: SequencerId,
         min_time: Timestamp,
         max_time: Timestamp,
         sequence_number: SequenceNumber,
+    ) -> Result<i64>;
+
+    /// Return count of level-1 files of given tableId and sequenceId that
+    /// overlap with the given min_time and max_time
+    async fn count_by_overlaps_with_level_1(
+        &mut self,
+        table_id: TableId,
+        sequencer_id: SequencerId,
+        min_time: Timestamp,
+        max_time: Timestamp,
     ) -> Result<i64>;
 
     /// Return the parquet file with the given object store id
@@ -1724,7 +1734,6 @@ pub(crate) mod test_helpers {
             table_id: partition.table_id,
             partition_id: partition.id,
             object_store_id: Uuid::new_v4(),
-            min_sequence_number: SequenceNumber::new(10),
             max_sequence_number,
             min_time,
             max_time,
@@ -1935,7 +1944,6 @@ pub(crate) mod test_helpers {
             table_id: partition.table_id,
             partition_id: partition.id,
             object_store_id: Uuid::new_v4(),
-            min_sequence_number: SequenceNumber::new(10),
             max_sequence_number: SequenceNumber::new(140),
             min_time: Timestamp::new(1),
             max_time: Timestamp::new(10),
@@ -1971,7 +1979,6 @@ pub(crate) mod test_helpers {
             table_id: other_partition.table_id,
             partition_id: other_partition.id,
             object_store_id: Uuid::new_v4(),
-            min_sequence_number: SequenceNumber::new(45),
             max_sequence_number: SequenceNumber::new(200),
             min_time: Timestamp::new(50),
             max_time: Timestamp::new(60),
@@ -2083,7 +2090,6 @@ pub(crate) mod test_helpers {
             object_store_id: Uuid::new_v4(),
             min_time: Timestamp::new(1),
             max_time: Timestamp::new(10),
-            min_sequence_number: SequenceNumber::new(10),
             max_sequence_number: SequenceNumber::new(10),
             ..parquet_file_params
         };
@@ -2097,7 +2103,6 @@ pub(crate) mod test_helpers {
             object_store_id: Uuid::new_v4(),
             min_time: Timestamp::new(50),
             max_time: Timestamp::new(60),
-            min_sequence_number: SequenceNumber::new(11),
             max_sequence_number: SequenceNumber::new(11),
             ..f1_params
         };
@@ -2117,7 +2122,6 @@ pub(crate) mod test_helpers {
             object_store_id: Uuid::new_v4(),
             min_time: Timestamp::new(50),
             max_time: Timestamp::new(60),
-            min_sequence_number: SequenceNumber::new(12),
             max_sequence_number: SequenceNumber::new(12),
             ..f2_params
         };
@@ -2135,7 +2139,7 @@ pub(crate) mod test_helpers {
             .list_by_namespace_not_to_delete(namespace2.id)
             .await
             .unwrap();
-        assert_eq!(vec![f1, f3], files);
+        assert_eq!(vec![f1.clone(), f3.clone()], files);
 
         let files = repos
             .parquet_files()
@@ -2144,11 +2148,11 @@ pub(crate) mod test_helpers {
             .unwrap();
         assert!(files.is_empty());
 
-        // test count_by_overlaps
+        // test count_by_overlaps_with_level_0
         // not time overlap
         let count = repos
             .parquet_files()
-            .count_by_overlaps(
+            .count_by_overlaps_with_level_0(
                 partition2.table_id,
                 sequencer.id,
                 Timestamp::new(11),
@@ -2161,7 +2165,7 @@ pub(crate) mod test_helpers {
         // overlaps with f1
         let count = repos
             .parquet_files()
-            .count_by_overlaps(
+            .count_by_overlaps_with_level_0(
                 partition2.table_id,
                 sequencer.id,
                 Timestamp::new(1),
@@ -2175,7 +2179,7 @@ pub(crate) mod test_helpers {
         // f2 is deleted and should not be counted
         let count = repos
             .parquet_files()
-            .count_by_overlaps(
+            .count_by_overlaps_with_level_0(
                 partition2.table_id,
                 sequencer.id,
                 Timestamp::new(7),
@@ -2188,7 +2192,7 @@ pub(crate) mod test_helpers {
         // overlaps with f1 and f3 but on different time range
         let count = repos
             .parquet_files()
-            .count_by_overlaps(
+            .count_by_overlaps_with_level_0(
                 partition2.table_id,
                 sequencer.id,
                 Timestamp::new(1),
@@ -2201,7 +2205,7 @@ pub(crate) mod test_helpers {
         // overlaps with f3
         let count = repos
             .parquet_files()
-            .count_by_overlaps(
+            .count_by_overlaps_with_level_0(
                 partition2.table_id,
                 sequencer.id,
                 Timestamp::new(15),
@@ -2211,10 +2215,10 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         assert_eq!(count, 1);
-        // no overlaps due to smaller sequnce number
+        // no overlaps due to smaller sequence number
         let count = repos
             .parquet_files()
-            .count_by_overlaps(
+            .count_by_overlaps_with_level_0(
                 partition2.table_id,
                 sequencer.id,
                 Timestamp::new(15),
@@ -2224,6 +2228,95 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         assert_eq!(count, 0);
+
+        // test count_by_overlaps_with_level_1
+        //
+        // no level-1 file -> nothing overlap
+        let count = repos
+            .parquet_files()
+            .count_by_overlaps_with_level_1(
+                partition2.table_id,
+                sequencer.id,
+                Timestamp::new(1),
+                Timestamp::new(200),
+            )
+            .await
+            .unwrap();
+        assert_eq!(count, 0);
+        //
+        // Let upgarde all files (only f1 and f3 are not deleted) to level 1
+        repos
+            .parquet_files()
+            .update_to_level_1(&[f1.id])
+            .await
+            .unwrap();
+        repos
+            .parquet_files()
+            .update_to_level_1(&[f3.id])
+            .await
+            .unwrap();
+        //
+        // not overlap with any
+        let count = repos
+            .parquet_files()
+            .count_by_overlaps_with_level_1(
+                partition2.table_id,
+                sequencer.id,
+                Timestamp::new(11),
+                Timestamp::new(20),
+            )
+            .await
+            .unwrap();
+        assert_eq!(count, 0);
+        // overlaps with f1
+        let count = repos
+            .parquet_files()
+            .count_by_overlaps_with_level_1(
+                partition2.table_id,
+                sequencer.id,
+                Timestamp::new(1),
+                Timestamp::new(10),
+            )
+            .await
+            .unwrap();
+        assert_eq!(count, 1);
+        // overlaps with f1 and f3
+        // f2 is deleted and should not be counted
+        let count = repos
+            .parquet_files()
+            .count_by_overlaps_with_level_1(
+                partition2.table_id,
+                sequencer.id,
+                Timestamp::new(7),
+                Timestamp::new(55),
+            )
+            .await
+            .unwrap();
+        assert_eq!(count, 2);
+        // overlaps with f1 and f3 but on different time range
+        let count = repos
+            .parquet_files()
+            .count_by_overlaps_with_level_1(
+                partition2.table_id,
+                sequencer.id,
+                Timestamp::new(1),
+                Timestamp::new(100),
+            )
+            .await
+            .unwrap();
+        assert_eq!(count, 2);
+        // overlaps with f3
+        let count = repos
+            .parquet_files()
+            .count_by_overlaps_with_level_1(
+                partition2.table_id,
+                sequencer.id,
+                Timestamp::new(15),
+                Timestamp::new(100),
+            )
+            .await
+            .unwrap();
+        assert_eq!(count, 1);
     }
 
     async fn test_parquet_file_compaction_level_0(catalog: Arc<dyn Catalog>) {
@@ -2271,7 +2364,6 @@ pub(crate) mod test_helpers {
             table_id: partition.table_id,
             partition_id: partition.id,
             object_store_id: Uuid::new_v4(),
-            min_sequence_number: SequenceNumber::new(10),
             max_sequence_number: SequenceNumber::new(140),
             min_time,
             max_time,
@@ -2401,7 +2493,6 @@ pub(crate) mod test_helpers {
             table_id: partition.table_id,
             partition_id: partition.id,
             object_store_id: Uuid::new_v4(),
-            min_sequence_number: SequenceNumber::new(10),
             max_sequence_number: SequenceNumber::new(140),
             min_time: query_min_time + 1,
             max_time: query_max_time - 1,
@@ -2603,7 +2694,6 @@ pub(crate) mod test_helpers {
             .most_level_0_files_partitions(sequencer.id, num_partitions)
             .await
             .unwrap();
-        println!("partitions: {:#?}", partitions);
         assert!(partitions.is_empty());
 
         // The DB has 1 partition but it does not have any file
@@ -2626,7 +2716,6 @@ pub(crate) mod test_helpers {
             table_id: partition.table_id,
             partition_id: partition.id,
             object_store_id: Uuid::new_v4(),
-            min_sequence_number: SequenceNumber::new(10),
             max_sequence_number: SequenceNumber::new(140),
             min_time: Timestamp::new(1),
             max_time: Timestamp::new(10),
@@ -2831,7 +2920,6 @@ pub(crate) mod test_helpers {
             table_id: partition.table_id,
             partition_id: partition.id,
             object_store_id: Uuid::new_v4(),
-            min_sequence_number: SequenceNumber::new(10),
             max_sequence_number: SequenceNumber::new(140),
             min_time: Timestamp::new(1),
             max_time: Timestamp::new(10),
@@ -3045,7 +3133,6 @@ pub(crate) mod test_helpers {
             table_id: partition.table_id,
             partition_id: partition.id,
             object_store_id: Uuid::new_v4(),
-            min_sequence_number: SequenceNumber::new(10),
             max_sequence_number: SequenceNumber::new(140),
             min_time,
             max_time,
@@ -3151,7 +3238,7 @@ pub(crate) mod test_helpers {
             table_id: partition.table_id,
             partition_id: partition.id,
             object_store_id: Uuid::new_v4(),
-            min_sequence_number: SequenceNumber::new(10),
+
             max_sequence_number: SequenceNumber::new(140),
             min_time: query_min_time + 1,
             max_time: query_max_time - 1,
@@ -3268,7 +3355,6 @@ pub(crate) mod test_helpers {
             table_id: partition.table_id,
             partition_id: partition.id,
             object_store_id: Uuid::new_v4(),
-            min_sequence_number: SequenceNumber::new(1),
             max_sequence_number: SequenceNumber::new(1),
             min_time: Timestamp::new(100),
             max_time: Timestamp::new(250),
@@ -3285,7 +3371,6 @@ pub(crate) mod test_helpers {
             .unwrap();
         let parquet_file_params_2 = ParquetFileParams {
             object_store_id: Uuid::new_v4(),
-            min_sequence_number: SequenceNumber::new(2),
             max_sequence_number: SequenceNumber::new(3),
             min_time: Timestamp::new(200),
             max_time: Timestamp::new(300),

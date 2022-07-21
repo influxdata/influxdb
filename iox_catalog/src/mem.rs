@@ -956,7 +956,6 @@ impl ParquetFileRepo for MemTxn {
             table_id,
             partition_id,
             object_store_id,
-            min_sequence_number,
             max_sequence_number,
             min_time,
             max_time,
@@ -982,7 +981,6 @@ impl ParquetFileRepo for MemTxn {
             table_id,
             partition_id,
             object_store_id,
-            min_sequence_number,
             max_sequence_number,
             min_time,
             max_time,
@@ -1263,7 +1261,7 @@ impl ParquetFileRepo for MemTxn {
         Ok(count_i64.unwrap())
     }
 
-    async fn count_by_overlaps(
+    async fn count_by_overlaps_with_level_0(
         &mut self,
         table_id: TableId,
         sequencer_id: SequencerId,
@@ -1279,8 +1277,34 @@ impl ParquetFileRepo for MemTxn {
             .filter(|f| {
                 f.sequencer_id == sequencer_id
                     && f.table_id == table_id
-                    && f.min_sequence_number < sequence_number
+                    && f.max_sequence_number < sequence_number
                     && f.to_delete.is_none()
+                    && f.compaction_level == CompactionLevel::Initial
+                    && ((f.min_time <= min_time && f.max_time >= min_time)
+                        || (f.min_time > min_time && f.min_time <= max_time))
+            })
+            .count();
+
+        i64::try_from(count).map_err(|_| Error::InvalidValue { value: count })
+    }
+
+    async fn count_by_overlaps_with_level_1(
+        &mut self,
+        table_id: TableId,
+        sequencer_id: SequencerId,
+        min_time: Timestamp,
+        max_time: Timestamp,
+    ) -> Result<i64> {
+        let stage = self.stage();
+
+        let count = stage
+            .parquet_files
+            .iter()
+            .filter(|f| {
+                f.sequencer_id == sequencer_id
+                    && f.table_id == table_id
+                    && f.to_delete.is_none()
+                    && f.compaction_level == CompactionLevel::FileNonOverlapped
                     && ((f.min_time <= min_time && f.max_time >= min_time)
                         || (f.min_time > min_time && f.min_time <= max_time))
             })

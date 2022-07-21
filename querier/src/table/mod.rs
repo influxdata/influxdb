@@ -406,7 +406,7 @@ mod tests {
         QuerierChunkLoadSetting,
     };
     use assert_matches::assert_matches;
-    use data_types::{ChunkId, ColumnType, ParquetFileId, SequenceNumber};
+    use data_types::{ChunkId, ColumnType, CompactionLevel, ParquetFileId, SequenceNumber};
     use iox_tests::util::{TestCatalog, TestParquetFileBuilder, TestTable};
     use predicate::Predicate;
     use schema::{builder::SchemaBuilder, InfluxFieldType};
@@ -452,7 +452,6 @@ mod tests {
 
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol("table1 foo=1 11")
-            .with_min_seq(1)
             .with_max_seq(2)
             .with_min_time(11)
             .with_max_time(11);
@@ -460,7 +459,6 @@ mod tests {
 
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol("table1 foo=2 22")
-            .with_min_seq(3)
             .with_max_seq(4)
             .with_min_time(22)
             .with_max_time(22);
@@ -468,7 +466,6 @@ mod tests {
 
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol("table1 foo=3 33")
-            .with_min_seq(5)
             .with_max_seq(6)
             .with_min_time(33)
             .with_max_time(33);
@@ -476,7 +473,6 @@ mod tests {
 
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol("table1 foo=4 44")
-            .with_min_seq(7)
             .with_max_seq(8)
             .with_min_time(44)
             .with_max_time(44);
@@ -484,7 +480,6 @@ mod tests {
 
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol("table1 foo=5 55")
-            .with_min_seq(9)
             .with_max_seq(10)
             .with_min_time(55)
             .with_max_time(55);
@@ -492,7 +487,6 @@ mod tests {
 
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol("table1 foo=5 55")
-            .with_min_seq(1)
             .with_max_seq(2)
             .with_min_time(55)
             .with_max_time(55);
@@ -500,7 +494,6 @@ mod tests {
 
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol("table1 foo=10 100")
-            .with_min_seq(1)
             .with_max_seq(2)
             .with_min_time(100)
             .with_max_time(100);
@@ -508,7 +501,6 @@ mod tests {
 
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol("table2 foo=6 66")
-            .with_min_seq(1)
             .with_max_seq(2)
             .with_min_time(66)
             .with_max_time(66);
@@ -611,8 +603,8 @@ mod tests {
 
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol("table foo=1 11")
-            .with_min_seq(1)
-            .with_max_seq(2);
+            .with_max_seq(2)
+            .with_compaction_level(CompactionLevel::FileNonOverlapped);
         partition.create_parquet_file(builder).await;
 
         let builder = IngesterPartitionBuilder::new(&table, &schema, &sequencer, &partition);
@@ -648,28 +640,24 @@ mod tests {
         // kept because max sequence number <= 2
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol("table foo=1 11")
-            .with_min_seq(1)
             .with_max_seq(2);
         let file1 = partition1.create_parquet_file(builder).await;
 
         // pruned because min sequence number > 2
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol("table foo=2 22")
-            .with_min_seq(3)
             .with_max_seq(3);
         partition1.create_parquet_file(builder).await;
 
         // kept because max sequence number <= 3
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol("table foo=1 11")
-            .with_min_seq(1)
             .with_max_seq(3);
         let file2 = partition2.create_parquet_file(builder).await;
 
         // pruned because min sequence number > 3
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol("table foo=2 22")
-            .with_min_seq(4)
             .with_max_seq(4);
         partition2.create_parquet_file(builder).await;
 
@@ -866,7 +854,6 @@ mod tests {
         // Parquet file between with max sequence number 2
         let pf_builder = TestParquetFileBuilder::default()
             .with_line_protocol("table1 foo=1 11")
-            .with_min_seq(1)
             .with_max_seq(2);
         partition.create_parquet_file(pf_builder).await;
 
@@ -884,7 +871,6 @@ mod tests {
         // Now, make a second chunk with max sequence number 3
         let pf_builder = TestParquetFileBuilder::default()
             .with_line_protocol("table1 foo=1 22")
-            .with_min_seq(2)
             .with_max_seq(3);
         partition.create_parquet_file(pf_builder).await;
 
@@ -925,7 +911,6 @@ mod tests {
         // parquet file with max sequence number 1
         let pf_builder = TestParquetFileBuilder::default()
             .with_line_protocol("table1 foo=1 11")
-            .with_min_seq(1)
             .with_max_seq(1);
         partition.create_parquet_file(pf_builder).await;
 

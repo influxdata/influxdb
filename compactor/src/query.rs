@@ -44,7 +44,6 @@ pub struct QueryableParquetChunk {
     delete_predicates: Vec<Arc<DeletePredicate>>, // converted from tombstones
     table_name: String,                           // needed to build query plan
     partition_id: PartitionId,
-    min_sequence_number: SequenceNumber,
     max_sequence_number: SequenceNumber,
     min_time: Timestamp,
     max_time: Timestamp,
@@ -60,7 +59,6 @@ impl QueryableParquetChunk {
         partition_id: PartitionId,
         data: Arc<ParquetChunk>,
         deletes: &[Tombstone],
-        min_sequence_number: SequenceNumber,
         max_sequence_number: SequenceNumber,
         min_time: Timestamp,
         max_time: Timestamp,
@@ -73,7 +71,6 @@ impl QueryableParquetChunk {
             delete_predicates,
             table_name: table_name.into(),
             partition_id,
-            min_sequence_number,
             max_sequence_number,
             min_time,
             max_time,
@@ -89,11 +86,6 @@ impl QueryableParquetChunk {
             merger = merger.merge(&chunk.schema()).expect("schemas compatible");
         }
         Arc::new(merger.build())
-    }
-
-    /// Return min sequence number
-    pub fn min_sequence_number(&self) -> SequenceNumber {
-        self.min_sequence_number
     }
 
     /// Return max sequence number

@@ -494,7 +494,6 @@ impl TestPartition {
             record_batch,
             table,
             schema,
-            min_seq,
             max_seq,
             min_time,
             max_time,
@@ -519,7 +518,6 @@ impl TestPartition {
         let record_batch = dedup_batch(record_batch, &sort_key);
 
         let object_store_id = Uuid::new_v4();
-        let min_sequence_number = SequenceNumber::new(min_seq);
         let max_sequence_number = SequenceNumber::new(max_seq);
         let metadata = IoxMetadata {
             object_store_id,
@@ -531,7 +529,6 @@ impl TestPartition {
             table_name: self.table.table.name.clone().into(),
             partition_id: self.partition.id,
             partition_key: self.partition.partition_key.clone(),
-            min_sequence_number,
             max_sequence_number,
             compaction_level: CompactionLevel::Initial,
             sort_key: Some(sort_key.clone()),
@@ -557,7 +554,6 @@ impl TestPartition {
             table_id: self.table.table.id,
             partition_id: self.partition.id,
             object_store_id,
-            min_sequence_number,
             max_sequence_number,
             min_time: Timestamp::new(min_time),
             max_time: Timestamp::new(max_time),
@@ -601,7 +597,6 @@ pub struct TestParquetFileBuilder {
     record_batch: Option<RecordBatch>,
     table: Option<String>,
     schema: Option<Schema>,
-    min_seq: i64,
     max_seq: i64,
     min_time: i64,
     max_time: i64,
@@ -617,7 +612,6 @@ impl Default for TestParquetFileBuilder {
             record_batch: None,
             table: None,
             schema: None,
-            min_seq: 1,
             max_seq: 100,
             min_time: now().timestamp_nanos(),
             max_time: now().timestamp_nanos(),
@@ -654,12 +648,6 @@ impl TestParquetFileBuilder {
 
     fn with_schema(mut self, schema: Schema) -> Self {
         self.schema = Some(schema);
-        self
-    }
-
-    /// Specify the minimum sequence number for the parquet file metadata.
-    pub fn with_min_seq(mut self, min_seq: i64) -> Self {
-        self.min_seq = min_seq;
         self
     }
 

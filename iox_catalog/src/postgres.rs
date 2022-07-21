@@ -97,7 +97,7 @@ pub struct PostgresCatalog {
     time_provider: Arc<dyn TimeProvider>,
 }
 
-// struct to get return value from "select count(*) ..." query
+// struct to get return value from "select count(id) ..." query
 #[derive(sqlx::FromRow)]
 struct Count {
     count: i64,
@@ -1476,7 +1476,6 @@ impl ParquetFileRepo for PostgresTxn {
             table_id,
             partition_id,
             object_store_id,
-            min_sequence_number,
             max_sequence_number,
             min_time,
             max_time,
@@ -1490,10 +1489,10 @@ impl ParquetFileRepo for PostgresTxn {
         let rec = sqlx::query_as::<_, ParquetFile>(
             r#"
 INSERT INTO parquet_file (
-    sequencer_id, table_id, partition_id, object_store_id, min_sequence_number,
+    sequencer_id, table_id, partition_id, object_store_id,
     max_sequence_number, min_time, max_time, file_size_bytes,
     row_count, compaction_level, created_at, namespace_id, column_set )
-VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14 )
+VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13 )
 RETURNING *;
         "#,
         )
@@ -1501,16 +1500,15 @@ RETURNING *;
         .bind(table_id) // $2
         .bind(partition_id) // $3
         .bind(object_store_id) // $4
-        .bind(min_sequence_number) // $5
-        .bind(max_sequence_number) // $6
-        .bind(min_time) // $7
-        .bind(max_time) // $8
-        .bind(file_size_bytes) // $9
-        .bind(row_count) // $10
-        .bind(compaction_level) // $11
-        .bind(created_at) // $12
-        .bind(namespace_id) // $13
-        .bind(column_set) // $14
+        .bind(max_sequence_number) // $5
+        .bind(min_time) // $6
+        .bind(max_time) // $7
+        .bind(file_size_bytes) // $8
+        .bind(row_count) // $9
+        .bind(compaction_level) // $10
+        .bind(created_at) // $11
+        .bind(namespace_id) // $12
+        .bind(column_set) // $13
         .fetch_one(&mut self.inner)
         .await
         .map_err(|e| {
@@ -1549,7 +1547,7 @@ RETURNING *;
         sqlx::query_as::<_, ParquetFile>(
             r#"
 SELECT id, sequencer_id, namespace_id, table_id, partition_id, object_store_id,
-       min_sequence_number, max_sequence_number, min_time, max_time, to_delete, file_size_bytes,
+       max_sequence_number, min_time, max_time, to_delete, file_size_bytes,
        row_count, compaction_level, created_at, column_set
 FROM parquet_file
 WHERE sequencer_id = $1
@@ -1574,7 +1572,7 @@ ORDER BY id;
             r#"
 SELECT parquet_file.id, parquet_file.sequencer_id, parquet_file.namespace_id,
        parquet_file.table_id, parquet_file.partition_id, parquet_file.object_store_id,
-       parquet_file.min_sequence_number, parquet_file.max_sequence_number, parquet_file.min_time,
+       parquet_file.max_sequence_number, parquet_file.min_time,
        parquet_file.max_time, parquet_file.to_delete, parquet_file.file_size_bytes,
        parquet_file.row_count, parquet_file.compaction_level, parquet_file.created_at, parquet_file.column_set
 FROM parquet_file
@@ -1595,7 +1593,7 @@ WHERE table_name.namespace_id = $1
         sqlx::query_as::<_, ParquetFile>(
             r#"
 SELECT id, sequencer_id, namespace_id, table_id, partition_id, object_store_id,
-       min_sequence_number, max_sequence_number, min_time, max_time, to_delete, file_size_bytes,
+       max_sequence_number, min_time, max_time, to_delete, file_size_bytes,
        row_count, compaction_level, created_at, column_set
 FROM parquet_file
 WHERE table_id = $1 AND to_delete IS NULL;
@@ -1630,7 +1628,7 @@ RETURNING *;
         sqlx::query_as::<_, ParquetFile>(
             r#"
 SELECT id, sequencer_id, namespace_id, table_id, partition_id, object_store_id,
-       min_sequence_number, max_sequence_number, min_time, max_time, to_delete, file_size_bytes,
+       max_sequence_number, min_time, max_time, to_delete, file_size_bytes,
        row_count, compaction_level, created_at, column_set
 FROM parquet_file
 WHERE parquet_file.sequencer_id = $1
@@ -1656,7 +1654,7 @@ WHERE parquet_file.sequencer_id = $1
         sqlx::query_as::<_, ParquetFile>(
             r#"
 SELECT id, sequencer_id, namespace_id, table_id, partition_id, object_store_id,
-       min_sequence_number, max_sequence_number, min_time, max_time, to_delete, file_size_bytes,
+       max_sequence_number, min_time, max_time, to_delete, file_size_bytes,
        row_count, compaction_level, created_at, column_set
 FROM parquet_file
 WHERE parquet_file.sequencer_id = $1
@@ -1752,7 +1750,7 @@ limit $2;
         sqlx::query_as::<_, ParquetFile>(
             r#"
 SELECT id, sequencer_id, namespace_id, table_id, partition_id, object_store_id,
-       min_sequence_number, max_sequence_number, min_time, max_time, to_delete, file_size_bytes,
+       max_sequence_number, min_time, max_time, to_delete, file_size_bytes,
        row_count, compaction_level, created_at, column_set
 FROM parquet_file
 WHERE parquet_file.partition_id = $1
@@ -1792,7 +1790,7 @@ RETURNING id;
 
     async fn exist(&mut self, id: ParquetFileId) -> Result<bool> {
         let read_result = sqlx::query_as::<_, Count>(
-            r#"SELECT count(*) as count FROM parquet_file WHERE id = $1;"#,
+            r#"SELECT count(1) as count FROM parquet_file WHERE id = $1;"#,
         )
         .bind(&id) // $1
         .fetch_one(&mut self.inner)
@@ -1804,7 +1802,7 @@ RETURNING id;
 
     async fn count(&mut self) -> Result<i64> {
         let read_result =
-            sqlx::query_as::<_, Count>(r#"SELECT count(*) as count FROM parquet_file;"#)
+            sqlx::query_as::<_, Count>(r#"SELECT count(1) as count FROM parquet_file;"#)
                 .fetch_one(&mut self.inner)
                 .await
                 .map_err(|e| Error::SqlxError { source: e })?;
@@ -1812,7 +1810,7 @@ RETURNING id;
         Ok(read_result.count)
     }
 
-    async fn count_by_overlaps(
+    async fn count_by_overlaps_with_level_0(
         &mut self,
         table_id: TableId,
         sequencer_id: SequencerId,
@@ -1822,12 +1820,13 @@ RETURNING id;
     ) -> Result<i64> {
         let read_result = sqlx::query_as::<_, Count>(
             r#"
-SELECT count(*) as count
+SELECT count(1) as count
 FROM parquet_file
 WHERE table_id = $1
   AND sequencer_id = $2
-  AND min_sequence_number < $3
+  AND max_sequence_number < $3
   AND parquet_file.to_delete IS NULL
+  AND compaction_level = 0
   AND ((parquet_file.min_time <= $4 AND parquet_file.max_time >= $4)
   OR (parquet_file.min_time > $4 AND parquet_file.min_time <= $5));
             "#,
@@ -1844,6 +1843,36 @@ WHERE table_id = $1
         Ok(read_result.count)
     }
 
+    async fn count_by_overlaps_with_level_1(
+        &mut self,
+        table_id: TableId,
+        sequencer_id: SequencerId,
+        min_time: Timestamp,
+        max_time: Timestamp,
+    ) -> Result<i64> {
+        let read_result = sqlx::query_as::<_, Count>(
+            r#"
+SELECT count(1) as count
+FROM parquet_file
+WHERE table_id = $1
+  AND sequencer_id = $2
+  AND parquet_file.to_delete IS NULL
+  AND compaction_level = 1
+  AND ((parquet_file.min_time <= $3 AND parquet_file.max_time >= $3)
+  OR (parquet_file.min_time > $3 AND parquet_file.min_time <= $4));
+            "#,
+        )
+        .bind(&table_id) // $1
+        .bind(&sequencer_id) // $2
+        .bind(min_time) // $3
+        .bind(max_time) // $4
+        .fetch_one(&mut self.inner)
+        .await
+        .map_err(|e| Error::SqlxError { source: e })?;
+
+        Ok(read_result.count)
+    }
+
     async fn get_by_object_store_id(
         &mut self,
         object_store_id: Uuid,
@@ -1853,7 +1882,7 @@ WHERE table_id = $1
         let rec = sqlx::query_as::<_, ParquetFile>(
             r#"
 SELECT id, sequencer_id, namespace_id, table_id, partition_id, object_store_id,
-       min_sequence_number, max_sequence_number, min_time, max_time, to_delete, file_size_bytes,
+       max_sequence_number, min_time, max_time, to_delete, file_size_bytes,
        row_count, compaction_level, created_at, column_set
 FROM parquet_file
 WHERE object_store_id = $1;
@@ -1912,7 +1941,7 @@ RETURNING *;
     ) -> Result<bool> {
         let read_result = sqlx::query_as::<_, Count>(
             r#"
-SELECT count(*) as count
+SELECT count(1) as count
 FROM processed_tombstone
 WHERE parquet_file_id = $1
   AND tombstone_id = $2;
@@ -1929,7 +1958,7 @@ WHERE parquet_file_id = $1
 
     async fn count(&mut self) -> Result<i64> {
         let read_result =
-            sqlx::query_as::<_, Count>(r#"SELECT count(*) as count FROM processed_tombstone;"#)
+            sqlx::query_as::<_, Count>(r#"SELECT count(1) as count FROM processed_tombstone;"#)
                 .fetch_one(&mut self.inner)
                 .await
                 .map_err(|e| Error::SqlxError { source: e })?;
@@ -1939,7 +1968,7 @@ WHERE parquet_file_id = $1
 
     async fn count_by_tombstone_id(&mut self, tombstone_id: TombstoneId) -> Result<i64> {
         let read_result = sqlx::query_as::<_, Count>(
-            r#"SELECT count(*) as count FROM processed_tombstone WHERE tombstone_id = $1;"#,
+            r#"SELECT count(1) as count FROM processed_tombstone WHERE tombstone_id = $1;"#,
         )
         .bind(&tombstone_id) // $1
         .fetch_one(&mut self.inner)

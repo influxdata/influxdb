@@ -11,8 +11,8 @@ message IoxMetadata {
   // timestamps, and specifying them here creates a dependency that prevents
   // streaming serialisation (needing to know the number rows before you can
   // serialize your parquet file with this metadata structure within it)
-  reserved 10, 11, 14;
-  reserved "row_count", "time_of_first_write", "time_of_last_write";
+  reserved 10, 11, 12, 14;
+  reserved "row_count", "min_sequence_number", "time_of_first_write", "time_of_last_write";
 
   // Object store ID. Used in the parquet filename. 16 bytes in big-endian order.
   bytes object_store_id = 1;
@@ -40,9 +40,6 @@ message IoxMetadata {
 
   // Partition key of the partition that holds this parquet file.
   string partition_key = 9;
-
-  // The minimum sequence number from a sequencer in this parquet file.
-  int64 min_sequence_number = 12;
 
   // The maximum sequence number from a sequencer in this parquet file.
   int64 max_sequence_number = 13;

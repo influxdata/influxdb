@@ -89,7 +89,6 @@ fn to_parquet_file(p: data_types::ParquetFile) -> ParquetFile {
         table_id: p.table_id.get(),
         partition_id: p.partition_id.get(),
         object_store_id: p.object_store_id.to_string(),
-        min_sequence_number: p.min_sequence_number.get(),
         max_sequence_number: p.max_sequence_number.get(),
         min_time: p.min_time.get(),
         max_time: p.max_time.get(),
@@ -170,7 +169,6 @@ mod tests {
                 table_id: table.id,
                 partition_id: partition.id,
                 object_store_id: Uuid::new_v4(),
-                min_sequence_number: SequenceNumber::new(1),
                 max_sequence_number: SequenceNumber::new(40),
                 min_time: Timestamp::new(1),
                 max_time: Timestamp::new(5),
@@ -182,7 +180,6 @@ mod tests {
             };
             let p2params = ParquetFileParams {
                 object_store_id: Uuid::new_v4(),
-                min_sequence_number: SequenceNumber::new(50),
                 max_sequence_number: SequenceNumber::new(70),
                 ..p1params.clone()
             };

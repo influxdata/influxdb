@@ -931,8 +931,6 @@ pub struct ParquetFile {
     pub partition_id: PartitionId,
     /// the uuid used in the object store path for this file
     pub object_store_id: Uuid,
-    /// the minimum sequence number from a record in this file
-    pub min_sequence_number: SequenceNumber,
     /// the maximum sequence number from a record in this file
     pub max_sequence_number: SequenceNumber,
     /// the min timestamp of data in this file
@@ -999,8 +997,6 @@ pub struct ParquetFileParams {
     pub partition_id: PartitionId,
     /// the uuid used in the object store path for this file
     pub object_store_id: Uuid,
-    /// the minimum sequence number from a record in this file
-    pub min_sequence_number: SequenceNumber,
     /// the maximum sequence number from a record in this file
     pub max_sequence_number: SequenceNumber,
     /// the min timestamp of data in this file

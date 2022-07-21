@@ -247,7 +247,6 @@ mod tests {
 
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol("cpu,host=a load=1 11")
-            .with_min_seq(1)
             .with_max_seq(1)
             .with_min_time(11)
             .with_max_time(11);
@@ -255,7 +254,6 @@ mod tests {
 
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol("cpu,host=a load=2 22")
-            .with_min_seq(2)
             .with_max_seq(2)
             .with_min_time(22)
             .with_max_time(22);
@@ -267,7 +265,6 @@ mod tests {
 
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol("cpu,host=a load=3 33")
-            .with_min_seq(3)
             .with_max_seq(3)
             .with_min_time(33)
             .with_max_time(33);
@@ -275,7 +272,6 @@ mod tests {
 
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol("cpu,host=a load=4 10001")
-            .with_min_seq(4)
             .with_max_seq(4)
             .with_min_time(10_001)
             .with_max_time(10_001);
@@ -283,7 +279,6 @@ mod tests {
 
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol("cpu,host=b load=5 11")
-            .with_min_seq(5)
             .with_max_seq(5)
             .with_min_time(11)
             .with_max_time(11);
@@ -299,7 +294,6 @@ mod tests {
         .join("\n");
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(&lp)
-            .with_min_seq(6)
             .with_max_seq(6)
             .with_min_time(11)
             .with_max_time(14);
@@ -307,7 +301,6 @@ mod tests {
 
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol("mem,host=c perc=50 1001")
-            .with_min_seq(7)
             .with_max_seq(7)
             .with_min_time(1001)
             .with_max_time(1001);
@@ -320,7 +313,6 @@ mod tests {
         // will be pruned by the tombstone
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol("mem,host=d perc=55 1")
-            .with_min_seq(7)
             .with_max_seq(7)
             .with_min_time(1)
             .with_max_time(1);
@@ -433,7 +425,6 @@ mod tests {
         let builder = TestParquetFileBuilder::default()
             // duplicate row with different field value (load=14)
             .with_line_protocol("cpu,host=a load=14 10001")
-            .with_min_seq(2_000)
             .with_max_seq(2_000)
             .with_min_time(10_001)
             .with_max_time(10_001);

@@ -162,7 +162,6 @@ mod tests {
             table_id: partition.table_id,
             partition_id: partition.id,
             object_store_id: Uuid::new_v4(),
-            min_sequence_number: SequenceNumber::new(10),
             max_sequence_number: SequenceNumber::new(140),
             min_time: Timestamp::new(1),
             max_time: Timestamp::new(10),

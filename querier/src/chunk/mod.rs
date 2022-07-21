@@ -2,8 +2,8 @@
 
 use crate::cache::CatalogCache;
 use data_types::{
-    ChunkId, ChunkOrder, ColumnId, DeletePredicate, ParquetFile, ParquetFileId, PartitionId,
-    SequenceNumber, SequencerId, TableSummary, TimestampMinMax,
+    ChunkId, ChunkOrder, ColumnId, CompactionLevel, DeletePredicate, ParquetFile, ParquetFileId,
+    PartitionId, SequenceNumber, SequencerId, TableSummary, TimestampMinMax,
 };
 use iox_catalog::interface::Catalog;
 use parking_lot::RwLock;
@@ -45,11 +45,11 @@ pub struct ChunkMeta {
     /// Partition ID.
     partition_id: PartitionId,
 
-    /// The minimum sequence number within this chunk.
-    min_sequence_number: SequenceNumber,
-
     /// The maximum sequence number within this chunk.
     max_sequence_number: SequenceNumber,
+
+    /// Compaction level of the parquet file of the chunk
+    compaction_level: CompactionLevel,
 }
 
 impl ChunkMeta {
@@ -78,14 +78,14 @@ impl ChunkMeta {
         self.partition_id
     }
 
-    /// The minimum sequence number within this chunk.
-    pub fn min_sequence_number(&self) -> SequenceNumber {
-        self.min_sequence_number
-    }
-
     /// The maximum sequence number within this chunk.
     pub fn max_sequence_number(&self) -> SequenceNumber {
         self.max_sequence_number
+    }
+
+    /// Compaction level of the parquet file of the chunk
+    pub fn compaction_level(&self) -> CompactionLevel {
+        self.compaction_level
     }
 }
 
@@ -480,8 +480,8 @@ impl ChunkAdapter {
             sort_key: Some(sort_key),
             sequencer_id: parquet_file.sequencer_id,
             partition_id: parquet_file.partition_id,
-            min_sequence_number: parquet_file.min_sequence_number,
             max_sequence_number: parquet_file.max_sequence_number,
+            compaction_level: parquet_file.compaction_level,
         });
 
         Some(ChunkParts {

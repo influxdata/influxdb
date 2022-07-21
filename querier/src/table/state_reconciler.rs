@@ -2,7 +2,7 @@
 
 mod interface;
 
-use data_types::{PartitionId, SequencerId, Tombstone, TombstoneId};
+use data_types::{CompactionLevel, PartitionId, SequencerId, Tombstone, TombstoneId};
 use iox_query::QueryChunk;
 use observability_deps::tracing::debug;
 use schema::sort::SortKey;
@@ -324,12 +324,15 @@ where
                 debug!(
                     file_partition_id=%file.partition_id(),
                     file_max_seq_num=%file.max_sequence_number().get(),
-                    file_min_seq_num=%file.min_sequence_number().get(),
                     persisted_max=%persisted_max.get(),
                     "Comparing parquet file and ingester parquet max"
                 );
-                if (file.max_sequence_number() > persisted_max)
-                    && (file.min_sequence_number() <= persisted_max)
+
+                // This is the result of the compactor compacting files persisted by the ingester after persisted_max
+                // The compacted result may include data of before and after persisted_max which prevents
+                // this query to return correct result beacuse it only needs data before persist_max
+                if file.compaction_level() != CompactionLevel::Initial
+                    && file.max_sequence_number() > persisted_max
                 {
                     return Err(ReconcileError::CompactorConflict);
                 }
@@ -341,7 +344,6 @@ where
                 debug!(
                     file_partition_id=%file.partition_id(),
                     file_max_seq_num=%file.max_sequence_number().get(),
-                    file_min_seq_num=%file.min_sequence_number().get(),
                     "ingester thinks it doesn't have data persisted yet"
                 );
                 // ingester thinks it doesn't have any data persisted yet => can safely ignore file
@@ -351,7 +353,6 @@ where
             debug!(
                 file_partition_id=%file.partition_id(),
                 file_max_seq_num=%file.max_sequence_number().get(),
-                file_min_seq_num=%file.min_sequence_number().get(),
                 "partition was not flagged by the ingester as unpersisted"
             );
             // partition was not flagged by the ingester as "unpersisted", so we can keep the
@@ -414,7 +415,7 @@ where
 mod tests {
     use super::*;
     use assert_matches::assert_matches;
-    use data_types::SequenceNumber;
+    use data_types::{CompactionLevel, SequenceNumber};
 
     #[test]
     fn test_filter_parquet_files_empty() {
@@ -434,8 +435,8 @@ mod tests {
         }];
         let parquet_files = vec![MockParquetFileInfo {
             partition_id: PartitionId::new(1),
-            min_sequence_number: SequenceNumber::new(10),
             max_sequence_number: SequenceNumber::new(11),
+            compaction_level: CompactionLevel::FileNonOverlapped,
         }];
         let err = filter_parquet_files(ingester_partitions, parquet_files).unwrap_err();
         assert_matches!(err, ReconcileError::CompactorConflict);
@@ -465,41 +466,41 @@ mod tests {
         ];
         let pf11 = MockParquetFileInfo {
             partition_id: PartitionId::new(1),
-            min_sequence_number: SequenceNumber::new(3),
             max_sequence_number: SequenceNumber::new(9),
+            compaction_level: CompactionLevel::Initial,
         };
         let pf12 = MockParquetFileInfo {
             partition_id: PartitionId::new(1),
-            min_sequence_number: SequenceNumber::new(10),
             max_sequence_number: SequenceNumber::new(10),
+            compaction_level: CompactionLevel::Initial,
         };
         // filtered because it was persisted after ingester sent response (11 > 10)
         let pf13 = MockParquetFileInfo {
             partition_id: PartitionId::new(1),
-            min_sequence_number: SequenceNumber::new(11),
             max_sequence_number: SequenceNumber::new(20),
+            compaction_level: CompactionLevel::Initial,
         };
         let pf2 = MockParquetFileInfo {
             partition_id: PartitionId::new(2),
-            min_sequence_number: SequenceNumber::new(0),
             max_sequence_number: SequenceNumber::new(0),
+            compaction_level: CompactionLevel::Initial,
         };
         let pf31 = MockParquetFileInfo {
             partition_id: PartitionId::new(3),
-            min_sequence_number: SequenceNumber::new(1),
             max_sequence_number: SequenceNumber::new(3),
+            compaction_level: CompactionLevel::Initial,
         };
         // filtered because it was persisted after ingester sent response (4 > 3)
         let pf32 = MockParquetFileInfo {
             partition_id: PartitionId::new(3),
-            min_sequence_number: SequenceNumber::new(4),
             max_sequence_number: SequenceNumber::new(5),
+            compaction_level: CompactionLevel::Initial,
         };
         // passed because it came from a partition (4) the ingester didn't know about
         let pf4 = MockParquetFileInfo {
             partition_id: PartitionId::new(4),
-            min_sequence_number: SequenceNumber::new(0),
             max_sequence_number: SequenceNumber::new(0),
+            compaction_level: CompactionLevel::Initial,
         };
         let parquet_files = vec![
             pf11.clone(),
@@ -650,8 +651,8 @@ mod tests {
     #[derive(Debug, Clone, PartialEq, Eq)]
     struct MockParquetFileInfo {
         partition_id: PartitionId,
-        min_sequence_number: SequenceNumber,
         max_sequence_number: SequenceNumber,
+        compaction_level: CompactionLevel,
     }
 
     impl ParquetFileInfo for MockParquetFileInfo {
@@ -659,12 +660,12 @@ mod tests {
             self.partition_id
         }
 
-        fn min_sequence_number(&self) -> SequenceNumber {
-            self.min_sequence_number
-        }
-
         fn max_sequence_number(&self) -> SequenceNumber {
             self.max_sequence_number
+        }
+
+        fn compaction_level(&self) -> CompactionLevel {
+            self.compaction_level
         }
     }
 

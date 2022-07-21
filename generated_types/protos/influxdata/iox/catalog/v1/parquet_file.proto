@@ -3,6 +3,9 @@ package influxdata.iox.catalog.v1;
 option go_package = "github.com/influxdata/iox/catalog/v1";
 
 message ParquetFile {
+    reserved 7;
+    reserved "min_sequence_number";
+
     // the id of the file in the catalog
     int64 id = 1;
     // the sequencer that sequenced writes for this file
@@ -15,8 +18,6 @@ message ParquetFile {
     int64 partition_id = 5;
     // the object store uuid
     string object_store_id = 6;
-    // the minimum sequence number from a record in this file
-    int64 min_sequence_number = 7;
     // the maximum sequence number from a record in this file
     int64 max_sequence_number = 8;
     // the min timestamp of data in this file

@@ -819,12 +819,10 @@ impl Compactor {
         // Compute min & max sequence numbers and time
         // unwrap here will work becasue the len of the query_chunks already >= 1
         let (head, tail) = query_chunks.split_first().unwrap();
-        let mut min_sequence_number = head.min_sequence_number();
         let mut max_sequence_number = head.max_sequence_number();
         let mut min_time = head.min_time();
         let mut max_time = head.max_time();
         for c in tail {
-            min_sequence_number = min(min_sequence_number, c.min_sequence_number());
             max_sequence_number = max(max_sequence_number, c.max_sequence_number());
             min_time = min(min_time, c.min_time());
             max_time = max(max_time, c.max_time());
@@ -886,7 +884,6 @@ impl Compactor {
                 table_name: table.name.clone().into(),
                 partition_id: partition.id,
                 partition_key: partition.partition_key.clone(),
-                min_sequence_number,
                 max_sequence_number,
                 compaction_level: CompactionLevel::FileNonOverlapped,
                 sort_key: Some(sort_key.clone()),
@@ -930,7 +927,6 @@ impl Compactor {
                 }
             }
         }
-
         for original_parquet_file_id in original_parquet_file_ids {
             txn.parquet_files()
                 .flag_for_delete(original_parquet_file_id)
@@ -978,11 +974,11 @@ impl Compactor {
     async fn fully_processed(&self, tombstone: Tombstone) -> bool {
         let mut repos = self.catalog.repositories().await;
 
-        // Get number of non-deleted parquet files of the same table ID & sequencer ID that overlap
-        // with the tombstone time range
-        let count_pf = repos
+        // See if there are any non-deleted level-0 files with same sequencer, same table, and
+        // smaller max_sequence_number that time-overlap with this delete
+        let count_pf_l0 = repos
             .parquet_files()
-            .count_by_overlaps(
+            .count_by_overlaps_with_level_0(
                 tombstone.table_id,
                 tombstone.sequencer_id,
                 tombstone.min_time,
@@ -990,11 +986,46 @@ impl Compactor {
                 tombstone.sequence_number,
             )
             .await;
-        let count_pf = match count_pf {
-            Ok(count_pf) => count_pf,
+        match count_pf_l0 {
+            Ok(count_pf_l0) => {
+                if count_pf_l0 > 0 {
+                    // There are level-0 files with smaller sequencer number overlap with this delete.
+                    // Since we only create processed tombstones for level-1 files (after deleteing their
+                    // compacted Level-0 files), this is a clear signal this level-0 files are not compacted
+                    // and applied this tombstone yet.
+                    return false;
+                }
+            }
             _ => {
                 warn!(
-                    "Error getting parquet file count for table ID {}, sequencer ID {}, min time \
+                    "Error getting level-0 parquet file count for table ID {}, sequencer ID {}, min time \
+                        {:?}, max time {:?}. Won't be able to verify whether its tombstone is fully \
+                        processed",
+                    tombstone.table_id,
+                    tombstone.sequencer_id,
+                    tombstone.min_time,
+                    tombstone.max_time
+                );
+                return false;
+            }
+        };
+
+        // Get number of non-deleted level-1 parquet files of the same table ID & sequencer ID that overlap
+        // with the tombstone time range
+        let count_pf_l1 = repos
+            .parquet_files()
+            .count_by_overlaps_with_level_1(
+                tombstone.table_id,
+                tombstone.sequencer_id,
+                tombstone.min_time,
+                tombstone.max_time,
+            )
+            .await;
+        let count_pf_l1 = match count_pf_l1 {
+            Ok(count_pf_l1) => count_pf_l1,
+            _ => {
+                warn!(
+                    "Error getting level-1 parquet file count for table ID {}, sequencer ID {}, min time \
                      {:?}, max time {:?}. Won't be able to verify whether its tombstone is fully \
                      processed",
                     tombstone.table_id,
@@ -1023,8 +1054,8 @@ impl Compactor {
             }
         };
 
-        // Fully processed if two count the same
-        count_pf == count_pt
+        // Fully processed if two counts the same
+        count_pf_l1 == count_pt
     }
 
     async fn add_tombstones_to_files(
@@ -1164,7 +1195,6 @@ mod tests {
         // One parquet file
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(&lp)
-            .with_min_seq(1)
             .with_max_seq(1)
             .with_min_time(8_000)
             .with_max_time(20_000)
@@ -1365,7 +1395,6 @@ mod tests {
         // pf1 does not overlap with any and is very large
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(&lp1)
-            .with_min_seq(1)
             .with_max_seq(1)
             .with_min_time(10)
             .with_max_time(20)
@@ -1376,7 +1405,6 @@ mod tests {
         // pf2 overlaps with pf3
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(&lp2)
-            .with_min_seq(4)
             .with_max_seq(5)
             .with_min_time(8_000)
             .with_max_time(20_000)
@@ -1387,7 +1415,6 @@ mod tests {
         // pf3 overlaps with pf2
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(&lp3)
-            .with_min_seq(8)
             .with_max_seq(10)
             .with_min_time(6_000)
             .with_max_time(25_000)
@@ -1398,7 +1425,6 @@ mod tests {
         // pf4 does not overlap with any but is small
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(&lp4)
-            .with_min_seq(18)
             .with_max_seq(18)
             .with_min_time(26_000)
             .with_max_time(28_000)
@@ -1409,7 +1435,6 @@ mod tests {
         // pf5 was created in a previous compaction cycle
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(&lp5)
-            .with_min_seq(20)
             .with_max_seq(20)
             .with_min_time(30_000)
             .with_max_time(36_000)
@@ -1423,12 +1448,12 @@ mod tests {
         assert_eq!(count, 4);
 
         // create 3 tombstones
-        // ts1 overlaps with pf1 and pf2 but issued before pf1 and pf2 hence it won't be used
+        // ts1 overlaps with pf2 and pf3 but issued before pf2 and pf3 hence it won't be used
         let ts1 = table
             .with_sequencer(&sequencer)
             .create_tombstone(2, 6000, 21000, "tag1=UT")
             .await;
-        // ts2 overlap with both pf1 and pf2 but issued before pf3 so only applied to pf2
+        // ts2 overlap with both pf2 and pf3 but issued before pf3 so only applied to pf2
         let ts2 = table
             .with_sequencer(&sequencer)
             .create_tombstone(6, 6000, 12000, "tag1=VT")
@@ -1567,7 +1592,6 @@ mod tests {
             .await;
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(&lp)
-            .with_min_seq(1)
             .with_max_seq(1)
             .with_min_time(8_000)
             .with_max_time(20_000);
@@ -1652,7 +1676,6 @@ mod tests {
         // Create 2 parquet files in the same partition
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(&lp1)
-            .with_min_seq(1)
             .with_max_seq(5)
             .with_min_time(8_000)
             .with_max_time(20_000)
@@ -1661,7 +1684,6 @@ mod tests {
 
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(&lp2)
-            .with_min_seq(10)
             .with_max_seq(15)
             .with_min_time(6_000)
             .with_max_time(25_000)
@@ -1779,7 +1801,6 @@ mod tests {
         // total file size = 50000 (file1) + 50000 (file2) + 20000 (file3)
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(&lp1)
-            .with_min_seq(1)
             .with_max_seq(5)
             .with_min_time(8_000)
             .with_max_time(20_000)
@@ -1788,7 +1809,6 @@ mod tests {
 
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(&lp2)
-            .with_min_seq(10)
             .with_max_seq(15)
             .with_min_time(6_000)
             .with_max_time(25_000)
@@ -1797,7 +1817,6 @@ mod tests {
 
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(&lp3)
-            .with_min_seq(20)
             .with_max_seq(25)
             .with_min_time(6_000)
             .with_max_time(8_000)
@@ -1912,14 +1931,12 @@ mod tests {
         // 2 files with same min_sequence_number
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(&lp1)
-            .with_min_seq(1)
             .with_max_seq(5)
             .with_min_time(8_000)
             .with_max_time(20_000);
         let pf1 = partition.create_parquet_file(builder).await.parquet_file;
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(&lp2)
-            .with_min_seq(1)
             .with_max_seq(5)
             .with_min_time(28_000)
             .with_max_time(35_000);
@@ -2109,7 +2126,6 @@ mod tests {
             table_name: "temperature".into(),
             partition_id: PartitionId::new(4),
             partition_key: "somehour".into(),
-            min_sequence_number: SequenceNumber::new(5),
             max_sequence_number: SequenceNumber::new(6),
             // TODO: consider to add level-1 tests before merging
             compaction_level: CompactionLevel::FileNonOverlapped,
@@ -2123,7 +2139,6 @@ mod tests {
             table_id: table.id,
             partition_id: partition.id,
             object_store_id: Uuid::new_v4(),
-            min_sequence_number: SequenceNumber::new(4),
             max_sequence_number: SequenceNumber::new(10),
             min_time,
             max_time,
@@ -2135,13 +2150,11 @@ mod tests {
         };
         let other_parquet = ParquetFileParams {
             object_store_id: Uuid::new_v4(),
-            min_sequence_number: SequenceNumber::new(11),
             max_sequence_number: SequenceNumber::new(20),
             ..parquet.clone()
         };
         let another_parquet = ParquetFileParams {
             object_store_id: Uuid::new_v4(),
-            min_sequence_number: SequenceNumber::new(21),
             max_sequence_number: SequenceNumber::new(30),
             ..parquet.clone()
         };
@@ -2356,7 +2369,6 @@ mod tests {
             table_id: table.id,
             partition_id: partition1.id,
             object_store_id: Uuid::new_v4(),
-            min_sequence_number: SequenceNumber::new(4),
             max_sequence_number: SequenceNumber::new(100),
             min_time: Timestamp::new(1),
             max_time: Timestamp::new(5),
@@ -2522,7 +2534,6 @@ mod tests {
         // total file size = 60000 + 60000 = 120000
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(&lp1)
-            .with_min_seq(1)
             .with_max_seq(1)
             .with_min_time(1)
             .with_max_time(1_000)
@@ -2531,7 +2542,6 @@ mod tests {
 
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(&lp2)
-            .with_min_seq(10)
             .with_max_seq(15)
             .with_min_time(500)
             .with_max_time(1_500)
