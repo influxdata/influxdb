@@ -318,7 +318,7 @@ mod tests {
     use super::*;
     use arrow::record_batch::RecordBatch;
     use arrow_util::assert_batches_sorted_eq;
-    use data_types::{ColumnType, PartitionKey, PartitionParam};
+    use data_types::{ColumnType, PartitionParam};
     use iox_tests::util::{TestCatalog, TestParquetFileBuilder, TestTable};
     use parquet_file::ParquetFilePath;
     use test_helpers::assert_error;
@@ -362,8 +362,8 @@ mod tests {
                 namespace_id: ns.namespace.id,
                 table_id: partition.partition.table_id,
             },
-            sort_key: Some(sort_key),                   //NGA TODO
-            partition_key: PartitionKey::from("to-do"), // NGA TODO
+            sort_key: partition.partition.sort_key(),
+            partition_key: partition.partition.partition_key.clone(),
         };
 
         let lp = vec![
