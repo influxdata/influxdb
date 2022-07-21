@@ -10,7 +10,7 @@ chrono = { version = "0.4", default-features = false }
 chrono-english = "0.1.4"
 clap = { version = "3", features = ["derive", "env", "cargo"] }
 futures = "0.3"
-handlebars = "4.3.2"
+handlebars = "4.3.3"
 humantime = "2.1.0"
 influxdb2_client = { path = "../influxdb2_client" }
 itertools = "0.10.0"
