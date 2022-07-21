@@ -175,7 +175,12 @@ impl QuerierTable {
                     .map(|span| span.child("ingester partitions"))
             ),
             catalog_cache.parquet_file().get(self.id()),
-            catalog_cache.tombstone().get(self.id()),
+            catalog_cache.tombstone().get(
+                self.id(),
+                span_recorder
+                    .span()
+                    .map(|span| span.child("cache GET tombstone (pre-warm)"))
+            ),
         );
 
         // handle errors / cache refresh
@@ -195,7 +200,12 @@ impl QuerierTable {
         // Now fetch the actual contents of the catalog we need
         let (parquet_files, tombstones) = join!(
             catalog_cache.parquet_file().get(self.id()),
-            catalog_cache.tombstone().get(self.id())
+            catalog_cache.tombstone().get(
+                self.id(),
+                span_recorder
+                    .span()
+                    .map(|span| span.child("cache GET tombstone"))
+            )
         );
 
         // filter out parquet files early
@@ -203,11 +213,13 @@ impl QuerierTable {
         let parquet_files: Vec<_> = futures::stream::iter(parquet_files.files.iter())
             .filter_map(|cached_parquet_file| {
                 let chunk_adapter = Arc::clone(&self.chunk_adapter);
+                let span = span_recorder.span().map(|span| span.child("new_chunk"));
                 async move {
                     chunk_adapter
                         .new_chunk(
                             Arc::clone(&self.namespace_name),
                             Arc::clone(cached_parquet_file),
+                            span,
                         )
                         .await
                 }
@@ -234,7 +246,12 @@ impl QuerierTable {
         );
 
         self.reconciler
-            .reconcile(partitions, tombstones.to_vec(), parquet_files)
+            .reconcile(
+                partitions,
+                tombstones.to_vec(),
+                parquet_files,
+                span_recorder.span().map(|span| span.child("reconcile")),
+            )
             .await
             .context(StateFusionSnafu)
     }

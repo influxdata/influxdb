@@ -30,6 +30,7 @@ use std::{
     sync::Arc,
     task::{Context, Poll},
 };
+use trace::span::SpanRecorder;
 
 use super::ChunkStage;
 
@@ -233,6 +234,10 @@ impl QueryChunk for QuerierChunk {
         predicate: &Predicate,
         selection: Selection<'_>,
     ) -> Result<SendableRecordBatchStream, QueryChunkError> {
+        let span_recorder = SpanRecorder::new(
+            ctx.span()
+                .map(|span| span.child("QuerierChunk::read_filter")),
+        );
         let delete_predicates: Vec<_> = self
             .delete_predicates()
             .iter()
@@ -272,7 +277,14 @@ impl QueryChunk for QuerierChunk {
                     if let Some(parquet_file) = parquet_file {
                         let rb_chunk = catalog_cache
                             .read_buffer()
-                            .get(parquet_file, schema, store)
+                            .get(
+                                parquet_file,
+                                schema,
+                                store,
+                                span_recorder
+                                    .span()
+                                    .map(|span| span.child("cache GET read_buffer")),
+                            )
                             .await;
                         stage.write().load_to_read_buffer(rb_chunk);
                     }

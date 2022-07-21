@@ -150,9 +150,8 @@ impl TombstoneCache {
     }
 
     /// Get list of cached tombstones, by table id
-    pub async fn get(&self, table_id: TableId) -> CachedTombstones {
-        // TODO(marco): pass span
-        self.cache.get(table_id, ((), None)).await
+    pub async fn get(&self, table_id: TableId, span: Option<Span>) -> CachedTombstones {
+        self.cache.get(table_id, ((), span)).await
     }
 
     /// Mark the entry for table_id as expired / needs a refresh
@@ -230,14 +229,14 @@ mod tests {
             .await;
 
         let cache = make_cache(&catalog);
-        let cached_tombstones = cache.get(table_id).await.to_vec();
+        let cached_tombstones = cache.get(table_id, None).await.to_vec();
 
         assert_eq!(cached_tombstones.len(), 1);
         assert_eq!(cached_tombstones[0].as_ref(), &tombstone1.tombstone);
 
         // validate a second request doens't result in a catalog request
         assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
-        cache.get(table_id).await;
+        cache.get(table_id, None).await;
         assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
     }
 
@@ -264,11 +263,11 @@ mod tests {
             .create_tombstone(8, 1, 100, "foo=1")
             .await;
 
-        let cached_tombstones = cache.get(table_id1).await.to_vec();
+        let cached_tombstones = cache.get(table_id1, None).await.to_vec();
         assert_eq!(cached_tombstones.len(), 1);
         assert_eq!(cached_tombstones[0].as_ref(), &tombstone1.tombstone);
 
-        let cached_tombstones = cache.get(table_id2).await.to_vec();
+        let cached_tombstones = cache.get(table_id2, None).await.to_vec();
         assert_eq!(cached_tombstones.len(), 1);
         assert_eq!(cached_tombstones[0].as_ref(), &tombstone2.tombstone);
     }
@@ -295,7 +294,7 @@ mod tests {
             .create_tombstone(7, 1, 100, "foo=1")
             .await;
 
-        let cached_tombstones = cache.get(table_id).await;
+        let cached_tombstones = cache.get(table_id, None).await;
         assert_eq!(cached_tombstones.to_vec().len(), 1);
         assert_eq!(cached_tombstones.size(), single_tombstone_size);
 
@@ -305,7 +304,7 @@ mod tests {
             .await;
 
         cache.expire(table_id);
-        let cached_tombstones = cache.get(table_id).await;
+        let cached_tombstones = cache.get(table_id, None).await;
         assert_eq!(cached_tombstones.to_vec().len(), 2);
         assert_eq!(cached_tombstones.size(), two_tombstone_size);
     }
@@ -316,7 +315,7 @@ mod tests {
         let cache = make_cache(&catalog);
 
         let made_up_table = TableId::new(1337);
-        let cached_tombstones = cache.get(made_up_table).await.to_vec();
+        let cached_tombstones = cache.get(made_up_table, None).await.to_vec();
         assert!(cached_tombstones.is_empty());
     }
 
@@ -349,19 +348,19 @@ mod tests {
             .await
             .tombstone
             .id;
-        assert_ids(&cache.get(table_id).await, &[tombstone1, tombstone2]);
+        assert_ids(&cache.get(table_id, None).await, &[tombstone1, tombstone2]);
 
         // simulate request with no sequence number
         // should not expire anything
         assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
         cache.expire_on_newly_persisted_files(table_id, None);
-        assert_ids(&cache.get(table_id).await, &[tombstone1, tombstone2]);
+        assert_ids(&cache.get(table_id, None).await, &[tombstone1, tombstone2]);
         assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
 
         // simulate request with sequence number 2
         // should not expire anything
         cache.expire_on_newly_persisted_files(table_id, Some(sequence_number_2));
-        assert_ids(&cache.get(table_id).await, &[tombstone1, tombstone2]);
+        assert_ids(&cache.get(table_id, None).await, &[tombstone1, tombstone2]);
         assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
 
         // add a new tombstone (at sequence 10)
@@ -372,13 +371,13 @@ mod tests {
             .id;
 
         // cache  is stale,
-        assert_ids(&cache.get(table_id).await, &[tombstone1, tombstone2]);
+        assert_ids(&cache.get(table_id, None).await, &[tombstone1, tombstone2]);
         assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
 
         // new request includes sequence 10 and causes a cache refresh
         cache.expire_on_newly_persisted_files(table_id, Some(sequence_number_10));
         assert_ids(
-            &cache.get(table_id).await,
+            &cache.get(table_id, None).await,
             &[tombstone1, tombstone2, tombstone10],
         );
         assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 2);
@@ -398,16 +397,16 @@ mod tests {
         let cache = make_cache(&catalog);
 
         // no tombstones for the table, cached
-        assert!(cache.get(table_id).await.tombstones.is_empty());
+        assert!(cache.get(table_id, None).await.tombstones.is_empty());
         assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
 
         // second request to should be cached
-        assert!(cache.get(table_id).await.tombstones.is_empty());
+        assert!(cache.get(table_id, None).await.tombstones.is_empty());
         assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
 
         // calls to expire if there are no new known tombstones should not still be cached
         cache.expire_on_newly_persisted_files(table_id, None);
-        assert!(cache.get(table_id).await.tombstones.is_empty());
+        assert!(cache.get(table_id, None).await.tombstones.is_empty());
         assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
 
         // Create a tombstone
@@ -418,12 +417,12 @@ mod tests {
             .id;
 
         // cache is stale
-        assert!(cache.get(table_id).await.tombstones.is_empty());
+        assert!(cache.get(table_id, None).await.tombstones.is_empty());
         assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
 
         // Now call to expire with knowledge of new tombstone, will cause a cache refresh
         cache.expire_on_newly_persisted_files(table_id, Some(sequence_number_1));
-        assert_ids(&cache.get(table_id).await, &[tombstone1]);
+        assert_ids(&cache.get(table_id, None).await, &[tombstone1]);
         assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 2);
     }
 

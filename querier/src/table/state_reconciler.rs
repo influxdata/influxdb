@@ -11,6 +11,7 @@ use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
 };
+use trace::span::{Span, SpanRecorder};
 
 use crate::{
     chunk::{ChunkAdapter, QuerierChunk},
@@ -55,9 +56,18 @@ impl Reconciler {
         ingester_partitions: Vec<IngesterPartition>,
         tombstones: Vec<Arc<Tombstone>>,
         parquet_files: Vec<QuerierChunk>,
+        span: Option<Span>,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, ReconcileError> {
+        let span_recorder = SpanRecorder::new(span);
         let mut chunks = self
-            .build_chunks_from_parquet(&ingester_partitions, tombstones, parquet_files)
+            .build_chunks_from_parquet(
+                &ingester_partitions,
+                tombstones,
+                parquet_files,
+                span_recorder
+                    .span()
+                    .map(|span| span.child("build_chunks_from_parquet")),
+            )
             .await?;
         chunks.extend(self.build_ingester_chunks(ingester_partitions));
         debug!(num_chunks=%chunks.len(), "Final chunk count after reconcilation");
@@ -77,7 +87,9 @@ impl Reconciler {
         ingester_partitions: &[IngesterPartition],
         tombstones: Vec<Arc<Tombstone>>,
         parquet_files: Vec<QuerierChunk>,
+        span: Option<Span>,
     ) -> Result<Vec<Box<dyn UpdatableQuerierChunk>>, ReconcileError> {
+        let span_recorder = SpanRecorder::new(span);
         debug!(
             namespace=%self.namespace_name(),
             table_name=%self.table_name(),
@@ -163,7 +175,13 @@ impl Reconciler {
                         .chunk_adapter
                         .catalog_cache()
                         .processed_tombstones()
-                        .exists(chunk.meta().parquet_file_id(), tombstone.tombstone_id())
+                        .exists(
+                            chunk.meta().parquet_file_id(),
+                            tombstone.tombstone_id(),
+                            span_recorder
+                                .span()
+                                .map(|span| span.child("cache GET exists processed_tombstone")),
+                        )
                         .await
                     {
                         continue;

@@ -14,6 +14,7 @@ use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
 };
+use trace::span::{Span, SpanRecorder};
 use uuid::Uuid;
 
 use self::util::create_basic_summary;
@@ -233,7 +234,9 @@ impl QuerierChunk {
         catalog_cache: Arc<CatalogCache>,
         store: ParquetStorage,
         load_setting: QuerierChunkLoadSetting,
+        span: Option<Span>,
     ) -> Self {
+        let span_recorder = SpanRecorder::new(span);
         let schema = parquet_chunk.schema();
         let timestamp_min_max = parquet_chunk.timestamp_min_max();
 
@@ -245,7 +248,15 @@ impl QuerierChunk {
             }
             QuerierChunkLoadSetting::OnDemand => {
                 // depends on cache state
-                catalog_cache.read_buffer().peek(meta.parquet_file_id).await
+                catalog_cache
+                    .read_buffer()
+                    .peek(
+                        meta.parquet_file_id,
+                        span_recorder
+                            .span()
+                            .map(|span| span.child("cache PEEK read_buffer")),
+                    )
+                    .await
             }
             QuerierChunkLoadSetting::ReadBufferOnly => {
                 // force load
@@ -256,6 +267,9 @@ impl QuerierChunk {
                             Arc::clone(parquet_chunk.parquet_file()),
                             Arc::clone(&schema),
                             store.clone(),
+                            span_recorder
+                                .span()
+                                .map(|span| span.child("cache GET read_buffer")),
                         )
                         .await,
                 )
@@ -357,9 +371,15 @@ impl ChunkAdapter {
         &self,
         namespace_name: Arc<str>,
         parquet_file: Arc<ParquetFile>,
+        span: Option<Span>,
     ) -> Option<QuerierChunk> {
+        let span_recorder = SpanRecorder::new(span);
         let parts = self
-            .chunk_parts(namespace_name, Arc::clone(&parquet_file))
+            .chunk_parts(
+                namespace_name,
+                Arc::clone(&parquet_file),
+                span_recorder.span().map(|span| span.child("chunk_parts")),
+            )
             .await?;
 
         let parquet_chunk = Arc::new(ParquetChunk::new(
@@ -381,6 +401,9 @@ impl ChunkAdapter {
                 Arc::clone(&self.catalog_cache),
                 self.store.clone(),
                 load_settings,
+                span_recorder
+                    .span()
+                    .map(|span| span.child("QuerierChunk::new")),
             )
             .await,
         )
@@ -390,13 +413,21 @@ impl ChunkAdapter {
         &self,
         namespace_name: Arc<str>,
         parquet_file: Arc<ParquetFile>,
+        span: Option<Span>,
     ) -> Option<ChunkParts> {
+        let span_recorder = SpanRecorder::new(span);
+
         // gather schema information
         let file_column_ids: HashSet<ColumnId> = parquet_file.column_set.iter().copied().collect();
         let table_name = self
             .catalog_cache
             .table()
-            .name(parquet_file.table_id)
+            .name(
+                parquet_file.table_id,
+                span_recorder
+                    .span()
+                    .map(|span| span.child("cache GET table name")),
+            )
             .await?;
         let namespace_schema = self
             .catalog_cache
@@ -704,6 +735,7 @@ pub mod tests {
                 .new_chunk(
                     self.ns.namespace.name.clone().into(),
                     Arc::clone(&self.parquet_file),
+                    None,
                 )
                 .await
                 .unwrap()
