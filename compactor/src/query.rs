@@ -1,8 +1,8 @@
 //! Queryable Compactor Data
 
 use data_types::{
-    ChunkId, ChunkOrder, DeletePredicate, PartitionId, SequenceNumber, TableSummary, Timestamp,
-    TimestampMinMax, Tombstone,
+    ChunkId, ChunkOrder, CompactionLevel, DeletePredicate, PartitionId, SequenceNumber,
+    TableSummary, Timestamp, TimestampMinMax, Tombstone,
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
 use iox_query::{
@@ -49,6 +49,7 @@ pub struct QueryableParquetChunk {
     max_time: Timestamp,
     sort_key: Option<SortKey>,
     partition_sort_key: Option<SortKey>,
+    compaction_level: CompactionLevel,
 }
 
 impl QueryableParquetChunk {
@@ -64,6 +65,7 @@ impl QueryableParquetChunk {
         max_time: Timestamp,
         sort_key: Option<SortKey>,
         partition_sort_key: Option<SortKey>,
+        compaction_level: CompactionLevel,
     ) -> Self {
         let delete_predicates = tombstones_to_delete_predicates(deletes);
         Self {
@@ -76,6 +78,7 @@ impl QueryableParquetChunk {
             max_time,
             sort_key,
             partition_sort_key,
+            compaction_level,
         }
     }
 
@@ -232,7 +235,76 @@ impl QueryChunk for QueryableParquetChunk {
 
     // Order of the chunk so they can be deduplicate correctly
     fn order(&self) -> ChunkOrder {
-        let seq_num = self.max_sequence_number.get();
-        ChunkOrder::new(seq_num)
+        match self.compaction_level {
+            CompactionLevel::Initial => ChunkOrder::new(self.max_sequence_number.get()),
+            CompactionLevel::FileNonOverlapped => ChunkOrder::new(0),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use data_types::ColumnType;
+    use iox_tests::util::{TestCatalog, TestParquetFileBuilder};
+    use parquet_file::storage::ParquetStorage;
+
+    async fn test_setup(
+        compaction_level: CompactionLevel,
+        max_sequence_number: i64,
+    ) -> QueryableParquetChunk {
+        let catalog = TestCatalog::new();
+        let ns = catalog.create_namespace("ns").await;
+        let sequencer = ns.create_sequencer(1).await;
+        let table = ns.create_table("table").await;
+        table.create_column("field_int", ColumnType::I64).await;
+        table.create_column("tag1", ColumnType::Tag).await;
+        table.create_column("time", ColumnType::Time).await;
+
+        let partition = table
+            .with_sequencer(&sequencer)
+            .create_partition("2022-07-13")
+            .await;
+
+        let lp = vec!["table,tag1=WA field_int=1000i 8000"].join("\n");
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(&lp)
+            .with_compaction_level(compaction_level)
+            .with_max_seq(max_sequence_number);
+        let file = partition.create_parquet_file(builder).await;
+        let parquet_file = Arc::new(file.parquet_file);
+
+        let parquet_chunk = Arc::new(ParquetChunk::new(
+            Arc::clone(&parquet_file),
+            Arc::new(table.schema().await),
+            ParquetStorage::new(Arc::clone(&catalog.object_store)),
+        ));
+
+        QueryableParquetChunk::new(
+            "table",
+            partition.partition.id,
+            parquet_chunk,
+            &[],
+            parquet_file.max_sequence_number,
+            parquet_file.min_time,
+            parquet_file.max_time,
+            None,
+            None,
+            parquet_file.compaction_level,
+        )
+    }
+
+    #[tokio::test]
+    async fn chunk_order_is_max_seq_when_compaction_level_0() {
+        let chunk = test_setup(CompactionLevel::Initial, 2).await;
+
+        assert_eq!(chunk.order(), ChunkOrder::new(2));
+    }
+
+    #[tokio::test]
+    async fn chunk_order_is_0_when_compaction_level_1() {
+        let chunk = test_setup(CompactionLevel::FileNonOverlapped, 2).await;
+
+        assert_eq!(chunk.order(), ChunkOrder::new(0));
     }
 }
