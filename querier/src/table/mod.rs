@@ -174,7 +174,12 @@ impl QuerierTable {
                     .span()
                     .map(|span| span.child("ingester partitions"))
             ),
-            catalog_cache.parquet_file().get(self.id()),
+            catalog_cache.parquet_file().get(
+                self.id(),
+                span_recorder
+                    .span()
+                    .map(|span| span.child("cache GET parquet_file (pre-warm"))
+            ),
             catalog_cache.tombstone().get(
                 self.id(),
                 span_recorder
@@ -199,7 +204,12 @@ impl QuerierTable {
 
         // Now fetch the actual contents of the catalog we need
         let (parquet_files, tombstones) = join!(
-            catalog_cache.parquet_file().get(self.id()),
+            catalog_cache.parquet_file().get(
+                self.id(),
+                span_recorder
+                    .span()
+                    .map(|span| span.child("cache GET parquet_file"))
+            ),
             catalog_cache.tombstone().get(
                 self.id(),
                 span_recorder
