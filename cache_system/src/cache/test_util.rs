@@ -15,44 +15,58 @@ use crate::{
 
 use super::Cache;
 
-macro_rules! run {
-    ($test_fun:ident, $constructor:ident) => {{
-        let loader = Arc::new(TestLoader::default());
-        let cache = $constructor(Arc::clone(&loader));
-        $test_fun(cache, loader).await;
-    }};
+/// Interface between generic tests and a concrete cache type.
+pub trait TestAdapter: Send + Sync {
+    /// Cache type.
+    type Cache: Cache<K = u8, V = String, GetExtra = bool, PeekExtra = ()>;
+
+    /// Create new cache with given loader.
+    fn construct(&self, loader: Arc<TestLoader>) -> Arc<Self::Cache>;
 }
 
-pub async fn test_generic<C, F>(constructor: F)
+/// Setup test.
+fn setup<T>(adapter: &T) -> (Arc<T::Cache>, Arc<TestLoader>)
 where
-    C: Cache<K = u8, V = String, GetExtra = bool, PeekExtra = ()>,
-    F: (Fn(Arc<TestLoader>) -> Arc<C>) + Send + Sync,
+    T: TestAdapter,
 {
-    run!(test_answers_are_correct, constructor);
-    run!(test_linear_memory, constructor);
-    run!(test_concurrent_query_loads_once, constructor);
-    run!(test_queries_are_parallelized, constructor);
-    run!(test_cancel_request, constructor);
-    run!(test_panic_request, constructor);
-    run!(test_drop_cancels_loader, constructor);
-    run!(test_set_before_request, constructor);
-    run!(test_set_during_request, constructor);
+    let loader = Arc::new(TestLoader::default());
+    let cache = adapter.construct(Arc::clone(&loader));
+    (cache, loader)
 }
 
-async fn test_answers_are_correct<C>(cache: Arc<C>, _loader: Arc<TestLoader>)
+pub async fn run_test_generic<T>(adapter: T)
 where
-    C: Cache<K = u8, V = String, GetExtra = bool, PeekExtra = ()>,
+    T: TestAdapter,
 {
+    test_answers_are_correct(&adapter).await;
+    test_linear_memory(&adapter).await;
+    test_concurrent_query_loads_once(&adapter).await;
+    test_queries_are_parallelized(&adapter).await;
+    test_cancel_request(&adapter).await;
+    test_panic_request(&adapter).await;
+    test_drop_cancels_loader(&adapter).await;
+    test_set_before_request(&adapter).await;
+    test_set_during_request(&adapter).await;
+}
+
+async fn test_answers_are_correct<T>(adapter: &T)
+where
+    T: TestAdapter,
+{
+    let (cache, _loader) = setup(adapter);
+
     assert_eq!(cache.get(1, true).await, String::from("1_true"));
     assert_eq!(cache.peek(1, ()).await, Some(String::from("1_true")));
     assert_eq!(cache.get(2, false).await, String::from("2_false"));
     assert_eq!(cache.peek(2, ()).await, Some(String::from("2_false")));
 }
 
-async fn test_linear_memory<C>(cache: Arc<C>, loader: Arc<TestLoader>)
+async fn test_linear_memory<T>(adapter: &T)
 where
-    C: Cache<K = u8, V = String, GetExtra = bool, PeekExtra = ()>,
+    T: TestAdapter,
 {
+    let (cache, loader) = setup(adapter);
+
     assert_eq!(cache.peek_with_status(1, ()).await, None,);
     assert_eq!(
         cache.get_with_status(1, true).await,
@@ -86,10 +100,12 @@ where
     assert_eq!(loader.loaded(), vec![1, 2]);
 }
 
-async fn test_concurrent_query_loads_once<C>(cache: Arc<C>, loader: Arc<TestLoader>)
+async fn test_concurrent_query_loads_once<T>(adapter: &T)
 where
-    C: Cache<K = u8, V = String, GetExtra = bool, PeekExtra = ()>,
+    T: TestAdapter,
 {
+    let (cache, loader) = setup(adapter);
+
     loader.block();
 
     let cache_captured = Arc::clone(&cache);
@@ -145,10 +161,12 @@ where
     assert_eq!(loader.loaded(), vec![1]);
 }
 
-async fn test_queries_are_parallelized<C>(cache: Arc<C>, loader: Arc<TestLoader>)
+async fn test_queries_are_parallelized<T>(adapter: &T)
 where
-    C: Cache<K = u8, V = String, GetExtra = bool, PeekExtra = ()>,
+    T: TestAdapter,
 {
+    let (cache, loader) = setup(adapter);
+
     loader.block();
 
     let barrier = Arc::new(Barrier::new(4));
@@ -187,10 +205,12 @@ where
     assert_eq!(loader.loaded(), vec![1, 2]);
 }
 
-async fn test_cancel_request<C>(cache: Arc<C>, loader: Arc<TestLoader>)
+async fn test_cancel_request<T>(adapter: &T)
 where
-    C: Cache<K = u8, V = String, GetExtra = bool, PeekExtra = ()>,
+    T: TestAdapter,
 {
+    let (cache, loader) = setup(adapter);
+
     loader.block();
 
     let barrier_pending_1 = Arc::new(Barrier::new(2));
@@ -226,10 +246,12 @@ where
     assert_eq!(loader.loaded(), vec![1]);
 }
 
-async fn test_panic_request<C>(cache: Arc<C>, loader: Arc<TestLoader>)
+async fn test_panic_request<T>(adapter: &T)
 where
-    C: Cache<K = u8, V = String, GetExtra = bool, PeekExtra = ()>,
+    T: TestAdapter,
 {
+    let (cache, loader) = setup(adapter);
+
     loader.panic_once(1);
     loader.block();
 
@@ -299,10 +321,12 @@ where
     assert_eq!(loader.loaded(), vec![1, 2, 1]);
 }
 
-async fn test_drop_cancels_loader<C>(cache: Arc<C>, loader: Arc<TestLoader>)
+async fn test_drop_cancels_loader<T>(adapter: &T)
 where
-    C: Cache<K = u8, V = String, GetExtra = bool, PeekExtra = ()>,
+    T: TestAdapter,
 {
+    let (cache, loader) = setup(adapter);
+
     loader.block();
 
     let barrier_pending = Arc::new(Barrier::new(2));
@@ -321,10 +345,12 @@ where
     assert_eq!(Arc::strong_count(&loader), 1);
 }
 
-async fn test_set_before_request<C>(cache: Arc<C>, loader: Arc<TestLoader>)
+async fn test_set_before_request<T>(adapter: &T)
 where
-    C: Cache<K = u8, V = String, GetExtra = bool, PeekExtra = ()>,
+    T: TestAdapter,
 {
+    let (cache, loader) = setup(adapter);
+
     loader.block();
 
     cache.set(1, String::from("foo")).await;
@@ -337,10 +363,12 @@ where
     assert_eq!(loader.loaded(), Vec::<u8>::new());
 }
 
-async fn test_set_during_request<C>(cache: Arc<C>, loader: Arc<TestLoader>)
+async fn test_set_during_request<T>(adapter: &T)
 where
-    C: Cache<K = u8, V = String, GetExtra = bool, PeekExtra = ()>,
+    T: TestAdapter,
 {
+    let (cache, loader) = setup(adapter);
+
     loader.block();
 
     let cache_captured = Arc::clone(&cache);

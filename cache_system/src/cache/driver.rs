@@ -393,21 +393,25 @@ struct CacheState<K, V> {
 mod tests {
     use std::sync::Arc;
 
-    use crate::cache::test_util::TestLoader;
+    use crate::cache::test_util::{run_test_generic, TestAdapter, TestLoader};
 
     use super::*;
 
     #[tokio::test]
     async fn test_generic() {
-        use crate::cache::test_util::test_generic;
-
-        test_generic(setup).await;
+        run_test_generic(MyTestAdapter).await;
     }
 
-    fn setup(loader: Arc<TestLoader>) -> Arc<CacheDriver<u8, String, bool>> {
-        Arc::new(CacheDriver::new(
-            Arc::clone(&loader) as _,
-            Box::new(HashMap::new()),
-        ))
+    struct MyTestAdapter;
+
+    impl TestAdapter for MyTestAdapter {
+        type Cache = CacheDriver<u8, String, bool>;
+
+        fn construct(&self, loader: Arc<TestLoader>) -> Arc<Self::Cache> {
+            Arc::new(CacheDriver::new(
+                Arc::clone(&loader) as _,
+                Box::new(HashMap::new()),
+            ))
+        }
     }
 }

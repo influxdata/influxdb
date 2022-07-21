@@ -245,16 +245,24 @@ mod tests {
 
     use crate::cache::{
         driver::CacheDriver,
-        test_util::{AbortAndWaitExt, EnsurePendingExt, TestLoader},
+        test_util::{run_test_generic, AbortAndWaitExt, EnsurePendingExt, TestAdapter, TestLoader},
     };
 
     use super::*;
 
     #[tokio::test]
     async fn test_generic() {
-        use crate::cache::test_util::test_generic;
+        run_test_generic(MyTestAdapter).await;
+    }
 
-        test_generic(|loader| TestMetricsCache::new_with_loader(loader).cache).await;
+    struct MyTestAdapter;
+
+    impl TestAdapter for MyTestAdapter {
+        type Cache = CacheWithMetrics<u8, String, bool, ()>;
+
+        fn construct(&self, loader: Arc<TestLoader>) -> Arc<Self::Cache> {
+            TestMetricsCache::new_with_loader(loader).cache
+        }
     }
 
     #[tokio::test]
