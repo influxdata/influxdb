@@ -64,7 +64,7 @@ message ReadGroupRequest {
 
   enum Group {
     // option (gogoproto.goproto_enum_prefix) = false;
-    
+
     // GroupNone returns all series as a single group.
     // The single GroupFrame.TagKeys will be the union of all tag keys.
     GroupNone = 0;
@@ -81,7 +81,7 @@ message ReadGroupRequest {
   Aggregate aggregate = 6;
 
   // Deprecated field only used in TSM storage-related tests.
-  reserved "Hints"; 
+  reserved "Hints";
 }
 
 message Aggregate {
@@ -204,7 +204,7 @@ message TagKeysRequest {
 
 // TagValuesRequest is the request message for Storage.TagValues.
 message TagValuesRequest {
-  google.protobuf.Any TagsSource = 1; 
+  google.protobuf.Any TagsSource = 1;
   TimestampRange range = 2; // [(gogoproto.nullable) = false];
   Predicate predicate = 3;
   bytes tag_key = 4;
@@ -294,6 +294,9 @@ message ReadWindowAggregateRequest {
   int64 Offset = 6;
   repeated Aggregate aggregate = 5;
   Window window = 7;
+  // TagKeyMetaNames determines the key format used for the measurement and field
+  // tags.
+  TagKeyMetaNames tag_key_meta_names = 8;
 }
 
 message TagValuesGroupedByMeasurementAndTagKeyRequest {

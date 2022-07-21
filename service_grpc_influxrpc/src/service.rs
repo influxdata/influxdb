@@ -320,12 +320,20 @@ where
         let gby_agg = expr::make_read_group_aggregate(aggregate, group, group_keys)
             .context(ConvertingReadGroupAggregateSnafu { aggregate_string })?;
 
-        let results = query_group_impl(Arc::clone(&db), db_name, range, predicate, gby_agg, &ctx)
-            .await
-            .map_err(|e| e.to_status())?
-            .into_iter()
-            .map(Ok)
-            .collect::<Vec<_>>();
+        let results = query_group_impl(
+            Arc::clone(&db),
+            db_name,
+            range,
+            predicate,
+            gby_agg,
+            TagKeyMetaNames::Text,
+            &ctx,
+        )
+        .await
+        .map_err(|e| e.to_status())?
+        .into_iter()
+        .map(Ok)
+        .collect::<Vec<_>>();
 
         if results.iter().all(|r| r.is_ok()) {
             query_completed_token.set_success();
@@ -374,9 +382,10 @@ where
             offset,
             aggregate,
             window,
+            tag_key_meta_names,
         } = req;
 
-        info!(%db_name, ?range, ?window_every, ?offset, ?aggregate, ?window, predicate=%predicate.loggable(), "read_window_aggregate");
+        info!(%db_name, ?range, ?window_every, ?offset, ?aggregate, ?window, predicate=%predicate.loggable(), ?tag_key_meta_names, "read_window_aggregate");
 
         let aggregate_string = format!(
             "aggregate: {:?}, window_every: {:?}, offset: {:?}, window: {:?}",
@@ -386,12 +395,20 @@ where
         let gby_agg = expr::make_read_window_aggregate(aggregate, window_every, offset, window)
             .context(ConvertingWindowAggregateSnafu { aggregate_string })?;
 
-        let results = query_group_impl(Arc::clone(&db), db_name, range, predicate, gby_agg, &ctx)
-            .await
-            .map_err(|e| e.to_status())?
-            .into_iter()
-            .map(Ok)
-            .collect::<Vec<_>>();
+        let results = query_group_impl(
+            Arc::clone(&db),
+            db_name,
+            range,
+            predicate,
+            gby_agg,
+            TagKeyMetaNames::from_i32(tag_key_meta_names).unwrap_or_default(),
+            &ctx,
+        )
+        .await
+        .map_err(|e| e.to_status())?
+        .into_iter()
+        .map(Ok)
+        .collect::<Vec<_>>();
 
         if results.iter().all(|r| r.is_ok()) {
             query_completed_token.set_success();
@@ -1225,6 +1242,7 @@ async fn query_group_impl<D>(
     range: Option<TimestampRange>,
     rpc_predicate: Option<Predicate>,
     gby_agg: GroupByAndAggregate,
+    tag_key_meta_names: TagKeyMetaNames,
     ctx: &IOxSessionContext,
 ) -> Result<Vec<ReadResponse>, Error>
 where
@@ -1269,9 +1287,8 @@ where
         .context(GroupingSeriesSnafu { db_name })
         .log_if_error("Running Grouped SeriesSet Plan")?;
 
-    // ReadGroupRequest does not have a field to control the format of
-    // _measurement and _field tag keys, so always request in string format.
-    let response = series_or_groups_to_read_response(series_or_groups, false);
+    let tag_key_binary_format = tag_key_meta_names == TagKeyMetaNames::Binary;
+    let response = series_or_groups_to_read_response(series_or_groups, tag_key_binary_format);
 
     Ok(vec![response])
 }
@@ -2791,6 +2808,7 @@ mod tests {
             }],
             // old skool window definition
             window: None,
+            tag_key_meta_names: TagKeyMetaNames::Text as i32,
         };
 
         let frames = fixture
@@ -2855,6 +2873,7 @@ mod tests {
                     negative: false,
                 }),
             }),
+            tag_key_meta_names: TagKeyMetaNames::Text as i32,
         };
 
         let frames = fixture
@@ -2903,6 +2922,7 @@ mod tests {
             }],
             // old skool window definition
             window: None,
+            tag_key_meta_names: TagKeyMetaNames::Text as i32,
         };
 
         let response_string = fixture
@@ -3125,6 +3145,7 @@ mod tests {
                                 negative: false,
                             }),
                         }),
+                        tag_key_meta_names: TagKeyMetaNames::Text as i32,
                     };
                     let streaming_resp = service
                         .read_window_aggregate(tonic::Request::new(request))
