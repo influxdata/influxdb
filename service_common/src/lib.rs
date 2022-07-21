@@ -20,7 +20,7 @@ pub trait QueryDatabaseProvider: std::fmt::Debug + Send + Sync + 'static {
     type Db: ExecutionContextProvider + QueryDatabase;
 
     /// Get database if it exists.
-    async fn db(&self, name: &str) -> Option<Arc<Self::Db>>;
+    async fn db(&self, name: &str, span: Option<Span>) -> Option<Arc<Self::Db>>;
 
     /// Acquire concurrency-limiting sempahore
     async fn acquire_semaphore(&self, span: Option<Span>) -> InstrumentedAsyncOwnedSemaphorePermit;

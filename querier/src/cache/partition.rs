@@ -108,9 +108,8 @@ impl PartitionCache {
     }
 
     /// Get sequencer ID.
-    pub async fn sequencer_id(&self, partition_id: PartitionId) -> SequencerId {
-        // TODO(marco): pass span
-        self.cache.get(partition_id, ((), None)).await.sequencer_id
+    pub async fn sequencer_id(&self, partition_id: PartitionId, span: Option<Span>) -> SequencerId {
+        self.cache.get(partition_id, ((), span)).await.sequencer_id
     }
 
     /// Get sort key
@@ -120,6 +119,7 @@ impl PartitionCache {
         &self,
         partition_id: PartitionId,
         should_cover: &HashSet<&str>,
+        span: Option<Span>,
     ) -> Arc<Option<SortKey>> {
         self.backend.remove_if(&partition_id, |cached_partition| {
             if let Some(sort_key) = cached_partition.sort_key.as_ref().as_ref() {
@@ -134,8 +134,7 @@ impl PartitionCache {
             }
         });
 
-        // TODO(marco): pass span
-        self.cache.get(partition_id, ((), None)).await.sort_key
+        self.cache.get(partition_id, ((), span)).await.sort_key
     }
 }
 
@@ -195,15 +194,15 @@ mod tests {
             true,
         );
 
-        let id1 = cache.sequencer_id(p1.id).await;
+        let id1 = cache.sequencer_id(p1.id, None).await;
         assert_eq!(id1, s1.sequencer.id);
         assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 1);
 
-        let id2 = cache.sequencer_id(p2.id).await;
+        let id2 = cache.sequencer_id(p2.id, None).await;
         assert_eq!(id2, s2.sequencer.id);
         assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 2);
 
-        let id1 = cache.sequencer_id(p1.id).await;
+        let id1 = cache.sequencer_id(p1.id, None).await;
         assert_eq!(id1, s1.sequencer.id);
         assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 2);
     }
@@ -238,15 +237,15 @@ mod tests {
             true,
         );
 
-        let sort_key1 = cache.sort_key(p1.id, &HashSet::new()).await;
+        let sort_key1 = cache.sort_key(p1.id, &HashSet::new(), None).await;
         assert_eq!(sort_key1.as_ref(), &p1.sort_key());
         assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 1);
 
-        let sort_key2 = cache.sort_key(p2.id, &HashSet::new()).await;
+        let sort_key2 = cache.sort_key(p2.id, &HashSet::new(), None).await;
         assert_eq!(sort_key2.as_ref(), &p2.sort_key());
         assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 2);
 
-        let sort_key1 = cache.sort_key(p1.id, &HashSet::new()).await;
+        let sort_key1 = cache.sort_key(p1.id, &HashSet::new(), None).await;
         assert_eq!(sort_key1.as_ref(), &p1.sort_key());
         assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 2);
     }
@@ -287,16 +286,16 @@ mod tests {
             true,
         );
 
-        cache.sequencer_id(p2.id).await;
-        cache.sort_key(p3.id, &HashSet::new()).await;
+        cache.sequencer_id(p2.id, None).await;
+        cache.sort_key(p3.id, &HashSet::new(), None).await;
         assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 2);
 
-        cache.sequencer_id(p1.id).await;
-        cache.sort_key(p2.id, &HashSet::new()).await;
+        cache.sequencer_id(p1.id, None).await;
+        cache.sort_key(p2.id, &HashSet::new(), None).await;
         assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 3);
 
-        cache.sort_key(p1.id, &HashSet::new()).await;
-        cache.sequencer_id(p2.id).await;
+        cache.sort_key(p1.id, &HashSet::new(), None).await;
+        cache.sequencer_id(p2.id, None).await;
         assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 3);
     }
 
@@ -320,18 +319,18 @@ mod tests {
             true,
         );
 
-        let sort_key = cache.sort_key(p_id, &HashSet::new()).await;
+        let sort_key = cache.sort_key(p_id, &HashSet::new(), None).await;
         assert_eq!(sort_key.as_ref(), &p_sort_key);
         assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 1);
 
         // requesting nother will not expire
         assert!(p_sort_key.is_none());
-        let sort_key = cache.sort_key(p_id, &HashSet::new()).await;
+        let sort_key = cache.sort_key(p_id, &HashSet::new(), None).await;
         assert_eq!(sort_key.as_ref(), &p_sort_key);
         assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 1);
 
         // but requesting something will expire
-        let sort_key = cache.sort_key(p_id, &HashSet::from(["foo"])).await;
+        let sort_key = cache.sort_key(p_id, &HashSet::from(["foo"]), None).await;
         assert_eq!(sort_key.as_ref(), &p_sort_key);
         assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 2);
 
@@ -342,7 +341,7 @@ mod tests {
 
         // expire & fetch
         let p_sort_key = p.partition.sort_key();
-        let sort_key = cache.sort_key(p_id, &HashSet::from(["foo"])).await;
+        let sort_key = cache.sort_key(p_id, &HashSet::from(["foo"]), None).await;
         assert_eq!(sort_key.as_ref(), &p_sort_key);
         assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 3);
 
@@ -353,13 +352,15 @@ mod tests {
             HashSet::from(["bar"]),
             HashSet::from(["foo", "bar"]),
         ] {
-            let sort_key = cache.sort_key(p_id, &should_cover).await;
+            let sort_key = cache.sort_key(p_id, &should_cover, None).await;
             assert_eq!(sort_key.as_ref(), &p_sort_key);
             assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 3);
         }
 
         // unknown columns expire
-        let sort_key = cache.sort_key(p_id, &HashSet::from(["foo", "x"])).await;
+        let sort_key = cache
+            .sort_key(p_id, &HashSet::from(["foo", "x"]), None)
+            .await;
         assert_eq!(sort_key.as_ref(), &p_sort_key);
         assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 4);
     }
