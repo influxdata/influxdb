@@ -310,6 +310,7 @@ fn to_queryable_parquet_chunk(
         file.max_time,
         sort_key,
         partition_sort_key,
+        file.compaction_level,
     )
 }
 

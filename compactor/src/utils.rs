@@ -176,6 +176,7 @@ impl ParquetFileWithTombstone {
             self.data.max_time,
             sort_key,
             partition_sort_key,
+            self.data.compaction_level,
         )
     }
 }
