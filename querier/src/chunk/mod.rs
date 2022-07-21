@@ -432,7 +432,13 @@ impl ChunkAdapter {
         let namespace_schema = self
             .catalog_cache
             .namespace()
-            .schema(namespace_name, &[(&table_name, &file_column_ids)])
+            .schema(
+                namespace_name,
+                &[(&table_name, &file_column_ids)],
+                span_recorder
+                    .span()
+                    .map(|span| span.child("cache GET namespace schema")),
+            )
             .await?;
         let table_schema_catalog = namespace_schema.tables.get(table_name.as_ref())?;
         let column_id_lookup = table_schema_catalog.column_id_map();

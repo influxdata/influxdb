@@ -246,7 +246,12 @@ where
 
         let db = self
             .db_store
-            .db(&db_name)
+            .db(
+                &db_name,
+                span_ctx
+                    .as_ref()
+                    .map(|span_ctx| span_ctx.child("get namespace")),
+            )
             .await
             .context(DatabaseNotFoundSnafu { db_name: &db_name })?;
 
@@ -290,7 +295,12 @@ where
         let db_name = get_database_name(&req)?;
         let db = self
             .db_store
-            .db(&db_name)
+            .db(
+                &db_name,
+                span_ctx
+                    .as_ref()
+                    .map(|span_ctx| span_ctx.child("get namespace")),
+            )
             .await
             .context(DatabaseNotFoundSnafu { db_name: &db_name })?;
 
@@ -366,7 +376,12 @@ where
         let db_name = get_database_name(&req)?;
         let db = self
             .db_store
-            .db(&db_name)
+            .db(
+                &db_name,
+                span_ctx
+                    .as_ref()
+                    .map(|span_ctx| span_ctx.child("get namespace")),
+            )
             .await
             .context(DatabaseNotFoundSnafu { db_name: &db_name })?;
 
@@ -442,7 +457,12 @@ where
         let db_name = get_database_name(&req)?;
         let db = self
             .db_store
-            .db(&db_name)
+            .db(
+                &db_name,
+                span_ctx
+                    .as_ref()
+                    .map(|span_ctx| span_ctx.child("get namespace")),
+            )
             .await
             .context(DatabaseNotFoundSnafu { db_name: &db_name })?;
 
@@ -506,7 +526,12 @@ where
         let db_name = get_database_name(&req)?;
         let db = self
             .db_store
-            .db(&db_name)
+            .db(
+                &db_name,
+                span_ctx
+                    .as_ref()
+                    .map(|span_ctx| span_ctx.child("get namespace")),
+            )
             .await
             .context(DatabaseNotFoundSnafu { db_name: &db_name })?;
 
@@ -604,7 +629,12 @@ where
         let db_name = get_database_name(&req)?;
         let db = self
             .db_store
-            .db(&db_name)
+            .db(
+                &db_name,
+                span_ctx
+                    .as_ref()
+                    .map(|span_ctx| span_ctx.child("get namespace")),
+            )
             .await
             .context(DatabaseNotFoundSnafu { db_name: &db_name })?;
 
@@ -709,7 +739,12 @@ where
         let db_name = get_database_name(&req)?;
         let db = self
             .db_store
-            .db(&db_name)
+            .db(
+                &db_name,
+                span_ctx
+                    .as_ref()
+                    .map(|span_ctx| span_ctx.child("get namespace")),
+            )
             .await
             .context(DatabaseNotFoundSnafu { db_name: &db_name })?;
 
@@ -766,7 +801,12 @@ where
         let db_name = get_database_name(&req)?;
         let db = self
             .db_store
-            .db(&db_name)
+            .db(
+                &db_name,
+                span_ctx
+                    .as_ref()
+                    .map(|span_ctx| span_ctx.child("get namespace")),
+            )
             .await
             .context(DatabaseNotFoundSnafu { db_name: &db_name })?;
 
@@ -833,7 +873,12 @@ where
         let db_name = get_database_name(&req)?;
         let db = self
             .db_store
-            .db(&db_name)
+            .db(
+                &db_name,
+                span_ctx
+                    .as_ref()
+                    .map(|span_ctx| span_ctx.child("get namespace")),
+            )
             .await
             .context(DatabaseNotFoundSnafu { db_name: &db_name })?;
 
@@ -902,7 +947,12 @@ where
         let db_name = get_database_name(&req)?;
         let db = self
             .db_store
-            .db(&db_name)
+            .db(
+                &db_name,
+                span_ctx
+                    .as_ref()
+                    .map(|span_ctx| span_ctx.child("get namespace")),
+            )
             .await
             .context(DatabaseNotFoundSnafu { db_name: &db_name })?;
 

@@ -61,7 +61,7 @@ impl QueryDatabaseProvider for TestDatabaseStore {
     type Db = TestDatabase;
 
     /// Retrieve the database specified name
-    async fn db(&self, name: &str) -> Option<Arc<Self::Db>> {
+    async fn db(&self, name: &str, _span: Option<Span>) -> Option<Arc<Self::Db>> {
         let databases = self.databases.lock();
 
         databases.get(name).cloned()
