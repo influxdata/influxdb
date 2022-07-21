@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/influxdata/influxdb/tsdb"
@@ -86,18 +86,16 @@ func TestPartition_Manifest(t *testing.T) {
 var badManifestPath string = filepath.Join(os.DevNull, tsi1.ManifestFileName)
 
 func TestPartition_Manifest_Write_Fail(t *testing.T) {
-	const expectedError = "not a directory"
 	t.Run("write MANIFEST", func(t *testing.T) {
 		m := tsi1.NewManifest(badManifestPath)
 		_, err := m.Write()
-		if !strings.Contains(err.Error(), expectedError) {
-			t.Fatalf("expected: %q, got: %q", expectedError, err.Error())
+		if !errors.Is(err, syscall.ENOTDIR) {
+			t.Fatalf("expected: syscall.ENOTDIR, got %T: %v", err, err)
 		}
 	})
 }
 
 func TestPartition_PrependLogFile_Write_Fail(t *testing.T) {
-	const expectedError = "not a directory"
 	t.Run("write MANIFEST", func(t *testing.T) {
 		sfile := MustOpenSeriesFile()
 		defer sfile.Close()
@@ -124,7 +122,6 @@ func TestPartition_PrependLogFile_Write_Fail(t *testing.T) {
 }
 
 func TestPartition_Compact_Write_Fail(t *testing.T) {
-	const expectedError = "not a directory"
 	t.Run("write MANIFEST", func(t *testing.T) {
 		sfile := MustOpenSeriesFile()
 		defer sfile.Close()
