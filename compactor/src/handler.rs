@@ -10,6 +10,7 @@ use futures::{
 use iox_catalog::interface::Catalog;
 use iox_query::exec::Executor;
 use iox_time::TimeProvider;
+use metric::Attributes;
 use observability_deps::tracing::*;
 use parquet_file::storage::ParquetStorage;
 use std::sync::Arc;
@@ -234,6 +235,8 @@ impl CompactorConfig {
 /// next top partitions to compact.
 async fn run_compactor(compactor: Arc<Compactor>, shutdown: CancellationToken) {
     while !shutdown.is_cancelled() {
+        // Select partition candidates
+        let start_time = compactor.time_provider.now();
         let candidates = Backoff::new(&compactor.backoff_config)
             .retry_all_errors("partitions_to_compact", || async {
                 compactor
@@ -247,18 +250,42 @@ async fn run_compactor(compactor: Arc<Compactor>, shutdown: CancellationToken) {
             })
             .await
             .expect("retry forever");
+        if let Some(delta) = compactor
+            .time_provider
+            .now()
+            .checked_duration_since(start_time)
+        {
+            let duration = compactor
+                .candidate_selection_duration
+                .recorder(Attributes::from([]));
+            duration.record(delta);
+        }
+
+        // Add other compaction-needed info into selected partitions
+        let start_time = compactor.time_provider.now();
         let candidates = Backoff::new(&compactor.backoff_config)
             .retry_all_errors("partitions_to_compact", || async {
                 compactor.add_info_to_partitions(&candidates).await
             })
             .await
             .expect("retry forever");
+        if let Some(delta) = compactor
+            .time_provider
+            .now()
+            .checked_duration_since(start_time)
+        {
+            let duration = compactor
+                .partitions_extra_info_reading_duration
+                .recorder(Attributes::from([]));
+            duration.record(delta);
+        }
 
         let n_candidates = candidates.len();
         debug!(n_candidates, "found compaction candidates");
 
         // Serially compact all candidates
         // TODO: we will parallelize this when everything runs smoothly in serial
+        let start_time = compactor.time_provider.now();
         for c in candidates {
             let compactor = Arc::clone(&compactor);
             let compact_and_upgrade = compactor
@@ -307,6 +334,16 @@ async fn run_compactor(compactor: Arc<Compactor>, shutdown: CancellationToken) {
                     }
                 }
             }
+        }
+        if let Some(delta) = compactor
+            .time_provider
+            .now()
+            .checked_duration_since(start_time)
+        {
+            let duration = compactor
+                .compaction_cycle_duration
+                .recorder(Attributes::from([]));
+            duration.record(delta);
         }
     }
 }

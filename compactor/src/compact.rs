@@ -257,6 +257,28 @@ pub struct Compactor {
 
     /// Histogram for tracking the time to compact a partition
     compaction_duration: Metric<DurationHistogram>,
+
+    /// Histogram for tracking time to select partition candidates to compact.
+    /// Even though we choose partitions to compact, we have to read parquet_file catalog
+    /// table to see which partitions have the most recent L0 files. This time is for tracking
+    /// reading that. This includes time to get candidates for all sequencers
+    /// this compactor manages and for each sequencer the process invokes
+    /// at most 3 three different SQLs and at least one.
+    /// The expectation is small (a second or less) otherwise we have to improve it
+    pub(crate) candidate_selection_duration: Metric<DurationHistogram>,
+
+    /// Histogram for tracking time to add more information to selected partitions.
+    /// After we get partitions to compact from reading parquet files, we need more
+    /// information such schema and sort key of the partitions to proceed with compaction.
+    /// This reading extra information turns out to run a lot of catalog queries.
+    /// The expectation is small (a second or less) otherwise we have to improve it
+    pub(crate) partitions_extra_info_reading_duration: Metric<DurationHistogram>,
+
+    /// Histogram for tracking time to compact all selected partitions in a cycle
+    /// This is used to observe:
+    ///  . Whether there is a big difference between each cycle or not
+    ///  . How well this process  is parallelized
+    pub(crate) compaction_cycle_duration: Metric<DurationHistogram>,
 }
 
 impl Compactor {
@@ -307,6 +329,22 @@ impl Compactor {
             "Compact partition duration",
         );
 
+        let candidate_selection_duration: Metric<DurationHistogram> = registry.register_metric(
+            "compactor_candidate_selection_duration",
+            "Duration to select compaction partition candidates",
+        );
+
+        let partitions_extra_info_reading_duration: Metric<DurationHistogram> = registry
+            .register_metric(
+                "compactor_partitions_extra_info_reading_duration",
+                "Duration to read and add extra information into selected partition candidates",
+            );
+
+        let compaction_cycle_duration: Metric<DurationHistogram> = registry.register_metric(
+            "compactor_compaction_cycle_duration",
+            "Duration to compact all selected candidates for each cycle",
+        );
+
         Self {
             sequencers,
             catalog,
@@ -322,6 +360,9 @@ impl Compactor {
             parquet_file_candidate_gauge,
             parquet_file_candidate_bytes_gauge,
             compaction_duration,
+            candidate_selection_duration,
+            partitions_extra_info_reading_duration,
+            compaction_cycle_duration,
         }
     }
 
