@@ -69,11 +69,59 @@ async fn test_cases_delete_simple_pred_one_chunk_sql() {
 }
 
 #[tokio::test]
-// Tests from "delete_three_delete_three_chunks.sql",
-async fn test_cases_delete_three_delete_three_chunks_sql() {
+// Tests from "delete_three_chunks_1.sql",
+async fn test_cases_delete_three_chunks_1_sql() {
     test_helpers::maybe_start_logging();
 
-    let input_path = Path::new("cases").join("in").join("delete_three_delete_three_chunks.sql");
+    let input_path = Path::new("cases").join("in").join("delete_three_chunks_1.sql");
+    let mut runner = Runner::new();
+    runner
+        .run(input_path)
+        .await
+        .expect("test failed");
+    runner
+        .flush()
+        .expect("flush worked");
+}
+
+#[tokio::test]
+// Tests from "delete_three_chunks_2.sql",
+async fn test_cases_delete_three_chunks_2_sql() {
+    test_helpers::maybe_start_logging();
+
+    let input_path = Path::new("cases").join("in").join("delete_three_chunks_2.sql");
+    let mut runner = Runner::new();
+    runner
+        .run(input_path)
+        .await
+        .expect("test failed");
+    runner
+        .flush()
+        .expect("flush worked");
+}
+
+#[tokio::test]
+// Tests from "delete_three_chunks_3.sql",
+async fn test_cases_delete_three_chunks_3_sql() {
+    test_helpers::maybe_start_logging();
+
+    let input_path = Path::new("cases").join("in").join("delete_three_chunks_3.sql");
+    let mut runner = Runner::new();
+    runner
+        .run(input_path)
+        .await
+        .expect("test failed");
+    runner
+        .flush()
+        .expect("flush worked");
+}
+
+#[tokio::test]
+// Tests from "delete_three_chunks_4.sql",
+async fn test_cases_delete_three_chunks_4_sql() {
+    test_helpers::maybe_start_logging();
+
+    let input_path = Path::new("cases").join("in").join("delete_three_chunks_4.sql");
     let mut runner = Runner::new();
     runner
         .run(input_path)
