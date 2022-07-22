@@ -5,6 +5,7 @@ authors = ["Paul Dix <paul@pauldix.net>"]
 edition = "2021"
 
 [dependencies] # In alphabetical order
+bytes = "1.2"
 nom = { version = "7", default-features = false, features = ["std"] }
 smallvec = { version = "1.9.0", features = ["union"] }
 snafu = "0.7"

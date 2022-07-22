@@ -16,6 +16,9 @@
     clippy::clone_on_ref_ptr
 )]
 
+pub mod builder;
+pub use builder::LineProtocolBuilder;
+
 use fmt::Display;
 use nom::{
     branch::alt,
