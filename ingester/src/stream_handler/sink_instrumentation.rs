@@ -7,7 +7,7 @@ use dml::DmlOperation;
 use iox_time::{SystemProvider, TimeProvider};
 use metric::{Attributes, DurationHistogram, U64Counter, U64Gauge};
 use std::fmt::Debug;
-use trace::span::SpanRecorder;
+use trace::span::{SpanExt, SpanRecorder};
 
 /// A [`WatermarkFetcher`] abstracts a source of the write buffer high watermark
 /// (max known offset).
@@ -198,10 +198,8 @@ where
         }
 
         // Create a tracing span covering the inner DmlSink call.
-        let mut span_recorder = SpanRecorder::new(
-            meta.span_context()
-                .map(|parent| parent.child("DmlSink::apply()")),
-        );
+        let mut span_recorder =
+            SpanRecorder::new(meta.span_context().child_span("DmlSink::apply()"));
 
         // Call into the inner handler to process the op and calculate the call
         // latency.

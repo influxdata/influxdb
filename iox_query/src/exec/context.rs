@@ -27,7 +27,7 @@ use futures::TryStreamExt;
 use observability_deps::tracing::debug;
 use trace::{
     ctx::SpanContext,
-    span::{MetaValue, Span, SpanRecorder},
+    span::{MetaValue, Span, SpanExt, SpanRecorder},
 };
 
 use crate::exec::{
@@ -233,7 +233,7 @@ impl IOxSessionConfig {
             inner.register_catalog(DEFAULT_CATALOG, default_catalog);
         }
 
-        let maybe_span = self.span_ctx.map(|ctx| ctx.child("Query Execution"));
+        let maybe_span = self.span_ctx.child_span("Query Execution");
 
         IOxSessionContext::new(inner, Some(self.exec), SpanRecorder::new(maybe_span))
     }

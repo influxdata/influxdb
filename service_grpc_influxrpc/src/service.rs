@@ -42,7 +42,7 @@ use std::{
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::Status;
-use trace::ctx::SpanContext;
+use trace::{ctx::SpanContext, span::SpanExt};
 use tracker::InstrumentedAsyncOwnedSemaphorePermit;
 
 #[derive(Debug, Snafu)]
@@ -235,11 +235,7 @@ where
         let req = req.into_inner();
         let permit = self
             .db_store
-            .acquire_semaphore(
-                span_ctx
-                    .as_ref()
-                    .map(|span| span.child("query rate limit semaphore")),
-            )
+            .acquire_semaphore(span_ctx.child_span("query rate limit semaphore"))
             .await;
         let db_name = get_database_name(&req)?;
         info!(
@@ -251,12 +247,7 @@ where
 
         let db = self
             .db_store
-            .db(
-                &db_name,
-                span_ctx
-                    .as_ref()
-                    .map(|span_ctx| span_ctx.child("get namespace")),
-            )
+            .db(&db_name, span_ctx.child_span("get namespace"))
             .await
             .context(DatabaseNotFoundSnafu { db_name: &db_name })?;
 
@@ -290,11 +281,7 @@ where
         let req = req.into_inner();
         let permit = self
             .db_store
-            .acquire_semaphore(
-                span_ctx
-                    .as_ref()
-                    .map(|span| span.child("query rate limit semaphore")),
-            )
+            .acquire_semaphore(span_ctx.child_span("query rate limit semaphore"))
             .await;
 
         let db_name = get_database_name(&req)?;
@@ -311,12 +298,7 @@ where
 
         let db = self
             .db_store
-            .db(
-                &db_name,
-                span_ctx
-                    .as_ref()
-                    .map(|span_ctx| span_ctx.child("get namespace")),
-            )
+            .db(&db_name, span_ctx.child_span("get namespace"))
             .await
             .context(DatabaseNotFoundSnafu { db_name: &db_name })?;
 
@@ -380,11 +362,7 @@ where
         let req = req.into_inner();
         let permit = self
             .db_store
-            .acquire_semaphore(
-                span_ctx
-                    .as_ref()
-                    .map(|span| span.child("query rate limit semaphore")),
-            )
+            .acquire_semaphore(span_ctx.child_span("query rate limit semaphore"))
             .await;
 
         let db_name = get_database_name(&req)?;
@@ -401,12 +379,7 @@ where
 
         let db = self
             .db_store
-            .db(
-                &db_name,
-                span_ctx
-                    .as_ref()
-                    .map(|span_ctx| span_ctx.child("get namespace")),
-            )
+            .db(&db_name, span_ctx.child_span("get namespace"))
             .await
             .context(DatabaseNotFoundSnafu { db_name: &db_name })?;
 
@@ -470,11 +443,7 @@ where
         let req = req.into_inner();
         let permit = self
             .db_store
-            .acquire_semaphore(
-                span_ctx
-                    .as_ref()
-                    .map(|span| span.child("query rate limit semaphore")),
-            )
+            .acquire_semaphore(span_ctx.child_span("query rate limit semaphore"))
             .await;
 
         let db_name = get_database_name(&req)?;
@@ -487,12 +456,7 @@ where
 
         let db = self
             .db_store
-            .db(
-                &db_name,
-                span_ctx
-                    .as_ref()
-                    .map(|span_ctx| span_ctx.child("get namespace")),
-            )
+            .db(&db_name, span_ctx.child_span("get namespace"))
             .await
             .context(DatabaseNotFoundSnafu { db_name: &db_name })?;
 
@@ -544,11 +508,7 @@ where
         let req = req.into_inner();
         let permit = self
             .db_store
-            .acquire_semaphore(
-                span_ctx
-                    .as_ref()
-                    .map(|span| span.child("query rate limit semaphore")),
-            )
+            .acquire_semaphore(span_ctx.child_span("query rate limit semaphore"))
             .await;
 
         let db_name = get_database_name(&req)?;
@@ -564,12 +524,7 @@ where
 
         let db = self
             .db_store
-            .db(
-                &db_name,
-                span_ctx
-                    .as_ref()
-                    .map(|span_ctx| span_ctx.child("get namespace")),
-            )
+            .db(&db_name, span_ctx.child_span("get namespace"))
             .await
             .context(DatabaseNotFoundSnafu { db_name: &db_name })?;
 
@@ -656,11 +611,7 @@ where
         let req = req.into_inner();
         let permit = self
             .db_store
-            .acquire_semaphore(
-                span_ctx
-                    .as_ref()
-                    .map(|span| span.child("query rate limit semaphore")),
-            )
+            .acquire_semaphore(span_ctx.child_span("query rate limit semaphore"))
             .await;
 
         let db_name = get_database_name(&req)?;
@@ -674,12 +625,7 @@ where
 
         let db = self
             .db_store
-            .db(
-                &db_name,
-                span_ctx
-                    .as_ref()
-                    .map(|span_ctx| span_ctx.child("get namespace")),
-            )
+            .db(&db_name, span_ctx.child_span("get namespace"))
             .await
             .context(DatabaseNotFoundSnafu { db_name: &db_name })?;
 
@@ -772,11 +718,7 @@ where
         let req = req.into_inner();
         let permit = self
             .db_store
-            .acquire_semaphore(
-                span_ctx
-                    .as_ref()
-                    .map(|span| span.child("query rate limit semaphore")),
-            )
+            .acquire_semaphore(span_ctx.child_span("query rate limit semaphore"))
             .await;
 
         let db_name = get_database_name(&req)?;
@@ -789,12 +731,7 @@ where
 
         let db = self
             .db_store
-            .db(
-                &db_name,
-                span_ctx
-                    .as_ref()
-                    .map(|span_ctx| span_ctx.child("get namespace")),
-            )
+            .db(&db_name, span_ctx.child_span("get namespace"))
             .await
             .context(DatabaseNotFoundSnafu { db_name: &db_name })?;
 
@@ -839,11 +776,7 @@ where
         let req = req.into_inner();
         let permit = self
             .db_store
-            .acquire_semaphore(
-                span_ctx
-                    .as_ref()
-                    .map(|span| span.child("query rate limit semaphore")),
-            )
+            .acquire_semaphore(span_ctx.child_span("query rate limit semaphore"))
             .await;
 
         let db_name = get_database_name(&req)?;
@@ -857,12 +790,7 @@ where
 
         let db = self
             .db_store
-            .db(
-                &db_name,
-                span_ctx
-                    .as_ref()
-                    .map(|span_ctx| span_ctx.child("get namespace")),
-            )
+            .db(&db_name, span_ctx.child_span("get namespace"))
             .await
             .context(DatabaseNotFoundSnafu { db_name: &db_name })?;
 
@@ -917,11 +845,7 @@ where
         let req = req.into_inner();
         let permit = self
             .db_store
-            .acquire_semaphore(
-                span_ctx
-                    .as_ref()
-                    .map(|span| span.child("query rate limit semaphore")),
-            )
+            .acquire_semaphore(span_ctx.child_span("query rate limit semaphore"))
             .await;
 
         let db_name = get_database_name(&req)?;
@@ -936,12 +860,7 @@ where
 
         let db = self
             .db_store
-            .db(
-                &db_name,
-                span_ctx
-                    .as_ref()
-                    .map(|span_ctx| span_ctx.child("get namespace")),
-            )
+            .db(&db_name, span_ctx.child_span("get namespace"))
             .await
             .context(DatabaseNotFoundSnafu { db_name: &db_name })?;
 
@@ -998,11 +917,7 @@ where
         let req = req.into_inner();
         let permit = self
             .db_store
-            .acquire_semaphore(
-                span_ctx
-                    .as_ref()
-                    .map(|span| span.child("query rate limit semaphore")),
-            )
+            .acquire_semaphore(span_ctx.child_span("query rate limit semaphore"))
             .await;
 
         let db_name = get_database_name(&req)?;
@@ -1016,12 +931,7 @@ where
 
         let db = self
             .db_store
-            .db(
-                &db_name,
-                span_ctx
-                    .as_ref()
-                    .map(|span_ctx| span_ctx.child("get namespace")),
-            )
+            .db(&db_name, span_ctx.child_span("get namespace"))
             .await
             .context(DatabaseNotFoundSnafu { db_name: &db_name })?;
 

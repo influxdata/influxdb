@@ -12,7 +12,7 @@ pub(crate) mod split;
 pub mod stringset;
 pub use context::{DEFAULT_CATALOG, DEFAULT_SCHEMA};
 use executor::DedicatedExecutor;
-use trace::span::SpanRecorder;
+use trace::span::{SpanExt, SpanRecorder};
 
 use std::sync::Arc;
 
@@ -113,7 +113,7 @@ impl Executor {
     ) -> IOxSessionContext {
         let inner = SessionContext::with_state(state.clone());
         let exec = self.executor(executor_type).clone();
-        let recorder = SpanRecorder::new(state.span_ctx().map(|ctx| ctx.child("Query Execution")));
+        let recorder = SpanRecorder::new(state.span_ctx().child_span("Query Execution"));
         IOxSessionContext::new(inner, Some(exec), recorder)
     }
 

@@ -229,6 +229,23 @@ impl SpanRecorder {
     }
 }
 
+/// Helper trait to make spans easier to work with
+pub trait SpanExt {
+    /// Return a child_span, if that makes sense
+    fn child_span(&self, name: &'static str) -> Option<Span>;
+}
+
+impl SpanExt for Option<SpanContext> {
+    fn child_span(&self, name: &'static str) -> Option<Span> {
+        self.as_ref().child_span(name)
+    }
+}
+impl SpanExt for Option<&SpanContext> {
+    fn child_span(&self, name: &'static str) -> Option<Span> {
+        self.map(|span| span.child(name))
+    }
+}
+
 impl Drop for SpanRecorder {
     fn drop(&mut self) {
         if let Some(mut span) = self.span.take() {

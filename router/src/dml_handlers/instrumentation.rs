@@ -3,7 +3,10 @@ use async_trait::async_trait;
 use data_types::{DatabaseName, DeletePredicate};
 use iox_time::{SystemProvider, TimeProvider};
 use metric::{DurationHistogram, Metric};
-use trace::{ctx::SpanContext, span::SpanRecorder};
+use trace::{
+    ctx::SpanContext,
+    span::{SpanExt, SpanRecorder},
+};
 
 /// An instrumentation decorator recording call latencies for [`DmlHandler`] implementations.
 ///
@@ -104,8 +107,7 @@ where
         let t = self.time_provider.now();
 
         // Create a tracing span for this handler.
-        let mut span_recorder =
-            SpanRecorder::new(span_ctx.clone().map(|parent| parent.child(self.name)));
+        let mut span_recorder = SpanRecorder::new(span_ctx.child_span(self.name));
 
         let res = self
             .inner
