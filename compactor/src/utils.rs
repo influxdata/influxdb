@@ -267,6 +267,11 @@ fn compute_split_time(
         return vec![max_time];
     }
 
+    // Same min and max time, nothing to split
+    if min_time == max_time {
+        return vec![max_time];
+    }
+
     let mut split_times = vec![];
     let percentage = max_desired_file_size as f64 / total_size as f64;
     let mut min = min_time;
@@ -287,8 +292,8 @@ fn compute_split_time(
 mod tests {
     use super::*;
 
-    #[tokio::test]
-    async fn test_compute_split_time() {
+    #[test]
+    fn test_compute_split_time() {
         let min_time = 1;
         let max_time = 11;
         let total_size = 100;
@@ -313,5 +318,25 @@ mod tests {
         assert_eq!(result.len(), 2);
         assert_eq!(result[0], 5); // = 1 (min_time) + 4
         assert_eq!(result[1], 9); // = 5 (previous split_time) + 4
+    }
+
+    #[test]
+    fn compute_split_time_when_min_time_equals_max() {
+        // Imagine a customer is backfilling a large amount of data and for some reason, all the
+        // times on the data are exactly the same. That means the min_time and max_time will be the
+        // same, but the total_size will be greater than the desired size.
+        // We will not split it becasue the split has to stick to non-overlapped time range
+
+        let min_time = 1;
+        let max_time = 1;
+
+        let total_size = 200;
+        let max_desired_file_size = 100;
+
+        let result = compute_split_time(min_time, max_time, total_size, max_desired_file_size);
+
+        // must return vector of one containing max_time
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0], 1);
     }
 }
