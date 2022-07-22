@@ -206,6 +206,11 @@ where
                     .map(|span| span.child("query rate limit semaphore")),
             )
             .await;
+        info!(
+            db_name=%read_info.database_name,
+            sql_query=%read_info.sql_query,
+            "flight do_get",
+        );
 
         let database =
             DatabaseName::new(&read_info.database_name).context(InvalidDatabaseNameSnafu)?;

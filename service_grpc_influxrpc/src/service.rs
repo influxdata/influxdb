@@ -7,7 +7,7 @@ use crate::{
         fieldlist_to_measurement_fields_response, series_or_groups_to_read_response,
         tag_keys_to_byte_vecs,
     },
-    expr::{self, GroupByAndAggregate, InfluxRpcPredicateBuilder, Loggable, SpecialTagKeys},
+    expr::{self, DecodedTagKey, GroupByAndAggregate, InfluxRpcPredicateBuilder, Loggable},
     input::GrpcInputs,
     StorageService,
 };
@@ -242,7 +242,12 @@ where
             )
             .await;
         let db_name = get_database_name(&req)?;
-        info!(%db_name, ?req.range, predicate=%req.predicate.loggable(), "read filter");
+        info!(
+            %db_name,
+            ?req.range,
+            predicate=%req.predicate.loggable(),
+            "read filter",
+        );
 
         let db = self
             .db_store
@@ -293,6 +298,17 @@ where
             .await;
 
         let db_name = get_database_name(&req)?;
+
+        info!(
+            %db_name,
+            ?req.range,
+            ?req.group_keys,
+            ?req.group,
+            ?req.aggregate,
+            predicate=%req.predicate.loggable(),
+            "read_group",
+        );
+
         let db = self
             .db_store
             .db(
@@ -315,8 +331,6 @@ where
             group,
             aggregate,
         } = req;
-
-        info!(%db_name, ?range, ?group_keys, ?group, ?aggregate, predicate=%predicate.loggable(), "read_group");
 
         let aggregate_string = format!(
             "aggregate: {:?}, group: {:?}, group_keys: {:?}",
@@ -366,6 +380,17 @@ where
             .await;
 
         let db_name = get_database_name(&req)?;
+        info!(
+            %db_name,
+            ?req.range,
+            ?req.window_every,
+            ?req.offset,
+            ?req.aggregate,
+            ?req.window,
+            predicate=%req.predicate.loggable(),
+            "read_window_aggregate",
+        );
+
         let db = self
             .db_store
             .db(
@@ -390,8 +415,6 @@ where
             aggregate,
             window,
         } = req;
-
-        info!(%db_name, ?range, ?window_every, ?offset, ?aggregate, ?window, predicate=%predicate.loggable(), "read_window_aggregate");
 
         let aggregate_string = format!(
             "aggregate: {:?}, window_every: {:?}, offset: {:?}, window: {:?}",
@@ -438,6 +461,13 @@ where
             .await;
 
         let db_name = get_database_name(&req)?;
+        info!(
+            %db_name,
+            ?req.range,
+            predicate=%req.predicate.loggable(),
+            "tag_keys",
+        );
+
         let db = self
             .db_store
             .db(
@@ -457,8 +487,6 @@ where
             range,
             predicate,
         } = req;
-
-        info!(%db_name, ?range, predicate=%predicate.loggable(), "tag_keys");
 
         let measurement = None;
 
@@ -507,6 +535,16 @@ where
             .await;
 
         let db_name = get_database_name(&req)?;
+        let tag_key = DecodedTagKey::try_from(req.tag_key.clone())
+            .context(ConvertingTagKeyInTagValuesSnafu)?;
+        info!(
+            %db_name,
+            ?req.range,
+            %tag_key,
+            predicate=%req.predicate.loggable(),
+            "tag_values",
+        );
+
         let db = self
             .db_store
             .db(
@@ -525,52 +563,51 @@ where
             tags_source: _tag_source,
             range,
             predicate,
-            tag_key,
+            ..
         } = req;
 
         let measurement = None;
 
         // Special case a request for 'tag_key=_measurement" means to list all
         // measurements
-        let response = if tag_key.is_measurement() {
-            info!(%db_name, ?range, tag_key="_measurement", predicate=%predicate.loggable(), "tag_values");
-
-            if predicate.is_some() {
-                return Err(Error::NotYetImplemented {
-                    operation: "tag_value for a measurement, with general predicate".to_string(),
+        let response = match tag_key {
+            DecodedTagKey::Measurement => {
+                if predicate.is_some() {
+                    return Err(Error::NotYetImplemented {
+                        operation: "tag_value for a measurement, with general predicate"
+                            .to_string(),
+                    }
+                    .to_status());
                 }
-                .to_status());
+
+                measurement_name_impl(Arc::clone(&db), db_name, range, predicate, &ctx).await
             }
+            DecodedTagKey::Field => {
+                let fieldlist =
+                    field_names_impl(Arc::clone(&db), db_name, None, range, predicate, &ctx)
+                        .await?;
 
-            measurement_name_impl(Arc::clone(&db), db_name, range, predicate, &ctx).await
-        } else if tag_key.is_field() {
-            info!(%db_name, ?range, tag_key="_field", predicate=%predicate.loggable(), "tag_values");
+                // Pick out the field names into a Vec<Vec<u8>>for return
+                let values = fieldlist
+                    .fields
+                    .into_iter()
+                    .map(|f| f.name.bytes().collect())
+                    .collect::<Vec<_>>();
 
-            let fieldlist =
-                field_names_impl(Arc::clone(&db), db_name, None, range, predicate, &ctx).await?;
-
-            // Pick out the field names into a Vec<Vec<u8>>for return
-            let values = fieldlist
-                .fields
-                .into_iter()
-                .map(|f| f.name.bytes().collect())
-                .collect::<Vec<_>>();
-
-            Ok(StringValuesResponse { values })
-        } else {
-            let tag_key = String::from_utf8(tag_key).context(ConvertingTagKeyInTagValuesSnafu)?;
-            info!(%db_name, ?range, %tag_key, predicate=%predicate.loggable(), "tag_values");
-
-            tag_values_impl(
-                Arc::clone(&db),
-                db_name,
-                tag_key,
-                measurement,
-                range,
-                predicate,
-                &ctx,
-            )
-            .await
+                Ok(StringValuesResponse { values })
+            }
+            DecodedTagKey::Normal(tag_key) => {
+                tag_values_impl(
+                    Arc::clone(&db),
+                    db_name,
+                    tag_key,
+                    measurement,
+                    range,
+                    predicate,
+                    &ctx,
+                )
+                .await
+            }
         };
 
         let response = response.map_err(|e| e.to_status());
@@ -610,6 +647,14 @@ where
             .await;
 
         let db_name = get_database_name(&req)?;
+        info!(
+            %db_name,
+            ?req.measurement_patterns,
+            ?req.tag_key_predicate,
+            predicate=%req.condition.loggable(),
+            "tag_values_grouped_by_measurement_and_tag_key",
+        );
+
         let db = self
             .db_store
             .db(
@@ -627,8 +672,6 @@ where
             "tag_values_grouped_by_measurement_and_tag_key",
             defer_json(&req),
         );
-
-        info!(%db_name, ?req.measurement_patterns, ?req.tag_key_predicate, predicate=%req.condition.loggable(), "tag_values_grouped_by_measurement_and_tag_key");
 
         let results =
             tag_values_grouped_by_measurement_and_tag_key_impl(Arc::clone(&db), db_name, req, &ctx)
@@ -720,6 +763,13 @@ where
             .await;
 
         let db_name = get_database_name(&req)?;
+        info!(
+            %db_name,
+            ?req.range,
+            predicate=%req.predicate.loggable(),
+            "measurement_names",
+        );
+
         let db = self
             .db_store
             .db(
@@ -740,8 +790,6 @@ where
             range,
             predicate,
         } = req;
-
-        info!(%db_name, ?range, predicate=%predicate.loggable(), "measurement_names");
 
         let response = measurement_name_impl(Arc::clone(&db), db_name, range, predicate, &ctx)
             .await
@@ -782,6 +830,14 @@ where
             .await;
 
         let db_name = get_database_name(&req)?;
+        info!(
+            %db_name,
+            ?req.range,
+            %req.measurement,
+            predicate=%req.predicate.loggable(),
+            "measurement_tag_keys",
+        );
+
         let db = self
             .db_store
             .db(
@@ -803,8 +859,6 @@ where
             range,
             predicate,
         } = req;
-
-        info!(%db_name, ?range, %measurement, predicate=%predicate.loggable(), "measurement_tag_keys");
 
         let measurement = Some(measurement);
 
@@ -854,6 +908,15 @@ where
             .await;
 
         let db_name = get_database_name(&req)?;
+        info!(
+            %db_name,
+            ?req.range,
+            %req.measurement,
+            %req.tag_key,
+            predicate=%req.predicate.loggable(),
+            "measurement_tag_values",
+        );
+
         let db = self
             .db_store
             .db(
@@ -876,8 +939,6 @@ where
             predicate,
             tag_key,
         } = req;
-
-        info!(%db_name, ?range, %measurement, %tag_key, predicate=%predicate.loggable(), "measurement_tag_values");
 
         let measurement = Some(measurement);
 
@@ -928,6 +989,14 @@ where
             .await;
 
         let db_name = get_database_name(&req)?;
+        info!(
+            %db_name,
+            ?req.range,
+            %req.measurement,
+            predicate=%req.predicate.loggable(),
+            "measurement_fields",
+        );
+
         let db = self
             .db_store
             .db(
@@ -949,8 +1018,6 @@ where
             range,
             predicate,
         } = req;
-
-        info!(%db_name, ?range, %measurement, predicate=%predicate.loggable(), "measurement_fields");
 
         let measurement = Some(measurement);
 

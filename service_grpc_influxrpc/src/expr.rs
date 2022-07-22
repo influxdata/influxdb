@@ -6,6 +6,7 @@
 //!
 //! Aggregates / windows --> query::GroupByAndAggregate
 use std::collections::BTreeSet;
+use std::string::FromUtf8Error;
 use std::{convert::TryFrom, fmt};
 
 use datafusion::error::DataFusionError;
@@ -306,12 +307,16 @@ fn convert_simple_node(
 
         // look for tag or measurement = <values>
         if let Some(RPCValue::TagRefValue(tag_name)) = lhs.value {
-            if tag_name.is_measurement() {
-                // add the table names as a predicate
-                return Ok(builder.tables(value_list));
-            } else if tag_name.is_field() {
-                builder.inner = builder.inner.with_field_columns(value_list);
-                return Ok(builder);
+            match DecodedTagKey::try_from(tag_name) {
+                Ok(DecodedTagKey::Measurement) => {
+                    // add the table names as a predicate
+                    return Ok(builder.tables(value_list));
+                }
+                Ok(DecodedTagKey::Field) => {
+                    builder.inner = builder.inner.with_field_columns(value_list);
+                    return Ok(builder);
+                }
+                _ => {}
             }
         }
     }
@@ -429,27 +434,36 @@ impl InListBuilder {
     }
 }
 
-// encodes the magic special bytes that the storage gRPC layer uses to
-// encode measurement name and field name as tag
-pub trait SpecialTagKeys {
-    /// Return true if this tag key actually refers to a measurement
-    /// name (e.g. _measurement or _m)
-    fn is_measurement(&self) -> bool;
-
-    /// Return true if this tag key actually refers to a field
-    /// name (e.g. _field or _f)
-    fn is_field(&self) -> bool;
+/// Decoded special tag key.
+///
+/// The storage gRPC layer uses magic special bytes to encode measurement name and field name as tag
+pub enum DecodedTagKey {
+    Measurement,
+    Field,
+    Normal(String),
 }
 
-impl SpecialTagKeys for Vec<u8> {
-    fn is_measurement(&self) -> bool {
-        self.as_slice() == TAG_KEY_MEASUREMENT
+impl std::fmt::Display for DecodedTagKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            DecodedTagKey::Measurement => write!(f, "{}", MEASUREMENT_COLUMN_NAME),
+            DecodedTagKey::Field => write!(f, "{}", FIELD_COLUMN_NAME),
+            DecodedTagKey::Normal(s) => write!(f, "{}", s),
+        }
     }
+}
 
-    /// Return true if this tag key actually refers to a field
-    /// name (e.g. _field or _f)
-    fn is_field(&self) -> bool {
-        self.as_slice() == TAG_KEY_FIELD
+impl TryFrom<Vec<u8>> for DecodedTagKey {
+    type Error = FromUtf8Error;
+
+    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
+        if value.as_slice() == TAG_KEY_MEASUREMENT {
+            Ok(Self::Measurement)
+        } else if value.as_slice() == TAG_KEY_FIELD {
+            Ok(Self::Field)
+        } else {
+            Ok(Self::Normal(String::from_utf8(value)?))
+        }
     }
 }
 
@@ -471,18 +485,6 @@ fn convert_node_to_expr(node: RPCNode) -> Result<Expr> {
 
     let value = value.expect("Normalization removed all None values");
     build_node(value, inputs)
-}
-
-fn make_tag_name(tag_name: Vec<u8>) -> Result<String> {
-    if tag_name.is_measurement() {
-        // convert to "_measurement" which is handled specially in grpc planner
-        Ok(MEASUREMENT_COLUMN_NAME.to_string())
-    } else if tag_name.is_field() {
-        // convert to "_field" which is handled specially in grpc planner
-        Ok(FIELD_COLUMN_NAME.to_string())
-    } else {
-        String::from_utf8(tag_name).context(ConvertingTagNameSnafu)
-    }
 }
 
 // Builds an Expr given the Value and the converted children
@@ -523,7 +525,9 @@ fn build_node(value: RPCValue, inputs: Vec<Expr>) -> Result<Expr> {
 /// As storage predicates such as `TagRef(tag_name) = ''` expect to
 /// match missing tags which IOx stores as NULL
 fn build_tag_ref(tag_name: Vec<u8>) -> Result<Expr> {
-    let tag_name = make_tag_name(tag_name)?;
+    let tag_name = DecodedTagKey::try_from(tag_name)
+        .context(ConvertingTagNameSnafu)?
+        .to_string();
 
     match tag_name.as_str() {
         MEASUREMENT_COLUMN_NAME | FIELD_COLUMN_NAME => Ok(col(&tag_name)),
