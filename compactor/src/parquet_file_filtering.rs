@@ -16,7 +16,6 @@ use observability_deps::tracing::*;
 ///
 /// The returned files will be ordered with the level 1 files first, then the level 0 files ordered
 /// in ascending order by their max sequence number.
-#[allow(dead_code)] // TODO: Call this during a compaction operation
 pub(crate) fn filter_parquet_files(
     // Level 0 files sorted by max sequence number and level 1 files in arbitrary order for one
     // partition

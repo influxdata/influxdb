@@ -73,7 +73,7 @@ async fn remote_partition_and_get_from_store_and_pull() {
                     //
                     // Looks like:
                     // {
-                    //     "id": "1",
+                    //     "id": "2",
                     //     "sequencerId": 1,
                     //     "namespaceId": 1,
                     //     "tableId": 1,
@@ -83,6 +83,7 @@ async fn remote_partition_and_get_from_store_and_pull() {
                     //     "maxTime": "123456",
                     //     "fileSizeBytes": "2029",
                     //     "rowCount": "1",
+                    //     "compactionLevel": 1,
                     //     "createdAt": "1650019674289347000"
                     // }
 
@@ -97,7 +98,7 @@ async fn remote_partition_and_get_from_store_and_pull() {
                         .assert()
                         .success()
                         .stdout(
-                            predicate::str::contains(r#""id": "1""#)
+                            predicate::str::contains(r#""id": "2""#)
                                 .and(predicate::str::contains(r#""partitionId": "1","#)),
                         )
                         .get_output()

@@ -1,39 +1,14 @@
 //! Helpers of the Compactor
 
 use crate::query::QueryableParquetChunk;
-use data_types::{
-    ParquetFile, ParquetFileId, ParquetFileParams, PartitionId, TableSchema, Timestamp, Tombstone,
-    TombstoneId,
-};
-use datafusion::physical_plan::SendableRecordBatchStream;
+use data_types::{ParquetFile, ParquetFileId, TableSchema, Timestamp, Tombstone, TombstoneId};
 use observability_deps::tracing::*;
-use parquet_file::{
-    chunk::ParquetChunk,
-    metadata::{IoxMetadata, IoxParquetMetaData},
-    storage::ParquetStorage,
-};
+use parquet_file::{chunk::ParquetChunk, storage::ParquetStorage};
 use schema::{sort::SortKey, Schema};
 use std::{
     collections::{BTreeMap, HashSet},
     sync::Arc,
 };
-
-/// Wrapper of a group of parquet files and their tombstones that overlap in time and should be
-/// considered during compaction.
-#[derive(Debug)]
-pub struct GroupWithTombstones {
-    /// Each file with the set of tombstones relevant to it
-    pub(crate) parquet_files: Vec<ParquetFileWithTombstone>,
-    /// All tombstones relevant to any of the files in the group
-    pub(crate) tombstones: Vec<Tombstone>,
-}
-
-impl GroupWithTombstones {
-    /// Return all tombstone ids
-    pub fn tombstone_ids(&self) -> HashSet<TombstoneId> {
-        self.tombstones.iter().map(|t| t.id).collect()
-    }
-}
 
 /// Wrapper of group of parquet files with their min time and total size
 #[derive(Debug, Clone, PartialEq)]
@@ -178,58 +153,6 @@ impl ParquetFileWithTombstone {
             partition_sort_key,
             self.data.compaction_level,
         )
-    }
-}
-
-/// Struct holding output of a compacted stream
-pub struct CompactedData {
-    pub(crate) data: SendableRecordBatchStream,
-    pub(crate) meta: IoxMetadata,
-    pub(crate) tombstones: BTreeMap<TombstoneId, Tombstone>,
-}
-
-impl CompactedData {
-    /// Initialize compacted data
-    pub fn new(
-        data: SendableRecordBatchStream,
-        meta: IoxMetadata,
-        tombstones: BTreeMap<TombstoneId, Tombstone>,
-    ) -> Self {
-        Self {
-            data,
-            meta,
-            tombstones,
-        }
-    }
-}
-
-/// Information needed to update the catalog after compacting a group of files
-#[derive(Debug)]
-pub struct CatalogUpdate {
-    #[allow(dead_code)]
-    pub(crate) meta: IoxMetadata,
-    pub(crate) tombstones: BTreeMap<TombstoneId, Tombstone>,
-    pub(crate) parquet_file: ParquetFileParams,
-}
-
-impl CatalogUpdate {
-    /// Initialize with data received from a persist to object storage
-    pub fn new(
-        partition_id: PartitionId,
-        meta: IoxMetadata,
-        file_size: usize,
-        md: IoxParquetMetaData,
-        tombstones: BTreeMap<TombstoneId, Tombstone>,
-        table_schema: &TableSchema,
-    ) -> Self {
-        let parquet_file = meta.to_parquet_file(partition_id, file_size, &md, |name| {
-            table_schema.columns.get(name).expect("unknown column").id
-        });
-        Self {
-            meta,
-            tombstones,
-            parquet_file,
-        }
     }
 }
 

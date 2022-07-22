@@ -287,51 +287,16 @@ async fn run_compactor(compactor: Arc<Compactor>, shutdown: CancellationToken) {
         // TODO: we will parallelize this when everything runs smoothly in serial
         let start_time = compactor.time_provider.now();
         for c in candidates {
-            let compactor = Arc::clone(&compactor);
-            let compact_and_upgrade = compactor
-                .groups_to_compact_and_files_to_upgrade(
-                    c.candidate.partition_id,
-                    &c.namespace.name,
-                    &c.table.name,
-                )
-                .await;
+            let partition_id = c.candidate.partition_id;
+            debug!(?partition_id, "compaction starting");
+            let compaction_result = crate::compact_partition(&compactor, c).await;
 
-            match compact_and_upgrade {
+            match compaction_result {
                 Err(e) => {
-                    warn!(
-                        "groups file to compact and upgrade on partition {} failed with: {:?}",
-                        c.candidate.partition_id, e
-                    );
+                    warn!(?partition_id, "compaction failed: {:?}", e);
                 }
-                Ok(compact_and_upgrade) => {
-                    if compact_and_upgrade.compactable() {
-                        let res = compactor
-                            .compact_partition(
-                                &c.namespace,
-                                &c.table,
-                                &c.table_schema,
-                                c.candidate.partition_id,
-                                compact_and_upgrade,
-                            )
-                            .await;
-                        if let Err(e) = res {
-                            warn!(
-                                "compaction on partition {} failed with: {:?}",
-                                c.candidate.partition_id, e
-                            );
-                        }
-                        debug!(candidate=?c, "compaction complete");
-                    } else {
-                        // All candidates should be compactable (have files to compact and/or
-                        // upgrade).
-                        // Reaching here means we do not choose the right candidates and
-                        // it would be a waste of time to repeat this cycle
-                        warn!(
-                            "The candidate partition {} has no files to be either compacted or \
-                                upgraded",
-                            c.candidate.partition_id
-                        );
-                    }
+                Ok(_) => {
+                    debug!(?partition_id, "compaction complete");
                 }
             }
         }

@@ -8,12 +8,14 @@ use iox_query::{
     QueryChunk,
 };
 use iox_time::TimeProvider;
+use metric::{Attributes, Metric, U64Counter};
 use observability_deps::tracing::*;
 use parquet_file::{chunk::ParquetChunk, metadata::IoxMetadata, storage::ParquetStorage};
 use schema::{sort::SortKey, Schema};
 use snafu::{ensure, ResultExt, Snafu};
 use std::{
     cmp::{max, min},
+    collections::BTreeMap,
     sync::Arc,
 };
 use uuid::Uuid;
@@ -82,7 +84,7 @@ const TEMPORARY_COMPACTION_MAX_BYTES_LIMIT: i64 = 30 * 1024 * 1024;
 // Compact the given parquet files received from `filter_parquet_files` into one stream
 pub(crate) async fn compact_parquet_files(
     files: Vec<ParquetFile>,
-    partition: &PartitionCompactionCandidateWithInfo,
+    partition: PartitionCompactionCandidateWithInfo,
     // The global catalog for schema, parquet files and tombstones
     catalog: Arc<dyn Catalog>,
     // Object store for reading input parquet files and writing compacted parquet files
@@ -90,6 +92,8 @@ pub(crate) async fn compact_parquet_files(
     // Executor for running queries, compacting, and persisting
     exec: Arc<Executor>,
     time_provider: Arc<dyn TimeProvider>,
+    // Counter for the number of files compacted
+    compaction_counter: &Metric<U64Counter>,
 ) -> Result<(), Error> {
     let partition_id = partition.id();
 
@@ -112,14 +116,17 @@ pub(crate) async fn compact_parquet_files(
         }
     );
 
-    let num_level_1 = files
-        .iter()
-        .filter(|f| f.compaction_level == CompactionLevel::FileNonOverlapped)
-        .count();
-    let num_level_0 = num_files - num_level_1;
+    let mut files_by_level = BTreeMap::new();
+    for compaction_level in files.iter().map(|f| f.compaction_level) {
+        *files_by_level.entry(compaction_level).or_default() += 1;
+    }
+    let num_level_0 = files_by_level.get(&CompactionLevel::Initial).unwrap_or(&0);
+    let num_level_1 = files_by_level
+        .get(&CompactionLevel::FileNonOverlapped)
+        .unwrap_or(&0);
     debug!(
         ?partition_id,
-        num_files, num_level_1, num_level_0, "compact files to stream"
+        num_files, num_level_0, num_level_1, "compact files to stream"
     );
 
     // Collect all the parquet file IDs, to be able to set their catalog records to be
@@ -259,6 +266,17 @@ pub(crate) async fn compact_parquet_files(
     txn.commit().await.context(TransactionCommitSnafu)?;
 
     info!(?partition_id, %object_store_id, "compaction complete");
+
+    let attributes = Attributes::from([(
+        "sequencer_id",
+        format!("{}", partition.sequencer_id()).into(),
+    )]);
+    for (compaction_level, file_count) in files_by_level {
+        let mut attributes = attributes.clone();
+        attributes.insert("compaction_level", format!("{}", compaction_level as i32));
+        let compaction_counter = compaction_counter.recorder(attributes);
+        compaction_counter.inc(file_count);
+    }
 
     Ok(())
 }
@@ -435,6 +453,14 @@ mod tests {
         }
     }
 
+    fn metrics() -> Metric<U64Counter> {
+        let registry = Arc::new(metric::Registry::new());
+        registry.register_metric(
+            "compactor_compacted_files_total",
+            "counter for the number of files compacted",
+        )
+    }
+
     #[tokio::test]
     async fn no_input_files_is_an_error() {
         test_helpers::maybe_start_logging();
@@ -444,15 +470,17 @@ mod tests {
             candidate_partition,
             ..
         } = test_setup().await;
+        let compaction_counter = metrics();
 
         let files = vec![];
         let result = compact_parquet_files(
             files,
-            &candidate_partition,
+            candidate_partition,
             Arc::clone(&catalog.catalog),
             ParquetStorage::new(Arc::clone(&catalog.object_store)),
             Arc::clone(&catalog.exec),
             Arc::clone(&catalog.time_provider) as Arc<dyn TimeProvider>,
+            &compaction_counter,
         )
         .await;
         assert_error!(result, Error::NotEnoughParquetFiles { num_files: 0, .. });
@@ -468,15 +496,18 @@ mod tests {
             mut parquet_files,
             ..
         } = test_setup().await;
+        let table_id = candidate_partition.table_id();
+        let compaction_counter = metrics();
 
         let parquet_file = parquet_files.remove(0);
         compact_parquet_files(
             vec![parquet_file],
-            &candidate_partition,
+            candidate_partition,
             Arc::clone(&catalog.catalog),
             ParquetStorage::new(Arc::clone(&catalog.object_store)),
             Arc::clone(&catalog.exec),
             Arc::clone(&catalog.time_provider) as Arc<dyn TimeProvider>,
+            &compaction_counter,
         )
         .await
         .unwrap();
@@ -486,9 +517,7 @@ mod tests {
         // - 2 initial level 0 files not compacted
         // - 2 initial level 1 files not compacted
         // - the 1 initial level 0 file that was "compacted" into 1 level 1 file
-        let files = catalog
-            .list_by_table_not_to_delete(candidate_partition.table.id)
-            .await;
+        let files = catalog.list_by_table_not_to_delete(table_id).await;
         assert_eq!(files.len(), 5);
         let files_and_levels: Vec<_> = files
             .into_iter()
@@ -516,14 +545,16 @@ mod tests {
             candidate_partition,
             parquet_files,
         } = test_setup().await;
+        let compaction_counter = metrics();
 
         compact_parquet_files(
             parquet_files.into_iter().take(4).collect(),
-            &candidate_partition,
+            candidate_partition,
             Arc::clone(&catalog.catalog),
             ParquetStorage::new(Arc::clone(&catalog.object_store)),
             Arc::clone(&catalog.exec),
             Arc::clone(&catalog.time_provider) as Arc<dyn TimeProvider>,
+            &compaction_counter,
         )
         .await
         .unwrap();
@@ -532,9 +563,7 @@ mod tests {
         //
         // - the one newly created after compacting
         // - the large one not included in this compaction operation
-        let mut files = catalog
-            .list_by_table_not_to_delete(candidate_partition.table.id)
-            .await;
+        let mut files = catalog.list_by_table_not_to_delete(table.table.id).await;
         assert_eq!(files.len(), 2);
         // 1 large file not included in compaction
         assert_eq!(
@@ -583,14 +612,16 @@ mod tests {
             parquet_files,
             ..
         } = test_setup().await;
+        let compaction_counter = metrics();
 
         let result = compact_parquet_files(
             parquet_files,
-            &candidate_partition,
+            candidate_partition,
             Arc::clone(&catalog.catalog),
             ParquetStorage::new(Arc::clone(&catalog.object_store)),
             Arc::clone(&catalog.exec),
             Arc::clone(&catalog.time_provider) as Arc<dyn TimeProvider>,
+            &compaction_counter,
         )
         .await;
         assert_error!(result, Error::TooMuchData { .. });

@@ -35,7 +35,6 @@ pub(crate) struct ParquetFilesForCompaction {
 impl ParquetFilesForCompaction {
     /// Given a catalog and a partition ID, find the Parquet files in the catalog relevant to a
     /// compaction operation.
-    #[allow(dead_code)] // TODO: Call this during a compaction operation
     pub(crate) async fn for_partition(
         catalog: Arc<dyn Catalog>,
         partition_id: PartitionId,
