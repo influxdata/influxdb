@@ -22,7 +22,7 @@ itertools = "0.10.1"
 metric = { path = "../metric" }
 observability_deps = { path = "../observability_deps" }
 parking_lot = "0.12"
-permutation = "0.4.0"
+permutation = "0.4.1"
 snafu = "0.7"
 schema = { path = "../schema" }
 workspace-hack = { path = "../workspace-hack"}
