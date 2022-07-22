@@ -526,9 +526,7 @@ async fn execute(
         table_name,
         catalog_cache,
         expected_schema,
-        span_recorder
-            .span()
-            .map(|span| span.child("IngesterStreamDecoder")),
+        span_recorder.child_span("IngesterStreamDecoder"),
     );
     for (msg, md) in messages {
         decoder.register(msg, md).await?;
@@ -611,8 +609,7 @@ impl IngesterStreamDecoder {
                     current_partition.partition_id(),
                     &primary_key,
                     self.span_recorder
-                        .span()
-                        .map(|span| span.child("cache GET partition sort key")),
+                        .child_span("cache GET partition sort key"),
                 )
                 .await;
             let current_partition = current_partition.with_partition_sort_key(partition_sort_key);
@@ -652,8 +649,7 @@ impl IngesterStreamDecoder {
                     .sequencer_id(
                         partition_id,
                         self.span_recorder
-                            .span()
-                            .map(|span| span.child("cache GET partition sequencer ID")),
+                            .child_span("cache GET partition sequencer ID"),
                     )
                     .await;
 

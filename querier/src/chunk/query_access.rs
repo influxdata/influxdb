@@ -281,9 +281,7 @@ impl QueryChunk for QuerierChunk {
                                 parquet_file,
                                 schema,
                                 store,
-                                span_recorder
-                                    .span()
-                                    .map(|span| span.child("cache GET read_buffer")),
+                                span_recorder.child_span("cache GET read_buffer"),
                             )
                             .await;
                         stage.write().load_to_read_buffer(rb_chunk);

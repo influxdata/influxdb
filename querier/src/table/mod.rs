@@ -168,23 +168,14 @@ impl QuerierTable {
         // ask ingesters for data, also optimistically fetching catalog
         // contents at the same time to pre-warm cache
         let (partitions, _parquet_files, _tombstones) = join!(
-            self.ingester_partitions(
-                predicate,
-                span_recorder
-                    .span()
-                    .map(|span| span.child("ingester partitions"))
-            ),
+            self.ingester_partitions(predicate, span_recorder.child_span("ingester partitions")),
             catalog_cache.parquet_file().get(
                 self.id(),
-                span_recorder
-                    .span()
-                    .map(|span| span.child("cache GET parquet_file (pre-warm"))
+                span_recorder.child_span("cache GET parquet_file (pre-warm")
             ),
             catalog_cache.tombstone().get(
                 self.id(),
-                span_recorder
-                    .span()
-                    .map(|span| span.child("cache GET tombstone (pre-warm)"))
+                span_recorder.child_span("cache GET tombstone (pre-warm)")
             ),
         );
 
@@ -206,16 +197,11 @@ impl QuerierTable {
         let (parquet_files, tombstones) = join!(
             catalog_cache.parquet_file().get(
                 self.id(),
-                span_recorder
-                    .span()
-                    .map(|span| span.child("cache GET parquet_file"))
+                span_recorder.child_span("cache GET parquet_file")
             ),
-            catalog_cache.tombstone().get(
-                self.id(),
-                span_recorder
-                    .span()
-                    .map(|span| span.child("cache GET tombstone"))
-            )
+            catalog_cache
+                .tombstone()
+                .get(self.id(), span_recorder.child_span("cache GET tombstone"))
         );
 
         // filter out parquet files early
@@ -223,7 +209,7 @@ impl QuerierTable {
         let parquet_files: Vec<_> = futures::stream::iter(parquet_files.files.iter())
             .filter_map(|cached_parquet_file| {
                 let chunk_adapter = Arc::clone(&self.chunk_adapter);
-                let span = span_recorder.span().map(|span| span.child("new_chunk"));
+                let span = span_recorder.child_span("new_chunk");
                 async move {
                     chunk_adapter
                         .new_chunk(
@@ -260,7 +246,7 @@ impl QuerierTable {
                 partitions,
                 tombstones.to_vec(),
                 parquet_files,
-                span_recorder.span().map(|span| span.child("reconcile")),
+                span_recorder.child_span("reconcile"),
             )
             .await
             .context(StateFusionSnafu)
@@ -339,9 +325,7 @@ impl QuerierTable {
                 columns,
                 predicate,
                 Arc::clone(&self.schema),
-                span_recorder
-                    .span()
-                    .map(|span| span.child("IngesterConnection partitions")),
+                span_recorder.child_span("IngesterConnection partitions"),
             )
             .await
             .context(GettingIngesterPartitionsSnafu);

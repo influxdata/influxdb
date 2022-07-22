@@ -252,9 +252,7 @@ impl QuerierChunk {
                     .read_buffer()
                     .peek(
                         meta.parquet_file_id,
-                        span_recorder
-                            .span()
-                            .map(|span| span.child("cache PEEK read_buffer")),
+                        span_recorder.child_span("cache PEEK read_buffer"),
                     )
                     .await
             }
@@ -267,9 +265,7 @@ impl QuerierChunk {
                             Arc::clone(parquet_chunk.parquet_file()),
                             Arc::clone(&schema),
                             store.clone(),
-                            span_recorder
-                                .span()
-                                .map(|span| span.child("cache GET read_buffer")),
+                            span_recorder.child_span("cache GET read_buffer"),
                         )
                         .await,
                 )
@@ -378,7 +374,7 @@ impl ChunkAdapter {
             .chunk_parts(
                 namespace_name,
                 Arc::clone(&parquet_file),
-                span_recorder.span().map(|span| span.child("chunk_parts")),
+                span_recorder.child_span("chunk_parts"),
             )
             .await?;
 
@@ -401,9 +397,7 @@ impl ChunkAdapter {
                 Arc::clone(&self.catalog_cache),
                 self.store.clone(),
                 load_settings,
-                span_recorder
-                    .span()
-                    .map(|span| span.child("QuerierChunk::new")),
+                span_recorder.child_span("QuerierChunk::new"),
             )
             .await,
         )
@@ -424,9 +418,7 @@ impl ChunkAdapter {
             .table()
             .name(
                 parquet_file.table_id,
-                span_recorder
-                    .span()
-                    .map(|span| span.child("cache GET table name")),
+                span_recorder.child_span("cache GET table name"),
             )
             .await?;
         let namespace_schema = self
@@ -435,9 +427,7 @@ impl ChunkAdapter {
             .schema(
                 namespace_name,
                 &[(&table_name, &file_column_ids)],
-                span_recorder
-                    .span()
-                    .map(|span| span.child("cache GET namespace schema")),
+                span_recorder.child_span("cache GET namespace schema"),
             )
             .await?;
         let table_schema_catalog = namespace_schema.tables.get(table_name.as_ref())?;
@@ -473,9 +463,7 @@ impl ChunkAdapter {
             .sort_key(
                 parquet_file.partition_id,
                 &relevant_pk_columns,
-                span_recorder
-                    .span()
-                    .map(|span| span.child("cache GET partition sort key")),
+                span_recorder.child_span("cache GET partition sort key"),
             )
             .await;
         let partition_sort_key_ref = partition_sort_key

@@ -161,9 +161,7 @@ impl QuerierDatabase {
                 Arc::clone(&name),
                 // we have no specific need for any tables or columns at this point, so nothing to cover
                 &[],
-                span_recorder
-                    .span()
-                    .map(|span| span.child("cache GET namespace schema")),
+                span_recorder.child_span("cache GET namespace schema"),
             )
             .await?;
         Some(Arc::new(QuerierNamespace::new(

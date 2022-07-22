@@ -206,16 +206,19 @@ impl SpanRecorder {
     /// If this `SpanRecorder` has a `Span`, creates a new child of that `Span` and
     /// returns a `SpanRecorder` for it. Otherwise returns an empty `SpanRecorder`
     pub fn child(&self, name: &'static str) -> Self {
-        match &self.span {
-            Some(span) => Self::new(Some(span.child(name))),
-            None => Self::new(None),
-        }
+        Self::new(self.child_span(name))
     }
 
     /// Return a reference to the span contained in this SpanRecorder,
     /// or None if there is no active span
     pub fn span(&self) -> Option<&Span> {
         self.span.as_ref()
+    }
+
+    /// Return a child span of the specified name, if this SpanRecorder
+    /// has an active span, `None` otherwise.
+    pub fn child_span(&self, name: &'static str) -> Option<Span> {
+        self.span.as_ref().map(|span| span.child(name))
     }
 
     /// Link this span to another context.

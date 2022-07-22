@@ -64,21 +64,14 @@ impl Reconciler {
                 &ingester_partitions,
                 tombstones,
                 parquet_files,
-                span_recorder
-                    .span()
-                    .map(|span| span.child("build_chunks_from_parquet")),
+                span_recorder.child_span("build_chunks_from_parquet"),
             )
             .await?;
         chunks.extend(self.build_ingester_chunks(ingester_partitions));
         debug!(num_chunks=%chunks.len(), "Final chunk count after reconcilation");
 
         let chunks = self
-            .sync_partition_sort_keys(
-                chunks,
-                span_recorder
-                    .span()
-                    .map(|span| span.child("sync_partition_sort_key")),
-            )
+            .sync_partition_sort_keys(chunks, span_recorder.child_span("sync_partition_sort_key"))
             .await;
 
         let chunks: Vec<Arc<dyn QueryChunk>> = chunks
@@ -185,9 +178,7 @@ impl Reconciler {
                         .exists(
                             chunk.meta().parquet_file_id(),
                             tombstone.tombstone_id(),
-                            span_recorder
-                                .span()
-                                .map(|span| span.child("cache GET exists processed_tombstone")),
+                            span_recorder.child_span("cache GET exists processed_tombstone"),
                         )
                         .await
                     {
@@ -251,9 +242,7 @@ impl Reconciler {
                 .sort_key(
                     partition_id,
                     &columns,
-                    span_recorder
-                        .span()
-                        .map(|span| span.child("cache GET partition sort key")),
+                    span_recorder.child_span("cache GET partition sort key"),
                 )
                 .await;
             sort_keys.insert(partition_id, sort_key);
