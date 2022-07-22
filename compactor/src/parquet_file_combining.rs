@@ -1,5 +1,7 @@
 use crate::{compact::PartitionCompactionCandidateWithInfo, query::QueryableParquetChunk};
-use data_types::{CompactionLevel, ParquetFile, PartitionId, TableSchema};
+use data_types::{
+    CompactionLevel, ParquetFile, ParquetFileId, ParquetFileParams, PartitionId, TableSchema,
+};
 use datafusion::error::DataFusionError;
 use iox_catalog::interface::Catalog;
 use iox_query::{
@@ -31,15 +33,6 @@ pub(crate) enum Error {
         partition_id: PartitionId,
     },
 
-    #[snafu(display(
-        "Total size of selected files for {} is {total_size}, compacting that much is \
-         not yet implemented.", partition_id.get()
-    ))]
-    TooMuchData {
-        total_size: i64,
-        partition_id: PartitionId,
-    },
-
     #[snafu(display("Error building compact logical plan  {}", source))]
     CompactLogicalPlan {
         source: iox_query::frontend::reorg::Error,
@@ -56,32 +49,15 @@ pub(crate) enum Error {
         source: parquet_file::storage::UploadError,
     },
 
-    #[snafu(display("Error while starting catalog transaction {}", source))]
-    Transaction {
-        source: iox_catalog::interface::Error,
-    },
-
-    #[snafu(display("Error while committing catalog transaction {}", source))]
-    TransactionCommit {
-        source: iox_catalog::interface::Error,
-    },
-
-    #[snafu(display("Error updating catalog {}", source))]
-    Update {
-        source: iox_catalog::interface::Error,
-    },
-
-    #[snafu(display("Error while flagging a parquet file for deletion {}", source))]
-    FlagForDelete {
-        source: iox_catalog::interface::Error,
+    #[snafu(display("Could not update catalog for partition {}: {source}", partition_id.get()))]
+    Catalog {
+        partition_id: PartitionId,
+        source: CatalogUpdateError,
     },
 }
 
-/// 99.99% of current partitions are under this size. Temporarily only compact this amount of data
-/// into one file, as that is simpler than splitting into multiple files.
-const TEMPORARY_COMPACTION_MAX_BYTES_LIMIT: i64 = 30 * 1024 * 1024;
-
 // Compact the given parquet files received from `filter_parquet_files` into one stream
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn compact_parquet_files(
     files: Vec<ParquetFile>,
     partition: PartitionCompactionCandidateWithInfo,
@@ -94,6 +70,19 @@ pub(crate) async fn compact_parquet_files(
     time_provider: Arc<dyn TimeProvider>,
     // Counter for the number of files compacted
     compaction_counter: &Metric<U64Counter>,
+    // Desired max size of compacted parquet files.
+    // It is a target desired value, rather than a guarantee.
+    max_desired_file_size_bytes: u64,
+    // Percentage of desired max file size. This percentage of `max_desired_file_size_bytes` is
+    // considered "small" and will not be split. 100 + this percentage of
+    // `max_desired_file_size_bytes` is considered "large" and will be split into files roughly of
+    // `max_desired_file_size_bytes`. For amounts of data between "small" and "large", the data
+    // will be split into 2 parts with roughly `split_percentage` in the earlier compacted file and
+    // 1 - `split_percentage` in the later compacted file.
+    percentage_max_file_size: u16,
+    // When data is between a "small" and "large" amount, split the compacted files at roughly this
+    // percentage in the earlier compacted file, and the remainder .in the later compacted file.
+    split_percentage: u16,
 ) -> Result<(), Error> {
     let partition_id = partition.id();
 
@@ -106,15 +95,9 @@ pub(crate) async fn compact_parquet_files(
         }
     );
 
-    // Find the total size of all files. For now, only compact if the total size is under 30MB.
+    // Find the total size of all files.
     let total_size: i64 = files.iter().map(|f| f.file_size_bytes).sum();
-    ensure!(
-        total_size < TEMPORARY_COMPACTION_MAX_BYTES_LIMIT,
-        TooMuchDataSnafu {
-            total_size,
-            partition_id
-        }
-    );
+    let total_size = total_size as u64;
 
     let mut files_by_level = BTreeMap::new();
     for compaction_level in files.iter().map(|f| f.compaction_level) {
@@ -182,11 +165,49 @@ pub(crate) async fn compact_parquet_files(
         .expect("no partition sort key in catalog")
         .filter_to(&merged_schema.primary_key());
 
-    // Build compact logical plan, compacting everything into one file
+    let (small_cutoff_bytes, large_cutoff_bytes) =
+        cutoff_bytes(max_desired_file_size_bytes, percentage_max_file_size);
+    dbg!(&small_cutoff_bytes, &large_cutoff_bytes, &total_size);
+
     let ctx = exec.new_context(ExecutorType::Reorg);
-    let plan = ReorgPlanner::new(ctx.child_ctx("ReorgPlanner"))
-        .compact_plan(Arc::clone(&merged_schema), query_chunks, sort_key.clone())
-        .context(CompactLogicalPlanSnafu)?;
+    let plan = if total_size <= small_cutoff_bytes {
+        // Compact everything into one file
+        ReorgPlanner::new(ctx.child_ctx("ReorgPlanner"))
+            .compact_plan(Arc::clone(&merged_schema), query_chunks, sort_key.clone())
+            .context(CompactLogicalPlanSnafu)?
+    } else {
+        let split_times = if small_cutoff_bytes < total_size && total_size <= large_cutoff_bytes {
+            // Split compaction into two files, the earlier of split_percentage amount of
+            // max_desired_file_size_bytes, the later of the rest
+            vec![min_time + ((max_time - min_time) * split_percentage as i64) / 100]
+        } else {
+            // Split compaction into multiple files
+            crate::utils::compute_split_time(
+                min_time,
+                max_time,
+                total_size,
+                max_desired_file_size_bytes,
+            )
+        };
+
+        if split_times.is_empty() || (split_times.len() == 1 && split_times[0] == max_time) {
+            // The split times might not have actually split anything, so in this case, compact
+            // everything into one file
+            ReorgPlanner::new(ctx.child_ctx("ReorgPlanner"))
+                .compact_plan(Arc::clone(&merged_schema), query_chunks, sort_key.clone())
+                .context(CompactLogicalPlanSnafu)?
+        } else {
+            // split compact query plan
+            ReorgPlanner::new(ctx.child_ctx("ReorgPlanner"))
+                .split_plan(
+                    Arc::clone(&merged_schema),
+                    query_chunks,
+                    sort_key.clone(),
+                    split_times,
+                )
+                .context(CompactLogicalPlanSnafu)?
+        }
+    };
 
     let ctx = exec.new_context(ExecutorType::Reorg);
     let physical_plan = ctx
@@ -194,78 +215,71 @@ pub(crate) async fn compact_parquet_files(
         .await
         .context(CompactPhysicalPlanSnafu)?;
 
-    let data = ctx
-        .execute_stream(Arc::clone(&physical_plan))
-        .await
-        .context(ExecuteCompactPlanSnafu)?;
+    // Run to collect each stream of the plan
+    let stream_count = physical_plan.output_partitioning().partition_count();
+    let mut compacted_parquet_files = Vec::with_capacity(stream_count);
 
-    let meta = IoxMetadata {
-        object_store_id: Uuid::new_v4(),
-        creation_timestamp: time_provider.now(),
-        sequencer_id: partition.sequencer_id(),
-        namespace_id: partition.namespace_id(),
-        namespace_name: partition.namespace.name.clone().into(),
-        table_id: partition.table.id,
-        table_name: partition.table.name.clone().into(),
-        partition_id,
-        partition_key: partition.partition_key.clone(),
-        max_sequence_number,
-        compaction_level: CompactionLevel::FileNonOverlapped,
-        sort_key: Some(sort_key.clone()),
-    };
-
-    debug!(
-        ?partition_id,
-        "executing and uploading compaction StreamSplitExec"
-    );
-
-    let object_store_id = meta.object_store_id;
-    info!(?partition_id, %object_store_id, "streaming exec to object store");
-
-    // Stream the record batches from the compaction exec, serialize
-    // them, and directly upload the resulting Parquet files to
-    // object storage.
-    let (parquet_meta, file_size) = store.upload(data, &meta).await.context(PersistSnafu)?;
-
-    debug!(?partition_id, %object_store_id, "file uploaded to object store");
-
-    let parquet_file = meta.to_parquet_file(partition_id, file_size, &parquet_meta, |name| {
-        partition
-            .table_schema
-            .columns
-            .get(name)
-            .expect("unknown column")
-            .id
-    });
-
-    let mut txn = catalog
-        .start_transaction()
-        .await
-        .context(TransactionSnafu)?;
-
-    debug!(
-        ?partition_id,
-        %object_store_id,
-        "updating catalog"
-    );
-
-    // Create the new parquet file in the catalog first
-    txn.parquet_files()
-        .create(parquet_file)
-        .await
-        .context(UpdateSnafu)?;
-
-    // Mark input files for deletion
-    for original_parquet_file_id in original_parquet_file_ids {
-        txn.parquet_files()
-            .flag_for_delete(original_parquet_file_id)
+    debug!("running plan with {} streams", stream_count);
+    for i in 0..stream_count {
+        trace!(partition = i, "executing datafusion partition");
+        let data = ctx
+            .execute_stream_partitioned(Arc::clone(&physical_plan), i)
             .await
-            .context(FlagForDeleteSnafu)?;
+            .context(ExecuteCompactPlanSnafu)?;
+        trace!(partition = i, "built result stream for partition");
+
+        let meta = IoxMetadata {
+            object_store_id: Uuid::new_v4(),
+            creation_timestamp: time_provider.now(),
+            sequencer_id: partition.sequencer_id(),
+            namespace_id: partition.namespace_id(),
+            namespace_name: partition.namespace.name.clone().into(),
+            table_id: partition.table.id,
+            table_name: partition.table.name.clone().into(),
+            partition_id,
+            partition_key: partition.partition_key.clone(),
+            max_sequence_number,
+            compaction_level: CompactionLevel::FileNonOverlapped,
+            sort_key: Some(sort_key.clone()),
+        };
+
+        debug!(
+            ?partition_id,
+            "executing and uploading compaction StreamSplitExec"
+        );
+
+        let object_store_id = meta.object_store_id;
+        info!(?partition_id, %object_store_id, "streaming exec to object store");
+
+        // Stream the record batches from the compaction exec, serialize
+        // them, and directly upload the resulting Parquet files to
+        // object storage.
+        let (parquet_meta, file_size) = store.upload(data, &meta).await.context(PersistSnafu)?;
+
+        debug!(?partition_id, %object_store_id, "file uploaded to object store");
+
+        let parquet_file = meta.to_parquet_file(partition_id, file_size, &parquet_meta, |name| {
+            partition
+                .table_schema
+                .columns
+                .get(name)
+                .expect("unknown column")
+                .id
+        });
+
+        compacted_parquet_files.push(parquet_file);
     }
 
-    txn.commit().await.context(TransactionCommitSnafu)?;
+    update_catalog(
+        catalog,
+        partition_id,
+        compacted_parquet_files,
+        &original_parquet_file_ids,
+    )
+    .await
+    .context(CatalogSnafu { partition_id })?;
 
-    info!(?partition_id, %object_store_id, "compaction complete");
+    info!(?partition_id, "compaction complete");
 
     let attributes = Attributes::from([(
         "sequencer_id",
@@ -332,6 +346,73 @@ fn to_queryable_parquet_chunk(
     )
 }
 
+fn cutoff_bytes(max_desired_file_size_bytes: u64, percentage_max_file_size: u16) -> (u64, u64) {
+    (
+        (max_desired_file_size_bytes * percentage_max_file_size as u64) / 100,
+        (max_desired_file_size_bytes * (100 + percentage_max_file_size as u64)) / 100,
+    )
+}
+
+#[derive(Debug, Snafu)]
+#[allow(missing_copy_implementations, missing_docs)]
+pub(crate) enum CatalogUpdateError {
+    #[snafu(display("Error while starting catalog transaction {}", source))]
+    Transaction {
+        source: iox_catalog::interface::Error,
+    },
+
+    #[snafu(display("Error while committing catalog transaction {}", source))]
+    TransactionCommit {
+        source: iox_catalog::interface::Error,
+    },
+
+    #[snafu(display("Error updating catalog {}", source))]
+    Update {
+        source: iox_catalog::interface::Error,
+    },
+
+    #[snafu(display("Error while flagging a parquet file for deletion {}", source))]
+    FlagForDelete {
+        source: iox_catalog::interface::Error,
+    },
+}
+
+async fn update_catalog(
+    catalog: Arc<dyn Catalog>,
+    partition_id: PartitionId,
+    compacted_parquet_files: Vec<ParquetFileParams>,
+    original_parquet_file_ids: &[ParquetFileId],
+) -> Result<(), CatalogUpdateError> {
+    let mut txn = catalog
+        .start_transaction()
+        .await
+        .context(TransactionSnafu)?;
+
+    // Create the new parquet file in the catalog first
+    for parquet_file in compacted_parquet_files {
+        debug!(
+            ?partition_id,
+            %parquet_file.object_store_id,
+            "updating catalog"
+        );
+
+        txn.parquet_files()
+            .create(parquet_file)
+            .await
+            .context(UpdateSnafu)?;
+    }
+
+    // Mark input files for deletion
+    for &original_parquet_file_id in original_parquet_file_ids {
+        txn.parquet_files()
+            .flag_for_delete(original_parquet_file_id)
+            .await
+            .context(FlagForDeleteSnafu)?;
+    }
+
+    txn.commit().await.context(TransactionCommitSnafu)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -341,6 +422,25 @@ mod tests {
     use iox_tests::util::{TestCatalog, TestParquetFileBuilder, TestTable};
     use parquet_file::ParquetFilePath;
     use test_helpers::assert_error;
+
+    #[test]
+    fn test_cutoff_bytes() {
+        let (small, large) = cutoff_bytes(100, 30);
+        assert_eq!(small, 30);
+        assert_eq!(large, 130);
+
+        let (small, large) = cutoff_bytes(100 * 1024 * 1024, 30);
+        assert_eq!(small, 30 * 1024 * 1024);
+        assert_eq!(large, 130 * 1024 * 1024);
+
+        let (small, large) = cutoff_bytes(100, 60);
+        assert_eq!(small, 60);
+        assert_eq!(large, 160);
+    }
+
+    const DEFAULT_MAX_DESIRED_FILE_SIZE_BYTES: u64 = 100 * 1024 * 1024;
+    const DEFAULT_PERCENTAGE_MAX_FILE_SIZE: u16 = 30;
+    const DEFAULT_SPLIT_PERCENTAGE: u16 = 80;
 
     struct TestSetup {
         catalog: Arc<TestCatalog>,
@@ -432,7 +532,23 @@ mod tests {
         let lp = vec!["table,tag2=OH,tag3=21 field_int=21i 36000"].join("\n");
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(&lp)
-            .with_file_size_bytes(40 * 1024 * 1024); // Really large file
+            .with_min_time(0)
+            .with_max_time(36000)
+            // Will put the group size between "small" and "large"
+            .with_file_size_bytes(50 * 1024 * 1024);
+        let medium_file = partition.create_parquet_file(builder).await;
+
+        let lp = vec![
+            "table,tag1=VT field_int=10i 68000",
+            "table,tag2=OH,tag3=21 field_int=210i 136000",
+        ]
+        .join("\n");
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(&lp)
+            .with_min_time(36001)
+            .with_max_time(136000)
+            // Will put the group size two multiples over "large"
+            .with_file_size_bytes(180 * 1024 * 1024);
         let large_file = partition.create_parquet_file(builder).await;
 
         // Order here isn't relevant; the chunk order should ensure the level 1 files are ordered
@@ -442,6 +558,7 @@ mod tests {
             level_1_with_duplicates.parquet_file,
             level_0_max_seq_1.parquet_file,
             level_1_file.parquet_file,
+            medium_file.parquet_file,
             large_file.parquet_file,
         ];
 
@@ -481,6 +598,9 @@ mod tests {
             Arc::clone(&catalog.exec),
             Arc::clone(&catalog.time_provider) as Arc<dyn TimeProvider>,
             &compaction_counter,
+            DEFAULT_MAX_DESIRED_FILE_SIZE_BYTES,
+            DEFAULT_PERCENTAGE_MAX_FILE_SIZE,
+            DEFAULT_SPLIT_PERCENTAGE,
         )
         .await;
         assert_error!(result, Error::NotEnoughParquetFiles { num_files: 0, .. });
@@ -508,19 +628,22 @@ mod tests {
             Arc::clone(&catalog.exec),
             Arc::clone(&catalog.time_provider) as Arc<dyn TimeProvider>,
             &compaction_counter,
+            DEFAULT_MAX_DESIRED_FILE_SIZE_BYTES,
+            DEFAULT_PERCENTAGE_MAX_FILE_SIZE,
+            DEFAULT_SPLIT_PERCENTAGE,
         )
         .await
         .unwrap();
 
-        // Should have 5 non-soft-deleted files:
+        // Should have 6 non-soft-deleted files:
         //
-        // - 2 initial level 0 files not compacted
+        // - 3 initial level 0 files not compacted
         // - 2 initial level 1 files not compacted
         // - the 1 initial level 0 file that was "compacted" into 1 level 1 file
         let files = catalog.list_by_table_not_to_delete(table_id).await;
-        assert_eq!(files.len(), 5);
+        assert_eq!(files.len(), 6);
         let files_and_levels: Vec<_> = files
-            .into_iter()
+            .iter()
             .map(|f| (f.id.get(), f.compaction_level))
             .collect();
         assert_eq!(
@@ -530,13 +653,14 @@ mod tests {
                 (2, CompactionLevel::Initial),
                 (4, CompactionLevel::FileNonOverlapped),
                 (5, CompactionLevel::Initial),
-                (6, CompactionLevel::FileNonOverlapped),
+                (6, CompactionLevel::Initial),
+                (7, CompactionLevel::FileNonOverlapped),
             ]
         );
     }
 
     #[tokio::test]
-    async fn multiple_files_get_compacted() {
+    async fn small_files_get_compacted_into_one() {
         test_helpers::maybe_start_logging();
 
         let TestSetup {
@@ -555,26 +679,33 @@ mod tests {
             Arc::clone(&catalog.exec),
             Arc::clone(&catalog.time_provider) as Arc<dyn TimeProvider>,
             &compaction_counter,
+            DEFAULT_MAX_DESIRED_FILE_SIZE_BYTES,
+            DEFAULT_PERCENTAGE_MAX_FILE_SIZE,
+            DEFAULT_SPLIT_PERCENTAGE,
         )
         .await
         .unwrap();
 
-        // Should have 2 non-soft-deleted files:
+        // Should have 3 non-soft-deleted files:
         //
         // - the one newly created after compacting
-        // - the large one not included in this compaction operation
+        // - the 2 large ones not included in this compaction operation
         let mut files = catalog.list_by_table_not_to_delete(table.table.id).await;
-        assert_eq!(files.len(), 2);
-        // 1 large file not included in compaction
-        assert_eq!(
-            (files[0].id.get(), files[0].compaction_level),
-            (5, CompactionLevel::Initial)
-        );
+        assert_eq!(files.len(), 3);
+        let files_and_levels: Vec<_> = files
+            .iter()
+            .map(|f| (f.id.get(), f.compaction_level))
+            .collect();
+        // 2 large files not included in compaction,
         // 1 newly created CompactionLevel::FileNonOverlapped file as the result of
         // compaction
         assert_eq!(
-            (files[1].id.get(), files[1].compaction_level),
-            (6, CompactionLevel::FileNonOverlapped)
+            files_and_levels,
+            vec![
+                (5, CompactionLevel::Initial),
+                (6, CompactionLevel::Initial),
+                (7, CompactionLevel::FileNonOverlapped),
+            ]
         );
 
         // ------------------------------------------------
@@ -603,18 +734,183 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn too_large_input_files_is_an_error() {
+    async fn medium_input_files_get_split_into_two() {
         test_helpers::maybe_start_logging();
 
         let TestSetup {
             catalog,
+            table,
             candidate_partition,
             parquet_files,
-            ..
         } = test_setup().await;
         let compaction_counter = metrics();
 
-        let result = compact_parquet_files(
+        compact_parquet_files(
+            parquet_files.into_iter().take(5).collect(),
+            candidate_partition,
+            Arc::clone(&catalog.catalog),
+            ParquetStorage::new(Arc::clone(&catalog.object_store)),
+            Arc::clone(&catalog.exec),
+            Arc::clone(&catalog.time_provider) as Arc<dyn TimeProvider>,
+            &compaction_counter,
+            DEFAULT_MAX_DESIRED_FILE_SIZE_BYTES,
+            DEFAULT_PERCENTAGE_MAX_FILE_SIZE,
+            DEFAULT_SPLIT_PERCENTAGE,
+        )
+        .await
+        .unwrap();
+
+        // Should have 3 non-soft-deleted files:
+        // - 1 large file not included in compaction
+        // - 2 files from compacting everything together then splitting.
+        let mut files = catalog.list_by_table_not_to_delete(table.table.id).await;
+        assert_eq!(files.len(), 3);
+        let files_and_levels: Vec<_> = files
+            .iter()
+            .map(|f| (f.id.get(), f.compaction_level))
+            .collect();
+        // 1 large files not included in compaction,
+        // 2 newly created CompactionLevel::FileNonOverlapped file as the result of
+        // compaction and splitting
+        assert_eq!(
+            files_and_levels,
+            vec![
+                (6, CompactionLevel::Initial),
+                (7, CompactionLevel::FileNonOverlapped),
+                (8, CompactionLevel::FileNonOverlapped),
+            ]
+        );
+
+        // ------------------------------------------------
+        // Verify the parquet file content
+
+        // Compacted file with the later data
+        let file1 = files.pop().unwrap();
+        let batches = read_parquet_file(&table, file1).await;
+        assert_batches_sorted_eq!(
+            &[
+                "+-----------+------+------+------+-----------------------------+",
+                "| field_int | tag1 | tag2 | tag3 | time                        |",
+                "+-----------+------+------+------+-----------------------------+",
+                "| 1601      |      | PA   | 15   | 1970-01-01T00:00:00.000030Z |",
+                "| 21        |      | OH   | 21   | 1970-01-01T00:00:00.000036Z |",
+                "+-----------+------+------+------+-----------------------------+",
+            ],
+            &batches
+        );
+
+        // Compacted file with the earlier data
+        let file0 = files.pop().unwrap();
+        let batches = read_parquet_file(&table, file0).await;
+        assert_batches_sorted_eq!(
+            &[
+                "+-----------+------+------+------+-----------------------------+",
+                "| field_int | tag1 | tag2 | tag3 | time                        |",
+                "+-----------+------+------+------+-----------------------------+",
+                "| 10        | VT   |      |      | 1970-01-01T00:00:00.000006Z |",
+                "| 10        | VT   |      |      | 1970-01-01T00:00:00.000010Z |",
+                "| 1500      | WA   |      |      | 1970-01-01T00:00:00.000008Z |",
+                "| 270       | UT   |      |      | 1970-01-01T00:00:00.000025Z |",
+                "| 70        | UT   |      |      | 1970-01-01T00:00:00.000020Z |",
+                "| 99        | OR   |      |      | 1970-01-01T00:00:00.000012Z |",
+                "+-----------+------+------+------+-----------------------------+",
+            ],
+            &batches
+        );
+    }
+
+    #[tokio::test]
+    async fn medium_input_files_cant_split_dont_make_empty_file() {
+        test_helpers::maybe_start_logging();
+
+        let TestSetup {
+            catalog,
+            table,
+            candidate_partition,
+            parquet_files,
+        } = test_setup().await;
+        let compaction_counter = metrics();
+
+        let files_to_compact: Vec<_> = parquet_files.into_iter().take(5).collect();
+
+        // If the split percentage is set to 100%, we'd create an empty parquet file, so this
+        // needs to be special cased.
+        let split_percentage = 100;
+
+        compact_parquet_files(
+            files_to_compact,
+            candidate_partition,
+            Arc::clone(&catalog.catalog),
+            ParquetStorage::new(Arc::clone(&catalog.object_store)),
+            Arc::clone(&catalog.exec),
+            Arc::clone(&catalog.time_provider) as Arc<dyn TimeProvider>,
+            &compaction_counter,
+            DEFAULT_MAX_DESIRED_FILE_SIZE_BYTES,
+            DEFAULT_PERCENTAGE_MAX_FILE_SIZE,
+            split_percentage,
+        )
+        .await
+        .unwrap();
+
+        // Should have 2 non-soft-deleted files:
+        // - 1 large file not included in compaction
+        // - 1 file from compacting everything-- even though this is the medium-sized case, the
+        //   split percentage would make an empty file if we split, so don't do that.
+        let mut files = catalog.list_by_table_not_to_delete(table.table.id).await;
+        assert_eq!(files.len(), 2);
+        let files_and_levels: Vec<_> = files
+            .iter()
+            .map(|f| (f.id.get(), f.compaction_level))
+            .collect();
+        // 1 large file not included in compaction,
+        // 1 newly created CompactionLevel::FileNonOverlapped file as the result of
+        // compaction and  NOT splitting
+        assert_eq!(
+            files_and_levels,
+            vec![
+                (6, CompactionLevel::Initial),
+                (7, CompactionLevel::FileNonOverlapped),
+            ]
+        );
+
+        // ------------------------------------------------
+        // Verify the parquet file content
+
+        // Compacted file with all the data
+        let file1 = files.pop().unwrap();
+        let batches = read_parquet_file(&table, file1).await;
+        assert_batches_sorted_eq!(
+            &[
+                "+-----------+------+------+------+-----------------------------+",
+                "| field_int | tag1 | tag2 | tag3 | time                        |",
+                "+-----------+------+------+------+-----------------------------+",
+                "| 10        | VT   |      |      | 1970-01-01T00:00:00.000006Z |",
+                "| 10        | VT   |      |      | 1970-01-01T00:00:00.000010Z |",
+                "| 1500      | WA   |      |      | 1970-01-01T00:00:00.000008Z |",
+                "| 1601      |      | PA   | 15   | 1970-01-01T00:00:00.000030Z |",
+                "| 21        |      | OH   | 21   | 1970-01-01T00:00:00.000036Z |",
+                "| 270       | UT   |      |      | 1970-01-01T00:00:00.000025Z |",
+                "| 70        | UT   |      |      | 1970-01-01T00:00:00.000020Z |",
+                "| 99        | OR   |      |      | 1970-01-01T00:00:00.000012Z |",
+                "+-----------+------+------+------+-----------------------------+",
+            ],
+            &batches
+        );
+    }
+
+    #[tokio::test]
+    async fn large_input_files_get_split_multiple_times() {
+        test_helpers::maybe_start_logging();
+
+        let TestSetup {
+            catalog,
+            table,
+            candidate_partition,
+            parquet_files,
+        } = test_setup().await;
+        let compaction_counter = metrics();
+
+        compact_parquet_files(
             parquet_files,
             candidate_partition,
             Arc::clone(&catalog.catalog),
@@ -622,9 +918,83 @@ mod tests {
             Arc::clone(&catalog.exec),
             Arc::clone(&catalog.time_provider) as Arc<dyn TimeProvider>,
             &compaction_counter,
+            DEFAULT_MAX_DESIRED_FILE_SIZE_BYTES,
+            DEFAULT_PERCENTAGE_MAX_FILE_SIZE,
+            DEFAULT_SPLIT_PERCENTAGE,
         )
-        .await;
-        assert_error!(result, Error::TooMuchData { .. });
+        .await
+        .unwrap();
+
+        // Should have 3 non-soft-deleted files:
+        // - 3 files from compacting everything together then splitting.
+        let mut files = catalog.list_by_table_not_to_delete(table.table.id).await;
+        assert_eq!(files.len(), 3);
+        let files_and_levels: Vec<_> = files
+            .iter()
+            .map(|f| (f.id.get(), f.compaction_level))
+            .collect();
+        // 3 newly created CompactionLevel::FileNonOverlapped file as the result of
+        // compaction and splitting
+        assert_eq!(
+            files_and_levels,
+            vec![
+                (7, CompactionLevel::FileNonOverlapped),
+                (8, CompactionLevel::FileNonOverlapped),
+                (9, CompactionLevel::FileNonOverlapped),
+            ]
+        );
+
+        // ------------------------------------------------
+        // Verify the parquet file content
+
+        // Compacted file with the latest data
+        let file2 = files.pop().unwrap();
+        let batches = read_parquet_file(&table, file2).await;
+        assert_batches_sorted_eq!(
+            &[
+                "+-----------+------+------+------+-----------------------------+",
+                "| field_int | tag1 | tag2 | tag3 | time                        |",
+                "+-----------+------+------+------+-----------------------------+",
+                "| 210       |      | OH   | 21   | 1970-01-01T00:00:00.000136Z |",
+                "+-----------+------+------+------+-----------------------------+",
+            ],
+            &batches
+        );
+
+        // Compacted file with the later data
+        let file1 = files.pop().unwrap();
+        let batches = read_parquet_file(&table, file1).await;
+        assert_batches_sorted_eq!(
+            &[
+                "+-----------+------+------+------+-----------------------------+",
+                "| field_int | tag1 | tag2 | tag3 | time                        |",
+                "+-----------+------+------+------+-----------------------------+",
+                "| 10        | VT   |      |      | 1970-01-01T00:00:00.000068Z |",
+                "+-----------+------+------+------+-----------------------------+",
+            ],
+            &batches
+        );
+
+        // Compacted file with the earlier data
+        let file0 = files.pop().unwrap();
+        let batches = read_parquet_file(&table, file0).await;
+        assert_batches_sorted_eq!(
+            &[
+                "+-----------+------+------+------+-----------------------------+",
+                "| field_int | tag1 | tag2 | tag3 | time                        |",
+                "+-----------+------+------+------+-----------------------------+",
+                "| 10        | VT   |      |      | 1970-01-01T00:00:00.000006Z |",
+                "| 10        | VT   |      |      | 1970-01-01T00:00:00.000010Z |",
+                "| 1500      | WA   |      |      | 1970-01-01T00:00:00.000008Z |",
+                "| 1601      |      | PA   | 15   | 1970-01-01T00:00:00.000030Z |",
+                "| 21        |      | OH   | 21   | 1970-01-01T00:00:00.000036Z |",
+                "| 270       | UT   |      |      | 1970-01-01T00:00:00.000025Z |",
+                "| 70        | UT   |      |      | 1970-01-01T00:00:00.000020Z |",
+                "| 99        | OR   |      |      | 1970-01-01T00:00:00.000012Z |",
+                "+-----------+------+------+------+-----------------------------+",
+            ],
+            &batches
+        );
     }
 
     async fn read_parquet_file(table: &Arc<TestTable>, file: ParquetFile) -> Vec<RecordBatch> {

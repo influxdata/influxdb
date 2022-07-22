@@ -178,12 +178,11 @@ impl ParquetFileWithTombstone {
 ///     7 = 1 (min_time) + 6 (time range)
 ///     13 = 7 (previous time) + 6 (time range)
 ///     19 = 13 (previous time) + 6 (time range)
-#[allow(dead_code)] // This is temporarily not being used anywhere
-fn compute_split_time(
+pub(crate) fn compute_split_time(
     min_time: i64,
     max_time: i64,
-    total_size: i64,
-    max_desired_file_size: i64,
+    total_size: u64,
+    max_desired_file_size: u64,
 ) -> Vec<i64> {
     // Too small to split
     if total_size <= max_desired_file_size {

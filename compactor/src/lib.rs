@@ -71,6 +71,9 @@ pub(crate) async fn compact_partition(
         Arc::clone(&compactor.exec),
         Arc::clone(&compactor.time_provider),
         &compactor.compaction_counter,
+        compactor.config.max_desired_file_size_bytes(),
+        compactor.config.percentage_max_file_size(),
+        compactor.config.split_percentage(),
     )
     .await
     .context(ParquetFileCombiningSnafu);
@@ -265,29 +268,47 @@ mod tests {
 
         compact_partition(&compactor, c).await.unwrap();
 
-        // Should have 2 non-soft-deleted files:
+        // Should have 3 non-soft-deleted files:
         //
         // - the level 1 file that didn't overlap with anything
-        // - the one newly created after compacting pf1, pf2, pf3, pf4, pf5 all into one file
+        // - the two newly created after compacting and splitting pf1, pf2, pf3, pf4, pf5
         let mut files = catalog.list_by_table_not_to_delete(table.table.id).await;
-        assert_eq!(files.len(), 2);
+        assert_eq!(files.len(), 3);
+        let files_and_levels: Vec<_> = files
+            .iter()
+            .map(|f| (f.id.get(), f.compaction_level))
+            .collect();
         assert_eq!(
-            (files[0].id.get(), files[0].compaction_level),
-            (6, CompactionLevel::FileNonOverlapped)
-        );
-        // 1 newly created CompactionLevel::FileNonOverlapped file as the result of
-        // compaction
-        assert_eq!(
-            (files[1].id.get(), files[1].compaction_level),
-            (7, CompactionLevel::FileNonOverlapped)
+            files_and_levels,
+            vec![
+                (6, CompactionLevel::FileNonOverlapped),
+                (7, CompactionLevel::FileNonOverlapped),
+                (8, CompactionLevel::FileNonOverlapped),
+            ]
         );
 
         // ------------------------------------------------
         // Verify the parquet file content
 
-        // Compacted file
+        // Later compacted file
         let file1 = files.pop().unwrap();
         let batches = read_parquet_file(&table, file1).await;
+        assert_batches_sorted_eq!(
+            &[
+                "+-----------+------+------+------+-----------------------------+",
+                "| field_int | tag1 | tag2 | tag3 | time                        |",
+                "+-----------+------+------+------+-----------------------------+",
+                "| 1600      |      | WA   | 10   | 1970-01-01T00:00:00.000028Z |",
+                "| 20        |      | VT   | 20   | 1970-01-01T00:00:00.000026Z |",
+                "| 270       | UT   |      |      | 1970-01-01T00:00:00.000025Z |",
+                "+-----------+------+------+------+-----------------------------+",
+            ],
+            &batches
+        );
+
+        // Earlier compacted file
+        let file0 = files.pop().unwrap();
+        let batches = read_parquet_file(&table, file0).await;
         assert_batches_sorted_eq!(
             &[
                 "+-----------+------+------+------+--------------------------------+",
@@ -298,12 +319,9 @@ mod tests {
                 "| 10        | VT   |      |      | 1970-01-01T00:00:00.000010Z    |",
                 "| 1000      | WA   |      |      | 1970-01-01T00:00:00.000000010Z |",
                 "| 1500      | WA   |      |      | 1970-01-01T00:00:00.000008Z    |",
-                "| 270       | UT   |      |      | 1970-01-01T00:00:00.000025Z    |",
-                "| 70        | UT   |      |      | 1970-01-01T00:00:00.000020Z    |",
-                "| 1600      |      | WA   | 10   | 1970-01-01T00:00:00.000028Z    |",
-                "| 20        |      | VT   | 20   | 1970-01-01T00:00:00.000026Z    |",
                 "| 1601      |      | PA   | 15   | 1970-01-01T00:00:00.000000009Z |",
                 "| 21        |      | OH   | 21   | 1970-01-01T00:00:00.000000025Z |",
+                "| 70        | UT   |      |      | 1970-01-01T00:00:00.000020Z    |",
                 "+-----------+------+------+------+--------------------------------+",
             ],
             &batches
