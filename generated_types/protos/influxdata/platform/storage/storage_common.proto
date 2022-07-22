@@ -294,8 +294,9 @@ message ReadWindowAggregateRequest {
   int64 Offset = 6;
   repeated Aggregate aggregate = 5;
   Window window = 7;
-  reserved 8;
-  reserved "tag_key_meta_names";
+  // TagKeyMetaNames determines the key format used for the measurement and field
+  // tags.
+  TagKeyMetaNames tag_key_meta_names = 8;
 }
 
 message TagValuesGroupedByMeasurementAndTagKeyRequest {

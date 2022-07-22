@@ -5,7 +5,7 @@ use generated_types::{
     read_group_request::Group,
     Aggregate, MeasurementFieldsRequest, MeasurementNamesRequest, MeasurementTagKeysRequest,
     MeasurementTagValuesRequest, Node, Predicate, ReadFilterRequest, ReadGroupRequest, ReadSource,
-    ReadWindowAggregateRequest, TagKeysRequest, TagValuesRequest, TimestampRange,
+    ReadWindowAggregateRequest, TagKeyMetaNames, TagKeysRequest, TagValuesRequest, TimestampRange,
 };
 use prost::Message;
 
@@ -346,6 +346,7 @@ impl GrpcRequestBuilder {
             offset: self.offset.expect("no offset specified"),
             aggregate,
             window: None,
+            tag_key_meta_names: TagKeyMetaNames::Text as i32,
         })
     }
 }

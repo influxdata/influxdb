@@ -85,6 +85,7 @@ pub fn read_window_aggregate(
         offset,
         aggregate,
         window,
+        tag_key_meta_names: TagKeyMetaNames::Text as i32,
     })
 }
 
