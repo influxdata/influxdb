@@ -44,8 +44,10 @@ impl Span {
             start: None,
             end: None,
             status: SpanStatus::Unknown,
-            metadata: Default::default(),
-            events: Default::default(),
+            // assume no metadata by default
+            metadata: HashMap::with_capacity(0),
+            // assume no events by default
+            events: Vec::with_capacity(0),
         }
     }
 

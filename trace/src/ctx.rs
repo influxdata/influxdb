@@ -80,7 +80,7 @@ impl SpanContext {
             trace_id: self.trace_id,
             span_id: SpanId::gen(),
             collector: self.collector.clone(),
-            links: vec![],
+            links: Vec::with_capacity(0),
             parent_span_id: Some(self.span_id),
         };
         Span::new(name, ctx)
