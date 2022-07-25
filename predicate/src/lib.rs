@@ -221,6 +221,8 @@ impl Predicate {
     pub(crate) fn with_clear_timestamp_if_max_range(mut self) -> Self {
         self.range = self.range.take().and_then(|range| {
             if range.contains_all() {
+                debug!("Cleared timestamp max-range");
+
                 None
             } else {
                 Some(range)
