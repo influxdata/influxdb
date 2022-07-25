@@ -29,11 +29,11 @@ pub struct CompactorConfig {
 
     /// Desired max size of compacted parquet files.
     /// It is a target desired value, rather than a guarantee.
-    /// Default is 1024 * 1024 * 100 = 104,857,600 bytes (100MB)
+    /// 1024 * 1024 * 25 =  26,214,400 (25MB)
     #[clap(
         long = "--compaction-max-desired-size-bytes",
         env = "INFLUXDB_IOX_COMPACTION_MAX_DESIRED_FILE_SIZE_BYTES",
-        default_value = "104857600",
+        default_value = "26214400",
         action
     )]
     pub max_desired_file_size_bytes: u64,
@@ -43,11 +43,11 @@ pub struct CompactorConfig {
     /// This percentage is to determine how small it is:
     ///    < percentage_max_file_size * max_desired_file_size_bytes:
     /// This value must be between (0, 100)
-    /// Default is 30
+    /// Default is 80
     #[clap(
         long = "--compaction-percentage-max-file_size",
         env = "INFLUXDB_IOX_COMPACTION_PERCENTAGE_MAX_FILE_SIZE",
-        default_value = "30",
+        default_value = "80",
         action
     )]
     pub percentage_max_file_size: u16,
@@ -72,7 +72,9 @@ pub struct CompactorConfig {
     /// The compactor will limit the number of simultaneous compaction jobs based on the
     /// size of the input files to be compacted. This number should be less than 1/10th
     /// of the available memory to ensure compactions have
-    /// enough space to run. Default is 1,073,741,824 bytes (1GB).
+    /// enough space to run.
+    /// Default is 1,073,741,824 bytes (1GB).
+    /// TODO: This is not used yet but will soon
     #[clap(
         long = "--compaction-concurrent-size-bytes",
         env = "INFLUXDB_IOX_COMPACTION_CONCURRENT_SIZE_BYTES",
@@ -108,11 +110,11 @@ pub struct CompactorConfig {
     /// A compaction operation will be limited by this or by the file count threshold, whichever is
     /// hit first.
     ///
-    /// Default is 314,572,800 bytes (300MB).
+    /// Default is 1024 * 1024 * 100 = 100,048,576 (100MB).
     #[clap(
         long = "--compaction-input-size-threshold-bytes",
         env = "INFLUXDB_IOX_COMPACTION_INPUT_SIZE_THRESHOLD_BYTES",
-        default_value = "314572800",
+        default_value = "100048576",
         action
     )]
     pub input_size_threshold_bytes: u64,
@@ -124,11 +126,11 @@ pub struct CompactorConfig {
     /// A compaction operation will be limited by this or by the input size threshold, whichever is
     /// hit first.
     ///
-    /// Default is 100.
+    /// Default is 50.
     #[clap(
         long = "--compaction-input-file-count-threshold",
         env = "INFLUXDB_IOX_COMPACTION_INPUT_FILE_COUNT_THRESHOLD",
-        default_value = "100",
+        default_value = "50",
         action
     )]
     pub input_file_count_threshold: usize,

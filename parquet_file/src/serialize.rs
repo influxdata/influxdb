@@ -4,7 +4,7 @@ use std::{io::Write, sync::Arc};
 
 use arrow::{error::ArrowError, record_batch::RecordBatch};
 use futures::{pin_mut, Stream, StreamExt};
-use observability_deps::tracing::{debug, trace};
+use observability_deps::tracing::debug;
 use parquet::{
     arrow::ArrowWriter,
     basic::Compression,
@@ -131,9 +131,11 @@ where
         panic!("partition_id={}. Created Parquet metadata has no column metadata. HINT a common reason of this is writing empty data to parquet file: {:#?}", partition_id, meta);
     }
 
-    trace!(?partition_id, ?meta, "Parquet Metadata");
+    debug!(?partition_id, ?meta, "Parquet Metadata");
 
     bytes.shrink_to_fit();
+
+    debug!(?partition_id, "Done shrink to fit");
 
     Ok((bytes, meta))
 }
