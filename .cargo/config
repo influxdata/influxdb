@@ -5,3 +5,7 @@ rustflags = [
     # Also see https://bugs.chromium.org/p/chromium/issues/detail?id=919499#c16
     "-C", "link-arg=-Wl,--no-rosegment",
 ]
+
+[env]
+# set `ROARING_ARC` in all processes run by cargo
+ROARING_ARCH = { value = "haswell", force = true }
