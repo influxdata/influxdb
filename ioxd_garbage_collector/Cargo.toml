@@ -1,5 +1,5 @@
 [package]
-name = "ioxd_objectstore_garbage_collect"
+name = "ioxd_garbage_collector"
 version = "0.1.0"
 edition = "2021"
 
@@ -9,7 +9,7 @@ edition = "2021"
 async-trait = "0.1"
 futures = "0.3"
 hyper = "0.14"
-iox_objectstore_garbage_collect = { path = "../iox_objectstore_garbage_collect" }
+garbage_collector = { path = "../garbage_collector" }
 ioxd_common = { path = "../ioxd_common" }
 metric = { path = "../metric" }
 observability_deps = { path = "../observability_deps" }

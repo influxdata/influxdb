@@ -1667,6 +1667,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "garbage_collector"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "chrono-english",
+ "clap 3.2.14",
+ "clap_blocks",
+ "data_types",
+ "filetime",
+ "futures",
+ "iox_catalog",
+ "metric",
+ "object_store",
+ "observability_deps",
+ "once_cell",
+ "parquet_file",
+ "snafu",
+ "tempfile",
+ "tokio",
+ "uuid 1.1.2",
+]
+
+[[package]]
 name = "generated_types"
 version = "0.1.0"
 dependencies = [
@@ -2061,8 +2084,8 @@ dependencies = [
  "iox_time",
  "ioxd_common",
  "ioxd_compactor",
+ "ioxd_garbage_collector",
  "ioxd_ingester",
- "ioxd_objectstore_garbage_collect",
  "ioxd_querier",
  "ioxd_router",
  "ioxd_test",
@@ -2303,29 +2326,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "iox_objectstore_garbage_collect"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "chrono-english",
- "clap 3.2.14",
- "clap_blocks",
- "data_types",
- "filetime",
- "futures",
- "iox_catalog",
- "metric",
- "object_store",
- "observability_deps",
- "once_cell",
- "parquet_file",
- "snafu",
- "tempfile",
- "tokio",
- "uuid 1.1.2",
-]
-
-[[package]]
 name = "iox_query"
 version = "0.1.0"
 dependencies = [
@@ -2455,6 +2455,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "ioxd_garbage_collector"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "futures",
+ "garbage_collector",
+ "hyper",
+ "ioxd_common",
+ "metric",
+ "observability_deps",
+ "snafu",
+ "tokio",
+ "trace",
+ "workspace-hack",
+]
+
+[[package]]
 name = "ioxd_ingester"
 version = "0.1.0"
 dependencies = [
@@ -2472,23 +2489,6 @@ dependencies = [
  "trace",
  "workspace-hack",
  "write_buffer",
-]
-
-[[package]]
-name = "ioxd_objectstore_garbage_collect"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "futures",
- "hyper",
- "iox_objectstore_garbage_collect",
- "ioxd_common",
- "metric",
- "observability_deps",
- "snafu",
- "tokio",
- "trace",
- "workspace-hack",
 ]
 
 [[package]]

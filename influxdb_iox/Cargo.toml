@@ -18,7 +18,7 @@ iox_catalog = { path = "../iox_catalog" }
 ioxd_common = { path = "../ioxd_common"}
 ioxd_compactor = { path = "../ioxd_compactor"}
 ioxd_ingester = { path = "../ioxd_ingester"}
-ioxd_objectstore_garbage_collect = { path = "../ioxd_objectstore_garbage_collect" }
+ioxd_garbage_collector = { path = "../ioxd_garbage_collector" }
 ioxd_querier = { path = "../ioxd_querier"}
 ioxd_router = { path = "../ioxd_router"}
 ioxd_test = { path = "../ioxd_test"}

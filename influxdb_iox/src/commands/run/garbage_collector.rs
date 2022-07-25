@@ -6,7 +6,7 @@ use ioxd_common::{
     server_type::{CommonServerState, CommonServerStateError},
     Service,
 };
-use ioxd_objectstore_garbage_collect as gc;
+use ioxd_garbage_collector as gc;
 use object_store::DynObjectStore;
 use object_store_metrics::ObjectStoreMetrics;
 use observability_deps::tracing::*;

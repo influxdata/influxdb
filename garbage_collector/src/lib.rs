@@ -265,9 +265,7 @@ mod tests {
 
         let metrics = metric::Registry::default().into();
 
-        cfg.get_catalog("iox_objectstore_garbage_collect", metrics)
-            .await
-            .unwrap()
+        cfg.get_catalog("garbage_collector", metrics).await.unwrap()
     }
 
     struct OldFileSetup {

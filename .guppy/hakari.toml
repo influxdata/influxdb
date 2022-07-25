@@ -35,7 +35,7 @@ workspace-members = [
     # The garbage collector uses chrono-english which needlessly
     # brings in chrono with the default features. This exclusion can
     # likely be removed if they publish a version without that.
-    "iox_objectstore_garbage_collect",
+    "garbage_collector",
     "mutable_batch_tests",
 ]
 third-party = [
