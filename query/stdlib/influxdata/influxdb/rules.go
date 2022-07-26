@@ -30,15 +30,16 @@ func init() {
 		PushDownWindowAggregateRule{},
 		PushDownWindowForceAggregateRule{},
 		PushDownWindowAggregateByTimeRule{},
+		PushDownAggregateWindowRule{},
 		PushDownBareAggregateRule{},
 		GroupWindowAggregateTransposeRule{},
 		PushDownGroupAggregateRule{},
 	)
 	// TODO(lesam): re-enable MergeFilterRule once it works with complex use cases
 	// such as filter() |> geo.strictFilter(). See geo_merge_filter flux test.
-	//plan.RegisterLogicalRules(
+	// plan.RegisterLogicalRules(
 	//	MergeFiltersRule{},
-	//)
+	// )
 }
 
 type FromStorageRule struct{}
@@ -854,6 +855,57 @@ func (PushDownWindowAggregateByTimeRule) Rewrite(ctx context.Context, pn plan.No
 
 	// Rule passes.
 	windowAggregateSpec.TimeColumn = duplicateSpec.Column
+	return plan.CreateUniquePhysicalNode(ctx, "ReadWindowAggregateByTime", windowAggregateSpec), true, nil
+}
+
+type PushDownAggregateWindowRule struct{}
+
+func (p PushDownAggregateWindowRule) Name() string {
+	return "PushDownAggregateWindowRule"
+}
+
+func (p PushDownAggregateWindowRule) Pattern() plan.Pattern {
+	return plan.Pat(universe.AggregateWindowKind,
+		plan.Pat(ReadRangePhysKind))
+}
+
+func (p PushDownAggregateWindowRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node, bool, error) {
+	aggregateWindowSpec := pn.ProcedureSpec().(*universe.AggregateWindowProcedureSpec)
+	fromNode := pn.Predecessors()[0]
+	fromSpec := fromNode.ProcedureSpec().(*ReadRangePhysSpec)
+
+	if !isPushableWindow(aggregateWindowSpec.WindowSpec) {
+		return pn, false, nil
+	}
+
+	if aggregateWindowSpec.ValueCol != execute.DefaultValueColLabel {
+		return pn, false, nil
+	}
+
+	switch aggregateWindowSpec.AggregateKind {
+	case universe.MinKind, universe.MaxKind,
+		universe.MeanKind, universe.CountKind, universe.SumKind,
+		universe.FirstKind, universe.LastKind:
+		// All of these are supported.
+	default:
+		return pn, false, nil
+	}
+
+	windowAggregateSpec := &ReadWindowAggregatePhysSpec{
+		ReadRangePhysSpec: *fromSpec.Copy().(*ReadRangePhysSpec),
+		Aggregates: []plan.ProcedureKind{
+			aggregateWindowSpec.AggregateKind,
+		},
+		WindowEvery:    aggregateWindowSpec.WindowSpec.Window.Every,
+		Offset:         aggregateWindowSpec.WindowSpec.Window.Offset,
+		CreateEmpty:    aggregateWindowSpec.WindowSpec.CreateEmpty,
+		TimeColumn:     execute.DefaultStopColLabel,
+		ForceAggregate: aggregateWindowSpec.ForceAggregate,
+	}
+	if aggregateWindowSpec.UseStart {
+		windowAggregateSpec.TimeColumn = execute.DefaultStartColLabel
+	}
+
 	return plan.CreateUniquePhysicalNode(ctx, "ReadWindowAggregateByTime", windowAggregateSpec), true, nil
 }
 
