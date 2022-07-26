@@ -14,7 +14,7 @@ import (
 
 var generator = snowflake.NewDefaultIDGenerator()
 
-func TestBucketService(t *testing.T) {
+func TestBucketServiceDelete(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -63,3 +63,5 @@ func TestBucketService(t *testing.T) {
 	err := bucketService.DeleteBucket(ctx, bucketID)
 	require.NoError(t, err)
 }
+
+// TODO: add service CREATE and UPDATE tests

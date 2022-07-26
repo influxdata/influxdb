@@ -71,7 +71,17 @@ func (s *BucketService) CreateBucket(ctx context.Context, b *influxdb.Bucket) er
 		OrganizationID:  b.OrgID,
 		BucketID:        b.ID,
 	}
-	return s.DBRPMappingService.Create(ctx, &newDBRP)
+	switch b.Name {
+	// TODO: fix, this is a hacky workaround to work around missing authorization at testing startup
+	case influxdb.TasksSystemBucketName, influxdb.MonitoringSystemBucketName, "BUCKET":
+		return nil
+	default:
+		// if dbrp is not valid, do not insert
+		if newDBRP.Validate() != nil {
+			return nil
+		}
+		return s.DBRPMappingService.Create(ctx, &newDBRP)
+	}
 }
 
 // UpdateBucket updates a single bucket with changeset.
@@ -104,20 +114,36 @@ func (s *BucketService) UpdateBucket(ctx context.Context, id platform.ID, upd in
 		logger.Error("Failed to lookup DBRP mappings for Bucket.", zap.Error(err))
 		return nil, err
 	}
-	newDb, newRp := ParseDBRP(*upd.Name)
+	var newDb string
+	var newRp string
+	if upd.Name == nil {
+		newDb = oldDb
+		newRp = oldRp
+	} else {
+		newDb, newRp = ParseDBRP(*upd.Name)
+	}
 	if len(dbrps) < 1 {
-		if err := s.DBRPMappingService.Create(ctx, &influxdb.DBRPMapping{
+		newDbrp := influxdb.DBRPMapping{
 			Database:        newDb,
 			RetentionPolicy: newRp,
 			OrganizationID:  updatedB.OrgID,
 			BucketID:        updatedB.ID,
-		}); err != nil {
+		}
+		// if dbrp is not valid, do not insert
+		if newDbrp.Validate() != nil {
+			return updatedB, nil
+		}
+		if err := s.DBRPMappingService.Create(ctx, &newDbrp); err != nil {
 			logger.Error("Failed to auto-create DBRP mapping for Bucket.", zap.Error(err))
 			return nil, err
 		}
 	} else {
 		dbrpToPatch := dbrps[0]
-		dbrpToPatch.Database, dbrpToPatch.RetentionPolicy = ParseDBRP(*upd.Name)
+		dbrpToPatch.Database, dbrpToPatch.RetentionPolicy = newDb, newRp
+		// if dbrp is not valid, do not update
+		if dbrpToPatch.Validate() != nil {
+			return updatedB, nil
+		}
 		if err := s.DBRPMappingService.Update(ctx, dbrpToPatch); err != nil {
 			logger.Error("Failed to auto-update DBRP mapping for Bucket.", zap.Error(err))
 			return nil, err
