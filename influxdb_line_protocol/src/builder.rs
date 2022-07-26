@@ -334,6 +334,26 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_string_escape() {
+        assert_eq!(
+            format!("\"{}\"", escape(r#"foo"#, DOUBLE_QUOTE)),
+            r#""foo""#
+        );
+        assert_eq!(
+            format!("\"{}\"", escape(r#"foo \ bar"#, DOUBLE_QUOTE)),
+            r#""foo \\ bar""#
+        );
+        assert_eq!(
+            format!("\"{}\"", escape(r#"foo " bar"#, DOUBLE_QUOTE)),
+            r#""foo \" bar""#
+        );
+        assert_eq!(
+            format!("\"{}\"", escape(r#"foo \" bar"#, DOUBLE_QUOTE)),
+            r#""foo \\\" bar""#
+        );
+    }
+
+    #[test]
     fn test_lp_builder() {
         const PLAIN: &str = "plain";
         const WITH_SPACE: &str = "with space";
