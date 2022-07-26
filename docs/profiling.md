@@ -122,7 +122,7 @@ You can use [cargo-flamegraph] which is an all-in-one solution to create flamegr
 benchmarks.
 
 
-## `perf` + Speedscope (Linux only)
+## `perf` + X (Linux only)
 While [cargo-flamegraph] is nice and simple, sometimes you need more control over the profiling or want to use a
 different viewer. For that, install [cargo-with] and make sure you have [perf] installed. To profile a specific test,
 e.g. `test_cases_delete_three_delete_three_chunks_sql` in `query_tests`:
@@ -131,10 +131,23 @@ e.g. `test_cases_delete_three_delete_three_chunks_sql` in `query_tests`:
 $ # cargo-with requires you to change the CWD first:
 $ cd query_tests
 $ cargo with 'perf record -F99 --call-graph dwarf -- {bin}' -- test -- test_cases_delete_three_delete_three_chunks_sql
+```
+
+Now you have a `perf.data` file that you can use with various tools.
+
+### Speedscope
+First prepare the `perf` output:
+
+```console
 $ perf script > perf.txt
 ```
 
 Now to to [speedscope.app] and upload `perf.txt` to view the profile.
+
+### Hotspot
+[Hotspot] can analyze `perf.data` directly:
+
+![Hotspot Screenshot](images/hotspot.png)
 
 
 ## Advanced `perf` (Linux only)
@@ -207,6 +220,9 @@ Attaching 1 probe...
 **WARNING: Due to the `sudo` hack, only use this for trusted programs!**
 
 
+## Tracing
+See [Tracing: Running Jaeger / tracing locally](tracing.md#running-jaeger--tracing-locally).
+
 [bpftrace]: https://github.com/iovisor/bpftrace
 [cargo-flamegraph]: https://github.com/flamegraph-rs/flamegraph
 [cargo-with]: https://github.com/cbourjau/cargo-with
@@ -215,6 +231,7 @@ Attaching 1 probe...
 [gprof2dot]: https://github.com/jrfonseca/gprof2dot
 [heappy]: https://github.com/mkmik/heappy
 [heaptrack]: https://github.com/KDE/heaptrack
+[Hotspot]: https://github.com/KDAB/hotspot
 [jemalloc]: https://jemalloc.net/
 [perf]: https://perf.wiki.kernel.org/index.php/Main_Page
 [`read`]: https://www.man7.org/linux/man-pages/man2/read.2.html

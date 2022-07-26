@@ -53,19 +53,13 @@ To use, develop, or debug the distributed tracing functionality locally you can 
 
 ### Step 1: Run Jaeger locally
 
-Follow instructions from https://www.jaegertracing.io/docs/1.26/getting-started/, which at the time of writing were:
+Follow instructions from https://www.jaegertracing.io/docs/1.26/getting-started/, which at the time of writing were
+(simplified to what IOx needs):
 
 ```shell
 docker run -d --name jaeger \
-  -e COLLECTOR_ZIPKIN_HOST_PORT=:9411 \
-  -p 5775:5775/udp \
   -p 6831:6831/udp \
-  -p 6832:6832/udp \
-  -p 5778:5778 \
   -p 16686:16686 \
-  -p 14268:14268 \
-  -p 14250:14250 \
-  -p 9411:9411 \
   jaegertracing/all-in-one:1.26
 ```
 
@@ -73,7 +67,7 @@ docker run -d --name jaeger \
 
 Build IOx and run with the following environment variable set:
 
-```
+```text
 TRACES_EXPORTER=jaeger
 TRACES_EXPORTER_JAEGER_AGENT_HOST=localhost
 TRACES_EXPORTER_JAEGER_AGENT_PORT=6831
@@ -91,7 +85,7 @@ Additional trace granularity, in particular traces with spans for each DataFusio
 INFLUXDB_IOX_PER_PARTITION_TRACING=1
 ```
 
-_Some tracing setups may struggle with the size of the generated traces with this setting enabled_
+_Some tracing setups may struggle with the size of the generated traces with this setting enabled._
 
 ### Step 3: Send a request with trace context
 
@@ -99,15 +93,20 @@ For IOx to emit traces, the request must have a span context set. You can use th
 so. For example
 
 ```shell
-# load data
-curl -v "http://127.0.0.1:8080/api/v2/write?org=26f7e5a4b7be365b&bucket=917b97a92e883afc" --data-binary @tests/fixtures/lineproto/metrics.lp
-# run a query and start a new trace 
-./target/debug/influxdb_iox query 26f7e5a4b7be365b_917b97a92e883afc  'show tables' --header jaeger-debug-id:tracing-is-a-great-idea
+$ # load data
+$ curl -v "http://127.0.0.1:8080/api/v2/write?org=26f7e5a4b7be365b&bucket=917b97a92e883afc" --data-binary @tests/fixtures/lineproto/metrics.lp
+
+$ # run a query and start a new trace
+$ cargo run -- query 26f7e5a4b7be365b_917b97a92e883afc  'show tables' --gen-trace-id
 ```
 
 ### Step 4: Explore Spans in the UI
 
-Navigate to the UI in your browser http://localhost:16686/search and then chose the "iox-conductor" service from the
-drop down.
+Navigate to the UI in your browser [localhost:16686/search](http://localhost:16686/search) and then chose the "iox-conductor" service from the
+drop down:
 
-Enjoy!
+![Jaeger Overview](images/jaeger_overview.png)
+
+You can then inspect the individual traces:
+
+![Jaeger Details](images/jaeger_details.png)
