@@ -38,12 +38,12 @@ func (s *BucketService) DeleteBucket(ctx context.Context, id platform.ID) error 
 		BucketID: &bucket.ID,
 	})
 	if err != nil {
-		logger.Error("Failed to lookup DBRP mappings for Bucket.", zap.Error(err))
+		logger.Debug("Failed to lookup DBRP mappings for bucket", zap.Error(err))
 		return nil
 	}
 	for _, m := range mappings {
 		if err := s.DBRPMappingService.Delete(ctx, bucket.OrgID, m.ID); err != nil {
-			logger.Error("Failed to delete DBRP mapping for Bucket.", zap.Error(err))
+			logger.Debug("Failed to delete DBRP mapping for bucket", zap.Error(err))
 		}
 	}
 	return nil
@@ -61,6 +61,8 @@ func ParseDBRP(bucketName string) (string, string) {
 // CreateBucket creates a new bucket and sets b.ID with the new identifier.
 // Also creates a corresponding auto-DBRP mapping.
 func (s *BucketService) CreateBucket(ctx context.Context, b *influxdb.Bucket) error {
+	logger := s.Logger.With(zap.String("bucket_name", b.Name))
+
 	if err := s.BucketService.CreateBucket(ctx, b); err != nil {
 		return err
 	}
@@ -71,17 +73,11 @@ func (s *BucketService) CreateBucket(ctx context.Context, b *influxdb.Bucket) er
 		OrganizationID:  b.OrgID,
 		BucketID:        b.ID,
 	}
-	switch b.Name {
-	// TODO: fix, this is a hacky workaround to work around missing authorization at testing startup
-	case influxdb.TasksSystemBucketName, influxdb.MonitoringSystemBucketName, "BUCKET":
-		return nil
-	default:
-		// if dbrp is not valid, do not insert
-		if newDBRP.Validate() != nil {
-			return nil
-		}
-		return s.DBRPMappingService.Create(ctx, &newDBRP)
+
+	if err := s.DBRPMappingService.Create(ctx, &newDBRP); err != nil {
+		logger.Debug("Failed to auto-create DBRP for bucket", zap.Error(err))
 	}
+	return nil
 }
 
 // UpdateBucket updates a single bucket with changeset.
@@ -111,8 +107,8 @@ func (s *BucketService) UpdateBucket(ctx context.Context, id platform.ID, upd in
 		RetentionPolicy: &oldRp,
 	}, influxdb.FindOptions{Limit: 1})
 	if err != nil {
-		logger.Error("Failed to lookup DBRP mappings for Bucket.", zap.Error(err))
-		return nil, err
+		logger.Debug("Failed to lookup DBRP mappings for bucket", zap.Error(err))
+		return updatedB, nil
 	}
 	var newDb string
 	var newRp string
@@ -129,24 +125,14 @@ func (s *BucketService) UpdateBucket(ctx context.Context, id platform.ID, upd in
 			OrganizationID:  updatedB.OrgID,
 			BucketID:        updatedB.ID,
 		}
-		// if dbrp is not valid, do not insert
-		if newDbrp.Validate() != nil {
-			return updatedB, nil
-		}
 		if err := s.DBRPMappingService.Create(ctx, &newDbrp); err != nil {
-			logger.Error("Failed to auto-create DBRP mapping for Bucket.", zap.Error(err))
-			return nil, err
+			logger.Debug("Failed to auto-create missing DBRP mapping for bucket", zap.Error(err))
 		}
 	} else {
 		dbrpToPatch := dbrps[0]
 		dbrpToPatch.Database, dbrpToPatch.RetentionPolicy = newDb, newRp
-		// if dbrp is not valid, do not update
-		if dbrpToPatch.Validate() != nil {
-			return updatedB, nil
-		}
 		if err := s.DBRPMappingService.Update(ctx, dbrpToPatch); err != nil {
-			logger.Error("Failed to auto-update DBRP mapping for Bucket.", zap.Error(err))
-			return nil, err
+			logger.Debug("Failed to auto-update DBRP mapping for bucket", zap.Error(err))
 		}
 	}
 	return updatedB, nil
