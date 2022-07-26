@@ -511,7 +511,7 @@ func (p *Partition) prependActiveLogFile() (rErr error) {
 	// Prepend and generate new fileset but do not yet update the partition
 	newFileSet := p.fileSet.PrependLogFile(f)
 
-	errors2.Capture(&rErr, func() error {
+	defer errors2.Capture(&rErr, func() error {
 		if rErr != nil {
 			// close the new file.
 			f.Close()
