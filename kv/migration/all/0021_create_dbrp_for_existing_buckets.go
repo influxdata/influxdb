@@ -13,8 +13,7 @@ import (
 )
 
 var (
-	bucketBucket       = []byte("bucketsv1")
-	byOrgIDIndexBucket = []byte("dbrpbyorgv1")
+	bucketBucket = []byte("bucketsv1")
 )
 
 type bucket struct {
