@@ -15,7 +15,10 @@ use observability_deps::tracing::*;
 use parquet_file::storage::ParquetStorage;
 use std::sync::Arc;
 use thiserror::Error;
-use tokio::task::{JoinError, JoinHandle};
+use tokio::{
+    task::{JoinError, JoinHandle},
+    time::Duration,
+};
 use tokio_util::sync::CancellationToken;
 
 use crate::compact::Compactor;
@@ -230,6 +233,10 @@ impl CompactorConfig {
     }
 }
 
+/// How long to pause before checking for more work again if there was
+/// no work to do
+const PAUSE_BETWEEN_NO_WORK: Duration = Duration::from_secs(1);
+
 /// Checks for candidate partitions to compact and spawns tokio tasks to compact as many
 /// as the configuration will allow. Once those are done it rechecks the catalog for the
 /// next top partitions to compact.
@@ -281,7 +288,13 @@ async fn run_compactor(compactor: Arc<Compactor>, shutdown: CancellationToken) {
         }
 
         let n_candidates = candidates.len();
-        debug!(n_candidates, "found compaction candidates");
+        if n_candidates == 0 {
+            // sleep for a second to avoid a hot busy loop when the
+            // catalog is polled
+            tokio::time::sleep(PAUSE_BETWEEN_NO_WORK).await
+        } else {
+            debug!(n_candidates, "found compaction candidates");
+        }
 
         // Serially compact all candidates
         // TODO: we will parallelize this when everything runs smoothly in serial
