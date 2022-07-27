@@ -4739,30 +4739,6 @@ func TestServer_Query_ShowMeasurements(t *testing.T) {
 	require.NoError(t, client.CreateBucket(ctx, &bucket3))
 	require.NoError(t, client.CreateBucket(ctx, &bucket4))
 
-	require.NoError(t, client.DBRPMappingService.Create(ctx, &influxdb.DBRPMapping{
-		Database:        "databaseEmpty",
-		RetentionPolicy: "rp0",
-		Default:         false,
-		OrganizationID:  s.DefaultOrgID,
-		BucketID:        bucket4.ID,
-	}))
-
-	require.NoError(t, client.DBRPMappingService.Create(ctx, &influxdb.DBRPMapping{
-		Database:        "db0",
-		RetentionPolicy: "rp1",
-		Default:         false,
-		OrganizationID:  s.DefaultOrgID,
-		BucketID:        bucket2.ID,
-	}))
-
-	require.NoError(t, client.DBRPMappingService.Create(ctx, &influxdb.DBRPMapping{
-		Database:        "db1",
-		RetentionPolicy: "rp0",
-		Default:         false,
-		OrganizationID:  s.DefaultOrgID,
-		BucketID:        bucket3.ID,
-	}))
-
 	rp1Writes := []string{
 		fmt.Sprintf(`other2,host=server03,region=caeast value=100 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:00Z").UnixNano()),
 	}
@@ -4893,13 +4869,13 @@ func TestServer_Query_ShowMeasurements(t *testing.T) {
 		{
 			name:    `show measurements on all rps`,
 			command: "SHOW MEASUREMENTS on db0.*",
-			exp:     `{"results":[{"statement_id":0,"series":[{"name":"measurements","columns":["name","database","retention policy"],"values":[["cpu","db0","rp0"],["gpu","db0","rp0"],["other","db0","rp0"],["other2","db0","rp1"]]}]}]}`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"measurements","columns":["name","database","retention policy"],"values":[["cpu","db0","rp0"],["gpu","db0","rp0"],["other","db0","rp0"]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}, "rp": []string{"rp0"}},
 		},
 		{
 			name:    `show measurements on all dbs and rps`,
 			command: "SHOW MEASUREMENTS on *.*",
-			exp:     `{"results":[{"statement_id":0,"series":[{"name":"measurements","columns":["name","database","retention policy"],"values":[["cpu","db0","rp0"],["gpu","db0","rp0"],["other","db0","rp0"],["other2","db0","rp1"],["cpu","db1","rp0"],["disk","db1","rp0"]]}]}]}`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"measurements","columns":["name","database","retention policy"],"values":[["other2","b2","autogen"],["cpu","b3","autogen"],["disk","b3","autogen"],["cpu","db0","rp0"],["gpu","db0","rp0"],["other","db0","rp0"]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}, "rp": []string{"rp0"}},
 		},
 	}...)

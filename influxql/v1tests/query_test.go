@@ -159,17 +159,6 @@ func TestServer_Query_ShowDatabases(t *testing.T) {
 			BucketService().
 			CreateBucket(ctx, &b)
 		require.NoError(t, err)
-
-		err = s.Launcher.
-			DBRPMappingService().
-			Create(ctx, &influxdb.DBRPMapping{
-				Database:        bi.db,
-				RetentionPolicy: bi.rp,
-				Default:         true,
-				OrganizationID:  s.DefaultOrgID,
-				BucketID:        b.ID,
-			})
-		require.NoError(t, err)
 	}
 
 	test := NewEmptyTest()

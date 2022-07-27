@@ -90,6 +90,29 @@ func (m *DBRPMapping) Equal(o *DBRPMapping) bool {
 		m.BucketID == o.BucketID
 }
 
+// MatchesIgnoreID checks if given interface matches our mapping, ignoring ID equality.
+func (m *DBRPMapping) MatchesIgnoreID(i interface{}) bool {
+	o, ok := i.(*DBRPMapping)
+	if !ok {
+		return false
+	}
+	if m == o {
+		return true
+	}
+	if m == nil || o == nil {
+		return false
+	}
+	return m.Database == o.Database &&
+		m.RetentionPolicy == o.RetentionPolicy &&
+		m.Default == o.Default &&
+		m.OrganizationID.Valid() &&
+		o.OrganizationID.Valid() &&
+		m.BucketID.Valid() &&
+		o.BucketID.Valid() &&
+		m.OrganizationID == o.OrganizationID &&
+		m.BucketID == o.BucketID
+}
+
 // DBRPMappingFilter represents a set of filters that restrict the returned results.
 type DBRPMappingFilter struct {
 	ID       *platform.ID

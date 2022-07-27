@@ -105,7 +105,7 @@ func (s *BucketService) UpdateBucket(ctx context.Context, id platform.ID, upd in
 		BucketID:        &oldB.ID,
 		Database:        &oldDb,
 		RetentionPolicy: &oldRp,
-	}, influxdb.FindOptions{Limit: 1})
+	})
 	if err != nil {
 		logger.Debug("Failed to lookup DBRP mappings for bucket", zap.Error(err))
 		return updatedB, nil
