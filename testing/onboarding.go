@@ -5,8 +5,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
+
 	"github.com/google/go-cmp/cmp"
 	platform "github.com/influxdata/influxdb/v2"
+	imock "github.com/influxdata/influxdb/v2/instance/mock"
 	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/mock"
@@ -39,7 +42,7 @@ type OnboardingFields struct {
 
 // OnboardInitialUser testing
 func OnboardInitialUser(
-	init func(OnboardingFields, *testing.T) (platform.OnboardingService, func()),
+	init func(OnboardingFields, *testing.T) (platform.OnboardingService, *imock.MockInstanceService, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -188,9 +191,12 @@ func OnboardInitialUser(
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, done := init(tt.fields, t)
+			s, isvc, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
+			if tt.wants.errCode == "" {
+				isvc.EXPECT().CreateInstance(gomock.Any()).Return(&platform.Instance{ID: platform2.ID(1)}, nil).Times(1)
+			}
 			results, err := s.OnboardInitialUser(ctx, tt.args.request)
 			if (err != nil) != (tt.wants.errCode != "") {
 				t.Logf("Error: %v", err)

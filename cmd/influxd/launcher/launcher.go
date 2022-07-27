@@ -13,6 +13,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/instance"
+
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/dependencies/testing"
 	"github.com/influxdata/flux/dependencies/url"
@@ -388,6 +390,8 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 
 	pointsWriter = replicationSvc
 
+	instanceSvc := instance.NewService(m.sqlStore)
+
 	// When --hardening-enabled, use an HTTP IP validator that restricts
 	// flux and pkger HTTP requests to private addressess.
 	var urlValidator url.Validator
@@ -622,7 +626,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		onboardOpts = append(onboardOpts, tenant.WithAlwaysAllowInitialUser())
 	}
 
-	onboardSvc := tenant.NewOnboardService(ts, authSvc, onboardOpts...)                   // basic service
+	onboardSvc := tenant.NewOnboardService(ts, authSvc, instanceSvc, onboardOpts...)      // basic service
 	onboardSvc = tenant.NewAuthedOnboardSvc(onboardSvc)                                   // with auth
 	onboardSvc = tenant.NewOnboardingMetrics(m.reg, onboardSvc, metric.WithSuffix("new")) // with metrics
 	onboardSvc = tenant.NewOnboardingLogger(onboardingLogger, onboardSvc)                 // with logging

@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/influxdata/influxdb/v2/sqlite"
+
 	"github.com/BurntSushi/toml"
 	"github.com/dustin/go-humanize"
 	"github.com/google/go-cmp/cmp"
@@ -211,6 +213,7 @@ func TestUpgradeRealDB(t *testing.T) {
 
 	tl := launcher.NewTestLauncherServer()
 	boltPath := filepath.Join(tl.Path, bolt.DefaultFilename)
+	sqlitePath := filepath.Join(tl.Path, sqlite.DefaultFilename)
 	enginePath := filepath.Join(tl.Path, "engine")
 	cqPath := filepath.Join(tl.Path, "cq.txt")
 	cliConfigPath := filepath.Join(tl.Path, "influx-configs")
@@ -219,6 +222,7 @@ func TestUpgradeRealDB(t *testing.T) {
 	v1opts := &optionsV1{configFile: v1ConfigPath}
 	v2opts := &optionsV2{
 		boltPath:       boltPath,
+		sqliteDBPath:   sqlitePath,
 		enginePath:     enginePath,
 		cqPath:         cqPath,
 		cliConfigsPath: cliConfigPath,

@@ -10,6 +10,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/influxdata/influxdb/v2/instance"
+	"github.com/influxdata/influxdb/v2/sqlite"
+	sqliteMigrations "github.com/influxdata/influxdb/v2/sqlite/migrations"
+
 	"github.com/influxdata/influx-cli/v2/clients"
 	"github.com/influxdata/influx-cli/v2/pkg/stdio"
 	"github.com/influxdata/influxdb/v2"
@@ -89,6 +93,7 @@ func (o *optionsV1) populateDirs() {
 
 type optionsV2 struct {
 	boltPath       string
+	sqliteDBPath   string
 	cliConfigsPath string
 	enginePath     string
 	cqPath         string
@@ -179,6 +184,13 @@ func NewCommand(ctx context.Context, v *viper.Viper) (*cobra.Command, error) {
 			Default: filepath.Join(v2dir, bolt.DefaultFilename),
 			Desc:    "path for boltdb database",
 			Short:   'm',
+		},
+		{
+			DestP:   &options.target.sqliteDBPath,
+			Flag:    "sqlitedb-path",
+			Default: filepath.Join(v2dir, sqlite.DefaultFilename),
+			Desc:    "path for sqlite database",
+			Short:   's',
 		},
 		{
 			DestP:   &options.target.cliConfigsPath,
@@ -530,6 +542,12 @@ func (o *optionsV2) validatePaths() error {
 		return fmt.Errorf("error checking for existing file at %q: %w", o.boltPath, err)
 	}
 
+	if _, err := os.Stat(o.sqliteDBPath); err == nil {
+		return fmt.Errorf("file present at target path for upgraded 2.x sqlite DB: %q", o.sqliteDBPath)
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("error checking for existing file at %q: %w", o.sqliteDBPath, err)
+	}
+
 	if fi, err := os.Stat(o.enginePath); err == nil {
 		if !fi.IsDir() {
 			return fmt.Errorf("upgraded 2.x engine path %q is not a directory", o.enginePath)
@@ -632,6 +650,17 @@ func newInfluxDBv2(ctx context.Context, opts *optionsV2, log *zap.Logger) (svc *
 		return nil, err
 	}
 
+	sqlStore, err := sqlite.NewSqlStore(opts.sqliteDBPath, log.With(zap.String("service", "sqlite")))
+	if err != nil {
+		log.Error("Failed to open SQL store", zap.Error(err))
+		return nil, err
+	}
+	sqlMigrator := sqlite.NewMigrator(sqlStore, log.With(zap.String("service", "SQL migrations")))
+	if err := sqlMigrator.Up(ctx, sqliteMigrations.AllUp); err != nil {
+		log.Error("Failed to apply SQL migrations", zap.Error(err))
+		return nil, err
+	}
+
 	// Create Tenant service (orgs, buckets, )
 	svc.tenantStore = tenant.NewStore(svc.kvStore)
 	svc.ts = tenant.NewSystem(svc.tenantStore, log.With(zap.String("store", "new")), reg, metric.WithSuffix("new"))
@@ -660,8 +689,9 @@ func newInfluxDBv2(ctx context.Context, opts *optionsV2, log *zap.Logger) (svc *
 
 	svc.authSvcV2 = authorization.NewService(authStoreV2, svc.ts)
 
+	is := instance.NewService(sqlStore)
 	// on-boarding service (influx setup)
-	svc.onboardSvc = tenant.NewOnboardService(svc.ts, svc.authSvcV2)
+	svc.onboardSvc = tenant.NewOnboardService(svc.ts, svc.authSvcV2, is)
 
 	// v1 auth service
 	authStoreV1, err := authv1.NewStore(svc.kvStore)

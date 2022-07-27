@@ -2,6 +2,7 @@ package tenant_test
 
 import (
 	"context"
+	"github.com/golang/mock/gomock"
 	"net/http/httptest"
 	"testing"
 
@@ -9,13 +10,14 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorization"
 	ihttp "github.com/influxdata/influxdb/v2/http"
+	"github.com/influxdata/influxdb/v2/instance/mock"
 	"github.com/influxdata/influxdb/v2/tenant"
 	itesting "github.com/influxdata/influxdb/v2/testing"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 )
 
-func initOnboardHttpService(f itesting.OnboardingFields, t *testing.T) (influxdb.OnboardingService, func()) {
+func initOnboardHttpService(f itesting.OnboardingFields, t *testing.T) (influxdb.OnboardingService, *mock.MockInstanceService, func()) {
 	t.Helper()
 
 	s := itesting.NewTestInmemStore(t)
@@ -27,7 +29,9 @@ func initOnboardHttpService(f itesting.OnboardingFields, t *testing.T) (influxdb
 	require.NoError(t, err)
 	authSvc := authorization.NewService(authStore, ten)
 
-	svc := tenant.NewOnboardService(ten, authSvc)
+	instanceSvc := mock.NewMockInstanceService(gomock.NewController(t))
+
+	svc := tenant.NewOnboardService(ten, authSvc, instanceSvc)
 
 	ctx := context.Background()
 	if !f.IsOnboarding {
@@ -51,7 +55,7 @@ func initOnboardHttpService(f itesting.OnboardingFields, t *testing.T) (influxdb
 		Client: httpClient,
 	}
 
-	return &client, server.Close
+	return &client, instanceSvc, server.Close
 }
 
 func TestOnboardService(t *testing.T) {

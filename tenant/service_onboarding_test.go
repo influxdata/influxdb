@@ -2,6 +2,8 @@ package tenant_test
 
 import (
 	"context"
+	"github.com/golang/mock/gomock"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"testing"
 	"time"
 
@@ -9,6 +11,7 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorization"
 	icontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/instance/mock"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/pkg/testing/assert"
 	"github.com/influxdata/influxdb/v2/tenant"
@@ -20,13 +23,13 @@ func TestBoltOnboardingService(t *testing.T) {
 	influxdbtesting.OnboardInitialUser(initBoltOnboardingService, t)
 }
 
-func initBoltOnboardingService(f influxdbtesting.OnboardingFields, t *testing.T) (influxdb.OnboardingService, func()) {
+func initBoltOnboardingService(f influxdbtesting.OnboardingFields, t *testing.T) (influxdb.OnboardingService, *mock.MockInstanceService, func()) {
 	s := influxdbtesting.NewTestInmemStore(t)
-	svc := initOnboardingService(s, f, t)
-	return svc, func() {}
+	svc, isvc := initOnboardingService(s, f, t)
+	return svc, isvc, func() {}
 }
 
-func initOnboardingService(s kv.Store, f influxdbtesting.OnboardingFields, t *testing.T) influxdb.OnboardingService {
+func initOnboardingService(s kv.Store, f influxdbtesting.OnboardingFields, t *testing.T) (influxdb.OnboardingService, *mock.MockInstanceService) {
 	storage := tenant.NewStore(s)
 	ten := tenant.NewService(storage)
 
@@ -34,8 +37,10 @@ func initOnboardingService(s kv.Store, f influxdbtesting.OnboardingFields, t *te
 	require.NoError(t, err)
 	authSvc := authorization.NewService(authStore, ten)
 
+	instanceSvc := mock.NewMockInstanceService(gomock.NewController(t))
+
 	// we will need an auth service as well
-	svc := tenant.NewOnboardService(ten, authSvc)
+	svc := tenant.NewOnboardService(ten, authSvc, instanceSvc)
 
 	ctx := context.Background()
 
@@ -48,7 +53,7 @@ func initOnboardingService(s kv.Store, f influxdbtesting.OnboardingFields, t *te
 		}
 	}
 
-	return svc
+	return svc, instanceSvc
 }
 
 func TestOnboardURM(t *testing.T) {
@@ -59,12 +64,15 @@ func TestOnboardURM(t *testing.T) {
 	authStore, err := authorization.NewStore(s)
 	require.NoError(t, err)
 	authSvc := authorization.NewService(authStore, ten)
+	instanceSvc := mock.NewMockInstanceService(gomock.NewController(t))
 
-	svc := tenant.NewOnboardService(ten, authSvc)
+	svc := tenant.NewOnboardService(ten, authSvc, instanceSvc)
 
 	ctx := icontext.SetAuthorizer(context.Background(), &influxdb.Authorization{
 		UserID: 123,
 	})
+
+	instanceSvc.EXPECT().CreateInstance(ctx).Return(&influxdb.Instance{ID: platform.ID(1)}, nil)
 
 	onboard, err := svc.OnboardInitialUser(ctx, &influxdb.OnboardingRequest{
 		User:   "name",
@@ -97,12 +105,15 @@ func TestOnboardAuth(t *testing.T) {
 	authStore, err := authorization.NewStore(s)
 	require.NoError(t, err)
 	authSvc := authorization.NewService(authStore, ten)
+	instanceSvc := mock.NewMockInstanceService(gomock.NewController(t))
 
-	svc := tenant.NewOnboardService(ten, authSvc)
+	svc := tenant.NewOnboardService(ten, authSvc, instanceSvc)
 
 	ctx := icontext.SetAuthorizer(context.Background(), &influxdb.Authorization{
 		UserID: 123,
 	})
+
+	instanceSvc.EXPECT().CreateInstance(ctx).Return(&influxdb.Instance{ID: platform.ID(1)}, nil)
 
 	onboard, err := svc.OnboardInitialUser(ctx, &influxdb.OnboardingRequest{
 		User:   "name",
@@ -176,13 +187,16 @@ func TestOnboardService_RetentionPolicy(t *testing.T) {
 	require.NoError(t, err)
 
 	authSvc := authorization.NewService(authStore, ten)
+	instanceSvc := mock.NewMockInstanceService(gomock.NewController(t))
 
 	// we will need an auth service as well
-	svc := tenant.NewOnboardService(ten, authSvc)
+	svc := tenant.NewOnboardService(ten, authSvc, instanceSvc)
 
 	ctx := icontext.SetAuthorizer(context.Background(), &influxdb.Authorization{
 		UserID: 123,
 	})
+
+	instanceSvc.EXPECT().CreateInstance(ctx).Return(&influxdb.Instance{ID: platform.ID(1)}, nil)
 
 	var retention int64 = 72 * 3600 // 72h
 	onboard, err := svc.OnboardInitialUser(ctx, &influxdb.OnboardingRequest{
@@ -208,13 +222,16 @@ func TestOnboardService_RetentionPolicyDeprecated(t *testing.T) {
 	require.NoError(t, err)
 
 	authSvc := authorization.NewService(authStore, ten)
+	instanceSvc := mock.NewMockInstanceService(gomock.NewController(t))
 
 	// we will need an auth service as well
-	svc := tenant.NewOnboardService(ten, authSvc)
+	svc := tenant.NewOnboardService(ten, authSvc, instanceSvc)
 
 	ctx := icontext.SetAuthorizer(context.Background(), &influxdb.Authorization{
 		UserID: 123,
 	})
+
+	instanceSvc.EXPECT().CreateInstance(ctx).Return(&influxdb.Instance{ID: platform.ID(1)}, nil)
 
 	retention := 72 * time.Hour
 	onboard, err := svc.OnboardInitialUser(ctx, &influxdb.OnboardingRequest{
@@ -240,11 +257,14 @@ func TestOnboardService_WeakPassword(t *testing.T) {
 	require.NoError(t, err)
 
 	authSvc := authorization.NewService(authStore, ten)
-	svc := tenant.NewOnboardService(ten, authSvc)
+	instanceSvc := mock.NewMockInstanceService(gomock.NewController(t))
+	svc := tenant.NewOnboardService(ten, authSvc, instanceSvc)
 
 	ctx := icontext.SetAuthorizer(context.Background(), &influxdb.Authorization{
 		UserID: 123,
 	})
+
+	instanceSvc.EXPECT().CreateInstance(ctx).Return(&influxdb.Instance{ID: platform.ID(1)}, nil)
 
 	_, err = svc.OnboardInitialUser(ctx, &influxdb.OnboardingRequest{
 		User:     "name",

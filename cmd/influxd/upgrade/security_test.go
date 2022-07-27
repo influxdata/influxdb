@@ -9,10 +9,13 @@ import (
 	"testing"
 	"unsafe"
 
+	"github.com/golang/mock/gomock"
+
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorization"
 	"github.com/influxdata/influxdb/v2/inmem"
+	"github.com/influxdata/influxdb/v2/instance/mock"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kv/migration"
 	"github.com/influxdata/influxdb/v2/kv/migration/all"
@@ -175,11 +178,15 @@ func TestUpgradeSecurity(t *testing.T) {
 			authStoreV2, err := authorization.NewStore(kvStore)
 			require.NoError(t, err)
 
+			instanceSvc := mock.NewMockInstanceService(gomock.NewController(t))
+			instanceSvc.EXPECT().CreateInstance(ctx).Return(&influxdb.Instance{ID: platform.ID(1)}, nil).Times(1)
+
 			v2 := &influxDBv2{
 				authSvc: authv1.NewService(authStoreV1, tenantSvc),
 				onboardSvc: tenant.NewOnboardService(
 					tenantSvc,
 					authorization.NewService(authStoreV2, tenantSvc),
+					instanceSvc,
 				),
 			}
 

@@ -2,6 +2,7 @@ package authorizer_test
 
 import (
 	"context"
+	"github.com/golang/mock/gomock"
 	"testing"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
 	"github.com/influxdata/influxdb/v2/http"
 	"github.com/influxdata/influxdb/v2/inmem"
+	iMock "github.com/influxdata/influxdb/v2/instance/mock"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/kv/migration/all"
@@ -23,11 +25,13 @@ import (
 )
 
 func TestOnboardingValidation(t *testing.T) {
-	_, onboard := setup(t)
+	_, onboard, instanceSvc := setup(t)
 
 	ts := authorizer.NewTaskService(zaptest.NewLogger(t), mockTaskService(3, 2, 1))
 
-	r, err := onboard.OnboardInitialUser(context.Background(), &influxdb.OnboardingRequest{
+	ctx := context.Background()
+	instanceSvc.EXPECT().CreateInstance(ctx).Return(&influxdb.Instance{ID: platform.ID(1)}, nil).Times(1)
+	r, err := onboard.OnboardInitialUser(ctx, &influxdb.OnboardingRequest{
 		User:                   "Setec Astronomy",
 		Password:               "too many secrets",
 		Org:                    "thing",
@@ -38,7 +42,7 @@ func TestOnboardingValidation(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctx := pctx.SetAuthorizer(context.Background(), r.Auth)
+	ctx = pctx.SetAuthorizer(context.Background(), r.Auth)
 
 	_, err = ts.CreateTask(ctx, taskmodel.TaskCreate{
 		OrganizationID: r.Org.ID,
@@ -125,9 +129,11 @@ func TestValidations(t *testing.T) {
 		otherOrg = &influxdb.Organization{Name: "other_org"}
 	)
 
-	svc, onboard := setup(t)
+	svc, onboard, instanceSvc := setup(t)
 
-	r, err := onboard.OnboardInitialUser(context.Background(), &influxdb.OnboardingRequest{
+	ctx := context.Background()
+	instanceSvc.EXPECT().CreateInstance(ctx).Return(&influxdb.Instance{ID: platform.ID(1)}, nil).Times(1)
+	r, err := onboard.OnboardInitialUser(ctx, &influxdb.OnboardingRequest{
 		User:                   "Setec Astronomy",
 		Password:               "too many secrets",
 		Org:                    "thing",
@@ -577,7 +583,7 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`
 	}
 }
 
-func setup(t *testing.T) (*tenant.Service, influxdb.OnboardingService) {
+func setup(t *testing.T) (*tenant.Service, influxdb.OnboardingService, *iMock.MockInstanceService) {
 	t.Helper()
 
 	store := newStore(t)
@@ -590,10 +596,11 @@ func setup(t *testing.T) (*tenant.Service, influxdb.OnboardingService) {
 	}
 
 	authSvc := authorization.NewService(authStore, svc)
+	instanceSvc := iMock.NewMockInstanceService(gomock.NewController(t))
 
-	onboard := tenant.NewOnboardService(svc, authSvc)
+	onboard := tenant.NewOnboardService(svc, authSvc, instanceSvc)
 
-	return svc, onboard
+	return svc, onboard, instanceSvc
 }
 
 func newStore(t *testing.T) kv.Store {
