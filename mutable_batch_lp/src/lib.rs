@@ -21,7 +21,7 @@ use snafu::{ResultExt, Snafu};
 #[derive(Debug, Snafu)]
 #[allow(missing_docs)]
 pub enum Error {
-    #[snafu(display("error parsing line {}: {}", line, source))]
+    #[snafu(display("error parsing line {} (1-based): {}", line, source))]
     LineProtocol {
         source: influxdb_line_protocol::Error,
         line: usize,
