@@ -49,6 +49,7 @@ pub struct QuerierNamespace {
 
 impl QuerierNamespace {
     /// Create new namespace for given schema.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         chunk_adapter: Arc<ChunkAdapter>,
         schema: Arc<NamespaceSchema>,
@@ -57,6 +58,7 @@ impl QuerierNamespace {
         ingester_connection: Option<Arc<dyn IngesterConnection>>,
         query_log: Arc<QueryLog>,
         sharder: Arc<JumpHash<Arc<KafkaPartition>>>,
+        max_table_query_bytes: usize,
     ) -> Self {
         let tables: HashMap<_, _> = schema
             .tables
@@ -75,6 +77,7 @@ impl QuerierNamespace {
                     ingester_connection.clone(),
                     Arc::clone(&chunk_adapter),
                     Arc::clone(&exec),
+                    max_table_query_bytes,
                 ));
 
                 (table_name, table)
@@ -105,6 +108,7 @@ impl QuerierNamespace {
         ingester_connection: Option<Arc<dyn IngesterConnection>>,
         sharder: Arc<JumpHash<Arc<KafkaPartition>>>,
         load_settings: HashMap<ParquetFileId, QuerierChunkLoadSetting>,
+        max_table_query_bytes: usize,
     ) -> Self {
         let time_provider = catalog_cache.time_provider();
         let chunk_adapter = Arc::new(ChunkAdapter::new(
@@ -123,6 +127,7 @@ impl QuerierNamespace {
             ingester_connection,
             query_log,
             sharder,
+            max_table_query_bytes,
         )
     }
 

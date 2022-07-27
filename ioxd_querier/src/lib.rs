@@ -191,6 +191,7 @@ pub async fn create_querier_server_type(
             args.exec,
             ingester_connection,
             args.querier_config.max_concurrent_queries(),
+            args.querier_config.max_table_query_bytes(),
         )
         .await?,
     );

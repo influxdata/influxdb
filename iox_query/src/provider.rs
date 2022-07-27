@@ -72,6 +72,16 @@ pub enum Error {
 
     #[snafu(display("Internal error: Can not group chunks '{}'", source,))]
     InternalChunkGrouping { source: self::overlap::Error },
+
+    #[snafu(display(
+        "Query would scan at least {} bytes, more than configured maximum {} bytes. Try adjusting your compactor settings or increasing the per query memory limit.",
+        actual_bytes,
+        limit_bytes,
+    ))]
+    TooMuchData {
+        actual_bytes: usize,
+        limit_bytes: usize,
+    },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -98,7 +108,7 @@ pub trait ChunkPruner: Sync + Send + std::fmt::Debug {
         table_schema: Arc<Schema>,
         chunks: Vec<Arc<dyn QueryChunk>>,
         predicate: &Predicate,
-    ) -> Vec<Arc<dyn QueryChunk>>;
+    ) -> Result<Vec<Arc<dyn QueryChunk>>>;
 }
 
 /// Builds a `ChunkTableProvider` from a series of `QueryChunk`s
@@ -258,7 +268,7 @@ impl TableProvider for ChunkTableProvider {
             self.iox_schema(),
             chunks,
             &predicate,
-        );
+        )?;
         debug!(%predicate, num_initial_chunks, num_final_chunks=chunks.len(), "pruned with pushed down predicates");
 
         // Figure out the schema of the requested output
@@ -1259,8 +1269,8 @@ impl ChunkPruner for NoOpPruner {
         _table_schema: Arc<Schema>,
         chunks: Vec<Arc<dyn QueryChunk>>,
         _predicate: &Predicate,
-    ) -> Vec<Arc<dyn QueryChunk>> {
-        chunks
+    ) -> Result<Vec<Arc<dyn QueryChunk>>> {
+        Ok(chunks)
     }
 }
 

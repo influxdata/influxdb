@@ -956,6 +956,7 @@ impl MockIngester {
             Some(ingester_connection),
             sharder,
             load_settings,
+            usize::MAX,
         ))
     }
 }

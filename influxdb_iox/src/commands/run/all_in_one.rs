@@ -311,6 +311,19 @@ pub struct Config {
         action
     )]
     pub querier_max_concurrent_queries: usize,
+
+    /// Maximum bytes to scan for a table in a query (estimated).
+    ///
+    /// If IOx estimates that it will scan more than this many bytes
+    /// in a query, the query will error. This protects against potentially unbounded
+    /// memory growth leading to OOMs in certain pathological queries.
+    #[clap(
+        long = "--querier-max-table-query-bytes",
+        env = "INFLUXDB_IOX_QUERIER_MAX_TABLE_QUERY_BYTES",
+        default_value = "1073741824",  // 1 GB
+        action
+    )]
+    pub querier_max_table_query_bytes: usize,
 }
 
 impl Config {
@@ -335,6 +348,7 @@ impl Config {
             compactor_grpc_bind_address,
             querier_ram_pool_bytes,
             querier_max_concurrent_queries,
+            querier_max_table_query_bytes,
         } = self;
 
         let object_store_config = ObjectStoreConfig::new(database_directory.clone());
@@ -409,6 +423,7 @@ impl Config {
             sequencer_to_ingesters: None,      // will be ignored
             ram_pool_bytes: querier_ram_pool_bytes,
             max_concurrent_queries: querier_max_concurrent_queries,
+            max_table_query_bytes: querier_max_table_query_bytes,
         };
 
         SpecializedConfig {

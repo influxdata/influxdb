@@ -25,6 +25,7 @@ use schema::{
 };
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
+    any::Any,
     collections::{BTreeMap, BTreeSet},
     pin::Pin,
     sync::Arc,
@@ -347,6 +348,10 @@ impl QueryChunk for QuerierChunk {
 
     fn order(&self) -> ChunkOrder {
         self.meta().order()
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 

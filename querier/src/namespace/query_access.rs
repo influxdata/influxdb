@@ -75,7 +75,9 @@ impl QueryDatabase for QuerierNamespace {
         }
 
         let pruner = table.chunk_pruner();
-        Ok(pruner.prune_chunks(table_name, Arc::clone(table.schema()), chunks, predicate))
+        pruner
+            .prune_chunks(table_name, Arc::clone(table.schema()), chunks, predicate)
+            .map_err(|e| Box::new(e) as _)
     }
 
     fn record_query(
@@ -194,12 +196,16 @@ impl ExecutionContextProvider for QuerierNamespace {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::namespace::test_util::{clear_parquet_cache, querier_namespace};
+    use crate::namespace::test_util::{
+        clear_parquet_cache, querier_namespace, querier_namespace_with_limit,
+    };
     use arrow::record_batch::RecordBatch;
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use data_types::ColumnType;
+    use datafusion::common::DataFusionError;
     use iox_query::frontend::sql::SqlQueryPlanner;
     use iox_tests::util::{TestCatalog, TestParquetFileBuilder};
+    use snafu::{ResultExt, Snafu};
     use trace::{span::SpanStatus, RingBufferTraceCollector};
 
     #[tokio::test]
@@ -476,6 +482,49 @@ mod tests {
             .await;
     }
 
+    #[tokio::test]
+    async fn test_chunk_size_limit() {
+        let catalog = TestCatalog::new();
+
+        let ns = catalog.create_namespace("ns").await;
+        let table = ns.create_table("table").await;
+        let sequencer = ns.create_sequencer(1).await;
+        let partition = table.with_sequencer(&sequencer).create_partition("k").await;
+
+        table.create_column("time", ColumnType::Time).await;
+        table.create_column("foo", ColumnType::F64).await;
+
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol("table foo=1 11")
+            .with_max_seq(2)
+            .with_min_time(11)
+            .with_max_time(11)
+            .with_file_size_bytes(100);
+        partition.create_parquet_file(builder).await;
+
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol("table foo=2 22")
+            .with_max_seq(4)
+            .with_min_time(22)
+            .with_max_time(22)
+            .with_file_size_bytes(200);
+        partition.create_parquet_file(builder).await;
+
+        let querier_namespace = Arc::new(querier_namespace_with_limit(&ns, 300).await);
+        run_res(&querier_namespace, "SELECT * FROM \"table\"", None)
+            .await
+            .unwrap();
+
+        let querier_namespace = Arc::new(querier_namespace_with_limit(&ns, 299).await);
+        let err = run_res(&querier_namespace, "SELECT * FROM \"table\"", None)
+            .await
+            .unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "Cannot build plan: Arrow error: External error: Query would scan at least 300 bytes, more than configured maximum 299 bytes. Try adjusting your compactor settings or increasing the per query memory limit."
+        );
+    }
+
     async fn assert_query(
         querier_namespace: &Arc<QuerierNamespace>,
         sql: &str,
@@ -508,16 +557,30 @@ mod tests {
         sql: &str,
         span_ctx: Option<SpanContext>,
     ) -> Vec<RecordBatch> {
+        run_res(querier_namespace, sql, span_ctx)
+            .await
+            .expect("Build+run plan")
+    }
+
+    #[derive(Debug, Snafu)]
+    enum RunError {
+        #[snafu(display("Cannot build plan: {}", source))]
+        Build { source: DataFusionError },
+
+        #[snafu(display("Cannot run plan: {}", source))]
+        Run { source: DataFusionError },
+    }
+
+    async fn run_res(
+        querier_namespace: &Arc<QuerierNamespace>,
+        sql: &str,
+        span_ctx: Option<SpanContext>,
+    ) -> Result<Vec<RecordBatch>, RunError> {
         let planner = SqlQueryPlanner::default();
         let ctx = querier_namespace.new_query_context(span_ctx);
 
-        let physical_plan = planner
-            .query(sql, &ctx)
-            .await
-            .expect("built plan successfully");
+        let physical_plan = planner.query(sql, &ctx).await.context(BuildSnafu)?;
 
-        let results: Vec<RecordBatch> = ctx.collect(physical_plan).await.expect("Running plan");
-
-        results
+        ctx.collect(physical_plan).await.context(RunSnafu)
     }
 }

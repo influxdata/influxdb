@@ -12,12 +12,14 @@ use datafusion::{
 };
 use iox_query::{
     exec::{ExecutorType, SessionContextIOxExt},
-    provider::{ChunkPruner, ProviderBuilder},
+    provider::{ChunkPruner, Error as ProviderError, ProviderBuilder},
     pruning::{prune_chunks, PruningObserver},
     QueryChunk,
 };
 use predicate::Predicate;
 use schema::Schema;
+
+use crate::{chunk::QuerierChunk, ingester::IngesterChunk};
 
 use super::QuerierTable;
 
@@ -82,7 +84,15 @@ impl TableProvider for QuerierTable {
 }
 
 #[derive(Debug)]
-pub struct QuerierTableChunkPruner {}
+pub struct QuerierTableChunkPruner {
+    max_bytes: usize,
+}
+
+impl QuerierTableChunkPruner {
+    pub fn new(max_bytes: usize) -> Self {
+        Self { max_bytes }
+    }
+}
 
 impl ChunkPruner for QuerierTableChunkPruner {
     fn prune_chunks(
@@ -91,9 +101,31 @@ impl ChunkPruner for QuerierTableChunkPruner {
         table_schema: Arc<Schema>,
         chunks: Vec<Arc<dyn QueryChunk>>,
         predicate: &Predicate,
-    ) -> Vec<Arc<dyn QueryChunk>> {
+    ) -> Result<Vec<Arc<dyn QueryChunk>>, ProviderError> {
         // TODO: bring back metrics (https://github.com/influxdata/influxdb_iox/issues/4087)
-        prune_chunks(&NoopPruningObserver {}, table_schema, chunks, predicate)
+        let chunks = prune_chunks(&NoopPruningObserver {}, table_schema, chunks, predicate);
+
+        let estimated_bytes = chunks
+            .iter()
+            .map(|chunk| {
+                let chunk = chunk.as_any();
+                if let Some(chunk) = chunk.downcast_ref::<IngesterChunk>() {
+                    chunk.estimate_size()
+                } else if let Some(chunk) = chunk.downcast_ref::<QuerierChunk>() {
+                    chunk.estimate_size()
+                } else {
+                    panic!("Unknown chunk type")
+                }
+            })
+            .sum::<usize>();
+        if estimated_bytes > self.max_bytes {
+            return Err(ProviderError::TooMuchData {
+                actual_bytes: estimated_bytes,
+                limit_bytes: self.max_bytes,
+            });
+        }
+
+        Ok(chunks)
     }
 }
 

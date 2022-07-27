@@ -72,6 +72,9 @@ pub struct QuerierDatabase {
 
     /// Sharder to determine which ingesters to query for a particular table and namespace.
     sharder: Arc<JumpHash<Arc<KafkaPartition>>>,
+
+    /// Max combined chunk size for all chunks returned to the query subsystem by a single table.
+    max_table_query_bytes: usize,
 }
 
 #[async_trait]
@@ -106,6 +109,7 @@ impl QuerierDatabase {
         exec: Arc<Executor>,
         ingester_connection: Option<Arc<dyn IngesterConnection>>,
         max_concurrent_queries: usize,
+        max_table_query_bytes: usize,
     ) -> Result<Self, Error> {
         assert!(
             max_concurrent_queries <= Self::MAX_CONCURRENT_QUERIES_MAX,
@@ -144,6 +148,7 @@ impl QuerierDatabase {
             query_log,
             query_execution_semaphore,
             sharder,
+            max_table_query_bytes,
         })
     }
 
@@ -172,6 +177,7 @@ impl QuerierDatabase {
             self.ingester_connection.clone(),
             Arc::clone(&self.query_log),
             Arc::clone(&self.sharder),
+            self.max_table_query_bytes,
         )))
     }
 
@@ -249,6 +255,7 @@ mod tests {
             catalog.exec(),
             Some(create_ingester_connection_for_testing()),
             QuerierDatabase::MAX_CONCURRENT_QUERIES_MAX.saturating_add(1),
+            usize::MAX,
         )
         .await
         .unwrap();
@@ -273,6 +280,7 @@ mod tests {
                 catalog.exec(),
                 Some(create_ingester_connection_for_testing()),
                 QuerierDatabase::MAX_CONCURRENT_QUERIES_MAX,
+                usize::MAX,
             )
             .await,
             Error::Sharder {
@@ -300,6 +308,7 @@ mod tests {
             catalog.exec(),
             Some(create_ingester_connection_for_testing()),
             QuerierDatabase::MAX_CONCURRENT_QUERIES_MAX,
+            usize::MAX,
         )
         .await
         .unwrap();
@@ -329,6 +338,7 @@ mod tests {
             catalog.exec(),
             Some(create_ingester_connection_for_testing()),
             QuerierDatabase::MAX_CONCURRENT_QUERIES_MAX,
+            usize::MAX,
         )
         .await
         .unwrap();

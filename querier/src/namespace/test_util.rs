@@ -9,6 +9,14 @@ use std::sync::Arc;
 
 /// Create [`QuerierNamespace`] for testing.
 pub async fn querier_namespace(ns: &Arc<TestNamespace>) -> QuerierNamespace {
+    querier_namespace_with_limit(ns, usize::MAX).await
+}
+
+/// Create [`QuerierNamespace`] for testing with chunk limits.
+pub async fn querier_namespace_with_limit(
+    ns: &Arc<TestNamespace>,
+    max_table_query_bytes: usize,
+) -> QuerierNamespace {
     let mut repos = ns.catalog.catalog.repositories().await;
     let schema = Arc::new(
         get_schema_by_name(&ns.namespace.name, repos.as_mut())
@@ -35,6 +43,7 @@ pub async fn querier_namespace(ns: &Arc<TestNamespace>) -> QuerierNamespace {
         Some(create_ingester_connection_for_testing()),
         sharder,
         Default::default(),
+        max_table_query_bytes,
     )
 }
 

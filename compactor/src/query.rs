@@ -14,7 +14,7 @@ use parquet_file::chunk::ParquetChunk;
 use predicate::{delete_predicate::tombstones_to_delete_predicates, Predicate};
 use schema::{merge::SchemaMerger, selection::Selection, sort::SortKey, Schema};
 use snafu::{ResultExt, Snafu};
-use std::sync::Arc;
+use std::{any::Any, sync::Arc};
 use uuid::Uuid;
 
 #[derive(Debug, Snafu)]
@@ -239,6 +239,10 @@ impl QueryChunk for QueryableParquetChunk {
             CompactionLevel::Initial => ChunkOrder::new(self.max_sequence_number.get()),
             CompactionLevel::FileNonOverlapped => ChunkOrder::new(0),
         }
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 

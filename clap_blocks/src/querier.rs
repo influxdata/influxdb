@@ -229,6 +229,19 @@ pub struct QuerierConfig {
         action
     )]
     pub max_concurrent_queries: usize,
+
+    /// Maximum bytes to scan for a table in a query (estimated).
+    ///
+    /// If IOx estimates that it will scan more than this many bytes
+    /// in a query, the query will error. This protects against potentially unbounded
+    /// memory growth leading to OOMs in certain pathological queries.
+    #[clap(
+        long = "--max-table-query-bytes",
+        env = "INFLUXDB_IOX_MAX_TABLE_QUERY_BYTES",
+        default_value = "1073741824",  // 1 GB
+        action
+    )]
+    pub max_table_query_bytes: usize,
 }
 
 impl QuerierConfig {
@@ -286,6 +299,12 @@ impl QuerierConfig {
     /// Number of queries allowed to run concurrently
     pub fn max_concurrent_queries(&self) -> usize {
         self.max_concurrent_queries
+    }
+
+    /// Query will error if it estimated that a single table will provide more
+    /// than this many bytes.
+    pub fn max_table_query_bytes(&self) -> usize {
+        self.max_table_query_bytes
     }
 }
 

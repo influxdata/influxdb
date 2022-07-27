@@ -23,7 +23,7 @@ use predicate::{
 };
 use schema::{merge::merge_record_batch_schemas, selection::Selection, sort::SortKey, Schema};
 use snafu::{ResultExt, Snafu};
-use std::sync::Arc;
+use std::{any::Any, sync::Arc};
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Snafu)]
@@ -229,6 +229,10 @@ impl QueryChunk for QueryableBatch {
     // This function should not be used in PersistingBatch context
     fn order(&self) -> ChunkOrder {
         unimplemented!()
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 

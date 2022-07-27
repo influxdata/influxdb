@@ -80,6 +80,9 @@ pub struct QuerierTable {
 
     /// Executor for queries.
     exec: Arc<Executor>,
+
+    /// Max combined chunk size for all chunks returned to the query subsystem.
+    max_query_bytes: usize,
 }
 
 impl QuerierTable {
@@ -94,6 +97,7 @@ impl QuerierTable {
         ingester_connection: Option<Arc<dyn IngesterConnection>>,
         chunk_adapter: Arc<ChunkAdapter>,
         exec: Arc<Executor>,
+        max_query_bytes: usize,
     ) -> Self {
         let reconciler = Reconciler::new(
             Arc::clone(&table_name),
@@ -111,6 +115,7 @@ impl QuerierTable {
             chunk_adapter,
             reconciler,
             exec,
+            max_query_bytes,
         }
     }
 
@@ -254,7 +259,7 @@ impl QuerierTable {
 
     /// Get a chunk pruner that can be used to prune chunks retrieved via [`chunks`](Self::chunks)
     pub fn chunk_pruner(&self) -> Arc<dyn ChunkPruner> {
-        Arc::new(QuerierTableChunkPruner {})
+        Arc::new(QuerierTableChunkPruner::new(self.max_query_bytes))
     }
 
     /// Get partitions from ingesters.

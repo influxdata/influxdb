@@ -1056,6 +1056,19 @@ impl IngesterChunk {
             ..self
         }
     }
+
+    pub(crate) fn estimate_size(&self) -> usize {
+        self.batches
+            .iter()
+            .map(|batch| {
+                batch
+                    .columns()
+                    .iter()
+                    .map(|array| array.get_array_memory_size())
+                    .sum::<usize>()
+            })
+            .sum::<usize>()
+    }
 }
 
 impl QueryChunkMeta for IngesterChunk {
@@ -1156,6 +1169,10 @@ impl QueryChunk for IngesterChunk {
         // since this is always the 'most recent' chunk for this
         // partition, put it at the end
         ChunkOrder::new(i64::MAX)
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 

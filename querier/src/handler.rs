@@ -197,6 +197,7 @@ mod tests {
                     exec,
                     Some(create_ingester_connection_for_testing()),
                     QuerierDatabase::MAX_CONCURRENT_QUERIES_MAX,
+                    usize::MAX,
                 )
                 .await
                 .unwrap(),

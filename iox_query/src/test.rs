@@ -34,7 +34,7 @@ use schema::{
     builder::SchemaBuilder, merge::SchemaMerger, selection::Selection, sort::SortKey,
     InfluxColumnType, Schema,
 };
-use std::{collections::BTreeMap, fmt, num::NonZeroU64, sync::Arc};
+use std::{any::Any, collections::BTreeMap, fmt, num::NonZeroU64, sync::Arc};
 use trace::ctx::SpanContext;
 
 #[derive(Debug)]
@@ -983,6 +983,10 @@ impl QueryChunk for TestChunk {
 
     fn order(&self) -> ChunkOrder {
         self.order
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 

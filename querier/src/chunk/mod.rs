@@ -144,6 +144,15 @@ impl ChunkStage {
             }
         }
     }
+
+    fn estimate_size(&self) -> usize {
+        match self {
+            Self::Parquet { parquet_chunk, .. } => {
+                parquet_chunk.parquet_file().file_size_bytes as usize
+            }
+            Self::ReadBuffer { rb_chunk, .. } => rb_chunk.size(),
+        }
+    }
 }
 
 impl From<Arc<ParquetChunk>> for ChunkStage {
@@ -310,6 +319,10 @@ impl QuerierChunk {
             partition_sort_key,
             ..self
         }
+    }
+
+    pub fn estimate_size(&self) -> usize {
+        self.stage.read().estimate_size()
     }
 }
 

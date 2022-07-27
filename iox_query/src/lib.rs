@@ -22,7 +22,7 @@ use schema::{
     sort::{SortKey, SortKeyBuilder},
     Schema, TIME_COLUMN_NAME,
 };
-use std::{collections::BTreeSet, fmt::Debug, iter::FromIterator, sync::Arc};
+use std::{any::Any, collections::BTreeSet, fmt::Debug, iter::FromIterator, sync::Arc};
 
 pub mod exec;
 pub mod frontend;
@@ -253,6 +253,9 @@ pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync + 'static {
 
     /// Order of this chunk relative to other overlapping chunks.
     fn order(&self) -> ChunkOrder;
+
+    /// Return backend as [`Any`] which can be used to downcast to a specific implementation.
+    fn as_any(&self) -> &dyn Any;
 }
 
 /// Implement ChunkMeta for something wrapped in an Arc (like Chunks often are)
