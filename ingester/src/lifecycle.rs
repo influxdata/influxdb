@@ -443,10 +443,10 @@ pub(crate) async fn run_lifecycle_manager<P: Persister>(
 ) {
     loop {
         if poison_cabinet.contains(&PoisonPill::LifecyclePanic) {
-            panic!("Lifecycle manager poisened, panic");
+            panic!("Lifecycle manager poisoned, panic");
         }
         if poison_cabinet.contains(&PoisonPill::LifecycleExit) {
-            error!("Lifecycle manager poisened, exit early");
+            error!("Lifecycle manager poisoned, exit early");
             return;
         }
 
