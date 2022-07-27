@@ -37,10 +37,9 @@ impl<'a> Display for Selection<'a> {
 /// Compute projected schema.
 pub fn select_schema(
     selection: Selection<'_>,
-    schema: &arrow::datatypes::Schema,
+    schema: &arrow::datatypes::SchemaRef,
 ) -> arrow::datatypes::SchemaRef {
-    // Indices of columns in the schema needed to read
-    let projection: Vec<usize> = match selection {
+    match selection {
         Selection::Some(cols) => {
             let fields_lookup: HashMap<_, _> = schema
                 .fields()
@@ -49,21 +48,25 @@ pub fn select_schema(
                 .enumerate()
                 .map(|(v, k)| (k, v))
                 .collect();
-            cols.iter()
-                .filter_map(|c| fields_lookup.get(c).cloned())
-                .collect()
-        }
-        Selection::All => (0..schema.fields().len()).collect(),
-    };
 
-    // Compute final (output) schema after selection
-    Arc::new(arrow::datatypes::Schema::new_with_metadata(
-        projection
-            .iter()
-            .map(|i| schema.field(*i).clone())
-            .collect(),
-        schema.metadata().clone(),
-    ))
+            // Indices of columns in the schema needed to read
+            let projection: Vec<usize> = cols
+                .iter()
+                .filter_map(|c| fields_lookup.get(c).cloned())
+                .collect();
+
+            // try NOT to create yet another schema if this is basically a "select all"
+            if (projection.len() == schema.fields().len())
+                && projection.iter().enumerate().all(|(a, b)| a == *b)
+            {
+                return Arc::clone(schema);
+            }
+
+            // Compute final (output) schema after selection
+            Arc::new(schema.project(&projection).expect("projection bug"))
+        }
+        Selection::All => Arc::clone(schema),
+    }
 }
 
 /// A way to "own" a [`Selection`].
@@ -151,5 +154,52 @@ mod test_super {
         for (selection, exp) in selections {
             assert_eq!(format!("{}", selection).as_str(), exp);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::builder::SchemaBuilder;
+
+    use super::*;
+
+    #[test]
+    fn test_select_schema_all() {
+        let schema = SchemaBuilder::new()
+            .tag("t1")
+            .tag("t2")
+            .timestamp()
+            .build()
+            .unwrap()
+            .as_arrow();
+        let actual = select_schema(Selection::All, &schema);
+        assert!(Arc::ptr_eq(&schema, &actual));
+    }
+
+    #[test]
+    fn test_select_schema_some() {
+        let schema = SchemaBuilder::new()
+            .tag("t1")
+            .tag("t2")
+            .timestamp()
+            .build()
+            .unwrap()
+            .as_arrow();
+
+        // normal selection
+        let actual = select_schema(Selection::Some(&["time", "t2"]), &schema);
+        let expected = schema.project(&[2, 1]).unwrap();
+        assert!(!Arc::ptr_eq(&schema, &actual));
+        assert_eq!(actual.as_ref(), &expected);
+
+        // select unknown columns
+        let actual = select_schema(Selection::Some(&["time", "t3", "t2"]), &schema);
+        let expected = schema.project(&[2, 1]).unwrap();
+        assert!(!Arc::ptr_eq(&schema, &actual));
+        assert_eq!(actual.as_ref(), &expected);
+
+        // "hidden" all
+        let actual = select_schema(Selection::Some(&["t1", "t2", "time"]), &schema);
+        assert!(Arc::ptr_eq(&schema, &actual));
     }
 }
