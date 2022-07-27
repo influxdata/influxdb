@@ -4,6 +4,7 @@ use std::{
     collections::HashMap,
     convert::{TryFrom, TryInto},
     fmt,
+    mem::{size_of, size_of_val},
     sync::Arc,
 };
 
@@ -386,6 +387,41 @@ impl Schema {
             .into_iter()
             .map(|(_column_type, field)| field.name().as_str())
             .collect()
+    }
+
+    /// Estimate memory consumption in bytes of the schema.
+    ///
+    /// This includes the size of `Self` as well as the inner [`Arc`]ed arrow schema.
+    pub fn estimate_size(&self) -> usize {
+        let size_self = size_of_val(self);
+
+        let size_inner = size_of_val(self.inner.as_ref());
+
+        let fields = self.inner.fields();
+        let size_fields = fields.capacity() * size_of::<arrow::datatypes::Field>()
+            + fields
+                .iter()
+                .map(|field| {
+                    field.name().capacity()
+                        + field
+                            .metadata()
+                            .map(|md| {
+                                md.iter()
+                                    .map(|(k, v)| k.capacity() + v.capacity())
+                                    .sum::<usize>()
+                            })
+                            .unwrap_or_default()
+                })
+                .sum::<usize>();
+
+        let metadata = self.inner.metadata();
+        let size_metadata = metadata.capacity() * size_of::<(String, String)>()
+            + metadata
+                .iter()
+                .map(|(k, v)| k.capacity() + v.capacity())
+                .sum::<usize>();
+
+        size_self + size_inner + size_fields + size_metadata
     }
 }
 
@@ -1111,5 +1147,19 @@ mod test {
             .build()
             .unwrap();
         assert!(!schema.is_sorted_on_pk(&sort_key));
+    }
+
+    #[test]
+    fn test_estimate_size() {
+        let schema = SchemaBuilder::new()
+            .influx_field("the_field", String)
+            .tag("the_tag")
+            .timestamp()
+            .measurement("the_measurement")
+            .build()
+            .unwrap();
+
+        // this is mostly a smoke test
+        assert_eq!(schema.estimate_size(), 795);
     }
 }

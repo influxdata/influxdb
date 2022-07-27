@@ -484,12 +484,18 @@ impl ChunkAdapter {
             .iter()
             .map(|(_t, field)| field.name().as_str())
             .filter(|col| file_columns.contains(*col))
+            .map(|s| s.to_owned())
             .collect();
-        let schema = Arc::new(
-            table_schema
-                .select_by_names(&column_names)
-                .expect("Bug in schema projection"),
-        );
+        let schema = self
+            .catalog_cache
+            .projected_schema()
+            .get(
+                parquet_file.table_id,
+                Arc::new(table_schema),
+                column_names,
+                span_recorder.child_span("cache GET projected schema"),
+            )
+            .await;
 
         // calculate sort key
         let pk_cols = schema.primary_key();

@@ -7,14 +7,15 @@ use std::sync::Arc;
 
 use self::{
     namespace::NamespaceCache, parquet_file::ParquetFileCache, partition::PartitionCache,
-    processed_tombstones::ProcessedTombstonesCache, ram::RamSize, read_buffer::ReadBufferCache,
-    table::TableCache, tombstones::TombstoneCache,
+    processed_tombstones::ProcessedTombstonesCache, projected_schema::ProjectedSchemaCache,
+    ram::RamSize, read_buffer::ReadBufferCache, table::TableCache, tombstones::TombstoneCache,
 };
 
 pub mod namespace;
 pub mod parquet_file;
 pub mod partition;
 pub mod processed_tombstones;
+pub mod projected_schema;
 mod ram;
 pub mod read_buffer;
 pub mod table;
@@ -49,6 +50,9 @@ pub struct CatalogCache {
 
     /// Read buffer chunk cache
     read_buffer_cache: ReadBufferCache,
+
+    /// Projected schema cache.
+    projected_schema_cache: ProjectedSchemaCache,
 
     /// Metric registry
     metric_registry: Arc<metric::Registry>,
@@ -160,6 +164,12 @@ impl CatalogCache {
             Arc::clone(&ram_pool),
             testing,
         );
+        let projected_schema_cache = ProjectedSchemaCache::new(
+            Arc::clone(&time_provider),
+            &metric_registry,
+            Arc::clone(&ram_pool),
+            testing,
+        );
 
         Self {
             catalog,
@@ -170,6 +180,7 @@ impl CatalogCache {
             parquet_file_cache,
             tombstone_cache,
             read_buffer_cache,
+            projected_schema_cache,
             metric_registry,
             time_provider,
         }
@@ -223,5 +234,10 @@ impl CatalogCache {
     /// Read buffer chunk cache.
     pub(crate) fn read_buffer(&self) -> &ReadBufferCache {
         &self.read_buffer_cache
+    }
+
+    /// Projected schema cache.
+    pub(crate) fn projected_schema(&self) -> &ProjectedSchemaCache {
+        &self.projected_schema_cache
     }
 }
