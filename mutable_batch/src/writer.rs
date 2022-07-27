@@ -13,8 +13,11 @@ use std::{num::NonZeroU64, ops::Range};
 #[allow(missing_docs, missing_copy_implementations)]
 #[derive(Debug, Snafu)]
 pub enum Error {
-    #[snafu(display("Unable to insert {} type into a column of {}", inserted, existing))]
+    #[snafu(display(
+        "Unable to insert {inserted} type into column {column} with type {existing}"
+    ))]
     TypeMismatch {
+        column: String,
         existing: InfluxColumnType,
         inserted: InfluxColumnType,
     },
@@ -631,6 +634,7 @@ impl<'a> Writer<'a> {
 
         if col.influx_type != influx_type {
             return Err(Error::TypeMismatch {
+                column: name.to_string(),
                 existing: col.influx_type,
                 inserted: influx_type,
             });

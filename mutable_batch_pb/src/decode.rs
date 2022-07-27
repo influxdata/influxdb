@@ -835,7 +835,7 @@ mod tests {
                 },
                 vec![0b000111010],
             ),
-            "error writing column tag2: Unable to insert iox::column_type::field::string type into a column of iox::column_type::tag",
+            "error writing column tag2: Unable to insert iox::column_type::field::string type into column tag2 with type iox::column_type::tag",
         );
 
         try_write(

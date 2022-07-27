@@ -32,12 +32,6 @@ type Dictionary = arrow_util::dictionary::StringDictionary<DID>;
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
 pub enum Error {
-    #[snafu(display("Unable to insert {} type into a column of {}", inserted, existing,))]
-    TypeMismatch {
-        existing: InfluxColumnType,
-        inserted: InfluxColumnType,
-    },
-
     #[snafu(display(
         "Invalid null mask, expected to be {} bytes but was {}",
         expected_bytes,
