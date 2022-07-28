@@ -140,7 +140,9 @@ func (s *OnboardService) onboardUser(ctx context.Context, req *influxdb.Onboardi
 
 	// set the new user in the context
 	ctx = icontext.SetAuthorizer(ctx, &influxdb.Authorization{
-		UserID: user.ID,
+		UserID:      user.ID,
+		Status:      influxdb.Active,
+		Permissions: influxdb.OperPermissions(),
 	})
 
 	// create users org

@@ -86,7 +86,7 @@ func (s *BucketService) CreateBucket(ctx context.Context, b *influxdb.Bucket) er
 func (s *BucketService) UpdateBucket(ctx context.Context, id platform.ID, upd influxdb.BucketUpdate) (*influxdb.Bucket, error) {
 	logger := s.Logger.With(zap.String("bucket_id", id.String()))
 
-	// update the auto-DBRP if name of bucket is changed
+	// get the old bucket to know what has changed
 	oldB, err := s.BucketService.FindBucketByID(ctx, id)
 	if err != nil {
 		logger.Error("Failed to lookup bucket", zap.Error(err))
@@ -118,7 +118,25 @@ func (s *BucketService) UpdateBucket(ctx context.Context, id platform.ID, upd in
 	} else {
 		newDb, newRp = ParseDBRP(*upd.Name)
 	}
-	if len(dbrps) < 1 {
+	logger.Debug("Update", zap.String("newDb", newDb), zap.String("newRp", newRp))
+	mustCreate := false
+
+	if len(dbrps) == 1 {
+		dbrpToPatch := dbrps[0]
+		// if an DBRP-Update-unchangeable field has changed, we need to delete and recreate
+		if dbrpToPatch.Database != newDb {
+			mustCreate = true
+			if err := s.DBRPMappingService.Delete(ctx, dbrpToPatch.OrganizationID, dbrpToPatch.ID); err != nil {
+				logger.Debug("Failed to delete outdated DBRP mapping for bucket", zap.Error(err))
+			}
+		} else {
+			dbrpToPatch.Database, dbrpToPatch.RetentionPolicy = newDb, newRp
+			if err := s.DBRPMappingService.Update(ctx, dbrpToPatch); err != nil {
+				logger.Debug("Failed to auto-update DBRP mapping for bucket", zap.Error(err))
+			}
+		}
+	}
+	if mustCreate {
 		newDbrp := influxdb.DBRPMapping{
 			Database:        newDb,
 			RetentionPolicy: newRp,
@@ -127,12 +145,6 @@ func (s *BucketService) UpdateBucket(ctx context.Context, id platform.ID, upd in
 		}
 		if err := s.DBRPMappingService.Create(ctx, &newDbrp); err != nil {
 			logger.Debug("Failed to auto-create missing DBRP mapping for bucket", zap.Error(err))
-		}
-	} else {
-		dbrpToPatch := dbrps[0]
-		dbrpToPatch.Database, dbrpToPatch.RetentionPolicy = newDb, newRp
-		if err := s.DBRPMappingService.Update(ctx, dbrpToPatch); err != nil {
-			logger.Debug("Failed to auto-update DBRP mapping for bucket", zap.Error(err))
 		}
 	}
 	return updatedB, nil
