@@ -27,7 +27,7 @@ use observability_deps::tracing::error;
 use trace::{span::SpanRecorder, TraceCollector};
 
 use crate::classify::{classify_headers, classify_response, Classification};
-use crate::ctx::TraceHeaderParser;
+use crate::ctx::{RequestLogContext, TraceHeaderParser};
 use crate::metrics::{MetricsCollection, MetricsRecorder};
 
 /// `TraceLayer` implements `tower::Layer` and can be used to decorate a
@@ -112,13 +112,18 @@ where
 
         let span = match self.trace_header_parser.parse(collector, request.headers()) {
             Ok(Some(ctx)) => {
-                let span = ctx.child("IOx");
+                request
+                    .extensions_mut()
+                    .insert(RequestLogContext::new(ctx.clone()));
 
-                // Add context to request for use by service handlers
-                request.extensions_mut().insert(span.ctx.clone());
+                ctx.sampled.then(|| {
+                    let span = ctx.child("IOx");
 
-                // Create Span to use to instrument request
-                Some(span)
+                    // Add context to request for use by service handlers
+                    request.extensions_mut().insert(span.ctx.clone());
+
+                    span
+                })
             }
             Ok(None) => None,
             Err(e) => {

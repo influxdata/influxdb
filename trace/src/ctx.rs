@@ -54,6 +54,9 @@ pub struct SpanContext {
     pub links: Vec<(TraceId, SpanId)>,
 
     pub collector: Option<Arc<dyn TraceCollector>>,
+
+    /// If we should also sample based on this context (i.e. emit child spans).
+    pub sampled: bool,
 }
 
 impl SpanContext {
@@ -71,6 +74,7 @@ impl SpanContext {
             span_id: SpanId(NonZeroU64::new(span_id).unwrap()),
             links: vec![],
             collector: Some(collector),
+            sampled: true,
         }
     }
 
@@ -82,6 +86,7 @@ impl SpanContext {
             collector: self.collector.clone(),
             links: Vec::with_capacity(0),
             parent_span_id: Some(self.span_id),
+            sampled: self.sampled,
         };
         Span::new(name, ctx)
     }
@@ -106,6 +111,7 @@ impl PartialEq for SpanContext {
             && self.span_id == other.span_id
             && self.links == other.links
             && self.collector.is_some() == other.collector.is_some()
+            && self.sampled == other.sampled
     }
 }
 
@@ -141,6 +147,7 @@ mod tests {
                 (TraceId::new(6).unwrap(), SpanId::new(7).unwrap()),
             ],
             collector: Some(collector_1),
+            sampled: true,
         };
 
         let ctx = SpanContext { ..ctx_ref.clone() };
@@ -181,5 +188,11 @@ mod tests {
             ..ctx_ref.clone()
         };
         assert_eq!(ctx_ref, ctx);
+
+        let ctx = SpanContext {
+            sampled: false,
+            ..ctx_ref.clone()
+        };
+        assert_ne!(ctx_ref, ctx);
     }
 }

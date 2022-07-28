@@ -98,7 +98,8 @@ impl IoxHeaders {
                             .with_jaeger_trace_context_header_name(HEADER_TRACE_CONTEXT);
 
                         span_context = match parser.parse(trace_collector, &headers) {
-                            Ok(ctx) => ctx,
+                            Ok(None) => None,
+                            Ok(Some(ctx)) => ctx.sampled.then(|| ctx),
                             Err(e) => {
                                 return Err(WriteBufferError::invalid_data(format!(
                                     "Error decoding trace context: {}",

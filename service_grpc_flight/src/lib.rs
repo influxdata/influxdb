@@ -26,6 +26,7 @@ use std::{fmt::Debug, pin::Pin, sync::Arc, task::Poll};
 use tokio::task::JoinHandle;
 use tonic::{Request, Response, Streaming};
 use trace::{ctx::SpanContext, span::SpanExt};
+use trace_http::ctx::{RequestLogContext, RequestLogContextExt};
 use tracker::InstrumentedAsyncOwnedSemaphorePermit;
 
 #[allow(clippy::enum_variant_names)]
@@ -186,6 +187,7 @@ where
         &self,
         request: Request<Ticket>,
     ) -> Result<Response<Self::DoGetStream>, tonic::Status> {
+        let external_span_ctx: Option<RequestLogContext> = request.extensions().get().cloned();
         let span_ctx: Option<SpanContext> = request.extensions().get().cloned();
         let ticket = request.into_inner();
 
@@ -205,6 +207,7 @@ where
         info!(
             db_name=%read_info.database_name,
             sql_query=%read_info.sql_query,
+            trace=%external_span_ctx.format_jaeger(),
             "flight do_get",
         );
 

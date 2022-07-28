@@ -15,6 +15,7 @@ query_functions = { path = "../query_functions"}
 schema = { path = "../schema" }
 service_common = { path = "../service_common" }
 trace = { path = "../trace"}
+trace_http = { path = "../trace_http"}
 tracker = { path = "../tracker" }
 
 # Crates.io dependencies, in alphabetical order

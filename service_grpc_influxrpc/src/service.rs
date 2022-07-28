@@ -43,6 +43,7 @@ use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::Status;
 use trace::{ctx::SpanContext, span::SpanExt};
+use trace_http::ctx::{RequestLogContext, RequestLogContextExt};
 use tracker::InstrumentedAsyncOwnedSemaphorePermit;
 
 #[derive(Debug, Snafu)]
@@ -230,6 +231,7 @@ where
         &self,
         req: tonic::Request<ReadFilterRequest>,
     ) -> Result<tonic::Response<Self::ReadFilterStream>, Status> {
+        let external_span_ctx: Option<RequestLogContext> = req.extensions().get().cloned();
         let span_ctx: Option<SpanContext> = req.extensions().get().cloned();
 
         let req = req.into_inner();
@@ -242,6 +244,7 @@ where
             %db_name,
             ?req.range,
             predicate=%req.predicate.loggable(),
+            trace=%external_span_ctx.format_jaeger(),
             "read filter",
         );
 
@@ -277,6 +280,7 @@ where
         &self,
         req: tonic::Request<ReadGroupRequest>,
     ) -> Result<tonic::Response<Self::ReadGroupStream>, Status> {
+        let external_span_ctx: Option<RequestLogContext> = req.extensions().get().cloned();
         let span_ctx: Option<SpanContext> = req.extensions().get().cloned();
         let req = req.into_inner();
         let permit = self
@@ -293,6 +297,7 @@ where
             ?req.group,
             ?req.aggregate,
             predicate=%req.predicate.loggable(),
+            trace=%external_span_ctx.format_jaeger(),
             "read_group",
         );
 
@@ -358,6 +363,7 @@ where
         &self,
         req: tonic::Request<ReadWindowAggregateRequest>,
     ) -> Result<tonic::Response<Self::ReadGroupStream>, Status> {
+        let external_span_ctx: Option<RequestLogContext> = req.extensions().get().cloned();
         let span_ctx: Option<SpanContext> = req.extensions().get().cloned();
         let req = req.into_inner();
         let permit = self
@@ -374,6 +380,7 @@ where
             ?req.aggregate,
             ?req.window,
             predicate=%req.predicate.loggable(),
+            trace=%external_span_ctx.format_jaeger(),
             "read_window_aggregate",
         );
 
@@ -437,6 +444,7 @@ where
         &self,
         req: tonic::Request<TagKeysRequest>,
     ) -> Result<tonic::Response<Self::TagKeysStream>, Status> {
+        let external_span_ctx: Option<RequestLogContext> = req.extensions().get().cloned();
         let span_ctx: Option<SpanContext> = req.extensions().get().cloned();
         let (tx, rx) = mpsc::channel(4);
 
@@ -451,6 +459,7 @@ where
             %db_name,
             ?req.range,
             predicate=%req.predicate.loggable(),
+            trace=%external_span_ctx.format_jaeger(),
             "tag_keys",
         );
 
@@ -502,6 +511,7 @@ where
         &self,
         req: tonic::Request<TagValuesRequest>,
     ) -> Result<tonic::Response<Self::TagValuesStream>, Status> {
+        let external_span_ctx: Option<RequestLogContext> = req.extensions().get().cloned();
         let span_ctx: Option<SpanContext> = req.extensions().get().cloned();
         let (tx, rx) = mpsc::channel(4);
 
@@ -519,6 +529,7 @@ where
             ?req.range,
             %tag_key,
             predicate=%req.predicate.loggable(),
+            trace=%external_span_ctx.format_jaeger(),
             "tag_values",
         );
 
@@ -606,6 +617,7 @@ where
         &self,
         req: tonic::Request<TagValuesGroupedByMeasurementAndTagKeyRequest>,
     ) -> Result<tonic::Response<Self::TagValuesGroupedByMeasurementAndTagKeyStream>, Status> {
+        let external_span_ctx: Option<RequestLogContext> = req.extensions().get().cloned();
         let span_ctx: Option<SpanContext> = req.extensions().get().cloned();
 
         let req = req.into_inner();
@@ -620,6 +632,7 @@ where
             ?req.measurement_patterns,
             ?req.tag_key_predicate,
             predicate=%req.condition.loggable(),
+            trace=%external_span_ctx.format_jaeger(),
             "tag_values_grouped_by_measurement_and_tag_key",
         );
 
@@ -712,6 +725,7 @@ where
         &self,
         req: tonic::Request<MeasurementNamesRequest>,
     ) -> Result<tonic::Response<Self::MeasurementNamesStream>, Status> {
+        let external_span_ctx: Option<RequestLogContext> = req.extensions().get().cloned();
         let span_ctx: Option<SpanContext> = req.extensions().get().cloned();
         let (tx, rx) = mpsc::channel(4);
 
@@ -726,6 +740,7 @@ where
             %db_name,
             ?req.range,
             predicate=%req.predicate.loggable(),
+            trace=%external_span_ctx.format_jaeger(),
             "measurement_names",
         );
 
@@ -770,6 +785,7 @@ where
         &self,
         req: tonic::Request<MeasurementTagKeysRequest>,
     ) -> Result<tonic::Response<Self::MeasurementTagKeysStream>, Status> {
+        let external_span_ctx: Option<RequestLogContext> = req.extensions().get().cloned();
         let span_ctx: Option<SpanContext> = req.extensions().get().cloned();
         let (tx, rx) = mpsc::channel(4);
 
@@ -785,6 +801,7 @@ where
             ?req.range,
             %req.measurement,
             predicate=%req.predicate.loggable(),
+            trace=%external_span_ctx.format_jaeger(),
             "measurement_tag_keys",
         );
 
@@ -839,6 +856,7 @@ where
         &self,
         req: tonic::Request<MeasurementTagValuesRequest>,
     ) -> Result<tonic::Response<Self::MeasurementTagValuesStream>, Status> {
+        let external_span_ctx: Option<RequestLogContext> = req.extensions().get().cloned();
         let span_ctx: Option<SpanContext> = req.extensions().get().cloned();
         let (tx, rx) = mpsc::channel(4);
 
@@ -855,6 +873,7 @@ where
             %req.measurement,
             %req.tag_key,
             predicate=%req.predicate.loggable(),
+            trace=%external_span_ctx.format_jaeger(),
             "measurement_tag_values",
         );
 
@@ -911,6 +930,7 @@ where
         &self,
         req: tonic::Request<MeasurementFieldsRequest>,
     ) -> Result<tonic::Response<Self::MeasurementFieldsStream>, Status> {
+        let external_span_ctx: Option<RequestLogContext> = req.extensions().get().cloned();
         let span_ctx: Option<SpanContext> = req.extensions().get().cloned();
         let (tx, rx) = mpsc::channel(4);
 
@@ -926,6 +946,7 @@ where
             ?req.range,
             %req.measurement,
             predicate=%req.predicate.loggable(),
+            trace=%external_span_ctx.format_jaeger(),
             "measurement_fields",
         );
 

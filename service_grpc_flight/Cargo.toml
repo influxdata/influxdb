@@ -15,6 +15,7 @@ observability_deps = { path = "../observability_deps" }
 iox_query = { path = "../iox_query" }
 service_common = { path = "../service_common" }
 trace = { path = "../trace"}
+trace_http = { path = "../trace_http"}
 tracker = { path = "../tracker" }
 
 # Crates.io dependencies, in alphabetical order

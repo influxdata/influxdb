@@ -338,6 +338,7 @@ mod tests {
             span_id: SpanId::new(3495993).unwrap(),
             links: vec![],
             collector: None,
+            sampled: true,
         };
         let mut span = ctx.child("foo");
         span.ctx.links = vec![
