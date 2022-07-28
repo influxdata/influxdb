@@ -220,7 +220,10 @@ impl Predicate {
     /// existing storage engine
     pub(crate) fn with_clear_timestamp_if_max_range(mut self) -> Self {
         self.range = self.range.take().and_then(|range| {
-            if range.contains_all() {
+            // FIXME(lesam): This should properly be contains_all, but until
+            // https://github.com/influxdata/idpe/issues/13094 is fixed we are more permissive
+            // about what timestamp range we consider 'all time'
+            if range.contains_nearly_all() {
                 debug!("Cleared timestamp max-range");
 
                 None

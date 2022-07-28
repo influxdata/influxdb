@@ -92,7 +92,7 @@ async fn test_field_columns_measurement_pred() {
     // get only fields from h2o using a _measurement predicate
     let predicate = Predicate::default()
         .with_expr(col("_measurement").eq(lit("h2o")))
-        .with_range(i64::MIN, i64::MAX - 1);
+        .with_range(i64::MIN, i64::MAX - 2);
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let expected_fields = FieldList {
@@ -283,7 +283,7 @@ async fn test_field_name_plan_with_delete_all_time() {
 
 #[tokio::test]
 async fn list_field_columns_all_time() {
-    let predicate = Predicate::default().with_range(MIN_NANO_TIME, i64::MAX);
+    let predicate = Predicate::default().with_range(MIN_NANO_TIME, MAX_NANO_TIME);
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
     let expected_fields = FieldList {

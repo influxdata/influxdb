@@ -2128,6 +2128,16 @@ impl TimestampRange {
         self.start <= MIN_NANO_TIME && self.end > MAX_NANO_TIME
     }
 
+    /// Returns true if this range contains all representable timestamps except possibly MAX_NANO_TIME
+    ///
+    /// This is required for queries from InfluxQL, which are intended to be
+    /// for all time but instead can be for [MIN_NANO_TIME, MAX_NANO_TIME).
+    /// When <https://github.com/influxdata/idpe/issues/13094> is fixed,
+    /// all uses of contains_nearly_all should be replaced by contains_all
+    pub fn contains_nearly_all(&self) -> bool {
+        self.start <= MIN_NANO_TIME && self.end >= MAX_NANO_TIME
+    }
+
     #[inline]
     /// Returns true if this range contains the value v
     pub fn contains(&self, v: i64) -> bool {
@@ -3152,6 +3162,7 @@ mod tests {
             assert!(range.contains(MAX_NANO_TIME));
             assert!(!range.contains(i64::MAX));
             assert!(range.contains_all());
+            assert!(range.contains_nearly_all());
         }
     }
 
@@ -3167,6 +3178,21 @@ mod tests {
         assert!(!range.contains(MAX_NANO_TIME));
         assert!(!range.contains(i64::MAX));
         assert!(!range.contains_all());
+        assert!(!range.contains_nearly_all());
+    }
+
+    #[test]
+    fn test_timestamp_i64_min_max_offset_max() {
+        let range = TimestampRange::new(MIN_NANO_TIME, MAX_NANO_TIME);
+
+        assert!(!range.contains(i64::MIN));
+        assert!(range.contains(MIN_NANO_TIME));
+        assert!(range.contains(MIN_NANO_TIME + 1));
+        assert!(range.contains(MAX_NANO_TIME - 1));
+        assert!(!range.contains(MAX_NANO_TIME));
+        assert!(!range.contains(i64::MAX));
+        assert!(!range.contains_all());
+        assert!(range.contains_nearly_all());
     }
 
     #[test]
