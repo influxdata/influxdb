@@ -10,6 +10,7 @@ use iox_catalog::interface::{get_schema_by_id, Catalog};
 use iox_query::exec::Executor;
 use iox_time::TimeProvider;
 use metric::{Attributes, DurationHistogram, Metric, U64Counter, U64Gauge};
+use observability_deps::tracing::debug;
 use parquet_file::storage::ParquetStorage;
 use schema::sort::SortKey;
 use snafu::{OptionExt, ResultExt, Snafu};
@@ -254,6 +255,12 @@ impl Compactor {
                     })?;
 
                 if !partitions.is_empty() {
+                    debug!(
+                        sequencer_id = sequencer_id.get(),
+                        num_hours,
+                        n = partitions.len(),
+                        "found high-throughput partitions"
+                    );
                     num_partitions = partitions.len();
                     candidates.append(&mut partitions);
                     break;
@@ -263,6 +270,11 @@ impl Compactor {
             // No active ingesting partitions the last 24 hours,
             // get partition with the most level-0 files
             if num_partitions == 0 {
+                debug!(
+                    sequencer_id = sequencer_id.get(),
+                    "no active ingesting partitions",
+                );
+
                 let mut partitions = repos
                     .parquet_files()
                     .most_level_0_files_partitions(*sequencer_id, max_num_partitions_per_sequencer)
@@ -278,6 +290,11 @@ impl Compactor {
             }
 
             // Record metric for candidates per sequencer
+            debug!(
+                sequencer_id = sequencer_id.get(),
+                n = num_partitions,
+                "compaction candidates",
+            );
             let number_gauge = self.compaction_candidate_gauge.recorder(attributes.clone());
             number_gauge.set(num_partitions as u64);
         }

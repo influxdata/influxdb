@@ -242,6 +242,8 @@ const PAUSE_BETWEEN_NO_WORK: Duration = Duration::from_secs(1);
 /// next top partitions to compact.
 async fn run_compactor(compactor: Arc<Compactor>, shutdown: CancellationToken) {
     while !shutdown.is_cancelled() {
+        debug!("compactor main loop tick.");
+
         // Select partition candidates
         let start_time = compactor.time_provider.now();
         let candidates = Backoff::new(&compactor.backoff_config)
@@ -289,6 +291,7 @@ async fn run_compactor(compactor: Arc<Compactor>, shutdown: CancellationToken) {
 
         let n_candidates = candidates.len();
         if n_candidates == 0 {
+            debug!("no compaction candidates found");
             // sleep for a second to avoid a hot busy loop when the
             // catalog is polled
             tokio::time::sleep(PAUSE_BETWEEN_NO_WORK).await
