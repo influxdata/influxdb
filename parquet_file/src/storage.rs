@@ -382,7 +382,7 @@ fn project_for_parquet_reader(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use arrow::array::{ArrayRef, Int64Builder, StringBuilder};
+    use arrow::array::{ArrayRef, Int64Array, StringArray};
     use data_types::{
         CompactionLevel, NamespaceId, PartitionId, SequenceNumber, SequencerId, TableId,
     };
@@ -723,19 +723,13 @@ mod tests {
     }
 
     fn to_string_array(strs: &[&str]) -> ArrayRef {
-        let mut builder = StringBuilder::new(strs.len());
-        for s in strs {
-            builder.append_value(s).expect("appending string");
-        }
-        Arc::new(builder.finish())
+        let array: StringArray = strs.iter().map(|s| Some(*s)).collect();
+        Arc::new(array)
     }
 
     fn to_int_array(vals: &[i64]) -> ArrayRef {
-        let mut builder = Int64Builder::new(vals.len());
-        for x in vals {
-            builder.append_value(*x).expect("appending string");
-        }
-        Arc::new(builder.finish())
+        let array: Int64Array = vals.iter().map(|v| Some(*v)).collect();
+        Arc::new(array)
     }
 
     fn meta() -> IoxMetadata {

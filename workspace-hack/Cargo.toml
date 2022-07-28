@@ -14,7 +14,7 @@ publish = false
 ### BEGIN HAKARI SECTION
 [dependencies]
 ahash = { version = "0.7", features = ["std"] }
-arrow = { version = "18", features = ["comfy-table", "csv", "csv_crate", "flatbuffers", "ipc", "prettyprint", "rand", "test_utils"] }
+arrow = { version = "19", features = ["comfy-table", "csv", "csv_crate", "flatbuffers", "ipc", "prettyprint", "rand", "test_utils"] }
 base64 = { version = "0.13", features = ["std"] }
 bitflags = { version = "1" }
 byteorder = { version = "1", features = ["std"] }
@@ -44,7 +44,7 @@ num-integer = { version = "0.1", default-features = false, features = ["i128", "
 num-traits = { version = "0.2", features = ["i128", "libm", "std"] }
 object_store = { git = "https://github.com/influxdata/object_store_rs", rev = "3c51870ac41a90942c2e45bb499a893d514ed1da", default-features = false, features = ["aws", "azure", "azure_core", "azure_storage", "azure_storage_blobs", "base64", "gcp", "hyper", "hyper-rustls", "reqwest", "rusoto_core", "rusoto_credential", "rusoto_s3", "rusoto_sts", "rustls-pemfile", "serde", "serde_json"] }
 once_cell = { version = "1", features = ["alloc", "parking_lot", "parking_lot_core", "race", "std"] }
-parquet = { version = "18", features = ["arrow", "async", "base64", "brotli", "experimental", "flate2", "futures", "lz4", "snap", "tokio", "zstd"] }
+parquet = { version = "19", features = ["arrow", "async", "base64", "brotli", "experimental", "flate2", "futures", "lz4", "snap", "tokio", "zstd"] }
 predicates = { version = "2", features = ["diff", "difflib", "float-cmp", "normalize-line-endings", "regex"] }
 prost = { version = "0.10", features = ["prost-derive", "std"] }
 prost-types = { version = "0.10", features = ["std"] }
@@ -55,7 +55,7 @@ regex-syntax = { version = "0.6", features = ["unicode", "unicode-age", "unicode
 reqwest = { version = "0.11", default-features = false, features = ["__rustls", "__tls", "hyper-rustls", "json", "rustls", "rustls-pemfile", "rustls-tls", "rustls-tls-webpki-roots", "serde_json", "stream", "tokio-rustls", "tokio-util", "webpki-roots"] }
 ring = { version = "0.16", features = ["alloc", "dev_urandom_fallback", "once_cell", "std"] }
 serde = { version = "1", features = ["derive", "rc", "serde_derive", "std"] }
-serde_json = { version = "1", features = ["indexmap", "preserve_order", "raw_value", "std"] }
+serde_json = { version = "1", features = ["raw_value", "std"] }
 sha2 = { version = "0.10", features = ["std"] }
 smallvec = { version = "1", default-features = false, features = ["union"] }
 sqlx = { version = "0.6", features = ["_rt-tokio", "json", "macros", "migrate", "postgres", "runtime-tokio-rustls", "sqlx-macros", "tls", "uuid"] }
@@ -111,7 +111,7 @@ regex-syntax = { version = "0.6", features = ["unicode", "unicode-age", "unicode
 ring = { version = "0.16", features = ["alloc", "dev_urandom_fallback", "once_cell", "std"] }
 serde = { version = "1", features = ["derive", "rc", "serde_derive", "std"] }
 serde_derive = { version = "1" }
-serde_json = { version = "1", features = ["indexmap", "preserve_order", "raw_value", "std"] }
+serde_json = { version = "1", features = ["raw_value", "std"] }
 sha2 = { version = "0.10", features = ["std"] }
 smallvec = { version = "1", default-features = false, features = ["union"] }
 sqlx-core = { version = "0.6", default-features = false, features = ["_rt-tokio", "_tls-rustls", "any", "base64", "crc", "dirs", "hkdf", "hmac", "json", "md-5", "migrate", "postgres", "rand", "runtime-tokio-rustls", "rustls", "rustls-pemfile", "serde", "serde_json", "sha-1", "sha2", "tokio-stream", "uuid", "webpki-roots", "whoami"] }

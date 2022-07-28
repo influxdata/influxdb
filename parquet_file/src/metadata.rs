@@ -959,7 +959,7 @@ fn extract_iox_statistics(
 mod tests {
     use super::*;
     use arrow::{
-        array::{ArrayRef, StringBuilder, TimestampNanosecondBuilder},
+        array::{ArrayRef, StringArray, TimestampNanosecondArray},
         record_batch::RecordBatch,
     };
     use data_types::CompactionLevel;
@@ -1010,9 +1010,8 @@ mod tests {
             sort_key: None,
         };
 
-        let mut builder = StringBuilder::new(1);
-        builder.append_value("bananas").expect("appending string");
-        let data: ArrayRef = Arc::new(builder.finish());
+        let array = StringArray::from_iter([Some("bananas")]);
+        let data: ArrayRef = Arc::new(array);
 
         let timestamps = to_timestamp_array(&[1647695292000000000]);
 
@@ -1077,10 +1076,7 @@ mod tests {
     }
 
     fn to_timestamp_array(timestamps: &[i64]) -> ArrayRef {
-        let mut builder = TimestampNanosecondBuilder::new(timestamps.len());
-        builder
-            .append_slice(timestamps)
-            .expect("failed to append timestamp values");
-        Arc::new(builder.finish())
+        let array: TimestampNanosecondArray = timestamps.iter().map(|v| Some(*v)).collect();
+        Arc::new(array)
     }
 }

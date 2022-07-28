@@ -7,7 +7,7 @@ description = "Apache Arrow utilities"
 
 [dependencies]
 ahash = { version = "0.7.5", default-features = false }
-arrow = { version = "18.0.0", features = ["prettyprint"] }
+arrow = { version = "19.0.0", features = ["prettyprint"] }
 # used by arrow anyway (needed for printing workaround)
 chrono = { version = "0.4", default-features = false }
 comfy-table = { version = "6.0", default-features = false }
@@ -18,5 +18,5 @@ snafu = "0.7"
 workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]
-arrow-flight = "18.0.0"
+arrow-flight = "19.0.0"
 rand = "0.8.3"

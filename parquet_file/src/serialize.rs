@@ -160,7 +160,7 @@ fn writer_props(meta: &IoxMetadata) -> Result<WriterProperties, prost::EncodeErr
 mod tests {
     use super::*;
     use crate::metadata::IoxParquetMetaData;
-    use arrow::array::{ArrayRef, StringBuilder};
+    use arrow::array::{ArrayRef, StringArray};
     use bytes::Bytes;
     use data_types::{
         CompactionLevel, NamespaceId, PartitionId, SequenceNumber, SequencerId, TableId,
@@ -227,10 +227,7 @@ mod tests {
     }
 
     fn to_string_array(strs: &[&str]) -> ArrayRef {
-        let mut builder = StringBuilder::new(strs.len());
-        for s in strs {
-            builder.append_value(s).expect("appending string");
-        }
-        Arc::new(builder.finish())
+        let array: StringArray = strs.iter().map(|s| Some(*s)).collect();
+        Arc::new(array)
     }
 }

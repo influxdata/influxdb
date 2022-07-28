@@ -1,7 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use arrow::{
-    array::{ArrayRef, StringBuilder, TimestampNanosecondBuilder},
+    array::{ArrayRef, StringArray, TimestampNanosecondArray},
     record_batch::RecordBatch,
 };
 use data_types::{
@@ -31,7 +31,7 @@ async fn test_decoded_iox_metadata() {
             "some_field",
             to_string_array(&["bananas", "platanos", "manzana"]),
         ),
-        ("null_field", null_array(3)),
+        ("null_field", null_string_array(3)),
     ];
 
     // And the metadata the batch would be encoded with if it came through the
@@ -181,7 +181,7 @@ async fn test_decoded_many_columns_with_null_cols_iox_metadata() {
     // First column is time
     data.push((TIME_COLUMN_NAME.to_string(), to_timestamp_array(&time_arr)));
     // Second column contains all nulls
-    data.push(("column_name_1".to_string(), null_array(num_rows)));
+    data.push(("column_name_1".to_string(), null_string_array(num_rows)));
     // Names of other columns
     fn make_col_name(i: usize) -> String {
         "column_name_".to_string() + i.to_string().as_str()
@@ -345,25 +345,16 @@ async fn test_derive_parquet_file_params() {
 }
 
 fn to_string_array(strs: &[&str]) -> ArrayRef {
-    let mut builder = StringBuilder::new(strs.len());
-    for s in strs {
-        builder.append_value(s).expect("appending string");
-    }
-    Arc::new(builder.finish())
+    let array: StringArray = strs.iter().map(|s| Some(*s)).collect();
+    Arc::new(array)
 }
 
 fn to_timestamp_array(timestamps: &[i64]) -> ArrayRef {
-    let mut builder = TimestampNanosecondBuilder::new(timestamps.len());
-    builder
-        .append_slice(timestamps)
-        .expect("failed to append timestamp values");
-    Arc::new(builder.finish())
+    let array: TimestampNanosecondArray = timestamps.iter().map(|v| Some(*v)).collect();
+    Arc::new(array)
 }
 
-fn null_array(num: usize) -> ArrayRef {
-    let mut builder = StringBuilder::new(num);
-    for _i in 0..num {
-        builder.append_null().expect("failed to append null values");
-    }
-    Arc::new(builder.finish())
+fn null_string_array(num: usize) -> ArrayRef {
+    let array: StringArray = std::iter::repeat(None as Option<&str>).take(num).collect();
+    Arc::new(array)
 }

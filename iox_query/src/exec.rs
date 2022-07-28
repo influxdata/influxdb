@@ -265,7 +265,7 @@ pub trait ExecutionContextProvider {
 #[cfg(test)]
 mod tests {
     use arrow::{
-        array::{ArrayRef, Int64Array, StringBuilder},
+        array::{ArrayRef, Int64Array, StringArray},
         datatypes::{DataType, Field, Schema, SchemaRef},
     };
     use datafusion::{
@@ -379,10 +379,8 @@ mod tests {
         // Ensure that nulls in the output set are handled reasonably
         // (error, rather than silently ignored)
         let schema = Arc::new(Schema::new(vec![Field::new("a", DataType::Utf8, true)]));
-        let mut builder = StringBuilder::new(2);
-        builder.append_value("foo").unwrap();
-        builder.append_null().unwrap();
-        let data = Arc::new(builder.finish());
+        let array = StringArray::from_iter(vec![Some("foo"), None]);
+        let data = Arc::new(array);
         let batch = RecordBatch::try_new(Arc::clone(&schema), vec![data])
             .expect("created new record batch");
         let scan = make_plan(schema, vec![batch]);
@@ -465,11 +463,8 @@ mod tests {
     }
 
     fn to_string_array(strs: &[&str]) -> ArrayRef {
-        let mut builder = StringBuilder::new(strs.len());
-        for s in strs {
-            builder.append_value(s).expect("appending string");
-        }
-        Arc::new(builder.finish())
+        let array: StringArray = strs.iter().map(|s| Some(*s)).collect();
+        Arc::new(array)
     }
 
     // creates a DataFusion plan that reads the RecordBatches into memory

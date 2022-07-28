@@ -401,7 +401,7 @@ mod tests {
     #[test]
     fn test_deep_clone_array() {
         let mut builder = UInt32Array::builder(1000);
-        builder.append_slice(&[1, 2, 3, 4, 5, 6]).unwrap();
+        builder.append_slice(&[1, 2, 3, 4, 5, 6]);
         let array: ArrayRef = Arc::new(builder.finish());
         assert_eq!(array.len(), 6);
 
