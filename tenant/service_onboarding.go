@@ -16,7 +16,6 @@ import (
 type OnboardService struct {
 	service     *Service
 	authSvc     influxdb.AuthorizationService
-	instanceSvc influxdb.InstanceService
 	alwaysAllow bool
 	log         *zap.Logger
 }
@@ -38,12 +37,11 @@ func WithOnboardingLogger(logger *zap.Logger) OnboardServiceOptionFn {
 	}
 }
 
-func NewOnboardService(svc *Service, as influxdb.AuthorizationService, is influxdb.InstanceService, opts ...OnboardServiceOptionFn) influxdb.OnboardingService {
+func NewOnboardService(svc *Service, as influxdb.AuthorizationService, opts ...OnboardServiceOptionFn) influxdb.OnboardingService {
 	s := &OnboardService{
-		service:     svc,
-		authSvc:     as,
-		instanceSvc: is,
-		log:         zap.NewNop(),
+		service: svc,
+		authSvc: as,
+		log:     zap.NewNop(),
 	}
 
 	for _, opt := range opts {
@@ -114,11 +112,6 @@ func (s *OnboardService) onboardUser(ctx context.Context, req *influxdb.Onboardi
 
 	result := &influxdb.OnboardingResults{}
 
-	instance, err := s.instanceSvc.CreateInstance(ctx)
-	if err != nil {
-		return nil, err
-	}
-
 	// create a user
 	user := &influxdb.User{
 		Name:   req.User,
@@ -164,7 +157,7 @@ func (s *OnboardService) onboardUser(ctx context.Context, req *influxdb.Onboardi
 		UserType:     influxdb.Owner,
 		MappingType:  influxdb.UserMappingType,
 		ResourceType: influxdb.InstanceResourceType,
-		ResourceID:   instance.ID,
+		ResourceID:   platform.ID(1), // The instance doesn't have a resourceid
 	}); err != nil {
 		return nil, err
 	}
