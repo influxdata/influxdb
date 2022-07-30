@@ -171,7 +171,6 @@ pub(crate) async fn compact_parquet_files(
 
     let (small_cutoff_bytes, large_cutoff_bytes) =
         cutoff_bytes(max_desired_file_size_bytes, percentage_max_file_size);
-    dbg!(&small_cutoff_bytes, &large_cutoff_bytes, &total_size);
 
     let ctx = exec.new_context(ExecutorType::Reorg);
     let plan = if total_size <= small_cutoff_bytes {
