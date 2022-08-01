@@ -15,7 +15,7 @@ query_functions = { path = "../query_functions"}
 schema = { path = "../schema" }
 serde_json = "1.0.82"
 snafu = "0.7"
-sqlparser = "0.18.0"
+sqlparser = "0.19.0"
 workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]
