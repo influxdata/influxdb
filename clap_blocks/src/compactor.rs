@@ -74,7 +74,8 @@ pub struct CompactorConfig {
     /// of the available memory to ensure compactions have
     /// enough space to run.
     /// Default is 1,073,741,824 bytes (1GB).
-    /// TODO: This is not used yet but will soon
+    /// The number of compact_partititons run in parallel is determined by:
+    ///    max_concurrent_size_bytes/input_size_threshold_bytes
     #[clap(
         long = "--compaction-concurrent-size-bytes",
         env = "INFLUXDB_IOX_COMPACTION_CONCURRENT_SIZE_BYTES",
