@@ -183,6 +183,7 @@ impl From<Arc<RBChunk>> for ChunkStage {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum QuerierChunkLoadSetting {
     /// Only stay in parquet mode and never use read buffer data.
+    #[default]
     ParquetOnly,
 
     /// Only use read buffer data.
@@ -190,12 +191,11 @@ pub enum QuerierChunkLoadSetting {
     /// This forces the querier to load the read buffer for this chunk.
     ReadBufferOnly,
 
-    /// Default "on-demand" handling.
+    /// "On-demand" handling.
     ///
     /// When the chunk is created, it will look up if there is already read buffer data loaded (or loading is already in
     /// progress) and is that. Otherwise it will parquet. If the actual payload is request (via
     /// [`QueryChunk::read_filter`](iox_query::QueryChunk::read_filter)) then it will force-load the read buffer.
-    #[default]
     OnDemand,
 }
 
