@@ -15,6 +15,9 @@ use thiserror::Error;
 
 use crate::metadata::{IoxMetadata, METADATA_KEY};
 
+/// Parquet row group size
+pub const ROW_GROUP_SIZE: usize = 1024 * 1024;
+
 /// [`RecordBatch`] to Parquet serialisation errors.
 #[derive(Debug, Error)]
 pub enum CodecError {
@@ -151,7 +154,8 @@ fn writer_props(meta: &IoxMetadata) -> Result<WriterProperties, prost::EncodeErr
             key: METADATA_KEY.to_string(),
             value: Some(base64::encode(&bytes)),
         }]))
-        .set_compression(Compression::ZSTD);
+        .set_compression(Compression::ZSTD)
+        .set_max_row_group_size(ROW_GROUP_SIZE);
 
     Ok(builder.build())
 }

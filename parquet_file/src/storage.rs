@@ -3,7 +3,7 @@
 
 use crate::{
     metadata::{IoxMetadata, IoxParquetMetaData},
-    serialize::{self, CodecError},
+    serialize::{self, CodecError, ROW_GROUP_SIZE},
     ParquetFilePath,
 };
 use arrow::{
@@ -261,7 +261,6 @@ async fn download_and_scan_parquet(
     };
 
     // Size of each batch
-    let batch_size = 1024; // Todo: make a constant or policy for this
     let file_reader = SerializedFileReader::new(Bytes::from(data))?;
     let mut arrow_reader = ParquetFileArrowReader::new(Arc::new(file_reader));
 
@@ -276,7 +275,7 @@ async fn download_and_scan_parquet(
         };
 
     let mask = ProjectionMask::roots(arrow_reader.parquet_schema(), mask);
-    let record_batch_reader = arrow_reader.get_record_reader_by_columns(mask, batch_size)?;
+    let record_batch_reader = arrow_reader.get_record_reader_by_columns(mask, ROW_GROUP_SIZE)?;
 
     for batch in record_batch_reader {
         let batch = batch.map(|batch| {
