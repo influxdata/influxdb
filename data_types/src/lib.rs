@@ -2111,14 +2111,12 @@ impl TimestampRange {
     ///
     /// Takes an inclusive start and an exclusive end. You may create an empty range by setting `start = end`.
     ///
-    /// Clamps start to [`MIN_NANO_TIME`].
-    /// end is unclamped - end may be set to i64:MAX == MAX_NANO_TIME+1 to indicate no restriction on time.
+    /// Clamps `start` to [`MIN_NANO_TIME`].
+    /// end is unclamped - end may be set to `i64:MAX == MAX_NANO_TIME+1` to indicate no restriction on time.
     ///
-    /// # Panic
-    /// Panics if `start > end`.
+    /// If `start > end`, this will be interpreted as an empty time range and `start` will be set to `end`.
     pub fn new(start: i64, end: i64) -> Self {
-        assert!(end >= start, "start ({start}) > end ({end})");
-        let start = start.max(MIN_NANO_TIME);
+        let start = start.max(MIN_NANO_TIME).min(end);
         let end = end.max(MIN_NANO_TIME);
         Self { start, end }
     }
@@ -3304,8 +3302,9 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "start (2) > end (1)")]
-    fn test_timestamprange_invalid() {
-        TimestampRange::new(2, 1);
+    fn test_timestamprange_start_after_end() {
+        let tr = TimestampRange::new(2, 1);
+        assert_eq!(tr.start(), 1);
+        assert_eq!(tr.end(), 1);
     }
 }
