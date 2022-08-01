@@ -6,7 +6,7 @@ edition = "2021"
 
 [dependencies]
 arrow = { version = "19.0.0", features = ["prettyprint"] }
-async-trait = "0.1.56"
+async-trait = "0.1.57"
 backoff = { path = "../backoff" }
 bytes = "1.2"
 data_types = { path = "../data_types" }

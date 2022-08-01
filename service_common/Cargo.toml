@@ -17,4 +17,4 @@ tracker = { path = "../tracker" }
 workspace-hack = { path = "../workspace-hack"}
 
 # Crates.io dependencies, in alphabetical order
-async-trait = "0.1.56"
+async-trait = "0.1.57"
