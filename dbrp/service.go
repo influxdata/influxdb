@@ -371,7 +371,8 @@ func (s *Service) FindMany(ctx context.Context, filter influxdb.DBRPMappingFilte
 			OrganizationID: filter.OrgID,
 		}, opts...)
 		if err != nil {
-			return ms, len(ms), ErrInternalService(err)
+			// we were unable to find any virtual mappings, so return what physical mappings we have
+			return ms, len(ms), nil
 		}
 	}
 OUTER:
@@ -388,7 +389,7 @@ OUTER:
 		ms = append(ms, bucketToMapping(bucket))
 	}
 
-	return ms, len(ms), err
+	return ms, len(ms), nil
 }
 
 func bucketToMapping(bucket *influxdb.Bucket) *influxdb.DBRPMapping {
@@ -397,7 +398,7 @@ func bucketToMapping(bucket *influxdb.Bucket) *influxdb.DBRPMapping {
 	db, rp := parseDBRP(bucket.Name)
 	return &influxdb.DBRPMapping{
 		ID:              dbrpID,
-		Default:         true,
+		Default:         false,
 		Database:        db,
 		RetentionPolicy: rp,
 		OrganizationID:  bucket.OrgID,
