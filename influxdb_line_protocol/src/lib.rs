@@ -708,7 +708,7 @@ fn field_float_value_with_exponential_no_decimal(i: &str) -> IResult<&str, &str>
 fn exponential_value(i: &str) -> IResult<&str, &str> {
     recognize(separated_pair(
         digit1,
-        tuple((alt((tag("e"), tag("E"))), alt((tag("-"), tag("+"))))),
+        tuple((alt((tag("e"), tag("E"))), opt(alt((tag("-"), tag("+")))))),
         digit1,
     ))(i)
 }
@@ -1495,41 +1495,25 @@ mod test {
         assert_eq!(vals.len(), 1);
         assert_eq!(vals[0].field_value("field"), Some(&FieldValue::F64(-1.0)));
 
-        /////////////////////
-        // Negative tests
-
-        // NO "+" sign
+        // NO "+" sign is accepted by IDPE
         let input = "m0 field=-1.234456e06 1615869152385000000";
-        let parsed = parse(input);
-        assert!(
-            matches!(parsed, Err(super::Error::CannotParseEntireLine { .. })),
-            "Wrong error: {:?}",
-            parsed,
-        );
+        let vals = parse(input).unwrap();
+        assert_eq!(vals.len(), 1);
 
         let input = "m0 field=1.234456e06 1615869152385000000";
-        let parsed = parse(input);
-        assert!(
-            matches!(parsed, Err(super::Error::CannotParseEntireLine { .. })),
-            "Wrong error: {:?}",
-            parsed,
-        );
+        let vals = parse(input).unwrap();
+        assert_eq!(vals.len(), 1);
 
         let input = "m0 field=-1.234456E06 1615869152385000000";
-        let parsed = parse(input);
-        assert!(
-            matches!(parsed, Err(super::Error::CannotParseEntireLine { .. })),
-            "Wrong error: {:?}",
-            parsed,
-        );
+        let vals = parse(input).unwrap();
+        assert_eq!(vals.len(), 1);
 
         let input = "m0 field=1.234456E06 1615869152385000000";
-        let parsed = parse(input);
-        assert!(
-            matches!(parsed, Err(super::Error::CannotParseEntireLine { .. })),
-            "Wrong error: {:?}",
-            parsed,
-        );
+        let vals = parse(input).unwrap();
+        assert_eq!(vals.len(), 1);
+
+        /////////////////////
+        // Negative tests
 
         // No digits after e
         let input = "m0 field=-1.234456e 1615869152385000000";
