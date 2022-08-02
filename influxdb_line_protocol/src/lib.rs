@@ -702,7 +702,7 @@ fn field_float_value_with_exponential_and_decimal(i: &str) -> IResult<&str, &str
 }
 
 fn field_float_value_with_exponential_no_decimal(i: &str) -> IResult<&str, &str> {
-    exponential_value(i)
+    recognize(preceded(opt(tag("-")), exponential_value))(i)
 }
 
 fn exponential_value(i: &str) -> IResult<&str, &str> {
@@ -1484,6 +1484,16 @@ mod test {
         let input = "m0 field=1.234456e-0";
         let vals = parse(input).unwrap();
         assert_eq!(vals.len(), 1);
+
+        let input = "m0 field=1e-0";
+        let vals = parse(input).unwrap();
+        assert_eq!(vals.len(), 1);
+        assert_eq!(vals[0].field_value("field"), Some(&FieldValue::F64(1.0)));
+
+        let input = "m0 field=-1e-0";
+        let vals = parse(input).unwrap();
+        assert_eq!(vals.len(), 1);
+        assert_eq!(vals[0].field_value("field"), Some(&FieldValue::F64(-1.0)));
 
         /////////////////////
         // Negative tests
