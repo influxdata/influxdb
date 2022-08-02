@@ -1,4 +1,5 @@
 //! Backend that supports custom removal / expiry of keys
+use metric::U64Counter;
 use parking_lot::Mutex;
 use std::{any::Any, fmt::Debug, hash::Hash, sync::Arc};
 
@@ -16,6 +17,7 @@ where
     V: Clone + Debug + Send + 'static,
 {
     inner_backend: Arc<Mutex<Box<dyn CacheBackend<K = K, V = V>>>>,
+    metric_removed_by_predicate: U64Counter,
 }
 
 impl<K, V> SharedBackend<K, V>
@@ -24,9 +26,21 @@ where
     V: Clone + Debug + Send + 'static,
 {
     /// Create new backend around the inner backend
-    pub fn new(inner_backend: Box<dyn CacheBackend<K = K, V = V>>) -> Self {
+    pub fn new(
+        inner_backend: Box<dyn CacheBackend<K = K, V = V>>,
+        name: &'static str,
+        metric_registry: &metric::Registry,
+    ) -> Self {
+        let metric_removed_by_predicate = metric_registry
+            .register_metric::<U64Counter>(
+                "cache_removed_by_custom_condition",
+                "Number of entries removed from a cache via a custom condition",
+            )
+            .recorder(&[("name", name)]);
+
         Self {
             inner_backend: Arc::new(Mutex::new(inner_backend)),
+            metric_removed_by_predicate,
         }
     }
 
@@ -43,6 +57,7 @@ where
         let mut inner_backend = self.inner_backend.lock();
         if let Some(v) = inner_backend.get(k) {
             if predicate(v) {
+                self.metric_removed_by_predicate.inc(1);
                 inner_backend.remove(k);
                 return true;
             }
@@ -84,16 +99,23 @@ where
 mod tests {
     use std::collections::HashMap;
 
+    use metric::{Observation, RawReporter};
+
     use super::*;
 
     #[test]
     fn test_generic() {
-        crate::backend::test_util::test_generic(|| SharedBackend::new(test_backend()))
+        let metric_registry = metric::Registry::new();
+
+        crate::backend::test_util::test_generic(|| {
+            SharedBackend::new(test_backend(), "my_cache", &metric_registry)
+        })
     }
 
     #[test]
     fn test_is_shared() {
-        let mut backend1 = SharedBackend::new(test_backend());
+        let metric_registry = metric::Registry::new();
+        let mut backend1 = SharedBackend::new(test_backend(), "my_cache", &metric_registry);
         let mut backend2 = backend1.clone();
 
         // test that a shared backend is really shared
@@ -119,26 +141,33 @@ mod tests {
 
     #[test]
     fn test_remove_if() {
-        let mut backend = SharedBackend::new(test_backend());
+        let metric_registry = metric::Registry::new();
+        let mut backend = SharedBackend::new(test_backend(), "my_cache", &metric_registry);
         backend.set(1, "foo".into());
         backend.set(2, "bar".into());
+
+        assert_eq!(get_removed_metric(&metric_registry), 0);
 
         backend.remove_if(&1, |v| v == "zzz");
         assert_eq!(backend.get(&1), Some("foo".into()));
         assert_eq!(backend.get(&2), Some("bar".into()));
+        assert_eq!(get_removed_metric(&metric_registry), 0);
 
         backend.remove_if(&1, |v| v == "foo");
         assert_eq!(backend.get(&1), None);
         assert_eq!(backend.get(&2), Some("bar".into()));
+        assert_eq!(get_removed_metric(&metric_registry), 1);
 
         backend.remove_if(&1, |v| v == "bar");
         assert_eq!(backend.get(&1), None);
         assert_eq!(backend.get(&2), Some("bar".into()));
+        assert_eq!(get_removed_metric(&metric_registry), 1);
     }
 
     #[test]
     fn test_remove_if_shared() {
-        let mut backend = SharedBackend::new(test_backend());
+        let metric_registry = metric::Registry::new();
+        let mut backend = SharedBackend::new(test_backend(), "my_cache", &metric_registry);
         backend.set(1, "foo".into());
         backend.set(2, "bar".into());
 
@@ -152,5 +181,21 @@ mod tests {
 
     fn test_backend() -> Box<dyn CacheBackend<K = u8, V = String>> {
         Box::new(HashMap::new())
+    }
+
+    fn get_removed_metric(metric_registry: &metric::Registry) -> u64 {
+        let mut reporter = RawReporter::default();
+        metric_registry.report(&mut reporter);
+        let observation = reporter
+            .metric("cache_removed_by_custom_condition")
+            .unwrap()
+            .observation(&[("name", "my_cache")])
+            .unwrap();
+
+        if let Observation::U64Counter(c) = observation {
+            *c
+        } else {
+            panic!("Wrong observation type")
+        }
     }
 }

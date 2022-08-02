@@ -109,7 +109,7 @@ impl ReadBufferCache {
         ));
 
         // get a direct handle so we can clear out entries as needed
-        let _backend = SharedBackend::new(backend);
+        let _backend = SharedBackend::new(backend, CACHE_ID, &metric_registry);
 
         let cache = Box::new(CacheDriver::new(loader, Box::new(_backend.clone())));
         let cache = Box::new(CacheWithMetrics::new(

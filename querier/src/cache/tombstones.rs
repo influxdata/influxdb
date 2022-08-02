@@ -136,7 +136,7 @@ impl TombstoneCache {
             )),
         ));
 
-        let backend = SharedBackend::new(backend);
+        let backend = SharedBackend::new(backend, CACHE_ID, metric_registry);
 
         let cache = Box::new(CacheDriver::new(loader, Box::new(backend.clone())));
         let cache = Box::new(CacheWithMetrics::new(
