@@ -80,6 +80,8 @@ impl TableCache {
             Box::new(HashMap::new()),
             Arc::new(OptionalValueTtlProvider::new(Some(TTL_NON_EXISTING), None)),
             Arc::clone(&time_provider),
+            CACHE_ID,
+            metric_registry,
         ));
 
         // add to memory pool

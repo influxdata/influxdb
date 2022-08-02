@@ -84,6 +84,8 @@ impl ProcessedTombstonesCache {
             backend,
             Arc::new(KeepExistsForever {}),
             Arc::clone(&time_provider),
+            CACHE_ID,
+            metric_registry,
         ));
         let backend = Box::new(LruBackend::new(
             backend,

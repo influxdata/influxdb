@@ -107,6 +107,8 @@ impl NamespaceCache {
                 Some(TTL_EXISTING),
             )),
             Arc::clone(&time_provider),
+            CACHE_ID,
+            metric_registry,
         ));
 
         // add to memory pool

@@ -2,6 +2,7 @@
 use std::{any::Any, fmt::Debug, hash::Hash, marker::PhantomData, sync::Arc, time::Duration};
 
 use iox_time::{Time, TimeProvider};
+use metric::U64Counter;
 
 use super::{addressable_heap::AddressableHeap, CacheBackend};
 
@@ -119,6 +120,7 @@ where
     ttl_provider: Arc<dyn TtlProvider<K = K, V = V>>,
     time_provider: Arc<dyn TimeProvider>,
     expiration: AddressableHeap<K, (), Time>,
+    metric_expired: U64Counter,
 }
 
 impl<K, V> TtlBackend<K, V>
@@ -136,14 +138,24 @@ where
         inner_backend: Box<dyn CacheBackend<K = K, V = V>>,
         ttl_provider: Arc<dyn TtlProvider<K = K, V = V>>,
         time_provider: Arc<dyn TimeProvider>,
+        name: &'static str,
+        metric_registry: &metric::Registry,
     ) -> Self {
         assert!(inner_backend.is_empty(), "inner backend is not empty");
+
+        let metric_expired = metric_registry
+            .register_metric::<U64Counter>(
+                "cache_ttl_expired",
+                "Number of entries that expired via TTL.",
+            )
+            .recorder(&[("name", name)]);
 
         Self {
             inner_backend,
             ttl_provider,
             time_provider,
             expiration: Default::default(),
+            metric_expired,
         }
     }
 
@@ -155,6 +167,7 @@ where
             .unwrap_or_default()
         {
             let (k, _, _t) = self.expiration.pop().unwrap();
+            self.metric_expired.inc(1);
             self.inner_backend.remove(&k);
         }
     }
@@ -237,6 +250,7 @@ mod tests {
     use std::{collections::HashMap, time::Duration};
 
     use iox_time::MockProvider;
+    use metric::{Observation, RawReporter};
     use parking_lot::Mutex;
 
     use super::*;
@@ -260,23 +274,33 @@ mod tests {
     fn test_expires_single() {
         let ttl_provider = Arc::new(TestTtlProvider::new());
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
+        let metric_registry = metric::Registry::new();
         let mut backend = TtlBackend::new(
             Box::new(HashMap::<u8, String>::new()),
             Arc::clone(&ttl_provider) as _,
             Arc::clone(&time_provider) as _,
+            "my_cache",
+            &metric_registry,
         );
+
+        assert_eq!(get_expired_metric(&metric_registry), 0);
 
         ttl_provider.set_expires_in(1, String::from("a"), Some(Duration::from_secs(1)));
         backend.set(1, String::from("a"));
         assert_eq!(backend.get(&1), Some(String::from("a")));
 
+        assert_eq!(get_expired_metric(&metric_registry), 0);
+
         time_provider.inc(Duration::from_secs(1));
         assert_eq!(backend.get(&1), None);
+
+        assert_eq!(get_expired_metric(&metric_registry), 1);
     }
 
     #[test]
     fn test_overflow_expire() {
         let ttl_provider = Arc::new(TestTtlProvider::new());
+        let metric_registry = metric::Registry::new();
 
         // init time provider at MAX!
         let time_provider = Arc::new(MockProvider::new(Time::MAX));
@@ -284,6 +308,8 @@ mod tests {
             Box::new(HashMap::<u8, String>::new()),
             Arc::clone(&ttl_provider) as _,
             Arc::clone(&time_provider) as _,
+            "my_cache",
+            &metric_registry,
         );
 
         ttl_provider.set_expires_in(1, String::from("a"), Some(Duration::MAX));
@@ -295,10 +321,13 @@ mod tests {
     fn test_never_expire() {
         let ttl_provider = Arc::new(TestTtlProvider::new());
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
+        let metric_registry = metric::Registry::new();
         let mut backend = TtlBackend::new(
             Box::new(HashMap::<u8, String>::new()),
             Arc::clone(&ttl_provider) as _,
             Arc::clone(&time_provider) as _,
+            "my_cache",
+            &metric_registry,
         );
 
         ttl_provider.set_expires_in(1, String::from("a"), None);
@@ -313,10 +342,13 @@ mod tests {
     fn test_expiration_uses_key_and_value() {
         let ttl_provider = Arc::new(TestTtlProvider::new());
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
+        let metric_registry = metric::Registry::new();
         let mut backend = TtlBackend::new(
             Box::new(HashMap::<u8, String>::new()),
             Arc::clone(&ttl_provider) as _,
             Arc::clone(&time_provider) as _,
+            "my_cache",
+            &metric_registry,
         );
 
         ttl_provider.set_expires_in(1, String::from("a"), Some(Duration::from_secs(1)));
@@ -332,10 +364,13 @@ mod tests {
     fn test_override_with_different_expiration() {
         let ttl_provider = Arc::new(TestTtlProvider::new());
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
+        let metric_registry = metric::Registry::new();
         let mut backend = TtlBackend::new(
             Box::new(HashMap::<u8, String>::new()),
             Arc::clone(&ttl_provider) as _,
             Arc::clone(&time_provider) as _,
+            "my_cache",
+            &metric_registry,
         );
 
         ttl_provider.set_expires_in(1, String::from("a"), Some(Duration::from_secs(1)));
@@ -353,10 +388,13 @@ mod tests {
     fn test_override_with_no_expiration() {
         let ttl_provider = Arc::new(TestTtlProvider::new());
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
+        let metric_registry = metric::Registry::new();
         let mut backend = TtlBackend::new(
             Box::new(HashMap::<u8, String>::new()),
             Arc::clone(&ttl_provider) as _,
             Arc::clone(&time_provider) as _,
+            "my_cache",
+            &metric_registry,
         );
 
         ttl_provider.set_expires_in(1, String::from("a"), Some(Duration::from_secs(1)));
@@ -373,6 +411,7 @@ mod tests {
     #[test]
     fn test_override_with_overflow() {
         let ttl_provider = Arc::new(TestTtlProvider::new());
+        let metric_registry = metric::Registry::new();
 
         // init time provider at nearly MAX!
         let time_provider = Arc::new(MockProvider::new(Time::MAX - Duration::from_secs(2)));
@@ -380,6 +419,8 @@ mod tests {
             Box::new(HashMap::<u8, String>::new()),
             Arc::clone(&ttl_provider) as _,
             Arc::clone(&time_provider) as _,
+            "my_cache",
+            &metric_registry,
         );
 
         ttl_provider.set_expires_in(1, String::from("a"), Some(Duration::from_secs(1)));
@@ -397,10 +438,13 @@ mod tests {
     fn test_readd_with_different_expiration() {
         let ttl_provider = Arc::new(TestTtlProvider::new());
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
+        let metric_registry = metric::Registry::new();
         let mut backend = TtlBackend::new(
             Box::new(HashMap::<u8, String>::new()),
             Arc::clone(&ttl_provider) as _,
             Arc::clone(&time_provider) as _,
+            "my_cache",
+            &metric_registry,
         );
 
         ttl_provider.set_expires_in(1, String::from("a"), Some(Duration::from_secs(1)));
@@ -419,10 +463,13 @@ mod tests {
     fn test_readd_with_no_expiration() {
         let ttl_provider = Arc::new(TestTtlProvider::new());
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
+        let metric_registry = metric::Registry::new();
         let mut backend = TtlBackend::new(
             Box::new(HashMap::<u8, String>::new()),
             Arc::clone(&ttl_provider) as _,
             Arc::clone(&time_provider) as _,
+            "my_cache",
+            &metric_registry,
         );
 
         ttl_provider.set_expires_in(1, String::from("a"), Some(Duration::from_secs(1)));
@@ -441,10 +488,13 @@ mod tests {
     fn test_update_cleans_multiple_keys() {
         let ttl_provider = Arc::new(TestTtlProvider::new());
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
+        let metric_registry = metric::Registry::new();
         let mut backend = TtlBackend::new(
             Box::new(HashMap::<u8, String>::new()),
             Arc::clone(&ttl_provider) as _,
             Arc::clone(&time_provider) as _,
+            "my_cache",
+            &metric_registry,
         );
 
         ttl_provider.set_expires_in(1, String::from("a"), Some(Duration::from_secs(1)));
@@ -480,10 +530,13 @@ mod tests {
     fn test_remove_expired_key() {
         let ttl_provider = Arc::new(TestTtlProvider::new());
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
+        let metric_registry = metric::Registry::new();
         let mut backend = TtlBackend::new(
             Box::new(HashMap::<u8, String>::new()),
             Arc::clone(&ttl_provider) as _,
             Arc::clone(&time_provider) as _,
+            "my_cache",
+            &metric_registry,
         );
 
         ttl_provider.set_expires_in(1, String::from("a"), Some(Duration::from_secs(1)));
@@ -499,10 +552,13 @@ mod tests {
     fn test_expire_removed_key() {
         let ttl_provider = Arc::new(TestTtlProvider::new());
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
+        let metric_registry = metric::Registry::new();
         let mut backend = TtlBackend::new(
             Box::new(HashMap::<u8, String>::new()),
             Arc::clone(&ttl_provider) as _,
             Arc::clone(&time_provider) as _,
+            "my_cache",
+            &metric_registry,
         );
 
         ttl_provider.set_expires_in(1, String::from("a"), Some(Duration::from_secs(1)));
@@ -520,10 +576,13 @@ mod tests {
     fn test_expire_immediately() {
         let ttl_provider = Arc::new(TestTtlProvider::new());
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
+        let metric_registry = metric::Registry::new();
         let mut backend = TtlBackend::new(
             Box::new(HashMap::<u8, String>::new()),
             Arc::clone(&ttl_provider) as _,
             Arc::clone(&time_provider) as _,
+            "my_cache",
+            &metric_registry,
         );
 
         ttl_provider.set_expires_in(1, String::from("a"), Some(Duration::from_secs(0)));
@@ -544,10 +603,13 @@ mod tests {
     fn test_panic_inner_not_empty() {
         let ttl_provider = Arc::new(TestTtlProvider::new());
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
+        let metric_registry = metric::Registry::new();
         TtlBackend::new(
             Box::new(HashMap::<u8, String>::from([(1, String::from("a"))])),
             Arc::clone(&ttl_provider) as _,
             Arc::clone(&time_provider) as _,
+            "my_cache",
+            &metric_registry,
         );
     }
 
@@ -558,10 +620,13 @@ mod tests {
         test_generic(|| {
             let ttl_provider = Arc::new(NeverTtlProvider::default());
             let time_provider = Arc::new(MockProvider::new(Time::MIN));
+            let metric_registry = metric::Registry::new();
             TtlBackend::new(
                 Box::new(HashMap::<u8, String>::new()),
                 ttl_provider,
                 time_provider,
+                "my_cache",
+                &metric_registry,
             )
         });
     }
@@ -593,6 +658,22 @@ mod tests {
                 .lock()
                 .get(&(*k, v.clone()))
                 .expect("expires_in value not mocked")
+        }
+    }
+
+    fn get_expired_metric(metric_registry: &metric::Registry) -> u64 {
+        let mut reporter = RawReporter::default();
+        metric_registry.report(&mut reporter);
+        let observation = reporter
+            .metric("cache_ttl_expired")
+            .unwrap()
+            .observation(&[("name", "my_cache")])
+            .unwrap();
+
+        if let Observation::U64Counter(c) = observation {
+            *c
+        } else {
+            panic!("Wrong observation type")
         }
     }
 }
