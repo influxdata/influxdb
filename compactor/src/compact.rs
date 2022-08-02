@@ -9,7 +9,10 @@ use data_types::{
 use iox_catalog::interface::{get_schema_by_id, Catalog};
 use iox_query::exec::Executor;
 use iox_time::TimeProvider;
-use metric::{Attributes, DurationHistogram, Metric, U64Counter, U64Gauge};
+use metric::{
+    Attributes, DurationHistogram, DurationHistogramOptions, Metric, U64Counter, U64Gauge,
+    DURATION_MAX,
+};
 use observability_deps::tracing::debug;
 use parquet_file::storage::ParquetStorage;
 use schema::sort::SortKey;
@@ -17,6 +20,7 @@ use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
+    time::Duration,
 };
 
 #[derive(Debug, Snafu)]
@@ -168,9 +172,21 @@ impl Compactor {
             "Number of bytes of Parquet file candidates",
         );
 
-        let compaction_duration: Metric<DurationHistogram> = registry.register_metric(
+        let duration_histogram_options = DurationHistogramOptions::new([
+            Duration::from_millis(100),
+            Duration::from_millis(500),
+            Duration::from_micros(2_000),
+            Duration::from_millis(5_000),
+            Duration::from_millis(15_000),
+            Duration::from_millis(30_000),
+            Duration::from_millis(60_000), // 1 minute
+            Duration::from_millis(5 * 60_000),
+            DURATION_MAX,
+        ]);
+        let compaction_duration: Metric<DurationHistogram> = registry.register_metric_with_options(
             "compactor_compact_partition_duration",
             "Compact partition duration",
+            || duration_histogram_options.clone(),
         );
 
         let candidate_selection_duration: Metric<DurationHistogram> = registry.register_metric(
@@ -184,10 +200,12 @@ impl Compactor {
                 "Duration to read and add extra information into selected partition candidates",
             );
 
-        let compaction_cycle_duration: Metric<DurationHistogram> = registry.register_metric(
-            "compactor_compaction_cycle_duration",
-            "Duration to compact all selected candidates for each cycle",
-        );
+        let compaction_cycle_duration: Metric<DurationHistogram> = registry
+            .register_metric_with_options(
+                "compactor_compaction_cycle_duration",
+                "Duration to compact all selected candidates for each cycle",
+                || duration_histogram_options,
+            );
 
         Self {
             sequencers,
