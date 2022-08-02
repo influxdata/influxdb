@@ -1499,18 +1499,22 @@ mod test {
         let input = "m0 field=-1.234456e06 1615869152385000000";
         let vals = parse(input).unwrap();
         assert_eq!(vals.len(), 1);
+        assert_float_field(&vals[0], "field", -1.234456e06);
 
         let input = "m0 field=1.234456e06 1615869152385000000";
         let vals = parse(input).unwrap();
         assert_eq!(vals.len(), 1);
+        assert_float_field(&vals[0], "field", 1.234456e06);
 
         let input = "m0 field=-1.234456E06 1615869152385000000";
         let vals = parse(input).unwrap();
         assert_eq!(vals.len(), 1);
+        assert_float_field(&vals[0], "field", -1.234456e06);
 
         let input = "m0 field=1.234456E06 1615869152385000000";
         let vals = parse(input).unwrap();
         assert_eq!(vals.len(), 1);
+        assert_float_field(&vals[0], "field", 1.234456e06);
 
         /////////////////////
         // Negative tests
@@ -2252,5 +2256,24 @@ her"#,
                 .is_same_type(&FieldValue::U64(42))
         );
         assert!(!FieldValue::Boolean(true).is_same_type(&FieldValue::U64(42)));
+    }
+
+    /// Assert that the field named `field_name` has a float value
+    /// within 0.0001% of `expected_value`, panic'ing if not
+    fn assert_float_field(parsed_line: &ParsedLine<'_>, field_name: &str, expected_value: f64) {
+        let field_value = parsed_line
+            .field_value(field_name)
+            .expect("did not contain field name");
+
+        let actual_value = if let FieldValue::F64(v) = field_value {
+            *v
+        } else {
+            panic!(
+                "field {} had value {:?}, expected F64",
+                field_name, field_value
+            );
+        };
+
+        assert!(approximately_equal(expected_value, actual_value));
     }
 }
