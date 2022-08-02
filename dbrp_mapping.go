@@ -35,6 +35,8 @@ type DBRPMapping struct {
 
 	// Default indicates if this mapping is the default for the cluster and database.
 	Default bool `json:"default"`
+	// Virtual indicates if this is a virtual mapping (tied to bucket name) or physical
+	Virtual bool `json:"virtual"`
 
 	OrganizationID platform.ID `json:"orgID"`
 	BucketID       platform.ID `json:"bucketID"`
