@@ -40,6 +40,9 @@ use std::{
     ops::Deref,
 };
 
+#[cfg(feature = "ffi")]
+pub mod ffi;
+
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display(r#"Must not contain duplicate tags, but "{}" was repeated"#, tag_key))]

@@ -4,8 +4,15 @@ version = "0.1.0"
 authors = ["Paul Dix <paul@pauldix.net>"]
 edition = "2021"
 
+[lib]
+crate-type = ["rlib", "staticlib"]
+
+[features]
+ffi = ["libc"]
+
 [dependencies] # In alphabetical order
 bytes = "1.2"
+libc = { version = "0.2", optional = true }
 nom = { version = "7", default-features = false, features = ["std"] }
 smallvec = { version = "1.9.0", features = ["union"] }
 snafu = "0.7"
