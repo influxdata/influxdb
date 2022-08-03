@@ -75,7 +75,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 ///     way to denote them (we need to add a `u` suffix support).
 ///
 pub fn expr_to_rpc_predicate(expr: &str) -> Result<RPCPredicate> {
-    let dialect = sqlparser::dialect::GenericDialect {};
+    let dialect = sqlparser::dialect::PostgreSqlDialect {};
     let mut tokenizer = Tokenizer::new(&dialect, expr);
     let tokens = tokenizer.tokenize().unwrap();
     let mut parser = Parser::new(tokens, &dialect);
@@ -186,6 +186,8 @@ fn build_binary_node(left: RPCNode, op: Operator, right: RPCNode) -> Result<RPCN
         Operator::LtEq => make_comparison_node(left, RPCComparison::Lte, right),
         Operator::Gt => make_comparison_node(left, RPCComparison::Gt, right),
         Operator::GtEq => make_comparison_node(left, RPCComparison::Gte, right),
+        Operator::PGRegexMatch => make_comparison_node(left, RPCComparison::Regex, right),
+        Operator::PGRegexNotMatch => make_comparison_node(left, RPCComparison::NotRegex, right),
         // logical nodes
         Operator::And => make_logical_node(left, RPCLogical::And, right),
         Operator::Or => make_logical_node(left, RPCLogical::Or, right),
@@ -258,6 +260,8 @@ mod test {
             ">=" => RPCComparison::Gte,
             "<" => RPCComparison::Lt,
             "<=" => RPCComparison::Lte,
+            "~" => RPCComparison::Regex,
+            "!~" => RPCComparison::NotRegex,
             _ => panic!("invalid comparator string: {:?}", cmp),
         }
     }
@@ -342,7 +346,7 @@ mod test {
     // Test that simple sqlparser binary expressions are converted into the
     // correct tag comparison nodes
     fn test_from_sql_expr_tag_comparisons() {
-        let ops = vec!["=", "!=", ">", ">=", "<", "<="];
+        let ops = vec!["=", "!=", ">", ">=", "<", "<=", "~", "!~"];
         let exprs = ops
             .into_iter()
             .map(|op| format!("server {} 'abc'", op))
@@ -368,11 +372,6 @@ mod test {
         let expr = make_sql_expr(r#""server"::tag = 'foo'"#);
         let exp_rpc_node = make_tag_expr("server = 'foo'");
         assert_eq!(expr, exp_rpc_node);
-
-        // Converting a binary expression with a regex matches is not
-        // currently implemented.
-        let expr = expr_to_rpc_predicate("server ~ Abc");
-        assert!(matches!(expr, Err(Error::UnexpectedBinaryOperator { .. })));
     }
 
     #[test]
