@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 http = "0.2.8"
-thiserror = "1.0.31"
+thiserror = "1.0.32"
 tonic = { version = "0.7" }
 tower = "0.4"
 workspace-hack = { path = "../workspace-hack"}

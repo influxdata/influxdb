@@ -29,4 +29,4 @@ tokio = { version = "1.20", features = ["macros", "parking_lot", "rt", "rt-multi
 uuid = { version = "1", features = ["v4"] }
 zstd = "0.11"
 workspace-hack = { path = "../workspace-hack"}
-thiserror = "1.0.31"
+thiserror = "1.0.32"

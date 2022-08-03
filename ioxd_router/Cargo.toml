@@ -23,7 +23,7 @@ write_summary = { path = "../write_summary" }
 async-trait = "0.1"
 hashbrown = "0.12"
 hyper = "0.14"
-thiserror = "1.0.31"
+thiserror = "1.0.32"
 tokio = { version = "1.20", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-util = { version = "0.7.3" }
 workspace-hack = { path = "../workspace-hack"}

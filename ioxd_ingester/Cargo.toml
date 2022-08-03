@@ -19,5 +19,5 @@ write_buffer = { path = "../write_buffer" }
 # Crates.io dependencies, in alphabetical order
 async-trait = "0.1"
 hyper = "0.14"
-thiserror = "1.0.31"
+thiserror = "1.0.32"
 workspace-hack = { path = "../workspace-hack"}
