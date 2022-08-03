@@ -276,7 +276,7 @@ async fn compact_hot_partitions(compactor: Arc<Compactor>) {
     {
         let duration = compactor
             .candidate_selection_duration
-            .recorder(Attributes::from([]));
+            .recorder(Attributes::from(&[("partition_type", "hot")]));
         duration.record(delta);
     }
 
@@ -370,7 +370,28 @@ async fn compact_hot_partitions(compactor: Arc<Compactor>) {
     }
 }
 
-async fn compact_cold_partitions(_compactor: Arc<Compactor>) {}
+async fn compact_cold_partitions(compactor: Arc<Compactor>) {
+    // Select cold partition candidates
+    let start_time = compactor.time_provider.now();
+    let candidates = Backoff::new(&compactor.backoff_config)
+        .retry_all_errors("cold_partitions_to_compact", || async {
+            compactor
+                .cold_partitions_to_compact(compactor.config.max_number_partitions_per_sequencer())
+                .await
+        })
+        .await
+        .expect("retry forever");
+    if let Some(delta) = compactor
+        .time_provider
+        .now()
+        .checked_duration_since(start_time)
+    {
+        let duration = compactor
+            .candidate_selection_duration
+            .recorder(Attributes::from(&[("partition_type", "cold")]));
+        duration.record(delta);
+    }
+}
 
 #[async_trait]
 impl CompactorHandler for CompactorHandlerImpl {

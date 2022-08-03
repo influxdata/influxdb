@@ -1695,14 +1695,14 @@ WHERE parquet_file.sequencer_id = $1
         sqlx::query_as::<_, PartitionParam>(
             r#"
 SELECT partition_id, sequencer_id, namespace_id, table_id, count(id)
-FROM parquet_file 
+FROM parquet_file
 WHERE compaction_level = 0 and to_delete is null
     and sequencer_id = $1
     and to_timestamp(created_at/1000000000) > now() -  ($2 || 'hour')::interval
 group by 1, 2, 3, 4
 having count(id) >= $3
 order by 5 DESC
-limit $4;      
+limit $4;
             "#,
         )
         .bind(&sequencer_id) // $1
@@ -1717,25 +1717,30 @@ limit $4;
     async fn most_level_0_files_partitions(
         &mut self,
         sequencer_id: SequencerId,
+        older_than_num_hours: u32,
         num_partitions: usize,
     ) -> Result<Vec<PartitionParam>> {
+        let older_than_num_hours = older_than_num_hours as i32;
         let num_partitions = num_partitions as i32;
 
         // The preliminary performance test says this query runs around 50ms
         // We have index on (sequencer_id, comapction_level, to_delete)
         sqlx::query_as::<_, PartitionParam>(
             r#"
-SELECT partition_id, sequencer_id, namespace_id, table_id, count(id)
-FROM   parquet_file 
-WHERE  compaction_level = 0 and to_delete is null
-    and sequencer_id = $1
-group by 1, 2, 3, 4
-order by 5 DESC
-limit $2;      
+SELECT partition_id, sequencer_id, namespace_id, table_id, count(id), max(created_at)
+FROM   parquet_file
+WHERE  compaction_level = 0
+AND    to_delete IS NULL
+AND    sequencer_id = $1
+GROUP BY 1, 2, 3, 4
+HAVING to_timestamp(max(created_at)/1000000000) < now() -  ($2 || 'hour')::interval
+ORDER BY 5 DESC
+LIMIT $3;
             "#,
         )
         .bind(&sequencer_id) // $1
-        .bind(&num_partitions) // $2
+        .bind(&older_than_num_hours) // $2
+        .bind(&num_partitions) // $3
         .fetch_all(&mut self.inner)
         .await
         .map_err(|e| Error::SqlxError { source: e })

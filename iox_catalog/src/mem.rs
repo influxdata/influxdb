@@ -1169,10 +1169,16 @@ impl ParquetFileRepo for MemTxn {
     async fn most_level_0_files_partitions(
         &mut self,
         sequencer_id: SequencerId,
+        older_than_num_hours: u32,
         num_partitions: usize,
     ) -> Result<Vec<PartitionParam>> {
+        let time_nano = (self.time_provider.now()
+            - Duration::from_secs(60 * 60 * older_than_num_hours as u64))
+        .timestamp_nanos();
+        let older_than = Timestamp::new(time_nano);
+
         let stage = self.stage();
-        let partitions = stage
+        let relevant_parquet_files = stage
             .parquet_files
             .iter()
             .filter(|f| {
@@ -1180,30 +1186,44 @@ impl ParquetFileRepo for MemTxn {
                     && f.compaction_level == CompactionLevel::Initial
                     && f.to_delete.is_none()
             })
-            .map(|pf| PartitionParam {
-                partition_id: pf.partition_id,
-                sequencer_id: pf.sequencer_id,
-                namespace_id: pf.namespace_id,
-                table_id: pf.table_id,
-            })
             .collect::<Vec<_>>();
 
         // Count num of files per partition by simply count the number of partition duplicates
         let mut partition_duplicate_count: HashMap<PartitionParam, i32> =
-            HashMap::with_capacity(partitions.len());
-        for p in partitions {
-            let count = partition_duplicate_count.entry(p).or_insert(0);
+            HashMap::with_capacity(relevant_parquet_files.len());
+        let mut partition_max_created_at = HashMap::with_capacity(relevant_parquet_files.len());
+        for pf in relevant_parquet_files {
+            let key = PartitionParam {
+                partition_id: pf.partition_id,
+                sequencer_id: pf.sequencer_id,
+                namespace_id: pf.namespace_id,
+                table_id: pf.table_id,
+            };
+            let count = partition_duplicate_count.entry(key).or_insert(0);
             *count += 1;
+            let max_created_at = partition_max_created_at.entry(key).or_insert(pf.created_at);
+            if pf.created_at > *max_created_at {
+                *max_created_at = pf.created_at;
+            }
         }
 
-        // Sort partitions by file count
-        let mut partitions = partition_duplicate_count.iter().collect::<Vec<_>>();
+        // Sort partitions whose max created at is older than the limit by their file count
+        let mut partitions = partition_duplicate_count
+            .iter()
+            .filter(|(k, _v)| partition_max_created_at.get(k).unwrap() < &older_than)
+            .collect::<Vec<_>>();
         partitions.sort_by(|a, b| b.1.cmp(a.1));
 
         // Return top partitions with most file counts
         let partitions = partitions
             .into_iter()
             .map(|(k, _)| *k)
+            .map(|pf| PartitionParam {
+                partition_id: pf.partition_id,
+                sequencer_id: pf.sequencer_id,
+                namespace_id: pf.namespace_id,
+                table_id: pf.table_id,
+            })
             .take(num_partitions)
             .collect::<Vec<_>>();
 
