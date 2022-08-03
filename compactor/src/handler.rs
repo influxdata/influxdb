@@ -59,6 +59,9 @@ pub struct CompactorHandlerImpl {
 
     /// Runner to check for compaction work and kick it off
     runner_handle: SharedJoinHandle,
+
+    /// Executor, required for clean shutdown.
+    exec: Arc<Executor>,
 }
 
 impl CompactorHandlerImpl {
@@ -76,7 +79,7 @@ impl CompactorHandlerImpl {
             sequencers,
             catalog,
             store,
-            exec,
+            Arc::clone(&exec),
             time_provider,
             BackoffConfig::default(),
             config,
@@ -95,6 +98,7 @@ impl CompactorHandlerImpl {
             compactor_data,
             shutdown,
             runner_handle,
+            exec,
         }
     }
 }
@@ -367,10 +371,12 @@ impl CompactorHandler for CompactorHandlerImpl {
             .clone()
             .await
             .expect("compactor task failed");
+        self.exec.join().await;
     }
 
     fn shutdown(&self) {
         self.shutdown.cancel();
+        self.exec.shutdown();
     }
 }
 
