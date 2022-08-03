@@ -60,6 +60,9 @@ pub struct SequencedStreamHandler<I, O, T = SystemProvider> {
     sink_apply_error_count: U64Counter,
     skipped_sequence_number_amount: U64Counter,
 
+    /// Reset count
+    sequencer_reset_count: U64Counter,
+
     /// Log context fields - otherwise unused.
     kafka_topic_name: String,
     kafka_partition: KafkaPartition,
@@ -135,6 +138,14 @@ impl<I, O> SequencedStreamHandler<I, O> {
             true,
         ));
 
+        // reset count
+        let sequencer_reset_count = metrics
+            .register_metric::<U64Counter>(
+                "sequencer_reset_count",
+                "how often a sequencer was already reset",
+            )
+            .recorder(metric_attrs(kafka_partition, &kafka_topic_name, None, true));
+
         Self {
             write_buffer_stream_handler,
             current_sequence_number,
@@ -148,6 +159,7 @@ impl<I, O> SequencedStreamHandler<I, O> {
             seq_unknown_error_count,
             sink_apply_error_count,
             skipped_sequence_number_amount,
+            sequencer_reset_count,
             kafka_topic_name,
             kafka_partition,
             skip_to_oldest_available,
@@ -170,6 +182,7 @@ impl<I, O> SequencedStreamHandler<I, O> {
             seq_unknown_error_count: self.seq_unknown_error_count,
             sink_apply_error_count: self.sink_apply_error_count,
             skipped_sequence_number_amount: self.skipped_sequence_number_amount,
+            sequencer_reset_count: self.sequencer_reset_count,
             kafka_topic_name: self.kafka_topic_name,
             kafka_partition: self.kafka_partition,
             skip_to_oldest_available: self.skip_to_oldest_available,
@@ -245,6 +258,14 @@ where
                     // once and getting the next operation again.
                     // Keep the current sequence number to compare with the sequence number
                     if self.skip_to_oldest_available && sequence_number_before_reset.is_none() {
+                        warn!(
+                            error=%e,
+                            kafka_topic=%self.kafka_topic_name,
+                            kafka_partition=%self.kafka_partition,
+                            potential_data_loss=true,
+                            "reset stream"
+                        );
+                        self.sequencer_reset_count.inc(1);
                         sequence_number_before_reset = Some(self.current_sequence_number);
                         self.write_buffer_stream_handler.reset_to_earliest();
                         stream = self.write_buffer_stream_handler.stream().await;
@@ -567,6 +588,7 @@ mod tests {
             stream_ops = $stream_ops:expr,  // Ordered set of stream items to feed to the handler
             sink_rets = $sink_ret:expr,     // Ordered set of values to return from the mock op sink
             want_ttbr = $want_ttbr:literal, // Desired TTBR value in milliseconds
+            want_reset = $want_reset:literal,  // Desired reset counter value
             // Optional set of ingest error metric label / values to assert
             want_err_metrics = [$($metric_name:literal => $metric_count:literal),*],
             want_sink = $($want_sink:tt)+   // Pattern to match against calls made to the op sink
@@ -653,6 +675,19 @@ mod tests {
                         .fetch();
                     assert_eq!(ttbr, Duration::from_millis($want_ttbr));
 
+                    // assert reset counter
+                    let reset = metrics
+                        .get_instrument::<Metric<U64Counter>>("sequencer_reset_count")
+                        .expect("did not find reset count metric")
+                        .get_observer(&Attributes::from([
+                            ("kafka_topic", TEST_KAFKA_TOPIC.into()),
+                            ("kafka_partition", TEST_KAFKA_PARTITION.to_string().into()),
+                            ("potential_data_loss", "true".into()),
+                        ]))
+                        .expect("did not match metric attributes")
+                        .fetch();
+                    assert_eq!(reset, $want_reset);
+
                     // Assert any error metrics in the macro call
                     $(
                         let got = metrics
@@ -679,6 +714,7 @@ mod tests {
         stream_ops = vec![vec![]],
         sink_rets = [],
         want_ttbr = 0, // No ops, no TTBR
+        want_reset = 0,
         want_err_metrics = [],
         want_sink = []
     );
@@ -692,6 +728,7 @@ mod tests {
         ],
         sink_rets = [Ok(true)],
         want_ttbr = 42,
+        want_reset = 0,
         want_err_metrics = [],
         want_sink = [DmlOperation::Write(op)] => {
             assert_eq!(op.namespace(), "bananas");
@@ -707,6 +744,7 @@ mod tests {
         ],
         sink_rets = [Ok(true)],
         want_ttbr = 24,
+        want_reset = 0,
         want_err_metrics = [],
         want_sink = [DmlOperation::Delete(op)] => {
             assert_eq!(op.namespace(), "platanos");
@@ -724,6 +762,7 @@ mod tests {
         ]],
         sink_rets = [Ok(true)],
         want_ttbr = 13,
+        want_reset = 0,
         want_err_metrics = [
             // No error metrics for I/O errors
             "sequencer_unknown_sequence_number" => 0,
@@ -745,6 +784,7 @@ mod tests {
         ]],
         sink_rets = [Ok(true)],
         want_ttbr = 31,
+        want_reset = 0,
         want_err_metrics = [
             "sequencer_unknown_sequence_number" => 1,
             "sequencer_invalid_data" => 0,
@@ -772,6 +812,7 @@ mod tests {
         ],
         sink_rets = [Ok(true)],
         want_ttbr = 31,
+        want_reset = 1,
         want_err_metrics = [
             "sequencer_unknown_sequence_number" => 0,
             "sequencer_invalid_data" => 0,
@@ -792,6 +833,7 @@ mod tests {
         ]],
         sink_rets = [Ok(true)],
         want_ttbr = 50,
+        want_reset = 0,
         want_err_metrics = [
             "sequencer_unknown_sequence_number" => 0,
             "sequencer_invalid_data" => 1,
@@ -812,6 +854,7 @@ mod tests {
         ]],
         sink_rets = [Ok(true)],
         want_ttbr = 60,
+        want_reset = 0,
         want_err_metrics = [
             "sequencer_unknown_sequence_number" => 0,
             "sequencer_invalid_data" => 0,
@@ -834,6 +877,7 @@ mod tests {
         ))]],
         sink_rets = [],
         want_ttbr = 0,
+        want_reset = 0,
         want_err_metrics = [],
         want_sink = []
     );
@@ -850,6 +894,7 @@ mod tests {
         ]],
         sink_rets = [Ok(true), Ok(false), Ok(true), Ok(false),],
         want_ttbr = 42,
+        want_reset = 0,
         want_err_metrics = [
             // No errors!
             "sequencer_unknown_sequence_number" => 0,
@@ -875,6 +920,7 @@ mod tests {
             Ok(true),
         ],
         want_ttbr = 2,
+        want_reset = 0,
         want_err_metrics = [
             "sequencer_unknown_sequence_number" => 0,
             "sequencer_invalid_data" => 0,
