@@ -9,7 +9,7 @@ description = "Workaround for the lack of dyanmic credential update support in s
 publish = false
 
 [dependencies]
-sqlx = { version = "0.6.0", features = ["runtime-tokio-rustls", "postgres", "json", "tls"] }
+sqlx = { version = "0.6.1", features = ["runtime-tokio-rustls", "postgres", "json", "tls"] }
 either = "1.7.0"
 tokio = { version = "1.20", features = ["rt-multi-thread", "macros", "parking_lot"] }
 futures = "0.3"
