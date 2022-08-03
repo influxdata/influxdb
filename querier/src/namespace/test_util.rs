@@ -28,7 +28,6 @@ pub async fn querier_namespace_with_limit(
         ns.catalog.catalog(),
         ns.catalog.time_provider(),
         ns.catalog.metric_registry(),
-        usize::MAX,
     ));
 
     let sharder = Arc::new(JumpHash::new((0..1).map(KafkaPartition::new).map(Arc::new)).unwrap());

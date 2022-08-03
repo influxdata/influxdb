@@ -182,14 +182,23 @@ pub struct QuerierConfig {
     )]
     pub sequencer_to_ingesters: Option<String>,
 
-    /// Size of the RAM cache pool in bytes.
+    /// Size of the RAM cache used to store catalog metadata information in bytes.
     #[clap(
-        long = "--ram-pool-bytes",
-        env = "INFLUXDB_IOX_RAM_POOL_BYTES",
-        default_value = "1073741824",
+        long = "--ram-pool-metadata-bytes",
+        env = "INFLUXDB_IOX_RAM_POOL_METADATA_BYTES",
+        default_value = "134217728",  // 128MB
         action
     )]
-    pub ram_pool_bytes: usize,
+    pub ram_pool_metadata_bytes: usize,
+
+    /// Size of the RAM cache used to store data in bytes.
+    #[clap(
+        long = "--ram-pool-data-bytes",
+        env = "INFLUXDB_IOX_RAM_POOL_DATA_BYTES",
+        default_value = "1073741824",  // 1GB
+        action
+    )]
+    pub ram_pool_data_bytes: usize,
 
     /// Limit the number of concurrent queries.
     #[clap(
@@ -248,9 +257,14 @@ impl QuerierConfig {
         }
     }
 
-    /// Size of the RAM cache pool in bytes.
-    pub fn ram_pool_bytes(&self) -> usize {
-        self.ram_pool_bytes
+    /// Size of the RAM cache pool for metadata in bytes.
+    pub fn ram_pool_metadata_bytes(&self) -> usize {
+        self.ram_pool_metadata_bytes
+    }
+
+    /// Size of the RAM cache pool for payload in bytes.
+    pub fn ram_pool_data_bytes(&self) -> usize {
+        self.ram_pool_data_bytes
     }
 
     /// Number of queries allowed to run concurrently

@@ -169,7 +169,8 @@ pub async fn create_querier_server_type(
         Arc::clone(&args.catalog),
         args.time_provider,
         Arc::clone(&args.metric_registry),
-        args.querier_config.ram_pool_bytes(),
+        args.querier_config.ram_pool_metadata_bytes(),
+        args.querier_config.ram_pool_data_bytes(),
     ));
 
     let ingester_connection = match args.ingester_addresses {

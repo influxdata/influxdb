@@ -67,29 +67,33 @@ impl CatalogCache {
         catalog: Arc<dyn Catalog>,
         time_provider: Arc<dyn TimeProvider>,
         metric_registry: Arc<metric::Registry>,
-        ram_pool_bytes: usize,
+        ram_pool_metadata_bytes: usize,
+        ram_pool_data_bytes: usize,
     ) -> Self {
         Self::new_internal(
             catalog,
             time_provider,
             metric_registry,
-            ram_pool_bytes,
+            ram_pool_metadata_bytes,
+            ram_pool_data_bytes,
             false,
         )
     }
 
     /// Create empty cache for testing.
+    ///
+    /// This cache will have unlimited RAM pools.
     pub fn new_testing(
         catalog: Arc<dyn Catalog>,
         time_provider: Arc<dyn TimeProvider>,
         metric_registry: Arc<metric::Registry>,
-        ram_pool_bytes: usize,
     ) -> Self {
         Self::new_internal(
             catalog,
             time_provider,
             metric_registry,
-            ram_pool_bytes,
+            usize::MAX,
+            usize::MAX,
             true,
         )
     }
@@ -98,24 +102,21 @@ impl CatalogCache {
         catalog: Arc<dyn Catalog>,
         time_provider: Arc<dyn TimeProvider>,
         metric_registry: Arc<metric::Registry>,
-        ram_pool_bytes: usize,
+        ram_pool_metadata_bytes: usize,
+        ram_pool_data_bytes: usize,
         testing: bool,
     ) -> Self {
         let backoff_config = BackoffConfig::default();
 
-        // temporary experiment to prevent read buffers from evicting costly metadata
-        // TODO(marco): make this a proper config option
-        // TODO(marco): give the pool two names (needs adjustments of our dashboards)
-        let factor_metadata = 0.1f64;
         let ram_pool_metadata = Arc::new(ResourcePool::new(
-            "ram",
-            RamSize((ram_pool_bytes as f64 * factor_metadata).floor() as usize),
+            "ram_metadata",
+            RamSize(ram_pool_metadata_bytes),
             Arc::clone(&time_provider),
             Arc::clone(&metric_registry),
         ));
-        let ram_pool_payload = Arc::new(ResourcePool::new(
-            "ram",
-            RamSize((ram_pool_bytes as f64 * (1.0 - factor_metadata)).floor() as usize),
+        let ram_pool_data = Arc::new(ResourcePool::new(
+            "ram_data",
+            RamSize(ram_pool_data_bytes),
             Arc::clone(&time_provider),
             Arc::clone(&metric_registry),
         ));
@@ -172,7 +173,7 @@ impl CatalogCache {
             backoff_config,
             Arc::clone(&time_provider),
             Arc::clone(&metric_registry),
-            Arc::clone(&ram_pool_payload),
+            Arc::clone(&ram_pool_data),
             testing,
         );
         let projected_schema_cache = ProjectedSchemaCache::new(

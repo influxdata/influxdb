@@ -23,7 +23,6 @@ pub async fn querier_table(
         catalog.catalog(),
         catalog.time_provider(),
         catalog.metric_registry(),
-        usize::MAX,
     ));
     let chunk_adapter = Arc::new(ChunkAdapter::new(
         catalog_cache,

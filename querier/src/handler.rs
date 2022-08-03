@@ -170,7 +170,6 @@ mod tests {
                 Arc::clone(&catalog),
                 time_provider,
                 Arc::clone(&metric_registry),
-                usize::MAX,
             ));
             // QuerierDatabase::new returns an error if there are no sequencers in the catalog
             {

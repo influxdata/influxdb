@@ -246,7 +246,6 @@ mod tests {
             catalog.catalog(),
             catalog.time_provider(),
             catalog.metric_registry(),
-            usize::MAX,
         ));
         QuerierDatabase::new(
             catalog_cache,
@@ -269,7 +268,6 @@ mod tests {
             catalog.catalog(),
             catalog.time_provider(),
             catalog.metric_registry(),
-            usize::MAX,
         ));
 
         assert_error!(
@@ -299,7 +297,6 @@ mod tests {
             catalog.catalog(),
             catalog.time_provider(),
             catalog.metric_registry(),
-            usize::MAX,
         ));
         let db = QuerierDatabase::new(
             catalog_cache,
@@ -329,7 +326,6 @@ mod tests {
             catalog.catalog(),
             catalog.time_provider(),
             catalog.metric_registry(),
-            usize::MAX,
         ));
         let db = QuerierDatabase::new(
             catalog_cache,

@@ -193,7 +193,7 @@ pub enum QuerierChunkLoadSetting {
     /// Default "on-demand" handling.
     ///
     /// When the chunk is created, it will look up if there is already read buffer data loaded (or loading is already in
-    /// progress) and is that. Otherwise it will parquet. If the actual payload is request (via
+    /// progress) and is that. Otherwise it will parquet. If the actual row data is requested (via
     /// [`QueryChunk::read_filter`](iox_query::QueryChunk::read_filter)) then it will force-load the read buffer.
     #[default]
     OnDemand,
@@ -734,7 +734,6 @@ pub mod tests {
                     catalog.catalog(),
                     catalog.time_provider(),
                     catalog.metric_registry(),
-                    usize::MAX,
                 )),
                 ParquetStorage::new(catalog.object_store()),
                 catalog.metric_registry(),

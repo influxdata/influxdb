@@ -931,7 +931,6 @@ impl MockIngester {
             self.catalog.catalog(),
             self.catalog.time_provider(),
             self.catalog.metric_registry(),
-            usize::MAX,
         ));
         let sequencer_to_ingesters = [(0, IngesterMapping::Addr(Arc::from("some_address")))]
             .into_iter()

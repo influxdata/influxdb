@@ -70,7 +70,6 @@ mod tests {
             catalog.catalog(),
             catalog.time_provider(),
             catalog.metric_registry(),
-            usize::MAX,
         ));
         let db = Arc::new(
             QuerierDatabase::new(
@@ -106,7 +105,6 @@ mod tests {
             catalog.catalog(),
             catalog.time_provider(),
             catalog.metric_registry(),
-            usize::MAX,
         ));
         let db = Arc::new(
             QuerierDatabase::new(

@@ -294,14 +294,23 @@ pub struct Config {
     )]
     pub compactor_grpc_bind_address: SocketAddr,
 
-    /// Size of the querier RAM cache pool in bytes.
+    /// Size of the querier RAM cache used to store catalog metadata information in bytes.
     #[clap(
-        long = "--querier-ram-pool-bytes",
-        env = "INFLUXDB_IOX_QUERIER_RAM_POOL_BYTES",
-        default_value = "1073741824",
+        long = "--querier-ram-pool-metadata-bytes",
+        env = "INFLUXDB_IOX_QUERIER_RAM_POOL_METADATA_BYTES",
+        default_value = "134217728",  // 128MB
         action
     )]
-    pub querier_ram_pool_bytes: usize,
+    pub querier_ram_pool_metadata_bytes: usize,
+
+    /// Size of the querier RAM cache used to store data in bytes.
+    #[clap(
+        long = "--querier-ram-pool-data-bytes",
+        env = "INFLUXDB_IOX_QUERIER_RAM_POOL_DATA_BYTES",
+        default_value = "1073741824",  // 1GB
+        action
+    )]
+    pub querier_ram_pool_data_bytes: usize,
 
     /// Limit the number of concurrent queries.
     #[clap(
@@ -346,7 +355,8 @@ impl Config {
             querier_grpc_bind_address,
             ingester_grpc_bind_address,
             compactor_grpc_bind_address,
-            querier_ram_pool_bytes,
+            querier_ram_pool_metadata_bytes,
+            querier_ram_pool_data_bytes,
             querier_max_concurrent_queries,
             querier_max_table_query_bytes,
         } = self;
@@ -420,7 +430,8 @@ impl Config {
             num_query_threads: None,           // will be ignored
             sequencer_to_ingesters_file: None, // will be ignored
             sequencer_to_ingesters: None,      // will be ignored
-            ram_pool_bytes: querier_ram_pool_bytes,
+            ram_pool_metadata_bytes: querier_ram_pool_metadata_bytes,
+            ram_pool_data_bytes: querier_ram_pool_data_bytes,
             max_concurrent_queries: querier_max_concurrent_queries,
             max_table_query_bytes: querier_max_table_query_bytes,
         };
