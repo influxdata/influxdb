@@ -2,7 +2,7 @@
 
 This document explains certain profiling strategies.
 
-## Preperation
+## Preparation
 If you want to profile IOx, make sure to build+run it using an appropriate profile:
 
 - **release:** This is a production quality binary. Use `cargo run --release` or `cargo build --release` (binary is
@@ -66,7 +66,7 @@ that allows you to render a call graph, or a flamegraph or other visualizations,
 go tool pprof -http=localhost:6060 'http://localhost:8080/debug/pprof/profile?seconds=30'
 ```
 
-### Use the built in flame graph renderer
+### Use the built-in flame graph renderer
 
 You may not always have the `go` toolchain on your machine.
 IOx also knows how to render a flamegraph SVG directly if opened directly in the browser:
@@ -219,6 +219,67 @@ Attaching 1 probe...
 
 **WARNING: Due to the `sudo` hack, only use this for trusted programs!**
 
+## Instruments: CPU / performance profiling
+
+Instruments may be used to profile binaries on macOS. There are several instruments available, but perhaps the most
+useful for IOx development are the
+
+* Sampling CPU profiler,
+* Cycle-based CPU profiler,
+* System Trace (system calls, CPU scheduling)
+* File Activity (file system and disk I/O activity)
+
+## Instruments: Allocations (macOS Only)
+
+The allocations instrument is a powerful tool for tracking heap allocations on macOS and recording call stacks. 
+
+![Allocation call stacks](images/instruments_heap_1.png)
+
+![Allocation statistics](images/instruments_heap_stats.png)
+
+It can be used with Rust and `influxdb_iox`, but requires some additional steps on aarch64 and later versions of macOS 
+due to increased security.
+
+### Preparing binary
+
+Like heaptrack, you must compile `influxdb_iox` with `--no-default-features` to ensure the default system allocator is
+used. Following the compilation step, 
+[you must codesign the binary](https://developer.apple.com/forums/thread/685964?answerId=683365022#683365022)
+with the `get-task-allow` entitlement set to `true`. Without the codesign step, the Allocations instrument will fail to
+start with an error similar to the following:
+
+> Required Kernel Recording Resources Are in Use
+
+First, generate a temporary entitlements plist file, named `tmp.entitlements`:
+
+```sh
+/usr/libexec/PlistBuddy -c "Add :com.apple.security.get-task-allow bool true" tmp.entitlements
+```
+
+Then codesign the file with the `tmp.entitlements` file:
+
+```sh
+codesign -s - --entitlements tmp.entitlements -f target/release/influxdb_iox
+```
+
+You can verify the file is correctly code-signed as follows:
+
+```sh
+codesign --display --entitlements - target/release/influxdb_iox
+```
+```
+Executable=/Users/stuartcarnie/projects/rust/influxdb_iox/target/release/influxdb_iox
+[Dict]
+	[Key] com.apple.security.get-task-allow
+	[Value]
+		[Bool] true
+```
+
+or the running `influxdb_iox` process using its PID:
+
+```sh
+codesign --display --entitlements - +<PID>
+```
 
 ## Tracing
 See [Tracing: Running Jaeger / tracing locally](tracing.md#running-jaeger--tracing-locally).
