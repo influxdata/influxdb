@@ -16,5 +16,5 @@ futures = "0.3"
 workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]
-dotenv = "0.15.0"
+dotenvy = "0.15.1"
 rand = { version = "0.8", features = ["small_rng"] }

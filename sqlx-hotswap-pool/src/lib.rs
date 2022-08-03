@@ -148,7 +148,7 @@ mod tests {
     // are not set.
     macro_rules! maybe_skip_integration {
         () => {{
-            dotenv::dotenv().ok();
+            dotenvy::dotenv().ok();
 
             let required_vars = ["TEST_INFLUXDB_IOX_CATALOG_DSN"];
             let unset_vars: Vec<_> = required_vars

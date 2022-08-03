@@ -32,7 +32,7 @@ pub fn all_approximately_equal(f1: &[f64], f2: &[f64]) -> bool {
 
 /// Return a temporary directory that is deleted when the object is dropped
 pub fn tmp_dir() -> Result<tempfile::TempDir> {
-    let _ = dotenv::dotenv();
+    let _ = dotenvy::dotenv();
 
     let root = env::var_os("TEST_INFLUXDB_IOX_DB_DIR").unwrap_or_else(|| env::temp_dir().into());
 
@@ -42,7 +42,7 @@ pub fn tmp_dir() -> Result<tempfile::TempDir> {
 }
 
 pub fn tmp_file() -> Result<tempfile::NamedTempFile> {
-    let _ = dotenv::dotenv();
+    let _ = dotenvy::dotenv();
 
     let root = env::var_os("TEST_INFLUXDB_IOX_DB_DIR").unwrap_or_else(|| env::temp_dir().into());
 

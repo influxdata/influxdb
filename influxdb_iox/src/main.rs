@@ -13,7 +13,7 @@ use crate::commands::{
     run::all_in_one,
     tracing::{init_logs_and_tracing, init_simple_logs, TroggingGuard},
 };
-use dotenv::dotenv;
+use dotenvy::dotenv;
 use influxdb_iox_client::connection::Builder;
 use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::warn;
@@ -365,7 +365,7 @@ fn get_runtime(num_threads: Option<usize>) -> Result<Runtime, std::io::Error> {
 fn load_dotenv() {
     match dotenv() {
         Ok(_) => {}
-        Err(dotenv::Error::Io(err)) if err.kind() == std::io::ErrorKind::NotFound => {
+        Err(dotenvy::Error::Io(err)) if err.kind() == std::io::ErrorKind::NotFound => {
             // Ignore this - a missing env file is not an error, defaults will
             // be applied when initialising the Config struct.
         }

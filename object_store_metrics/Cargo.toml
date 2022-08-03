@@ -15,6 +15,6 @@ pin-project = "1.0.11"
 workspace-hack = { path = "../workspace-hack" }
 
 [dev-dependencies] # In alphabetical order
-dotenv = "0.15.0"
+dotenvy = "0.15.1"
 snafu = "0.7"
 tokio = { version = "1.20", features = ["macros", "io-util"] }

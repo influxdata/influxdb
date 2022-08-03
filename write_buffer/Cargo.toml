@@ -7,7 +7,7 @@ edition = "2021"
 async-trait = "0.1"
 data_types = { path = "../data_types" }
 dml = { path = "../dml" }
-dotenv = "0.15.0"
+dotenvy = "0.15.1"
 futures = "0.3"
 generated_types = { path = "../generated_types" }
 hashbrown = "0.12"
@@ -37,4 +37,4 @@ test_helpers = { path = "../test_helpers" }
 
 [package.metadata.cargo-udeps.ignore]
 # used within the `maybe_skip_kafka_integration` macro and cannot be detected by a normal analysis pass
-normal = ["dotenv"]
+normal = ["dotenvy"]

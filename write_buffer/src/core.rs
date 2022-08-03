@@ -1453,7 +1453,7 @@ pub mod test_utils {
         };
         ($panic_msg:expr) => {{
             use std::env;
-            dotenv::dotenv().ok();
+            dotenvy::dotenv().ok();
 
             let panic_msg: &'static str = $panic_msg;
 
