@@ -331,7 +331,9 @@ func CreateDBRPMappingV2(
 						}
 						return nil, nil
 					},
-				},
+					FindBucketsFn: func(ctx context.Context, bf influxdb.BucketFilter, fo ...influxdb.FindOptions) ([]*influxdb.Bucket, int, error) {
+						return []*influxdb.Bucket{}, 0, nil
+					}},
 				DBRPMappingsV2: []*influxdb.DBRPMapping{{
 					ID:              100,
 					Database:        "database1",
@@ -989,6 +991,19 @@ func FindDBRPMappingByIDV2(
 		{
 			name: "find non existing dbrp",
 			fields: DBRPMappingFields{
+				BucketSvc: &mock.BucketService{
+					FindBucketByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Bucket, error) {
+						if id == MustIDBase16(dbrpBucketAID) {
+							return &influxdb.Bucket{ID: id}, nil
+						}
+						return nil, &errors2.Error{
+							Code: errors2.ENotFound,
+							Msg:  "bucket not found",
+						}
+					},
+					FindBucketsFn: func(ctx context.Context, bf influxdb.BucketFilter, fo ...influxdb.FindOptions) ([]*influxdb.Bucket, int, error) {
+						return []*influxdb.Bucket{}, 0, nil
+					}},
 				DBRPMappingsV2: []*influxdb.DBRPMapping{
 					{
 						ID:              100,
@@ -1011,6 +1026,19 @@ func FindDBRPMappingByIDV2(
 		{
 			name: "find existing dbrp but wrong orgID",
 			fields: DBRPMappingFields{
+				BucketSvc: &mock.BucketService{
+					FindBucketByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Bucket, error) {
+						if id == MustIDBase16(dbrpBucketAID) {
+							return &influxdb.Bucket{ID: id}, nil
+						}
+						return nil, &errors2.Error{
+							Code: errors2.ENotFound,
+							Msg:  "bucket not found",
+						}
+					},
+					FindBucketsFn: func(ctx context.Context, bf influxdb.BucketFilter, fo ...influxdb.FindOptions) ([]*influxdb.Bucket, int, error) {
+						return []*influxdb.Bucket{}, 0, nil
+					}},
 				DBRPMappingsV2: []*influxdb.DBRPMapping{
 					{
 						ID:              100,
@@ -1146,6 +1174,19 @@ func UpdateDBRPMappingV2(
 		{
 			name: "error dbrp not found",
 			fields: DBRPMappingFields{
+				BucketSvc: &mock.BucketService{
+					FindBucketByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Bucket, error) {
+						if id == MustIDBase16(dbrpBucket1ID) {
+							return &influxdb.Bucket{ID: id}, nil
+						}
+						return nil, &errors2.Error{
+							Code: errors2.ENotFound,
+							Msg:  "bucket not found",
+						}
+					},
+					FindBucketsFn: func(ctx context.Context, bf influxdb.BucketFilter, fo ...influxdb.FindOptions) ([]*influxdb.Bucket, int, error) {
+						return []*influxdb.Bucket{}, 0, nil
+					}},
 				DBRPMappingsV2: []*influxdb.DBRPMapping{{
 					ID:              100,
 					Database:        "database1",
@@ -1631,7 +1672,7 @@ func DeleteDBRPMappingV2(
 			},
 			args: args{
 				OrgID: MustIDBase16(dbrpOrg2ID),
-				ID:    100,
+				ID:    150,
 			},
 			wants: wants{
 				dbrpMappings: []*influxdb.DBRPMapping{

@@ -235,7 +235,7 @@ func (s *Service) FindByID(ctx context.Context, orgID, id platform.ID) (*influxd
 		// if not found, fallback to virtual DBRP search
 		if err == ErrDBRPNotFound {
 			b, err := s.bucketSvc.FindBucketByID(ctx, id)
-			if err != nil {
+			if err != nil || b == nil {
 				return nil, ErrDBRPNotFound
 			}
 			return bucketToMapping(b), nil
@@ -393,6 +393,9 @@ OUTER:
 }
 
 func bucketToMapping(bucket *influxdb.Bucket) *influxdb.DBRPMapping {
+	if bucket == nil {
+		return nil
+	}
 	// for now, virtual DBRPs will use the same ID as their bucket to be able to find them by ID
 	dbrpID := bucket.ID
 	db, rp := parseDBRP(bucket.Name)
@@ -423,7 +426,7 @@ func (s *Service) Create(ctx context.Context, dbrp *influxdb.DBRPMapping) error 
 	}
 
 	// If a dbrp with this particular ID already exists an error is returned.
-	if _, err := s.FindByID(ctx, dbrp.OrganizationID, dbrp.ID); err == nil {
+	if d, err := s.FindByID(ctx, dbrp.OrganizationID, dbrp.ID); err == nil && !d.Virtual {
 		return ErrDBRPAlreadyExists("dbrp already exist for this particular ID. If you are trying an update use the right function .Update")
 	}
 	// If a dbrp with this orgID, db, and rp exists an error is returned.
