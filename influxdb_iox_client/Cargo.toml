@@ -26,7 +26,7 @@ bytes = "1.2"
 futures-util = { version = "0.3", optional = true }
 prost = "0.10"
 rand = "0.8.3"
-thiserror = "1.0.31"
+thiserror = "1.0.32"
 tonic = { version = "0.7" }
 
 [dev-dependencies] # In alphabetical order
