@@ -27,8 +27,7 @@ pub use chunk::QuerierChunkLoadSetting;
 pub use database::{Error as QuerierDatabaseError, QuerierDatabase};
 pub use handler::{QuerierHandler, QuerierHandlerImpl};
 pub use ingester::{
-    create_ingester_connection, create_ingester_connection_for_testing,
-    create_ingester_connections_by_sequencer,
+    create_ingester_connection_for_testing, create_ingester_connections_by_sequencer,
     flight_client::{
         Error as IngesterFlightClientError, FlightClient as IngesterFlightClient,
         QueryData as IngesterFlightClientQueryData,

@@ -135,18 +135,6 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Create a new connection given Vec of `ingester_address` such as
-/// "http://127.0.0.1:8083"
-pub fn create_ingester_connection(
-    ingester_addresses: Vec<String>,
-    catalog_cache: Arc<CatalogCache>,
-) -> Arc<dyn IngesterConnection> {
-    Arc::new(IngesterConnectionImpl::new(
-        ingester_addresses,
-        catalog_cache,
-    ))
-}
-
 /// Create a new set of connections given a map of sequencer IDs to Ingester configurations
 pub fn create_ingester_connections_by_sequencer(
     sequencer_to_ingesters: HashMap<i32, IngesterMapping>,
@@ -296,31 +284,10 @@ impl<'a> Drop for ObserveIngesterRequest<'a> {
     }
 }
 
-/// This enum is temporary to support migration from `--ingester-addresses` to specifying the
-/// sequencer to ingesters mapping. This can be simplified to the HashMap inside the
-/// SequencerToIngestersMap variant when nothing is using `--ingester-addresses` anymore.
-#[derive(Debug)]
-enum TemporaryMigrationSupport {
-    SequencerToIngestersMap(HashMap<KafkaPartition, IngesterMapping>),
-    IngesterAddresses(Vec<Arc<str>>),
-}
-
-impl TemporaryMigrationSupport {
-    fn get(&self, key: &KafkaPartition) -> Option<Vec<IngesterMapping>> {
-        use TemporaryMigrationSupport::*;
-        match self {
-            SequencerToIngestersMap(map) => map.get(key).map(|ingester| vec![ingester.to_owned()]),
-            IngesterAddresses(list) => {
-                Some(list.iter().cloned().map(IngesterMapping::Addr).collect())
-            }
-        }
-    }
-}
-
 /// IngesterConnection that communicates with an ingester.
 #[derive(Debug)]
 pub struct IngesterConnectionImpl {
-    sequencer_to_ingesters: TemporaryMigrationSupport,
+    sequencer_to_ingesters: HashMap<KafkaPartition, IngesterMapping>,
     unique_ingester_addresses: HashSet<Arc<str>>,
     flight_client: Arc<dyn FlightClient>,
     catalog_cache: Arc<CatalogCache>,
@@ -328,44 +295,6 @@ pub struct IngesterConnectionImpl {
 }
 
 impl IngesterConnectionImpl {
-    /// Create a new connection given a Vec of `ingester_address` such as
-    /// "http://127.0.0.1:8083"
-    pub fn new(ingester_addresses: Vec<String>, catalog_cache: Arc<CatalogCache>) -> Self {
-        Self::new_with_flight_client(
-            ingester_addresses,
-            Arc::new(FlightClientImpl::new()),
-            catalog_cache,
-        )
-    }
-
-    /// Create new ingester connection with specific flight client implementation.
-    ///
-    /// This is helpful for testing, i.e. when the flight client should not be backed by normal
-    /// network communication.
-    pub fn new_with_flight_client(
-        ingester_addresses: Vec<String>,
-        flight_client: Arc<dyn FlightClient>,
-        catalog_cache: Arc<CatalogCache>,
-    ) -> Self {
-        let unique_ingester_addresses: HashSet<_> = ingester_addresses
-            .iter()
-            .map(|addr| Arc::from(addr.as_str()))
-            .collect();
-
-        let metric_registry = catalog_cache.metric_registry();
-        let metrics = Arc::new(IngesterConnectionMetrics::new(&metric_registry));
-
-        Self {
-            sequencer_to_ingesters: TemporaryMigrationSupport::IngesterAddresses(
-                unique_ingester_addresses.iter().cloned().collect(),
-            ),
-            unique_ingester_addresses,
-            flight_client,
-            catalog_cache,
-            metrics,
-        }
-    }
-
     /// Create a new set of connections given a map of sequencer IDs to Ingester addresses, such as:
     ///
     /// ```json
@@ -409,14 +338,12 @@ impl IngesterConnectionImpl {
             })
             .cloned()
             .collect();
-        let sequencer_to_ingesters = TemporaryMigrationSupport::SequencerToIngestersMap(
-            sequencer_to_ingesters
-                .into_iter()
-                .map(|(sequencer_id, ingester_address)| {
-                    (KafkaPartition::new(sequencer_id), ingester_address)
-                })
-                .collect(),
-        );
+        let sequencer_to_ingesters = sequencer_to_ingesters
+            .into_iter()
+            .map(|(sequencer_id, ingester_address)| {
+                (KafkaPartition::new(sequencer_id), ingester_address)
+            })
+            .collect();
 
         let metric_registry = catalog_cache.metric_registry();
         let metrics = Arc::new(IngesterConnectionMetrics::new(&metric_registry));
@@ -804,25 +731,18 @@ impl IngesterConnection for IngesterConnectionImpl {
                     }
                     .fail()
                 }
-                Some(list)
-                    if list.is_empty()
-                        || list.iter().all(|a| matches!(a, IngesterMapping::Ignore)) => {}
-                Some(list) => {
-                    for mapping in list {
-                        match mapping {
-                            IngesterMapping::Addr(addr) => {
-                                relevant_ingester_addresses.insert(Arc::clone(&addr));
-                            }
-                            IngesterMapping::Ignore => (),
-                            IngesterMapping::NotMapped => {
-                                return SequencerNotMappedSnafu {
-                                    sequencer_id: *sequencer_id,
-                                }
-                                .fail()
-                            }
-                        }
+                Some(mapping) => match mapping {
+                    IngesterMapping::Addr(addr) => {
+                        relevant_ingester_addresses.insert(Arc::clone(addr));
                     }
-                }
+                    IngesterMapping::Ignore => (),
+                    IngesterMapping::NotMapped => {
+                        return SequencerNotMappedSnafu {
+                            sequencer_id: *sequencer_id,
+                        }
+                        .fail()
+                    }
+                },
             }
         }
 
