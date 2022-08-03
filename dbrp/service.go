@@ -386,7 +386,10 @@ OUTER:
 		if bucket == nil {
 			continue
 		}
-		ms = append(ms, bucketToMapping(bucket))
+		mapping := bucketToMapping(bucket)
+		if filterFunc(mapping, filter) {
+			ms = append(ms, mapping)
+		}
 	}
 
 	return ms, len(ms), nil
