@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use ioxd_common::Service;
 use ioxd_common::{grpc_listener, http_listener, serve, server_type::CommonServerState};
-use observability_deps::tracing::{error, info};
+use observability_deps::tracing::{debug, error, info};
 use panic_logging::SendPanicsToTracing;
 use snafu::{ResultExt, Snafu};
 use tokio_util::sync::CancellationToken;
@@ -124,14 +124,14 @@ pub async fn main(
         let common_state = common_state.clone();
         // start them all in their own tasks so the servers run at the same time
         let frontend_shutdown = frontend_shutdown.clone();
-        serving_futures.push(tokio::spawn(async move {
+        let Service {
+            http_bind_address,
+            grpc_bind_address,
+            server_type,
+        } = service;
+        let server_type_name = format!("{:?}", server_type);
+        let handle = tokio::spawn(async move {
             let trace_exporter = common_state.trace_exporter();
-            let Service {
-                http_bind_address,
-                grpc_bind_address,
-                server_type,
-            } = service;
-
             info!(?grpc_bind_address, ?server_type, "Binding gRPC services");
             let grpc_listener = grpc_listener(grpc_bind_address.into()).await?;
 
@@ -171,13 +171,22 @@ pub async fn main(
                 }
             }
             r
-        }));
+        });
+        serving_futures.push((server_type_name, handle));
     }
 
-    for f in serving_futures {
+    for (name, f) in serving_futures {
+        debug!(
+            server_type=%name,
+            "wait for handle"
+        );
         // Use ?? to unwrap Result<Result<..>>
         // "I heard you like errors, so I put an error in your error...."
         f.await.context(JoiningSnafu)??;
+        debug!(
+            server_type=%name,
+            "handle returned"
+        );
     }
 
     Ok(())
