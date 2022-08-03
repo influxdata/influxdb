@@ -238,7 +238,7 @@ impl Compactor {
     /// * In all cases above, for each sequencer, N partitions with the most new ingested files
     ///   will be selected and the return list will include at most, P = N * S, partitions where S
     ///   is the number of sequencers this compactor handles.
-    pub async fn partitions_to_compact(
+    pub async fn hot_partitions_to_compact(
         &self,
         // Max number of the most recent highest ingested throughput partitions
         // per sequencer we want to read
@@ -582,7 +582,7 @@ mod tests {
         // --------------------------------------
         // Case 1: no files yet --> no partition candidates
         //
-        let candidates = compactor.partitions_to_compact(1, 1).await.unwrap();
+        let candidates = compactor.hot_partitions_to_compact(1, 1).await.unwrap();
         assert!(candidates.is_empty());
 
         // --------------------------------------
@@ -606,7 +606,7 @@ mod tests {
             .unwrap();
         txn.commit().await.unwrap();
         // No non-deleted level 0 files yet --> no candidates
-        let candidates = compactor.partitions_to_compact(1, 1).await.unwrap();
+        let candidates = compactor.hot_partitions_to_compact(1, 1).await.unwrap();
         assert!(candidates.is_empty());
 
         // --------------------------------------
@@ -624,7 +624,7 @@ mod tests {
         txn.commit().await.unwrap();
         //
         // Has at least one partition with a L0 file --> make it a candidate
-        let candidates = compactor.partitions_to_compact(1, 1).await.unwrap();
+        let candidates = compactor.hot_partitions_to_compact(1, 1).await.unwrap();
         assert_eq!(candidates.len(), 1);
         assert_eq!(candidates[0].partition_id, partition2.id);
 
@@ -643,7 +643,7 @@ mod tests {
         txn.commit().await.unwrap();
         //
         // Has at least one partition with a recent write --> make it a candidate
-        let candidates = compactor.partitions_to_compact(1, 1).await.unwrap();
+        let candidates = compactor.hot_partitions_to_compact(1, 1).await.unwrap();
         assert_eq!(candidates.len(), 1);
         assert_eq!(candidates[0].partition_id, partition4.id);
 
@@ -665,7 +665,7 @@ mod tests {
         txn.commit().await.unwrap();
         //
         // make partitions in the most recent group candidates
-        let candidates = compactor.partitions_to_compact(1, 1).await.unwrap();
+        let candidates = compactor.hot_partitions_to_compact(1, 1).await.unwrap();
         assert_eq!(candidates.len(), 1);
         assert_eq!(candidates[0].partition_id, partition3.id);
 
@@ -686,7 +686,7 @@ mod tests {
         txn.commit().await.unwrap();
         //
         // Will have 2 candidates, one for each sequencer
-        let mut candidates = compactor.partitions_to_compact(1, 1).await.unwrap();
+        let mut candidates = compactor.hot_partitions_to_compact(1, 1).await.unwrap();
         candidates.sort();
         assert_eq!(candidates.len(), 2);
         assert_eq!(candidates[0].partition_id, partition3.id);

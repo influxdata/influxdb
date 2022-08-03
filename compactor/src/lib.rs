@@ -253,7 +253,7 @@ mod tests {
         // ------------------------------------------------
         // Compact
         let candidates = compactor
-            .partitions_to_compact(
+            .hot_partitions_to_compact(
                 compactor.config.max_number_partitions_per_sequencer(),
                 compactor
                     .config

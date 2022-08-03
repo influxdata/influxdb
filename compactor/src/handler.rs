@@ -248,121 +248,129 @@ async fn run_compactor(compactor: Arc<Compactor>, shutdown: CancellationToken) {
     while !shutdown.is_cancelled() {
         debug!("compactor main loop tick.");
 
-        // Select partition candidates
-        let start_time = compactor.time_provider.now();
-        let candidates = Backoff::new(&compactor.backoff_config)
-            .retry_all_errors("partitions_to_compact", || async {
-                compactor
-                    .partitions_to_compact(
-                        compactor.config.max_number_partitions_per_sequencer(),
-                        compactor
-                            .config
-                            .min_number_recent_ingested_files_per_partition(),
-                    )
-                    .await
-            })
-            .await
-            .expect("retry forever");
-        if let Some(delta) = compactor
-            .time_provider
-            .now()
-            .checked_duration_since(start_time)
-        {
-            let duration = compactor
-                .candidate_selection_duration
-                .recorder(Attributes::from([]));
-            duration.record(delta);
-        }
-
-        // Add other compaction-needed info into selected partitions
-        let start_time = compactor.time_provider.now();
-        let candidates = Backoff::new(&compactor.backoff_config)
-            .retry_all_errors("partitions_to_compact", || async {
-                compactor.add_info_to_partitions(&candidates).await
-            })
-            .await
-            .expect("retry forever");
-        if let Some(delta) = compactor
-            .time_provider
-            .now()
-            .checked_duration_since(start_time)
-        {
-            let duration = compactor
-                .partitions_extra_info_reading_duration
-                .recorder(Attributes::from([]));
-            duration.record(delta);
-        }
-
-        let n_candidates = candidates.len();
-        if n_candidates == 0 {
-            debug!("no compaction candidates found");
-            // sleep for a second to avoid a hot busy loop when the
-            // catalog is polled
-            tokio::time::sleep(PAUSE_BETWEEN_NO_WORK).await;
-            continue;
-        } else {
-            debug!(n_candidates, "found compaction candidates");
-        }
-
-        let start_time = compactor.time_provider.now();
-
-        // Repeat compacting n partitions in parallel until all candidates are compacted.
-        // Concurrency level calculation (this is estimated from previous experiments. The actual resource
-        // management will be more complicated and a future feature):
-        //   . Each `compact partititon` takes max of this much memory input_size_threshold_bytes
-        //   . We have this memory budget: max_concurrent_compaction_size_bytes
-        // --> num_parallel_partitions = max_concurrent_compaction_size_bytes/ input_size_threshold_bytes
-        let num_parallel_partitions = (compactor.config.max_concurrent_compaction_size_bytes
-            / compactor.config.input_size_threshold_bytes)
-            as usize;
-
-        futures::stream::iter(candidates)
-            .map(|p| {
-                // run compaction in its own task
-                let comp = Arc::clone(&compactor);
-                tokio::task::spawn(async move {
-                    let partition_id = p.candidate.partition_id;
-                    let compaction_result = crate::compact_partition(&comp, p).await;
-
-                    match compaction_result {
-                        Err(e) => {
-                            warn!(?e, ?partition_id, "compaction failed");
-                        }
-                        Ok(_) => {
-                            debug!(?partition_id, "compaction complete");
-                        }
-                    };
-                })
-            })
-            // Assume we have enough resources to run
-            // num_parallel_partitions compactions in parallel
-            .buffer_unordered(num_parallel_partitions)
-            // report any JoinErrors (aka task panics)
-            .map(|join_result| {
-                if let Err(e) = join_result {
-                    warn!(?e, "compaction task failed");
-                }
-                Ok(())
-            })
-            // Errors are reported during execution, so ignore results here
-            // https://stackoverflow.com/questions/64443085/how-to-run-stream-to-completion-in-rust-using-combinators-other-than-for-each
-            .forward(futures::sink::drain())
-            .await
-            .ok();
-
-        // Done compacting all candidates in the cycle, record its time
-        if let Some(delta) = compactor
-            .time_provider
-            .now()
-            .checked_duration_since(start_time)
-        {
-            let duration = compactor
-                .compaction_cycle_duration
-                .recorder(Attributes::from([]));
-            duration.record(delta);
-        }
+        compact_hot_partitions(Arc::clone(&compactor)).await;
+        compact_cold_partitions(Arc::clone(&compactor)).await;
     }
 }
+
+async fn compact_hot_partitions(compactor: Arc<Compactor>) {
+    // Select hot partition candidates
+    let start_time = compactor.time_provider.now();
+    let candidates = Backoff::new(&compactor.backoff_config)
+        .retry_all_errors("hot_partitions_to_compact", || async {
+            compactor
+                .hot_partitions_to_compact(
+                    compactor.config.max_number_partitions_per_sequencer(),
+                    compactor
+                        .config
+                        .min_number_recent_ingested_files_per_partition(),
+                )
+                .await
+        })
+        .await
+        .expect("retry forever");
+    if let Some(delta) = compactor
+        .time_provider
+        .now()
+        .checked_duration_since(start_time)
+    {
+        let duration = compactor
+            .candidate_selection_duration
+            .recorder(Attributes::from([]));
+        duration.record(delta);
+    }
+
+    // Add other compaction-needed info into selected partitions
+    let start_time = compactor.time_provider.now();
+    let candidates = Backoff::new(&compactor.backoff_config)
+        .retry_all_errors("add_info_to_partitions", || async {
+            compactor.add_info_to_partitions(&candidates).await
+        })
+        .await
+        .expect("retry forever");
+    if let Some(delta) = compactor
+        .time_provider
+        .now()
+        .checked_duration_since(start_time)
+    {
+        let duration = compactor
+            .partitions_extra_info_reading_duration
+            .recorder(Attributes::from([]));
+        duration.record(delta);
+    }
+
+    let n_candidates = candidates.len();
+    if n_candidates == 0 {
+        debug!("no hot compaction candidates found");
+        // sleep for a second to avoid a hot busy loop when the
+        // catalog is polled
+        tokio::time::sleep(PAUSE_BETWEEN_NO_WORK).await;
+        return;
+    } else {
+        debug!(n_candidates, "found hot compaction candidates");
+    }
+
+    let start_time = compactor.time_provider.now();
+
+    // Repeat compacting n partitions in parallel until all candidates are compacted.
+    // Concurrency level calculation (this is estimated from previous experiments. The actual
+    // resource management will be more complicated and a future feature):
+    //   . Each `compact partititon` takes max of this much memory input_size_threshold_bytes
+    //   . We have this memory budget: max_concurrent_compaction_size_bytes
+    // --> num_parallel_partitions = max_concurrent_compaction_size_bytes/
+    //     input_size_threshold_bytes
+    let num_parallel_partitions = (compactor.config.max_concurrent_compaction_size_bytes
+        / compactor.config.input_size_threshold_bytes)
+        as usize;
+
+    futures::stream::iter(candidates)
+        .map(|p| {
+            // run compaction in its own task
+            let comp = Arc::clone(&compactor);
+            tokio::task::spawn(async move {
+                let partition_id = p.candidate.partition_id;
+                let compaction_result = crate::compact_partition(&comp, p).await;
+
+                match compaction_result {
+                    Err(e) => {
+                        warn!(?e, ?partition_id, "hot compaction failed");
+                    }
+                    Ok(_) => {
+                        debug!(?partition_id, "hot compaction complete");
+                    }
+                };
+            })
+        })
+        // Assume we have enough resources to run
+        // num_parallel_partitions compactions in parallel
+        .buffer_unordered(num_parallel_partitions)
+        // report any JoinErrors (aka task panics)
+        .map(|join_result| {
+            if let Err(e) = join_result {
+                warn!(?e, "compaction task failed");
+            }
+            Ok(())
+        })
+        // Errors are reported during execution, so ignore results here
+        // https://stackoverflow.com/questions/64443085/how-to-run-stream-to-completion-in-rust-using-combinators-other-than-for-each
+        .forward(futures::sink::drain())
+        .await
+        .ok();
+
+    // Done compacting all candidates in the cycle, record its time
+    if let Some(delta) = compactor
+        .time_provider
+        .now()
+        .checked_duration_since(start_time)
+    {
+        let duration = compactor
+            .compaction_cycle_duration
+            .recorder(Attributes::from([]));
+        duration.record(delta);
+    }
+}
+
+async fn compact_cold_partitions(_compactor: Arc<Compactor>) {}
 
 #[async_trait]
 impl CompactorHandler for CompactorHandlerImpl {
