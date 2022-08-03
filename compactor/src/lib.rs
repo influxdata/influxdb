@@ -21,6 +21,7 @@ pub mod server;
 pub mod utils;
 
 use crate::compact::{Compactor, PartitionCompactionCandidateWithInfo};
+use data_types::CompactionLevel;
 use metric::Attributes;
 use snafu::{ResultExt, Snafu};
 use std::sync::Arc;
@@ -39,8 +40,8 @@ pub(crate) enum Error {
     },
 }
 
-/// One compaction operation of one partition
-pub(crate) async fn compact_partition(
+/// One compaction operation of one hot partition
+pub(crate) async fn compact_hot_partition(
     compactor: &Compactor,
     partition: PartitionCompactionCandidateWithInfo,
 ) -> Result<(), Error> {
@@ -55,7 +56,7 @@ pub(crate) async fn compact_partition(
         .await
         .context(ParquetFileLookupSnafu)?;
 
-    let to_compact = parquet_file_filtering::filter_parquet_files(
+    let to_compact = parquet_file_filtering::filter_hot_parquet_files(
         parquet_files_for_compaction,
         compactor.config.input_size_threshold_bytes(),
         compactor.config.input_file_count_threshold(),
@@ -78,7 +79,69 @@ pub(crate) async fn compact_partition(
     .await
     .context(ParquetFileCombiningSnafu);
 
-    let attributes = Attributes::from([("sequencer_id", format!("{}", sequencer_id).into())]);
+    let attributes = Attributes::from([
+        ("sequencer_id", format!("{}", sequencer_id).into()),
+        ("partition_type", "hot".into()),
+    ]);
+    if let Some(delta) = compactor
+        .time_provider
+        .now()
+        .checked_duration_since(start_time)
+    {
+        let duration = compactor.compaction_duration.recorder(attributes);
+        duration.record(delta);
+    }
+
+    compact_result
+}
+
+/// One compaction operation of one cold partition
+pub(crate) async fn compact_cold_partition(
+    compactor: &Compactor,
+    partition: PartitionCompactionCandidateWithInfo,
+) -> Result<(), Error> {
+    let start_time = compactor.time_provider.now();
+    let sequencer_id = partition.sequencer_id();
+
+    let parquet_files_for_compaction =
+        parquet_file_lookup::ParquetFilesForCompaction::for_partition(
+            Arc::clone(&compactor.catalog),
+            partition.id(),
+        )
+        .await
+        .context(ParquetFileLookupSnafu)?;
+
+    let to_compact = parquet_file_filtering::filter_cold_parquet_files(
+        parquet_files_for_compaction,
+        &compactor.parquet_file_candidate_gauge,
+        &compactor.parquet_file_candidate_bytes_gauge,
+    );
+
+    let compact_result =
+        if to_compact.len() == 1 && to_compact[0].compaction_level == CompactionLevel::Initial {
+            // upgrade the one l0 file to l1, don't run compaction
+            unimplemented!();
+        } else {
+            parquet_file_combining::compact_parquet_files(
+                to_compact,
+                partition,
+                Arc::clone(&compactor.catalog),
+                compactor.store.clone(),
+                Arc::clone(&compactor.exec),
+                Arc::clone(&compactor.time_provider),
+                &compactor.compaction_counter,
+                compactor.config.max_desired_file_size_bytes(),
+                compactor.config.percentage_max_file_size(),
+                compactor.config.split_percentage(),
+            )
+            .await
+            .context(ParquetFileCombiningSnafu)
+        };
+
+    let attributes = Attributes::from([
+        ("sequencer_id", format!("{}", sequencer_id).into()),
+        ("partition_type", "cold".into()),
+    ]);
     if let Some(delta) = compactor
         .time_provider
         .now()
@@ -108,7 +171,7 @@ mod tests {
     // Beside lp data, every value min/max sequence numbers and min/max time are important
     // to have a combination of needed tests in this test function
     #[tokio::test]
-    async fn test_compact_partition_many_files() {
+    async fn test_compact_hot_partition_many_files() {
         test_helpers::maybe_start_logging();
         let catalog = TestCatalog::new();
 
@@ -266,7 +329,7 @@ mod tests {
         assert_eq!(candidates.len(), 1);
         let c = candidates.pop().unwrap();
 
-        compact_partition(&compactor, c).await.unwrap();
+        compact_hot_partition(&compactor, c).await.unwrap();
 
         // Should have 3 non-soft-deleted files:
         //
