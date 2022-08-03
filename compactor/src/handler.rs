@@ -320,8 +320,7 @@ async fn compact_hot_partitions(compactor: Arc<Compactor>) {
     // --> num_parallel_partitions = max_concurrent_compaction_size_bytes/
     //     input_size_threshold_bytes
     let num_parallel_partitions = (compactor.config.max_concurrent_compaction_size_bytes
-        / compactor.config.input_size_threshold_bytes)
-        as usize;
+        / compactor.config.input_size_threshold_bytes) as usize;
 
     futures::stream::iter(candidates)
         .map(|p| {

@@ -30,13 +30,18 @@ use std::sync::Arc;
 #[allow(missing_copy_implementations, missing_docs)]
 pub(crate) enum Error {
     #[snafu(display("{}", source))]
-    ParquetFileLookup {
+    Lookup {
         source: parquet_file_lookup::PartitionFilesFromPartitionError,
     },
 
     #[snafu(display("{}", source))]
-    ParquetFileCombining {
+    Combining {
         source: parquet_file_combining::Error,
+    },
+
+    #[snafu(display("{}", source))]
+    Upgrading {
+        source: iox_catalog::interface::Error,
     },
 }
 
@@ -54,7 +59,7 @@ pub(crate) async fn compact_hot_partition(
             partition.id(),
         )
         .await
-        .context(ParquetFileLookupSnafu)?;
+        .context(LookupSnafu)?;
 
     let to_compact = parquet_file_filtering::filter_hot_parquet_files(
         parquet_files_for_compaction,
@@ -77,7 +82,7 @@ pub(crate) async fn compact_hot_partition(
         compactor.config.split_percentage(),
     )
     .await
-    .context(ParquetFileCombiningSnafu);
+    .context(CombiningSnafu);
 
     let attributes = Attributes::from([
         ("sequencer_id", format!("{}", sequencer_id).into()),
@@ -109,7 +114,7 @@ pub(crate) async fn compact_cold_partition(
             partition.id(),
         )
         .await
-        .context(ParquetFileLookupSnafu)?;
+        .context(LookupSnafu)?;
 
     let to_compact = parquet_file_filtering::filter_cold_parquet_files(
         parquet_files_for_compaction,
@@ -120,7 +125,14 @@ pub(crate) async fn compact_cold_partition(
     let compact_result =
         if to_compact.len() == 1 && to_compact[0].compaction_level == CompactionLevel::Initial {
             // upgrade the one l0 file to l1, don't run compaction
-            unimplemented!();
+            let mut repos = compactor.catalog.repositories().await;
+
+            repos
+                .parquet_files()
+                .update_to_level_1(&[to_compact[0].id])
+                .await
+                .context(UpgradingSnafu)?;
+            Ok(())
         } else {
             parquet_file_combining::compact_parquet_files(
                 to_compact,
@@ -135,7 +147,7 @@ pub(crate) async fn compact_cold_partition(
                 compactor.config.split_percentage(),
             )
             .await
-            .context(ParquetFileCombiningSnafu)
+            .context(CombiningSnafu)
         };
 
     let attributes = Attributes::from([
@@ -604,6 +616,145 @@ mod tests {
                 "| 21        |      | OH   | 21   | 1970-01-01T00:00:00.000000025Z |",
                 "| 70        | UT   |      |      | 1970-01-01T00:00:00.000020Z    |",
                 "+-----------+------+------+------+--------------------------------+",
+            ],
+            &batches
+        );
+    }
+
+    #[tokio::test]
+    async fn test_compact_cold_partition_one_level_0_without_overlap() {
+        test_helpers::maybe_start_logging();
+        let catalog = TestCatalog::new();
+
+        // lp1 does not overlap with any other level 0 or level 1
+        let lp1 = vec![
+            "table,tag1=WA field_int=1000i 10",
+            "table,tag1=VT field_int=10i 20",
+        ]
+        .join("\n");
+
+        // lp6 does not overlap with any
+        let lp6 = vec![
+            "table,tag2=PA,tag3=15 field_int=81601i 90000",
+            "table,tag2=OH,tag3=21 field_int=421i 91000",
+        ]
+        .join("\n");
+
+        let ns = catalog.create_namespace("ns").await;
+        let sequencer = ns.create_sequencer(1).await;
+        let table = ns.create_table("table").await;
+        table.create_column("field_int", ColumnType::I64).await;
+        table.create_column("tag1", ColumnType::Tag).await;
+        table.create_column("tag2", ColumnType::Tag).await;
+        table.create_column("tag3", ColumnType::Tag).await;
+        table.create_column("time", ColumnType::Time).await;
+        let partition = table
+            .with_sequencer(&sequencer)
+            .create_partition("part")
+            .await;
+        let time = Arc::new(SystemProvider::new());
+        let time_38_hour_ago = (time.now() - Duration::from_secs(60 * 60 * 38)).timestamp_nanos();
+        let config = make_compactor_config();
+        let metrics = Arc::new(metric::Registry::new());
+        let compactor = Compactor::new(
+            vec![sequencer.sequencer.id],
+            Arc::clone(&catalog.catalog),
+            ParquetStorage::new(Arc::clone(&catalog.object_store)),
+            Arc::new(Executor::new(1)),
+            Arc::new(SystemProvider::new()),
+            BackoffConfig::default(),
+            config,
+            Arc::clone(&metrics),
+        );
+
+        // parquet files that are all in the same partition
+
+        // pf1 does not overlap with any other level 0
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(&lp1)
+            .with_max_seq(3)
+            .with_min_time(10)
+            .with_max_time(20)
+            .with_file_size_bytes(compactor.config.max_desired_file_size_bytes() + 10)
+            .with_creation_time(time_38_hour_ago);
+        partition.create_parquet_file(builder).await;
+
+        // pf6 was created in a previous compaction cycle; does not overlap with any
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(&lp6)
+            .with_max_seq(20)
+            .with_min_time(90000)
+            .with_max_time(91000)
+            .with_file_size_bytes(100) // small file
+            .with_creation_time(time_38_hour_ago)
+            .with_compaction_level(CompactionLevel::FileNonOverlapped);
+        partition.create_parquet_file(builder).await;
+
+        // should have 1 level-0 file before compacting
+        let count = catalog.count_level_0_files(sequencer.sequencer.id).await;
+        assert_eq!(count, 1);
+
+        // ------------------------------------------------
+        // Compact
+        let candidates = compactor
+            .cold_partitions_to_compact(compactor.config.max_number_partitions_per_sequencer())
+            .await
+            .unwrap();
+        let mut candidates = compactor.add_info_to_partitions(&candidates).await.unwrap();
+
+        assert_eq!(candidates.len(), 1);
+        let c = candidates.pop().unwrap();
+
+        compact_cold_partition(&compactor, c).await.unwrap();
+
+        // Should have 2 non-soft-deleted files:
+        //
+        // - the level 1 file that didn't overlap with anything
+        // - the newly created level 1 file that was only upgraded from level 0
+        // - the two newly created after compacting and splitting pf1, pf2, pf3, pf4, pf5
+        let mut files = catalog.list_by_table_not_to_delete(table.table.id).await;
+        assert_eq!(files.len(), 2);
+        let files_and_levels: Vec<_> = files
+            .iter()
+            .map(|f| (f.id.get(), f.compaction_level))
+            .collect();
+        assert_eq!(
+            files_and_levels,
+            vec![
+                (1, CompactionLevel::FileNonOverlapped),
+                (2, CompactionLevel::FileNonOverlapped),
+            ]
+        );
+
+        // ------------------------------------------------
+        // Verify the parquet file content
+
+        // Later compacted file
+        let file1 = files.pop().unwrap();
+        let batches = read_parquet_file(&table, file1).await;
+        assert_batches_sorted_eq!(
+            &[
+                "+-----------+------+------+-----------------------------+",
+                "| field_int | tag2 | tag3 | time                        |",
+                "+-----------+------+------+-----------------------------+",
+                "| 421       | OH   | 21   | 1970-01-01T00:00:00.000091Z |",
+                "| 81601     | PA   | 15   | 1970-01-01T00:00:00.000090Z |",
+                "+-----------+------+------+-----------------------------+",
+            ],
+            &batches
+        );
+
+        // Earlier compacted file
+        let file0 = files.pop().unwrap();
+        let batches = read_parquet_file(&table, file0).await;
+        assert_batches_sorted_eq!(
+            &[
+                "+-----------+------+--------------------------------+",
+                "| field_int | tag1 | time                           |",
+                "+-----------+------+--------------------------------+",
+                "| 10        | VT   | 1970-01-01T00:00:00.000000020Z |",
+                "| 1000      | WA   | 1970-01-01T00:00:00.000000010Z |",
+                "+-----------+------+--------------------------------+",
             ],
             &batches
         );
