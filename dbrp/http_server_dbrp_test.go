@@ -489,7 +489,7 @@ func Test_handleDeleteDBRP(t *testing.T) {
 				BucketID:        influxdbtesting.MustIDBase16("5555f7ed2a035555"),
 				OrganizationID:  influxdbtesting.MustIDBase16("059af7ed2a034000"),
 				Database:        "mydb",
-				RetentionPolicy: "autogen",
+				RetentionPolicy: "testrp",
 				Default:         true,
 			}
 			if err := svc.Create(ctx, d); err != nil {
