@@ -70,8 +70,9 @@ pub const EMPTY_PREDICATE: Predicate = Predicate {
 /// ```
 #[derive(Clone, Debug, Default, PartialEq, PartialOrd)]
 pub struct Predicate {
-    /// Optional field restriction. If present, restricts the results to only
-    /// tables which have *at least one* of the fields in field_columns.
+    /// Optional field (aka "column") restriction. If present,
+    /// restricts the results to only tables which have *at least one*
+    /// of the fields in field_columns.
     pub field_columns: Option<BTreeSet<String>>,
 
     /// Optional timestamp range: only rows within this range are included in
@@ -85,9 +86,11 @@ pub struct Predicate {
     /// from the results.
     pub exprs: Vec<Expr>,
 
-    /// Optional arbitrary predicates on the special `_value` column. These
-    /// expressions are applied to `field_columns` projections in the form of
-    /// `CASE` statement conditions.
+    /// Optional arbitrary predicates on the special `_value` column
+    /// which represents the value of any column.
+    ///
+    /// These expressions are applied to `field_columns` projections
+    /// in the form of `CASE` statement conditions.
     pub value_expr: Vec<ValueExpr>,
 }
 
@@ -101,10 +104,12 @@ impl Predicate {
         !self.exprs.is_empty()
     }
 
-    /// Return a DataFusion `Expr` predicate representing the
-    /// combination of all predicate (`exprs`) and timestamp
-    /// restriction in this Predicate. Returns None if there are no
-    /// `Expr`'s restricting the data
+    /// Return a DataFusion [`Expr`] predicate representing the
+    /// combination of all (`exprs`) and timestamp restriction in this
+    /// Predicate.
+    ///
+    /// Returns None if there are no `Expr`'s restricting
+    /// the data
     pub fn filter_expr(&self) -> Option<Expr> {
         let mut builder =
             AndExprBuilder::default().append_opt(self.make_timestamp_predicate_expr());
@@ -116,7 +121,7 @@ impl Predicate {
         builder.build()
     }
 
-    /// Return true if the field should be included in results
+    /// Return true if the field / column should be included in results
     pub fn should_include_field(&self, field_name: &str) -> bool {
         match &self.field_columns {
             None => true, // No field restriction on predicate
@@ -235,7 +240,8 @@ impl Predicate {
         self
     }
 
-    /// Apply predicate to given table summary.
+    /// Apply predicate to given table summary and avoid having to
+    /// look at actual data.
     pub fn apply_to_table_summary(
         &self,
         table_summary: &TableSummary,

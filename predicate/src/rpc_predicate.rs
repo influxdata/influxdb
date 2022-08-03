@@ -1,5 +1,3 @@
-//! Interface logic between IOx ['Predicate`] and the predicates used
-//! by the InfluxDB Storage gRPC API
 mod field_rewrite;
 mod measurement_rewrite;
 mod value_rewrite;
@@ -54,7 +52,9 @@ pub const FIELD_COLUMN_NAME: &str = "_field";
 /// into multiple expressions (one for each field column).
 pub const VALUE_COLUMN_NAME: &str = "_value";
 
-/// Predicate used by the InfluxDB Storage gRPC API
+/// [`InfluxRpcPredicate`] implements the semantics of the InfluxDB
+/// Storage gRPC and handles mapping details such as `_field` and
+/// `_measurement` predicates into the corresponding IOx structures.
 #[derive(Debug, Clone, Default)]
 pub struct InfluxRpcPredicate {
     /// Optional table restriction. If present, restricts the results
@@ -74,7 +74,7 @@ impl InfluxRpcPredicate {
         }
     }
 
-    /// Create a new [`InfluxRpcPredicate`] with the given table
+    /// Create a new [`InfluxRpcPredicate`] for the given table
     pub fn new_table(table: impl Into<String>, predicate: Predicate) -> Self {
         Self::new(Some(std::iter::once(table.into()).collect()), predicate)
     }
@@ -83,7 +83,8 @@ impl InfluxRpcPredicate {
     /// is for the entire min/max valid range.
     ///
     /// This is used in certain cases to retain compatibility with the
-    /// existing storage engine
+    /// existing storage engine which uses the max range to mean "all
+    /// the data for all time"
     pub fn clear_timestamp_if_max_range(self) -> Self {
         Self {
             inner: self.inner.with_clear_timestamp_if_max_range(),
@@ -91,9 +92,15 @@ impl InfluxRpcPredicate {
         }
     }
 
-    /// Convert to a list of [`Predicate`] to apply to specific tables
+    /// Since InfluxRPC predicates may have references to
+    /// `_measurement` columns or other table / table schema specific
+    /// restrictions, a predicate must specialized for each table
+    /// prior to being applied by IOx to a specific table.
     ///
-    /// Returns a list of [`Predicate`] and their associated table name
+    /// See [`normalize_predicate`] for more details on the
+    /// transformations applied.
+    ///
+    /// Returns a list of (TableName, [`Predicate`])
     pub fn table_predicates(
         &self,
         table_info: &dyn QueryDatabaseMeta,
@@ -141,7 +148,7 @@ pub trait QueryDatabaseMeta {
 /// * any expression on the [VALUE_COLUMN_NAME] column is rewritten to be
 /// applied across all field columns.
 /// * any expression on the [FIELD_COLUMN_NAME] is rewritten to be
-/// applied for the particular fields.
+/// applied as a projection to specific columns.
 ///
 /// For example if the original predicate was
 /// ```text
