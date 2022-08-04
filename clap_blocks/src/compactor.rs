@@ -69,13 +69,14 @@ pub struct CompactorConfig {
     )]
     pub split_percentage: u16,
 
-    /// The compactor will limit the number of simultaneous compaction jobs based on the
-    /// size of the input files to be compacted. This number should be less than 1/10th
-    /// of the available memory to ensure compactions have
-    /// enough space to run.
-    /// Default is 1,073,741,824 bytes (1GB).
-    /// The number of compact_partititons run in parallel is determined by:
-    ///    max_concurrent_size_bytes/input_size_threshold_bytes
+    /// The compactor will limit the number of simultaneous hot partition compaction jobs based on
+    /// the size of the input files to be compacted. This number should be less than 1/10th of the
+    /// available memory to ensure compactions have enough space to run.
+    ///
+    /// Default is 1024 * 1024 * 1024 = 1,073,741,824 bytes (1GB).
+    //
+    // The number of compact_hot_partititons run in parallel is determined by:
+    //    max_concurrent_size_bytes/input_size_threshold_bytes
     #[clap(
         long = "--compaction-concurrent-size-bytes",
         env = "INFLUXDB_IOX_COMPACTION_CONCURRENT_SIZE_BYTES",
@@ -83,6 +84,22 @@ pub struct CompactorConfig {
         action
     )]
     pub max_concurrent_size_bytes: u64,
+
+    /// The compactor will limit the number of simultaneous cold partition compaction jobs based on
+    /// the size of the input files to be compacted. This number should be less than 1/10th of the
+    /// available memory to ensure compactions have enough space to run.
+    ///
+    /// Default is 1024 * 1024 * 900 = 943,718,400 bytes (900MB).
+    //
+    // The number of compact_cold_partititons run in parallel is determined by:
+    //    max_cold_concurrent_size_bytes/cold_input_size_threshold_bytes
+    #[clap(
+        long = "--compaction-cold-concurrent-size-bytes",
+        env = "INFLUXDB_IOX_COMPACTION_COLD_CONCURRENT_SIZE_BYTES",
+        default_value = "943718400",
+        action
+    )]
+    pub max_cold_concurrent_size_bytes: u64,
 
     /// Max number of partitions per sequencer we want to compact per cycle
     /// Default: 1
@@ -104,14 +121,14 @@ pub struct CompactorConfig {
     )]
     pub min_number_recent_ingested_files_per_partition: usize,
 
-    /// A compaction operation will gather as many L0 files with their overlapping L1 files to
-    /// compact together until the total size of input files crosses this threshold. Later
-    /// compactions will pick up the remaining L0 files.
+    /// A compaction operation for hot partitions will gather as many L0 files with their
+    /// overlapping L1 files to compact together until the total size of input files crosses this
+    /// threshold. Later compactions will pick up the remaining L0 files.
     ///
     /// A compaction operation will be limited by this or by the file count threshold, whichever is
     /// hit first.
     ///
-    /// Default is 1024 * 1024 * 100 = 100,048,576 (100MB).
+    /// Default is 1024 * 1024 * 100 = 100,048,576 bytes (100MB).
     #[clap(
         long = "--compaction-input-size-threshold-bytes",
         env = "INFLUXDB_IOX_COMPACTION_INPUT_SIZE_THRESHOLD_BYTES",
@@ -119,6 +136,19 @@ pub struct CompactorConfig {
         action
     )]
     pub input_size_threshold_bytes: u64,
+
+    /// A compaction operation for cold partitions will gather as many L0 files with their
+    /// overlapping L1 files to compact together until the total size of input files crosses this
+    /// threshold. Later compactions will pick up the remaining L0 files.
+    ///
+    /// Default is 1024 * 1024 * 600 = 629,145,600 bytes (600MB).
+    #[clap(
+        long = "--compaction-cold-input-size-threshold-bytes",
+        env = "INFLUXDB_IOX_COMPACTION_COLD_INPUT_SIZE_THRESHOLD_BYTES",
+        default_value = "629145600",
+        action
+    )]
+    pub cold_input_size_threshold_bytes: u64,
 
     /// A compaction operation will gather as many L0 files with their overlapping L1 files to
     /// compact together until the total number of L0 + L1 files crosses this threshold. Later
@@ -135,4 +165,17 @@ pub struct CompactorConfig {
         action
     )]
     pub input_file_count_threshold: usize,
+
+    /// The multiple of times that compacting hot partitions should run for every one time that
+    /// compacting cold partitions runs. Set to 1 to compact hot partitions and cold partitions
+    /// equally.
+    ///
+    /// Default is 4.
+    #[clap(
+        long = "--compaction-hot-multiple",
+        env = "INFLUXDB_IOX_COMPACTION_HOT_MULTIPLE",
+        default_value = "4",
+        action
+    )]
+    pub hot_multiple: usize,
 }

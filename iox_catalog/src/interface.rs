@@ -552,10 +552,12 @@ pub trait ParquetFileRepo: Send + Sync {
         num_partitions: usize,
     ) -> Result<Vec<PartitionParam>>;
 
-    /// List partitions with the most level 0 files for a given sequencer
+    /// List partitions with the most level 0 files created earlier than `older_than_num_hours`
+    /// hours ago for a given sequencer. In other words, "cold" partitions that need compaction.
     async fn most_level_0_files_partitions(
         &mut self,
         sequencer_id: SequencerId,
+        older_than_num_hours: u32,
         num_partitions: usize,
     ) -> Result<Vec<PartitionParam>>;
 
@@ -2686,17 +2688,25 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
 
+        let time_five_hour_ago = Timestamp::new(
+            (catalog.time_provider().now() - Duration::from_secs(60 * 60 * 5)).timestamp_nanos(),
+        );
+        let time_38_hour_ago = Timestamp::new(
+            (catalog.time_provider().now() - Duration::from_secs(60 * 60 * 38)).timestamp_nanos(),
+        );
+
+        let older_than = 24;
         let num_partitions = 2;
 
         // Db has no partition
         let partitions = repos
             .parquet_files()
-            .most_level_0_files_partitions(sequencer.id, num_partitions)
+            .most_level_0_files_partitions(sequencer.id, older_than, num_partitions)
             .await
             .unwrap();
         assert!(partitions.is_empty());
 
-        // The DB has 1 partition but it does not have any file
+        // The DB has 1 partition but it does not have any files
         let partition = repos
             .partitions()
             .create_or_get("one".into(), sequencer.id, table.id)
@@ -2704,7 +2714,7 @@ pub(crate) mod test_helpers {
             .unwrap();
         let partitions = repos
             .parquet_files()
-            .most_level_0_files_partitions(sequencer.id, num_partitions)
+            .most_level_0_files_partitions(sequencer.id, older_than, num_partitions)
             .await
             .unwrap();
         assert!(partitions.is_empty());
@@ -2722,7 +2732,7 @@ pub(crate) mod test_helpers {
             file_size_bytes: 1337,
             row_count: 0,
             compaction_level: CompactionLevel::Initial,
-            created_at: Timestamp::new(1),
+            created_at: time_38_hour_ago,
             column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
         };
         let delete_l0_file = repos
@@ -2737,12 +2747,42 @@ pub(crate) mod test_helpers {
             .unwrap();
         let partitions = repos
             .parquet_files()
-            .most_level_0_files_partitions(sequencer.id, num_partitions)
+            .most_level_0_files_partitions(sequencer.id, older_than, num_partitions)
             .await
             .unwrap();
         assert!(partitions.is_empty());
 
-        // The partition has one non-deleted level 0 files
+        // A partition with one cold file and one hot file
+        let hot_partition = repos
+            .partitions()
+            .create_or_get("hot".into(), sequencer.id, table.id)
+            .await
+            .unwrap();
+        let cold_file_params = ParquetFileParams {
+            object_store_id: Uuid::new_v4(),
+            partition_id: hot_partition.id,
+            ..parquet_file_params.clone()
+        };
+        repos
+            .parquet_files()
+            .create(cold_file_params)
+            .await
+            .unwrap();
+        let hot_file_params = ParquetFileParams {
+            object_store_id: Uuid::new_v4(),
+            partition_id: hot_partition.id,
+            created_at: time_five_hour_ago,
+            ..parquet_file_params.clone()
+        };
+        repos.parquet_files().create(hot_file_params).await.unwrap();
+        let partitions = repos
+            .parquet_files()
+            .most_level_0_files_partitions(sequencer.id, older_than, num_partitions)
+            .await
+            .unwrap();
+        assert!(partitions.is_empty());
+
+        // The partition has one non-deleted level 0 file
         let l0_file_params = ParquetFileParams {
             object_store_id: Uuid::new_v4(),
             ..parquet_file_params.clone()
@@ -2754,12 +2794,12 @@ pub(crate) mod test_helpers {
             .unwrap();
         let partitions = repos
             .parquet_files()
-            .most_level_0_files_partitions(sequencer.id, num_partitions)
+            .most_level_0_files_partitions(sequencer.id, older_than, num_partitions)
             .await
             .unwrap();
         assert_eq!(partitions.len(), 1);
 
-        // The DB has 2 partitions both has non-deleled L0 files
+        // The DB has 2 partitions; both have non-deleted L0 files
         let another_partition = repos
             .partitions()
             .create_or_get("two".into(), sequencer.id, table.id)
@@ -2788,7 +2828,7 @@ pub(crate) mod test_helpers {
         // Must return 2 partitions
         let partitions = repos
             .parquet_files()
-            .most_level_0_files_partitions(sequencer.id, num_partitions)
+            .most_level_0_files_partitions(sequencer.id, older_than, num_partitions)
             .await
             .unwrap();
         assert_eq!(partitions.len(), 2);
@@ -2815,11 +2855,11 @@ pub(crate) mod test_helpers {
         // Still return 2 partitions the limit num_partitions=2
         let partitions = repos
             .parquet_files()
-            .most_level_0_files_partitions(sequencer.id, num_partitions)
+            .most_level_0_files_partitions(sequencer.id, older_than, num_partitions)
             .await
             .unwrap();
         assert_eq!(partitions.len(), 2);
-        // and the first one should stil be the one with the most L0 files
+        // and the first one should still be the one with the most L0 files
         assert_eq!(partitions[0].partition_id, another_partition.id);
     }
 

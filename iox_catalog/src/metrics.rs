@@ -280,7 +280,7 @@ decorate!(
         "parquet_count_by_overlaps_with_level_1" = count_by_overlaps_with_level_1(&mut self, table_id: TableId, sequencer_id: SequencerId, min_time: Timestamp, max_time: Timestamp) -> Result<i64>;
         "parquet_get_by_object_store_id" = get_by_object_store_id(&mut self, object_store_id: Uuid) -> Result<Option<ParquetFile>>;
         "recent_highest_throughput_partitions" = recent_highest_throughput_partitions(&mut self, sequencer_id: SequencerId, num_hours: u32, min_num_files: usize, num_partitions: usize) -> Result<Vec<PartitionParam>>;
-        "most_level_0_files_partitions" =  most_level_0_files_partitions(&mut self, sequencer_id: SequencerId, num_partitions: usize) -> Result<Vec<PartitionParam>>;
+        "most_level_0_files_partitions" =  most_level_0_files_partitions(&mut self, sequencer_id: SequencerId, older_than_num_hours: u32, num_partitions: usize) -> Result<Vec<PartitionParam>>;
     ]
 );
 
