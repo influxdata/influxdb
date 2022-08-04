@@ -17,7 +17,7 @@ itertools = "0.10.0"
 rand = { version = "0.8.3", features = ["small_rng"] }
 regex = "1.6"
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0.82"
+serde_json = "1.0.83"
 snafu = "0.7"
 tokio = { version = "1.20", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
 toml = "0.5.9"
