@@ -1047,28 +1047,5 @@ mod tests {
         assert_eq!(candidates[1].sequencer_id, sequencer.id);
         assert_eq!(candidates[2].partition_id, another_partition.id);
         assert_eq!(candidates[2].sequencer_id, another_sequencer.id);
-
-        // Add info to partition
-        let partitions_with_info = compactor.add_info_to_partitions(&candidates).await.unwrap();
-        assert_eq!(partitions_with_info.len(), 2);
-
-        assert_eq!(*partitions_with_info[0].namespace, namespace);
-        assert_eq!(*partitions_with_info[0].table, table);
-        assert_eq!(
-            partitions_with_info[0].partition_key,
-            partition4.partition_key
-        );
-        assert_eq!(partitions_with_info[0].sort_key, partition4.sort_key()); // this sort key is None
-
-        assert_eq!(*partitions_with_info[1].namespace, namespace);
-        assert_eq!(*partitions_with_info[1].table, another_table);
-        assert_eq!(
-            partitions_with_info[1].partition_key,
-            another_partition.partition_key
-        );
-        assert_eq!(
-            partitions_with_info[1].sort_key,
-            another_partition.sort_key()
-        ); // this sort key is Some(tag1, time)
     }
 }
