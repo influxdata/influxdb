@@ -24,6 +24,7 @@ use datafusion::{
     error::DataFusionError,
     logical_expr::{binary_expr, utils::expr_to_columns},
     logical_plan::{col, lit_timestamp_nano, Expr, Operator},
+    optimizer::utils::split_conjunction,
     physical_optimizer::pruning::{PruningPredicate, PruningStatistics},
 };
 use datafusion_util::{make_range_expr, nullable_schema};
@@ -499,7 +500,7 @@ impl Predicate {
         let mut exprs = vec![];
         filters
             .iter()
-            .for_each(|expr| Self::split_members(expr, &mut exprs));
+            .for_each(|expr| split_conjunction(expr, &mut exprs));
 
         // Only keep single_column and primitive binary expressions
         let mut pushdown_exprs: Vec<Expr> = vec![];
@@ -507,10 +508,10 @@ impl Predicate {
             .into_iter()
             .try_for_each::<_, Result<_, DataFusionError>>(|expr| {
                 let mut columns = HashSet::new();
-                expr_to_columns(&expr, &mut columns)?;
+                expr_to_columns(expr, &mut columns)?;
 
-                if columns.len() == 1 && Self::primitive_binary_expr(&expr) {
-                    pushdown_exprs.push(expr);
+                if columns.len() == 1 && Self::primitive_binary_expr(expr) {
+                    pushdown_exprs.push(expr.clone());
                 }
                 Ok(())
             });
@@ -526,22 +527,6 @@ impl Predicate {
         }
 
         self
-    }
-
-    /// Recursively split all "AND" expressions into smaller one
-    /// Example: "A AND B AND C" => [A, B, C]
-    pub fn split_members(predicate: &Expr, predicates: &mut Vec<Expr>) {
-        match predicate {
-            Expr::BinaryExpr {
-                right,
-                op: Operator::And,
-                left,
-            } => {
-                Self::split_members(left, predicates);
-                Self::split_members(right, predicates);
-            }
-            other => predicates.push(other.clone()),
-        }
     }
 
     /// Return true if the given expression is in a primitive binary in the form: `column op constant`
