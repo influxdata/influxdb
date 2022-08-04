@@ -257,9 +257,10 @@ impl WriteBufferStreamHandler for RSKafkaStreamHandler {
                 Err(e) => {
                     terminated.store(true, Ordering::SeqCst);
                     let kind = match e {
-                        RSKafkaError::ServerError(ProtocolError::OffsetOutOfRange, _) => {
-                            WriteBufferErrorKind::UnknownSequenceNumber
-                        }
+                        RSKafkaError::ServerError {
+                            protocol_error: ProtocolError::OffsetOutOfRange,
+                            ..
+                        } => WriteBufferErrorKind::UnknownSequenceNumber,
                         _ => WriteBufferErrorKind::Unknown,
                     };
                     return Err(WriteBufferError::new(kind, e));
@@ -439,7 +440,10 @@ async fn setup_topic(
             {
                 Ok(_) => {}
                 // race condition between check and creation action, that's OK
-                Err(RSKafkaError::ServerError(ProtocolError::TopicAlreadyExists, _)) => {}
+                Err(RSKafkaError::ServerError {
+                    protocol_error: ProtocolError::TopicAlreadyExists,
+                    ..
+                }) => {}
                 Err(e) => {
                     return Err(e.into());
                 }

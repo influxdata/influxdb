@@ -196,7 +196,7 @@ jobs:
     # setup multiple docker images (see https://circleci.com/docs/2.0/configuration-reference/#docker)
     docker:
       - image: quay.io/influxdb/rust:ci
-      - image: vectorized/redpanda:v21.9.2
+      - image: vectorized/redpanda:v22.1.5
         command: redpanda start --overprovisioned --smp 1 --memory 1G --reserve-memory 0M
       - image: postgres
         environment:
