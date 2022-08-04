@@ -347,12 +347,8 @@ jobs:
     environment:
       # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
       CARGO_INCREMENTAL: "0"
-      # We keep the debug symbols (Enabled in Cargo.toml as debug = true)
-      # workaround dynamic CPU detection bug in croaring
-      # https://github.com/influxdata/influxdb_iox/pull/2119
-      ROARING_ARCH: "haswell"
-      # Use avx512 instructions to take full advantage of the CPUs instruction set
-      RUSTFLAGS: "-C target-feature=+avx2 -C link-arg=-fuse-ld=lld --cfg tokio_unstable"
+      # Enable tokio-console
+      RUSTFLAGS: "--cfg tokio_unstable"
       # https://github.com/rust-lang/cargo/issues/10280
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
