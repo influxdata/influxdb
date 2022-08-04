@@ -354,14 +354,14 @@ async fn list_tag_values_field_col_does_not_exist() {
 async fn list_tag_values_field_col_does_exist() {
     let tag_name = "state";
     let predicate = Predicate::default()
-        .with_range(0, 1000) // get all rows
-        // this field does exist (but only for rows with CA and MA, not NY)
-        .with_expr(col("_field").eq(lit("county")));
+        .with_range(0, 1000000) // get all rows
+        // this field does exist, but only for rows MA(not CA)
+        .with_expr(col("_field").eq(lit("moisture")));
     let predicate = InfluxRpcPredicate::new(None, predicate);
-    let expected_tag_keys = vec!["MA", "CA"];
+    let expected_tag_keys = vec!["MA"];
 
     run_tag_values_test_case(
-        TwoMeasurementsManyNulls {},
+        TwoMeasurementsManyFields {},
         tag_name,
         predicate,
         expected_tag_keys,

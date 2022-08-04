@@ -471,6 +471,23 @@ async fn test_read_filter_data_pred_using_regex_match() {
 }
 
 #[tokio::test]
+async fn test_read_filter_data_pred_using_regex_match_on_field() {
+    let predicate = Predicate::default().with_regex_match_expr("_field", "temp");
+    let predicate = InfluxRpcPredicate::new(None, predicate);
+
+    // Should see results for temp and other_temp (but not reading)
+    let expected_results = vec![
+        "Series tags={_field=other_temp, _measurement=h2o, city=Boston, state=CA}\n  FloatPoints timestamps: [350], values: [72.4]",
+        "Series tags={_field=other_temp, _measurement=h2o, city=Boston, state=MA}\n  FloatPoints timestamps: [250], values: [70.4]",
+        "Series tags={_field=temp, _measurement=h2o, city=Boston, state=MA}\n  FloatPoints timestamps: [50, 100000], values: [70.4, 70.4]",
+        "Series tags={_field=temp, _measurement=o2, state=CA}\n  FloatPoints timestamps: [300], values: [79.0]",
+        "Series tags={_field=temp, _measurement=o2, city=Boston, state=MA}\n  FloatPoints timestamps: [50], values: [53.4]",
+    ];
+
+    run_read_filter_test_case(TwoMeasurementsManyFields {}, predicate, expected_results).await;
+}
+
+#[tokio::test]
 async fn test_read_filter_data_pred_using_regex_match_with_delete() {
     let predicate = Predicate::default()
         .with_range(200, 300)
@@ -717,14 +734,20 @@ async fn test_read_filter_on_not_field() {
 }
 
 #[tokio::test]
-async fn test_read_filter_unsupported_predicate() {
+async fn test_read_filter_unsupported_field_predicate() {
     test_helpers::maybe_start_logging();
 
-    // Predicate should pick up all fields other than 'temp' from h2o
-    // (_field != 'temp')
+    // Can not evaluate the following predicate as it refers to both
+    // _field and the values in the "tag" column, so we can't figure
+    // out which columns ("_field" prediate) at planning time -- we
+    // have to do it at runtime somehow
+    //
+    // https://github.com/influxdata/influxdb_iox/issues/5310
+
+    // (_field != 'temp') OR (city = "Boston")
     let p1 = col("_field")
         .not_eq(lit("temp"))
-        .or(col("_field").eq(lit("other_temp")));
+        .or(col("city").eq(lit("Boston")));
     let predicate = Predicate::default().with_expr(p1);
     let predicate = InfluxRpcPredicate::new(None, predicate);
 
@@ -795,9 +818,6 @@ async fn test_read_filter_on_field_multi_measurement() {
     let expected_results = vec![
         "Series tags={_field=other_temp, _measurement=h2o, city=Boston, state=CA}\n  FloatPoints timestamps: [350], values: [72.4]",
         "Series tags={_field=other_temp, _measurement=h2o, city=Boston, state=MA}\n  FloatPoints timestamps: [250], values: [70.4]",
-        // This series should not be here (_field = temp)
-        // WRONG ANSWER, tracked by: https://github.com/influxdata/influxdb_iox/issues/3428
-        "Series tags={_field=temp, _measurement=h2o, city=Boston, state=MA}\n  FloatPoints timestamps: [50, 100000], values: [70.4, 70.4]",
         "Series tags={_field=temp, _measurement=o2, state=CA}\n  FloatPoints timestamps: [300], values: [79.0]",
         "Series tags={_field=temp, _measurement=o2, city=Boston, state=MA}\n  FloatPoints timestamps: [50], values: [53.4]",
     ];

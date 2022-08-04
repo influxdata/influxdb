@@ -876,8 +876,10 @@ fn format_comparison(v: i32, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 
 #[cfg(test)]
 mod tests {
+    use arrow::datatypes::DataType;
     use generated_types::node::Type as RPCNodeType;
-    use predicate::{rpc_predicate::QueryDatabaseMeta, Predicate, EMPTY_PREDICATE};
+    use predicate::{rpc_predicate::QueryDatabaseMeta, Predicate};
+    use schema::{Schema, SchemaBuilder};
     use std::{collections::BTreeSet, sync::Arc};
 
     use super::*;
@@ -898,8 +900,30 @@ mod tests {
             self.table_names.clone()
         }
 
-        fn table_schema(&self, _table_name: &str) -> Option<Arc<schema::Schema>> {
-            None
+        fn table_schema(&self, table_name: &str) -> Option<Arc<Schema>> {
+            match table_name {
+                "foo" => {
+                    let schema = SchemaBuilder::new()
+                        .tag("t1")
+                        .tag("t2")
+                        .field("foo", DataType::Int64)
+                        .field("bar", DataType::Int64)
+                        .build()
+                        .unwrap();
+
+                    Some(Arc::new(schema))
+                }
+                "bar" => {
+                    let schema = SchemaBuilder::new()
+                        .tag("t3")
+                        .field("baz", DataType::Int64)
+                        .build()
+                        .unwrap();
+
+                    Some(Arc::new(schema))
+                }
+                _ => None,
+            }
         }
     }
 
@@ -1003,7 +1027,13 @@ mod tests {
         {
             assert_eq!(expected_table, &table);
 
-            let expected_exprs = vec![lit(table).not_eq(lit("foo"))];
+            let expected_exprs = if table == "foo" {
+                // "foo" != "foo" is optimized to false
+                vec![lit(false)]
+            } else {
+                // "bar" != "foo" is optimized to true which is then removed
+                vec![]
+            };
 
             assert_eq!(
                 &expected_exprs, &predicate.exprs,
@@ -1024,13 +1054,14 @@ mod tests {
             .build();
         let predicate = table_predicate(predicate);
 
-        // predicate is rewritten to true (which is simplified to an empty predicate list), and projection is added
-        // but, the table schema is not specified in the test, so the projection is also empty.
+        // predicate is rewritten to true (which is simplified to an
+        // empty expr), and projection is added
+        let expected = Predicate::new().with_field_columns(vec!["foo"]);
 
         assert_eq!(
-            predicate, EMPTY_PREDICATE,
+            predicate, expected,
             "expected '{:#?}' doesn't match actual '{:#?}'",
-            predicate, EMPTY_PREDICATE,
+            predicate, expected,
         );
     }
 

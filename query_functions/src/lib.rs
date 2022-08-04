@@ -31,6 +31,9 @@ mod window;
 /// Function registry
 mod registry;
 
+pub use crate::regex::REGEX_MATCH_UDF_NAME;
+pub use crate::regex::REGEX_NOT_MATCH_UDF_NAME;
+
 /// Return an Expr that invokes a InfluxRPC compatible regex match to
 /// determine which values satisfy the pattern. Equivalent to:
 ///

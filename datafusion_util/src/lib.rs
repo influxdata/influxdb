@@ -23,7 +23,7 @@ use datafusion::{
         error::Result as ArrowResult,
         record_batch::RecordBatch,
     },
-    logical_plan::{col, lit, Expr},
+    logical_plan::{col, lit, Expr, Operator},
     physical_plan::{RecordBatchStream, SendableRecordBatchStream},
     scalar::ScalarValue,
 };
@@ -31,6 +31,32 @@ use futures::{Stream, StreamExt};
 use tokio::sync::mpsc::{Receiver, UnboundedReceiver};
 use tokio_stream::wrappers::{ReceiverStream, UnboundedReceiverStream};
 use watch::WatchedTask;
+
+/// Split an Expr up into its constituent parts
+///
+/// ```text
+/// A ==> Vec[A]
+/// A AND B AND C ==> Vec[A, B, C]
+/// ```
+pub fn disassemble_conjuct(expr: Expr) -> Vec<Expr> {
+    let mut exprs = vec![];
+    disassemble_conjuct_impl(expr, &mut exprs);
+    exprs
+}
+
+fn disassemble_conjuct_impl(expr: Expr, exprs: &mut Vec<Expr>) {
+    match expr {
+        Expr::BinaryExpr {
+            right,
+            op: Operator::And,
+            left,
+        } => {
+            disassemble_conjuct_impl(*left, exprs);
+            disassemble_conjuct_impl(*right, exprs);
+        }
+        other => exprs.push(other),
+    }
+}
 
 /// Traits to help creating DataFusion [`Expr`]s
 pub trait AsExpr {

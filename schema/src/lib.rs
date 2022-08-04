@@ -43,6 +43,8 @@ pub mod merge;
 pub mod selection;
 pub mod sort;
 
+pub use builder::SchemaBuilder;
+
 /// Database schema creation / validation errors.
 #[derive(Debug, Snafu)]
 pub enum Error {

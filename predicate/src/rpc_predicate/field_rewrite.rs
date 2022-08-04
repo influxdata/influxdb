@@ -1,402 +1,336 @@
-//! Logic for rewriting _field = "val" expressions to projections
+use crate::Predicate;
 
 use super::FIELD_COLUMN_NAME;
+use arrow::array::{as_boolean_array, as_string_array, ArrayRef, StringArray};
+use arrow::compute::kernels;
+use arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
-use datafusion::logical_plan::{
-    lit, Expr, ExprRewritable, ExprRewriter, ExprVisitable, ExpressionVisitor, Operator, Recursion,
-};
-use datafusion::scalar::ScalarValue;
-use std::collections::BTreeSet;
+use datafusion::logical_plan::{lit, DFSchema, Expr, ExprVisitable, ExpressionVisitor, Recursion};
+use datafusion::physical_expr::create_physical_expr;
+use datafusion::physical_expr::execution_props::ExecutionProps;
+use datafusion::physical_plan::ColumnarValue;
+use datafusion_util::disassemble_conjuct;
+use schema::Schema;
+use std::sync::Arc;
 
-/// What fields / columns should appear in the result
-#[derive(Debug, PartialEq)]
-pub(crate) enum FieldProjection {
-    /// No restriction on fields/columns
-    None,
-    /// Only fields / columns that appear should be produced
-    Include(BTreeSet<String>),
-    /// Only fields / columns that are *NOT* in this list should appear
-    Exclude(BTreeSet<String>),
-}
-
-impl FieldProjection {
-    // Add `name` as a included field name
-    fn add_include(&mut self, name: impl Into<String>) {
-        match self {
-            Self::None => {
-                *self = Self::Include([name.into()].into_iter().collect());
-            }
-            Self::Include(cols) => {
-                cols.insert(name.into());
-            }
-            Self::Exclude(_) => {
-                unreachable!("previously had '!=' and now have '=' not caught")
-            }
-        }
-    }
-
-    // Add `name` as a excluded field name
-    fn add_exclude(&mut self, name: impl Into<String>) {
-        match self {
-            Self::None => {
-                *self = Self::Exclude([name.into()].into_iter().collect());
-            }
-            Self::Include(_) => {
-                unreachable!("previously had '=' and now have '!=' not caught")
-            }
-            Self::Exclude(cols) => {
-                cols.insert(name.into());
-            }
-        }
-    }
-}
-
-/// Rewrites a predicate on `_field` as a projection on a specific defined by
-/// the literal in the expression.
+/// Logic for rewriting expressions from influxrpc that reference
+/// `_field` to projections (aka column selection)
 ///
-/// For example, the expression `_field = "load4"` is removed from the
-/// normalised expression, and a column "load4" added to the predicate's
-/// projection.
+/// Rewrites a predicate on `_field` as a projection against a
+/// specific schema to a literal true in the expression and remembers
+/// which fields were selected.
+///
+/// For example, if the query has a predicate with the expression
+/// `_field = "load4"`, FieldProjectionRewriter rewrites the predicate
+/// by replacing `_field = "load4" to `true`, and adds the column "load4"
+/// to the [`Predicate`]'s projection.
+///
+/// This rewrite also handle more complicated expressions such as
+/// the expression `_field = "load4" OR _field = "load5" OR ` is
+/// replaced by `true`, and the columns ("load4", "load5") are
+/// added to the predicate's projection.
+///
+/// This rewrite can not handle non-conjuction predicates that refer
+/// to both `_field` and some other column, such as `_field = "f1" OR
+/// tag1 = "host.example.com"). Such predicates would need to be
+/// handled at runtime as they depend on the data in the other
+/// columns, which is not available at planning time.
 #[derive(Debug)]
 pub(crate) struct FieldProjectionRewriter {
-    /// Remember what we have seen for expressions across calls to
-    /// ensure that multiple exprs don't end up having incompatible
-    /// options
-    checker: FieldRefChecker,
-    projection: FieldProjection,
+    /// single column expressions (only refer to `_field`). If there
+    /// are any such expressions, ALL of them must evaluate to true
+    /// against a field's name in order to include that field in the
+    /// output
+    field_predicates: Vec<Expr>,
+    /// The input schema (from where we know the field)
+    schema: Arc<Schema>,
 }
 
 impl FieldProjectionRewriter {
-    pub(crate) fn new() -> Self {
+    /// Create a new [`FieldProjectionRewriter`] targeting the given schema
+    pub(crate) fn new(schema: Arc<Schema>) -> Self {
         Self {
-            checker: FieldRefChecker::new(),
-            projection: FieldProjection::None,
+            field_predicates: vec![],
+            schema,
         }
     }
 
-    // Rewrites the predicate, looking for _field predicates
+    // Rewrites the predicate. See the description on
+    // [`FieldProjectionRewriter`] for more details.
     pub(crate) fn rewrite_field_exprs(&mut self, expr: Expr) -> DataFusionResult<Expr> {
-        // Check for incompatible structures / patterns
-        self.checker = expr.accept(self.checker.clone())?;
+        // for predicates like `A AND B AND C`
+        // rewrite `A`, `B` and `C` separately and put them back together
+        let rewritten_expr = disassemble_conjuct(expr)
+            .into_iter()
+            // apply the rewrite individually
+            .map(|expr| self.rewrite_single_conjunct(expr))
+            // check for errors
+            .collect::<DataFusionResult<Vec<Expr>>>()?
+            // put the Exprs back together with AND
+            .into_iter()
+            .reduce(|acc, expr| acc.and(expr))
+            .expect("at least one expr");
 
-        // Actually rewrite the expression
-        let expr = expr.rewrite(&mut FieldProjectionRewriterWrapper(self))?;
-
-        // Ensure that there are no remaining _field references
-        expr.accept(FieldRefFinder {})?;
-
-        Ok(expr)
+        Ok(rewritten_expr)
     }
 
-    /// Returns any projection found in the predicate
-    pub(crate) fn into_projection(self) -> FieldProjection {
-        self.projection
-    }
-}
+    // Rewrites a single predicate. Does not handle AND specially
+    fn rewrite_single_conjunct(&mut self, expr: Expr) -> DataFusionResult<Expr> {
+        let finder = expr.accept(ColumnReferencesFinder::default())?;
 
-// newtype so users aren't confused and use `FieldProjectionRewriter` directly
-struct FieldProjectionRewriterWrapper<'a>(&'a mut FieldProjectionRewriter);
-
-impl<'a> ExprRewriter for FieldProjectionRewriterWrapper<'a> {
-    /// This looks for very specific patterns
-    /// (_field = "foo") OR (_field = "bar") OR ...
-    /// (_field != "foo") AND (_field != "bar") AND ...
-    fn mutate(&mut self, expr: Expr) -> DataFusionResult<Expr> {
-        match check_binary(&expr) {
-            Some((Operator::Eq, name)) => {
-                self.0.projection.add_include(name);
+        // rewrite any expression that only references _field to `true`
+        match (finder.saw_field_reference, finder.saw_non_field_reference) {
+            // Only saw _field column references, rewrite
+            (true, false) => {
+                self.field_predicates.push(expr);
                 Ok(lit(true))
             }
-            Some((Operator::NotEq, name)) => {
-                self.0.projection.add_exclude(name);
-                Ok(lit(true))
-            }
-            _ => Ok(expr),
-        }
-    }
-}
-
-/// Returns Some(op, str) if this expr represents `FILD_NAME_COLUMNN = <string lit>`
-fn check_binary(expr: &Expr) -> Option<(Operator, &str)> {
-    if let Expr::BinaryExpr { left, op, right } = expr {
-        match (as_col_name(left), Some(*op), as_str_lit(right)) {
-            // col eq lit
-            (Some(FIELD_COLUMN_NAME), Some(Operator::Eq), Some(name))
-            | (Some(FIELD_COLUMN_NAME), Some(Operator::NotEq), Some(name)) => Some((*op, name)),
-            _ => None,
-        }
-    } else {
-        None
-    }
-}
-
-/// if `expr` is a column name, returns the name
-fn as_col_name(expr: &Expr) -> Option<&str> {
-    if let Expr::Column(inner) = expr {
-        Some(inner.name.as_ref())
-    } else {
-        None
-    }
-}
-
-/// if the expr is a non null literal string, returns the string value
-fn as_str_lit(expr: &Expr) -> Option<&str> {
-    if let Expr::Literal(ScalarValue::Utf8(Some(name))) = &expr {
-        Some(name.as_str())
-    } else {
-        None
-    }
-}
-
-/// Searches for `_field` and errors if any are found
-///
-/// Note that this catches for different error cases than
-/// [`FieldRefChecker`]. Specifically, it will error for predicates
-/// such as `_field ~ 'foo'`, that have a `_field` reference but were
-/// not rewritten or previously idetified as illegal.
-struct FieldRefFinder {}
-
-impl ExpressionVisitor for FieldRefFinder {
-    fn pre_visit(self, expr: &Expr) -> DataFusionResult<Recursion<Self>> {
-        match as_col_name(expr) {
-            Some(FIELD_COLUMN_NAME) => Err(DataFusionError::Plan(
-                "Unsupported _field predicate, could not rewrite for IOx".into(),
-            )),
-            _ => Ok(Recursion::Continue(self)),
-        }
-    }
-}
-
-/// What type of structures have been seen in children
-#[derive(Debug, Clone, Copy)]
-enum FieldRefState {
-    /// Have not yet seen a _field predicate
-    NoPred,
-    /// Seen a _field = &str predicate
-    Eq,
-    /// Seen a _field = &str predicate connected by ORs
-    EqOr,
-    /// Seen a _field != &str predicate
-    NotEq,
-    /// Seen a _field != &str predicate connected by ANDs
-    NotEqAnd,
-}
-
-/// Tracks the state of an operator stack
-/// (foo = bar) AND ((_field = 's') OR (_field != 'r'))
-#[derive(Debug, Clone)]
-struct OpState {
-    /// the operator in the stack
-    operator: Operator,
-
-    /// Is this expr a FieldRef?
-    is_field_ref: bool,
-
-    /// the state of all children (filled in on return)
-    child_states: Vec<FieldRefState>,
-}
-
-fn unsupported_op_error() -> DataFusionError {
-    DataFusionError::Plan("Unsupported structure with _field reference".to_string())
-}
-
-impl OpState {
-    /// Validates the state of the operator children Returns the state of this operator
-    fn validate(self) -> DataFusionResult<FieldRefState> {
-        use FieldRefState::*;
-
-        let Self {
-            operator,
-            is_field_ref,
-            child_states,
-        } = self;
-
-        match (operator, is_field_ref) {
-            (Operator::Eq, true) => Ok(Eq),
-            (Operator::NotEq, true) => Ok(NotEq),
-            (Operator::And, _) => {
-                child_states
-                    .into_iter()
-                    .try_fold(NoPred, |state, child_state| match (state, child_state) {
-                        // AND didn't connect children of Pred and NoPreds so it is ok
-                        (NoPred, other) | (other, NoPred) => Ok(other),
-                        (NotEq, NotEq) => Ok(NotEq),
-                        (NotEq, NotEqAnd) | (NotEqAnd, NotEq) | (NotEqAnd, NotEqAnd) => {
-                            Ok(NotEqAnd)
-                        }
-                        _ => Err(unsupported_op_error()),
-                    })
-            }
-            (Operator::Or, _) => {
-                child_states
-                    .into_iter()
-                    .try_fold(NoPred, |state, child_state| match (state, child_state) {
-                        // OR didn't connect children of Pred and NoPreds so it is ok
-                        (NoPred, other) | (other, NoPred) => Ok(other),
-                        (Eq, Eq) => Ok(Eq),
-                        (Eq, EqOr) | (EqOr, Eq) | (EqOr, EqOr) => Ok(EqOr),
-                        _ => Err(unsupported_op_error()),
-                    })
-            }
-            // Any other operator ensure all children are NoPred
-            _ => {
-                child_states.into_iter().try_for_each(|child_state| {
-                    if !matches!(child_state, NoPred) {
-                        Err(unsupported_op_error())
-                    } else {
-                        Ok(())
-                    }
-                })?;
-                Ok(NoPred)
-            }
-        }
-    }
-}
-
-/// searches for unsupported patterns of predicates that we can't
-/// translate into an include or exclude list
-#[derive(Debug, Clone)]
-struct FieldRefChecker {
-    /// has seen a _field = <lit>
-    seen_eq: bool,
-    /// has seen a _field != <lit>
-    seen_not_eq: bool,
-    /// List of operators between the current node and the root of the expression
-    /// on `post_visit` the invariant i that the top of the stack
-    op_stack: Vec<OpState>,
-}
-
-impl FieldRefChecker {
-    fn new() -> Self {
-        Self {
-            seen_eq: false,
-            seen_not_eq: false,
-            op_stack: vec![],
+            // saw both _field and other column references, can't handle this case yet
+            // https://github.com/influxdata/influxdb_iox/issues/5310
+            (true, true) => Err(DataFusionError::Plan(format!(
+                "Unsupported _field predicate: {}",
+                expr
+            ))),
+            // Didn't see any references, or only non _field references, nothing to do
+            (false, _) => Ok(expr),
         }
     }
 
-    /// validates that we have not seen both != and == operators against _field
-    fn validate_operators(&self) -> DataFusionResult<()> {
-        if self.seen_eq && self.seen_not_eq {
-            Err(DataFusionError::Plan(
-                "Unsupported _field predicates: both '=' and '!=' present".into(),
-            ))
-        } else {
-            Ok(())
+    /// Converts all field_predicates we have seen into a field column
+    /// restriction on the predicate by evaluating the expressions at plan time
+    ///
+    /// Uses arrow evaluation kernels to support arbitrary predicates,
+    /// including regex etc
+    pub(crate) fn add_to_predicate(self, predicate: Predicate) -> DataFusionResult<Predicate> {
+        // Common case is that there are no _field predicates, in
+        // which case we are done
+        if self.field_predicates.is_empty() {
+            return Ok(predicate);
         }
-    }
 
-    /// Pops an operator from the op stack after validating that the
-    /// stack does not contain an invalid pattern
-    fn pop_stack_and_validate(&mut self, op: &Operator) -> DataFusionResult<()> {
-        let self_state = self.op_stack.pop().ok_or_else(|| {
-            DataFusionError::Plan("Internal error: _field operator stack mismatch".into())
-        })?;
+        // Form an array of strings from the field *names*:
+        //
+        // ┌─────────┐
+        // │ _field  │
+        // │  ----   │
+        // │  "f1"   │
+        // │  "f2"   │
+        // │  "f3"   │
+        // └─────────┘
+        let field_names: ArrayRef = Arc::new(
+            self.schema
+                .fields_iter()
+                .map(|f| f.name())
+                .map(Some)
+                .collect::<StringArray>(),
+        );
 
-        assert!(self_state.operator == *op);
+        let batch = RecordBatch::try_from_iter(vec![(FIELD_COLUMN_NAME, Arc::clone(&field_names))])
+            .expect("Error creating _field record batch");
 
-        let field_ref_state = self_state.validate()?;
+        // Ceremony to prepare to evaluate the predicates
+        let input_schema = batch.schema();
+        let input_df_schema: DFSchema = input_schema.as_ref().clone().try_into().unwrap();
+        let props = ExecutionProps::default();
+        let exprs = self
+            .field_predicates
+            .into_iter()
+            .map(|expr| create_physical_expr(&expr, &input_df_schema, &input_schema, &props))
+            .collect::<DataFusionResult<Vec<_>>>()
+            .map_err(|e| {
+                DataFusionError::Internal(format!("Unsupported _field predicate: {}", e))
+            })?;
 
-        // Add our state to our parent, if any. No parent means this
-        // is the root expr)
-        let parent_state = match self.op_stack.last_mut() {
-            Some(parent_state) => parent_state,
-            None => return Ok(()),
-        };
-
-        // Remeber our state on parent so it can combine on the way up
-        parent_state.child_states.push(field_ref_state);
-        Ok(())
-    }
-}
-
-impl ExpressionVisitor for FieldRefChecker {
-    /// Invoked before any children of `expr` are visisted.
-    fn pre_visit(mut self, expr: &Expr) -> DataFusionResult<Recursion<Self>> {
-        // Now check for = and != compatibility
-        let is_field_ref = match check_binary(expr) {
-            Some((Operator::Eq, _name)) => {
-                self.seen_eq = true;
-                self.validate_operators()?;
-                true
-            }
-            Some((Operator::NotEq, _name)) => {
-                self.seen_not_eq = true;
-                self.validate_operators()?;
-                true
-            }
-            _ => false,
-        };
-
-        if let Expr::BinaryExpr {
-            left: _,
-            op,
-            right: _,
-        } = expr
-        {
-            self.op_stack.push(OpState {
-                operator: *op,
-                is_field_ref,
-                child_states: vec![],
+        // evaluate into a boolean array where each element is true if
+        // the field name evaluated to true for all predicates, and
+        // false otherwise
+        let matching = exprs
+            .into_iter()
+            // evaluate each field_predicate against the actual field
+            // names. For example, if we have two predicates like
+            //
+            // _field !~= 'f2'
+            // _field != 'f3'
+            //
+            // We will produce two output arrays:
+            // ┌─────────┐  ┌─────────┐
+            // │  true   │  │  true   │
+            // │  false  │  │  true   │
+            // │  true   │  │  false  │
+            // └─────────┘  └─────────┘
+            .map(|expr| match expr.evaluate(&batch) {
+                Ok(ColumnarValue::Array(arr)) => arr,
+                Ok(ColumnarValue::Scalar(s)) => panic!(
+                    "Unexpected result evaluating {:?} against {:?}: {:?}",
+                    expr, batch, s
+                ),
+                Err(e) => panic!(
+                    "Unexpected err evaluating {:?} against {:?}: {}",
+                    expr, batch, e
+                ),
             })
-        }
-        Ok(Recursion::Continue(self))
-    }
+            // Now combine the arrays using AND to get a single output
+            // boolean array. For the example above, we would get
+            // ┌─────────┐
+            // │  true   │
+            // │  false  │
+            // │  false  │
+            // └─────────┘
+            .reduce(|acc, arr| {
+                // apply boolean AND
+                let bool_array =
+                    kernels::boolean::and(as_boolean_array(&acc), as_boolean_array(&arr))
+                        .expect("Error computing AND");
+                Arc::new(bool_array) as ArrayRef
+            })
+            .unwrap();
 
-    /// Invoked after all children of `expr` are visited.
-    fn post_visit(mut self, expr: &Expr) -> DataFusionResult<Self> {
-        if let Expr::BinaryExpr {
-            left: _,
-            op,
-            right: _,
-        } = expr
-        {
-            self.pop_stack_and_validate(op)?;
+        assert_eq!(matching.len(), field_names.len());
+
+        // now find all field names with a 'true' entry in the
+        // corresponding row. From our example above:
+        // ┌──────┐
+        // │_field│
+        // │ ---- ├─────────┐
+        // │ "f1" │  true ◀─┼─────f1 matches
+        // │ "f2" │  false  │
+        // │ "f3" │  false  │
+        // └──────┴─────────┘
+        let new_fields = as_boolean_array(&matching)
+            .iter()
+            .zip(as_string_array(&field_names).iter())
+            .filter_map(|(matching, field_name)| {
+                if matching == Some(true) {
+                    // this array was constructed with no nulls, so
+                    // the field_name should not be null
+                    Some(field_name.unwrap())
+                } else {
+                    None
+                }
+            });
+
+        Ok(predicate.with_field_columns(new_fields))
+    }
+}
+
+// Analyzes an expressions column references and finds:
+// * Column references to `_field`
+// * Column references to other columns
+#[derive(Debug, Default)]
+struct ColumnReferencesFinder {
+    saw_field_reference: bool,
+    saw_non_field_reference: bool,
+}
+
+impl ExpressionVisitor for ColumnReferencesFinder {
+    fn pre_visit(mut self, expr: &Expr) -> DataFusionResult<Recursion<Self>> {
+        if let Expr::Column(col) = expr {
+            if col.name == FIELD_COLUMN_NAME {
+                self.saw_field_reference = true;
+            } else {
+                self.saw_non_field_reference = true;
+            }
         }
-        Ok(self)
+
+        // terminate early if we have already found both
+        if self.saw_field_reference && self.saw_non_field_reference {
+            Ok(Recursion::Stop(self))
+        } else {
+            Ok(Recursion::Continue(self))
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use arrow::datatypes::DataType;
     use datafusion::logical_plan::{case, col};
+    use schema::builder::SchemaBuilder;
     use test_helpers::assert_contains;
 
     #[test]
     fn test_field_column_rewriter() {
+        let schema = make_schema();
         let cases = vec![
             (
                 // f1 = 1.82
                 col("f1").eq(lit(1.82)),
                 col("f1").eq(lit(1.82)),
-                FieldProjection::None,
+                None,
+            ),
+            (
+                // _field = "f1"
+                field_ref().eq(lit("f1")),
+                lit(true),
+                Some(vec!["f1"]),
+            ),
+            (
+                // _field = "not_a_field"
+                // should not match any rows
+                field_ref().eq(lit("not_a_field")),
+                lit(true),
+                Some(vec![]),
             ),
             (
                 // _field != "f1"
                 field_ref().not_eq(lit("f1")),
                 lit(true),
-                exclude(vec!["f1"]),
+                Some(vec!["f2", "f3", "f4"]),
             ),
             (
-                // _field = f1
-                field_ref().eq(lit("f1")),
+                // reverse operand order
+                // f1 = _field
+                lit("f1").eq(field_ref()),
                 lit(true),
-                include(vec!["f1"]),
+                Some(vec!["f1"]),
             ),
             (
-                // _field = f1 AND _measurement = m1
-                field_ref()
-                    .eq(lit("f1"))
-                    .and(col("_measurement").eq(lit("m1"))),
-                lit(true).and(col("_measurement").eq(lit("m1"))),
-                include(vec!["f1"]),
+                // reverse operand order
+                // f1 != _field
+                lit("f1").not_eq(field_ref()),
+                lit(true),
+                Some(vec!["f2", "f3", "f4"]),
+            ),
+            (
+                // mismatched != and =
+                // (_field != f1) AND (_field = f3)
+                field_ref().not_eq(lit("f1")).and(field_ref().eq(lit("f3"))),
+                lit(true).and(lit(true)),
+                Some(vec!["f3"]),
+            ),
+            (
+                // mismatched = and !=
+                // (_field = f1) OR (_field != f3)
+                field_ref().eq(lit("f1")).or(field_ref().not_eq(lit("f3"))),
+                lit(true),
+                Some(vec!["f1", "f2", "f4"]),
             ),
             (
                 // (_field = f1) OR (_field = f2)
                 field_ref().eq(lit("f1")).or(field_ref().eq(lit("f2"))),
-                lit(true).or(lit(true)),
-                include(vec!["f1", "f2"]),
+                lit(true),
+                Some(vec!["f1", "f2"]),
+            ),
+            (
+                // mix of _field and non _field, connected by AND
+                // (_field = f2) AND (f2 = 5)
+                field_ref().eq(lit("f2")).and(col("f2").eq(lit(5.0))),
+                lit(true).and(col("f2").eq(lit(5.0))),
+                Some(vec!["f2"]),
+            ),
+            (
+                // mix of multiple _field and non _field, but connected by ANDs
+                // (f1 = 5) AND (_field = f1) AND (f2 = 6)
+                col("f1")
+                    .eq(lit(5.0))
+                    .and(field_ref().eq(lit("f1")))
+                    .and(col("f2").eq(lit(6.0))),
+                col("f1")
+                    .eq(lit(5.0))
+                    .and(lit(true))
+                    .and(col("f2").eq(lit(6.0))),
+                Some(vec!["f1"]),
             ),
             (
                 // (f1 = 5) AND (((_field = f1) OR (_field = f3)) OR (_field = f2))
@@ -406,10 +340,8 @@ mod tests {
                         .or(field_ref().eq(lit("f3")))
                         .or(field_ref().eq(lit("f2"))),
                 ),
-                col("f1")
-                    .eq(lit(5.0))
-                    .and(lit(true).or(lit(true)).or(lit(true))),
-                include(vec!["f1", "f2", "f3"]),
+                col("f1").eq(lit(5.0)).and(lit(true)),
+                Some(vec!["f1", "f2", "f3"]),
             ),
             (
                 // (_field != f1) AND (_field != f2)
@@ -417,7 +349,7 @@ mod tests {
                     .not_eq(lit("f1"))
                     .and(field_ref().not_eq(lit("f2"))),
                 lit(true).and(lit(true)),
-                exclude(vec!["f1", "f2"]),
+                Some(vec!["f3", "f4"]),
             ),
             (
                 // (f1 = 5) AND (((_field != f1) AND (_field != f3)) AND (_field != f2))
@@ -429,116 +361,111 @@ mod tests {
                 ),
                 col("f1")
                     .eq(lit(5.0))
-                    .and(lit(true).and(lit(true)).and(lit(true))),
-                exclude(vec!["f1", "f2", "f3"]),
+                    .and(lit(true))
+                    .and(lit(true))
+                    .and(lit(true)),
+                Some(vec!["f4"]),
+            ),
+            (
+                // _field IS NOT NULL
+                field_ref().is_not_null(),
+                lit(true),
+                Some(vec!["f1", "f2", "f3", "f4"]),
+            ),
+            (
+                // case _field
+                //   WHEN "f1" THEN true
+                //   WHEN  "f2"  THEN false
+                // END
+                case(field_ref())
+                    .when(lit("f1"), lit(true))
+                    .when(lit("f2"), lit(false))
+                    .end()
+                    .unwrap(),
+                lit(true),
+                Some(vec!["f1"]),
+            ),
+            (
+                // _field = f1 AND _measurement = m1
+                field_ref()
+                    .eq(lit("f1"))
+                    .and(col("_measurement").eq(lit("m1"))),
+                lit(true).and(col("_measurement").eq(lit("m1"))),
+                Some(vec!["f1"]),
+            ),
+            (
+                // (_field =~ 'f1')
+                regex_match(field_ref(), "f1"),
+                lit(true),
+                Some(vec!["f1"]),
+            ),
+            (
+                // (_field =~ 'f1|f2')
+                regex_match(field_ref(), "f1|f2"),
+                lit(true),
+                Some(vec!["f1", "f2"]),
+            ),
+            (
+                // RegexNotMatch
+                // (_field !=~ 'f1|f2')
+                regex_not_match(field_ref(), "f1|f2"),
+                lit(true),
+                Some(vec!["f3", "f4"]),
+            ),
+            (
+                // (_field =~ 'f1|f2') AND (_field !~= 'f2') AND (foo = 5.0)
+                regex_match(field_ref(), "f1|f2")
+                    .and(regex_not_match(field_ref(), "f2"))
+                    .and(col("foo").eq(lit(5.0))),
+                lit(true).and(lit(true)).and(col("foo").eq(lit(5.0))),
+                Some(vec!["f1"]),
             ),
         ];
 
-        for (input, exp_expr, exp_projection) in cases {
+        for (input, exp_expr, exp_field_columns) in cases {
             println!(
-                "Running test\ninput: {:?}\nexpected_expr: {:?}\nexpected_projection: {:?}\n",
-                input, exp_expr, exp_projection
+                "Running test\ninput: {:?}\nexpected_expr: {:?}\nexpected_field_columns: {:?}\n",
+                input, exp_expr, exp_field_columns
             );
-            let mut rewriter = FieldProjectionRewriter::new();
+            let mut rewriter = FieldProjectionRewriter::new(Arc::clone(&schema));
 
             let rewritten = rewriter.rewrite_field_exprs(input).unwrap();
             assert_eq!(rewritten, exp_expr);
 
-            let field_projection = rewriter.into_projection();
-            assert_eq!(field_projection, exp_projection);
+            let predicate = rewriter.add_to_predicate(Predicate::new()).unwrap();
+
+            let actual_field_columns = predicate
+                .field_columns
+                .as_ref()
+                .map(|field_columns| field_columns.iter().map(|s| s.as_str()).collect::<Vec<_>>());
+
+            assert_eq!(actual_field_columns, exp_field_columns);
         }
     }
 
     #[test]
     fn test_field_column_rewriter_unsupported() {
+        let schema = make_schema();
         let cases = vec![
             (
-                // reverse operand order not supported
-                // f1 = _field
-                lit("f1").eq(field_ref()),
-                "Unsupported _field predicate, could not rewrite for IOx",
+                // mix of field and non field, connected by OR
+                // f1 = _field OR f1 = 5.0
+                lit("f1").eq(field_ref()).or(col("f1").eq(lit(5.0))),
+                "Unsupported _field predicate",
             ),
             (
-                // reverse operand order not supported
-                // f1 != _field
-                lit("f1").not_eq(field_ref()),
-                "Unsupported _field predicate, could not rewrite for IOx",
+                // more complicated
+                // f1 = _field AND (_field = f2 OR f2 = 5.0)
+                lit("f1")
+                    .eq(field_ref())
+                    .and(field_ref().eq(lit("f2")).or(col("f2").eq(lit(5.0)))),
+                "Unsupported _field predicate",
             ),
             (
-                // mismatched != and =
-                // (_field != f1) AND (_field = f3)
-                field_ref().not_eq(lit("f1")).and(field_ref().eq(lit("f3"))),
-                "Error during planning: Unsupported _field predicates: both '=' and '!=' present",
-            ),
-            (
-                // mismatched = and !=
-                // (_field = f1) OR (_field != f3)
-                field_ref().eq(lit("f1")).or(field_ref().not_eq(lit("f3"))),
-                "Unsupported _field predicates: both '=' and '!=' present",
-            ),
-            (
-                // mismatched AND and OR (unsupported)
-                // (_field = f1) OR (_field = f3) AND (_field = f2)
-                field_ref()
-                    .eq(lit("f1"))
-                    .or(field_ref().eq(lit("f3")))
-                    .and(field_ref().eq(lit("f2"))),
-                "Unsupported structure with _field reference",
-            ),
-            (
-                // mismatched AND and OR (unsupported)
-                // (_field = f1) AND (_field = f3) OR (_field = f2)
-                field_ref()
-                    .eq(lit("f1"))
-                    .and(field_ref().eq(lit("f3")))
-                    .or(field_ref().eq(lit("f2"))),
-                "Unsupported structure with _field reference",
-            ),
-            (
-                // mismatched OR
-                // (_field != f1) OR (_field != f3)
-                field_ref()
-                    .not_eq(lit("f1"))
-                    .or(field_ref().not_eq(lit("f3"))),
-                "Unsupported structure with _field reference",
-            ),
-            (
-                // mismatched AND
-                // (_field != f1) AND (_field = f3)
-                field_ref().not_eq(lit("f1")).and(field_ref().eq(lit("f3"))),
-                "Unsupported _field predicates: both '=' and '!=' present",
-            ),
-            (
-                // bogus expr that we can't rewrite
-                // _field IS NOT NULL
-                field_ref().is_not_null(),
-                "Unsupported _field predicate, could not rewrite for IOx",
-            ),
-            (
-                // bogus expr that has a mix of = and !=
-                // case X
-                //   WHEN _field = "foo" THEN true
-                //   WHEN  _field != "bar" THEN false
-                // END
-                case(col("x"))
-                    .when(field_ref().eq(lit("foo")), lit(true))
-                    .when(field_ref().not_eq(lit("bar")), lit(false))
-                    .end()
-                    .unwrap(),
-                "Unsupported _field predicates: both '=' and '!=' present",
-            ),
-            (
-                // bogus expr that has a mix of != and ==
-                // case X
-                //   WHEN  _field != "bar" THEN false
-                //   WHEN _field = "foo" THEN true
-                // END
-                case(col("x"))
-                    .when(field_ref().not_eq(lit("bar")), lit(false))
-                    .when(field_ref().eq(lit("foo")), lit(true))
-                    .end()
-                    .unwrap(),
-                "Unsupported _field predicates: both '=' and '!=' present",
+                // incorrect type
+                // _field % "gg"
+                field_ref().modulus(lit("gg")),
+                "Unsupported _field predicate",
             ),
         ];
 
@@ -547,26 +474,46 @@ mod tests {
                 "Running test\ninput: {:?}\nexpected_error: {:?}\n",
                 input, exp_error
             );
-            let mut rewriter = FieldProjectionRewriter::new();
-            let err = rewriter
-                .rewrite_field_exprs(input)
-                .expect_err("Expected error rewriting, but was successful");
+
+            let schema = Arc::clone(&schema);
+            let run_case = move || {
+                let mut rewriter = FieldProjectionRewriter::new(schema);
+                // check for error in rewrite_field_exprs
+                rewriter.rewrite_field_exprs(input)?;
+                // check for error adding to predicate
+                rewriter.add_to_predicate(Predicate::new())
+            };
+
+            let err = run_case().expect_err("Expected error rewriting, but was successful");
             assert_contains!(err.to_string(), exp_error);
         }
     }
 
-    /// returls a reference to the speciial _field column
+    /// returns a reference to the special _field column
     fn field_ref() -> Expr {
         col(FIELD_COLUMN_NAME)
     }
 
-    /// Create a `FieldProjection::Include`
-    fn include(names: impl IntoIterator<Item = &'static str>) -> FieldProjection {
-        FieldProjection::Include(names.into_iter().map(|s| s.to_string()).collect())
+    /// Returns a regex_match expression arg ~= pattern
+    fn regex_match(arg: Expr, pattern: impl Into<String>) -> Expr {
+        query_functions::regex_match_expr(arg, pattern.into())
     }
 
-    /// Create a `FieldProjection::Include`
-    fn exclude(names: impl IntoIterator<Item = &'static str>) -> FieldProjection {
-        FieldProjection::Exclude(names.into_iter().map(|s| s.to_string()).collect())
+    /// Returns a regex_match expression arg !~= pattern
+    fn regex_not_match(arg: Expr, pattern: impl Into<String>) -> Expr {
+        query_functions::regex_not_match_expr(arg, pattern.into())
+    }
+
+    fn make_schema() -> Arc<Schema> {
+        SchemaBuilder::new()
+            .tag("foo")
+            .tag("bar")
+            .field("f1", DataType::Float64)
+            .field("f2", DataType::Float64)
+            .field("f3", DataType::Float64)
+            .field("f4", DataType::Float64)
+            .build()
+            .map(Arc::new)
+            .unwrap()
     }
 }

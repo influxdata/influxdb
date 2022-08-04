@@ -14,7 +14,7 @@ use schema::Schema;
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
-use self::field_rewrite::{FieldProjection, FieldProjectionRewriter};
+use self::field_rewrite::FieldProjectionRewriter;
 use self::measurement_rewrite::rewrite_measurement_references;
 use self::value_rewrite::rewrite_field_value_references;
 
@@ -176,7 +176,13 @@ fn normalize_predicate(
     predicate: &Predicate,
 ) -> DataFusionResult<Predicate> {
     let mut predicate = predicate.clone();
-    let mut field_projections = FieldProjectionRewriter::new();
+
+    // can only rewrite `_field` expressions if we have a schema and
+    // know what the fields are
+    let mut field_projections = schema
+        .as_ref()
+        .map(|schema| FieldProjectionRewriter::new(Arc::clone(schema)));
+
     let mut field_value_exprs = vec![];
 
     predicate.exprs = predicate
@@ -188,10 +194,13 @@ fn normalize_predicate(
                 // Keeps track of these expressions, which can then be used to
                 // augment field projections with conditions using `CASE` statements.
                 .and_then(|e| rewrite_field_value_references(&mut field_value_exprs, e))
-                // Rewrite any references to `_field = a_field_name` with a literal true
-                // and keep track of referenced field names to add to the field
-                // column projection set.
-                .and_then(|e| field_projections.rewrite_field_exprs(e))
+                // Rewrite any references to `_field` with a literal
+                // and keep track of referenced field names to add to
+                // the field column projection set.
+                .and_then(|e| match field_projections.as_mut() {
+                    Some(f) => f.rewrite_field_exprs(e),
+                    None => Ok(e),
+                })
                 // apply IOx specific rewrites (that unlock other simplifications)
                 .and_then(rewrite::rewrite)
                 // Call the core DataFusion simplification logic
@@ -216,31 +225,13 @@ fn normalize_predicate(
     // Store any field value (`_value`) expressions on the `Predicate`.
     predicate.value_expr = field_value_exprs;
 
-    let predicate = match field_projections.into_projection() {
-        FieldProjection::None => predicate,
-        FieldProjection::Include(include_field_names) => {
-            predicate.with_field_columns(include_field_names)
-        }
-        FieldProjection::Exclude(exclude_field_names) => {
-            // if we don't have the schema, it means the table doesn't exist so we can safely ignore
-            if let Some(schema) = schema {
-                // add all fields other than the ones mentioned
-
-                let new_fields = schema.fields_iter().filter_map(|f| {
-                    let field_name = f.name();
-                    if !exclude_field_names.contains(field_name) {
-                        Some(field_name)
-                    } else {
-                        None
-                    }
-                });
-
-                predicate.with_field_columns(new_fields)
-            } else {
-                predicate
-            }
-        }
+    // save any field projections
+    let predicate = if let Some(field_projections) = field_projections {
+        field_projections.add_to_predicate(predicate)?
+    } else {
+        predicate
     };
+
     Ok(predicate)
 }
 
@@ -340,17 +331,35 @@ mod tests {
     }
 
     #[test]
+    fn test_normalize_predicate_field_non_existent_field() {
+        let predicate = normalize_predicate(
+            "table",
+            Some(schema()),
+            &Predicate::new().with_expr(col("_field").eq(lit("not_a_field"))),
+        )
+        .unwrap();
+
+        let expected = Predicate::new().with_field_columns(vec![] as Vec<String>);
+        assert_eq!(&expected.field_columns, &Some(BTreeSet::new()));
+        assert_eq!(predicate, expected);
+    }
+
+    #[test]
     fn test_normalize_predicate_field_rewrite_multi_field_unsupported() {
         let err = normalize_predicate(
             "table",
             Some(schema()),
             &Predicate::new()
-                // predicate is connected with `and` which is not supported
-                .with_expr(col("_field").eq(lit("f1")).and(col("_field").eq(lit("f2")))),
+                // predicate refers to a column other than _field which is not supported
+                .with_expr(
+                    col("t1")
+                        .eq(lit("my_awesome_tag_value"))
+                        .or(col("_field").eq(lit("f2"))),
+                ),
         )
         .unwrap_err();
 
-        let expected = "Error during planning: Unsupported structure with _field reference";
+        let expected = r#"Error during planning: Unsupported _field predicate: #t1 = Utf8("my_awesome_tag_value") OR #_field = Utf8("f2")"#;
 
         assert_contains!(err.to_string(), expected);
     }
@@ -370,8 +379,8 @@ mod tests {
     }
 
     #[test]
-    fn test_normalize_predicate_unsupported_field_rewrite_field() {
-        let err = normalize_predicate(
+    fn test_normalize_predicate_field_rewrite_field_multi_expressions() {
+        let predicate = normalize_predicate(
             "table",
             Some(schema()),
             &Predicate::new()
@@ -379,12 +388,11 @@ mod tests {
                 .with_expr(col("_field").eq(lit("f1")))
                 .with_expr(col("_field").not_eq(lit("f2"))),
         )
-        .unwrap_err();
+        .unwrap();
 
-        assert_contains!(
-            err.to_string(),
-            "Unsupported _field predicates: both '=' and '!=' present"
-        );
+        let expected = Predicate::new().with_field_columns(vec!["f1"]);
+
+        assert_eq!(predicate, expected);
     }
 
     fn schema() -> Arc<Schema> {

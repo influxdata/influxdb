@@ -14,10 +14,10 @@ use datafusion::{
 use once_cell::sync::Lazy;
 
 /// The name of the regex_match UDF given to DataFusion.
-pub(crate) const REGEX_MATCH_UDF_NAME: &str = "RegexMatch";
+pub const REGEX_MATCH_UDF_NAME: &str = "RegexMatch";
 
 /// The name of the not_regex_match UDF given to DataFusion.
-pub(crate) const REGEX_NOT_MATCH_UDF_NAME: &str = "RegexNotMatch";
+pub const REGEX_NOT_MATCH_UDF_NAME: &str = "RegexNotMatch";
 
 /// Implementation of regexp_match
 pub(crate) static REGEX_MATCH_UDF: Lazy<Arc<ScalarUDF>> = Lazy::new(|| {
