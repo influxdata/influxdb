@@ -143,6 +143,9 @@ pub(crate) fn filter_cold_parquet_files(
     // Level 0 files sorted by max sequence number and level 1 files in arbitrary order for one
     // partition
     parquet_files_for_compaction: ParquetFilesForCompaction,
+    // Stop considering level 0 files when the total size of all files selected for compaction so
+    // far exceeds this value
+    max_bytes: u64,
     // Gauge for the number of Parquet file candidates
     parquet_file_candidate_gauge: &Metric<U64Gauge>,
     // Gauge for the number of bytes of Parquet file candidates
@@ -169,18 +172,22 @@ pub(crate) fn filter_cold_parquet_files(
     // file. At the end of this function, the level 0 files are added to the end so they are sorted
     // last.
     let mut files_to_return = Vec::with_capacity(level_0.len() + remaining_level_1.len());
+    // Keep track of level 0 files to include in this compaction operation; maintain assumed
+    // ordering by max sequence number.
+    let mut level_0_to_return = Vec::with_capacity(level_0.len());
     // Running total of the size, in bytes, of level 0 files and level 1 files for inclusion.
     // The levels are counted up separately for metrics.
     let mut total_level_0_bytes = 0;
     let mut total_level_1_bytes = 0;
 
-    for level_0_file in &level_0 {
+    for level_0_file in level_0 {
+        // Include at least one level 0 file without checking against `max_bytes`
         total_level_0_bytes += level_0_file.file_size_bytes as u64;
 
         // Find all level 1 files that overlap with this level 0 file.
         let (overlaps, non_overlaps): (Vec<_>, Vec<_>) = remaining_level_1
             .into_iter()
-            .partition(|level_1_file| overlaps_in_time(level_1_file, level_0_file));
+            .partition(|level_1_file| overlaps_in_time(level_1_file, &level_0_file));
 
         // Increase the running total by the size of all the overlapping level 1 files
         total_level_1_bytes += overlaps.iter().map(|f| f.file_size_bytes).sum::<i64>() as u64;
@@ -193,9 +200,18 @@ pub(crate) fn filter_cold_parquet_files(
         // The remaining level 1 files to possibly include in future iterations are the remaining
         // ones that did not overlap with this level 0 file.
         remaining_level_1 = non_overlaps;
+
+        // Move the level 0 file into the list of level 0 files to return
+        level_0_to_return.push(level_0_file);
+
+        // Stop considering level 0 files if the total size of all files is over or equal to
+        // `max_bytes`
+        if (total_level_0_bytes + total_level_1_bytes) >= max_bytes {
+            break;
+        }
     }
 
-    let num_level_0_compacting = level_0.len();
+    let num_level_0_compacting = level_0_to_return.len();
     let num_level_1_compacting = files_to_return.len();
 
     info!(
@@ -222,7 +238,7 @@ pub(crate) fn filter_cold_parquet_files(
 
     // Return the level 1 files first, followed by the level 0 files assuming we've maintained
     // their ordering by max sequence number.
-    files_to_return.extend(level_0);
+    files_to_return.extend(level_0_to_return);
     files_to_return
 }
 
@@ -762,6 +778,8 @@ mod tests {
     mod cold {
         use super::*;
 
+        const DEFAULT_MAX_FILE_SIZE: u64 = 1024 * 1024 * 10;
+
         #[test]
         fn empty_in_empty_out() {
             let parquet_files_for_compaction = ParquetFilesForCompaction {
@@ -772,11 +790,31 @@ mod tests {
 
             let files = filter_cold_parquet_files(
                 parquet_files_for_compaction,
+                DEFAULT_MAX_FILE_SIZE,
                 &files_metric,
                 &bytes_metric,
             );
 
             assert!(files.is_empty(), "Expected empty, got: {:#?}", files);
+        }
+
+        #[test]
+        fn max_size_0_returns_one_level_0_file() {
+            let parquet_files_for_compaction = ParquetFilesForCompaction {
+                level_0: vec![ParquetFileBuilder::level_0().id(1).build()],
+                level_1: vec![],
+            };
+            let (files_metric, bytes_metric) = metrics();
+
+            let files = filter_cold_parquet_files(
+                parquet_files_for_compaction,
+                0,
+                &files_metric,
+                &bytes_metric,
+            );
+
+            assert_eq!(files.len(), 1);
+            assert_eq!(files[0].id.get(), 1);
         }
 
         #[test]
@@ -806,6 +844,7 @@ mod tests {
 
             let files = filter_cold_parquet_files(
                 parquet_files_for_compaction,
+                DEFAULT_MAX_FILE_SIZE,
                 &files_metric,
                 &bytes_metric,
             );
@@ -847,6 +886,7 @@ mod tests {
 
             let files = filter_cold_parquet_files(
                 parquet_files_for_compaction,
+                DEFAULT_MAX_FILE_SIZE,
                 &files_metric,
                 &bytes_metric,
             );
@@ -910,6 +950,7 @@ mod tests {
             let (files_metric, bytes_metric) = metrics();
             let files = filter_cold_parquet_files(
                 parquet_files_for_compaction,
+                DEFAULT_MAX_FILE_SIZE,
                 &files_metric,
                 &bytes_metric,
             );
@@ -1011,10 +1052,98 @@ mod tests {
                 ],
             };
 
-            // all level 0 files & their overlapping level 1 files get returned
+            // Max size 0; only the first level 0 file and its overlapping level 1 files get
+            // returned
+            let max_size = 0;
+            let (files_metric, bytes_metric) = metrics();
+            let files = filter_cold_parquet_files(
+                parquet_files_for_compaction.clone(),
+                max_size,
+                &files_metric,
+                &bytes_metric,
+            );
+            let ids: Vec<_> = files.iter().map(|f| f.id.get()).collect();
+            assert_eq!(ids, [102, 103, 1]);
+            assert_eq!(
+                extract_file_metrics(&files_metric),
+                ExtractedFileMetrics {
+                    level_0_selected: 1,
+                    level_0_not_selected: 2,
+                    level_1_selected: 2,
+                    level_1_not_selected: 5,
+                }
+            );
+            assert_eq!(
+                extract_byte_metrics(&bytes_metric),
+                ExtractedByteMetrics {
+                    level_0: 10,
+                    level_1: 20,
+                }
+            );
+
+            // Increase max size; 1st two level 0 files & their overlapping level 1 files get
+            // returned
+            let max_size = 40;
+            let (files_metric, bytes_metric) = metrics();
+            let files = filter_cold_parquet_files(
+                parquet_files_for_compaction.clone(),
+                max_size,
+                &files_metric,
+                &bytes_metric,
+            );
+            let ids: Vec<_> = files.iter().map(|f| f.id.get()).collect();
+            assert_eq!(ids, [102, 103, 104, 105, 1, 2]);
+            assert_eq!(
+                extract_file_metrics(&files_metric),
+                ExtractedFileMetrics {
+                    level_0_selected: 2,
+                    level_0_not_selected: 1,
+                    level_1_selected: 4,
+                    level_1_not_selected: 3,
+                }
+            );
+            assert_eq!(
+                extract_byte_metrics(&bytes_metric),
+                ExtractedByteMetrics {
+                    level_0: 20,
+                    level_1: 40,
+                }
+            );
+
+            // Increase max size to be exactly equal to the size of the 1st two level 0 files &
+            // their overlapping level 1 files, which is all that should get returned
+            let max_size = 60;
+            let (files_metric, bytes_metric) = metrics();
+            let files = filter_cold_parquet_files(
+                parquet_files_for_compaction.clone(),
+                max_size,
+                &files_metric,
+                &bytes_metric,
+            );
+            let ids: Vec<_> = files.iter().map(|f| f.id.get()).collect();
+            assert_eq!(ids, [102, 103, 104, 105, 1, 2]);
+            assert_eq!(
+                extract_file_metrics(&files_metric),
+                ExtractedFileMetrics {
+                    level_0_selected: 2,
+                    level_0_not_selected: 1,
+                    level_1_selected: 4,
+                    level_1_not_selected: 3,
+                }
+            );
+            assert_eq!(
+                extract_byte_metrics(&bytes_metric),
+                ExtractedByteMetrics {
+                    level_0: 20,
+                    level_1: 40,
+                }
+            );
+
+            // Increase max size; all level 0 files & their overlapping level 1 files get returned
             let (files_metric, bytes_metric) = metrics();
             let files = filter_cold_parquet_files(
                 parquet_files_for_compaction,
+                DEFAULT_MAX_FILE_SIZE,
                 &files_metric,
                 &bytes_metric,
             );

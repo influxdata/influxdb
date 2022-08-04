@@ -749,9 +749,11 @@ mod tests {
         let percentage_max_file_size = 30;
         let split_percentage = 80;
         let max_concurrent_size_bytes = 100_000;
+        let max_cold_concurrent_size_bytes = 90_000;
         let max_number_partitions_per_sequencer = 1;
         let min_number_recent_ingested_per_partition = 1;
         let input_size_threshold_bytes = 300 * 1024 * 1024;
+        let cold_input_size_threshold_bytes = 600 * 1024 * 1024;
         let input_file_count_threshold = 100;
         let hot_multiple = 4;
         CompactorConfig::new(
@@ -759,9 +761,11 @@ mod tests {
             percentage_max_file_size,
             split_percentage,
             max_concurrent_size_bytes,
+            max_cold_concurrent_size_bytes,
             max_number_partitions_per_sequencer,
             min_number_recent_ingested_per_partition,
             input_size_threshold_bytes,
+            cold_input_size_threshold_bytes,
             input_file_count_threshold,
             hot_multiple,
         )

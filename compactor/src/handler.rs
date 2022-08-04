@@ -126,11 +126,15 @@ pub struct CompactorConfig {
     /// This value must be between (0, 100)
     split_percentage: u16,
 
-    /// The compactor will limit the number of simultaneous compaction jobs based on the
-    /// size of the input files to be compacted.  This number should be less than 1/10th
-    /// of the available memory to ensure compactions have
-    /// enough space to run.
+    /// The compactor will limit the number of simultaneous hot partition compaction jobs based on
+    /// the size of the input files to be compacted.  This number should be less than 1/10th of the
+    /// available memory to ensure compactions have enough space to run.
     max_concurrent_compaction_size_bytes: u64,
+
+    /// The compactor will limit the number of simultaneous cold partition compaction jobs based on
+    /// the size of the input files to be compacted. This number should be less than 1/10th of the
+    /// available memory to ensure compactions have enough space to run.
+    max_cold_concurrent_size_bytes: u64,
 
     /// Max number of partitions per sequencer we want to compact per cycle
     max_number_partitions_per_sequencer: usize,
@@ -138,13 +142,18 @@ pub struct CompactorConfig {
     /// Min number of recent ingested files a partition needs to be considered for compacting
     min_number_recent_ingested_files_per_partition: usize,
 
-    /// A compaction operation will gather as many L0 files with their overlapping L1 files to
-    /// compact together until the total size of input files crosses this threshold. Later
-    /// compactions will pick up the remaining L0 files.
+    /// A compaction operation for hot partitions will gather as many L0 files with their
+    /// overlapping L1 files to compact together until the total size of input files crosses this
+    /// threshold. Later compactions will pick up the remaining L0 files.
     ///
     /// A compaction operation will be limited by this or by the file count threshold, whichever is
     /// hit first.
     input_size_threshold_bytes: u64,
+
+    /// A compaction operation for cold partitions will gather as many L0 files with their
+    /// overlapping L1 files to compact together until the total size of input files crosses this
+    /// threshold. Later compactions will pick up the remaining L0 files.
+    cold_input_size_threshold_bytes: u64,
 
     /// A compaction operation will gather as many L0 files with their overlapping L1 files to
     /// compact together until the total number of L0 + L1 files crosses this threshold. Later
@@ -168,9 +177,11 @@ impl CompactorConfig {
         percentage_max_file_size: u16,
         split_percentage: u16,
         max_concurrent_compaction_size_bytes: u64,
+        max_cold_concurrent_size_bytes: u64,
         max_number_partitions_per_sequencer: usize,
         min_number_recent_ingested_files_per_partition: usize,
         input_size_threshold_bytes: u64,
+        cold_input_size_threshold_bytes: u64,
         input_file_count_threshold: usize,
         hot_multiple: usize,
     ) -> Self {
@@ -181,9 +192,11 @@ impl CompactorConfig {
             percentage_max_file_size,
             split_percentage,
             max_concurrent_compaction_size_bytes,
+            max_cold_concurrent_size_bytes,
             max_number_partitions_per_sequencer,
             min_number_recent_ingested_files_per_partition,
             input_size_threshold_bytes,
+            cold_input_size_threshold_bytes,
             input_file_count_threshold,
             hot_multiple,
         }
@@ -223,14 +236,21 @@ impl CompactorConfig {
         self.min_number_recent_ingested_files_per_partition
     }
 
-    /// A compaction operation will gather as many L0 files with their overlapping L1 files to
-    /// compact together until the total size of input files crosses this threshold. Later
-    /// compactions will pick up the remaining L0 files.
+    /// A compaction operation for hot partitions will gather as many L0 files with their
+    /// overlapping L1 files to compact together until the total size of input files crosses this
+    /// threshold. Later compactions will pick up the remaining L0 files.
     ///
     /// A compaction operation will be limited by this or by the file count threshold, whichever is
     /// hit first.
     pub fn input_size_threshold_bytes(&self) -> u64 {
         self.input_size_threshold_bytes
+    }
+
+    /// A compaction operation for cold partitions will gather as many L0 files with their
+    /// overlapping L1 files to compact together until the total size of input files crosses this
+    /// threshold. Later compactions will pick up the remaining L0 files.
+    pub fn cold_input_size_threshold_bytes(&self) -> u64 {
+        self.cold_input_size_threshold_bytes
     }
 
     /// A compaction operation will gather as many L0 files with their overlapping L1 files to
@@ -428,16 +448,17 @@ async fn compact_cold_partitions(compactor: Arc<Compactor>) {
 
     let start_time = compactor.time_provider.now();
 
-    // Repeat compacting n partitions in parallel until all candidates are compacted.
+    // Repeat compacting n cold partitions in parallel until all candidates are compacted.
     // Concurrency level calculation (this is estimated from previous experiments. The actual
     // resource management will be more complicated and a future feature):
     //
-    //   . Each `compact partititon` takes max of this much memory input_size_threshold_bytes
-    //   . We have this memory budget: max_concurrent_compaction_size_bytes
-    // --> num_parallel_partitions = max_concurrent_compaction_size_bytes/
-    //     input_size_threshold_bytes
-    let num_parallel_partitions = (compactor.config.max_concurrent_compaction_size_bytes
-        / compactor.config.input_size_threshold_bytes) as usize;
+    //   . Each `compact partititon` takes max of this much memory cold_input_size_threshold_bytes
+    //   . We have this memory budget: max_cold_concurrent_size_bytes
+    // --> num_parallel_partitions = max_cold_concurrent_size_bytes/
+    //     cold_input_size_threshold_bytes
+    let num_parallel_partitions = (compactor.config.max_cold_concurrent_size_bytes
+        / compactor.config.cold_input_size_threshold_bytes)
+        as usize;
 
     futures::stream::iter(candidates)
         .map(|p| {
