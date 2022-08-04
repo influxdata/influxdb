@@ -23,12 +23,12 @@ use parquet::{
 };
 use predicate::Predicate;
 use schema::selection::{select_schema, Selection};
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{collections::HashMap, num::TryFromIntError, sync::Arc, time::Duration};
 use thiserror::Error;
 use tokio::io::AsyncReadExt;
 
 /// Parquet row group read size
-pub const ROW_GROUP_READ_SIZE: usize = 1024;
+pub const ROW_GROUP_READ_SIZE: usize = 1024 * 1024;
 
 // ensure read and write work well together
 // Skip clippy due to <https://github.com/rust-lang/rust-clippy/issues/8159>.
@@ -79,6 +79,10 @@ pub enum ReadError {
         /// Source error
         source: ProjectionError,
     },
+
+    /// Malformed integer data for row count
+    #[error("Malformed row count integer")]
+    MalformedRowCount(#[from] TryFromIntError),
 }
 
 /// The [`ParquetStorage`] type encapsulates [`RecordBatch`] persistence to an
@@ -282,8 +286,19 @@ async fn download_and_scan_parquet(
         };
 
     let mask = ProjectionMask::roots(arrow_reader.parquet_schema(), mask);
-    let record_batch_reader =
-        arrow_reader.get_record_reader_by_columns(mask, ROW_GROUP_READ_SIZE)?;
+
+    // limit record batch size to number of rows
+    // See:
+    // - https://github.com/apache/arrow-rs/issues/2321
+    // - https://github.com/influxdata/conductor/issues/1103
+    let n_rows: usize = arrow_reader
+        .metadata()
+        .file_metadata()
+        .num_rows()
+        .try_into()?;
+    let batch_size = n_rows.min(ROW_GROUP_READ_SIZE);
+
+    let record_batch_reader = arrow_reader.get_record_reader_by_columns(mask, batch_size)?;
 
     for batch in record_batch_reader {
         let batch = batch.map(|batch| {
