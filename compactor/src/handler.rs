@@ -129,7 +129,7 @@ pub struct CompactorConfig {
     /// The compactor will limit the number of simultaneous hot partition compaction jobs based on
     /// the size of the input files to be compacted.  This number should be less than 1/10th of the
     /// available memory to ensure compactions have enough space to run.
-    max_concurrent_compaction_size_bytes: u64,
+    max_concurrent_size_bytes: u64,
 
     /// The compactor will limit the number of simultaneous cold partition compaction jobs based on
     /// the size of the input files to be compacted. This number should be less than 1/10th of the
@@ -176,7 +176,7 @@ impl CompactorConfig {
         max_desired_file_size_bytes: u64,
         percentage_max_file_size: u16,
         split_percentage: u16,
-        max_concurrent_compaction_size_bytes: u64,
+        max_concurrent_size_bytes: u64,
         max_cold_concurrent_size_bytes: u64,
         max_number_partitions_per_sequencer: usize,
         min_number_recent_ingested_files_per_partition: usize,
@@ -191,7 +191,7 @@ impl CompactorConfig {
             max_desired_file_size_bytes,
             percentage_max_file_size,
             split_percentage,
-            max_concurrent_compaction_size_bytes,
+            max_concurrent_size_bytes,
             max_cold_concurrent_size_bytes,
             max_number_partitions_per_sequencer,
             min_number_recent_ingested_files_per_partition,
@@ -222,8 +222,8 @@ impl CompactorConfig {
     /// level 0 files, but should later also consider the level 1 files to be compacted. This
     /// number should be less than 1/10th of the available memory to ensure compactions have
     /// enough space to run.
-    pub fn max_concurrent_compaction_size_bytes(&self) -> u64 {
-        self.max_concurrent_compaction_size_bytes
+    pub fn max_concurrent_size_bytes(&self) -> u64 {
+        self.max_concurrent_size_bytes
     }
 
     /// Max number of partitions per sequencer we want to compact per cycle
@@ -345,10 +345,10 @@ async fn compact_hot_partitions(compactor: Arc<Compactor>) {
     // Concurrency level calculation (this is estimated from previous experiments. The actual
     // resource management will be more complicated and a future feature):
     //   . Each `compact partititon` takes max of this much memory input_size_threshold_bytes
-    //   . We have this memory budget: max_concurrent_compaction_size_bytes
-    // --> num_parallel_partitions = max_concurrent_compaction_size_bytes/
+    //   . We have this memory budget: max_concurrent_size_bytes
+    // --> num_parallel_partitions = max_concurrent_size_bytes/
     //     input_size_threshold_bytes
-    let num_parallel_partitions = (compactor.config.max_concurrent_compaction_size_bytes
+    let num_parallel_partitions = (compactor.config.max_concurrent_size_bytes
         / compactor.config.input_size_threshold_bytes) as usize;
 
     futures::stream::iter(candidates)
