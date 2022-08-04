@@ -999,6 +999,18 @@ mod tests {
         assert_eq!(candidates.len(), 1);
         assert_eq!(candidates[0].partition_id, partition4.id);
 
+        // Ask for 2 partitions per sequencer; get partition4 and partition2
+        let candidates = compactor.cold_partitions_to_compact(2).await.unwrap();
+        assert_eq!(candidates.len(), 2);
+        assert_eq!(candidates[0].partition_id, partition4.id);
+        assert_eq!(candidates[1].partition_id, partition2.id);
+
+        // Ask for 3 partitions per sequencer; still get only partition4 and partition2
+        let candidates = compactor.cold_partitions_to_compact(3).await.unwrap();
+        assert_eq!(candidates.len(), 2);
+        assert_eq!(candidates[0].partition_id, partition4.id);
+        assert_eq!(candidates[1].partition_id, partition2.id);
+
         // --------------------------------------
         // Case 6: has partition candidates for 2 sequencers
         //
@@ -1014,7 +1026,7 @@ mod tests {
         };
         let _pf6 = txn.parquet_files().create(p6).await.unwrap();
         txn.commit().await.unwrap();
-        //
+
         // Will have 2 candidates, one for each sequencer
         let mut candidates = compactor.cold_partitions_to_compact(1).await.unwrap();
         candidates.sort();
@@ -1023,6 +1035,18 @@ mod tests {
         assert_eq!(candidates[0].sequencer_id, sequencer.id);
         assert_eq!(candidates[1].partition_id, another_partition.id);
         assert_eq!(candidates[1].sequencer_id, another_sequencer.id);
+
+        // Ask for 2 candidates per sequencer; get back 3: 2 from sequencer and 1 from
+        // another_sequencer
+        let mut candidates = compactor.cold_partitions_to_compact(2).await.unwrap();
+        candidates.sort();
+        assert_eq!(candidates.len(), 3);
+        assert_eq!(candidates[0].partition_id, partition2.id);
+        assert_eq!(candidates[0].sequencer_id, sequencer.id);
+        assert_eq!(candidates[1].partition_id, partition4.id);
+        assert_eq!(candidates[1].sequencer_id, sequencer.id);
+        assert_eq!(candidates[2].partition_id, another_partition.id);
+        assert_eq!(candidates[2].sequencer_id, another_sequencer.id);
 
         // Add info to partition
         let partitions_with_info = compactor.add_info_to_partitions(&candidates).await.unwrap();
