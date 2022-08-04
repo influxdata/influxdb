@@ -37,7 +37,7 @@ pub(crate) fn filter_hot_parquet_files(
     } = parquet_files_for_compaction;
 
     if level_0.is_empty() {
-        info!("No level 0 files to consider for compaction");
+        info!("No hot level 0 files to consider for compaction");
         return Vec::new();
     }
 
@@ -107,7 +107,7 @@ pub(crate) fn filter_hot_parquet_files(
         num_level_1_considering,
         num_level_0_compacting,
         num_level_1_compacting,
-        "filtered Parquet files for compaction",
+        "filtered hot Parquet files for compaction",
     );
 
     record_file_metrics(
@@ -157,7 +157,7 @@ pub(crate) fn filter_cold_parquet_files(
     } = parquet_files_for_compaction;
 
     if level_0.is_empty() {
-        info!("No level 0 files to consider for compaction");
+        info!("No cold level 0 files to consider for compaction");
         return Vec::new();
     }
 
@@ -220,7 +220,7 @@ pub(crate) fn filter_cold_parquet_files(
         num_level_1_considering,
         num_level_0_compacting,
         num_level_1_compacting,
-        "filtered Parquet files for compaction",
+        "filtered cold Parquet files for compaction",
     );
 
     record_file_metrics(
