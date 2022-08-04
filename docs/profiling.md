@@ -21,6 +21,29 @@ Note that your concrete test hardware (esp. if is not an x64 CPU or a battery-dr
 If you want to trace memory allocations, you need to disable [jemalloc] by passing `--no-default-features` to cargo.
 
 
+## Out-of-memory (OOM)
+When profling a process that may potentially use too much memory and affect your whole system by doing so, you may want
+to limit its resources a bit.
+
+### ulimit
+Set a [ulimit] before running the process:
+
+```console
+$ # set ulimit to 1GB (value is in Kb)
+$ ulimit -v 1048576
+$ cargo run --release ...
+```
+
+The advantage of [ulimit] is that out-of-memory situations are clearly signaled to the process and you get backtraces
+when running under a debugger.
+
+### system OOM killer
+Your system likely has an OOM killer configured. The issue with this is that it will use SIGKILL to terminate the
+process, which you cannot investigate using a debugger (so no backtrace!).
+
+The OOM killer is also used by all cgroup-based containers on Linux, e.g. [Docker], [Podman], [systemd-run].
+
+
 ## Embedded CPU Profiler
 IOx includes an embedded `pprof` exporter compatible with the [go pprof] tool.
 
@@ -184,6 +207,14 @@ After the program exists, the [heaptrack] GUI will spawn automatically:
 
 ![heaptrack GUI](images/heaptrack.png)
 
+### Pros & Cons
+[heaptrack] is relatively fast, esp. compared to [Valgrind](#valgrind). It also works in cases when the process OOMs --
+even when it get killed by `SIGKILL`.
+
+Be aware that [heaptrack] does NOT work with tests (e.g. via
+`cargo with 'heaptrack' -- test -p compactor -- my_test --nocapture`).[^heaptrack_tests] You have to isolate the code
+into an ordinary binary, so create a file `my_crate/src/bin/foo.rs` and replace `#[tokio::test]` with `#[tokio::main]`.
+
 
 ## bpftrace (Linux only)
 You may use even more advanced tools like [bpftrace] to trace about any aspect of the operating system. Install
@@ -219,7 +250,8 @@ Attaching 1 probe...
 
 **WARNING: Due to the `sudo` hack, only use this for trusted programs!**
 
-## Instruments: CPU / performance profiling
+
+## Instruments: CPU / performance profiling (macOS Only)
 
 Instruments may be used to profile binaries on macOS. There are several instruments available, but perhaps the most
 useful for IOx development are the
@@ -229,21 +261,22 @@ useful for IOx development are the
 * System Trace (system calls, CPU scheduling)
 * File Activity (file system and disk I/O activity)
 
+
 ## Instruments: Allocations (macOS Only)
 
-The allocations instrument is a powerful tool for tracking heap allocations on macOS and recording call stacks. 
+The allocations instrument is a powerful tool for tracking heap allocations on macOS and recording call stacks.
 
 ![Allocation call stacks](images/instruments_heap_1.png)
 
 ![Allocation statistics](images/instruments_heap_stats.png)
 
-It can be used with Rust and `influxdb_iox`, but requires some additional steps on aarch64 and later versions of macOS 
+It can be used with Rust and `influxdb_iox`, but requires some additional steps on aarch64 and later versions of macOS
 due to increased security.
 
 ### Preparing binary
 
 Like heaptrack, you must compile `influxdb_iox` with `--no-default-features` to ensure the default system allocator is
-used. Following the compilation step, 
+used. Following the compilation step,
 [you must codesign the binary](https://developer.apple.com/forums/thread/685964?answerId=683365022#683365022)
 with the `get-task-allow` entitlement set to `true`. Without the codesign step, the Allocations instrument will fail to
 start with an error similar to the following:
@@ -281,12 +314,19 @@ or the running `influxdb_iox` process using its PID:
 codesign --display --entitlements - +<PID>
 ```
 
+
 ## Tracing
 See [Tracing: Running Jaeger / tracing locally](tracing.md#running-jaeger--tracing-locally).
+
+
+## Valgrind
+See [Valgrind](valgrind.md).
+
 
 [bpftrace]: https://github.com/iovisor/bpftrace
 [cargo-flamegraph]: https://github.com/flamegraph-rs/flamegraph
 [cargo-with]: https://github.com/cbourjau/cargo-with
+[Docker]: https://www.docker.com/
 [`getrandom`]: https://www.man7.org/linux/man-pages/man2/getrandom.2.html
 [go pprof]: https://golang.org/pkg/net/http/pprof/
 [gprof2dot]: https://github.com/jrfonseca/gprof2dot
@@ -295,5 +335,11 @@ See [Tracing: Running Jaeger / tracing locally](tracing.md#running-jaeger--traci
 [Hotspot]: https://github.com/KDAB/hotspot
 [jemalloc]: https://jemalloc.net/
 [perf]: https://perf.wiki.kernel.org/index.php/Main_Page
+[Podman]: https://podman.io/
 [`read`]: https://www.man7.org/linux/man-pages/man2/read.2.html
 [speedscope.app]: https://www.speedscope.app/
+[systemd-run]: https://www.freedesktop.org/software/systemd/man/systemd-run.html
+[ulimit]: https://ss64.com/bash/ulimit.html
+
+
+[^heaptrack_tests]: I have no idea why.
