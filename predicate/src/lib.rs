@@ -26,7 +26,7 @@ use datafusion::{
     logical_plan::{col, lit_timestamp_nano, Expr, Operator},
     physical_optimizer::pruning::{PruningPredicate, PruningStatistics},
 };
-use datafusion_util::{make_range_expr, nullable_schema, AndExprBuilder};
+use datafusion_util::{make_range_expr, nullable_schema};
 use observability_deps::tracing::debug;
 use rpc_predicate::VALUE_COLUMN_NAME;
 use schema::TIME_COLUMN_NAME;
@@ -105,20 +105,19 @@ impl Predicate {
     }
 
     /// Return a DataFusion [`Expr`] predicate representing the
-    /// combination of all (`exprs`) and timestamp restriction in this
-    /// Predicate.
+    /// combination of AND'ing all (`exprs`) and timestamp restriction
+    /// in this Predicate.
     ///
     /// Returns None if there are no `Expr`'s restricting
     /// the data
     pub fn filter_expr(&self) -> Option<Expr> {
-        let mut builder =
-            AndExprBuilder::default().append_opt(self.make_timestamp_predicate_expr());
+        let expr_iter = std::iter::once(self.make_timestamp_predicate_expr())
+            // remove None
+            .flatten()
+            .chain(self.exprs.iter().cloned());
 
-        for expr in &self.exprs {
-            builder = builder.append_expr(expr.clone());
-        }
-
-        builder.build()
+        // combine all items together with AND
+        expr_iter.reduce(|accum, expr| accum.and(expr))
     }
 
     /// Return true if the field / column should be included in results
