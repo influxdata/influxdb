@@ -135,4 +135,17 @@ pub struct CompactorConfig {
         action
     )]
     pub input_file_count_threshold: usize,
+
+    /// The multiple of times that compacting hot partitions should run for every one time that
+    /// compacting cold partitions runs. Set to 1 to compact hot partitions and cold partitions
+    /// equally.
+    ///
+    /// Default is 4.
+    #[clap(
+        long = "--compaction-hot-multiple",
+        env = "INFLUXDB_IOX_COMPACTION_HOT_MULTIPLE",
+        default_value = "4",
+        action
+    )]
+    pub hot_multiple: usize,
 }

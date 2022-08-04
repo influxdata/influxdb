@@ -153,6 +153,11 @@ pub struct CompactorConfig {
     /// A compaction operation will be limited by this or by the input size threshold, whichever is
     /// hit first.
     input_file_count_threshold: usize,
+
+    /// The multiple of times that compacting hot partitions should run for every one time that
+    /// compacting cold partitions runs. Set to 1 to compact hot partitions and cold partitions
+    /// equally.
+    hot_multiple: usize,
 }
 
 impl CompactorConfig {
@@ -167,6 +172,7 @@ impl CompactorConfig {
         min_number_recent_ingested_files_per_partition: usize,
         input_size_threshold_bytes: u64,
         input_file_count_threshold: usize,
+        hot_multiple: usize,
     ) -> Self {
         assert!(split_percentage > 0 && split_percentage <= 100);
 
@@ -179,6 +185,7 @@ impl CompactorConfig {
             min_number_recent_ingested_files_per_partition,
             input_size_threshold_bytes,
             input_file_count_threshold,
+            hot_multiple,
         }
     }
 
@@ -248,7 +255,9 @@ async fn run_compactor(compactor: Arc<Compactor>, shutdown: CancellationToken) {
     while !shutdown.is_cancelled() {
         debug!("compactor main loop tick.");
 
-        compact_hot_partitions(Arc::clone(&compactor)).await;
+        for _ in 0..compactor.config.hot_multiple {
+            compact_hot_partitions(Arc::clone(&compactor)).await;
+        }
         compact_cold_partitions(Arc::clone(&compactor)).await;
     }
 }

@@ -424,6 +424,7 @@ impl Config {
             min_number_recent_ingested_files_per_partition: 1,
             input_size_threshold_bytes: 314_572_800,
             input_file_count_threshold: 100,
+            hot_multiple: 4,
         };
 
         let querier_config = QuerierConfig {

@@ -790,6 +790,7 @@ mod tests {
         let min_number_recent_ingested_per_partition = 1;
         let input_size_threshold_bytes = 300 * 1024 * 1024;
         let input_file_count_threshold = 100;
+        let hot_multiple = 4;
         CompactorConfig::new(
             max_desired_file_size_bytes,
             percentage_max_file_size,
@@ -799,6 +800,7 @@ mod tests {
             min_number_recent_ingested_per_partition,
             input_size_threshold_bytes,
             input_file_count_threshold,
+            hot_multiple,
         )
     }
 }
