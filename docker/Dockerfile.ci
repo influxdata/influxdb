@@ -28,7 +28,7 @@ RUN apt-get update \
   && apt-get install -y \
     git locales sudo openssh-client ca-certificates tar gzip parallel \
     unzip zip bzip2 gnupg curl make pkg-config libssl-dev \
-    jq clang lld g++ shellcheck yamllint protobuf-compiler \
+    jq clang lld g++ shellcheck yamllint protobuf-compiler libprotobuf-dev \
     --no-install-recommends \
   && apt-get clean autoclean \
 	&& apt-get autoremove --yes \
