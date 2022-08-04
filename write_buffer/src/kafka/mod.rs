@@ -57,6 +57,7 @@ impl RSKafkaProducer {
         creation_config: Option<&WriteBufferCreationConfig>,
         time_provider: Arc<dyn TimeProvider>,
         trace_collector: Option<Arc<dyn TraceCollector>>,
+        metric_registry: &metric::Registry,
     ) -> Result<Self> {
         let partition_clients = setup_topic(
             conn,
@@ -81,6 +82,7 @@ impl RSKafkaProducer {
                     producer_config.max_batch_size,
                     sequencer_id,
                     Arc::clone(&time_provider),
+                    metric_registry,
                 ));
 
                 (sequencer_id, producer)
@@ -467,6 +469,7 @@ mod tests {
     use data_types::{DeletePredicate, PartitionKey, TimestampRange};
     use dml::{test_util::assert_write_op_eq, DmlDelete, DmlWrite};
     use futures::{stream::FuturesUnordered, TryStreamExt};
+    use metric::{Metric, U64Histogram};
     use rskafka::{client::partition::Compression, record::Record};
     use std::num::NonZeroU32;
     use test_helpers::assert_contains;
@@ -497,6 +500,7 @@ mod tests {
                 n_sequencers,
                 time_provider,
                 trace_collector: Arc::new(RingBufferTraceCollector::new(100)),
+                metrics: metric::Registry::default(),
             }
         }
     }
@@ -507,6 +511,7 @@ mod tests {
         n_sequencers: NonZeroU32,
         time_provider: Arc<dyn TimeProvider>,
         trace_collector: Arc<RingBufferTraceCollector>,
+        metrics: metric::Registry,
     }
 
     impl RSKafkaTestContext {
@@ -515,6 +520,10 @@ mod tests {
                 n_sequencers: self.n_sequencers,
                 ..Default::default()
             })
+        }
+
+        fn metrics(&self) -> &metric::Registry {
+            &self.metrics
         }
     }
 
@@ -532,6 +541,7 @@ mod tests {
                 self.creation_config(creation_config).as_ref(),
                 Arc::clone(&self.time_provider),
                 Some(self.trace_collector() as Arc<_>),
+                &self.metrics,
             )
             .await
         }
@@ -679,6 +689,38 @@ mod tests {
 
         assert_ne!(w2_1.sequence().unwrap(), w1_1.sequence().unwrap());
         assert_eq!(w2_1.sequence().unwrap(), w2_2.sequence().unwrap());
+
+        // Assert the batch sizes were captured in the metrics
+        let histogram = ctx
+            .metrics()
+            .get_instrument::<Metric<U64Histogram>>("write_buffer_batch_coalesced_write_ops")
+            .expect("failed to read metric")
+            .get_observer(&[].into())
+            .expect("failed to get observer")
+            .fetch();
+        assert_eq!(
+            histogram.sample_count(),
+            3,
+            "metric did not record expected batch count"
+        );
+        // Validate the expected bucket values.
+        [
+            (1, 0),
+            (2, 3),
+            (4, 0),
+            (8, 0),
+            (16, 0),
+            (32, 0),
+            (64, 0),
+            (128, 0),
+        ]
+        .into_iter()
+        .enumerate()
+        .for_each(|(i, (le, count))| {
+            let bucket = &histogram.buckets[i];
+            assert_eq!(bucket.le, le);
+            assert_eq!(bucket.count, count, "bucket le={}", le);
+        });
 
         let consumer = ctx.reading(true).await.unwrap();
         let mut handler = consumer.stream_handler(sequencer_id).await.unwrap();

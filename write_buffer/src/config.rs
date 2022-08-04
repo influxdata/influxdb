@@ -174,6 +174,7 @@ impl WriteBufferConfigFactory {
                     cfg.creation_config.as_ref(),
                     Arc::clone(&self.time_provider),
                     trace_collector.map(Arc::clone),
+                    &*self.metric_registry,
                 )
                 .await?;
                 Arc::new(rskafa_buffer) as _

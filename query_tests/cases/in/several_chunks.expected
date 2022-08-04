@@ -69,7 +69,7 @@
 |               |   Filter: #h2o.time >= TimestampNanosecond(250, None)                                                                              |
 |               |     TableScan: h2o projection=[city, other_temp, state, temp, time], partial_filters=[#h2o.time >= TimestampNanosecond(250, None)] |
 | physical_plan | ProjectionExec: expr=[city@0 as city, other_temp@1 as other_temp, state@2 as state, temp@3 as temp, time@4 as time]                |
-|               |   CoalesceBatchesExec: target_batch_size=500                                                                                       |
+|               |   CoalesceBatchesExec: target_batch_size=4096                                                                                      |
 |               |     FilterExec: time@4 >= 250                                                                                                      |
 |               |       RepartitionExec: partitioning=RoundRobinBatch(4)                                                                             |
 |               |         UnionExec                                                                                                                  |
