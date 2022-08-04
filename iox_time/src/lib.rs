@@ -67,8 +67,8 @@ impl std::fmt::Display for Time {
 }
 
 impl Time {
-    pub const MAX: Self = Self(chrono::MAX_DATETIME);
-    pub const MIN: Self = Self(chrono::MIN_DATETIME);
+    pub const MAX: Self = Self(DateTime::<Utc>::MAX_UTC);
+    pub const MIN: Self = Self(DateTime::<Utc>::MIN_UTC);
 
     /// Makes a new `Time` from the number of non-leap nanoseconds
     /// since January 1, 1970 0:00:00 UTC (aka "UNIX timestamp").

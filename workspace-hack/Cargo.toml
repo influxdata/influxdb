@@ -19,7 +19,7 @@ base64 = { version = "0.13", features = ["std"] }
 bitflags = { version = "1" }
 byteorder = { version = "1", features = ["std"] }
 bytes = { version = "1", features = ["std"] }
-chrono = { version = "0.4", default-features = false, features = ["alloc", "clock", "libc", "serde", "std", "winapi"] }
+chrono = { version = "0.4", default-features = false, features = ["alloc", "clock", "serde", "std", "winapi"] }
 crossbeam-utils = { version = "0.8", features = ["lazy_static", "std"] }
 crypto-common = { version = "0.1", default-features = false, features = ["std"] }
 digest = { version = "0.10", features = ["alloc", "block-buffer", "core-api", "mac", "std", "subtle"] }

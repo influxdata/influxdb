@@ -133,8 +133,8 @@ fn send_metrics_to_tracing(
     };
 
     // The total duration for this span and all its children and partitions
-    let mut operator_start_time = chrono::MAX_DATETIME;
-    let mut operator_end_time = chrono::MIN_DATETIME;
+    let mut operator_start_time = DateTime::<Utc>::MAX_UTC;
+    let mut operator_end_time = DateTime::<Utc>::MIN_UTC;
 
     match physical_plan.metrics() {
         None => {
@@ -185,11 +185,11 @@ fn send_metrics_to_tracing(
 
     // If we've not encountered any metrics to determine the operator's start
     // and end time, use those of the parent
-    if operator_start_time == chrono::MAX_DATETIME {
+    if operator_start_time == DateTime::<Utc>::MAX_UTC {
         operator_start_time = parent_span.start.unwrap_or(default_end_time);
     }
 
-    if operator_end_time == chrono::MIN_DATETIME {
+    if operator_end_time == DateTime::<Utc>::MIN_UTC {
         operator_end_time = parent_span.end.unwrap_or(default_end_time);
     }
 
