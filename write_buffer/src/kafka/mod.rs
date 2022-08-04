@@ -38,6 +38,7 @@ use trace::TraceCollector;
 
 mod aggregator;
 mod config;
+mod instrumentation;
 
 /// Maximum number of jobs buffered and decoded concurrently.
 const CONCURRENT_DECODE_JOBS: usize = 10;
