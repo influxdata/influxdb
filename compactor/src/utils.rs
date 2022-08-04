@@ -162,7 +162,7 @@ impl ParquetFileWithTombstone {
 /// time range [min_time, max_time] contains.
 /// The split times assume that the data is evenly distributed in the time range and if
 /// that is not the case the resulting files are not guaranteed to be below max_desired_file_size
-/// Hence, the range between two contiguous returned time is pecentage of
+/// Hence, the range between two contiguous returned time is percentage of
 /// max_desired_file_size/total_size of the time range
 /// Example:
 ///  . Input
@@ -198,7 +198,7 @@ pub(crate) fn compute_split_time(
     let percentage = max_desired_file_size as f64 / total_size as f64;
     let mut min = min_time;
     loop {
-        let split_time = min + ((max_time - min_time) as f64 * percentage).floor() as i64;
+        let split_time = min + ((max_time - min_time) as f64 * percentage).ceil() as i64;
         if split_time < max_time {
             split_times.push(split_time);
             min = split_time;
@@ -260,5 +260,19 @@ mod tests {
         // must return vector of one containing max_time
         assert_eq!(result.len(), 1);
         assert_eq!(result[0], 1);
+    }
+
+    #[test]
+    fn compute_split_time_please_dont_explode() {
+        // degenerated case where the step size is so small that it is < 1 (but > 0). In this case we shall still
+        // not loop forever.
+        let min_time = 10;
+        let max_time = 20;
+
+        let total_size = 600000;
+        let max_desired_file_size = 10000;
+
+        let result = compute_split_time(min_time, max_time, total_size, max_desired_file_size);
+        assert_eq!(result.len(), 9);
     }
 }
