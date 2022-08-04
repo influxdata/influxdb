@@ -176,8 +176,8 @@ impl fmt::Debug for IOxSessionConfig {
     }
 }
 
-const BATCH_SIZE: usize = 1000;
-const COALESCE_BATCH_SIZE: usize = 500;
+const BATCH_SIZE: usize = 8 * 1024;
+const COALESCE_BATCH_SIZE: usize = BATCH_SIZE / 2;
 
 impl IOxSessionConfig {
     pub(super) fn new(exec: DedicatedExecutor, runtime: Arc<RuntimeEnv>) -> Self {

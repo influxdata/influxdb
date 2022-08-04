@@ -42,7 +42,7 @@
 |               |   Filter: #restaurant.count > Int64(200)                                                                           |
 |               |     TableScan: restaurant projection=[count, system, time, town], partial_filters=[#restaurant.count > Int64(200)] |
 | physical_plan | ProjectionExec: expr=[count@0 as count, system@1 as system, time@2 as time, town@3 as town]                        |
-|               |   CoalesceBatchesExec: target_batch_size=500                                                                       |
+|               |   CoalesceBatchesExec: target_batch_size=4096                                                                      |
 |               |     FilterExec: CAST(count@0 AS Int64) > 200                                                                       |
 |               |       RepartitionExec: partitioning=RoundRobinBatch(4)                                                             |
 |               |         IOxReadFilterNode: table_name=restaurant, chunks=1 predicate=Predicate exprs: [#count > Int64(200)]        |
@@ -56,7 +56,7 @@
 |               |   Filter: #restaurant.count > Float64(200)                                                                           |
 |               |     TableScan: restaurant projection=[count, system, time, town], partial_filters=[#restaurant.count > Float64(200)] |
 | physical_plan | ProjectionExec: expr=[count@0 as count, system@1 as system, time@2 as time, town@3 as town]                          |
-|               |   CoalesceBatchesExec: target_batch_size=500                                                                         |
+|               |   CoalesceBatchesExec: target_batch_size=4096                                                                        |
 |               |     FilterExec: CAST(count@0 AS Float64) > 200                                                                       |
 |               |       RepartitionExec: partitioning=RoundRobinBatch(4)                                                               |
 |               |         IOxReadFilterNode: table_name=restaurant, chunks=1 predicate=Predicate exprs: [#count > Float64(200)]        |
@@ -70,7 +70,7 @@
 |               |   Filter: #restaurant.system > Float64(4)                                                                           |
 |               |     TableScan: restaurant projection=[count, system, time, town], partial_filters=[#restaurant.system > Float64(4)] |
 | physical_plan | ProjectionExec: expr=[count@0 as count, system@1 as system, time@2 as time, town@3 as town]                         |
-|               |   CoalesceBatchesExec: target_batch_size=500                                                                        |
+|               |   CoalesceBatchesExec: target_batch_size=4096                                                                       |
 |               |     FilterExec: system@1 > 4                                                                                        |
 |               |       RepartitionExec: partitioning=RoundRobinBatch(4)                                                              |
 |               |         IOxReadFilterNode: table_name=restaurant, chunks=1 predicate=Predicate exprs: [#system > Float64(4)]        |
@@ -95,7 +95,7 @@
 |               |   Filter: #restaurant.count > Int64(200) AND #restaurant.town != Utf8("tewsbury")                                                                        |
 |               |     TableScan: restaurant projection=[count, system, time, town], partial_filters=[#restaurant.count > Int64(200), #restaurant.town != Utf8("tewsbury")] |
 | physical_plan | ProjectionExec: expr=[count@0 as count, system@1 as system, time@2 as time, town@3 as town]                                                              |
-|               |   CoalesceBatchesExec: target_batch_size=500                                                                                                             |
+|               |   CoalesceBatchesExec: target_batch_size=4096                                                                                                            |
 |               |     FilterExec: CAST(count@0 AS Int64) > 200 AND town@3 != CAST(tewsbury AS Dictionary(Int32, Utf8))                                                     |
 |               |       RepartitionExec: partitioning=RoundRobinBatch(4)                                                                                                   |
 |               |         IOxReadFilterNode: table_name=restaurant, chunks=1 predicate=Predicate exprs: [#count > Int64(200), #town != Utf8("tewsbury")]                   |
@@ -119,7 +119,7 @@
 |               |   Filter: #restaurant.count > Int64(200) AND #restaurant.town != Utf8("tewsbury") AND #restaurant.system = Int64(5) OR #restaurant.town = Utf8("lawrence")                                                                     |
 |               |     TableScan: restaurant projection=[count, system, time, town], partial_filters=[#restaurant.count > Int64(200), #restaurant.town != Utf8("tewsbury"), #restaurant.system = Int64(5) OR #restaurant.town = Utf8("lawrence")] |
 | physical_plan | ProjectionExec: expr=[count@0 as count, system@1 as system, time@2 as time, town@3 as town]                                                                                                                                    |
-|               |   CoalesceBatchesExec: target_batch_size=500                                                                                                                                                                                   |
+|               |   CoalesceBatchesExec: target_batch_size=4096                                                                                                                                                                                  |
 |               |     FilterExec: CAST(count@0 AS Int64) > 200 AND town@3 != CAST(tewsbury AS Dictionary(Int32, Utf8)) AND system@1 = CAST(5 AS Float64) OR town@3 = CAST(lawrence AS Dictionary(Int32, Utf8))                                   |
 |               |       RepartitionExec: partitioning=RoundRobinBatch(4)                                                                                                                                                                         |
 |               |         IOxReadFilterNode: table_name=restaurant, chunks=1 predicate=Predicate exprs: [#count > Int64(200), #town != Utf8("tewsbury")]                                                                                         |
@@ -142,7 +142,7 @@
 |               |   Filter: #restaurant.count > Int64(200) AND #restaurant.town != Utf8("tewsbury") AND #restaurant.system = Int64(5) OR #restaurant.town = Utf8("lawrence") AND #restaurant.count < Int64(40000)                                                                  |
 |               |     TableScan: restaurant projection=[count, system, time, town], partial_filters=[#restaurant.count > Int64(200), #restaurant.town != Utf8("tewsbury"), #restaurant.system = Int64(5) OR #restaurant.town = Utf8("lawrence"), #restaurant.count < Int64(40000)] |
 | physical_plan | ProjectionExec: expr=[count@0 as count, system@1 as system, time@2 as time, town@3 as town]                                                                                                                                                                      |
-|               |   CoalesceBatchesExec: target_batch_size=500                                                                                                                                                                                                                     |
+|               |   CoalesceBatchesExec: target_batch_size=4096                                                                                                                                                                                                                    |
 |               |     FilterExec: CAST(count@0 AS Int64) > 200 AND town@3 != CAST(tewsbury AS Dictionary(Int32, Utf8)) AND system@1 = CAST(5 AS Float64) OR town@3 = CAST(lawrence AS Dictionary(Int32, Utf8)) AND CAST(count@0 AS Int64) < 40000                                  |
 |               |       RepartitionExec: partitioning=RoundRobinBatch(4)                                                                                                                                                                                                           |
 |               |         IOxReadFilterNode: table_name=restaurant, chunks=1 predicate=Predicate exprs: [#count > Int64(200), #town != Utf8("tewsbury"), #count < Int64(40000)]                                                                                                    |
@@ -167,7 +167,7 @@
 |               |   Filter: #restaurant.count > Int64(200) AND #restaurant.count < Int64(40000)                                                                        |
 |               |     TableScan: restaurant projection=[count, system, time, town], partial_filters=[#restaurant.count > Int64(200), #restaurant.count < Int64(40000)] |
 | physical_plan | ProjectionExec: expr=[count@0 as count, system@1 as system, time@2 as time, town@3 as town]                                                          |
-|               |   CoalesceBatchesExec: target_batch_size=500                                                                                                         |
+|               |   CoalesceBatchesExec: target_batch_size=4096                                                                                                        |
 |               |     FilterExec: CAST(count@0 AS Int64) > 200 AND CAST(count@0 AS Int64) < 40000                                                                      |
 |               |       RepartitionExec: partitioning=RoundRobinBatch(4)                                                                                               |
 |               |         IOxReadFilterNode: table_name=restaurant, chunks=1 predicate=Predicate exprs: [#count > Int64(200), #count < Int64(40000)]                   |
@@ -193,7 +193,7 @@
 |               |   Filter: #restaurant.system > Float64(4) AND #restaurant.system < Float64(7)                                                                        |
 |               |     TableScan: restaurant projection=[count, system, time, town], partial_filters=[#restaurant.system > Float64(4), #restaurant.system < Float64(7)] |
 | physical_plan | ProjectionExec: expr=[count@0 as count, system@1 as system, time@2 as time, town@3 as town]                                                          |
-|               |   CoalesceBatchesExec: target_batch_size=500                                                                                                         |
+|               |   CoalesceBatchesExec: target_batch_size=4096                                                                                                        |
 |               |     FilterExec: system@1 > 4 AND system@1 < 7                                                                                                        |
 |               |       RepartitionExec: partitioning=RoundRobinBatch(4)                                                                                               |
 |               |         IOxReadFilterNode: table_name=restaurant, chunks=1 predicate=Predicate exprs: [#system > Float64(4), #system < Float64(7)]                   |
@@ -216,7 +216,7 @@
 |               |   Filter: #restaurant.system > Float64(5) AND #restaurant.system < Float64(7)                                                                        |
 |               |     TableScan: restaurant projection=[count, system, time, town], partial_filters=[#restaurant.system > Float64(5), #restaurant.system < Float64(7)] |
 | physical_plan | ProjectionExec: expr=[count@0 as count, system@1 as system, time@2 as time, town@3 as town]                                                          |
-|               |   CoalesceBatchesExec: target_batch_size=500                                                                                                         |
+|               |   CoalesceBatchesExec: target_batch_size=4096                                                                                                        |
 |               |     FilterExec: system@1 > 5 AND system@1 < 7                                                                                                        |
 |               |       RepartitionExec: partitioning=RoundRobinBatch(4)                                                                                               |
 |               |         IOxReadFilterNode: table_name=restaurant, chunks=1 predicate=Predicate exprs: [#system > Float64(5), #system < Float64(7)]                   |
@@ -238,7 +238,7 @@
 |               |   Filter: #restaurant.system > Float64(5) AND #restaurant.town != Utf8("tewsbury") AND Float64(7) > #restaurant.system                                                                     |
 |               |     TableScan: restaurant projection=[count, system, time, town], partial_filters=[#restaurant.system > Float64(5), #restaurant.town != Utf8("tewsbury"), Float64(7) > #restaurant.system] |
 | physical_plan | ProjectionExec: expr=[count@0 as count, system@1 as system, time@2 as time, town@3 as town]                                                                                                |
-|               |   CoalesceBatchesExec: target_batch_size=500                                                                                                                                               |
+|               |   CoalesceBatchesExec: target_batch_size=4096                                                                                                                                              |
 |               |     FilterExec: system@1 > 5 AND town@3 != CAST(tewsbury AS Dictionary(Int32, Utf8)) AND 7 > system@1                                                                                      |
 |               |       RepartitionExec: partitioning=RoundRobinBatch(4)                                                                                                                                     |
 |               |         IOxReadFilterNode: table_name=restaurant, chunks=1 predicate=Predicate exprs: [#system > Float64(5), #town != Utf8("tewsbury"), Float64(7) > #system]                              |
@@ -259,7 +259,7 @@
 |               |   Filter: #restaurant.system > Float64(5) AND Utf8("tewsbury") != #restaurant.town AND #restaurant.system < Float64(7) AND #restaurant.count = Int64(632) OR #restaurant.town = Utf8("reading")                                                                  |
 |               |     TableScan: restaurant projection=[count, system, time, town], partial_filters=[#restaurant.system > Float64(5), Utf8("tewsbury") != #restaurant.town, #restaurant.system < Float64(7), #restaurant.count = Int64(632) OR #restaurant.town = Utf8("reading")] |
 | physical_plan | ProjectionExec: expr=[count@0 as count, system@1 as system, time@2 as time, town@3 as town]                                                                                                                                                                      |
-|               |   CoalesceBatchesExec: target_batch_size=500                                                                                                                                                                                                                     |
+|               |   CoalesceBatchesExec: target_batch_size=4096                                                                                                                                                                                                                    |
 |               |     FilterExec: system@1 > 5 AND CAST(tewsbury AS Dictionary(Int32, Utf8)) != town@3 AND system@1 < 7 AND CAST(count@0 AS Int64) = 632 OR town@3 = CAST(reading AS Dictionary(Int32, Utf8))                                                                      |
 |               |       RepartitionExec: partitioning=RoundRobinBatch(4)                                                                                                                                                                                                           |
 |               |         IOxReadFilterNode: table_name=restaurant, chunks=1 predicate=Predicate exprs: [#system > Float64(5), Utf8("tewsbury") != #town, #system < Float64(7)]                                                                                                    |
@@ -277,7 +277,7 @@
 |               |   Filter: Float64(5) < #restaurant.system AND #restaurant.town != Utf8("tewsbury") AND #restaurant.system < Float64(7) AND #restaurant.count = Int64(632) OR #restaurant.town = Utf8("reading") AND #restaurant.time > TimestampNanosecond(130, None)                                                               |
 |               |     TableScan: restaurant projection=[count, system, time, town], partial_filters=[Float64(5) < #restaurant.system, #restaurant.town != Utf8("tewsbury"), #restaurant.system < Float64(7), #restaurant.count = Int64(632) OR #restaurant.town = Utf8("reading"), #restaurant.time > TimestampNanosecond(130, None)] |
 | physical_plan | ProjectionExec: expr=[count@0 as count, system@1 as system, time@2 as time, town@3 as town]                                                                                                                                                                                                                         |
-|               |   CoalesceBatchesExec: target_batch_size=500                                                                                                                                                                                                                                                                        |
+|               |   CoalesceBatchesExec: target_batch_size=4096                                                                                                                                                                                                                                                                       |
 |               |     FilterExec: 5 < system@1 AND town@3 != CAST(tewsbury AS Dictionary(Int32, Utf8)) AND system@1 < 7 AND CAST(count@0 AS Int64) = 632 OR town@3 = CAST(reading AS Dictionary(Int32, Utf8)) AND time@2 > 130                                                                                                        |
 |               |       RepartitionExec: partitioning=RoundRobinBatch(4)                                                                                                                                                                                                                                                              |
 |               |         IOxReadFilterNode: table_name=restaurant, chunks=0 predicate=Predicate exprs: [Float64(5) < #system, #town != Utf8("tewsbury"), #system < Float64(7), #time > TimestampNanosecond(130, None)]                                                                                                               |
