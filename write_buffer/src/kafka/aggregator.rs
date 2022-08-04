@@ -3,6 +3,7 @@ use data_types::{PartitionKey, Sequence, SequenceNumber};
 use dml::{DmlMeta, DmlOperation, DmlWrite};
 use hashbrown::{hash_map::Entry, HashMap};
 use iox_time::{Time, TimeProvider};
+use metric::{U64Histogram, U64HistogramOptions};
 use mutable_batch::MutableBatch;
 use observability_deps::tracing::{debug, error, warn};
 use rskafka::{
@@ -45,10 +46,21 @@ struct WriteAggregator {
 
     /// Trace collector
     collector: Option<Arc<dyn TraceCollector>>,
+
+    /// Number of DML writes coalesced into this aggregator.
+    num_ops: u64,
+
+    /// A metric recorder that observes num_ops when finalising the batch.
+    num_ops_recorder: U64Histogram,
 }
 
 impl WriteAggregator {
-    fn new(write: DmlWrite, collector: Option<Arc<dyn TraceCollector>>, tag: Tag) -> Self {
+    fn new(
+        write: DmlWrite,
+        collector: Option<Arc<dyn TraceCollector>>,
+        tag: Tag,
+        batch_coalesced_ops: U64Histogram,
+    ) -> Self {
         let mut span_recorder = None;
         Self::record_span(&mut span_recorder, write.meta().span_context(), &collector);
 
@@ -64,6 +76,8 @@ impl WriteAggregator {
             span_recorder,
             tag,
             collector,
+            num_ops: 1, // Inclusive of the write op this aggregator was created with
+            num_ops_recorder: batch_coalesced_ops,
         }
     }
 
@@ -135,6 +149,8 @@ impl WriteAggregator {
             &self.partition_key
         );
 
+        self.num_ops += 1;
+
         Self::record_span(
             &mut self.span_recorder,
             write.meta().span_context(),
@@ -158,6 +174,9 @@ impl WriteAggregator {
         if let Some(span_recorder) = self.span_recorder.as_mut() {
             span_recorder.ok("aggregated");
         }
+
+        // Record the number of ops that were aggregated into this batch.
+        self.num_ops_recorder.record(self.num_ops);
     }
 
     /// Encode into DML write.
@@ -290,6 +309,10 @@ pub struct DmlAggregator {
 
     /// Time provider.
     time_provider: Arc<dyn TimeProvider>,
+
+    /// A metric capturing the distribution of coalesced [`DmlWrite`] count per
+    /// aggregated batch.
+    batch_coalesced_ops: U64Histogram,
 }
 
 impl DmlAggregator {
@@ -299,7 +322,22 @@ impl DmlAggregator {
         max_size: usize,
         sequencer_id: u32,
         time_provider: Arc<dyn TimeProvider>,
+        metric_registry: &metric::Registry,
     ) -> Self {
+        // Register a metric recording the number of ops batched together before
+        // being pushed to kafka.
+        //
+        // Register here and pass the recorder into each WriteAggregator to
+        // avoid locking the metric repository each time a WriteAggregator is
+        // created.
+        let batch_coalesced_ops: U64Histogram = metric_registry
+            .register_metric_with_options::<U64Histogram, _>(
+                "write_buffer_batch_coalesced_write_ops",
+                "number of dml writes aggregated into a single kafka produce operation",
+                || U64HistogramOptions::new([1, 2, 4, 8, 16, 32, 64, 128]),
+            )
+            .recorder(&[]);
+
         Self {
             collector,
             database_name: database_name.into(),
@@ -307,6 +345,7 @@ impl DmlAggregator {
             sequencer_id,
             state: DmlAggregatorState::default(),
             time_provider,
+            batch_coalesced_ops,
         }
     }
 }
@@ -378,6 +417,7 @@ impl Aggregator for DmlAggregator {
                                 write,
                                 self.collector.as_ref().map(Arc::clone),
                                 new_tag,
+                                self.batch_coalesced_ops.clone(),
                             );
 
                             // Replace current aggregator
@@ -397,6 +437,7 @@ impl Aggregator for DmlAggregator {
                                 write,
                                 self.collector.as_ref().map(Arc::clone),
                                 tag,
+                                self.batch_coalesced_ops.clone(),
                             ),
                             op_record,
                             op_md,
