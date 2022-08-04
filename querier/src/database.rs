@@ -2,7 +2,7 @@
 
 use crate::{
     cache::CatalogCache, chunk::ChunkAdapter, ingester::IngesterConnection,
-    namespace::QuerierNamespace, query_log::QueryLog,
+    namespace::QuerierNamespace, query_log::QueryLog, table::PruneMetrics,
 };
 use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig};
@@ -75,6 +75,9 @@ pub struct QuerierDatabase {
 
     /// Max combined chunk size for all chunks returned to the query subsystem by a single table.
     max_table_query_bytes: usize,
+
+    /// Chunk prune metrics.
+    prune_metrics: Arc<PruneMetrics>,
 }
 
 #[async_trait]
@@ -138,6 +141,8 @@ impl QuerierDatabase {
             create_sharder(catalog_cache.catalog().as_ref(), backoff_config.clone()).await?,
         );
 
+        let prune_metrics = Arc::new(PruneMetrics::new(&metric_registry));
+
         Ok(Self {
             backoff_config,
             catalog_cache,
@@ -149,6 +154,7 @@ impl QuerierDatabase {
             query_execution_semaphore,
             sharder,
             max_table_query_bytes,
+            prune_metrics,
         })
     }
 
@@ -178,6 +184,7 @@ impl QuerierDatabase {
             Arc::clone(&self.query_log),
             Arc::clone(&self.sharder),
             self.max_table_query_bytes,
+            Arc::clone(&self.prune_metrics),
         )))
     }
 

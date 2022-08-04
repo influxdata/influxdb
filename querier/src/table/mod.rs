@@ -19,6 +19,8 @@ use std::{
 };
 use trace::span::{Span, SpanRecorder};
 
+pub use self::query_access::PruneMetrics;
+
 mod query_access;
 mod state_reconciler;
 
@@ -50,6 +52,20 @@ pub enum Error {
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+/// Args to create a [`QuerierTable`].
+pub struct QuerierTableArgs {
+    pub sharder: Arc<JumpHash<Arc<KafkaPartition>>>,
+    pub namespace_name: Arc<str>,
+    pub id: TableId,
+    pub table_name: Arc<str>,
+    pub schema: Arc<Schema>,
+    pub ingester_connection: Option<Arc<dyn IngesterConnection>>,
+    pub chunk_adapter: Arc<ChunkAdapter>,
+    pub exec: Arc<Executor>,
+    pub max_query_bytes: usize,
+    pub prune_metrics: Arc<PruneMetrics>,
+}
 
 /// Table representation for the querier.
 #[derive(Debug)]
@@ -83,22 +99,27 @@ pub struct QuerierTable {
 
     /// Max combined chunk size for all chunks returned to the query subsystem.
     max_query_bytes: usize,
+
+    /// Metrics for chunk pruning.
+    prune_metrics: Arc<PruneMetrics>,
 }
 
 impl QuerierTable {
     /// Create new table.
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        sharder: Arc<JumpHash<Arc<KafkaPartition>>>,
-        namespace_name: Arc<str>,
-        id: TableId,
-        table_name: Arc<str>,
-        schema: Arc<Schema>,
-        ingester_connection: Option<Arc<dyn IngesterConnection>>,
-        chunk_adapter: Arc<ChunkAdapter>,
-        exec: Arc<Executor>,
-        max_query_bytes: usize,
-    ) -> Self {
+    pub fn new(args: QuerierTableArgs) -> Self {
+        let QuerierTableArgs {
+            sharder,
+            namespace_name,
+            id,
+            table_name,
+            schema,
+            ingester_connection,
+            chunk_adapter,
+            exec,
+            max_query_bytes,
+            prune_metrics,
+        } = args;
+
         let reconciler = Reconciler::new(
             Arc::clone(&table_name),
             Arc::clone(&namespace_name),
@@ -116,6 +137,7 @@ impl QuerierTable {
             reconciler,
             exec,
             max_query_bytes,
+            prune_metrics,
         }
     }
 
@@ -259,7 +281,10 @@ impl QuerierTable {
 
     /// Get a chunk pruner that can be used to prune chunks retrieved via [`chunks`](Self::chunks)
     pub fn chunk_pruner(&self) -> Arc<dyn ChunkPruner> {
-        Arc::new(QuerierTableChunkPruner::new(self.max_query_bytes))
+        Arc::new(QuerierTableChunkPruner::new(
+            self.max_query_bytes,
+            Arc::clone(&self.prune_metrics),
+        ))
     }
 
     /// Get partitions from ingesters.

@@ -153,6 +153,13 @@ impl ChunkStage {
             Self::ReadBuffer { rb_chunk, .. } => rb_chunk.size(),
         }
     }
+
+    fn rows(&self) -> usize {
+        match self {
+            Self::Parquet { parquet_chunk, .. } => parquet_chunk.rows(),
+            Self::ReadBuffer { rb_chunk, .. } => rb_chunk.rows() as usize,
+        }
+    }
 }
 
 impl From<Arc<ParquetChunk>> for ChunkStage {
@@ -323,6 +330,10 @@ impl QuerierChunk {
 
     pub fn estimate_size(&self) -> usize {
         self.stage.read().estimate_size()
+    }
+
+    pub fn rows(&self) -> usize {
+        self.stage.read().rows()
     }
 }
 

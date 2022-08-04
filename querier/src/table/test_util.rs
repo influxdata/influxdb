@@ -1,4 +1,4 @@
-use super::QuerierTable;
+use super::{query_access::PruneMetrics, QuerierTable, QuerierTableArgs};
 use crate::{
     cache::CatalogCache, chunk::ChunkAdapter, create_ingester_connection_for_testing,
     IngesterPartition, QuerierChunkLoadSetting,
@@ -40,17 +40,18 @@ pub async fn querier_table(
 
     let namespace_name = Arc::from(table.namespace.namespace.name.as_str());
 
-    QuerierTable::new(
-        Arc::new(JumpHash::new((0..1).map(KafkaPartition::new).map(Arc::new)).unwrap()),
+    QuerierTable::new(QuerierTableArgs {
+        sharder: Arc::new(JumpHash::new((0..1).map(KafkaPartition::new).map(Arc::new)).unwrap()),
         namespace_name,
-        table.table.id,
-        table.table.name.clone().into(),
+        id: table.table.id,
+        table_name: table.table.name.clone().into(),
         schema,
-        Some(create_ingester_connection_for_testing()),
+        ingester_connection: Some(create_ingester_connection_for_testing()),
         chunk_adapter,
-        catalog.exec(),
-        usize::MAX,
-    )
+        exec: catalog.exec(),
+        max_query_bytes: usize::MAX,
+        prune_metrics: Arc::new(PruneMetrics::new(&catalog.metric_registry())),
+    })
 }
 
 /// Convert the line protocol in `lp `to a RecordBatch

@@ -18,13 +18,45 @@ use query_functions::group_by::Aggregate;
 use schema::Schema;
 use std::sync::Arc;
 
+/// Reason why a chunk could not be pruned.
+///
+/// Also see [`PruningObserver::could_not_prune`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum NotPrunedReason {
+    /// No expression on predicate
+    NoExpressionOnPredicate,
+
+    /// Can not create pruning predicate
+    CanNotCreatePruningPredicate,
+
+    /// DataFusion pruning failed
+    DataFusionPruningFailed,
+}
+
+impl NotPrunedReason {
+    /// Human-readable string representation.
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::NoExpressionOnPredicate => "No expression on predicate",
+            Self::CanNotCreatePruningPredicate => "Can not create pruning predicate",
+            Self::DataFusionPruningFailed => "DataFusion pruning failed",
+        }
+    }
+}
+
+impl std::fmt::Display for NotPrunedReason {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.name())
+    }
+}
+
 /// Something that cares to be notified when pruning of chunks occurs
 pub trait PruningObserver {
     /// Called when the specified chunk was pruned from observation
     fn was_pruned(&self, _chunk: &dyn QueryChunk) {}
 
     /// Called when no pruning can happen at all for some reason
-    fn could_not_prune(&self, _reason: &str) {}
+    fn could_not_prune(&self, _reason: NotPrunedReason, _chunk: &dyn QueryChunk) {}
 }
 
 /// Given a Vec of prunable items, returns a possibly smaller set
@@ -48,7 +80,9 @@ where
     let filter_expr = match predicate.filter_expr() {
         Some(expr) => expr,
         None => {
-            observer.could_not_prune("No expression on predicate");
+            for chunk in &chunks {
+                observer.could_not_prune(NotPrunedReason::NoExpressionOnPredicate, chunk.as_ref());
+            }
             return chunks;
         }
     };
@@ -58,7 +92,12 @@ where
         match PruningPredicate::try_new(filter_expr.clone(), table_schema.as_arrow()) {
             Ok(p) => p,
             Err(e) => {
-                observer.could_not_prune("Can not create pruning predicate");
+                for chunk in &chunks {
+                    observer.could_not_prune(
+                        NotPrunedReason::CanNotCreatePruningPredicate,
+                        chunk.as_ref(),
+                    );
+                }
                 trace!(%e, ?filter_expr, "Can not create pruning predicate");
                 return chunks;
             }
@@ -72,8 +111,10 @@ where
     let results = match pruning_predicate.prune(&statistics) {
         Ok(results) => results,
         Err(e) => {
-            observer.could_not_prune("Can not create pruning predicate");
-            trace!(%e, ?filter_expr, "Can not create pruning predicate");
+            for chunk in &chunks {
+                observer.could_not_prune(NotPrunedReason::DataFusionPruningFailed, chunk.as_ref());
+            }
+            trace!(%e, ?filter_expr, "DataFusion pruning failed");
             return chunks;
         }
     };
@@ -754,7 +795,7 @@ mod test {
                 .push(format!("{}: Pruned", chunk.table_name()))
         }
 
-        fn could_not_prune(&self, reason: &str) {
+        fn could_not_prune(&self, reason: NotPrunedReason, _chunk: &dyn QueryChunk) {
             self.events
                 .borrow_mut()
                 .push(format!("Could not prune: {}", reason))

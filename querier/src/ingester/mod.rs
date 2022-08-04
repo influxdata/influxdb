@@ -989,6 +989,13 @@ impl IngesterChunk {
             })
             .sum::<usize>()
     }
+
+    pub(crate) fn rows(&self) -> usize {
+        self.batches
+            .iter()
+            .map(|batch| batch.num_rows())
+            .sum::<usize>()
+    }
 }
 
 impl QueryChunkMeta for IngesterChunk {

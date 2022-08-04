@@ -13,9 +13,10 @@ use datafusion::{
 use iox_query::{
     exec::{ExecutorType, SessionContextIOxExt},
     provider::{ChunkPruner, Error as ProviderError, ProviderBuilder},
-    pruning::{prune_chunks, PruningObserver},
+    pruning::{prune_chunks, NotPrunedReason, PruningObserver},
     QueryChunk,
 };
+use metric::U64Counter;
 use predicate::Predicate;
 use schema::Schema;
 
@@ -86,11 +87,12 @@ impl TableProvider for QuerierTable {
 #[derive(Debug)]
 pub struct QuerierTableChunkPruner {
     max_bytes: usize,
+    metrics: Arc<PruneMetrics>,
 }
 
 impl QuerierTableChunkPruner {
-    pub fn new(max_bytes: usize) -> Self {
-        Self { max_bytes }
+    pub fn new(max_bytes: usize, metrics: Arc<PruneMetrics>) -> Self {
+        Self { max_bytes, metrics }
     }
 }
 
@@ -102,21 +104,18 @@ impl ChunkPruner for QuerierTableChunkPruner {
         chunks: Vec<Arc<dyn QueryChunk>>,
         predicate: &Predicate,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, ProviderError> {
-        // TODO: bring back metrics (https://github.com/influxdata/influxdb_iox/issues/4087)
-        let chunks = prune_chunks(&NoopPruningObserver {}, table_schema, chunks, predicate);
+        let chunks = prune_chunks(
+            &MetricPruningObserver {
+                metrics: Arc::clone(&self.metrics),
+            },
+            table_schema,
+            chunks,
+            predicate,
+        );
 
         let estimated_bytes = chunks
             .iter()
-            .map(|chunk| {
-                let chunk = chunk.as_any();
-                if let Some(chunk) = chunk.downcast_ref::<IngesterChunk>() {
-                    chunk.estimate_size()
-                } else if let Some(chunk) = chunk.downcast_ref::<QuerierChunk>() {
-                    chunk.estimate_size()
-                } else {
-                    panic!("Unknown chunk type")
-                }
-            })
+            .map(|chunk| chunk_estimate_size(chunk.as_ref()))
             .sum::<usize>();
         if estimated_bytes > self.max_bytes {
             return Err(ProviderError::TooMuchData {
@@ -129,6 +128,167 @@ impl ChunkPruner for QuerierTableChunkPruner {
     }
 }
 
-struct NoopPruningObserver;
+struct MetricPruningObserver {
+    metrics: Arc<PruneMetrics>,
+}
 
-impl PruningObserver for NoopPruningObserver {}
+impl PruningObserver for MetricPruningObserver {
+    fn was_pruned(&self, chunk: &dyn QueryChunk) {
+        self.metrics.chunks_pruned.inc(1);
+        self.metrics.rows_pruned.inc(chunk_rows(chunk) as u64);
+        self.metrics
+            .bytes_pruned
+            .inc(chunk_estimate_size(chunk) as u64);
+    }
+
+    fn could_not_prune(&self, reason: NotPrunedReason, chunk: &dyn QueryChunk) {
+        let (chunks, rows, bytes) = match reason {
+            NotPrunedReason::NoExpressionOnPredicate => (
+                &self.metrics.chunks_not_pruned_no_expression,
+                &self.metrics.rows_not_pruned_no_expression,
+                &self.metrics.bytes_not_pruned_no_expression,
+            ),
+            NotPrunedReason::CanNotCreatePruningPredicate => (
+                &self.metrics.chunks_not_pruned_cannot_create_predicate,
+                &self.metrics.rows_not_pruned_cannot_create_predicate,
+                &self.metrics.bytes_not_pruned_cannot_create_predicate,
+            ),
+            NotPrunedReason::DataFusionPruningFailed => (
+                &self.metrics.chunks_not_pruned_df,
+                &self.metrics.rows_not_pruned_df,
+                &self.metrics.bytes_not_pruned_df,
+            ),
+        };
+
+        chunks.inc(1);
+        rows.inc(chunk_rows(chunk) as u64);
+        bytes.inc(chunk_estimate_size(chunk) as u64);
+    }
+}
+
+#[derive(Debug)]
+pub struct PruneMetrics {
+    // number of chunks
+    chunks_pruned: U64Counter,
+    chunks_not_pruned_no_expression: U64Counter,
+    chunks_not_pruned_cannot_create_predicate: U64Counter,
+    chunks_not_pruned_df: U64Counter,
+
+    // number of rows
+    rows_pruned: U64Counter,
+    rows_not_pruned_no_expression: U64Counter,
+    rows_not_pruned_cannot_create_predicate: U64Counter,
+    rows_not_pruned_df: U64Counter,
+
+    // size in bytes
+    bytes_pruned: U64Counter,
+    bytes_not_pruned_no_expression: U64Counter,
+    bytes_not_pruned_cannot_create_predicate: U64Counter,
+    bytes_not_pruned_df: U64Counter,
+}
+
+impl PruneMetrics {
+    pub fn new(metric_registry: &metric::Registry) -> Self {
+        let chunks = metric_registry.register_metric::<U64Counter>(
+            "query_pruner_chunks",
+            "Number of chunks seen by the statistics-based chunk pruner",
+        );
+        let chunks_pruned = chunks.recorder(&[("result", "pruned")]);
+        let chunks_not_pruned_no_expression = chunks.recorder(&[
+            ("result", "not_pruned"),
+            ("reason", NotPrunedReason::NoExpressionOnPredicate.name()),
+        ]);
+        let chunks_not_pruned_cannot_create_predicate = chunks.recorder(&[
+            ("result", "not_pruned"),
+            (
+                "reason",
+                NotPrunedReason::CanNotCreatePruningPredicate.name(),
+            ),
+        ]);
+        let chunks_not_pruned_df = chunks.recorder(&[
+            ("result", "not_pruned"),
+            ("reason", NotPrunedReason::DataFusionPruningFailed.name()),
+        ]);
+
+        let rows = metric_registry.register_metric::<U64Counter>(
+            "query_pruner_rows",
+            "Number of rows seen by the statistics-based chunk pruner",
+        );
+        let rows_pruned = rows.recorder(&[("result", "pruned")]);
+        let rows_not_pruned_no_expression = rows.recorder(&[
+            ("result", "not_pruned"),
+            ("reason", NotPrunedReason::NoExpressionOnPredicate.name()),
+        ]);
+        let rows_not_pruned_cannot_create_predicate = rows.recorder(&[
+            ("result", "not_pruned"),
+            (
+                "reason",
+                NotPrunedReason::CanNotCreatePruningPredicate.name(),
+            ),
+        ]);
+        let rows_not_pruned_df = rows.recorder(&[
+            ("result", "not_pruned"),
+            ("reason", NotPrunedReason::DataFusionPruningFailed.name()),
+        ]);
+
+        let bytes = metric_registry.register_metric::<U64Counter>(
+            "query_pruner_bytes",
+            "Size (in bytes) of chunks seen by the statistics-based chunk pruner",
+        );
+        let bytes_pruned = bytes.recorder(&[("result", "pruned")]);
+        let bytes_not_pruned_no_expression = bytes.recorder(&[
+            ("result", "not_pruned"),
+            ("reason", NotPrunedReason::NoExpressionOnPredicate.name()),
+        ]);
+        let bytes_not_pruned_cannot_create_predicate = bytes.recorder(&[
+            ("result", "not_pruned"),
+            (
+                "reason",
+                NotPrunedReason::CanNotCreatePruningPredicate.name(),
+            ),
+        ]);
+        let bytes_not_pruned_df = bytes.recorder(&[
+            ("result", "not_pruned"),
+            ("reason", NotPrunedReason::DataFusionPruningFailed.name()),
+        ]);
+
+        Self {
+            chunks_pruned,
+            chunks_not_pruned_no_expression,
+            chunks_not_pruned_cannot_create_predicate,
+            chunks_not_pruned_df,
+            rows_pruned,
+            rows_not_pruned_no_expression,
+            rows_not_pruned_cannot_create_predicate,
+            rows_not_pruned_df,
+            bytes_pruned,
+            bytes_not_pruned_no_expression,
+            bytes_not_pruned_cannot_create_predicate,
+            bytes_not_pruned_df,
+        }
+    }
+}
+
+fn chunk_estimate_size(chunk: &dyn QueryChunk) -> usize {
+    let chunk = chunk.as_any();
+
+    if let Some(chunk) = chunk.downcast_ref::<IngesterChunk>() {
+        chunk.estimate_size()
+    } else if let Some(chunk) = chunk.downcast_ref::<QuerierChunk>() {
+        chunk.estimate_size()
+    } else {
+        panic!("Unknown chunk type")
+    }
+}
+
+fn chunk_rows(chunk: &dyn QueryChunk) -> usize {
+    let chunk = chunk.as_any();
+
+    if let Some(chunk) = chunk.downcast_ref::<QuerierChunk>() {
+        chunk.rows()
+    } else if let Some(chunk) = chunk.downcast_ref::<IngesterChunk>() {
+        chunk.rows()
+    } else {
+        panic!("Unknown chunk type");
+    }
+}

@@ -1,8 +1,12 @@
 //! Namespace within the whole database.
 
 use crate::{
-    cache::CatalogCache, chunk::ChunkAdapter, ingester::IngesterConnection, query_log::QueryLog,
-    table::QuerierTable, QuerierChunkLoadSetting,
+    cache::CatalogCache,
+    chunk::ChunkAdapter,
+    ingester::IngesterConnection,
+    query_log::QueryLog,
+    table::{PruneMetrics, QuerierTable, QuerierTableArgs},
+    QuerierChunkLoadSetting,
 };
 use data_types::{KafkaPartition, NamespaceId, NamespaceSchema, ParquetFileId};
 use iox_query::exec::Executor;
@@ -59,6 +63,7 @@ impl QuerierNamespace {
         query_log: Arc<QueryLog>,
         sharder: Arc<JumpHash<Arc<KafkaPartition>>>,
         max_table_query_bytes: usize,
+        prune_metrics: Arc<PruneMetrics>,
     ) -> Self {
         let tables: HashMap<_, _> = schema
             .tables
@@ -68,17 +73,18 @@ impl QuerierNamespace {
                 let id = table_schema.id;
                 let schema = Schema::try_from(table_schema.clone()).expect("cannot build schema");
 
-                let table = Arc::new(QuerierTable::new(
-                    Arc::clone(&sharder),
-                    Arc::clone(&name),
+                let table = Arc::new(QuerierTable::new(QuerierTableArgs {
+                    sharder: Arc::clone(&sharder),
+                    namespace_name: Arc::clone(&name),
                     id,
-                    Arc::clone(&table_name),
-                    Arc::new(schema),
-                    ingester_connection.clone(),
-                    Arc::clone(&chunk_adapter),
-                    Arc::clone(&exec),
-                    max_table_query_bytes,
-                ));
+                    table_name: Arc::clone(&table_name),
+                    schema: Arc::new(schema),
+                    ingester_connection: ingester_connection.clone(),
+                    chunk_adapter: Arc::clone(&chunk_adapter),
+                    exec: Arc::clone(&exec),
+                    max_query_bytes: max_table_query_bytes,
+                    prune_metrics: Arc::clone(&prune_metrics),
+                }));
 
                 (table_name, table)
             })
@@ -118,6 +124,7 @@ impl QuerierNamespace {
             load_settings,
         ));
         let query_log = Arc::new(QueryLog::new(10, time_provider));
+        let prune_metrics = Arc::new(PruneMetrics::new(&chunk_adapter.metric_registry()));
 
         Self::new(
             chunk_adapter,
@@ -128,6 +135,7 @@ impl QuerierNamespace {
             query_log,
             sharder,
             max_table_query_bytes,
+            prune_metrics,
         )
     }
 
