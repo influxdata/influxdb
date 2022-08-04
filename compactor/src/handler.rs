@@ -421,8 +421,6 @@ async fn compact_cold_partitions(compactor: Arc<Compactor>) {
     let n_candidates = candidates.len();
     if n_candidates == 0 {
         debug!("no cold compaction candidates found");
-        // sleep for a second to avoid a hot busy loop when the catalog is polled
-        tokio::time::sleep(PAUSE_BETWEEN_NO_WORK).await;
         return;
     } else {
         debug!(n_candidates, "found cold compaction candidates");
