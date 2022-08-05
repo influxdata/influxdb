@@ -1,7 +1,11 @@
 //! CLI config for compactor-related commands
 
 macro_rules! gen_compactor_config {
-    ($name:ident $(,)?) => {
+    (
+        $name:ident,
+        hot_multiple_def = $hot_multiple_def:literal
+        $(,)?
+    ) => {
         /// CLI config for compactor
         #[derive(Debug, Clone, clap::Parser)]
         pub struct $name {
@@ -174,11 +178,12 @@ macro_rules! gen_compactor_config {
             /// compacting cold partitions runs. Set to 1 to compact hot partitions and cold partitions
             /// equally.
             ///
-            /// Default is 4.
+            /// Default is
+            #[doc = $hot_multiple_def]
             #[clap(
                 long = "--compaction-hot-multiple",
                 env = "INFLUXDB_IOX_COMPACTION_HOT_MULTIPLE",
-                default_value = "4",
+                default_value = $hot_multiple_def,
                 action
             )]
             pub hot_multiple: usize,
@@ -186,6 +191,28 @@ macro_rules! gen_compactor_config {
     };
 }
 
-gen_compactor_config!(
-    CompactorConfig,
-);
+gen_compactor_config!(CompactorConfig, hot_multiple_def = "4");
+
+gen_compactor_config!(CompactorOnceConfig, hot_multiple_def = "1");
+
+impl CompactorOnceConfig {
+    pub fn into_compactor_config(self) -> CompactorConfig {
+        CompactorConfig {
+            topic: self.topic,
+            write_buffer_partition_range_start: self.write_buffer_partition_range_start,
+            write_buffer_partition_range_end: self.write_buffer_partition_range_end,
+            max_desired_file_size_bytes: self.max_desired_file_size_bytes,
+            percentage_max_file_size: self.percentage_max_file_size,
+            split_percentage: self.split_percentage,
+            max_concurrent_size_bytes: self.max_concurrent_size_bytes,
+            max_cold_concurrent_size_bytes: self.max_cold_concurrent_size_bytes,
+            max_number_partitions_per_sequencer: self.max_number_partitions_per_sequencer,
+            min_number_recent_ingested_files_per_partition: self
+                .min_number_recent_ingested_files_per_partition,
+            input_size_threshold_bytes: self.input_size_threshold_bytes,
+            cold_input_size_threshold_bytes: self.cold_input_size_threshold_bytes,
+            input_file_count_threshold: self.input_file_count_threshold,
+            hot_multiple: self.hot_multiple,
+        }
+    }
+}

@@ -1,6 +1,6 @@
 use clap_blocks::{
     catalog_dsn::CatalogDsnConfig,
-    compactor::CompactorConfig,
+    compactor::CompactorOnceConfig,
     object_store::{make_object_store, ObjectStoreConfig},
 };
 use iox_query::exec::Executor;
@@ -28,7 +28,7 @@ pub enum Command {
         catalog_dsn: CatalogDsnConfig,
 
         #[clap(flatten)]
-        compactor_config: CompactorConfig,
+        compactor_config: CompactorOnceConfig,
 
         /// Number of threads to use for the compactor query execution, compaction and persistence.
         #[clap(
@@ -49,6 +49,8 @@ pub async fn command(config: Config) -> Result<()> {
             compactor_config,
             query_exec_thread_count,
         } => {
+            let compactor_config = compactor_config.into_compactor_config();
+
             let time_provider = Arc::new(SystemProvider::new()) as Arc<dyn TimeProvider>;
             let metric_registry: Arc<metric::Registry> = Default::default();
             let catalog = catalog_dsn
