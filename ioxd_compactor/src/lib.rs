@@ -146,7 +146,7 @@ pub async fn create_compactor_server_type(
     )
     .await?;
 
-    let compactor_handler = Arc::new(CompactorHandlerImpl::new_with_compactor(compactor));
+    let compactor_handler = Arc::new(CompactorHandlerImpl::new(compactor));
     let compactor = CompactorServer::new(metric_registry, compactor_handler);
     Ok(Arc::new(CompactorServerType::new(compactor, common_state)))
 }

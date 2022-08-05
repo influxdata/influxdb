@@ -1,18 +1,14 @@
 //! Compactor handler
 
 use async_trait::async_trait;
-use backoff::{Backoff, BackoffConfig};
-use data_types::SequencerId;
+use backoff::Backoff;
 use futures::{
     future::{BoxFuture, Shared},
     FutureExt, StreamExt, TryFutureExt,
 };
-use iox_catalog::interface::Catalog;
 use iox_query::exec::Executor;
-use iox_time::TimeProvider;
 use metric::Attributes;
 use observability_deps::tracing::*;
-use parquet_file::storage::ParquetStorage;
 use std::sync::Arc;
 use thiserror::Error;
 use tokio::{
@@ -66,29 +62,7 @@ pub struct CompactorHandlerImpl {
 
 impl CompactorHandlerImpl {
     /// Initialize the Compactor
-    pub fn new(
-        sequencers: Vec<SequencerId>,
-        catalog: Arc<dyn Catalog>,
-        store: ParquetStorage,
-        exec: Arc<Executor>,
-        time_provider: Arc<dyn TimeProvider>,
-        registry: Arc<metric::Registry>,
-        config: CompactorConfig,
-    ) -> Self {
-        Self::new_with_compactor(Compactor::new(
-            sequencers,
-            catalog,
-            store,
-            exec,
-            time_provider,
-            BackoffConfig::default(),
-            config,
-            registry,
-        ))
-    }
-
-    /// Initialize the Compactor
-    pub fn new_with_compactor(compactor: Compactor) -> Self {
+    pub fn new(compactor: Compactor) -> Self {
         let compactor_data = Arc::new(compactor);
 
         let shutdown = CancellationToken::new();
