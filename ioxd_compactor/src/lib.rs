@@ -136,6 +136,29 @@ pub async fn create_compactor_server_type(
     time_provider: Arc<dyn TimeProvider>,
     compactor_config: CompactorConfig,
 ) -> Result<Arc<dyn ServerType>> {
+    let compactor = build_compactor_from_config(
+        compactor_config,
+        catalog,
+        object_store,
+        exec,
+        time_provider,
+        Arc::clone(&metric_registry),
+    )
+    .await?;
+
+    let compactor_handler = Arc::new(CompactorHandlerImpl::new_with_compactor(compactor));
+    let compactor = CompactorServer::new(metric_registry, compactor_handler);
+    Ok(Arc::new(CompactorServerType::new(compactor, common_state)))
+}
+
+pub async fn build_compactor_from_config(
+    compactor_config: CompactorConfig,
+    catalog: Arc<dyn Catalog>,
+    object_store: Arc<DynObjectStore>,
+    exec: Arc<Executor>,
+    time_provider: Arc<dyn TimeProvider>,
+    metric_registry: Arc<Registry>,
+) -> Result<compactor::compact::Compactor, Error> {
     if compactor_config.write_buffer_partition_range_start
         > compactor_config.write_buffer_partition_range_end
     {
@@ -177,7 +200,7 @@ pub async fn create_compactor_server_type(
         compactor_config.hot_multiple,
     );
 
-    let compactor = compactor::compact::Compactor::new(
+    Ok(compactor::compact::Compactor::new(
         sequencers,
         catalog,
         parquet_store,
@@ -185,10 +208,6 @@ pub async fn create_compactor_server_type(
         time_provider,
         backoff::BackoffConfig::default(),
         compactor_config,
-        Arc::clone(&metric_registry),
-    );
-
-    let compactor_handler = Arc::new(CompactorHandlerImpl::new_with_compactor(compactor));
-    let compactor = CompactorServer::new(metric_registry, compactor_handler);
-    Ok(Arc::new(CompactorServerType::new(compactor, common_state)))
+        metric_registry,
+    ))
 }
