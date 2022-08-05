@@ -8,7 +8,7 @@ cp -r /tmp/workspace/packages packages
 # CircleCI mangles environment variables with newlines. This key contians
 # escaped newlines. For `gpg` to import the key, it requires `echo -e` to
 # expand the escape sequences.
-gpg --batch --import <<<"$(echo -e "${GPG_PRIVATE_KEY}")"
+gpg --batch --import <<<"$(echo -e "${GPG_1X_PRIVATE_KEY}")"
 
 # TODO(bnpfeife): replace with code signing server
 for target in packages/*
