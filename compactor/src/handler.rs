@@ -256,20 +256,26 @@ async fn run_compactor(compactor: Arc<Compactor>, shutdown: CancellationToken) {
     while !shutdown.is_cancelled() {
         debug!("compactor main loop tick.");
 
-        let mut compacted_partitions = 0;
-        for _ in 0..compactor.config.hot_multiple {
-            compacted_partitions += compact_hot_partitions(Arc::clone(&compactor)).await;
-            if compacted_partitions == 0 {
-                // Not found hot candidates, should move to compact cold partitions
-                break;
-            }
-        }
-        compacted_partitions += compact_cold_partitions(Arc::clone(&compactor)).await;
+        run_compactor_once(Arc::clone(&compactor)).await;
+    }
+}
 
+/// Checks for candidate partitions to compact and spawns tokio tasks to compact as many
+/// as the configuration will allow.
+pub async fn run_compactor_once(compactor: Arc<Compactor>) {
+    let mut compacted_partitions = 0;
+    for _ in 0..compactor.config.hot_multiple {
+        compacted_partitions += compact_hot_partitions(Arc::clone(&compactor)).await;
         if compacted_partitions == 0 {
-            // sleep for a second to avoid a busy loop when the catalog is polled
-            tokio::time::sleep(PAUSE_BETWEEN_NO_WORK).await;
+            // Not found hot candidates, should move to compact cold partitions
+            break;
         }
+    }
+    compacted_partitions += compact_cold_partitions(Arc::clone(&compactor)).await;
+
+    if compacted_partitions == 0 {
+        // sleep for a second to avoid a busy loop when the catalog is polled
+        tokio::time::sleep(PAUSE_BETWEEN_NO_WORK).await;
     }
 }
 
