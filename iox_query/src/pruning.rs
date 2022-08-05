@@ -12,7 +12,7 @@ use datafusion::{
     logical_plan::Column,
     physical_optimizer::pruning::{PruningPredicate, PruningStatistics},
 };
-use observability_deps::tracing::{debug, trace};
+use observability_deps::tracing::{debug, trace, warn};
 use predicate::Predicate;
 use query_functions::group_by::Aggregate;
 use schema::Schema;
@@ -52,10 +52,19 @@ impl std::fmt::Display for NotPrunedReason {
 
 /// Something that cares to be notified when pruning of chunks occurs
 pub trait PruningObserver {
-    /// Called when the specified chunk was pruned from observation
+    /// Called when the specified chunk was pruned from observation.
     fn was_pruned(&self, _chunk: &dyn QueryChunk) {}
 
-    /// Called when no pruning can happen at all for some reason
+    /// Called when a chunk was not pruned.
+    fn was_not_pruned(&self, _chunk: &dyn QueryChunk) {}
+
+    /// Called when no pruning can happen at all for some reason.
+    ///
+    /// Since pruning is optional and _only_ improves performance but its lack does not affect correctness, this will
+    /// NOT lead to a query error.
+    ///
+    /// In this case, statistical pruning will not happen and neither [`was_pruned`](Self::was_pruned) nor
+    /// [`was_not_pruned`](Self::was_not_pruned) will be called.
     fn could_not_prune(&self, _reason: NotPrunedReason, _chunk: &dyn QueryChunk) {}
 }
 
@@ -98,7 +107,7 @@ where
                         chunk.as_ref(),
                     );
                 }
-                trace!(%e, ?filter_expr, "Can not create pruning predicate");
+                warn!(%e, ?filter_expr, "Can not create pruning predicate");
                 return chunks;
             }
         };
@@ -114,7 +123,7 @@ where
             for chunk in &chunks {
                 observer.could_not_prune(NotPrunedReason::DataFusionPruningFailed, chunk.as_ref());
             }
-            trace!(%e, ?filter_expr, "DataFusion pruning failed");
+            warn!(%e, ?filter_expr, "DataFusion pruning failed");
             return chunks;
         }
     };
@@ -124,7 +133,10 @@ where
     let mut pruned_chunks = Vec::with_capacity(chunks.len());
     for (chunk, keep) in chunks.into_iter().zip(results) {
         match keep {
-            true => pruned_chunks.push(chunk),
+            true => {
+                observer.was_not_pruned(chunk.as_ref());
+                pruned_chunks.push(chunk);
+            }
             false => {
                 observer.was_pruned(chunk.as_ref());
             }
@@ -287,7 +299,7 @@ mod test {
 
         assert_eq!(
             observer.events(),
-            vec!["Could not prune: No expression on predicate"]
+            vec!["chunk1: Could not prune: No expression on predicate"]
         );
         assert_eq!(names(&pruned), vec!["chunk1"]);
     }
@@ -412,7 +424,7 @@ mod test {
         let predicate = Predicate::new().with_expr(col("column1").lt(lit(100.0)));
 
         let pruned = prune_chunks(&observer, c1.schema(), vec![c1], &predicate);
-        assert!(observer.events().is_empty());
+        assert_eq!(observer.events(), vec!["chunk1: Not pruned"]);
         assert_eq!(names(&pruned), vec!["chunk1"]);
     }
 
@@ -433,7 +445,7 @@ mod test {
 
         let pruned = prune_chunks(&observer, c1.schema(), vec![c1], &predicate);
 
-        assert!(observer.events().is_empty());
+        assert_eq!(observer.events(), vec!["chunk1: Not pruned"]);
         assert_eq!(names(&pruned), vec!["chunk1"]);
     }
 
@@ -454,7 +466,7 @@ mod test {
 
         let pruned = prune_chunks(&observer, c1.schema(), vec![c1], &predicate);
 
-        assert!(observer.events().is_empty());
+        assert_eq!(observer.events(), vec!["chunk1: Not pruned"]);
         assert_eq!(names(&pruned), vec!["chunk1"]);
     }
 
@@ -475,7 +487,7 @@ mod test {
 
         let pruned = prune_chunks(&observer, c1.schema(), vec![c1], &predicate);
 
-        assert!(observer.events().is_empty());
+        assert_eq!(observer.events(), vec!["chunk1: Not pruned"]);
         assert_eq!(names(&pruned), vec!["chunk1"]);
     }
 
@@ -498,7 +510,7 @@ mod test {
 
         let pruned = prune_chunks(&observer, c1.schema(), vec![c1], &predicate);
 
-        assert!(observer.events().is_empty());
+        assert_eq!(observer.events(), vec!["chunk1: Not pruned"]);
         assert_eq!(names(&pruned), vec!["chunk1"]);
     }
 
@@ -546,7 +558,15 @@ mod test {
 
         let pruned = prune_chunks(&observer, schema, chunks, &predicate);
 
-        assert_eq!(observer.events(), vec!["chunk1: Pruned"]);
+        assert_eq!(
+            observer.events(),
+            vec![
+                "chunk1: Pruned",
+                "chunk2: Not pruned",
+                "chunk3: Not pruned",
+                "chunk4: Not pruned"
+            ]
+        );
         assert_eq!(names(&pruned), vec!["chunk2", "chunk3", "chunk4"]);
     }
 
@@ -605,7 +625,14 @@ mod test {
 
         assert_eq!(
             observer.events(),
-            vec!["chunk1: Pruned", "chunk3: Pruned", "chunk6: Pruned"]
+            vec![
+                "chunk1: Pruned",
+                "chunk2: Not pruned",
+                "chunk3: Pruned",
+                "chunk4: Not pruned",
+                "chunk5: Not pruned",
+                "chunk6: Pruned"
+            ]
         );
         assert_eq!(names(&pruned), vec!["chunk2", "chunk4", "chunk5"]);
     }
@@ -643,7 +670,10 @@ mod test {
 
         let pruned = prune_chunks(&observer, schema, chunks, &predicate);
 
-        assert_eq!(observer.events(), vec!["chunk1: Pruned",]);
+        assert_eq!(
+            observer.events(),
+            vec!["chunk1: Pruned", "chunk2: Not pruned", "chunk3: Not pruned"]
+        );
         assert_eq!(names(&pruned), vec!["chunk2", "chunk3"]);
     }
 
@@ -702,7 +732,10 @@ mod test {
 
         let pruned = prune_chunks(&observer, schema, chunks, &predicate);
 
-        assert_eq!(observer.events(), vec!["chunk2: Pruned", "chunk3: Pruned"]);
+        assert_eq!(
+            observer.events(),
+            vec!["chunk1: Not pruned", "chunk2: Pruned", "chunk3: Pruned"]
+        );
         assert_eq!(names(&pruned), vec!["chunk1"]);
     }
 
@@ -764,7 +797,14 @@ mod test {
 
         assert_eq!(
             observer.events(),
-            vec!["chunk2: Pruned", "chunk3: Pruned", "chunk5: Pruned"]
+            vec![
+                "chunk1: Not pruned",
+                "chunk2: Pruned",
+                "chunk3: Pruned",
+                "chunk4: Not pruned",
+                "chunk5: Pruned",
+                "chunk6: Not pruned"
+            ]
         );
         assert_eq!(names(&pruned), vec!["chunk1", "chunk4", "chunk6"]);
     }
@@ -795,10 +835,18 @@ mod test {
                 .push(format!("{}: Pruned", chunk.table_name()))
         }
 
-        fn could_not_prune(&self, reason: NotPrunedReason, _chunk: &dyn QueryChunk) {
+        fn was_not_pruned(&self, chunk: &dyn QueryChunk) {
             self.events
                 .borrow_mut()
-                .push(format!("Could not prune: {}", reason))
+                .push(format!("{}: Not pruned", chunk.table_name()))
+        }
+
+        fn could_not_prune(&self, reason: NotPrunedReason, chunk: &dyn QueryChunk) {
+            self.events.borrow_mut().push(format!(
+                "{}: Could not prune: {}",
+                chunk.table_name(),
+                reason
+            ))
         }
     }
 }

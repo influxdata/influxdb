@@ -391,8 +391,32 @@ mod tests {
             reporter
                 .metric("query_pruner_chunks")
                 .unwrap()
+                .observation(&[("result", "not_pruned")])
+                .unwrap(),
+            &Observation::U64Counter(0),
+        );
+        assert_eq!(
+            reporter
+                .metric("query_pruner_rows")
+                .unwrap()
+                .observation(&[("result", "not_pruned")])
+                .unwrap(),
+            &Observation::U64Counter(0),
+        );
+        assert_eq!(
+            reporter
+                .metric("query_pruner_bytes")
+                .unwrap()
+                .observation(&[("result", "not_pruned")])
+                .unwrap(),
+            &Observation::U64Counter(0),
+        );
+        assert_eq!(
+            reporter
+                .metric("query_pruner_chunks")
+                .unwrap()
                 .observation(&[
-                    ("result", "not_pruned"),
+                    ("result", "could_not_prune"),
                     ("reason", "No expression on predicate")
                 ])
                 .unwrap(),
@@ -403,7 +427,7 @@ mod tests {
                 .metric("query_pruner_rows")
                 .unwrap()
                 .observation(&[
-                    ("result", "not_pruned"),
+                    ("result", "could_not_prune"),
                     ("reason", "No expression on predicate")
                 ])
                 .unwrap(),
@@ -413,7 +437,7 @@ mod tests {
             .metric("query_pruner_bytes")
             .unwrap()
             .observation(&[
-                ("result", "not_pruned"),
+                ("result", "could_not_prune"),
                 ("reason", "No expression on predicate"),
             ])
             .unwrap()

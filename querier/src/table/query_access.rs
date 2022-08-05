@@ -141,22 +141,30 @@ impl PruningObserver for MetricPruningObserver {
             .inc(chunk_estimate_size(chunk) as u64);
     }
 
+    fn was_not_pruned(&self, chunk: &dyn QueryChunk) {
+        self.metrics.chunks_not_pruned.inc(1);
+        self.metrics.rows_not_pruned.inc(chunk_rows(chunk) as u64);
+        self.metrics
+            .bytes_not_pruned
+            .inc(chunk_estimate_size(chunk) as u64);
+    }
+
     fn could_not_prune(&self, reason: NotPrunedReason, chunk: &dyn QueryChunk) {
         let (chunks, rows, bytes) = match reason {
             NotPrunedReason::NoExpressionOnPredicate => (
-                &self.metrics.chunks_not_pruned_no_expression,
-                &self.metrics.rows_not_pruned_no_expression,
-                &self.metrics.bytes_not_pruned_no_expression,
+                &self.metrics.chunks_could_not_prune_no_expression,
+                &self.metrics.rows_could_not_prune_no_expression,
+                &self.metrics.bytes_could_not_prune_no_expression,
             ),
             NotPrunedReason::CanNotCreatePruningPredicate => (
-                &self.metrics.chunks_not_pruned_cannot_create_predicate,
-                &self.metrics.rows_not_pruned_cannot_create_predicate,
-                &self.metrics.bytes_not_pruned_cannot_create_predicate,
+                &self.metrics.chunks_could_not_prune_cannot_create_predicate,
+                &self.metrics.rows_could_not_prune_cannot_create_predicate,
+                &self.metrics.bytes_could_not_prune_cannot_create_predicate,
             ),
             NotPrunedReason::DataFusionPruningFailed => (
-                &self.metrics.chunks_not_pruned_df,
-                &self.metrics.rows_not_pruned_df,
-                &self.metrics.bytes_not_pruned_df,
+                &self.metrics.chunks_could_not_prune_df,
+                &self.metrics.rows_could_not_prune_df,
+                &self.metrics.bytes_could_not_prune_df,
             ),
         };
 
@@ -170,21 +178,24 @@ impl PruningObserver for MetricPruningObserver {
 pub struct PruneMetrics {
     // number of chunks
     chunks_pruned: U64Counter,
-    chunks_not_pruned_no_expression: U64Counter,
-    chunks_not_pruned_cannot_create_predicate: U64Counter,
-    chunks_not_pruned_df: U64Counter,
+    chunks_not_pruned: U64Counter,
+    chunks_could_not_prune_no_expression: U64Counter,
+    chunks_could_not_prune_cannot_create_predicate: U64Counter,
+    chunks_could_not_prune_df: U64Counter,
 
     // number of rows
     rows_pruned: U64Counter,
-    rows_not_pruned_no_expression: U64Counter,
-    rows_not_pruned_cannot_create_predicate: U64Counter,
-    rows_not_pruned_df: U64Counter,
+    rows_not_pruned: U64Counter,
+    rows_could_not_prune_no_expression: U64Counter,
+    rows_could_not_prune_cannot_create_predicate: U64Counter,
+    rows_could_not_prune_df: U64Counter,
 
     // size in bytes
     bytes_pruned: U64Counter,
-    bytes_not_pruned_no_expression: U64Counter,
-    bytes_not_pruned_cannot_create_predicate: U64Counter,
-    bytes_not_pruned_df: U64Counter,
+    bytes_not_pruned: U64Counter,
+    bytes_could_not_prune_no_expression: U64Counter,
+    bytes_could_not_prune_cannot_create_predicate: U64Counter,
+    bytes_could_not_prune_df: U64Counter,
 }
 
 impl PruneMetrics {
@@ -194,19 +205,20 @@ impl PruneMetrics {
             "Number of chunks seen by the statistics-based chunk pruner",
         );
         let chunks_pruned = chunks.recorder(&[("result", "pruned")]);
-        let chunks_not_pruned_no_expression = chunks.recorder(&[
-            ("result", "not_pruned"),
+        let chunks_not_pruned = chunks.recorder(&[("result", "not_pruned")]);
+        let chunks_could_not_prune_no_expression = chunks.recorder(&[
+            ("result", "could_not_prune"),
             ("reason", NotPrunedReason::NoExpressionOnPredicate.name()),
         ]);
-        let chunks_not_pruned_cannot_create_predicate = chunks.recorder(&[
-            ("result", "not_pruned"),
+        let chunks_could_not_prune_cannot_create_predicate = chunks.recorder(&[
+            ("result", "could_not_prune"),
             (
                 "reason",
                 NotPrunedReason::CanNotCreatePruningPredicate.name(),
             ),
         ]);
-        let chunks_not_pruned_df = chunks.recorder(&[
-            ("result", "not_pruned"),
+        let chunks_could_not_prune_df = chunks.recorder(&[
+            ("result", "could_not_prune"),
             ("reason", NotPrunedReason::DataFusionPruningFailed.name()),
         ]);
 
@@ -215,19 +227,20 @@ impl PruneMetrics {
             "Number of rows seen by the statistics-based chunk pruner",
         );
         let rows_pruned = rows.recorder(&[("result", "pruned")]);
-        let rows_not_pruned_no_expression = rows.recorder(&[
-            ("result", "not_pruned"),
+        let rows_not_pruned = rows.recorder(&[("result", "not_pruned")]);
+        let rows_could_not_prune_no_expression = rows.recorder(&[
+            ("result", "could_not_prune"),
             ("reason", NotPrunedReason::NoExpressionOnPredicate.name()),
         ]);
-        let rows_not_pruned_cannot_create_predicate = rows.recorder(&[
-            ("result", "not_pruned"),
+        let rows_could_not_prune_cannot_create_predicate = rows.recorder(&[
+            ("result", "could_not_prune"),
             (
                 "reason",
                 NotPrunedReason::CanNotCreatePruningPredicate.name(),
             ),
         ]);
-        let rows_not_pruned_df = rows.recorder(&[
-            ("result", "not_pruned"),
+        let rows_could_not_prune_df = rows.recorder(&[
+            ("result", "could_not_prune"),
             ("reason", NotPrunedReason::DataFusionPruningFailed.name()),
         ]);
 
@@ -236,35 +249,39 @@ impl PruneMetrics {
             "Size (in bytes) of chunks seen by the statistics-based chunk pruner",
         );
         let bytes_pruned = bytes.recorder(&[("result", "pruned")]);
-        let bytes_not_pruned_no_expression = bytes.recorder(&[
-            ("result", "not_pruned"),
+        let bytes_not_pruned = bytes.recorder(&[("result", "not_pruned")]);
+        let bytes_could_not_prune_no_expression = bytes.recorder(&[
+            ("result", "could_not_prune"),
             ("reason", NotPrunedReason::NoExpressionOnPredicate.name()),
         ]);
-        let bytes_not_pruned_cannot_create_predicate = bytes.recorder(&[
-            ("result", "not_pruned"),
+        let bytes_could_not_prune_cannot_create_predicate = bytes.recorder(&[
+            ("result", "could_not_prune"),
             (
                 "reason",
                 NotPrunedReason::CanNotCreatePruningPredicate.name(),
             ),
         ]);
-        let bytes_not_pruned_df = bytes.recorder(&[
-            ("result", "not_pruned"),
+        let bytes_could_not_prune_df = bytes.recorder(&[
+            ("result", "could_not_prune"),
             ("reason", NotPrunedReason::DataFusionPruningFailed.name()),
         ]);
 
         Self {
             chunks_pruned,
-            chunks_not_pruned_no_expression,
-            chunks_not_pruned_cannot_create_predicate,
-            chunks_not_pruned_df,
+            chunks_not_pruned,
+            chunks_could_not_prune_no_expression,
+            chunks_could_not_prune_cannot_create_predicate,
+            chunks_could_not_prune_df,
             rows_pruned,
-            rows_not_pruned_no_expression,
-            rows_not_pruned_cannot_create_predicate,
-            rows_not_pruned_df,
+            rows_not_pruned,
+            rows_could_not_prune_no_expression,
+            rows_could_not_prune_cannot_create_predicate,
+            rows_could_not_prune_df,
             bytes_pruned,
-            bytes_not_pruned_no_expression,
-            bytes_not_pruned_cannot_create_predicate,
-            bytes_not_pruned_df,
+            bytes_not_pruned,
+            bytes_could_not_prune_no_expression,
+            bytes_could_not_prune_cannot_create_predicate,
+            bytes_could_not_prune_df,
         }
     }
 }
