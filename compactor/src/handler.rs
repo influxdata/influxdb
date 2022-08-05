@@ -75,16 +75,21 @@ impl CompactorHandlerImpl {
         registry: Arc<metric::Registry>,
         config: CompactorConfig,
     ) -> Self {
-        let compactor_data = Arc::new(Compactor::new(
+        Self::new_with_compactor(Compactor::new(
             sequencers,
             catalog,
             store,
-            Arc::clone(&exec),
+            exec,
             time_provider,
             BackoffConfig::default(),
             config,
             registry,
-        ));
+        ))
+    }
+
+    /// Initialize the Compactor
+    pub fn new_with_compactor(compactor: Compactor) -> Self {
+        let compactor_data = Arc::new(compactor);
 
         let shutdown = CancellationToken::new();
         let runner_handle = tokio::task::spawn(run_compactor(
@@ -92,7 +97,9 @@ impl CompactorHandlerImpl {
             shutdown.child_token(),
         ));
         let runner_handle = shared_handle(runner_handle);
-        info!("compactor started with config {:?}", config);
+        info!("compactor started with config {:?}", compactor_data.config);
+
+        let exec = Arc::clone(&compactor_data.exec);
 
         Self {
             compactor_data,
