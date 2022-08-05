@@ -275,14 +275,25 @@ async fn run_compactor(compactor: Arc<Compactor>, shutdown: CancellationToken) {
     while !shutdown.is_cancelled() {
         debug!("compactor main loop tick.");
 
+        let mut compacted_partitions = 0;
         for _ in 0..compactor.config.hot_multiple {
-            compact_hot_partitions(Arc::clone(&compactor)).await;
+            compacted_partitions += compact_hot_partitions(Arc::clone(&compactor)).await;
+            if compacted_partitions == 0 {
+                // Not found hot candidates, should move to compact cold partitions
+                break;
+            }
         }
-        compact_cold_partitions(Arc::clone(&compactor)).await;
+        compacted_partitions += compact_cold_partitions(Arc::clone(&compactor)).await;
+
+        if compacted_partitions == 0 {
+            // sleep for a second to avoid a busy loop when the catalog is polled
+            tokio::time::sleep(PAUSE_BETWEEN_NO_WORK).await;
+        }
     }
 }
 
-async fn compact_hot_partitions(compactor: Arc<Compactor>) {
+/// Return number of compacted partitions
+async fn compact_hot_partitions(compactor: Arc<Compactor>) -> usize {
     // Select hot partition candidates
     let hot_attributes = Attributes::from(&[("partition_type", "hot")]);
     let start_time = compactor.time_provider.now();
@@ -332,9 +343,7 @@ async fn compact_hot_partitions(compactor: Arc<Compactor>) {
     let n_candidates = candidates.len();
     if n_candidates == 0 {
         debug!("no hot compaction candidates found");
-        // sleep for a second to avoid a hot busy loop when the catalog is polled
-        tokio::time::sleep(PAUSE_BETWEEN_NO_WORK).await;
-        return;
+        return 0;
     } else {
         debug!(n_candidates, "found hot compaction candidates");
     }
@@ -394,9 +403,11 @@ async fn compact_hot_partitions(compactor: Arc<Compactor>) {
         let duration = compactor.compaction_cycle_duration.recorder(hot_attributes);
         duration.record(delta);
     }
+
+    n_candidates
 }
 
-async fn compact_cold_partitions(compactor: Arc<Compactor>) {
+async fn compact_cold_partitions(compactor: Arc<Compactor>) -> usize {
     let cold_attributes = Attributes::from(&[("partition_type", "cold")]);
     // Select cold partition candidates
     let start_time = compactor.time_provider.now();
@@ -441,7 +452,7 @@ async fn compact_cold_partitions(compactor: Arc<Compactor>) {
     let n_candidates = candidates.len();
     if n_candidates == 0 {
         debug!("no cold compaction candidates found");
-        return;
+        return 0;
     } else {
         debug!(n_candidates, "found cold compaction candidates");
     }
@@ -505,6 +516,8 @@ async fn compact_cold_partitions(compactor: Arc<Compactor>) {
             .recorder(cold_attributes);
         duration.record(delta);
     }
+
+    n_candidates
 }
 
 #[async_trait]
