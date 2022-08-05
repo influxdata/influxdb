@@ -51,6 +51,37 @@ pub fn rand_id() -> String {
         .collect()
 }
 
+/// Dumps the content of the log file to stdout
+fn dump_log_to_stdout(server_type: &str, log_path: &std::path::Path) {
+    use observability_deps::tracing::info;
+    use std::io::Read;
+
+    let mut f = std::fs::File::open(log_path).expect("failed to open log file");
+    let mut buffer = [0_u8; 8 * 1024];
+
+    info!("****************");
+    info!("Start {server_type} Output");
+    info!("****************");
+
+    while let Ok(read) = f.read(&mut buffer) {
+        if read == 0 {
+            break;
+        }
+        if let Ok(str) = std::str::from_utf8(&buffer[..read]) {
+            print!("{}", str);
+        } else {
+            info!(
+                "\n\n-- ERROR IN TRANSFER -- please see {:?} for raw contents ---\n\n",
+                log_path
+            );
+        }
+    }
+
+    info!("****************");
+    info!("End {server_type} Output");
+    info!("****************");
+}
+
 // Helper macro to skip tests if TEST_INTEGRATION and TEST_INFLUXDB_IOX_CATALOG_DSN environment
 // variables are not set.
 #[macro_export]

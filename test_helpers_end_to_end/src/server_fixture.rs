@@ -15,7 +15,7 @@ use tempfile::NamedTempFile;
 use test_helpers::timeout::FutureTimeout;
 use tokio::sync::Mutex;
 
-use crate::{database::initialize_db, server_type::AddAddrEnv};
+use crate::{database::initialize_db, dump_log_to_stdout, server_type::AddAddrEnv};
 
 use super::{addrs::BindAddresses, ServerType, TestConfig};
 
@@ -601,7 +601,10 @@ impl Drop for TestServer {
 
         kill_politely(&mut server_lock.child, Duration::from_secs(1));
 
-        dump_log_to_stdout(self.test_config.server_type(), &server_lock.log_path);
+        dump_log_to_stdout(
+            &format!("{:?}", self.test_config.server_type()),
+            &server_lock.log_path,
+        );
     }
 }
 
@@ -619,36 +622,6 @@ async fn server_dead(server_process: &Mutex<Process>) -> bool {
             true
         }
     }
-}
-
-/// Dumps the content of the log file to stdout
-fn dump_log_to_stdout(server_type: ServerType, log_path: &Path) {
-    use std::io::Read;
-
-    let mut f = std::fs::File::open(log_path).expect("failed to open log file");
-    let mut buffer = [0_u8; 8 * 1024];
-
-    info!("****************");
-    info!("Start {:?} TestServer Output", server_type);
-    info!("****************");
-
-    while let Ok(read) = f.read(&mut buffer) {
-        if read == 0 {
-            break;
-        }
-        if let Ok(str) = std::str::from_utf8(&buffer[..read]) {
-            print!("{}", str);
-        } else {
-            info!(
-                "\n\n-- ERROR IN TRANSFER -- please see {:?} for raw contents ---\n\n",
-                log_path
-            );
-        }
-    }
-
-    info!("****************");
-    info!("End {:?} TestServer Output", server_type);
-    info!("****************");
 }
 
 /// Attempt to kill a child process politely.
