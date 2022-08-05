@@ -13,7 +13,8 @@ use std::{
 };
 use tokio::sync::Mutex;
 
-/// Structure that holds services and helpful accessors
+/// Structure that holds services and helpful accessors. Does not include compactor; that is always
+/// run separately on-demand in tests.
 #[derive(Debug, Default)]
 pub struct MiniCluster {
     /// Standard optional router
@@ -24,9 +25,6 @@ pub struct MiniCluster {
 
     /// Standard optional querier
     querier: Option<ServerFixture>,
-
-    /// Standard optional compactor
-    compactor: Option<ServerFixture>,
 
     /// Optional additional `ServerFixture`s that can be used for specific tests
     other_servers: Vec<ServerFixture>,
@@ -60,7 +58,6 @@ impl MiniCluster {
         router: Option<ServerFixture>,
         ingester: Option<ServerFixture>,
         querier: Option<ServerFixture>,
-        compactor: Option<ServerFixture>,
     ) -> Self {
         let org_id = rand_id();
         let bucket_id = rand_id();
@@ -70,7 +67,6 @@ impl MiniCluster {
             router,
             ingester,
             querier,
-            compactor,
             other_servers: vec![],
 
             org_id,
@@ -80,7 +76,7 @@ impl MiniCluster {
     }
 
     /// Create a "standard" shared MiniCluster that has a router, ingester,
-    /// querier
+    /// querier (but no compactor as that should be run on-demand in tests)
     ///
     /// Note: Since the underlying server processes are shared across multiple
     /// tests so all users of this MiniCluster should only modify
@@ -122,12 +118,11 @@ impl MiniCluster {
     }
 
     /// Create a non shared "standard" MiniCluster that has a router, ingester,
-    /// querier
+    /// querier (but no compactor as that should be run on-demand in tests)
     pub async fn create_non_shared_standard(database_url: String) -> Self {
         let router_config = TestConfig::new_router(&database_url);
         let ingester_config = TestConfig::new_ingester(&router_config);
         let querier_config = TestConfig::new_querier(&ingester_config);
-        let compactor_config = TestConfig::new_compactor(&ingester_config);
 
         // Set up the cluster  ====================================
         Self::new()
@@ -137,11 +132,9 @@ impl MiniCluster {
             .await
             .with_querier(querier_config)
             .await
-            .with_compactor(compactor_config)
-            .await
     }
 
-    /// Create an all-in-one server with the specified configuration
+    /// Create an all-(minus compactor)-in-one server with the specified configuration
     pub async fn create_all_in_one(test_config: TestConfig) -> Self {
         Self::new()
             .with_router(test_config.clone())
@@ -149,8 +142,6 @@ impl MiniCluster {
             .with_ingester(test_config.clone())
             .await
             .with_querier(test_config.clone())
-            .await
-            .with_compactor(test_config)
             .await
     }
 
@@ -169,12 +160,6 @@ impl MiniCluster {
     /// create an querier with the specified configuration;
     pub async fn with_querier(mut self, querier_config: TestConfig) -> Self {
         self.querier = Some(ServerFixture::create(querier_config).await);
-        self
-    }
-
-    /// create a compactor with the specified configuration;
-    pub async fn with_compactor(mut self, compactor_config: TestConfig) -> Self {
-        self.compactor = Some(ServerFixture::create(compactor_config).await);
         self
     }
 
@@ -210,11 +195,6 @@ impl MiniCluster {
     /// Retrieve the underlying querier server, if set
     pub fn querier(&self) -> &ServerFixture {
         self.querier.as_ref().expect("querier not initialized")
-    }
-
-    /// Retrieve the underlying compactor server, if set
-    pub fn compactor(&self) -> &ServerFixture {
-        self.compactor.as_ref().expect("compactor not initialized")
     }
 
     /// Get a reference to the mini cluster's org.
@@ -269,15 +249,13 @@ struct SharedServers {
     router: Option<Weak<TestServer>>,
     ingester: Option<Weak<TestServer>>,
     querier: Option<Weak<TestServer>>,
-    compactor: Option<Weak<TestServer>>,
 }
 
-/// Deferred creaton of a mini cluster
+/// Deferred creation of a mini cluster
 struct CreatableMiniCluster {
     router: Option<Arc<TestServer>>,
     ingester: Option<Arc<TestServer>>,
     querier: Option<Arc<TestServer>>,
-    compactor: Option<Arc<TestServer>>,
 }
 
 async fn create_if_needed(server: Option<Arc<TestServer>>) -> Option<ServerFixture> {
@@ -294,14 +272,12 @@ impl CreatableMiniCluster {
             router,
             ingester,
             querier,
-            compactor,
         } = self;
 
         let mut servers = [
             create_if_needed(router),
             create_if_needed(ingester),
             create_if_needed(querier),
-            create_if_needed(compactor),
         ]
         .into_iter()
         // Use futures ordered to run them all in parallel (hopfully)
@@ -312,7 +288,6 @@ impl CreatableMiniCluster {
 
         // ServerFixtures go in the same order as they came out
         MiniCluster::new_from_fixtures(
-            servers.next().unwrap(),
             servers.next().unwrap(),
             servers.next().unwrap(),
             servers.next().unwrap(),
@@ -331,7 +306,6 @@ impl SharedServers {
             router: cluster.router.as_ref().map(|c| c.weak()),
             ingester: cluster.ingester.as_ref().map(|c| c.weak()),
             querier: cluster.querier.as_ref().map(|c| c.weak()),
-            compactor: cluster.compactor.as_ref().map(|c| c.weak()),
         }
     }
 
@@ -345,7 +319,6 @@ impl SharedServers {
             router: server_from_weak(self.router.as_ref())?,
             ingester: server_from_weak(self.ingester.as_ref())?,
             querier: server_from_weak(self.querier.as_ref())?,
-            compactor: server_from_weak(self.compactor.as_ref())?,
         })
     }
 }
