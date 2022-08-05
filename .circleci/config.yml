@@ -123,7 +123,7 @@ jobs:
       - cache_restore
       - run:
           name: Install cargo-deny
-          command: cargo install --force cargo-deny
+          command: cargo install cargo-deny
       - run:
           name: cargo-deny Checks
           command: cargo deny check -s

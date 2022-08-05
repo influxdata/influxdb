@@ -58,9 +58,10 @@ RUN groupadd -g 1500 rust \
   && echo 'rust ALL=NOPASSWD: ALL' >> /etc/sudoers.d/10-rust \
   && echo 'Defaults    env_keep += "DEBIAN_FRONTEND"' >> /etc/sudoers.d/env_keep
 
-# Ensure we are ready with cargo hakari
-RUN cargo install cargo-hakari
-RUN chown -R rust:rust /usr/local/cargo
+# Ensure we are ready with cargo hakari and cargo deny
+RUN cargo install cargo-hakari && \
+    cargo install cargo-deny && \
+    chown -R rust:rust /usr/local/cargo
 
 USER rust
 ENV PATH /home/rust/.local/bin:/home/rust/bin:${PATH}
