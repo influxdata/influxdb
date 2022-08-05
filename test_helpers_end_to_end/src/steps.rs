@@ -88,6 +88,9 @@ pub enum Step {
     /// know about the ingester, so the test needs to ask the ingester directly.
     WaitForPersistedAccordingToIngester,
 
+    /// Run one hot and one cold compaction operation and wait for it to finish.
+    Compact,
+
     /// Run a query using the FlightSQL interface and verify that the
     /// results match the expected results using the
     /// `assert_batches_eq!` macro
@@ -195,6 +198,11 @@ impl<'a> StepTest<'a> {
                         assert!(!persisted);
                     }
                     info!("====Done checking all tokens not persisted");
+                }
+                Step::Compact => {
+                    info!("====Begin running compaction");
+                    state.cluster.run_compaction();
+                    info!("====Done running compaction");
                 }
                 Step::Query { sql, expected } => {
                     info!("====Begin running query: {}", sql);
