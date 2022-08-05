@@ -2373,6 +2373,7 @@ name = "ioxd_compactor"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "backoff",
  "clap_blocks",
  "compactor",
  "data_types",

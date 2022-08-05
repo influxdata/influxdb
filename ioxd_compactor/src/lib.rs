@@ -176,16 +176,19 @@ pub async fn create_compactor_server_type(
         compactor_config.input_file_count_threshold,
         compactor_config.hot_multiple,
     );
-    let compactor_handler = Arc::new(CompactorHandlerImpl::new(
+
+    let compactor = compactor::compact::Compactor::new(
         sequencers,
         catalog,
         parquet_store,
         exec,
         time_provider,
-        Arc::clone(&metric_registry),
+        backoff::BackoffConfig::default(),
         compactor_config,
-    ));
+        Arc::clone(&metric_registry),
+    );
 
+    let compactor_handler = Arc::new(CompactorHandlerImpl::new_with_compactor(compactor));
     let compactor = CompactorServer::new(metric_registry, compactor_handler);
     Ok(Arc::new(CompactorServerType::new(compactor, common_state)))
 }
