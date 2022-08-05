@@ -51,6 +51,25 @@ pub fn rand_id() -> String {
         .collect()
 }
 
+/// Log the [`std::process::Command`] being run in a way that's convenient to copy-paste
+fn log_command(command: &std::process::Command) {
+    use observability_deps::tracing::info;
+
+    let envs_for_printing: Vec<_> = command
+        .get_envs()
+        .map(|(key, value)| {
+            format!(
+                "{}={}",
+                key.to_str().unwrap(),
+                value.unwrap_or_default().to_str().unwrap()
+            )
+        })
+        .collect();
+    let envs_for_printing = envs_for_printing.join(" ");
+
+    info!("Running command: `{envs_for_printing} {:?}`", command);
+}
+
 /// Dumps the content of the log file to stdout
 fn dump_log_to_stdout(server_type: &str, log_path: &std::path::Path) {
     use observability_deps::tracing::info;

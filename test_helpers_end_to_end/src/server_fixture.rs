@@ -15,7 +15,7 @@ use tempfile::NamedTempFile;
 use test_helpers::timeout::FutureTimeout;
 use tokio::sync::Mutex;
 
-use crate::{database::initialize_db, dump_log_to_stdout, server_type::AddAddrEnv};
+use crate::{database::initialize_db, dump_log_to_stdout, log_command, server_type::AddAddrEnv};
 
 use super::{addrs::BindAddresses, ServerType, TestConfig};
 
@@ -360,12 +360,14 @@ impl TestServer {
                 .env("INFLUXDB_IOX_CATALOG_POSTGRES_SCHEMA_NAME", schema_name);
         }
 
-        let child = command
+        command = command
             // redirect output to log file
             .stdout(stdout_log_file)
-            .stderr(stderr_log_file)
-            .spawn()
-            .unwrap();
+            .stderr(stderr_log_file);
+
+        log_command(command);
+
+        let child = command.spawn().unwrap();
 
         Process { child, log_path }
     }
