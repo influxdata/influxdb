@@ -113,8 +113,17 @@ impl InfluxRpcPredicate {
         table_names
             .map(|table| {
                 let schema = table_info.table_schema(&table);
-                let predicate = normalize_predicate(&table, schema, &self.inner)?;
-
+                let predicate = match schema {
+                    Some(schema) => normalize_predicate(&table, schema, &self.inner)?,
+                    None => {
+                        // if we don't know about this table, we can't
+                        // do any predicate specialization. This can
+                        // happen if there is a request for
+                        // "measurement fields" for a non existent
+                        // measurement, for example
+                        self.inner.clone()
+                    }
+                };
                 Ok((table, predicate))
             })
             .collect()
@@ -172,16 +181,12 @@ pub trait QueryDatabaseMeta {
 /// ```
 fn normalize_predicate(
     table_name: &str,
-    schema: Option<Arc<Schema>>,
+    schema: Arc<Schema>,
     predicate: &Predicate,
 ) -> DataFusionResult<Predicate> {
     let mut predicate = predicate.clone();
 
-    // can only rewrite `_field` expressions if we have a schema and
-    // know what the fields are
-    let mut field_projections = schema
-        .as_ref()
-        .map(|schema| FieldProjectionRewriter::new(Arc::clone(schema)));
+    let mut field_projections = FieldProjectionRewriter::new(Arc::clone(&schema));
 
     let mut field_value_exprs = vec![];
 
@@ -197,21 +202,14 @@ fn normalize_predicate(
                 // Rewrite any references to `_field` with a literal
                 // and keep track of referenced field names to add to
                 // the field column projection set.
-                .and_then(|e| match field_projections.as_mut() {
-                    Some(f) => f.rewrite_field_exprs(e),
-                    None => Ok(e),
-                })
+                .and_then(|e| field_projections.rewrite_field_exprs(e))
                 // apply IOx specific rewrites (that unlock other simplifications)
                 .and_then(rewrite::rewrite)
                 // Call the core DataFusion simplification logic
                 .and_then(|e| {
-                    if let Some(schema) = &schema {
-                        let adapter = SimplifyAdapter::new(schema.as_ref());
-                        // simplify twice to ensure "full" cleanup
-                        e.simplify(&adapter)?.simplify(&adapter)
-                    } else {
-                        Ok(e)
-                    }
+                    let adapter = SimplifyAdapter::new(schema.as_ref());
+                    // simplify twice to ensure "full" cleanup
+                    e.simplify(&adapter)?.simplify(&adapter)
                 })
                 .and_then(rewrite::simplify_predicate)
         })
@@ -226,13 +224,7 @@ fn normalize_predicate(
     predicate.value_expr = field_value_exprs;
 
     // save any field projections
-    let predicate = if let Some(field_projections) = field_projections {
-        field_projections.add_to_predicate(predicate)?
-    } else {
-        predicate
-    };
-
-    Ok(predicate)
+    field_projections.add_to_predicate(predicate)
 }
 
 struct SimplifyAdapter<'a> {
@@ -305,7 +297,7 @@ mod tests {
     fn test_normalize_predicate_field_rewrite() {
         let predicate = normalize_predicate(
             "table",
-            Some(schema()),
+            schema(),
             &Predicate::new().with_expr(col("_field").eq(lit("f1"))),
         )
         .unwrap();
@@ -319,7 +311,7 @@ mod tests {
     fn test_normalize_predicate_field_rewrite_multi_field() {
         let predicate = normalize_predicate(
             "table",
-            Some(schema()),
+            schema(),
             &Predicate::new()
                 .with_expr(col("_field").eq(lit("f1")).or(col("_field").eq(lit("f2")))),
         )
@@ -334,7 +326,7 @@ mod tests {
     fn test_normalize_predicate_field_non_existent_field() {
         let predicate = normalize_predicate(
             "table",
-            Some(schema()),
+            schema(),
             &Predicate::new().with_expr(col("_field").eq(lit("not_a_field"))),
         )
         .unwrap();
@@ -348,7 +340,7 @@ mod tests {
     fn test_normalize_predicate_field_rewrite_multi_field_unsupported() {
         let err = normalize_predicate(
             "table",
-            Some(schema()),
+            schema(),
             &Predicate::new()
                 // predicate refers to a column other than _field which is not supported
                 .with_expr(
@@ -368,7 +360,7 @@ mod tests {
     fn test_normalize_predicate_field_rewrite_not_eq() {
         let predicate = normalize_predicate(
             "table",
-            Some(schema()),
+            schema(),
             &Predicate::new().with_expr(col("_field").not_eq(lit("f1"))),
         )
         .unwrap();
@@ -382,7 +374,7 @@ mod tests {
     fn test_normalize_predicate_field_rewrite_field_multi_expressions() {
         let predicate = normalize_predicate(
             "table",
-            Some(schema()),
+            schema(),
             &Predicate::new()
                 // put = and != predicates in *different* exprs
                 .with_expr(col("_field").eq(lit("f1")))
