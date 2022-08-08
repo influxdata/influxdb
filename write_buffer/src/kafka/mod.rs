@@ -1,6 +1,7 @@
 use self::{
     aggregator::DmlAggregator,
     config::{ClientConfig, ConsumerConfig, ProducerConfig, TopicCreationConfig},
+    instrumentation::KafkaProducerMetrics,
 };
 use crate::{
     codec::IoxHeaders,
@@ -11,7 +12,7 @@ use crate::{
     },
 };
 use async_trait::async_trait;
-use data_types::{Sequence, SequenceNumber};
+use data_types::{KafkaPartition, Sequence, SequenceNumber};
 use dml::{DmlMeta, DmlOperation};
 use futures::{stream::BoxStream, StreamExt};
 use iox_time::{Time, TimeProvider};
@@ -73,7 +74,16 @@ impl RSKafkaProducer {
         let producers = partition_clients
             .into_iter()
             .map(|(sequencer_id, partition_client)| {
-                let mut producer_builder = BatchProducerBuilder::new(Arc::new(partition_client));
+                // Instrument this kafka partition client.
+                let partition_client = KafkaProducerMetrics::new(
+                    Box::new(partition_client),
+                    database_name.clone(),
+                    KafkaPartition::new(sequencer_id.try_into().unwrap()),
+                    &*metric_registry,
+                );
+
+                let mut producer_builder =
+                    BatchProducerBuilder::new_with_client(Arc::new(partition_client));
                 if let Some(linger) = producer_config.linger {
                     producer_builder = producer_builder.with_linger(linger);
                 }
