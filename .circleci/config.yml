@@ -218,8 +218,8 @@ jobs:
       POSTGRES_USER: postgres
       TEST_INFLUXDB_IOX_CATALOG_DSN: "postgres://postgres@localhost/iox_shared"
       # When removing this, also remove the ignore on the test in trogging/src/cli.rs
-      RUST_LOG: debug
-      LOG_FILTER: debug
+      RUST_LOG: debug,,hyper::proto::h1=info,h2=info
+      LOG_FILTER: debug,,hyper::proto::h1=info,h2=info
     steps:
       - checkout
       - rust_components
