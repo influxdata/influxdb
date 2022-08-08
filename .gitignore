@@ -6,6 +6,10 @@
 *.tsm
 **/.DS_Store
 **/.vscode
+heaptrack.*
 massif.out.*
+perf.data*
+perf.svg
+perf.txt
 query_tests/cases/**/*.out
 valgrind-out.txt
