@@ -9,8 +9,8 @@ macro_rules! gen_compactor_config {
         /// CLI config for compactor
         #[derive(Debug, Clone, clap::Parser)]
         pub struct $name {
-            /// Write buffer topic/database that the compactor will be compacting files for. It won't
-            /// connect to Kafka, but uses this to get the sequencers out of the catalog.
+            /// Write buffer topic/database that the compactor will be compacting files for. It
+            /// won't connect to Kafka, but uses this to get the sequencers out of the catalog.
             #[clap(
                 long = "--write-buffer-topic",
                 env = "INFLUXDB_IOX_WRITE_BUFFER_TOPIC",
@@ -61,8 +61,8 @@ macro_rules! gen_compactor_config {
             pub percentage_max_file_size: u16,
 
             /// Split file percentage
-            /// If the estimated compacted result is neither too small nor too large, it will be split
-            /// into 2 files determined by this percentage.
+            /// If the estimated compacted result is neither too small nor too large, it will be
+            /// split into 2 files determined by this percentage.
             ///    . Too small means: < percentage_max_file_size * max_desired_file_size_bytes
             ///    . Too large means: > max_desired_file_size_bytes
             ///    . Any size in the middle will be considered neither too small nor too large
@@ -77,9 +77,9 @@ macro_rules! gen_compactor_config {
             )]
             pub split_percentage: u16,
 
-            /// The compactor will limit the number of simultaneous hot partition compaction jobs based on
-            /// the size of the input files to be compacted. This number should be less than 1/10th of the
-            /// available memory to ensure compactions have enough space to run.
+            /// The compactor will limit the number of simultaneous hot partition compaction jobs
+            /// based on the size of the input files to be compacted. This number should be less
+            /// than 1/10th of the available memory to ensure compactions have enough space to run.
             ///
             /// Default is 1024 * 1024 * 1024 = 1,073,741,824 bytes (1GB).
             //
@@ -93,9 +93,9 @@ macro_rules! gen_compactor_config {
             )]
             pub max_concurrent_size_bytes: u64,
 
-            /// The compactor will limit the number of simultaneous cold partition compaction jobs based on
-            /// the size of the input files to be compacted. This number should be less than 1/10th of the
-            /// available memory to ensure compactions have enough space to run.
+            /// The compactor will limit the number of simultaneous cold partition compaction jobs
+            /// based on the size of the input files to be compacted. This number should be less
+            /// than 1/10th of the available memory to ensure compactions have enough space to run.
             ///
             /// Default is 1024 * 1024 * 900 = 943,718,400 bytes (900MB).
             //
@@ -119,7 +119,9 @@ macro_rules! gen_compactor_config {
             )]
             pub max_number_partitions_per_sequencer: usize,
 
-            /// Min number of recent ingested files a partition needs to be considered for compacting
+            /// Min number of recent ingested files a partition needs to be considered for
+            /// compacting
+            ///
             /// Default: 1
             #[clap(
                 long = "--compaction-min-number-recent-ingested-files-per-partition",
@@ -130,11 +132,11 @@ macro_rules! gen_compactor_config {
             pub min_number_recent_ingested_files_per_partition: usize,
 
             /// A compaction operation for hot partitions will gather as many L0 files with their
-            /// overlapping L1 files to compact together until the total size of input files crosses this
-            /// threshold. Later compactions will pick up the remaining L0 files.
+            /// overlapping L1 files to compact together until the total size of input files
+            /// crosses this threshold. Later compactions will pick up the remaining L0 files.
             ///
-            /// A compaction operation will be limited by this or by the file count threshold, whichever is
-            /// hit first.
+            /// A compaction operation will be limited by this or by the file count threshold,
+            /// whichever is hit first.
             ///
             /// Default is 1024 * 1024 * 100 = 100,048,576 bytes (100MB).
             #[clap(
@@ -146,8 +148,8 @@ macro_rules! gen_compactor_config {
             pub input_size_threshold_bytes: u64,
 
             /// A compaction operation for cold partitions will gather as many L0 files with their
-            /// overlapping L1 files to compact together until the total size of input files crosses this
-            /// threshold. Later compactions will pick up the remaining L0 files.
+            /// overlapping L1 files to compact together until the total size of input files
+            /// crosses this threshold. Later compactions will pick up the remaining L0 files.
             ///
             /// Default is 1024 * 1024 * 600 = 629,145,600 bytes (600MB).
             #[clap(
@@ -158,12 +160,12 @@ macro_rules! gen_compactor_config {
             )]
             pub cold_input_size_threshold_bytes: u64,
 
-            /// A compaction operation will gather as many L0 files with their overlapping L1 files to
-            /// compact together until the total number of L0 + L1 files crosses this threshold. Later
-            /// compactions will pick up the remaining L0 files.
+            /// A compaction operation will gather as many L0 files with their overlapping L1 files
+            /// to compact together until the total number of L0 + L1 files crosses this threshold.
+            /// Later compactions will pick up the remaining L0 files.
             ///
-            /// A compaction operation will be limited by this or by the input size threshold, whichever is
-            /// hit first.
+            /// A compaction operation will be limited by this or by the input size threshold,
+            /// whichever is hit first.
             ///
             /// Default is 50.
             #[clap(
@@ -174,9 +176,9 @@ macro_rules! gen_compactor_config {
             )]
             pub input_file_count_threshold: usize,
 
-            /// The multiple of times that compacting hot partitions should run for every one time that
-            /// compacting cold partitions runs. Set to 1 to compact hot partitions and cold partitions
-            /// equally.
+            /// The multiple of times that compacting hot partitions should run for every one time
+            /// that compacting cold partitions runs. Set to 1 to compact hot partitions and cold
+            /// partitions equally.
             ///
             /// Default is
             #[doc = $hot_multiple_def]
