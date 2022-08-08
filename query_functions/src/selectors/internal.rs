@@ -19,7 +19,10 @@ use arrow::{
     },
     datatypes::DataType,
 };
-use datafusion::{error::Result as DataFusionResult, scalar::ScalarValue};
+use datafusion::{
+    error::Result as DataFusionResult, logical_expr::AggregateState, scalar::ScalarValue,
+};
+
 use observability_deps::tracing::debug;
 
 use super::{Selector, SelectorOutput};
@@ -116,10 +119,10 @@ macro_rules! make_first_selector {
                 $ARROWTYPE
             }
 
-            fn datafusion_state(&self) -> DataFusionResult<Vec<ScalarValue>> {
+            fn datafusion_state(&self) -> DataFusionResult<Vec<AggregateState>> {
                 Ok(vec![
-                    $TO_SCALARVALUE(self.value.clone()),
-                    ScalarValue::TimestampNanosecond(self.time, None),
+                    AggregateState::Scalar($TO_SCALARVALUE(self.value.clone())),
+                    AggregateState::Scalar(ScalarValue::TimestampNanosecond(self.time, None)),
                 ])
             }
 
@@ -223,10 +226,10 @@ macro_rules! make_last_selector {
                 $ARROWTYPE
             }
 
-            fn datafusion_state(&self) -> DataFusionResult<Vec<ScalarValue>> {
+            fn datafusion_state(&self) -> DataFusionResult<Vec<AggregateState>> {
                 Ok(vec![
-                    $TO_SCALARVALUE(self.value.clone()),
-                    ScalarValue::TimestampNanosecond(self.time, None),
+                    AggregateState::Scalar($TO_SCALARVALUE(self.value.clone())),
+                    AggregateState::Scalar(ScalarValue::TimestampNanosecond(self.time, None)),
                 ])
             }
 
@@ -354,10 +357,10 @@ macro_rules! make_min_selector {
                 $ARROWTYPE
             }
 
-            fn datafusion_state(&self) -> DataFusionResult<Vec<ScalarValue>> {
+            fn datafusion_state(&self) -> DataFusionResult<Vec<AggregateState>> {
                 Ok(vec![
-                    $TO_SCALARVALUE(self.value.clone()),
-                    ScalarValue::TimestampNanosecond(self.time, None),
+                    AggregateState::Scalar($TO_SCALARVALUE(self.value.clone())),
+                    AggregateState::Scalar(ScalarValue::TimestampNanosecond(self.time, None)),
                 ])
             }
 
@@ -466,10 +469,10 @@ macro_rules! make_max_selector {
                 $ARROWTYPE
             }
 
-            fn datafusion_state(&self) -> DataFusionResult<Vec<ScalarValue>> {
+            fn datafusion_state(&self) -> DataFusionResult<Vec<AggregateState>> {
                 Ok(vec![
-                    $TO_SCALARVALUE(self.value.clone()),
-                    ScalarValue::TimestampNanosecond(self.time, None),
+                    AggregateState::Scalar($TO_SCALARVALUE(self.value.clone())),
+                    AggregateState::Scalar(ScalarValue::TimestampNanosecond(self.time, None)),
                 ])
             }
 
