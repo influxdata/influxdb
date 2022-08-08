@@ -1,5 +1,7 @@
 //! CLI config for compactor-related commands
 
+#![cfg_attr(rustfmt, rustfmt_skip)] // https://github.com/rust-lang/rustfmt/issues/5489
+
 macro_rules! gen_compactor_config {
     (
         $name:ident,
