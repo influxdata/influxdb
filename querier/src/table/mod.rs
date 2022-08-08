@@ -6,10 +6,10 @@ use crate::{
     IngesterConnection,
 };
 use data_types::{KafkaPartition, PartitionId, TableId};
-use futures::{join, StreamExt, TryStreamExt};
+use futures::{join, StreamExt};
 use iox_query::{exec::Executor, provider::ChunkPruner, QueryChunk};
 use observability_deps::tracing::debug;
-use predicate::{Predicate, PredicateMatch};
+use predicate::Predicate;
 use schema::Schema;
 use sharder::JumpHash;
 use snafu::{ResultExt, Snafu};
@@ -231,8 +231,7 @@ impl QuerierTable {
                 .get(self.id(), span_recorder.child_span("cache GET tombstone"))
         );
 
-        // filter out parquet files early
-        let n_parquet_files_pre_filter = parquet_files.files.len();
+        // create parquet files
         let parquet_files: Vec<_> = futures::stream::iter(parquet_files.files.iter())
             .filter_map(|cached_parquet_file| {
                 let chunk_adapter = Arc::clone(&self.chunk_adapter);
@@ -247,26 +246,8 @@ impl QuerierTable {
                         .await
                 }
             })
-            .filter_map(|chunk| {
-                let res = chunk
-                    .apply_predicate_to_metadata(predicate)
-                    .map(|pmatch| {
-                        let keep = !matches!(pmatch, PredicateMatch::Zero);
-                        keep.then(|| chunk)
-                    })
-                    .transpose();
-                async move { res }
-            })
-            .try_collect()
-            .await
-            .unwrap();
-        debug!(
-            namespace=%self.namespace_name,
-            table_name=%self.table_name(),
-            n_parquet_files_pre_filter,
-            n_parquet_files_post_filter=parquet_files.len(),
-            "Applied predicate-based filter to parquet file"
-        );
+            .collect()
+            .await;
 
         self.reconciler
             .reconcile(
@@ -538,7 +519,7 @@ mod tests {
             .with_max_seq(2)
             .with_min_time(100)
             .with_max_time(100);
-        let _file122 = partition12.create_parquet_file(builder).await;
+        let file122 = partition12.create_parquet_file(builder).await;
 
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol("table2 foo=6 66")
@@ -567,12 +548,11 @@ mod tests {
         // now we have some files
         // this contains all files except for:
         // - file111: marked for delete
-        // - file122: filtered by predicate
         // - file221: wrong table
         let pred = Predicate::new().with_range(0, 100);
         let mut chunks = querier_table.chunks_with_predicate(&pred).await.unwrap();
         chunks.sort_by_key(|c| c.id());
-        assert_eq!(chunks.len(), 5);
+        assert_eq!(chunks.len(), 6);
 
         // check IDs
         assert_eq!(
@@ -595,6 +575,10 @@ mod tests {
             chunks[4].id(),
             ChunkId::new_test(file121.parquet_file.id.get() as u128),
         );
+        assert_eq!(
+            chunks[5].id(),
+            ChunkId::new_test(file122.parquet_file.id.get() as u128),
+        );
 
         // check delete predicates
         // file112: marked as processed
@@ -607,6 +591,8 @@ mod tests {
         assert_eq!(chunks[3].delete_predicates().len(), 0);
         // file121: wrong sequencer
         assert_eq!(chunks[4].delete_predicates().len(), 0);
+        // file122: wrong sequencer
+        assert_eq!(chunks[5].delete_predicates().len(), 0);
     }
 
     #[tokio::test]
