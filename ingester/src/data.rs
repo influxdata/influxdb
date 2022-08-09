@@ -288,6 +288,34 @@ impl Persister for IngesterData {
                 .await
                 .expect("unexpected fatal persist error");
 
+            // Update the sort key in the catalog if there are
+            // additional columns BEFORE adding parquet file to the
+            // catalog. If the order is reversed, the querier or
+            // compactor may see a parquet file with an inconsistent
+            // sort key. https://github.com/influxdata/influxdb_iox/issues/5090
+            if let Some(new_sort_key) = sort_key_update {
+                let sort_key = new_sort_key.to_columns().collect::<Vec<_>>();
+                Backoff::new(&self.backoff_config)
+                    .retry_all_errors("update_sort_key", || async {
+                        let mut repos = self.catalog.repositories().await;
+                        let partition = repos
+                            .partitions()
+                            .update_sort_key(partition_id, &sort_key)
+                            .await?;
+
+                        debug!(
+                            partition_id=?partition.id,
+                            table_id=?partition.table_id,
+                            sort_key=?partition.sort_key,
+                            "Updated sort key in catalog"
+                        );
+                        // compiler insisted on getting told the type of the error :shrug:
+                        Ok(()) as Result<(), iox_catalog::interface::Error>
+                    })
+                    .await
+                    .expect("retry forever");
+            }
+
             // Add the parquet file to the catalog until succeed
             let parquet_file = iox_meta.to_parquet_file(partition_id, file_size, &md, |name| {
                 table_schema.columns.get(name).expect("Unknown column").id
@@ -295,36 +323,18 @@ impl Persister for IngesterData {
             Backoff::new(&self.backoff_config)
                 .retry_all_errors("add parquet file to catalog", || async {
                     let mut repos = self.catalog.repositories().await;
+                    let parquet_file = repos.parquet_files().create(parquet_file.clone()).await?;
                     debug!(
-                        table_name=%iox_meta.table_name,
-                        "adding parquet file to catalog"
+                        ?partition_id,
+                        table_id=?parquet_file.table_id,
+                        parquet_file_id=?parquet_file.id,
+                        "parquet file written to catalog"
                     );
-
-                    repos.parquet_files().create(parquet_file.clone()).await
+                    // compiler insisted on getting told the type of the error :shrug:
+                    Ok(()) as Result<(), iox_catalog::interface::Error>
                 })
                 .await
                 .expect("retry forever");
-
-            // Update the sort key in the catalog if there are additional columns
-            if let Some(new_sort_key) = sort_key_update {
-                let sort_key = new_sort_key.to_columns().collect::<Vec<_>>();
-                debug!(
-                    ?partition_id,
-                    ?sort_key,
-                    ?partition_id,
-                    "Adjusted sort key to be updated to the catalog"
-                );
-                Backoff::new(&self.backoff_config)
-                    .retry_all_errors("update_sort_key", || async {
-                        let mut repos = self.catalog.repositories().await;
-                        repos
-                            .partitions()
-                            .update_sort_key(partition_id, &sort_key)
-                            .await
-                    })
-                    .await
-                    .expect("retry forever");
-            }
 
             // and remove the persisted data from memory
             debug!(
