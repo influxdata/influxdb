@@ -280,7 +280,8 @@ fn new_gcs(_: &ObjectStoreConfig) -> Result<Arc<DynObjectStore>, ParseError> {
 #[cfg(feature = "aws")]
 fn new_s3(config: &ObjectStoreConfig) -> Result<Arc<DynObjectStore>, ParseError> {
     let mut builder = AmazonS3Builder::new()
-        .with_allow_http(config.aws_allow_http)
+        // TODO: Temporary fix
+        .with_allow_http(true)
         .with_region(&config.aws_default_region);
 
     if let Some(bucket) = &config.bucket {
