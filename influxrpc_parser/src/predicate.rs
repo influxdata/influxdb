@@ -81,14 +81,21 @@ pub fn expr_to_rpc_predicate(expr: &str) -> Result<RPCPredicate> {
     let mut parser = Parser::new(tokens, &dialect);
 
     Ok(RPCPredicate {
-        root: Some(build_node(&parser.parse_expr().context(ExprParseSnafu)?)?),
+        root: Some(build_node(
+            &parser.parse_expr().context(ExprParseSnafu)?,
+            false,
+        )?),
     })
 }
 
 // Builds an RPCNode given the value Expr and the converted children
-fn build_node(expr: &Expr) -> Result<RPCNode> {
+fn build_node(expr: &Expr, strings_are_regex: bool) -> Result<RPCNode> {
     match expr {
-        Expr::Nested(expr) => make_node(RPCType::ParenExpression, vec![build_node(expr)?], None),
+        Expr::Nested(expr) => make_node(
+            RPCType::ParenExpression,
+            vec![build_node(expr, strings_are_regex)?],
+            None,
+        ),
         Expr::Cast { expr, data_type } => match data_type {
             sqlparser::ast::DataType::Custom(ident) => {
                 if let Some(Ident { value, .. }) = ident.0.get(0) {
@@ -144,17 +151,30 @@ fn build_node(expr: &Expr) -> Result<RPCNode> {
         Expr::Value(v) => match v {
             Value::Boolean(b) => make_lit(RPCValue::BoolValue(*b)),
             Value::Number(n, _) => make_lit(parse_number(n)?),
-            Value::DoubleQuotedString(v) => make_lit(RPCValue::StringValue(v.clone())),
-            Value::SingleQuotedString(v) => make_lit(RPCValue::StringValue(v.clone())),
-            Value::HexStringLiteral(v) => make_lit(RPCValue::StringValue(v.clone())),
-            Value::NationalStringLiteral(v) => make_lit(RPCValue::StringValue(v.clone())),
+            Value::DoubleQuotedString(v)
+            | Value::SingleQuotedString(v)
+            | Value::HexStringLiteral(v)
+            | Value::NationalStringLiteral(v) => {
+                if strings_are_regex {
+                    make_lit(RPCValue::RegexValue(v.clone()))
+                } else {
+                    make_lit(RPCValue::StringValue(v.clone()))
+                }
+            }
             _ => UnexpectedValueSnafu {
                 value: v.to_owned(),
             }
             .fail(),
         },
         Expr::BinaryOp { left, op, right } => {
-            build_binary_node(build_node(left)?, op.clone(), build_node(right)?)
+            let strings_are_regex =
+                matches!(op, Operator::PGRegexMatch | Operator::PGRegexNotMatch);
+
+            build_binary_node(
+                build_node(left, strings_are_regex)?,
+                op.clone(),
+                build_node(right, strings_are_regex)?,
+            )
         }
         _ => UnexpectedExprTypeSnafu {
             expr: expr.to_owned(),
@@ -278,10 +298,19 @@ mod test {
         let parts = input.split_whitespace().collect::<Vec<_>>();
         assert_eq!(parts.len(), 3, "invalid input string: {:?}", input);
 
+        let comparison = rpc_op_from_str(parts[1]);
+        let is_regex =
+            (comparison == RPCComparison::Regex) || (comparison == RPCComparison::NotRegex);
+
         // remove quoting from literal - whilst we need the quoting to parse
         // the sql statement correctly, the RPCNode for the literal would not
         // have the quoting present.
         let literal = parts[2].replace('\'', "").replace('"', "");
+        let literal = if is_regex {
+            RPCValue::RegexValue(literal)
+        } else {
+            RPCValue::StringValue(literal)
+        };
         RPCNode {
             node_type: RPCType::ComparisonExpression as i32,
             children: vec![
@@ -293,10 +322,10 @@ mod test {
                 RPCNode {
                     node_type: RPCType::Literal as i32,
                     children: vec![],
-                    value: Some(RPCValue::StringValue(literal)),
+                    value: Some(literal),
                 },
             ],
-            value: Some(RPCValue::Comparison(rpc_op_from_str(parts[1]) as i32)),
+            value: Some(RPCValue::Comparison(comparison as i32)),
         }
     }
 
