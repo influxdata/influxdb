@@ -396,7 +396,7 @@ impl QuerierTable {
             tombstone_cache_outdated,
             ?max_parquet_sequence_number,
             ?max_tombstone_sequence_number,
-            "Ingester partitions fetched"
+            "caches validated"
         );
     }
 
