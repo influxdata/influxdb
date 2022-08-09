@@ -44,10 +44,6 @@ third-party = [
     { name = "azure_storage_blobs", version = "0.2" },
     { name = "criterion" },
     { name = "pprof" },
-    { name = "rusoto_core" },
-    { name = "rusoto_credential" },
-    { name = "rusoto_s3" },
-    { name = "rusoto_sts" },
     { name = "tikv-jemalloc-sys" },
 ]
 

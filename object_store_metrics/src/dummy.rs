@@ -6,7 +6,10 @@ use bytes::Bytes;
 use snafu::Snafu;
 use std::ops::Range;
 
-use object_store::{path::Path, GetResult, ListResult, ObjectMeta, ObjectStore, Result};
+use object_store::{
+    path::Path, GetResult, ListResult, MultipartId, ObjectMeta, ObjectStore, Result,
+};
+use tokio::io::AsyncWrite;
 
 /// A specialized `Error` for Azure object store-related errors
 #[derive(Debug, Snafu, Clone)]
@@ -53,6 +56,17 @@ impl std::fmt::Display for DummyObjectStore {
 #[async_trait]
 impl ObjectStore for DummyObjectStore {
     async fn put(&self, _location: &Path, _bytes: Bytes) -> Result<()> {
+        Ok(NotSupportedSnafu { name: self.name }.fail()?)
+    }
+
+    async fn put_multipart(
+        &self,
+        _location: &Path,
+    ) -> Result<(MultipartId, Box<dyn AsyncWrite + Unpin + Send>)> {
+        Ok(NotSupportedSnafu { name: self.name }.fail()?)
+    }
+
+    async fn abort_multipart(&self, _location: &Path, _multipart_id: &MultipartId) -> Result<()> {
         Ok(NotSupportedSnafu { name: self.name }.fail()?)
     }
 

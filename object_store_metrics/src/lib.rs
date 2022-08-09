@@ -15,7 +15,10 @@ use iox_time::{SystemProvider, Time, TimeProvider};
 use metric::{DurationHistogram, Metric, U64Counter};
 use pin_project::{pin_project, pinned_drop};
 
-use object_store::{path::Path, GetResult, ListResult, ObjectMeta, ObjectStore, Result};
+use object_store::{
+    path::Path, GetResult, ListResult, MultipartId, ObjectMeta, ObjectStore, Result,
+};
+use tokio::io::AsyncWrite;
 
 #[cfg(test)]
 mod dummy;
@@ -161,6 +164,17 @@ impl ObjectStore for ObjectStoreMetrics {
         }
 
         res
+    }
+
+    async fn put_multipart(
+        &self,
+        _location: &Path,
+    ) -> Result<(MultipartId, Box<dyn AsyncWrite + Unpin + Send>)> {
+        unimplemented!()
+    }
+
+    async fn abort_multipart(&self, _location: &Path, _multipart_id: &MultipartId) -> Result<()> {
+        unimplemented!()
     }
 
     async fn get(&self, location: &Path) -> Result<GetResult> {
@@ -689,7 +703,9 @@ mod tests {
     #[tokio::test]
     async fn test_put_get_delete_file() {
         let metrics = Arc::new(metric::Registry::default());
-        let store = Arc::new(LocalFileSystem::new_with_prefix("./").unwrap());
+        // Temporary workaround for https://github.com/apache/arrow-rs/issues/2370
+        let path = std::fs::canonicalize(".").unwrap();
+        let store = Arc::new(LocalFileSystem::new_with_prefix(path).unwrap());
         let time = Arc::new(SystemProvider::new());
         let store = ObjectStoreMetrics::new(store, time, &metrics);
 

@@ -1,6 +1,10 @@
 //! CLI handling for object store config (via CLI arguments and environment variables).
 
 use futures::TryStreamExt;
+use object_store::aws::AmazonS3Builder;
+use object_store::azure::MicrosoftAzureBuilder;
+use object_store::gcp::GoogleCloudStorageBuilder;
+use object_store::limit::LimitStore;
 use object_store::memory::InMemory;
 use object_store::path::Path;
 use object_store::throttle::ThrottledStore;
@@ -253,29 +257,19 @@ pub enum ObjectStoreType {
 
 #[cfg(feature = "gcp")]
 fn new_gcs(config: &ObjectStoreConfig) -> Result<Arc<DynObjectStore>, ParseError> {
-    match (
-        config.bucket.as_ref(),
-        config.google_service_account.as_ref(),
-    ) {
-        (Some(bucket), Some(service_account)) => Ok(Arc::new(
-            object_store::gcp::new_gcs(service_account, bucket).context(InvalidGCSConfigSnafu)?,
-        )),
-        (bucket, service_account) => {
-            let mut missing_args = vec![];
+    let mut builder = GoogleCloudStorageBuilder::new();
 
-            if bucket.is_none() {
-                missing_args.push("bucket");
-            }
-            if service_account.is_none() {
-                missing_args.push("google-service-account");
-            }
-            MissingObjectStoreConfigSnafu {
-                object_store: ObjectStoreType::Google,
-                missing: missing_args.join(", "),
-            }
-            .fail()
-        }
+    if let Some(bucket) = &config.bucket {
+        builder = builder.with_bucket_name(bucket);
     }
+    if let Some(account) = &config.google_service_account {
+        builder = builder.with_service_account_path(account);
+    }
+
+    Ok(Arc::new(LimitStore::new(
+        builder.build().context(InvalidGCSConfigSnafu)?,
+        config.object_store_connection_limit.get(),
+    )))
 }
 
 #[cfg(not(feature = "gcp"))]
@@ -285,40 +279,30 @@ fn new_gcs(_: &ObjectStoreConfig) -> Result<Arc<DynObjectStore>, ParseError> {
 
 #[cfg(feature = "aws")]
 fn new_s3(config: &ObjectStoreConfig) -> Result<Arc<DynObjectStore>, ParseError> {
-    match (
-        config.bucket.as_ref(),
-        config.aws_access_key_id.as_ref(),
-        config.aws_secret_access_key.as_ref(),
-        config.aws_default_region.as_str(),
-        config.aws_endpoint.as_ref(),
-        config.aws_session_token.as_ref(),
-    ) {
-        (Some(bucket), key_id, secret_key, region, endpoint, session_token) => Ok(Arc::new(
-            object_store::aws::new_s3(
-                key_id,
-                secret_key,
-                region,
-                bucket,
-                endpoint,
-                session_token,
-                config.object_store_connection_limit,
-                config.aws_allow_http,
-            )
-            .context(InvalidS3ConfigSnafu)?,
-        )),
-        (bucket, _, _, _, _, _) => {
-            let mut missing_args = vec![];
+    let mut builder = AmazonS3Builder::new()
+        .with_allow_http(config.aws_allow_http)
+        .with_region(&config.aws_default_region);
 
-            if bucket.is_none() {
-                missing_args.push("bucket");
-            }
-            MissingObjectStoreConfigSnafu {
-                object_store: ObjectStoreType::S3,
-                missing: missing_args.join(", "),
-            }
-            .fail()
-        }
+    if let Some(bucket) = &config.bucket {
+        builder = builder.with_bucket_name(bucket);
     }
+    if let Some(key_id) = &config.aws_access_key_id {
+        builder = builder.with_access_key_id(key_id);
+    }
+    if let Some(token) = &config.aws_session_token {
+        builder = builder.with_token(token);
+    }
+    if let Some(secret) = &config.aws_secret_access_key {
+        builder = builder.with_secret_access_key(secret);
+    }
+    if let Some(endpoint) = &config.aws_endpoint {
+        builder = builder.with_endpoint(endpoint);
+    }
+
+    Ok(Arc::new(LimitStore::new(
+        builder.build().context(InvalidS3ConfigSnafu)?,
+        config.object_store_connection_limit.get(),
+    )))
 }
 
 #[cfg(not(feature = "aws"))]
@@ -328,35 +312,22 @@ fn new_s3(_: &ObjectStoreConfig) -> Result<Arc<DynObjectStore>, ParseError> {
 
 #[cfg(feature = "azure")]
 fn new_azure(config: &ObjectStoreConfig) -> Result<Arc<DynObjectStore>, ParseError> {
-    match (
-        config.bucket.as_ref(),
-        config.azure_storage_account.as_ref(),
-        config.azure_storage_access_key.as_ref(),
-    ) {
-        (Some(bucket), Some(storage_account), Some(access_key)) => Ok(Arc::new(
-            object_store::azure::new_azure(storage_account, access_key, bucket, false)
-                .context(InvalidS3ConfigSnafu)?,
-        )),
-        (bucket, storage_account, access_key) => {
-            let mut missing_args = vec![];
+    let mut builder = MicrosoftAzureBuilder::new();
 
-            if bucket.is_none() {
-                missing_args.push("bucket");
-            }
-            if storage_account.is_none() {
-                missing_args.push("azure-storage-account");
-            }
-            if access_key.is_none() {
-                missing_args.push("azure-storage-access-key");
-            }
-
-            MissingObjectStoreConfigSnafu {
-                object_store: ObjectStoreType::Azure,
-                missing: missing_args.join(", "),
-            }
-            .fail()
-        }
+    if let Some(bucket) = &config.bucket {
+        builder = builder.with_container_name(bucket);
     }
+    if let Some(account) = &config.azure_storage_account {
+        builder = builder.with_account(account)
+    }
+    if let Some(key) = &config.azure_storage_access_key {
+        builder = builder.with_access_key(key)
+    }
+
+    Ok(Arc::new(LimitStore::new(
+        builder.build().context(InvalidAzureConfigSnafu)?,
+        config.object_store_connection_limit.get(),
+    )))
 }
 
 #[cfg(not(feature = "azure"))]

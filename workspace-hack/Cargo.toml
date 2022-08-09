@@ -42,7 +42,7 @@ memchr = { version = "2", features = ["std"] }
 nom = { version = "7", features = ["alloc", "std"] }
 num-integer = { version = "0.1", default-features = false, features = ["i128", "std"] }
 num-traits = { version = "0.2", features = ["i128", "libm", "std"] }
-object_store = { git = "https://github.com/influxdata/object_store_rs", rev = "3c51870ac41a90942c2e45bb499a893d514ed1da", default-features = false, features = ["aws", "azure", "azure_core", "azure_storage", "azure_storage_blobs", "base64", "gcp", "hyper", "hyper-rustls", "reqwest", "rusoto_core", "rusoto_credential", "rusoto_s3", "rusoto_sts", "rustls-pemfile", "serde", "serde_json"] }
+object_store = { git = "https://github.com/tustvold/arrow-rs.git", rev = "d1e694b4949c36a3dd5cfadb5ed35dc40c8903f9", default-features = false, features = ["aws", "azure", "azure_core", "azure_storage", "azure_storage_blobs", "base64", "gcp", "quick-xml", "rand", "reqwest", "ring", "rustls-pemfile", "serde", "serde_json"] }
 once_cell = { version = "1", features = ["alloc", "parking_lot", "parking_lot_core", "race", "std"] }
 parquet = { version = "19", features = ["arrow", "async", "base64", "brotli", "experimental", "flate2", "futures", "lz4", "snap", "tokio", "zstd"] }
 predicates = { version = "2", features = ["diff", "difflib", "float-cmp", "normalize-line-endings", "regex"] }
@@ -123,22 +123,18 @@ tonic-build = { version = "0.7", features = ["prost", "prost-build", "transport"
 uuid = { version = "1", features = ["private_getrandom", "rng", "std", "v4"] }
 
 [target.x86_64-unknown-linux-gnu.dependencies]
-hyper-rustls = { version = "0.23", default-features = false, features = ["http1", "http2", "tls12", "tokio-runtime", "webpki-roots", "webpki-tokio"] }
 nix = { version = "0.24", features = ["acct", "aio", "dir", "env", "event", "feature", "fs", "hostname", "inotify", "ioctl", "kmod", "memoffset", "mman", "mount", "mqueue", "net", "personality", "poll", "process", "pthread", "ptrace", "quota", "reboot", "resource", "sched", "signal", "socket", "term", "time", "ucontext", "uio", "user", "zerocopy"] }
 tokio-util = { version = "0.7", default-features = false, features = ["io"] }
 
 [target.x86_64-apple-darwin.dependencies]
-hyper-rustls = { version = "0.23", default-features = false, features = ["http1", "http2", "tls12", "tokio-runtime", "webpki-roots", "webpki-tokio"] }
 nix = { version = "0.24", features = ["acct", "aio", "dir", "env", "event", "feature", "fs", "hostname", "inotify", "ioctl", "kmod", "memoffset", "mman", "mount", "mqueue", "net", "personality", "poll", "process", "pthread", "ptrace", "quota", "reboot", "resource", "sched", "signal", "socket", "term", "time", "ucontext", "uio", "user", "zerocopy"] }
 tokio-util = { version = "0.7", default-features = false, features = ["io"] }
 
 [target.aarch64-apple-darwin.dependencies]
-hyper-rustls = { version = "0.23", default-features = false, features = ["http1", "http2", "tls12", "tokio-runtime", "webpki-roots", "webpki-tokio"] }
 nix = { version = "0.24", features = ["acct", "aio", "dir", "env", "event", "feature", "fs", "hostname", "inotify", "ioctl", "kmod", "memoffset", "mman", "mount", "mqueue", "net", "personality", "poll", "process", "pthread", "ptrace", "quota", "reboot", "resource", "sched", "signal", "socket", "term", "time", "ucontext", "uio", "user", "zerocopy"] }
 tokio-util = { version = "0.7", default-features = false, features = ["io"] }
 
 [target.x86_64-pc-windows-msvc.dependencies]
-hyper-rustls = { version = "0.23", default-features = false, features = ["http1", "http2", "tls12", "tokio-runtime", "webpki-roots", "webpki-tokio"] }
 scopeguard = { version = "1", features = ["use_std"] }
 tokio = { version = "1", default-features = false, features = ["winapi"] }
 tokio-util = { version = "0.7", default-features = false, features = ["io"] }
