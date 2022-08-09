@@ -5,8 +5,8 @@ authors = ["Nga Tran <nga-tran@live.com>"]
 edition = "2021"
 
 [dependencies]
-arrow = { version = "19.0.0", features = ["prettyprint"] }
-arrow-flight = "19.0.0"
+arrow = { version = "20.0.0", features = ["prettyprint"] }
+arrow-flight = "20.0.0"
 arrow_util = { path = "../arrow_util" }
 async-trait = "0.1.57"
 backoff = { path = "../backoff" }
@@ -30,14 +30,14 @@ parking_lot = "0.12"
 parquet_file = { path = "../parquet_file" }
 pin-project = "1.0"
 predicate = { path = "../predicate" }
-prost = "0.10"
+prost = "0.11"
 iox_query = { path = "../iox_query" }
 schema = { path = "../schema" }
 snafu = "0.7"
 thiserror = "1.0"
 iox_time = { path = "../iox_time" }
 tokio = { version = "1.20", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
-tonic = { version = "0.7" }
+tonic = { version = "0.8" }
 tracker = { path = "../tracker" }
 uuid = { version = "1", features = ["v4"] }
 workspace-hack = { path = "../workspace-hack"}

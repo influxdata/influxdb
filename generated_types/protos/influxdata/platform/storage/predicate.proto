@@ -47,7 +47,7 @@ message Node {
     uint64 uint_value = 6;
     double float_value = 7;
     string regex_value = 8;
-    //    string tag_ref_value = 9;
+    /*    string tag_ref_value = 9; */
     // AAL changed from string --> bytes to handle \xff literals in Rust which are not valid UTF-8
     bytes tag_ref_value = 9;
     string field_ref_value = 10;

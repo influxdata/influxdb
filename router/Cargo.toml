@@ -32,7 +32,7 @@ service_grpc_object_store = { path = "../service_grpc_object_store" }
 sharder = { path = "../sharder" }
 thiserror = "1.0"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
-tonic = "0.7"
+tonic = "0.8"
 trace = { path = "../trace/" }
 workspace-hack = { path = "../workspace-hack"}
 write_buffer = { path = "../write_buffer" }

@@ -8,5 +8,5 @@ edition = "2021"
 [dependencies]
 generated_types = { path = "../generated_types" }
 observability_deps = { path = "../observability_deps" }
-tonic = "0.7"
+tonic = "0.8"
 workspace-hack = { path = "../workspace-hack"}

@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies] # In alphabetical order
-arrow = { version = "19.0.0", features = ["prettyprint"] }
+arrow = { version = "20.0.0", features = ["prettyprint"] }
 arrow_util = { path = "../arrow_util" }
 assert_cmd = "2.0.2"
 bytes = "1.2"
@@ -17,7 +17,7 @@ nix = "0.24"
 observability_deps = { path = "../observability_deps" }
 once_cell = { version = "1.13.0", features = ["parking_lot"] }
 parking_lot = "0.12"
-prost = "0.10"
+prost = "0.11"
 rand = "0.8.3"
 reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls"] }
 sqlx = { version = "0.6", features = [ "runtime-tokio-rustls" , "postgres", "uuid" ] }
@@ -25,5 +25,5 @@ tempfile = "3.1.0"
 test_helpers = { path = "../test_helpers", features = ["future_timeout"] }
 tokio = { version = "1.20", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-util = "0.7"
-tonic = "0.7"
+tonic = "0.8"
 workspace-hack = { path = "../workspace-hack"}

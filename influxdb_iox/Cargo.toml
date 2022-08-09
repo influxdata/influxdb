@@ -37,7 +37,7 @@ trogging = { path = "../trogging", default-features = false, features = ["clap"]
 
 # Crates.io dependencies, in alphabetical order
 ansi_term = "0.12"
-arrow = { version = "19.0.0", features = ["prettyprint"] }
+arrow = { version = "20.0.0", features = ["prettyprint"] }
 backtrace = "0.3"
 bytes = "1.2"
 clap = { version = "3", features = ["derive", "env"] }
@@ -59,7 +59,7 @@ tikv-jemalloc-ctl = { version = "0.4.0", optional = true }
 tokio = { version = "1.20", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-stream = { version = "0.1", features = ["net"] }
 tokio-util = { version = "0.7.3" }
-tonic = "0.7"
+tonic = "0.8"
 uuid = { version = "1", features = ["v4"] }
 # jemalloc-sys with unprefixed_malloc_on_supported_platforms feature and heappy are mutually exclusive
 tikv-jemalloc-sys = { version = "0.4.0", optional = true, features = ["unprefixed_malloc_on_supported_platforms"] }

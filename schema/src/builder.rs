@@ -242,7 +242,7 @@ mod test {
         let s = SchemaBuilder::new()
             .field("the_influx_field", ArrowDataType::Float64)
             // can't represent with lp
-            .field("the_no_influx_field", ArrowDataType::Decimal(10, 0))
+            .field("the_no_influx_field", ArrowDataType::Decimal128(10, 0))
             .build()
             .unwrap();
 
@@ -254,7 +254,7 @@ mod test {
 
         let (influxdb_column_type, field) = s.field(1);
         assert_eq!(field.name(), "the_no_influx_field");
-        assert_eq!(field.data_type(), &ArrowDataType::Decimal(10, 0));
+        assert_eq!(field.data_type(), &ArrowDataType::Decimal128(10, 0));
         assert!(field.is_nullable());
         assert_eq!(influxdb_column_type, None);
 
@@ -282,7 +282,7 @@ mod test {
         let s = SchemaBuilder::new()
             .non_null_field("the_influx_field", ArrowDataType::Float64)
             // can't represent with lp
-            .non_null_field("the_no_influx_field", ArrowDataType::Decimal(10, 0))
+            .non_null_field("the_no_influx_field", ArrowDataType::Decimal128(10, 0))
             .build()
             .unwrap();
 
@@ -294,7 +294,7 @@ mod test {
 
         let (influxdb_column_type, field) = s.field(1);
         assert_eq!(field.name(), "the_no_influx_field");
-        assert_eq!(field.data_type(), &ArrowDataType::Decimal(10, 0));
+        assert_eq!(field.data_type(), &ArrowDataType::Decimal128(10, 0));
         assert!(!field.is_nullable());
         assert_eq!(influxdb_column_type, None);
 
