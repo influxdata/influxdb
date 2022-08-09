@@ -42,7 +42,7 @@ memchr = { version = "2", features = ["std"] }
 nom = { version = "7", features = ["alloc", "std"] }
 num-integer = { version = "0.1", default-features = false, features = ["i128", "std"] }
 num-traits = { version = "0.2", features = ["i128", "libm", "std"] }
-object_store = { git = "https://github.com/tustvold/arrow-rs.git", rev = "d1e694b4949c36a3dd5cfadb5ed35dc40c8903f9", default-features = false, features = ["aws", "azure", "azure_core", "azure_storage", "azure_storage_blobs", "base64", "gcp", "quick-xml", "rand", "reqwest", "ring", "rustls-pemfile", "serde", "serde_json"] }
+object_store = { git = "https://github.com/tustvold/arrow-rs.git", rev = "10ffea5806fb6d2ce016ca6680cdfe41648e548e", default-features = false, features = ["aws", "azure", "azure_core", "azure_storage", "azure_storage_blobs", "base64", "gcp", "quick-xml", "rand", "reqwest", "ring", "rustls-pemfile", "serde", "serde_json"] }
 once_cell = { version = "1", features = ["alloc", "parking_lot", "parking_lot_core", "race", "std"] }
 parquet = { version = "19", features = ["arrow", "async", "base64", "brotli", "experimental", "flate2", "futures", "lz4", "snap", "tokio", "zstd"] }
 predicates = { version = "2", features = ["diff", "difflib", "float-cmp", "normalize-line-endings", "regex"] }

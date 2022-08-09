@@ -118,4 +118,4 @@ incremental = true
 
 [patch.crates-io]
 # remove and bump object_store dep version once this revision is released.
-object_store = { git = 'https://github.com/tustvold/arrow-rs.git', rev = "d1e694b4949c36a3dd5cfadb5ed35dc40c8903f9", package = "object_store" }
+object_store = { git = 'https://github.com/tustvold/arrow-rs.git', rev = "10ffea5806fb6d2ce016ca6680cdfe41648e548e", package = "object_store" }
