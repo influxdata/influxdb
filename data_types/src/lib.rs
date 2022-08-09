@@ -185,7 +185,7 @@ pub struct KafkaPartition(i32);
 
 #[allow(missing_docs)]
 impl KafkaPartition {
-    pub fn new(v: i32) -> Self {
+    pub const fn new(v: i32) -> Self {
         Self(v)
     }
     pub fn get(&self) -> i32 {

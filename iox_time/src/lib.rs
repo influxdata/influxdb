@@ -9,8 +9,11 @@
 
 use chrono::{DateTime, TimeZone, Timelike, Utc};
 use parking_lot::RwLock;
-use std::ops::{Add, Sub};
 use std::time::Duration;
+use std::{
+    ops::{Add, Sub},
+    sync::Arc,
+};
 
 /// A UTC Timestamp returned by a [`TimeProvider`]
 ///
@@ -221,6 +224,15 @@ impl MockProvider {
 impl TimeProvider for MockProvider {
     fn now(&self) -> Time {
         *self.now.read()
+    }
+}
+
+impl<T> TimeProvider for Arc<T>
+where
+    T: TimeProvider,
+{
+    fn now(&self) -> Time {
+        (**self).now()
     }
 }
 

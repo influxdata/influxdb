@@ -1,6 +1,7 @@
 use self::{
     aggregator::DmlAggregator,
     config::{ClientConfig, ConsumerConfig, ProducerConfig, TopicCreationConfig},
+    instrumentation::KafkaProducerMetrics,
 };
 use crate::{
     codec::IoxHeaders,
@@ -11,7 +12,7 @@ use crate::{
     },
 };
 use async_trait::async_trait;
-use data_types::{Sequence, SequenceNumber};
+use data_types::{KafkaPartition, Sequence, SequenceNumber};
 use dml::{DmlMeta, DmlOperation};
 use futures::{stream::BoxStream, StreamExt};
 use iox_time::{Time, TimeProvider};
@@ -38,6 +39,7 @@ use trace::TraceCollector;
 
 mod aggregator;
 mod config;
+mod instrumentation;
 
 /// Maximum number of jobs buffered and decoded concurrently.
 const CONCURRENT_DECODE_JOBS: usize = 10;
@@ -52,33 +54,37 @@ pub struct RSKafkaProducer {
 impl RSKafkaProducer {
     pub async fn new(
         conn: String,
-        database_name: String,
+        topic_name: String,
         connection_config: &BTreeMap<String, String>,
         creation_config: Option<&WriteBufferCreationConfig>,
         time_provider: Arc<dyn TimeProvider>,
         trace_collector: Option<Arc<dyn TraceCollector>>,
         metric_registry: &metric::Registry,
     ) -> Result<Self> {
-        let partition_clients = setup_topic(
-            conn,
-            database_name.clone(),
-            connection_config,
-            creation_config,
-        )
-        .await?;
+        let partition_clients =
+            setup_topic(conn, topic_name.clone(), connection_config, creation_config).await?;
 
         let producer_config = ProducerConfig::try_from(connection_config)?;
 
         let producers = partition_clients
             .into_iter()
             .map(|(sequencer_id, partition_client)| {
-                let mut producer_builder = BatchProducerBuilder::new(Arc::new(partition_client));
+                // Instrument this kafka partition client.
+                let partition_client = KafkaProducerMetrics::new(
+                    Box::new(partition_client),
+                    topic_name.clone(),
+                    KafkaPartition::new(sequencer_id.try_into().unwrap()),
+                    &*metric_registry,
+                );
+
+                let mut producer_builder =
+                    BatchProducerBuilder::new_with_client(Arc::new(partition_client));
                 if let Some(linger) = producer_config.linger {
                     producer_builder = producer_builder.with_linger(linger);
                 }
                 let producer = producer_builder.build(DmlAggregator::new(
                     trace_collector.clone(),
-                    database_name.clone(),
+                    topic_name.clone(),
                     producer_config.max_batch_size,
                     sequencer_id,
                     Arc::clone(&time_provider),
@@ -322,18 +328,13 @@ pub struct RSKafkaConsumer {
 impl RSKafkaConsumer {
     pub async fn new(
         conn: String,
-        database_name: String,
+        topic_name: String,
         connection_config: &BTreeMap<String, String>,
         creation_config: Option<&WriteBufferCreationConfig>,
         trace_collector: Option<Arc<dyn TraceCollector>>,
     ) -> Result<Self> {
-        let partition_clients = setup_topic(
-            conn,
-            database_name.clone(),
-            connection_config,
-            creation_config,
-        )
-        .await?;
+        let partition_clients =
+            setup_topic(conn, topic_name.clone(), connection_config, creation_config).await?;
 
         let partition_clients = partition_clients
             .into_iter()
@@ -397,7 +398,7 @@ impl WriteBufferReading for RSKafkaConsumer {
 
 async fn setup_topic(
     conn: String,
-    database_name: String,
+    topic_name: String,
     connection_config: &BTreeMap<String, String>,
     creation_config: Option<&WriteBufferCreationConfig>,
 ) -> Result<BTreeMap<u32, PartitionClient>> {
@@ -415,10 +416,10 @@ async fn setup_topic(
     loop {
         // check if topic already exists
         let topics = client.list_topics().await?;
-        if let Some(topic) = topics.into_iter().find(|t| t.name == database_name) {
+        if let Some(topic) = topics.into_iter().find(|t| t.name == topic_name) {
             let mut partition_clients = BTreeMap::new();
             for partition in topic.partitions {
-                let c = client.partition_client(&database_name, partition)?;
+                let c = client.partition_client(&topic_name, partition)?;
                 let partition = u32::try_from(partition).map_err(WriteBufferError::invalid_data)?;
                 partition_clients.insert(partition, c);
             }
@@ -431,7 +432,7 @@ async fn setup_topic(
 
             match controller_client
                 .create_topic(
-                    &database_name,
+                    &topic_name,
                     topic_creation_config.num_partitions,
                     topic_creation_config.replication_factor,
                     topic_creation_config.timeout_ms,
@@ -496,7 +497,7 @@ mod tests {
         ) -> Self::Context {
             RSKafkaTestContext {
                 conn: self.conn.clone(),
-                database_name: random_topic_name(),
+                topic_name: random_topic_name(),
                 n_sequencers,
                 time_provider,
                 trace_collector: Arc::new(RingBufferTraceCollector::new(100)),
@@ -507,7 +508,7 @@ mod tests {
 
     struct RSKafkaTestContext {
         conn: String,
-        database_name: String,
+        topic_name: String,
         n_sequencers: NonZeroU32,
         time_provider: Arc<dyn TimeProvider>,
         trace_collector: Arc<RingBufferTraceCollector>,
@@ -536,7 +537,7 @@ mod tests {
         async fn writing(&self, creation_config: bool) -> Result<Self::Writing, WriteBufferError> {
             RSKafkaProducer::new(
                 self.conn.clone(),
-                self.database_name.clone(),
+                self.topic_name.clone(),
                 &BTreeMap::default(),
                 self.creation_config(creation_config).as_ref(),
                 Arc::clone(&self.time_provider),
@@ -549,7 +550,7 @@ mod tests {
         async fn reading(&self, creation_config: bool) -> Result<Self::Reading, WriteBufferError> {
             RSKafkaConsumer::new(
                 self.conn.clone(),
-                self.database_name.clone(),
+                self.topic_name.clone(),
                 &BTreeMap::default(),
                 self.creation_config(creation_config).as_ref(),
                 Some(self.trace_collector() as Arc<_>),
@@ -613,7 +614,7 @@ mod tests {
             .build()
             .await
             .unwrap()
-            .partition_client(ctx.database_name.clone(), sequencer_id as i32)
+            .partition_client(ctx.topic_name.clone(), sequencer_id as i32)
             .unwrap()
             .produce(
                 vec![Record {
