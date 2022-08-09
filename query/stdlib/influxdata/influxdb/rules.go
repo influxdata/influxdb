@@ -49,7 +49,7 @@ func (rule FromStorageRule) Name() string {
 }
 
 func (rule FromStorageRule) Pattern() plan.Pattern {
-	return plan.Pat(influxdb.FromKind)
+	return plan.MultiSuccessor(influxdb.FromKind)
 }
 
 func (rule FromStorageRule) Rewrite(ctx context.Context, node plan.Node) (plan.Node, bool, error) {
@@ -76,7 +76,7 @@ func (rule PushDownGroupRule) Name() string {
 }
 
 func (rule PushDownGroupRule) Pattern() plan.Pattern {
-	return plan.Pat(universe.GroupKind, plan.Pat(ReadRangePhysKind))
+	return plan.MultiSuccessor(universe.GroupKind, plan.SingleSuccessor(ReadRangePhysKind))
 }
 
 func (rule PushDownGroupRule) Rewrite(ctx context.Context, node plan.Node) (plan.Node, bool, error) {
@@ -115,7 +115,7 @@ func (rule PushDownRangeRule) Name() string {
 
 // Pattern matches 'from |> range'
 func (rule PushDownRangeRule) Pattern() plan.Pattern {
-	return plan.Pat(universe.RangeKind, plan.Pat(FromKind))
+	return plan.MultiSuccessor(universe.RangeKind, plan.SingleSuccessor(FromKind))
 }
 
 // Rewrite converts 'from |> range' into 'ReadRange'
@@ -140,7 +140,7 @@ func (PushDownFilterRule) Name() string {
 }
 
 func (PushDownFilterRule) Pattern() plan.Pattern {
-	return plan.Pat(universe.FilterKind, plan.Pat(ReadRangePhysKind))
+	return plan.MultiSuccessor(universe.FilterKind, plan.SingleSuccessor(ReadRangePhysKind))
 }
 
 func (PushDownFilterRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node, bool, error) {
@@ -237,10 +237,10 @@ func (rule PushDownReadTagKeysRule) Name() string {
 }
 
 func (rule PushDownReadTagKeysRule) Pattern() plan.Pattern {
-	return plan.Pat(universe.DistinctKind,
-		plan.Pat(universe.SchemaMutationKind,
-			plan.Pat(universe.KeysKind,
-				plan.Pat(ReadRangePhysKind))))
+	return plan.MultiSuccessor(universe.DistinctKind,
+		plan.SingleSuccessor(universe.SchemaMutationKind,
+			plan.SingleSuccessor(universe.KeysKind,
+				plan.SingleSuccessor(ReadRangePhysKind))))
 }
 
 func (rule PushDownReadTagKeysRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node, bool, error) {
@@ -299,10 +299,10 @@ func (rule PushDownReadTagValuesRule) Name() string {
 }
 
 func (rule PushDownReadTagValuesRule) Pattern() plan.Pattern {
-	return plan.Pat(universe.DistinctKind,
-		plan.Pat(universe.GroupKind,
-			plan.Pat(universe.SchemaMutationKind,
-				plan.Pat(ReadRangePhysKind))))
+	return plan.MultiSuccessor(universe.DistinctKind,
+		plan.SingleSuccessor(universe.GroupKind,
+			plan.SingleSuccessor(universe.SchemaMutationKind,
+				plan.SingleSuccessor(ReadRangePhysKind))))
 }
 
 func (rule PushDownReadTagValuesRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node, bool, error) {
@@ -613,7 +613,7 @@ func (SortedPivotRule) Name() string {
 }
 
 func (SortedPivotRule) Pattern() plan.Pattern {
-	return plan.Pat(universe.PivotKind, plan.Pat(ReadRangePhysKind))
+	return plan.MultiSuccessor(universe.PivotKind, plan.SingleSuccessor(ReadRangePhysKind))
 }
 
 func (SortedPivotRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node, bool, error) {
@@ -677,8 +677,8 @@ var windowPushableAggs = []plan.ProcedureKind{
 }
 
 func (rule PushDownWindowAggregateRule) Pattern() plan.Pattern {
-	return plan.OneOf(windowPushableAggs,
-		plan.Pat(universe.WindowKind, plan.Pat(ReadRangePhysKind)))
+	return plan.MultiSuccessorOneOf(windowPushableAggs,
+		plan.SingleSuccessor(universe.WindowKind, plan.SingleSuccessor(ReadRangePhysKind)))
 }
 
 func canPushWindowedAggregate(ctx context.Context, fnNode plan.Node) bool {
@@ -771,8 +771,8 @@ func (PushDownWindowForceAggregateRule) Name() string {
 }
 
 func (PushDownWindowForceAggregateRule) Pattern() plan.Pattern {
-	return plan.Pat(table.FillKind,
-		plan.Pat(ReadWindowAggregatePhysKind))
+	return plan.MultiSuccessor(table.FillKind,
+		plan.SingleSuccessor(ReadWindowAggregatePhysKind))
 }
 
 func (PushDownWindowForceAggregateRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node, bool, error) {
@@ -807,9 +807,9 @@ func (PushDownWindowAggregateByTimeRule) Name() string {
 }
 
 func (PushDownWindowAggregateByTimeRule) Pattern() plan.Pattern {
-	return plan.Pat(universe.WindowKind,
-		plan.Pat(universe.SchemaMutationKind,
-			plan.Pat(ReadWindowAggregatePhysKind)))
+	return plan.MultiSuccessor(universe.WindowKind,
+		plan.SingleSuccessor(universe.SchemaMutationKind,
+			plan.SingleSuccessor(ReadWindowAggregatePhysKind)))
 }
 
 func (PushDownWindowAggregateByTimeRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node, bool, error) {
@@ -865,8 +865,8 @@ func (p PushDownAggregateWindowRule) Name() string {
 }
 
 func (p PushDownAggregateWindowRule) Pattern() plan.Pattern {
-	return plan.Pat(universe.AggregateWindowKind,
-		plan.Pat(ReadRangePhysKind))
+	return plan.MultiSuccessor(universe.AggregateWindowKind,
+		plan.SingleSuccessor(ReadRangePhysKind))
 }
 
 func (p PushDownAggregateWindowRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node, bool, error) {
@@ -918,8 +918,8 @@ func (p PushDownBareAggregateRule) Name() string {
 }
 
 func (p PushDownBareAggregateRule) Pattern() plan.Pattern {
-	return plan.OneOf(windowPushableAggs,
-		plan.Pat(ReadRangePhysKind))
+	return plan.MultiSuccessorOneOf(windowPushableAggs,
+		plan.SingleSuccessor(ReadRangePhysKind))
 }
 
 func (p PushDownBareAggregateRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node, bool, error) {
@@ -962,8 +962,8 @@ var windowMergeablePushAggs = []plan.ProcedureKind{
 }
 
 func (p GroupWindowAggregateTransposeRule) Pattern() plan.Pattern {
-	return plan.OneOf(windowMergeablePushAggs,
-		plan.Pat(universe.WindowKind, plan.Pat(ReadGroupPhysKind)))
+	return plan.MultiSuccessorOneOf(windowMergeablePushAggs,
+		plan.SingleSuccessor(universe.WindowKind, plan.SingleSuccessor(ReadGroupPhysKind)))
 }
 
 func (p GroupWindowAggregateTransposeRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node, bool, error) {
@@ -1051,7 +1051,7 @@ func (PushDownGroupAggregateRule) Name() string {
 }
 
 func (rule PushDownGroupAggregateRule) Pattern() plan.Pattern {
-	return plan.OneOf(
+	return plan.MultiSuccessorOneOf(
 		[]plan.ProcedureKind{
 			universe.CountKind,
 			universe.SumKind,
@@ -1060,7 +1060,7 @@ func (rule PushDownGroupAggregateRule) Pattern() plan.Pattern {
 			universe.MinKind,
 			universe.MaxKind,
 		},
-		plan.Pat(ReadGroupPhysKind))
+		plan.SingleSuccessor(ReadGroupPhysKind))
 }
 
 func (PushDownGroupAggregateRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node, bool, error) {
