@@ -701,13 +701,14 @@ pub fn make_ingester_data(two_partitions: bool, loc: DataLocation) -> IngesterDa
         sequencers,
         exec,
         backoff::BackoffConfig::default(),
+        metrics,
     )
 }
 
 pub async fn make_ingester_data_with_tombstones(loc: DataLocation) -> IngesterData {
     // Whatever data because they won't be used in the tests
     let metrics: Arc<metric::Registry> = Default::default();
-    let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(metrics));
+    let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
     let object_store = Arc::new(InMemory::new());
     let exec = Arc::new(iox_query::exec::Executor::new(1));
 
@@ -745,6 +746,7 @@ pub async fn make_ingester_data_with_tombstones(loc: DataLocation) -> IngesterDa
         sequencers,
         exec,
         backoff::BackoffConfig::default(),
+        metrics,
     )
 }
 
