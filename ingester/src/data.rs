@@ -1,7 +1,9 @@
 //! Data for the lifecycle of the Ingester
 
 use crate::{
-    compact::compact_persisting_batch, lifecycle::LifecycleHandle, querier_handler::query,
+    compact::{compact_persisting_batch, CompactedStream},
+    lifecycle::LifecycleHandle,
+    querier_handler::query,
 };
 use arrow::{error::ArrowError, record_batch::RecordBatch};
 use arrow_util::optimize::{optimize_record_batch, optimize_schema};
@@ -253,7 +255,7 @@ impl Persister for IngesterData {
 
         if let Some(persisting_batch) = persisting_batch {
             // do the CPU intensive work of compaction, de-duplication and sorting
-            let (record_stream, iox_meta, sort_key_update) = match compact_persisting_batch(
+            let compacted_stream = match compact_persisting_batch(
                 Arc::new(SystemProvider::new()),
                 &self.exec,
                 namespace.namespace_id.get(),
@@ -273,6 +275,11 @@ impl Persister for IngesterData {
                     return;
                 }
             };
+            let CompactedStream {
+                stream: record_stream,
+                iox_metadata,
+                sort_key_update,
+            } = compacted_stream;
             debug!(
                 ?partition_id,
                 ?sort_key_update,
@@ -284,7 +291,7 @@ impl Persister for IngesterData {
             // This call retries until it completes.
             let (md, file_size) = self
                 .store
-                .upload(record_stream, &iox_meta)
+                .upload(record_stream, &iox_metadata)
                 .await
                 .expect("unexpected fatal persist error");
 
@@ -317,7 +324,7 @@ impl Persister for IngesterData {
             }
 
             // Add the parquet file to the catalog until succeed
-            let parquet_file = iox_meta.to_parquet_file(partition_id, file_size, &md, |name| {
+            let parquet_file = iox_metadata.to_parquet_file(partition_id, file_size, &md, |name| {
                 table_schema.columns.get(name).expect("Unknown column").id
             });
             Backoff::new(&self.backoff_config)
@@ -328,6 +335,7 @@ impl Persister for IngesterData {
                         ?partition_id,
                         table_id=?parquet_file.table_id,
                         parquet_file_id=?parquet_file.id,
+                        table_name=%iox_metadata.table_name,
                         "parquet file written to catalog"
                     );
                     // compiler insisted on getting told the type of the error :shrug:
@@ -341,14 +349,14 @@ impl Persister for IngesterData {
                 ?partition_id,
                 table_name=%partition_info.table_name,
                 partition_key=%partition_info.partition.partition_key,
-                max_sequence_number=%iox_meta.max_sequence_number.get(),
+                max_sequence_number=%iox_metadata.max_sequence_number.get(),
                 "mark_persisted"
             );
             namespace
                 .mark_persisted(
                     &partition_info.table_name,
                     &partition_info.partition.partition_key,
-                    iox_meta.max_sequence_number,
+                    iox_metadata.max_sequence_number,
                 )
                 .await;
         }

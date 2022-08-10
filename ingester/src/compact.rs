@@ -46,17 +46,39 @@ pub enum Error {
 /// A specialized `Error` for Ingester's Compact errors
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Compact a given persisting batch, returning a stream of compacted
-/// [`RecordBatch`] and the associated [`IoxMetadata`].
-///
-/// [`RecordBatch`]: arrow::record_batch::RecordBatch
+/// Result of calling [`compact_persisting_batch`]
+pub struct CompactedStream {
+    /// A stream of compacted, deduplicated
+    /// [`RecordBatch`](arrow::record_batch::RecordBatch)es
+    pub stream: SendableRecordBatchStream,
+    /// Metadata for `stream`
+    pub iox_metadata: IoxMetadata,
+    /// An updated [`SortKey`], if any.  If returned, the compaction
+    /// required extending the partition's [`SortKey`] (typically
+    /// because new columns were in this parquet file that were not in
+    /// previous files).
+    pub sort_key_update: Option<SortKey>,
+}
+
+impl std::fmt::Debug for CompactedStream {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CompactedStream")
+            .field("stream", &"<SendableRecordBatchStream>")
+            .field("iox_metadata", &self.iox_metadata)
+            .field("sort_key_update", &self.sort_key_update)
+            .finish()
+    }
+}
+
+/// Compact a given persisting batch into a [`CompactedStream`] or
+/// `None` if there is no data to compact.
 pub async fn compact_persisting_batch(
     time_provider: Arc<dyn TimeProvider>,
     executor: &Executor,
     namespace_id: i64,
     partition_info: &PartitionInfo,
     batch: Arc<PersistingBatch>,
-) -> Result<Option<(SendableRecordBatchStream, IoxMetadata, Option<SortKey>)>> {
+) -> Result<Option<CompactedStream>> {
     // Nothing to compact
     if batch.data.data.is_empty() {
         return Ok(None);
@@ -67,12 +89,14 @@ pub async fn compact_persisting_batch(
     let partition_key = &partition_info.partition.partition_key;
     let sort_key = partition_info.partition.sort_key();
 
-    // Get sort key from the catalog or compute it from cardinality. Save a new value for the
-    // catalog to store if necessary.
+    // Get sort key from the catalog or compute it from
+    // cardinality.
     let (metadata_sort_key, sort_key_update) = match sort_key {
         Some(sk) => {
-            // Remove any columns not present in this data from the sort key that will be in this
-            // parquet file's metadata.
+            // Remove any columns not present in this data from the
+            // sort key that will be used to compact this parquet file
+            // (and appear in its metadata)
+            //
             // If there are any new columns, add them to the end of the sort key in the catalog and
             // return that to be updated in the catalog.
             adjust_sort_key_columns(&sk, &batch.data.schema().primary_key())
@@ -94,7 +118,7 @@ pub async fn compact_persisting_batch(
     // Compute min and max sequence numbers
     let (_min_seq, max_seq) = batch.data.min_max_sequence_numbers();
 
-    let meta = IoxMetadata {
+    let iox_metadata = IoxMetadata {
         object_store_id: batch.object_store_id,
         creation_timestamp: time_provider.now(),
         sequencer_id: batch.sequencer_id,
@@ -109,7 +133,11 @@ pub async fn compact_persisting_batch(
         sort_key: Some(metadata_sort_key),
     };
 
-    Ok(Some((stream, meta, sort_key_update)))
+    Ok(Some(CompactedStream {
+        stream,
+        iox_metadata,
+        sort_key_update,
+    }))
 }
 
 /// Compact a given Queryable Batch
@@ -213,7 +241,7 @@ mod tests {
             },
         };
 
-        let (stream, _, _) =
+        let CompactedStream { stream, .. } =
             compact_persisting_batch(time_provider, &exc, 1, &partition_info, persisting_batch)
                 .await
                 .unwrap()
@@ -283,11 +311,14 @@ mod tests {
             },
         };
 
-        let (stream, meta, sort_key_update) =
-            compact_persisting_batch(time_provider, &exc, 1, &partition_info, persisting_batch)
-                .await
-                .unwrap()
-                .unwrap();
+        let CompactedStream {
+            stream,
+            iox_metadata,
+            sort_key_update,
+        } = compact_persisting_batch(time_provider, &exc, 1, &partition_info, persisting_batch)
+            .await
+            .unwrap()
+            .unwrap();
 
         let output_batches = datafusion::physical_plan::common::collect(stream)
             .await
@@ -308,7 +339,7 @@ mod tests {
 
         let expected_meta = make_meta(
             uuid,
-            meta.creation_timestamp,
+            iox_metadata.creation_timestamp,
             seq_id,
             namespace_id,
             namespace_name,
@@ -320,7 +351,7 @@ mod tests {
             CompactionLevel::Initial,
             Some(SortKey::from_columns(["tag1", "time"])),
         );
-        assert_eq!(expected_meta, meta);
+        assert_eq!(expected_meta, iox_metadata);
 
         assert_eq!(
             sort_key_update.unwrap(),
@@ -377,11 +408,14 @@ mod tests {
             },
         };
 
-        let (stream, meta, sort_key_update) =
-            compact_persisting_batch(time_provider, &exc, 1, &partition_info, persisting_batch)
-                .await
-                .unwrap()
-                .unwrap();
+        let CompactedStream {
+            stream,
+            iox_metadata,
+            sort_key_update,
+        } = compact_persisting_batch(time_provider, &exc, 1, &partition_info, persisting_batch)
+            .await
+            .unwrap()
+            .unwrap();
 
         let output_batches = datafusion::physical_plan::common::collect(stream)
             .await
@@ -403,7 +437,7 @@ mod tests {
 
         let expected_meta = make_meta(
             uuid,
-            meta.creation_timestamp,
+            iox_metadata.creation_timestamp,
             seq_id,
             namespace_id,
             namespace_name,
@@ -416,7 +450,7 @@ mod tests {
             // Sort key should now be set
             Some(SortKey::from_columns(["tag1", "tag3", "time"])),
         );
-        assert_eq!(expected_meta, meta);
+        assert_eq!(expected_meta, iox_metadata);
 
         assert_eq!(
             sort_key_update.unwrap(),
@@ -474,11 +508,14 @@ mod tests {
             },
         };
 
-        let (stream, meta, sort_key_update) =
-            compact_persisting_batch(time_provider, &exc, 1, &partition_info, persisting_batch)
-                .await
-                .unwrap()
-                .unwrap();
+        let CompactedStream {
+            stream,
+            iox_metadata,
+            sort_key_update,
+        } = compact_persisting_batch(time_provider, &exc, 1, &partition_info, persisting_batch)
+            .await
+            .unwrap()
+            .unwrap();
 
         let output_batches = datafusion::physical_plan::common::collect(stream)
             .await
@@ -501,7 +538,7 @@ mod tests {
 
         let expected_meta = make_meta(
             uuid,
-            meta.creation_timestamp,
+            iox_metadata.creation_timestamp,
             seq_id,
             namespace_id,
             namespace_name,
@@ -515,7 +552,7 @@ mod tests {
             // recomputed)
             Some(SortKey::from_columns(["tag3", "tag1", "time"])),
         );
-        assert_eq!(expected_meta, meta);
+        assert_eq!(expected_meta, iox_metadata);
 
         // The sort key does not need to be updated in the catalog
         assert!(sort_key_update.is_none());
@@ -572,11 +609,14 @@ mod tests {
             },
         };
 
-        let (stream, meta, sort_key_update) =
-            compact_persisting_batch(time_provider, &exc, 1, &partition_info, persisting_batch)
-                .await
-                .unwrap()
-                .unwrap();
+        let CompactedStream {
+            stream,
+            iox_metadata,
+            sort_key_update,
+        } = compact_persisting_batch(time_provider, &exc, 1, &partition_info, persisting_batch)
+            .await
+            .unwrap()
+            .unwrap();
 
         let output_batches = datafusion::physical_plan::common::collect(stream)
             .await
@@ -599,7 +639,7 @@ mod tests {
 
         let expected_meta = make_meta(
             uuid,
-            meta.creation_timestamp,
+            iox_metadata.creation_timestamp,
             seq_id,
             namespace_id,
             namespace_name,
@@ -613,7 +653,7 @@ mod tests {
             // the time column
             Some(SortKey::from_columns(["tag3", "tag1", "time"])),
         );
-        assert_eq!(expected_meta, meta);
+        assert_eq!(expected_meta, iox_metadata);
 
         // The sort key in the catalog needs to be updated to include the new column
         assert_eq!(
@@ -678,11 +718,14 @@ mod tests {
             },
         };
 
-        let (stream, meta, sort_key_update) =
-            compact_persisting_batch(time_provider, &exc, 1, &partition_info, persisting_batch)
-                .await
-                .unwrap()
-                .unwrap();
+        let CompactedStream {
+            stream,
+            iox_metadata,
+            sort_key_update,
+        } = compact_persisting_batch(time_provider, &exc, 1, &partition_info, persisting_batch)
+            .await
+            .unwrap()
+            .unwrap();
 
         let output_batches = datafusion::physical_plan::common::collect(stream)
             .await
@@ -705,7 +748,7 @@ mod tests {
 
         let expected_meta = make_meta(
             uuid,
-            meta.creation_timestamp,
+            iox_metadata.creation_timestamp,
             seq_id,
             namespace_id,
             namespace_name,
@@ -718,7 +761,7 @@ mod tests {
             // The sort key in the metadata should only contain the columns in this file
             Some(SortKey::from_columns(["tag3", "tag1", "time"])),
         );
-        assert_eq!(expected_meta, meta);
+        assert_eq!(expected_meta, iox_metadata);
 
         // The sort key in the catalog should NOT get a new value
         assert!(sort_key_update.is_none());
