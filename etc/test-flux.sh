@@ -87,7 +87,7 @@ run_integration_tests() {
   log "Running integration tests..."
   ./fluxtest \
       -v \
-      -p "$HOME/code/flux" \
+      -p flux.zip \
       -p query/ \
       --skip "$(skipped_tests)"
 }
@@ -98,7 +98,7 @@ cleanup() {
 
 main() {
   build_test_harness
-  # download_flux_archive
+  download_flux_archive
   run_integration_tests
   cleanup
 }
