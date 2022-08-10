@@ -2,10 +2,15 @@
 
 #![cfg_attr(rustfmt, rustfmt_skip)] // https://github.com/rust-lang/rustfmt/issues/5489
 
+/// Create compactor configuration that can have different defaults. The `run compactor`
+/// server/service needs different defaults than the `compactor run-once` command, and this macro
+/// enables sharing of the parts of the configs that are the same without duplicating the code.
 macro_rules! gen_compactor_config {
     (
         $name:ident,
-        hot_multiple_def = $hot_multiple_def:literal
+        // hot_multiple is currently the only flag that has a differing default. Add more macro
+        // arguments similar to this one if more flags need different defaults.
+        hot_multiple_default = $hot_multiple_default:literal
         $(,)?
     ) => {
         /// CLI config for compactor
@@ -183,11 +188,11 @@ macro_rules! gen_compactor_config {
             /// partitions equally.
             ///
             /// Default is
-            #[doc = $hot_multiple_def]
+            #[doc = $hot_multiple_default]
             #[clap(
                 long = "--compaction-hot-multiple",
                 env = "INFLUXDB_IOX_COMPACTION_HOT_MULTIPLE",
-                default_value = $hot_multiple_def,
+                default_value = $hot_multiple_default,
                 action
             )]
             pub hot_multiple: usize,
@@ -195,11 +200,13 @@ macro_rules! gen_compactor_config {
     };
 }
 
-gen_compactor_config!(CompactorConfig, hot_multiple_def = "4");
+gen_compactor_config!(CompactorConfig, hot_multiple_default = "4");
 
-gen_compactor_config!(CompactorOnceConfig, hot_multiple_def = "1");
+gen_compactor_config!(CompactorOnceConfig, hot_multiple_default = "1");
 
 impl CompactorOnceConfig {
+    /// Convert the configuration for `compactor run-once` into the configuration for `run
+    /// compactor` so that run-once can reuse some of the code that the compactor server uses.
     pub fn into_compactor_config(self) -> CompactorConfig {
         CompactorConfig {
             topic: self.topic,
