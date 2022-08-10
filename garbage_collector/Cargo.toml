@@ -13,6 +13,7 @@ object_store = { version = "0.3.0" }
 observability_deps = { path = "../observability_deps" }
 snafu = "0.7"
 tokio = { version = "1", features = ["macros", "rt", "sync"] }
+tokio-stream = "0.1"
 uuid = { version = "1", features = ["v4"] }
 
 [dev-dependencies]

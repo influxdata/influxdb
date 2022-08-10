@@ -1607,6 +1607,7 @@ dependencies = [
  "snafu",
  "tempfile",
  "tokio",
+ "tokio-stream",
  "uuid 1.1.2",
 ]
 

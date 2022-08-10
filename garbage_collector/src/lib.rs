@@ -32,7 +32,7 @@ mod deleter;
 /// Logic for listing all files in object storage.
 mod lister;
 
-const BATCH_SIZE: usize = 1000;
+const BUFFER_SIZE: usize = 1000;
 
 /// Run the tasks that clean up old object store files that don't appear in the catalog.
 pub async fn main(config: Config) -> Result<()> {
@@ -72,12 +72,17 @@ impl GarbageCollector {
 
         let (shutdown_tx, shutdown_rx) = broadcast::channel(1);
 
-        let (tx1, rx1) = mpsc::channel(BATCH_SIZE);
-        let (tx2, rx2) = mpsc::channel(BATCH_SIZE);
+        let (tx1, rx1) = mpsc::channel(BUFFER_SIZE);
+        let (tx2, rx2) = mpsc::channel(BUFFER_SIZE);
 
         let lister = tokio::spawn(lister::perform(shutdown_rx, Arc::clone(&object_store), tx1));
         let checker = tokio::spawn(checker::perform(catalog, cutoff, rx1, tx2));
-        let deleter = tokio::spawn(deleter::perform(object_store, dry_run, rx2));
+        let deleter = tokio::spawn(deleter::perform(
+            object_store,
+            dry_run,
+            sub_config.concurrent_deletes,
+            rx2,
+        ));
 
         Ok(Self {
             shutdown_tx,
@@ -140,7 +145,7 @@ impl Debug for Config {
 pub struct SubConfig {
     /// If this flag is specified, don't delete the files in object storage. Only print the files
     /// that would be deleted if this flag wasn't specified.
-    #[clap(long)]
+    #[clap(long, env = "INFLUXDB_IOX_GC_DRY_RUN")]
     dry_run: bool,
 
     /// Items in the object store that are older than this timestamp and also unreferenced in the
@@ -148,8 +153,16 @@ pub struct SubConfig {
     ///
     /// Can be an exact datetime like `2020-01-01T01:23:45-05:00` or a fuzzy
     /// specification like `1 hour ago`. If not specified, defaults to 14 days ago.
-    #[clap(long, default_value_t = String::from("14 days ago"))]
+    #[clap(
+        long,
+        default_value_t = String::from("14 days ago"),
+        env = "INFLUXDB_IOX_GC_CUTOFF",
+    )]
     cutoff: String,
+
+    /// Number of concurrent object store deletion tasks
+    #[clap(long, default_value_t = 5, env = "INFLUXDB_IOX_GC_CONCURRENT_DELETES")]
+    concurrent_deletes: usize,
 }
 
 impl SubConfig {
