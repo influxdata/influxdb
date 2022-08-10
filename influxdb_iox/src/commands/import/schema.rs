@@ -8,6 +8,7 @@ use thiserror::Error;
 use import::schema::{
     fetch::{fetch_schema, FetchError},
     merge::{SchemaMergeError, SchemaMerger},
+    validate::{validate_schema, ValidationError},
 };
 
 // Possible errors from schema commands
@@ -21,6 +22,9 @@ pub enum SchemaCommandError {
 
     #[error("Error merging schemas: {0}")]
     Merging(#[from] SchemaMergeError),
+
+    #[error("{0}")]
+    Validating(#[from] ValidationError),
 }
 
 #[derive(Parser, Debug)]
@@ -57,7 +61,6 @@ pub struct MergeConfig {
 pub async fn command(config: Config) -> Result<(), SchemaCommandError> {
     match config {
         Config::Merge(merge_config) => {
-            println!("Merging schemas from object store");
             let object_store = make_object_store(&merge_config.object_store)
                 .map_err(SchemaCommandError::ObjectStoreParsing)?;
 
@@ -70,8 +73,14 @@ pub async fn command(config: Config) -> Result<(), SchemaCommandError> {
             let merger = SchemaMerger::new(merge_config.org_id, merge_config.bucket_id, schemas);
             let merged = merger.merge().map_err(SchemaCommandError::Merging)?;
             // just print the merged schema for now; we'll do more with this in future PRs
-            println!("{:?}", merged);
+            println!("Merged schema:\n{:?}", merged);
 
+            if let Err(errors) = validate_schema(&merged) {
+                eprintln!("Schema conflicts:");
+                for e in errors {
+                    eprintln!("- {}", e);
+                }
+            }
             Ok(())
         }
     }

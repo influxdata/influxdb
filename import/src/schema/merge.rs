@@ -1,4 +1,4 @@
-use crate::schema::schema_parse::{AggregateTSMSchema, Field, Measurement, Tag};
+use crate::{AggregateTSMField, AggregateTSMMeasurement, AggregateTSMSchema, AggregateTSMTag};
 
 use thiserror::Error;
 
@@ -83,11 +83,14 @@ fn do_merge_schema(
     }
 }
 
-fn do_merge_measurement(into_measurement: &mut Measurement, from_measurement: &Measurement) {
+fn do_merge_measurement(
+    into_measurement: &mut AggregateTSMMeasurement,
+    from_measurement: &AggregateTSMMeasurement,
+) {
     // merge tags
     from_measurement.tags.values().for_each(|from_tag| {
         if let Some(into_tag) = into_measurement.tags.get(&from_tag.name) {
-            let mut new_tag = Tag {
+            let mut new_tag = AggregateTSMTag {
                 name: from_tag.name.clone(),
                 values: into_tag.values.clone(),
             };
@@ -102,7 +105,7 @@ fn do_merge_measurement(into_measurement: &mut Measurement, from_measurement: &M
     // merge fields
     from_measurement.fields.values().for_each(|from_field| {
         if let Some(into_field) = into_measurement.fields.get(&from_field.name) {
-            let mut new_field = Field {
+            let mut new_field = AggregateTSMField {
                 name: from_field.name.clone(),
                 types: into_field.types.clone(),
             };
@@ -126,33 +129,33 @@ mod tests {
 
     #[tokio::test]
     async fn merge_measurements_adds_if_missing() {
-        let mut m1 = Measurement {
+        let mut m1 = AggregateTSMMeasurement {
             tags: HashMap::from([(
                 "host".to_string(),
-                Tag {
+                AggregateTSMTag {
                     name: "host".to_string(),
                     values: HashSet::from(["server".to_string(), "desktop".to_string()]),
                 },
             )]),
             fields: HashMap::from([(
                 "usage".to_string(),
-                Field {
+                AggregateTSMField {
                     name: "usage".to_string(),
                     types: HashSet::from(["Float".to_string()]),
                 },
             )]),
         };
-        let m2 = Measurement {
+        let m2 = AggregateTSMMeasurement {
             tags: HashMap::from([(
                 "sensor".to_string(),
-                Tag {
+                AggregateTSMTag {
                     name: "sensor".to_string(),
                     values: HashSet::from(["top".to_string(), "bottom".to_string()]),
                 },
             )]),
             fields: HashMap::from([(
                 "temperature".to_string(),
-                Field {
+                AggregateTSMField {
                     name: "temperature".to_string(),
                     types: HashSet::from(["Float".to_string()]),
                 },
@@ -165,33 +168,33 @@ mod tests {
 
     #[tokio::test]
     async fn merge_measurements_merges_tag_with_new_value() {
-        let mut m1 = Measurement {
+        let mut m1 = AggregateTSMMeasurement {
             tags: HashMap::from([(
                 "host".to_string(),
-                Tag {
+                AggregateTSMTag {
                     name: "host".to_string(),
                     values: HashSet::from(["server".to_string(), "desktop".to_string()]),
                 },
             )]),
             fields: HashMap::from([(
                 "usage".to_string(),
-                Field {
+                AggregateTSMField {
                     name: "usage".to_string(),
                     types: HashSet::from(["Float".to_string()]),
                 },
             )]),
         };
-        let m2 = Measurement {
+        let m2 = AggregateTSMMeasurement {
             tags: HashMap::from([(
                 "host".to_string(),
-                Tag {
+                AggregateTSMTag {
                     name: "host".to_string(),
                     values: HashSet::from(["gadget".to_string()]),
                 },
             )]),
             fields: HashMap::from([(
                 "usage".to_string(),
-                Field {
+                AggregateTSMField {
                     name: "usage".to_string(),
                     types: HashSet::from(["Float".to_string()]),
                 },
@@ -212,33 +215,33 @@ mod tests {
 
     #[tokio::test]
     async fn merge_measurements_merges_tag_with_new_and_old_values() {
-        let mut m1 = Measurement {
+        let mut m1 = AggregateTSMMeasurement {
             tags: HashMap::from([(
                 "host".to_string(),
-                Tag {
+                AggregateTSMTag {
                     name: "host".to_string(),
                     values: HashSet::from(["server".to_string(), "desktop".to_string()]),
                 },
             )]),
             fields: HashMap::from([(
                 "usage".to_string(),
-                Field {
+                AggregateTSMField {
                     name: "usage".to_string(),
                     types: HashSet::from(["Float".to_string()]),
                 },
             )]),
         };
-        let m2 = Measurement {
+        let m2 = AggregateTSMMeasurement {
             tags: HashMap::from([(
                 "host".to_string(),
-                Tag {
+                AggregateTSMTag {
                     name: "host".to_string(),
                     values: HashSet::from(["gadget".to_string(), "desktop".to_string()]),
                 },
             )]),
             fields: HashMap::from([(
                 "usage".to_string(),
-                Field {
+                AggregateTSMField {
                     name: "usage".to_string(),
                     types: HashSet::from(["Float".to_string()]),
                 },
@@ -259,33 +262,33 @@ mod tests {
 
     #[tokio::test]
     async fn merge_measurements_merges_field_with_new_type() {
-        let mut m1 = Measurement {
+        let mut m1 = AggregateTSMMeasurement {
             tags: HashMap::from([(
                 "host".to_string(),
-                Tag {
+                AggregateTSMTag {
                     name: "host".to_string(),
                     values: HashSet::from(["server".to_string(), "desktop".to_string()]),
                 },
             )]),
             fields: HashMap::from([(
                 "usage".to_string(),
-                Field {
+                AggregateTSMField {
                     name: "usage".to_string(),
                     types: HashSet::from(["Float".to_string()]),
                 },
             )]),
         };
-        let m2 = Measurement {
+        let m2 = AggregateTSMMeasurement {
             tags: HashMap::from([(
                 "host".to_string(),
-                Tag {
+                AggregateTSMTag {
                     name: "host".to_string(),
                     values: HashSet::from(["server".to_string(), "desktop".to_string()]),
                 },
             )]),
             fields: HashMap::from([(
                 "usage".to_string(),
-                Field {
+                AggregateTSMField {
                     name: "usage".to_string(),
                     types: HashSet::from(["Integer".to_string()]),
                 },
@@ -302,33 +305,33 @@ mod tests {
 
     #[tokio::test]
     async fn merge_measurements_merges_field_with_new_and_old_types() {
-        let mut m1 = Measurement {
+        let mut m1 = AggregateTSMMeasurement {
             tags: HashMap::from([(
                 "host".to_string(),
-                Tag {
+                AggregateTSMTag {
                     name: "host".to_string(),
                     values: HashSet::from(["server".to_string(), "desktop".to_string()]),
                 },
             )]),
             fields: HashMap::from([(
                 "usage".to_string(),
-                Field {
+                AggregateTSMField {
                     name: "usage".to_string(),
                     types: HashSet::from(["Float".to_string()]),
                 },
             )]),
         };
-        let m2 = Measurement {
+        let m2 = AggregateTSMMeasurement {
             tags: HashMap::from([(
                 "host".to_string(),
-                Tag {
+                AggregateTSMTag {
                     name: "host".to_string(),
                     values: HashSet::from(["server".to_string(), "desktop".to_string()]),
                 },
             )]),
             fields: HashMap::from([(
                 "usage".to_string(),
-                Field {
+                AggregateTSMField {
                     name: "usage".to_string(),
                     types: HashSet::from(["Float".to_string(), "Integer".to_string()]),
                 },
@@ -350,17 +353,17 @@ mod tests {
             bucket_id: "mybucket".to_string(),
             measurements: HashMap::from([(
                 "cpu".to_string(),
-                Measurement {
+                AggregateTSMMeasurement {
                     tags: HashMap::from([(
                         "host".to_string(),
-                        Tag {
+                        AggregateTSMTag {
                             name: "host".to_string(),
                             values: HashSet::from(["server".to_string(), "desktop".to_string()]),
                         },
                     )]),
                     fields: HashMap::from([(
                         "usage".to_string(),
-                        Field {
+                        AggregateTSMField {
                             name: "usage".to_string(),
                             types: HashSet::from(["Float".to_string()]),
                         },
@@ -373,17 +376,17 @@ mod tests {
             bucket_id: "mybucket".to_string(),
             measurements: HashMap::from([(
                 "weather".to_string(),
-                Measurement {
+                AggregateTSMMeasurement {
                     tags: HashMap::from([(
                         "location".to_string(),
-                        Tag {
+                        AggregateTSMTag {
                             name: "location".to_string(),
                             values: HashSet::from(["london".to_string()]),
                         },
                     )]),
                     fields: HashMap::from([(
                         "temperature".to_string(),
-                        Field {
+                        AggregateTSMField {
                             name: "temperature".to_string(),
                             types: HashSet::from(["Float".to_string()]),
                         },
@@ -410,17 +413,17 @@ mod tests {
             bucket_id: "mybucket".to_string(),
             measurements: HashMap::from([(
                 "cpu".to_string(),
-                Measurement {
+                AggregateTSMMeasurement {
                     tags: HashMap::from([(
                         "host".to_string(),
-                        Tag {
+                        AggregateTSMTag {
                             name: "host".to_string(),
                             values: HashSet::from(["server".to_string(), "desktop".to_string()]),
                         },
                     )]),
                     fields: HashMap::from([(
                         "usage".to_string(),
-                        Field {
+                        AggregateTSMField {
                             name: "usage".to_string(),
                             types: HashSet::from(["Float".to_string()]),
                         },
@@ -433,17 +436,17 @@ mod tests {
             bucket_id: "mybucket".to_string(),
             measurements: HashMap::from([(
                 "cpu".to_string(),
-                Measurement {
+                AggregateTSMMeasurement {
                     tags: HashMap::from([(
                         "host".to_string(),
-                        Tag {
+                        AggregateTSMTag {
                             name: "host".to_string(),
                             values: HashSet::from(["gadget".to_string()]),
                         },
                     )]),
                     fields: HashMap::from([(
                         "usage".to_string(),
-                        Field {
+                        AggregateTSMField {
                             name: "usage".to_string(),
                             types: HashSet::from(["Integer".to_string(), "Float".to_string()]),
                         },
@@ -462,7 +465,7 @@ mod tests {
         );
         assert_eq!(
             measurement.tags.values().cloned().collect::<Vec<_>>(),
-            vec![Tag {
+            vec![AggregateTSMTag {
                 name: "host".to_string(),
                 values: HashSet::from([
                     "server".to_string(),
@@ -477,7 +480,7 @@ mod tests {
         );
         assert_eq!(
             measurement.fields.values().cloned().collect::<Vec<_>>(),
-            vec![Field {
+            vec![AggregateTSMField {
                 name: "usage".to_string(),
                 types: HashSet::from(["Integer".to_string(), "Float".to_string()])
             }]
@@ -497,10 +500,10 @@ mod tests {
                     bucket_id: bucket.clone(),
                     measurements: HashMap::from([(
                         "cpu".to_string(),
-                        Measurement {
+                        AggregateTSMMeasurement {
                             tags: HashMap::from([(
                                 "host".to_string(),
-                                Tag {
+                                AggregateTSMTag {
                                     name: "host".to_string(),
                                     values: HashSet::from([
                                         "server".to_string(),
@@ -510,7 +513,7 @@ mod tests {
                             )]),
                             fields: HashMap::from([(
                                 "usage".to_string(),
-                                Field {
+                                AggregateTSMField {
                                     name: "usage".to_string(),
                                     types: HashSet::from(["Float".to_string()]),
                                 },
@@ -523,17 +526,17 @@ mod tests {
                     bucket_id: bucket.clone(),
                     measurements: HashMap::from([(
                         "cpu".to_string(),
-                        Measurement {
+                        AggregateTSMMeasurement {
                             tags: HashMap::from([(
                                 "host".to_string(),
-                                Tag {
+                                AggregateTSMTag {
                                     name: "host".to_string(),
                                     values: HashSet::from(["gadget".to_string()]),
                                 },
                             )]),
                             fields: HashMap::from([(
                                 "usage".to_string(),
-                                Field {
+                                AggregateTSMField {
                                     name: "usage".to_string(),
                                     types: HashSet::from(["Integer".to_string()]),
                                 },
@@ -546,17 +549,17 @@ mod tests {
                     bucket_id: bucket.clone(),
                     measurements: HashMap::from([(
                         "weather".to_string(),
-                        Measurement {
+                        AggregateTSMMeasurement {
                             tags: HashMap::from([(
                                 "location".to_string(),
-                                Tag {
+                                AggregateTSMTag {
                                     name: "location".to_string(),
                                     values: HashSet::from(["london".to_string()]),
                                 },
                             )]),
                             fields: HashMap::from([(
                                 "temperature".to_string(),
-                                Field {
+                                AggregateTSMField {
                                     name: "temperature".to_string(),
                                     types: HashSet::from(["Float".to_string()]),
                                 },
@@ -569,17 +572,17 @@ mod tests {
                     bucket_id: bucket,
                     measurements: HashMap::from([(
                         "weather".to_string(),
-                        Measurement {
+                        AggregateTSMMeasurement {
                             tags: HashMap::from([(
                                 "location".to_string(),
-                                Tag {
+                                AggregateTSMTag {
                                     name: "location".to_string(),
                                     values: HashSet::from(["berlin".to_string()]),
                                 },
                             )]),
                             fields: HashMap::from([(
                                 "temperature".to_string(),
-                                Field {
+                                AggregateTSMField {
                                     name: "temperature".to_string(),
                                     types: HashSet::from(["Integer".to_string()]),
                                 },

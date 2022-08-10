@@ -1,2 +1,3 @@
-mod merge;
-mod schema_parse;
+pub mod fetch;
+pub mod merge;
+pub mod validate;
