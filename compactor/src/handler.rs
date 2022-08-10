@@ -1,18 +1,14 @@
 //! Compactor handler
 
 use async_trait::async_trait;
-use backoff::{Backoff, BackoffConfig};
-use data_types::SequencerId;
+use backoff::Backoff;
 use futures::{
     future::{BoxFuture, Shared},
     FutureExt, StreamExt, TryFutureExt,
 };
-use iox_catalog::interface::Catalog;
 use iox_query::exec::Executor;
-use iox_time::TimeProvider;
 use metric::Attributes;
 use observability_deps::tracing::*;
-use parquet_file::storage::ParquetStorage;
 use std::sync::Arc;
 use thiserror::Error;
 use tokio::{
@@ -66,25 +62,8 @@ pub struct CompactorHandlerImpl {
 
 impl CompactorHandlerImpl {
     /// Initialize the Compactor
-    pub fn new(
-        sequencers: Vec<SequencerId>,
-        catalog: Arc<dyn Catalog>,
-        store: ParquetStorage,
-        exec: Arc<Executor>,
-        time_provider: Arc<dyn TimeProvider>,
-        registry: Arc<metric::Registry>,
-        config: CompactorConfig,
-    ) -> Self {
-        let compactor_data = Arc::new(Compactor::new(
-            sequencers,
-            catalog,
-            store,
-            Arc::clone(&exec),
-            time_provider,
-            BackoffConfig::default(),
-            config,
-            registry,
-        ));
+    pub fn new(compactor: Compactor) -> Self {
+        let compactor_data = Arc::new(compactor);
 
         let shutdown = CancellationToken::new();
         let runner_handle = tokio::task::spawn(run_compactor(
@@ -92,7 +71,9 @@ impl CompactorHandlerImpl {
             shutdown.child_token(),
         ));
         let runner_handle = shared_handle(runner_handle);
-        info!("compactor started with config {:?}", config);
+        info!("compactor started with config {:?}", compactor_data.config);
+
+        let exec = Arc::clone(&compactor_data.exec);
 
         Self {
             compactor_data,
@@ -275,20 +256,26 @@ async fn run_compactor(compactor: Arc<Compactor>, shutdown: CancellationToken) {
     while !shutdown.is_cancelled() {
         debug!("compactor main loop tick.");
 
-        let mut compacted_partitions = 0;
-        for _ in 0..compactor.config.hot_multiple {
-            compacted_partitions += compact_hot_partitions(Arc::clone(&compactor)).await;
-            if compacted_partitions == 0 {
-                // Not found hot candidates, should move to compact cold partitions
-                break;
-            }
-        }
-        compacted_partitions += compact_cold_partitions(Arc::clone(&compactor)).await;
+        run_compactor_once(Arc::clone(&compactor)).await;
+    }
+}
 
+/// Checks for candidate partitions to compact and spawns tokio tasks to compact as many
+/// as the configuration will allow.
+pub async fn run_compactor_once(compactor: Arc<Compactor>) {
+    let mut compacted_partitions = 0;
+    for _ in 0..compactor.config.hot_multiple {
+        compacted_partitions += compact_hot_partitions(Arc::clone(&compactor)).await;
         if compacted_partitions == 0 {
-            // sleep for a second to avoid a busy loop when the catalog is polled
-            tokio::time::sleep(PAUSE_BETWEEN_NO_WORK).await;
+            // Not found hot candidates, should move to compact cold partitions
+            break;
         }
+    }
+    compacted_partitions += compact_cold_partitions(Arc::clone(&compactor)).await;
+
+    if compacted_partitions == 0 {
+        // sleep for a second to avoid a busy loop when the catalog is polled
+        tokio::time::sleep(PAUSE_BETWEEN_NO_WORK).await;
     }
 }
 

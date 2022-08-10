@@ -2000,6 +2000,7 @@ dependencies = [
  "bytes",
  "clap 3.2.16",
  "clap_blocks",
+ "compactor",
  "console-subscriber",
  "data_types",
  "datafusion 0.1.0",
@@ -2373,6 +2374,7 @@ name = "ioxd_compactor"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "backoff",
  "clap_blocks",
  "compactor",
  "data_types",

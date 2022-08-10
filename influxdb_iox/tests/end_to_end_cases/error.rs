@@ -28,13 +28,6 @@ pub async fn test_panic() {
                 let querier = state.cluster().querier();
                 assert_panic_logging(querier.querier_grpc_connection(), querier.log_path().await)
                     .await;
-
-                let compactor = state.cluster().compactor();
-                assert_panic_logging(
-                    compactor.compactor_grpc_connection(),
-                    compactor.log_path().await,
-                )
-                .await;
             }
             .boxed()
         }))],

@@ -1,6 +1,8 @@
 use crate::{
-    rand_id, write_to_router, write_to_router_grpc, ServerFixture, TestConfig, TestServer,
+    dump_log_to_stdout, log_command, rand_id, write_to_router, write_to_router_grpc, ServerFixture,
+    TestConfig, TestServer,
 };
+use assert_cmd::prelude::*;
 use futures::{stream::FuturesOrdered, StreamExt};
 use http::Response;
 use hyper::Body;
@@ -8,12 +10,15 @@ use influxdb_iox_client::write::generated_types::{TableBatch, WriteResponse};
 use observability_deps::tracing::{debug, info};
 use once_cell::sync::Lazy;
 use std::{
+    process::Command,
     sync::{Arc, Weak},
     time::Instant,
 };
+use tempfile::NamedTempFile;
 use tokio::sync::Mutex;
 
-/// Structure that holds services and helpful accessors
+/// Structure that holds services and helpful accessors. Does not include compactor; that is always
+/// run separately on-demand in tests.
 #[derive(Debug, Default)]
 pub struct MiniCluster {
     /// Standard optional router
@@ -25,8 +30,8 @@ pub struct MiniCluster {
     /// Standard optional querier
     querier: Option<ServerFixture>,
 
-    /// Standard optional compactor
-    compactor: Option<ServerFixture>,
+    /// Standard optional compactor configuration, to be used on-demand
+    compactor_config: Option<TestConfig>,
 
     /// Optional additional `ServerFixture`s that can be used for specific tests
     other_servers: Vec<ServerFixture>,
@@ -60,7 +65,7 @@ impl MiniCluster {
         router: Option<ServerFixture>,
         ingester: Option<ServerFixture>,
         querier: Option<ServerFixture>,
-        compactor: Option<ServerFixture>,
+        compactor_config: Option<TestConfig>,
     ) -> Self {
         let org_id = rand_id();
         let bucket_id = rand_id();
@@ -70,7 +75,7 @@ impl MiniCluster {
             router,
             ingester,
             querier,
-            compactor,
+            compactor_config,
             other_servers: vec![],
 
             org_id,
@@ -80,7 +85,7 @@ impl MiniCluster {
     }
 
     /// Create a "standard" shared MiniCluster that has a router, ingester,
-    /// querier
+    /// querier (but no compactor as that should be run on-demand in tests)
     ///
     /// Note: Since the underlying server processes are shared across multiple
     /// tests so all users of this MiniCluster should only modify
@@ -121,8 +126,9 @@ impl MiniCluster {
         new_cluster
     }
 
-    /// Create a non shared "standard" MiniCluster that has a router, ingester,
-    /// querier
+    /// Create a non shared "standard" MiniCluster that has a router, ingester, querier. Save
+    /// config for a compactor, but the compactor should be run on-demand in tests using `compactor
+    /// run-once` rather than using `run compactor`.
     pub async fn create_non_shared_standard(database_url: String) -> Self {
         let router_config = TestConfig::new_router(&database_url);
         let ingester_config = TestConfig::new_ingester(&router_config);
@@ -137,11 +143,10 @@ impl MiniCluster {
             .await
             .with_querier(querier_config)
             .await
-            .with_compactor(compactor_config)
-            .await
+            .with_compactor_config(compactor_config)
     }
 
-    /// Create an all-in-one server with the specified configuration
+    /// Create an all-(minus compactor)-in-one server with the specified configuration
     pub async fn create_all_in_one(test_config: TestConfig) -> Self {
         Self::new()
             .with_router(test_config.clone())
@@ -149,8 +154,6 @@ impl MiniCluster {
             .with_ingester(test_config.clone())
             .await
             .with_querier(test_config.clone())
-            .await
-            .with_compactor(test_config)
             .await
     }
 
@@ -166,15 +169,14 @@ impl MiniCluster {
         self
     }
 
-    /// create an querier with the specified configuration;
+    /// create a querier with the specified configuration;
     pub async fn with_querier(mut self, querier_config: TestConfig) -> Self {
         self.querier = Some(ServerFixture::create(querier_config).await);
         self
     }
 
-    /// create a compactor with the specified configuration;
-    pub async fn with_compactor(mut self, compactor_config: TestConfig) -> Self {
-        self.compactor = Some(ServerFixture::create(compactor_config).await);
+    pub fn with_compactor_config(mut self, compactor_config: TestConfig) -> Self {
+        self.compactor_config = Some(compactor_config);
         self
     }
 
@@ -212,9 +214,11 @@ impl MiniCluster {
         self.querier.as_ref().expect("querier not initialized")
     }
 
-    /// Retrieve the underlying compactor server, if set
-    pub fn compactor(&self) -> &ServerFixture {
-        self.compactor.as_ref().expect("compactor not initialized")
+    /// Retrieve the compactor config, if set
+    pub fn compactor_config(&self) -> &TestConfig {
+        self.compactor_config
+            .as_ref()
+            .expect("compactor config not set")
     }
 
     /// Get a reference to the mini cluster's org.
@@ -261,6 +265,52 @@ impl MiniCluster {
     pub fn other_servers(&self) -> &[ServerFixture] {
         self.other_servers.as_ref()
     }
+
+    pub fn run_compaction(&self) {
+        let (log_file, log_path) = NamedTempFile::new()
+            .expect("opening log file")
+            .keep()
+            .expect("expected to keep");
+
+        let stdout_log_file = log_file
+            .try_clone()
+            .expect("cloning file handle for stdout");
+        let stderr_log_file = log_file;
+
+        info!("****************");
+        info!("Compactor run-once logging to {:?}", log_path);
+        info!("****************");
+
+        // If set in test environment, use that value, else default to info
+        let log_filter =
+            std::env::var("LOG_FILTER").unwrap_or_else(|_| "info,sqlx=warn".to_string());
+
+        let mut command = Command::cargo_bin("influxdb_iox").unwrap();
+        let command = command
+            .arg("compactor")
+            .arg("run-once")
+            .env("LOG_FILTER", log_filter)
+            .env(
+                "INFLUXDB_IOX_CATALOG_DSN",
+                self.compactor_config()
+                    .dsn()
+                    .as_ref()
+                    .expect("dsn is required to run compaction"),
+            )
+            .env(
+                "INFLUXDB_IOX_CATALOG_POSTGRES_SCHEMA_NAME",
+                self.compactor_config().catalog_schema_name(),
+            )
+            .envs(self.compactor_config().env())
+            // redirect output to log file
+            .stdout(stdout_log_file)
+            .stderr(stderr_log_file);
+
+        log_command(command);
+
+        command.ok().unwrap();
+        dump_log_to_stdout("compactor run-once", &log_path);
+    }
 }
 
 /// holds shared server processes to share across tests
@@ -269,15 +319,15 @@ struct SharedServers {
     router: Option<Weak<TestServer>>,
     ingester: Option<Weak<TestServer>>,
     querier: Option<Weak<TestServer>>,
-    compactor: Option<Weak<TestServer>>,
+    compactor_config: Option<TestConfig>,
 }
 
-/// Deferred creaton of a mini cluster
+/// Deferred creation of a mini cluster
 struct CreatableMiniCluster {
     router: Option<Arc<TestServer>>,
     ingester: Option<Arc<TestServer>>,
     querier: Option<Arc<TestServer>>,
-    compactor: Option<Arc<TestServer>>,
+    compactor_config: Option<TestConfig>,
 }
 
 async fn create_if_needed(server: Option<Arc<TestServer>>) -> Option<ServerFixture> {
@@ -294,14 +344,13 @@ impl CreatableMiniCluster {
             router,
             ingester,
             querier,
-            compactor,
+            compactor_config,
         } = self;
 
         let mut servers = [
             create_if_needed(router),
             create_if_needed(ingester),
             create_if_needed(querier),
-            create_if_needed(compactor),
         ]
         .into_iter()
         // Use futures ordered to run them all in parallel (hopfully)
@@ -315,7 +364,7 @@ impl CreatableMiniCluster {
             servers.next().unwrap(),
             servers.next().unwrap(),
             servers.next().unwrap(),
-            servers.next().unwrap(),
+            compactor_config,
         )
     }
 }
@@ -331,7 +380,7 @@ impl SharedServers {
             router: cluster.router.as_ref().map(|c| c.weak()),
             ingester: cluster.ingester.as_ref().map(|c| c.weak()),
             querier: cluster.querier.as_ref().map(|c| c.weak()),
-            compactor: cluster.compactor.as_ref().map(|c| c.weak()),
+            compactor_config: cluster.compactor_config.clone(),
         }
     }
 
@@ -345,7 +394,7 @@ impl SharedServers {
             router: server_from_weak(self.router.as_ref())?,
             ingester: server_from_weak(self.ingester.as_ref())?,
             querier: server_from_weak(self.querier.as_ref())?,
-            compactor: server_from_weak(self.compactor.as_ref())?,
+            compactor_config: self.compactor_config.clone(),
         })
     }
 }
