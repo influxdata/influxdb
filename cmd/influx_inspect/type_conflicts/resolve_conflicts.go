@@ -15,8 +15,8 @@ func NewMergeFilesCommand() *MergeFilesCommand {
 }
 
 func (rc *MergeFilesCommand) Run(args ...string) error {
-	flags := flag.NewFlagSet("resolve-conflicts", flag.ExitOnError)
-	flags.StringVar(&rc.OutputFile, "output-file", "schema.json", "Filename for the output file")
+	flags := flag.NewFlagSet("merge-schema", flag.ExitOnError)
+	flags.StringVar(&rc.OutputFile, "schema-file", "schema.json", "Filename for the output file")
 	flags.StringVar(&rc.ConflictsFile, "conflicts-file", "conflicts.json", "Filename conflicts data should be written to")
 
 	if err := flags.Parse(args); err != nil {
