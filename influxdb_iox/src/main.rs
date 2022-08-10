@@ -29,6 +29,7 @@ use tokio::runtime::Runtime;
 mod commands {
     pub mod catalog;
     pub mod debug;
+    pub mod import;
     pub mod query;
     pub mod query_ingester;
     pub mod remote;
@@ -171,6 +172,9 @@ enum Command {
 
     /// Query the ingester only
     QueryIngester(commands::query_ingester::Config),
+
+    /// Commands related to the bulk ingest of data
+    Import(commands::import::Config),
 }
 
 fn main() -> Result<(), std::io::Error> {
@@ -301,6 +305,13 @@ fn main() -> Result<(), std::io::Error> {
                 let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
                 let connection = connection().await;
                 if let Err(e) = commands::query_ingester::command(connection, config).await {
+                    eprintln!("{}", e);
+                    std::process::exit(ReturnCode::Failure as _)
+                }
+            }
+            Some(Command::Import(config)) => {
+                let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
+                if let Err(e) = commands::import::command(config).await {
                     eprintln!("{}", e);
                     std::process::exit(ReturnCode::Failure as _)
                 }

@@ -813,7 +813,7 @@ dependencies = [
  "tonic 0.7.2",
  "tracing",
  "tracing-core",
- "tracing-subscriber",
+ "tracing-subscriber 0.3.11",
 ]
 
 [[package]]
@@ -1924,6 +1924,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "import"
+version = "0.1.0"
+dependencies = [
+ "clap_blocks",
+ "futures",
+ "object_store",
+ "observability_deps",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "tracing-subscriber 0.2.25",
+ "trogging",
+ "workspace-hack",
+]
+
+[[package]]
 name = "indexmap"
 version = "1.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1991,6 +2009,7 @@ dependencies = [
  "hashbrown",
  "http",
  "humantime",
+ "import",
  "influxdb_iox_client",
  "influxdb_storage_client",
  "influxrpc_parser",
@@ -2237,7 +2256,7 @@ dependencies = [
  "tokio",
  "toml",
  "tracing",
- "tracing-subscriber",
+ "tracing-subscriber 0.3.11",
  "uuid 1.1.2",
 ]
 
@@ -2655,7 +2674,7 @@ dependencies = [
  "once_cell",
  "parking_lot 0.12.1",
  "regex",
- "tracing-subscriber",
+ "tracing-subscriber 0.3.11",
  "workspace-hack",
 ]
 
@@ -2677,6 +2696,15 @@ checksum = "d7be8908e2ed6f31c02db8a9fa962f03e36c53fbfde437363eae3306b85d7e17"
 dependencies = [
  "cc",
  "libc",
+]
+
+[[package]]
+name = "matchers"
+version = "0.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f099785f7595cc4b4553a174ce30dd7589ef93391ff414dbb67f62392b9e0ce1"
+dependencies = [
+ "regex-automata",
 ]
 
 [[package]]
@@ -3070,7 +3098,7 @@ dependencies = [
 [[package]]
 name = "object_store"
 version = "0.3.0"
-source = "git+https://github.com/tustvold/arrow-rs.git?rev=10ffea5806fb6d2ce016ca6680cdfe41648e548e#10ffea5806fb6d2ce016ca6680cdfe41648e548e"
+source = "git+https://github.com/tustvold/arrow-rs.git?rev=0f9d902aae0c0ce07e3f81d06d621b5189ad9240#0f9d902aae0c0ce07e3f81d06d621b5189ad9240"
 dependencies = [
  "async-trait",
  "azure_core",
@@ -4977,7 +5005,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "tracing-log",
- "tracing-subscriber",
+ "tracing-subscriber 0.3.11",
  "workspace-hack",
 ]
 
@@ -5505,13 +5533,35 @@ dependencies = [
 
 [[package]]
 name = "tracing-subscriber"
+version = "0.2.25"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0e0d2eaa99c3c2e41547cfa109e910a68ea03823cccad4a0525dcbc9b01e8c71"
+dependencies = [
+ "ansi_term",
+ "chrono",
+ "lazy_static",
+ "matchers 0.0.1",
+ "regex",
+ "serde",
+ "serde_json",
+ "sharded-slab",
+ "smallvec",
+ "thread_local",
+ "tracing",
+ "tracing-core",
+ "tracing-log",
+ "tracing-serde",
+]
+
+[[package]]
+name = "tracing-subscriber"
 version = "0.3.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4bc28f93baff38037f64e6f43d34cfa1605f27a49c34e8a04c5e78b0babf2596"
 dependencies = [
  "ansi_term",
  "lazy_static",
- "matchers",
+ "matchers 0.1.0",
  "parking_lot 0.12.1",
  "regex",
  "serde",
@@ -5554,7 +5604,7 @@ dependencies = [
  "synchronized-writer",
  "thiserror",
  "tracing-log",
- "tracing-subscriber",
+ "tracing-subscriber 0.3.11",
 ]
 
 [[package]]
@@ -5976,7 +6026,7 @@ dependencies = [
  "tracing",
  "tracing-core",
  "tracing-log",
- "tracing-subscriber",
+ "tracing-subscriber 0.3.11",
  "uuid 1.1.2",
  "winapi",
  "windows-sys",
