@@ -364,6 +364,18 @@ fn to_queryable_parquet_chunk(
         "built parquet chunk from metadata"
     );
 
+    // If there is no sort key on this parquet chunk, the query
+    // engine will end up resorting it, requiring substantial
+    // memory. Thus warn if this has happened as it signals a bug in
+    // the code somewhere.
+    if sort_key.is_none() {
+        warn!(parquet_file_id=?file.id,
+              parquet_file_namespace_id=?file.namespace_id,
+              parquet_file_object_store_id=?file.object_store_id,
+              "Parquet file is not sorted."
+        );
+    }
+
     QueryableParquetChunk::new(
         table_name,
         file.partition_id,
