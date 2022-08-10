@@ -796,15 +796,31 @@ pub struct Partition {
     pub table_id: TableId,
     /// the string key of the partition
     pub partition_key: PartitionKey,
-    /// Sort key is a vector of names of all tags and time of the data that belongs to this partition.
-    /// Since we allow data in each chunk (aka data in a parquet file) contains different set of columns,
-    /// different partitions may contain different set of sort_key but they must be subsets of PK of the table.
+    /// vector of column names that describes how *every* parquet file
+    /// in this [`Partition`] is sorted. The sort_key contains all the
+    /// primary key (PK) columns that have been persisted, and nothing
+    /// else. The PK columns are all `tag` columns and the `time`
+    /// column.
     ///
-    /// When the partition is first created before its data is saved in the parquet_file table,
-    /// this sort_key is empty and means it is not yet set or unknown.
-    /// The sort_key is computed and updated as needed on persist operations for this partition. The update
-    /// happens when the data of this partition is first persisted (must at least include `time` column if no tags)
-    /// and, later on, when data with new tags are ingested into this partition
+    /// Even though it is possible for both the unpersisted data
+    /// and/or multiple parquet files to contain different subsets of
+    /// columns, the partition's sort_key is guaranteed to be
+    /// "compatible" across all files. Compatible means that the
+    /// parquet file is sorted in the same order as the partition
+    /// sort_key after removing any missing columns.
+    ///
+    /// Partitions are initially created before any data is persisted
+    /// with an empty sort_key. The partition sort_key is updated as
+    /// needed when data is persisted to parquet files: both on the
+    /// first persist when the sort key is empty, as on subsequent
+    /// persist operations when new tags occur in newly inserted data.
+    ///
+    /// Updating inserts new column into the existing order. The order
+    /// of the existing columns relative to each other is NOT changed.
+    ///
+    /// For example, updating `A,B,C` to either `A,D,B,C` or `A,B,C,D`
+    /// is legal. Howver, updating to `A,C,D,B` is not because the
+    /// relative order of B and C have been reversed.
     pub sort_key: Vec<String>,
 }
 
