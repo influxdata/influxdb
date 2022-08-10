@@ -1,5 +1,8 @@
+//! CLI config for catalog ingest lifecycle
+
 /// CLI config for catalog ingest lifecycle
 #[derive(Debug, Clone, clap::Parser)]
+#[allow(missing_copy_implementations)]
 pub struct IngesterConfig {
     /// Write buffer partition number to start (inclusive) range with
     #[clap(

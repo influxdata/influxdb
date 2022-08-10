@@ -1,3 +1,4 @@
+//! Catalog-DSN-related configs.
 use iox_catalog::{
     create_or_get_default_records,
     interface::Catalog,
@@ -9,6 +10,7 @@ use snafu::{OptionExt, ResultExt, Snafu};
 use std::{ops::DerefMut, sync::Arc, time::Duration};
 
 #[derive(Debug, Snafu)]
+#[allow(missing_docs)]
 pub enum Error {
     #[snafu(display("A Postgres connection string in --catalog-dsn is required."))]
     ConnectionStringRequired,
@@ -107,9 +109,13 @@ pub struct CatalogDsnConfig {
     pub hotswap_poll_interval: Duration,
 }
 
+/// Catalog type.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, clap::ArgEnum)]
 pub enum CatalogType {
+    /// PostgreSQL.
     Postgres,
+
+    /// In-memory.
     Memory,
 }
 
@@ -145,6 +151,7 @@ impl CatalogDsnConfig {
         }
     }
 
+    /// Get config-dependent catalog.
     pub async fn get_catalog(
         &self,
         app_name: &'static str,

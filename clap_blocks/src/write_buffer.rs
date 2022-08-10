@@ -1,3 +1,4 @@
+//! Config for [`write_buffer`].
 use iox_time::SystemProvider;
 use observability_deps::tracing::*;
 use std::{collections::BTreeMap, num::NonZeroU32, path::PathBuf, sync::Arc};
@@ -8,6 +9,7 @@ use write_buffer::{
     core::{WriteBufferError, WriteBufferReading, WriteBufferWriting},
 };
 
+/// Config for [`write_buffer`].
 #[derive(Debug, clap::Parser)]
 pub struct WriteBufferConfig {
     /// The type of write buffer to use.

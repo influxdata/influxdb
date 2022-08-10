@@ -1,3 +1,5 @@
+//! CLI config for compactor
+
 /// CLI config for compactor
 #[derive(Debug, Clone, clap::Parser)]
 pub struct CompactorConfig {

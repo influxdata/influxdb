@@ -1,10 +1,6 @@
 //! CLI handling for object store config (via CLI arguments and environment variables).
 
 use futures::TryStreamExt;
-use object_store::aws::AmazonS3Builder;
-use object_store::azure::MicrosoftAzureBuilder;
-use object_store::gcp::GoogleCloudStorageBuilder;
-use object_store::limit::LimitStore;
 use object_store::memory::InMemory;
 use object_store::path::Path;
 use object_store::throttle::ThrottledStore;
@@ -16,6 +12,7 @@ use std::{fs, num::NonZeroUsize, path::PathBuf, time::Duration};
 use uuid::Uuid;
 
 #[derive(Debug, Snafu)]
+#[allow(missing_docs)]
 pub enum ParseError {
     #[snafu(display("Unable to create database directory {:?}: {}", path, source))]
     CreatingDatabaseDirectory {
@@ -59,25 +56,24 @@ pub const FALLBACK_AWS_REGION: &str = "us-east-1";
 /// CLI config for object stores.
 #[derive(Debug, Clone, clap::Parser)]
 pub struct ObjectStoreConfig {
+    /// Which object storage to use. If not specified, defaults to memory.
+    ///
+    /// Possible values (case insensitive):
+    ///
+    /// * memory (default): Effectively no object persistence.
+    /// * memorythrottled: Like `memory` but with latency and throughput that somewhat resamble a cloud
+    ///    object store. Useful for testing and benchmarking.
+    /// * file: Stores objects in the local filesystem. Must also set `--data-dir`.
+    /// * s3: Amazon S3. Must also set `--bucket`, `--aws-access-key-id`, `--aws-secret-access-key`, and
+    ///    possibly `--aws-default-region`.
+    /// * google: Google Cloud Storage. Must also set `--bucket` and `--google-service-account`.
+    /// * azure: Microsoft Azure blob storage. Must also set `--bucket`, `--azure-storage-account`,
+    ///    and `--azure-storage-access-key`.
     #[clap(
         arg_enum,
         long = "--object-store",
         env = "INFLUXDB_IOX_OBJECT_STORE",
         ignore_case = true,
-        long_help = r#"Which object storage to use. If not specified, defaults to memory.
-
-Possible values (case insensitive):
-
-* memory (default): Effectively no object persistence.
-* memorythrottled: Like `memory` but with latency and throughput that somewhat resamble a cloud
-   object store. Useful for testing and benchmarking.
-* file: Stores objects in the local filesystem. Must also set `--data-dir`.
-* s3: Amazon S3. Must also set `--bucket`, `--aws-access-key-id`, `--aws-secret-access-key`, and
-   possibly `--aws-default-region`.
-* google: Google Cloud Storage. Must also set `--bucket` and `--google-service-account`.
-* azure: Microsoft Azure blob storage. Must also set `--bucket`, `--azure-storage-account`,
-   and `--azure-storage-access-key`.
-        "#,
         action
     )]
     pub object_store: Option<ObjectStoreType>,
@@ -245,18 +241,33 @@ impl ObjectStoreConfig {
     }
 }
 
+/// Object-store type.
 #[derive(Debug, Copy, Clone, PartialEq, clap::ArgEnum)]
 pub enum ObjectStoreType {
+    /// In-memory.
     Memory,
+
+    /// In-memory with additional throttling applied for testing
     MemoryThrottled,
+
+    /// Filesystem.
     File,
+
+    /// AWS S3.
     S3,
+
+    /// GCS.
     Google,
+
+    /// Azure object store.
     Azure,
 }
 
 #[cfg(feature = "gcp")]
 fn new_gcs(config: &ObjectStoreConfig) -> Result<Arc<DynObjectStore>, ParseError> {
+    use object_store::gcp::GoogleCloudStorageBuilder;
+    use object_store::limit::LimitStore;
+
     let mut builder = GoogleCloudStorageBuilder::new();
 
     if let Some(bucket) = &config.bucket {
@@ -279,6 +290,9 @@ fn new_gcs(_: &ObjectStoreConfig) -> Result<Arc<DynObjectStore>, ParseError> {
 
 #[cfg(feature = "aws")]
 fn new_s3(config: &ObjectStoreConfig) -> Result<Arc<DynObjectStore>, ParseError> {
+    use object_store::aws::AmazonS3Builder;
+    use object_store::limit::LimitStore;
+
     let mut builder = AmazonS3Builder::new()
         .with_allow_http(config.aws_allow_http)
         .with_region(&config.aws_default_region);
@@ -312,6 +326,9 @@ fn new_s3(_: &ObjectStoreConfig) -> Result<Arc<DynObjectStore>, ParseError> {
 
 #[cfg(feature = "azure")]
 fn new_azure(config: &ObjectStoreConfig) -> Result<Arc<DynObjectStore>, ParseError> {
+    use object_store::azure::MicrosoftAzureBuilder;
+    use object_store::limit::LimitStore;
+
     let mut builder = MicrosoftAzureBuilder::new();
 
     if let Some(bucket) = &config.bucket {
@@ -335,6 +352,7 @@ fn new_azure(_: &ObjectStoreConfig) -> Result<Arc<DynObjectStore>, ParseError> {
     panic!("Azure blob storage support not enabled, recompile with the azure feature enabled")
 }
 
+/// Create config-dependant object store.
 pub fn make_object_store(config: &ObjectStoreConfig) -> Result<Arc<DynObjectStore>, ParseError> {
     if let Some(data_dir) = &config.database_directory {
         if !matches!(&config.object_store, Some(ObjectStoreType::File)) {
@@ -387,6 +405,7 @@ pub fn make_object_store(config: &ObjectStoreConfig) -> Result<Arc<DynObjectStor
 }
 
 #[derive(Debug, Snafu)]
+#[allow(missing_docs)]
 pub enum CheckError {
     #[snafu(display("Cannot read from object store: {}", source))]
     CannotReadObjectStore { source: object_store::Error },

@@ -1,9 +1,11 @@
+//! Querier-related configs.
 use data_types::IngesterMapping;
 use serde::Deserialize;
 use snafu::{ResultExt, Snafu};
 use std::{collections::HashMap, fs, io, path::PathBuf, sync::Arc};
 
 #[derive(Debug, Snafu)]
+#[allow(missing_docs)]
 pub enum Error {
     #[snafu(display("Could not read sequencer to ingester file `{}`: {source}", file.display()))]
     SequencerToIngesterFileReading { source: io::Error, file: PathBuf },
@@ -349,13 +351,13 @@ fn deserialize_sequencer_ingester_map(
     Ok(map)
 }
 
-/// Specify one of:
-///
-/// - A mapping from sequencer ID to ingesters
-/// - No connections, meaning only persisted data should be used
+/// Ingester addresses.
 #[derive(Debug, PartialEq)]
 pub enum IngesterAddresses {
+    /// A mapping from sequencer ID to ingesters.
     BySequencer(HashMap<i32, IngesterMapping>),
+
+    /// No connections, meaning only persisted data should be used.
     None,
 }
 
@@ -370,6 +372,7 @@ struct IngestersConfig {
     sequencers: HashMap<i32, SequencerConfig>,
 }
 
+/// Ingester config.
 #[derive(Debug, Deserialize)]
 pub struct IngesterConfig {
     addr: Option<Arc<str>>,
@@ -377,6 +380,7 @@ pub struct IngesterConfig {
     ignore: bool,
 }
 
+/// Sequencer config.
 #[derive(Debug, Deserialize)]
 pub struct SequencerConfig {
     ingester: Option<Arc<str>>,

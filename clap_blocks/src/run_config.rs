@@ -1,3 +1,4 @@
+//! Common config for all `run` commands.
 use trace_exporters::TracingConfig;
 use trogging::cli::LoggingConfig;
 

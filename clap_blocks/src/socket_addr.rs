@@ -1,3 +1,4 @@
+//! Config for socket addresses.
 use std::{net::ToSocketAddrs, ops::Deref};
 
 /// Parsable socket address.
