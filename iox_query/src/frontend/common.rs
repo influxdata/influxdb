@@ -90,7 +90,7 @@ pub struct ScanPlanBuilder<'a> {
     table_schema: Arc<Schema>,
     chunks: Vec<Arc<dyn QueryChunk>>,
     /// The sort key that describes the desired output sort order
-    sort_key: Option<SortKey>,
+    output_sort_key: Option<SortKey>,
     predicate: Option<&'a Predicate>,
 }
 
@@ -101,7 +101,7 @@ impl<'a> ScanPlanBuilder<'a> {
             table_name: None,
             table_schema,
             chunks: vec![],
-            sort_key: None,
+            output_sort_key: None,
             predicate: None,
         }
     }
@@ -115,9 +115,9 @@ impl<'a> ScanPlanBuilder<'a> {
     /// Sets the desired output sort key. If the output of this plan
     /// is not already sorted this way, it will be re-sorted to conform
     /// to this key
-    pub fn with_sort_key(mut self, sort_key: SortKey) -> Self {
-        assert!(self.sort_key.is_none());
-        self.sort_key = Some(sort_key);
+    pub fn with_output_sort_key(mut self, output_sort_key: SortKey) -> Self {
+        assert!(self.output_sort_key.is_none());
+        self.output_sort_key = Some(output_sort_key);
         self
     }
 
@@ -134,7 +134,7 @@ impl<'a> ScanPlanBuilder<'a> {
             ctx,
             table_name,
             chunks,
-            sort_key,
+            output_sort_key,
             table_schema,
             predicate,
         } = self;
@@ -151,9 +151,9 @@ impl<'a> ScanPlanBuilder<'a> {
                 // so no need to prune them
                 .add_no_op_pruner();
 
-        if let Some(sort_key) = sort_key {
+        if let Some(output_sort_key) = output_sort_key {
             // Tell the scan of this provider to sort its output on the given sort_key
-            builder = builder.with_sort_key(sort_key);
+            builder = builder.with_output_sort_key(output_sort_key);
         }
 
         for chunk in chunks {

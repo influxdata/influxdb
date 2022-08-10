@@ -63,7 +63,7 @@ impl ReorgPlanner {
     ///
     /// 1. Merges chunks together into a single stream
     /// 2. Deduplicates via PK as necessary
-    /// 3. Sorts the result according to the requested key
+    /// 3. Sorts the result according to the requested `output_sort_key`
     ///
     /// The plan looks like:
     ///
@@ -73,14 +73,14 @@ impl ReorgPlanner {
         &self,
         schema: Arc<Schema>,
         chunks: I,
-        sort_key: SortKey,
+        output_sort_key: SortKey,
     ) -> Result<LogicalPlan>
     where
         I: IntoIterator<Item = Arc<dyn QueryChunk>>,
     {
         let scan_plan = ScanPlanBuilder::new(schema, self.ctx.child_ctx("compact_plan"))
             .with_chunks(chunks)
-            .with_sort_key(sort_key)
+            .with_output_sort_key(output_sort_key)
             .build()
             .context(BuildingScanSnafu)?;
 
@@ -96,7 +96,7 @@ impl ReorgPlanner {
     ///
     /// 1. Merges chunks together into a single stream
     /// 2. Deduplicates via PK as necessary
-    /// 3. Sorts the result according to the requested key
+    /// 3. Sorts the result according to the requested output_sort_key
     /// 4. Splits the stream on value of the `time` column: Those
     ///    rows that are on or before the time and those that are after
     ///
@@ -146,7 +146,7 @@ impl ReorgPlanner {
         &self,
         schema: Arc<Schema>,
         chunks: I,
-        sort_key: SortKey,
+        output_sort_key: SortKey,
         split_times: Vec<i64>,
     ) -> Result<LogicalPlan>
     where
@@ -159,7 +159,7 @@ impl ReorgPlanner {
 
         let scan_plan = ScanPlanBuilder::new(schema, self.ctx.child_ctx("split_plan"))
             .with_chunks(chunks)
-            .with_sort_key(sort_key)
+            .with_output_sort_key(output_sort_key)
             .build()
             .context(BuildingScanSnafu)?;
 

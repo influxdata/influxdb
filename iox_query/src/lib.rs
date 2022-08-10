@@ -45,7 +45,7 @@ pub trait QueryChunkMeta {
     /// return a reference to the summary of the data held in this chunk
     fn schema(&self) -> Arc<Schema>;
 
-    /// Return a reference to the chunk's partition sort key if any
+    /// Return a reference to the chunk's partition sort key if any.
     /// Only persisted chunk has its partition sort key
     fn partition_sort_key(&self) -> Option<&SortKey>;
 

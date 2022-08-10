@@ -515,7 +515,11 @@ pub fn adjust_sort_key_columns(
         ))
     };
 
-    debug!(?primary_key, input_catalog_sort_key=?catalog_sort_key, output_chunk_sort_key=?metadata_sort_key, output_catalog_sort_key=?catalog_update, "Adjusted sort key");
+    debug!(?primary_key,
+           input_catalog_sort_key=?catalog_sort_key,
+           output_chunk_sort_key=?metadata_sort_key,
+           output_catalog_sort_key=?catalog_update,
+           "Adjusted sort key");
 
     (metadata_sort_key, catalog_update)
 }
