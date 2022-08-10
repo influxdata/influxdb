@@ -23,10 +23,10 @@ func (rc *MergeFilesCommand) Run(args ...string) error {
 		return err
 	}
 
-	return rc.nergeFiles(flags.Args())
+	return rc.mergeFiles(flags.Args())
 }
 
-func (rc *MergeFilesCommand) nergeFiles(filenames []string) error {
+func (rc *MergeFilesCommand) mergeFiles(filenames []string) error {
 	if len(filenames) < 1 {
 		return errors.New("At least 1 file must be specified")
 	}

@@ -56,7 +56,7 @@ func SchemaFromFile(filename string) (Schema, error) {
 }
 
 func (uf *UniqueField) String() string {
-	return fmt.Sprintf("%s.%s.%s.%s", uf.Database, uf.Retention, uf.Measurement, uf.Field)
+	return fmt.Sprintf("%q.%q.%q.%q", uf.Database, uf.Retention, uf.Measurement, uf.Field)
 }
 
 func (s Schema) AddField(database, retention, measurement, field, dataType string) {
