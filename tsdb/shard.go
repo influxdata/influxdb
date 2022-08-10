@@ -1715,6 +1715,20 @@ func (fs *MeasurementFieldSet) Fields(name []byte) *MeasurementFields {
 	return mf
 }
 
+// MeasurementNames returns the names of all the measurements in the field set in
+// lexicographic order.
+func (fs *MeasurementFieldSet) MeasurementNames() []string {
+	fs.mu.RLock()
+	defer fs.mu.RUnlock()
+
+	names := make([]string, 0, len(fs.fields))
+	for name := range fs.fields {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
 // FieldsByString returns fields for a measurment by name.
 func (fs *MeasurementFieldSet) FieldsByString(name string) *MeasurementFields {
 	fs.mu.RLock()
