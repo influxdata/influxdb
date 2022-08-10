@@ -31,12 +31,14 @@ Usage: influx_inspect [[command] [arguments]]
 
 The commands are:
 
+    check-schema         check for conflicts in the types between shards
     deletetsm            bulk measurement deletion of raw tsm file
     dumptsi              dumps low-level details about tsi1 files
     dumptsm              dumps low-level details about tsm1 files
     export               exports raw data from a shard to line protocol
     buildtsi             generates tsi1 indexes from tsm1 data
     help                 display this help message
+    merge-schema         merge a set of schema files from the check-schema command
     report               displays a shard level cardinality report
     report-db            estimates cloud 2 cardinality for a database
     report-disk          displays a shard level disk usage report
