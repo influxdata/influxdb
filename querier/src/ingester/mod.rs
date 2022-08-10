@@ -1017,7 +1017,6 @@ impl QueryChunkMeta for IngesterChunk {
     }
 
     fn sort_key(&self) -> Option<&SortKey> {
-        //Some(&self.sort_key)
         // Data is not sorted
         None
     }

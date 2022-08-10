@@ -67,7 +67,7 @@ impl ReorgPlanner {
     ///
     /// The plan looks like:
     ///
-    /// (Sort on output_sort)
+    /// (Sort on output_sort_key)
     ///   (Scan chunks) <-- any needed deduplication happens here
     pub fn compact_plan<I>(
         &self,
