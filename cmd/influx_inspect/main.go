@@ -19,6 +19,7 @@ import (
 	"github.com/influxdata/influxdb/cmd/influx_inspect/report"
 	"github.com/influxdata/influxdb/cmd/influx_inspect/reportdisk"
 	"github.com/influxdata/influxdb/cmd/influx_inspect/reporttsi"
+	typecheck "github.com/influxdata/influxdb/cmd/influx_inspect/type_conflicts"
 	"github.com/influxdata/influxdb/cmd/influx_inspect/verify/seriesfile"
 	"github.com/influxdata/influxdb/cmd/influx_inspect/verify/tombstone"
 	"github.com/influxdata/influxdb/cmd/influx_inspect/verify/tsm"
@@ -60,7 +61,7 @@ func (m *Main) Run(args ...string) error {
 	switch name {
 	case "", "help":
 		if err := help.NewCommand().Run(args...); err != nil {
-			return fmt.Errorf("help: %s", err)
+			return fmt.Errorf("help: %w", err)
 		}
 	case "report-db":
 		name := cardinality.NewCommand()
@@ -70,12 +71,12 @@ func (m *Main) Run(args ...string) error {
 	case "deletetsm":
 		name := deletetsm.NewCommand()
 		if err := name.Run(args...); err != nil {
-			return fmt.Errorf("deletetsm: %s", err)
+			return fmt.Errorf("deletetsm: %w", err)
 		}
 	case "dumptsi":
 		name := dumptsi.NewCommand()
 		if err := name.Run(args...); err != nil {
-			return fmt.Errorf("dumptsi: %s", err)
+			return fmt.Errorf("dumptsi: %w", err)
 		}
 	case "dumptsmdev":
 		fmt.Fprintf(m.Stderr, "warning: dumptsmdev is deprecated, use dumptsm instead.\n")
@@ -83,52 +84,62 @@ func (m *Main) Run(args ...string) error {
 	case "dumptsm":
 		name := dumptsm.NewCommand()
 		if err := name.Run(args...); err != nil {
-			return fmt.Errorf("dumptsm: %s", err)
+			return fmt.Errorf("dumptsm: %w", err)
 		}
 	case "dumptsmwal":
 		name := dumptsmwal.NewCommand()
 		if err := name.Run(args...); err != nil {
-			return fmt.Errorf("dumptsmwal: %s", err)
+			return fmt.Errorf("dumptsmwal: %w", err)
 		}
 	case "export":
 		name := export.NewCommand()
 		if err := name.Run(args...); err != nil {
-			return fmt.Errorf("export: %s", err)
+			return fmt.Errorf("export: %w", err)
 		}
 	case "buildtsi":
 		name := buildtsi.NewCommand()
 		if err := name.Run(args...); err != nil {
-			return fmt.Errorf("buildtsi: %s", err)
+			return fmt.Errorf("buildtsi: %w", err)
 		}
 	case "report":
 		name := report.NewCommand()
 		if err := name.Run(args...); err != nil {
-			return fmt.Errorf("report: %s", err)
+			return fmt.Errorf("report: %w", err)
 		}
 	case "report-disk":
 		name := reportdisk.NewCommand()
 		if err := name.Run(args...); err != nil {
-			return fmt.Errorf("report: %s", err)
+			return fmt.Errorf("report: %w", err)
 		}
 	case "reporttsi":
 		name := reporttsi.NewCommand()
 		if err := name.Run(args...); err != nil {
-			return fmt.Errorf("reporttsi: %s", err)
+			return fmt.Errorf("reporttsi: %w", err)
+		}
+	case "check-schema":
+		name := typecheck.NewTypeConflictCheckerCommand()
+		if err := name.Run(args...); err != nil {
+			return fmt.Errorf("check-schema: %w", err)
+		}
+	case "merge-schema":
+		name := typecheck.NewMergeFilesCommand()
+		if err := name.Run(args...); err != nil {
+			return fmt.Errorf("resolve-conflicts: %w", err)
 		}
 	case "verify":
 		name := tsm.NewCommand()
 		if err := name.Run(args...); err != nil {
-			return fmt.Errorf("verify: %s", err)
+			return fmt.Errorf("verify: %w", err)
 		}
 	case "verify-seriesfile":
 		name := seriesfile.NewCommand()
 		if err := name.Run(args...); err != nil {
-			return fmt.Errorf("verify-seriesfile: %s", err)
+			return fmt.Errorf("verify-seriesfile: %w", err)
 		}
 	case "verify-tombstone":
 		name := tombstone.NewCommand()
 		if err := name.Run(args...); err != nil {
-			return fmt.Errorf("verify-tombstone: %s", err)
+			return fmt.Errorf("verify-tombstone: %w", err)
 		}
 	default:
 		return fmt.Errorf(`unknown command "%s"`+"\n"+`Run 'influx_inspect help' for usage`, name)
