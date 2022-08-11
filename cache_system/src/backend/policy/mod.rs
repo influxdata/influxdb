@@ -72,6 +72,13 @@ macro_rules! lock_inner {
 /// The original requests will return to the caller once all tasks are completed.
 ///
 ///
+/// # `GET`
+/// The return value for [`CacheBackend::get`] is fetched from the inner backend AFTER all changes are applied.
+///
+/// Note [`ChangeRequest::Get`] has no way of returning a result to the [`Subscriber`] that created it. The "changes"
+/// solely act as some kind of "keep alive" / "this was used" signal.
+///
+///
 /// # Example
 /// **The policies in these examples are deliberately silly but simple!**
 ///
@@ -105,11 +112,6 @@ macro_rules! lock_inner {
 ///         } else {
 ///             vec![]
 ///         }
-///     }
-///
-///     fn remove(&mut self, k: &&'static str) -> Vec<CR> {
-///         // No need  to react to removed keys
-///         vec![]
 ///     }
 /// }
 ///
@@ -161,16 +163,6 @@ macro_rules! lock_inner {
 /// impl Subscriber for NowPolicy {
 ///     type K = &'static str;
 ///     type V = Instant;
-///
-///     fn set(&mut self, k: &'static str, v: Instant) -> Vec<CR> {
-///         // No need  to react to set keys
-///         vec![]
-///     }
-///
-///     fn remove(&mut self, k: &&'static str) -> Vec<CR> {
-///         // No need  to react to removed keys
-///         vec![]
-///     }
 /// }
 ///
 /// let mut backend = PolicyBackend::new(Box::new(HashMap::new()));
@@ -263,6 +255,9 @@ where
 
     fn get(&mut self, k: &Self::K) -> Option<Self::V> {
         lock_inner!(mut guard = self.inner);
+        perform_changes(&mut guard, vec![ChangeRequest::Get { k: k.clone() }]);
+
+        // poll inner backend AFTER everything has settled
         guard.inner.get(k)
     }
 
@@ -307,6 +302,9 @@ where
     fn get(&mut self, k: &Self::K) -> Option<Self::V> {
         let inner = self.inner.upgrade().expect("backend gone");
         lock_inner!(mut guard = inner);
+        perform_changes(&mut guard, vec![ChangeRequest::Get { k: k.clone() }]);
+
+        // poll inner backend AFTER everything has settled
         guard.inner.get(k)
     }
 
@@ -358,6 +356,18 @@ fn perform_changes<K, V>(
 
     while let Some(change_request) = tasks.pop_front() {
         match change_request {
+            ChangeRequest::Get { k } => {
+                // publish to underlying backend first
+                // For most backends this shouldn't make a difference because their "inner life" should be ported to
+                // this policy framework. However some may still react to the "keep alive" signal.
+                inner.inner.get(&k);
+
+                // publish to subscribers
+                for subscriber in &mut inner.subscribers {
+                    let requests = subscriber.get(&k);
+                    tasks.extend(requests.into_iter());
+                }
+            }
             ChangeRequest::Set { k, v } => {
                 // publish to underlying backend first
                 inner.inner.set(k.clone(), v.clone());
@@ -390,20 +400,40 @@ pub trait Subscriber: Debug + Send + 'static {
     /// Cached value.
     type V: Clone + Debug + Send + 'static;
 
+    /// Get value for given key if it exists.
+    fn get(&mut self, _k: &Self::K) -> Vec<ChangeRequest<Self::K, Self::V>> {
+        // do nothing by default
+        vec![]
+    }
+
     /// Set value for given key.
     ///
     /// It is OK to set and override a key that already exists.
-    fn set(&mut self, k: Self::K, v: Self::V) -> Vec<ChangeRequest<Self::K, Self::V>>;
+    fn set(&mut self, _k: Self::K, _v: Self::V) -> Vec<ChangeRequest<Self::K, Self::V>> {
+        // do nothing by default
+        vec![]
+    }
 
     /// Remove value for given key.
     ///
     /// It is OK to remove a key even when it does not exist.
-    fn remove(&mut self, k: &Self::K) -> Vec<ChangeRequest<Self::K, Self::V>>;
+    fn remove(&mut self, _k: &Self::K) -> Vec<ChangeRequest<Self::K, Self::V>> {
+        // do nothing by default
+        vec![]
+    }
 }
 
 /// A change request to a backend.
 #[derive(Debug, PartialEq)]
 pub enum ChangeRequest<K, V> {
+    /// Request to `GET` a value.
+    ///
+    /// Since the result is NOT propagated back the the [`Subscriber`], this is mostly useful to send "keep alive" requests.
+    Get {
+        /// Key.
+        k: K,
+    },
+
     /// Set value for given key.
     ///
     /// It is OK to set and override a key that already exists.
@@ -426,11 +456,7 @@ pub enum ChangeRequest<K, V> {
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        collections::HashMap,
-        sync::Barrier,
-        time::{Duration, Instant},
-    };
+    use std::{collections::HashMap, sync::Barrier, thread::JoinHandle};
 
     use super::*;
 
@@ -450,12 +476,21 @@ mod tests {
     fn test_meta_panic_steps_left() {
         let mut backend = PolicyBackend::new(Box::new(HashMap::new()));
         backend.add_policy(create_test_policy(vec![TestStep {
-            condition: ChangeRequest::Set {
+            condition: TestBackendInteraction::Set {
                 k: String::from("a"),
                 v: 1,
             },
             action: TestAction::ChangeRequests(vec![]),
         }]));
+    }
+
+    #[test]
+    #[should_panic(expected = "step left for get operation")]
+    fn test_meta_panic_requires_condition_get() {
+        let mut backend = PolicyBackend::new(Box::new(HashMap::new()));
+        backend.add_policy(create_test_policy(vec![]));
+
+        backend.get(&String::from("a"));
     }
 
     #[test]
@@ -478,10 +513,24 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "Condition mismatch")]
+    fn test_meta_panic_checks_condition_get() {
+        let mut backend = PolicyBackend::new(Box::new(HashMap::new()));
+        backend.add_policy(create_test_policy(vec![TestStep {
+            condition: TestBackendInteraction::Get {
+                k: String::from("a"),
+            },
+            action: TestAction::ChangeRequests(vec![]),
+        }]));
+
+        backend.get(&String::from("b"));
+    }
+
+    #[test]
+    #[should_panic(expected = "Condition mismatch")]
     fn test_meta_panic_checks_condition_set() {
         let mut backend = PolicyBackend::new(Box::new(HashMap::new()));
         backend.add_policy(create_test_policy(vec![TestStep {
-            condition: ChangeRequest::Set {
+            condition: TestBackendInteraction::Set {
                 k: String::from("a"),
                 v: 1,
             },
@@ -496,7 +545,7 @@ mod tests {
     fn test_meta_panic_checks_condition_remove() {
         let mut backend = PolicyBackend::new(Box::new(HashMap::new()));
         backend.add_policy(create_test_policy(vec![TestStep {
-            condition: ChangeRequest::Remove {
+            condition: TestBackendInteraction::Remove {
                 k: String::from("a"),
             },
             action: TestAction::ChangeRequests(vec![]),
@@ -510,21 +559,33 @@ mod tests {
         let mut backend = PolicyBackend::new(Box::new(HashMap::new()));
         backend.add_policy(create_test_policy(vec![
             TestStep {
-                condition: ChangeRequest::Set {
+                condition: TestBackendInteraction::Set {
                     k: String::from("a"),
                     v: 1,
                 },
                 action: TestAction::ChangeRequests(vec![]),
             },
             TestStep {
-                condition: ChangeRequest::Set {
+                condition: TestBackendInteraction::Set {
                     k: String::from("b"),
                     v: 2,
                 },
                 action: TestAction::ChangeRequests(vec![]),
             },
             TestStep {
-                condition: ChangeRequest::Remove {
+                condition: TestBackendInteraction::Remove {
+                    k: String::from("b"),
+                },
+                action: TestAction::ChangeRequests(vec![]),
+            },
+            TestStep {
+                condition: TestBackendInteraction::Get {
+                    k: String::from("a"),
+                },
+                action: TestAction::ChangeRequests(vec![]),
+            },
+            TestStep {
+                condition: TestBackendInteraction::Get {
                     k: String::from("b"),
                 },
                 action: TestAction::ChangeRequests(vec![]),
@@ -541,13 +602,13 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "illegal recursive access")]
-    fn test_panic_recursion_detection() {
+    fn test_panic_recursion_detection_get() {
         let mut backend = PolicyBackend::new(Box::new(HashMap::new()));
         backend.add_policy(create_test_policy(vec![TestStep {
-            condition: ChangeRequest::Remove {
+            condition: TestBackendInteraction::Remove {
                 k: String::from("a"),
             },
-            action: TestAction::CallBackendDirectly(ChangeRequest::Remove {
+            action: TestAction::CallBackendDirectly(TestBackendInteraction::Get {
                 k: String::from("b"),
             }),
         }]));
@@ -556,11 +617,92 @@ mod tests {
     }
 
     #[test]
-    fn test_basic_set_set() {
+    #[should_panic(expected = "illegal recursive access")]
+    fn test_panic_recursion_detection_set() {
+        let mut backend = PolicyBackend::new(Box::new(HashMap::new()));
+        backend.add_policy(create_test_policy(vec![TestStep {
+            condition: TestBackendInteraction::Remove {
+                k: String::from("a"),
+            },
+            action: TestAction::CallBackendDirectly(TestBackendInteraction::Set {
+                k: String::from("b"),
+                v: 1,
+            }),
+        }]));
+
+        backend.remove(&String::from("a"));
+    }
+
+    #[test]
+    #[should_panic(expected = "illegal recursive access")]
+    fn test_panic_recursion_detection_remove() {
+        let mut backend = PolicyBackend::new(Box::new(HashMap::new()));
+        backend.add_policy(create_test_policy(vec![TestStep {
+            condition: TestBackendInteraction::Remove {
+                k: String::from("a"),
+            },
+            action: TestAction::CallBackendDirectly(TestBackendInteraction::Remove {
+                k: String::from("b"),
+            }),
+        }]));
+
+        backend.remove(&String::from("a"));
+    }
+
+    #[test]
+    fn test_basic_get_set() {
         let mut backend = PolicyBackend::new(Box::new(HashMap::new()));
         backend.add_policy(create_test_policy(vec![
             TestStep {
-                condition: ChangeRequest::Set {
+                condition: TestBackendInteraction::Get {
+                    k: String::from("a"),
+                },
+                action: TestAction::ChangeRequests(vec![ChangeRequest::Set {
+                    k: String::from("a"),
+                    v: 1,
+                }]),
+            },
+            TestStep {
+                condition: TestBackendInteraction::Set {
+                    k: String::from("a"),
+                    v: 1,
+                },
+                action: TestAction::ChangeRequests(vec![]),
+            },
+        ]));
+
+        assert_eq!(backend.get(&String::from("a")), Some(1));
+    }
+
+    #[test]
+    fn test_basic_get_get() {
+        let mut backend = PolicyBackend::new(Box::new(HashMap::new()));
+        backend.add_policy(create_test_policy(vec![
+            TestStep {
+                condition: TestBackendInteraction::Get {
+                    k: String::from("a"),
+                },
+                action: TestAction::ChangeRequests(vec![ChangeRequest::Get {
+                    k: String::from("a"),
+                }]),
+            },
+            TestStep {
+                condition: TestBackendInteraction::Get {
+                    k: String::from("a"),
+                },
+                action: TestAction::ChangeRequests(vec![]),
+            },
+        ]));
+
+        assert_eq!(backend.get(&String::from("a")), None);
+    }
+
+    #[test]
+    fn test_basic_set_set_get_get() {
+        let mut backend = PolicyBackend::new(Box::new(HashMap::new()));
+        backend.add_policy(create_test_policy(vec![
+            TestStep {
+                condition: TestBackendInteraction::Set {
                     k: String::from("a"),
                     v: 1,
                 },
@@ -570,9 +712,21 @@ mod tests {
                 }]),
             },
             TestStep {
-                condition: ChangeRequest::Set {
+                condition: TestBackendInteraction::Set {
                     k: String::from("b"),
                     v: 2,
+                },
+                action: TestAction::ChangeRequests(vec![]),
+            },
+            TestStep {
+                condition: TestBackendInteraction::Get {
+                    k: String::from("a"),
+                },
+                action: TestAction::ChangeRequests(vec![]),
+            },
+            TestStep {
+                condition: TestBackendInteraction::Get {
+                    k: String::from("b"),
                 },
                 action: TestAction::ChangeRequests(vec![]),
             },
@@ -585,11 +739,11 @@ mod tests {
     }
 
     #[test]
-    fn test_basic_set_remove() {
+    fn test_basic_set_remove_get() {
         let mut backend = PolicyBackend::new(Box::new(HashMap::new()));
         backend.add_policy(create_test_policy(vec![
             TestStep {
-                condition: ChangeRequest::Set {
+                condition: TestBackendInteraction::Set {
                     k: String::from("a"),
                     v: 1,
                 },
@@ -598,7 +752,13 @@ mod tests {
                 }]),
             },
             TestStep {
-                condition: ChangeRequest::Remove {
+                condition: TestBackendInteraction::Remove {
+                    k: String::from("a"),
+                },
+                action: TestAction::ChangeRequests(vec![]),
+            },
+            TestStep {
+                condition: TestBackendInteraction::Get {
                     k: String::from("a"),
                 },
                 action: TestAction::ChangeRequests(vec![]),
@@ -611,11 +771,11 @@ mod tests {
     }
 
     #[test]
-    fn test_basic_remove_set() {
+    fn test_basic_remove_set_get_get() {
         let mut backend = PolicyBackend::new(Box::new(HashMap::new()));
         backend.add_policy(create_test_policy(vec![
             TestStep {
-                condition: ChangeRequest::Remove {
+                condition: TestBackendInteraction::Remove {
                     k: String::from("a"),
                 },
                 action: TestAction::ChangeRequests(vec![ChangeRequest::Set {
@@ -624,9 +784,21 @@ mod tests {
                 }]),
             },
             TestStep {
-                condition: ChangeRequest::Set {
+                condition: TestBackendInteraction::Set {
                     k: String::from("b"),
                     v: 1,
+                },
+                action: TestAction::ChangeRequests(vec![]),
+            },
+            TestStep {
+                condition: TestBackendInteraction::Get {
+                    k: String::from("a"),
+                },
+                action: TestAction::ChangeRequests(vec![]),
+            },
+            TestStep {
+                condition: TestBackendInteraction::Get {
+                    k: String::from("b"),
                 },
                 action: TestAction::ChangeRequests(vec![]),
             },
@@ -639,11 +811,11 @@ mod tests {
     }
 
     #[test]
-    fn test_basic_remove_remove() {
+    fn test_basic_remove_remove_get_get() {
         let mut backend = PolicyBackend::new(Box::new(HashMap::new()));
         backend.add_policy(create_test_policy(vec![
             TestStep {
-                condition: ChangeRequest::Remove {
+                condition: TestBackendInteraction::Remove {
                     k: String::from("a"),
                 },
                 action: TestAction::ChangeRequests(vec![ChangeRequest::Remove {
@@ -651,7 +823,19 @@ mod tests {
                 }]),
             },
             TestStep {
-                condition: ChangeRequest::Remove {
+                condition: TestBackendInteraction::Remove {
+                    k: String::from("b"),
+                },
+                action: TestAction::ChangeRequests(vec![]),
+            },
+            TestStep {
+                condition: TestBackendInteraction::Get {
+                    k: String::from("a"),
+                },
+                action: TestAction::ChangeRequests(vec![]),
+            },
+            TestStep {
+                condition: TestBackendInteraction::Get {
                     k: String::from("b"),
                 },
                 action: TestAction::ChangeRequests(vec![]),
@@ -669,7 +853,7 @@ mod tests {
         let mut backend = PolicyBackend::new(Box::new(HashMap::new()));
         backend.add_policy(create_test_policy(vec![
             TestStep {
-                condition: ChangeRequest::Set {
+                condition: TestBackendInteraction::Set {
                     k: String::from("a"),
                     v: 11,
                 },
@@ -685,16 +869,22 @@ mod tests {
                 ]),
             },
             TestStep {
-                condition: ChangeRequest::Set {
+                condition: TestBackendInteraction::Set {
                     k: String::from("a"),
                     v: 12,
                 },
                 action: TestAction::ChangeRequests(vec![]),
             },
             TestStep {
-                condition: ChangeRequest::Set {
+                condition: TestBackendInteraction::Set {
                     k: String::from("a"),
                     v: 13,
+                },
+                action: TestAction::ChangeRequests(vec![]),
+            },
+            TestStep {
+                condition: TestBackendInteraction::Get {
+                    k: String::from("a"),
                 },
                 action: TestAction::ChangeRequests(vec![]),
             },
@@ -710,7 +900,7 @@ mod tests {
         let mut backend = PolicyBackend::new(Box::new(HashMap::new()));
         backend.add_policy(create_test_policy(vec![
             TestStep {
-                condition: ChangeRequest::Set {
+                condition: TestBackendInteraction::Set {
                     k: String::from("a"),
                     v: 11,
                 },
@@ -720,23 +910,29 @@ mod tests {
                 }]),
             },
             TestStep {
-                condition: ChangeRequest::Set {
+                condition: TestBackendInteraction::Set {
                     k: String::from("a"),
                     v: 12,
                 },
                 action: TestAction::ChangeRequests(vec![]),
             },
             TestStep {
-                condition: ChangeRequest::Set {
+                condition: TestBackendInteraction::Set {
                     k: String::from("a"),
                     v: 13,
+                },
+                action: TestAction::ChangeRequests(vec![]),
+            },
+            TestStep {
+                condition: TestBackendInteraction::Get {
+                    k: String::from("a"),
                 },
                 action: TestAction::ChangeRequests(vec![]),
             },
         ]));
         backend.add_policy(create_test_policy(vec![
             TestStep {
-                condition: ChangeRequest::Set {
+                condition: TestBackendInteraction::Set {
                     k: String::from("a"),
                     v: 11,
                 },
@@ -746,16 +942,22 @@ mod tests {
                 }]),
             },
             TestStep {
-                condition: ChangeRequest::Set {
+                condition: TestBackendInteraction::Set {
                     k: String::from("a"),
                     v: 12,
                 },
                 action: TestAction::ChangeRequests(vec![]),
             },
             TestStep {
-                condition: ChangeRequest::Set {
+                condition: TestBackendInteraction::Set {
                     k: String::from("a"),
                     v: 13,
+                },
+                action: TestAction::ChangeRequests(vec![]),
+            },
+            TestStep {
+                condition: TestBackendInteraction::Get {
+                    k: String::from("a"),
                 },
                 action: TestAction::ChangeRequests(vec![]),
             },
@@ -771,7 +973,7 @@ mod tests {
         let mut backend = PolicyBackend::new(Box::new(HashMap::new()));
         backend.add_policy(create_test_policy(vec![
             TestStep {
-                condition: ChangeRequest::Set {
+                condition: TestBackendInteraction::Set {
                     k: String::from("a"),
                     v: 11,
                 },
@@ -781,14 +983,14 @@ mod tests {
                 }]),
             },
             TestStep {
-                condition: ChangeRequest::Set {
+                condition: TestBackendInteraction::Set {
                     k: String::from("a"),
                     v: 12,
                 },
                 action: TestAction::ChangeRequests(vec![]),
             },
             TestStep {
-                condition: ChangeRequest::Set {
+                condition: TestBackendInteraction::Set {
                     k: String::from("a"),
                     v: 13,
                 },
@@ -798,16 +1000,22 @@ mod tests {
                 }]),
             },
             TestStep {
-                condition: ChangeRequest::Set {
+                condition: TestBackendInteraction::Set {
                     k: String::from("a"),
                     v: 14,
+                },
+                action: TestAction::ChangeRequests(vec![]),
+            },
+            TestStep {
+                condition: TestBackendInteraction::Get {
+                    k: String::from("a"),
                 },
                 action: TestAction::ChangeRequests(vec![]),
             },
         ]));
         backend.add_policy(create_test_policy(vec![
             TestStep {
-                condition: ChangeRequest::Set {
+                condition: TestBackendInteraction::Set {
                     k: String::from("a"),
                     v: 11,
                 },
@@ -817,23 +1025,29 @@ mod tests {
                 }]),
             },
             TestStep {
-                condition: ChangeRequest::Set {
+                condition: TestBackendInteraction::Set {
                     k: String::from("a"),
                     v: 12,
                 },
                 action: TestAction::ChangeRequests(vec![]),
             },
             TestStep {
-                condition: ChangeRequest::Set {
+                condition: TestBackendInteraction::Set {
                     k: String::from("a"),
                     v: 13,
                 },
                 action: TestAction::ChangeRequests(vec![]),
             },
             TestStep {
-                condition: ChangeRequest::Set {
+                condition: TestBackendInteraction::Set {
                     k: String::from("a"),
                     v: 14,
+                },
+                action: TestAction::ChangeRequests(vec![]),
+            },
+            TestStep {
+                condition: TestBackendInteraction::Get {
+                    k: String::from("a"),
                 },
                 action: TestAction::ChangeRequests(vec![]),
             },
@@ -844,34 +1058,67 @@ mod tests {
         assert_eq!(backend.get(&String::from("a")), Some(14));
     }
 
+    #[test]
+    #[should_panic(expected = "this is a test")]
+    fn test_meta_multithread_panics_are_propagated() {
+        let barrier_pre = Arc::new(Barrier::new(2));
+        let barrier_post = Arc::new(Barrier::new(1));
+
+        let mut backend = PolicyBackend::new(Box::new(HashMap::new()));
+        backend.add_policy(create_test_policy(vec![TestStep {
+            condition: TestBackendInteraction::Set {
+                k: String::from("a"),
+                v: 1,
+            },
+            action: TestAction::CallBackendDelayed(
+                Arc::clone(&barrier_pre),
+                TestBackendInteraction::Panic,
+                Arc::clone(&barrier_post),
+            ),
+        }]));
+
+        backend.set(String::from("a"), 1);
+        barrier_pre.wait();
+
+        // panic on drop
+    }
+
     /// Checks that a policy background task can access the "callback backend" without triggering the "illegal
     /// recursion" detection.
     #[test]
     fn test_multithread() {
-        let barrier_policy = Arc::new(Barrier::new(2));
+        let barrier_pre = Arc::new(Barrier::new(2));
+        let barrier_post = Arc::new(Barrier::new(2));
 
         let mut backend = PolicyBackend::new(Box::new(HashMap::new()));
         backend.add_policy(create_test_policy(vec![
             TestStep {
-                condition: ChangeRequest::Set {
+                condition: TestBackendInteraction::Set {
                     k: String::from("a"),
                     v: 1,
                 },
                 action: TestAction::CallBackendDelayed(
-                    Arc::clone(&barrier_policy),
-                    ChangeRequest::Set {
+                    Arc::clone(&barrier_pre),
+                    TestBackendInteraction::Set {
                         k: String::from("a"),
                         v: 4,
                     },
+                    Arc::clone(&barrier_post),
                 ),
             },
             TestStep {
-                condition: ChangeRequest::Set {
+                condition: TestBackendInteraction::Get {
+                    k: String::from("a"),
+                },
+                action: TestAction::ChangeRequests(vec![]),
+            },
+            TestStep {
+                condition: TestBackendInteraction::Set {
                     k: String::from("a"),
                     v: 2,
                 },
                 action: TestAction::BlockAndChangeRequest(
-                    Arc::clone(&barrier_policy),
+                    Arc::clone(&barrier_pre),
                     vec![ChangeRequest::Set {
                         k: String::from("a"),
                         v: 3,
@@ -879,16 +1126,22 @@ mod tests {
                 ),
             },
             TestStep {
-                condition: ChangeRequest::Set {
+                condition: TestBackendInteraction::Set {
                     k: String::from("a"),
                     v: 3,
                 },
                 action: TestAction::ChangeRequests(vec![]),
             },
             TestStep {
-                condition: ChangeRequest::Set {
+                condition: TestBackendInteraction::Set {
                     k: String::from("a"),
                     v: 4,
+                },
+                action: TestAction::ChangeRequests(vec![]),
+            },
+            TestStep {
+                condition: TestBackendInteraction::Get {
+                    k: String::from("a"),
                 },
                 action: TestAction::ChangeRequests(vec![]),
             },
@@ -899,16 +1152,41 @@ mod tests {
 
         backend.set(String::from("a"), 2);
 
-        // wait for conversion (i.e. the background thread)
-        let t_start = Instant::now();
-        loop {
-            let current = backend.get(&String::from("a"));
-            if current == Some(4) {
-                break;
-            }
-            assert!(t_start.elapsed() < Duration::from_secs(1));
-            std::thread::sleep(Duration::from_millis(10));
-        }
+        barrier_post.wait();
+        assert_eq!(backend.get(&String::from("a")), Some(4));
+    }
+
+    #[test]
+    fn test_get_from_policies_are_propagated() {
+        let barrier_pre = Arc::new(Barrier::new(2));
+        let barrier_post = Arc::new(Barrier::new(2));
+
+        let mut backend = PolicyBackend::new(Box::new(HashMap::new()));
+        backend.add_policy(create_test_policy(vec![
+            TestStep {
+                condition: TestBackendInteraction::Set {
+                    k: String::from("a"),
+                    v: 1,
+                },
+                action: TestAction::CallBackendDelayed(
+                    Arc::clone(&barrier_pre),
+                    TestBackendInteraction::Get {
+                        k: String::from("a"),
+                    },
+                    Arc::clone(&barrier_post),
+                ),
+            },
+            TestStep {
+                condition: TestBackendInteraction::Get {
+                    k: String::from("a"),
+                },
+                action: TestAction::ChangeRequests(vec![]),
+            },
+        ]));
+
+        backend.set(String::from("a"), 1);
+        barrier_pre.wait();
+        barrier_post.wait();
     }
 
     /// Checks that dropping [`PolicyBackend`] drop the policies as well as the inner backend.
@@ -968,29 +1246,32 @@ mod tests {
     {
         type K = ();
         type V = ();
-
-        fn set(&mut self, _k: Self::K, _v: Self::V) -> Vec<ChangeRequest<Self::K, Self::V>> {
-            unreachable!()
-        }
-
-        fn remove(&mut self, _k: &Self::K) -> Vec<ChangeRequest<Self::K, Self::V>> {
-            unreachable!()
-        }
     }
 
     fn create_test_policy(
         steps: Vec<TestStep>,
     ) -> impl FnOnce(Box<dyn CacheBackend<K = String, V = usize>>) -> TestSubscriber {
         |backend| TestSubscriber {
-            backend: Some(backend),
+            background_task: TestSubscriberBackgroundTask::NotStarted(backend),
             steps: VecDeque::from(steps),
         }
+    }
+
+    #[derive(Debug, PartialEq)]
+    enum TestBackendInteraction {
+        Get { k: String },
+
+        Set { k: String, v: usize },
+
+        Remove { k: String },
+
+        Panic,
     }
 
     #[derive(Debug)]
     enum TestAction {
         /// Perform an illegal direct, recursive call to the backend.
-        CallBackendDirectly(ChangeRequest<String, usize>),
+        CallBackendDirectly(TestBackendInteraction),
 
         /// Return change requests
         ChangeRequests(Vec<ChangeRequest<String, usize>>),
@@ -998,7 +1279,7 @@ mod tests {
         /// Use callback backend but wait for a barrier in a background thread.
         ///
         /// This will return immediately.
-        CallBackendDelayed(Arc<Barrier>, ChangeRequest<String, usize>),
+        CallBackendDelayed(Arc<Barrier>, TestBackendInteraction, Arc<Barrier>),
 
         /// Block on barrier and return afterwards.
         BlockAndChangeRequest(Arc<Barrier>, Vec<ChangeRequest<String, usize>>),
@@ -1007,36 +1288,60 @@ mod tests {
     impl TestAction {
         fn perform(
             self,
-            backend: &mut Option<Box<dyn CacheBackend<K = String, V = usize>>>,
+            background_task: &mut TestSubscriberBackgroundTask,
         ) -> Vec<ChangeRequest<String, usize>> {
             match self {
-                Self::CallBackendDirectly(change) => {
-                    let backend = backend.as_mut().expect("backend not yet used");
+                Self::CallBackendDirectly(interaction) => {
+                    let backend = match background_task {
+                        TestSubscriberBackgroundTask::NotStarted(backend) => backend,
+                        TestSubscriberBackgroundTask::Started(_) => {
+                            panic!("background task already started")
+                        }
+                        TestSubscriberBackgroundTask::Invalid => panic!("Invalid state"),
+                    };
 
-                    match change {
-                        ChangeRequest::Set { k, v } => backend.set(k, v),
-                        ChangeRequest::Remove { k } => backend.remove(&k),
+                    match interaction {
+                        TestBackendInteraction::Get { k } => {
+                            backend.get(&k);
+                        }
+                        TestBackendInteraction::Set { k, v } => backend.set(k, v),
+                        TestBackendInteraction::Remove { k } => backend.remove(&k),
+                        TestBackendInteraction::Panic => panic!("this is a test"),
                     }
 
                     unreachable!("illegal call should have failed")
                 }
                 Self::ChangeRequests(change_requests) => change_requests,
-                Self::CallBackendDelayed(barrier, change) => {
-                    let mut backend = backend.take().expect("backend not yet used");
+                Self::CallBackendDelayed(barrier_pre, interaction, barrier_post) => {
+                    let mut tmp = TestSubscriberBackgroundTask::Invalid;
+                    std::mem::swap(&mut tmp, background_task);
+                    let mut backend = match tmp {
+                        TestSubscriberBackgroundTask::NotStarted(backend) => backend,
+                        TestSubscriberBackgroundTask::Started(_) => {
+                            panic!("background task already started")
+                        }
+                        TestSubscriberBackgroundTask::Invalid => panic!("Invalid state"),
+                    };
 
-                    // we leak the thread handle here, it's just a test so this is fine
-                    std::thread::spawn(move || {
-                        barrier.wait();
+                    let handle = std::thread::spawn(move || {
+                        barrier_pre.wait();
 
-                        match change {
-                            ChangeRequest::Set { k, v } => {
+                        match interaction {
+                            TestBackendInteraction::Get { k } => {
+                                backend.get(&k);
+                            }
+                            TestBackendInteraction::Set { k, v } => {
                                 backend.set(k, v);
                             }
-                            ChangeRequest::Remove { k } => {
+                            TestBackendInteraction::Remove { k } => {
                                 backend.remove(&k);
                             }
+                            TestBackendInteraction::Panic => panic!("this is a test"),
                         }
+
+                        barrier_post.wait();
                     });
+                    *background_task = TestSubscriberBackgroundTask::Started(handle);
 
                     vec![]
                 }
@@ -1050,13 +1355,22 @@ mod tests {
 
     #[derive(Debug)]
     struct TestStep {
-        condition: ChangeRequest<String, usize>,
+        condition: TestBackendInteraction,
         action: TestAction,
     }
 
     #[derive(Debug)]
+    enum TestSubscriberBackgroundTask {
+        NotStarted(Box<dyn CacheBackend<K = String, V = usize>>),
+        Started(JoinHandle<()>),
+
+        /// Temporary variant for swapping.
+        Invalid,
+    }
+
+    #[derive(Debug)]
     struct TestSubscriber {
-        backend: Option<Box<dyn CacheBackend<K = String, V = usize>>>,
+        background_task: TestSubscriberBackgroundTask,
         steps: VecDeque<TestStep>,
     }
 
@@ -1065,6 +1379,29 @@ mod tests {
             // prevent SIGABRT due to double-panic
             if !std::thread::panicking() {
                 assert!(self.steps.is_empty(), "test steps left");
+                let mut tmp = TestSubscriberBackgroundTask::Invalid;
+                std::mem::swap(&mut tmp, &mut self.background_task);
+
+                match tmp {
+                    TestSubscriberBackgroundTask::NotStarted(_) => {
+                        // nothing to check
+                    }
+                    TestSubscriberBackgroundTask::Started(handle) => {
+                        // propagate panics
+                        if let Err(e) = handle.join() {
+                            if let Some(err) = e.downcast_ref::<&str>() {
+                                panic!("Error in background task: {err}")
+                            } else if let Some(err) = e.downcast_ref::<String>() {
+                                panic!("Error in background task: {err}")
+                            } else {
+                                panic!("Error in background task: <unknown>")
+                            }
+                        }
+                    }
+                    TestSubscriberBackgroundTask::Invalid => {
+                        // that's OK during drop
+                    }
+                }
             }
         }
     }
@@ -1073,17 +1410,30 @@ mod tests {
         type K = String;
         type V = usize;
 
-        fn set(&mut self, k: Self::K, v: Self::V) -> Vec<ChangeRequest<String, usize>> {
-            let step = self.steps.pop_front().expect("step left for set operation");
+        fn get(&mut self, k: &Self::K) -> Vec<ChangeRequest<Self::K, Self::V>> {
+            let step = self.steps.pop_front().expect("step left for get operation");
 
-            let expected_condition = ChangeRequest::Set { k, v };
+            let expected_condition = TestBackendInteraction::Get { k: k.clone() };
             assert_eq!(
                 step.condition, expected_condition,
                 "Condition mismatch\n\nActual:\n{:#?}\n\nExpected:\n{:#?}",
                 step.condition, expected_condition,
             );
 
-            step.action.perform(&mut self.backend)
+            step.action.perform(&mut self.background_task)
+        }
+
+        fn set(&mut self, k: Self::K, v: Self::V) -> Vec<ChangeRequest<String, usize>> {
+            let step = self.steps.pop_front().expect("step left for set operation");
+
+            let expected_condition = TestBackendInteraction::Set { k, v };
+            assert_eq!(
+                step.condition, expected_condition,
+                "Condition mismatch\n\nActual:\n{:#?}\n\nExpected:\n{:#?}",
+                step.condition, expected_condition,
+            );
+
+            step.action.perform(&mut self.background_task)
         }
 
         fn remove(&mut self, k: &Self::K) -> Vec<ChangeRequest<String, usize>> {
@@ -1092,14 +1442,14 @@ mod tests {
                 .pop_front()
                 .expect("step left for remove operation");
 
-            let expected_condition = ChangeRequest::Remove { k: k.clone() };
+            let expected_condition = TestBackendInteraction::Remove { k: k.clone() };
             assert_eq!(
                 step.condition, expected_condition,
                 "Condition mismatch\n\nActual:\n{:#?}\n\nExpected:\n{:#?}",
                 step.condition, expected_condition,
             );
 
-            step.action.perform(&mut self.backend)
+            step.action.perform(&mut self.background_task)
         }
     }
 }
