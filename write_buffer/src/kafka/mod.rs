@@ -437,7 +437,7 @@ async fn setup_topic(
         if let Some(topic) = topics.into_iter().find(|t| t.name == topic_name) {
             let mut partition_clients = BTreeMap::new();
             for partition in topic.partitions {
-                let c = client.partition_client(&topic_name, partition)?;
+                let c = client.partition_client(&topic_name, partition).await?;
                 let partition = u32::try_from(partition).map_err(WriteBufferError::invalid_data)?;
                 partition_clients.insert(partition, c);
             }
@@ -633,6 +633,7 @@ mod tests {
             .await
             .unwrap()
             .partition_client(ctx.topic_name.clone(), sequencer_id as i32)
+            .await
             .unwrap()
             .produce(
                 vec![Record {
