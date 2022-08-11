@@ -99,7 +99,8 @@ pub(crate) async fn compact_parquet_files(
         }
     );
 
-    // Find the total size of all files.
+    // Find the total size of all files, to be used to determine if the result should be one file
+    // or if the result should be split into multiple files.
     let total_size: i64 = files.iter().map(|f| f.file_size_bytes).sum();
     let total_size = total_size as u64;
 
@@ -317,6 +318,7 @@ pub(crate) async fn compact_parquet_files(
         "sequencer_id",
         format!("{}", partition.sequencer_id()).into(),
     )]);
+
     for (compaction_level, file_count) in files_by_level {
         let mut attributes = attributes.clone();
         attributes.insert("compaction_level", format!("{}", compaction_level as i32));
@@ -908,7 +910,7 @@ mod tests {
             .collect();
         // 1 large file not included in compaction,
         // 1 newly created CompactionLevel::FileNonOverlapped file as the result of
-        // compaction and  NOT splitting
+        // compaction and NOT splitting
         assert_eq!(
             files_and_levels,
             vec![

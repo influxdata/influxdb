@@ -66,7 +66,7 @@ pub(crate) async fn compact_hot_partition(
         compactor.config.input_size_threshold_bytes(),
         compactor.config.input_file_count_threshold(),
         &compactor.parquet_file_candidate_gauge,
-        &compactor.parquet_file_candidate_bytes_gauge,
+        &compactor.parquet_file_candidate_bytes,
     );
 
     let compact_result = parquet_file_combining::compact_parquet_files(
@@ -120,7 +120,7 @@ pub(crate) async fn compact_cold_partition(
         parquet_files_for_compaction,
         compactor.config.cold_input_size_threshold_bytes(),
         &compactor.parquet_file_candidate_gauge,
-        &compactor.parquet_file_candidate_bytes_gauge,
+        &compactor.parquet_file_candidate_bytes,
     );
 
     let compact_result =
@@ -712,7 +712,6 @@ mod tests {
         //
         // - the level 1 file that didn't overlap with anything
         // - the newly created level 1 file that was only upgraded from level 0
-        // - the two newly created after compacting and splitting pf1, pf2, pf3, pf4, pf5
         let mut files = catalog.list_by_table_not_to_delete(table.table.id).await;
         assert_eq!(files.len(), 2);
         let files_and_levels: Vec<_> = files
