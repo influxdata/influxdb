@@ -519,7 +519,7 @@ mod test {
         for chunk in chunks {
             merger = merger.merge(chunk.schema().as_ref()).unwrap();
         }
-        Arc::new(merger.build())
+        merger.build()
     }
 
     #[test]

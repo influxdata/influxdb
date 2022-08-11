@@ -88,7 +88,7 @@ impl QueryableParquetChunk {
         for chunk in chunks {
             merger = merger.merge(&chunk.schema()).expect("schemas compatible");
         }
-        Arc::new(merger.build())
+        merger.build()
     }
 
     /// Return max sequence number

@@ -150,7 +150,7 @@ impl QueryDatabaseMeta for TestDatabase {
             }
         }
 
-        found_one.then(|| Arc::new(merger.build()))
+        found_one.then(|| merger.build())
     }
 
     fn table_names(&self) -> Vec<String> {
@@ -519,7 +519,7 @@ impl TestChunk {
         merger = merger
             .merge(self.schema.as_ref())
             .expect("merging was successful");
-        self.schema = Arc::new(merger.build());
+        self.schema = merger.build();
 
         if add_column_summary {
             let influxdb_type = col_type.map(|t| match t {

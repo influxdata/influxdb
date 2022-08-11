@@ -39,6 +39,7 @@ pub fn TIME_DATA_TYPE() -> ArrowDataType {
 }
 
 pub mod builder;
+pub mod interner;
 pub mod merge;
 pub mod selection;
 pub mod sort;
@@ -83,7 +84,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// Specifically, each column in the Arrow schema has a corresponding
 /// InfluxDB data model type of Tag, Field or Timestamp which is stored in
 /// the metadata field of the ArrowSchemaRef
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Schema {
     /// All the actual data lives on the metadata structure in
     /// `ArrowSchemaRef` and this structure knows how to access that

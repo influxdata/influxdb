@@ -261,7 +261,7 @@ mod test {
             .unwrap()
             .build();
 
-        (Arc::new(schema), vec![chunk1, chunk2])
+        (schema, vec![chunk1, chunk2])
     }
 
     #[tokio::test]

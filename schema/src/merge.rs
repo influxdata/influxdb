@@ -8,6 +8,8 @@ use hashbrown::hash_map::RawEntryMut;
 use hashbrown::HashMap;
 use snafu::Snafu;
 
+use crate::interner::SchemaInterner;
+
 use super::{InfluxColumnType, Schema};
 
 /// Database schema creation / validation errors.
@@ -81,7 +83,7 @@ pub fn merge_record_batch_schemas(batches: &[Arc<RecordBatch>]) -> Arc<Schema> {
         let schema = Schema::try_from(batch.schema()).expect("Schema conversion error");
         merger = merger.merge(&schema).expect("Schemas compatible");
     }
-    Arc::new(merger.build())
+    merger.build()
 }
 
 /// Schema Merger
@@ -96,17 +98,29 @@ pub fn merge_record_batch_schemas(batches: &[Arc<RecordBatch>]) -> Arc<Schema> {
 ///
 /// 2. The measurement names must be consistent: one or both can be
 ///    `None`, or they can both be `Some(name`)
-#[derive(Debug, Default, Clone)]
-pub struct SchemaMerger {
+#[derive(Debug, Default)]
+pub struct SchemaMerger<'a> {
     /// Maps column names to their definition
     fields: HashMap<String, (Field, Option<InfluxColumnType>)>,
     /// The measurement name if any
     measurement: Option<String>,
+    /// Interner, if any.
+    interner: Option<&'a mut SchemaInterner>,
 }
 
-impl SchemaMerger {
+impl SchemaMerger<'static> {
     pub fn new() -> Self {
         Self::default()
+    }
+}
+
+impl<'a> SchemaMerger<'a> {
+    pub fn with_interner(self, interner: &mut SchemaInterner) -> SchemaMerger<'_> {
+        SchemaMerger {
+            fields: self.fields,
+            measurement: self.measurement,
+            interner: Some(interner),
+        }
     }
 
     /// Appends the schema to the merged schema being built,
@@ -185,13 +199,19 @@ impl SchemaMerger {
     }
 
     /// Returns the schema that was built, the columns are always sorted in lexicographic order
-    pub fn build(mut self) -> Schema {
-        Schema::new_from_parts(
+    pub fn build(mut self) -> Arc<Schema> {
+        let schema = Schema::new_from_parts(
             self.measurement.take(),
             self.fields.drain().map(|x| x.1),
             true,
         )
-        .expect("failed to build merged schema")
+        .expect("failed to build merged schema");
+
+        if let Some(interner) = self.interner.as_mut() {
+            interner.intern(schema)
+        } else {
+            Arc::new(schema)
+        }
     }
 }
 
@@ -223,8 +243,8 @@ mod tests {
             .unwrap()
             .build();
 
-        assert_eq!(merged_schema, schema1);
-        assert_eq!(merged_schema, schema2);
+        assert_eq!(merged_schema.as_ref(), &schema1);
+        assert_eq!(merged_schema.as_ref(), &schema2);
     }
 
     #[test]
@@ -264,9 +284,11 @@ mod tests {
             .sort_fields_by_name();
 
         assert_eq!(
-            expected_schema, merged_schema,
+            &expected_schema,
+            merged_schema.as_ref(),
             "\nExpected:\n{:#?}\nActual:\n{:#?}",
-            expected_schema, merged_schema
+            expected_schema,
+            merged_schema
         );
     }
 
@@ -292,9 +314,11 @@ mod tests {
             .unwrap();
 
         assert_eq!(
-            expected_schema, merged_schema,
+            &expected_schema,
+            merged_schema.as_ref(),
             "\nExpected:\n{:#?}\nActual:\n{:#?}",
-            expected_schema, merged_schema
+            expected_schema,
+            merged_schema
         );
     }
 
@@ -324,9 +348,11 @@ mod tests {
             .unwrap();
 
         assert_eq!(
-            expected_schema, merged_schema,
+            &expected_schema,
+            merged_schema.as_ref(),
             "\nExpected:\n{:#?}\nActual:\n{:#?}",
-            expected_schema, merged_schema
+            expected_schema,
+            merged_schema
         );
     }
 
@@ -354,9 +380,11 @@ mod tests {
             .unwrap();
 
         assert_eq!(
-            expected_schema, merged_schema,
+            &expected_schema,
+            merged_schema.as_ref(),
             "\nExpected:\n{:#?}\nActual:\n{:#?}",
-            expected_schema, merged_schema
+            expected_schema,
+            merged_schema
         );
     }
 
@@ -449,5 +477,47 @@ mod tests {
             .unwrap_err();
 
         assert_eq!(merged_schema_error.to_string(), "Schema Merge Error: Incompatible nullability for 'int_field'. Existing field can not be null, new field can be null");
+    }
+
+    #[test]
+    fn test_interning() {
+        let schema_1a = SchemaBuilder::new()
+            .influx_field("int_field", Integer)
+            .tag("the_tag")
+            .build()
+            .unwrap();
+
+        let schema_1b = SchemaBuilder::new()
+            .influx_field("int_field", Integer)
+            .tag("the_tag")
+            .build()
+            .unwrap();
+
+        let schema_2 = SchemaBuilder::new()
+            .influx_field("float_field", crate::InfluxFieldType::Float)
+            .tag("the_tag")
+            .build()
+            .unwrap();
+
+        let mut interner = SchemaInterner::new();
+
+        let merged_schema_a = SchemaMerger::new()
+            .with_interner(&mut interner)
+            .merge(&schema_1a)
+            .unwrap()
+            .merge(&schema_2)
+            .unwrap()
+            .build();
+
+        let merged_schema_b = SchemaMerger::new()
+            .with_interner(&mut interner)
+            .merge(&schema_1b)
+            .unwrap()
+            .merge(&schema_2)
+            .unwrap()
+            .build();
+
+        assert_eq!(merged_schema_a, merged_schema_b);
+        assert!(Arc::ptr_eq(&merged_schema_a, &merged_schema_b));
     }
 }
