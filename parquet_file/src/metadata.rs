@@ -510,7 +510,7 @@ fn decode_timestamp_from_field(
 }
 
 /// Parquet metadata with IOx-specific wrapper.
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct IoxParquetMetaData {
     /// [Apache Parquet] metadata as freestanding [Apache Thrift]-encoded, and [Zstandard]-compressed bytes.
     ///

@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Expressions begin and end with double quote marks
-#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct StringLiteral {
     /// Type of AST node
     #[serde(rename = "type", skip_serializing_if = "Option::is_none")]

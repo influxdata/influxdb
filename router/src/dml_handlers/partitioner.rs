@@ -16,7 +16,7 @@ pub enum PartitionError {
 }
 
 /// A decorator of `T`, tagging it with the partition key derived from it.
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Partitioned<T> {
     key: PartitionKey,
     payload: T,

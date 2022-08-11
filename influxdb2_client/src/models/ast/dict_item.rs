@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 /// A key/value pair in a dictionary
-#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct DictItem {
     /// Type of AST node
     #[serde(rename = "type", skip_serializing_if = "Option::is_none")]

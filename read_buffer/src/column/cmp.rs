@@ -1,7 +1,7 @@
 use std::{convert::TryFrom, fmt::Display};
 
 /// Possible comparison operators
-#[derive(Debug, PartialEq, Copy, Clone)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
 #[allow(clippy::upper_case_acronyms)] // these look weird when not capitalized
 pub enum Operator {
     Equal,

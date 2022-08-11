@@ -102,7 +102,7 @@ pub type FieldKeyBlocks = BTreeMap<String, Vec<Block>>;
 ///
 /// A MeasurementTable can be combined with another `MeasurementTable` as long
 /// as `other` refers to the same measurement name.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MeasurementTable {
     pub name: String,
     // Tagset for key --> map of fields with that tagset to their blocks.

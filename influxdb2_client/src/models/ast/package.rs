@@ -4,7 +4,7 @@ use crate::models::File;
 use serde::{Deserialize, Serialize};
 
 /// Represents a complete package source tree.
-#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct Package {
     /// Type of AST node
     #[serde(rename = "type", skip_serializing_if = "Option::is_none")]

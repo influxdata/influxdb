@@ -118,7 +118,7 @@ impl TagPair {
 }
 
 /// A tag key/value pair
-#[derive(Debug, PartialEq, PartialOrd, Clone)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Clone)]
 pub struct StaticTagPair {
     /// the key
     pub key: Arc<String>,

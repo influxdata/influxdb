@@ -11,7 +11,7 @@ use std::{
 };
 
 /// Wrapper of group of parquet files with their min time and total size
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GroupWithMinTimeAndSize {
     /// Parquet files and their metadata
     pub(crate) parquet_files: Vec<ParquetFile>,

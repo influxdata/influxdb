@@ -12,7 +12,7 @@ use data_types::SequenceNumber;
 /// ```
 ///
 /// Note: min_readable_sequence_number <= min_totally_persisted_sequence_number
-#[derive(Clone, Debug, PartialEq, Default)]
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct SequencerProgress {
     /// Smallest sequence number of data that is buffered in memory
     min_buffered: Option<SequenceNumber>,

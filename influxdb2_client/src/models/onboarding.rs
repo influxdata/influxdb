@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 /// Check if database has default user, org, bucket created, returns true if
 /// not.
-#[derive(Clone, Copy, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct IsOnboarding {
     /// True if onboarding has already been completed otherwise false
     #[serde(default)]
@@ -21,7 +21,7 @@ impl IsOnboarding {
 }
 
 /// Post onboarding request, to setup initial user, org and bucket.
-#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OnboardingRequest {
     /// Initial username
@@ -56,7 +56,7 @@ impl OnboardingRequest {
 }
 
 /// OnboardingResponse
-#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct OnboardingResponse {
     /// User
     #[serde(skip_serializing_if = "Option::is_none")]

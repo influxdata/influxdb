@@ -41,7 +41,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 ///
 /// # Run the specified setup:
 /// # -- IOX_SETUP: SetupName
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct TestSetup {
     setup_name: String,
 }

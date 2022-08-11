@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Permissions for a resource
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Permission {
     /// Access Type
     pub action: Action,

@@ -242,7 +242,7 @@ impl ObjectStoreConfig {
 }
 
 /// Object-store type.
-#[derive(Debug, Copy, Clone, PartialEq, clap::ArgEnum)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, clap::ArgEnum)]
 pub enum ObjectStoreType {
     /// In-memory.
     Memory,

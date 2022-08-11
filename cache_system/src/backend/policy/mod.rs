@@ -424,7 +424,7 @@ pub trait Subscriber: Debug + Send + 'static {
 }
 
 /// A change request to a backend.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum ChangeRequest<K, V> {
     /// Request to `GET` a value.
     ///

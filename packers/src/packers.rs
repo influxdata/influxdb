@@ -259,7 +259,7 @@ pub enum PackerChunker<'a> {
     Boolean(Chunks<'a, Option<bool>>),
 }
 
-#[derive(Debug, Default, PartialEq)]
+#[derive(Debug, Default, PartialEq, Eq)]
 pub struct Packer<T>
 where
     T: Default + Clone,

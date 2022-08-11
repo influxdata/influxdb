@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Post create label request, to create a new label
-#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LabelCreateRequest {
     /// Organisation ID
@@ -28,7 +28,7 @@ impl LabelCreateRequest {
 }
 
 /// LabelResponse
-#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LabelResponse {
     /// Label
@@ -47,7 +47,7 @@ impl LabelResponse {
 }
 
 ///LabelsResponse
-#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LabelsResponse {
     /// Labels
@@ -66,7 +66,7 @@ impl LabelsResponse {
 }
 
 ///LabelUpdateRequest
-#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LabelUpdate {
     /// Name
@@ -85,7 +85,7 @@ impl LabelUpdate {
 }
 
 /// Label
-#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Label {
     /// Label ID

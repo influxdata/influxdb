@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Links
-#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Links {
     /// Next link

@@ -37,7 +37,7 @@ pub enum Error {
 }
 type Result<T, E = Error> = std::result::Result<T, E>;
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 /// Requested output format for the query endpoint
 pub enum QueryOutputFormat {
     /// Arrow pretty printer format (default)

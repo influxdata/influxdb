@@ -194,7 +194,7 @@ impl<'a> Pred<'a> {
 /// payload / LP data resists in the ingester and is not yet available as a parquet file, the
 /// latest tombstones apply to parquet files and were (past tense!) NOT applied while the LP data
 /// was in the ingester.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DeleteTime {
     /// Special delete time which marks the first time that could be used from deletion.
     ///
