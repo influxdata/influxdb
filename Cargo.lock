@@ -35,6 +35,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "ahash"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "57e6e951cfbb2db8de1828d49073a113a29fd7117b1596caa781a258c7e38d72"
+dependencies = [
+ "cfg-if",
+ "getrandom",
+ "once_cell",
+ "version_check",
+]
+
+[[package]]
 name = "aho-corasick"
 version = "0.7.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -109,7 +121,7 @@ version = "20.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c72a69495f06c8abb65b76a87be192a26fa724380d1f292d4e558a32afed9989"
 dependencies = [
- "ahash",
+ "ahash 0.7.6",
  "bitflags",
  "chrono",
  "comfy-table",
@@ -152,7 +164,7 @@ dependencies = [
 name = "arrow_util"
 version = "0.1.0"
 dependencies = [
- "ahash",
+ "ahash 0.8.0",
  "arrow",
  "arrow-flight",
  "chrono",
@@ -1082,7 +1094,7 @@ name = "datafusion"
 version = "10.0.0"
 source = "git+https://github.com/apache/arrow-datafusion.git?rev=3eb55e9a0510d872f6f7765b1a5f17db46486e45#3eb55e9a0510d872f6f7765b1a5f17db46486e45"
 dependencies = [
- "ahash",
+ "ahash 0.7.6",
  "arrow",
  "async-trait",
  "bytes",
@@ -1134,7 +1146,7 @@ name = "datafusion-expr"
 version = "10.0.0"
 source = "git+https://github.com/apache/arrow-datafusion.git?rev=3eb55e9a0510d872f6f7765b1a5f17db46486e45#3eb55e9a0510d872f6f7765b1a5f17db46486e45"
 dependencies = [
- "ahash",
+ "ahash 0.7.6",
  "arrow",
  "datafusion-common",
  "sqlparser",
@@ -1160,7 +1172,7 @@ name = "datafusion-physical-expr"
 version = "10.0.0"
 source = "git+https://github.com/apache/arrow-datafusion.git?rev=3eb55e9a0510d872f6f7765b1a5f17db46486e45#3eb55e9a0510d872f6f7765b1a5f17db46486e45"
 dependencies = [
- "ahash",
+ "ahash 0.7.6",
  "arrow",
  "blake2",
  "blake3",
@@ -1208,7 +1220,7 @@ name = "datafusion-sql"
 version = "10.0.0"
 source = "git+https://github.com/apache/arrow-datafusion.git?rev=3eb55e9a0510d872f6f7765b1a5f17db46486e45#3eb55e9a0510d872f6f7765b1a5f17db46486e45"
 dependencies = [
- "ahash",
+ "ahash 0.7.6",
  "arrow",
  "datafusion-common",
  "datafusion-expr",
@@ -1723,7 +1735,7 @@ version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a9ee70c43aaf417c914396645a0fa852624801b24ebb7ae78fe8272889ac888"
 dependencies = [
- "ahash",
+ "ahash 0.7.6",
 ]
 
 [[package]]
@@ -1957,7 +1969,7 @@ version = "0.11.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9709543bd6c25fdc748da2bed0f6855b07b7e93a203ae31332ac2101ab2f4782"
 dependencies = [
- "ahash",
+ "ahash 0.7.6",
  "atty",
  "indexmap",
  "itoa 1.0.3",
@@ -3268,7 +3280,7 @@ version = "20.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d0f0af698fcf8d1d9f2971766ebef25821ffe8c39c91837c276dcd97e075d950"
 dependencies = [
- "ahash",
+ "ahash 0.7.6",
  "arrow",
  "base64",
  "brotli",
@@ -4755,7 +4767,7 @@ version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8c21d3b5e7cadfe9ba7cdc1295f72cc556c750b4419c27c219c0693198901f8e"
 dependencies = [
- "ahash",
+ "ahash 0.7.6",
  "atoi",
  "base64",
  "bitflags",
@@ -5931,7 +5943,7 @@ dependencies = [
 name = "workspace-hack"
 version = "0.1.0"
 dependencies = [
- "ahash",
+ "ahash 0.7.6",
  "arrow",
  "base64",
  "bitflags",
