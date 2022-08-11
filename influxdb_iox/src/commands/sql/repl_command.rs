@@ -1,7 +1,7 @@
 use observability_deps::tracing::{debug, warn};
 
 /// Represents the parsed command from the user (which may be over many lines)
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum ReplCommand {
     Help,
     ShowNamespaces,

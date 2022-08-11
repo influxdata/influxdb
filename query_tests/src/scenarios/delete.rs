@@ -241,7 +241,7 @@ impl DbSetup for ThreeDeleteThreeChunks {
         // Scenarios
         // All threee deletes will be applied to every chunk but due to their predicates,
         // only appropriate data is deleted
-        let scenarios = make_n_chunks_scenario(&[
+        make_n_chunks_scenario(&[
             ChunkData {
                 lp_lines: lp_lines_1,
                 preds: preds.clone(),
@@ -264,8 +264,6 @@ impl DbSetup for ThreeDeleteThreeChunks {
                 ..Default::default()
             },
         ])
-        .await;
-
-        scenarios
+        .await
     }
 }

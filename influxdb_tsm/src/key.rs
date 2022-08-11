@@ -12,13 +12,13 @@ pub struct ParsedTsmKey {
 
 /// Public error type that wraps the underlying data parsing error
 /// with the actual key value being parsed.
-#[derive(Debug, Snafu, PartialEq)]
+#[derive(Debug, Snafu, PartialEq, Eq)]
 pub enum Error {
     #[snafu(display(r#"Error while parsing tsm tag key '{}': {}"#, key, source))]
     ParsingTsmKey { key: String, source: DataError },
 }
 
-#[derive(Debug, Snafu, PartialEq)]
+#[derive(Debug, Snafu, PartialEq, Eq)]
 pub enum DataError {
     #[snafu(display(r#"Key length too short"#))]
     KeyTooShort {},

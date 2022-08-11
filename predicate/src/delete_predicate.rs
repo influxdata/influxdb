@@ -295,7 +295,7 @@ fn parse_time_range(start: &str, stop: &str) -> Result<(i64, i64)> {
 /// sql-format predicates and timestamps
 ///
 /// TODO: Move alongside HTTP code
-#[derive(Debug, Default, PartialEq, Clone)]
+#[derive(Debug, Default, PartialEq, Eq, Clone)]
 pub struct HttpDeleteRequest {
     /// Empty string, "", if no table specified
     pub table_name: String,

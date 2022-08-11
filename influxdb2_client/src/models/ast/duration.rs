@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 /// Duration : A pair consisting of length of time and the unit of time
 /// measured. It is the atomic unit from which all duration literals are
 /// composed.
-#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct Duration {
     /// Type of AST node
     #[serde(rename = "type", skip_serializing_if = "Option::is_none")]

@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Organization Schema
-#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Organization {
     /// Links
@@ -49,7 +49,7 @@ pub enum Status {
 }
 
 /// Organization Links
-#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct OrganizationLinks {
     /// Link to self
     #[serde(rename = "self", skip_serializing_if = "Option::is_none")]
@@ -85,7 +85,7 @@ impl OrganizationLinks {
 }
 
 /// Organizations
-#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct Organizations {
     /// Links
     #[serde(skip_serializing_if = "Option::is_none")]

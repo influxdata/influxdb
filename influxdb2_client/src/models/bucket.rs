@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Bucket Schema
-#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Bucket {
     /// BucketLinks
@@ -61,7 +61,7 @@ pub enum Type {
 }
 
 /// Bucket links
-#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BucketLinks {
     /// Labels
@@ -92,7 +92,7 @@ impl BucketLinks {
 }
 
 /// List all buckets
-#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Buckets {
     /// Links
@@ -111,7 +111,7 @@ impl Buckets {
 }
 
 /// PostBucketRequest
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Default)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct PostBucketRequest {
     /// Organization ID

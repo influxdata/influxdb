@@ -2,7 +2,7 @@ use std::ops::{Add, Sub};
 
 use cache_system::backend::resource_consumption::Resource;
 
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd)]
 pub struct RamSize(pub usize);
 
 impl Resource for RamSize {

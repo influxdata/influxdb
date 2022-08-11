@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 /// RetentionRule
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RetentionRule {
     /// Expiry

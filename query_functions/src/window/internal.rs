@@ -272,7 +272,7 @@ impl Add<Duration> for i64 {
 /// The bounds of a window
 ///
 /// Original: <https://github.com/influxdata/flux/blob/1e9bfd49f21c0e679b42acf6fc515ce05c6dec2b/execute/bounds.go#L19>
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Bounds {
     pub start: i64,
     pub stop: i64,

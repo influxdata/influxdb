@@ -66,6 +66,9 @@ impl<'a> StepTestState<'a> {
 /// ```
 pub type FCustom = Box<dyn for<'b> FnOnce(&'b mut StepTestState) -> BoxFuture<'b, ()>>;
 
+/// Function to do custom validation on metrics. Expected to panic on validation failure.
+pub type MetricsValidationFn = Box<dyn Fn(&mut StepTestState, String)>;
+
 /// Possible test steps that a test can perform
 pub enum Step {
     /// Writes the specified line protocol to the `/api/v2/write`
@@ -115,7 +118,7 @@ pub enum Step {
     ///
     /// The validation function is expected to panic on validation
     /// failure.
-    VerifiedMetrics(Box<dyn Fn(&mut StepTestState, String)>),
+    VerifiedMetrics(MetricsValidationFn),
 
     /// A custom step that can be used to implement special cases that
     /// are only used once.

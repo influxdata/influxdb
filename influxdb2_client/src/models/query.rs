@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// Query influx using the Flux language
-#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct Query {
     /// Query Script
     #[serde(rename = "extern", skip_serializing_if = "Option::is_none")]
@@ -43,7 +43,7 @@ pub enum Type {
     Flux,
 }
 
-#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
 /// Flux Query Suggestion
 pub struct FluxSuggestion {
     /// Suggestion Name
@@ -62,7 +62,7 @@ impl FluxSuggestion {
 }
 
 /// FluxSuggestions
-#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct FluxSuggestions {
     /// List of Flux Suggestions
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -77,7 +77,7 @@ impl FluxSuggestions {
 }
 
 /// AnalyzeQueryResponse
-#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct AnalyzeQueryResponse {
     /// List of QueryResponseErrors
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -92,7 +92,7 @@ impl AnalyzeQueryResponse {
 }
 
 /// AnalyzeQueryResponseErrors
-#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct AnalyzeQueryResponseErrors {
     /// Error line
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -116,7 +116,7 @@ impl AnalyzeQueryResponseErrors {
 }
 
 /// AstResponse : Contains the AST for the supplied Flux query
-#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct AstResponse {
     /// AST of Flux query
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -131,7 +131,7 @@ impl AstResponse {
 }
 
 /// LanguageRequest : Flux query to be analyzed.
-#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct LanguageRequest {
     /// Flux query script to be analyzed
     pub query: String,

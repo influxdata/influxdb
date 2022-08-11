@@ -20,7 +20,7 @@ pub enum Error {
 #[allow(missing_docs)]
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-#[derive(Debug, Clone, PartialEq, Copy)]
+#[derive(Debug, Clone, PartialEq, Eq, Copy)]
 
 /// TimeSeries specific aggregates or selector functions
 ///
@@ -69,7 +69,7 @@ pub enum Aggregate {
 
 /// Represents some duration in time
 #[allow(missing_docs)]
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum WindowDuration {
     /// Variable sized window,
     Variable { months: i64, negative: bool },

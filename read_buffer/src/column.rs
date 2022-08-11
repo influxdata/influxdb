@@ -773,12 +773,12 @@ impl Column {
     }
 }
 
-#[derive(Default, Debug, PartialEq)]
+#[derive(Default, Debug, PartialEq, Eq)]
 pub struct ColumnProperties {
     pub has_pre_computed_row_ids: bool,
 }
 
-#[derive(Default, Debug, PartialEq)]
+#[derive(Default, Debug, PartialEq, Eq)]
 // The meta-data for a column
 pub struct MetaData<T>
 where

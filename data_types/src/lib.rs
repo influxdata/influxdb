@@ -200,7 +200,7 @@ impl std::fmt::Display for KafkaPartition {
 }
 
 /// Potential configurations of ingester connections for the querier to associate with a sequencer.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IngesterMapping {
     /// Deliberately not mapping this sequencer to an ingester. If the querier gets a query for
     /// this sequencer, it should return an error.
@@ -712,7 +712,7 @@ pub fn column_type_from_field(field_value: &FieldValue) -> ColumnType {
 
 /// Data object for a sequencer. Only one sequencer record can exist for a given
 /// kafka topic and partition (enforced via uniqueness constraint).
-#[derive(Debug, Copy, Clone, PartialEq, sqlx::FromRow)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct Sequencer {
     /// the id of the sequencer
     pub id: SequencerId,
@@ -786,7 +786,7 @@ impl sqlx::Decode<'_, sqlx::Postgres> for PartitionKey {
 
 /// Data object for a partition. The combination of sequencer, table and key are unique (i.e. only
 /// one record can exist for each combo)
-#[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct Partition {
     /// the id of the partition
     pub id: PartitionId,
@@ -858,7 +858,7 @@ pub struct PartitionParam {
 }
 
 /// Data object for a tombstone.
-#[derive(Debug, Clone, PartialEq, PartialOrd, sqlx::FromRow)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, sqlx::FromRow)]
 pub struct Tombstone {
     /// the id of the tombstone
     pub id: TombstoneId,
@@ -884,7 +884,7 @@ impl Tombstone {
 }
 
 /// Set of columns.
-#[derive(Debug, Clone, PartialEq, sqlx::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::Type)]
 #[sqlx(transparent)]
 pub struct ColumnSet(Vec<ColumnId>);
 
@@ -933,7 +933,7 @@ impl Deref for ColumnSet {
 }
 
 /// Data for a parquet file reference that has been inserted in the catalog.
-#[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct ParquetFile {
     /// the id of the file in the catalog
     pub id: ParquetFileId,
@@ -1001,7 +1001,7 @@ impl ParquetFile {
 }
 
 /// Data for a parquet file to be inserted into the catalog.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParquetFileParams {
     /// the sequencer that sequenced writes that went into this file
     pub sequencer_id: SequencerId,
@@ -1032,7 +1032,7 @@ pub struct ParquetFileParams {
 }
 
 /// Data for a processed tombstone reference in the catalog.
-#[derive(Debug, Copy, Clone, PartialEq, sqlx::FromRow)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct ProcessedTombstone {
     /// the id of the tombstone applied to the parquet file
     pub tombstone_id: TombstoneId,
@@ -1587,7 +1587,7 @@ impl ColumnSummary {
 }
 
 // Replicate this enum here as it can't be derived from the existing statistics
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[allow(missing_docs)]
 pub enum InfluxDbType {
     Tag,
@@ -1630,7 +1630,7 @@ pub struct StatValues<T> {
 }
 
 /// Represents the result of comparing the min/max ranges of two [`StatValues`]
-#[derive(Debug, PartialEq, Copy, Clone)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum StatOverlap {
     /// There is at least one value that exists in both ranges
     NonZero,
@@ -2199,7 +2199,7 @@ impl TimestampMinMax {
 }
 
 /// Specifies the status of data in the ingestion process.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum KafkaPartitionWriteStatus {
     /// Nothing is known about this write (e.g. it refers to a kafka
     /// partition for which we have no information)

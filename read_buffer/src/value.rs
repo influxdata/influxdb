@@ -1719,7 +1719,7 @@ impl<'a> Iterator for ValuesIterator<'a> {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 /// A representation of encoded values for a column.
 pub enum EncodedValues {
     I64(Vec<i64>),

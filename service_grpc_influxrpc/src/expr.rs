@@ -119,7 +119,7 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Defines the different ways series can be grouped and aggregated
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GroupByAndAggregate {
     /// group by a set of (Tag) columns, applying an agg to each field
     ///

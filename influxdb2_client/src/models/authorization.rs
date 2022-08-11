@@ -5,7 +5,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Authorization to create
-#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Authorization {
     /// If inactive the token is inactive and requests using the token will be
@@ -70,7 +70,7 @@ pub enum Status {
 }
 
 /// AuthorizationAllOfLinks
-#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct AuthorizationAllOfLinks {
     /// Self
     #[serde(rename = "self", skip_serializing_if = "Option::is_none")]

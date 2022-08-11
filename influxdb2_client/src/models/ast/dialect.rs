@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 /// Dialect are options to change the default CSV output format;
 /// <https://www.w3.org/TR/2015/REC-tabular-metadata-20151217/#dialect-descriptions>
-#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Dialect {
     /// If true, the results will contain a header row
