@@ -596,5 +596,7 @@ func filterFunc(dbrp *influxdb.DBRPMapping, filter influxdb.DBRPMappingFilter) b
 		(filter.BucketID == nil || (*filter.BucketID) == dbrp.BucketID) &&
 		(filter.Database == nil || (*filter.Database) == dbrp.Database) &&
 		(filter.RetentionPolicy == nil || (*filter.RetentionPolicy) == dbrp.RetentionPolicy) &&
-		(filter.Default == nil || (*filter.Default) == dbrp.Default)
+		(filter.Default == nil || (*filter.Default) == dbrp.Default) &&
+		(filter.Virtual == nil || (*filter.Virtual) == dbrp.Virtual)
+
 }
