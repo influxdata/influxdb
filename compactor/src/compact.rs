@@ -113,6 +113,10 @@ pub struct Compactor {
     /// values have attributes for the compaction level of the file.
     pub(crate) parquet_file_candidate_bytes: Metric<U64Histogram>,
 
+    /// After a successful compaction operation, track the sizes of the files that were used as the
+    /// inputs of the compaction operation by compaction level.
+    pub(crate) compaction_input_file_bytes: Metric<U64Histogram>,
+
     /// Histogram for tracking the time to compact a partition
     pub(crate) compaction_duration: Metric<DurationHistogram>,
 
@@ -182,6 +186,12 @@ impl Compactor {
             || file_size_buckets.clone(),
         );
 
+        let compaction_input_file_bytes = registry.register_metric_with_options(
+            "compaction_input_file_bytes",
+            "Number of bytes of Parquet files used as inputs to a successful compaction operation",
+            || file_size_buckets.clone(),
+        );
+
         let duration_histogram_options = DurationHistogramOptions::new([
             Duration::from_millis(100),
             Duration::from_millis(500),
@@ -229,6 +239,7 @@ impl Compactor {
             compaction_candidate_gauge,
             parquet_file_candidate_gauge,
             parquet_file_candidate_bytes,
+            compaction_input_file_bytes,
             compaction_duration,
             candidate_selection_duration,
             partitions_extra_info_reading_duration,
