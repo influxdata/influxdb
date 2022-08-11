@@ -4899,7 +4899,7 @@ func TestServer_Query_ShowMeasurements(t *testing.T) {
 		{
 			name:    `show measurements on all dbs and rps`,
 			command: "SHOW MEASUREMENTS on *.*",
-			exp:     `{"results":[{"statement_id":0,"series":[{"name":"measurements","columns":["name","database","retention policy"],"values":[["cpu","db0","rp0"],["gpu","db0","rp0"],["other","db0","rp0"],["other2","db0","rp1"],["cpu","db1","rp0"],["disk","db1","rp0"]]}]}]}`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"measurements","columns":["name","database","retention policy"],"values":[["other2","b2","autogen"],["cpu","b3","autogen"],["disk","b3","autogen"],["cpu","db","rp"],["gpu","db","rp"],["other","db","rp"],["cpu","db0","rp0"],["gpu","db0","rp0"],["other","db0","rp0"],["other2","db0","rp1"],["cpu","db1","rp0"],["disk","db1","rp0"]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}, "rp": []string{"rp0"}},
 		},
 	}...)
