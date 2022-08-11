@@ -432,7 +432,7 @@ fn compute_batch(
             let indices = indices.as_any().downcast_ref::<BooleanArray>().unwrap();
 
             // include null for last batch
-            let batch = if last_batch && indices.null_count() > 0 {
+            if last_batch && indices.null_count() > 0 {
                 // since !Null --> Null, but we want all the
                 // remaining rows, that are not in true_indicies,
                 // transform any nulls into true for this one
@@ -441,8 +441,7 @@ fn compute_batch(
                 filter_record_batch(input_batch, &BooleanArray::from(mapped_indicies))
             } else {
                 filter_record_batch(input_batch, indices)
-            }?;
-            batch
+            }?
         }
         ColumnarValue::Scalar(ScalarValue::Boolean(val)) => {
             let empty_record_batch = RecordBatch::new_empty(input_batch.schema());

@@ -506,9 +506,7 @@ impl DbSetup for ManyFieldsSeveralChunks {
             ..Default::default()
         };
 
-        let scenarios = make_n_chunks_scenario(&[c1, c2, c3, c4, c5]).await;
-
-        scenarios
+        make_n_chunks_scenario(&[c1, c2, c3, c4, c5]).await
     }
 }
 
@@ -591,7 +589,7 @@ impl DbSetup for OneMeasurementFourChunksWithDuplicates {
             "h2o,state=CA,city=SJ min_temp=75.5,max_temp=84.08 700",
         ];
 
-        let scenarios = make_n_chunks_scenario(&[
+        make_n_chunks_scenario(&[
             ChunkData {
                 lp_lines: lp_lines1,
                 partition_key,
@@ -613,9 +611,7 @@ impl DbSetup for OneMeasurementFourChunksWithDuplicates {
                 ..Default::default()
             },
         ])
-        .await;
-
-        scenarios
+        .await
     }
 }
 
