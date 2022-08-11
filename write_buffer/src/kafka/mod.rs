@@ -74,7 +74,7 @@ impl RSKafkaProducer {
                     Box::new(partition_client),
                     topic_name.clone(),
                     KafkaPartition::new(sequencer_id.try_into().unwrap()),
-                    &*metric_registry,
+                    metric_registry,
                 );
 
                 let mut producer_builder =
