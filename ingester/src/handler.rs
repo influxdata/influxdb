@@ -401,6 +401,7 @@ mod tests {
     use mutable_batch_lp::lines_to_batches;
     use object_store::memory::InMemory;
     use std::{num::NonZeroU32, ops::DerefMut};
+    use test_helpers::maybe_start_logging;
     use write_buffer::mock::{MockBufferForReading, MockBufferSharedState};
 
     #[tokio::test]
@@ -781,10 +782,23 @@ mod tests {
 
     #[tokio::test]
     #[should_panic(expected = "JoinError::Panic")]
-    async fn seeks_on_initialization_unknown_sequence_number() {
-        // No write operations means the stream will return unknown sequence number
-        // Ingester will panic because skip_to_oldest_available is false
-        let (ingester, _sequencer, _namespace) = ingester_test_setup(vec![], 2, false).await;
+    async fn sequence_number_no_longer_exists() {
+        maybe_start_logging();
+
+        let ingest_ts1 = Time::from_timestamp_millis(42);
+        let write_operations = vec![DmlWrite::new(
+            "foo",
+            lines_to_batches("cpu bar=2 20", 0).unwrap(),
+            Some("1970-01-01".into()),
+            DmlMeta::sequenced(
+                Sequence::new(0, SequenceNumber::new(10)),
+                ingest_ts1,
+                None,
+                150,
+            ),
+        )];
+        let (ingester, _sequencer, _namespace) =
+            ingester_test_setup(write_operations, 2, false).await;
 
         tokio::time::timeout(Duration::from_millis(1000), ingester.join())
             .await
@@ -792,14 +806,66 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn seeks_on_initialization_unknown_sequence_number_skip_to_oldest_available() {
+    #[should_panic(expected = "JoinError::Panic")]
+    async fn sequence_number_after_watermark() {
+        maybe_start_logging();
+
         let ingest_ts1 = Time::from_timestamp_millis(42);
         let write_operations = vec![DmlWrite::new(
             "foo",
             lines_to_batches("cpu bar=2 20", 0).unwrap(),
             Some("1970-01-01".into()),
             DmlMeta::sequenced(
-                Sequence::new(0, SequenceNumber::new(1)),
+                Sequence::new(0, SequenceNumber::new(2)),
+                ingest_ts1,
+                None,
+                150,
+            ),
+        )];
+        let (ingester, _sequencer, _namespace) =
+            ingester_test_setup(write_operations, 10, false).await;
+
+        tokio::time::timeout(Duration::from_millis(1100), ingester.join())
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "JoinError::Panic")]
+    async fn sequence_number_after_watermark_skip_to_oldest_available() {
+        maybe_start_logging();
+
+        let ingest_ts1 = Time::from_timestamp_millis(42);
+        let write_operations = vec![DmlWrite::new(
+            "foo",
+            lines_to_batches("cpu bar=2 20", 0).unwrap(),
+            Some("1970-01-01".into()),
+            DmlMeta::sequenced(
+                Sequence::new(0, SequenceNumber::new(2)),
+                ingest_ts1,
+                None,
+                150,
+            ),
+        )];
+        let (ingester, _sequencer, _namespace) =
+            ingester_test_setup(write_operations, 10, true).await;
+
+        tokio::time::timeout(Duration::from_millis(1100), ingester.join())
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn skip_to_oldest_available() {
+        maybe_start_logging();
+
+        let ingest_ts1 = Time::from_timestamp_millis(42);
+        let write_operations = vec![DmlWrite::new(
+            "foo",
+            lines_to_batches("cpu bar=2 20", 0).unwrap(),
+            Some("1970-01-01".into()),
+            DmlMeta::sequenced(
+                Sequence::new(0, SequenceNumber::new(10)),
                 ingest_ts1,
                 None,
                 150,
@@ -809,13 +875,12 @@ mod tests {
         // Set the min unpersisted to something bigger than the write's sequence number to
         // cause an UnknownSequenceNumber error. Skip to oldest available = true, so ingester
         // should find data
-        let (ingester, sequencer, namespace) =
-            ingester_test_setup(write_operations, 10, true).await;
+        let (ingester, sequencer, namespace) = ingester_test_setup(write_operations, 1, true).await;
 
         verify_ingester_buffer_has_data(ingester, sequencer, namespace, |first_batch| {
             assert_eq!(
                 first_batch.min_sequencer_number,
-                SequenceNumber::new(1),
+                SequenceNumber::new(10),
                 "re-initialization didn't seek to the beginning",
             );
         })

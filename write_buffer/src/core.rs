@@ -38,8 +38,16 @@ impl WriteBufferError {
         Self::new(WriteBufferErrorKind::InvalidInput, e)
     }
 
-    pub fn unknown_sequence_number(e: impl Into<Box<dyn std::error::Error + Sync + Send>>) -> Self {
-        Self::new(WriteBufferErrorKind::UnknownSequenceNumber, e)
+    pub fn sequence_number_after_watermark(
+        e: impl Into<Box<dyn std::error::Error + Sync + Send>>,
+    ) -> Self {
+        Self::new(WriteBufferErrorKind::SequenceNumberAfterWatermark, e)
+    }
+
+    pub fn sequence_number_no_longer_exists(
+        e: impl Into<Box<dyn std::error::Error + Sync + Send>>,
+    ) -> Self {
+        Self::new(WriteBufferErrorKind::SequenceNumberNoLongerExists, e)
     }
 
     pub fn unknown(e: impl Into<Box<dyn std::error::Error + Sync + Send>>) -> Self {
@@ -124,8 +132,14 @@ pub enum WriteBufferErrorKind {
     /// A fatal IO error occurred - non-fatal errors should be retried internally
     IO,
 
-    /// The sequence number that we are trying to read is unknown.
-    UnknownSequenceNumber,
+    /// The sequence number that we are trying to read is newer than high watermark.
+    SequenceNumberAfterWatermark,
+
+    /// The sequence number that we are trying to read no longer exists.
+    ///
+    /// The sequence number is known according to the high watermark but was either removed manually or due to the
+    /// retention policy.
+    SequenceNumberNoLongerExists,
 }
 
 /// Writing to a Write Buffer takes a [`DmlWrite`] and returns the [`DmlMeta`] for the
@@ -198,7 +212,8 @@ pub trait WriteBufferStreamHandler: Sync + Send + Debug + 'static {
     ///
     /// If the sequence number that the stream wants to read is unknown (either because it is in
     /// the future or because some retention policy removed it already), the stream will return an
-    /// error with [`WriteBufferErrorKind::UnknownSequenceNumber`] and will end immediately.
+    /// error with [`WriteBufferErrorKind::SequenceNumberAfterWatermark`] /
+    /// [`WriteBufferErrorKind::SequenceNumberNoLongerExists`] and will end immediately.
     async fn stream(&mut self) -> BoxStream<'static, Result<DmlOperation, WriteBufferError>>;
 
     /// Seek sequencer to given sequence number. The next output of related streams will be an
@@ -209,7 +224,7 @@ pub trait WriteBufferStreamHandler: Sync + Send + Debug + 'static {
     async fn seek(&mut self, sequence_number: SequenceNumber) -> Result<(), WriteBufferError>;
 
     /// Reset the sequencer to whatever is the earliest number available in the retained write
-    /// buffer. Useful to restart if [`WriteBufferErrorKind::UnknownSequenceNumber`] is returned
+    /// buffer. Useful to restart if [`WriteBufferErrorKind::SequenceNumberNoLongerExists`] is returned
     /// from [`stream`](Self::stream) but that isn't a problem.
     fn reset_to_earliest(&mut self);
 }
@@ -798,7 +813,10 @@ pub mod test_utils {
             .await
             .expect("stream not ended")
             .unwrap_err();
-        assert_eq!(err.kind(), WriteBufferErrorKind::UnknownSequenceNumber);
+        assert_eq!(
+            err.kind(),
+            WriteBufferErrorKind::SequenceNumberAfterWatermark
+        );
         assert!(handler_1_1_a.stream().await.next().await.is_none());
 
         assert_stream_pending(&mut handler_1_2_a.stream().await).await;

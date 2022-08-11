@@ -397,8 +397,8 @@ pub struct MockBufferStreamHandler {
     /// Index within the entry vector.
     vector_index: Arc<AtomicUsize>,
 
-    /// Offset within the sequencer IDs.
-    offset: i64,
+    /// Offset within the sequencer IDs or "earliest" if not set.
+    offset: Option<i64>,
 
     /// Flags if the stream is terminated, e.g. due to "offset out of range"
     terminated: Arc<AtomicBool>,
@@ -413,6 +413,8 @@ impl WriteBufferStreamHandler for MockBufferStreamHandler {
         let sequencer_id = self.sequencer_id;
         let vector_index = Arc::clone(&self.vector_index);
         let offset = self.offset;
+
+        let mut found_something = false;
 
         futures::stream::poll_fn(move |cx| {
             if terminated.load(SeqCst) {
@@ -436,13 +438,37 @@ impl WriteBufferStreamHandler for MockBufferStreamHandler {
                 match write_result {
                     Ok(write) => {
                         // found an entry => need to check if it is within the offset
-                        let sequence = write.meta().sequence().unwrap();
-                        if sequence.sequence_number.get() >= offset {
-                            // within offset => return entry to caller
-                            return Poll::Ready(Some(Ok(write.clone())));
+                        if let Some(offset) = offset {
+                            let sequence_number = write.meta().sequence().unwrap().sequence_number.get();
+
+                            match sequence_number.cmp(&offset) {
+                                std::cmp::Ordering::Greater if found_something => {
+                                    // this is not the first entry, so we're within range
+                                    return Poll::Ready(Some(Ok(write.clone())));
+                                }
+                                std::cmp::Ordering::Greater => {
+                                    // no other entry was found beforehand, this is bad
+                                    terminated.store(true, SeqCst);
+                                    return Poll::Ready(Some(Err(
+                                        WriteBufferError::sequence_number_no_longer_exists(format!(
+                                            "sequence number no longer exists, low watermark is {sequence_number}"
+                                        )),
+                                    )));
+                                }
+                                std::cmp::Ordering::Equal => {
+                                    // found exactly the seek point
+                                    found_something = true;
+                                    return Poll::Ready(Some(Ok(write.clone())));
+                                }
+                                std::cmp::Ordering::Less => {
+                                    // offset is larger then the current entry => ignore entry and try next
+                                    found_something = true;
+                                    continue;
+                                }
+                            }
                         } else {
-                            // offset is larger then the current entry => ignore entry and try next
-                            continue;
+                            // start at earlist, i.e. no need to check the sequence number of the entry
+                            return Poll::Ready(Some(Ok(write.clone())));
                         }
                     }
                     Err(e) => {
@@ -453,24 +479,28 @@ impl WriteBufferStreamHandler for MockBufferStreamHandler {
             }
 
             // check if we have seeked too far
-            let next_offset = entries
-                .iter()
-                .filter_map(|write_result| {
-                    if let Ok(write) = write_result {
-                        let sequence = write.meta().sequence().unwrap();
-                        Some(sequence.sequence_number.get())
-                    } else {
-                        None
-                    }
-                })
-                .max()
-                .map(|x| x + 1)
-                .unwrap_or_default();
-            if offset > next_offset {
-                terminated.store(true, SeqCst);
-                return Poll::Ready(Some(Err(WriteBufferError::unknown_sequence_number(
-                    format!("unknown sequence number, high watermark is {next_offset}"),
-                ))));
+            if let Some(offset) = offset {
+                let next_offset = entries
+                    .iter()
+                    .filter_map(|write_result| {
+                        if let Ok(write) = write_result {
+                            let sequence = write.meta().sequence().unwrap();
+                            Some(sequence.sequence_number.get())
+                        } else {
+                            None
+                        }
+                    })
+                    .max()
+                    .map(|x| x + 1)
+                    .unwrap_or_default();
+                if offset > next_offset {
+                    terminated.store(true, SeqCst);
+                    return Poll::Ready(Some(Err(
+                        WriteBufferError::sequence_number_after_watermark(format!(
+                            "unknown sequence number, high watermark is {next_offset}"
+                        )),
+                    )));
+                }
             }
 
             // we are at the end of the recorded entries => report pending
@@ -481,7 +511,7 @@ impl WriteBufferStreamHandler for MockBufferStreamHandler {
     }
 
     async fn seek(&mut self, sequence_number: SequenceNumber) -> Result<(), WriteBufferError> {
-        self.offset = sequence_number.get();
+        self.offset = Some(sequence_number.get());
 
         // reset position to start since seeking might go backwards
         self.vector_index.store(0, SeqCst);
@@ -493,7 +523,7 @@ impl WriteBufferStreamHandler for MockBufferStreamHandler {
     }
 
     fn reset_to_earliest(&mut self) {
-        self.offset = 0;
+        self.offset = None;
         self.vector_index.store(0, SeqCst);
         self.terminated.store(false, SeqCst);
     }
@@ -517,7 +547,7 @@ impl WriteBufferReading for MockBufferForReading {
             shared_state: Arc::clone(&self.shared_state),
             sequencer_id,
             vector_index: Arc::new(AtomicUsize::new(0)),
-            offset: 0,
+            offset: None,
             terminated: Arc::new(AtomicBool::new(false)),
         }))
     }
@@ -606,7 +636,10 @@ mod tests {
     use test_helpers::assert_contains;
     use trace::RingBufferTraceCollector;
 
-    use crate::core::test_utils::{perform_generic_tests, TestAdapter, TestContext};
+    use crate::core::{
+        test_utils::{perform_generic_tests, TestAdapter, TestContext},
+        WriteBufferErrorKind,
+    };
 
     use super::*;
 
@@ -931,5 +964,27 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_sequence_number_no_longer_exists() {
+        let state =
+            MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());
+
+        state.push_lp(Sequence::new(0, SequenceNumber::new(11)), "upc user=1 100");
+
+        let read = MockBufferForReading::new(state.clone(), None).unwrap();
+        let mut stream_handler = read.stream_handler(0).await.unwrap();
+        stream_handler.seek(SequenceNumber::new(1)).await.unwrap();
+        let mut stream = stream_handler.stream().await;
+
+        let err = stream.next().await.unwrap().unwrap_err();
+        assert_eq!(
+            err.kind(),
+            WriteBufferErrorKind::SequenceNumberNoLongerExists
+        );
+
+        // terminated
+        assert!(stream.next().await.is_none());
     }
 }

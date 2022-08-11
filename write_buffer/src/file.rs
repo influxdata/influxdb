@@ -491,7 +491,7 @@ impl ConsumerStream {
                                     }
                                 } else if sequence_number > watermark {
                                     terminated.store(true, Ordering::SeqCst);
-                                    return Some(Err(WriteBufferError::unknown_sequence_number(
+                                    return Some(Err(WriteBufferError::sequence_number_after_watermark(
                                         format!("unknown sequence number, high watermark is {watermark}"),
                                     )));
                                 }

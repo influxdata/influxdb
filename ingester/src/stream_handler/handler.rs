@@ -252,7 +252,7 @@ where
 
                     Some(op)
                 }
-                Some(Err(e)) if e.kind() == WriteBufferErrorKind::UnknownSequenceNumber => {
+                Some(Err(e)) if e.kind() == WriteBufferErrorKind::SequenceNumberNoLongerExists => {
                     // If we get an unknown sequence number, and we're fine potentially having
                     // missed writes that were too old to be retained, try resetting the stream
                     // once and getting the next operation again.
@@ -308,6 +308,16 @@ where
 
                     self.seq_invalid_data_count.inc(1);
                     None
+                }
+                Some(Err(e)) if e.kind() == WriteBufferErrorKind::SequenceNumberAfterWatermark => {
+                    panic!(
+                        "\
+Sequencer {:?} stream for topic {} has a high watermark BEFORE the sequence number we want. This is either a bug (see \
+https://github.com/influxdata/rskafka/issues/147 for example) or means that someone re-created the partition and data \
+is lost. In both cases, it's better to panic than to try something clever.",
+                        self.kafka_partition,
+                        self.kafka_topic_name,
+                    )
                 }
                 Some(Err(e)) => {
                     error!(
@@ -779,7 +789,7 @@ mod tests {
         non_fatal_stream_offset_error,
         skip_to_oldest_available = false,
         stream_ops = vec![vec![
-            Err(WriteBufferError::new(WriteBufferErrorKind::UnknownSequenceNumber, "explosions")),
+            Err(WriteBufferError::new(WriteBufferErrorKind::SequenceNumberNoLongerExists, "explosions")),
             Ok(DmlOperation::Write(make_write("bananas", 31)))
         ]],
         sink_rets = [Ok(true)],
@@ -803,7 +813,7 @@ mod tests {
             vec![
                 Err(
                     WriteBufferError::new(
-                        WriteBufferErrorKind::UnknownSequenceNumber,
+                        WriteBufferErrorKind::SequenceNumberNoLongerExists,
                         "explosions"
                     )
                 )
@@ -971,6 +981,46 @@ mod tests {
 
         // An empty stream iter immediately yields none.
         let write_buffer_stream_handler = EmptyWriteBufferStreamHandler {};
+        let sink = MockDmlSink::default();
+
+        let handler = SequencedStreamHandler::new(
+            write_buffer_stream_handler,
+            SequenceNumber::new(0),
+            sink,
+            lifecycle.handle(),
+            "kafka_topic_name".to_string(),
+            KafkaPartition::new(42),
+            &*metrics,
+            false,
+        );
+
+        handler
+            .run(Default::default())
+            .with_timeout_panic(Duration::from_secs(1))
+            .await;
+    }
+
+    // An abnormal end to the steam causes a panic, rather than a silent stream reader exit.
+    #[tokio::test]
+    #[should_panic(expected = "high watermark BEFORE the sequence number")]
+    async fn test_sequence_number_after_watermark_panic() {
+        let metrics = Arc::new(metric::Registry::default());
+        let time_provider = Arc::new(SystemProvider::default());
+        let lifecycle = LifecycleManager::new(
+            LifecycleConfig::new(100, 2, 3, Duration::from_secs(4), Duration::from_secs(5)),
+            Arc::clone(&metrics),
+            time_provider,
+        );
+
+        // An empty stream iter immediately yields none.
+        let (completed_tx, _completed_rx) = oneshot::channel();
+        let write_buffer_stream_handler = TestWriteBufferStreamHandler::new(
+            vec![vec![Err(WriteBufferError::new(
+                WriteBufferErrorKind::SequenceNumberAfterWatermark,
+                "explosions",
+            ))]],
+            completed_tx,
+        );
         let sink = MockDmlSink::default();
 
         let handler = SequencedStreamHandler::new(

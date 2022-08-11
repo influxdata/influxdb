@@ -21,7 +21,7 @@ use parking_lot::Mutex;
 use rskafka::{
     client::{
         consumer::{StartOffset, StreamConsumerBuilder},
-        error::{Error as RSKafkaError, ProtocolError},
+        error::{Error as RSKafkaError, ProtocolError, RequestContext, ServerErrorResponse},
         partition::{OffsetAt, PartitionClient},
         producer::{BatchProducer, BatchProducerBuilder},
         ClientBuilder,
@@ -265,8 +265,26 @@ impl WriteBufferStreamHandler for RSKafkaStreamHandler {
                     let kind = match e {
                         RSKafkaError::ServerError {
                             protocol_error: ProtocolError::OffsetOutOfRange,
+                            request: RequestContext::Fetch { offset, .. },
+                            response:
+                                Some(ServerErrorResponse::PartitionFetchState {
+                                    high_watermark, ..
+                                }),
                             ..
-                        } => WriteBufferErrorKind::UnknownSequenceNumber,
+                        } if high_watermark < offset => {
+                            WriteBufferErrorKind::SequenceNumberAfterWatermark
+                        }
+                        RSKafkaError::ServerError {
+                            protocol_error: ProtocolError::OffsetOutOfRange,
+                            request: RequestContext::Fetch { offset, .. },
+                            response:
+                                Some(ServerErrorResponse::PartitionFetchState {
+                                    high_watermark, ..
+                                }),
+                            ..
+                        } if high_watermark >= offset => {
+                            WriteBufferErrorKind::SequenceNumberNoLongerExists
+                        }
                         _ => WriteBufferErrorKind::Unknown,
                     };
                     return Err(WriteBufferError::new(kind, e));
