@@ -1629,15 +1629,13 @@ impl TryFrom<&DfExpr> for BinaryExpr {
                             right: left.clone(),
                         })
                     }
-                    (_, _) => {
-                        return Err(format!(
-                            "unsupported expression {:?} {:?} {:?}",
-                            *left, op, *right
-                        ))
-                    }
+                    (_, _) => Err(format!(
+                        "unsupported expression {:?} {:?} {:?}",
+                        *left, op, *right
+                    )),
                 }
             }
-            _ => return Err(format!("unsupported expression type {:?}", df_expr)),
+            _ => Err(format!("unsupported expression type {:?}", df_expr)),
         }
     }
 }

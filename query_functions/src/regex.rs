@@ -113,12 +113,10 @@ fn regex_match_expr_impl(matches: bool) -> ScalarFunctionImplementation {
                 let res = row.as_ref().map(|v| pattern.is_match(v) == matches);
                 Ok(ColumnarValue::Scalar(ScalarValue::Boolean(res)))
             }
-            ColumnarValue::Scalar(v) => {
-                return Err(DataFusionError::Internal(format!(
-                    "regex_match({}) expected first argument to be utf8, got ('{}')",
-                    matches, v
-                )))
-            }
+            ColumnarValue::Scalar(v) => Err(DataFusionError::Internal(format!(
+                "regex_match({}) expected first argument to be utf8, got ('{}')",
+                matches, v
+            ))),
         }
     };
 
