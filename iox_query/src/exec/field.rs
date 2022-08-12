@@ -16,7 +16,7 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Names for a field: a value field and the associated timestamp columns
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum FieldColumns {
     /// All field columns share a timestamp column, named TIME_COLUMN_NAME
     SharedTimestamp(Vec<Arc<str>>),
@@ -55,13 +55,13 @@ impl From<&[&str]> for FieldColumns {
 }
 
 /// Column indexes for a field: a value and corresponding timestamp
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct FieldIndex {
     pub value_index: usize,
     pub timestamp_index: usize,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct FieldIndexes {
     inner: Arc<Vec<FieldIndex>>,
 }
@@ -123,7 +123,7 @@ impl FieldIndexes {
             .iter()
             .map(|column_name| {
                 schema
-                    .index_of(&*column_name)
+                    .index_of(column_name)
                     .context(ColumnNotFoundForFieldSnafu {
                         column_name: column_name.as_ref(),
                     })
@@ -157,7 +157,7 @@ impl FieldIndexes {
                     .map(|(field_name, timestamp_name)| {
                         let field_index =
                             schema
-                                .index_of(&*field_name)
+                                .index_of(field_name)
                                 .context(ColumnNotFoundForFieldSnafu {
                                     column_name: field_name.as_ref(),
                                 })?;

@@ -10,14 +10,14 @@ pub mod schema;
 /// ingest such as tags/fields with the same name, or fields with different types across the whole
 /// dataset. It is not the same as an IOx schema, although it is similar and some of the merge code
 /// is similar. It's a transient data structure.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AggregateTSMSchema {
     pub org_id: String,
     pub bucket_id: String,
     pub measurements: HashMap<String, AggregateTSMMeasurement>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AggregateTSMMeasurement {
     // Map of tag name -> tag; note that the schema we get from the TSM tool has these as arrays.
     // Using HashMaps internally to detect duplicates, so we have to do some custom serialisation

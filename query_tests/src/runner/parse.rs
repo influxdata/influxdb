@@ -1,5 +1,5 @@
 /// A query to run with optional annotations
-#[derive(Debug, PartialEq, Default)]
+#[derive(Debug, PartialEq, Eq, Default)]
 pub struct Query {
     /// If true, results are sorted first prior to comparison, meaning
     /// that differences in the output order compared with expected
@@ -68,7 +68,7 @@ impl QueryBuilder {
 }
 
 /// Poor man's parser to find all the SQL queries in an input file
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct TestQueries {
     queries: Vec<Query>,
 }

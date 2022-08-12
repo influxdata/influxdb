@@ -71,7 +71,7 @@ macro_rules! add_service {
 /// Creates a [`RpcBuilder`] from [`RpcBuilderInput`].
 ///
 /// The resulting builder can be used w/ [`add_service`]. After adding all services it should
-/// be used w/ [`serve_builder`].
+/// be used w/ [`serve_builder!`](crate::serve_builder).
 #[macro_export]
 macro_rules! setup_builder {
     ($input:ident, $server_type:ident) => {{

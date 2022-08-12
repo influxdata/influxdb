@@ -34,6 +34,8 @@ pub trait ResourceEstimator: Debug + Send + Sync + 'static {
     fn consumption(&self, k: &Self::K, v: &Self::V) -> Self::S;
 }
 
+type BoxedEstimatorFn<K, V, S> = Box<dyn (Fn(&K, &V) -> S) + Send + Sync>;
+
 /// A simple function-based [`ResourceEstimator].
 pub struct FunctionEstimator<K, V, S>
 where
@@ -41,7 +43,7 @@ where
     V: 'static,
     S: Resource,
 {
-    estimator: Box<dyn (Fn(&K, &V) -> S) + Send + Sync>,
+    estimator: BoxedEstimatorFn<K, V, S>,
 }
 
 impl<K, V, S> FunctionEstimator<K, V, S>

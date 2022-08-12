@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 /// User Schema
-#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct User {
     /// User ID
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -42,7 +42,7 @@ pub enum Status {
 }
 
 /// User links
-#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct UserLinks {
     /// User link to Self
     #[serde(rename = "self", skip_serializing_if = "Option::is_none")]
@@ -57,7 +57,7 @@ impl UserLinks {
 }
 
 /// List of Users
-#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct Users {
     /// List of user links
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -75,7 +75,7 @@ impl Users {
 }
 
 /// UsersLinks
-#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct UsersLinks {
     /// Users Link to Self
     #[serde(rename = "self", skip_serializing_if = "Option::is_none")]

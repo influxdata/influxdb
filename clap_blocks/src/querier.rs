@@ -34,7 +34,7 @@ pub enum Error {
 }
 
 /// CLI config for querier configuration
-#[derive(Debug, Clone, PartialEq, clap::Parser)]
+#[derive(Debug, Clone, PartialEq, Eq, clap::Parser)]
 pub struct QuerierConfig {
     /// The number of threads to use for queries.
     ///
@@ -352,7 +352,7 @@ fn deserialize_sequencer_ingester_map(
 }
 
 /// Ingester addresses.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum IngesterAddresses {
     /// A mapping from sequencer ID to ingesters.
     BySequencer(HashMap<i32, IngesterMapping>),

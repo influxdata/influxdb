@@ -282,12 +282,12 @@ impl ColumnData {
 
     fn pad_none(&mut self, additional: usize) {
         match self {
-            ColumnData::Float(data) => data.extend(iter::repeat(None).take(additional)),
-            ColumnData::Integer(data) => data.extend(iter::repeat(None).take(additional)),
-            ColumnData::Unsigned(data) => data.extend(iter::repeat(None).take(additional)),
-            ColumnData::Boolean(data) => data.extend(iter::repeat(None).take(additional)),
-            ColumnData::String(data) => data.extend(iter::repeat(None).take(additional)),
-            ColumnData::Tag(data) => data.extend(iter::repeat(None).take(additional)),
+            Self::Float(data) => data.extend(iter::repeat(None).take(additional)),
+            Self::Integer(data) => data.extend(iter::repeat(None).take(additional)),
+            Self::Unsigned(data) => data.extend(iter::repeat(None).take(additional)),
+            Self::Boolean(data) => data.extend(iter::repeat(None).take(additional)),
+            Self::String(data) => data.extend(iter::repeat(None).take(additional)),
+            Self::Tag(data) => data.extend(iter::repeat(None).take(additional)),
         }
     }
 
@@ -333,12 +333,12 @@ impl ColumnData {
 
     fn len(&self) -> usize {
         match self {
-            ColumnData::Float(arr) => arr.len(),
-            ColumnData::Integer(arr) => arr.len(),
-            ColumnData::Unsigned(arr) => arr.len(),
-            ColumnData::Boolean(arr) => arr.len(),
-            ColumnData::String(arr) => arr.len(),
-            ColumnData::Tag(arr) => arr.len(),
+            Self::Float(arr) => arr.len(),
+            Self::Integer(arr) => arr.len(),
+            Self::Unsigned(arr) => arr.len(),
+            Self::Boolean(arr) => arr.len(),
+            Self::String(arr) => arr.len(),
+            Self::Tag(arr) => arr.len(),
         }
     }
 }

@@ -8,7 +8,7 @@ use schema::InfluxFieldType;
 /// This schema is useful for helping with displaying information in tests and
 /// decorating Arrow record batches when results are converted before leaving
 /// the read buffer.
-#[derive(Default, PartialEq, Debug, Clone)]
+#[derive(Default, PartialEq, Eq, Debug, Clone)]
 pub struct ResultSchema {
     pub select_columns: Vec<(ColumnType, LogicalDataType)>,
     pub group_columns: Vec<(ColumnType, LogicalDataType)>,
@@ -187,7 +187,7 @@ impl From<&LogicalDataType> for InfluxFieldType {
 
 /// These variants describe supported aggregates that can applied to columnar
 /// data in the Read Buffer.
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum AggregateType {
     Count,
     First,
@@ -223,7 +223,7 @@ impl std::fmt::Display for AggregateType {
 ///
 /// Semantic meaning specifies if the column is a "tag", "field",
 /// "timestamp", or "other".
-#[derive(PartialEq, Debug, PartialOrd, Clone)]
+#[derive(PartialEq, Eq, Debug, PartialOrd, Clone)]
 pub enum ColumnType {
     Tag(String),
     Field(String),

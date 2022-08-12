@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Key value pair
-#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct PropertyKey {
     /// Type of AST node
     #[serde(rename = "type", skip_serializing_if = "Option::is_none")]

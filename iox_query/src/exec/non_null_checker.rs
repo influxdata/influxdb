@@ -464,8 +464,6 @@ mod tests {
             value.into(),
         ));
 
-        let output = test_collect(exec as Arc<dyn ExecutionPlan>).await;
-
-        output
+        test_collect(exec as Arc<dyn ExecutionPlan>).await
     }
 }

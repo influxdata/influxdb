@@ -9,7 +9,7 @@ use std::collections::BTreeMap;
 mod progress;
 pub use progress::SequencerProgress;
 
-#[derive(Debug, Snafu, PartialEq)]
+#[derive(Debug, Snafu, PartialEq, Eq)]
 pub enum Error {
     #[snafu(display("Unknown kafka partition: {}", kafka_partition))]
     UnknownKafkaPartition { kafka_partition: KafkaPartition },
@@ -26,7 +26,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 ///
 /// This struct contains sufficient information to determine the
 /// current state of the write as a whole
-#[derive(Debug, Default, Clone, PartialEq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 /// Summary of a Vec<Vec<DmlMeta>>
 pub struct WriteSummary {
     /// Key is the sequencer_id from the DmlMeta structure (aka kafka

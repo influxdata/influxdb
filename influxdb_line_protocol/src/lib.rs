@@ -418,7 +418,7 @@ impl<'a> EscapedStr<'a> {
     /// single slice. The slice may not point into the original
     /// buffer.
     pub fn as_str(&self) -> &str {
-        &*self
+        self
     }
 }
 

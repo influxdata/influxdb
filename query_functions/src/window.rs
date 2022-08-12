@@ -212,42 +212,52 @@ impl TryFrom<EncodedWindowDuration> for WindowDuration {
                 let months = if let ScalarValue::Int64(Some(v)) = field1 {
                     v
                 } else {
-                    return Err(DataFusionError::Internal(
-                        format!("Invalid variable WindowDuration encoding. Expected int64 for months but got '{:?}'", field1)
-                    ))
+                    return Err(DataFusionError::Internal(format!(
+                        "Invalid variable WindowDuration encoding. Expected int64 for months \
+                             but got '{:?}'",
+                        field1
+                    )));
                 };
 
                 let negative = if let ScalarValue::Boolean(Some(v)) = field2 {
                     v
                 } else {
-                    return Err(DataFusionError::Internal(
-                        format!("Invalid variable WindowDuration encoding. Expected bool for negative but got '{:?}'", field2)
-                    ))
+                    return Err(DataFusionError::Internal(format!(
+                        "Invalid variable WindowDuration encoding. Expected bool for negative \
+                             but got '{:?}'",
+                        field2
+                    )));
                 };
 
                 Ok(Self::Variable { months, negative })
-            },
+            }
             ScalarValue::Utf8(Some(val)) if val == "fixed" => {
                 let nanoseconds = if let ScalarValue::Int64(Some(v)) = field1 {
                     v
                 } else {
-                    return Err(DataFusionError::Internal(
-                        format!("Invalid fixed WindowDuration encoding. Expected int64 for nanoseconds but got '{:?}'", field1)
-                    ))
+                    return Err(DataFusionError::Internal(format!(
+                        "Invalid fixed WindowDuration encoding. Expected int64 for nanoseconds \
+                             but got '{:?}'",
+                        field1
+                    )));
                 };
 
                 if let ScalarValue::Boolean(None) = field2 {
                 } else {
-                    return Err(DataFusionError::Internal(
-                        format!("Invalid fixed WindowDuration encoding. Expected Null bool in field2 but got '{:?}'", field2)
-                    ))
+                    return Err(DataFusionError::Internal(format!(
+                        "Invalid fixed WindowDuration encoding. Expected Null bool in field2 \
+                             but got '{:?}'",
+                        field2
+                    )));
                 };
 
                 Ok(Self::Fixed { nanoseconds })
             }
-            _ => return Err(DataFusionError::Internal(
-                format!("Invalid WindowDuration encoding. Expected string 'variable' or 'fixed' but got '{:?}'", ty)
-            ))
+            _ => Err(DataFusionError::Internal(format!(
+                "Invalid WindowDuration encoding. Expected string 'variable' or 'fixed' but \
+                    got '{:?}'",
+                ty
+            ))),
         }
     }
 }
@@ -306,7 +316,8 @@ mod tests {
 
     #[test]
     #[should_panic(
-        expected = "Invalid WindowDuration encoding. Expected string 'variable' or 'fixed' but got 'Boolean(true)'"
+        expected = "Invalid WindowDuration encoding. Expected string 'variable' or 'fixed' but got \
+        'Boolean(true)'"
     )]
     fn test_decoding_error_wrong_type_type() {
         decode(EncodedWindowDuration {
@@ -318,7 +329,8 @@ mod tests {
 
     #[test]
     #[should_panic(
-        expected = "Invalid WindowDuration encoding. Expected string 'variable' or 'fixed' but got 'Utf8(\\\"FIXED\\\")"
+        expected = "Invalid WindowDuration encoding. Expected string 'variable' or 'fixed' but got \
+        'Utf8(\\\"FIXED\\\")"
     )]
     fn test_decoding_error_wrong_type_value() {
         decode(EncodedWindowDuration {
@@ -330,7 +342,8 @@ mod tests {
 
     #[test]
     #[should_panic(
-        expected = "Invalid variable WindowDuration encoding. Expected int64 for months but got 'UInt64(11)'"
+        expected = "Invalid variable WindowDuration encoding. Expected int64 for months but got \
+        'UInt64(11)'"
     )]
     fn test_decoding_error_wrong_variable_months() {
         let _: WindowDuration = EncodedWindowDuration {
@@ -343,7 +356,8 @@ mod tests {
 
     #[test]
     #[should_panic(
-        expected = "Invalid variable WindowDuration encoding. Expected bool for negative but got 'UInt64(11)'"
+        expected = "Invalid variable WindowDuration encoding. Expected bool for negative but got \
+        'UInt64(11)'"
     )]
     fn test_decoding_error_wrong_variable_negative() {
         decode(EncodedWindowDuration {
@@ -354,7 +368,8 @@ mod tests {
 
     #[test]
     #[should_panic(
-        expected = "Invalid fixed WindowDuration encoding. Expected int64 for nanoseconds but got 'UInt64(11)'"
+        expected = "Invalid fixed WindowDuration encoding. Expected int64 for nanoseconds but got \
+        'UInt64(11)'"
     )]
     fn test_decoding_error_wrong_fixed_nanos() {
         decode(EncodedWindowDuration {
@@ -365,7 +380,8 @@ mod tests {
 
     #[test]
     #[should_panic(
-        expected = "Invalid fixed WindowDuration encoding. Expected Null bool in field2 but got 'Boolean(false)'"
+        expected = "Invalid fixed WindowDuration encoding. Expected Null bool in field2 but got \
+        'Boolean(false)'"
     )]
     fn test_decoding_error_wrong_fixed_field2() {
         decode(EncodedWindowDuration {

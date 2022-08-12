@@ -22,7 +22,7 @@ use snafu::Snafu;
 
 use super::*;
 
-#[derive(Snafu, Debug, Clone, Copy, PartialEq)]
+#[derive(Snafu, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Error {
     #[snafu(display(r#"Too many sort columns specified"#))]
     TooManyColumns,

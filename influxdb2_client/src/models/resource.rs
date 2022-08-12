@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Construct a resource
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Resource {
     /// Resource Type

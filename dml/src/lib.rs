@@ -119,16 +119,16 @@ impl DmlOperation {
     /// Gets the metadata associated with this operation
     pub fn meta(&self) -> &DmlMeta {
         match &self {
-            DmlOperation::Write(w) => w.meta(),
-            DmlOperation::Delete(d) => d.meta(),
+            Self::Write(w) => w.meta(),
+            Self::Delete(d) => d.meta(),
         }
     }
 
     /// Sets the metadata for this operation
     pub fn set_meta(&mut self, meta: DmlMeta) {
         match self {
-            DmlOperation::Write(w) => w.set_meta(meta),
-            DmlOperation::Delete(d) => d.set_meta(meta),
+            Self::Write(w) => w.set_meta(meta),
+            Self::Delete(d) => d.set_meta(meta),
         }
     }
 
@@ -149,8 +149,8 @@ impl DmlOperation {
     /// Namespace associated with this operation
     pub fn namespace(&self) -> &str {
         match self {
-            DmlOperation::Write(w) => w.namespace(),
-            DmlOperation::Delete(d) => d.namespace(),
+            Self::Write(w) => w.namespace(),
+            Self::Delete(d) => d.namespace(),
         }
     }
 }

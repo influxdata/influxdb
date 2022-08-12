@@ -481,7 +481,7 @@ pub enum FieldValueSpec {
 }
 
 /// The kind of field value to create using the data generation tool's uptime
-#[derive(Debug, PartialEq, Copy, Clone, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone, Deserialize)]
 pub enum UptimeKind {
     /// Number of seconds since the tool started running as an i64 field
     #[serde(rename = "i64")]
@@ -575,7 +575,7 @@ struct FieldSpecIntermediate {
 
 /// The specification of what values to substitute in for placeholders specified
 /// in `String` field values.
-#[derive(Deserialize, Debug, PartialEq, Clone)]
+#[derive(Deserialize, Debug, PartialEq, Eq, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct Replacement {
     /// A placeholder key that can be used in field `pattern`s.
@@ -592,7 +592,7 @@ pub struct Replacement {
     pub with: Vec<ReplacementValue>,
 }
 
-#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Deserialize, PartialEq, Eq, Clone)]
 #[serde(untagged, deny_unknown_fields)]
 /// A possible value to use instead of a placeholder key, optionally with an
 /// associated weight. If no weight is specified, the weight used will be 1.

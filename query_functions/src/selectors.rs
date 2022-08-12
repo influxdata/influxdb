@@ -195,6 +195,9 @@ impl SelectorOutput {
 }
 
 type ReturnTypeFunction = Arc<dyn Fn(&[DataType]) -> DataFusionResult<Arc<DataType>> + Send + Sync>;
+type StateTypeFactory =
+    Arc<dyn Fn(&DataType) -> DataFusionResult<Arc<Vec<DataType>>> + Send + Sync>;
+type Factory = Arc<dyn Fn() -> DataFusionResult<Box<dyn Accumulator>> + Send + Sync>;
 
 /// Factory function for creating the UDA function for DataFusion
 fn make_uda<SELECTOR>(name: &'static str, output: SelectorOutput) -> AggregateUDF
@@ -208,11 +211,9 @@ where
     );
 
     let state_type = Arc::new(vec![value_data_type.clone(), TIME_DATA_TYPE()]);
-    let state_type_factory: Arc<
-        dyn Fn(&DataType) -> DataFusionResult<Arc<Vec<DataType>>> + Send + Sync,
-    > = Arc::new(move |_| Ok(Arc::clone(&state_type)));
+    let state_type_factory: StateTypeFactory = Arc::new(move |_| Ok(Arc::clone(&state_type)));
 
-    let factory: Arc<dyn Fn() -> DataFusionResult<Box<dyn Accumulator>> + Send + Sync> =
+    let factory: Factory =
         Arc::new(move || Ok(Box::new(SelectorAccumulator::<SELECTOR>::new(output))));
 
     let return_type = Arc::new(output.return_type(&value_data_type));

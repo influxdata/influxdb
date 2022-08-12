@@ -19,7 +19,7 @@ use std::io;
 
 pub use key::ParsedTsmKey;
 
-#[derive(Clone, Debug, Copy, PartialEq)]
+#[derive(Clone, Debug, Copy, PartialEq, Eq)]
 pub enum BlockType {
     Float,
     Integer,
@@ -46,7 +46,7 @@ impl TryFrom<u8> for BlockType {
 }
 
 /// `Block` holds information about location and time range of a block of data.
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct Block {
     pub min_time: i64,
     pub max_time: i64,
@@ -97,7 +97,7 @@ impl std::fmt::Display for InfluxId {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TsmError {
     pub description: String,
 }
