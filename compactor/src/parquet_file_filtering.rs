@@ -133,6 +133,7 @@ pub(crate) fn filter_hot_parquet_files(
     let ParquetFilesForCompaction {
         level_0,
         level_1: mut remaining_level_1,
+        .. // Ignore other levels
     } = parquet_files_for_compaction;
 
     if level_0.is_empty() {
@@ -300,6 +301,7 @@ pub(crate) fn filter_cold_parquet_files(
     let ParquetFilesForCompaction {
         level_0,
         level_1: mut remaining_level_1,
+        .. // Ignore other levels
     } = parquet_files_for_compaction;
 
     if level_0.is_empty() {
@@ -631,6 +633,7 @@ mod tests {
             let parquet_files_for_compaction = ParquetFilesForCompaction {
                 level_0: vec![],
                 level_1: vec![],
+                level_2: vec![],
             };
             let (files_metric, bytes_metric) = metrics();
 
@@ -658,6 +661,7 @@ mod tests {
             let parquet_files_for_compaction = ParquetFilesForCompaction {
                 level_0: vec![ParquetFileBuilder::level_0().id(1).build()],
                 level_1: vec![],
+                level_2: vec![],
             };
             let (files_metric, bytes_metric) = metrics();
 
@@ -684,6 +688,7 @@ mod tests {
             let parquet_files_for_compaction = ParquetFilesForCompaction {
                 level_0: vec![ParquetFileBuilder::level_0().id(1).build()],
                 level_1: vec![],
+                level_2: vec![],
             };
             let (files_metric, bytes_metric) = metrics();
 
@@ -741,6 +746,7 @@ mod tests {
                         .max_time(500)
                         .build(),
                 ],
+                level_2: vec![],
             };
             let (files_metric, bytes_metric) = metrics();
 
@@ -845,6 +851,7 @@ mod tests {
                         .file_size_bytes(10)
                         .build(),
                 ],
+                level_2: vec![],
             };
 
             // total needed budget for one file with a tag, a time and 11 rows = 1176
@@ -926,6 +933,7 @@ mod tests {
             let parquet_files_for_compaction = ParquetFilesForCompaction {
                 level_0: vec![],
                 level_1: vec![],
+                level_2: vec![],
             };
             let (files_metric, bytes_metric) = metrics();
 
@@ -945,6 +953,7 @@ mod tests {
             let parquet_files_for_compaction = ParquetFilesForCompaction {
                 level_0: vec![ParquetFileBuilder::level_0().id(1).build()],
                 level_1: vec![],
+                level_2: vec![],
             };
             let (files_metric, bytes_metric) = metrics();
 
@@ -965,6 +974,7 @@ mod tests {
             let parquet_files_for_compaction = ParquetFilesForCompaction {
                 level_0: vec![ParquetFileBuilder::level_0().id(1).build()],
                 level_1: vec![],
+                level_2: vec![],
             };
             let (files_metric, bytes_metric) = metrics();
 
@@ -1001,6 +1011,7 @@ mod tests {
                         .max_time(500)
                         .build(),
                 ],
+                level_2: vec![],
             };
             let (files_metric, bytes_metric) = metrics();
 
@@ -1044,6 +1055,7 @@ mod tests {
                         .max_time(500)
                         .build(),
                 ],
+                level_2: vec![],
             };
             let (files_metric, bytes_metric) = metrics();
 
@@ -1108,6 +1120,7 @@ mod tests {
                         .file_size_bytes(10)
                         .build(),
                 ],
+                level_2: vec![],
             };
 
             // all level 0 files & no level 1 files get returned
@@ -1217,6 +1230,7 @@ mod tests {
                         .file_size_bytes(10)
                         .build(),
                 ],
+                level_2: vec![],
             };
 
             // Max size 0; only the first level 0 file and its overlapping level 1 files get

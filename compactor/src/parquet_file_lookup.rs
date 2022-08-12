@@ -32,6 +32,9 @@ pub(crate) struct ParquetFilesForCompaction {
 
     /// Parquet files for a partition with `CompactionLevel::FileNonOverlapped`. Arbitrary order.
     pub(crate) level_1: Vec<CompactorParquetFile>,
+
+    /// Parquet files for a partition with `CompactionLevel::Final`. Arbitrary order.
+    pub(crate) level_2: Vec<CompactorParquetFile>,
 }
 
 impl ParquetFilesForCompaction {
@@ -62,6 +65,7 @@ impl ParquetFilesForCompaction {
 
         let mut level_0 = Vec::with_capacity(parquet_files.len());
         let mut level_1 = Vec::with_capacity(parquet_files.len());
+        let mut level_2 = Vec::with_capacity(parquet_files.len());
 
         for parquet_file in parquet_files {
             let parquet_file = match size_overrides.get(&parquet_file.id) {
@@ -71,12 +75,17 @@ impl ParquetFilesForCompaction {
             match parquet_file.compaction_level() {
                 CompactionLevel::Initial => level_0.push(parquet_file),
                 CompactionLevel::FileNonOverlapped => level_1.push(parquet_file),
+                CompactionLevel::Final => level_2.push(parquet_file),
             }
         }
 
         level_0.sort_by_key(|pf| pf.max_sequence_number());
 
-        Ok(Self { level_0, level_1 })
+        Ok(Self {
+            level_0,
+            level_1,
+            level_2,
+        })
     }
 }
 
@@ -256,7 +265,46 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn one_level_0_file_one_level_1_file_gets_returned() {
+    async fn one_level_2_file_gets_returned() {
+        test_helpers::maybe_start_logging();
+        let TestSetup {
+            catalog, partition, ..
+        } = test_setup().await;
+
+        // Create a level 2 file
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(ARBITRARY_LINE_PROTOCOL)
+            .with_compaction_level(CompactionLevel::Final);
+        let parquet_file = partition.create_parquet_file(builder).await;
+
+        let parquet_files_for_compaction = ParquetFilesForCompaction::for_partition(
+            Arc::clone(&catalog.catalog),
+            partition.partition.id,
+            &HashMap::default(),
+        )
+        .await
+        .unwrap();
+
+        assert!(
+            parquet_files_for_compaction.level_0.is_empty(),
+            "Expected empty, got: {:#?}",
+            parquet_files_for_compaction.level_0
+        );
+
+        assert!(
+            parquet_files_for_compaction.level_1.is_empty(),
+            "Expected empty, got: {:#?}",
+            parquet_files_for_compaction.level_1
+        );
+
+        assert_eq!(
+            parquet_files_for_compaction.level_2,
+            vec![parquet_file.parquet_file.into()]
+        );
+    }
+
+    #[tokio::test]
+    async fn one_file_of_each_level_gets_returned() {
         test_helpers::maybe_start_logging();
         let TestSetup {
             catalog, partition, ..
@@ -274,6 +322,12 @@ mod tests {
             .with_compaction_level(CompactionLevel::FileNonOverlapped);
         let l1 = partition.create_parquet_file(builder).await;
 
+        // Create a level 2 file
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(ARBITRARY_LINE_PROTOCOL)
+            .with_compaction_level(CompactionLevel::Final);
+        let l2 = partition.create_parquet_file(builder).await;
+
         let parquet_files_for_compaction = ParquetFilesForCompaction::for_partition(
             Arc::clone(&catalog.catalog),
             partition.partition.id,
@@ -290,6 +344,11 @@ mod tests {
         assert_eq!(
             parquet_files_for_compaction.level_1,
             vec![l1.parquet_file.into()]
+        );
+
+        assert_eq!(
+            parquet_files_for_compaction.level_2,
+            vec![l2.parquet_file.into()]
         );
     }
 

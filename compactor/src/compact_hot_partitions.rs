@@ -391,7 +391,7 @@ pub(crate) async fn compact_one_hot_partition(
 
     let compact_result = parquet_file_combining::compact_parquet_files(
         to_compact.files,
-        partition,
+        Arc::new(partition),
         Arc::clone(&compactor.catalog),
         compactor.store.clone(),
         Arc::clone(&compactor.exec),
@@ -920,6 +920,7 @@ mod tests {
             max_number_partitions_per_shard: 1,
             min_number_recent_ingested_files_per_partition: 1,
             cold_input_size_threshold_bytes: 600 * 1024 * 1024,
+            cold_max_desired_file_size_bytes: 104_857_600,
             cold_input_file_count_threshold: 100,
             hot_multiple: 4,
             memory_budget_bytes: 100_000_000,
@@ -1157,6 +1158,7 @@ mod tests {
             max_number_partitions_per_shard: 100,
             min_number_recent_ingested_files_per_partition: 1,
             cold_input_size_threshold_bytes: 600 * 1024 * 1024,
+            cold_max_desired_file_size_bytes: 104_857_600,
             cold_input_file_count_threshold: 100,
             hot_multiple: 4,
             memory_budget_bytes: 12 * 1125, // 13,500 bytes

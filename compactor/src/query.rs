@@ -237,7 +237,7 @@ impl QueryChunk for QueryableParquetChunk {
     fn order(&self) -> ChunkOrder {
         match self.compaction_level {
             CompactionLevel::Initial => ChunkOrder::new(self.max_sequence_number.get()),
-            CompactionLevel::FileNonOverlapped => ChunkOrder::new(0),
+            CompactionLevel::FileNonOverlapped | CompactionLevel::Final => ChunkOrder::new(0),
         }
     }
 

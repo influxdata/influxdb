@@ -74,7 +74,7 @@ pub(crate) enum Error {
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn compact_parquet_files(
     files: Vec<CompactorParquetFile>,
-    partition: PartitionCompactionCandidateWithInfo,
+    partition: Arc<PartitionCompactionCandidateWithInfo>,
     // The global catalog for schema, parquet files and tombstones
     catalog: Arc<dyn Catalog>,
     // Object store for reading input parquet files and writing compacted parquet files
@@ -95,7 +95,7 @@ pub(crate) async fn compact_parquet_files(
     // 1 - `split_percentage` in the later compacted file.
     percentage_max_file_size: u16,
     // When data is between a "small" and "large" amount, split the compacted files at roughly this
-    // percentage in the earlier compacted file, and the remainder .in the later compacted file.
+    // percentage in the earlier compacted file, and the remainder in the later compacted file.
     split_percentage: u16,
 ) -> Result<(), Error> {
     let partition_id = partition.id();
@@ -241,8 +241,6 @@ pub(crate) async fn compact_parquet_files(
         .await
         .context(CompactPhysicalPlanSnafu)?;
 
-    let partition = Arc::new(partition);
-
     // Run to collect each stream of the plan
     let stream_count = physical_plan.output_partitioning().partition_count();
 
@@ -360,6 +358,195 @@ pub(crate) async fn compact_parquet_files(
     for size in file_sizes {
         compaction_input_file_bytes.record(size as u64);
     }
+
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn compact_final_no_splits(
+    files: Vec<CompactorParquetFile>,
+    partition: Arc<PartitionCompactionCandidateWithInfo>,
+    // The global catalog for schema, parquet files and tombstones
+    catalog: Arc<dyn Catalog>,
+    // Object store for reading input parquet files and writing compacted parquet files
+    store: ParquetStorage,
+    // Executor for running queries, compacting, and persisting
+    exec: Arc<Executor>,
+    time_provider: Arc<dyn TimeProvider>,
+) -> Result<(), Error> {
+    let partition_id = partition.id();
+
+    let num_files = files.len();
+    ensure!(
+        num_files > 0,
+        NotEnoughParquetFilesSnafu {
+            num_files,
+            partition_id
+        }
+    );
+
+    debug!(
+        ?partition_id,
+        num_files, "final compaction of files to level 2"
+    );
+
+    // Collect all the parquet file IDs, to be able to set their catalog records to be
+    // deleted. These should already be unique, no need to dedupe.
+    let original_parquet_file_ids: Vec<_> = files.iter().map(|f| f.id()).collect();
+
+    // Convert the input files into QueryableParquetChunk for making query plan
+    let query_chunks: Vec<_> = files
+        .into_iter()
+        .map(|file| {
+            to_queryable_parquet_chunk(
+                file,
+                store.clone(),
+                partition.table.name.clone(),
+                &partition.table_schema,
+                partition.sort_key.clone(),
+            )
+        })
+        .collect();
+
+    trace!(
+        n_query_chunks = query_chunks.len(),
+        "gathered parquet data to compact"
+    );
+
+    // Compute max sequence numbers and min/max time
+    // unwrap here will work because the len of the query_chunks already >= 1
+    let (head, tail) = query_chunks.split_first().unwrap();
+    let mut max_sequence_number = head.max_sequence_number();
+    let mut min_time = head.min_time();
+    let mut max_time = head.max_time();
+    for c in tail {
+        max_sequence_number = max(max_sequence_number, c.max_sequence_number());
+        min_time = min(min_time, c.min_time());
+        max_time = max(max_time, c.max_time());
+    }
+
+    // Merge schema of the compacting chunks
+    let query_chunks: Vec<_> = query_chunks
+        .into_iter()
+        .map(|c| Arc::new(c) as Arc<dyn QueryChunk>)
+        .collect();
+    let merged_schema = QueryableParquetChunk::merge_schemas(&query_chunks);
+    debug!(
+        num_cols = merged_schema.as_arrow().fields().len(),
+        "Number of columns in the merged schema to build query plan"
+    );
+
+    // All partitions in the catalog MUST contain a sort key.
+    let sort_key = partition
+        .sort_key
+        .as_ref()
+        .expect("no partition sort key in catalog")
+        .filter_to(&merged_schema.primary_key());
+
+    let ctx = exec.new_context(ExecutorType::Reorg);
+    // Compact everything into one file
+    let plan = ReorgPlanner::new(ctx.child_ctx("ReorgPlanner"))
+        .compact_plan(Arc::clone(&merged_schema), query_chunks, sort_key.clone())
+        .context(CompactLogicalPlanSnafu)?;
+
+    let ctx = exec.new_context(ExecutorType::Reorg);
+    let physical_plan = ctx
+        .create_physical_plan(&plan)
+        .await
+        .context(CompactPhysicalPlanSnafu)?;
+
+    // Run to collect each stream of the plan
+    let stream_count = physical_plan.output_partitioning().partition_count();
+
+    debug!("running plan with {} streams", stream_count);
+
+    // These streams *must* to run in parallel otherwise a deadlock
+    // can occur. Since there is a merge in the plan, in order to make
+    // progress on one stream there must be (potential space) on the
+    // other streams.
+    //
+    // https://github.com/influxdata/influxdb_iox/issues/4306
+    // https://github.com/influxdata/influxdb_iox/issues/4324
+    let compacted_parquet_files = (0..stream_count)
+        .map(|i| {
+            // Prepare variables to pass to the closure
+            let ctx = exec.new_context(ExecutorType::Reorg);
+            let physical_plan = Arc::clone(&physical_plan);
+            let store = store.clone();
+            let time_provider = Arc::clone(&time_provider);
+            let sort_key = sort_key.clone();
+            let partition = Arc::clone(&partition);
+            // run as a separate tokio task so files can be written
+            // concurrently.
+            tokio::task::spawn(async move {
+                trace!(partition = i, "executing datafusion partition");
+                let data = ctx
+                    .execute_stream_partitioned(physical_plan, i)
+                    .await
+                    .context(ExecuteCompactPlanSnafu)?;
+                trace!(partition = i, "built result stream for partition");
+
+                let meta = IoxMetadata {
+                    object_store_id: Uuid::new_v4(),
+                    creation_timestamp: time_provider.now(),
+                    shard_id: partition.shard_id(),
+                    namespace_id: partition.namespace_id(),
+                    namespace_name: partition.namespace.name.clone().into(),
+                    table_id: partition.table.id,
+                    table_name: partition.table.name.clone().into(),
+                    partition_id,
+                    partition_key: partition.partition_key.clone(),
+                    max_sequence_number,
+                    compaction_level: CompactionLevel::Final,
+                    sort_key: Some(sort_key.clone()),
+                };
+
+                debug!(
+                    ?partition_id,
+                    "executing and uploading compaction StreamSplitExec"
+                );
+
+                let object_store_id = meta.object_store_id;
+                info!(?partition_id, %object_store_id, "streaming exec to object store");
+
+                // Stream the record batches from the compaction exec, serialize
+                // them, and directly upload the resulting Parquet files to
+                // object storage.
+                let (parquet_meta, file_size) =
+                    store.upload(data, &meta).await.context(PersistSnafu)?;
+
+                debug!(?partition_id, %object_store_id, "file uploaded to object store");
+
+                let parquet_file =
+                    meta.to_parquet_file(partition_id, file_size, &parquet_meta, |name| {
+                        partition
+                            .table_schema
+                            .columns
+                            .get(name)
+                            .expect("unknown column")
+                            .id
+                    });
+
+                Ok(parquet_file)
+            })
+        })
+        // NB: FuturesOrdered allows the futures to run in parallel
+        .collect::<FuturesOrdered<_>>()
+        // Check for errors in the task
+        .map(|t| t.context(ExecuteParquetTaskSnafu)?)
+        .try_collect::<Vec<_>>()
+        .await?;
+
+    update_catalog(
+        catalog,
+        partition_id,
+        compacted_parquet_files,
+        &original_parquet_file_ids,
+    )
+    .await
+    .context(CatalogSnafu { partition_id })?;
+
+    info!(?partition_id, "compaction complete");
 
     Ok(())
 }
@@ -530,7 +717,7 @@ mod tests {
     struct TestSetup {
         catalog: Arc<TestCatalog>,
         table: Arc<TestTable>,
-        candidate_partition: PartitionCompactionCandidateWithInfo,
+        candidate_partition: Arc<PartitionCompactionCandidateWithInfo>,
         parquet_files: Vec<CompactorParquetFile>,
     }
 
@@ -556,7 +743,7 @@ mod tests {
         let sort_key = SortKey::from_columns(["tag1", "tag2", "tag3", "time"]);
         let partition = partition.update_sort_key(sort_key.clone()).await;
 
-        let candidate_partition = PartitionCompactionCandidateWithInfo {
+        let candidate_partition = Arc::new(PartitionCompactionCandidateWithInfo {
             table: Arc::new(table.table.clone()),
             table_schema: Arc::new(table_schema),
             namespace: Arc::new(ns.namespace.clone()),
@@ -568,7 +755,7 @@ mod tests {
             },
             sort_key: partition.partition.sort_key(),
             partition_key: partition.partition.partition_key.clone(),
-        };
+        });
 
         let lp = vec![
             "table,tag2=PA,tag3=15 field_int=1601i 30000",

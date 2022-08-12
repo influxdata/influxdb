@@ -803,6 +803,7 @@ mod tests {
             max_number_partitions_per_shard: 1,
             min_number_recent_ingested_files_per_partition: 1,
             cold_input_size_threshold_bytes: 600 * 1024 * 1024,
+            cold_max_desired_file_size_bytes: 104_857_600,
             cold_input_file_count_threshold: 100,
             hot_multiple: 4,
             memory_budget_bytes: 10 * 1024 * 1024,
