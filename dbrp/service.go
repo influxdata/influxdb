@@ -238,7 +238,7 @@ func (s *Service) FindByID(ctx context.Context, orgID, id platform.ID) (*influxd
 			if err != nil || b == nil {
 				return nil, ErrDBRPNotFound
 			}
-			return bucketToMapping(b), nil
+			return bucketToMapping(b, true), nil
 		}
 		return nil, err
 	}
@@ -356,37 +356,29 @@ func (s *Service) FindMany(ctx context.Context, filter influxdb.DBRPMappingFilte
 		return ms, len(ms), err
 	}
 
-	buckets, count, err := s.bucketSvc.FindBuckets(ctx, influxdb.BucketFilter{
+	// a very general search, because if we search for database name of "hello",
+	// the bucket name could be "hello" (with autogen rp) or "hello/foo" which we wouldn't find
+	buckets, _, err := s.bucketSvc.FindBuckets(ctx, influxdb.BucketFilter{
 		ID:             filter.BucketID,
-		Name:           filter.Database,
 		OrganizationID: filter.OrgID,
 	}, opts...)
-	if (err != nil || count == 0) && filter.Database != nil && filter.RetentionPolicy != nil {
-		// if the search couldn't find a corresponding dbrp, it could be that the bucket name has a slash (like db/rp)
-		// instead of just bucket name being the database with "autogen" retention policy
-		bucketName := *filter.Database + "/" + *filter.RetentionPolicy
-		buckets, _, err = s.bucketSvc.FindBuckets(ctx, influxdb.BucketFilter{
-			ID:             filter.BucketID,
-			Name:           &bucketName,
-			OrganizationID: filter.OrgID,
-		}, opts...)
-		if err != nil {
-			// we were unable to find any virtual mappings, so return what physical mappings we have
-			return ms, len(ms), nil
-		}
+	if err != nil {
+		// we were unable to find any virtual mappings, so return what physical mappings we have
+		return ms, len(ms), nil
 	}
-OUTER:
 	for _, bucket := range buckets {
-		// check if this virtual mapping has been overriden by a custom, physical mapping
-		for _, m := range ms {
-			if m.BucketID == bucket.ID {
-				continue OUTER
-			}
-		}
 		if bucket == nil {
 			continue
 		}
-		mapping := bucketToMapping(bucket)
+		isDefault := true
+		// check if this virtual mapping has been overriden by a custom, physical mapping
+		for _, m := range ms {
+			if m.BucketID == bucket.ID {
+				isDefault = false
+				break
+			}
+		}
+		mapping := bucketToMapping(bucket, isDefault)
 		if filterFunc(mapping, filter) {
 			ms = append(ms, mapping)
 		}
@@ -395,7 +387,7 @@ OUTER:
 	return ms, len(ms), nil
 }
 
-func bucketToMapping(bucket *influxdb.Bucket) *influxdb.DBRPMapping {
+func bucketToMapping(bucket *influxdb.Bucket, isDefault bool) *influxdb.DBRPMapping {
 	if bucket == nil {
 		return nil
 	}
@@ -404,7 +396,7 @@ func bucketToMapping(bucket *influxdb.Bucket) *influxdb.DBRPMapping {
 	db, rp := parseDBRP(bucket.Name)
 	return &influxdb.DBRPMapping{
 		ID:              dbrpID,
-		Default:         false,
+		Default:         isDefault,
 		Database:        db,
 		RetentionPolicy: rp,
 		OrganizationID:  bucket.OrgID,
@@ -604,5 +596,7 @@ func filterFunc(dbrp *influxdb.DBRPMapping, filter influxdb.DBRPMappingFilter) b
 		(filter.BucketID == nil || (*filter.BucketID) == dbrp.BucketID) &&
 		(filter.Database == nil || (*filter.Database) == dbrp.Database) &&
 		(filter.RetentionPolicy == nil || (*filter.RetentionPolicy) == dbrp.RetentionPolicy) &&
-		(filter.Default == nil || (*filter.Default) == dbrp.Default)
+		(filter.Default == nil || (*filter.Default) == dbrp.Default) &&
+		(filter.Virtual == nil || (*filter.Virtual) == dbrp.Virtual)
+
 }

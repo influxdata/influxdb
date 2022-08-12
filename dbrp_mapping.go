@@ -101,6 +101,7 @@ type DBRPMappingFilter struct {
 	Database        *string
 	RetentionPolicy *string
 	Default         *bool
+	Virtual         *bool
 }
 
 func (f DBRPMappingFilter) String() string {
