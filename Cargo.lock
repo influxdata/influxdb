@@ -4211,7 +4211,7 @@ dependencies = [
 [[package]]
 name = "rskafka"
 version = "0.3.0"
-source = "git+https://github.com/influxdata/rskafka.git?rev=cb9195a58fdf87be886deee961de08e119d4ca8f#cb9195a58fdf87be886deee961de08e119d4ca8f"
+source = "git+https://github.com/influxdata/rskafka.git?rev=59295beeae2106c2536008065e171dd88fd1c64e#59295beeae2106c2536008065e171dd88fd1c64e"
 dependencies = [
  "async-socks5",
  "async-trait",
