@@ -8,7 +8,7 @@
 //!     * Enforcing schema validation & synchronising it within the catalog.
 //!     * Deriving the partition key of each DML operation.
 //!     * Applying sharding logic.
-//!     * Push resulting operations into the appropriate kafka topics.
+//!     * Push resulting operations into the appropriate kafka partitions.
 
 #![deny(
     rustdoc::broken_intra_doc_links,
