@@ -1832,9 +1832,10 @@ WHERE parquet_file.partition_id = $1
         .map_err(|e| Error::SqlxError { source: e })
     }
 
-    async fn update_to_level_1(
+    async fn update_compaction_level(
         &mut self,
         parquet_file_ids: &[ParquetFileId],
+        compaction_level: CompactionLevel,
     ) -> Result<Vec<ParquetFileId>> {
         // If I try to do `.bind(parquet_file_ids)` directly, I get a compile error from sqlx.
         // See https://github.com/launchbadge/sqlx/issues/1744
@@ -1847,7 +1848,7 @@ WHERE id = ANY($2)
 RETURNING id;
         "#,
         )
-        .bind(CompactionLevel::FileNonOverlapped) // $1
+        .bind(compaction_level) // $1
         .bind(&ids[..]) // $2
         .fetch_all(&mut self.inner)
         .await

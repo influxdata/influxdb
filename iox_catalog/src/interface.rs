@@ -2,11 +2,11 @@
 
 use async_trait::async_trait;
 use data_types::{
-    Column, ColumnSchema, ColumnType, ColumnTypeCount, Namespace, NamespaceId, NamespaceSchema,
-    ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionInfo,
-    PartitionKey, PartitionParam, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber,
-    Shard, ShardId, ShardIndex, SkippedCompaction, Table, TableId, TablePartition, TableSchema,
-    Timestamp, Tombstone, TombstoneId, TopicId, TopicMetadata,
+    Column, ColumnSchema, ColumnType, ColumnTypeCount, CompactionLevel, Namespace, NamespaceId,
+    NamespaceSchema, ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId,
+    PartitionInfo, PartitionKey, PartitionParam, ProcessedTombstone, QueryPool, QueryPoolId,
+    SequenceNumber, Shard, ShardId, ShardIndex, SkippedCompaction, Table, TableId, TablePartition,
+    TableSchema, Timestamp, Tombstone, TombstoneId, TopicId, TopicMetadata,
 };
 use iox_time::TimeProvider;
 use snafu::{OptionExt, Snafu};
@@ -609,11 +609,12 @@ pub trait ParquetFileRepo: Send + Sync {
     ) -> Result<Vec<ParquetFile>>;
 
     /// Update the compaction level of the specified parquet files to
-    /// `CompactionLevel::FileNonOverlapped`
+    /// the specified [`CompactionLevel`].
     /// Returns the IDs of the files that were successfully updated.
-    async fn update_to_level_1(
+    async fn update_compaction_level(
         &mut self,
         parquet_file_ids: &[ParquetFileId],
+        compaction_level: CompactionLevel,
     ) -> Result<Vec<ParquetFileId>>;
 
     /// Verify if the parquet file exists by selecting its id
@@ -2339,12 +2340,12 @@ pub(crate) mod test_helpers {
         // Let upgrade all files (only f1 and f3 are not deleted) to level 1
         repos
             .parquet_files()
-            .update_to_level_1(&[f1.id])
+            .update_compaction_level(&[f1.id], CompactionLevel::FileNonOverlapped)
             .await
             .unwrap();
         repos
             .parquet_files()
-            .update_to_level_1(&[f3.id])
+            .update_compaction_level(&[f3.id], CompactionLevel::FileNonOverlapped)
             .await
             .unwrap();
         //
@@ -2509,7 +2510,7 @@ pub(crate) mod test_helpers {
         let level_1_file = repos.parquet_files().create(level_1_params).await.unwrap();
         repos
             .parquet_files()
-            .update_to_level_1(&[level_1_file.id])
+            .update_compaction_level(&[level_1_file.id], CompactionLevel::FileNonOverlapped)
             .await
             .unwrap();
 
@@ -2710,17 +2711,20 @@ pub(crate) mod test_helpers {
         // Make all but _level_0_file compaction level 1
         repos
             .parquet_files()
-            .update_to_level_1(&[
-                parquet_file.id,
-                too_early_file.id,
-                too_late_file.id,
-                overlap_lower_file.id,
-                overlap_upper_file.id,
-                other_shard_file.id,
-                other_table_file.id,
-                other_partition_file.id,
-                to_delete_file.id,
-            ])
+            .update_compaction_level(
+                &[
+                    parquet_file.id,
+                    too_early_file.id,
+                    too_late_file.id,
+                    overlap_lower_file.id,
+                    overlap_upper_file.id,
+                    other_shard_file.id,
+                    other_table_file.id,
+                    other_partition_file.id,
+                    to_delete_file.id,
+                ],
+                CompactionLevel::FileNonOverlapped,
+            )
             .await
             .unwrap();
 
@@ -2960,7 +2964,7 @@ pub(crate) mod test_helpers {
         // another_partition should no longer be selected for compaction
         let partitions = repos
             .parquet_files()
-            .most_level_0_files_partitions(shard.id, time_24_hours_ago, num_partitions)
+            .most_level_0_files_partitions(shard.id, time_8_hours_ago, num_partitions)
             .await
             .unwrap();
         assert_eq!(partitions.len(), 2);
@@ -3369,7 +3373,7 @@ pub(crate) mod test_helpers {
             .unwrap();
         repos
             .parquet_files()
-            .update_to_level_1(&[level1_file.id])
+            .update_compaction_level(&[level1_file.id], CompactionLevel::FileNonOverlapped)
             .await
             .unwrap();
         level1_file.compaction_level = CompactionLevel::FileNonOverlapped;
@@ -3477,7 +3481,10 @@ pub(crate) mod test_helpers {
         // should succeed
         let updated = repos
             .parquet_files()
-            .update_to_level_1(&[parquet_file.id, nonexistent_parquet_file_id])
+            .update_compaction_level(
+                &[parquet_file.id, nonexistent_parquet_file_id],
+                CompactionLevel::FileNonOverlapped,
+            )
             .await
             .unwrap();
         assert_eq!(updated, vec![parquet_file.id]);

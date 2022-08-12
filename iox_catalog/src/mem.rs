@@ -1311,9 +1311,10 @@ impl ParquetFileRepo for MemTxn {
             .collect())
     }
 
-    async fn update_to_level_1(
+    async fn update_compaction_level(
         &mut self,
         parquet_file_ids: &[ParquetFileId],
+        compaction_level: CompactionLevel,
     ) -> Result<Vec<ParquetFileId>> {
         let stage = self.stage();
 
@@ -1324,7 +1325,7 @@ impl ParquetFileRepo for MemTxn {
             .iter_mut()
             .filter(|p| parquet_file_ids.contains(&p.id))
         {
-            f.compaction_level = CompactionLevel::FileNonOverlapped;
+            f.compaction_level = compaction_level;
             updated.push(f.id);
         }
 

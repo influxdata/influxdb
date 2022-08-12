@@ -113,7 +113,7 @@ async fn compact_remaining_level_0_files(
 
         repos
             .parquet_files()
-            .update_to_level_1(&[to_compact[0].id()])
+            .update_compaction_level(&[to_compact[0].id()], CompactionLevel::FileNonOverlapped)
             .await
             .context(UpgradingSnafu)?;
     } else {
@@ -184,17 +184,27 @@ async fn full_compaction(
     }
 
     for group in groups {
-        // TODO: if there's only 1 level 1 file in the group, upgrade to level 2 w/o compaction?
-        parquet_file_combining::compact_final_no_splits(
-            group,
-            Arc::clone(&partition),
-            Arc::clone(&compactor.catalog),
-            compactor.store.clone(),
-            Arc::clone(&compactor.exec),
-            Arc::clone(&compactor.time_provider),
-        )
-        .await
-        .context(CombiningSnafu)?;
+        if group.len() == 1 {
+            // upgrade the one file to l2, don't run compaction
+            let mut repos = compactor.catalog.repositories().await;
+
+            repos
+                .parquet_files()
+                .update_compaction_level(&[group[0].id()], CompactionLevel::Final)
+                .await
+                .context(UpgradingSnafu)?;
+        } else {
+            parquet_file_combining::compact_final_no_splits(
+                group,
+                Arc::clone(&partition),
+                Arc::clone(&compactor.catalog),
+                compactor.store.clone(),
+                Arc::clone(&compactor.exec),
+                Arc::clone(&compactor.time_provider),
+            )
+            .await
+            .context(CombiningSnafu)?;
+        }
     }
 
     Ok(())
