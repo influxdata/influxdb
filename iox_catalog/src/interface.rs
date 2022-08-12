@@ -2777,20 +2777,19 @@ pub(crate) mod test_helpers {
         let time_five_hour_ago = Timestamp::new(
             (catalog.time_provider().now() - Duration::from_secs(60 * 60 * 5)).timestamp_nanos(),
         );
+        let time_8_hours_ago = Timestamp::new(
+            (catalog.time_provider().now() - Duration::from_secs(60 * 60 * 8)).timestamp_nanos(),
+        );
         let time_38_hour_ago = Timestamp::new(
             (catalog.time_provider().now() - Duration::from_secs(60 * 60 * 38)).timestamp_nanos(),
         );
 
         let num_partitions = 2;
 
-        let time_24_hours_ago = Timestamp::new(
-            (catalog.time_provider().now() - Duration::from_secs(60 * 60 * 24)).timestamp_nanos(),
-        );
-
         // Db has no partition
         let partitions = repos
             .parquet_files()
-            .most_level_0_files_partitions(shard.id, time_24_hours_ago, num_partitions)
+            .most_level_0_files_partitions(shard.id, time_8_hours_ago, num_partitions)
             .await
             .unwrap();
         assert!(partitions.is_empty());
@@ -2803,7 +2802,7 @@ pub(crate) mod test_helpers {
             .unwrap();
         let partitions = repos
             .parquet_files()
-            .most_level_0_files_partitions(shard.id, time_24_hours_ago, num_partitions)
+            .most_level_0_files_partitions(shard.id, time_8_hours_ago, num_partitions)
             .await
             .unwrap();
         assert!(partitions.is_empty());
@@ -2836,7 +2835,7 @@ pub(crate) mod test_helpers {
             .unwrap();
         let partitions = repos
             .parquet_files()
-            .most_level_0_files_partitions(shard.id, time_24_hours_ago, num_partitions)
+            .most_level_0_files_partitions(shard.id, time_8_hours_ago, num_partitions)
             .await
             .unwrap();
         assert!(partitions.is_empty());
@@ -2866,7 +2865,7 @@ pub(crate) mod test_helpers {
         repos.parquet_files().create(hot_file_params).await.unwrap();
         let partitions = repos
             .parquet_files()
-            .most_level_0_files_partitions(shard.id, time_24_hours_ago, num_partitions)
+            .most_level_0_files_partitions(shard.id, time_8_hours_ago, num_partitions)
             .await
             .unwrap();
         assert!(partitions.is_empty());
@@ -2883,7 +2882,7 @@ pub(crate) mod test_helpers {
             .unwrap();
         let partitions = repos
             .parquet_files()
-            .most_level_0_files_partitions(shard.id, time_24_hours_ago, num_partitions)
+            .most_level_0_files_partitions(shard.id, time_8_hours_ago, num_partitions)
             .await
             .unwrap();
         assert_eq!(partitions.len(), 1);
@@ -2917,7 +2916,7 @@ pub(crate) mod test_helpers {
         // Must return 2 partitions
         let partitions = repos
             .parquet_files()
-            .most_level_0_files_partitions(shard.id, time_24_hours_ago, num_partitions)
+            .most_level_0_files_partitions(shard.id, time_8_hours_ago, num_partitions)
             .await
             .unwrap();
         assert_eq!(partitions.len(), 2);
@@ -2944,7 +2943,7 @@ pub(crate) mod test_helpers {
         // Still return 2 partitions the limit num_partitions=2
         let partitions = repos
             .parquet_files()
-            .most_level_0_files_partitions(shard.id, time_24_hours_ago, num_partitions)
+            .most_level_0_files_partitions(shard.id, time_8_hours_ago, num_partitions)
             .await
             .unwrap();
         assert_eq!(partitions.len(), 2);
