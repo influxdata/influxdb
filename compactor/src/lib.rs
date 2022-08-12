@@ -79,33 +79,31 @@ pub(crate) async fn compact_cold_partition(
         &compactor.parquet_file_candidate_bytes,
     );
 
-    let compact_result =
-        if to_compact.len() == 1 && to_compact[0].compaction_level() == CompactionLevel::Initial {
-            // upgrade the one l0 file to l1, don't run compaction
-            let mut repos = compactor.catalog.repositories().await;
+    if to_compact.len() == 1 && to_compact[0].compaction_level() == CompactionLevel::Initial {
+        // upgrade the one l0 file to l1, don't run compaction
+        let mut repos = compactor.catalog.repositories().await;
 
-            repos
-                .parquet_files()
-                .update_to_level_1(&[to_compact[0].id()])
-                .await
-                .context(UpgradingSnafu)?;
-            Ok(())
-        } else {
-            parquet_file_combining::compact_parquet_files(
-                to_compact,
-                partition,
-                Arc::clone(&compactor.catalog),
-                compactor.store.clone(),
-                Arc::clone(&compactor.exec),
-                Arc::clone(&compactor.time_provider),
-                &compactor.compaction_input_file_bytes,
-                compactor.config.max_desired_file_size_bytes,
-                compactor.config.percentage_max_file_size,
-                compactor.config.split_percentage,
-            )
+        repos
+            .parquet_files()
+            .update_to_level_1(&[to_compact[0].id()])
             .await
-            .context(CombiningSnafu)
-        };
+            .context(UpgradingSnafu)?;
+    } else {
+        parquet_file_combining::compact_parquet_files(
+            to_compact,
+            partition,
+            Arc::clone(&compactor.catalog),
+            compactor.store.clone(),
+            Arc::clone(&compactor.exec),
+            Arc::clone(&compactor.time_provider),
+            &compactor.compaction_input_file_bytes,
+            compactor.config.max_desired_file_size_bytes,
+            compactor.config.percentage_max_file_size,
+            compactor.config.split_percentage,
+        )
+        .await
+        .context(CombiningSnafu)?;
+    }
 
     let attributes = Attributes::from([
         ("shard_id", format!("{}", shard_id).into()),
@@ -120,7 +118,7 @@ pub(crate) async fn compact_cold_partition(
         duration.record(delta);
     }
 
-    compact_result
+    Ok(())
 }
 
 #[cfg(test)]
