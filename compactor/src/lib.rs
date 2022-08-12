@@ -62,6 +62,30 @@ pub(crate) async fn compact_cold_partition(
     let start_time = compactor.time_provider.now();
     let shard_id = partition.shard_id();
 
+    compact_remaining_level_0_files(compactor, partition, size_overrides).await?;
+    full_compaction().await?;
+
+    let attributes = Attributes::from([
+        ("shard_id", format!("{}", shard_id).into()),
+        ("partition_type", "cold".into()),
+    ]);
+    if let Some(delta) = compactor
+        .time_provider
+        .now()
+        .checked_duration_since(start_time)
+    {
+        let duration = compactor.compaction_duration.recorder(attributes);
+        duration.record(delta);
+    }
+
+    Ok(())
+}
+
+async fn compact_remaining_level_0_files(
+    compactor: &Compactor,
+    partition: PartitionCompactionCandidateWithInfo,
+    size_overrides: &HashMap<ParquetFileId, i64>,
+) -> Result<(), Error> {
     let parquet_files_for_compaction =
         parquet_file_lookup::ParquetFilesForCompaction::for_partition(
             Arc::clone(&compactor.catalog),
@@ -105,20 +129,11 @@ pub(crate) async fn compact_cold_partition(
         .context(CombiningSnafu)?;
     }
 
-    let attributes = Attributes::from([
-        ("shard_id", format!("{}", shard_id).into()),
-        ("partition_type", "cold".into()),
-    ]);
-    if let Some(delta) = compactor
-        .time_provider
-        .now()
-        .checked_duration_since(start_time)
-    {
-        let duration = compactor.compaction_duration.recorder(attributes);
-        duration.record(delta);
-    }
-
     Ok(())
+}
+
+async fn full_compaction() -> Result<(), Error> {
+    todo!()
 }
 
 #[cfg(test)]
