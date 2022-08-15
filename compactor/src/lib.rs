@@ -24,6 +24,7 @@ pub mod utils;
 
 use crate::{
     compact::{Compactor, PartitionCompactionCandidateWithInfo},
+    parquet_file::CompactorParquetFile,
     parquet_file_lookup::ParquetFilesForCompaction,
 };
 use data_types::{CompactionLevel, ParquetFileId};
@@ -139,9 +140,9 @@ async fn compact_remaining_level_0_files(
 /// Given a partition that needs to have full compaction run,
 ///
 /// - Select all files in the partition, which this method assumes will only be level 1
-///   without overlaps (level 0 and level 2 files will be ignored)
-/// - Split the files into groups based on size take files in the list until the current group size
-///   is greater than  cold_max_desired_file_size_bytes
+///   without overlaps (any level 0 and level 2 files passed into this function will be ignored)
+/// - Split the files into groups based on size: take files in the list until the current group size
+///   is greater than cold_max_desired_file_size_bytes
 /// - Compact each group into a new level 2 file, no splitting
 async fn full_compaction(
     compactor: &Compactor,
@@ -163,25 +164,7 @@ async fn full_compaction(
         .. // Ignore other levels
     } = parquet_files_for_compaction;
 
-    let num_files = level_1.len();
-    let mut group_file_size_bytes = 0;
-    let max_file_size_bytes = compactor.config.cold_max_desired_file_size_bytes;
-    let mut group = Vec::with_capacity(num_files);
-    let mut groups = Vec::with_capacity(num_files);
-
-    for file in level_1 {
-        group_file_size_bytes += file.file_size_bytes() as u64;
-        group.push(file);
-
-        if group_file_size_bytes >= max_file_size_bytes {
-            groups.push(group);
-            group = Vec::with_capacity(num_files);
-            group_file_size_bytes = 0;
-        }
-    }
-    if !group.is_empty() {
-        groups.push(group);
-    }
+    let groups = group_by_size(level_1, compactor.config.cold_max_desired_file_size_bytes);
 
     for group in groups {
         if group.len() == 1 {
@@ -210,6 +193,35 @@ async fn full_compaction(
     Ok(())
 }
 
+/// Given a list of parquet files and a size limit, iterate through the list in order. Create
+/// groups based on when the size of files in the group exceeds the size limit.
+fn group_by_size(
+    files: Vec<CompactorParquetFile>,
+    max_file_size_bytes: u64,
+) -> Vec<Vec<CompactorParquetFile>> {
+    let num_files = files.len();
+    let mut group_file_size_bytes = 0;
+
+    let mut group = Vec::with_capacity(num_files);
+    let mut groups = Vec::with_capacity(num_files);
+
+    for file in files {
+        group_file_size_bytes += file.file_size_bytes() as u64;
+        group.push(file);
+
+        if group_file_size_bytes >= max_file_size_bytes {
+            groups.push(group);
+            group = Vec::with_capacity(num_files);
+            group_file_size_bytes = 0;
+        }
+    }
+    if !group.is_empty() {
+        groups.push(group);
+    }
+
+    groups
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -222,6 +234,43 @@ mod tests {
     use iox_tests::util::{TestCatalog, TestParquetFileBuilder};
     use iox_time::{SystemProvider, TimeProvider};
     use std::time::Duration;
+
+    #[tokio::test]
+    async fn test_group_by_size() {
+        // Setup - create a bunch of files
+        let catalog = TestCatalog::new();
+        let ns = catalog.create_namespace("ns").await;
+        let shard = ns.create_shard(1).await;
+        let table = ns.create_table("table").await;
+        table.create_column("field_int", ColumnType::I64).await;
+        table.create_column("time", ColumnType::Time).await;
+        let partition = table.with_shard(&shard).create_partition("part").await;
+        let arbitrary_lp = "table, field_int=9000i 1010101";
+
+        let builder = TestParquetFileBuilder::default().with_line_protocol(arbitrary_lp);
+        let big = partition.create_parquet_file(builder).await.parquet_file;
+        let big = CompactorParquetFile::with_size_override(big, 1_000);
+
+        let builder = TestParquetFileBuilder::default().with_line_protocol(arbitrary_lp);
+        let little = partition.create_parquet_file(builder).await.parquet_file;
+        let little = CompactorParquetFile::with_size_override(little, 2);
+
+        // Empty in, empty out
+        let groups = group_by_size(vec![], 0);
+        assert!(groups.is_empty(), "Expected empty, got: {:?}", groups);
+
+        // One file in, one group out, even if the file limit is 0
+        let groups = group_by_size(vec![big.clone()], 0);
+        assert_eq!(groups, &[&[big.clone()]]);
+
+        // If the first file is already over the limit, return 2 groups
+        let groups = group_by_size(vec![big.clone(), little.clone()], 100);
+        assert_eq!(groups, &[&[big.clone()], &[little.clone()]]);
+
+        // If the first file does not go over the limit, add another file to the group
+        let groups = group_by_size(vec![little.clone(), big.clone()], 100);
+        assert_eq!(groups, &[&[little, big]]);
+    }
 
     #[tokio::test]
     async fn test_compact_remaining_level_0_files_many_files() {
