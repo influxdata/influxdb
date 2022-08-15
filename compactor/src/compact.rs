@@ -66,11 +66,11 @@ pub enum Error {
     },
 
     #[snafu(display(
-        "Error getting the most level 0 file partitions for shard {}. {}",
+        "Error getting the most level 0 + level 1 file cold partitions for shard {}. {}",
         shard_id,
         source
     ))]
-    MostL0Partitions {
+    MostColdPartitions {
         source: iox_catalog::interface::Error,
         shard_id: ShardId,
     },
@@ -324,9 +324,10 @@ impl Compactor {
 
     /// Return a list of partitions that:
     ///
-    /// - Have not received any writes in 8 hours (determined by all parquet files having a
-    ///   created_at time older than 8 hours ago)
-    /// - Have some level 0 parquet files that need to be upgraded or compacted
+    /// - Have not received any writes in 8 hours (determined by all level 0 and level 1 parquet
+    ///   files having a created_at time older than 8 hours ago)
+    /// - Have some level 0 or level 1 parquet files that need to be upgraded or compacted
+    /// - Sorted by the number of level 0 files + number of level 1 files descending
     pub async fn cold_partitions_to_compact(
         &self,
         // Max number of cold partitions per shard we want to compact
@@ -347,13 +348,13 @@ impl Compactor {
 
             let mut partitions = repos
                 .parquet_files()
-                .most_level_0_files_partitions(
+                .most_cold_files_partitions(
                     *shard_id,
                     time_8_hours_ago,
                     max_num_partitions_per_shard,
                 )
                 .await
-                .context(MostL0PartitionsSnafu {
+                .context(MostColdPartitionsSnafu {
                     shard_id: *shard_id,
                 })?;
 
@@ -953,17 +954,14 @@ mod tests {
         let pf1 = txn.parquet_files().create(p1.clone()).await.unwrap();
         txn.parquet_files().flag_for_delete(pf1.id).await.unwrap();
         //
-        // partition2 has a cold non-L0 file
+        // partition2 has a cold L2 file
         let p2 = ParquetFileParams {
             object_store_id: Uuid::new_v4(),
             partition_id: partition2.id,
+            compaction_level: CompactionLevel::Final,
             ..p1.clone()
         };
-        let pf2 = txn.parquet_files().create(p2).await.unwrap();
-        txn.parquet_files()
-            .update_compaction_level(&[pf2.id], CompactionLevel::FileNonOverlapped)
-            .await
-            .unwrap();
+        let _pf2 = txn.parquet_files().create(p2).await.unwrap();
         txn.commit().await.unwrap();
         // No non-deleted level 0 files yet --> no candidates
         let candidates = compactor.cold_partitions_to_compact(1).await.unwrap();

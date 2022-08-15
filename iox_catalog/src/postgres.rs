@@ -1776,7 +1776,7 @@ LIMIT $4;
         .map_err(|e| Error::SqlxError { source: e })
     }
 
-    async fn most_level_0_files_partitions(
+    async fn most_cold_files_partitions(
         &mut self,
         shard_id: ShardId,
         time_in_the_past: Timestamp,
@@ -1792,7 +1792,7 @@ SELECT parquet_file.partition_id, parquet_file.shard_id, parquet_file.namespace_
        parquet_file.table_id, count(parquet_file.id), max(parquet_file.created_at)
 FROM   parquet_file
 LEFT OUTER JOIN skipped_compactions ON parquet_file.partition_id = skipped_compactions.partition_id
-WHERE  compaction_level = 0
+WHERE  (compaction_level = $4 OR compaction_level = $5)
 AND    to_delete IS NULL
 AND    shard_id = $1
 AND    skipped_compactions.partition_id IS NULL
@@ -1805,6 +1805,8 @@ LIMIT $3;
         .bind(&shard_id) // $1
         .bind(time_in_the_past) // $2
         .bind(&num_partitions) // $3
+        .bind(CompactionLevel::Initial) // $4
+        .bind(CompactionLevel::FileNonOverlapped) // $5
         .fetch_all(&mut self.inner)
         .await
         .map_err(|e| Error::SqlxError { source: e })
