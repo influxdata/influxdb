@@ -2128,7 +2128,8 @@ impl TimestampRange {
     /// Takes an inclusive start and an exclusive end. You may create an empty range by setting `start = end`.
     ///
     /// Clamps `start` to [`MIN_NANO_TIME`].
-    /// end is unclamped - end may be set to `i64:MAX == MAX_NANO_TIME+1` to indicate no restriction on time.
+    /// end is unclamped. End may be set to `i64:MAX == MAX_NANO_TIME+1` to indicate that the upper bound is NOT
+    /// restricted (this does NOT affect `start` though!).
     ///
     /// If `start > end`, this will be interpreted as an empty time range and `start` will be set to `end`.
     pub fn new(start: i64, end: i64) -> Self {
