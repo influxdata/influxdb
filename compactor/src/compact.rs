@@ -10,8 +10,8 @@ use iox_catalog::interface::{get_schema_by_id, Catalog};
 use iox_query::exec::Executor;
 use iox_time::TimeProvider;
 use metric::{
-    Attributes, DurationHistogram, DurationHistogramOptions, Metric, U64Counter, U64Gauge,
-    U64Histogram, U64HistogramOptions, DURATION_MAX,
+    Attributes, DurationHistogram, DurationHistogramOptions, Metric, U64Gauge, U64Histogram,
+    U64HistogramOptions, DURATION_MAX,
 };
 use observability_deps::tracing::debug;
 use parquet_file::storage::ParquetStorage;
@@ -98,9 +98,6 @@ pub struct Compactor {
     /// Configuration options for the compactor
     pub(crate) config: CompactorConfig,
 
-    /// Counter for the number of files compacted
-    pub(crate) compaction_counter: Metric<U64Counter>,
-
     /// Gauge for the number of compaction partition candidates before filtering
     compaction_candidate_gauge: Metric<U64Gauge>,
 
@@ -156,11 +153,6 @@ impl Compactor {
         config: CompactorConfig,
         registry: Arc<metric::Registry>,
     ) -> Self {
-        let compaction_counter = registry.register_metric(
-            "compactor_compacted_files_total",
-            "counter for the number of files compacted",
-        );
-
         let compaction_candidate_gauge = registry.register_metric(
             "compactor_candidates",
             "gauge for the number of compaction candidates that are found when checked",
@@ -235,7 +227,6 @@ impl Compactor {
             time_provider,
             backoff_config,
             config,
-            compaction_counter,
             compaction_candidate_gauge,
             parquet_file_candidate_gauge,
             parquet_file_candidate_bytes,
