@@ -8,7 +8,7 @@ use std::{
     sync::{Arc, Weak},
 };
 
-use parking_lot::ReentrantMutex;
+use parking_lot::{Mutex, ReentrantMutex};
 
 use super::CacheBackend;
 
@@ -50,19 +50,31 @@ macro_rules! lock_inner {
 ///
 /// The solution that [`PolicyBackend`] uses is the following:
 ///
-/// - Initial requests (either internal ones or the ones created by policies) can use a normal [`CacheBackend`]
-///   interface but shall not hold any locks on internal data structures of the policies. The virtual backend that is
-///   used between [`PolicyBackend`] and the policies is called "callback backend".
-/// - Policies react to changes NOT by using the "callback store" but by returning the changes they want to perform,
-///   dropping all the locks on their internal data structures.
+/// All interaction of the policy with a [`PolicyBackend`] happens through a proxy object called [`ChangeRequest`]. The
+/// [`ChangeRequest`] encapsulates a single atomic "transaction" on the underlying store. This can be a simple operation
+/// as [`REMOVE`](CacheBackend::remove) but also combound operation like "get+remove" (e.g. to check if a value needs to
+/// be pruned from the cache). The policy has two ways of issuing [`ChangeRequest`]s:
+///
+/// 1. **Initial / self-driven:** Upon creation the policy receives a [`CallbackHandle`] that it can use initiate
+///    requests. This handle must only be used to create requests "out of thin air" (e.g. based on a timer). It MUST NOT
+///    be used to react to changes (see next point) to avoid deadlocks.
+/// 2. **Reactions:** Each policy implements a [`Subscriber`] that receives notifications for each changes. These
+///    notification return [`ChangeRequest`]s that the policy wishes to be performed. This construct is designed to
+///    avoid recursion.
+///
+/// Also note that a policy that uses the subscriber interface MUST NOT hold locks on their internal data structure
+/// while performing _initial requests_ to avoid deadlocks (since the subscriber will be informed about the changes).
 ///
 /// We cannot guarantee that policies fulfill this interface, but [`PolicyBackend`] performs some sanity checks (e.g. it
 /// will catch if the same thread that started an initial requests recurses into another initial request).
 ///
 ///
 /// # Change Propagation
-/// Changes will be propated "breadth first". This means that the initial change will form a 1-element task list. For
-/// every task in this list (front to back), we propagate the change as following:
+/// Each [`ChangeRequest`]s is processed atomically, so "get + set" / "compare + exchange" patterns work as expected.
+///
+/// Changes will be propated "breadth first". This means that the initial changes will form a task list. For
+/// every task in this list (front to back), we will execute the [`ChangeRequest`]. Every change that is performed
+/// within this request (usually only one) we propagate the change as following:
 ///
 /// 1. underlying backend
 /// 2. policies (in the order they where added)
@@ -71,11 +83,16 @@ macro_rules! lock_inner {
 ///
 /// The original requests will return to the caller once all tasks are completed.
 ///
+/// When a [`ChangeRequest`] performs multiple operations -- e.g. [`GET`](CacheBackend::get) and
+/// [`SET`](CacheBackend::set) -- we first inform all subscribers about the first operation (in this case:
+/// [`GET`](CacheBackend::get)) and collect the resulting [`ChangeRequest`]s and then we process the second operation
+/// (in this case: [`SET`](CacheBackend::set)).
+///
 ///
 /// # `GET`
 /// The return value for [`CacheBackend::get`] is fetched from the inner backend AFTER all changes are applied.
 ///
-/// Note [`ChangeRequest::Get`] has no way of returning a result to the [`Subscriber`] that created it. The "changes"
+/// Note [`ChangeRequest::get`] has no way of returning a result to the [`Subscriber`] that created it. The "changes"
 /// solely act as some kind of "keep alive" / "this was used" signal.
 ///
 ///
@@ -108,7 +125,7 @@ macro_rules! lock_inner {
 ///       // When new key `k` is set to value `v` if `v` is odd,
 ///       // request a change to set `k` to `v+1`
 ///         if v % 2 == 1 {
-///             vec![CR::Set{k, v: v + 1}]
+///             vec![CR::set(k, v + 1)]
 ///         } else {
 ///             vec![]
 ///         }
@@ -149,12 +166,17 @@ macro_rules! lock_inner {
 /// #[derive(Debug)]
 /// struct NowPolicy {
 ///     cancel: Arc<AtomicBool>,
-///     handle: JoinHandle<()>,
+///     join_handle: Option<JoinHandle<()>>,
 /// };
 ///
 /// impl Drop for NowPolicy {
 ///     fn drop(&mut self) {
 ///         self.cancel.store(true, Ordering::SeqCst);
+///         self.join_handle
+///             .take()
+///             .expect("worker thread present")
+///             .join()
+///             .expect("worker thread finished");
 ///     }
 /// }
 ///
@@ -166,19 +188,21 @@ macro_rules! lock_inner {
 /// }
 ///
 /// let mut backend = PolicyBackend::new(Box::new(HashMap::new()));
-/// backend.add_policy(|mut callback_backend| {
+/// backend.add_policy(|mut callback_handle| {
 ///     let cancel = Arc::new(AtomicBool::new(false));
 ///     let cancel_captured = Arc::clone(&cancel);
-///     let handle = spawn(move || {
+///     let join_handle = spawn(move || {
 ///         loop {
 ///             if cancel_captured.load(Ordering::SeqCst) {
 ///                 break;
 ///             }
-///             callback_backend.set("now", Instant::now());
+///             callback_handle.init_requests(vec![
+///                 CR::set("now", Instant::now()),
+///             ]);
 ///             sleep(Duration::from_millis(1));
 ///         }
 ///     });
-///     NowPolicy{cancel, handle}
+///     NowPolicy{cancel, join_handle: Some(join_handle)}
 /// });
 ///
 ///
@@ -218,7 +242,7 @@ where
 
         Self {
             inner: Arc::new(ReentrantMutex::new(RefCell::new(PolicyBackendInner {
-                inner,
+                inner: Arc::new(Mutex::new(inner)),
                 subscribers: Vec::new(),
             }))),
         }
@@ -232,14 +256,13 @@ where
     /// [`Subscriber`]. This loopy construct was chosen to discourage the leakage of the "callback backend" to any other object.
     pub fn add_policy<C, S>(&mut self, constructor: C)
     where
-        C: FnOnce(Box<dyn CacheBackend<K = K, V = V>>) -> S,
+        C: FnOnce(CallbackHandle<K, V>) -> S,
         S: Subscriber<K = K, V = V>,
     {
-        let backend_for_policy = BackendForPolicy {
+        let callback_handle = CallbackHandle {
             inner: Arc::downgrade(&self.inner),
         };
-        let backend_for_policy = Box::new(backend_for_policy);
-        let subscriber = constructor(backend_for_policy);
+        let subscriber = constructor(callback_handle);
         lock_inner!(mut guard = self.inner);
         guard.subscribers.push(Box::new(subscriber));
     }
@@ -255,25 +278,27 @@ where
 
     fn get(&mut self, k: &Self::K) -> Option<Self::V> {
         lock_inner!(mut guard = self.inner);
-        perform_changes(&mut guard, vec![ChangeRequest::Get { k: k.clone() }]);
+        perform_changes(&mut guard, vec![ChangeRequest::get(k.clone())]);
 
         // poll inner backend AFTER everything has settled
-        guard.inner.get(k)
+        let mut inner = guard.inner.lock();
+        inner.get(k)
     }
 
     fn set(&mut self, k: Self::K, v: Self::V) {
         lock_inner!(mut guard = self.inner);
-        perform_changes(&mut guard, vec![ChangeRequest::Set { k, v }]);
+        perform_changes(&mut guard, vec![ChangeRequest::set(k, v)]);
     }
 
     fn remove(&mut self, k: &Self::K) {
         lock_inner!(mut guard = self.inner);
-        perform_changes(&mut guard, vec![ChangeRequest::Remove { k: k.clone() }]);
+        perform_changes(&mut guard, vec![ChangeRequest::remove(k.clone())]);
     }
 
     fn is_empty(&self) -> bool {
         lock_inner!(guard = self.inner);
-        guard.inner.is_empty()
+        let inner = guard.inner.lock();
+        inner.is_empty()
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -281,9 +306,10 @@ where
     }
 }
 
-/// Same as [`PolicyBackend`] but with a weak pointer to inner to avoid cyclic references.
+/// Handle that allows a [`Subscriber`] to send [`ChangeRequest`]s back to the [`PolicyBackend`] that owns that very
+/// [`Subscriber`].
 #[derive(Debug)]
-struct BackendForPolicy<K, V>
+pub struct CallbackHandle<K, V>
 where
     K: Clone + Eq + Hash + Ord + Debug + Send + 'static,
     V: Clone + Debug + Send + 'static,
@@ -291,43 +317,20 @@ where
     inner: WeakSharedInner<K, V>,
 }
 
-impl<K, V> CacheBackend for BackendForPolicy<K, V>
+impl<K, V> CallbackHandle<K, V>
 where
     K: Clone + Eq + Hash + Ord + Debug + Send + 'static,
     V: Clone + Debug + Send + 'static,
 {
-    type K = K;
-    type V = V;
-
-    fn get(&mut self, k: &Self::K) -> Option<Self::V> {
+    /// Start a series of requests to the [`PolicyBackend`] that is referenced by this handle.
+    ///
+    /// This method returns AFTER the requests and all the follow-up changes requested by all policies are played out.
+    /// You should NOT hold a lock on your policies internal data structures while calling this function if you plan to
+    /// also [subscribe](Subscriber) to changes because this would easily lead to deadlocks.
+    pub fn init_requests(&mut self, change_requests: Vec<ChangeRequest<K, V>>) {
         let inner = self.inner.upgrade().expect("backend gone");
         lock_inner!(mut guard = inner);
-        perform_changes(&mut guard, vec![ChangeRequest::Get { k: k.clone() }]);
-
-        // poll inner backend AFTER everything has settled
-        guard.inner.get(k)
-    }
-
-    fn set(&mut self, k: Self::K, v: Self::V) {
-        let inner = self.inner.upgrade().expect("backend gone");
-        lock_inner!(mut guard = inner);
-        perform_changes(&mut guard, vec![ChangeRequest::Set { k, v }]);
-    }
-
-    fn remove(&mut self, k: &Self::K) {
-        let inner = self.inner.upgrade().expect("backend gone");
-        lock_inner!(mut guard = inner);
-        perform_changes(&mut guard, vec![ChangeRequest::Remove { k: k.clone() }]);
-    }
-
-    fn is_empty(&self) -> bool {
-        let inner = self.inner.upgrade().expect("backend gone");
-        lock_inner!(guard = inner);
-        guard.inner.is_empty()
-    }
-
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
+        perform_changes(&mut guard, change_requests);
     }
 }
 
@@ -337,7 +340,14 @@ where
     K: Clone + Eq + Hash + Ord + Debug + Send + 'static,
     V: Clone + Debug + Send + 'static,
 {
-    inner: Box<dyn CacheBackend<K = K, V = V>>,
+    /// Underlying cache backend.
+    ///
+    /// This is wrapped into another `Arc<Mutex<...>>` construct even though [`PolicyBackendInner`] is already guarded
+    /// by a lock, because we need to reference the underlying backend from [`Recorder`] and [`Recorder`] implements
+    /// [`CacheBackend`] which is `'static`.
+    inner: Arc<Mutex<Box<dyn CacheBackend<K = K, V = V>>>>,
+
+    /// List of subscribers.
     subscribers: Vec<Box<dyn Subscriber<K = K, V = V>>>,
 }
 
@@ -355,38 +365,22 @@ fn perform_changes<K, V>(
     let mut tasks = VecDeque::from(change_requests);
 
     while let Some(change_request) = tasks.pop_front() {
-        match change_request {
-            ChangeRequest::Get { k } => {
-                // publish to underlying backend first
-                // For most backends this shouldn't make a difference because their "inner life" should be ported to
-                // this policy framework. However some may still react to the "keep alive" signal.
-                inner.inner.get(&k);
+        let mut recorder = Recorder {
+            inner: Arc::clone(&inner.inner),
+            records: vec![],
+        };
 
-                // publish to subscribers
-                for subscriber in &mut inner.subscribers {
-                    let requests = subscriber.get(&k);
-                    tasks.extend(requests.into_iter());
-                }
-            }
-            ChangeRequest::Set { k, v } => {
-                // publish to underlying backend first
-                inner.inner.set(k.clone(), v.clone());
+        change_request.eval(&mut recorder);
 
-                // publish to subscribers
-                for subscriber in &mut inner.subscribers {
-                    let requests = subscriber.set(k.clone(), v.clone());
-                    tasks.extend(requests.into_iter());
-                }
-            }
-            ChangeRequest::Remove { k } => {
-                // publish to underlying backend first
-                inner.inner.remove(&k);
+        for record in recorder.records {
+            for subscriber in &mut inner.subscribers {
+                let requests = match &record {
+                    Record::Get { k } => subscriber.get(k),
+                    Record::Set { k, v } => subscriber.set(k.clone(), v.clone()),
+                    Record::Remove { k } => subscriber.remove(k),
+                };
 
-                // publish to subscribers
-                for subscriber in &mut inner.subscribers {
-                    let requests = subscriber.remove(&k);
-                    tasks.extend(requests.into_iter());
-                }
+                tasks.extend(requests.into_iter());
             }
         }
     }
@@ -424,19 +418,84 @@ pub trait Subscriber: Debug + Send + 'static {
 }
 
 /// A change request to a backend.
-#[derive(Debug, PartialEq, Eq)]
-pub enum ChangeRequest<K, V> {
-    /// Request to `GET` a value.
+pub struct ChangeRequest<K, V>
+where
+    K: Clone + Eq + Hash + Ord + Debug + Send + 'static,
+    V: Clone + Debug + Send + 'static,
+{
+    fun: ChangeRequestFn<K, V>,
+}
+
+impl<K, V> Debug for ChangeRequest<K, V>
+where
+    K: Clone + Eq + Hash + Ord + Debug + Send + 'static,
+    V: Clone + Debug + Send + 'static,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CacheRequest").finish_non_exhaustive()
+    }
+}
+
+impl<K, V> ChangeRequest<K, V>
+where
+    K: Clone + Eq + Hash + Ord + Debug + Send + 'static,
+    V: Clone + Debug + Send + 'static,
+{
+    /// Custom way of constructing a change request.
     ///
-    /// Since the result is NOT propagated back the the [`Subscriber`], this is mostly useful to send "keep alive" requests.
+    /// This is considered a rather low-level function and you should prefer the higher-level constructs like
+    /// [`get`](Self::get), [`set`](Self::set), and [`remove`](Self::remove).
+    ///
+    /// Takes a "callback backend" and can freely act on it. The underlying backend of [`PolicyBackend`] is guaranteed to be
+    /// locked during a single request, so "get + modify" patterns work out of the box without the need to fair interleaving modifications.
+    pub fn from_fn<F>(f: F) -> Self
+    where
+        F: for<'a> FnOnce(&'a mut dyn CacheBackend<K = K, V = V>) + Send + 'static,
+    {
+        Self { fun: Box::new(f) }
+    }
+
+    /// [`GET`](CacheBackend::get)
+    pub fn get(k: K) -> Self {
+        Self::from_fn(move |backend| {
+            backend.get(&k);
+        })
+    }
+
+    /// [`SET`](CacheBackend::set)
+    pub fn set(k: K, v: V) -> Self {
+        Self::from_fn(move |backend| {
+            backend.set(k, v);
+        })
+    }
+
+    /// [`REMOVE`](CacheBackend::remove).
+    pub fn remove(k: K) -> Self {
+        Self::from_fn(move |backend| {
+            backend.remove(&k);
+        })
+    }
+
+    /// Execute this change request.
+    fn eval(self, backend: &mut dyn CacheBackend<K = K, V = V>) {
+        (self.fun)(backend)
+    }
+}
+
+/// Function captured within [`ChangeRequest`].
+type ChangeRequestFn<K, V> =
+    Box<dyn for<'a> FnOnce(&'a mut dyn CacheBackend<K = K, V = V>) + Send + 'static>;
+
+/// Records of interactions with the callback [`CacheBackend`].
+#[derive(Debug, PartialEq)]
+enum Record<K, V> {
+    /// [`GET`](CacheBackend::get)
     Get {
         /// Key.
         k: K,
     },
 
-    /// Set value for given key.
-    ///
-    /// It is OK to set and override a key that already exists.
+    /// [`SET`](CacheBackend::set)
     Set {
         /// Key.
         k: K,
@@ -445,13 +504,58 @@ pub enum ChangeRequest<K, V> {
         v: V,
     },
 
-    /// Remove value for given key.
-    ///
-    /// It is OK to remove a key even when it does not exist.
+    /// [`REMOVE`](CacheBackend::remove).
     Remove {
         /// Key.
         k: K,
     },
+}
+
+/// Specialized [`CacheBackend`] that forwards changes and requests to the underlying backend of [`PolicyBackend`] but
+/// also records all changes into [`Record`]s.
+#[derive(Debug)]
+struct Recorder<K, V>
+where
+    K: Clone + Eq + Hash + Ord + Debug + Send + 'static,
+    V: Clone + Debug + Send + 'static,
+{
+    inner: Arc<Mutex<Box<dyn CacheBackend<K = K, V = V>>>>,
+    records: Vec<Record<K, V>>,
+}
+
+impl<K, V> CacheBackend for Recorder<K, V>
+where
+    K: Clone + Eq + Hash + Ord + Debug + Send + 'static,
+    V: Clone + Debug + Send + 'static,
+{
+    type K = K;
+    type V = V;
+
+    fn get(&mut self, k: &Self::K) -> Option<Self::V> {
+        self.records.push(Record::Get { k: k.clone() });
+        self.inner.lock().get(k)
+    }
+
+    fn set(&mut self, k: Self::K, v: Self::V) {
+        self.records.push(Record::Set {
+            k: k.clone(),
+            v: v.clone(),
+        });
+        self.inner.lock().set(k, v);
+    }
+
+    fn remove(&mut self, k: &Self::K) {
+        self.records.push(Record::Remove { k: k.clone() });
+        self.inner.lock().remove(k);
+    }
+
+    fn is_empty(&self) -> bool {
+        self.inner.lock().is_empty()
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 #[cfg(test)]
@@ -459,6 +563,11 @@ mod tests {
     use std::{collections::HashMap, sync::Barrier, thread::JoinHandle};
 
     use super::*;
+
+    #[allow(dead_code)]
+    const fn assert_send<T: Send>() {}
+    const _: () = assert_send::<ChangeRequest<String, usize>>();
+    const _: () = assert_send::<CallbackHandle<String, usize>>();
 
     #[test]
     #[should_panic(expected = "inner backend is not empty")]
@@ -657,10 +766,7 @@ mod tests {
                 condition: TestBackendInteraction::Get {
                     k: String::from("a"),
                 },
-                action: TestAction::ChangeRequests(vec![ChangeRequest::Set {
-                    k: String::from("a"),
-                    v: 1,
-                }]),
+                action: TestAction::ChangeRequests(vec![ChangeRequest::set(String::from("a"), 1)]),
             },
             TestStep {
                 condition: TestBackendInteraction::Set {
@@ -682,9 +788,7 @@ mod tests {
                 condition: TestBackendInteraction::Get {
                     k: String::from("a"),
                 },
-                action: TestAction::ChangeRequests(vec![ChangeRequest::Get {
-                    k: String::from("a"),
-                }]),
+                action: TestAction::ChangeRequests(vec![ChangeRequest::get(String::from("a"))]),
             },
             TestStep {
                 condition: TestBackendInteraction::Get {
@@ -706,10 +810,7 @@ mod tests {
                     k: String::from("a"),
                     v: 1,
                 },
-                action: TestAction::ChangeRequests(vec![ChangeRequest::Set {
-                    k: String::from("b"),
-                    v: 2,
-                }]),
+                action: TestAction::ChangeRequests(vec![ChangeRequest::set(String::from("b"), 2)]),
             },
             TestStep {
                 condition: TestBackendInteraction::Set {
@@ -747,9 +848,7 @@ mod tests {
                     k: String::from("a"),
                     v: 1,
                 },
-                action: TestAction::ChangeRequests(vec![ChangeRequest::Remove {
-                    k: String::from("a"),
-                }]),
+                action: TestAction::ChangeRequests(vec![ChangeRequest::remove(String::from("a"))]),
             },
             TestStep {
                 condition: TestBackendInteraction::Remove {
@@ -778,10 +877,7 @@ mod tests {
                 condition: TestBackendInteraction::Remove {
                     k: String::from("a"),
                 },
-                action: TestAction::ChangeRequests(vec![ChangeRequest::Set {
-                    k: String::from("b"),
-                    v: 1,
-                }]),
+                action: TestAction::ChangeRequests(vec![ChangeRequest::set(String::from("b"), 1)]),
             },
             TestStep {
                 condition: TestBackendInteraction::Set {
@@ -818,9 +914,7 @@ mod tests {
                 condition: TestBackendInteraction::Remove {
                     k: String::from("a"),
                 },
-                action: TestAction::ChangeRequests(vec![ChangeRequest::Remove {
-                    k: String::from("b"),
-                }]),
+                action: TestAction::ChangeRequests(vec![ChangeRequest::remove(String::from("b"))]),
             },
             TestStep {
                 condition: TestBackendInteraction::Remove {
@@ -858,14 +952,8 @@ mod tests {
                     v: 11,
                 },
                 action: TestAction::ChangeRequests(vec![
-                    ChangeRequest::Set {
-                        k: String::from("a"),
-                        v: 12,
-                    },
-                    ChangeRequest::Set {
-                        k: String::from("a"),
-                        v: 13,
-                    },
+                    ChangeRequest::set(String::from("a"), 12),
+                    ChangeRequest::set(String::from("a"), 13),
                 ]),
             },
             TestStep {
@@ -904,10 +992,7 @@ mod tests {
                     k: String::from("a"),
                     v: 11,
                 },
-                action: TestAction::ChangeRequests(vec![ChangeRequest::Set {
-                    k: String::from("a"),
-                    v: 12,
-                }]),
+                action: TestAction::ChangeRequests(vec![ChangeRequest::set(String::from("a"), 12)]),
             },
             TestStep {
                 condition: TestBackendInteraction::Set {
@@ -936,10 +1021,7 @@ mod tests {
                     k: String::from("a"),
                     v: 11,
                 },
-                action: TestAction::ChangeRequests(vec![ChangeRequest::Set {
-                    k: String::from("a"),
-                    v: 13,
-                }]),
+                action: TestAction::ChangeRequests(vec![ChangeRequest::set(String::from("a"), 13)]),
             },
             TestStep {
                 condition: TestBackendInteraction::Set {
@@ -977,10 +1059,7 @@ mod tests {
                     k: String::from("a"),
                     v: 11,
                 },
-                action: TestAction::ChangeRequests(vec![ChangeRequest::Set {
-                    k: String::from("a"),
-                    v: 12,
-                }]),
+                action: TestAction::ChangeRequests(vec![ChangeRequest::set(String::from("a"), 12)]),
             },
             TestStep {
                 condition: TestBackendInteraction::Set {
@@ -994,10 +1073,7 @@ mod tests {
                     k: String::from("a"),
                     v: 13,
                 },
-                action: TestAction::ChangeRequests(vec![ChangeRequest::Set {
-                    k: String::from("a"),
-                    v: 14,
-                }]),
+                action: TestAction::ChangeRequests(vec![ChangeRequest::set(String::from("a"), 14)]),
             },
             TestStep {
                 condition: TestBackendInteraction::Set {
@@ -1019,10 +1095,7 @@ mod tests {
                     k: String::from("a"),
                     v: 11,
                 },
-                action: TestAction::ChangeRequests(vec![ChangeRequest::Set {
-                    k: String::from("a"),
-                    v: 13,
-                }]),
+                action: TestAction::ChangeRequests(vec![ChangeRequest::set(String::from("a"), 13)]),
             },
             TestStep {
                 condition: TestBackendInteraction::Set {
@@ -1119,10 +1192,7 @@ mod tests {
                 },
                 action: TestAction::BlockAndChangeRequest(
                     Arc::clone(&barrier_pre),
-                    vec![ChangeRequest::Set {
-                        k: String::from("a"),
-                        v: 3,
-                    }],
+                    vec![ChangeRequest::set(String::from("a"), 3)],
                 ),
             },
             TestStep {
@@ -1207,6 +1277,133 @@ mod tests {
         assert_eq!(Arc::strong_count(&marker_policy), 1);
     }
 
+    /// We have to ways of handling "compound" [`ChangeRequest`]s, i.e. requests that perform multiple operations:
+    ///
+    /// 1. We could loop over the operations and inner-loop over the policies to collect reactions
+    /// 2. We could loop over all the policies and present each polices all operations in one go
+    ///
+    /// We've decided to chose option 1. This test ensures that by setting up a compound request (reacting to
+    /// `set("a", 11)`) with a compound of two operations (`set("a", 12)`, `set("a", 13)`) which we call `C1` and `C2`
+    /// (for "compound 1 and 2"). The two policies react two these two compound operations as followed:
+    ///
+    /// |    | Policy 1       | Policy 2       |
+    /// | -- | -------------- | -------------- |
+    /// | C1 | `set("a", 14)` | `set("a", 15)` |
+    /// | C2 | `set("a", 16)` | --             |
+    ///
+    /// For option (1) the outcome will be `"a" -> 16`, for option (2) the outcome would be `"a" -> 15`.
+    #[test]
+    fn test_ordering_within_compound_requests() {
+        let mut backend = PolicyBackend::new(Box::new(HashMap::new()));
+        backend.add_policy(create_test_policy(vec![
+            TestStep {
+                condition: TestBackendInteraction::Set {
+                    k: String::from("a"),
+                    v: 11,
+                },
+                action: TestAction::ChangeRequests(vec![ChangeRequest::from_fn(|backend| {
+                    backend.set(String::from("a"), 12);
+                    backend.set(String::from("a"), 13);
+                })]),
+            },
+            TestStep {
+                condition: TestBackendInteraction::Set {
+                    k: String::from("a"),
+                    v: 12,
+                },
+                action: TestAction::ChangeRequests(vec![ChangeRequest::set(String::from("a"), 14)]),
+            },
+            TestStep {
+                condition: TestBackendInteraction::Set {
+                    k: String::from("a"),
+                    v: 13,
+                },
+                action: TestAction::ChangeRequests(vec![ChangeRequest::set(String::from("a"), 16)]),
+            },
+            TestStep {
+                condition: TestBackendInteraction::Set {
+                    k: String::from("a"),
+                    v: 14,
+                },
+                action: TestAction::ChangeRequests(vec![]),
+            },
+            TestStep {
+                condition: TestBackendInteraction::Set {
+                    k: String::from("a"),
+                    v: 15,
+                },
+                action: TestAction::ChangeRequests(vec![]),
+            },
+            TestStep {
+                condition: TestBackendInteraction::Set {
+                    k: String::from("a"),
+                    v: 16,
+                },
+                action: TestAction::ChangeRequests(vec![]),
+            },
+            TestStep {
+                condition: TestBackendInteraction::Get {
+                    k: String::from("a"),
+                },
+                action: TestAction::ChangeRequests(vec![]),
+            },
+        ]));
+        backend.add_policy(create_test_policy(vec![
+            TestStep {
+                condition: TestBackendInteraction::Set {
+                    k: String::from("a"),
+                    v: 11,
+                },
+                action: TestAction::ChangeRequests(vec![]),
+            },
+            TestStep {
+                condition: TestBackendInteraction::Set {
+                    k: String::from("a"),
+                    v: 12,
+                },
+                action: TestAction::ChangeRequests(vec![ChangeRequest::set(String::from("a"), 15)]),
+            },
+            TestStep {
+                condition: TestBackendInteraction::Set {
+                    k: String::from("a"),
+                    v: 13,
+                },
+                action: TestAction::ChangeRequests(vec![]),
+            },
+            TestStep {
+                condition: TestBackendInteraction::Set {
+                    k: String::from("a"),
+                    v: 14,
+                },
+                action: TestAction::ChangeRequests(vec![]),
+            },
+            TestStep {
+                condition: TestBackendInteraction::Set {
+                    k: String::from("a"),
+                    v: 15,
+                },
+                action: TestAction::ChangeRequests(vec![]),
+            },
+            TestStep {
+                condition: TestBackendInteraction::Set {
+                    k: String::from("a"),
+                    v: 16,
+                },
+                action: TestAction::ChangeRequests(vec![]),
+            },
+            TestStep {
+                condition: TestBackendInteraction::Get {
+                    k: String::from("a"),
+                },
+                action: TestAction::ChangeRequests(vec![]),
+            },
+        ]));
+
+        backend.set(String::from("a"), 11);
+
+        assert_eq!(backend.get(&String::from("a")), Some(16));
+    }
+
     #[derive(Debug)]
     struct DropTester<T>(Arc<()>, T)
     where
@@ -1250,9 +1447,9 @@ mod tests {
 
     fn create_test_policy(
         steps: Vec<TestStep>,
-    ) -> impl FnOnce(Box<dyn CacheBackend<K = String, V = usize>>) -> TestSubscriber {
-        |backend| TestSubscriber {
-            background_task: TestSubscriberBackgroundTask::NotStarted(backend),
+    ) -> impl FnOnce(CallbackHandle<String, usize>) -> TestSubscriber {
+        |handle| TestSubscriber {
+            background_task: TestSubscriberBackgroundTask::NotStarted(handle),
             steps: VecDeque::from(steps),
         }
     }
@@ -1266,6 +1463,19 @@ mod tests {
         Remove { k: String },
 
         Panic,
+    }
+
+    impl TestBackendInteraction {
+        fn perform(self, handle: &mut CallbackHandle<String, usize>) {
+            match self {
+                Self::Get { k } => {
+                    handle.init_requests(vec![ChangeRequest::get(k)]);
+                }
+                Self::Set { k, v } => handle.init_requests(vec![ChangeRequest::set(k, v)]),
+                Self::Remove { k } => handle.init_requests(vec![ChangeRequest::remove(k)]),
+                Self::Panic => panic!("this is a test"),
+            }
+        }
     }
 
     #[derive(Debug)]
@@ -1292,56 +1502,35 @@ mod tests {
         ) -> Vec<ChangeRequest<String, usize>> {
             match self {
                 Self::CallBackendDirectly(interaction) => {
-                    let backend = match background_task {
-                        TestSubscriberBackgroundTask::NotStarted(backend) => backend,
+                    let handle = match background_task {
+                        TestSubscriberBackgroundTask::NotStarted(handle) => handle,
                         TestSubscriberBackgroundTask::Started(_) => {
                             panic!("background task already started")
                         }
                         TestSubscriberBackgroundTask::Invalid => panic!("Invalid state"),
                     };
 
-                    match interaction {
-                        TestBackendInteraction::Get { k } => {
-                            backend.get(&k);
-                        }
-                        TestBackendInteraction::Set { k, v } => backend.set(k, v),
-                        TestBackendInteraction::Remove { k } => backend.remove(&k),
-                        TestBackendInteraction::Panic => panic!("this is a test"),
-                    }
-
+                    interaction.perform(handle);
                     unreachable!("illegal call should have failed")
                 }
                 Self::ChangeRequests(change_requests) => change_requests,
                 Self::CallBackendDelayed(barrier_pre, interaction, barrier_post) => {
                     let mut tmp = TestSubscriberBackgroundTask::Invalid;
                     std::mem::swap(&mut tmp, background_task);
-                    let mut backend = match tmp {
-                        TestSubscriberBackgroundTask::NotStarted(backend) => backend,
+                    let mut handle = match tmp {
+                        TestSubscriberBackgroundTask::NotStarted(handle) => handle,
                         TestSubscriberBackgroundTask::Started(_) => {
                             panic!("background task already started")
                         }
                         TestSubscriberBackgroundTask::Invalid => panic!("Invalid state"),
                     };
 
-                    let handle = std::thread::spawn(move || {
+                    let join_handle = std::thread::spawn(move || {
                         barrier_pre.wait();
-
-                        match interaction {
-                            TestBackendInteraction::Get { k } => {
-                                backend.get(&k);
-                            }
-                            TestBackendInteraction::Set { k, v } => {
-                                backend.set(k, v);
-                            }
-                            TestBackendInteraction::Remove { k } => {
-                                backend.remove(&k);
-                            }
-                            TestBackendInteraction::Panic => panic!("this is a test"),
-                        }
-
+                        interaction.perform(&mut handle);
                         barrier_post.wait();
                     });
-                    *background_task = TestSubscriberBackgroundTask::Started(handle);
+                    *background_task = TestSubscriberBackgroundTask::Started(join_handle);
 
                     vec![]
                 }
@@ -1361,7 +1550,7 @@ mod tests {
 
     #[derive(Debug)]
     enum TestSubscriberBackgroundTask {
-        NotStarted(Box<dyn CacheBackend<K = String, V = usize>>),
+        NotStarted(CallbackHandle<String, usize>),
         Started(JoinHandle<()>),
 
         /// Temporary variant for swapping.
