@@ -4,8 +4,11 @@ use backoff::{Backoff, BackoffConfig};
 use cache_system::{
     backend::{
         lru::{LruBackend, ResourcePool},
+        policy::{
+            ttl::{TtlPolicy, TtlProvider},
+            PolicyBackend,
+        },
         resource_consumption::FunctionEstimator,
-        ttl::{TtlBackend, TtlProvider},
     },
     cache::{driver::CacheDriver, metrics::CacheWithMetrics, Cache},
     loader::{metrics::MetricsLoader, FunctionLoader},
@@ -79,16 +82,15 @@ impl ProcessedTombstonesCache {
             testing,
         ));
 
-        let backend = Box::new(HashMap::new());
-        let backend = Box::new(TtlBackend::new(
-            backend,
+        let mut backend = PolicyBackend::new(Box::new(HashMap::new()));
+        backend.add_policy(TtlPolicy::new(
             Arc::new(KeepExistsForever {}),
             Arc::clone(&time_provider),
             CACHE_ID,
             metric_registry,
         ));
         let backend = Box::new(LruBackend::new(
-            backend,
+            Box::new(backend),
             ram_pool,
             CACHE_ID,
             Arc::new(FunctionEstimator::new(|k, v| {

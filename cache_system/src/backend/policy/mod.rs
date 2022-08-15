@@ -5,12 +5,16 @@ use std::{
     collections::VecDeque,
     fmt::Debug,
     hash::Hash,
+    marker::PhantomData,
+    ops::Deref,
     sync::{Arc, Weak},
 };
 
-use parking_lot::{Mutex, ReentrantMutex};
+use parking_lot::{lock_api::ArcMutexGuard, Mutex, RawMutex, ReentrantMutex};
 
 use super::CacheBackend;
+
+pub mod ttl;
 
 /// Convenience macro to easily follow the borrow/lock chain of [`StrongSharedInner`].
 ///
@@ -266,6 +270,19 @@ where
         lock_inner!(mut guard = self.inner);
         guard.subscribers.push(Box::new(subscriber));
     }
+
+    /// Provide temporary read-only access to the underlying backend.
+    ///
+    /// This is mostly useful for debugging and testing.
+    pub fn inner_ref(&mut self) -> InnerBackendRef<'_, K, V> {
+        // NOTE: We deliberately use a mutable reference here to prevent users from using `<Self as CacheBackend>` while
+        //       we hold a lock to the underlying backend.
+        lock_inner!(guard = self.inner);
+        InnerBackendRef {
+            inner: guard.inner.lock_arc(),
+            _phantom: PhantomData::default(),
+        }
+    }
 }
 
 impl<K, V> CacheBackend for PolicyBackend<K, V>
@@ -476,6 +493,15 @@ where
         })
     }
 
+    /// Ensure that backends is empty and panic otherwise.
+    ///
+    /// This is mostly useful during initialization.
+    pub fn ensure_empty() -> Self {
+        Self::from_fn(|backend| {
+            assert!(backend.is_empty(), "inner backend is not empty");
+        })
+    }
+
     /// Execute this change request.
     fn eval(self, backend: &mut dyn CacheBackend<K = K, V = V>) {
         (self.fun)(backend)
@@ -555,6 +581,47 @@ where
 
     fn as_any(&self) -> &dyn std::any::Any {
         self
+    }
+}
+
+/// Read-only ref to the inner backend of [`PolicyBackend`] for debugging.
+pub struct InnerBackendRef<'a, K, V>
+where
+    K: Clone + Eq + Hash + Ord + Debug + Send + 'static,
+    V: Clone + Debug + Send + 'static,
+{
+    inner: ArcMutexGuard<RawMutex, Box<dyn CacheBackend<K = K, V = V>>>,
+    _phantom: PhantomData<&'a mut ()>,
+}
+
+// Workaround for <https://github.com/rust-lang/rust/issues/100573>.
+impl<'a, K, V> Drop for InnerBackendRef<'a, K, V>
+where
+    K: Clone + Eq + Hash + Ord + Debug + Send + 'static,
+    V: Clone + Debug + Send + 'static,
+{
+    fn drop(&mut self) {}
+}
+
+impl<'a, K, V> Debug for InnerBackendRef<'a, K, V>
+where
+    K: Clone + Eq + Hash + Ord + Debug + Send + 'static,
+    V: Clone + Debug + Send + 'static,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("InnerBackendRef").finish_non_exhaustive()
+    }
+}
+
+impl<'a, K, V> Deref for InnerBackendRef<'a, K, V>
+where
+    K: Clone + Eq + Hash + Ord + Debug + Send + 'static,
+    V: Clone + Debug + Send + 'static,
+{
+    type Target = dyn CacheBackend<K = K, V = V>;
+
+    fn deref(&self) -> &Self::Target {
+        self.inner.as_ref()
     }
 }
 

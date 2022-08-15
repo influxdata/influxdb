@@ -4,8 +4,11 @@ use backoff::{Backoff, BackoffConfig};
 use cache_system::{
     backend::{
         lru::{LruBackend, ResourcePool},
+        policy::{
+            ttl::{OptionalValueTtlProvider, TtlPolicy},
+            PolicyBackend,
+        },
         resource_consumption::FunctionEstimator,
-        ttl::{OptionalValueTtlProvider, TtlBackend},
     },
     cache::{driver::CacheDriver, metrics::CacheWithMetrics, Cache},
     loader::{metrics::MetricsLoader, FunctionLoader},
@@ -76,8 +79,8 @@ impl TableCache {
             testing,
         ));
 
-        let backend = Box::new(TtlBackend::new(
-            Box::new(HashMap::new()),
+        let mut backend = PolicyBackend::new(Box::new(HashMap::new()));
+        backend.add_policy(TtlPolicy::new(
             Arc::new(OptionalValueTtlProvider::new(Some(TTL_NON_EXISTING), None)),
             Arc::clone(&time_provider),
             CACHE_ID,
@@ -86,7 +89,7 @@ impl TableCache {
 
         // add to memory pool
         let backend = Box::new(LruBackend::new(
-            backend,
+            Box::new(backend),
             Arc::clone(&ram_pool),
             CACHE_ID,
             Arc::new(FunctionEstimator::new(|k, v: &Option<Arc<CachedTable>>| {

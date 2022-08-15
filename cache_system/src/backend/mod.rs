@@ -7,7 +7,6 @@ pub mod lru;
 pub mod policy;
 pub mod resource_consumption;
 pub mod shared;
-pub mod ttl;
 
 #[cfg(test)]
 mod test_util;
