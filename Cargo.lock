@@ -2940,7 +2940,20 @@ dependencies = [
  "bitflags",
  "cfg-if",
  "libc",
+]
+
+[[package]]
+name = "nix"
+version = "0.25.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e322c04a9e3440c327fca7b6c8a63e6890a32fa2ad689db972425f07e0d22abb"
+dependencies = [
+ "autocfg",
+ "bitflags",
+ "cfg-if",
+ "libc",
  "memoffset",
+ "pin-utils",
 ]
 
 [[package]]
@@ -3538,7 +3551,7 @@ dependencies = [
  "inferno",
  "libc",
  "log",
- "nix",
+ "nix 0.24.2",
  "once_cell",
  "parking_lot 0.12.1",
  "prost 0.10.4",
@@ -4304,7 +4317,7 @@ dependencies = [
  "libc",
  "log",
  "memchr",
- "nix",
+ "nix 0.24.2",
  "scopeguard",
  "unicode-segmentation",
  "unicode-width",
@@ -5027,7 +5040,7 @@ dependencies = [
  "http",
  "hyper",
  "influxdb_iox_client",
- "nix",
+ "nix 0.25.0",
  "observability_deps",
  "once_cell",
  "parking_lot 0.12.1",
@@ -5940,7 +5953,6 @@ dependencies = [
  "log",
  "md-5",
  "memchr",
- "nix",
  "nom",
  "num-integer",
  "num-traits",

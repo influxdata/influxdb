@@ -124,7 +124,6 @@ uuid = { version = "1", features = ["private_getrandom", "rng", "std", "v4"] }
 
 [target.x86_64-unknown-linux-gnu.dependencies]
 getrandom = { version = "0.2", default-features = false, features = ["std"] }
-nix = { version = "0.24", features = ["acct", "aio", "dir", "env", "event", "feature", "fs", "hostname", "inotify", "ioctl", "kmod", "memoffset", "mman", "mount", "mqueue", "net", "personality", "poll", "process", "pthread", "ptrace", "quota", "reboot", "resource", "sched", "signal", "socket", "term", "time", "ucontext", "uio", "user", "zerocopy"] }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
 tokio-util = { version = "0.7", default-features = false, features = ["io"] }
 
@@ -134,7 +133,6 @@ once_cell = { version = "1", default-features = false, features = ["unstable"] }
 
 [target.x86_64-apple-darwin.dependencies]
 getrandom = { version = "0.2", default-features = false, features = ["std"] }
-nix = { version = "0.24", features = ["acct", "aio", "dir", "env", "event", "feature", "fs", "hostname", "inotify", "ioctl", "kmod", "memoffset", "mman", "mount", "mqueue", "net", "personality", "poll", "process", "pthread", "ptrace", "quota", "reboot", "resource", "sched", "signal", "socket", "term", "time", "ucontext", "uio", "user", "zerocopy"] }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
 tokio-util = { version = "0.7", default-features = false, features = ["io"] }
 
@@ -144,7 +142,6 @@ once_cell = { version = "1", default-features = false, features = ["unstable"] }
 
 [target.aarch64-apple-darwin.dependencies]
 getrandom = { version = "0.2", default-features = false, features = ["std"] }
-nix = { version = "0.24", features = ["acct", "aio", "dir", "env", "event", "feature", "fs", "hostname", "inotify", "ioctl", "kmod", "memoffset", "mman", "mount", "mqueue", "net", "personality", "poll", "process", "pthread", "ptrace", "quota", "reboot", "resource", "sched", "signal", "socket", "term", "time", "ucontext", "uio", "user", "zerocopy"] }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
 tokio-util = { version = "0.7", default-features = false, features = ["io"] }
 

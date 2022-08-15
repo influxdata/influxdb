@@ -13,7 +13,7 @@ generated_types = { path = "../generated_types" }
 http = "0.2.8"
 hyper = "0.14"
 influxdb_iox_client = { path = "../influxdb_iox_client", features = ["flight", "format", "write_lp"] }
-nix = "0.24"
+nix = "0.25"
 observability_deps = { path = "../observability_deps" }
 once_cell = { version = "1.13.0", features = ["parking_lot"] }
 parking_lot = "0.12"
