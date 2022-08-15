@@ -669,7 +669,7 @@ func FindManyDBRPMappingsV2(
 						ID:              200,
 						Database:        "testdb2",
 						RetentionPolicy: "testrp2",
-						Default:         true,
+						Default:         false,
 						Virtual:         true,
 						OrganizationID:  MustIDBase16(dbrpOrg3ID),
 						BucketID:        200,
@@ -698,6 +698,7 @@ func FindManyDBRPMappingsV2(
 							// org 2
 							{ID: 300, Name: "testdb3", OrgID: MustIDBase16(dbrpOrg2ID)},
 							{ID: 400, Name: "testdb4/testrp4", OrgID: MustIDBase16(dbrpOrg2ID)},
+							{ID: 500, Name: "testdb4", OrgID: MustIDBase16(dbrpOrg2ID)},
 						}, 0, nil
 					}},
 				DBRPMappingsV2: []*influxdb.DBRPMapping{},
@@ -710,10 +711,19 @@ func FindManyDBRPMappingsV2(
 			wants: wants{
 				dbrpMappings: []*influxdb.DBRPMapping{
 					{
+						ID:              500,
+						Database:        "testdb4",
+						RetentionPolicy: "autogen",
+						Default:         true,
+						Virtual:         true,
+						OrganizationID:  MustIDBase16(dbrpOrg2ID),
+						BucketID:        500,
+					},
+					{
 						ID:              400,
 						Database:        "testdb4",
 						RetentionPolicy: "testrp4",
-						Default:         true,
+						Default:         false,
 						Virtual:         true,
 						OrganizationID:  MustIDBase16(dbrpOrg2ID),
 						BucketID:        400,
@@ -1244,7 +1254,7 @@ func FindDBRPMappingByIDV2(
 					ID:              MustIDBase16(dbrpBucketAID),
 					Database:        "testdb",
 					RetentionPolicy: "testrp",
-					Default:         true,
+					Default:         false,
 					Virtual:         true,
 					OrganizationID:  MustIDBase16(dbrpOrg3ID),
 					BucketID:        MustIDBase16(dbrpBucketAID),
