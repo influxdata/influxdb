@@ -99,22 +99,17 @@ pub(crate) async fn compact_parquet_files(
         }
     );
 
+    // Save all file sizes for recording metrics if this compaction succeeds.
+    let file_sizes: Vec<_> = files.iter().map(|f| f.file_size_bytes).collect();
     // Find the total size of all files, to be used to determine if the result should be one file
     // or if the result should be split into multiple files.
-    let total_size: i64 = files.iter().map(|f| f.file_size_bytes).sum();
+    let total_size: i64 = file_sizes.iter().sum();
     let total_size = total_size as u64;
 
-    // Compute the number of files per compaction level for logging and collect the file sizes by
-    // compaction level for recording metrics if this compaction succeeds.
+    // Compute the number of files per compaction level for logging
     let mut num_files_by_level = BTreeMap::new();
-    let mut file_sizes_by_level: BTreeMap<CompactionLevel, Vec<u64>> = BTreeMap::new();
-    for (compaction_level, file_size_bytes) in files
-        .iter()
-        .map(|f| (f.compaction_level, f.file_size_bytes))
-    {
+    for compaction_level in files.iter().map(|f| f.compaction_level) {
         *num_files_by_level.entry(compaction_level).or_default() += 1;
-        let sizes = file_sizes_by_level.entry(compaction_level).or_default();
-        sizes.push(file_size_bytes as u64);
     }
     let num_level_0 = num_files_by_level
         .get(&CompactionLevel::Initial)
@@ -328,15 +323,9 @@ pub(crate) async fn compact_parquet_files(
         "sequencer_id",
         format!("{}", partition.sequencer_id()).into(),
     )]);
-
-    for (compaction_level, file_sizes) in file_sizes_by_level {
-        let mut attributes = attributes.clone();
-        attributes.insert("compaction_level", format!("{}", compaction_level as i32));
-
-        let compaction_input_file_bytes = compaction_input_file_bytes.recorder(attributes);
-        for size in file_sizes {
-            compaction_input_file_bytes.record(size);
-        }
+    let compaction_input_file_bytes = compaction_input_file_bytes.recorder(attributes);
+    for size in file_sizes {
+        compaction_input_file_bytes.record(size as u64);
     }
 
     Ok(())
@@ -479,7 +468,7 @@ mod tests {
     use arrow_util::assert_batches_sorted_eq;
     use data_types::{ColumnType, PartitionParam, SequencerId};
     use iox_tests::util::{TestCatalog, TestParquetFileBuilder, TestTable};
-    use metric::{ObservationBucket, U64HistogramOptions};
+    use metric::U64HistogramOptions;
     use parquet_file::ParquetFilePath;
     use test_helpers::assert_error;
 
@@ -682,10 +671,8 @@ mod tests {
         assert_eq!(
             extract_byte_metrics(&compaction_input_file_bytes, sequencer_id),
             ExtractedByteMetrics {
-                level_0_sample_count: 0,
-                level_0_buckets_with_counts: vec![],
-                level_1_sample_count: 0,
-                level_1_buckets_with_counts: vec![],
+                sample_count: 0,
+                buckets_with_counts: vec![],
             }
         );
     }
@@ -747,10 +734,8 @@ mod tests {
         assert_eq!(
             extract_byte_metrics(&compaction_input_file_bytes, sequencer_id),
             ExtractedByteMetrics {
-                level_0_sample_count: 1,
-                level_0_buckets_with_counts: vec![(BUCKET_500_KB, 1)],
-                level_1_sample_count: 0,
-                level_1_buckets_with_counts: vec![],
+                sample_count: 1,
+                buckets_with_counts: vec![(BUCKET_500_KB, 1)],
             }
         );
     }
@@ -809,10 +794,8 @@ mod tests {
         assert_eq!(
             extract_byte_metrics(&compaction_input_file_bytes, sequencer_id),
             ExtractedByteMetrics {
-                level_0_sample_count: 2,
-                level_0_buckets_with_counts: vec![(BUCKET_500_KB, 2)],
-                level_1_sample_count: 2,
-                level_1_buckets_with_counts: vec![(BUCKET_500_KB, 2)],
+                sample_count: 4,
+                buckets_with_counts: vec![(BUCKET_500_KB, 4)],
             }
         );
 
@@ -894,10 +877,8 @@ mod tests {
         assert_eq!(
             extract_byte_metrics(&compaction_input_file_bytes, sequencer_id),
             ExtractedByteMetrics {
-                level_0_sample_count: 3,
-                level_0_buckets_with_counts: vec![(BUCKET_500_KB, 2), (u64::MAX, 1)],
-                level_1_sample_count: 2,
-                level_1_buckets_with_counts: vec![(BUCKET_500_KB, 2)],
+                sample_count: 5,
+                buckets_with_counts: vec![(BUCKET_500_KB, 4), (u64::MAX, 1)],
             }
         );
 
@@ -998,10 +979,8 @@ mod tests {
         assert_eq!(
             extract_byte_metrics(&compaction_input_file_bytes, sequencer_id),
             ExtractedByteMetrics {
-                level_0_sample_count: 3,
-                level_0_buckets_with_counts: vec![(BUCKET_500_KB, 2), (u64::MAX, 1)],
-                level_1_sample_count: 2,
-                level_1_buckets_with_counts: vec![(BUCKET_500_KB, 2)],
+                sample_count: 5,
+                buckets_with_counts: vec![(BUCKET_500_KB, 4), (u64::MAX, 1)],
             }
         );
 
@@ -1081,10 +1060,8 @@ mod tests {
         assert_eq!(
             extract_byte_metrics(&compaction_input_file_bytes, sequencer_id),
             ExtractedByteMetrics {
-                level_0_sample_count: 4,
-                level_0_buckets_with_counts: vec![(BUCKET_500_KB, 2), (u64::MAX, 2)],
-                level_1_sample_count: 2,
-                level_1_buckets_with_counts: vec![(BUCKET_500_KB, 2)],
+                sample_count: 6,
+                buckets_with_counts: vec![(BUCKET_500_KB, 4), (u64::MAX, 2)],
             }
         );
 
@@ -1164,10 +1141,8 @@ mod tests {
 
     #[derive(Debug, PartialEq)]
     struct ExtractedByteMetrics {
-        level_0_sample_count: u64,
-        level_0_buckets_with_counts: Vec<(u64, u64)>,
-        level_1_sample_count: u64,
-        level_1_buckets_with_counts: Vec<(u64, u64)>,
+        sample_count: u64,
+        buckets_with_counts: Vec<(u64, u64)>,
     }
 
     fn extract_byte_metrics(
@@ -1176,45 +1151,29 @@ mod tests {
     ) -> ExtractedByteMetrics {
         let attributes = Attributes::from([("sequencer_id", format!("{}", sequencer_id).into())]);
 
-        let bucket_filter = |o: &ObservationBucket<u64>| {
-            if o.count == 0 {
-                None
-            } else {
-                Some((o.le, o.count))
-            }
-        };
-
-        let mut level_0_attributes = attributes.clone();
-        level_0_attributes.insert("compaction_level", "0");
-        let (level_0_sample_count, level_0_buckets_with_counts) =
-            if let Some(level_0) = metric.get_observer(&level_0_attributes) {
-                let level_0 = level_0.fetch();
-                let mut level_0_buckets_with_counts: Vec<_> =
-                    level_0.buckets.iter().filter_map(bucket_filter).collect();
-                level_0_buckets_with_counts.sort();
-                (level_0.sample_count(), level_0_buckets_with_counts)
-            } else {
-                (0, vec![])
-            };
-
-        let mut level_1_attributes = attributes;
-        level_1_attributes.insert("compaction_level", "1");
-        let (level_1_sample_count, level_1_buckets_with_counts) =
-            if let Some(level_1) = metric.get_observer(&level_1_attributes) {
-                let level_1 = level_1.fetch();
-                let mut level_1_buckets_with_counts: Vec<_> =
-                    level_1.buckets.iter().filter_map(bucket_filter).collect();
-                level_1_buckets_with_counts.sort();
-                (level_1.sample_count(), level_1_buckets_with_counts)
+        let (sample_count, buckets_with_counts) =
+            if let Some(observer) = metric.get_observer(&attributes) {
+                let observer = observer.fetch();
+                let mut buckets_with_counts: Vec<_> = observer
+                    .buckets
+                    .iter()
+                    .filter_map(|o| {
+                        if o.count == 0 {
+                            None
+                        } else {
+                            Some((o.le, o.count))
+                        }
+                    })
+                    .collect();
+                buckets_with_counts.sort();
+                (observer.sample_count(), buckets_with_counts)
             } else {
                 (0, vec![])
             };
 
         ExtractedByteMetrics {
-            level_0_sample_count,
-            level_0_buckets_with_counts,
-            level_1_sample_count,
-            level_1_buckets_with_counts,
+            sample_count,
+            buckets_with_counts,
         }
     }
 }
