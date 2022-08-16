@@ -2236,6 +2236,7 @@ dependencies = [
  "sqlx-hotswap-pool",
  "tempfile",
  "test_helpers",
+ "thiserror",
  "tokio",
  "uuid 1.1.2",
  "workspace-hack",

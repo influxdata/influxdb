@@ -276,17 +276,19 @@ async fn test_schema_conflict() {
         router::server::http::Error::DmlHandler(
             DmlError::Schema(
                 SchemaError::Conflict(
-                    iox_catalog::interface::Error::ColumnTypeMismatch {
-                        name,
-                        existing,
-                        new,
-                    }
+                    e
                 )
             )
         ) => {
-            assert_eq!(name, "val");
-            assert_eq!(existing, "i64");
-            assert_eq!(new, "iox::column_type::field::float");
+            assert_matches!(e.err(), iox_catalog::interface::Error::ColumnTypeMismatch {
+                name,
+                existing,
+                new,
+            } => {
+                assert_eq!(name, "val");
+                assert_eq!(existing, "i64");
+                assert_eq!(new, "iox::column_type::field::float");
+            });
         }
     );
     assert_eq!(err.as_status_code(), StatusCode::BAD_REQUEST);
