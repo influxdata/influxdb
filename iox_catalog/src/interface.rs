@@ -1,4 +1,4 @@
-//! This module contains the traits and data objects for the Catalog API.
+//! Traits and data types for the IOx Catalog API.
 
 use async_trait::async_trait;
 use data_types::{
@@ -120,32 +120,33 @@ pub enum Error {
 /// A specialized `Error` for Catalog errors
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Trait that contains methods for working with the catalog
+/// Methods for working with the catalog.
 #[async_trait]
 pub trait Catalog: Send + Sync + Debug {
     /// Setup catalog for usage and apply possible migrations.
     async fn setup(&self) -> Result<(), Error>;
 
-    /// Create a new transaction.
+    /// Creates a new [`Transaction`].
     ///
     /// Creating transactions is potentially expensive. Holding one consumes resources. The number of parallel active
     /// transactions might be limited per catalog, so you MUST NOT rely on the ability to create multiple transactions in
-    /// parallel for correctness but only for scaling.
+    /// parallel for correctness. Parallel transactions must only be used for scaling.
     async fn start_transaction(&self) -> Result<Box<dyn Transaction>, Error>;
 
-    /// Access the repositories w/o a transaction scope.
+    /// Accesses the repositories without a transaction scope.
     async fn repositories(&self) -> Box<dyn RepoCollection>;
 
-    /// Get metric registry associated w/ this catalog.
+    /// Gets metric registry associated with this catalog.
     fn metrics(&self) -> Arc<metric::Registry>;
 
-    /// Get the time provider associated w/ this catalog.
+    /// Gets the time provider associated with this catalog.
     fn time_provider(&self) -> Arc<dyn TimeProvider>;
 }
 
 /// Secret module for [sealed traits].
 ///
 /// [sealed traits]: https://rust-lang.github.io/api-guidelines/future-proofing.html#sealed-traits-protect-against-downstream-implementations-c-sealed
+#[doc(hidden)]
 pub(crate) mod sealed {
     use super::*;
 
@@ -162,24 +163,28 @@ pub(crate) mod sealed {
     }
 }
 
-/// transaction of a [`Catalog`].
+/// Transaction in a [`Catalog`] (similar to a database transaction).
 ///
-/// A transaction provides a consistent view on data and stages writes (this normally maps to a database transaction).
-/// Repositories can cheaply be borrowed from it. To finalize a transaction, call [commit](Self::commit) or [abort](Self::abort).
+/// A transaction provides a consistent view on data and stages writes.
+/// To finalize a transaction, call [commit](Self::commit) or [abort](Self::abort).
 ///
-/// Note that after any method in this transaction (including all repositories derived from it) returned an error, the
+/// Repositories can cheaply be borrowed from it.
+///
+/// Note that after any method in this transaction (including all repositories derived from it) returns an error, the
 /// transaction MIGHT be poisoned and will return errors for all operations, depending on the backend.
 ///
 ///
 /// # Drop
+///
 /// Dropping a transaction without calling [`commit`](Self::commit) or [`abort`](Self::abort) will abort the
 /// transaction. However resources might not be released immediately, so it is adviced to always call
 /// [`abort`](Self::abort) when you want to enforce that. Dropping w/o commiting/aborting will also log a warning.
 #[async_trait]
 pub trait Transaction: Send + Sync + Debug + sealed::TransactionFinalize + RepoCollection {
-    /// Commit transaction.
+    /// Commits a transaction.
     ///
     /// # Error Handling
+    ///
     /// If successfull, all changes will be visible to other transactions.
     ///
     /// If an error is returned, the transaction may or or not be committed. This might be due to IO errors after the
@@ -189,7 +194,7 @@ pub trait Transaction: Send + Sync + Debug + sealed::TransactionFinalize + RepoC
         self.commit_inplace().await
     }
 
-    /// Abort transaction, throwing away all changes.
+    /// Aborts the transaction, throwing away all changes.
     async fn abort(mut self: Box<Self>) -> Result<(), Error> {
         self.abort_inplace().await
     }
@@ -198,45 +203,47 @@ pub trait Transaction: Send + Sync + Debug + sealed::TransactionFinalize + RepoC
 impl<T> Transaction for T where T: Send + Sync + Debug + sealed::TransactionFinalize + RepoCollection
 {}
 
-/// Collection of the different repositories that the catalog offers.
+/// Methods for working with the catalog's various repositories (collections of entities).
 ///
-/// The methods (e.g. "get or create") for handling entities (e.g. namespaces, tombstones, ...) are grouped into
-/// *repositories* with one *repository* per entity. A repository can be thought of a collection of a single entity.
+/// # Repositories
+///
+/// The methods (e.g. `create_*` or `get_by_*`) for handling entities (namespaces, tombstones, etc.) are grouped into
+/// *repositories* with one repository per entity. A repository can be thought of a collection of a single kind of entity.
 /// Getting repositories from the transaction is cheap.
 ///
-/// Note that a repository might internally map to a wide range of different storage abstractions, ranging from one or
+/// A repository might internally map to a wide range of different storage abstractions, ranging from one or
 /// more SQL tables over key-value key spaces to simple in-memory vectors. The user should and must not care how these
 /// are implemented.
 #[async_trait]
 pub trait RepoCollection: Send + Sync + Debug {
-    /// repo for kafka topics
+    /// Repository for [Kafka topics](data_types::KafkaTopic).
     fn kafka_topics(&mut self) -> &mut dyn KafkaTopicRepo;
 
-    /// repo fo rquery pools
+    /// Repository for [query pools](data_types::QueryPool).
     fn query_pools(&mut self) -> &mut dyn QueryPoolRepo;
 
-    /// repo for namespaces
+    /// Repository for [namespaces](data_types::Namespace).
     fn namespaces(&mut self) -> &mut dyn NamespaceRepo;
 
-    /// repo for tables
+    /// Repository for [tables](data_types::Table).
     fn tables(&mut self) -> &mut dyn TableRepo;
 
-    /// repo for columns
+    /// Repository for [columns](data_types::Column).
     fn columns(&mut self) -> &mut dyn ColumnRepo;
 
-    /// repo for sequencers
+    /// Repository for [sequencers](data_types::Sequencer).
     fn sequencers(&mut self) -> &mut dyn SequencerRepo;
 
-    /// repo for partitions
+    /// Repository for [partitions](data_types::Partition).
     fn partitions(&mut self) -> &mut dyn PartitionRepo;
 
-    /// repo for tombstones
+    /// Repository for [tombstones](data_types::Tombstone).
     fn tombstones(&mut self) -> &mut dyn TombstoneRepo;
 
-    /// repo for parquet_files
+    /// Repository for [Parquet files](data_types::ParquetFile).
     fn parquet_files(&mut self) -> &mut dyn ParquetFileRepo;
 
-    /// repo for processed_tombstones
+    /// Repository for [processed tombstones](data_types::ProcessedTombstone).
     fn processed_tombstones(&mut self) -> &mut dyn ProcessedTombstoneRepo;
 }
 

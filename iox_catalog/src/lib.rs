@@ -1,5 +1,5 @@
-//! The IOx catalog which keeps track of what namespaces, tables, columns, parquet files,
-//! and deletes are in the system. Configuration information for distributing ingest, query
+//! The IOx catalog keeps track of the namespaces, tables, columns, parquet files,
+//! and deletes in the system. Configuration information for distributing ingest, query
 //! and compaction is also stored here.
 #![warn(
     missing_copy_implementations,
