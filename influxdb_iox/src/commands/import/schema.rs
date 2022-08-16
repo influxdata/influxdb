@@ -1,13 +1,23 @@
-use std::sync::Arc;
+use std::{
+    fmt::{Display, Formatter},
+    sync::Arc,
+};
 
 use clap::Parser;
-use clap_blocks::object_store::{make_object_store, ObjectStoreConfig};
-use object_store::path::Path;
+use clap_blocks::{
+    catalog_dsn::CatalogDsnConfig,
+    object_store::{make_object_store, ObjectStoreConfig},
+    write_buffer::WriteBufferConfig,
+};
+use iox_time::{SystemProvider, TimeProvider};
+use object_store::{path::Path, DynObjectStore};
+use object_store_metrics::ObjectStoreMetrics;
 use thiserror::Error;
 
-use import::schema::{
+use import::aggregate_tsm_schema::{
     fetch::{fetch_schema, FetchError},
     merge::{SchemaMergeError, SchemaMerger},
+    update_catalog::{update_iox_catalog, UpdateCatalogError},
     validate::{validate_schema, ValidationError},
 };
 
@@ -17,14 +27,34 @@ pub enum SchemaCommandError {
     #[error("Cannot parse object store config: {0}")]
     ObjectStoreParsing(#[from] clap_blocks::object_store::ParseError),
 
+    #[error("Catalog DSN error: {0}")]
+    CatalogDsn(#[from] clap_blocks::catalog_dsn::Error),
+
     #[error("Error fetching schemas from object storage: {0}")]
     Fetching(#[from] FetchError),
 
     #[error("Error merging schemas: {0}")]
     Merging(#[from] SchemaMergeError),
 
-    #[error("{0}")]
-    Validating(#[from] ValidationError),
+    #[error("Schema conflicts during merge:\n{0}")]
+    Validating(#[from] ValidationErrors),
+
+    #[error("Merged schema must have one valid Influx type only")]
+    InvalidFieldTypes(),
+
+    #[error("Error updating IOx catalog with merged schema: {0}")]
+    UpdateCatalogError(#[from] UpdateCatalogError),
+}
+
+#[derive(Debug, Error)]
+pub struct ValidationErrors(Vec<ValidationError>);
+
+impl Display for ValidationErrors {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        self.0.iter().fold(Ok(()), |result, e| {
+            result.and_then(|_| writeln!(f, "- {}", e))
+        })
+    }
 }
 
 #[derive(Parser, Debug)]
@@ -38,6 +68,20 @@ pub enum Config {
 pub struct MergeConfig {
     #[clap(flatten)]
     object_store: ObjectStoreConfig,
+
+    #[clap(flatten)]
+    catalog_dsn: CatalogDsnConfig,
+
+    #[clap(flatten)]
+    write_buffer_config: WriteBufferConfig,
+
+    #[clap(long)]
+    /// Name of the query pool (used only if we need to create the namespace)
+    query_pool_name: Option<String>,
+
+    #[clap(long)]
+    /// Retention setting setting (used only if we need to create the namespace)
+    retention: Option<String>,
 
     #[clap(long)]
     /// The Org ID of the schemas to merge
@@ -61,26 +105,60 @@ pub struct MergeConfig {
 pub async fn command(config: Config) -> Result<(), SchemaCommandError> {
     match config {
         Config::Merge(merge_config) => {
+            let time_provider = Arc::new(SystemProvider::new()) as Arc<dyn TimeProvider>;
+            let metrics = Arc::new(metric::Registry::default());
+
             let object_store = make_object_store(&merge_config.object_store)
                 .map_err(SchemaCommandError::ObjectStoreParsing)?;
+            // Decorate the object store with a metric recorder.
+            let object_store: Arc<DynObjectStore> = Arc::new(ObjectStoreMetrics::new(
+                object_store,
+                time_provider,
+                &*metrics,
+            ));
 
+            let catalog = merge_config
+                .catalog_dsn
+                .get_catalog("import", Arc::clone(&metrics))
+                .await?;
+
+            // fetch the TSM schemas and merge into one aggregate schema
             let schemas = fetch_schema(
                 Arc::clone(&object_store),
                 Some(&Path::from(merge_config.prefix)),
                 &merge_config.suffix,
             )
             .await?;
-            let merger = SchemaMerger::new(merge_config.org_id, merge_config.bucket_id, schemas);
-            let merged = merger.merge().map_err(SchemaCommandError::Merging)?;
+            let merger = SchemaMerger::new(
+                merge_config.org_id.clone(),
+                merge_config.bucket_id.clone(),
+                schemas,
+            );
+            let merged_tsm_schema = merger.merge().map_err(SchemaCommandError::Merging)?;
             // just print the merged schema for now; we'll do more with this in future PRs
-            println!("Merged schema:\n{:?}", merged);
+            println!("Merged schema:\n{:?}", merged_tsm_schema);
 
-            if let Err(errors) = validate_schema(&merged) {
-                eprintln!("Schema conflicts:");
-                for e in errors {
-                    eprintln!("- {}", e);
-                }
+            // don't proceed unless we produce a valid merged schema
+            // (later we'll be able to override, e.g. to coerce types)
+            if let Err(errors) = validate_schema(&merged_tsm_schema) {
+                return Err(SchemaCommandError::Validating(ValidationErrors(errors)));
             }
+            // From here we can happily .unwrap() the field types knowing they're valid
+            if !merged_tsm_schema.types_are_valid() {
+                return Err(SchemaCommandError::InvalidFieldTypes());
+            }
+
+            // given we have a valid aggregate TSM schema, fetch the schema for the namespace from
+            // the IOx catalog, if it exists, and update it with our aggregate schema
+            update_iox_catalog(
+                &merged_tsm_schema,
+                merge_config.write_buffer_config.topic(),
+                merge_config.query_pool_name.as_deref(),
+                merge_config.retention.as_deref(),
+                Arc::clone(&catalog),
+            )
+            .await?;
+
             Ok(())
         }
     }

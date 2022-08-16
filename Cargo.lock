@@ -1932,9 +1932,13 @@ version = "0.1.0"
 dependencies = [
  "assert_matches",
  "clap_blocks",
+ "data_types",
  "futures",
+ "iox_catalog",
+ "metric",
  "object_store",
  "observability_deps",
+ "schema",
  "serde",
  "serde_json",
  "thiserror",

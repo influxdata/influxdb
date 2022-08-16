@@ -27,6 +27,7 @@ pub async fn fetch_schema(
         .list(prefix)
         .await
         .map_err(FetchError::Fetching)?;
+    // TODO: refactor to do these concurrently using `buffered`
     loop {
         select! {
             item = results.next() => {

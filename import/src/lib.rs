@@ -1,11 +1,12 @@
+use schema::InfluxFieldType;
 use serde::de::{Deserialize, Deserializer};
 use serde::ser::{Serialize, Serializer};
 use serde::*;
 use std::collections::{HashMap, HashSet};
 
-pub mod schema;
+pub mod aggregate_tsm_schema;
 
-/// This struct is used to build up structs from TSM snapshots that we are going to use to bulk
+/// This struct is used to build up schemas from TSM snapshots that we are going to use to bulk
 /// ingest. They will be merged, then validated to check for anomalies that will complicate bulk
 /// ingest such as tags/fields with the same name, or fields with different types across the whole
 /// dataset. It is not the same as an IOx schema, although it is similar and some of the merge code
@@ -15,6 +16,17 @@ pub struct AggregateTSMSchema {
     pub org_id: String,
     pub bucket_id: String,
     pub measurements: HashMap<String, AggregateTSMMeasurement>,
+}
+
+impl AggregateTSMSchema {
+    pub fn types_are_valid(&self) -> bool {
+        self.measurements.values().all(|m| {
+            m.fields.values().all(|f| {
+                f.types.len() == 1
+                    && InfluxFieldType::try_from(f.types.iter().next().unwrap()).is_ok()
+            })
+        })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -155,5 +167,71 @@ mod tests {
         let _json = serde_json::to_string(&schema).unwrap();
         // ^ not asserting on the value because vector ordering changes so it would be flakey. it's
         // enough that it serialises without error
+    }
+
+    #[tokio::test]
+    async fn type_validation_happy() {
+        let json = r#"
+        {
+          "org_id": "1234",
+          "bucket_id": "5678",
+          "measurements": {
+            "cpu": {
+              "tags": [
+                { "name": "host", "values": ["server", "desktop"] }
+              ],
+             "fields": [
+                { "name": "usage", "types": ["Float"] }
+              ]
+            }
+          }
+        }
+        "#;
+        let schema: AggregateTSMSchema = json.try_into().unwrap();
+        assert!(schema.types_are_valid());
+    }
+
+    #[tokio::test]
+    async fn type_validation_invalid_type() {
+        let json = r#"
+        {
+          "org_id": "1234",
+          "bucket_id": "5678",
+          "measurements": {
+            "cpu": {
+              "tags": [
+                { "name": "host", "values": ["server", "desktop"] }
+              ],
+             "fields": [
+                { "name": "usage", "types": ["FloatyMcFloatFace"] }
+              ]
+            }
+          }
+        }
+        "#;
+        let schema: AggregateTSMSchema = json.try_into().unwrap();
+        assert!(!schema.types_are_valid());
+    }
+
+    #[tokio::test]
+    async fn type_validation_multiple_types() {
+        let json = r#"
+        {
+          "org_id": "1234",
+          "bucket_id": "5678",
+          "measurements": {
+            "cpu": {
+              "tags": [
+                { "name": "host", "values": ["server", "desktop"] }
+              ],
+             "fields": [
+                { "name": "usage", "types": ["Float", "Integer"] }
+              ]
+            }
+          }
+        }
+        "#;
+        let schema: AggregateTSMSchema = json.try_into().unwrap();
+        assert!(!schema.types_are_valid());
     }
 }
