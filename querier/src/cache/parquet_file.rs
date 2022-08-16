@@ -4,8 +4,11 @@ use backoff::{Backoff, BackoffConfig};
 use cache_system::{
     backend::{
         lru::{LruBackend, ResourcePool},
+        policy::{
+            remove_if::{RemoveIfHandle, RemoveIfPolicy},
+            PolicyBackend,
+        },
         resource_consumption::FunctionEstimator,
-        shared::SharedBackend,
     },
     cache::{driver::CacheDriver, metrics::CacheWithMetrics, Cache},
     loader::{metrics::MetricsLoader, FunctionLoader},
@@ -91,7 +94,7 @@ pub struct ParquetFileCache {
     cache: CacheT,
 
     /// Handle that allows clearing entries for existing cache entries
-    backend: SharedBackend<TableId, Arc<CachedParquetFiles>>,
+    remove_if_handle: RemoveIfHandle<TableId, Arc<CachedParquetFiles>>,
 }
 
 impl ParquetFileCache {
@@ -159,9 +162,12 @@ impl ParquetFileCache {
         ));
 
         // get a direct handle so we can clear out entries as needed
-        let backend = SharedBackend::new(backend, CACHE_ID, metric_registry);
+        let mut backend = PolicyBackend::new(backend);
+        let (constructor, remove_if_handle) =
+            RemoveIfPolicy::create_constructor_and_handle(CACHE_ID, metric_registry);
+        backend.add_policy(constructor);
 
-        let cache = Box::new(CacheDriver::new(loader, Box::new(backend.clone())));
+        let cache = Box::new(CacheDriver::new(loader, Box::new(backend)));
         let cache = Box::new(CacheWithMetrics::new(
             cache,
             CACHE_ID,
@@ -169,7 +175,10 @@ impl ParquetFileCache {
             metric_registry,
         ));
 
-        Self { cache, backend }
+        Self {
+            cache,
+            remove_if_handle,
+        }
     }
 
     /// Get list of cached parquet files, by table id
@@ -180,7 +189,7 @@ impl ParquetFileCache {
     /// Mark the entry for table_id as expired (and needs a refresh)
     #[cfg(test)]
     pub fn expire(&self, table_id: TableId) {
-        self.backend.remove_if(&table_id, |_| true);
+        self.remove_if_handle.remove_if(&table_id, |_| true);
     }
 
     /// Clear the parquet file cache if the cache does not contain any
@@ -207,7 +216,7 @@ impl ParquetFileCache {
         if let Some(max_parquet_sequence_number) = max_parquet_sequence_number {
             // check backend cache to see if the maximum sequence
             // number desired is less than what we know about
-            self.backend.remove_if(&table_id, |cached_file| {
+            self.remove_if_handle.remove_if(&table_id, |cached_file| {
                 let max_cached = cached_file.max_parquet_sequence_number();
 
                 if let Some(max_cached) = max_cached {

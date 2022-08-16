@@ -14,6 +14,7 @@ use parking_lot::{lock_api::ArcMutexGuard, Mutex, RawMutex, ReentrantMutex};
 
 use super::CacheBackend;
 
+pub mod remove_if;
 pub mod ttl;
 
 /// Convenience macro to easily follow the borrow/lock chain of [`StrongSharedInner`].
@@ -119,7 +120,7 @@ macro_rules! lock_inner {
 /// #[derive(Debug)]
 /// struct EvenNumberPolicy;
 ///
-/// type CR = ChangeRequest<&'static str, u64>;
+/// type CR = ChangeRequest<'static, &'static str, u64>;
 ///
 /// impl Subscriber for EvenNumberPolicy {
 ///     type K = &'static str;
@@ -184,7 +185,7 @@ macro_rules! lock_inner {
 ///     }
 /// }
 ///
-/// type CR = ChangeRequest<&'static str, Instant>;
+/// type CR = ChangeRequest<'static, &'static str, Instant>;
 ///
 /// impl Subscriber for NowPolicy {
 ///     type K = &'static str;
@@ -200,7 +201,7 @@ macro_rules! lock_inner {
 ///             if cancel_captured.load(Ordering::SeqCst) {
 ///                 break;
 ///             }
-///             callback_handle.init_requests(vec![
+///             callback_handle.execute_requests(vec![
 ///                 CR::set("now", Instant::now()),
 ///             ]);
 ///             sleep(Duration::from_millis(1));
@@ -258,7 +259,7 @@ where
     ///
     /// This is called with a function that receives the "callback backend" to this backend and should return a
     /// [`Subscriber`]. This loopy construct was chosen to discourage the leakage of the "callback backend" to any other object.
-    pub fn add_policy<C, S>(&mut self, constructor: C)
+    pub fn add_policy<C, S>(&mut self, policy_constructor: C)
     where
         C: FnOnce(CallbackHandle<K, V>) -> S,
         S: Subscriber<K = K, V = V>,
@@ -266,7 +267,7 @@ where
         let callback_handle = CallbackHandle {
             inner: Arc::downgrade(&self.inner),
         };
-        let subscriber = constructor(callback_handle);
+        let subscriber = policy_constructor(callback_handle);
         lock_inner!(mut guard = self.inner);
         guard.subscribers.push(Box::new(subscriber));
     }
@@ -344,7 +345,7 @@ where
     /// This method returns AFTER the requests and all the follow-up changes requested by all policies are played out.
     /// You should NOT hold a lock on your policies internal data structures while calling this function if you plan to
     /// also [subscribe](Subscriber) to changes because this would easily lead to deadlocks.
-    pub fn init_requests(&mut self, change_requests: Vec<ChangeRequest<K, V>>) {
+    pub fn execute_requests(&mut self, change_requests: Vec<ChangeRequest<'_, K, V>>) {
         let inner = self.inner.upgrade().expect("backend gone");
         lock_inner!(mut guard = inner);
         perform_changes(&mut guard, change_requests);
@@ -374,7 +375,7 @@ type StrongSharedInner<K, V> = Arc<ReentrantMutex<RefCell<PolicyBackendInner<K, 
 /// Perform changes breadth first.
 fn perform_changes<K, V>(
     inner: &mut PolicyBackendInner<K, V>,
-    change_requests: Vec<ChangeRequest<K, V>>,
+    change_requests: Vec<ChangeRequest<'_, K, V>>,
 ) where
     K: Clone + Eq + Hash + Ord + Debug + Send + 'static,
     V: Clone + Debug + Send + 'static,
@@ -412,7 +413,7 @@ pub trait Subscriber: Debug + Send + 'static {
     type V: Clone + Debug + Send + 'static;
 
     /// Get value for given key if it exists.
-    fn get(&mut self, _k: &Self::K) -> Vec<ChangeRequest<Self::K, Self::V>> {
+    fn get(&mut self, _k: &Self::K) -> Vec<ChangeRequest<'static, Self::K, Self::V>> {
         // do nothing by default
         vec![]
     }
@@ -420,7 +421,7 @@ pub trait Subscriber: Debug + Send + 'static {
     /// Set value for given key.
     ///
     /// It is OK to set and override a key that already exists.
-    fn set(&mut self, _k: Self::K, _v: Self::V) -> Vec<ChangeRequest<Self::K, Self::V>> {
+    fn set(&mut self, _k: Self::K, _v: Self::V) -> Vec<ChangeRequest<'static, Self::K, Self::V>> {
         // do nothing by default
         vec![]
     }
@@ -428,22 +429,22 @@ pub trait Subscriber: Debug + Send + 'static {
     /// Remove value for given key.
     ///
     /// It is OK to remove a key even when it does not exist.
-    fn remove(&mut self, _k: &Self::K) -> Vec<ChangeRequest<Self::K, Self::V>> {
+    fn remove(&mut self, _k: &Self::K) -> Vec<ChangeRequest<'static, Self::K, Self::V>> {
         // do nothing by default
         vec![]
     }
 }
 
 /// A change request to a backend.
-pub struct ChangeRequest<K, V>
+pub struct ChangeRequest<'a, K, V>
 where
     K: Clone + Eq + Hash + Ord + Debug + Send + 'static,
     V: Clone + Debug + Send + 'static,
 {
-    fun: ChangeRequestFn<K, V>,
+    fun: ChangeRequestFn<'a, K, V>,
 }
 
-impl<K, V> Debug for ChangeRequest<K, V>
+impl<'a, K, V> Debug for ChangeRequest<'a, K, V>
 where
     K: Clone + Eq + Hash + Ord + Debug + Send + 'static,
     V: Clone + Debug + Send + 'static,
@@ -453,7 +454,7 @@ where
     }
 }
 
-impl<K, V> ChangeRequest<K, V>
+impl<'a, K, V> ChangeRequest<'a, K, V>
 where
     K: Clone + Eq + Hash + Ord + Debug + Send + 'static,
     V: Clone + Debug + Send + 'static,
@@ -467,7 +468,7 @@ where
     /// locked during a single request, so "get + modify" patterns work out of the box without the need to fair interleaving modifications.
     pub fn from_fn<F>(f: F) -> Self
     where
-        F: for<'a> FnOnce(&'a mut dyn CacheBackend<K = K, V = V>) + Send + 'static,
+        F: for<'b> FnOnce(&'b mut dyn CacheBackend<K = K, V = V>) + Send + 'a,
     {
         Self { fun: Box::new(f) }
     }
@@ -509,8 +510,8 @@ where
 }
 
 /// Function captured within [`ChangeRequest`].
-type ChangeRequestFn<K, V> =
-    Box<dyn for<'a> FnOnce(&'a mut dyn CacheBackend<K = K, V = V>) + Send + 'static>;
+type ChangeRequestFn<'a, K, V> =
+    Box<dyn for<'b> FnOnce(&'b mut dyn CacheBackend<K = K, V = V>) + Send + 'a>;
 
 /// Records of interactions with the callback [`CacheBackend`].
 #[derive(Debug, PartialEq)]
@@ -633,7 +634,7 @@ mod tests {
 
     #[allow(dead_code)]
     const fn assert_send<T: Send>() {}
-    const _: () = assert_send::<ChangeRequest<String, usize>>();
+    const _: () = assert_send::<ChangeRequest<'static, String, usize>>();
     const _: () = assert_send::<CallbackHandle<String, usize>>();
 
     #[test]
@@ -1536,10 +1537,10 @@ mod tests {
         fn perform(self, handle: &mut CallbackHandle<String, usize>) {
             match self {
                 Self::Get { k } => {
-                    handle.init_requests(vec![ChangeRequest::get(k)]);
+                    handle.execute_requests(vec![ChangeRequest::get(k)]);
                 }
-                Self::Set { k, v } => handle.init_requests(vec![ChangeRequest::set(k, v)]),
-                Self::Remove { k } => handle.init_requests(vec![ChangeRequest::remove(k)]),
+                Self::Set { k, v } => handle.execute_requests(vec![ChangeRequest::set(k, v)]),
+                Self::Remove { k } => handle.execute_requests(vec![ChangeRequest::remove(k)]),
                 Self::Panic => panic!("this is a test"),
             }
         }
@@ -1551,7 +1552,7 @@ mod tests {
         CallBackendDirectly(TestBackendInteraction),
 
         /// Return change requests
-        ChangeRequests(Vec<ChangeRequest<String, usize>>),
+        ChangeRequests(Vec<ChangeRequest<'static, String, usize>>),
 
         /// Use callback backend but wait for a barrier in a background thread.
         ///
@@ -1559,14 +1560,14 @@ mod tests {
         CallBackendDelayed(Arc<Barrier>, TestBackendInteraction, Arc<Barrier>),
 
         /// Block on barrier and return afterwards.
-        BlockAndChangeRequest(Arc<Barrier>, Vec<ChangeRequest<String, usize>>),
+        BlockAndChangeRequest(Arc<Barrier>, Vec<ChangeRequest<'static, String, usize>>),
     }
 
     impl TestAction {
         fn perform(
             self,
             background_task: &mut TestSubscriberBackgroundTask,
-        ) -> Vec<ChangeRequest<String, usize>> {
+        ) -> Vec<ChangeRequest<'static, String, usize>> {
             match self {
                 Self::CallBackendDirectly(interaction) => {
                     let handle = match background_task {
@@ -1666,7 +1667,7 @@ mod tests {
         type K = String;
         type V = usize;
 
-        fn get(&mut self, k: &Self::K) -> Vec<ChangeRequest<Self::K, Self::V>> {
+        fn get(&mut self, k: &Self::K) -> Vec<ChangeRequest<'static, Self::K, Self::V>> {
             let step = self.steps.pop_front().expect("step left for get operation");
 
             let expected_condition = TestBackendInteraction::Get { k: k.clone() };
@@ -1679,7 +1680,7 @@ mod tests {
             step.action.perform(&mut self.background_task)
         }
 
-        fn set(&mut self, k: Self::K, v: Self::V) -> Vec<ChangeRequest<String, usize>> {
+        fn set(&mut self, k: Self::K, v: Self::V) -> Vec<ChangeRequest<'static, String, usize>> {
             let step = self.steps.pop_front().expect("step left for set operation");
 
             let expected_condition = TestBackendInteraction::Set { k, v };
@@ -1692,7 +1693,7 @@ mod tests {
             step.action.perform(&mut self.background_task)
         }
 
-        fn remove(&mut self, k: &Self::K) -> Vec<ChangeRequest<String, usize>> {
+        fn remove(&mut self, k: &Self::K) -> Vec<ChangeRequest<'static, String, usize>> {
             let step = self
                 .steps
                 .pop_front()

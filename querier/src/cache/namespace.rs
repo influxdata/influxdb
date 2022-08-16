@@ -5,11 +5,11 @@ use cache_system::{
     backend::{
         lru::{LruBackend, ResourcePool},
         policy::{
+            remove_if::{RemoveIfHandle, RemoveIfPolicy},
             ttl::{OptionalValueTtlProvider, TtlPolicy},
             PolicyBackend,
         },
         resource_consumption::FunctionEstimator,
-        shared::SharedBackend,
     },
     cache::{driver::CacheDriver, metrics::CacheWithMetrics, Cache},
     loader::{metrics::MetricsLoader, FunctionLoader},
@@ -56,7 +56,7 @@ type CacheT = Box<
 #[derive(Debug)]
 pub struct NamespaceCache {
     cache: CacheT,
-    backend: SharedBackend<Arc<str>, Option<Arc<CachedNamespace>>>,
+    remove_if_handle: RemoveIfHandle<Arc<str>, Option<Arc<CachedNamespace>>>,
 }
 
 impl NamespaceCache {
@@ -113,6 +113,9 @@ impl NamespaceCache {
             CACHE_ID,
             metric_registry,
         ));
+        let (constructor, remove_if_handle) =
+            RemoveIfPolicy::create_constructor_and_handle(CACHE_ID, metric_registry);
+        backend.add_policy(constructor);
 
         // add to memory pool
         let backend = Box::new(LruBackend::new(
@@ -130,9 +133,8 @@ impl NamespaceCache {
                 },
             )),
         ));
-        let backend = SharedBackend::new(backend, CACHE_ID, metric_registry);
 
-        let cache = Box::new(CacheDriver::new(loader, Box::new(backend.clone())));
+        let cache = Box::new(CacheDriver::new(loader, backend));
         let cache = Box::new(CacheWithMetrics::new(
             cache,
             CACHE_ID,
@@ -140,7 +142,10 @@ impl NamespaceCache {
             metric_registry,
         ));
 
-        Self { cache, backend }
+        Self {
+            cache,
+            remove_if_handle,
+        }
     }
 
     /// Get namespace schema by name.
@@ -153,7 +158,7 @@ impl NamespaceCache {
         should_cover: &[(&str, &HashSet<ColumnId>)],
         span: Option<Span>,
     ) -> Option<Arc<NamespaceSchema>> {
-        self.backend.remove_if(&name, |cached_namespace| {
+        self.remove_if_handle.remove_if(&name, |cached_namespace| {
             if let Some(namespace) = cached_namespace.as_ref() {
                 should_cover.iter().any(|(table_name, columns)| {
                     if let Some(table) = namespace.schema.tables.get(*table_name) {

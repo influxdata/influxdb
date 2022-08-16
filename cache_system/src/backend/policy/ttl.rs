@@ -144,7 +144,7 @@ where
             .recorder(&[("name", name)]);
 
         |mut callback_handle| {
-            callback_handle.init_requests(vec![ChangeRequest::ensure_empty()]);
+            callback_handle.execute_requests(vec![ChangeRequest::ensure_empty()]);
 
             Self {
                 ttl_provider,
@@ -155,7 +155,7 @@ where
         }
     }
 
-    fn evict_expired(&mut self, now: Time) -> Vec<ChangeRequest<K, V>> {
+    fn evict_expired(&mut self, now: Time) -> Vec<ChangeRequest<'static, K, V>> {
         let mut requests = vec![];
 
         while self
@@ -181,11 +181,11 @@ where
     type K = K;
     type V = V;
 
-    fn get(&mut self, _k: &Self::K) -> Vec<ChangeRequest<Self::K, Self::V>> {
+    fn get(&mut self, _k: &Self::K) -> Vec<ChangeRequest<'static, Self::K, Self::V>> {
         self.evict_expired(self.time_provider.now())
     }
 
-    fn set(&mut self, k: Self::K, v: Self::V) -> Vec<ChangeRequest<Self::K, Self::V>> {
+    fn set(&mut self, k: Self::K, v: Self::V) -> Vec<ChangeRequest<'static, Self::K, Self::V>> {
         let now = self.time_provider.now();
         let mut requests = self.evict_expired(now);
 
@@ -211,7 +211,7 @@ where
         requests
     }
 
-    fn remove(&mut self, k: &Self::K) -> Vec<ChangeRequest<Self::K, Self::V>> {
+    fn remove(&mut self, k: &Self::K) -> Vec<ChangeRequest<'static, Self::K, Self::V>> {
         self.expiration.remove(k);
         self.evict_expired(self.time_provider.now())
     }
@@ -252,15 +252,15 @@ mod tests {
 
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
         let mut backend = PolicyBackend::new(Box::new(HashMap::<u8, String>::new()));
-        let constructor = TtlPolicy::new(
+        let policy_constructor = TtlPolicy::new(
             Arc::clone(&ttl_provider) as _,
             Arc::clone(&time_provider) as _,
             "my_cache",
             &metric_registry,
         );
         backend.add_policy(|mut handle| {
-            handle.init_requests(vec![ChangeRequest::set(1, String::from("foo"))]);
-            constructor(handle)
+            handle.execute_requests(vec![ChangeRequest::set(1, String::from("foo"))]);
+            policy_constructor(handle)
         });
     }
 

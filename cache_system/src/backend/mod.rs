@@ -6,7 +6,6 @@ pub mod hash_map;
 pub mod lru;
 pub mod policy;
 pub mod resource_consumption;
-pub mod shared;
 
 #[cfg(test)]
 mod test_util;

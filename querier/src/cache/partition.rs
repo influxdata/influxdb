@@ -4,8 +4,11 @@ use backoff::{Backoff, BackoffConfig};
 use cache_system::{
     backend::{
         lru::{LruBackend, ResourcePool},
+        policy::{
+            remove_if::{RemoveIfHandle, RemoveIfPolicy},
+            PolicyBackend,
+        },
         resource_consumption::FunctionEstimator,
-        shared::SharedBackend,
     },
     cache::{driver::CacheDriver, metrics::CacheWithMetrics, Cache},
     loader::{metrics::MetricsLoader, FunctionLoader},
@@ -38,7 +41,7 @@ type CacheT = Box<
 #[derive(Debug)]
 pub struct PartitionCache {
     cache: CacheT,
-    backend: SharedBackend<PartitionId, CachedPartition>,
+    remove_if_handle: RemoveIfHandle<PartitionId, CachedPartition>,
 }
 
 impl PartitionCache {
@@ -94,9 +97,13 @@ impl PartitionCache {
                 RamSize(size_of_val(k) + size_of_val(v) + v.size())
             })),
         ));
-        let backend = SharedBackend::new(backend, CACHE_ID, metric_registry);
 
-        let cache = Box::new(CacheDriver::new(loader, Box::new(backend.clone())));
+        let mut backend = PolicyBackend::new(backend);
+        let (constructor, remove_if_handle) =
+            RemoveIfPolicy::create_constructor_and_handle(CACHE_ID, metric_registry);
+        backend.add_policy(constructor);
+
+        let cache = Box::new(CacheDriver::new(loader, Box::new(backend)));
         let cache = Box::new(CacheWithMetrics::new(
             cache,
             CACHE_ID,
@@ -104,7 +111,10 @@ impl PartitionCache {
             metric_registry,
         ));
 
-        Self { cache, backend }
+        Self {
+            cache,
+            remove_if_handle,
+        }
     }
 
     /// Get sequencer ID.
@@ -121,18 +131,19 @@ impl PartitionCache {
         should_cover: &HashSet<&str>,
         span: Option<Span>,
     ) -> Arc<Option<SortKey>> {
-        self.backend.remove_if(&partition_id, |cached_partition| {
-            if let Some(sort_key) = cached_partition.sort_key.as_ref().as_ref() {
-                let covered: HashSet<_> = sort_key
-                    .iter()
-                    .map(|(col, _options)| Arc::clone(col))
-                    .collect();
-                should_cover.iter().any(|col| !covered.contains(*col))
-            } else {
-                // no sort key at all => need to update if there is anything to cover
-                !should_cover.is_empty()
-            }
-        });
+        self.remove_if_handle
+            .remove_if(&partition_id, |cached_partition| {
+                if let Some(sort_key) = cached_partition.sort_key.as_ref().as_ref() {
+                    let covered: HashSet<_> = sort_key
+                        .iter()
+                        .map(|(col, _options)| Arc::clone(col))
+                        .collect();
+                    should_cover.iter().any(|col| !covered.contains(*col))
+                } else {
+                    // no sort key at all => need to update if there is anything to cover
+                    !should_cover.is_empty()
+                }
+            });
 
         self.cache.get(partition_id, ((), span)).await.sort_key
     }

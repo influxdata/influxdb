@@ -6,7 +6,6 @@ use cache_system::{
     backend::{
         lru::{LruBackend, ResourcePool},
         resource_consumption::FunctionEstimator,
-        shared::SharedBackend,
     },
     cache::{driver::CacheDriver, metrics::CacheWithMetrics, Cache},
     loader::{metrics::MetricsLoader, FunctionLoader},
@@ -44,9 +43,6 @@ type CacheT = Box<
 #[derive(Debug)]
 pub struct ReadBufferCache {
     cache: CacheT,
-
-    /// Handle that allows clearing entries for existing cache entries
-    _backend: SharedBackend<ParquetFileId, Arc<RBChunk>>,
 }
 
 impl ReadBufferCache {
@@ -108,10 +104,7 @@ impl ReadBufferCache {
             )),
         ));
 
-        // get a direct handle so we can clear out entries as needed
-        let _backend = SharedBackend::new(backend, CACHE_ID, &metric_registry);
-
-        let cache = Box::new(CacheDriver::new(loader, Box::new(_backend.clone())));
+        let cache = Box::new(CacheDriver::new(loader, backend));
         let cache = Box::new(CacheWithMetrics::new(
             cache,
             CACHE_ID,
@@ -119,7 +112,7 @@ impl ReadBufferCache {
             &metric_registry,
         ));
 
-        Self { cache, _backend }
+        Self { cache }
     }
 
     /// Get read buffer chunks from the cache or the Parquet file
