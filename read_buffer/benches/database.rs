@@ -1,5 +1,6 @@
 use arrow::{
-    array::{ArrayRef, Int64Array, StringArray},
+    array::{ArrayRef, DictionaryArray, TimestampNanosecondArray},
+    datatypes::Int32Type,
     record_batch::RecordBatch,
 };
 use criterion::{criterion_group, criterion_main, BatchSize, Criterion};
@@ -89,21 +90,27 @@ fn generate_row_group(rows: usize) -> RecordBatch {
 
     let data: Vec<ArrayRef> = vec![
         // sorted 2 cardinality column
-        Arc::new(StringArray::from(
+        Arc::new(DictionaryArray::<Int32Type>::from_iter(
             (0..rows)
                 .into_iter()
-                .map(|i| if i < rows / 2 { "prod" } else { "dev" })
+                .map(|i| {
+                    if i < rows / 2 {
+                        Some("prod")
+                    } else {
+                        Some("dev")
+                    }
+                })
                 .collect::<Vec<_>>(),
         )),
         // completely unique cardinality column
-        Arc::new(StringArray::from(
+        Arc::new(DictionaryArray::<Int32Type>::from_iter(
             container_ids
                 .iter()
                 .map(|id| id.as_str())
                 .collect::<Vec<_>>(),
         )),
         // ms increasing time column;
-        Arc::new(Int64Array::from(
+        Arc::new(TimestampNanosecondArray::from(
             (0..rows)
                 .into_iter()
                 .map(|i| BASE_TIME + (i as i64 * ONE_MS))
