@@ -238,7 +238,7 @@ func (s *Service) FindByID(ctx context.Context, orgID, id platform.ID) (*influxd
 			if err != nil || b == nil {
 				return nil, ErrDBRPNotFound
 			}
-			return bucketToMapping(b, true), nil
+			return bucketToMapping(b), nil
 		}
 		return nil, err
 	}
@@ -370,24 +370,28 @@ func (s *Service) FindMany(ctx context.Context, filter influxdb.DBRPMappingFilte
 		if bucket == nil {
 			continue
 		}
-		isDefault := true
-		// check if this virtual mapping has been overriden by a custom, physical mapping
-		for _, m := range ms {
-			if m.BucketID == bucket.ID {
-				isDefault = false
-				break
+		newMapping := bucketToMapping(bucket)
+		// if any bucket already exists that is default for this database,
+		// this virtual mapping should not be the default
+		if newMapping.Default {
+			for _, m := range ms {
+				if m.Database == newMapping.Database && m.Default {
+					newMapping.Default = false
+					break
+				}
 			}
 		}
-		mapping := bucketToMapping(bucket, isDefault)
-		if filterFunc(mapping, filter) {
-			ms = append(ms, mapping)
+		if filterFunc(newMapping, filter) {
+			ms = append(ms, newMapping)
 		}
 	}
 
 	return ms, len(ms), nil
 }
 
-func bucketToMapping(bucket *influxdb.Bucket, isDefault bool) *influxdb.DBRPMapping {
+// bucketToMapping converts a bucket to a DBRP mapping.
+// Default if bucket name does not contain a slash (foo/bar)
+func bucketToMapping(bucket *influxdb.Bucket) *influxdb.DBRPMapping {
 	if bucket == nil {
 		return nil
 	}
@@ -396,7 +400,7 @@ func bucketToMapping(bucket *influxdb.Bucket, isDefault bool) *influxdb.DBRPMapp
 	db, rp := parseDBRP(bucket.Name)
 	return &influxdb.DBRPMapping{
 		ID:              dbrpID,
-		Default:         isDefault,
+		Default:         bucket.Name == db,
 		Database:        db,
 		RetentionPolicy: rp,
 		OrganizationID:  bucket.OrgID,
