@@ -4,7 +4,7 @@ orbs:
 parameters:
   cross-container-tag:
     type: string
-    default: go1.17.12-82fce7052ddaf13772b23a8b2d39619a9b54142d
+    default: go1.17.13-c1ba527d2d7854f003481f0a0aebf55524d4d986
 
 commands:
   install_rust:
@@ -69,9 +69,7 @@ jobs:
               sha256sum ${TARBALL_PATH} > ${TARBALL_PATH}.sha256
             }
 
-            # TODO: chmod should be done in top-level container
-            chmod +x /usr/local/bin/xcc.sh
-            export CC=/usr/local/bin/xcc.sh
+            export CC="$(xcc linux x86_64)"
             export CGO_ENABLED=1
 
             # linux amd64 (static build)
@@ -82,12 +80,15 @@ jobs:
             do
               go build \
                 -o "${TMPOUTDIR}/$(basename $cmd)" \
-                -tags "netgo osusergo static_build" \
+                -tags "netgo,osusergo,static_build" \
+                -buildmode=pie \
                 -ldflags="-s
                   -X \"main.version=${VERSION}\"
                   -X \"main.branch=${CIRCLE_BRANCH}\"
                   -X \"main.commit=${CIRCLE_SHA1}\"
-                  -extldflags \"-fno-PIC -Wl,-z,stack-size=8388608\"" \
+                  -linkmode=external
+                  -extld=${CC}
+                  -extldflags \"-fno-PIC -static-pie -Wl,-z,stack-size=8388608\"" \
                 ${cmd}
             done
 
