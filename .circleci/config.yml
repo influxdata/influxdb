@@ -6,7 +6,7 @@ parameters:
     # when updating the go version, should also update the go version in go.mod
     description: docker tag for cross build container from quay.io . Created by https://github.com/influxdata/edge/tree/master/dockerfiles/cross-builder .
     type: string
-    default: go1.18.4-82fce7052ddaf13772b23a8b2d39619a9b54142d
+    default: go1.18.5-c1ba527d2d7854f003481f0a0aebf55524d4d986
 
 commands:
   install_rust:
@@ -72,7 +72,7 @@ jobs:
               sha256sum ${TARBALL_PATH} > ${TARBALL_PATH}.sha256
             }
 
-            export CC=/usr/local/bin/xcc.sh
+            export CC="$(xcc linux x86_64)"
             export CGO_ENABLED=1
 
             # linux amd64 (static build)
@@ -83,12 +83,15 @@ jobs:
             do
               go build \
                 -o "${TMPOUTDIR}/$(basename $cmd)" \
-                -tags "netgo osusergo static_build" \
+                -tags "netgo,osusergo,static_build" \
+                -buildmode=pie \
                 -ldflags="-s
                   -X \"main.version=${VERSION}\"
                   -X \"main.branch=${CIRCLE_BRANCH}\"
                   -X \"main.commit=${CIRCLE_SHA1}\"
-                  -extldflags \"-fno-PIC -Wl,-z,stack-size=8388608\"" \
+                  -linkmode=external
+                  -extld=${CC}
+                  -extldflags \"-fno-PIC -static-pie -Wl,-z,stack-size=8388608\"" \
                 ${cmd}
             done
 
