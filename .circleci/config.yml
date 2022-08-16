@@ -9,7 +9,7 @@ executors:
     docker:
       # NOTE: To upgrade the Go version, first push the upgrade to the cross-builder Dockerfile
       # in the edge repo, then update the version here to match.
-      - image: quay.io/influxdb/cross-builder:go1.18.4-906fbe93f953b47185818364a186604209dc8da0
+      - image: quay.io/influxdb/cross-builder:go1.18.5-c1ba527d2d7854f003481f0a0aebf55524d4d986
     resource_class: large
   linux-amd64:
     machine:
@@ -21,7 +21,7 @@ executors:
       resource_class: arm.large
   darwin:
     macos:
-      xcode: 12.4.0
+      xcode: 12.5.1
       resource_class: medium
     shell: /bin/bash -eo pipefail
   windows:
@@ -581,7 +581,7 @@ jobs:
 
   perf-test:
     docker:
-      - image: cimg/base:2021.04
+      - image: cimg/base:2022.04
     resource_class: small
     parameters:
       record_results:
