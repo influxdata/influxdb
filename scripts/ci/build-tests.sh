@@ -6,10 +6,10 @@ function build_linux () {
     local cc
     case $(go env GOARCH) in
         amd64)
-            cc=musl-gcc
+            cc=$(xcc linux x86_64)
             ;;
         arm64)
-            cc=aarch64-unknown-linux-musl-gcc
+            cc=$(xcc linux aarch64)
             tags="$tags,noasm"
             ;;
         *)
