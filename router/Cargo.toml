@@ -49,6 +49,11 @@ schema = { path = "../schema" }
 test_helpers = { version = "0.1.0", path = "../test_helpers", features = ["future_timeout"] }
 tokio-stream = { version = "0.1.9", default_features = false, features = [] }
 
+[lib]
+# Allow --save-baseline to work
+# https://github.com/bheisler/criterion.rs/issues/275
+bench = false
+
 [[bench]]
 name = "schema_validator"
 harness = false

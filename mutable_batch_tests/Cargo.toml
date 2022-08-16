@@ -21,7 +21,12 @@ criterion = "0.3"
 name = "write_lp"
 harness = false
 
-
 [[bench]]
 name = "write_pb"
 harness = false
+
+
+[lib]
+# Allow --save-baseline to work
+# https://github.com/bheisler/criterion.rs/issues/275
+bench = false

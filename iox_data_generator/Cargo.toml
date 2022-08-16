@@ -32,3 +32,8 @@ test_helpers = { path = "../test_helpers" }
 [[bench]]
 name = "point_generation"
 harness = false
+
+[lib]
+# Allow --save-baseline to work
+# https://github.com/bheisler/criterion.rs/issues/275
+bench = false

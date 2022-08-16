@@ -20,6 +20,11 @@ criterion = "0.3"
 proptest = { version = "1", default_features = false, features = ["std"] }
 rand = "0.8.3"
 
+[lib]
+# Allow --save-baseline to work
+# https://github.com/bheisler/criterion.rs/issues/275
+bench = false
+
 [[bench]]
 name = "addressable_heap"
 harness = false

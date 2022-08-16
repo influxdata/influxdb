@@ -21,5 +21,8 @@ criterion = "0.3"
 name = "parse_lp"
 harness = false
 
+
 [lib]
+# Allow --save-baseline to work
+# https://github.com/bheisler/criterion.rs/issues/275
 bench = false

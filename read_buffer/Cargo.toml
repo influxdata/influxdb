@@ -34,6 +34,11 @@ proptest = { version = "1.0.0", default_features = false, features = ["std"] }
 rand = "0.8.3"
 rand_distr = "0.4.2"
 
+[lib]
+# Allow --save-baseline to work
+# https://github.com/bheisler/criterion.rs/issues/275
+bench = false
+
 [[bench]]
 name = "database"
 harness = false
