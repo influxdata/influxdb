@@ -1,5 +1,7 @@
 use std::{
     fmt::{Display, Formatter},
+    fs,
+    path::PathBuf,
     sync::Arc,
 };
 
@@ -14,11 +16,14 @@ use object_store::{path::Path, DynObjectStore};
 use object_store_metrics::ObjectStoreMetrics;
 use thiserror::Error;
 
-use import::aggregate_tsm_schema::{
-    fetch::{fetch_schema, FetchError},
-    merge::{SchemaMergeError, SchemaMerger},
-    update_catalog::{update_iox_catalog, UpdateCatalogError},
-    validate::{validate_schema, ValidationError},
+use import::{
+    aggregate_tsm_schema::{
+        fetch::{fetch_schema, FetchError},
+        merge::{SchemaMergeError, SchemaMerger},
+        update_catalog::{update_iox_catalog, UpdateCatalogError},
+        validate::{validate_schema, ValidationError},
+    },
+    AggregateTSMSchemaOverride,
 };
 
 // Possible errors from schema commands
@@ -44,6 +49,12 @@ pub enum SchemaCommandError {
 
     #[error("Error updating IOx catalog with merged schema: {0}")]
     UpdateCatalogError(#[from] UpdateCatalogError),
+
+    #[error("Error reading schema override file from disk: {0}")]
+    SchemaOverrideFileReadError(#[from] std::io::Error),
+
+    #[error("Error parsing schema override file: {0}")]
+    SchemaOverrideParseError(#[from] serde_json::Error),
 }
 
 #[derive(Debug, Error)]
@@ -99,6 +110,11 @@ pub struct MergeConfig {
     #[clap(long, default_value = ".schema.json")]
     /// The filename suffix to look for in the object store bucket
     suffix: String,
+
+    #[clap(long)]
+    /// Filename of schema override file used to instruct this tool on how to resolve schema
+    /// conflicts in the TSM schemas before updating the schema in the IOx catalog.
+    schema_override_file: Option<PathBuf>,
 }
 
 /// Entry-point for the schema command
@@ -129,20 +145,32 @@ pub async fn command(config: Config) -> Result<(), SchemaCommandError> {
                 &merge_config.suffix,
             )
             .await?;
-            let merger = SchemaMerger::new(
+            let mut merger = SchemaMerger::new(
                 merge_config.org_id.clone(),
                 merge_config.bucket_id.clone(),
                 schemas,
             );
+
+            // load a schema override file, if provided, to resolve field type conflicts
+            if let Some(schema_override_file) = merge_config.schema_override_file {
+                let data = fs::read(schema_override_file)
+                    .map_err(SchemaCommandError::SchemaOverrideFileReadError)?;
+                let schema_override: AggregateTSMSchemaOverride = data
+                    .try_into()
+                    .map_err(SchemaCommandError::SchemaOverrideParseError)?;
+                merger = merger.with_schema_override(schema_override);
+            }
+
+            // note that this will also apply the schema override, if the user provided one
             let merged_tsm_schema = merger.merge().map_err(SchemaCommandError::Merging)?;
             // just print the merged schema for now; we'll do more with this in future PRs
             println!("Merged schema:\n{:?}", merged_tsm_schema);
 
             // don't proceed unless we produce a valid merged schema
-            // (later we'll be able to override, e.g. to coerce types)
             if let Err(errors) = validate_schema(&merged_tsm_schema) {
                 return Err(SchemaCommandError::Validating(ValidationErrors(errors)));
             }
+
             // From here we can happily .unwrap() the field types knowing they're valid
             if !merged_tsm_schema.types_are_valid() {
                 return Err(SchemaCommandError::InvalidFieldTypes());
