@@ -30,16 +30,6 @@ executors:
       resource_class: windows.medium
     shell: bash.exe -eo pipefail
 
-# Unlike when a commit is pushed to a branch, CircleCI does not automatically
-# execute a workflow when a tag is pushed to a repository. These filters
-# allow the corresponding workflow to execute on any branch or tag.
-any_filter: &any_filter
-  filters:
-    tags:
-      only: /.*/
-    branches:
-      only: /.*/
-
 release_filter: &release_filter
   filters:
     tags:
@@ -58,51 +48,49 @@ nofork_filter: &nofork_filter
 
 workflows:
   version: 2
-  build:
+  release:
     jobs:
       - test-race:
-          <<: *any_filter
+         <<: *release_filter
       - test-build:
-          <<: *any_filter
-          name: test-build-<< matrix.os >>-<< matrix.arch >>
-          matrix:
-            parameters:
-              os: [ linux, darwin, windows ]
-              arch: [ amd64, arm64 ]
-            exclude:
-              - { os: darwin,  arch: arm64 }
-              - { os: windows, arch: arm64 }
-              # linux/amd64 can be tested directly from our cross-builder image
-              # to save time & enable running with the race detector.
-              - { os: linux,   arch: amd64 }
+         <<: *release_filter
+         name: test-build-<< matrix.os >>-<< matrix.arch >>
+         matrix:
+           parameters:
+             os:   [ linux, darwin, windows ]
+             arch: [ amd64, arm64 ]
+           exclude:
+             - { os: darwin,  arch: arm64 }
+             - { os: windows, arch: arm64 }
+             - { os: linux,   arch: amd64 }
       - test-prebuilt:
-          <<: *any_filter
-          name: test-linux-arm64
+          <<: *release_filter
+          name: test-prebuilt-linux-arm64
           executor: linux-arm64
           requires:
             - test-build-linux-arm64
       - test-prebuilt:
-          <<: *any_filter
-          name: test-darwin
+          <<: *release_filter
+          name: test-prebuilt-darwin-amd64
           executor: darwin
           requires:
             - test-build-darwin-amd64
       - test-prebuilt:
-          <<: *any_filter
-          name: test-windows
+          <<: *release_filter
+          name: test-prebuilt-windows-amd64
           executor: windows
           requires:
             - test-build-windows-amd64
       - fluxtest:
-          <<: *any_filter
+          <<: *release_filter
       - tlstest:
-          <<: *any_filter
+          <<: *release_filter
       - lint:
-          <<: *any_filter
+          <<: *release_filter
       - build:
-          <<: *any_filter
+          <<: *release_filter
           name: build-<< matrix.os >>-<< matrix.arch >>
-          build-type: snapshot
+          build_type: release
           matrix:
             parameters:
               os:   [ linux, darwin, windows ]
@@ -111,10 +99,8 @@ workflows:
               - { os: darwin,  arch: arm64 }
               - { os: windows, arch: arm64 }
       - build-package:
-          <<: *any_filter
+          <<: *release_filter
           name: build-package-<< matrix.os >>-<< matrix.arch >>
-          requires:
-            - build-<< matrix.os >>-<< matrix.arch >>
           matrix:
             parameters:
               os:   [ linux, darwin, windows ]
@@ -122,21 +108,47 @@ workflows:
             exclude:
               - { os: darwin,  arch: arm64 }
               - { os: windows, arch: arm64 }
+          requires:
+            - build-<< matrix.os >>-<< matrix.arch >>
       - test-downgrade:
-          <<: *any_filter
+          <<: *release_filter
           requires:
             - build-linux-amd64
       - e2e-monitor-ci:
-          <<: *nofork_filter
+          <<: *release_filter
           requires:
             - build-linux-amd64
       - test-linux-packages:
-          <<: *nofork_filter
+          <<: *release_filter
           requires:
             - build-package-linux-amd64
+      - perf-test:
+          <<: *release_filter
+          record_results: true
+          requires:
+            - build-package-darwin-amd64
+            - build-package-linux-amd64
+            - build-package-linux-arm64
+            - build-package-windows-amd64
+      - grace-test:
+          <<: *release_filter
+          requires:
+            - build-linux-amd64
+      - litmus-smoke-test:
+          <<: *release_filter
+          requires:
+            - build-linux-amd64
+      - litmus-full-test:
+          <<: *release_filter
+          requires:
+            - build-linux-amd64
+      - share-testing-image:
+          <<: *release_filter
+          requires:
+            - e2e-monitor-ci
       - changelog:
-          <<: *any_filter
-          build_type: snapshot
+          <<: *release_filter
+          build_type: release
           start: v2.0.0
           until: v9.9.9
       - s3-publish-packages:
@@ -149,7 +161,84 @@ workflows:
             - build-package-windows-amd64
       - s3-publish-changelog:
           <<: *release_filter
-          publish-type: release
+          build_type: release
+          requires:
+            - changelog
+  build:
+    jobs:
+      - test-race
+      - test-build:
+          name: test-build-<< matrix.os >>-<< matrix.arch >>
+          matrix:
+            parameters:
+              os: [ linux, darwin, windows ]
+              arch: [ amd64, arm64 ]
+            exclude:
+              - { os: darwin,  arch: arm64 }
+              - { os: windows, arch: arm64 }
+              # linux/amd64 can be tested directly from our cross-builder image
+              # to save time & enable running with the race detector.
+              - { os: linux,   arch: amd64 }
+      - test-prebuilt:
+          name: test-linux-arm64
+          executor: linux-arm64
+          requires:
+            - test-build-linux-arm64
+      - test-prebuilt:
+          name: test-darwin-amd64
+          executor: darwin
+          requires:
+            - test-build-darwin-amd64
+      - test-prebuilt:
+          name: test-windows-amd64
+          executor: windows
+          requires:
+            - test-build-windows-amd64
+      - fluxtest
+      - tlstest
+      - lint
+      - build:
+          name: build-<< matrix.os >>-<< matrix.arch >>
+          build_type: snapshot
+          matrix:
+            parameters:
+              os:   [ linux, darwin, windows ]
+              arch: [ amd64, arm64 ]
+            exclude:
+              - { os: darwin,  arch: arm64 }
+              - { os: windows, arch: arm64 }
+      - build-package:
+          name: build-package-<< matrix.os >>-<< matrix.arch >>
+          requires:
+            - build-<< matrix.os >>-<< matrix.arch >>
+          matrix:
+            parameters:
+              os:   [ linux, darwin, windows ]
+              arch: [ amd64, arm64 ]
+            exclude:
+              - { os: darwin,  arch: arm64 }
+              - { os: windows, arch: arm64 }
+      - test-downgrade:
+          requires:
+            - build-linux-amd64
+      - e2e-monitor-ci:
+          <<: *nofork_filter
+          requires:
+            - build-linux-amd64
+      - test-linux-packages:
+          <<: *nofork_filter
+          requires:
+            - build-package-linux-amd64
+      - changelog:
+          build_type: snapshot
+          start: v2.0.0
+          until: v9.9.9
+      - s3-publish-changelog:
+          filters:
+            branches:
+              only:
+                - master
+          build_type: latest
           requires:
             - changelog
       - perf-test:
@@ -164,11 +253,9 @@ workflows:
               only:
                 - master
       - grace-test:
-          <<: *any_filter
           requires:
             - build-linux-amd64
       - litmus-smoke-test:
-          <<: *any_filter
           requires:
             - build-linux-amd64
       - litmus-full-test:
@@ -211,7 +298,7 @@ workflows:
           start: v2.0.0
           until: v9.9.9
       - s3-publish-changelog:
-          publish-type: nightly
+          build_type: nightly
           requires:
             - changelog
       - test-race
@@ -247,7 +334,7 @@ workflows:
       - tlstest
       - build:
           name: build-nightly-<< matrix.os >>-<< matrix.arch >>
-          build-type: nightly
+          build_type: nightly
           matrix:
             parameters:
               os:   [ linux, darwin, windows ]
@@ -390,43 +477,19 @@ jobs:
         type: string
       arch:
         type: string
-      build-type:
+      build_type:
         type: string
     steps:
       - checkout
-      - run:
-          name: Install Package Dependencies
-          command: |
-            export DEBIAN_FRONTEND=noninteractive
-            apt-get update
-            apt-get install --yes git
-      - run:
-          name: Get InfluxDB Version
-          command: |
-            PREFIX=2.x .circleci/scripts/get-version
       - run:
           name: Generate UI assets
           command: make generate-web-assets
       - run:
           name: Build binaries
           command: |
-            build_type="<< parameters.build-type >>"
-
-            # release builds occur from the "build" pipeline
-            if [[ ${build_type} == snapshot ]]
-            then
-              # `get-version` determines whether this is a release build. If
-              # this is a release build, ensure that the proper version is
-              # templated into the go binary.
-              if [[ ${RELEASE:-} ]]
-              then
-                build_type=release
-              fi
-            fi
-
             export GOOS=<< parameters.os >>
             export GOARCH=<< parameters.arch >>
-            ./scripts/ci/build.sh "bin/influxd_$(go env GOOS)_$(go env GOARCH)" "${build_type}" ./cmd/influxd
+            ./scripts/ci/build.sh "bin/influxd_<< parameters.os >>_<< parameters.arch >>" "<< parameters.build_type >>" ./cmd/influxd
       - store_artifacts:
           path: bin
       - persist_to_workspace:
@@ -505,35 +568,38 @@ jobs:
 
   s3-publish-changelog:
     parameters:
-      publish-type:
+      build_type:
         type: string
     docker:
-      - image: ubuntu:latest
+      - image: cimg/aws:2022.06
     steps:
       - attach_workspace:
           at: /tmp/workspace
       - checkout
-      - run:
-          name: Publish Changelog to S3
-          command: |
-            export DEBIAN_FRONTEND=noninteractive
-            apt-get update
-            apt-get install --yes awscli git
-
-            PREFIX=2.x .circleci/scripts/get-version
-            source "${BASH_ENV}"
-
-            pushd /tmp/workspace/changelog_artifacts
-
-            case "<< parameters.publish-type >>"
-            in
-              release)
-                aws s3 cp CHANGELOG.md "s3://dl.influxdata.com/influxdb/releases/CHANGELOG.${VERSION}.md"
-              ;;
-              nightly)
-                aws s3 cp CHANGELOG.md "s3://dl.influxdata.com/platform/nightlies/<< pipeline.git.branch >>/CHANGELOG.md"
-              ;;
-            esac
+      - when:
+          condition:
+            equal: [ << parameters.build_type >>, "release" ]
+          steps:
+            - aws-s3/sync:
+                arguments: --acl public-read
+                from: "/tmp/workspace/changelog_artifacts"
+                to:   "s3://dl.influxdata.com/influxdb/releases/"
+      - when:
+          condition:
+            equal: [ << parameters.build_type >>, "nightly" ]
+          steps:
+            - aws-s3/sync:
+                arguments: --acl public-read
+                from: "/tmp/workspace/changelog_artifacts"
+                to:   "s3://dl.influxdata.com/influxdb/nightlies/<< pipeline.git.branch >>/"
+      - when:
+          condition:
+            equal: [ << parameters.build_type >>, "latest" ]
+          steps:
+            - aws-s3/sync:
+                arguments: --acl public-read
+                from: "/tmp/workspace/changelog_artifacts"
+                to:   "s3://dl.influxdata.com/influxdb/latest/"
 
   test-linux-packages:
     executor: terraform/default
@@ -783,7 +849,7 @@ jobs:
       until:
         type: string
     docker:
-      - image: quay.io/influxdb/changelogger:81cd97477f9a6c9f2db03dc56f560bf54f8da8bb
+      - image: quay.io/influxdb/changelogger:a6d0dbfb2e0f2313cdf67ade0693047aa0690f94
     steps:
       - checkout
       - run:
@@ -801,7 +867,7 @@ jobs:
                     --product     "OSS"                            \
                     --previous    "scripts/ci/CHANGELOG_frozen.md" \
                     --start       "<< parameters.start >>"         \
-                    `# --until    "<< parameters.until >>"`        \
+                    --until       "<< parameters.until >>"         \
                     --release     "${CIRCLE_TAG}"                  \
                     --description "In addition to the list of changes below, please also see the [official release notes](https://docs.influxdata.com/influxdb/${VERSION}/reference/release-notes/influxdb/) for other important information about this release."
       - when:
@@ -816,7 +882,7 @@ jobs:
                     --product  "OSS"                            \
                     --previous "scripts/ci/CHANGELOG_frozen.md" \
                     --start    "<< parameters.start >>"         \
-                    `# --until "<< parameters.until >>"`
+                    --until    "<< parameters.until >>"
       - store_artifacts:
           path: changelog_artifacts/
       - persist_to_workspace:
