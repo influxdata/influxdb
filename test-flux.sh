@@ -78,50 +78,34 @@ remove_sort_aggregate_window
 remove_sort_join
 
 # Other skipped tests
-buckets # unbounded
-columns # failing with differences
-cov # unbounded
-covariance # failing with differences
-cumulative_sum # failing with differences
-cumulative_sum_default # failing with differences
-cumulative_sum_noop # failing with differences
-difference_columns  # failing with differences
-distinct # failing with differences
-fill # failing with differences
-first # unbounded
-group # unbounded
-highestAverage # unbounded
-highestMax # unbounded
-histogram # unbounded
-histogram_quantile # failing with differences
-histogram_quantile_minvalue # failing with error
-join # unbounded
-join_missing_on_col # unbounded
-join_panic # unbounded
-key_values # unbounded
-key_values_host_name # unbounded
-keys # failing with differences
-last # unbounded
-lowestAverage # failing with differences
-map # unbounded
-max # unbounded
-min # unbounded
-pivot_mean # failing with differences
-sample # unbounded
-secrets # failing with error
-selector_preserve_time # failing with differences
-set # failing with differences
-shapeData # failing with differences
-shapeDataWithFilter # failing with differences
-shift # unbounded
-shift_negative_duration # unbounded
-state_changes_big_any_to_any # unbounded
-state_changes_big_info_to_ok # unbounded
-state_changes_big_ok_to_info # unbounded
-union # unbounded
-union_heterogeneous # unbounded
-unique # unbounded
-window_null # failing with differences
+align_time
+buckets
+covariance
+cumulative_sum_default
+cumulative_sum_noop
+cumulative_sum
+difference_columns
+fill
+fill_bool
+fill_float
+fill_time
+fill_int
+fill_uint
+fill_string
+group
+group_nulls
+histogram_normalize
+histogram_quantile_minvalue
+histogram_quantile
+histogram
+key_values_host_name
+secrets
+set
+shapeDataWithFilter
+shapeData
+shift_negative_duration
+unique
+window_null
 
 group_one_tag_last              # broken (fixed in flux@3d6f47ded)
 group_all_filter_field_last     # broken (fixed in flux@3d6f47ded)
