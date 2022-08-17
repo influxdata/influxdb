@@ -10,7 +10,7 @@ clap_blocks = { path = "../clap_blocks" }
 data_types = { path = "../data_types" }
 futures = "0.3"
 iox_catalog = { path = "../iox_catalog" }
-object_store = { version = "0.3.0", features = ["aws"] }
+object_store = { version = "0.4.0", features = ["aws"] }
 observability_deps = { path = "../observability_deps" }
 schema = { path = "../schema" }
 serde = { version = "1.0", features = ["derive"] }

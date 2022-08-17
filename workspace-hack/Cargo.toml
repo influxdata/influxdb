@@ -43,7 +43,7 @@ memchr = { version = "2", features = ["std"] }
 nom = { version = "7", features = ["alloc", "std"] }
 num-integer = { version = "0.1", default-features = false, features = ["i128", "std"] }
 num-traits = { version = "0.2", features = ["i128", "libm", "std"] }
-object_store = { git = "https://github.com/tustvold/arrow-rs.git", rev = "0f9d902aae0c0ce07e3f81d06d621b5189ad9240", default-features = false, features = ["aws", "azure", "azure_core", "azure_storage", "azure_storage_blobs", "base64", "gcp", "quick-xml", "rand", "reqwest", "ring", "rustls-pemfile", "serde", "serde_json"] }
+object_store = { git = "https://github.com/apache/arrow-rs.git", rev = "3f0e12d8d362752181c75836d25d424862acc424", default-features = false, features = ["aws", "azure", "azure_core", "azure_identity", "azure_storage", "azure_storage_blobs", "base64", "gcp", "quick-xml", "rand", "reqwest", "ring", "rustls-pemfile", "serde", "serde_json"] }
 once_cell = { version = "1", features = ["alloc", "parking_lot", "parking_lot_core", "race", "std"] }
 parking_lot = { version = "0.12", features = ["arc_lock"] }
 parquet = { version = "20", features = ["arrow", "async", "base64", "brotli", "experimental", "flate2", "futures", "lz4", "snap", "tokio", "zstd"] }
@@ -54,7 +54,7 @@ rand = { version = "0.8", features = ["alloc", "getrandom", "libc", "rand_chacha
 regex = { version = "1", features = ["aho-corasick", "memchr", "perf", "perf-cache", "perf-dfa", "perf-inline", "perf-literal", "std", "unicode", "unicode-age", "unicode-bool", "unicode-case", "unicode-gencat", "unicode-perl", "unicode-script", "unicode-segment"] }
 regex-automata = { version = "0.1", features = ["regex-syntax", "std"] }
 regex-syntax = { version = "0.6", features = ["unicode", "unicode-age", "unicode-bool", "unicode-case", "unicode-gencat", "unicode-perl", "unicode-script", "unicode-segment"] }
-reqwest = { version = "0.11", default-features = false, features = ["__rustls", "__tls", "hyper-rustls", "json", "rustls", "rustls-pemfile", "rustls-tls", "rustls-tls-webpki-roots", "serde_json", "stream", "tokio-rustls", "tokio-util", "webpki-roots"] }
+reqwest = { version = "0.11", default-features = false, features = ["__rustls", "__tls", "blocking", "hyper-rustls", "json", "rustls", "rustls-pemfile", "rustls-tls", "rustls-tls-webpki-roots", "serde_json", "stream", "tokio-rustls", "tokio-util", "webpki-roots"] }
 ring = { version = "0.16", features = ["alloc", "dev_urandom_fallback", "once_cell", "std"] }
 serde = { version = "1", features = ["derive", "rc", "serde_derive", "std"] }
 serde_json = { version = "1", features = ["raw_value", "std"] }
@@ -62,6 +62,7 @@ sha2 = { version = "0.10", features = ["std"] }
 smallvec = { version = "1", default-features = false, features = ["union"] }
 sqlx = { version = "0.6", features = ["_rt-tokio", "json", "macros", "migrate", "postgres", "runtime-tokio-rustls", "sqlx-macros", "tls", "uuid"] }
 sqlx-core = { version = "0.6", default-features = false, features = ["_rt-tokio", "_tls-rustls", "any", "base64", "crc", "dirs", "hkdf", "hmac", "json", "md-5", "migrate", "postgres", "rand", "runtime-tokio-rustls", "rustls", "rustls-pemfile", "serde", "serde_json", "sha-1", "sha2", "tokio-stream", "uuid", "webpki-roots", "whoami"] }
+time = { version = "0.3", features = ["alloc", "local-offset", "macros", "serde", "std", "time-macros"] }
 tokio = { version = "1", features = ["bytes", "fs", "io-std", "io-util", "libc", "macros", "memchr", "mio", "net", "num_cpus", "once_cell", "parking_lot", "rt", "rt-multi-thread", "signal", "signal-hook-registry", "socket2", "sync", "time", "tokio-macros", "tracing"] }
 tokio-stream = { version = "0.1", features = ["fs", "net", "time"] }
 tokio-util = { version = "0.7", features = ["codec", "tracing"] }
@@ -72,6 +73,7 @@ tracing = { version = "0.1", features = ["attributes", "log", "max_level_trace",
 tracing-core = { version = "0.1", features = ["lazy_static", "std"] }
 tracing-log = { version = "0.1", features = ["log-tracer", "std", "trace-logger"] }
 tracing-subscriber = { version = "0.3", features = ["alloc", "ansi", "ansi_term", "env-filter", "fmt", "json", "lazy_static", "matchers", "parking_lot", "regex", "registry", "serde", "serde_json", "sharded-slab", "smallvec", "std", "thread_local", "tracing", "tracing-log", "tracing-serde"] }
+url = { version = "2", default-features = false, features = ["serde"] }
 uuid = { version = "1", features = ["private_getrandom", "rng", "std", "v4"] }
 zstd = { version = "0.11", features = ["arrays", "legacy", "zdict_builder"] }
 zstd-safe = { version = "5", default-features = false, features = ["arrays", "legacy", "std", "zdict_builder"] }
@@ -124,6 +126,7 @@ syn = { version = "1", features = ["clone-impls", "derive", "extra-traits", "ful
 tokio = { version = "1", features = ["bytes", "fs", "io-std", "io-util", "libc", "macros", "memchr", "mio", "net", "num_cpus", "once_cell", "parking_lot", "rt", "rt-multi-thread", "signal", "signal-hook-registry", "socket2", "sync", "time", "tokio-macros", "tracing"] }
 tokio-stream = { version = "0.1", features = ["fs", "net", "time"] }
 tonic-build = { version = "0.8", features = ["prost", "prost-build", "transport"] }
+url = { version = "2", default-features = false, features = ["serde"] }
 uuid = { version = "1", features = ["private_getrandom", "rng", "std", "v4"] }
 
 [target.x86_64-unknown-linux-gnu.dependencies]
@@ -159,7 +162,7 @@ once_cell = { version = "1", default-features = false, features = ["unstable"] }
 scopeguard = { version = "1", features = ["use_std"] }
 tokio = { version = "1", default-features = false, features = ["winapi"] }
 tokio-util = { version = "0.7", default-features = false, features = ["io"] }
-winapi = { version = "0.3", default-features = false, features = ["activation", "basetsd", "combaseapi", "consoleapi", "errhandlingapi", "fileapi", "handleapi", "impl-debug", "impl-default", "knownfolders", "libloaderapi", "minwinbase", "minwindef", "namedpipeapi", "ntsecapi", "ntstatus", "objbase", "processenv", "roapi", "shellapi", "shlobj", "std", "stringapiset", "synchapi", "timezoneapi", "winbase", "wincon", "winerror", "winnt", "winreg", "winstring", "winuser", "ws2ipdef", "ws2tcpip", "wtypesbase"] }
+winapi = { version = "0.3", default-features = false, features = ["activation", "basetsd", "combaseapi", "consoleapi", "errhandlingapi", "fileapi", "handleapi", "impl-debug", "impl-default", "knownfolders", "libloaderapi", "minwinbase", "minwindef", "namedpipeapi", "ntsecapi", "ntstatus", "objbase", "processenv", "roapi", "shellapi", "shlobj", "std", "stringapiset", "synchapi", "threadpoolapiset", "timezoneapi", "winbase", "wincon", "winerror", "winnt", "winreg", "winstring", "winuser", "ws2ipdef", "ws2tcpip", "wtypesbase"] }
 windows-sys = { version = "0.36", features = ["Win32", "Win32_Foundation", "Win32_Networking", "Win32_Networking_WinSock", "Win32_Security", "Win32_Storage", "Win32_Storage_FileSystem", "Win32_System", "Win32_System_IO", "Win32_System_LibraryLoader", "Win32_System_Pipes", "Win32_System_SystemServices", "Win32_System_WindowsProgramming"] }
 
 [target.x86_64-pc-windows-msvc.build-dependencies]
@@ -167,7 +170,7 @@ getrandom = { version = "0.2", default-features = false, features = ["std"] }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
 scopeguard = { version = "1", features = ["use_std"] }
 tokio = { version = "1", default-features = false, features = ["winapi"] }
-winapi = { version = "0.3", default-features = false, features = ["activation", "basetsd", "combaseapi", "consoleapi", "errhandlingapi", "fileapi", "handleapi", "impl-debug", "impl-default", "knownfolders", "libloaderapi", "minwinbase", "minwindef", "namedpipeapi", "ntsecapi", "ntstatus", "objbase", "processenv", "roapi", "shellapi", "shlobj", "std", "stringapiset", "synchapi", "timezoneapi", "winbase", "wincon", "winerror", "winnt", "winreg", "winstring", "winuser", "ws2ipdef", "ws2tcpip", "wtypesbase"] }
+winapi = { version = "0.3", default-features = false, features = ["activation", "basetsd", "combaseapi", "consoleapi", "errhandlingapi", "fileapi", "handleapi", "impl-debug", "impl-default", "knownfolders", "libloaderapi", "minwinbase", "minwindef", "namedpipeapi", "ntsecapi", "ntstatus", "objbase", "processenv", "roapi", "shellapi", "shlobj", "std", "stringapiset", "synchapi", "threadpoolapiset", "timezoneapi", "winbase", "wincon", "winerror", "winnt", "winreg", "winstring", "winuser", "ws2ipdef", "ws2tcpip", "wtypesbase"] }
 windows-sys = { version = "0.36", features = ["Win32", "Win32_Foundation", "Win32_Networking", "Win32_Networking_WinSock", "Win32_Security", "Win32_Storage", "Win32_Storage_FileSystem", "Win32_System", "Win32_System_IO", "Win32_System_LibraryLoader", "Win32_System_Pipes", "Win32_System_SystemServices", "Win32_System_WindowsProgramming"] }
 
 ### END HAKARI SECTION

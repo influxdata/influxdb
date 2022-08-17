@@ -11,7 +11,7 @@ iox_catalog = { path = "../iox_catalog" }
 ioxd_common = { path = "../ioxd_common" }
 metric = { path = "../metric" }
 mutable_batch = { path = "../mutable_batch" }
-object_store = "0.3.0"
+object_store = "0.4.0"
 observability_deps = { path = "../observability_deps" }
 router = { path = "../router" }
 sharder = { path = "../sharder" }

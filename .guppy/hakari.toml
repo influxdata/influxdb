@@ -39,9 +39,9 @@ workspace-members = [
     "mutable_batch_tests",
 ]
 third-party = [
-    { name = "azure_core", version = "0.2" },
-    { name = "azure_storage", version = "0.2" },
-    { name = "azure_storage_blobs", version = "0.2" },
+    { name = "azure_core", version = "0.4" },
+    { name = "azure_storage", version = "0.5" },
+    { name = "azure_storage_blobs", version = "0.5" },
     { name = "criterion" },
     { name = "pprof" },
     { name = "tikv-jemalloc-sys" },
