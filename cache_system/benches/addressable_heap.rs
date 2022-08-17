@@ -1,6 +1,6 @@
 use std::mem::size_of;
 
-use cache_system::backend::addressable_heap::AddressableHeap;
+use cache_system::addressable_heap::AddressableHeap;
 use criterion::{
     criterion_group, criterion_main, measurement::WallTime, AxisScale, BatchSize, BenchmarkGroup,
     BenchmarkId, Criterion, PlotConfiguration, SamplingMode,

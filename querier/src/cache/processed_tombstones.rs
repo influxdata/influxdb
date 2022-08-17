@@ -2,16 +2,14 @@
 
 use backoff::{Backoff, BackoffConfig};
 use cache_system::{
-    backend::{
-        lru::{LruBackend, ResourcePool},
-        policy::{
-            ttl::{TtlPolicy, TtlProvider},
-            PolicyBackend,
-        },
-        resource_consumption::FunctionEstimator,
+    backend::policy::{
+        lru::{LruPolicy, ResourcePool},
+        ttl::{TtlPolicy, TtlProvider},
+        PolicyBackend,
     },
     cache::{driver::CacheDriver, metrics::CacheWithMetrics, Cache},
     loader::{metrics::MetricsLoader, FunctionLoader},
+    resource_consumption::FunctionEstimator,
 };
 use data_types::{ParquetFileId, TombstoneId};
 use iox_catalog::interface::Catalog;
@@ -89,8 +87,7 @@ impl ProcessedTombstonesCache {
             CACHE_ID,
             metric_registry,
         ));
-        let backend = Box::new(LruBackend::new(
-            Box::new(backend),
+        backend.add_policy(LruPolicy::new(
             ram_pool,
             CACHE_ID,
             Arc::new(FunctionEstimator::new(|k, v| {
@@ -98,7 +95,7 @@ impl ProcessedTombstonesCache {
             })),
         ));
 
-        let cache = Box::new(CacheDriver::new(loader, backend));
+        let cache = Box::new(CacheDriver::new(loader, Box::new(backend)));
         let cache = Box::new(CacheWithMetrics::new(
             cache,
             CACHE_ID,

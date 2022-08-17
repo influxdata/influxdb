@@ -1,6 +1,6 @@
 //! Caches used by the querier.
 use backoff::BackoffConfig;
-use cache_system::backend::lru::ResourcePool;
+use cache_system::backend::policy::lru::ResourcePool;
 use iox_catalog::interface::Catalog;
 use iox_time::TimeProvider;
 use std::sync::Arc;

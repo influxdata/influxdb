@@ -9,6 +9,8 @@
     clippy::clone_on_ref_ptr
 )]
 
+pub mod addressable_heap;
 pub mod backend;
 pub mod cache;
 pub mod loader;
+pub mod resource_consumption;

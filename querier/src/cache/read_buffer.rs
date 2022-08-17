@@ -3,12 +3,13 @@
 use super::ram::RamSize;
 use backoff::{Backoff, BackoffConfig};
 use cache_system::{
-    backend::{
-        lru::{LruBackend, ResourcePool},
-        resource_consumption::FunctionEstimator,
+    backend::policy::{
+        lru::{LruPolicy, ResourcePool},
+        PolicyBackend,
     },
     cache::{driver::CacheDriver, metrics::CacheWithMetrics, Cache},
     loader::{metrics::MetricsLoader, FunctionLoader},
+    resource_consumption::FunctionEstimator,
 };
 use data_types::{ParquetFile, ParquetFileId};
 use datafusion::physical_plan::SendableRecordBatchStream;
@@ -93,8 +94,8 @@ impl ReadBufferCache {
         ));
 
         // add to memory pool
-        let backend = Box::new(LruBackend::new(
-            Box::new(HashMap::new()),
+        let mut backend = PolicyBackend::new(Box::new(HashMap::new()));
+        backend.add_policy(LruPolicy::new(
             Arc::clone(&ram_pool),
             CACHE_ID,
             Arc::new(FunctionEstimator::new(
@@ -104,7 +105,7 @@ impl ReadBufferCache {
             )),
         ));
 
-        let cache = Box::new(CacheDriver::new(loader, backend));
+        let cache = Box::new(CacheDriver::new(loader, Box::new(backend)));
         let cache = Box::new(CacheWithMetrics::new(
             cache,
             CACHE_ID,

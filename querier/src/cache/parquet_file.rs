@@ -2,16 +2,14 @@
 
 use backoff::{Backoff, BackoffConfig};
 use cache_system::{
-    backend::{
-        lru::{LruBackend, ResourcePool},
-        policy::{
-            remove_if::{RemoveIfHandle, RemoveIfPolicy},
-            PolicyBackend,
-        },
-        resource_consumption::FunctionEstimator,
+    backend::policy::{
+        lru::{LruPolicy, ResourcePool},
+        remove_if::{RemoveIfHandle, RemoveIfPolicy},
+        PolicyBackend,
     },
     cache::{driver::CacheDriver, metrics::CacheWithMetrics, Cache},
     loader::{metrics::MetricsLoader, FunctionLoader},
+    resource_consumption::FunctionEstimator,
 };
 use data_types::{ParquetFile, SequenceNumber, TableId};
 use iox_catalog::interface::Catalog;
@@ -149,9 +147,11 @@ impl ParquetFileCache {
             testing,
         ));
 
-        // add to memory pool
-        let backend = Box::new(LruBackend::new(
-            Box::new(HashMap::new()),
+        let mut backend = PolicyBackend::new(Box::new(HashMap::new()));
+        let (policy_constructor, remove_if_handle) =
+            RemoveIfPolicy::create_constructor_and_handle(CACHE_ID, metric_registry);
+        backend.add_policy(policy_constructor);
+        backend.add_policy(LruPolicy::new(
             Arc::clone(&ram_pool),
             CACHE_ID,
             Arc::new(FunctionEstimator::new(
@@ -160,12 +160,6 @@ impl ParquetFileCache {
                 },
             )),
         ));
-
-        // get a direct handle so we can clear out entries as needed
-        let mut backend = PolicyBackend::new(backend);
-        let (constructor, remove_if_handle) =
-            RemoveIfPolicy::create_constructor_and_handle(CACHE_ID, metric_registry);
-        backend.add_policy(constructor);
 
         let cache = Box::new(CacheDriver::new(loader, Box::new(backend)));
         let cache = Box::new(CacheWithMetrics::new(

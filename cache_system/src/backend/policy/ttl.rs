@@ -4,7 +4,7 @@ use std::{fmt::Debug, hash::Hash, marker::PhantomData, sync::Arc, time::Duration
 use iox_time::{Time, TimeProvider};
 use metric::U64Counter;
 
-use crate::backend::addressable_heap::AddressableHeap;
+use crate::addressable_heap::AddressableHeap;
 
 use super::{CallbackHandle, ChangeRequest, Subscriber};
 

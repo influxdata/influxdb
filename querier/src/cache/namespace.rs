@@ -2,17 +2,15 @@
 
 use backoff::{Backoff, BackoffConfig};
 use cache_system::{
-    backend::{
-        lru::{LruBackend, ResourcePool},
-        policy::{
-            remove_if::{RemoveIfHandle, RemoveIfPolicy},
-            ttl::{OptionalValueTtlProvider, TtlPolicy},
-            PolicyBackend,
-        },
-        resource_consumption::FunctionEstimator,
+    backend::policy::{
+        lru::{LruPolicy, ResourcePool},
+        remove_if::{RemoveIfHandle, RemoveIfPolicy},
+        ttl::{OptionalValueTtlProvider, TtlPolicy},
+        PolicyBackend,
     },
     cache::{driver::CacheDriver, metrics::CacheWithMetrics, Cache},
     loader::{metrics::MetricsLoader, FunctionLoader},
+    resource_consumption::FunctionEstimator,
 };
 use data_types::{ColumnId, NamespaceSchema};
 use iox_catalog::interface::{get_schema_by_name, Catalog};
@@ -116,10 +114,7 @@ impl NamespaceCache {
         let (constructor, remove_if_handle) =
             RemoveIfPolicy::create_constructor_and_handle(CACHE_ID, metric_registry);
         backend.add_policy(constructor);
-
-        // add to memory pool
-        let backend = Box::new(LruBackend::new(
-            Box::new(backend),
+        backend.add_policy(LruPolicy::new(
             Arc::clone(&ram_pool),
             CACHE_ID,
             Arc::new(FunctionEstimator::new(
@@ -134,7 +129,7 @@ impl NamespaceCache {
             )),
         ));
 
-        let cache = Box::new(CacheDriver::new(loader, backend));
+        let cache = Box::new(CacheDriver::new(loader, Box::new(backend)));
         let cache = Box::new(CacheWithMetrics::new(
             cache,
             CACHE_ID,

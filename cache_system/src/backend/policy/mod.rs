@@ -14,6 +14,7 @@ use parking_lot::{lock_api::ArcMutexGuard, Mutex, RawMutex, ReentrantMutex};
 
 use super::CacheBackend;
 
+pub mod lru;
 pub mod remove_if;
 pub mod ttl;
 
@@ -504,7 +505,7 @@ where
     }
 
     /// Execute this change request.
-    fn eval(self, backend: &mut dyn CacheBackend<K = K, V = V>) {
+    pub fn eval(self, backend: &mut dyn CacheBackend<K = K, V = V>) {
         (self.fun)(backend)
     }
 }
