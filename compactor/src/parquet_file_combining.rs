@@ -268,6 +268,9 @@ pub(crate) async fn compact_parquet_files(
     Ok(())
 }
 
+/// Compact all files given, no matter their size, into one level 2 file. When this is called by
+/// `full_compaction`, it should only receive a group of level 1 files that has already been
+/// selected to be an appropriate size.
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn compact_final_no_splits(
     files: Vec<CompactorParquetFile>,
@@ -279,6 +282,8 @@ pub(crate) async fn compact_final_no_splits(
     // Executor for running queries, compacting, and persisting
     exec: Arc<Executor>,
     time_provider: Arc<dyn TimeProvider>,
+    // Histogram for the sizes of the files compacted
+    compaction_input_file_bytes: &Metric<U64Histogram>,
 ) -> Result<(), Error> {
     let partition_id = partition.id();
 
@@ -290,6 +295,9 @@ pub(crate) async fn compact_final_no_splits(
             partition_id
         }
     );
+
+    // Save all file sizes for recording metrics if this compaction succeeds.
+    let file_sizes: Vec<_> = files.iter().map(|f| f.file_size_bytes()).collect();
 
     debug!(
         ?partition_id,
@@ -378,6 +386,12 @@ pub(crate) async fn compact_final_no_splits(
     .context(CatalogSnafu { partition_id })?;
 
     info!(?partition_id, "compaction complete");
+
+    let attributes = Attributes::from([("shard_id", format!("{}", partition.shard_id()).into())]);
+    let compaction_input_file_bytes = compaction_input_file_bytes.recorder(attributes);
+    for size in file_sizes {
+        compaction_input_file_bytes.record(size as u64);
+    }
 
     Ok(())
 }
@@ -1302,6 +1316,75 @@ mod tests {
                 "| 1500      | WA   |      |      | 1970-01-01T00:00:00.000008Z |",
                 "| 1601      |      | PA   | 15   | 1970-01-01T00:00:00.000030Z |",
                 "| 21        |      | OH   | 21   | 1970-01-01T00:00:00.000036Z |",
+                "| 270       | UT   |      |      | 1970-01-01T00:00:00.000025Z |",
+                "| 70        | UT   |      |      | 1970-01-01T00:00:00.000020Z |",
+                "| 99        | OR   |      |      | 1970-01-01T00:00:00.000012Z |",
+                "+-----------+------+------+------+-----------------------------+",
+            ],
+            &batches
+        );
+    }
+
+    #[tokio::test]
+    async fn compact_final_no_splits_creates_one_level_2_file() {
+        test_helpers::maybe_start_logging();
+
+        let TestSetup {
+            catalog,
+            table,
+            candidate_partition,
+            parquet_files,
+        } = test_setup().await;
+        let compaction_input_file_bytes = metrics();
+        let shard_id = candidate_partition.shard_id();
+
+        // Even though in the real cold compaction code, we'll usually pass a list of level 1 files
+        // selected by size, nothing in this function checks any of that -- it will compact all
+        // files it's given together into one level 2 file.
+        compact_final_no_splits(
+            parquet_files,
+            candidate_partition,
+            Arc::clone(&catalog.catalog),
+            ParquetStorage::new(Arc::clone(&catalog.object_store)),
+            Arc::clone(&catalog.exec),
+            Arc::clone(&catalog.time_provider) as Arc<dyn TimeProvider>,
+            &compaction_input_file_bytes,
+        )
+        .await
+        .unwrap();
+
+        // Should have 1 level 2 file, not split at all
+        let mut files = catalog.list_by_table_not_to_delete(table.table.id).await;
+        assert_eq!(files.len(), 1);
+        let file = files.pop().unwrap();
+        assert_eq!(file.id.get(), 7);
+        assert_eq!(file.compaction_level, CompactionLevel::Final);
+
+        // Verify the metrics
+        assert_eq!(
+            extract_byte_metrics(&compaction_input_file_bytes, shard_id),
+            ExtractedByteMetrics {
+                sample_count: 6,
+                buckets_with_counts: vec![(BUCKET_500_KB, 4), (u64::MAX, 2)],
+            }
+        );
+
+        // ------------------------------------------------
+        // Verify the parquet file content
+
+        let batches = read_parquet_file(&table, file).await;
+        assert_batches_sorted_eq!(
+            &[
+                "+-----------+------+------+------+-----------------------------+",
+                "| field_int | tag1 | tag2 | tag3 | time                        |",
+                "+-----------+------+------+------+-----------------------------+",
+                "| 10        | VT   |      |      | 1970-01-01T00:00:00.000006Z |",
+                "| 10        | VT   |      |      | 1970-01-01T00:00:00.000010Z |",
+                "| 10        | VT   |      |      | 1970-01-01T00:00:00.000068Z |",
+                "| 1500      | WA   |      |      | 1970-01-01T00:00:00.000008Z |",
+                "| 1601      |      | PA   | 15   | 1970-01-01T00:00:00.000030Z |",
+                "| 21        |      | OH   | 21   | 1970-01-01T00:00:00.000036Z |",
+                "| 210       |      | OH   | 21   | 1970-01-01T00:00:00.000136Z |",
                 "| 270       | UT   |      |      | 1970-01-01T00:00:00.000025Z |",
                 "| 70        | UT   |      |      | 1970-01-01T00:00:00.000020Z |",
                 "| 99        | OR   |      |      | 1970-01-01T00:00:00.000012Z |",
