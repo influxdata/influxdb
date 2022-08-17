@@ -93,6 +93,7 @@ fill_int
 fill_uint
 fill_string
 group
+group_nulls
 histogram_normalize
 histogram_quantile_minvalue
 histogram_quantile
