@@ -15,7 +15,7 @@ hyper = "0.14"
 influxdb_iox_client = { path = "../influxdb_iox_client", features = ["flight", "format", "write_lp"] }
 nix = "0.25"
 observability_deps = { path = "../observability_deps" }
-once_cell = { version = "1.13.0", features = ["parking_lot"] }
+once_cell = { version = "1.13.1", features = ["parking_lot"] }
 parking_lot = "0.12"
 prost = "0.11"
 rand = "0.8.3"

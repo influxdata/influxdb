@@ -23,7 +23,7 @@ iox_tests = { path = "../iox_tests" }
 itertools = "0.10"
 mutable_batch = { path = "../mutable_batch" }
 mutable_batch_lp = { path = "../mutable_batch_lp" }
-once_cell = { version = "1.13.0", features = ["parking_lot"] }
+once_cell = { version = "1.13.1", features = ["parking_lot"] }
 predicate = { path = "../predicate" }
 schema = { path = "../schema" }
 sharder = { path = "../sharder" }
