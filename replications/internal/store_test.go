@@ -93,6 +93,91 @@ func TestCreateAndGetReplication(t *testing.T) {
 	require.Equal(t, replication, *got)
 }
 
+func TestCreateAndGetReplicationName(t *testing.T) {
+	t.Parallel()
+
+	testStore, clean := newTestStore(t)
+	defer clean(t)
+
+	insertRemote(t, testStore, replication.RemoteID)
+
+	// Getting an invalid ID should return an error.
+	got, err := testStore.GetReplication(ctx, initID)
+	require.Equal(t, errReplicationNotFound, err)
+	require.Nil(t, got)
+
+	req := createReq
+	req.RemoteBucketID = platform.ID(0)
+	req.RemoteBucketName = "testbucket"
+	expected := replication
+	expected.RemoteBucketName = "testbucket"
+	expected.RemoteBucketID = platform.ID(1)
+
+	// Create a replication, check the results.
+	created, err := testStore.CreateReplication(ctx, initID, req)
+	require.NoError(t, err)
+	require.Equal(t, expected, *created)
+
+	// Read the created replication and assert it matches the creation response.
+	got, err = testStore.GetReplication(ctx, created.ID)
+	require.NoError(t, err)
+	require.Equal(t, expected, *got)
+}
+
+func TestCreateAndGetReplicationNameAndID(t *testing.T) {
+	t.Parallel()
+
+	testStore, clean := newTestStore(t)
+	defer clean(t)
+
+	insertRemote(t, testStore, replication.RemoteID)
+
+	// Getting an invalid ID should return an error.
+	got, err := testStore.GetReplication(ctx, initID)
+	require.Equal(t, errReplicationNotFound, err)
+	require.Nil(t, got)
+
+	req := createReq
+	req.RemoteBucketID = platform.ID(100)
+	req.RemoteBucketName = "testbucket"
+	expected := replication
+	expected.RemoteBucketName = ""
+	expected.RemoteBucketID = platform.ID(100)
+
+	// Create a replication, check the results.
+	created, err := testStore.CreateReplication(ctx, initID, req)
+	require.NoError(t, err)
+	require.Equal(t, expected, *created)
+
+	// Read the created replication and assert it matches the creation response.
+	got, err = testStore.GetReplication(ctx, created.ID)
+	require.NoError(t, err)
+	require.Equal(t, expected, *got)
+}
+
+func TestCreateAndGetReplicationNameError(t *testing.T) {
+	t.Parallel()
+
+	testStore, clean := newTestStore(t)
+	defer clean(t)
+
+	insertRemote(t, testStore, replication.RemoteID)
+
+	// Getting an invalid ID should return an error.
+	got, err := testStore.GetReplication(ctx, initID)
+	require.Equal(t, errReplicationNotFound, err)
+	require.Nil(t, got)
+
+	req := createReq
+	req.RemoteBucketID = platform.ID(0)
+	req.RemoteBucketName = ""
+
+	// Create a replication, should fail due to missing params
+	created, err := testStore.CreateReplication(ctx, initID, req)
+	require.Equal(t, errMissingIDName, err)
+	require.Nil(t, created)
+}
+
 func TestCreateMissingRemote(t *testing.T) {
 	t.Parallel()
 

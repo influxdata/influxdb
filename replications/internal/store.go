@@ -19,6 +19,11 @@ var errReplicationNotFound = &ierrors.Error{
 	Msg:  "replication not found",
 }
 
+var errMissingIDName = &ierrors.Error{
+	Code: ierrors.EUnprocessableEntity,
+	Msg:  "one of remote_bucket_id, remote_bucket_name should be provided",
+}
+
 func errRemoteNotFound(id platform.ID, cause error) error {
 	return &ierrors.Error{
 		Code: ierrors.EInvalid,
@@ -98,9 +103,11 @@ func (s *Store) CreateReplication(ctx context.Context, newID platform.ID, reques
 	if request.RemoteBucketID != platform.ID(0) {
 		fields["remote_bucket_id"] = request.RemoteBucketID
 		fields["remote_bucket_name"] = ""
-	} else {
+	} else if request.RemoteBucketName != "" {
 		fields["remote_bucket_id"] = platform.ID(1) // 0 isn't a valid ID so we need to set some default value
 		fields["remote_bucket_name"] = request.RemoteBucketName
+	} else {
+		return nil, errMissingIDName
 	}
 
 	q := sq.Insert("replications").
