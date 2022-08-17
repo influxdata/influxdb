@@ -225,9 +225,9 @@ pub async fn command(connection: Connection, config: Config) -> Result<(), Error
     }
 }
 
-const TOPIC_NAME: &str = "iox_shared";
+const TOPIC_NAME: &str = "iox-shared";
 const SHARD_INDEX: ShardIndex = ShardIndex::new(0);
-const QUERY_POOL: &str = "iox_shared";
+const QUERY_POOL: &str = "iox-shared";
 
 // loads the protobuf namespace schema returned from a remote IOx server into the passed in
 // catalog. It does this based on namespace, table, and column names, not IDs. It also inserts
