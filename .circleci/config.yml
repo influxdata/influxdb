@@ -136,6 +136,9 @@ workflows:
             - build-package-linux-amd64
       - changelog:
           <<: *any_filter
+          build_type: snapshot
+          start: v2.0.0
+          until: v9.9.9
       - s3-publish-packages:
           <<: *release_filter
           requires:
@@ -203,7 +206,10 @@ workflows:
               only:
                 - master
     jobs:
-      - changelog
+      - changelog:
+          build_type: nightly
+          start: v2.0.0
+          until: v9.9.9
       - s3-publish-changelog:
           publish-type: nightly
           requires:
@@ -843,22 +849,48 @@ jobs:
             docker push quay.io/influxdb/oss-acceptance:latest
 
   changelog:
+    parameters:
+      build_type:
+        type: string
+      start:
+        type: string
+      until:
+        type: string
     docker:
-      - image: quay.io/influxdb/changelogger:d7093c409adedd8837ef51fa84be0d0f8319177a
+      - image: quay.io/influxdb/changelogger:81cd97477f9a6c9f2db03dc56f560bf54f8da8bb
     steps:
       - checkout
       - run:
-          name: Generate changelog
-          command: |
+          name: Get Version Information
+          command:
             PREFIX=2.x .circleci/scripts/get-version
-            source "${BASH_ENV}"
-
-            if [[ "${RELEASE:-}" ]]
-            then
-              export DESCRIPTION="In addition to the list of changes below, please also see the [official release notes](https://docs.influxdata.com/influxdb/${VERSION}/reference/release-notes/influxdb/) for other important information about this release."
-            fi
-
-            PRODUCT="OSS" changelogger
+      - when:
+          condition:
+            equal: [ << parameters.build_type >>, "release" ]
+          steps:
+            - run:
+                name: Generate Changelog
+                command: |
+                  changelogger                                     \
+                    --product     "OSS"                            \
+                    --previous    "scripts/ci/CHANGELOG_frozen.md" \
+                    --start       "<< parameters.start >>"         \
+                    `# --until    "<< parameters.until >>"`        \
+                    --release     "${CIRCLE_TAG}"                  \
+                    --description "In addition to the list of changes below, please also see the [official release notes](https://docs.influxdata.com/influxdb/${VERSION}/reference/release-notes/influxdb/) for other important information about this release."
+      - when:
+          condition:
+            not:
+              equal: [ << parameters.build_type >>, "release" ]
+          steps:
+            - run:
+                name: Generate Changelog
+                command: |
+                  changelogger                                  \
+                    --product  "OSS"                            \
+                    --previous "scripts/ci/CHANGELOG_frozen.md" \
+                    --start    "<< parameters.start >>"         \
+                    `# --until "<< parameters.until >>"`
       - store_artifacts:
           path: changelog_artifacts/
       - persist_to_workspace:
