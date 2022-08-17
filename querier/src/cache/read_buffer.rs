@@ -3,13 +3,13 @@
 use super::ram::RamSize;
 use backoff::{Backoff, BackoffConfig};
 use cache_system::{
-    backend::{
-        lru::{LruBackend, ResourcePool},
-        resource_consumption::FunctionEstimator,
-        shared::SharedBackend,
+    backend::policy::{
+        lru::{LruPolicy, ResourcePool},
+        PolicyBackend,
     },
     cache::{driver::CacheDriver, metrics::CacheWithMetrics, Cache},
     loader::{metrics::MetricsLoader, FunctionLoader},
+    resource_consumption::FunctionEstimator,
 };
 use data_types::{ParquetFile, ParquetFileId};
 use datafusion::physical_plan::SendableRecordBatchStream;
@@ -44,9 +44,6 @@ type CacheT = Box<
 #[derive(Debug)]
 pub struct ReadBufferCache {
     cache: CacheT,
-
-    /// Handle that allows clearing entries for existing cache entries
-    _backend: SharedBackend<ParquetFileId, Arc<RBChunk>>,
 }
 
 impl ReadBufferCache {
@@ -97,8 +94,8 @@ impl ReadBufferCache {
         ));
 
         // add to memory pool
-        let backend = Box::new(LruBackend::new(
-            Box::new(HashMap::new()),
+        let mut backend = PolicyBackend::new(Box::new(HashMap::new()));
+        backend.add_policy(LruPolicy::new(
             Arc::clone(&ram_pool),
             CACHE_ID,
             Arc::new(FunctionEstimator::new(
@@ -108,10 +105,7 @@ impl ReadBufferCache {
             )),
         ));
 
-        // get a direct handle so we can clear out entries as needed
-        let _backend = SharedBackend::new(backend, CACHE_ID, &metric_registry);
-
-        let cache = Box::new(CacheDriver::new(loader, Box::new(_backend.clone())));
+        let cache = Box::new(CacheDriver::new(loader, Box::new(backend)));
         let cache = Box::new(CacheWithMetrics::new(
             cache,
             CACHE_ID,
@@ -119,7 +113,7 @@ impl ReadBufferCache {
             &metric_registry,
         ));
 
-        Self { cache, _backend }
+        Self { cache }
     }
 
     /// Get read buffer chunks from the cache or the Parquet file

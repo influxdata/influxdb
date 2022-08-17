@@ -2,13 +2,14 @@
 
 use backoff::{Backoff, BackoffConfig};
 use cache_system::{
-    backend::{
-        lru::{LruBackend, ResourcePool},
-        resource_consumption::FunctionEstimator,
-        shared::SharedBackend,
+    backend::policy::{
+        lru::{LruPolicy, ResourcePool},
+        remove_if::{RemoveIfHandle, RemoveIfPolicy},
+        PolicyBackend,
     },
     cache::{driver::CacheDriver, metrics::CacheWithMetrics, Cache},
     loader::{metrics::MetricsLoader, FunctionLoader},
+    resource_consumption::FunctionEstimator,
 };
 use data_types::{SequenceNumber, TableId, Tombstone};
 use iox_catalog::interface::Catalog;
@@ -80,7 +81,7 @@ type CacheT = Box<
 pub struct TombstoneCache {
     cache: CacheT,
     /// Handle that allows clearing entries for existing cache entries
-    backend: SharedBackend<TableId, CachedTombstones>,
+    remove_if_handle: RemoveIfHandle<TableId, CachedTombstones>,
 }
 
 impl TombstoneCache {
@@ -124,9 +125,11 @@ impl TombstoneCache {
             testing,
         ));
 
-        // add to memory pool
-        let backend = Box::new(LruBackend::new(
-            Box::new(HashMap::new()),
+        let mut backend = PolicyBackend::new(Box::new(HashMap::new()));
+        let (policy_constructor, remove_if_handle) =
+            RemoveIfPolicy::create_constructor_and_handle(CACHE_ID, metric_registry);
+        backend.add_policy(policy_constructor);
+        backend.add_policy(LruPolicy::new(
             Arc::clone(&ram_pool),
             CACHE_ID,
             Arc::new(FunctionEstimator::new(
@@ -136,9 +139,7 @@ impl TombstoneCache {
             )),
         ));
 
-        let backend = SharedBackend::new(backend, CACHE_ID, metric_registry);
-
-        let cache = Box::new(CacheDriver::new(loader, Box::new(backend.clone())));
+        let cache = Box::new(CacheDriver::new(loader, Box::new(backend)));
         let cache = Box::new(CacheWithMetrics::new(
             cache,
             CACHE_ID,
@@ -146,7 +147,10 @@ impl TombstoneCache {
             metric_registry,
         ));
 
-        Self { cache, backend }
+        Self {
+            cache,
+            remove_if_handle,
+        }
     }
 
     /// Get list of cached tombstones, by table id
@@ -157,7 +161,7 @@ impl TombstoneCache {
     /// Mark the entry for table_id as expired / needs a refresh
     #[cfg(test)]
     pub fn expire(&self, table_id: TableId) {
-        self.backend.remove_if(&table_id, |_| true);
+        self.remove_if_handle.remove_if(&table_id, |_| true);
     }
 
     /// Clear the tombstone cache if it doesn't contain any tombstones
@@ -184,7 +188,7 @@ impl TombstoneCache {
         if let Some(max_tombstone_sequence_number) = max_tombstone_sequence_number {
             // check backend cache to see if the maximum sequence
             // number desired is less than what we know about
-            self.backend.remove_if(&table_id, |cached_file| {
+            self.remove_if_handle.remove_if(&table_id, |cached_file| {
                 let max_cached = cached_file.max_tombstone_sequence_number();
 
                 if let Some(max_cached) = max_cached {

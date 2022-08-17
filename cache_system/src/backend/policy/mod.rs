@@ -5,12 +5,18 @@ use std::{
     collections::VecDeque,
     fmt::Debug,
     hash::Hash,
+    marker::PhantomData,
+    ops::Deref,
     sync::{Arc, Weak},
 };
 
-use parking_lot::{Mutex, ReentrantMutex};
+use parking_lot::{lock_api::ArcMutexGuard, Mutex, RawMutex, ReentrantMutex};
 
 use super::CacheBackend;
+
+pub mod lru;
+pub mod remove_if;
+pub mod ttl;
 
 /// Convenience macro to easily follow the borrow/lock chain of [`StrongSharedInner`].
 ///
@@ -115,7 +121,7 @@ macro_rules! lock_inner {
 /// #[derive(Debug)]
 /// struct EvenNumberPolicy;
 ///
-/// type CR = ChangeRequest<&'static str, u64>;
+/// type CR = ChangeRequest<'static, &'static str, u64>;
 ///
 /// impl Subscriber for EvenNumberPolicy {
 ///     type K = &'static str;
@@ -180,7 +186,7 @@ macro_rules! lock_inner {
 ///     }
 /// }
 ///
-/// type CR = ChangeRequest<&'static str, Instant>;
+/// type CR = ChangeRequest<'static, &'static str, Instant>;
 ///
 /// impl Subscriber for NowPolicy {
 ///     type K = &'static str;
@@ -196,7 +202,7 @@ macro_rules! lock_inner {
 ///             if cancel_captured.load(Ordering::SeqCst) {
 ///                 break;
 ///             }
-///             callback_handle.init_requests(vec![
+///             callback_handle.execute_requests(vec![
 ///                 CR::set("now", Instant::now()),
 ///             ]);
 ///             sleep(Duration::from_millis(1));
@@ -254,7 +260,7 @@ where
     ///
     /// This is called with a function that receives the "callback backend" to this backend and should return a
     /// [`Subscriber`]. This loopy construct was chosen to discourage the leakage of the "callback backend" to any other object.
-    pub fn add_policy<C, S>(&mut self, constructor: C)
+    pub fn add_policy<C, S>(&mut self, policy_constructor: C)
     where
         C: FnOnce(CallbackHandle<K, V>) -> S,
         S: Subscriber<K = K, V = V>,
@@ -262,9 +268,22 @@ where
         let callback_handle = CallbackHandle {
             inner: Arc::downgrade(&self.inner),
         };
-        let subscriber = constructor(callback_handle);
+        let subscriber = policy_constructor(callback_handle);
         lock_inner!(mut guard = self.inner);
         guard.subscribers.push(Box::new(subscriber));
+    }
+
+    /// Provide temporary read-only access to the underlying backend.
+    ///
+    /// This is mostly useful for debugging and testing.
+    pub fn inner_ref(&mut self) -> InnerBackendRef<'_, K, V> {
+        // NOTE: We deliberately use a mutable reference here to prevent users from using `<Self as CacheBackend>` while
+        //       we hold a lock to the underlying backend.
+        lock_inner!(guard = self.inner);
+        InnerBackendRef {
+            inner: guard.inner.lock_arc(),
+            _phantom: PhantomData::default(),
+        }
     }
 }
 
@@ -327,7 +346,7 @@ where
     /// This method returns AFTER the requests and all the follow-up changes requested by all policies are played out.
     /// You should NOT hold a lock on your policies internal data structures while calling this function if you plan to
     /// also [subscribe](Subscriber) to changes because this would easily lead to deadlocks.
-    pub fn init_requests(&mut self, change_requests: Vec<ChangeRequest<K, V>>) {
+    pub fn execute_requests(&mut self, change_requests: Vec<ChangeRequest<'_, K, V>>) {
         let inner = self.inner.upgrade().expect("backend gone");
         lock_inner!(mut guard = inner);
         perform_changes(&mut guard, change_requests);
@@ -357,7 +376,7 @@ type StrongSharedInner<K, V> = Arc<ReentrantMutex<RefCell<PolicyBackendInner<K, 
 /// Perform changes breadth first.
 fn perform_changes<K, V>(
     inner: &mut PolicyBackendInner<K, V>,
-    change_requests: Vec<ChangeRequest<K, V>>,
+    change_requests: Vec<ChangeRequest<'_, K, V>>,
 ) where
     K: Clone + Eq + Hash + Ord + Debug + Send + 'static,
     V: Clone + Debug + Send + 'static,
@@ -395,7 +414,7 @@ pub trait Subscriber: Debug + Send + 'static {
     type V: Clone + Debug + Send + 'static;
 
     /// Get value for given key if it exists.
-    fn get(&mut self, _k: &Self::K) -> Vec<ChangeRequest<Self::K, Self::V>> {
+    fn get(&mut self, _k: &Self::K) -> Vec<ChangeRequest<'static, Self::K, Self::V>> {
         // do nothing by default
         vec![]
     }
@@ -403,7 +422,7 @@ pub trait Subscriber: Debug + Send + 'static {
     /// Set value for given key.
     ///
     /// It is OK to set and override a key that already exists.
-    fn set(&mut self, _k: Self::K, _v: Self::V) -> Vec<ChangeRequest<Self::K, Self::V>> {
+    fn set(&mut self, _k: Self::K, _v: Self::V) -> Vec<ChangeRequest<'static, Self::K, Self::V>> {
         // do nothing by default
         vec![]
     }
@@ -411,22 +430,22 @@ pub trait Subscriber: Debug + Send + 'static {
     /// Remove value for given key.
     ///
     /// It is OK to remove a key even when it does not exist.
-    fn remove(&mut self, _k: &Self::K) -> Vec<ChangeRequest<Self::K, Self::V>> {
+    fn remove(&mut self, _k: &Self::K) -> Vec<ChangeRequest<'static, Self::K, Self::V>> {
         // do nothing by default
         vec![]
     }
 }
 
 /// A change request to a backend.
-pub struct ChangeRequest<K, V>
+pub struct ChangeRequest<'a, K, V>
 where
     K: Clone + Eq + Hash + Ord + Debug + Send + 'static,
     V: Clone + Debug + Send + 'static,
 {
-    fun: ChangeRequestFn<K, V>,
+    fun: ChangeRequestFn<'a, K, V>,
 }
 
-impl<K, V> Debug for ChangeRequest<K, V>
+impl<'a, K, V> Debug for ChangeRequest<'a, K, V>
 where
     K: Clone + Eq + Hash + Ord + Debug + Send + 'static,
     V: Clone + Debug + Send + 'static,
@@ -436,7 +455,7 @@ where
     }
 }
 
-impl<K, V> ChangeRequest<K, V>
+impl<'a, K, V> ChangeRequest<'a, K, V>
 where
     K: Clone + Eq + Hash + Ord + Debug + Send + 'static,
     V: Clone + Debug + Send + 'static,
@@ -450,7 +469,7 @@ where
     /// locked during a single request, so "get + modify" patterns work out of the box without the need to fair interleaving modifications.
     pub fn from_fn<F>(f: F) -> Self
     where
-        F: for<'a> FnOnce(&'a mut dyn CacheBackend<K = K, V = V>) + Send + 'static,
+        F: for<'b> FnOnce(&'b mut dyn CacheBackend<K = K, V = V>) + 'a,
     {
         Self { fun: Box::new(f) }
     }
@@ -476,15 +495,24 @@ where
         })
     }
 
+    /// Ensure that backends is empty and panic otherwise.
+    ///
+    /// This is mostly useful during initialization.
+    pub fn ensure_empty() -> Self {
+        Self::from_fn(|backend| {
+            assert!(backend.is_empty(), "inner backend is not empty");
+        })
+    }
+
     /// Execute this change request.
-    fn eval(self, backend: &mut dyn CacheBackend<K = K, V = V>) {
+    pub fn eval(self, backend: &mut dyn CacheBackend<K = K, V = V>) {
         (self.fun)(backend)
     }
 }
 
 /// Function captured within [`ChangeRequest`].
-type ChangeRequestFn<K, V> =
-    Box<dyn for<'a> FnOnce(&'a mut dyn CacheBackend<K = K, V = V>) + Send + 'static>;
+type ChangeRequestFn<'a, K, V> =
+    Box<dyn for<'b> FnOnce(&'b mut dyn CacheBackend<K = K, V = V>) + 'a>;
 
 /// Records of interactions with the callback [`CacheBackend`].
 #[derive(Debug, PartialEq)]
@@ -558,6 +586,47 @@ where
     }
 }
 
+/// Read-only ref to the inner backend of [`PolicyBackend`] for debugging.
+pub struct InnerBackendRef<'a, K, V>
+where
+    K: Clone + Eq + Hash + Ord + Debug + Send + 'static,
+    V: Clone + Debug + Send + 'static,
+{
+    inner: ArcMutexGuard<RawMutex, Box<dyn CacheBackend<K = K, V = V>>>,
+    _phantom: PhantomData<&'a mut ()>,
+}
+
+// Workaround for <https://github.com/rust-lang/rust/issues/100573>.
+impl<'a, K, V> Drop for InnerBackendRef<'a, K, V>
+where
+    K: Clone + Eq + Hash + Ord + Debug + Send + 'static,
+    V: Clone + Debug + Send + 'static,
+{
+    fn drop(&mut self) {}
+}
+
+impl<'a, K, V> Debug for InnerBackendRef<'a, K, V>
+where
+    K: Clone + Eq + Hash + Ord + Debug + Send + 'static,
+    V: Clone + Debug + Send + 'static,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("InnerBackendRef").finish_non_exhaustive()
+    }
+}
+
+impl<'a, K, V> Deref for InnerBackendRef<'a, K, V>
+where
+    K: Clone + Eq + Hash + Ord + Debug + Send + 'static,
+    V: Clone + Debug + Send + 'static,
+{
+    type Target = dyn CacheBackend<K = K, V = V>;
+
+    fn deref(&self) -> &Self::Target {
+        self.inner.as_ref()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::{collections::HashMap, sync::Barrier, thread::JoinHandle};
@@ -566,7 +635,6 @@ mod tests {
 
     #[allow(dead_code)]
     const fn assert_send<T: Send>() {}
-    const _: () = assert_send::<ChangeRequest<String, usize>>();
     const _: () = assert_send::<CallbackHandle<String, usize>>();
 
     #[test]
@@ -766,7 +834,10 @@ mod tests {
                 condition: TestBackendInteraction::Get {
                     k: String::from("a"),
                 },
-                action: TestAction::ChangeRequests(vec![ChangeRequest::set(String::from("a"), 1)]),
+                action: TestAction::ChangeRequests(vec![SendableChangeRequest::set(
+                    String::from("a"),
+                    1,
+                )]),
             },
             TestStep {
                 condition: TestBackendInteraction::Set {
@@ -788,7 +859,9 @@ mod tests {
                 condition: TestBackendInteraction::Get {
                     k: String::from("a"),
                 },
-                action: TestAction::ChangeRequests(vec![ChangeRequest::get(String::from("a"))]),
+                action: TestAction::ChangeRequests(vec![SendableChangeRequest::get(String::from(
+                    "a",
+                ))]),
             },
             TestStep {
                 condition: TestBackendInteraction::Get {
@@ -810,7 +883,10 @@ mod tests {
                     k: String::from("a"),
                     v: 1,
                 },
-                action: TestAction::ChangeRequests(vec![ChangeRequest::set(String::from("b"), 2)]),
+                action: TestAction::ChangeRequests(vec![SendableChangeRequest::set(
+                    String::from("b"),
+                    2,
+                )]),
             },
             TestStep {
                 condition: TestBackendInteraction::Set {
@@ -848,7 +924,9 @@ mod tests {
                     k: String::from("a"),
                     v: 1,
                 },
-                action: TestAction::ChangeRequests(vec![ChangeRequest::remove(String::from("a"))]),
+                action: TestAction::ChangeRequests(vec![SendableChangeRequest::remove(
+                    String::from("a"),
+                )]),
             },
             TestStep {
                 condition: TestBackendInteraction::Remove {
@@ -877,7 +955,10 @@ mod tests {
                 condition: TestBackendInteraction::Remove {
                     k: String::from("a"),
                 },
-                action: TestAction::ChangeRequests(vec![ChangeRequest::set(String::from("b"), 1)]),
+                action: TestAction::ChangeRequests(vec![SendableChangeRequest::set(
+                    String::from("b"),
+                    1,
+                )]),
             },
             TestStep {
                 condition: TestBackendInteraction::Set {
@@ -914,7 +995,9 @@ mod tests {
                 condition: TestBackendInteraction::Remove {
                     k: String::from("a"),
                 },
-                action: TestAction::ChangeRequests(vec![ChangeRequest::remove(String::from("b"))]),
+                action: TestAction::ChangeRequests(vec![SendableChangeRequest::remove(
+                    String::from("b"),
+                )]),
             },
             TestStep {
                 condition: TestBackendInteraction::Remove {
@@ -952,8 +1035,8 @@ mod tests {
                     v: 11,
                 },
                 action: TestAction::ChangeRequests(vec![
-                    ChangeRequest::set(String::from("a"), 12),
-                    ChangeRequest::set(String::from("a"), 13),
+                    SendableChangeRequest::set(String::from("a"), 12),
+                    SendableChangeRequest::set(String::from("a"), 13),
                 ]),
             },
             TestStep {
@@ -992,7 +1075,10 @@ mod tests {
                     k: String::from("a"),
                     v: 11,
                 },
-                action: TestAction::ChangeRequests(vec![ChangeRequest::set(String::from("a"), 12)]),
+                action: TestAction::ChangeRequests(vec![SendableChangeRequest::set(
+                    String::from("a"),
+                    12,
+                )]),
             },
             TestStep {
                 condition: TestBackendInteraction::Set {
@@ -1021,7 +1107,10 @@ mod tests {
                     k: String::from("a"),
                     v: 11,
                 },
-                action: TestAction::ChangeRequests(vec![ChangeRequest::set(String::from("a"), 13)]),
+                action: TestAction::ChangeRequests(vec![SendableChangeRequest::set(
+                    String::from("a"),
+                    13,
+                )]),
             },
             TestStep {
                 condition: TestBackendInteraction::Set {
@@ -1059,7 +1148,10 @@ mod tests {
                     k: String::from("a"),
                     v: 11,
                 },
-                action: TestAction::ChangeRequests(vec![ChangeRequest::set(String::from("a"), 12)]),
+                action: TestAction::ChangeRequests(vec![SendableChangeRequest::set(
+                    String::from("a"),
+                    12,
+                )]),
             },
             TestStep {
                 condition: TestBackendInteraction::Set {
@@ -1073,7 +1165,10 @@ mod tests {
                     k: String::from("a"),
                     v: 13,
                 },
-                action: TestAction::ChangeRequests(vec![ChangeRequest::set(String::from("a"), 14)]),
+                action: TestAction::ChangeRequests(vec![SendableChangeRequest::set(
+                    String::from("a"),
+                    14,
+                )]),
             },
             TestStep {
                 condition: TestBackendInteraction::Set {
@@ -1095,7 +1190,10 @@ mod tests {
                     k: String::from("a"),
                     v: 11,
                 },
-                action: TestAction::ChangeRequests(vec![ChangeRequest::set(String::from("a"), 13)]),
+                action: TestAction::ChangeRequests(vec![SendableChangeRequest::set(
+                    String::from("a"),
+                    13,
+                )]),
             },
             TestStep {
                 condition: TestBackendInteraction::Set {
@@ -1192,7 +1290,7 @@ mod tests {
                 },
                 action: TestAction::BlockAndChangeRequest(
                     Arc::clone(&barrier_pre),
-                    vec![ChangeRequest::set(String::from("a"), 3)],
+                    vec![SendableChangeRequest::set(String::from("a"), 3)],
                 ),
             },
             TestStep {
@@ -1301,24 +1399,32 @@ mod tests {
                     k: String::from("a"),
                     v: 11,
                 },
-                action: TestAction::ChangeRequests(vec![ChangeRequest::from_fn(|backend| {
-                    backend.set(String::from("a"), 12);
-                    backend.set(String::from("a"), 13);
-                })]),
+                action: TestAction::ChangeRequests(vec![SendableChangeRequest::from_fn(
+                    |backend| {
+                        backend.set(String::from("a"), 12);
+                        backend.set(String::from("a"), 13);
+                    },
+                )]),
             },
             TestStep {
                 condition: TestBackendInteraction::Set {
                     k: String::from("a"),
                     v: 12,
                 },
-                action: TestAction::ChangeRequests(vec![ChangeRequest::set(String::from("a"), 14)]),
+                action: TestAction::ChangeRequests(vec![SendableChangeRequest::set(
+                    String::from("a"),
+                    14,
+                )]),
             },
             TestStep {
                 condition: TestBackendInteraction::Set {
                     k: String::from("a"),
                     v: 13,
                 },
-                action: TestAction::ChangeRequests(vec![ChangeRequest::set(String::from("a"), 16)]),
+                action: TestAction::ChangeRequests(vec![SendableChangeRequest::set(
+                    String::from("a"),
+                    16,
+                )]),
             },
             TestStep {
                 condition: TestBackendInteraction::Set {
@@ -1361,7 +1467,10 @@ mod tests {
                     k: String::from("a"),
                     v: 12,
                 },
-                action: TestAction::ChangeRequests(vec![ChangeRequest::set(String::from("a"), 15)]),
+                action: TestAction::ChangeRequests(vec![SendableChangeRequest::set(
+                    String::from("a"),
+                    15,
+                )]),
             },
             TestStep {
                 condition: TestBackendInteraction::Set {
@@ -1469,10 +1578,10 @@ mod tests {
         fn perform(self, handle: &mut CallbackHandle<String, usize>) {
             match self {
                 Self::Get { k } => {
-                    handle.init_requests(vec![ChangeRequest::get(k)]);
+                    handle.execute_requests(vec![ChangeRequest::get(k)]);
                 }
-                Self::Set { k, v } => handle.init_requests(vec![ChangeRequest::set(k, v)]),
-                Self::Remove { k } => handle.init_requests(vec![ChangeRequest::remove(k)]),
+                Self::Set { k, v } => handle.execute_requests(vec![ChangeRequest::set(k, v)]),
+                Self::Remove { k } => handle.execute_requests(vec![ChangeRequest::remove(k)]),
                 Self::Panic => panic!("this is a test"),
             }
         }
@@ -1484,7 +1593,7 @@ mod tests {
         CallBackendDirectly(TestBackendInteraction),
 
         /// Return change requests
-        ChangeRequests(Vec<ChangeRequest<String, usize>>),
+        ChangeRequests(Vec<SendableChangeRequest>),
 
         /// Use callback backend but wait for a barrier in a background thread.
         ///
@@ -1492,14 +1601,14 @@ mod tests {
         CallBackendDelayed(Arc<Barrier>, TestBackendInteraction, Arc<Barrier>),
 
         /// Block on barrier and return afterwards.
-        BlockAndChangeRequest(Arc<Barrier>, Vec<ChangeRequest<String, usize>>),
+        BlockAndChangeRequest(Arc<Barrier>, Vec<SendableChangeRequest>),
     }
 
     impl TestAction {
         fn perform(
             self,
             background_task: &mut TestSubscriberBackgroundTask,
-        ) -> Vec<ChangeRequest<String, usize>> {
+        ) -> Vec<ChangeRequest<'static, String, usize>> {
             match self {
                 Self::CallBackendDirectly(interaction) => {
                     let handle = match background_task {
@@ -1513,7 +1622,9 @@ mod tests {
                     interaction.perform(handle);
                     unreachable!("illegal call should have failed")
                 }
-                Self::ChangeRequests(change_requests) => change_requests,
+                Self::ChangeRequests(change_requests) => {
+                    change_requests.into_iter().map(|r| r.into()).collect()
+                }
                 Self::CallBackendDelayed(barrier_pre, interaction, barrier_post) => {
                     let mut tmp = TestSubscriberBackgroundTask::Invalid;
                     std::mem::swap(&mut tmp, background_task);
@@ -1536,7 +1647,7 @@ mod tests {
                 }
                 Self::BlockAndChangeRequest(barrier, change_requests) => {
                     barrier.wait();
-                    change_requests
+                    change_requests.into_iter().map(|r| r.into()).collect()
                 }
             }
         }
@@ -1599,7 +1710,7 @@ mod tests {
         type K = String;
         type V = usize;
 
-        fn get(&mut self, k: &Self::K) -> Vec<ChangeRequest<Self::K, Self::V>> {
+        fn get(&mut self, k: &Self::K) -> Vec<ChangeRequest<'static, Self::K, Self::V>> {
             let step = self.steps.pop_front().expect("step left for get operation");
 
             let expected_condition = TestBackendInteraction::Get { k: k.clone() };
@@ -1612,7 +1723,7 @@ mod tests {
             step.action.perform(&mut self.background_task)
         }
 
-        fn set(&mut self, k: Self::K, v: Self::V) -> Vec<ChangeRequest<String, usize>> {
+        fn set(&mut self, k: Self::K, v: Self::V) -> Vec<ChangeRequest<'static, String, usize>> {
             let step = self.steps.pop_front().expect("step left for set operation");
 
             let expected_condition = TestBackendInteraction::Set { k, v };
@@ -1625,7 +1736,7 @@ mod tests {
             step.action.perform(&mut self.background_task)
         }
 
-        fn remove(&mut self, k: &Self::K) -> Vec<ChangeRequest<String, usize>> {
+        fn remove(&mut self, k: &Self::K) -> Vec<ChangeRequest<'static, String, usize>> {
             let step = self
                 .steps
                 .pop_front()
@@ -1639,6 +1750,55 @@ mod tests {
             );
 
             step.action.perform(&mut self.background_task)
+        }
+    }
+
+    /// Same as [`ChangeRequestFn`] but implements `Send`.
+    type SendableChangeRequestFn =
+        Box<dyn for<'a> FnOnce(&'a mut dyn CacheBackend<K = String, V = usize>) + Send + 'static>;
+
+    /// Same as [`ChangeRequest`] but implements `Send`.
+    struct SendableChangeRequest {
+        fun: SendableChangeRequestFn,
+    }
+
+    impl Debug for SendableChangeRequest {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.debug_struct("SendableCacheRequest")
+                .finish_non_exhaustive()
+        }
+    }
+
+    impl SendableChangeRequest {
+        fn from_fn<F>(f: F) -> Self
+        where
+            F: for<'b> FnOnce(&'b mut dyn CacheBackend<K = String, V = usize>) + Send + 'static,
+        {
+            Self { fun: Box::new(f) }
+        }
+
+        fn get(k: String) -> Self {
+            Self::from_fn(move |backend| {
+                backend.get(&k);
+            })
+        }
+
+        fn set(k: String, v: usize) -> Self {
+            Self::from_fn(move |backend| {
+                backend.set(k, v);
+            })
+        }
+
+        fn remove(k: String) -> Self {
+            Self::from_fn(move |backend| {
+                backend.remove(&k);
+            })
+        }
+    }
+
+    impl From<SendableChangeRequest> for ChangeRequest<'static, String, usize> {
+        fn from(request: SendableChangeRequest) -> Self {
+            Self::from_fn(request.fun)
         }
     }
 }

@@ -1,4 +1,7 @@
-use crate::{AggregateTSMField, AggregateTSMMeasurement, AggregateTSMSchema, AggregateTSMTag};
+use crate::{
+    AggregateTSMField, AggregateTSMMeasurement, AggregateTSMSchema, AggregateTSMSchemaOverride,
+    AggregateTSMTag,
+};
 
 use thiserror::Error;
 
@@ -17,6 +20,7 @@ pub struct SchemaMerger {
     org_id: String,
     bucket_id: String,
     schemas: Vec<AggregateTSMSchema>,
+    schema_override: Option<AggregateTSMSchemaOverride>,
 }
 
 impl SchemaMerger {
@@ -25,7 +29,13 @@ impl SchemaMerger {
             org_id,
             bucket_id,
             schemas,
+            schema_override: None,
         }
+    }
+
+    pub fn with_schema_override(mut self, schema_override: AggregateTSMSchemaOverride) -> Self {
+        self.schema_override = Some(schema_override);
+        self
     }
 
     /// Run the merge operation on the list of schemas
@@ -43,11 +53,42 @@ impl SchemaMerger {
                 self.bucket_id.clone(),
             ));
         }
-        self.schemas
+        let mut merged_schema = self
+            .schemas
             .iter()
             .cloned()
             .reduce(|merged, s| do_merge_schema(&self.org_id, &self.bucket_id, &merged, &s))
-            .ok_or(SchemaMergeError::NothingToMerge)
+            .ok_or(SchemaMergeError::NothingToMerge)?;
+        if let Some(schema_override) = &self.schema_override {
+            // we have been given config to override parts of the merged schema. usually this comes
+            // from a discussion with the customer after attempts to bulk ingest highlighted schema
+            // conflicts. using this config file we can A) coerce the data (later, with another
+            // tool) and B) modify the schema here before updating it into the IOx catalog, so the
+            // coerced data arriving later will match.
+            do_schema_override(&mut merged_schema, schema_override);
+        }
+        Ok(merged_schema)
+    }
+}
+
+fn do_schema_override(
+    merged_schema: &mut AggregateTSMSchema,
+    override_schema: &AggregateTSMSchemaOverride,
+) {
+    for (measurement_name, override_measurement) in &override_schema.measurements {
+        // if the override refers to a measurement not in the schema it will be ignored
+        if let Some(merged_measurement) = merged_schema.measurements.get_mut(measurement_name) {
+            // we only support overrides for field types at this point. later we may support
+            // resolving tags/fields with the same name somehow
+            for (field_name, override_field) in &override_measurement.fields {
+                // if the override refers to a field not in the schema it will be ignored
+                if let Some(field) = merged_measurement.fields.get_mut(field_name) {
+                    // whatever types were in there, we don't care- replace with the override
+                    field.types.clear();
+                    field.types.insert(override_field.r#type.clone());
+                }
+            }
+        }
     }
 }
 
@@ -618,5 +659,225 @@ mod tests {
         "#;
         let expected: AggregateTSMSchema = json.try_into().unwrap();
         assert_eq!(merger.merge().unwrap(), expected);
+    }
+
+    #[tokio::test]
+    async fn merge_schema_batch_with_override() {
+        let json = r#"
+        {
+          "measurements": {
+            "cpu": {
+              "fields": [
+                { "name": "usage", "type": "Float" }
+              ]
+            },
+            "weather": {
+              "fields": [
+                { "name": "temperature", "type": "Float" }
+              ]
+            }
+          }
+        }
+        "#;
+        let override_schema: AggregateTSMSchemaOverride = json.try_into().unwrap();
+        let org = "myorg".to_string();
+        let bucket = "mybucket".to_string();
+        let merger = SchemaMerger::new(
+            org.clone(),
+            bucket.clone(),
+            vec![
+                AggregateTSMSchema {
+                    org_id: org.clone(),
+                    bucket_id: bucket.clone(),
+                    measurements: HashMap::from([(
+                        "cpu".to_string(),
+                        AggregateTSMMeasurement {
+                            tags: HashMap::from([(
+                                "host".to_string(),
+                                AggregateTSMTag {
+                                    name: "host".to_string(),
+                                    values: HashSet::from([
+                                        "server".to_string(),
+                                        "desktop".to_string(),
+                                    ]),
+                                },
+                            )]),
+                            fields: HashMap::from([(
+                                "usage".to_string(),
+                                AggregateTSMField {
+                                    name: "usage".to_string(),
+                                    types: HashSet::from(["Float".to_string()]),
+                                },
+                            )]),
+                        },
+                    )]),
+                },
+                AggregateTSMSchema {
+                    org_id: org.clone(),
+                    bucket_id: bucket.clone(),
+                    measurements: HashMap::from([(
+                        "cpu".to_string(),
+                        AggregateTSMMeasurement {
+                            tags: HashMap::from([(
+                                "host".to_string(),
+                                AggregateTSMTag {
+                                    name: "host".to_string(),
+                                    values: HashSet::from(["gadget".to_string()]),
+                                },
+                            )]),
+                            fields: HashMap::from([(
+                                "usage".to_string(),
+                                AggregateTSMField {
+                                    name: "usage".to_string(),
+                                    types: HashSet::from(["Integer".to_string()]),
+                                },
+                            )]),
+                        },
+                    )]),
+                },
+                AggregateTSMSchema {
+                    org_id: org.clone(),
+                    bucket_id: bucket.clone(),
+                    measurements: HashMap::from([(
+                        "weather".to_string(),
+                        AggregateTSMMeasurement {
+                            tags: HashMap::from([(
+                                "location".to_string(),
+                                AggregateTSMTag {
+                                    name: "location".to_string(),
+                                    values: HashSet::from(["london".to_string()]),
+                                },
+                            )]),
+                            fields: HashMap::from([(
+                                "temperature".to_string(),
+                                AggregateTSMField {
+                                    name: "temperature".to_string(),
+                                    types: HashSet::from(["Float".to_string()]),
+                                },
+                            )]),
+                        },
+                    )]),
+                },
+                AggregateTSMSchema {
+                    org_id: org,
+                    bucket_id: bucket,
+                    measurements: HashMap::from([(
+                        "weather".to_string(),
+                        AggregateTSMMeasurement {
+                            tags: HashMap::from([(
+                                "location".to_string(),
+                                AggregateTSMTag {
+                                    name: "location".to_string(),
+                                    values: HashSet::from(["berlin".to_string()]),
+                                },
+                            )]),
+                            fields: HashMap::from([(
+                                "temperature".to_string(),
+                                AggregateTSMField {
+                                    name: "temperature".to_string(),
+                                    types: HashSet::from(["Integer".to_string()]),
+                                },
+                            )]),
+                        },
+                    )]),
+                },
+            ],
+        )
+        .with_schema_override(override_schema);
+        let json = r#"
+        {
+          "org_id": "myorg",
+          "bucket_id": "mybucket",
+          "measurements": {
+            "cpu": {
+              "tags": [
+                { "name": "host", "values": ["server", "desktop", "gadget"] }
+              ],
+             "fields": [
+                { "name": "usage", "types": ["Float"] }
+              ]
+            },
+            "weather": {
+              "tags": [
+                { "name": "location", "values": ["london", "berlin"] }
+              ],
+             "fields": [
+                { "name": "temperature", "types": ["Float"] }
+              ]
+            }
+          }
+        }
+        "#;
+        let expected: AggregateTSMSchema = json.try_into().unwrap();
+        assert_eq!(merger.merge().unwrap(), expected);
+    }
+
+    #[tokio::test]
+    async fn override_schema() {
+        let json = r#"
+        {
+          "org_id": "myorg",
+          "bucket_id": "mybucket",
+          "measurements": {
+            "cpu": {
+              "tags": [
+                { "name": "host", "values": ["server", "desktop", "gadget"] }
+              ],
+             "fields": [
+                { "name": "usage", "types": ["Float", "Integer"] }
+              ]
+            },
+            "weather": {
+              "tags": [
+                { "name": "location", "values": ["london", "berlin"] }
+              ],
+             "fields": [
+                { "name": "temperature", "types": ["Float", "Integer"] }
+              ]
+            }
+          }
+        }
+        "#;
+        let mut merged_schema: AggregateTSMSchema = json.try_into().unwrap();
+        let json = r#"
+        {
+          "measurements": {
+            "cpu": {
+              "fields": [
+                { "name": "usage", "type": "Float" }
+              ]
+            },
+            "weather": {
+              "fields": [
+                { "name": "temperature", "type": "Integer" }
+              ]
+            }
+          }
+        }
+        "#;
+        let override_schema: AggregateTSMSchemaOverride = json.try_into().unwrap();
+        do_schema_override(&mut merged_schema, &override_schema);
+        assert_eq!(
+            merged_schema
+                .measurements
+                .get("cpu")
+                .unwrap()
+                .fields
+                .get("usage")
+                .unwrap()
+                .types,
+            HashSet::from(["Float".to_string()])
+        );
+        assert_eq!(
+            merged_schema
+                .measurements
+                .get("weather")
+                .unwrap()
+                .fields
+                .get("temperature")
+                .unwrap()
+                .types,
+            HashSet::from(["Integer".to_string()])
+        );
     }
 }

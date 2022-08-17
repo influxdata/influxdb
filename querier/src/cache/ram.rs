@@ -1,6 +1,6 @@
 use std::ops::{Add, Sub};
 
-use cache_system::backend::resource_consumption::Resource;
+use cache_system::resource_consumption::Resource;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd)]
 pub struct RamSize(pub usize);
@@ -42,7 +42,7 @@ pub mod test_util {
     use super::*;
     use std::sync::Arc;
 
-    use cache_system::backend::lru::ResourcePool;
+    use cache_system::backend::policy::lru::ResourcePool;
     use iox_time::{MockProvider, Time};
 
     pub fn test_ram_pool() -> Arc<ResourcePool<RamSize>> {

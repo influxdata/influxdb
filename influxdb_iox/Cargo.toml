@@ -25,7 +25,7 @@ ioxd_querier = { path = "../ioxd_querier"}
 ioxd_router = { path = "../ioxd_router"}
 ioxd_test = { path = "../ioxd_test"}
 metric = { path = "../metric" }
-object_store = "0.3.0"
+object_store = "0.4.0"
 object_store_metrics = { path = "../object_store_metrics" }
 observability_deps = { path = "../observability_deps" }
 panic_logging = { path = "../panic_logging" }
@@ -52,7 +52,7 @@ humantime = "2.1.0"
 itertools = "0.10.1"
 libc = { version = "0.2" }
 num_cpus = "1.13.0"
-once_cell = { version = "1.13.0", features = ["parking_lot"] }
+once_cell = { version = "1.13.1", features = ["parking_lot"] }
 rustyline = { version = "10.0", default-features = false }
 serde_json = "1.0.83"
 snafu = "0.7"

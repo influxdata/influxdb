@@ -493,6 +493,23 @@ impl TryFrom<ArrowDataType> for InfluxFieldType {
     }
 }
 
+impl TryFrom<&String> for InfluxFieldType {
+    type Error = &'static str;
+
+    fn try_from(s: &String) -> Result<Self, Self::Error> {
+        Ok(match s.as_str() {
+            "Float" => InfluxFieldType::Float,
+            "Integer" => InfluxFieldType::Integer,
+            "UnsignedInteger" => InfluxFieldType::UInteger,
+            "Boolean" => InfluxFieldType::Boolean,
+            "String" => InfluxFieldType::String,
+            _ => {
+                return Err("No corresponding type in the InfluxDB data model");
+            }
+        })
+    }
+}
+
 /// Column types.
 ///
 /// Includes types for tags and fields in the InfluxDB data model, as described in the

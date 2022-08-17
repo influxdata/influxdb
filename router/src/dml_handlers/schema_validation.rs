@@ -27,7 +27,7 @@ pub enum SchemaError {
 
     /// The request schema conflicts with the existing namespace schema.
     #[error("schema conflict: {0}")]
-    Conflict(iox_catalog::interface::Error),
+    Conflict(iox_catalog::TableScopedError),
 
     /// A catalog error during schema validation.
     ///
@@ -185,7 +185,7 @@ where
         )
         .await
         .map_err(|e| {
-            match e {
+            match e.err() {
                 // Schema conflicts
                 CatalogError::ColumnTypeMismatch {
                     ref name,
@@ -197,6 +197,7 @@ where
                         column_name=%name,
                         existing_column_type=%existing,
                         request_column_type=%new,
+                        table_name=%e.table(),
                         "schema conflict"
                     );
                     self.schema_conflict.inc(1);
@@ -207,11 +208,11 @@ where
                 | CatalogError::TableCreateLimitError { .. } => {
                     warn!(%namespace, error=%e, "service protection limit reached");
                     self.service_limit_hit.inc(1);
-                    SchemaError::ServiceLimit(e)
+                    SchemaError::ServiceLimit(e.into_err())
                 }
-                e => {
+                _ => {
                     error!(%namespace, error=%e, "schema validation failed");
-                    SchemaError::UnexpectedCatalogError(e)
+                    SchemaError::UnexpectedCatalogError(e.into_err())
                 }
             }
         })?
@@ -383,7 +384,9 @@ mod tests {
             .await
             .expect_err("request should fail");
 
-        assert_matches!(err, SchemaError::Conflict(_));
+        assert_matches!(err, SchemaError::Conflict(e) => {
+            assert_eq!(e.table(), "bananas");
+        });
 
         // The cache should retain the original schema.
         assert_cache(&handler, "bananas", "tag1", ColumnType::Tag);

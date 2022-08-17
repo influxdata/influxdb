@@ -2,14 +2,15 @@
 
 use backoff::{Backoff, BackoffConfig};
 use cache_system::{
-    backend::{
-        lru::{LruBackend, ResourcePool},
-        resource_consumption::FunctionEstimator,
-        shared::SharedBackend,
-        ttl::{OptionalValueTtlProvider, TtlBackend},
+    backend::policy::{
+        lru::{LruPolicy, ResourcePool},
+        remove_if::{RemoveIfHandle, RemoveIfPolicy},
+        ttl::{OptionalValueTtlProvider, TtlPolicy},
+        PolicyBackend,
     },
     cache::{driver::CacheDriver, metrics::CacheWithMetrics, Cache},
     loader::{metrics::MetricsLoader, FunctionLoader},
+    resource_consumption::FunctionEstimator,
 };
 use data_types::{ColumnId, NamespaceSchema};
 use iox_catalog::interface::{get_schema_by_name, Catalog};
@@ -53,7 +54,7 @@ type CacheT = Box<
 #[derive(Debug)]
 pub struct NamespaceCache {
     cache: CacheT,
-    backend: SharedBackend<Arc<str>, Option<Arc<CachedNamespace>>>,
+    remove_if_handle: RemoveIfHandle<Arc<str>, Option<Arc<CachedNamespace>>>,
 }
 
 impl NamespaceCache {
@@ -100,8 +101,8 @@ impl NamespaceCache {
             testing,
         ));
 
-        let backend = Box::new(TtlBackend::new(
-            Box::new(HashMap::new()),
+        let mut backend = PolicyBackend::new(Box::new(HashMap::new()));
+        backend.add_policy(TtlPolicy::new(
             Arc::new(OptionalValueTtlProvider::new(
                 Some(TTL_NON_EXISTING),
                 Some(TTL_EXISTING),
@@ -110,10 +111,10 @@ impl NamespaceCache {
             CACHE_ID,
             metric_registry,
         ));
-
-        // add to memory pool
-        let backend = Box::new(LruBackend::new(
-            backend as _,
+        let (constructor, remove_if_handle) =
+            RemoveIfPolicy::create_constructor_and_handle(CACHE_ID, metric_registry);
+        backend.add_policy(constructor);
+        backend.add_policy(LruPolicy::new(
             Arc::clone(&ram_pool),
             CACHE_ID,
             Arc::new(FunctionEstimator::new(
@@ -127,9 +128,8 @@ impl NamespaceCache {
                 },
             )),
         ));
-        let backend = SharedBackend::new(backend, CACHE_ID, metric_registry);
 
-        let cache = Box::new(CacheDriver::new(loader, Box::new(backend.clone())));
+        let cache = Box::new(CacheDriver::new(loader, Box::new(backend)));
         let cache = Box::new(CacheWithMetrics::new(
             cache,
             CACHE_ID,
@@ -137,7 +137,10 @@ impl NamespaceCache {
             metric_registry,
         ));
 
-        Self { cache, backend }
+        Self {
+            cache,
+            remove_if_handle,
+        }
     }
 
     /// Get namespace schema by name.
@@ -150,7 +153,7 @@ impl NamespaceCache {
         should_cover: &[(&str, &HashSet<ColumnId>)],
         span: Option<Span>,
     ) -> Option<Arc<NamespaceSchema>> {
-        self.backend.remove_if(&name, |cached_namespace| {
+        self.remove_if_handle.remove_if(&name, |cached_namespace| {
             if let Some(namespace) = cached_namespace.as_ref() {
                 should_cover.iter().any(|(table_name, columns)| {
                     if let Some(table) = namespace.schema.tables.get(*table_name) {

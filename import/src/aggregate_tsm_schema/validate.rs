@@ -93,13 +93,12 @@ mod tests {
         }
         "#;
         let schema: AggregateTSMSchema = json.try_into().unwrap();
-        if let Err(errors) = validate_schema(&schema) {
-            assert_eq!(errors.len(), 1);
-            assert_matches!(
-                errors.get(0),
-                Some(ValidationError::TagAndFieldSameName { .. })
-            );
-        }
+        let errors = validate_schema(&schema).expect_err("should fail to validate schema");
+        assert_eq!(errors.len(), 1);
+        assert_matches!(
+            errors.get(0),
+            Some(ValidationError::TagAndFieldSameName { .. })
+        );
     }
 
     #[tokio::test]
@@ -121,12 +120,11 @@ mod tests {
         }
         "#;
         let schema: AggregateTSMSchema = json.try_into().unwrap();
-        if let Err(errors) = validate_schema(&schema) {
-            assert_eq!(errors.len(), 1);
-            assert_matches!(
-                errors.get(0),
-                Some(ValidationError::FieldWithMultipleTypes { .. })
-            );
-        }
+        let errors = validate_schema(&schema).expect_err("should fail to validate schema");
+        assert_eq!(errors.len(), 1);
+        assert_matches!(
+            errors.get(0),
+            Some(ValidationError::FieldWithMultipleTypes { .. })
+        );
     }
 }

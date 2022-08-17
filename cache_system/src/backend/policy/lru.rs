@@ -9,9 +9,14 @@
 //!     sync::Arc,
 //! };
 //! use iox_time::SystemProvider;
-//! use cache_system::backend::{
-//!     CacheBackend,
-//!     lru::{LruBackend, ResourcePool},
+//! use cache_system::{
+//!     backend::{
+//!         CacheBackend,
+//!         policy::{
+//!             lru::{LruPolicy, ResourcePool},
+//!             PolicyBackend,
+//!         },
+//!     },
 //!     resource_consumption::{Resource, ResourceEstimator},
 //! };
 //!
@@ -79,11 +84,14 @@
 //!         RamSize(8) + RamSize(v.capacity())
 //!     }
 //! }
-//! let mut backend1 = LruBackend::new(
-//!     Box::new(HashMap::new()),
-//!     Arc::clone(&pool),
-//!     "id1",
-//!     Arc::new(Estimator1{}),
+//!
+//! let mut backend1 = PolicyBackend::new(Box::new(HashMap::new()));
+//! backend1.add_policy(
+//!     LruPolicy::new(
+//!         Arc::clone(&pool),
+//!         "id1",
+//!         Arc::new(Estimator1{}),
+//!     )
 //! );
 //!
 //! // add some data
@@ -114,11 +122,14 @@
 //!         RamSize(1) + RamSize(v.capacity())
 //!     }
 //! }
-//! let mut backend2 = LruBackend::new(
-//!     Box::new(HashMap::new()),
-//!     Arc::clone(&pool),
-//!     "id2",
-//!     Arc::new(Estimator2{}),
+//!
+//! let mut backend2 = PolicyBackend::new(Box::new(HashMap::new()));
+//! backend2.add_policy(
+//!     LruPolicy::new(
+//!         Arc::clone(&pool),
+//!         "id2",
+//!         Arc::new(Estimator2{}),
+//!     )
 //! );
 //!
 //! // eviction works for all pool members
@@ -151,17 +162,17 @@
 //! ## Data Structures
 //!
 //! ```text
-//!               .~~~~~~~~~~~~.            .~~~~~~~~~~~~~~~~~.
-//! ------------->: ResourcePool :--(mutex)-->: ResourcePoolInner :-----------------------------------+
-//!               :    <S>     :            :       <S>       :                                   |
-//!               .~~~~~~~~~~~~.            .~~~~~~~~~~~~~~~~~.                                   |
+//!               .~~~~~~~~~~~~~~.            .~~~~~~~~~~~~~~~~~~~.
+//! ------------->: ResourcePool :--(mutex)-->: ResourcePoolInner :-------------------------------+
+//!               :     <S>      :            :        <S>        :                               |
+//!               .~~~~~~~~~~~~~~.            .~~~~~~~~~~~~~~~~~~~.                               |
 //!                   ^                                                                           |
 //!                   |                                                                           |
 //!                 (arc)                                                                         |
 //!                   |                                                                           |
 //!                   |                                                                           |
 //!                   |  .~~~~~~~~~~~~~~~~~.   .~~~~~~~~~~~~~~~~~~~~~.        .~~~~~~~~~~~~~~~~~. |
-//!                   |  : LruBackendInner :<--: PoolMemberGuardImpl :<-(dyn)-: PoolMemberGuard : |
+//!                   |  : LruPolicyInner  :<--: PoolMemberGuardImpl :<-(dyn)-: PoolMemberGuard : |
 //!                   |  : <K1, V1, S>     :   :     <K1, V1, S>     :        :       <S>       : |
 //!                   |  .~~~~~~~~~~~~~~~~~.   .~~~~~~~~~~~~~~~~~~~~~.        .~~~~~~~~~~~~~~~~~. |
 //!                   |        ^                           ^                           ^          |
@@ -171,7 +182,7 @@
 //!                   |        |                           +-------------+-------------+          |
 //!                   |     (mutex)                        |                           |          |
 //!   .~~~~~~~~~~~~~. |        |                   .~~~~~~~~~~~~~~~~.           .~~~~~~~~~~~~.    |
-//! ->: LruBackend  :-+      (arc)                 : PoolMemberImpl :           : PoolMember :<---+
+//! ->: LruPolicy   :-+      (arc)                 : PoolMemberImpl :           : PoolMember :<---+
 //!   : <K1, V1, S> : |        |                   :   <K1, V1, S>  :           :    <S>     :    |
 //!   :             :----------+-------------------:                :<--(dyn)---:            :    |
 //!   .~~~~~~~~~~~~~. |                            .~~~~~~~~~~~~~~~~.           .~~~~~~~~~~~~.    |
@@ -180,7 +191,7 @@
 //!                   |                                                                           |
 //!                   |                                                                           |
 //!                   |  .~~~~~~~~~~~~~~~~~.   .~~~~~~~~~~~~~~~~~~~~~.        .~~~~~~~~~~~~~~~~~. |
-//!                   |  : LruBackendInner :<--: PoolMemberGuardImpl :<-(dyn)-: PoolMemberGuard : |
+//!                   |  : LruPolicyInner  :<--: PoolMemberGuardImpl :<-(dyn)-: PoolMemberGuard : |
 //!                   |  : <K2, V2, S>     :   :     <K2, V2, S>     :        :       <S>       : |
 //!                   |  .~~~~~~~~~~~~~~~~~.   .~~~~~~~~~~~~~~~~~~~~~.        .~~~~~~~~~~~~~~~~~. |
 //!                   |        ^                           ^                           ^          |
@@ -190,7 +201,7 @@
 //!                   |        |                           +-------------+-------------+          |
 //!                   |     (mutex)                        |                           |          |
 //!   .~~~~~~~~~~~~~. |        |                   .~~~~~~~~~~~~~~~~.           .~~~~~~~~~~~~.    |
-//! ->: LruBackend  :-+      (arc)                 : PoolMemberImpl :           : PoolMember :<---+
+//! ->: LruPolicy   :-+      (arc)                 : PoolMemberImpl :           : PoolMember :<---+
 //!   : <K2, V2, S> :          |                   :   <K2, V2, S>  :           :    <S>     :
 //!   :             :----------+-------------------:                :<--(dyn)---:            :
 //!   .~~~~~~~~~~~~~.                              .~~~~~~~~~~~~~~~~.           .~~~~~~~~~~~~.
@@ -199,7 +210,7 @@
 //! ## State
 //! State is held in the following structures:
 //!
-//! - `LruBackendInner`: Holds the actual user-provided backend ([`CacheBackend`]) as well as an [`AddressableHeap`] to
+//! - `LruPolicyInner`: Holds [`CallbackHandle`] as well as an [`AddressableHeap`] to
 //!   memorize when entries were used for the last time.
 //! - `ResourcePoolInner`: Holds a reference to all pool members as well as the current consumption.
 //!
@@ -212,39 +223,56 @@
 //! case since even `get` requires updating the "last used" timestamp of the corresponding entry.
 //!
 //! ### Get
-//! For [`get`](CacheBackend::get) we only need to update the "last used" timestamp for the affected entry. No
-//! pool-wide operations are required. We just [`LruBackendInner`] and perform the read operation of the inner backend
+//! For [`GET`] we only need to update the "last used" timestamp for the affected entry. No
+//! pool-wide operations are required. We just [`LruPolicyInner`] and perform the read operation of the inner backend
 //! and the modification of the "last used" timestamp.
 //!
 //! ### Remove
-//! For [`remove`](CacheBackend::remove) the pool usage can only decrease, so other backends are never affected. We
-//! first lock [`ResourcePoolInner`], then [`LruBackendInner`] and then perform the modification on both.
+//! For [`REMOVE`] the pool usage can only decrease, so other backends are never affected. We
+//! first lock [`LruPolicyInner`] and check if the entry is present. If it is, we also lock [`ResourcePoolInner`]
+//! and then perform the modification on both.
 //!
 //! ### Set
-//! [`set`](CacheBackend::set) is the most complex operation and requires a bit of a lock dance:
+//! [`SET`] is the most complex operation and requires a bit of a lock dance:
 //!
+//! 0. Lock [`PolicyBackend`] internals of the "source" of the set operation. This is an indirect operation.
 //! 1. Lock [`ResourcePoolInner`]
-//! 2. Lock [`LruBackendInner`]
+//! 2. Lock "source" [`LruPolicyInner`]
 //! 3. Check if the entry already exists and remove it.
-//! 4. Drop lock of [`LruBackendInner`] so that the pool can use it to free up space.
+//! 4. Drop lock of "source" [`LruPolicyInner`] so that the pool can use it to free up space.
 //! 5. Request to add more data to the pool:
 //!    1. Check if we need to free up space, otherwise we can already proceed to step 6.
-//!    2. Lock all pool members ([`PoolMember::lock`] which ultimately locks [`LruBackendInner`])
+//!    2. Lock all pool members ([`PoolMember::lock`] which ultimately locks [`LruPolicyInner`])
 //!    3. Loop:
 //!       1. Ask pool members if they have anything to free.
-//!       2. Pick least recently used result and free it
-//!    4. Drop locks of [`LruBackendInner`]
-//! 6. Lock [`LruBackendInner`]
-//! 7. Drop lock of [`LruBackendInner`] and [`ResourcePoolInner`]
+//!       2. Pick least recently used result and create (but not execute) [`ChangeRequest`] that would free it.
+//!    4. For all members that are NOT the source of the operation: Bundle collected [`ChangeRequest`]s into one per
+//!       member, pre-pended with a lock drop. This gives:
+//!       1. Lock [`PolicyBackend`]
+//!       2. Drop lock of [`LruPolicyInner`].
+//!       3. Perform "remove" changes. (This will again acquire a lock on [`LruPolicyInner`] but does NOT result in
+//!          a lock-gap!)
+//!    5. Drop lock of [`LruPolicyInner`] on "source" member
+//! 6. Lock "source"  [`LruPolicyInner`]
+//! 7. Perform bookeeping changes for account for new member.
+//! 8. Drop lock of "source" [`LruPolicyInner`] and [`ResourcePoolInner`]
+//! 9. Let "source" [`PolicyBackend`] play out its change requests.
+//! 10. Drop internal [`PolicyBackend`] lock.
 //!
 //! The global locks in step 5.2 are required so that the reads in step 5.3.1 and the resulting actions in step 5.3.2
-//! are consistent. Otherwise an interleaved `get` request might invalidate the results.
+//! and step 5.4.3 are consistent. Otherwise an interleaved `get` request might invalidate the results.
+//!
+//!
+//! [`GET`]: Subscriber::get
+//! [`SET`]: Subscriber::set
+//! [`REMOVE`]: Subscriber::remove
+//! [`PolicyBackend`]: super::PolicyBackend
 use std::{
     any::Any,
     collections::{btree_map::Entry, BTreeMap},
     fmt::Debug,
     hash::Hash,
-    ops::Deref,
+    marker::PhantomData,
     sync::Arc,
 };
 
@@ -252,11 +280,12 @@ use iox_time::{Time, TimeProvider};
 use metric::{U64Counter, U64Gauge};
 use parking_lot::{Mutex, MutexGuard};
 
-use super::{
+use crate::{
     addressable_heap::AddressableHeap,
     resource_consumption::{Resource, ResourceEstimator},
-    CacheBackend,
 };
+
+use super::{CallbackHandle, ChangeRequest, Subscriber};
 
 #[derive(Debug)]
 /// Wrapper around something that can be converted into `u64`
@@ -379,26 +408,51 @@ where
     }
 
     /// Add used resource too pool.
-    fn add(&mut self, s: S) {
+    ///
+    /// Returns a list of type-erased [`ChangeRequest`]s.
+    fn add(&mut self, s: S, source_member_id: &'static str) -> Vec<Box<dyn Any>> {
         self.current.inc(&s);
+
+        // collect requests to source member to avoid recursive access to their underlying backend
+        let mut requests_to_source = vec![];
 
         if self.current > self.limit {
             // lock all members
-            let mut members: Vec<_> = self.members.values().map(|member| member.lock()).collect();
+            let mut members: Vec<_> = self
+                .members
+                .iter()
+                .map(|(id, member)| (*id, member.lock(), vec![]))
+                .collect();
 
             // evict data until we are below the limit
             while self.current > self.limit {
                 let mut options: Vec<_> = members
                     .iter_mut()
-                    .filter_map(|member| member.could_remove().map(|t| (t, member)))
+                    .filter_map(|(id, member, requests)| {
+                        member.could_remove().map(|t| (t, member, id, requests))
+                    })
                     .collect();
-                options.sort_by_key(|(t, _member)| *t);
+                options.sort_by_key(|(t, _member, _id, _requests)| *t);
 
-                let (_t, member) = options.first_mut().expect("accounting out of sync");
-                let s = member.remove_oldest();
+                let (_t, member, _id, requests) =
+                    options.first_mut().expect("accounting out of sync");
+                let (s, request) = member.remove_oldest();
+
                 self.current.dec(&s);
+                requests.push(request);
+            }
+
+            // submit change requests
+            for (id, member, requests) in members {
+                if id == source_member_id {
+                    requests_to_source = requests;
+                } else {
+                    member.execute_requests(requests);
+                }
             }
         }
+
+        requests_to_source
     }
 
     /// Remove used resource from pool.
@@ -409,7 +463,7 @@ where
 
 /// Resource pool.
 ///
-/// This can be used with [`LruBackend`].
+/// This can be used with [`LruPolicy`].
 #[derive(Debug)]
 pub struct ResourcePool<S>
 where
@@ -446,38 +500,38 @@ where
     }
 }
 
-/// Inner state of [`LruBackend`].
+/// Inner state of [`LruPolicy`].
 ///
-/// This is used by [`LruBackend`] directly but also by [`PoolMemberImpl`] to add it to a [`ResourcePool`]/[`ResourcePoolInner`].
+/// This is used by [`LruPolicy`] directly but also by [`PoolMemberImpl`] to add it to a [`ResourcePool`]/[`ResourcePoolInner`].
 #[derive(Debug)]
-struct LruBackendInner<K, V, S>
+struct LruPolicyInner<K, V, S>
 where
     K: Clone + Eq + Debug + Hash + Ord + Send + 'static,
     V: Clone + Debug + Send + 'static,
     S: Resource,
 {
-    inner_backend: Box<dyn CacheBackend<K = K, V = V>>,
     last_used: AddressableHeap<K, S, Time>,
     metric_count: U64Gauge,
     metric_usage: U64Gauge,
     metric_evicted: U64Counter,
+    _phantom: PhantomData<V>,
 }
 
-/// [Cache backend](CacheBackend) that wraps another backend and limits its resource usage.
+/// Cache policy that wraps another backend and limits its resource usage.
 #[derive(Debug)]
-pub struct LruBackend<K, V, S>
+pub struct LruPolicy<K, V, S>
 where
     K: Clone + Eq + Debug + Hash + Ord + Send + 'static,
     V: Clone + Debug + Send + 'static,
     S: Resource,
 {
     id: &'static str,
-    inner: Arc<Mutex<LruBackendInner<K, V, S>>>,
+    inner: Arc<Mutex<LruPolicyInner<K, V, S>>>,
     pool: Arc<ResourcePool<S>>,
     resource_estimator: Arc<dyn ResourceEstimator<K = K, V = V, S = S>>,
 }
 
-impl<K, V, S> LruBackend<K, V, S>
+impl<K, V, S> LruPolicy<K, V, S>
 where
     K: Clone + Eq + Debug + Hash + Ord + Send + 'static,
     V: Clone + Debug + Send + 'static,
@@ -492,13 +546,10 @@ where
     /// - Panics if the given ID is already used within the given pool.
     /// - If the inner backend is not empty.
     pub fn new(
-        inner_backend: Box<dyn CacheBackend<K = K, V = V>>,
         pool: Arc<ResourcePool<S>>,
         id: &'static str,
         resource_estimator: Arc<dyn ResourceEstimator<K = K, V = V, S = S>>,
-    ) -> Self {
-        assert!(inner_backend.is_empty(), "inner backend is not empty");
-
+    ) -> impl FnOnce(CallbackHandle<K, V>) -> Self {
         let metric_count = pool
             .metric_registry
             .register_metric::<U64Gauge>(
@@ -520,38 +571,37 @@ where
                 "Number of entries that were evicted from a given LRU cache pool member",
             )
             .recorder(&[("pool", pool.name), ("member", id)]);
-        let inner = Arc::new(Mutex::new(LruBackendInner {
-            inner_backend,
-            last_used: AddressableHeap::new(),
-            metric_count,
-            metric_usage,
-            metric_evicted,
-        }));
 
-        pool.inner.lock().register_member(
-            id,
-            Box::new(PoolMemberImpl {
-                inner: Arc::clone(&inner),
-            }),
-        );
+        move |mut callback_handle| {
+            callback_handle.execute_requests(vec![ChangeRequest::ensure_empty()]);
 
-        Self {
-            id,
-            inner,
-            pool,
-            resource_estimator,
-        }
-    }
+            let inner = Arc::new(Mutex::new(LruPolicyInner {
+                last_used: AddressableHeap::new(),
+                metric_count,
+                metric_usage,
+                metric_evicted,
+                _phantom: PhantomData::default(),
+            }));
 
-    /// Get underlying / inner backend.
-    pub fn inner_backend(&self) -> LruBackendInnerBackendHandle<'_, K, V, S> {
-        LruBackendInnerBackendHandle {
-            inner: self.inner.lock(),
+            pool.inner.lock().register_member(
+                id,
+                Box::new(PoolMemberImpl {
+                    inner: Arc::clone(&inner),
+                    callback_handle: Mutex::new(callback_handle),
+                }),
+            );
+
+            Self {
+                id,
+                inner,
+                pool,
+                resource_estimator,
+            }
         }
     }
 }
 
-impl<K, V, S> Drop for LruBackend<K, V, S>
+impl<K, V, S> Drop for LruPolicy<K, V, S>
 where
     K: Clone + Eq + Debug + Hash + Ord + Send + 'static,
     V: Clone + Debug + Send + 'static,
@@ -562,7 +612,7 @@ where
     }
 }
 
-impl<K, V, S> CacheBackend for LruBackend<K, V, S>
+impl<K, V, S> Subscriber for LruPolicy<K, V, S>
 where
     K: Clone + Eq + Debug + Hash + Ord + Send + 'static,
     V: Clone + Debug + Send + 'static,
@@ -571,26 +621,19 @@ where
     type K = K;
     type V = V;
 
-    fn get(&mut self, k: &Self::K) -> Option<Self::V> {
+    fn get(&mut self, k: &Self::K) -> Vec<ChangeRequest<'static, Self::K, Self::V>> {
         let mut inner = self.inner.lock();
 
-        match inner.inner_backend.get(k) {
-            Some(v) => {
-                // update "last used"
-                let now = self.pool.time_provider.now();
-                let (consumption, _last_used) = inner
-                    .last_used
-                    .remove(k)
-                    .expect("backend and last-used table out of sync");
-                inner.last_used.insert(k.clone(), consumption, now);
-
-                Some(v)
-            }
-            None => None,
+        // update "last used"
+        if let Some((consumption, _last_used)) = inner.last_used.remove(k) {
+            let now = self.pool.time_provider.now();
+            inner.last_used.insert(k.clone(), consumption, now);
         }
+
+        vec![]
     }
 
-    fn set(&mut self, k: Self::K, v: Self::V) {
+    fn set(&mut self, k: Self::K, v: Self::V) -> Vec<ChangeRequest<'static, Self::K, Self::V>> {
         // determine all attributes before getting any locks
         let consumption = self.resource_estimator.consumption(&k, &v);
         let now = self.pool.time_provider.now();
@@ -600,7 +643,7 @@ where
 
         // check for oversized entries
         if consumption > pool.limit.v {
-            return;
+            return vec![ChangeRequest::remove(k)];
         }
 
         // maybe clean from pool
@@ -614,35 +657,32 @@ where
         }
 
         // pool-wide operation
-        // Since this may call back to this very backend to remove entries, we MUST NOT hold an inner lock at this point.
-        pool.add(consumption);
+        // Since this may call back to this very backend to remove entries, we MUST NOT hold an inner lock at this
+        // point.
+        let change_requests = pool.add(consumption, self.id);
 
         // add new entry to inner backend AFTER adding it to the pool, so we are never overcommitting resources.
         let mut inner = self.inner.lock();
-        inner.inner_backend.set(k.clone(), v);
         inner.last_used.insert(k, consumption, now);
         inner.metric_count.inc(1);
         inner.metric_usage.inc(consumption.into());
+
+        downcast_change_requests(change_requests)
     }
 
-    fn remove(&mut self, k: &Self::K) {
-        let mut pool = self.pool.inner.lock();
+    fn remove(&mut self, k: &Self::K) -> Vec<ChangeRequest<'static, Self::K, Self::V>> {
         let mut inner = self.inner.lock();
 
-        inner.inner_backend.remove(k);
         if let Some((consumption, _last_used)) = inner.last_used.remove(k) {
+            // only lock pool after we are sure that there is anything to do prevent lock contention
+            let mut pool = self.pool.inner.lock();
+
             pool.remove(consumption);
             inner.metric_count.dec(1);
             inner.metric_usage.dec(consumption.into());
         }
-    }
 
-    fn is_empty(&self) -> bool {
-        self.inner.lock().last_used.is_empty()
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self as &dyn Any
+        vec![]
     }
 }
 
@@ -670,7 +710,8 @@ where
     V: Clone + Debug + Send + 'static,
     S: Resource,
 {
-    inner: Arc<Mutex<LruBackendInner<K, V, S>>>,
+    callback_handle: Mutex<CallbackHandle<K, V>>,
+    inner: Arc<Mutex<LruPolicyInner<K, V, S>>>,
 }
 
 impl<K, V, S> PoolMember for PoolMemberImpl<K, V, S>
@@ -683,7 +724,8 @@ where
 
     fn lock(&self) -> Box<dyn PoolMemberGuard<S = Self::S> + '_> {
         Box::new(PoolMemberGuardImpl {
-            inner: self.inner.lock(),
+            callback_handle: self.callback_handle.lock(),
+            inner: Some(self.inner.lock()),
         })
     }
 }
@@ -700,12 +742,17 @@ trait PoolMemberGuard: Debug {
     /// entry.
     fn could_remove(&self) -> Option<Time>;
 
-    /// Remove oldest entry and return consumption of the removed entry.
+    /// Remove oldest entry and return consumption of the removed entry and an opaque [`ChangeRequest`].
+    ///
+    /// This method is used for pool members that did NOT trigger the removal.
     ///
     /// # Panic
     /// This must only be used if [`could_remove`](Self::could_remove) was used to check if there is anything to check
     /// if there is an entry that could be removed. Panics if this is not the case.
-    fn remove_oldest(&mut self) -> Self::S;
+    fn remove_oldest(&mut self) -> (Self::S, Box<dyn Any>);
+
+    /// Perform opaque [`ChangeRequest`]s on pool member.
+    fn execute_requests(self: Box<Self>, requests: Vec<Box<dyn Any>>);
 }
 
 /// The only implementation of [`PoolMemberGuard`].
@@ -718,7 +765,8 @@ where
     V: Clone + Debug + Send + 'static,
     S: Resource,
 {
-    inner: MutexGuard<'a, LruBackendInner<K, V, S>>,
+    callback_handle: MutexGuard<'a, CallbackHandle<K, V>>,
+    inner: Option<MutexGuard<'a, LruPolicyInner<K, V, S>>>,
 }
 
 impl<'a, K, V, S> PoolMemberGuard for PoolMemberGuardImpl<'a, K, V, S>
@@ -730,41 +778,48 @@ where
     type S = S;
 
     fn could_remove(&self) -> Option<Time> {
-        self.inner.last_used.peek().map(|(_k, _s, t)| *t)
+        let inner = self.inner.as_ref().expect("not yet finalized");
+        inner.last_used.peek().map(|(_k, _s, t)| *t)
     }
 
-    fn remove_oldest(&mut self) -> Self::S {
-        let (k, s, _t) = self.inner.last_used.pop().expect("nothing to remove");
-        self.inner.inner_backend.remove(&k);
-        self.inner.metric_count.dec(1);
-        self.inner.metric_usage.dec(s.into());
-        self.inner.metric_evicted.inc(1);
-        s
+    fn remove_oldest(&mut self) -> (Self::S, Box<dyn Any>) {
+        let inner = self.inner.as_mut().expect("not yet finalized");
+
+        let (k, s, _t) = inner.last_used.pop().expect("nothing to remove");
+        inner.metric_count.dec(1);
+        inner.metric_usage.dec(s.into());
+        inner.metric_evicted.inc(1);
+        (s, Box::new(ChangeRequest::<'static, K, V>::remove(k)))
+    }
+
+    fn execute_requests(mut self: Box<Self>, requests: Vec<Box<dyn Any>>) {
+        let requests = downcast_change_requests::<K, V>(requests);
+        let inner = self.inner.take().expect("not yet finalized");
+
+        let combined = ChangeRequest::from_fn(|backend| {
+            drop(inner);
+
+            for request in requests {
+                request.eval(backend);
+            }
+        });
+
+        self.callback_handle.execute_requests(vec![combined]);
     }
 }
 
-/// Helper for [`LruBackend::inner_backend`].
-#[derive(Debug)]
-pub struct LruBackendInnerBackendHandle<'a, K, V, S>
+fn downcast_change_requests<K, V>(requests: Vec<Box<dyn Any>>) -> Vec<ChangeRequest<'static, K, V>>
 where
-    K: Clone + Eq + Debug + Hash + Ord + Send + 'static,
+    K: Clone + Eq + Hash + Ord + Debug + Send + 'static,
     V: Clone + Debug + Send + 'static,
-    S: Resource,
 {
-    inner: MutexGuard<'a, LruBackendInner<K, V, S>>,
-}
-
-impl<'a, K, V, S> Deref for LruBackendInnerBackendHandle<'a, K, V, S>
-where
-    K: Clone + Eq + Debug + Hash + Ord + Send + 'static,
-    V: Clone + Debug + Send + 'static,
-    S: Resource,
-{
-    type Target = dyn CacheBackend<K = K, V = V>;
-
-    fn deref(&self) -> &Self::Target {
-        self.inner.inner_backend.as_ref()
-    }
+    requests
+        .into_iter()
+        .map(|cr| {
+            *cr.downcast::<ChangeRequest<'static, K, V>>()
+                .expect("Inner change request type")
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -777,6 +832,8 @@ mod tests {
 
     use iox_time::MockProvider;
     use metric::{Observation, RawReporter};
+
+    use crate::backend::{policy::PolicyBackend, CacheBackend};
 
     use super::*;
 
@@ -792,12 +849,16 @@ mod tests {
         ));
         let resource_estimator = Arc::new(TestResourceEstimator {});
 
-        LruBackend::new(
-            Box::new(HashMap::from([(String::from("foo"), 1usize)])),
+        let mut backend = PolicyBackend::new(Box::new(HashMap::new()));
+        let policy_constructor = LruPolicy::new(
             Arc::clone(&pool),
             "id",
             Arc::clone(&resource_estimator) as _,
         );
+        backend.add_policy(|mut callback_handle| {
+            callback_handle.execute_requests(vec![ChangeRequest::set(String::from("foo"), 1usize)]);
+            policy_constructor(callback_handle)
+        })
     }
 
     #[test]
@@ -812,18 +873,19 @@ mod tests {
         ));
         let resource_estimator = Arc::new(TestResourceEstimator {});
 
-        let _backend1 = LruBackend::new(
-            Box::new(HashMap::new()),
+        let mut backend1 = PolicyBackend::new(Box::new(HashMap::new()));
+        backend1.add_policy(LruPolicy::new(
             Arc::clone(&pool),
             "id",
             Arc::clone(&resource_estimator) as _,
-        );
-        let _backend2 = LruBackend::new(
-            Box::new(HashMap::new()),
+        ));
+
+        let mut backend2 = PolicyBackend::new(Box::new(HashMap::new()));
+        backend2.add_policy(LruPolicy::new(
             Arc::clone(&pool),
             "id",
             Arc::clone(&resource_estimator) as _,
-        );
+        ));
     }
 
     #[test]
@@ -837,21 +899,21 @@ mod tests {
         ));
         let resource_estimator = Arc::new(TestResourceEstimator {});
 
-        let backend1 = LruBackend::new(
-            Box::new(HashMap::new()),
+        let mut backend1 = PolicyBackend::new(Box::new(HashMap::new()));
+        backend1.add_policy(LruPolicy::new(
             Arc::clone(&pool),
             "id",
             Arc::clone(&resource_estimator) as _,
-        );
+        ));
 
         // drop the backend so re-registering the same ID ("id") MUST NOT panic
         drop(backend1);
-        let _backend2 = LruBackend::new(
-            Box::new(HashMap::new()),
+        let mut backend2 = PolicyBackend::new(Box::new(HashMap::new()));
+        backend2.add_policy(LruPolicy::new(
             Arc::clone(&pool),
             "id",
             Arc::clone(&resource_estimator) as _,
-        );
+        ));
     }
 
     #[test]
@@ -867,12 +929,12 @@ mod tests {
 
         assert_eq!(pool.current().0, 0);
 
-        let _backend = LruBackend::new(
-            Box::new(HashMap::new()),
+        let mut backend = PolicyBackend::new(Box::new(HashMap::new()));
+        backend.add_policy(LruPolicy::new(
             Arc::clone(&pool),
             "id1",
             Arc::clone(&resource_estimator) as _,
-        );
+        ));
 
         assert_eq!(pool.current().0, 0);
     }
@@ -888,12 +950,12 @@ mod tests {
         ));
         let resource_estimator = Arc::new(TestResourceEstimator {});
 
-        let mut backend = LruBackend::new(
-            Box::new(HashMap::new()),
+        let mut backend = PolicyBackend::new(Box::new(HashMap::new()));
+        backend.add_policy(LruPolicy::new(
             Arc::clone(&pool),
             "id1",
             Arc::clone(&resource_estimator) as _,
-        );
+        ));
 
         backend.set(String::from("a"), 5usize);
         assert_eq!(pool.current().0, 5);
@@ -916,12 +978,12 @@ mod tests {
         ));
         let resource_estimator = Arc::new(TestResourceEstimator {});
 
-        let mut backend = LruBackend::new(
-            Box::new(HashMap::new()),
+        let mut backend = PolicyBackend::new(Box::new(HashMap::new()));
+        backend.add_policy(LruPolicy::new(
             Arc::clone(&pool),
             "id1",
             Arc::clone(&resource_estimator) as _,
-        );
+        ));
 
         backend.set(String::from("a"), 5usize);
         assert_eq!(pool.current().0, 5);
@@ -933,7 +995,7 @@ mod tests {
         assert_eq!(pool.current().0, 3);
 
         assert_eq!(backend.get(&String::from("a")), None);
-        assert_inner_backend(&backend, [(String::from("b"), 3)]);
+        assert_inner_backend(&mut backend, [(String::from("b"), 3)]);
 
         // removing it again should just work
         backend.remove(&String::from("a"));
@@ -951,18 +1013,19 @@ mod tests {
         ));
         let resource_estimator = Arc::new(TestResourceEstimator {});
 
-        let mut backend1 = LruBackend::new(
-            Box::new(HashMap::new()),
+        let mut backend1 = PolicyBackend::new(Box::new(HashMap::new()));
+        backend1.add_policy(LruPolicy::new(
             Arc::clone(&pool),
             "id1",
             Arc::clone(&resource_estimator) as _,
-        );
-        let mut backend2 = LruBackend::new(
-            Box::new(HashMap::new()),
+        ));
+
+        let mut backend2 = PolicyBackend::new(Box::new(HashMap::new()));
+        backend2.add_policy(LruPolicy::new(
             Arc::clone(&pool),
             "id2",
             Arc::clone(&resource_estimator) as _,
-        );
+        ));
 
         backend1.set(String::from("b"), 1usize);
         backend2.set(String::from("a"), 2usize);
@@ -983,7 +1046,7 @@ mod tests {
 
         // now are exactly at capacity
         assert_inner_backend(
-            &backend1,
+            &mut backend1,
             [
                 (String::from("a"), 3),
                 (String::from("b"), 1),
@@ -991,13 +1054,16 @@ mod tests {
                 (String::from("d"), 5),
             ],
         );
-        assert_inner_backend(&backend2, [(String::from("a"), 2), (String::from("b"), 6)]);
+        assert_inner_backend(
+            &mut backend2,
+            [(String::from("a"), 2), (String::from("b"), 6)],
+        );
 
         // adding a single element will drop the smallest key from the first backend (by ID)
         backend1.set(String::from("foo1"), 1usize);
         assert_eq!(pool.current().0, 19);
         assert_inner_backend(
-            &backend1,
+            &mut backend1,
             [
                 (String::from("b"), 1),
                 (String::from("c"), 4),
@@ -1005,13 +1071,16 @@ mod tests {
                 (String::from("foo1"), 1),
             ],
         );
-        assert_inner_backend(&backend2, [(String::from("a"), 2), (String::from("b"), 6)]);
+        assert_inner_backend(
+            &mut backend2,
+            [(String::from("a"), 2), (String::from("b"), 6)],
+        );
 
         // now we can fill up data up to the capacity again
         backend1.set(String::from("foo2"), 2usize);
         assert_eq!(pool.current().0, 21);
         assert_inner_backend(
-            &backend1,
+            &mut backend1,
             [
                 (String::from("b"), 1),
                 (String::from("c"), 4),
@@ -1020,13 +1089,16 @@ mod tests {
                 (String::from("foo2"), 2),
             ],
         );
-        assert_inner_backend(&backend2, [(String::from("a"), 2), (String::from("b"), 6)]);
+        assert_inner_backend(
+            &mut backend2,
+            [(String::from("a"), 2), (String::from("b"), 6)],
+        );
 
         // can evict two keys at the same time
         backend1.set(String::from("foo3"), 2usize);
         assert_eq!(pool.current().0, 18);
         assert_inner_backend(
-            &backend1,
+            &mut backend1,
             [
                 (String::from("d"), 5),
                 (String::from("foo1"), 1),
@@ -1034,13 +1106,16 @@ mod tests {
                 (String::from("foo3"), 2),
             ],
         );
-        assert_inner_backend(&backend2, [(String::from("a"), 2), (String::from("b"), 6)]);
+        assert_inner_backend(
+            &mut backend2,
+            [(String::from("a"), 2), (String::from("b"), 6)],
+        );
 
         // can evict from another backend
         backend1.set(String::from("foo4"), 4usize);
         assert_eq!(pool.current().0, 20);
         assert_inner_backend(
-            &backend1,
+            &mut backend1,
             [
                 (String::from("d"), 5),
                 (String::from("foo1"), 1),
@@ -1049,13 +1124,13 @@ mod tests {
                 (String::from("foo4"), 4),
             ],
         );
-        assert_inner_backend(&backend2, [(String::from("b"), 6)]);
+        assert_inner_backend(&mut backend2, [(String::from("b"), 6)]);
 
         // can evict multiple timestamps
         backend1.set(String::from("foo5"), 7usize);
         assert_eq!(pool.current().0, 16);
         assert_inner_backend(
-            &backend1,
+            &mut backend1,
             [
                 (String::from("foo1"), 1),
                 (String::from("foo2"), 2),
@@ -1064,7 +1139,7 @@ mod tests {
                 (String::from("foo5"), 7),
             ],
         );
-        assert_inner_backend(&backend2, []);
+        assert_inner_backend(&mut backend2, []);
     }
 
     #[test]
@@ -1078,12 +1153,12 @@ mod tests {
         ));
         let resource_estimator = Arc::new(TestResourceEstimator {});
 
-        let mut backend = LruBackend::new(
-            Box::new(HashMap::new()),
+        let mut backend = PolicyBackend::new(Box::new(HashMap::new()));
+        backend.add_policy(LruPolicy::new(
             Arc::clone(&pool),
             "id1",
             Arc::clone(&resource_estimator) as _,
-        );
+        ));
 
         backend.set(String::from("a"), 1usize);
         backend.set(String::from("b"), 2usize);
@@ -1098,7 +1173,7 @@ mod tests {
 
         assert_eq!(pool.current().0, 6);
         assert_inner_backend(
-            &backend,
+            &mut backend,
             [
                 (String::from("a"), 1),
                 (String::from("b"), 2),
@@ -1108,57 +1183,36 @@ mod tests {
 
         backend.set(String::from("foo"), 3usize);
         assert_eq!(pool.current().0, 4);
-        assert_inner_backend(&backend, [(String::from("a"), 1), (String::from("foo"), 3)]);
+        assert_inner_backend(
+            &mut backend,
+            [(String::from("a"), 1), (String::from("foo"), 3)],
+        );
     }
 
     #[test]
-    fn test_oversized_entries_are_never_added() {
-        #[derive(Debug)]
-        struct PanicAllBackend {}
-
-        impl CacheBackend for PanicAllBackend {
-            type K = String;
-            type V = usize;
-
-            fn get(&mut self, _k: &Self::K) -> Option<Self::V> {
-                panic!("should never be called")
-            }
-
-            fn set(&mut self, _k: Self::K, _v: Self::V) {
-                panic!("should never be called")
-            }
-
-            fn remove(&mut self, _k: &Self::K) {
-                panic!("should never be called")
-            }
-
-            fn is_empty(&self) -> bool {
-                true
-            }
-
-            fn as_any(&self) -> &dyn Any {
-                self as &dyn Any
-            }
-        }
-
+    fn test_oversized_entries() {
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let pool = Arc::new(ResourcePool::new(
             "pool",
-            TestSize(1),
+            TestSize(10),
             Arc::clone(&time_provider) as _,
             Arc::new(metric::Registry::new()),
         ));
         let resource_estimator = Arc::new(TestResourceEstimator {});
 
-        let mut backend = LruBackend::new(
-            Box::new(PanicAllBackend {}),
+        let mut backend = PolicyBackend::new(Box::new(HashMap::new()));
+        backend.add_policy(LruPolicy::new(
             Arc::clone(&pool),
             "id1",
             Arc::clone(&resource_estimator) as _,
-        );
+        ));
 
-        backend.set(String::from("a"), 2usize);
-        assert_eq!(pool.current().0, 0);
+        backend.set(String::from("a"), 1usize);
+        backend.set(String::from("b"), 11usize);
+
+        // "a" did NOT get evicted. Instead we removed the oversized entry straight away.
+        assert_eq!(pool.current().0, 1);
+        assert_inner_backend(&mut backend, [(String::from("a"), 1)]);
     }
 
     #[test]
@@ -1186,12 +1240,12 @@ mod tests {
 
         let resource_estimator = Arc::new(Provider {});
 
-        let mut backend = LruBackend::new(
-            Box::new(HashMap::new()),
+        let mut backend = PolicyBackend::new(Box::new(HashMap::new()));
+        backend.add_policy(LruPolicy::new(
             Arc::clone(&pool),
             "id1",
             Arc::clone(&resource_estimator) as _,
-        );
+        ));
 
         let k1 = Arc::new(String::from("a"));
         let v1 = Arc::new(2usize);
@@ -1257,15 +1311,15 @@ mod tests {
         let marker = Arc::new(());
         let marker_weak = Arc::downgrade(&marker);
 
-        let mut backend = LruBackend::new(
-            Box::new(Backend {
-                marker,
-                inner: HashMap::new(),
-            }),
+        let mut backend = PolicyBackend::new(Box::new(Backend {
+            marker,
+            inner: HashMap::new(),
+        }));
+        backend.add_policy(LruPolicy::new(
             Arc::clone(&pool),
             "id1",
             Arc::clone(&resource_estimator) as _,
-        );
+        ));
         backend.set(String::from("a"), 2usize);
 
         drop(backend);
@@ -1303,12 +1357,12 @@ mod tests {
             &Observation::U64Gauge(0)
         );
 
-        let mut backend = LruBackend::new(
-            Box::new(HashMap::new()),
+        let mut backend = PolicyBackend::new(Box::new(HashMap::new()));
+        backend.add_policy(LruPolicy::new(
             Arc::clone(&pool),
             "id",
             Arc::clone(&resource_estimator) as _,
-        );
+        ));
 
         let mut reporter = RawReporter::default();
         metric_registry.report(&mut reporter);
@@ -1405,7 +1459,7 @@ mod tests {
     }
 
     #[test]
-    fn test_generic() {
+    fn test_generic_backend() {
         use crate::backend::test_util::test_generic;
 
         #[derive(Debug)]
@@ -1431,12 +1485,13 @@ mod tests {
             ));
             let resource_estimator = Arc::new(ZeroSizeProvider {});
 
-            LruBackend::new(
-                Box::new(HashMap::new()),
+            let mut backend = PolicyBackend::new(Box::new(HashMap::new()));
+            backend.add_policy(LruPolicy::new(
                 Arc::clone(&pool),
                 "id",
                 Arc::clone(&resource_estimator) as _,
-            )
+            ));
+            backend
         });
     }
 
@@ -1489,10 +1544,10 @@ mod tests {
     }
 
     fn assert_inner_backend<const N: usize>(
-        backend: &LruBackend<String, usize, TestSize>,
+        backend: &mut PolicyBackend<String, usize>,
         data: [(String, usize); N],
     ) {
-        let inner_backend = backend.inner_backend();
+        let inner_backend = backend.inner_ref();
         let inner_backend = inner_backend
             .as_any()
             .downcast_ref::<HashMap<String, usize>>()

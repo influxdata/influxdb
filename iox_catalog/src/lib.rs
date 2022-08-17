@@ -1,5 +1,5 @@
-//! The IOx catalog which keeps track of what namespaces, tables, columns, parquet files,
-//! and deletes are in the system. Configuration information for distributing ingest, query
+//! The IOx catalog keeps track of the namespaces, tables, columns, parquet files,
+//! and deletes in the system. Configuration information for distributing ingest, query
 //! and compaction is also stored here.
 #![warn(
     missing_copy_implementations,
@@ -18,6 +18,7 @@ use data_types::{
 };
 use mutable_batch::MutableBatch;
 use std::{borrow::Cow, collections::BTreeMap};
+use thiserror::Error;
 
 const SHARED_KAFKA_TOPIC: &str = "iox-shared";
 const SHARED_QUERY_POOL: &str = SHARED_KAFKA_TOPIC;
@@ -31,6 +32,28 @@ pub mod mem;
 pub mod metrics;
 pub mod postgres;
 
+/// An [`crate::interface::Error`] scoped to a single table for schema validation errors.
+#[derive(Debug, Error)]
+#[error("table {}, {}", .0, .1)]
+pub struct TableScopedError(String, Error);
+
+impl TableScopedError {
+    /// Return the table name for this error.
+    pub fn table(&self) -> &str {
+        &self.0
+    }
+
+    /// Return a reference to the error.
+    pub fn err(&self) -> &Error {
+        &self.1
+    }
+
+    /// Return ownership of the error, discarding the table name.
+    pub fn into_err(self) -> Error {
+        self.1
+    }
+}
+
 /// Given an iterator of `(table_name, batch)` to validate, this function
 /// ensures all the columns within `batch` match the existing schema for
 /// `table_name` in `schema`. If the column does not already exist in `schema`,
@@ -43,7 +66,7 @@ pub async fn validate_or_insert_schema<'a, T, U, R>(
     tables: T,
     schema: &NamespaceSchema,
     repos: &mut R,
-) -> Result<Option<NamespaceSchema>>
+) -> Result<Option<NamespaceSchema>, TableScopedError>
 where
     T: IntoIterator<IntoIter = U, Item = (&'a str, &'a MutableBatch)> + Send + Sync,
     U: Iterator<Item = T::Item> + Send,
@@ -55,7 +78,9 @@ where
     let mut schema = Cow::Borrowed(schema);
 
     for (table_name, batch) in tables {
-        validate_mutable_batch(batch, table_name, &mut schema, repos).await?;
+        validate_mutable_batch(batch, table_name, &mut schema, repos)
+            .await
+            .map_err(|e| TableScopedError(table_name.to_string(), e))?;
     }
 
     match schema {
@@ -258,7 +283,7 @@ mod tests {
                                 .await;
 
                             match got {
-                                Err(Error::ColumnTypeMismatch{ .. }) => {
+                                Err(TableScopedError(_, Error::ColumnTypeMismatch{ .. })) => {
                                     observed_conflict = true;
                                     schema
                                 },

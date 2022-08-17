@@ -16,7 +16,7 @@ uuid = { version = "1", features = ["v4"] }
 
 [dev-dependencies] # In alphabetical order
 mockito = "0.31"
-once_cell = { version = "1.13.0", features = ["parking_lot"] }
+once_cell = { version = "1.13.1", features = ["parking_lot"] }
 parking_lot = "0.12"
 tokio = { version = "1.20", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
 test_helpers = { path = "../test_helpers" }

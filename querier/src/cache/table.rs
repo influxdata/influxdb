@@ -2,13 +2,14 @@
 
 use backoff::{Backoff, BackoffConfig};
 use cache_system::{
-    backend::{
-        lru::{LruBackend, ResourcePool},
-        resource_consumption::FunctionEstimator,
-        ttl::{OptionalValueTtlProvider, TtlBackend},
+    backend::policy::{
+        lru::{LruPolicy, ResourcePool},
+        ttl::{OptionalValueTtlProvider, TtlPolicy},
+        PolicyBackend,
     },
     cache::{driver::CacheDriver, metrics::CacheWithMetrics, Cache},
     loader::{metrics::MetricsLoader, FunctionLoader},
+    resource_consumption::FunctionEstimator,
 };
 use data_types::{NamespaceId, Table, TableId};
 use iox_catalog::interface::Catalog;
@@ -76,17 +77,14 @@ impl TableCache {
             testing,
         ));
 
-        let backend = Box::new(TtlBackend::new(
-            Box::new(HashMap::new()),
+        let mut backend = PolicyBackend::new(Box::new(HashMap::new()));
+        backend.add_policy(TtlPolicy::new(
             Arc::new(OptionalValueTtlProvider::new(Some(TTL_NON_EXISTING), None)),
             Arc::clone(&time_provider),
             CACHE_ID,
             metric_registry,
         ));
-
-        // add to memory pool
-        let backend = Box::new(LruBackend::new(
-            backend,
+        backend.add_policy(LruPolicy::new(
             Arc::clone(&ram_pool),
             CACHE_ID,
             Arc::new(FunctionEstimator::new(|k, v: &Option<Arc<CachedTable>>| {
@@ -98,7 +96,7 @@ impl TableCache {
             })),
         ));
 
-        let cache = Box::new(CacheDriver::new(loader, backend));
+        let cache = Box::new(CacheDriver::new(loader, Box::new(backend)));
         let cache = Box::new(CacheWithMetrics::new(
             cache,
             CACHE_ID,
