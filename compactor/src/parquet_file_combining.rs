@@ -3,10 +3,10 @@ use crate::{
     query::QueryableParquetChunk,
 };
 use data_types::{
-    CompactionLevel, ParquetFile, ParquetFileId, ParquetFileParams, PartitionId, TableSchema,
-    TimestampMinMax,
+    CompactionLevel, ParquetFile, ParquetFileId, ParquetFileParams, PartitionId, SequenceNumber,
+    TableSchema, TimestampMinMax,
 };
-use datafusion::error::DataFusionError;
+use datafusion::{error::DataFusionError, logical_plan::LogicalPlan};
 use futures::{stream::FuturesOrdered, StreamExt, TryStreamExt};
 use iox_catalog::interface::Catalog;
 use iox_query::{
@@ -235,112 +235,18 @@ pub(crate) async fn compact_parquet_files(
         }
     };
 
-    let ctx = exec.new_context(ExecutorType::Reorg);
-    let physical_plan = ctx
-        .create_physical_plan(&plan)
-        .await
-        .context(CompactPhysicalPlanSnafu)?;
-
-    // Run to collect each stream of the plan
-    let stream_count = physical_plan.output_partitioning().partition_count();
-
-    debug!("running plan with {} streams", stream_count);
-
-    // These streams *must* to run in parallel otherwise a deadlock
-    // can occur. Since there is a merge in the plan, in order to make
-    // progress on one stream there must be (potential space) on the
-    // other streams.
-    //
-    // https://github.com/influxdata/influxdb_iox/issues/4306
-    // https://github.com/influxdata/influxdb_iox/issues/4324
-    let compacted_parquet_files = (0..stream_count)
-        .map(|i| {
-            // Prepare variables to pass to the closure
-            let ctx = exec.new_context(ExecutorType::Reorg);
-            let physical_plan = Arc::clone(&physical_plan);
-            let store = store.clone();
-            let time_provider = Arc::clone(&time_provider);
-            let sort_key = sort_key.clone();
-            let partition = Arc::clone(&partition);
-            // run as a separate tokio task so files can be written
-            // concurrently.
-            tokio::task::spawn(async move {
-                trace!(partition = i, "executing datafusion partition");
-                let data = ctx
-                    .execute_stream_partitioned(physical_plan, i)
-                    .await
-                    .context(ExecuteCompactPlanSnafu)?;
-                trace!(partition = i, "built result stream for partition");
-
-                let meta = IoxMetadata {
-                    object_store_id: Uuid::new_v4(),
-                    creation_timestamp: time_provider.now(),
-                    shard_id: partition.shard_id(),
-                    namespace_id: partition.namespace_id(),
-                    namespace_name: partition.namespace.name.clone().into(),
-                    table_id: partition.table.id,
-                    table_name: partition.table.name.clone().into(),
-                    partition_id,
-                    partition_key: partition.partition_key.clone(),
-                    max_sequence_number,
-                    compaction_level: CompactionLevel::FileNonOverlapped,
-                    sort_key: Some(sort_key.clone()),
-                };
-
-                debug!(
-                    ?partition_id,
-                    "executing and uploading compaction StreamSplitExec"
-                );
-
-                let object_store_id = meta.object_store_id;
-                info!(?partition_id, %object_store_id, "streaming exec to object store");
-
-                // Stream the record batches from the compaction exec, serialize
-                // them, and directly upload the resulting Parquet files to
-                // object storage.
-                let (parquet_meta, file_size) = match store.upload(data, &meta).await {
-                    Ok(v) => v,
-                    Err(UploadError::Serialise(CodecError::NoRows)) => {
-                        // This MAY be a bug.
-                        //
-                        // This also may happen legitimately, though very, very
-                        // rarely. See test_empty_parquet_file_panic for an
-                        // explanation.
-                        warn!(
-                            ?partition_id,
-                            %object_store_id,
-                            "SplitExec produced an empty result stream"
-                        );
-                        return Ok(None);
-                    }
-                    Err(e) => return Err(Error::Persist { source: e }),
-                };
-
-                debug!(?partition_id, %object_store_id, "file uploaded to object store");
-
-                let parquet_file =
-                    meta.to_parquet_file(partition_id, file_size, &parquet_meta, |name| {
-                        partition
-                            .table_schema
-                            .columns
-                            .get(name)
-                            .expect("unknown column")
-                            .id
-                    });
-
-                Ok(Some(parquet_file))
-            })
-        })
-        // NB: FuturesOrdered allows the futures to run in parallel
-        .collect::<FuturesOrdered<_>>()
-        // Check for errors in the task
-        .map(|t| t.context(ExecuteParquetTaskSnafu)?)
-        // Discard the streams that resulted in empty output / no file uploaded
-        // to the object store.
-        .try_filter_map(|v| future::ready(Ok(v)))
-        // Collect all the persisted parquet files together.
-        .try_collect::<Vec<_>>()
-        .await?;
+    let compacted_parquet_files = compact_with_plan(
+        store,
+        exec,
+        time_provider,
+        plan,
+        sort_key,
+        Arc::clone(&partition),
+        partition_id,
+        max_sequence_number,
+        CompactionLevel::FileNonOverlapped,
+    )
+    .await?;
 
     update_catalog(
         catalog,
@@ -449,6 +355,45 @@ pub(crate) async fn compact_final_no_splits(
         .compact_plan(Arc::clone(&merged_schema), query_chunks, sort_key.clone())
         .context(CompactLogicalPlanSnafu)?;
 
+    let compacted_parquet_files = compact_with_plan(
+        store,
+        exec,
+        time_provider,
+        plan,
+        sort_key,
+        Arc::clone(&partition),
+        partition_id,
+        max_sequence_number,
+        CompactionLevel::Final,
+    )
+    .await?;
+
+    update_catalog(
+        catalog,
+        partition_id,
+        compacted_parquet_files,
+        &original_parquet_file_ids,
+    )
+    .await
+    .context(CatalogSnafu { partition_id })?;
+
+    info!(?partition_id, "compaction complete");
+
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn compact_with_plan(
+    store: ParquetStorage,
+    exec: Arc<Executor>,
+    time_provider: Arc<dyn TimeProvider>,
+    plan: LogicalPlan,
+    sort_key: SortKey,
+    partition: Arc<PartitionCompactionCandidateWithInfo>,
+    partition_id: PartitionId,
+    max_sequence_number: SequenceNumber,
+    compaction_level: CompactionLevel,
+) -> Result<Vec<ParquetFileParams>, Error> {
     let ctx = exec.new_context(ExecutorType::Reorg);
     let physical_plan = ctx
         .create_physical_plan(&plan)
@@ -467,7 +412,7 @@ pub(crate) async fn compact_final_no_splits(
     //
     // https://github.com/influxdata/influxdb_iox/issues/4306
     // https://github.com/influxdata/influxdb_iox/issues/4324
-    let compacted_parquet_files = (0..stream_count)
+    (0..stream_count)
         .map(|i| {
             // Prepare variables to pass to the closure
             let ctx = exec.new_context(ExecutorType::Reorg);
@@ -497,7 +442,7 @@ pub(crate) async fn compact_final_no_splits(
                     partition_id,
                     partition_key: partition.partition_key.clone(),
                     max_sequence_number,
-                    compaction_level: CompactionLevel::Final,
+                    compaction_level,
                     sort_key: Some(sort_key.clone()),
                 };
 
@@ -512,8 +457,23 @@ pub(crate) async fn compact_final_no_splits(
                 // Stream the record batches from the compaction exec, serialize
                 // them, and directly upload the resulting Parquet files to
                 // object storage.
-                let (parquet_meta, file_size) =
-                    store.upload(data, &meta).await.context(PersistSnafu)?;
+                let (parquet_meta, file_size) = match store.upload(data, &meta).await {
+                    Ok(v) => v,
+                    Err(UploadError::Serialise(CodecError::NoRows)) => {
+                        // This MAY be a bug.
+                        //
+                        // This also may happen legitimately, though very, very
+                        // rarely. See test_empty_parquet_file_panic for an
+                        // explanation.
+                        warn!(
+                            ?partition_id,
+                            %object_store_id,
+                            "SplitExec produced an empty result stream"
+                        );
+                        return Ok(None);
+                    }
+                    Err(e) => return Err(Error::Persist { source: e }),
+                };
 
                 debug!(?partition_id, %object_store_id, "file uploaded to object store");
 
@@ -527,28 +487,19 @@ pub(crate) async fn compact_final_no_splits(
                             .id
                     });
 
-                Ok(parquet_file)
+                Ok(Some(parquet_file))
             })
         })
         // NB: FuturesOrdered allows the futures to run in parallel
         .collect::<FuturesOrdered<_>>()
         // Check for errors in the task
         .map(|t| t.context(ExecuteParquetTaskSnafu)?)
+        // Discard the streams that resulted in empty output / no file uploaded
+        // to the object store.
+        .try_filter_map(|v| future::ready(Ok(v)))
+        // Collect all the persisted parquet files together.
         .try_collect::<Vec<_>>()
-        .await?;
-
-    update_catalog(
-        catalog,
-        partition_id,
-        compacted_parquet_files,
-        &original_parquet_file_ids,
-    )
-    .await
-    .context(CatalogSnafu { partition_id })?;
-
-    info!(?partition_id, "compaction complete");
-
-    Ok(())
+        .await
 }
 
 /// Convert ParquetFile to a QueryableParquetChunk
