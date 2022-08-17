@@ -157,6 +157,7 @@ impl IngestHandlerImpl {
             sequencers,
             exec,
             BackoffConfig::default(),
+            Arc::clone(&metric_registry),
         ));
 
         let ingester_data = Arc::clone(&data);

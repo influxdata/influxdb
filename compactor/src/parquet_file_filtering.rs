@@ -3,7 +3,7 @@
 
 use crate::parquet_file_lookup::ParquetFilesForCompaction;
 use data_types::ParquetFile;
-use metric::{Attributes, Metric, U64Gauge};
+use metric::{Attributes, Metric, U64Gauge, U64Histogram};
 use observability_deps::tracing::*;
 
 /// Given a list of hot level 0 files sorted by max sequence number and a list of level 1 files for
@@ -28,8 +28,8 @@ pub(crate) fn filter_hot_parquet_files(
     input_file_count_threshold: usize,
     // Gauge for the number of Parquet file candidates
     parquet_file_candidate_gauge: &Metric<U64Gauge>,
-    // Gauge for the number of bytes of Parquet file candidates
-    parquet_file_candidate_bytes_gauge: &Metric<U64Gauge>,
+    // Histogram for the number of bytes of Parquet file candidates
+    parquet_file_candidate_bytes: &Metric<U64Histogram>,
 ) -> Vec<ParquetFile> {
     let ParquetFilesForCompaction {
         level_0,
@@ -118,9 +118,15 @@ pub(crate) fn filter_hot_parquet_files(
         num_level_1_compacting as u64,
     );
     record_byte_metrics(
-        parquet_file_candidate_bytes_gauge,
-        total_level_0_bytes as u64,
-        total_level_1_bytes as u64,
+        parquet_file_candidate_bytes,
+        level_0_to_return
+            .iter()
+            .map(|pf| pf.file_size_bytes as u64)
+            .collect(),
+        files_to_return
+            .iter()
+            .map(|pf| pf.file_size_bytes as u64)
+            .collect(),
     );
 
     // Return the level 1 files first, followed by the level 0 files assuming we've maintained
@@ -148,8 +154,8 @@ pub(crate) fn filter_cold_parquet_files(
     max_bytes: u64,
     // Gauge for the number of Parquet file candidates
     parquet_file_candidate_gauge: &Metric<U64Gauge>,
-    // Gauge for the number of bytes of Parquet file candidates
-    parquet_file_candidate_bytes_gauge: &Metric<U64Gauge>,
+    // Histogram for the number of bytes of Parquet file candidates
+    parquet_file_candidate_bytes: &Metric<U64Histogram>,
 ) -> Vec<ParquetFile> {
     let ParquetFilesForCompaction {
         level_0,
@@ -231,9 +237,15 @@ pub(crate) fn filter_cold_parquet_files(
         num_level_1_compacting as u64,
     );
     record_byte_metrics(
-        parquet_file_candidate_bytes_gauge,
-        total_level_0_bytes as u64,
-        total_level_1_bytes as u64,
+        parquet_file_candidate_bytes,
+        level_0_to_return
+            .iter()
+            .map(|pf| pf.file_size_bytes as u64)
+            .collect(),
+        files_to_return
+            .iter()
+            .map(|pf| pf.file_size_bytes as u64)
+            .collect(),
     );
 
     // Return the level 1 files first, followed by the level 0 files assuming we've maintained
@@ -284,17 +296,21 @@ fn record_file_metrics(
 }
 
 fn record_byte_metrics(
-    gauge: &Metric<U64Gauge>,
-    total_level_0_bytes: u64,
-    total_level_1_bytes: u64,
+    histogram: &Metric<U64Histogram>,
+    level_0_sizes: Vec<u64>,
+    level_1_sizes: Vec<u64>,
 ) {
     let attributes = Attributes::from(&[("compaction_level", "0")]);
-    let recorder = gauge.recorder(attributes);
-    recorder.set(total_level_0_bytes);
+    let recorder = histogram.recorder(attributes);
+    for size in level_0_sizes {
+        recorder.record(size);
+    }
 
     let attributes = Attributes::from(&[("compaction_level", "1")]);
-    let recorder = gauge.recorder(attributes);
-    recorder.set(total_level_1_bytes);
+    let recorder = histogram.recorder(attributes);
+    for size in level_1_sizes {
+        recorder.record(size);
+    }
 }
 
 #[cfg(test)]
@@ -304,8 +320,12 @@ mod tests {
         ColumnSet, CompactionLevel, NamespaceId, ParquetFileId, PartitionId, SequenceNumber,
         SequencerId, TableId, Timestamp,
     };
+    use metric::{ObservationBucket, U64HistogramOptions};
     use std::sync::Arc;
     use uuid::Uuid;
+
+    const BUCKET_500_KB: u64 = 500 * 1024;
+    const BUCKET_1_MB: u64 = 1024 * 1024;
 
     #[test]
     fn test_overlaps_in_time() {
@@ -359,7 +379,7 @@ mod tests {
         );
     }
 
-    fn metrics() -> (Metric<U64Gauge>, Metric<U64Gauge>) {
+    fn metrics() -> (Metric<U64Gauge>, Metric<U64Histogram>) {
         let registry = Arc::new(metric::Registry::new());
 
         let parquet_file_candidate_gauge = registry.register_metric(
@@ -367,15 +387,22 @@ mod tests {
             "Number of Parquet file candidates",
         );
 
-        let parquet_file_candidate_bytes_gauge = registry.register_metric(
+        let parquet_file_candidate_bytes = registry.register_metric_with_options(
             "parquet_file_candidate_bytes",
             "Number of bytes of Parquet file candidates",
+            || {
+                U64HistogramOptions::new([
+                    BUCKET_500_KB,    // 500 KB
+                    BUCKET_1_MB,      // 1 MB
+                    3 * 1024 * 1024,  // 3 MB
+                    10 * 1024 * 1024, // 10 MB
+                    30 * 1024 * 1024, // 30 MB
+                    u64::MAX,         // Inf
+                ])
+            },
         );
 
-        (
-            parquet_file_candidate_gauge,
-            parquet_file_candidate_bytes_gauge,
-        )
+        (parquet_file_candidate_gauge, parquet_file_candidate_bytes)
     }
 
     mod hot {
@@ -552,7 +579,7 @@ mod tests {
                         .id(106)
                         .min_time(340)
                         .max_time(360)
-                        .file_size_bytes(10)
+                        .file_size_bytes(BUCKET_500_KB as i64 + 1) // exercise metrics
                         .build(),
                     // Does not overlap any level 0, times are too late
                     ParquetFileBuilder::level_1()
@@ -589,8 +616,10 @@ mod tests {
             assert_eq!(
                 extract_byte_metrics(&bytes_metric),
                 ExtractedByteMetrics {
-                    level_0: 10,
-                    level_1: 20,
+                    level_0_sample_count: 1,
+                    level_0_buckets_with_counts: vec![(BUCKET_500_KB, 1)],
+                    level_1_sample_count: 2,
+                    level_1_buckets_with_counts: vec![(BUCKET_500_KB, 2)],
                 }
             );
 
@@ -619,8 +648,10 @@ mod tests {
             assert_eq!(
                 extract_byte_metrics(&bytes_metric),
                 ExtractedByteMetrics {
-                    level_0: 20,
-                    level_1: 40,
+                    level_0_sample_count: 2,
+                    level_0_buckets_with_counts: vec![(BUCKET_500_KB, 2)],
+                    level_1_sample_count: 4,
+                    level_1_buckets_with_counts: vec![(BUCKET_500_KB, 4)],
                 }
             );
 
@@ -649,8 +680,10 @@ mod tests {
             assert_eq!(
                 extract_byte_metrics(&bytes_metric),
                 ExtractedByteMetrics {
-                    level_0: 20,
-                    level_1: 40,
+                    level_0_sample_count: 2,
+                    level_0_buckets_with_counts: vec![(BUCKET_500_KB, 2)],
+                    level_1_sample_count: 4,
+                    level_1_buckets_with_counts: vec![(BUCKET_500_KB, 4)],
                 }
             );
 
@@ -678,8 +711,10 @@ mod tests {
             assert_eq!(
                 extract_byte_metrics(&bytes_metric),
                 ExtractedByteMetrics {
-                    level_0: 30,
-                    level_1: 50,
+                    level_0_sample_count: 3,
+                    level_0_buckets_with_counts: vec![(BUCKET_500_KB, 3)],
+                    level_1_sample_count: 5,
+                    level_1_buckets_with_counts: vec![(BUCKET_500_KB, 4), (BUCKET_1_MB, 1)],
                 }
             );
 
@@ -708,8 +743,10 @@ mod tests {
             assert_eq!(
                 extract_byte_metrics(&bytes_metric),
                 ExtractedByteMetrics {
-                    level_0: 10,
-                    level_1: 20,
+                    level_0_sample_count: 1,
+                    level_0_buckets_with_counts: vec![(BUCKET_500_KB, 1)],
+                    level_1_sample_count: 2,
+                    level_1_buckets_with_counts: vec![(BUCKET_500_KB, 2)],
                 }
             );
 
@@ -738,8 +775,10 @@ mod tests {
             assert_eq!(
                 extract_byte_metrics(&bytes_metric),
                 ExtractedByteMetrics {
-                    level_0: 10,
-                    level_1: 20,
+                    level_0_sample_count: 1,
+                    level_0_buckets_with_counts: vec![(BUCKET_500_KB, 1)],
+                    level_1_sample_count: 2,
+                    level_1_buckets_with_counts: vec![(BUCKET_500_KB, 2)],
                 }
             );
 
@@ -768,8 +807,10 @@ mod tests {
             assert_eq!(
                 extract_byte_metrics(&bytes_metric),
                 ExtractedByteMetrics {
-                    level_0: 20,
-                    level_1: 40,
+                    level_0_sample_count: 2,
+                    level_0_buckets_with_counts: vec![(BUCKET_500_KB, 2)],
+                    level_1_sample_count: 4,
+                    level_1_buckets_with_counts: vec![(BUCKET_500_KB, 4)],
                 }
             );
         }
@@ -968,8 +1009,10 @@ mod tests {
             assert_eq!(
                 extract_byte_metrics(&bytes_metric),
                 ExtractedByteMetrics {
-                    level_0: 30,
-                    level_1: 0,
+                    level_0_sample_count: 3,
+                    level_0_buckets_with_counts: vec![(BUCKET_500_KB, 3)],
+                    level_1_sample_count: 0,
+                    level_1_buckets_with_counts: vec![],
                 }
             );
         }
@@ -1076,8 +1119,10 @@ mod tests {
             assert_eq!(
                 extract_byte_metrics(&bytes_metric),
                 ExtractedByteMetrics {
-                    level_0: 10,
-                    level_1: 20,
+                    level_0_sample_count: 1,
+                    level_0_buckets_with_counts: vec![(BUCKET_500_KB, 1)],
+                    level_1_sample_count: 2,
+                    level_1_buckets_with_counts: vec![(BUCKET_500_KB, 2)],
                 }
             );
 
@@ -1105,8 +1150,10 @@ mod tests {
             assert_eq!(
                 extract_byte_metrics(&bytes_metric),
                 ExtractedByteMetrics {
-                    level_0: 20,
-                    level_1: 40,
+                    level_0_sample_count: 2,
+                    level_0_buckets_with_counts: vec![(BUCKET_500_KB, 2)],
+                    level_1_sample_count: 4,
+                    level_1_buckets_with_counts: vec![(BUCKET_500_KB, 4)],
                 }
             );
 
@@ -1134,8 +1181,10 @@ mod tests {
             assert_eq!(
                 extract_byte_metrics(&bytes_metric),
                 ExtractedByteMetrics {
-                    level_0: 20,
-                    level_1: 40,
+                    level_0_sample_count: 2,
+                    level_0_buckets_with_counts: vec![(BUCKET_500_KB, 2)],
+                    level_1_sample_count: 4,
+                    level_1_buckets_with_counts: vec![(BUCKET_500_KB, 4)],
                 }
             );
 
@@ -1161,8 +1210,10 @@ mod tests {
             assert_eq!(
                 extract_byte_metrics(&bytes_metric),
                 ExtractedByteMetrics {
-                    level_0: 30,
-                    level_1: 50,
+                    level_0_sample_count: 3,
+                    level_0_buckets_with_counts: vec![(BUCKET_500_KB, 3)],
+                    level_1_sample_count: 5,
+                    level_1_buckets_with_counts: vec![(BUCKET_500_KB, 5)],
                 }
             );
         }
@@ -1304,21 +1355,42 @@ mod tests {
 
     #[derive(Debug, PartialEq)]
     struct ExtractedByteMetrics {
-        level_0: u64,
-        level_1: u64,
+        level_0_sample_count: u64,
+        level_0_buckets_with_counts: Vec<(u64, u64)>,
+        level_1_sample_count: u64,
+        level_1_buckets_with_counts: Vec<(u64, u64)>,
     }
 
-    fn extract_byte_metrics(metric: &Metric<U64Gauge>) -> ExtractedByteMetrics {
+    fn extract_byte_metrics(metric: &Metric<U64Histogram>) -> ExtractedByteMetrics {
+        let bucket_filter = |o: &ObservationBucket<u64>| {
+            if o.count == 0 {
+                None
+            } else {
+                Some((o.le, o.count))
+            }
+        };
+
         let level_0 = metric
             .get_observer(&Attributes::from(&[("compaction_level", "0")]))
             .unwrap()
             .fetch();
+        let mut level_0_buckets_with_counts: Vec<_> =
+            level_0.buckets.iter().filter_map(bucket_filter).collect();
+        level_0_buckets_with_counts.sort();
 
         let level_1 = metric
             .get_observer(&Attributes::from(&[("compaction_level", "1")]))
             .unwrap()
             .fetch();
+        let mut level_1_buckets_with_counts: Vec<_> =
+            level_1.buckets.iter().filter_map(bucket_filter).collect();
+        level_1_buckets_with_counts.sort();
 
-        ExtractedByteMetrics { level_0, level_1 }
+        ExtractedByteMetrics {
+            level_0_sample_count: level_0.sample_count(),
+            level_0_buckets_with_counts,
+            level_1_sample_count: level_1.sample_count(),
+            level_1_buckets_with_counts,
+        }
     }
 }

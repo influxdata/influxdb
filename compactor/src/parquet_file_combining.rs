@@ -11,7 +11,7 @@ use iox_query::{
     QueryChunk,
 };
 use iox_time::TimeProvider;
-use metric::{Attributes, Metric, U64Counter};
+use metric::{Attributes, Metric, U64Histogram};
 use observability_deps::tracing::*;
 use parquet_file::{chunk::ParquetChunk, metadata::IoxMetadata, storage::ParquetStorage};
 use schema::{sort::SortKey, Schema};
@@ -72,8 +72,8 @@ pub(crate) async fn compact_parquet_files(
     // Executor for running queries, compacting, and persisting
     exec: Arc<Executor>,
     time_provider: Arc<dyn TimeProvider>,
-    // Counter for the number of files compacted
-    compaction_counter: &Metric<U64Counter>,
+    // Histogram for the sizes of the files compacted
+    compaction_input_file_bytes: &Metric<U64Histogram>,
     // Desired max size of compacted parquet files.
     // It is a target desired value, rather than a guarantee.
     max_desired_file_size_bytes: u64,
@@ -99,16 +99,22 @@ pub(crate) async fn compact_parquet_files(
         }
     );
 
-    // Find the total size of all files.
-    let total_size: i64 = files.iter().map(|f| f.file_size_bytes).sum();
+    // Save all file sizes for recording metrics if this compaction succeeds.
+    let file_sizes: Vec<_> = files.iter().map(|f| f.file_size_bytes).collect();
+    // Find the total size of all files, to be used to determine if the result should be one file
+    // or if the result should be split into multiple files.
+    let total_size: i64 = file_sizes.iter().sum();
     let total_size = total_size as u64;
 
-    let mut files_by_level = BTreeMap::new();
+    // Compute the number of files per compaction level for logging
+    let mut num_files_by_level = BTreeMap::new();
     for compaction_level in files.iter().map(|f| f.compaction_level) {
-        *files_by_level.entry(compaction_level).or_default() += 1;
+        *num_files_by_level.entry(compaction_level).or_default() += 1;
     }
-    let num_level_0 = files_by_level.get(&CompactionLevel::Initial).unwrap_or(&0);
-    let num_level_1 = files_by_level
+    let num_level_0 = num_files_by_level
+        .get(&CompactionLevel::Initial)
+        .unwrap_or(&0);
+    let num_level_1 = num_files_by_level
         .get(&CompactionLevel::FileNonOverlapped)
         .unwrap_or(&0);
     debug!(
@@ -317,11 +323,9 @@ pub(crate) async fn compact_parquet_files(
         "sequencer_id",
         format!("{}", partition.sequencer_id()).into(),
     )]);
-    for (compaction_level, file_count) in files_by_level {
-        let mut attributes = attributes.clone();
-        attributes.insert("compaction_level", format!("{}", compaction_level as i32));
-        let compaction_counter = compaction_counter.recorder(attributes);
-        compaction_counter.inc(file_count);
+    let compaction_input_file_bytes = compaction_input_file_bytes.recorder(attributes);
+    for size in file_sizes {
+        compaction_input_file_bytes.record(size as u64);
     }
 
     Ok(())
@@ -462,8 +466,9 @@ mod tests {
     use super::*;
     use arrow::record_batch::RecordBatch;
     use arrow_util::assert_batches_sorted_eq;
-    use data_types::{ColumnType, PartitionParam};
+    use data_types::{ColumnType, PartitionParam, SequencerId};
     use iox_tests::util::{TestCatalog, TestParquetFileBuilder, TestTable};
+    use metric::U64HistogramOptions;
     use parquet_file::ParquetFilePath;
     use test_helpers::assert_error;
 
@@ -485,6 +490,7 @@ mod tests {
     const DEFAULT_MAX_DESIRED_FILE_SIZE_BYTES: u64 = 100 * 1024 * 1024;
     const DEFAULT_PERCENTAGE_MAX_FILE_SIZE: u16 = 30;
     const DEFAULT_SPLIT_PERCENTAGE: u16 = 80;
+    const BUCKET_500_KB: u64 = 500 * 1024;
 
     struct TestSetup {
         catalog: Arc<TestCatalog>,
@@ -614,11 +620,22 @@ mod tests {
         }
     }
 
-    fn metrics() -> Metric<U64Counter> {
+    fn metrics() -> Metric<U64Histogram> {
         let registry = Arc::new(metric::Registry::new());
-        registry.register_metric(
-            "compactor_compacted_files_total",
-            "counter for the number of files compacted",
+        registry.register_metric_with_options(
+            "compaction_input_file_bytes",
+            "Number of bytes of Parquet files used as inputs to a successful compaction \
+             operation",
+            || {
+                U64HistogramOptions::new([
+                    BUCKET_500_KB,    // 500 KB
+                    1024 * 1024,      // 1 MB
+                    3 * 1024 * 1024,  // 3 MB
+                    10 * 1024 * 1024, // 10 MB
+                    30 * 1024 * 1024, // 30 MB
+                    u64::MAX,         // Inf
+                ])
+            },
         )
     }
 
@@ -631,7 +648,8 @@ mod tests {
             candidate_partition,
             ..
         } = test_setup().await;
-        let compaction_counter = metrics();
+        let compaction_input_file_bytes = metrics();
+        let sequencer_id = candidate_partition.sequencer_id();
 
         let files = vec![];
         let result = compact_parquet_files(
@@ -641,13 +659,22 @@ mod tests {
             ParquetStorage::new(Arc::clone(&catalog.object_store)),
             Arc::clone(&catalog.exec),
             Arc::clone(&catalog.time_provider) as Arc<dyn TimeProvider>,
-            &compaction_counter,
+            &compaction_input_file_bytes,
             DEFAULT_MAX_DESIRED_FILE_SIZE_BYTES,
             DEFAULT_PERCENTAGE_MAX_FILE_SIZE,
             DEFAULT_SPLIT_PERCENTAGE,
         )
         .await;
         assert_error!(result, Error::NotEnoughParquetFiles { num_files: 0, .. });
+
+        // No metrics recorded because the compaction didn't succeed
+        assert_eq!(
+            extract_byte_metrics(&compaction_input_file_bytes, sequencer_id),
+            ExtractedByteMetrics {
+                sample_count: 0,
+                buckets_with_counts: vec![],
+            }
+        );
     }
 
     #[tokio::test]
@@ -661,7 +688,8 @@ mod tests {
             ..
         } = test_setup().await;
         let table_id = candidate_partition.table_id();
-        let compaction_counter = metrics();
+        let compaction_input_file_bytes = metrics();
+        let sequencer_id = candidate_partition.sequencer_id();
 
         let parquet_file = parquet_files.remove(0);
         compact_parquet_files(
@@ -671,7 +699,7 @@ mod tests {
             ParquetStorage::new(Arc::clone(&catalog.object_store)),
             Arc::clone(&catalog.exec),
             Arc::clone(&catalog.time_provider) as Arc<dyn TimeProvider>,
-            &compaction_counter,
+            &compaction_input_file_bytes,
             DEFAULT_MAX_DESIRED_FILE_SIZE_BYTES,
             DEFAULT_PERCENTAGE_MAX_FILE_SIZE,
             DEFAULT_SPLIT_PERCENTAGE,
@@ -701,6 +729,15 @@ mod tests {
                 (7, CompactionLevel::FileNonOverlapped),
             ]
         );
+
+        // Verify the metrics
+        assert_eq!(
+            extract_byte_metrics(&compaction_input_file_bytes, sequencer_id),
+            ExtractedByteMetrics {
+                sample_count: 1,
+                buckets_with_counts: vec![(BUCKET_500_KB, 1)],
+            }
+        );
     }
 
     #[tokio::test]
@@ -713,7 +750,8 @@ mod tests {
             candidate_partition,
             parquet_files,
         } = test_setup().await;
-        let compaction_counter = metrics();
+        let compaction_input_file_bytes = metrics();
+        let sequencer_id = candidate_partition.sequencer_id();
 
         compact_parquet_files(
             parquet_files.into_iter().take(4).collect(),
@@ -722,7 +760,7 @@ mod tests {
             ParquetStorage::new(Arc::clone(&catalog.object_store)),
             Arc::clone(&catalog.exec),
             Arc::clone(&catalog.time_provider) as Arc<dyn TimeProvider>,
-            &compaction_counter,
+            &compaction_input_file_bytes,
             DEFAULT_MAX_DESIRED_FILE_SIZE_BYTES,
             DEFAULT_PERCENTAGE_MAX_FILE_SIZE,
             DEFAULT_SPLIT_PERCENTAGE,
@@ -750,6 +788,15 @@ mod tests {
                 (6, CompactionLevel::Initial),
                 (7, CompactionLevel::FileNonOverlapped),
             ]
+        );
+
+        // Verify the metrics
+        assert_eq!(
+            extract_byte_metrics(&compaction_input_file_bytes, sequencer_id),
+            ExtractedByteMetrics {
+                sample_count: 4,
+                buckets_with_counts: vec![(BUCKET_500_KB, 4)],
+            }
         );
 
         // ------------------------------------------------
@@ -787,7 +834,8 @@ mod tests {
             candidate_partition,
             parquet_files,
         } = test_setup().await;
-        let compaction_counter = metrics();
+        let compaction_input_file_bytes = metrics();
+        let sequencer_id = candidate_partition.sequencer_id();
 
         compact_parquet_files(
             parquet_files.into_iter().take(5).collect(),
@@ -796,7 +844,7 @@ mod tests {
             ParquetStorage::new(Arc::clone(&catalog.object_store)),
             Arc::clone(&catalog.exec),
             Arc::clone(&catalog.time_provider) as Arc<dyn TimeProvider>,
-            &compaction_counter,
+            &compaction_input_file_bytes,
             DEFAULT_MAX_DESIRED_FILE_SIZE_BYTES,
             DEFAULT_PERCENTAGE_MAX_FILE_SIZE,
             DEFAULT_SPLIT_PERCENTAGE,
@@ -823,6 +871,15 @@ mod tests {
                 (7, CompactionLevel::FileNonOverlapped),
                 (8, CompactionLevel::FileNonOverlapped),
             ]
+        );
+
+        // Verify the metrics
+        assert_eq!(
+            extract_byte_metrics(&compaction_input_file_bytes, sequencer_id),
+            ExtractedByteMetrics {
+                sample_count: 5,
+                buckets_with_counts: vec![(BUCKET_500_KB, 4), (u64::MAX, 1)],
+            }
         );
 
         // ------------------------------------------------
@@ -873,7 +930,8 @@ mod tests {
             candidate_partition,
             parquet_files,
         } = test_setup().await;
-        let compaction_counter = metrics();
+        let compaction_input_file_bytes = metrics();
+        let sequencer_id = candidate_partition.sequencer_id();
 
         let files_to_compact: Vec<_> = parquet_files.into_iter().take(5).collect();
 
@@ -888,7 +946,7 @@ mod tests {
             ParquetStorage::new(Arc::clone(&catalog.object_store)),
             Arc::clone(&catalog.exec),
             Arc::clone(&catalog.time_provider) as Arc<dyn TimeProvider>,
-            &compaction_counter,
+            &compaction_input_file_bytes,
             DEFAULT_MAX_DESIRED_FILE_SIZE_BYTES,
             DEFAULT_PERCENTAGE_MAX_FILE_SIZE,
             split_percentage,
@@ -908,13 +966,22 @@ mod tests {
             .collect();
         // 1 large file not included in compaction,
         // 1 newly created CompactionLevel::FileNonOverlapped file as the result of
-        // compaction and  NOT splitting
+        // compaction and NOT splitting
         assert_eq!(
             files_and_levels,
             vec![
                 (6, CompactionLevel::Initial),
                 (7, CompactionLevel::FileNonOverlapped),
             ]
+        );
+
+        // Verify the metrics
+        assert_eq!(
+            extract_byte_metrics(&compaction_input_file_bytes, sequencer_id),
+            ExtractedByteMetrics {
+                sample_count: 5,
+                buckets_with_counts: vec![(BUCKET_500_KB, 4), (u64::MAX, 1)],
+            }
         );
 
         // ------------------------------------------------
@@ -952,7 +1019,8 @@ mod tests {
             candidate_partition,
             parquet_files,
         } = test_setup().await;
-        let compaction_counter = metrics();
+        let compaction_input_file_bytes = metrics();
+        let sequencer_id = candidate_partition.sequencer_id();
 
         compact_parquet_files(
             parquet_files,
@@ -961,7 +1029,7 @@ mod tests {
             ParquetStorage::new(Arc::clone(&catalog.object_store)),
             Arc::clone(&catalog.exec),
             Arc::clone(&catalog.time_provider) as Arc<dyn TimeProvider>,
-            &compaction_counter,
+            &compaction_input_file_bytes,
             DEFAULT_MAX_DESIRED_FILE_SIZE_BYTES,
             DEFAULT_PERCENTAGE_MAX_FILE_SIZE,
             DEFAULT_SPLIT_PERCENTAGE,
@@ -986,6 +1054,15 @@ mod tests {
                 (8, CompactionLevel::FileNonOverlapped),
                 (9, CompactionLevel::FileNonOverlapped),
             ]
+        );
+
+        // Verify the metrics
+        assert_eq!(
+            extract_byte_metrics(&compaction_input_file_bytes, sequencer_id),
+            ExtractedByteMetrics {
+                sample_count: 6,
+                buckets_with_counts: vec![(BUCKET_500_KB, 4), (u64::MAX, 2)],
+            }
         );
 
         // ------------------------------------------------
@@ -1060,5 +1137,43 @@ mod tests {
         datafusion::physical_plan::common::collect(rx)
             .await
             .unwrap()
+    }
+
+    #[derive(Debug, PartialEq)]
+    struct ExtractedByteMetrics {
+        sample_count: u64,
+        buckets_with_counts: Vec<(u64, u64)>,
+    }
+
+    fn extract_byte_metrics(
+        metric: &Metric<U64Histogram>,
+        sequencer_id: SequencerId,
+    ) -> ExtractedByteMetrics {
+        let attributes = Attributes::from([("sequencer_id", format!("{}", sequencer_id).into())]);
+
+        let (sample_count, buckets_with_counts) =
+            if let Some(observer) = metric.get_observer(&attributes) {
+                let observer = observer.fetch();
+                let mut buckets_with_counts: Vec<_> = observer
+                    .buckets
+                    .iter()
+                    .filter_map(|o| {
+                        if o.count == 0 {
+                            None
+                        } else {
+                            Some((o.le, o.count))
+                        }
+                    })
+                    .collect();
+                buckets_with_counts.sort();
+                (observer.sample_count(), buckets_with_counts)
+            } else {
+                (0, vec![])
+            };
+
+        ExtractedByteMetrics {
+            sample_count,
+            buckets_with_counts,
+        }
     }
 }

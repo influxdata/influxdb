@@ -10,8 +10,8 @@ use iox_catalog::interface::{get_schema_by_id, Catalog};
 use iox_query::exec::Executor;
 use iox_time::TimeProvider;
 use metric::{
-    Attributes, DurationHistogram, DurationHistogramOptions, Metric, U64Counter, U64Gauge,
-    DURATION_MAX,
+    Attributes, DurationHistogram, DurationHistogramOptions, Metric, U64Gauge, U64Histogram,
+    U64HistogramOptions, DURATION_MAX,
 };
 use observability_deps::tracing::debug;
 use parquet_file::storage::ParquetStorage;
@@ -98,20 +98,21 @@ pub struct Compactor {
     /// Configuration options for the compactor
     pub(crate) config: CompactorConfig,
 
-    /// Counter for the number of files compacted
-    pub(crate) compaction_counter: Metric<U64Counter>,
-
-    /// Gauge for the number of compaction partition candidates
+    /// Gauge for the number of compaction partition candidates before filtering
     compaction_candidate_gauge: Metric<U64Gauge>,
 
-    /// Gauge for the number of Parquet file candidates. The recorded values have attributes for
-    /// the compaction level of the file and whether the file was selected for compaction or not.
+    /// Gauge for the number of Parquet file candidates after filtering. The recorded values have
+    /// attributes for the compaction level of the file and whether the file was selected for
+    /// compaction or not.
     pub(crate) parquet_file_candidate_gauge: Metric<U64Gauge>,
 
-    /// Gauge for the number of bytes of Parquet file candidates. The recorded values have
-    /// attributes for  the compaction level of the file and whether the file was selected for
-    /// compaction or not.
-    pub(crate) parquet_file_candidate_bytes_gauge: Metric<U64Gauge>,
+    /// Histogram for the number of bytes of Parquet files selected for compaction. The recorded
+    /// values have attributes for the compaction level of the file.
+    pub(crate) parquet_file_candidate_bytes: Metric<U64Histogram>,
+
+    /// After a successful compaction operation, track the sizes of the files that were used as the
+    /// inputs of the compaction operation by compaction level.
+    pub(crate) compaction_input_file_bytes: Metric<U64Histogram>,
 
     /// Histogram for tracking the time to compact a partition
     pub(crate) compaction_duration: Metric<DurationHistogram>,
@@ -152,11 +153,6 @@ impl Compactor {
         config: CompactorConfig,
         registry: Arc<metric::Registry>,
     ) -> Self {
-        let compaction_counter = registry.register_metric(
-            "compactor_compacted_files_total",
-            "counter for the number of files compacted",
-        );
-
         let compaction_candidate_gauge = registry.register_metric(
             "compactor_candidates",
             "gauge for the number of compaction candidates that are found when checked",
@@ -167,9 +163,25 @@ impl Compactor {
             "Number of Parquet file candidates",
         );
 
-        let parquet_file_candidate_bytes_gauge = registry.register_metric(
+        let file_size_buckets = U64HistogramOptions::new([
+            500 * 1024,       // 500 KB
+            1024 * 1024,      // 1 MB
+            3 * 1024 * 1024,  // 3 MB
+            10 * 1024 * 1024, // 10 MB
+            30 * 1024 * 1024, // 30 MB
+            u64::MAX,         // Inf
+        ]);
+
+        let parquet_file_candidate_bytes = registry.register_metric_with_options(
             "parquet_file_candidate_bytes",
-            "Number of bytes of Parquet file candidates",
+            "Number of bytes of Parquet file compaction candidates",
+            || file_size_buckets.clone(),
+        );
+
+        let compaction_input_file_bytes = registry.register_metric_with_options(
+            "compaction_input_file_bytes",
+            "Number of bytes of Parquet files used as inputs to a successful compaction operation",
+            || file_size_buckets.clone(),
         );
 
         let duration_histogram_options = DurationHistogramOptions::new([
@@ -215,10 +227,10 @@ impl Compactor {
             time_provider,
             backoff_config,
             config,
-            compaction_counter,
             compaction_candidate_gauge,
             parquet_file_candidate_gauge,
-            parquet_file_candidate_bytes_gauge,
+            parquet_file_candidate_bytes,
+            compaction_input_file_bytes,
             compaction_duration,
             candidate_selection_duration,
             partitions_extra_info_reading_duration,

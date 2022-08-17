@@ -704,6 +704,7 @@ impl MockIngester {
             sequencers,
             catalog.exec(),
             BackoffConfig::default(),
+            catalog.metric_registry(),
         ));
 
         Self {
