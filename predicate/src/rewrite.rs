@@ -100,6 +100,8 @@ fn is_comparison(op: Operator) -> bool {
         Operator::RegexNotMatch => true,
         Operator::RegexNotIMatch => true,
         Operator::StringConcat => false,
+        Operator::BitwiseShiftLeft => false,
+        Operator::BitwiseShiftRight => false,
     }
 }
 
