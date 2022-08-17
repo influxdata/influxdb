@@ -142,7 +142,7 @@ async fn compact_remaining_level_0_files(
 /// - Select all files in the partition, which this method assumes will only be level 1
 ///   without overlaps (any level 0 and level 2 files passed into this function will be ignored)
 /// - Split the files into groups based on size: take files in the list until the current group size
-///   is greater than cold_max_desired_file_size_bytes
+///   is greater than max_desired_file_size_bytes
 /// - Compact each group into a new level 2 file, no splitting
 async fn full_compaction(
     compactor: &Compactor,
@@ -164,7 +164,7 @@ async fn full_compaction(
         .. // Ignore other levels
     } = parquet_files_for_compaction;
 
-    let groups = group_by_size(level_1, compactor.config.cold_max_desired_file_size_bytes);
+    let groups = group_by_size(level_1, compactor.config.max_desired_file_size_bytes);
 
     for group in groups {
         if group.len() == 1 {
@@ -546,10 +546,7 @@ mod tests {
             .with_max_time(20)
             .with_creation_time(time_38_hour_ago);
         let f = partition.create_parquet_file(builder).await;
-        size_overrides.insert(
-            f.parquet_file.id,
-            compactor.config.max_desired_file_size_bytes as i64 + 10,
-        );
+        size_overrides.insert(f.parquet_file.id, 100); // small file
 
         // pf6 was created in a previous compaction cycle; does not overlap with any
         let builder = TestParquetFileBuilder::default()
@@ -755,7 +752,6 @@ mod tests {
             max_number_partitions_per_shard: 1,
             min_number_recent_ingested_files_per_partition: 1,
             cold_input_size_threshold_bytes: 600 * 1024 * 1024,
-            cold_max_desired_file_size_bytes: 104_857_600,
             cold_input_file_count_threshold: 100,
             hot_multiple: 4,
             memory_budget_bytes: 100_000_000,

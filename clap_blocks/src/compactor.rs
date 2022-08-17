@@ -135,18 +135,6 @@ macro_rules! gen_compactor_config {
             )]
             pub cold_input_size_threshold_bytes: u64,
 
-            /// Desired max size of cold compacted parquet files.
-            /// It is a target desired value, rather than a guarantee.
-            ///
-            /// Default is 1024 * 1024 * 100 = 104,857,600 bytes (100MB)
-            #[clap(
-                long = "--compaction-cold-max-desired-size-bytes",
-                env = "INFLUXDB_IOX_COMPACTION_COLD_MAX_DESIRED_FILE_SIZE_BYTES",
-                default_value = "104857600",
-                action
-            )]
-            pub cold_max_desired_file_size_bytes: u64,
-
             /// A compaction operation will gather as many L0 files with their overlapping L1 files
             /// to compact together until the total number of L0 + L1 files crosses this threshold.
             /// Later compactions will pick up the remaining L0 files.
@@ -216,7 +204,6 @@ impl CompactorOnceConfig {
             min_number_recent_ingested_files_per_partition: self
                 .min_number_recent_ingested_files_per_partition,
             cold_input_size_threshold_bytes: self.cold_input_size_threshold_bytes,
-            cold_max_desired_file_size_bytes: self.cold_max_desired_file_size_bytes,
             cold_input_file_count_threshold: self.cold_input_file_count_threshold,
             hot_multiple: self.hot_multiple,
             memory_budget_bytes: self.memory_budget_bytes,
