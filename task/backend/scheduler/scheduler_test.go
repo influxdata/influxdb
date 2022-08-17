@@ -480,7 +480,7 @@ func TestTreeScheduler_LongPanicTest(t *testing.T) {
 	defer sch.Stop()
 
 	// this tests for a race condition in the btree that isn't normally caught by the race detector
-	schedule, ts, err := NewSchedule("* * * * * * *", now.Add(-1*time.Second))
+	schedule, _, err := NewSchedule("* * * * * * *", now.Add(-1*time.Second))
 	if err != nil {
 		t.Fatal(err)
 	}

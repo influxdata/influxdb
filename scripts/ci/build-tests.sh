@@ -6,10 +6,10 @@ function build_linux () {
     local cc
     case $(go env GOARCH) in
         amd64)
-            cc=musl-gcc
+            cc=$(xcc linux x86_64)
             ;;
         arm64)
-            cc=aarch64-unknown-linux-musl-gcc
+            cc=$(xcc linux aarch64)
             tags="$tags,noasm"
             ;;
         *)
@@ -19,17 +19,17 @@ function build_linux () {
     esac
 
     local -r extld="-fno-PIC -static -Wl,-z,stack-size=8388608"
-    CGO_ENABLED=1 PKG_CONFIG=$(which pkg-config) CC=${cc} go-test-compile \
+    CGO_ENABLED=1 PKG_CONFIG=$(which pkg-config) CC="${cc}" go-test-compile \
         -tags "$tags" -o "${1}/" -ldflags "-extldflags '$extld'" ./...
 }
 
 function build_mac () {
-    CGO_ENABLED=1 PKG_CONFIG=$(which pkg-config) CC=x86_64-apple-darwin16-clang go-test-compile \
+    CGO_ENABLED=1 PKG_CONFIG=$(which pkg-config) CC="$(xcc darwin)" go-test-compile \
         -tags sqlite_foreign_keys,sqlite_json -o "${1}/" ./...
 }
 
 function build_windows () {
-    CGO_ENABLED=1 PKG_CONFIG=$(which pkg-config) CC=x86_64-w64-mingw32-gcc go-test-compile \
+    CGO_ENABLED=1 PKG_CONFIG=$(which pkg-config) CC="$(xcc windows)" go-test-compile \
         -tags sqlite_foreign_keys,sqlite_json,timetzdata -o "${1}/" ./...
 }
 

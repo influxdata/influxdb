@@ -1578,9 +1578,7 @@ func (si SubscriptionInfo) marshal() *internal.SubscriptionInfo {
 	}
 
 	pb.Destinations = make([]string, len(si.Destinations))
-	for i := range si.Destinations {
-		pb.Destinations[i] = si.Destinations[i]
-	}
+	copy(pb.Destinations, si.Destinations)
 	return pb
 }
 
