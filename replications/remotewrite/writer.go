@@ -208,9 +208,14 @@ func PostWrite(ctx context.Context, config *influxdb.ReplicationHTTPConfig, data
 	conf.HTTPClient.Timeout = timeout
 	client := api.NewAPIClient(conf).WriteApi
 
+	bucket := config.RemoteBucketID.String()
+	if config.RemoteBucketName != "" {
+		bucket = config.RemoteBucketName
+	}
+
 	req := client.PostWrite(ctx).
 		Org(config.RemoteOrgID.String()).
-		Bucket(config.RemoteBucketID.String()).
+		Bucket(bucket).
 		Body(data)
 
 	// Don't set the encoding header for empty bodies, like those used for validation.

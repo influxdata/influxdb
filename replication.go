@@ -27,6 +27,7 @@ type Replication struct {
 	RemoteID              platform.ID `json:"remoteID" db:"remote_id"`
 	LocalBucketID         platform.ID `json:"localBucketID" db:"local_bucket_id"`
 	RemoteBucketID        platform.ID `json:"remoteBucketID" db:"remote_bucket_id"`
+	RemoteBucketName      string      `json:"RemoteBucketName" db:"remote_bucket_name"`
 	MaxQueueSizeBytes     int64       `json:"maxQueueSizeBytes" db:"max_queue_size_bytes"`
 	CurrentQueueSizeBytes int64       `json:"currentQueueSizeBytes" db:"current_queue_size_bytes"`
 	LatestResponseCode    *int32      `json:"latestResponseCode,omitempty" db:"latest_response_code"`
@@ -65,6 +66,7 @@ type CreateReplicationRequest struct {
 	RemoteID             platform.ID `json:"remoteID"`
 	LocalBucketID        platform.ID `json:"localBucketID"`
 	RemoteBucketID       platform.ID `json:"remoteBucketID"`
+	RemoteBucketName     string      `json:"remoteBucketName"`
 	MaxQueueSizeBytes    int64       `json:"maxQueueSizeBytes,omitempty"`
 	DropNonRetryableData bool        `json:"dropNonRetryableData,omitempty"`
 	MaxAgeSeconds        int64       `json:"maxAgeSeconds,omitempty"`
@@ -84,6 +86,7 @@ type UpdateReplicationRequest struct {
 	Description          *string      `json:"description,omitempty"`
 	RemoteID             *platform.ID `json:"remoteID,omitempty"`
 	RemoteBucketID       *platform.ID `json:"remoteBucketID,omitempty"`
+	RemoteBucketName     *string      `json:"remoteBucketName,omitempty"`
 	MaxQueueSizeBytes    *int64       `json:"maxQueueSizeBytes,omitempty"`
 	DropNonRetryableData *bool        `json:"dropNonRetryableData,omitempty"`
 	MaxAgeSeconds        *int64       `json:"maxAgeSeconds,omitempty"`
@@ -109,5 +112,6 @@ type ReplicationHTTPConfig struct {
 	RemoteOrgID          platform.ID `db:"remote_org_id"`
 	AllowInsecureTLS     bool        `db:"allow_insecure_tls"`
 	RemoteBucketID       platform.ID `db:"remote_bucket_id"`
+	RemoteBucketName     string      `db:"remote_bucket_name"`
 	DropNonRetryableData bool        `db:"drop_non_retryable_data"`
 }
