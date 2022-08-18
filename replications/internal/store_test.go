@@ -466,6 +466,51 @@ func TestListReplications(t *testing.T) {
 	})
 }
 
+func TestMigrateDownFromReplicationsWithName(t *testing.T) {
+	t.Parallel()
+
+	testStore, clean := newTestStore(t)
+	defer clean(t)
+
+	insertRemote(t, testStore, replication.RemoteID)
+
+	req := createReq
+	req.RemoteBucketID = platform.ID(100)
+	_, err := testStore.CreateReplication(ctx, platform.ID(10), req)
+	require.NoError(t, err)
+
+	req.RemoteBucketID = platform.ID(0)
+	req.RemoteBucketName = "testbucket"
+	req.Name = "namedrepl"
+	_, err = testStore.CreateReplication(ctx, platform.ID(20), req)
+	require.NoError(t, err)
+
+	replications, err := testStore.ListReplications(context.Background(), influxdb.ReplicationListFilter{OrgID: replication.OrgID})
+	require.Equal(t, 2, len(replications.Replications))
+
+	logger := zaptest.NewLogger(t)
+	sqliteMigrator := sqlite.NewMigrator(testStore.sqlStore, logger)
+	require.NoError(t, sqliteMigrator.Down(ctx, 6, migrations.AllDown))
+
+	// Can't use ListReplications because it expects the `remote_bucket_name` column to be there in this version of influx.
+	q := sq.Select(
+		"id", "org_id", "name", "description", "remote_id", "local_bucket_id", "remote_bucket_id",
+		"max_queue_size_bytes", "latest_response_code", "latest_error_message", "drop_non_retryable_data",
+		"max_age_seconds").
+		From("replications")
+
+	q = q.Where(sq.Eq{"org_id": replication.OrgID})
+
+	query, args, err := q.ToSql()
+	require.NoError(t, err)
+	var rs influxdb.Replications
+	if err := testStore.sqlStore.DB.SelectContext(ctx, &rs.Replications, query, args...); err != nil {
+		require.NoError(t, err)
+	}
+	require.Equal(t, 1, len(rs.Replications))
+	require.Equal(t, platform.ID(10), rs.Replications[0].ID)
+}
+
 func TestGetFullHTTPConfig(t *testing.T) {
 	t.Parallel()
 

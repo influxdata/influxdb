@@ -22,8 +22,6 @@ CREATE TABLE replications
     FOREIGN KEY (remote_id) REFERENCES remotes (id)
 );
 
-DELETE FROM _replications_old WHERE remote_bucket_name <> '';
-
 INSERT INTO replications SELECT
     id,
     org_id,
@@ -37,7 +35,7 @@ INSERT INTO replications SELECT
     latest_response_code,
     latest_error_message,
     drop_non_retryable_data,
-    created_at,updated_at FROM _replications_old;
+    created_at,updated_at FROM _replications_old WHERE remote_bucket_name = '';
 DROP TABLE _replications_old;
 
 -- Create indexes on lookup patterns we expect to be common
