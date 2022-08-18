@@ -38,7 +38,7 @@ var (
 		Description:       &desc,
 		RemoteID:          platform.ID(100),
 		LocalBucketID:     platform.ID(1000),
-		RemoteBucketID:    platform.ID(99999),
+		RemoteBucketID:    idPointer(99999),
 		MaxQueueSizeBytes: 3 * influxdb.DefaultReplicationMaxQueueSizeBytes,
 	}
 	replication2 = influxdb.Replication{
@@ -48,7 +48,7 @@ var (
 		Description:       &desc,
 		RemoteID:          platform.ID(100),
 		LocalBucketID:     platform.ID(1000),
-		RemoteBucketID:    platform.ID(99999),
+		RemoteBucketID:    idPointer(99999),
 		MaxQueueSizeBytes: 3 * influxdb.DefaultReplicationMaxQueueSizeBytes,
 	}
 	createReq = influxdb.CreateReplicationRequest{
@@ -57,7 +57,7 @@ var (
 		Description:       replication1.Description,
 		RemoteID:          replication1.RemoteID,
 		LocalBucketID:     replication1.LocalBucketID,
-		RemoteBucketID:    replication1.RemoteBucketID,
+		RemoteBucketID:    *replication1.RemoteBucketID,
 		MaxQueueSizeBytes: replication1.MaxQueueSizeBytes,
 	}
 	newRemoteID          = platform.ID(200)
@@ -94,9 +94,14 @@ var (
 		RemoteToken:      replication1.RemoteID.String(),
 		RemoteOrgID:      platform.ID(888888),
 		AllowInsecureTLS: true,
-		RemoteBucketID:   replication1.RemoteBucketID,
+		RemoteBucketID:   *replication1.RemoteBucketID,
 	}
 )
+
+func idPointer(id int) *platform.ID {
+	p := platform.ID(id)
+	return &p
+}
 
 func TestListReplications(t *testing.T) {
 	t.Parallel()
