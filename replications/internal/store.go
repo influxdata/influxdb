@@ -104,7 +104,7 @@ func (s *Store) CreateReplication(ctx context.Context, newID platform.ID, reques
 		fields["remote_bucket_id"] = request.RemoteBucketID
 		fields["remote_bucket_name"] = ""
 	} else if request.RemoteBucketName != "" {
-		fields["remote_bucket_id"] = platform.ID(1) // 0 isn't a valid ID so we need to set some default value
+		fields["remote_bucket_id"] = nil
 		fields["remote_bucket_name"] = request.RemoteBucketName
 	} else {
 		return nil, errMissingIDName

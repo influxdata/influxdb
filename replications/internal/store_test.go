@@ -27,7 +27,7 @@ var (
 		Description:       &desc,
 		RemoteID:          platform.ID(100),
 		LocalBucketID:     platform.ID(1000),
-		RemoteBucketID:    platform.ID(99999),
+		RemoteBucketID:    idPointer(99999),
 		MaxQueueSizeBytes: 3 * influxdb.DefaultReplicationMaxQueueSizeBytes,
 		MaxAgeSeconds:     0,
 	}
@@ -37,7 +37,7 @@ var (
 		Description:       replication.Description,
 		RemoteID:          replication.RemoteID,
 		LocalBucketID:     replication.LocalBucketID,
-		RemoteBucketID:    replication.RemoteBucketID,
+		RemoteBucketID:    *replication.RemoteBucketID,
 		MaxQueueSizeBytes: replication.MaxQueueSizeBytes,
 		MaxAgeSeconds:     replication.MaxAgeSeconds,
 	}
@@ -46,7 +46,7 @@ var (
 		RemoteToken:      replication.RemoteID.String(),
 		RemoteOrgID:      platform.ID(888888),
 		AllowInsecureTLS: true,
-		RemoteBucketID:   replication.RemoteBucketID,
+		RemoteBucketID:   *replication.RemoteBucketID,
 	}
 	newRemoteID  = platform.ID(200)
 	newQueueSize = influxdb.MinReplicationMaxQueueSizeBytes
@@ -68,6 +68,11 @@ var (
 		MaxAgeSeconds:        replication.MaxAgeSeconds,
 	}
 )
+
+func idPointer(id int) *platform.ID {
+	p := platform.ID(id)
+	return &p
+}
 
 func TestCreateAndGetReplication(t *testing.T) {
 	t.Parallel()
@@ -111,7 +116,7 @@ func TestCreateAndGetReplicationName(t *testing.T) {
 	req.RemoteBucketName = "testbucket"
 	expected := replication
 	expected.RemoteBucketName = "testbucket"
-	expected.RemoteBucketID = platform.ID(1)
+	expected.RemoteBucketID = nil
 
 	// Create a replication, check the results.
 	created, err := testStore.CreateReplication(ctx, initID, req)
@@ -142,7 +147,7 @@ func TestCreateAndGetReplicationNameAndID(t *testing.T) {
 	req.RemoteBucketName = "testbucket"
 	expected := replication
 	expected.RemoteBucketName = ""
-	expected.RemoteBucketID = platform.ID(100)
+	expected.RemoteBucketID = idPointer(100)
 
 	// Create a replication, check the results.
 	created, err := testStore.CreateReplication(ctx, initID, req)
