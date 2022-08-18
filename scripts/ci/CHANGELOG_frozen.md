@@ -1,3 +1,52 @@
+## v2.4.0 [2022-08-18]
+----------------------
+
+### Bug Fixes
+
+1. [21885a7](https://github.com/influxdata/influxdb/commit/21885a7): Log the log level at startup
+1. [76cfddb](https://github.com/influxdata/influxdb/commit/76cfddb): Emit zipfile for windows
+1. [69a95dc](https://github.com/influxdata/influxdb/commit/69a95dc): Update the condition when reseting cursor
+1. [4789d54](https://github.com/influxdata/influxdb/commit/4789d54): Improve error messages opening index partitions
+1. [00edb77](https://github.com/influxdata/influxdb/commit/00edb77): Create TSI MANIFEST files atomically
+1. [f762346](https://github.com/influxdata/influxdb/commit/f762346): Add paths to tsi log and index file errors
+1. [619eb1c](https://github.com/influxdata/influxdb/commit/619eb1c): Restore in-memory Manifest on write error
+1. [f7b1905](https://github.com/influxdata/influxdb/commit/f7b1905): Do not delete replication on remote config delete
+1. [afbbfac](https://github.com/influxdata/influxdb/commit/afbbfac): Fix virtual DBRP FindMany, make virtual bucket default if not overridden
+1. [187f991](https://github.com/influxdata/influxdb/commit/187f991): Improve virtual DBRP default handling
+
+### Features
+
+1. [bf5e6eb](https://github.com/influxdata/influxdb/commit/bf5e6eb): Update Contributing.md to be more accurate for a clean checkout
+1. [e7cf522](https://github.com/influxdata/influxdb/commit/e7cf522): Implement nightly docker builds without goreleaser
+1. [67ccbae](https://github.com/influxdata/influxdb/commit/67ccbae): Add the concept of an instance owner
+1. [adeac8b](https://github.com/influxdata/influxdb/commit/adeac8b): Add virtual DBRP mappings based on bucket name
+1. [90d45e8](https://github.com/influxdata/influxdb/commit/90d45e8): Enable static-pie builds (2.x)
+1. [6f50e70](https://github.com/influxdata/influxdb/commit/6f50e70): Replicate based on bucket name rather than id
+
+### Other
+
+1. [83bb8ed](https://github.com/influxdata/influxdb/commit/83bb8ed): Build: update frozen changelog
+1. [85e4e63](https://github.com/influxdata/influxdb/commit/85e4e63): Build: fix release workflow
+1. [cbbf4b2](https://github.com/influxdata/influxdb/commit/cbbf4b2): Build(flux): update flux to v0.172.0
+1. [3fcc085](https://github.com/influxdata/influxdb/commit/3fcc085): Chore: Fix link in the README
+1. [07bab31](https://github.com/influxdata/influxdb/commit/07bab31): Build(flux): update flux to v0.173.0
+1. [4d33c70](https://github.com/influxdata/influxdb/commit/4d33c70): Build(flux): update flux to v0.174.0
+1. [4da4d03](https://github.com/influxdata/influxdb/commit/4da4d03): Build(flux): update flux to v0.174.1
+1. [4b2949a](https://github.com/influxdata/influxdb/commit/4b2949a): Build: upload release and nightly CHANGELOG.md
+1. [33a7add](https://github.com/influxdata/influxdb/commit/33a7add): Test(label): Invalid closure capture
+1. [91a83ba](https://github.com/influxdata/influxdb/commit/91a83ba): Chore: Update PULL_REQUEST_TEMPLATE.md
+1. [85dc158](https://github.com/influxdata/influxdb/commit/85dc158): Chore: upgrade CircleCI Mac OSX image
+1. [37562c7](https://github.com/influxdata/influxdb/commit/37562c7): Build: upgrade to Go 1.18.4
+1. [a9f751f](https://github.com/influxdata/influxdb/commit/a9f751f): Feat(query): add planner rule for converting aggregate window to a push down
+1. [c58bbab](https://github.com/influxdata/influxdb/commit/c58bbab): Build(flux): update flux to v0.176.0
+1. [f0072ef](https://github.com/influxdata/influxdb/commit/f0072ef): Chore(pkger): fix typo in README.md
+1. [7e7d1db](https://github.com/influxdata/influxdb/commit/7e7d1db): Build(flux): update flux to v0.177.0
+1. [cd4f93b](https://github.com/influxdata/influxdb/commit/cd4f93b): Build(flux): update flux to v0.177.1
+1. [78c969e](https://github.com/influxdata/influxdb/commit/78c969e): Build(flux): update flux to v0.178.0
+1. [c2c9d17](https://github.com/influxdata/influxdb/commit/c2c9d17): Build(flux): update flux to v0.179.0
+1. [48fb5ce](https://github.com/influxdata/influxdb/commit/48fb5ce): Chore: update fluxtest skip list
+1. [de247ba](https://github.com/influxdata/influxdb/commit/de247ba): Chore: use 22.04 image instead of 21.10 for perf test
+
 ## v2.3.0 [2022-06-16]
 ----------------------
 
