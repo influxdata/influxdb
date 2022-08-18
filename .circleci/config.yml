@@ -150,7 +150,7 @@ workflows:
           <<: *release_filter
           build_type: release
           start: v2.0.0
-          until: v9.9.9
+          until: v2.4.0 # exclusive
       - s3-publish-packages:
           <<: *release_filter
           requires:
@@ -232,7 +232,7 @@ workflows:
       - changelog:
           build_type: snapshot
           start: v2.0.0
-          until: v9.9.9
+          until: v2.4.0 # exclusive
       - s3-publish-changelog:
           filters:
             branches:
@@ -296,7 +296,7 @@ workflows:
       - changelog:
           build_type: nightly
           start: v2.0.0
-          until: v9.9.9
+          until: v2.4.0 # exclusive
       - s3-publish-changelog:
           build_type: nightly
           requires:
