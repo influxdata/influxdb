@@ -3,7 +3,7 @@ set -ex -o pipefail
 source vars.sh
 
 # get latest ubuntu 21.10 ami for us-west-2
-ami_id=$(aws --region us-west-2 ssm get-parameters --names /aws/service/canonical/ubuntu/server/21.10/stable/current/amd64/hvm/ebs-gp2/ami-id --query 'Parameters[0].[Value]' --output text)
+ami_id=$(aws --region us-west-2 ssm get-parameters --names /aws/service/canonical/ubuntu/server/22.04/stable/current/amd64/hvm/ebs-gp2/ami-id --query 'Parameters[0].[Value]' --output text)
 
 # launch ec2 instance
 datestring=$(date +%Y%m%d)
