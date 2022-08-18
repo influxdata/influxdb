@@ -22,6 +22,8 @@ CREATE TABLE replications
     FOREIGN KEY (remote_id) REFERENCES remotes (id)
 );
 
+DELETE FROM _replications_old WHERE remote_bucket_name <> '';
+
 INSERT INTO replications SELECT
     id,
     org_id,

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/influxdata/influxdb/v2"
@@ -35,6 +36,7 @@ type migrationTarget struct {
 var downgradeMigrationTargets = map[string]migrationTarget{
 	"2.0": {kvMigration: 15, sqlMigration: 0},
 	"2.1": {kvMigration: 18, sqlMigration: 3},
+	"2.3": {kvMigration: 20, sqlMigration: 6},
 }
 
 func NewCommand(ctx context.Context, v *viper.Viper) (*cobra.Command, error) {
@@ -120,6 +122,12 @@ The target version of the downgrade must be specified, i.e. "influxd downgrade 2
 func downgrade(ctx context.Context, boltPath, sqlitePath, targetVersion string, log *zap.Logger) error {
 	info := influxdb.GetBuildInfo()
 
+	n, err := compareVersionStrings(targetVersion, "2.4.0")
+	if n <= 0 || err != nil {
+		errStr := "if the target version is less than 2.4.0, any replications using bucket names rather than ids will be deleted"
+		log.Warn("downgrade warning", zap.String("targetVersion", errStr))
+	}
+
 	// Files must exist at the specified paths for the downgrade to work properly. The bolt and sqlite "open" methods will
 	// create files if they do not exist, so their existence must be verified here.
 	if _, err := os.Stat(boltPath); err != nil {
@@ -173,4 +181,37 @@ func downgrade(ctx context.Context, boltPath, sqlitePath, targetVersion string, 
 	log.Info("Metadata successfully downgraded, you can now safely replace this `influxd` with the target older version",
 		zap.String("version", targetVersion))
 	return nil
+}
+
+func compareVersionStrings(left string, right string) (int, error) {
+	l := strings.Split(left, ".")
+	r := strings.Split(right, ".")
+	loop := len(r)
+	if len(l) > len(r) {
+		loop = len(l)
+	}
+	for i := 0; i < loop; i++ {
+		var x, y string
+		if len(l) > i {
+			x = l[i]
+		}
+		if len(r) > i {
+			y = r[i]
+		}
+		lefti, err := strconv.Atoi(x)
+		if err != nil {
+			return 0, err
+		}
+		righti, err := strconv.Atoi(y)
+		if err != nil {
+			return 0, err
+		}
+
+		if lefti > righti {
+			return 1, nil
+		} else if lefti < righti {
+			return -1, nil
+		}
+	}
+	return 0, nil
 }
