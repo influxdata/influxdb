@@ -491,6 +491,7 @@ func TestMigrateDownFromReplicationsWithName(t *testing.T) {
 	require.NoError(t, err)
 
 	replications, err := testStore.ListReplications(context.Background(), influxdb.ReplicationListFilter{OrgID: replication.OrgID})
+	require.NoError(t, err)
 	require.Equal(t, 2, len(replications.Replications))
 
 	logger := zaptest.NewLogger(t)
