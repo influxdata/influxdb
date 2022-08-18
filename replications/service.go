@@ -140,6 +140,10 @@ func (s *service) CreateReplication(ctx context.Context, request influxdb.Create
 	s.store.Lock()
 	defer s.store.Unlock()
 
+	if request.RemoteID == platform.ID(0) && request.RemoteBucketName == "" {
+		return nil, fmt.Errorf("please supply one of: remoteBucketID, remoteBucketName")
+	}
+
 	if _, err := s.bucketService.FindBucketByID(ctx, request.LocalBucketID); err != nil {
 		return nil, errLocalBucketNotFound(request.LocalBucketID, err)
 	}

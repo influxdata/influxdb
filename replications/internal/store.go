@@ -19,6 +19,11 @@ var errReplicationNotFound = &ierrors.Error{
 	Msg:  "replication not found",
 }
 
+var errMissingIDName = &ierrors.Error{
+	Code: ierrors.EUnprocessableEntity,
+	Msg:  "one of remote_bucket_id, remote_bucket_name should be provided",
+}
+
 func errRemoteNotFound(id platform.ID, cause error) error {
 	return &ierrors.Error{
 		Code: ierrors.EInvalid,
@@ -48,7 +53,7 @@ func (s *Store) Unlock() {
 // ListReplications returns a list of replications matching the provided filter.
 func (s *Store) ListReplications(ctx context.Context, filter influxdb.ReplicationListFilter) (*influxdb.Replications, error) {
 	q := sq.Select(
-		"id", "org_id", "name", "description", "remote_id", "local_bucket_id", "remote_bucket_id",
+		"id", "org_id", "name", "description", "remote_id", "local_bucket_id", "remote_bucket_id", "remote_bucket_name",
 		"max_queue_size_bytes", "latest_response_code", "latest_error_message", "drop_non_retryable_data",
 		"max_age_seconds").
 		From("replications")
@@ -81,22 +86,33 @@ func (s *Store) ListReplications(ctx context.Context, filter influxdb.Replicatio
 
 // CreateReplication persists a new replication in the database. Caller is responsible for managing locks.
 func (s *Store) CreateReplication(ctx context.Context, newID platform.ID, request influxdb.CreateReplicationRequest) (*influxdb.Replication, error) {
+	fields := sq.Eq{
+		"id":                      newID,
+		"org_id":                  request.OrgID,
+		"name":                    request.Name,
+		"description":             request.Description,
+		"remote_id":               request.RemoteID,
+		"local_bucket_id":         request.LocalBucketID,
+		"max_queue_size_bytes":    request.MaxQueueSizeBytes,
+		"drop_non_retryable_data": request.DropNonRetryableData,
+		"max_age_seconds":         request.MaxAgeSeconds,
+		"created_at":              "datetime('now')",
+		"updated_at":              "datetime('now')",
+	}
+
+	if request.RemoteBucketID != platform.ID(0) {
+		fields["remote_bucket_id"] = request.RemoteBucketID
+		fields["remote_bucket_name"] = ""
+	} else if request.RemoteBucketName != "" {
+		fields["remote_bucket_id"] = nil
+		fields["remote_bucket_name"] = request.RemoteBucketName
+	} else {
+		return nil, errMissingIDName
+	}
+
 	q := sq.Insert("replications").
-		SetMap(sq.Eq{
-			"id":                      newID,
-			"org_id":                  request.OrgID,
-			"name":                    request.Name,
-			"description":             request.Description,
-			"remote_id":               request.RemoteID,
-			"local_bucket_id":         request.LocalBucketID,
-			"remote_bucket_id":        request.RemoteBucketID,
-			"max_queue_size_bytes":    request.MaxQueueSizeBytes,
-			"drop_non_retryable_data": request.DropNonRetryableData,
-			"max_age_seconds":         request.MaxAgeSeconds,
-			"created_at":              "datetime('now')",
-			"updated_at":              "datetime('now')",
-		}).
-		Suffix("RETURNING id, org_id, name, description, remote_id, local_bucket_id, remote_bucket_id, max_queue_size_bytes, drop_non_retryable_data, max_age_seconds")
+		SetMap(fields).
+		Suffix("RETURNING id, org_id, name, description, remote_id, local_bucket_id, remote_bucket_id, remote_bucket_name, max_queue_size_bytes, drop_non_retryable_data, max_age_seconds")
 
 	query, args, err := q.ToSql()
 	if err != nil {
@@ -118,7 +134,7 @@ func (s *Store) CreateReplication(ctx context.Context, newID platform.ID, reques
 // GetReplication gets a replication by ID from the database.
 func (s *Store) GetReplication(ctx context.Context, id platform.ID) (*influxdb.Replication, error) {
 	q := sq.Select(
-		"id", "org_id", "name", "description", "remote_id", "local_bucket_id", "remote_bucket_id",
+		"id", "org_id", "name", "description", "remote_id", "local_bucket_id", "remote_bucket_id", "remote_bucket_name",
 		"max_queue_size_bytes", "latest_response_code", "latest_error_message", "drop_non_retryable_data",
 		"max_age_seconds").
 		From("replications").
@@ -155,6 +171,9 @@ func (s *Store) UpdateReplication(ctx context.Context, id platform.ID, request i
 	if request.RemoteBucketID != nil {
 		updates["remote_bucket_id"] = *request.RemoteBucketID
 	}
+	if request.RemoteBucketName != nil {
+		updates["remote_bucket_name"] = *request.RemoteBucketName
+	}
 	if request.MaxQueueSizeBytes != nil {
 		updates["max_queue_size_bytes"] = *request.MaxQueueSizeBytes
 	}
@@ -166,7 +185,7 @@ func (s *Store) UpdateReplication(ctx context.Context, id platform.ID, request i
 	}
 
 	q := sq.Update("replications").SetMap(updates).Where(sq.Eq{"id": id}).
-		Suffix("RETURNING id, org_id, name, description, remote_id, local_bucket_id, remote_bucket_id, max_queue_size_bytes, drop_non_retryable_data, max_age_seconds")
+		Suffix("RETURNING id, org_id, name, description, remote_id, local_bucket_id, remote_bucket_id, remote_bucket_name, max_queue_size_bytes, drop_non_retryable_data, max_age_seconds")
 
 	query, args, err := q.ToSql()
 	if err != nil {
@@ -249,7 +268,7 @@ func (s *Store) DeleteBucketReplications(ctx context.Context, localBucketID plat
 }
 
 func (s *Store) GetFullHTTPConfig(ctx context.Context, id platform.ID) (*influxdb.ReplicationHTTPConfig, error) {
-	q := sq.Select("c.remote_url", "c.remote_api_token", "c.remote_org_id", "c.allow_insecure_tls", "r.remote_bucket_id", "r.drop_non_retryable_data").
+	q := sq.Select("c.remote_url", "c.remote_api_token", "c.remote_org_id", "c.allow_insecure_tls", "r.remote_bucket_id", "r.remote_bucket_name", "r.drop_non_retryable_data").
 		From("replications r").InnerJoin("remotes c ON r.remote_id = c.id AND r.id = ?", id)
 
 	query, args, err := q.ToSql()

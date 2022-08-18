@@ -35,7 +35,7 @@ var (
 		OrgID:             *orgID,
 		RemoteID:          *remoteID,
 		LocalBucketID:     *localBucketId,
-		RemoteBucketID:    *remoteBucketID,
+		RemoteBucketID:    remoteBucketID,
 		Name:              "example",
 		MaxQueueSizeBytes: influxdb.DefaultReplicationMaxQueueSizeBytes,
 	}
@@ -79,7 +79,7 @@ func TestReplicationHandler(t *testing.T) {
 			Name:           testReplication.Name,
 			RemoteID:       testReplication.RemoteID,
 			LocalBucketID:  testReplication.LocalBucketID,
-			RemoteBucketID: testReplication.RemoteBucketID,
+			RemoteBucketID: *testReplication.RemoteBucketID,
 		}
 
 		t.Run("with explicit queue size", func(t *testing.T) {
@@ -126,7 +126,7 @@ func TestReplicationHandler(t *testing.T) {
 			Name:           testReplication.Name,
 			RemoteID:       testReplication.RemoteID,
 			LocalBucketID:  testReplication.LocalBucketID,
-			RemoteBucketID: testReplication.RemoteBucketID,
+			RemoteBucketID: *testReplication.RemoteBucketID,
 		}
 
 		t.Run("with explicit queue size", func(t *testing.T) {
@@ -289,7 +289,7 @@ func TestReplicationHandler(t *testing.T) {
 			Name:              testReplication.Name,
 			RemoteID:          testReplication.RemoteID,
 			LocalBucketID:     testReplication.LocalBucketID,
-			RemoteBucketID:    testReplication.RemoteBucketID,
+			RemoteBucketID:    *testReplication.RemoteBucketID,
 			MaxQueueSizeBytes: influxdb.MinReplicationMaxQueueSizeBytes / 2,
 		}
 
