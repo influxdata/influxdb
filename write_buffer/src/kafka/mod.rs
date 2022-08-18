@@ -1,7 +1,7 @@
 use self::{
-    aggregator::DmlAggregator,
     config::{ClientConfig, ConsumerConfig, ProducerConfig, TopicCreationConfig},
     instrumentation::KafkaProducerMetrics,
+    record_aggregator::RecordAggregator,
 };
 use crate::{
     codec::IoxHeaders,
@@ -18,7 +18,7 @@ use futures::{
     stream::{self, BoxStream},
     StreamExt, TryStreamExt,
 };
-use iox_time::{Time, TimeProvider};
+use iox_time::Time;
 use observability_deps::tracing::warn;
 use parking_lot::Mutex;
 use rskafka::{
@@ -40,7 +40,6 @@ use std::{
 };
 use trace::TraceCollector;
 
-mod aggregator;
 mod config;
 mod instrumentation;
 mod record_aggregator;
@@ -52,18 +51,17 @@ type Result<T, E = WriteBufferError> = std::result::Result<T, E>;
 
 #[derive(Debug)]
 pub struct RSKafkaProducer {
-    producers: BTreeMap<u32, BatchProducer<DmlAggregator>>,
+    producers: BTreeMap<u32, BatchProducer<RecordAggregator>>,
 }
 
 impl RSKafkaProducer {
-    pub async fn new(
+    pub async fn new<'a>(
         conn: String,
         topic_name: String,
-        connection_config: &BTreeMap<String, String>,
-        creation_config: Option<&WriteBufferCreationConfig>,
-        time_provider: Arc<dyn TimeProvider>,
-        trace_collector: Option<Arc<dyn TraceCollector>>,
-        metric_registry: &metric::Registry,
+        connection_config: &'a BTreeMap<String, String>,
+        creation_config: Option<&'a WriteBufferCreationConfig>,
+        _trace_collector: Option<Arc<dyn TraceCollector>>,
+        metric_registry: &'a metric::Registry,
     ) -> Result<Self> {
         let partition_clients =
             setup_topic(conn, topic_name.clone(), connection_config, creation_config).await?;
@@ -86,13 +84,9 @@ impl RSKafkaProducer {
                 if let Some(linger) = producer_config.linger {
                     producer_builder = producer_builder.with_linger(linger);
                 }
-                let producer = producer_builder.build(DmlAggregator::new(
-                    trace_collector.clone(),
-                    topic_name.clone(),
-                    producer_config.max_batch_size,
+                let producer = producer_builder.build(RecordAggregator::new(
                     sequencer_id,
-                    Arc::clone(&time_provider),
-                    metric_registry,
+                    producer_config.max_batch_size,
                 ));
 
                 (sequencer_id, producer)
@@ -499,6 +493,7 @@ mod tests {
     use data_types::{DeletePredicate, PartitionKey, TimestampRange};
     use dml::{test_util::assert_write_op_eq, DmlDelete, DmlWrite};
     use futures::{stream::FuturesUnordered, TryStreamExt};
+    use iox_time::TimeProvider;
     use metric::{Metric, U64Histogram};
     use rskafka::{client::partition::Compression, record::Record};
     use std::num::NonZeroU32;
@@ -522,13 +517,12 @@ mod tests {
         async fn new_context_with_time(
             &self,
             n_sequencers: NonZeroU32,
-            time_provider: Arc<dyn TimeProvider>,
+            _time_provider: Arc<dyn TimeProvider>,
         ) -> Self::Context {
             RSKafkaTestContext {
                 conn: self.conn.clone(),
                 topic_name: random_topic_name(),
                 n_sequencers,
-                time_provider,
                 trace_collector: Arc::new(RingBufferTraceCollector::new(100)),
                 metrics: metric::Registry::default(),
             }
@@ -539,7 +533,6 @@ mod tests {
         conn: String,
         topic_name: String,
         n_sequencers: NonZeroU32,
-        time_provider: Arc<dyn TimeProvider>,
         trace_collector: Arc<RingBufferTraceCollector>,
         metrics: metric::Registry,
     }
@@ -569,7 +562,6 @@ mod tests {
                 self.topic_name.clone(),
                 &BTreeMap::default(),
                 self.creation_config(creation_config).as_ref(),
-                Arc::clone(&self.time_provider),
                 Some(self.trace_collector() as Arc<_>),
                 &self.metrics,
             )
