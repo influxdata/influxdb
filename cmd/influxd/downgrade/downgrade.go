@@ -123,7 +123,7 @@ func downgrade(ctx context.Context, boltPath, sqlitePath, targetVersion string, 
 	info := influxdb.GetBuildInfo()
 
 	n, err := compareVersionStrings(targetVersion, "2.4.0")
-	if n <= 0 || err != nil {
+	if n < 0 || err != nil {
 		errStr := "if the target version is less than 2.4.0, any replications using bucket names rather than ids will be deleted"
 		log.Warn("downgrade warning", zap.String("targetVersion", errStr))
 	}
