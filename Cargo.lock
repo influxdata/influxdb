@@ -2130,6 +2130,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "influxdb_influxql_parser"
+version = "0.1.0"
+dependencies = [
+ "nom",
+ "test_helpers",
+ "workspace-hack",
+]
+
+[[package]]
 name = "influxdb_iox"
 version = "0.1.0"
 dependencies = [

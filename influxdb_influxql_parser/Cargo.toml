@@ -1,0 +1,11 @@
+[package]
+name = "influxdb_influxql_parser"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies] # In alphabetical order
+nom = { version = "7", default-features = false, features = ["std"] }
+workspace-hack = { path = "../workspace-hack"}
+
+[dev-dependencies] # In alphabetical order
+test_helpers = { path = "../test_helpers" }
