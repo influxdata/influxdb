@@ -590,7 +590,7 @@ pub trait ParquetFileRepo: Send + Sync {
     /// Return count
     async fn count(&mut self) -> Result<i64>;
 
-    /// Return count of level-0 files of given tableId and sequenceId that
+    /// Return count of level-0 files of given tableId and shardId that
     /// overlap with the given min_time and max_time and have sequencer number
     /// smaller the given one
     async fn count_by_overlaps_with_level_0(
@@ -1341,14 +1341,14 @@ pub(crate) mod test_helpers {
             .update_min_unpersisted_sequence_number(shard.id, SequenceNumber::new(53))
             .await
             .unwrap();
-        let updated_sequencer = repos
+        let updated_shard = repos
             .shards()
             .create_or_get(&kafka, kafka_partition)
             .await
             .unwrap();
-        assert_eq!(updated_sequencer.id, shard.id);
+        assert_eq!(updated_shard.id, shard.id);
         assert_eq!(
-            updated_sequencer.min_unpersisted_sequence_number,
+            updated_shard.min_unpersisted_sequence_number,
             SequenceNumber::new(53)
         );
 
