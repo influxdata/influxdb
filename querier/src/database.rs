@@ -222,11 +222,11 @@ pub async fn create_sharder(
 
     // Construct the (ordered) set of shards.
     //
-    // The sort order must be deterministic in order for all nodes to shard to // XXXJPG
+    // The sort order must be deterministic in order for all nodes to shard to
     // the same shards, therefore we type assert the returned set is of the
     // ordered variety.
     let shards: BTreeSet<_> = shards
-        //          ^ don't change this to an unordered set
+        //      ^ don't change this to an unordered set
         .into_iter()
         .map(|shard| shard.kafka_partition)
         .collect();
