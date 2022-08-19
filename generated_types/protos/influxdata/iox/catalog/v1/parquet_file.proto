@@ -5,11 +5,13 @@ option go_package = "github.com/influxdata/iox/catalog/v1";
 message ParquetFile {
     reserved 7;
     reserved "min_sequence_number";
+    reserved 2;
+    reserved "sequencer_id";
 
     // the id of the file in the catalog
     int64 id = 1;
-    // the sequencer that sequenced writes for this file
-    int64 sequencer_id = 2;
+    // the shard that sequenced writes for this file
+    int64 shard_id = 17;
     // the namespace id
     int64 namespace_id = 3;
     // the table id

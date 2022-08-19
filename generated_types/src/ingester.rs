@@ -36,7 +36,7 @@ pub struct IngesterQueryRequest {
 
 impl IngesterQueryRequest {
     /// Make a request to return data for a specified table for
-    /// all sequencers an ingester is responsible for
+    /// all shards an ingester is responsible for
     pub fn new(
         namespace: String,
         table: String,
