@@ -11,7 +11,7 @@ pub struct QuerierTombstone {
     /// Shard that this tombstone affects.
     shard_id: ShardId,
 
-    /// The sequence number assigned to the tombstone from the sequencer.
+    /// The sequence number assigned to the tombstone from the shard.
     sequence_number: SequenceNumber,
 
     /// Tombstone ID.

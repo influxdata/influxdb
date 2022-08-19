@@ -16,7 +16,7 @@ use metric::Registry;
 use object_store::DynObjectStore;
 use parquet_file::storage::ParquetStorage;
 use querier::{
-    create_ingester_connections_by_sequencer, QuerierCatalogCache, QuerierDatabase, QuerierHandler,
+    create_ingester_connections_by_shard, QuerierCatalogCache, QuerierDatabase, QuerierHandler,
     QuerierHandlerImpl, QuerierServer,
 };
 use std::{
@@ -177,7 +177,7 @@ pub async fn create_querier_server_type(
 
     let ingester_connection = match args.ingester_addresses {
         IngesterAddresses::None => None,
-        IngesterAddresses::BySequencer(map) => Some(create_ingester_connections_by_sequencer(
+        IngesterAddresses::ByShardIndex(map) => Some(create_ingester_connections_by_shard(
             map,
             Arc::clone(&catalog_cache),
         )),

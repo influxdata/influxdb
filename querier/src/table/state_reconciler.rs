@@ -146,12 +146,12 @@ impl Reconciler {
                     // parquet file. There
                     // are the following cases here:
                     //
-                    // 1. Tombstone comes before chunk min sequencer number:
+                    // 1. Tombstone comes before chunk min sequence number:
                     //    There is no way the tombstone can affect the chunk.
-                    // 2. Tombstone comes after chunk max sequencer number:
+                    // 2. Tombstone comes after chunk max sequence number:
                     //    Tombstone affects whole chunk (it might be marked as processed though,
                     //    we'll check that further down).
-                    // 3. Tombstone is in the min-max sequencer number range of the chunk:
+                    // 3. Tombstone is in the min-max sequence number range of the chunk:
                     //    Technically the querier has NO way to determine the rows that are
                     //    affected by the tombstone since we have no row-level sequence numbers.
                     //    Such a file can be created by two sources -- the ingester and the

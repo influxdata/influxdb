@@ -1,8 +1,7 @@
 use arrow::{array::as_primitive_array, datatypes::Int64Type, record_batch::RecordBatch};
+use data_types::ShardIndex;
 use futures::FutureExt;
-use influxdb_iox_client::write_info::generated_types::{
-    GetWriteInfoResponse, KafkaPartitionStatus,
-};
+use influxdb_iox_client::write_info::generated_types::{GetWriteInfoResponse, ShardStatus};
 use std::time::Duration;
 use test_helpers::timeout::FutureTimeout;
 use test_helpers_end_to_end::{
@@ -16,13 +15,12 @@ async fn basic_multi_ingesters() {
     let database_url = maybe_skip_integration!();
     test_helpers::maybe_start_logging();
 
-    // write into two different kafka partitions: 0 and 1
-    let router_config =
-        TestConfig::new_router(&database_url).with_new_write_buffer_kafka_partitions(2);
+    // write into two different shards: 0 and 1
+    let router_config = TestConfig::new_router(&database_url).with_new_write_buffer_shards(2);
 
     // ingester gets partition 0
-    let ingester_config = TestConfig::new_ingester(&router_config).with_kafka_partition(0);
-    let ingester2_config = TestConfig::new_ingester(&router_config).with_kafka_partition(1);
+    let ingester_config = TestConfig::new_ingester(&router_config).with_shard(ShardIndex::new(0));
+    let ingester2_config = TestConfig::new_ingester(&router_config).with_shard(ShardIndex::new(1));
 
     let json = format!(
         r#"{{
@@ -34,7 +32,7 @@ async fn basic_multi_ingesters() {
               "addr": "{}"
             }}
           }},
-          "sequencers": {{
+          "shards": {{
             "0": {{
               "ingester": "i1"
             }},
@@ -49,7 +47,7 @@ async fn basic_multi_ingesters() {
 
     let querier_config = TestConfig::new_querier_without_ingester(&ingester_config)
         // Configure to talk with both the ingesters
-        .with_sequencer_to_ingesters_mapping(&json);
+        .with_shard_to_ingesters_mapping(&json);
 
     // Set up the cluster  ====================================
     let mut cluster = MiniCluster::new()
@@ -79,13 +77,13 @@ async fn basic_multi_ingesters() {
                 // make sure the data in all partitions is readable or
                 // persisted (and there is none that is unknown)
                 assert!(
-                    combined_response.kafka_partition_infos.iter().all(|info| {
+                    combined_response.shard_infos.iter().all(|info| {
                         matches!(
                             info.status(),
-                            KafkaPartitionStatus::Persisted | KafkaPartitionStatus::Readable
+                            ShardStatus::Persisted | ShardStatus::Readable
                         )
                     }),
-                    "Not all partitions were readable or persisted. Combined responses: {:?}",
+                    "Not all shards were readable or persisted. Combined responses: {:?}",
                     combined_response
                 );
             }

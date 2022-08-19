@@ -116,7 +116,7 @@ fn to_partition(p: data_types::Partition) -> Partition {
 mod tests {
     use super::*;
     use data_types::{
-        ColumnId, ColumnSet, CompactionLevel, KafkaPartition, ParquetFileParams, SequenceNumber,
+        ColumnId, ColumnSet, CompactionLevel, ParquetFileParams, SequenceNumber, ShardIndex,
         Timestamp,
     };
     use generated_types::influxdata::iox::catalog::v1::catalog_service_server::CatalogService;
@@ -145,7 +145,7 @@ mod tests {
                 .unwrap();
             let shard = repos
                 .shards()
-                .create_or_get(&kafka, KafkaPartition::new(1))
+                .create_or_get(&kafka, ShardIndex::new(1))
                 .await
                 .unwrap();
             let namespace = repos
@@ -226,7 +226,7 @@ mod tests {
                 .unwrap();
             let shard = repos
                 .shards()
-                .create_or_get(&kafka, KafkaPartition::new(1))
+                .create_or_get(&kafka, ShardIndex::new(1))
                 .await
                 .unwrap();
             let namespace = repos
@@ -251,7 +251,7 @@ mod tests {
                 .unwrap();
             let shard2 = repos
                 .shards()
-                .create_or_get(&kafka, KafkaPartition::new(2))
+                .create_or_get(&kafka, ShardIndex::new(2))
                 .await
                 .unwrap();
             partition3 = repos

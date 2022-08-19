@@ -115,8 +115,8 @@ mod tests {
     use super::*;
     use chrono::TimeZone;
     use data_types::{
-        ColumnId, ColumnSet, CompactionLevel, KafkaPartition, NamespaceId, ParquetFile,
-        ParquetFileParams, PartitionId, SequenceNumber, ShardId, TableId, Timestamp,
+        ColumnId, ColumnSet, CompactionLevel, NamespaceId, ParquetFile, ParquetFileParams,
+        PartitionId, SequenceNumber, ShardId, ShardIndex, TableId, Timestamp,
     };
     use iox_catalog::{interface::Catalog, mem::MemCatalog};
     use object_store::path::Path;
@@ -147,7 +147,7 @@ mod tests {
             .unwrap();
         let shard = repos
             .shards()
-            .create_or_get(&kafka, KafkaPartition::new(1))
+            .create_or_get(&kafka, ShardIndex::new(1))
             .await
             .unwrap();
         let partition = repos

@@ -94,8 +94,8 @@ impl GarbageCollector {
 mod tests {
     use super::*;
     use data_types::{
-        ColumnId, ColumnSet, CompactionLevel, KafkaPartition, ParquetFile, ParquetFileParams,
-        SequenceNumber,
+        ColumnId, ColumnSet, CompactionLevel, ParquetFile, ParquetFileParams, SequenceNumber,
+        ShardIndex,
     };
     use futures::{StreamExt, TryStreamExt};
     use iox_tests::util::TestCatalog;
@@ -161,7 +161,7 @@ mod tests {
             .unwrap();
         let shard = txn
             .shards()
-            .create_or_get(&kafka, KafkaPartition::new(1))
+            .create_or_get(&kafka, ShardIndex::new(1))
             .await
             .unwrap();
         let partition = txn
@@ -242,7 +242,7 @@ mod tests {
             .unwrap();
         let shard = txn
             .shards()
-            .create_or_get(&kafka, KafkaPartition::new(1))
+            .create_or_get(&kafka, ShardIndex::new(1))
             .await
             .unwrap();
         let partition = txn
@@ -327,7 +327,7 @@ mod tests {
             .unwrap();
         let shard = txn
             .shards()
-            .create_or_get(&kafka, KafkaPartition::new(1))
+            .create_or_get(&kafka, ShardIndex::new(1))
             .await
             .unwrap();
         let partition = txn

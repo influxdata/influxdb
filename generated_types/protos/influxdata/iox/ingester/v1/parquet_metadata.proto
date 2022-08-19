@@ -44,7 +44,7 @@ message IoxMetadata {
   // Partition key of the partition that holds this parquet file.
   string partition_key = 9;
 
-  // The maximum sequence number from a sequencer in this parquet file.
+  // The maximum sequence number from a shard in this parquet file.
   int64 max_sequence_number = 13;
 
   // The sort key of this chunk

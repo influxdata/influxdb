@@ -3,8 +3,8 @@ use super::DbScenario;
 use async_trait::async_trait;
 use backoff::BackoffConfig;
 use data_types::{
-    DeletePredicate, IngesterMapping, KafkaPartition, NonEmptyString, ParquetFileId, PartitionId,
-    PartitionKey, Sequence, SequenceNumber, ShardId, TombstoneId,
+    DeletePredicate, IngesterMapping, NonEmptyString, ParquetFileId, PartitionId, PartitionKey,
+    Sequence, SequenceNumber, ShardId, ShardIndex, TombstoneId,
 };
 use dml::{DmlDelete, DmlMeta, DmlOperation, DmlWrite};
 use futures::StreamExt;
@@ -692,7 +692,7 @@ impl MockIngester {
 
         let shards = BTreeMap::from([(
             shard.shard.id,
-            ShardData::new(shard.shard.kafka_partition, catalog.metric_registry()),
+            ShardData::new(shard.shard.shard_index, catalog.metric_registry()),
         )]);
         let ingester_data = Arc::new(IngesterData::new(
             catalog.object_store(),
@@ -832,7 +832,7 @@ impl MockIngester {
         self.partition_keys
             .insert(sequence_number, partition_key.to_string());
         let meta = DmlMeta::sequenced(
-            Sequence::new(self.shard.shard.id.get() as u32, sequence_number),
+            Sequence::new(self.shard.shard.shard_index, sequence_number),
             self.catalog.time_provider().now(),
             None,
             0,
@@ -857,7 +857,7 @@ impl MockIngester {
 
         let sequence_number = self.next_sequence_number();
         let meta = DmlMeta::sequenced(
-            Sequence::new(self.shard.shard.id.get() as u32, sequence_number),
+            Sequence::new(self.shard.shard.shard_index, sequence_number),
             self.catalog.time_provider().now(),
             None,
             0,
@@ -926,17 +926,20 @@ impl MockIngester {
             self.catalog.metric_registry(),
             &Handle::current(),
         ));
-        let sequencer_to_ingesters = [(0, IngesterMapping::Addr(Arc::from("some_address")))]
-            .into_iter()
-            .collect();
+        let shard_to_ingesters = [(
+            ShardIndex::new(0),
+            IngesterMapping::Addr(Arc::from("some_address")),
+        )]
+        .into_iter()
+        .collect();
         let load_settings = self.querier_load_settings.clone();
-        let ingester_connection = IngesterConnectionImpl::by_sequencer_with_flight_client(
-            sequencer_to_ingesters,
+        let ingester_connection = IngesterConnectionImpl::by_shard_with_flight_client(
+            shard_to_ingesters,
             Arc::new(self),
             Arc::clone(&catalog_cache),
         );
         let ingester_connection = Arc::new(ingester_connection);
-        let sharder = Arc::new(JumpHash::new((0..1).map(KafkaPartition::new).map(Arc::new)));
+        let sharder = Arc::new(JumpHash::new((0..1).map(ShardIndex::new).map(Arc::new)));
 
         Arc::new(QuerierNamespace::new_testing(
             catalog_cache,

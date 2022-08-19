@@ -213,8 +213,8 @@ mod tests {
 
         let ns = catalog.create_namespace("ns").await;
 
-        let sequencer1 = ns.create_shard(1).await;
-        let sequencer2 = ns.create_shard(2).await;
+        let shard1 = ns.create_shard(1).await;
+        let shard2 = ns.create_shard(2).await;
 
         let table_cpu = ns.create_table("cpu").await;
         let table_mem = ns.create_table("mem").await;
@@ -227,26 +227,11 @@ mod tests {
         table_mem.create_column("time", ColumnType::Time).await;
         table_mem.create_column("perc", ColumnType::F64).await;
 
-        let partition_cpu_a_1 = table_cpu
-            .with_shard(&sequencer1)
-            .create_partition("a")
-            .await;
-        let partition_cpu_a_2 = table_cpu
-            .with_shard(&sequencer2)
-            .create_partition("a")
-            .await;
-        let partition_cpu_b_1 = table_cpu
-            .with_shard(&sequencer1)
-            .create_partition("b")
-            .await;
-        let partition_mem_c_1 = table_mem
-            .with_shard(&sequencer1)
-            .create_partition("c")
-            .await;
-        let partition_mem_c_2 = table_mem
-            .with_shard(&sequencer2)
-            .create_partition("c")
-            .await;
+        let partition_cpu_a_1 = table_cpu.with_shard(&shard1).create_partition("a").await;
+        let partition_cpu_a_2 = table_cpu.with_shard(&shard2).create_partition("a").await;
+        let partition_cpu_b_1 = table_cpu.with_shard(&shard1).create_partition("b").await;
+        let partition_mem_c_1 = table_mem.with_shard(&shard1).create_partition("c").await;
+        let partition_mem_c_2 = table_mem.with_shard(&shard2).create_partition("c").await;
 
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol("cpu,host=a load=1 11")
@@ -322,7 +307,7 @@ mod tests {
         partition_mem_c_1.create_parquet_file(builder).await;
 
         table_mem
-            .with_shard(&sequencer1)
+            .with_shard(&shard1)
             .create_tombstone(1000, 1, 13, "host=d")
             .await;
 
@@ -572,8 +557,8 @@ mod tests {
 
         let ns = catalog.create_namespace("ns").await;
         let table = ns.create_table("table").await;
-        let sequencer = ns.create_shard(1).await;
-        let partition = table.with_shard(&sequencer).create_partition("k").await;
+        let shard = ns.create_shard(1).await;
+        let partition = table.with_shard(&shard).create_partition("k").await;
 
         table.create_column("time", ColumnType::Time).await;
         table.create_column("foo", ColumnType::F64).await;

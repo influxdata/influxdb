@@ -2,7 +2,7 @@
 
 use super::DmlSink;
 use async_trait::async_trait;
-use data_types::KafkaPartition;
+use data_types::ShardIndex;
 use dml::DmlOperation;
 use iox_time::{SystemProvider, TimeProvider};
 use metric::{Attributes, DurationHistogram, U64Counter, U64Gauge};
@@ -26,8 +26,8 @@ pub trait WatermarkFetcher: Debug + Send + Sync {
 ///
 /// # Panics
 ///
-/// A [`SinkInstrumentation`] is instantiated for a specific sequencer ID, and
-/// panics if it observes a [`DmlOperation`] from a different sequencer.
+/// A [`SinkInstrumentation`] is instantiated for a specific shard index, and
+/// panics if it observes a [`DmlOperation`] from a different shard.
 ///
 /// # Wall Clocks
 ///
@@ -47,8 +47,8 @@ pub struct SinkInstrumentation<F, T, P = SystemProvider> {
     /// Used to derive ingest lag - tolerant of caching / old values.
     watermark_fetcher: F,
 
-    /// The sequencer ID this instrumentation is recording op metrics for.
-    sequencer_id: i32,
+    /// The shard index this instrumentation is recording op metrics for.
+    shard_index: ShardIndex,
 
     /// Op application success/failure call latency histograms (which include
     /// counters)
@@ -80,18 +80,18 @@ where
         inner: T,
         watermark_fetcher: F,
         kafka_topic_name: String,
-        kafka_partition: KafkaPartition,
+        shard_index: ShardIndex,
         metrics: &metric::Registry,
     ) -> Self {
         let attr = Attributes::from([
-            ("kafka_partition", kafka_partition.to_string().into()),
+            ("kafka_partition", shard_index.to_string().into()),
             ("kafka_topic", kafka_topic_name.into()),
         ]);
 
         let write_buffer_bytes_read = metrics
             .register_metric::<U64Counter>(
                 "ingester_write_buffer_read_bytes",
-                "Total number of bytes read from sequencer",
+                "Total number of bytes read from shard",
             )
             .recorder(attr.clone());
         let write_buffer_last_sequence_number = metrics
@@ -113,7 +113,7 @@ where
 
         let op_apply = metrics.register_metric::<DurationHistogram>(
             "ingester_op_apply_duration",
-            "The duration of time taken to process an operation read from the sequencer",
+            "The duration of time taken to process an operation read from the shard",
         );
         let op_apply_success = op_apply.recorder({
             let mut attr = attr.clone();
@@ -129,7 +129,7 @@ where
         Self {
             inner,
             watermark_fetcher,
-            sequencer_id: kafka_partition.get(),
+            shard_index,
 
             op_apply_success,
             op_apply_error,
@@ -154,7 +154,7 @@ where
         let meta = op.meta();
 
         // Immediately increment the "bytes read" metric as it records the
-        // number of bytes read from the sequencer, irrespective of the op
+        // number of bytes read from the shard, irrespective of the op
         // apply call.
         self.write_buffer_bytes_read.inc(
             meta.bytes_read()
@@ -177,9 +177,9 @@ where
             .sequence()
             .expect("entry from write buffer must be sequenced");
         assert_eq!(
-            sequence.sequencer_id as i32, self.sequencer_id,
-            "instrumentation for kafka partition {} saw op from kafka partition {}",
-            self.sequencer_id, sequence.sequencer_id,
+            sequence.shard_index, self.shard_index,
+            "instrumentation for shard index {} saw op from shard index {}",
+            self.shard_index, sequence.shard_index,
         );
 
         // Record the "last read sequence number" write buffer metric.
@@ -246,19 +246,19 @@ mod tests {
 
     use super::*;
 
-    /// The sequencer ID the [`SinkInstrumentation`] under test is configured to
+    /// The shard index the [`SinkInstrumentation`] under test is configured to
     /// be observing for.
-    const SEQUENCER_ID: u32 = 42;
+    const SHARD_INDEX: ShardIndex = ShardIndex::new(42);
 
     static TEST_KAFKA_TOPIC: &str = "kafka_topic_name";
 
     static TEST_TIME: Lazy<Time> = Lazy::new(|| SystemProvider::default().now());
 
     /// The attributes assigned to the metrics emitted by the
-    /// instrumentation when using the above sequencer / kafka topic values.
+    /// instrumentation when using the above shard / kafka topic values.
     static DEFAULT_ATTRS: Lazy<Attributes> = Lazy::new(|| {
         Attributes::from([
-            ("kafka_partition", SEQUENCER_ID.to_string().into()),
+            ("kafka_partition", SHARD_INDEX.to_string().into()),
             ("kafka_topic", TEST_KAFKA_TOPIC.into()),
         ])
     });
@@ -297,7 +297,7 @@ mod tests {
             inner,
             MockWatermarkFetcher::new(with_fetcher_return),
             TEST_KAFKA_TOPIC.to_string(),
-            KafkaPartition::new(SEQUENCER_ID as _),
+            SHARD_INDEX,
             metrics,
         );
 
@@ -330,8 +330,8 @@ mod tests {
         let span = SpanContext::new(Arc::clone(&traces));
 
         let meta = DmlMeta::sequenced(
-            // Op is offset 100 for sequencer 42
-            Sequence::new(SEQUENCER_ID, SequenceNumber::new(100)),
+            // Op is offset 100 for shard 42
+            Sequence::new(SHARD_INDEX, SequenceNumber::new(100)),
             *TEST_TIME,
             Some(span),
             4242,
@@ -399,8 +399,8 @@ mod tests {
         let span = SpanContext::new(Arc::clone(&traces));
 
         let meta = DmlMeta::sequenced(
-            // Op is offset 100 for sequencer 42
-            Sequence::new(SEQUENCER_ID, SequenceNumber::new(100)),
+            // Op is offset 100 for shard 42
+            Sequence::new(SHARD_INDEX, SequenceNumber::new(100)),
             *TEST_TIME,
             Some(span),
             4242,
@@ -473,8 +473,8 @@ mod tests {
         let span = SpanContext::new(Arc::clone(&traces));
 
         let meta = DmlMeta::sequenced(
-            // Op is offset 100 for sequencer 42
-            Sequence::new(SEQUENCER_ID, SequenceNumber::new(100)),
+            // Op is offset 100 for shard 42
+            Sequence::new(SHARD_INDEX, SequenceNumber::new(100)),
             *TEST_TIME,
             Some(span),
             4242,
@@ -542,8 +542,8 @@ mod tests {
         let span = SpanContext::new(Arc::clone(&traces));
 
         let meta = DmlMeta::sequenced(
-            // Op is offset 100 for sequencer 42
-            Sequence::new(SEQUENCER_ID, SequenceNumber::new(100)),
+            // Op is offset 100 for shard 42
+            Sequence::new(SHARD_INDEX, SequenceNumber::new(100)),
             *TEST_TIME,
             Some(span),
             4242,
@@ -614,16 +614,19 @@ mod tests {
         let _ = test(op, &metrics, Ok(true), Some(12345)).await;
     }
 
-    // The instrumentation emits per-sequencer metrics, so upon observing an op
-    // for a different sequencer it should panic.
-    #[should_panic = "instrumentation for kafka partition 42 saw op from kafka partition 52"]
+    // The instrumentation emits per-shard metrics, so upon observing an op
+    // for a different shard it should panic.
+    #[should_panic = "instrumentation for shard index 42 saw op from shard index 52"]
     #[tokio::test]
-    async fn test_op_different_sequencer_id() {
+    async fn test_op_different_shard_index() {
         let metrics = metric::Registry::default();
         let meta = DmlMeta::sequenced(
-            // A different kafka partition ID from what the handler is configured to
+            // A different shard index from what the handler is configured to
             // be instrumenting
-            Sequence::new(SEQUENCER_ID + 10, SequenceNumber::new(100)),
+            Sequence::new(
+                ShardIndex::new(SHARD_INDEX.get() + 10),
+                SequenceNumber::new(100),
+            ),
             *TEST_TIME,
             None,
             4242,

@@ -96,7 +96,7 @@ mod tests {
     use super::*;
     use bytes::Bytes;
     use data_types::{
-        ColumnId, ColumnSet, CompactionLevel, KafkaPartition, ParquetFileParams, SequenceNumber,
+        ColumnId, ColumnSet, CompactionLevel, ParquetFileParams, SequenceNumber, ShardIndex,
         Timestamp,
     };
     use generated_types::influxdata::iox::object_store::v1::object_store_service_server::ObjectStoreService;
@@ -124,7 +124,7 @@ mod tests {
                 .unwrap();
             let shard = repos
                 .shards()
-                .create_or_get(&kafka, KafkaPartition::new(1))
+                .create_or_get(&kafka, ShardIndex::new(1))
                 .await
                 .unwrap();
             let namespace = repos

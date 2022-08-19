@@ -340,9 +340,9 @@ impl LifecycleManager {
 
         // for the shards that are getting data persisted, keep track of what
         // the highest seqeunce number was for each.
-        let mut sequencer_maxes = BTreeMap::new();
+        let mut shard_maxes = BTreeMap::new();
         for s in &to_persist {
-            sequencer_maxes
+            shard_maxes
                 .entry(s.shard_id)
                 .and_modify(|sn| {
                     if *sn < s.first_sequence_number {
@@ -386,21 +386,24 @@ impl LifecycleManager {
                 res.expect("not aborted").expect("task finished");
             }
 
-            // for the shards that had data persisted, update their min_unpersisted_sequence_number to
-            // either the minimum remaining in everything that didn't get persisted, or the highest
-            // number that was persisted. Marking the highest number as the state is ok because it
-            // just needs to represent the farthest we'd have to seek back in the write buffer. Any
-            // data replayed during recovery that has already been persisted will just be ignored.
+            // for the shards that had data persisted, update their min_unpersisted_sequence_number
+            // to either the minimum remaining in everything that didn't get persisted, or the
+            // highest number that was persisted. Marking the highest number as the state is ok
+            // because it just needs to represent the farthest we'd have to seek back in the write
+            // buffer. Any data replayed during recovery that has already been persisted will just
+            // be ignored.
             //
             // The calculation of the min unpersisted sequence number is:
-            // - If there is any unpersisted data (i.e. `rest` contains entries for that shard) then we take the
-            //   minimum sequence number from there. Note that there might be a gap between the data that we have just
-            //   persisted and the unpersisted section.
-            // - If there is NO unpersisted data, we take the max sequence number of the part that we have just
-            //   persisted. Note that can cannot use "max + 1" because the lifecycle handler receives writes on a
-            //   partition level and therefore might run while data for a single sequence number is added. So the max
-            //   sequence number that we have just persisted might have more data.
-            for (shard_id, sequence_number) in sequencer_maxes {
+            //
+            // - If there is any unpersisted data (i.e. `rest` contains entries for that shard)
+            //   then we take the minimum sequence number from there. Note that there might be a
+            //   gap between the data that we have just persisted and the unpersisted section.
+            // - If there is NO unpersisted data, we take the max sequence number of the part that
+            //   we have just persisted. Note that can cannot use "max + 1" because the lifecycle
+            //   handler receives writes on a partition level and therefore might run while data
+            //   for a single sequence number is added. So the max sequence number that we have
+            //   just persisted might have more data.
+            for (shard_id, sequence_number) in shard_maxes {
                 let min = rest
                     .iter()
                     .filter(|s| s.shard_id == shard_id)
@@ -742,7 +745,8 @@ mod tests {
         // validate that from before, persist wasn't called for the partition
         assert!(!persister.persist_called_for(partition_id));
 
-        // write in data for a new partition so we can be sure it isn't persisted, but the older one is
+        // write in data for a new partition so we can be sure it isn't persisted, but the older
+        // one is
         h.log_write(PartitionId::new(2), shard_id, SequenceNumber::new(2), 6);
 
         m.maybe_persist(&persister).await;
@@ -795,7 +799,8 @@ mod tests {
         // validate that from before, persist wasn't called for the partition
         assert!(!persister.persist_called_for(partition_id));
 
-        // write in data for a new partition so we can be sure it isn't persisted, but the older one is
+        // write in data for a new partition so we can be sure it isn't persisted, but the older
+        // one is
         h.log_write(PartitionId::new(2), shard_id, SequenceNumber::new(2), 6);
         h.log_write(PartitionId::new(3), shard_id, SequenceNumber::new(3), 7);
 
@@ -906,14 +911,15 @@ mod tests {
         h.log_write(partition_id, shard_id, SequenceNumber::new(3), 20);
         h.log_write(PartitionId::new(2), shard_id, SequenceNumber::new(4), 21);
 
-        // both partitions should now need to be persisted to bring us below the mem threshold of 20.
+        // both partitions should now need to be persisted to bring us below the mem threshold of
+        // 20.
         m.maybe_persist(&persister).await;
 
         assert!(persister.persist_called_for(partition_id));
         assert!(persister.persist_called_for(PartitionId::new(2)));
-        // because the persister is now empty, it has to make the last call with the last sequence number it
-        // knows about. Even though this has been persisted, this fine since any already persisted
-        // data will just be ignored on startup.
+        // because the persister is now empty, it has to make the last call with the last sequence
+        // number it knows about. Even though this has been persisted, this fine since any already
+        // persisted data will just be ignored on startup.
         assert_eq!(
             persister.update_min_calls(),
             vec![

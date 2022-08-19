@@ -17,7 +17,7 @@ macro_rules! gen_compactor_config {
         #[derive(Debug, Clone, clap::Parser)]
         pub struct $name {
             /// Write buffer topic/database that the compactor will be compacting files for. It
-            /// won't connect to Kafka, but uses this to get the sequencers out of the catalog.
+            /// won't connect to Kafka, but uses this to get the shards out of the catalog.
             #[clap(
                 long = "--write-buffer-topic",
                 env = "INFLUXDB_IOX_WRITE_BUFFER_TOPIC",
@@ -26,21 +26,21 @@ macro_rules! gen_compactor_config {
             )]
             pub topic: String,
 
-            /// Write buffer partition number to start (inclusive) range with
+            /// Write buffer shard index to start (inclusive) range with
             #[clap(
-                long = "--write-buffer-partition-range-start",
-                env = "INFLUXDB_IOX_WRITE_BUFFER_PARTITION_RANGE_START",
+                long = "--shard-index-range-start",
+                env = "INFLUXDB_IOX_SHARD_INDEX_RANGE_START",
                 action
             )]
-            pub write_buffer_partition_range_start: i32,
+            pub shard_index_range_start: i32,
 
-            /// Write buffer partition number to end (inclusive) range with
+            /// Write buffer shard index to end (inclusive) range with
             #[clap(
-                long = "--write-buffer-partition-range-end",
-                env = "INFLUXDB_IOX_WRITE_BUFFER_PARTITION_RANGE_END",
+                long = "--shard-index-range-end",
+                env = "INFLUXDB_IOX_SHARD_INDEX_RANGE_END",
                 action
             )]
-            pub write_buffer_partition_range_end: i32,
+            pub shard_index_range_end: i32,
 
             /// Desired max size of compacted parquet files.
             /// It is a target desired value, rather than a guarantee.
@@ -223,8 +223,8 @@ impl CompactorOnceConfig {
     pub fn into_compactor_config(self) -> CompactorConfig {
         CompactorConfig {
             topic: self.topic,
-            write_buffer_partition_range_start: self.write_buffer_partition_range_start,
-            write_buffer_partition_range_end: self.write_buffer_partition_range_end,
+            shard_index_range_start: self.shard_index_range_start,
+            shard_index_range_end: self.shard_index_range_end,
             max_desired_file_size_bytes: self.max_desired_file_size_bytes,
             percentage_max_file_size: self.percentage_max_file_size,
             split_percentage: self.split_percentage,

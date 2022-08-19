@@ -11,11 +11,10 @@ use crate::{
 };
 use async_trait::async_trait;
 use data_types::{
-    Column, ColumnType, CompactionLevel, KafkaPartition, KafkaTopic, KafkaTopicId, Namespace,
-    NamespaceId, ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId,
-    PartitionInfo, PartitionKey, PartitionParam, ProcessedTombstone, QueryPool, QueryPoolId,
-    SequenceNumber, Shard, ShardId, Table, TableId, TablePartition, Timestamp, Tombstone,
-    TombstoneId,
+    Column, ColumnType, CompactionLevel, KafkaTopic, KafkaTopicId, Namespace, NamespaceId,
+    ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionInfo,
+    PartitionKey, PartitionParam, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber,
+    Shard, ShardId, ShardIndex, Table, TableId, TablePartition, Timestamp, Tombstone, TombstoneId,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::{debug, info, warn};
@@ -1016,7 +1015,7 @@ impl ShardRepo for PostgresTxn {
     async fn create_or_get(
         &mut self,
         topic: &KafkaTopic,
-        partition: KafkaPartition,
+        shard_index: ShardIndex,
     ) -> Result<Shard> {
         sqlx::query_as::<_, Shard>(
             r#"
@@ -1030,7 +1029,7 @@ RETURNING *;;
         "#,
         )
         .bind(&topic.id) // $1
-        .bind(&partition) // $2
+        .bind(&shard_index) // $2
         .fetch_one(&mut self.inner)
         .await
         .map_err(|e| {
@@ -1042,10 +1041,10 @@ RETURNING *;;
         })
     }
 
-    async fn get_by_topic_id_and_partition(
+    async fn get_by_topic_id_and_shard_index(
         &mut self,
         topic_id: KafkaTopicId,
-        partition: KafkaPartition,
+        shard_index: ShardIndex,
     ) -> Result<Option<Shard>> {
         let rec = sqlx::query_as::<_, Shard>(
             r#"
@@ -1056,7 +1055,7 @@ WHERE kafka_topic_id = $1
         "#,
         )
         .bind(topic_id) // $1
-        .bind(partition) // $2
+        .bind(shard_index) // $2
         .fetch_one(&mut self.inner)
         .await;
 

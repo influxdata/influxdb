@@ -4,7 +4,7 @@ use compactor::{
     handler::{CompactorHandler, CompactorHandlerImpl},
     server::CompactorServer,
 };
-use data_types::KafkaPartition;
+use data_types::ShardIndex;
 use hyper::{Body, Request, Response};
 use iox_catalog::interface::Catalog;
 use iox_query::exec::Executor;
@@ -35,8 +35,8 @@ pub enum Error {
     #[error("Kafka topic {0} not found in the catalog")]
     KafkaTopicNotFound(String),
 
-    #[error("kafka_partition_range_start must be <= kafka_partition_range_end")]
-    KafkaRange,
+    #[error("shard_index_range_start must be <= shard_index_range_end")]
+    ShardIndexRange,
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -159,10 +159,8 @@ pub async fn build_compactor_from_config(
     time_provider: Arc<dyn TimeProvider>,
     metric_registry: Arc<Registry>,
 ) -> Result<compactor::compact::Compactor, Error> {
-    if compactor_config.write_buffer_partition_range_start
-        > compactor_config.write_buffer_partition_range_end
-    {
-        return Err(Error::KafkaRange);
+    if compactor_config.shard_index_range_start > compactor_config.shard_index_range_end {
+        return Err(Error::ShardIndexRange);
     }
 
     let mut txn = catalog.start_transaction().await?;
@@ -172,13 +170,13 @@ pub async fn build_compactor_from_config(
         .await?
         .ok_or(Error::KafkaTopicNotFound(compactor_config.topic))?;
 
-    let kafka_partitions: Vec<_> = (compactor_config.write_buffer_partition_range_start
-        ..=compactor_config.write_buffer_partition_range_end)
-        .map(KafkaPartition::new)
+    let shard_indexes: Vec<_> = (compactor_config.shard_index_range_start
+        ..=compactor_config.shard_index_range_end)
+        .map(ShardIndex::new)
         .collect();
 
-    let mut shards = Vec::with_capacity(kafka_partitions.len());
-    for k in kafka_partitions {
+    let mut shards = Vec::with_capacity(shard_indexes.len());
+    for k in shard_indexes {
         let s = txn.shards().create_or_get(&kafka_topic, k).await?;
         shards.push(s.id);
     }

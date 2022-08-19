@@ -6,7 +6,7 @@ use crate::{
 };
 use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig};
-use data_types::{KafkaPartition, Namespace};
+use data_types::{Namespace, ShardIndex};
 use iox_catalog::interface::Catalog;
 use iox_query::exec::Executor;
 use parquet_file::storage::ParquetStorage;
@@ -31,7 +31,7 @@ pub enum Error {
     Catalog {
         source: iox_catalog::interface::Error,
     },
-    #[snafu(display("No sequencer shards loaded"))]
+    #[snafu(display("No shards loaded"))]
     NoShards,
 }
 
@@ -70,7 +70,7 @@ pub struct QuerierDatabase {
     query_execution_semaphore: Arc<InstrumentedAsyncSemaphore>,
 
     /// Sharder to determine which ingesters to query for a particular table and namespace.
-    sharder: Arc<JumpHash<Arc<KafkaPartition>>>,
+    sharder: Arc<JumpHash<Arc<ShardIndex>>>,
 
     /// Max combined chunk size for all chunks returned to the query subsystem by a single table.
     max_table_query_bytes: usize,
@@ -212,7 +212,7 @@ impl QuerierDatabase {
 pub async fn create_sharder(
     catalog: &dyn Catalog,
     backoff_config: BackoffConfig,
-) -> Result<JumpHash<Arc<KafkaPartition>>, Error> {
+) -> Result<JumpHash<Arc<ShardIndex>>, Error> {
     let shards = Backoff::new(&backoff_config)
         .retry_all_errors("get shards", || async {
             catalog.repositories().await.shards().list().await
@@ -220,22 +220,22 @@ pub async fn create_sharder(
         .await
         .expect("retry forever");
 
-    // Construct the (ordered) set of shards.
+    // Construct the (ordered) set of shard indexes.
     //
     // The sort order must be deterministic in order for all nodes to shard to
-    // the same shards, therefore we type assert the returned set is of the
+    // the same indexes, therefore we type assert the returned set is of the
     // ordered variety.
-    let shards: BTreeSet<_> = shards
-        //      ^ don't change this to an unordered set
+    let shard_indexes: BTreeSet<_> = shards
+        //             ^ don't change this to an unordered set
         .into_iter()
-        .map(|shard| shard.kafka_partition)
+        .map(|shard| shard.shard_index)
         .collect();
 
-    if shards.is_empty() {
+    if shard_indexes.is_empty() {
         return Err(Error::NoShards);
     }
 
-    Ok(JumpHash::new(shards.into_iter().map(Arc::new)))
+    Ok(JumpHash::new(shard_indexes.into_iter().map(Arc::new)))
 }
 
 #[cfg(test)]

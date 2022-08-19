@@ -1,6 +1,6 @@
 use std::result::Result;
 
-use data_types::KafkaPartition;
+use data_types::ShardIndex;
 use futures::future::BoxFuture;
 use iox_time::{SystemProvider, TimeProvider};
 use metric::{Attributes, DurationHistogram, U64Histogram, U64HistogramOptions};
@@ -39,11 +39,11 @@ impl KafkaProducerMetrics {
     pub fn new(
         client: Box<dyn ProducerClient>,
         kafka_topic_name: String,
-        kafka_partition: KafkaPartition,
+        shard_index: ShardIndex,
         metrics: &metric::Registry,
     ) -> Self {
         let attr = Attributes::from([
-            ("kafka_partition", kafka_partition.to_string().into()),
+            ("kafka_partition", shard_index.to_string().into()),
             ("kafka_topic", kafka_topic_name.into()),
         ]);
 
@@ -157,7 +157,7 @@ mod tests {
     use super::*;
 
     const KAFKA_TOPIC: &str = "bananas";
-    const KAFKA_PARTITION: KafkaPartition = KafkaPartition::new(42);
+    const SHARD_INDEX: ShardIndex = ShardIndex::new(42);
 
     /// The duration of time the MockProducer::produce() takes to "execute"
     const CALL_LATENCY: Duration = Duration::from_secs(1);
@@ -200,7 +200,7 @@ mod tests {
         let metrics = metric::Registry::default();
 
         let wrapper =
-            KafkaProducerMetrics::new(producer, KAFKA_TOPIC.to_string(), KAFKA_PARTITION, &metrics)
+            KafkaProducerMetrics::new(producer, KAFKA_TOPIC.to_string(), SHARD_INDEX, &metrics)
                 .with_time_provider(Arc::clone(&clock));
 
         let record = Record {
@@ -257,7 +257,7 @@ mod tests {
         let metrics = metric::Registry::default();
 
         let wrapper =
-            KafkaProducerMetrics::new(producer, KAFKA_TOPIC.to_string(), KAFKA_PARTITION, &metrics)
+            KafkaProducerMetrics::new(producer, KAFKA_TOPIC.to_string(), SHARD_INDEX, &metrics)
                 .with_time_provider(Arc::clone(&clock));
 
         wrapper

@@ -135,12 +135,12 @@ impl WriteBufferConfig {
     }
 
     fn conn(&self) -> WriteBufferConnection {
-        let creation_config =
-            self.auto_create_topics
-                .map(|n_sequencers| WriteBufferCreationConfig {
-                    n_sequencers,
-                    ..Default::default()
-                });
+        let creation_config = self
+            .auto_create_topics
+            .map(|n_shards| WriteBufferCreationConfig {
+                n_shards,
+                ..Default::default()
+            });
         WriteBufferConnection {
             type_: self.type_.clone(),
             connection: self.connection_string.clone(),

@@ -1,5 +1,5 @@
 use super::sink_instrumentation::WatermarkFetcher;
-use data_types::KafkaPartition;
+use data_types::ShardIndex;
 use metric::U64Counter;
 use observability_deps::tracing::*;
 use std::{
@@ -13,7 +13,7 @@ use tokio::task::JoinHandle;
 use write_buffer::core::WriteBufferReading;
 
 /// Periodically fetch and cache the maximum known write buffer offset
-/// (watermark) from the write buffer for a given sequencer.
+/// (watermark) from the write buffer for a given shard.
 ///
 /// Uses [`WriteBufferReading::fetch_high_watermark()`] internally to obtain the
 /// latest offset in the background, updating the cached value when it
@@ -29,15 +29,15 @@ pub struct PeriodicWatermarkFetcher {
 
 impl PeriodicWatermarkFetcher {
     /// Instantiate a new [`PeriodicWatermarkFetcher`] that polls `write_buffer`
-    /// every `interval` period for the maximum offset for `partition`.
+    /// every `interval` period for the maximum offset for `shard_index`.
     pub fn new(
         write_buffer: Arc<dyn WriteBufferReading>,
-        partition: KafkaPartition,
+        shard_index: ShardIndex,
         interval: Duration,
         metrics: &metric::Registry,
     ) -> Self {
         // Initialise a new poller to update the watermark in the background.
-        let (poller, last_watermark) = Poller::new(write_buffer, partition, metrics);
+        let (poller, last_watermark) = Poller::new(write_buffer, shard_index, metrics);
 
         // Start the poller and retain a handle to stop it once this fetcher is
         // dropped.
@@ -88,15 +88,13 @@ impl Drop for PeriodicWatermarkFetcher {
 struct Poller {
     write_buffer: Arc<dyn WriteBufferReading>,
 
-    // The sequencer / kafka partition to ask the write buffer the max offset
-    // for.
-    sequencer_id: u32,
+    // The shard index to ask the write buffer the max offset for.
+    shard_index: ShardIndex,
 
     // A metric tracking the number of max offset fetch errors.
     error_count: U64Counter,
 
-    // The last observed maximum kafka offset, 0 if never observed (i.e. due to
-    // error).
+    // The last observed maximum offset, 0 if never observed (i.e. due to error).
     last_watermark: Arc<AtomicI64>,
 }
 
@@ -104,11 +102,11 @@ impl Poller {
     /// Initialise a new poller.
     ///
     /// The returned atomic will be updated with the most recent observed
-    /// watermark value for `sequencer_id` after a successful poll, or 0 if
+    /// watermark value for `shard_index` after a successful poll, or 0 if
     /// never successfully polled.
     fn new(
         write_buffer: Arc<dyn WriteBufferReading>,
-        partition: KafkaPartition,
+        shard_index: ShardIndex,
         metrics: &metric::Registry,
     ) -> (Self, Arc<AtomicI64>) {
         let last_watermark = Arc::new(AtomicI64::new(0));
@@ -123,10 +121,7 @@ impl Poller {
 
         (
             Self {
-                sequencer_id: partition
-                    .get()
-                    .try_into()
-                    .expect("sequence ID out of range"),
+                shard_index,
                 write_buffer,
                 error_count,
                 last_watermark,
@@ -148,7 +143,7 @@ impl Poller {
 
             let maybe_offset = self
                 .write_buffer
-                .fetch_high_watermark(self.sequencer_id)
+                .fetch_high_watermark(self.shard_index)
                 .await;
 
             let now = Instant::now();
@@ -200,7 +195,7 @@ mod tests {
         let metrics = Arc::new(metric::Registry::default());
         let fetcher = PeriodicWatermarkFetcher::new(
             write_buffer,
-            KafkaPartition::new(0),
+            ShardIndex::new(0),
             Duration::from_millis(10),
             &*metrics,
         );
@@ -220,8 +215,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_fetch_ok() {
-        let state = MockBufferSharedState::empty_with_n_sequencers(1.try_into().unwrap());
-        state.push_lp(Sequence::new(0, SequenceNumber::new(41)), "cpu,t=1 v=2");
+        let state = MockBufferSharedState::empty_with_n_shards(1.try_into().unwrap());
+        state.push_lp(
+            Sequence::new(ShardIndex::new(0), SequenceNumber::new(41)),
+            "cpu,t=1 v=2",
+        );
 
         let write_buffer = Arc::new(
             MockBufferForReading::new(state, None).expect("failed to init mock write buffer"),
@@ -230,7 +228,7 @@ mod tests {
         let metrics = Arc::new(metric::Registry::default());
         let fetcher = PeriodicWatermarkFetcher::new(
             write_buffer,
-            KafkaPartition::new(0),
+            ShardIndex::new(0),
             Duration::from_millis(10),
             &*metrics,
         );

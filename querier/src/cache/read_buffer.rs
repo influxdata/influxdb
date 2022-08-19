@@ -248,9 +248,9 @@ mod tests {
         let table = ns.create_table("table1").await;
         table.create_column("foo", ColumnType::F64).await;
         table.create_column("time", ColumnType::Time).await;
-        let sequencer1 = ns.create_shard(1).await;
+        let shard1 = ns.create_shard(1).await;
 
-        let partition = table.with_shard(&sequencer1).create_partition("k").await;
+        let partition = table.with_shard(&shard1).create_partition("k").await;
 
         (catalog, partition)
     }
@@ -323,9 +323,9 @@ mod tests {
             let table = ns.create_table(&table_name).await;
             table.create_column("foo", ColumnType::F64).await;
             table.create_column("time", ColumnType::Time).await;
-            let sequencer1 = ns.create_shard(1).await;
+            let shard1 = ns.create_shard(1).await;
 
-            let partition = table.with_shard(&sequencer1).create_partition("k").await;
+            let partition = table.with_shard(&shard1).create_partition("k").await;
 
             let builder = TestParquetFileBuilder::default()
                 .with_line_protocol(&format!("{table_name} foo=1 11"));

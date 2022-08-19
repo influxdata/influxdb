@@ -479,7 +479,7 @@ impl PartitionCompactionCandidateWithInfo {
 mod tests {
     use super::*;
     use data_types::{
-        ColumnId, ColumnSet, CompactionLevel, KafkaPartition, ParquetFileParams, SequenceNumber,
+        ColumnId, ColumnSet, CompactionLevel, ParquetFileParams, SequenceNumber, ShardIndex,
         Timestamp,
     };
     use iox_tests::util::TestCatalog;
@@ -514,7 +514,7 @@ mod tests {
             .unwrap();
         let shard = txn
             .shards()
-            .create_or_get(&kafka, KafkaPartition::new(1))
+            .create_or_get(&kafka, ShardIndex::new(1))
             .await
             .unwrap();
         let partition1 = txn
@@ -545,7 +545,7 @@ mod tests {
             .unwrap();
         let another_shard = txn
             .shards()
-            .create_or_get(&kafka, KafkaPartition::new(2))
+            .create_or_get(&kafka, ShardIndex::new(2))
             .await
             .unwrap();
         let another_partition = txn
@@ -810,7 +810,7 @@ mod tests {
             .unwrap();
         let shard = txn
             .shards()
-            .create_or_get(&kafka, KafkaPartition::new(1))
+            .create_or_get(&kafka, ShardIndex::new(1))
             .await
             .unwrap();
         let partition1 = txn
@@ -846,7 +846,7 @@ mod tests {
             .unwrap();
         let another_shard = txn
             .shards()
-            .create_or_get(&kafka, KafkaPartition::new(2))
+            .create_or_get(&kafka, ShardIndex::new(2))
             .await
             .unwrap();
         let another_partition = txn

@@ -1,5 +1,5 @@
 //! Querier-related configs.
-use data_types::IngesterMapping;
+use data_types::{IngesterMapping, ShardIndex};
 use serde::Deserialize;
 use snafu::{ResultExt, Snafu};
 use std::{collections::HashMap, fs, io, path::PathBuf, sync::Arc};
@@ -7,21 +7,21 @@ use std::{collections::HashMap, fs, io, path::PathBuf, sync::Arc};
 #[derive(Debug, Snafu)]
 #[allow(missing_docs)]
 pub enum Error {
-    #[snafu(display("Could not read sequencer to ingester file `{}`: {source}", file.display()))]
-    SequencerToIngesterFileReading { source: io::Error, file: PathBuf },
+    #[snafu(display("Could not read shard to ingester file `{}`: {source}", file.display()))]
+    ShardToIngesterFileReading { source: io::Error, file: PathBuf },
 
     #[snafu(display("Could not deserialize JSON from ingester config: {source}"))]
-    SequencerToIngesterDeserializing { source: serde_json::Error },
+    ShardToIngesterDeserializing { source: serde_json::Error },
 
     #[snafu(display(
         "Specifying `\"ignoreAll\": true` requires that both the `ingesters` and \
-        `sequencers` configurations are empty. `ingesters`: `{:#?}`,  `sequencers`: `{:#?}`",
+        `shards` configurations are empty. `ingesters`: `{:#?}`,  `shards`: `{:#?}`",
         ingesters,
-        sequencers,
+        shards,
     ))]
     IgnoreAllRequiresEmptyConfig {
         ingesters: HashMap<Arc<str>, Arc<IngesterConfig>>,
-        sequencers: HashMap<i32, SequencerConfig>,
+        shards: HashMap<ShardIndex, ShardConfig>,
     },
 
     #[snafu(display(
@@ -29,8 +29,13 @@ pub enum Error {
     ))]
     IngesterAddrRequired { name: Arc<str> },
 
-    #[snafu(display("Could not find ingester `{name}` specified for sequencer `{sequencer}`"))]
-    IngesterNotFound { sequencer: i32, name: Arc<str> },
+    #[snafu(display(
+        "Could not find ingester `{name}` specified for shard index `{shard_index}`"
+    ))]
+    IngesterNotFound {
+        shard_index: ShardIndex,
+        name: Arc<str>,
+    },
 }
 
 /// CLI config for querier configuration
@@ -46,14 +51,14 @@ pub struct QuerierConfig {
     )]
     pub num_query_threads: Option<usize>,
 
-    /// Path to a JSON file containing a Sequencer ID to ingesters gRPC mapping. For example:
+    /// Path to a JSON file containing a Shard index to ingesters gRPC mapping. For example:
     ///
     /// ```json
     /// {
     ///   // Flag to ignore all ingesters and only query persisted data. Useful for development
     ///   // or creating "cold data only" clusters.
     ///   //
-    ///   // If this is set to `true`, having non-empty `ingesters` or `sequencers` is a startup
+    ///   // If this is set to `true`, having non-empty `ingesters` or `shards` is a startup
     ///   // error.
     ///   //
     ///   // default: false
@@ -79,16 +84,16 @@ pub struct QuerierConfig {
     ///     }
     ///   },
     ///
-    ///   // Mapping of sequencer IDs (as strings) to ingester names. Queries to sequencers that do
+    ///   // Mapping of shard indexes (as strings) to ingester names. Queries to shards that do
     ///   // not appear in this mapping will return an error. Using an ingester name in the
-    ///   `sequencers` mapping that does not appear in the `ingesters` mapping is a startup error.
+    ///   // `shards` mapping that does not appear in the `ingesters` mapping is a startup error.
     ///   //
     ///   // default: {}
-    ///   "sequencers": {
+    ///   "shards": {
     ///     "1": {
     ///       // Name of an ingester from the `ingester` mapping.
     ///       //
-    ///       // If this is `null`, queries to this sequencer will error.
+    ///       // If this is `null`, queries to this shard will error.
     ///       //
     ///       // default: null
     ///       "ingester": "i1"
@@ -100,7 +105,7 @@ pub struct QuerierConfig {
     ///       "ingester": "i2"
     ///     },
     ///     "5": {
-    ///       // Flag to not fetch data from any ingester for queries to this sequencer.
+    ///       // Flag to not fetch data from any ingester for queries to this shard.
     ///       //
     ///       // default: false
     ///       "ignore": true
@@ -109,20 +114,20 @@ pub struct QuerierConfig {
     /// }
     /// ```
     #[clap(
-        long = "--sequencer-to-ingesters-file",
-        env = "INFLUXDB_IOX_SEQUENCER_TO_INGESTERS_FILE",
+        long = "--shard-to-ingesters-file",
+        env = "INFLUXDB_IOX_SHARD_TO_INGESTERS_FILE",
         action
     )]
-    pub sequencer_to_ingesters_file: Option<PathBuf>,
+    pub shard_to_ingesters_file: Option<PathBuf>,
 
-    /// JSON containing a Sequencer ID to ingesters gRPC mapping. For example:
+    /// JSON containing a Shard index to ingesters gRPC mapping. For example:
     ///
     /// ```json
     /// {
     ///   // Flag to ignore all ingesters and only query persisted data. Useful for development
     ///   // or creating "cold data only" clusters.
     ///   //
-    ///   // If this is set to `true`, having non-empty `ingesters` or `sequencers` is a startup
+    ///   // If this is set to `true`, having non-empty `ingesters` or `shards` is a startup
     ///   // error.
     ///   //
     ///   // default: false
@@ -148,16 +153,16 @@ pub struct QuerierConfig {
     ///     }
     ///   },
     ///
-    ///   // Mapping of sequencer IDs (as strings) to ingester names. Queries to sequencers that do
+    ///   // Mapping of shard indexes (as strings) to ingester names. Queries to shards that do
     ///   // not appear in this mapping will return an error. Using an ingester name in the
-    ///   `sequencers` mapping that does not appear in the `ingesters` mapping is a startup error.
+    ///   // `shards` mapping that does not appear in the `ingesters` mapping is a startup error.
     ///   //
     ///   // default: {}
-    ///   "sequencers": {
+    ///   "shards": {
     ///     "1": {
     ///       // Name of an ingester from the `ingester` mapping.
     ///       //
-    ///       // If this is `null`, queries to this sequencer will error.
+    ///       // If this is `null`, queries to this shard will error.
     ///       //
     ///       // default: null
     ///       "ingester": "i1"
@@ -169,7 +174,7 @@ pub struct QuerierConfig {
     ///       "ingester": "i2"
     ///     },
     ///     "5": {
-    ///       // Flag to not fetch data from any ingester for queries to this sequencer.
+    ///       // Flag to not fetch data from any ingester for queries to this shard.
     ///       //
     ///       // default: false
     ///       "ignore": true
@@ -178,11 +183,11 @@ pub struct QuerierConfig {
     /// }
     /// ```
     #[clap(
-        long = "--sequencer-to-ingesters",
-        env = "INFLUXDB_IOX_SEQUENCER_TO_INGESTERS",
+        long = "--shard-to-ingesters",
+        env = "INFLUXDB_IOX_SHARD_TO_INGESTERS",
         action
     )]
-    pub sequencer_to_ingesters: Option<String>,
+    pub shard_to_ingesters: Option<String>,
 
     /// Size of the RAM cache used to store catalog metadata information in bytes.
     #[clap(
@@ -232,27 +237,25 @@ impl QuerierConfig {
         self.num_query_threads
     }
 
-    /// Return the querier config's ingester addresses. If `--ingester-address` is used to specify
-    /// a list of addresses, this returns `Err` if any of the addresses are repeated. If
-    /// `--sequencer-to-ingesters-file` is used to specify a JSON file containing sequencer to
-    /// ingester address mappings, this returns `Err` if there are any problems reading,
-    /// deserializing, or interpreting the file.
+    /// Return the querier config's ingester addresses. If `--shard-to-ingesters-file` is used to
+    /// specify a JSON file containing shard to ingester address mappings, this returns `Err` if
+    /// there are any problems reading, deserializing, or interpreting the file.
     pub fn ingester_addresses(&self) -> Result<IngesterAddresses, Error> {
-        if let Some(file) = &self.sequencer_to_ingesters_file {
+        if let Some(file) = &self.shard_to_ingesters_file {
             let contents =
-                fs::read_to_string(file).context(SequencerToIngesterFileReadingSnafu { file })?;
-            let map = deserialize_sequencer_ingester_map(&contents)?;
+                fs::read_to_string(file).context(ShardToIngesterFileReadingSnafu { file })?;
+            let map = deserialize_shard_ingester_map(&contents)?;
             if map.is_empty() {
                 Ok(IngesterAddresses::None)
             } else {
-                Ok(IngesterAddresses::BySequencer(map))
+                Ok(IngesterAddresses::ByShardIndex(map))
             }
-        } else if let Some(contents) = &self.sequencer_to_ingesters {
-            let map = deserialize_sequencer_ingester_map(contents)?;
+        } else if let Some(contents) = &self.shard_to_ingesters {
+            let map = deserialize_shard_ingester_map(contents)?;
             if map.is_empty() {
                 Ok(IngesterAddresses::None)
             } else {
-                Ok(IngesterAddresses::BySequencer(map))
+                Ok(IngesterAddresses::ByShardIndex(map))
             }
         } else {
             Ok(IngesterAddresses::None)
@@ -281,18 +284,18 @@ impl QuerierConfig {
     }
 }
 
-fn deserialize_sequencer_ingester_map(
+fn deserialize_shard_ingester_map(
     contents: &str,
-) -> Result<HashMap<i32, IngesterMapping>, Error> {
+) -> Result<HashMap<ShardIndex, IngesterMapping>, Error> {
     let ingesters_config: IngestersConfig =
-        serde_json::from_str(contents).context(SequencerToIngesterDeserializingSnafu)?;
+        serde_json::from_str(contents).context(ShardToIngesterDeserializingSnafu)?;
 
     if ingesters_config.ignore_all
-        && (!ingesters_config.ingesters.is_empty() || !ingesters_config.sequencers.is_empty())
+        && (!ingesters_config.ingesters.is_empty() || !ingesters_config.shards.is_empty())
     {
         return IgnoreAllRequiresEmptyConfigSnafu {
             ingesters: ingesters_config.ingesters,
-            sequencers: ingesters_config.sequencers,
+            shards: ingesters_config.shards,
         }
         .fail();
     }
@@ -324,26 +327,26 @@ fn deserialize_sequencer_ingester_map(
 
     let mut map = HashMap::new();
 
-    for (seq_id, seq_config) in ingesters_config.sequencers {
-        if seq_config.ignore {
-            map.insert(seq_id, IngesterMapping::Ignore);
+    for (shard_index, shard_config) in ingesters_config.shards {
+        if shard_config.ignore {
+            map.insert(shard_index, IngesterMapping::Ignore);
             continue;
         }
-        match seq_config.ingester {
+        match shard_config.ingester {
             Some(ingester) => match ingester_mapping_by_name.get(&ingester) {
                 Some(ingester_mapping) => {
-                    map.insert(seq_id, ingester_mapping.clone());
+                    map.insert(shard_index, ingester_mapping.clone());
                 }
                 None => {
                     return IngesterNotFoundSnafu {
                         name: Arc::clone(&ingester),
-                        sequencer: seq_id,
+                        shard_index,
                     }
                     .fail();
                 }
             },
             None => {
-                map.insert(seq_id, IngesterMapping::NotMapped);
+                map.insert(shard_index, IngesterMapping::NotMapped);
             }
         }
     }
@@ -354,8 +357,8 @@ fn deserialize_sequencer_ingester_map(
 /// Ingester addresses.
 #[derive(Debug, PartialEq, Eq)]
 pub enum IngesterAddresses {
-    /// A mapping from sequencer ID to ingesters.
-    BySequencer(HashMap<i32, IngesterMapping>),
+    /// A mapping from shard index to ingesters.
+    ByShardIndex(HashMap<ShardIndex, IngesterMapping>),
 
     /// No connections, meaning only persisted data should be used.
     None,
@@ -369,7 +372,7 @@ struct IngestersConfig {
     #[serde(default)]
     ingesters: HashMap<Arc<str>, Arc<IngesterConfig>>,
     #[serde(default)]
-    sequencers: HashMap<i32, SequencerConfig>,
+    shards: HashMap<ShardIndex, ShardConfig>,
 }
 
 /// Ingester config.
@@ -380,9 +383,9 @@ pub struct IngesterConfig {
     ignore: bool,
 }
 
-/// Sequencer config.
+/// Shard config.
 #[derive(Debug, Deserialize)]
-pub struct SequencerConfig {
+pub struct ShardConfig {
     ingester: Option<Arc<str>>,
     #[serde(default)]
     ignore: bool,
@@ -421,7 +424,7 @@ mod tests {
     fn supply_json_value() {
         let actual = QuerierConfig::try_parse_from([
             "my_binary",
-            "--sequencer-to-ingesters",
+            "--shard-to-ingesters",
             r#"{
               "ignoreAll": false,
               "ingesters": {
@@ -436,7 +439,7 @@ mod tests {
                   "addr": "http://ingester-2:2345"
                 }
               },
-              "sequencers": {
+              "shards": {
                 "1": {
                   "ingester": "i1"
                 },
@@ -451,11 +454,14 @@ mod tests {
         ])
         .unwrap();
 
-        let expected = IngesterAddresses::BySequencer(
+        let expected = IngesterAddresses::ByShardIndex(
             [
-                (1, IngesterMapping::Addr("http://ingester-1:1234".into())),
-                (2, IngesterMapping::Ignore),
-                (5, IngesterMapping::Ignore),
+                (
+                    ShardIndex::new(1),
+                    IngesterMapping::Addr("http://ingester-1:1234".into()),
+                ),
+                (ShardIndex::new(2), IngesterMapping::Ignore),
+                (ShardIndex::new(5), IngesterMapping::Ignore),
             ]
             .into_iter()
             .collect(),
@@ -480,7 +486,7 @@ mod tests {
               "addr": "http://ingester-2:2345"
             }
           },
-          "sequencers": {
+          "shards": {
             "1": {
               "ingester": "i1"
             },
@@ -497,13 +503,16 @@ mod tests {
           }
         }"#;
 
-        let map = deserialize_sequencer_ingester_map(contents).unwrap();
+        let map = deserialize_shard_ingester_map(contents).unwrap();
 
         let expected = [
-            (1, IngesterMapping::Addr("http://ingester-1:1234".into())),
-            (2, IngesterMapping::Ignore),
-            (3, IngesterMapping::Ignore),
-            (5, IngesterMapping::Ignore),
+            (
+                ShardIndex::new(1),
+                IngesterMapping::Addr("http://ingester-1:1234".into()),
+            ),
+            (ShardIndex::new(2), IngesterMapping::Ignore),
+            (ShardIndex::new(3), IngesterMapping::Ignore),
+            (ShardIndex::new(5), IngesterMapping::Ignore),
         ]
         .into_iter()
         .collect();
@@ -513,31 +522,31 @@ mod tests {
 
     #[test]
     fn unsuccessful_deserialization() {
-        let map = deserialize_sequencer_ingester_map("");
-        assert_error!(map, Error::SequencerToIngesterDeserializing { .. });
+        let map = deserialize_shard_ingester_map("");
+        assert_error!(map, Error::ShardToIngesterDeserializing { .. });
     }
 
     #[test]
     fn ignore_all_requires_empty_maps() {
         let expected = HashMap::new();
 
-        let map = deserialize_sequencer_ingester_map(
+        let map = deserialize_shard_ingester_map(
             r#"{
             "ignoreAll": true
         }"#,
         );
         assert_eq!(map.unwrap(), expected);
 
-        let map = deserialize_sequencer_ingester_map(
+        let map = deserialize_shard_ingester_map(
             r#"{
             "ignoreAll": true,
             "ingesters": {},
-            "sequencers": {}
+            "shards": {}
         }"#,
         );
         assert_eq!(map.unwrap(), expected);
 
-        let map = deserialize_sequencer_ingester_map(
+        let map = deserialize_shard_ingester_map(
             r#"{
             "ignoreAll": true,
             "ingesters": {
@@ -545,16 +554,16 @@ mod tests {
                   "addr": "http://ingester-1:1234"
                 }
             },
-            "sequencers": {}
+            "shards": {}
         }"#,
         );
         assert_error!(map, Error::IgnoreAllRequiresEmptyConfig { .. });
 
-        let map = deserialize_sequencer_ingester_map(
+        let map = deserialize_shard_ingester_map(
             r#"{
             "ignoreAll": true,
             "ingesters": {},
-            "sequencers": {
+            "shards": {
                 "1": {
                   "ingester": "i1"
                 }
@@ -563,7 +572,7 @@ mod tests {
         );
         assert_error!(map, Error::IgnoreAllRequiresEmptyConfig { .. });
 
-        let map = deserialize_sequencer_ingester_map(
+        let map = deserialize_shard_ingester_map(
             r#"{
             "ignoreAll": true,
             "ingesters": {
@@ -571,7 +580,7 @@ mod tests {
                   "addr": "http://ingester-1:1234"
                 }
             },
-            "sequencers": {
+            "shards": {
                 "1": {
                   "ingester": "i1"
                 }
@@ -583,7 +592,7 @@ mod tests {
 
     #[test]
     fn ingester_addr_must_be_specified_if_not_ignored() {
-        let map = deserialize_sequencer_ingester_map(
+        let map = deserialize_shard_ingester_map(
             r#"{
               "ingesters": {
                   "i1": {}
@@ -592,7 +601,7 @@ mod tests {
         );
         assert_error!(map, Error::IngesterAddrRequired { ref name } if name.as_ref() == "i1");
 
-        let map = deserialize_sequencer_ingester_map(
+        let map = deserialize_shard_ingester_map(
             r#"{
               "ingesters": {
                   "i1": {
@@ -606,10 +615,10 @@ mod tests {
 
     #[test]
     fn ingester_must_be_found() {
-        let map = deserialize_sequencer_ingester_map(
+        let map = deserialize_shard_ingester_map(
             r#"{
             "ingesters": {},
-            "sequencers": {
+            "shards": {
                 "1": {
                   "ingester": "i1"
                 }
@@ -618,14 +627,14 @@ mod tests {
         );
         assert_error!(
             map,
-            Error::IngesterNotFound { sequencer, ref name }
-              if sequencer == 1 && name.as_ref() == "i1"
+            Error::IngesterNotFound { shard_index, ref name }
+              if shard_index.get() == 1 && name.as_ref() == "i1"
         );
 
-        let map = deserialize_sequencer_ingester_map(
+        let map = deserialize_shard_ingester_map(
             r#"{
             "ingesters": {},
-            "sequencers": {
+            "shards": {
                 "1": {
                   "ingester": ""
                 }
@@ -634,21 +643,21 @@ mod tests {
         );
         assert_error!(
             map,
-            Error::IngesterNotFound { sequencer, ref name }
-              if sequencer == 1 && name.as_ref() == ""
+            Error::IngesterNotFound { shard_index, ref name }
+              if shard_index.get() == 1 && name.as_ref() == ""
         );
     }
 
     #[test]
-    fn sequencer_to_ingester_varieties() {
-        let map = deserialize_sequencer_ingester_map(
+    fn shard_to_ingester_varieties() {
+        let map = deserialize_shard_ingester_map(
             r#"{
             "ingesters": {
                 "i1": {
                   "addr": "http://ingester-1:1234"
                 }
             },
-            "sequencers": {
+            "shards": {
                 "1": {
                   "ingester": "i1"
                 },
@@ -672,12 +681,15 @@ mod tests {
         );
 
         let expected = [
-            (1, IngesterMapping::Addr("http://ingester-1:1234".into())),
-            (2, IngesterMapping::NotMapped),
-            (3, IngesterMapping::NotMapped),
-            (4, IngesterMapping::Ignore),
-            (5, IngesterMapping::Ignore),
-            (6, IngesterMapping::Ignore),
+            (
+                ShardIndex::new(1),
+                IngesterMapping::Addr("http://ingester-1:1234".into()),
+            ),
+            (ShardIndex::new(2), IngesterMapping::NotMapped),
+            (ShardIndex::new(3), IngesterMapping::NotMapped),
+            (ShardIndex::new(4), IngesterMapping::Ignore),
+            (ShardIndex::new(5), IngesterMapping::Ignore),
+            (ShardIndex::new(6), IngesterMapping::Ignore),
         ]
         .into_iter()
         .collect();

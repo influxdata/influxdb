@@ -24,24 +24,29 @@ message WriteBufferConnection {
   // This depends on `type` and can configure aspects like timeouts.
   map<string, string> connection_config = 6;
 
-  // Specifies if the sequencers (e.g. for Kafka in form of a topic w/ `n_sequencers` partitions) should be
+  // Specifies if the shards (e.g. for Kafka in form of a topic w/ `n_shards` partitions) should be
   // automatically created if they do not existing prior to reading or writing.
   WriteBufferCreationConfig creation_config = 8;
 }
 
-// Configs sequencer auto-creation for write buffers.
+// Configs shard auto-creation for write buffers.
 //
-// What that means depends on the used write buffer, e.g. for Kafka this will create a new topic w/ `n_sequencers`
-// partitions.
+// What that means depends on the used write buffer, e.g. for Kafka this will create a new topic w/
+// `n_shards` partitions.
 message WriteBufferCreationConfig {
-  // Number of sequencers.
+  // Renamed from n_sequencers to n_shards.
+  reserved 1;
+  reserved "n_sequencers";
+
+  // Number of shards.
   //
-  // How they are implemented depends on `type`, e.g. for Kafka this is mapped to the number of partitions.
+  // How they are implemented depends on `type`, e.g. for Kafka this is mapped to the number of
+  // partitions.
   //
   // If 0, a server-side default is used
-  uint32 n_sequencers = 1;
+  uint32 n_shards = 3;
 
-  // Special configs to by applied when sequencers are created.
+  // Special configs to by applied when shards are created.
   //
   // This depends on `type` and can setup parameters like retention policy.
   //

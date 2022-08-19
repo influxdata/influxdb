@@ -7,7 +7,7 @@ use crate::{
     ingester::{self, IngesterPartition},
     IngesterConnection,
 };
-use data_types::{ColumnId, KafkaPartition, PartitionId, TableId, TimestampMinMax};
+use data_types::{ColumnId, PartitionId, ShardIndex, TableId, TimestampMinMax};
 use futures::{join, StreamExt};
 use iox_query::pruning::prune_summaries;
 use iox_query::{exec::Executor, provider, provider::ChunkPruner, QueryChunk};
@@ -62,7 +62,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Args to create a [`QuerierTable`].
 pub struct QuerierTableArgs {
-    pub sharder: Arc<JumpHash<Arc<KafkaPartition>>>,
+    pub sharder: Arc<JumpHash<Arc<ShardIndex>>>,
     pub namespace_name: Arc<str>,
     pub id: TableId,
     pub table_name: Arc<str>,
@@ -77,8 +77,8 @@ pub struct QuerierTableArgs {
 /// Table representation for the querier.
 #[derive(Debug)]
 pub struct QuerierTable {
-    /// Sharder to query for which sequencers are responsible for the table's data
-    sharder: Arc<JumpHash<Arc<KafkaPartition>>>,
+    /// Sharder to query for which shards are responsible for the table's data
+    sharder: Arc<JumpHash<Arc<ShardIndex>>>,
 
     /// Namespace the table is in
     namespace_name: Arc<str>,
@@ -419,18 +419,18 @@ impl QuerierTable {
             .map(|(_, f)| f.name().to_string())
             .collect();
 
-        // Get the sequencer IDs responsible for this table's data from the sharder to
+        // Get the shard indexes responsible for this table's data from the sharder to
         // determine which ingester(s) to query.
-        // Currently, the sharder will only return one sequencer ID per table, but in the
-        // near future, the sharder might return more than one sequencer ID for one table.
-        let sequencer_ids = vec![**self
+        // Currently, the sharder will only return one shard index per table, but in the
+        // near future, the sharder might return more than one shard index for one table.
+        let shard_indexes = vec![**self
             .sharder
             .shard_for_query(&self.table_name, &self.namespace_name)];
 
         // get any chunks from the ingester(s)
         let partitions_result = ingester_connection
             .partitions(
-                &sequencer_ids,
+                &shard_indexes,
                 Arc::clone(&self.namespace_name),
                 Arc::clone(&self.table_name),
                 columns,

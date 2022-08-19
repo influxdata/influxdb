@@ -1,13 +1,13 @@
 use data_types::SequenceNumber;
 
-/// Information on how much data a particular sequencer has been processed
+/// Information on how much data a particular shard has processed
 ///
 /// ```text
 /// Write Lifecycle (compaction not shown):
 ///
 /// Durable --------------> Readable -------------> Persisted
 ///
-///  in sequencer,          in memory, not yet      in parquet
+///  in shard,          in memory, not yet      in parquet
 ///  not readable.          in parquet
 /// ```
 ///
@@ -23,7 +23,7 @@ pub struct ShardProgress {
     /// Largest sequence number of data that has been written to parquet
     max_persisted: Option<SequenceNumber>,
 
-    /// The sequence number that is actively buffering, if any.  The
+    /// The sequence number that is actively buffering, if any. The
     /// actively buffering sequence number is not yet completely
     /// buffered to all partitions, and thus is excluded from the
     /// min/max buffered calculation.
@@ -80,8 +80,8 @@ impl ShardProgress {
         self
     }
 
-    /// Return true if this sequencer progress has no information on
-    /// sequencer progress, false otherwise
+    /// Return true if this shard progress has no information on
+    /// shard progress, false otherwise
     pub fn is_empty(&self) -> bool {
         self.min_buffered.is_none() && self.max_buffered.is_none() && self.max_persisted.is_none()
     }

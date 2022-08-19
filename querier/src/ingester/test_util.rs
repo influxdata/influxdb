@@ -1,6 +1,6 @@
 use super::IngesterConnection;
 use async_trait::async_trait;
-use data_types::KafkaPartition;
+use data_types::ShardIndex;
 use generated_types::influxdata::iox::ingester::v1::GetWriteInfoResponse;
 use parking_lot::Mutex;
 use std::{any::Any, sync::Arc};
@@ -29,7 +29,7 @@ impl MockIngesterConnection {
 impl IngesterConnection for MockIngesterConnection {
     async fn partitions(
         &self,
-        _sequencer_ids: &[KafkaPartition],
+        _shard_indexes: &[ShardIndex],
         _namespace_name: Arc<str>,
         _table_name: Arc<str>,
         _columns: Vec<String>,

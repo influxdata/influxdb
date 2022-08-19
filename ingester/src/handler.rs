@@ -12,7 +12,7 @@ use crate::{
 };
 use async_trait::async_trait;
 use backoff::BackoffConfig;
-use data_types::{KafkaPartition, KafkaTopic, Shard};
+use data_types::{KafkaTopic, Shard, ShardIndex};
 use futures::{
     future::{BoxFuture, Shared},
     stream::FuturesUnordered,
@@ -38,16 +38,6 @@ use write_summary::ShardProgress;
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
 pub enum Error {
-    #[snafu(display(
-        "No shard record found for kafka topic {} and partition {}",
-        kafka_topic,
-        kafka_partition
-    ))]
-    SequencerRecordNotFound {
-        kafka_topic: String,
-        kafka_partition: KafkaPartition,
-    },
-
     #[snafu(display("Write buffer error: {}", source))]
     WriteBuffer {
         source: write_buffer::core::WriteBufferError,
@@ -57,7 +47,7 @@ pub enum Error {
 /// A specialized `Error` for Catalog errors
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// An [`IngestHandler`] handles all ingest requests from kafka, persistence and queries
+/// An [`IngestHandler`] handles all ingest requests from persistence and queries
 #[async_trait]
 pub trait IngestHandler: Send + Sync {
     /// Return results from the in-memory data that match this query
@@ -66,11 +56,11 @@ pub trait IngestHandler: Send + Sync {
         request: IngesterQueryRequest,
     ) -> Result<IngesterQueryResponse, crate::querier_handler::Error>;
 
-    /// Return shard progress for the requested kafka partitions
+    /// Return shard progress for the requested shard indexes
     async fn progresses(
         &self,
-        sequencers: Vec<KafkaPartition>,
-    ) -> BTreeMap<KafkaPartition, ShardProgress>;
+        shard_indexes: Vec<ShardIndex>,
+    ) -> BTreeMap<ShardIndex, ShardProgress>;
 
     /// Wait until the handler finished  to shutdown.
     ///
@@ -89,7 +79,7 @@ fn shared_handle(handle: JoinHandle<()>) -> SharedJoinHandle {
     handle.map_err(Arc::new).boxed().shared()
 }
 
-/// Implementation of the `IngestHandler` trait to ingest from kafka and manage
+/// Implementation of the `IngestHandler` trait to ingest from shards and manage
 /// persistence and answer queries
 #[derive(Debug)]
 pub struct IngestHandlerImpl<T = SystemProvider> {
@@ -134,7 +124,7 @@ impl IngestHandlerImpl {
     pub async fn new(
         lifecycle_config: LifecycleConfig,
         topic: KafkaTopic,
-        shard_states: BTreeMap<KafkaPartition, Shard>,
+        shard_states: BTreeMap<ShardIndex, Shard>,
         catalog: Arc<dyn Catalog>,
         object_store: Arc<DynObjectStore>,
         write_buffer: Arc<dyn WriteBufferReading>,
@@ -148,7 +138,7 @@ impl IngestHandlerImpl {
         for s in shard_states.values() {
             shards.insert(
                 s.id,
-                ShardData::new(s.kafka_partition, Arc::clone(&metric_registry)),
+                ShardData::new(s.shard_index, Arc::clone(&metric_registry)),
             );
         }
         let data = Arc::new(IngesterData::new(
@@ -186,17 +176,17 @@ impl IngestHandlerImpl {
         let mut join_handles = Vec::with_capacity(shard_states.len() + 1);
         join_handles.push(("lifecycle manager".to_owned(), shared_handle(handle)));
 
-        for (kafka_partition, shard) in shard_states {
+        for (shard_index, shard) in shard_states {
             let metric_registry = Arc::clone(&metric_registry);
 
             // Acquire a write buffer stream and seek it to the last
             // definitely-already-persisted op
             let mut op_stream = write_buffer
-                .stream_handler(kafka_partition.get() as u32)
+                .stream_handler(shard_index)
                 .await
                 .context(WriteBufferSnafu)?;
             info!(
-                kafka_partition = kafka_partition.get(),
+                shard_index = shard_index.get(),
                 min_unpersisted_sequence_number = shard.min_unpersisted_sequence_number.get(),
                 "Seek stream",
             );
@@ -208,7 +198,7 @@ impl IngestHandlerImpl {
             // Initialise the DmlSink stack.
             let watermark_fetcher = PeriodicWatermarkFetcher::new(
                 Arc::clone(&write_buffer),
-                shard.kafka_partition,
+                shard.shard_index,
                 Duration::from_secs(10),
                 &*metric_registry,
             );
@@ -223,7 +213,7 @@ impl IngestHandlerImpl {
                 sink,
                 watermark_fetcher,
                 kafka_topic_name.clone(),
-                shard.kafka_partition,
+                shard.shard_index,
                 &*metric_registry,
             );
 
@@ -240,7 +230,7 @@ impl IngestHandlerImpl {
                         sink,
                         lifecycle_handle,
                         kafka_topic_name,
-                        shard.kafka_partition,
+                        shard.shard_index,
                         &*metric_registry,
                         skip_to_oldest_available,
                     );
@@ -249,7 +239,7 @@ impl IngestHandlerImpl {
                 }
             });
 
-            let worker_name = format!("stream handler for partition {}", kafka_partition.get());
+            let worker_name = format!("stream handler for shard index {}", shard_index.get());
             join_handles.push((worker_name, shared_handle(handle)));
         }
 
@@ -364,9 +354,9 @@ impl IngestHandler for IngestHandlerImpl {
     /// Return the ingestion progress from each shard
     async fn progresses(
         &self,
-        partitions: Vec<KafkaPartition>,
-    ) -> BTreeMap<KafkaPartition, ShardProgress> {
-        self.data.progresses(partitions).await
+        shard_indexes: Vec<ShardIndex>,
+    ) -> BTreeMap<ShardIndex, ShardProgress> {
+        self.data.progresses(shard_indexes).await
     }
 }
 
@@ -422,7 +412,7 @@ mod tests {
             lines_to_batches("mem foo=1 10", 0).unwrap(),
             Some("1970-01-01".into()),
             DmlMeta::sequenced(
-                Sequence::new(0, SequenceNumber::new(0)),
+                Sequence::new(ShardIndex::new(0), SequenceNumber::new(0)),
                 ingest_ts1,
                 None,
                 50,
@@ -438,7 +428,7 @@ mod tests {
             lines_to_batches("cpu bar=2 20\ncpu bar=3 30", 0).unwrap(),
             Some("1970-01-01".into()),
             DmlMeta::sequenced(
-                Sequence::new(0, SequenceNumber::new(7)),
+                Sequence::new(ShardIndex::new(0), SequenceNumber::new(7)),
                 ingest_ts2,
                 None,
                 150,
@@ -454,7 +444,7 @@ mod tests {
             lines_to_batches("a b=2 200", 0).unwrap(),
             Some("1970-01-01".into()),
             DmlMeta::sequenced(
-                Sequence::new(0, SequenceNumber::new(9)),
+                Sequence::new(ShardIndex::new(0), SequenceNumber::new(9)),
                 ingest_ts2,
                 None,
                 150,
@@ -492,7 +482,7 @@ mod tests {
                     .repositories()
                     .await
                     .shards()
-                    .create_or_get(&ingester.kafka_topic, ingester.kafka_partition)
+                    .create_or_get(&ingester.kafka_topic, ingester.shard_index)
                     .await
                     .unwrap();
 
@@ -633,7 +623,7 @@ mod tests {
         let mut txn = catalog.start_transaction().await.unwrap();
         let kafka_topic = txn.kafka_topics().create_or_get("whatevs").await.unwrap();
         let query_pool = txn.query_pools().create_or_get("whatevs").await.unwrap();
-        let kafka_partition = KafkaPartition::new(0);
+        let shard_index = ShardIndex::new(0);
         let namespace = txn
             .namespaces()
             .create("foo", "inf", kafka_topic.id, query_pool.id)
@@ -641,7 +631,7 @@ mod tests {
             .unwrap();
         let mut shard = txn
             .shards()
-            .create_or_get(&kafka_topic, kafka_partition)
+            .create_or_get(&kafka_topic, shard_index)
             .await
             .unwrap();
         // update the min unpersisted
@@ -657,10 +647,10 @@ mod tests {
             .unwrap();
 
         let mut shard_states = BTreeMap::new();
-        shard_states.insert(kafka_partition, shard);
+        shard_states.insert(shard_index, shard);
 
         let write_buffer_state =
-            MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());
+            MockBufferSharedState::empty_with_n_shards(NonZeroU32::try_from(1).unwrap());
 
         let schema = NamespaceSchema::new(namespace.id, kafka_topic.id, query_pool.id);
         for write_operation in write_operations {
@@ -749,7 +739,7 @@ mod tests {
                 lines_to_batches("cpu bar=2 20", 0).unwrap(),
                 Some("1970-01-01".into()),
                 DmlMeta::sequenced(
-                    Sequence::new(0, SequenceNumber::new(1)),
+                    Sequence::new(ShardIndex::new(0), SequenceNumber::new(1)),
                     ingest_ts1,
                     None,
                     150,
@@ -760,7 +750,7 @@ mod tests {
                 lines_to_batches("cpu bar=2 30", 0).unwrap(),
                 Some("1970-01-01".into()),
                 DmlMeta::sequenced(
-                    Sequence::new(0, SequenceNumber::new(2)),
+                    Sequence::new(ShardIndex::new(0), SequenceNumber::new(2)),
                     ingest_ts2,
                     None,
                     150,
@@ -771,7 +761,7 @@ mod tests {
         let (ingester, shard, namespace) = ingester_test_setup(write_operations, 2, false).await;
 
         verify_ingester_buffer_has_data(ingester, shard, namespace, |first_batch| {
-            if first_batch.min_sequencer_number == SequenceNumber::new(1) {
+            if first_batch.min_sequence_number == SequenceNumber::new(1) {
                 panic!(
                     "initialization did a seek to the beginning rather than \
                     the min_unpersisted"
@@ -792,7 +782,7 @@ mod tests {
             lines_to_batches("cpu bar=2 20", 0).unwrap(),
             Some("1970-01-01".into()),
             DmlMeta::sequenced(
-                Sequence::new(0, SequenceNumber::new(10)),
+                Sequence::new(ShardIndex::new(0), SequenceNumber::new(10)),
                 ingest_ts1,
                 None,
                 150,
@@ -816,7 +806,7 @@ mod tests {
             lines_to_batches("cpu bar=2 20", 0).unwrap(),
             Some("1970-01-01".into()),
             DmlMeta::sequenced(
-                Sequence::new(0, SequenceNumber::new(2)),
+                Sequence::new(ShardIndex::new(0), SequenceNumber::new(2)),
                 ingest_ts1,
                 None,
                 150,
@@ -840,7 +830,7 @@ mod tests {
             lines_to_batches("cpu bar=2 20", 0).unwrap(),
             Some("1970-01-01".into()),
             DmlMeta::sequenced(
-                Sequence::new(0, SequenceNumber::new(2)),
+                Sequence::new(ShardIndex::new(0), SequenceNumber::new(2)),
                 ingest_ts1,
                 None,
                 150,
@@ -863,7 +853,7 @@ mod tests {
             lines_to_batches("cpu bar=2 20", 0).unwrap(),
             Some("1970-01-01".into()),
             DmlMeta::sequenced(
-                Sequence::new(0, SequenceNumber::new(10)),
+                Sequence::new(ShardIndex::new(0), SequenceNumber::new(10)),
                 ingest_ts1,
                 None,
                 150,
@@ -877,7 +867,7 @@ mod tests {
 
         verify_ingester_buffer_has_data(ingester, shard, namespace, |first_batch| {
             assert_eq!(
-                first_batch.min_sequencer_number,
+                first_batch.min_sequence_number,
                 SequenceNumber::new(10),
                 "re-initialization didn't seek to the beginning",
             );
@@ -911,7 +901,7 @@ mod tests {
         shard: Shard,
         namespace: Namespace,
         kafka_topic: KafkaTopic,
-        kafka_partition: KafkaPartition,
+        shard_index: ShardIndex,
         query_pool: QueryPool,
         metrics: Arc<metric::Registry>,
         write_buffer_state: MockBufferSharedState,
@@ -926,7 +916,7 @@ mod tests {
             let mut txn = catalog.start_transaction().await.unwrap();
             let kafka_topic = txn.kafka_topics().create_or_get("whatevs").await.unwrap();
             let query_pool = txn.query_pools().create_or_get("whatevs").await.unwrap();
-            let kafka_partition = KafkaPartition::new(0);
+            let shard_index = ShardIndex::new(0);
             let namespace = txn
                 .namespaces()
                 .create("foo", "inf", kafka_topic.id, query_pool.id)
@@ -934,16 +924,16 @@ mod tests {
                 .unwrap();
             let shard = txn
                 .shards()
-                .create_or_get(&kafka_topic, kafka_partition)
+                .create_or_get(&kafka_topic, shard_index)
                 .await
                 .unwrap();
             txn.commit().await.unwrap();
 
             let mut shard_states = BTreeMap::new();
-            shard_states.insert(kafka_partition, shard);
+            shard_states.insert(shard_index, shard);
 
             let write_buffer_state =
-                MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());
+                MockBufferSharedState::empty_with_n_shards(NonZeroU32::try_from(1).unwrap());
             let reading: Arc<dyn WriteBufferReading> =
                 Arc::new(MockBufferForReading::new(write_buffer_state.clone(), None).unwrap());
             let object_store = Arc::new(InMemory::new());
@@ -975,7 +965,7 @@ mod tests {
                 shard,
                 namespace,
                 kafka_topic,
-                kafka_partition,
+                shard_index,
                 query_pool,
                 metrics,
                 write_buffer_state,

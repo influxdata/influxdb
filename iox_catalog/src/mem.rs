@@ -12,11 +12,11 @@ use crate::{
 };
 use async_trait::async_trait;
 use data_types::{
-    Column, ColumnId, ColumnType, CompactionLevel, KafkaPartition, KafkaTopic, KafkaTopicId,
-    Namespace, NamespaceId, ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId,
+    Column, ColumnId, ColumnType, CompactionLevel, KafkaTopic, KafkaTopicId, Namespace,
+    NamespaceId, ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId,
     PartitionInfo, PartitionKey, PartitionParam, ProcessedTombstone, QueryPool, QueryPoolId,
-    SequenceNumber, Shard, ShardId, Table, TableId, TablePartition, Timestamp, Tombstone,
-    TombstoneId,
+    SequenceNumber, Shard, ShardId, ShardIndex, Table, TableId, TablePartition, Timestamp,
+    Tombstone, TombstoneId,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::warn;
@@ -608,21 +608,21 @@ impl ShardRepo for MemTxn {
     async fn create_or_get(
         &mut self,
         topic: &KafkaTopic,
-        partition: KafkaPartition,
+        shard_index: ShardIndex,
     ) -> Result<Shard> {
         let stage = self.stage();
 
         let shard = match stage
             .shards
             .iter()
-            .find(|s| s.kafka_topic_id == topic.id && s.kafka_partition == partition)
+            .find(|s| s.kafka_topic_id == topic.id && s.shard_index == shard_index)
         {
             Some(t) => t,
             None => {
                 let shard = Shard {
                     id: ShardId::new(stage.shards.len() as i64 + 1),
                     kafka_topic_id: topic.id,
-                    kafka_partition: partition,
+                    shard_index,
                     min_unpersisted_sequence_number: SequenceNumber::new(0),
                 };
                 stage.shards.push(shard);
@@ -633,17 +633,17 @@ impl ShardRepo for MemTxn {
         Ok(*shard)
     }
 
-    async fn get_by_topic_id_and_partition(
+    async fn get_by_topic_id_and_shard_index(
         &mut self,
         topic_id: KafkaTopicId,
-        partition: KafkaPartition,
+        shard_index: ShardIndex,
     ) -> Result<Option<Shard>> {
         let stage = self.stage();
 
         let shard = stage
             .shards
             .iter()
-            .find(|s| s.kafka_topic_id == topic_id && s.kafka_partition == partition)
+            .find(|s| s.kafka_topic_id == topic_id && s.shard_index == shard_index)
             .cloned();
         Ok(shard)
     }

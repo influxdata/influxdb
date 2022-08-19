@@ -74,13 +74,13 @@ impl QueryableBatch {
             .data
             .first()
             .expect("The Queryable Batch should not empty")
-            .min_sequencer_number;
+            .min_sequence_number;
 
         let max = self
             .data
             .first()
             .expect("The Queryable Batch should not empty")
-            .max_sequencer_number;
+            .max_sequence_number;
 
         assert!(min <= max);
 

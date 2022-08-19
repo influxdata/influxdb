@@ -10,6 +10,7 @@ observability_deps = { path = "../observability_deps" }
 ordered-float = "3"
 percent-encoding = "2.1.0"
 schema = { path = "../schema" }
+serde = { version = "1.0", features = ["derive"] }
 snafu = "0.7"
 sqlx = { version = "0.6", features = ["runtime-tokio-rustls", "postgres", "uuid"] }
 uuid = { version = "1", features = ["v4"] }

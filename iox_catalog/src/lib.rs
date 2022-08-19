@@ -13,7 +13,7 @@
 
 use crate::interface::{ColumnUpsertRequest, Error, RepoCollection, Result, Transaction};
 use data_types::{
-    ColumnType, KafkaPartition, KafkaTopic, NamespaceSchema, QueryPool, Shard, ShardId, TableSchema,
+    ColumnType, KafkaTopic, NamespaceSchema, QueryPool, Shard, ShardId, ShardIndex, TableSchema,
 };
 use mutable_batch::MutableBatch;
 use std::{borrow::Cow, collections::BTreeMap};
@@ -199,18 +199,18 @@ where
 ///
 /// Used in tests and when creating an in-memory catalog.
 pub async fn create_or_get_default_records(
-    kafka_partition_count: i32,
+    shard_count: i32,
     txn: &mut dyn Transaction,
 ) -> Result<(KafkaTopic, QueryPool, BTreeMap<ShardId, Shard>)> {
     let kafka_topic = txn.kafka_topics().create_or_get(SHARED_KAFKA_TOPIC).await?;
     let query_pool = txn.query_pools().create_or_get(SHARED_QUERY_POOL).await?;
 
     let mut shards = BTreeMap::new();
-    // Start at 0 to match the one write buffer partition ID used in all-in-one mode
-    for partition in 0..kafka_partition_count {
+    // Start at 0 to match the one write buffer shard index used in all-in-one mode
+    for shard_index in 0..shard_count {
         let shard = txn
             .shards()
-            .create_or_get(&kafka_topic, KafkaPartition::new(partition))
+            .create_or_get(&kafka_topic, ShardIndex::new(shard_index))
             .await?;
         shards.insert(shard.id, shard);
     }

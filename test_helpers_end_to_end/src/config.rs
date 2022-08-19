@@ -1,4 +1,5 @@
 use crate::{addrs::BindAddresses, ServerType, UdpCapture};
+use data_types::ShardIndex;
 use http::{header::HeaderName, HeaderValue};
 use rand::Rng;
 use std::{collections::HashMap, sync::Arc};
@@ -105,7 +106,7 @@ impl TestConfig {
             ingester_config.catalog_schema_name(),
         )
         .with_existing_object_store(ingester_config)
-        .with_sequencer_to_ingesters_mapping("{\"ignoreAll\": true}")
+        .with_shard_to_ingesters_mapping("{\"ignoreAll\": true}")
     }
 
     /// Create a minimal all in one configuration
@@ -149,7 +150,7 @@ impl TestConfig {
     fn with_default_ingester_options(self) -> Self {
         self.with_env("INFLUXDB_IOX_PAUSE_INGEST_SIZE_BYTES", "2000000")
             .with_ingester_persist_memory_threshold(10)
-            .with_kafka_partition(0)
+            .with_shard(ShardIndex::new(0))
     }
 
     /// Sets memory threshold for ingester.
@@ -160,19 +161,19 @@ impl TestConfig {
         )
     }
 
-    /// Adds an ingester that ingests from the specified kafka partition
-    pub fn with_kafka_partition(self, kafka_partition_id: u64) -> Self {
+    /// Adds an ingester that ingests from the specified shard
+    pub fn with_shard(self, shard_index: ShardIndex) -> Self {
         self.with_env(
-            "INFLUXDB_IOX_WRITE_BUFFER_PARTITION_RANGE_START",
-            kafka_partition_id.to_string(),
+            "INFLUXDB_IOX_SHARD_INDEX_RANGE_START",
+            shard_index.to_string(),
         )
         .with_env(
-            "INFLUXDB_IOX_WRITE_BUFFER_PARTITION_RANGE_END",
-            kafka_partition_id.to_string(),
+            "INFLUXDB_IOX_SHARD_INDEX_RANGE_END",
+            shard_index.to_string(),
         )
     }
 
-    /// Adds the ingester mapping configuration; Kafka partition 0 is mapped to the specified
+    /// Adds the ingester mapping configuration; shard index 0 is mapped to the specified
     /// ingester address
     pub fn with_ingester_mapping(self, ingester_address: &str) -> Self {
         let mut mapping_json = String::from(
@@ -184,23 +185,23 @@ impl TestConfig {
         mapping_json += ingester_address;
         mapping_json += r#""}
               },
-              "sequencers": {
+              "shards": {
                 "0": {
                   "ingester": "i1"
                 }
             }
         }"#;
 
-        self.with_sequencer_to_ingesters_mapping(&mapping_json)
+        self.with_shard_to_ingesters_mapping(&mapping_json)
     }
 
-    pub fn with_sequencer_to_ingesters_mapping(self, mapping_json: &str) -> Self {
-        self.with_env("INFLUXDB_IOX_SEQUENCER_TO_INGESTERS", mapping_json)
+    pub fn with_shard_to_ingesters_mapping(self, mapping_json: &str) -> Self {
+        self.with_env("INFLUXDB_IOX_SHARD_TO_INGESTERS", mapping_json)
     }
 
     /// Adds default compactor options
     fn with_default_compactor_options(self) -> Self {
-        self.with_kafka_partition(0)
+        self.with_shard(ShardIndex::new(0))
     }
 
     /// add a name=value environment variable when starting the server
@@ -229,15 +230,13 @@ impl TestConfig {
         self.with_env(name, value)
     }
 
-    /// Configures a new write buffer with 1 sequencer
-    ///  (kafka partitions)
+    /// Configures a new write buffer with 1 shard
     pub fn with_new_write_buffer(self) -> Self {
-        self.with_new_write_buffer_kafka_partitions(1)
+        self.with_new_write_buffer_shards(1)
     }
 
-    /// Configures a new write buffer with the specified number of
-    /// sequencers (kafka partitions)
-    pub fn with_new_write_buffer_kafka_partitions(mut self, n_sequencers: u64) -> Self {
+    /// Configures a new write buffer with the specified number of shards
+    pub fn with_new_write_buffer_shards(mut self, n_shards: u64) -> Self {
         let tmpdir = TempDir::new().expect("can not create tmp dir");
         let write_buffer_string = tmpdir.path().display().to_string();
         self.write_buffer_dir = Some(Arc::new(tmpdir));
@@ -245,7 +244,7 @@ impl TestConfig {
         self.with_env("INFLUXDB_IOX_WRITE_BUFFER_TYPE", "file")
             .with_env(
                 "INFLUXDB_IOX_WRITE_BUFFER_AUTO_CREATE_TOPICS",
-                n_sequencers.to_string(),
+                n_shards.to_string(),
             )
             .with_env("INFLUXDB_IOX_WRITE_BUFFER_ADDR", &write_buffer_string)
     }

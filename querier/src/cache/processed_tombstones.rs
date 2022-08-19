@@ -154,18 +154,18 @@ mod tests {
         let table = ns.create_table("table").await;
         table.create_column("foo", ColumnType::F64).await;
         table.create_column("time", ColumnType::Time).await;
-        let sequencer = ns.create_shard(1).await;
-        let partition = table.with_shard(&sequencer).create_partition("k").await;
+        let shard = ns.create_shard(1).await;
+        let partition = table.with_shard(&shard).create_partition("k").await;
 
         let builder = TestParquetFileBuilder::default().with_line_protocol(TABLE_LINE_PROTOCOL);
         let file1 = partition.create_parquet_file(builder.clone()).await;
         let file2 = partition.create_parquet_file(builder).await;
         let ts1 = table
-            .with_shard(&sequencer)
+            .with_shard(&shard)
             .create_tombstone(1, 1, 10, "foo=1")
             .await;
         let ts2 = table
-            .with_shard(&sequencer)
+            .with_shard(&shard)
             .create_tombstone(2, 1, 10, "foo=1")
             .await;
 

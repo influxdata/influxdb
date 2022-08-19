@@ -2,10 +2,10 @@
 
 use async_trait::async_trait;
 use data_types::{
-    Column, ColumnSchema, ColumnType, KafkaPartition, KafkaTopic, KafkaTopicId, Namespace,
-    NamespaceId, NamespaceSchema, ParquetFile, ParquetFileId, ParquetFileParams, Partition,
-    PartitionId, PartitionInfo, PartitionKey, PartitionParam, ProcessedTombstone, QueryPool,
-    QueryPoolId, SequenceNumber, Shard, ShardId, Table, TableId, TablePartition, TableSchema,
+    Column, ColumnSchema, ColumnType, KafkaTopic, KafkaTopicId, Namespace, NamespaceId,
+    NamespaceSchema, ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId,
+    PartitionInfo, PartitionKey, PartitionParam, ProcessedTombstone, QueryPool, QueryPoolId,
+    SequenceNumber, Shard, ShardId, ShardIndex, Table, TableId, TablePartition, TableSchema,
     Timestamp, Tombstone, TombstoneId,
 };
 use iox_time::TimeProvider;
@@ -384,18 +384,15 @@ pub trait ColumnRepo: Send + Sync {
 /// Functions for working with shards in the catalog
 #[async_trait]
 pub trait ShardRepo: Send + Sync {
-    /// create a shard record for the kafka topic and partition or return the existing record
-    async fn create_or_get(
-        &mut self,
-        topic: &KafkaTopic,
-        partition: KafkaPartition,
-    ) -> Result<Shard>;
+    /// create a shard record for the kafka topic and shard index or return the existing record
+    async fn create_or_get(&mut self, topic: &KafkaTopic, shard_index: ShardIndex)
+        -> Result<Shard>;
 
-    /// get the shard record by `KafkaTopicId` and `KafkaPartition`
-    async fn get_by_topic_id_and_partition(
+    /// get the shard record by `KafkaTopicId` and `ShardIndex`
+    async fn get_by_topic_id_and_shard_index(
         &mut self,
         topic_id: KafkaTopicId,
-        partition: KafkaPartition,
+        shard_index: ShardIndex,
     ) -> Result<Option<Shard>>;
 
     /// list all shards
@@ -413,7 +410,7 @@ pub trait ShardRepo: Send + Sync {
 }
 
 /// Functions for working with IOx partitions in the catalog. Note that these are how IOx splits up
-/// data within a database, which is differenet than Kafka partitions.
+/// data within a database, which is different than Kafka partitions.
 #[async_trait]
 pub trait PartitionRepo: Send + Sync {
     /// create or get a partition record for the given partition key, shard and table
@@ -591,7 +588,7 @@ pub trait ParquetFileRepo: Send + Sync {
     async fn count(&mut self) -> Result<i64>;
 
     /// Return count of level-0 files of given tableId and shardId that
-    /// overlap with the given min_time and max_time and have sequencer number
+    /// overlap with the given min_time and max_time and have sequence number
     /// smaller the given one
     async fn count_by_overlaps_with_level_0(
         &mut self,
@@ -1113,7 +1110,7 @@ pub(crate) mod test_helpers {
         // test we can get table persistence info with no persistence so far
         let shard = repos
             .shards()
-            .create_or_get(&kafka, KafkaPartition::new(555))
+            .create_or_get(&kafka, ShardIndex::new(555))
             .await
             .unwrap();
         let ti = repos
@@ -1303,10 +1300,10 @@ pub(crate) mod test_helpers {
 
         // Create 10 shards
         let mut created = BTreeMap::new();
-        for partition in 1..=10 {
+        for shard_index in 1..=10 {
             let shard = repos
                 .shards()
-                .create_or_get(&kafka, KafkaPartition::new(partition))
+                .create_or_get(&kafka, ShardIndex::new(shard_index))
                 .await
                 .expect("failed to create shard");
             created.insert(shard.id, shard);
@@ -1324,16 +1321,16 @@ pub(crate) mod test_helpers {
 
         assert_eq!(created, listed);
 
-        // get by the shard id and partition
-        let kafka_partition = KafkaPartition::new(1);
+        // get by the topic and shard index
+        let shard_index = ShardIndex::new(1);
         let shard = repos
             .shards()
-            .get_by_topic_id_and_partition(kafka.id, kafka_partition)
+            .get_by_topic_id_and_shard_index(kafka.id, shard_index)
             .await
             .unwrap()
             .unwrap();
         assert_eq!(kafka.id, shard.kafka_topic_id);
-        assert_eq!(kafka_partition, shard.kafka_partition);
+        assert_eq!(shard_index, shard.shard_index);
 
         // update the number
         repos
@@ -1343,7 +1340,7 @@ pub(crate) mod test_helpers {
             .unwrap();
         let updated_shard = repos
             .shards()
-            .create_or_get(&kafka, kafka_partition)
+            .create_or_get(&kafka, shard_index)
             .await
             .unwrap();
         assert_eq!(updated_shard.id, shard.id);
@@ -1354,7 +1351,7 @@ pub(crate) mod test_helpers {
 
         let shard = repos
             .shards()
-            .get_by_topic_id_and_partition(kafka.id, KafkaPartition::new(523))
+            .get_by_topic_id_and_shard_index(kafka.id, ShardIndex::new(523))
             .await
             .unwrap();
         assert!(shard.is_none());
@@ -1376,12 +1373,12 @@ pub(crate) mod test_helpers {
             .unwrap();
         let shard = repos
             .shards()
-            .create_or_get(&kafka, KafkaPartition::new(1))
+            .create_or_get(&kafka, ShardIndex::new(1))
             .await
             .unwrap();
         let other_shard = repos
             .shards()
-            .create_or_get(&kafka, KafkaPartition::new(2))
+            .create_or_get(&kafka, ShardIndex::new(2))
             .await
             .unwrap();
 
@@ -1552,7 +1549,7 @@ pub(crate) mod test_helpers {
             .unwrap();
         let shard = repos
             .shards()
-            .create_or_get(&kafka, KafkaPartition::new(1))
+            .create_or_get(&kafka, ShardIndex::new(1))
             .await
             .unwrap();
 
@@ -1720,12 +1717,12 @@ pub(crate) mod test_helpers {
             .unwrap();
         let shard = repos
             .shards()
-            .create_or_get(&kafka, KafkaPartition::new(57))
+            .create_or_get(&kafka, ShardIndex::new(57))
             .await
             .unwrap();
         let other_shard = repos
             .shards()
-            .create_or_get(&kafka, KafkaPartition::new(58))
+            .create_or_get(&kafka, ShardIndex::new(58))
             .await
             .unwrap();
         let partition = repos
@@ -1934,7 +1931,7 @@ pub(crate) mod test_helpers {
             .unwrap();
         let shard = repos
             .shards()
-            .create_or_get(&kafka, KafkaPartition::new(1))
+            .create_or_get(&kafka, ShardIndex::new(1))
             .await
             .unwrap();
         let partition = repos
@@ -2350,12 +2347,12 @@ pub(crate) mod test_helpers {
             .unwrap();
         let shard = repos
             .shards()
-            .create_or_get(&kafka, KafkaPartition::new(100))
+            .create_or_get(&kafka, ShardIndex::new(100))
             .await
             .unwrap();
         let other_shard = repos
             .shards()
-            .create_or_get(&kafka, KafkaPartition::new(101))
+            .create_or_get(&kafka, ShardIndex::new(101))
             .await
             .unwrap();
 
@@ -2473,12 +2470,12 @@ pub(crate) mod test_helpers {
             .unwrap();
         let shard = repos
             .shards()
-            .create_or_get(&kafka, KafkaPartition::new(100))
+            .create_or_get(&kafka, ShardIndex::new(100))
             .await
             .unwrap();
         let other_shard = repos
             .shards()
-            .create_or_get(&kafka, KafkaPartition::new(101))
+            .create_or_get(&kafka, ShardIndex::new(101))
             .await
             .unwrap();
         let partition = repos
@@ -2692,7 +2689,7 @@ pub(crate) mod test_helpers {
             .unwrap();
         let shard = repos
             .shards()
-            .create_or_get(&kafka, KafkaPartition::new(100))
+            .create_or_get(&kafka, ShardIndex::new(100))
             .await
             .unwrap();
 
@@ -2900,7 +2897,7 @@ pub(crate) mod test_helpers {
             .unwrap();
         let shard = repos
             .shards()
-            .create_or_get(&kafka, KafkaPartition::new(100))
+            .create_or_get(&kafka, ShardIndex::new(100))
             .await
             .unwrap();
 
@@ -3157,7 +3154,7 @@ pub(crate) mod test_helpers {
             .unwrap();
         let shard = repos
             .shards()
-            .create_or_get(&kafka, KafkaPartition::new(100))
+            .create_or_get(&kafka, ShardIndex::new(100))
             .await
             .unwrap();
 
@@ -3266,7 +3263,7 @@ pub(crate) mod test_helpers {
             .unwrap();
         let shard = repos
             .shards()
-            .create_or_get(&kafka, KafkaPartition::new(1000))
+            .create_or_get(&kafka, ShardIndex::new(1000))
             .await
             .unwrap();
         let partition = repos
@@ -3387,7 +3384,7 @@ pub(crate) mod test_helpers {
             .unwrap();
         let shard = repos
             .shards()
-            .create_or_get(&kafka, KafkaPartition::new(1))
+            .create_or_get(&kafka, ShardIndex::new(1))
             .await
             .unwrap();
         let partition = repos

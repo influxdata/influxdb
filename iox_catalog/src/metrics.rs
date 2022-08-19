@@ -7,10 +7,10 @@ use crate::interface::{
 };
 use async_trait::async_trait;
 use data_types::{
-    Column, ColumnType, KafkaPartition, KafkaTopic, KafkaTopicId, Namespace, NamespaceId,
-    ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionInfo,
-    PartitionKey, PartitionParam, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber,
-    Shard, ShardId, Table, TableId, TablePartition, Timestamp, Tombstone, TombstoneId,
+    Column, ColumnType, KafkaTopic, KafkaTopicId, Namespace, NamespaceId, ParquetFile,
+    ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionInfo, PartitionKey,
+    PartitionParam, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Shard, ShardId,
+    ShardIndex, Table, TableId, TablePartition, Timestamp, Tombstone, TombstoneId,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use metric::{DurationHistogram, Metric};
@@ -227,8 +227,8 @@ decorate!(
 decorate!(
     impl_trait = ShardRepo,
     methods = [
-        "shard_create_or_get" = create_or_get(&mut self, topic: &KafkaTopic, partition: KafkaPartition) -> Result<Shard>;
-        "shard_get_by_topic_id_and_partition" = get_by_topic_id_and_partition(&mut self, topic_id: KafkaTopicId, partition: KafkaPartition) -> Result<Option<Shard>>;
+        "shard_create_or_get" = create_or_get(&mut self, topic: &KafkaTopic, shard_index: ShardIndex) -> Result<Shard>;
+        "shard_get_by_topic_id_and_shard_index" = get_by_topic_id_and_shard_index(&mut self, topic_id: KafkaTopicId, shard_index: ShardIndex) -> Result<Option<Shard>>;
         "shard_list" = list(&mut self) -> Result<Vec<Shard>>;
         "shard_list_by_kafka_topic" = list_by_kafka_topic(&mut self, topic: &KafkaTopic) -> Result<Vec<Shard>>;
         "shard_update_min_unpersisted_sequence_number" = update_min_unpersisted_sequence_number(&mut self, shard_id: ShardId, sequence_number: SequenceNumber) -> Result<()>;

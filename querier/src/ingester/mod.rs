@@ -7,7 +7,7 @@ use arrow::{datatypes::DataType, error::ArrowError, record_batch::RecordBatch};
 use async_trait::async_trait;
 use client_util::connection;
 use data_types::{
-    ChunkId, ChunkOrder, IngesterMapping, KafkaPartition, PartitionId, SequenceNumber, ShardId,
+    ChunkId, ChunkOrder, IngesterMapping, PartitionId, SequenceNumber, ShardId, ShardIndex,
     TableSummary, TimestampMinMax,
 };
 use datafusion_util::MemoryStream;
@@ -123,25 +123,25 @@ pub enum Error {
     },
 
     #[snafu(display(
-        "No ingester found in sequencer to ingester mapping for sequencer {sequencer_id}"
+        "No ingester found in shard to ingester mapping for shard index {shard_index}"
     ))]
-    NoIngesterFoundForSequencer { sequencer_id: KafkaPartition },
+    NoIngesterFoundForShard { shard_index: ShardIndex },
 
     #[snafu(display(
-        "Sequencer {sequencer_id} was neither mapped to an ingester nor marked ignore"
+        "Shard index {shard_index} was neither mapped to an ingester nor marked ignore"
     ))]
-    SequencerNotMapped { sequencer_id: KafkaPartition },
+    ShardNotMapped { shard_index: ShardIndex },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Create a new set of connections given a map of sequencer IDs to Ingester configurations
-pub fn create_ingester_connections_by_sequencer(
-    sequencer_to_ingesters: HashMap<i32, IngesterMapping>,
+/// Create a new set of connections given a map of shard indexes to Ingester configurations
+pub fn create_ingester_connections_by_shard(
+    shard_to_ingesters: HashMap<ShardIndex, IngesterMapping>,
     catalog_cache: Arc<CatalogCache>,
 ) -> Arc<dyn IngesterConnection> {
-    Arc::new(IngesterConnectionImpl::by_sequencer(
-        sequencer_to_ingesters,
+    Arc::new(IngesterConnectionImpl::by_shard(
+        shard_to_ingesters,
         catalog_cache,
     ))
 }
@@ -159,11 +159,11 @@ pub trait IngesterConnection: std::fmt::Debug + Send + Sync + 'static {
     ///
     /// # Panics
     ///
-    /// Panics if the list of sequencer_ids is empty.
+    /// Panics if the list of shard_indexes is empty.
     #[allow(clippy::too_many_arguments)]
     async fn partitions(
         &self,
-        sequencer_ids: &[KafkaPartition],
+        shard_indexes: &[ShardIndex],
         namespace_name: Arc<str>,
         table_name: Arc<str>,
         columns: Vec<String>,
@@ -287,7 +287,7 @@ impl<'a> Drop for ObserveIngesterRequest<'a> {
 /// IngesterConnection that communicates with an ingester.
 #[derive(Debug)]
 pub struct IngesterConnectionImpl {
-    sequencer_to_ingesters: HashMap<KafkaPartition, IngesterMapping>,
+    shard_to_ingesters: HashMap<ShardIndex, IngesterMapping>,
     unique_ingester_addresses: HashSet<Arc<str>>,
     flight_client: Arc<dyn FlightClient>,
     catalog_cache: Arc<CatalogCache>,
@@ -295,11 +295,11 @@ pub struct IngesterConnectionImpl {
 }
 
 impl IngesterConnectionImpl {
-    /// Create a new set of connections given a map of sequencer IDs to Ingester addresses, such as:
+    /// Create a new set of connections given a map of shard indexes to Ingester addresses, such as:
     ///
     /// ```json
     /// {
-    ///   "sequencers": {
+    ///   "shards": {
     ///     "0": {
     ///       "ingesters": [
     ///         {"addr": "http://ingester-0:8082"},
@@ -310,12 +310,12 @@ impl IngesterConnectionImpl {
     ///   }
     /// }
     /// ```
-    pub fn by_sequencer(
-        sequencer_to_ingesters: HashMap<i32, IngesterMapping>,
+    pub fn by_shard(
+        shard_to_ingesters: HashMap<ShardIndex, IngesterMapping>,
         catalog_cache: Arc<CatalogCache>,
     ) -> Self {
-        Self::by_sequencer_with_flight_client(
-            sequencer_to_ingesters,
+        Self::by_shard_with_flight_client(
+            shard_to_ingesters,
             Arc::new(FlightClientImpl::new()),
             catalog_cache,
         )
@@ -325,12 +325,12 @@ impl IngesterConnectionImpl {
     ///
     /// This is helpful for testing, i.e. when the flight client should not be backed by normal
     /// network communication.
-    pub fn by_sequencer_with_flight_client(
-        sequencer_to_ingesters: HashMap<i32, IngesterMapping>,
+    pub fn by_shard_with_flight_client(
+        shard_to_ingesters: HashMap<ShardIndex, IngesterMapping>,
         flight_client: Arc<dyn FlightClient>,
         catalog_cache: Arc<CatalogCache>,
     ) -> Self {
-        let unique_ingester_addresses: HashSet<_> = sequencer_to_ingesters
+        let unique_ingester_addresses: HashSet<_> = shard_to_ingesters
             .values()
             .flat_map(|v| match v {
                 IngesterMapping::Addr(addr) => Some(addr),
@@ -338,18 +338,12 @@ impl IngesterConnectionImpl {
             })
             .cloned()
             .collect();
-        let sequencer_to_ingesters = sequencer_to_ingesters
-            .into_iter()
-            .map(|(sequencer_id, ingester_address)| {
-                (KafkaPartition::new(sequencer_id), ingester_address)
-            })
-            .collect();
 
         let metric_registry = catalog_cache.metric_registry();
         let metrics = Arc::new(IngesterConnectionMetrics::new(&metric_registry));
 
         Self {
-            sequencer_to_ingesters,
+            shard_to_ingesters,
             unique_ingester_addresses,
             flight_client,
             catalog_cache,
@@ -668,10 +662,10 @@ fn encode_predicate_as_base64(predicate: &Predicate) -> String {
 
 #[async_trait]
 impl IngesterConnection for IngesterConnectionImpl {
-    /// Retrieve chunks from the ingester for the particular table, sequencer, and predicate
+    /// Retrieve chunks from the ingester for the particular table, shard, and predicate
     async fn partitions(
         &self,
-        sequencer_ids: &[KafkaPartition],
+        shard_indexes: &[ShardIndex],
         namespace_name: Arc<str>,
         table_name: Arc<str>,
         columns: Vec<String>,
@@ -679,11 +673,11 @@ impl IngesterConnection for IngesterConnectionImpl {
         expected_schema: Arc<Schema>,
         span: Option<Span>,
     ) -> Result<Vec<IngesterPartition>> {
-        // If no sequencer IDs are specified, no ingester addresses can be found. This is a
+        // If no shard indexes are specified, no ingester addresses can be found. This is a
         // configuration problem somewhere.
         assert!(
-            !sequencer_ids.is_empty(),
-            "Called `IngesterConnection.partitions` with an empty `sequencer_ids` list",
+            !shard_indexes.is_empty(),
+            "Called `IngesterConnection.partitions` with an empty `shard_indexes` list",
         );
         let mut span_recorder = SpanRecorder::new(span);
 
@@ -718,16 +712,16 @@ impl IngesterConnection for IngesterConnectionImpl {
             }
         };
 
-        // Look up the ingesters needed for the sequencer. Collect into a HashSet to avoid making
+        // Look up the ingesters needed for the shard. Collect into a HashSet to avoid making
         // multiple requests to the same ingester if that ingester is responsible for multiple
-        // sequencer_ids relevant to this query.
+        // shard_indexes relevant to this query.
         let mut relevant_ingester_addresses = HashSet::new();
 
-        for sequencer_id in sequencer_ids {
-            match self.sequencer_to_ingesters.get(sequencer_id) {
+        for shard_index in shard_indexes {
+            match self.shard_to_ingesters.get(shard_index) {
                 None => {
-                    return NoIngesterFoundForSequencerSnafu {
-                        sequencer_id: *sequencer_id,
+                    return NoIngesterFoundForShardSnafu {
+                        shard_index: *shard_index,
                     }
                     .fail()
                 }
@@ -737,8 +731,8 @@ impl IngesterConnection for IngesterConnectionImpl {
                     }
                     IngesterMapping::Ignore => (),
                     IngesterMapping::NotMapped => {
-                        return SequencerNotMappedSnafu {
-                            sequencer_id: *sequencer_id,
+                        return ShardNotMappedSnafu {
+                            shard_index: *shard_index,
                         }
                         .fail()
                     }
@@ -1263,10 +1257,10 @@ mod tests {
         );
         let ingester_conn = mock_flight_client.ingester_conn().await;
 
-        // Sequencer ID 0 doesn't have an associated ingester address in the test setup
+        // Shard index 0 doesn't have an associated ingester address in the test setup
         assert_error!(
             get_partitions(&ingester_conn, &[0]).await,
-            Error::NoIngesterFoundForSequencer { .. },
+            Error::NoIngesterFoundForShard { .. },
         );
     }
 
@@ -1413,7 +1407,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_flight_many_batches_no_sequencer() {
+    async fn test_flight_many_batches_no_shard() {
         let record_batch_1_1_1 = lp_to_record_batch("table foo=1 1");
         let record_batch_1_1_2 = lp_to_record_batch("table foo=2 2");
         let record_batch_1_2 = lp_to_record_batch("table bar=20,foo=2 2");
@@ -1666,7 +1660,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_flight_per_sequencer_querying() {
+    async fn test_flight_per_shard_querying() {
         let record_batch_1_1 = lp_to_record_batch("table foo=1 1");
         let schema_1_1 = record_batch_1_1.schema();
 
@@ -1710,7 +1704,7 @@ mod tests {
         );
         let ingester_conn = mock_flight_client.ingester_conn().await;
 
-        // Only use sequencer ID 1, which will correspond to only querying the ingester at
+        // Only use shard index 1, which will correspond to only querying the ingester at
         // "addr1"
         let partitions = get_partitions(&ingester_conn, &[1]).await.unwrap();
         assert_eq!(partitions.len(), 1);
@@ -1731,28 +1725,24 @@ mod tests {
 
     async fn get_partitions(
         ingester_conn: &IngesterConnectionImpl,
-        sequencer_ids: &[i32],
+        shard_indexes: &[i32],
     ) -> Result<Vec<IngesterPartition>, Error> {
-        get_partitions_with_span(ingester_conn, sequencer_ids, None).await
+        get_partitions_with_span(ingester_conn, shard_indexes, None).await
     }
 
     async fn get_partitions_with_span(
         ingester_conn: &IngesterConnectionImpl,
-        sequencer_ids: &[i32],
+        shard_indexes: &[i32],
         span: Option<Span>,
     ) -> Result<Vec<IngesterPartition>, Error> {
-        let sequencer_ids: Vec<_> = sequencer_ids
-            .iter()
-            .copied()
-            .map(KafkaPartition::new)
-            .collect();
         let namespace = Arc::from("namespace");
         let table = Arc::from("table");
         let columns = vec![String::from("col")];
         let schema = schema();
+        let shard_indexes: Vec<_> = shard_indexes.iter().copied().map(ShardIndex::new).collect();
         ingester_conn
             .partitions(
-                &sequencer_ids,
+                &shard_indexes,
                 namespace,
                 table,
                 columns,
@@ -1829,25 +1819,25 @@ mod tests {
             }
         }
 
-        // Assign one sequencer per address, sorted consistently.
-        // Don't assign any addresses to sequencer ID 0 to test error case
+        // Assign one shard per address, sorted consistently.
+        // Don't assign any addresses to shard index 0 to test error case
         async fn ingester_conn(self: &Arc<Self>) -> IngesterConnectionImpl {
             let ingester_addresses: BTreeSet<_> =
                 self.responses.lock().await.keys().cloned().collect();
 
-            let sequencer_to_ingesters = ingester_addresses
+            let shard_to_ingesters = ingester_addresses
                 .into_iter()
                 .enumerate()
-                .map(|(sequencer_id, ingester_address)| {
+                .map(|(shard_index, ingester_address)| {
                     (
-                        sequencer_id as i32 + 1,
+                        ShardIndex::new(shard_index as i32 + 1),
                         IngesterMapping::Addr(Arc::from(ingester_address.as_str())),
                     )
                 })
                 .collect();
 
-            IngesterConnectionImpl::by_sequencer_with_flight_client(
-                sequencer_to_ingesters,
+            IngesterConnectionImpl::by_shard_with_flight_client(
+                shard_to_ingesters,
                 Arc::clone(self) as _,
                 Arc::new(CatalogCache::new_testing(
                     self.catalog.catalog(),

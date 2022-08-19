@@ -92,27 +92,24 @@ impl WriteInfoService for WriteInfoServiceImpl {
         let write_summary =
             WriteSummary::try_from_token(&write_token).map_err(tonic::Status::invalid_argument)?;
 
-        let progresses = self
-            .handler
-            .progresses(write_summary.kafka_partitions())
-            .await;
+        let progresses = self.handler.progresses(write_summary.shard_indexes()).await;
 
-        let kafka_partition_infos = progresses
+        let shard_infos = progresses
             .into_iter()
-            .map(|(kafka_partition_id, progress)| {
+            .map(|(shard_index, progress)| {
                 let status = write_summary
-                    .write_status(kafka_partition_id, &progress)
+                    .write_status(shard_index, &progress)
                     .map_err(|e| tonic::Status::invalid_argument(e.to_string()))?;
 
-                Ok(proto::KafkaPartitionInfo {
-                    kafka_partition_id: kafka_partition_id.get(),
-                    status: proto::KafkaPartitionStatus::from(status).into(),
+                Ok(proto::ShardInfo {
+                    shard_index: shard_index.get(),
+                    status: proto::ShardStatus::from(status).into(),
                 })
             })
             .collect::<Result<Vec<_>, tonic::Status>>()?;
 
         Ok(tonic::Response::new(proto::GetWriteInfoResponse {
-            kafka_partition_infos,
+            shard_infos,
         }))
     }
 }

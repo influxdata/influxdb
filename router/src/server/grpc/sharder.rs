@@ -1,25 +1,22 @@
 //! A gRPC service to provide shard mappings to external clients.
 
-use std::sync::Arc;
-
-use data_types::{DatabaseName, KafkaPartition, KafkaTopic, SequencerId};
+use crate::shard::Shard;
+use data_types::{DatabaseName, KafkaTopic, ShardId, ShardIndex};
 use generated_types::influxdata::iox::sharder::v1::{
-    shard_service_server, ShardToSequencerIdRequest, ShardToSequencerIdResponse,
+    shard_service_server, MapToShardRequest, MapToShardResponse,
 };
 use hashbrown::HashMap;
 use iox_catalog::interface::Catalog;
 use sharder::Sharder;
+use std::sync::Arc;
 use tonic::{Request, Response};
 
-use crate::sequencer::Sequencer;
-
-/// A [`ShardService`] exposes a [gRPC endpoint] for external systems to
-/// discover the shard mapping for specific tables.
+/// A [`ShardService`] exposes a [gRPC endpoint] for external systems to discover the shard mapping
+/// for specific tables.
 ///
-/// The [`ShardService`] builds a cached mapping of Kafka partition index
-/// numbers to [`Catalog`] row IDs in order to handle requests without
-/// generating Catalog queries. This mapping is expected to be unchanged over
-/// the lifetime of a router instance.
+/// The [`ShardService`] builds a cached mapping of Kafka partition index numbers ([`ShardIndex`])
+/// to [`Catalog`] row IDs ([`ShardId`]) in order to handle requests without generating Catalog
+/// queries. This mapping is expected to be unchanged over the lifetime of a router instance.
 ///
 /// This service MUST be initialised with the same sharder instance as the
 /// [`ShardedWriteBuffer`] for the outputs to be correct.
@@ -30,9 +27,9 @@ use crate::sequencer::Sequencer;
 pub struct ShardService<S> {
     sharder: S,
 
-    // A pre-loaded mapping of all Kafka partition indexes for the in-use Kafka
-    // topic, to their respective catalog row ID.
-    mapping: HashMap<KafkaPartition, SequencerId>,
+    // A pre-loaded mapping of all Kafka partition (shard) indexes for the in-use Kafka
+    // topic, to their respective catalog row shard ID.
+    mapping: HashMap<ShardIndex, ShardId>,
 }
 
 impl<S> ShardService<S>
@@ -48,15 +45,15 @@ where
         topic: KafkaTopic,
         catalog: Arc<dyn Catalog>,
     ) -> Result<Self, iox_catalog::interface::Error> {
-        // Build the mapping of Kafka partition index -> Catalog ID
+        // Build the mapping of Kafka partition (shard) index -> Catalog shard ID
         let mapping = catalog
             .repositories()
             .await
-            .sequencers()
+            .shards()
             .list_by_kafka_topic(&topic)
             .await?
             .into_iter()
-            .map(|s| (s.kafka_partition, s.id))
+            .map(|s| (s.shard_index, s.id))
             .collect();
 
         Ok(Self { sharder, mapping })
@@ -66,31 +63,31 @@ where
 #[tonic::async_trait]
 impl<S> shard_service_server::ShardService for ShardService<S>
 where
-    S: Sharder<(), Item = Arc<Sequencer>> + 'static,
+    S: Sharder<(), Item = Arc<Shard>> + 'static,
 {
-    async fn shard_to_sequencer_id(
+    async fn map_to_shard(
         &self,
-        request: Request<ShardToSequencerIdRequest>,
-    ) -> Result<Response<ShardToSequencerIdResponse>, tonic::Status> {
+        request: Request<MapToShardRequest>,
+    ) -> Result<Response<MapToShardResponse>, tonic::Status> {
         let req = request.into_inner();
 
         // Validate the namespace.
         let ns = DatabaseName::try_from(req.namespace_name)
             .map_err(|e| tonic::Status::invalid_argument(e.to_string()))?;
 
-        // Map the (table, namespace) tuple to the Sequencer for it.
-        let sequencer = self.sharder.shard(&req.table_name, &ns, &());
+        // Map the (table, namespace) tuple to the Shard for it.
+        let shard = self.sharder.shard(&req.table_name, &ns, &());
 
-        // Lookup the Kafka partition index in the cached mapping, to extract
-        // the catalog ID associated with the Sequencer.
-        let catalog_id = self
+        // Look up the shard index in the cached mapping, to extract the catalog ID associated with
+        // the Shard.
+        let shard_id = self
             .mapping
-            .get(&sequencer.kafka_index())
+            .get(&shard.shard_index())
             .expect("in-use shard maps to non-existant catalog entry");
 
-        Ok(Response::new(ShardToSequencerIdResponse {
-            sequencer_id: catalog_id.get(),
-            sequencer_index: sequencer.kafka_index().get(),
+        Ok(Response::new(MapToShardResponse {
+            shard_id: shard_id.get(),
+            shard_index: shard.shard_index().get(),
         }))
     }
 }
@@ -110,7 +107,7 @@ mod tests {
 
     use super::*;
 
-    const N_SEQUENCERS: i32 = 10;
+    const N_SHARDS: i32 = 10;
 
     #[tokio::test]
     async fn test_mapping() {
@@ -126,31 +123,31 @@ mod tests {
             .await
             .expect("topic create");
 
-        let actual_mapping = (0..N_SEQUENCERS)
+        let actual_mapping = (0..N_SHARDS)
             .map(|idx| {
                 let catalog = Arc::clone(&catalog);
                 let topic = topic.clone();
                 async move {
-                    let partition_idx = KafkaPartition::new(idx);
+                    let shard_index = ShardIndex::new(idx);
                     let row = catalog
                         .repositories()
                         .await
-                        .sequencers()
-                        .create_or_get(&topic, partition_idx)
+                        .shards()
+                        .create_or_get(&topic, shard_index)
                         .await
-                        .expect("failed to create sequencer");
-                    (partition_idx, row.id)
+                        .expect("failed to create shard");
+                    (shard_index, row.id)
                 }
             })
             .collect::<FuturesUnordered<_>>()
-            .collect::<HashMap<KafkaPartition, SequencerId>>()
+            .collect::<HashMap<ShardIndex, ShardId>>()
             .await;
 
         let sharder = JumpHash::new(
             actual_mapping
                 .clone()
                 .into_iter()
-                .map(|(idx, _id)| Sequencer::new(idx, Arc::clone(&write_buffer), &*metrics))
+                .map(|(idx, _id)| Shard::new(idx, Arc::clone(&write_buffer), &*metrics))
                 .map(Arc::new),
         );
 
@@ -164,7 +161,7 @@ mod tests {
         // Validate calling the RPC service returns correct mapping data.
         for i in 0..100 {
             let resp = svc
-                .shard_to_sequencer_id(Request::new(ShardToSequencerIdRequest {
+                .map_to_shard(Request::new(MapToShardRequest {
                     table_name: format!("{}", i),
                     namespace_name: "bananas".to_string(),
                 }))
@@ -173,19 +170,17 @@ mod tests {
                 .into_inner();
 
             let actual = actual_mapping
-                .get(&KafkaPartition::new(resp.sequencer_index))
-                .expect("returned kafka partition index must exist in mapping");
-            assert_eq!(actual.get(), resp.sequencer_id);
+                .get(&ShardIndex::new(resp.shard_index))
+                .expect("returned shard index must exist in mapping");
+            assert_eq!(actual.get(), resp.shard_id);
         }
     }
 
-    // Init a mock write buffer with the given number of sequencers.
+    // Init a mock write buffer with the given number of shards.
     fn init_write_buffer() -> MockBufferForWriting {
         let time = iox_time::MockProvider::new(iox_time::Time::from_timestamp_millis(668563200000));
         MockBufferForWriting::new(
-            MockBufferSharedState::empty_with_n_sequencers(
-                NonZeroU32::new(N_SEQUENCERS as _).unwrap(),
-            ),
+            MockBufferSharedState::empty_with_n_shards(NonZeroU32::new(N_SHARDS as _).unwrap()),
             None,
             Arc::new(time),
         )

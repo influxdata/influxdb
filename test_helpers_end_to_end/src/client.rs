@@ -7,7 +7,7 @@ use influxdb_iox_client::{
     connection::Connection,
     flight::generated_types::ReadInfo,
     write::generated_types::{DatabaseBatch, TableBatch, WriteRequest, WriteResponse},
-    write_info::generated_types::{merge_responses, GetWriteInfoResponse, KafkaPartitionStatus},
+    write_info::generated_types::{merge_responses, GetWriteInfoResponse, ShardStatus},
 };
 use observability_deps::tracing::info;
 use std::time::Duration;
@@ -202,25 +202,25 @@ pub async fn wait_for_persisted(write_token: impl Into<String>, connection: Conn
     .await
 }
 
-/// returns true if all partitions in the response are readablel
+/// returns true if all shards in the response are readable
 /// TODO: maybe put this in the influxdb_iox_client library / make a
 /// proper public facing client API. For now, iterate in the end to end tests.
 pub fn all_readable(res: &GetWriteInfoResponse) -> bool {
-    res.kafka_partition_infos.iter().all(|info| {
+    res.shard_infos.iter().all(|info| {
         matches!(
             info.status(),
-            KafkaPartitionStatus::Readable | KafkaPartitionStatus::Persisted
+            ShardStatus::Readable | ShardStatus::Persisted
         )
     })
 }
 
-/// returns true if all partitions in the response are readablel
+/// returns true if all shards in the response are persisted
 /// TODO: maybe put this in the influxdb_iox_client library / make a
 /// proper public facing client API. For now, iterate in the end to end tests.
 pub fn all_persisted(res: &GetWriteInfoResponse) -> bool {
-    res.kafka_partition_infos
+    res.shard_infos
         .iter()
-        .all(|info| matches!(info.status(), KafkaPartitionStatus::Persisted))
+        .all(|info| matches!(info.status(), ShardStatus::Persisted))
 }
 
 /// Runs a query using the flight API on the specified connection.

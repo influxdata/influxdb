@@ -1,6 +1,6 @@
 use super::QuerierNamespace;
 use crate::{create_ingester_connection_for_testing, QuerierCatalogCache};
-use data_types::{KafkaPartition, TableId};
+use data_types::{ShardIndex, TableId};
 use iox_catalog::interface::get_schema_by_name;
 use iox_tests::util::TestNamespace;
 use parquet_file::storage::ParquetStorage;
@@ -32,7 +32,7 @@ pub async fn querier_namespace_with_limit(
         &Handle::current(),
     ));
 
-    let sharder = Arc::new(JumpHash::new((0..1).map(KafkaPartition::new).map(Arc::new)));
+    let sharder = Arc::new(JumpHash::new((0..1).map(ShardIndex::new).map(Arc::new)));
 
     QuerierNamespace::new_testing(
         catalog_cache,

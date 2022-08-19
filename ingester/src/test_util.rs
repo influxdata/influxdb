@@ -10,8 +10,8 @@ use arrow::record_batch::RecordBatch;
 use arrow_util::assert_batches_eq;
 use bitflags::bitflags;
 use data_types::{
-    CompactionLevel, KafkaPartition, NamespaceId, PartitionId, PartitionKey, SequenceNumber,
-    ShardId, TableId, Timestamp, Tombstone, TombstoneId,
+    CompactionLevel, NamespaceId, PartitionId, PartitionKey, SequenceNumber, ShardId, ShardIndex,
+    TableId, Timestamp, Tombstone, TombstoneId,
 };
 use iox_catalog::{interface::Catalog, mem::MemCatalog};
 use iox_query::test::{raw_data, TestChunk};
@@ -198,8 +198,8 @@ pub fn make_snapshot_batch(
     max: SequenceNumber,
 ) -> SnapshotBatch {
     SnapshotBatch {
-        min_sequencer_number: min,
-        max_sequencer_number: max,
+        min_sequence_number: min,
+        max_sequence_number: max,
         data: batch,
     }
 }
@@ -689,8 +689,8 @@ pub fn make_ingester_data(two_partitions: bool, loc: DataLocation) -> IngesterDa
     namespaces.insert(TEST_NAMESPACE.to_string(), data_ns);
 
     // One shard that contains 2 namespaces
-    let kafka_partition = KafkaPartition::new(0);
-    let shard_data = ShardData::new_for_test(kafka_partition, namespaces);
+    let shard_index = ShardIndex::new(0);
+    let shard_data = ShardData::new_for_test(shard_index, namespaces);
     let mut shards = BTreeMap::new();
     shards.insert(shard_id, shard_data);
 
@@ -734,8 +734,8 @@ pub async fn make_ingester_data_with_tombstones(loc: DataLocation) -> IngesterDa
     namespaces.insert(TEST_NAMESPACE.to_string(), data_ns);
 
     // One shard that contains 1 namespace
-    let kafka_partition = KafkaPartition::new(0);
-    let shard_data = ShardData::new_for_test(kafka_partition, namespaces);
+    let shard_index = ShardIndex::new(0);
+    let shard_data = ShardData::new_for_test(shard_index, namespaces);
     let mut shards = BTreeMap::new();
     shards.insert(shard_id, shard_data);
 

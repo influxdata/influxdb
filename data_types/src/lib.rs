@@ -18,6 +18,7 @@ use schema::{
     builder::SchemaBuilder, sort::SortKey, InfluxColumnType, InfluxFieldType, Schema,
     TIME_COLUMN_NAME,
 };
+use serde::Deserialize;
 use snafu::{ResultExt, Snafu};
 use sqlx::postgres::PgHasArrayType;
 use std::{
@@ -174,13 +175,15 @@ impl std::fmt::Display for ShardId {
     }
 }
 
-/// The kafka partition identifier. This is in the actual Kafka cluster.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
+/// The index of the shard in the set of shards. When Kafka is used as the write buffer, this is
+/// the Kafka Partition ID.
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
 #[sqlx(transparent)]
-pub struct KafkaPartition(i32);
+#[serde(transparent)]
+pub struct ShardIndex(i32);
 
 #[allow(missing_docs)]
-impl KafkaPartition {
+impl ShardIndex {
     pub const fn new(v: i32) -> Self {
         Self(v)
     }
@@ -189,9 +192,18 @@ impl KafkaPartition {
     }
 }
 
-impl std::fmt::Display for KafkaPartition {
+impl std::fmt::Display for ShardIndex {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{}", self.0)
+    }
+}
+
+impl std::str::FromStr for ShardIndex {
+    type Err = std::num::ParseIntError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let v: i32 = s.parse()?;
+        Ok(Self(v))
     }
 }
 
@@ -273,7 +285,7 @@ impl std::fmt::Display for TombstoneId {
     }
 }
 
-/// A sequence number from a `router::Sequencer` (kafka partition)
+/// A sequence number from a `router::Shard` (kafka partition)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
 #[sqlx(transparent)]
 pub struct SequenceNumber(i64);
@@ -714,8 +726,9 @@ pub struct Shard {
     pub id: ShardId,
     /// the topic the shard is reading from
     pub kafka_topic_id: KafkaTopicId,
-    /// the kafka partition the shard is reading from
-    pub kafka_partition: KafkaPartition,
+    /// the shard index of the shard the sequence numbers are coming from
+    #[sqlx(rename = "kafka_partition")]
+    pub shard_index: ShardIndex,
     /// The minimum unpersisted sequence number. Because different tables
     /// can be persisted at different times, it is possible some data has been persisted
     /// with a higher sequence number than this. However, all data with a sequence number
@@ -865,7 +878,7 @@ pub struct Tombstone {
     /// the shard the tombstone was sent through
     #[sqlx(rename = "sequencer_id")]
     pub shard_id: ShardId,
-    /// the sequence number assigned to the tombstone from the `router::Sequencer`
+    /// the sequence number assigned to the tombstone from the `router::Shard`
     pub sequence_number: SequenceNumber,
     /// the min time (inclusive) that the delete applies to
     pub min_time: Timestamp,
@@ -2059,20 +2072,20 @@ impl TableSummary {
     }
 }
 
-/// Kafka partition ID plus offset
+/// Shard index plus offset
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct Sequence {
-    /// The sequencer id (kafka partition id)
-    pub sequencer_id: u32,
-    /// The sequence number (kafka offset)
+    /// The shard index
+    pub shard_index: ShardIndex,
+    /// The sequence number
     pub sequence_number: SequenceNumber,
 }
 
 impl Sequence {
     /// Create a new Sequence
-    pub fn new(sequencer_id: u32, sequence_number: SequenceNumber) -> Self {
+    pub fn new(shard_index: ShardIndex, sequence_number: SequenceNumber) -> Self {
         Self {
-            sequencer_id,
+            shard_index,
             sequence_number,
         }
     }
@@ -2201,10 +2214,10 @@ impl TimestampMinMax {
 
 /// Specifies the status of data in the ingestion process.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum KafkaPartitionWriteStatus {
-    /// Nothing is known about this write (e.g. it refers to a kafka
-    /// partition for which we have no information)
-    KafkaPartitionUnknown,
+pub enum ShardWriteStatus {
+    /// Nothing is known about this write (e.g. it refers to a shard for which we have no
+    /// information)
+    ShardUnknown,
     /// The data has not yet been processed by the ingester, and thus is unreadable
     Durable,
     /// The data is readable, but not yet persisted

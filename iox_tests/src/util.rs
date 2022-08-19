@@ -5,9 +5,9 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use data_types::{
-    Column, ColumnSet, ColumnType, CompactionLevel, KafkaPartition, KafkaTopic, Namespace,
-    NamespaceSchema, ParquetFile, ParquetFileParams, Partition, PartitionId, QueryPool,
-    SequenceNumber, Shard, ShardId, Table, TableId, TableSchema, Timestamp, Tombstone, TombstoneId,
+    Column, ColumnSet, ColumnType, CompactionLevel, KafkaTopic, Namespace, NamespaceSchema,
+    ParquetFile, ParquetFileParams, Partition, PartitionId, QueryPool, SequenceNumber, Shard,
+    ShardId, ShardIndex, Table, TableId, TableSchema, Timestamp, Tombstone, TombstoneId,
 };
 use datafusion::physical_plan::metrics::Count;
 use iox_catalog::{
@@ -105,7 +105,7 @@ impl TestCatalog {
     }
 
     /// Create a shard in the catalog
-    pub async fn create_shard(self: &Arc<Self>, shard: i32) -> Arc<Shard> {
+    pub async fn create_shard(self: &Arc<Self>, shard_index: i32) -> Arc<Shard> {
         let mut repos = self.catalog.repositories().await;
 
         let kafka_topic = repos
@@ -113,11 +113,11 @@ impl TestCatalog {
             .create_or_get("kafka_topic")
             .await
             .unwrap();
-        let kafka_partition = KafkaPartition::new(shard);
+        let shard_index = ShardIndex::new(shard_index);
         Arc::new(
             repos
                 .shards()
-                .create_or_get(&kafka_topic, kafka_partition)
+                .create_or_get(&kafka_topic, shard_index)
                 .await
                 .unwrap(),
         )
@@ -250,12 +250,12 @@ impl TestNamespace {
     }
 
     /// Create a shard for this namespace
-    pub async fn create_shard(self: &Arc<Self>, sequencer_id: i32) -> Arc<TestShard> {
+    pub async fn create_shard(self: &Arc<Self>, shard_index: i32) -> Arc<TestShard> {
         let mut repos = self.catalog.catalog.repositories().await;
 
         let shard = repos
             .shards()
-            .create_or_get(&self.kafka_topic, KafkaPartition::new(sequencer_id))
+            .create_or_get(&self.kafka_topic, ShardIndex::new(shard_index))
             .await
             .unwrap();
 
