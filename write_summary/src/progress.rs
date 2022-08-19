@@ -218,9 +218,7 @@ mod tests {
         let eq = SequenceNumber::new(1);
         let gt = SequenceNumber::new(2);
 
-        let progress = ShardProgress::new()
-            .with_buffered(eq)
-            .with_persisted(lt);
+        let progress = ShardProgress::new().with_buffered(eq).with_persisted(lt);
 
         assert!(progress.readable(lt));
         assert!(progress.persisted(lt));
@@ -238,9 +236,7 @@ mod tests {
         let eq = SequenceNumber::new(1);
         let gt = SequenceNumber::new(2);
 
-        let progress = ShardProgress::new()
-            .with_buffered(eq)
-            .with_persisted(eq);
+        let progress = ShardProgress::new().with_buffered(eq).with_persisted(eq);
 
         assert!(progress.readable(lt));
         assert!(progress.persisted(lt));
@@ -282,9 +278,7 @@ mod tests {
 
         let progress1 = ShardProgress::new().with_buffered(gt);
 
-        let progress2 = ShardProgress::new()
-            .with_buffered(lt)
-            .with_persisted(eq);
+        let progress2 = ShardProgress::new().with_buffered(lt).with_persisted(eq);
 
         let expected = ShardProgress::new()
             .with_buffered(lt)

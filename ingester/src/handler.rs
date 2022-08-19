@@ -496,7 +496,8 @@ mod tests {
                     .await
                     .unwrap();
 
-                if has_measurement && shard.min_unpersisted_sequence_number == SequenceNumber::new(9)
+                if has_measurement
+                    && shard.min_unpersisted_sequence_number == SequenceNumber::new(9)
                 {
                     break;
                 }

@@ -89,8 +89,8 @@
 use bytes::Bytes;
 use data_types::{
     ColumnId, ColumnSet, ColumnSummary, CompactionLevel, InfluxDbType, NamespaceId,
-    ParquetFileParams, PartitionId, PartitionKey, SequenceNumber, ShardId, StatValues,
-    Statistics, TableId, Timestamp,
+    ParquetFileParams, PartitionId, PartitionKey, SequenceNumber, ShardId, StatValues, Statistics,
+    TableId, Timestamp,
 };
 use generated_types::influxdata::iox::ingester::v1 as proto;
 use iox_time::Time;

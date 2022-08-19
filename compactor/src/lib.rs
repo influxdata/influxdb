@@ -242,10 +242,7 @@ mod tests {
         table.create_column("tag2", ColumnType::Tag).await;
         table.create_column("tag3", ColumnType::Tag).await;
         table.create_column("time", ColumnType::Time).await;
-        let partition = table
-            .with_shard(&sequencer)
-            .create_partition("part")
-            .await;
+        let partition = table.with_shard(&sequencer).create_partition("part").await;
         let time = Arc::new(SystemProvider::new());
         let config = make_compactor_config();
         let metrics = Arc::new(metric::Registry::new());
@@ -463,10 +460,7 @@ mod tests {
         table.create_column("tag2", ColumnType::Tag).await;
         table.create_column("tag3", ColumnType::Tag).await;
         table.create_column("time", ColumnType::Time).await;
-        let partition = table
-            .with_shard(&sequencer)
-            .create_partition("part")
-            .await;
+        let partition = table.with_shard(&sequencer).create_partition("part").await;
         let time = Arc::new(SystemProvider::new());
         let time_38_hour_ago = (time.now() - Duration::from_secs(60 * 60 * 38)).timestamp_nanos();
         let config = make_compactor_config();
@@ -650,10 +644,7 @@ mod tests {
         table.create_column("tag2", ColumnType::Tag).await;
         table.create_column("tag3", ColumnType::Tag).await;
         table.create_column("time", ColumnType::Time).await;
-        let partition = table
-            .with_shard(&sequencer)
-            .create_partition("part")
-            .await;
+        let partition = table.with_shard(&sequencer).create_partition("part").await;
         let time = Arc::new(SystemProvider::new());
         let time_38_hour_ago = (time.now() - Duration::from_secs(60 * 60 * 38)).timestamp_nanos();
         let config = make_compactor_config();

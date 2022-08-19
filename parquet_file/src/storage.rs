@@ -405,9 +405,7 @@ fn project_for_parquet_reader(
 mod tests {
     use super::*;
     use arrow::array::{ArrayRef, Int64Array, StringArray};
-    use data_types::{
-        CompactionLevel, NamespaceId, PartitionId, SequenceNumber, ShardId, TableId,
-    };
+    use data_types::{CompactionLevel, NamespaceId, PartitionId, SequenceNumber, ShardId, TableId};
     use datafusion::common::DataFusionError;
     use iox_time::Time;
     use std::collections::HashMap;

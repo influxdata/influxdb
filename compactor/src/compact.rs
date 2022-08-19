@@ -259,8 +259,7 @@ impl Compactor {
         // to prioritize partitions
         min_recent_ingested_files: usize,
     ) -> Result<Vec<PartitionParam>> {
-        let mut candidates =
-            Vec::with_capacity(self.shards.len() * max_num_partitions_per_shard);
+        let mut candidates = Vec::with_capacity(self.shards.len() * max_num_partitions_per_shard);
         let mut repos = self.catalog.repositories().await;
 
         for shard_id in &self.shards {
@@ -322,8 +321,7 @@ impl Compactor {
         // Max number of cold partitions per shard we want to compact
         max_num_partitions_per_shard: usize,
     ) -> Result<Vec<PartitionParam>> {
-        let mut candidates =
-            Vec::with_capacity(self.shards.len() * max_num_partitions_per_shard);
+        let mut candidates = Vec::with_capacity(self.shards.len() * max_num_partitions_per_shard);
         let mut repos = self.catalog.repositories().await;
 
         for shard_id in &self.shards {

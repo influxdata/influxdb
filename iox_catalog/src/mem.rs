@@ -691,22 +691,23 @@ impl PartitionRepo for MemTxn {
     ) -> Result<Partition> {
         let stage = self.stage();
 
-        let partition = match stage.partitions.iter().find(|p| {
-            p.partition_key == key && p.shard_id == shard_id && p.table_id == table_id
-        }) {
-            Some(p) => p,
-            None => {
-                let p = Partition {
-                    id: PartitionId::new(stage.partitions.len() as i64 + 1),
-                    shard_id,
-                    table_id,
-                    partition_key: key,
-                    sort_key: vec![],
-                };
-                stage.partitions.push(p);
-                stage.partitions.last().unwrap()
-            }
-        };
+        let partition =
+            match stage.partitions.iter().find(|p| {
+                p.partition_key == key && p.shard_id == shard_id && p.table_id == table_id
+            }) {
+                Some(p) => p,
+                None => {
+                    let p = Partition {
+                        id: PartitionId::new(stage.partitions.len() as i64 + 1),
+                        shard_id,
+                        table_id,
+                        partition_key: key,
+                        sort_key: vec![],
+                    };
+                    stage.partitions.push(p);
+                    stage.partitions.last().unwrap()
+                }
+            };
 
         Ok(partition.clone())
     }
@@ -829,9 +830,7 @@ impl TombstoneRepo for MemTxn {
         let stage = self.stage();
 
         let tombstone = match stage.tombstones.iter().find(|t| {
-            t.table_id == table_id
-                && t.shard_id == shard_id
-                && t.sequence_number == sequence_number
+            t.table_id == table_id && t.shard_id == shard_id && t.sequence_number == sequence_number
         }) {
             Some(t) => t,
             None => {

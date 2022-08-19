@@ -104,8 +104,7 @@ impl Reconciler {
             tombstones.into_iter().map(QuerierTombstone::from).collect();
 
         // match chunks and tombstones
-        let mut tombstones_by_shard: HashMap<ShardId, Vec<QuerierTombstone>> =
-            HashMap::new();
+        let mut tombstones_by_shard: HashMap<ShardId, Vec<QuerierTombstone>> = HashMap::new();
 
         for tombstone in querier_tombstones {
             tombstones_by_shard
@@ -129,8 +128,7 @@ impl Reconciler {
             Vec::with_capacity(parquet_files.len() + ingester_partitions.len());
 
         for chunk in parquet_files.into_iter() {
-            let chunk = if let Some(tombstones) =
-                tombstones_by_shard.get(&chunk.meta().shard_id())
+            let chunk = if let Some(tombstones) = tombstones_by_shard.get(&chunk.meta().shard_id())
             {
                 let mut delete_predicates = Vec::with_capacity(tombstones.len());
                 for tombstone in tombstones {

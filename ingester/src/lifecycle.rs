@@ -616,12 +616,9 @@ mod tests {
         assert!(!h.log_write(PartitionId::new(1), shard_id, SequenceNumber::new(2), 1));
 
         // log another write for different partition using a different handle
-        assert!(!m.handle().log_write(
-            PartitionId::new(2),
-            shard_id,
-            SequenceNumber::new(3),
-            3
-        ));
+        assert!(!m
+            .handle()
+            .log_write(PartitionId::new(2), shard_id, SequenceNumber::new(3), 3));
 
         let stats = m.stats();
         assert_eq!(stats.total_bytes, 5);
@@ -890,12 +887,7 @@ mod tests {
         let partition_id = PartitionId::new(1);
         let persister = Arc::new(TestPersister::default());
         h.log_write(partition_id, shard_id, SequenceNumber::new(1), 8);
-        h.log_write(
-            PartitionId::new(2),
-            shard_id,
-            SequenceNumber::new(2),
-            13,
-        );
+        h.log_write(PartitionId::new(2), shard_id, SequenceNumber::new(2), 13);
 
         m.maybe_persist(&persister).await;
 
@@ -912,12 +904,7 @@ mod tests {
 
         // add that partition back in over size
         h.log_write(partition_id, shard_id, SequenceNumber::new(3), 20);
-        h.log_write(
-            PartitionId::new(2),
-            shard_id,
-            SequenceNumber::new(4),
-            21,
-        );
+        h.log_write(PartitionId::new(2), shard_id, SequenceNumber::new(4), 21);
 
         // both partitions should now need to be persisted to bring us below the mem threshold of 20.
         m.maybe_persist(&persister).await;

@@ -860,13 +860,13 @@ pub(crate) async fn make_one_partition_with_tombstones(
     let mut seq_num = seq_num.get();
     seq_num += 1;
     let ts = create_tombstone(
-        2,                  // tombstone id
-        table_id.get(),     // table id
+        2,              // tombstone id
+        table_id.get(), // table id
         shard_id.get(), // sequencer id
-        seq_num,            // delete's seq_number
-        10,                 // min time of data to get deleted
-        50,                 // max time of data to get deleted
-        "city=Boston",      // delete predicate
+        seq_num,        // delete's seq_number
+        10,             // min time of data to get deleted
+        50,             // max time of data to get deleted
+        "city=Boston",  // delete predicate
     );
     p1.buffer_tombstone(exec, table_name, ts).await;
 

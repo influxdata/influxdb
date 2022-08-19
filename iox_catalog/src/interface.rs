@@ -5,8 +5,8 @@ use data_types::{
     Column, ColumnSchema, ColumnType, KafkaPartition, KafkaTopic, KafkaTopicId, Namespace,
     NamespaceId, NamespaceSchema, ParquetFile, ParquetFileId, ParquetFileParams, Partition,
     PartitionId, PartitionInfo, PartitionKey, PartitionParam, ProcessedTombstone, QueryPool,
-    QueryPoolId, SequenceNumber, Shard, ShardId, Table, TableId, TablePartition,
-    TableSchema, Timestamp, Tombstone, TombstoneId,
+    QueryPoolId, SequenceNumber, Shard, ShardId, Table, TableId, TablePartition, TableSchema,
+    Timestamp, Tombstone, TombstoneId,
 };
 use iox_time::TimeProvider;
 use snafu::{OptionExt, Snafu};

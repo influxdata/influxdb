@@ -549,18 +549,9 @@ mod tests {
         let sequencer1 = ns.create_shard(1).await;
         let sequencer2 = ns.create_shard(2).await;
 
-        let partition11 = table1
-            .with_shard(&sequencer1)
-            .create_partition("k")
-            .await;
-        let partition12 = table1
-            .with_shard(&sequencer2)
-            .create_partition("k")
-            .await;
-        let partition21 = table2
-            .with_shard(&sequencer1)
-            .create_partition("k")
-            .await;
+        let partition11 = table1.with_shard(&sequencer1).create_partition("k").await;
+        let partition12 = table1.with_shard(&sequencer2).create_partition("k").await;
+        let partition21 = table2.with_shard(&sequencer1).create_partition("k").await;
 
         table1.create_column("time", ColumnType::Time).await;
         table1.create_column("foo", ColumnType::F64).await;
@@ -761,14 +752,8 @@ mod tests {
         let ns = catalog.create_namespace("ns").await;
         let table = ns.create_table("table").await;
         let sequencer = ns.create_shard(1).await;
-        let partition1 = table
-            .with_shard(&sequencer)
-            .create_partition("k1")
-            .await;
-        let partition2 = table
-            .with_shard(&sequencer)
-            .create_partition("k2")
-            .await;
+        let partition1 = table.with_shard(&sequencer).create_partition("k1").await;
+        let partition2 = table.with_shard(&sequencer).create_partition("k2").await;
         table.create_column("time", ColumnType::Time).await;
         table.create_column("foo", ColumnType::F64).await;
 
@@ -914,14 +899,8 @@ mod tests {
         let ns = catalog.create_namespace("ns").await;
         let table = ns.create_table("table").await;
         let sequencer = ns.create_shard(1).await;
-        let partition1 = table
-            .with_shard(&sequencer)
-            .create_partition("k1")
-            .await;
-        let partition2 = table
-            .with_shard(&sequencer)
-            .create_partition("k2")
-            .await;
+        let partition1 = table.with_shard(&sequencer).create_partition("k1").await;
+        let partition2 = table.with_shard(&sequencer).create_partition("k2").await;
 
         let schema = Arc::new(
             SchemaBuilder::new()

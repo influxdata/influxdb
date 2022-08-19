@@ -14,9 +14,7 @@ use generated_types::{
 };
 use influxdb_iox_client::flight::{low_level::LowLevelMessage, Error as FlightError};
 use ingester::{
-    data::{
-        FlatIngesterQueryResponse, IngesterData, IngesterQueryResponse, Persister, ShardData,
-    },
+    data::{FlatIngesterQueryResponse, IngesterData, IngesterQueryResponse, Persister, ShardData},
     lifecycle::LifecycleHandle,
     querier_handler::prepare_data_to_querier,
 };
@@ -694,10 +692,7 @@ impl MockIngester {
 
         let shards = BTreeMap::from([(
             sequencer.shard.id,
-            ShardData::new(
-                sequencer.shard.kafka_partition,
-                catalog.metric_registry(),
-            ),
+            ShardData::new(sequencer.shard.kafka_partition, catalog.metric_registry()),
         )]);
         let ingester_data = Arc::new(IngesterData::new(
             catalog.object_store(),
@@ -730,11 +725,7 @@ impl MockIngester {
 
         let should_pause = self
             .ingester_data
-            .buffer_operation(
-                self.sequencer.shard.id,
-                dml_operation,
-                &lifecycle_handle,
-            )
+            .buffer_operation(self.sequencer.shard.id, dml_operation, &lifecycle_handle)
             .await
             .unwrap();
         assert!(!should_pause);

@@ -7,8 +7,7 @@ use arrow::{
 use data_types::{
     Column, ColumnSet, ColumnType, CompactionLevel, KafkaPartition, KafkaTopic, Namespace,
     NamespaceSchema, ParquetFile, ParquetFileParams, Partition, PartitionId, QueryPool,
-    SequenceNumber, Shard, ShardId, Table, TableId, TableSchema, Timestamp, Tombstone,
-    TombstoneId,
+    SequenceNumber, Shard, ShardId, Table, TableId, TableSchema, Timestamp, Tombstone, TombstoneId,
 };
 use datafusion::physical_plan::metrics::Count;
 use iox_catalog::{
@@ -184,10 +183,7 @@ impl TestCatalog {
     }
 
     /// List level 0 files
-    pub async fn list_level_0_files(
-        self: &Arc<Self>,
-        shard_id: ShardId,
-    ) -> Vec<ParquetFile> {
+    pub async fn list_level_0_files(self: &Arc<Self>, shard_id: ShardId) -> Vec<ParquetFile> {
         self.catalog
             .repositories()
             .await
@@ -299,10 +295,7 @@ pub struct TestTable {
 
 impl TestTable {
     /// Attach a shard to the table
-    pub fn with_shard(
-        self: &Arc<Self>,
-        shard: &Arc<TestShard>,
-    ) -> Arc<TestTableBoundShard> {
+    pub fn with_shard(self: &Arc<Self>, shard: &Arc<TestShard>) -> Arc<TestTableBoundShard> {
         assert!(Arc::ptr_eq(&self.catalog, &shard.catalog));
         assert!(Arc::ptr_eq(&self.namespace, &shard.namespace));
 

@@ -13,8 +13,7 @@
 
 use crate::interface::{ColumnUpsertRequest, Error, RepoCollection, Result, Transaction};
 use data_types::{
-    ColumnType, KafkaPartition, KafkaTopic, NamespaceSchema, QueryPool, Shard, ShardId,
-    TableSchema,
+    ColumnType, KafkaPartition, KafkaTopic, NamespaceSchema, QueryPool, Shard, ShardId, TableSchema,
 };
 use mutable_batch::MutableBatch;
 use std::{borrow::Cow, collections::BTreeMap};

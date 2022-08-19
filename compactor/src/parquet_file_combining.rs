@@ -319,10 +319,7 @@ pub(crate) async fn compact_parquet_files(
 
     info!(?partition_id, "compaction complete");
 
-    let attributes = Attributes::from([(
-        "shard_id",
-        format!("{}", partition.shard_id()).into(),
-    )]);
+    let attributes = Attributes::from([("shard_id", format!("{}", partition.shard_id()).into())]);
     let compaction_input_file_bytes = compaction_input_file_bytes.recorder(attributes);
     for size in file_sizes {
         compaction_input_file_bytes.record(size as u64);

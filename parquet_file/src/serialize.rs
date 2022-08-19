@@ -166,9 +166,7 @@ mod tests {
     use crate::metadata::IoxParquetMetaData;
     use arrow::array::{ArrayRef, StringArray};
     use bytes::Bytes;
-    use data_types::{
-        CompactionLevel, NamespaceId, PartitionId, SequenceNumber, ShardId, TableId,
-    };
+    use data_types::{CompactionLevel, NamespaceId, PartitionId, SequenceNumber, ShardId, TableId};
     use iox_time::Time;
     use parquet::{
         arrow::{ArrowReader, ParquetFileArrowReader},

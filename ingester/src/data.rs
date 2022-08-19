@@ -476,13 +476,7 @@ impl ShardData {
         };
 
         namespace_data
-            .buffer_operation(
-                dml_operation,
-                shard_id,
-                catalog,
-                lifecycle_handle,
-                executor,
-            )
+            .buffer_operation(dml_operation, shard_id, catalog, lifecycle_handle, executor)
             .await
     }
 
@@ -944,12 +938,8 @@ impl TableData {
             }
         }
 
-        let should_pause = lifecycle_handle.log_write(
-            partition_data.id,
-            shard_id,
-            sequence_number,
-            batch.size(),
-        );
+        let should_pause =
+            lifecycle_handle.log_write(partition_data.id, shard_id, sequence_number, batch.size());
         partition_data.buffer_write(sequence_number, batch)?;
 
         Ok(should_pause)
