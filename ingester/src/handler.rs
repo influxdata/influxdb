@@ -134,7 +134,7 @@ impl IngestHandlerImpl {
     pub async fn new(
         lifecycle_config: LifecycleConfig,
         topic: KafkaTopic,
-        sequencer_states: BTreeMap<KafkaPartition, Shard>, // XXXJPG
+        shard_states: BTreeMap<KafkaPartition, Shard>,
         catalog: Arc<dyn Catalog>,
         object_store: Arc<DynObjectStore>,
         write_buffer: Arc<dyn WriteBufferReading>,
@@ -145,7 +145,7 @@ impl IngestHandlerImpl {
     ) -> Result<Self> {
         // build the initial ingester data state
         let mut shards = BTreeMap::new();
-        for s in sequencer_states.values() {
+        for s in shard_states.values() {
             shards.insert(
                 s.id,
                 ShardData::new(s.kafka_partition, Arc::clone(&metric_registry)),
@@ -183,10 +183,10 @@ impl IngestHandlerImpl {
             lifecycle_config
         );
 
-        let mut join_handles = Vec::with_capacity(sequencer_states.len() + 1);
+        let mut join_handles = Vec::with_capacity(shard_states.len() + 1);
         join_handles.push(("lifecycle manager".to_owned(), shared_handle(handle)));
 
-        for (kafka_partition, shard) in sequencer_states {
+        for (kafka_partition, shard) in shard_states {
             let metric_registry = Arc::clone(&metric_registry);
 
             // Acquire a write buffer stream and seek it to the last
