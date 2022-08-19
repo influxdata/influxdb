@@ -1811,12 +1811,12 @@ mod tests {
             let ns = catalog.create_namespace("namespace").await;
             let table = ns.create_table("table").await;
 
-            let s0 = ns.create_sequencer(0).await;
-            let s1 = ns.create_sequencer(1).await;
+            let s0 = ns.create_shard(0).await;
+            let s1 = ns.create_shard(1).await;
 
-            table.with_sequencer(&s0).create_partition("k1").await;
-            table.with_sequencer(&s0).create_partition("k2").await;
-            table.with_sequencer(&s1).create_partition("k3").await;
+            table.with_shard(&s0).create_partition("k1").await;
+            table.with_shard(&s0).create_partition("k2").await;
+            table.with_shard(&s1).create_partition("k3").await;
 
             Self {
                 catalog,

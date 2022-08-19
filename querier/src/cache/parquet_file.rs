@@ -473,10 +473,10 @@ mod tests {
         let table = ns.create_table(table_name).await;
         table.create_column("foo", ColumnType::F64).await;
         table.create_column("time", ColumnType::Time).await;
-        let sequencer1 = ns.create_sequencer(1).await;
+        let sequencer1 = ns.create_shard(1).await;
 
         let partition = table
-            .with_sequencer(&sequencer1)
+            .with_shard(&sequencer1)
             .create_partition("k")
             .await;
 

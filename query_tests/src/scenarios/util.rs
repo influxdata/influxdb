@@ -22,7 +22,7 @@ use ingester::{
 };
 use iox_catalog::interface::get_schema_by_name;
 use iox_query::exec::{Executor, ExecutorConfig};
-use iox_tests::util::{TestCatalog, TestNamespace, TestSequencer};
+use iox_tests::util::{TestCatalog, TestNamespace, TestShard};
 use itertools::Itertools;
 use mutable_batch_lp::LinesConverter;
 use once_cell::sync::Lazy;
@@ -653,7 +653,7 @@ struct MockIngester {
     ns: Arc<TestNamespace>,
 
     /// Sequencer used for testing.
-    sequencer: Arc<TestSequencer>,
+    sequencer: Arc<TestShard>,
 
     /// Memory of partition keys for certain sequence numbers.
     ///
@@ -690,7 +690,7 @@ impl MockIngester {
         let exec = Arc::clone(&GLOBAL_EXEC);
         let catalog = TestCatalog::with_exec(exec);
         let ns = catalog.create_namespace("test_db").await;
-        let sequencer = ns.create_sequencer(1).await;
+        let sequencer = ns.create_shard(1).await;
 
         let shards = BTreeMap::from([(
             sequencer.shard.id,
@@ -819,7 +819,7 @@ impl MockIngester {
         let mut partition_ids = vec![];
         for table in &tables {
             let partition = table
-                .with_sequencer(&self.sequencer)
+                .with_shard(&self.sequencer)
                 .create_partition(partition_key)
                 .await;
             partition_ids.push(partition.partition.id);

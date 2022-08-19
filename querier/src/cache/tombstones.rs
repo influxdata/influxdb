@@ -223,9 +223,9 @@ mod tests {
 
         let ns = catalog.create_namespace("ns").await;
         let table1 = ns.create_table("table1").await;
-        let sequencer1 = ns.create_sequencer(1).await;
+        let sequencer1 = ns.create_shard(1).await;
 
-        let table_and_sequencer = table1.with_sequencer(&sequencer1);
+        let table_and_sequencer = table1.with_shard(&sequencer1);
         let table_id = table1.table.id;
 
         let tombstone1 = table_and_sequencer
@@ -250,8 +250,8 @@ mod tests {
 
         let ns = catalog.create_namespace("ns").await;
         let table1 = ns.create_table("table1").await;
-        let sequencer1 = ns.create_sequencer(1).await;
-        let table_and_sequencer1 = table1.with_sequencer(&sequencer1);
+        let sequencer1 = ns.create_shard(1).await;
+        let table_and_sequencer1 = table1.with_shard(&sequencer1);
         let table_id1 = table1.table.id;
         let tombstone1 = table_and_sequencer1
             .create_tombstone(8, 1, 100, "foo=1")
@@ -260,8 +260,8 @@ mod tests {
         let cache = make_cache(&catalog);
 
         let table2 = ns.create_table("table2").await;
-        let sequencer2 = ns.create_sequencer(2).await;
-        let table_and_sequencer2 = table2.with_sequencer(&sequencer2);
+        let sequencer2 = ns.create_shard(2).await;
+        let table_and_sequencer2 = table2.with_shard(&sequencer2);
         let table_id2 = table2.table.id;
         let tombstone2 = table_and_sequencer2
             .create_tombstone(8, 1, 100, "foo=1")
@@ -282,9 +282,9 @@ mod tests {
 
         let ns = catalog.create_namespace("ns").await;
         let table1 = ns.create_table("table1").await;
-        let sequencer1 = ns.create_sequencer(1).await;
+        let sequencer1 = ns.create_shard(1).await;
 
-        let table_and_sequencer = table1.with_sequencer(&sequencer1);
+        let table_and_sequencer = table1.with_shard(&sequencer1);
         let table_id = table1.table.id;
 
         let cache = make_cache(&catalog);
@@ -333,9 +333,9 @@ mod tests {
 
         let ns = catalog.create_namespace("ns").await;
         let table1 = ns.create_table("table1").await;
-        let sequencer1 = ns.create_sequencer(1).await;
+        let sequencer1 = ns.create_shard(1).await;
 
-        let table_and_sequencer = table1.with_sequencer(&sequencer1);
+        let table_and_sequencer = table1.with_shard(&sequencer1);
         let table_id = table1.table.id;
 
         let cache = make_cache(&catalog);
@@ -393,9 +393,9 @@ mod tests {
         let sequence_number_1 = SequenceNumber::new(1);
         let ns = catalog.create_namespace("ns").await;
         let table1 = ns.create_table("table1").await;
-        let sequencer1 = ns.create_sequencer(1).await;
+        let sequencer1 = ns.create_shard(1).await;
 
-        let table_and_sequencer = table1.with_sequencer(&sequencer1);
+        let table_and_sequencer = table1.with_shard(&sequencer1);
         let table_id = table1.table.id;
 
         let cache = make_cache(&catalog);

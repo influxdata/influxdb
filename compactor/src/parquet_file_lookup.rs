@@ -91,27 +91,27 @@ mod tests {
     async fn test_setup() -> TestSetup {
         let catalog = TestCatalog::new();
         let ns = catalog.create_namespace("ns").await;
-        let sequencer = ns.create_sequencer(1).await;
-        let another_sequencer = ns.create_sequencer(2).await;
+        let sequencer = ns.create_shard(1).await;
+        let another_sequencer = ns.create_shard(2).await;
         let table = ns.create_table("table").await;
         table.create_column("field_int", ColumnType::I64).await;
         table.create_column("tag1", ColumnType::Tag).await;
         table.create_column("time", ColumnType::Time).await;
 
         let partition = table
-            .with_sequencer(&sequencer)
+            .with_shard(&sequencer)
             .create_partition("2022-07-13")
             .await;
 
         // Same partition key, but associated with a different sequencer
         let partition_on_another_sequencer = table
-            .with_sequencer(&another_sequencer)
+            .with_shard(&another_sequencer)
             .create_partition("2022-07-13")
             .await;
 
         // Same sequencer, but for an older partition key
         let older_partition = table
-            .with_sequencer(&sequencer)
+            .with_shard(&sequencer)
             .create_partition("2022-07-12")
             .await;
 

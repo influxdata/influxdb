@@ -570,7 +570,7 @@ mod tests {
             partition_mapping,
             vec![ParquetFile {
                 id: 98,
-                sequencer_id: 100,
+                shard_id: 100,
                 namespace_id: 100,
                 table_id: 100,
                 partition_id: 100,

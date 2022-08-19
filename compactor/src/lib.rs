@@ -235,7 +235,7 @@ mod tests {
         .join("\n");
 
         let ns = catalog.create_namespace("ns").await;
-        let sequencer = ns.create_sequencer(1).await;
+        let sequencer = ns.create_shard(1).await;
         let table = ns.create_table("table").await;
         table.create_column("field_int", ColumnType::I64).await;
         table.create_column("tag1", ColumnType::Tag).await;
@@ -243,7 +243,7 @@ mod tests {
         table.create_column("tag3", ColumnType::Tag).await;
         table.create_column("time", ColumnType::Time).await;
         let partition = table
-            .with_sequencer(&sequencer)
+            .with_shard(&sequencer)
             .create_partition("part")
             .await;
         let time = Arc::new(SystemProvider::new());
@@ -456,7 +456,7 @@ mod tests {
         .join("\n");
 
         let ns = catalog.create_namespace("ns").await;
-        let sequencer = ns.create_sequencer(1).await;
+        let sequencer = ns.create_shard(1).await;
         let table = ns.create_table("table").await;
         table.create_column("field_int", ColumnType::I64).await;
         table.create_column("tag1", ColumnType::Tag).await;
@@ -464,7 +464,7 @@ mod tests {
         table.create_column("tag3", ColumnType::Tag).await;
         table.create_column("time", ColumnType::Time).await;
         let partition = table
-            .with_sequencer(&sequencer)
+            .with_shard(&sequencer)
             .create_partition("part")
             .await;
         let time = Arc::new(SystemProvider::new());
@@ -643,7 +643,7 @@ mod tests {
         .join("\n");
 
         let ns = catalog.create_namespace("ns").await;
-        let sequencer = ns.create_sequencer(1).await;
+        let sequencer = ns.create_shard(1).await;
         let table = ns.create_table("table").await;
         table.create_column("field_int", ColumnType::I64).await;
         table.create_column("tag1", ColumnType::Tag).await;
@@ -651,7 +651,7 @@ mod tests {
         table.create_column("tag3", ColumnType::Tag).await;
         table.create_column("time", ColumnType::Time).await;
         let partition = table
-            .with_sequencer(&sequencer)
+            .with_shard(&sequencer)
             .create_partition("part")
             .await;
         let time = Arc::new(SystemProvider::new());

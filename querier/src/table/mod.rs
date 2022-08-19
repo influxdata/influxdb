@@ -546,19 +546,19 @@ mod tests {
         let table1 = ns.create_table("table1").await;
         let table2 = ns.create_table("table2").await;
 
-        let sequencer1 = ns.create_sequencer(1).await;
-        let sequencer2 = ns.create_sequencer(2).await;
+        let sequencer1 = ns.create_shard(1).await;
+        let sequencer2 = ns.create_shard(2).await;
 
         let partition11 = table1
-            .with_sequencer(&sequencer1)
+            .with_shard(&sequencer1)
             .create_partition("k")
             .await;
         let partition12 = table1
-            .with_sequencer(&sequencer2)
+            .with_shard(&sequencer2)
             .create_partition("k")
             .await;
         let partition21 = table2
-            .with_sequencer(&sequencer1)
+            .with_shard(&sequencer1)
             .create_partition("k")
             .await;
 
@@ -638,12 +638,12 @@ mod tests {
         file111.flag_for_delete().await;
 
         let tombstone1 = table1
-            .with_sequencer(&sequencer1)
+            .with_shard(&sequencer1)
             .create_tombstone(7, 1, 100, "foo=1")
             .await;
         tombstone1.mark_processed(&file112).await;
         let tombstone2 = table1
-            .with_sequencer(&sequencer1)
+            .with_shard(&sequencer1)
             .create_tombstone(8, 1, 100, "foo=1")
             .await;
         tombstone2.mark_processed(&file112).await;
@@ -710,8 +710,8 @@ mod tests {
 
         let ns = catalog.create_namespace("ns").await;
         let table = ns.create_table("table").await;
-        let sequencer = ns.create_sequencer(1).await;
-        let partition = table.with_sequencer(&sequencer).create_partition("k").await;
+        let sequencer = ns.create_shard(1).await;
+        let partition = table.with_shard(&sequencer).create_partition("k").await;
         let schema = make_schema(&table).await;
 
         // create a parquet file that cannot be processed by the querier:
@@ -760,13 +760,13 @@ mod tests {
         let catalog = TestCatalog::new();
         let ns = catalog.create_namespace("ns").await;
         let table = ns.create_table("table").await;
-        let sequencer = ns.create_sequencer(1).await;
+        let sequencer = ns.create_shard(1).await;
         let partition1 = table
-            .with_sequencer(&sequencer)
+            .with_shard(&sequencer)
             .create_partition("k1")
             .await;
         let partition2 = table
-            .with_sequencer(&sequencer)
+            .with_shard(&sequencer)
             .create_partition("k2")
             .await;
         table.create_column("time", ColumnType::Time).await;
@@ -799,21 +799,21 @@ mod tests {
         // partition1: kept because sequence number <= 10
         // partition2: kept because sequence number <= 11
         table
-            .with_sequencer(&sequencer)
+            .with_shard(&sequencer)
             .create_tombstone(10, 1, 100, "foo=1")
             .await;
 
         // partition1: pruned because sequence number > 10
         // partition2: kept because sequence number <= 11
         table
-            .with_sequencer(&sequencer)
+            .with_shard(&sequencer)
             .create_tombstone(11, 1, 100, "foo=2")
             .await;
 
         // partition1: pruned because sequence number > 10
         // partition2: pruned because sequence number > 11
         table
-            .with_sequencer(&sequencer)
+            .with_shard(&sequencer)
             .create_tombstone(12, 1, 100, "foo=3")
             .await;
 
@@ -913,13 +913,13 @@ mod tests {
 
         let ns = catalog.create_namespace("ns").await;
         let table = ns.create_table("table").await;
-        let sequencer = ns.create_sequencer(1).await;
+        let sequencer = ns.create_shard(1).await;
         let partition1 = table
-            .with_sequencer(&sequencer)
+            .with_shard(&sequencer)
             .create_partition("k1")
             .await;
         let partition2 = table
-            .with_sequencer(&sequencer)
+            .with_shard(&sequencer)
             .create_partition("k2")
             .await;
 
@@ -979,8 +979,8 @@ mod tests {
         let catalog = TestCatalog::new();
         let ns = catalog.create_namespace("ns").await;
         let table = ns.create_table("table1").await;
-        let sequencer = ns.create_sequencer(1).await;
-        let partition = table.with_sequencer(&sequencer).create_partition("k").await;
+        let sequencer = ns.create_shard(1).await;
+        let partition = table.with_shard(&sequencer).create_partition("k").await;
         let schema = make_schema(&table).await;
 
         let builder = IngesterPartitionBuilder::new(&table, &schema, &sequencer, &partition)
@@ -1034,8 +1034,8 @@ mod tests {
         let catalog = TestCatalog::new();
         let ns = catalog.create_namespace("ns").await;
         let table = ns.create_table("table1").await;
-        let sequencer = ns.create_sequencer(1).await;
-        let partition = table.with_sequencer(&sequencer).create_partition("k").await;
+        let sequencer = ns.create_shard(1).await;
+        let partition = table.with_shard(&sequencer).create_partition("k").await;
         let schema = make_schema(&table).await;
         // Expect 1 chunk with with one delete predicate
         let querier_table = TestQuerierTable::new(&catalog, &table).await;
@@ -1051,7 +1051,7 @@ mod tests {
 
         // tombstone with max sequence number 2
         table
-            .with_sequencer(&sequencer)
+            .with_shard(&sequencer)
             .create_tombstone(2, 1, 100, "foo=1")
             .await;
 
@@ -1067,7 +1067,7 @@ mod tests {
 
         // Now, make a second tombstone with max sequence number 3
         table
-            .with_sequencer(&sequencer)
+            .with_shard(&sequencer)
             .create_tombstone(3, 1, 100, "foo=1")
             .await;
 

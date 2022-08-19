@@ -6,7 +6,7 @@ use crate::{
 use arrow::record_batch::RecordBatch;
 use data_types::{ChunkId, KafkaPartition, ParquetFileId, SequenceNumber};
 use iox_catalog::interface::get_schema_by_name;
-use iox_tests::util::{TestCatalog, TestPartition, TestSequencer, TestTable};
+use iox_tests::util::{TestCatalog, TestPartition, TestShard, TestTable};
 use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
 use parquet_file::storage::ParquetStorage;
 use schema::{selection::Selection, sort::SortKey, Schema};
@@ -66,7 +66,7 @@ pub(crate) fn lp_to_record_batch(lp: &str) -> RecordBatch {
 pub(crate) struct IngesterPartitionBuilder {
     table: Arc<TestTable>,
     schema: Arc<Schema>,
-    sequencer: Arc<TestSequencer>,
+    sequencer: Arc<TestShard>,
     partition: Arc<TestPartition>,
     ingester_name: Arc<str>,
     ingester_chunk_id: u128,
@@ -81,7 +81,7 @@ impl IngesterPartitionBuilder {
     pub(crate) fn new(
         table: &Arc<TestTable>,
         schema: &Arc<Schema>,
-        sequencer: &Arc<TestSequencer>,
+        sequencer: &Arc<TestShard>,
         partition: &Arc<TestPartition>,
     ) -> Self {
         Self {

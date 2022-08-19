@@ -168,16 +168,16 @@ mod tests {
 
         let ns = catalog.create_namespace("ns").await;
         let t = ns.create_table("table").await;
-        let s1 = ns.create_sequencer(1).await;
-        let s2 = ns.create_sequencer(2).await;
+        let s1 = ns.create_shard(1).await;
+        let s2 = ns.create_shard(2).await;
         let p1 = t
-            .with_sequencer(&s1)
+            .with_shard(&s1)
             .create_partition("k1")
             .await
             .partition
             .clone();
         let p2 = t
-            .with_sequencer(&s2)
+            .with_shard(&s2)
             .create_partition("k2")
             .await
             .partition
@@ -211,16 +211,16 @@ mod tests {
 
         let ns = catalog.create_namespace("ns").await;
         let t = ns.create_table("table").await;
-        let s1 = ns.create_sequencer(1).await;
-        let s2 = ns.create_sequencer(2).await;
+        let s1 = ns.create_shard(1).await;
+        let s2 = ns.create_shard(2).await;
         let p1 = t
-            .with_sequencer(&s1)
+            .with_shard(&s1)
             .create_partition_with_sort_key("k1", &["tag", "time"])
             .await
             .partition
             .clone();
         let p2 = t
-            .with_sequencer(&s2)
+            .with_shard(&s2)
             .create_partition("k2") // no sort key
             .await
             .partition
@@ -254,22 +254,22 @@ mod tests {
 
         let ns = catalog.create_namespace("ns").await;
         let t = ns.create_table("table").await;
-        let s1 = ns.create_sequencer(1).await;
-        let s2 = ns.create_sequencer(2).await;
+        let s1 = ns.create_shard(1).await;
+        let s2 = ns.create_shard(2).await;
         let p1 = t
-            .with_sequencer(&s1)
+            .with_shard(&s1)
             .create_partition_with_sort_key("k1", &["tag", "time"])
             .await
             .partition
             .clone();
         let p2 = t
-            .with_sequencer(&s2)
+            .with_shard(&s2)
             .create_partition("k2")
             .await
             .partition
             .clone();
         let p3 = t
-            .with_sequencer(&s2)
+            .with_shard(&s2)
             .create_partition("k3")
             .await
             .partition
@@ -303,8 +303,8 @@ mod tests {
 
         let ns = catalog.create_namespace("ns").await;
         let t = ns.create_table("table").await;
-        let s = ns.create_sequencer(1).await;
-        let p = t.with_sequencer(&s).create_partition("k1").await;
+        let s = ns.create_shard(1).await;
+        let p = t.with_shard(&s).create_partition("k1").await;
         let p_id = p.partition.id;
         let p_sort_key = p.partition.sort_key();
 
