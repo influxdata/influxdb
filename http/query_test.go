@@ -13,7 +13,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/lang"
@@ -28,13 +27,11 @@ var cmpOptions = cmp.Options{
 	cmpopts.IgnoreTypes(ast.BaseNode{}),
 	cmpopts.IgnoreUnexported(query.ProxyRequest{}),
 	cmpopts.IgnoreUnexported(query.Request{}),
-	cmpopts.IgnoreUnexported(flux.Spec{}),
 	cmpopts.EquateEmpty(),
 }
 
 func TestQueryRequest_WithDefaults(t *testing.T) {
 	type fields struct {
-		Spec    *flux.Spec
 		AST     json.RawMessage
 		Query   string
 		Type    string
@@ -192,7 +189,6 @@ func TestQueryRequest_Validate(t *testing.T) {
 func TestQueryRequest_proxyRequest(t *testing.T) {
 	type fields struct {
 		Extern  json.RawMessage
-		Spec    *flux.Spec
 		AST     json.RawMessage
 		Query   string
 		Type    string

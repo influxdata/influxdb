@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/httprouter"
@@ -143,7 +142,6 @@ func NewSourceHandler(log *zap.Logger, b *SourceBackend) *SourceHandler {
 func decodeSourceQueryRequest(r *http.Request) (*query.ProxyRequest, error) {
 	// starts here
 	request := struct {
-		Spec           *flux.Spec  `json:"spec"`
 		Query          string      `json:"query"`
 		Type           string      `json:"type"`
 		DB             string      `json:"db"`
