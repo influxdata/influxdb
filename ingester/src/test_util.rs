@@ -862,7 +862,7 @@ pub(crate) async fn make_one_partition_with_tombstones(
     let ts = create_tombstone(
         2,              // tombstone id
         table_id.get(), // table id
-        shard_id.get(), // sequencer id
+        shard_id.get(), // shard id
         seq_num,        // delete's seq_number
         10,             // min time of data to get deleted
         50,             // max time of data to get deleted

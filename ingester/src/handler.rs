@@ -39,7 +39,7 @@ use write_summary::ShardProgress;
 #[allow(missing_copy_implementations, missing_docs)]
 pub enum Error {
     #[snafu(display(
-        "No sequencer record found for kafka topic {} and partition {}",
+        "No shard record found for kafka topic {} and partition {}",
         kafka_topic,
         kafka_partition
     ))]
@@ -66,7 +66,7 @@ pub trait IngestHandler: Send + Sync {
         request: IngesterQueryRequest,
     ) -> Result<IngesterQueryResponse, crate::querier_handler::Error>;
 
-    /// Return sequencer progress for the requested kafka partitions
+    /// Return shard progress for the requested kafka partitions
     async fn progresses(
         &self,
         sequencers: Vec<KafkaPartition>,
@@ -361,7 +361,7 @@ impl IngestHandler for IngestHandlerImpl {
         self.data.exec().shutdown();
     }
 
-    /// Return the ingestion progress from each sequencer
+    /// Return the ingestion progress from each shard
     async fn progresses(
         &self,
         partitions: Vec<KafkaPartition>,
@@ -656,8 +656,8 @@ mod tests {
             .await
             .unwrap();
 
-        let mut sequencer_states = BTreeMap::new();
-        sequencer_states.insert(kafka_partition, shard);
+        let mut shard_states = BTreeMap::new();
+        shard_states.insert(kafka_partition, shard);
 
         let write_buffer_state =
             MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());
@@ -686,7 +686,7 @@ mod tests {
         let ingester = IngestHandlerImpl::new(
             lifecycle_config,
             kafka_topic.clone(),
-            sequencer_states,
+            shard_states,
             Arc::clone(&catalog),
             object_store,
             reading,
@@ -768,10 +768,9 @@ mod tests {
             ),
         ];
 
-        let (ingester, sequencer, namespace) =
-            ingester_test_setup(write_operations, 2, false).await;
+        let (ingester, shard, namespace) = ingester_test_setup(write_operations, 2, false).await;
 
-        verify_ingester_buffer_has_data(ingester, sequencer, namespace, |first_batch| {
+        verify_ingester_buffer_has_data(ingester, shard, namespace, |first_batch| {
             if first_batch.min_sequencer_number == SequenceNumber::new(1) {
                 panic!(
                     "initialization did a seek to the beginning rather than \
@@ -799,8 +798,7 @@ mod tests {
                 150,
             ),
         )];
-        let (ingester, _sequencer, _namespace) =
-            ingester_test_setup(write_operations, 2, false).await;
+        let (ingester, _shard, _namespace) = ingester_test_setup(write_operations, 2, false).await;
 
         tokio::time::timeout(Duration::from_millis(1000), ingester.join())
             .await
@@ -824,8 +822,7 @@ mod tests {
                 150,
             ),
         )];
-        let (ingester, _sequencer, _namespace) =
-            ingester_test_setup(write_operations, 10, false).await;
+        let (ingester, _shard, _namespace) = ingester_test_setup(write_operations, 10, false).await;
 
         tokio::time::timeout(Duration::from_millis(1100), ingester.join())
             .await
@@ -849,8 +846,7 @@ mod tests {
                 150,
             ),
         )];
-        let (ingester, _sequencer, _namespace) =
-            ingester_test_setup(write_operations, 10, true).await;
+        let (ingester, _shard, _namespace) = ingester_test_setup(write_operations, 10, true).await;
 
         tokio::time::timeout(Duration::from_millis(1100), ingester.join())
             .await
@@ -877,9 +873,9 @@ mod tests {
         // Set the min unpersisted to something bigger than the write's sequence number to
         // cause an UnknownSequenceNumber error. Skip to oldest available = true, so ingester
         // should find data
-        let (ingester, sequencer, namespace) = ingester_test_setup(write_operations, 1, true).await;
+        let (ingester, shard, namespace) = ingester_test_setup(write_operations, 1, true).await;
 
-        verify_ingester_buffer_has_data(ingester, sequencer, namespace, |first_batch| {
+        verify_ingester_buffer_has_data(ingester, shard, namespace, |first_batch| {
             assert_eq!(
                 first_batch.min_sequencer_number,
                 SequenceNumber::new(10),
@@ -936,15 +932,15 @@ mod tests {
                 .create("foo", "inf", kafka_topic.id, query_pool.id)
                 .await
                 .unwrap();
-            let sequencer = txn
+            let shard = txn
                 .shards()
                 .create_or_get(&kafka_topic, kafka_partition)
                 .await
                 .unwrap();
             txn.commit().await.unwrap();
 
-            let mut sequencer_states = BTreeMap::new();
-            sequencer_states.insert(kafka_partition, sequencer);
+            let mut shard_states = BTreeMap::new();
+            shard_states.insert(kafka_partition, shard);
 
             let write_buffer_state =
                 MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());
@@ -962,7 +958,7 @@ mod tests {
             let ingester = IngestHandlerImpl::new(
                 lifecycle_config,
                 kafka_topic.clone(),
-                sequencer_states,
+                shard_states,
                 Arc::clone(&catalog),
                 object_store,
                 reading,
@@ -976,7 +972,7 @@ mod tests {
 
             Self {
                 catalog,
-                shard: sequencer,
+                shard,
                 namespace,
                 kafka_topic,
                 kafka_partition,

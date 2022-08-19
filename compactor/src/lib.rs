@@ -235,19 +235,19 @@ mod tests {
         .join("\n");
 
         let ns = catalog.create_namespace("ns").await;
-        let sequencer = ns.create_shard(1).await;
+        let shard = ns.create_shard(1).await;
         let table = ns.create_table("table").await;
         table.create_column("field_int", ColumnType::I64).await;
         table.create_column("tag1", ColumnType::Tag).await;
         table.create_column("tag2", ColumnType::Tag).await;
         table.create_column("tag3", ColumnType::Tag).await;
         table.create_column("time", ColumnType::Time).await;
-        let partition = table.with_shard(&sequencer).create_partition("part").await;
+        let partition = table.with_shard(&shard).create_partition("part").await;
         let time = Arc::new(SystemProvider::new());
         let config = make_compactor_config();
         let metrics = Arc::new(metric::Registry::new());
         let compactor = Compactor::new(
-            vec![sequencer.shard.id],
+            vec![shard.shard.id],
             Arc::clone(&catalog.catalog),
             ParquetStorage::new(Arc::clone(&catalog.object_store)),
             Arc::new(Executor::new(1)),
@@ -322,7 +322,7 @@ mod tests {
         partition.create_parquet_file(builder).await;
 
         // should have 4 level-0 files before compacting
-        let count = catalog.count_level_0_files(sequencer.shard.id).await;
+        let count = catalog.count_level_0_files(shard.shard.id).await;
         assert_eq!(count, 4);
 
         // ------------------------------------------------
@@ -453,20 +453,20 @@ mod tests {
         .join("\n");
 
         let ns = catalog.create_namespace("ns").await;
-        let sequencer = ns.create_shard(1).await;
+        let shard = ns.create_shard(1).await;
         let table = ns.create_table("table").await;
         table.create_column("field_int", ColumnType::I64).await;
         table.create_column("tag1", ColumnType::Tag).await;
         table.create_column("tag2", ColumnType::Tag).await;
         table.create_column("tag3", ColumnType::Tag).await;
         table.create_column("time", ColumnType::Time).await;
-        let partition = table.with_shard(&sequencer).create_partition("part").await;
+        let partition = table.with_shard(&shard).create_partition("part").await;
         let time = Arc::new(SystemProvider::new());
         let time_38_hour_ago = (time.now() - Duration::from_secs(60 * 60 * 38)).timestamp_nanos();
         let config = make_compactor_config();
         let metrics = Arc::new(metric::Registry::new());
         let compactor = Compactor::new(
-            vec![sequencer.shard.id],
+            vec![shard.shard.id],
             Arc::clone(&catalog.catalog),
             ParquetStorage::new(Arc::clone(&catalog.object_store)),
             Arc::new(Executor::new(1)),
@@ -541,7 +541,7 @@ mod tests {
         partition.create_parquet_file(builder).await;
 
         // should have 4 level-0 files before compacting
-        let count = catalog.count_level_0_files(sequencer.shard.id).await;
+        let count = catalog.count_level_0_files(shard.shard.id).await;
         assert_eq!(count, 4);
 
         // ------------------------------------------------
@@ -637,20 +637,20 @@ mod tests {
         .join("\n");
 
         let ns = catalog.create_namespace("ns").await;
-        let sequencer = ns.create_shard(1).await;
+        let shard = ns.create_shard(1).await;
         let table = ns.create_table("table").await;
         table.create_column("field_int", ColumnType::I64).await;
         table.create_column("tag1", ColumnType::Tag).await;
         table.create_column("tag2", ColumnType::Tag).await;
         table.create_column("tag3", ColumnType::Tag).await;
         table.create_column("time", ColumnType::Time).await;
-        let partition = table.with_shard(&sequencer).create_partition("part").await;
+        let partition = table.with_shard(&shard).create_partition("part").await;
         let time = Arc::new(SystemProvider::new());
         let time_38_hour_ago = (time.now() - Duration::from_secs(60 * 60 * 38)).timestamp_nanos();
         let config = make_compactor_config();
         let metrics = Arc::new(metric::Registry::new());
         let compactor = Compactor::new(
-            vec![sequencer.shard.id],
+            vec![shard.shard.id],
             Arc::clone(&catalog.catalog),
             ParquetStorage::new(Arc::clone(&catalog.object_store)),
             Arc::new(Executor::new(1)),
@@ -684,7 +684,7 @@ mod tests {
         partition.create_parquet_file(builder).await;
 
         // should have 1 level-0 file before compacting
-        let count = catalog.count_level_0_files(sequencer.shard.id).await;
+        let count = catalog.count_level_0_files(shard.shard.id).await;
         assert_eq!(count, 1);
 
         // ------------------------------------------------

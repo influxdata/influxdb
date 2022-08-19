@@ -499,7 +499,7 @@ mod tests {
     async fn test_setup() -> TestSetup {
         let catalog = TestCatalog::new();
         let ns = catalog.create_namespace("ns").await;
-        let sequencer = ns.create_shard(1).await;
+        let shard = ns.create_shard(1).await;
         let table = ns.create_table("table").await;
         table.create_column("field_int", ColumnType::I64).await;
         table.create_column("tag1", ColumnType::Tag).await;
@@ -509,7 +509,7 @@ mod tests {
         let table_schema = table.catalog_schema().await;
 
         let partition = table
-            .with_shard(&sequencer)
+            .with_shard(&shard)
             .create_partition("2022-07-13")
             .await;
 
