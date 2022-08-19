@@ -571,7 +571,7 @@ mod tests {
         let time_provider = Arc::new(SystemProvider::new());
         let config = make_compactor_config();
         let compactor = Compactor::new(
-            vec![shard.id, another_shard.id], // XXXJPG mismatch!
+            vec![shard.id, another_shard.id],
             Arc::clone(&catalog.catalog),
             ParquetStorage::new(Arc::clone(&catalog.object_store)),
             Arc::new(Executor::new(1)),
