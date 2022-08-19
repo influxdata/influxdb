@@ -192,7 +192,7 @@ pub async fn build_compactor_from_config(
         compactor_config.split_percentage,
         compactor_config.max_concurrent_size_bytes,
         compactor_config.max_cold_concurrent_size_bytes,
-        compactor_config.max_number_partitions_per_sequencer,
+        compactor_config.max_number_partitions_per_shard,
         compactor_config.min_number_recent_ingested_files_per_partition,
         compactor_config.input_size_threshold_bytes,
         compactor_config.cold_input_size_threshold_bytes,

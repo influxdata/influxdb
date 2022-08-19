@@ -329,7 +329,7 @@ mod tests {
         // Compact
         let candidates = compactor
             .hot_partitions_to_compact(
-                compactor.config.max_number_partitions_per_sequencer(),
+                compactor.config.max_number_partitions_per_shard(),
                 compactor
                     .config
                     .min_number_recent_ingested_files_per_partition(),
@@ -547,7 +547,7 @@ mod tests {
         // ------------------------------------------------
         // Compact
         let candidates = compactor
-            .cold_partitions_to_compact(compactor.config.max_number_partitions_per_sequencer())
+            .cold_partitions_to_compact(compactor.config.max_number_partitions_per_shard())
             .await
             .unwrap();
         let mut candidates = compactor.add_info_to_partitions(&candidates).await.unwrap();
@@ -690,7 +690,7 @@ mod tests {
         // ------------------------------------------------
         // Compact
         let candidates = compactor
-            .cold_partitions_to_compact(compactor.config.max_number_partitions_per_sequencer())
+            .cold_partitions_to_compact(compactor.config.max_number_partitions_per_shard())
             .await
             .unwrap();
         let mut candidates = compactor.add_info_to_partitions(&candidates).await.unwrap();
@@ -779,7 +779,7 @@ mod tests {
         let split_percentage = 80;
         let max_concurrent_size_bytes = 100_000;
         let max_cold_concurrent_size_bytes = 90_000;
-        let max_number_partitions_per_sequencer = 1;
+        let max_number_partitions_per_shard = 1;
         let min_number_recent_ingested_per_partition = 1;
         let input_size_threshold_bytes = 300 * 1024 * 1024;
         let cold_input_size_threshold_bytes = 600 * 1024 * 1024;
@@ -793,7 +793,7 @@ mod tests {
             split_percentage,
             max_concurrent_size_bytes,
             max_cold_concurrent_size_bytes,
-            max_number_partitions_per_sequencer,
+            max_number_partitions_per_shard,
             min_number_recent_ingested_per_partition,
             input_size_threshold_bytes,
             cold_input_size_threshold_bytes,

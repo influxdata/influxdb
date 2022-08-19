@@ -116,15 +116,15 @@ macro_rules! gen_compactor_config {
             )]
             pub max_cold_concurrent_size_bytes: u64,
 
-            /// Max number of partitions per sequencer we want to compact per cycle
+            /// Max number of partitions per shard we want to compact per cycle
             /// Default: 1
             #[clap(
-                long = "--compaction-max-number-partitions-per-sequencer",
-                env = "INFLUXDB_IOX_COMPACTION_MAX_NUMBER_PARTITIONS_PER_SEQUENCER",
+                long = "--compaction-max-number-partitions-per-shard",
+                env = "INFLUXDB_IOX_COMPACTION_MAX_NUMBER_PARTITIONS_PER_SHARD",
                 default_value = "1",
                 action
             )]
-            pub max_number_partitions_per_sequencer: usize,
+            pub max_number_partitions_per_shard: usize,
 
             /// Min number of recent ingested files a partition needs to be considered for
             /// compacting
@@ -230,7 +230,7 @@ impl CompactorOnceConfig {
             split_percentage: self.split_percentage,
             max_concurrent_size_bytes: self.max_concurrent_size_bytes,
             max_cold_concurrent_size_bytes: self.max_cold_concurrent_size_bytes,
-            max_number_partitions_per_sequencer: self.max_number_partitions_per_sequencer,
+            max_number_partitions_per_shard: self.max_number_partitions_per_shard,
             min_number_recent_ingested_files_per_partition: self
                 .min_number_recent_ingested_files_per_partition,
             input_size_threshold_bytes: self.input_size_threshold_bytes,

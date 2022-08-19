@@ -117,8 +117,8 @@ pub struct CompactorConfig {
     /// available memory to ensure compactions have enough space to run.
     max_cold_concurrent_size_bytes: u64,
 
-    /// Max number of partitions per sequencer we want to compact per cycle
-    max_number_partitions_per_sequencer: usize,
+    /// Max number of partitions per shard we want to compact per cycle
+    max_number_partitions_per_shard: usize,
 
     /// Min number of recent ingested files a partition needs to be considered for compacting
     min_number_recent_ingested_files_per_partition: usize,
@@ -167,7 +167,7 @@ impl CompactorConfig {
         split_percentage: u16,
         max_concurrent_size_bytes: u64,
         max_cold_concurrent_size_bytes: u64,
-        max_number_partitions_per_sequencer: usize,
+        max_number_partitions_per_shard: usize,
         min_number_recent_ingested_files_per_partition: usize,
         input_size_threshold_bytes: u64,
         cold_input_size_threshold_bytes: u64,
@@ -183,7 +183,7 @@ impl CompactorConfig {
             split_percentage,
             max_concurrent_size_bytes,
             max_cold_concurrent_size_bytes,
-            max_number_partitions_per_sequencer,
+            max_number_partitions_per_shard,
             min_number_recent_ingested_files_per_partition,
             input_size_threshold_bytes,
             cold_input_size_threshold_bytes,
@@ -217,9 +217,9 @@ impl CompactorConfig {
         self.max_concurrent_size_bytes
     }
 
-    /// Max number of partitions per sequencer we want to compact per cycle
-    pub fn max_number_partitions_per_sequencer(&self) -> usize {
-        self.max_number_partitions_per_sequencer
+    /// Max number of partitions per shard we want to compact per cycle
+    pub fn max_number_partitions_per_shard(&self) -> usize {
+        self.max_number_partitions_per_shard
     }
 
     /// Min number of recent ingested files a partition needs to be considered for compacting
@@ -308,7 +308,7 @@ async fn compact_hot_partitions(compactor: Arc<Compactor>) -> usize {
         .retry_all_errors("hot_partitions_to_compact", || async {
             compactor
                 .hot_partitions_to_compact(
-                    compactor.config.max_number_partitions_per_sequencer(),
+                    compactor.config.max_number_partitions_per_shard(),
                     compactor
                         .config
                         .min_number_recent_ingested_files_per_partition(),
@@ -421,7 +421,7 @@ async fn compact_cold_partitions(compactor: Arc<Compactor>) -> usize {
     let candidates = Backoff::new(&compactor.backoff_config)
         .retry_all_errors("cold_partitions_to_compact", || async {
             compactor
-                .cold_partitions_to_compact(compactor.config.max_number_partitions_per_sequencer())
+                .cold_partitions_to_compact(compactor.config.max_number_partitions_per_shard())
                 .await
         })
         .await

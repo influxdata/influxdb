@@ -421,7 +421,7 @@ impl Config {
             split_percentage: 80,
             max_concurrent_size_bytes: 100_000,
             max_cold_concurrent_size_bytes: 90_000,
-            max_number_partitions_per_sequencer: 1,
+            max_number_partitions_per_shard: 1,
             min_number_recent_ingested_files_per_partition: 1,
             input_size_threshold_bytes: 314_572_800,
             cold_input_size_threshold_bytes: 629_145_600,
