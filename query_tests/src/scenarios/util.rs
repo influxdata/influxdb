@@ -650,8 +650,8 @@ struct MockIngester {
     /// Namespace used for testing.
     ns: Arc<TestNamespace>,
 
-    /// Sequencer used for testing.
-    sequencer: Arc<TestShard>,
+    /// Shard used for testing.
+    shard: Arc<TestShard>,
 
     /// Memory of partition keys for certain sequence numbers.
     ///
@@ -688,11 +688,11 @@ impl MockIngester {
         let exec = Arc::clone(&GLOBAL_EXEC);
         let catalog = TestCatalog::with_exec(exec);
         let ns = catalog.create_namespace("test_db").await;
-        let sequencer = ns.create_shard(1).await;
+        let shard = ns.create_shard(1).await;
 
         let shards = BTreeMap::from([(
-            sequencer.shard.id,
-            ShardData::new(sequencer.shard.kafka_partition, catalog.metric_registry()),
+            shard.shard.id,
+            ShardData::new(shard.shard.kafka_partition, catalog.metric_registry()),
         )]);
         let ingester_data = Arc::new(IngesterData::new(
             catalog.object_store(),
@@ -706,7 +706,7 @@ impl MockIngester {
         Self {
             catalog,
             ns,
-            sequencer,
+            shard,
             partition_keys: Default::default(),
             ingester_data,
             sequence_counter: 0,
@@ -725,7 +725,7 @@ impl MockIngester {
 
         let should_pause = self
             .ingester_data
-            .buffer_operation(self.sequencer.shard.id, dml_operation, &lifecycle_handle)
+            .buffer_operation(self.shard.shard.id, dml_operation, &lifecycle_handle)
             .await
             .unwrap();
         assert!(!should_pause);
@@ -810,7 +810,7 @@ impl MockIngester {
         let mut partition_ids = vec![];
         for table in &tables {
             let partition = table
-                .with_shard(&self.sequencer)
+                .with_shard(&self.shard)
                 .create_partition(partition_key)
                 .await;
             partition_ids.push(partition.partition.id);
@@ -832,7 +832,7 @@ impl MockIngester {
         self.partition_keys
             .insert(sequence_number, partition_key.to_string());
         let meta = DmlMeta::sequenced(
-            Sequence::new(self.sequencer.shard.id.get() as u32, sequence_number),
+            Sequence::new(self.shard.shard.id.get() as u32, sequence_number),
             self.catalog.time_provider().now(),
             None,
             0,
@@ -857,7 +857,7 @@ impl MockIngester {
 
         let sequence_number = self.next_sequence_number();
         let meta = DmlMeta::sequenced(
-            Sequence::new(self.sequencer.shard.id.get() as u32, sequence_number),
+            Sequence::new(self.shard.shard.id.get() as u32, sequence_number),
             self.catalog.time_provider().now(),
             None,
             0,
