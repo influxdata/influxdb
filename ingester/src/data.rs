@@ -11,7 +11,7 @@ use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig};
 use data_types::{
     DeletePredicate, KafkaPartition, NamespaceId, PartitionId, PartitionInfo, PartitionKey,
-    SequenceNumber, SequencerId, TableId, Timestamp, Tombstone,
+    SequenceNumber, ShardId, TableId, Timestamp, Tombstone,
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
 use dml::DmlOperation;
@@ -34,7 +34,7 @@ use std::{
     sync::Arc,
 };
 use uuid::Uuid;
-use write_summary::SequencerProgress;
+use write_summary::ShardProgress;
 
 mod triggers;
 use self::triggers::TestTriggers;
@@ -42,8 +42,8 @@ use self::triggers::TestTriggers;
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
 pub enum Error {
-    #[snafu(display("Sequencer {} not found in data map", sequencer_id))]
-    SequencerNotFound { sequencer_id: SequencerId },
+    #[snafu(display("Shard {} not found in data map", shard_id))]
+    ShardNotFound { shard_id: ShardId },
 
     #[snafu(display("Namespace {} not found in catalog", namespace))]
     NamespaceNotFound { namespace: String },
@@ -85,9 +85,9 @@ pub struct IngesterData {
     catalog: Arc<dyn Catalog>,
 
     /// This map gets set up on initialization of the ingester so it won't ever be modified.
-    /// The content of each SequenceData will get changed when more namespaces and tables
+    /// The content of each ShardData will get changed when more namespaces and tables
     /// get ingested.
-    sequencers: BTreeMap<SequencerId, SequencerData>,
+    shards: BTreeMap<ShardId, ShardData>,
 
     /// Executor for running queries and compacting and persisting
     exec: Arc<Executor>,
@@ -104,7 +104,7 @@ impl IngesterData {
     pub fn new(
         object_store: Arc<DynObjectStore>,
         catalog: Arc<dyn Catalog>,
-        sequencers: BTreeMap<SequencerId, SequencerData>,
+        shards: BTreeMap<ShardId, ShardData>,
         exec: Arc<Executor>,
         backoff_config: BackoffConfig,
         metrics: Arc<metric::Registry>,
@@ -127,7 +127,7 @@ impl IngesterData {
         Self {
             store: ParquetStorage::new(object_store),
             catalog,
-            sequencers,
+            shards,
             exec,
             backoff_config,
             persisted_file_size_bytes,
@@ -139,15 +139,15 @@ impl IngesterData {
         &self.exec
     }
 
-    /// Get sequencer data for specific sequencer.
+    /// Get shard data for specific shard.
     #[allow(dead_code)] // Used in tests
-    pub(crate) fn sequencer(&self, sequencer_id: SequencerId) -> Option<&SequencerData> {
-        self.sequencers.get(&sequencer_id)
+    pub(crate) fn shard(&self, shard_id: ShardId) -> Option<&ShardData> {
+        self.shards.get(&shard_id)
     }
 
-    /// Get iterator over sequencers (ID and data).
-    pub(crate) fn sequencers(&self) -> impl Iterator<Item = (&SequencerId, &SequencerData)> {
-        self.sequencers.iter()
+    /// Get iterator over shards (ID and data).
+    pub(crate) fn shards(&self) -> impl Iterator<Item = (&ShardId, &ShardData)> {
+        self.shards.iter()
     }
 
     /// Store the write or delete in the in memory buffer. Deletes will
@@ -158,18 +158,18 @@ impl IngesterData {
     /// be paused, this function will return true.
     pub async fn buffer_operation(
         &self,
-        sequencer_id: SequencerId,
+        shard_id: ShardId,
         dml_operation: DmlOperation,
         lifecycle_handle: &dyn LifecycleHandle,
     ) -> Result<bool> {
-        let sequencer_data = self
-            .sequencers
-            .get(&sequencer_id)
-            .context(SequencerNotFoundSnafu { sequencer_id })?;
-        sequencer_data
+        let shard_data = self
+            .shards
+            .get(&shard_id)
+            .context(ShardNotFoundSnafu { shard_id })?;
+        shard_data
             .buffer_operation(
                 dml_operation,
-                sequencer_id,
+                shard_id,
                 self.catalog.as_ref(),
                 lifecycle_handle,
                 &self.exec,
@@ -178,23 +178,23 @@ impl IngesterData {
     }
 
     /// Return the ingestion progress for the specified kafka
-    /// partitions. Returns an empty `SequencerProgress` for any kafka
+    /// partitions. Returns an empty `ShardProgress` for any kafka
     /// partitions that this ingester doesn't know about.
     pub(crate) async fn progresses(
         &self,
         partitions: Vec<KafkaPartition>,
-    ) -> BTreeMap<KafkaPartition, SequencerProgress> {
+    ) -> BTreeMap<KafkaPartition, ShardProgress> {
         let mut progresses = BTreeMap::new();
         for kafka_partition in partitions {
-            let sequencer_data = self
-                .sequencers
+            let shard_data = self
+                .shards
                 .iter()
-                .map(|(_, sequencer_data)| sequencer_data)
-                .find(|sequencer_data| sequencer_data.kafka_partition == kafka_partition);
+                .map(|(_, shard_data)| shard_data)
+                .find(|shard_data| shard_data.kafka_partition == kafka_partition);
 
-            let progress = match sequencer_data {
-                Some(sequencer_data) => sequencer_data.progress().await,
-                None => SequencerProgress::new(), // don't know about this sequencer
+            let progress = match shard_data {
+                Some(shard_data) => shard_data.progress().await,
+                None => ShardProgress::new(), // don't know about this shard
             };
 
             progresses.insert(kafka_partition, progress);
@@ -204,19 +204,19 @@ impl IngesterData {
 }
 
 /// The Persister has a function to persist a given partition ID and to update the
-/// assocated sequencer's `min_unpersisted_sequence_number`.
+/// assocated shard's `min_unpersisted_sequence_number`.
 #[async_trait]
 pub trait Persister: Send + Sync + 'static {
     /// Persits the partition ID. Will retry forever until it succeeds.
     async fn persist(&self, partition_id: PartitionId);
 
-    /// Updates the sequencer's `min_unpersisted_sequence_number` in the catalog.
+    /// Updates the shard's `min_unpersisted_sequence_number` in the catalog.
     /// This number represents the minimum that might be unpersisted, which is the
     /// farthest back the ingester would need to read in the write buffer to ensure
     /// that all data would be correctly replayed on startup.
     async fn update_min_unpersisted_sequence_number(
         &self,
-        sequencer_id: SequencerId,
+        shard_id: ShardId,
         sequence_number: SequenceNumber,
     );
 }
@@ -237,21 +237,21 @@ impl Persister for IngesterData {
         // so someone can take a look.
         let partition_info = partition_info
             .unwrap_or_else(|| panic!("partition {} not found in catalog", partition_id));
-        let sequencer_data = self
-            .sequencers
-            .get(&partition_info.partition.sequencer_id)
+        let shard_data = self
+            .shards
+            .get(&partition_info.partition.shard_id)
             .unwrap_or_else(|| {
                 panic!(
-                    "sequencer state for {} not in ingester data",
-                    partition_info.partition.sequencer_id
+                    "shard state for {} not in ingester data",
+                    partition_info.partition.shard_id
                 )
             }); //{
-        let namespace = sequencer_data
+        let namespace = shard_data
             .namespace(&partition_info.namespace_name)
             .unwrap_or_else(|| {
                 panic!(
-                    "namespace {} not in sequencer {} state",
-                    partition_info.namespace_name, partition_info.partition.sequencer_id
+                    "namespace {} not in shard {} state",
+                    partition_info.namespace_name, partition_info.partition.shard_id
                 )
             });
         debug!(?partition_id, ?partition_info, "Persisting");
@@ -366,8 +366,8 @@ impl Persister for IngesterData {
 
             // Record metrics
             let attributes = Attributes::from([(
-                "sequencer_id",
-                format!("{}", partition_info.partition.sequencer_id).into(),
+                "shard_id",
+                format!("{}", partition_info.partition.shard_id).into(),
             )]);
             self.persisted_file_size_bytes
                 .recorder(attributes)
@@ -393,7 +393,7 @@ impl Persister for IngesterData {
 
     async fn update_min_unpersisted_sequence_number(
         &self,
-        sequencer_id: SequencerId,
+        shard_id: ShardId,
         sequence_number: SequenceNumber,
     ) {
         Backoff::new(&self.backoff_config)
@@ -401,8 +401,8 @@ impl Persister for IngesterData {
                 self.catalog
                     .repositories()
                     .await
-                    .sequencers()
-                    .update_min_unpersisted_sequence_number(sequencer_id, sequence_number)
+                    .shards()
+                    .update_min_unpersisted_sequence_number(shard_id, sequence_number)
                     .await
             })
             .await
@@ -412,8 +412,8 @@ impl Persister for IngesterData {
 
 /// Data of a Shard
 #[derive(Debug)]
-pub struct SequencerData {
-    /// The kafka partition for this sequencer
+pub struct ShardData {
+    /// The kafka partition for this shard
     kafka_partition: KafkaPartition,
 
     // New namespaces can come in at any time so we need to be able to add new ones
@@ -423,8 +423,8 @@ pub struct SequencerData {
     namespace_count: U64Counter,
 }
 
-impl SequencerData {
-    /// Initialise a new [`SequencerData`] that emits metrics to `metrics`.
+impl ShardData {
+    /// Initialise a new [`ShardData`] that emits metrics to `metrics`.
     pub fn new(kafka_partition: KafkaPartition, metrics: Arc<metric::Registry>) -> Self {
         let namespace_count = metrics
             .register_metric::<U64Counter>(
@@ -441,7 +441,7 @@ impl SequencerData {
         }
     }
 
-    /// Initialize new SequncerData with namespace for testing purpose only
+    /// Initialize new ShardData with namespace for testing purpose only
     #[cfg(test)]
     pub fn new_for_test(
         kafka_partition: KafkaPartition,
@@ -455,14 +455,14 @@ impl SequencerData {
         }
     }
 
-    /// Store the write or delete in the sequencer. Deletes will
+    /// Store the write or delete in the shard. Deletes will
     /// be written into the catalog before getting stored in the buffer.
     /// Any writes that create new IOx partitions will have those records
     /// created in the catalog before putting into the buffer.
     pub async fn buffer_operation(
         &self,
         dml_operation: DmlOperation,
-        sequencer_id: SequencerId,
+        shard_id: ShardId,
         catalog: &dyn Catalog,
         lifecycle_handle: &dyn LifecycleHandle,
         executor: &Executor,
@@ -478,7 +478,7 @@ impl SequencerData {
         namespace_data
             .buffer_operation(
                 dml_operation,
-                sequencer_id,
+                shard_id,
                 catalog,
                 lifecycle_handle,
                 executor,
@@ -521,11 +521,11 @@ impl SequencerData {
         Ok(data)
     }
 
-    /// Return the progress of this sequencer
-    async fn progress(&self) -> SequencerProgress {
+    /// Return the progress of this shard
+    async fn progress(&self) -> ShardProgress {
         let namespaces: Vec<_> = self.namespaces.read().values().map(Arc::clone).collect();
 
-        let mut progress = SequencerProgress::new();
+        let mut progress = ShardProgress::new();
 
         for namespace_data in namespaces {
             progress = progress.combine(namespace_data.progress().await);
@@ -627,7 +627,7 @@ impl NamespaceData {
     pub async fn buffer_operation(
         &self,
         dml_operation: DmlOperation,
-        sequencer_id: SequencerId,
+        shard_id: ShardId,
         catalog: &dyn Catalog,
         lifecycle_handle: &dyn LifecycleHandle,
         executor: &Executor,
@@ -658,7 +658,7 @@ impl NamespaceData {
                 for (t, b) in write.into_tables() {
                     let table_data = match self.table_data(&t) {
                         Some(t) => t,
-                        None => self.insert_table(sequencer_id, &t, catalog).await?,
+                        None => self.insert_table(shard_id, &t, catalog).await?,
                     };
 
                     {
@@ -669,7 +669,7 @@ impl NamespaceData {
                                 sequence_number,
                                 b,
                                 partition_key.clone(),
-                                sequencer_id,
+                                shard_id,
                                 catalog,
                                 lifecycle_handle,
                             )
@@ -685,7 +685,7 @@ impl NamespaceData {
                 let table_name = delete.table_name().context(TableNotPresentSnafu)?;
                 let table_data = match self.table_data(table_name) {
                     Some(t) => t,
-                    None => self.insert_table(sequencer_id, table_name, catalog).await?,
+                    None => self.insert_table(shard_id, table_name, catalog).await?,
                 };
 
                 let mut table_data = table_data.write().await;
@@ -694,7 +694,7 @@ impl NamespaceData {
                     .buffer_delete(
                         table_name,
                         delete.predicate(),
-                        sequencer_id,
+                        shard_id,
                         sequence_number,
                         catalog,
                         executor,
@@ -743,7 +743,7 @@ impl NamespaceData {
                 .get_mut(&partition_info.partition.partition_key)
                 .and_then(|partition_data| {
                     partition_data.snapshot_to_persisting_batch(
-                        partition_info.partition.sequencer_id,
+                        partition_info.partition.shard_id,
                         partition_info.partition.table_id,
                         partition_info.partition.id,
                         &partition_info.table_name,
@@ -766,14 +766,14 @@ impl NamespaceData {
     /// Inserts the table or returns it if it happens to be inserted by some other thread
     async fn insert_table(
         &self,
-        sequencer_id: SequencerId,
+        shard_id: ShardId,
         table_name: &str,
         catalog: &dyn Catalog,
     ) -> Result<Arc<tokio::sync::RwLock<TableData>>> {
         let mut repos = catalog.repositories().await;
         let info = repos
             .tables()
-            .get_table_persist_info(sequencer_id, self.namespace_id, table_name)
+            .get_table_persist_info(shard_id, self.namespace_id, table_name)
             .await
             .context(CatalogSnafu)?
             .context(TableNotFoundSnafu { table_name })?;
@@ -818,11 +818,11 @@ impl NamespaceData {
     }
 
     /// Return progress from this Namespace
-    async fn progress(&self) -> SequencerProgress {
+    async fn progress(&self) -> ShardProgress {
         let tables: Vec<_> = self.tables.read().values().map(Arc::clone).collect();
 
         // Consolidate progtress across partitions.
-        let mut progress = SequencerProgress::new()
+        let mut progress = ShardProgress::new()
             // Properly account for any sequence number that is
             // actively buffering and thus not yet completely
             // readable.
@@ -924,14 +924,14 @@ impl TableData {
         sequence_number: SequenceNumber,
         batch: MutableBatch,
         partition_key: PartitionKey,
-        sequencer_id: SequencerId,
+        shard_id: ShardId,
         catalog: &dyn Catalog,
         lifecycle_handle: &dyn LifecycleHandle,
     ) -> Result<bool> {
         let partition_data = match self.partition_data.get_mut(&partition_key) {
             Some(p) => p,
             None => {
-                self.insert_partition(partition_key.clone(), sequencer_id, catalog)
+                self.insert_partition(partition_key.clone(), shard_id, catalog)
                     .await?;
                 self.partition_data.get_mut(&partition_key).unwrap()
             }
@@ -946,7 +946,7 @@ impl TableData {
 
         let should_pause = lifecycle_handle.log_write(
             partition_data.id,
-            sequencer_id,
+            shard_id,
             sequence_number,
             batch.size(),
         );
@@ -959,7 +959,7 @@ impl TableData {
         &mut self,
         table_name: &str,
         predicate: &DeletePredicate,
-        sequencer_id: SequencerId,
+        shard_id: ShardId,
         sequence_number: SequenceNumber,
         catalog: &dyn Catalog,
         executor: &Executor,
@@ -972,7 +972,7 @@ impl TableData {
             .tombstones()
             .create_or_get(
                 self.table_id,
-                sequencer_id,
+                shard_id,
                 sequence_number,
                 min_time,
                 max_time,
@@ -1013,13 +1013,13 @@ impl TableData {
     async fn insert_partition(
         &mut self,
         partition_key: PartitionKey,
-        sequencer_id: SequencerId,
+        shard_id: ShardId,
         catalog: &dyn Catalog,
     ) -> Result<()> {
         let mut repos = catalog.repositories().await;
         let partition = repos
             .partitions()
-            .create_or_get(partition_key, sequencer_id, self.table_id)
+            .create_or_get(partition_key, shard_id, self.table_id)
             .await
             .context(CatalogSnafu)?;
 
@@ -1042,8 +1042,8 @@ impl TableData {
     }
 
     /// Return progress from this Table
-    fn progress(&self) -> SequencerProgress {
-        let progress = SequencerProgress::new();
+    fn progress(&self) -> ShardProgress {
+        let progress = ShardProgress::new();
         let progress = match self.parquet_max_sequence_number() {
             Some(n) => progress.with_persisted(n),
             None => progress,
@@ -1085,13 +1085,13 @@ impl PartitionData {
     /// Snapshot anything in the buffer and move all snapshot data into a persisting batch
     pub fn snapshot_to_persisting_batch(
         &mut self,
-        sequencer_id: SequencerId,
+        shard_id: ShardId,
         table_id: TableId,
         partition_id: PartitionId,
         table_name: &str,
     ) -> Option<Arc<PersistingBatch>> {
         self.data
-            .snapshot_to_persisting(sequencer_id, table_id, partition_id, table_name)
+            .snapshot_to_persisting(shard_id, table_id, partition_id, table_name)
     }
 
     /// Snapshot whatever is in the buffer and return a new vec of the
@@ -1217,7 +1217,7 @@ impl PartitionData {
     }
 
     /// Return the progress from this Partition
-    fn progress(&self) -> SequencerProgress {
+    fn progress(&self) -> ShardProgress {
         self.data.progress()
     }
 }
@@ -1366,7 +1366,7 @@ impl DataBuffer {
     /// Panics if there is already a persisting batch.
     pub fn snapshot_to_persisting(
         &mut self,
-        sequencer_id: SequencerId,
+        shard_id: ShardId,
         table_id: TableId,
         partition_id: PartitionId,
         table_name: &str,
@@ -1377,7 +1377,7 @@ impl DataBuffer {
 
         if let Some(queryable_batch) = self.snapshot_to_queryable_batch(table_name, None) {
             let persisting_batch = Arc::new(PersistingBatch {
-                sequencer_id,
+                shard_id,
                 table_id,
                 partition_id,
                 object_store_id: Uuid::new_v4(),
@@ -1409,8 +1409,8 @@ impl DataBuffer {
     }
 
     /// Return the progress in this DataBuffer
-    fn progress(&self) -> SequencerProgress {
-        let progress = SequencerProgress::new();
+    fn progress(&self) -> ShardProgress {
+        let progress = ShardProgress::new();
 
         let progress = if let Some(buffer) = &self.buffer {
             progress.combine(buffer.progress())
@@ -1450,8 +1450,8 @@ pub struct BufferBatch {
 
 impl BufferBatch {
     /// Return the progress in this DataBuffer
-    fn progress(&self) -> SequencerProgress {
-        SequencerProgress::new()
+    fn progress(&self) -> ShardProgress {
+        ShardProgress::new()
             .with_buffered(self.min_sequence_number)
             .with_buffered(self.max_sequence_number)
     }
@@ -1497,8 +1497,8 @@ impl SnapshotBatch {
     }
 
     /// Return progress in this data
-    fn progress(&self) -> SequencerProgress {
-        SequencerProgress::new()
+    fn progress(&self) -> ShardProgress {
+        ShardProgress::new()
             .with_buffered(self.min_sequencer_number)
             .with_buffered(self.max_sequencer_number)
     }
@@ -1508,8 +1508,8 @@ impl SnapshotBatch {
 /// a parquet file for given set of SnapshotBatches
 #[derive(Debug, PartialEq, Clone)]
 pub struct PersistingBatch {
-    /// Sequencer id of the data
-    pub(crate) sequencer_id: SequencerId,
+    /// Shard id of the data
+    pub(crate) shard_id: ShardId,
 
     /// Table id of the data
     pub(crate) table_id: TableId,
@@ -1540,7 +1540,7 @@ pub struct QueryableBatch {
 /// Status of a partition that has unpersisted data.
 ///
 /// Note that this structure is specific to a partition (which itself is bound to a table and
-/// sequencer)!
+/// shard)!
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[allow(missing_copy_implementations)]
 pub struct PartitionStatus {
@@ -1806,17 +1806,17 @@ mod tests {
             .create("foo", "inf", kafka_topic.id, query_pool.id)
             .await
             .unwrap();
-        let sequencer1 = repos
-            .sequencers()
+        let shard1 = repos
+            .shards()
             .create_or_get(&kafka_topic, kafka_partition)
             .await
             .unwrap();
 
-        let mut sequencers = BTreeMap::new();
+        let mut shards = BTreeMap::new();
         let kafka_partition = KafkaPartition::new(0);
-        sequencers.insert(
-            sequencer1.id,
-            SequencerData::new(kafka_partition, Arc::clone(&metrics)),
+        shards.insert(
+            shard1.id,
+            ShardData::new(kafka_partition, Arc::clone(&metrics)),
         );
 
         let object_store: Arc<DynObjectStore> = Arc::new(InMemory::new());
@@ -1824,7 +1824,7 @@ mod tests {
         let data = Arc::new(IngesterData::new(
             Arc::clone(&object_store),
             Arc::clone(&catalog),
-            sequencers,
+            shards,
             Arc::new(Executor::new(1)),
             BackoffConfig::default(),
             Arc::clone(&metrics),
@@ -1866,7 +1866,7 @@ mod tests {
         );
         let should_pause = data
             .buffer_operation(
-                sequencer1.id,
+                shard1.id,
                 DmlOperation::Write(w1.clone()),
                 &manager.handle(),
             )
@@ -1874,7 +1874,7 @@ mod tests {
             .unwrap();
         assert!(!should_pause);
         let should_pause = data
-            .buffer_operation(sequencer1.id, DmlOperation::Write(w1), &manager.handle())
+            .buffer_operation(shard1.id, DmlOperation::Write(w1), &manager.handle())
             .await
             .unwrap();
         assert!(should_pause);
@@ -1893,24 +1893,24 @@ mod tests {
             .create("foo", "inf", kafka_topic.id, query_pool.id)
             .await
             .unwrap();
-        let sequencer1 = repos
-            .sequencers()
+        let shard1 = repos
+            .shards()
             .create_or_get(&kafka_topic, kafka_partition)
             .await
             .unwrap();
-        let sequencer2 = repos
-            .sequencers()
+        let shard2 = repos
+            .shards()
             .create_or_get(&kafka_topic, kafka_partition)
             .await
             .unwrap();
-        let mut sequencers = BTreeMap::new();
-        sequencers.insert(
-            sequencer1.id,
-            SequencerData::new(sequencer1.kafka_partition, Arc::clone(&metrics)),
+        let mut shards = BTreeMap::new();
+        shards.insert(
+            shard1.id,
+            ShardData::new(shard1.kafka_partition, Arc::clone(&metrics)),
         );
-        sequencers.insert(
-            sequencer2.id,
-            SequencerData::new(sequencer2.kafka_partition, Arc::clone(&metrics)),
+        shards.insert(
+            shard2.id,
+            ShardData::new(shard2.kafka_partition, Arc::clone(&metrics)),
         );
 
         let object_store: Arc<DynObjectStore> = Arc::new(InMemory::new());
@@ -1918,7 +1918,7 @@ mod tests {
         let data = Arc::new(IngesterData::new(
             Arc::clone(&object_store),
             Arc::clone(&catalog),
-            sequencers,
+            shards,
             Arc::new(Executor::new(1)),
             BackoffConfig::default(),
             Arc::clone(&metrics),
@@ -1980,22 +1980,22 @@ mod tests {
             Arc::new(SystemProvider::new()),
         );
 
-        data.buffer_operation(sequencer1.id, DmlOperation::Write(w1), &manager.handle())
+        data.buffer_operation(shard1.id, DmlOperation::Write(w1), &manager.handle())
             .await
             .unwrap();
-        data.buffer_operation(sequencer2.id, DmlOperation::Write(w2), &manager.handle())
+        data.buffer_operation(shard2.id, DmlOperation::Write(w2), &manager.handle())
             .await
             .unwrap();
-        data.buffer_operation(sequencer1.id, DmlOperation::Write(w3), &manager.handle())
+        data.buffer_operation(shard1.id, DmlOperation::Write(w3), &manager.handle())
             .await
             .unwrap();
 
-        let expected_progress = SequencerProgress::new()
+        let expected_progress = ShardProgress::new()
             .with_buffered(SequenceNumber::new(1))
             .with_buffered(SequenceNumber::new(2));
         assert_progress(&data, kafka_partition, expected_progress).await;
 
-        let sd = data.sequencers.get(&sequencer1.id).unwrap();
+        let sd = data.shards.get(&shard1.id).unwrap();
         let n = sd.namespace("foo").unwrap();
         let partition_id;
         let table_id;
@@ -2036,7 +2036,7 @@ mod tests {
         // verify it put the record in the catalog
         let parquet_files = repos
             .parquet_files()
-            .list_by_sequencer_greater_than(sequencer1.id, SequenceNumber::new(0))
+            .list_by_shard_greater_than(shard1.id, SequenceNumber::new(0))
             .await
             .unwrap();
         assert_eq!(parquet_files.len(), 1);
@@ -2046,7 +2046,7 @@ mod tests {
         assert_eq!(pf.min_time, Timestamp::new(10));
         assert_eq!(pf.max_time, Timestamp::new(30));
         assert_eq!(pf.max_sequence_number, SequenceNumber::new(2));
-        assert_eq!(pf.sequencer_id, sequencer1.id);
+        assert_eq!(pf.shard_id, shard1.id);
         assert!(pf.to_delete.is_none());
 
         // This value should be recorded in the metrics asserted next;
@@ -2075,8 +2075,8 @@ mod tests {
 
         let observation = persisted_file_size_bytes
             .get_observer(&Attributes::from([(
-                "sequencer_id",
-                format!("{}", sequencer1.id).into(),
+                "shard_id",
+                format!("{}", shard1.id).into(),
             )]))
             .unwrap()
             .fetch();
@@ -2108,7 +2108,7 @@ mod tests {
         );
 
         // check progresses after persist
-        let expected_progress = SequencerProgress::new()
+        let expected_progress = ShardProgress::new()
             .with_buffered(SequenceNumber::new(1))
             .with_persisted(SequenceNumber::new(2));
         assert_progress(&data, kafka_partition, expected_progress).await;
@@ -2128,24 +2128,24 @@ mod tests {
             .create("foo", "inf", kafka_topic.id, query_pool.id)
             .await
             .unwrap();
-        let sequencer1 = repos
-            .sequencers()
+        let shard1 = repos
+            .shards()
             .create_or_get(&kafka_topic, kafka_partition)
             .await
             .unwrap();
-        let sequencer2 = repos
-            .sequencers()
+        let shard2 = repos
+            .shards()
             .create_or_get(&kafka_topic, kafka_partition)
             .await
             .unwrap();
-        let mut sequencers = BTreeMap::new();
-        sequencers.insert(
-            sequencer1.id,
-            SequencerData::new(sequencer1.kafka_partition, Arc::clone(&metrics)),
+        let mut shards = BTreeMap::new();
+        shards.insert(
+            shard1.id,
+            ShardData::new(shard1.kafka_partition, Arc::clone(&metrics)),
         );
-        sequencers.insert(
-            sequencer2.id,
-            SequencerData::new(sequencer2.kafka_partition, Arc::clone(&metrics)),
+        shards.insert(
+            shard2.id,
+            ShardData::new(shard2.kafka_partition, Arc::clone(&metrics)),
         );
 
         let object_store: Arc<DynObjectStore> = Arc::new(InMemory::new());
@@ -2153,7 +2153,7 @@ mod tests {
         let data = Arc::new(IngesterData::new(
             Arc::clone(&object_store),
             Arc::clone(&catalog),
-            sequencers,
+            shards,
             Arc::new(Executor::new(1)),
             BackoffConfig::default(),
             Arc::clone(&metrics),
@@ -2206,15 +2206,15 @@ mod tests {
         );
 
         // buffer operation 1, expect progress buffered sequence number should be 1
-        data.buffer_operation(sequencer1.id, DmlOperation::Write(w1), &manager.handle())
+        data.buffer_operation(shard1.id, DmlOperation::Write(w1), &manager.handle())
             .await
             .unwrap();
 
         // Get the namespace
-        let sd = data.sequencers.get(&sequencer1.id).unwrap();
+        let sd = data.shards.get(&shard1.id).unwrap();
         let n = sd.namespace("foo").unwrap();
 
-        let expected_progress = SequencerProgress::new().with_buffered(SequenceNumber::new(1));
+        let expected_progress = ShardProgress::new().with_buffered(SequenceNumber::new(1));
         assert_progress(&data, kafka_partition, expected_progress).await;
 
         // configure the the namespace to wait after each insert.
@@ -2224,7 +2224,7 @@ mod tests {
         let captured_data = Arc::clone(&data);
         let task = tokio::task::spawn(async move {
             captured_data
-                .buffer_operation(sequencer1.id, DmlOperation::Write(w2), &manager.handle())
+                .buffer_operation(shard1.id, DmlOperation::Write(w2), &manager.handle())
                 .await
                 .unwrap();
         });
@@ -2233,7 +2233,7 @@ mod tests {
 
         // Check that while the write is only partially complete, the
         // buffered sequence number hasn't increased
-        let expected_progress = SequencerProgress::new()
+        let expected_progress = ShardProgress::new()
             // sequence 2 hasn't been buffered yet
             .with_buffered(SequenceNumber::new(1));
         assert_progress(&data, kafka_partition, expected_progress).await;
@@ -2243,7 +2243,7 @@ mod tests {
         task.await.expect("task completed unsuccessfully");
 
         // check progresses after the write completes
-        let expected_progress = SequencerProgress::new()
+        let expected_progress = ShardProgress::new()
             .with_buffered(SequenceNumber::new(1))
             .with_buffered(SequenceNumber::new(2));
         assert_progress(&data, kafka_partition, expected_progress).await;
@@ -2290,7 +2290,7 @@ mod tests {
         let ts = create_tombstone(
             1,         // tombstone id
             t_id,      // table id
-            s_id,      // sequencer id
+            s_id,      // shard id
             3,         // delete's seq_number
             0,         // min time of data to get deleted
             20,        // max time of data to get deleted
@@ -2352,7 +2352,7 @@ mod tests {
         let ts = create_tombstone(
             2,             // tombstone id
             t_id,          // table id
-            s_id,          // sequencer id
+            s_id,          // shard id
             6,             // delete's seq_number
             10,            // min time of data to get deleted
             50,            // max time of data to get deleted
@@ -2385,7 +2385,7 @@ mod tests {
         // Persisting
         let p_batch = p
             .snapshot_to_persisting_batch(
-                SequencerId::new(s_id),
+                ShardId::new(s_id),
                 TableId::new(t_id),
                 PartitionId::new(p_id),
                 table_name,
@@ -2404,7 +2404,7 @@ mod tests {
         let ts = create_tombstone(
             3,         // tombstone id
             t_id,      // table id
-            s_id,      // sequencer id
+            s_id,      // shard id
             7,         // delete's seq_number
             10,        // min time of data to get deleted
             50,        // max time of data to get deleted
@@ -2473,7 +2473,7 @@ mod tests {
         let ts = create_tombstone(
             4,         // tombstone id
             t_id,      // table id
-            s_id,      // sequencer id
+            s_id,      // shard id
             9,         // delete's seq_number
             10,        // min time of data to get deleted
             50,        // max time of data to get deleted
@@ -2517,8 +2517,8 @@ mod tests {
             .create("foo", "inf", kafka_topic.id, query_pool.id)
             .await
             .unwrap();
-        let sequencer = repos
-            .sequencers()
+        let shard = repos
+            .shards()
             .create_or_get(&kafka_topic, kafka_partition)
             .await
             .unwrap();
@@ -2563,17 +2563,17 @@ mod tests {
             .unwrap();
         let partition = repos
             .partitions()
-            .create_or_get("1970-01-01".into(), sequencer.id, table.id)
+            .create_or_get("1970-01-01".into(), shard.id, table.id)
             .await
             .unwrap();
         let partition2 = repos
             .partitions()
-            .create_or_get("1970-01-02".into(), sequencer.id, table.id)
+            .create_or_get("1970-01-02".into(), shard.id, table.id)
             .await
             .unwrap();
 
         let parquet_file_params = ParquetFileParams {
-            sequencer_id: sequencer.id,
+            shard_id: shard.id,
             namespace_id: namespace.id,
             table_id: table.id,
             partition_id: partition.id,
@@ -2622,7 +2622,7 @@ mod tests {
         let should_pause = data
             .buffer_operation(
                 DmlOperation::Write(w1),
-                sequencer.id,
+                shard.id,
                 catalog.as_ref(),
                 &manager.handle(),
                 &exec,
@@ -2644,7 +2644,7 @@ mod tests {
         // w2 should be in the buffer
         data.buffer_operation(
             DmlOperation::Write(w2),
-            sequencer.id,
+            shard.id,
             catalog.as_ref(),
             &manager.handle(),
             &exec,
@@ -2678,17 +2678,17 @@ mod tests {
             .create("foo", "inf", kafka_topic.id, query_pool.id)
             .await
             .unwrap();
-        let sequencer1 = repos
-            .sequencers()
+        let shard1 = repos
+            .shards()
             .create_or_get(&kafka_topic, kafka_partition)
             .await
             .unwrap();
 
-        let mut sequencers = BTreeMap::new();
+        let mut shards = BTreeMap::new();
         let kafka_partition = KafkaPartition::new(0);
-        sequencers.insert(
-            sequencer1.id,
-            SequencerData::new(kafka_partition, Arc::clone(&metrics)),
+        shards.insert(
+            shard1.id,
+            ShardData::new(kafka_partition, Arc::clone(&metrics)),
         );
 
         let object_store: Arc<DynObjectStore> = Arc::new(InMemory::new());
@@ -2696,7 +2696,7 @@ mod tests {
         let data = Arc::new(IngesterData::new(
             Arc::clone(&object_store),
             Arc::clone(&catalog),
-            sequencers,
+            shards,
             Arc::new(Executor::new(1)),
             BackoffConfig::default(),
             Arc::clone(&metrics),
@@ -2737,7 +2737,7 @@ mod tests {
             Arc::new(SystemProvider::new()),
         );
         data.buffer_operation(
-            sequencer1.id,
+            shard1.id,
             DmlOperation::Write(w1.clone()),
             &manager.handle(),
         )
@@ -2745,7 +2745,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(
-            data.sequencer(sequencer1.id)
+            data.shard(shard1.id)
                 .unwrap()
                 .namespace(&namespace.name)
                 .unwrap()
@@ -2772,12 +2772,12 @@ mod tests {
                 1337,
             ),
         );
-        data.buffer_operation(sequencer1.id, DmlOperation::Delete(d1), &manager.handle())
+        data.buffer_operation(shard1.id, DmlOperation::Delete(d1), &manager.handle())
             .await
             .unwrap();
 
         assert_eq!(
-            data.sequencer(sequencer1.id)
+            data.shard(shard1.id)
                 .unwrap()
                 .namespace(&namespace.name)
                 .unwrap()
@@ -2794,7 +2794,7 @@ mod tests {
     async fn assert_progress(
         data: &IngesterData,
         kafka_partition: KafkaPartition,
-        expected_progress: SequencerProgress,
+        expected_progress: ShardProgress,
     ) {
         let progresses = data.progresses(vec![kafka_partition]).await;
         let expected_progresses = [(kafka_partition, expected_progress)]

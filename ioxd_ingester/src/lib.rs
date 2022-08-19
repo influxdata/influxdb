@@ -163,10 +163,10 @@ pub async fn create_ingester_server_type(
         .map(KafkaPartition::new)
         .collect();
 
-    let mut sequencers = BTreeMap::new();
+    let mut shards = BTreeMap::new();
     for k in kafka_partitions {
-        let s = txn.sequencers().create_or_get(&kafka_topic, k).await?;
-        sequencers.insert(k, s);
+        let s = txn.shards().create_or_get(&kafka_topic, k).await?;
+        shards.insert(k, s);
     }
     txn.commit().await?;
 
@@ -187,7 +187,7 @@ pub async fn create_ingester_server_type(
         IngestHandlerImpl::new(
             lifecycle_config,
             kafka_topic,
-            sequencers,
+            shards,
             catalog,
             object_store,
             write_buffer,

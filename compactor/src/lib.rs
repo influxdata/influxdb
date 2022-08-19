@@ -51,7 +51,7 @@ pub(crate) async fn compact_hot_partition(
     partition: PartitionCompactionCandidateWithInfo,
 ) -> Result<(), Error> {
     let start_time = compactor.time_provider.now();
-    let sequencer_id = partition.sequencer_id();
+    let shard_id = partition.shard_id();
 
     let parquet_files_for_compaction =
         parquet_file_lookup::ParquetFilesForCompaction::for_partition(
@@ -85,7 +85,7 @@ pub(crate) async fn compact_hot_partition(
     .context(CombiningSnafu);
 
     let attributes = Attributes::from([
-        ("sequencer_id", format!("{}", sequencer_id).into()),
+        ("shard_id", format!("{}", shard_id).into()),
         ("partition_type", "hot".into()),
     ]);
     if let Some(delta) = compactor
@@ -106,7 +106,7 @@ pub(crate) async fn compact_cold_partition(
     partition: PartitionCompactionCandidateWithInfo,
 ) -> Result<(), Error> {
     let start_time = compactor.time_provider.now();
-    let sequencer_id = partition.sequencer_id();
+    let shard_id = partition.shard_id();
 
     let parquet_files_for_compaction =
         parquet_file_lookup::ParquetFilesForCompaction::for_partition(
@@ -153,7 +153,7 @@ pub(crate) async fn compact_cold_partition(
         };
 
     let attributes = Attributes::from([
-        ("sequencer_id", format!("{}", sequencer_id).into()),
+        ("shard_id", format!("{}", shard_id).into()),
         ("partition_type", "cold".into()),
     ]);
     if let Some(delta) = compactor
@@ -250,7 +250,7 @@ mod tests {
         let config = make_compactor_config();
         let metrics = Arc::new(metric::Registry::new());
         let compactor = Compactor::new(
-            vec![sequencer.sequencer.id],
+            vec![sequencer.shard.id],
             Arc::clone(&catalog.catalog),
             ParquetStorage::new(Arc::clone(&catalog.object_store)),
             Arc::new(Executor::new(1)),
@@ -325,7 +325,7 @@ mod tests {
         partition.create_parquet_file(builder).await;
 
         // should have 4 level-0 files before compacting
-        let count = catalog.count_level_0_files(sequencer.sequencer.id).await;
+        let count = catalog.count_level_0_files(sequencer.shard.id).await;
         assert_eq!(count, 4);
 
         // ------------------------------------------------
@@ -472,7 +472,7 @@ mod tests {
         let config = make_compactor_config();
         let metrics = Arc::new(metric::Registry::new());
         let compactor = Compactor::new(
-            vec![sequencer.sequencer.id],
+            vec![sequencer.shard.id],
             Arc::clone(&catalog.catalog),
             ParquetStorage::new(Arc::clone(&catalog.object_store)),
             Arc::new(Executor::new(1)),
@@ -547,7 +547,7 @@ mod tests {
         partition.create_parquet_file(builder).await;
 
         // should have 4 level-0 files before compacting
-        let count = catalog.count_level_0_files(sequencer.sequencer.id).await;
+        let count = catalog.count_level_0_files(sequencer.shard.id).await;
         assert_eq!(count, 4);
 
         // ------------------------------------------------
@@ -659,7 +659,7 @@ mod tests {
         let config = make_compactor_config();
         let metrics = Arc::new(metric::Registry::new());
         let compactor = Compactor::new(
-            vec![sequencer.sequencer.id],
+            vec![sequencer.shard.id],
             Arc::clone(&catalog.catalog),
             ParquetStorage::new(Arc::clone(&catalog.object_store)),
             Arc::new(Executor::new(1)),
@@ -693,7 +693,7 @@ mod tests {
         partition.create_parquet_file(builder).await;
 
         // should have 1 level-0 file before compacting
-        let count = catalog.count_level_0_files(sequencer.sequencer.id).await;
+        let count = catalog.count_level_0_files(sequencer.shard.id).await;
         assert_eq!(count, 1);
 
         // ------------------------------------------------

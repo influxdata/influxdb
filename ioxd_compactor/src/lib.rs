@@ -177,10 +177,10 @@ pub async fn build_compactor_from_config(
         .map(KafkaPartition::new)
         .collect();
 
-    let mut sequencers = Vec::with_capacity(kafka_partitions.len());
+    let mut shards = Vec::with_capacity(kafka_partitions.len());
     for k in kafka_partitions {
-        let s = txn.sequencers().create_or_get(&kafka_topic, k).await?;
-        sequencers.push(s.id);
+        let s = txn.shards().create_or_get(&kafka_topic, k).await?;
+        shards.push(s.id);
     }
     txn.commit().await?;
 
@@ -202,7 +202,7 @@ pub async fn build_compactor_from_config(
     );
 
     Ok(compactor::compact::Compactor::new(
-        sequencers,
+        shards,
         catalog,
         parquet_store,
         exec,

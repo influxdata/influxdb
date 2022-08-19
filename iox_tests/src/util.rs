@@ -7,7 +7,7 @@ use arrow::{
 use data_types::{
     Column, ColumnSet, ColumnType, CompactionLevel, KafkaPartition, KafkaTopic, Namespace,
     NamespaceSchema, ParquetFile, ParquetFileParams, Partition, PartitionId, QueryPool,
-    SequenceNumber, Sequencer, SequencerId, Table, TableId, TableSchema, Timestamp, Tombstone,
+    SequenceNumber, Shard, ShardId, Table, TableId, TableSchema, Timestamp, Tombstone,
     TombstoneId,
 };
 use datafusion::physical_plan::metrics::Count;
@@ -105,8 +105,8 @@ impl TestCatalog {
         Arc::clone(&self.exec)
     }
 
-    /// Create a sequencer in the catalog
-    pub async fn create_sequencer(self: &Arc<Self>, sequencer: i32) -> Arc<Sequencer> {
+    /// Create a shard in the catalog
+    pub async fn create_shard(self: &Arc<Self>, shard: i32) -> Arc<Shard> {
         let mut repos = self.catalog.repositories().await;
 
         let kafka_topic = repos
@@ -114,10 +114,10 @@ impl TestCatalog {
             .create_or_get("kafka_topic")
             .await
             .unwrap();
-        let kafka_partition = KafkaPartition::new(sequencer);
+        let kafka_partition = KafkaPartition::new(shard);
         Arc::new(
             repos
-                .sequencers()
+                .shards()
                 .create_or_get(&kafka_topic, kafka_partition)
                 .await
                 .unwrap(),
@@ -186,25 +186,25 @@ impl TestCatalog {
     /// List level 0 files
     pub async fn list_level_0_files(
         self: &Arc<Self>,
-        sequencer_id: SequencerId,
+        shard_id: ShardId,
     ) -> Vec<ParquetFile> {
         self.catalog
             .repositories()
             .await
             .parquet_files()
-            .level_0(sequencer_id)
+            .level_0(shard_id)
             .await
             .unwrap()
     }
 
     /// Count level 0 files
-    pub async fn count_level_0_files(self: &Arc<Self>, sequencer_id: SequencerId) -> usize {
+    pub async fn count_level_0_files(self: &Arc<Self>, shard_id: ShardId) -> usize {
         let level_0 = self
             .catalog
             .repositories()
             .await
             .parquet_files()
-            .level_0(sequencer_id)
+            .level_0(shard_id)
             .await
             .unwrap();
         level_0.len()
@@ -257,8 +257,8 @@ impl TestNamespace {
     pub async fn create_sequencer(self: &Arc<Self>, sequencer: i32) -> Arc<TestSequencer> {
         let mut repos = self.catalog.catalog.repositories().await;
 
-        let sequencer = repos
-            .sequencers()
+        let shard = repos
+            .shards()
             .create_or_get(&self.kafka_topic, KafkaPartition::new(sequencer))
             .await
             .unwrap();
@@ -266,7 +266,7 @@ impl TestNamespace {
         Arc::new(TestSequencer {
             catalog: Arc::clone(&self.catalog),
             namespace: Arc::clone(self),
-            sequencer,
+            shard,
         })
     }
 
@@ -285,7 +285,7 @@ impl TestNamespace {
 pub struct TestSequencer {
     pub catalog: Arc<TestCatalog>,
     pub namespace: Arc<TestNamespace>,
-    pub sequencer: Sequencer,
+    pub shard: Shard,
 }
 
 /// A test table of a namespace in the catalog
@@ -376,7 +376,7 @@ impl TestTableBoundSequencer {
 
         let partition = repos
             .partitions()
-            .create_or_get(key.into(), self.sequencer.sequencer.id, self.table.table.id)
+            .create_or_get(key.into(), self.sequencer.shard.id, self.table.table.id)
             .await
             .unwrap();
 
@@ -399,7 +399,7 @@ impl TestTableBoundSequencer {
 
         let partition = repos
             .partitions()
-            .create_or_get(key.into(), self.sequencer.sequencer.id, self.table.table.id)
+            .create_or_get(key.into(), self.sequencer.shard.id, self.table.table.id)
             .await
             .unwrap();
 
@@ -432,7 +432,7 @@ impl TestTableBoundSequencer {
             .tombstones()
             .create_or_get(
                 self.table.table.id,
-                self.sequencer.sequencer.id,
+                self.sequencer.shard.id,
                 SequenceNumber::new(sequence_number),
                 Timestamp::new(min_time),
                 Timestamp::new(max_time),
@@ -524,7 +524,7 @@ impl TestPartition {
             creation_timestamp: now(),
             namespace_id: self.namespace.namespace.id,
             namespace_name: self.namespace.namespace.name.clone().into(),
-            sequencer_id: self.sequencer.sequencer.id,
+            shard_id: self.sequencer.shard.id,
             table_id: self.table.table.id,
             table_name: self.table.table.name.clone().into(),
             partition_id: self.partition.id,
@@ -549,7 +549,7 @@ impl TestPartition {
         .await;
 
         let parquet_file_params = ParquetFileParams {
-            sequencer_id: self.sequencer.sequencer.id,
+            shard_id: self.sequencer.shard.id,
             namespace_id: self.namespace.namespace.id,
             table_id: self.table.table.id,
             partition_id: self.partition.id,

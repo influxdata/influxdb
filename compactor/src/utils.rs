@@ -133,7 +133,7 @@ impl ParquetFileWithTombstone {
 
         trace!(
             parquet_file_id=?self.id,
-            parquet_file_sequencer_id=?self.sequencer_id,
+            parquet_file_shard_id=?self.shard_id,
             parquet_file_namespace_id=?self.namespace_id,
             parquet_file_table_id=?self.table_id,
             parquet_file_partition_id=?self.partition_id,

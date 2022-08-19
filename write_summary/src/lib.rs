@@ -7,7 +7,7 @@ use snafu::{OptionExt, Snafu};
 use std::collections::BTreeMap;
 
 mod progress;
-pub use progress::SequencerProgress;
+pub use progress::ShardProgress;
 
 #[derive(Debug, Snafu, PartialEq, Eq)]
 pub enum Error {
@@ -110,7 +110,7 @@ impl WriteSummary {
     pub fn write_status(
         &self,
         kafka_partition: KafkaPartition,
-        progress: &SequencerProgress,
+        progress: &ShardProgress,
     ) -> Result<KafkaPartitionWriteStatus> {
         let sequence_numbers = self
             .sequencers
@@ -353,7 +353,7 @@ mod tests {
 
         // if we have no info about this partition in the progress
         let kafka_partition = KafkaPartition::new(1);
-        let progress = SequencerProgress::new();
+        let progress = ShardProgress::new();
         assert_eq!(
             summary.write_status(kafka_partition, &progress),
             Ok(KafkaPartitionWriteStatus::KafkaPartitionUnknown)
@@ -365,7 +365,7 @@ mod tests {
         let summary = test_summary();
         // No information on kafka partition 3
         let kafka_partition = KafkaPartition::new(3);
-        let progress = SequencerProgress::new().with_buffered(SequenceNumber::new(2));
+        let progress = ShardProgress::new().with_buffered(SequenceNumber::new(2));
         let err = summary
             .write_status(kafka_partition, &progress)
             .unwrap_err();
@@ -378,7 +378,7 @@ mod tests {
 
         // kafka partition 1 made it to 3
         let kafka_partition = KafkaPartition::new(1);
-        let progress = SequencerProgress::new().with_buffered(SequenceNumber::new(3));
+        let progress = ShardProgress::new().with_buffered(SequenceNumber::new(3));
         assert_eq!(
             summary.write_status(kafka_partition, &progress),
             Ok(KafkaPartitionWriteStatus::Readable)
@@ -386,7 +386,7 @@ mod tests {
 
         // if kafka partition 1 only made it to 2, but write includes 3
         let kafka_partition = KafkaPartition::new(1);
-        let progress = SequencerProgress::new().with_buffered(SequenceNumber::new(2));
+        let progress = ShardProgress::new().with_buffered(SequenceNumber::new(2));
         assert_eq!(
             summary.write_status(kafka_partition, &progress),
             Ok(KafkaPartitionWriteStatus::Durable)
@@ -394,7 +394,7 @@ mod tests {
 
         // kafka partition 2 made it to 2
         let kafka_partition = KafkaPartition::new(2);
-        let progress = SequencerProgress::new().with_buffered(SequenceNumber::new(2));
+        let progress = ShardProgress::new().with_buffered(SequenceNumber::new(2));
 
         assert_eq!(
             summary.write_status(kafka_partition, &progress),
@@ -408,7 +408,7 @@ mod tests {
 
         // kafka partition 1 has persisted up to sequence 3
         let kafka_partition = KafkaPartition::new(1);
-        let progress = SequencerProgress::new().with_persisted(SequenceNumber::new(3));
+        let progress = ShardProgress::new().with_persisted(SequenceNumber::new(3));
         assert_eq!(
             summary.write_status(kafka_partition, &progress),
             Ok(KafkaPartitionWriteStatus::Persisted)
@@ -416,7 +416,7 @@ mod tests {
 
         // kafka partition 2 has persisted up to sequence 2
         let kafka_partition = KafkaPartition::new(2);
-        let progress = SequencerProgress::new().with_persisted(SequenceNumber::new(2));
+        let progress = ShardProgress::new().with_persisted(SequenceNumber::new(2));
         assert_eq!(
             summary.write_status(kafka_partition, &progress),
             Ok(KafkaPartitionWriteStatus::Persisted)
@@ -424,7 +424,7 @@ mod tests {
 
         // kafka partition 1 only persisted up to sequence number 2, have buffered data at 3
         let kafka_partition = KafkaPartition::new(1);
-        let progress = SequencerProgress::new()
+        let progress = ShardProgress::new()
             .with_buffered(SequenceNumber::new(3))
             .with_persisted(SequenceNumber::new(2));
 

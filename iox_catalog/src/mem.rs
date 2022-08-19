@@ -5,7 +5,7 @@ use crate::{
     interface::{
         sealed::TransactionFinalize, Catalog, ColumnRepo, ColumnUpsertRequest, Error,
         KafkaTopicRepo, NamespaceRepo, ParquetFileRepo, PartitionRepo, ProcessedTombstoneRepo,
-        QueryPoolRepo, RepoCollection, Result, SequencerRepo, TablePersistInfo, TableRepo,
+        QueryPoolRepo, RepoCollection, Result, ShardRepo, TablePersistInfo, TableRepo,
         TombstoneRepo, Transaction,
     },
     metrics::MetricDecorator,
@@ -15,7 +15,7 @@ use data_types::{
     Column, ColumnId, ColumnType, CompactionLevel, KafkaPartition, KafkaTopic, KafkaTopicId,
     Namespace, NamespaceId, ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId,
     PartitionInfo, PartitionKey, PartitionParam, ProcessedTombstone, QueryPool, QueryPoolId,
-    SequenceNumber, Sequencer, SequencerId, Table, TableId, TablePartition, Timestamp, Tombstone,
+    SequenceNumber, Shard, ShardId, Table, TableId, TablePartition, Timestamp, Tombstone,
     TombstoneId,
 };
 use iox_time::{SystemProvider, TimeProvider};
@@ -62,7 +62,7 @@ struct MemCollections {
     namespaces: Vec<Namespace>,
     tables: Vec<Table>,
     columns: Vec<Column>,
-    sequencers: Vec<Sequencer>,
+    shards: Vec<Shard>,
     partitions: Vec<Partition>,
     tombstones: Vec<Tombstone>,
     parquet_files: Vec<ParquetFile>,
@@ -208,7 +208,7 @@ impl RepoCollection for MemTxn {
         self
     }
 
-    fn sequencers(&mut self) -> &mut dyn SequencerRepo {
+    fn shards(&mut self) -> &mut dyn ShardRepo {
         self
     }
 
@@ -445,7 +445,7 @@ impl TableRepo for MemTxn {
 
     async fn get_table_persist_info(
         &mut self,
-        sequencer_id: SequencerId,
+        shard_id: ShardId,
         namespace_id: NamespaceId,
         table_name: &str,
     ) -> Result<Option<TablePersistInfo>> {
@@ -459,12 +459,12 @@ impl TableRepo for MemTxn {
             let tombstone_max_sequence_number = stage
                 .tombstones
                 .iter()
-                .filter(|t| t.sequencer_id == sequencer_id && t.table_id == table.id)
+                .filter(|t| t.shard_id == shard_id && t.table_id == table.id)
                 .max_by_key(|t| t.sequence_number)
                 .map(|t| t.sequence_number);
 
             return Ok(Some(TablePersistInfo {
-                sequencer_id,
+                shard_id,
                 table_id: table.id,
                 tombstone_max_sequence_number,
             }));
@@ -604,76 +604,76 @@ impl ColumnRepo for MemTxn {
 }
 
 #[async_trait]
-impl SequencerRepo for MemTxn {
+impl ShardRepo for MemTxn {
     async fn create_or_get(
         &mut self,
         topic: &KafkaTopic,
         partition: KafkaPartition,
-    ) -> Result<Sequencer> {
+    ) -> Result<Shard> {
         let stage = self.stage();
 
-        let sequencer = match stage
-            .sequencers
+        let shard = match stage
+            .shards
             .iter()
             .find(|s| s.kafka_topic_id == topic.id && s.kafka_partition == partition)
         {
             Some(t) => t,
             None => {
-                let sequencer = Sequencer {
-                    id: SequencerId::new(stage.sequencers.len() as i64 + 1),
+                let shard = Shard {
+                    id: ShardId::new(stage.shards.len() as i64 + 1),
                     kafka_topic_id: topic.id,
                     kafka_partition: partition,
                     min_unpersisted_sequence_number: SequenceNumber::new(0),
                 };
-                stage.sequencers.push(sequencer);
-                stage.sequencers.last().unwrap()
+                stage.shards.push(shard);
+                stage.shards.last().unwrap()
             }
         };
 
-        Ok(*sequencer)
+        Ok(*shard)
     }
 
     async fn get_by_topic_id_and_partition(
         &mut self,
         topic_id: KafkaTopicId,
         partition: KafkaPartition,
-    ) -> Result<Option<Sequencer>> {
+    ) -> Result<Option<Shard>> {
         let stage = self.stage();
 
-        let sequencer = stage
-            .sequencers
+        let shard = stage
+            .shards
             .iter()
             .find(|s| s.kafka_topic_id == topic_id && s.kafka_partition == partition)
             .cloned();
-        Ok(sequencer)
+        Ok(shard)
     }
 
-    async fn list(&mut self) -> Result<Vec<Sequencer>> {
+    async fn list(&mut self) -> Result<Vec<Shard>> {
         let stage = self.stage();
 
-        Ok(stage.sequencers.clone())
+        Ok(stage.shards.clone())
     }
 
-    async fn list_by_kafka_topic(&mut self, topic: &KafkaTopic) -> Result<Vec<Sequencer>> {
+    async fn list_by_kafka_topic(&mut self, topic: &KafkaTopic) -> Result<Vec<Shard>> {
         let stage = self.stage();
 
-        let sequencers: Vec<_> = stage
-            .sequencers
+        let shards: Vec<_> = stage
+            .shards
             .iter()
             .filter(|s| s.kafka_topic_id == topic.id)
             .cloned()
             .collect();
-        Ok(sequencers)
+        Ok(shards)
     }
 
     async fn update_min_unpersisted_sequence_number(
         &mut self,
-        sequencer_id: SequencerId,
+        shard_id: ShardId,
         sequence_number: SequenceNumber,
     ) -> Result<()> {
         let stage = self.stage();
 
-        if let Some(s) = stage.sequencers.iter_mut().find(|s| s.id == sequencer_id) {
+        if let Some(s) = stage.shards.iter_mut().find(|s| s.id == shard_id) {
             s.min_unpersisted_sequence_number = sequence_number
         };
 
@@ -686,19 +686,19 @@ impl PartitionRepo for MemTxn {
     async fn create_or_get(
         &mut self,
         key: PartitionKey,
-        sequencer_id: SequencerId,
+        shard_id: ShardId,
         table_id: TableId,
     ) -> Result<Partition> {
         let stage = self.stage();
 
         let partition = match stage.partitions.iter().find(|p| {
-            p.partition_key == key && p.sequencer_id == sequencer_id && p.table_id == table_id
+            p.partition_key == key && p.shard_id == shard_id && p.table_id == table_id
         }) {
             Some(p) => p,
             None => {
                 let p = Partition {
                     id: PartitionId::new(stage.partitions.len() as i64 + 1),
-                    sequencer_id,
+                    shard_id,
                     table_id,
                     partition_key: key,
                     sort_key: vec![],
@@ -721,13 +721,13 @@ impl PartitionRepo for MemTxn {
             .cloned())
     }
 
-    async fn list_by_sequencer(&mut self, sequencer_id: SequencerId) -> Result<Vec<Partition>> {
+    async fn list_by_shard(&mut self, shard_id: ShardId) -> Result<Vec<Partition>> {
         let stage = self.stage();
 
         let partitions: Vec<_> = stage
             .partitions
             .iter()
-            .filter(|p| p.sequencer_id == sequencer_id)
+            .filter(|p| p.shard_id == shard_id)
             .cloned()
             .collect();
         Ok(partitions)
@@ -820,7 +820,7 @@ impl TombstoneRepo for MemTxn {
     async fn create_or_get(
         &mut self,
         table_id: TableId,
-        sequencer_id: SequencerId,
+        shard_id: ShardId,
         sequence_number: SequenceNumber,
         min_time: Timestamp,
         max_time: Timestamp,
@@ -830,7 +830,7 @@ impl TombstoneRepo for MemTxn {
 
         let tombstone = match stage.tombstones.iter().find(|t| {
             t.table_id == table_id
-                && t.sequencer_id == sequencer_id
+                && t.shard_id == shard_id
                 && t.sequence_number == sequence_number
         }) {
             Some(t) => t,
@@ -838,7 +838,7 @@ impl TombstoneRepo for MemTxn {
                 let t = Tombstone {
                     id: TombstoneId::new(stage.tombstones.len() as i64 + 1),
                     table_id,
-                    sequencer_id,
+                    shard_id,
                     sequence_number,
                     min_time,
                     max_time,
@@ -887,9 +887,9 @@ impl TombstoneRepo for MemTxn {
         Ok(stage.tombstones.iter().find(|t| t.id == id).cloned())
     }
 
-    async fn list_tombstones_by_sequencer_greater_than(
+    async fn list_tombstones_by_shard_greater_than(
         &mut self,
-        sequencer_id: SequencerId,
+        shard_id: ShardId,
         sequence_number: SequenceNumber,
     ) -> Result<Vec<Tombstone>> {
         let stage = self.stage();
@@ -897,7 +897,7 @@ impl TombstoneRepo for MemTxn {
         let tombstones: Vec<_> = stage
             .tombstones
             .iter()
-            .filter(|t| t.sequencer_id == sequencer_id && t.sequence_number > sequence_number)
+            .filter(|t| t.shard_id == shard_id && t.sequence_number > sequence_number)
             .cloned()
             .collect();
         Ok(tombstones)
@@ -921,7 +921,7 @@ impl TombstoneRepo for MemTxn {
 
     async fn list_tombstones_for_time_range(
         &mut self,
-        sequencer_id: SequencerId,
+        shard_id: ShardId,
         table_id: TableId,
         sequence_number: SequenceNumber,
         min_time: Timestamp,
@@ -933,7 +933,7 @@ impl TombstoneRepo for MemTxn {
             .tombstones
             .iter()
             .filter(|t| {
-                t.sequencer_id == sequencer_id
+                t.shard_id == shard_id
                     && t.table_id == table_id
                     && t.sequence_number > sequence_number
                     && ((t.min_time <= min_time && t.max_time >= min_time)
@@ -951,7 +951,7 @@ impl ParquetFileRepo for MemTxn {
         let stage = self.stage();
 
         let ParquetFileParams {
-            sequencer_id,
+            shard_id,
             namespace_id,
             table_id,
             partition_id,
@@ -976,7 +976,7 @@ impl ParquetFileRepo for MemTxn {
 
         let parquet_file = ParquetFile {
             id: ParquetFileId::new(stage.parquet_files.len() as i64 + 1),
-            sequencer_id,
+            shard_id,
             namespace_id,
             table_id,
             partition_id,
@@ -1008,9 +1008,9 @@ impl ParquetFileRepo for MemTxn {
         Ok(())
     }
 
-    async fn list_by_sequencer_greater_than(
+    async fn list_by_shard_greater_than(
         &mut self,
-        sequencer_id: SequencerId,
+        shard_id: ShardId,
         sequence_number: SequenceNumber,
     ) -> Result<Vec<ParquetFile>> {
         let stage = self.stage();
@@ -1018,7 +1018,7 @@ impl ParquetFileRepo for MemTxn {
         let files: Vec<_> = stage
             .parquet_files
             .iter()
-            .filter(|f| f.sequencer_id == sequencer_id && f.max_sequence_number > sequence_number)
+            .filter(|f| f.shard_id == shard_id && f.max_sequence_number > sequence_number)
             .cloned()
             .collect();
         Ok(files)
@@ -1068,14 +1068,14 @@ impl ParquetFileRepo for MemTxn {
         Ok(delete)
     }
 
-    async fn level_0(&mut self, sequencer_id: SequencerId) -> Result<Vec<ParquetFile>> {
+    async fn level_0(&mut self, shard_id: ShardId) -> Result<Vec<ParquetFile>> {
         let stage = self.stage();
 
         Ok(stage
             .parquet_files
             .iter()
             .filter(|f| {
-                f.sequencer_id == sequencer_id
+                f.shard_id == shard_id
                     && f.compaction_level == CompactionLevel::Initial
                     && f.to_delete.is_none()
             })
@@ -1095,7 +1095,7 @@ impl ParquetFileRepo for MemTxn {
             .parquet_files
             .iter()
             .filter(|f| {
-                f.sequencer_id == table_partition.sequencer_id
+                f.shard_id == table_partition.shard_id
                     && f.table_id == table_partition.table_id
                     && f.partition_id == table_partition.partition_id
                     && f.compaction_level == CompactionLevel::FileNonOverlapped
@@ -1109,7 +1109,7 @@ impl ParquetFileRepo for MemTxn {
 
     async fn recent_highest_throughput_partitions(
         &mut self,
-        sequencer_id: SequencerId,
+        shard_id: ShardId,
         num_hours: u32,
         min_num_files: usize,
         num_partitions: usize,
@@ -1126,14 +1126,14 @@ impl ParquetFileRepo for MemTxn {
             .parquet_files
             .iter()
             .filter(|f| {
-                f.sequencer_id == sequencer_id
+                f.shard_id == shard_id
                     && f.created_at > recent_time
                     && f.compaction_level == CompactionLevel::Initial
                     && f.to_delete.is_none()
             })
             .map(|pf| PartitionParam {
                 partition_id: pf.partition_id,
-                sequencer_id: pf.sequencer_id,
+                shard_id: pf.shard_id,
                 namespace_id: pf.namespace_id,
                 table_id: pf.table_id,
             })
@@ -1168,7 +1168,7 @@ impl ParquetFileRepo for MemTxn {
 
     async fn most_level_0_files_partitions(
         &mut self,
-        sequencer_id: SequencerId,
+        shard_id: ShardId,
         older_than_num_hours: u32,
         num_partitions: usize,
     ) -> Result<Vec<PartitionParam>> {
@@ -1182,7 +1182,7 @@ impl ParquetFileRepo for MemTxn {
             .parquet_files
             .iter()
             .filter(|f| {
-                f.sequencer_id == sequencer_id
+                f.shard_id == shard_id
                     && f.compaction_level == CompactionLevel::Initial
                     && f.to_delete.is_none()
             })
@@ -1195,7 +1195,7 @@ impl ParquetFileRepo for MemTxn {
         for pf in relevant_parquet_files {
             let key = PartitionParam {
                 partition_id: pf.partition_id,
-                sequencer_id: pf.sequencer_id,
+                shard_id: pf.shard_id,
                 namespace_id: pf.namespace_id,
                 table_id: pf.table_id,
             };
@@ -1220,7 +1220,7 @@ impl ParquetFileRepo for MemTxn {
             .map(|(k, _)| *k)
             .map(|pf| PartitionParam {
                 partition_id: pf.partition_id,
-                sequencer_id: pf.sequencer_id,
+                shard_id: pf.shard_id,
                 namespace_id: pf.namespace_id,
                 table_id: pf.table_id,
             })
@@ -1284,7 +1284,7 @@ impl ParquetFileRepo for MemTxn {
     async fn count_by_overlaps_with_level_0(
         &mut self,
         table_id: TableId,
-        sequencer_id: SequencerId,
+        shard_id: ShardId,
         min_time: Timestamp,
         max_time: Timestamp,
         sequence_number: SequenceNumber,
@@ -1295,7 +1295,7 @@ impl ParquetFileRepo for MemTxn {
             .parquet_files
             .iter()
             .filter(|f| {
-                f.sequencer_id == sequencer_id
+                f.shard_id == shard_id
                     && f.table_id == table_id
                     && f.max_sequence_number < sequence_number
                     && f.to_delete.is_none()
@@ -1311,7 +1311,7 @@ impl ParquetFileRepo for MemTxn {
     async fn count_by_overlaps_with_level_1(
         &mut self,
         table_id: TableId,
-        sequencer_id: SequencerId,
+        shard_id: ShardId,
         min_time: Timestamp,
         max_time: Timestamp,
     ) -> Result<i64> {
@@ -1321,7 +1321,7 @@ impl ParquetFileRepo for MemTxn {
             .parquet_files
             .iter()
             .filter(|f| {
-                f.sequencer_id == sequencer_id
+                f.shard_id == shard_id
                     && f.table_id == table_id
                     && f.to_delete.is_none()
                     && f.compaction_level == CompactionLevel::FileNonOverlapped

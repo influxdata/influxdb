@@ -7,7 +7,7 @@ use arrow::{datatypes::DataType, error::ArrowError, record_batch::RecordBatch};
 use async_trait::async_trait;
 use client_util::connection;
 use data_types::{
-    ChunkId, ChunkOrder, IngesterMapping, KafkaPartition, PartitionId, SequenceNumber, SequencerId,
+    ChunkId, ChunkOrder, IngesterMapping, KafkaPartition, PartitionId, SequenceNumber, ShardId,
     TableSummary, TimestampMinMax,
 };
 use datafusion_util::MemoryStream;
@@ -570,13 +570,13 @@ impl IngesterStreamDecoder {
                         ingester_address: self.ingester_address.as_ref()
                     },
                 );
-                let sequencer_id = self
+                let shard_id = self
                     .catalog_cache
                     .partition()
-                    .sequencer_id(
+                    .shard_id(
                         partition_id,
                         self.span_recorder
-                            .child_span("cache GET partition sequencer ID"),
+                            .child_span("cache GET partition shard ID"),
                     )
                     .await;
 
@@ -588,7 +588,7 @@ impl IngesterStreamDecoder {
                     Arc::clone(&self.ingester_address),
                     Arc::clone(&self.table_name),
                     partition_id,
-                    sequencer_id,
+                    shard_id,
                     status.parquet_max_sequence_number.map(SequenceNumber::new),
                     status
                         .tombstone_max_sequence_number
@@ -807,18 +807,18 @@ async fn execute_get_write_infos(
 /// Given the catalog hierarchy:
 ///
 /// ```text
-/// (Catalog) Sequencer -> (Catalog) Table --> (Catalog) Partition
+/// (Catalog) Shard -> (Catalog) Table --> (Catalog) Partition
 /// ```
 ///
 /// An IngesterPartition contains the unpersisted data for a catalog
-/// partition from a sequencer. Thus, there can be more than one
+/// partition from a shard. Thus, there can be more than one
 /// IngesterPartition for each table the ingester knows about.
 #[derive(Debug, Clone)]
 pub struct IngesterPartition {
     ingester: Arc<str>,
     table_name: Arc<str>,
     partition_id: PartitionId,
-    sequencer_id: SequencerId,
+    shard_id: ShardId,
 
     /// Maximum sequence number of parquet files the ingester has
     /// persisted for this partition
@@ -841,7 +841,7 @@ impl IngesterPartition {
         ingester: Arc<str>,
         table_name: Arc<str>,
         partition_id: PartitionId,
-        sequencer_id: SequencerId,
+        shard_id: ShardId,
         parquet_max_sequence_number: Option<SequenceNumber>,
         tombstone_max_sequence_number: Option<SequenceNumber>,
         partition_sort_key: Arc<Option<SortKey>>,
@@ -850,7 +850,7 @@ impl IngesterPartition {
             ingester,
             table_name,
             partition_id,
-            sequencer_id,
+            shard_id,
             parquet_max_sequence_number,
             tombstone_max_sequence_number,
             partition_sort_key,
@@ -928,8 +928,8 @@ impl IngesterPartition {
         self.partition_id
     }
 
-    pub(crate) fn sequencer_id(&self) -> SequencerId {
-        self.sequencer_id
+    pub(crate) fn shard_id(&self) -> ShardId {
+        self.shard_id
     }
 
     pub(crate) fn parquet_max_sequence_number(&self) -> Option<SequenceNumber> {
@@ -1297,7 +1297,7 @@ mod tests {
 
         let p = &partitions[0];
         assert_eq!(p.partition_id.get(), 1);
-        assert_eq!(p.sequencer_id.get(), 1);
+        assert_eq!(p.shard_id.get(), 1);
         assert_eq!(p.parquet_max_sequence_number, None);
         assert_eq!(p.tombstone_max_sequence_number, None);
         assert_eq!(p.chunks.len(), 0);
@@ -1518,7 +1518,7 @@ mod tests {
 
         let p1 = &partitions[0];
         assert_eq!(p1.partition_id.get(), 1);
-        assert_eq!(p1.sequencer_id.get(), 1);
+        assert_eq!(p1.shard_id.get(), 1);
         assert_eq!(
             p1.parquet_max_sequence_number,
             Some(SequenceNumber::new(11))
@@ -1538,7 +1538,7 @@ mod tests {
 
         let p2 = &partitions[1];
         assert_eq!(p2.partition_id.get(), 2);
-        assert_eq!(p2.sequencer_id.get(), 1);
+        assert_eq!(p2.shard_id.get(), 1);
         assert_eq!(
             p2.parquet_max_sequence_number,
             Some(SequenceNumber::new(21))
@@ -1554,7 +1554,7 @@ mod tests {
 
         let p3 = &partitions[2];
         assert_eq!(p3.partition_id.get(), 3);
-        assert_eq!(p3.sequencer_id.get(), 2);
+        assert_eq!(p3.shard_id.get(), 2);
         assert_eq!(
             p3.parquet_max_sequence_number,
             Some(SequenceNumber::new(31))
@@ -1717,7 +1717,7 @@ mod tests {
 
         let p1 = &partitions[0];
         assert_eq!(p1.partition_id.get(), 1);
-        assert_eq!(p1.sequencer_id.get(), 1);
+        assert_eq!(p1.shard_id.get(), 1);
         assert_eq!(
             p1.parquet_max_sequence_number,
             Some(SequenceNumber::new(11))
@@ -1894,7 +1894,7 @@ mod tests {
                 "ingester".into(),
                 "table".into(),
                 PartitionId::new(1),
-                SequencerId::new(1),
+                ShardId::new(1),
                 parquet_max_sequence_number,
                 tombstone_max_sequence_number,
                 Arc::new(None),
@@ -1927,7 +1927,7 @@ mod tests {
             "ingester".into(),
             "table".into(),
             PartitionId::new(1),
-            SequencerId::new(1),
+            ShardId::new(1),
             parquet_max_sequence_number,
             tombstone_max_sequence_number,
             Arc::new(None),

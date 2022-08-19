@@ -6,7 +6,7 @@ use clap_blocks::{catalog_dsn::CatalogDsnConfig, object_store::ObjectStoreConfig
 use data_types::{
     ColumnId, ColumnSet, ColumnType, KafkaPartition, NamespaceId,
     NamespaceSchema as CatalogNamespaceSchema, ParquetFile as CatalogParquetFile,
-    ParquetFileParams, PartitionId, SequenceNumber, SequencerId, TableId, Timestamp,
+    ParquetFileParams, PartitionId, SequenceNumber, ShardId, TableId, Timestamp,
 };
 use futures::future::join_all;
 use influxdb_iox_client::{
@@ -170,7 +170,7 @@ pub async fn command(connection: Connection, config: Config) -> Result<(), Error
                 let path = ParquetFilePath::new(
                     parquet_file.namespace_id,
                     parquet_file.table_id,
-                    parquet_file.sequencer_id,
+                    parquet_file.shard_id,
                     parquet_file.partition_id,
                     parquet_file.object_store_id,
                 );
@@ -241,9 +241,9 @@ async fn load_schema(
     let mut repos = catalog.repositories().await;
     let kafka_topic = repos.kafka_topics().create_or_get(KAFKA_NAME).await?;
     let query_pool = repos.query_pools().create_or_get(QUERY_POOL).await?;
-    // ensure there's a sequencer for this partition so it can be used later
-    let _sequencer = repos
-        .sequencers()
+    // ensure there's a shard for this partition so it can be used later
+    let _shard = repos
+        .shards()
         .create_or_get(&kafka_topic, KafkaPartition::new(KAFKA_PARTITION))
         .await?;
 
@@ -309,22 +309,22 @@ async fn load_partition(
         .get_by_name(KAFKA_NAME)
         .await?
         .expect("topic should have been inserted earlier");
-    let sequencer = repos
-        .sequencers()
+    let shard = repos
+        .shards()
         .get_by_topic_id_and_partition(topic.id, KafkaPartition::new(KAFKA_PARTITION))
         .await?
-        .expect("sequencer should have been inserted earlier");
+        .expect("shard should have been inserted earlier");
     let table = schema
         .tables
         .get(table_name)
         .expect("table should have been loaded");
     let partition = repos
         .partitions()
-        .create_or_get(remote_partition.key.clone().into(), sequencer.id, table.id)
+        .create_or_get(remote_partition.key.clone().into(), shard.id, table.id)
         .await?;
 
     Ok(PartitionMapping {
-        sequencer_id: sequencer.id,
+        shard_id: shard.id,
         table_id: table.id,
         partition_id: partition.id,
         remote_partition_id: remote_partition.id,
@@ -350,7 +350,7 @@ async fn load_parquet_files(
             None => {
                 println!("creating file {} in catalog", uuid);
                 let params = ParquetFileParams {
-                    sequencer_id: partition_mapping.sequencer_id,
+                    shard_id: partition_mapping.shard_id,
                     namespace_id,
                     table_id: partition_mapping.table_id,
                     partition_id: partition_mapping.partition_id,
@@ -378,9 +378,9 @@ async fn load_parquet_files(
     Ok(files)
 }
 
-// keeps a mapping of the locally created partition and sequence to the remote partition id
+// keeps a mapping of the locally created partition and shard to the remote partition id
 struct PartitionMapping {
-    sequencer_id: SequencerId,
+    shard_id: ShardId,
     table_id: TableId,
     partition_id: PartitionId,
     remote_partition_id: i64,
@@ -514,7 +514,7 @@ mod tests {
     async fn load_parquet_files() {
         let metrics = Arc::new(metric::Registry::new());
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
-        let sequencer;
+        let shard;
         let namespace;
         let table;
         let partition;
@@ -527,8 +527,8 @@ mod tests {
                 .await
                 .unwrap();
             let query_pool = repos.query_pools().create_or_get(QUERY_POOL).await.unwrap();
-            sequencer = repos
-                .sequencers()
+            shard = repos
+                .shards()
                 .create_or_get(&kafka_topic, KafkaPartition::new(KAFKA_PARTITION))
                 .await
                 .unwrap();
@@ -544,13 +544,13 @@ mod tests {
                 .unwrap();
             partition = repos
                 .partitions()
-                .create_or_get("1970-01-01".into(), sequencer.id, table.id)
+                .create_or_get("1970-01-01".into(), shard.id, table.id)
                 .await
                 .unwrap();
         }
 
         let partition_mapping = PartitionMapping {
-            sequencer_id: sequencer.id,
+            shard_id: shard.id,
             table_id: table.id,
             partition_id: partition.id,
             remote_partition_id: 4,
@@ -589,12 +589,12 @@ mod tests {
         .await
         .unwrap();
 
-        // the inserted parquet file should have sequencer, namespace, table, and partition ids
+        // the inserted parquet file should have shard, namespace, table, and partition ids
         // that match with the ones in the catalog, not the remote. The other values should
         // match those of the remote.
         let expected = vec![CatalogParquetFile {
             id: ParquetFileId::new(1),
-            sequencer_id: sequencer.id,
+            shard_id: shard.id,
             namespace_id: namespace.id,
             table_id: table.id,
             partition_id: partition.id,

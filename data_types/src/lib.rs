@@ -153,17 +153,13 @@ impl PgHasArrayType for ColumnId {
     }
 }
 
-/// Unique ID for a `Sequencer`. Note this is NOT the same as the
-/// "sequencer_id" in the `write_buffer` which currently means
-/// "kafka partition".
-///
-/// <https://github.com/influxdata/influxdb_iox/issues/4237>
+/// Unique ID for a `Shard`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
 #[sqlx(transparent)]
-pub struct SequencerId(i64);
+pub struct ShardId(i64);
 
 #[allow(missing_docs)]
-impl SequencerId {
+impl ShardId {
     pub fn new(v: i64) -> Self {
         Self(v)
     }
@@ -172,7 +168,7 @@ impl SequencerId {
     }
 }
 
-impl std::fmt::Display for SequencerId {
+impl std::fmt::Display for ShardId {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{}", self.0)
     }
@@ -199,16 +195,16 @@ impl std::fmt::Display for KafkaPartition {
     }
 }
 
-/// Potential configurations of ingester connections for the querier to associate with a sequencer.
+/// Potential configurations of ingester connections for the querier to associate with a shard.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IngesterMapping {
-    /// Deliberately not mapping this sequencer to an ingester. If the querier gets a query for
-    /// this sequencer, it should return an error.
+    /// Deliberately not mapping this shard to an ingester. If the querier gets a query for
+    /// this shard, it should return an error.
     NotMapped,
-    /// Deliberately not contacting ingesters for this sequencer. If the querier gets a query for
-    /// this sequencer, it should only return persisted data.
+    /// Deliberately not contacting ingesters for this shard. If the querier gets a query for
+    /// this shard, it should only return persisted data.
     Ignore,
-    /// The address of the ingester to contact for this sequencer.
+    /// The address of the ingester to contact for this shard.
     Addr(Arc<str>),
 }
 
@@ -233,12 +229,12 @@ impl std::fmt::Display for PartitionId {
     }
 }
 
-/// Combination of Sequencer ID, Table ID, and Partition ID useful for identifying groups of
+/// Combination of Shard ID, Table ID, and Partition ID useful for identifying groups of
 /// Parquet files to be compacted together.
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord)]
 pub struct TablePartition {
-    /// The sequencer ID
-    pub sequencer_id: SequencerId,
+    /// The shard ID
+    pub shard_id: ShardId,
     /// The table ID
     pub table_id: TableId,
     /// The partition ID
@@ -247,9 +243,9 @@ pub struct TablePartition {
 
 impl TablePartition {
     /// Combine the relevant parts
-    pub fn new(sequencer_id: SequencerId, table_id: TableId, partition_id: PartitionId) -> Self {
+    pub fn new(shard_id: ShardId, table_id: TableId, partition_id: PartitionId) -> Self {
         Self {
-            sequencer_id,
+            shard_id,
             table_id,
             partition_id,
         }
@@ -277,7 +273,7 @@ impl std::fmt::Display for TombstoneId {
     }
 }
 
-/// A sequence number from a `Sequencer` (kafka partition)
+/// A sequence number from a `router::Sequencer` (kafka partition)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
 #[sqlx(transparent)]
 pub struct SequenceNumber(i64);
@@ -710,15 +706,15 @@ pub fn column_type_from_field(field_value: &FieldValue) -> ColumnType {
     }
 }
 
-/// Data object for a sequencer. Only one sequencer record can exist for a given
+/// Data object for a shard. Only one shard record can exist for a given
 /// kafka topic and partition (enforced via uniqueness constraint).
 #[derive(Debug, Copy, Clone, PartialEq, Eq, sqlx::FromRow)]
-pub struct Sequencer {
-    /// the id of the sequencer
-    pub id: SequencerId,
-    /// the topic the sequencer is reading from
+pub struct Shard {
+    /// the id of the shard
+    pub id: ShardId,
+    /// the topic the shard is reading from
     pub kafka_topic_id: KafkaTopicId,
-    /// the kafka partition the sequencer is reading from
+    /// the kafka partition the shard is reading from
     pub kafka_partition: KafkaPartition,
     /// The minimum unpersisted sequence number. Because different tables
     /// can be persisted at different times, it is possible some data has been persisted
@@ -784,14 +780,15 @@ impl sqlx::Decode<'_, sqlx::Postgres> for PartitionKey {
     }
 }
 
-/// Data object for a partition. The combination of sequencer, table and key are unique (i.e. only
+/// Data object for a partition. The combination of shard, table and key are unique (i.e. only
 /// one record can exist for each combo)
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct Partition {
     /// the id of the partition
     pub id: PartitionId,
-    /// the sequencer the data in the partition arrived from
-    pub sequencer_id: SequencerId,
+    /// the shard the data in the partition arrived from
+    #[sqlx(rename = "sequencer_id")]
+    pub shard_id: ShardId,
     /// the table the partition is under
     pub table_id: TableId,
     /// the string key of the partition
@@ -849,8 +846,9 @@ pub struct PartitionInfo {
 pub struct PartitionParam {
     /// the partition
     pub partition_id: PartitionId,
-    /// the partition's sequencer
-    pub sequencer_id: SequencerId,
+    /// the partition's shard
+    #[sqlx(rename = "sequencer_id")]
+    pub shard_id: ShardId,
     /// the partition's namespace
     pub namespace_id: NamespaceId,
     /// the partition's table
@@ -864,9 +862,10 @@ pub struct Tombstone {
     pub id: TombstoneId,
     /// the table the tombstone is associated with
     pub table_id: TableId,
-    /// the sequencer the tombstone was sent through
-    pub sequencer_id: SequencerId,
-    /// the sequence nubmer assigned to the tombstone from the sequencer
+    /// the shard the tombstone was sent through
+    #[sqlx(rename = "sequencer_id")]
+    pub shard_id: ShardId,
+    /// the sequence number assigned to the tombstone from the `router::Sequencer`
     pub sequence_number: SequenceNumber,
     /// the min time (inclusive) that the delete applies to
     pub min_time: Timestamp,
@@ -937,8 +936,9 @@ impl Deref for ColumnSet {
 pub struct ParquetFile {
     /// the id of the file in the catalog
     pub id: ParquetFileId,
-    /// the sequencer that sequenced writes that went into this file
-    pub sequencer_id: SequencerId,
+    /// the shard that sequenced writes that went into this file
+    #[sqlx(rename = "sequencer_id")]
+    pub shard_id: ShardId,
     /// the namespace
     pub namespace_id: NamespaceId,
     /// the table
@@ -1003,8 +1003,8 @@ impl ParquetFile {
 /// Data for a parquet file to be inserted into the catalog.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParquetFileParams {
-    /// the sequencer that sequenced writes that went into this file
-    pub sequencer_id: SequencerId,
+    /// the shard that sequenced writes that went into this file
+    pub shard_id: ShardId,
     /// the namespace
     pub namespace_id: NamespaceId,
     /// the table

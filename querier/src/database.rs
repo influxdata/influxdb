@@ -213,22 +213,22 @@ pub async fn create_sharder(
     catalog: &dyn Catalog,
     backoff_config: BackoffConfig,
 ) -> Result<JumpHash<Arc<KafkaPartition>>, Error> {
-    let sequencers = Backoff::new(&backoff_config)
-        .retry_all_errors("get sequencers", || async {
-            catalog.repositories().await.sequencers().list().await
+    let shards = Backoff::new(&backoff_config)
+        .retry_all_errors("get shards", || async {
+            catalog.repositories().await.shards().list().await
         })
         .await
         .expect("retry forever");
 
-    // Construct the (ordered) set of sequencers.
+    // Construct the (ordered) set of shards.
     //
-    // The sort order must be deterministic in order for all nodes to shard to
-    // the same sequencers, therefore we type assert the returned set is of the
+    // The sort order must be deterministic in order for all nodes to shard to // XXXJPG
+    // the same shards, therefore we type assert the returned set is of the
     // ordered variety.
-    let shards: BTreeSet<_> = sequencers
+    let shards: BTreeSet<_> = shards
         //          ^ don't change this to an unordered set
         .into_iter()
-        .map(|sequencer| sequencer.kafka_partition)
+        .map(|shard| shard.kafka_partition)
         .collect();
 
     if shards.is_empty() {
@@ -273,7 +273,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn sequencers_in_catalog_are_required_for_startup() {
+    async fn shards_in_catalog_are_required_for_startup() {
         let catalog = TestCatalog::new();
 
         let catalog_cache = Arc::new(CatalogCache::new_testing(
@@ -301,8 +301,8 @@ mod tests {
     #[tokio::test]
     async fn test_namespace() {
         let catalog = TestCatalog::new();
-        // QuerierDatabase::new returns an error if there are no sequencers in the catalog
-        catalog.create_sequencer(0).await;
+        // QuerierDatabase::new returns an error if there are no shards in the catalog
+        catalog.create_shard(0).await;
 
         let catalog_cache = Arc::new(CatalogCache::new_testing(
             catalog.catalog(),
@@ -331,8 +331,8 @@ mod tests {
     #[tokio::test]
     async fn test_namespaces() {
         let catalog = TestCatalog::new();
-        // QuerierDatabase::new returns an error if there are no sequencers in the catalog
-        catalog.create_sequencer(0).await;
+        // QuerierDatabase::new returns an error if there are no shards in the catalog
+        catalog.create_shard(0).await;
 
         let catalog_cache = Arc::new(CatalogCache::new_testing(
             catalog.catalog(),

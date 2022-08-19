@@ -327,7 +327,7 @@ mod tests {
     use super::*;
     use data_types::{
         ColumnSet, CompactionLevel, NamespaceId, ParquetFileId, PartitionId, SequenceNumber,
-        SequencerId, TableId, Timestamp,
+        ShardId, TableId, Timestamp,
     };
     use metric::{ObservationBucket, U64HistogramOptions};
     use std::sync::Arc;
@@ -1324,7 +1324,7 @@ mod tests {
 
             ParquetFile {
                 id: ParquetFileId::new(id),
-                sequencer_id: SequencerId::new(2),
+                shard_id: ShardId::new(2),
                 namespace_id: NamespaceId::new(3),
                 table_id: TableId::new(4),
                 partition_id: PartitionId::new(5),

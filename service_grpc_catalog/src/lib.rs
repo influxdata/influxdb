@@ -84,7 +84,7 @@ impl catalog_service_server::CatalogService for CatalogService {
 fn to_parquet_file(p: data_types::ParquetFile) -> ParquetFile {
     ParquetFile {
         id: p.id.get(),
-        sequencer_id: p.sequencer_id.get(),
+        sequencer_id: p.shard_id.get(), // XXXJPG
         namespace_id: p.namespace_id.get(),
         table_id: p.table_id.get(),
         partition_id: p.partition_id.get(),
@@ -105,7 +105,7 @@ fn to_parquet_file(p: data_types::ParquetFile) -> ParquetFile {
 fn to_partition(p: data_types::Partition) -> Partition {
     Partition {
         id: p.id.get(),
-        sequencer_id: p.sequencer_id.get(),
+        sequencer_id: p.shard_id.get(),
         key: p.partition_key.to_string(),
         table_id: p.table_id.get(),
         array_sort_key: p.sort_key,
@@ -143,8 +143,8 @@ mod tests {
                 .create_or_get("iox_shared")
                 .await
                 .unwrap();
-            let sequencer = repos
-                .sequencers()
+            let shard = repos
+                .shards()
                 .create_or_get(&kafka, KafkaPartition::new(1))
                 .await
                 .unwrap();
@@ -160,11 +160,11 @@ mod tests {
                 .unwrap();
             let partition = repos
                 .partitions()
-                .create_or_get("foo".into(), sequencer.id, table.id)
+                .create_or_get("foo".into(), shard.id, table.id)
                 .await
                 .unwrap();
             let p1params = ParquetFileParams {
-                sequencer_id: sequencer.id,
+                shard_id: shard.id,
                 namespace_id: namespace.id,
                 table_id: table.id,
                 partition_id: partition.id,
@@ -224,8 +224,8 @@ mod tests {
                 .create_or_get("iox_shared")
                 .await
                 .unwrap();
-            let sequencer = repos
-                .sequencers()
+            let shard = repos
+                .shards()
                 .create_or_get(&kafka, KafkaPartition::new(1))
                 .await
                 .unwrap();
@@ -241,22 +241,22 @@ mod tests {
                 .unwrap();
             partition1 = repos
                 .partitions()
-                .create_or_get("foo".into(), sequencer.id, table.id)
+                .create_or_get("foo".into(), shard.id, table.id)
                 .await
                 .unwrap();
             partition2 = repos
                 .partitions()
-                .create_or_get("bar".into(), sequencer.id, table.id)
+                .create_or_get("bar".into(), shard.id, table.id)
                 .await
                 .unwrap();
-            let sequencer2 = repos
-                .sequencers()
+            let shard2 = repos
+                .shards()
                 .create_or_get(&kafka, KafkaPartition::new(2))
                 .await
                 .unwrap();
             partition3 = repos
                 .partitions()
-                .create_or_get("foo".into(), sequencer2.id, table.id)
+                .create_or_get("foo".into(), shard2.id, table.id)
                 .await
                 .unwrap();
 

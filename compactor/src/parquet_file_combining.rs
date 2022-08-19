@@ -260,7 +260,7 @@ pub(crate) async fn compact_parquet_files(
                 let meta = IoxMetadata {
                     object_store_id: Uuid::new_v4(),
                     creation_timestamp: time_provider.now(),
-                    sequencer_id: partition.sequencer_id(),
+                    shard_id: partition.shard_id(),
                     namespace_id: partition.namespace_id(),
                     namespace_name: partition.namespace.name.clone().into(),
                     table_id: partition.table.id,
@@ -320,8 +320,8 @@ pub(crate) async fn compact_parquet_files(
     info!(?partition_id, "compaction complete");
 
     let attributes = Attributes::from([(
-        "sequencer_id",
-        format!("{}", partition.sequencer_id()).into(),
+        "shard_id",
+        format!("{}", partition.shard_id()).into(),
     )]);
     let compaction_input_file_bytes = compaction_input_file_bytes.recorder(attributes);
     for size in file_sizes {
@@ -360,7 +360,7 @@ fn to_queryable_parquet_chunk(
 
     trace!(
         parquet_file_id=?file.id,
-        parquet_file_sequencer_id=?file.sequencer_id,
+        parquet_file_shard_id=?file.shard_id,
         parquet_file_namespace_id=?file.namespace_id,
         parquet_file_table_id=?file.table_id,
         parquet_file_partition_id=?file.partition_id,
@@ -466,7 +466,7 @@ mod tests {
     use super::*;
     use arrow::record_batch::RecordBatch;
     use arrow_util::assert_batches_sorted_eq;
-    use data_types::{ColumnType, PartitionParam, SequencerId};
+    use data_types::{ColumnType, PartitionParam, ShardId};
     use iox_tests::util::{TestCatalog, TestParquetFileBuilder, TestTable};
     use metric::U64HistogramOptions;
     use parquet_file::ParquetFilePath;
@@ -527,7 +527,7 @@ mod tests {
             namespace: Arc::new(ns.namespace.clone()),
             candidate: PartitionParam {
                 partition_id: partition.partition.id,
-                sequencer_id: partition.partition.sequencer_id,
+                shard_id: partition.partition.shard_id,
                 namespace_id: ns.namespace.id,
                 table_id: partition.partition.table_id,
             },
@@ -649,7 +649,7 @@ mod tests {
             ..
         } = test_setup().await;
         let compaction_input_file_bytes = metrics();
-        let sequencer_id = candidate_partition.sequencer_id();
+        let shard_id = candidate_partition.shard_id();
 
         let files = vec![];
         let result = compact_parquet_files(
@@ -669,7 +669,7 @@ mod tests {
 
         // No metrics recorded because the compaction didn't succeed
         assert_eq!(
-            extract_byte_metrics(&compaction_input_file_bytes, sequencer_id),
+            extract_byte_metrics(&compaction_input_file_bytes, shard_id),
             ExtractedByteMetrics {
                 sample_count: 0,
                 buckets_with_counts: vec![],
@@ -689,7 +689,7 @@ mod tests {
         } = test_setup().await;
         let table_id = candidate_partition.table_id();
         let compaction_input_file_bytes = metrics();
-        let sequencer_id = candidate_partition.sequencer_id();
+        let shard_id = candidate_partition.shard_id();
 
         let parquet_file = parquet_files.remove(0);
         compact_parquet_files(
@@ -732,7 +732,7 @@ mod tests {
 
         // Verify the metrics
         assert_eq!(
-            extract_byte_metrics(&compaction_input_file_bytes, sequencer_id),
+            extract_byte_metrics(&compaction_input_file_bytes, shard_id),
             ExtractedByteMetrics {
                 sample_count: 1,
                 buckets_with_counts: vec![(BUCKET_500_KB, 1)],
@@ -751,7 +751,7 @@ mod tests {
             parquet_files,
         } = test_setup().await;
         let compaction_input_file_bytes = metrics();
-        let sequencer_id = candidate_partition.sequencer_id();
+        let shard_id = candidate_partition.shard_id();
 
         compact_parquet_files(
             parquet_files.into_iter().take(4).collect(),
@@ -792,7 +792,7 @@ mod tests {
 
         // Verify the metrics
         assert_eq!(
-            extract_byte_metrics(&compaction_input_file_bytes, sequencer_id),
+            extract_byte_metrics(&compaction_input_file_bytes, shard_id),
             ExtractedByteMetrics {
                 sample_count: 4,
                 buckets_with_counts: vec![(BUCKET_500_KB, 4)],
@@ -835,7 +835,7 @@ mod tests {
             parquet_files,
         } = test_setup().await;
         let compaction_input_file_bytes = metrics();
-        let sequencer_id = candidate_partition.sequencer_id();
+        let shard_id = candidate_partition.shard_id();
 
         compact_parquet_files(
             parquet_files.into_iter().take(5).collect(),
@@ -875,7 +875,7 @@ mod tests {
 
         // Verify the metrics
         assert_eq!(
-            extract_byte_metrics(&compaction_input_file_bytes, sequencer_id),
+            extract_byte_metrics(&compaction_input_file_bytes, shard_id),
             ExtractedByteMetrics {
                 sample_count: 5,
                 buckets_with_counts: vec![(BUCKET_500_KB, 4), (u64::MAX, 1)],
@@ -931,7 +931,7 @@ mod tests {
             parquet_files,
         } = test_setup().await;
         let compaction_input_file_bytes = metrics();
-        let sequencer_id = candidate_partition.sequencer_id();
+        let shard_id = candidate_partition.shard_id();
 
         let files_to_compact: Vec<_> = parquet_files.into_iter().take(5).collect();
 
@@ -977,7 +977,7 @@ mod tests {
 
         // Verify the metrics
         assert_eq!(
-            extract_byte_metrics(&compaction_input_file_bytes, sequencer_id),
+            extract_byte_metrics(&compaction_input_file_bytes, shard_id),
             ExtractedByteMetrics {
                 sample_count: 5,
                 buckets_with_counts: vec![(BUCKET_500_KB, 4), (u64::MAX, 1)],
@@ -1020,7 +1020,7 @@ mod tests {
             parquet_files,
         } = test_setup().await;
         let compaction_input_file_bytes = metrics();
-        let sequencer_id = candidate_partition.sequencer_id();
+        let shard_id = candidate_partition.shard_id();
 
         compact_parquet_files(
             parquet_files,
@@ -1058,7 +1058,7 @@ mod tests {
 
         // Verify the metrics
         assert_eq!(
-            extract_byte_metrics(&compaction_input_file_bytes, sequencer_id),
+            extract_byte_metrics(&compaction_input_file_bytes, shard_id),
             ExtractedByteMetrics {
                 sample_count: 6,
                 buckets_with_counts: vec![(BUCKET_500_KB, 4), (u64::MAX, 2)],
@@ -1147,9 +1147,9 @@ mod tests {
 
     fn extract_byte_metrics(
         metric: &Metric<U64Histogram>,
-        sequencer_id: SequencerId,
+        shard_id: ShardId,
     ) -> ExtractedByteMetrics {
-        let attributes = Attributes::from([("sequencer_id", format!("{}", sequencer_id).into())]);
+        let attributes = Attributes::from([("shard_id", format!("{}", shard_id).into())]);
 
         let (sample_count, buckets_with_counts) =
             if let Some(observer) = metric.get_observer(&attributes) {

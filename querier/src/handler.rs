@@ -173,7 +173,7 @@ mod tests {
                 Arc::clone(&metric_registry),
                 &Handle::current(),
             ));
-            // QuerierDatabase::new returns an error if there are no sequencers in the catalog
+            // QuerierDatabase::new returns an error if there are no shards in the catalog
             {
                 let mut repos = catalog.repositories().await;
 
@@ -184,7 +184,7 @@ mod tests {
                     .unwrap();
                 let kafka_partition = KafkaPartition::new(0);
                 repos
-                    .sequencers()
+                    .shards()
                     .create_or_get(&kafka_topic, kafka_partition)
                     .await
                     .unwrap();

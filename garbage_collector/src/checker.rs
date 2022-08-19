@@ -116,7 +116,7 @@ mod tests {
     use chrono::TimeZone;
     use data_types::{
         ColumnId, ColumnSet, CompactionLevel, KafkaPartition, NamespaceId, ParquetFile,
-        ParquetFileParams, PartitionId, SequenceNumber, SequencerId, TableId, Timestamp,
+        ParquetFileParams, PartitionId, SequenceNumber, ShardId, TableId, Timestamp,
     };
     use iox_catalog::{interface::Catalog, mem::MemCatalog};
     use object_store::path::Path;
@@ -145,19 +145,19 @@ mod tests {
             .create_or_get("test_table", namespace.id)
             .await
             .unwrap();
-        let sequencer = repos
-            .sequencers()
+        let shard = repos
+            .shards()
             .create_or_get(&kafka, KafkaPartition::new(1))
             .await
             .unwrap();
         let partition = repos
             .partitions()
-            .create_or_get("one".into(), sequencer.id, table.id)
+            .create_or_get("one".into(), shard.id, table.id)
             .await
             .unwrap();
 
         let parquet_file_params = ParquetFileParams {
-            sequencer_id: sequencer.id,
+            shard_id: shard.id,
             namespace_id: namespace.id,
             table_id: partition.table_id,
             partition_id: partition.id,
@@ -190,7 +190,7 @@ mod tests {
         let location = ParquetFilePath::new(
             file_in_catalog.namespace_id,
             file_in_catalog.table_id,
-            file_in_catalog.sequencer_id,
+            file_in_catalog.shard_id,
             file_in_catalog.partition_id,
             file_in_catalog.object_store_id,
         )
@@ -218,7 +218,7 @@ mod tests {
         let location = ParquetFilePath::new(
             NamespaceId::new(1),
             TableId::new(2),
-            SequencerId::new(3),
+            ShardId::new(3),
             PartitionId::new(4),
             Uuid::new_v4(),
         )
@@ -264,7 +264,7 @@ mod tests {
         let location = ParquetFilePath::new(
             file_in_catalog.namespace_id,
             file_in_catalog.table_id,
-            file_in_catalog.sequencer_id,
+            file_in_catalog.shard_id,
             file_in_catalog.partition_id,
             file_in_catalog.object_store_id,
         )
@@ -292,7 +292,7 @@ mod tests {
         let location = ParquetFilePath::new(
             NamespaceId::new(1),
             TableId::new(2),
-            SequencerId::new(3),
+            ShardId::new(3),
             PartitionId::new(4),
             Uuid::new_v4(),
         )
