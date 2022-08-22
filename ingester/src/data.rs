@@ -2049,8 +2049,24 @@ mod tests {
         assert_eq!(pf.sequencer_id, sequencer1.id);
         assert!(pf.to_delete.is_none());
 
-        // This value should be recorded in the metrics asserted next; it is less than 500 KB
-        assert_eq!(pf.file_size_bytes, 1252);
+        // This value should be recorded in the metrics asserted next;
+        // it is less than 500 KB
+        //
+        // note that since the file has metadata with timestamps
+        // embedded in it, and those timestamps may compress slightly
+        // different, the file may change slightly from time to time
+        //
+        // https://github.com/influxdata/influxdb_iox/issues/5434
+        let expected_size = 1252;
+        let allowable_delta = 10;
+        let size_delta = (pf.file_size_bytes - expected_size).abs();
+        assert!(
+            size_delta < allowable_delta,
+            "Unexpected parquet file size. Expected {} +/- {} bytes, got {}",
+            expected_size,
+            allowable_delta,
+            pf.file_size_bytes
+        );
 
         // verify metrics
         let persisted_file_size_bytes: Metric<U64Histogram> = metrics

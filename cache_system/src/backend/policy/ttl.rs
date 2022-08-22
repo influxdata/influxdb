@@ -217,17 +217,93 @@ where
     }
 }
 
+pub mod test_util {
+    //! Test utils for TTL policy.
+    use std::collections::HashMap;
+
+    use parking_lot::Mutex;
+
+    use super::*;
+
+    /// [`TtlProvider`] for testing.
+    #[derive(Debug, Default)]
+    pub struct TestTtlProvider {
+        expires_in: Mutex<HashMap<(u8, String), Option<Duration>>>,
+    }
+
+    impl TestTtlProvider {
+        /// Create new, empty provider.
+        pub fn new() -> Self {
+            Self::default()
+        }
+
+        /// Set TTL time for given key-value pair.
+        pub fn set_expires_in(&self, k: u8, v: String, d: Option<Duration>) {
+            self.expires_in.lock().insert((k, v), d);
+        }
+    }
+
+    impl TtlProvider for TestTtlProvider {
+        type K = u8;
+        type V = String;
+
+        fn expires_in(&self, k: &Self::K, v: &Self::V) -> Option<Duration> {
+            *self
+                .expires_in
+                .lock()
+                .get(&(*k, v.clone()))
+                .expect("expires_in value not mocked")
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        #[should_panic(expected = "expires_in value not mocked")]
+        fn test_panic_value_not_mocked() {
+            TestTtlProvider::new().expires_in(&1, &String::from("foo"));
+        }
+
+        #[test]
+        fn test_mocking() {
+            let provider = TestTtlProvider::default();
+
+            provider.set_expires_in(1, String::from("a"), None);
+            provider.set_expires_in(1, String::from("b"), Some(Duration::from_secs(1)));
+            provider.set_expires_in(2, String::from("a"), Some(Duration::from_secs(2)));
+
+            assert_eq!(provider.expires_in(&1, &String::from("a")), None,);
+            assert_eq!(
+                provider.expires_in(&1, &String::from("b")),
+                Some(Duration::from_secs(1)),
+            );
+            assert_eq!(
+                provider.expires_in(&2, &String::from("a")),
+                Some(Duration::from_secs(2)),
+            );
+
+            // replace
+            provider.set_expires_in(1, String::from("a"), Some(Duration::from_secs(3)));
+            assert_eq!(
+                provider.expires_in(&1, &String::from("a")),
+                Some(Duration::from_secs(3)),
+            );
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::{collections::HashMap, time::Duration};
 
     use iox_time::MockProvider;
     use metric::{Observation, RawReporter};
-    use parking_lot::Mutex;
 
     use crate::backend::{policy::PolicyBackend, CacheBackend};
 
-    use super::*;
+    use super::{test_util::TestTtlProvider, *};
 
     #[test]
     fn test_never_ttl_provider() {
@@ -380,6 +456,26 @@ mod tests {
 
         time_provider.inc(Duration::from_secs(2));
         assert_eq!(backend.get(&1), Some(String::from("a")));
+    }
+
+    #[test]
+    fn test_override_with_some_expiration() {
+        let TestState {
+            mut backend,
+            ttl_provider,
+            time_provider,
+            ..
+        } = TestState::new();
+
+        ttl_provider.set_expires_in(1, String::from("a"), None);
+        backend.set(1, String::from("a"));
+        assert_eq!(backend.get(&1), Some(String::from("a")));
+
+        ttl_provider.set_expires_in(1, String::from("a"), Some(Duration::from_secs(1)));
+        backend.set(1, String::from("a"));
+
+        time_provider.inc(Duration::from_secs(2));
+        assert_eq!(backend.get(&1), None);
     }
 
     #[test]
@@ -563,36 +659,6 @@ mod tests {
             ));
             backend
         });
-    }
-
-    #[derive(Debug)]
-    struct TestTtlProvider {
-        expires_in: Mutex<HashMap<(u8, String), Option<Duration>>>,
-    }
-
-    impl TestTtlProvider {
-        fn new() -> Self {
-            Self {
-                expires_in: Mutex::new(HashMap::new()),
-            }
-        }
-
-        fn set_expires_in(&self, k: u8, v: String, d: Option<Duration>) {
-            self.expires_in.lock().insert((k, v), d);
-        }
-    }
-
-    impl TtlProvider for TestTtlProvider {
-        type K = u8;
-        type V = String;
-
-        fn expires_in(&self, k: &Self::K, v: &Self::V) -> Option<Duration> {
-            *self
-                .expires_in
-                .lock()
-                .get(&(*k, v.clone()))
-                .expect("expires_in value not mocked")
-        }
     }
 
     struct TestState {

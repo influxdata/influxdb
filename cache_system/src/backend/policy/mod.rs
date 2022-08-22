@@ -15,8 +15,12 @@ use parking_lot::{lock_api::ArcMutexGuard, Mutex, RawMutex, ReentrantMutex};
 use super::CacheBackend;
 
 pub mod lru;
+pub mod refresh;
 pub mod remove_if;
 pub mod ttl;
+
+#[cfg(test)]
+mod integration_tests;
 
 /// Convenience macro to easily follow the borrow/lock chain of [`StrongSharedInner`].
 ///
