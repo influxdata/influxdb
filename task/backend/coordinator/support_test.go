@@ -2,7 +2,6 @@ package coordinator
 
 import (
 	"context"
-
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/task/backend/executor"
 	"github.com/influxdata/influxdb/v2/task/backend/scheduler"
@@ -17,8 +16,9 @@ type (
 	}
 
 	manualRunCall struct {
-		TaskID platform.ID
-		RunID  platform.ID
+		TaskID       platform.ID
+		RunID        platform.ID
+		WasScheduled bool
 	}
 
 	cancelCallC struct {
@@ -96,7 +96,7 @@ func (s *schedulerC) Release(taskID scheduler.ID) error {
 }
 
 func (e *executorE) ManualRun(ctx context.Context, id platform.ID, runID platform.ID) (executor.Promise, error) {
-	e.calls = append(e.calls, manualRunCall{id, runID})
+	e.calls = append(e.calls, manualRunCall{id, runID, false})
 	ctx, cancel := context.WithCancel(ctx)
 	p := promise{
 		done:       make(chan struct{}),
@@ -110,6 +110,7 @@ func (e *executorE) ManualRun(ctx context.Context, id platform.ID, runID platfor
 }
 
 func (e *executorE) ScheduleManualRun(ctx context.Context, id platform.ID, runID platform.ID) error {
+	e.calls = append(e.calls, manualRunCall{id, runID, true})
 	return nil
 }
 
