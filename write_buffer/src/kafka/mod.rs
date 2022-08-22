@@ -110,6 +110,14 @@ impl WriteBufferWriting for RSKafkaProducer {
         sequencer_id: u32,
         operation: DmlOperation,
     ) -> Result<DmlMeta, WriteBufferError> {
+        // Sanity check to ensure only partitioned writes are pushed into Kafka.
+        if let DmlOperation::Write(w) = &operation {
+            assert!(
+                w.partition_key().is_some(),
+                "enqueuing unpartitioned write into kafka"
+            )
+        }
+
         let producer = self
             .producers
             .get(&sequencer_id)

@@ -1249,7 +1249,7 @@ pub mod test_utils {
         let context = adapter.new_context(NonZeroU32::try_from(1).unwrap()).await;
 
         let tables = mutable_batch_lp::lines_to_batches("upc user=1 100", 0).unwrap();
-        let write = DmlWrite::new("foo", tables, None, Default::default());
+        let write = DmlWrite::new("foo", tables, Some("bananas".into()), Default::default());
         let operation = DmlOperation::Write(write);
 
         let writer = context.writing(true).await.unwrap();
