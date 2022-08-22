@@ -4,11 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	errors2 "github.com/influxdata/influxdb/v2/pkg/errors"
 	"io"
 	"os"
 	"path/filepath"
 	"sync"
+
+	errors2 "github.com/influxdata/influxdb/v2/pkg/errors"
 
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/pkg/fs"
