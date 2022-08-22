@@ -613,6 +613,7 @@ dependencies = [
  "proptest",
  "rand 0.8.4",
  "tokio",
+ "tokio-util",
  "trace",
  "workspace-hack",
 ]
