@@ -18,7 +18,7 @@ use futures::{
     stream::{self, BoxStream},
     StreamExt, TryStreamExt,
 };
-use iox_time::Time;
+use iox_time::{Time, TimeProvider};
 use observability_deps::tracing::warn;
 use parking_lot::Mutex;
 use rskafka::{
@@ -59,6 +59,7 @@ impl RSKafkaProducer {
         conn: String,
         topic_name: String,
         connection_config: &'a BTreeMap<String, String>,
+        time_provider: Arc<dyn TimeProvider>,
         creation_config: Option<&'a WriteBufferCreationConfig>,
         _trace_collector: Option<Arc<dyn TraceCollector>>,
         metric_registry: &'a metric::Registry,
@@ -87,6 +88,7 @@ impl RSKafkaProducer {
                 let producer = producer_builder.build(RecordAggregator::new(
                     sequencer_id,
                     producer_config.max_batch_size,
+                    Arc::clone(&time_provider),
                 ));
 
                 (sequencer_id, producer)
@@ -517,12 +519,13 @@ mod tests {
         async fn new_context_with_time(
             &self,
             n_sequencers: NonZeroU32,
-            _time_provider: Arc<dyn TimeProvider>,
+            time_provider: Arc<dyn TimeProvider>,
         ) -> Self::Context {
             RSKafkaTestContext {
                 conn: self.conn.clone(),
                 topic_name: random_topic_name(),
                 n_sequencers,
+                time_provider,
                 trace_collector: Arc::new(RingBufferTraceCollector::new(100)),
                 metrics: metric::Registry::default(),
             }
@@ -533,6 +536,7 @@ mod tests {
         conn: String,
         topic_name: String,
         n_sequencers: NonZeroU32,
+        time_provider: Arc<dyn TimeProvider>,
         trace_collector: Arc<RingBufferTraceCollector>,
         metrics: metric::Registry,
     }
@@ -561,6 +565,7 @@ mod tests {
                 self.conn.clone(),
                 self.topic_name.clone(),
                 &BTreeMap::default(),
+                Arc::clone(&self.time_provider),
                 self.creation_config(creation_config).as_ref(),
                 Some(self.trace_collector() as Arc<_>),
                 &self.metrics,

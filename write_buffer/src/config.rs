@@ -171,6 +171,7 @@ impl WriteBufferConfigFactory {
                     cfg.connection.clone(),
                     db_name.to_owned(),
                     &cfg.connection_config,
+                    Arc::clone(&self.time_provider),
                     cfg.creation_config.as_ref(),
                     trace_collector.map(Arc::clone),
                     &*self.metric_registry,

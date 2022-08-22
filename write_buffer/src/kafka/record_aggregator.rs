@@ -1,6 +1,8 @@
+use std::sync::Arc;
+
 use data_types::{Sequence, SequenceNumber};
 use dml::{DmlMeta, DmlOperation};
-use iox_time::{SystemProvider, Time, TimeProvider};
+use iox_time::{Time, TimeProvider};
 use rskafka::{
     client::producer::aggregator::{
         Aggregator, Error, RecordAggregator as RecordAggregatorDelegate,
@@ -40,8 +42,8 @@ pub struct Tag {
 ///
 /// [rskafka]: https://github.com/influxdata/rskafka
 #[derive(Debug)]
-pub struct RecordAggregator<P = SystemProvider> {
-    time_provider: P,
+pub struct RecordAggregator {
+    time_provider: Arc<dyn TimeProvider>,
 
     /// The Kafka partition number this aggregator batches ops for (from Kafka,
     /// not the catalog).
@@ -55,31 +57,23 @@ pub struct RecordAggregator<P = SystemProvider> {
 impl RecordAggregator {
     /// Initialise a new [`RecordAggregator`] to aggregate up to
     /// `max_batch_size` number of bytes per message.
-    pub fn new(sequencer_id: u32, max_batch_size: usize) -> Self {
+    pub fn new(
+        sequencer_id: u32,
+        max_batch_size: usize,
+        time_provider: Arc<dyn TimeProvider>,
+    ) -> Self {
         Self {
             sequencer_id,
             aggregator: RecordAggregatorDelegate::new(max_batch_size),
-            time_provider: Default::default(),
-        }
-    }
-
-    #[cfg(test)]
-    fn with_time_provider<T>(self, provider: T) -> RecordAggregator<T> {
-        RecordAggregator {
-            time_provider: provider,
-            sequencer_id: self.sequencer_id,
-            aggregator: self.aggregator,
+            time_provider,
         }
     }
 }
 
-impl<P> RecordAggregator<P>
-where
-    P: TimeProvider,
-{
+impl RecordAggregator {
     /// Serialise the [`DmlOperation`] destined for the specified `db_name` into a
-    /// [`Record`].
-    fn to_record(&self, op: &DmlOperation) -> Result<Record, Error> {
+    /// [`Record`], returning the producer timestamp assigned to it.
+    fn to_record(&self, op: &DmlOperation) -> Result<(Record, Time), Error> {
         let now = op
             .meta()
             .producer_ts()
@@ -107,14 +101,11 @@ where
             )?,
         };
 
-        Ok(record)
+        Ok((record, now))
     }
 }
 
-impl<P> Aggregator for RecordAggregator<P>
-where
-    P: TimeProvider,
-{
+impl Aggregator for RecordAggregator {
     type Input = DmlOperation;
     type Tag = <DmlMetaDeaggregator as StatusDeaggregator>::Tag;
     type StatusDeaggregator = DmlMetaDeaggregator;
@@ -123,19 +114,12 @@ where
     /// [`DmlMeta`] from the request response.
     fn try_push(&mut self, op: Self::Input) -> Result<TryPush<Self::Input, Self::Tag>, Error> {
         // Encode the DML op to a Record
-        let record = self.to_record(&op)?;
+        let (record, timestamp) = self.to_record(&op)?;
 
         // Capture various metadata necessary to construct the Tag/DmlMeta for
         // the caller once a batch has been flushed.
         let span_ctx = op.meta().span_context().cloned();
         let approx_kafka_write_size = record.approximate_size();
-        let timestamp = Time::from_timestamp_nanos(
-            record
-                .timestamp
-                .unix_timestamp_nanos()
-                .try_into()
-                .expect("timestamp out of range"),
-        );
 
         // And delegate batching to rskafka's RecordAggregator implementation
         Ok(match self.aggregator.try_push(record)? {
@@ -253,8 +237,10 @@ mod tests {
 
     #[test]
     fn test_record_aggregate() {
-        let clock = MockProvider::new(Time::from_timestamp_millis(TIMESTAMP_MILLIS));
-        let mut agg = RecordAggregator::new(SEQUENCER_ID, usize::MAX).with_time_provider(clock);
+        let clock = Arc::new(MockProvider::new(Time::from_timestamp_millis(
+            TIMESTAMP_MILLIS,
+        )));
+        let mut agg = RecordAggregator::new(SEQUENCER_ID, usize::MAX, clock);
         let write = test_op();
 
         let res = agg.try_push(write).expect("aggregate call should succeed");
@@ -315,8 +301,10 @@ mod tests {
 
     #[test]
     fn test_record_aggregate_no_capacity() {
-        let clock = MockProvider::new(Time::from_timestamp_millis(TIMESTAMP_MILLIS));
-        let mut agg = RecordAggregator::new(SEQUENCER_ID, usize::MIN).with_time_provider(clock);
+        let clock = Arc::new(MockProvider::new(Time::from_timestamp_millis(
+            TIMESTAMP_MILLIS,
+        )));
+        let mut agg = RecordAggregator::new(SEQUENCER_ID, usize::MIN, clock);
         let write = test_op();
 
         let res = agg
