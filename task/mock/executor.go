@@ -108,6 +108,10 @@ func (e *Executor) ManualRun(ctx context.Context, id platform.ID, runID platform
 	return p, err
 }
 
+func (e *Executor) ScheduleManualRun(ctx context.Context, id platform.ID, runID platform.ID) error {
+	return nil
+}
+
 func (e *Executor) Wait() {
 	e.wg.Wait()
 }

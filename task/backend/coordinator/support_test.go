@@ -109,6 +109,10 @@ func (e *executorE) ManualRun(ctx context.Context, id platform.ID, runID platfor
 	return &p, err
 }
 
+func (e *executorE) ScheduleManualRun(ctx context.Context, id platform.ID, runID platform.ID) error {
+	return nil
+}
+
 func (e *executorE) Cancel(ctx context.Context, runID platform.ID) error {
 	e.calls = append(e.calls, cancelCallC{runID})
 	return nil
