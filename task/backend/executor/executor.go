@@ -160,6 +160,8 @@ func NewExecutor(log *zap.Logger, qs query.QueryService, us PermissionService, t
 		e: e,
 	}
 
+	go e.processScheduledTasks()
+
 	e.workerPool = sync.Pool{New: wm.new}
 	return e, e.metrics
 }
