@@ -12,9 +12,6 @@ use trace::ctx::SpanContext;
 
 use crate::codec::{ContentType, IoxHeaders};
 
-/// The number of nanoseconds in a millisecond.
-const MS_NANOSECONDS: usize = 1_000_000;
-
 /// The [`Tag`] is a data-carrying token identifier used to de-aggregate
 /// responses from a batch aggregated of requests using the
 /// [`DmlMetaDeaggregator`].
@@ -88,10 +85,6 @@ where
             .producer_ts()
             .unwrap_or_else(|| self.time_provider.now());
 
-        // Kafka supports timestamps with millisecond resolution, so floor the
-        // timestamp to the nearest ms
-        let timestamp_millis = now.date_time().timestamp_millis();
-
         let headers = IoxHeaders::new(
             ContentType::Protobuf,
             op.meta().span_context().cloned(),
@@ -110,7 +103,7 @@ where
                 .map(|(k, v)| (k.to_owned(), v.as_bytes().to_vec()))
                 .collect(),
             timestamp: rskafka::time::OffsetDateTime::from_unix_timestamp_nanos(
-                timestamp_millis as i128 * MS_NANOSECONDS as i128,
+                now.date_time().timestamp_nanos() as i128,
             )?,
         };
 

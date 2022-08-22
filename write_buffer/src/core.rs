@@ -455,6 +455,7 @@ pub mod test_utils {
             None,
         )
         .await;
+
         assert_write_op_eq(&stream.next().await.unwrap().unwrap(), &w1);
 
         // stream is pending again
