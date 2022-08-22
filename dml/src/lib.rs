@@ -388,8 +388,17 @@ pub mod test_util {
     /// Asserts two writes are equal
     pub fn assert_writes_eq(a: &DmlWrite, b: &DmlWrite) {
         assert_eq!(a.namespace, b.namespace);
-        assert_eq!(a.meta(), b.meta());
         assert_eq!(a.partition_key(), b.partition_key());
+
+        // Depending on what implementation is under test ( :( ) different
+        // timestamp precisions may be used.
+        //
+        // Truncate them all to milliseconds (the lowest common denominator) so
+        // they are comparable.
+        assert_eq!(
+            truncate_timestamp_to_millis(a.meta()),
+            truncate_timestamp_to_millis(b.meta())
+        );
 
         assert_eq!(a.table_count(), b.table_count());
 
@@ -411,5 +420,25 @@ pub mod test_util {
             DmlOperation::Delete(a) => assert_eq!(a, b),
             _ => panic!("unexpected operation: {:?}", a),
         }
+    }
+
+    fn truncate_timestamp_to_millis(m: &DmlMeta) -> DmlMeta {
+        // Kafka supports millisecond precision in timestamps, so drop some
+        // precision from this producer timestamp in the metadata (which has
+        // nanosecond precision) to ensure the returned write is directly
+        // comparable to a write that has come through the write buffer.
+        //
+        // This mangling is to support testing comparisons only.
+        let timestamp = m
+            .producer_ts()
+            .expect("no producer timestamp in de-aggregated metadata");
+        let timestamp = Time::from_timestamp_millis(timestamp.timestamp_millis());
+
+        DmlMeta::sequenced(
+            *m.sequence().unwrap(),
+            timestamp,
+            m.span_context().cloned(),
+            m.bytes_read().unwrap(),
+        )
     }
 }

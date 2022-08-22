@@ -1,7 +1,7 @@
 use self::{
-    aggregator::DmlAggregator,
     config::{ClientConfig, ConsumerConfig, ProducerConfig, TopicCreationConfig},
     instrumentation::KafkaProducerMetrics,
+    record_aggregator::RecordAggregator,
 };
 use crate::{
     codec::IoxHeaders,
@@ -40,9 +40,9 @@ use std::{
 };
 use trace::TraceCollector;
 
-mod aggregator;
 mod config;
 mod instrumentation;
+mod record_aggregator;
 
 /// Maximum number of jobs buffered and decoded concurrently.
 const CONCURRENT_DECODE_JOBS: usize = 10;
@@ -51,18 +51,18 @@ type Result<T, E = WriteBufferError> = std::result::Result<T, E>;
 
 #[derive(Debug)]
 pub struct RSKafkaProducer {
-    producers: BTreeMap<u32, BatchProducer<DmlAggregator>>,
+    producers: BTreeMap<u32, BatchProducer<RecordAggregator>>,
 }
 
 impl RSKafkaProducer {
-    pub async fn new(
+    pub async fn new<'a>(
         conn: String,
         topic_name: String,
-        connection_config: &BTreeMap<String, String>,
-        creation_config: Option<&WriteBufferCreationConfig>,
+        connection_config: &'a BTreeMap<String, String>,
         time_provider: Arc<dyn TimeProvider>,
-        trace_collector: Option<Arc<dyn TraceCollector>>,
-        metric_registry: &metric::Registry,
+        creation_config: Option<&'a WriteBufferCreationConfig>,
+        _trace_collector: Option<Arc<dyn TraceCollector>>,
+        metric_registry: &'a metric::Registry,
     ) -> Result<Self> {
         let partition_clients =
             setup_topic(conn, topic_name.clone(), connection_config, creation_config).await?;
@@ -85,13 +85,10 @@ impl RSKafkaProducer {
                 if let Some(linger) = producer_config.linger {
                     producer_builder = producer_builder.with_linger(linger);
                 }
-                let producer = producer_builder.build(DmlAggregator::new(
-                    trace_collector.clone(),
-                    topic_name.clone(),
-                    producer_config.max_batch_size,
+                let producer = producer_builder.build(RecordAggregator::new(
                     sequencer_id,
+                    producer_config.max_batch_size,
                     Arc::clone(&time_provider),
-                    metric_registry,
                 ));
 
                 (sequencer_id, producer)
@@ -113,6 +110,14 @@ impl WriteBufferWriting for RSKafkaProducer {
         sequencer_id: u32,
         operation: DmlOperation,
     ) -> Result<DmlMeta, WriteBufferError> {
+        // Sanity check to ensure only partitioned writes are pushed into Kafka.
+        if let DmlOperation::Write(w) = &operation {
+            assert!(
+                w.partition_key().is_some(),
+                "enqueuing unpartitioned write into kafka"
+            )
+        }
+
         let producer = self
             .producers
             .get(&sequencer_id)
@@ -498,7 +503,7 @@ mod tests {
     use data_types::{DeletePredicate, PartitionKey, TimestampRange};
     use dml::{test_util::assert_write_op_eq, DmlDelete, DmlWrite};
     use futures::{stream::FuturesUnordered, TryStreamExt};
-    use metric::{Metric, U64Histogram};
+    use iox_time::TimeProvider;
     use rskafka::{client::partition::Compression, record::Record};
     use std::num::NonZeroU32;
     use test_helpers::assert_contains;
@@ -551,6 +556,7 @@ mod tests {
             })
         }
 
+        #[allow(dead_code)]
         fn metrics(&self) -> &metric::Registry {
             &self.metrics
         }
@@ -567,8 +573,8 @@ mod tests {
                 self.conn.clone(),
                 self.topic_name.clone(),
                 &BTreeMap::default(),
-                self.creation_config(creation_config).as_ref(),
                 Arc::clone(&self.time_provider),
+                self.creation_config(creation_config).as_ref(),
                 Some(self.trace_collector() as Arc<_>),
                 &self.metrics,
             )
@@ -709,97 +715,50 @@ mod tests {
             write("ns2", &producer, &trace_collector, sequencer_id, "bananas"),
         );
 
-        // ensure that write operations were fused
-        assert_eq!(w1_1.sequence().unwrap(), w1_2.sequence().unwrap());
+        // ensure that write operations were NOT fused
+        assert_ne!(w1_1.sequence().unwrap(), w1_2.sequence().unwrap());
         assert_ne!(w1_2.sequence().unwrap(), d1_1.sequence().unwrap());
         assert_ne!(d1_1.sequence().unwrap(), d1_2.sequence().unwrap());
         assert_ne!(d1_2.sequence().unwrap(), w1_3.sequence().unwrap());
-        assert_eq!(w1_3.sequence().unwrap(), w1_4.sequence().unwrap());
+        assert_ne!(w1_3.sequence().unwrap(), w1_4.sequence().unwrap());
         assert_ne!(w1_4.sequence().unwrap(), w1_1.sequence().unwrap());
 
         assert_ne!(w2_1.sequence().unwrap(), w1_1.sequence().unwrap());
-        assert_eq!(w2_1.sequence().unwrap(), w2_2.sequence().unwrap());
-
-        // Assert the batch sizes were captured in the metrics
-        let histogram = ctx
-            .metrics()
-            .get_instrument::<Metric<U64Histogram>>("write_buffer_batch_coalesced_write_ops")
-            .expect("failed to read metric")
-            .get_observer(&[].into())
-            .expect("failed to get observer")
-            .fetch();
-        assert_eq!(
-            histogram.sample_count(),
-            3,
-            "metric did not record expected batch count"
-        );
-        // Validate the expected bucket values.
-        [
-            (1, 0),
-            (2, 3),
-            (4, 0),
-            (8, 0),
-            (16, 0),
-            (32, 0),
-            (64, 0),
-            (128, 0),
-        ]
-        .into_iter()
-        .enumerate()
-        .for_each(|(i, (le, count))| {
-            let bucket = &histogram.buckets[i];
-            assert_eq!(bucket.le, le);
-            assert_eq!(bucket.count, count, "bucket le={}", le);
-        });
+        assert_ne!(w2_1.sequence().unwrap(), w2_2.sequence().unwrap());
 
         let consumer = ctx.reading(true).await.unwrap();
         let mut handler = consumer.stream_handler(sequencer_id).await.unwrap();
         let mut stream = handler.stream().await;
 
-        // get output, note that the write operations were fused
-        let op_w1_12 = stream.next().await.unwrap().unwrap();
+        // get output, note that the write operations were NOT fused
+        let op_w1_1 = stream.next().await.unwrap().unwrap();
+        let op_w1_2 = stream.next().await.unwrap().unwrap();
+        let op_w2_1 = stream.next().await.unwrap().unwrap();
         let op_d1_1 = stream.next().await.unwrap().unwrap();
         let op_d1_2 = stream.next().await.unwrap().unwrap();
-        let op_w1_34 = stream.next().await.unwrap().unwrap();
-        let op_w2_12 = stream.next().await.unwrap().unwrap();
+        let op_w1_3 = stream.next().await.unwrap().unwrap();
+        let op_w1_4 = stream.next().await.unwrap().unwrap();
+        let op_w2_2 = stream.next().await.unwrap().unwrap();
 
         // ensure that sequence numbers map as expected
-        assert_eq!(
-            op_w1_12.meta().sequence().unwrap(),
-            w1_1.sequence().unwrap(),
-        );
-        assert_eq!(
-            op_w1_12.meta().sequence().unwrap(),
-            w1_2.sequence().unwrap(),
-        );
+        assert_eq!(op_w1_1.meta().sequence().unwrap(), w1_1.sequence().unwrap(),);
+        assert_eq!(op_w1_2.meta().sequence().unwrap(), w1_2.sequence().unwrap(),);
         assert_eq!(op_d1_1.meta().sequence().unwrap(), d1_1.sequence().unwrap(),);
         assert_eq!(op_d1_2.meta().sequence().unwrap(), d1_2.sequence().unwrap(),);
-        assert_eq!(
-            op_w1_34.meta().sequence().unwrap(),
-            w1_3.sequence().unwrap(),
-        );
-        assert_eq!(
-            op_w1_34.meta().sequence().unwrap(),
-            w1_4.sequence().unwrap(),
-        );
-        assert_eq!(
-            op_w2_12.meta().sequence().unwrap(),
-            w2_1.sequence().unwrap(),
-        );
-        assert_eq!(
-            op_w2_12.meta().sequence().unwrap(),
-            w2_2.sequence().unwrap(),
-        );
+        assert_eq!(op_w1_3.meta().sequence().unwrap(), w1_3.sequence().unwrap(),);
+        assert_eq!(op_w1_4.meta().sequence().unwrap(), w1_4.sequence().unwrap(),);
+        assert_eq!(op_w2_1.meta().sequence().unwrap(), w2_1.sequence().unwrap(),);
+        assert_eq!(op_w2_2.meta().sequence().unwrap(), w2_2.sequence().unwrap(),);
 
         // check tracing span links
         assert_span_context_eq_or_linked(
             w1_1.span_context().unwrap(),
-            op_w1_12.meta().span_context().unwrap(),
+            op_w1_1.meta().span_context().unwrap(),
             trace_collector.spans(),
         );
         assert_span_context_eq_or_linked(
             w1_2.span_context().unwrap(),
-            op_w1_12.meta().span_context().unwrap(),
+            op_w1_2.meta().span_context().unwrap(),
             trace_collector.spans(),
         );
         assert_span_context_eq_or_linked(
@@ -814,58 +773,24 @@ mod tests {
         );
         assert_span_context_eq_or_linked(
             w1_3.span_context().unwrap(),
-            op_w1_34.meta().span_context().unwrap(),
+            op_w1_3.meta().span_context().unwrap(),
             trace_collector.spans(),
         );
         assert_span_context_eq_or_linked(
             w1_4.span_context().unwrap(),
-            op_w1_34.meta().span_context().unwrap(),
+            op_w1_4.meta().span_context().unwrap(),
             trace_collector.spans(),
         );
         assert_span_context_eq_or_linked(
             w2_1.span_context().unwrap(),
-            op_w2_12.meta().span_context().unwrap(),
+            op_w2_1.meta().span_context().unwrap(),
             trace_collector.spans(),
         );
         assert_span_context_eq_or_linked(
             w2_2.span_context().unwrap(),
-            op_w2_12.meta().span_context().unwrap(),
+            op_w2_2.meta().span_context().unwrap(),
             trace_collector.spans(),
         );
-    }
-
-    // Coverage of https://github.com/influxdata/influxdb_iox/issues/4787
-    #[tokio::test]
-    async fn test_batching_respects_partitioning() {
-        let conn = maybe_skip_kafka_integration!();
-        let adapter = RSKafkaTestAdapter::new(conn);
-        let ctx = adapter.new_context(NonZeroU32::new(1).unwrap()).await;
-        let trace_collector = ctx.trace_collector();
-
-        let producer = ctx.writing(true).await.unwrap();
-
-        let sequencer_id = set_pop_first(&mut producer.sequencer_ids()).unwrap();
-
-        let (w1, w2, w3, w4) = tokio::join!(
-            // These two ops have the same partition key, and therefore can be
-            // merged together.
-            write("ns1", &producer, &trace_collector, sequencer_id, "bananas"),
-            write("ns1", &producer, &trace_collector, sequencer_id, "bananas"),
-            // However this op has a different partition_key and cannot be
-            // merged with the others.
-            write("ns1", &producer, &trace_collector, sequencer_id, "platanos"),
-            // this operation can still go into the first write, no need to start yet another one
-            write("ns1", &producer, &trace_collector, sequencer_id, "bananas"),
-        );
-
-        // Assert ops 1+2+4 were merged, by asserting they have the same
-        // sequence number.
-        assert_eq!(w1.sequence().unwrap(), w2.sequence().unwrap());
-        assert_eq!(w1.sequence().unwrap(), w4.sequence().unwrap());
-
-        // And assert the third op was not merged because of the differing
-        // partition key.
-        assert_ne!(w1.sequence().unwrap(), w3.sequence().unwrap());
     }
 
     #[tokio::test]
