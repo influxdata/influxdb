@@ -404,7 +404,7 @@ func decodeNotificationRuleFilter(ctx context.Context, r *http.Request) (*influx
 		}
 		f.OrgID = orgID
 	} else if orgNameStr := q.Get("org"); orgNameStr != "" {
-		*f.Organization = orgNameStr
+		f.Organization = &orgNameStr
 	}
 
 	for _, tag := range q["tag"] {
