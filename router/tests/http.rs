@@ -1,5 +1,5 @@
 use assert_matches::assert_matches;
-use data_types::{KafkaTopicId, PartitionTemplate, QueryPoolId, TemplatePart};
+use data_types::{KafkaPartition, KafkaTopicId, PartitionTemplate, QueryPoolId, TemplatePart};
 use dml::DmlOperation;
 use hashbrown::HashMap;
 use hyper::{Body, Request, StatusCode};
@@ -86,7 +86,13 @@ impl TestContext {
             JumpHash::new(
                 shards
                     .into_iter()
-                    .map(|id| Sequencer::new(id as _, Arc::clone(&write_buffer), &metrics))
+                    .map(|id| {
+                        Sequencer::new(
+                            KafkaPartition::new(id as _),
+                            Arc::clone(&write_buffer),
+                            &metrics,
+                        )
+                    })
                     .map(Arc::new),
             )
             .unwrap(),

@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use clap_blocks::write_buffer::WriteBufferConfig;
-use data_types::{DatabaseName, PartitionTemplate, TemplatePart};
+use data_types::{DatabaseName, KafkaPartition, PartitionTemplate, TemplatePart};
 use hashbrown::HashMap;
 use hyper::{Body, Request, Response};
 use iox_catalog::interface::Catalog;
@@ -325,7 +325,13 @@ async fn init_write_buffer(
     Ok(ShardedWriteBuffer::new(JumpHash::new(
         shards
             .into_iter()
-            .map(|id| Sequencer::new(id as _, Arc::clone(&write_buffer), &metrics))
+            .map(|id| {
+                Sequencer::new(
+                    KafkaPartition::new(id.try_into().unwrap()),
+                    Arc::clone(&write_buffer),
+                    &metrics,
+                )
+            })
             .map(Arc::new),
     )?))
 }
