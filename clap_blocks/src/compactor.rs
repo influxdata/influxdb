@@ -173,8 +173,6 @@ macro_rules! gen_compactor_config {
             ///
             /// A compaction operation will be limited by this or by the input size threshold,
             /// whichever is hit first.
-            ///
-            /// Default is 50.
             #[clap(
                 long = "--compaction-input-file-count-threshold",
                 env = "INFLUXDB_IOX_COMPACTION_INPUT_FILE_COUNT_THRESHOLD",
@@ -182,6 +180,21 @@ macro_rules! gen_compactor_config {
                 action
             )]
             pub input_file_count_threshold: usize,
+
+            /// A compaction operation for cold partitions  will gather as many L0 files with their 
+            /// overlapping L1 files to compact together until the total number of L0 + L1 files 
+            /// crosses this threshold.
+            /// Later compactions will pick up the remaining L0 files.
+            ///
+            /// A compaction operation will be limited by this or by the cold input size threshold,
+            /// whichever is hit first.
+            #[clap(
+                long = "--compaction-cold-input-file-count-threshold",
+                env = "INFLUXDB_IOX_COMPACTION_COLD_INPUT_FILE_COUNT_THRESHOLD",
+                default_value = "50",
+                action
+            )]
+            pub cold_input_file_count_threshold: usize,
 
             /// The multiple of times that compacting hot partitions should run for every one time
             /// that compacting cold partitions runs. Set to 1 to compact hot partitions and cold
@@ -223,6 +236,7 @@ impl CompactorOnceConfig {
             input_size_threshold_bytes: self.input_size_threshold_bytes,
             cold_input_size_threshold_bytes: self.cold_input_size_threshold_bytes,
             input_file_count_threshold: self.input_file_count_threshold,
+            cold_input_file_count_threshold: self.cold_input_file_count_threshold,
             hot_multiple: self.hot_multiple,
         }
     }

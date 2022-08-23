@@ -197,6 +197,7 @@ pub async fn build_compactor_from_config(
         compactor_config.input_size_threshold_bytes,
         compactor_config.cold_input_size_threshold_bytes,
         compactor_config.input_file_count_threshold,
+        compactor_config.cold_input_file_count_threshold,
         compactor_config.hot_multiple,
     );
 

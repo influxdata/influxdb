@@ -152,6 +152,9 @@ pub(crate) fn filter_cold_parquet_files(
     // Stop considering level 0 files when the total size of all files selected for compaction so
     // far exceeds this value
     max_bytes: u64,
+    // Stop considering level 0 files when the count of L0 + L1 files selected for compaction so
+    // far exceeds this value
+    input_file_count_threshold: usize,
     // Gauge for the number of Parquet file candidates
     parquet_file_candidate_gauge: &Metric<U64Gauge>,
     // Histogram for the number of bytes of Parquet file candidates
@@ -187,6 +190,12 @@ pub(crate) fn filter_cold_parquet_files(
     let mut total_level_1_bytes = 0;
 
     for level_0_file in level_0 {
+        // Check we haven't exceeded `input_file_count_threshold`, if we have, stop considering
+        // level 0 files
+        if (level_0_to_return.len() + files_to_return.len()) >= input_file_count_threshold {
+            break;
+        }
+
         // Include at least one level 0 file without checking against `max_bytes`
         total_level_0_bytes += level_0_file.file_size_bytes as u64;
 
@@ -820,6 +829,7 @@ mod tests {
         use super::*;
 
         const DEFAULT_MAX_FILE_SIZE: u64 = 1024 * 1024 * 10;
+        const DEFAULT_INPUT_FILE_COUNT: usize = 100;
 
         #[test]
         fn empty_in_empty_out() {
@@ -832,6 +842,7 @@ mod tests {
             let files = filter_cold_parquet_files(
                 parquet_files_for_compaction,
                 DEFAULT_MAX_FILE_SIZE,
+                DEFAULT_INPUT_FILE_COUNT,
                 &files_metric,
                 &bytes_metric,
             );
@@ -850,12 +861,32 @@ mod tests {
             let files = filter_cold_parquet_files(
                 parquet_files_for_compaction,
                 0,
+                DEFAULT_INPUT_FILE_COUNT,
                 &files_metric,
                 &bytes_metric,
             );
 
             assert_eq!(files.len(), 1);
             assert_eq!(files[0].id.get(), 1);
+        }
+
+        #[test]
+        fn max_file_count_0_returns_empty() {
+            let parquet_files_for_compaction = ParquetFilesForCompaction {
+                level_0: vec![ParquetFileBuilder::level_0().id(1).build()],
+                level_1: vec![],
+            };
+            let (files_metric, bytes_metric) = metrics();
+
+            let files = filter_cold_parquet_files(
+                parquet_files_for_compaction,
+                DEFAULT_MAX_FILE_SIZE,
+                0,
+                &files_metric,
+                &bytes_metric,
+            );
+
+            assert!(files.is_empty(), "Expected empty, got: {:#?}", files);
         }
 
         #[test]
@@ -886,6 +917,7 @@ mod tests {
             let files = filter_cold_parquet_files(
                 parquet_files_for_compaction,
                 DEFAULT_MAX_FILE_SIZE,
+                DEFAULT_INPUT_FILE_COUNT,
                 &files_metric,
                 &bytes_metric,
             );
@@ -928,6 +960,7 @@ mod tests {
             let files = filter_cold_parquet_files(
                 parquet_files_for_compaction,
                 DEFAULT_MAX_FILE_SIZE,
+                DEFAULT_INPUT_FILE_COUNT,
                 &files_metric,
                 &bytes_metric,
             );
@@ -992,6 +1025,7 @@ mod tests {
             let files = filter_cold_parquet_files(
                 parquet_files_for_compaction,
                 DEFAULT_MAX_FILE_SIZE,
+                DEFAULT_INPUT_FILE_COUNT,
                 &files_metric,
                 &bytes_metric,
             );
@@ -1102,6 +1136,7 @@ mod tests {
             let files = filter_cold_parquet_files(
                 parquet_files_for_compaction.clone(),
                 max_size,
+                DEFAULT_INPUT_FILE_COUNT,
                 &files_metric,
                 &bytes_metric,
             );
@@ -1133,6 +1168,7 @@ mod tests {
             let files = filter_cold_parquet_files(
                 parquet_files_for_compaction.clone(),
                 max_size,
+                DEFAULT_INPUT_FILE_COUNT,
                 &files_metric,
                 &bytes_metric,
             );
@@ -1164,6 +1200,7 @@ mod tests {
             let files = filter_cold_parquet_files(
                 parquet_files_for_compaction.clone(),
                 max_size,
+                DEFAULT_INPUT_FILE_COUNT,
                 &files_metric,
                 &bytes_metric,
             );
@@ -1193,6 +1230,7 @@ mod tests {
             let files = filter_cold_parquet_files(
                 parquet_files_for_compaction,
                 DEFAULT_MAX_FILE_SIZE,
+                DEFAULT_INPUT_FILE_COUNT,
                 &files_metric,
                 &bytes_metric,
             );

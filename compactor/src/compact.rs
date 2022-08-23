@@ -767,6 +767,7 @@ mod tests {
         let input_size_threshold_bytes = 300 * 1024 * 1024;
         let cold_input_size_threshold_bytes = 600 * 1024 * 1024;
         let input_file_count_threshold = 100;
+        let cold_input_file_count_threshold = 100;
         let hot_multiple = 4;
         CompactorConfig::new(
             max_desired_file_size_bytes,
@@ -779,6 +780,7 @@ mod tests {
             input_size_threshold_bytes,
             cold_input_size_threshold_bytes,
             input_file_count_threshold,
+            cold_input_file_count_threshold,
             hot_multiple,
         )
     }

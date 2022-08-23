@@ -144,6 +144,14 @@ pub struct CompactorConfig {
     /// hit first.
     input_file_count_threshold: usize,
 
+    /// A compaction operation or cold partitions  will gather as many L0 files with their
+    /// overlapping L1 files to compact together until the total number of L0 + L1 files crosses this
+    /// threshold. Later compactions will pick up the remaining L0 files.
+    ///
+    /// A compaction operation will be limited by this or by the input size threshold, whichever is
+    /// hit first.
+    cold_input_file_count_threshold: usize,
+
     /// The multiple of times that compacting hot partitions should run for every one time that
     /// compacting cold partitions runs. Set to 1 to compact hot partitions and cold partitions
     /// equally.
@@ -164,6 +172,7 @@ impl CompactorConfig {
         input_size_threshold_bytes: u64,
         cold_input_size_threshold_bytes: u64,
         input_file_count_threshold: usize,
+        cold_input_file_count_threshold: usize,
         hot_multiple: usize,
     ) -> Self {
         assert!(split_percentage > 0 && split_percentage <= 100);
@@ -179,6 +188,7 @@ impl CompactorConfig {
             input_size_threshold_bytes,
             cold_input_size_threshold_bytes,
             input_file_count_threshold,
+            cold_input_file_count_threshold,
             hot_multiple,
         }
     }
@@ -242,6 +252,16 @@ impl CompactorConfig {
     /// hit first.
     pub fn input_file_count_threshold(&self) -> usize {
         self.input_file_count_threshold
+    }
+
+    /// A compaction operation for cold partitions will gather as many L0 files with their overlapping L1 files to
+    /// compact together until the total number of L0 + L1 files crosses this threshold. Later
+    /// compactions will pick up the remaining L0 files.
+    ///
+    /// A compaction operation will be limited by this or by the input size threshold, whichever is
+    /// hit first.
+    pub fn cold_input_file_count_threshold(&self) -> usize {
+        self.cold_input_file_count_threshold
     }
 }
 

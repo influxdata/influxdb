@@ -426,6 +426,7 @@ impl Config {
             input_size_threshold_bytes: 314_572_800,
             cold_input_size_threshold_bytes: 629_145_600,
             input_file_count_threshold: 100,
+            cold_input_file_count_threshold: 100,
             hot_multiple: 4,
         };
 

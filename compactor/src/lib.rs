@@ -119,6 +119,7 @@ pub(crate) async fn compact_cold_partition(
     let to_compact = parquet_file_filtering::filter_cold_parquet_files(
         parquet_files_for_compaction,
         compactor.config.cold_input_size_threshold_bytes(),
+        compactor.config.cold_input_file_count_threshold(),
         &compactor.parquet_file_candidate_gauge,
         &compactor.parquet_file_candidate_bytes,
     );
@@ -792,6 +793,7 @@ mod tests {
         let input_size_threshold_bytes = 300 * 1024 * 1024;
         let cold_input_size_threshold_bytes = 600 * 1024 * 1024;
         let input_file_count_threshold = 100;
+        let cold_input_file_count_threshold = 100;
         let hot_multiple = 4;
 
         CompactorConfig::new(
@@ -805,6 +807,7 @@ mod tests {
             input_size_threshold_bytes,
             cold_input_size_threshold_bytes,
             input_file_count_threshold,
+            cold_input_file_count_threshold,
             hot_multiple,
         )
     }
