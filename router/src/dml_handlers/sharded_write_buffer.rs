@@ -125,7 +125,7 @@ where
 
             trace!(
                 %partition_key,
-                kafka_partition=%sequencer.id(),
+                kafka_partition=%sequencer.kafka_index(),
                 tables=%dml.table_count(),
                 %namespace,
                 approx_size=%dml.size(),
@@ -157,7 +157,7 @@ where
         );
 
         let iter = sequencers.into_iter().map(|s| {
-            trace!(sequencer_id=%s.id(), %table_name, %namespace, "routing delete to shard");
+            trace!(sequencer_id=%s.kafka_index(), %table_name, %namespace, "routing delete to shard");
 
             (s, DmlOperation::from(dml.clone()))
         });
@@ -211,7 +211,7 @@ mod tests {
     use super::*;
     use crate::dml_handlers::DmlHandler;
     use assert_matches::assert_matches;
-    use data_types::TimestampRange;
+    use data_types::{KafkaPartition, TimestampRange};
     use sharder::mock::{MockSharder, MockSharderCall, MockSharderPayload};
     use std::sync::Arc;
     use write_buffer::mock::{MockBufferForWriting, MockBufferSharedState};
@@ -253,7 +253,7 @@ mod tests {
         // Configure the sharder to return shards containing the mock write
         // buffer.
         let shard = Arc::new(Sequencer::new(
-            0,
+            KafkaPartition::new(0),
             Arc::new(write_buffer),
             &Default::default(),
         ));
@@ -279,7 +279,7 @@ mod tests {
         // All writes were dispatched to the same shard, which should observe
         // one op containing all writes lines (asserting that all the writes for
         // one shard are collated into one op).
-        let mut got = write_buffer_state.get_messages(shard.id() as _);
+        let mut got = write_buffer_state.get_messages(shard.kafka_index().get() as _);
         assert_eq!(got.len(), 1);
         let got = got
             .pop()
@@ -305,7 +305,7 @@ mod tests {
         let write_buffer1 = init_write_buffer(1);
         let write_buffer1_state = write_buffer1.state();
         let shard1 = Arc::new(Sequencer::new(
-            0,
+            KafkaPartition::new(0),
             Arc::new(write_buffer1),
             &Default::default(),
         ));
@@ -315,7 +315,7 @@ mod tests {
         let write_buffer2 = init_write_buffer(2);
         let write_buffer2_state = write_buffer2.state();
         let shard2 = Arc::new(Sequencer::new(
-            1,
+            KafkaPartition::new(1),
             Arc::new(write_buffer2),
             &Default::default(),
         ));
@@ -352,7 +352,7 @@ mod tests {
             .any(|v| v.table_name == "table" && v.payload.mutable_batch().rows() == 1));
 
         // The write buffer for shard 1 should observe 1 write containing 3 rows.
-        let mut got = write_buffer1_state.get_messages(shard1.id() as _);
+        let mut got = write_buffer1_state.get_messages(shard1.kafka_index().get() as _);
         assert_eq!(got.len(), 1);
         let got = got
             .pop()
@@ -363,7 +363,7 @@ mod tests {
         });
 
         // The second shard should observe 1 write containing 1 row.
-        let mut got = write_buffer2_state.get_messages(shard2.id() as _);
+        let mut got = write_buffer2_state.get_messages(shard2.kafka_index().get() as _);
         assert_eq!(got.len(), 1);
         let got = got
             .pop()
@@ -387,7 +387,7 @@ mod tests {
         let write_buffer1 = init_write_buffer(1);
         let write_buffer1_state = write_buffer1.state();
         let shard1 = Arc::new(Sequencer::new(
-            0,
+            KafkaPartition::new(0),
             Arc::new(write_buffer1),
             &Default::default(),
         ));
@@ -396,7 +396,7 @@ mod tests {
         let write_buffer2 = init_write_buffer(1);
         // Non-existant sequencer ID to trigger an error.
         let shard2 = Arc::new(Sequencer::new(
-            13,
+            KafkaPartition::new(13),
             Arc::new(write_buffer2),
             &Default::default(),
         ));
@@ -420,7 +420,7 @@ mod tests {
 
         // The write buffer for shard 1 should observe 1 write independent of
         // the second, erroring shard.
-        let got = write_buffer1_state.get_messages(shard1.id() as _);
+        let got = write_buffer1_state.get_messages(shard1.kafka_index().get() as _);
         assert_eq!(got.len(), 1);
     }
 
@@ -439,7 +439,7 @@ mod tests {
         // Configure the sharder to return shards containing the mock write
         // buffer.
         let shard = Arc::new(Sequencer::new(
-            0,
+            KafkaPartition::new(0),
             Arc::new(write_buffer),
             &Default::default(),
         ));
@@ -462,7 +462,7 @@ mod tests {
         // All writes were dispatched to the same shard, which should observe
         // one op containing all writes lines (asserting that all the writes for
         // one shard are collated into one op).
-        let mut got = write_buffer_state.get_messages(shard.id() as _);
+        let mut got = write_buffer_state.get_messages(shard.kafka_index().get() as _);
         assert_eq!(got.len(), 1);
         let got = got
             .pop()
@@ -487,7 +487,7 @@ mod tests {
         // Configure the sharder to return shards containing the mock write
         // buffer.
         let shard = Arc::new(Sequencer::new(
-            0,
+            KafkaPartition::new(0),
             Arc::new(write_buffer),
             &Default::default(),
         ));
@@ -513,7 +513,7 @@ mod tests {
         // one shard are collated into one op).
         //
         // The table name should be None as it was specified as an empty string.
-        let mut got = write_buffer_state.get_messages(shard.id() as _);
+        let mut got = write_buffer_state.get_messages(shard.kafka_index().get() as _);
         assert_eq!(got.len(), 1);
         let got = got
             .pop()
@@ -567,7 +567,7 @@ mod tests {
         let write_buffer1 = init_write_buffer(1);
         let write_buffer1_state = write_buffer1.state();
         let shard1 = Arc::new(Sequencer::new(
-            0,
+            KafkaPartition::new(0),
             Arc::new(write_buffer1),
             &Default::default(),
         ));
@@ -576,7 +576,7 @@ mod tests {
         let write_buffer2 = init_write_buffer(1);
         let write_buffer2_state = write_buffer2.state();
         let shard2 = Arc::new(Sequencer::new(
-            0,
+            KafkaPartition::new(0),
             Arc::new(write_buffer2),
             &Default::default(),
         ));
@@ -592,7 +592,7 @@ mod tests {
             .expect("delete failed");
 
         // The write buffer for shard 1 should observe the delete
-        let mut got = write_buffer1_state.get_messages(shard1.id() as _);
+        let mut got = write_buffer1_state.get_messages(shard1.kafka_index().get() as _);
         assert_eq!(got.len(), 1);
         let got = got
             .pop()
@@ -601,7 +601,7 @@ mod tests {
         assert_matches!(got, DmlOperation::Delete(_));
 
         // The second shard should observe the delete as well
-        let mut got = write_buffer2_state.get_messages(shard2.id() as _);
+        let mut got = write_buffer2_state.get_messages(shard2.kafka_index().get() as _);
         assert_eq!(got.len(), 1);
         let got = got
             .pop()
@@ -623,7 +623,7 @@ mod tests {
         let write_buffer1 = init_write_buffer(1);
         let write_buffer1_state = write_buffer1.state();
         let shard1 = Arc::new(Sequencer::new(
-            0,
+            KafkaPartition::new(0),
             Arc::new(write_buffer1),
             &Default::default(),
         ));
@@ -632,7 +632,7 @@ mod tests {
         let write_buffer2 = init_write_buffer(1);
         // Non-existant sequencer ID to trigger an error.
         let shard2 = Arc::new(Sequencer::new(
-            13,
+            KafkaPartition::new(13),
             Arc::new(write_buffer2),
             &Default::default(),
         ));
@@ -653,7 +653,7 @@ mod tests {
         });
 
         // The write buffer for shard 1 will still observer the delete.
-        let got = write_buffer1_state.get_messages(shard1.id() as _);
+        let got = write_buffer1_state.get_messages(shard1.kafka_index().get() as _);
         assert_eq!(got.len(), 1);
     }
 }

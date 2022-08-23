@@ -1,5 +1,5 @@
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
-use data_types::{PartitionTemplate, TemplatePart};
+use data_types::{KafkaPartition, PartitionTemplate, TemplatePart};
 use hyper::{Body, Request};
 use iox_catalog::{interface::Catalog, mem::MemCatalog};
 use router::{
@@ -38,7 +38,13 @@ fn init_write_buffer(n_sequencers: u32) -> ShardedWriteBuffer<JumpHash<Arc<Seque
         JumpHash::new(
             shards
                 .into_iter()
-                .map(|id| Sequencer::new(id as _, Arc::clone(&write_buffer), &Default::default()))
+                .map(|id| {
+                    Sequencer::new(
+                        KafkaPartition::new(id as _),
+                        Arc::clone(&write_buffer),
+                        &Default::default(),
+                    )
+                })
                 .map(Arc::new),
         )
         .expect("failed to init sharder"),
