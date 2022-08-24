@@ -418,7 +418,31 @@ func TestService_handleGetCheckQuery(t *testing.T) {
 			wants: wants{
 				statusCode:  http.StatusOK,
 				contentType: "application/json; charset=utf-8",
-				body:        "{\"flux\":\"import \\\"influxdata/influxdb/monitor\\\"\\nimport \\\"influxdata/influxdb/v1\\\"\\n\\ndata =\\n    from(bucket: \\\"foo\\\")\\n        |\\u003e range(start: -1h)\\n        |\\u003e filter(fn: (r) =\\u003e r._field == \\\"usage_idle\\\")\\n        |\\u003e aggregateWindow(every: 1h, fn: mean, createEmpty: false)\\n\\noption task = {name: \\\"hello\\\", every: 1h}\\n\\ncheck = {_check_id: \\\"020f755c3c082000\\\", _check_name: \\\"hello\\\", _type: \\\"threshold\\\", tags: {aaa: \\\"vaaa\\\", bbb: \\\"vbbb\\\"}}\\nok = (r) =\\u003e r[\\\"usage_idle\\\"] \\u003e 10.0\\ninfo = (r) =\\u003e r[\\\"usage_idle\\\"] \\u003c 40.0\\nwarn = (r) =\\u003e r[\\\"usage_idle\\\"] \\u003c 40.0 and r[\\\"usage_idle\\\"] \\u003e 10.0\\ncrit = (r) =\\u003e r[\\\"usage_idle\\\"] \\u003c 40.0 and r[\\\"usage_idle\\\"] \\u003e 10.0\\nmessageFn = (r) =\\u003e \\\"whoa! {check.yeah}\\\"\\n\\ndata\\n    |\\u003e v1[\\\"fieldsAsCols\\\"]()\\n    |\\u003e monitor[\\\"check\\\"](\\n        data: check,\\n        messageFn: messageFn,\\n        ok: ok,\\n        info: info,\\n        warn: warn,\\n        crit: crit,\\n    )\\n\"}\n",
+				body: "{\"flux\":" + formatFluxJson(t, `import "influxdata/influxdb/monitor"
+import "influxdata/influxdb/v1"
+data =
+    from(bucket: "foo")
+        |> range(start: -1h)
+        |> filter(fn: (r) => r._field == "usage_idle")
+        |> aggregateWindow(every: 1h, fn: mean, createEmpty: false)
+option task = {name: "hello", every: 1h}
+check = {_check_id: "020f755c3c082000", _check_name: "hello", _type: "threshold", tags: {aaa: "vaaa", bbb: "vbbb"}}
+ok = (r) => r["usage_idle"] > 10.0
+info = (r) => r["usage_idle"] < 40.0
+warn = (r) => r["usage_idle"] < 40.0 and r["usage_idle"] > 10.0
+crit = (r) => r["usage_idle"] < 40.0 and r["usage_idle"] > 10.0
+messageFn = (r) => "whoa! {check.yeah}"
+data
+    |> v1["fieldsAsCols"]()
+    |> monitor["check"](
+        data: check,
+        messageFn: messageFn,
+        ok: ok,
+        info: info,
+        warn: warn,
+        crit: crit,
+    )
+`) + "}\n",
 			},
 		},
 	}
@@ -445,12 +469,28 @@ func TestService_handleGetCheckQuery(t *testing.T) {
 				}).
 				ExpectBody(func(body *bytes.Buffer) {
 					if eq, diff, err := jsonEqual(body.String(), tt.wants.body); err != nil || tt.wants.body != "" && !eq {
-						fmt.Printf("%q\n", body.String())
+						if err != nil {
+							t.Errorf("jsonEqual error: %v", err)
+						}
 						t.Errorf("%q. handleGetChecks() = ***%v***", tt.name, diff)
 					}
 				})
 		})
 	}
+}
+
+func formatFluxJson(t *testing.T, script string) string {
+	formatted := influxTesting.FormatFluxString(t, script)
+
+	enc, err := json.Marshal(formatted)
+	if err != nil {
+		t.Fatalf("error marshalling flux: %v", err)
+	}
+
+	var bb bytes.Buffer
+	json.HTMLEscape(&bb, enc)
+	std := bb.String()
+	return std
 }
 
 func TestService_handleGetCheck(t *testing.T) {

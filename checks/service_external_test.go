@@ -18,6 +18,7 @@ import (
 	"github.com/influxdata/influxdb/v2/notification"
 	"github.com/influxdata/influxdb/v2/notification/check"
 	"github.com/influxdata/influxdb/v2/task/taskmodel"
+	itesting "github.com/influxdata/influxdb/v2/testing"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -172,6 +173,11 @@ var taskCmpOptions = cmp.Options{
 			return out[i].ID > out[j].ID
 		})
 		return out
+	}),
+	cmp.Transformer("FormatFlux", func(in taskmodel.Task) taskmodel.Task {
+		newTask := in
+		newTask.Flux = itesting.FormatFluxString(&testing.T{}, newTask.Flux)
+		return newTask
 	}),
 }
 

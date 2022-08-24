@@ -8,6 +8,7 @@ import (
 	"github.com/influxdata/influxdb/v2/notification"
 	"github.com/influxdata/influxdb/v2/notification/endpoint"
 	"github.com/influxdata/influxdb/v2/notification/rule"
+	itesting "github.com/influxdata/influxdb/v2/testing"
 )
 
 func TestPagerDuty_GenerateFlux(t *testing.T) {
@@ -284,7 +285,7 @@ all_statuses
 				panic(err)
 			}
 
-			if got, want := script, tt.script; got != want {
+			if got, want := script, itesting.FormatFluxString(t, tt.script); got != want {
 				t.Errorf("\n\nStrings do not match:\n\n%s", diff.LineDiff(got, want))
 
 			}

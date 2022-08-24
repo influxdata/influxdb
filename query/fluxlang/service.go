@@ -5,6 +5,7 @@ import (
 	"context"
 
 	"github.com/influxdata/flux/ast"
+	"github.com/influxdata/flux/ast/astutil"
 	"github.com/influxdata/flux/complete"
 	"github.com/influxdata/flux/interpreter"
 	"github.com/influxdata/flux/parser"
@@ -26,6 +27,9 @@ type FluxLanguageService interface {
 	// but it may be null if parsing didn't even occur.
 	Parse(source string) (*ast.Package, error)
 
+	// Format will produce a string for the given *ast.File.
+	Format(f *ast.File) (string, error)
+
 	// EvalAST will evaluate and run an AST.
 	EvalAST(ctx context.Context, astPkg *ast.Package) ([]interpreter.SideEffect, values.Scope, error)
 
@@ -44,6 +48,10 @@ func (d defaultService) Parse(source string) (pkg *ast.Package, err error) {
 		err = ast.GetError(pkg)
 	}
 	return pkg, err
+}
+
+func (d defaultService) Format(f *ast.File) (string, error) {
+	return astutil.Format(f)
 }
 
 func (d defaultService) EvalAST(ctx context.Context, astPkg *ast.Package) ([]interpreter.SideEffect, values.Scope, error) {
