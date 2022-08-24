@@ -30,7 +30,7 @@ pub async fn querier_namespace_with_limit(
         ns.catalog.metric_registry(),
     ));
 
-    let sharder = Arc::new(JumpHash::new((0..1).map(KafkaPartition::new).map(Arc::new)).unwrap());
+    let sharder = Arc::new(JumpHash::new((0..1).map(KafkaPartition::new).map(Arc::new)));
 
     QuerierNamespace::new_testing(
         catalog_cache,

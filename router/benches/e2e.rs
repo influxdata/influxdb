@@ -34,21 +34,18 @@ fn init_write_buffer(n_sequencers: u32) -> ShardedWriteBuffer<JumpHash<Arc<Seque
     );
 
     let shards: BTreeSet<_> = write_buffer.sequencer_ids();
-    ShardedWriteBuffer::new(
-        JumpHash::new(
-            shards
-                .into_iter()
-                .map(|id| {
-                    Sequencer::new(
-                        KafkaPartition::new(id as _),
-                        Arc::clone(&write_buffer),
-                        &Default::default(),
-                    )
-                })
-                .map(Arc::new),
-        )
-        .expect("failed to init sharder"),
-    )
+    ShardedWriteBuffer::new(JumpHash::new(
+        shards
+            .into_iter()
+            .map(|id| {
+                Sequencer::new(
+                    KafkaPartition::new(id as _),
+                    Arc::clone(&write_buffer),
+                    &Default::default(),
+                )
+            })
+            .map(Arc::new),
+    ))
 }
 
 fn runtime() -> Runtime {
@@ -65,12 +62,9 @@ fn e2e_benchmarks(c: &mut Criterion) {
     let delegate = {
         let metrics = Arc::new(metric::Registry::new());
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
-        let ns_cache = Arc::new(
-            ShardedCache::new(
-                iter::repeat_with(|| Arc::new(MemoryNamespaceCache::default())).take(10),
-            )
-            .unwrap(),
-        );
+        let ns_cache = Arc::new(ShardedCache::new(
+            iter::repeat_with(|| Arc::new(MemoryNamespaceCache::default())).take(10),
+        ));
 
         let write_buffer = init_write_buffer(1);
         let schema_validator =

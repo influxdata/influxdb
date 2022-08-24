@@ -12,7 +12,7 @@ use iox_query::exec::Executor;
 use parquet_file::storage::ParquetStorage;
 use service_common::QueryDatabaseProvider;
 use sharder::JumpHash;
-use snafu::{ResultExt, Snafu};
+use snafu::Snafu;
 use std::{collections::BTreeSet, sync::Arc};
 use trace::span::{Span, SpanRecorder};
 use tracker::{
@@ -31,9 +31,8 @@ pub enum Error {
     Catalog {
         source: iox_catalog::interface::Error,
     },
-
-    #[snafu(display("Sharder error: {source}"))]
-    Sharder { source: sharder::Error },
+    #[snafu(display("No sequencer shards loaded"))]
+    NoShards,
 }
 
 /// Database for the querier.
@@ -232,7 +231,11 @@ pub async fn create_sharder(
         .map(|sequencer| sequencer.kafka_partition)
         .collect();
 
-    JumpHash::new(shards.into_iter().map(Arc::new)).context(SharderSnafu)
+    if shards.is_empty() {
+        return Err(Error::NoShards);
+    }
+
+    Ok(JumpHash::new(shards.into_iter().map(Arc::new)))
 }
 
 #[cfg(test)]
@@ -288,9 +291,7 @@ mod tests {
                 usize::MAX,
             )
             .await,
-            Error::Sharder {
-                source: sharder::Error::NoShards
-            },
+            Error::NoShards
         );
     }
 

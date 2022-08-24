@@ -8,7 +8,6 @@ data_types = { path = "../data_types" }
 mutable_batch = { path = "../mutable_batch" }
 parking_lot = "0.12"
 siphasher = "0.3"
-snafu = "0.7"
 workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]
