@@ -10,17 +10,11 @@ service ShardService {
 
 message ShardToSequencerIdRequest {
   // The shard input values to map onto a Sequencer.
-  oneof input {
-    // A table & namespace pair.
-    TableNamespaceTuple table_namespace = 1;
-  }
+  string table_name = 1;
+  string namespace_name = 2;
 }
 
 message ShardToSequencerIdResponse {
-  uint64 sequencer_id = 1;
-}
-
-message TableNamespaceTuple {
-  string table = 1;
-  string namespace = 2;
+  int64 sequencer_id = 1;
+  int32 sequencer_index = 2;
 }
