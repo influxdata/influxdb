@@ -76,7 +76,7 @@ func (f *SeriesFile) Open() error {
 	defer f.refs.Unlock()
 
 	// Create path if it doesn't exist.
-	if err := os.MkdirAll(filepath.Join(f.path), 0777); err != nil {
+	if err := os.MkdirAll(filepath.Join(f.path), 0700); err != nil {
 		return err
 	}
 

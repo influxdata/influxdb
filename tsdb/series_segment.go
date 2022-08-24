@@ -93,6 +93,8 @@ func CreateSeriesSegment(id uint16, path string) (*SeriesSegment, error) {
 func (s *SeriesSegment) Open() error {
 	if err := func() (err error) {
 		// Memory map file data.
+		os.Chmod(s.path, 0600)
+
 		if s.data, err = mmap.Map(s.path, int64(SeriesSegmentSize(s.id))); err != nil {
 			return err
 		}
@@ -130,7 +132,7 @@ func (s *SeriesSegment) InitForWrite() (err error) {
 	}
 
 	// Open file handler for writing & seek to end of data.
-	if s.file, err = os.OpenFile(s.path, os.O_WRONLY|os.O_CREATE, 0666); err != nil {
+	if s.file, err = os.OpenFile(s.path, os.O_WRONLY|os.O_CREATE, 0600); err != nil {
 		return err
 	} else if _, err := s.file.Seek(int64(s.size), io.SeekStart); err != nil {
 		return err

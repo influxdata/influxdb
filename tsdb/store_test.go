@@ -440,15 +440,15 @@ func TestStore_Open(t *testing.T) {
 		s := NewStore(t, index)
 		defer s.Close()
 
-		if err := os.MkdirAll(filepath.Join(s.Path(), "db0", "rp0", "2"), 0777); err != nil {
+		if err := os.MkdirAll(filepath.Join(s.Path(), "db0", "rp0", "2"), 0700); err != nil {
 			t.Fatal(err)
 		}
 
-		if err := os.MkdirAll(filepath.Join(s.Path(), "db0", "rp2", "4"), 0777); err != nil {
+		if err := os.MkdirAll(filepath.Join(s.Path(), "db0", "rp2", "4"), 0700); err != nil {
 			t.Fatal(err)
 		}
 
-		if err := os.MkdirAll(filepath.Join(s.Path(), "db1", "rp0", "1"), 0777); err != nil {
+		if err := os.MkdirAll(filepath.Join(s.Path(), "db1", "rp0", "1"), 0700); err != nil {
 			t.Fatal(err)
 		}
 
@@ -508,7 +508,7 @@ func TestStore_Open_InvalidRetentionPolicy(t *testing.T) {
 		defer s.Close()
 
 		// Create an RP file instead of a directory.
-		if err := os.MkdirAll(filepath.Join(s.Path(), "db0"), 0777); err != nil {
+		if err := os.MkdirAll(filepath.Join(s.Path(), "db0"), 0700); err != nil {
 			t.Fatal(err)
 		} else if _, err := os.Create(filepath.Join(s.Path(), "db0", "rp0")); err != nil {
 			t.Fatal(err)
@@ -537,7 +537,7 @@ func TestStore_Open_InvalidShard(t *testing.T) {
 		defer s.Close()
 
 		// Create a non-numeric shard file.
-		if err := os.MkdirAll(filepath.Join(s.Path(), "db0", "rp0"), 0777); err != nil {
+		if err := os.MkdirAll(filepath.Join(s.Path(), "db0", "rp0"), 0700); err != nil {
 			t.Fatal(err)
 		} else if _, err := os.Create(filepath.Join(s.Path(), "db0", "rp0", "bad_shard")); err != nil {
 			t.Fatal(err)

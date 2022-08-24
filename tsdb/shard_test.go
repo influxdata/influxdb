@@ -1641,7 +1641,7 @@ func TestMeasurementFieldSet_InvalidFormat(t *testing.T) {
 
 	path := filepath.Join(dir, "fields.idx")
 
-	if err := os.WriteFile(path, []byte{0, 0}, 0666); err != nil {
+	if err := os.WriteFile(path, []byte{0, 0}, 0600); err != nil {
 		t.Fatalf("error writing fields.index: %v", err)
 	}
 

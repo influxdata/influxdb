@@ -2974,7 +2974,7 @@ func MustTSMWriter(dir string, gen int) (tsm1.TSMWriter, string) {
 	}
 
 	var err error
-	f, err = os.OpenFile(newName, os.O_RDWR, 0666)
+	f, err = os.OpenFile(newName, os.O_RDWR, 0600)
 	if err != nil {
 		panic(fmt.Sprintf("open tsm files: %v", err))
 	}

@@ -425,7 +425,7 @@ func TestDigest_Manifest(t *testing.T) {
 	}
 
 	// Open one of the tsm files and write data to it.
-	f, err := os.OpenFile(files[0], os.O_WRONLY|os.O_APPEND, 0666)
+	f, err := os.OpenFile(files[0], os.O_WRONLY|os.O_APPEND, 0600)
 	if err != nil {
 		t.Fatal(err)
 	}

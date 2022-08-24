@@ -123,7 +123,7 @@ func (f *LogFile) open() error {
 	f.id, _ = ParseFilename(f.path)
 
 	// Open file for appending.
-	file, err := os.OpenFile(f.Path(), os.O_WRONLY|os.O_CREATE, 0666)
+	file, err := os.OpenFile(f.Path(), os.O_WRONLY|os.O_CREATE, 0600)
 	if err != nil {
 		return err
 	}

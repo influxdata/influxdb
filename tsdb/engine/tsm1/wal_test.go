@@ -808,7 +808,7 @@ func mustSegmentReader(t *testing.T, w *tsm1.WAL) (*os.File, *tsm1.WALSegmentRea
 
 	sort.Strings(files)
 
-	f, err := os.OpenFile(files[0], os.O_CREATE|os.O_RDWR, 0666)
+	f, err := os.OpenFile(files[0], os.O_CREATE|os.O_RDWR, 0600)
 	require.NoError(t, err)
 	return f, tsm1.NewWALSegmentReader(f)
 }

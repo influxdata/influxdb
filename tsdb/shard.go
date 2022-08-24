@@ -2103,7 +2103,7 @@ func (fs *MeasurementFieldSet) writeToFile(first writeRequest) {
 	path := fs.path + ".tmp"
 
 	// Open the temp file
-	fd, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_EXCL|os.O_SYNC, 0666)
+	fd, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_EXCL|os.O_SYNC, 0600)
 	if err != nil {
 		return
 	}

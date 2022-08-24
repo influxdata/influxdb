@@ -3,6 +3,7 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -38,6 +39,16 @@ func NewSqlStore(path string, log *zap.Logger) (*SqlStore, error) {
 	s := &SqlStore{
 		log:  log,
 		path: path,
+	}
+
+	if path != InmemPath {
+		// On new installs, set the file permissions correctly
+		if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
+			_, err := os.OpenFile(path, os.O_CREATE, 0600)
+			if err != nil {
+				return nil, err
+			}
+		}
 	}
 
 	if err := s.openDB(); err != nil {

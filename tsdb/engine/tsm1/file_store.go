@@ -582,7 +582,7 @@ func (f *FileStore) Open(ctx context.Context) error {
 			f.currentGeneration = generation + 1
 		}
 
-		file, err := os.OpenFile(fn, os.O_RDONLY, 0666)
+		file, err := os.OpenFile(fn, os.O_RDONLY, 0600)
 		if err != nil {
 			return fmt.Errorf("error opening file %s: %v", fn, err)
 		}
@@ -1237,7 +1237,7 @@ func (f *FileStore) CreateSnapshot() (string, error) {
 
 	// create the tmp directory and add the hard links. there is no longer any shared
 	// mutable state.
-	err := os.Mkdir(tmpPath, 0777)
+	err := os.Mkdir(tmpPath, 0700)
 	if err != nil {
 		return "", err
 	}

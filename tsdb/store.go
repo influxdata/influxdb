@@ -254,7 +254,7 @@ func (s *Store) Open(ctx context.Context) error {
 	s.Logger.Info("Using data dir", zap.String("path", s.Path()))
 
 	// Create directory.
-	if err := os.MkdirAll(s.path, 0777); err != nil {
+	if err := os.MkdirAll(s.path, 0700); err != nil {
 		return err
 	}
 
@@ -1147,7 +1147,6 @@ func (s *Store) sketchesForDatabase(dbName string, getSketches func(*Shard) (est
 //
 // Cardinality is calculated exactly by unioning all shards' bitsets of series
 // IDs. The result of this method cannot be combined with any other results.
-//
 func (s *Store) SeriesCardinality(ctx context.Context, database string) (int64, error) {
 	s.mu.RLock()
 	shards := s.filterShards(byDatabase(database))

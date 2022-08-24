@@ -268,7 +268,7 @@ func MustTempDir() string {
 func MustTempPartitionDir() string {
 	path := MustTempDir()
 	path = filepath.Join(path, "0")
-	if err := os.Mkdir(path, 0777); err != nil {
+	if err := os.Mkdir(path, 0700); err != nil {
 		panic(err)
 	}
 	return path

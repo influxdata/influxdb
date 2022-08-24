@@ -167,7 +167,7 @@ func (p *Partition) Open() (rErr error) {
 	}
 
 	// Create directory if it doesn't exist.
-	if err := os.MkdirAll(p.path, 0777); err != nil {
+	if err := os.MkdirAll(p.path, 0700); err != nil {
 		return err
 	}
 
@@ -1463,7 +1463,7 @@ func (m *Manifest) Write() (int64, error) {
 
 		tmp = f.Name()
 
-		if err = f.Chmod(0666); err != nil {
+		if err = f.Chmod(0600); err != nil {
 			return fmt.Errorf("failed setting permissions on manifest file %q: %w", tmp, err)
 		}
 		if _, err = f.Write(buf); err != nil {

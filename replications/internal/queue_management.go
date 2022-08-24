@@ -60,7 +60,7 @@ var errShutdown = errors.New("shutdown tasks for replications durable queues fai
 func NewDurableQueueManager(log *zap.Logger, queuePath string, metrics *metrics.ReplicationsMetrics, configStore remotewrite.HttpConfigStore) *durableQueueManager {
 	replicationQueues := make(map[platform.ID]*replicationQueue)
 
-	os.MkdirAll(queuePath, 0777)
+	os.MkdirAll(queuePath, 0700)
 
 	return &durableQueueManager{
 		replicationQueues: replicationQueues,
@@ -86,7 +86,7 @@ func (qm *durableQueueManager) InitializeQueue(replicationID platform.ID, maxQue
 		qm.queuePath,
 		replicationID.String(),
 	)
-	if err := os.MkdirAll(dir, 0777); err != nil {
+	if err := os.MkdirAll(dir, 0700); err != nil {
 		return err
 	}
 

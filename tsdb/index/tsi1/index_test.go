@@ -218,7 +218,7 @@ func TestIndex_OpenFail(t *testing.T) {
 	idx.Index.Close()
 	// mess up the index:
 	tslPath := path.Join(idx.Index.Path(), "3", "L0-00000001.tsl")
-	tslFile, err := os.OpenFile(tslPath, os.O_RDWR, 0666)
+	tslFile, err := os.OpenFile(tslPath, os.O_RDWR, 0600)
 	require.NoError(t, err)
 	require.NoError(t, tslFile.Truncate(0))
 	// write poisonous TSL file - first byte doesn't matter, remaining bytes are an invalid uvarint
@@ -278,7 +278,7 @@ func TestIndex_Open(t *testing.T) {
 			// Manually create a MANIFEST file for an incompatible index version.
 			// under one of the partitions.
 			partitionPath := filepath.Join(idx.Path(), "2")
-			os.MkdirAll(partitionPath, 0777)
+			os.MkdirAll(partitionPath, 0700)
 
 			mpath := filepath.Join(partitionPath, tsi1.ManifestFileName)
 			m := tsi1.NewManifest(mpath)

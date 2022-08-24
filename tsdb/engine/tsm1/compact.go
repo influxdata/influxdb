@@ -1097,7 +1097,7 @@ func (c *Compactor) writeNewFiles(generation, sequence int, src []string, iter K
 }
 
 func (c *Compactor) write(path string, iter KeyIterator, throttle bool, logger *zap.Logger) (err error) {
-	fd, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_EXCL, 0666)
+	fd, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_EXCL, 0600)
 	if err != nil {
 		return errCompactionInProgress{err: err}
 	}

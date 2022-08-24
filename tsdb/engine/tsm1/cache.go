@@ -701,7 +701,7 @@ func (cl *CacheLoader) Load(cache *Cache) error {
 	var r *WALSegmentReader
 	for _, fn := range cl.files {
 		if err := func() error {
-			f, err := os.OpenFile(fn, os.O_CREATE|os.O_RDWR, 0666)
+			f, err := os.OpenFile(fn, os.O_CREATE|os.O_RDWR, 0600)
 			if err != nil {
 				return err
 			}

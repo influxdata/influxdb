@@ -382,7 +382,7 @@ func TestEngine_Backup(t *testing.T) {
 	f.Close()
 	os.Remove(f.Name())
 	walPath := filepath.Join(f.Name(), "wal")
-	os.MkdirAll(walPath, 0777)
+	os.MkdirAll(walPath, 0700)
 	defer os.RemoveAll(f.Name())
 
 	// Create a few points.
@@ -501,7 +501,7 @@ func TestEngine_Export(t *testing.T) {
 	f.Close()
 	os.Remove(f.Name())
 	walPath := filepath.Join(f.Name(), "wal")
-	os.MkdirAll(walPath, 0777)
+	os.MkdirAll(walPath, 0700)
 	defer os.RemoveAll(f.Name())
 
 	// Create a few points.
@@ -1832,7 +1832,7 @@ func TestEngine_SnapshotsDisabled(t *testing.T) {
 	// Generate temporary file.
 	dir, _ := os.MkdirTemp("", "tsm")
 	walPath := filepath.Join(dir, "wal")
-	os.MkdirAll(walPath, 0777)
+	os.MkdirAll(walPath, 0700)
 	defer os.RemoveAll(dir)
 
 	// Create a tsm1 engine.
