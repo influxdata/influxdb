@@ -477,3 +477,16 @@ where
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::io::Write;
+
+    #[test]
+    // ensures that dependabot doesn't update dotenvy until https://github.com/allan2/dotenvy/issues/12 is fixed
+    fn dotenvy_regression() {
+        let mut tmp = tempfile::NamedTempFile::new().unwrap();
+        write!(tmp, "# '").unwrap();
+        dotenvy::from_path(tmp.path()).unwrap();
+    }
+}
