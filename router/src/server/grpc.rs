@@ -1,5 +1,7 @@
 //! gRPC service implementations for `router`.
 
+pub mod sharder;
+
 use crate::dml_handlers::{DmlError, DmlHandler, PartitionError};
 use generated_types::{
     google::FieldViolation,
