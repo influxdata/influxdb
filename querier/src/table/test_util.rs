@@ -41,7 +41,7 @@ pub async fn querier_table(
     let namespace_name = Arc::from(table.namespace.namespace.name.as_str());
 
     QuerierTable::new(QuerierTableArgs {
-        sharder: Arc::new(JumpHash::new((0..1).map(KafkaPartition::new).map(Arc::new)).unwrap()),
+        sharder: Arc::new(JumpHash::new((0..1).map(KafkaPartition::new).map(Arc::new))),
         namespace_name,
         id: table.table.id,
         table_name: table.table.name.clone().into(),

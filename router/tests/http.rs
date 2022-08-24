@@ -82,29 +82,23 @@ impl TestContext {
         let write_buffer: Arc<dyn WriteBufferWriting> = Arc::new(write_buffer);
 
         let shards: BTreeSet<_> = write_buffer.sequencer_ids();
-        let sharded_write_buffer = ShardedWriteBuffer::new(
-            JumpHash::new(
-                shards
-                    .into_iter()
-                    .map(|id| {
-                        Sequencer::new(
-                            KafkaPartition::new(id as _),
-                            Arc::clone(&write_buffer),
-                            &metrics,
-                        )
-                    })
-                    .map(Arc::new),
-            )
-            .unwrap(),
-        );
+        let sharded_write_buffer = ShardedWriteBuffer::new(JumpHash::new(
+            shards
+                .into_iter()
+                .map(|id| {
+                    Sequencer::new(
+                        KafkaPartition::new(id as _),
+                        Arc::clone(&write_buffer),
+                        &metrics,
+                    )
+                })
+                .map(Arc::new),
+        ));
 
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
-        let ns_cache = Arc::new(
-            ShardedCache::new(
-                iter::repeat_with(|| Arc::new(MemoryNamespaceCache::default())).take(10),
-            )
-            .unwrap(),
-        );
+        let ns_cache = Arc::new(ShardedCache::new(
+            iter::repeat_with(|| Arc::new(MemoryNamespaceCache::default())).take(10),
+        ));
 
         let ns_creator = NamespaceAutocreation::new(
             Arc::clone(&catalog),

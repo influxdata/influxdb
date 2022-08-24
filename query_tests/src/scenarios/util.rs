@@ -943,8 +943,7 @@ impl MockIngester {
             Arc::clone(&catalog_cache),
         );
         let ingester_connection = Arc::new(ingester_connection);
-        let sharder =
-            Arc::new(JumpHash::new((0..1).map(KafkaPartition::new).map(Arc::new)).unwrap());
+        let sharder = Arc::new(JumpHash::new((0..1).map(KafkaPartition::new).map(Arc::new)));
 
         Arc::new(QuerierNamespace::new_testing(
             catalog_cache,
