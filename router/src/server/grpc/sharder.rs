@@ -26,7 +26,7 @@ use crate::sequencer::Sequencer;
 ///
 /// [gRPC endpoint]: generated_types::influxdata::iox::sharder::v1::shard_service_server::ShardService
 /// [`ShardedWriteBuffer`]: crate::dml_handlers::ShardedWriteBuffer
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ShardService<S> {
     sharder: S,
 
