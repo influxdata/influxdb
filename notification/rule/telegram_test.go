@@ -224,7 +224,7 @@ all_statuses
 				return
 			}
 
-			if got, want := script, tt.script; got != want {
+			if got, want := script, influxTesting.FormatFluxString(t, tt.script); got != want {
 				t.Errorf("\n\nStrings do not match:\n\n%s", diff.LineDiff(got, want))
 			}
 		})
