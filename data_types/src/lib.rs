@@ -76,13 +76,13 @@ impl std::fmt::Display for NamespaceId {
     }
 }
 
-/// Unique ID for a `KafkaTopic`
+/// Unique ID for a Topic, assigned by the catalog and used in [`TopicMetadata`]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
 #[sqlx(transparent)]
-pub struct KafkaTopicId(i64);
+pub struct TopicId(i64);
 
 #[allow(missing_docs)]
-impl KafkaTopicId {
+impl TopicId {
     pub fn new(v: i64) -> Self {
         Self(v)
     }
@@ -91,7 +91,7 @@ impl KafkaTopicId {
     }
 }
 
-impl std::fmt::Display for KafkaTopicId {
+impl std::fmt::Display for TopicId {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{}", self.0)
     }
@@ -392,7 +392,7 @@ impl std::fmt::Display for ParquetFileId {
 #[derive(Debug, Clone, Eq, PartialEq, sqlx::FromRow)]
 pub struct TopicMetadata {
     /// The id of the topic
-    pub id: KafkaTopicId,
+    pub id: TopicId,
     /// The unique name of the topic
     pub name: String,
 }
@@ -413,11 +413,13 @@ pub struct Namespace {
     pub id: NamespaceId,
     /// The unique name of the namespace
     pub name: String,
-    /// The retention duration as a string. 'inf' or not present represents infinite duration (i.e. never drop data).
+    /// The retention duration as a string. 'inf' or not present represents infinite duration (i.e.
+    /// never drop data).
     #[sqlx(default)]
     pub retention_duration: Option<String>,
-    /// The kafka topic that writes to this namespace will land in
-    pub kafka_topic_id: KafkaTopicId,
+    /// The topic that writes to this namespace will land in
+    #[sqlx(rename = "kafka_topic_id")]
+    pub topic_id: TopicId,
     /// The query pool assigned to answer queries for this namespace
     pub query_pool_id: QueryPoolId,
     /// The maximum number of tables that can exist in this namespace
@@ -432,8 +434,8 @@ pub struct Namespace {
 pub struct NamespaceSchema {
     /// the namespace id
     pub id: NamespaceId,
-    /// the kafka topic this namespace gets data written to
-    pub kafka_topic_id: KafkaTopicId,
+    /// the topic this namespace gets data written to
+    pub topic_id: TopicId,
     /// the query pool assigned to answer queries for this namespace
     pub query_pool_id: QueryPoolId,
     /// the tables in the namespace by name
@@ -442,11 +444,11 @@ pub struct NamespaceSchema {
 
 impl NamespaceSchema {
     /// Create a new `NamespaceSchema`
-    pub fn new(id: NamespaceId, kafka_topic_id: KafkaTopicId, query_pool_id: QueryPoolId) -> Self {
+    pub fn new(id: NamespaceId, topic_id: TopicId, query_pool_id: QueryPoolId) -> Self {
         Self {
             id,
             tables: BTreeMap::new(),
-            kafka_topic_id,
+            topic_id,
             query_pool_id,
         }
     }
@@ -721,14 +723,15 @@ pub fn column_type_from_field(field_value: &FieldValue) -> ColumnType {
     }
 }
 
-/// Data object for a shard. Only one shard record can exist for a given kafka topic and shard
+/// Data object for a shard. Only one shard record can exist for a given topic and shard
 /// index (enforced via uniqueness constraint).
 #[derive(Debug, Copy, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct Shard {
     /// the id of the shard, assigned by the catalog
     pub id: ShardId,
     /// the topic the shard is reading from
-    pub kafka_topic_id: KafkaTopicId,
+    #[sqlx(rename = "kafka_topic_id")]
+    pub topic_id: TopicId,
     /// the shard index of the shard the sequence numbers are coming from, sharded by the router
     /// and write buffer
     #[sqlx(rename = "kafka_partition")]
@@ -3292,13 +3295,13 @@ mod tests {
     fn test_namespace_schema_size() {
         let schema1 = NamespaceSchema {
             id: NamespaceId::new(1),
-            kafka_topic_id: KafkaTopicId::new(2),
+            topic_id: TopicId::new(2),
             query_pool_id: QueryPoolId::new(3),
             tables: BTreeMap::from([]),
         };
         let schema2 = NamespaceSchema {
             id: NamespaceId::new(1),
-            kafka_topic_id: KafkaTopicId::new(2),
+            topic_id: TopicId::new(2),
             query_pool_id: QueryPoolId::new(3),
             tables: BTreeMap::from([(String::from("foo"), TableSchema::new(TableId::new(1)))]),
         };

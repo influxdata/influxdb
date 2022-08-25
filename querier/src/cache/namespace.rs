@@ -253,7 +253,7 @@ mod tests {
             .unwrap();
         let expected_schema_1 = NamespaceSchema {
             id: ns1.namespace.id,
-            kafka_topic_id: ns1.namespace.kafka_topic_id,
+            topic_id: ns1.namespace.topic_id,
             query_pool_id: ns1.namespace.query_pool_id,
             tables: BTreeMap::from([
                 (
@@ -318,7 +318,7 @@ mod tests {
             .unwrap();
         let expected_schema_2 = NamespaceSchema {
             id: ns2.namespace.id,
-            kafka_topic_id: ns2.namespace.kafka_topic_id,
+            topic_id: ns2.namespace.topic_id,
             query_pool_id: ns2.namespace.query_pool_id,
             tables: BTreeMap::from([(
                 String::from("table1"),

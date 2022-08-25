@@ -1,5 +1,5 @@
 use assert_matches::assert_matches;
-use data_types::{KafkaTopicId, PartitionTemplate, QueryPoolId, ShardIndex, TemplatePart};
+use data_types::{PartitionTemplate, QueryPoolId, ShardIndex, TemplatePart, TopicId};
 use dml::DmlOperation;
 use hashbrown::HashMap;
 use hyper::{Body, Request, StatusCode};
@@ -23,9 +23,9 @@ use write_buffer::{
     mock::{MockBufferForWriting, MockBufferSharedState},
 };
 
-/// The kafka topic catalog ID assigned by the namespace auto-creator in the
+/// The topic catalog ID assigned by the namespace auto-creator in the
 /// handler stack for namespaces it has not yet observed.
-const TEST_KAFKA_TOPIC_ID: i64 = 1;
+const TEST_TOPIC_ID: i64 = 1;
 
 /// The query pool catalog ID assigned by the namespace auto-creator in the
 /// handler stack for namespaces it has not yet observed.
@@ -97,7 +97,7 @@ impl TestContext {
         let ns_creator = NamespaceAutocreation::new(
             Arc::clone(&catalog),
             Arc::clone(&ns_cache),
-            KafkaTopicId::new(TEST_KAFKA_TOPIC_ID),
+            TopicId::new(TEST_TOPIC_ID),
             QueryPoolId::new(TEST_QUERY_POOL_ID),
             iox_catalog::INFINITE_RETENTION_POLICY.to_owned(),
         );
@@ -194,7 +194,7 @@ async fn test_write_ok() {
         ns.retention_duration.as_deref(),
         Some(iox_catalog::INFINITE_RETENTION_POLICY)
     );
-    assert_eq!(ns.kafka_topic_id, KafkaTopicId::new(TEST_KAFKA_TOPIC_ID));
+    assert_eq!(ns.topic_id, TopicId::new(TEST_TOPIC_ID));
     assert_eq!(ns.query_pool_id, QueryPoolId::new(TEST_QUERY_POOL_ID));
 
     // Ensure the metric instrumentation was hit

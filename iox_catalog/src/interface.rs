@@ -2,11 +2,11 @@
 
 use async_trait::async_trait;
 use data_types::{
-    Column, ColumnSchema, ColumnType, KafkaTopicId, Namespace, NamespaceId, NamespaceSchema,
-    ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionInfo,
-    PartitionKey, PartitionParam, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber,
-    Shard, ShardId, ShardIndex, Table, TableId, TablePartition, TableSchema, Timestamp, Tombstone,
-    TombstoneId, TopicMetadata,
+    Column, ColumnSchema, ColumnType, Namespace, NamespaceId, NamespaceSchema, ParquetFile,
+    ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionInfo, PartitionKey,
+    PartitionParam, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Shard, ShardId,
+    ShardIndex, Table, TableId, TablePartition, TableSchema, Timestamp, Tombstone, TombstoneId,
+    TopicId, TopicMetadata,
 };
 use iox_time::TimeProvider;
 use snafu::{OptionExt, Snafu};
@@ -207,16 +207,17 @@ impl<T> Transaction for T where T: Send + Sync + Debug + sealed::TransactionFina
 ///
 /// # Repositories
 ///
-/// The methods (e.g. `create_*` or `get_by_*`) for handling entities (namespaces, tombstones, etc.) are grouped into
-/// *repositories* with one repository per entity. A repository can be thought of a collection of a single kind of entity.
-/// Getting repositories from the transaction is cheap.
+/// The methods (e.g. `create_*` or `get_by_*`) for handling entities (namespaces, tombstones,
+/// etc.) are grouped into *repositories* with one repository per entity. A repository can be
+/// thought of a collection of a single kind of entity. Getting repositories from the transaction
+/// is cheap.
 ///
-/// A repository might internally map to a wide range of different storage abstractions, ranging from one or
-/// more SQL tables over key-value key spaces to simple in-memory vectors. The user should and must not care how these
-/// are implemented.
+/// A repository might internally map to a wide range of different storage abstractions, ranging
+/// from one or more SQL tables over key-value key spaces to simple in-memory vectors. The user
+/// should and must not care how these are implemented.
 #[async_trait]
 pub trait RepoCollection: Send + Sync + Debug {
-    /// Repository for [Kafka topics](data_types::TopicMetadata).
+    /// Repository for [topics](data_types::TopicMetadata).
     fn topics(&mut self) -> &mut dyn TopicMetadataRepo;
 
     /// Repository for [query pools](data_types::QueryPool).
@@ -273,7 +274,7 @@ pub trait NamespaceRepo: Send + Sync {
         &mut self,
         name: &str,
         retention_duration: &str,
-        topic_id: KafkaTopicId,
+        topic_id: TopicId,
         query_pool_id: QueryPoolId,
     ) -> Result<Namespace>;
 
@@ -391,10 +392,10 @@ pub trait ShardRepo: Send + Sync {
         shard_index: ShardIndex,
     ) -> Result<Shard>;
 
-    /// get the shard record by `KafkaTopicId` and `ShardIndex`
+    /// get the shard record by `TopicId` and `ShardIndex`
     async fn get_by_topic_id_and_shard_index(
         &mut self,
-        topic_id: KafkaTopicId,
+        topic_id: TopicId,
         shard_index: ShardIndex,
     ) -> Result<Option<Shard>>;
 
@@ -679,11 +680,8 @@ where
     let columns = repos.columns().list_by_namespace_id(namespace.id).await?;
     let tables = repos.tables().list_by_namespace_id(namespace.id).await?;
 
-    let mut namespace = NamespaceSchema::new(
-        namespace.id,
-        namespace.kafka_topic_id,
-        namespace.query_pool_id,
-    );
+    let mut namespace =
+        NamespaceSchema::new(namespace.id, namespace.topic_id, namespace.query_pool_id);
 
     let mut table_id_to_schema = BTreeMap::new();
     for t in tables {
@@ -834,7 +832,7 @@ pub async fn list_schemas(
         // was created, or have no tables/columns (and therefore have no entry
         // in "joined").
         .filter_map(move |v| {
-            let mut ns = NamespaceSchema::new(v.id, v.kafka_topic_id, v.query_pool_id);
+            let mut ns = NamespaceSchema::new(v.id, v.topic_id, v.query_pool_id);
             ns.tables = joined.remove(&v.id)?;
             Some((v, ns))
         });
@@ -901,7 +899,7 @@ pub(crate) mod test_helpers {
         let topic_repo = repos.topics();
 
         let k = topic_repo.create_or_get("foo").await.unwrap();
-        assert!(k.id > KafkaTopicId::new(0));
+        assert!(k.id > TopicId::new(0));
         assert_eq!(k.name, "foo");
         let k2 = topic_repo.create_or_get("foo").await.unwrap();
         assert_eq!(k, k2);
@@ -1328,7 +1326,7 @@ pub(crate) mod test_helpers {
             .await
             .unwrap()
             .unwrap();
-        assert_eq!(topic.id, shard.kafka_topic_id);
+        assert_eq!(topic.id, shard.topic_id);
         assert_eq!(shard_index, shard.shard_index);
 
         // update the number

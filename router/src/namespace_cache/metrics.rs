@@ -154,8 +154,7 @@ mod tests {
     use super::*;
     use crate::namespace_cache::MemoryNamespaceCache;
     use data_types::{
-        ColumnId, ColumnSchema, ColumnType, KafkaTopicId, NamespaceId, QueryPoolId, TableId,
-        TableSchema,
+        ColumnId, ColumnSchema, ColumnType, NamespaceId, QueryPoolId, TableId, TableSchema, TopicId,
     };
     use metric::{Attributes, MetricObserver, Observation};
     use std::collections::BTreeMap;
@@ -192,7 +191,7 @@ mod tests {
 
         NamespaceSchema {
             id: NamespaceId::new(42),
-            kafka_topic_id: KafkaTopicId::new(24),
+            topic_id: TopicId::new(24),
             query_pool_id: QueryPoolId::new(1234),
             tables,
         }

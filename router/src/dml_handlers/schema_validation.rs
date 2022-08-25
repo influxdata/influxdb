@@ -257,7 +257,7 @@ where
 mod tests {
     use super::*;
     use assert_matches::assert_matches;
-    use data_types::{ColumnType, KafkaTopicId, QueryPoolId, TimestampRange};
+    use data_types::{ColumnType, QueryPoolId, TimestampRange, TopicId};
     use iox_catalog::mem::MemCatalog;
     use once_cell::sync::Lazy;
     use std::sync::Arc;
@@ -283,7 +283,7 @@ mod tests {
             .create(
                 NAMESPACE.as_str(),
                 "inf",
-                KafkaTopicId::new(42),
+                TopicId::new(42),
                 QueryPoolId::new(24),
             )
             .await

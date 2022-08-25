@@ -12,10 +12,10 @@ use crate::{
 };
 use async_trait::async_trait;
 use data_types::{
-    Column, ColumnId, ColumnType, CompactionLevel, KafkaTopicId, Namespace, NamespaceId,
-    ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionInfo,
-    PartitionKey, PartitionParam, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber,
-    Shard, ShardId, ShardIndex, Table, TableId, TablePartition, Timestamp, Tombstone, TombstoneId,
+    Column, ColumnId, ColumnType, CompactionLevel, Namespace, NamespaceId, ParquetFile,
+    ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionInfo, PartitionKey,
+    PartitionParam, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Shard, ShardId,
+    ShardIndex, Table, TableId, TablePartition, Timestamp, Tombstone, TombstoneId, TopicId,
     TopicMetadata,
 };
 use iox_time::{SystemProvider, TimeProvider};
@@ -238,7 +238,7 @@ impl TopicMetadataRepo for MemTxn {
             Some(t) => t,
             None => {
                 let topic = TopicMetadata {
-                    id: KafkaTopicId::new(stage.topics.len() as i64 + 1),
+                    id: TopicId::new(stage.topics.len() as i64 + 1),
                     name: name.to_string(),
                 };
                 stage.topics.push(topic);
@@ -284,7 +284,7 @@ impl NamespaceRepo for MemTxn {
         &mut self,
         name: &str,
         retention_duration: &str,
-        kafka_topic_id: KafkaTopicId,
+        topic_id: TopicId,
         query_pool_id: QueryPoolId,
     ) -> Result<Namespace> {
         let stage = self.stage();
@@ -298,7 +298,7 @@ impl NamespaceRepo for MemTxn {
         let namespace = Namespace {
             id: NamespaceId::new(stage.namespaces.len() as i64 + 1),
             name: name.to_string(),
-            kafka_topic_id,
+            topic_id,
             query_pool_id,
             retention_duration: Some(retention_duration.to_string()),
             max_tables: 10000,
@@ -615,13 +615,13 @@ impl ShardRepo for MemTxn {
         let shard = match stage
             .shards
             .iter()
-            .find(|s| s.kafka_topic_id == topic.id && s.shard_index == shard_index)
+            .find(|s| s.topic_id == topic.id && s.shard_index == shard_index)
         {
             Some(t) => t,
             None => {
                 let shard = Shard {
                     id: ShardId::new(stage.shards.len() as i64 + 1),
-                    kafka_topic_id: topic.id,
+                    topic_id: topic.id,
                     shard_index,
                     min_unpersisted_sequence_number: SequenceNumber::new(0),
                 };
@@ -635,7 +635,7 @@ impl ShardRepo for MemTxn {
 
     async fn get_by_topic_id_and_shard_index(
         &mut self,
-        topic_id: KafkaTopicId,
+        topic_id: TopicId,
         shard_index: ShardIndex,
     ) -> Result<Option<Shard>> {
         let stage = self.stage();
@@ -643,7 +643,7 @@ impl ShardRepo for MemTxn {
         let shard = stage
             .shards
             .iter()
-            .find(|s| s.kafka_topic_id == topic_id && s.shard_index == shard_index)
+            .find(|s| s.topic_id == topic_id && s.shard_index == shard_index)
             .cloned();
         Ok(shard)
     }
@@ -660,7 +660,7 @@ impl ShardRepo for MemTxn {
         let shards: Vec<_> = stage
             .shards
             .iter()
-            .filter(|s| s.kafka_topic_id == topic.id)
+            .filter(|s| s.topic_id == topic.id)
             .cloned()
             .collect();
         Ok(shards)

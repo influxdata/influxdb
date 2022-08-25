@@ -231,7 +231,7 @@ const QUERY_POOL: &str = "iox_shared";
 
 // loads the protobuf namespace schema returned from a remote IOx server into the passed in
 // catalog. It does this based on namespace, table, and column names, not IDs. It also inserts
-// a kafka topic and query pool for the namespace to use, which aren't for real use, but just
+// a topic and query pool for the namespace to use, which aren't for real use, but just
 // to make the loaded schema work.
 async fn load_schema(
     catalog: &Arc<dyn Catalog>,
@@ -398,7 +398,7 @@ mod tests {
 
         let schema = NamespaceSchema {
             id: 1,
-            kafka_topic_id: 1,
+            topic_id: 1,
             query_pool_id: 1,
             tables: HashMap::from([(
                 "table1".to_string(),
@@ -431,7 +431,7 @@ mod tests {
 
         let schema = NamespaceSchema {
             id: 1,
-            kafka_topic_id: 1,
+            topic_id: 1,
             query_pool_id: 1,
             tables: HashMap::from([(
                 "table1".to_string(),
@@ -451,7 +451,7 @@ mod tests {
 
         let schema = NamespaceSchema {
             id: 1,
-            kafka_topic_id: 1,
+            topic_id: 1,
             query_pool_id: 1,
             tables: HashMap::from([
                 (

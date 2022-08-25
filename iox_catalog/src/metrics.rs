@@ -7,10 +7,10 @@ use crate::interface::{
 };
 use async_trait::async_trait;
 use data_types::{
-    Column, ColumnType, KafkaTopicId, Namespace, NamespaceId, ParquetFile, ParquetFileId,
-    ParquetFileParams, Partition, PartitionId, PartitionInfo, PartitionKey, PartitionParam,
-    ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Shard, ShardId, ShardIndex, Table,
-    TableId, TablePartition, Timestamp, Tombstone, TombstoneId, TopicMetadata,
+    Column, ColumnType, Namespace, NamespaceId, ParquetFile, ParquetFileId, ParquetFileParams,
+    Partition, PartitionId, PartitionInfo, PartitionKey, PartitionParam, ProcessedTombstone,
+    QueryPool, QueryPoolId, SequenceNumber, Shard, ShardId, ShardIndex, Table, TableId,
+    TablePartition, Timestamp, Tombstone, TombstoneId, TopicId, TopicMetadata,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use metric::{DurationHistogram, Metric};
@@ -192,7 +192,7 @@ decorate!(
 decorate!(
     impl_trait = NamespaceRepo,
     methods = [
-        "namespace_create" = create(&mut self, name: &str, retention_duration: &str, kafka_topic_id: KafkaTopicId, query_pool_id: QueryPoolId) -> Result<Namespace>;
+        "namespace_create" = create(&mut self, name: &str, retention_duration: &str, topic_id: TopicId, query_pool_id: QueryPoolId) -> Result<Namespace>;
         "namespace_list" = list(&mut self) -> Result<Vec<Namespace>>;
         "namespace_get_by_id" = get_by_id(&mut self, id: NamespaceId) -> Result<Option<Namespace>>;
         "namespace_get_by_name" = get_by_name(&mut self, name: &str) -> Result<Option<Namespace>>;
@@ -228,7 +228,7 @@ decorate!(
     impl_trait = ShardRepo,
     methods = [
         "shard_create_or_get" = create_or_get(&mut self, topic: &TopicMetadata, shard_index: ShardIndex) -> Result<Shard>;
-        "shard_get_by_topic_id_and_shard_index" = get_by_topic_id_and_shard_index(&mut self, topic_id: KafkaTopicId, shard_index: ShardIndex) -> Result<Option<Shard>>;
+        "shard_get_by_topic_id_and_shard_index" = get_by_topic_id_and_shard_index(&mut self, topic_id: TopicId, shard_index: ShardIndex) -> Result<Option<Shard>>;
         "shard_list" = list(&mut self) -> Result<Vec<Shard>>;
         "shard_list_by_topic" = list_by_topic(&mut self, topic: &TopicMetadata) -> Result<Vec<Shard>>;
         "shard_update_min_unpersisted_sequence_number" = update_min_unpersisted_sequence_number(&mut self, shard_id: ShardId, sequence_number: SequenceNumber) -> Result<()>;

@@ -40,7 +40,7 @@ where
 mod tests {
     use super::*;
     use crate::namespace_cache::MemoryNamespaceCache;
-    use data_types::{KafkaTopicId, NamespaceId, QueryPoolId};
+    use data_types::{NamespaceId, QueryPoolId, TopicId};
     use rand::{distributions::Alphanumeric, thread_rng, Rng};
     use std::{collections::HashMap, iter};
 
@@ -57,7 +57,7 @@ mod tests {
     fn schema_with_id(id: i64) -> NamespaceSchema {
         NamespaceSchema {
             id: NamespaceId::new(id),
-            kafka_topic_id: KafkaTopicId::new(1),
+            topic_id: TopicId::new(1),
             query_pool_id: QueryPoolId::new(1),
             tables: Default::default(),
         }

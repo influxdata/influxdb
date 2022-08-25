@@ -11,10 +11,10 @@ use crate::{
 };
 use async_trait::async_trait;
 use data_types::{
-    Column, ColumnType, CompactionLevel, KafkaTopicId, Namespace, NamespaceId, ParquetFile,
-    ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionInfo, PartitionKey,
-    PartitionParam, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Shard, ShardId,
-    ShardIndex, Table, TableId, TablePartition, Timestamp, Tombstone, TombstoneId, TopicMetadata,
+    Column, ColumnType, CompactionLevel, Namespace, NamespaceId, ParquetFile, ParquetFileId,
+    ParquetFileParams, Partition, PartitionId, PartitionInfo, PartitionKey, PartitionParam,
+    ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Shard, ShardId, ShardIndex, Table,
+    TableId, TablePartition, Timestamp, Tombstone, TombstoneId, TopicId, TopicMetadata,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::{debug, info, warn};
@@ -570,7 +570,7 @@ impl NamespaceRepo for PostgresTxn {
         &mut self,
         name: &str,
         retention_duration: &str,
-        kafka_topic_id: KafkaTopicId,
+        topic_id: TopicId,
         query_pool_id: QueryPoolId,
     ) -> Result<Namespace> {
         let rec = sqlx::query_as::<_, Namespace>(
@@ -582,7 +582,7 @@ RETURNING *;
         )
         .bind(&name) // $1
         .bind(&retention_duration) // $2
-        .bind(kafka_topic_id) // $3
+        .bind(topic_id) // $3
         .bind(query_pool_id) // $4
         .fetch_one(&mut self.inner)
         .await
@@ -1043,7 +1043,7 @@ RETURNING *;;
 
     async fn get_by_topic_id_and_shard_index(
         &mut self,
-        topic_id: KafkaTopicId,
+        topic_id: TopicId,
         shard_index: ShardIndex,
     ) -> Result<Option<Shard>> {
         let rec = sqlx::query_as::<_, Shard>(

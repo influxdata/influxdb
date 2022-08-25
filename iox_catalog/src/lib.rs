@@ -263,7 +263,7 @@ mod tests {
 
                     let schema = NamespaceSchema::new(
                         namespace.id,
-                        namespace.kafka_topic_id,
+                        namespace.topic_id,
                         namespace.query_pool_id,
                     );
 

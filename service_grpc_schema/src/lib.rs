@@ -44,7 +44,7 @@ fn schema_to_proto(schema: Arc<data_types::NamespaceSchema>) -> GetSchemaRespons
     let response = GetSchemaResponse {
         schema: Some(NamespaceSchema {
             id: schema.id.get(),
-            kafka_topic_id: schema.kafka_topic_id.get(),
+            topic_id: schema.topic_id.get(),
             query_pool_id: schema.query_pool_id.get(),
             tables: schema
                 .tables

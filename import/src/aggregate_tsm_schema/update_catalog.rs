@@ -2,8 +2,8 @@ use self::generated_types::{shard_service_client::ShardServiceClient, *};
 use crate::{AggregateTSMMeasurement, AggregateTSMSchema};
 use chrono::{format::StrftimeItems, offset::FixedOffset, DateTime, Duration};
 use data_types::{
-    org_and_bucket_to_database, ColumnType, KafkaTopicId, Namespace, NamespaceSchema,
-    OrgBucketMappingError, Partition, PartitionKey, QueryPoolId, ShardId, TableSchema,
+    org_and_bucket_to_database, ColumnType, Namespace, NamespaceSchema, OrgBucketMappingError,
+    Partition, PartitionKey, QueryPoolId, ShardId, TableSchema, TopicId,
 };
 use influxdb_iox_client::connection::Connection;
 use iox_catalog::interface::{get_schema_by_name, Catalog, ColumnUpsertRequest, RepoCollection};
@@ -114,7 +114,7 @@ async fn get_topic_id_and_query_id<'a, R>(
     repos: &mut R,
     topic_name: &'a str,
     query_pool_name: &'a str,
-) -> Result<(KafkaTopicId, QueryPoolId), UpdateCatalogError>
+) -> Result<(TopicId, QueryPoolId), UpdateCatalogError>
 where
     R: RepoCollection + ?Sized,
 {
@@ -139,7 +139,7 @@ where
 async fn create_namespace<R>(
     name: &str,
     retention: &str,
-    topic_id: KafkaTopicId,
+    topic_id: TopicId,
     query_id: QueryPoolId,
     repos: &mut R,
 ) -> Result<Namespace, UpdateCatalogError>
@@ -592,12 +592,7 @@ mod tests {
         // create namespace, table and columns for weather measurement
         let namespace = txn
             .namespaces()
-            .create(
-                "1234_5678",
-                "inf",
-                KafkaTopicId::new(1),
-                QueryPoolId::new(1),
-            )
+            .create("1234_5678", "inf", TopicId::new(1), QueryPoolId::new(1))
             .await
             .expect("namespace created");
         let mut table = txn
@@ -702,12 +697,7 @@ mod tests {
         // create namespace, table and columns for weather measurement
         let namespace = txn
             .namespaces()
-            .create(
-                "1234_5678",
-                "inf",
-                KafkaTopicId::new(1),
-                QueryPoolId::new(1),
-            )
+            .create("1234_5678", "inf", TopicId::new(1), QueryPoolId::new(1))
             .await
             .expect("namespace created");
         let mut table = txn
@@ -788,12 +778,7 @@ mod tests {
         // create namespace, table and columns for weather measurement
         let namespace = txn
             .namespaces()
-            .create(
-                "1234_5678",
-                "inf",
-                KafkaTopicId::new(1),
-                QueryPoolId::new(1),
-            )
+            .create("1234_5678", "inf", TopicId::new(1), QueryPoolId::new(1))
             .await
             .expect("namespace created");
         let mut table = txn
