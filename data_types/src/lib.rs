@@ -154,7 +154,8 @@ impl PgHasArrayType for ColumnId {
     }
 }
 
-/// Unique ID for a `Shard`.
+/// Unique ID for a `Shard`, assigned by the catalog. Joins to other catalog tables to uniquely
+/// identify shards independently of the underlying write buffer implementation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
 #[sqlx(transparent)]
 pub struct ShardId(i64);
@@ -176,7 +177,8 @@ impl std::fmt::Display for ShardId {
 }
 
 /// The index of the shard in the set of shards. When Kafka is used as the write buffer, this is
-/// the Kafka Partition ID.
+/// the Kafka Partition ID. Used by the router and write buffer to shard requests to a particular
+/// index in a set of shards.
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
 #[sqlx(transparent)]
 #[serde(transparent)]
@@ -718,15 +720,16 @@ pub fn column_type_from_field(field_value: &FieldValue) -> ColumnType {
     }
 }
 
-/// Data object for a shard. Only one shard record can exist for a given
-/// kafka topic and partition (enforced via uniqueness constraint).
+/// Data object for a shard. Only one shard record can exist for a given kafka topic and shard
+/// index (enforced via uniqueness constraint).
 #[derive(Debug, Copy, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct Shard {
-    /// the id of the shard
+    /// the id of the shard, assigned by the catalog
     pub id: ShardId,
     /// the topic the shard is reading from
     pub kafka_topic_id: KafkaTopicId,
-    /// the shard index of the shard the sequence numbers are coming from
+    /// the shard index of the shard the sequence numbers are coming from, sharded by the router
+    /// and write buffer
     #[sqlx(rename = "kafka_partition")]
     pub shard_index: ShardIndex,
     /// The minimum unpersisted sequence number. Because different tables
