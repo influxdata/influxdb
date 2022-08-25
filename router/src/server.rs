@@ -13,20 +13,20 @@ pub mod http;
 /// The [`RouterServer`] manages the lifecycle and contains all state for a
 /// `router` server instance.
 #[derive(Debug)]
-pub struct RouterServer<D> {
+pub struct RouterServer<D, S> {
     metrics: Arc<metric::Registry>,
     trace_collector: Option<Arc<dyn TraceCollector>>,
 
     http: HttpDelegate<D>,
-    grpc: GrpcDelegate<D>,
+    grpc: GrpcDelegate<D, S>,
 }
 
-impl<D> RouterServer<D> {
+impl<D, S> RouterServer<D, S> {
     /// Initialise a new [`RouterServer`] using the provided HTTP and gRPC
     /// handlers.
     pub fn new(
         http: HttpDelegate<D>,
-        grpc: GrpcDelegate<D>,
+        grpc: GrpcDelegate<D, S>,
         metrics: Arc<metric::Registry>,
         trace_collector: Option<Arc<dyn TraceCollector>>,
     ) -> Self {
@@ -49,7 +49,7 @@ impl<D> RouterServer<D> {
     }
 }
 
-impl<D> RouterServer<D>
+impl<D, S> RouterServer<D, S>
 where
     D: DmlHandler<WriteInput = HashMap<String, MutableBatch>>,
 {
@@ -59,7 +59,7 @@ where
     }
 
     /// Get a reference to the router grpc delegate.
-    pub fn grpc(&self) -> &GrpcDelegate<D> {
+    pub fn grpc(&self) -> &GrpcDelegate<D, S> {
         &self.grpc
     }
 }

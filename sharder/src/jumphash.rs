@@ -113,10 +113,11 @@ struct HashKey<'a> {
     namespace: &'a str,
 }
 
-/// A [`JumpHash`] sharder mapping a [`MutableBatch`] reference according to
-/// the namespace it is destined for.
-/// This currently doesn't use any information about the payload, just encodes that a MutableBatch
-/// will always be sharded to one `Arc<T>`.
+/// A [`JumpHash`] sharder mapping a [`MutableBatch`] reference according to the
+/// namespace it is destined for.
+///
+/// This currently doesn't use any information about the payload, just encodes
+/// that a MutableBatch will always be sharded to one `Arc<T>`.
 impl<T> Sharder<MutableBatch> for JumpHash<Arc<T>>
 where
     T: Debug + Send + Sync,
@@ -129,7 +130,9 @@ where
         namespace: &DatabaseName<'_>,
         _payload: &MutableBatch,
     ) -> Self::Item {
-        Arc::clone(self.shard_for_query(table, namespace.as_ref()))
+        // Because the MutableBatch is not (currently) used to derive the shard
+        // destination, delegate to the "no payload" sharder.
+        Self::shard(self, table, namespace, &())
     }
 }
 
@@ -160,6 +163,17 @@ where
             table,
             namespace: namespace.as_ref(),
         }))]
+    }
+}
+
+impl<T> Sharder<()> for JumpHash<Arc<T>>
+where
+    T: Debug + Send + Sync,
+{
+    type Item = Arc<T>;
+
+    fn shard(&self, table: &str, namespace: &DatabaseName<'_>, _payload: &()) -> Self::Item {
+        Arc::clone(self.shard_for_query(table, namespace.as_ref()))
     }
 }
 
@@ -295,11 +309,14 @@ mod tests {
             *hasher.shard("42", &namespace, &MutableBatch::default()),
             904
         );
+        assert_eq!(*hasher.shard("42", &namespace, &()), 904);
         assert_eq!(
             *hasher.shard("4242", &namespace, &MutableBatch::default()),
             230
         );
+        assert_eq!(*hasher.shard("4242", &namespace, &()), 230);
         assert_eq!(*hasher.shard("bananas", &namespace, &batch), 183);
+        assert_eq!(*hasher.shard("bananas", &namespace, &()), 183);
     }
 
     #[test]
