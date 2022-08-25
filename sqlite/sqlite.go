@@ -44,10 +44,11 @@ func NewSqlStore(path string, log *zap.Logger) (*SqlStore, error) {
 	if path != InmemPath {
 		// On new installs, set the file permissions correctly
 		if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
-			_, err := os.OpenFile(path, os.O_CREATE, 0600)
+			f, err := os.OpenFile(path, os.O_CREATE, 0600)
 			if err != nil {
 				return nil, err
 			}
+			f.Close()
 		}
 	}
 
