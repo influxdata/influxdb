@@ -162,8 +162,6 @@ var set *SeriesIDSet
 // BenchmarkSeriesIDSet_Add/10-4         	5000000	       348 ns/op	       0 B/op	       0 allocs/op
 // BenchmarkSeriesIDSet_Add/100-4        	5000000	       373 ns/op	       0 B/op	       0 allocs/op
 // BenchmarkSeriesIDSet_Add/1000-4       	5000000	       342 ns/op	       0 B/op	       0 allocs/op
-//
-//
 func BenchmarkSeriesIDSet_AddMore(b *testing.B) {
 	cardinalities := []uint64{1, 2, 10, 100, 1000, 10000, 100000, 1000000, 10000000}
 
@@ -202,7 +200,6 @@ func BenchmarkSeriesIDSet_AddMore(b *testing.B) {
 // BenchmarkSeriesIDSet_Add/cardinality_1000000_check_add/random_global_lock-8       	 2000000	       914   ns/op	       0 B/op	       0 allocs/op
 // BenchmarkSeriesIDSet_Add/cardinality_1000000_check_add/same_multi_lock-8          	30000000	        39.7 ns/op	       0 B/op	       0 allocs/op
 // BenchmarkSeriesIDSet_Add/cardinality_1000000_check_add/random_multi_lock-8        	 1000000	      1002   ns/op	       0 B/op	       0 allocs/op
-//
 func BenchmarkSeriesIDSet_Add(b *testing.B) {
 	// Setup...
 	set = NewSeriesIDSet()
@@ -523,7 +520,6 @@ func BenchmarkSeriesIDSet_AddMany(b *testing.B) {
 // BenchmarkSeriesIDSet_Remove/cardinality_1000000_remove_same-4         		20000000	        99.1 ns/op	       0 B/op	       0 allocs/op
 // BenchmarkSeriesIDSet_Remove/cardinality_1000000_check_remove_global_lock-4   20000000	        57.7 ns/op	       0 B/op	       0 allocs/op
 // BenchmarkSeriesIDSet_Remove/cardinality_1000000_check_remove_multi_lock-4    20000000	        80.1 ns/op	       0 B/op	       0 allocs/op
-//
 func BenchmarkSeriesIDSet_Remove(b *testing.B) {
 	// Setup...
 	set = NewSeriesIDSet()

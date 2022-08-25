@@ -841,7 +841,8 @@ func (s *CheckService) DeleteCheck(ctx context.Context, id platform.ID) error {
 }
 
 // TODO(gavincabbage): These structures should be in a common place, like other models,
-// 		but the common influxdb.Check is an interface that is not appropriate for an API client.
+//
+//	but the common influxdb.Check is an interface that is not appropriate for an API client.
 type Checks struct {
 	Checks []*Check              `json:"checks"`
 	Links  *influxdb.PagingLinks `json:"links"`

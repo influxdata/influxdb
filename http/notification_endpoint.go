@@ -611,7 +611,8 @@ func (s *NotificationEndpointService) FindNotificationEndpoints(ctx context.Cont
 
 // CreateNotificationEndpoint creates a new notification endpoint and sets b.ID with the new identifier.
 // TODO(@jsteenb2): this is unsatisfactory, we have no way of grabbing the new notification endpoint without
-//  serious hacky hackertoning. Put it on the list...
+//
+//	serious hacky hackertoning. Put it on the list...
 func (s *NotificationEndpointService) CreateNotificationEndpoint(ctx context.Context, ne influxdb.NotificationEndpoint, userID platform.ID) error {
 	var resp notificationEndpointDecoder
 	err := s.Client.
@@ -667,9 +668,10 @@ func (s *NotificationEndpointService) PatchNotificationEndpoint(ctx context.Cont
 
 // DeleteNotificationEndpoint removes a notification endpoint by ID, returns secret fields, orgID for further deletion.
 // TODO: axe this delete design, makes little sense in how its currently being done. Right now, as an http client,
-//  I am forced to know how the store handles this and then figure out what the server does in between me and that store,
-//  then see what falls out :flushed... for now returning nothing for secrets, orgID, and only returning an error. This makes
-//  the code/design smell super obvious imo
+//
+//	I am forced to know how the store handles this and then figure out what the server does in between me and that store,
+//	then see what falls out :flushed... for now returning nothing for secrets, orgID, and only returning an error. This makes
+//	the code/design smell super obvious imo
 func (s *NotificationEndpointService) DeleteNotificationEndpoint(ctx context.Context, id platform.ID) ([]influxdb.SecretField, platform.ID, error) {
 	if !id.Valid() {
 		return nil, 0, fmt.Errorf("invalid ID: please provide a valid ID")

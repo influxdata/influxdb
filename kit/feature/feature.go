@@ -78,8 +78,9 @@ func ExposedFlagsFromContext(ctx context.Context, byKey ByKeyFn) map[string]inte
 // to be removed, e.g. enabling debug tracing for an organization.
 //
 // TODO(gavincabbage): This may become a stale date, which can then
-// 		be used to trigger a notification to the contact when the flag
-//		has become stale, to encourage flag cleanup.
+//
+//	be used to trigger a notification to the contact when the flag
+//	has become stale, to encourage flag cleanup.
 type Lifetime int
 
 const (

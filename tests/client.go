@@ -333,15 +333,15 @@ func (c *Client) MustCreateDBRPMapping(t *testing.T) platform.ID {
 // MustCreateResource will create a generic resource via the API.
 // Used in tests where the content of the resource does not matter.
 //
-//  // Create one of each org resource
-//  for _, r := range influxdb.OrgResourceTypes {
-//      client.MustCreateResource(t, r)
-//  }
+//	// Create one of each org resource
+//	for _, r := range influxdb.OrgResourceTypes {
+//	    client.MustCreateResource(t, r)
+//	}
 //
 //
-//  // Create a variable:
-//  id := client.MustCreateResource(t, influxdb.VariablesResourceType)
-//  defer client.MustDeleteResource(t, influxdb.VariablesResourceType, id)
+//	// Create a variable:
+//	id := client.MustCreateResource(t, influxdb.VariablesResourceType)
+//	defer client.MustDeleteResource(t, influxdb.VariablesResourceType, id)
 func (c *Client) MustCreateResource(t *testing.T, r influxdb.ResourceType) platform.ID {
 	t.Helper()
 

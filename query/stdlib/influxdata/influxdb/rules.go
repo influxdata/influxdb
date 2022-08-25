@@ -656,10 +656,8 @@ func (SortedPivotRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node, bo
 	return pn, false, nil
 }
 
-//
 // Push Down of window aggregates.
 // ReadRangePhys |> window |> { min, max, mean, count, sum }
-//
 type PushDownWindowAggregateRule struct{}
 
 func (PushDownWindowAggregateRule) Name() string {
@@ -1040,10 +1038,8 @@ func (p GroupWindowAggregateTransposeRule) Rewrite(ctx context.Context, pn plan.
 	return fnNode, true, nil
 }
 
-//
 // Push Down of group aggregates.
 // ReadGroupPhys |> { count }
-//
 type PushDownGroupAggregateRule struct{}
 
 func (PushDownGroupAggregateRule) Name() string {

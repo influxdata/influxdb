@@ -97,9 +97,12 @@ func authorizeReadSystemBucket(ctx context.Context, bid, oid platform.ID) (influ
 
 // AuthorizeReadBucket exists because buckets are a special case and should use this method.
 // I.e., instead of:
-//  AuthorizeRead(ctx, influxdb.BucketsResourceType, b.ID, b.OrgID)
+//
+//	AuthorizeRead(ctx, influxdb.BucketsResourceType, b.ID, b.OrgID)
+//
 // use:
-//  AuthorizeReadBucket(ctx, b.Type, b.ID, b.OrgID)
+//
+//	AuthorizeReadBucket(ctx, b.Type, b.ID, b.OrgID)
 func AuthorizeReadBucket(ctx context.Context, bt influxdb.BucketType, bid, oid platform.ID) (influxdb.Authorizer, influxdb.Permission, error) {
 	switch bt {
 	case influxdb.BucketTypeSystem:

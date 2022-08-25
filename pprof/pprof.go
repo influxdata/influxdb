@@ -27,13 +27,13 @@ func SetGlobalProfiling(enabled bool) {
 }
 
 // collectAllProfiles generates a tarball containing:
-//	- goroutine profile
-//	- blocking profile
-//	- mutex profile
-//	- heap profile
-//	- allocations profile
-//	- (optionally) trace profile
-//	- (optionally) CPU profile
+//   - goroutine profile
+//   - blocking profile
+//   - mutex profile
+//   - heap profile
+//   - allocations profile
+//   - (optionally) trace profile
+//   - (optionally) CPU profile
 //
 // All information is added to a tar archive and then compressed, before being
 // returned to the requester as an archive file. Where profiles support debug

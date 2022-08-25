@@ -293,8 +293,8 @@ func (l sgList) Covers(t time.Time) bool {
 // to start time. Therefore, if there are multiple shard groups that match
 // this point's time they will be preferred in this order:
 //
-//  - a shard group with the earliest end time;
-//  - (assuming identical end times) the shard group with the earliest start time.
+//   - a shard group with the earliest end time;
+//   - (assuming identical end times) the shard group with the earliest start time.
 func (l sgList) ShardGroupAt(t time.Time) *meta.ShardGroupInfo {
 	if l.items.Len() == 0 {
 		return nil

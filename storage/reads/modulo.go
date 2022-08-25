@@ -15,7 +15,6 @@ func Modulo(dividend, modulus int64) int64 {
 // normalized timestamp. If it lies to the left we know it represents
 // the start time. Otherwise it represents the stop time, in which case
 // we decrement by the window period to get the start time.
-//
 func WindowStart(t, every, offset int64) int64 {
 	mod := Modulo(t, every)
 	off := Modulo(offset, every)
@@ -33,7 +32,6 @@ func WindowStart(t, every, offset int64) int64 {
 // normalized timestamp. If it lies to the right we know it represents
 // the stop time. Otherwise it represents the start time, in which case
 // we increment by the window period to get the stop time.
-//
 func WindowStop(t, every, offset int64) int64 {
 	mod := Modulo(t, every)
 	off := Modulo(offset, every)

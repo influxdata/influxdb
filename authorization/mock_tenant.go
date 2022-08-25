@@ -26,12 +26,12 @@ func (s *tenantService) FindUser(ctx context.Context, filter influxdb.UserFilter
 	return s.FindUserFn(ctx, filter)
 }
 
-//FindOrganizationByID calls FindOrganizationByIDF.
+// FindOrganizationByID calls FindOrganizationByIDF.
 func (s *tenantService) FindOrganizationByID(ctx context.Context, id platform.ID) (*influxdb.Organization, error) {
 	return s.FindOrganizationByIDF(ctx, id)
 }
 
-//FindOrganization calls FindOrganizationF.
+// FindOrganization calls FindOrganizationF.
 func (s *tenantService) FindOrganization(ctx context.Context, filter influxdb.OrganizationFilter) (*influxdb.Organization, error) {
 	return s.FindOrganizationF(ctx, filter)
 }

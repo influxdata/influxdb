@@ -662,9 +662,9 @@ from(bucket: "b")
 	}
 }
 
-//Create a new task with a Cron and Offset option
-//Update the task to remove the Offset option, and change Cron to Every
-//Retrieve the task again to ensure the options are now Every, without Cron or Offset
+// Create a new task with a Cron and Offset option
+// Update the task to remove the Offset option, and change Cron to Every
+// Retrieve the task again to ensure the options are now Every, without Cron or Offset
 func testTaskOptionsUpdateFull(t *testing.T, sys *System) {
 
 	script := `option task = {name: "task-Options-Update", cron: "* * * * *", concurrency: 100, offset: 10s}

@@ -17,37 +17,37 @@ import (
 //
 // The following is an illustration of its use:
 //
-//  byUserID := func(v []byte) ([]byte, error) {
-//      auth := &influxdb.Authorization{}
+//	byUserID := func(v []byte) ([]byte, error) {
+//	    auth := &influxdb.Authorization{}
 //
-//      if err := json.Unmarshal(v, auth); err != nil {
-//          return err
-//      }
+//	    if err := json.Unmarshal(v, auth); err != nil {
+//	        return err
+//	    }
 //
-//      return auth.UserID.Encode()
-//  }
+//	    return auth.UserID.Encode()
+//	}
 //
-//  // configure a write only index
-//  indexByUser := NewIndex(NewSource([]byte(`authorizationsbyuserv1/), byUserID))
+//	// configure a write only index
+//	indexByUser := NewIndex(NewSource([]byte(`authorizationsbyuserv1/), byUserID))
 //
-//  indexByUser.Insert(tx, someUserID, someAuthID)
+//	indexByUser.Insert(tx, someUserID, someAuthID)
 //
-//  indexByUser.Delete(tx, someUserID, someAuthID)
+//	indexByUser.Delete(tx, someUserID, someAuthID)
 //
-//  indexByUser.Walk(tx, someUserID, func(k, v []byte) error {
-//      auth := &influxdb.Authorization{}
-//      if err := json.Unmarshal(v, auth); err != nil {
-//          return err
-//      }
+//	indexByUser.Walk(tx, someUserID, func(k, v []byte) error {
+//	    auth := &influxdb.Authorization{}
+//	    if err := json.Unmarshal(v, auth); err != nil {
+//	        return err
+//	    }
 //
-//      // do something with auth
+//	    // do something with auth
 //
-//      return nil
-//  })
+//	    return nil
+//	})
 //
-//  // verify the current index against the source and return the differences
-//  // found in each
-//  diff, err := indexByUser.Verify(ctx, tx)
+//	// verify the current index against the source and return the differences
+//	// found in each
+//	diff, err := indexByUser.Verify(ctx, tx)
 type Index struct {
 	IndexMapping
 

@@ -404,11 +404,10 @@ func (itr *floatSortedMergeIterator) pop() (*FloatPoint, error) {
 
 // floatSortedMergeHeap represents a heap of floatSortedMergeHeapItems.
 // Items are sorted with the following priority:
-//     - By their measurement name;
-//     - By their tag keys/values;
-//     - By time; or
-//     - By their Aux field values.
-//
+//   - By their measurement name;
+//   - By their tag keys/values;
+//   - By time; or
+//   - By their Aux field values.
 type floatSortedMergeHeap struct {
 	opt   IteratorOptions
 	items []*floatSortedMergeHeapItem
@@ -3068,11 +3067,10 @@ func (itr *integerSortedMergeIterator) pop() (*IntegerPoint, error) {
 
 // integerSortedMergeHeap represents a heap of integerSortedMergeHeapItems.
 // Items are sorted with the following priority:
-//     - By their measurement name;
-//     - By their tag keys/values;
-//     - By time; or
-//     - By their Aux field values.
-//
+//   - By their measurement name;
+//   - By their tag keys/values;
+//   - By time; or
+//   - By their Aux field values.
 type integerSortedMergeHeap struct {
 	opt   IteratorOptions
 	items []*integerSortedMergeHeapItem
@@ -5732,11 +5730,10 @@ func (itr *unsignedSortedMergeIterator) pop() (*UnsignedPoint, error) {
 
 // unsignedSortedMergeHeap represents a heap of unsignedSortedMergeHeapItems.
 // Items are sorted with the following priority:
-//     - By their measurement name;
-//     - By their tag keys/values;
-//     - By time; or
-//     - By their Aux field values.
-//
+//   - By their measurement name;
+//   - By their tag keys/values;
+//   - By time; or
+//   - By their Aux field values.
 type unsignedSortedMergeHeap struct {
 	opt   IteratorOptions
 	items []*unsignedSortedMergeHeapItem
@@ -8396,11 +8393,10 @@ func (itr *stringSortedMergeIterator) pop() (*StringPoint, error) {
 
 // stringSortedMergeHeap represents a heap of stringSortedMergeHeapItems.
 // Items are sorted with the following priority:
-//     - By their measurement name;
-//     - By their tag keys/values;
-//     - By time; or
-//     - By their Aux field values.
-//
+//   - By their measurement name;
+//   - By their tag keys/values;
+//   - By time; or
+//   - By their Aux field values.
 type stringSortedMergeHeap struct {
 	opt   IteratorOptions
 	items []*stringSortedMergeHeapItem
@@ -11046,11 +11042,10 @@ func (itr *booleanSortedMergeIterator) pop() (*BooleanPoint, error) {
 
 // booleanSortedMergeHeap represents a heap of booleanSortedMergeHeapItems.
 // Items are sorted with the following priority:
-//     - By their measurement name;
-//     - By their tag keys/values;
-//     - By time; or
-//     - By their Aux field values.
-//
+//   - By their measurement name;
+//   - By their tag keys/values;
+//   - By time; or
+//   - By their Aux field values.
 type booleanSortedMergeHeap struct {
 	opt   IteratorOptions
 	items []*booleanSortedMergeHeapItem

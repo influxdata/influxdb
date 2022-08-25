@@ -42,7 +42,7 @@ const (
 // Distribution is handled by hashing the TaskID (to ensure uniform distribution) and then distributing over those channels
 // evenly based on the hashed ID.  This is to ensure that all tasks of the same ID go to the same worker.
 //
-//The workers call ExecutorFunc handle any errors and update the LastScheduled time internally and also via the Checkpointer.
+// The workers call ExecutorFunc handle any errors and update the LastScheduled time internally and also via the Checkpointer.
 //
 // The main loop:
 //

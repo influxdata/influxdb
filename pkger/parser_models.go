@@ -1182,8 +1182,8 @@ type color struct {
 }
 
 // TODO:
-//  - verify templates are desired
-//  - template colors so references can be shared
+//   - verify templates are desired
+//   - template colors so references can be shared
 type colors []*color
 
 func (c colors) influxViewColors() []influxdb.ViewColor {
@@ -1218,8 +1218,9 @@ func (c colors) strings() []string {
 }
 
 // TODO: looks like much of these are actually getting defaults in
-//  the UI. looking at system charts, seeing lots of failures for missing
-//  color types or no colors at all.
+//
+//	the UI. looking at system charts, seeing lots of failures for missing
+//	color types or no colors at all.
 func (c colors) hasTypes(types ...string) []validationErr {
 	tMap := make(map[string]bool)
 	for _, cc := range c {

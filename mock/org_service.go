@@ -39,17 +39,17 @@ func NewOrganizationService() *OrganizationService {
 	}
 }
 
-//FindOrganizationByID calls FindOrganizationByIDF.
+// FindOrganizationByID calls FindOrganizationByIDF.
 func (s *OrganizationService) FindOrganizationByID(ctx context.Context, id platform2.ID) (*platform.Organization, error) {
 	return s.FindOrganizationByIDF(ctx, id)
 }
 
-//FindOrganization calls FindOrganizationF.
+// FindOrganization calls FindOrganizationF.
 func (s *OrganizationService) FindOrganization(ctx context.Context, filter platform.OrganizationFilter) (*platform.Organization, error) {
 	return s.FindOrganizationF(ctx, filter)
 }
 
-//FindOrganizations calls FindOrganizationsF.
+// FindOrganizations calls FindOrganizationsF.
 func (s *OrganizationService) FindOrganizations(ctx context.Context, filter platform.OrganizationFilter, opt ...platform.FindOptions) ([]*platform.Organization, int, error) {
 	return s.FindOrganizationsF(ctx, filter, opt...)
 }

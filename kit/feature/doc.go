@@ -32,33 +32,39 @@
 // First, I add an entry to `flags.yml`.
 //
 // ```yaml
-// - name: My Feature
-//   description: My feature is awesome
-//   key: myFeature
-//   default: false
-//   expose: true
-//   contact: My Name
+//   - name: My Feature
+//     description: My feature is awesome
+//     key: myFeature
+//     default: false
+//     expose: true
+//     contact: My Name
+//
 // ```
 //
 // My flag type is inferred to be boolean by my default of `false` when I run
 // `make flags` and the `feature` package now includes `func MyFeature() BoolFlag`.
 //
-// I use this to control my backend code with
+// # I use this to control my backend code with
 //
 // ```go
-// if feature.MyFeature.Enabled(ctx) {
-//   // new code...
-// } else {
-//   // new code...
-// }
+//
+//	if feature.MyFeature.Enabled(ctx) {
+//	  // new code...
+//	} else {
+//
+//	  // new code...
+//	}
+//
 // ```
 //
 // and the `/api/v2/flags` response provides the same information to the frontend.
 //
 // ```json
-// {
-//   "myFeature": false
-// }
+//
+//	{
+//	  "myFeature": false
+//	}
+//
 // ```
 //
 // While `false` by default, I can turn on my experimental feature by starting
@@ -71,5 +77,4 @@
 // ```
 // influxd --feature-flags flag1=value1,flag2=value2
 // ```
-//
 package feature
