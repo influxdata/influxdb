@@ -129,8 +129,8 @@ pub struct LifecycleManager {
 /// The configuration options for the lifecycle on the ingester.
 #[derive(Debug, Clone, Copy)]
 pub struct LifecycleConfig {
-    /// The ingester will pause pulling data from Kafka if it hits this amount of memory used, waiting
-    /// until persistence evicts partitions from memory.
+    /// The ingester will pause pulling data from the write buffer if it hits this amount of memory
+    /// used, waiting until persistence evicts partitions from memory.
     pause_ingest_size: usize,
     /// When the ingester hits this threshold, the lifecycle manager will persist the largest
     /// partitions currently buffered until it falls below this threshold. An ingester running
@@ -147,7 +147,7 @@ pub struct LifecycleConfig {
     partition_size_threshold: usize,
     /// If an individual partitiion has had data buffered for longer than this period of time, the
     /// manager will persist it. This setting is to ensure we have an upper bound on how far back
-    /// we will need to read in Kafka on restart or recovery.
+    /// we will need to read in the write buffer on restart or recovery.
     partition_age_threshold: Duration,
     /// If an individual partition hasn't received a write for longer than this period of time, the
     /// manager will persist it. This is to ensure that cold partitions get cleared out to make

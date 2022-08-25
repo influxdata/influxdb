@@ -19,8 +19,8 @@ use mutable_batch::MutableBatch;
 use std::{borrow::Cow, collections::BTreeMap};
 use thiserror::Error;
 
-const SHARED_KAFKA_TOPIC: &str = "iox-shared";
-const SHARED_QUERY_POOL: &str = SHARED_KAFKA_TOPIC;
+const SHARED_TOPIC_NAME: &str = "iox-shared";
+const SHARED_QUERY_POOL: &str = SHARED_TOPIC_NAME;
 const TIME_COLUMN: &str = "time";
 
 /// A string value representing an infinite retention policy.
@@ -202,7 +202,7 @@ pub async fn create_or_get_default_records(
     shard_count: i32,
     txn: &mut dyn Transaction,
 ) -> Result<(TopicMetadata, QueryPool, BTreeMap<ShardId, Shard>)> {
-    let topic = txn.topics().create_or_get(SHARED_KAFKA_TOPIC).await?;
+    let topic = txn.topics().create_or_get(SHARED_TOPIC_NAME).await?;
     let query_pool = txn.query_pools().create_or_get(SHARED_QUERY_POOL).await?;
 
     let mut shards = BTreeMap::new();

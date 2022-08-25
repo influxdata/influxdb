@@ -83,7 +83,7 @@ fn shared_handle(handle: JoinHandle<()>) -> SharedJoinHandle {
 /// persistence and answer queries
 #[derive(Debug)]
 pub struct IngestHandlerImpl<T = SystemProvider> {
-    /// Kafka Topic assigned to this ingester
+    /// Topic assigned to this ingester
     #[allow(dead_code)]
     topic: TopicMetadata,
 

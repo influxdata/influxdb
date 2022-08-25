@@ -37,7 +37,7 @@ pub async fn initialize_db(dsn: &str, schema_name: &str) {
         .ok()
         .unwrap();
 
-    // Create the shared Kafka topic in the catalog
+    // Create the shared topic in the catalog
     Command::cargo_bin("influxdb_iox")
         .unwrap()
         .arg("catalog")
