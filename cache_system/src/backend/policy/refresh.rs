@@ -470,8 +470,11 @@ pub mod test_util {
 
     impl Drop for TestLoader {
         fn drop(&mut self) {
-            for entries in self.data.lock().values() {
-                assert!(entries.is_empty(), "mocked response left");
+            // prevent double-panic (i.e. aborts)
+            if !std::thread::panicking() {
+                for entries in self.data.lock().values() {
+                    assert!(entries.is_empty(), "mocked response left");
+                }
             }
         }
     }
@@ -585,6 +588,14 @@ pub mod test_util {
         fn test_loader_panic_requests_left() {
             let loader = TestLoader::default();
             loader.mock_next(1, String::from("foo"));
+        }
+
+        #[test]
+        #[should_panic(expected = "panic-by-choice")]
+        fn test_loader_no_double_panic() {
+            let loader = TestLoader::default();
+            loader.mock_next(1, String::from("foo"));
+            panic!("panic-by-choice");
         }
 
         #[tokio::test]
