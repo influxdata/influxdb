@@ -495,14 +495,14 @@ mod tests {
         // empty partition
         let mut txn = catalog.catalog.start_transaction().await.unwrap();
 
-        let kafka = txn.kafka_topics().create_or_get("foo").await.unwrap();
+        let topic = txn.topics().create_or_get("foo").await.unwrap();
         let pool = txn.query_pools().create_or_get("foo").await.unwrap();
         let namespace = txn
             .namespaces()
             .create(
                 "namespace_hot_partitions_to_compact",
                 "inf",
-                kafka.id,
+                topic.id,
                 pool.id,
             )
             .await
@@ -514,7 +514,7 @@ mod tests {
             .unwrap();
         let shard = txn
             .shards()
-            .create_or_get(&kafka, ShardIndex::new(1))
+            .create_or_get(&topic, ShardIndex::new(1))
             .await
             .unwrap();
         let partition1 = txn
@@ -545,7 +545,7 @@ mod tests {
             .unwrap();
         let another_shard = txn
             .shards()
-            .create_or_get(&kafka, ShardIndex::new(2))
+            .create_or_get(&topic, ShardIndex::new(2))
             .await
             .unwrap();
         let another_partition = txn
@@ -791,14 +791,14 @@ mod tests {
         // empty partition
         let mut txn = catalog.catalog.start_transaction().await.unwrap();
 
-        let kafka = txn.kafka_topics().create_or_get("foo").await.unwrap();
+        let topic = txn.topics().create_or_get("foo").await.unwrap();
         let pool = txn.query_pools().create_or_get("foo").await.unwrap();
         let namespace = txn
             .namespaces()
             .create(
                 "namespace_hot_partitions_to_compact",
                 "inf",
-                kafka.id,
+                topic.id,
                 pool.id,
             )
             .await
@@ -810,7 +810,7 @@ mod tests {
             .unwrap();
         let shard = txn
             .shards()
-            .create_or_get(&kafka, ShardIndex::new(1))
+            .create_or_get(&topic, ShardIndex::new(1))
             .await
             .unwrap();
         let partition1 = txn
@@ -846,7 +846,7 @@ mod tests {
             .unwrap();
         let another_shard = txn
             .shards()
-            .create_or_get(&kafka, ShardIndex::new(2))
+            .create_or_get(&topic, ShardIndex::new(2))
             .await
             .unwrap();
         let another_partition = txn

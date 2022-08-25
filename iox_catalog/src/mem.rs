@@ -4,19 +4,19 @@
 use crate::{
     interface::{
         sealed::TransactionFinalize, Catalog, ColumnRepo, ColumnUpsertRequest, Error,
-        KafkaTopicRepo, NamespaceRepo, ParquetFileRepo, PartitionRepo, ProcessedTombstoneRepo,
-        QueryPoolRepo, RepoCollection, Result, ShardRepo, TablePersistInfo, TableRepo,
-        TombstoneRepo, Transaction,
+        NamespaceRepo, ParquetFileRepo, PartitionRepo, ProcessedTombstoneRepo, QueryPoolRepo,
+        RepoCollection, Result, ShardRepo, TablePersistInfo, TableRepo, TombstoneRepo,
+        TopicMetadataRepo, Transaction,
     },
     metrics::MetricDecorator,
 };
 use async_trait::async_trait;
 use data_types::{
-    Column, ColumnId, ColumnType, CompactionLevel, KafkaTopic, KafkaTopicId, Namespace,
-    NamespaceId, ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId,
-    PartitionInfo, PartitionKey, PartitionParam, ProcessedTombstone, QueryPool, QueryPoolId,
-    SequenceNumber, Shard, ShardId, ShardIndex, Table, TableId, TablePartition, Timestamp,
-    Tombstone, TombstoneId,
+    Column, ColumnId, ColumnType, CompactionLevel, KafkaTopicId, Namespace, NamespaceId,
+    ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionInfo,
+    PartitionKey, PartitionParam, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber,
+    Shard, ShardId, ShardIndex, Table, TableId, TablePartition, Timestamp, Tombstone, TombstoneId,
+    TopicMetadata,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::warn;
@@ -57,7 +57,7 @@ impl std::fmt::Debug for MemCatalog {
 
 #[derive(Default, Debug, Clone)]
 struct MemCollections {
-    kafka_topics: Vec<KafkaTopic>,
+    topics: Vec<TopicMetadata>,
     query_pools: Vec<QueryPool>,
     namespaces: Vec<Namespace>,
     tables: Vec<Table>,
@@ -188,7 +188,7 @@ impl TransactionFinalize for MemTxn {
 
 #[async_trait]
 impl RepoCollection for MemTxn {
-    fn kafka_topics(&mut self) -> &mut dyn KafkaTopicRepo {
+    fn topics(&mut self) -> &mut dyn TopicMetadataRepo {
         self
     }
 
@@ -230,30 +230,30 @@ impl RepoCollection for MemTxn {
 }
 
 #[async_trait]
-impl KafkaTopicRepo for MemTxn {
-    async fn create_or_get(&mut self, name: &str) -> Result<KafkaTopic> {
+impl TopicMetadataRepo for MemTxn {
+    async fn create_or_get(&mut self, name: &str) -> Result<TopicMetadata> {
         let stage = self.stage();
 
-        let topic = match stage.kafka_topics.iter().find(|t| t.name == name) {
+        let topic = match stage.topics.iter().find(|t| t.name == name) {
             Some(t) => t,
             None => {
-                let topic = KafkaTopic {
-                    id: KafkaTopicId::new(stage.kafka_topics.len() as i64 + 1),
+                let topic = TopicMetadata {
+                    id: KafkaTopicId::new(stage.topics.len() as i64 + 1),
                     name: name.to_string(),
                 };
-                stage.kafka_topics.push(topic);
-                stage.kafka_topics.last().unwrap()
+                stage.topics.push(topic);
+                stage.topics.last().unwrap()
             }
         };
 
         Ok(topic.clone())
     }
 
-    async fn get_by_name(&mut self, name: &str) -> Result<Option<KafkaTopic>> {
+    async fn get_by_name(&mut self, name: &str) -> Result<Option<TopicMetadata>> {
         let stage = self.stage();
 
-        let kafka_topic = stage.kafka_topics.iter().find(|t| t.name == name).cloned();
-        Ok(kafka_topic)
+        let topic = stage.topics.iter().find(|t| t.name == name).cloned();
+        Ok(topic)
     }
 }
 
@@ -607,7 +607,7 @@ impl ColumnRepo for MemTxn {
 impl ShardRepo for MemTxn {
     async fn create_or_get(
         &mut self,
-        topic: &KafkaTopic,
+        topic: &TopicMetadata,
         shard_index: ShardIndex,
     ) -> Result<Shard> {
         let stage = self.stage();
@@ -654,7 +654,7 @@ impl ShardRepo for MemTxn {
         Ok(stage.shards.clone())
     }
 
-    async fn list_by_kafka_topic(&mut self, topic: &KafkaTopic) -> Result<Vec<Shard>> {
+    async fn list_by_topic(&mut self, topic: &TopicMetadata) -> Result<Vec<Shard>> {
         let stage = self.stage();
 
         let shards: Vec<_> = stage

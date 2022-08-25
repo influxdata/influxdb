@@ -225,7 +225,7 @@ pub async fn command(connection: Connection, config: Config) -> Result<(), Error
     }
 }
 
-const KAFKA_NAME: &str = "iox_shared";
+const TOPIC_NAME: &str = "iox_shared";
 const SHARD_INDEX: ShardIndex = ShardIndex::new(0);
 const QUERY_POOL: &str = "iox_shared";
 
@@ -239,17 +239,14 @@ async fn load_schema(
     schema: &NamespaceSchema,
 ) -> Result<CatalogNamespaceSchema, Error> {
     let mut repos = catalog.repositories().await;
-    let kafka_topic = repos.kafka_topics().create_or_get(KAFKA_NAME).await?;
+    let topic = repos.topics().create_or_get(TOPIC_NAME).await?;
     let query_pool = repos.query_pools().create_or_get(QUERY_POOL).await?;
     // ensure there's a shard for this partition so it can be used later
-    let _shard = repos
-        .shards()
-        .create_or_get(&kafka_topic, SHARD_INDEX)
-        .await?;
+    let _shard = repos.shards().create_or_get(&topic, SHARD_INDEX).await?;
 
     let namespace = match repos
         .namespaces()
-        .create(namespace, "inf", kafka_topic.id, query_pool.id)
+        .create(namespace, "inf", topic.id, query_pool.id)
         .await
     {
         Ok(n) => n,
@@ -305,8 +302,8 @@ async fn load_partition(
 ) -> Result<PartitionMapping, Error> {
     let mut repos = catalog.repositories().await;
     let topic = repos
-        .kafka_topics()
-        .get_by_name(KAFKA_NAME)
+        .topics()
+        .get_by_name(TOPIC_NAME)
         .await?
         .expect("topic should have been inserted earlier");
     let shard = repos
@@ -521,20 +518,16 @@ mod tests {
 
         {
             let mut repos = catalog.repositories().await;
-            let kafka_topic = repos
-                .kafka_topics()
-                .create_or_get(KAFKA_NAME)
-                .await
-                .unwrap();
+            let topic = repos.topics().create_or_get(TOPIC_NAME).await.unwrap();
             let query_pool = repos.query_pools().create_or_get(QUERY_POOL).await.unwrap();
             shard = repos
                 .shards()
-                .create_or_get(&kafka_topic, SHARD_INDEX)
+                .create_or_get(&topic, SHARD_INDEX)
                 .await
                 .unwrap();
             namespace = repos
                 .namespaces()
-                .create("load_parquet_files", "", kafka_topic.id, query_pool.id)
+                .create("load_parquet_files", "", topic.id, query_pool.id)
                 .await
                 .unwrap();
             table = repos

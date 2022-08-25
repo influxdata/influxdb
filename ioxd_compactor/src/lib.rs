@@ -32,8 +32,8 @@ pub enum Error {
     #[error("Catalog error: {0}")]
     Catalog(#[from] iox_catalog::interface::Error),
 
-    #[error("Kafka topic {0} not found in the catalog")]
-    KafkaTopicNotFound(String),
+    #[error("No topic named '{topic_name}' found in the catalog")]
+    TopicCatalogLookup { topic_name: String },
 
     #[error("shard_index_range_start must be <= shard_index_range_end")]
     ShardIndexRange,
@@ -164,11 +164,13 @@ pub async fn build_compactor_from_config(
     }
 
     let mut txn = catalog.start_transaction().await?;
-    let kafka_topic = txn
-        .kafka_topics()
+    let topic = txn
+        .topics()
         .get_by_name(&compactor_config.topic)
         .await?
-        .ok_or(Error::KafkaTopicNotFound(compactor_config.topic))?;
+        .ok_or(Error::TopicCatalogLookup {
+            topic_name: compactor_config.topic,
+        })?;
 
     let shard_indexes: Vec<_> = (compactor_config.shard_index_range_start
         ..=compactor_config.shard_index_range_end)
@@ -177,7 +179,7 @@ pub async fn build_compactor_from_config(
 
     let mut shards = Vec::with_capacity(shard_indexes.len());
     for k in shard_indexes {
-        let s = txn.shards().create_or_get(&kafka_topic, k).await?;
+        let s = txn.shards().create_or_get(&topic, k).await?;
         shards.push(s.id);
     }
     txn.commit().await?;

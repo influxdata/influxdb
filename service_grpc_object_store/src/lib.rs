@@ -112,11 +112,7 @@ mod tests {
             let metrics = Arc::new(metric::Registry::default());
             let catalog = Arc::new(MemCatalog::new(metrics));
             let mut repos = catalog.repositories().await;
-            let kafka = repos
-                .kafka_topics()
-                .create_or_get("iox_shared")
-                .await
-                .unwrap();
+            let topic = repos.topics().create_or_get("iox_shared").await.unwrap();
             let pool = repos
                 .query_pools()
                 .create_or_get("iox_shared")
@@ -124,12 +120,12 @@ mod tests {
                 .unwrap();
             let shard = repos
                 .shards()
-                .create_or_get(&kafka, ShardIndex::new(1))
+                .create_or_get(&topic, ShardIndex::new(1))
                 .await
                 .unwrap();
             let namespace = repos
                 .namespaces()
-                .create("catalog_partition_test", "inf", kafka.id, pool.id)
+                .create("catalog_partition_test", "inf", topic.id, pool.id)
                 .await
                 .unwrap();
             let table = repos

@@ -1787,17 +1787,17 @@ mod tests {
         let metrics = Arc::new(metric::Registry::new());
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
         let mut repos = catalog.repositories().await;
-        let kafka_topic = repos.kafka_topics().create_or_get("whatevs").await.unwrap();
+        let topic = repos.topics().create_or_get("whatevs").await.unwrap();
         let query_pool = repos.query_pools().create_or_get("whatevs").await.unwrap();
         let shard_index = ShardIndex::new(0);
         let namespace = repos
             .namespaces()
-            .create("foo", "inf", kafka_topic.id, query_pool.id)
+            .create("foo", "inf", topic.id, query_pool.id)
             .await
             .unwrap();
         let shard1 = repos
             .shards()
-            .create_or_get(&kafka_topic, shard_index)
+            .create_or_get(&topic, shard_index)
             .await
             .unwrap();
 
@@ -1816,7 +1816,7 @@ mod tests {
             Arc::clone(&metrics),
         ));
 
-        let schema = NamespaceSchema::new(namespace.id, kafka_topic.id, query_pool.id);
+        let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id);
 
         let ignored_ts = Time::from_timestamp_millis(42);
 
@@ -1871,22 +1871,22 @@ mod tests {
         let metrics = Arc::new(metric::Registry::new());
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
         let mut repos = catalog.repositories().await;
-        let kafka_topic = repos.kafka_topics().create_or_get("whatevs").await.unwrap();
+        let topic = repos.topics().create_or_get("whatevs").await.unwrap();
         let query_pool = repos.query_pools().create_or_get("whatevs").await.unwrap();
         let shard_index = ShardIndex::new(0);
         let namespace = repos
             .namespaces()
-            .create("foo", "inf", kafka_topic.id, query_pool.id)
+            .create("foo", "inf", topic.id, query_pool.id)
             .await
             .unwrap();
         let shard1 = repos
             .shards()
-            .create_or_get(&kafka_topic, shard_index)
+            .create_or_get(&topic, shard_index)
             .await
             .unwrap();
         let shard2 = repos
             .shards()
-            .create_or_get(&kafka_topic, shard_index)
+            .create_or_get(&topic, shard_index)
             .await
             .unwrap();
         let mut shards = BTreeMap::new();
@@ -1910,7 +1910,7 @@ mod tests {
             Arc::clone(&metrics),
         ));
 
-        let schema = NamespaceSchema::new(namespace.id, kafka_topic.id, query_pool.id);
+        let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id);
 
         let ignored_ts = Time::from_timestamp_millis(42);
 
@@ -2106,22 +2106,22 @@ mod tests {
         let metrics = Arc::new(metric::Registry::new());
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
         let mut repos = catalog.repositories().await;
-        let kafka_topic = repos.kafka_topics().create_or_get("whatevs").await.unwrap();
+        let topic = repos.topics().create_or_get("whatevs").await.unwrap();
         let query_pool = repos.query_pools().create_or_get("whatevs").await.unwrap();
         let shard_index = ShardIndex::new(0);
         let namespace = repos
             .namespaces()
-            .create("foo", "inf", kafka_topic.id, query_pool.id)
+            .create("foo", "inf", topic.id, query_pool.id)
             .await
             .unwrap();
         let shard1 = repos
             .shards()
-            .create_or_get(&kafka_topic, shard_index)
+            .create_or_get(&topic, shard_index)
             .await
             .unwrap();
         let shard2 = repos
             .shards()
-            .create_or_get(&kafka_topic, shard_index)
+            .create_or_get(&topic, shard_index)
             .await
             .unwrap();
         let mut shards = BTreeMap::new();
@@ -2145,7 +2145,7 @@ mod tests {
             Arc::clone(&metrics),
         ));
 
-        let schema = NamespaceSchema::new(namespace.id, kafka_topic.id, query_pool.id);
+        let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id);
 
         let ignored_ts = Time::from_timestamp_millis(42);
 
@@ -2495,21 +2495,21 @@ mod tests {
         let metrics = Arc::new(metric::Registry::new());
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
         let mut repos = catalog.repositories().await;
-        let kafka_topic = repos.kafka_topics().create_or_get("whatevs").await.unwrap();
+        let topic = repos.topics().create_or_get("whatevs").await.unwrap();
         let query_pool = repos.query_pools().create_or_get("whatevs").await.unwrap();
         let shard_index = ShardIndex::new(0);
         let namespace = repos
             .namespaces()
-            .create("foo", "inf", kafka_topic.id, query_pool.id)
+            .create("foo", "inf", topic.id, query_pool.id)
             .await
             .unwrap();
         let shard = repos
             .shards()
-            .create_or_get(&kafka_topic, shard_index)
+            .create_or_get(&topic, shard_index)
             .await
             .unwrap();
 
-        let schema = NamespaceSchema::new(namespace.id, kafka_topic.id, query_pool.id);
+        let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id);
 
         let ignored_ts = Time::from_timestamp_millis(42);
 
@@ -2656,17 +2656,17 @@ mod tests {
         let metrics = Arc::new(metric::Registry::new());
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
         let mut repos = catalog.repositories().await;
-        let kafka_topic = repos.kafka_topics().create_or_get("whatevs").await.unwrap();
+        let topic = repos.topics().create_or_get("whatevs").await.unwrap();
         let query_pool = repos.query_pools().create_or_get("whatevs").await.unwrap();
         let shard_index = ShardIndex::new(0);
         let namespace = repos
             .namespaces()
-            .create("foo", "inf", kafka_topic.id, query_pool.id)
+            .create("foo", "inf", topic.id, query_pool.id)
             .await
             .unwrap();
         let shard1 = repos
             .shards()
-            .create_or_get(&kafka_topic, shard_index)
+            .create_or_get(&topic, shard_index)
             .await
             .unwrap();
 
@@ -2685,7 +2685,7 @@ mod tests {
             Arc::clone(&metrics),
         ));
 
-        let schema = NamespaceSchema::new(namespace.id, kafka_topic.id, query_pool.id);
+        let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id);
 
         let ignored_ts = Time::from_timestamp_millis(42);
 

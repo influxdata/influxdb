@@ -5,9 +5,9 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use data_types::{
-    Column, ColumnSet, ColumnType, CompactionLevel, KafkaTopic, Namespace, NamespaceSchema,
-    ParquetFile, ParquetFileParams, Partition, PartitionId, QueryPool, SequenceNumber, Shard,
-    ShardId, ShardIndex, Table, TableId, TableSchema, Timestamp, Tombstone, TombstoneId,
+    Column, ColumnSet, ColumnType, CompactionLevel, Namespace, NamespaceSchema, ParquetFile,
+    ParquetFileParams, Partition, PartitionId, QueryPool, SequenceNumber, Shard, ShardId,
+    ShardIndex, Table, TableId, TableSchema, Timestamp, Tombstone, TombstoneId, TopicMetadata,
 };
 use datafusion::physical_plan::metrics::Count;
 use iox_catalog::{
@@ -108,16 +108,12 @@ impl TestCatalog {
     pub async fn create_shard(self: &Arc<Self>, shard_index: i32) -> Arc<Shard> {
         let mut repos = self.catalog.repositories().await;
 
-        let kafka_topic = repos
-            .kafka_topics()
-            .create_or_get("kafka_topic")
-            .await
-            .unwrap();
+        let topic = repos.topics().create_or_get("topic").await.unwrap();
         let shard_index = ShardIndex::new(shard_index);
         Arc::new(
             repos
                 .shards()
-                .create_or_get(&kafka_topic, shard_index)
+                .create_or_get(&topic, shard_index)
                 .await
                 .unwrap(),
         )
@@ -127,21 +123,17 @@ impl TestCatalog {
     pub async fn create_namespace(self: &Arc<Self>, name: &str) -> Arc<TestNamespace> {
         let mut repos = self.catalog.repositories().await;
 
-        let kafka_topic = repos
-            .kafka_topics()
-            .create_or_get("kafka_topic")
-            .await
-            .unwrap();
+        let topic = repos.topics().create_or_get("topic").await.unwrap();
         let query_pool = repos.query_pools().create_or_get("pool").await.unwrap();
         let namespace = repos
             .namespaces()
-            .create(name, "1y", kafka_topic.id, query_pool.id)
+            .create(name, "1y", topic.id, query_pool.id)
             .await
             .unwrap();
 
         Arc::new(TestNamespace {
             catalog: Arc::clone(self),
-            kafka_topic,
+            topic,
             query_pool,
             namespace,
         })
@@ -226,7 +218,7 @@ impl TestCatalog {
 #[allow(missing_docs)]
 pub struct TestNamespace {
     pub catalog: Arc<TestCatalog>,
-    pub kafka_topic: KafkaTopic,
+    pub topic: TopicMetadata,
     pub query_pool: QueryPool,
     pub namespace: Namespace,
 }
@@ -255,7 +247,7 @@ impl TestNamespace {
 
         let shard = repos
             .shards()
-            .create_or_get(&self.kafka_topic, ShardIndex::new(shard_index))
+            .create_or_get(&self.topic, ShardIndex::new(shard_index))
             .await
             .unwrap();
 

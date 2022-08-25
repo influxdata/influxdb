@@ -387,9 +387,10 @@ impl std::fmt::Display for ParquetFileId {
     }
 }
 
-/// Data object for a kafka topic
+/// Data object for a topic. When Kafka is used as the write buffer, this is the Kafka topic name
+/// plus a catalog-assigned ID.
 #[derive(Debug, Clone, Eq, PartialEq, sqlx::FromRow)]
-pub struct KafkaTopic {
+pub struct TopicMetadata {
     /// The id of the topic
     pub id: KafkaTopicId,
     /// The unique name of the topic
