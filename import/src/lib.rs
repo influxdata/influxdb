@@ -1,3 +1,4 @@
+use chrono::{offset::FixedOffset, DateTime};
 use schema::InfluxFieldType;
 use serde::de::{Deserialize, Deserializer};
 use serde::ser::{Serialize, Serializer};
@@ -44,6 +45,8 @@ pub struct AggregateTSMMeasurement {
         deserialize_with = "deserialize_fields"
     )]
     pub fields: HashMap<String, AggregateTSMField>,
+    pub earliest_time: DateTime<FixedOffset>,
+    pub latest_time: DateTime<FixedOffset>,
 }
 
 fn serialize_map_values<S, K, V>(value: &HashMap<K, V>, serializer: S) -> Result<S::Ok, S::Error>
@@ -102,6 +105,7 @@ impl TryFrom<&str> for AggregateTSMSchema {
 
 /// A variation on AggregateTSMSchema with the following differences:
 /// - no org and bucket
+/// - no earliest/latest time
 /// - no tags (that may change once we decide what to do about tags/fields with the same name- for
 ///   now they'll fail validation and you can't fix it via the override)
 /// - fields have only one type
@@ -176,7 +180,9 @@ mod tests {
               ],
               "fields": [
                 { "name": "usage", "types": ["Float"] }
-              ]
+              ],
+              "earliest_time": "2022-01-01T00:00:00.00Z",
+              "latest_time": "2022-07-07T06:00:00.00Z"
             }
           }
         }
@@ -220,6 +226,8 @@ mod tests {
                             types: HashSet::from(["Float".to_string()]),
                         },
                     )]),
+                    earliest_time: DateTime::parse_from_rfc3339("2022-01-01T00:00:00.00Z").unwrap(),
+                    latest_time: DateTime::parse_from_rfc3339("2022-07-07T06:00:00.00Z").unwrap(),
                 },
             )]),
         };
@@ -241,7 +249,9 @@ mod tests {
               ],
               "fields": [
                 { "name": "usage", "types": ["Float"] }
-              ]
+              ],
+              "earliest_time": "2022-01-01T00:00:00.00Z",
+              "latest_time": "2022-07-07T06:00:00.00Z"
             }
           }
         }
@@ -263,7 +273,9 @@ mod tests {
               ],
               "fields": [
                 { "name": "usage", "types": ["FloatyMcFloatFace"] }
-              ]
+              ],
+              "earliest_time": "2022-01-01T00:00:00.00Z",
+              "latest_time": "2022-07-07T06:00:00.00Z"
             }
           }
         }
@@ -285,7 +297,9 @@ mod tests {
               ],
               "fields": [
                 { "name": "usage", "types": ["Float", "Integer"] }
-              ]
+              ],
+              "earliest_time": "2022-01-01T00:00:00.00Z",
+              "latest_time": "2022-07-07T06:00:00.00Z"
             }
           }
         }

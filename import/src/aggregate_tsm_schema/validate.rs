@@ -65,7 +65,9 @@ mod tests {
               ],
              "fields": [
                 { "name": "usage", "types": ["Float"] }
-              ]
+              ],
+              "earliest_time": "2022-01-01T00:00:00.00Z",
+              "latest_time": "2022-07-07T06:00:00.00Z"
             }
           }
         }
@@ -87,7 +89,9 @@ mod tests {
               ],
              "fields": [
                 { "name": "temperature", "types": ["Float"] }
-              ]
+              ],
+              "earliest_time": "2022-01-01T00:00:00.00Z",
+              "latest_time": "2022-07-07T06:00:00.00Z"
             }
           }
         }
@@ -114,7 +118,9 @@ mod tests {
               ],
              "fields": [
                 { "name": "temperature", "types": ["Float", "Integer"] }
-              ]
+              ],
+              "earliest_time": "2022-01-01T00:00:00.00Z",
+              "latest_time": "2022-07-07T06:00:00.00Z"
             }
           }
         }

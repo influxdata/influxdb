@@ -322,7 +322,8 @@ fn main() -> Result<(), std::io::Error> {
             }
             Some(Command::Import(config)) => {
                 let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
-                if let Err(e) = commands::import::command(config).await {
+                let connection = connection().await;
+                if let Err(e) = commands::import::command(connection, config).await {
                     eprintln!("{}", e);
                     std::process::exit(ReturnCode::Failure as _)
                 }

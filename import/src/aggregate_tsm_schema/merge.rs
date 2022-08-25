@@ -160,10 +160,33 @@ fn do_merge_measurement(
                 .insert(from_field.name.clone(), from_field.clone());
         }
     });
+    // ensure sane time ranges have been given
+    assert!(
+        from_measurement
+            .earliest_time
+            .le(&from_measurement.latest_time)
+            && into_measurement
+                .earliest_time
+                .le(&into_measurement.latest_time)
+    );
+    // merge earliest/latest times
+    if from_measurement
+        .earliest_time
+        .lt(&into_measurement.earliest_time)
+    {
+        into_measurement.earliest_time = from_measurement.earliest_time;
+    }
+    if from_measurement
+        .latest_time
+        .gt(&into_measurement.latest_time)
+    {
+        into_measurement.latest_time = from_measurement.latest_time;
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    use chrono::DateTime;
     use std::collections::{HashMap, HashSet};
 
     use super::*;
@@ -185,6 +208,8 @@ mod tests {
                     types: HashSet::from(["Float".to_string()]),
                 },
             )]),
+            earliest_time: DateTime::parse_from_rfc3339("2022-01-01T00:00:00+00:00").unwrap(),
+            latest_time: DateTime::parse_from_rfc3339("2022-07-07T06:00:00+00:00").unwrap(),
         };
         let m2 = AggregateTSMMeasurement {
             tags: HashMap::from([(
@@ -201,6 +226,8 @@ mod tests {
                     types: HashSet::from(["Float".to_string()]),
                 },
             )]),
+            earliest_time: DateTime::parse_from_rfc3339("2022-01-01T00:00:00+00:00").unwrap(),
+            latest_time: DateTime::parse_from_rfc3339("2022-07-07T06:00:00+00:00").unwrap(),
         };
         do_merge_measurement(&mut m1, &m2);
         assert_eq!(m1.tags.len(), 2);
@@ -224,6 +251,8 @@ mod tests {
                     types: HashSet::from(["Float".to_string()]),
                 },
             )]),
+            earliest_time: DateTime::parse_from_rfc3339("2022-01-01T00:00:00+00:00").unwrap(),
+            latest_time: DateTime::parse_from_rfc3339("2022-07-07T06:00:00+00:00").unwrap(),
         };
         let m2 = AggregateTSMMeasurement {
             tags: HashMap::from([(
@@ -240,6 +269,8 @@ mod tests {
                     types: HashSet::from(["Float".to_string()]),
                 },
             )]),
+            earliest_time: DateTime::parse_from_rfc3339("2022-01-01T00:00:00+00:00").unwrap(),
+            latest_time: DateTime::parse_from_rfc3339("2022-07-07T06:00:00+00:00").unwrap(),
         };
         do_merge_measurement(&mut m1, &m2);
         assert_eq!(m1.tags.len(), 1);
@@ -271,6 +302,8 @@ mod tests {
                     types: HashSet::from(["Float".to_string()]),
                 },
             )]),
+            earliest_time: DateTime::parse_from_rfc3339("2022-01-01T00:00:00+00:00").unwrap(),
+            latest_time: DateTime::parse_from_rfc3339("2022-07-07T06:00:00+00:00").unwrap(),
         };
         let m2 = AggregateTSMMeasurement {
             tags: HashMap::from([(
@@ -287,6 +320,8 @@ mod tests {
                     types: HashSet::from(["Float".to_string()]),
                 },
             )]),
+            earliest_time: DateTime::parse_from_rfc3339("2022-01-01T00:00:00+00:00").unwrap(),
+            latest_time: DateTime::parse_from_rfc3339("2022-07-07T06:00:00+00:00").unwrap(),
         };
         do_merge_measurement(&mut m1, &m2);
         assert_eq!(m1.tags.len(), 1);
@@ -318,6 +353,8 @@ mod tests {
                     types: HashSet::from(["Float".to_string()]),
                 },
             )]),
+            earliest_time: DateTime::parse_from_rfc3339("2022-01-01T00:00:00+00:00").unwrap(),
+            latest_time: DateTime::parse_from_rfc3339("2022-07-07T06:00:00+00:00").unwrap(),
         };
         let m2 = AggregateTSMMeasurement {
             tags: HashMap::from([(
@@ -334,6 +371,8 @@ mod tests {
                     types: HashSet::from(["Integer".to_string()]),
                 },
             )]),
+            earliest_time: DateTime::parse_from_rfc3339("2022-01-01T00:00:00+00:00").unwrap(),
+            latest_time: DateTime::parse_from_rfc3339("2022-07-07T06:00:00+00:00").unwrap(),
         };
         do_merge_measurement(&mut m1, &m2);
         assert_eq!(m1.tags.len(), 1);
@@ -361,6 +400,8 @@ mod tests {
                     types: HashSet::from(["Float".to_string()]),
                 },
             )]),
+            earliest_time: DateTime::parse_from_rfc3339("2022-01-01T00:00:00+00:00").unwrap(),
+            latest_time: DateTime::parse_from_rfc3339("2022-07-07T06:00:00+00:00").unwrap(),
         };
         let m2 = AggregateTSMMeasurement {
             tags: HashMap::from([(
@@ -377,6 +418,8 @@ mod tests {
                     types: HashSet::from(["Float".to_string(), "Integer".to_string()]),
                 },
             )]),
+            earliest_time: DateTime::parse_from_rfc3339("2022-01-01T00:00:00+00:00").unwrap(),
+            latest_time: DateTime::parse_from_rfc3339("2022-07-07T06:00:00+00:00").unwrap(),
         };
         do_merge_measurement(&mut m1, &m2);
         assert_eq!(m1.tags.len(), 1);
@@ -385,6 +428,231 @@ mod tests {
             m1.fields.values().next().unwrap().types,
             HashSet::from(["Float".to_string(), "Integer".to_string(),])
         );
+    }
+
+    #[tokio::test]
+    async fn merge_measurements_test_time_merge_1() {
+        let mut m1 = AggregateTSMMeasurement {
+            tags: HashMap::from([(
+                "host".to_string(),
+                AggregateTSMTag {
+                    name: "host".to_string(),
+                    values: HashSet::from(["server".to_string(), "desktop".to_string()]),
+                },
+            )]),
+            fields: HashMap::from([(
+                "usage".to_string(),
+                AggregateTSMField {
+                    name: "usage".to_string(),
+                    types: HashSet::from(["Float".to_string()]),
+                },
+            )]),
+            earliest_time: DateTime::parse_from_rfc3339("2022-01-01T00:00:00+00:00").unwrap(),
+            latest_time: DateTime::parse_from_rfc3339("2022-07-07T06:00:00+00:00").unwrap(),
+        };
+        let m2 = AggregateTSMMeasurement {
+            tags: HashMap::from([(
+                "sensor".to_string(),
+                AggregateTSMTag {
+                    name: "sensor".to_string(),
+                    values: HashSet::from(["top".to_string(), "bottom".to_string()]),
+                },
+            )]),
+            fields: HashMap::from([(
+                "temperature".to_string(),
+                AggregateTSMField {
+                    name: "temperature".to_string(),
+                    types: HashSet::from(["Float".to_string()]),
+                },
+            )]),
+            // time range falls entirely within the first one
+            earliest_time: DateTime::parse_from_rfc3339("2022-04-01T00:00:00+00:00").unwrap(),
+            latest_time: DateTime::parse_from_rfc3339("2022-05-07T06:00:00+00:00").unwrap(),
+        };
+        do_merge_measurement(&mut m1, &m2);
+        // result should always be the widest range, i.e. = the first range
+        assert_eq!(m1.earliest_time.to_rfc3339(), "2022-01-01T00:00:00+00:00");
+        assert_eq!(m1.latest_time.to_rfc3339(), "2022-07-07T06:00:00+00:00");
+    }
+
+    #[tokio::test]
+    async fn merge_measurements_test_time_merge_2() {
+        let mut m1 = AggregateTSMMeasurement {
+            tags: HashMap::from([(
+                "host".to_string(),
+                AggregateTSMTag {
+                    name: "host".to_string(),
+                    values: HashSet::from(["server".to_string(), "desktop".to_string()]),
+                },
+            )]),
+            fields: HashMap::from([(
+                "usage".to_string(),
+                AggregateTSMField {
+                    name: "usage".to_string(),
+                    types: HashSet::from(["Float".to_string()]),
+                },
+            )]),
+            earliest_time: DateTime::parse_from_rfc3339("2022-01-01T00:00:00+00:00").unwrap(),
+            latest_time: DateTime::parse_from_rfc3339("2022-02-07T06:00:00+00:00").unwrap(),
+        };
+        let m2 = AggregateTSMMeasurement {
+            tags: HashMap::from([(
+                "sensor".to_string(),
+                AggregateTSMTag {
+                    name: "sensor".to_string(),
+                    values: HashSet::from(["top".to_string(), "bottom".to_string()]),
+                },
+            )]),
+            fields: HashMap::from([(
+                "temperature".to_string(),
+                AggregateTSMField {
+                    name: "temperature".to_string(),
+                    types: HashSet::from(["Float".to_string()]),
+                },
+            )]),
+            // time range falls entirely outside the first one
+            earliest_time: DateTime::parse_from_rfc3339("2022-06-01T00:00:00+00:00").unwrap(),
+            latest_time: DateTime::parse_from_rfc3339("2022-07-07T06:00:00+00:00").unwrap(),
+        };
+        do_merge_measurement(&mut m1, &m2);
+        // result should always be the widest range, i.e. = from start of first to end of second
+        assert_eq!(m1.earliest_time.to_rfc3339(), "2022-01-01T00:00:00+00:00");
+        assert_eq!(m1.latest_time.to_rfc3339(), "2022-07-07T06:00:00+00:00");
+    }
+
+    #[tokio::test]
+    async fn merge_measurements_test_time_merge_3() {
+        let mut m1 = AggregateTSMMeasurement {
+            tags: HashMap::from([(
+                "host".to_string(),
+                AggregateTSMTag {
+                    name: "host".to_string(),
+                    values: HashSet::from(["server".to_string(), "desktop".to_string()]),
+                },
+            )]),
+            fields: HashMap::from([(
+                "usage".to_string(),
+                AggregateTSMField {
+                    name: "usage".to_string(),
+                    types: HashSet::from(["Float".to_string()]),
+                },
+            )]),
+            earliest_time: DateTime::parse_from_rfc3339("2022-04-01T00:00:00+00:00").unwrap(),
+            latest_time: DateTime::parse_from_rfc3339("2022-05-07T06:00:00+00:00").unwrap(),
+        };
+        let m2 = AggregateTSMMeasurement {
+            tags: HashMap::from([(
+                "sensor".to_string(),
+                AggregateTSMTag {
+                    name: "sensor".to_string(),
+                    values: HashSet::from(["top".to_string(), "bottom".to_string()]),
+                },
+            )]),
+            fields: HashMap::from([(
+                "temperature".to_string(),
+                AggregateTSMField {
+                    name: "temperature".to_string(),
+                    types: HashSet::from(["Float".to_string()]),
+                },
+            )]),
+            // time range falls before the first one
+            earliest_time: DateTime::parse_from_rfc3339("2022-02-01T00:00:00+00:00").unwrap(),
+            latest_time: DateTime::parse_from_rfc3339("2022-03-07T06:00:00+00:00").unwrap(),
+        };
+        do_merge_measurement(&mut m1, &m2);
+        // result should always be the widest range, i.e. = from start of second to end of first
+        assert_eq!(m1.earliest_time.to_rfc3339(), "2022-02-01T00:00:00+00:00");
+        assert_eq!(m1.latest_time.to_rfc3339(), "2022-05-07T06:00:00+00:00");
+    }
+
+    #[tokio::test]
+    async fn merge_measurements_test_time_merge_4() {
+        let mut m1 = AggregateTSMMeasurement {
+            tags: HashMap::from([(
+                "host".to_string(),
+                AggregateTSMTag {
+                    name: "host".to_string(),
+                    values: HashSet::from(["server".to_string(), "desktop".to_string()]),
+                },
+            )]),
+            fields: HashMap::from([(
+                "usage".to_string(),
+                AggregateTSMField {
+                    name: "usage".to_string(),
+                    types: HashSet::from(["Float".to_string()]),
+                },
+            )]),
+            earliest_time: DateTime::parse_from_rfc3339("2022-01-01T00:00:00+00:00").unwrap(),
+            latest_time: DateTime::parse_from_rfc3339("2022-04-01T00:00:00+00:00").unwrap(),
+        };
+        let m2 = AggregateTSMMeasurement {
+            tags: HashMap::from([(
+                "sensor".to_string(),
+                AggregateTSMTag {
+                    name: "sensor".to_string(),
+                    values: HashSet::from(["top".to_string(), "bottom".to_string()]),
+                },
+            )]),
+            fields: HashMap::from([(
+                "temperature".to_string(),
+                AggregateTSMField {
+                    name: "temperature".to_string(),
+                    types: HashSet::from(["Float".to_string()]),
+                },
+            )]),
+            // time range starts when the first one ends
+            earliest_time: DateTime::parse_from_rfc3339("2022-04-01T00:00:00+00:00").unwrap(),
+            latest_time: DateTime::parse_from_rfc3339("2022-07-07T06:00:00+00:00").unwrap(),
+        };
+        do_merge_measurement(&mut m1, &m2);
+        // result should always be the widest range, i.e. = from start of first to end of second
+        assert_eq!(m1.earliest_time.to_rfc3339(), "2022-01-01T00:00:00+00:00");
+        assert_eq!(m1.latest_time.to_rfc3339(), "2022-07-07T06:00:00+00:00");
+    }
+
+    #[tokio::test]
+    async fn merge_measurements_test_time_merge_5() {
+        let mut m1 = AggregateTSMMeasurement {
+            tags: HashMap::from([(
+                "host".to_string(),
+                AggregateTSMTag {
+                    name: "host".to_string(),
+                    values: HashSet::from(["server".to_string(), "desktop".to_string()]),
+                },
+            )]),
+            fields: HashMap::from([(
+                "usage".to_string(),
+                AggregateTSMField {
+                    name: "usage".to_string(),
+                    types: HashSet::from(["Float".to_string()]),
+                },
+            )]),
+            earliest_time: DateTime::parse_from_rfc3339("2022-01-01T00:00:00+00:00").unwrap(),
+            latest_time: DateTime::parse_from_rfc3339("2022-07-07T06:00:00+00:00").unwrap(),
+        };
+        let m2 = AggregateTSMMeasurement {
+            tags: HashMap::from([(
+                "sensor".to_string(),
+                AggregateTSMTag {
+                    name: "sensor".to_string(),
+                    values: HashSet::from(["top".to_string(), "bottom".to_string()]),
+                },
+            )]),
+            fields: HashMap::from([(
+                "temperature".to_string(),
+                AggregateTSMField {
+                    name: "temperature".to_string(),
+                    types: HashSet::from(["Float".to_string()]),
+                },
+            )]),
+            // time range is the same as the first one
+            earliest_time: DateTime::parse_from_rfc3339("2022-01-01T00:00:00+00:00").unwrap(),
+            latest_time: DateTime::parse_from_rfc3339("2022-07-07T06:00:00+00:00").unwrap(),
+        };
+        do_merge_measurement(&mut m1, &m2);
+        // result should always be the widest range, i.e. = from start of second to end of first
+        assert_eq!(m1.earliest_time.to_rfc3339(), "2022-01-01T00:00:00+00:00");
+        assert_eq!(m1.latest_time.to_rfc3339(), "2022-07-07T06:00:00+00:00");
     }
 
     #[tokio::test]
@@ -409,6 +677,9 @@ mod tests {
                             types: HashSet::from(["Float".to_string()]),
                         },
                     )]),
+                    earliest_time: DateTime::parse_from_rfc3339("2022-01-01T00:00:00+00:00")
+                        .unwrap(),
+                    latest_time: DateTime::parse_from_rfc3339("2022-07-07T06:00:00+00:00").unwrap(),
                 },
             )]),
         };
@@ -432,6 +703,9 @@ mod tests {
                             types: HashSet::from(["Float".to_string()]),
                         },
                     )]),
+                    earliest_time: DateTime::parse_from_rfc3339("2022-01-01T00:00:00+00:00")
+                        .unwrap(),
+                    latest_time: DateTime::parse_from_rfc3339("2022-07-07T06:00:00+00:00").unwrap(),
                 },
             )]),
         };
@@ -469,6 +743,9 @@ mod tests {
                             types: HashSet::from(["Float".to_string()]),
                         },
                     )]),
+                    earliest_time: DateTime::parse_from_rfc3339("2022-01-01T00:00:00+00:00")
+                        .unwrap(),
+                    latest_time: DateTime::parse_from_rfc3339("2022-04-07T06:00:00+00:00").unwrap(),
                 },
             )]),
         };
@@ -492,6 +769,9 @@ mod tests {
                             types: HashSet::from(["Integer".to_string(), "Float".to_string()]),
                         },
                     )]),
+                    earliest_time: DateTime::parse_from_rfc3339("2022-05-01T00:00:00+00:00")
+                        .unwrap(),
+                    latest_time: DateTime::parse_from_rfc3339("2022-07-07T06:00:00+00:00").unwrap(),
                 },
             )]),
         };
@@ -526,6 +806,14 @@ mod tests {
                 types: HashSet::from(["Integer".to_string(), "Float".to_string()])
             }]
         );
+        assert_eq!(
+            measurement.earliest_time.to_rfc3339(),
+            "2022-01-01T00:00:00+00:00"
+        );
+        assert_eq!(
+            measurement.latest_time.to_rfc3339(),
+            "2022-07-07T06:00:00+00:00"
+        );
     }
 
     #[tokio::test]
@@ -559,6 +847,12 @@ mod tests {
                                     types: HashSet::from(["Float".to_string()]),
                                 },
                             )]),
+                            earliest_time: DateTime::parse_from_rfc3339(
+                                "2021-01-01T00:00:00+00:00",
+                            )
+                            .unwrap(),
+                            latest_time: DateTime::parse_from_rfc3339("2021-03-07T06:00:00+00:00")
+                                .unwrap(),
                         },
                     )]),
                 },
@@ -582,6 +876,12 @@ mod tests {
                                     types: HashSet::from(["Integer".to_string()]),
                                 },
                             )]),
+                            earliest_time: DateTime::parse_from_rfc3339(
+                                "2021-02-01T00:00:00+00:00",
+                            )
+                            .unwrap(),
+                            latest_time: DateTime::parse_from_rfc3339("2021-07-07T06:00:00+00:00")
+                                .unwrap(),
                         },
                     )]),
                 },
@@ -605,6 +905,12 @@ mod tests {
                                     types: HashSet::from(["Float".to_string()]),
                                 },
                             )]),
+                            earliest_time: DateTime::parse_from_rfc3339(
+                                "2022-01-01T00:00:00+00:00",
+                            )
+                            .unwrap(),
+                            latest_time: DateTime::parse_from_rfc3339("2022-05-07T06:00:00+00:00")
+                                .unwrap(),
                         },
                     )]),
                 },
@@ -628,6 +934,12 @@ mod tests {
                                     types: HashSet::from(["Integer".to_string()]),
                                 },
                             )]),
+                            earliest_time: DateTime::parse_from_rfc3339(
+                                "2022-04-01T00:00:00+00:00",
+                            )
+                            .unwrap(),
+                            latest_time: DateTime::parse_from_rfc3339("2022-07-07T06:00:00+00:00")
+                                .unwrap(),
                         },
                     )]),
                 },
@@ -644,7 +956,9 @@ mod tests {
               ],
              "fields": [
                 { "name": "usage", "types": ["Float", "Integer"] }
-              ]
+              ],
+              "earliest_time": "2021-01-01T00:00:00.00Z",
+              "latest_time": "2021-07-07T06:00:00.00Z"
             },
             "weather": {
               "tags": [
@@ -652,7 +966,9 @@ mod tests {
               ],
              "fields": [
                 { "name": "temperature", "types": ["Float", "Integer"] }
-              ]
+              ],
+              "earliest_time": "2022-01-01T00:00:00.00Z",
+              "latest_time": "2022-07-07T06:00:00.00Z"
             }
           }
         }
@@ -709,6 +1025,12 @@ mod tests {
                                     types: HashSet::from(["Float".to_string()]),
                                 },
                             )]),
+                            earliest_time: DateTime::parse_from_rfc3339(
+                                "2022-01-01T00:00:00+00:00",
+                            )
+                            .unwrap(),
+                            latest_time: DateTime::parse_from_rfc3339("2022-07-07T06:00:00+00:00")
+                                .unwrap(),
                         },
                     )]),
                 },
@@ -732,6 +1054,12 @@ mod tests {
                                     types: HashSet::from(["Integer".to_string()]),
                                 },
                             )]),
+                            earliest_time: DateTime::parse_from_rfc3339(
+                                "2022-01-01T00:00:00+00:00",
+                            )
+                            .unwrap(),
+                            latest_time: DateTime::parse_from_rfc3339("2022-07-07T06:00:00+00:00")
+                                .unwrap(),
                         },
                     )]),
                 },
@@ -755,6 +1083,12 @@ mod tests {
                                     types: HashSet::from(["Float".to_string()]),
                                 },
                             )]),
+                            earliest_time: DateTime::parse_from_rfc3339(
+                                "2022-01-01T00:00:00+00:00",
+                            )
+                            .unwrap(),
+                            latest_time: DateTime::parse_from_rfc3339("2022-07-07T06:00:00+00:00")
+                                .unwrap(),
                         },
                     )]),
                 },
@@ -778,6 +1112,12 @@ mod tests {
                                     types: HashSet::from(["Integer".to_string()]),
                                 },
                             )]),
+                            earliest_time: DateTime::parse_from_rfc3339(
+                                "2022-01-01T00:00:00+00:00",
+                            )
+                            .unwrap(),
+                            latest_time: DateTime::parse_from_rfc3339("2022-07-07T06:00:00+00:00")
+                                .unwrap(),
                         },
                     )]),
                 },
@@ -795,7 +1135,9 @@ mod tests {
               ],
              "fields": [
                 { "name": "usage", "types": ["Float"] }
-              ]
+              ],
+              "earliest_time": "2022-01-01T00:00:00.00Z",
+              "latest_time": "2022-07-07T06:00:00.00Z"
             },
             "weather": {
               "tags": [
@@ -803,7 +1145,9 @@ mod tests {
               ],
              "fields": [
                 { "name": "temperature", "types": ["Float"] }
-              ]
+              ],
+              "earliest_time": "2022-01-01T00:00:00.00Z",
+              "latest_time": "2022-07-07T06:00:00.00Z"
             }
           }
         }
@@ -825,7 +1169,9 @@ mod tests {
               ],
              "fields": [
                 { "name": "usage", "types": ["Float", "Integer"] }
-              ]
+              ],
+              "earliest_time": "2022-01-01T00:00:00.00Z",
+              "latest_time": "2022-07-07T06:00:00.00Z"
             },
             "weather": {
               "tags": [
@@ -833,7 +1179,9 @@ mod tests {
               ],
              "fields": [
                 { "name": "temperature", "types": ["Float", "Integer"] }
-              ]
+              ],
+              "earliest_time": "2022-01-01T00:00:00.00Z",
+              "latest_time": "2022-07-07T06:00:00.00Z"
             }
           }
         }

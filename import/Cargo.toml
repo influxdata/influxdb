@@ -7,8 +7,11 @@ edition = "2021"
 
 [dependencies]
 clap_blocks = { path = "../clap_blocks" }
+chrono = { version = "0.4", default-features = false }
 data_types = { path = "../data_types" }
 futures = "0.3"
+generated_types = { path = "../generated_types" }
+influxdb_iox_client = { path = "../influxdb_iox_client" }
 iox_catalog = { path = "../iox_catalog" }
 object_store = { version = "0.4.0", features = ["aws"] }
 observability_deps = { path = "../observability_deps" }
@@ -17,12 +20,16 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.82"
 thiserror = "1.0.31"
 tokio = { version = "1.17" }
+tonic = { version = "0.8" }
 trogging = { path = "../trogging", features = ["clap"] }
 workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]
 assert_matches = "1.5"
+client_util = { path = "../client_util" }
 metric = { path = "../metric" }
+parking_lot = "0.12"
+tokio-stream = { version = "0.1", features = ["net"] }
 
 [features]
 azure = ["object_store/azure"] # Optional Azure Object store support
