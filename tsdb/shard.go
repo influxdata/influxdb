@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -20,6 +21,7 @@ import (
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/bytesutil"
+	errors2 "github.com/influxdata/influxdb/pkg/errors"
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/pkg/file"
 	"github.com/influxdata/influxdb/pkg/limiter"
@@ -43,6 +45,10 @@ const (
 	statWriteValuesOK      = "writeValuesOk"
 	statWriteBytes         = "writeBytes"
 	statDiskBytes          = "diskBytes"
+
+	changeFileFormat    = "fields_%09d.idxl"
+	changeFilePattern   = "fields_[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9].idxl"
+	changeFileDirectory = "_fields"
 )
 
 var (
@@ -78,8 +84,14 @@ var (
 	// attempted on a hot shard.
 	ErrShardNotIdle = errors.New("shard not idle")
 
+	// ErrBadFieldChangeFile is returned when a fields.idx change file name
+	// cannot be parsed correctly
+	ErrBadFieldChangeFile = errors.New("field change file name incorrectly formatted")
+
 	// fieldsIndexMagicNumber is the file magic number for the fields index file.
 	fieldsIndexMagicNumber = []byte{0, 6, 1, 3}
+
+	fieldsIndexChangesMagicNumber = []byte{0, 6, 1, 4}
 )
 
 var (
@@ -376,6 +388,7 @@ func (s *Shard) openNoLock() error {
 func (s *Shard) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	// TODO: (DSB) - write out the fields.idx and delete incremental deltas?
 	return s.closeNoLock()
 }
 
@@ -502,6 +515,8 @@ type FieldCreate struct {
 	Measurement []byte
 	Field       *Field
 }
+
+type FieldsToCreate []*FieldCreate
 
 type StatsTracker struct {
 	AddedPoints            func(points, values int64)
@@ -757,16 +772,20 @@ func (s *Shard) createFieldsAndMeasurements(fieldsToCreate []*FieldCreate) error
 	}
 
 	// add fields
+	changes := make([]*FieldChange, 0, len(fieldsToCreate))
 	for _, f := range fieldsToCreate {
 		mf := engine.MeasurementFields(f.Measurement)
 		if err := mf.CreateFieldIfNotExists([]byte(f.Field.Name), f.Field.Type); err != nil {
 			return err
 		}
-
 		s.index.SetFieldName(f.Measurement, f.Field.Name)
+		changes = append(changes, &FieldChange{
+			FieldCreate: *f,
+			Delete:      false,
+		})
 	}
 
-	return engine.MeasurementFieldSet().Save()
+	return engine.MeasurementFieldSet().Save(changes)
 }
 
 // DeleteSeriesRange deletes all values from for seriesKeys between min and max (inclusive)
@@ -1663,14 +1682,31 @@ func (m *MeasurementFields) ForEachField(fn func(name string, typ influxql.DataT
 	}
 }
 
+type FieldChanges []*FieldChange
+
+func MeasurementsToFieldChangeDeletions(measurements []string) FieldChanges {
+	fcs := make([]*FieldChange, 0, len(measurements))
+	for _, m := range measurements {
+		fcs = append(fcs, &FieldChange{
+			FieldCreate: FieldCreate{
+				Measurement: []byte(m),
+				Field:       nil,
+			},
+			Delete: true,
+		})
+	}
+	return fcs
+}
+
 // MeasurementFieldSet represents a collection of fields by measurement.
 // This safe for concurrent use.
 type MeasurementFieldSet struct {
 	mu     sync.RWMutex
 	fields map[string]*MeasurementFields
 	// path is the location to persist field sets
-	path   string
-	writer *MeasurementFieldSetWriter
+	path    string
+	writer  *MeasurementFieldSetWriter
+	changes FieldChanges
 }
 
 // NewMeasurementFieldSet returns a new instance of MeasurementFieldSet.
@@ -1686,10 +1722,38 @@ func NewMeasurementFieldSet(path string) (*MeasurementFieldSet, error) {
 	return fs, fs.load()
 }
 
-func (fs *MeasurementFieldSet) Close() {
-	if fs != nil && fs.writer != nil {
-		fs.writer.Close()
+func (fs *MeasurementFieldSet) Close() error {
+	if fs != nil {
+		if fs.writer != nil {
+			fs.writer.Close()
+		}
+		f, err := fs.SortedFieldChangeFiles()
+		if err != nil {
+			return err
+		} else if len(f) > 0 {
+			return fs.writeToFile()
+		}
 	}
+	return nil
+}
+
+//AddFieldChangeNoLock appends a FieldChange to the MeasurementFieldSet.changes slice.
+func (fs *MeasurementFieldSet) AddFieldChangeNoLock(measurement []byte, field string, typ influxql.DataType, delete bool) {
+	fs.changes = append(fs.changes, &FieldChange{
+		FieldCreate: FieldCreate{
+			Measurement: measurement,
+			Field: &Field{
+				Name: field,
+				Type: typ,
+			},
+		},
+		Delete: delete,
+	})
+}
+
+func (fs *MeasurementFieldSet) GetAndClearChanges() FieldChanges {
+	defer func() { fs.changes = nil }()
+	return fs.changes
 }
 
 // Bytes estimates the memory footprint of this MeasurementFieldSet, in bytes.
@@ -1760,7 +1824,7 @@ func (fs *MeasurementFieldSet) CreateFieldsIfNotExists(name []byte) *Measurement
 // Delete removes a field set for a measurement.
 func (fs *MeasurementFieldSet) Delete(name string) {
 	fs.mu.Lock()
-	delete(fs.fields, name)
+	fs.deleteNoLock(name)
 	fs.mu.Unlock()
 }
 
@@ -1773,8 +1837,13 @@ func (fs *MeasurementFieldSet) DeleteWithLock(name string, fn func() error) erro
 		return err
 	}
 
-	delete(fs.fields, name)
+	fs.deleteNoLock(name)
 	return nil
+}
+
+// deleteNoLock removes a field set for a measurement and record the change for file system persistence
+func (fs *MeasurementFieldSet) deleteNoLock(name string) {
+	delete(fs.fields, name)
 }
 
 func (fs *MeasurementFieldSet) IsEmpty() bool {
@@ -1786,7 +1855,8 @@ func (fs *MeasurementFieldSet) IsEmpty() bool {
 type errorChannel chan<- error
 
 type writeRequest struct {
-	done errorChannel
+	errorReturn chan<- error
+	changes     FieldChanges
 }
 
 type MeasurementFieldSetWriter struct {
@@ -1811,47 +1881,36 @@ func (w *MeasurementFieldSetWriter) Close() {
 	}
 }
 
-func (fs *MeasurementFieldSet) Save() error {
-	return fs.writer.RequestSave()
+func (fs *MeasurementFieldSet) Save(changes FieldChanges) error {
+	return fs.writer.RequestSave(changes)
 }
 
-func (w *MeasurementFieldSetWriter) RequestSave() error {
+func (w *MeasurementFieldSetWriter) RequestSave(changes FieldChanges) error {
 	done := make(chan error)
-	wr := writeRequest{done: done}
-	w.writeRequests <- wr
+	w.writeRequests <- writeRequest{errorReturn: done, changes: changes}
 	return <-done
 }
 
 func (fs *MeasurementFieldSet) saveWriter() {
 	defer fs.writer.wg.Done()
-	// Block until someone modifies the MeasurementFieldSet and
-	// it needs to be written to disk.
-	for req, ok := <-fs.writer.writeRequests; ok; req, ok = <-fs.writer.writeRequests {
-		fs.writeToFile(req)
+	// Block until someone modifies the MeasurementFieldSet, and
+	// it needs to be written to disk. Exit when the channel is closed
+	for wr, ok := <-fs.writer.writeRequests; ok; wr, ok = <-fs.writer.writeRequests {
+		fs.writeChangesToFile(wr)
 	}
 }
 
 // writeToFile: Write the new index to a temp file and rename when it's sync'd
-func (fs *MeasurementFieldSet) writeToFile(first writeRequest) {
-	var err error
-	// Put the errorChannel on which we blocked into a slice to allow more invocations
-	// to share the return code from the file write
-	errorChannels := []errorChannel{first.done}
-	defer func() {
-		for _, c := range errorChannels {
-			c <- err
-			close(c)
-		}
-	}()
+func (fs *MeasurementFieldSet) writeToFile() error {
 	// Do some blocking IO operations before marshalling the in-memory index
-	// to allow other changes to it to be queued up and be captured in one
+	// to allow other changes to it to be captured in one
 	// write operation, in case we are under heavy field creation load
 	path := fs.path + ".tmp"
 
 	// Open the temp file
 	fd, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_EXCL|os.O_SYNC, 0666)
 	if err != nil {
-		return
+		return err
 	}
 	// Ensure temp file is cleaned up
 	defer func() {
@@ -1870,19 +1929,125 @@ func (fs *MeasurementFieldSet) writeToFile(first writeRequest) {
 			return true, err
 		}
 
-		// Read all the pending new field and measurement write requests
-		// that will be captured in the marshaling of the in-memory copy
+		// Lock, copy, and marshal the in-memory index
+		b, err := fs.marshalMeasurementFieldSetNoLock()
+		if err != nil {
+			return true, err
+		}
+		if b == nil {
+			// No fields, file removed, all done
+			return true, nil
+		}
+		if _, err := fd.Write(b); err != nil {
+			return true, err
+		}
+		return false, fd.Sync()
+	}()
+	if err != nil {
+		return err
+	} else if isEmpty {
+		// remove empty file
+		if err = os.RemoveAll(fs.path); err != nil {
+			return err
+		} else {
+			return os.RemoveAll(fs.fieldChangesDirectory())
+		}
+	}
+	if err = fs.renameFile(path); err != nil {
+		return err
+	}
+	return os.RemoveAll(fs.fieldChangesDirectory())
+}
+
+func (fs *MeasurementFieldSet) getNextChangeFile() (fName string, rErr error) {
+	d := fs.fieldChangesDirectory()
+	names, err := filepath.Glob(path.Join(d, changeFilePattern))
+	if err != nil {
+		return "", fmt.Errorf("failed looking for fields change files: %w", err)
+	}
+
+	maxIdxl := 0
+	for _, fn := range names {
+		var curIdxl int
+		if curIdxl, err = changeIndex(fn); err != nil {
+			return "", err
+		}
+		if curIdxl > maxIdxl {
+			maxIdxl = curIdxl
+		}
+	}
+	return path.Join(d, fmt.Sprintf(changeFileFormat, 1+maxIdxl)), nil
+}
+
+func changeIndex(changeFile string) (int, error) {
+	var curIdxl int
+	if m, err := fmt.Sscanf(filepath.Base(changeFile), changeFileFormat, &curIdxl); err != nil {
+		return -1, err
+	} else if m != 1 {
+		return -1, fmt.Errorf("%q: %w", changeFile, ErrBadFieldChangeFile)
+	} else {
+		return curIdxl, nil
+	}
+}
+
+func (fs *MeasurementFieldSet) fieldChangesDirectory() string {
+	return path.Join(path.Dir(fs.path), changeFileDirectory)
+}
+
+// writeChangesToFile: Write the new index to a temp file and rename when it's sync'd
+func (fs *MeasurementFieldSet) writeChangesToFile(first writeRequest) {
+	var err error = nil
+	// Put the errorChannel on which we blocked into a slice to allow more invocations
+	// to share the return code from the file write
+	errorChannels := []errorChannel{first.errorReturn}
+	changes := []FieldChanges{first.changes}
+	defer func() {
+		for _, c := range errorChannels {
+			c <- err
+			close(c)
+		}
+	}()
+	// Do some blocking IO operations before marshalling the in-memory index
+	// to allow other changes to it to be queued up and be captured in one
+	// write operation, in case we are under heavy field creation load
+
+	changePath, err := fs.getNextChangeFile()
+	if err != nil {
+		return
+	}
+	if err = os.MkdirAll(filepath.Dir(changePath), 0777); err != nil {
+		return
+	}
+	fd, err := os.OpenFile(changePath, os.O_CREATE|os.O_RDWR|os.O_EXCL|os.O_SYNC, 0666)
+	if err != nil {
+		return
+	}
+
+	isEmpty, err := func() (isEmpty bool, err error) {
+		// ensure file closed
+		defer func() {
+			if e := fd.Close(); err == nil {
+				err = e
+			}
+		}()
+		if _, err = fd.Write(fieldsIndexChangesMagicNumber); err != nil {
+			return true, err
+		}
+
+		// Read all the pending field and measurement write or delete
+		// requests
 		for {
 			select {
-			case ec := <-fs.writer.writeRequests:
-				errorChannels = append(errorChannels, ec.done)
+			case wr := <-fs.writer.writeRequests:
+				changes = append(changes, wr.changes)
+				errorChannels = append(errorChannels, wr.errorReturn)
 				continue
 			default:
 			}
 			break
 		}
-		// Lock, copy, and marshal the in-memory index
-		b, err := fs.marshalMeasurementFieldSet()
+		// Lock, copy, and marshal the alice of slices of field changes
+		b, err := marshalFieldChanges(changes...)
 		if err != nil {
 			return true, err
 		}
@@ -1896,26 +2061,8 @@ func (fs *MeasurementFieldSet) writeToFile(first writeRequest) {
 		return false, fd.Sync()
 	}()
 	if err != nil || isEmpty {
-		return
+		_ = os.RemoveAll(changePath)
 	}
-	err = fs.renameFile(path)
-}
-
-// marshalMeasurementFieldSet: remove the fields.idx file if no fields
-// otherwise, copy the in-memory version into a protobuf to write to
-// disk
-func (fs *MeasurementFieldSet) marshalMeasurementFieldSet() ([]byte, error) {
-	fs.mu.Lock()
-	defer fs.mu.Unlock()
-	if len(fs.fields) == 0 {
-		// If no fields left, remove the fields index file
-		if err := os.RemoveAll(fs.path); err != nil {
-			return nil, err
-		} else {
-			return nil, nil
-		}
-	}
-	return fs.marshalMeasurementFieldSetNoLock()
 }
 
 func (fs *MeasurementFieldSet) renameFile(path string) error {
@@ -1933,7 +2080,15 @@ func (fs *MeasurementFieldSet) renameFile(path string) error {
 	return nil
 }
 
+// marshalMeasurementFieldSetNoLock: remove the fields.idx file if no fields
+// otherwise, copy the in-memory version into a protobuf to write to
+// disk
 func (fs *MeasurementFieldSet) marshalMeasurementFieldSetNoLock() (marshalled []byte, err error) {
+	if len(fs.fields) == 0 {
+		// If no fields left, remove the fields index file
+		return nil, nil
+	}
+
 	pb := internal.MeasurementFieldSet{
 		Measurements: make([]*internal.MeasurementFields, 0, len(fs.fields)),
 	}
@@ -1959,46 +2114,190 @@ func (fs *MeasurementFieldSet) marshalMeasurementFieldSetNoLock() (marshalled []
 	}
 }
 
-func (fs *MeasurementFieldSet) load() error {
-	fs.mu.Lock()
-	defer fs.mu.Unlock()
+func marshalFieldChanges(changeSet ...FieldChanges) ([]byte, error) {
+	fcs := internal.FieldChangeSet{
+		Changes: nil,
+	}
+	for _, fc := range changeSet {
+		for _, f := range fc {
+			mfc := &internal.MeasurementFieldChange{
+				Measurement: f.Measurement,
+				Delete:      f.Delete,
+			}
+			if f.Field != nil {
+				mfc.Field = &internal.Field{
+					Name: []byte(f.Field.Name),
+					Type: int32(f.Field.Type),
+				}
+				fcs.Changes = append(fcs.Changes, mfc)
+			}
+		}
+	}
+	b, err := proto.Marshal(&fcs)
+	if err != nil {
+		fields := make([]string, 0, len(fcs.Changes))
+		for _, fc := range changeSet {
+			for _, f := range fc {
+				fields = append(fields, fmt.Sprintf("%q.%q", f.Measurement, f.Field.Name))
+			}
+			return nil, fmt.Errorf("failed marshaling new fields - %s: %w", strings.Join(fields, ", "), err)
+		}
+	}
+	return b, nil
+}
 
-	fd, err := os.Open(fs.path)
-	if os.IsNotExist(err) {
+func (fs *MeasurementFieldSet) load() (rErr error) {
+	err := func() error {
+		fs.mu.Lock()
+		defer fs.mu.Unlock()
+
+		pb, err := fs.loadFieldIndex()
+		if err != nil {
+			return err
+		}
+		fs.fields = make(map[string]*MeasurementFields, len(pb.GetMeasurements()))
+		for _, measurement := range pb.GetMeasurements() {
+			fields := make(map[string]*Field, len(measurement.GetFields()))
+			for _, field := range measurement.GetFields() {
+				fields[string(field.GetName())] = &Field{Name: string(field.GetName()), Type: influxql.DataType(field.GetType())}
+			}
+			set := &MeasurementFields{}
+			set.fields.Store(fields)
+			fs.fields[string(measurement.GetName())] = set
+		}
 		return nil
-	} else if err != nil {
-		return err
-	}
-	defer fd.Close()
+	}()
 
-	var magic [4]byte
-	if _, err := fd.Read(magic[:]); err != nil {
-		return err
-	}
-
-	if !bytes.Equal(magic[:], fieldsIndexMagicNumber) {
-		return ErrUnknownFieldsFormat
-	}
-
-	var pb internal.MeasurementFieldSet
-	b, err := io.ReadAll(fd)
 	if err != nil {
 		return err
 	}
 
-	if err := proto.Unmarshal(b, &pb); err != nil {
+	changeFiles, err := fs.SortedFieldChangeFiles()
+	if err != nil {
 		return err
 	}
 
-	fs.fields = make(map[string]*MeasurementFields, len(pb.GetMeasurements()))
-	for _, measurement := range pb.GetMeasurements() {
-		fields := make(map[string]*Field, len(measurement.GetFields()))
-		for _, field := range measurement.GetFields() {
-			fields[string(field.GetName())] = &Field{Name: string(field.GetName()), Type: influxql.DataType(field.GetType())}
+	for _, cf := range changeFiles {
+		fcs, err := loadFieldChanges(cf)
+		if err != nil {
+			return err
 		}
-		set := &MeasurementFields{}
-		set.fields.Store(fields)
-		fs.fields[string(measurement.GetName())] = set
+		if err = fs.ApplyChanges(fcs); err != nil {
+			return err
+		}
+	}
+	if len(changeFiles) > 0 {
+		return fs.writeToFile()
+	}
+	return nil
+}
+
+func (fs *MeasurementFieldSet) loadFieldIndex() (pb *internal.MeasurementFieldSet, rErr error) {
+	pb = &internal.MeasurementFieldSet{}
+
+	fd, err := os.Open(fs.path)
+	if os.IsNotExist(err) {
+		return pb, nil
+	} else if err != nil {
+		return nil, err
+	}
+
+	defer errors2.Capture(&rErr, fd.Close)
+
+	var magic [4]byte
+	if _, err := fd.Read(magic[:]); err != nil {
+		return nil, err
+	}
+
+	if !bytes.Equal(magic[:], fieldsIndexMagicNumber) {
+		return nil, fmt.Errorf("%q: %w", fs.path, ErrUnknownFieldsFormat)
+	}
+
+	b, err := io.ReadAll(fd)
+	if err != nil {
+		return nil, err
+	}
+	return pb, proto.Unmarshal(b, pb)
+}
+
+func (fs *MeasurementFieldSet) SortedFieldChangeFiles() ([]string, error) {
+	names, err := filepath.Glob(path.Join(fs.fieldChangesDirectory(), changeFilePattern))
+	if err != nil {
+		return nil, fmt.Errorf("failed looking for fields change files: %w", err)
+	}
+	sort.Slice(names, func(i, j int) bool {
+		iVal, iErr := changeIndex(names[i])
+		jVal, jErr := changeIndex(names[j])
+		if iErr != nil {
+			err = iErr
+		} else if jErr != nil {
+			err = jErr
+		} else {
+			return iVal < jVal
+		}
+		// Error condition
+		return false
+	})
+	if err != nil {
+		return nil, err
+	} else {
+		return names, nil
+	}
+}
+
+func loadFieldChanges(fileName string) (fcs FieldChanges, rErr error) {
+	fd, err := os.Open(fileName)
+	if err != nil {
+		return nil, err
+	}
+	defer errors2.Capture(&rErr, fd.Close)
+	var magic [4]byte
+	if _, err := fd.Read(magic[:]); err != nil {
+		return nil, err
+	}
+
+	if !bytes.Equal(magic[:], fieldsIndexChangesMagicNumber) {
+		return nil, fmt.Errorf("%q: %w", fileName, ErrUnknownFieldsFormat)
+	}
+
+	var pb internal.FieldChangeSet
+	b, err := io.ReadAll(fd)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := proto.Unmarshal(b, &pb); err != nil {
+		return nil, err
+	}
+
+	fcs = make([]*FieldChange, 0, len(pb.Changes))
+
+	for _, fc := range pb.Changes {
+		fcs = append(fcs, &FieldChange{
+			FieldCreate: FieldCreate{
+				Measurement: fc.Measurement,
+				Field: &Field{
+					ID:   0,
+					Name: string(fc.Field.Name),
+					Type: influxql.DataType(fc.Field.Type),
+				},
+			},
+			Delete: fc.Delete,
+		})
+	}
+	return fcs, nil
+}
+
+func (fs *MeasurementFieldSet) ApplyChanges(fcs FieldChanges) error {
+	for _, fc := range fcs {
+		if fc.Delete {
+			fs.Delete(string(fc.Measurement))
+		} else {
+			mf := fs.CreateFieldsIfNotExists(fc.Measurement)
+			if err := mf.CreateFieldIfNotExists([]byte(fc.Field.Name), fc.Field.Type); err != nil {
+				return fmt.Errorf("failed creating %q.%q: %w", fc.Measurement, fc.Field.Name, err)
+			}
+		}
 	}
 	return nil
 }
@@ -2008,6 +2307,11 @@ type Field struct {
 	ID   uint8             `json:"id,omitempty"`
 	Name string            `json:"name,omitempty"`
 	Type influxql.DataType `json:"type,omitempty"`
+}
+
+type FieldChange struct {
+	FieldCreate
+	Delete bool
 }
 
 // NewFieldKeysIterator returns an iterator that can be iterated over to

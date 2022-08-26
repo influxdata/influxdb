@@ -776,7 +776,9 @@ func (e *Engine) Close() error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.done = nil // Ensures that the channel will not be closed again.
-	e.fieldset.Close()
+	if err := e.fieldset.Close(); err != nil {
+		return err
+	}
 
 	if err := e.FileStore.Close(); err != nil {
 		return err
@@ -882,7 +884,7 @@ func (e *Engine) LoadMetadataIndex(shardID uint64, index tsdb.Index) error {
 	}
 
 	// Save the field set index so we don't have to rebuild it next time
-	if err := e.fieldset.Save(); err != nil {
+	if err := e.fieldset.Save(e.MeasurementFieldSet().GetAndClearChanges()); err != nil {
 		return err
 	}
 
@@ -1193,6 +1195,7 @@ func (e *Engine) overlay(r io.Reader, basePath string, asNew bool) error {
 			return err
 		}
 	}
+	e.MeasurementFieldSet().Save(e.MeasurementFieldSet().GetAndClearChanges())
 	return nil
 }
 
@@ -1274,6 +1277,7 @@ func (e *Engine) addToIndexFromKey(keys [][]byte, fieldTypes []influxql.DataType
 
 		names = append(names, name)
 		tags = append(tags, models.ParseTags(keys[i]))
+		e.MeasurementFieldSet().AddFieldChangeNoLock(name, string(field), fieldTypes[i], false)
 	}
 
 	// Build in-memory index, if necessary.
@@ -1766,19 +1770,20 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 			return err
 		}
 
-		fielsetChanged := false
+		actuallyDeleted := make([]string, 0, len(measurements))
 		for k := range measurements {
 			if dropped, err := e.index.DropMeasurementIfSeriesNotExist([]byte(k)); err != nil {
 				return err
 			} else if dropped {
-				if err := e.cleanupMeasurement([]byte(k)); err != nil {
+				if deleted, err := e.cleanupMeasurement([]byte(k)); err != nil {
 					return err
+				} else if deleted {
+					actuallyDeleted = append(actuallyDeleted, k)
 				}
-				fielsetChanged = true
 			}
 		}
-		if fielsetChanged {
-			if err := e.fieldset.Save(); err != nil {
+		if len(actuallyDeleted) > 0 {
+			if err := e.fieldset.Save(tsdb.MeasurementsToFieldChangeDeletions(actuallyDeleted)); err != nil {
 				return err
 			}
 		}
@@ -1818,7 +1823,7 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 	return nil
 }
 
-func (e *Engine) cleanupMeasurement(name []byte) error {
+func (e *Engine) cleanupMeasurement(name []byte) (deleted bool, err error) {
 	// A sentinel error message to cause DeleteWithLock to not delete the measurement
 	abortErr := fmt.Errorf("measurements still exist")
 
@@ -1849,10 +1854,10 @@ func (e *Engine) cleanupMeasurement(name []byte) error {
 
 	}); err != nil && err != abortErr {
 		// Something else failed, return it
-		return err
+		return false, err
 	}
 
-	return nil
+	return err != abortErr, nil
 }
 
 // DeleteMeasurement deletes a measurement and all related series.
