@@ -10,7 +10,7 @@ ahash = { version = "0.8.0", default-features = false, features = ["runtime-rng"
 arrow = { version = "20.0.0", features = ["prettyprint"] }
 # used by arrow anyway (needed for printing workaround)
 chrono = { version = "0.4", default-features = false }
-comfy-table = { version = "6.0", default-features = false }
+comfy-table = { version = "6.1", default-features = false }
 datafusion = { path = "../datafusion" }
 hashbrown = "0.12"
 num-traits = "0.2"
