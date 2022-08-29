@@ -999,7 +999,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "11.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=929eb6d860fb60ba994b24397ad3c3eb7d839cdf#929eb6d860fb60ba994b24397ad3c3eb7d839cdf"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=3df9f8002cf14939a82e5182bab553ee5bf6e37b#3df9f8002cf14939a82e5182bab553ee5bf6e37b"
 dependencies = [
  "ahash 0.8.0",
  "arrow",
@@ -1027,7 +1027,7 @@ dependencies = [
  "pin-project-lite",
  "rand",
  "smallvec",
- "sqlparser 0.20.0",
+ "sqlparser 0.21.0",
  "tempfile",
  "tokio",
  "tokio-stream",
@@ -1038,31 +1038,31 @@ dependencies = [
 [[package]]
 name = "datafusion-common"
 version = "11.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=929eb6d860fb60ba994b24397ad3c3eb7d839cdf#929eb6d860fb60ba994b24397ad3c3eb7d839cdf"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=3df9f8002cf14939a82e5182bab553ee5bf6e37b#3df9f8002cf14939a82e5182bab553ee5bf6e37b"
 dependencies = [
  "arrow",
  "object_store",
  "ordered-float 3.0.0",
  "parquet",
  "serde_json",
- "sqlparser 0.20.0",
+ "sqlparser 0.21.0",
 ]
 
 [[package]]
 name = "datafusion-expr"
 version = "11.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=929eb6d860fb60ba994b24397ad3c3eb7d839cdf#929eb6d860fb60ba994b24397ad3c3eb7d839cdf"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=3df9f8002cf14939a82e5182bab553ee5bf6e37b#3df9f8002cf14939a82e5182bab553ee5bf6e37b"
 dependencies = [
  "ahash 0.8.0",
  "arrow",
  "datafusion-common",
- "sqlparser 0.20.0",
+ "sqlparser 0.21.0",
 ]
 
 [[package]]
 name = "datafusion-optimizer"
 version = "11.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=929eb6d860fb60ba994b24397ad3c3eb7d839cdf#929eb6d860fb60ba994b24397ad3c3eb7d839cdf"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=3df9f8002cf14939a82e5182bab553ee5bf6e37b#3df9f8002cf14939a82e5182bab553ee5bf6e37b"
 dependencies = [
  "arrow",
  "async-trait",
@@ -1077,7 +1077,7 @@ dependencies = [
 [[package]]
 name = "datafusion-physical-expr"
 version = "11.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=929eb6d860fb60ba994b24397ad3c3eb7d839cdf#929eb6d860fb60ba994b24397ad3c3eb7d839cdf"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=3df9f8002cf14939a82e5182bab553ee5bf6e37b#3df9f8002cf14939a82e5182bab553ee5bf6e37b"
 dependencies = [
  "ahash 0.8.0",
  "arrow",
@@ -1101,7 +1101,7 @@ dependencies = [
 [[package]]
 name = "datafusion-proto"
 version = "11.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=929eb6d860fb60ba994b24397ad3c3eb7d839cdf#929eb6d860fb60ba994b24397ad3c3eb7d839cdf"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=3df9f8002cf14939a82e5182bab553ee5bf6e37b#3df9f8002cf14939a82e5182bab553ee5bf6e37b"
 dependencies = [
  "arrow",
  "datafusion 11.0.0",
@@ -1114,7 +1114,7 @@ dependencies = [
 [[package]]
 name = "datafusion-row"
 version = "11.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=929eb6d860fb60ba994b24397ad3c3eb7d839cdf#929eb6d860fb60ba994b24397ad3c3eb7d839cdf"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=3df9f8002cf14939a82e5182bab553ee5bf6e37b#3df9f8002cf14939a82e5182bab553ee5bf6e37b"
 dependencies = [
  "arrow",
  "datafusion-common",
@@ -1125,14 +1125,14 @@ dependencies = [
 [[package]]
 name = "datafusion-sql"
 version = "11.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=929eb6d860fb60ba994b24397ad3c3eb7d839cdf#929eb6d860fb60ba994b24397ad3c3eb7d839cdf"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=3df9f8002cf14939a82e5182bab553ee5bf6e37b#3df9f8002cf14939a82e5182bab553ee5bf6e37b"
 dependencies = [
  "ahash 0.8.0",
  "arrow",
  "datafusion-common",
  "datafusion-expr",
  "hashbrown",
- "sqlparser 0.20.0",
+ "sqlparser 0.21.0",
  "tokio",
 ]
 
@@ -4627,9 +4627,9 @@ dependencies = [
 
 [[package]]
 name = "sqlparser"
-version = "0.20.0"
+version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "30c67d4d5de027da1da5a4ed4623f09ab5131d808364279a5f5abee5de9b8db3"
+checksum = "06f81e3ef3e44bcec9b9a349555f93178d2a427c2bb3e9611c50180085ad07a9"
 dependencies = [
  "log",
 ]
