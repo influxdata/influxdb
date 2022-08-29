@@ -4,7 +4,7 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use iox_time::{MockProvider, Time};
 use parking_lot::Mutex;
-use tokio::sync::Notify;
+use tokio::{runtime::Handle, sync::Notify};
 
 use crate::{
     backend::{policy::refresh::test_util::NotifyExt, CacheBackend},
@@ -31,7 +31,7 @@ async fn test_refresh_can_prevent_expiration() {
         loader,
         notify_idle,
         ..
-    } = TestStateTtlAndRefresh::new().await;
+    } = TestStateTtlAndRefresh::new();
 
     loader.mock_next(1, String::from("foo"));
     refresh_duration_provider.set_refresh_in(1, String::from("a"), Some(Duration::from_secs(1)));
@@ -65,7 +65,7 @@ async fn test_refresh_sets_new_expiration_after_it_finishes() {
         loader,
         notify_idle,
         ..
-    } = TestStateTtlAndRefresh::new().await;
+    } = TestStateTtlAndRefresh::new();
 
     let barrier = loader.block_next(1, String::from("foo"));
     refresh_duration_provider.set_refresh_in(1, String::from("a"), Some(Duration::from_secs(1)));
@@ -104,7 +104,7 @@ async fn test_if_refresh_to_slow_then_expire() {
         loader,
         notify_idle,
         ..
-    } = TestStateTtlAndRefresh::new().await;
+    } = TestStateTtlAndRefresh::new();
 
     let _barrier = loader.block_next(1, String::from("foo"));
     refresh_duration_provider.set_refresh_in(1, String::from("a"), Some(Duration::from_secs(1)));
@@ -134,7 +134,7 @@ async fn test_refresh_can_trigger_lru_eviction() {
         notify_idle,
         pool,
         ..
-    } = TestStateLRUAndRefresh::new().await;
+    } = TestStateLRUAndRefresh::new();
 
     assert_eq!(pool.limit(), TestSize(10));
 
@@ -219,7 +219,7 @@ struct TestStateTtlAndRefresh {
 }
 
 impl TestStateTtlAndRefresh {
-    async fn new() -> Self {
+    fn new() -> Self {
         let refresh_duration_provider = Arc::new(TestRefreshDurationProvider::new());
         let ttl_provider = Arc::new(TestTtlProvider::new());
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
@@ -228,17 +228,15 @@ impl TestStateTtlAndRefresh {
         let notify_idle = Arc::new(Notify::new());
 
         let mut backend = PolicyBackend::new(Box::new(HashMap::<u8, String>::new()));
-        backend.add_policy(
-            RefreshPolicy::new_inner(
-                Arc::clone(&refresh_duration_provider) as _,
-                Arc::clone(&time_provider) as _,
-                Arc::clone(&loader) as _,
-                "my_cache",
-                &metric_registry,
-                Arc::clone(&notify_idle),
-            )
-            .await,
-        );
+        backend.add_policy(RefreshPolicy::new_inner(
+            Arc::clone(&refresh_duration_provider) as _,
+            Arc::clone(&time_provider) as _,
+            Arc::clone(&loader) as _,
+            "my_cache",
+            &metric_registry,
+            Arc::clone(&notify_idle),
+            &Handle::current(),
+        ));
         backend.add_policy(TtlPolicy::new(
             Arc::clone(&ttl_provider) as _,
             Arc::clone(&time_provider) as _,
@@ -269,7 +267,7 @@ struct TestStateLRUAndRefresh {
 }
 
 impl TestStateLRUAndRefresh {
-    async fn new() -> Self {
+    fn new() -> Self {
         let refresh_duration_provider = Arc::new(TestRefreshDurationProvider::new());
         let size_estimator = Arc::new(TestSizeEstimator::default());
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
@@ -278,17 +276,15 @@ impl TestStateLRUAndRefresh {
         let notify_idle = Arc::new(Notify::new());
 
         let mut backend = PolicyBackend::new(Box::new(HashMap::<u8, String>::new()));
-        backend.add_policy(
-            RefreshPolicy::new_inner(
-                Arc::clone(&refresh_duration_provider) as _,
-                Arc::clone(&time_provider) as _,
-                Arc::clone(&loader) as _,
-                "my_cache",
-                &metric_registry,
-                Arc::clone(&notify_idle),
-            )
-            .await,
-        );
+        backend.add_policy(RefreshPolicy::new_inner(
+            Arc::clone(&refresh_duration_provider) as _,
+            Arc::clone(&time_provider) as _,
+            Arc::clone(&loader) as _,
+            "my_cache",
+            &metric_registry,
+            Arc::clone(&notify_idle),
+            &Handle::current(),
+        ));
         let pool = Arc::new(ResourcePool::new(
             "my_pool",
             TestSize(10),
