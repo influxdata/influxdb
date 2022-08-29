@@ -12,7 +12,7 @@
 +-----------------+
 | west            |
 +-----------------+
--- SQL: SELECT user, region from cpu;
+-- SQL: SELECT "user", region from cpu;
 +------+--------+
 | user | region |
 +------+--------+
@@ -25,7 +25,7 @@
 +--------+--------------------------------+------+
 | west   | 1970-01-01T00:00:00.000000150Z | 21   |
 +--------+--------------------------------+------+
--- SQL: SELECT user, region from cpu where time > to_timestamp('1970-01-01T00:00:00.000000120+00:00');
+-- SQL: SELECT "user", region from cpu where time > to_timestamp('1970-01-01T00:00:00.000000120+00:00');
 +------+--------+
 | user | region |
 +------+--------+
