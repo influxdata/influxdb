@@ -16,6 +16,11 @@ ignore = [
     # why needed: part of `arrow`
     # upstream issue: https://github.com/google/flatbuffers/issues/6627
     "RUSTSEC-2021-0122",
+
+    # title: xml-rs is Unmaintained
+    # why needed: upstream of Azure SDK, removal in-progress
+    # upstream issue: many (https://github.com/netvl/xml-rs/issues)
+    "RUSTSEC-2022-0048",
 ]
 git-fetch-with-cli = true
 
