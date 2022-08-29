@@ -45,15 +45,28 @@ enum ReturnCode {
     Failure = 1,
 }
 
-static VERSION_STRING: Lazy<String> = Lazy::new(|| {
-    format!(
-        "{}, revision {}",
-        option_env!("CARGO_PKG_VERSION").unwrap_or("UNKNOWN"),
-        env!(
-            "GIT_HASH",
-            "Can not find find GIT HASH in build environment"
-        )
-    )
+/// Package version.
+pub static IOX_VERSION: Lazy<&'static str> =
+    Lazy::new(|| option_env!("CARGO_PKG_VERSION").unwrap_or("UNKNOWN"));
+
+/// Build-time GIT revision hash.
+pub static IOX_GIT_HASH: &str = env!(
+    "GIT_HASH",
+    "Can not find find GIT HASH in build environment"
+);
+
+/// Version string that is combined from [`IOX_VERSION`] and [`IOX_GIT_HASH`].
+pub static VERSION_STRING: Lazy<&'static str> = Lazy::new(|| {
+    let s = format!("{}, revision {}", &IOX_VERSION[..], IOX_GIT_HASH);
+    let s: Box<str> = Box::from(s);
+    Box::leak(s)
+});
+
+/// A UUID that is unique for the process lifetime.
+pub static PROCESS_UUID: Lazy<&'static str> = Lazy::new(|| {
+    let s = uuid::Uuid::new_v4().to_string();
+    let s: Box<str> = Box::from(s);
+    Box::leak(s)
 });
 
 #[cfg(all(
