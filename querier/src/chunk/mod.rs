@@ -571,6 +571,7 @@ pub mod tests {
     use metric::{Attributes, Observation, RawReporter};
     use schema::{builder::SchemaBuilder, selection::Selection, sort::SortKeyBuilder};
     use test_helpers::maybe_start_logging;
+    use tokio::runtime::Handle;
 
     #[tokio::test]
     async fn test_new_rb_chunk() {
@@ -745,6 +746,7 @@ pub mod tests {
                     catalog.catalog(),
                     catalog.time_provider(),
                     catalog.metric_registry(),
+                    &Handle::current(),
                 )),
                 ParquetStorage::new(catalog.object_store()),
                 catalog.metric_registry(),

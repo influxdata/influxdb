@@ -27,6 +27,7 @@ once_cell = { version = "1.13.1", features = ["parking_lot"] }
 predicate = { path = "../predicate" }
 schema = { path = "../schema" }
 sharder = { path = "../sharder" }
+tokio = { version = "1.20", features = ["macros", "parking_lot", "rt-multi-thread", "time"] }
 querier = { path = "../querier" }
 iox_query = { path = "../iox_query" }
 workspace-hack = { path = "../workspace-hack"}
@@ -38,4 +39,3 @@ arrow_util = { path = "../arrow_util" }
 snafu = "0.7"
 tempfile = "3.1.0"
 test_helpers = { path = "../test_helpers" }
-tokio = { version = "1.20", features = ["macros", "parking_lot", "rt-multi-thread", "time"] }

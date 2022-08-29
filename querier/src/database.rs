@@ -244,6 +244,7 @@ mod tests {
     use crate::create_ingester_connection_for_testing;
     use iox_tests::util::TestCatalog;
     use test_helpers::assert_error;
+    use tokio::runtime::Handle;
 
     #[tokio::test]
     #[should_panic(
@@ -256,6 +257,7 @@ mod tests {
             catalog.catalog(),
             catalog.time_provider(),
             catalog.metric_registry(),
+            &Handle::current(),
         ));
         QuerierDatabase::new(
             catalog_cache,
@@ -278,6 +280,7 @@ mod tests {
             catalog.catalog(),
             catalog.time_provider(),
             catalog.metric_registry(),
+            &Handle::current(),
         ));
 
         assert_error!(
@@ -305,6 +308,7 @@ mod tests {
             catalog.catalog(),
             catalog.time_provider(),
             catalog.metric_registry(),
+            &Handle::current(),
         ));
         let db = QuerierDatabase::new(
             catalog_cache,
@@ -334,6 +338,7 @@ mod tests {
             catalog.catalog(),
             catalog.time_provider(),
             catalog.metric_registry(),
+            &Handle::current(),
         ));
         let db = QuerierDatabase::new(
             catalog_cache,

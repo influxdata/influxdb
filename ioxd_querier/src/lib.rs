@@ -24,6 +24,7 @@ use std::{
     sync::Arc,
 };
 use thiserror::Error;
+use tokio::runtime::Handle;
 use trace::TraceCollector;
 
 mod rpc;
@@ -171,6 +172,7 @@ pub async fn create_querier_server_type(
         Arc::clone(&args.metric_registry),
         args.querier_config.ram_pool_metadata_bytes(),
         args.querier_config.ram_pool_data_bytes(),
+        &Handle::current(),
     ));
 
     let ingester_connection = match args.ingester_addresses {

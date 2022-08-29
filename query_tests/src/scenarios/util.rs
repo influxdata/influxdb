@@ -40,6 +40,7 @@ use std::{
     fmt::Write,
     sync::Arc,
 };
+use tokio::runtime::Handle;
 
 // Structs, enums, and functions used to exhaust all test scenarios of chunk lifecycle
 // & when delete predicates are applied
@@ -932,6 +933,7 @@ impl MockIngester {
             self.catalog.catalog(),
             self.catalog.time_provider(),
             self.catalog.metric_registry(),
+            &Handle::current(),
         ));
         let sequencer_to_ingesters = [(0, IngesterMapping::Addr(Arc::from("some_address")))]
             .into_iter()

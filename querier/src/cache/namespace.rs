@@ -4,6 +4,7 @@ use backoff::{Backoff, BackoffConfig};
 use cache_system::{
     backend::policy::{
         lru::{LruPolicy, ResourcePool},
+        refresh::{OptionalValueRefreshDurationProvider, RefreshPolicy},
         remove_if::{RemoveIfHandle, RemoveIfPolicy},
         ttl::{OptionalValueTtlProvider, TtlPolicy},
         PolicyBackend,
@@ -21,12 +22,16 @@ use std::{
     sync::Arc,
     time::Duration,
 };
+use tokio::runtime::Handle;
 use trace::span::Span;
 
 use super::ram::RamSize;
 
 /// Duration to keep existing namespaces.
-pub const TTL_EXISTING: Duration = Duration::from_secs(10);
+pub const TTL_EXISTING: Duration = Duration::from_secs(60);
+
+// When to refresh an existing namespace.
+pub const REFRESH_EXISTING: Duration = Duration::from_secs(10);
 
 /// Duration to keep non-existing namespaces.
 ///
@@ -37,7 +42,8 @@ pub const TTL_EXISTING: Duration = Duration::from_secs(10);
 ///              SOME TTL mechanism attached.
 ///              The TTL is not relevant for prod at the moment because other layers should prevent/filter queries for
 ///              non-existing namespaces.
-pub const TTL_NON_EXISTING: Duration = Duration::from_nanos(1);
+pub const TTL_NON_EXISTING: Duration = Duration::from_nanos(2);
+pub const REFRESH_NON_EXISTING: Duration = Duration::from_nanos(1);
 
 const CACHE_ID: &str = "namespace";
 
@@ -65,6 +71,7 @@ impl NamespaceCache {
         time_provider: Arc<dyn TimeProvider>,
         metric_registry: &metric::Registry,
         ram_pool: Arc<ResourcePool<RamSize>>,
+        handle: &Handle,
         testing: bool,
     ) -> Self {
         let loader = Box::new(FunctionLoader::new(
@@ -111,6 +118,18 @@ impl NamespaceCache {
             CACHE_ID,
             metric_registry,
         ));
+        backend.add_policy(RefreshPolicy::new(
+            Arc::new(OptionalValueRefreshDurationProvider::new(
+                Some(REFRESH_NON_EXISTING),
+                Some(REFRESH_EXISTING),
+            )),
+            Arc::clone(&time_provider),
+            Arc::clone(&loader) as _,
+            CACHE_ID,
+            metric_registry,
+            handle,
+        ));
+
         let (constructor, remove_if_handle) =
             RemoveIfPolicy::create_constructor_and_handle(CACHE_ID, metric_registry);
         backend.add_policy(constructor);
@@ -224,6 +243,7 @@ mod tests {
             catalog.time_provider(),
             &catalog.metric_registry(),
             test_ram_pool(),
+            &Handle::current(),
             true,
         );
 
@@ -323,17 +343,6 @@ mod tests {
             .unwrap();
         assert!(Arc::ptr_eq(&schema1_a, &schema1_b));
         assert_histogram_metric_count(&catalog.metric_registry, "namespace_get_by_name", 2);
-
-        // cache timeout
-        catalog.mock_time_provider().inc(TTL_EXISTING);
-
-        let schema1_c = cache
-            .schema(Arc::from(String::from("ns1")), &[], None)
-            .await
-            .unwrap();
-        assert_eq!(schema1_c.as_ref(), schema1_a.as_ref());
-        assert!(!Arc::ptr_eq(&schema1_a, &schema1_c));
-        assert_histogram_metric_count(&catalog.metric_registry, "namespace_get_by_name", 3);
     }
 
     #[tokio::test]
@@ -346,6 +355,7 @@ mod tests {
             catalog.time_provider(),
             &catalog.metric_registry(),
             test_ram_pool(),
+            &Handle::current(),
             true,
         );
 
@@ -360,15 +370,6 @@ mod tests {
             .await;
         assert!(none.is_none());
         assert_histogram_metric_count(&catalog.metric_registry, "namespace_get_by_name", 1);
-
-        // cache timeout
-        catalog.mock_time_provider().inc(TTL_NON_EXISTING);
-
-        let none = cache
-            .schema(Arc::from(String::from("foo")), &[], None)
-            .await;
-        assert!(none.is_none());
-        assert_histogram_metric_count(&catalog.metric_registry, "namespace_get_by_name", 2);
     }
 
     #[tokio::test]
@@ -381,6 +382,7 @@ mod tests {
             catalog.time_provider(),
             &catalog.metric_registry(),
             test_ram_pool(),
+            &Handle::current(),
             true,
         );
 
