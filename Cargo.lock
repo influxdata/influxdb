@@ -372,7 +372,7 @@ dependencies = [
  "rustc_version",
  "serde",
  "serde_json",
- "time 0.3.13",
+ "time 0.3.14",
  "url",
  "uuid 1.1.2",
 ]
@@ -394,7 +394,7 @@ dependencies = [
  "oauth2",
  "serde",
  "serde_json",
- "time 0.3.13",
+ "time 0.3.14",
  "url",
  "uuid 1.1.2",
 ]
@@ -419,7 +419,7 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "sha2",
- "time 0.3.13",
+ "time 0.3.14",
  "url",
  "uuid 1.1.2",
 ]
@@ -442,7 +442,7 @@ dependencies = [
  "serde-xml-rs",
  "serde_derive",
  "serde_json",
- "time 0.3.13",
+ "time 0.3.14",
  "url",
  "uuid 1.1.2",
 ]
@@ -4433,7 +4433,7 @@ dependencies = [
  "rand 0.8.4",
  "snap",
  "thiserror",
- "time 0.3.13",
+ "time 0.3.14",
  "tokio",
  "tracing",
 ]
@@ -5372,9 +5372,9 @@ dependencies = [
 
 [[package]]
 name = "time"
-version = "0.3.13"
+version = "0.3.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "db76ff9fa4b1458b3c7f077f3ff9887394058460d21e634355b273aaf11eea45"
+checksum = "3c3f9a28b618c3a6b9251b6908e9c99e04b9e5c02e6581ccbb67d59c34ef7f9b"
 dependencies = [
  "itoa 1.0.3",
  "libc",
@@ -6216,7 +6216,7 @@ dependencies = [
  "sqlx-core",
  "sqlx-macros",
  "syn",
- "time 0.3.13",
+ "time 0.3.14",
  "tokio",
  "tokio-stream",
  "tokio-util",
