@@ -3,6 +3,7 @@ use std::sync::Arc;
 use data_types::{Sequence, SequenceNumber};
 use dml::{DmlMeta, DmlOperation};
 use iox_time::{Time, TimeProvider};
+use observability_deps::tracing::warn;
 use rskafka::{
     client::producer::aggregator::{
         Aggregator, Error, RecordAggregator as RecordAggregatorDelegate,
@@ -131,7 +132,14 @@ impl Aggregator for RecordAggregator {
             //
             // Map to the original input op this fn was called with, discarding
             // the encoded Record.
-            TryPush::NoCapacity(_) => TryPush::NoCapacity(op),
+            TryPush::NoCapacity(_) => {
+                // Log a warning if this occurs - this allows an operator to
+                // increase the maximum Kafka message size, or lower the linger
+                // time to minimise latency while still producing large enough
+                // batches for it to be worth while.
+                warn!("aggregated batch reached maximum capacity");
+                TryPush::NoCapacity(op)
+            }
 
             // A successful delegate aggregation returns the tag for offset
             // de-aggregation later. For simplicity, the tag this layer returns
