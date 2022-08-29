@@ -8,7 +8,7 @@ use crate::{
     table::{PruneMetrics, QuerierTable, QuerierTableArgs},
     QuerierChunkLoadSetting,
 };
-use data_types::{KafkaPartition, NamespaceId, NamespaceSchema, ParquetFileId};
+use data_types::{NamespaceId, NamespaceSchema, ParquetFileId, ShardIndex};
 use iox_query::exec::Executor;
 use parquet_file::storage::ParquetStorage;
 use schema::Schema;
@@ -61,7 +61,7 @@ impl QuerierNamespace {
         exec: Arc<Executor>,
         ingester_connection: Option<Arc<dyn IngesterConnection>>,
         query_log: Arc<QueryLog>,
-        sharder: Arc<JumpHash<Arc<KafkaPartition>>>,
+        sharder: Arc<JumpHash<Arc<ShardIndex>>>,
         max_table_query_bytes: usize,
         prune_metrics: Arc<PruneMetrics>,
     ) -> Self {
@@ -112,7 +112,7 @@ impl QuerierNamespace {
         schema: Arc<NamespaceSchema>,
         exec: Arc<Executor>,
         ingester_connection: Option<Arc<dyn IngesterConnection>>,
-        sharder: Arc<JumpHash<Arc<KafkaPartition>>>,
+        sharder: Arc<JumpHash<Arc<ShardIndex>>>,
         load_settings: HashMap<ParquetFileId, QuerierChunkLoadSetting>,
         max_table_query_bytes: usize,
     ) -> Self {

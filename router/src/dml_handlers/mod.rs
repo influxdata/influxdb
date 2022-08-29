@@ -68,7 +68,7 @@
 //! of [`NamespaceSchema`] in the global catalog.
 //!
 //! The [`ShardedWriteBuffer`] uses a sharder implementation to direct the DML
-//! operations into a fixed set of sequencers.
+//! operations into a fixed set of shards.
 //!
 //! [`NamespaceCache`]: crate::namespace_cache::NamespaceCache
 //! [`NamespaceSchema`]: data_types::NamespaceSchema

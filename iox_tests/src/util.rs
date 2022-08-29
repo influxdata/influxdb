@@ -5,10 +5,9 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use data_types::{
-    Column, ColumnSet, ColumnType, CompactionLevel, KafkaPartition, KafkaTopic, Namespace,
-    NamespaceSchema, ParquetFile, ParquetFileParams, Partition, PartitionId, QueryPool,
-    SequenceNumber, Sequencer, SequencerId, Table, TableId, TableSchema, Timestamp, Tombstone,
-    TombstoneId,
+    Column, ColumnSet, ColumnType, CompactionLevel, KafkaTopic, Namespace, NamespaceSchema,
+    ParquetFile, ParquetFileParams, Partition, PartitionId, QueryPool, SequenceNumber, Shard,
+    ShardId, ShardIndex, Table, TableId, TableSchema, Timestamp, Tombstone, TombstoneId,
 };
 use datafusion::physical_plan::metrics::Count;
 use iox_catalog::{
@@ -105,8 +104,8 @@ impl TestCatalog {
         Arc::clone(&self.exec)
     }
 
-    /// Create a sequencer in the catalog
-    pub async fn create_sequencer(self: &Arc<Self>, sequencer: i32) -> Arc<Sequencer> {
+    /// Create a shard in the catalog
+    pub async fn create_shard(self: &Arc<Self>, shard_index: i32) -> Arc<Shard> {
         let mut repos = self.catalog.repositories().await;
 
         let kafka_topic = repos
@@ -114,11 +113,11 @@ impl TestCatalog {
             .create_or_get("kafka_topic")
             .await
             .unwrap();
-        let kafka_partition = KafkaPartition::new(sequencer);
+        let shard_index = ShardIndex::new(shard_index);
         Arc::new(
             repos
-                .sequencers()
-                .create_or_get(&kafka_topic, kafka_partition)
+                .shards()
+                .create_or_get(&kafka_topic, shard_index)
                 .await
                 .unwrap(),
         )
@@ -184,27 +183,24 @@ impl TestCatalog {
     }
 
     /// List level 0 files
-    pub async fn list_level_0_files(
-        self: &Arc<Self>,
-        sequencer_id: SequencerId,
-    ) -> Vec<ParquetFile> {
+    pub async fn list_level_0_files(self: &Arc<Self>, shard_id: ShardId) -> Vec<ParquetFile> {
         self.catalog
             .repositories()
             .await
             .parquet_files()
-            .level_0(sequencer_id)
+            .level_0(shard_id)
             .await
             .unwrap()
     }
 
     /// Count level 0 files
-    pub async fn count_level_0_files(self: &Arc<Self>, sequencer_id: SequencerId) -> usize {
+    pub async fn count_level_0_files(self: &Arc<Self>, shard_id: ShardId) -> usize {
         let level_0 = self
             .catalog
             .repositories()
             .await
             .parquet_files()
-            .level_0(sequencer_id)
+            .level_0(shard_id)
             .await
             .unwrap();
         level_0.len()
@@ -253,20 +249,20 @@ impl TestNamespace {
         })
     }
 
-    /// Create a sequencer for this namespace
-    pub async fn create_sequencer(self: &Arc<Self>, sequencer: i32) -> Arc<TestSequencer> {
+    /// Create a shard for this namespace
+    pub async fn create_shard(self: &Arc<Self>, shard_index: i32) -> Arc<TestShard> {
         let mut repos = self.catalog.catalog.repositories().await;
 
-        let sequencer = repos
-            .sequencers()
-            .create_or_get(&self.kafka_topic, KafkaPartition::new(sequencer))
+        let shard = repos
+            .shards()
+            .create_or_get(&self.kafka_topic, ShardIndex::new(shard_index))
             .await
             .unwrap();
 
-        Arc::new(TestSequencer {
+        Arc::new(TestShard {
             catalog: Arc::clone(&self.catalog),
             namespace: Arc::clone(self),
-            sequencer,
+            shard,
         })
     }
 
@@ -279,13 +275,13 @@ impl TestNamespace {
     }
 }
 
-/// A test sequencer with ist namespace in the catalog
+/// A test shard with its namespace in the catalog
 #[derive(Debug)]
 #[allow(missing_docs)]
-pub struct TestSequencer {
+pub struct TestShard {
     pub catalog: Arc<TestCatalog>,
     pub namespace: Arc<TestNamespace>,
-    pub sequencer: Sequencer,
+    pub shard: Shard,
 }
 
 /// A test table of a namespace in the catalog
@@ -298,19 +294,16 @@ pub struct TestTable {
 }
 
 impl TestTable {
-    /// Attach a sequencer to the table
-    pub fn with_sequencer(
-        self: &Arc<Self>,
-        sequencer: &Arc<TestSequencer>,
-    ) -> Arc<TestTableBoundSequencer> {
-        assert!(Arc::ptr_eq(&self.catalog, &sequencer.catalog));
-        assert!(Arc::ptr_eq(&self.namespace, &sequencer.namespace));
+    /// Attach a shard to the table
+    pub fn with_shard(self: &Arc<Self>, shard: &Arc<TestShard>) -> Arc<TestTableBoundShard> {
+        assert!(Arc::ptr_eq(&self.catalog, &shard.catalog));
+        assert!(Arc::ptr_eq(&self.namespace, &shard.namespace));
 
-        Arc::new(TestTableBoundSequencer {
+        Arc::new(TestTableBoundShard {
             catalog: Arc::clone(&self.catalog),
             namespace: Arc::clone(&self.namespace),
             table: Arc::clone(self),
-            sequencer: Arc::clone(sequencer),
+            shard: Arc::clone(shard),
         })
     }
 
@@ -360,23 +353,23 @@ pub struct TestColumn {
     pub column: Column,
 }
 
-/// A test catalog with specified namespace, sequencer, and table
+/// A test catalog with specified namespace, shard, and table
 #[allow(missing_docs)]
-pub struct TestTableBoundSequencer {
+pub struct TestTableBoundShard {
     pub catalog: Arc<TestCatalog>,
     pub namespace: Arc<TestNamespace>,
     pub table: Arc<TestTable>,
-    pub sequencer: Arc<TestSequencer>,
+    pub shard: Arc<TestShard>,
 }
 
-impl TestTableBoundSequencer {
+impl TestTableBoundShard {
     /// Creat a partition for the table
     pub async fn create_partition(self: &Arc<Self>, key: &str) -> Arc<TestPartition> {
         let mut repos = self.catalog.catalog.repositories().await;
 
         let partition = repos
             .partitions()
-            .create_or_get(key.into(), self.sequencer.sequencer.id, self.table.table.id)
+            .create_or_get(key.into(), self.shard.shard.id, self.table.table.id)
             .await
             .unwrap();
 
@@ -384,7 +377,7 @@ impl TestTableBoundSequencer {
             catalog: Arc::clone(&self.catalog),
             namespace: Arc::clone(&self.namespace),
             table: Arc::clone(&self.table),
-            sequencer: Arc::clone(&self.sequencer),
+            shard: Arc::clone(&self.shard),
             partition,
         })
     }
@@ -399,7 +392,7 @@ impl TestTableBoundSequencer {
 
         let partition = repos
             .partitions()
-            .create_or_get(key.into(), self.sequencer.sequencer.id, self.table.table.id)
+            .create_or_get(key.into(), self.shard.shard.id, self.table.table.id)
             .await
             .unwrap();
 
@@ -413,7 +406,7 @@ impl TestTableBoundSequencer {
             catalog: Arc::clone(&self.catalog),
             namespace: Arc::clone(&self.namespace),
             table: Arc::clone(&self.table),
-            sequencer: Arc::clone(&self.sequencer),
+            shard: Arc::clone(&self.shard),
             partition,
         })
     }
@@ -432,7 +425,7 @@ impl TestTableBoundSequencer {
             .tombstones()
             .create_or_get(
                 self.table.table.id,
-                self.sequencer.sequencer.id,
+                self.shard.shard.id,
                 SequenceNumber::new(sequence_number),
                 Timestamp::new(min_time),
                 Timestamp::new(max_time),
@@ -449,14 +442,14 @@ impl TestTableBoundSequencer {
     }
 }
 
-/// A test catalog with specified namespace, sequencer, table, partition
+/// A test catalog with specified namespace, shard, table, partition
 #[allow(missing_docs)]
 #[derive(Debug)]
 pub struct TestPartition {
     pub catalog: Arc<TestCatalog>,
     pub namespace: Arc<TestNamespace>,
     pub table: Arc<TestTable>,
-    pub sequencer: Arc<TestSequencer>,
+    pub shard: Arc<TestShard>,
     pub partition: Partition,
 }
 
@@ -480,7 +473,7 @@ impl TestPartition {
             catalog: Arc::clone(&self.catalog),
             namespace: Arc::clone(&self.namespace),
             table: Arc::clone(&self.table),
-            sequencer: Arc::clone(&self.sequencer),
+            shard: Arc::clone(&self.shard),
             partition,
         })
     }
@@ -524,7 +517,7 @@ impl TestPartition {
             creation_timestamp: now(),
             namespace_id: self.namespace.namespace.id,
             namespace_name: self.namespace.namespace.name.clone().into(),
-            sequencer_id: self.sequencer.sequencer.id,
+            shard_id: self.shard.shard.id,
             table_id: self.table.table.id,
             table_name: self.table.table.name.clone().into(),
             partition_id: self.partition.id,
@@ -549,7 +542,7 @@ impl TestPartition {
         .await;
 
         let parquet_file_params = ParquetFileParams {
-            sequencer_id: self.sequencer.sequencer.id,
+            shard_id: self.shard.shard.id,
             namespace_id: self.namespace.namespace.id,
             table_id: self.table.table.id,
             partition_id: self.partition.id,
@@ -584,7 +577,7 @@ impl TestPartition {
             catalog: Arc::clone(&self.catalog),
             namespace: Arc::clone(&self.namespace),
             table: Arc::clone(&self.table),
-            sequencer: Arc::clone(&self.sequencer),
+            shard: Arc::clone(&self.shard),
             partition: Arc::clone(self),
             parquet_file,
         }
@@ -756,7 +749,7 @@ pub struct TestParquetFile {
     pub catalog: Arc<TestCatalog>,
     pub namespace: Arc<TestNamespace>,
     pub table: Arc<TestTable>,
-    pub sequencer: Arc<TestSequencer>,
+    pub shard: Arc<TestShard>,
     pub partition: Arc<TestPartition>,
     pub parquet_file: ParquetFile,
 }

@@ -17,7 +17,7 @@ use std::{
 };
 use trace::TraceCollector;
 
-pub const DEFAULT_N_SEQUENCERS: u32 = 1;
+pub const DEFAULT_N_SHARDS: u32 = 1;
 
 #[derive(Debug, Clone)]
 enum Mock {
@@ -41,7 +41,7 @@ pub struct WriteBufferConnection {
     /// Note: This config should be a [`BTreeMap`] to ensure that a stable hash.
     pub connection_config: BTreeMap<String, String>,
 
-    /// Specifies if the sequencers (e.g. for Kafka in form of a topic) should be automatically
+    /// Specifies if the shards (e.g. for Kafka in form of a topic) should be automatically
     /// created if they do not existing prior to reading or writing.
     pub creation_config: Option<WriteBufferCreationConfig>,
 }
@@ -57,19 +57,19 @@ impl Default for WriteBufferConnection {
     }
 }
 
-/// Configs sequencer auto-creation for write buffers.
+/// Configs shard auto-creation for write buffers.
 ///
 /// What that means depends on the used write buffer, e.g. for Kafka this will create a new topic w/
-/// [`n_sequencers`](Self::n_sequencers) partitions.
+/// [`n_shards`](Self::n_shards) partitions.
 #[derive(Debug, Eq, PartialEq, Clone, Hash)]
 pub struct WriteBufferCreationConfig {
-    /// Number of sequencers.
+    /// Number of shards.
     ///
     /// How they are implemented depends on [type](WriteBufferConnection::type_), e.g. for Kafka
     /// this is mapped to the number of partitions.
-    pub n_sequencers: NonZeroU32,
+    pub n_shards: NonZeroU32,
 
-    /// Special configs to by applied when sequencers are created.
+    /// Special configs to by applied when shards are created.
     ///
     /// This depends on [type](WriteBufferConnection::type_) and can setup parameters like
     /// retention policy.
@@ -81,7 +81,7 @@ pub struct WriteBufferCreationConfig {
 impl Default for WriteBufferCreationConfig {
     fn default() -> Self {
         Self {
-            n_sequencers: NonZeroU32::try_from(DEFAULT_N_SEQUENCERS).unwrap(),
+            n_shards: NonZeroU32::try_from(DEFAULT_N_SHARDS).unwrap(),
             options: Default::default(),
         }
     }
@@ -304,8 +304,7 @@ mod tests {
     async fn test_writing_mock() {
         let factory = factory();
 
-        let state =
-            MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());
+        let state = MockBufferSharedState::empty_with_n_shards(NonZeroU32::try_from(1).unwrap());
         let mock_name = "some_mock";
         factory.register_mock(mock_name.to_string(), state);
 
@@ -339,8 +338,7 @@ mod tests {
     async fn test_reading_mock() {
         let factory = factory();
 
-        let state =
-            MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());
+        let state = MockBufferSharedState::empty_with_n_shards(NonZeroU32::try_from(1).unwrap());
         let mock_name = "some_mock";
         factory.register_mock(mock_name.to_string(), state);
 
@@ -441,8 +439,7 @@ mod tests {
     fn test_register_mock_twice_panics() {
         let factory = factory();
 
-        let state =
-            MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());
+        let state = MockBufferSharedState::empty_with_n_shards(NonZeroU32::try_from(1).unwrap());
         let mock_name = "some_mock";
         factory.register_always_fail_mock(mock_name.to_string());
         factory.register_mock(mock_name.to_string(), state);

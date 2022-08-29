@@ -11,7 +11,7 @@ use cache_system::{
     loader::{metrics::MetricsLoader, FunctionLoader},
     resource_consumption::FunctionEstimator,
 };
-use data_types::{PartitionId, SequencerId};
+use data_types::{PartitionId, ShardId};
 use iox_catalog::interface::Catalog;
 use iox_time::TimeProvider;
 use schema::sort::SortKey;
@@ -68,7 +68,7 @@ impl PartitionCache {
                         .expect("partition gone from catalog?!");
 
                     CachedPartition {
-                        sequencer_id: partition.sequencer_id,
+                        shard_id: partition.shard_id,
                         sort_key: Arc::new(partition.sort_key()),
                     }
                 }
@@ -108,9 +108,9 @@ impl PartitionCache {
         }
     }
 
-    /// Get sequencer ID.
-    pub async fn sequencer_id(&self, partition_id: PartitionId, span: Option<Span>) -> SequencerId {
-        self.cache.get(partition_id, ((), span)).await.sequencer_id
+    /// Get shard ID.
+    pub async fn shard_id(&self, partition_id: PartitionId, span: Option<Span>) -> ShardId {
+        self.cache.get(partition_id, ((), span)).await.shard_id
     }
 
     /// Get sort key
@@ -138,7 +138,7 @@ impl PartitionCache {
 
 #[derive(Debug, Clone)]
 struct CachedPartition {
-    sequencer_id: SequencerId,
+    shard_id: ShardId,
     sort_key: Arc<Option<SortKey>>,
 }
 
@@ -163,21 +163,21 @@ mod tests {
     use iox_tests::util::TestCatalog;
 
     #[tokio::test]
-    async fn test_sequencer_id() {
+    async fn test_shard_id() {
         let catalog = TestCatalog::new();
 
         let ns = catalog.create_namespace("ns").await;
         let t = ns.create_table("table").await;
-        let s1 = ns.create_sequencer(1).await;
-        let s2 = ns.create_sequencer(2).await;
+        let s1 = ns.create_shard(1).await;
+        let s2 = ns.create_shard(2).await;
         let p1 = t
-            .with_sequencer(&s1)
+            .with_shard(&s1)
             .create_partition("k1")
             .await
             .partition
             .clone();
         let p2 = t
-            .with_sequencer(&s2)
+            .with_shard(&s2)
             .create_partition("k2")
             .await
             .partition
@@ -192,16 +192,16 @@ mod tests {
             true,
         );
 
-        let id1 = cache.sequencer_id(p1.id, None).await;
-        assert_eq!(id1, s1.sequencer.id);
+        let id1 = cache.shard_id(p1.id, None).await;
+        assert_eq!(id1, s1.shard.id);
         assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 1);
 
-        let id2 = cache.sequencer_id(p2.id, None).await;
-        assert_eq!(id2, s2.sequencer.id);
+        let id2 = cache.shard_id(p2.id, None).await;
+        assert_eq!(id2, s2.shard.id);
         assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 2);
 
-        let id1 = cache.sequencer_id(p1.id, None).await;
-        assert_eq!(id1, s1.sequencer.id);
+        let id1 = cache.shard_id(p1.id, None).await;
+        assert_eq!(id1, s1.shard.id);
         assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 2);
     }
 
@@ -211,16 +211,16 @@ mod tests {
 
         let ns = catalog.create_namespace("ns").await;
         let t = ns.create_table("table").await;
-        let s1 = ns.create_sequencer(1).await;
-        let s2 = ns.create_sequencer(2).await;
+        let s1 = ns.create_shard(1).await;
+        let s2 = ns.create_shard(2).await;
         let p1 = t
-            .with_sequencer(&s1)
+            .with_shard(&s1)
             .create_partition_with_sort_key("k1", &["tag", "time"])
             .await
             .partition
             .clone();
         let p2 = t
-            .with_sequencer(&s2)
+            .with_shard(&s2)
             .create_partition("k2") // no sort key
             .await
             .partition
@@ -254,22 +254,22 @@ mod tests {
 
         let ns = catalog.create_namespace("ns").await;
         let t = ns.create_table("table").await;
-        let s1 = ns.create_sequencer(1).await;
-        let s2 = ns.create_sequencer(2).await;
+        let s1 = ns.create_shard(1).await;
+        let s2 = ns.create_shard(2).await;
         let p1 = t
-            .with_sequencer(&s1)
+            .with_shard(&s1)
             .create_partition_with_sort_key("k1", &["tag", "time"])
             .await
             .partition
             .clone();
         let p2 = t
-            .with_sequencer(&s2)
+            .with_shard(&s2)
             .create_partition("k2")
             .await
             .partition
             .clone();
         let p3 = t
-            .with_sequencer(&s2)
+            .with_shard(&s2)
             .create_partition("k3")
             .await
             .partition
@@ -284,16 +284,16 @@ mod tests {
             true,
         );
 
-        cache.sequencer_id(p2.id, None).await;
+        cache.shard_id(p2.id, None).await;
         cache.sort_key(p3.id, &Vec::new(), None).await;
         assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 2);
 
-        cache.sequencer_id(p1.id, None).await;
+        cache.shard_id(p1.id, None).await;
         cache.sort_key(p2.id, &Vec::new(), None).await;
         assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 3);
 
         cache.sort_key(p1.id, &Vec::new(), None).await;
-        cache.sequencer_id(p2.id, None).await;
+        cache.shard_id(p2.id, None).await;
         assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 3);
     }
 
@@ -303,8 +303,8 @@ mod tests {
 
         let ns = catalog.create_namespace("ns").await;
         let t = ns.create_table("table").await;
-        let s = ns.create_sequencer(1).await;
-        let p = t.with_sequencer(&s).create_partition("k1").await;
+        let s = ns.create_shard(1).await;
+        let p = t.with_shard(&s).create_partition("k1").await;
         let p_id = p.partition.id;
         let p_sort_key = p.partition.sort_key();
 

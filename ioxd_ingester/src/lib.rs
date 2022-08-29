@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use clap_blocks::{ingester::IngesterConfig, write_buffer::WriteBufferConfig};
-use data_types::KafkaPartition;
+use data_types::ShardIndex;
 use hyper::{Body, Request, Response};
 use ingester::{
     handler::{IngestHandler, IngestHandlerImpl},
@@ -36,8 +36,8 @@ pub enum Error {
     #[error("Kafka topic {0} not found in the catalog")]
     KafkaTopicNotFound(String),
 
-    #[error("kafka_partition_range_start must be <= kafka_partition_range_end")]
-    KafkaRange,
+    #[error("shard_index_range_start must be <= shard_index_range_end")]
+    ShardIndexRange,
 
     #[error("error initializing ingester: {0}")]
     Ingester(#[from] ingester::handler::Error),
@@ -152,21 +152,22 @@ pub async fn create_ingester_server_type(
         .await?
         .ok_or_else(|| Error::KafkaTopicNotFound(write_buffer_config.topic().to_string()))?;
 
-    if ingester_config.write_buffer_partition_range_start
-        > ingester_config.write_buffer_partition_range_end
-    {
-        return Err(Error::KafkaRange);
+    if ingester_config.shard_index_range_start > ingester_config.shard_index_range_end {
+        return Err(Error::ShardIndexRange);
     }
 
-    let kafka_partitions: Vec<_> = (ingester_config.write_buffer_partition_range_start
-        ..=ingester_config.write_buffer_partition_range_end)
-        .map(KafkaPartition::new)
+    let shard_indexes: Vec<_> = (ingester_config.shard_index_range_start
+        ..=ingester_config.shard_index_range_end)
+        .map(ShardIndex::new)
         .collect();
 
-    let mut sequencers = BTreeMap::new();
-    for k in kafka_partitions {
-        let s = txn.sequencers().create_or_get(&kafka_topic, k).await?;
-        sequencers.insert(k, s);
+    let mut shards = BTreeMap::new();
+    for shard_index in shard_indexes {
+        let s = txn
+            .shards()
+            .create_or_get(&kafka_topic, shard_index)
+            .await?;
+        shards.insert(shard_index, s);
     }
     txn.commit().await?;
 
@@ -187,7 +188,7 @@ pub async fn create_ingester_server_type(
         IngestHandlerImpl::new(
             lifecycle_config,
             kafka_topic,
-            sequencers,
+            shards,
             catalog,
             object_store,
             write_buffer,

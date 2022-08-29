@@ -1,4 +1,4 @@
-use data_types::{DeletePredicate, SequenceNumber, SequencerId, Tombstone, TombstoneId};
+use data_types::{DeletePredicate, SequenceNumber, ShardId, Tombstone, TombstoneId};
 use predicate::delete_predicate::parse_delete_predicate;
 use std::sync::Arc;
 
@@ -8,10 +8,10 @@ pub struct QuerierTombstone {
     /// Delete predicate associated with this tombstone.
     delete_predicate: Arc<DeletePredicate>,
 
-    /// Sequencer that this tombstone affects.
-    sequencer_id: SequencerId,
+    /// Shard that this tombstone affects.
+    shard_id: ShardId,
 
-    /// The sequence number assigned to the tombstone from the sequencer.
+    /// The sequence number assigned to the tombstone from the shard.
     sequence_number: SequenceNumber,
 
     /// Tombstone ID.
@@ -24,12 +24,12 @@ impl QuerierTombstone {
         &self.delete_predicate
     }
 
-    /// Sequencer that this tombstone affects.
-    pub fn sequencer_id(&self) -> SequencerId {
-        self.sequencer_id
+    /// Shard that this tombstone affects.
+    pub fn shard_id(&self) -> ShardId {
+        self.shard_id
     }
 
-    /// The sequence number assigned to the tombstone from the sequencer.
+    /// The sequence number assigned to the tombstone from the shard.
     pub fn sequence_number(&self) -> SequenceNumber {
         self.sequence_number
     }
@@ -53,7 +53,7 @@ impl From<&Tombstone> for QuerierTombstone {
 
         Self {
             delete_predicate,
-            sequencer_id: tombstone.sequencer_id,
+            shard_id: tombstone.shard_id,
             sequence_number: tombstone.sequence_number,
             tombstone_id: tombstone.id,
         }

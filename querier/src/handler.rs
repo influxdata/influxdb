@@ -130,7 +130,7 @@ impl Drop for QuerierHandlerImpl {
 mod tests {
     use super::*;
     use crate::{cache::CatalogCache, create_ingester_connection_for_testing};
-    use data_types::KafkaPartition;
+    use data_types::ShardIndex;
     use iox_catalog::mem::MemCatalog;
     use iox_query::exec::Executor;
     use iox_time::{MockProvider, Time};
@@ -173,7 +173,7 @@ mod tests {
                 Arc::clone(&metric_registry),
                 &Handle::current(),
             ));
-            // QuerierDatabase::new returns an error if there are no sequencers in the catalog
+            // QuerierDatabase::new returns an error if there are no shards in the catalog
             {
                 let mut repos = catalog.repositories().await;
 
@@ -182,10 +182,10 @@ mod tests {
                     .create_or_get("kafka_topic")
                     .await
                     .unwrap();
-                let kafka_partition = KafkaPartition::new(0);
+                let shard_index = ShardIndex::new(0);
                 repos
-                    .sequencers()
-                    .create_or_get(&kafka_topic, kafka_partition)
+                    .shards()
+                    .create_or_get(&kafka_topic, shard_index)
                     .await
                     .unwrap();
             }

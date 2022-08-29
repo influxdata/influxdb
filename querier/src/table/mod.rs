@@ -7,7 +7,7 @@ use crate::{
     ingester::{self, IngesterPartition},
     IngesterConnection,
 };
-use data_types::{ColumnId, KafkaPartition, PartitionId, TableId, TimestampMinMax};
+use data_types::{ColumnId, PartitionId, ShardIndex, TableId, TimestampMinMax};
 use futures::{join, StreamExt};
 use iox_query::pruning::prune_summaries;
 use iox_query::{exec::Executor, provider, provider::ChunkPruner, QueryChunk};
@@ -62,7 +62,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Args to create a [`QuerierTable`].
 pub struct QuerierTableArgs {
-    pub sharder: Arc<JumpHash<Arc<KafkaPartition>>>,
+    pub sharder: Arc<JumpHash<Arc<ShardIndex>>>,
     pub namespace_name: Arc<str>,
     pub id: TableId,
     pub table_name: Arc<str>,
@@ -77,8 +77,8 @@ pub struct QuerierTableArgs {
 /// Table representation for the querier.
 #[derive(Debug)]
 pub struct QuerierTable {
-    /// Sharder to query for which sequencers are responsible for the table's data
-    sharder: Arc<JumpHash<Arc<KafkaPartition>>>,
+    /// Sharder to query for which shards are responsible for the table's data
+    sharder: Arc<JumpHash<Arc<ShardIndex>>>,
 
     /// Namespace the table is in
     namespace_name: Arc<str>,
@@ -419,18 +419,18 @@ impl QuerierTable {
             .map(|(_, f)| f.name().to_string())
             .collect();
 
-        // Get the sequencer IDs responsible for this table's data from the sharder to
+        // Get the shard indexes responsible for this table's data from the sharder to
         // determine which ingester(s) to query.
-        // Currently, the sharder will only return one sequencer ID per table, but in the
-        // near future, the sharder might return more than one sequencer ID for one table.
-        let sequencer_ids = vec![**self
+        // Currently, the sharder will only return one shard index per table, but in the
+        // near future, the sharder might return more than one shard index for one table.
+        let shard_indexes = vec![**self
             .sharder
             .shard_for_query(&self.table_name, &self.namespace_name)];
 
         // get any chunks from the ingester(s)
         let partitions_result = ingester_connection
             .partitions(
-                &sequencer_ids,
+                &shard_indexes,
                 Arc::clone(&self.namespace_name),
                 Arc::clone(&self.table_name),
                 columns,
@@ -546,21 +546,12 @@ mod tests {
         let table1 = ns.create_table("table1").await;
         let table2 = ns.create_table("table2").await;
 
-        let sequencer1 = ns.create_sequencer(1).await;
-        let sequencer2 = ns.create_sequencer(2).await;
+        let shard1 = ns.create_shard(1).await;
+        let shard2 = ns.create_shard(2).await;
 
-        let partition11 = table1
-            .with_sequencer(&sequencer1)
-            .create_partition("k")
-            .await;
-        let partition12 = table1
-            .with_sequencer(&sequencer2)
-            .create_partition("k")
-            .await;
-        let partition21 = table2
-            .with_sequencer(&sequencer1)
-            .create_partition("k")
-            .await;
+        let partition11 = table1.with_shard(&shard1).create_partition("k").await;
+        let partition12 = table1.with_shard(&shard2).create_partition("k").await;
+        let partition21 = table2.with_shard(&shard1).create_partition("k").await;
 
         table1.create_column("time", ColumnType::Time).await;
         table1.create_column("foo", ColumnType::F64).await;
@@ -638,12 +629,12 @@ mod tests {
         file111.flag_for_delete().await;
 
         let tombstone1 = table1
-            .with_sequencer(&sequencer1)
+            .with_shard(&shard1)
             .create_tombstone(7, 1, 100, "foo=1")
             .await;
         tombstone1.mark_processed(&file112).await;
         let tombstone2 = table1
-            .with_sequencer(&sequencer1)
+            .with_shard(&shard1)
             .create_tombstone(8, 1, 100, "foo=1")
             .await;
         tombstone2.mark_processed(&file112).await;
@@ -695,11 +686,11 @@ mod tests {
         assert_eq!(chunks[1].delete_predicates().len(), 2);
         // file114: predicates are directly within the chunk range => assume they are materialized
         assert_eq!(chunks[2].delete_predicates().len(), 0);
-        // file115: came after in sequencer
+        // file115: came after in sequence
         assert_eq!(chunks[3].delete_predicates().len(), 0);
-        // file121: wrong sequencer
+        // file121: wrong shard
         assert_eq!(chunks[4].delete_predicates().len(), 0);
-        // file122: wrong sequencer
+        // file122: wrong shard
         assert_eq!(chunks[5].delete_predicates().len(), 0);
     }
 
@@ -710,8 +701,8 @@ mod tests {
 
         let ns = catalog.create_namespace("ns").await;
         let table = ns.create_table("table").await;
-        let sequencer = ns.create_sequencer(1).await;
-        let partition = table.with_sequencer(&sequencer).create_partition("k").await;
+        let shard = ns.create_shard(1).await;
+        let partition = table.with_shard(&shard).create_partition("k").await;
         let schema = make_schema(&table).await;
 
         // create a parquet file that cannot be processed by the querier:
@@ -742,7 +733,7 @@ mod tests {
             .with_compaction_level(CompactionLevel::FileNonOverlapped);
         partition.create_parquet_file(builder).await;
 
-        let builder = IngesterPartitionBuilder::new(&table, &schema, &sequencer, &partition);
+        let builder = IngesterPartitionBuilder::new(&table, &schema, &shard, &partition);
         let ingester_partition =
             builder.build_with_max_parquet_sequence_number(Some(SequenceNumber::new(1)));
 
@@ -760,15 +751,9 @@ mod tests {
         let catalog = TestCatalog::new();
         let ns = catalog.create_namespace("ns").await;
         let table = ns.create_table("table").await;
-        let sequencer = ns.create_sequencer(1).await;
-        let partition1 = table
-            .with_sequencer(&sequencer)
-            .create_partition("k1")
-            .await;
-        let partition2 = table
-            .with_sequencer(&sequencer)
-            .create_partition("k2")
-            .await;
+        let shard = ns.create_shard(1).await;
+        let partition1 = table.with_shard(&shard).create_partition("k1").await;
+        let partition2 = table.with_shard(&shard).create_partition("k2").await;
         table.create_column("time", ColumnType::Time).await;
         table.create_column("foo", ColumnType::F64).await;
 
@@ -799,21 +784,21 @@ mod tests {
         // partition1: kept because sequence number <= 10
         // partition2: kept because sequence number <= 11
         table
-            .with_sequencer(&sequencer)
+            .with_shard(&shard)
             .create_tombstone(10, 1, 100, "foo=1")
             .await;
 
         // partition1: pruned because sequence number > 10
         // partition2: kept because sequence number <= 11
         table
-            .with_sequencer(&sequencer)
+            .with_shard(&shard)
             .create_tombstone(11, 1, 100, "foo=2")
             .await;
 
         // partition1: pruned because sequence number > 10
         // partition2: pruned because sequence number > 11
         table
-            .with_sequencer(&sequencer)
+            .with_shard(&shard)
             .create_tombstone(12, 1, 100, "foo=3")
             .await;
 
@@ -827,8 +812,8 @@ mod tests {
 
         let ingester_chunk_id1 = u128::MAX - 1;
 
-        let builder1 = IngesterPartitionBuilder::new(&table, &schema, &sequencer, &partition1);
-        let builder2 = IngesterPartitionBuilder::new(&table, &schema, &sequencer, &partition2);
+        let builder1 = IngesterPartitionBuilder::new(&table, &schema, &shard, &partition1);
+        let builder2 = IngesterPartitionBuilder::new(&table, &schema, &shard, &partition2);
 
         let load_settings = HashMap::from([(
             file2.parquet_file.id,
@@ -913,15 +898,9 @@ mod tests {
 
         let ns = catalog.create_namespace("ns").await;
         let table = ns.create_table("table").await;
-        let sequencer = ns.create_sequencer(1).await;
-        let partition1 = table
-            .with_sequencer(&sequencer)
-            .create_partition("k1")
-            .await;
-        let partition2 = table
-            .with_sequencer(&sequencer)
-            .create_partition("k2")
-            .await;
+        let shard = ns.create_shard(1).await;
+        let partition1 = table.with_shard(&shard).create_partition("k1").await;
+        let partition2 = table.with_shard(&shard).create_partition("k2").await;
 
         let schema = Arc::new(
             SchemaBuilder::new()
@@ -931,8 +910,8 @@ mod tests {
                 .unwrap(),
         );
 
-        let builder1 = IngesterPartitionBuilder::new(&table, &schema, &sequencer, &partition1);
-        let builder2 = IngesterPartitionBuilder::new(&table, &schema, &sequencer, &partition2);
+        let builder1 = IngesterPartitionBuilder::new(&table, &schema, &shard, &partition1);
+        let builder2 = IngesterPartitionBuilder::new(&table, &schema, &shard, &partition2);
 
         let querier_table = TestQuerierTable::new(&catalog, &table)
             .await
@@ -979,11 +958,11 @@ mod tests {
         let catalog = TestCatalog::new();
         let ns = catalog.create_namespace("ns").await;
         let table = ns.create_table("table1").await;
-        let sequencer = ns.create_sequencer(1).await;
-        let partition = table.with_sequencer(&sequencer).create_partition("k").await;
+        let shard = ns.create_shard(1).await;
+        let partition = table.with_shard(&shard).create_partition("k").await;
         let schema = make_schema(&table).await;
 
-        let builder = IngesterPartitionBuilder::new(&table, &schema, &sequencer, &partition)
+        let builder = IngesterPartitionBuilder::new(&table, &schema, &shard, &partition)
             .with_lp(["table foo=1 1"]);
 
         // Parquet file between with max sequence number 2
@@ -1034,13 +1013,13 @@ mod tests {
         let catalog = TestCatalog::new();
         let ns = catalog.create_namespace("ns").await;
         let table = ns.create_table("table1").await;
-        let sequencer = ns.create_sequencer(1).await;
-        let partition = table.with_sequencer(&sequencer).create_partition("k").await;
+        let shard = ns.create_shard(1).await;
+        let partition = table.with_shard(&shard).create_partition("k").await;
         let schema = make_schema(&table).await;
         // Expect 1 chunk with with one delete predicate
         let querier_table = TestQuerierTable::new(&catalog, &table).await;
 
-        let builder = IngesterPartitionBuilder::new(&table, &schema, &sequencer, &partition)
+        let builder = IngesterPartitionBuilder::new(&table, &schema, &shard, &partition)
             .with_lp(["table foo=1 1"]);
 
         // parquet file with max sequence number 1
@@ -1051,7 +1030,7 @@ mod tests {
 
         // tombstone with max sequence number 2
         table
-            .with_sequencer(&sequencer)
+            .with_shard(&shard)
             .create_tombstone(2, 1, 100, "foo=1")
             .await;
 
@@ -1067,7 +1046,7 @@ mod tests {
 
         // Now, make a second tombstone with max sequence number 3
         table
-            .with_sequencer(&sequencer)
+            .with_shard(&shard)
             .create_tombstone(3, 1, 100, "foo=1")
             .await;
 

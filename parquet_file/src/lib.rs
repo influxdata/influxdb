@@ -20,7 +20,7 @@ pub mod metadata;
 pub mod serialize;
 pub mod storage;
 
-use data_types::{NamespaceId, ParquetFile, PartitionId, SequencerId, TableId};
+use data_types::{NamespaceId, ParquetFile, PartitionId, ShardId, TableId};
 use object_store::path::Path;
 use uuid::Uuid;
 
@@ -30,7 +30,7 @@ use uuid::Uuid;
 pub struct ParquetFilePath {
     namespace_id: NamespaceId,
     table_id: TableId,
-    sequencer_id: SequencerId,
+    shard_id: ShardId,
     partition_id: PartitionId,
     object_store_id: Uuid,
 }
@@ -40,14 +40,14 @@ impl ParquetFilePath {
     pub fn new(
         namespace_id: NamespaceId,
         table_id: TableId,
-        sequencer_id: SequencerId,
+        shard_id: ShardId,
         partition_id: PartitionId,
         object_store_id: Uuid,
     ) -> Self {
         Self {
             namespace_id,
             table_id,
-            sequencer_id,
+            shard_id,
             partition_id,
             object_store_id,
         }
@@ -58,7 +58,7 @@ impl ParquetFilePath {
         let Self {
             namespace_id,
             table_id,
-            sequencer_id,
+            shard_id,
             partition_id,
             object_store_id,
         } = self;
@@ -66,7 +66,7 @@ impl ParquetFilePath {
         Path::from_iter([
             namespace_id.to_string().as_str(),
             table_id.to_string().as_str(),
-            sequencer_id.to_string().as_str(),
+            shard_id.to_string().as_str(),
             partition_id.to_string().as_str(),
             &format!("{}.parquet", object_store_id),
         ])
@@ -84,7 +84,7 @@ impl From<&crate::metadata::IoxMetadata> for ParquetFilePath {
         Self {
             namespace_id: m.namespace_id,
             table_id: m.table_id,
-            sequencer_id: m.sequencer_id,
+            shard_id: m.shard_id,
             partition_id: m.partition_id,
             object_store_id: m.object_store_id,
         }
@@ -96,7 +96,7 @@ impl From<&ParquetFile> for ParquetFilePath {
         Self {
             namespace_id: f.namespace_id,
             table_id: f.table_id,
-            sequencer_id: f.sequencer_id,
+            shard_id: f.shard_id,
             partition_id: f.partition_id,
             object_store_id: f.object_store_id,
         }
@@ -112,7 +112,7 @@ mod tests {
         let pfp = ParquetFilePath::new(
             NamespaceId::new(1),
             TableId::new(2),
-            SequencerId::new(3),
+            ShardId::new(3),
             PartitionId::new(4),
             Uuid::nil(),
         );

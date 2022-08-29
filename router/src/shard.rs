@@ -1,20 +1,20 @@
-//! A representation of a single operation sequencer.
+//! A representation of a single operation shard.
 
-use data_types::KafkaPartition;
+use data_types::ShardIndex;
 use dml::{DmlMeta, DmlOperation};
 use iox_time::{SystemProvider, TimeProvider};
 use metric::{DurationHistogram, Metric};
 use std::{borrow::Cow, hash::Hash, sync::Arc};
 use write_buffer::core::{WriteBufferError, WriteBufferWriting};
 
-/// A sequencer tags an write buffer with a Kafka partition index.
+/// A shard tags a write buffer with a shard index (Kafka partition).
 #[derive(Debug)]
-pub struct Sequencer<P = SystemProvider> {
+pub struct Shard<P = SystemProvider> {
     /// The 0..N index / identifier for the Kakfa partition.
     ///
-    /// NOTE: this is NOT the ID of the Sequencer row in the catalog this
-    /// Sequencer represents.
-    kafka_index: KafkaPartition,
+    /// NOTE: this is NOT the ID of the Shard row in the catalog this
+    /// Shard represents.
+    shard_index: ShardIndex,
 
     inner: Arc<dyn WriteBufferWriting>,
     time_provider: P,
@@ -23,48 +23,46 @@ pub struct Sequencer<P = SystemProvider> {
     enqueue_error: DurationHistogram,
 }
 
-impl Eq for Sequencer {}
+impl Eq for Shard {}
 
-impl PartialEq for Sequencer {
+impl PartialEq for Shard {
     fn eq(&self, other: &Self) -> bool {
-        self.kafka_index == other.kafka_index
+        self.shard_index == other.shard_index
     }
 }
 
-impl Hash for Sequencer {
+impl Hash for Shard {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.kafka_index.hash(state);
+        self.shard_index.hash(state);
     }
 }
 
-impl Sequencer {
-    /// Tag `inner` with the specified `kafka_index`.
+impl Shard {
+    /// Tag `inner` with the specified `shard_index`.
     pub fn new(
-        kafka_index: KafkaPartition,
+        shard_index: ShardIndex,
         inner: Arc<dyn WriteBufferWriting>,
         metrics: &metric::Registry,
     ) -> Self {
-        let write: Metric<DurationHistogram> = metrics.register_metric(
-            "sequencer_enqueue_duration",
-            "sequencer enqueue call duration",
-        );
+        let write: Metric<DurationHistogram> =
+            metrics.register_metric("shard_enqueue_duration", "shard enqueue call duration");
 
         let enqueue_success = write.recorder([
-            ("kafka_partition", Cow::from(kafka_index.to_string())),
+            ("kafka_partition", Cow::from(shard_index.to_string())),
             ("result", Cow::from("success")),
         ]);
         let enqueue_error = write.recorder([
-            ("kafka_partition", Cow::from(kafka_index.to_string())),
+            ("kafka_partition", Cow::from(shard_index.to_string())),
             ("result", Cow::from("error")),
         ]);
 
         // Validate the conversion between the kafka partition type's inner
         // numerical type (an i32) can be cast correctly to the write buffer
         // abstractions numerical type used to identify the partition (a u32).
-        assert!(u32::try_from(kafka_index.get()).is_ok());
+        assert!(u32::try_from(shard_index.get()).is_ok());
 
         Self {
-            kafka_index,
+            shard_index,
             inner,
             enqueue_success,
             enqueue_error,
@@ -72,26 +70,23 @@ impl Sequencer {
         }
     }
 
-    /// Return the 0..N index / identifier for the Kafka partition.
+    /// Return the 0..N index / identifier for the shard (Kafka partition).
     ///
-    /// NOTE: this is NOT the ID of the Sequencer row in the catalog this
-    /// Sequencer represents.
-    pub fn kafka_index(&self) -> KafkaPartition {
-        self.kafka_index
+    /// NOTE: this is NOT the ID of the Shard row in the catalog this
+    /// Shard represents.
+    pub fn shard_index(&self) -> ShardIndex {
+        self.shard_index
     }
 
-    /// Enqueue `op` into this sequencer.
+    /// Enqueue `op` into this shard.
     ///
     /// The buffering / async return behaviour of this method is defined by the
     /// behaviour of the [`WriteBufferWriting::store_operation()`]
-    /// implementation this [`Sequencer`] wraps.
+    /// implementation this [`Shard`] wraps.
     pub async fn enqueue<'a>(&self, op: DmlOperation) -> Result<DmlMeta, WriteBufferError> {
         let t = self.time_provider.now();
 
-        let res = self
-            .inner
-            .store_operation(self.kafka_index.get() as _, op)
-            .await;
+        let res = self.inner.store_operation(self.shard_index, op).await;
 
         if let Some(delta) = self.time_provider.now().checked_duration_since(t) {
             match &res {

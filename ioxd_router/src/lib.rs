@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use clap_blocks::write_buffer::WriteBufferConfig;
-use data_types::{DatabaseName, KafkaPartition, PartitionTemplate, TemplatePart};
+use data_types::{DatabaseName, PartitionTemplate, TemplatePart};
 use hashbrown::HashMap;
 use hyper::{Body, Request, Response};
 use iox_catalog::interface::Catalog;
@@ -25,12 +25,12 @@ use router::{
     namespace_cache::{
         metrics::InstrumentedCache, MemoryNamespaceCache, NamespaceCache, ShardedCache,
     },
-    sequencer::Sequencer,
     server::{
         grpc::{sharder::ShardService, GrpcDelegate},
         http::HttpDelegate,
         RouterServer,
     },
+    shard::Shard,
 };
 use sharder::{JumpHash, Sharder};
 use std::{
@@ -54,7 +54,7 @@ pub enum Error {
     #[error("Catalog DSN error: {0}")]
     CatalogDsn(#[from] clap_blocks::catalog_dsn::Error),
 
-    #[error("No sequencer shards found in Catalog")]
+    #[error("No shards found in Catalog")]
     Sharder,
 
     #[error("Failed to find topic with name '{topic_name}' in catalog")]
@@ -92,7 +92,7 @@ impl<D, S> std::fmt::Debug for RouterServerType<D, S> {
 impl<D, S> ServerType for RouterServerType<D, S>
 where
     D: DmlHandler<WriteInput = HashMap<String, MutableBatch>, WriteOutput = WriteSummary> + 'static,
-    S: Sharder<(), Item = Arc<Sequencer>> + Clone + 'static,
+    S: Sharder<(), Item = Arc<Shard>> + Clone + 'static,
 {
     /// Return the [`metric::Registry`] used by the router.
     fn metric_registry(&self) -> Arc<Registry> {
@@ -320,8 +320,8 @@ async fn init_write_buffer(
     metrics: Arc<metric::Registry>,
     trace_collector: Option<Arc<dyn TraceCollector>>,
 ) -> Result<(
-    ShardedWriteBuffer<Arc<JumpHash<Arc<Sequencer>>>>,
-    Arc<JumpHash<Arc<Sequencer>>>,
+    ShardedWriteBuffer<Arc<JumpHash<Arc<Shard>>>>,
+    Arc<JumpHash<Arc<Shard>>>,
 )> {
     let write_buffer = Arc::new(
         write_buffer_config
@@ -329,12 +329,12 @@ async fn init_write_buffer(
             .await?,
     );
 
-    // Construct the (ordered) set of sequencers.
+    // Construct the (ordered) set of shards.
     //
     // The sort order must be deterministic in order for all nodes to shard to
-    // the same sequencers, therefore we type assert the returned set is of the
+    // the same shard indexes, therefore we type assert the returned set is of the
     // ordered variety.
-    let shards: BTreeSet<_> = write_buffer.sequencer_ids();
+    let shards: BTreeSet<_> = write_buffer.shard_indexes();
     //          ^ don't change this to an unordered set
 
     info!(
@@ -352,13 +352,7 @@ async fn init_write_buffer(
     let sharder = Arc::new(JumpHash::new(
         shards
             .into_iter()
-            .map(|id| {
-                Sequencer::new(
-                    KafkaPartition::new(id.try_into().unwrap()),
-                    Arc::clone(&write_buffer),
-                    &metrics,
-                )
-            })
+            .map(|shard_index| Shard::new(shard_index, Arc::clone(&write_buffer), &metrics))
             .map(Arc::new),
     ));
 

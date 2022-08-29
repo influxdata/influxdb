@@ -1,4 +1,4 @@
-use data_types::{KafkaPartition, KafkaPartitionWriteStatus, SequenceNumber};
+use data_types::{SequenceNumber, ShardIndex, ShardWriteStatus};
 use dml::DmlMeta;
 /// Protobuf to/from conversion
 use generated_types::influxdata::iox::write_summary::v1 as proto;
@@ -7,12 +7,12 @@ use snafu::{OptionExt, Snafu};
 use std::collections::BTreeMap;
 
 mod progress;
-pub use progress::SequencerProgress;
+pub use progress::ShardProgress;
 
 #[derive(Debug, Snafu, PartialEq, Eq)]
 pub enum Error {
-    #[snafu(display("Unknown kafka partition: {}", kafka_partition))]
-    UnknownKafkaPartition { kafka_partition: KafkaPartition },
+    #[snafu(display("Unknown shard index: {}", shard_index))]
+    UnknownShard { shard_index: ShardIndex },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -21,7 +21,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 ///
 /// A single write consisting of multiple lines of line protocol
 /// formatted data are shared and partitioned across potentially
-/// several sequencers which are then processed by the ingester to
+/// several shards which are then processed by the ingester to
 /// become readable at potentially different times.
 ///
 /// This struct contains sufficient information to determine the
@@ -29,12 +29,12 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 /// Summary of a Vec<Vec<DmlMeta>>
 pub struct WriteSummary {
-    /// Key is the sequencer_id from the DmlMeta structure (aka kafka
+    /// Key is the shard index from the DmlMeta structure (aka kafka
     /// partition id), value is the sequence numbers from that
-    /// sequencer.
+    /// shard.
     ///
     /// Note: BTreeMap to ensure the output is in a consistent order
-    sequencers: BTreeMap<KafkaPartition, Vec<SequenceNumber>>,
+    shards: BTreeMap<ShardIndex, Vec<SequenceNumber>>,
 }
 
 impl WriteSummary {
@@ -45,32 +45,18 @@ impl WriteSummary {
             .flat_map(|v| v.iter())
             .filter_map(|meta| meta.sequence());
 
-        let mut sequencers = BTreeMap::new();
+        let mut shards = BTreeMap::new();
         for s in sequences {
-            let sequencer_id: i32 = s
-                .sequencer_id
-                .try_into()
-                .expect("Invalid Kafka Partition id");
-
-            // This is super confusing: "sequencer_id" in the router
-            //  and other parts of the codebase refers to what the
-            //  ingester calls "kakfa_partition".
-            //
-            // The ingester uses "sequencer_id" to refer to the id of
-            // the Sequencer catalog type
-            //
-            // https://github.com/influxdata/influxdb_iox/issues/4237
-            let kafka_partition = KafkaPartition::new(sequencer_id);
-
+            let shard_index = s.shard_index;
             let sequence_number = s.sequence_number;
 
-            sequencers
-                .entry(kafka_partition)
+            shards
+                .entry(shard_index)
                 .or_insert_with(Vec::new)
                 .push(sequence_number)
         }
 
-        Self { sequencers }
+        Self { shards }
     }
 
     /// Return an opaque summary "token" of this summary
@@ -98,34 +84,27 @@ impl WriteSummary {
             .map_err(|e| format!("Invalid write token, invalid content: {}", e))
     }
 
-    /// return what kafka partitions (sequencer ids from the write
-    /// buffer) were present in this write summary
-    pub fn kafka_partitions(&self) -> Vec<KafkaPartition> {
-        self.sequencers.keys().cloned().collect()
+    /// return what shard indexes from the write buffer were present in this write summary
+    pub fn shard_indexes(&self) -> Vec<ShardIndex> {
+        self.shards.keys().cloned().collect()
     }
 
-    /// Given the write described by this summary, and the sequencer's
-    /// progress for a particular kafka partition, returns the status
-    /// of that write in this write summary
+    /// Given the write described by this summary, and the shard's progress for a particular
+    /// shard index, returns the status of that write in this write summary
     pub fn write_status(
         &self,
-        kafka_partition: KafkaPartition,
-        progress: &SequencerProgress,
-    ) -> Result<KafkaPartitionWriteStatus> {
+        shard_index: ShardIndex,
+        progress: &ShardProgress,
+    ) -> Result<ShardWriteStatus> {
         let sequence_numbers = self
-            .sequencers
-            .get(&kafka_partition)
-            .context(UnknownKafkaPartitionSnafu { kafka_partition })?;
+            .shards
+            .get(&shard_index)
+            .context(UnknownShardSnafu { shard_index })?;
 
-        debug!(
-            ?kafka_partition,
-            ?progress,
-            ?sequence_numbers,
-            "write_status"
-        );
+        debug!(?shard_index, ?progress, ?sequence_numbers, "write_status");
 
         if progress.is_empty() {
-            return Ok(KafkaPartitionWriteStatus::KafkaPartitionUnknown);
+            return Ok(ShardWriteStatus::ShardUnknown);
         }
 
         let is_persisted = sequence_numbers
@@ -133,7 +112,7 @@ impl WriteSummary {
             .all(|sequence_number| progress.persisted(*sequence_number));
 
         if is_persisted {
-            return Ok(KafkaPartitionWriteStatus::Persisted);
+            return Ok(ShardWriteStatus::Persisted);
         }
 
         let is_readable = sequence_numbers
@@ -141,27 +120,25 @@ impl WriteSummary {
             .all(|sequence_number| progress.readable(*sequence_number));
 
         if is_readable {
-            return Ok(KafkaPartitionWriteStatus::Readable);
+            return Ok(ShardWriteStatus::Readable);
         }
 
-        Ok(KafkaPartitionWriteStatus::Durable)
+        Ok(ShardWriteStatus::Durable)
     }
 }
 
 impl From<WriteSummary> for proto::WriteSummary {
     fn from(summary: WriteSummary) -> Self {
-        let sequencers = summary
-            .sequencers
+        let shards = summary
+            .shards
             .into_iter()
-            .map(
-                |(kafka_partition, sequence_numbers)| proto::SequencerWrite {
-                    sequencer_id: kafka_partition.get(),
-                    sequence_numbers: sequence_numbers.into_iter().map(|v| v.get()).collect(),
-                },
-            )
+            .map(|(shard_index, sequence_numbers)| proto::ShardWrite {
+                shard_index: shard_index.get(),
+                sequence_numbers: sequence_numbers.into_iter().map(|v| v.get()).collect(),
+            })
             .collect();
 
-        Self { sequencers }
+        Self { shards }
     }
 }
 
@@ -169,12 +146,12 @@ impl TryFrom<proto::WriteSummary> for WriteSummary {
     type Error = String;
 
     fn try_from(summary: proto::WriteSummary) -> Result<Self, Self::Error> {
-        let sequencers = summary
-            .sequencers
+        let shards = summary
+            .shards
             .into_iter()
             .map(
-                |proto::SequencerWrite {
-                     sequencer_id,
+                |proto::ShardWrite {
+                     shard_index,
                      sequence_numbers,
                  }| {
                     let sequence_numbers = sequence_numbers
@@ -182,12 +159,12 @@ impl TryFrom<proto::WriteSummary> for WriteSummary {
                         .map(SequenceNumber::new)
                         .collect::<Vec<_>>();
 
-                    Ok((KafkaPartition::new(sequencer_id), sequence_numbers))
+                    Ok((ShardIndex::new(shard_index), sequence_numbers))
                 },
             )
             .collect::<Result<BTreeMap<_, _>, String>>()?;
 
-        Ok(Self { sequencers })
+        Ok(Self { shards })
     }
 }
 
@@ -201,19 +178,22 @@ mod tests {
         let metas = vec![];
         let summary: proto::WriteSummary = WriteSummary::new(metas).into();
 
-        let expected = proto::WriteSummary { sequencers: vec![] };
+        let expected = proto::WriteSummary { shards: vec![] };
 
         assert_eq!(summary, expected);
     }
 
     #[test]
     fn one() {
-        let metas = vec![vec![make_meta(Sequence::new(1, SequenceNumber::new(2)))]];
+        let metas = vec![vec![make_meta(Sequence::new(
+            ShardIndex::new(1),
+            SequenceNumber::new(2),
+        ))]];
         let summary: proto::WriteSummary = WriteSummary::new(metas).into();
 
         let expected = proto::WriteSummary {
-            sequencers: vec![proto::SequencerWrite {
-                sequencer_id: 1,
+            shards: vec![proto::ShardWrite {
+                shard_index: 1,
                 sequence_numbers: vec![2],
             }],
         };
@@ -225,21 +205,24 @@ mod tests {
     fn many() {
         let metas = vec![
             vec![
-                make_meta(Sequence::new(1, SequenceNumber::new(2))),
-                make_meta(Sequence::new(10, SequenceNumber::new(20))),
+                make_meta(Sequence::new(ShardIndex::new(1), SequenceNumber::new(2))),
+                make_meta(Sequence::new(ShardIndex::new(10), SequenceNumber::new(20))),
             ],
-            vec![make_meta(Sequence::new(1, SequenceNumber::new(3)))],
+            vec![make_meta(Sequence::new(
+                ShardIndex::new(1),
+                SequenceNumber::new(3),
+            ))],
         ];
         let summary: proto::WriteSummary = WriteSummary::new(metas).into();
 
         let expected = proto::WriteSummary {
-            sequencers: vec![
-                proto::SequencerWrite {
-                    sequencer_id: 1,
+            shards: vec![
+                proto::ShardWrite {
+                    shard_index: 1,
                     sequence_numbers: vec![2, 3],
                 },
-                proto::SequencerWrite {
-                    sequencer_id: 10,
+                proto::ShardWrite {
+                    shard_index: 10,
                     sequence_numbers: vec![20],
                 },
             ],
@@ -252,27 +235,27 @@ mod tests {
     fn different_order() {
         // order in sequences shouldn't matter
         let metas1 = vec![vec![
-            make_meta(Sequence::new(1, SequenceNumber::new(2))),
-            make_meta(Sequence::new(2, SequenceNumber::new(3))),
+            make_meta(Sequence::new(ShardIndex::new(1), SequenceNumber::new(2))),
+            make_meta(Sequence::new(ShardIndex::new(2), SequenceNumber::new(3))),
         ]];
 
         // order in sequences shouldn't matter
         let metas2 = vec![vec![
-            make_meta(Sequence::new(2, SequenceNumber::new(3))),
-            make_meta(Sequence::new(1, SequenceNumber::new(2))),
+            make_meta(Sequence::new(ShardIndex::new(2), SequenceNumber::new(3))),
+            make_meta(Sequence::new(ShardIndex::new(1), SequenceNumber::new(2))),
         ]];
 
         let summary1: proto::WriteSummary = WriteSummary::new(metas1).into();
         let summary2: proto::WriteSummary = WriteSummary::new(metas2).into();
 
         let expected = proto::WriteSummary {
-            sequencers: vec![
-                proto::SequencerWrite {
-                    sequencer_id: 1,
+            shards: vec![
+                proto::ShardWrite {
+                    shard_index: 1,
                     sequence_numbers: vec![2],
                 },
-                proto::SequencerWrite {
-                    sequencer_id: 2,
+                proto::ShardWrite {
+                    shard_index: 2,
                     sequence_numbers: vec![3],
                 },
             ],
@@ -284,11 +267,17 @@ mod tests {
 
     #[test]
     fn token_creation() {
-        let metas = vec![vec![make_meta(Sequence::new(1, SequenceNumber::new(2)))]];
+        let metas = vec![vec![make_meta(Sequence::new(
+            ShardIndex::new(1),
+            SequenceNumber::new(2),
+        ))]];
         let summary = WriteSummary::new(metas.clone());
         let summary_copy = WriteSummary::new(metas);
 
-        let metas2 = vec![vec![make_meta(Sequence::new(2, SequenceNumber::new(3)))]];
+        let metas2 = vec![vec![make_meta(Sequence::new(
+            ShardIndex::new(2),
+            SequenceNumber::new(3),
+        ))]];
         let summary2 = WriteSummary::new(metas2);
 
         let token = summary.to_token();
@@ -307,16 +296,15 @@ mod tests {
             "token not obscured: {}",
             token
         );
-        assert!(
-            !token.contains("sequencers"),
-            "token not obscured: {}",
-            token
-        );
+        assert!(!token.contains("shards"), "token not obscured: {}", token);
     }
 
     #[test]
     fn token_parsing() {
-        let metas = vec![vec![make_meta(Sequence::new(1, SequenceNumber::new(2)))]];
+        let metas = vec![vec![make_meta(Sequence::new(
+            ShardIndex::new(1),
+            SequenceNumber::new(2),
+        ))]];
         let summary = WriteSummary::new(metas);
 
         let token = summary.clone().to_token();
@@ -351,54 +339,52 @@ mod tests {
     fn no_progress() {
         let summary = test_summary();
 
-        // if we have no info about this partition in the progress
-        let kafka_partition = KafkaPartition::new(1);
-        let progress = SequencerProgress::new();
+        // if we have no info about this shard in the progress
+        let shard_index = ShardIndex::new(1);
+        let progress = ShardProgress::new();
         assert_eq!(
-            summary.write_status(kafka_partition, &progress),
-            Ok(KafkaPartitionWriteStatus::KafkaPartitionUnknown)
+            summary.write_status(shard_index, &progress),
+            Ok(ShardWriteStatus::ShardUnknown)
         );
     }
 
     #[test]
-    fn unknown_partition() {
+    fn unknown_shard() {
         let summary = test_summary();
-        // No information on kafka partition 3
-        let kafka_partition = KafkaPartition::new(3);
-        let progress = SequencerProgress::new().with_buffered(SequenceNumber::new(2));
-        let err = summary
-            .write_status(kafka_partition, &progress)
-            .unwrap_err();
-        assert_eq!(err.to_string(), "Unknown kafka partition: 3");
+        // No information on shard index 3
+        let shard_index = ShardIndex::new(3);
+        let progress = ShardProgress::new().with_buffered(SequenceNumber::new(2));
+        let err = summary.write_status(shard_index, &progress).unwrap_err();
+        assert_eq!(err.to_string(), "Unknown shard index: 3");
     }
 
     #[test]
     fn readable() {
         let summary = test_summary();
 
-        // kafka partition 1 made it to 3
-        let kafka_partition = KafkaPartition::new(1);
-        let progress = SequencerProgress::new().with_buffered(SequenceNumber::new(3));
+        // shard index 1 made it to sequence number 3
+        let shard_index = ShardIndex::new(1);
+        let progress = ShardProgress::new().with_buffered(SequenceNumber::new(3));
         assert_eq!(
-            summary.write_status(kafka_partition, &progress),
-            Ok(KafkaPartitionWriteStatus::Readable)
+            summary.write_status(shard_index, &progress),
+            Ok(ShardWriteStatus::Readable)
         );
 
-        // if kafka partition 1 only made it to 2, but write includes 3
-        let kafka_partition = KafkaPartition::new(1);
-        let progress = SequencerProgress::new().with_buffered(SequenceNumber::new(2));
+        // if shard index 1 only made it to sequence number 2, but write includes sequence number 3
+        let shard_index = ShardIndex::new(1);
+        let progress = ShardProgress::new().with_buffered(SequenceNumber::new(2));
         assert_eq!(
-            summary.write_status(kafka_partition, &progress),
-            Ok(KafkaPartitionWriteStatus::Durable)
+            summary.write_status(shard_index, &progress),
+            Ok(ShardWriteStatus::Durable)
         );
 
-        // kafka partition 2 made it to 2
-        let kafka_partition = KafkaPartition::new(2);
-        let progress = SequencerProgress::new().with_buffered(SequenceNumber::new(2));
+        // shard index 2 made it to sequence number 2
+        let shard_index = ShardIndex::new(2);
+        let progress = ShardProgress::new().with_buffered(SequenceNumber::new(2));
 
         assert_eq!(
-            summary.write_status(kafka_partition, &progress),
-            Ok(KafkaPartitionWriteStatus::Readable)
+            summary.write_status(shard_index, &progress),
+            Ok(ShardWriteStatus::Readable)
         );
     }
 
@@ -406,42 +392,43 @@ mod tests {
     fn persisted() {
         let summary = test_summary();
 
-        // kafka partition 1 has persisted up to sequence 3
-        let kafka_partition = KafkaPartition::new(1);
-        let progress = SequencerProgress::new().with_persisted(SequenceNumber::new(3));
+        // shard index 1 has persisted up to sequence number 3
+        let shard_index = ShardIndex::new(1);
+        let progress = ShardProgress::new().with_persisted(SequenceNumber::new(3));
         assert_eq!(
-            summary.write_status(kafka_partition, &progress),
-            Ok(KafkaPartitionWriteStatus::Persisted)
+            summary.write_status(shard_index, &progress),
+            Ok(ShardWriteStatus::Persisted)
         );
 
-        // kafka partition 2 has persisted up to sequence 2
-        let kafka_partition = KafkaPartition::new(2);
-        let progress = SequencerProgress::new().with_persisted(SequenceNumber::new(2));
+        // shard index 2 has persisted up to sequence number 2
+        let shard_index = ShardIndex::new(2);
+        let progress = ShardProgress::new().with_persisted(SequenceNumber::new(2));
         assert_eq!(
-            summary.write_status(kafka_partition, &progress),
-            Ok(KafkaPartitionWriteStatus::Persisted)
+            summary.write_status(shard_index, &progress),
+            Ok(ShardWriteStatus::Persisted)
         );
 
-        // kafka partition 1 only persisted up to sequence number 2, have buffered data at 3
-        let kafka_partition = KafkaPartition::new(1);
-        let progress = SequencerProgress::new()
+        // shard index 1 only persisted up to sequence number 2, have buffered data at sequence
+        // number 3
+        let shard_index = ShardIndex::new(1);
+        let progress = ShardProgress::new()
             .with_buffered(SequenceNumber::new(3))
             .with_persisted(SequenceNumber::new(2));
 
         assert_eq!(
-            summary.write_status(kafka_partition, &progress),
-            Ok(KafkaPartitionWriteStatus::Readable)
+            summary.write_status(shard_index, &progress),
+            Ok(ShardWriteStatus::Readable)
         );
     }
 
     /// Return a write summary that describes a write with:
-    /// kafka_partition 1 --> sequence 3
-    /// kafka_partition 2 --> sequence 1
+    /// shard 1 --> sequence 3
+    /// shard 2 --> sequence 1
     fn test_summary() -> WriteSummary {
         let metas = vec![vec![
-            make_meta(Sequence::new(1, SequenceNumber::new(2))),
-            make_meta(Sequence::new(1, SequenceNumber::new(3))),
-            make_meta(Sequence::new(2, SequenceNumber::new(1))),
+            make_meta(Sequence::new(ShardIndex::new(1), SequenceNumber::new(2))),
+            make_meta(Sequence::new(ShardIndex::new(1), SequenceNumber::new(3))),
+            make_meta(Sequence::new(ShardIndex::new(2), SequenceNumber::new(1))),
         ]];
         WriteSummary::new(metas)
     }

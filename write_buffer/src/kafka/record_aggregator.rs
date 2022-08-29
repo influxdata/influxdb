@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use data_types::{Sequence, SequenceNumber};
+use data_types::{Sequence, SequenceNumber, ShardIndex};
 use dml::{DmlMeta, DmlOperation};
 use iox_time::{Time, TimeProvider};
 use observability_deps::tracing::warn;
@@ -46,9 +46,9 @@ pub struct Tag {
 pub struct RecordAggregator {
     time_provider: Arc<dyn TimeProvider>,
 
-    /// The Kafka partition number this aggregator batches ops for (from Kafka,
+    /// The shard index (Kafka partition number) this aggregator batches ops for (from Kafka,
     /// not the catalog).
-    sequencer_id: u32,
+    shard_index: ShardIndex,
 
     /// The underlying record aggregator the non-IOx-specific batching is
     /// delegated to.
@@ -59,12 +59,12 @@ impl RecordAggregator {
     /// Initialise a new [`RecordAggregator`] to aggregate up to
     /// `max_batch_size` number of bytes per message.
     pub fn new(
-        sequencer_id: u32,
+        shard_index: ShardIndex,
         max_batch_size: usize,
         time_provider: Arc<dyn TimeProvider>,
     ) -> Self {
         Self {
-            sequencer_id,
+            shard_index,
             aggregator: RecordAggregatorDelegate::new(max_batch_size),
             time_provider,
         }
@@ -156,7 +156,7 @@ impl Aggregator for RecordAggregator {
 
     fn flush(&mut self) -> Result<(Vec<Record>, Self::StatusDeaggregator), Error> {
         let records = self.aggregator.flush()?.0;
-        Ok((records, DmlMetaDeaggregator::new(self.sequencer_id)))
+        Ok((records, DmlMetaDeaggregator::new(self.shard_index)))
     }
 }
 
@@ -169,12 +169,12 @@ impl Aggregator for RecordAggregator {
 /// elements carried in the [`Tag`] itself.
 #[derive(Debug)]
 pub struct DmlMetaDeaggregator {
-    sequencer_id: u32,
+    shard_index: ShardIndex,
 }
 
 impl DmlMetaDeaggregator {
-    pub fn new(sequencer_id: u32) -> Self {
-        Self { sequencer_id }
+    pub fn new(shard_index: ShardIndex) -> Self {
+        Self { shard_index }
     }
 }
 
@@ -190,7 +190,7 @@ impl StatusDeaggregator for DmlMetaDeaggregator {
             .expect("invalid de-aggregation index");
 
         Ok(DmlMeta::sequenced(
-            Sequence::new(self.sequencer_id, SequenceNumber::new(offset)),
+            Sequence::new(self.shard_index, SequenceNumber::new(offset)),
             tag.timestamp,
             tag.span_ctx,
             tag.approx_kafka_write_size,
@@ -215,7 +215,7 @@ mod tests {
     use super::*;
 
     const NAMESPACE: &str = "bananas";
-    const SEQUENCER_ID: u32 = 42;
+    const SHARD_INDEX: ShardIndex = ShardIndex::new(42);
     const TIMESTAMP_MILLIS: i64 = 1659990497000;
 
     fn test_op() -> DmlOperation {
@@ -248,7 +248,7 @@ mod tests {
         let clock = Arc::new(MockProvider::new(Time::from_timestamp_millis(
             TIMESTAMP_MILLIS,
         )));
-        let mut agg = RecordAggregator::new(SEQUENCER_ID, usize::MAX, clock);
+        let mut agg = RecordAggregator::new(SHARD_INDEX, usize::MAX, clock);
         let write = test_op();
 
         let res = agg.try_push(write).expect("aggregate call should succeed");
@@ -295,7 +295,7 @@ mod tests {
         assert!(got.span_context().is_some());
         assert_eq!(
             *got.sequence().expect("should be sequenced"),
-            Sequence::new(SEQUENCER_ID, SequenceNumber::new(4242))
+            Sequence::new(SHARD_INDEX, SequenceNumber::new(4242))
         );
         assert_eq!(
             got.producer_ts().expect("no producer timestamp"),
@@ -312,7 +312,7 @@ mod tests {
         let clock = Arc::new(MockProvider::new(Time::from_timestamp_millis(
             TIMESTAMP_MILLIS,
         )));
-        let mut agg = RecordAggregator::new(SEQUENCER_ID, usize::MIN, clock);
+        let mut agg = RecordAggregator::new(SHARD_INDEX, usize::MIN, clock);
         let write = test_op();
 
         let res = agg

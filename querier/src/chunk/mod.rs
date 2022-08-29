@@ -3,7 +3,7 @@
 use crate::cache::CatalogCache;
 use data_types::{
     ChunkId, ChunkOrder, CompactionLevel, DeletePredicate, NamespaceSchema, ParquetFile,
-    ParquetFileId, PartitionId, SequenceNumber, SequencerId, TableSummary, TimestampMinMax,
+    ParquetFileId, PartitionId, SequenceNumber, ShardId, TableSummary, TimestampMinMax,
 };
 use iox_catalog::interface::Catalog;
 use parking_lot::RwLock;
@@ -38,8 +38,8 @@ pub struct ChunkMeta {
     /// Sort key.
     sort_key: Option<SortKey>,
 
-    /// Sequencer that created the data within this chunk.
-    sequencer_id: SequencerId,
+    /// Shard that created the data within this chunk.
+    shard_id: ShardId,
 
     /// Partition ID.
     partition_id: PartitionId,
@@ -67,9 +67,9 @@ impl ChunkMeta {
         self.sort_key.as_ref()
     }
 
-    /// Sequencer that created the data within this chunk.
-    pub fn sequencer_id(&self) -> SequencerId {
-        self.sequencer_id
+    /// Shard that created the data within this chunk.
+    pub fn shard_id(&self) -> ShardId {
+        self.shard_id
     }
 
     /// Partition ID.
@@ -524,7 +524,7 @@ impl ChunkAdapter {
             table_name,
             order,
             sort_key: Some(sort_key),
-            sequencer_id: parquet_file.sequencer_id,
+            shard_id: parquet_file.shard_id,
             partition_id: parquet_file.partition_id,
             max_sequence_number: parquet_file.max_sequence_number,
             compaction_level: parquet_file.compaction_level,
@@ -712,7 +712,7 @@ pub mod tests {
             ]
             .join("\n");
             let ns = catalog.create_namespace("ns").await;
-            let sequencer = ns.create_sequencer(1).await;
+            let shard = ns.create_shard(1).await;
             let table = ns.create_table("table").await;
             table.create_column("tag1", ColumnType::Tag).await;
             table.create_column("tag2", ColumnType::Tag).await;
@@ -721,7 +721,7 @@ pub mod tests {
             table.create_column("field_float", ColumnType::F64).await;
             table.create_column("time", ColumnType::Time).await;
             let partition = table
-                .with_sequencer(&sequencer)
+                .with_shard(&shard)
                 .create_partition("part")
                 .await
                 .update_sort_key(SortKey::from_columns(["tag1", "tag2", "tag4", "time"]))

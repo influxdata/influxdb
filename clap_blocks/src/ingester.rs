@@ -4,21 +4,21 @@
 #[derive(Debug, Clone, clap::Parser)]
 #[allow(missing_copy_implementations)]
 pub struct IngesterConfig {
-    /// Write buffer partition number to start (inclusive) range with
+    /// Write buffer shard index to start (inclusive) range with
     #[clap(
-        long = "--write-buffer-partition-range-start",
-        env = "INFLUXDB_IOX_WRITE_BUFFER_PARTITION_RANGE_START",
+        long = "--shard-index-range-start",
+        env = "INFLUXDB_IOX_SHARD_INDEX_RANGE_START",
         action
     )]
-    pub write_buffer_partition_range_start: i32,
+    pub shard_index_range_start: i32,
 
-    /// Write buffer partition number to end (inclusive) range with
+    /// Write buffer shard index to end (inclusive) range with
     #[clap(
-        long = "--write-buffer-partition-range-end",
-        env = "INFLUXDB_IOX_WRITE_BUFFER_PARTITION_RANGE_END",
+        long = "--shard-index-range-end",
+        env = "INFLUXDB_IOX_SHARD_INDEX_RANGE_END",
         action
     )]
-    pub write_buffer_partition_range_end: i32,
+    pub shard_index_range_end: i32,
 
     /// The ingester will continue to pull data and buffer it from the write buffer as long as the
     /// ingester buffer is below this size. If the ingester buffer hits this size, ingest from the
@@ -30,7 +30,7 @@ pub struct IngesterConfig {
     )]
     pub pause_ingest_size_bytes: usize,
 
-    /// Once the ingester crosses this threshold of data buffered across all sequencers, it will
+    /// Once the ingester crosses this threshold of data buffered across all shards, it will
     /// pick the largest partitions and persist them until it falls below this threshold. An
     /// ingester running in a steady state is expected to take up this much memory.
     #[clap(

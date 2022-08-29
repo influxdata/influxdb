@@ -3,7 +3,7 @@ use crate::{
     core::{WriteBufferError, WriteBufferReading, WriteBufferStreamHandler, WriteBufferWriting},
 };
 use async_trait::async_trait;
-use data_types::{Sequence, SequenceNumber};
+use data_types::{Sequence, SequenceNumber, ShardIndex};
 use dml::{DmlDelete, DmlMeta, DmlOperation, DmlWrite};
 use futures::{stream::BoxStream, StreamExt};
 use iox_time::TimeProvider;
@@ -66,80 +66,80 @@ impl WriteResVec {
 pub struct MockBufferSharedState {
     /// Lock-protected entries.
     ///
-    /// The inner `Option` is `None` if the sequencers are not created yet.
-    writes: Arc<Mutex<Option<BTreeMap<u32, WriteResVec>>>>,
+    /// The inner `Option` is `None` if the shards are not created yet.
+    writes: Arc<Mutex<Option<BTreeMap<ShardIndex, WriteResVec>>>>,
 }
 
 impl MockBufferSharedState {
-    /// Create new shared state w/ N sequencers.
+    /// Create new shared state w/ N shards.
     ///
     /// This is equivalent to [`uninitialized`](Self::uninitialized) followed by
     /// [`init`](Self::init).
-    pub fn empty_with_n_sequencers(n_sequencers: NonZeroU32) -> Self {
+    pub fn empty_with_n_shards(n_shards: NonZeroU32) -> Self {
         let state = Self::uninitialized();
-        state.init(n_sequencers);
+        state.init(n_shards);
         state
     }
 
-    /// Create new shared state w/o any sequencers.
+    /// Create new shared state w/o any shards.
     pub fn uninitialized() -> Self {
         Self {
             writes: Arc::new(Mutex::new(None)),
         }
     }
 
-    /// Initialize shared state w/ N sequencers.
+    /// Initialize shared state w/ N shards.
     ///
     /// # Panics
     ///
     /// - when state is already initialized
-    pub fn init(&self, n_sequencers: NonZeroU32) {
+    pub fn init(&self, n_shards: NonZeroU32) {
         let mut guard = self.writes.lock();
 
         if guard.is_some() {
             panic!("already initialized");
         }
 
-        *guard = Some(Self::init_inner(n_sequencers));
+        *guard = Some(Self::init_inner(n_shards));
     }
 
-    fn init_inner(n_sequencers: NonZeroU32) -> BTreeMap<u32, WriteResVec> {
-        (0..n_sequencers.get())
-            .map(|sequencer_id| (sequencer_id, Default::default()))
+    fn init_inner(n_shards: NonZeroU32) -> BTreeMap<ShardIndex, WriteResVec> {
+        (0..n_shards.get())
+            .map(|shard_index| (ShardIndex::new(shard_index as i32), Default::default()))
             .collect()
     }
 
-    /// Push a new delete to the specified sequencer
+    /// Push a new delete to the specified shard
     ///
     /// # Panics
     ///
     /// - when delete is not sequenced
-    /// - when no sequencer was initialized
-    /// - when specified sequencer does not exist
+    /// - when no shard was initialized
+    /// - when specified shard does not exist
     /// - when sequence number in entry is not larger the current maximum
     pub fn push_delete(&self, delete: DmlDelete) {
         self.push_operation(DmlOperation::Delete(delete))
     }
 
-    /// Push a new entry to the specified sequencer.
+    /// Push a new entry to the specified shard.
     ///
     /// # Panics
     ///
     /// - when write is not sequenced
-    /// - when no sequencer was initialized
-    /// - when specified sequencer does not exist
+    /// - when no shard was initialized
+    /// - when specified shard does not exist
     /// - when sequence number in entry is not larger the current maximum
     pub fn push_write(&self, write: DmlWrite) {
         self.push_operation(DmlOperation::Write(write))
     }
 
-    /// Push a new operation to the specified sequencer
+    /// Push a new operation to the specified shard
     ///
     /// # Panics
     ///
     /// - when operation is not sequenced
-    /// - when no sequencer was initialized
-    /// - when specified sequencer does not exist
+    /// - when no shard was initialized
+    /// - when specified shard does not exist
     /// - when sequence number in entry is not larger the current maximum
     pub fn push_operation(&self, write: DmlOperation) {
         let sequence = write.meta().sequence().expect("write must be sequenced");
@@ -149,15 +149,15 @@ impl MockBufferSharedState {
         );
 
         let mut guard = self.writes.lock();
-        let writes = guard.as_mut().expect("no sequencers initialized");
+        let writes = guard.as_mut().expect("no shards initialized");
         let writes_vec = writes
-            .get_mut(&sequence.sequencer_id)
-            .expect("invalid sequencer ID");
+            .get_mut(&sequence.shard_index)
+            .expect("invalid shard index");
 
         if let Some(max_sequence_number) = writes_vec.max_seqno {
             assert!(
                 max_sequence_number < sequence.sequence_number.get(),
-                "sequence number {} is less/equal than current max sequencer number {}",
+                "sequence number {} is less/equal than current max sequence number {}",
                 sequence.sequence_number.get(),
                 max_sequence_number
             );
@@ -173,32 +173,33 @@ impl MockBufferSharedState {
         self.push_write(DmlWrite::new("foo", tables, None, meta))
     }
 
-    /// Push error to specified sequencer.
+    /// Push error to specified shard.
     ///
     /// # Panics
     ///
-    /// - when no sequencer was initialized
-    /// - when sequencer does not exist
-    pub fn push_error(&self, error: WriteBufferError, sequencer_id: u32) {
+    /// - when no shard was initialized
+    /// - when shard does not exist
+    pub fn push_error(&self, error: WriteBufferError, shard_index: ShardIndex) {
         let mut guard = self.writes.lock();
-        let entries = guard.as_mut().expect("no sequencers initialized");
-        let entry_vec = entries
-            .get_mut(&sequencer_id)
-            .expect("invalid sequencer ID");
+        let entries = guard.as_mut().expect("no shards initialized");
+        let entry_vec = entries.get_mut(&shard_index).expect("invalid shard index");
 
         entry_vec.push(Err(error));
     }
 
-    /// Get messages (entries and errors) for specified sequencer.
+    /// Get messages (entries and errors) for specified shard.
     ///
     /// # Panics
     ///
-    /// - when no sequencer was initialized
-    /// - when sequencer does not exist
-    pub fn get_messages(&self, sequencer_id: u32) -> Vec<Result<DmlOperation, WriteBufferError>> {
+    /// - when no shard was initialized
+    /// - when shard does not exist
+    pub fn get_messages(
+        &self,
+        shard_index: ShardIndex,
+    ) -> Vec<Result<DmlOperation, WriteBufferError>> {
         let mut guard = self.writes.lock();
-        let writes = guard.as_mut().expect("no sequencers initialized");
-        let writes_vec = writes.get_mut(&sequencer_id).expect("invalid sequencer ID");
+        let writes = guard.as_mut().expect("no shards initialized");
+        let writes_vec = writes.get_mut(&shard_index).expect("invalid shard index");
 
         writes_vec
             .writes
@@ -214,12 +215,12 @@ impl MockBufferSharedState {
     ///
     /// # Panics
     ///
-    /// - when no sequencer was initialized
-    /// - when sequencer does not exist
-    pub fn clear_messages(&self, sequencer_id: u32) {
+    /// - when no shard was initialized
+    /// - when shard does not exist
+    pub fn clear_messages(&self, shard_index: ShardIndex) {
         let mut guard = self.writes.lock();
-        let writes = guard.as_mut().expect("no sequencers initialized");
-        let writes_vec = writes.get_mut(&sequencer_id).expect("invalid sequencer ID");
+        let writes = guard.as_mut().expect("no shards initialized");
+        let writes_vec = writes.get_mut(&shard_index).expect("invalid shard index");
 
         std::mem::take(writes_vec);
     }
@@ -228,7 +229,7 @@ impl MockBufferSharedState {
         if let Some(cfg) = creation_config {
             let mut guard = self.writes.lock();
             if guard.is_none() {
-                *guard = Some(Self::init_inner(cfg.n_sequencers));
+                *guard = Some(Self::init_inner(cfg.n_shards));
             }
         }
     }
@@ -251,7 +252,7 @@ impl MockBufferForWriting {
         {
             let guard = state.writes.lock();
             if guard.is_none() {
-                return Err("no sequencers initialized".to_string().into());
+                return Err("no shards initialized".to_string().into());
             }
         }
 
@@ -268,7 +269,7 @@ impl MockBufferForWriting {
 
 #[async_trait]
 impl WriteBufferWriting for MockBufferForWriting {
-    fn sequencer_ids(&self) -> BTreeSet<u32> {
+    fn shard_indexes(&self) -> BTreeSet<ShardIndex> {
         let mut guard = self.state.writes.lock();
         let entries = guard.as_mut().unwrap();
         entries.keys().copied().collect()
@@ -276,21 +277,21 @@ impl WriteBufferWriting for MockBufferForWriting {
 
     async fn store_operation(
         &self,
-        sequencer_id: u32,
+        shard_index: ShardIndex,
         mut operation: DmlOperation,
     ) -> Result<DmlMeta, WriteBufferError> {
         let mut guard = self.state.writes.lock();
         let writes = guard.as_mut().unwrap();
         let writes_vec = writes
-            .get_mut(&sequencer_id)
+            .get_mut(&shard_index)
             .ok_or_else::<WriteBufferError, _>(|| {
-                format!("Unknown sequencer: {}", sequencer_id).into()
+                format!("Unknown shard index: {}", shard_index).into()
             })?;
 
         let sequence_number = writes_vec.max_seqno.map(|n| n + 1).unwrap_or(0);
 
         let sequence = Sequence {
-            sequencer_id,
+            shard_index,
             sequence_number: SequenceNumber::new(sequence_number),
         };
 
@@ -329,13 +330,13 @@ pub struct MockBufferForWritingThatAlwaysErrors;
 
 #[async_trait]
 impl WriteBufferWriting for MockBufferForWritingThatAlwaysErrors {
-    fn sequencer_ids(&self) -> BTreeSet<u32> {
-        IntoIterator::into_iter([0]).collect()
+    fn shard_indexes(&self) -> BTreeSet<ShardIndex> {
+        IntoIterator::into_iter([ShardIndex::new(0)]).collect()
     }
 
     async fn store_operation(
         &self,
-        _sequencer_id: u32,
+        _shard_index: ShardIndex,
         _operation: DmlOperation,
     ) -> Result<DmlMeta, WriteBufferError> {
         Err(String::from(
@@ -357,7 +358,7 @@ impl WriteBufferWriting for MockBufferForWritingThatAlwaysErrors {
 #[derive(Debug)]
 pub struct MockBufferForReading {
     shared_state: Arc<MockBufferSharedState>,
-    n_sequencers: u32,
+    n_shards: u32,
 }
 
 impl MockBufferForReading {
@@ -367,12 +368,12 @@ impl MockBufferForReading {
     ) -> Result<Self, WriteBufferError> {
         state.maybe_auto_init(creation_config);
 
-        let n_sequencers = {
+        let n_shards = {
             let guard = state.writes.lock();
             let entries = match guard.as_ref() {
                 Some(entries) => entries,
                 None => {
-                    return Err("no sequencers initialized".to_string().into());
+                    return Err("no shards initialized".to_string().into());
                 }
             };
             entries.len() as u32
@@ -380,24 +381,24 @@ impl MockBufferForReading {
 
         Ok(Self {
             shared_state: Arc::new(state),
-            n_sequencers,
+            n_shards,
         })
     }
 }
 
-/// Sequencer-specific playback state
+/// Shard-specific playback state
 #[derive(Debug)]
 pub struct MockBufferStreamHandler {
     /// Shared state.
     shared_state: Arc<MockBufferSharedState>,
 
-    /// Own sequencer ID.
-    sequencer_id: u32,
+    /// Own shard index.
+    shard_index: ShardIndex,
 
     /// Index within the entry vector.
     vector_index: Arc<AtomicUsize>,
 
-    /// Offset within the sequencer IDs or "earliest" if not set.
+    /// Offset within the sequence numbers or "earliest" if not set.
     offset: Option<i64>,
 
     /// Flags if the stream is terminated, e.g. due to "offset out of range"
@@ -410,7 +411,7 @@ impl WriteBufferStreamHandler for MockBufferStreamHandler {
         // Don't reference `self` in the closure, move these instead
         let terminated = Arc::clone(&self.terminated);
         let shared_state = Arc::clone(&self.shared_state);
-        let sequencer_id = self.sequencer_id;
+        let shard_index = self.shard_index;
         let vector_index = Arc::clone(&self.vector_index);
         let offset = self.offset;
 
@@ -423,7 +424,7 @@ impl WriteBufferStreamHandler for MockBufferStreamHandler {
 
             let mut guard = shared_state.writes.lock();
             let writes = guard.as_mut().unwrap();
-            let writes_vec = writes.get_mut(&sequencer_id).unwrap();
+            let writes_vec = writes.get_mut(&shard_index).unwrap();
 
             let entries = &writes_vec.writes;
             let mut vi = vector_index.load(SeqCst);
@@ -531,21 +532,24 @@ impl WriteBufferStreamHandler for MockBufferStreamHandler {
 
 #[async_trait]
 impl WriteBufferReading for MockBufferForReading {
-    fn sequencer_ids(&self) -> BTreeSet<u32> {
-        (0..self.n_sequencers).into_iter().collect()
+    fn shard_indexes(&self) -> BTreeSet<ShardIndex> {
+        (0..self.n_shards)
+            .into_iter()
+            .map(|i| ShardIndex::new(i as i32))
+            .collect()
     }
 
     async fn stream_handler(
         &self,
-        sequencer_id: u32,
+        shard_index: ShardIndex,
     ) -> Result<Box<dyn WriteBufferStreamHandler>, WriteBufferError> {
-        if sequencer_id >= self.n_sequencers {
-            return Err(format!("Unknown sequencer: {}", sequencer_id).into());
+        if shard_index.get() as u32 >= self.n_shards {
+            return Err(format!("Unknown shard index: {}", shard_index).into());
         }
 
         Ok(Box::new(MockBufferStreamHandler {
             shared_state: Arc::clone(&self.shared_state),
-            sequencer_id,
+            shard_index,
             vector_index: Arc::new(AtomicUsize::new(0)),
             offset: None,
             terminated: Arc::new(AtomicBool::new(false)),
@@ -554,14 +558,14 @@ impl WriteBufferReading for MockBufferForReading {
 
     async fn fetch_high_watermark(
         &self,
-        sequencer_id: u32,
+        shard_index: ShardIndex,
     ) -> Result<SequenceNumber, WriteBufferError> {
         let guard = self.shared_state.writes.lock();
         let entries = guard.as_ref().unwrap();
         let entry_vec = entries
-            .get(&sequencer_id)
+            .get(&shard_index)
             .ok_or_else::<WriteBufferError, _>(|| {
-                format!("Unknown sequencer: {}", sequencer_id).into()
+                format!("Unknown shard index: {}", shard_index).into()
             })?;
         let watermark = entry_vec.max_seqno.map(|n| n + 1).unwrap_or(0);
 
@@ -602,20 +606,20 @@ impl WriteBufferStreamHandler for MockStreamHandlerThatAlwaysErrors {
 
 #[async_trait]
 impl WriteBufferReading for MockBufferForReadingThatAlwaysErrors {
-    fn sequencer_ids(&self) -> BTreeSet<u32> {
-        BTreeSet::from([0])
+    fn shard_indexes(&self) -> BTreeSet<ShardIndex> {
+        BTreeSet::from([ShardIndex::new(0)])
     }
 
     async fn stream_handler(
         &self,
-        _sequencer_id: u32,
+        _shard_index: ShardIndex,
     ) -> Result<Box<dyn WriteBufferStreamHandler>, WriteBufferError> {
         Ok(Box::new(MockStreamHandlerThatAlwaysErrors {}))
     }
 
     async fn fetch_high_watermark(
         &self,
-        _sequencer_id: u32,
+        _shard_index: ShardIndex,
     ) -> Result<SequenceNumber, WriteBufferError> {
         Err(String::from("Something bad happened while fetching the high watermark").into())
     }
@@ -651,12 +655,12 @@ mod tests {
 
         async fn new_context_with_time(
             &self,
-            n_sequencers: NonZeroU32,
+            n_shards: NonZeroU32,
             time_provider: Arc<dyn TimeProvider>,
         ) -> Self::Context {
             MockTestContext {
                 state: MockBufferSharedState::uninitialized(),
-                n_sequencers,
+                n_shards,
                 time_provider,
                 trace_collector: Arc::new(RingBufferTraceCollector::new(100)),
             }
@@ -665,7 +669,7 @@ mod tests {
 
     struct MockTestContext {
         state: MockBufferSharedState,
-        n_sequencers: NonZeroU32,
+        n_shards: NonZeroU32,
         time_provider: Arc<dyn TimeProvider>,
         trace_collector: Arc<RingBufferTraceCollector>,
     }
@@ -673,7 +677,7 @@ mod tests {
     impl MockTestContext {
         fn creation_config(&self, value: bool) -> Option<WriteBufferCreationConfig> {
             value.then(|| WriteBufferCreationConfig {
-                n_sequencers: self.n_sequencers,
+                n_shards: self.n_shards,
                 ..Default::default()
             })
         }
@@ -713,8 +717,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "write must be sequenced")]
     fn test_state_push_write_panic_unsequenced() {
-        let state =
-            MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(2).unwrap());
+        let state = MockBufferSharedState::empty_with_n_shards(NonZeroU32::try_from(2).unwrap());
         let tables = lines_to_batches("upc user=1 100", 0).unwrap();
         state.push_write(DmlWrite::new(
             "test_db",
@@ -725,138 +728,140 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "invalid sequencer ID")]
-    fn test_state_push_write_panic_wrong_sequencer() {
-        let state =
-            MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(2).unwrap());
+    #[should_panic(expected = "invalid shard index")]
+    fn test_state_push_write_panic_wrong_shard() {
+        let state = MockBufferSharedState::empty_with_n_shards(NonZeroU32::try_from(2).unwrap());
         state.push_lp(
-            Sequence::new(2, SequenceNumber::new(0)),
+            Sequence::new(ShardIndex::new(2), SequenceNumber::new(0)),
             "upc,region=east user=1 100",
         );
     }
 
     #[test]
-    #[should_panic(expected = "no sequencers initialized")]
+    #[should_panic(expected = "no shards initialized")]
     fn test_state_push_write_panic_uninitialized() {
         let state = MockBufferSharedState::uninitialized();
         state.push_lp(
-            Sequence::new(0, SequenceNumber::new(0)),
+            Sequence::new(ShardIndex::new(0), SequenceNumber::new(0)),
             "upc,region=east user=1 100",
         );
     }
 
     #[test]
     #[should_panic(
-        expected = "sequence number 13 is less/equal than current max sequencer number 13"
+        expected = "sequence number 13 is less/equal than current max sequence number 13"
     )]
     fn test_state_push_write_panic_wrong_sequence_number_equal() {
-        let state =
-            MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(2).unwrap());
+        let state = MockBufferSharedState::empty_with_n_shards(NonZeroU32::try_from(2).unwrap());
         state.push_lp(
-            Sequence::new(0, SequenceNumber::new(13)),
+            Sequence::new(ShardIndex::new(0), SequenceNumber::new(13)),
             "upc,region=east user=1 100",
         );
         state.push_lp(
-            Sequence::new(0, SequenceNumber::new(13)),
+            Sequence::new(ShardIndex::new(0), SequenceNumber::new(13)),
             "upc,region=east user=1 100",
         );
     }
 
     #[test]
     #[should_panic(
-        expected = "sequence number 12 is less/equal than current max sequencer number 13"
+        expected = "sequence number 12 is less/equal than current max sequence number 13"
     )]
     fn test_state_push_write_panic_wrong_sequence_number_less() {
-        let state =
-            MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(2).unwrap());
+        let state = MockBufferSharedState::empty_with_n_shards(NonZeroU32::try_from(2).unwrap());
         state.push_lp(
-            Sequence::new(0, SequenceNumber::new(13)),
+            Sequence::new(ShardIndex::new(0), SequenceNumber::new(13)),
             "upc,region=east user=1 100",
         );
         state.push_lp(
-            Sequence::new(0, SequenceNumber::new(12)),
+            Sequence::new(ShardIndex::new(0), SequenceNumber::new(12)),
             "upc,region=east user=1 100",
         );
     }
 
     #[test]
-    #[should_panic(expected = "invalid sequencer ID")]
-    fn test_state_push_error_panic_wrong_sequencer() {
-        let state =
-            MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(2).unwrap());
+    #[should_panic(expected = "invalid shard index")]
+    fn test_state_push_error_panic_wrong_shard() {
+        let state = MockBufferSharedState::empty_with_n_shards(NonZeroU32::try_from(2).unwrap());
         let error = "foo".to_string().into();
-        state.push_error(error, 2);
+        state.push_error(error, ShardIndex::new(2));
     }
 
     #[test]
-    #[should_panic(expected = "no sequencers initialized")]
+    #[should_panic(expected = "no shards initialized")]
     fn test_state_push_error_panic_uninitialized() {
         let state = MockBufferSharedState::uninitialized();
         let error = "foo".to_string().into();
-        state.push_error(error, 0);
+        state.push_error(error, ShardIndex::new(0));
     }
 
     #[test]
-    #[should_panic(expected = "invalid sequencer ID")]
-    fn test_state_get_messages_panic_wrong_sequencer() {
-        let state =
-            MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(2).unwrap());
-        state.get_messages(2);
+    #[should_panic(expected = "invalid shard index")]
+    fn test_state_get_messages_panic_wrong_shard() {
+        let state = MockBufferSharedState::empty_with_n_shards(NonZeroU32::try_from(2).unwrap());
+        state.get_messages(ShardIndex::new(2));
     }
 
     #[test]
-    #[should_panic(expected = "no sequencers initialized")]
+    #[should_panic(expected = "no shards initialized")]
     fn test_state_get_messages_panic_uninitialized() {
         let state = MockBufferSharedState::uninitialized();
-        state.get_messages(0);
+        state.get_messages(ShardIndex::new(0));
     }
 
     #[test]
-    #[should_panic(expected = "invalid sequencer ID")]
-    fn test_state_clear_messages_panic_wrong_sequencer() {
-        let state =
-            MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(2).unwrap());
-        state.clear_messages(2);
+    #[should_panic(expected = "invalid shard index")]
+    fn test_state_clear_messages_panic_wrong_shard() {
+        let state = MockBufferSharedState::empty_with_n_shards(NonZeroU32::try_from(2).unwrap());
+        state.clear_messages(ShardIndex::new(2));
     }
 
     #[test]
-    #[should_panic(expected = "no sequencers initialized")]
+    #[should_panic(expected = "no shards initialized")]
     fn test_state_clear_messages_panic_uninitialized() {
         let state = MockBufferSharedState::uninitialized();
-        state.clear_messages(0);
+        state.clear_messages(ShardIndex::new(0));
     }
 
     #[test]
     fn test_clear_messages() {
-        let state =
-            MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(2).unwrap());
+        let state = MockBufferSharedState::empty_with_n_shards(NonZeroU32::try_from(2).unwrap());
+        let shard_0 = ShardIndex::new(0);
+        let shard_1 = ShardIndex::new(1);
 
-        state.push_lp(Sequence::new(0, SequenceNumber::new(11)), "upc user=1 100");
-        state.push_lp(Sequence::new(1, SequenceNumber::new(12)), "upc user=1 100");
+        state.push_lp(
+            Sequence::new(shard_0, SequenceNumber::new(11)),
+            "upc user=1 100",
+        );
+        state.push_lp(
+            Sequence::new(shard_1, SequenceNumber::new(12)),
+            "upc user=1 100",
+        );
 
-        assert_eq!(state.get_messages(0).len(), 1);
-        assert_eq!(state.get_messages(1).len(), 1);
+        assert_eq!(state.get_messages(shard_0).len(), 1);
+        assert_eq!(state.get_messages(shard_1).len(), 1);
 
-        state.clear_messages(0);
+        state.clear_messages(shard_0);
 
-        assert_eq!(state.get_messages(0).len(), 0);
-        assert_eq!(state.get_messages(1).len(), 1);
+        assert_eq!(state.get_messages(shard_0).len(), 0);
+        assert_eq!(state.get_messages(shard_1).len(), 1);
     }
 
     #[tokio::test]
     async fn test_always_error_read() {
         let reader = MockBufferForReadingThatAlwaysErrors {};
+        let shard_0 = ShardIndex::new(0);
 
         assert_contains!(
             reader
-                .fetch_high_watermark(0)
+                .fetch_high_watermark(shard_0)
                 .await
                 .unwrap_err()
                 .to_string(),
             "Something bad happened while fetching the high watermark"
         );
 
-        let mut stream_handler = reader.stream_handler(0).await.unwrap();
+        let mut stream_handler = reader.stream_handler(shard_0).await.unwrap();
 
         assert_contains!(
             stream_handler
@@ -890,7 +895,7 @@ mod tests {
 
         assert_contains!(
             writer
-                .store_operation(0, operation)
+                .store_operation(ShardIndex::new(0), operation)
                 .await
                 .unwrap_err()
                 .to_string(),
@@ -902,22 +907,27 @@ mod tests {
     fn test_delayed_init() {
         let state = MockBufferSharedState::uninitialized();
         state.init(NonZeroU32::try_from(2).unwrap());
+        let shard_0 = ShardIndex::new(0);
+        let shard_1 = ShardIndex::new(1);
 
-        state.push_lp(Sequence::new(0, SequenceNumber::new(11)), "upc user=1 100");
+        state.push_lp(
+            Sequence::new(shard_0, SequenceNumber::new(11)),
+            "upc user=1 100",
+        );
 
-        assert_eq!(state.get_messages(0).len(), 1);
-        assert_eq!(state.get_messages(1).len(), 0);
+        assert_eq!(state.get_messages(shard_0).len(), 1);
+        assert_eq!(state.get_messages(shard_1).len(), 0);
 
         let error = "foo".to_string().into();
-        state.push_error(error, 1);
+        state.push_error(error, shard_1);
 
-        assert_eq!(state.get_messages(0).len(), 1);
-        assert_eq!(state.get_messages(1).len(), 1);
+        assert_eq!(state.get_messages(shard_0).len(), 1);
+        assert_eq!(state.get_messages(shard_1).len(), 1);
 
-        state.clear_messages(0);
+        state.clear_messages(shard_0);
 
-        assert_eq!(state.get_messages(0).len(), 0);
-        assert_eq!(state.get_messages(1).len(), 1);
+        assert_eq!(state.get_messages(shard_0).len(), 0);
+        assert_eq!(state.get_messages(shard_1).len(), 1);
     }
 
     #[test]
@@ -931,24 +941,26 @@ mod tests {
     #[test]
     #[should_panic(expected = "already initialized")]
     fn test_init_after_constructor_panics() {
-        let state =
-            MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(2).unwrap());
+        let state = MockBufferSharedState::empty_with_n_shards(NonZeroU32::try_from(2).unwrap());
         state.init(NonZeroU32::try_from(2).unwrap());
     }
 
     #[tokio::test]
     async fn test_delayed_insert() {
-        let state =
-            MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());
+        let state = MockBufferSharedState::empty_with_n_shards(NonZeroU32::try_from(1).unwrap());
+        let shard_0 = ShardIndex::new(0);
 
-        state.push_lp(Sequence::new(0, SequenceNumber::new(0)), "mem foo=1 10");
+        state.push_lp(
+            Sequence::new(shard_0, SequenceNumber::new(0)),
+            "mem foo=1 10",
+        );
 
         let read = MockBufferForReading::new(state.clone(), None).unwrap();
 
         let barrier = Arc::new(tokio::sync::Barrier::new(2));
         let barrier_captured = Arc::clone(&barrier);
         let consumer = tokio::spawn(async move {
-            let mut stream_handler = read.stream_handler(0).await.unwrap();
+            let mut stream_handler = read.stream_handler(shard_0).await.unwrap();
             let mut stream = stream_handler.stream().await;
             stream.next().await.unwrap().unwrap();
             barrier_captured.wait().await;
@@ -958,7 +970,10 @@ mod tests {
         // Wait for consumer to read first entry
         barrier.wait().await;
 
-        state.push_lp(Sequence::new(0, SequenceNumber::new(1)), "mem foo=2 20");
+        state.push_lp(
+            Sequence::new(shard_0, SequenceNumber::new(1)),
+            "mem foo=2 20",
+        );
 
         tokio::time::timeout(Duration::from_millis(100), consumer)
             .await
@@ -968,13 +983,16 @@ mod tests {
 
     #[tokio::test]
     async fn test_sequence_number_no_longer_exists() {
-        let state =
-            MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());
+        let state = MockBufferSharedState::empty_with_n_shards(NonZeroU32::try_from(1).unwrap());
+        let shard_0 = ShardIndex::new(0);
 
-        state.push_lp(Sequence::new(0, SequenceNumber::new(11)), "upc user=1 100");
+        state.push_lp(
+            Sequence::new(shard_0, SequenceNumber::new(11)),
+            "upc user=1 100",
+        );
 
         let read = MockBufferForReading::new(state.clone(), None).unwrap();
-        let mut stream_handler = read.stream_handler(0).await.unwrap();
+        let mut stream_handler = read.stream_handler(shard_0).await.unwrap();
         stream_handler.seek(SequenceNumber::new(1)).await.unwrap();
         let mut stream = stream_handler.stream().await;
 

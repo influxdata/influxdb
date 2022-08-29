@@ -1,6 +1,6 @@
 use super::DmlSink;
 use crate::lifecycle::{LifecycleHandle, LifecycleHandleImpl};
-use data_types::{KafkaPartition, SequenceNumber};
+use data_types::{SequenceNumber, ShardIndex};
 use dml::DmlOperation;
 use futures::{pin_mut, FutureExt, StreamExt};
 use iox_time::{SystemProvider, TimeProvider};
@@ -11,7 +11,7 @@ use tokio_util::sync::CancellationToken;
 use write_buffer::core::{WriteBufferErrorKind, WriteBufferStreamHandler};
 
 /// When the [`LifecycleManager`] indicates that ingest should be paused because
-/// of memory pressure, the sequencer will loop, sleeping this long between
+/// of memory pressure, the shard will loop, sleeping this long between
 /// calls to [`LifecycleHandle::can_resume_ingest()`] with the manager if it
 /// can resume ingest.
 ///
@@ -20,11 +20,11 @@ use write_buffer::core::{WriteBufferErrorKind, WriteBufferStreamHandler};
 const INGEST_POLL_INTERVAL: Duration = Duration::from_millis(100);
 
 /// A [`SequencedStreamHandler`] consumes a sequence of [`DmlOperation`] from a
-/// sequencer stream and pushes them into the configured [`DmlSink`].
+/// shard stream and pushes them into the configured [`DmlSink`].
 ///
 /// Ingest reads are rate limited by the [`LifecycleManager`] it is initialised
 /// by, pausing until the [`LifecycleHandle::can_resume_ingest()`] obtained from
-/// it returns true, and TTBR / error metrics are emitted on a per-sequencer
+/// it returns true, and TTBR / error metrics are emitted on a per-shard
 /// basis.
 ///
 /// [`LifecycleManager`]: crate::lifecycle::LifecycleManager
@@ -54,18 +54,18 @@ pub struct SequencedStreamHandler<I, O, T = SystemProvider> {
     pause_duration: DurationCounter,
 
     /// Errors during op stream reading
-    seq_unknown_sequence_number_count: U64Counter,
-    seq_invalid_data_count: U64Counter,
-    seq_unknown_error_count: U64Counter,
+    shard_unknown_sequence_number_count: U64Counter,
+    shard_invalid_data_count: U64Counter,
+    shard_unknown_error_count: U64Counter,
     sink_apply_error_count: U64Counter,
     skipped_sequence_number_amount: U64Counter,
 
     /// Reset count
-    sequencer_reset_count: U64Counter,
+    shard_reset_count: U64Counter,
 
     /// Log context fields - otherwise unused.
     kafka_topic_name: String,
-    kafka_partition: KafkaPartition,
+    shard_index: ShardIndex,
 
     skip_to_oldest_available: bool,
 }
@@ -84,7 +84,7 @@ impl<I, O> SequencedStreamHandler<I, O> {
         sink: O,
         lifecycle_handle: LifecycleHandleImpl,
         kafka_topic_name: String,
-        kafka_partition: KafkaPartition,
+        shard_index: ShardIndex,
         metrics: &metric::Registry,
         skip_to_oldest_available: bool,
     ) -> Self {
@@ -92,7 +92,7 @@ impl<I, O> SequencedStreamHandler<I, O> {
         let time_to_be_readable = metrics.register_metric::<DurationGauge>(
             "ingester_ttbr",
             "duration of time between producer writing to consumer putting into queryable cache",
-        ).recorder(metric_attrs(kafka_partition, &kafka_topic_name, None, false));
+        ).recorder(metric_attrs(shard_index, &kafka_topic_name, None, false));
 
         // Lifecycle-driven ingest pause duration
         let pause_duration = metrics
@@ -107,44 +107,44 @@ impl<I, O> SequencedStreamHandler<I, O> {
             "ingester_stream_handler_error",
             "ingester op fetching and buffering errors",
         );
-        let seq_unknown_sequence_number_count = ingest_errors.recorder(metric_attrs(
-            kafka_partition,
+        let shard_unknown_sequence_number_count = ingest_errors.recorder(metric_attrs(
+            shard_index,
             &kafka_topic_name,
-            Some("sequencer_unknown_sequence_number"),
+            Some("shard_unknown_sequence_number"),
             true,
         ));
-        let seq_invalid_data_count = ingest_errors.recorder(metric_attrs(
-            kafka_partition,
+        let shard_invalid_data_count = ingest_errors.recorder(metric_attrs(
+            shard_index,
             &kafka_topic_name,
-            Some("sequencer_invalid_data"),
+            Some("shard_invalid_data"),
             true,
         ));
-        let seq_unknown_error_count = ingest_errors.recorder(metric_attrs(
-            kafka_partition,
+        let shard_unknown_error_count = ingest_errors.recorder(metric_attrs(
+            shard_index,
             &kafka_topic_name,
-            Some("sequencer_unknown_error"),
+            Some("shard_unknown_error"),
             true,
         ));
         let sink_apply_error_count = ingest_errors.recorder(metric_attrs(
-            kafka_partition,
+            shard_index,
             &kafka_topic_name,
             Some("sink_apply_error"),
             true,
         ));
         let skipped_sequence_number_amount = ingest_errors.recorder(metric_attrs(
-            kafka_partition,
+            shard_index,
             &kafka_topic_name,
             Some("skipped_sequence_number_amount"),
             true,
         ));
 
         // reset count
-        let sequencer_reset_count = metrics
+        let shard_reset_count = metrics
             .register_metric::<U64Counter>(
-                "sequencer_reset_count",
-                "how often a sequencer was already reset",
+                "shard_reset_count",
+                "how often a shard was already reset",
             )
-            .recorder(metric_attrs(kafka_partition, &kafka_topic_name, None, true));
+            .recorder(metric_attrs(shard_index, &kafka_topic_name, None, true));
 
         Self {
             write_buffer_stream_handler,
@@ -154,14 +154,14 @@ impl<I, O> SequencedStreamHandler<I, O> {
             time_provider: SystemProvider::default(),
             time_to_be_readable,
             pause_duration,
-            seq_unknown_sequence_number_count,
-            seq_invalid_data_count,
-            seq_unknown_error_count,
+            shard_unknown_sequence_number_count,
+            shard_invalid_data_count,
+            shard_unknown_error_count,
             sink_apply_error_count,
             skipped_sequence_number_amount,
-            sequencer_reset_count,
+            shard_reset_count,
             kafka_topic_name,
-            kafka_partition,
+            shard_index,
             skip_to_oldest_available,
         }
     }
@@ -177,14 +177,14 @@ impl<I, O> SequencedStreamHandler<I, O> {
             time_provider: provider,
             time_to_be_readable: self.time_to_be_readable,
             pause_duration: self.pause_duration,
-            seq_unknown_sequence_number_count: self.seq_unknown_sequence_number_count,
-            seq_invalid_data_count: self.seq_invalid_data_count,
-            seq_unknown_error_count: self.seq_unknown_error_count,
+            shard_unknown_sequence_number_count: self.shard_unknown_sequence_number_count,
+            shard_invalid_data_count: self.shard_invalid_data_count,
+            shard_unknown_error_count: self.shard_unknown_error_count,
             sink_apply_error_count: self.sink_apply_error_count,
             skipped_sequence_number_amount: self.skipped_sequence_number_amount,
-            sequencer_reset_count: self.sequencer_reset_count,
+            shard_reset_count: self.shard_reset_count,
             kafka_topic_name: self.kafka_topic_name,
-            kafka_partition: self.kafka_partition,
+            shard_index: self.shard_index,
             skip_to_oldest_available: self.skip_to_oldest_available,
         }
     }
@@ -215,13 +215,13 @@ where
         let mut sequence_number_before_reset: Option<SequenceNumber> = None;
 
         loop {
-            // Wait for a DML operation from the sequencer, or a graceful stop signal.
+            // Wait for a DML operation from the shard, or a graceful stop signal.
             let maybe_op = futures::select!(
                 next = stream.next().fuse() => next,
                 _ = shutdown_fut => {
                     info!(
                         kafka_topic=%self.kafka_topic_name,
-                        kafka_partition=%self.kafka_partition,
+                        shard_index=%self.shard_index,
                         "stream handler shutdown",
                     );
                     return;
@@ -261,11 +261,11 @@ where
                         warn!(
                             error=%e,
                             kafka_topic=%self.kafka_topic_name,
-                            kafka_partition=%self.kafka_partition,
+                            shard_index=%self.shard_index,
                             potential_data_loss=true,
                             "reset stream"
                         );
-                        self.sequencer_reset_count.inc(1);
+                        self.shard_reset_count.inc(1);
                         sequence_number_before_reset = Some(self.current_sequence_number);
                         self.write_buffer_stream_handler.reset_to_earliest();
                         stream = self.write_buffer_stream_handler.stream().await;
@@ -274,11 +274,11 @@ where
                         error!(
                             error=%e,
                             kafka_topic=%self.kafka_topic_name,
-                            kafka_partition=%self.kafka_partition,
+                            shard_index=%self.shard_index,
                             potential_data_loss=true,
-                            "unable to read from desired sequencer offset"
+                            "unable to read from desired sequence number offset"
                         );
-                        self.seq_unknown_sequence_number_count.inc(1);
+                        self.shard_unknown_sequence_number_count.inc(1);
                         None
                     }
                 }
@@ -286,55 +286,55 @@ where
                     warn!(
                         error=%e,
                         kafka_topic=%self.kafka_topic_name,
-                        kafka_partition=%self.kafka_partition,
-                        "I/O error reading from sequencer"
+                        shard_index=%self.shard_index,
+                        "I/O error reading from shard"
                     );
                     tokio::time::sleep(Duration::from_secs(1)).await;
                     None
                 }
                 Some(Err(e)) if e.kind() == WriteBufferErrorKind::InvalidData => {
                     // The DmlOperation could not be de-serialized from the
-                    // kafka message.
+                    // shard message.
                     //
                     // This is almost certainly data loss as the write will not
                     // be applied/persisted.
                     error!(
                         error=%e,
                         kafka_topic=%self.kafka_topic_name,
-                        kafka_partition=%self.kafka_partition,
+                        shard_index=%self.shard_index,
                         potential_data_loss=true,
                         "unable to deserialize dml operation"
                     );
 
-                    self.seq_invalid_data_count.inc(1);
+                    self.shard_invalid_data_count.inc(1);
                     None
                 }
                 Some(Err(e)) if e.kind() == WriteBufferErrorKind::SequenceNumberAfterWatermark => {
                     panic!(
                         "\
-Sequencer {:?} stream for topic {} has a high watermark BEFORE the sequence number we want. This is either a bug (see \
-https://github.com/influxdata/rskafka/issues/147 for example) or means that someone re-created the partition and data \
-is lost. In both cases, it's better to panic than to try something clever.",
-                        self.kafka_partition,
-                        self.kafka_topic_name,
+Shard Index {:?} stream for topic {} has a high watermark BEFORE the sequence number we want. This \
+is either a bug (see https://github.com/influxdata/rskafka/issues/147 for example) or means that \
+someone re-created the shard and data is lost. In both cases, it's better to panic than to try \
+something clever.",
+                        self.shard_index, self.kafka_topic_name,
                     )
                 }
                 Some(Err(e)) => {
                     error!(
                         error=%e,
                         kafka_topic=%self.kafka_topic_name,
-                        kafka_partition=%self.kafka_partition,
+                        shard_index=%self.shard_index,
                         potential_data_loss=true,
                         "unhandled error converting write buffer data to DmlOperation",
                     );
-                    self.seq_unknown_error_count.inc(1);
+                    self.shard_unknown_error_count.inc(1);
                     tokio::time::sleep(Duration::from_secs(1)).await;
                     None
                 }
                 None => {
                     panic!(
-                        "sequencer {:?} stream for topic {} ended without graceful shutdown",
-                        self.kafka_partition, self.kafka_topic_name
+                        "shard index {:?} stream for topic {} ended without graceful shutdown",
+                        self.shard_index, self.kafka_topic_name
                     );
                 }
             };
@@ -350,7 +350,7 @@ is lost. In both cases, it's better to panic than to try something clever.",
             // Emit per-op debug info.
             trace!(
                 kafka_topic=%self.kafka_topic_name,
-                kafka_partition=%self.kafka_partition,
+                shard_index=%self.shard_index,
                 op_size=op.size(),
                 op_namespace=op.namespace(),
                 op_sequence_number=?op.meta().sequence().map(|s| s.sequence_number),
@@ -367,7 +367,7 @@ is lost. In both cases, it's better to panic than to try something clever.",
                 Ok(should_pause) => {
                     trace!(
                         kafka_topic=%self.kafka_topic_name,
-                        kafka_partition=%self.kafka_partition,
+                        shard_index=%self.shard_index,
                         %should_pause,
                         "successfully applied dml operation"
                     );
@@ -377,7 +377,7 @@ is lost. In both cases, it's better to panic than to try something clever.",
                     error!(
                         error=%e,
                         kafka_topic=%self.kafka_topic_name,
-                        kafka_partition=%self.kafka_partition,
+                        shard_index=%self.shard_index,
                         potential_data_loss=true,
                         "failed to apply dml operation"
                     );
@@ -405,7 +405,7 @@ is lost. In both cases, it's better to panic than to try something clever.",
 
         warn!(
             kafka_topic=%self.kafka_topic_name,
-            kafka_partition=%self.kafka_partition,
+            shard_index=%self.shard_index,
             "pausing ingest until persistence has run"
         );
         while !self.lifecycle_handle.can_resume_ingest() {
@@ -430,7 +430,7 @@ is lost. In both cases, it's better to panic than to try something clever.",
 
         info!(
             kafka_topic=%self.kafka_topic_name,
-            kafka_partition=%self.kafka_partition,
+            shard_index=%self.shard_index,
             pause_duration=%duration_str,
             "resuming ingest"
         );
@@ -438,13 +438,13 @@ is lost. In both cases, it's better to panic than to try something clever.",
 }
 
 fn metric_attrs(
-    partition: KafkaPartition,
+    shard_index: ShardIndex,
     topic: &str,
     err: Option<&'static str>,
     data_loss: bool,
 ) -> Attributes {
     let mut attr = Attributes::from([
-        ("kafka_partition", partition.to_string().into()),
+        ("kafka_partition", shard_index.to_string().into()),
         ("kafka_topic", topic.to_string().into()),
     ]);
 
@@ -482,14 +482,14 @@ mod tests {
     use write_buffer::core::WriteBufferError;
 
     static TEST_TIME: Lazy<Time> = Lazy::new(|| SystemProvider::default().now());
-    static TEST_KAFKA_PARTITION: Lazy<KafkaPartition> = Lazy::new(|| KafkaPartition::new(42));
+    static TEST_SHARD_INDEX: ShardIndex = ShardIndex::new(42);
     static TEST_KAFKA_TOPIC: &str = "kafka_topic_name";
 
     // Return a DmlWrite with the given namespace and a single table.
     fn make_write(name: impl Into<String>, write_time: u64) -> DmlWrite {
         let tables = lines_to_batches("bananas level=42 4242", 0).unwrap();
         let sequence = DmlMeta::sequenced(
-            Sequence::new(1, SequenceNumber::new(2)),
+            Sequence::new(ShardIndex::new(1), SequenceNumber::new(2)),
             TEST_TIME
                 .checked_sub(Duration::from_millis(write_time))
                 .unwrap(),
@@ -506,7 +506,7 @@ mod tests {
             exprs: vec![],
         };
         let sequence = DmlMeta::sequenced(
-            Sequence::new(1, SequenceNumber::new(2)),
+            Sequence::new(ShardIndex::new(1), SequenceNumber::new(2)),
             TEST_TIME
                 .checked_sub(Duration::from_millis(write_time))
                 .unwrap(),
@@ -634,7 +634,7 @@ mod tests {
                         Arc::clone(&sink),
                         lifecycle.handle(),
                         TEST_KAFKA_TOPIC.to_string(),
-                        *TEST_KAFKA_PARTITION,
+                        TEST_SHARD_INDEX,
                         &*metrics,
                         $skip_to_oldest_available,
                     ).with_time_provider(iox_time::MockProvider::new(*TEST_TIME));
@@ -679,7 +679,7 @@ mod tests {
                         .expect("did not find ttbr metric")
                         .get_observer(&Attributes::from([
                             ("kafka_topic", TEST_KAFKA_TOPIC.into()),
-                            ("kafka_partition", TEST_KAFKA_PARTITION.to_string().into()),
+                            ("kafka_partition", TEST_SHARD_INDEX.to_string().into()),
                         ]))
                         .expect("did not match metric attributes")
                         .fetch();
@@ -687,11 +687,11 @@ mod tests {
 
                     // assert reset counter
                     let reset = metrics
-                        .get_instrument::<Metric<U64Counter>>("sequencer_reset_count")
+                        .get_instrument::<Metric<U64Counter>>("shard_reset_count")
                         .expect("did not find reset count metric")
                         .get_observer(&Attributes::from([
                             ("kafka_topic", TEST_KAFKA_TOPIC.into()),
-                            ("kafka_partition", TEST_KAFKA_PARTITION.to_string().into()),
+                            ("kafka_partition", TEST_SHARD_INDEX.to_string().into()),
                             ("potential_data_loss", "true".into()),
                         ]))
                         .expect("did not match metric attributes")
@@ -704,7 +704,7 @@ mod tests {
                             .get_instrument::<Metric<U64Counter>>("ingester_stream_handler_error")
                             .expect("did not find error metric")
                             .get_observer(&metric_attrs(
-                                *TEST_KAFKA_PARTITION,
+                                TEST_SHARD_INDEX,
                                 TEST_KAFKA_TOPIC,
                                 Some($metric_name),
                                 true,
@@ -761,7 +761,7 @@ mod tests {
         }
     );
 
-    // An error reading from the sequencer stream is processed and does not
+    // An error reading from the shard stream is processed and does not
     // affect the next op in the stream.
     test_stream_handler!(
         non_fatal_stream_io_error,
@@ -775,9 +775,9 @@ mod tests {
         want_reset = 0,
         want_err_metrics = [
             // No error metrics for I/O errors
-            "sequencer_unknown_sequence_number" => 0,
-            "sequencer_invalid_data" => 0,
-            "sequencer_unknown_error" => 0,
+            "shard_unknown_sequence_number" => 0,
+            "shard_invalid_data" => 0,
+            "shard_unknown_error" => 0,
             "sink_apply_error" => 0,
             "skipped_sequence_number_amount" => 0
         ],
@@ -796,9 +796,9 @@ mod tests {
         want_ttbr = 31,
         want_reset = 0,
         want_err_metrics = [
-            "sequencer_unknown_sequence_number" => 1,
-            "sequencer_invalid_data" => 0,
-            "sequencer_unknown_error" => 0,
+            "shard_unknown_sequence_number" => 1,
+            "shard_invalid_data" => 0,
+            "shard_unknown_error" => 0,
             "sink_apply_error" => 0,
             "skipped_sequence_number_amount" => 0
         ],
@@ -824,9 +824,9 @@ mod tests {
         want_ttbr = 31,
         want_reset = 1,
         want_err_metrics = [
-            "sequencer_unknown_sequence_number" => 0,
-            "sequencer_invalid_data" => 0,
-            "sequencer_unknown_error" => 0,
+            "shard_unknown_sequence_number" => 0,
+            "shard_invalid_data" => 0,
+            "shard_unknown_error" => 0,
             "sink_apply_error" => 0,
             "skipped_sequence_number_amount" => 2
         ],
@@ -845,9 +845,9 @@ mod tests {
         want_ttbr = 50,
         want_reset = 0,
         want_err_metrics = [
-            "sequencer_unknown_sequence_number" => 0,
-            "sequencer_invalid_data" => 1,
-            "sequencer_unknown_error" => 0,
+            "shard_unknown_sequence_number" => 0,
+            "shard_invalid_data" => 1,
+            "shard_unknown_error" => 0,
             "sink_apply_error" => 0,
             "skipped_sequence_number_amount" => 0
         ],
@@ -866,9 +866,9 @@ mod tests {
         want_ttbr = 60,
         want_reset = 0,
         want_err_metrics = [
-            "sequencer_unknown_sequence_number" => 0,
-            "sequencer_invalid_data" => 0,
-            "sequencer_unknown_error" => 1,
+            "shard_unknown_sequence_number" => 0,
+            "shard_invalid_data" => 0,
+            "shard_unknown_error" => 1,
             "sink_apply_error" => 0,
             "skipped_sequence_number_amount" => 0
         ],
@@ -907,9 +907,9 @@ mod tests {
         want_reset = 0,
         want_err_metrics = [
             // No errors!
-            "sequencer_unknown_sequence_number" => 0,
-            "sequencer_invalid_data" => 0,
-            "sequencer_unknown_error" => 0,
+            "shard_unknown_sequence_number" => 0,
+            "shard_invalid_data" => 0,
+            "shard_unknown_error" => 0,
             "sink_apply_error" => 0,
             "skipped_sequence_number_amount" => 0
         ],
@@ -932,9 +932,9 @@ mod tests {
         want_ttbr = 2,
         want_reset = 0,
         want_err_metrics = [
-            "sequencer_unknown_sequence_number" => 0,
-            "sequencer_invalid_data" => 0,
-            "sequencer_unknown_error" => 0,
+            "shard_unknown_sequence_number" => 0,
+            "shard_invalid_data" => 0,
+            "shard_unknown_error" => 0,
             "sink_apply_error" => 1,
             "skipped_sequence_number_amount" => 0
         ],
@@ -967,7 +967,7 @@ mod tests {
     // An abnormal end to the steam causes a panic, rather than a silent stream reader exit.
     #[tokio::test]
     #[should_panic(
-        expected = "sequencer KafkaPartition(42) stream for topic kafka_topic_name ended without \
+        expected = "shard index ShardIndex(42) stream for topic kafka_topic_name ended without \
                     graceful shutdown"
     )]
     async fn test_early_stream_end_panic() {
@@ -989,7 +989,7 @@ mod tests {
             sink,
             lifecycle.handle(),
             "kafka_topic_name".to_string(),
-            KafkaPartition::new(42),
+            ShardIndex::new(42),
             &*metrics,
             false,
         );
@@ -1029,7 +1029,7 @@ mod tests {
             sink,
             lifecycle.handle(),
             "kafka_topic_name".to_string(),
-            KafkaPartition::new(42),
+            ShardIndex::new(42),
             &*metrics,
             false,
         );

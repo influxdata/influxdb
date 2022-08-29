@@ -64,8 +64,8 @@ mod tests {
     async fn test_get_namespaces_empty() {
         let catalog = TestCatalog::new();
 
-        // QuerierDatabase::new returns an error if there are no sequencers in the catalog
-        catalog.create_sequencer(0).await;
+        // QuerierDatabase::new returns an error if there are no shards in the catalog
+        catalog.create_shard(0).await;
 
         let catalog_cache = Arc::new(QuerierCatalogCache::new_testing(
             catalog.catalog(),
@@ -100,8 +100,8 @@ mod tests {
     async fn test_get_namespaces() {
         let catalog = TestCatalog::new();
 
-        // QuerierDatabase::new returns an error if there are no sequencers in the catalog
-        catalog.create_sequencer(0).await;
+        // QuerierDatabase::new returns an error if there are no shards in the catalog
+        catalog.create_shard(0).await;
 
         let catalog_cache = Arc::new(QuerierCatalogCache::new_testing(
             catalog.catalog(),

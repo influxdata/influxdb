@@ -10,11 +10,11 @@ use std::{fmt::Debug, sync::Arc};
 /// sharding.
 ///
 /// NOTE: It is a system invariant that deletes are routed to (all of) the same
-/// sequencers as a write for the same table.
+/// shards as a write for the same table.
 pub trait Sharder<P>: Debug + Send + Sync {
     /// The type returned by a sharder.
     ///
-    /// This could be a shard ID, a sequencer, an array of multiple sequencers,
+    /// This could be a shard ID, a shard index, an array of multiple shards,
     /// etc.
     type Item: Debug + Send + Sync;
 

@@ -5,23 +5,24 @@ The protocol is based on [Apache Flight]. We however only support a single reque
 
 
 ## Request (Querier ⇒ Ingester)
-The `DoGet` ticket contains a [Protocol Buffer] message `influxdata.iox.ingester.v1.IngesterQueryRequest` (see our
-`generated_types` crate). This message contains:
+The `DoGet` ticket contains a [Protocol Buffer] message
+`influxdata.iox.ingester.v1.IngesterQueryRequest` (see our `generated_types` crate). This message
+contains:
 
 - **namespace:** The namespace of the query.
 - **table:** The table that we request.
-- **columns:** List of columns that the querier wants. If the ingester does NOT know about a specified column, it may
-  just ignore that column (i.e. the resulting data is the intersection of the request and the ingester data).
+- **columns:** List of columns that the querier wants. If the ingester does NOT know about a
+  specified column, it may just ignore that column (i.e. the resulting data is the intersection of
+  the request and the ingester data).
 - **predicate:** Predicate for row-filtering on the ingester side.
 
-The request does NOT contain a selection of partitions or sequencer. The ingester must respond with all partitions and
-sequencers it knows for that specified namespace-table combination.
-
+The request does NOT contain a selection of partitions or shards. The ingester must respond with
+all partitions and shards it knows for that specified namespace-table combination.
 
 ## Response (Ingester ⇒ Querier)
 The goal of the response is to stream the following ingester data hierarchy:
 
-- For each sequencer:
+- For each shard:
   - For each partition **(A)**:
     - Persistence Information:
       - Sequence number of max. persisted parquet file
@@ -54,7 +55,7 @@ All other messages types (at the time of writing these are `Tensor` and `SparseT
 ## Example
 Imagine the following ingester state:
 
-- sequencer S1:
+- shard S1:
   - partition P1:
     - max. persisted parquet file at `sequence_number=10`
     - max. persisted tombstone at `sequence_number=11`
@@ -63,7 +64,7 @@ Imagine the following ingester state:
     - max. persisted parquet file at `sequence_number=1`
     - no max. persisted tombstone
     - snapshot C3
-- sequencer S2:
+- shard S2:
   - partition P3:
     - no persisted parquet file
     - no max. persisted tombstone

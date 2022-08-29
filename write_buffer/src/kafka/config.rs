@@ -53,7 +53,7 @@ impl TryFrom<&WriteBufferCreationConfig> for TopicCreationConfig {
 
     fn try_from(cfg: &WriteBufferCreationConfig) -> Result<Self, Self::Error> {
         Ok(Self {
-            num_partitions: i32::try_from(cfg.n_sequencers.get())
+            num_partitions: i32::try_from(cfg.n_shards.get())
                 .map_err(WriteBufferError::invalid_input)?,
             replication_factor: parse_key(&cfg.options, "replication_factor")?.unwrap_or(1),
             timeout_ms: parse_key(&cfg.options, "timeout_ms")?.unwrap_or(5_000),
@@ -189,7 +189,7 @@ mod tests {
     #[test]
     fn test_topic_creation_config_default() {
         let actual = TopicCreationConfig::try_from(&WriteBufferCreationConfig {
-            n_sequencers: NonZeroU32::new(2).unwrap(),
+            n_shards: NonZeroU32::new(2).unwrap(),
             options: BTreeMap::default(),
         })
         .unwrap();
@@ -204,7 +204,7 @@ mod tests {
     #[test]
     fn test_topic_creation_config_parse() {
         let actual = TopicCreationConfig::try_from(&WriteBufferCreationConfig {
-            n_sequencers: NonZeroU32::new(2).unwrap(),
+            n_shards: NonZeroU32::new(2).unwrap(),
             options: BTreeMap::from([
                 (String::from("replication_factor"), String::from("3")),
                 (String::from("timeout_ms"), String::from("100")),
@@ -223,7 +223,7 @@ mod tests {
     #[test]
     fn test_topic_creation_config_err() {
         let err = TopicCreationConfig::try_from(&WriteBufferCreationConfig {
-            n_sequencers: NonZeroU32::new(2).unwrap(),
+            n_shards: NonZeroU32::new(2).unwrap(),
             options: BTreeMap::from([(String::from("replication_factor"), String::from("xyz"))]),
         })
         .unwrap_err();
@@ -233,7 +233,7 @@ mod tests {
         );
 
         let err = TopicCreationConfig::try_from(&WriteBufferCreationConfig {
-            n_sequencers: NonZeroU32::new(2).unwrap(),
+            n_shards: NonZeroU32::new(2).unwrap(),
             options: BTreeMap::from([(String::from("timeout_ms"), String::from("xyz"))]),
         })
         .unwrap_err();

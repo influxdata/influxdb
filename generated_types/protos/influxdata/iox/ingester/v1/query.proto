@@ -77,7 +77,7 @@ message IngesterQueryResponseMetadata {
 
 // Status of a partition that has unpersisted data.
 //
-// Note that this structure is specific to a partition (which itself is bound to a table and sequencer)!
+// Note that this structure is specific to a partition (which itself is bound to a table and shard)!
 message PartitionStatus {
   // Max sequence number persisted
   optional int64 parquet_max_sequence_number = 1;

@@ -1,7 +1,7 @@
-//! Logic to shard writes/deletes and push them into a write buffer sequencer.
+//! Logic to shard writes/deletes and push them into a write buffer shard.
 
 use super::Partitioned;
-use crate::{dml_handlers::DmlHandler, sequencer::Sequencer};
+use crate::{dml_handlers::DmlHandler, shard::Shard};
 use async_trait::async_trait;
 use data_types::{DatabaseName, DeletePredicate, NonEmptyString};
 use dml::{DmlDelete, DmlMeta, DmlOperation, DmlWrite};
@@ -47,7 +47,7 @@ where
         .join("; ")
 }
 
-/// A [`ShardedWriteBuffer`] combines a [`Sequencer`] with a [`Sharder`], using
+/// A [`ShardedWriteBuffer`] combines a [`Shard`] with a [`Sharder`], using
 /// the latter to split writes (and deletes) up into per-shard [`DmlOperation`]
 /// instances and dispatching them to the write buffer.
 ///
@@ -80,8 +80,7 @@ impl<S> ShardedWriteBuffer<S> {
 #[async_trait]
 impl<S> DmlHandler for ShardedWriteBuffer<S>
 where
-    S: Sharder<MutableBatch, Item = Arc<Sequencer>>
-        + Sharder<DeletePredicate, Item = Vec<Arc<Sequencer>>>,
+    S: Sharder<MutableBatch, Item = Arc<Shard>> + Sharder<DeletePredicate, Item = Vec<Arc<Shard>>>,
 {
     type WriteError = ShardError;
     type DeleteError = ShardError;
@@ -105,17 +104,17 @@ where
         // per shard to maximise the size of each write, and therefore increase
         // the effectiveness of compression of ops in the write buffer.
         for (table, batch) in writes.into_iter() {
-            let sequencer = self.sharder.shard(&table, namespace, &batch);
+            let shard = self.sharder.shard(&table, namespace, &batch);
 
             let existing = collated
-                .entry(sequencer)
+                .entry(shard)
                 .or_default()
                 .insert(table, batch.clone());
 
             assert!(existing.is_none());
         }
 
-        let iter = collated.into_iter().map(|(sequencer, batch)| {
+        let iter = collated.into_iter().map(|(shard, batch)| {
             let dml = DmlWrite::new(
                 namespace,
                 batch,
@@ -125,14 +124,14 @@ where
 
             trace!(
                 %partition_key,
-                kafka_partition=%sequencer.kafka_index(),
+                kafka_partition=%shard.shard_index(),
                 tables=%dml.table_count(),
                 %namespace,
                 approx_size=%dml.size(),
                 "routing writes to shard"
             );
 
-            (sequencer, DmlOperation::from(dml))
+            (shard, DmlOperation::from(dml))
         });
 
         parallel_enqueue(iter).await
@@ -147,7 +146,7 @@ where
         span_ctx: Option<SpanContext>,
     ) -> Result<(), ShardError> {
         let predicate = predicate.clone();
-        let sequencers = self.sharder.shard(table_name, namespace, &predicate);
+        let shards = self.sharder.shard(table_name, namespace, &predicate);
 
         let dml = DmlDelete::new(
             namespace,
@@ -156,13 +155,17 @@ where
             DmlMeta::unsequenced(span_ctx),
         );
 
-        let iter = sequencers.into_iter().map(|s| {
-            trace!(sequencer_id=%s.kafka_index(), %table_name, %namespace, "routing delete to shard");
+        let iter = shards.into_iter().map(|s| {
+            trace!(
+                shard_index=%s.shard_index(),
+                %table_name, %namespace,
+                "routing delete to shard"
+            );
 
             (s, DmlOperation::from(dml.clone()))
         });
 
-        // TODO: return sequencer metadata
+        // TODO: return shard metadata
         parallel_enqueue(iter).await?;
 
         Ok(())
@@ -170,19 +173,19 @@ where
 }
 
 /// Enumerates all items in the iterator, maps each to a future that dispatches
-/// the [`DmlOperation`] to its paired [`Sequencer`], executes all the futures
+/// the [`DmlOperation`] to its paired [`Shard`], executes all the futures
 /// in parallel and gathers any errors.
 ///
 /// Returns a list of the sequences that were written.
 async fn parallel_enqueue<T>(v: T) -> Result<Vec<DmlMeta>, ShardError>
 where
-    T: Iterator<Item = (Arc<Sequencer>, DmlOperation)> + Send,
+    T: Iterator<Item = (Arc<Shard>, DmlOperation)> + Send,
 {
     let mut successes = vec![];
     let mut errs = vec![];
 
-    v.map(|(sequencer, op)| async move {
-        tokio::spawn(async move { sequencer.enqueue(op).await })
+    v.map(|(shard, op)| async move {
+        tokio::spawn(async move { shard.enqueue(op).await })
             .await
             .expect("shard enqueue panic")
     })
@@ -211,7 +214,7 @@ mod tests {
     use super::*;
     use crate::dml_handlers::DmlHandler;
     use assert_matches::assert_matches;
-    use data_types::{KafkaPartition, TimestampRange};
+    use data_types::{ShardIndex, TimestampRange};
     use sharder::mock::{MockSharder, MockSharderCall, MockSharderPayload};
     use std::sync::Arc;
     use write_buffer::mock::{MockBufferForWriting, MockBufferSharedState};
@@ -223,12 +226,12 @@ mod tests {
         Partitioned::new("key".into(), writes)
     }
 
-    // Init a mock write buffer with the given number of sequencers.
-    fn init_write_buffer(n_sequencers: u32) -> MockBufferForWriting {
+    // Init a mock write buffer with the given number of shards.
+    fn init_write_buffer(n_shards: u32) -> MockBufferForWriting {
         let time = iox_time::MockProvider::new(iox_time::Time::from_timestamp_millis(668563200000));
         MockBufferForWriting::new(
-            MockBufferSharedState::empty_with_n_sequencers(
-                n_sequencers.try_into().expect("cannot have 0 sequencers"),
+            MockBufferSharedState::empty_with_n_shards(
+                n_shards.try_into().expect("cannot have 0 shards"),
             ),
             None,
             Arc::new(time),
@@ -252,8 +255,8 @@ mod tests {
 
         // Configure the sharder to return shards containing the mock write
         // buffer.
-        let shard = Arc::new(Sequencer::new(
-            KafkaPartition::new(0),
+        let shard = Arc::new(Shard::new(
+            ShardIndex::new(0),
             Arc::new(write_buffer),
             &Default::default(),
         ));
@@ -279,7 +282,7 @@ mod tests {
         // All writes were dispatched to the same shard, which should observe
         // one op containing all writes lines (asserting that all the writes for
         // one shard are collated into one op).
-        let mut got = write_buffer_state.get_messages(shard.kafka_index().get() as _);
+        let mut got = write_buffer_state.get_messages(shard.shard_index());
         assert_eq!(got.len(), 1);
         let got = got
             .pop()
@@ -304,8 +307,8 @@ mod tests {
         // Configure the first shard to write to one write buffer
         let write_buffer1 = init_write_buffer(1);
         let write_buffer1_state = write_buffer1.state();
-        let shard1 = Arc::new(Sequencer::new(
-            KafkaPartition::new(0),
+        let shard1 = Arc::new(Shard::new(
+            ShardIndex::new(0),
             Arc::new(write_buffer1),
             &Default::default(),
         ));
@@ -314,8 +317,8 @@ mod tests {
         // order to see which buffer saw what write.
         let write_buffer2 = init_write_buffer(2);
         let write_buffer2_state = write_buffer2.state();
-        let shard2 = Arc::new(Sequencer::new(
-            KafkaPartition::new(1),
+        let shard2 = Arc::new(Shard::new(
+            ShardIndex::new(1),
             Arc::new(write_buffer2),
             &Default::default(),
         ));
@@ -352,7 +355,7 @@ mod tests {
             .any(|v| v.table_name == "table" && v.payload.mutable_batch().rows() == 1));
 
         // The write buffer for shard 1 should observe 1 write containing 3 rows.
-        let mut got = write_buffer1_state.get_messages(shard1.kafka_index().get() as _);
+        let mut got = write_buffer1_state.get_messages(shard1.shard_index());
         assert_eq!(got.len(), 1);
         let got = got
             .pop()
@@ -363,7 +366,7 @@ mod tests {
         });
 
         // The second shard should observe 1 write containing 1 row.
-        let mut got = write_buffer2_state.get_messages(shard2.kafka_index().get() as _);
+        let mut got = write_buffer2_state.get_messages(shard2.shard_index());
         assert_eq!(got.len(), 1);
         let got = got
             .pop()
@@ -386,17 +389,17 @@ mod tests {
         // Configure the first shard to write to one write buffer
         let write_buffer1 = init_write_buffer(1);
         let write_buffer1_state = write_buffer1.state();
-        let shard1 = Arc::new(Sequencer::new(
-            KafkaPartition::new(0),
+        let shard1 = Arc::new(Shard::new(
+            ShardIndex::new(0),
             Arc::new(write_buffer1),
             &Default::default(),
         ));
 
         // Configure the second shard to write to a write buffer that always fails
         let write_buffer2 = init_write_buffer(1);
-        // Non-existant sequencer ID to trigger an error.
-        let shard2 = Arc::new(Sequencer::new(
-            KafkaPartition::new(13),
+        // Non-existent shard index to trigger an error.
+        let shard2 = Arc::new(Shard::new(
+            ShardIndex::new(13),
             Arc::new(write_buffer2),
             &Default::default(),
         ));
@@ -420,7 +423,7 @@ mod tests {
 
         // The write buffer for shard 1 should observe 1 write independent of
         // the second, erroring shard.
-        let got = write_buffer1_state.get_messages(shard1.kafka_index().get() as _);
+        let got = write_buffer1_state.get_messages(shard1.shard_index());
         assert_eq!(got.len(), 1);
     }
 
@@ -438,8 +441,8 @@ mod tests {
 
         // Configure the sharder to return shards containing the mock write
         // buffer.
-        let shard = Arc::new(Sequencer::new(
-            KafkaPartition::new(0),
+        let shard = Arc::new(Shard::new(
+            ShardIndex::new(0),
             Arc::new(write_buffer),
             &Default::default(),
         ));
@@ -462,7 +465,7 @@ mod tests {
         // All writes were dispatched to the same shard, which should observe
         // one op containing all writes lines (asserting that all the writes for
         // one shard are collated into one op).
-        let mut got = write_buffer_state.get_messages(shard.kafka_index().get() as _);
+        let mut got = write_buffer_state.get_messages(shard.shard_index());
         assert_eq!(got.len(), 1);
         let got = got
             .pop()
@@ -486,8 +489,8 @@ mod tests {
 
         // Configure the sharder to return shards containing the mock write
         // buffer.
-        let shard = Arc::new(Sequencer::new(
-            KafkaPartition::new(0),
+        let shard = Arc::new(Shard::new(
+            ShardIndex::new(0),
             Arc::new(write_buffer),
             &Default::default(),
         ));
@@ -513,7 +516,7 @@ mod tests {
         // one shard are collated into one op).
         //
         // The table name should be None as it was specified as an empty string.
-        let mut got = write_buffer_state.get_messages(shard.kafka_index().get() as _);
+        let mut got = write_buffer_state.get_messages(shard.shard_index());
         assert_eq!(got.len(), 1);
         let got = got
             .pop()
@@ -526,10 +529,10 @@ mod tests {
     }
 
     #[derive(Debug)]
-    struct MultiDeleteSharder(Vec<Arc<Sequencer>>);
+    struct MultiDeleteSharder(Vec<Arc<Shard>>);
 
     impl Sharder<DeletePredicate> for MultiDeleteSharder {
-        type Item = Vec<Arc<Sequencer>>;
+        type Item = Vec<Arc<Shard>>;
 
         fn shard(
             &self,
@@ -542,7 +545,7 @@ mod tests {
     }
 
     impl Sharder<MutableBatch> for MultiDeleteSharder {
-        type Item = Arc<Sequencer>;
+        type Item = Arc<Shard>;
 
         fn shard(
             &self,
@@ -566,8 +569,8 @@ mod tests {
         // Configure the first shard to write to one write buffer
         let write_buffer1 = init_write_buffer(1);
         let write_buffer1_state = write_buffer1.state();
-        let shard1 = Arc::new(Sequencer::new(
-            KafkaPartition::new(0),
+        let shard1 = Arc::new(Shard::new(
+            ShardIndex::new(0),
             Arc::new(write_buffer1),
             &Default::default(),
         ));
@@ -575,8 +578,8 @@ mod tests {
         // Configure the second shard to write to another write buffer
         let write_buffer2 = init_write_buffer(1);
         let write_buffer2_state = write_buffer2.state();
-        let shard2 = Arc::new(Sequencer::new(
-            KafkaPartition::new(0),
+        let shard2 = Arc::new(Shard::new(
+            ShardIndex::new(0),
             Arc::new(write_buffer2),
             &Default::default(),
         ));
@@ -592,7 +595,7 @@ mod tests {
             .expect("delete failed");
 
         // The write buffer for shard 1 should observe the delete
-        let mut got = write_buffer1_state.get_messages(shard1.kafka_index().get() as _);
+        let mut got = write_buffer1_state.get_messages(shard1.shard_index());
         assert_eq!(got.len(), 1);
         let got = got
             .pop()
@@ -601,7 +604,7 @@ mod tests {
         assert_matches!(got, DmlOperation::Delete(_));
 
         // The second shard should observe the delete as well
-        let mut got = write_buffer2_state.get_messages(shard2.kafka_index().get() as _);
+        let mut got = write_buffer2_state.get_messages(shard2.shard_index());
         assert_eq!(got.len(), 1);
         let got = got
             .pop()
@@ -622,17 +625,17 @@ mod tests {
         // Configure the first shard to write to one write buffer
         let write_buffer1 = init_write_buffer(1);
         let write_buffer1_state = write_buffer1.state();
-        let shard1 = Arc::new(Sequencer::new(
-            KafkaPartition::new(0),
+        let shard1 = Arc::new(Shard::new(
+            ShardIndex::new(0),
             Arc::new(write_buffer1),
             &Default::default(),
         ));
 
         // Configure the second shard to write to a write buffer that always fails
         let write_buffer2 = init_write_buffer(1);
-        // Non-existant sequencer ID to trigger an error.
-        let shard2 = Arc::new(Sequencer::new(
-            KafkaPartition::new(13),
+        // Non-existent shard index to trigger an error.
+        let shard2 = Arc::new(Shard::new(
+            ShardIndex::new(13),
             Arc::new(write_buffer2),
             &Default::default(),
         ));
@@ -653,7 +656,7 @@ mod tests {
         });
 
         // The write buffer for shard 1 will still observer the delete.
-        let got = write_buffer1_state.get_messages(shard1.kafka_index().get() as _);
+        let got = write_buffer1_state.get_messages(shard1.shard_index());
         assert_eq!(got.len(), 1);
     }
 }

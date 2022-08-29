@@ -3,7 +3,7 @@
 use super::DmlSink;
 use crate::{data::IngesterData, lifecycle::LifecycleHandleImpl};
 use async_trait::async_trait;
-use data_types::SequencerId;
+use data_types::ShardId;
 use dml::DmlOperation;
 use std::sync::Arc;
 
@@ -12,7 +12,7 @@ use std::sync::Arc;
 pub struct IngestSinkAdaptor {
     ingest_data: Arc<IngesterData>,
     lifecycle_handle: LifecycleHandleImpl,
-    sequencer_id: SequencerId,
+    shard_id: ShardId,
 }
 
 impl IngestSinkAdaptor {
@@ -21,12 +21,12 @@ impl IngestSinkAdaptor {
     pub fn new(
         ingest_data: Arc<IngesterData>,
         lifecycle_handle: LifecycleHandleImpl,
-        sequencer_id: SequencerId,
+        shard_id: ShardId,
     ) -> Self {
         Self {
             ingest_data,
             lifecycle_handle,
-            sequencer_id,
+            shard_id,
         }
     }
 }
@@ -35,7 +35,7 @@ impl IngestSinkAdaptor {
 impl DmlSink for IngestSinkAdaptor {
     async fn apply(&self, op: DmlOperation) -> Result<bool, crate::data::Error> {
         self.ingest_data
-            .buffer_operation(self.sequencer_id, op, &self.lifecycle_handle)
+            .buffer_operation(self.shard_id, op, &self.lifecycle_handle)
             .await
     }
 }

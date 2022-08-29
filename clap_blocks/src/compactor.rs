@@ -17,7 +17,7 @@ macro_rules! gen_compactor_config {
         #[derive(Debug, Clone, clap::Parser)]
         pub struct $name {
             /// Write buffer topic/database that the compactor will be compacting files for. It
-            /// won't connect to Kafka, but uses this to get the sequencers out of the catalog.
+            /// won't connect to Kafka, but uses this to get the shards out of the catalog.
             #[clap(
                 long = "--write-buffer-topic",
                 env = "INFLUXDB_IOX_WRITE_BUFFER_TOPIC",
@@ -26,21 +26,21 @@ macro_rules! gen_compactor_config {
             )]
             pub topic: String,
 
-            /// Write buffer partition number to start (inclusive) range with
+            /// Write buffer shard index to start (inclusive) range with
             #[clap(
-                long = "--write-buffer-partition-range-start",
-                env = "INFLUXDB_IOX_WRITE_BUFFER_PARTITION_RANGE_START",
+                long = "--shard-index-range-start",
+                env = "INFLUXDB_IOX_SHARD_INDEX_RANGE_START",
                 action
             )]
-            pub write_buffer_partition_range_start: i32,
+            pub shard_index_range_start: i32,
 
-            /// Write buffer partition number to end (inclusive) range with
+            /// Write buffer shard index to end (inclusive) range with
             #[clap(
-                long = "--write-buffer-partition-range-end",
-                env = "INFLUXDB_IOX_WRITE_BUFFER_PARTITION_RANGE_END",
+                long = "--shard-index-range-end",
+                env = "INFLUXDB_IOX_SHARD_INDEX_RANGE_END",
                 action
             )]
-            pub write_buffer_partition_range_end: i32,
+            pub shard_index_range_end: i32,
 
             /// Desired max size of compacted parquet files.
             /// It is a target desired value, rather than a guarantee.
@@ -116,15 +116,15 @@ macro_rules! gen_compactor_config {
             )]
             pub max_cold_concurrent_size_bytes: u64,
 
-            /// Max number of partitions per sequencer we want to compact per cycle
+            /// Max number of partitions per shard we want to compact per cycle
             /// Default: 1
             #[clap(
-                long = "--compaction-max-number-partitions-per-sequencer",
-                env = "INFLUXDB_IOX_COMPACTION_MAX_NUMBER_PARTITIONS_PER_SEQUENCER",
+                long = "--compaction-max-number-partitions-per-shard",
+                env = "INFLUXDB_IOX_COMPACTION_MAX_NUMBER_PARTITIONS_PER_SHARD",
                 default_value = "1",
                 action
             )]
-            pub max_number_partitions_per_sequencer: usize,
+            pub max_number_partitions_per_shard: usize,
 
             /// Min number of recent ingested files a partition needs to be considered for
             /// compacting
@@ -223,14 +223,14 @@ impl CompactorOnceConfig {
     pub fn into_compactor_config(self) -> CompactorConfig {
         CompactorConfig {
             topic: self.topic,
-            write_buffer_partition_range_start: self.write_buffer_partition_range_start,
-            write_buffer_partition_range_end: self.write_buffer_partition_range_end,
+            shard_index_range_start: self.shard_index_range_start,
+            shard_index_range_end: self.shard_index_range_end,
             max_desired_file_size_bytes: self.max_desired_file_size_bytes,
             percentage_max_file_size: self.percentage_max_file_size,
             split_percentage: self.split_percentage,
             max_concurrent_size_bytes: self.max_concurrent_size_bytes,
             max_cold_concurrent_size_bytes: self.max_cold_concurrent_size_bytes,
-            max_number_partitions_per_sequencer: self.max_number_partitions_per_sequencer,
+            max_number_partitions_per_shard: self.max_number_partitions_per_shard,
             min_number_recent_ingested_files_per_partition: self
                 .min_number_recent_ingested_files_per_partition,
             input_size_threshold_bytes: self.input_size_threshold_bytes,

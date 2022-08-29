@@ -166,9 +166,7 @@ mod tests {
     use crate::metadata::IoxParquetMetaData;
     use arrow::array::{ArrayRef, StringArray};
     use bytes::Bytes;
-    use data_types::{
-        CompactionLevel, NamespaceId, PartitionId, SequenceNumber, SequencerId, TableId,
-    };
+    use data_types::{CompactionLevel, NamespaceId, PartitionId, SequenceNumber, ShardId, TableId};
     use iox_time::Time;
     use parquet::{
         arrow::{ArrowReader, ParquetFileArrowReader},
@@ -183,7 +181,7 @@ mod tests {
             creation_timestamp: Time::from_timestamp_nanos(42),
             namespace_id: NamespaceId::new(1),
             namespace_name: "bananas".into(),
-            sequencer_id: SequencerId::new(2),
+            shard_id: ShardId::new(2),
             table_id: TableId::new(3),
             table_name: "platanos".into(),
             partition_id: PartitionId::new(4),

@@ -1,9 +1,9 @@
-//! An implementation of the "consumer-end" of the sequencer - pulling messages
-//! from the sequencer, decoding the [`DmlOperation`] within and applying them
+//! An implementation of the "consumer-end" of the shard - pulling messages
+//! from the shard, decoding the [`DmlOperation`] within and applying them
 //! to in-memory state.
 //!
 //! A [`SequencedStreamHandler`] is responsible for consuming messages from the
-//! sequencer (through the [`WriteBufferReading`] interface), decoding them to
+//! shard (through the [`WriteBufferReading`] interface), decoding them to
 //! [`DmlOperation`] instances and pushing them to the [`DmlSink`] for further
 //! processing and buffering.
 //!

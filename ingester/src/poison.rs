@@ -1,4 +1,4 @@
-use data_types::KafkaPartition;
+use data_types::ShardIndex;
 use futures::Future;
 use parking_lot::{RwLock, RwLockUpgradableReadGuard};
 use pin_project::pin_project;
@@ -12,8 +12,8 @@ use std::{
 pub enum PoisonPill {
     LifecyclePanic,
     LifecycleExit,
-    StreamPanic(KafkaPartition),
-    StreamExit(KafkaPartition),
+    StreamPanic(ShardIndex),
+    StreamExit(ShardIndex),
 }
 
 #[derive(Debug)]

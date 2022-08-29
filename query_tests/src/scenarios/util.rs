@@ -3,8 +3,8 @@ use super::DbScenario;
 use async_trait::async_trait;
 use backoff::BackoffConfig;
 use data_types::{
-    DeletePredicate, IngesterMapping, KafkaPartition, NonEmptyString, ParquetFileId, PartitionId,
-    PartitionKey, Sequence, SequenceNumber, SequencerId, TombstoneId,
+    DeletePredicate, IngesterMapping, NonEmptyString, ParquetFileId, PartitionId, PartitionKey,
+    Sequence, SequenceNumber, ShardId, ShardIndex, TombstoneId,
 };
 use dml::{DmlDelete, DmlMeta, DmlOperation, DmlWrite};
 use futures::StreamExt;
@@ -14,15 +14,13 @@ use generated_types::{
 };
 use influxdb_iox_client::flight::{low_level::LowLevelMessage, Error as FlightError};
 use ingester::{
-    data::{
-        FlatIngesterQueryResponse, IngesterData, IngesterQueryResponse, Persister, SequencerData,
-    },
+    data::{FlatIngesterQueryResponse, IngesterData, IngesterQueryResponse, Persister, ShardData},
     lifecycle::LifecycleHandle,
     querier_handler::prepare_data_to_querier,
 };
 use iox_catalog::interface::get_schema_by_name;
 use iox_query::exec::{Executor, ExecutorConfig};
-use iox_tests::util::{TestCatalog, TestNamespace, TestSequencer};
+use iox_tests::util::{TestCatalog, TestNamespace, TestShard};
 use itertools::Itertools;
 use mutable_batch_lp::LinesConverter;
 use once_cell::sync::Lazy;
@@ -652,8 +650,8 @@ struct MockIngester {
     /// Namespace used for testing.
     ns: Arc<TestNamespace>,
 
-    /// Sequencer used for testing.
-    sequencer: Arc<TestSequencer>,
+    /// Shard used for testing.
+    shard: Arc<TestShard>,
 
     /// Memory of partition keys for certain sequence numbers.
     ///
@@ -690,19 +688,16 @@ impl MockIngester {
         let exec = Arc::clone(&GLOBAL_EXEC);
         let catalog = TestCatalog::with_exec(exec);
         let ns = catalog.create_namespace("test_db").await;
-        let sequencer = ns.create_sequencer(1).await;
+        let shard = ns.create_shard(1).await;
 
-        let sequencers = BTreeMap::from([(
-            sequencer.sequencer.id,
-            SequencerData::new(
-                sequencer.sequencer.kafka_partition,
-                catalog.metric_registry(),
-            ),
+        let shards = BTreeMap::from([(
+            shard.shard.id,
+            ShardData::new(shard.shard.shard_index, catalog.metric_registry()),
         )]);
         let ingester_data = Arc::new(IngesterData::new(
             catalog.object_store(),
             catalog.catalog(),
-            sequencers,
+            shards,
             catalog.exec(),
             BackoffConfig::default(),
             catalog.metric_registry(),
@@ -711,7 +706,7 @@ impl MockIngester {
         Self {
             catalog,
             ns,
-            sequencer,
+            shard,
             partition_keys: Default::default(),
             ingester_data,
             sequence_counter: 0,
@@ -730,11 +725,7 @@ impl MockIngester {
 
         let should_pause = self
             .ingester_data
-            .buffer_operation(
-                self.sequencer.sequencer.id,
-                dml_operation,
-                &lifecycle_handle,
-            )
+            .buffer_operation(self.shard.shard.id, dml_operation, &lifecycle_handle)
             .await
             .unwrap();
         assert!(!should_pause);
@@ -819,7 +810,7 @@ impl MockIngester {
         let mut partition_ids = vec![];
         for table in &tables {
             let partition = table
-                .with_sequencer(&self.sequencer)
+                .with_shard(&self.shard)
                 .create_partition(partition_key)
                 .await;
             partition_ids.push(partition.partition.id);
@@ -841,7 +832,7 @@ impl MockIngester {
         self.partition_keys
             .insert(sequence_number, partition_key.to_string());
         let meta = DmlMeta::sequenced(
-            Sequence::new(self.sequencer.sequencer.id.get() as u32, sequence_number),
+            Sequence::new(self.shard.shard.shard_index, sequence_number),
             self.catalog.time_provider().now(),
             None,
             0,
@@ -866,7 +857,7 @@ impl MockIngester {
 
         let sequence_number = self.next_sequence_number();
         let meta = DmlMeta::sequenced(
-            Sequence::new(self.sequencer.sequencer.id.get() as u32, sequence_number),
+            Sequence::new(self.shard.shard.shard_index, sequence_number),
             self.catalog.time_provider().now(),
             None,
             0,
@@ -935,17 +926,20 @@ impl MockIngester {
             self.catalog.metric_registry(),
             &Handle::current(),
         ));
-        let sequencer_to_ingesters = [(0, IngesterMapping::Addr(Arc::from("some_address")))]
-            .into_iter()
-            .collect();
+        let shard_to_ingesters = [(
+            ShardIndex::new(0),
+            IngesterMapping::Addr(Arc::from("some_address")),
+        )]
+        .into_iter()
+        .collect();
         let load_settings = self.querier_load_settings.clone();
-        let ingester_connection = IngesterConnectionImpl::by_sequencer_with_flight_client(
-            sequencer_to_ingesters,
+        let ingester_connection = IngesterConnectionImpl::by_shard_with_flight_client(
+            shard_to_ingesters,
             Arc::new(self),
             Arc::clone(&catalog_cache),
         );
         let ingester_connection = Arc::new(ingester_connection);
-        let sharder = Arc::new(JumpHash::new((0..1).map(KafkaPartition::new).map(Arc::new)));
+        let sharder = Arc::new(JumpHash::new((0..1).map(ShardIndex::new).map(Arc::new)));
 
         Arc::new(QuerierNamespace::new_testing(
             catalog_cache,
@@ -971,7 +965,7 @@ impl LifecycleHandle for NoopLifecycleHandle {
     fn log_write(
         &self,
         _partition_id: PartitionId,
-        _sequencer_id: SequencerId,
+        _shard_id: ShardId,
         _sequence_number: SequenceNumber,
         _bytes_written: usize,
     ) -> bool {

@@ -1,11 +1,9 @@
 use self::generated_types::{shard_service_client::ShardServiceClient, *};
-
-use std::{collections::HashMap, fmt::Write, ops::DerefMut, sync::Arc};
-
+use crate::{AggregateTSMMeasurement, AggregateTSMSchema};
 use chrono::{format::StrftimeItems, offset::FixedOffset, DateTime, Duration};
 use data_types::{
     org_and_bucket_to_database, ColumnType, KafkaTopicId, Namespace, NamespaceSchema,
-    OrgBucketMappingError, Partition, PartitionKey, QueryPoolId, SequencerId, TableSchema,
+    OrgBucketMappingError, Partition, PartitionKey, QueryPoolId, ShardId, TableSchema,
 };
 use influxdb_iox_client::connection::Connection;
 use iox_catalog::interface::{get_schema_by_name, Catalog, ColumnUpsertRequest, RepoCollection};
@@ -13,9 +11,8 @@ use schema::{
     sort::{adjust_sort_key_columns, SortKey, SortKeyBuilder},
     InfluxColumnType, InfluxFieldType, TIME_COLUMN_NAME,
 };
+use std::{collections::HashMap, fmt::Write, ops::DerefMut, sync::Arc};
 use thiserror::Error;
-
-use crate::{AggregateTSMMeasurement, AggregateTSMSchema};
 
 pub mod generated_types {
     pub use generated_types::influxdata::iox::sharder::v1::*;
@@ -44,7 +41,7 @@ pub enum UpdateCatalogError {
     #[error("Time calculation error when deriving partition key: {0}")]
     PartitionKeyCalculationError(String),
 
-    #[error("Error fetching sequencer ID from shard service: {0}")]
+    #[error("Error fetching shard ID from shard service: {0}")]
     ShardServiceError(#[from] tonic::Status),
 }
 
@@ -99,7 +96,7 @@ pub async fn update_iox_catalog<'a>(
         }
     };
     // initialise a client of the shard service in the router. we will use it to find out which
-    // sequencer a table/namespace combo would shard to, without exposing the implementation
+    // shard a table/namespace combo would shard to, without exposing the implementation
     // details of the sharding
     let mut shard_client = ShardServiceClient::new(connection);
     update_catalog_schema_with_merged(
@@ -279,18 +276,18 @@ where
         let partition_keys =
             get_partition_keys_for_range(measurement.earliest_time, measurement.latest_time)?;
         let response = shard_client
-            .shard_to_sequencer_id(tonic::Request::new(ShardToSequencerIdRequest {
+            .map_to_shard(tonic::Request::new(MapToShardRequest {
                 table_name: measurement_name.clone(),
                 namespace_name: namespace_name.to_string(),
             }))
             .await?;
-        let sequencer_id = response.into_inner().sequencer_id;
+        let shard_id = ShardId::new(response.into_inner().shard_id);
         for partition_key in partition_keys {
             // create the partition if it doesn't exist; new partitions get an empty sort key which
             // gets matched as `None`` in the code below
             let partition = repos
                 .partitions()
-                .create_or_get(partition_key, SequencerId::new(sequencer_id as _), table.id)
+                .create_or_get(partition_key, shard_id, table.id)
                 .await
                 .map_err(UpdateCatalogError::CatalogError)?;
             // get the sort key from the partition, if it exists. create it or update it as
@@ -403,28 +400,25 @@ fn datetime_to_partition_key(
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::HashSet, net::SocketAddr};
-
-    use crate::{AggregateTSMField, AggregateTSMTag};
-
     use super::{generated_types::shard_service_server::ShardService, *};
-
+    use crate::{AggregateTSMField, AggregateTSMTag};
     use assert_matches::assert_matches;
     use client_util::connection::Builder;
     use data_types::{PartitionId, TableId};
     use iox_catalog::mem::MemCatalog;
     use parking_lot::RwLock;
+    use std::{collections::HashSet, net::SocketAddr};
     use tokio::task::JoinHandle;
     use tokio_stream::wrappers::TcpListenerStream;
     use tonic::transport::Server;
 
     struct MockShardService {
-        requests: Arc<RwLock<Vec<ShardToSequencerIdRequest>>>,
-        reply_with: ShardToSequencerIdResponse,
+        requests: Arc<RwLock<Vec<MapToShardRequest>>>,
+        reply_with: MapToShardResponse,
     }
 
     impl MockShardService {
-        pub fn new(response: ShardToSequencerIdResponse) -> Self {
+        pub fn new(response: MapToShardResponse) -> Self {
             MockShardService {
                 requests: Arc::new(RwLock::new(vec![])),
                 reply_with: response,
@@ -434,7 +428,7 @@ mod tests {
         /// Use to replace the next reply with the given response (not currently used but would be
         /// handy for expanded tests)
         #[allow(dead_code)]
-        pub fn with_reply(mut self, response: ShardToSequencerIdResponse) -> Self {
+        pub fn with_reply(mut self, response: MapToShardResponse) -> Self {
             self.reply_with = response;
             self
         }
@@ -442,28 +436,28 @@ mod tests {
         /// Get all the requests that were made to the mock (not currently used but would be handy
         /// for expanded tests)
         #[allow(dead_code)]
-        pub fn get_requests(&self) -> Arc<RwLock<Vec<ShardToSequencerIdRequest>>> {
+        pub fn get_requests(&self) -> Arc<RwLock<Vec<MapToShardRequest>>> {
             Arc::clone(&self.requests)
         }
     }
 
     #[tonic::async_trait]
     impl ShardService for MockShardService {
-        async fn shard_to_sequencer_id(
+        async fn map_to_shard(
             &self,
-            request: tonic::Request<ShardToSequencerIdRequest>,
-        ) -> Result<tonic::Response<ShardToSequencerIdResponse>, tonic::Status> {
+            request: tonic::Request<MapToShardRequest>,
+        ) -> Result<tonic::Response<MapToShardResponse>, tonic::Status> {
             self.requests.write().push(request.into_inner());
             Ok(tonic::Response::new(self.reply_with.clone()))
         }
     }
 
     async fn create_test_shard_service(
-        response: ShardToSequencerIdResponse,
+        response: MapToShardResponse,
     ) -> (
         Connection,
         JoinHandle<()>,
-        Arc<RwLock<Vec<ShardToSequencerIdRequest>>>,
+        Arc<RwLock<Vec<MapToShardRequest>>>,
     ) {
         let bind_addr = SocketAddr::new(
             std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1)),
@@ -501,12 +495,11 @@ mod tests {
             .create_or_get("iox_shared")
             .await
             .expect("topic created");
-        let (connection, _join_handle, _requests) =
-            create_test_shard_service(ShardToSequencerIdResponse {
-                sequencer_id: 0,
-                sequencer_index: 0,
-            })
-            .await;
+        let (connection, _join_handle, _requests) = create_test_shard_service(MapToShardResponse {
+            shard_id: 0,
+            shard_index: 0,
+        })
+        .await;
 
         let json = r#"
         {
@@ -588,12 +581,11 @@ mod tests {
             .create_or_get("iox_shared")
             .await
             .expect("topic created");
-        let (connection, _join_handle, _requests) =
-            create_test_shard_service(ShardToSequencerIdResponse {
-                sequencer_id: 0,
-                sequencer_index: 0,
-            })
-            .await;
+        let (connection, _join_handle, _requests) = create_test_shard_service(MapToShardResponse {
+            shard_id: 0,
+            shard_index: 0,
+        })
+        .await;
 
         // create namespace, table and columns for weather measurement
         let namespace = txn
@@ -699,12 +691,11 @@ mod tests {
             .create_or_get("iox_shared")
             .await
             .expect("topic created");
-        let (connection, _join_handle, _requests) =
-            create_test_shard_service(ShardToSequencerIdResponse {
-                sequencer_id: 0,
-                sequencer_index: 0,
-            })
-            .await;
+        let (connection, _join_handle, _requests) = create_test_shard_service(MapToShardResponse {
+            shard_id: 0,
+            shard_index: 0,
+        })
+        .await;
 
         // create namespace, table and columns for weather measurement
         let namespace = txn
@@ -786,12 +777,11 @@ mod tests {
             .create_or_get("iox_shared")
             .await
             .expect("topic created");
-        let (connection, _join_handle, _requests) =
-            create_test_shard_service(ShardToSequencerIdResponse {
-                sequencer_id: 0,
-                sequencer_index: 0,
-            })
-            .await;
+        let (connection, _join_handle, _requests) = create_test_shard_service(MapToShardResponse {
+            shard_id: 0,
+            shard_index: 0,
+        })
+        .await;
 
         // create namespace, table and columns for weather measurement
         let namespace = txn
@@ -871,12 +861,11 @@ mod tests {
             .create_or_get("iox_shared")
             .await
             .expect("topic created");
-        let (connection, _join_handle, _requests) =
-            create_test_shard_service(ShardToSequencerIdResponse {
-                sequencer_id: 0,
-                sequencer_index: 0,
-            })
-            .await;
+        let (connection, _join_handle, _requests) = create_test_shard_service(MapToShardResponse {
+            shard_id: 0,
+            shard_index: 0,
+        })
+        .await;
 
         let json = r#"
         {
@@ -922,12 +911,11 @@ mod tests {
             .create_or_get("iox_shared")
             .await
             .expect("topic created");
-        let (connection, _join_handle, _requests) =
-            create_test_shard_service(ShardToSequencerIdResponse {
-                sequencer_id: 0,
-                sequencer_index: 0,
-            })
-            .await;
+        let (connection, _join_handle, _requests) = create_test_shard_service(MapToShardResponse {
+            shard_id: 0,
+            shard_index: 0,
+        })
+        .await;
 
         let json = r#"
         {
@@ -962,7 +950,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn sequencer_lookup() {
+    async fn shard_lookup() {
         // init a test catalog stack
         let metrics = Arc::new(metric::Registry::default());
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
@@ -973,12 +961,11 @@ mod tests {
             .create_or_get("iox_shared")
             .await
             .expect("topic created");
-        let (connection, _join_handle, requests) =
-            create_test_shard_service(ShardToSequencerIdResponse {
-                sequencer_id: 0,
-                sequencer_index: 0,
-            })
-            .await;
+        let (connection, _join_handle, requests) = create_test_shard_service(MapToShardResponse {
+            shard_id: 0,
+            shard_index: 0,
+        })
+        .await;
 
         let json = r#"
         {
@@ -1018,7 +1005,7 @@ mod tests {
         )
         .await
         .expect("schema update worked");
-        // check that a request was made for the two sequencer lookups for the tables
+        // check that a request was made for the two shard lookups for the tables
         let requests = requests.read();
         assert_eq!(requests.len(), 2);
         let cpu_req = requests
@@ -1337,7 +1324,7 @@ mod tests {
         };
         let partition = Partition {
             id: PartitionId::new(1),
-            sequencer_id: SequencerId::new(1),
+            shard_id: ShardId::new(1),
             table_id: TableId::new(1),
             partition_key: PartitionKey::from("2022-06-21"),
             // N.B. empty sort key at this point; will return as None from the getter and will be
@@ -1385,7 +1372,7 @@ mod tests {
         };
         let partition = Partition {
             id: PartitionId::new(1),
-            sequencer_id: SequencerId::new(1),
+            shard_id: ShardId::new(1),
             table_id: TableId::new(1),
             partition_key: PartitionKey::from("2022-06-21"),
             // N.B. sort key is already what it will computed to; here we're testing the `adjust_sort_key_columns` code path
@@ -1431,7 +1418,7 @@ mod tests {
         };
         let partition = Partition {
             id: PartitionId::new(1),
-            sequencer_id: SequencerId::new(1),
+            shard_id: ShardId::new(1),
             table_id: TableId::new(1),
             partition_key: PartitionKey::from("2022-06-21"),
             // N.B. is missing host so will need updating
@@ -1479,7 +1466,7 @@ mod tests {
         };
         let partition = Partition {
             id: PartitionId::new(1),
-            sequencer_id: SequencerId::new(1),
+            shard_id: ShardId::new(1),
             table_id: TableId::new(1),
             partition_key: PartitionKey::from("2022-06-21"),
             // N.B. is missing arch so will need updating

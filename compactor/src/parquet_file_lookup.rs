@@ -84,41 +84,41 @@ mod tests {
     struct TestSetup {
         catalog: Arc<TestCatalog>,
         partition: Arc<TestPartition>,
-        partition_on_another_sequencer: Arc<TestPartition>,
+        partition_on_another_shard: Arc<TestPartition>,
         older_partition: Arc<TestPartition>,
     }
 
     async fn test_setup() -> TestSetup {
         let catalog = TestCatalog::new();
         let ns = catalog.create_namespace("ns").await;
-        let sequencer = ns.create_sequencer(1).await;
-        let another_sequencer = ns.create_sequencer(2).await;
+        let shard = ns.create_shard(1).await;
+        let another_shard = ns.create_shard(2).await;
         let table = ns.create_table("table").await;
         table.create_column("field_int", ColumnType::I64).await;
         table.create_column("tag1", ColumnType::Tag).await;
         table.create_column("time", ColumnType::Time).await;
 
         let partition = table
-            .with_sequencer(&sequencer)
+            .with_shard(&shard)
             .create_partition("2022-07-13")
             .await;
 
-        // Same partition key, but associated with a different sequencer
-        let partition_on_another_sequencer = table
-            .with_sequencer(&another_sequencer)
+        // Same partition key, but associated with a different shard
+        let partition_on_another_shard = table
+            .with_shard(&another_shard)
             .create_partition("2022-07-13")
             .await;
 
-        // Same sequencer, but for an older partition key
+        // Same shard, but for an older partition key
         let older_partition = table
-            .with_sequencer(&sequencer)
+            .with_shard(&shard)
             .create_partition("2022-07-12")
             .await;
 
         TestSetup {
             catalog,
             partition,
-            partition_on_another_sequencer,
+            partition_on_another_shard,
             older_partition,
         }
     }
@@ -129,15 +129,15 @@ mod tests {
         let TestSetup {
             catalog,
             partition,
-            partition_on_another_sequencer,
+            partition_on_another_shard,
             older_partition,
         } = test_setup().await;
 
         // Create some files that shouldn't be returned:
 
-        // - parquet file for another sequencer's partition
+        // - parquet file for another shard's partition
         let builder = TestParquetFileBuilder::default().with_line_protocol(ARBITRARY_LINE_PROTOCOL);
-        partition_on_another_sequencer
+        partition_on_another_shard
             .create_parquet_file(builder)
             .await;
 

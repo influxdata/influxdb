@@ -14,42 +14,44 @@ service WriteInfoService {
 
 message GetWriteInfoRequest {
   // The write token returned from a write that was written to one or
-  // more kafka partitions
+  // more shards
   string write_token = 1;
 }
 
 message GetWriteInfoResponse {
-  // Information for all partitions in this write
-  repeated KafkaPartitionInfo kafka_partition_infos = 3;
+  // Renamed from kafka_partition_infos to shard_infos
+  reserved 3;
+  reserved "kafka_partition_infos";
+
+  // Information for all shards in this write
+  repeated ShardInfo shard_infos = 4;
 }
 
+// Status of a part of a write in a particular shard
+message ShardInfo {
+  // Unique shard index
+  int32 shard_index = 1;
 
-// Status of a part of a write for in a particular kafka partition
-message KafkaPartitionInfo {
-  // Unique kafka partition id
-  int32 kafka_partition_id = 1;
-
-  // the status of the data for this partition
-  KafkaPartitionStatus status = 2;
+  // the status of the data for this shard
+  ShardStatus status = 2;
 }
 
 // the state
-enum KafkaPartitionStatus {
+enum ShardStatus {
   // Unspecified status, will result in an error.
-  KAFKA_PARTITION_STATUS_UNSPECIFIED = 0;
+  SHARD_STATUS_UNSPECIFIED = 0;
 
   // The ingester has not yet processed data in this write
-  KAFKA_PARTITION_STATUS_DURABLE = 1;
+  SHARD_STATUS_DURABLE = 1;
 
   // The ingester has processed the data in this write and it is
   // readable (will be included in a query response)?
-  KAFKA_PARTITION_STATUS_READABLE = 2;
+  SHARD_STATUS_READABLE = 2;
 
   // The ingester has processed the data in this write and it is both
   // readable and completly persisted to parquet files.
-  KAFKA_PARTITION_STATUS_PERSISTED = 3;
+  SHARD_STATUS_PERSISTED = 3;
 
-  // The ingester does not have information about this kafka
-  // partition
-  KAFKA_PARTITION_STATUS_UNKNOWN = 4;
+  // The ingester does not have information about this shard
+  SHARD_STATUS_UNKNOWN = 4;
 }

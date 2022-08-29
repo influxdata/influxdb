@@ -1,19 +1,19 @@
 use data_types::SequenceNumber;
 
-/// Information on how much data a particular sequencer has been processed
+/// Information on how much data a particular shard has processed
 ///
 /// ```text
 /// Write Lifecycle (compaction not shown):
 ///
 /// Durable --------------> Readable -------------> Persisted
 ///
-///  in sequencer,          in memory, not yet      in parquet
+///  in shard,          in memory, not yet      in parquet
 ///  not readable.          in parquet
 /// ```
 ///
 /// Note: min_readable_sequence_number <= min_totally_persisted_sequence_number
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
-pub struct SequencerProgress {
+pub struct ShardProgress {
     /// Smallest sequence number of data that is buffered in memory
     min_buffered: Option<SequenceNumber>,
 
@@ -23,14 +23,14 @@ pub struct SequencerProgress {
     /// Largest sequence number of data that has been written to parquet
     max_persisted: Option<SequenceNumber>,
 
-    /// The sequence number that is actively buffering, if any.  The
+    /// The sequence number that is actively buffering, if any. The
     /// actively buffering sequence number is not yet completely
     /// buffered to all partitions, and thus is excluded from the
     /// min/max buffered calculation.
     actively_buffering: Option<SequenceNumber>,
 }
 
-impl SequencerProgress {
+impl ShardProgress {
     pub fn new() -> Self {
         Default::default()
     }
@@ -80,8 +80,8 @@ impl SequencerProgress {
         self
     }
 
-    /// Return true if this sequencer progress has no information on
-    /// sequencer progress, false otherwise
+    /// Return true if this shard progress has no information on
+    /// shard progress, false otherwise
     pub fn is_empty(&self) -> bool {
         self.min_buffered.is_none() && self.max_buffered.is_none() && self.max_persisted.is_none()
     }
@@ -169,7 +169,7 @@ mod tests {
 
     #[test]
     fn empty() {
-        let progress = SequencerProgress::new();
+        let progress = ShardProgress::new();
         let sequence_number = SequenceNumber::new(0);
         assert!(!progress.readable(sequence_number));
         assert!(!progress.persisted(sequence_number));
@@ -181,7 +181,7 @@ mod tests {
         let eq = SequenceNumber::new(1);
         let gt = SequenceNumber::new(2);
 
-        let progress = SequencerProgress::new().with_persisted(eq);
+        let progress = ShardProgress::new().with_persisted(eq);
 
         assert!(progress.readable(lt));
         assert!(progress.persisted(lt));
@@ -200,7 +200,7 @@ mod tests {
         let eq = SequenceNumber::new(1);
         let gt = SequenceNumber::new(2);
 
-        let progress = SequencerProgress::new().with_buffered(eq);
+        let progress = ShardProgress::new().with_buffered(eq);
 
         assert!(progress.readable(lt));
         assert!(!progress.persisted(lt));
@@ -218,9 +218,7 @@ mod tests {
         let eq = SequenceNumber::new(1);
         let gt = SequenceNumber::new(2);
 
-        let progress = SequencerProgress::new()
-            .with_buffered(eq)
-            .with_persisted(lt);
+        let progress = ShardProgress::new().with_buffered(eq).with_persisted(lt);
 
         assert!(progress.readable(lt));
         assert!(progress.persisted(lt));
@@ -238,9 +236,7 @@ mod tests {
         let eq = SequenceNumber::new(1);
         let gt = SequenceNumber::new(2);
 
-        let progress = SequencerProgress::new()
-            .with_buffered(eq)
-            .with_persisted(eq);
+        let progress = ShardProgress::new().with_buffered(eq).with_persisted(eq);
 
         assert!(progress.readable(lt));
         assert!(progress.persisted(lt));
@@ -259,7 +255,7 @@ mod tests {
         let gt = SequenceNumber::new(2);
 
         // data buffered between lt and eq
-        let progress = SequencerProgress::new()
+        let progress = ShardProgress::new()
             .with_buffered(lt)
             .with_buffered(eq)
             .with_persisted(eq);
@@ -280,13 +276,11 @@ mod tests {
         let eq = SequenceNumber::new(1);
         let gt = SequenceNumber::new(2);
 
-        let progress1 = SequencerProgress::new().with_buffered(gt);
+        let progress1 = ShardProgress::new().with_buffered(gt);
 
-        let progress2 = SequencerProgress::new()
-            .with_buffered(lt)
-            .with_persisted(eq);
+        let progress2 = ShardProgress::new().with_buffered(lt).with_persisted(eq);
 
-        let expected = SequencerProgress::new()
+        let expected = ShardProgress::new()
             .with_buffered(lt)
             .with_buffered(gt)
             .with_persisted(eq);
@@ -309,7 +303,7 @@ mod tests {
         let cases = vec![
             // No buffering
             (
-                SequencerProgress::new()
+                ShardProgress::new()
                     .actively_buffering(None)
                     .with_buffered(num1)
                     .with_buffered(num2),
@@ -320,7 +314,7 @@ mod tests {
             ),
             // actively buffering num2
             (
-                SequencerProgress::new()
+                ShardProgress::new()
                     .actively_buffering(Some(num2))
                     .with_buffered(num1)
                     .with_buffered(num2),
@@ -331,7 +325,7 @@ mod tests {
             ),
             // actively buffering only one
             (
-                SequencerProgress::new()
+                ShardProgress::new()
                     .actively_buffering(Some(num1))
                     .with_buffered(num1),
                 Expected {
@@ -341,7 +335,7 @@ mod tests {
             ),
             // actively buffering, haven't buffed any yet
             (
-                SequencerProgress::new()
+                ShardProgress::new()
                     .actively_buffering(Some(num1))
                     .with_buffered(num0),
                 Expected {
@@ -351,7 +345,7 @@ mod tests {
             ),
             // actively buffering, haven't buffered any
             (
-                SequencerProgress::new().actively_buffering(Some(num0)),
+                ShardProgress::new().actively_buffering(Some(num0)),
                 Expected {
                     min_buffered: None,
                     max_buffered: None,
@@ -359,7 +353,7 @@ mod tests {
             ),
             // actively buffering partially buffered
             (
-                SequencerProgress::new()
+                ShardProgress::new()
                     .actively_buffering(Some(num0))
                     .with_buffered(num0),
                 Expected {

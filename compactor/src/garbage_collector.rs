@@ -68,7 +68,7 @@ impl GarbageCollector {
             let path = ParquetFilePath::new(
                 catalog_record.namespace_id,
                 catalog_record.table_id,
-                catalog_record.sequencer_id,
+                catalog_record.shard_id,
                 catalog_record.partition_id,
                 catalog_record.object_store_id,
             );
@@ -94,8 +94,8 @@ impl GarbageCollector {
 mod tests {
     use super::*;
     use data_types::{
-        ColumnId, ColumnSet, CompactionLevel, KafkaPartition, ParquetFile, ParquetFileParams,
-        SequenceNumber,
+        ColumnId, ColumnSet, CompactionLevel, ParquetFile, ParquetFileParams, SequenceNumber,
+        ShardIndex,
     };
     use futures::{StreamExt, TryStreamExt};
     use iox_tests::util::TestCatalog;
@@ -114,7 +114,7 @@ mod tests {
         let path = ParquetFilePath::new(
             catalog_record.namespace_id,
             catalog_record.table_id,
-            catalog_record.sequencer_id,
+            catalog_record.shard_id,
             catalog_record.partition_id,
             catalog_record.object_store_id,
         );
@@ -159,14 +159,14 @@ mod tests {
             .create_or_get("test_table", namespace.id)
             .await
             .unwrap();
-        let sequencer = txn
-            .sequencers()
-            .create_or_get(&kafka, KafkaPartition::new(1))
+        let shard = txn
+            .shards()
+            .create_or_get(&kafka, ShardIndex::new(1))
             .await
             .unwrap();
         let partition = txn
             .partitions()
-            .create_or_get("one".into(), sequencer.id, table.id)
+            .create_or_get("one".into(), shard.id, table.id)
             .await
             .unwrap();
 
@@ -174,7 +174,7 @@ mod tests {
         let max_time = Timestamp::new(10);
 
         let parquet_file_params = ParquetFileParams {
-            sequencer_id: sequencer.id,
+            shard_id: shard.id,
             namespace_id: namespace.id,
             table_id: partition.table_id,
             partition_id: partition.id,
@@ -240,14 +240,14 @@ mod tests {
             .create_or_get("test_table", namespace.id)
             .await
             .unwrap();
-        let sequencer = txn
-            .sequencers()
-            .create_or_get(&kafka, KafkaPartition::new(1))
+        let shard = txn
+            .shards()
+            .create_or_get(&kafka, ShardIndex::new(1))
             .await
             .unwrap();
         let partition = txn
             .partitions()
-            .create_or_get("one".into(), sequencer.id, table.id)
+            .create_or_get("one".into(), shard.id, table.id)
             .await
             .unwrap();
 
@@ -255,7 +255,7 @@ mod tests {
         let max_time = Timestamp::new(10);
 
         let parquet_file_params = ParquetFileParams {
-            sequencer_id: sequencer.id,
+            shard_id: shard.id,
             namespace_id: namespace.id,
             table_id: partition.table_id,
             partition_id: partition.id,
@@ -325,14 +325,14 @@ mod tests {
             .create_or_get("test_table", namespace.id)
             .await
             .unwrap();
-        let sequencer = txn
-            .sequencers()
-            .create_or_get(&kafka, KafkaPartition::new(1))
+        let shard = txn
+            .shards()
+            .create_or_get(&kafka, ShardIndex::new(1))
             .await
             .unwrap();
         let partition = txn
             .partitions()
-            .create_or_get("one".into(), sequencer.id, table.id)
+            .create_or_get("one".into(), shard.id, table.id)
             .await
             .unwrap();
 
@@ -340,7 +340,7 @@ mod tests {
         let max_time = Timestamp::new(10);
 
         let parquet_file_params = ParquetFileParams {
-            sequencer_id: sequencer.id,
+            shard_id: shard.id,
             namespace_id: namespace.id,
             table_id: partition.table_id,
             partition_id: partition.id,

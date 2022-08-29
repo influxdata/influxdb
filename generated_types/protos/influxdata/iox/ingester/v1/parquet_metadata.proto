@@ -13,6 +13,9 @@ message IoxMetadata {
   // serialize your parquet file with this metadata structure within it)
   reserved 10, 11, 12, 14;
   reserved "row_count", "min_sequence_number", "time_of_first_write", "time_of_last_write";
+  // Renamed to shard_id
+  reserved 5;
+  reserved "sequencer_id";
 
   // Object store ID. Used in the parquet filename. 16 bytes in big-endian order.
   bytes object_store_id = 1;
@@ -26,8 +29,8 @@ message IoxMetadata {
   // Unique name of the namespace.
   string namespace_name = 4;
 
-  // Unique sequencer ID.
-  int64 sequencer_id = 5;
+  // Unique shard ID.
+  int64 shard_id = 17;
 
   // Unique table ID.
   int64 table_id = 6;
@@ -41,7 +44,7 @@ message IoxMetadata {
   // Partition key of the partition that holds this parquet file.
   string partition_key = 9;
 
-  // The maximum sequence number from a sequencer in this parquet file.
+  // The maximum sequence number from a shard in this parquet file.
   int64 max_sequence_number = 13;
 
   // The sort key of this chunk

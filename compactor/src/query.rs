@@ -259,14 +259,14 @@ mod tests {
     ) -> QueryableParquetChunk {
         let catalog = TestCatalog::new();
         let ns = catalog.create_namespace("ns").await;
-        let sequencer = ns.create_sequencer(1).await;
+        let shard = ns.create_shard(1).await;
         let table = ns.create_table("table").await;
         table.create_column("field_int", ColumnType::I64).await;
         table.create_column("tag1", ColumnType::Tag).await;
         table.create_column("time", ColumnType::Time).await;
 
         let partition = table
-            .with_sequencer(&sequencer)
+            .with_shard(&shard)
             .create_partition("2022-07-13")
             .await;
 

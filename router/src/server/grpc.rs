@@ -2,9 +2,10 @@
 
 pub mod sharder;
 
+use self::sharder::ShardService;
 use crate::{
     dml_handlers::{DmlError, DmlHandler, PartitionError},
-    sequencer::Sequencer,
+    shard::Shard,
 };
 use ::sharder::Sharder;
 use generated_types::{
@@ -28,8 +29,6 @@ use std::sync::Arc;
 use tonic::{metadata::AsciiMetadataValue, Request, Response, Status};
 use trace::ctx::SpanContext;
 use write_summary::WriteSummary;
-
-use self::sharder::ShardService;
 
 // HERE BE DRAGONS: Uppercase characters in this constant cause a panic. Insert them and
 // investigate the cause if you dare.
@@ -67,7 +66,7 @@ impl<D, S> GrpcDelegate<D, S> {
 impl<D, S> GrpcDelegate<D, S>
 where
     D: DmlHandler<WriteInput = HashMap<String, MutableBatch>, WriteOutput = WriteSummary> + 'static,
-    S: Sharder<(), Item = Arc<Sequencer>> + Clone + 'static,
+    S: Sharder<(), Item = Arc<Shard>> + Clone + 'static,
 {
     /// Acquire a [`WriteService`] gRPC service implementation.
     ///

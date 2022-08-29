@@ -4,9 +4,9 @@ use crate::{
     IngesterPartition, QuerierChunkLoadSetting,
 };
 use arrow::record_batch::RecordBatch;
-use data_types::{ChunkId, KafkaPartition, ParquetFileId, SequenceNumber};
+use data_types::{ChunkId, ParquetFileId, SequenceNumber, ShardIndex};
 use iox_catalog::interface::get_schema_by_name;
-use iox_tests::util::{TestCatalog, TestPartition, TestSequencer, TestTable};
+use iox_tests::util::{TestCatalog, TestPartition, TestShard, TestTable};
 use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
 use parquet_file::storage::ParquetStorage;
 use schema::{selection::Selection, sort::SortKey, Schema};
@@ -43,7 +43,7 @@ pub async fn querier_table(
     let namespace_name = Arc::from(table.namespace.namespace.name.as_str());
 
     QuerierTable::new(QuerierTableArgs {
-        sharder: Arc::new(JumpHash::new((0..1).map(KafkaPartition::new).map(Arc::new))),
+        sharder: Arc::new(JumpHash::new((0..1).map(ShardIndex::new).map(Arc::new))),
         namespace_name,
         id: table.table.id,
         table_name: table.table.name.clone().into(),
@@ -66,7 +66,7 @@ pub(crate) fn lp_to_record_batch(lp: &str) -> RecordBatch {
 pub(crate) struct IngesterPartitionBuilder {
     table: Arc<TestTable>,
     schema: Arc<Schema>,
-    sequencer: Arc<TestSequencer>,
+    shard: Arc<TestShard>,
     partition: Arc<TestPartition>,
     ingester_name: Arc<str>,
     ingester_chunk_id: u128,
@@ -81,13 +81,13 @@ impl IngesterPartitionBuilder {
     pub(crate) fn new(
         table: &Arc<TestTable>,
         schema: &Arc<Schema>,
-        sequencer: &Arc<TestSequencer>,
+        shard: &Arc<TestShard>,
         partition: &Arc<TestPartition>,
     ) -> Self {
         Self {
             table: Arc::clone(table),
             schema: Arc::clone(schema),
-            sequencer: Arc::clone(sequencer),
+            shard: Arc::clone(shard),
             partition: Arc::clone(partition),
             ingester_name: Arc::from("ingester1"),
             partition_sort_key: Arc::new(None),
@@ -131,7 +131,7 @@ impl IngesterPartitionBuilder {
             Arc::clone(&self.ingester_name),
             Arc::from(self.table.table.name.as_str()),
             self.partition.partition.id,
-            self.sequencer.sequencer.id,
+            self.shard.shard.id,
             parquet_max_sequence_number,
             tombstone_max_sequence_number,
             Arc::clone(&self.partition_sort_key),

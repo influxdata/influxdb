@@ -68,7 +68,7 @@ impl object_store_service_server::ObjectStoreService for ObjectStoreService {
         let path = ParquetFilePath::new(
             parquet_file.namespace_id,
             parquet_file.table_id,
-            parquet_file.sequencer_id,
+            parquet_file.shard_id,
             parquet_file.partition_id,
             parquet_file.object_store_id,
         );
@@ -96,7 +96,7 @@ mod tests {
     use super::*;
     use bytes::Bytes;
     use data_types::{
-        ColumnId, ColumnSet, CompactionLevel, KafkaPartition, ParquetFileParams, SequenceNumber,
+        ColumnId, ColumnSet, CompactionLevel, ParquetFileParams, SequenceNumber, ShardIndex,
         Timestamp,
     };
     use generated_types::influxdata::iox::object_store::v1::object_store_service_server::ObjectStoreService;
@@ -122,9 +122,9 @@ mod tests {
                 .create_or_get("iox_shared")
                 .await
                 .unwrap();
-            let sequencer = repos
-                .sequencers()
-                .create_or_get(&kafka, KafkaPartition::new(1))
+            let shard = repos
+                .shards()
+                .create_or_get(&kafka, ShardIndex::new(1))
                 .await
                 .unwrap();
             let namespace = repos
@@ -139,11 +139,11 @@ mod tests {
                 .unwrap();
             let partition = repos
                 .partitions()
-                .create_or_get("foo".into(), sequencer.id, table.id)
+                .create_or_get("foo".into(), shard.id, table.id)
                 .await
                 .unwrap();
             let p1params = ParquetFileParams {
-                sequencer_id: sequencer.id,
+                shard_id: shard.id,
                 namespace_id: namespace.id,
                 table_id: table.id,
                 partition_id: partition.id,
@@ -167,7 +167,7 @@ mod tests {
         let path = ParquetFilePath::new(
             p1.namespace_id,
             p1.table_id,
-            p1.sequencer_id,
+            p1.shard_id,
             p1.partition_id,
             p1.object_store_id,
         );

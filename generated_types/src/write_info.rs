@@ -1,19 +1,19 @@
 use crate::influxdata::iox::ingester::v1 as proto;
-use data_types::KafkaPartitionWriteStatus;
+use data_types::ShardWriteStatus;
 use std::collections::HashMap;
 
-impl From<KafkaPartitionWriteStatus> for proto::KafkaPartitionStatus {
-    fn from(status: KafkaPartitionWriteStatus) -> Self {
+impl From<ShardWriteStatus> for proto::ShardStatus {
+    fn from(status: ShardWriteStatus) -> Self {
         match status {
-            KafkaPartitionWriteStatus::KafkaPartitionUnknown => Self::Unknown,
-            KafkaPartitionWriteStatus::Durable => Self::Durable,
-            KafkaPartitionWriteStatus::Readable => Self::Readable,
-            KafkaPartitionWriteStatus::Persisted => Self::Persisted,
+            ShardWriteStatus::ShardUnknown => Self::Unknown,
+            ShardWriteStatus::Durable => Self::Durable,
+            ShardWriteStatus::Readable => Self::Readable,
+            ShardWriteStatus::Persisted => Self::Persisted,
         }
     }
 }
 
-impl proto::KafkaPartitionStatus {
+impl proto::ShardStatus {
     /// Convert the status to a number such that higher numbers are later in the data lifecycle.
     /// For use in merging multiple write status gRPC responses into one response.
     fn status_order(&self) -> u8 {
@@ -27,7 +27,7 @@ impl proto::KafkaPartitionStatus {
     }
 }
 
-impl proto::KafkaPartitionInfo {
+impl proto::ShardInfo {
     fn merge(&mut self, other: &Self) {
         let self_status = self.status();
         let other_status = other.status();
@@ -47,61 +47,59 @@ impl proto::KafkaPartitionInfo {
 pub fn merge_responses(
     responses: impl IntoIterator<Item = proto::GetWriteInfoResponse>,
 ) -> proto::GetWriteInfoResponse {
-    // Map kafka partition id to status
-    let mut partition_infos: HashMap<_, proto::KafkaPartitionInfo> = HashMap::new();
+    // Map shard index to status
+    let mut shard_infos: HashMap<_, proto::ShardInfo> = HashMap::new();
 
     responses
         .into_iter()
-        .flat_map(|res| res.kafka_partition_infos.into_iter())
+        .flat_map(|res| res.shard_infos.into_iter())
         .for_each(|info| {
-            partition_infos
-                .entry(info.kafka_partition_id)
+            shard_infos
+                .entry(info.shard_index)
                 .and_modify(|existing_info| existing_info.merge(&info))
                 .or_insert(info);
         });
 
-    let kafka_partition_infos = partition_infos
+    let shard_infos = shard_infos
         .into_iter()
-        .map(|(_kafka_partition_id, info)| info)
+        .map(|(_shard_index, info)| info)
         .collect();
 
-    proto::GetWriteInfoResponse {
-        kafka_partition_infos,
-    }
+    proto::GetWriteInfoResponse { shard_infos }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use proto::{KafkaPartitionInfo, KafkaPartitionStatus};
+    use proto::{ShardInfo, ShardStatus};
 
     #[test]
     fn test_merge() {
         #[derive(Debug)]
         struct Test<'a> {
-            left: &'a KafkaPartitionInfo,
-            right: &'a KafkaPartitionInfo,
-            expected: &'a KafkaPartitionInfo,
+            left: &'a ShardInfo,
+            right: &'a ShardInfo,
+            expected: &'a ShardInfo,
         }
 
-        let durable = KafkaPartitionInfo {
-            kafka_partition_id: 1,
-            status: KafkaPartitionStatus::Durable.into(),
+        let durable = ShardInfo {
+            shard_index: 1,
+            status: ShardStatus::Durable.into(),
         };
 
-        let readable = KafkaPartitionInfo {
-            kafka_partition_id: 1,
-            status: KafkaPartitionStatus::Readable.into(),
+        let readable = ShardInfo {
+            shard_index: 1,
+            status: ShardStatus::Readable.into(),
         };
 
-        let persisted = KafkaPartitionInfo {
-            kafka_partition_id: 1,
-            status: KafkaPartitionStatus::Persisted.into(),
+        let persisted = ShardInfo {
+            shard_index: 1,
+            status: ShardStatus::Persisted.into(),
         };
 
-        let unknown = KafkaPartitionInfo {
-            kafka_partition_id: 1,
-            status: KafkaPartitionStatus::Unknown.into(),
+        let unknown = ShardInfo {
+            shard_index: 1,
+            status: ShardStatus::Unknown.into(),
         };
 
         let tests = vec![

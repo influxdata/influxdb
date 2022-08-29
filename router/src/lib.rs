@@ -27,5 +27,5 @@
 
 pub mod dml_handlers;
 pub mod namespace_cache;
-pub mod sequencer;
 pub mod server;
+pub mod shard;

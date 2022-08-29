@@ -4,18 +4,17 @@ use crate::{
     interface::{
         sealed::TransactionFinalize, Catalog, ColumnRepo, ColumnUpsertRequest, Error,
         KafkaTopicRepo, NamespaceRepo, ParquetFileRepo, PartitionRepo, ProcessedTombstoneRepo,
-        QueryPoolRepo, RepoCollection, Result, SequencerRepo, TablePersistInfo, TableRepo,
+        QueryPoolRepo, RepoCollection, Result, ShardRepo, TablePersistInfo, TableRepo,
         TombstoneRepo, Transaction,
     },
     metrics::MetricDecorator,
 };
 use async_trait::async_trait;
 use data_types::{
-    Column, ColumnType, CompactionLevel, KafkaPartition, KafkaTopic, KafkaTopicId, Namespace,
-    NamespaceId, ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId,
-    PartitionInfo, PartitionKey, PartitionParam, ProcessedTombstone, QueryPool, QueryPoolId,
-    SequenceNumber, Sequencer, SequencerId, Table, TableId, TablePartition, Timestamp, Tombstone,
-    TombstoneId,
+    Column, ColumnType, CompactionLevel, KafkaTopic, KafkaTopicId, Namespace, NamespaceId,
+    ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionInfo,
+    PartitionKey, PartitionParam, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber,
+    Shard, ShardId, ShardIndex, Table, TableId, TablePartition, Timestamp, Tombstone, TombstoneId,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::{debug, info, warn};
@@ -481,7 +480,7 @@ impl RepoCollection for PostgresTxn {
         self
     }
 
-    fn sequencers(&mut self) -> &mut dyn SequencerRepo {
+    fn shards(&mut self) -> &mut dyn ShardRepo {
         self
     }
 
@@ -828,7 +827,7 @@ WHERE namespace_id = $1;
 
     async fn get_table_persist_info(
         &mut self,
-        sequencer_id: SequencerId,
+        shard_id: ShardId,
         namespace_id: NamespaceId,
         table_name: &str,
     ) -> Result<Option<TablePersistInfo>> {
@@ -847,7 +846,7 @@ LEFT JOIN (
 ) tombstone ON tombstone.table_id = tid.id
             "#,
         )
-        .bind(&sequencer_id) // $1
+        .bind(&shard_id) // $1
         .bind(&table_name) // $2
         .bind(&namespace_id) // $3
         .fetch_one(&mut self.inner)
@@ -1012,13 +1011,13 @@ RETURNING *;
 }
 
 #[async_trait]
-impl SequencerRepo for PostgresTxn {
+impl ShardRepo for PostgresTxn {
     async fn create_or_get(
         &mut self,
         topic: &KafkaTopic,
-        partition: KafkaPartition,
-    ) -> Result<Sequencer> {
-        sqlx::query_as::<_, Sequencer>(
+        shard_index: ShardIndex,
+    ) -> Result<Shard> {
+        sqlx::query_as::<_, Shard>(
             r#"
 INSERT INTO sequencer
     ( kafka_topic_id, kafka_partition, min_unpersisted_sequence_number )
@@ -1030,7 +1029,7 @@ RETURNING *;;
         "#,
         )
         .bind(&topic.id) // $1
-        .bind(&partition) // $2
+        .bind(&shard_index) // $2
         .fetch_one(&mut self.inner)
         .await
         .map_err(|e| {
@@ -1042,12 +1041,12 @@ RETURNING *;;
         })
     }
 
-    async fn get_by_topic_id_and_partition(
+    async fn get_by_topic_id_and_shard_index(
         &mut self,
         topic_id: KafkaTopicId,
-        partition: KafkaPartition,
-    ) -> Result<Option<Sequencer>> {
-        let rec = sqlx::query_as::<_, Sequencer>(
+        shard_index: ShardIndex,
+    ) -> Result<Option<Shard>> {
+        let rec = sqlx::query_as::<_, Shard>(
             r#"
 SELECT *
 FROM sequencer
@@ -1056,7 +1055,7 @@ WHERE kafka_topic_id = $1
         "#,
         )
         .bind(topic_id) // $1
-        .bind(partition) // $2
+        .bind(shard_index) // $2
         .fetch_one(&mut self.inner)
         .await;
 
@@ -1064,20 +1063,20 @@ WHERE kafka_topic_id = $1
             return Ok(None);
         }
 
-        let sequencer = rec.map_err(|e| Error::SqlxError { source: e })?;
+        let shard = rec.map_err(|e| Error::SqlxError { source: e })?;
 
-        Ok(Some(sequencer))
+        Ok(Some(shard))
     }
 
-    async fn list(&mut self) -> Result<Vec<Sequencer>> {
-        sqlx::query_as::<_, Sequencer>(r#"SELECT * FROM sequencer;"#)
+    async fn list(&mut self) -> Result<Vec<Shard>> {
+        sqlx::query_as::<_, Shard>(r#"SELECT * FROM sequencer;"#)
             .fetch_all(&mut self.inner)
             .await
             .map_err(|e| Error::SqlxError { source: e })
     }
 
-    async fn list_by_kafka_topic(&mut self, topic: &KafkaTopic) -> Result<Vec<Sequencer>> {
-        sqlx::query_as::<_, Sequencer>(r#"SELECT * FROM sequencer WHERE kafka_topic_id = $1;"#)
+    async fn list_by_kafka_topic(&mut self, topic: &KafkaTopic) -> Result<Vec<Shard>> {
+        sqlx::query_as::<_, Shard>(r#"SELECT * FROM sequencer WHERE kafka_topic_id = $1;"#)
             .bind(&topic.id) // $1
             .fetch_all(&mut self.inner)
             .await
@@ -1086,14 +1085,14 @@ WHERE kafka_topic_id = $1
 
     async fn update_min_unpersisted_sequence_number(
         &mut self,
-        sequencer_id: SequencerId,
+        shard_id: ShardId,
         sequence_number: SequenceNumber,
     ) -> Result<()> {
         let _ = sqlx::query(
             r#"UPDATE sequencer SET min_unpersisted_sequence_number = $1 WHERE id = $2;"#,
         )
         .bind(&sequence_number.get()) // $1
-        .bind(&sequencer_id) // $2
+        .bind(&shard_id) // $2
         .execute(&mut self.inner)
         .await
         .map_err(|e| Error::SqlxError { source: e })?;
@@ -1107,7 +1106,7 @@ impl PartitionRepo for PostgresTxn {
     async fn create_or_get(
         &mut self,
         key: PartitionKey,
-        sequencer_id: SequencerId,
+        shard_id: ShardId,
         table_id: TableId,
     ) -> Result<Partition> {
         // Note: since sort_key is now an array, we must explicitly insert '{}' which is an empty array
@@ -1125,7 +1124,7 @@ RETURNING *;
         "#,
         )
         .bind(key) // $1
-        .bind(&sequencer_id) // $2
+        .bind(&shard_id) // $2
         .bind(&table_id) // $3
         .fetch_one(&mut self.inner)
         .await
@@ -1139,11 +1138,11 @@ RETURNING *;
 
         // If the partition_key_unique constraint was hit because there was an
         // existing record for (table_id, partition_key) ensure the partition
-        // key in the DB is mapped to the same sequencer_id the caller
+        // key in the DB is mapped to the same shard_id the caller
         // requested.
         assert_eq!(
-            v.sequencer_id, sequencer_id,
-            "attempted to overwrite partition with different sequencer ID"
+            v.shard_id, shard_id,
+            "attempted to overwrite partition with different shard ID"
         );
 
         Ok(v)
@@ -1164,9 +1163,9 @@ RETURNING *;
         Ok(Some(partition))
     }
 
-    async fn list_by_sequencer(&mut self, sequencer_id: SequencerId) -> Result<Vec<Partition>> {
+    async fn list_by_shard(&mut self, shard_id: ShardId) -> Result<Vec<Partition>> {
         sqlx::query_as::<_, Partition>(r#"SELECT * FROM partition WHERE sequencer_id = $1;"#)
-            .bind(&sequencer_id) // $1
+            .bind(&shard_id) // $1
             .fetch_all(&mut self.inner)
             .await
             .map_err(|e| Error::SqlxError { source: e })
@@ -1223,7 +1222,7 @@ WHERE partition.id = $1;
         let table_name = info.get("table_name");
         let partition = Partition {
             id: info.get("id"),
-            sequencer_id: info.get("sequencer_id"),
+            shard_id: info.get("sequencer_id"),
             table_id: info.get("table_id"),
             partition_key: info.get("partition_key"),
             sort_key: info.get("sort_key"),
@@ -1270,7 +1269,7 @@ impl TombstoneRepo for PostgresTxn {
     async fn create_or_get(
         &mut self,
         table_id: TableId,
-        sequencer_id: SequencerId,
+        shard_id: ShardId,
         sequence_number: SequenceNumber,
         min_time: Timestamp,
         max_time: Timestamp,
@@ -1288,7 +1287,7 @@ RETURNING *;
         "#,
         )
         .bind(&table_id) // $1
-        .bind(&sequencer_id) // $2
+        .bind(&shard_id) // $2
         .bind(&sequence_number) // $3
         .bind(&min_time) // $4
         .bind(&max_time) // $5
@@ -1303,7 +1302,7 @@ RETURNING *;
             }
         })?;
 
-        // If tombstone_unique is hit, a record with (table_id, sequencer_id,
+        // If tombstone_unique is hit, a record with (table_id, shard_id,
         // sequence_number) already exists.
         //
         // Ensure the caller does not falsely believe they have created the
@@ -1383,9 +1382,9 @@ WHERE id = $1;
         Ok(Some(tombstone))
     }
 
-    async fn list_tombstones_by_sequencer_greater_than(
+    async fn list_tombstones_by_shard_greater_than(
         &mut self,
-        sequencer_id: SequencerId,
+        shard_id: ShardId,
         sequence_number: SequenceNumber,
     ) -> Result<Vec<Tombstone>> {
         sqlx::query_as::<_, Tombstone>(
@@ -1397,7 +1396,7 @@ WHERE sequencer_id = $1
 ORDER BY id;
             "#,
         )
-        .bind(&sequencer_id) // $1
+        .bind(&shard_id) // $1
         .bind(&sequence_number) // $2
         .fetch_all(&mut self.inner)
         .await
@@ -1438,7 +1437,7 @@ WHERE id = ANY($1);
 
     async fn list_tombstones_for_time_range(
         &mut self,
-        sequencer_id: SequencerId,
+        shard_id: ShardId,
         table_id: TableId,
         sequence_number: SequenceNumber,
         min_time: Timestamp,
@@ -1456,7 +1455,7 @@ WHERE sequencer_id = $1
 ORDER BY id;
             "#,
         )
-        .bind(&sequencer_id) // $1
+        .bind(&shard_id) // $1
         .bind(&table_id) // $2
         .bind(&sequence_number) // $3
         .bind(&min_time) // $4
@@ -1471,7 +1470,7 @@ ORDER BY id;
 impl ParquetFileRepo for PostgresTxn {
     async fn create(&mut self, parquet_file_params: ParquetFileParams) -> Result<ParquetFile> {
         let ParquetFileParams {
-            sequencer_id,
+            shard_id,
             namespace_id,
             table_id,
             partition_id,
@@ -1496,7 +1495,7 @@ VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13 )
 RETURNING *;
         "#,
         )
-        .bind(sequencer_id) // $1
+        .bind(shard_id) // $1
         .bind(table_id) // $2
         .bind(partition_id) // $3
         .bind(object_store_id) // $4
@@ -1537,9 +1536,9 @@ RETURNING *;
         Ok(())
     }
 
-    async fn list_by_sequencer_greater_than(
+    async fn list_by_shard_greater_than(
         &mut self,
-        sequencer_id: SequencerId,
+        shard_id: ShardId,
         sequence_number: SequenceNumber,
     ) -> Result<Vec<ParquetFile>> {
         // Deliberately doesn't use `SELECT *` to avoid the performance hit of fetching the large
@@ -1555,7 +1554,7 @@ WHERE sequencer_id = $1
 ORDER BY id;
             "#,
         )
-        .bind(&sequencer_id) // $1
+        .bind(&shard_id) // $1
         .bind(&sequence_number) // $2
         .fetch_all(&mut self.inner)
         .await
@@ -1619,7 +1618,7 @@ RETURNING *;
         .map_err(|e| Error::SqlxError { source: e })
     }
 
-    async fn level_0(&mut self, sequencer_id: SequencerId) -> Result<Vec<ParquetFile>> {
+    async fn level_0(&mut self, shard_id: ShardId) -> Result<Vec<ParquetFile>> {
         // this intentionally limits the returned files to 10,000 as it is used to make
         // a decision on the highest priority partitions. If compaction has never been
         // run this could end up returning millions of results and taking too long to run.
@@ -1637,7 +1636,7 @@ WHERE parquet_file.sequencer_id = $1
   LIMIT 1000;
         "#,
         )
-        .bind(&sequencer_id) // $1
+        .bind(&shard_id) // $1
         .fetch_all(&mut self.inner)
         .await
         .map_err(|e| Error::SqlxError { source: e })
@@ -1666,7 +1665,7 @@ WHERE parquet_file.sequencer_id = $1
       OR (parquet_file.min_time > $5 AND parquet_file.min_time <= $6));
         "#,
         )
-        .bind(&table_partition.sequencer_id) // $1
+        .bind(&table_partition.shard_id) // $1
         .bind(&table_partition.table_id) // $2
         .bind(&table_partition.partition_id) // $3
         .bind(CompactionLevel::FileNonOverlapped) // $4
@@ -1679,7 +1678,7 @@ WHERE parquet_file.sequencer_id = $1
 
     async fn recent_highest_throughput_partitions(
         &mut self,
-        sequencer_id: SequencerId,
+        shard_id: ShardId,
         num_hours: u32,
         min_num_files: usize,
         num_partitions: usize,
@@ -1689,9 +1688,9 @@ WHERE parquet_file.sequencer_id = $1
         let num_partitions = num_partitions as i32;
 
         // The preliminary performance test on 6 days of data, this query runs around 55ms
-        // We have index on (sequencer_id, comapction_level, to_delete)
+        // We have index on (shard_id, comapction_level, to_delete)
         // If this query happens to be a lot slower (>500ms), we might think to add
-        // and index on (sequencer_id, comapction_level, to_delete, created_at)
+        // and index on (shard_id, comapction_level, to_delete, created_at)
         sqlx::query_as::<_, PartitionParam>(
             r#"
 SELECT partition_id, sequencer_id, namespace_id, table_id, count(id)
@@ -1705,7 +1704,7 @@ order by 5 DESC
 limit $4;
             "#,
         )
-        .bind(&sequencer_id) // $1
+        .bind(&shard_id) // $1
         .bind(num_hours) //$2
         .bind(&min_num_files) // $3
         .bind(&num_partitions) // $4
@@ -1716,7 +1715,7 @@ limit $4;
 
     async fn most_level_0_files_partitions(
         &mut self,
-        sequencer_id: SequencerId,
+        shard_id: ShardId,
         older_than_num_hours: u32,
         num_partitions: usize,
     ) -> Result<Vec<PartitionParam>> {
@@ -1724,7 +1723,7 @@ limit $4;
         let num_partitions = num_partitions as i32;
 
         // The preliminary performance test says this query runs around 50ms
-        // We have index on (sequencer_id, comapction_level, to_delete)
+        // We have index on (shard_id, comapction_level, to_delete)
         sqlx::query_as::<_, PartitionParam>(
             r#"
 SELECT partition_id, sequencer_id, namespace_id, table_id, count(id), max(created_at)
@@ -1738,7 +1737,7 @@ ORDER BY 5 DESC
 LIMIT $3;
             "#,
         )
-        .bind(&sequencer_id) // $1
+        .bind(&shard_id) // $1
         .bind(&older_than_num_hours) // $2
         .bind(&num_partitions) // $3
         .fetch_all(&mut self.inner)
@@ -1818,7 +1817,7 @@ RETURNING id;
     async fn count_by_overlaps_with_level_0(
         &mut self,
         table_id: TableId,
-        sequencer_id: SequencerId,
+        shard_id: ShardId,
         min_time: Timestamp,
         max_time: Timestamp,
         sequence_number: SequenceNumber,
@@ -1837,7 +1836,7 @@ WHERE table_id = $1
             "#,
         )
         .bind(&table_id) // $1
-        .bind(&sequencer_id) // $2
+        .bind(&shard_id) // $2
         .bind(sequence_number) // $3
         .bind(min_time) // $4
         .bind(max_time) // $5
@@ -1851,7 +1850,7 @@ WHERE table_id = $1
     async fn count_by_overlaps_with_level_1(
         &mut self,
         table_id: TableId,
-        sequencer_id: SequencerId,
+        shard_id: ShardId,
         min_time: Timestamp,
         max_time: Timestamp,
     ) -> Result<i64> {
@@ -1868,7 +1867,7 @@ WHERE table_id = $1
             "#,
         )
         .bind(&table_id) // $1
-        .bind(&sequencer_id) // $2
+        .bind(&shard_id) // $2
         .bind(min_time) // $3
         .bind(max_time) // $4
         .fetch_one(&mut self.inner)
@@ -2172,7 +2171,7 @@ mod tests {
         let postgres: Arc<dyn Catalog> = Arc::new(postgres);
 
         let mut txn = postgres.start_transaction().await.expect("txn start");
-        let (kafka, query, sequencers) = create_or_get_default_records(1, txn.deref_mut())
+        let (kafka, query, shards) = create_or_get_default_records(1, txn.deref_mut())
             .await
             .expect("db init failed");
         txn.commit().await.expect("txn commit");
@@ -2194,7 +2193,7 @@ mod tests {
             .expect("create table failed")
             .id;
 
-        let sequencer_id = *sequencers.keys().next().expect("no sequencer");
+        let shard_id = *shards.keys().next().expect("no shard");
         let sequence_number = SequenceNumber::new(3);
         let min_timestamp = Timestamp::new(10);
         let max_timestamp = Timestamp::new(100);
@@ -2206,7 +2205,7 @@ mod tests {
             .tombstones()
             .create_or_get(
                 table_id,
-                sequencer_id,
+                shard_id,
                 sequence_number,
                 min_timestamp,
                 max_timestamp,
@@ -2215,7 +2214,7 @@ mod tests {
             .await
             .expect("should create OK");
 
-        // Call create_or_get for the same (table_id, sequencer_id,
+        // Call create_or_get for the same (table_id, shard_id,
         // sequence_number) triplet, setting the same metadata to ensure the
         // write is idempotent.
         let b = postgres
@@ -2224,7 +2223,7 @@ mod tests {
             .tombstones()
             .create_or_get(
                 table_id,
-                sequencer_id,
+                shard_id,
                 sequence_number,
                 min_timestamp,
                 max_timestamp,
@@ -2248,7 +2247,7 @@ mod tests {
         let postgres: Arc<dyn Catalog> = Arc::new(postgres);
 
         let mut txn = postgres.start_transaction().await.expect("txn start");
-        let (kafka, query, sequencers) = create_or_get_default_records(1, txn.deref_mut())
+        let (kafka, query, shards) = create_or_get_default_records(1, txn.deref_mut())
             .await
             .expect("db init failed");
         txn.commit().await.expect("txn commit");
@@ -2270,7 +2269,7 @@ mod tests {
             .expect("create table failed")
             .id;
 
-        let sequencer_id = *sequencers.keys().next().expect("no sequencer");
+        let shard_id = *shards.keys().next().expect("no shard");
         let sequence_number = SequenceNumber::new(3);
         let min_timestamp = Timestamp::new(10);
         let max_timestamp = Timestamp::new(100);
@@ -2281,7 +2280,7 @@ mod tests {
             .tombstones()
             .create_or_get(
                 table_id,
-                sequencer_id,
+                shard_id,
                 sequence_number,
                 min_timestamp,
                 max_timestamp,
@@ -2290,7 +2289,7 @@ mod tests {
             .await
             .expect("should create OK");
 
-        // Call create_or_get for the same (table_id, sequencer_id,
+        // Call create_or_get for the same (table_id, shard_id,
         // sequence_number) triplet with different metadata.
         //
         // The caller should not falsely believe it has persisted the incorrect
@@ -2301,7 +2300,7 @@ mod tests {
             .tombstones()
             .create_or_get(
                 table_id,
-                sequencer_id,
+                shard_id,
                 sequence_number,
                 min_timestamp,
                 max_timestamp,
@@ -2331,7 +2330,7 @@ mod tests {
 
         let postgres: Arc<dyn Catalog> = Arc::new(postgres);
         let mut txn = postgres.start_transaction().await.expect("txn start");
-        let (kafka, query, sequencers) = create_or_get_default_records(1, txn.deref_mut())
+        let (kafka, query, shards) = create_or_get_default_records(1, txn.deref_mut())
             .await
             .expect("db init failed");
         txn.commit().await.expect("txn commit");
@@ -2354,24 +2353,24 @@ mod tests {
             .id;
 
         let key = "bananas";
-        let sequencer_id = *sequencers.keys().next().expect("no sequencer");
+        let shard_id = *shards.keys().next().expect("no shard");
 
         let a = postgres
             .repositories()
             .await
             .partitions()
-            .create_or_get(key.into(), sequencer_id, table_id)
+            .create_or_get(key.into(), shard_id, table_id)
             .await
             .expect("should create OK");
 
-        // Call create_or_get for the same (key, table_id, sequencer_id)
-        // triplet, setting the same sequencer ID to ensure the write is
+        // Call create_or_get for the same (key, table_id, shard_id)
+        // triplet, setting the same shard ID to ensure the write is
         // idempotent.
         let b = postgres
             .repositories()
             .await
             .partitions()
-            .create_or_get(key.into(), sequencer_id, table_id)
+            .create_or_get(key.into(), shard_id, table_id)
             .await
             .expect("idempotent write should succeed");
 
@@ -2414,34 +2413,34 @@ mod tests {
 
         let key = "bananas";
 
-        let sequencers = postgres
+        let shards = postgres
             .repositories()
             .await
-            .sequencers()
+            .shards()
             .list()
             .await
-            .expect("failed to list sequencers");
+            .expect("failed to list shards");
         assert!(
-            sequencers.len() > 1,
-            "expected more sequencers to be created, got {}",
-            sequencers.len()
+            shards.len() > 1,
+            "expected more shards to be created, got {}",
+            shards.len()
         );
 
         let a = postgres
             .repositories()
             .await
             .partitions()
-            .create_or_get(key.into(), sequencers[0].id, table_id)
+            .create_or_get(key.into(), shards[0].id, table_id)
             .await
             .expect("should create OK");
 
         // Call create_or_get for the same (key, table_id) tuple, setting a
-        // different sequencer ID
+        // different shard ID
         let b = postgres
             .repositories()
             .await
             .partitions()
-            .create_or_get(key.into(), sequencers[1].id, table_id)
+            .create_or_get(key.into(), shards[1].id, table_id)
             .await
             .expect("result should not be evaluated");
 
@@ -2551,7 +2550,7 @@ mod tests {
 
                     let postgres: Arc<dyn Catalog> = Arc::new(postgres);
                     let mut txn = postgres.start_transaction().await.expect("txn start");
-                    let (kafka, query, _sequencers) = create_or_get_default_records(1, txn.deref_mut())
+                    let (kafka, query, _shards) = create_or_get_default_records(1, txn.deref_mut())
                         .await
                         .expect("db init failed");
                     txn.commit().await.expect("txn commit");

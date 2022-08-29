@@ -87,9 +87,9 @@ pub async fn prepare_data_to_querier(
     debug!(?request, "prepare_data_to_querier");
     let mut unpersisted_partitions = vec![];
     let mut found_namespace = false;
-    for (sequencer_id, sequencer_data) in ingest_data.sequencers() {
-        debug!(sequencer_id=%sequencer_id.get());
-        let namespace_data = match sequencer_data.namespace(&request.namespace) {
+    for (shard_id, shard_data) in ingest_data.shards() {
+        debug!(shard_id=%shard_id.get());
+        let namespace_data = match shard_data.namespace(&request.namespace) {
             Some(namespace_data) => {
                 debug!(namespace=%request.namespace, "found namespace");
                 found_namespace = true;

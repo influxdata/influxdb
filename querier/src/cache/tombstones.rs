@@ -223,14 +223,12 @@ mod tests {
 
         let ns = catalog.create_namespace("ns").await;
         let table1 = ns.create_table("table1").await;
-        let sequencer1 = ns.create_sequencer(1).await;
+        let shard1 = ns.create_shard(1).await;
 
-        let table_and_sequencer = table1.with_sequencer(&sequencer1);
+        let table_and_shard = table1.with_shard(&shard1);
         let table_id = table1.table.id;
 
-        let tombstone1 = table_and_sequencer
-            .create_tombstone(7, 1, 100, "foo=1")
-            .await;
+        let tombstone1 = table_and_shard.create_tombstone(7, 1, 100, "foo=1").await;
 
         let cache = make_cache(&catalog);
         let cached_tombstones = cache.get(table_id, None).await.to_vec();
@@ -250,22 +248,18 @@ mod tests {
 
         let ns = catalog.create_namespace("ns").await;
         let table1 = ns.create_table("table1").await;
-        let sequencer1 = ns.create_sequencer(1).await;
-        let table_and_sequencer1 = table1.with_sequencer(&sequencer1);
+        let shard1 = ns.create_shard(1).await;
+        let table_and_shard1 = table1.with_shard(&shard1);
         let table_id1 = table1.table.id;
-        let tombstone1 = table_and_sequencer1
-            .create_tombstone(8, 1, 100, "foo=1")
-            .await;
+        let tombstone1 = table_and_shard1.create_tombstone(8, 1, 100, "foo=1").await;
 
         let cache = make_cache(&catalog);
 
         let table2 = ns.create_table("table2").await;
-        let sequencer2 = ns.create_sequencer(2).await;
-        let table_and_sequencer2 = table2.with_sequencer(&sequencer2);
+        let shard2 = ns.create_shard(2).await;
+        let table_and_shard2 = table2.with_shard(&shard2);
         let table_id2 = table2.table.id;
-        let tombstone2 = table_and_sequencer2
-            .create_tombstone(8, 1, 100, "foo=1")
-            .await;
+        let tombstone2 = table_and_shard2.create_tombstone(8, 1, 100, "foo=1").await;
 
         let cached_tombstones = cache.get(table_id1, None).await.to_vec();
         assert_eq!(cached_tombstones.len(), 1);
@@ -282,9 +276,9 @@ mod tests {
 
         let ns = catalog.create_namespace("ns").await;
         let table1 = ns.create_table("table1").await;
-        let sequencer1 = ns.create_sequencer(1).await;
+        let shard1 = ns.create_shard(1).await;
 
-        let table_and_sequencer = table1.with_sequencer(&sequencer1);
+        let table_and_shard = table1.with_shard(&shard1);
         let table_id = table1.table.id;
 
         let cache = make_cache(&catalog);
@@ -294,18 +288,14 @@ mod tests {
         assert!(single_tombstone_size < two_tombstone_size);
 
         // Create tombstone 1
-        table_and_sequencer
-            .create_tombstone(7, 1, 100, "foo=1")
-            .await;
+        table_and_shard.create_tombstone(7, 1, 100, "foo=1").await;
 
         let cached_tombstones = cache.get(table_id, None).await;
         assert_eq!(cached_tombstones.to_vec().len(), 1);
         assert_eq!(cached_tombstones.size(), single_tombstone_size);
 
         // add a second tombstone and force the cache to find it
-        table_and_sequencer
-            .create_tombstone(8, 1, 100, "foo=1")
-            .await;
+        table_and_shard.create_tombstone(8, 1, 100, "foo=1").await;
 
         cache.expire(table_id);
         let cached_tombstones = cache.get(table_id, None).await;
@@ -333,21 +323,21 @@ mod tests {
 
         let ns = catalog.create_namespace("ns").await;
         let table1 = ns.create_table("table1").await;
-        let sequencer1 = ns.create_sequencer(1).await;
+        let shard1 = ns.create_shard(1).await;
 
-        let table_and_sequencer = table1.with_sequencer(&sequencer1);
+        let table_and_shard = table1.with_shard(&shard1);
         let table_id = table1.table.id;
 
         let cache = make_cache(&catalog);
 
         // Create tombstone 1
-        let tombstone1 = table_and_sequencer
+        let tombstone1 = table_and_shard
             .create_tombstone(sequence_number_1.get(), 1, 100, "foo=1")
             .await
             .tombstone
             .id;
 
-        let tombstone2 = table_and_sequencer
+        let tombstone2 = table_and_shard
             .create_tombstone(sequence_number_2.get(), 1, 100, "foo=1")
             .await
             .tombstone
@@ -368,7 +358,7 @@ mod tests {
         assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
 
         // add a new tombstone (at sequence 10)
-        let tombstone10 = table_and_sequencer
+        let tombstone10 = table_and_shard
             .create_tombstone(sequence_number_10.get(), 1, 100, "foo=1")
             .await
             .tombstone
@@ -393,9 +383,9 @@ mod tests {
         let sequence_number_1 = SequenceNumber::new(1);
         let ns = catalog.create_namespace("ns").await;
         let table1 = ns.create_table("table1").await;
-        let sequencer1 = ns.create_sequencer(1).await;
+        let shard1 = ns.create_shard(1).await;
 
-        let table_and_sequencer = table1.with_sequencer(&sequencer1);
+        let table_and_shard = table1.with_shard(&shard1);
         let table_id = table1.table.id;
 
         let cache = make_cache(&catalog);
@@ -414,7 +404,7 @@ mod tests {
         assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
 
         // Create a tombstone
-        let tombstone1 = table_and_sequencer
+        let tombstone1 = table_and_shard
             .create_tombstone(sequence_number_1.get(), 1, 100, "foo=1")
             .await
             .tombstone

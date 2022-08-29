@@ -8,6 +8,7 @@ arrow = { version = "20.0.0", features = ["prettyprint"] }
 arrow_util = { path = "../arrow_util" }
 assert_cmd = "2.0.2"
 bytes = "1.2"
+data_types = { path = "../data_types" }
 futures = "0.3"
 generated_types = { path = "../generated_types" }
 http = "0.2.8"

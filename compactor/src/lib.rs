@@ -51,7 +51,7 @@ pub(crate) async fn compact_hot_partition(
     partition: PartitionCompactionCandidateWithInfo,
 ) -> Result<(), Error> {
     let start_time = compactor.time_provider.now();
-    let sequencer_id = partition.sequencer_id();
+    let shard_id = partition.shard_id();
 
     let parquet_files_for_compaction =
         parquet_file_lookup::ParquetFilesForCompaction::for_partition(
@@ -85,7 +85,7 @@ pub(crate) async fn compact_hot_partition(
     .context(CombiningSnafu);
 
     let attributes = Attributes::from([
-        ("sequencer_id", format!("{}", sequencer_id).into()),
+        ("shard_id", format!("{}", shard_id).into()),
         ("partition_type", "hot".into()),
     ]);
     if let Some(delta) = compactor
@@ -106,7 +106,7 @@ pub(crate) async fn compact_cold_partition(
     partition: PartitionCompactionCandidateWithInfo,
 ) -> Result<(), Error> {
     let start_time = compactor.time_provider.now();
-    let sequencer_id = partition.sequencer_id();
+    let shard_id = partition.shard_id();
 
     let parquet_files_for_compaction =
         parquet_file_lookup::ParquetFilesForCompaction::for_partition(
@@ -153,7 +153,7 @@ pub(crate) async fn compact_cold_partition(
         };
 
     let attributes = Attributes::from([
-        ("sequencer_id", format!("{}", sequencer_id).into()),
+        ("shard_id", format!("{}", shard_id).into()),
         ("partition_type", "cold".into()),
     ]);
     if let Some(delta) = compactor
@@ -235,22 +235,19 @@ mod tests {
         .join("\n");
 
         let ns = catalog.create_namespace("ns").await;
-        let sequencer = ns.create_sequencer(1).await;
+        let shard = ns.create_shard(1).await;
         let table = ns.create_table("table").await;
         table.create_column("field_int", ColumnType::I64).await;
         table.create_column("tag1", ColumnType::Tag).await;
         table.create_column("tag2", ColumnType::Tag).await;
         table.create_column("tag3", ColumnType::Tag).await;
         table.create_column("time", ColumnType::Time).await;
-        let partition = table
-            .with_sequencer(&sequencer)
-            .create_partition("part")
-            .await;
+        let partition = table.with_shard(&shard).create_partition("part").await;
         let time = Arc::new(SystemProvider::new());
         let config = make_compactor_config();
         let metrics = Arc::new(metric::Registry::new());
         let compactor = Compactor::new(
-            vec![sequencer.sequencer.id],
+            vec![shard.shard.id],
             Arc::clone(&catalog.catalog),
             ParquetStorage::new(Arc::clone(&catalog.object_store)),
             Arc::new(Executor::new(1)),
@@ -325,14 +322,14 @@ mod tests {
         partition.create_parquet_file(builder).await;
 
         // should have 4 level-0 files before compacting
-        let count = catalog.count_level_0_files(sequencer.sequencer.id).await;
+        let count = catalog.count_level_0_files(shard.shard.id).await;
         assert_eq!(count, 4);
 
         // ------------------------------------------------
         // Compact
         let candidates = compactor
             .hot_partitions_to_compact(
-                compactor.config.max_number_partitions_per_sequencer(),
+                compactor.config.max_number_partitions_per_shard(),
                 compactor
                     .config
                     .min_number_recent_ingested_files_per_partition(),
@@ -456,23 +453,20 @@ mod tests {
         .join("\n");
 
         let ns = catalog.create_namespace("ns").await;
-        let sequencer = ns.create_sequencer(1).await;
+        let shard = ns.create_shard(1).await;
         let table = ns.create_table("table").await;
         table.create_column("field_int", ColumnType::I64).await;
         table.create_column("tag1", ColumnType::Tag).await;
         table.create_column("tag2", ColumnType::Tag).await;
         table.create_column("tag3", ColumnType::Tag).await;
         table.create_column("time", ColumnType::Time).await;
-        let partition = table
-            .with_sequencer(&sequencer)
-            .create_partition("part")
-            .await;
+        let partition = table.with_shard(&shard).create_partition("part").await;
         let time = Arc::new(SystemProvider::new());
         let time_38_hour_ago = (time.now() - Duration::from_secs(60 * 60 * 38)).timestamp_nanos();
         let config = make_compactor_config();
         let metrics = Arc::new(metric::Registry::new());
         let compactor = Compactor::new(
-            vec![sequencer.sequencer.id],
+            vec![shard.shard.id],
             Arc::clone(&catalog.catalog),
             ParquetStorage::new(Arc::clone(&catalog.object_store)),
             Arc::new(Executor::new(1)),
@@ -547,13 +541,13 @@ mod tests {
         partition.create_parquet_file(builder).await;
 
         // should have 4 level-0 files before compacting
-        let count = catalog.count_level_0_files(sequencer.sequencer.id).await;
+        let count = catalog.count_level_0_files(shard.shard.id).await;
         assert_eq!(count, 4);
 
         // ------------------------------------------------
         // Compact
         let candidates = compactor
-            .cold_partitions_to_compact(compactor.config.max_number_partitions_per_sequencer())
+            .cold_partitions_to_compact(compactor.config.max_number_partitions_per_shard())
             .await
             .unwrap();
         let mut candidates = compactor.add_info_to_partitions(&candidates).await.unwrap();
@@ -643,23 +637,20 @@ mod tests {
         .join("\n");
 
         let ns = catalog.create_namespace("ns").await;
-        let sequencer = ns.create_sequencer(1).await;
+        let shard = ns.create_shard(1).await;
         let table = ns.create_table("table").await;
         table.create_column("field_int", ColumnType::I64).await;
         table.create_column("tag1", ColumnType::Tag).await;
         table.create_column("tag2", ColumnType::Tag).await;
         table.create_column("tag3", ColumnType::Tag).await;
         table.create_column("time", ColumnType::Time).await;
-        let partition = table
-            .with_sequencer(&sequencer)
-            .create_partition("part")
-            .await;
+        let partition = table.with_shard(&shard).create_partition("part").await;
         let time = Arc::new(SystemProvider::new());
         let time_38_hour_ago = (time.now() - Duration::from_secs(60 * 60 * 38)).timestamp_nanos();
         let config = make_compactor_config();
         let metrics = Arc::new(metric::Registry::new());
         let compactor = Compactor::new(
-            vec![sequencer.sequencer.id],
+            vec![shard.shard.id],
             Arc::clone(&catalog.catalog),
             ParquetStorage::new(Arc::clone(&catalog.object_store)),
             Arc::new(Executor::new(1)),
@@ -693,13 +684,13 @@ mod tests {
         partition.create_parquet_file(builder).await;
 
         // should have 1 level-0 file before compacting
-        let count = catalog.count_level_0_files(sequencer.sequencer.id).await;
+        let count = catalog.count_level_0_files(shard.shard.id).await;
         assert_eq!(count, 1);
 
         // ------------------------------------------------
         // Compact
         let candidates = compactor
-            .cold_partitions_to_compact(compactor.config.max_number_partitions_per_sequencer())
+            .cold_partitions_to_compact(compactor.config.max_number_partitions_per_shard())
             .await
             .unwrap();
         let mut candidates = compactor.add_info_to_partitions(&candidates).await.unwrap();
@@ -788,7 +779,7 @@ mod tests {
         let split_percentage = 80;
         let max_concurrent_size_bytes = 100_000;
         let max_cold_concurrent_size_bytes = 90_000;
-        let max_number_partitions_per_sequencer = 1;
+        let max_number_partitions_per_shard = 1;
         let min_number_recent_ingested_per_partition = 1;
         let input_size_threshold_bytes = 300 * 1024 * 1024;
         let cold_input_size_threshold_bytes = 600 * 1024 * 1024;
@@ -802,7 +793,7 @@ mod tests {
             split_percentage,
             max_concurrent_size_bytes,
             max_cold_concurrent_size_bytes,
-            max_number_partitions_per_sequencer,
+            max_number_partitions_per_shard,
             min_number_recent_ingested_per_partition,
             input_size_threshold_bytes,
             cold_input_size_threshold_bytes,

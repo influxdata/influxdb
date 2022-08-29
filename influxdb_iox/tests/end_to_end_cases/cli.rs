@@ -69,12 +69,12 @@ async fn remote_partition_and_get_from_store_and_pull() {
                     let router_addr = state.cluster().router().router_grpc_base().to_string();
                     let namespace = state.cluster().namespace().to_string();
 
-                    // Validate the output of the remote partittion CLI command
+                    // Validate the output of the remote partition CLI command
                     //
                     // Looks like:
                     // {
                     //     "id": "1",
-                    //     "sequencerId": 1,
+                    //     "shardId": 1,
                     //     "namespaceId": 1,
                     //     "tableId": 1,
                     //     "partitionId": "1",
@@ -98,6 +98,7 @@ async fn remote_partition_and_get_from_store_and_pull() {
                         .success()
                         .stdout(
                             predicate::str::contains(r#""id": "1""#)
+                                .and(predicate::str::contains(r#""shardId": "1","#))
                                 .and(predicate::str::contains(r#""partitionId": "1","#)),
                         )
                         .get_output()
@@ -214,12 +215,12 @@ async fn compact_and_get_remote_partition() {
                     let router_addr = state.cluster().router().router_grpc_base().to_string();
                     let namespace = state.cluster().namespace().to_string();
 
-                    // Validate the output of the remote partittion CLI command
+                    // Validate the output of the remote partition CLI command
                     //
                     // Looks like:
                     // {
                     //     "id": "2",
-                    //     "sequencerId": 1,
+                    //     "shardId": 1,
                     //     "namespaceId": 1,
                     //     "tableId": 1,
                     //     "partitionId": "1",
@@ -244,6 +245,7 @@ async fn compact_and_get_remote_partition() {
                         .success()
                         .stdout(
                             predicate::str::contains(r#""id": "2""#)
+                                .and(predicate::str::contains(r#""shardId": "1","#))
                                 .and(predicate::str::contains(r#""partitionId": "1","#))
                                 .and(predicate::str::contains(r#""compactionLevel": 1"#)),
                         )

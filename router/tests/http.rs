@@ -1,5 +1,5 @@
 use assert_matches::assert_matches;
-use data_types::{KafkaPartition, KafkaTopicId, PartitionTemplate, QueryPoolId, TemplatePart};
+use data_types::{KafkaTopicId, PartitionTemplate, QueryPoolId, ShardIndex, TemplatePart};
 use dml::DmlOperation;
 use hashbrown::HashMap;
 use hyper::{Body, Request, StatusCode};
@@ -13,8 +13,8 @@ use router::{
         ShardedWriteBuffer, WriteSummaryAdapter,
     },
     namespace_cache::{MemoryNamespaceCache, ShardedCache},
-    sequencer::Sequencer,
     server::http::HttpDelegate,
+    shard::Shard,
 };
 use sharder::JumpHash;
 use std::{collections::BTreeSet, iter, string::String, sync::Arc};
@@ -57,7 +57,7 @@ type HttpDelegateStack = HttpDelegate<
             >,
             WriteSummaryAdapter<
                 FanOutAdaptor<
-                    ShardedWriteBuffer<JumpHash<Arc<Sequencer>>>,
+                    ShardedWriteBuffer<JumpHash<Arc<Shard>>>,
                     Vec<Partitioned<HashMap<String, MutableBatch>>>,
                 >,
             >,
@@ -73,7 +73,7 @@ impl TestContext {
         let time = iox_time::MockProvider::new(iox_time::Time::from_timestamp_millis(668563200000));
 
         let write_buffer = MockBufferForWriting::new(
-            MockBufferSharedState::empty_with_n_sequencers(1.try_into().unwrap()),
+            MockBufferSharedState::empty_with_n_shards(1.try_into().unwrap()),
             None,
             Arc::new(time),
         )
@@ -81,17 +81,11 @@ impl TestContext {
         let write_buffer_state = write_buffer.state();
         let write_buffer: Arc<dyn WriteBufferWriting> = Arc::new(write_buffer);
 
-        let shards: BTreeSet<_> = write_buffer.sequencer_ids();
+        let shards: BTreeSet<_> = write_buffer.shard_indexes();
         let sharded_write_buffer = ShardedWriteBuffer::new(JumpHash::new(
             shards
                 .into_iter()
-                .map(|id| {
-                    Sequencer::new(
-                        KafkaPartition::new(id as _),
-                        Arc::clone(&write_buffer),
-                        &metrics,
-                    )
-                })
+                .map(|shard_index| Shard::new(shard_index, Arc::clone(&write_buffer), &metrics))
                 .map(Arc::new),
         ));
 
@@ -178,7 +172,7 @@ async fn test_write_ok() {
     assert_eq!(response.status(), StatusCode::NO_CONTENT);
 
     // Check the write buffer observed the correct write.
-    let writes = ctx.write_buffer_state().get_messages(0);
+    let writes = ctx.write_buffer_state().get_messages(ShardIndex::new(0));
     assert_eq!(writes.len(), 1);
     assert_matches!(writes.as_slice(), [Ok(DmlOperation::Write(w))] => {
         assert_eq!(w.namespace(), "bananas_test");
@@ -229,7 +223,7 @@ async fn test_write_ok() {
 
     let histogram = ctx
         .metrics()
-        .get_instrument::<Metric<DurationHistogram>>("sequencer_enqueue_duration")
+        .get_instrument::<Metric<DurationHistogram>>("shard_enqueue_duration")
         .expect("failed to read metric")
         .get_observer(&Attributes::from(&[
             ("kafka_partition", "0"),
