@@ -7,4 +7,5 @@ edition = "2021"
 tokio = { version = "1.20", features = ["macros", "time"] }
 observability_deps = { path = "../observability_deps" }
 rand = "0.8"
+snafu = "0.7"
 workspace-hack = { path = "../workspace-hack"}

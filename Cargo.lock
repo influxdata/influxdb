@@ -319,6 +319,7 @@ version = "0.1.0"
 dependencies = [
  "observability_deps",
  "rand",
+ "snafu",
  "tokio",
  "workspace-hack",
 ]
