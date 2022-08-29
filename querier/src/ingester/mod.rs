@@ -1176,7 +1176,7 @@ mod tests {
     use schema::{builder::SchemaBuilder, InfluxFieldType};
     use std::collections::{BTreeSet, HashMap};
     use test_helpers::assert_error;
-    use tokio::sync::Mutex;
+    use tokio::{runtime::Handle, sync::Mutex};
     use trace::{span::SpanStatus, RingBufferTraceCollector};
 
     #[tokio::test]
@@ -1853,6 +1853,7 @@ mod tests {
                     self.catalog.catalog(),
                     self.catalog.time_provider(),
                     self.catalog.metric_registry(),
+                    &Handle::current(),
                 )),
             )
         }

@@ -137,6 +137,7 @@ mod tests {
     use object_store::memory::InMemory;
     use parquet_file::storage::ParquetStorage;
     use std::time::Duration;
+    use tokio::runtime::Handle;
 
     #[tokio::test]
     async fn test_shutdown() {
@@ -170,6 +171,7 @@ mod tests {
                 Arc::clone(&catalog),
                 time_provider,
                 Arc::clone(&metric_registry),
+                &Handle::current(),
             ));
             // QuerierDatabase::new returns an error if there are no sequencers in the catalog
             {

@@ -6,6 +6,7 @@ use iox_tests::util::TestNamespace;
 use parquet_file::storage::ParquetStorage;
 use sharder::JumpHash;
 use std::sync::Arc;
+use tokio::runtime::Handle;
 
 /// Create [`QuerierNamespace`] for testing.
 pub async fn querier_namespace(ns: &Arc<TestNamespace>) -> QuerierNamespace {
@@ -28,6 +29,7 @@ pub async fn querier_namespace_with_limit(
         ns.catalog.catalog(),
         ns.catalog.time_provider(),
         ns.catalog.metric_registry(),
+        &Handle::current(),
     ));
 
     let sharder = Arc::new(JumpHash::new((0..1).map(KafkaPartition::new).map(Arc::new)));

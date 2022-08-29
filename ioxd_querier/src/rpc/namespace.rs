@@ -58,6 +58,7 @@ mod tests {
     use iox_tests::util::TestCatalog;
     use parquet_file::storage::ParquetStorage;
     use querier::{create_ingester_connection_for_testing, QuerierCatalogCache};
+    use tokio::runtime::Handle;
 
     #[tokio::test]
     async fn test_get_namespaces_empty() {
@@ -70,6 +71,7 @@ mod tests {
             catalog.catalog(),
             catalog.time_provider(),
             catalog.metric_registry(),
+            &Handle::current(),
         ));
         let db = Arc::new(
             QuerierDatabase::new(
@@ -105,6 +107,7 @@ mod tests {
             catalog.catalog(),
             catalog.time_provider(),
             catalog.metric_registry(),
+            &Handle::current(),
         ));
         let db = Arc::new(
             QuerierDatabase::new(

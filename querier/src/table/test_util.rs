@@ -12,6 +12,7 @@ use parquet_file::storage::ParquetStorage;
 use schema::{selection::Selection, sort::SortKey, Schema};
 use sharder::JumpHash;
 use std::{collections::HashMap, sync::Arc};
+use tokio::runtime::Handle;
 
 /// Create a [`QuerierTable`] for testing.
 pub async fn querier_table(
@@ -23,6 +24,7 @@ pub async fn querier_table(
         catalog.catalog(),
         catalog.time_provider(),
         catalog.metric_registry(),
+        &Handle::current(),
     ));
     let chunk_adapter = Arc::new(ChunkAdapter::new(
         catalog_cache,
