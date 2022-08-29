@@ -25,14 +25,15 @@ ENV CARGO_INCREMENTAL=$CARGO_INCREMENTAL \
     RUSTFLAGS=$RUSTFLAGS
 
 RUN \
+  --mount=type=cache,id=influxdb_iox_rustup,sharing=locked,target=/usr/local/rustup \
   --mount=type=cache,id=influxdb_iox_registry,sharing=locked,target=/usr/local/cargo/registry \
   --mount=type=cache,id=influxdb_iox_git,sharing=locked,target=/usr/local/cargo/git \
   --mount=type=cache,id=influxdb_iox_target,sharing=locked,target=/influxdb_iox/target \
-    du -cshx /usr/local/cargo/registry /usr/local/cargo/git /influxdb_iox/target && \
+    du -cshx /usr/local/rustup /usr/local/cargo/registry /usr/local/cargo/git /influxdb_iox/target && \
     cargo build --target-dir /influxdb_iox/target --package="$PACKAGE" --profile="$PROFILE" --no-default-features --features="$FEATURES" && \
     objcopy --compress-debug-sections "target/$PROFILE/$PACKAGE" && \
     cp "/influxdb_iox/target/$PROFILE/$PACKAGE" /root/$PACKAGE && \
-    du -cshx /usr/local/cargo/registry /usr/local/cargo/git /influxdb_iox/target
+    du -cshx /usr/local/rustup /usr/local/cargo/registry /usr/local/cargo/git /influxdb_iox/target
 
 
 
