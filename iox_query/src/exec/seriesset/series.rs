@@ -248,27 +248,32 @@ impl SeriesSet {
     /// Create the tag=value pairs for this series set, adding
     /// adding the _f and _m tags for the field name and measurement
     fn create_frame_tags(&self, field_name: &str) -> Vec<Tag> {
-        // Tags are returned in lexicographical order.
-        // The special tags "_field" and "_measurement"
-        // come in front of everything because of the "_".
-        let mut converted_tags = vec![
-            Tag {
-                key: FIELD_COLUMN_NAME.into(),
-                value: field_name.into(),
-            },
-            Tag {
-                key: MEASUREMENT_COLUMN_NAME.into(),
-                value: Arc::clone(&self.table_name),
-            },
-        ];
+        // Add special _field and _measurement tags and return them in
+        // lexicographical (sorted) order
 
-        // convert the rest of the tags
-        converted_tags.extend(self.tags.iter().map(|(k, v)| Tag {
-            key: Arc::clone(k),
-            value: Arc::clone(v),
-        }));
+        let mut all_tags = self
+            .tags
+            .iter()
+            .cloned()
+            .chain(
+                [
+                    (Arc::from(FIELD_COLUMN_NAME), Arc::from(field_name)),
+                    (
+                        Arc::from(MEASUREMENT_COLUMN_NAME),
+                        Arc::clone(&self.table_name),
+                    ),
+                ]
+                .into_iter(),
+            )
+            .collect::<Vec<_>>();
 
-        converted_tags
+        // sort by name
+        all_tags.sort_by(|(key1, _value), (key2, _value2)| key1.cmp(key2));
+
+        all_tags
+            .into_iter()
+            .map(|(key, value)| Tag { key, value })
+            .collect()
     }
 }
 
@@ -449,6 +454,47 @@ mod tests {
             "  FloatPoints timestamps: [2000, 3000], values: [20.1, 30.1]",
             "Series tags={_field=boolean_field, _measurement=the_table, tag1=val1}",
             "  BooleanPoints timestamps: [2000, 3000], values: [false, true]",
+        ];
+
+        assert_eq!(
+            series_strings, expected,
+            "Expected:\n{:#?}\nActual:\n{:#?}",
+            expected, series_strings
+        );
+    }
+
+    #[test]
+    fn test_series_set_conversion_mixed_case_tags() {
+        let time1_array: ArrayRef =
+            Arc::new(TimestampNanosecondArray::from_vec(vec![1, 2, 3], None));
+        let string1_array: ArrayRef = Arc::new(StringArray::from(vec!["foo", "bar", "baz"]));
+
+        let batch = RecordBatch::try_from_iter(vec![
+            ("time1", time1_array as ArrayRef),
+            ("string_field1", string1_array),
+        ])
+        .expect("created new record batch");
+
+        let series_set = SeriesSet {
+            table_name: Arc::from("the_table"),
+            tags: vec![
+                (Arc::from("CAPITAL_TAG"), Arc::from("the_value")),
+                (Arc::from("tag1"), Arc::from("val1")),
+            ],
+            // field indexes are (value, time)
+            field_indexes: FieldIndexes::from_slice(&[(1, 0)]),
+            start_row: 1,
+            num_rows: 2,
+            batch,
+        };
+
+        let series_strings = series_set_to_series_strings(series_set);
+
+        // expect  CAPITAL_TAG is before `_field` and `_measurement` tags
+        // (as that is the correct lexicographical ordering)
+        let expected = vec![
+            "Series tags={CAPITAL_TAG=the_value, _field=string_field1, _measurement=the_table, tag1=val1}",
+            "  StringPoints timestamps: [2, 3], values: [\"bar\", \"baz\"]",
         ];
 
         assert_eq!(
