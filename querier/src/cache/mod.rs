@@ -9,7 +9,7 @@ use tokio::runtime::Handle;
 use self::{
     namespace::NamespaceCache, parquet_file::ParquetFileCache, partition::PartitionCache,
     processed_tombstones::ProcessedTombstonesCache, projected_schema::ProjectedSchemaCache,
-    ram::RamSize, read_buffer::ReadBufferCache, table::TableCache, tombstones::TombstoneCache,
+    ram::RamSize, read_buffer::ReadBufferCache, tombstones::TombstoneCache,
 };
 
 pub mod namespace;
@@ -19,7 +19,6 @@ pub mod processed_tombstones;
 pub mod projected_schema;
 mod ram;
 pub mod read_buffer;
-pub mod table;
 pub mod tombstones;
 
 #[cfg(test)]
@@ -33,9 +32,6 @@ pub struct CatalogCache {
 
     /// Partition cache.
     partition_cache: PartitionCache,
-
-    /// Table cache.
-    table_cache: TableCache,
 
     /// Namespace cache.
     namespace_cache: NamespaceCache,
@@ -135,14 +131,6 @@ impl CatalogCache {
             Arc::clone(&ram_pool_metadata),
             testing,
         );
-        let table_cache = TableCache::new(
-            Arc::clone(&catalog),
-            backoff_config.clone(),
-            Arc::clone(&time_provider),
-            &metric_registry,
-            Arc::clone(&ram_pool_metadata),
-            testing,
-        );
         let namespace_cache = NamespaceCache::new(
             Arc::clone(&catalog),
             backoff_config.clone(),
@@ -193,7 +181,6 @@ impl CatalogCache {
         Self {
             catalog,
             partition_cache,
-            table_cache,
             namespace_cache,
             processed_tombstones_cache,
             parquet_file_cache,
@@ -223,11 +210,6 @@ impl CatalogCache {
     /// Namespace cache
     pub(crate) fn namespace(&self) -> &NamespaceCache {
         &self.namespace_cache
-    }
-
-    /// Table cache
-    pub(crate) fn table(&self) -> &TableCache {
-        &self.table_cache
     }
 
     /// Partition cache

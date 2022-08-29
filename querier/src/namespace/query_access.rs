@@ -73,11 +73,7 @@ impl QueryDatabase for QuerierNamespace {
                     .any(|col| schema.find_index_of(col).is_some())
             })
         }
-
-        let pruner = table.chunk_pruner();
-        pruner
-            .prune_chunks(table_name, Arc::clone(table.schema()), chunks, predicate)
-            .map_err(|e| Box::new(e) as _)
+        Ok(chunks)
     }
 
     fn record_query(
@@ -609,7 +605,7 @@ mod tests {
             .unwrap_err();
         assert_eq!(
             err.to_string(),
-            "Cannot build plan: Arrow error: External error: Query would scan at least 300 bytes, more than configured maximum 299 bytes. Try adjusting your compactor settings or increasing the per query memory limit."
+            "Cannot build plan: External error: Chunk pruning failed: Query would scan at least 300 bytes, more than configured maximum 299 bytes. Try adjusting your compactor settings or increasing the per query memory limit."
         );
     }
 

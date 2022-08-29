@@ -76,9 +76,9 @@ pub enum Error {
     InternalChunkGrouping { source: self::overlap::Error },
 
     #[snafu(display(
-        "Query would scan at least {} bytes, more than configured maximum {} bytes. Try adjusting your compactor settings or increasing the per query memory limit.",
-        actual_bytes,
-        limit_bytes,
+    "Query would scan at least {} bytes, more than configured maximum {} bytes. Try adjusting your compactor settings or increasing the per query memory limit.",
+    actual_bytes,
+    limit_bytes,
     ))]
     TooMuchData {
         actual_bytes: usize,
@@ -120,7 +120,6 @@ pub trait ChunkPruner: Sync + Send + std::fmt::Debug {
 pub struct ProviderBuilder {
     table_name: Arc<str>,
     schema: Arc<Schema>,
-    chunk_pruner: Option<Arc<dyn ChunkPruner>>,
     chunks: Vec<Arc<dyn QueryChunk>>,
     output_sort_key: Option<SortKey>,
 
@@ -133,7 +132,6 @@ impl ProviderBuilder {
         Self {
             table_name: Arc::from(table_name.as_ref()),
             schema,
-            chunk_pruner: None,
             chunks: Vec::new(),
             output_sort_key: None,
             ctx,
@@ -154,43 +152,10 @@ impl ProviderBuilder {
         self
     }
 
-    /// Specify a `ChunkPruner` for the provider that will apply
-    /// additional chunk level pruning based on pushed down predicates
-    pub fn add_pruner(mut self, chunk_pruner: Arc<dyn ChunkPruner>) -> Self {
-        assert!(
-            self.chunk_pruner.is_none(),
-            "Chunk pruner already specified"
-        );
-        self.chunk_pruner = Some(chunk_pruner);
-        self
-    }
-
-    /// Specify a `ChunkPruner` for the provider that does no
-    /// additional pruning based on pushed down predicates.
-    ///
-    /// Some planners, such as InfluxRPC which apply all predicates
-    /// when they get the initial list of chunks, do not need an
-    /// additional pass.
-    pub fn add_no_op_pruner(self) -> Self {
-        let chunk_pruner = Arc::new(NoOpPruner {});
-        self.add_pruner(chunk_pruner)
-    }
-
     /// Create the Provider
     pub fn build(self) -> Result<ChunkTableProvider> {
-        let chunk_pruner = match self.chunk_pruner {
-            Some(chunk_pruner) => chunk_pruner,
-            None => {
-                return InternalNoChunkPrunerSnafu {
-                    table_name: self.table_name.as_ref(),
-                }
-                .fail()
-            }
-        };
-
         Ok(ChunkTableProvider {
             iox_schema: self.schema,
-            chunk_pruner,
             table_name: self.table_name,
             chunks: self.chunks,
             output_sort_key: self.output_sort_key,
@@ -208,8 +173,6 @@ pub struct ChunkTableProvider {
     table_name: Arc<str>,
     /// The IOx schema (wrapper around Arrow Schemaref) for this table
     iox_schema: Arc<Schema>,
-    /// Something that can prune chunks
-    chunk_pruner: Arc<dyn ChunkPruner>,
     /// The chunks
     chunks: Vec<Arc<dyn QueryChunk>>,
     /// The desired output sort key if any
@@ -255,23 +218,7 @@ impl TableProvider for ChunkTableProvider {
         _limit: Option<usize>,
     ) -> std::result::Result<Arc<dyn ExecutionPlan>, DataFusionError> {
         trace!("Create a scan node for ChunkTableProvider");
-
-        // Note that `filters` don't actually need to be evaluated in
-        // the scan for the plans to be correct, they are an extra
-        // optimization for providers which can offer them
-        let predicate = Predicate::default().with_pushdown_exprs(filters);
-
-        // Now we have a second attempt to prune out chunks based on
-        // metadata using the pushed down predicate (e.g. in SQL).
         let chunks: Vec<Arc<dyn QueryChunk>> = self.chunks.to_vec();
-        let num_initial_chunks = chunks.len();
-        let chunks = self.chunk_pruner.prune_chunks(
-            self.table_name(),
-            self.iox_schema(),
-            chunks,
-            &predicate,
-        )?;
-        debug!(%predicate, num_initial_chunks, num_final_chunks=chunks.len(), "pruned with pushed down predicates");
 
         // Figure out the schema of the requested output
         let scan_schema = match projection {
@@ -288,6 +235,10 @@ impl TableProvider for ChunkTableProvider {
         //     trace!("Schema of chunk {}: {:#?}", chunk.id(), chunk.schema());
         // }
 
+        // Note that `filters` don't actually need to be evaluated in
+        // the scan for the plans to be correct, they are an extra
+        // optimization for providers which can offer them
+        let predicate = Predicate::default().with_pushdown_exprs(filters);
         let mut deduplicate = Deduplicater::new(self.ctx.child_ctx("deduplicator"));
         let plan = deduplicate.build_scan_plan(
             Arc::clone(&self.table_name),
@@ -1298,21 +1249,6 @@ impl Deduplicater {
             .merge(pk_schema)
             .unwrap()
             .build()
-    }
-}
-
-#[derive(Debug)]
-/// A pruner that does not do pruning (suitable if no additional pruning is possible)
-struct NoOpPruner {}
-impl ChunkPruner for NoOpPruner {
-    fn prune_chunks(
-        &self,
-        _table_name: &str,
-        _table_schema: Arc<Schema>,
-        chunks: Vec<Arc<dyn QueryChunk>>,
-        _predicate: &Predicate,
-    ) -> Result<Vec<Arc<dyn QueryChunk>>> {
-        Ok(chunks)
     }
 }
 

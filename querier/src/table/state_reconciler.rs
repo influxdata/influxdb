@@ -224,7 +224,7 @@ impl Reconciler {
             .iter()
             .filter_map(|c| c.partition_id().map(|id| (id, c.schema())))
             .collect();
-        let mut all_columns: HashMap<PartitionId, HashSet<&str>> = HashMap::new();
+        let mut all_columns: HashMap<PartitionId, Vec<&str>> = HashMap::new();
         for (partition_id, schema) in &chunk_schemas {
             // columns for this partition MUST include the primary key of this chunk
             all_columns

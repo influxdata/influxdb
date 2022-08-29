@@ -525,7 +525,7 @@ impl IngesterStreamDecoder {
                 .map(|c| c.schema())
                 .collect();
             let primary_keys: Vec<_> = schemas.iter().map(|s| s.primary_key()).collect();
-            let primary_key: HashSet<_> = primary_keys
+            let primary_key: Vec<_> = primary_keys
                 .iter()
                 .flat_map(|pk| pk.iter().copied())
                 .collect();

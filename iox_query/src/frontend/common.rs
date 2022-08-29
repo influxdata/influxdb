@@ -146,10 +146,7 @@ impl<'a> ScanPlanBuilder<'a> {
 
         // Prepare the plan for the table
         let mut builder =
-            ProviderBuilder::new(table_name, table_schema, ctx.child_ctx("provider_builder"))
-                // Assumes the caller has picked exactly what chunks they want
-                // so no need to prune them
-                .add_no_op_pruner();
+            ProviderBuilder::new(table_name, table_schema, ctx.child_ctx("provider_builder"));
 
         if let Some(output_sort_key) = output_sort_key {
             // Tell the scan of this provider to sort its output on the given sort_key

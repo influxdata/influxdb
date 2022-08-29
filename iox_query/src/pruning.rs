@@ -1,13 +1,13 @@
 //! Implementation of statistics based pruning
 
-use crate::QueryChunk;
+use crate::{QueryChunk, QueryChunkMeta};
 use arrow::{
     array::{
         ArrayRef, BooleanArray, DictionaryArray, Float64Array, Int64Array, StringArray, UInt64Array,
     },
     datatypes::{DataType, Int32Type, TimeUnit},
 };
-use data_types::{StatValues, Statistics};
+use data_types::{StatValues, Statistics, TableSummary};
 use datafusion::{
     logical_plan::Column,
     physical_optimizer::pruning::{PruningPredicate, PruningStatistics},
@@ -52,7 +52,7 @@ impl std::fmt::Display for NotPrunedReason {
 
 /// Something that cares to be notified when pruning of chunks occurs
 pub trait PruningObserver {
-    /// Called when the specified chunk was pruned from observation.
+    /// Called when the specified chunk was pruned
     fn was_pruned(&self, _chunk: &dyn QueryChunk) {}
 
     /// Called when a chunk was not pruned.
@@ -71,28 +71,30 @@ pub trait PruningObserver {
 /// Given a Vec of prunable items, returns a possibly smaller set
 /// filtering those where the predicate can be proven to evaluate to
 /// `false` for every single row.
-///
-/// TODO(raphael): Perhaps this should return `Result<Vec<bool>>` instead of
-/// the [`PruningObserver`] plumbing
-pub fn prune_chunks<O>(
-    observer: &O,
+pub fn prune_chunks(
     table_schema: Arc<Schema>,
-    chunks: Vec<Arc<dyn QueryChunk>>,
+    chunks: &Vec<Arc<dyn QueryChunk>>,
     predicate: &Predicate,
-) -> Vec<Arc<dyn QueryChunk>>
-where
-    O: PruningObserver,
-{
+) -> Result<Vec<bool>, NotPrunedReason> {
     let num_chunks = chunks.len();
-    trace!(num_chunks, %predicate, "Pruning chunks");
+    debug!(num_chunks, %predicate, "Pruning chunks");
+    let summaries: Vec<_> = chunks.iter().map(|c| c.summary()).collect();
+    prune_summaries(table_schema, &summaries, predicate)
+}
 
+/// Given a Vec of pruning summaries, return a Vec<bool>
+/// where `false` indicates that the predicate can be proven to evaluate to
+/// `false` for every single row.
+pub fn prune_summaries(
+    table_schema: Arc<Schema>,
+    summaries: &Vec<Option<Arc<TableSummary>>>,
+    predicate: &Predicate,
+) -> Result<Vec<bool>, NotPrunedReason> {
     let filter_expr = match predicate.filter_expr() {
         Some(expr) => expr,
         None => {
-            for chunk in &chunks {
-                observer.could_not_prune(NotPrunedReason::NoExpressionOnPredicate, chunk.as_ref());
-            }
-            return chunks;
+            debug!("No expression on predicate");
+            return Err(NotPrunedReason::NoExpressionOnPredicate);
         }
     };
     trace!(%filter_expr, "Filter_expr of pruning chunks");
@@ -101,64 +103,31 @@ where
         match PruningPredicate::try_new(filter_expr.clone(), table_schema.as_arrow()) {
             Ok(p) => p,
             Err(e) => {
-                for chunk in &chunks {
-                    observer.could_not_prune(
-                        NotPrunedReason::CanNotCreatePruningPredicate,
-                        chunk.as_ref(),
-                    );
-                }
                 warn!(%e, ?filter_expr, "Can not create pruning predicate");
-                return chunks;
+                return Err(NotPrunedReason::CanNotCreatePruningPredicate);
             }
         };
 
     let statistics = ChunkPruningStatistics {
         table_schema: table_schema.as_ref(),
-        chunks: chunks.as_slice(),
+        summaries,
     };
 
     let results = match pruning_predicate.prune(&statistics) {
         Ok(results) => results,
         Err(e) => {
-            for chunk in &chunks {
-                observer.could_not_prune(NotPrunedReason::DataFusionPruningFailed, chunk.as_ref());
-            }
             warn!(%e, ?filter_expr, "DataFusion pruning failed");
-            return chunks;
+            return Err(NotPrunedReason::DataFusionPruningFailed);
         }
     };
-
-    assert_eq!(chunks.len(), results.len());
-
-    let mut pruned_chunks = Vec::with_capacity(chunks.len());
-    for (chunk, keep) in chunks.into_iter().zip(results) {
-        match keep {
-            true => {
-                observer.was_not_pruned(chunk.as_ref());
-                pruned_chunks.push(chunk);
-            }
-            false => {
-                observer.was_pruned(chunk.as_ref());
-            }
-        }
-    }
-
-    let num_remaining_chunks = pruned_chunks.len();
-    debug!(
-        %predicate,
-        num_chunks,
-        num_pruned_chunks = num_chunks - num_remaining_chunks,
-        num_remaining_chunks,
-        "Pruned chunks"
-    );
-    pruned_chunks
+    Ok(results)
 }
 
 /// Wraps a collection of [`QueryChunk`] and implements the [`PruningStatistics`]
 /// interface required by [`PruningPredicate`]
 struct ChunkPruningStatistics<'a> {
     table_schema: &'a Schema,
-    chunks: &'a [Arc<dyn QueryChunk>],
+    summaries: &'a Vec<Option<Arc<TableSummary>>>,
 }
 
 impl<'a> ChunkPruningStatistics<'a> {
@@ -170,13 +139,14 @@ impl<'a> ChunkPruningStatistics<'a> {
 
     /// Returns an iterator that for each chunk returns the [`Statistics`]
     /// for the provided `column` if any
-    fn column_summaries<'b: 'a>(
-        &self,
+    fn column_summaries<'b: 'a, 'c: 'a>(
+        &'c self,
         column: &'b Column,
     ) -> impl Iterator<Item = Option<Statistics>> + 'a {
-        self.chunks
-            .iter()
-            .map(|chunk| Some(chunk.summary()?.column(&column.name)?.stats.clone()))
+        self.summaries.iter().map(|summary| match summary {
+            Some(summary) => Some(summary.column(&column.name)?.stats.clone()),
+            None => None,
+        })
     }
 }
 
@@ -194,7 +164,7 @@ impl<'a> PruningStatistics for ChunkPruningStatistics<'a> {
     }
 
     fn num_containers(&self) -> usize {
-        self.chunks.len()
+        self.summaries.len()
     }
 
     fn null_counts(&self, column: &Column) -> Option<ArrayRef> {
@@ -278,7 +248,7 @@ fn get_aggregate<T>(stats: StatValues<T>, aggregate: Aggregate) -> Option<T> {
 
 #[cfg(test)]
 mod test {
-    use std::{cell::RefCell, sync::Arc};
+    use std::sync::Arc;
 
     use datafusion::logical_plan::{col, lit};
     use predicate::Predicate;
@@ -291,17 +261,12 @@ mod test {
     #[test]
     fn test_empty() {
         test_helpers::maybe_start_logging();
-        let observer = TestObserver::new();
         let c1 = Arc::new(TestChunk::new("chunk1"));
 
         let predicate = Predicate::new();
-        let pruned = prune_chunks(&observer, c1.schema(), vec![c1], &predicate);
+        let result = prune_chunks(c1.schema(), &vec![c1], &predicate);
 
-        assert_eq!(
-            observer.events(),
-            vec!["chunk1: Could not prune: No expression on predicate"]
-        );
-        assert_eq!(names(&pruned), vec!["chunk1"]);
+        assert_eq!(result, Err(NotPrunedReason::NoExpressionOnPredicate));
     }
 
     #[test]
@@ -309,7 +274,6 @@ mod test {
         test_helpers::maybe_start_logging();
         // column1 > 100.0 where
         //   c1: [0.0, 10.0] --> pruned
-        let observer = TestObserver::new();
         let c1 = Arc::new(TestChunk::new("chunk1").with_f64_field_column_with_stats(
             "column1",
             Some(0.0),
@@ -318,9 +282,8 @@ mod test {
 
         let predicate = Predicate::new().with_expr(col("column1").gt(lit(100.0)));
 
-        let pruned = prune_chunks(&observer, c1.schema(), vec![c1], &predicate);
-        assert_eq!(observer.events(), vec!["chunk1: Pruned"]);
-        assert!(pruned.is_empty())
+        let result = prune_chunks(c1.schema(), &vec![c1], &predicate);
+        assert_eq!(result.expect("pruning succeeds"), vec![false]);
     }
 
     #[test]
@@ -329,7 +292,6 @@ mod test {
         // column1 > 100 where
         //   c1: [0, 10] --> pruned
 
-        let observer = TestObserver::new();
         let c1 = Arc::new(TestChunk::new("chunk1").with_i64_field_column_with_stats(
             "column1",
             Some(0),
@@ -338,10 +300,9 @@ mod test {
 
         let predicate = Predicate::new().with_expr(col("column1").gt(lit(100)));
 
-        let pruned = prune_chunks(&observer, c1.schema(), vec![c1], &predicate);
+        let result = prune_chunks(c1.schema(), &vec![c1], &predicate);
 
-        assert_eq!(observer.events(), vec!["chunk1: Pruned"]);
-        assert!(pruned.is_empty())
+        assert_eq!(result.expect("pruning succeeds"), vec![false]);
     }
 
     #[test]
@@ -350,7 +311,6 @@ mod test {
         // column1 > 100 where
         //   c1: [0, 10] --> pruned
 
-        let observer = TestObserver::new();
         let c1 = Arc::new(TestChunk::new("chunk1").with_u64_field_column_with_stats(
             "column1",
             Some(0),
@@ -359,10 +319,8 @@ mod test {
 
         let predicate = Predicate::new().with_expr(col("column1").gt(lit(100)));
 
-        let pruned = prune_chunks(&observer, c1.schema(), vec![c1], &predicate);
-
-        assert_eq!(observer.events(), vec!["chunk1: Pruned"]);
-        assert!(pruned.is_empty())
+        let result = prune_chunks(c1.schema(), &vec![c1], &predicate);
+        assert_eq!(result.expect("pruning succeeds"), vec![false]);
     }
 
     #[test]
@@ -370,8 +328,6 @@ mod test {
         test_helpers::maybe_start_logging();
         // column1 where
         //   c1: [false, false] --> pruned
-
-        let observer = TestObserver::new();
         let c1 = Arc::new(TestChunk::new("chunk1").with_bool_field_column_with_stats(
             "column1",
             Some(false),
@@ -380,10 +336,8 @@ mod test {
 
         let predicate = Predicate::new().with_expr(col("column1"));
 
-        let pruned = prune_chunks(&observer, c1.schema(), vec![c1], &predicate);
-
-        assert_eq!(observer.events(), vec!["chunk1: Pruned"]);
-        assert!(pruned.is_empty())
+        let result = prune_chunks(c1.schema(), &vec![c1], &predicate);
+        assert_eq!(result.expect("pruning succeeds"), vec![false; 1]);
     }
 
     #[test]
@@ -392,7 +346,6 @@ mod test {
         // column1 > "z" where
         //   c1: ["a", "q"] --> pruned
 
-        let observer = TestObserver::new();
         let c1 = Arc::new(
             TestChunk::new("chunk1").with_string_field_column_with_stats(
                 "column1",
@@ -403,10 +356,8 @@ mod test {
 
         let predicate = Predicate::new().with_expr(col("column1").gt(lit("z")));
 
-        let pruned = prune_chunks(&observer, c1.schema(), vec![c1], &predicate);
-
-        assert_eq!(observer.events(), vec!["chunk1: Pruned"]);
-        assert!(pruned.is_empty())
+        let result = prune_chunks(c1.schema(), &vec![c1], &predicate);
+        assert_eq!(result.expect("pruning succeeds"), vec![false]);
     }
 
     #[test]
@@ -414,7 +365,6 @@ mod test {
         test_helpers::maybe_start_logging();
         // column1 < 100.0 where
         //   c1: [0.0, 10.0] --> not pruned
-        let observer = TestObserver::new();
         let c1 = Arc::new(TestChunk::new("chunk1").with_f64_field_column_with_stats(
             "column1",
             Some(0.0),
@@ -423,9 +373,8 @@ mod test {
 
         let predicate = Predicate::new().with_expr(col("column1").lt(lit(100.0)));
 
-        let pruned = prune_chunks(&observer, c1.schema(), vec![c1], &predicate);
-        assert_eq!(observer.events(), vec!["chunk1: Not pruned"]);
-        assert_eq!(names(&pruned), vec!["chunk1"]);
+        let result = prune_chunks(c1.schema(), &vec![c1], &predicate);
+        assert_eq!(result.expect("pruning succeeds"), vec![true]);
     }
 
     #[test]
@@ -434,7 +383,6 @@ mod test {
         // column1 < 100 where
         //   c1: [0, 10] --> not pruned
 
-        let observer = TestObserver::new();
         let c1 = Arc::new(TestChunk::new("chunk1").with_i64_field_column_with_stats(
             "column1",
             Some(0),
@@ -443,10 +391,8 @@ mod test {
 
         let predicate = Predicate::new().with_expr(col("column1").lt(lit(100)));
 
-        let pruned = prune_chunks(&observer, c1.schema(), vec![c1], &predicate);
-
-        assert_eq!(observer.events(), vec!["chunk1: Not pruned"]);
-        assert_eq!(names(&pruned), vec!["chunk1"]);
+        let result = prune_chunks(c1.schema(), &vec![c1], &predicate);
+        assert_eq!(result.expect("pruning succeeds"), vec![true]);
     }
 
     #[test]
@@ -455,7 +401,6 @@ mod test {
         // column1 < 100 where
         //   c1: [0, 10] --> not pruned
 
-        let observer = TestObserver::new();
         let c1 = Arc::new(TestChunk::new("chunk1").with_u64_field_column_with_stats(
             "column1",
             Some(0),
@@ -464,10 +409,8 @@ mod test {
 
         let predicate = Predicate::new().with_expr(col("column1").lt(lit(100)));
 
-        let pruned = prune_chunks(&observer, c1.schema(), vec![c1], &predicate);
-
-        assert_eq!(observer.events(), vec!["chunk1: Not pruned"]);
-        assert_eq!(names(&pruned), vec!["chunk1"]);
+        let result = prune_chunks(c1.schema(), &vec![c1], &predicate);
+        assert_eq!(result.expect("pruning succeeds"), vec![true]);
     }
 
     #[test]
@@ -476,7 +419,6 @@ mod test {
         // column1
         //   c1: [false, true] --> not pruned
 
-        let observer = TestObserver::new();
         let c1 = Arc::new(TestChunk::new("chunk1").with_bool_field_column_with_stats(
             "column1",
             Some(false),
@@ -485,10 +427,8 @@ mod test {
 
         let predicate = Predicate::new().with_expr(col("column1"));
 
-        let pruned = prune_chunks(&observer, c1.schema(), vec![c1], &predicate);
-
-        assert_eq!(observer.events(), vec!["chunk1: Not pruned"]);
-        assert_eq!(names(&pruned), vec!["chunk1"]);
+        let result = prune_chunks(c1.schema(), &vec![c1], &predicate);
+        assert_eq!(result.expect("pruning succeeds"), vec![true]);
     }
 
     #[test]
@@ -497,7 +437,6 @@ mod test {
         // column1 < "z" where
         //   c1: ["a", "q"] --> not pruned
 
-        let observer = TestObserver::new();
         let c1 = Arc::new(
             TestChunk::new("chunk1").with_string_field_column_with_stats(
                 "column1",
@@ -508,10 +447,8 @@ mod test {
 
         let predicate = Predicate::new().with_expr(col("column1").lt(lit("z")));
 
-        let pruned = prune_chunks(&observer, c1.schema(), vec![c1], &predicate);
-
-        assert_eq!(observer.events(), vec!["chunk1: Not pruned"]);
-        assert_eq!(names(&pruned), vec!["chunk1"]);
+        let result = prune_chunks(c1.schema(), &vec![c1], &predicate);
+        assert_eq!(result.expect("pruning succeeds"), vec![true]);
     }
 
     fn merge_schema(chunks: &[Arc<dyn QueryChunk>]) -> Arc<Schema> {
@@ -531,7 +468,6 @@ mod test {
         //   c3: [Null, Null] --> not pruned (min/max are not known in chunk 3)
         //   c4: Null --> not pruned (no statistics at all)
 
-        let observer = TestObserver::new();
         let c1 = Arc::new(TestChunk::new("chunk1").with_i64_field_column_with_stats(
             "column1",
             None,
@@ -556,18 +492,12 @@ mod test {
         let chunks = vec![c1, c2, c3, c4];
         let schema = merge_schema(&chunks);
 
-        let pruned = prune_chunks(&observer, schema, chunks, &predicate);
+        let result = prune_chunks(schema, &chunks, &predicate);
 
         assert_eq!(
-            observer.events(),
-            vec![
-                "chunk1: Pruned",
-                "chunk2: Not pruned",
-                "chunk3: Not pruned",
-                "chunk4: Not pruned"
-            ]
+            result.expect("pruning succeeds"),
+            vec![false, true, true, true]
         );
-        assert_eq!(names(&pruned), vec!["chunk2", "chunk3", "chunk4"]);
     }
 
     #[test]
@@ -581,7 +511,6 @@ mod test {
         //   c5: [10, None] --> not pruned
         //   c6: [None, 10] --> pruned
 
-        let observer = TestObserver::new();
         let c1 = Arc::new(TestChunk::new("chunk1").with_i64_field_column_with_stats(
             "column1",
             Some(0),
@@ -621,20 +550,12 @@ mod test {
         let chunks = vec![c1, c2, c3, c4, c5, c6];
         let schema = merge_schema(&chunks);
 
-        let pruned = prune_chunks(&observer, schema, chunks, &predicate);
+        let result = prune_chunks(schema, &chunks, &predicate);
 
         assert_eq!(
-            observer.events(),
-            vec![
-                "chunk1: Pruned",
-                "chunk2: Not pruned",
-                "chunk3: Pruned",
-                "chunk4: Not pruned",
-                "chunk5: Not pruned",
-                "chunk6: Pruned"
-            ]
+            result.expect("pruning succeeds"),
+            vec![false, true, false, true, true, false]
         );
-        assert_eq!(names(&pruned), vec!["chunk2", "chunk4", "chunk5"]);
     }
 
     #[test]
@@ -644,7 +565,6 @@ mod test {
         //   c1: column1 [0, 100], column2 [0, 4] --> pruned (in range, column2 ignored)
         //   c2: column1 [0, 1000], column2 [0, 4] --> not pruned (in range, column2 ignored)
         //   c3: None, column2 [0, 4] --> not pruned (no stats for column1)
-        let observer = TestObserver::new();
         let c1 = Arc::new(
             TestChunk::new("chunk1")
                 .with_i64_field_column_with_stats("column1", Some(0), Some(100))
@@ -668,13 +588,9 @@ mod test {
         let chunks = vec![c1, c2, c3];
         let schema = merge_schema(&chunks);
 
-        let pruned = prune_chunks(&observer, schema, chunks, &predicate);
+        let result = prune_chunks(schema, &chunks, &predicate);
 
-        assert_eq!(
-            observer.events(),
-            vec!["chunk1: Pruned", "chunk2: Not pruned", "chunk3: Not pruned"]
-        );
-        assert_eq!(names(&pruned), vec!["chunk2", "chunk3"]);
+        assert_eq!(result.expect("pruning succeeds"), vec![false, true, true]);
     }
 
     #[test]
@@ -683,7 +599,7 @@ mod test {
         // Verify that type of predicate is pruned if column1 is null
         // (this is a common predicate type created by the INfluxRPC planner)
         // (NOT column1 IS NULL) AND (column1 = 'bar')
-        let observer = TestObserver::new();
+
         // No nulls, can't prune as it has values that are more and less than 'bar'
         let c1 = Arc::new(
             TestChunk::new("chunk1").with_tag_column_with_nulls_and_full_stats(
@@ -730,13 +646,9 @@ mod test {
         let chunks = vec![c1, c2, c3];
         let schema = merge_schema(&chunks);
 
-        let pruned = prune_chunks(&observer, schema, chunks, &predicate);
+        let result = prune_chunks(schema, &chunks, &predicate);
 
-        assert_eq!(
-            observer.events(),
-            vec!["chunk1: Not pruned", "chunk2: Pruned", "chunk3: Pruned"]
-        );
-        assert_eq!(names(&pruned), vec!["chunk1"]);
+        assert_eq!(result.expect("pruning succeeds"), vec![true, false, false]);
     }
 
     #[test]
@@ -750,7 +662,6 @@ mod test {
         //   c5: column1 [0, 10], column2 Null --> pruned (column1 out of range, but column2 has no stats)
         //   c6: column1 Null, column2 [0, 4] --> not pruned (column1 has no stats, column2 out of range)
 
-        let observer = TestObserver::new();
         let c1 = Arc::new(
             TestChunk::new("chunk1")
                 .with_i64_field_column_with_stats("column1", Some(0), Some(1000))
@@ -793,60 +704,11 @@ mod test {
         let chunks = vec![c1, c2, c3, c4, c5, c6];
         let schema = merge_schema(&chunks);
 
-        let pruned = prune_chunks(&observer, schema, chunks, &predicate);
+        let result = prune_chunks(schema, &chunks, &predicate);
 
         assert_eq!(
-            observer.events(),
-            vec![
-                "chunk1: Not pruned",
-                "chunk2: Pruned",
-                "chunk3: Pruned",
-                "chunk4: Not pruned",
-                "chunk5: Pruned",
-                "chunk6: Not pruned"
-            ]
+            result.expect("Pruning succeeds"),
+            vec![true, false, false, true, false, true]
         );
-        assert_eq!(names(&pruned), vec!["chunk1", "chunk4", "chunk6"]);
-    }
-
-    fn names(pruned: &[Arc<dyn QueryChunk>]) -> Vec<&str> {
-        pruned.iter().map(|p| p.table_name()).collect()
-    }
-
-    #[derive(Debug, Default)]
-    struct TestObserver {
-        events: RefCell<Vec<String>>,
-    }
-
-    impl TestObserver {
-        fn new() -> Self {
-            Self::default()
-        }
-
-        fn events(&self) -> Vec<String> {
-            self.events.borrow().iter().cloned().collect()
-        }
-    }
-
-    impl PruningObserver for TestObserver {
-        fn was_pruned(&self, chunk: &dyn QueryChunk) {
-            self.events
-                .borrow_mut()
-                .push(format!("{}: Pruned", chunk.table_name()))
-        }
-
-        fn was_not_pruned(&self, chunk: &dyn QueryChunk) {
-            self.events
-                .borrow_mut()
-                .push(format!("{}: Not pruned", chunk.table_name()))
-        }
-
-        fn could_not_prune(&self, reason: NotPrunedReason, chunk: &dyn QueryChunk) {
-            self.events.borrow_mut().push(format!(
-                "{}: Could not prune: {}",
-                chunk.table_name(),
-                reason
-            ))
-        }
     }
 }

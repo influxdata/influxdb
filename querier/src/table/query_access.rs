@@ -51,14 +51,10 @@ impl TableProvider for QuerierTable {
 
         let mut builder =
             ProviderBuilder::new(self.table_name(), Arc::clone(self.schema()), iox_ctx);
-        builder = builder.add_pruner(self.chunk_pruner());
 
-        let predicate = filters
-            .iter()
-            .fold(Predicate::new(), |b, expr| b.with_expr(expr.clone()));
-
+        let pruning_predicate = Predicate::default().with_pushdown_exprs(filters);
         let chunks = self
-            .chunks(&predicate, ctx.child_span("querier table chunks"))
+            .chunks(&pruning_predicate, ctx.child_span("querier table chunks"))
             .await
             .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
@@ -104,14 +100,32 @@ impl ChunkPruner for QuerierTableChunkPruner {
         chunks: Vec<Arc<dyn QueryChunk>>,
         predicate: &Predicate,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, ProviderError> {
-        let chunks = prune_chunks(
-            &MetricPruningObserver {
-                metrics: Arc::clone(&self.metrics),
-            },
-            table_schema,
-            chunks,
-            predicate,
-        );
+        let observer = &MetricPruningObserver::new(Arc::clone(&self.metrics));
+
+        let chunks = match prune_chunks(table_schema, &chunks, predicate) {
+            Ok(keeps) => {
+                assert_eq!(chunks.len(), keeps.len());
+                chunks
+                    .into_iter()
+                    .zip(keeps.iter())
+                    .filter_map(|(chunk, keep)| {
+                        if *keep {
+                            observer.was_not_pruned(chunk.as_ref());
+                            Some(chunk)
+                        } else {
+                            observer.was_pruned(chunk.as_ref());
+                            None
+                        }
+                    })
+                    .collect()
+            }
+            Err(reason) => {
+                for chunk in &chunks {
+                    observer.could_not_prune(reason, chunk.as_ref())
+                }
+                chunks
+            }
+        };
 
         let estimated_bytes = chunks
             .iter()
@@ -128,8 +142,21 @@ impl ChunkPruner for QuerierTableChunkPruner {
     }
 }
 
-struct MetricPruningObserver {
+pub(crate) struct MetricPruningObserver {
     metrics: Arc<PruneMetrics>,
+}
+
+impl MetricPruningObserver {
+    pub(crate) fn new(metrics: Arc<PruneMetrics>) -> Self {
+        Self { metrics }
+    }
+
+    /// Called when pruning a chunk before fully creating the chunk structure
+    pub(crate) fn was_pruned_early(&self, row_count: u64, size_estimate: u64) {
+        self.metrics.chunks_pruned.inc(1);
+        self.metrics.rows_pruned.inc(row_count);
+        self.metrics.bytes_pruned.inc(size_estimate);
+    }
 }
 
 impl PruningObserver for MetricPruningObserver {

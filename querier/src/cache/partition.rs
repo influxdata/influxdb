@@ -15,11 +15,7 @@ use data_types::{PartitionId, SequencerId};
 use iox_catalog::interface::Catalog;
 use iox_time::TimeProvider;
 use schema::sort::SortKey;
-use std::{
-    collections::{HashMap, HashSet},
-    mem::size_of_val,
-    sync::Arc,
-};
+use std::{collections::HashMap, mem::size_of_val, sync::Arc};
 use trace::span::Span;
 
 use super::ram::RamSize;
@@ -123,17 +119,13 @@ impl PartitionCache {
     pub async fn sort_key(
         &self,
         partition_id: PartitionId,
-        should_cover: &HashSet<&str>,
+        should_cover: &[&str],
         span: Option<Span>,
     ) -> Arc<Option<SortKey>> {
         self.remove_if_handle
             .remove_if(&partition_id, |cached_partition| {
                 if let Some(sort_key) = cached_partition.sort_key.as_ref().as_ref() {
-                    let covered: HashSet<_> = sort_key
-                        .iter()
-                        .map(|(col, _options)| Arc::clone(col))
-                        .collect();
-                    should_cover.iter().any(|col| !covered.contains(*col))
+                    should_cover.iter().any(|col| !sort_key.contains(col))
                 } else {
                     // no sort key at all => need to update if there is anything to cover
                     !should_cover.is_empty()
@@ -243,15 +235,15 @@ mod tests {
             true,
         );
 
-        let sort_key1 = cache.sort_key(p1.id, &HashSet::new(), None).await;
+        let sort_key1 = cache.sort_key(p1.id, &Vec::new(), None).await;
         assert_eq!(sort_key1.as_ref(), &p1.sort_key());
         assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 1);
 
-        let sort_key2 = cache.sort_key(p2.id, &HashSet::new(), None).await;
+        let sort_key2 = cache.sort_key(p2.id, &Vec::new(), None).await;
         assert_eq!(sort_key2.as_ref(), &p2.sort_key());
         assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 2);
 
-        let sort_key1 = cache.sort_key(p1.id, &HashSet::new(), None).await;
+        let sort_key1 = cache.sort_key(p1.id, &Vec::new(), None).await;
         assert_eq!(sort_key1.as_ref(), &p1.sort_key());
         assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 2);
     }
@@ -293,14 +285,14 @@ mod tests {
         );
 
         cache.sequencer_id(p2.id, None).await;
-        cache.sort_key(p3.id, &HashSet::new(), None).await;
+        cache.sort_key(p3.id, &Vec::new(), None).await;
         assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 2);
 
         cache.sequencer_id(p1.id, None).await;
-        cache.sort_key(p2.id, &HashSet::new(), None).await;
+        cache.sort_key(p2.id, &Vec::new(), None).await;
         assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 3);
 
-        cache.sort_key(p1.id, &HashSet::new(), None).await;
+        cache.sort_key(p1.id, &Vec::new(), None).await;
         cache.sequencer_id(p2.id, None).await;
         assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 3);
     }
@@ -325,18 +317,18 @@ mod tests {
             true,
         );
 
-        let sort_key = cache.sort_key(p_id, &HashSet::new(), None).await;
+        let sort_key = cache.sort_key(p_id, &Vec::new(), None).await;
         assert_eq!(sort_key.as_ref(), &p_sort_key);
         assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 1);
 
         // requesting nother will not expire
         assert!(p_sort_key.is_none());
-        let sort_key = cache.sort_key(p_id, &HashSet::new(), None).await;
+        let sort_key = cache.sort_key(p_id, &Vec::new(), None).await;
         assert_eq!(sort_key.as_ref(), &p_sort_key);
         assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 1);
 
         // but requesting something will expire
-        let sort_key = cache.sort_key(p_id, &HashSet::from(["foo"]), None).await;
+        let sort_key = cache.sort_key(p_id, &["foo"], None).await;
         assert_eq!(sort_key.as_ref(), &p_sort_key);
         assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 2);
 
@@ -347,26 +339,19 @@ mod tests {
 
         // expire & fetch
         let p_sort_key = p.partition.sort_key();
-        let sort_key = cache.sort_key(p_id, &HashSet::from(["foo"]), None).await;
+        let sort_key = cache.sort_key(p_id, &["foo"], None).await;
         assert_eq!(sort_key.as_ref(), &p_sort_key);
         assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 3);
 
         // subsets and the full key don't expire
-        for should_cover in [
-            HashSet::new(),
-            HashSet::from(["foo"]),
-            HashSet::from(["bar"]),
-            HashSet::from(["foo", "bar"]),
-        ] {
+        for should_cover in [Vec::new(), vec!["foo"], vec!["bar"], vec!["foo", "bar"]] {
             let sort_key = cache.sort_key(p_id, &should_cover, None).await;
             assert_eq!(sort_key.as_ref(), &p_sort_key);
             assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 3);
         }
 
         // unknown columns expire
-        let sort_key = cache
-            .sort_key(p_id, &HashSet::from(["foo", "x"]), None)
-            .await;
+        let sort_key = cache.sort_key(p_id, &["foo", "x"], None).await;
         assert_eq!(sort_key.as_ref(), &p_sort_key);
         assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 4);
     }
