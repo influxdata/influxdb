@@ -64,7 +64,7 @@ pub struct SequencedStreamHandler<I, O, T = SystemProvider> {
     shard_reset_count: U64Counter,
 
     /// Log context fields - otherwise unused.
-    kafka_topic_name: String,
+    topic_name: String,
     shard_index: ShardIndex,
 
     skip_to_oldest_available: bool,
@@ -83,7 +83,7 @@ impl<I, O> SequencedStreamHandler<I, O> {
         current_sequence_number: SequenceNumber,
         sink: O,
         lifecycle_handle: LifecycleHandleImpl,
-        kafka_topic_name: String,
+        topic_name: String,
         shard_index: ShardIndex,
         metrics: &metric::Registry,
         skip_to_oldest_available: bool,
@@ -92,7 +92,7 @@ impl<I, O> SequencedStreamHandler<I, O> {
         let time_to_be_readable = metrics.register_metric::<DurationGauge>(
             "ingester_ttbr",
             "duration of time between producer writing to consumer putting into queryable cache",
-        ).recorder(metric_attrs(shard_index, &kafka_topic_name, None, false));
+        ).recorder(metric_attrs(shard_index, &topic_name, None, false));
 
         // Lifecycle-driven ingest pause duration
         let pause_duration = metrics
@@ -109,31 +109,31 @@ impl<I, O> SequencedStreamHandler<I, O> {
         );
         let shard_unknown_sequence_number_count = ingest_errors.recorder(metric_attrs(
             shard_index,
-            &kafka_topic_name,
+            &topic_name,
             Some("shard_unknown_sequence_number"),
             true,
         ));
         let shard_invalid_data_count = ingest_errors.recorder(metric_attrs(
             shard_index,
-            &kafka_topic_name,
+            &topic_name,
             Some("shard_invalid_data"),
             true,
         ));
         let shard_unknown_error_count = ingest_errors.recorder(metric_attrs(
             shard_index,
-            &kafka_topic_name,
+            &topic_name,
             Some("shard_unknown_error"),
             true,
         ));
         let sink_apply_error_count = ingest_errors.recorder(metric_attrs(
             shard_index,
-            &kafka_topic_name,
+            &topic_name,
             Some("sink_apply_error"),
             true,
         ));
         let skipped_sequence_number_amount = ingest_errors.recorder(metric_attrs(
             shard_index,
-            &kafka_topic_name,
+            &topic_name,
             Some("skipped_sequence_number_amount"),
             true,
         ));
@@ -144,7 +144,7 @@ impl<I, O> SequencedStreamHandler<I, O> {
                 "shard_reset_count",
                 "how often a shard was already reset",
             )
-            .recorder(metric_attrs(shard_index, &kafka_topic_name, None, true));
+            .recorder(metric_attrs(shard_index, &topic_name, None, true));
 
         Self {
             write_buffer_stream_handler,
@@ -160,7 +160,7 @@ impl<I, O> SequencedStreamHandler<I, O> {
             sink_apply_error_count,
             skipped_sequence_number_amount,
             shard_reset_count,
-            kafka_topic_name,
+            topic_name,
             shard_index,
             skip_to_oldest_available,
         }
@@ -183,7 +183,7 @@ impl<I, O> SequencedStreamHandler<I, O> {
             sink_apply_error_count: self.sink_apply_error_count,
             skipped_sequence_number_amount: self.skipped_sequence_number_amount,
             shard_reset_count: self.shard_reset_count,
-            kafka_topic_name: self.kafka_topic_name,
+            topic_name: self.topic_name,
             shard_index: self.shard_index,
             skip_to_oldest_available: self.skip_to_oldest_available,
         }
@@ -220,7 +220,7 @@ where
                 next = stream.next().fuse() => next,
                 _ = shutdown_fut => {
                     info!(
-                        kafka_topic=%self.kafka_topic_name,
+                        kafka_topic=%self.topic_name,
                         shard_index=%self.shard_index,
                         "stream handler shutdown",
                     );
@@ -260,7 +260,7 @@ where
                     if self.skip_to_oldest_available && sequence_number_before_reset.is_none() {
                         warn!(
                             error=%e,
-                            kafka_topic=%self.kafka_topic_name,
+                            kafka_topic=%self.topic_name,
                             shard_index=%self.shard_index,
                             potential_data_loss=true,
                             "reset stream"
@@ -273,7 +273,7 @@ where
                     } else {
                         error!(
                             error=%e,
-                            kafka_topic=%self.kafka_topic_name,
+                            kafka_topic=%self.topic_name,
                             shard_index=%self.shard_index,
                             potential_data_loss=true,
                             "unable to read from desired sequence number offset"
@@ -285,7 +285,7 @@ where
                 Some(Err(e)) if e.kind() == WriteBufferErrorKind::IO => {
                     warn!(
                         error=%e,
-                        kafka_topic=%self.kafka_topic_name,
+                        kafka_topic=%self.topic_name,
                         shard_index=%self.shard_index,
                         "I/O error reading from shard"
                     );
@@ -300,7 +300,7 @@ where
                     // be applied/persisted.
                     error!(
                         error=%e,
-                        kafka_topic=%self.kafka_topic_name,
+                        kafka_topic=%self.topic_name,
                         shard_index=%self.shard_index,
                         potential_data_loss=true,
                         "unable to deserialize dml operation"
@@ -316,13 +316,13 @@ Shard Index {:?} stream for topic {} has a high watermark BEFORE the sequence nu
 is either a bug (see https://github.com/influxdata/rskafka/issues/147 for example) or means that \
 someone re-created the shard and data is lost. In both cases, it's better to panic than to try \
 something clever.",
-                        self.shard_index, self.kafka_topic_name,
+                        self.shard_index, self.topic_name,
                     )
                 }
                 Some(Err(e)) => {
                     error!(
                         error=%e,
-                        kafka_topic=%self.kafka_topic_name,
+                        kafka_topic=%self.topic_name,
                         shard_index=%self.shard_index,
                         potential_data_loss=true,
                         "unhandled error converting write buffer data to DmlOperation",
@@ -334,7 +334,7 @@ something clever.",
                 None => {
                     panic!(
                         "shard index {:?} stream for topic {} ended without graceful shutdown",
-                        self.shard_index, self.kafka_topic_name
+                        self.shard_index, self.topic_name
                     );
                 }
             };
@@ -349,7 +349,7 @@ something clever.",
         if let Some(op) = op {
             // Emit per-op debug info.
             trace!(
-                kafka_topic=%self.kafka_topic_name,
+                kafka_topic=%self.topic_name,
                 shard_index=%self.shard_index,
                 op_size=op.size(),
                 op_namespace=op.namespace(),
@@ -366,7 +366,7 @@ something clever.",
             let should_pause = match self.sink.apply(op).await {
                 Ok(should_pause) => {
                     trace!(
-                        kafka_topic=%self.kafka_topic_name,
+                        kafka_topic=%self.topic_name,
                         shard_index=%self.shard_index,
                         %should_pause,
                         "successfully applied dml operation"
@@ -376,7 +376,7 @@ something clever.",
                 Err(e) => {
                     error!(
                         error=%e,
-                        kafka_topic=%self.kafka_topic_name,
+                        kafka_topic=%self.topic_name,
                         shard_index=%self.shard_index,
                         potential_data_loss=true,
                         "failed to apply dml operation"
@@ -404,7 +404,7 @@ something clever.",
         let started_at = self.time_provider.now();
 
         warn!(
-            kafka_topic=%self.kafka_topic_name,
+            kafka_topic=%self.topic_name,
             shard_index=%self.shard_index,
             "pausing ingest until persistence has run"
         );
@@ -429,7 +429,7 @@ something clever.",
             .unwrap_or_else(|| "unknown".to_string());
 
         info!(
-            kafka_topic=%self.kafka_topic_name,
+            kafka_topic=%self.topic_name,
             shard_index=%self.shard_index,
             pause_duration=%duration_str,
             "resuming ingest"
@@ -483,7 +483,7 @@ mod tests {
 
     static TEST_TIME: Lazy<Time> = Lazy::new(|| SystemProvider::default().now());
     static TEST_SHARD_INDEX: ShardIndex = ShardIndex::new(42);
-    static TEST_KAFKA_TOPIC: &str = "kafka_topic_name";
+    static TEST_TOPIC_NAME: &str = "topic_name";
 
     // Return a DmlWrite with the given namespace and a single table.
     fn make_write(name: impl Into<String>, write_time: u64) -> DmlWrite {
@@ -633,7 +633,7 @@ mod tests {
                         SequenceNumber::new(0),
                         Arc::clone(&sink),
                         lifecycle.handle(),
-                        TEST_KAFKA_TOPIC.to_string(),
+                        TEST_TOPIC_NAME.to_string(),
                         TEST_SHARD_INDEX,
                         &*metrics,
                         $skip_to_oldest_available,
@@ -678,7 +678,7 @@ mod tests {
                         .get_instrument::<Metric<DurationGauge>>("ingester_ttbr")
                         .expect("did not find ttbr metric")
                         .get_observer(&Attributes::from([
-                            ("kafka_topic", TEST_KAFKA_TOPIC.into()),
+                            ("kafka_topic", TEST_TOPIC_NAME.into()),
                             ("kafka_partition", TEST_SHARD_INDEX.to_string().into()),
                         ]))
                         .expect("did not match metric attributes")
@@ -690,7 +690,7 @@ mod tests {
                         .get_instrument::<Metric<U64Counter>>("shard_reset_count")
                         .expect("did not find reset count metric")
                         .get_observer(&Attributes::from([
-                            ("kafka_topic", TEST_KAFKA_TOPIC.into()),
+                            ("kafka_topic", TEST_TOPIC_NAME.into()),
                             ("kafka_partition", TEST_SHARD_INDEX.to_string().into()),
                             ("potential_data_loss", "true".into()),
                         ]))
@@ -705,7 +705,7 @@ mod tests {
                             .expect("did not find error metric")
                             .get_observer(&metric_attrs(
                                 TEST_SHARD_INDEX,
-                                TEST_KAFKA_TOPIC,
+                                TEST_TOPIC_NAME,
                                 Some($metric_name),
                                 true,
                             ))
@@ -967,7 +967,7 @@ mod tests {
     // An abnormal end to the steam causes a panic, rather than a silent stream reader exit.
     #[tokio::test]
     #[should_panic(
-        expected = "shard index ShardIndex(42) stream for topic kafka_topic_name ended without \
+        expected = "shard index ShardIndex(42) stream for topic topic_name ended without \
                     graceful shutdown"
     )]
     async fn test_early_stream_end_panic() {
@@ -988,7 +988,7 @@ mod tests {
             SequenceNumber::new(0),
             sink,
             lifecycle.handle(),
-            "kafka_topic_name".to_string(),
+            "topic_name".to_string(),
             ShardIndex::new(42),
             &*metrics,
             false,
@@ -1028,7 +1028,7 @@ mod tests {
             SequenceNumber::new(0),
             sink,
             lifecycle.handle(),
-            "kafka_topic_name".to_string(),
+            "topic_name".to_string(),
             ShardIndex::new(42),
             &*metrics,
             false,

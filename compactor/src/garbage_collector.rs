@@ -147,11 +147,11 @@ mod tests {
             Timestamp::new((gc.time_provider.now() + Duration::from_secs(100)).timestamp_nanos());
 
         let mut txn = catalog.catalog.start_transaction().await.unwrap();
-        let kafka = txn.kafka_topics().create_or_get("foo").await.unwrap();
+        let topic = txn.topics().create_or_get("foo").await.unwrap();
         let pool = txn.query_pools().create_or_get("foo").await.unwrap();
         let namespace = txn
             .namespaces()
-            .create("gc_leave_undeleted_files_alone", "inf", kafka.id, pool.id)
+            .create("gc_leave_undeleted_files_alone", "inf", topic.id, pool.id)
             .await
             .unwrap();
         let table = txn
@@ -161,7 +161,7 @@ mod tests {
             .unwrap();
         let shard = txn
             .shards()
-            .create_or_get(&kafka, ShardIndex::new(1))
+            .create_or_get(&topic, ShardIndex::new(1))
             .await
             .unwrap();
         let partition = txn
@@ -228,11 +228,11 @@ mod tests {
             Timestamp::new((gc.time_provider.now() - Duration::from_secs(100)).timestamp_nanos());
 
         let mut txn = catalog.catalog.start_transaction().await.unwrap();
-        let kafka = txn.kafka_topics().create_or_get("foo").await.unwrap();
+        let topic = txn.topics().create_or_get("foo").await.unwrap();
         let pool = txn.query_pools().create_or_get("foo").await.unwrap();
         let namespace = txn
             .namespaces()
-            .create("gc_leave_too_new_files_alone", "inf", kafka.id, pool.id)
+            .create("gc_leave_too_new_files_alone", "inf", topic.id, pool.id)
             .await
             .unwrap();
         let table = txn
@@ -242,7 +242,7 @@ mod tests {
             .unwrap();
         let shard = txn
             .shards()
-            .create_or_get(&kafka, ShardIndex::new(1))
+            .create_or_get(&topic, ShardIndex::new(1))
             .await
             .unwrap();
         let partition = txn
@@ -313,11 +313,11 @@ mod tests {
             Timestamp::new((gc.time_provider.now() + Duration::from_secs(100)).timestamp_nanos());
 
         let mut txn = catalog.catalog.start_transaction().await.unwrap();
-        let kafka = txn.kafka_topics().create_or_get("foo").await.unwrap();
+        let topic = txn.topics().create_or_get("foo").await.unwrap();
         let pool = txn.query_pools().create_or_get("foo").await.unwrap();
         let namespace = txn
             .namespaces()
-            .create("gc_remove_old_enough_files", "inf", kafka.id, pool.id)
+            .create("gc_remove_old_enough_files", "inf", topic.id, pool.id)
             .await
             .unwrap();
         let table = txn
@@ -327,7 +327,7 @@ mod tests {
             .unwrap();
         let shard = txn
             .shards()
-            .create_or_get(&kafka, ShardIndex::new(1))
+            .create_or_get(&topic, ShardIndex::new(1))
             .await
             .unwrap();
         let partition = txn

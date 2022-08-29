@@ -1,7 +1,7 @@
 use super::DmlHandler;
 use crate::namespace_cache::NamespaceCache;
 use async_trait::async_trait;
-use data_types::{DatabaseName, DeletePredicate, KafkaTopicId, QueryPoolId};
+use data_types::{DatabaseName, DeletePredicate, QueryPoolId, TopicId};
 use iox_catalog::interface::Catalog;
 use observability_deps::tracing::*;
 use std::{fmt::Debug, marker::PhantomData, sync::Arc};
@@ -26,7 +26,7 @@ pub struct NamespaceAutocreation<C, T> {
     catalog: Arc<dyn Catalog>,
     cache: C,
 
-    topic_id: KafkaTopicId,
+    topic_id: TopicId,
     query_id: QueryPoolId,
     retention: String,
     _input: PhantomData<T>,
@@ -44,7 +44,7 @@ impl<C, T> NamespaceAutocreation<C, T> {
     pub fn new(
         catalog: Arc<dyn Catalog>,
         cache: C,
-        topic_id: KafkaTopicId,
+        topic_id: TopicId,
         query_id: QueryPoolId,
         retention: String,
     ) -> Self {
@@ -146,7 +146,7 @@ mod tests {
             ns.clone(),
             NamespaceSchema {
                 id: NamespaceId::new(1),
-                kafka_topic_id: KafkaTopicId::new(2),
+                topic_id: TopicId::new(2),
                 query_pool_id: QueryPoolId::new(3),
                 tables: Default::default(),
             },
@@ -158,7 +158,7 @@ mod tests {
         let creator = NamespaceAutocreation::new(
             Arc::clone(&catalog),
             cache,
-            KafkaTopicId::new(42),
+            TopicId::new(42),
             QueryPoolId::new(42),
             "inf".to_owned(),
         );
@@ -194,7 +194,7 @@ mod tests {
         let creator = NamespaceAutocreation::new(
             Arc::clone(&catalog),
             cache,
-            KafkaTopicId::new(42),
+            TopicId::new(42),
             QueryPoolId::new(42),
             "inf".to_owned(),
         );
@@ -220,7 +220,7 @@ mod tests {
                 id: NamespaceId::new(1),
                 name: ns.to_string(),
                 retention_duration: Some("inf".to_owned()),
-                kafka_topic_id: KafkaTopicId::new(42),
+                topic_id: TopicId::new(42),
                 query_pool_id: QueryPoolId::new(42),
                 max_tables: 10000,
                 max_columns_per_table: 1000,

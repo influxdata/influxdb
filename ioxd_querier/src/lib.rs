@@ -155,7 +155,7 @@ pub enum Error {
     #[error("failed to initialise write buffer connection: {0}")]
     WriteBuffer(#[from] write_buffer::core::WriteBufferError),
 
-    #[error("failed to create KafkaPartition from id: {0}")]
+    #[error("failed to create ShardIndex from id: {0}")]
     InvalidData(#[from] std::num::TryFromIntError),
 
     #[error("querier error: {0}")]

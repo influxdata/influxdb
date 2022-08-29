@@ -12,7 +12,7 @@ use crate::{
 };
 use async_trait::async_trait;
 use backoff::BackoffConfig;
-use data_types::{KafkaTopic, Shard, ShardIndex};
+use data_types::{Shard, ShardIndex, TopicMetadata};
 use futures::{
     future::{BoxFuture, Shared},
     stream::FuturesUnordered,
@@ -83,9 +83,9 @@ fn shared_handle(handle: JoinHandle<()>) -> SharedJoinHandle {
 /// persistence and answer queries
 #[derive(Debug)]
 pub struct IngestHandlerImpl<T = SystemProvider> {
-    /// Kafka Topic assigned to this ingester
+    /// Topic assigned to this ingester
     #[allow(dead_code)]
-    kafka_topic: KafkaTopic,
+    topic: TopicMetadata,
 
     /// Future that resolves when the background worker exits
     join_handles: Vec<(String, SharedJoinHandle)>,
@@ -123,7 +123,7 @@ impl IngestHandlerImpl {
     #[allow(clippy::too_many_arguments)]
     pub async fn new(
         lifecycle_config: LifecycleConfig,
-        topic: KafkaTopic,
+        topic: TopicMetadata,
         shard_states: BTreeMap<ShardIndex, Shard>,
         catalog: Arc<dyn Catalog>,
         object_store: Arc<DynObjectStore>,
@@ -151,7 +151,7 @@ impl IngestHandlerImpl {
         ));
 
         let ingester_data = Arc::clone(&data);
-        let kafka_topic_name = topic.name.clone();
+        let topic_name = topic.name.clone();
 
         // start the lifecycle manager
         let persister = Arc::clone(&data);
@@ -212,7 +212,7 @@ impl IngestHandlerImpl {
             let sink = SinkInstrumentation::new(
                 sink,
                 watermark_fetcher,
-                kafka_topic_name.clone(),
+                topic_name.clone(),
                 shard.shard_index,
                 &*metric_registry,
             );
@@ -222,14 +222,14 @@ impl IngestHandlerImpl {
             let handle = tokio::task::spawn({
                 let shutdown = shutdown.child_token();
                 let lifecycle_handle = lifecycle_handle.clone();
-                let kafka_topic_name = kafka_topic_name.clone();
+                let topic_name = topic_name.clone();
                 async move {
                     let handler = SequencedStreamHandler::new(
                         op_stream,
                         shard.min_unpersisted_sequence_number,
                         sink,
                         lifecycle_handle,
-                        kafka_topic_name,
+                        topic_name,
                         shard.shard_index,
                         &*metric_registry,
                         skip_to_oldest_available,
@@ -262,7 +262,7 @@ impl IngestHandlerImpl {
 
         Ok(Self {
             data,
-            kafka_topic: topic,
+            topic,
             join_handles,
             shutdown,
             query_duration_success,
@@ -401,7 +401,7 @@ mod tests {
 
         let schema = NamespaceSchema::new(
             ingester.namespace.id,
-            ingester.kafka_topic.id,
+            ingester.topic.id,
             ingester.query_pool.id,
         );
         let mut txn = ingester.catalog.start_transaction().await.unwrap();
@@ -482,7 +482,7 @@ mod tests {
                     .repositories()
                     .await
                     .shards()
-                    .create_or_get(&ingester.kafka_topic, ingester.shard_index)
+                    .create_or_get(&ingester.topic, ingester.shard_index)
                     .await
                     .unwrap();
 
@@ -621,17 +621,17 @@ mod tests {
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
 
         let mut txn = catalog.start_transaction().await.unwrap();
-        let kafka_topic = txn.kafka_topics().create_or_get("whatevs").await.unwrap();
+        let topic = txn.topics().create_or_get("whatevs").await.unwrap();
         let query_pool = txn.query_pools().create_or_get("whatevs").await.unwrap();
         let shard_index = ShardIndex::new(0);
         let namespace = txn
             .namespaces()
-            .create("foo", "inf", kafka_topic.id, query_pool.id)
+            .create("foo", "inf", topic.id, query_pool.id)
             .await
             .unwrap();
         let mut shard = txn
             .shards()
-            .create_or_get(&kafka_topic, shard_index)
+            .create_or_get(&topic, shard_index)
             .await
             .unwrap();
         // update the min unpersisted
@@ -652,7 +652,7 @@ mod tests {
         let write_buffer_state =
             MockBufferSharedState::empty_with_n_shards(NonZeroU32::try_from(1).unwrap());
 
-        let schema = NamespaceSchema::new(namespace.id, kafka_topic.id, query_pool.id);
+        let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id);
         for write_operation in write_operations {
             validate_or_insert_schema(write_operation.tables(), &schema, txn.deref_mut())
                 .await
@@ -675,7 +675,7 @@ mod tests {
         );
         let ingester = IngestHandlerImpl::new(
             lifecycle_config,
-            kafka_topic.clone(),
+            topic.clone(),
             shard_states,
             Arc::clone(&catalog),
             object_store,
@@ -900,7 +900,7 @@ mod tests {
         catalog: Arc<dyn Catalog>,
         shard: Shard,
         namespace: Namespace,
-        kafka_topic: KafkaTopic,
+        topic: TopicMetadata,
         shard_index: ShardIndex,
         query_pool: QueryPool,
         metrics: Arc<metric::Registry>,
@@ -914,17 +914,17 @@ mod tests {
             let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
 
             let mut txn = catalog.start_transaction().await.unwrap();
-            let kafka_topic = txn.kafka_topics().create_or_get("whatevs").await.unwrap();
+            let topic = txn.topics().create_or_get("whatevs").await.unwrap();
             let query_pool = txn.query_pools().create_or_get("whatevs").await.unwrap();
             let shard_index = ShardIndex::new(0);
             let namespace = txn
                 .namespaces()
-                .create("foo", "inf", kafka_topic.id, query_pool.id)
+                .create("foo", "inf", topic.id, query_pool.id)
                 .await
                 .unwrap();
             let shard = txn
                 .shards()
-                .create_or_get(&kafka_topic, shard_index)
+                .create_or_get(&topic, shard_index)
                 .await
                 .unwrap();
             txn.commit().await.unwrap();
@@ -947,7 +947,7 @@ mod tests {
             );
             let ingester = IngestHandlerImpl::new(
                 lifecycle_config,
-                kafka_topic.clone(),
+                topic.clone(),
                 shard_states,
                 Arc::clone(&catalog),
                 object_store,
@@ -964,7 +964,7 @@ mod tests {
                 catalog,
                 shard,
                 namespace,
-                kafka_topic,
+                topic,
                 shard_index,
                 query_pool,
                 metrics,

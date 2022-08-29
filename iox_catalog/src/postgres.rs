@@ -3,18 +3,18 @@
 use crate::{
     interface::{
         sealed::TransactionFinalize, Catalog, ColumnRepo, ColumnUpsertRequest, Error,
-        KafkaTopicRepo, NamespaceRepo, ParquetFileRepo, PartitionRepo, ProcessedTombstoneRepo,
-        QueryPoolRepo, RepoCollection, Result, ShardRepo, TablePersistInfo, TableRepo,
-        TombstoneRepo, Transaction,
+        NamespaceRepo, ParquetFileRepo, PartitionRepo, ProcessedTombstoneRepo, QueryPoolRepo,
+        RepoCollection, Result, ShardRepo, TablePersistInfo, TableRepo, TombstoneRepo,
+        TopicMetadataRepo, Transaction,
     },
     metrics::MetricDecorator,
 };
 use async_trait::async_trait;
 use data_types::{
-    Column, ColumnType, CompactionLevel, KafkaTopic, KafkaTopicId, Namespace, NamespaceId,
-    ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionInfo,
-    PartitionKey, PartitionParam, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber,
-    Shard, ShardId, ShardIndex, Table, TableId, TablePartition, Timestamp, Tombstone, TombstoneId,
+    Column, ColumnType, CompactionLevel, Namespace, NamespaceId, ParquetFile, ParquetFileId,
+    ParquetFileParams, Partition, PartitionId, PartitionInfo, PartitionKey, PartitionParam,
+    ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Shard, ShardId, ShardIndex, Table,
+    TableId, TablePartition, Timestamp, Tombstone, TombstoneId, TopicId, TopicMetadata,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::{debug, info, warn};
@@ -460,7 +460,7 @@ fn get_dsn_file_path(dsn: &str) -> Option<String> {
 
 #[async_trait]
 impl RepoCollection for PostgresTxn {
-    fn kafka_topics(&mut self) -> &mut dyn KafkaTopicRepo {
+    fn topics(&mut self) -> &mut dyn TopicMetadataRepo {
         self
     }
 
@@ -502,9 +502,9 @@ impl RepoCollection for PostgresTxn {
 }
 
 #[async_trait]
-impl KafkaTopicRepo for PostgresTxn {
-    async fn create_or_get(&mut self, name: &str) -> Result<KafkaTopic> {
-        let rec = sqlx::query_as::<_, KafkaTopic>(
+impl TopicMetadataRepo for PostgresTxn {
+    async fn create_or_get(&mut self, name: &str) -> Result<TopicMetadata> {
+        let rec = sqlx::query_as::<_, TopicMetadata>(
             r#"
 INSERT INTO kafka_topic ( name )
 VALUES ( $1 )
@@ -521,8 +521,8 @@ RETURNING *;
         Ok(rec)
     }
 
-    async fn get_by_name(&mut self, name: &str) -> Result<Option<KafkaTopic>> {
-        let rec = sqlx::query_as::<_, KafkaTopic>(
+    async fn get_by_name(&mut self, name: &str) -> Result<Option<TopicMetadata>> {
+        let rec = sqlx::query_as::<_, TopicMetadata>(
             r#"
 SELECT *
 FROM kafka_topic
@@ -537,9 +537,9 @@ WHERE name = $1;
             return Ok(None);
         }
 
-        let kafka_topic = rec.map_err(|e| Error::SqlxError { source: e })?;
+        let topic = rec.map_err(|e| Error::SqlxError { source: e })?;
 
-        Ok(Some(kafka_topic))
+        Ok(Some(topic))
     }
 }
 
@@ -570,7 +570,7 @@ impl NamespaceRepo for PostgresTxn {
         &mut self,
         name: &str,
         retention_duration: &str,
-        kafka_topic_id: KafkaTopicId,
+        topic_id: TopicId,
         query_pool_id: QueryPoolId,
     ) -> Result<Namespace> {
         let rec = sqlx::query_as::<_, Namespace>(
@@ -582,7 +582,7 @@ RETURNING *;
         )
         .bind(&name) // $1
         .bind(&retention_duration) // $2
-        .bind(kafka_topic_id) // $3
+        .bind(topic_id) // $3
         .bind(query_pool_id) // $4
         .fetch_one(&mut self.inner)
         .await
@@ -1014,7 +1014,7 @@ RETURNING *;
 impl ShardRepo for PostgresTxn {
     async fn create_or_get(
         &mut self,
-        topic: &KafkaTopic,
+        topic: &TopicMetadata,
         shard_index: ShardIndex,
     ) -> Result<Shard> {
         sqlx::query_as::<_, Shard>(
@@ -1043,7 +1043,7 @@ RETURNING *;;
 
     async fn get_by_topic_id_and_shard_index(
         &mut self,
-        topic_id: KafkaTopicId,
+        topic_id: TopicId,
         shard_index: ShardIndex,
     ) -> Result<Option<Shard>> {
         let rec = sqlx::query_as::<_, Shard>(
@@ -1075,7 +1075,7 @@ WHERE kafka_topic_id = $1
             .map_err(|e| Error::SqlxError { source: e })
     }
 
-    async fn list_by_kafka_topic(&mut self, topic: &KafkaTopic) -> Result<Vec<Shard>> {
+    async fn list_by_topic(&mut self, topic: &TopicMetadata) -> Result<Vec<Shard>> {
         sqlx::query_as::<_, Shard>(r#"SELECT * FROM sequencer WHERE kafka_topic_id = $1;"#)
             .bind(&topic.id) // $1
             .fetch_all(&mut self.inner)

@@ -79,13 +79,13 @@ where
     pub fn new(
         inner: T,
         watermark_fetcher: F,
-        kafka_topic_name: String,
+        topic_name: String,
         shard_index: ShardIndex,
         metrics: &metric::Registry,
     ) -> Self {
         let attr = Attributes::from([
             ("kafka_partition", shard_index.to_string().into()),
-            ("kafka_topic", kafka_topic_name.into()),
+            ("kafka_topic", topic_name.into()),
         ]);
 
         let write_buffer_bytes_read = metrics
@@ -250,16 +250,16 @@ mod tests {
     /// be observing for.
     const SHARD_INDEX: ShardIndex = ShardIndex::new(42);
 
-    static TEST_KAFKA_TOPIC: &str = "kafka_topic_name";
+    static TEST_TOPIC_NAME: &str = "topic_name";
 
     static TEST_TIME: Lazy<Time> = Lazy::new(|| SystemProvider::default().now());
 
     /// The attributes assigned to the metrics emitted by the
-    /// instrumentation when using the above shard / kafka topic values.
+    /// instrumentation when using the above shard / topic values.
     static DEFAULT_ATTRS: Lazy<Attributes> = Lazy::new(|| {
         Attributes::from([
             ("kafka_partition", SHARD_INDEX.to_string().into()),
-            ("kafka_topic", TEST_KAFKA_TOPIC.into()),
+            ("kafka_topic", TEST_TOPIC_NAME.into()),
         ])
     });
 
@@ -296,7 +296,7 @@ mod tests {
         let instrumentation = SinkInstrumentation::new(
             inner,
             MockWatermarkFetcher::new(with_fetcher_return),
-            TEST_KAFKA_TOPIC.to_string(),
+            TEST_TOPIC_NAME.to_string(),
             SHARD_INDEX,
             metrics,
         );

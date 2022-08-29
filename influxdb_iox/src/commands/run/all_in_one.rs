@@ -225,7 +225,7 @@ pub struct Config {
 
     /// If a partition has had data buffered for longer than this period of time
     /// it will be persisted. This puts an upper bound on how far back the
-    /// ingester may need to read in Kafka on restart or recovery. The default value
+    /// ingester may need to read in the write buffer on restart or recovery. The default value
     /// is 30 minutes (in seconds).
     #[clap(
         long = "--persist-partition-age-threshold-seconds",
@@ -499,7 +499,7 @@ pub async fn command(config: Config) -> Result<()> {
     catalog
         .repositories()
         .await
-        .kafka_topics()
+        .topics()
         .create_or_get(QUERY_POOL_NAME)
         .await?;
 

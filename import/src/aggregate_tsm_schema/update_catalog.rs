@@ -2,8 +2,8 @@ use self::generated_types::{shard_service_client::ShardServiceClient, *};
 use crate::{AggregateTSMMeasurement, AggregateTSMSchema};
 use chrono::{format::StrftimeItems, offset::FixedOffset, DateTime, Duration};
 use data_types::{
-    org_and_bucket_to_database, ColumnType, KafkaTopicId, Namespace, NamespaceSchema,
-    OrgBucketMappingError, Partition, PartitionKey, QueryPoolId, ShardId, TableSchema,
+    org_and_bucket_to_database, ColumnType, Namespace, NamespaceSchema, OrgBucketMappingError,
+    Partition, PartitionKey, QueryPoolId, ShardId, TableSchema, TopicId,
 };
 use influxdb_iox_client::connection::Connection;
 use iox_catalog::interface::{get_schema_by_name, Catalog, ColumnUpsertRequest, RepoCollection};
@@ -26,8 +26,8 @@ pub enum UpdateCatalogError {
     #[error("Couldn't construct namespace from org and bucket: {0}")]
     InvalidOrgBucket(#[from] OrgBucketMappingError),
 
-    #[error("No kafka topic named {0} in Catalog")]
-    KafkaTopicNotFound(String),
+    #[error("No topic named '{topic_name}' found in the catalog")]
+    TopicCatalogLookup { topic_name: String },
 
     #[error("No namespace named {0} in Catalog")]
     NamespaceNotFound(String),
@@ -49,11 +49,11 @@ pub enum UpdateCatalogError {
 /// for the namespace, or create the namespace and schema using the merged schema.
 /// Will error if the namespace needs to be created but the user hasn't explicitly set the query
 /// pool name and retention setting, allowing the user to not provide them if they're not needed.
-/// Would have done the same for `kafka_topic` but that comes from the shared clap block and isn't
+/// Would have done the same for `topic` but that comes from the shared clap block and isn't
 /// an `Option`.
 pub async fn update_iox_catalog<'a>(
     merged_tsm_schema: &'a AggregateTSMSchema,
-    kafka_topic: &'a str,
+    topic: &'a str,
     query_pool_name: Option<&'a str>,
     retention: Option<&'a str>,
     catalog: Arc<dyn Catalog>,
@@ -75,7 +75,7 @@ pub async fn update_iox_catalog<'a>(
             };
             // create the namespace
             let (topic_id, query_id) =
-                get_topic_id_and_query_id(repos.deref_mut(), kafka_topic, query_pool_name).await?;
+                get_topic_id_and_query_id(repos.deref_mut(), topic, query_pool_name).await?;
             let _namespace = create_namespace(
                 namespace_name.as_str(),
                 retention,
@@ -112,19 +112,21 @@ pub async fn update_iox_catalog<'a>(
 
 async fn get_topic_id_and_query_id<'a, R>(
     repos: &mut R,
-    kafka_topic: &'a str,
+    topic_name: &'a str,
     query_pool_name: &'a str,
-) -> Result<(KafkaTopicId, QueryPoolId), UpdateCatalogError>
+) -> Result<(TopicId, QueryPoolId), UpdateCatalogError>
 where
     R: RepoCollection + ?Sized,
 {
     let topic_id = repos
-        .kafka_topics()
-        .get_by_name(kafka_topic)
+        .topics()
+        .get_by_name(topic_name)
         .await
         .map_err(UpdateCatalogError::CatalogError)?
         .map(|v| v.id)
-        .ok_or_else(|| UpdateCatalogError::KafkaTopicNotFound(kafka_topic.to_string()))?;
+        .ok_or_else(|| UpdateCatalogError::TopicCatalogLookup {
+            topic_name: topic_name.to_string(),
+        })?;
     let query_id = repos
         .query_pools()
         .create_or_get(query_pool_name)
@@ -137,7 +139,7 @@ where
 async fn create_namespace<R>(
     name: &str,
     retention: &str,
-    topic_id: KafkaTopicId,
+    topic_id: TopicId,
     query_id: QueryPoolId,
     repos: &mut R,
 ) -> Result<Namespace, UpdateCatalogError>
@@ -491,7 +493,7 @@ mod tests {
         catalog
             .repositories()
             .await
-            .kafka_topics()
+            .topics()
             .create_or_get("iox_shared")
             .await
             .expect("topic created");
@@ -577,7 +579,7 @@ mod tests {
             .start_transaction()
             .await
             .expect("started transaction");
-        txn.kafka_topics()
+        txn.topics()
             .create_or_get("iox_shared")
             .await
             .expect("topic created");
@@ -590,12 +592,7 @@ mod tests {
         // create namespace, table and columns for weather measurement
         let namespace = txn
             .namespaces()
-            .create(
-                "1234_5678",
-                "inf",
-                KafkaTopicId::new(1),
-                QueryPoolId::new(1),
-            )
+            .create("1234_5678", "inf", TopicId::new(1), QueryPoolId::new(1))
             .await
             .expect("namespace created");
         let mut table = txn
@@ -687,7 +684,7 @@ mod tests {
             .start_transaction()
             .await
             .expect("started transaction");
-        txn.kafka_topics()
+        txn.topics()
             .create_or_get("iox_shared")
             .await
             .expect("topic created");
@@ -700,12 +697,7 @@ mod tests {
         // create namespace, table and columns for weather measurement
         let namespace = txn
             .namespaces()
-            .create(
-                "1234_5678",
-                "inf",
-                KafkaTopicId::new(1),
-                QueryPoolId::new(1),
-            )
+            .create("1234_5678", "inf", TopicId::new(1), QueryPoolId::new(1))
             .await
             .expect("namespace created");
         let mut table = txn
@@ -773,7 +765,7 @@ mod tests {
             .start_transaction()
             .await
             .expect("started transaction");
-        txn.kafka_topics()
+        txn.topics()
             .create_or_get("iox_shared")
             .await
             .expect("topic created");
@@ -786,12 +778,7 @@ mod tests {
         // create namespace, table and columns for weather measurement
         let namespace = txn
             .namespaces()
-            .create(
-                "1234_5678",
-                "inf",
-                KafkaTopicId::new(1),
-                QueryPoolId::new(1),
-            )
+            .create("1234_5678", "inf", TopicId::new(1), QueryPoolId::new(1))
             .await
             .expect("namespace created");
         let mut table = txn
@@ -857,7 +844,7 @@ mod tests {
         catalog
             .repositories()
             .await
-            .kafka_topics()
+            .topics()
             .create_or_get("iox_shared")
             .await
             .expect("topic created");
@@ -907,7 +894,7 @@ mod tests {
         catalog
             .repositories()
             .await
-            .kafka_topics()
+            .topics()
             .create_or_get("iox_shared")
             .await
             .expect("topic created");
@@ -957,7 +944,7 @@ mod tests {
         catalog
             .repositories()
             .await
-            .kafka_topics()
+            .topics()
             .create_or_get("iox_shared")
             .await
             .expect("topic created");

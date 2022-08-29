@@ -2,11 +2,11 @@
 
 use async_trait::async_trait;
 use data_types::{
-    Column, ColumnSchema, ColumnType, KafkaTopic, KafkaTopicId, Namespace, NamespaceId,
-    NamespaceSchema, ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId,
-    PartitionInfo, PartitionKey, PartitionParam, ProcessedTombstone, QueryPool, QueryPoolId,
-    SequenceNumber, Shard, ShardId, ShardIndex, Table, TableId, TablePartition, TableSchema,
-    Timestamp, Tombstone, TombstoneId,
+    Column, ColumnSchema, ColumnType, Namespace, NamespaceId, NamespaceSchema, ParquetFile,
+    ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionInfo, PartitionKey,
+    PartitionParam, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Shard, ShardId,
+    ShardIndex, Table, TableId, TablePartition, TableSchema, Timestamp, Tombstone, TombstoneId,
+    TopicId, TopicMetadata,
 };
 use iox_time::TimeProvider;
 use snafu::{OptionExt, Snafu};
@@ -207,17 +207,18 @@ impl<T> Transaction for T where T: Send + Sync + Debug + sealed::TransactionFina
 ///
 /// # Repositories
 ///
-/// The methods (e.g. `create_*` or `get_by_*`) for handling entities (namespaces, tombstones, etc.) are grouped into
-/// *repositories* with one repository per entity. A repository can be thought of a collection of a single kind of entity.
-/// Getting repositories from the transaction is cheap.
+/// The methods (e.g. `create_*` or `get_by_*`) for handling entities (namespaces, tombstones,
+/// etc.) are grouped into *repositories* with one repository per entity. A repository can be
+/// thought of a collection of a single kind of entity. Getting repositories from the transaction
+/// is cheap.
 ///
-/// A repository might internally map to a wide range of different storage abstractions, ranging from one or
-/// more SQL tables over key-value key spaces to simple in-memory vectors. The user should and must not care how these
-/// are implemented.
+/// A repository might internally map to a wide range of different storage abstractions, ranging
+/// from one or more SQL tables over key-value key spaces to simple in-memory vectors. The user
+/// should and must not care how these are implemented.
 #[async_trait]
 pub trait RepoCollection: Send + Sync + Debug {
-    /// Repository for [Kafka topics](data_types::KafkaTopic).
-    fn kafka_topics(&mut self) -> &mut dyn KafkaTopicRepo;
+    /// Repository for [topics](data_types::TopicMetadata).
+    fn topics(&mut self) -> &mut dyn TopicMetadataRepo;
 
     /// Repository for [query pools](data_types::QueryPool).
     fn query_pools(&mut self) -> &mut dyn QueryPoolRepo;
@@ -247,14 +248,14 @@ pub trait RepoCollection: Send + Sync + Debug {
     fn processed_tombstones(&mut self) -> &mut dyn ProcessedTombstoneRepo;
 }
 
-/// Functions for working with Kafka topics in the catalog.
+/// Functions for working with topics in the catalog.
 #[async_trait]
-pub trait KafkaTopicRepo: Send + Sync {
-    /// Creates the kafka topic in the catalog or gets the existing record by name.
-    async fn create_or_get(&mut self, name: &str) -> Result<KafkaTopic>;
+pub trait TopicMetadataRepo: Send + Sync {
+    /// Creates the topic in the catalog or gets the existing record by name.
+    async fn create_or_get(&mut self, name: &str) -> Result<TopicMetadata>;
 
-    /// Gets the kafka topic by its unique name
-    async fn get_by_name(&mut self, name: &str) -> Result<Option<KafkaTopic>>;
+    /// Gets the topic by its unique name
+    async fn get_by_name(&mut self, name: &str) -> Result<Option<TopicMetadata>>;
 }
 
 /// Functions for working with query pools in the catalog.
@@ -273,7 +274,7 @@ pub trait NamespaceRepo: Send + Sync {
         &mut self,
         name: &str,
         retention_duration: &str,
-        kafka_topic_id: KafkaTopicId,
+        topic_id: TopicId,
         query_pool_id: QueryPoolId,
     ) -> Result<Namespace>;
 
@@ -384,22 +385,25 @@ pub trait ColumnRepo: Send + Sync {
 /// Functions for working with shards in the catalog
 #[async_trait]
 pub trait ShardRepo: Send + Sync {
-    /// create a shard record for the kafka topic and shard index or return the existing record
-    async fn create_or_get(&mut self, topic: &KafkaTopic, shard_index: ShardIndex)
-        -> Result<Shard>;
+    /// create a shard record for the topic and shard index or return the existing record
+    async fn create_or_get(
+        &mut self,
+        topic: &TopicMetadata,
+        shard_index: ShardIndex,
+    ) -> Result<Shard>;
 
-    /// get the shard record by `KafkaTopicId` and `ShardIndex`
+    /// get the shard record by `TopicId` and `ShardIndex`
     async fn get_by_topic_id_and_shard_index(
         &mut self,
-        topic_id: KafkaTopicId,
+        topic_id: TopicId,
         shard_index: ShardIndex,
     ) -> Result<Option<Shard>>;
 
     /// list all shards
     async fn list(&mut self) -> Result<Vec<Shard>>;
 
-    /// list all shards for a given kafka topic
-    async fn list_by_kafka_topic(&mut self, topic: &KafkaTopic) -> Result<Vec<Shard>>;
+    /// list all shards for a given topic
+    async fn list_by_topic(&mut self, topic: &TopicMetadata) -> Result<Vec<Shard>>;
 
     /// updates the `min_unpersisted_sequence_number` for a shard
     async fn update_min_unpersisted_sequence_number(
@@ -676,11 +680,8 @@ where
     let columns = repos.columns().list_by_namespace_id(namespace.id).await?;
     let tables = repos.tables().list_by_namespace_id(namespace.id).await?;
 
-    let mut namespace = NamespaceSchema::new(
-        namespace.id,
-        namespace.kafka_topic_id,
-        namespace.query_pool_id,
-    );
+    let mut namespace =
+        NamespaceSchema::new(namespace.id, namespace.topic_id, namespace.query_pool_id);
 
     let mut table_id_to_schema = BTreeMap::new();
     for t in tables {
@@ -831,7 +832,7 @@ pub async fn list_schemas(
         // was created, or have no tables/columns (and therefore have no entry
         // in "joined").
         .filter_map(move |v| {
-            let mut ns = NamespaceSchema::new(v.id, v.kafka_topic_id, v.query_pool_id);
+            let mut ns = NamespaceSchema::new(v.id, v.topic_id, v.query_pool_id);
             ns.tables = joined.remove(&v.id)?;
             Some((v, ns))
         });
@@ -855,7 +856,7 @@ pub(crate) mod test_helpers {
 
     pub(crate) async fn test_catalog(catalog: Arc<dyn Catalog>) {
         test_setup(Arc::clone(&catalog)).await;
-        test_kafka_topic(Arc::clone(&catalog)).await;
+        test_topic(Arc::clone(&catalog)).await;
         test_query_pool(Arc::clone(&catalog)).await;
         test_namespace(Arc::clone(&catalog)).await;
         test_table(Arc::clone(&catalog)).await;
@@ -877,7 +878,7 @@ pub(crate) mod test_helpers {
         test_list_schemas(Arc::clone(&catalog)).await;
 
         let metrics = catalog.metrics();
-        assert_metric_hit(&*metrics, "kafka_create_or_get");
+        assert_metric_hit(&*metrics, "topic_create_or_get");
         assert_metric_hit(&*metrics, "query_create_or_get");
         assert_metric_hit(&*metrics, "namespace_create");
         assert_metric_hit(&*metrics, "table_create_or_get");
@@ -893,18 +894,18 @@ pub(crate) mod test_helpers {
         catalog.setup().await.expect("second catalog setup");
     }
 
-    async fn test_kafka_topic(catalog: Arc<dyn Catalog>) {
+    async fn test_topic(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
-        let kafka_repo = repos.kafka_topics();
+        let topic_repo = repos.topics();
 
-        let k = kafka_repo.create_or_get("foo").await.unwrap();
-        assert!(k.id > KafkaTopicId::new(0));
+        let k = topic_repo.create_or_get("foo").await.unwrap();
+        assert!(k.id > TopicId::new(0));
         assert_eq!(k.name, "foo");
-        let k2 = kafka_repo.create_or_get("foo").await.unwrap();
+        let k2 = topic_repo.create_or_get("foo").await.unwrap();
         assert_eq!(k, k2);
-        let k3 = kafka_repo.get_by_name("foo").await.unwrap().unwrap();
+        let k3 = topic_repo.get_by_name("foo").await.unwrap().unwrap();
         assert_eq!(k3, k);
-        let k3 = kafka_repo.get_by_name("asdf").await.unwrap();
+        let k3 = topic_repo.get_by_name("asdf").await.unwrap();
         assert!(k3.is_none());
     }
 
@@ -921,13 +922,13 @@ pub(crate) mod test_helpers {
 
     async fn test_namespace(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
-        let kafka = repos.kafka_topics().create_or_get("foo").await.unwrap();
+        let topic = repos.topics().create_or_get("foo").await.unwrap();
         let pool = repos.query_pools().create_or_get("foo").await.unwrap();
 
         let namespace_name = "test_namespace";
         let namespace = repos
             .namespaces()
-            .create(namespace_name, "inf", kafka.id, pool.id)
+            .create(namespace_name, "inf", topic.id, pool.id)
             .await
             .unwrap();
         assert!(namespace.id > NamespaceId::new(0));
@@ -935,7 +936,7 @@ pub(crate) mod test_helpers {
 
         let conflict = repos
             .namespaces()
-            .create(namespace_name, "inf", kafka.id, pool.id)
+            .create(namespace_name, "inf", topic.id, pool.id)
             .await;
         assert!(matches!(
             conflict.unwrap_err(),
@@ -975,7 +976,7 @@ pub(crate) mod test_helpers {
         let namespace2_name = "test_namespace2";
         let namespace2 = repos
             .namespaces()
-            .create(namespace2_name, "inf", kafka.id, pool.id)
+            .create(namespace2_name, "inf", topic.id, pool.id)
             .await
             .unwrap();
         let mut namespaces = repos.namespaces().list().await.unwrap();
@@ -1001,11 +1002,11 @@ pub(crate) mod test_helpers {
 
     async fn test_table(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
-        let kafka = repos.kafka_topics().create_or_get("foo").await.unwrap();
+        let topic = repos.topics().create_or_get("foo").await.unwrap();
         let pool = repos.query_pools().create_or_get("foo").await.unwrap();
         let namespace = repos
             .namespaces()
-            .create("namespace_table_test", "inf", kafka.id, pool.id)
+            .create("namespace_table_test", "inf", topic.id, pool.id)
             .await
             .unwrap();
 
@@ -1042,7 +1043,7 @@ pub(crate) mod test_helpers {
         // test we can create a table of the same name in a different namespace
         let namespace2 = repos
             .namespaces()
-            .create("two", "inf", kafka.id, pool.id)
+            .create("two", "inf", topic.id, pool.id)
             .await
             .unwrap();
         assert_ne!(namespace, namespace2);
@@ -1110,7 +1111,7 @@ pub(crate) mod test_helpers {
         // test we can get table persistence info with no persistence so far
         let shard = repos
             .shards()
-            .create_or_get(&kafka, ShardIndex::new(555))
+            .create_or_get(&topic, ShardIndex::new(555))
             .await
             .unwrap();
         let ti = repos
@@ -1178,11 +1179,11 @@ pub(crate) mod test_helpers {
 
     async fn test_column(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
-        let kafka = repos.kafka_topics().create_or_get("foo").await.unwrap();
+        let topic = repos.topics().create_or_get("foo").await.unwrap();
         let pool = repos.query_pools().create_or_get("foo").await.unwrap();
         let namespace = repos
             .namespaces()
-            .create("namespace_column_test", "inf", kafka.id, pool.id)
+            .create("namespace_column_test", "inf", topic.id, pool.id)
             .await
             .unwrap();
         let table = repos
@@ -1292,18 +1293,14 @@ pub(crate) mod test_helpers {
 
     async fn test_shards(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
-        let kafka = repos
-            .kafka_topics()
-            .create_or_get("shard_test")
-            .await
-            .unwrap();
+        let topic = repos.topics().create_or_get("shard_test").await.unwrap();
 
         // Create 10 shards
         let mut created = BTreeMap::new();
         for shard_index in 1..=10 {
             let shard = repos
                 .shards()
-                .create_or_get(&kafka, ShardIndex::new(shard_index))
+                .create_or_get(&topic, ShardIndex::new(shard_index))
                 .await
                 .expect("failed to create shard");
             created.insert(shard.id, shard);
@@ -1312,7 +1309,7 @@ pub(crate) mod test_helpers {
         // List them and assert they match
         let listed = repos
             .shards()
-            .list_by_kafka_topic(&kafka)
+            .list_by_topic(&topic)
             .await
             .expect("failed to list shards")
             .into_iter()
@@ -1325,11 +1322,11 @@ pub(crate) mod test_helpers {
         let shard_index = ShardIndex::new(1);
         let shard = repos
             .shards()
-            .get_by_topic_id_and_shard_index(kafka.id, shard_index)
+            .get_by_topic_id_and_shard_index(topic.id, shard_index)
             .await
             .unwrap()
             .unwrap();
-        assert_eq!(kafka.id, shard.kafka_topic_id);
+        assert_eq!(topic.id, shard.topic_id);
         assert_eq!(shard_index, shard.shard_index);
 
         // update the number
@@ -1340,7 +1337,7 @@ pub(crate) mod test_helpers {
             .unwrap();
         let updated_shard = repos
             .shards()
-            .create_or_get(&kafka, shard_index)
+            .create_or_get(&topic, shard_index)
             .await
             .unwrap();
         assert_eq!(updated_shard.id, shard.id);
@@ -1351,7 +1348,7 @@ pub(crate) mod test_helpers {
 
         let shard = repos
             .shards()
-            .get_by_topic_id_and_shard_index(kafka.id, ShardIndex::new(523))
+            .get_by_topic_id_and_shard_index(topic.id, ShardIndex::new(523))
             .await
             .unwrap();
         assert!(shard.is_none());
@@ -1359,11 +1356,11 @@ pub(crate) mod test_helpers {
 
     async fn test_partition(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
-        let kafka = repos.kafka_topics().create_or_get("foo").await.unwrap();
+        let topic = repos.topics().create_or_get("foo").await.unwrap();
         let pool = repos.query_pools().create_or_get("foo").await.unwrap();
         let namespace = repos
             .namespaces()
-            .create("namespace_partition_test", "inf", kafka.id, pool.id)
+            .create("namespace_partition_test", "inf", topic.id, pool.id)
             .await
             .unwrap();
         let table = repos
@@ -1373,12 +1370,12 @@ pub(crate) mod test_helpers {
             .unwrap();
         let shard = repos
             .shards()
-            .create_or_get(&kafka, ShardIndex::new(1))
+            .create_or_get(&topic, ShardIndex::new(1))
             .await
             .unwrap();
         let other_shard = repos
             .shards()
-            .create_or_get(&kafka, ShardIndex::new(2))
+            .create_or_get(&topic, ShardIndex::new(2))
             .await
             .unwrap();
 
@@ -1452,7 +1449,7 @@ pub(crate) mod test_helpers {
         // test list_by_namespace
         let namespace2 = repos
             .namespaces()
-            .create("namespace_partition_test2", "inf", kafka.id, pool.id)
+            .create("namespace_partition_test2", "inf", topic.id, pool.id)
             .await
             .unwrap();
         let table2 = repos
@@ -1530,11 +1527,11 @@ pub(crate) mod test_helpers {
 
     async fn test_tombstone(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
-        let kafka = repos.kafka_topics().create_or_get("foo").await.unwrap();
+        let topic = repos.topics().create_or_get("foo").await.unwrap();
         let pool = repos.query_pools().create_or_get("foo").await.unwrap();
         let namespace = repos
             .namespaces()
-            .create("namespace_tombstone_test", "inf", kafka.id, pool.id)
+            .create("namespace_tombstone_test", "inf", topic.id, pool.id)
             .await
             .unwrap();
         let table = repos
@@ -1549,7 +1546,7 @@ pub(crate) mod test_helpers {
             .unwrap();
         let shard = repos
             .shards()
-            .create_or_get(&kafka, ShardIndex::new(1))
+            .create_or_get(&topic, ShardIndex::new(1))
             .await
             .unwrap();
 
@@ -1618,7 +1615,7 @@ pub(crate) mod test_helpers {
         // test list_by_namespace
         let namespace2 = repos
             .namespaces()
-            .create("namespace_tombstone_test2", "inf", kafka.id, pool.id)
+            .create("namespace_tombstone_test2", "inf", topic.id, pool.id)
             .await
             .unwrap();
         let table2 = repos
@@ -1693,14 +1690,14 @@ pub(crate) mod test_helpers {
 
     async fn test_tombstones_by_parquet_file(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
-        let kafka = repos.kafka_topics().create_or_get("foo").await.unwrap();
+        let topic = repos.topics().create_or_get("foo").await.unwrap();
         let pool = repos.query_pools().create_or_get("foo").await.unwrap();
         let namespace = repos
             .namespaces()
             .create(
                 "namespace_tombstones_by_parquet_file_test",
                 "inf",
-                kafka.id,
+                topic.id,
                 pool.id,
             )
             .await
@@ -1717,12 +1714,12 @@ pub(crate) mod test_helpers {
             .unwrap();
         let shard = repos
             .shards()
-            .create_or_get(&kafka, ShardIndex::new(57))
+            .create_or_get(&topic, ShardIndex::new(57))
             .await
             .unwrap();
         let other_shard = repos
             .shards()
-            .create_or_get(&kafka, ShardIndex::new(58))
+            .create_or_get(&topic, ShardIndex::new(58))
             .await
             .unwrap();
         let partition = repos
@@ -1912,11 +1909,11 @@ pub(crate) mod test_helpers {
 
     async fn test_parquet_file(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
-        let kafka = repos.kafka_topics().create_or_get("foo").await.unwrap();
+        let topic = repos.topics().create_or_get("foo").await.unwrap();
         let pool = repos.query_pools().create_or_get("foo").await.unwrap();
         let namespace = repos
             .namespaces()
-            .create("namespace_parquet_file_test", "inf", kafka.id, pool.id)
+            .create("namespace_parquet_file_test", "inf", topic.id, pool.id)
             .await
             .unwrap();
         let table = repos
@@ -1931,7 +1928,7 @@ pub(crate) mod test_helpers {
             .unwrap();
         let shard = repos
             .shards()
-            .create_or_get(&kafka, ShardIndex::new(1))
+            .create_or_get(&topic, ShardIndex::new(1))
             .await
             .unwrap();
         let partition = repos
@@ -2071,7 +2068,7 @@ pub(crate) mod test_helpers {
         // test list_by_namespace_not_to_delete
         let namespace2 = repos
             .namespaces()
-            .create("namespace_parquet_file_test1", "inf", kafka.id, pool.id)
+            .create("namespace_parquet_file_test1", "inf", topic.id, pool.id)
             .await
             .unwrap();
         let table2 = repos
@@ -2328,14 +2325,14 @@ pub(crate) mod test_helpers {
 
     async fn test_parquet_file_compaction_level_0(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
-        let kafka = repos.kafka_topics().create_or_get("foo").await.unwrap();
+        let topic = repos.topics().create_or_get("foo").await.unwrap();
         let pool = repos.query_pools().create_or_get("foo").await.unwrap();
         let namespace = repos
             .namespaces()
             .create(
                 "namespace_parquet_file_compaction_level_0_test",
                 "inf",
-                kafka.id,
+                topic.id,
                 pool.id,
             )
             .await
@@ -2347,12 +2344,12 @@ pub(crate) mod test_helpers {
             .unwrap();
         let shard = repos
             .shards()
-            .create_or_get(&kafka, ShardIndex::new(100))
+            .create_or_get(&topic, ShardIndex::new(100))
             .await
             .unwrap();
         let other_shard = repos
             .shards()
-            .create_or_get(&kafka, ShardIndex::new(101))
+            .create_or_get(&topic, ShardIndex::new(101))
             .await
             .unwrap();
 
@@ -2446,14 +2443,14 @@ pub(crate) mod test_helpers {
 
     async fn test_parquet_file_compaction_level_1(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
-        let kafka = repos.kafka_topics().create_or_get("foo").await.unwrap();
+        let topic = repos.topics().create_or_get("foo").await.unwrap();
         let pool = repos.query_pools().create_or_get("foo").await.unwrap();
         let namespace = repos
             .namespaces()
             .create(
                 "namespace_parquet_file_compaction_level_1_test",
                 "inf",
-                kafka.id,
+                topic.id,
                 pool.id,
             )
             .await
@@ -2470,12 +2467,12 @@ pub(crate) mod test_helpers {
             .unwrap();
         let shard = repos
             .shards()
-            .create_or_get(&kafka, ShardIndex::new(100))
+            .create_or_get(&topic, ShardIndex::new(100))
             .await
             .unwrap();
         let other_shard = repos
             .shards()
-            .create_or_get(&kafka, ShardIndex::new(101))
+            .create_or_get(&topic, ShardIndex::new(101))
             .await
             .unwrap();
         let partition = repos
@@ -2662,11 +2659,7 @@ pub(crate) mod test_helpers {
 
     async fn test_most_level_0_files_partitions(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
-        let kafka = repos
-            .kafka_topics()
-            .create_or_get("most_level_0")
-            .await
-            .unwrap();
+        let topic = repos.topics().create_or_get("most_level_0").await.unwrap();
         let pool = repos
             .query_pools()
             .create_or_get("most_level_0")
@@ -2677,7 +2670,7 @@ pub(crate) mod test_helpers {
             .create(
                 "test_most_level_0_files_partitions",
                 "inf",
-                kafka.id,
+                topic.id,
                 pool.id,
             )
             .await
@@ -2689,7 +2682,7 @@ pub(crate) mod test_helpers {
             .unwrap();
         let shard = repos
             .shards()
-            .create_or_get(&kafka, ShardIndex::new(100))
+            .create_or_get(&topic, ShardIndex::new(100))
             .await
             .unwrap();
 
@@ -2870,8 +2863,8 @@ pub(crate) mod test_helpers {
 
     async fn test_recent_highest_throughput_partitions(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
-        let kafka = repos
-            .kafka_topics()
+        let topic = repos
+            .topics()
             .create_or_get("highest_throughput")
             .await
             .unwrap();
@@ -2885,7 +2878,7 @@ pub(crate) mod test_helpers {
             .create(
                 "test_recent_highest_throughput_partitions",
                 "inf",
-                kafka.id,
+                topic.id,
                 pool.id,
             )
             .await
@@ -2897,7 +2890,7 @@ pub(crate) mod test_helpers {
             .unwrap();
         let shard = repos
             .shards()
-            .create_or_get(&kafka, ShardIndex::new(100))
+            .create_or_get(&topic, ShardIndex::new(100))
             .await
             .unwrap();
 
@@ -3135,14 +3128,14 @@ pub(crate) mod test_helpers {
 
     async fn test_list_by_partiton_not_to_delete(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
-        let kafka = repos.kafka_topics().create_or_get("foo").await.unwrap();
+        let topic = repos.topics().create_or_get("foo").await.unwrap();
         let pool = repos.query_pools().create_or_get("foo").await.unwrap();
         let namespace = repos
             .namespaces()
             .create(
                 "namespace_parquet_file_test_list_by_partiton_not_to_delete",
                 "inf",
-                kafka.id,
+                topic.id,
                 pool.id,
             )
             .await
@@ -3154,7 +3147,7 @@ pub(crate) mod test_helpers {
             .unwrap();
         let shard = repos
             .shards()
-            .create_or_get(&kafka, ShardIndex::new(100))
+            .create_or_get(&topic, ShardIndex::new(100))
             .await
             .unwrap();
 
@@ -3244,14 +3237,14 @@ pub(crate) mod test_helpers {
 
     async fn test_update_to_compaction_level_1(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
-        let kafka = repos.kafka_topics().create_or_get("foo").await.unwrap();
+        let topic = repos.topics().create_or_get("foo").await.unwrap();
         let pool = repos.query_pools().create_or_get("foo").await.unwrap();
         let namespace = repos
             .namespaces()
             .create(
                 "namespace_update_to_compaction_level_1_test",
                 "inf",
-                kafka.id,
+                topic.id,
                 pool.id,
             )
             .await
@@ -3263,7 +3256,7 @@ pub(crate) mod test_helpers {
             .unwrap();
         let shard = repos
             .shards()
-            .create_or_get(&kafka, ShardIndex::new(1000))
+            .create_or_get(&topic, ShardIndex::new(1000))
             .await
             .unwrap();
         let partition = repos
@@ -3365,14 +3358,14 @@ pub(crate) mod test_helpers {
 
     async fn test_processed_tombstones(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
-        let kafka = repos.kafka_topics().create_or_get("foo").await.unwrap();
+        let topic = repos.topics().create_or_get("foo").await.unwrap();
         let pool = repos.query_pools().create_or_get("foo").await.unwrap();
         let namespace = repos
             .namespaces()
             .create(
                 "namespace_processed_tombstone_test",
                 "inf",
-                kafka.id,
+                topic.id,
                 pool.id,
             )
             .await
@@ -3384,7 +3377,7 @@ pub(crate) mod test_helpers {
             .unwrap();
         let shard = repos
             .shards()
-            .create_or_get(&kafka, ShardIndex::new(1))
+            .create_or_get(&topic, ShardIndex::new(1))
             .await
             .unwrap();
         let partition = repos
@@ -3550,7 +3543,7 @@ pub(crate) mod test_helpers {
             barrier_captured.wait().await;
 
             let mut txn = catalog_captured.start_transaction().await.unwrap();
-            txn.kafka_topics()
+            txn.topics()
                 .create_or_get("test_txn_isolation")
                 .await
                 .unwrap();
@@ -3565,7 +3558,7 @@ pub(crate) mod test_helpers {
         tokio::time::sleep(Duration::from_millis(100)).await;
 
         let topic = txn
-            .kafka_topics()
+            .topics()
             .get_by_name("test_txn_isolation")
             .await
             .unwrap();
@@ -3576,7 +3569,7 @@ pub(crate) mod test_helpers {
 
         let mut txn = catalog.start_transaction().await.unwrap();
         let topic = txn
-            .kafka_topics()
+            .topics()
             .get_by_name("test_txn_isolation")
             .await
             .unwrap();
@@ -3587,10 +3580,7 @@ pub(crate) mod test_helpers {
     async fn test_txn_drop(catalog: Arc<dyn Catalog>) {
         let capture = TracingCapture::new();
         let mut txn = catalog.start_transaction().await.unwrap();
-        txn.kafka_topics()
-            .create_or_get("test_txn_drop")
-            .await
-            .unwrap();
+        txn.topics().create_or_get("test_txn_drop").await.unwrap();
         drop(txn);
 
         // got a warning
@@ -3599,11 +3589,7 @@ pub(crate) mod test_helpers {
 
         // data is NOT committed
         let mut txn = catalog.start_transaction().await.unwrap();
-        let topic = txn
-            .kafka_topics()
-            .get_by_name("test_txn_drop")
-            .await
-            .unwrap();
+        let topic = txn.topics().get_by_name("test_txn_drop").await.unwrap();
         assert!(topic.is_none());
         txn.abort().await.unwrap();
     }
@@ -3617,11 +3603,11 @@ pub(crate) mod test_helpers {
     where
         R: RepoCollection + ?Sized,
     {
-        let kafka = repos.kafka_topics().create_or_get("foo").await.unwrap();
+        let topic = repos.topics().create_or_get("foo").await.unwrap();
         let pool = repos.query_pools().create_or_get("foo").await.unwrap();
         let namespace = repos
             .namespaces()
-            .create(namespace_name, "inf", kafka.id, pool.id)
+            .create(namespace_name, "inf", topic.id, pool.id)
             .await;
 
         let namespace = match namespace {
@@ -3637,7 +3623,7 @@ pub(crate) mod test_helpers {
 
         let batches = mutable_batch_lp::lines_to_batches(lines, 42).unwrap();
         let batches = batches.iter().map(|(table, batch)| (table.as_str(), batch));
-        let ns = NamespaceSchema::new(namespace.id, kafka.id, pool.id);
+        let ns = NamespaceSchema::new(namespace.id, topic.id, pool.id);
 
         let schema = validate_or_insert_schema(batches, &ns, repos)
             .await

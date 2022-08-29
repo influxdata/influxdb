@@ -17,10 +17,14 @@ message GetSchemaResponse {
 }
 
 message NamespaceSchema {
+  // Renamed to topic_id
+  reserved 2;
+  reserved "kafka_topic_id";
+
   // Namespace ID
   int64 id = 1;
-  // Kafka Topic ID
-  int64 kafka_topic_id = 2;
+  // Topic ID
+  int64 topic_id = 5;
   // Query Pool ID
   int64 query_pool_id = 3;
   // Map of Table Name -> Table Schema

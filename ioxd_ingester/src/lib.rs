@@ -33,8 +33,8 @@ pub enum Error {
     #[error("Catalog error: {0}")]
     Catalog(#[from] iox_catalog::interface::Error),
 
-    #[error("Kafka topic {0} not found in the catalog")]
-    KafkaTopicNotFound(String),
+    #[error("Topic name {0} not found in the catalog")]
+    TopicNotFound(String),
 
     #[error("shard_index_range_start must be <= shard_index_range_end")]
     ShardIndexRange,
@@ -146,11 +146,11 @@ pub async fn create_ingester_server_type(
     ingester_config: IngesterConfig,
 ) -> Result<Arc<dyn ServerType>> {
     let mut txn = catalog.start_transaction().await?;
-    let kafka_topic = txn
-        .kafka_topics()
+    let topic = txn
+        .topics()
         .get_by_name(write_buffer_config.topic())
         .await?
-        .ok_or_else(|| Error::KafkaTopicNotFound(write_buffer_config.topic().to_string()))?;
+        .ok_or_else(|| Error::TopicNotFound(write_buffer_config.topic().to_string()))?;
 
     if ingester_config.shard_index_range_start > ingester_config.shard_index_range_end {
         return Err(Error::ShardIndexRange);
@@ -163,10 +163,7 @@ pub async fn create_ingester_server_type(
 
     let mut shards = BTreeMap::new();
     for shard_index in shard_indexes {
-        let s = txn
-            .shards()
-            .create_or_get(&kafka_topic, shard_index)
-            .await?;
+        let s = txn.shards().create_or_get(&topic, shard_index).await?;
         shards.insert(shard_index, s);
     }
     txn.commit().await?;
@@ -187,7 +184,7 @@ pub async fn create_ingester_server_type(
     let ingest_handler = Arc::new(
         IngestHandlerImpl::new(
             lifecycle_config,
-            kafka_topic,
+            topic,
             shards,
             catalog,
             object_store,

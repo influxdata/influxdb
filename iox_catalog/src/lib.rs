@@ -13,14 +13,14 @@
 
 use crate::interface::{ColumnUpsertRequest, Error, RepoCollection, Result, Transaction};
 use data_types::{
-    ColumnType, KafkaTopic, NamespaceSchema, QueryPool, Shard, ShardId, ShardIndex, TableSchema,
+    ColumnType, NamespaceSchema, QueryPool, Shard, ShardId, ShardIndex, TableSchema, TopicMetadata,
 };
 use mutable_batch::MutableBatch;
 use std::{borrow::Cow, collections::BTreeMap};
 use thiserror::Error;
 
-const SHARED_KAFKA_TOPIC: &str = "iox-shared";
-const SHARED_QUERY_POOL: &str = SHARED_KAFKA_TOPIC;
+const SHARED_TOPIC_NAME: &str = "iox-shared";
+const SHARED_QUERY_POOL: &str = SHARED_TOPIC_NAME;
 const TIME_COLUMN: &str = "time";
 
 /// A string value representing an infinite retention policy.
@@ -194,15 +194,15 @@ where
     Ok(())
 }
 
-/// Creates or gets records in the catalog for the shared kafka topic, query pool, and shards
+/// Creates or gets records in the catalog for the shared topic, query pool, and shards
 /// for each of the partitions.
 ///
 /// Used in tests and when creating an in-memory catalog.
 pub async fn create_or_get_default_records(
     shard_count: i32,
     txn: &mut dyn Transaction,
-) -> Result<(KafkaTopic, QueryPool, BTreeMap<ShardId, Shard>)> {
-    let kafka_topic = txn.kafka_topics().create_or_get(SHARED_KAFKA_TOPIC).await?;
+) -> Result<(TopicMetadata, QueryPool, BTreeMap<ShardId, Shard>)> {
+    let topic = txn.topics().create_or_get(SHARED_TOPIC_NAME).await?;
     let query_pool = txn.query_pools().create_or_get(SHARED_QUERY_POOL).await?;
 
     let mut shards = BTreeMap::new();
@@ -210,12 +210,12 @@ pub async fn create_or_get_default_records(
     for shard_index in 0..shard_count {
         let shard = txn
             .shards()
-            .create_or_get(&kafka_topic, ShardIndex::new(shard_index))
+            .create_or_get(&topic, ShardIndex::new(shard_index))
             .await?;
         shards.insert(shard.id, shard);
     }
 
-    Ok((kafka_topic, query_pool, shards))
+    Ok((topic, query_pool, shards))
 }
 
 #[cfg(test)]
@@ -250,20 +250,20 @@ mod tests {
                     let metrics = Arc::new(metric::Registry::default());
                     let repo = MemCatalog::new(metrics);
                     let mut txn = repo.start_transaction().await.unwrap();
-                    let (kafka_topic, query_pool, _) = create_or_get_default_records(
+                    let (topic, query_pool, _) = create_or_get_default_records(
                         2,
                         txn.deref_mut()
                     ).await.unwrap();
 
                     let namespace = txn
                         .namespaces()
-                        .create(NAMESPACE_NAME, "inf", kafka_topic.id, query_pool.id)
+                        .create(NAMESPACE_NAME, "inf", topic.id, query_pool.id)
                         .await
                         .unwrap();
 
                     let schema = NamespaceSchema::new(
                         namespace.id,
-                        namespace.kafka_topic_id,
+                        namespace.topic_id,
                         namespace.query_pool_id,
                     );
 

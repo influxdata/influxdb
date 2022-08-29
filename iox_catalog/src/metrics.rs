@@ -1,16 +1,16 @@
 //! Metric instrumentation for catalog implementations.
 
 use crate::interface::{
-    sealed::TransactionFinalize, ColumnRepo, ColumnUpsertRequest, KafkaTopicRepo, NamespaceRepo,
-    ParquetFileRepo, PartitionRepo, ProcessedTombstoneRepo, QueryPoolRepo, RepoCollection, Result,
-    ShardRepo, TablePersistInfo, TableRepo, TombstoneRepo,
+    sealed::TransactionFinalize, ColumnRepo, ColumnUpsertRequest, NamespaceRepo, ParquetFileRepo,
+    PartitionRepo, ProcessedTombstoneRepo, QueryPoolRepo, RepoCollection, Result, ShardRepo,
+    TablePersistInfo, TableRepo, TombstoneRepo, TopicMetadataRepo,
 };
 use async_trait::async_trait;
 use data_types::{
-    Column, ColumnType, KafkaTopic, KafkaTopicId, Namespace, NamespaceId, ParquetFile,
-    ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionInfo, PartitionKey,
-    PartitionParam, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Shard, ShardId,
-    ShardIndex, Table, TableId, TablePartition, Timestamp, Tombstone, TombstoneId,
+    Column, ColumnType, Namespace, NamespaceId, ParquetFile, ParquetFileId, ParquetFileParams,
+    Partition, PartitionId, PartitionInfo, PartitionKey, PartitionParam, ProcessedTombstone,
+    QueryPool, QueryPoolId, SequenceNumber, Shard, ShardId, ShardIndex, Table, TableId,
+    TablePartition, Timestamp, Tombstone, TombstoneId, TopicId, TopicMetadata,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use metric::{DurationHistogram, Metric};
@@ -43,7 +43,7 @@ impl<T> MetricDecorator<T> {
 
 impl<T, P> RepoCollection for MetricDecorator<T, P>
 where
-    T: KafkaTopicRepo
+    T: TopicMetadataRepo
         + QueryPoolRepo
         + NamespaceRepo
         + TableRepo
@@ -56,7 +56,7 @@ where
         + Debug,
     P: TimeProvider,
 {
-    fn kafka_topics(&mut self) -> &mut dyn KafkaTopicRepo {
+    fn topics(&mut self) -> &mut dyn TopicMetadataRepo {
         self
     }
 
@@ -175,10 +175,10 @@ macro_rules! decorate {
 }
 
 decorate!(
-    impl_trait = KafkaTopicRepo,
+    impl_trait = TopicMetadataRepo,
     methods = [
-        "kafka_create_or_get" = create_or_get(&mut self, name: &str) -> Result<KafkaTopic>;
-        "kafka_get_by_name" = get_by_name(&mut self, name: &str) -> Result<Option<KafkaTopic>>;
+        "topic_create_or_get" = create_or_get(&mut self, name: &str) -> Result<TopicMetadata>;
+        "topic_get_by_name" = get_by_name(&mut self, name: &str) -> Result<Option<TopicMetadata>>;
     ]
 );
 
@@ -192,7 +192,7 @@ decorate!(
 decorate!(
     impl_trait = NamespaceRepo,
     methods = [
-        "namespace_create" = create(&mut self, name: &str, retention_duration: &str, kafka_topic_id: KafkaTopicId, query_pool_id: QueryPoolId) -> Result<Namespace>;
+        "namespace_create" = create(&mut self, name: &str, retention_duration: &str, topic_id: TopicId, query_pool_id: QueryPoolId) -> Result<Namespace>;
         "namespace_list" = list(&mut self) -> Result<Vec<Namespace>>;
         "namespace_get_by_id" = get_by_id(&mut self, id: NamespaceId) -> Result<Option<Namespace>>;
         "namespace_get_by_name" = get_by_name(&mut self, name: &str) -> Result<Option<Namespace>>;
@@ -227,10 +227,10 @@ decorate!(
 decorate!(
     impl_trait = ShardRepo,
     methods = [
-        "shard_create_or_get" = create_or_get(&mut self, topic: &KafkaTopic, shard_index: ShardIndex) -> Result<Shard>;
-        "shard_get_by_topic_id_and_shard_index" = get_by_topic_id_and_shard_index(&mut self, topic_id: KafkaTopicId, shard_index: ShardIndex) -> Result<Option<Shard>>;
+        "shard_create_or_get" = create_or_get(&mut self, topic: &TopicMetadata, shard_index: ShardIndex) -> Result<Shard>;
+        "shard_get_by_topic_id_and_shard_index" = get_by_topic_id_and_shard_index(&mut self, topic_id: TopicId, shard_index: ShardIndex) -> Result<Option<Shard>>;
         "shard_list" = list(&mut self) -> Result<Vec<Shard>>;
-        "shard_list_by_kafka_topic" = list_by_kafka_topic(&mut self, topic: &KafkaTopic) -> Result<Vec<Shard>>;
+        "shard_list_by_topic" = list_by_topic(&mut self, topic: &TopicMetadata) -> Result<Vec<Shard>>;
         "shard_update_min_unpersisted_sequence_number" = update_min_unpersisted_sequence_number(&mut self, shard_id: ShardId, sequence_number: SequenceNumber) -> Result<()>;
     ]
 );

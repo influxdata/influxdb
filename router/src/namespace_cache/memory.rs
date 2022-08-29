@@ -28,7 +28,7 @@ impl NamespaceCache for Arc<MemoryNamespaceCache> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use data_types::{KafkaTopicId, NamespaceId, QueryPoolId};
+    use data_types::{NamespaceId, QueryPoolId, TopicId};
 
     #[test]
     fn test_put_get() {
@@ -39,7 +39,7 @@ mod tests {
 
         let schema1 = NamespaceSchema {
             id: NamespaceId::new(42),
-            kafka_topic_id: KafkaTopicId::new(24),
+            topic_id: TopicId::new(24),
             query_pool_id: QueryPoolId::new(1234),
             tables: Default::default(),
         };
@@ -48,7 +48,7 @@ mod tests {
 
         let schema2 = NamespaceSchema {
             id: NamespaceId::new(2),
-            kafka_topic_id: KafkaTopicId::new(2),
+            topic_id: TopicId::new(2),
             query_pool_id: QueryPoolId::new(2),
             tables: Default::default(),
         };

@@ -57,7 +57,7 @@ pub enum Error {
     #[error("No shards found in Catalog")]
     Sharder,
 
-    #[error("Failed to find topic with name '{topic_name}' in catalog")]
+    #[error("No topic named '{topic_name}' found in the catalog")]
     TopicCatalogLookup { topic_name: String },
 
     #[error("Failed to init shard grpc service: {0}")]
@@ -215,12 +215,12 @@ pub async fn create_router_server_type(
     //
     // THIS CODE IS FOR TESTING ONLY.
     //
-    // The source of truth for the kafka topics & query pools will be read from
+    // The source of truth for the topics & query pools will be read from
     // the DB, rather than CLI args for a prod deployment.
     //
     ////////////////////////////////////////////////////////////////////////////
     //
-    // Look up the kafka topic ID needed to populate namespace creation
+    // Look up the topic ID needed to populate namespace creation
     // requests.
     //
     // This code / auto-creation is for architecture testing purposes only - a
@@ -229,16 +229,11 @@ pub async fn create_router_server_type(
     let schema_catalog = Arc::clone(&catalog);
     let mut txn = catalog.start_transaction().await?;
     let topic_id = txn
-        .kafka_topics()
+        .topics()
         .get_by_name(write_buffer_config.topic())
         .await?
         .map(|v| v.id)
-        .unwrap_or_else(|| {
-            panic!(
-                "no kafka topic named {} in catalog",
-                write_buffer_config.topic()
-            )
-        });
+        .unwrap_or_else(|| panic!("no topic named {} in catalog", write_buffer_config.topic()));
     let query_id = txn
         .query_pools()
         .create_or_get(query_pool_name)
@@ -347,8 +342,7 @@ async fn init_write_buffer(
         return Err(Error::Sharder);
     }
 
-    // Initialise the sharder that maps (table, namespace, payload) to kafka
-    // partitions.
+    // Initialise the sharder that maps (table, namespace, payload) to shards.
     let sharder = Arc::new(JumpHash::new(
         shards
             .into_iter()
@@ -367,11 +361,11 @@ async fn init_shard_service<S>(
 where
     S: Send + Sync,
 {
-    // Get the KafkaTopic from the catalog for the configured topic.
+    // Get the TopicMetadata from the catalog for the configured topic.
     let topic = catalog
         .repositories()
         .await
-        .kafka_topics()
+        .topics()
         .get_by_name(write_buffer_config.topic())
         .await?
         .ok_or_else(|| Error::TopicCatalogLookup {
@@ -416,11 +410,11 @@ mod tests {
         let catalog = Arc::new(MemCatalog::new(Default::default()));
 
         let mut repos = catalog.repositories().await;
-        let kafka = repos.kafka_topics().create_or_get("foo").await.unwrap();
+        let topic = repos.topics().create_or_get("foo").await.unwrap();
         let pool = repos.query_pools().create_or_get("foo").await.unwrap();
         let namespace = repos
             .namespaces()
-            .create("test_ns", "inf", kafka.id, pool.id)
+            .create("test_ns", "inf", topic.id, pool.id)
             .await
             .unwrap();
 

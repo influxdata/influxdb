@@ -177,15 +177,11 @@ mod tests {
             {
                 let mut repos = catalog.repositories().await;
 
-                let kafka_topic = repos
-                    .kafka_topics()
-                    .create_or_get("kafka_topic")
-                    .await
-                    .unwrap();
+                let topic = repos.topics().create_or_get("topic").await.unwrap();
                 let shard_index = ShardIndex::new(0);
                 repos
                     .shards()
-                    .create_or_get(&kafka_topic, shard_index)
+                    .create_or_get(&topic, shard_index)
                     .await
                     .unwrap();
             }

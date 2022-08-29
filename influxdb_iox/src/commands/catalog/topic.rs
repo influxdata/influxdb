@@ -46,7 +46,7 @@ pub async fn command(config: Config) -> Result<(), Error> {
             let metrics = Arc::new(metric::Registry::new());
             let catalog = update.catalog_dsn.get_catalog("cli", metrics).await?;
             let mut repos = catalog.repositories().await;
-            let topic = repos.kafka_topics().create_or_get(&update.db_name).await?;
+            let topic = repos.topics().create_or_get(&update.db_name).await?;
             println!("{}", topic.id);
             Ok(())
         }

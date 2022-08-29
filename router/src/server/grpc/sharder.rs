@@ -1,7 +1,7 @@
 //! A gRPC service to provide shard mappings to external clients.
 
 use crate::shard::Shard;
-use data_types::{DatabaseName, KafkaTopic, ShardId, ShardIndex};
+use data_types::{DatabaseName, ShardId, ShardIndex, TopicMetadata};
 use generated_types::influxdata::iox::sharder::v1::{
     shard_service_server, MapToShardRequest, MapToShardResponse,
 };
@@ -42,7 +42,7 @@ where
     /// [`ShardService`]: generated_types::influxdata::iox::sharder::v1::shard_service_server::ShardService
     pub async fn new(
         sharder: S,
-        topic: KafkaTopic,
+        topic: TopicMetadata,
         catalog: Arc<dyn Catalog>,
     ) -> Result<Self, iox_catalog::interface::Error> {
         // Build the mapping of Kafka partition (shard) index -> Catalog shard ID
@@ -50,7 +50,7 @@ where
             .repositories()
             .await
             .shards()
-            .list_by_kafka_topic(&topic)
+            .list_by_topic(&topic)
             .await?
             .into_iter()
             .map(|s| (s.shard_index, s.id))
@@ -118,7 +118,7 @@ mod tests {
         let topic = catalog
             .repositories()
             .await
-            .kafka_topics()
+            .topics()
             .create_or_get("test")
             .await
             .expect("topic create");

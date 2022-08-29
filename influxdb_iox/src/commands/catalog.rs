@@ -40,7 +40,7 @@ enum Command {
     /// Run database migrations
     Setup(Setup),
 
-    /// Manage kafka topic
+    /// Manage topic
     Topic(topic::Config),
 }
 
