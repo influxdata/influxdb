@@ -901,6 +901,24 @@ impl Tombstone {
         std::mem::size_of_val(self) + self.serialized_predicate.capacity()
     }
 }
+/// Map of a column type to its count
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, sqlx::FromRow)]
+pub struct ColumnTypeCount {
+    /// column type
+    pub col_type: i16,
+    /// count of the column type
+    pub count: i64,
+}
+
+impl ColumnTypeCount {
+    /// make a new ColumnTypeCount
+    pub fn new(col_type: ColumnType, count: i64) -> Self {
+        Self {
+            col_type: col_type as i16,
+            count,
+        }
+    }
+}
 
 /// Set of columns.
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::Type)]

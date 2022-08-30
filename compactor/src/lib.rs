@@ -23,6 +23,7 @@ pub mod utils;
 use crate::compact::{Compactor, PartitionCompactionCandidateWithInfo};
 use data_types::CompactionLevel;
 use metric::Attributes;
+use parquet_file_filtering::FilteredFiles;
 use snafu::{ResultExt, Snafu};
 use std::sync::Arc;
 
@@ -48,29 +49,15 @@ pub(crate) enum Error {
 /// One compaction operation of one hot partition
 pub(crate) async fn compact_hot_partition(
     compactor: &Compactor,
-    partition: PartitionCompactionCandidateWithInfo,
+    to_compact: FilteredFiles,
 ) -> Result<(), Error> {
     let start_time = compactor.time_provider.now();
+
+    let partition = to_compact.partition;
     let shard_id = partition.shard_id();
 
-    let parquet_files_for_compaction =
-        parquet_file_lookup::ParquetFilesForCompaction::for_partition(
-            Arc::clone(&compactor.catalog),
-            partition.id(),
-        )
-        .await
-        .context(LookupSnafu)?;
-
-    let to_compact = parquet_file_filtering::filter_hot_parquet_files(
-        parquet_files_for_compaction,
-        compactor.config.input_size_threshold_bytes(),
-        compactor.config.input_file_count_threshold(),
-        &compactor.parquet_file_candidate_gauge,
-        &compactor.parquet_file_candidate_bytes,
-    );
-
     let compact_result = parquet_file_combining::compact_parquet_files(
-        to_compact,
+        to_compact.files,
         partition,
         Arc::clone(&compactor.catalog),
         compactor.store.clone(),
@@ -175,7 +162,7 @@ mod tests {
     use arrow::record_batch::RecordBatch;
     use arrow_util::assert_batches_sorted_eq;
     use backoff::BackoffConfig;
-    use data_types::{ColumnType, CompactionLevel, ParquetFile};
+    use data_types::{ColumnType, ColumnTypeCount, CompactionLevel, ParquetFile};
     use iox_query::exec::Executor;
     use iox_tests::util::{TestCatalog, TestParquetFileBuilder, TestTable};
     use iox_time::{SystemProvider, TimeProvider};
@@ -242,6 +229,20 @@ mod tests {
         table.create_column("tag2", ColumnType::Tag).await;
         table.create_column("tag3", ColumnType::Tag).await;
         table.create_column("time", ColumnType::Time).await;
+        let table_column_types = vec![
+            ColumnTypeCount {
+                col_type: ColumnType::Tag as i16,
+                count: 3,
+            },
+            ColumnTypeCount {
+                col_type: ColumnType::I64 as i16,
+                count: 1,
+            },
+            ColumnTypeCount {
+                col_type: ColumnType::Time as i16,
+                count: 1,
+            },
+        ];
         let partition = table.with_shard(&shard).create_partition("part").await;
         let time = Arc::new(SystemProvider::new());
         let config = make_compactor_config();
@@ -339,9 +340,26 @@ mod tests {
         let mut candidates = compactor.add_info_to_partitions(&candidates).await.unwrap();
 
         assert_eq!(candidates.len(), 1);
-        let c = candidates.pop().unwrap();
+        let c = candidates.pop_front().unwrap();
 
-        compact_hot_partition(&compactor, c).await.unwrap();
+        let parquet_files_for_compaction =
+            parquet_file_lookup::ParquetFilesForCompaction::for_partition(
+                Arc::clone(&compactor.catalog),
+                c.id(),
+            )
+            .await
+            .unwrap();
+
+        let to_compact = parquet_file_filtering::filter_hot_parquet_files(
+            c,
+            parquet_files_for_compaction,
+            compactor.config.memory_budget_bytes(),
+            &table_column_types,
+            &compactor.parquet_file_candidate_gauge,
+            &compactor.parquet_file_candidate_bytes,
+        );
+
+        compact_hot_partition(&compactor, to_compact).await.unwrap();
 
         // Should have 3 non-soft-deleted files:
         //
@@ -553,7 +571,7 @@ mod tests {
         let mut candidates = compactor.add_info_to_partitions(&candidates).await.unwrap();
 
         assert_eq!(candidates.len(), 1);
-        let c = candidates.pop().unwrap();
+        let c = candidates.pop_front().unwrap();
 
         compact_cold_partition(&compactor, c).await.unwrap();
 
@@ -696,7 +714,7 @@ mod tests {
         let mut candidates = compactor.add_info_to_partitions(&candidates).await.unwrap();
 
         assert_eq!(candidates.len(), 1);
-        let c = candidates.pop().unwrap();
+        let c = candidates.pop_front().unwrap();
 
         compact_cold_partition(&compactor, c).await.unwrap();
 
@@ -777,29 +795,25 @@ mod tests {
         let max_desired_file_size_bytes = 10_000;
         let percentage_max_file_size = 30;
         let split_percentage = 80;
-        let max_concurrent_size_bytes = 100_000;
         let max_cold_concurrent_size_bytes = 90_000;
         let max_number_partitions_per_shard = 1;
         let min_number_recent_ingested_per_partition = 1;
-        let input_size_threshold_bytes = 300 * 1024 * 1024;
         let cold_input_size_threshold_bytes = 600 * 1024 * 1024;
-        let input_file_count_threshold = 100;
         let cold_input_file_count_threshold = 100;
         let hot_multiple = 4;
+        let memory_budget_bytes = 100_000_000;
 
         CompactorConfig::new(
             max_desired_file_size_bytes,
             percentage_max_file_size,
             split_percentage,
-            max_concurrent_size_bytes,
             max_cold_concurrent_size_bytes,
             max_number_partitions_per_shard,
             min_number_recent_ingested_per_partition,
-            input_size_threshold_bytes,
             cold_input_size_threshold_bytes,
-            input_file_count_threshold,
             cold_input_file_count_threshold,
             hot_multiple,
+            memory_budget_bytes,
         )
     }
 }

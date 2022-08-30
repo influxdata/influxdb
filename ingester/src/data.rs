@@ -1261,7 +1261,7 @@ struct DataBuffer {
     // Extra Notes:
     //  . In MVP, we will only persist a set of snapshots at a time.
     //    In later version, multiple perssiting operations may be happenning concurrently but
-    //    their persisted info must be added into the Catalog in thier data
+    //    their persisted info must be added into the Catalog in their data
     //    ingesting order.
     //  . When a read request comes from a Querier, all data from `snaphots`
     //    and `persisting` must be sent to the Querier.

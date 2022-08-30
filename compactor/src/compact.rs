@@ -3,8 +3,8 @@
 use crate::handler::CompactorConfig;
 use backoff::BackoffConfig;
 use data_types::{
-    Namespace, NamespaceId, PartitionId, PartitionKey, PartitionParam, ShardId, Table, TableId,
-    TableSchema,
+    ColumnTypeCount, Namespace, NamespaceId, PartitionId, PartitionKey, PartitionParam, ShardId,
+    Table, TableId, TableSchema,
 };
 use iox_catalog::interface::{get_schema_by_id, Catalog};
 use iox_query::exec::Executor;
@@ -18,7 +18,7 @@ use parquet_file::storage::ParquetStorage;
 use schema::sort::SortKey;
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{HashMap, HashSet, VecDeque},
     sync::Arc,
     time::Duration,
 };
@@ -33,6 +33,11 @@ pub enum Error {
 
     #[snafu(display("Error querying table {}", source))]
     QueryingTable {
+        source: iox_catalog::interface::Error,
+    },
+
+    #[snafu(display("Error querying column {}", source))]
+    QueryingColumn {
         source: iox_catalog::interface::Error,
     },
 
@@ -354,11 +359,36 @@ impl Compactor {
         Ok(candidates)
     }
 
+    /// Get column types for tables of given partitions
+    pub async fn table_columns(
+        &self,
+        partitions: &[PartitionParam],
+    ) -> Result<HashMap<TableId, Vec<ColumnTypeCount>>> {
+        use std::collections::hash_map::Entry::Vacant; // this can be moved to the imports at the top if you want
+        let mut repos = self.catalog.repositories().await;
+
+        let mut result = HashMap::with_capacity(partitions.len());
+
+        for table_id in partitions.iter().map(|p| p.table_id) {
+            let entry = result.entry(table_id);
+            if let Vacant(entry) = entry {
+                let cols = repos
+                    .columns()
+                    .list_type_count_by_table_id(table_id)
+                    .await
+                    .context(QueryingColumnSnafu)?;
+                entry.insert(cols);
+            }
+        }
+
+        Ok(result)
+    }
+
     /// Add namespace and table information to partition candidates.
     pub async fn add_info_to_partitions(
         &self,
         partitions: &[PartitionParam],
-    ) -> Result<Vec<PartitionCompactionCandidateWithInfo>> {
+    ) -> Result<VecDeque<PartitionCompactionCandidateWithInfo>> {
         let mut repos = self.catalog.repositories().await;
 
         let table_ids: HashSet<_> = partitions.iter().map(|p| p.table_id).collect();
@@ -427,12 +457,12 @@ impl Compactor {
                     partition_key: part.partition_key.clone(),
                 }
             })
-            .collect())
+            .collect::<VecDeque<_>>())
     }
 }
 
 /// [`PartitionParam`] with some information about its table and namespace.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PartitionCompactionCandidateWithInfo {
     /// Partition compaction candidate.
     pub candidate: PartitionParam,
@@ -758,28 +788,24 @@ mod tests {
         let max_desired_file_size_bytes = 10_000;
         let percentage_max_file_size = 30;
         let split_percentage = 80;
-        let max_concurrent_size_bytes = 100_000;
         let max_cold_concurrent_size_bytes = 90_000;
         let max_number_partitions_per_shard = 1;
         let min_number_recent_ingested_per_partition = 1;
-        let input_size_threshold_bytes = 300 * 1024 * 1024;
         let cold_input_size_threshold_bytes = 600 * 1024 * 1024;
-        let input_file_count_threshold = 100;
         let cold_input_file_count_threshold = 100;
         let hot_multiple = 4;
+        let memory_budget_bytes = 10 * 1024 * 1024;
         CompactorConfig::new(
             max_desired_file_size_bytes,
             percentage_max_file_size,
             split_percentage,
-            max_concurrent_size_bytes,
             max_cold_concurrent_size_bytes,
             max_number_partitions_per_shard,
             min_number_recent_ingested_per_partition,
-            input_size_threshold_bytes,
             cold_input_size_threshold_bytes,
-            input_file_count_threshold,
             cold_input_file_count_threshold,
             hot_multiple,
+            memory_budget_bytes,
         )
     }
 

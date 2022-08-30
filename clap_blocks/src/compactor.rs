@@ -84,22 +84,6 @@ macro_rules! gen_compactor_config {
             )]
             pub split_percentage: u16,
 
-            /// The compactor will limit the number of simultaneous hot partition compaction jobs
-            /// based on the size of the input files to be compacted. This number should be less
-            /// than 1/10th of the available memory to ensure compactions have enough space to run.
-            ///
-            /// Default is 1024 * 1024 * 1024 = 1,073,741,824 bytes (1GB).
-            //
-            // The number of compact_hot_partititons run in parallel is determined by:
-            //    max_concurrent_size_bytes/input_size_threshold_bytes
-            #[clap(
-                long = "--compaction-concurrent-size-bytes",
-                env = "INFLUXDB_IOX_COMPACTION_CONCURRENT_SIZE_BYTES",
-                default_value = "1073741824",
-                action
-            )]
-            pub max_concurrent_size_bytes: u64,
-
             /// The compactor will limit the number of simultaneous cold partition compaction jobs
             /// based on the size of the input files to be compacted. This number should be less
             /// than 1/10th of the available memory to ensure compactions have enough space to run.
@@ -138,22 +122,6 @@ macro_rules! gen_compactor_config {
             )]
             pub min_number_recent_ingested_files_per_partition: usize,
 
-            /// A compaction operation for hot partitions will gather as many L0 files with their
-            /// overlapping L1 files to compact together until the total size of input files
-            /// crosses this threshold. Later compactions will pick up the remaining L0 files.
-            ///
-            /// A compaction operation will be limited by this or by the file count threshold,
-            /// whichever is hit first.
-            ///
-            /// Default is 1024 * 1024 * 100 = 100,048,576 bytes (100MB).
-            #[clap(
-                long = "--compaction-input-size-threshold-bytes",
-                env = "INFLUXDB_IOX_COMPACTION_INPUT_SIZE_THRESHOLD_BYTES",
-                default_value = "100048576",
-                action
-            )]
-            pub input_size_threshold_bytes: u64,
-
             /// A compaction operation for cold partitions will gather as many L0 files with their
             /// overlapping L1 files to compact together until the total size of input files
             /// crosses this threshold. Later compactions will pick up the remaining L0 files.
@@ -166,20 +134,6 @@ macro_rules! gen_compactor_config {
                 action
             )]
             pub cold_input_size_threshold_bytes: u64,
-
-            /// A compaction operation will gather as many L0 files with their overlapping L1 files
-            /// to compact together until the total number of L0 + L1 files crosses this threshold.
-            /// Later compactions will pick up the remaining L0 files.
-            ///
-            /// A compaction operation will be limited by this or by the input size threshold,
-            /// whichever is hit first.
-            #[clap(
-                long = "--compaction-input-file-count-threshold",
-                env = "INFLUXDB_IOX_COMPACTION_INPUT_FILE_COUNT_THRESHOLD",
-                default_value = "50",
-                action
-            )]
-            pub input_file_count_threshold: usize,
 
             /// A compaction operation for cold partitions  will gather as many L0 files with their 
             /// overlapping L1 files to compact together until the total number of L0 + L1 files 
@@ -209,6 +163,24 @@ macro_rules! gen_compactor_config {
                 action
             )]
             pub hot_multiple: usize,
+
+            /// The memory budget asigned to this compactor.
+            /// For each partition candidate, we will esimate the memory needed to compact each file
+            /// and only add more files if their needed estimated memory is below this memory budget.
+            /// Since we must compact L1 files that overlapped with L0 files, if their total estimated 
+            /// memory do not allow us to compact a part of a partition at all, we will not compact 
+            /// it and will log the partition and its related information in a table in our catalog for
+            /// further diagnosis of the issue.
+            /// How many candidates compacted concurrently are also decided using this estimation and
+            /// budget.
+            /// Default is 30 * 1024 * 1024 * 1024 = 32,212,254,720 bytes (30GB).
+            #[clap(
+                long = "--compaction-memory-budget-bytes",
+                env = "INFLUXDB_IOX_COMPACTION_MEMORY_BUDGET_BYTES",
+                default_value = "32212254720",
+                action
+            )]
+            pub memory_budget_bytes: u64,
         }
     };
 }
@@ -228,16 +200,14 @@ impl CompactorOnceConfig {
             max_desired_file_size_bytes: self.max_desired_file_size_bytes,
             percentage_max_file_size: self.percentage_max_file_size,
             split_percentage: self.split_percentage,
-            max_concurrent_size_bytes: self.max_concurrent_size_bytes,
             max_cold_concurrent_size_bytes: self.max_cold_concurrent_size_bytes,
             max_number_partitions_per_shard: self.max_number_partitions_per_shard,
             min_number_recent_ingested_files_per_partition: self
                 .min_number_recent_ingested_files_per_partition,
-            input_size_threshold_bytes: self.input_size_threshold_bytes,
             cold_input_size_threshold_bytes: self.cold_input_size_threshold_bytes,
-            input_file_count_threshold: self.input_file_count_threshold,
             cold_input_file_count_threshold: self.cold_input_file_count_threshold,
             hot_multiple: self.hot_multiple,
+            memory_budget_bytes: self.memory_budget_bytes,
         }
     }
 }

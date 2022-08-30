@@ -12,11 +12,11 @@ use crate::{
 };
 use async_trait::async_trait;
 use data_types::{
-    Column, ColumnId, ColumnType, CompactionLevel, Namespace, NamespaceId, ParquetFile,
-    ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionInfo, PartitionKey,
-    PartitionParam, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Shard, ShardId,
-    ShardIndex, Table, TableId, TablePartition, Timestamp, Tombstone, TombstoneId, TopicId,
-    TopicMetadata,
+    Column, ColumnId, ColumnType, ColumnTypeCount, CompactionLevel, Namespace, NamespaceId,
+    ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionInfo,
+    PartitionKey, PartitionParam, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber,
+    Shard, ShardId, ShardIndex, Table, TableId, TablePartition, Timestamp, Tombstone, TombstoneId,
+    TopicId, TopicMetadata,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::warn;
@@ -600,6 +600,37 @@ impl ColumnRepo for MemTxn {
     async fn list(&mut self) -> Result<Vec<Column>> {
         let stage = self.stage();
         Ok(stage.columns.clone())
+    }
+
+    async fn list_type_count_by_table_id(
+        &mut self,
+        table_id: TableId,
+    ) -> Result<Vec<ColumnTypeCount>> {
+        let stage = self.stage();
+
+        let columns = stage
+            .columns
+            .iter()
+            .filter(|c| c.table_id == table_id)
+            .map(|c| c.column_type)
+            .collect::<Vec<_>>();
+
+        let mut cols = HashMap::new();
+        for c in columns {
+            cols.entry(c)
+                .and_modify(|counter| *counter += 1)
+                .or_insert(1);
+        }
+
+        let column_type_counts = cols
+            .iter()
+            .map(|c| ColumnTypeCount {
+                col_type: *c.0,
+                count: *c.1,
+            })
+            .collect::<Vec<_>>();
+
+        Ok(column_type_counts)
     }
 }
 

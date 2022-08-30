@@ -7,10 +7,10 @@ use crate::interface::{
 };
 use async_trait::async_trait;
 use data_types::{
-    Column, ColumnType, Namespace, NamespaceId, ParquetFile, ParquetFileId, ParquetFileParams,
-    Partition, PartitionId, PartitionInfo, PartitionKey, PartitionParam, ProcessedTombstone,
-    QueryPool, QueryPoolId, SequenceNumber, Shard, ShardId, ShardIndex, Table, TableId,
-    TablePartition, Timestamp, Tombstone, TombstoneId, TopicId, TopicMetadata,
+    Column, ColumnType, ColumnTypeCount, Namespace, NamespaceId, ParquetFile, ParquetFileId,
+    ParquetFileParams, Partition, PartitionId, PartitionInfo, PartitionKey, PartitionParam,
+    ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Shard, ShardId, ShardIndex, Table,
+    TableId, TablePartition, Timestamp, Tombstone, TombstoneId, TopicId, TopicMetadata,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use metric::{DurationHistogram, Metric};
@@ -221,6 +221,7 @@ decorate!(
         "column_list_by_table_id" = list_by_table_id(&mut self, table_id: TableId) -> Result<Vec<Column>>;
         "column_create_or_get_many" = create_or_get_many(&mut self, columns: &[ColumnUpsertRequest<'_>]) -> Result<Vec<Column>>;
         "column_list" = list(&mut self) -> Result<Vec<Column>>;
+        "column_list_type_count_by_table_id" = list_type_count_by_table_id(&mut self, table_id: TableId) -> Result<Vec<ColumnTypeCount>>;
     ]
 );
 
