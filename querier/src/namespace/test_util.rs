@@ -1,5 +1,7 @@
 use super::QuerierNamespace;
-use crate::{create_ingester_connection_for_testing, QuerierCatalogCache};
+use crate::{
+    cache::namespace::CachedNamespace, create_ingester_connection_for_testing, QuerierCatalogCache,
+};
 use data_types::{ShardIndex, TableId};
 use iox_catalog::interface::get_schema_by_name;
 use iox_tests::util::TestNamespace;
@@ -19,11 +21,10 @@ pub async fn querier_namespace_with_limit(
     max_table_query_bytes: usize,
 ) -> QuerierNamespace {
     let mut repos = ns.catalog.catalog.repositories().await;
-    let schema = Arc::new(
-        get_schema_by_name(&ns.namespace.name, repos.as_mut())
-            .await
-            .unwrap(),
-    );
+    let schema = get_schema_by_name(&ns.namespace.name, repos.as_mut())
+        .await
+        .unwrap();
+    let cached_ns = Arc::new(CachedNamespace::from(&schema));
 
     let catalog_cache = Arc::new(QuerierCatalogCache::new_testing(
         ns.catalog.catalog(),
@@ -39,7 +40,7 @@ pub async fn querier_namespace_with_limit(
         ParquetStorage::new(ns.catalog.object_store()),
         ns.catalog.metric_registry(),
         ns.namespace.name.clone().into(),
-        schema,
+        cached_ns,
         ns.catalog.exec(),
         Some(create_ingester_connection_for_testing()),
         sharder,

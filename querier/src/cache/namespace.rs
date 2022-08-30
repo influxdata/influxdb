@@ -13,12 +13,13 @@ use cache_system::{
     loader::{metrics::MetricsLoader, FunctionLoader},
     resource_consumption::FunctionEstimator,
 };
-use data_types::{ColumnId, NamespaceSchema};
+use data_types::{ColumnId, NamespaceId, NamespaceSchema, TableId, TableSchema};
 use iox_catalog::interface::{get_schema_by_name, Catalog};
 use iox_time::TimeProvider;
+use schema::Schema;
 use std::{
     collections::{HashMap, HashSet},
-    mem::size_of_val,
+    mem::{size_of, size_of_val},
     sync::Arc,
     time::Duration,
 };
@@ -94,9 +95,7 @@ impl NamespaceCache {
                         .await
                         .expect("retry forever")?;
 
-                    Some(Arc::new(CachedNamespace {
-                        schema: Arc::new(schema),
-                    }))
+                    Some(Arc::new((&schema).into()))
                 }
             },
         ));
@@ -164,18 +163,19 @@ impl NamespaceCache {
     ///
     /// Expire namespace if the cached schema does NOT cover the given set of columns. The set is given as a list of
     /// pairs of table name and column set.
-    pub async fn schema(
+    pub async fn get(
         &self,
         name: Arc<str>,
         should_cover: &[(&str, &HashSet<ColumnId>)],
         span: Option<Span>,
-    ) -> Option<Arc<NamespaceSchema>> {
+    ) -> Option<Arc<CachedNamespace>> {
         self.remove_if_handle.remove_if(&name, |cached_namespace| {
             if let Some(namespace) = cached_namespace.as_ref() {
                 should_cover.iter().any(|(table_name, columns)| {
-                    if let Some(table) = namespace.schema.tables.get(*table_name) {
-                        let covered: HashSet<_> = table.columns.values().map(|c| c.id).collect();
-                        columns.iter().any(|col| !covered.contains(col))
+                    if let Some(table) = namespace.tables.get(*table_name) {
+                        columns
+                            .iter()
+                            .any(|col| !table.column_id_map.contains_key(col))
                     } else {
                         // table unknown => need to update
                         true
@@ -187,32 +187,90 @@ impl NamespaceCache {
             }
         });
 
-        self.cache
-            .get(name, ((), span))
-            .await
-            .map(|n| Arc::clone(&n.schema))
+        self.cache.get(name, ((), span)).await
     }
 }
 
-#[derive(Debug, Clone)]
-struct CachedNamespace {
-    schema: Arc<NamespaceSchema>,
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CachedTable {
+    pub id: TableId,
+    pub schema: Arc<Schema>,
+    pub column_id_map: HashMap<ColumnId, Arc<str>>,
+}
+
+impl CachedTable {
+    /// RAM-bytes EXCLUDING `self`.
+    fn size(&self) -> usize {
+        self.schema.estimate_size()
+            + self.column_id_map.capacity() * size_of::<(ColumnId, Arc<str>)>()
+            + self
+                .column_id_map
+                .iter()
+                .map(|(_id, name)| name.len())
+                .sum::<usize>()
+    }
+}
+
+impl From<&TableSchema> for CachedTable {
+    fn from(table: &TableSchema) -> Self {
+        let mut column_id_map: HashMap<ColumnId, Arc<str>> = table
+            .columns
+            .iter()
+            .map(|(name, c)| (c.id, Arc::from(name.clone())))
+            .collect();
+        column_id_map.shrink_to_fit();
+
+        Self {
+            id: table.id,
+            schema: Arc::new(
+                table
+                    .clone()
+                    .try_into()
+                    .expect("Catalog table schema broken"),
+            ),
+            column_id_map,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CachedNamespace {
+    pub id: NamespaceId,
+    pub tables: HashMap<Arc<str>, CachedTable>,
 }
 
 impl CachedNamespace {
     /// RAM-bytes EXCLUDING `self`.
     fn size(&self) -> usize {
-        self.schema.size() - size_of_val(&self.schema)
+        self.tables.capacity() * size_of::<(Arc<str>, Arc<Schema>)>()
+            + self
+                .tables
+                .iter()
+                .map(|(name, table)| name.len() + table.size())
+                .sum::<usize>()
+    }
+}
+
+impl From<&NamespaceSchema> for CachedNamespace {
+    fn from(ns: &NamespaceSchema) -> Self {
+        let mut tables: HashMap<Arc<str>, CachedTable> = ns
+            .tables
+            .iter()
+            .map(|(name, table)| (Arc::from(name.clone()), table.into()))
+            .collect();
+        tables.shrink_to_fit();
+
+        Self { id: ns.id, tables }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
-
     use crate::cache::{ram::test_util::test_ram_pool, test_util::assert_histogram_metric_count};
-    use data_types::{ColumnSchema, ColumnType, TableSchema};
+    use arrow::datatypes::DataType;
+    use data_types::ColumnType;
     use iox_tests::util::TestCatalog;
+    use schema::SchemaBuilder;
 
     use super::*;
 
@@ -230,10 +288,10 @@ mod tests {
 
         let col111 = table11.create_column("col1", ColumnType::I64).await;
         let col112 = table11.create_column("col2", ColumnType::Tag).await;
-        let col113 = table11.create_column("col3", ColumnType::Time).await;
+        let col113 = table11.create_column("time", ColumnType::Time).await;
         let col121 = table12.create_column("col1", ColumnType::F64).await;
-        let col122 = table12.create_column("col2", ColumnType::Time).await;
-        let col211 = table21.create_column("col1", ColumnType::Time).await;
+        let col122 = table12.create_column("time", ColumnType::Time).await;
+        let col211 = table21.create_column("time", ColumnType::Time).await;
 
         let cache = NamespaceCache::new(
             catalog.catalog(),
@@ -245,101 +303,80 @@ mod tests {
             true,
         );
 
-        let schema1_a = cache
-            .schema(Arc::from(String::from("ns1")), &[], None)
+        let actual_ns_1_a = cache
+            .get(Arc::from(String::from("ns1")), &[], None)
             .await
             .unwrap();
-        let expected_schema_1 = NamespaceSchema {
+        let expected_ns_1 = CachedNamespace {
             id: ns1.namespace.id,
-            topic_id: ns1.namespace.topic_id,
-            query_pool_id: ns1.namespace.query_pool_id,
-            tables: BTreeMap::from([
+            tables: HashMap::from([
                 (
-                    String::from("table1"),
-                    TableSchema {
+                    Arc::from("table1"),
+                    CachedTable {
                         id: table11.table.id,
-                        columns: BTreeMap::from([
-                            (
-                                String::from("col1"),
-                                ColumnSchema {
-                                    id: col111.column.id,
-                                    column_type: ColumnType::I64,
-                                },
-                            ),
-                            (
-                                String::from("col2"),
-                                ColumnSchema {
-                                    id: col112.column.id,
-                                    column_type: ColumnType::Tag,
-                                },
-                            ),
-                            (
-                                String::from("col3"),
-                                ColumnSchema {
-                                    id: col113.column.id,
-                                    column_type: ColumnType::Time,
-                                },
-                            ),
+                        schema: Arc::new(
+                            SchemaBuilder::new()
+                                .field("col1", DataType::Int64)
+                                .tag("col2")
+                                .timestamp()
+                                .build()
+                                .unwrap(),
+                        ),
+                        column_id_map: HashMap::from([
+                            (col111.column.id, Arc::from(col111.column.name.clone())),
+                            (col112.column.id, Arc::from(col112.column.name.clone())),
+                            (col113.column.id, Arc::from(col113.column.name.clone())),
                         ]),
                     },
                 ),
                 (
-                    String::from("table2"),
-                    TableSchema {
+                    Arc::from("table2"),
+                    CachedTable {
                         id: table12.table.id,
-                        columns: BTreeMap::from([
-                            (
-                                String::from("col1"),
-                                ColumnSchema {
-                                    id: col121.column.id,
-                                    column_type: ColumnType::F64,
-                                },
-                            ),
-                            (
-                                String::from("col2"),
-                                ColumnSchema {
-                                    id: col122.column.id,
-                                    column_type: ColumnType::Time,
-                                },
-                            ),
+                        schema: Arc::new(
+                            SchemaBuilder::new()
+                                .field("col1", DataType::Float64)
+                                .timestamp()
+                                .build()
+                                .unwrap(),
+                        ),
+                        column_id_map: HashMap::from([
+                            (col121.column.id, Arc::from(col121.column.name.clone())),
+                            (col122.column.id, Arc::from(col122.column.name.clone())),
                         ]),
                     },
                 ),
             ]),
         };
-        assert_eq!(schema1_a.as_ref(), &expected_schema_1);
+        assert_eq!(actual_ns_1_a.as_ref(), &expected_ns_1);
         assert_histogram_metric_count(&catalog.metric_registry, "namespace_get_by_name", 1);
 
-        let schema2 = cache
-            .schema(Arc::from(String::from("ns2")), &[], None)
+        let actual_ns_2 = cache
+            .get(Arc::from(String::from("ns2")), &[], None)
             .await
             .unwrap();
-        let expected_schema_2 = NamespaceSchema {
+        let expected_ns_2 = CachedNamespace {
             id: ns2.namespace.id,
-            topic_id: ns2.namespace.topic_id,
-            query_pool_id: ns2.namespace.query_pool_id,
-            tables: BTreeMap::from([(
-                String::from("table1"),
-                TableSchema {
+            tables: HashMap::from([(
+                Arc::from("table1"),
+                CachedTable {
                     id: table21.table.id,
-                    columns: BTreeMap::from([(
-                        String::from("col1"),
-                        ColumnSchema {
-                            id: col211.column.id,
-                            column_type: ColumnType::Time,
-                        },
+                    schema: Arc::new(SchemaBuilder::new().timestamp().build().unwrap()),
+                    column_id_map: HashMap::from([(
+                        col211.column.id,
+                        Arc::from(col211.column.name.clone()),
                     )]),
                 },
             )]),
         };
-        assert_eq!(schema2.as_ref(), &expected_schema_2);
+        assert_eq!(actual_ns_2.as_ref(), &expected_ns_2);
         assert_histogram_metric_count(&catalog.metric_registry, "namespace_get_by_name", 2);
 
-        let schema1_b = cache
-            .schema(Arc::from(String::from("ns1")), &[], None)
+        let actual_ns_1_b = cache
+            .get(Arc::from(String::from("ns1")), &[], None)
             .await
             .unwrap();
-        assert!(Arc::ptr_eq(&schema1_a, &schema1_b));
+        assert!(Arc::ptr_eq(&actual_ns_1_a, &actual_ns_1_b));
         assert_histogram_metric_count(&catalog.metric_registry, "namespace_get_by_name", 2);
     }
 
@@ -357,15 +394,11 @@ mod tests {
             true,
         );
 
-        let none = cache
-            .schema(Arc::from(String::from("foo")), &[], None)
-            .await;
+        let none = cache.get(Arc::from(String::from("foo")), &[], None).await;
         assert!(none.is_none());
         assert_histogram_metric_count(&catalog.metric_registry, "namespace_get_by_name", 1);
 
-        let none = cache
-            .schema(Arc::from(String::from("foo")), &[], None)
-            .await;
+        let none = cache.get(Arc::from(String::from("foo")), &[], None).await;
         assert!(none.is_none());
         assert_histogram_metric_count(&catalog.metric_registry, "namespace_get_by_name", 1);
     }
@@ -385,14 +418,14 @@ mod tests {
         );
 
         // ========== namespace unknown ==========
-        assert!(cache.schema(Arc::from("ns1"), &[], None).await.is_none());
+        assert!(cache.get(Arc::from("ns1"), &[], None).await.is_none());
         assert_histogram_metric_count(&catalog.metric_registry, "namespace_get_by_name", 1);
 
-        assert!(cache.schema(Arc::from("ns1"), &[], None).await.is_none());
+        assert!(cache.get(Arc::from("ns1"), &[], None).await.is_none());
         assert_histogram_metric_count(&catalog.metric_registry, "namespace_get_by_name", 1);
 
         assert!(cache
-            .schema(Arc::from("ns1"), &[("t1", &HashSet::from([]))], None)
+            .get(Arc::from("ns1"), &[("t1", &HashSet::from([]))], None)
             .await
             .is_none());
         assert_histogram_metric_count(&catalog.metric_registry, "namespace_get_by_name", 2);
@@ -401,13 +434,13 @@ mod tests {
         let ns1 = catalog.create_namespace("ns1").await;
 
         assert!(cache
-            .schema(Arc::from("ns1"), &[("t1", &HashSet::from([]))], None)
+            .get(Arc::from("ns1"), &[("t1", &HashSet::from([]))], None)
             .await
             .is_some());
         assert_histogram_metric_count(&catalog.metric_registry, "namespace_get_by_name", 3);
 
         assert!(cache
-            .schema(Arc::from("ns1"), &[("t1", &HashSet::from([]))], None)
+            .get(Arc::from("ns1"), &[("t1", &HashSet::from([]))], None)
             .await
             .is_some());
         assert_histogram_metric_count(&catalog.metric_registry, "namespace_get_by_name", 4);
@@ -416,13 +449,13 @@ mod tests {
         let t1 = ns1.create_table("t1").await;
 
         assert!(cache
-            .schema(Arc::from("ns1"), &[("t1", &HashSet::from([]))], None)
+            .get(Arc::from("ns1"), &[("t1", &HashSet::from([]))], None)
             .await
             .is_some());
         assert_histogram_metric_count(&catalog.metric_registry, "namespace_get_by_name", 5);
 
         assert!(cache
-            .schema(Arc::from("ns1"), &[("t1", &HashSet::from([]))], None)
+            .get(Arc::from("ns1"), &[("t1", &HashSet::from([]))], None)
             .await
             .is_some());
         assert_histogram_metric_count(&catalog.metric_registry, "namespace_get_by_name", 5);
@@ -432,13 +465,13 @@ mod tests {
         let c2 = t1.create_column("c2", ColumnType::Bool).await;
 
         assert!(cache
-            .schema(Arc::from("ns1"), &[("t1", &HashSet::from([]))], None)
+            .get(Arc::from("ns1"), &[("t1", &HashSet::from([]))], None)
             .await
             .is_some());
         assert_histogram_metric_count(&catalog.metric_registry, "namespace_get_by_name", 5);
 
         assert!(cache
-            .schema(
+            .get(
                 Arc::from("ns1"),
                 &[("t1", &HashSet::from([c1.column.id]))],
                 None
@@ -448,7 +481,7 @@ mod tests {
         assert_histogram_metric_count(&catalog.metric_registry, "namespace_get_by_name", 6);
 
         assert!(cache
-            .schema(
+            .get(
                 Arc::from("ns1"),
                 &[("t1", &HashSet::from([c2.column.id]))],
                 None

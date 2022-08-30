@@ -1,17 +1,16 @@
 //! Namespace within the whole database.
 
 use crate::{
-    cache::CatalogCache,
+    cache::{namespace::CachedNamespace, CatalogCache},
     chunk::ChunkAdapter,
     ingester::IngesterConnection,
     query_log::QueryLog,
     table::{PruneMetrics, QuerierTable, QuerierTableArgs},
     QuerierChunkLoadSetting,
 };
-use data_types::{NamespaceId, NamespaceSchema, ParquetFileId, ShardIndex};
+use data_types::{NamespaceId, ParquetFileId, ShardIndex};
 use iox_query::exec::Executor;
 use parquet_file::storage::ParquetStorage;
-use schema::Schema;
 use sharder::JumpHash;
 use std::{collections::HashMap, sync::Arc};
 
@@ -56,7 +55,7 @@ impl QuerierNamespace {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         chunk_adapter: Arc<ChunkAdapter>,
-        schema: Arc<NamespaceSchema>,
+        ns: Arc<CachedNamespace>,
         name: Arc<str>,
         exec: Arc<Executor>,
         ingester_connection: Option<Arc<dyn IngesterConnection>>,
@@ -65,20 +64,16 @@ impl QuerierNamespace {
         max_table_query_bytes: usize,
         prune_metrics: Arc<PruneMetrics>,
     ) -> Self {
-        let tables: HashMap<_, _> = schema
+        let tables: HashMap<_, _> = ns
             .tables
             .iter()
-            .map(|(table_name, table_schema)| {
-                let table_name = Arc::from(table_name.clone());
-                let id = table_schema.id;
-                let schema = Schema::try_from(table_schema.clone()).expect("cannot build schema");
-
+            .map(|(table_name, cached_table)| {
                 let table = Arc::new(QuerierTable::new(QuerierTableArgs {
                     sharder: Arc::clone(&sharder),
                     namespace_name: Arc::clone(&name),
-                    id,
-                    table_name: Arc::clone(&table_name),
-                    schema: Arc::new(schema),
+                    id: cached_table.id,
+                    table_name: Arc::clone(table_name),
+                    schema: Arc::clone(&cached_table.schema),
                     ingester_connection: ingester_connection.clone(),
                     chunk_adapter: Arc::clone(&chunk_adapter),
                     exec: Arc::clone(&exec),
@@ -86,11 +81,11 @@ impl QuerierNamespace {
                     prune_metrics: Arc::clone(&prune_metrics),
                 }));
 
-                (table_name, table)
+                (Arc::clone(table_name), table)
             })
             .collect();
 
-        let id = schema.id;
+        let id = ns.id;
 
         Self {
             id,
@@ -109,7 +104,7 @@ impl QuerierNamespace {
         store: ParquetStorage,
         metric_registry: Arc<metric::Registry>,
         name: Arc<str>,
-        schema: Arc<NamespaceSchema>,
+        ns: Arc<CachedNamespace>,
         exec: Arc<Executor>,
         ingester_connection: Option<Arc<dyn IngesterConnection>>,
         sharder: Arc<JumpHash<Arc<ShardIndex>>>,
@@ -128,7 +123,7 @@ impl QuerierNamespace {
 
         Self::new(
             chunk_adapter,
-            schema,
+            ns,
             name,
             exec,
             ingester_connection,
@@ -157,7 +152,7 @@ mod tests {
     use crate::namespace::test_util::querier_namespace;
     use data_types::ColumnType;
     use iox_tests::util::TestCatalog;
-    use schema::{builder::SchemaBuilder, InfluxColumnType, InfluxFieldType};
+    use schema::{builder::SchemaBuilder, InfluxColumnType, InfluxFieldType, Schema};
 
     #[tokio::test]
     async fn test_sync_tables() {

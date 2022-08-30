@@ -946,7 +946,7 @@ impl MockIngester {
             ParquetStorage::new(catalog.object_store()),
             catalog.metric_registry(),
             ns.namespace.name.clone().into(),
-            schema,
+            Arc::new(schema.as_ref().into()),
             catalog.exec(),
             Some(ingester_connection),
             sharder,

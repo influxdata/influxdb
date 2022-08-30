@@ -164,10 +164,10 @@ impl QuerierDatabase {
     pub async fn namespace(&self, name: &str, span: Option<Span>) -> Option<Arc<QuerierNamespace>> {
         let span_recorder = SpanRecorder::new(span);
         let name = Arc::from(name.to_owned());
-        let schema = self
+        let ns = self
             .catalog_cache
             .namespace()
-            .schema(
+            .get(
                 Arc::clone(&name),
                 // we have no specific need for any tables or columns at this point, so nothing to cover
                 &[],
@@ -176,7 +176,7 @@ impl QuerierDatabase {
             .await?;
         Some(Arc::new(QuerierNamespace::new(
             Arc::clone(&self.chunk_adapter),
-            schema,
+            ns,
             name,
             Arc::clone(&self.exec),
             self.ingester_connection.clone(),
