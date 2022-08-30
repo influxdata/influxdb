@@ -10,7 +10,11 @@ use data_types::{
 };
 use iox_time::Time;
 use object_store::DynObjectStore;
-use parquet_file::{metadata::IoxMetadata, storage::ParquetStorage};
+use parquet_file::{
+    metadata::IoxMetadata,
+    serialize::CodecError,
+    storage::{ParquetStorage, UploadError},
+};
 use schema::{builder::SchemaBuilder, sort::SortKey, InfluxFieldType, TIME_COLUMN_NAME};
 
 #[tokio::test]
@@ -105,16 +109,53 @@ async fn test_decoded_iox_metadata() {
     );
 }
 
-// Ensure that attempting to write an empty parquet file causes a panic for a
-// human to investigate why it is happening.
+// Ensure that attempting to write an empty parquet file causes a error to be
+// raised. The caller can then decide if this is acceptable plan output or a
+// bug.
 //
-// The idea is that currently it is a logical error to be producing empty
-// parquet files at all - this might not always be the case, in which case
-// removing this panic behaviour is perfectly fine too!
+// It used to be considered a logical error to be producing empty parquet files
+// at all - we have previously identified cases of useless work being performed
+// by inducing a panic when observing a parquet file with 0 rows, however we now
+// tolerate 0 row outputs as the compactor can perform multiple splits at once,
+// which is problematic when a single chunk can overlap multiple split points:
 //
-// Relates to "https://github.com/influxdata/influxdb_iox/issues/4695"
+//                  ────────────── Time ────────────▶
+//
+//                          │                │
+//                  ┌────────────────────────────────┐
+//                  │       │    Chunk 1     │       │
+//                  └────────────────────────────────┘
+//                          │                │
+//
+//                          │                │
+//
+//                      Split T1         Split T2
+//
+// If this chunk has an unusual distribution of writes over the time range it
+// covers, we can wind up with the split between T1 and T2 containing no data.
+// For example, if all the data is either before T1, or after T2 we can wind up
+// with a split plan such as this, where the middle sub-section contains no
+// data:
+//
+//                          │                │
+//                  ┌█████──────────────────────█████┐
+//                  │█████  │    Chunk 1     │  █████│
+//                  └█████──────────────────────█████┘
+//                          │                │
+//
+//                          │                │
+//
+//                      Split T1         Split T2
+//
+// It is not possible to use the chunk statistics (min/max timestamps) to
+// determine this empty sub-section will result ahead of time, therefore the
+// parquet encoder must tolerate it and raise a non-fatal error instead of
+// panicking.
+//
+// Relates to:
+//      * https://github.com/influxdata/influxdb_iox/issues/4695
+//      * https://github.com/influxdata/conductor/issues/1121
 #[tokio::test]
-#[should_panic = "serialised empty parquet file"]
 async fn test_empty_parquet_file_panic() {
     // A representative IOx data sample (with a time column, an invariant upheld
     // in the IOx write path)
@@ -150,7 +191,12 @@ async fn test_empty_parquet_file_panic() {
     let storage = ParquetStorage::new(object_store);
 
     // Serialising empty data should cause a panic for human investigation.
-    let _ = storage.upload(stream, &meta).await;
+    let err = storage
+        .upload(stream, &meta)
+        .await
+        .expect_err("empty file should raise an error");
+
+    assert!(matches!(err, UploadError::Serialise(CodecError::NoRows)));
 }
 
 #[tokio::test]

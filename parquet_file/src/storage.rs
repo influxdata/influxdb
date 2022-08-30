@@ -132,13 +132,6 @@ impl ParquetStorage {
         // This is not a huge concern, as the resulting parquet files are
         // currently smallish on average.
         let (data, parquet_file_meta) = serialize::to_parquet_bytes(batches, meta).await?;
-        // TODO: remove this if after verifying the panic is thrown
-        // correctly inside the serialize::to_parquet_bytes above
-        if parquet_file_meta.row_groups.is_empty() {
-            debug!(
-                ?meta.partition_id, ?parquet_file_meta,
-                "Created parquet_file_meta has no row groups which will introduce panic later when its statistics is read");
-        }
 
         // Read the IOx-specific parquet metadata from the file metadata
         let parquet_meta =
