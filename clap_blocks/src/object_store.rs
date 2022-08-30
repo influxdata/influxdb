@@ -295,7 +295,8 @@ fn new_s3(config: &ObjectStoreConfig) -> Result<Arc<DynObjectStore>, ParseError>
 
     let mut builder = AmazonS3Builder::new()
         .with_allow_http(config.aws_allow_http)
-        .with_region(&config.aws_default_region);
+        .with_region(&config.aws_default_region)
+        .with_imdsv1_fallback();
 
     if let Some(bucket) = &config.bucket {
         builder = builder.with_bucket_name(bucket);
