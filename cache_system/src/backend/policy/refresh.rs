@@ -4,7 +4,7 @@ use std::{
 };
 
 use futures::{future::BoxFuture, stream::FuturesUnordered, FutureExt, StreamExt};
-use iox_time::{Time, TimeProvider};
+use iox_time::Time;
 use metric::U64Counter;
 use parking_lot::Mutex;
 use tokio::{
@@ -125,7 +125,6 @@ where
     V: Clone + Debug + Send + 'static,
 {
     refresh_duration_provider: Arc<dyn RefreshDurationProvider<K = K, V = V>>,
-    time_provider: Arc<dyn TimeProvider>,
     loader: Arc<dyn Loader<K = K, V = V, Extra = ()>>,
     callback_handle: Arc<Mutex<CallbackHandle<K, V>>>,
     metric_refreshed: U64Counter,
@@ -143,7 +142,6 @@ where
     #[allow(clippy::new_ret_no_self)]
     pub fn new(
         refresh_duration_provider: Arc<dyn RefreshDurationProvider<K = K, V = V>>,
-        time_provider: Arc<dyn TimeProvider>,
         loader: Arc<dyn Loader<K = K, V = V, Extra = ()>>,
         name: &'static str,
         metric_registry: &metric::Registry,
@@ -152,7 +150,6 @@ where
         let idle_notify = Arc::new(Notify::new());
         Self::new_inner(
             refresh_duration_provider,
-            time_provider,
             loader,
             name,
             metric_registry,
@@ -164,7 +161,6 @@ where
     #[allow(clippy::new_ret_no_self)]
     pub(crate) fn new_inner(
         refresh_duration_provider: Arc<dyn RefreshDurationProvider<K = K, V = V>>,
-        time_provider: Arc<dyn TimeProvider>,
         loader: Arc<dyn Loader<K = K, V = V, Extra = ()>>,
         name: &'static str,
         metric_registry: &metric::Registry,
@@ -237,7 +233,6 @@ where
 
             Self {
                 refresh_duration_provider,
-                time_provider,
                 loader,
                 callback_handle,
                 metric_refreshed,
@@ -315,7 +310,7 @@ where
     type K = K;
     type V = V;
 
-    fn get(&mut self, k: &Self::K) -> Vec<ChangeRequest<'static, Self::K, Self::V>> {
+    fn get(&mut self, k: &Self::K, now: Time) -> Vec<ChangeRequest<'static, Self::K, Self::V>> {
         let mut timings = self.timings.lock();
 
         // Does this entry exists and is there no a refresh operation running?
@@ -324,8 +319,6 @@ where
             running_refresh: running_refresh @ None,
         }) = timings.get_mut(k)
         {
-            let now = self.time_provider.now();
-
             // Is it time to refresh?
             if *t <= now {
                 *running_refresh = Some(self.refresh(k.clone()));
@@ -335,13 +328,17 @@ where
         vec![]
     }
 
-    fn set(&mut self, k: Self::K, v: Self::V) -> Vec<ChangeRequest<'static, Self::K, Self::V>> {
+    fn set(
+        &mut self,
+        k: Self::K,
+        v: Self::V,
+        now: Time,
+    ) -> Vec<ChangeRequest<'static, Self::K, Self::V>> {
         let d = self.refresh_duration_provider.refresh_in(&k, &v);
 
         let mut timings = self.timings.lock();
 
         // ignore any entries that don't require any work
-        let now = self.time_provider.now();
         if let Some(t) = d.and_then(|d| now.checked_add(d)) {
             let state = RefreshState {
                 t,
@@ -360,7 +357,7 @@ where
         vec![]
     }
 
-    fn remove(&mut self, k: &Self::K) -> Vec<ChangeRequest<'static, Self::K, Self::V>> {
+    fn remove(&mut self, k: &Self::K, _now: Time) -> Vec<ChangeRequest<'static, Self::K, Self::V>> {
         let mut timings = self.timings.lock();
         timings.remove(k);
 
@@ -690,10 +687,9 @@ mod tests {
 
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
         let loader = Arc::new(TestLoader::default());
-        let mut backend = PolicyBackend::new(Box::new(HashMap::<u8, String>::new()));
+        let mut backend = PolicyBackend::new(Box::new(HashMap::<u8, String>::new()), time_provider);
         let policy_constructor = RefreshPolicy::new(
             refresh_duration_provider,
-            time_provider,
             loader,
             "my_cache",
             &metric_registry,
@@ -713,10 +709,12 @@ mod tests {
         let metric_registry = metric::Registry::new();
         let time_provider = Arc::new(MockProvider::new(Time::MAX - Duration::from_secs(1)));
         let loader = Arc::new(TestLoader::default());
-        let mut backend = PolicyBackend::new(Box::new(HashMap::<u8, String>::new()));
+        let mut backend = PolicyBackend::new(
+            Box::new(HashMap::<u8, String>::new()),
+            Arc::clone(&time_provider) as _,
+        );
         backend.add_policy(RefreshPolicy::new(
             refresh_duration_provider,
-            Arc::clone(&time_provider) as _,
             loader,
             "my_cache",
             &metric_registry,
@@ -934,11 +932,11 @@ mod tests {
             let time_provider = Arc::new(MockProvider::new(Time::MIN));
             let metric_registry = metric::Registry::new();
             let loader = Arc::new(TestLoader::default());
-            let mut backend = PolicyBackend::new(Box::new(HashMap::<u8, String>::new()));
+            let mut backend =
+                PolicyBackend::new(Box::new(HashMap::<u8, String>::new()), time_provider);
 
             backend.add_policy(RefreshPolicy::new(
                 Arc::clone(&ttl_provider) as _,
-                Arc::clone(&time_provider) as _,
                 loader,
                 "my_cache",
                 &metric_registry,
@@ -965,10 +963,12 @@ mod tests {
             let loader = Arc::new(TestLoader::default());
             let notify_idle = Arc::new(Notify::new());
 
-            let mut backend = PolicyBackend::new(Box::new(HashMap::<u8, String>::new()));
+            let mut backend = PolicyBackend::new(
+                Box::new(HashMap::<u8, String>::new()),
+                Arc::clone(&time_provider) as _,
+            );
             backend.add_policy(RefreshPolicy::new_inner(
                 Arc::clone(&refresh_duration_provider) as _,
-                Arc::clone(&time_provider) as _,
                 Arc::clone(&loader) as _,
                 "my_cache",
                 &metric_registry,

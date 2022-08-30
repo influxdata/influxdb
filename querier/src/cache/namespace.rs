@@ -108,13 +108,12 @@ impl NamespaceCache {
             testing,
         ));
 
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()));
+        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), Arc::clone(&time_provider));
         backend.add_policy(TtlPolicy::new(
             Arc::new(OptionalValueTtlProvider::new(
                 Some(TTL_NON_EXISTING),
                 Some(TTL_EXISTING),
             )),
-            Arc::clone(&time_provider),
             CACHE_ID,
             metric_registry,
         ));
@@ -123,7 +122,6 @@ impl NamespaceCache {
                 Some(REFRESH_NON_EXISTING),
                 Some(REFRESH_EXISTING),
             )),
-            Arc::clone(&time_provider),
             Arc::clone(&loader) as _,
             CACHE_ID,
             metric_registry,

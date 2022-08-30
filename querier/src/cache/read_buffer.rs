@@ -94,7 +94,8 @@ impl ReadBufferCache {
         ));
 
         // add to memory pool
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()));
+        let mut backend =
+            PolicyBackend::new(Box::new(HashMap::new()), Arc::clone(&time_provider) as _);
         backend.add_policy(LruPolicy::new(
             Arc::clone(&ram_pool),
             CACHE_ID,
@@ -342,7 +343,6 @@ mod tests {
         let ram_pool = Arc::new(ResourcePool::new(
             "pool",
             RamSize(3600),
-            catalog.time_provider(),
             Arc::clone(&catalog.metric_registry()),
         ));
         let cache = ReadBufferCache::new(

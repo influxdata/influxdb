@@ -125,7 +125,8 @@ impl TombstoneCache {
             testing,
         ));
 
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()));
+        let mut backend =
+            PolicyBackend::new(Box::new(HashMap::new()), Arc::clone(&time_provider) as _);
         let (policy_constructor, remove_if_handle) =
             RemoveIfPolicy::create_constructor_and_handle(CACHE_ID, metric_registry);
         backend.add_policy(policy_constructor);

@@ -80,10 +80,9 @@ impl ProcessedTombstonesCache {
             testing,
         ));
 
-        let mut backend = PolicyBackend::new(Box::new(HashMap::new()));
+        let mut backend = PolicyBackend::new(Box::new(HashMap::new()), Arc::clone(&time_provider));
         backend.add_policy(TtlPolicy::new(
             Arc::new(KeepExistsForever {}),
-            Arc::clone(&time_provider),
             CACHE_ID,
             metric_registry,
         ));

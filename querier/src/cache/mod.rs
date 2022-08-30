@@ -113,13 +113,11 @@ impl CatalogCache {
         let ram_pool_metadata = Arc::new(ResourcePool::new(
             "ram_metadata",
             RamSize(ram_pool_metadata_bytes),
-            Arc::clone(&time_provider),
             Arc::clone(&metric_registry),
         ));
         let ram_pool_data = Arc::new(ResourcePool::new(
             "ram_data",
             RamSize(ram_pool_data_bytes),
-            Arc::clone(&time_provider),
             Arc::clone(&metric_registry),
         ));
 

@@ -227,10 +227,12 @@ impl TestStateTtlAndRefresh {
         let loader = Arc::new(TestLoader::default());
         let notify_idle = Arc::new(Notify::new());
 
-        let mut backend = PolicyBackend::new(Box::new(HashMap::<u8, String>::new()));
+        let mut backend = PolicyBackend::new(
+            Box::new(HashMap::<u8, String>::new()),
+            Arc::clone(&time_provider) as _,
+        );
         backend.add_policy(RefreshPolicy::new_inner(
             Arc::clone(&refresh_duration_provider) as _,
-            Arc::clone(&time_provider) as _,
             Arc::clone(&loader) as _,
             "my_cache",
             &metric_registry,
@@ -239,7 +241,6 @@ impl TestStateTtlAndRefresh {
         ));
         backend.add_policy(TtlPolicy::new(
             Arc::clone(&ttl_provider) as _,
-            Arc::clone(&time_provider) as _,
             "my_cache",
             &metric_registry,
         ));
@@ -275,10 +276,12 @@ impl TestStateLRUAndRefresh {
         let loader = Arc::new(TestLoader::default());
         let notify_idle = Arc::new(Notify::new());
 
-        let mut backend = PolicyBackend::new(Box::new(HashMap::<u8, String>::new()));
+        let mut backend = PolicyBackend::new(
+            Box::new(HashMap::<u8, String>::new()),
+            Arc::clone(&time_provider) as _,
+        );
         backend.add_policy(RefreshPolicy::new_inner(
             Arc::clone(&refresh_duration_provider) as _,
-            Arc::clone(&time_provider) as _,
             Arc::clone(&loader) as _,
             "my_cache",
             &metric_registry,
@@ -288,7 +291,6 @@ impl TestStateLRUAndRefresh {
         let pool = Arc::new(ResourcePool::new(
             "my_pool",
             TestSize(10),
-            Arc::clone(&time_provider) as _,
             Arc::clone(&metric_registry),
         ));
         backend.add_policy(LruPolicy::new(
@@ -325,17 +327,18 @@ impl TestStateTtlAndLRU {
         let metric_registry = Arc::new(metric::Registry::new());
         let size_estimator = Arc::new(TestSizeEstimator::default());
 
-        let mut backend = PolicyBackend::new(Box::new(HashMap::<u8, String>::new()));
+        let mut backend = PolicyBackend::new(
+            Box::new(HashMap::<u8, String>::new()),
+            Arc::clone(&time_provider) as _,
+        );
         backend.add_policy(TtlPolicy::new(
             Arc::clone(&ttl_provider) as _,
-            Arc::clone(&time_provider) as _,
             "my_cache",
             &metric_registry,
         ));
         let pool = Arc::new(ResourcePool::new(
             "my_pool",
             TestSize(10),
-            Arc::clone(&time_provider) as _,
             Arc::clone(&metric_registry),
         ));
         backend.add_policy(LruPolicy::new(

@@ -43,13 +43,11 @@ pub mod test_util {
     use std::sync::Arc;
 
     use cache_system::backend::policy::lru::ResourcePool;
-    use iox_time::{MockProvider, Time};
 
     pub fn test_ram_pool() -> Arc<ResourcePool<RamSize>> {
         Arc::new(ResourcePool::new(
             "pool",
             RamSize(usize::MAX),
-            Arc::new(MockProvider::new(Time::from_timestamp_millis(0))),
             Arc::new(metric::Registry::new()),
         ))
     }

@@ -1,7 +1,7 @@
 //! Time-to-live handling.
 use std::{fmt::Debug, hash::Hash, marker::PhantomData, sync::Arc, time::Duration};
 
-use iox_time::{Time, TimeProvider};
+use iox_time::Time;
 use metric::U64Counter;
 
 use crate::addressable_heap::AddressableHeap;
@@ -119,7 +119,6 @@ where
     V: Clone + Debug + Send + 'static,
 {
     ttl_provider: Arc<dyn TtlProvider<K = K, V = V>>,
-    time_provider: Arc<dyn TimeProvider>,
     expiration: AddressableHeap<K, (), Time>,
     metric_expired: U64Counter,
 }
@@ -132,7 +131,6 @@ where
     /// Create new TTL policy.
     pub fn new(
         ttl_provider: Arc<dyn TtlProvider<K = K, V = V>>,
-        time_provider: Arc<dyn TimeProvider>,
         name: &'static str,
         metric_registry: &metric::Registry,
     ) -> impl FnOnce(CallbackHandle<K, V>) -> Self {
@@ -148,7 +146,6 @@ where
 
             Self {
                 ttl_provider,
-                time_provider,
                 expiration: Default::default(),
                 metric_expired,
             }
@@ -181,12 +178,16 @@ where
     type K = K;
     type V = V;
 
-    fn get(&mut self, _k: &Self::K) -> Vec<ChangeRequest<'static, Self::K, Self::V>> {
-        self.evict_expired(self.time_provider.now())
+    fn get(&mut self, _k: &Self::K, now: Time) -> Vec<ChangeRequest<'static, Self::K, Self::V>> {
+        self.evict_expired(now)
     }
 
-    fn set(&mut self, k: Self::K, v: Self::V) -> Vec<ChangeRequest<'static, Self::K, Self::V>> {
-        let now = self.time_provider.now();
+    fn set(
+        &mut self,
+        k: Self::K,
+        v: Self::V,
+        now: Time,
+    ) -> Vec<ChangeRequest<'static, Self::K, Self::V>> {
         let mut requests = self.evict_expired(now);
 
         if let Some(ttl) = self.ttl_provider.expires_in(&k, &v) {
@@ -211,9 +212,9 @@ where
         requests
     }
 
-    fn remove(&mut self, k: &Self::K) -> Vec<ChangeRequest<'static, Self::K, Self::V>> {
+    fn remove(&mut self, k: &Self::K, now: Time) -> Vec<ChangeRequest<'static, Self::K, Self::V>> {
         self.expiration.remove(k);
-        self.evict_expired(self.time_provider.now())
+        self.evict_expired(now)
     }
 }
 
@@ -327,13 +328,9 @@ mod tests {
         let metric_registry = metric::Registry::new();
 
         let time_provider = Arc::new(MockProvider::new(Time::MIN));
-        let mut backend = PolicyBackend::new(Box::new(HashMap::<u8, String>::new()));
-        let policy_constructor = TtlPolicy::new(
-            Arc::clone(&ttl_provider) as _,
-            Arc::clone(&time_provider) as _,
-            "my_cache",
-            &metric_registry,
-        );
+        let mut backend = PolicyBackend::new(Box::new(HashMap::<u8, String>::new()), time_provider);
+        let policy_constructor =
+            TtlPolicy::new(Arc::clone(&ttl_provider) as _, "my_cache", &metric_registry);
         backend.add_policy(|mut handle| {
             handle.execute_requests(vec![ChangeRequest::set(1, String::from("foo"))]);
             policy_constructor(handle)
@@ -370,10 +367,9 @@ mod tests {
 
         // init time provider at MAX!
         let time_provider = Arc::new(MockProvider::new(Time::MAX));
-        let mut backend = PolicyBackend::new(Box::new(HashMap::<u8, String>::new()));
+        let mut backend = PolicyBackend::new(Box::new(HashMap::<u8, String>::new()), time_provider);
         backend.add_policy(TtlPolicy::new(
             Arc::clone(&ttl_provider) as _,
-            Arc::clone(&time_provider) as _,
             "my_cache",
             &metric_registry,
         ));
@@ -485,10 +481,12 @@ mod tests {
 
         // init time provider at nearly MAX!
         let time_provider = Arc::new(MockProvider::new(Time::MAX - Duration::from_secs(2)));
-        let mut backend = PolicyBackend::new(Box::new(HashMap::<u8, String>::new()));
+        let mut backend = PolicyBackend::new(
+            Box::new(HashMap::<u8, String>::new()),
+            Arc::clone(&time_provider) as _,
+        );
         backend.add_policy(TtlPolicy::new(
             Arc::clone(&ttl_provider) as _,
-            Arc::clone(&time_provider) as _,
             "my_cache",
             &metric_registry,
         ));
@@ -650,10 +648,10 @@ mod tests {
             let ttl_provider = Arc::new(NeverTtlProvider::default());
             let time_provider = Arc::new(MockProvider::new(Time::MIN));
             let metric_registry = metric::Registry::new();
-            let mut backend = PolicyBackend::new(Box::new(HashMap::<u8, String>::new()));
+            let mut backend =
+                PolicyBackend::new(Box::new(HashMap::<u8, String>::new()), time_provider);
             backend.add_policy(TtlPolicy::new(
                 Arc::clone(&ttl_provider) as _,
-                Arc::clone(&time_provider) as _,
                 "my_cache",
                 &metric_registry,
             ));
@@ -674,10 +672,12 @@ mod tests {
             let time_provider = Arc::new(MockProvider::new(Time::MIN));
             let metric_registry = metric::Registry::new();
 
-            let mut backend = PolicyBackend::new(Box::new(HashMap::<u8, String>::new()));
+            let mut backend = PolicyBackend::new(
+                Box::new(HashMap::<u8, String>::new()),
+                Arc::clone(&time_provider) as _,
+            );
             backend.add_policy(TtlPolicy::new(
                 Arc::clone(&ttl_provider) as _,
-                Arc::clone(&time_provider) as _,
                 "my_cache",
                 &metric_registry,
             ));
