@@ -114,7 +114,7 @@ func archiveProfilesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Capturing CPU profiles is a little trickier. The preferred way to send the
-	// the cpu profile duration is via the supplied "cpu" variable's value.
+	// cpu profile duration is via the supplied "cpu" variable's value.
 	//
 	// The duration should be encoded as a Go duration that can be parsed by
 	// time.ParseDuration().

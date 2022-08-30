@@ -296,7 +296,7 @@ func (d *IntegerDecoder) decodePacked() {
 	} else {
 		n, err := simple8b.Decode(&d.values, v)
 		if err != nil {
-			// Should never happen, only error that could be returned is if the the value to be decoded was not
+			// Should never happen, only error that could be returned is if the value to be decoded was not
 			// actually encoded by simple8b encoder.
 			d.err = fmt.Errorf("failed to decode value %v: %v", v, err)
 		}

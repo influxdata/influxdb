@@ -1587,7 +1587,7 @@ func (e *Engine) deleteSeriesRange(ctx context.Context, seriesKeys [][]byte, min
 	}
 
 	// The series are deleted on disk, but the index may still say they exist.
-	// Depending on the the min,max time passed in, the series may or not actually
+	// Depending on the min,max time passed in, the series may or not actually
 	// exists now.  To reconcile the index, we walk the series keys that still exists
 	// on disk and cross out any keys that match the passed in series.  Any series
 	// left in the slice at the end do not exist and can be deleted from the index.
