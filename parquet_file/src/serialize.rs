@@ -4,7 +4,7 @@ use std::{io::Write, sync::Arc};
 
 use arrow::{error::ArrowError, record_batch::RecordBatch};
 use futures::{pin_mut, Stream, StreamExt};
-use observability_deps::tracing::debug;
+use observability_deps::tracing::{debug, warn};
 use parquet::{
     arrow::ArrowWriter,
     basic::Compression,
@@ -24,6 +24,13 @@ pub enum CodecError {
     /// The result stream contained no batches.
     #[error("no record batches to convert")]
     NoRecordBatches,
+
+    /// The result stream contained at least one [`RecordBatch`] and all
+    /// instances yielded by the stream contained 0 rows.
+    ///
+    /// This would result in an empty file being uploaded to object store.
+    #[error("no rows to serialise")]
+    NoRows,
 
     /// The codec could not infer the schema for the stream as the first stream
     /// item contained an [`ArrowError`].
@@ -60,6 +67,18 @@ pub enum CodecError {
 ///
 /// Returns the serialized [`FileMetaData`] for the encoded parquet file, from
 /// which an [`IoxParquetMetaData`] can be derived.
+///
+/// # Errors
+///
+/// If the stream never yields any [`RecordBatch`], a
+/// [`CodecError::NoRecordBatches`] is returned.
+///
+/// If the stream yields a [`RecordBatch`] containing no rows, a warning is
+/// logged and serialisation continues.
+///
+/// If [`to_parquet()`] observes at least one [`RecordBatch`], but 0 rows across
+/// all [`RecordBatch`], then [`CodecError::NoRows`] is returned as no useful
+/// data was serialised.
 ///
 /// [`proto::IoxMetadata`]: generated_types::influxdata::iox::ingester::v1
 /// [`FileMetaData`]: parquet_format::FileMetaData
@@ -98,12 +117,25 @@ where
     let mut writer = ArrowWriter::try_new(sink, Arc::clone(&schema), Some(props))?;
 
     while let Some(maybe_batch) = stream.next().await {
-        writer.write(&maybe_batch?)?;
+        let batch = maybe_batch?;
+        if batch.num_rows() == 0 {
+            // It is likely this is a logical error, where the execution plan is
+            // producing no output, and therefore we're wasting CPU time by
+            // running it.
+            //
+            // Unfortunately it is not always possible to identify this before
+            // executing the plan, so this code MUST tolerate empty RecordBatch
+            // and even entire files.
+            warn!("parquet serialisation stream yielded empty record batch");
+        } else {
+            writer.write(&batch)?;
+        }
     }
 
     let meta = writer.close().map_err(CodecError::from)?;
     if meta.num_rows == 0 {
-        panic!("serialised empty parquet file");
+        warn!("parquet serialisation encoded 0 rows");
+        return Err(CodecError::NoRows);
     }
 
     Ok(meta)
@@ -129,16 +161,9 @@ where
 
     // Serialize the record batches into the in-memory buffer
     let meta = to_parquet(batches, meta, &mut bytes).await?;
-    if meta.row_groups.is_empty() {
-        // panic here to avoid later consequence of reading it for statistics
-        panic!("partition_id={}. Created Parquet metadata has no column metadata. HINT a common reason of this is writing empty data to parquet file: {:#?}", partition_id, meta);
-    }
-
-    debug!(?partition_id, ?meta, "Parquet Metadata");
-
     bytes.shrink_to_fit();
 
-    debug!(?partition_id, "Done shrink to fit");
+    debug!(?partition_id, ?meta, "generated parquet file metadata");
 
     Ok((bytes, meta))
 }
