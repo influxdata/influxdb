@@ -13,12 +13,18 @@ use iox_query::{
 use iox_time::TimeProvider;
 use metric::{Attributes, Metric, U64Histogram};
 use observability_deps::tracing::*;
-use parquet_file::{chunk::ParquetChunk, metadata::IoxMetadata, storage::ParquetStorage};
+use parquet_file::{
+    chunk::ParquetChunk,
+    metadata::IoxMetadata,
+    serialize::CodecError,
+    storage::{ParquetStorage, UploadError},
+};
 use schema::{sort::SortKey, Schema};
 use snafu::{ensure, ResultExt, Snafu};
 use std::{
     cmp::{max, min},
     collections::BTreeMap,
+    future,
     sync::Arc,
 };
 use uuid::Uuid;
@@ -283,8 +289,23 @@ pub(crate) async fn compact_parquet_files(
                 // Stream the record batches from the compaction exec, serialize
                 // them, and directly upload the resulting Parquet files to
                 // object storage.
-                let (parquet_meta, file_size) =
-                    store.upload(data, &meta).await.context(PersistSnafu)?;
+                let (parquet_meta, file_size) = match store.upload(data, &meta).await {
+                    Ok(v) => v,
+                    Err(UploadError::Serialise(CodecError::NoRows)) => {
+                        // This MAY be a bug.
+                        //
+                        // This also may happen legitimately, though very, very
+                        // rarely. See test_empty_parquet_file_panic for an
+                        // explanation.
+                        warn!(
+                            ?partition_id,
+                            %object_store_id,
+                            "SplitExec produced an empty result stream"
+                        );
+                        return Ok(None);
+                    }
+                    Err(e) => return Err(Error::Persist { source: e }),
+                };
 
                 debug!(?partition_id, %object_store_id, "file uploaded to object store");
 
@@ -298,13 +319,17 @@ pub(crate) async fn compact_parquet_files(
                             .id
                     });
 
-                Ok(parquet_file)
+                Ok(Some(parquet_file))
             })
         })
         // NB: FuturesOrdered allows the futures to run in parallel
         .collect::<FuturesOrdered<_>>()
         // Check for errors in the task
         .map(|t| t.context(ExecuteParquetTaskSnafu)?)
+        // Discard the streams that resulted in empty output / no file uploaded
+        // to the object store.
+        .try_filter_map(|v| future::ready(Ok(v)))
+        // Collect all the persisted parquet files together.
         .try_collect::<Vec<_>>()
         .await?;
 
