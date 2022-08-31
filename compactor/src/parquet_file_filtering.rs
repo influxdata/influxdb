@@ -53,6 +53,7 @@ fn estimate_arrow_bytes_for_file(
 }
 
 /// Files and the budget in bytes neeeded to compact them
+#[derive(Debug)]
 pub(crate) struct FilteredFiles {
     /// Files with computed budget and will be compacted
     pub files: Vec<ParquetFile>,

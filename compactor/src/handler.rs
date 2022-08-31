@@ -2,7 +2,6 @@
 
 use async_trait::async_trait;
 use backoff::Backoff;
-use data_types::{ColumnTypeCount, TableId};
 use futures::{
     future::{BoxFuture, Shared},
     FutureExt, StreamExt, TryFutureExt,
@@ -10,10 +9,8 @@ use futures::{
 use iox_query::exec::Executor;
 use metric::Attributes;
 use observability_deps::tracing::*;
-use std::{
-    collections::{HashMap, VecDeque},
-    sync::Arc,
-};
+use std::sync::Arc;
+
 use thiserror::Error;
 use tokio::{
     task::{JoinError, JoinHandle},
@@ -21,11 +18,7 @@ use tokio::{
 };
 use tokio_util::sync::CancellationToken;
 
-use crate::{
-    compact::{Compactor, PartitionCompactionCandidateWithInfo},
-    parquet_file_filtering::{self, FilterResult, FilteredFiles},
-    parquet_file_lookup,
-};
+use crate::{compact::Compactor, compact_hot_partitions};
 
 #[derive(Debug, Error)]
 #[allow(missing_copy_implementations, missing_docs)]
@@ -255,7 +248,8 @@ async fn run_compactor(compactor: Arc<Compactor>, shutdown: CancellationToken) {
 pub async fn run_compactor_once(compactor: Arc<Compactor>) {
     let mut compacted_partitions = 0;
     for _ in 0..compactor.config.hot_multiple {
-        compacted_partitions += compact_hot_partitions(Arc::clone(&compactor)).await;
+        compacted_partitions +=
+            compact_hot_partitions::compact_hot_partitions(Arc::clone(&compactor)).await;
         if compacted_partitions == 0 {
             // Not found hot candidates, should move to compact cold partitions
             break;
@@ -268,253 +262,6 @@ pub async fn run_compactor_once(compactor: Arc<Compactor>) {
         tokio::time::sleep(PAUSE_BETWEEN_NO_WORK).await;
     }
 }
-
-/// Return number of compacted partitions
-async fn compact_hot_partitions(compactor: Arc<Compactor>) -> usize {
-    // Select hot partition candidates
-    let hot_attributes = Attributes::from(&[("partition_type", "hot")]);
-    let start_time = compactor.time_provider.now();
-    let candidates = Backoff::new(&compactor.backoff_config)
-        .retry_all_errors("hot_partitions_to_compact", || async {
-            compactor
-                .hot_partitions_to_compact(
-                    compactor.config.max_number_partitions_per_shard(),
-                    compactor
-                        .config
-                        .min_number_recent_ingested_files_per_partition(),
-                )
-                .await
-        })
-        .await
-        .expect("retry forever");
-    if let Some(delta) = compactor
-        .time_provider
-        .now()
-        .checked_duration_since(start_time)
-    {
-        let duration = compactor
-            .candidate_selection_duration
-            .recorder(hot_attributes.clone());
-        duration.record(delta);
-    }
-
-    // Get extra needed information for selected partitions
-    let start_time = compactor.time_provider.now();
-
-    // Column types and their counts of the tables of the partition candidates
-    let table_columns = Backoff::new(&compactor.backoff_config)
-        .retry_all_errors("table_columns", || async {
-            compactor.table_columns(&candidates).await
-        })
-        .await
-        .expect("retry forever");
-
-    // Add other compaction-needed info into selected partitions
-    let candidates = Backoff::new(&compactor.backoff_config)
-        .retry_all_errors("add_info_to_partitions", || async {
-            compactor.add_info_to_partitions(&candidates).await
-        })
-        .await
-        .expect("retry forever");
-
-    if let Some(delta) = compactor
-        .time_provider
-        .now()
-        .checked_duration_since(start_time)
-    {
-        let duration = compactor
-            .partitions_extra_info_reading_duration
-            .recorder(hot_attributes.clone());
-        duration.record(delta);
-    }
-
-    let n_candidates = candidates.len();
-    if n_candidates == 0 {
-        debug!("no hot compaction candidates found");
-        return 0;
-    } else {
-        debug!(n_candidates, "found hot compaction candidates");
-    }
-
-    let start_time = compactor.time_provider.now();
-
-    compact_hot_partition_candidates(Arc::clone(&compactor), candidates, table_columns).await;
-
-    // Done compacting all candidates in the cycle, record its time
-    if let Some(delta) = compactor
-        .time_provider
-        .now()
-        .checked_duration_since(start_time)
-    {
-        let duration = compactor.compaction_cycle_duration.recorder(hot_attributes);
-        duration.record(delta);
-    }
-
-    n_candidates
-}
-
-// For a given list of hot partition candidates and a memory budget, compute memory needed to compact each one
-// and compact as many of them in parallel as possible until all candidates are compacted
-async fn compact_hot_partition_candidates(
-    compactor: Arc<Compactor>,
-    mut candidates: VecDeque<PartitionCompactionCandidateWithInfo>,
-    table_columns: HashMap<TableId, Vec<ColumnTypeCount>>,
-) {
-    let mut remaining_budget_bytes = compactor.config.memory_budget_bytes;
-    let mut parallel_compacting_candidates = Vec::with_capacity(candidates.len());
-
-    while !candidates.is_empty() {
-        // Algorithm:
-        // 1. Remove the first candidate from the list
-        // 2. Check if the candidate can be compacted fully (all L0s and their overlapped L1s) or
-        //    partially (first L0s and their overlapped L1s) under the remaining budget
-        // 3. If yes, add the candidate and its partially/fully compacting files into the `parallel_compacting_candidates`
-        //    Otherwise:
-        //      . if the remaining budget is not the full budget, push the candidate back into the `candidates`
-        //        to consider compacting with larger budget.
-        //      . otherwise, log the partition that it is too large to even compact 2 files
-        // 4. If hit the budget, compact all candidates in the compacting_list in parallel
-        // 5. Repeat
-
-        // --------------------------------------------------------------------
-        // 1. Pop first candidate from the list. Since it is not empty, there must be at least one
-        let partition = candidates.pop_front().unwrap();
-        let partition_id = partition.candidate.partition_id;
-        let table_id = partition.candidate.table_id;
-
-        // Get column types and their counts for the table of the partition
-        let columns = table_columns.get(&table_id);
-        if columns == None {
-            warn!(
-                ?partition_id,
-                ?table_id,
-                "hot compaction is skipped due to missing column types of its table"
-            );
-            // todo: add this partition and its info into a new catalog table
-            // https://github.com/influxdata/influxdb_iox/issues/5458
-            continue;
-        }
-        let columns = columns.unwrap();
-
-        // --------------------------------------------------------------------
-        // 2. Check if the candidate can be compacted fully or partially under the remaining_budget_bytes
-        // Get parquet_file info for this partition
-        let parquet_files_for_compaction =
-            parquet_file_lookup::ParquetFilesForCompaction::for_partition(
-                Arc::clone(&compactor.catalog),
-                partition_id,
-            )
-            .await;
-
-        if let Err(e) = parquet_files_for_compaction {
-            warn!(
-                ?e,
-                ?partition_id,
-                "hot compaction failed due to error in reading parquet files"
-            );
-            // This may just be a hickup reading object store, skip commpacting it in this cycle
-            continue;
-        }
-        let parquet_files_for_compaction = parquet_files_for_compaction.unwrap();
-
-        // Return only files under the remaining_budget_bytes that should be compacted
-        let to_compact = parquet_file_filtering::filter_hot_parquet_files(
-            partition.clone(),
-            parquet_files_for_compaction,
-            remaining_budget_bytes,
-            columns,
-            &compactor.parquet_file_candidate_gauge,
-            &compactor.parquet_file_candidate_bytes,
-        );
-
-        // --------------------------------------------------------------------
-        // 3. Check the compactable status and act provide the right action
-        match to_compact.filter_result() {
-            FilterResult::NothingToCompact => {
-                continue;
-            }
-            FilterResult::ErrorEstimatingBudget => {
-                warn!(
-                    ?partition_id,
-                    ?table_id,
-                    "hot compaction is skipped due to error in estimating compacting memory"
-                );
-                // todo: add this partition and its info into a new catalog table
-                // https://github.com/influxdata/influxdb_iox/issues/5458
-                continue;
-            }
-            FilterResult::OverBudget => {
-                if remaining_budget_bytes < compactor.config.memory_budget_bytes {
-                    // Add this partition back the end of the list to compact it with full budget later
-                    candidates.push_back(partition);
-                } else {
-                    // Even with max budget, we cannot compact a bit of this partition, log it
-                    warn!(
-                        ?partition_id,
-                        ?table_id,
-                        "hot compaction is skipped due to over memory budget"
-                    );
-                    // todo: add this partition and its info into a new catalog table
-                    // https://github.com/influxdata/influxdb_iox/issues/5458
-                }
-                continue;
-            }
-            FilterResult::Proceeed => {
-                remaining_budget_bytes -= to_compact.budget_bytes();
-                parallel_compacting_candidates.push(to_compact);
-            }
-        }
-
-        // --------------------------------------------------------------------
-        // 4. Almost hitting max budget or no more candidates, let compact parallel_compacting_candidates
-        if (remaining_budget_bytes < (compactor.config.memory_budget_bytes / 2) as u64)
-            || (candidates.is_empty() && !parallel_compacting_candidates.is_empty())
-        {
-            compact_hot_partitions_in_parallel(
-                Arc::clone(&compactor),
-                parallel_compacting_candidates,
-            )
-            .await;
-            parallel_compacting_candidates = Vec::with_capacity(candidates.len());
-        }
-    }
-}
-
-// Compact given partitions in parallel
-// This function assumes its caller knows there are enough resources to run all partitions concurrently
-async fn compact_hot_partitions_in_parallel(
-    compactor: Arc<Compactor>,
-    partitions: Vec<FilteredFiles>,
-) {
-    let mut handles = Vec::with_capacity(partitions.len());
-    for p in partitions {
-        let comp = Arc::clone(&compactor);
-        let handle = tokio::task::spawn(async move {
-            let partition_id = p.partition.candidate.partition_id;
-            debug!(?partition_id, "hot compaction starting");
-            let compaction_result = crate::compact_hot_partition(&comp, p).await;
-            match compaction_result {
-                Err(e) => {
-                    warn!(?e, ?partition_id, "hot compaction failed");
-                }
-                Ok(_) => {
-                    debug!(?partition_id, "hot compaction complete");
-                }
-            };
-        });
-        handles.push(handle);
-    }
-
-    let compactions_run = handles.len();
-    debug!(
-        ?compactions_run,
-        "Number of hot concurrent partitions are being compacted in this cycle"
-    );
-
-    let _ = futures::future::join_all(handles).await;
-}
-
-// )
 
 async fn compact_cold_partitions(compactor: Arc<Compactor>) -> usize {
     let cold_attributes = Attributes::from(&[("partition_type", "cold")]);
