@@ -488,6 +488,7 @@ impl TestPartition {
             compaction_level,
             to_delete,
             object_store_id,
+            row_count,
         } = builder;
 
         let record_batch = record_batch.expect("A record batch is required");
@@ -499,6 +500,10 @@ impl TestPartition {
             "Table name of line protocol and partition should have matched",
         );
 
+        assert!(
+            row_count.is_none(),
+            "Cannot have both a record batch and a manually set row_count!"
+        );
         let row_count = record_batch.num_rows();
         assert!(row_count > 0, "Parquet file must have at least 1 row");
         let (record_batch, sort_key) = sort_batch(record_batch, schema.clone());
@@ -537,6 +542,7 @@ impl TestPartition {
             compaction_level,
             to_delete,
             object_store_id,
+            row_count: None, // will be computed from the record batch again
         };
 
         let result = self.create_parquet_file_catalog_record(builder).await;
@@ -561,6 +567,7 @@ impl TestPartition {
             compaction_level,
             to_delete,
             object_store_id,
+            row_count,
             ..
         } = builder;
 
@@ -575,11 +582,16 @@ impl TestPartition {
                     .id
             }));
 
+            assert!(
+                row_count.is_none(),
+                "Cannot have both a record batch and a manually set row_count!"
+            );
+
             (record_batch.num_rows(), column_set)
         } else {
             let column_set =
                 ColumnSet::new(table_catalog_schema.columns.values().map(|col| col.id));
-            (0, column_set)
+            (row_count.unwrap_or(0), column_set)
         };
 
         let parquet_file_params = ParquetFileParams {
@@ -638,6 +650,7 @@ pub struct TestParquetFileBuilder {
     compaction_level: CompactionLevel,
     to_delete: bool,
     object_store_id: Uuid,
+    row_count: Option<usize>,
 }
 
 impl Default for TestParquetFileBuilder {
@@ -654,6 +667,7 @@ impl Default for TestParquetFileBuilder {
             compaction_level: CompactionLevel::Initial,
             to_delete: false,
             object_store_id: Uuid::new_v4(),
+            row_count: None,
         }
     }
 }
@@ -725,6 +739,13 @@ impl TestParquetFileBuilder {
     /// Specify whether the parquet file should be marked as deleted or not.
     pub fn with_to_delete(mut self, to_delete: bool) -> Self {
         self.to_delete = to_delete;
+        self
+    }
+
+    /// Specify the number of rows in this parquet file. If line protocol/record batch are also
+    /// set, this will panic! Only use this when you're not specifying any rows!
+    pub fn with_row_count(mut self, row_count: usize) -> Self {
+        self.row_count = Some(row_count);
         self
     }
 }
