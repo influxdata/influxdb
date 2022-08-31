@@ -192,11 +192,8 @@ mod tests {
     use arrow::array::{ArrayRef, StringArray};
     use bytes::Bytes;
     use data_types::{CompactionLevel, NamespaceId, PartitionId, SequenceNumber, ShardId, TableId};
+    use datafusion::parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
     use iox_time::Time;
-    use parquet::{
-        arrow::{ArrowReader, ParquetFileArrowReader},
-        file::serialized_reader::SerializedFileReader,
-    };
     use std::sync::Arc;
 
     #[tokio::test]
@@ -237,14 +234,13 @@ mod tests {
         assert_eq!(iox_parquet_meta, meta);
 
         // Read the parquet file back to arrow records
-        let file_reader = SerializedFileReader::new(bytes).expect("should init reader");
-        let mut arrow_reader = ParquetFileArrowReader::new(Arc::new(file_reader));
+        let arrow_reader = ParquetRecordBatchReaderBuilder::try_new(bytes)
+            .expect("should init builder")
+            .with_batch_size(100)
+            .build()
+            .expect("should create reader");
 
-        let mut record_batches = arrow_reader
-            .get_record_reader(100)
-            .expect("should read")
-            .into_iter()
-            .collect::<Vec<_>>();
+        let mut record_batches = arrow_reader.into_iter().collect::<Vec<_>>();
 
         assert_eq!(record_batches.len(), 1);
         assert_eq!(

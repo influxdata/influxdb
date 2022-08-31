@@ -39,7 +39,7 @@ trogging = { path = "../trogging", default-features = false, features = ["clap"]
 
 # Crates.io dependencies, in alphabetical order
 ansi_term = "0.12"
-arrow = { version = "20.0.0", features = ["prettyprint"] }
+arrow = { version = "21.0.0", features = ["prettyprint"] }
 backtrace = "0.3"
 bytes = "1.2"
 clap = { version = "3", features = ["derive", "env"] }

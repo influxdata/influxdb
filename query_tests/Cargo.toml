@@ -6,7 +6,7 @@ edition = "2021"
 description = "Tests of the query engine against different database configurations"
 
 [dependencies]
-arrow = { version = "20.0.0", features = ["prettyprint"] }
+arrow = { version = "21.0.0", features = ["prettyprint"] }
 arrow_util = { path = "../arrow_util" }
 async-trait = "0.1"
 backoff = { path = "../backoff" }
@@ -34,7 +34,7 @@ workspace-hack = { path = "../workspace-hack"}
 parquet_file = { version = "0.1.0", path = "../parquet_file" }
 
 [dev-dependencies]
-arrow = { version = "20.0.0", features = ["prettyprint"] }
+arrow = { version = "21.0.0", features = ["prettyprint"] }
 arrow_util = { path = "../arrow_util" }
 snafu = "0.7"
 tempfile = "3.1.0"

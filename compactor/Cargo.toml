@@ -5,7 +5,7 @@ authors = ["Luke Bond <luke.n.bond@gmail.com>"]
 edition = "2021"
 
 [dependencies]
-arrow = { version = "20.0.0", features = ["prettyprint"] }
+arrow = { version = "21.0.0", features = ["prettyprint"] }
 async-trait = "0.1.57"
 backoff = { path = "../backoff" }
 bytes = "1.2"

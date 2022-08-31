@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-arrow = { version = "20.0.0", features = ["prettyprint"] }
+arrow = { version = "21.0.0", features = ["prettyprint"] }
 chrono = { version = "0.4", default-features = false }
 datafusion = { path = "../datafusion" }
 itertools = "0.10.2"

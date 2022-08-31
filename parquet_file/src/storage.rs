@@ -12,15 +12,14 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use bytes::Bytes;
-use datafusion::{parquet::arrow::ProjectionMask, physical_plan::SendableRecordBatchStream};
+use datafusion::{
+    parquet::arrow::{arrow_reader::ParquetRecordBatchReaderBuilder, ProjectionMask},
+    physical_plan::SendableRecordBatchStream,
+};
 use datafusion_util::{watch::WatchedTask, AdapterStream};
 use futures::{Stream, TryStreamExt};
 use object_store::{DynObjectStore, GetResult};
 use observability_deps::tracing::*;
-use parquet::{
-    arrow::{ArrowReader, ParquetFileArrowReader},
-    file::reader::SerializedFileReader,
-};
 use predicate::Predicate;
 use schema::selection::{select_schema, Selection};
 use std::{collections::HashMap, num::TryFromIntError, sync::Arc, time::Duration};
@@ -264,34 +263,31 @@ async fn download_and_scan_parquet(
         }
     };
 
-    // Size of each batch
-    let file_reader = SerializedFileReader::new(Bytes::from(data))?;
-    let mut arrow_reader = ParquetFileArrowReader::new(Arc::new(file_reader));
+    let builder = ParquetRecordBatchReaderBuilder::try_new(Bytes::from(data))?;
 
     // Check schema and calculate `file->expected` projections
-    let file_schema = arrow_reader.get_schema()?;
-    let (mask, reorder_projection) =
-        match project_for_parquet_reader(&file_schema, &expected_schema) {
-            Ok((mask, reorder_projection)) => (mask, reorder_projection),
-            Err(e) => {
-                return Err(ReadError::SchemaMismatch { path, source: e });
-            }
-        };
+    let file_schema = builder.schema();
+    let (mask, reorder_projection) = match project_for_parquet_reader(file_schema, &expected_schema)
+    {
+        Ok((mask, reorder_projection)) => (mask, reorder_projection),
+        Err(e) => {
+            return Err(ReadError::SchemaMismatch { path, source: e });
+        }
+    };
 
-    let mask = ProjectionMask::roots(arrow_reader.parquet_schema(), mask);
+    let mask = ProjectionMask::roots(builder.parquet_schema(), mask);
 
     // limit record batch size to number of rows
     // See:
     // - https://github.com/apache/arrow-rs/issues/2321
     // - https://github.com/influxdata/conductor/issues/1103
-    let n_rows: usize = arrow_reader
-        .metadata()
-        .file_metadata()
-        .num_rows()
-        .try_into()?;
+    let n_rows: usize = builder.metadata().file_metadata().num_rows().try_into()?;
     let batch_size = n_rows.min(ROW_GROUP_READ_SIZE);
 
-    let record_batch_reader = arrow_reader.get_record_reader_by_columns(mask, batch_size)?;
+    let record_batch_reader = builder
+        .with_projection(mask)
+        .with_batch_size(batch_size)
+        .build()?;
 
     for batch in record_batch_reader {
         let batch = batch.map(|batch| {
