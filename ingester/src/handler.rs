@@ -672,6 +672,7 @@ mod tests {
             1000,
             Duration::from_secs(10),
             Duration::from_secs(10),
+            100000000,
         );
         let ingester = IngestHandlerImpl::new(
             lifecycle_config,
@@ -944,6 +945,7 @@ mod tests {
                 1000,
                 Duration::from_secs(10),
                 Duration::from_secs(10),
+                10000000,
             );
             let ingester = IngestHandlerImpl::new(
                 lifecycle_config,

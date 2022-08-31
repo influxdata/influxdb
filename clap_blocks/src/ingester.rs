@@ -75,6 +75,15 @@ pub struct IngesterConfig {
     )]
     pub persist_partition_cold_threshold_seconds: u64,
 
+    /// Trigger persistence of a partition if it contains more than this many rows.
+    #[clap(
+        long = "--persist-partition-max-rows",
+        env = "INFLUXDB_IOX_PERSIST_PARTITION_MAX_ROWS",
+        default_value = "500000",
+        action
+    )]
+    pub persist_partition_rows_max: usize,
+
     /// If the catalog's max sequence number for the partition is no longer available in the write
     /// buffer due to the retention policy, by default the ingester will panic. If this flag is
     /// specified, the ingester will skip any sequence numbers that have not been retained in the
