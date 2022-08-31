@@ -494,7 +494,6 @@ impl TestPartition {
         let record_batch = record_batch.expect("A record batch is required");
         let table = table.expect("A table is required");
         let schema = schema.expect("A schema is required");
-
         assert_eq!(
             table, self.table.table.name,
             "Table name of line protocol and partition should have matched",
@@ -508,6 +507,8 @@ impl TestPartition {
         assert!(row_count > 0, "Parquet file must have at least 1 row");
         let (record_batch, sort_key) = sort_batch(record_batch, schema.clone());
         let record_batch = dedup_batch(record_batch, &sort_key);
+
+        let object_store_id = object_store_id.unwrap_or_else(Uuid::new_v4);
 
         let metadata = IoxMetadata {
             object_store_id,
@@ -541,7 +542,7 @@ impl TestPartition {
             creation_time,
             compaction_level,
             to_delete,
-            object_store_id,
+            object_store_id: Some(object_store_id),
             row_count: None, // will be computed from the record batch again
         };
 
@@ -599,7 +600,7 @@ impl TestPartition {
             namespace_id: self.namespace.namespace.id,
             table_id: self.table.table.id,
             partition_id: self.partition.id,
-            object_store_id,
+            object_store_id: object_store_id.unwrap_or_else(Uuid::new_v4),
             max_sequence_number,
             min_time: Timestamp::new(min_time),
             max_time: Timestamp::new(max_time),
@@ -649,7 +650,7 @@ pub struct TestParquetFileBuilder {
     creation_time: i64,
     compaction_level: CompactionLevel,
     to_delete: bool,
-    object_store_id: Uuid,
+    object_store_id: Option<Uuid>,
     row_count: Option<usize>,
 }
 
@@ -666,7 +667,7 @@ impl Default for TestParquetFileBuilder {
             creation_time: 1,
             compaction_level: CompactionLevel::Initial,
             to_delete: false,
-            object_store_id: Uuid::new_v4(),
+            object_store_id: None,
             row_count: None,
         }
     }
