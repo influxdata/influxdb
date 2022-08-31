@@ -7,12 +7,13 @@ use futures::StreamExt;
 use hashbrown::HashMap;
 use hyper::{header::CONTENT_ENCODING, Body, Method, Request, Response, StatusCode};
 use iox_time::{SystemProvider, TimeProvider};
-use metric::U64Counter;
+use metric::{DurationHistogram, U64Counter};
 use mutable_batch::MutableBatch;
 use mutable_batch_lp::LinesConverter;
 use observability_deps::tracing::*;
 use predicate::delete_predicate::{parse_delete_predicate, parse_http_delete_request};
 use serde::Deserialize;
+use std::time::Instant;
 use std::{str::Utf8Error, sync::Arc};
 use thiserror::Error;
 use tokio::sync::{Semaphore, TryAcquireError};
@@ -221,6 +222,7 @@ pub struct HttpDelegate<D, T = SystemProvider> {
     request_sem: Semaphore,
 
     write_metric_lines: U64Counter,
+    http_line_protocol_parse_duration: DurationHistogram,
     write_metric_fields: U64Counter,
     write_metric_tables: U64Counter,
     write_metric_body_size: U64Counter,
@@ -276,6 +278,12 @@ impl<D> HttpDelegate<D, SystemProvider> {
                 "number of HTTP requests rejected due to exceeding parallel request limit",
             )
             .recorder(&[]);
+        let http_line_protocol_parse_duration = metrics
+            .register_metric::<DurationHistogram>(
+                "http_line_protocol_parse_duration",
+                "write latency of line protocol parsing",
+            )
+            .recorder(&[]);
 
         Self {
             max_request_bytes,
@@ -283,6 +291,7 @@ impl<D> HttpDelegate<D, SystemProvider> {
             dml_handler,
             request_sem: Semaphore::new(max_requests),
             write_metric_lines,
+            http_line_protocol_parse_duration,
             write_metric_fields,
             write_metric_tables,
             write_metric_body_size,
@@ -348,6 +357,7 @@ where
         // The time, in nanoseconds since the epoch, to assign to any points that don't
         // contain a timestamp
         let default_time = self.time_provider.now().timestamp_nanos();
+        let start_instant = Instant::now();
 
         let mut converter = LinesConverter::new(default_time);
         converter.set_timestamp_base(write_info.precision.timestamp_base());
@@ -361,6 +371,8 @@ where
         };
 
         let num_tables = batches.len();
+        let duration = start_instant.elapsed();
+        self.http_line_protocol_parse_duration.record(duration);
         debug!(
             num_lines=stats.num_lines,
             num_fields=stats.num_fields,
@@ -370,6 +382,7 @@ where
             %namespace,
             org=%write_info.org,
             bucket=%write_info.bucket,
+            duration=?duration,
             "routing write",
         );
 
