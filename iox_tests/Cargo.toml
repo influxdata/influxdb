@@ -6,7 +6,7 @@ edition = "2021"
 description = "IOx test utils and tests"
 
 [dependencies]
-arrow = "20.0.0"
+arrow = "21.0.0"
 bytes = "1.2"
 data_types = { path = "../data_types" }
 datafusion = { path = "../datafusion" }

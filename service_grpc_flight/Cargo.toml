@@ -19,8 +19,8 @@ trace_http = { path = "../trace_http"}
 tracker = { path = "../tracker" }
 
 # Crates.io dependencies, in alphabetical order
-arrow = { version = "20.0.0", features = ["prettyprint"] }
-arrow-flight = "20.0.0"
+arrow = { version = "21.0.0", features = ["prettyprint"] }
+arrow-flight = "21.0.0"
 bytes = "1.2"
 futures = "0.3"
 pin-project = "1.0"

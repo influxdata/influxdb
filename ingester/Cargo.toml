@@ -5,8 +5,8 @@ authors = ["Nga Tran <nga-tran@live.com>"]
 edition = "2021"
 
 [dependencies]
-arrow = { version = "20.0.0", features = ["prettyprint"] }
-arrow-flight = "20.0.0"
+arrow = { version = "21.0.0", features = ["prettyprint"] }
+arrow-flight = "21.0.0"
 arrow_util = { path = "../arrow_util" }
 async-trait = "0.1.57"
 backoff = { path = "../backoff" }

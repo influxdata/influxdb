@@ -5,7 +5,7 @@ edition = "2021"
 description = "A mutable arrow RecordBatch"
 
 [dependencies]
-arrow = { version = "20.0.0", features = ["prettyprint"] }
+arrow = { version = "21.0.0", features = ["prettyprint"] }
 arrow_util = { path = "../arrow_util" }
 chrono = { version = "0.4", default-features = false }
 data_types = { path = "../data_types" }

@@ -23,7 +23,7 @@ trace = { path = "../trace" }
 write_buffer = { path = "../write_buffer" }
 
 # Crates.io dependencies, in alphabetical order
-arrow-flight = "20.0.0"
+arrow-flight = "21.0.0"
 async-trait = "0.1"
 hyper = "0.14"
 thiserror = "1.0.32"

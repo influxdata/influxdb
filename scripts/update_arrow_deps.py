@@ -50,6 +50,10 @@ def update_version_cargo_toml(cargo_toml, new_version):
                     # handle constraint that is itself a struct like
                     # {'version': '12', 'features': ['prettyprint']}
                     doc[section][dep_name]["version"] = new_version
+                elif type(constraint) == tomlkit.items.InlineTable:
+                    # handle constraint that is itself a struct like
+                    # {'version': '12', 'features': ['prettyprint']}
+                    doc[section][dep_name]["version"] = new_version
                 else:
                     print("Unknown type for {} {}: {}", dep_name, constraint, type(constraint))
 
