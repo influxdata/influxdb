@@ -633,10 +633,7 @@ mod tests {
         }
 
         fn new_with_loader(loader: Arc<TestLoader>) -> Self {
-            let inner = Box::new(CacheDriver::new(
-                Arc::clone(&loader) as _,
-                Box::new(HashMap::new()),
-            ));
+            let inner = Box::new(CacheDriver::new(Arc::clone(&loader) as _, HashMap::new()));
             let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_millis(0)));
             let metric_registry = metric::Registry::new();
             let cache = Arc::new(CacheWithMetrics::new(

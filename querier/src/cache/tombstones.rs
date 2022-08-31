@@ -140,7 +140,7 @@ impl TombstoneCache {
             )),
         ));
 
-        let cache = Box::new(CacheDriver::new(loader, Box::new(backend)));
+        let cache = Box::new(CacheDriver::new(loader, backend));
         let cache = Box::new(CacheWithMetrics::new(
             cache,
             CACHE_ID,

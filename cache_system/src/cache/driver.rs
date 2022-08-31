@@ -8,7 +8,7 @@ use futures::{
 };
 use observability_deps::tracing::debug;
 use parking_lot::Mutex;
-use std::{collections::HashMap, fmt::Debug, hash::Hash, sync::Arc};
+use std::{collections::HashMap, fmt::Debug, sync::Arc};
 use tokio::{
     sync::oneshot::{error::RecvError, Sender},
     task::JoinHandle,
@@ -18,27 +18,22 @@ use super::{Cache, CacheGetStatus, CachePeekStatus};
 
 /// Combine a [`CacheBackend`] and a [`Loader`] into a single [`Cache`]
 #[derive(Debug)]
-pub struct CacheDriver<K, V, GetExtra>
+pub struct CacheDriver<B, GetExtra>
 where
-    K: Clone + Eq + Hash + Debug + Ord + Send + 'static,
-    V: Clone + Debug + Send + 'static,
+    B: CacheBackend,
     GetExtra: Debug + Send + 'static,
 {
-    state: Arc<Mutex<CacheState<K, V>>>,
-    loader: Arc<dyn Loader<K = K, V = V, Extra = GetExtra>>,
+    state: Arc<Mutex<CacheState<B>>>,
+    loader: Arc<dyn Loader<K = B::K, V = B::V, Extra = GetExtra>>,
 }
 
-impl<K, V, GetExtra> CacheDriver<K, V, GetExtra>
+impl<B, GetExtra> CacheDriver<B, GetExtra>
 where
-    K: Clone + Eq + Hash + Debug + Ord + Send + 'static,
-    V: Clone + Debug + Send + 'static,
+    B: CacheBackend,
     GetExtra: Debug + Send + 'static,
 {
     /// Create new, empty cache with given loader function.
-    pub fn new(
-        loader: Arc<dyn Loader<K = K, V = V, Extra = GetExtra>>,
-        backend: Box<dyn CacheBackend<K = K, V = V>>,
-    ) -> Self {
+    pub fn new(loader: Arc<dyn Loader<K = B::K, V = B::V, Extra = GetExtra>>, backend: B) -> Self {
         Self {
             state: Arc::new(Mutex::new(CacheState {
                 cached_entries: backend,
@@ -51,14 +46,13 @@ where
 }
 
 #[async_trait]
-impl<K, V, GetExtra> Cache for CacheDriver<K, V, GetExtra>
+impl<B, GetExtra> Cache for CacheDriver<B, GetExtra>
 where
-    K: Clone + Eq + Hash + Debug + Ord + Send + 'static,
-    V: Clone + Debug + Send + 'static,
+    B: CacheBackend,
     GetExtra: Debug + Send + 'static,
 {
-    type K = K;
-    type V = V;
+    type K = B::K;
+    type V = B::V;
     type GetExtra = GetExtra;
     type PeekExtra = ();
 
@@ -233,10 +227,9 @@ where
     }
 }
 
-impl<K, V, GetExtra> Drop for CacheDriver<K, V, GetExtra>
+impl<B, GetExtra> Drop for CacheDriver<B, GetExtra>
 where
-    K: Clone + Eq + Hash + Debug + Ord + Send + 'static,
-    V: Clone + Debug + Send + 'static,
+    B: CacheBackend,
     GetExtra: Debug + Send + 'static,
 {
     fn drop(&mut self) {
@@ -253,23 +246,21 @@ where
 /// Helper to submit results of running queries.
 ///
 /// Ensures that running query is removed when dropped (e.g. during panic).
-struct ResultSubmitter<K, V>
+struct ResultSubmitter<B>
 where
-    K: Clone + Eq + Hash + Debug + Ord + Send + 'static,
-    V: Clone + Debug + Send + 'static,
+    B: CacheBackend,
 {
-    state: Arc<Mutex<CacheState<K, V>>>,
+    state: Arc<Mutex<CacheState<B>>>,
     tag: u64,
-    k: Option<K>,
-    v: Option<V>,
+    k: Option<B::K>,
+    v: Option<B::V>,
 }
 
-impl<K, V> ResultSubmitter<K, V>
+impl<B> ResultSubmitter<B>
 where
-    K: Clone + Eq + Hash + Debug + Ord + Send + 'static,
-    V: Clone + Debug + Send + 'static,
+    B: CacheBackend,
 {
-    fn new(state: Arc<Mutex<CacheState<K, V>>>, k: K, tag: u64) -> Self {
+    fn new(state: Arc<Mutex<CacheState<B>>>, k: B::K, tag: u64) -> Self {
         Self {
             state,
             tag,
@@ -281,7 +272,7 @@ where
     /// Submit value.
     ///
     /// Returns `true` if this very query was running.
-    fn submit(mut self, v: V) -> bool {
+    fn submit(mut self, v: B::V) -> bool {
         assert!(self.v.is_none());
         self.v = Some(v);
         self.finalize()
@@ -317,10 +308,9 @@ where
     }
 }
 
-impl<K, V> Drop for ResultSubmitter<K, V>
+impl<B> Drop for ResultSubmitter<B>
 where
-    K: Clone + Eq + Hash + Debug + Ord + Send + 'static,
-    V: Clone + Debug + Send + 'static,
+    B: CacheBackend,
 {
     fn drop(&mut self) {
         if self.k.is_some() {
@@ -378,12 +368,15 @@ struct RunningQuery<V> {
 ///
 /// The state parts must be updated in a consistent manner, i.e. while using the same lock guard.
 #[derive(Debug)]
-struct CacheState<K, V> {
+struct CacheState<B>
+where
+    B: CacheBackend,
+{
     /// Cached entires (i.e. queries completed).
-    cached_entries: Box<dyn CacheBackend<K = K, V = V>>,
+    cached_entries: B,
 
     /// Currently running queries indexed by cache key.
-    running_queries: HashMap<K, RunningQuery<V>>,
+    running_queries: HashMap<B::K, RunningQuery<B::V>>,
 
     /// Tag counter for running queries.
     tag_counter: u64,
@@ -407,13 +400,10 @@ mod tests {
     impl TestAdapter for MyTestAdapter {
         type GetExtra = bool;
         type PeekExtra = ();
-        type Cache = CacheDriver<u8, String, bool>;
+        type Cache = CacheDriver<HashMap<u8, String>, bool>;
 
         fn construct(&self, loader: Arc<TestLoader>) -> Arc<Self::Cache> {
-            Arc::new(CacheDriver::new(
-                Arc::clone(&loader) as _,
-                Box::new(HashMap::new()),
-            ))
+            Arc::new(CacheDriver::new(Arc::clone(&loader) as _, HashMap::new()))
         }
 
         fn get_extra(&self, inner: bool) -> Self::GetExtra {
