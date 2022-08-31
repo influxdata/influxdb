@@ -307,7 +307,9 @@ mod tests {
     use backoff::BackoffConfig;
     use data_types::{ColumnType, ColumnTypeCount, CompactionLevel};
     use iox_query::exec::Executor;
-    use iox_tests::util::{TestCatalog, TestParquetFileBuilder, TestShard, TestTable};
+    use iox_tests::util::{
+        TestCatalog, TestNamespace, TestParquetFileBuilder, TestShard, TestTable,
+    };
     use iox_time::SystemProvider;
     use parquet_file::storage::ParquetStorage;
     use std::{
@@ -328,6 +330,65 @@ mod tests {
         } = test_setup().await;
 
         let sorted_candidates = VecDeque::new();
+        let table_columns = HashMap::new();
+
+        compact_hot_partition_candidates(
+            Arc::clone(&compactor),
+            mock_compactor.compaction_function(),
+            sorted_candidates,
+            table_columns,
+        )
+        .await;
+
+        let compaction_groups = mock_compactor.results();
+        assert!(compaction_groups.is_empty());
+    }
+
+    #[tokio::test]
+    async fn compacting_table_without_columns_does_nothing() {
+        test_helpers::maybe_start_logging();
+
+        let TestSetup {
+            compactor,
+            mock_compactor,
+            namespace,
+            shard,
+            ..
+        } = test_setup().await;
+
+        let table_without_columns = namespace.create_table("test_table").await;
+
+        let partition1 = table_without_columns
+            .with_shard(&shard)
+            .create_partition("one")
+            .await;
+
+        let hot_time_one_hour_ago =
+            (compactor.time_provider.now() - Duration::from_secs(60 * 60)).timestamp_nanos();
+
+        let pf1_1 = TestParquetFileBuilder::default()
+            .with_min_time(1)
+            .with_max_time(5)
+            .with_row_count(2)
+            .with_compaction_level(CompactionLevel::Initial)
+            .with_creation_time(hot_time_one_hour_ago);
+        partition1.create_parquet_file_catalog_record(pf1_1).await;
+
+        let candidates = compactor
+            .hot_partitions_to_compact(
+                compactor.config.max_number_partitions_per_shard(),
+                compactor
+                    .config
+                    .min_number_recent_ingested_files_per_partition(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(candidates.len(), 1);
+
+        let candidates = compactor.add_info_to_partitions(&candidates).await.unwrap();
+        let mut sorted_candidates = candidates.into_iter().collect::<Vec<_>>();
+        sorted_candidates.sort_by_key(|c| c.candidate.partition_id);
+        let sorted_candidates = sorted_candidates.into_iter().collect::<VecDeque<_>>();
         let table_columns = HashMap::new();
 
         compact_hot_partition_candidates(
@@ -660,6 +721,7 @@ mod tests {
     struct TestSetup {
         compactor: Arc<Compactor>,
         mock_compactor: MockCompactor,
+        namespace: Arc<TestNamespace>,
         shard: Arc<TestShard>,
         table: Arc<TestTable>,
     }
@@ -704,6 +766,7 @@ mod tests {
         TestSetup {
             compactor,
             mock_compactor,
+            namespace,
             shard,
             table,
         }
