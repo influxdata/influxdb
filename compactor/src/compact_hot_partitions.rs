@@ -313,6 +313,42 @@ mod tests {
     use std::{collections::VecDeque, sync::Arc, time::Duration};
 
     #[tokio::test]
+    async fn empty_candidates_compacts_nothing() {
+        test_helpers::maybe_start_logging();
+
+        let TestSetup { compactor, .. } = test_setup().await;
+
+        let sorted_candidates = VecDeque::new();
+        let table_columns = HashMap::new();
+
+        let compaction_groups = Arc::new(std::sync::Mutex::new(vec![]));
+        let compaction_groups_for_closure = Arc::clone(&compaction_groups);
+
+        let mock_compaction =
+            move |_compactor: Arc<Compactor>,
+                  parallel_compacting_candidates: Vec<FilteredFiles>| {
+                let compaction_groups_for_async = Arc::clone(&compaction_groups_for_closure);
+                async move {
+                    compaction_groups_for_async
+                        .lock()
+                        .unwrap()
+                        .push(parallel_compacting_candidates);
+                }
+            };
+
+        compact_hot_partition_candidates(
+            Arc::clone(&compactor),
+            mock_compaction,
+            sorted_candidates,
+            table_columns,
+        )
+        .await;
+
+        let compaction_groups = compaction_groups.lock().unwrap();
+        assert!(compaction_groups.is_empty());
+    }
+
+    #[tokio::test]
     async fn test_compact_hot_partition_candidates() {
         test_helpers::maybe_start_logging();
 
