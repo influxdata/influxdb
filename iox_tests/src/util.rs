@@ -470,7 +470,8 @@ impl TestPartition {
         })
     }
 
-    /// Create a Parquet file in this partition with attributes specified by the builder
+    /// Create a Parquet file in this partition in object storage and the catalog with attributes
+    /// specified by the builder
     pub async fn create_parquet_file(
         self: &Arc<Self>,
         builder: TestParquetFileBuilder,
@@ -479,13 +480,14 @@ impl TestPartition {
             record_batch,
             table,
             schema,
-            max_seq,
+            max_sequence_number,
             min_time,
             max_time,
             file_size_bytes,
             creation_time,
             compaction_level,
             to_delete,
+            object_store_id,
         } = builder;
 
         let record_batch = record_batch.expect("A record batch is required");
@@ -499,11 +501,9 @@ impl TestPartition {
 
         let row_count = record_batch.num_rows();
         assert!(row_count > 0, "Parquet file must have at least 1 row");
-        let (record_batch, sort_key) = sort_batch(record_batch, schema);
+        let (record_batch, sort_key) = sort_batch(record_batch, schema.clone());
         let record_batch = dedup_batch(record_batch, &sort_key);
 
-        let object_store_id = Uuid::new_v4();
-        let max_sequence_number = SequenceNumber::new(max_seq);
         let metadata = IoxMetadata {
             object_store_id,
             creation_timestamp: now(),
@@ -518,20 +518,69 @@ impl TestPartition {
             compaction_level: CompactionLevel::Initial,
             sort_key: Some(sort_key.clone()),
         };
-        let table_catalog_schema = self.table.catalog_schema().await;
-        let column_set = ColumnSet::new(record_batch.schema().fields().iter().map(|f| {
-            table_catalog_schema
-                .columns
-                .get(f.name())
-                .expect("Column registered")
-                .id
-        }));
         let real_file_size_bytes = create_parquet_file(
             ParquetStorage::new(Arc::clone(&self.catalog.object_store)),
             &metadata,
-            record_batch,
+            record_batch.clone(),
         )
         .await;
+
+        let builder = TestParquetFileBuilder {
+            record_batch: Some(record_batch),
+            table: Some(table),
+            schema: Some(schema),
+            max_sequence_number,
+            min_time,
+            max_time,
+            file_size_bytes: Some(file_size_bytes.unwrap_or(real_file_size_bytes as u64)),
+            creation_time,
+            compaction_level,
+            to_delete,
+            object_store_id,
+        };
+
+        let result = self.create_parquet_file_catalog_record(builder).await;
+        let mut repos = self.catalog.catalog.repositories().await;
+        update_catalog_sort_key_if_needed(repos.partitions(), self.partition.id, sort_key).await;
+        result
+    }
+
+    /// Only update the catalog with the builder's info, don't create anything in object storage.
+    /// Record batch is not required in this case.
+    pub async fn create_parquet_file_catalog_record(
+        self: &Arc<Self>,
+        builder: TestParquetFileBuilder,
+    ) -> TestParquetFile {
+        let TestParquetFileBuilder {
+            record_batch,
+            max_sequence_number,
+            min_time,
+            max_time,
+            file_size_bytes,
+            creation_time,
+            compaction_level,
+            to_delete,
+            object_store_id,
+            ..
+        } = builder;
+
+        let table_catalog_schema = self.table.catalog_schema().await;
+
+        let (row_count, column_set) = if let Some(record_batch) = record_batch {
+            let column_set = ColumnSet::new(record_batch.schema().fields().iter().map(|f| {
+                table_catalog_schema
+                    .columns
+                    .get(f.name())
+                    .expect("Column registered")
+                    .id
+            }));
+
+            (record_batch.num_rows(), column_set)
+        } else {
+            let column_set =
+                ColumnSet::new(table_catalog_schema.columns.values().map(|col| col.id));
+            (0, column_set)
+        };
 
         let parquet_file_params = ParquetFileParams {
             shard_id: self.shard.shard.id,
@@ -542,7 +591,7 @@ impl TestPartition {
             max_sequence_number,
             min_time: Timestamp::new(min_time),
             max_time: Timestamp::new(max_time),
-            file_size_bytes: file_size_bytes.unwrap_or(real_file_size_bytes as u64) as i64,
+            file_size_bytes: file_size_bytes.unwrap_or(0) as i64,
             row_count: row_count as i64,
             created_at: Timestamp::new(creation_time),
             compaction_level,
@@ -555,7 +604,6 @@ impl TestPartition {
             .create(parquet_file_params)
             .await
             .unwrap();
-        update_catalog_sort_key_if_needed(repos.partitions(), self.partition.id, sort_key).await;
 
         if to_delete {
             repos
@@ -582,13 +630,14 @@ pub struct TestParquetFileBuilder {
     record_batch: Option<RecordBatch>,
     table: Option<String>,
     schema: Option<Schema>,
-    max_seq: i64,
+    max_sequence_number: SequenceNumber,
     min_time: i64,
     max_time: i64,
     file_size_bytes: Option<u64>,
     creation_time: i64,
     compaction_level: CompactionLevel,
     to_delete: bool,
+    object_store_id: Uuid,
 }
 
 impl Default for TestParquetFileBuilder {
@@ -597,13 +646,14 @@ impl Default for TestParquetFileBuilder {
             record_batch: None,
             table: None,
             schema: None,
-            max_seq: 100,
+            max_sequence_number: SequenceNumber::new(100),
             min_time: now().timestamp_nanos(),
             max_time: now().timestamp_nanos(),
             file_size_bytes: None,
             creation_time: 1,
             compaction_level: CompactionLevel::Initial,
             to_delete: false,
+            object_store_id: Uuid::new_v4(),
         }
     }
 }
@@ -638,7 +688,7 @@ impl TestParquetFileBuilder {
 
     /// Specify the maximum sequence number for the parquet file metadata.
     pub fn with_max_seq(mut self, max_seq: i64) -> Self {
-        self.max_seq = max_seq;
+        self.max_sequence_number = SequenceNumber::new(max_seq);
         self
     }
 
