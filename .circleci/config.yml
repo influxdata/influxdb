@@ -4,12 +4,17 @@ orbs:
   aws-s3:    circleci/aws-s3@2.0.0
   terraform: circleci/terraform@2.1.0
 
+parameters:
+  cross-container-tag:
+    type: string
+    default: go1.18.5-81cd97477f9a6c9f2db03dc56f560bf54f8da8bb
+
 executors:
   cross-builder:
     docker:
       # NOTE: To upgrade the Go version, first push the upgrade to the cross-builder Dockerfile
       # in the edge repo, then update the version here to match.
-      - image: quay.io/influxdb/cross-builder:go1.18.5-bc9c7f5b200055b18d50111c54d3aa59fc798d5f
+      - image: quay.io/influxdb/cross-builder:<< pipeline.parameters.cross-container-tag >>
     resource_class: large
   linux-amd64:
     machine:
