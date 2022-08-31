@@ -180,6 +180,7 @@ pub async fn create_ingester_server_type(
         ingester_config.persist_partition_size_threshold_bytes,
         Duration::from_secs(ingester_config.persist_partition_age_threshold_seconds),
         Duration::from_secs(ingester_config.persist_partition_cold_threshold_seconds),
+        ingester_config.persist_partition_rows_max,
     );
     let ingest_handler = Arc::new(
         IngestHandlerImpl::new(

@@ -968,6 +968,7 @@ impl LifecycleHandle for NoopLifecycleHandle {
         _shard_id: ShardId,
         _sequence_number: SequenceNumber,
         _bytes_written: usize,
+        _rows_written: usize,
     ) -> bool {
         // do NOT pause ingest
         false

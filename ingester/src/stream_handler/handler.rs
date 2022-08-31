@@ -610,7 +610,7 @@ mod tests {
                     let time_provider: Arc<dyn TimeProvider> = Arc::new(SystemProvider::default());
                     let lifecycle = LifecycleManager::new(
                         LifecycleConfig::new(
-                            100, 2, 3, Duration::from_secs(4), Duration::from_secs(5)
+                            100, 2, 3, Duration::from_secs(4), Duration::from_secs(5), 10000000,
                         ),
                         Arc::clone(&metrics),
                         time_provider,
@@ -974,7 +974,14 @@ mod tests {
         let metrics = Arc::new(metric::Registry::default());
         let time_provider = Arc::new(SystemProvider::default());
         let lifecycle = LifecycleManager::new(
-            LifecycleConfig::new(100, 2, 3, Duration::from_secs(4), Duration::from_secs(5)),
+            LifecycleConfig::new(
+                100,
+                2,
+                3,
+                Duration::from_secs(4),
+                Duration::from_secs(5),
+                1000000,
+            ),
             Arc::clone(&metrics),
             time_provider,
         );
@@ -1007,7 +1014,14 @@ mod tests {
         let metrics = Arc::new(metric::Registry::default());
         let time_provider = Arc::new(SystemProvider::default());
         let lifecycle = LifecycleManager::new(
-            LifecycleConfig::new(100, 2, 3, Duration::from_secs(4), Duration::from_secs(5)),
+            LifecycleConfig::new(
+                100,
+                2,
+                3,
+                Duration::from_secs(4),
+                Duration::from_secs(5),
+                1000000,
+            ),
             Arc::clone(&metrics),
             time_provider,
         );

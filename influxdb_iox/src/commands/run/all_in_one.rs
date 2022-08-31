@@ -407,6 +407,7 @@ impl Config {
             skip_to_oldest_available,
             test_flight_do_get_panic: 0,
             concurrent_request_limit: 10,
+            persist_partition_rows_max: 500_000,
         };
 
         // create a CompactorConfig for the all in one server based on

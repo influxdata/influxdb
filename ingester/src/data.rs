@@ -937,8 +937,13 @@ impl TableData {
             }
         }
 
-        let should_pause =
-            lifecycle_handle.log_write(partition_data.id, shard_id, sequence_number, batch.size());
+        let should_pause = lifecycle_handle.log_write(
+            partition_data.id,
+            shard_id,
+            sequence_number,
+            batch.size(),
+            batch.rows(),
+        );
         partition_data.buffer_write(sequence_number, batch)?;
 
         Ok(should_pause)
@@ -1846,6 +1851,7 @@ mod tests {
                 0,
                 Duration::from_secs(1),
                 Duration::from_secs(1),
+                1000000,
             ),
             metrics,
             Arc::new(SystemProvider::new()),
@@ -1864,6 +1870,106 @@ mod tests {
             .await
             .unwrap();
         assert!(should_pause);
+    }
+
+    #[tokio::test]
+    async fn persist_row_count_trigger() {
+        let metrics = Arc::new(metric::Registry::new());
+        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
+        let mut repos = catalog.repositories().await;
+        let topic = repos.topics().create_or_get("whatevs").await.unwrap();
+        let query_pool = repos.query_pools().create_or_get("whatevs").await.unwrap();
+        let shard_index = ShardIndex::new(0);
+        let namespace = repos
+            .namespaces()
+            .create("foo", "inf", topic.id, query_pool.id)
+            .await
+            .unwrap();
+        let shard1 = repos
+            .shards()
+            .create_or_get(&topic, shard_index)
+            .await
+            .unwrap();
+        let mut shards = BTreeMap::new();
+        shards.insert(
+            shard1.id,
+            ShardData::new(shard1.shard_index, Arc::clone(&metrics)),
+        );
+
+        let object_store: Arc<DynObjectStore> = Arc::new(InMemory::new());
+
+        let data = Arc::new(IngesterData::new(
+            Arc::clone(&object_store),
+            Arc::clone(&catalog),
+            shards,
+            Arc::new(Executor::new(1)),
+            BackoffConfig::default(),
+            Arc::clone(&metrics),
+        ));
+
+        let schema = NamespaceSchema::new(namespace.id, topic.id, query_pool.id);
+
+        let w1 = DmlWrite::new(
+            "foo",
+            lines_to_batches("mem foo=1 10\nmem foo=1 11", 0).unwrap(),
+            Some("1970-01-01".into()),
+            DmlMeta::sequenced(
+                Sequence::new(ShardIndex::new(1), SequenceNumber::new(1)),
+                Time::from_timestamp_millis(42),
+                None,
+                50,
+            ),
+        );
+        let _schema = validate_or_insert_schema(w1.tables(), &schema, repos.deref_mut())
+            .await
+            .unwrap()
+            .unwrap();
+
+        // drop repos so the mem catalog won't deadlock.
+        std::mem::drop(repos);
+
+        let manager = LifecycleManager::new(
+            LifecycleConfig::new(
+                1000000000,
+                0,
+                0,
+                Duration::from_secs(1),
+                Duration::from_secs(1),
+                1, // This row count will be hit
+            ),
+            Arc::clone(&metrics),
+            Arc::new(SystemProvider::new()),
+        );
+
+        let should_pause = data
+            .buffer_operation(shard1.id, DmlOperation::Write(w1), &manager.handle())
+            .await
+            .unwrap();
+        // Exceeding the row count doesn't pause ingest (like other partition
+        // limits)
+        assert!(!should_pause);
+
+        let partition_id = {
+            let sd = data.shards.get(&shard1.id).unwrap();
+            let n = sd.namespace("foo").unwrap();
+            let mem_table = n.table_data("mem").unwrap();
+            assert!(n.table_data("mem").is_some());
+            let mem_table = mem_table.write().await;
+            let p = mem_table.partition_data.get(&"1970-01-01".into()).unwrap();
+            p.id
+        };
+
+        data.persist(partition_id).await;
+
+        // verify that a file got put into object store
+        let file_paths: Vec<_> = object_store
+            .list(None)
+            .await
+            .unwrap()
+            .try_collect()
+            .await
+            .unwrap();
+        assert_eq!(file_paths.len(), 1);
     }
 
     #[tokio::test]
@@ -1961,7 +2067,14 @@ mod tests {
         );
 
         let manager = LifecycleManager::new(
-            LifecycleConfig::new(1, 0, 0, Duration::from_secs(1), Duration::from_secs(1)),
+            LifecycleConfig::new(
+                1,
+                0,
+                0,
+                Duration::from_secs(1),
+                Duration::from_secs(1),
+                1000000,
+            ),
             Arc::clone(&metrics),
             Arc::new(SystemProvider::new()),
         );
@@ -2186,7 +2299,14 @@ mod tests {
         drop(repos); // release catalog transaction
 
         let manager = LifecycleManager::new(
-            LifecycleConfig::new(1, 0, 0, Duration::from_secs(1), Duration::from_secs(1)),
+            LifecycleConfig::new(
+                1,
+                0,
+                0,
+                Duration::from_secs(1),
+                Duration::from_secs(1),
+                1000000,
+            ),
             metrics,
             Arc::new(SystemProvider::new()),
         );
@@ -2596,7 +2716,14 @@ mod tests {
         std::mem::drop(repos);
 
         let manager = LifecycleManager::new(
-            LifecycleConfig::new(1, 0, 0, Duration::from_secs(1), Duration::from_secs(1)),
+            LifecycleConfig::new(
+                1,
+                0,
+                0,
+                Duration::from_secs(1),
+                Duration::from_secs(1),
+                1000000,
+            ),
             Arc::clone(&metrics),
             Arc::new(SystemProvider::new()),
         );
@@ -2715,6 +2842,7 @@ mod tests {
                 0,
                 Duration::from_secs(1),
                 Duration::from_secs(1),
+                1000000,
             ),
             metrics,
             Arc::new(SystemProvider::new()),
