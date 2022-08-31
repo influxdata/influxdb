@@ -310,41 +310,35 @@ mod tests {
     use iox_tests::util::{TestCatalog, TestParquetFileBuilder, TestShard, TestTable};
     use iox_time::SystemProvider;
     use parquet_file::storage::ParquetStorage;
-    use std::{collections::VecDeque, sync::Arc, time::Duration};
+    use std::{
+        collections::VecDeque,
+        pin::Pin,
+        sync::{Arc, Mutex},
+        time::Duration,
+    };
 
     #[tokio::test]
     async fn empty_candidates_compacts_nothing() {
         test_helpers::maybe_start_logging();
 
-        let TestSetup { compactor, .. } = test_setup().await;
+        let TestSetup {
+            compactor,
+            mock_compactor,
+            ..
+        } = test_setup().await;
 
         let sorted_candidates = VecDeque::new();
         let table_columns = HashMap::new();
 
-        let compaction_groups = Arc::new(std::sync::Mutex::new(vec![]));
-        let compaction_groups_for_closure = Arc::clone(&compaction_groups);
-
-        let mock_compaction =
-            move |_compactor: Arc<Compactor>,
-                  parallel_compacting_candidates: Vec<FilteredFiles>| {
-                let compaction_groups_for_async = Arc::clone(&compaction_groups_for_closure);
-                async move {
-                    compaction_groups_for_async
-                        .lock()
-                        .unwrap()
-                        .push(parallel_compacting_candidates);
-                }
-            };
-
         compact_hot_partition_candidates(
             Arc::clone(&compactor),
-            mock_compaction,
+            mock_compactor.compaction_function(),
             sorted_candidates,
             table_columns,
         )
         .await;
 
-        let compaction_groups = compaction_groups.lock().unwrap();
+        let compaction_groups = mock_compactor.results();
         assert!(compaction_groups.is_empty());
     }
 
@@ -354,6 +348,7 @@ mod tests {
 
         let TestSetup {
             compactor,
+            mock_compactor,
             shard,
             table,
             ..
@@ -532,34 +527,18 @@ mod tests {
         //   P4 is not compacted due to overbudget
         //  Debug info shows all 3 rounds
 
-        let compaction_groups = Arc::new(std::sync::Mutex::new(vec![]));
-
-        let compaction_groups_for_closure = Arc::clone(&compaction_groups);
-
-        let mock_compaction =
-            move |_compactor: Arc<Compactor>,
-                  parallel_compacting_candidates: Vec<FilteredFiles>| {
-                let compaction_groups_for_async = Arc::clone(&compaction_groups_for_closure);
-                async move {
-                    compaction_groups_for_async
-                        .lock()
-                        .unwrap()
-                        .push(parallel_compacting_candidates);
-                }
-            };
-
         // Todo next: So conveniently, debug log shows this is also a reproducer of
         // https://github.com/influxdata/conductor/issues/1130
         // "hot compaction failed: 1, "Could not serialize and persist record batches failed to peek record stream schema"
         compact_hot_partition_candidates(
             Arc::clone(&compactor),
-            mock_compaction,
+            mock_compactor.compaction_function(),
             sorted_candidates,
             table_columns,
         )
         .await;
 
-        let compaction_groups = compaction_groups.lock().unwrap();
+        let compaction_groups = mock_compactor.results();
 
         // 3 rounds of parallel compaction
         assert_eq!(compaction_groups.len(), 3);
@@ -612,6 +591,47 @@ mod tests {
         assert_eq!(g3_candidate1_pf_ids, vec![6, 5]);
     }
 
+    #[derive(Default)]
+    struct MockCompactor {
+        compaction_groups: Arc<Mutex<Vec<Vec<FilteredFiles>>>>,
+    }
+
+    type CompactorFunctionFactory = Box<
+        dyn Fn(
+                Arc<Compactor>,
+                Vec<FilteredFiles>,
+            ) -> Pin<Box<dyn futures::Future<Output = ()> + Send>>
+            + Send
+            + Sync
+            + 'static,
+    >;
+
+    impl MockCompactor {
+        fn compaction_function(&self) -> CompactorFunctionFactory {
+            let compaction_groups_for_closure = Arc::clone(&self.compaction_groups);
+            Box::new(
+                move |_compactor: Arc<Compactor>,
+                      parallel_compacting_candidates: Vec<FilteredFiles>| {
+                    let compaction_groups_for_async = Arc::clone(&compaction_groups_for_closure);
+                    Box::pin(async move {
+                        compaction_groups_for_async
+                            .lock()
+                            .unwrap()
+                            .push(parallel_compacting_candidates);
+                    })
+                },
+            )
+        }
+
+        fn results(self) -> Vec<Vec<FilteredFiles>> {
+            let Self { compaction_groups } = self;
+            Arc::try_unwrap(compaction_groups)
+                .unwrap()
+                .into_inner()
+                .unwrap()
+        }
+    }
+
     fn make_compactor_config() -> CompactorConfig {
         let max_desired_file_size_bytes = 100_000_000;
         let percentage_max_file_size = 90;
@@ -639,6 +659,7 @@ mod tests {
 
     struct TestSetup {
         compactor: Arc<Compactor>,
+        mock_compactor: MockCompactor,
         shard: Arc<TestShard>,
         table: Arc<TestTable>,
     }
@@ -678,8 +699,11 @@ mod tests {
             Arc::new(metric::Registry::new()),
         ));
 
+        let mock_compactor = MockCompactor::default();
+
         TestSetup {
             compactor,
+            mock_compactor,
             shard,
             table,
         }
