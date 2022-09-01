@@ -57,6 +57,24 @@ func TestUser(t *testing.T) {
 				if !reflect.DeepEqual(users, expected) {
 					t.Fatalf("expected identical users: \n%+v\n%+v", users, expected)
 				}
+
+				// Test that identical name causes an error
+				err = store.CreateUser(context.Background(), tx, &influxdb.User{
+					ID:   platform.ID(11), // Unique ID
+					Name: "user1",         // Non-unique name
+				})
+				if err == nil {
+					t.Fatal("expected error on creating user with identical username")
+				}
+
+				// Test that identical ID causes an error
+				err = store.CreateUser(context.Background(), tx, &influxdb.User{
+					ID:   platform.ID(1), // Non-unique ID
+					Name: "user11",       // Unique name
+				})
+				if err == nil {
+					t.Fatal("expected error on creating user with identical ID")
+				}
 			},
 		},
 		{
