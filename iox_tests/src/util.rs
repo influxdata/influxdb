@@ -20,7 +20,7 @@ use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
 use object_store::{memory::InMemory, DynObjectStore};
 use observability_deps::tracing::debug;
 use once_cell::sync::Lazy;
-use parquet_file::{metadata::IoxMetadata, storage::ParquetStorage};
+use parquet_file::{metadata::IoxMetadata, storage::ParquetStorage, ParquetFilePath};
 use schema::{
     selection::Selection,
     sort::{adjust_sort_key_columns, compute_sort_key, SortKey},
@@ -333,6 +333,30 @@ impl TestTable {
     /// Get schema for this table.
     pub async fn schema(&self) -> Schema {
         self.catalog_schema().await.try_into().unwrap()
+    }
+
+    /// Read the record batches from the specified Parquet File associated with this table.
+    pub async fn read_parquet_file(&self, file: ParquetFile) -> Vec<RecordBatch> {
+        let storage = ParquetStorage::new(self.catalog.object_store());
+
+        // get schema
+        let table_catalog_schema = self.catalog_schema().await;
+        let column_id_lookup = table_catalog_schema.column_id_map();
+        let table_schema = self.schema().await;
+        let selection: Vec<_> = file
+            .column_set
+            .iter()
+            .map(|id| *column_id_lookup.get(id).unwrap())
+            .collect();
+        let schema = table_schema.select_by_names(&selection).unwrap();
+
+        let path: ParquetFilePath = (&file).into();
+        let rx = storage
+            .read_all(schema.as_arrow(), &path, file.file_size_bytes as usize)
+            .unwrap();
+        datafusion::physical_plan::common::collect(rx)
+            .await
+            .unwrap()
     }
 }
 
