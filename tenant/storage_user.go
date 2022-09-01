@@ -34,7 +34,7 @@ func marshalUser(u *influxdb.User) ([]byte, error) {
 	return v, nil
 }
 
-func (s *Store) uniqueUserName(ctx context.Context, tx kv.Tx, uname string) error {
+func (s *Store) uniqueUserName(tx kv.Tx, uname string) error {
 
 	idx, err := tx.Bucket(userIndex)
 	if err != nil {
@@ -53,6 +53,26 @@ func (s *Store) uniqueUserName(ctx context.Context, tx kv.Tx, uname string) erro
 	}
 
 	// any other error is some sort of internal server error
+	return ErrUnprocessableUser(err)
+}
+
+func (s *Store) uniqueUserID(tx kv.Tx, id platform.ID) error {
+	encodedID, _ := id.Encode()
+
+	b, err := tx.Bucket(userBucket)
+	if err != nil {
+		return err
+	}
+
+	_, err = b.Get(encodedID)
+	if kv.IsNotFound(err) {
+		return nil
+	}
+
+	if err == nil {
+		return UserIDAlreadyExistsError(id.String())
+	}
+
 	return ErrUnprocessableUser(err)
 }
 
@@ -170,7 +190,11 @@ func (s *Store) CreateUser(ctx context.Context, tx kv.Tx, u *influxdb.User) erro
 		return InvalidUserIDError(err)
 	}
 
-	if err := s.uniqueUserName(ctx, tx, u.Name); err != nil {
+	// Verify that both the provided username and user ID are not already in-use
+	if err := s.uniqueUserName(tx, u.Name); err != nil {
+		return err
+	}
+	if err := s.uniqueUserID(tx, u.ID); err != nil {
 		return err
 	}
 
@@ -212,7 +236,7 @@ func (s *Store) UpdateUser(ctx context.Context, tx kv.Tx, id platform.ID, upd in
 	}
 
 	if upd.Name != nil && *upd.Name != u.Name {
-		if err := s.uniqueUserName(ctx, tx, *upd.Name); err != nil {
+		if err := s.uniqueUserName(tx, *upd.Name); err != nil {
 			return nil, err
 		}
 
