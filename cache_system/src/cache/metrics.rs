@@ -1,5 +1,5 @@
 //! Metrics instrumentation for [`Cache`]s.
-use std::{fmt::Debug, hash::Hash, sync::Arc};
+use std::{fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
 use iox_time::{Time, TimeProvider};
@@ -84,27 +84,21 @@ impl Metrics {
 
 /// Wraps given cache with metrics.
 #[derive(Debug)]
-pub struct CacheWithMetrics<K, V, GetExtra, PeekExtra>
+pub struct CacheWithMetrics<C>
 where
-    K: Clone + Eq + Hash + Debug + Ord + Send + 'static,
-    V: Clone + Debug + Send + 'static,
-    GetExtra: Debug + Send + 'static,
-    PeekExtra: Debug + Send + 'static,
+    C: Cache,
 {
-    inner: Box<dyn Cache<K = K, V = V, GetExtra = GetExtra, PeekExtra = PeekExtra>>,
+    inner: C,
     metrics: Metrics,
 }
 
-impl<K, V, GetExtra, PeekExtra> CacheWithMetrics<K, V, GetExtra, PeekExtra>
+impl<C> CacheWithMetrics<C>
 where
-    K: Clone + Eq + Hash + Debug + Ord + Send + 'static,
-    V: Clone + Debug + Send + 'static,
-    GetExtra: Debug + Send + 'static,
-    PeekExtra: Debug + Send + 'static,
+    C: Cache,
 {
     /// Create new metrics wrapper around given cache.
     pub fn new(
-        inner: Box<dyn Cache<K = K, V = V, GetExtra = GetExtra, PeekExtra = PeekExtra>>,
+        inner: C,
         name: &'static str,
         time_provider: Arc<dyn TimeProvider>,
         metric_registry: &metric::Registry,
@@ -117,17 +111,14 @@ where
 }
 
 #[async_trait]
-impl<K, V, GetExtra, PeekExtra> Cache for CacheWithMetrics<K, V, GetExtra, PeekExtra>
+impl<C> Cache for CacheWithMetrics<C>
 where
-    K: Clone + Eq + Hash + Debug + Ord + Send + 'static,
-    V: Clone + Debug + Send + 'static,
-    GetExtra: Debug + Send + 'static,
-    PeekExtra: Debug + Send + 'static,
+    C: Cache,
 {
-    type K = K;
-    type V = V;
-    type GetExtra = (GetExtra, Option<Span>);
-    type PeekExtra = (PeekExtra, Option<Span>);
+    type K = C::K;
+    type V = C::V;
+    type GetExtra = (C::GetExtra, Option<Span>);
+    type PeekExtra = (C::PeekExtra, Option<Span>);
 
     async fn get_with_status(
         &self,
@@ -277,7 +268,7 @@ mod tests {
     impl TestAdapter for MyTestAdapter {
         type GetExtra = (bool, Option<Span>);
         type PeekExtra = ((), Option<Span>);
-        type Cache = CacheWithMetrics<u8, String, bool, ()>;
+        type Cache = CacheWithMetrics<CacheDriver<HashMap<u8, String>, bool>>;
 
         fn construct(&self, loader: Arc<TestLoader>) -> Arc<Self::Cache> {
             TestMetricsCache::new_with_loader(loader).cache
@@ -624,7 +615,7 @@ mod tests {
         loader: Arc<TestLoader>,
         time_provider: Arc<MockProvider>,
         metric_registry: metric::Registry,
-        cache: Arc<CacheWithMetrics<u8, String, bool, ()>>,
+        cache: Arc<CacheWithMetrics<CacheDriver<HashMap<u8, String>, bool>>>,
     }
 
     impl TestMetricsCache {
@@ -633,7 +624,7 @@ mod tests {
         }
 
         fn new_with_loader(loader: Arc<TestLoader>) -> Self {
-            let inner = Box::new(CacheDriver::new(Arc::clone(&loader) as _, HashMap::new()));
+            let inner = CacheDriver::new(Arc::clone(&loader) as _, HashMap::new());
             let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_millis(0)));
             let metric_registry = metric::Registry::new();
             let cache = Arc::new(CacheWithMetrics::new(

@@ -130,3 +130,38 @@ pub trait Cache: Debug + Send + Sync + 'static {
     /// This will also complete a currently running request for this key.
     async fn set(&self, k: Self::K, v: Self::V);
 }
+
+#[async_trait]
+impl<K, V, GetExtra, PeekExtra> Cache
+    for Box<dyn Cache<K = K, V = V, GetExtra = GetExtra, PeekExtra = PeekExtra>>
+where
+    K: Clone + Eq + Hash + Debug + Ord + Send + 'static,
+    V: Clone + Debug + Send + 'static,
+    GetExtra: Debug + Send + 'static,
+    PeekExtra: Debug + Send + 'static,
+{
+    type K = K;
+    type V = V;
+    type GetExtra = GetExtra;
+    type PeekExtra = PeekExtra;
+
+    async fn get_with_status(
+        &self,
+        k: Self::K,
+        extra: Self::GetExtra,
+    ) -> (Self::V, CacheGetStatus) {
+        self.as_ref().get_with_status(k, extra).await
+    }
+
+    async fn peek_with_status(
+        &self,
+        k: Self::K,
+        extra: Self::PeekExtra,
+    ) -> Option<(Self::V, CachePeekStatus)> {
+        self.as_ref().peek_with_status(k, extra).await
+    }
+
+    async fn set(&self, k: Self::K, v: Self::V) {
+        self.as_ref().set(k, v).await
+    }
+}
