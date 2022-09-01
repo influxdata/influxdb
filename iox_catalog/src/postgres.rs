@@ -1705,25 +1705,31 @@ WHERE parquet_file.shard_id = $1
     async fn recent_highest_throughput_partitions(
         &mut self,
         shard_id: ShardId,
-        num_hours: u32,
+        num_minutes: u32,
         min_num_files: usize,
         num_partitions: usize,
     ) -> Result<Vec<PartitionParam>> {
-        let num_hours = num_hours as i32;
+        let num_hours = num_minutes as i32;
         let min_num_files = min_num_files as i32;
         let num_partitions = num_partitions as i32;
 
+        //
         // The preliminary performance test on 6 days of data, this query runs around 55ms
         // We have index on (shard_id, comapction_level, to_delete)
         // If this query happens to be a lot slower (>500ms), we might think to add
         // and index on (shard_id, comapction_level, to_delete, created_at)
+        //
+        // Update: Sept 1, 2022
+        // query is too slow one 4 hours of data (~ 18 munites) if there are a lot of files
+        // Convert 'hour' to 'minute' to query less data
+        // Note: The explain shows postgres does GroupAggregate
         sqlx::query_as::<_, PartitionParam>(
             r#"
-SELECT partition_id, shard_id, namespace_id, table_id, count(id)
+SELECT partition_id, table_id, shard_id, namespace_id, count(id)
 FROM parquet_file
 WHERE compaction_level = 0 and to_delete is null
     and shard_id = $1
-    and to_timestamp(created_at/1000000000) > now() -  ($2 || 'hour')::interval
+    and to_timestamp(created_at/1000000000) > now() -  ($2 || 'minute')::interval
 group by 1, 2, 3, 4
 having count(id) >= $3
 order by 5 DESC
