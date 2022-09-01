@@ -31,10 +31,10 @@ pub async fn compact_hot_partitions(compactor: Arc<Compactor>) -> usize {
         .retry_all_errors("hot_partitions_to_compact", || async {
             compactor
                 .hot_partitions_to_compact(
-                    compactor.config.max_number_partitions_per_shard(),
+                    compactor.config.max_number_partitions_per_shard,
                     compactor
                         .config
-                        .min_number_recent_ingested_files_per_partition(),
+                        .min_number_recent_ingested_files_per_partition,
                 )
                 .await
         })
@@ -162,7 +162,7 @@ async fn compact_candidates_with_memory_budget<C, Fut, F>(
         + Sync
         + 'static,
 {
-    let mut remaining_budget_bytes = compactor.config.memory_budget_bytes();
+    let mut remaining_budget_bytes = compactor.config.memory_budget_bytes;
     let mut parallel_compacting_candidates = Vec::with_capacity(candidates.len());
     let mut num_remaining_candidates = candidates.len();
     let mut count = 0;
@@ -260,7 +260,7 @@ async fn compact_candidates_with_memory_budget<C, Fut, F>(
                     // https://github.com/influxdata/influxdb_iox/issues/5458
                 }
                 FilterResult::OverBudget => {
-                    if to_compact.budget_bytes() <= compactor.config.memory_budget_bytes() {
+                    if to_compact.budget_bytes() <= compactor.config.memory_budget_bytes {
                         // Required budget is larger than the remaining budget but smaller than
                         // full budget, add this partition back to the end of the list to compact
                         // with full budget later
@@ -289,14 +289,14 @@ async fn compact_candidates_with_memory_budget<C, Fut, F>(
         //    OR no more candidates
         //    OR already considered all remaining candidates.
         if (!parallel_compacting_candidates.is_empty())
-            && ((remaining_budget_bytes <= (compactor.config.memory_budget_bytes() / 10) as u64)
+            && ((remaining_budget_bytes <= (compactor.config.memory_budget_bytes / 10) as u64)
                 || (candidates.is_empty())
                 || (count == num_remaining_candidates))
         {
             debug!(
                 num_parallel_compacting_candidates = parallel_compacting_candidates.len(),
                 total_needed_memory_budget_bytes =
-                    compactor.config.memory_budget_bytes() - remaining_budget_bytes,
+                    compactor.config.memory_budget_bytes - remaining_budget_bytes,
                 compaction_type,
                 "parallel compacting candidate"
             );
@@ -304,7 +304,7 @@ async fn compact_candidates_with_memory_budget<C, Fut, F>(
 
             // Reset to start adding new set of parallel candidates
             parallel_compacting_candidates = Vec::with_capacity(candidates.len());
-            remaining_budget_bytes = compactor.config.memory_budget_bytes();
+            remaining_budget_bytes = compactor.config.memory_budget_bytes;
             num_remaining_candidates = candidates.len();
             count = 0;
         }
@@ -373,9 +373,9 @@ pub(crate) async fn compact_one_hot_partition(
         Arc::clone(&compactor.exec),
         Arc::clone(&compactor.time_provider),
         &compactor.compaction_input_file_bytes,
-        compactor.config.max_desired_file_size_bytes(),
-        compactor.config.percentage_max_file_size(),
-        compactor.config.split_percentage(),
+        compactor.config.max_desired_file_size_bytes,
+        compactor.config.percentage_max_file_size,
+        compactor.config.split_percentage,
     )
     .await
     .context(CombiningSnafu);
@@ -488,10 +488,10 @@ mod tests {
 
         let candidates = compactor
             .hot_partitions_to_compact(
-                compactor.config.max_number_partitions_per_shard(),
+                compactor.config.max_number_partitions_per_shard,
                 compactor
                     .config
-                    .min_number_recent_ingested_files_per_partition(),
+                    .min_number_recent_ingested_files_per_partition,
             )
             .await
             .unwrap();
@@ -677,10 +677,10 @@ mod tests {
         // partition candidates: partitions with L0 and overlapped L1
         let candidates = compactor
             .hot_partitions_to_compact(
-                compactor.config.max_number_partitions_per_shard(),
+                compactor.config.max_number_partitions_per_shard,
                 compactor
                     .config
-                    .min_number_recent_ingested_files_per_partition(),
+                    .min_number_recent_ingested_files_per_partition,
             )
             .await
             .unwrap();
@@ -870,7 +870,19 @@ mod tests {
         ];
         let partition = table.with_shard(&shard).create_partition("part").await;
         let time = Arc::new(SystemProvider::new());
-        let config = make_compactor_config();
+        let config = CompactorConfig {
+            max_desired_file_size_bytes: 10_000,
+            percentage_max_file_size: 30,
+            split_percentage: 80,
+            max_cold_concurrent_size_bytes: 90_000,
+            max_number_partitions_per_shard: 1,
+            min_number_recent_ingested_files_per_partition: 1,
+            cold_input_size_threshold_bytes: 600 * 1024 * 1024,
+            cold_input_file_count_threshold: 100,
+            hot_multiple: 4,
+            memory_budget_bytes: 100_000_000,
+        };
+
         let metrics = Arc::new(metric::Registry::new());
         let compactor = Compactor::new(
             vec![shard.shard.id],
@@ -896,7 +908,7 @@ mod tests {
         let f = partition.create_parquet_file(builder).await;
         size_overrides.insert(
             f.parquet_file.id,
-            compactor.config.max_desired_file_size_bytes() as i64 + 10,
+            compactor.config.max_desired_file_size_bytes as i64 + 10,
         );
 
         // pf2 overlaps with pf3
@@ -959,10 +971,10 @@ mod tests {
         // Compact
         let candidates = compactor
             .hot_partitions_to_compact(
-                compactor.config.max_number_partitions_per_shard(),
+                compactor.config.max_number_partitions_per_shard,
                 compactor
                     .config
-                    .min_number_recent_ingested_files_per_partition(),
+                    .min_number_recent_ingested_files_per_partition,
             )
             .await
             .unwrap();
@@ -983,7 +995,7 @@ mod tests {
         let to_compact = parquet_file_filtering::filter_hot_parquet_files(
             c,
             parquet_files_for_compaction,
-            compactor.config.memory_budget_bytes(),
+            compactor.config.memory_budget_bytes,
             &table_column_types,
             &compactor.parquet_file_candidate_gauge,
             &compactor.parquet_file_candidate_bytes,
@@ -1095,28 +1107,18 @@ mod tests {
     }
 
     fn make_compactor_config() -> CompactorConfig {
-        let max_desired_file_size_bytes = 100_000_000;
-        let percentage_max_file_size = 90;
-        let split_percentage = 100;
-        let max_cold_concurrent_size_bytes = 90_000;
-        let max_number_partitions_per_shard = 100;
-        let min_number_recent_ingested_per_partition = 1;
-        let cold_input_size_threshold_bytes = 600 * 1024 * 1024;
-        let cold_input_file_count_threshold = 100;
-        let hot_multiple = 4;
-        let memory_budget_bytes = 12 * 1125; // 13,500 bytes
-        CompactorConfig::new(
-            max_desired_file_size_bytes,
-            percentage_max_file_size,
-            split_percentage,
-            max_cold_concurrent_size_bytes,
-            max_number_partitions_per_shard,
-            min_number_recent_ingested_per_partition,
-            cold_input_size_threshold_bytes,
-            cold_input_file_count_threshold,
-            hot_multiple,
-            memory_budget_bytes,
-        )
+        CompactorConfig {
+            max_desired_file_size_bytes: 100_000_000,
+            percentage_max_file_size: 90,
+            split_percentage: 100,
+            max_cold_concurrent_size_bytes: 90_000,
+            max_number_partitions_per_shard: 100,
+            min_number_recent_ingested_files_per_partition: 1,
+            cold_input_size_threshold_bytes: 600 * 1024 * 1024,
+            cold_input_file_count_threshold: 100,
+            hot_multiple: 4,
+            memory_budget_bytes: 12 * 1125, // 13,500 bytes
+        }
     }
 
     struct TestSetup {

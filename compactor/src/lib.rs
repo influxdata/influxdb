@@ -73,8 +73,8 @@ pub(crate) async fn compact_cold_partition(
 
     let to_compact = parquet_file_filtering::filter_cold_parquet_files(
         parquet_files_for_compaction,
-        compactor.config.cold_input_size_threshold_bytes(),
-        compactor.config.cold_input_file_count_threshold(),
+        compactor.config.cold_input_size_threshold_bytes,
+        compactor.config.cold_input_file_count_threshold,
         &compactor.parquet_file_candidate_gauge,
         &compactor.parquet_file_candidate_bytes,
     );
@@ -99,9 +99,9 @@ pub(crate) async fn compact_cold_partition(
                 Arc::clone(&compactor.exec),
                 Arc::clone(&compactor.time_provider),
                 &compactor.compaction_input_file_bytes,
-                compactor.config.max_desired_file_size_bytes(),
-                compactor.config.percentage_max_file_size(),
-                compactor.config.split_percentage(),
+                compactor.config.max_desired_file_size_bytes,
+                compactor.config.percentage_max_file_size,
+                compactor.config.split_percentage,
             )
             .await
             .context(CombiningSnafu)
@@ -222,7 +222,7 @@ mod tests {
         let f = partition.create_parquet_file(builder).await;
         size_overrides.insert(
             f.parquet_file.id,
-            compactor.config.max_desired_file_size_bytes() as i64 + 10,
+            compactor.config.max_desired_file_size_bytes as i64 + 10,
         );
 
         // pf2 overlaps with pf3
@@ -284,7 +284,7 @@ mod tests {
         // ------------------------------------------------
         // Compact
         let candidates = compactor
-            .cold_partitions_to_compact(compactor.config.max_number_partitions_per_shard())
+            .cold_partitions_to_compact(compactor.config.max_number_partitions_per_shard)
             .await
             .unwrap();
         let mut candidates = compactor.add_info_to_partitions(&candidates).await.unwrap();
@@ -412,7 +412,7 @@ mod tests {
         let f = partition.create_parquet_file(builder).await;
         size_overrides.insert(
             f.parquet_file.id,
-            compactor.config.max_desired_file_size_bytes() as i64 + 10,
+            compactor.config.max_desired_file_size_bytes as i64 + 10,
         );
 
         // pf6 was created in a previous compaction cycle; does not overlap with any
@@ -433,7 +433,7 @@ mod tests {
         // ------------------------------------------------
         // Compact
         let candidates = compactor
-            .cold_partitions_to_compact(compactor.config.max_number_partitions_per_shard())
+            .cold_partitions_to_compact(compactor.config.max_number_partitions_per_shard)
             .await
             .unwrap();
         let mut candidates = compactor.add_info_to_partitions(&candidates).await.unwrap();
@@ -498,28 +498,17 @@ mod tests {
     }
 
     fn make_compactor_config() -> CompactorConfig {
-        let max_desired_file_size_bytes = 10_000;
-        let percentage_max_file_size = 30;
-        let split_percentage = 80;
-        let max_cold_concurrent_size_bytes = 90_000;
-        let max_number_partitions_per_shard = 1;
-        let min_number_recent_ingested_per_partition = 1;
-        let cold_input_size_threshold_bytes = 600 * 1024 * 1024;
-        let cold_input_file_count_threshold = 100;
-        let hot_multiple = 4;
-        let memory_budget_bytes = 100_000_000;
-
-        CompactorConfig::new(
-            max_desired_file_size_bytes,
-            percentage_max_file_size,
-            split_percentage,
-            max_cold_concurrent_size_bytes,
-            max_number_partitions_per_shard,
-            min_number_recent_ingested_per_partition,
-            cold_input_size_threshold_bytes,
-            cold_input_file_count_threshold,
-            hot_multiple,
-            memory_budget_bytes,
-        )
+        CompactorConfig {
+            max_desired_file_size_bytes: 10_000,
+            percentage_max_file_size: 30,
+            split_percentage: 80,
+            max_cold_concurrent_size_bytes: 90_000,
+            max_number_partitions_per_shard: 1,
+            min_number_recent_ingested_files_per_partition: 1,
+            cold_input_size_threshold_bytes: 600 * 1024 * 1024,
+            cold_input_file_count_threshold: 100,
+            hot_multiple: 4,
+            memory_budget_bytes: 100_000_000,
+        }
     }
 }

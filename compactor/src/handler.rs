@@ -90,14 +90,14 @@ impl CompactorHandlerImpl {
 pub struct CompactorConfig {
     /// Desired max size of compacted parquet files
     /// It is a target desired value than a guarantee
-    max_desired_file_size_bytes: u64,
+    pub max_desired_file_size_bytes: u64,
 
     /// Percentage of desired max file size.
     /// If the estimated compacted result is too small, no need to split it.
     /// This percentage is to determine how small it is:
     ///    < percentage_max_file_size * max_desired_file_size_bytes:
     /// This value must be between (0, 100)
-    percentage_max_file_size: u16,
+    pub percentage_max_file_size: u16,
 
     /// Split file percentage
     /// If the estimated compacted result is neither too small nor too large, it will be split
@@ -106,23 +106,23 @@ pub struct CompactorConfig {
     ///    . Too large means: > max_desired_file_size_bytes
     ///    . Any size in the middle will be considered neither too small nor too large
     /// This value must be between (0, 100)
-    split_percentage: u16,
+    pub split_percentage: u16,
 
     /// The compactor will limit the number of simultaneous cold partition compaction jobs based on
     /// the size of the input files to be compacted. This number should be less than 1/10th of the
     /// available memory to ensure compactions have enough space to run.
-    max_cold_concurrent_size_bytes: u64,
+    pub max_cold_concurrent_size_bytes: u64,
 
     /// Max number of partitions per shard we want to compact per cycle
-    max_number_partitions_per_shard: usize,
+    pub max_number_partitions_per_shard: usize,
 
     /// Min number of recent ingested files a partition needs to be considered for compacting
-    min_number_recent_ingested_files_per_partition: usize,
+    pub min_number_recent_ingested_files_per_partition: usize,
 
     /// A compaction operation for cold partitions will gather as many L0 files with their
     /// overlapping L1 files to compact together until the total size of input files crosses this
     /// threshold. Later compactions will pick up the remaining L0 files.
-    cold_input_size_threshold_bytes: u64,
+    pub cold_input_size_threshold_bytes: u64,
 
     /// A compaction operation or cold partitions  will gather as many L0 files with their
     /// overlapping L1 files to compact together until the total number of L0 + L1 files crosses this
@@ -130,12 +130,12 @@ pub struct CompactorConfig {
     ///
     /// A compaction operation will be limited by this or by the input size threshold, whichever is
     /// hit first.
-    cold_input_file_count_threshold: usize,
+    pub cold_input_file_count_threshold: usize,
 
     /// The multiple of times that compacting hot partitions should run for every one time that
     /// compacting cold partitions runs. Set to 1 to compact hot partitions and cold partitions
     /// equally.
-    hot_multiple: usize,
+    pub hot_multiple: usize,
 
     /// The memory budget asigned to this compactor.
     /// For each partition candidate, we will esimate the memory needed to compact each file
@@ -146,86 +146,7 @@ pub struct CompactorConfig {
     /// further diagnosis of the issue.
     /// How many candidates compacted concurrently are also decided using this estimation and
     /// budget.
-    memory_budget_bytes: u64,
-}
-
-impl CompactorConfig {
-    /// Initialize a valid config
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        max_desired_file_size_bytes: u64,
-        percentage_max_file_size: u16,
-        split_percentage: u16,
-        max_cold_concurrent_size_bytes: u64,
-        max_number_partitions_per_shard: usize,
-        min_number_recent_ingested_files_per_partition: usize,
-        cold_input_size_threshold_bytes: u64,
-        cold_input_file_count_threshold: usize,
-        hot_multiple: usize,
-        memory_budget_bytes: u64,
-    ) -> Self {
-        assert!(split_percentage > 0 && split_percentage <= 100);
-
-        Self {
-            max_desired_file_size_bytes,
-            percentage_max_file_size,
-            split_percentage,
-            max_cold_concurrent_size_bytes,
-            max_number_partitions_per_shard,
-            min_number_recent_ingested_files_per_partition,
-            cold_input_size_threshold_bytes,
-            cold_input_file_count_threshold,
-            memory_budget_bytes,
-            hot_multiple,
-        }
-    }
-
-    /// Desired max file of a compacted file
-    pub fn max_desired_file_size_bytes(&self) -> u64 {
-        self.max_desired_file_size_bytes
-    }
-
-    /// Percentage of desired max file size to determine a size is too small
-    pub fn percentage_max_file_size(&self) -> u16 {
-        self.percentage_max_file_size
-    }
-
-    /// Percentage of least recent data we want to split to reduce compacting non-overlapped data
-    pub fn split_percentage(&self) -> u16 {
-        self.split_percentage
-    }
-
-    /// Max number of partitions per shard we want to compact per cycle
-    pub fn max_number_partitions_per_shard(&self) -> usize {
-        self.max_number_partitions_per_shard
-    }
-
-    /// Min number of recent ingested files a partition needs to be considered for compacting
-    pub fn min_number_recent_ingested_files_per_partition(&self) -> usize {
-        self.min_number_recent_ingested_files_per_partition
-    }
-
-    /// A compaction operation for cold partitions will gather as many L0 files with their
-    /// overlapping L1 files to compact together until the total size of input files crosses this
-    /// threshold. Later compactions will pick up the remaining L0 files.
-    pub fn cold_input_size_threshold_bytes(&self) -> u64 {
-        self.cold_input_size_threshold_bytes
-    }
-
-    /// A compaction operation for cold partitions will gather as many L0 files with their overlapping L1 files to
-    /// compact together until the total number of L0 + L1 files crosses this threshold. Later
-    /// compactions will pick up the remaining L0 files.
-    ///
-    /// A compaction operation will be limited by this or by the input size threshold, whichever is
-    /// hit first.
-    pub fn cold_input_file_count_threshold(&self) -> usize {
-        self.cold_input_file_count_threshold
-    }
-
-    /// Memory budget this compactor should not exceed
-    pub fn memory_budget_bytes(&self) -> u64 {
-        self.memory_budget_bytes
-    }
+    pub memory_budget_bytes: u64,
 }
 
 /// How long to pause before checking for more work again if there was
@@ -283,7 +204,7 @@ async fn compact_cold_partitions(compactor: Arc<Compactor>) -> usize {
     let candidates = Backoff::new(&compactor.backoff_config)
         .retry_all_errors("cold_partitions_to_compact", || async {
             compactor
-                .cold_partitions_to_compact(compactor.config.max_number_partitions_per_shard())
+                .cold_partitions_to_compact(compactor.config.max_number_partitions_per_shard)
                 .await
         })
         .await
