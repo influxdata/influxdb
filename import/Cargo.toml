@@ -18,7 +18,7 @@ observability_deps = { path = "../observability_deps" }
 schema = { path = "../schema" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.82"
-thiserror = "1.0.31"
+thiserror = "1.0.33"
 tokio = { version = "1.17" }
 tonic = { version = "0.8" }
 trogging = { path = "../trogging", features = ["clap"] }
