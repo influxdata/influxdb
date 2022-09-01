@@ -1,0 +1,31 @@
+[package]
+name = "grpc-binary-logger"
+version = "0.1.0"
+authors = ["Marko Mikulicic <mmikulicic@gmail.com>"]
+edition = "2021"
+
+[dependencies]
+base64 = "0.13"
+byteorder = { version = "1", features = ["std"] }
+bytes = "1.0"
+futures = "0.3"
+http = "0.2"
+http-body = "0.4"
+hyper = "0.14"
+pin-project = "1.0"
+prost = "0.11"
+prost-types = { version = "0.11.1", features = ["std"] }
+tokio = {version = "1", features = [ "rt" ]}
+tonic = "0.8"
+tower = "0.4"
+grpc-binary-logger-proto = { path = "../grpc-binary-logger-proto" }
+workspace-hack = { path = "../workspace-hack"}
+
+[dev-dependencies]
+grpc-binary-logger-test-proto = { path = "../grpc-binary-logger-test-proto" }
+tokio-stream = { version = "0.1", features = ["net"] }
+assert_matches = "1"
+
+[build-dependencies]
+prost-build = "0.11"
+tonic-build = "0.8"

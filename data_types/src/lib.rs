@@ -418,7 +418,6 @@ pub struct Namespace {
     #[sqlx(default)]
     pub retention_duration: Option<String>,
     /// The topic that writes to this namespace will land in
-    #[sqlx(rename = "kafka_topic_id")]
     pub topic_id: TopicId,
     /// The query pool assigned to answer queries for this namespace
     pub query_pool_id: QueryPoolId,
@@ -730,11 +729,9 @@ pub struct Shard {
     /// the id of the shard, assigned by the catalog
     pub id: ShardId,
     /// the topic the shard is reading from
-    #[sqlx(rename = "kafka_topic_id")]
     pub topic_id: TopicId,
     /// the shard index of the shard the sequence numbers are coming from, sharded by the router
     /// and write buffer
-    #[sqlx(rename = "kafka_partition")]
     pub shard_index: ShardIndex,
     /// The minimum unpersisted sequence number. Because different tables
     /// can be persisted at different times, it is possible some data has been persisted
@@ -807,7 +804,6 @@ pub struct Partition {
     /// the id of the partition
     pub id: PartitionId,
     /// the shard the data in the partition arrived from
-    #[sqlx(rename = "sequencer_id")]
     pub shard_id: ShardId,
     /// the table the partition is under
     pub table_id: TableId,
@@ -867,7 +863,6 @@ pub struct PartitionParam {
     /// the partition
     pub partition_id: PartitionId,
     /// the partition's shard
-    #[sqlx(rename = "sequencer_id")]
     pub shard_id: ShardId,
     /// the partition's namespace
     pub namespace_id: NamespaceId,
@@ -883,7 +878,6 @@ pub struct Tombstone {
     /// the table the tombstone is associated with
     pub table_id: TableId,
     /// the shard the tombstone was sent through
-    #[sqlx(rename = "sequencer_id")]
     pub shard_id: ShardId,
     /// the sequence number assigned to the tombstone from the `router::Shard`
     pub sequence_number: SequenceNumber,
@@ -975,7 +969,6 @@ pub struct ParquetFile {
     /// the id of the file in the catalog
     pub id: ParquetFileId,
     /// the shard that sequenced writes that went into this file
-    #[sqlx(rename = "sequencer_id")]
     pub shard_id: ShardId,
     /// the namespace
     pub namespace_id: NamespaceId,

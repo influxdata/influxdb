@@ -274,14 +274,15 @@ impl Compactor {
             ]);
 
             // Get the most recent highest ingested throughput partitions within
-            // the last 4 hours. If nothing, increase to 24 hours
+            // the last 10 minutes. If nothing, increase to 30m minutes, 60 minutes,
+            // 4 * 60 minutes, 24 * 60 minutes
             let mut num_partitions = 0;
-            for num_hours in [4, 24] {
+            for num_minutes in [10, 30, 60, 4 * 60, 24 * 60] {
                 let mut partitions = repos
                     .parquet_files()
                     .recent_highest_throughput_partitions(
                         *shard_id,
-                        num_hours,
+                        num_minutes,
                         min_recent_ingested_files,
                         max_num_partitions_per_shard,
                     )
@@ -293,7 +294,7 @@ impl Compactor {
                 if !partitions.is_empty() {
                     debug!(
                         shard_id = shard_id.get(),
-                        num_hours,
+                        num_minutes,
                         n = partitions.len(),
                         "found high-throughput partitions"
                     );
@@ -611,8 +612,8 @@ mod tests {
 
         // Some times in the past to set to created_at of the files
         let time_now = Timestamp::new(compactor.time_provider.now().timestamp_nanos());
-        let time_three_hour_ago = Timestamp::new(
-            (compactor.time_provider.now() - Duration::from_secs(60 * 60 * 3)).timestamp_nanos(),
+        let time_three_minutes_ago = Timestamp::new(
+            (compactor.time_provider.now() - Duration::from_secs(60 * 3)).timestamp_nanos(),
         );
         let time_five_hour_ago = Timestamp::new(
             (compactor.time_provider.now() - Duration::from_secs(60 * 60 * 5)).timestamp_nanos(),
@@ -724,7 +725,7 @@ mod tests {
         let p5 = ParquetFileParams {
             object_store_id: Uuid::new_v4(),
             partition_id: partition3.id,
-            created_at: time_three_hour_ago,
+            created_at: time_three_minutes_ago,
             ..p1.clone()
         };
         let _pf5 = txn.parquet_files().create(p5).await.unwrap();

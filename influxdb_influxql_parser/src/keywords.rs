@@ -229,7 +229,6 @@ mod test {
         // │       Fallible tests        │
         // └─────────────────────────────┘
 
-        let res = sql_keyword("NOT_A_KEYWORD");
-        assert!(res.is_err());
+        sql_keyword("NOT_A_KEYWORD").unwrap_err();
     }
 }

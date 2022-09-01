@@ -1140,13 +1140,12 @@ impl ParquetFileRepo for MemTxn {
     async fn recent_highest_throughput_partitions(
         &mut self,
         shard_id: ShardId,
-        num_hours: u32,
+        num_minutes: u32,
         min_num_files: usize,
         num_partitions: usize,
     ) -> Result<Vec<PartitionParam>> {
-        let time_nano = (self.time_provider.now()
-            - Duration::from_secs(60 * 60 * num_hours as u64))
-        .timestamp_nanos();
+        let time_nano = (self.time_provider.now() - Duration::from_secs(60 * num_minutes as u64))
+            .timestamp_nanos();
         let recent_time = Timestamp::new(time_nano);
 
         let stage = self.stage();

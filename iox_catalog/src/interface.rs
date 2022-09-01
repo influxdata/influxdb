@@ -329,7 +329,6 @@ pub trait TableRepo: Send + Sync {
 #[derive(Debug, Copy, Clone, Eq, PartialEq, sqlx::FromRow)]
 pub struct TablePersistInfo {
     /// shard the sequence numbers are associated with
-    #[sqlx(rename = "sequencer_id")]
     pub shard_id: ShardId,
     /// the global identifier for the table
     pub table_id: TableId,
@@ -562,7 +561,7 @@ pub trait ParquetFileRepo: Send + Sync {
     async fn recent_highest_throughput_partitions(
         &mut self,
         shard_id: ShardId,
-        num_hours: u32,
+        num_minutes: u32,
         min_num_files: usize,
         num_partitions: usize,
     ) -> Result<Vec<PartitionParam>>;
@@ -2928,7 +2927,7 @@ pub(crate) mod test_helpers {
             .unwrap();
 
         // params for the tests
-        let num_hours = 4;
+        let num_minutes = 4 * 60;
         let min_num_files = 2;
         let num_partitions = 2;
 
@@ -2938,7 +2937,7 @@ pub(crate) mod test_helpers {
             .parquet_files()
             .recent_highest_throughput_partitions(
                 shard.id,
-                num_hours,
+                num_minutes,
                 min_num_files,
                 num_partitions,
             )
@@ -2957,7 +2956,7 @@ pub(crate) mod test_helpers {
             .parquet_files()
             .recent_highest_throughput_partitions(
                 shard.id,
-                num_hours,
+                num_minutes,
                 min_num_files,
                 num_partitions,
             )
@@ -3014,7 +3013,7 @@ pub(crate) mod test_helpers {
             .parquet_files()
             .recent_highest_throughput_partitions(
                 shard.id,
-                num_hours,
+                num_minutes,
                 min_num_files,
                 num_partitions,
             )
@@ -3039,7 +3038,7 @@ pub(crate) mod test_helpers {
             .parquet_files()
             .recent_highest_throughput_partitions(
                 shard.id,
-                num_hours,
+                num_minutes,
                 min_num_files,
                 num_partitions,
             )
@@ -3050,7 +3049,7 @@ pub(crate) mod test_helpers {
         // Case 4.2: min_num_files = 1
         let partitions = repos
             .parquet_files()
-            .recent_highest_throughput_partitions(shard.id, num_hours, 1, num_partitions)
+            .recent_highest_throughput_partitions(shard.id, num_minutes, 1, num_partitions)
             .await
             .unwrap();
         // and have one partition
@@ -3090,7 +3089,7 @@ pub(crate) mod test_helpers {
             .parquet_files()
             .recent_highest_throughput_partitions(
                 shard.id,
-                num_hours,
+                num_minutes,
                 min_num_files,
                 num_partitions,
             )
@@ -3102,7 +3101,7 @@ pub(crate) mod test_helpers {
                                                                       // Case 5.2: min_num_files = 1
         let partitions = repos
             .parquet_files()
-            .recent_highest_throughput_partitions(shard.id, num_hours, 1, num_partitions)
+            .recent_highest_throughput_partitions(shard.id, num_minutes, 1, num_partitions)
             .await
             .unwrap();
         assert_eq!(partitions.len(), 2);
@@ -3138,7 +3137,7 @@ pub(crate) mod test_helpers {
             .parquet_files()
             .recent_highest_throughput_partitions(
                 shard.id,
-                num_hours,
+                num_minutes,
                 min_num_files,
                 num_partitions,
             )
@@ -3151,7 +3150,7 @@ pub(crate) mod test_helpers {
                                                                       // Case 6.2: min_num_files = 1
         let partitions = repos
             .parquet_files()
-            .recent_highest_throughput_partitions(shard.id, num_hours, 1, num_partitions)
+            .recent_highest_throughput_partitions(shard.id, num_minutes, 1, num_partitions)
             .await
             .unwrap();
         assert_eq!(partitions.len(), 2);

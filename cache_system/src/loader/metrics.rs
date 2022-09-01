@@ -1,6 +1,6 @@
 //! Metrics for [`Loader`].
 
-use std::{hash::Hash, sync::Arc};
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use iox_time::TimeProvider;
@@ -11,25 +11,21 @@ use pdatastructs::filters::{bloomfilter::BloomFilter, Filter};
 use super::Loader;
 
 /// Wraps a [`Loader`] and adds metrics.
-pub struct MetricsLoader<K, V, Extra>
+pub struct MetricsLoader<L>
 where
-    K: Hash + Send + 'static,
-    V: Send + 'static,
-    Extra: Send + 'static,
+    L: Loader,
 {
-    inner: Box<dyn Loader<K = K, V = V, Extra = Extra>>,
+    inner: L,
     time_provider: Arc<dyn TimeProvider>,
     metric_calls_new: U64Counter,
     metric_calls_probably_reloaded: U64Counter,
     metric_duration: DurationHistogram,
-    seen: Mutex<BloomFilter<K>>,
+    seen: Mutex<BloomFilter<L::K>>,
 }
 
-impl<K, V, Extra> MetricsLoader<K, V, Extra>
+impl<L> MetricsLoader<L>
 where
-    K: Hash + Send + 'static,
-    V: Send + 'static,
-    Extra: Send + 'static,
+    L: Loader,
 {
     /// Create new wrapper.
     ///
@@ -37,7 +33,7 @@ where
     /// If `testing` is set, the "seen" metrics will NOT be processed correctly because the underlying data structure is
     /// too expensive to create many times a second in an un-optimized debug build.
     pub fn new(
-        inner: Box<dyn Loader<K = K, V = V, Extra = Extra>>,
+        inner: L,
         name: &'static str,
         time_provider: Arc<dyn TimeProvider>,
         metric_registry: &metric::Registry,
@@ -110,11 +106,9 @@ where
     }
 }
 
-impl<K, V, Extra> std::fmt::Debug for MetricsLoader<K, V, Extra>
+impl<L> std::fmt::Debug for MetricsLoader<L>
 where
-    K: Hash + Send + 'static,
-    V: Send + 'static,
-    Extra: Send + 'static,
+    L: Loader,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("MetricsLoader").finish_non_exhaustive()
@@ -122,15 +116,13 @@ where
 }
 
 #[async_trait]
-impl<K, V, Extra> Loader for MetricsLoader<K, V, Extra>
+impl<L> Loader for MetricsLoader<L>
 where
-    K: Hash + Send + 'static,
-    V: Send + 'static,
-    Extra: Send + 'static,
+    L: Loader,
 {
-    type K = K;
-    type V = V;
-    type Extra = Extra;
+    type K = L::K;
+    type V = L::V;
+    type Extra = L::Extra;
 
     async fn load(&self, k: Self::K, extra: Self::Extra) -> Self::V {
         {
@@ -172,13 +164,13 @@ mod tests {
 
         let time_provider_captured = Arc::clone(&time_provider);
         let d = Duration::from_secs(10);
-        let inner_loader = Box::new(FunctionLoader::new(move |x: u64, _extra: ()| {
+        let inner_loader = FunctionLoader::new(move |x: u64, _extra: ()| {
             let time_provider_captured = Arc::clone(&time_provider_captured);
             async move {
                 time_provider_captured.inc(d);
                 x.to_string()
             }
-        }));
+        });
 
         let loader = MetricsLoader::new(
             inner_loader,

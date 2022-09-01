@@ -81,16 +81,15 @@ impl ProjectedSchemaCache {
         ram_pool: Arc<ResourcePool<RamSize>>,
         testing: bool,
     ) -> Self {
-        let loader = Box::new(FunctionLoader::new(
-            move |key: CacheKey, table_schema: Arc<Schema>| async move {
+        let loader =
+            FunctionLoader::new(move |key: CacheKey, table_schema: Arc<Schema>| async move {
                 let projection: Vec<&str> = key.projection.iter().map(|s| s.as_str()).collect();
                 Arc::new(
                     table_schema
                         .select_by_names(&projection)
                         .expect("Bug in schema projection"),
                 )
-            },
-        ));
+            });
         let loader = Arc::new(MetricsLoader::new(
             loader,
             CACHE_ID,
@@ -109,7 +108,7 @@ impl ProjectedSchemaCache {
             })),
         ));
 
-        let cache = Box::new(CacheDriver::new(loader, backend));
+        let cache = CacheDriver::new(loader, backend);
         let cache = Box::new(CacheWithMetrics::new(
             cache,
             CACHE_ID,
