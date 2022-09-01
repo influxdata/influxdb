@@ -46,6 +46,15 @@ func UserAlreadyExistsError(n string) *errors.Error {
 	}
 }
 
+// UserIDAlreadyExistsError is used when attempting to create a user with an ID
+// that already exists.
+func UserIDAlreadyExistsError(id string) *errors.Error {
+	return &errors.Error{
+		Code: errors.EConflict,
+		Msg:  fmt.Sprintf("user with ID %s already exists", id),
+	}
+}
+
 // UnexpectedUserBucketError is used when the error comes from an internal system.
 func UnexpectedUserBucketError(err error) *errors.Error {
 	return &errors.Error{
