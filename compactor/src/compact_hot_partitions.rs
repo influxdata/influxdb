@@ -93,8 +93,9 @@ pub async fn compact_hot_partitions(compactor: Arc<Compactor>) -> usize {
 
     let start_time = compactor.time_provider.now();
 
-    compact_hot_partition_candidates(
+    compact_candidates_with_memory_budget(
         Arc::clone(&compactor),
+        "hot",
         compact_hot_partitions_in_parallel,
         candidates,
         table_columns,
@@ -114,16 +115,21 @@ pub async fn compact_hot_partitions(compactor: Arc<Compactor>) -> usize {
     n_candidates
 }
 
-// For a given list of hot partition candidates and a memory budget, compute memory needed to compact each one
-// and compact as many of them in parallel as possible until all candidates are compacted
+// For a given list of partition candidates and a memory budget, estimate memory needed to compact
+// each partition candidate and compact as many of them in parallel as possible until all
+// candidates are compacted.
 //
-// The way this function works is the needed memory to compact each partition will be accumulated until it hits over 90%
-// of the compactor's memory_budget_bytes. Then those partitions are compacted in parallel. Then the process repeats
-// until all partitions are compacted. However, since after leaving some budget for a partition, the remaining budget
-// may be not enough to conpact the next one but the full budget will. In that case, the  considering partition will
-// be pushed back as the last item of the list to be considered later with full budget.
-async fn compact_hot_partition_candidates<F, Fut>(
+// The way this function works is the estimated memory to compact each partition will be
+// accumulated until the running total hits over 90% of the compactor's memory_budget_bytes. Then
+// those partitions are compacted in parallel. The process repeats until all partitions are
+// compacted.
+//
+// If the partial remaining budget isn't enough to compact the current partition but the full
+// budget is enough, the current partition will be pushed back as the last item of the list to be
+// considered later with a full memory budget.
+async fn compact_candidates_with_memory_budget<F, Fut>(
     compactor: Arc<Compactor>,
+    compaction_type: &str,
     compact_function: F,
     mut candidates: VecDeque<PartitionCompactionCandidateWithInfo>,
     table_columns: HashMap<TableId, Vec<ColumnTypeCount>>,
@@ -138,14 +144,16 @@ async fn compact_hot_partition_candidates<F, Fut>(
     while !candidates.is_empty() {
         // Algorithm:
         // 1. Remove the first candidate from the list
-        // 2. Check if the candidate can be compacted fully (all L0s and their overlapped L1s) or
-        //    partially (first L0s and their overlapped L1s) under the remaining budget
-        // 3. If yes, add the candidate and its partially/fully compacting files into the `parallel_compacting_candidates`
+        // 2. Check if the candidate can be compacted fully (all files) or partially (some files)
+        //    under the remaining memory budget
+        // 3. If yes, add the candidate and its full or partial list of files into the
+        //    `parallel_compacting_candidates` list.
         //    Otherwise:
-        //      . if the remaining budget is not the full budget, push the candidate back into the `candidates`
+        //      - if the remaining budget is not the full budget and this partition's estimate is
+        //        less than the full budget, push the candidate back into the `candidates`
         //        to consider compacting with larger budget.
-        //      . otherwise, log the partition that it is too large to even compact 2 files
-        // 4. If hit the budget, compact all candidates in the compacting_list in parallel
+        //      - otherwise, log that the partition is too large to compact and skip it.
+        // 4. If the budget is hit, compact all candidates in the compacting_list in parallel
         // 5. Repeat
 
         // --------------------------------------------------------------------
@@ -162,7 +170,8 @@ async fn compact_hot_partition_candidates<F, Fut>(
                 warn!(
                     ?partition_id,
                     ?table_id,
-                    "hot compaction is skipped due to missing column types of its table"
+                    compaction_type,
+                    "skipped due to missing column types of its table"
                 );
                 // todo: add this partition and its info into a new catalog table
                 // https://github.com/influxdata/influxdb_iox/issues/5458
@@ -170,7 +179,8 @@ async fn compact_hot_partition_candidates<F, Fut>(
             }
             Some(columns) => {
                 // --------------------------------------------------------------------
-                // 2. Check if the candidate can be compacted fully or partially under the remaining_budget_bytes
+                // 2. Check if the candidate can be compacted fully or partially under the
+                //    remaining_budget_bytes
                 // Get parquet_file info for this partition
                 let parquet_files_for_compaction =
                     parquet_file_lookup::ParquetFilesForCompaction::for_partition(
@@ -181,16 +191,19 @@ async fn compact_hot_partition_candidates<F, Fut>(
                     .await;
                 match parquet_files_for_compaction {
                     Err(e) => {
-                        // This may just be a hickup reading object store, skip commpacting it in this cycle
+                        // This may just be a hiccup reading object store, skip commpacting it in
+                        // this cycle
                         warn!(
                             ?e,
                             ?partition_id,
-                            "hot compaction failed due to error in reading parquet files"
+                            compaction_type,
+                            "failed due to error in reading parquet files"
                         );
                         None
                     }
                     Ok(parquet_files_for_compaction) => {
-                        // Return only files under the remaining_budget_bytes that should be compacted
+                        // Return only files under the remaining_budget_bytes that should be
+                        // compacted
                         let to_compact = filter_hot_parquet_files(
                             partition.clone(),
                             parquet_files_for_compaction,
@@ -206,32 +219,35 @@ async fn compact_hot_partition_candidates<F, Fut>(
         };
 
         // --------------------------------------------------------------------
-        // 3. Check the compactable status and act provide the right action
+        // 3. Check the compactable status and perform the action
         if let Some(to_compact) = to_compact {
             match to_compact.filter_result() {
                 FilterResult::NothingToCompact => {
-                    debug!(?partition_id, "nothing to compat");
+                    debug!(?partition_id, compaction_type, "nothing to compact");
                 }
                 FilterResult::ErrorEstimatingBudget => {
                     warn!(
                         ?partition_id,
                         ?table_id,
-                        "hot compaction is skipped due to error in estimating compacting memory"
+                        compaction_type,
+                        "skipped; error in estimating compacting memory"
                     );
                     // todo: add this partition and its info into a new catalog table
                     // https://github.com/influxdata/influxdb_iox/issues/5458
                 }
                 FilterResult::OverBudget => {
                     if to_compact.budget_bytes() <= compactor.config.memory_budget_bytes() {
-                        // Require budget is larger than the remaining budget but smaller than full budget,
-                        // add this partition back to the end of the list to compact it with full budget later
+                        // Required budget is larger than the remaining budget but smaller than
+                        // full budget, add this partition back to the end of the list to compact
+                        // with full budget later
                         candidates.push_back(partition);
                     } else {
-                        // Even with max budget, we cannot compact a bit of this partition, log it
+                        // Even with max budget, we cannot compact this partition, log it
                         warn!(
                             ?partition_id,
                             ?table_id,
-                            "hot compaction is skipped due to over memory budget"
+                            compaction_type,
+                            "skipped; over memory budget"
                         );
                         // todo: add this partition and its info into a new catalog table
                         // https://github.com/influxdata/influxdb_iox/issues/5458
@@ -245,7 +261,9 @@ async fn compact_hot_partition_candidates<F, Fut>(
         }
 
         // --------------------------------------------------------------------
-        // 4. Almost hitting max budget (only 10% left) or no more candidates or went over all remaining candidates,
+        // 4. Almost hitting max budget (only 10% left)
+        //    OR no more candidates
+        //    OR already considered all remaining candidates.
         if (!parallel_compacting_candidates.is_empty())
             && ((remaining_budget_bytes <= (compactor.config.memory_budget_bytes() / 10) as u64)
                 || (candidates.is_empty())
@@ -255,7 +273,8 @@ async fn compact_hot_partition_candidates<F, Fut>(
                 num_parallel_compacting_candidates = parallel_compacting_candidates.len(),
                 total_needed_memory_budget_bytes =
                     compactor.config.memory_budget_bytes() - remaining_budget_bytes,
-                "paralllel compacting candidate"
+                compaction_type,
+                "parallel compacting candidate"
             );
             compact_function(Arc::clone(&compactor), parallel_compacting_candidates).await;
 
@@ -269,7 +288,8 @@ async fn compact_hot_partition_candidates<F, Fut>(
 }
 
 // Compact given partitions in parallel
-// This function assumes its caller knows there are enough resources to run all partitions concurrently
+// This function assumes its caller knows there are enough resources to run all partitions
+// concurrently
 async fn compact_hot_partitions_in_parallel(
     compactor: Arc<Compactor>,
     partitions: Vec<FilteredFiles>,
@@ -355,10 +375,7 @@ pub(crate) async fn compact_one_hot_partition(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        compact::Compactor, compact_hot_partitions::compact_hot_partition_candidates,
-        handler::CompactorConfig, parquet_file_filtering,
-    };
+    use crate::{compact::Compactor, handler::CompactorConfig, parquet_file_filtering};
     use arrow_util::assert_batches_sorted_eq;
     use backoff::BackoffConfig;
     use data_types::{ColumnType, ColumnTypeCount, CompactionLevel, ParquetFileId};
@@ -388,8 +405,9 @@ mod tests {
         let sorted_candidates = VecDeque::new();
         let table_columns = HashMap::new();
 
-        compact_hot_partition_candidates(
+        compact_candidates_with_memory_budget(
             Arc::clone(&compactor),
+            "hot",
             mock_compactor.compaction_function(),
             sorted_candidates,
             table_columns,
@@ -447,8 +465,9 @@ mod tests {
         let sorted_candidates = sorted_candidates.into_iter().collect::<VecDeque<_>>();
         let table_columns = HashMap::new();
 
-        compact_hot_partition_candidates(
+        compact_candidates_with_memory_budget(
             Arc::clone(&compactor),
+            "hot",
             mock_compactor.compaction_function(),
             sorted_candidates,
             table_columns,
@@ -647,8 +666,9 @@ mod tests {
         // Todo next: So conveniently, debug log shows this is also a reproducer of
         // https://github.com/influxdata/conductor/issues/1130
         // "hot compaction failed: 1, "Could not serialize and persist record batches failed to peek record stream schema"
-        compact_hot_partition_candidates(
+        compact_candidates_with_memory_budget(
             Arc::clone(&compactor),
+            "hot",
             mock_compactor.compaction_function(),
             sorted_candidates,
             table_columns,
