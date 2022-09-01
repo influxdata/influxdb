@@ -1,0 +1,15 @@
+[package]
+name = "grpc-binary-logger-proto"
+version = "0.1.0"
+authors = ["Marko Mikulicic <mmikulicic@gmail.com>"]
+edition = "2021"
+
+[dependencies]
+prost = "0.11"
+prost-types = { version = "0.11.1", features = ["std"] }
+tonic = "0.8"
+workspace-hack = { path = "../workspace-hack"}
+
+[build-dependencies]
+prost-build = "0.11"
+tonic-build = "0.8"

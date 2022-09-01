@@ -1,0 +1,209 @@
+// Copyright 2018 The gRPC Authors
+// All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// The canonical version of this proto can be found at
+// https://github.com/grpc/grpc-proto/blob/master/grpc/binlog/v1/binarylog.proto
+
+syntax = "proto3";
+
+package grpc.binarylog.v1;
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "google.golang.org/grpc/binarylog/grpc_binarylog_v1";
+option java_multiple_files = true;
+option java_package = "io.grpc.binarylog.v1";
+option java_outer_classname = "BinaryLogProto";
+
+// Log entry we store in binary logs
+message GrpcLogEntry {
+  // Enumerates the type of event
+  // Note the terminology is different from the RPC semantics
+  // definition, but the same meaning is expressed here.
+  enum EventType {
+    EVENT_TYPE_UNKNOWN = 0;
+    // Header sent from client to server
+    EVENT_TYPE_CLIENT_HEADER = 1;
+    // Header sent from server to client
+    EVENT_TYPE_SERVER_HEADER = 2;
+    // Message sent from client to server
+    EVENT_TYPE_CLIENT_MESSAGE = 3;
+    // Message sent from server to client
+    EVENT_TYPE_SERVER_MESSAGE = 4;
+    // A signal that client is done sending
+    EVENT_TYPE_CLIENT_HALF_CLOSE = 5;
+    // Trailer indicates the end of the RPC.
+    // On client side, this event means a trailer was either received
+    // from the network or the gRPC library locally generated a status
+    // to inform the application about a failure.
+    // On server side, this event means the server application requested
+    // to send a trailer. Note: EVENT_TYPE_CANCEL may still arrive after
+    // this due to races on server side.
+    EVENT_TYPE_SERVER_TRAILER = 6;
+    // A signal that the RPC is cancelled. On client side, this
+    // indicates the client application requests a cancellation.
+    // On server side, this indicates that cancellation was detected.
+    // Note: This marks the end of the RPC. Events may arrive after
+    // this due to races. For example, on client side a trailer
+    // may arrive even though the application requested to cancel the RPC.
+    EVENT_TYPE_CANCEL = 7;
+  }
+
+  // Enumerates the entity that generates the log entry
+  enum Logger {
+    LOGGER_UNKNOWN = 0;
+    LOGGER_CLIENT = 1;
+    LOGGER_SERVER = 2;
+  }
+
+  // The timestamp of the binary log message
+  google.protobuf.Timestamp timestamp = 1;
+
+  // Uniquely identifies a call. The value must not be 0 in order to disambiguate
+  // from an unset value.
+  // Each call may have several log entries, they will all have the same call_id.
+  // Nothing is guaranteed about their value other than they are unique across
+  // different RPCs in the same gRPC process.
+  uint64 call_id = 2;
+
+  // The entry sequence id for this call. The first GrpcLogEntry has a
+  // value of 1, to disambiguate from an unset value. The purpose of
+  // this field is to detect missing entries in environments where
+  // durability or ordering is not guaranteed.
+  uint64 sequence_id_within_call = 3;
+
+  EventType type = 4;
+  Logger logger = 5;  // One of the above Logger enum
+
+  // The logger uses one of the following fields to record the payload,
+  // according to the type of the log entry.
+  oneof payload {
+    ClientHeader client_header = 6;
+    ServerHeader server_header = 7;
+    // Used by EVENT_TYPE_CLIENT_MESSAGE, EVENT_TYPE_SERVER_MESSAGE
+    Message message = 8;
+    Trailer trailer = 9;
+  }
+
+  // true if payload does not represent the full message or metadata.
+  bool payload_truncated = 10;
+
+  // Peer address information, will only be recorded on the first
+  // incoming event. On client side, peer is logged on
+  // EVENT_TYPE_SERVER_HEADER normally or EVENT_TYPE_SERVER_TRAILER in
+  // the case of trailers-only. On server side, peer is always
+  // logged on EVENT_TYPE_CLIENT_HEADER.
+  Address peer = 11;
+};
+
+message ClientHeader {
+  // This contains only the metadata from the application.
+  Metadata metadata = 1;
+
+  // The name of the RPC method, which looks something like:
+  // /<service>/<method>
+  // Note the leading "/" character.
+  string method_name = 2;
+
+  // A single process may be used to run multiple virtual
+  // servers with different identities.
+  // The authority is the name of such a server identitiy.
+  // It is typically a portion of the URI in the form of
+  // <host> or <host>:<port> .
+  string authority = 3;
+
+  // the RPC timeout
+  google.protobuf.Duration timeout = 4;
+}
+
+message ServerHeader {
+  // This contains only the metadata from the application.
+  Metadata metadata = 1;
+}
+
+message Trailer {
+  // This contains only the metadata from the application.
+  Metadata metadata = 1;
+
+  // The gRPC status code.
+  uint32 status_code = 2;
+
+  // An original status message before any transport specific
+  // encoding.
+  string status_message = 3;
+
+  // The value of the 'grpc-status-details-bin' metadata key. If
+  // present, this is always an encoded 'google.rpc.Status' message.
+  bytes status_details = 4;
+}
+
+// Message payload, used by CLIENT_MESSAGE and SERVER_MESSAGE
+message Message {
+  // Length of the message. It may not be the same as the length of the
+  // data field, as the logging payload can be truncated or omitted.
+  uint32 length = 1;
+  // May be truncated or omitted.
+  bytes data = 2;
+}
+
+// A list of metadata pairs, used in the payload of client header,
+// server header, and server trailer.
+// Implementations may omit some entries to honor the header limits
+// of GRPC_BINARY_LOG_CONFIG.
+//
+// Header keys added by gRPC are omitted. To be more specific,
+// implementations will not log the following entries, and this is
+// not to be treated as a truncation:
+// - entries handled by grpc that are not user visible, such as those
+//   that begin with 'grpc-' (with exception of grpc-trace-bin)
+//   or keys like 'lb-token'
+// - transport specific entries, including but not limited to:
+//   ':path', ':authority', 'content-encoding', 'user-agent', 'te', etc
+// - entries added for call credentials
+//
+// Implementations must always log grpc-trace-bin if it is present.
+// Practically speaking it will only be visible on server side because
+// grpc-trace-bin is managed by low level client side mechanisms
+// inaccessible from the application level. On server side, the
+// header is just a normal metadata key.
+// The pair will not count towards the size limit.
+message Metadata {
+  repeated MetadataEntry entry = 1;
+}
+
+// A metadata key value pair
+message MetadataEntry {
+  string key = 1;
+  bytes value = 2;
+}
+
+// Address information
+message Address {
+  enum Type {
+    TYPE_UNKNOWN = 0;
+    // address is in 1.2.3.4 form
+    TYPE_IPV4 = 1;
+    // address is in IPv6 canonical form (RFC5952 section 4)
+    // The scope is NOT included in the address string.
+    TYPE_IPV6 = 2;
+    // address is UDS string
+    TYPE_UNIX = 3;
+  };
+  Type type = 1;
+  string address = 2;
+  // only for TYPE_IPV4 and TYPE_IPV6
+  uint32 ip_port = 3;
+}
