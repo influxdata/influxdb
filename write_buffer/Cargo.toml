@@ -12,7 +12,7 @@ futures = "0.3"
 generated_types = { path = "../generated_types" }
 hashbrown = "0.12"
 http = "0.2"
-httparse = "1.7"
+httparse = "1.8"
 iox_time = { path = "../iox_time" }
 metric = { path = "../metric" }
 mutable_batch = { path = "../mutable_batch" }
