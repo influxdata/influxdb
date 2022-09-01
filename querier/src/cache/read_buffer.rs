@@ -56,8 +56,8 @@ impl ReadBufferCache {
         testing: bool,
     ) -> Self {
         let metric_registry_captured = Arc::clone(&metric_registry);
-        let loader = Box::new(FunctionLoader::new(
-            move |_parquet_file_id, extra_fetch_info: ExtraFetchInfo| {
+        let loader =
+            FunctionLoader::new(move |_parquet_file_id, extra_fetch_info: ExtraFetchInfo| {
                 let backoff_config = backoff_config.clone();
                 let metric_registry = Arc::clone(&metric_registry_captured);
 
@@ -82,8 +82,7 @@ impl ReadBufferCache {
 
                     Arc::new(rb_chunk)
                 }
-            },
-        ));
+            });
 
         let loader = Arc::new(MetricsLoader::new(
             loader,

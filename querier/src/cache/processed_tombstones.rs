@@ -52,26 +52,24 @@ impl ProcessedTombstonesCache {
         ram_pool: Arc<ResourcePool<RamSize>>,
         testing: bool,
     ) -> Self {
-        let loader = Box::new(FunctionLoader::new(
-            move |(parquet_file_id, tombstone_id), _extra: ()| {
-                let catalog = Arc::clone(&catalog);
-                let backoff_config = backoff_config.clone();
+        let loader = FunctionLoader::new(move |(parquet_file_id, tombstone_id), _extra: ()| {
+            let catalog = Arc::clone(&catalog);
+            let backoff_config = backoff_config.clone();
 
-                async move {
-                    Backoff::new(&backoff_config)
-                        .retry_all_errors("processed tombstone exists", || async {
-                            catalog
-                                .repositories()
-                                .await
-                                .processed_tombstones()
-                                .exist(parquet_file_id, tombstone_id)
-                                .await
-                        })
-                        .await
-                        .expect("retry forever")
-                }
-            },
-        ));
+            async move {
+                Backoff::new(&backoff_config)
+                    .retry_all_errors("processed tombstone exists", || async {
+                        catalog
+                            .repositories()
+                            .await
+                            .processed_tombstones()
+                            .exist(parquet_file_id, tombstone_id)
+                            .await
+                    })
+                    .await
+                    .expect("retry forever")
+            }
+        });
         let loader = Arc::new(MetricsLoader::new(
             loader,
             CACHE_ID,

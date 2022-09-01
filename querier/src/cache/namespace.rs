@@ -75,30 +75,28 @@ impl NamespaceCache {
         handle: &Handle,
         testing: bool,
     ) -> Self {
-        let loader = Box::new(FunctionLoader::new(
-            move |namespace_name: Arc<str>, _extra: ()| {
-                let catalog = Arc::clone(&catalog);
-                let backoff_config = backoff_config.clone();
+        let loader = FunctionLoader::new(move |namespace_name: Arc<str>, _extra: ()| {
+            let catalog = Arc::clone(&catalog);
+            let backoff_config = backoff_config.clone();
 
-                async move {
-                    let schema = Backoff::new(&backoff_config)
-                        .retry_all_errors("get namespace schema", || async {
-                            let mut repos = catalog.repositories().await;
-                            match get_schema_by_name(&namespace_name, repos.as_mut()).await {
-                                Ok(schema) => Ok(Some(schema)),
-                                Err(iox_catalog::interface::Error::NamespaceNotFoundByName {
-                                    ..
-                                }) => Ok(None),
-                                Err(e) => Err(e),
-                            }
-                        })
-                        .await
-                        .expect("retry forever")?;
+            async move {
+                let schema = Backoff::new(&backoff_config)
+                    .retry_all_errors("get namespace schema", || async {
+                        let mut repos = catalog.repositories().await;
+                        match get_schema_by_name(&namespace_name, repos.as_mut()).await {
+                            Ok(schema) => Ok(Some(schema)),
+                            Err(iox_catalog::interface::Error::NamespaceNotFoundByName {
+                                ..
+                            }) => Ok(None),
+                            Err(e) => Err(e),
+                        }
+                    })
+                    .await
+                    .expect("retry forever")?;
 
-                    Some(Arc::new((&schema).into()))
-                }
-            },
-        ));
+                Some(Arc::new((&schema).into()))
+            }
+        });
         let loader = Arc::new(MetricsLoader::new(
             loader,
             CACHE_ID,

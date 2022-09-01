@@ -1,7 +1,7 @@
 //! How to load new cache entries.
 use async_trait::async_trait;
 use futures::{future::BoxFuture, FutureExt};
-use std::future::Future;
+use std::{future::Future, hash::Hash};
 
 pub mod metrics;
 
@@ -9,7 +9,7 @@ pub mod metrics;
 #[async_trait]
 pub trait Loader: std::fmt::Debug + Send + Sync + 'static {
     /// Cache key.
-    type K: Send + 'static;
+    type K: Hash + Send + 'static;
 
     /// Extra data needed when loading a missing entry. Specify `()` if not needed.
     type Extra: Send + 'static;
@@ -19,6 +19,22 @@ pub trait Loader: std::fmt::Debug + Send + Sync + 'static {
 
     /// Load value for given key, using the extra data if needed.
     async fn load(&self, k: Self::K, extra: Self::Extra) -> Self::V;
+}
+
+#[async_trait]
+impl<K, V, Extra> Loader for Box<dyn Loader<K = K, V = V, Extra = Extra>>
+where
+    K: Hash + Send + 'static,
+    V: Send + 'static,
+    Extra: Send + 'static,
+{
+    type K = K;
+    type V = V;
+    type Extra = Extra;
+
+    async fn load(&self, k: Self::K, extra: Self::Extra) -> Self::V {
+        self.as_ref().load(k, extra).await
+    }
 }
 
 /// Simple-to-use wrapper for async functions to act as a [`Loader`].
@@ -47,7 +63,7 @@ impl<K, V, Extra> std::fmt::Debug for FunctionLoader<K, V, Extra> {
 #[async_trait]
 impl<K, V, Extra> Loader for FunctionLoader<K, V, Extra>
 where
-    K: Send + 'static,
+    K: Hash + Send + 'static,
     V: Send + 'static,
     Extra: Send + 'static,
 {

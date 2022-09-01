@@ -105,7 +105,7 @@ impl ParquetFileCache {
         ram_pool: Arc<ResourcePool<RamSize>>,
         testing: bool,
     ) -> Self {
-        let loader = Box::new(FunctionLoader::new(move |table_id: TableId, _extra: ()| {
+        let loader = FunctionLoader::new(move |table_id: TableId, _extra: ()| {
             let catalog = Arc::clone(&catalog);
             let backoff_config = backoff_config.clone();
 
@@ -138,7 +138,7 @@ impl ParquetFileCache {
                     .await
                     .expect("retry forever")
             }
-        }));
+        });
         let loader = Arc::new(MetricsLoader::new(
             loader,
             CACHE_ID,

@@ -48,32 +48,30 @@ impl PartitionCache {
         ram_pool: Arc<ResourcePool<RamSize>>,
         testing: bool,
     ) -> Self {
-        let loader = Box::new(FunctionLoader::new(
-            move |partition_id: PartitionId, _extra: ()| {
-                let catalog = Arc::clone(&catalog);
-                let backoff_config = backoff_config.clone();
+        let loader = FunctionLoader::new(move |partition_id: PartitionId, _extra: ()| {
+            let catalog = Arc::clone(&catalog);
+            let backoff_config = backoff_config.clone();
 
-                async move {
-                    let partition = Backoff::new(&backoff_config)
-                        .retry_all_errors("get partition_key", || async {
-                            catalog
-                                .repositories()
-                                .await
-                                .partitions()
-                                .get_by_id(partition_id)
-                                .await
-                        })
-                        .await
-                        .expect("retry forever")
-                        .expect("partition gone from catalog?!");
+            async move {
+                let partition = Backoff::new(&backoff_config)
+                    .retry_all_errors("get partition_key", || async {
+                        catalog
+                            .repositories()
+                            .await
+                            .partitions()
+                            .get_by_id(partition_id)
+                            .await
+                    })
+                    .await
+                    .expect("retry forever")
+                    .expect("partition gone from catalog?!");
 
-                    CachedPartition {
-                        shard_id: partition.shard_id,
-                        sort_key: Arc::new(partition.sort_key()),
-                    }
+                CachedPartition {
+                    shard_id: partition.shard_id,
+                    sort_key: Arc::new(partition.sort_key()),
                 }
-            },
-        ));
+            }
+        });
         let loader = Arc::new(MetricsLoader::new(
             loader,
             CACHE_ID,
