@@ -2,7 +2,10 @@
 //!
 //! Query InfluxDB using InfluxQL or Flux Query
 
-use crate::{Client, HttpSnafu, RequestError, ReqwestProcessingSnafu, SerializingSnafu};
+use crate::{
+    Client, HttpSnafu, RequestError, ReqwestProcessingSnafu, ResponseBytesSnafu,
+    ResponseStringSnafu, SerializingSnafu,
+};
 use reqwest::{Method, StatusCode};
 use snafu::ResultExt;
 
@@ -73,10 +76,20 @@ impl Client {
             .context(ReqwestProcessingSnafu)?;
 
         match response.status() {
-            StatusCode::OK => Ok(response
-                .json::<String>()
-                .await
-                .context(ReqwestProcessingSnafu)?),
+            StatusCode::OK => {
+                let bytes = response.bytes().await.context(ResponseBytesSnafu)?;
+
+                let json_result = serde_json::from_slice::<String>(&bytes);
+                match json_result {
+                    Ok(json) => Ok(json),
+                    Err(source) => {
+                        let text =
+                            String::from_utf8(bytes.to_vec()).context(ResponseStringSnafu)?;
+
+                        Err(RequestError::DeserializingJsonResponse { source, text })
+                    }
+                }
+            }
             status => {
                 let text = response.text().await.context(ReqwestProcessingSnafu)?;
                 HttpSnafu { status, text }.fail()?
