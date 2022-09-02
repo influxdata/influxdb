@@ -246,8 +246,15 @@ async fn run_compactor(compactor: Arc<Compactor>, shutdown: CancellationToken) {
 /// Checks for candidate partitions to compact and spawns tokio tasks to compact as many
 /// as the configuration will allow.
 pub async fn run_compactor_once(compactor: Arc<Compactor>) {
+    let num_hot_cycles = compactor.config.hot_multiple;
+    debug!(
+        ?num_hot_cycles,
+        num_cold_cycles = 1,
+        "start running compactor once that includes"
+    );
     let mut compacted_partitions = 0;
-    for _ in 0..compactor.config.hot_multiple {
+    for i in 0..num_hot_cycles {
+        debug!(?i, "start hot cycle");
         compacted_partitions +=
             compact_hot_partitions::compact_hot_partitions(Arc::clone(&compactor)).await;
         if compacted_partitions == 0 {
@@ -255,12 +262,18 @@ pub async fn run_compactor_once(compactor: Arc<Compactor>) {
             break;
         }
     }
+    debug!("start cold cycle");
     compacted_partitions += compact_cold_partitions(Arc::clone(&compactor)).await;
 
     if compacted_partitions == 0 {
         // sleep for a second to avoid a busy loop when the catalog is polled
         tokio::time::sleep(PAUSE_BETWEEN_NO_WORK).await;
     }
+    debug!(
+        ?num_hot_cycles,
+        num_cold_cycles = 1,
+        "complete running compactor once that includes"
+    );
 }
 
 async fn compact_cold_partitions(compactor: Arc<Compactor>) -> usize {

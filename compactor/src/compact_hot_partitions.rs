@@ -23,6 +23,7 @@ pub enum Error {}
 /// Return number of compacted partitions
 pub async fn compact_hot_partitions(compactor: Arc<Compactor>) -> usize {
     // Select hot partition candidates
+    debug!("start collecting hot partitions to compact");
     let hot_attributes = Attributes::from(&[("partition_type", "hot")]);
     let start_time = compactor.time_provider.now();
     let candidates = Backoff::new(&compactor.backoff_config)
@@ -53,6 +54,7 @@ pub async fn compact_hot_partitions(compactor: Arc<Compactor>) -> usize {
     let start_time = compactor.time_provider.now();
 
     // Column types and their counts of the tables of the partition candidates
+    debug!(num_candidates=?candidates.len(), "start getting column types for the partition candidates");
     let table_columns = Backoff::new(&compactor.backoff_config)
         .retry_all_errors("table_columns", || async {
             compactor.table_columns(&candidates).await
@@ -61,6 +63,7 @@ pub async fn compact_hot_partitions(compactor: Arc<Compactor>) -> usize {
         .expect("retry forever");
 
     // Add other compaction-needed info into selected partitions
+    debug!(num_candidates=?candidates.len(), "start getting column types for the partition candidates");
     let candidates = Backoff::new(&compactor.backoff_config)
         .retry_all_errors("add_info_to_partitions", || async {
             compactor.add_info_to_partitions(&candidates).await
