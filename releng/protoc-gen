@@ -1,0 +1,49 @@
+#!/bin/bash
+set -o errexit \
+    -o nounset \
+    -o pipefail
+
+ROOT="$(realpath "${BASH_SOURCE}")" # -> <project root>/releng/protoc-gen
+ROOT="$(dirname "${ROOT}")"         # -> <project root>/releng/
+ROOT="$(dirname "${ROOT}")"         # -> <project root>/
+
+(
+  # Since this script is run outside of a docker container, it is
+  # possible that one (or more) of the following executables is
+  # not installed.
+  set -x
+  which docker
+  which sudo
+  which yq
+) 1>/dev/null
+
+CROSS_BUILDER_VERSION="$(yq -e eval '.parameters.cross-container-tag.default' "${ROOT}/.circleci/config.yml")"
+
+# Updating ownership within the container requires both the "UID" and "GID"
+# of the current user. Since the current user does not exist within the
+# container, "${USER}:" cannot be supplied to `chown`.
+USER_UID="$(id -u)"
+USER_GID="$(id -g)"
+
+read -d '' DOCKERSCRIPT <<EOF || true
+set -o errexit \
+    -o nounset \
+    -o pipefail
+
+touch /tmp/timestamp
+
+git config --global --add safe.directory /project
+
+pushd /project
+
+make generate-sources
+
+# If the previous command generated a new file, it will have "root:root"
+# ownership. This becomes an annoyance to work with (i.e git complains
+# when checking out branches). To circumvent this issue, update all
+# new files to the correct ownership.
+find . -newer /tmp/timestamp -exec chown -v "${USER_UID}:${USER_GID}" "{}" \\\;
+EOF
+
+sudo docker run --rm -it -v "${ROOT}:/project" "quay.io/influxdb/cross-builder:${CROSS_BUILDER_VERSION}" bash -c "${DOCKERSCRIPT}"
+
