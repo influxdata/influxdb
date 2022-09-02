@@ -34,6 +34,11 @@ func (s *AuthedAuthorizationService) CreateAuthorization(ctx context.Context, a 
 	if err := authorizer.VerifyPermissions(ctx, a.Permissions); err != nil {
 		return err
 	}
+	for _, v := range a.Permissions {
+		if v.Resource.Type == influxdb.InstanceResourceType {
+			return fmt.Errorf("authorizations cannot be created with the instance type, it is only used during setup")
+		}
+	}
 
 	return s.s.CreateAuthorization(ctx, a)
 }
