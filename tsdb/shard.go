@@ -1704,9 +1704,8 @@ type MeasurementFieldSet struct {
 	mu     sync.RWMutex
 	fields map[string]*MeasurementFields
 	// path is the location to persist field sets
-	path    string
-	writer  *MeasurementFieldSetWriter
-	changes FieldChanges
+	path   string
+	writer *MeasurementFieldSetWriter
 }
 
 // NewMeasurementFieldSet returns a new instance of MeasurementFieldSet.
@@ -1731,29 +1730,10 @@ func (fs *MeasurementFieldSet) Close() error {
 		if err != nil {
 			return err
 		} else if len(f) > 0 {
-			return fs.writeToFile()
+			return fs.WriteToFile()
 		}
 	}
 	return nil
-}
-
-//AddFieldChangeNoLock appends a FieldChange to the MeasurementFieldSet.changes slice.
-func (fs *MeasurementFieldSet) AddFieldChangeNoLock(measurement []byte, field string, typ influxql.DataType, delete bool) {
-	fs.changes = append(fs.changes, &FieldChange{
-		FieldCreate: FieldCreate{
-			Measurement: measurement,
-			Field: &Field{
-				Name: field,
-				Type: typ,
-			},
-		},
-		Delete: delete,
-	})
-}
-
-func (fs *MeasurementFieldSet) GetAndClearChanges() FieldChanges {
-	defer func() { fs.changes = nil }()
-	return fs.changes
 }
 
 // Bytes estimates the memory footprint of this MeasurementFieldSet, in bytes.
@@ -1900,8 +1880,8 @@ func (fs *MeasurementFieldSet) saveWriter() {
 	}
 }
 
-// writeToFile: Write the new index to a temp file and rename when it's sync'd
-func (fs *MeasurementFieldSet) writeToFile() error {
+// WriteToFile: Write the new index to a temp file and rename when it's sync'd
+func (fs *MeasurementFieldSet) WriteToFile() error {
 	// Do some blocking IO operations before marshalling the in-memory index
 	// to allow other changes to it to be captured in one
 	// write operation, in case we are under heavy field creation load
@@ -2187,7 +2167,7 @@ func (fs *MeasurementFieldSet) load() (rErr error) {
 		}
 	}
 	if len(changeFiles) > 0 {
-		return fs.writeToFile()
+		return fs.WriteToFile()
 	}
 	return nil
 }

@@ -884,7 +884,7 @@ func (e *Engine) LoadMetadataIndex(shardID uint64, index tsdb.Index) error {
 	}
 
 	// Save the field set index so we don't have to rebuild it next time
-	if err := e.fieldset.Save(e.MeasurementFieldSet().GetAndClearChanges()); err != nil {
+	if err := e.fieldset.WriteToFile(); err != nil {
 		return err
 	}
 
@@ -1195,8 +1195,7 @@ func (e *Engine) overlay(r io.Reader, basePath string, asNew bool) error {
 			return err
 		}
 	}
-	e.MeasurementFieldSet().Save(e.MeasurementFieldSet().GetAndClearChanges())
-	return nil
+	return e.MeasurementFieldSet().WriteToFile()
 }
 
 // readFileFromBackup copies the next file from the archive into the shard.
@@ -1277,7 +1276,6 @@ func (e *Engine) addToIndexFromKey(keys [][]byte, fieldTypes []influxql.DataType
 
 		names = append(names, name)
 		tags = append(tags, models.ParseTags(keys[i]))
-		e.MeasurementFieldSet().AddFieldChangeNoLock(name, string(field), fieldTypes[i], false)
 	}
 
 	// Build in-memory index, if necessary.
