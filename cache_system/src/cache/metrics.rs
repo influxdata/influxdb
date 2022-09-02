@@ -268,7 +268,7 @@ mod tests {
     impl TestAdapter for MyTestAdapter {
         type GetExtra = (bool, Option<Span>);
         type PeekExtra = ((), Option<Span>);
-        type Cache = CacheWithMetrics<CacheDriver<HashMap<u8, String>, bool>>;
+        type Cache = CacheWithMetrics<CacheDriver<HashMap<u8, String>, TestLoader>>;
 
         fn construct(&self, loader: Arc<TestLoader>) -> Arc<Self::Cache> {
             TestMetricsCache::new_with_loader(loader).cache
@@ -615,7 +615,7 @@ mod tests {
         loader: Arc<TestLoader>,
         time_provider: Arc<MockProvider>,
         metric_registry: metric::Registry,
-        cache: Arc<CacheWithMetrics<CacheDriver<HashMap<u8, String>, bool>>>,
+        cache: Arc<CacheWithMetrics<CacheDriver<HashMap<u8, String>, TestLoader>>>,
     }
 
     impl TestMetricsCache {

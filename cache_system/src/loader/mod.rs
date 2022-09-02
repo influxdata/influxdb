@@ -1,6 +1,6 @@
 //! How to load new cache entries.
 use async_trait::async_trait;
-use std::{future::Future, hash::Hash, marker::PhantomData};
+use std::{fmt::Debug, future::Future, hash::Hash, marker::PhantomData};
 
 pub mod metrics;
 
@@ -8,13 +8,13 @@ pub mod metrics;
 #[async_trait]
 pub trait Loader: std::fmt::Debug + Send + Sync + 'static {
     /// Cache key.
-    type K: Hash + Send + 'static;
+    type K: Debug + Hash + Send + 'static;
 
     /// Extra data needed when loading a missing entry. Specify `()` if not needed.
-    type Extra: Send + 'static;
+    type Extra: Debug + Send + 'static;
 
     /// Cache value.
-    type V: Send + 'static;
+    type V: Debug + Send + 'static;
 
     /// Load value for given key, using the extra data if needed.
     async fn load(&self, k: Self::K, extra: Self::Extra) -> Self::V;
@@ -23,9 +23,9 @@ pub trait Loader: std::fmt::Debug + Send + Sync + 'static {
 #[async_trait]
 impl<K, V, Extra> Loader for Box<dyn Loader<K = K, V = V, Extra = Extra>>
 where
-    K: Hash + Send + 'static,
-    V: Send + 'static,
-    Extra: Send + 'static,
+    K: Debug + Hash + Send + 'static,
+    V: Debug + Send + 'static,
+    Extra: Debug + Send + 'static,
 {
     type K = K;
     type V = V;
@@ -73,9 +73,9 @@ pub struct FunctionLoader<T, F, K, Extra>
 where
     T: Fn(K, Extra) -> F + Send + Sync + 'static,
     F: Future + Send + 'static,
-    K: Send + 'static,
-    F::Output: Send + 'static,
-    Extra: Send + 'static,
+    K: Debug + Send + 'static,
+    F::Output: Debug + Send + 'static,
+    Extra: Debug + Send + 'static,
 {
     loader: T,
     _phantom: PhantomData<dyn Fn() -> (F, K, Extra) + Send + Sync + 'static>,
@@ -85,9 +85,9 @@ impl<T, F, K, Extra> FunctionLoader<T, F, K, Extra>
 where
     T: Fn(K, Extra) -> F + Send + Sync + 'static,
     F: Future + Send + 'static,
-    K: Send + 'static,
-    F::Output: Send + 'static,
-    Extra: Send + 'static,
+    K: Debug + Send + 'static,
+    F::Output: Debug + Send + 'static,
+    Extra: Debug + Send + 'static,
 {
     /// Create loader from function.
     pub fn new(loader: T) -> Self {
@@ -102,9 +102,9 @@ impl<T, F, K, Extra> std::fmt::Debug for FunctionLoader<T, F, K, Extra>
 where
     T: Fn(K, Extra) -> F + Send + Sync + 'static,
     F: Future + Send + 'static,
-    K: Send + 'static,
-    F::Output: Send + 'static,
-    Extra: Send + 'static,
+    K: Debug + Send + 'static,
+    F::Output: Debug + Send + 'static,
+    Extra: Debug + Send + 'static,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("FunctionLoader").finish_non_exhaustive()
@@ -116,9 +116,9 @@ impl<T, F, K, Extra> Loader for FunctionLoader<T, F, K, Extra>
 where
     T: Fn(K, Extra) -> F + Send + Sync + 'static,
     F: Future + Send + 'static,
-    K: Hash + Send + 'static,
-    F::Output: Send + 'static,
-    Extra: Send + 'static,
+    K: Debug + Hash + Send + 'static,
+    F::Output: Debug + Send + 'static,
+    Extra: Debug + Send + 'static,
 {
     type K = K;
     type V = F::Output;

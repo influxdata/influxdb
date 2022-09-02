@@ -18,22 +18,22 @@ use super::{Cache, CacheGetStatus, CachePeekStatus};
 
 /// Combine a [`CacheBackend`] and a [`Loader`] into a single [`Cache`]
 #[derive(Debug)]
-pub struct CacheDriver<B, GetExtra>
+pub struct CacheDriver<B, L>
 where
     B: CacheBackend,
-    GetExtra: Debug + Send + 'static,
+    L: Loader<K = B::K, V = B::V>,
 {
     state: Arc<Mutex<CacheState<B>>>,
-    loader: Arc<dyn Loader<K = B::K, V = B::V, Extra = GetExtra>>,
+    loader: Arc<L>,
 }
 
-impl<B, GetExtra> CacheDriver<B, GetExtra>
+impl<B, L> CacheDriver<B, L>
 where
     B: CacheBackend,
-    GetExtra: Debug + Send + 'static,
+    L: Loader<K = B::K, V = B::V>,
 {
     /// Create new, empty cache with given loader function.
-    pub fn new(loader: Arc<dyn Loader<K = B::K, V = B::V, Extra = GetExtra>>, backend: B) -> Self {
+    pub fn new(loader: Arc<L>, backend: B) -> Self {
         Self {
             state: Arc::new(Mutex::new(CacheState {
                 cached_entries: backend,
@@ -46,14 +46,14 @@ where
 }
 
 #[async_trait]
-impl<B, GetExtra> Cache for CacheDriver<B, GetExtra>
+impl<B, L> Cache for CacheDriver<B, L>
 where
     B: CacheBackend,
-    GetExtra: Debug + Send + 'static,
+    L: Loader<K = B::K, V = B::V>,
 {
     type K = B::K;
     type V = B::V;
-    type GetExtra = GetExtra;
+    type GetExtra = L::Extra;
     type PeekExtra = ();
 
     async fn get_with_status(
@@ -227,10 +227,10 @@ where
     }
 }
 
-impl<B, GetExtra> Drop for CacheDriver<B, GetExtra>
+impl<B, L> Drop for CacheDriver<B, L>
 where
     B: CacheBackend,
-    GetExtra: Debug + Send + 'static,
+    L: Loader<K = B::K, V = B::V>,
 {
     fn drop(&mut self) {
         for (_k, running_query) in self.state.lock().running_queries.drain() {
@@ -400,7 +400,7 @@ mod tests {
     impl TestAdapter for MyTestAdapter {
         type GetExtra = bool;
         type PeekExtra = ();
-        type Cache = CacheDriver<HashMap<u8, String>, bool>;
+        type Cache = CacheDriver<HashMap<u8, String>, TestLoader>;
 
         fn construct(&self, loader: Arc<TestLoader>) -> Arc<Self::Cache> {
             Arc::new(CacheDriver::new(Arc::clone(&loader) as _, HashMap::new()))
