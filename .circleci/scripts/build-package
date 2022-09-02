@@ -58,7 +58,10 @@ function run_fpm()
       --after-remove   control/postrm                      \
       `# package files`                                    \
       --chdir          fs/                                 \
-      --package        /artifacts
+      --package        /artifacts                          \
+      --directories    /var/lib/influxdb                   \
+      --rpm-defattrdir 750                                 \
+      --rpm-defattrfile 750
 
     popd
 
