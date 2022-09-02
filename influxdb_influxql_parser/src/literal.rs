@@ -241,7 +241,9 @@ fn duration(i: &str) -> IResult<&str, Duration> {
     )(i)
 }
 
-// Parse an InfluxQL literal.
+/// Parse an InfluxQL literal, except a [`Regex`].
+///
+/// See [`literal_regex`] for parsing literal regular expressions.
 pub fn literal(i: &str) -> IResult<&str, Literal> {
     alt((
         // NOTE: order is important, as floats should be tested before durations and integers.
@@ -250,8 +252,12 @@ pub fn literal(i: &str) -> IResult<&str, Literal> {
         map(unsigned_integer, Literal::Unsigned),
         map(single_quoted_string, Literal::String),
         map(boolean, Literal::Boolean),
-        map(regex, Literal::Regex),
     ))(i)
+}
+
+/// Parse an InfluxQL literal regular expression.
+pub fn literal_regex(i: &str) -> IResult<&str, Literal> {
+    map(regex, Literal::Regex)(i)
 }
 
 #[cfg(test)]
@@ -279,8 +285,11 @@ mod test {
         assert!(
             matches!(got, Literal::Duration(v) if v == Duration(3 * NANOS_PER_HOUR + 25 * NANOS_PER_MIN))
         );
+    }
 
-        let (_, got) = literal("/^(match|this)$/").unwrap();
+    #[test]
+    fn test_literal_regex() {
+        let (_, got) = literal_regex("/^(match|this)$/").unwrap();
         assert!(matches!(got, Literal::Regex(v) if v == "^(match|this)$".into() ));
     }
 

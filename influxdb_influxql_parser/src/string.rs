@@ -121,6 +121,7 @@ fn regex_literal(i: &str) -> IResult<&str, &str> {
     }
 }
 
+/// An unescaped regular expression.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Regex(String);
 
