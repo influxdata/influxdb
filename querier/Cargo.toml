@@ -7,6 +7,7 @@ edition = "2021"
 arrow = "21.0.0"
 async-trait = "0.1.57"
 backoff = { path = "../backoff" }
+bytes = "1.2"
 cache_system = { path = "../cache_system" }
 client_util = { path = "../client_util" }
 data_types = { path = "../data_types" }
@@ -46,4 +47,5 @@ arrow_util = { path = "../arrow_util" }
 assert_matches = "1.5"
 iox_tests = { path = "../iox_tests" }
 mutable_batch_lp = { path = "../mutable_batch_lp" }
+object_store_metrics = { path = "../object_store_metrics" }
 test_helpers = { path = "../test_helpers" }

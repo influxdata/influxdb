@@ -171,6 +171,7 @@ mod tests {
                 Arc::clone(&catalog),
                 time_provider,
                 Arc::clone(&metric_registry),
+                Arc::clone(&object_store) as _,
                 &Handle::current(),
             ));
             // QuerierDatabase::new returns an error if there are no shards in the catalog

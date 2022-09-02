@@ -1843,6 +1843,7 @@ mod tests {
                     self.catalog.catalog(),
                     self.catalog.time_provider(),
                     self.catalog.metric_registry(),
+                    self.catalog.object_store(),
                     &Handle::current(),
                 )),
             )

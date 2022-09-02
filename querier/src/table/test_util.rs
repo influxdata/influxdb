@@ -24,6 +24,7 @@ pub async fn querier_table(
         catalog.catalog(),
         catalog.time_provider(),
         catalog.metric_registry(),
+        catalog.object_store(),
         &Handle::current(),
     ));
     let chunk_adapter = Arc::new(ChunkAdapter::new(

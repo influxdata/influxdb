@@ -732,6 +732,7 @@ pub mod tests {
                     catalog.catalog(),
                     catalog.time_provider(),
                     catalog.metric_registry(),
+                    catalog.object_store(),
                     &Handle::current(),
                 )),
                 ParquetStorage::new(catalog.object_store()),

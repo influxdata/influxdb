@@ -257,6 +257,7 @@ mod tests {
             catalog.catalog(),
             catalog.time_provider(),
             catalog.metric_registry(),
+            catalog.object_store(),
             &Handle::current(),
         ));
         QuerierDatabase::new(
@@ -280,6 +281,7 @@ mod tests {
             catalog.catalog(),
             catalog.time_provider(),
             catalog.metric_registry(),
+            catalog.object_store(),
             &Handle::current(),
         ));
 
@@ -308,6 +310,7 @@ mod tests {
             catalog.catalog(),
             catalog.time_provider(),
             catalog.metric_registry(),
+            catalog.object_store(),
             &Handle::current(),
         ));
         let db = QuerierDatabase::new(
@@ -338,6 +341,7 @@ mod tests {
             catalog.catalog(),
             catalog.time_provider(),
             catalog.metric_registry(),
+            catalog.object_store(),
             &Handle::current(),
         ));
         let db = QuerierDatabase::new(

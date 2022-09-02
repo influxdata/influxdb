@@ -1,4 +1,5 @@
 //! Caches used by the querier.
+use ::object_store::ObjectStore;
 use backoff::BackoffConfig;
 use cache_system::backend::policy::lru::ResourcePool;
 use iox_catalog::interface::Catalog;
@@ -7,12 +8,14 @@ use std::sync::Arc;
 use tokio::runtime::Handle;
 
 use self::{
-    namespace::NamespaceCache, parquet_file::ParquetFileCache, partition::PartitionCache,
-    processed_tombstones::ProcessedTombstonesCache, projected_schema::ProjectedSchemaCache,
-    ram::RamSize, read_buffer::ReadBufferCache, tombstones::TombstoneCache,
+    namespace::NamespaceCache, object_store::ObjectStoreCache, parquet_file::ParquetFileCache,
+    partition::PartitionCache, processed_tombstones::ProcessedTombstonesCache,
+    projected_schema::ProjectedSchemaCache, ram::RamSize, read_buffer::ReadBufferCache,
+    tombstones::TombstoneCache,
 };
 
 pub mod namespace;
+pub mod object_store;
 pub mod parquet_file;
 pub mod partition;
 pub mod processed_tombstones;
@@ -51,6 +54,9 @@ pub struct CatalogCache {
     /// Projected schema cache.
     projected_schema_cache: ProjectedSchemaCache,
 
+    /// Object store cache.
+    object_store_cache: ObjectStoreCache,
+
     /// Metric registry
     metric_registry: Arc<metric::Registry>,
 
@@ -64,6 +70,7 @@ impl CatalogCache {
         catalog: Arc<dyn Catalog>,
         time_provider: Arc<dyn TimeProvider>,
         metric_registry: Arc<metric::Registry>,
+        object_store: Arc<dyn ObjectStore>,
         ram_pool_metadata_bytes: usize,
         ram_pool_data_bytes: usize,
         handle: &Handle,
@@ -72,6 +79,7 @@ impl CatalogCache {
             catalog,
             time_provider,
             metric_registry,
+            object_store,
             ram_pool_metadata_bytes,
             ram_pool_data_bytes,
             handle,
@@ -86,12 +94,14 @@ impl CatalogCache {
         catalog: Arc<dyn Catalog>,
         time_provider: Arc<dyn TimeProvider>,
         metric_registry: Arc<metric::Registry>,
+        object_store: Arc<dyn ObjectStore>,
         handle: &Handle,
     ) -> Self {
         Self::new_internal(
             catalog,
             time_provider,
             metric_registry,
+            object_store,
             usize::MAX,
             usize::MAX,
             handle,
@@ -99,10 +109,12 @@ impl CatalogCache {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn new_internal(
         catalog: Arc<dyn Catalog>,
         time_provider: Arc<dyn TimeProvider>,
         metric_registry: Arc<metric::Registry>,
+        object_store: Arc<dyn ObjectStore>,
         ram_pool_metadata_bytes: usize,
         ram_pool_data_bytes: usize,
         handle: &Handle,
@@ -163,7 +175,7 @@ impl CatalogCache {
             testing,
         );
         let read_buffer_cache = ReadBufferCache::new(
-            backoff_config,
+            backoff_config.clone(),
             Arc::clone(&time_provider),
             Arc::clone(&metric_registry),
             Arc::clone(&ram_pool_data),
@@ -173,6 +185,14 @@ impl CatalogCache {
             Arc::clone(&time_provider),
             &metric_registry,
             Arc::clone(&ram_pool_metadata),
+            testing,
+        );
+        let object_store_cache = ObjectStoreCache::new(
+            backoff_config,
+            object_store,
+            Arc::clone(&time_provider),
+            &metric_registry,
+            Arc::clone(&ram_pool_data),
             testing,
         );
 
@@ -185,6 +205,7 @@ impl CatalogCache {
             tombstone_cache,
             read_buffer_cache,
             projected_schema_cache,
+            object_store_cache,
             metric_registry,
             time_provider,
         }
@@ -238,5 +259,11 @@ impl CatalogCache {
     /// Projected schema cache.
     pub(crate) fn projected_schema(&self) -> &ProjectedSchemaCache {
         &self.projected_schema_cache
+    }
+
+    /// Object store cache.
+    #[allow(dead_code)]
+    pub(crate) fn object_store(&self) -> &ObjectStoreCache {
+        &self.object_store_cache
     }
 }

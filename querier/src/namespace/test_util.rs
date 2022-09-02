@@ -30,6 +30,7 @@ pub async fn querier_namespace_with_limit(
         ns.catalog.catalog(),
         ns.catalog.time_provider(),
         ns.catalog.metric_registry(),
+        ns.catalog.object_store(),
         &Handle::current(),
     ));
 

@@ -924,6 +924,7 @@ impl MockIngester {
             self.catalog.catalog(),
             self.catalog.time_provider(),
             self.catalog.metric_registry(),
+            self.catalog.object_store(),
             &Handle::current(),
         ));
         let shard_to_ingesters = [(

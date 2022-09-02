@@ -170,6 +170,7 @@ pub async fn create_querier_server_type(
         Arc::clone(&args.catalog),
         args.time_provider,
         Arc::clone(&args.metric_registry),
+        Arc::clone(&args.object_store),
         args.querier_config.ram_pool_metadata_bytes(),
         args.querier_config.ram_pool_data_bytes(),
         &Handle::current(),
