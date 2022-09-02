@@ -32,9 +32,11 @@ set -o errexit \
 
 touch /tmp/timestamp
 
+git config --global --add safe.directory /project
+
 pushd /project
 
-go generate ./...
+make generate-sources
 
 # If the previous command generated a new file, it will have "root:root"
 # ownership. This becomes an annoyance to work with (i.e git complains
@@ -43,5 +45,5 @@ go generate ./...
 find . -newer /tmp/timestamp -exec chown -v "${USER_UID}:${USER_GID}" "{}" \\\;
 EOF
 
-sudo docker run --rm -it -v "$(pwd):/project" "quay.io/influxdb/cross-builder:${CROSS_BUILDER_VERSION}" bash -c "${DOCKERSCRIPT}"
+sudo docker run --rm -it -v "${ROOT}:/project" "quay.io/influxdb/cross-builder:${CROSS_BUILDER_VERSION}" bash -c "${DOCKERSCRIPT}"
 
