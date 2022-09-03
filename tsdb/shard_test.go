@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	assert2 "github.com/stretchr/testify/assert"
 	"math"
 	"os"
 	"path/filepath"
@@ -1617,19 +1618,18 @@ func TestMeasurementFieldSet_SaveLoad(t *testing.T) {
 	if err := mf.Save(tsdb.FieldChanges{&change}); err != nil {
 		t.Fatalf("save error: %v", err)
 	}
-	changeFiles, err := mf.SortedFieldChangeFiles()
-	assert.NoError(t, err, "failed getting field.idx change files")
-	assert.Equal(t, len(changeFiles), 1, "wrong number of field.idx change files")
-	assert.Equal(t, filepath.Base(changeFiles[0]), "fields_000000001.idxl", "unexpected fields.idx change file name")
+	_, err = os.Stat(mf.ChangesPath())
+	assert.NoError(t, err, "no field.idx change file")
 
 	mf2, err := tsdb.NewMeasurementFieldSet(path)
 	if err != nil {
 		t.Fatalf("NewMeasurementFieldSet error: %v", err)
 	}
-	changeFiles, err = mf.SortedFieldChangeFiles()
-	assert.NoError(t, err, "failed getting field.idx change files")
-	assert.Equal(t, len(changeFiles), 0, "should not be any fields.idx change files")
-
+	_, err = os.Stat(mf.ChangesPath())
+	assert2.Error(t, err, "file %s should have had this error: %s", mf.ChangesPath(), os.ErrNotExist)
+	if !os.IsNotExist(err) {
+		t.Fatalf("unexpected error for %s: got %s, expected %s", mf.ChangesPath(), err, os.ErrNotExist)
+	}
 	defer checkMeasurementFieldSetClose(t, mf2)
 	fields = mf2.FieldsByString(measurement)
 	field := fields.Field(fieldName)
@@ -1739,26 +1739,28 @@ func TestMeasurementFieldSet_DeleteEmpty(t *testing.T) {
 	if err := mf2.Save(tsdb.MeasurementsToFieldChangeDeletions([]string{measurement})); err != nil {
 		t.Fatalf("save after delete error: %v", err)
 	}
-	changeFiles, err := mf.SortedFieldChangeFiles()
-	assert.NoError(t, err, "failed getting field.idx change files")
-	assert.Equal(t, len(changeFiles), 1, "wrong number of field.idx change files")
-	assert.Equal(t, filepath.Base(changeFiles[0]), "fields_000000001.idxl", "unexpected fields.idx change file name")
+	_, err = os.Stat(mf.ChangesPath())
+	assert.NoError(t, err, "no field.idx change file")
 	assert.NoError(t, mf2.Close(), "failed closing MeasurementFieldSet")
 
-	changeFiles, err = mf.SortedFieldChangeFiles()
-	assert.NoError(t, err, "failed getting field.idx change files")
-	assert.Equal(t, len(changeFiles), 0, "unexpected field.idx change files")
+	_, err = os.Stat(mf.ChangesPath())
+	assert2.Error(t, err, "file %s should have had this error: %s", mf.ChangesPath(), os.ErrNotExist)
+	if !os.IsNotExist(err) {
+		t.Fatalf("unexpected error for %s: got %s, expected %s", mf.ChangesPath(), err, os.ErrNotExist)
+	}
 
-	if _, err := os.Stat(path); !os.IsNotExist(err) {
+	if _, err = os.Stat(path); !os.IsNotExist(err) {
 		t.Fatalf("got %v, not exist err", err)
 	}
 }
 
 func checkMeasurementFieldSetClose(t *testing.T, fs *tsdb.MeasurementFieldSet) {
 	assert.NoError(t, fs.Close(), "failed closing tsdb.MeasurementFieldSet")
-	changeFiles, err := fs.SortedFieldChangeFiles()
-	assert.NoError(t, err, "failed getting field.idx change files")
-	assert.Equal(t, len(changeFiles), 0, "should not be any fields.idx change files")
+	_, err := os.Stat(fs.ChangesPath())
+	assert2.Error(t, err, "file %s should have had this error: %s", fs.ChangesPath(), os.ErrNotExist)
+	if !os.IsNotExist(err) {
+		t.Fatalf("unexpected error for %s: got %s, expected %s", fs.ChangesPath(), err, os.ErrNotExist)
+	}
 }
 
 func TestMeasurementFieldSet_InvalidFormat(t *testing.T) {
@@ -1856,18 +1858,10 @@ func testFieldMaker(t *testing.T, wg *sync.WaitGroup, mf *tsdb.MeasurementFieldS
 			t.Fail()
 			return
 		}
-		changeFiles, err := mf.SortedFieldChangeFiles()
+		_, err = os.Stat(mf.ChangesPath())
 		if err != nil {
-			t.Logf("failed getting field.idx change files: %s", err.Error())
+			t.Logf("unexpected error for field.iidx change file %s: %s", mf.ChangesPath(), err)
 			t.Fail()
-		}
-		if len(changeFiles) < 1 {
-			t.Logf("wrong number of field.idx change files: %d", len(changeFiles))
-			t.Fail()
-		}
-		const changeFileName = "fields_000000001.idxl"
-		if filepath.Base(changeFiles[0]) != changeFileName {
-			t.Logf("unexpected fields.idx change file name: expected %s, got %s", changeFileName, filepath.Base(changeFiles[0]))
 		}
 	}
 }
