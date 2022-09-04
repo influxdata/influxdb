@@ -945,7 +945,7 @@ mod tests {
             .repositories()
             .await
             .topics()
-            .create_or_get("iox_shared")
+            .create_or_get("iox-shared")
             .await
             .expect("topic created");
         let (connection, _join_handle, requests) = create_test_shard_service(MapToShardResponse {
@@ -984,8 +984,8 @@ mod tests {
         let agg_schema: AggregateTSMSchema = json.try_into().unwrap();
         update_iox_catalog(
             &agg_schema,
-            "iox_shared",
-            Some("iox_shared"),
+            "iox-shared",
+            Some("iox-shared"),
             Some("inf"),
             Arc::clone(&catalog),
             connection,
