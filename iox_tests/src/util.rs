@@ -719,12 +719,6 @@ impl TestParquetFileBuilder {
         self
     }
 
-    /// Specify the file size, in bytes, for the parquet file metadata.
-    pub fn with_file_size_bytes(mut self, file_size_bytes: u64) -> Self {
-        self.file_size_bytes = Some(file_size_bytes);
-        self
-    }
-
     /// Specify the creation time for the parquet file metadata.
     pub fn with_creation_time(mut self, creation_time: i64) -> Self {
         self.creation_time = creation_time;
