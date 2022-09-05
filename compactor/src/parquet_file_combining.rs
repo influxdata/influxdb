@@ -1180,7 +1180,9 @@ mod tests {
         let schema = table_schema.select_by_names(&selection).unwrap();
 
         let path: ParquetFilePath = (&file).into();
-        let rx = storage.read_all(schema.as_arrow(), &path).unwrap();
+        let rx = storage
+            .read_all(schema.as_arrow(), &path, file.file_size_bytes as usize)
+            .unwrap();
         datafusion::physical_plan::common::collect(rx)
             .await
             .unwrap()

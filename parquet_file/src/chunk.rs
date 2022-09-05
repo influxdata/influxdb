@@ -84,6 +84,7 @@ impl ParquetChunk {
             selection,
             Arc::clone(&self.schema.as_arrow()),
             &path,
+            self.file_size_bytes(),
         )
     }
 
