@@ -211,12 +211,20 @@ impl IngesterConnectionMetrics {
     }
 }
 
+/// Information about an OK/success ingester request.
+#[derive(Debug, Default)]
+struct IngesterResponseOk {
+    n_partitions: usize,
+    n_chunks: usize,
+    n_rows: usize,
+}
+
 /// Helper to observe a single ingester request.
 ///
 /// Use [`set_ok`](Self::set_ok) or [`set_err`](Self::set_err) if an ingester result was observered. Otherwise the
 /// request will count as "cancelled".
 struct ObserveIngesterRequest<'a> {
-    res: Option<Result<(), ()>>,
+    res: Option<Result<IngesterResponseOk, ()>>,
     t_start: Time,
     time_provider: Arc<dyn TimeProvider>,
     metrics: Arc<IngesterConnectionMetrics>,
@@ -248,8 +256,8 @@ impl<'a> ObserveIngesterRequest<'a> {
         &self.span_recorder
     }
 
-    fn set_ok(mut self) {
-        self.res = Some(Ok(()));
+    fn set_ok(mut self, ok_status: IngesterResponseOk) {
+        self.res = Some(Ok(ok_status));
         self.span_recorder.ok("done");
     }
 
@@ -264,10 +272,14 @@ impl<'a> Drop for ObserveIngesterRequest<'a> {
         let t_end = self.time_provider.now();
 
         if let Some(ingester_duration) = t_end.checked_duration_since(self.t_start) {
-            let (metric, status) = match self.res {
-                None => (&self.metrics.ingester_duration_cancelled, "cancelled"),
-                Some(Ok(())) => (&self.metrics.ingester_duration_success, "success"),
-                Some(Err(())) => (&self.metrics.ingester_duration_error, "error"),
+            let (metric, status, ok_status) = match self.res {
+                None => (&self.metrics.ingester_duration_cancelled, "cancelled", None),
+                Some(Ok(ref ok_status)) => (
+                    &self.metrics.ingester_duration_success,
+                    "success",
+                    Some(ok_status),
+                ),
+                Some(Err(())) => (&self.metrics.ingester_duration_error, "error", None),
             };
 
             metric.record(ingester_duration);
@@ -276,6 +288,9 @@ impl<'a> Drop for ObserveIngesterRequest<'a> {
                 predicate=?self.request.predicate,
                 namespace=%self.request.namespace_name,
                 table_name=%self.request.table_name,
+                n_partitions=?ok_status.map(|s| s.n_partitions),
+                n_chunks=?ok_status.map(|s| s.n_chunks),
+                n_rows=?ok_status.map(|s| s.n_rows),
                 ?ingester_duration,
                 status,
                 "Time spent in ingester"
@@ -704,7 +719,18 @@ impl IngesterConnection for IngesterConnectionImpl {
                 let res = execute(request.clone(), measure_me.span_recorder()).await;
 
                 match &res {
-                    Ok(_) => measure_me.set_ok(),
+                    Ok(partitions) => {
+                        let mut status = IngesterResponseOk::default();
+                        for p in partitions {
+                            status.n_partitions += 1;
+                            for c in p.chunks() {
+                                status.n_chunks += 1;
+                                status.n_rows += c.rows();
+                            }
+                        }
+
+                        measure_me.set_ok(status);
+                    }
                     Err(_) => measure_me.set_err(),
                 }
 
