@@ -1,11 +1,13 @@
 //! Logic for finding relevant Parquet files in the catalog to be considered during a compaction
 //! operation.
 
-use data_types::{CompactionLevel, ParquetFile, PartitionId};
+use data_types::{CompactionLevel, ParquetFileId, PartitionId};
 use iox_catalog::interface::Catalog;
 use observability_deps::tracing::*;
 use snafu::{ResultExt, Snafu};
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
+
+use crate::parquet_file::CompactorParquetFile;
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
@@ -26,18 +28,23 @@ pub(crate) enum PartitionFilesFromPartitionError {
 pub(crate) struct ParquetFilesForCompaction {
     /// Parquet files for a partition with `CompactionLevel::Initial`. Ordered by ascending max
     /// sequence number.
-    pub(crate) level_0: Vec<ParquetFile>,
+    pub(crate) level_0: Vec<CompactorParquetFile>,
 
     /// Parquet files for a partition with `CompactionLevel::FileNonOverlapped`. Arbitrary order.
-    pub(crate) level_1: Vec<ParquetFile>,
+    pub(crate) level_1: Vec<CompactorParquetFile>,
 }
 
 impl ParquetFilesForCompaction {
     /// Given a catalog and a partition ID, find the Parquet files in the catalog relevant to a
     /// compaction operation.
+    ///
+    /// Takes a hash-map `size_overrides` that mocks the size of the detected [`CompactorParquetFile`]s. This will
+    /// influence the size calculation of the compactor (i.e. when/how to compact files), but leave the actual physical
+    /// size of the file as it is (i.e. file deserialization can still rely on the original value).
     pub(crate) async fn for_partition(
         catalog: Arc<dyn Catalog>,
         partition_id: PartitionId,
+        size_overrides: &HashMap<ParquetFileId, i64>,
     ) -> Result<Self, PartitionFilesFromPartitionError> {
         info!(
             partition_id = partition_id.get(),
@@ -57,13 +64,17 @@ impl ParquetFilesForCompaction {
         let mut level_1 = Vec::with_capacity(parquet_files.len());
 
         for parquet_file in parquet_files {
-            match parquet_file.compaction_level {
+            let parquet_file = match size_overrides.get(&parquet_file.id) {
+                Some(size) => CompactorParquetFile::with_size_override(parquet_file, *size),
+                None => CompactorParquetFile::from(parquet_file),
+            };
+            match parquet_file.compaction_level() {
                 CompactionLevel::Initial => level_0.push(parquet_file),
                 CompactionLevel::FileNonOverlapped => level_1.push(parquet_file),
             }
         }
 
-        level_0.sort_by_key(|pf| pf.max_sequence_number);
+        level_0.sort_by_key(|pf| pf.max_sequence_number());
 
         Ok(Self { level_0, level_1 })
     }
@@ -162,6 +173,7 @@ mod tests {
         let parquet_files_for_compaction = ParquetFilesForCompaction::for_partition(
             Arc::clone(&catalog.catalog),
             partition.partition.id,
+            &HashMap::default(),
         )
         .await
         .unwrap();
@@ -193,13 +205,14 @@ mod tests {
         let parquet_files_for_compaction = ParquetFilesForCompaction::for_partition(
             Arc::clone(&catalog.catalog),
             partition.partition.id,
+            &HashMap::default(),
         )
         .await
         .unwrap();
 
         assert_eq!(
             parquet_files_for_compaction.level_0,
-            vec![parquet_file.parquet_file]
+            vec![parquet_file.parquet_file.into()]
         );
 
         assert!(
@@ -225,6 +238,7 @@ mod tests {
         let parquet_files_for_compaction = ParquetFilesForCompaction::for_partition(
             Arc::clone(&catalog.catalog),
             partition.partition.id,
+            &HashMap::default(),
         )
         .await
         .unwrap();
@@ -237,7 +251,7 @@ mod tests {
 
         assert_eq!(
             parquet_files_for_compaction.level_1,
-            vec![parquet_file.parquet_file]
+            vec![parquet_file.parquet_file.into()]
         );
     }
 
@@ -263,13 +277,20 @@ mod tests {
         let parquet_files_for_compaction = ParquetFilesForCompaction::for_partition(
             Arc::clone(&catalog.catalog),
             partition.partition.id,
+            &HashMap::default(),
         )
         .await
         .unwrap();
 
-        assert_eq!(parquet_files_for_compaction.level_0, vec![l0.parquet_file]);
+        assert_eq!(
+            parquet_files_for_compaction.level_0,
+            vec![l0.parquet_file.into()]
+        );
 
-        assert_eq!(parquet_files_for_compaction.level_1, vec![l1.parquet_file]);
+        assert_eq!(
+            parquet_files_for_compaction.level_1,
+            vec![l1.parquet_file.into()]
+        );
     }
 
     #[tokio::test]
@@ -302,15 +323,22 @@ mod tests {
         let parquet_files_for_compaction = ParquetFilesForCompaction::for_partition(
             Arc::clone(&catalog.catalog),
             partition.partition.id,
+            &HashMap::default(),
         )
         .await
         .unwrap();
 
         assert_eq!(
             parquet_files_for_compaction.level_0,
-            vec![l0_max_seq_50.parquet_file, l0_max_seq_100.parquet_file]
+            vec![
+                l0_max_seq_50.parquet_file.into(),
+                l0_max_seq_100.parquet_file.into()
+            ]
         );
 
-        assert_eq!(parquet_files_for_compaction.level_1, vec![l1.parquet_file]);
+        assert_eq!(
+            parquet_files_for_compaction.level_1,
+            vec![l1.parquet_file.into()]
+        );
     }
 }

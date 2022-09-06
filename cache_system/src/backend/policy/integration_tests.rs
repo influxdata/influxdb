@@ -8,11 +8,11 @@ use tokio::{runtime::Handle, sync::Notify};
 
 use crate::{
     backend::{policy::refresh::test_util::NotifyExt, CacheBackend},
-    resource_consumption::ResourceEstimator,
+    resource_consumption::{test_util::TestSize, ResourceEstimator},
 };
 
 use super::{
-    lru::{test_util::TestSize, LruPolicy, ResourcePool},
+    lru::{LruPolicy, ResourcePool},
     refresh::{
         test_util::{TestLoader, TestRefreshDurationProvider},
         RefreshPolicy,

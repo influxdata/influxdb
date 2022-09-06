@@ -346,7 +346,8 @@ async fn compact_cold_partitions(compactor: Arc<Compactor>) -> usize {
             let comp = Arc::clone(&compactor);
             tokio::task::spawn(async move {
                 let partition_id = p.candidate.partition_id;
-                let compaction_result = crate::compact_cold_partition(&comp, p).await;
+                let compaction_result =
+                    crate::compact_cold_partition(&comp, p, &Default::default()).await;
 
                 match compaction_result {
                     Err(e) => {

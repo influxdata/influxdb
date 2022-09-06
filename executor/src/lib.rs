@@ -197,7 +197,7 @@ impl DedicatedExecutor {
                 }
 
                 // Wait for all tasks to finish
-                join.write().await;
+                let _guard = join.write().await;
 
                 // signal shutdown, but it's OK if the other side is gone
                 tx_shutdown.send(()).ok();

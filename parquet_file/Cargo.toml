@@ -25,8 +25,8 @@ prost = "0.11"
 schema = { path = "../schema" }
 snafu = "0.7"
 thrift = "0.13"
-tokio = { version = "1.20", features = ["macros", "parking_lot", "rt", "rt-multi-thread", "sync"] }
+tokio = { version = "1.21", features = ["macros", "parking_lot", "rt", "rt-multi-thread", "sync"] }
 uuid = { version = "1", features = ["v4"] }
 zstd = "0.11"
 workspace-hack = { path = "../workspace-hack"}
-thiserror = "1.0.33"
+thiserror = "1.0.34"

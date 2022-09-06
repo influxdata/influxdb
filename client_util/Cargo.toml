@@ -7,10 +7,10 @@ edition = "2021"
 
 [dependencies]
 http = "0.2.8"
-thiserror = "1.0.33"
+thiserror = "1.0.34"
 tonic = { version = "0.8" }
 tower = "0.4"
 workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]
-tokio = { version = "1.20", features = ["macros", "parking_lot", "rt-multi-thread"] }
+tokio = { version = "1.21", features = ["macros", "parking_lot", "rt-multi-thread"] }

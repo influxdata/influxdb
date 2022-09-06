@@ -23,7 +23,7 @@ schema = { path = "../schema" }
 snafu = "0.7"
 thiserror = "1.0"
 iox_time = { path = "../iox_time" }
-tokio = { version = "1.20", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
+tokio = { version = "1.21", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
 tokio-util = { version = "0.7.3" }
 uuid = { version = "1", features = ["v4"] }
 workspace-hack = { path = "../workspace-hack"}

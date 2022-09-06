@@ -2,9 +2,10 @@
 //! compaction operation.
 
 use crate::{
-    compact::PartitionCompactionCandidateWithInfo, parquet_file_lookup::ParquetFilesForCompaction,
+    compact::PartitionCompactionCandidateWithInfo, parquet_file::CompactorParquetFile,
+    parquet_file_lookup::ParquetFilesForCompaction,
 };
-use data_types::{ColumnType, ColumnTypeCount, ParquetFile};
+use data_types::{ColumnType, ColumnTypeCount};
 use metric::{Attributes, Metric, U64Gauge, U64Histogram};
 use observability_deps::tracing::*;
 
@@ -56,7 +57,7 @@ fn estimate_arrow_bytes_for_file(
 #[derive(Debug)]
 pub(crate) struct FilteredFiles {
     /// Files with computed budget and will be compacted
-    pub files: Vec<ParquetFile>,
+    pub files: Vec<CompactorParquetFile>,
     /// Bugdet needed to compact the files
     /// If this value is 0 and the files are empty, nothing to compact.
     /// If the value is 0 and the files are not empty, there is error during estimating the budget.
@@ -76,7 +77,7 @@ pub(crate) enum FilterResult {
 
 impl FilteredFiles {
     pub fn new(
-        files: Vec<ParquetFile>,
+        files: Vec<CompactorParquetFile>,
         budget_bytes: u64,
         partition: PartitionCompactionCandidateWithInfo,
     ) -> Self {
@@ -141,7 +142,7 @@ pub(crate) fn filter_hot_parquet_files(
 
     // Guaranteed to exist because of the empty check and early return above. Also assuming all
     // files are for the same partition.
-    let partition_id = level_0[0].partition_id;
+    let partition_id = level_0[0].partition_id();
 
     let num_level_0_considering = level_0.len();
     let num_level_1_considering = remaining_level_1.len();
@@ -163,7 +164,7 @@ pub(crate) fn filter_hot_parquet_files(
     for level_0_file in level_0 {
         // Estimate memory needed for this L0 file
         let estimated_file_bytes =
-            estimate_arrow_bytes_for_file(column_types, level_0_file.row_count);
+            estimate_arrow_bytes_for_file(column_types, level_0_file.row_count());
         if let Err(e) = estimated_file_bytes {
             // Error while estimating the memory needed, return the file and 0
             warn!(
@@ -187,7 +188,7 @@ pub(crate) fn filter_hot_parquet_files(
         // Estimate memory needed for each of L1
         let mut current_l1_estimated_file_bytes = Vec::with_capacity(overlaps.len());
         for file in &overlaps {
-            let estimated_bytes = estimate_arrow_bytes_for_file(column_types, file.row_count);
+            let estimated_bytes = estimate_arrow_bytes_for_file(column_types, file.row_count());
             if let Err(e) = estimated_bytes {
                 // Error while estimating the memory needed, return the file and 0
                 warn!(
@@ -255,11 +256,11 @@ pub(crate) fn filter_hot_parquet_files(
         parquet_file_candidate_bytes,
         level_0_to_return
             .iter()
-            .map(|pf| pf.file_size_bytes as u64)
+            .map(|pf| pf.file_size_bytes() as u64)
             .collect(),
         files_to_return
             .iter()
-            .map(|pf| pf.file_size_bytes as u64)
+            .map(|pf| pf.file_size_bytes() as u64)
             .collect(),
         l0_estimated_budget,
         l1_estimated_budget,
@@ -295,7 +296,7 @@ pub(crate) fn filter_cold_parquet_files(
     parquet_file_candidate_gauge: &Metric<U64Gauge>,
     // Histogram for the number of bytes of Parquet file candidates
     parquet_file_candidate_bytes: &Metric<U64Histogram>,
-) -> Vec<ParquetFile> {
+) -> Vec<CompactorParquetFile> {
     let ParquetFilesForCompaction {
         level_0,
         level_1: mut remaining_level_1,
@@ -308,7 +309,7 @@ pub(crate) fn filter_cold_parquet_files(
 
     // Guaranteed to exist because of the empty check and early return above. Also assuming all
     // files are for the same partition.
-    let partition_id = level_0[0].partition_id;
+    let partition_id = level_0[0].partition_id();
 
     let num_level_0_considering = level_0.len();
     let num_level_1_considering = remaining_level_1.len();
@@ -333,7 +334,7 @@ pub(crate) fn filter_cold_parquet_files(
         }
 
         // Include at least one level 0 file without checking against `max_bytes`
-        total_level_0_bytes += level_0_file.file_size_bytes as u64;
+        total_level_0_bytes += level_0_file.file_size_bytes() as u64;
 
         // Find all level 1 files that overlap with this level 0 file.
         let (overlaps, non_overlaps): (Vec<_>, Vec<_>) = remaining_level_1
@@ -341,7 +342,7 @@ pub(crate) fn filter_cold_parquet_files(
             .partition(|level_1_file| overlaps_in_time(level_1_file, &level_0_file));
 
         // Increase the running total by the size of all the overlapping level 1 files
-        total_level_1_bytes += overlaps.iter().map(|f| f.file_size_bytes).sum::<i64>() as u64;
+        total_level_1_bytes += overlaps.iter().map(|f| f.file_size_bytes()).sum::<i64>() as u64;
 
         // Move the overlapping level 1 files to `files_to_return` so they're not considered again;
         // a level 1 file overlapping with one level 0 file is enough for its inclusion. This way,
@@ -385,21 +386,21 @@ pub(crate) fn filter_cold_parquet_files(
         parquet_file_candidate_bytes,
         level_0_to_return
             .iter()
-            .map(|pf| pf.file_size_bytes as u64)
+            .map(|pf| pf.file_size_bytes() as u64)
             .collect(),
         files_to_return
             .iter()
-            .map(|pf| pf.file_size_bytes as u64)
+            .map(|pf| pf.file_size_bytes() as u64)
             .collect(),
         // todo: replace these 2 params with the actual estimated budgets when
         // changing compact cold partition
         level_0_to_return
             .iter()
-            .map(|pf| pf.file_size_bytes as u64)
+            .map(|pf| pf.file_size_bytes() as u64)
             .collect(),
         files_to_return
             .iter()
-            .map(|pf| pf.file_size_bytes as u64)
+            .map(|pf| pf.file_size_bytes() as u64)
             .collect(),
     );
 
@@ -409,9 +410,9 @@ pub(crate) fn filter_cold_parquet_files(
     files_to_return
 }
 
-fn overlaps_in_time(a: &ParquetFile, b: &ParquetFile) -> bool {
-    (a.min_time <= b.min_time && a.max_time >= b.min_time)
-        || (a.min_time > b.min_time && a.min_time <= b.max_time)
+fn overlaps_in_time(a: &CompactorParquetFile, b: &CompactorParquetFile) -> bool {
+    (a.min_time() <= b.min_time() && a.max_time() >= b.min_time())
+        || (a.min_time() > b.min_time() && a.min_time() <= b.max_time())
 }
 
 fn record_file_metrics(
@@ -488,9 +489,9 @@ fn record_byte_metrics(
 mod tests {
     use super::*;
     use data_types::{
-        ColumnSet, CompactionLevel, Namespace, NamespaceId, ParquetFileId, PartitionId,
-        PartitionParam, QueryPoolId, SequenceNumber, ShardId, Table, TableId, TableSchema,
-        Timestamp, TopicId,
+        ColumnSet, CompactionLevel, Namespace, NamespaceId, ParquetFile, ParquetFileId,
+        PartitionId, PartitionParam, QueryPoolId, SequenceNumber, ShardId, Table, TableId,
+        TableSchema, Timestamp, TopicId,
     };
     use metric::{ObservationBucket, U64HistogramOptions};
     use std::{collections::BTreeMap, sync::Arc};
@@ -764,8 +765,8 @@ mod tests {
 
             let files = to_compact.files;
             assert_eq!(files.len(), 2);
-            assert_eq!(files[0].id.get(), 102);
-            assert_eq!(files[1].id.get(), 1);
+            assert_eq!(files[0].id().get(), 102);
+            assert_eq!(files[1].id().get(), 1);
         }
 
         #[test]
@@ -868,7 +869,7 @@ mod tests {
             assert_eq!(to_compact.budget_bytes(), 3 * 1176);
 
             let files = to_compact.files;
-            let ids: Vec<_> = files.iter().map(|f| f.id.get()).collect();
+            let ids: Vec<_> = files.iter().map(|f| f.id().get()).collect();
             assert_eq!(ids, [102, 103, 1]);
             assert_eq!(
                 extract_file_metrics(&files_metric),
@@ -900,7 +901,7 @@ mod tests {
             assert_eq!(to_compact.budget_bytes(), 6 * 1176);
 
             let files = to_compact.files;
-            let ids: Vec<_> = files.iter().map(|f| f.id.get()).collect();
+            let ids: Vec<_> = files.iter().map(|f| f.id().get()).collect();
             assert_eq!(ids, [102, 103, 104, 105, 1, 2]);
             assert_eq!(
                 extract_file_metrics(&files_metric),
@@ -956,7 +957,7 @@ mod tests {
             );
 
             assert_eq!(files.len(), 1);
-            assert_eq!(files[0].id.get(), 1);
+            assert_eq!(files[0].id().get(), 1);
         }
 
         #[test]
@@ -1012,7 +1013,7 @@ mod tests {
             );
 
             assert_eq!(files.len(), 1);
-            assert_eq!(files[0].id.get(), 1);
+            assert_eq!(files[0].id().get(), 1);
         }
 
         #[test]
@@ -1055,8 +1056,8 @@ mod tests {
             );
 
             assert_eq!(files.len(), 2);
-            assert_eq!(files[0].id.get(), 102);
-            assert_eq!(files[1].id.get(), 1);
+            assert_eq!(files[0].id().get(), 102);
+            assert_eq!(files[1].id().get(), 1);
         }
 
         #[test]
@@ -1118,7 +1119,7 @@ mod tests {
                 &files_metric,
                 &bytes_metric,
             );
-            let ids: Vec<_> = files.iter().map(|f| f.id.get()).collect();
+            let ids: Vec<_> = files.iter().map(|f| f.id().get()).collect();
             assert_eq!(ids, [1, 2, 3]);
             assert_eq!(
                 extract_file_metrics(&files_metric),
@@ -1229,7 +1230,7 @@ mod tests {
                 &files_metric,
                 &bytes_metric,
             );
-            let ids: Vec<_> = files.iter().map(|f| f.id.get()).collect();
+            let ids: Vec<_> = files.iter().map(|f| f.id().get()).collect();
             assert_eq!(ids, [102, 103, 1]);
             assert_eq!(
                 extract_file_metrics(&files_metric),
@@ -1261,7 +1262,7 @@ mod tests {
                 &files_metric,
                 &bytes_metric,
             );
-            let ids: Vec<_> = files.iter().map(|f| f.id.get()).collect();
+            let ids: Vec<_> = files.iter().map(|f| f.id().get()).collect();
             assert_eq!(ids, [102, 103, 104, 105, 1, 2]);
             assert_eq!(
                 extract_file_metrics(&files_metric),
@@ -1293,7 +1294,7 @@ mod tests {
                 &files_metric,
                 &bytes_metric,
             );
-            let ids: Vec<_> = files.iter().map(|f| f.id.get()).collect();
+            let ids: Vec<_> = files.iter().map(|f| f.id().get()).collect();
             assert_eq!(ids, [102, 103, 104, 105, 1, 2]);
             assert_eq!(
                 extract_file_metrics(&files_metric),
@@ -1323,7 +1324,7 @@ mod tests {
                 &files_metric,
                 &bytes_metric,
             );
-            let ids: Vec<_> = files.iter().map(|f| f.id.get()).collect();
+            let ids: Vec<_> = files.iter().map(|f| f.id().get()).collect();
             assert_eq!(ids, [102, 103, 104, 105, 106, 1, 2, 3]);
             assert_eq!(
                 extract_file_metrics(&files_metric),
@@ -1402,7 +1403,7 @@ mod tests {
             self
         }
 
-        fn build(self) -> ParquetFile {
+        fn build(self) -> CompactorParquetFile {
             let Self {
                 compaction_level,
                 id,
@@ -1411,7 +1412,7 @@ mod tests {
                 file_size_bytes,
             } = self;
 
-            ParquetFile {
+            let f = ParquetFile {
                 id: ParquetFileId::new(id),
                 shard_id: ShardId::new(2),
                 namespace_id: NamespaceId::new(3),
@@ -1427,7 +1428,8 @@ mod tests {
                 compaction_level,
                 created_at: Timestamp::new(12),
                 column_set: ColumnSet::new(std::iter::empty()),
-            }
+            };
+            f.into()
         }
 
         fn build_partition_with_extra_info(self) -> PartitionCompactionCandidateWithInfo {
@@ -1437,18 +1439,18 @@ mod tests {
             // build the partition for the parquet file
             PartitionCompactionCandidateWithInfo {
                 candidate: PartitionParam {
-                    partition_id: p.partition_id,
-                    shard_id: p.shard_id,
-                    namespace_id: p.namespace_id,
-                    table_id: p.table_id,
+                    partition_id: p.partition_id(),
+                    shard_id: p.shard_id(),
+                    namespace_id: p.namespace_id(),
+                    table_id: p.table_id(),
                 },
                 table: Arc::new(Table {
-                    id: p.table_id,
-                    namespace_id: p.namespace_id,
+                    id: p.table_id(),
+                    namespace_id: p.namespace_id(),
                     name: "table_name".to_string(),
                 }),
                 namespace: Arc::new(Namespace {
-                    id: p.namespace_id,
+                    id: p.namespace_id(),
                     name: "namespace_name".to_string(),
                     retention_duration: Some("1 day".to_string()),
                     topic_id: TopicId::new(1),
@@ -1457,7 +1459,7 @@ mod tests {
                     max_columns_per_table: 100,
                 }),
                 table_schema: Arc::new(TableSchema {
-                    id: p.table_id,
+                    id: p.table_id(),
                     columns: BTreeMap::new(),
                 }),
                 sort_key: None,
