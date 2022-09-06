@@ -2896,10 +2896,7 @@ mod tests {
                 .expect("fetch total file size failed");
         assert_eq!(total_file_size_bytes, 1337 * 3);
 
-        // flag f1 for deletion and assert that the total file size hasn't changed.
-        // i don't yet know whether we're going to charge for "flagged to delete" files,
-        // but i want to expressly assert the current behaviour so we have a test harness for
-        // changing that behaviour. the current implementation will charge for to-delete files.
+        // flag f1 for deletion and assert that the total file size is reduced accordingly.
         postgres
             .repositories()
             .await
@@ -2912,8 +2909,10 @@ mod tests {
                 .fetch_one(&pool)
                 .await
                 .expect("fetch total file size failed");
-        assert_eq!(total_file_size_bytes, 1337 * 3);
+        // we marked the first file of size 1337 for deletion leaving only the second that was 2x that
+        assert_eq!(total_file_size_bytes, 1337 * 2);
 
+        // actually deleting shouldn't change the total
         let now = Timestamp::new((time_provider.now()).timestamp_nanos());
         postgres
             .repositories()
@@ -2927,7 +2926,6 @@ mod tests {
                 .fetch_one(&pool)
                 .await
                 .expect("fetch total file size failed");
-        // we deleted the first file of size 1337 leaving only the second that was 2x that
         assert_eq!(total_file_size_bytes, 1337 * 2);
     }
 }
