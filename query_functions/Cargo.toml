@@ -19,5 +19,5 @@ snafu = "0.7"
 workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]
-tokio = { version = "1.20", features = ["macros", "parking_lot"] }
+tokio = { version = "1.21", features = ["macros", "parking_lot"] }
 datafusion_util = { path = "../datafusion_util" }
