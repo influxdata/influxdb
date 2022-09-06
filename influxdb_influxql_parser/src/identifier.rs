@@ -27,7 +27,7 @@ use std::fmt;
 use std::fmt::{Display, Formatter, Write};
 
 /// Parse an unquoted InfluxQL identifier.
-fn unquoted_identifier(i: &str) -> IResult<&str, String> {
+pub(crate) fn unquoted_identifier(i: &str) -> IResult<&str, String> {
     map(
         preceded(
             not(sql_keyword),
