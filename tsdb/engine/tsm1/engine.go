@@ -884,7 +884,7 @@ func (e *Engine) LoadMetadataIndex(shardID uint64, index tsdb.Index) error {
 	}
 
 	// Save the field set index so we don't have to rebuild it next time
-	if err := e.fieldset.WriteToFile(); err != nil {
+	if err := e.fieldset.WriteToFileNoLock(); err != nil {
 		return err
 	}
 
@@ -1195,7 +1195,7 @@ func (e *Engine) overlay(r io.Reader, basePath string, asNew bool) error {
 			return err
 		}
 	}
-	return e.MeasurementFieldSet().WriteToFile()
+	return e.MeasurementFieldSet().WriteToFileNoLock()
 }
 
 // readFileFromBackup copies the next file from the archive into the shard.

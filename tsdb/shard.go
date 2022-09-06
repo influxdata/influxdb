@@ -1719,7 +1719,7 @@ func NewMeasurementFieldSet(path string) (*MeasurementFieldSet, error) {
 func (fs *MeasurementFieldSet) Close() error {
 	if fs != nil && fs.changeMgr != nil {
 		fs.changeMgr.Close()
-		return fs.ApplyChanges()
+		return fs.WriteToFileNoLock()
 	}
 	return nil
 }
@@ -1813,7 +1813,7 @@ func (fs *MeasurementFieldSet) DeleteWithLock(name string, fn func() error) erro
 	return nil
 }
 
-// deleteNoLock removes a field set for a measurement and record the change for file system persistence
+// deleteNoLock removes a field set for a measurement
 func (fs *MeasurementFieldSet) deleteNoLock(name string) {
 	delete(fs.fields, name)
 }
@@ -1874,11 +1874,9 @@ func (fscm *measurementFieldSetChangeMgr) SaveWriter() {
 	}
 }
 
-// WriteToFile: Write the new index to a temp file and rename when it's sync'd
-func (fs *MeasurementFieldSet) WriteToFile() error {
-	// Do some blocking IO operations before marshalling the in-memory index
-	// to allow other changes to it to be captured in one
-	// write operation, in case we are under heavy field creation load
+// WriteToFileNoLock: Write the new index to a temp file and rename when it's sync'd
+// This should only be called when writes are blocked.
+func (fs *MeasurementFieldSet) WriteToFileNoLock() error {
 	path := fs.path + ".tmp"
 
 	// Open the temp file
@@ -1890,6 +1888,9 @@ func (fs *MeasurementFieldSet) WriteToFile() error {
 	defer func() {
 		if e := os.RemoveAll(path); err == nil && e != nil {
 			err = fmt.Errorf("failed removing temporary file %s: %w", path, e)
+		}
+		if e := os.RemoveAll(fs.changeMgr.Path); err == nil && e != nil {
+			err = fmt.Errorf("failed removing saved field changes - %s: %w", fs.changeMgr.Path, e)
 		}
 	}()
 	isEmpty, err := func() (isEmpty bool, err error) {
@@ -2101,7 +2102,7 @@ func (fs *MeasurementFieldSet) load() (rErr error) {
 		fs.mu.Lock()
 		defer fs.mu.Unlock()
 
-		pb, err := fs.loadFieldIndex()
+		pb, err := fs.loadParseFieldIndexPB()
 		if err != nil {
 			return err
 		}
@@ -2124,7 +2125,7 @@ func (fs *MeasurementFieldSet) load() (rErr error) {
 	return fs.ApplyChanges()
 }
 
-func (fs *MeasurementFieldSet) loadFieldIndex() (pb *internal.MeasurementFieldSet, rErr error) {
+func (fs *MeasurementFieldSet) loadParseFieldIndexPB() (pb *internal.MeasurementFieldSet, rErr error) {
 	pb = &internal.MeasurementFieldSet{}
 
 	fd, err := os.Open(fs.path)
@@ -2174,15 +2175,15 @@ func (fscm *measurementFieldSetChangeMgr) loadAllFieldChanges() (changes []Field
 	return nil, err
 }
 
-func (fscm *measurementFieldSetChangeMgr) loadFieldChangeSet(fd *os.File) (FieldChanges, error) {
+func (fscm *measurementFieldSetChangeMgr) loadFieldChangeSet(r io.Reader) (FieldChanges, error) {
 	var pb internal.FieldChangeSet
 
-	b, err := readSizePlusBuffer(fd, nil)
+	b, err := readSizePlusBuffer(r, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed reading %s: %w", fd.Name(), err)
+		return nil, fmt.Errorf("failed reading %s: %w", fscm.Path, err)
 	}
 	if err := proto.Unmarshal(b, &pb); err != nil {
-		return nil, fmt.Errorf("failed unmarshalling %s: %w", fd.Name(), err)
+		return nil, fmt.Errorf("failed unmarshalling %s: %w", fscm.Path, err)
 	}
 
 	fcs := make([]*FieldChange, 0, len(pb.Changes))
@@ -2224,13 +2225,7 @@ func (fs *MeasurementFieldSet) ApplyChanges() error {
 			}
 		}
 	}
-	if err = fs.WriteToFile(); err != nil {
-		return err
-	} else if err = os.RemoveAll(fs.changeMgr.Path); err != nil {
-		return fmt.Errorf("failed removing saved fields.idx changes: %w", err)
-	} else {
-		return nil
-	}
+	return fs.WriteToFileNoLock()
 }
 
 // Field represents a series field. All of the fields must be hashable.
