@@ -2856,10 +2856,10 @@ mod tests {
         let time_provider = Arc::new(SystemProvider::new());
         let time_now = Timestamp::new(time_provider.now().timestamp_nanos());
         let mut p1 = ParquetFileParams {
-            shard_id: shard_id,
-            namespace_id: namespace_id,
-            table_id: table_id,
-            partition_id: partition_id,
+            shard_id,
+            namespace_id,
+            table_id,
+            partition_id,
             object_store_id: Uuid::new_v4(),
             max_sequence_number: SequenceNumber::new(100),
             min_time: Timestamp::new(1),
@@ -2900,7 +2900,7 @@ mod tests {
         // i don't yet know whether we're going to charge for "flagged to delete" files,
         // but i want to expressly assert the current behaviour so we have a test harness for
         // changing that behaviour. the current implementation will charge for to-delete files.
-        let _ = postgres
+        postgres
             .repositories()
             .await
             .parquet_files()
@@ -2915,7 +2915,7 @@ mod tests {
         assert_eq!(total_file_size_bytes, 1337 * 3);
 
         let now = Timestamp::new((time_provider.now()).timestamp_nanos());
-        let _ = postgres
+        postgres
             .repositories()
             .await
             .parquet_files()
