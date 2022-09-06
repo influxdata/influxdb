@@ -722,9 +722,9 @@ dependencies = [
 
 [[package]]
 name = "console-subscriber"
-version = "0.1.7"
+version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e933c43a5db3779b3600cdab18856af2411ca2237e33ba8ab476d5d5b1a6c1e7"
+checksum = "22a3a81dfaf6b66bce5d159eddae701e3a002f194d378cbf7be5f053c281d9be"
 dependencies = [
  "console-api",
  "crossbeam-channel",
