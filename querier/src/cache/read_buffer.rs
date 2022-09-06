@@ -205,7 +205,7 @@ async fn read_buffer_chunk_from_stream(
     let schema = stream.schema();
 
     // create "global" metric object, so that we don't blow up prometheus w/ too many metrics
-    let metrics = ChunkMetrics::new(metric_registry, "iox_shared");
+    let metrics = ChunkMetrics::new(metric_registry, "iox-shared");
 
     let mut builder = read_buffer::RBChunkBuilder::new(schema).with_metrics(metrics);
 
@@ -516,7 +516,7 @@ mod tests {
             .get_instrument("read_buffer_row_group_total")
             .unwrap();
         let v = g
-            .get_observer(&Attributes::from(&[("db_name", "iox_shared")]))
+            .get_observer(&Attributes::from(&[("db_name", "iox-shared")]))
             .unwrap()
             .fetch();
 
