@@ -20,7 +20,6 @@ service_grpc_influxrpc = { path = "../service_grpc_influxrpc" }
 sharder = { path = "../sharder" }
 iox_time = { path = "../iox_time" }
 trace = { path = "../trace" }
-write_buffer = { path = "../write_buffer" }
 
 # Crates.io dependencies, in alphabetical order
 arrow-flight = "21.0.0"
