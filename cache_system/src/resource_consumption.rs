@@ -1,6 +1,7 @@
 //! Reasoning about resource consumption of cached data.
 use std::{
     fmt::Debug,
+    marker::PhantomData,
     ops::{Add, Sub},
 };
 
@@ -34,37 +35,76 @@ pub trait ResourceEstimator: Debug + Send + Sync + 'static {
     fn consumption(&self, k: &Self::K, v: &Self::V) -> Self::S;
 }
 
-type BoxedEstimatorFn<K, V, S> = Box<dyn (Fn(&K, &V) -> S) + Send + Sync>;
-
 /// A simple function-based [`ResourceEstimator].
-pub struct FunctionEstimator<K, V, S>
+///
+/// # Typing
+/// Semantically this wrapper has only one degree of freedom: `F`, which is the estimator function. However until
+/// [`fn_traits`] are stable, there is no way to extract the parameters and return value from a function via associated
+/// types. So we need to add additional type parametes for the special `Fn(...) -> ...` handling.
+///
+/// It is likely that `F` will be a closure, e.g.:
+///
+/// ```
+/// use cache_system::resource_consumption::{
+///     FunctionEstimator,
+///     test_util::TestSize,
+/// };
+///
+/// let my_estimator = FunctionEstimator::new(|_k: &u8, v: &String| -> TestSize {
+///     TestSize(std::mem::size_of::<(u8, String)>() + v.capacity())
+/// });
+/// ```
+///
+/// There is no way to spell out the exact type of `my_estimator` in the above example, because  the closure has an
+/// anonymous type. If you need the type signature of [`FunctionEstimator`], you have to
+/// [erase the type](https://en.wikipedia.org/wiki/Type_erasure) by putting the [`FunctionEstimator`] it into a [`Box`],
+/// e.g.:
+///
+/// ```
+/// use cache_system::resource_consumption::{
+///     FunctionEstimator,
+///     ResourceEstimator,
+///     test_util::TestSize,
+/// };
+///
+/// let my_estimator = FunctionEstimator::new(|_k: &u8, v: &String| -> TestSize {
+///     TestSize(std::mem::size_of::<(u8, String)>() + v.capacity())
+/// });
+/// let my_estimator: Box<dyn ResourceEstimator<K = u8, V = String, S = TestSize>> = Box::new(my_estimator);
+/// ```
+///
+///
+/// [`fn_traits`]: https://doc.rust-lang.org/beta/unstable-book/library-features/fn-traits.html
+pub struct FunctionEstimator<F, K, V, S>
 where
+    F: Fn(&K, &V) -> S + Send + Sync + 'static,
     K: 'static,
     V: 'static,
     S: Resource,
 {
-    estimator: BoxedEstimatorFn<K, V, S>,
+    estimator: F,
+    _phantom: PhantomData<dyn Fn() -> (K, V, S) + Send + Sync + 'static>,
 }
 
-impl<K, V, S> FunctionEstimator<K, V, S>
+impl<F, K, V, S> FunctionEstimator<F, K, V, S>
 where
+    F: Fn(&K, &V) -> S + Send + Sync + 'static,
     K: 'static,
     V: 'static,
     S: Resource,
 {
     /// Create new resource estimator from given function.
-    pub fn new<F>(f: F) -> Self
-    where
-        F: Fn(&K, &V) -> S + Send + Sync + 'static,
-    {
+    pub fn new(f: F) -> Self {
         Self {
-            estimator: Box::new(f),
+            estimator: f,
+            _phantom: PhantomData::default(),
         }
     }
 }
 
-impl<K, V, S> std::fmt::Debug for FunctionEstimator<K, V, S>
+impl<F, K, V, S> std::fmt::Debug for FunctionEstimator<F, K, V, S>
 where
+    F: Fn(&K, &V) -> S + Send + Sync + 'static,
     K: 'static,
     V: 'static,
     S: Resource,
@@ -74,8 +114,9 @@ where
     }
 }
 
-impl<K, V, S> ResourceEstimator for FunctionEstimator<K, V, S>
+impl<F, K, V, S> ResourceEstimator for FunctionEstimator<F, K, V, S>
 where
+    F: Fn(&K, &V) -> S + Send + Sync + 'static,
     K: 'static,
     V: 'static,
     S: Resource,
@@ -89,19 +130,13 @@ where
     }
 }
 
-#[cfg(test)]
-mod tests {
+pub mod test_util {
+    //! Helpers to test resource consumption-based algorithms.
     use super::*;
 
-    #[test]
-    fn test_function_estimator() {
-        let estimator =
-            FunctionEstimator::new(|k: &u8, v: &u16| TestSize((*k as usize) * 10 + (*v as usize)));
-        assert_eq!(estimator.consumption(&3, &2), TestSize(32));
-    }
-
-    #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
-    struct TestSize(usize);
+    /// Simple resource type for testing.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+    pub struct TestSize(pub usize);
 
     impl Resource for TestSize {
         fn zero() -> Self {
@@ -133,5 +168,19 @@ mod tests {
         fn sub(self, rhs: Self) -> Self::Output {
             Self(self.0.checked_sub(rhs.0).expect("underflow"))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::resource_consumption::test_util::TestSize;
+
+    use super::*;
+
+    #[test]
+    fn test_function_estimator() {
+        let estimator =
+            FunctionEstimator::new(|k: &u8, v: &u16| TestSize((*k as usize) * 10 + (*v as usize)));
+        assert_eq!(estimator.consumption(&3, &2), TestSize(32));
     }
 }

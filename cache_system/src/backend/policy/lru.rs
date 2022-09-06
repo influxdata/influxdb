@@ -828,49 +828,6 @@ where
         .collect()
 }
 
-pub mod test_util {
-    //! Testing helpers for LRU policy.
-    use std::ops::{Add, Sub};
-
-    use super::*;
-
-    /// An abbstract test size.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-    pub struct TestSize(pub usize);
-
-    impl Resource for TestSize {
-        fn zero() -> Self {
-            Self(0)
-        }
-
-        fn unit() -> &'static str {
-            "bytes"
-        }
-    }
-
-    impl From<TestSize> for u64 {
-        fn from(s: TestSize) -> Self {
-            s.0 as Self
-        }
-    }
-
-    impl Add for TestSize {
-        type Output = Self;
-
-        fn add(self, rhs: Self) -> Self::Output {
-            Self(self.0.checked_add(rhs.0).expect("overflow"))
-        }
-    }
-
-    impl Sub for TestSize {
-        type Output = Self;
-
-        fn sub(self, rhs: Self) -> Self::Output {
-            Self(self.0.checked_sub(rhs.0).expect("underflow"))
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::{collections::HashMap, time::Duration};
@@ -878,9 +835,12 @@ mod tests {
     use iox_time::MockProvider;
     use metric::{Observation, RawReporter};
 
-    use crate::backend::{policy::PolicyBackend, CacheBackend};
+    use crate::{
+        backend::{policy::PolicyBackend, CacheBackend},
+        resource_consumption::test_util::TestSize,
+    };
 
-    use super::{test_util::TestSize, *};
+    use super::*;
 
     #[test]
     #[should_panic(expected = "inner backend is not empty")]
