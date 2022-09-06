@@ -2870,16 +2870,17 @@ mod tests {
             created_at: time_now,
             column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
         };
-        let _ = postgres
+        let f1 = postgres
             .repositories()
             .await
             .parquet_files()
             .create(p1.clone())
             .await
             .expect("create parquet file should succeed");
-        // insert the same again so we should have 2x1337 as total file size
+        // insert the same again with a different size; we should then have 3x1337 as total file size
         p1.object_store_id = Uuid::new_v4();
-        let _ = postgres
+        p1.file_size_bytes *= 2;
+        let _f2 = postgres
             .repositories()
             .await
             .parquet_files()
@@ -2887,11 +2888,46 @@ mod tests {
             .await
             .expect("create parquet file should succeed");
 
+        // after adding two files we should have 3x1337 in the summary
         let total_file_size_bytes: i64 =
             sqlx::query_scalar("SELECT total_file_size_bytes FROM billing_summary;")
                 .fetch_one(&pool)
                 .await
-                .expect("read application_name");
+                .expect("fetch total file size failed");
+        assert_eq!(total_file_size_bytes, 1337 * 3);
+
+        // flag f1 for deletion and assert that the total file size hasn't changed.
+        // i don't yet know whether we're going to charge for "flagged to delete" files,
+        // but i want to expressly assert the current behaviour so we have a test harness for
+        // changing that behaviour. the current implementation will charge for to-delete files.
+        let _ = postgres
+            .repositories()
+            .await
+            .parquet_files()
+            .flag_for_delete(f1.id)
+            .await
+            .expect("flag parquet file for deletion should succeed");
+        let total_file_size_bytes: i64 =
+            sqlx::query_scalar("SELECT total_file_size_bytes FROM billing_summary;")
+                .fetch_one(&pool)
+                .await
+                .expect("fetch total file size failed");
+        assert_eq!(total_file_size_bytes, 1337 * 3);
+
+        let now = Timestamp::new((time_provider.now()).timestamp_nanos());
+        let _ = postgres
+            .repositories()
+            .await
+            .parquet_files()
+            .delete_old(now)
+            .await
+            .expect("parquet file deletion should succeed");
+        let total_file_size_bytes: i64 =
+            sqlx::query_scalar("SELECT total_file_size_bytes FROM billing_summary;")
+                .fetch_one(&pool)
+                .await
+                .expect("fetch total file size failed");
+        // we deleted the first file of size 1337 leaving only the second that was 2x that
         assert_eq!(total_file_size_bytes, 1337 * 2);
     }
 }
