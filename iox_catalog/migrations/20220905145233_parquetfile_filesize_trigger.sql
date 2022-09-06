@@ -4,6 +4,8 @@ CREATE TABLE IF NOT EXISTS billing_summary (
     PRIMARY KEY (namespace_id)
 );
 
+CREATE INDEX IF NOT EXISTS billing_summary_namespace_idx ON billing_summary (namespace_id);
+
 ALTER TABLE
     IF EXISTS billing_summary
 ADD
@@ -37,7 +39,7 @@ CREATE OR REPLACE FUNCTION maybe_decrement_billing_summary()
 $$
 BEGIN
     IF OLD.to_delete IS NULL AND NEW.to_delete IS NOT NULL THEN
-        UPDATE billing_summary 
+        UPDATE billing_summary
         SET total_file_size_bytes = billing_summary.total_file_size_bytes - OLD.file_size_bytes
         WHERE billing_summary.namespace_id = OLD.namespace_id;
     END IF;
