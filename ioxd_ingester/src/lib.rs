@@ -156,10 +156,9 @@ pub async fn create_ingester_server_type(
         return Err(Error::ShardIndexRange);
     }
 
-    let shard_indexes: Vec<_> = (ingester_config.shard_index_range_start
-        ..=ingester_config.shard_index_range_end)
-        .map(ShardIndex::new)
-        .collect();
+    let shard_range =
+        ingester_config.shard_index_range_start..(ingester_config.shard_index_range_end + 1);
+    let shard_indexes: Vec<_> = shard_range.clone().map(ShardIndex::new).collect();
 
     let mut shards = BTreeMap::new();
     for shard_index in shard_indexes {
@@ -171,7 +170,11 @@ pub async fn create_ingester_server_type(
     let trace_collector = common_state.trace_collector();
 
     let write_buffer = write_buffer_config
-        .reading(Arc::clone(&metric_registry), trace_collector.clone())
+        .reading(
+            Arc::clone(&metric_registry),
+            Some(shard_range),
+            trace_collector.clone(),
+        )
         .await?;
 
     let lifecycle_config = LifecycleConfig::new(
