@@ -353,7 +353,7 @@ where
 
                 // This is the result of the compactor compacting files persisted by the ingester after persisted_max
                 // The compacted result may include data of before and after persisted_max which prevents
-                // this query to return correct result beacuse it only needs data before persist_max
+                // this query to return correct result because it only needs data before persist_max
                 if file.compaction_level() != CompactionLevel::Initial
                     && file.max_sequence_number() > persisted_max
                 {

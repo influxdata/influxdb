@@ -119,7 +119,7 @@ impl TestCatalog {
         )
     }
 
-    /// Create a namesapce in the catalog
+    /// Create a namespace in the catalog
     pub async fn create_namespace(self: &Arc<Self>, name: &str) -> Arc<TestNamespace> {
         let mut repos = self.catalog.repositories().await;
 
@@ -716,12 +716,6 @@ impl TestParquetFileBuilder {
     /// Specify the maximum time for the parquet file metadata.
     pub fn with_max_time(mut self, max_time: i64) -> Self {
         self.max_time = max_time;
-        self
-    }
-
-    /// Specify the file size, in bytes, for the parquet file metadata.
-    pub fn with_file_size_bytes(mut self, file_size_bytes: u64) -> Self {
-        self.file_size_bytes = Some(file_size_bytes);
         self
     }
 

@@ -14,6 +14,7 @@ use cache_system::{
 use data_types::{ParquetFile, SequenceNumber, TableId};
 use iox_catalog::interface::Catalog;
 use iox_time::TimeProvider;
+use observability_deps::tracing::debug;
 use snafu::{ResultExt, Snafu};
 use std::{collections::HashMap, mem, sync::Arc};
 use trace::span::Span;
@@ -213,13 +214,23 @@ impl ParquetFileCache {
             self.remove_if_handle.remove_if(&table_id, |cached_file| {
                 let max_cached = cached_file.max_parquet_sequence_number();
 
-                if let Some(max_cached) = max_cached {
+                let expire = if let Some(max_cached) = max_cached {
                     max_cached < max_parquet_sequence_number
                 } else {
                     // a max sequence was provided but there were no
                     // files in the cache. Means we need to refresh
                     true
-                }
+                };
+
+                debug!(
+                    expire,
+                    ?max_cached,
+                    max_parquet_sequence_number = max_parquet_sequence_number.get(),
+                    table_id = table_id.get(),
+                    "expire parquet file cache",
+                );
+
+                expire
             })
         } else {
             false

@@ -203,7 +203,7 @@ impl IngesterData {
 }
 
 /// The Persister has a function to persist a given partition ID and to update the
-/// assocated shard's `min_unpersisted_sequence_number`.
+/// associated shard's `min_unpersisted_sequence_number`.
 #[async_trait]
 pub trait Persister: Send + Sync + 'static {
     /// Persits the partition ID. Will retry forever until it succeeds.
@@ -1143,7 +1143,7 @@ impl PartitionData {
         self.data.add_tombstone(tombstone.clone());
 
         // ----------------------------------------------------------
-        // First apply the tombstone on all in-memeory & non-persisting data
+        // First apply the tombstone on all in-memory & non-persisting data
         // Make a QueryableBatch for all buffer + snapshots + the given tombstone
         let max_sequence_number = tombstone.sequence_number;
         let query_batch = match self
@@ -1265,12 +1265,12 @@ struct DataBuffer {
     pub(crate) persisting: Option<Arc<PersistingBatch>>,
     // Extra Notes:
     //  . In MVP, we will only persist a set of snapshots at a time.
-    //    In later version, multiple perssiting operations may be happenning concurrently but
+    //    In later version, multiple persisting operations may be happening concurrently but
     //    their persisted info must be added into the Catalog in their data
     //    ingesting order.
-    //  . When a read request comes from a Querier, all data from `snaphots`
+    //  . When a read request comes from a Querier, all data from `snapshots`
     //    and `persisting` must be sent to the Querier.
-    //  . After the `persiting` data is persisted and successfully added
+    //  . After the `persisting` data is persisted and successfully added
     //    into the Catalog, it will be removed from this Data Buffer.
     //    This data might be added into an extra cache to serve up to
     //    Queriers that may not have loaded the parquet files from object
@@ -2551,10 +2551,10 @@ mod tests {
         assert_eq!(p.data.persisting, Some(Arc::clone(&p_batch)));
 
         // ------------------------------------------
-        // Take snaphot of the `buffer`
+        // Take snapshot of the `buffer`
         p.snapshot().unwrap();
         // verify data
-        assert!(p.data.buffer.is_none()); // empty after snaphot
+        assert!(p.data.buffer.is_none()); // empty after snapshot
         assert_eq!(p.data.snapshots.len(), 1); // data moved from buffer
         assert_eq!(p.data.deletes_during_persisting.len(), 1);
         assert_eq!(p.data.persisting, Some(Arc::clone(&p_batch)));
@@ -2593,7 +2593,7 @@ mod tests {
         assert_eq!(p.data.snapshots.len(), 1); // new snapshot of the existing with delete applied
         assert_eq!(p.data.deletes_during_persisting.len(), 2); // one more tombstone added make it 2
         assert_eq!(p.data.persisting, Some(Arc::clone(&p_batch)));
-        // snapshot has only 2 rows becasue the row with tem=60 was removed
+        // snapshot has only 2 rows because the row with tem=60 was removed
         let data = (*p.data.snapshots[0].data).clone();
         let expected = vec![
             "+------------+-----+------+--------------------------------+",

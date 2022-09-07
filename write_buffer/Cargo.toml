@@ -24,7 +24,7 @@ pin-project = "1.0"
 prost = "0.11"
 rskafka = { git = "https://github.com/influxdata/rskafka.git", rev="59295beeae2106c2536008065e171dd88fd1c64e", default-features = false, features = ["compression-snappy", "transport-socks5"] }
 schema = { path = "../schema" }
-tokio = { version = "1.20", features = ["fs", "macros", "parking_lot", "rt", "sync", "time"] }
+tokio = { version = "1.21", features = ["fs", "macros", "parking_lot", "rt", "sync", "time"] }
 tokio-util = "0.7.3"
 trace = { path = "../trace" }
 trace_http = { path = "../trace_http" }

@@ -36,7 +36,7 @@ schema = { path = "../schema" }
 snafu = "0.7"
 thiserror = "1.0"
 iox_time = { path = "../iox_time" }
-tokio = { version = "1.20", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
+tokio = { version = "1.21", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
 tonic = { version = "0.8" }
 tracker = { path = "../tracker" }
 uuid = { version = "1", features = ["v4"] }

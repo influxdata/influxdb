@@ -49,7 +49,7 @@ enum ShardStatus {
   SHARD_STATUS_READABLE = 2;
 
   // The ingester has processed the data in this write and it is both
-  // readable and completly persisted to parquet files.
+  // readable and completely persisted to parquet files.
   SHARD_STATUS_PERSISTED = 3;
 
   // The ingester does not have information about this shard

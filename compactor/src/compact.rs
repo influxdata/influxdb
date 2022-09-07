@@ -4,7 +4,7 @@ use crate::handler::CompactorConfig;
 use backoff::BackoffConfig;
 use data_types::{
     ColumnTypeCount, Namespace, NamespaceId, PartitionId, PartitionKey, PartitionParam, ShardId,
-    Table, TableId, TableSchema,
+    Table, TableId, TableSchema, Timestamp,
 };
 use iox_catalog::interface::{get_schema_by_id, Catalog};
 use iox_query::exec::Executor;
@@ -274,15 +274,20 @@ impl Compactor {
             ]);
 
             // Get the most recent highest ingested throughput partitions within
-            // the last 10 minutes. If nothing, increase to 30m minutes, 60 minutes,
-            // 4 * 60 minutes, 24 * 60 minutes
+            // the last 4 hours. If not, increase to 24 hours
             let mut num_partitions = 0;
-            for num_minutes in [10, 30, 60, 4 * 60, 24 * 60] {
+            for num_hours in [4, 24] {
+                // convert "now() - num_hours" to timenanosecond
+                let time_at_num_hours_ago = Timestamp::new(
+                    (self.time_provider.now() - Duration::from_secs(60 * 60 * num_hours))
+                        .timestamp_nanos(),
+                );
+
                 let mut partitions = repos
                     .parquet_files()
                     .recent_highest_throughput_partitions(
                         *shard_id,
-                        num_minutes,
+                        time_at_num_hours_ago,
                         min_recent_ingested_files,
                         max_num_partitions_per_shard,
                     )
@@ -294,7 +299,7 @@ impl Compactor {
                 if !partitions.is_empty() {
                     debug!(
                         shard_id = shard_id.get(),
-                        num_minutes,
+                        num_hours,
                         n = partitions.len(),
                         "found high-throughput partitions"
                     );
@@ -336,9 +341,17 @@ impl Compactor {
                 ("partition_type", "cold".into()),
             ]);
 
+            let time_24_hours_ago = Timestamp::new(
+                (self.time_provider.now() - Duration::from_secs(60 * 60 * 24)).timestamp_nanos(),
+            );
+
             let mut partitions = repos
                 .parquet_files()
-                .most_level_0_files_partitions(*shard_id, 24, max_num_partitions_per_shard)
+                .most_level_0_files_partitions(
+                    *shard_id,
+                    time_24_hours_ago,
+                    max_num_partitions_per_shard,
+                )
                 .await
                 .context(MostL0PartitionsSnafu {
                     shard_id: *shard_id,

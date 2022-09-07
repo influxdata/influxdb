@@ -832,7 +832,7 @@ pub struct Partition {
     /// of the existing columns relative to each other is NOT changed.
     ///
     /// For example, updating `A,B,C` to either `A,D,B,C` or `A,B,C,D`
-    /// is legal. Howver, updating to `A,C,D,B` is not because the
+    /// is legal. However, updating to `A,C,D,B` is not because the
     /// relative order of B and C have been reversed.
     pub sort_key: Vec<String>,
 }
@@ -1086,7 +1086,7 @@ impl ChunkId {
 
     /// **TESTING ONLY:** Create new ID from integer.
     ///
-    /// Since this can easily lead to ID collissions (which in turn can lead to panics), this must
+    /// Since this can easily lead to ID collisions (which in turn can lead to panics), this must
     /// only be used for testing purposes!
     pub fn new_test(id: u128) -> Self {
         Self(Uuid::from_u128(id))

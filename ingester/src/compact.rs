@@ -839,13 +839,13 @@ mod tests {
         let output_batches = datafusion::physical_plan::common::collect(stream)
             .await
             .unwrap();
-        // verify no empty record bacthes - bug #3782
+        // verify no empty record batches - bug #3782
         assert_eq!(output_batches.len(), 2);
         assert_eq!(output_batches[0].num_rows(), 1);
         assert_eq!(output_batches[1].num_rows(), 1);
 
         // verify compacted data
-        // row with "tag1=UT" no longer avaialble
+        // row with "tag1=UT" no longer available
         let expected = vec![
             "+-----------+------+-----------------------------+",
             "| field_int | tag1 | time                        |",

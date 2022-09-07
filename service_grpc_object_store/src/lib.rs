@@ -112,10 +112,10 @@ mod tests {
             let metrics = Arc::new(metric::Registry::default());
             let catalog = Arc::new(MemCatalog::new(metrics));
             let mut repos = catalog.repositories().await;
-            let topic = repos.topics().create_or_get("iox_shared").await.unwrap();
+            let topic = repos.topics().create_or_get("iox-shared").await.unwrap();
             let pool = repos
                 .query_pools()
-                .create_or_get("iox_shared")
+                .create_or_get("iox-shared")
                 .await
                 .unwrap();
             let shard = repos

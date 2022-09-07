@@ -22,7 +22,7 @@ If you want to trace memory allocations, you need to disable [jemalloc] by passi
 
 
 ## Out-of-memory (OOM)
-When profling a process that may potentially use too much memory and affect your whole system by doing so, you may want
+When profiling a process that may potentially use too much memory and affect your whole system by doing so, you may want
 to limit its resources a bit.
 
 ### ulimit

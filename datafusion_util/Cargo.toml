@@ -11,7 +11,7 @@ datafusion = { path = "../datafusion" }
 futures = "0.3"
 observability_deps = { path = "../observability_deps" }
 pin-project = "1.0"
-tokio = { version = "1.20", features = ["parking_lot", "sync"] }
+tokio = { version = "1.21", features = ["parking_lot", "sync"] }
 tokio-stream = "0.1"
 workspace-hack = { path = "../workspace-hack"}
 

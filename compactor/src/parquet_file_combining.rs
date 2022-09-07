@@ -1,4 +1,7 @@
-use crate::{compact::PartitionCompactionCandidateWithInfo, query::QueryableParquetChunk};
+use crate::{
+    compact::PartitionCompactionCandidateWithInfo, parquet_file::CompactorParquetFile,
+    query::QueryableParquetChunk,
+};
 use data_types::{
     CompactionLevel, ParquetFile, ParquetFileId, ParquetFileParams, PartitionId, TableSchema,
 };
@@ -69,7 +72,7 @@ pub(crate) enum Error {
 // Compact the given parquet files received from `filter_parquet_files` into one stream
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn compact_parquet_files(
-    files: Vec<ParquetFile>,
+    files: Vec<CompactorParquetFile>,
     partition: PartitionCompactionCandidateWithInfo,
     // The global catalog for schema, parquet files and tombstones
     catalog: Arc<dyn Catalog>,
@@ -106,7 +109,7 @@ pub(crate) async fn compact_parquet_files(
     );
 
     // Save all file sizes for recording metrics if this compaction succeeds.
-    let file_sizes: Vec<_> = files.iter().map(|f| f.file_size_bytes).collect();
+    let file_sizes: Vec<_> = files.iter().map(|f| f.file_size_bytes()).collect();
     // Find the total size of all files, to be used to determine if the result should be one file
     // or if the result should be split into multiple files.
     let total_size: i64 = file_sizes.iter().sum();
@@ -114,7 +117,7 @@ pub(crate) async fn compact_parquet_files(
 
     // Compute the number of files per compaction level for logging
     let mut num_files_by_level = BTreeMap::new();
-    for compaction_level in files.iter().map(|f| f.compaction_level) {
+    for compaction_level in files.iter().map(|f| f.compaction_level()) {
         *num_files_by_level.entry(compaction_level).or_default() += 1;
     }
     let num_level_0 = num_files_by_level
@@ -130,7 +133,7 @@ pub(crate) async fn compact_parquet_files(
 
     // Collect all the parquet file IDs, to be able to set their catalog records to be
     // deleted. These should already be unique, no need to dedupe.
-    let original_parquet_file_ids: Vec<_> = files.iter().map(|f| f.id).collect();
+    let original_parquet_file_ids: Vec<_> = files.iter().map(|f| f.id()).collect();
 
     // Convert the input files into QueryableParquetChunk for making query plan
     let query_chunks: Vec<_> = files
@@ -355,7 +358,7 @@ pub(crate) async fn compact_parquet_files(
 
 /// Convert ParquetFile to a QueryableParquetChunk
 fn to_queryable_parquet_chunk(
-    file: ParquetFile,
+    file: CompactorParquetFile,
     store: ParquetStorage,
     table_name: String,
     table_schema: &TableSchema,
@@ -363,7 +366,7 @@ fn to_queryable_parquet_chunk(
 ) -> QueryableParquetChunk {
     let column_id_lookup = table_schema.column_id_map();
     let selection: Vec<_> = file
-        .column_set
+        .column_set()
         .iter()
         .flat_map(|id| column_id_lookup.get(id).copied())
         .collect();
@@ -376,7 +379,7 @@ fn to_queryable_parquet_chunk(
         .expect("schema in-sync");
     let pk = schema.primary_key();
     let sort_key = partition_sort_key.as_ref().map(|sk| sk.filter_to(&pk));
-    let file = Arc::new(file);
+    let file = Arc::new(ParquetFile::from(file));
 
     let parquet_chunk = ParquetChunk::new(Arc::clone(&file), Arc::new(schema), store);
 
@@ -485,6 +488,8 @@ async fn update_catalog(
 
 #[cfg(test)]
 mod tests {
+    use crate::parquet_file::CompactorParquetFile;
+
     use super::*;
     use arrow::record_batch::RecordBatch;
     use arrow_util::assert_batches_sorted_eq;
@@ -518,7 +523,7 @@ mod tests {
         catalog: Arc<TestCatalog>,
         table: Arc<TestTable>,
         candidate_partition: PartitionCompactionCandidateWithInfo,
-        parquet_files: Vec<ParquetFile>,
+        parquet_files: Vec<CompactorParquetFile>,
     }
 
     async fn test_setup() -> TestSetup {
@@ -566,7 +571,11 @@ mod tests {
             .with_line_protocol(&lp)
             .with_max_seq(20) // This should be irrelevant because this is a level 1 file
             .with_compaction_level(CompactionLevel::FileNonOverlapped); // Prev compaction
-        let level_1_file = partition.create_parquet_file(builder).await;
+        let level_1_file = partition
+            .create_parquet_file(builder)
+            .await
+            .parquet_file
+            .into();
 
         let lp = vec![
             "table,tag1=WA field_int=1000i 8000", // will be eliminated due to duplicate
@@ -577,7 +586,11 @@ mod tests {
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(&lp)
             .with_max_seq(1);
-        let level_0_max_seq_1 = partition.create_parquet_file(builder).await;
+        let level_0_max_seq_1 = partition
+            .create_parquet_file(builder)
+            .await
+            .parquet_file
+            .into();
 
         let lp = vec![
             "table,tag1=WA field_int=1500i 8000", // latest duplicate and kept
@@ -588,7 +601,11 @@ mod tests {
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(&lp)
             .with_max_seq(2);
-        let level_0_max_seq_2 = partition.create_parquet_file(builder).await;
+        let level_0_max_seq_2 = partition
+            .create_parquet_file(builder)
+            .await
+            .parquet_file
+            .into();
 
         let lp = vec![
             "table,tag1=VT field_int=88i 10000", // will be deduplicated with level_0_max_seq_1
@@ -599,16 +616,22 @@ mod tests {
             .with_line_protocol(&lp)
             .with_max_seq(5) // This should be irrelevant because this is a level 1 file
             .with_compaction_level(CompactionLevel::FileNonOverlapped); // Prev compaction
-        let level_1_with_duplicates = partition.create_parquet_file(builder).await;
+        let level_1_with_duplicates = partition
+            .create_parquet_file(builder)
+            .await
+            .parquet_file
+            .into();
 
         let lp = vec!["table,tag2=OH,tag3=21 field_int=21i 36000"].join("\n");
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(&lp)
             .with_min_time(0)
-            .with_max_time(36000)
-            // Will put the group size between "small" and "large"
-            .with_file_size_bytes(50 * 1024 * 1024);
-        let medium_file = partition.create_parquet_file(builder).await;
+            .with_max_time(36000);
+        // Will put the group size between "small" and "large"
+        let medium_file = CompactorParquetFile::with_size_override(
+            partition.create_parquet_file(builder).await.parquet_file,
+            50 * 1024 * 1024,
+        );
 
         let lp = vec![
             "table,tag1=VT field_int=10i 68000",
@@ -618,20 +641,22 @@ mod tests {
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(&lp)
             .with_min_time(36001)
-            .with_max_time(136000)
-            // Will put the group size two multiples over "large"
-            .with_file_size_bytes(180 * 1024 * 1024);
-        let large_file = partition.create_parquet_file(builder).await;
+            .with_max_time(136000);
+        // Will put the group size two multiples over "large"
+        let large_file = CompactorParquetFile::with_size_override(
+            partition.create_parquet_file(builder).await.parquet_file,
+            180 * 1024 * 1024,
+        );
 
         // Order here isn't relevant; the chunk order should ensure the level 1 files are ordered
         // first, then the other files by max seq num.
         let parquet_files = vec![
-            level_0_max_seq_2.parquet_file,
-            level_1_with_duplicates.parquet_file,
-            level_0_max_seq_1.parquet_file,
-            level_1_file.parquet_file,
-            medium_file.parquet_file,
-            large_file.parquet_file,
+            level_0_max_seq_2,
+            level_1_with_duplicates,
+            level_0_max_seq_1,
+            level_1_file,
+            medium_file,
+            large_file,
         ];
 
         TestSetup {
@@ -1155,7 +1180,9 @@ mod tests {
         let schema = table_schema.select_by_names(&selection).unwrap();
 
         let path: ParquetFilePath = (&file).into();
-        let rx = storage.read_all(schema.as_arrow(), &path).unwrap();
+        let rx = storage
+            .read_all(schema.as_arrow(), &path, file.file_size_bytes as usize)
+            .unwrap();
         datafusion::physical_plan::common::collect(rx)
             .await
             .unwrap()

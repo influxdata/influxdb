@@ -296,9 +296,12 @@ impl QueryChunk for QuerierChunk {
                 let selection: Selection<'_> = (&selection).into();
 
                 let stream_res: ArrowResult<SendableRecordBatchStream> = match &*stage {
-                    ChunkStage::Parquet { parquet_chunk, .. } => Ok(parquet_chunk
-                        .read_filter(&pred_with_deleted_exprs, selection)
-                        .context(ParquetFileChunkSnafu { chunk_id })?),
+                    ChunkStage::Parquet { parquet_chunk, .. } => {
+                        debug!(?predicate, "parquet read_filter");
+                        Ok(parquet_chunk
+                            .read_filter(&pred_with_deleted_exprs, selection)
+                            .context(ParquetFileChunkSnafu { chunk_id })?)
+                    }
                     ChunkStage::ReadBuffer { rb_chunk, .. } => {
                         // Only apply pushdownable predicates
                         let rb_predicate = rb_chunk

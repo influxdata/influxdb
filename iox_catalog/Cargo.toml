@@ -15,8 +15,8 @@ observability_deps = { path = "../observability_deps" }
 snafu = "0.7"
 sqlx = { version = "0.6", features = [ "runtime-tokio-rustls" , "postgres", "uuid" ] }
 sqlx-hotswap-pool = { path = "../sqlx-hotswap-pool" }
-thiserror = "1.0.33"
-tokio = { version = "1.20", features = ["io-util", "macros", "parking_lot", "rt-multi-thread", "time"] }
+thiserror = "1.0.34"
+tokio = { version = "1.21", features = ["io-util", "macros", "parking_lot", "rt-multi-thread", "time"] }
 uuid = { version = "1", features = ["v4"] }
 workspace-hack = { path = "../workspace-hack"}
 

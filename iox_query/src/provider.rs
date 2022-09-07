@@ -632,7 +632,7 @@ impl Deduplicater {
 
         // -------------------------------
         // Group chunks by partition first
-        // Chunks in different partition are guarantee not to ovelap
+        // Chunks in different partition are guarantee not to overlap
 
         // Chunks without assigned partition id should be treated overlapped
         // This is the case of ingester data

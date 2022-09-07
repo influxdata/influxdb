@@ -36,10 +36,10 @@ pub fn rewrite(expr: Expr) -> Result<Expr> {
     expr.rewrite(&mut IOxExprRewriter::new())
 }
 
-/// Special purpose `Expr` rewrite rules for an Expr that is used as a predcate.
+/// Special purpose `Expr` rewrite rules for an Expr that is used as a predicate.
 ///
 /// In general the rewrite rules in Datafusion and IOx attempt to
-/// preserve the sematics of an expression, especially with respect to
+/// preserve the semantics of an expression, especially with respect to
 /// nulls. This means that certain expressions can not be simplified
 /// (as they may become null)
 ///

@@ -567,30 +567,34 @@ mod tests {
             .with_line_protocol("table foo=1 11")
             .with_max_seq(2)
             .with_min_time(11)
-            .with_max_time(11)
-            .with_file_size_bytes(100);
-        partition.create_parquet_file(builder).await;
+            .with_max_time(11);
+        let file1 = partition.create_parquet_file(builder).await;
 
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol("table foo=2 22")
             .with_max_seq(4)
             .with_min_time(22)
-            .with_max_time(22)
-            .with_file_size_bytes(200);
-        partition.create_parquet_file(builder).await;
+            .with_max_time(22);
+        let file2 = partition.create_parquet_file(builder).await;
 
-        let querier_namespace = Arc::new(querier_namespace_with_limit(&ns, 300).await);
+        let total_size =
+            (file1.parquet_file.file_size_bytes + file2.parquet_file.file_size_bytes) as usize;
+
+        // querying right at the total size works (i.e. the limit is INCLUSIVE)
+        let querier_namespace = Arc::new(querier_namespace_with_limit(&ns, total_size).await);
         run_res(&querier_namespace, "SELECT * FROM \"table\"", None)
             .await
             .unwrap();
 
-        let querier_namespace = Arc::new(querier_namespace_with_limit(&ns, 299).await);
+        // check that limit is enforced
+        let limit = total_size - 1;
+        let querier_namespace = Arc::new(querier_namespace_with_limit(&ns, limit).await);
         let err = run_res(&querier_namespace, "SELECT * FROM \"table\"", None)
             .await
             .unwrap_err();
         assert_eq!(
             err.to_string(),
-            "Cannot build plan: External error: Chunk pruning failed: Query would scan at least 300 bytes, more than configured maximum 299 bytes. Try adjusting your compactor settings or increasing the per query memory limit."
+            format!("Cannot build plan: External error: Chunk pruning failed: Query would scan at least {total_size} bytes, more than configured maximum {limit} bytes. Try adjusting your compactor settings or increasing the per query memory limit."),
         );
     }
 

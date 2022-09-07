@@ -23,6 +23,7 @@ pub enum Error {}
 /// Return number of compacted partitions
 pub async fn compact_hot_partitions(compactor: Arc<Compactor>) -> usize {
     // Select hot partition candidates
+    debug!("start collecting hot partitions to compact");
     let hot_attributes = Attributes::from(&[("partition_type", "hot")]);
     let start_time = compactor.time_provider.now();
     let candidates = Backoff::new(&compactor.backoff_config)
@@ -53,6 +54,7 @@ pub async fn compact_hot_partitions(compactor: Arc<Compactor>) -> usize {
     let start_time = compactor.time_provider.now();
 
     // Column types and their counts of the tables of the partition candidates
+    debug!(num_candidates=?candidates.len(), "start getting column types for the partition candidates");
     let table_columns = Backoff::new(&compactor.backoff_config)
         .retry_all_errors("table_columns", || async {
             compactor.table_columns(&candidates).await
@@ -61,6 +63,7 @@ pub async fn compact_hot_partitions(compactor: Arc<Compactor>) -> usize {
         .expect("retry forever");
 
     // Add other compaction-needed info into selected partitions
+    debug!(num_candidates=?candidates.len(), "start getting column types for the partition candidates");
     let candidates = Backoff::new(&compactor.backoff_config)
         .retry_all_errors("add_info_to_partitions", || async {
             compactor.add_info_to_partitions(&candidates).await
@@ -172,6 +175,7 @@ async fn compact_hot_partition_candidates<F, Fut>(
                     parquet_file_lookup::ParquetFilesForCompaction::for_partition(
                         Arc::clone(&compactor.catalog),
                         partition_id,
+                        &Default::default(),
                     )
                     .await;
                 match parquet_files_for_compaction {
@@ -612,21 +616,21 @@ mod tests {
         assert_eq!(g1_candidate1.budget_bytes(), 4500);
         assert_eq!(g1_candidate1.partition.id(), partition1.partition.id);
         let g1_candidate1_pf_ids: Vec<_> =
-            g1_candidate1.files.iter().map(|pf| pf.id.get()).collect();
+            g1_candidate1.files.iter().map(|pf| pf.id().get()).collect();
         assert_eq!(g1_candidate1_pf_ids, vec![2, 1]);
 
         let g1_candidate2 = &group1[1];
         assert_eq!(g1_candidate2.budget_bytes(), 4500);
         assert_eq!(g1_candidate2.partition.id(), partition2.partition.id);
         let g1_candidate2_pf_ids: Vec<_> =
-            g1_candidate2.files.iter().map(|pf| pf.id.get()).collect();
+            g1_candidate2.files.iter().map(|pf| pf.id().get()).collect();
         assert_eq!(g1_candidate2_pf_ids, vec![4, 3]);
 
         let g1_candidate3 = &group1[2];
         assert_eq!(g1_candidate3.budget_bytes(), 4500);
         assert_eq!(g1_candidate3.partition.id(), partition5.partition.id);
         let g1_candidate3_pf_ids: Vec<_> =
-            g1_candidate3.files.iter().map(|pf| pf.id.get()).collect();
+            g1_candidate3.files.iter().map(|pf| pf.id().get()).collect();
         assert_eq!(g1_candidate3_pf_ids, vec![10, 9]);
 
         // Round 2
@@ -637,7 +641,7 @@ mod tests {
         assert_eq!(g2_candidate1.budget_bytes(), 4500);
         assert_eq!(g2_candidate1.partition.id(), partition6.partition.id);
         let g2_candidate1_pf_ids: Vec<_> =
-            g2_candidate1.files.iter().map(|pf| pf.id.get()).collect();
+            g2_candidate1.files.iter().map(|pf| pf.id().get()).collect();
         assert_eq!(g2_candidate1_pf_ids, vec![12, 11]);
 
         // Round 3
@@ -648,7 +652,7 @@ mod tests {
         assert_eq!(g3_candidate1.budget_bytes(), 11250);
         assert_eq!(g3_candidate1.partition.id(), partition3.partition.id);
         let g3_candidate1_pf_ids: Vec<_> =
-            g3_candidate1.files.iter().map(|pf| pf.id.get()).collect();
+            g3_candidate1.files.iter().map(|pf| pf.id().get()).collect();
         assert_eq!(g3_candidate1_pf_ids, vec![6, 5]);
     }
 

@@ -16,7 +16,7 @@ use generated_types::influxdata::iox::ingester::v1::{
     self as proto,
     write_info_service_server::{WriteInfoService, WriteInfoServiceServer},
 };
-use observability_deps::tracing::{info, warn};
+use observability_deps::tracing::{debug, info, warn};
 use pin_project::pin_project;
 use prost::Message;
 use snafu::{ResultExt, Snafu};
@@ -101,9 +101,12 @@ impl WriteInfoService for WriteInfoServiceImpl {
                     .write_status(shard_index, &progress)
                     .map_err(|e| tonic::Status::invalid_argument(e.to_string()))?;
 
+                let shard_index = shard_index.get();
+                let status = proto::ShardStatus::from(status);
+                debug!(shard_index, ?status, "write info status",);
                 Ok(proto::ShardInfo {
-                    shard_index: shard_index.get(),
-                    status: proto::ShardStatus::from(status).into(),
+                    shard_index,
+                    status: status.into(),
                 })
             })
             .collect::<Result<Vec<_>, tonic::Status>>()?;

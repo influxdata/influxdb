@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use crate::identifier::unquoted_identifier;
 use crate::literal::literal_regex;
 use crate::{
     identifier::{identifier, Identifier},
@@ -10,8 +11,8 @@ use nom::branch::alt;
 use nom::bytes::complete::{tag, tag_no_case};
 use nom::character::complete::{char, multispace0};
 use nom::combinator::{cut, map, value};
-use nom::multi::many0;
-use nom::sequence::{delimited, preceded, tuple};
+use nom::multi::{many0, separated_list0};
+use nom::sequence::{delimited, preceded, separated_pair, tuple};
 use nom::IResult;
 use std::fmt::{Display, Formatter, Write};
 
@@ -29,6 +30,12 @@ pub enum Expr {
 
     /// Unary operation such as + 5 or - 1h3m
     UnaryOp(UnaryOperator, Box<Expr>),
+
+    /// Function call
+    Call {
+        name: String,
+        args: Option<Vec<Expr>>,
+    },
 
     /// Binary operations, such as the
     /// conditional foo = 'bar' or the arithmetic 1 + 2 expressions.
@@ -75,6 +82,20 @@ impl Display for Expr {
             Self::UnaryOp(op, e) => write!(f, "{}{}", op, e)?,
             Self::BinaryOp { lhs, op, rhs } => write!(f, "{} {} {}", lhs, op, rhs)?,
             Self::Nested(e) => write!(f, "({})", e)?,
+            Self::Call { name, args } => {
+                write!(f, "{}(", name)?;
+                match args {
+                    Some(args) if !args.is_empty() => {
+                        let args = args.as_slice();
+                        write!(f, "{}", args[0])?;
+                        for arg in &args[1..] {
+                            write!(f, ", {}", arg)?;
+                        }
+                    }
+                    _ => {}
+                }
+                write!(f, ")")?;
+            }
         }
 
         Ok(())
@@ -172,6 +193,33 @@ fn parens(i: &str) -> IResult<&str, Expr> {
         preceded(multispace0, char('(')),
         map(conditional_expression, |e| Expr::Nested(e.into())),
         preceded(multispace0, char(')')),
+    )(i)
+}
+
+/// Parse a function call expression
+fn call(i: &str) -> IResult<&str, Expr> {
+    map(
+        separated_pair(
+            unquoted_identifier,
+            multispace0,
+            delimited(
+                char('('),
+                alt((
+                    // A single regular expression to match 0 or more field keys
+                    map(preceded(multispace0, literal_regex), |re| vec![re.into()]),
+                    // A list of Expr, separated by commas
+                    separated_list0(preceded(multispace0, char(',')), arithmetic),
+                )),
+                cut(preceded(multispace0, char(')'))),
+            ),
+        ),
+        |(name, args)| match args.is_empty() {
+            true => Expr::Call { name, args: None },
+            false => Expr::Call {
+                name,
+                args: Some(args),
+            },
+        },
     )(i)
 }
 
@@ -564,5 +612,49 @@ mod test {
 
         // can't parse literal regular expressions as part of an arithmetic expression
         assert_failure!(conditional_expression(r#""foo" + /^(no|match)$/"#));
+    }
+
+    #[test]
+    fn test_call() {
+        // These tests validate a `Call` expression and also it's Display implementation.
+        // We don't need to validate Expr trees, as we do that in the conditional and arithmetic
+        // tests.
+
+        // No arguments
+        let (_, ex) = call("FN()").unwrap();
+        let got = format!("{}", ex);
+        assert_eq!(got, "FN()");
+
+        // Single argument with surrounding whitespace
+        let (_, ex) = call("FN ( 1 )").unwrap();
+        let got = format!("{}", ex);
+        assert_eq!(got, "FN(1)");
+
+        // Multiple arguments with varying whitespace
+        let (_, ex) = call("FN ( 1,2\n,3,\t4 )").unwrap();
+        let got = format!("{}", ex);
+        assert_eq!(got, "FN(1, 2, 3, 4)");
+
+        // Arguments as expressions
+        let (_, ex) = call("FN ( 1 + 2, foo, 'bar' )").unwrap();
+        let got = format!("{}", ex);
+        assert_eq!(got, "FN(1 + 2, foo, 'bar')");
+
+        // A single regular expression argument
+        let (_, ex) = call("FN ( /foo/ )").unwrap();
+        let got = format!("{}", ex);
+        assert_eq!(got, "FN(/foo/)");
+
+        // Fallible cases
+
+        call("FN ( 1").unwrap_err();
+        call("FN ( 1, )").unwrap_err();
+        call("FN ( 1,, 2 )").unwrap_err();
+
+        // Conditionals not supported
+        call("FN ( 1 = 2 )").unwrap_err();
+
+        // Multiple regular expressions not supported
+        call("FN ( /foo/, /bar/ )").unwrap_err();
     }
 }

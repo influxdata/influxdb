@@ -20,14 +20,13 @@ service_grpc_influxrpc = { path = "../service_grpc_influxrpc" }
 sharder = { path = "../sharder" }
 iox_time = { path = "../iox_time" }
 trace = { path = "../trace" }
-write_buffer = { path = "../write_buffer" }
 
 # Crates.io dependencies, in alphabetical order
 arrow-flight = "21.0.0"
 async-trait = "0.1"
 hyper = "0.14"
-thiserror = "1.0.33"
-tokio = { version = "1.20", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
+thiserror = "1.0.34"
+tokio = { version = "1.21", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
 tonic = "0.8"
 workspace-hack = { path = "../workspace-hack"}
 parquet_file = { version = "0.1.0", path = "../parquet_file" }

@@ -123,7 +123,7 @@ fn regex_literal(i: &str) -> IResult<&str, &str> {
 
 /// An unescaped regular expression.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Regex(String);
+pub struct Regex(pub(crate) String);
 
 impl Display for Regex {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {

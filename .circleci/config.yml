@@ -263,9 +263,10 @@ jobs:
     environment:
       # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
       CARGO_INCREMENTAL: "0"
-      # Disable full debug symbol generation to speed up CI build
-      # "1" means line tables only, which is useful for panic tracebacks.
-      RUSTFLAGS: "-C debuginfo=1"
+      # - Disable full debug symbol generation to speed up CI build
+      #   "1" means line tables only, which is useful for panic tracebacks.
+      # - Enable tokio-console
+      RUSTFLAGS: "-C debuginfo=1 --cfg tokio_unstable"
       # https://github.com/rust-lang/cargo/issues/10280
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
       # The `2xlarge` resource class that we use has 32GB RAM but also 16 CPUs. This means we have 2GB RAM per core on
@@ -282,8 +283,8 @@ jobs:
           name: Check benches compile
           command: cargo check --workspace --benches
       - run:
-          name: Check object store + exporter support + HEAP profiling compiles
-          command: cargo check --no-default-features --features="aws,gcp,azure,heappy,pprof"
+          name: Check extra features (like prod image)
+          command: cargo check --no-default-features --features="aws,gcp,azure,jemalloc_replacing_malloc,tokio_console,pprof"
       - run:
           # Validate that the data generator compiles (in the same way as it does in release builds)
           name: Check iox_data_generator compiles

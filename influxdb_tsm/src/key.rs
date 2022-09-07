@@ -199,7 +199,7 @@ fn parse_id(key: impl Iterator<Item = u8>) -> Result<InfluxId, DataError> {
 ///
 /// Example: sum#!~#sum means 'sum' field key
 ///
-/// It also turns out that the data after the delimiter does not necessairly
+/// It also turns out that the data after the delimiter does not necessarily
 /// escape the data.
 ///
 /// So for example, the following is a valid field key value (for the

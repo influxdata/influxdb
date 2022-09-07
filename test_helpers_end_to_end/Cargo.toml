@@ -16,7 +16,7 @@ hyper = "0.14"
 influxdb_iox_client = { path = "../influxdb_iox_client", features = ["flight", "format", "write_lp"] }
 nix = "0.25"
 observability_deps = { path = "../observability_deps" }
-once_cell = { version = "1.13.1", features = ["parking_lot"] }
+once_cell = { version = "1.14.0", features = ["parking_lot"] }
 parking_lot = "0.12"
 prost = "0.11"
 rand = "0.8.3"
@@ -24,7 +24,7 @@ reqwest = { version = "0.11", default-features = false, features = ["json", "rus
 sqlx = { version = "0.6", features = [ "runtime-tokio-rustls" , "postgres", "uuid" ] }
 tempfile = "3.1.0"
 test_helpers = { path = "../test_helpers", features = ["future_timeout"] }
-tokio = { version = "1.20", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
+tokio = { version = "1.21", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-util = "0.7"
 tonic = "0.8"
 workspace-hack = { path = "../workspace-hack"}

@@ -26,7 +26,6 @@ use std::{
     convert::TryFrom,
     fmt::Formatter,
     sync::Arc,
-    time::Duration,
 };
 use tokio::sync::{Mutex, OwnedMutexGuard};
 
@@ -1140,13 +1139,11 @@ impl ParquetFileRepo for MemTxn {
     async fn recent_highest_throughput_partitions(
         &mut self,
         shard_id: ShardId,
-        num_minutes: u32,
+        time_in_the_past: Timestamp,
         min_num_files: usize,
         num_partitions: usize,
     ) -> Result<Vec<PartitionParam>> {
-        let time_nano = (self.time_provider.now() - Duration::from_secs(60 * num_minutes as u64))
-            .timestamp_nanos();
-        let recent_time = Timestamp::new(time_nano);
+        let recent_time = time_in_the_past;
 
         let stage = self.stage();
 
@@ -1198,14 +1195,9 @@ impl ParquetFileRepo for MemTxn {
     async fn most_level_0_files_partitions(
         &mut self,
         shard_id: ShardId,
-        older_than_num_hours: u32,
+        time_in_the_past: Timestamp,
         num_partitions: usize,
     ) -> Result<Vec<PartitionParam>> {
-        let time_nano = (self.time_provider.now()
-            - Duration::from_secs(60 * 60 * older_than_num_hours as u64))
-        .timestamp_nanos();
-        let older_than = Timestamp::new(time_nano);
-
         let stage = self.stage();
         let relevant_parquet_files = stage
             .parquet_files
@@ -1239,7 +1231,7 @@ impl ParquetFileRepo for MemTxn {
         // Sort partitions whose max created at is older than the limit by their file count
         let mut partitions = partition_duplicate_count
             .iter()
-            .filter(|(k, _v)| partition_max_created_at.get(k).unwrap() < &older_than)
+            .filter(|(k, _v)| partition_max_created_at.get(k).unwrap() < &time_in_the_past)
             .collect::<Vec<_>>();
         partitions.sort_by(|a, b| b.1.cmp(a.1));
 
@@ -1404,7 +1396,7 @@ impl ProcessedTombstoneRepo for MemTxn {
             .iter()
             .any(|pt| pt.tombstone_id == tombstone_id && pt.parquet_file_id == parquet_file_id)
         {
-            // The tombstone was already proccessed for this file
+            // The tombstone was already processed for this file
             return Err(Error::ProcessTombstoneExists {
                 parquet_file_id: parquet_file_id.get(),
                 tombstone_id: tombstone_id.get(),

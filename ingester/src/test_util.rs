@@ -852,9 +852,9 @@ pub(crate) async fn make_one_partition_with_tombstones(
     let (mut p1, seq_num) =
         make_first_partition_data(partition_id, loc, shard_id, table_id, table_name);
 
-    // Add tombtones
-    // Depending on where the existing data is, they (buffer & snapshot) will be either moved to a new sanpshot after
-    // appying the tombstone or (persisting) stay where they are and the tomstobes is kept to get applied later
+    // Add tombstones
+    // Depending on where the existing data is, they (buffer & snapshot) will be either moved to a new snapshot after
+    // applying the tombstone or (persisting) stay where they are and the tombstones is kept to get applied later
     // ------------------------------------------
     // Delete
     let mut seq_num = seq_num.get();
