@@ -29,8 +29,9 @@ mod internal;
 use internal::{
     BooleanFirstSelector, BooleanLastSelector, BooleanMaxSelector, BooleanMinSelector,
     F64FirstSelector, F64LastSelector, F64MaxSelector, F64MinSelector, I64FirstSelector,
-    I64LastSelector, I64MaxSelector, I64MinSelector, Utf8FirstSelector, Utf8LastSelector,
-    Utf8MaxSelector, Utf8MinSelector,
+    I64LastSelector, I64MaxSelector, I64MinSelector, U64FirstSelector, U64LastSelector,
+    U64MaxSelector, U64MinSelector, Utf8FirstSelector, Utf8LastSelector, Utf8MaxSelector,
+    Utf8MinSelector,
 };
 use schema::TIME_DATA_TYPE;
 
@@ -58,6 +59,7 @@ pub fn selector_first(data_type: &DataType, output: SelectorOutput) -> Aggregate
     match data_type {
         DataType::Float64 => make_uda::<F64FirstSelector>(name, output),
         DataType::Int64 => make_uda::<I64FirstSelector>(name, output),
+        DataType::UInt64 => make_uda::<U64FirstSelector>(name, output),
         DataType::Utf8 => make_uda::<Utf8FirstSelector>(name, output),
         DataType::Boolean => make_uda::<BooleanFirstSelector>(name, output),
         _ => unimplemented!("first not supported for {:?}", data_type),
@@ -88,6 +90,7 @@ pub fn selector_last(data_type: &DataType, output: SelectorOutput) -> AggregateU
     match data_type {
         DataType::Float64 => make_uda::<F64LastSelector>(name, output),
         DataType::Int64 => make_uda::<I64LastSelector>(name, output),
+        DataType::UInt64 => make_uda::<U64LastSelector>(name, output),
         DataType::Utf8 => make_uda::<Utf8LastSelector>(name, output),
         DataType::Boolean => make_uda::<BooleanLastSelector>(name, output),
         _ => unimplemented!("last not supported for {:?}", data_type),
@@ -118,6 +121,7 @@ pub fn selector_min(data_type: &DataType, output: SelectorOutput) -> AggregateUD
     match data_type {
         DataType::Float64 => make_uda::<F64MinSelector>(name, output),
         DataType::Int64 => make_uda::<I64MinSelector>(name, output),
+        DataType::UInt64 => make_uda::<U64MinSelector>(name, output),
         DataType::Utf8 => make_uda::<Utf8MinSelector>(name, output),
         DataType::Boolean => make_uda::<BooleanMinSelector>(name, output),
         _ => unimplemented!("min not supported for {:?}", data_type),
@@ -148,6 +152,7 @@ pub fn selector_max(data_type: &DataType, output: SelectorOutput) -> AggregateUD
     match data_type {
         DataType::Float64 => make_uda::<F64MaxSelector>(name, output),
         DataType::Int64 => make_uda::<I64MaxSelector>(name, output),
+        DataType::UInt64 => make_uda::<U64MaxSelector>(name, output),
         DataType::Utf8 => make_uda::<Utf8MaxSelector>(name, output),
         DataType::Boolean => make_uda::<BooleanMaxSelector>(name, output),
         _ => unimplemented!("max not supported for {:?}", data_type),
@@ -300,7 +305,10 @@ where
 #[cfg(test)]
 mod test {
     use arrow::{
-        array::{BooleanArray, Float64Array, Int64Array, StringArray, TimestampNanosecondArray},
+        array::{
+            BooleanArray, Float64Array, Int64Array, StringArray, TimestampNanosecondArray,
+            UInt64Array,
+        },
         datatypes::{Field, Schema, SchemaRef},
         record_batch::RecordBatch,
         util::pretty::pretty_format_batches,
@@ -332,6 +340,18 @@ mod test {
                 vec![
                     "+------------------------------------------+-----------------------------------------+",
                     "| selector_first_value(t.i64_value,t.time) | selector_first_time(t.i64_value,t.time) |",
+                    "+------------------------------------------+-----------------------------------------+",
+                    "| 20                                       | 1970-01-01 00:00:00.000001              |",
+                    "+------------------------------------------+-----------------------------------------+",
+                ],
+            ),
+            (
+                selector_first(&DataType::UInt64, SelectorOutput::Value),
+                selector_first(&DataType::UInt64, SelectorOutput::Time),
+                "u64_value",
+                vec![
+                    "+------------------------------------------+-----------------------------------------+",
+                    "| selector_first_value(t.u64_value,t.time) | selector_first_time(t.u64_value,t.time) |",
                     "+------------------------------------------+-----------------------------------------+",
                     "| 20                                       | 1970-01-01 00:00:00.000001              |",
                     "+------------------------------------------+-----------------------------------------+",
@@ -404,6 +424,18 @@ mod test {
                 ],
             ),
             (
+                selector_last(&DataType::UInt64, SelectorOutput::Value),
+                selector_last(&DataType::UInt64, SelectorOutput::Time),
+                "u64_value",
+                vec![
+                    "+-----------------------------------------+----------------------------------------+",
+                    "| selector_last_value(t.u64_value,t.time) | selector_last_time(t.u64_value,t.time) |",
+                    "+-----------------------------------------+----------------------------------------+",
+                    "| 30                                      | 1970-01-01 00:00:00.000006             |",
+                    "+-----------------------------------------+----------------------------------------+",
+                ],
+            ),
+            (
                 selector_last(&DataType::Utf8, SelectorOutput::Value),
                 selector_last(&DataType::Utf8, SelectorOutput::Time),
                 "string_value",
@@ -464,6 +496,18 @@ mod test {
                 vec![
                     "+----------------------------------------+---------------------------------------+",
                     "| selector_min_value(t.i64_value,t.time) | selector_min_time(t.i64_value,t.time) |",
+                    "+----------------------------------------+---------------------------------------+",
+                    "| 10                                     | 1970-01-01 00:00:00.000004            |",
+                    "+----------------------------------------+---------------------------------------+",
+                ],
+            ),
+            (
+                selector_min(&DataType::UInt64, SelectorOutput::Value),
+                selector_min(&DataType::UInt64, SelectorOutput::Time),
+                "u64_value",
+                vec![
+                    "+----------------------------------------+---------------------------------------+",
+                    "| selector_min_value(t.u64_value,t.time) | selector_min_time(t.u64_value,t.time) |",
                     "+----------------------------------------+---------------------------------------+",
                     "| 10                                     | 1970-01-01 00:00:00.000004            |",
                     "+----------------------------------------+---------------------------------------+",
@@ -536,6 +580,18 @@ mod test {
                 ],
             ),
             (
+                selector_max(&DataType::UInt64, SelectorOutput::Value),
+                selector_max(&DataType::UInt64, SelectorOutput::Time),
+                "u64_value",
+                vec![
+                    "+----------------------------------------+---------------------------------------+",
+                    "| selector_max_value(t.u64_value,t.time) | selector_max_time(t.u64_value,t.time) |",
+                    "+----------------------------------------+---------------------------------------+",
+                    "| 50                                     | 1970-01-01 00:00:00.000005            |",
+                    "+----------------------------------------+---------------------------------------+",
+                ],
+            ),
+            (
                 selector_max(&DataType::Utf8, SelectorOutput::Value),
                 selector_max(&DataType::Utf8, SelectorOutput::Time),
                 "string_value",
@@ -594,6 +650,7 @@ mod test {
         let schema = Arc::new(Schema::new(vec![
             Field::new("f64_value", DataType::Float64, true),
             Field::new("i64_value", DataType::Int64, true),
+            Field::new("u64_value", DataType::UInt64, true),
             Field::new("string_value", DataType::Utf8, true),
             Field::new("bool_value", DataType::Boolean, true),
             Field::new("time", TIME_DATA_TYPE(), true),
@@ -605,6 +662,7 @@ mod test {
             vec![
                 Arc::new(Float64Array::from(vec![Some(2.0), Some(4.0), None])),
                 Arc::new(Int64Array::from(vec![Some(20), Some(40), None])),
+                Arc::new(UInt64Array::from(vec![Some(20), Some(40), None])),
                 Arc::new(StringArray::from(vec![Some("two"), Some("four"), None])),
                 Arc::new(BooleanArray::from(vec![Some(true), Some(false), None])),
                 Arc::new(TimestampNanosecondArray::from_vec(
@@ -621,6 +679,7 @@ mod test {
             vec![
                 Arc::new(Float64Array::from(vec![] as Vec<Option<f64>>)),
                 Arc::new(Int64Array::from(vec![] as Vec<Option<i64>>)),
+                Arc::new(UInt64Array::from(vec![] as Vec<Option<u64>>)),
                 Arc::new(StringArray::from(vec![] as Vec<Option<&str>>)),
                 Arc::new(BooleanArray::from(vec![] as Vec<Option<bool>>)),
                 Arc::new(TimestampNanosecondArray::from_vec(
@@ -638,6 +697,7 @@ mod test {
             vec![
                 Arc::new(Float64Array::from(vec![Some(1.0), Some(5.0), Some(3.0)])),
                 Arc::new(Int64Array::from(vec![Some(10), Some(50), Some(30)])),
+                Arc::new(UInt64Array::from(vec![Some(10), Some(50), Some(30)])),
                 Arc::new(StringArray::from(vec![
                     Some("a_one"),
                     Some("z_five"),

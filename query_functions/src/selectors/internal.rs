@@ -11,7 +11,7 @@ use std::fmt::Debug;
 use arrow::{
     array::{
         Array, ArrayRef, BooleanArray, Float64Array, Int64Array, StringArray,
-        TimestampNanosecondArray,
+        TimestampNanosecondArray, UInt64Array,
     },
     compute::kernels::aggregate::{
         max as array_max, max_boolean as array_max_boolean, max_string as array_max_string,
@@ -49,6 +49,12 @@ impl LtVal<Self> for i64 {
     }
 }
 
+impl LtVal<Self> for u64 {
+    fn lt_val(&self, v: &Self) -> bool {
+        self < v
+    }
+}
+
 impl LtVal<Self> for bool {
     fn lt_val(&self, v: &Self) -> bool {
         self < v
@@ -80,6 +86,12 @@ impl ToState<Self> for f64 {
 }
 
 impl ToState<Self> for i64 {
+    fn to_state(&self) -> Self {
+        *self
+    }
+}
+
+impl ToState<Self> for u64 {
     fn to_state(&self) -> Self {
         *self
     }
@@ -579,6 +591,14 @@ make_first_selector!(
     ScalarValue::Int64
 );
 make_first_selector!(
+    U64FirstSelector,
+    u64,
+    DataType::UInt64,
+    UInt64Array,
+    array_min,
+    ScalarValue::UInt64
+);
+make_first_selector!(
     Utf8FirstSelector,
     String,
     DataType::Utf8,
@@ -612,6 +632,14 @@ make_last_selector!(
     Int64Array,
     array_max,
     ScalarValue::Int64
+);
+make_last_selector!(
+    U64LastSelector,
+    u64,
+    DataType::UInt64,
+    UInt64Array,
+    array_max,
+    ScalarValue::UInt64
 );
 make_last_selector!(
     Utf8LastSelector,
@@ -649,6 +677,14 @@ make_min_selector!(
     ScalarValue::Int64
 );
 make_min_selector!(
+    U64MinSelector,
+    u64,
+    DataType::UInt64,
+    UInt64Array,
+    array_min,
+    ScalarValue::UInt64
+);
+make_min_selector!(
     Utf8MinSelector,
     String,
     DataType::Utf8,
@@ -682,6 +718,14 @@ make_max_selector!(
     Int64Array,
     array_max,
     ScalarValue::Int64
+);
+make_max_selector!(
+    U64MaxSelector,
+    u64,
+    DataType::UInt64,
+    UInt64Array,
+    array_max,
+    ScalarValue::UInt64
 );
 make_max_selector!(
     Utf8MaxSelector,
