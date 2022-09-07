@@ -179,7 +179,7 @@ impl ParquetFileWithTombstone {
 ///     13 = 7 (previous time) + 6 (time range)
 ///     19 = 13 (previous time) + 6 (time range)
 pub(crate) fn compute_split_time(
-    chunk_times: Vec<(i64, i64)>,   // Vec of (min_time, max_time)
+    chunk_times: Vec<(i64, i64)>, // Vec of (min_time, max_time)
     min_time: i64,
     max_time: i64,
     total_size: u64,
@@ -214,14 +214,14 @@ pub(crate) fn compute_split_time(
 
 // time_range_present returns true if the given time range is included in any of the chunks.
 fn time_range_present(
-    chunk_times: Vec<(i64, i64)>,   // Vec of (min_time, max_time)
+    chunk_times: Vec<(i64, i64)>, // Vec of (min_time, max_time)
     min_time: i64,
     max_time: i64,
 ) -> bool {
     for chunk in chunk_times {
         // if chunk.max >= min_time and chunk.min <= max_time, this chunk is within the given time range.
         if chunk.1 >= min_time && chunk.0 <= max_time {
-            return true
+            return true;
         }
     }
     false
@@ -240,20 +240,38 @@ mod tests {
         let chunk_times = vec![(min_time, max_time)];
 
         // no split
-        let result = compute_split_time(chunk_times.clone(), min_time, max_time, total_size, max_desired_file_size);
+        let result = compute_split_time(
+            chunk_times.clone(),
+            min_time,
+            max_time,
+            total_size,
+            max_desired_file_size,
+        );
         assert_eq!(result.len(), 1);
         assert_eq!(result[0], max_time);
 
         // split 70% and 30%
         let max_desired_file_size = 70;
-        let result = compute_split_time(chunk_times.clone(), min_time, max_time, total_size, max_desired_file_size);
+        let result = compute_split_time(
+            chunk_times.clone(),
+            min_time,
+            max_time,
+            total_size,
+            max_desired_file_size,
+        );
         // only need to store the last split time
         assert_eq!(result.len(), 1);
         assert_eq!(result[0], 8); // = 1 (min_time) + 7
 
         // split 40%, 40%, 20%
         let max_desired_file_size = 40;
-        let result = compute_split_time(chunk_times, min_time, max_time, total_size, max_desired_file_size);
+        let result = compute_split_time(
+            chunk_times,
+            min_time,
+            max_time,
+            total_size,
+            max_desired_file_size,
+        );
         // store first and second split time
         assert_eq!(result.len(), 2);
         assert_eq!(result[0], 5); // = 1 (min_time) + 4
@@ -274,7 +292,13 @@ mod tests {
         let max_desired_file_size = 100;
         let chunk_times = vec![(min_time, max_time)];
 
-        let result = compute_split_time(chunk_times, min_time, max_time, total_size, max_desired_file_size);
+        let result = compute_split_time(
+            chunk_times,
+            min_time,
+            max_time,
+            total_size,
+            max_desired_file_size,
+        );
 
         // must return vector of one containing max_time
         assert_eq!(result.len(), 1);
@@ -293,13 +317,18 @@ mod tests {
 
         let chunk_times = vec![(min_time, max_time)];
 
-        let result = compute_split_time(chunk_times, min_time, max_time, total_size, max_desired_file_size);
+        let result = compute_split_time(
+            chunk_times,
+            min_time,
+            max_time,
+            total_size,
+            max_desired_file_size,
+        );
         assert_eq!(result.len(), 9);
     }
 
     #[test]
     fn compute_split_time_chunk_gaps() {
-
         // When the chunks have large gaps, we should not introduce a splits that cause time ranges
         // known to be empty.  Split T2 below should not exist.
         //                   │               │
@@ -316,9 +345,15 @@ mod tests {
 
         let total_size = 200;
         let max_desired_file_size = total_size / 3;
-        let chunk_times = vec![(1,24), (75,100)];
+        let chunk_times = vec![(1, 24), (75, 100)];
 
-        let result = compute_split_time(chunk_times, min_time, max_time, total_size, max_desired_file_size);
+        let result = compute_split_time(
+            chunk_times,
+            min_time,
+            max_time,
+            total_size,
+            max_desired_file_size,
+        );
 
         // must return vector of one, containing a Split T1 shown above.
         assert_eq!(result.len(), 1);

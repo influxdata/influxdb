@@ -167,7 +167,8 @@ pub(crate) async fn compact_parquet_files(
     }
 
     // extract the min & max chunk times for filtering potential split times.
-    let chunk_times : Vec<_> = query_chunks.clone()
+    let chunk_times: Vec<_> = query_chunks
+        .clone()
         .into_iter()
         .map(|c| (c.min_time(), c.max_time()))
         .collect();
