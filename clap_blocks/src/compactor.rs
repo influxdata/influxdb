@@ -163,15 +163,18 @@ macro_rules! gen_compactor_config {
             )]
             pub hot_multiple: usize,
 
-            /// The memory budget asigned to this compactor.
-            /// For each partition candidate, we will esimate the memory needed to compact each file
-            /// and only add more files if their needed estimated memory is below this memory budget.
-            /// Since we must compact L1 files that overlapped with L0 files, if their total estimated
-            /// memory do not allow us to compact a part of a partition at all, we will not compact
-            /// it and will log the partition and its related information in a table in our catalog for
-            /// further diagnosis of the issue.
-            /// How many candidates compacted concurrently are also decided using this estimation and
-            /// budget.
+            /// The memory budget assigned to this compactor.
+            ///
+            /// For each partition candidate, we will estimate the memory needed to compact each
+            /// file and only add more files if their needed estimated memory is below this memory
+            /// budget. Since we must compact L1 files that overlapped with L0 files, if their
+            /// total estimated memory does not allow us to compact a part of a partition at all,
+            /// we will not compact it and will log the partition and its related information in a
+            /// table in our catalog for further diagnosis of the issue.
+            ///
+            /// The number of candidates compacted concurrently is also decided using this
+            /// estimation and budget.
+            ///
             /// Default is 30 * 1024 * 1024 * 1024 = 32,212,254,720 bytes (30GB).
             #[clap(
                 long = "--compaction-memory-budget-bytes",

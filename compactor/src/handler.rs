@@ -137,14 +137,16 @@ pub struct CompactorConfig {
     /// equally.
     pub hot_multiple: usize,
 
-    /// The memory budget asigned to this compactor.
-    /// For each partition candidate, we will esimate the memory needed to compact each file
+    /// The memory budget assigned to this compactor.
+    ///
+    /// For each partition candidate, we will estimate the memory needed to compact each file
     /// and only add more files if their needed estimated memory is below this memory budget.
     /// Since we must compact L1 files that overlapped with L0 files, if their total estimated
-    /// memory do not allow us to compact a part of a partition at all, we will not compact
+    /// memory does not allow us to compact a part of a partition at all, we will not compact
     /// it and will log the partition and its related information in a table in our catalog for
     /// further diagnosis of the issue.
-    /// How many candidates compacted concurrently are also decided using this estimation and
+    ///
+    /// The number of candidates compacted concurrently is also decided using this estimation and
     /// budget.
     pub memory_budget_bytes: u64,
 }
@@ -179,7 +181,7 @@ pub async fn run_compactor_once(compactor: Arc<Compactor>) {
         compacted_partitions +=
             compact_hot_partitions::compact_hot_partitions(Arc::clone(&compactor)).await;
         if compacted_partitions == 0 {
-            // Not found hot candidates, should move to compact cold partitions
+            // No hot candidates, should move to compact cold partitions
             break;
         }
     }
