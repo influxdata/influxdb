@@ -82,10 +82,6 @@ var (
 	// attempted on a hot shard.
 	ErrShardNotIdle = errors.New("shard not idle")
 
-	// ErrBadFieldChangeFile is returned when a fields.idx change file name
-	// cannot be parsed correctly
-	ErrBadFieldChangeFile = errors.New("field change file name incorrectly formatted")
-
 	// fieldsIndexMagicNumber is the file magic number for the fields index file.
 	fieldsIndexMagicNumber = []byte{0, 6, 1, 3}
 )
@@ -510,8 +506,6 @@ type FieldCreate struct {
 	Measurement []byte
 	Field       *Field
 }
-
-type FieldsToCreate []*FieldCreate
 
 type StatsTracker struct {
 	AddedPoints            func(points, values int64)
