@@ -4,6 +4,7 @@ use crate::{
 };
 use data_types::{
     CompactionLevel, ParquetFile, ParquetFileId, ParquetFileParams, PartitionId, TableSchema,
+    TimestampMinMax,
 };
 use datafusion::error::DataFusionError;
 use futures::{stream::FuturesOrdered, StreamExt, TryStreamExt};
@@ -168,9 +169,8 @@ pub(crate) async fn compact_parquet_files(
 
     // extract the min & max chunk times for filtering potential split times.
     let chunk_times: Vec<_> = query_chunks
-        .clone()
-        .into_iter()
-        .map(|c| (c.min_time(), c.max_time()))
+        .iter()
+        .map(|c| TimestampMinMax::new(c.min_time(), c.max_time()))
         .collect();
 
     // Merge schema of the compacting chunks

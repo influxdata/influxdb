@@ -1,7 +1,9 @@
 //! Helpers of the Compactor
 
 use crate::query::QueryableParquetChunk;
-use data_types::{ParquetFile, ParquetFileId, TableSchema, Timestamp, Tombstone, TombstoneId};
+use data_types::{
+    ParquetFile, ParquetFileId, TableSchema, Timestamp, TimestampMinMax, Tombstone, TombstoneId,
+};
 use observability_deps::tracing::*;
 use parquet_file::{chunk::ParquetChunk, storage::ParquetStorage};
 use schema::{sort::SortKey, Schema};
@@ -179,7 +181,7 @@ impl ParquetFileWithTombstone {
 ///     13 = 7 (previous time) + 6 (time range)
 ///     19 = 13 (previous time) + 6 (time range)
 pub(crate) fn compute_split_time(
-    chunk_times: Vec<(i64, i64)>, // Vec of (min_time, max_time)
+    chunk_times: Vec<TimestampMinMax>,
     min_time: i64,
     max_time: i64,
     total_size: u64,
@@ -203,7 +205,7 @@ pub(crate) fn compute_split_time(
 
         if split_time >= max_time {
             break;
-        } else if time_range_present(chunk_times.clone(), min, split_time) {
+        } else if time_range_present(&chunk_times, min, split_time) {
             split_times.push(split_time);
         }
         min = split_time;
@@ -213,18 +215,10 @@ pub(crate) fn compute_split_time(
 }
 
 // time_range_present returns true if the given time range is included in any of the chunks.
-fn time_range_present(
-    chunk_times: Vec<(i64, i64)>, // Vec of (min_time, max_time)
-    min_time: i64,
-    max_time: i64,
-) -> bool {
-    for chunk in chunk_times {
-        // if chunk.max >= min_time and chunk.min <= max_time, this chunk is within the given time range.
-        if chunk.1 >= min_time && chunk.0 <= max_time {
-            return true;
-        }
-    }
-    false
+fn time_range_present(chunk_times: &[TimestampMinMax], min_time: i64, max_time: i64) -> bool {
+    chunk_times
+        .iter()
+        .any(|&chunk| chunk.max >= min_time && chunk.min <= max_time)
 }
 
 #[cfg(test)]
@@ -237,7 +231,10 @@ mod tests {
         let max_time = 11;
         let total_size = 100;
         let max_desired_file_size = 100;
-        let chunk_times = vec![(min_time, max_time)];
+        let chunk_times = vec![TimestampMinMax {
+            min: min_time,
+            max: max_time,
+        }];
 
         // no split
         let result = compute_split_time(
@@ -290,7 +287,10 @@ mod tests {
 
         let total_size = 200;
         let max_desired_file_size = 100;
-        let chunk_times = vec![(min_time, max_time)];
+        let chunk_times = vec![TimestampMinMax {
+            min: min_time,
+            max: max_time,
+        }];
 
         let result = compute_split_time(
             chunk_times,
@@ -314,8 +314,10 @@ mod tests {
 
         let total_size = 600000;
         let max_desired_file_size = 10000;
-
-        let chunk_times = vec![(min_time, max_time)];
+        let chunk_times = vec![TimestampMinMax {
+            min: min_time,
+            max: max_time,
+        }];
 
         let result = compute_split_time(
             chunk_times,
@@ -345,7 +347,10 @@ mod tests {
 
         let total_size = 200;
         let max_desired_file_size = total_size / 3;
-        let chunk_times = vec![(1, 24), (75, 100)];
+        let chunk_times = vec![
+            TimestampMinMax { min: 1, max: 24 },
+            TimestampMinMax { min: 75, max: 100 },
+        ];
 
         let result = compute_split_time(
             chunk_times,
