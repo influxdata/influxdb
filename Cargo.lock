@@ -521,7 +521,7 @@ dependencies = [
  "num-integer",
  "num-traits",
  "serde",
- "time 0.1.44",
+ "time",
  "wasm-bindgen",
  "winapi",
 ]
@@ -3063,15 +3063,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "num_threads"
-version = "0.1.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2819ce041d2ee131036f4fc9d6ae7ae125a3a40e97ba64d04fe799ad9dabbb44"
-dependencies = [
- "libc",
-]
-
-[[package]]
 name = "object"
 version = "0.29.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4195,11 +4186,12 @@ dependencies = [
 [[package]]
 name = "rskafka"
 version = "0.3.0"
-source = "git+https://github.com/influxdata/rskafka.git?rev=59295beeae2106c2536008065e171dd88fd1c64e#59295beeae2106c2536008065e171dd88fd1c64e"
+source = "git+https://github.com/influxdata/rskafka.git?rev=3208e4742f08048bbab4e8fc4e0a775507fe3e66#3208e4742f08048bbab4e8fc4e0a775507fe3e66"
 dependencies = [
  "async-socks5",
  "async-trait",
  "bytes",
+ "chrono",
  "crc32c",
  "futures",
  "integer-encoding 3.0.4",
@@ -4208,7 +4200,6 @@ dependencies = [
  "rand",
  "snap",
  "thiserror",
- "time 0.3.14",
  "tokio",
  "tracing",
 ]
@@ -5103,16 +5094,6 @@ dependencies = [
  "libc",
  "wasi 0.10.0+wasi-snapshot-preview1",
  "winapi",
-]
-
-[[package]]
-name = "time"
-version = "0.3.14"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3c3f9a28b618c3a6b9251b6908e9c99e04b9e5c02e6581ccbb67d59c34ef7f9b"
-dependencies = [
- "libc",
- "num_threads",
 ]
 
 [[package]]
