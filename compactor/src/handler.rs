@@ -18,7 +18,7 @@ use tokio::{
 };
 use tokio_util::sync::CancellationToken;
 
-use crate::{compact::Compactor, compact_hot_partitions};
+use crate::{compact::Compactor, hot};
 
 #[derive(Debug, Error)]
 #[allow(missing_copy_implementations, missing_docs)]
@@ -178,8 +178,7 @@ pub async fn run_compactor_once(compactor: Arc<Compactor>) {
     let mut compacted_partitions = 0;
     for i in 0..num_hot_cycles {
         debug!(?i, "start hot cycle");
-        compacted_partitions +=
-            compact_hot_partitions::compact_hot_partitions(Arc::clone(&compactor)).await;
+        compacted_partitions += hot::compact(Arc::clone(&compactor)).await;
         if compacted_partitions == 0 {
             // No hot candidates, should move to compact cold partitions
             break;

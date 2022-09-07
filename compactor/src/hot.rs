@@ -22,7 +22,7 @@ use thiserror::Error;
 pub enum Error {}
 
 /// Return number of compacted partitions
-pub async fn compact_hot_partitions(compactor: Arc<Compactor>) -> usize {
+pub async fn compact(compactor: Arc<Compactor>) -> usize {
     // Select hot partition candidates
     debug!("start collecting hot partitions to compact");
     let hot_attributes = Attributes::from(&[("partition_type", "hot")]);
@@ -110,7 +110,7 @@ pub async fn compact_hot_partitions(compactor: Arc<Compactor>) -> usize {
                 &compactor.parquet_file_candidate_bytes,
             )
         },
-        compact_hot_partitions_in_parallel,
+        compact_in_parallel,
         candidates,
         table_columns,
     )
@@ -338,17 +338,14 @@ async fn compact_candidates_with_memory_budget<C, Fut, F>(
 // Compact given partitions in parallel
 // This function assumes its caller knows there are enough resources to run all partitions
 // concurrently
-async fn compact_hot_partitions_in_parallel(
-    compactor: Arc<Compactor>,
-    partitions: Vec<FilteredFiles>,
-) {
+async fn compact_in_parallel(compactor: Arc<Compactor>, partitions: Vec<FilteredFiles>) {
     let mut handles = Vec::with_capacity(partitions.len());
     for p in partitions {
         let comp = Arc::clone(&compactor);
         let handle = tokio::task::spawn(async move {
             let partition_id = p.partition.candidate.partition_id;
             debug!(?partition_id, "hot compaction starting");
-            let compaction_result = compact_one_hot_partition(&comp, p).await;
+            let compaction_result = compact_one_partition(&comp, p).await;
             match compaction_result {
                 Err(e) => {
                     warn!(?e, ?partition_id, "hot compaction failed");
@@ -380,7 +377,7 @@ pub(crate) enum CompactOneHotPartitionError {
 }
 
 /// One compaction operation of one hot partition
-pub(crate) async fn compact_one_hot_partition(
+pub(crate) async fn compact_one_partition(
     compactor: &Compactor,
     to_compact: FilteredFiles,
 ) -> Result<(), CompactOneHotPartitionError> {
@@ -1043,9 +1040,7 @@ mod tests {
             &compactor.parquet_file_candidate_bytes,
         );
 
-        compact_one_hot_partition(&compactor, to_compact)
-            .await
-            .unwrap();
+        compact_one_partition(&compactor, to_compact).await.unwrap();
 
         // Should have 3 non-soft-deleted files:
         //

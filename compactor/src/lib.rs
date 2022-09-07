@@ -11,9 +11,9 @@
 )]
 
 pub mod compact;
-pub(crate) mod compact_hot_partitions;
 pub mod garbage_collector;
 pub mod handler;
+pub(crate) mod hot;
 mod parquet_file;
 pub(crate) mod parquet_file_combining;
 pub(crate) mod parquet_file_filtering;
