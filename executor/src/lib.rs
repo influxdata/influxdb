@@ -67,7 +67,7 @@ impl<T> Job<T> {
     ///
     /// You must ensure that this task eventually finishes, otherwise [`DedicatedExecutor::join`] may never return!
     pub fn detach(mut self) {
-        // cannot destructure `Self` because we implement `Drop`, so we use a flag instead to prevent cancelation.
+        // cannot destructure `Self` because we implement `Drop`, so we use a flag instead to prevent cancellation.
         self.detached = true;
     }
 }

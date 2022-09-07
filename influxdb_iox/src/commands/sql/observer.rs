@@ -270,7 +270,7 @@ impl VirtualTableBuilder {
         }))
     }
 
-    /// register a table provider  for this sytem table
+    /// register a table provider  for this system table
     fn build(self, ctx: &mut SessionContext) {
         let Self {
             table_name,

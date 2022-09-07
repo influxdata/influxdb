@@ -185,7 +185,7 @@ pub trait Transaction: Send + Sync + Debug + sealed::TransactionFinalize + RepoC
     ///
     /// # Error Handling
     ///
-    /// If successfull, all changes will be visible to other transactions.
+    /// If successful, all changes will be visible to other transactions.
     ///
     /// If an error is returned, the transaction may or or not be committed. This might be due to IO errors after the
     /// transaction was finished. However in either case, the transaction is atomic and can only succeed or fail

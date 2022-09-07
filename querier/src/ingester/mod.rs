@@ -172,11 +172,11 @@ pub trait IngesterConnection: std::fmt::Debug + Send + Sync + 'static {
         span: Option<Span>,
     ) -> Result<Vec<IngesterPartition>>;
 
-    /// Returns the most recent partition sstatus info across all ingester(s) for the specified
+    /// Returns the most recent partition status info across all ingester(s) for the specified
     /// write token.
     async fn get_write_info(&self, write_token: &str) -> Result<GetWriteInfoResponse>;
 
-    /// Return backend as [`Any`] which can be used to downcast to a specifc implementation.
+    /// Return backend as [`Any`] which can be used to downcast to a specific implementation.
     fn as_any(&self) -> &dyn Any;
 }
 

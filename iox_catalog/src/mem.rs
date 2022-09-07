@@ -1396,7 +1396,7 @@ impl ProcessedTombstoneRepo for MemTxn {
             .iter()
             .any(|pt| pt.tombstone_id == tombstone_id && pt.parquet_file_id == parquet_file_id)
         {
-            // The tombstone was already proccessed for this file
+            // The tombstone was already processed for this file
             return Err(Error::ProcessTombstoneExists {
                 parquet_file_id: parquet_file_id.get(),
                 tombstone_id: tombstone_id.get(),

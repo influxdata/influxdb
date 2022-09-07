@@ -389,7 +389,7 @@ mod tests {
         };
 
         // use something that has a later timestamp and expect the later one takes
-        // precidence
+        // precedence
         let l2 = FieldList {
             fields: vec![field1_later.clone()],
         };

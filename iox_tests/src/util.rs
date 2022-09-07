@@ -119,7 +119,7 @@ impl TestCatalog {
         )
     }
 
-    /// Create a namesapce in the catalog
+    /// Create a namespace in the catalog
     pub async fn create_namespace(self: &Arc<Self>, name: &str) -> Arc<TestNamespace> {
         let mut repos = self.catalog.repositories().await;
 

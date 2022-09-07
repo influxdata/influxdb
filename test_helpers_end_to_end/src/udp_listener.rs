@@ -100,7 +100,7 @@ impl UdpCapture {
         self.socket_addr.port().to_string()
     }
 
-    /// stop and wait for succesful shutdown of this server
+    /// stop and wait for successful shutdown of this server
     pub async fn stop(self) {
         self.token.cancel();
         if let Err(e) = self.join_handle.await {

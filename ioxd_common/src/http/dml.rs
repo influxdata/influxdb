@@ -155,12 +155,12 @@ impl From<InnerDmlError> for HttpDmlError {
 
 /// Contains a request or a response.
 ///
-/// This is used to be able to consume a reqest and transform it into a response if routing was successfull.
+/// This is used to be able to consume a request and transform it into a response if routing was successful.
 pub enum RequestOrResponse {
     /// Request still there, wasn't routed.
     Request(Request<Body>),
 
-    /// Request was consumed and transformed into a response object. Routing was successfull.
+    /// Request was consumed and transformed into a response object. Routing was successful.
     Response(Response<Body>),
 }
 

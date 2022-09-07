@@ -343,9 +343,9 @@ async fn new_raw_pool(
             let schema_name = schema_name.to_owned();
             Box::pin(async move {
                 // Tag the connection with the provided application name, while allowing it to
-                // be overriden from the connection string (aka DSN).
+                // be override from the connection string (aka DSN).
                 // If current_application_name is empty here it means the application name wasn't
-                // set as part of the DSN, and we can set it explictly.
+                // set as part of the DSN, and we can set it explicitly.
                 // Recall that this block is running on connection, not when creating the pool!
                 let current_application_name: String =
                     sqlx::query_scalar("SELECT current_setting('application_name');")

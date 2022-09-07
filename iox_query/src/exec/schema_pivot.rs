@@ -138,7 +138,7 @@ fn make_schema_pivot_output_schema() -> DFSchemaRef {
     .unwrap()
 }
 
-/// Physical operator that implements the SchemaPivot operation aginst
+/// Physical operator that implements the SchemaPivot operation against
 /// data types
 pub struct SchemaPivotExec {
     input: Arc<dyn ExecutionPlan>,
