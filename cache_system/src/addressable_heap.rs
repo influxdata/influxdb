@@ -1,6 +1,6 @@
 //! Implementation of an [`AddressableHeap`].
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::{hash_map, HashMap, VecDeque},
     hash::Hash,
 };
 
@@ -56,15 +56,26 @@ where
     ///
     /// If the element (compared by `K`) already exists, it will be returned.
     pub fn insert(&mut self, k: K, v: V, o: O) -> Option<(V, O)> {
-        // always remove the entry first so we have a clean queue
-        let result = self.remove(&k);
+        let result = match self.key_to_order_and_value.entry(k.clone()) {
+            hash_map::Entry::Occupied(mut entry_o) => {
+                // `entry_o.replace_entry(...)` is not stabel yet, see https://github.com/rust-lang/rust/issues/44286
+                let mut tmp = (v, o.clone());
+                std::mem::swap(&mut tmp, entry_o.get_mut());
+                let (v_old, o_old) = tmp;
 
-        assert!(
-            self.key_to_order_and_value
-                .insert(k.clone(), (v, o.clone()))
-                .is_none(),
-            "entry should have been removed by now"
-        );
+                let index = self
+                    .queue
+                    .binary_search_by_key(&(&o_old, &k), project_tuple)
+                    .expect("key was in key_to_order");
+                self.queue.remove(index);
+
+                Some((v_old, o_old))
+            }
+            hash_map::Entry::Vacant(entry_v) => {
+                entry_v.insert((v, o.clone()));
+                None
+            }
+        };
 
         match self.queue.binary_search_by_key(&(&o, &k), project_tuple) {
             Ok(_) => unreachable!("entry should have been removed by now"),
