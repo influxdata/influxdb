@@ -97,9 +97,7 @@ impl RecordAggregator {
                 .headers()
                 .map(|(k, v)| (k.to_owned(), v.as_bytes().to_vec()))
                 .collect(),
-            timestamp: rskafka::time::OffsetDateTime::from_unix_timestamp_nanos(
-                now.date_time().timestamp_nanos() as i128,
-            )?,
+            timestamp: now.date_time(),
         };
 
         Ok((record, now))
@@ -284,7 +282,7 @@ mod tests {
             Vec::<u8>::from(NAMESPACE),
         );
         assert!(record.headers.get(HEADER_TRACE_CONTEXT).is_some());
-        assert_eq!(record.timestamp.unix_timestamp(), 1659990497);
+        assert_eq!(record.timestamp.timestamp(), 1659990497);
 
         // Extract the DmlMeta from the de-aggregator
         let got = deagg

@@ -25,7 +25,7 @@ use rskafka::{
     client::{
         consumer::{StartOffset, StreamConsumerBuilder},
         error::{Error as RSKafkaError, ProtocolError, RequestContext, ServerErrorResponse},
-        partition::{OffsetAt, PartitionClient},
+        partition::{OffsetAt, PartitionClient, UnknownTopicHandling},
         producer::{BatchProducer, BatchProducerBuilder},
         ClientBuilder,
     },
@@ -189,10 +189,7 @@ async fn try_decode(
             sequence_number: SequenceNumber::new(record.offset),
         };
 
-        let timestamp_nanos = i64::try_from(record.record.timestamp.unix_timestamp_nanos())
-            .map_err(WriteBufferError::invalid_data)?;
-
-        let timestamp = Time::from_timestamp_nanos(timestamp_nanos);
+        let timestamp = Time::from_date_time(record.record.timestamp);
 
         let value = record
             .record
@@ -478,7 +475,9 @@ async fn setup_topic(
                         let topic_name = topic_name.clone();
                         async move {
                             let shard_index = ShardIndex::new(p);
-                            let c = client_ref.partition_client(&topic_name, p).await?;
+                            let c = client_ref
+                                .partition_client(&topic_name, p, UnknownTopicHandling::Error)
+                                .await?;
                             Result::<_, WriteBufferError>::Ok((shard_index, c))
                         }
                     }),
@@ -689,7 +688,11 @@ mod tests {
             .build()
             .await
             .unwrap()
-            .partition_client(ctx.topic_name.clone(), shard_index.get())
+            .partition_client(
+                ctx.topic_name.clone(),
+                shard_index.get(),
+                UnknownTopicHandling::Retry,
+            )
             .await
             .unwrap()
             .produce(
@@ -697,7 +700,7 @@ mod tests {
                     key: None,
                     value: None,
                     headers: Default::default(),
-                    timestamp: rskafka::time::OffsetDateTime::now_utc(),
+                    timestamp: rskafka::chrono::Utc::now(),
                 }],
                 Compression::NoCompression,
             )

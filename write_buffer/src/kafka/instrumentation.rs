@@ -152,7 +152,7 @@ mod tests {
     use iox_time::Time;
     use metric::Metric;
     use parking_lot::Mutex;
-    use rskafka::time::OffsetDateTime;
+    use rskafka::chrono::{self, Utc};
 
     use super::*;
 
@@ -207,7 +207,7 @@ mod tests {
             key: Some("bananas".into()),
             value: None,
             headers: Default::default(),
-            timestamp: OffsetDateTime::UNIX_EPOCH,
+            timestamp: chrono::DateTime::<Utc>::MIN_UTC,
         };
 
         wrapper
