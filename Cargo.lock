@@ -596,7 +596,7 @@ dependencies = [
  "trace",
  "trace_exporters",
  "trogging",
- "uuid 1.1.2",
+ "uuid",
  "workspace-hack",
  "write_buffer",
 ]
@@ -704,7 +704,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-util",
- "uuid 1.1.2",
+ "uuid",
  "workspace-hack",
 ]
 
@@ -1006,7 +1006,7 @@ dependencies = [
  "snafu",
  "sqlx",
  "test_helpers",
- "uuid 1.1.2",
+ "uuid",
  "workspace-hack",
 ]
 
@@ -1055,7 +1055,7 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "url",
- "uuid 1.1.2",
+ "uuid",
 ]
 
 [[package]]
@@ -1176,11 +1176,11 @@ dependencies = [
 
 [[package]]
 name = "debugid"
-version = "0.7.3"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d6ee87af31d84ef885378aebca32be3d682b0e0dc119d5b4860a2c5bb5046730"
+checksum = "bef552e6f588e446098f6ba40d89ac146c8c7b64aade83c051ee00bb5d2bc18d"
 dependencies = [
- "uuid 0.8.2",
+ "uuid",
 ]
 
 [[package]]
@@ -1544,7 +1544,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "tokio-stream",
- "uuid 1.1.2",
+ "uuid",
 ]
 
 [[package]]
@@ -1735,7 +1735,7 @@ dependencies = [
 [[package]]
 name = "heappy"
 version = "0.1.0"
-source = "git+https://github.com/mkmik/heappy?rev=d9ffbac1cf9f3a1870d5f64a202430a9f5ea9858#d9ffbac1cf9f3a1870d5f64a202430a9f5ea9858"
+source = "git+https://github.com/mkmik/heappy?rev=b98e7f7dc080d5d7972a134de0e01e999e68e350#b98e7f7dc080d5d7972a134de0e01e999e68e350"
 dependencies = [
  "backtrace",
  "bytes",
@@ -1980,7 +1980,7 @@ dependencies = [
  "test_helpers",
  "tokio",
  "url",
- "uuid 1.1.2",
+ "uuid",
 ]
 
 [[package]]
@@ -2057,7 +2057,7 @@ dependencies = [
  "tonic",
  "trace_exporters",
  "trogging",
- "uuid 1.1.2",
+ "uuid",
  "workspace-hack",
 ]
 
@@ -2179,7 +2179,7 @@ dependencies = [
  "tonic",
  "trace",
  "tracker",
- "uuid 1.1.2",
+ "uuid",
  "workspace-hack",
  "write_buffer",
  "write_summary",
@@ -2236,7 +2236,7 @@ dependencies = [
  "test_helpers",
  "thiserror",
  "tokio",
- "uuid 1.1.2",
+ "uuid",
  "workspace-hack",
 ]
 
@@ -2263,7 +2263,7 @@ dependencies = [
  "toml",
  "tracing",
  "tracing-subscriber",
- "uuid 1.1.2",
+ "uuid",
 ]
 
 [[package]]
@@ -2315,7 +2315,7 @@ dependencies = [
  "parquet_file",
  "schema",
  "sharder",
- "uuid 1.1.2",
+ "uuid",
  "workspace-hack",
 ]
 
@@ -3304,7 +3304,7 @@ dependencies = [
  "thiserror",
  "thrift",
  "tokio",
- "uuid 1.1.2",
+ "uuid",
  "workspace-hack",
  "zstd",
 ]
@@ -3495,9 +3495,9 @@ dependencies = [
 
 [[package]]
 name = "pprof"
-version = "0.9.1"
+version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a97149c0eacaa6b8f8cedea99f68bb3a0517fa20f8de8d8c24c1a810f38d235d"
+checksum = "d6472bfed9475542ac46c518734a8d06d71b0f6cb2c17f904aa301711a57786f"
 dependencies = [
  "backtrace",
  "cfg-if",
@@ -3825,7 +3825,7 @@ dependencies = [
  "tonic",
  "trace",
  "tracker",
- "uuid 1.1.2",
+ "uuid",
  "workspace-hack",
 ]
 
@@ -4428,7 +4428,7 @@ dependencies = [
  "observability_deps",
  "tokio",
  "tonic",
- "uuid 1.1.2",
+ "uuid",
  "workspace-hack",
 ]
 
@@ -4514,7 +4514,7 @@ dependencies = [
  "parquet_file",
  "tokio",
  "tonic",
- "uuid 1.1.2",
+ "uuid",
  "workspace-hack",
 ]
 
@@ -4763,7 +4763,7 @@ dependencies = [
  "thiserror",
  "tokio-stream",
  "url",
- "uuid 1.1.2",
+ "uuid",
  "webpki-roots",
  "whoami",
 ]
@@ -4879,21 +4879,21 @@ checksum = "6bdef32e8150c2a081110b42772ffe7d7c9032b606bc226c8260fd97e0976601"
 
 [[package]]
 name = "symbolic-common"
-version = "8.8.0"
+version = "9.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f551f902d5642e58039aee6a9021a61037926af96e071816361644983966f540"
+checksum = "3e555b2c3ebd97b963c8a3e94ce5e5137ba42da4a26687f81c700d8de1c997f0"
 dependencies = [
  "debugid",
  "memmap2",
  "stable_deref_trait",
- "uuid 0.8.2",
+ "uuid",
 ]
 
 [[package]]
 name = "symbolic-demangle"
-version = "8.8.0"
+version = "9.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4564ca7b4e6eb14105aa8bbbce26e080f6b5d9c4373e67167ab31f7b86443750"
+checksum = "71a1425bccf0a24c68c9faea6c4f1f84b4865a3dd5976454d8a796c80216e38a"
 dependencies = [
  "cpp_demangle",
  "rustc-demangle",
@@ -5593,12 +5593,6 @@ checksum = "936e4b492acfd135421d8dca4b1aa80a7bfc26e702ef3af710e0752684df5372"
 
 [[package]]
 name = "uuid"
-version = "0.8.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc5cf98d8186244414c848017f0e2676b3fcb46807f6668a97dfe67359a3c4b7"
-
-[[package]]
-name = "uuid"
 version = "1.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dd6469f4314d5f1ffec476e05f17cc9a78bc7a27a6a857842170bdf8d6f98d2f"
@@ -5931,7 +5925,7 @@ dependencies = [
  "tracing-core",
  "tracing-log",
  "tracing-subscriber",
- "uuid 1.1.2",
+ "uuid",
  "winapi",
  "windows-sys",
  "zstd",
@@ -5969,7 +5963,7 @@ dependencies = [
  "tokio-util",
  "trace",
  "trace_http",
- "uuid 1.1.2",
+ "uuid",
  "workspace-hack",
 ]
 
