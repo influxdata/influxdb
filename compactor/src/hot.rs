@@ -15,11 +15,6 @@ use std::{
     collections::{HashMap, VecDeque},
     sync::Arc,
 };
-use thiserror::Error;
-
-#[derive(Debug, Error)]
-#[allow(missing_copy_implementations, missing_docs)]
-pub enum Error {}
 
 /// Hot compaction. Returns the number of compacted partitions.
 pub async fn compact(compactor: Arc<Compactor>) -> usize {
