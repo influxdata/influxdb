@@ -799,28 +799,18 @@ mod tests {
     }
 
     fn make_compactor_config() -> CompactorConfig {
-        let max_desired_file_size_bytes = 10_000;
-        let percentage_max_file_size = 30;
-        let split_percentage = 80;
-        let max_cold_concurrent_size_bytes = 90_000;
-        let max_number_partitions_per_shard = 1;
-        let min_number_recent_ingested_per_partition = 1;
-        let cold_input_size_threshold_bytes = 600 * 1024 * 1024;
-        let cold_input_file_count_threshold = 100;
-        let hot_multiple = 4;
-        let memory_budget_bytes = 10 * 1024 * 1024;
-        CompactorConfig::new(
-            max_desired_file_size_bytes,
-            percentage_max_file_size,
-            split_percentage,
-            max_cold_concurrent_size_bytes,
-            max_number_partitions_per_shard,
-            min_number_recent_ingested_per_partition,
-            cold_input_size_threshold_bytes,
-            cold_input_file_count_threshold,
-            hot_multiple,
-            memory_budget_bytes,
-        )
+        CompactorConfig {
+            max_desired_file_size_bytes: 10_000,
+            percentage_max_file_size: 30,
+            split_percentage: 80,
+            max_cold_concurrent_size_bytes: 90_000,
+            max_number_partitions_per_shard: 1,
+            min_number_recent_ingested_files_per_partition: 1,
+            cold_input_size_threshold_bytes: 600 * 1024 * 1024,
+            cold_input_file_count_threshold: 100,
+            hot_multiple: 4,
+            memory_budget_bytes: 10 * 1024 * 1024,
+        }
     }
 
     #[tokio::test]

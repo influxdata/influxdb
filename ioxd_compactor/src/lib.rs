@@ -37,6 +37,9 @@ pub enum Error {
 
     #[error("shard_index_range_start must be <= shard_index_range_end")]
     ShardIndexRange,
+
+    #[error("split_percentage must be between 1 and 100, inclusive. Was: {split_percentage}")]
+    SplitPercentageRange { split_percentage: u16 },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -163,6 +166,12 @@ pub async fn build_compactor_from_config(
         return Err(Error::ShardIndexRange);
     }
 
+    if compactor_config.split_percentage < 1 || compactor_config.split_percentage > 100 {
+        return Err(Error::SplitPercentageRange {
+            split_percentage: compactor_config.split_percentage,
+        });
+    }
+
     let mut txn = catalog.start_transaction().await?;
     let topic = txn
         .topics()
@@ -186,18 +195,32 @@ pub async fn build_compactor_from_config(
 
     let parquet_store = ParquetStorage::new(object_store);
 
-    let compactor_config = compactor::handler::CompactorConfig::new(
-        compactor_config.max_desired_file_size_bytes,
-        compactor_config.percentage_max_file_size,
-        compactor_config.split_percentage,
-        compactor_config.max_cold_concurrent_size_bytes,
-        compactor_config.max_number_partitions_per_shard,
-        compactor_config.min_number_recent_ingested_files_per_partition,
-        compactor_config.cold_input_size_threshold_bytes,
-        compactor_config.cold_input_file_count_threshold,
-        compactor_config.hot_multiple,
-        compactor_config.memory_budget_bytes,
-    );
+    let CompactorConfig {
+        max_desired_file_size_bytes,
+        percentage_max_file_size,
+        split_percentage,
+        max_cold_concurrent_size_bytes,
+        max_number_partitions_per_shard,
+        min_number_recent_ingested_files_per_partition,
+        cold_input_size_threshold_bytes,
+        cold_input_file_count_threshold,
+        hot_multiple,
+        memory_budget_bytes,
+        ..
+    } = compactor_config;
+
+    let compactor_config = compactor::handler::CompactorConfig {
+        max_desired_file_size_bytes,
+        percentage_max_file_size,
+        split_percentage,
+        max_cold_concurrent_size_bytes,
+        max_number_partitions_per_shard,
+        min_number_recent_ingested_files_per_partition,
+        cold_input_size_threshold_bytes,
+        cold_input_file_count_threshold,
+        hot_multiple,
+        memory_budget_bytes,
+    };
 
     Ok(compactor::compact::Compactor::new(
         shards,
