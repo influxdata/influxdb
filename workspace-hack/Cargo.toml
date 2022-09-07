@@ -20,7 +20,7 @@ bitflags = { version = "1" }
 byteorder = { version = "1", features = ["std"] }
 bytes = { version = "1", features = ["std"] }
 chrono = { version = "0.4", default-features = false, features = ["alloc", "clock", "iana-time-zone", "serde", "std", "winapi"] }
-crossbeam-utils = { version = "0.8", features = ["lazy_static", "std"] }
+crossbeam-utils = { version = "0.8", features = ["once_cell", "std"] }
 crypto-common = { version = "0.1", default-features = false, features = ["std"] }
 digest = { version = "0.10", features = ["alloc", "block-buffer", "core-api", "mac", "std", "subtle"] }
 either = { version = "1", features = ["use_std"] }
@@ -50,7 +50,7 @@ parquet = { version = "21", features = ["arrow", "async", "base64", "brotli", "e
 predicates = { version = "2", features = ["diff", "difflib", "float-cmp", "normalize-line-endings", "regex"] }
 prost = { version = "0.11", features = ["prost-derive", "std"] }
 prost-types = { version = "0.11", features = ["std"] }
-rand = { version = "0.8", features = ["alloc", "getrandom", "libc", "rand_chacha", "rand_hc", "small_rng", "std", "std_rng"] }
+rand = { version = "0.8", features = ["alloc", "getrandom", "libc", "rand_chacha", "small_rng", "std", "std_rng"] }
 regex = { version = "1", features = ["aho-corasick", "memchr", "perf", "perf-cache", "perf-dfa", "perf-inline", "perf-literal", "std", "unicode", "unicode-age", "unicode-bool", "unicode-case", "unicode-gencat", "unicode-perl", "unicode-script", "unicode-segment"] }
 regex-automata = { version = "0.1", features = ["regex-syntax", "std"] }
 regex-syntax = { version = "0.6", features = ["unicode", "unicode-age", "unicode-bool", "unicode-case", "unicode-gencat", "unicode-perl", "unicode-script", "unicode-segment"] }
@@ -69,7 +69,7 @@ tonic = { version = "0.8", features = ["async-trait", "axum", "channel", "codege
 tower = { version = "0.4", features = ["__common", "balance", "buffer", "discover", "futures-core", "futures-util", "indexmap", "limit", "load", "log", "make", "pin-project", "pin-project-lite", "rand", "ready-cache", "slab", "timeout", "tokio", "tokio-util", "tracing", "util"] }
 tower-http = { version = "0.3", features = ["catch-panic", "map-response-body", "tower", "tracing", "util"] }
 tracing = { version = "0.1", features = ["attributes", "log", "max_level_trace", "release_max_level_trace", "std", "tracing-attributes"] }
-tracing-core = { version = "0.1", features = ["lazy_static", "std"] }
+tracing-core = { version = "0.1", features = ["once_cell", "std"] }
 tracing-log = { version = "0.1", features = ["log-tracer", "std", "trace-logger"] }
 tracing-subscriber = { version = "0.3", features = ["alloc", "ansi", "ansi_term", "env-filter", "fmt", "json", "lazy_static", "matchers", "parking_lot", "regex", "registry", "serde", "serde_json", "sharded-slab", "smallvec", "std", "thread_local", "tracing", "tracing-log", "tracing-serde"] }
 uuid = { version = "1", features = ["private_getrandom", "rng", "std", "v4"] }
@@ -84,7 +84,7 @@ bitflags = { version = "1" }
 byteorder = { version = "1", features = ["std"] }
 bytes = { version = "1", features = ["std"] }
 cc = { version = "1", default-features = false, features = ["jobserver", "parallel"] }
-crossbeam-utils = { version = "0.8", features = ["lazy_static", "std"] }
+crossbeam-utils = { version = "0.8", features = ["once_cell", "std"] }
 crypto-common = { version = "0.1", default-features = false, features = ["std"] }
 digest = { version = "0.10", features = ["alloc", "block-buffer", "core-api", "mac", "std", "subtle"] }
 either = { version = "1", features = ["use_std"] }
@@ -109,7 +109,7 @@ once_cell = { version = "1", features = ["alloc", "parking_lot", "parking_lot_co
 parking_lot = { version = "0.12", features = ["arc_lock"] }
 prost = { version = "0.11", features = ["prost-derive", "std"] }
 prost-types = { version = "0.11", features = ["std"] }
-rand = { version = "0.8", features = ["alloc", "getrandom", "libc", "rand_chacha", "rand_hc", "small_rng", "std", "std_rng"] }
+rand = { version = "0.8", features = ["alloc", "getrandom", "libc", "rand_chacha", "small_rng", "std", "std_rng"] }
 regex = { version = "1", features = ["aho-corasick", "memchr", "perf", "perf-cache", "perf-dfa", "perf-inline", "perf-literal", "std", "unicode", "unicode-age", "unicode-bool", "unicode-case", "unicode-gencat", "unicode-perl", "unicode-script", "unicode-segment"] }
 regex-syntax = { version = "0.6", features = ["unicode", "unicode-age", "unicode-bool", "unicode-case", "unicode-gencat", "unicode-perl", "unicode-script", "unicode-segment"] }
 ring = { version = "0.16", features = ["alloc", "dev_urandom_fallback", "once_cell", "std"] }
