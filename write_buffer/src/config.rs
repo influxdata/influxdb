@@ -12,6 +12,7 @@ use parking_lot::RwLock;
 use std::{
     collections::{btree_map::Entry, BTreeMap},
     num::NonZeroU32,
+    ops::Range,
     path::PathBuf,
     sync::Arc,
 };
@@ -151,6 +152,7 @@ impl WriteBufferConfigFactory {
     pub async fn new_config_write(
         &self,
         db_name: &str,
+        partitions: Option<Range<i32>>,
         trace_collector: Option<&Arc<dyn TraceCollector>>,
         cfg: &WriteBufferConnection,
     ) -> Result<Arc<dyn WriteBufferWriting>, WriteBufferError> {
@@ -173,6 +175,7 @@ impl WriteBufferConfigFactory {
                     &cfg.connection_config,
                     Arc::clone(&self.time_provider),
                     cfg.creation_config.as_ref(),
+                    partitions,
                     trace_collector.map(Arc::clone),
                     &*self.metric_registry,
                 )
@@ -205,6 +208,7 @@ impl WriteBufferConfigFactory {
     pub async fn new_config_read(
         &self,
         db_name: &str,
+        partitions: Option<Range<i32>>,
         trace_collector: Option<&Arc<dyn TraceCollector>>,
         cfg: &WriteBufferConnection,
     ) -> Result<Arc<dyn WriteBufferReading>, WriteBufferError> {
@@ -226,6 +230,7 @@ impl WriteBufferConfigFactory {
                     db_name.to_owned(),
                     &cfg.connection_config,
                     cfg.creation_config.as_ref(),
+                    partitions,
                     trace_collector.map(Arc::clone),
                 )
                 .await?;
@@ -275,7 +280,7 @@ mod tests {
         };
 
         let conn = factory
-            .new_config_write(db_name.as_str(), None, &cfg)
+            .new_config_write(db_name.as_str(), None, None, &cfg)
             .await
             .unwrap();
         assert_eq!(conn.type_name(), "file");
@@ -294,7 +299,7 @@ mod tests {
         };
 
         let conn = factory
-            .new_config_read(db_name.as_str(), None, &cfg)
+            .new_config_read(db_name.as_str(), None, None, &cfg)
             .await
             .unwrap();
         assert_eq!(conn.type_name(), "file");
@@ -316,7 +321,7 @@ mod tests {
         };
 
         let conn = factory
-            .new_config_write(db_name.as_str(), None, &cfg)
+            .new_config_write(db_name.as_str(), None, None, &cfg)
             .await
             .unwrap();
         assert_eq!(conn.type_name(), "mock");
@@ -328,7 +333,7 @@ mod tests {
             ..Default::default()
         };
         let err = factory
-            .new_config_write(db_name.as_str(), None, &cfg)
+            .new_config_write(db_name.as_str(), None, None, &cfg)
             .await
             .unwrap_err();
         assert!(err.to_string().contains("Unknown mock ID:"));
@@ -350,7 +355,7 @@ mod tests {
         };
 
         let conn = factory
-            .new_config_read(db_name.as_str(), None, &cfg)
+            .new_config_read(db_name.as_str(), None, None, &cfg)
             .await
             .unwrap();
         assert_eq!(conn.type_name(), "mock");
@@ -362,7 +367,7 @@ mod tests {
             ..Default::default()
         };
         let err = factory
-            .new_config_read(db_name.as_str(), None, &cfg)
+            .new_config_read(db_name.as_str(), None, None, &cfg)
             .await
             .unwrap_err();
         assert!(err.to_string().contains("Unknown mock ID:"));
@@ -383,7 +388,7 @@ mod tests {
         };
 
         let conn = factory
-            .new_config_write(db_name.as_str(), None, &cfg)
+            .new_config_write(db_name.as_str(), None, None, &cfg)
             .await
             .unwrap();
         assert_eq!(conn.type_name(), "mock_failing");
@@ -395,7 +400,7 @@ mod tests {
             ..Default::default()
         };
         let err = factory
-            .new_config_write(db_name.as_str(), None, &cfg)
+            .new_config_write(db_name.as_str(), None, None, &cfg)
             .await
             .unwrap_err();
         assert!(err.to_string().contains("Unknown mock ID:"));
@@ -416,7 +421,7 @@ mod tests {
         };
 
         let conn = factory
-            .new_config_read(db_name.as_str(), None, &cfg)
+            .new_config_read(db_name.as_str(), None, None, &cfg)
             .await
             .unwrap();
         assert_eq!(conn.type_name(), "mock_failing");
@@ -428,7 +433,7 @@ mod tests {
             ..Default::default()
         };
         let err = factory
-            .new_config_read(db_name.as_str(), None, &cfg)
+            .new_config_read(db_name.as_str(), None, None, &cfg)
             .await
             .unwrap_err();
         assert!(err.to_string().contains("Unknown mock ID:"));
@@ -464,7 +469,7 @@ mod tests {
         };
 
         let conn = factory
-            .new_config_write(db_name.as_str(), None, &cfg)
+            .new_config_write(db_name.as_str(), None, None, &cfg)
             .await
             .unwrap();
         assert_eq!(conn.type_name(), "kafka");
@@ -484,7 +489,7 @@ mod tests {
         };
 
         let conn = factory
-            .new_config_read(db_name.as_str(), None, &cfg)
+            .new_config_read(db_name.as_str(), None, None, &cfg)
             .await
             .unwrap();
         assert_eq!(conn.type_name(), "kafka");

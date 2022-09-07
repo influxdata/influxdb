@@ -1,7 +1,7 @@
 //! Config for [`write_buffer`].
 use iox_time::SystemProvider;
 use observability_deps::tracing::*;
-use std::{collections::BTreeMap, num::NonZeroU32, path::PathBuf, sync::Arc};
+use std::{collections::BTreeMap, num::NonZeroU32, ops::Range, path::PathBuf, sync::Arc};
 use tempfile::TempDir;
 use trace::TraceCollector;
 use write_buffer::{
@@ -94,12 +94,13 @@ impl WriteBufferConfig {
     pub async fn writing(
         &self,
         metrics: Arc<metric::Registry>,
+        partitions: Option<Range<i32>>,
         trace_collector: Option<Arc<dyn TraceCollector>>,
     ) -> Result<Arc<dyn WriteBufferWriting>, WriteBufferError> {
         let conn = self.conn();
         let factory = Self::factory(metrics);
         factory
-            .new_config_write(&self.topic, trace_collector.as_ref(), &conn)
+            .new_config_write(&self.topic, partitions, trace_collector.as_ref(), &conn)
             .await
     }
 
@@ -107,12 +108,13 @@ impl WriteBufferConfig {
     pub async fn reading(
         &self,
         metrics: Arc<metric::Registry>,
+        partitions: Option<Range<i32>>,
         trace_collector: Option<Arc<dyn TraceCollector>>,
     ) -> Result<Arc<dyn WriteBufferReading>, WriteBufferError> {
         let conn = self.conn();
         let factory = Self::factory(metrics);
         factory
-            .new_config_read(&self.topic, trace_collector.as_ref(), &conn)
+            .new_config_read(&self.topic, partitions, trace_collector.as_ref(), &conn)
             .await
     }
 

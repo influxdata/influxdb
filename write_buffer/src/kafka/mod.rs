@@ -33,6 +33,7 @@ use rskafka::{
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
+    ops::Range,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
@@ -55,17 +56,25 @@ pub struct RSKafkaProducer {
 }
 
 impl RSKafkaProducer {
+    #[allow(clippy::too_many_arguments)]
     pub async fn new<'a>(
         conn: String,
         topic_name: String,
         connection_config: &'a BTreeMap<String, String>,
         time_provider: Arc<dyn TimeProvider>,
         creation_config: Option<&'a WriteBufferCreationConfig>,
+        partitions: Option<Range<i32>>,
         _trace_collector: Option<Arc<dyn TraceCollector>>,
         metric_registry: &'a metric::Registry,
     ) -> Result<Self> {
-        let partition_clients =
-            setup_topic(conn, topic_name.clone(), connection_config, creation_config).await?;
+        let partition_clients = setup_topic(
+            conn,
+            topic_name.clone(),
+            connection_config,
+            creation_config,
+            partitions,
+        )
+        .await?;
 
         let producer_config = ProducerConfig::try_from(connection_config)?;
 
@@ -358,10 +367,17 @@ impl RSKafkaConsumer {
         topic_name: String,
         connection_config: &BTreeMap<String, String>,
         creation_config: Option<&WriteBufferCreationConfig>,
+        partitions: Option<Range<i32>>,
         trace_collector: Option<Arc<dyn TraceCollector>>,
     ) -> Result<Self> {
-        let partition_clients =
-            setup_topic(conn, topic_name.clone(), connection_config, creation_config).await?;
+        let partition_clients = setup_topic(
+            conn,
+            topic_name.clone(),
+            connection_config,
+            creation_config,
+            partitions,
+        )
+        .await?;
 
         let partition_clients = partition_clients
             .into_iter()
@@ -428,6 +444,7 @@ async fn setup_topic(
     topic_name: String,
     connection_config: &BTreeMap<String, String>,
     creation_config: Option<&WriteBufferCreationConfig>,
+    partitions: Option<Range<i32>>,
 ) -> Result<BTreeMap<ShardIndex, PartitionClient>> {
     let client_config = ClientConfig::try_from(connection_config)?;
     let mut client_builder = ClientBuilder::new(vec![conn]);
@@ -447,17 +464,37 @@ async fn setup_topic(
             // Instantiate 10 partition clients concurrently until all are ready
             // speed up server init.
             let client_ref = &client;
-            return stream::iter(topic.partitions.into_iter().map(|p| {
-                let topic_name = topic_name.clone();
-                async move {
-                    let shard_index = ShardIndex::new(p);
-                    let c = client_ref.partition_client(&topic_name, p).await?;
-                    Ok((shard_index, c))
-                }
-            }))
+            let clients = stream::iter(
+                topic
+                    .partitions
+                    .into_iter()
+                    .filter(|p| {
+                        partitions
+                            .as_ref()
+                            .map(|want| want.contains(p))
+                            .unwrap_or(true)
+                    })
+                    .map(|p| {
+                        let topic_name = topic_name.clone();
+                        async move {
+                            let shard_index = ShardIndex::new(p);
+                            let c = client_ref.partition_client(&topic_name, p).await?;
+                            Result::<_, WriteBufferError>::Ok((shard_index, c))
+                        }
+                    }),
+            )
             .buffer_unordered(10)
             .try_collect::<BTreeMap<_, _>>()
-            .await;
+            .await?;
+
+            if let Some(p) = partitions {
+                assert_eq!(
+                    p.len(),
+                    clients.len(),
+                    "requested partition clients not initialised"
+                );
+            }
+            return Ok(clients);
         }
 
         // create topic
@@ -576,6 +613,7 @@ mod tests {
                 &BTreeMap::default(),
                 Arc::clone(&self.time_provider),
                 self.creation_config(creation_config).as_ref(),
+                None,
                 Some(self.trace_collector() as Arc<_>),
                 &self.metrics,
             )
@@ -588,6 +626,7 @@ mod tests {
                 self.topic_name.clone(),
                 &BTreeMap::default(),
                 self.creation_config(creation_config).as_ref(),
+                None,
                 Some(self.trace_collector() as Arc<_>),
             )
             .await
@@ -625,6 +664,7 @@ mod tests {
                             n_shards,
                             ..Default::default()
                         }),
+                        None,
                     )
                     .await
                     .unwrap();

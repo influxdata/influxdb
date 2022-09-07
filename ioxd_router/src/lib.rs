@@ -320,7 +320,7 @@ async fn init_write_buffer(
 )> {
     let write_buffer = Arc::new(
         write_buffer_config
-            .writing(Arc::clone(&metrics), trace_collector)
+            .writing(Arc::clone(&metrics), None, trace_collector)
             .await?,
     );
 
