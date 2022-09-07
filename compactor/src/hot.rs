@@ -21,7 +21,7 @@ use thiserror::Error;
 #[allow(missing_copy_implementations, missing_docs)]
 pub enum Error {}
 
-/// Return number of compacted partitions
+/// Hot compaction. Returns the number of compacted partitions.
 pub async fn compact(compactor: Arc<Compactor>) -> usize {
     // Select hot partition candidates
     debug!("start collecting hot partitions to compact");
@@ -55,7 +55,10 @@ pub async fn compact(compactor: Arc<Compactor>) -> usize {
     let start_time = compactor.time_provider.now();
 
     // Column types and their counts of the tables of the partition candidates
-    debug!(num_candidates=?candidates.len(), "start getting column types for the partition candidates");
+    debug!(
+        num_candidates=?candidates.len(),
+        "start getting column types for the partition candidates"
+    );
     let table_columns = Backoff::new(&compactor.backoff_config)
         .retry_all_errors("table_columns", || async {
             compactor.table_columns(&candidates).await
@@ -64,7 +67,10 @@ pub async fn compact(compactor: Arc<Compactor>) -> usize {
         .expect("retry forever");
 
     // Add other compaction-needed info into selected partitions
-    debug!(num_candidates=?candidates.len(), "start getting column types for the partition candidates");
+    debug!(
+        num_candidates=?candidates.len(),
+        "start getting column types for the partition candidates"
+    );
     let candidates = Backoff::new(&compactor.backoff_config)
         .retry_all_errors("add_info_to_partitions", || async {
             compactor.add_info_to_partitions(&candidates).await
@@ -134,7 +140,7 @@ pub async fn compact(compactor: Arc<Compactor>) -> usize {
 // candidates are compacted.
 //
 // The way this function works is the estimated memory to compact each partition will be
-// accumulated until the running total hits over 90% of the compactor's memory_budget_bytes. Then
+// accumulated until the running total hits over 90% of the compactor's `memory_budget_bytes`. Then
 // those partitions are compacted in parallel. The process repeats until all partitions are
 // compacted.
 //
@@ -178,7 +184,8 @@ async fn compact_candidates_with_memory_budget<C, Fut, F>(
         //        less than the full budget, push the candidate back into the `candidates`
         //        to consider compacting with larger budget.
         //      - otherwise, log that the partition is too large to compact and skip it.
-        // 4. If the budget is hit, compact all candidates in the compacting_list in parallel
+        // 4. If the budget is hit, compact all candidates in the `parallel_compacting_candidates`
+        //    list in parallel.
         // 5. Repeat
 
         // --------------------------------------------------------------------
@@ -224,7 +231,7 @@ async fn compact_candidates_with_memory_budget<C, Fut, F>(
                     .await;
                 match parquet_files_for_compaction {
                     Err(e) => {
-                        // This may just be a hiccup reading object store, skip commpacting it in
+                        // This may just be a hiccup reading object store, skip compacting it in
                         // this cycle
                         warn!(
                             ?e,
@@ -235,7 +242,7 @@ async fn compact_candidates_with_memory_budget<C, Fut, F>(
                         None
                     }
                     Ok(parquet_files_for_compaction) => {
-                        // Return only files under the remaining_budget_bytes that should be
+                        // Return only files under the `remaining_budget_bytes` that should be
                         // compacted
                         let to_compact = filter_function(
                             Arc::clone(&compactor),
@@ -335,7 +342,8 @@ async fn compact_candidates_with_memory_budget<C, Fut, F>(
     }
 }
 
-// Compact given partitions in parallel
+// Compact given partitions in parallel.
+//
 // This function assumes its caller knows there are enough resources to run all partitions
 // concurrently
 async fn compact_in_parallel(compactor: Arc<Compactor>, partitions: Vec<FilteredFiles>) {
@@ -738,17 +746,19 @@ mod tests {
             );
         }
 
-        // There are 3 rounds of parallel compaction
-        //   . Round 1: 3 candidates [P1, P2, P5] and total needed budget 13,500
-        //   . Round 2: 1 candidate [P6] and total needed budget 4,500
-        //   . Round 3: 1 candidate [P3] and total needed budget 11,250
-        //   P4 is not compacted due to overbudget
-        //  Debug info shows all 3 rounds
-
+        // There are 3 rounds of parallel compaction:
+        //
+        // * Round 1: 3 candidates [P1, P2, P5] and total needed budget 13,500
+        // * Round 2: 1 candidate [P6] and total needed budget 4,500
+        // * Round 3: 1 candidate [P3] and total needed budget 11,250
+        //
+        // P4 is not compacted due to overbudget.
+        // Debug info shows all 3 rounds.
+        //
         // Todo next: So conveniently, debug log shows this is also a reproducer of
         // https://github.com/influxdata/conductor/issues/1130
         // "hot compaction failed: 1, "Could not serialize and persist record batches failed to
-        //  peek record stream schema"
+        // peek record stream schema"
         compact_candidates_with_memory_budget(
             Arc::clone(&compactor),
             "hot",
