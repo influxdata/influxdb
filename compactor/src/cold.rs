@@ -87,7 +87,7 @@ pub async fn compact(compactor: Arc<Compactor>) -> usize {
             tokio::task::spawn(async move {
                 let partition_id = p.candidate.partition_id;
                 let p = Arc::new(p);
-                let compaction_result = compact_one_partition(&comp, p, &Default::default()).await;
+                let compaction_result = compact_one_partition(&comp, p).await;
 
                 match compaction_result {
                     Err(e) => {
@@ -150,6 +150,14 @@ pub(crate) enum Error {
 }
 
 /// One compaction operation of one cold partition
+async fn compact_one_partition(
+    compactor: &Compactor,
+    partition: Arc<PartitionCompactionCandidateWithInfo>,
+) -> Result<(), Error> {
+    compact_one_partition_with_size_overrides(compactor, partition, &Default::default()).await
+}
+
+/// One compaction operation of one cold partition
 ///
 /// Takes a hash-map `size_overrides` that mocks the size of the detected
 /// [`CompactorParquetFile`]s. This will influence the size calculation of the compactor (i.e.
@@ -157,7 +165,7 @@ pub(crate) enum Error {
 /// deserialization can still rely on the original value).
 ///
 /// [`CompactorParquetFile`]: crate::parquet_file::CompactorParquetFile
-async fn compact_one_partition(
+async fn compact_one_partition_with_size_overrides(
     compactor: &Compactor,
     partition: Arc<PartitionCompactionCandidateWithInfo>,
     size_overrides: &HashMap<ParquetFileId, i64>,
@@ -190,7 +198,7 @@ async fn compact_remaining_level_0_files(
     size_overrides: &HashMap<ParquetFileId, i64>,
 ) -> Result<(), Error> {
     let parquet_files_for_compaction =
-        parquet_file_lookup::ParquetFilesForCompaction::for_partition(
+        parquet_file_lookup::ParquetFilesForCompaction::for_partition_with_size_overrides(
             Arc::clone(&compactor.catalog),
             partition.id(),
             size_overrides,
@@ -242,6 +250,8 @@ async fn compact_remaining_level_0_files(
 /// - Split the files into groups based on size: take files in the list until the current group size
 ///   is greater than max_desired_file_size_bytes
 /// - Compact each group into a new level 2 file, no splitting
+///
+/// Uses a hashmap of size overrides to allow mocking of file sizes.
 async fn full_compaction(
     compactor: &Compactor,
     partition: Arc<PartitionCompactionCandidateWithInfo>,
@@ -249,7 +259,7 @@ async fn full_compaction(
 ) -> Result<(), Error> {
     // select all files in this partition
     let parquet_files_for_compaction =
-        parquet_file_lookup::ParquetFilesForCompaction::for_partition(
+        parquet_file_lookup::ParquetFilesForCompaction::for_partition_with_size_overrides(
             Arc::clone(&compactor.catalog),
             partition.id(),
             size_overrides,
@@ -812,9 +822,7 @@ mod tests {
         assert_eq!(candidates.len(), 1);
         let c = Arc::new(candidates.pop_front().unwrap());
 
-        compact_one_partition(&compactor, c, &Default::default())
-            .await
-            .unwrap();
+        compact_one_partition(&compactor, c).await.unwrap();
 
         // Should have 1 non-soft-deleted files:
         //
@@ -1028,7 +1036,7 @@ mod tests {
         assert_eq!(candidates.len(), 1);
         let c = Arc::new(candidates.pop_front().unwrap());
 
-        compact_one_partition(&compactor, c, &size_overrides)
+        compact_one_partition_with_size_overrides(&compactor, c, &size_overrides)
             .await
             .unwrap();
 

@@ -126,7 +126,6 @@ async fn compact_candidates_with_memory_budget<C, Fut, F>(
                     parquet_file_lookup::ParquetFilesForCompaction::for_partition(
                         Arc::clone(&compactor.catalog),
                         partition_id,
-                        &Default::default(),
                     )
                     .await;
                 match parquet_files_for_compaction {

@@ -17,10 +17,7 @@ use std::sync::Arc;
 pub async fn compact(compactor: Arc<Compactor>) -> usize {
     let compaction_type = "hot";
     // Select hot partition candidates
-    debug!(
-        compaction_type,
-        "start collecting partitions to compact"
-    );
+    debug!(compaction_type, "start collecting partitions to compact");
     let attributes = Attributes::from(&[("partition_type", compaction_type)]);
     let start_time = compactor.time_provider.now();
     let candidates = Backoff::new(&compactor.backoff_config)
@@ -712,7 +709,7 @@ mod tests {
         let c = candidates.pop_front().unwrap();
 
         let parquet_files_for_compaction =
-            parquet_file_lookup::ParquetFilesForCompaction::for_partition(
+            parquet_file_lookup::ParquetFilesForCompaction::for_partition_with_size_overrides(
                 Arc::clone(&compactor.catalog),
                 c.id(),
                 &size_overrides,

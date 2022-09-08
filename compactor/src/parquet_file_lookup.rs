@@ -40,11 +40,21 @@ pub(crate) struct ParquetFilesForCompaction {
 impl ParquetFilesForCompaction {
     /// Given a catalog and a partition ID, find the Parquet files in the catalog relevant to a
     /// compaction operation.
-    ///
-    /// Takes a hash-map `size_overrides` that mocks the size of the detected [`CompactorParquetFile`]s. This will
-    /// influence the size calculation of the compactor (i.e. when/how to compact files), but leave the actual physical
-    /// size of the file as it is (i.e. file deserialization can still rely on the original value).
     pub(crate) async fn for_partition(
+        catalog: Arc<dyn Catalog>,
+        partition_id: PartitionId,
+    ) -> Result<Self, PartitionFilesFromPartitionError> {
+        Self::for_partition_with_size_overrides(catalog, partition_id, &Default::default()).await
+    }
+
+    /// Given a catalog and a partition ID, find the Parquet files in the catalog relevant to a
+    /// compaction operation, also taking into account size overrides for testing purposes.
+    ///
+    /// Takes a hash-map `size_overrides` that mocks the size of the detected
+    /// [`CompactorParquetFile`]s. This will influence the size calculation of the compactor (i.e.
+    /// when/how to compact files), but leave the actual physical size of the file as it is (i.e.
+    /// file deserialization can still rely on the original value).
+    pub(crate) async fn for_partition_with_size_overrides(
         catalog: Arc<dyn Catalog>,
         partition_id: PartitionId,
         size_overrides: &HashMap<ParquetFileId, i64>,
@@ -182,7 +192,6 @@ mod tests {
         let parquet_files_for_compaction = ParquetFilesForCompaction::for_partition(
             Arc::clone(&catalog.catalog),
             partition.partition.id,
-            &HashMap::default(),
         )
         .await
         .unwrap();
@@ -214,7 +223,6 @@ mod tests {
         let parquet_files_for_compaction = ParquetFilesForCompaction::for_partition(
             Arc::clone(&catalog.catalog),
             partition.partition.id,
-            &HashMap::default(),
         )
         .await
         .unwrap();
@@ -247,7 +255,6 @@ mod tests {
         let parquet_files_for_compaction = ParquetFilesForCompaction::for_partition(
             Arc::clone(&catalog.catalog),
             partition.partition.id,
-            &HashMap::default(),
         )
         .await
         .unwrap();
@@ -280,7 +287,6 @@ mod tests {
         let parquet_files_for_compaction = ParquetFilesForCompaction::for_partition(
             Arc::clone(&catalog.catalog),
             partition.partition.id,
-            &HashMap::default(),
         )
         .await
         .unwrap();
@@ -331,7 +337,6 @@ mod tests {
         let parquet_files_for_compaction = ParquetFilesForCompaction::for_partition(
             Arc::clone(&catalog.catalog),
             partition.partition.id,
-            &HashMap::default(),
         )
         .await
         .unwrap();
@@ -382,7 +387,6 @@ mod tests {
         let parquet_files_for_compaction = ParquetFilesForCompaction::for_partition(
             Arc::clone(&catalog.catalog),
             partition.partition.id,
-            &HashMap::default(),
         )
         .await
         .unwrap();
