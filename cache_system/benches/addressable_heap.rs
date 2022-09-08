@@ -299,6 +299,70 @@ fn bench_replace_after_n_elements(c: &mut Criterion) {
     g.finish();
 }
 
+fn bench_update_order_existing_after_n_elements(c: &mut Criterion) {
+    let mut g = c.benchmark_group("update_order_existing_after_n_elements");
+    setup_group(&mut g);
+
+    let mut rng = thread_rng();
+
+    for n in TEST_SIZES {
+        if *n == 0 {
+            continue;
+        }
+
+        g.bench_with_input(BenchmarkId::from_parameter(n), &n, |b, &_n| {
+            b.iter_batched(
+                || {
+                    let (heap, entries) = create_filled_heap(&mut rng, *n);
+                    let entry = entries.choose(&mut rng).unwrap().clone();
+                    let entry = Entry {
+                        k: entry.k,
+                        o: Entry::new_random(&mut rng).o,
+                    };
+                    (heap, entry)
+                },
+                |(mut heap, entry)| {
+                    heap.update_order(&entry.k, entry.o);
+
+                    // let criterion handle the drop
+                    heap
+                },
+                BatchSize::LargeInput,
+            );
+        });
+    }
+
+    g.finish();
+}
+
+fn bench_update_order_new_after_n_elements(c: &mut Criterion) {
+    let mut g = c.benchmark_group("update_order_new_after_n_elements");
+    setup_group(&mut g);
+
+    let mut rng = thread_rng();
+
+    for n in TEST_SIZES {
+        g.bench_with_input(BenchmarkId::from_parameter(n), &n, |b, &_n| {
+            b.iter_batched(
+                || {
+                    let (heap, _entries) = create_filled_heap(&mut rng, *n);
+                    let entry = Entry::new_random(&mut rng);
+                    (heap, entry)
+                },
+                |(mut heap, entry)| {
+                    heap.update_order(&entry.k, entry.o);
+
+                    // let criterion handle the drop
+                    heap
+                },
+                BatchSize::LargeInput,
+            );
+        });
+    }
+
+    g.finish();
+}
+
 criterion_group! {
     name = benches;
     config = Criterion::default();
@@ -311,5 +375,7 @@ criterion_group! {
         bench_remove_existing_after_n_elements,
         bench_remove_new_after_n_elements,
         bench_replace_after_n_elements,
+        bench_update_order_existing_after_n_elements,
+        bench_update_order_new_after_n_elements,
 }
 criterion_main!(benches);

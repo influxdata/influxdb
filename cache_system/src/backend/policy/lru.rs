@@ -628,9 +628,7 @@ where
         let mut inner = self.inner.lock();
 
         // update "last used"
-        if let Some((consumption, _last_used)) = inner.last_used.remove(k) {
-            inner.last_used.insert(k.clone(), consumption, now);
-        }
+        inner.last_used.update_order(k, now);
 
         vec![]
     }
