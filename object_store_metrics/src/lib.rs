@@ -82,6 +82,13 @@ pub struct ObjectStoreMetrics {
     get_error_duration: DurationHistogram,
     get_bytes: U64Counter,
 
+    get_range_success_duration: DurationHistogram,
+    get_range_error_duration: DurationHistogram,
+    get_range_bytes: U64Counter,
+
+    head_success_duration: DurationHistogram,
+    head_error_duration: DurationHistogram,
+
     delete_success_duration: DurationHistogram,
     delete_error_duration: DurationHistogram,
 
@@ -103,18 +110,31 @@ impl ObjectStoreMetrics {
         );
         let put_bytes = bytes.recorder(&[("op", "put")]);
         let get_bytes = bytes.recorder(&[("op", "get")]);
+        let get_range_bytes = bytes.recorder(&[("op", "get_range")]);
 
         // Call durations broken down by op & result
         let duration: Metric<DurationHistogram> = registry.register_metric(
             "object_store_op_duration",
             "object store operation duration",
         );
+
         let put_success_duration = duration.recorder(&[("op", "put"), ("result", "success")]);
         let put_error_duration = duration.recorder(&[("op", "put"), ("result", "error")]);
+
         let get_success_duration = duration.recorder(&[("op", "get"), ("result", "success")]);
         let get_error_duration = duration.recorder(&[("op", "get"), ("result", "error")]);
+
+        let get_range_success_duration =
+            duration.recorder(&[("op", "get_range"), ("result", "success")]);
+        let get_range_error_duration =
+            duration.recorder(&[("op", "get_range"), ("result", "error")]);
+
+        let head_success_duration = duration.recorder(&[("op", "head"), ("result", "success")]);
+        let head_error_duration = duration.recorder(&[("op", "head"), ("result", "error")]);
+
         let delete_success_duration = duration.recorder(&[("op", "delete"), ("result", "success")]);
         let delete_error_duration = duration.recorder(&[("op", "delete"), ("result", "error")]);
+
         let list_success_duration = duration.recorder(&[("op", "list"), ("result", "success")]);
         let list_error_duration = duration.recorder(&[("op", "list"), ("result", "error")]);
 
@@ -129,6 +149,13 @@ impl ObjectStoreMetrics {
             get_bytes,
             get_success_duration,
             get_error_duration,
+
+            get_range_bytes,
+            get_range_success_duration,
+            get_range_error_duration,
+
+            head_success_duration,
+            head_error_duration,
 
             delete_success_duration,
             delete_error_duration,
@@ -218,13 +245,40 @@ impl ObjectStore for ObjectStoreMetrics {
     }
 
     async fn get_range(&self, location: &Path, range: Range<usize>) -> Result<Bytes> {
-        // TODO: Add instrumentation of get_range requests
-        self.inner.get_range(location, range).await
+        let t = self.time_provider.now();
+
+        let res = self.inner.get_range(location, range).await;
+
+        // Avoid exploding if time goes backwards - simply drop the measurement
+        // if it happens.
+        if let Some(delta) = self.time_provider.now().checked_duration_since(t) {
+            match &res {
+                Ok(data) => {
+                    self.get_range_success_duration.record(delta);
+                    self.get_range_bytes.inc(data.len() as _);
+                }
+                Err(_) => self.get_range_error_duration.record(delta),
+            };
+        }
+
+        res
     }
 
     async fn head(&self, location: &Path) -> Result<ObjectMeta> {
-        // TODO: Add instrumentation of head requests
-        self.inner.head(location).await
+        let t = self.time_provider.now();
+
+        let res = self.inner.head(location).await;
+
+        // Avoid exploding if time goes backwards - simply drop the measurement
+        // if it happens.
+        if let Some(delta) = self.time_provider.now().checked_duration_since(t) {
+            match &res {
+                Ok(_) => self.head_success_duration.record(delta),
+                Err(_) => self.head_error_duration.record(delta),
+            };
+        }
+
+        res
     }
 
     async fn delete(&self, location: &Path) -> Result<()> {
@@ -682,6 +736,25 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_head_fails() {
+        let metrics = Arc::new(metric::Registry::default());
+        let store = Arc::new(DummyObjectStore::new("s3"));
+        let time = Arc::new(SystemProvider::new());
+        let store = ObjectStoreMetrics::new(store, time, &metrics);
+
+        store
+            .head(&Path::from("test"))
+            .await
+            .expect_err("mock configured to fail");
+
+        assert_histogram_hit(
+            &metrics,
+            "object_store_op_duration",
+            [("op", "head"), ("result", "error")],
+        );
+    }
+
+    #[tokio::test]
     async fn test_get_fails() {
         let metrics = Arc::new(metric::Registry::default());
         let store = Arc::new(DummyObjectStore::new("s3"));
@@ -701,7 +774,26 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_put_get_delete_file() {
+    async fn test_getrange_fails() {
+        let metrics = Arc::new(metric::Registry::default());
+        let store = Arc::new(DummyObjectStore::new("s3"));
+        let time = Arc::new(SystemProvider::new());
+        let store = ObjectStoreMetrics::new(store, time, &metrics);
+
+        store
+            .get_range(&Path::from("test"), 0..1000)
+            .await
+            .expect_err("mock configured to fail");
+
+        assert_histogram_hit(
+            &metrics,
+            "object_store_op_duration",
+            [("op", "get_range"), ("result", "error")],
+        );
+    }
+
+    #[tokio::test]
+    async fn test_put_get_getrange_head_delete_file() {
         let metrics = Arc::new(metric::Registry::default());
         // Temporary workaround for https://github.com/apache/arrow-rs/issues/2370
         let path = std::fs::canonicalize(".").unwrap();
@@ -735,10 +827,32 @@ mod tests {
         );
 
         store
+            .get_range(&path, 1..4)
+            .await
+            .expect("should clean up test file");
+        assert_counter_value(
+            &metrics,
+            "object_store_transfer_bytes",
+            [("op", "get_range")],
+            3,
+        );
+        assert_histogram_hit(
+            &metrics,
+            "object_store_op_duration",
+            [("op", "get_range"), ("result", "success")],
+        );
+
+        store.head(&path).await.expect("should clean up test file");
+        assert_histogram_hit(
+            &metrics,
+            "object_store_op_duration",
+            [("op", "head"), ("result", "success")],
+        );
+
+        store
             .delete(&path)
             .await
             .expect("should clean up test file");
-
         assert_histogram_hit(
             &metrics,
             "object_store_op_duration",
