@@ -8,7 +8,6 @@ use data_types::{ChunkId, ParquetFileId, SequenceNumber, ShardIndex};
 use iox_catalog::interface::get_schema_by_name;
 use iox_tests::util::{TestCatalog, TestPartition, TestShard, TestTable};
 use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
-use parquet_file::storage::ParquetStorage;
 use schema::{selection::Selection, sort::SortKey, Schema};
 use sharder::JumpHash;
 use std::{collections::HashMap, sync::Arc};
@@ -29,7 +28,6 @@ pub async fn querier_table(
     ));
     let chunk_adapter = Arc::new(ChunkAdapter::new(
         catalog_cache,
-        ParquetStorage::new(catalog.object_store()),
         catalog.metric_registry(),
         load_settings,
     ));

@@ -10,7 +10,6 @@ use crate::{
 };
 use data_types::{NamespaceId, ParquetFileId, ShardIndex};
 use iox_query::exec::Executor;
-use parquet_file::storage::ParquetStorage;
 use sharder::JumpHash;
 use std::{collections::HashMap, sync::Arc};
 
@@ -101,7 +100,6 @@ impl QuerierNamespace {
     #[allow(clippy::too_many_arguments)]
     pub fn new_testing(
         catalog_cache: Arc<CatalogCache>,
-        store: ParquetStorage,
         metric_registry: Arc<metric::Registry>,
         name: Arc<str>,
         ns: Arc<CachedNamespace>,
@@ -114,7 +112,6 @@ impl QuerierNamespace {
         let time_provider = catalog_cache.time_provider();
         let chunk_adapter = Arc::new(ChunkAdapter::new(
             catalog_cache,
-            store,
             metric_registry,
             load_settings,
         ));
