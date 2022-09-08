@@ -399,7 +399,7 @@ impl Compactor {
     pub async fn add_info_to_partitions(
         &self,
         partitions: &[PartitionParam],
-    ) -> Result<VecDeque<PartitionCompactionCandidateWithInfo>> {
+    ) -> Result<VecDeque<Arc<PartitionCompactionCandidateWithInfo>>> {
         let mut repos = self.catalog.repositories().await;
 
         let table_ids: HashSet<_> = partitions.iter().map(|p| p.table_id).collect();
@@ -457,7 +457,7 @@ impl Compactor {
                 let (table, table_schema) = tables.get(&p.table_id).expect("just queried");
                 let part = parts.get(&p.partition_id).expect("just queried");
 
-                PartitionCompactionCandidateWithInfo {
+                Arc::new(PartitionCompactionCandidateWithInfo {
                     table: Arc::clone(table),
                     table_schema: Arc::clone(table_schema),
                     namespace: Arc::clone(
@@ -466,7 +466,7 @@ impl Compactor {
                     candidate: *p,
                     sort_key: part.sort_key(),
                     partition_key: part.partition_key.clone(),
-                }
+                })
             })
             .collect::<VecDeque<_>>())
     }

@@ -52,7 +52,7 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
     compactor: Arc<Compactor>,
     compaction_type: &'static str,
     compact_function: C,
-    mut candidates: VecDeque<PartitionCompactionCandidateWithInfo>,
+    mut candidates: VecDeque<Arc<PartitionCompactionCandidateWithInfo>>,
     table_columns: HashMap<TableId, Vec<ColumnTypeCount>>,
 ) where
     C: Fn(Arc<Compactor>, Vec<FilteredFiles>, &'static str) -> Fut + Send + Sync + 'static,
@@ -134,7 +134,7 @@ async fn compact_candidates_with_memory_budget<C, Fut>(
                         // Return only files under the `remaining_budget_bytes` that should be
                         // compacted
                         let to_compact = parquet_file_filtering::filter_parquet_files(
-                            partition.clone(),
+                            Arc::clone(&partition),
                             parquet_files_for_compaction,
                             remaining_budget_bytes,
                             columns,
@@ -323,7 +323,7 @@ pub(crate) async fn compact_one_partition(
     } else {
         parquet_file_combining::compact_parquet_files(
             to_compact.files,
-            Arc::new(partition),
+            partition,
             Arc::clone(&compactor.catalog),
             compactor.store.clone(),
             Arc::clone(&compactor.exec),

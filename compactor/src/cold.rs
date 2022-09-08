@@ -631,7 +631,7 @@ mod tests {
             .unwrap();
 
         let to_compact = parquet_file_filtering::filter_parquet_files(
-            c.clone(),
+            Arc::clone(&c),
             parquet_files_for_compaction,
             compactor.config.memory_budget_bytes,
             &table_column_types,
@@ -695,7 +695,6 @@ mod tests {
         );
 
         // Full compaction will now combine the two level 1 files into one level 2 file
-        let c = Arc::new(c);
         full_compaction(&compactor, c, &size_overrides)
             .await
             .unwrap();

@@ -8,6 +8,7 @@ use crate::{
 use data_types::{ColumnType, ColumnTypeCount};
 use metric::{Attributes, Metric, U64Gauge, U64Histogram};
 use observability_deps::tracing::*;
+use std::sync::Arc;
 
 const AVERAGE_TAG_VALUE_LENGTH: i64 = 200;
 const STRING_LENGTH: i64 = 1000;
@@ -64,7 +65,7 @@ pub(crate) struct FilteredFiles {
     /// If the value is not 0 but the files are empty, the budget is greater than the allowed one.
     budget_bytes: u64,
     /// Partition of the files
-    pub partition: PartitionCompactionCandidateWithInfo,
+    pub partition: Arc<PartitionCompactionCandidateWithInfo>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -79,7 +80,7 @@ impl FilteredFiles {
     pub fn new(
         files: Vec<CompactorParquetFile>,
         budget_bytes: u64,
-        partition: PartitionCompactionCandidateWithInfo,
+        partition: Arc<PartitionCompactionCandidateWithInfo>,
     ) -> Self {
         Self {
             files,
@@ -116,7 +117,7 @@ impl FilteredFiles {
 /// in ascending order by their max sequence number.
 pub(crate) fn filter_parquet_files(
     // partition of the parquet files
-    partition: PartitionCompactionCandidateWithInfo,
+    partition: Arc<PartitionCompactionCandidateWithInfo>,
     // Level 0 files sorted by max sequence number and level 1 files in arbitrary order for one
     // partition
     parquet_files_for_compaction: ParquetFilesForCompaction,
@@ -499,9 +500,11 @@ mod tests {
             let (files_metric, bytes_metric) = metrics();
 
             // values of these inputs do not mean much in this test case
-            let partition = ParquetFileBuilder::level_0()
-                .id(1)
-                .build_partition_with_extra_info();
+            let partition = Arc::new(
+                ParquetFileBuilder::level_0()
+                    .id(1)
+                    .build_partition_with_extra_info(),
+            );
             let table_columns = vec![];
 
             let to_compact = filter_parquet_files(
@@ -526,9 +529,11 @@ mod tests {
             };
             let (files_metric, bytes_metric) = metrics();
 
-            let partition = ParquetFileBuilder::level_0()
-                .id(1)
-                .build_partition_with_extra_info();
+            let partition = Arc::new(
+                ParquetFileBuilder::level_0()
+                    .id(1)
+                    .build_partition_with_extra_info(),
+            );
             let table_columns = one_tag_one_time_cols();
 
             let to_compact = filter_parquet_files(
@@ -553,9 +558,11 @@ mod tests {
             };
             let (files_metric, bytes_metric) = metrics();
 
-            let partition = ParquetFileBuilder::level_0()
-                .id(1)
-                .build_partition_with_extra_info();
+            let partition = Arc::new(
+                ParquetFileBuilder::level_0()
+                    .id(1)
+                    .build_partition_with_extra_info(),
+            );
             // 2 columns including a tag and 11 rows will have budget over 1000 bytes
             let table_columns = one_tag_one_time_cols();
 
@@ -611,9 +618,11 @@ mod tests {
             };
             let (files_metric, bytes_metric) = metrics();
 
-            let partition = ParquetFileBuilder::level_0()
-                .id(1)
-                .build_partition_with_extra_info();
+            let partition = Arc::new(
+                ParquetFileBuilder::level_0()
+                    .id(1)
+                    .build_partition_with_extra_info(),
+            );
             let table_columns = one_tag_one_time_cols();
 
             let to_compact = filter_parquet_files(
@@ -717,13 +726,15 @@ mod tests {
 
             // total needed budget for one file with a tag, a time and 11 rows = 1176
             let (files_metric, bytes_metric) = metrics();
-            let partition = ParquetFileBuilder::level_0()
-                .id(1)
-                .build_partition_with_extra_info();
+            let partition = Arc::new(
+                ParquetFileBuilder::level_0()
+                    .id(1)
+                    .build_partition_with_extra_info(),
+            );
             let table_columns = one_tag_one_time_cols();
 
             let to_compact = filter_parquet_files(
-                partition.clone(),
+                Arc::clone(&partition),
                 parquet_files_for_compaction.clone(),
                 1176 * 3 + 5, // enough for 3 files
                 &table_columns,
