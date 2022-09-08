@@ -6,11 +6,15 @@ use predicates::prelude::*;
 use serde_json::Value;
 use std::time::Duration;
 use tempfile::tempdir;
-use test_helpers_end_to_end::{maybe_skip_integration, MiniCluster, Step, StepTest, StepTestState};
+use test_helpers_end_to_end::{
+    maybe_skip_integration, AddAddrEnv, BindAddresses, MiniCluster, ServerType, Step, StepTest,
+    StepTestState,
+};
 
 #[tokio::test]
 async fn default_mode_is_run_all_in_one() {
     let tmpdir = tempdir().unwrap();
+    let addrs = BindAddresses::default();
 
     Command::cargo_bin("influxdb_iox")
         .unwrap()
@@ -21,6 +25,7 @@ async fn default_mode_is_run_all_in_one() {
         .env_clear()
         // Without this, we have errors about writing read-only root filesystem on macos.
         .env("HOME", tmpdir.path())
+        .add_addr_env(ServerType::AllInOne, &addrs)
         .timeout(Duration::from_secs(2))
         .assert()
         .failure()
@@ -30,6 +35,8 @@ async fn default_mode_is_run_all_in_one() {
 #[tokio::test]
 async fn default_run_mode_is_all_in_one() {
     let tmpdir = tempdir().unwrap();
+    let addrs = BindAddresses::default();
+
     Command::cargo_bin("influxdb_iox")
         .unwrap()
         .args(&["run", "-v"])
@@ -38,6 +45,7 @@ async fn default_run_mode_is_all_in_one() {
         // this.
         .env_clear()
         .env("HOME", tmpdir.path())
+        .add_addr_env(ServerType::AllInOne, &addrs)
         .timeout(Duration::from_secs(2))
         .assert()
         .failure()
