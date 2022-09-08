@@ -201,7 +201,6 @@ pub async fn build_compactor_from_config(
         split_percentage,
         max_number_partitions_per_shard,
         min_number_recent_ingested_files_per_partition,
-        cold_input_file_count_threshold,
         hot_multiple,
         memory_budget_bytes,
         ..
@@ -213,7 +212,6 @@ pub async fn build_compactor_from_config(
         split_percentage,
         max_number_partitions_per_shard,
         min_number_recent_ingested_files_per_partition,
-        cold_input_file_count_threshold,
         hot_multiple,
         memory_budget_bytes,
     };

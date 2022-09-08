@@ -510,7 +510,6 @@ pub mod tests {
             split_percentage: 100,
             max_number_partitions_per_shard: 100,
             min_number_recent_ingested_files_per_partition: 1,
-            cold_input_file_count_threshold: 100,
             hot_multiple: 4,
             memory_budget_bytes: 12 * 1125, // 13,500 bytes
         }
