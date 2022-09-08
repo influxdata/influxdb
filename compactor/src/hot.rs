@@ -1,13 +1,7 @@
 //! Collect highest hot candidates and compact them
 
-use crate::{
-    compact::{Compactor, PartitionCompactionCandidateWithInfo},
-    compact_candidates_with_memory_budget, compact_in_parallel,
-    parquet_file_filtering::filter_hot_parquet_files,
-    parquet_file_lookup::ParquetFilesForCompaction,
-};
+use crate::{compact::Compactor, compact_candidates_with_memory_budget, compact_in_parallel};
 use backoff::Backoff;
-use data_types::ColumnTypeCount;
 use metric::Attributes;
 use observability_deps::tracing::*;
 use std::sync::Arc;
@@ -96,20 +90,6 @@ pub async fn compact(compactor: Arc<Compactor>) -> usize {
     compact_candidates_with_memory_budget(
         Arc::clone(&compactor),
         compaction_type,
-        |compactor: Arc<Compactor>,
-         partition: PartitionCompactionCandidateWithInfo,
-         parquet_files_for_compaction: ParquetFilesForCompaction,
-         remaining_budget_bytes: u64,
-         columns: &[ColumnTypeCount]| {
-            filter_hot_parquet_files(
-                partition,
-                parquet_files_for_compaction,
-                remaining_budget_bytes,
-                columns,
-                &compactor.parquet_file_candidate_gauge,
-                &compactor.parquet_file_candidate_bytes,
-            )
-        },
         compact_in_parallel,
         candidates,
         table_columns,
@@ -355,20 +335,6 @@ mod tests {
         compact_candidates_with_memory_budget(
             Arc::clone(&compactor),
             "hot",
-            |compactor: Arc<Compactor>,
-             partition: PartitionCompactionCandidateWithInfo,
-             parquet_files_for_compaction: ParquetFilesForCompaction,
-             remaining_budget_bytes: u64,
-             columns: &[ColumnTypeCount]| {
-                filter_hot_parquet_files(
-                    partition,
-                    parquet_files_for_compaction,
-                    remaining_budget_bytes,
-                    columns,
-                    &compactor.parquet_file_candidate_gauge,
-                    &compactor.parquet_file_candidate_bytes,
-                )
-            },
             mock_compactor.compaction_function(),
             sorted_candidates,
             table_columns,
@@ -634,7 +600,7 @@ mod tests {
             .await
             .unwrap();
 
-        let to_compact = parquet_file_filtering::filter_hot_parquet_files(
+        let to_compact = parquet_file_filtering::filter_parquet_files(
             c,
             parquet_files_for_compaction,
             compactor.config.memory_budget_bytes,

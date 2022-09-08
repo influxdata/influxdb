@@ -26,9 +26,8 @@ pub mod utils;
 use crate::{
     compact::{Compactor, PartitionCompactionCandidateWithInfo},
     parquet_file_filtering::{FilterResult, FilteredFiles},
-    parquet_file_lookup::ParquetFilesForCompaction,
 };
-use data_types::{ColumnTypeCount, TableId};
+use data_types::{ColumnTypeCount, CompactionLevel, TableId};
 use metric::Attributes;
 use observability_deps::tracing::*;
 use snafu::{ResultExt, Snafu};
@@ -49,26 +48,15 @@ use std::{
 // If the partial remaining budget isn't enough to compact the current partition but the full
 // budget is enough, the current partition will be pushed back as the last item of the list to be
 // considered later with a full memory budget.
-async fn compact_candidates_with_memory_budget<C, Fut, F>(
+async fn compact_candidates_with_memory_budget<C, Fut>(
     compactor: Arc<Compactor>,
     compaction_type: &'static str,
-    filter_function: F,
     compact_function: C,
     mut candidates: VecDeque<PartitionCompactionCandidateWithInfo>,
     table_columns: HashMap<TableId, Vec<ColumnTypeCount>>,
 ) where
     C: Fn(Arc<Compactor>, Vec<FilteredFiles>, &'static str) -> Fut + Send + Sync + 'static,
     Fut: futures::Future<Output = ()> + Send,
-    F: Fn(
-            Arc<Compactor>,
-            PartitionCompactionCandidateWithInfo,
-            ParquetFilesForCompaction,
-            u64,
-            &[ColumnTypeCount],
-        ) -> FilteredFiles
-        + Send
-        + Sync
-        + 'static,
 {
     let mut remaining_budget_bytes = compactor.config.memory_budget_bytes;
     let mut parallel_compacting_candidates = Vec::with_capacity(candidates.len());
@@ -145,12 +133,13 @@ async fn compact_candidates_with_memory_budget<C, Fut, F>(
                     Ok(parquet_files_for_compaction) => {
                         // Return only files under the `remaining_budget_bytes` that should be
                         // compacted
-                        let to_compact = filter_function(
-                            Arc::clone(&compactor),
+                        let to_compact = parquet_file_filtering::filter_parquet_files(
                             partition.clone(),
                             parquet_files_for_compaction,
                             remaining_budget_bytes,
                             columns,
+                            &compactor.parquet_file_candidate_gauge,
+                            &compactor.parquet_file_candidate_bytes,
                         );
                         Some(to_compact)
                     }
@@ -290,11 +279,23 @@ async fn compact_in_parallel(
 pub(crate) enum CompactOnePartitionError {
     #[snafu(display("{}", source))]
     Combining {
-        source: parquet_file_combining::Error,
+        source: Box<parquet_file_combining::Error>,
+    },
+
+    #[snafu(display("{}", source))]
+    Upgrading {
+        source: iox_catalog::interface::Error,
     },
 }
 
-/// One compaction operation of one partition
+/// One compaction operation of one partition.
+///
+/// Takes a hash-map `size_overrides` that mocks the size of the detected
+/// [`CompactorParquetFile`]s. This will influence the size calculation of the compactor (i.e.
+/// when/how to compact files), but leave the actual physical size of the file as it is (i.e. file
+/// deserialization can still rely on the original value).
+///
+/// [`CompactorParquetFile`]: crate::parquet_file::CompactorParquetFile
 pub(crate) async fn compact_one_partition(
     compactor: &Compactor,
     to_compact: FilteredFiles,
@@ -305,20 +306,38 @@ pub(crate) async fn compact_one_partition(
     let partition = to_compact.partition;
     let shard_id = partition.shard_id();
 
-    let compact_result = parquet_file_combining::compact_parquet_files(
-        to_compact.files,
-        Arc::new(partition),
-        Arc::clone(&compactor.catalog),
-        compactor.store.clone(),
-        Arc::clone(&compactor.exec),
-        Arc::clone(&compactor.time_provider),
-        &compactor.compaction_input_file_bytes,
-        compactor.config.max_desired_file_size_bytes,
-        compactor.config.percentage_max_file_size,
-        compactor.config.split_percentage,
-    )
-    .await
-    .context(CombiningSnafu);
+    if to_compact.files.len() == 1
+        && to_compact.files[0].compaction_level() == CompactionLevel::Initial
+    {
+        // upgrade the one l0 file to l1, don't run compaction
+        let mut repos = compactor.catalog.repositories().await;
+
+        repos
+            .parquet_files()
+            .update_compaction_level(
+                &[to_compact.files[0].id()],
+                CompactionLevel::FileNonOverlapped,
+            )
+            .await
+            .context(UpgradingSnafu)?;
+    } else {
+        parquet_file_combining::compact_parquet_files(
+            to_compact.files,
+            Arc::new(partition),
+            Arc::clone(&compactor.catalog),
+            compactor.store.clone(),
+            Arc::clone(&compactor.exec),
+            Arc::clone(&compactor.time_provider),
+            &compactor.compaction_input_file_bytes,
+            compactor.config.max_desired_file_size_bytes,
+            compactor.config.percentage_max_file_size,
+            compactor.config.split_percentage,
+        )
+        .await
+        .map_err(|e| CompactOnePartitionError::Combining {
+            source: Box::new(e),
+        })?;
+    }
 
     let attributes = Attributes::from([
         ("shard_id", format!("{}", shard_id).into()),
@@ -333,19 +352,16 @@ pub(crate) async fn compact_one_partition(
         duration.record(delta);
     }
 
-    compact_result
+    Ok(())
 }
 
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use crate::{
-        compact::Compactor, handler::CompactorConfig,
-        parquet_file_filtering::filter_hot_parquet_files,
-    };
+    use crate::{compact::Compactor, handler::CompactorConfig};
     use ::parquet_file::storage::ParquetStorage;
     use backoff::BackoffConfig;
-    use data_types::{ColumnType, ColumnTypeCount, CompactionLevel};
+    use data_types::{ColumnType, CompactionLevel};
     use iox_query::exec::Executor;
     use iox_tests::util::{
         TestCatalog, TestNamespace, TestParquetFileBuilder, TestShard, TestTable,
@@ -374,20 +390,6 @@ pub mod tests {
         compact_candidates_with_memory_budget(
             Arc::clone(&compactor),
             "hot",
-            |compactor: Arc<Compactor>,
-             partition: PartitionCompactionCandidateWithInfo,
-             parquet_files_for_compaction: ParquetFilesForCompaction,
-             remaining_budget_bytes: u64,
-             columns: &[ColumnTypeCount]| {
-                filter_hot_parquet_files(
-                    partition,
-                    parquet_files_for_compaction,
-                    remaining_budget_bytes,
-                    columns,
-                    &compactor.parquet_file_candidate_gauge,
-                    &compactor.parquet_file_candidate_bytes,
-                )
-            },
             mock_compactor.compaction_function(),
             sorted_candidates,
             table_columns,
@@ -448,20 +450,6 @@ pub mod tests {
         compact_candidates_with_memory_budget(
             Arc::clone(&compactor),
             "hot",
-            |compactor: Arc<Compactor>,
-             partition: PartitionCompactionCandidateWithInfo,
-             parquet_files_for_compaction: ParquetFilesForCompaction,
-             remaining_budget_bytes: u64,
-             columns: &[ColumnTypeCount]| {
-                filter_hot_parquet_files(
-                    partition,
-                    parquet_files_for_compaction,
-                    remaining_budget_bytes,
-                    columns,
-                    &compactor.parquet_file_candidate_gauge,
-                    &compactor.parquet_file_candidate_bytes,
-                )
-            },
             mock_compactor.compaction_function(),
             sorted_candidates,
             table_columns,
