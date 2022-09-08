@@ -29,7 +29,9 @@ use crate::{
     parquet_file_lookup::ParquetFilesForCompaction,
 };
 use data_types::{ColumnTypeCount, TableId};
+use metric::Attributes;
 use observability_deps::tracing::*;
+use snafu::{ResultExt, Snafu};
 use std::{
     collections::{HashMap, VecDeque},
     sync::Arc,
@@ -49,13 +51,13 @@ use std::{
 // considered later with a full memory budget.
 async fn compact_candidates_with_memory_budget<C, Fut, F>(
     compactor: Arc<Compactor>,
-    compaction_type: &str,
+    compaction_type: &'static str,
     filter_function: F,
     compact_function: C,
     mut candidates: VecDeque<PartitionCompactionCandidateWithInfo>,
     table_columns: HashMap<TableId, Vec<ColumnTypeCount>>,
 ) where
-    C: Fn(Arc<Compactor>, Vec<FilteredFiles>) -> Fut + Send + Sync + 'static,
+    C: Fn(Arc<Compactor>, Vec<FilteredFiles>, &'static str) -> Fut + Send + Sync + 'static,
     Fut: futures::Future<Output = ()> + Send,
     F: Fn(
             Arc<Compactor>,
@@ -230,7 +232,12 @@ async fn compact_candidates_with_memory_budget<C, Fut, F>(
                 compaction_type,
                 "parallel compacting candidate"
             );
-            compact_function(Arc::clone(&compactor), parallel_compacting_candidates).await;
+            compact_function(
+                Arc::clone(&compactor),
+                parallel_compacting_candidates,
+                compaction_type,
+            )
+            .await;
 
             // Reset to start adding new set of parallel candidates
             parallel_compacting_candidates = Vec::with_capacity(candidates.len());
@@ -239,6 +246,94 @@ async fn compact_candidates_with_memory_budget<C, Fut, F>(
             count = 0;
         }
     }
+}
+
+// Compact given partitions in parallel.
+//
+// This function assumes its caller knows there are enough resources to run all partitions
+// concurrently
+async fn compact_in_parallel(
+    compactor: Arc<Compactor>,
+    partitions: Vec<FilteredFiles>,
+    compaction_type: &'static str,
+) {
+    let mut handles = Vec::with_capacity(partitions.len());
+    for p in partitions {
+        let comp = Arc::clone(&compactor);
+        let handle = tokio::task::spawn(async move {
+            let partition_id = p.partition.candidate.partition_id;
+            debug!(?partition_id, compaction_type, "compaction starting");
+            let compaction_result = compact_one_partition(&comp, p, compaction_type).await;
+            match compaction_result {
+                Err(e) => {
+                    warn!(?e, ?partition_id, compaction_type, "compaction failed");
+                }
+                Ok(_) => {
+                    debug!(?partition_id, compaction_type, "compaction complete");
+                }
+            };
+        });
+        handles.push(handle);
+    }
+
+    let compactions_run = handles.len();
+    debug!(
+        ?compactions_run,
+        compaction_type, "Number of concurrent partitions are being compacted"
+    );
+
+    let _ = futures::future::join_all(handles).await;
+}
+
+#[derive(Debug, Snafu)]
+#[allow(missing_copy_implementations, missing_docs)]
+pub(crate) enum CompactOnePartitionError {
+    #[snafu(display("{}", source))]
+    Combining {
+        source: parquet_file_combining::Error,
+    },
+}
+
+/// One compaction operation of one partition
+pub(crate) async fn compact_one_partition(
+    compactor: &Compactor,
+    to_compact: FilteredFiles,
+    compaction_type: &'static str,
+) -> Result<(), CompactOnePartitionError> {
+    let start_time = compactor.time_provider.now();
+
+    let partition = to_compact.partition;
+    let shard_id = partition.shard_id();
+
+    let compact_result = parquet_file_combining::compact_parquet_files(
+        to_compact.files,
+        Arc::new(partition),
+        Arc::clone(&compactor.catalog),
+        compactor.store.clone(),
+        Arc::clone(&compactor.exec),
+        Arc::clone(&compactor.time_provider),
+        &compactor.compaction_input_file_bytes,
+        compactor.config.max_desired_file_size_bytes,
+        compactor.config.percentage_max_file_size,
+        compactor.config.split_percentage,
+    )
+    .await
+    .context(CombiningSnafu);
+
+    let attributes = Attributes::from([
+        ("shard_id", format!("{}", shard_id).into()),
+        ("partition_type", compaction_type.into()),
+    ]);
+    if let Some(delta) = compactor
+        .time_provider
+        .now()
+        .checked_duration_since(start_time)
+    {
+        let duration = compactor.compaction_duration.recorder(attributes);
+        duration.record(delta);
+    }
+
+    compact_result
 }
 
 #[cfg(test)]
@@ -386,6 +481,7 @@ pub mod tests {
         dyn Fn(
                 Arc<Compactor>,
                 Vec<FilteredFiles>,
+                &'static str,
             ) -> Pin<Box<dyn futures::Future<Output = ()> + Send>>
             + Send
             + Sync
@@ -397,7 +493,8 @@ pub mod tests {
             let compaction_groups_for_closure = Arc::clone(&self.compaction_groups);
             Box::new(
                 move |_compactor: Arc<Compactor>,
-                      parallel_compacting_candidates: Vec<FilteredFiles>| {
+                      parallel_compacting_candidates: Vec<FilteredFiles>,
+                      _compaction_type: &'static str| {
                     let compaction_groups_for_async = Arc::clone(&compaction_groups_for_closure);
                     Box::pin(async move {
                         compaction_groups_for_async

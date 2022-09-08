@@ -2,15 +2,14 @@
 
 use crate::{
     compact::{Compactor, PartitionCompactionCandidateWithInfo},
-    compact_candidates_with_memory_budget, parquet_file_combining,
-    parquet_file_filtering::{filter_hot_parquet_files, FilteredFiles},
+    compact_candidates_with_memory_budget, compact_in_parallel,
+    parquet_file_filtering::filter_hot_parquet_files,
     parquet_file_lookup::ParquetFilesForCompaction,
 };
 use backoff::Backoff;
 use data_types::ColumnTypeCount;
 use metric::Attributes;
 use observability_deps::tracing::*;
-use snafu::{ResultExt, Snafu};
 use std::sync::Arc;
 
 /// Hot compaction. Returns the number of compacted partitions.
@@ -130,94 +129,12 @@ pub async fn compact(compactor: Arc<Compactor>) -> usize {
     n_candidates
 }
 
-// Compact given partitions in parallel.
-//
-// This function assumes its caller knows there are enough resources to run all partitions
-// concurrently
-async fn compact_in_parallel(compactor: Arc<Compactor>, partitions: Vec<FilteredFiles>) {
-    let mut handles = Vec::with_capacity(partitions.len());
-    for p in partitions {
-        let comp = Arc::clone(&compactor);
-        let handle = tokio::task::spawn(async move {
-            let partition_id = p.partition.candidate.partition_id;
-            debug!(?partition_id, "hot compaction starting");
-            let compaction_result = compact_one_partition(&comp, p).await;
-            match compaction_result {
-                Err(e) => {
-                    warn!(?e, ?partition_id, "hot compaction failed");
-                }
-                Ok(_) => {
-                    debug!(?partition_id, "hot compaction complete");
-                }
-            };
-        });
-        handles.push(handle);
-    }
-
-    let compactions_run = handles.len();
-    debug!(
-        ?compactions_run,
-        "Number of hot concurrent partitions are being compacted"
-    );
-
-    let _ = futures::future::join_all(handles).await;
-}
-
-#[derive(Debug, Snafu)]
-#[allow(missing_copy_implementations, missing_docs)]
-pub(crate) enum CompactOneHotPartitionError {
-    #[snafu(display("{}", source))]
-    Combining {
-        source: parquet_file_combining::Error,
-    },
-}
-
-/// One compaction operation of one hot partition
-pub(crate) async fn compact_one_partition(
-    compactor: &Compactor,
-    to_compact: FilteredFiles,
-) -> Result<(), CompactOneHotPartitionError> {
-    let start_time = compactor.time_provider.now();
-
-    let partition = to_compact.partition;
-    let shard_id = partition.shard_id();
-
-    let compact_result = parquet_file_combining::compact_parquet_files(
-        to_compact.files,
-        Arc::new(partition),
-        Arc::clone(&compactor.catalog),
-        compactor.store.clone(),
-        Arc::clone(&compactor.exec),
-        Arc::clone(&compactor.time_provider),
-        &compactor.compaction_input_file_bytes,
-        compactor.config.max_desired_file_size_bytes,
-        compactor.config.percentage_max_file_size,
-        compactor.config.split_percentage,
-    )
-    .await
-    .context(CombiningSnafu);
-
-    let attributes = Attributes::from([
-        ("shard_id", format!("{}", shard_id).into()),
-        ("partition_type", "hot".into()),
-    ]);
-    if let Some(delta) = compactor
-        .time_provider
-        .now()
-        .checked_duration_since(start_time)
-    {
-        let duration = compactor.compaction_duration.recorder(attributes);
-        duration.record(delta);
-    }
-
-    compact_result
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{
         compact::Compactor,
+        compact_one_partition,
         handler::CompactorConfig,
         parquet_file_filtering, parquet_file_lookup,
         tests::{test_setup, TestSetup},
@@ -726,7 +643,9 @@ mod tests {
             &compactor.parquet_file_candidate_bytes,
         );
 
-        compact_one_partition(&compactor, to_compact).await.unwrap();
+        compact_one_partition(&compactor, to_compact, "hot")
+            .await
+            .unwrap();
 
         // Should have 3 non-soft-deleted files:
         //
