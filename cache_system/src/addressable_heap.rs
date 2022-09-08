@@ -135,6 +135,34 @@ where
             None
         }
     }
+
+    /// Update order of a given key.
+    ///
+    /// Returns existing order if the key existed.
+    pub fn update_order(&mut self, k: &K, o: O) -> Option<O> {
+        match self.key_to_order_and_value.entry(k.clone()) {
+            hash_map::Entry::Occupied(mut entry_o) => {
+                let mut o_old = o.clone();
+                std::mem::swap(&mut entry_o.get_mut().1, &mut o_old);
+
+                let index = self
+                    .queue
+                    .binary_search_by_key(&(&o_old, k), project_tuple)
+                    .expect("key was in key_to_order");
+                let (_, k) = self.queue.remove(index).expect("just looked up that index");
+
+                match self.queue.binary_search_by_key(&(&o, &k), project_tuple) {
+                    Ok(_) => unreachable!("entry should have been removed by now"),
+                    Err(index) => {
+                        self.queue.insert(index, (o, k));
+                    }
+                }
+
+                Some(o_old)
+            }
+            hash_map::Entry::Vacant(_) => None,
+        }
+    }
 }
 
 impl<K, V, O> Default for AddressableHeap<K, V, O>
@@ -460,6 +488,15 @@ mod tests {
                     (v, o)
                 })
         }
+
+        fn update_order(&mut self, k: &u8, o: i8) -> Option<i8> {
+            if let Some((v, o_old)) = self.remove(k) {
+                self.insert(*k, v, o);
+                Some(o_old)
+            } else {
+                None
+            }
+        }
     }
 
     #[derive(Debug, Clone)]
@@ -470,6 +507,7 @@ mod tests {
         Pop,
         Get { k: u8 },
         Remove { k: u8 },
+        UpdateOrder { k: u8, o: i8 },
     }
 
     // Use a hand-rolled strategy instead of `proptest-derive`, because the latter one is quite a heavy dependency.
@@ -481,6 +519,7 @@ mod tests {
             Just(Action::Pop),
             any::<u8>().prop_map(|k| Action::Get { k }),
             any::<u8>().prop_map(|k| Action::Remove { k }),
+            (any::<u8>(), any::<i8>()).prop_map(|(k, o)| Action::UpdateOrder { k, o }),
         ]
     }
 
@@ -520,6 +559,11 @@ mod tests {
                     Action::Remove{k} => {
                         let res1 = heap.remove(&k);
                         let res2 = sim.remove(&k);
+                        assert_eq!(res1, res2);
+                    }
+                    Action::UpdateOrder{k, o} => {
+                        let res1 = heap.update_order(&k, o);
+                        let res2 = sim.update_order(&k, o);
                         assert_eq!(res1, res2);
                     }
                 }

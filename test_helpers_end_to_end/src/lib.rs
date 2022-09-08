@@ -15,13 +15,14 @@ mod server_type;
 mod steps;
 mod udp_listener;
 
+pub use addrs::BindAddresses;
 pub use client::*;
 pub use config::TestConfig;
 pub use data_generator::DataGenerator;
 pub use grpc::GrpcRequestBuilder;
 pub use mini_cluster::MiniCluster;
 pub use server_fixture::{ServerFixture, TestServer};
-pub use server_type::ServerType;
+pub use server_type::{AddAddrEnv, ServerType};
 pub use steps::{FCustom, Step, StepTest, StepTestState};
 pub use udp_listener::UdpCapture;
 

@@ -71,7 +71,8 @@ tower-http = { version = "0.3", features = ["catch-panic", "map-response-body", 
 tracing = { version = "0.1", features = ["attributes", "log", "max_level_trace", "release_max_level_trace", "std", "tracing-attributes"] }
 tracing-core = { version = "0.1", features = ["once_cell", "std"] }
 tracing-log = { version = "0.1", features = ["log-tracer", "std", "trace-logger"] }
-tracing-subscriber = { version = "0.3", features = ["alloc", "ansi", "ansi_term", "env-filter", "fmt", "json", "lazy_static", "matchers", "parking_lot", "regex", "registry", "serde", "serde_json", "sharded-slab", "smallvec", "std", "thread_local", "tracing", "tracing-log", "tracing-serde"] }
+tracing-subscriber = { version = "0.3", features = ["alloc", "ansi", "ansi_term", "env-filter", "fmt", "json", "matchers", "once_cell", "parking_lot", "regex", "registry", "serde", "serde_json", "sharded-slab", "smallvec", "std", "thread_local", "tracing", "tracing-log", "tracing-serde"] }
+url = { version = "2" }
 uuid = { version = "1", features = ["private_getrandom", "rng", "std", "v4"] }
 zstd = { version = "0.11", features = ["arrays", "legacy", "zdict_builder"] }
 zstd-safe = { version = "5", default-features = false, features = ["arrays", "legacy", "std", "zdict_builder"] }
@@ -124,6 +125,7 @@ syn = { version = "1", features = ["clone-impls", "derive", "extra-traits", "ful
 tokio = { version = "1", features = ["bytes", "fs", "io-std", "io-util", "libc", "macros", "memchr", "mio", "net", "num_cpus", "once_cell", "parking_lot", "rt", "rt-multi-thread", "signal", "signal-hook-registry", "sync", "time", "tokio-macros", "tracing"] }
 tokio-stream = { version = "0.1", features = ["fs", "net", "time"] }
 tonic-build = { version = "0.8", features = ["prost", "prost-build", "transport"] }
+url = { version = "2" }
 uuid = { version = "1", features = ["private_getrandom", "rng", "std", "v4"] }
 
 [target.x86_64-unknown-linux-gnu.dependencies]

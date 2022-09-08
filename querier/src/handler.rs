@@ -135,7 +135,6 @@ mod tests {
     use iox_query::exec::Executor;
     use iox_time::{MockProvider, Time};
     use object_store::memory::InMemory;
-    use parquet_file::storage::ParquetStorage;
     use std::time::Duration;
     use tokio::runtime::Handle;
 
@@ -191,7 +190,6 @@ mod tests {
                 QuerierDatabase::new(
                     catalog_cache,
                     metric_registry,
-                    ParquetStorage::new(object_store),
                     exec,
                     Some(create_ingester_connection_for_testing()),
                     QuerierDatabase::MAX_CONCURRENT_QUERIES_MAX,
