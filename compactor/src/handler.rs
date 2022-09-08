@@ -110,11 +110,6 @@ pub struct CompactorConfig {
     /// Min number of recent ingested files a partition needs to be considered for compacting
     pub min_number_recent_ingested_files_per_partition: usize,
 
-    /// A compaction operation for cold partitions will gather as many L0 files with their
-    /// overlapping L1 files to compact together until the total size of input files crosses this
-    /// threshold. Later compactions will pick up the remaining L0 files.
-    pub cold_input_size_threshold_bytes: u64,
-
     /// A compaction operation will gather as many L0 files with their overlapping L1 files to
     /// compact together until the total number of L0 + L1 files crosses this threshold. Later
     /// compactions will pick up the remaining L0 files.

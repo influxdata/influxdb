@@ -106,19 +106,6 @@ macro_rules! gen_compactor_config {
             )]
             pub min_number_recent_ingested_files_per_partition: usize,
 
-            /// A compaction operation for cold partitions will gather as many L0 files with their
-            /// overlapping L1 files to compact together until the total size of input files
-            /// crosses this threshold. Later compactions will pick up the remaining L0 files.
-            ///
-            /// Default is 1024 * 1024 * 600 = 629,145,600 bytes (600MB).
-            #[clap(
-                long = "--compaction-cold-input-size-threshold-bytes",
-                env = "INFLUXDB_IOX_COMPACTION_COLD_INPUT_SIZE_THRESHOLD_BYTES",
-                default_value = "629145600",
-                action
-            )]
-            pub cold_input_size_threshold_bytes: u64,
-
             /// A compaction operation will gather as many L0 files with their overlapping L1 files
             /// to compact together until the total number of L0 + L1 files crosses this threshold.
             /// Later compactions will pick up the remaining L0 files.
@@ -189,7 +176,6 @@ impl CompactorOnceConfig {
             max_number_partitions_per_shard: self.max_number_partitions_per_shard,
             min_number_recent_ingested_files_per_partition: self
                 .min_number_recent_ingested_files_per_partition,
-            cold_input_size_threshold_bytes: self.cold_input_size_threshold_bytes,
             cold_input_file_count_threshold: self.cold_input_file_count_threshold,
             hot_multiple: self.hot_multiple,
             memory_budget_bytes: self.memory_budget_bytes,
