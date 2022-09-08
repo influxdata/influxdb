@@ -508,7 +508,6 @@ pub mod tests {
             max_desired_file_size_bytes: 100_000_000,
             percentage_max_file_size: 90,
             split_percentage: 100,
-            max_cold_concurrent_size_bytes: 90_000,
             max_number_partitions_per_shard: 100,
             min_number_recent_ingested_files_per_partition: 1,
             cold_input_size_threshold_bytes: 600 * 1024 * 1024,

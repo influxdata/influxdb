@@ -84,22 +84,6 @@ macro_rules! gen_compactor_config {
             )]
             pub split_percentage: u16,
 
-            /// The compactor will limit the number of simultaneous cold partition compaction jobs
-            /// based on the size of the input files to be compacted. This number should be less
-            /// than 1/10th of the available memory to ensure compactions have enough space to run.
-            ///
-            /// Default is 1024 * 1024 * 900 = 943,718,400 bytes (900MB).
-            //
-            // The number of compact_cold_partititons run in parallel is determined by:
-            //    max_cold_concurrent_size_bytes/cold_input_size_threshold_bytes
-            #[clap(
-                long = "--compaction-cold-concurrent-size-bytes",
-                env = "INFLUXDB_IOX_COMPACTION_COLD_CONCURRENT_SIZE_BYTES",
-                default_value = "943718400",
-                action
-            )]
-            pub max_cold_concurrent_size_bytes: u64,
-
             /// Max number of partitions per shard we want to compact per cycle
             /// Default: 1
             #[clap(
@@ -202,7 +186,6 @@ impl CompactorOnceConfig {
             max_desired_file_size_bytes: self.max_desired_file_size_bytes,
             percentage_max_file_size: self.percentage_max_file_size,
             split_percentage: self.split_percentage,
-            max_cold_concurrent_size_bytes: self.max_cold_concurrent_size_bytes,
             max_number_partitions_per_shard: self.max_number_partitions_per_shard,
             min_number_recent_ingested_files_per_partition: self
                 .min_number_recent_ingested_files_per_partition,

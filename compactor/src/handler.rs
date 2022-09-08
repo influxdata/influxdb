@@ -104,11 +104,6 @@ pub struct CompactorConfig {
     /// This value must be between (0, 100)
     pub split_percentage: u16,
 
-    /// The compactor will limit the number of simultaneous cold partition compaction jobs based on
-    /// the size of the input files to be compacted. This number should be less than 1/10th of the
-    /// available memory to ensure compactions have enough space to run.
-    pub max_cold_concurrent_size_bytes: u64,
-
     /// Max number of partitions per shard we want to compact per cycle
     pub max_number_partitions_per_shard: usize,
 

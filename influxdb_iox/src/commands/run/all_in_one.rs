@@ -427,7 +427,6 @@ impl Config {
             max_desired_file_size_bytes: 30_000,
             percentage_max_file_size: 30,
             split_percentage: 80,
-            max_cold_concurrent_size_bytes: 90_000,
             max_number_partitions_per_shard: 1,
             min_number_recent_ingested_files_per_partition: 1,
             cold_input_size_threshold_bytes: 629_145_600,
