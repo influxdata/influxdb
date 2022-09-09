@@ -1206,10 +1206,17 @@ impl ParquetFileRepo for MemTxn {
             *count += 1;
         }
 
-        // Partitions with select file count >= min_num_files
+        // Partitions with select file count >= min_num_files that haven't been skipped by the
+        // compactor
+        let skipped_partitions: Vec<_> = stage
+            .skipped_compactions
+            .iter()
+            .map(|s| s.partition_id)
+            .collect();
         let mut partitions = partition_duplicate_count
             .iter()
             .filter(|(_, v)| v >= &&min_num_files)
+            .filter(|(p, _)| !skipped_partitions.contains(&p.partition_id))
             .collect::<Vec<_>>();
 
         // Sort partitions by file count
@@ -1268,10 +1275,16 @@ impl ParquetFileRepo for MemTxn {
             .collect::<Vec<_>>();
         partitions.sort_by(|a, b| b.1.cmp(a.1));
 
-        // Return top partitions with most file counts
+        // Return top partitions with most file counts that haven't been skipped by the compactor
+        let skipped_partitions: Vec<_> = stage
+            .skipped_compactions
+            .iter()
+            .map(|s| s.partition_id)
+            .collect();
         let partitions = partitions
             .into_iter()
             .map(|(k, _)| *k)
+            .filter(|pf| !skipped_partitions.contains(&pf.partition_id))
             .map(|pf| PartitionParam {
                 partition_id: pf.partition_id,
                 shard_id: pf.shard_id,

@@ -2335,8 +2335,8 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         assert_eq!(count, 0);
-        //
-        // Let upgarde all files (only f1 and f3 are not deleted) to level 1
+
+        // Let upgrade all files (only f1 and f3 are not deleted) to level 1
         repos
             .parquet_files()
             .update_to_level_1(&[f1.id])
@@ -2950,6 +2950,22 @@ pub(crate) mod test_helpers {
         assert_eq!(partitions.len(), 2);
         // and the first one should still be the one with the most L0 files
         assert_eq!(partitions[0].partition_id, another_partition.id);
+
+        // The compactor skipped compacting another_partition
+        repos
+            .partitions()
+            .record_skipped_compaction(another_partition.id, "Not feeling up to it today")
+            .await
+            .unwrap();
+
+        // another_partition should no longer be selected for compaction
+        let partitions = repos
+            .parquet_files()
+            .most_level_0_files_partitions(shard.id, time_24_hours_ago, num_partitions)
+            .await
+            .unwrap();
+        assert_eq!(partitions.len(), 2);
+        assert_ne!(partitions[0].partition_id, another_partition.id);
     }
 
     async fn test_recent_highest_throughput_partitions(catalog: Arc<dyn Catalog>) {
@@ -3108,7 +3124,8 @@ pub(crate) mod test_helpers {
             )
             .await
             .unwrap();
-        // nothing return because the partition has only one recent L0 file which is smaller than min_num_files = 2
+        // nothing return because the partition has only one recent L0 file which is smaller than
+        // min_num_files = 2
         assert!(partitions.is_empty());
         // Case 4.2: min_num_files = 1
         let partitions = repos
@@ -3165,9 +3182,10 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         assert_eq!(partitions.len(), 1);
-        assert_eq!(partitions[0].partition_id, another_partition.id); // must be the partition with 2 files
-                                                                      //
-                                                                      // Case 5.2: min_num_files = 1
+        // must be the partition with 2 files
+        assert_eq!(partitions[0].partition_id, another_partition.id);
+
+        // Case 5.2: min_num_files = 1
         let partitions = repos
             .parquet_files()
             .recent_highest_throughput_partitions(
@@ -3179,7 +3197,8 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         assert_eq!(partitions.len(), 2);
-        assert_eq!(partitions[0].partition_id, another_partition.id); // partition with 2 files must be first
+        // partition with 2 files must be first
+        assert_eq!(partitions[0].partition_id, another_partition.id);
         assert_eq!(partitions[1].partition_id, partition.id);
 
         // Case 6
@@ -3219,9 +3238,10 @@ pub(crate) mod test_helpers {
             .unwrap();
         // result still 1 partition because the old files do not contribute to recent throughput
         assert_eq!(partitions.len(), 1);
-        assert_eq!(partitions[0].partition_id, another_partition.id); // must be the partition with 2 files
-                                                                      //
-                                                                      // Case 6.2: min_num_files = 1
+        // must be the partition with 2 files
+        assert_eq!(partitions[0].partition_id, another_partition.id);
+
+        // Case 6.2: min_num_files = 1
         let partitions = repos
             .parquet_files()
             .recent_highest_throughput_partitions(
@@ -3233,8 +3253,30 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         assert_eq!(partitions.len(), 2);
-        assert_eq!(partitions[0].partition_id, another_partition.id); // partition with 2 files must be first
+        // partition with 2 files must be first
+        assert_eq!(partitions[0].partition_id, another_partition.id);
         assert_eq!(partitions[1].partition_id, partition.id);
+
+        // The compactor skipped compacting another_partition
+        repos
+            .partitions()
+            .record_skipped_compaction(another_partition.id, "Secret reasons")
+            .await
+            .unwrap();
+
+        // another_partition should no longer be selected for compaction
+        let partitions = repos
+            .parquet_files()
+            .recent_highest_throughput_partitions(
+                shard.id,
+                time_at_num_minutes_ago,
+                1,
+                num_partitions,
+            )
+            .await
+            .unwrap();
+        assert_eq!(partitions.len(), 1);
+        assert_eq!(partitions[0].partition_id, partition.id);
     }
 
     async fn test_list_by_partiton_not_to_delete(catalog: Arc<dyn Catalog>) {

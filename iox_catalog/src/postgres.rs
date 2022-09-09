@@ -1752,15 +1752,19 @@ WHERE parquet_file.shard_id = $1
 
         sqlx::query_as::<_, PartitionParam>(
             r#"
-SELECT partition_id, table_id, shard_id, namespace_id, count(id)
+SELECT parquet_file.partition_id, parquet_file.table_id, parquet_file.shard_id,
+       parquet_file.namespace_id, count(parquet_file.id)
 FROM parquet_file
-WHERE compaction_level = 0 and to_delete is null
-    and shard_id = $1
-    and created_at > $2
-group by 1, 2, 3, 4
-having count(id) >= $3
-order by 5 DESC
-limit $4;
+LEFT OUTER JOIN skipped_compactions ON parquet_file.partition_id = skipped_compactions.partition_id
+WHERE compaction_level = 0
+AND   to_delete is null
+AND   shard_id = $1
+AND   created_at > $2
+AND   skipped_compactions.partition_id IS NULL
+GROUP BY 1, 2, 3, 4
+HAVING count(id) >= $3
+ORDER BY 5 DESC
+LIMIT $4;
             "#,
         )
         .bind(&shard_id) // $1
@@ -1784,11 +1788,14 @@ limit $4;
         // We have index on (shard_id, comapction_level, to_delete)
         sqlx::query_as::<_, PartitionParam>(
             r#"
-SELECT partition_id, shard_id, namespace_id, table_id, count(id), max(created_at)
+SELECT parquet_file.partition_id, parquet_file.shard_id, parquet_file.namespace_id,
+       parquet_file.table_id, count(parquet_file.id), max(parquet_file.created_at)
 FROM   parquet_file
+LEFT OUTER JOIN skipped_compactions ON parquet_file.partition_id = skipped_compactions.partition_id
 WHERE  compaction_level = 0
 AND    to_delete IS NULL
 AND    shard_id = $1
+AND    skipped_compactions.partition_id IS NULL
 GROUP BY 1, 2, 3, 4
 HAVING max(created_at) < $2
 ORDER BY 5 DESC
