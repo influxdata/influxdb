@@ -106,34 +106,8 @@ If `lld` is not already present, it can typically be installed with the system p
 
 #### protoc
 
-If you are building InfluxDB IOx on Apple Silicon you may find that the build fails with an error containing:
-
-```shell
-failed to invoke protoc (hint: https://docs.rs/prost-build/#sourcing-protoc): Bad CPU type in executable (os error 86)
-```
-
-Prost bundles a `protoc` binary, which it uses if it cannot find a system alternative.
-Prior to version 0.9, the binary it chooses with the above error is an `x86` one, which won't work if you do not have Rosetta installed on your system.
-
-You can install Rosetta by running:
-
-```shell
-softwareupdate --install-rosetta
-```
-
-An alternative to installing Rosetta is to point Prost at an `arm` build of `protoc`.
-First, install `protoc`, e.g., via Homebrew:
-
-```shell
-brew update && brew install protobuf
-```
-
-Then set the following environment variables to point Prost at your system install:
-
-```shell
-PROTOC=/opt/homebrew/bin/protoc
-PROTOC_INCLUDE=/opt/homebrew/include
-```
+Prost no longer bundles a `protoc` binary.
+For instructions on how to install `protoc`, refer to the [official gRPC documentation](https://grpc.io/docs/protoc-installation/).
 
 IOx should then build correctly.
 
