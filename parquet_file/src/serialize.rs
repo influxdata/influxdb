@@ -118,22 +118,14 @@ where
 
     while let Some(maybe_batch) = stream.next().await {
         let batch = maybe_batch?;
-        if batch.num_rows() == 0 {
-            // It is likely this is a logical error, where the execution plan is
-            // producing no output, and therefore we're wasting CPU time by
-            // running it.
-            //
-            // Unfortunately it is not always possible to identify this before
-            // executing the plan, so this code MUST tolerate empty RecordBatch
-            // and even entire files.
-            warn!("parquet serialisation stream yielded empty record batch");
-        } else {
+        if batch.num_rows() != 0 {
             writer.write(&batch)?;
         }
     }
 
     let meta = writer.close().map_err(CodecError::from)?;
     if meta.num_rows == 0 {
+        // throw warning if all input batches are empty
         warn!("parquet serialisation encoded 0 rows");
         return Err(CodecError::NoRows);
     }
