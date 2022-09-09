@@ -182,7 +182,7 @@ type Cache struct {
 	lastWriteTime time.Time
 
 	// A one time synchronization used to initial the cache with a store.  Since the store can allocate a
-	// a large amount memory across shards, we lazily create it.
+	// large amount memory across shards, we lazily create it.
 	initialize       atomic.Value
 	initializedCount uint32
 }

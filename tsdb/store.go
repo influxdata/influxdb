@@ -940,7 +940,7 @@ func (s *Store) DeleteRetentionPolicy(database, name string) error {
 		return err
 	}
 
-	// Remove the retention policy folder from the the WAL.
+	// Remove the retention policy folder from the WAL.
 	if err := os.RemoveAll(filepath.Join(s.EngineOptions.Config.WALDir, database, name)); err != nil {
 		return err
 	}
@@ -1147,7 +1147,6 @@ func (s *Store) sketchesForDatabase(dbName string, getSketches func(*Shard) (est
 //
 // Cardinality is calculated exactly by unioning all shards' bitsets of series
 // IDs. The result of this method cannot be combined with any other results.
-//
 func (s *Store) SeriesCardinality(ctx context.Context, database string) (int64, error) {
 	s.mu.RLock()
 	shards := s.filterShards(byDatabase(database))

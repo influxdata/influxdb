@@ -36,7 +36,7 @@ composed of a sequence of index entries ordered lexicographically by key and
 then by time.  Each index entry starts with a key length and key followed by a
 count of the number of blocks in the file.  Each block entry is composed of
 the min and max time for the block, the offset into the file where the block
-is located and the the size of the block.
+is located and the size of the block.
 
 The index structure can provide efficient access to all blocks as well as the
 ability to determine the cost associated with accessing a given key.  Given a key

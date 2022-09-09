@@ -14,7 +14,7 @@ const ErrSessionNotFound = "session not found"
 // ErrSessionExpired is the error message for expired sessions.
 const ErrSessionExpired = "session has expired"
 
-// RenewSessionTime is the the time to extend session, currently set to 5min.
+// RenewSessionTime is the time to extend session, currently set to 5min.
 var RenewSessionTime = time.Duration(time.Second * 300)
 
 // DefaultSessionLength is the default session length on initial creation.

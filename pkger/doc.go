@@ -23,7 +23,7 @@ The parser will validate all contents of the template and provide any
 and all fields/entries that failed validation.
 
 If you wish to use the Template type in your transport layer and let the
-the transport layer manage the decoding, then you can run the following
+transport layer manage the decoding, then you can run the following
 to validate the template after the raw decoding is done:
 
 	if err := template.Validate(); err != nil {
