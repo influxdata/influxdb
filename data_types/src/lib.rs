@@ -870,6 +870,17 @@ pub struct PartitionParam {
     pub table_id: TableId,
 }
 
+/// Data recorded when compaction skips a partition.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::FromRow)]
+pub struct SkippedCompaction {
+    /// the partition
+    pub partition_id: PartitionId,
+    /// the reason compaction was skipped
+    pub reason: String,
+    /// when compaction was skipped
+    pub skipped_at: Timestamp,
+}
+
 /// Data object for a tombstone.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, sqlx::FromRow)]
 pub struct Tombstone {

@@ -9,8 +9,9 @@ use async_trait::async_trait;
 use data_types::{
     Column, ColumnType, ColumnTypeCount, Namespace, NamespaceId, ParquetFile, ParquetFileId,
     ParquetFileParams, Partition, PartitionId, PartitionInfo, PartitionKey, PartitionParam,
-    ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Shard, ShardId, ShardIndex, Table,
-    TableId, TablePartition, Timestamp, Tombstone, TombstoneId, TopicId, TopicMetadata,
+    ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Shard, ShardId, ShardIndex,
+    SkippedCompaction, Table, TableId, TablePartition, Timestamp, Tombstone, TombstoneId, TopicId,
+    TopicMetadata,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use metric::{DurationHistogram, Metric};
@@ -246,6 +247,8 @@ decorate!(
         "partition_list_by_table_id" = list_by_table_id(&mut self, table_id: TableId) -> Result<Vec<Partition>>;
         "partition_partition_info_by_id" = partition_info_by_id(&mut self, partition_id: PartitionId) -> Result<Option<PartitionInfo>>;
         "partition_update_sort_key" = update_sort_key(&mut self, partition_id: PartitionId, sort_key: &[&str]) -> Result<Partition>;
+        "partition_record_skipped_compaction" = record_skipped_compaction(&mut self, partition_id: PartitionId, reason: &str) -> Result<()>;
+        "partition_list_skipped_compactions" = list_skipped_compactions(&mut self) -> Result<Vec<SkippedCompaction>>;
     ]
 );
 

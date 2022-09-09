@@ -5,8 +5,8 @@ use data_types::{
     Column, ColumnSchema, ColumnType, ColumnTypeCount, Namespace, NamespaceId, NamespaceSchema,
     ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionInfo,
     PartitionKey, PartitionParam, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber,
-    Shard, ShardId, ShardIndex, Table, TableId, TablePartition, TableSchema, Timestamp, Tombstone,
-    TombstoneId, TopicId, TopicMetadata,
+    Shard, ShardId, ShardIndex, SkippedCompaction, Table, TableId, TablePartition, TableSchema,
+    Timestamp, Tombstone, TombstoneId, TopicId, TopicMetadata,
 };
 use iox_time::TimeProvider;
 use snafu::{OptionExt, Snafu};
@@ -20,6 +20,7 @@ use uuid::Uuid;
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
+#[snafu(visibility(pub(crate)))]
 pub enum Error {
     #[snafu(display("name {} already exists", name))]
     NameExists { name: String },
@@ -115,6 +116,17 @@ pub enum Error {
 
     #[snafu(display("database setup error: {}", source))]
     Setup { source: sqlx::Error },
+
+    #[snafu(display(
+        "could not record a skipped compaction for partition {partition_id}: {source}"
+    ))]
+    CouldNotRecordSkippedCompaction {
+        source: sqlx::Error,
+        partition_id: PartitionId,
+    },
+
+    #[snafu(display("could not list skipped compactions: {source}"))]
+    CouldNotListSkippedCompactions { source: sqlx::Error },
 }
 
 /// A specialized `Error` for Catalog errors
@@ -128,9 +140,10 @@ pub trait Catalog: Send + Sync + Debug {
 
     /// Creates a new [`Transaction`].
     ///
-    /// Creating transactions is potentially expensive. Holding one consumes resources. The number of parallel active
-    /// transactions might be limited per catalog, so you MUST NOT rely on the ability to create multiple transactions in
-    /// parallel for correctness. Parallel transactions must only be used for scaling.
+    /// Creating transactions is potentially expensive. Holding one consumes resources. The number
+    /// of parallel active transactions might be limited per catalog, so you MUST NOT rely on the
+    /// ability to create multiple transactions in parallel for correctness. Parallel transactions
+    /// must only be used for scaling.
     async fn start_transaction(&self) -> Result<Box<dyn Transaction>, Error>;
 
     /// Accesses the repositories without a transaction scope.
@@ -152,10 +165,10 @@ pub(crate) mod sealed {
 
     /// Helper trait to implement commit and abort of an transaction.
     ///
-    /// The problem is that both methods cannot take `self` directly, otherwise the [`Transaction`] would not be object
-    /// safe. Therefore we can only take a reference. To avoid that a user uses a transaction after calling one of the
-    /// finalizers, we use a tiny trick and take `Box<dyn Transaction>` in our public interface and use a sealed trait
-    /// for the actual implementation.
+    /// The problem is that both methods cannot take `self` directly, otherwise the [`Transaction`]
+    /// would not be object safe. Therefore we can only take a reference. To avoid that a user uses
+    /// a transaction after calling one of the finalizers, we use a tiny trick and take `Box<dyn
+    /// Transaction>` in our public interface and use a sealed trait for the actual implementation.
     #[async_trait]
     pub trait TransactionFinalize: Send + Sync + Debug {
         async fn commit_inplace(&mut self) -> Result<(), Error>;
@@ -170,15 +183,17 @@ pub(crate) mod sealed {
 ///
 /// Repositories can cheaply be borrowed from it.
 ///
-/// Note that after any method in this transaction (including all repositories derived from it) returns an error, the
-/// transaction MIGHT be poisoned and will return errors for all operations, depending on the backend.
+/// Note that after any method in this transaction (including all repositories derived from it)
+/// returns an error, the transaction MIGHT be poisoned and will return errors for all operations,
+/// depending on the backend.
 ///
 ///
 /// # Drop
 ///
-/// Dropping a transaction without calling [`commit`](Self::commit) or [`abort`](Self::abort) will abort the
-/// transaction. However resources might not be released immediately, so it is adviced to always call
-/// [`abort`](Self::abort) when you want to enforce that. Dropping w/o commiting/aborting will also log a warning.
+/// Dropping a transaction without calling [`commit`](Self::commit) or [`abort`](Self::abort) will
+/// abort the transaction. However resources might not be released immediately, so it is adviced to
+/// always call [`abort`](Self::abort) when you want to enforce that. Dropping w/o
+/// commiting/aborting will also log a warning.
 #[async_trait]
 pub trait Transaction: Send + Sync + Debug + sealed::TransactionFinalize + RepoCollection {
     /// Commits a transaction.
@@ -187,9 +202,9 @@ pub trait Transaction: Send + Sync + Debug + sealed::TransactionFinalize + RepoC
     ///
     /// If successful, all changes will be visible to other transactions.
     ///
-    /// If an error is returned, the transaction may or or not be committed. This might be due to IO errors after the
-    /// transaction was finished. However in either case, the transaction is atomic and can only succeed or fail
-    /// entirely.
+    /// If an error is returned, the transaction may or or not be committed. This might be due to
+    /// IO errors after the transaction was finished. However in either case, the transaction is
+    /// atomic and can only succeed or fail entirely.
     async fn commit(mut self: Box<Self>) -> Result<(), Error> {
         self.commit_inplace().await
     }
@@ -455,6 +470,17 @@ pub trait PartitionRepo: Send + Sync {
         partition_id: PartitionId,
         sort_key: &[&str],
     ) -> Result<Partition>;
+
+    /// Record an instance of a partition being selected for compaction but compaction was not
+    /// completed for the specified reason.
+    async fn record_skipped_compaction(
+        &mut self,
+        partition_id: PartitionId,
+        reason: &str,
+    ) -> Result<()>;
+
+    /// List the records of compacting a partition being skipped. This is mostly useful for testing.
+    async fn list_skipped_compactions(&mut self) -> Result<Vec<SkippedCompaction>>;
 }
 
 /// Functions for working with tombstones in the catalog
@@ -1212,7 +1238,8 @@ pub(crate) mod test_helpers {
         assert!(c.id > ColumnId::new(0));
         assert_eq!(c, cc);
 
-        // test that attempting to create an already defined column of a different type returns error
+        // test that attempting to create an already defined column of a different type returns
+        // error
         let err = repos
             .columns()
             .create_or_get("column_test", table.id, ColumnType::U64)
@@ -1555,6 +1582,35 @@ pub(crate) mod test_helpers {
             updated_other_partition.sort_key,
             vec!["tag2", "tag1", "tag3 , with comma", "time"]
         );
+
+        // The compactor can log why compaction was skipped
+        let skipped_compactions = repos.partitions().list_skipped_compactions().await.unwrap();
+        assert!(
+            skipped_compactions.is_empty(),
+            "Expected no skipped compactions, got: {skipped_compactions:?}"
+        );
+        repos
+            .partitions()
+            .record_skipped_compaction(other_partition.id, "I am le tired")
+            .await
+            .unwrap();
+        let skipped_compactions = repos.partitions().list_skipped_compactions().await.unwrap();
+        assert_eq!(skipped_compactions.len(), 1);
+        assert_eq!(skipped_compactions[0].partition_id, other_partition.id);
+        assert_eq!(skipped_compactions[0].reason, "I am le tired");
+
+        // Only save the last reason that any particular partition was skipped (really if the
+        // partition appears in the skipped compactions, it shouldn't become a compaction candidate
+        // again, but race conditions and all that)
+        repos
+            .partitions()
+            .record_skipped_compaction(other_partition.id, "I'm on fire")
+            .await
+            .unwrap();
+        let skipped_compactions = repos.partitions().list_skipped_compactions().await.unwrap();
+        assert_eq!(skipped_compactions.len(), 1);
+        assert_eq!(skipped_compactions[0].partition_id, other_partition.id);
+        assert_eq!(skipped_compactions[0].reason, "I'm on fire");
     }
 
     async fn test_tombstone(catalog: Arc<dyn Catalog>) {
@@ -2279,8 +2335,8 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         assert_eq!(count, 0);
-        //
-        // Let upgarde all files (only f1 and f3 are not deleted) to level 1
+
+        // Let upgrade all files (only f1 and f3 are not deleted) to level 1
         repos
             .parquet_files()
             .update_to_level_1(&[f1.id])
@@ -2894,6 +2950,28 @@ pub(crate) mod test_helpers {
         assert_eq!(partitions.len(), 2);
         // and the first one should still be the one with the most L0 files
         assert_eq!(partitions[0].partition_id, another_partition.id);
+
+        // The compactor skipped compacting another_partition
+        repos
+            .partitions()
+            .record_skipped_compaction(another_partition.id, "Not feeling up to it today")
+            .await
+            .unwrap();
+
+        // another_partition should no longer be selected for compaction
+        let partitions = repos
+            .parquet_files()
+            .most_level_0_files_partitions(shard.id, time_24_hours_ago, num_partitions)
+            .await
+            .unwrap();
+        assert_eq!(partitions.len(), 2);
+        assert!(
+            partitions
+                .iter()
+                .all(|p| p.partition_id != another_partition.id),
+            "Expected partitions not to include {}: {partitions:?}",
+            another_partition.id
+        );
     }
 
     async fn test_recent_highest_throughput_partitions(catalog: Arc<dyn Catalog>) {
@@ -3052,7 +3130,8 @@ pub(crate) mod test_helpers {
             )
             .await
             .unwrap();
-        // nothing return because the partition has only one recent L0 file which is smaller than min_num_files = 2
+        // nothing return because the partition has only one recent L0 file which is smaller than
+        // min_num_files = 2
         assert!(partitions.is_empty());
         // Case 4.2: min_num_files = 1
         let partitions = repos
@@ -3109,9 +3188,10 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         assert_eq!(partitions.len(), 1);
-        assert_eq!(partitions[0].partition_id, another_partition.id); // must be the partition with 2 files
-                                                                      //
-                                                                      // Case 5.2: min_num_files = 1
+        // must be the partition with 2 files
+        assert_eq!(partitions[0].partition_id, another_partition.id);
+
+        // Case 5.2: min_num_files = 1
         let partitions = repos
             .parquet_files()
             .recent_highest_throughput_partitions(
@@ -3123,7 +3203,8 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         assert_eq!(partitions.len(), 2);
-        assert_eq!(partitions[0].partition_id, another_partition.id); // partition with 2 files must be first
+        // partition with 2 files must be first
+        assert_eq!(partitions[0].partition_id, another_partition.id);
         assert_eq!(partitions[1].partition_id, partition.id);
 
         // Case 6
@@ -3163,9 +3244,10 @@ pub(crate) mod test_helpers {
             .unwrap();
         // result still 1 partition because the old files do not contribute to recent throughput
         assert_eq!(partitions.len(), 1);
-        assert_eq!(partitions[0].partition_id, another_partition.id); // must be the partition with 2 files
-                                                                      //
-                                                                      // Case 6.2: min_num_files = 1
+        // must be the partition with 2 files
+        assert_eq!(partitions[0].partition_id, another_partition.id);
+
+        // Case 6.2: min_num_files = 1
         let partitions = repos
             .parquet_files()
             .recent_highest_throughput_partitions(
@@ -3177,8 +3259,30 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         assert_eq!(partitions.len(), 2);
-        assert_eq!(partitions[0].partition_id, another_partition.id); // partition with 2 files must be first
+        // partition with 2 files must be first
+        assert_eq!(partitions[0].partition_id, another_partition.id);
         assert_eq!(partitions[1].partition_id, partition.id);
+
+        // The compactor skipped compacting another_partition
+        repos
+            .partitions()
+            .record_skipped_compaction(another_partition.id, "Secret reasons")
+            .await
+            .unwrap();
+
+        // another_partition should no longer be selected for compaction
+        let partitions = repos
+            .parquet_files()
+            .recent_highest_throughput_partitions(
+                shard.id,
+                time_at_num_minutes_ago,
+                1,
+                num_partitions,
+            )
+            .await
+            .unwrap();
+        assert_eq!(partitions.len(), 1);
+        assert_eq!(partitions[0].partition_id, partition.id);
     }
 
     async fn test_list_by_partiton_not_to_delete(catalog: Arc<dyn Catalog>) {

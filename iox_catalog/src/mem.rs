@@ -15,8 +15,8 @@ use data_types::{
     Column, ColumnId, ColumnType, ColumnTypeCount, CompactionLevel, Namespace, NamespaceId,
     ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionInfo,
     PartitionKey, PartitionParam, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber,
-    Shard, ShardId, ShardIndex, Table, TableId, TablePartition, Timestamp, Tombstone, TombstoneId,
-    TopicId, TopicMetadata,
+    Shard, ShardId, ShardIndex, SkippedCompaction, Table, TableId, TablePartition, Timestamp,
+    Tombstone, TombstoneId, TopicId, TopicMetadata,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::warn;
@@ -63,6 +63,7 @@ struct MemCollections {
     columns: Vec<Column>,
     shards: Vec<Shard>,
     partitions: Vec<Partition>,
+    skipped_compactions: Vec<SkippedCompaction>,
     tombstones: Vec<Tombstone>,
     parquet_files: Vec<ParquetFile>,
     processed_tombstones: Vec<ProcessedTombstone>,
@@ -844,6 +845,38 @@ impl PartitionRepo for MemTxn {
             None => Err(Error::PartitionNotFound { id: partition_id }),
         }
     }
+
+    async fn record_skipped_compaction(
+        &mut self,
+        partition_id: PartitionId,
+        reason: &str,
+    ) -> Result<()> {
+        let reason = reason.to_string();
+        let skipped_at = Timestamp::new(self.time_provider.now().timestamp_nanos());
+
+        let stage = self.stage();
+        match stage
+            .skipped_compactions
+            .iter_mut()
+            .find(|s| s.partition_id == partition_id)
+        {
+            Some(s) => {
+                s.reason = reason;
+                s.skipped_at = skipped_at;
+            }
+            None => stage.skipped_compactions.push(SkippedCompaction {
+                partition_id,
+                reason,
+                skipped_at,
+            }),
+        }
+        Ok(())
+    }
+
+    async fn list_skipped_compactions(&mut self) -> Result<Vec<SkippedCompaction>> {
+        let stage = self.stage();
+        Ok(stage.skipped_compactions.clone())
+    }
 }
 
 #[async_trait]
@@ -1173,10 +1206,17 @@ impl ParquetFileRepo for MemTxn {
             *count += 1;
         }
 
-        // Partitions with select file count >= min_num_files
+        // Partitions with select file count >= min_num_files that haven't been skipped by the
+        // compactor
+        let skipped_partitions: Vec<_> = stage
+            .skipped_compactions
+            .iter()
+            .map(|s| s.partition_id)
+            .collect();
         let mut partitions = partition_duplicate_count
             .iter()
             .filter(|(_, v)| v >= &&min_num_files)
+            .filter(|(p, _)| !skipped_partitions.contains(&p.partition_id))
             .collect::<Vec<_>>();
 
         // Sort partitions by file count
@@ -1235,10 +1275,16 @@ impl ParquetFileRepo for MemTxn {
             .collect::<Vec<_>>();
         partitions.sort_by(|a, b| b.1.cmp(a.1));
 
-        // Return top partitions with most file counts
+        // Return top partitions with most file counts that haven't been skipped by the compactor
+        let skipped_partitions: Vec<_> = stage
+            .skipped_compactions
+            .iter()
+            .map(|s| s.partition_id)
+            .collect();
         let partitions = partitions
             .into_iter()
             .map(|(k, _)| *k)
+            .filter(|pf| !skipped_partitions.contains(&pf.partition_id))
             .map(|pf| PartitionParam {
                 partition_id: pf.partition_id,
                 shard_id: pf.shard_id,
