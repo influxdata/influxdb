@@ -2,7 +2,7 @@
 
 use crate::{
     interface::{
-        sealed::TransactionFinalize, Catalog, ColumnRepo, ColumnUpsertRequest, Error,
+        self, sealed::TransactionFinalize, Catalog, ColumnRepo, ColumnUpsertRequest, Error,
         NamespaceRepo, ParquetFileRepo, PartitionRepo, ProcessedTombstoneRepo, QueryPoolRepo,
         RepoCollection, Result, ShardRepo, TablePersistInfo, TableRepo, TombstoneRepo,
         TopicMetadataRepo, Transaction,
@@ -14,11 +14,12 @@ use data_types::{
     Column, ColumnType, ColumnTypeCount, CompactionLevel, Namespace, NamespaceId, ParquetFile,
     ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionInfo, PartitionKey,
     PartitionParam, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Shard, ShardId,
-    ShardIndex, Table, TableId, TablePartition, Timestamp, Tombstone, TombstoneId, TopicId,
-    TopicMetadata,
+    ShardIndex, SkippedCompaction, Table, TableId, TablePartition, Timestamp, Tombstone,
+    TombstoneId, TopicId, TopicMetadata,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::{debug, info, warn};
+use snafu::prelude::*;
 use sqlx::{
     migrate::Migrator, postgres::PgPoolOptions, types::Uuid, Acquire, Executor, Postgres, Row,
 };
@@ -1288,6 +1289,43 @@ RETURNING *;
 
         Ok(partition)
     }
+
+    async fn record_skipped_compaction(
+        &mut self,
+        partition_id: PartitionId,
+        reason: &str,
+    ) -> Result<()> {
+        sqlx::query(
+            r#"
+INSERT INTO skipped_compactions
+    ( partition_id, reason, skipped_at )
+VALUES
+    ( $1, $2, extract(epoch from NOW()) )
+ON CONFLICT ( partition_id )
+DO UPDATE
+SET
+reason = EXCLUDED.reason,
+skipped_at = EXCLUDED.skipped_at;
+        "#,
+        )
+        .bind(partition_id)
+        .bind(reason)
+        .execute(&mut self.inner)
+        .await
+        .context(interface::CouldNotRecordSkippedCompactionSnafu { partition_id })?;
+        Ok(())
+    }
+
+    async fn list_skipped_compactions(&mut self) -> Result<Vec<SkippedCompaction>> {
+        sqlx::query_as::<_, SkippedCompaction>(
+            r#"
+SELECT * FROM skipped_compactions
+        "#,
+        )
+        .fetch_all(&mut self.inner)
+        .await
+        .context(interface::CouldNotListSkippedCompactionsSnafu)
+    }
 }
 
 #[async_trait]
@@ -1718,7 +1756,7 @@ SELECT partition_id, table_id, shard_id, namespace_id, count(id)
 FROM parquet_file
 WHERE compaction_level = 0 and to_delete is null
     and shard_id = $1
-    and created_at > $2 
+    and created_at > $2
 group by 1, 2, 3, 4
 having count(id) >= $3
 order by 5 DESC

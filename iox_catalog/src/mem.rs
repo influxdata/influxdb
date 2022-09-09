@@ -15,8 +15,8 @@ use data_types::{
     Column, ColumnId, ColumnType, ColumnTypeCount, CompactionLevel, Namespace, NamespaceId,
     ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionInfo,
     PartitionKey, PartitionParam, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber,
-    Shard, ShardId, ShardIndex, Table, TableId, TablePartition, Timestamp, Tombstone, TombstoneId,
-    TopicId, TopicMetadata,
+    Shard, ShardId, ShardIndex, SkippedCompaction, Table, TableId, TablePartition, Timestamp,
+    Tombstone, TombstoneId, TopicId, TopicMetadata,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::warn;
@@ -63,6 +63,7 @@ struct MemCollections {
     columns: Vec<Column>,
     shards: Vec<Shard>,
     partitions: Vec<Partition>,
+    skipped_compactions: Vec<SkippedCompaction>,
     tombstones: Vec<Tombstone>,
     parquet_files: Vec<ParquetFile>,
     processed_tombstones: Vec<ProcessedTombstone>,
@@ -843,6 +844,38 @@ impl PartitionRepo for MemTxn {
             }
             None => Err(Error::PartitionNotFound { id: partition_id }),
         }
+    }
+
+    async fn record_skipped_compaction(
+        &mut self,
+        partition_id: PartitionId,
+        reason: &str,
+    ) -> Result<()> {
+        let reason = reason.to_string();
+        let skipped_at = Timestamp::new(self.time_provider.now().timestamp_nanos());
+
+        let stage = self.stage();
+        match stage
+            .skipped_compactions
+            .iter_mut()
+            .find(|s| s.partition_id == partition_id)
+        {
+            Some(s) => {
+                s.reason = reason;
+                s.skipped_at = skipped_at;
+            }
+            None => stage.skipped_compactions.push(SkippedCompaction {
+                partition_id,
+                reason,
+                skipped_at,
+            }),
+        }
+        Ok(())
+    }
+
+    async fn list_skipped_compactions(&mut self) -> Result<Vec<SkippedCompaction>> {
+        let stage = self.stage();
+        Ok(stage.skipped_compactions.clone())
     }
 }
 
