@@ -5,6 +5,7 @@ use crate::{
 use data_types::{ShardIndex, TableId};
 use iox_catalog::interface::get_schema_by_name;
 use iox_tests::util::TestNamespace;
+use parquet_file::storage::ParquetStorage;
 use sharder::JumpHash;
 use std::sync::Arc;
 use tokio::runtime::Handle;
@@ -37,6 +38,7 @@ pub async fn querier_namespace_with_limit(
 
     QuerierNamespace::new_testing(
         catalog_cache,
+        ParquetStorage::new(ns.catalog.object_store()),
         ns.catalog.metric_registry(),
         ns.namespace.name.clone().into(),
         cached_ns,
