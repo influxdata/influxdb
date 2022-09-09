@@ -61,8 +61,8 @@ impl Client {
         }
     }
 
-    /// Query
-    pub async fn query(&self, org: &str, query: Option<Query>) -> Result<String, RequestError> {
+    /// Query and return the raw string data from the server
+    pub async fn query_raw(&self, org: &str, query: Option<Query>) -> Result<String, RequestError> {
         let req_url = format!("{}/api/v2/query", self.url);
 
         let response = self
@@ -189,7 +189,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn query() {
+    async fn query_raw() {
         let token = "some-token";
         let org = "some-org";
         let query: Option<Query> = Some(Query::new("some-influx-query-string".to_string()));
@@ -207,13 +207,13 @@ mod tests {
 
         let client = Client::new(&mockito::server_url(), token);
 
-        let _result = client.query(org, query).await;
+        let _result = client.query_raw(org, query).await;
 
         mock_server.assert();
     }
 
     #[tokio::test]
-    async fn query_opt() {
+    async fn query_raw_opt() {
         let token = "some-token";
         let org = "some-org";
         let query: Option<Query> = None;
@@ -232,7 +232,7 @@ mod tests {
 
         let client = Client::new(&mockito::server_url(), token);
 
-        let _result = client.query(org, None).await;
+        let _result = client.query_raw(org, None).await;
 
         mock_server.assert();
     }
@@ -323,7 +323,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn query_no_results() {
+    async fn query_raw_no_results() {
         let token = "some-token";
         let org = "some-org";
         let query: Option<Query> = Some(Query::new("some-influx-query-string".to_string()));
@@ -342,7 +342,7 @@ mod tests {
 
         let client = Client::new(&mockito::server_url(), token);
 
-        let result = client.query(org, query).await.expect("request success");
+        let result = client.query_raw(org, query).await.expect("request success");
         assert_eq!(result, "");
 
         mock_server.assert();
