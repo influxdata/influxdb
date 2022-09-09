@@ -378,21 +378,17 @@ impl Compactor {
         &self,
         partitions: &[PartitionParam],
     ) -> Result<HashMap<TableId, Vec<ColumnTypeCount>>> {
-        use std::collections::hash_map::Entry::Vacant; // this can be moved to the imports at the top if you want
         let mut repos = self.catalog.repositories().await;
 
-        let mut result = HashMap::with_capacity(partitions.len());
-
-        for table_id in partitions.iter().map(|p| p.table_id) {
-            let entry = result.entry(table_id);
-            if let Vacant(entry) = entry {
-                let cols = repos
-                    .columns()
-                    .list_type_count_by_table_id(table_id)
-                    .await
-                    .context(QueryingColumnSnafu)?;
-                entry.insert(cols);
-            }
+        let table_ids: HashSet<_> = partitions.iter().map(|p| p.table_id).collect();
+        let mut result = HashMap::with_capacity(table_ids.len());
+        for table_id in table_ids {
+            let cols = repos
+                .columns()
+                .list_type_count_by_table_id(table_id)
+                .await
+                .context(QueryingColumnSnafu)?;
+            result.insert(table_id, cols);
         }
 
         Ok(result)
