@@ -1598,7 +1598,7 @@ func TestMeasurementFieldSet_SaveLoad(t *testing.T) {
 	defer cleanup()
 
 	path := filepath.Join(dir, "fields.idx")
-	mf, err := tsdb.NewMeasurementFieldSet(path)
+	mf, err := tsdb.NewMeasurementFieldSet(path, nil)
 	if err != nil {
 		t.Fatalf("NewMeasurementFieldSet error: %v", err)
 	}
@@ -1621,7 +1621,7 @@ func TestMeasurementFieldSet_SaveLoad(t *testing.T) {
 	_, err = os.Stat(mf.ChangesPath())
 	assert.NoError(t, err, "no field.idx change file")
 
-	mf2, err := tsdb.NewMeasurementFieldSet(path)
+	mf2, err := tsdb.NewMeasurementFieldSet(path, nil)
 	if err != nil {
 		t.Fatalf("NewMeasurementFieldSet error: %v", err)
 	}
@@ -1648,7 +1648,7 @@ func TestMeasurementFieldSet_Corrupt(t *testing.T) {
 
 	path := filepath.Join(dir, "fields.idx")
 	func() {
-		mf, err := tsdb.NewMeasurementFieldSet(path)
+		mf, err := tsdb.NewMeasurementFieldSet(path, nil)
 		if err != nil {
 			t.Fatalf("NewMeasurementFieldSet error: %v", err)
 		}
@@ -1679,7 +1679,7 @@ func TestMeasurementFieldSet_Corrupt(t *testing.T) {
 	if err := os.Truncate(path, stat.Size()-3); err != nil {
 		t.Fatalf("truncate error: %v", err)
 	}
-	mf, err := tsdb.NewMeasurementFieldSet(path)
+	mf, err := tsdb.NewMeasurementFieldSet(path, nil)
 	if err == nil {
 		t.Fatal("NewMeasurementFieldSet expected error")
 	}
@@ -1698,7 +1698,7 @@ func TestMeasurementFieldSet_DeleteEmpty(t *testing.T) {
 	defer cleanup()
 
 	path := filepath.Join(dir, "fields.idx")
-	mf, err := tsdb.NewMeasurementFieldSet(path)
+	mf, err := tsdb.NewMeasurementFieldSet(path, nil)
 	if err != nil {
 		t.Fatalf("NewMeasurementFieldSet error: %v", err)
 	}
@@ -1720,7 +1720,7 @@ func TestMeasurementFieldSet_DeleteEmpty(t *testing.T) {
 	if err := mf.Save(tsdb.FieldChanges{&change}); err != nil {
 		t.Fatalf("save error: %v", err)
 	}
-	mf2, err := tsdb.NewMeasurementFieldSet(path)
+	mf2, err := tsdb.NewMeasurementFieldSet(path, nil)
 	if err != nil {
 		t.Fatalf("NewMeasurementFieldSet error: %v", err)
 	}
@@ -1773,7 +1773,7 @@ func TestMeasurementFieldSet_InvalidFormat(t *testing.T) {
 		t.Fatalf("error writing fields.index: %v", err)
 	}
 
-	mf, err := tsdb.NewMeasurementFieldSet(path)
+	mf, err := tsdb.NewMeasurementFieldSet(path, nil)
 	if !errors.Is(err, tsdb.ErrUnknownFieldsFormat) {
 		t.Fatalf("unexpected error: got %v, exp %v", err, tsdb.ErrUnknownFieldsFormat)
 	}
@@ -1801,7 +1801,7 @@ func TestMeasurementFieldSet_ConcurrentSave(t *testing.T) {
 	}
 
 	path := filepath.Join(dir, "fields.idx")
-	mfs, err := tsdb.NewMeasurementFieldSet(path)
+	mfs, err := tsdb.NewMeasurementFieldSet(path, nil)
 	if err != nil {
 		t.Fatalf("NewMeasurementFieldSet error: %v", err)
 	}
@@ -1814,7 +1814,7 @@ func TestMeasurementFieldSet_ConcurrentSave(t *testing.T) {
 	}
 	wg.Wait()
 
-	mfs2, err := tsdb.NewMeasurementFieldSet(path)
+	mfs2, err := tsdb.NewMeasurementFieldSet(path, nil)
 	if err != nil {
 		t.Fatalf("NewMeasurementFieldSet error: %v", err)
 	}

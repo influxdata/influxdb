@@ -732,7 +732,7 @@ func (e *Engine) Open() error {
 		return err
 	}
 
-	fields, err := tsdb.NewMeasurementFieldSet(filepath.Join(e.path, "fields.idx"))
+	fields, err := tsdb.NewMeasurementFieldSet(filepath.Join(e.path, "fields.idx"), e.logger)
 	if err != nil {
 		e.logger.Warn(fmt.Sprintf("error opening fields.idx: %v.  Rebuilding.", err))
 	}
