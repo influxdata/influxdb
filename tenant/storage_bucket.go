@@ -146,16 +146,10 @@ func (s *Store) ListBuckets(ctx context.Context, tx kv.Tx, filter BucketFilter, 
 		return nil, invalidBucketListRequest
 	}
 
-	// if we dont have any options it would be irresponsible to just give back all orgs in the system
 	if len(opt) == 0 {
-		opt = append(opt, influxdb.FindOptions{
-			Limit: influxdb.DefaultPageSize,
-		})
+		opt = append(opt, influxdb.FindOptions{})
 	}
 	o := opt[0]
-	if o.Limit > influxdb.MaxPageSize || o.Limit == 0 {
-		o.Limit = influxdb.MaxPageSize
-	}
 
 	// if an organization is passed we need to use the index
 	if filter.OrganizationID != nil {
@@ -204,7 +198,7 @@ func (s *Store) ListBuckets(ctx context.Context, tx kv.Tx, filter BucketFilter, 
 			bs = append(bs, b)
 		}
 
-		if len(bs) >= o.Limit {
+		if o.Limit != 0 && len(bs) >= o.Limit {
 			break
 		}
 	}
@@ -289,7 +283,7 @@ func (s *Store) listBucketsByOrg(ctx context.Context, tx kv.Tx, orgID platform.I
 
 		bs = append(bs, b)
 
-		if len(bs) >= o.Limit {
+		if o.Limit != 0 && len(bs) >= o.Limit {
 			break
 		}
 	}

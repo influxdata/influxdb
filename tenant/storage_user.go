@@ -122,16 +122,10 @@ func (s *Store) GetUserByName(ctx context.Context, tx kv.Tx, n string) (*influxd
 }
 
 func (s *Store) ListUsers(ctx context.Context, tx kv.Tx, opt ...influxdb.FindOptions) ([]*influxdb.User, error) {
-	// if we dont have any options it would be irresponsible to just give back all users in the system
 	if len(opt) == 0 {
-		opt = append(opt, influxdb.FindOptions{
-			Limit: influxdb.DefaultPageSize,
-		})
+		opt = append(opt, influxdb.FindOptions{})
 	}
 	o := opt[0]
-	if o.Limit > influxdb.MaxPageSize || o.Limit == 0 {
-		o.Limit = influxdb.MaxPageSize
-	}
 
 	b, err := tx.Bucket(userBucket)
 	if err != nil {
@@ -172,7 +166,7 @@ func (s *Store) ListUsers(ctx context.Context, tx kv.Tx, opt ...influxdb.FindOpt
 
 		us = append(us, u)
 
-		if len(us) >= o.Limit {
+		if o.Limit != 0 && len(us) >= o.Limit {
 			break
 		}
 	}
