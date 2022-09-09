@@ -35,7 +35,7 @@ snafu = "0.7"
 thiserror = "1.0"
 iox_time = { path = "../iox_time" }
 tokio = { version = "1.21", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
-tokio-util = { version = "0.7.3" }
+tokio-util = { version = "0.7.4" }
 tonic = { version = "0.8" }
 trace = { path = "../trace" }
 tracker = { path = "../tracker" }

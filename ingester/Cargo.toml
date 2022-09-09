@@ -43,7 +43,7 @@ uuid = { version = "1", features = ["v4"] }
 workspace-hack = { path = "../workspace-hack"}
 write_buffer = { path = "../write_buffer" }
 write_summary = { path = "../write_summary" }
-tokio-util = { version = "0.7.3" }
+tokio-util = { version = "0.7.4" }
 trace = { path = "../trace" }
 
 [dev-dependencies]
