@@ -2965,7 +2965,13 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         assert_eq!(partitions.len(), 2);
-        assert_ne!(partitions[0].partition_id, another_partition.id);
+        assert!(
+            partitions
+                .iter()
+                .all(|p| p.partition_id != another_partition.id),
+            "Expected partitions not to include {}: {partitions:?}",
+            another_partition.id
+        );
     }
 
     async fn test_recent_highest_throughput_partitions(catalog: Arc<dyn Catalog>) {
