@@ -1,6 +1,6 @@
 package query
 
-// linearFloat computes the the slope of the line between the points (previousTime, previousValue) and (nextTime, nextValue)
+// linearFloat computes the slope of the line between the points (previousTime, previousValue) and (nextTime, nextValue)
 // and returns the value of the point on the line with time windowTime
 // y = mx + b
 func linearFloat(windowTime, previousTime, nextTime int64, previousValue, nextValue float64) float64 {
@@ -10,7 +10,7 @@ func linearFloat(windowTime, previousTime, nextTime int64, previousValue, nextVa
 	return m*x + b
 }
 
-// linearInteger computes the the slope of the line between the points (previousTime, previousValue) and (nextTime, nextValue)
+// linearInteger computes the slope of the line between the points (previousTime, previousValue) and (nextTime, nextValue)
 // and returns the value of the point on the line with time windowTime
 // y = mx + b
 func linearInteger(windowTime, previousTime, nextTime int64, previousValue, nextValue int64) int64 {
@@ -20,7 +20,7 @@ func linearInteger(windowTime, previousTime, nextTime int64, previousValue, next
 	return int64(m*x + b)
 }
 
-// linearInteger computes the the slope of the line between the points (previousTime, previousValue) and (nextTime, nextValue)
+// linearInteger computes the slope of the line between the points (previousTime, previousValue) and (nextTime, nextValue)
 // and returns the value of the point on the line with time windowTime
 // y = mx + b
 func linearUnsigned(windowTime, previousTime, nextTime int64, previousValue, nextValue uint64) uint64 {

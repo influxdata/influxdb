@@ -57,7 +57,7 @@ func TestIndexFile_TagKeySeriesIDIterator(t *testing.T) {
 	// the key with region=west ends up with a lower series ID than the region=east
 	// series, even though it was written later. When the series id sets for each
 	// tag block in the index file are merged together and iterated, the roaring
-	// bitmap library sorts the series ids, resulting the the series keys being
+	// bitmap library sorts the series ids, resulting the series keys being
 	// emitted in a different order to that which they were written.
 	exp := []string{"cpu,region=west", "cpu,region=east"}
 	var got []string

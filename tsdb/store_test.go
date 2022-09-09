@@ -1324,7 +1324,7 @@ func TestStore_Sketches(t *testing.T) {
 			return fmt.Errorf("[initial|re-open] %v", err)
 		}
 
-		// Delete half the the measurements data
+		// Delete half the measurements data
 		mnames, err := store.MeasurementNames(context.Background(), nil, "db", nil)
 		if err != nil {
 			return err
