@@ -776,17 +776,18 @@ func (e *Engine) Close() error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.done = nil // Ensures that the channel will not be closed again.
-	if err := e.fieldset.Close(); err != nil {
-		return err
-	}
 
-	if err := e.FileStore.Close(); err != nil {
-		return err
+	var err error = nil
+	err = e.fieldset.Close()
+	if err2 := e.FileStore.Close(); err2 != nil && err == nil {
+		err = err2
 	}
 	if e.WALEnabled {
-		return e.WAL.Close()
+		if err2 := e.WAL.Close(); err2 != nil && err == nil {
+			err = err2
+		}
 	}
-	return nil
+	return err
 }
 
 // WithLogger sets the logger for the engine.

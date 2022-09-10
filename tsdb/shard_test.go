@@ -1612,7 +1612,7 @@ func TestMeasurementFieldSet_SaveLoad(t *testing.T) {
 			Measurement: []byte(measurement),
 			Field:       &tsdb.Field{ID: 0, Name: fieldName, Type: influxql.Float},
 		},
-		Delete: false,
+		ChangeType: tsdb.AddMeasurementField,
 	}
 
 	if err := mf.Save(tsdb.FieldChanges{&change}); err != nil {
@@ -1664,7 +1664,7 @@ func TestMeasurementFieldSet_Corrupt(t *testing.T) {
 				Measurement: []byte(measurement),
 				Field:       &tsdb.Field{ID: 0, Name: fieldName, Type: influxql.Float},
 			},
-			Delete: false,
+			ChangeType: tsdb.AddMeasurementField,
 		}
 
 		if err := mf.Save(tsdb.FieldChanges{&change}); err != nil {
@@ -1714,7 +1714,7 @@ func TestMeasurementFieldSet_DeleteEmpty(t *testing.T) {
 			Measurement: []byte(measurement),
 			Field:       &tsdb.Field{ID: 0, Name: fieldName, Type: influxql.Float},
 		},
-		Delete: false,
+		ChangeType: tsdb.AddMeasurementField,
 	}
 
 	if err := mf.Save(tsdb.FieldChanges{&change}); err != nil {
@@ -1849,7 +1849,7 @@ func testFieldMaker(t *testing.T, wg *sync.WaitGroup, mf *tsdb.MeasurementFieldS
 				Measurement: []byte(measurement),
 				Field:       &tsdb.Field{ID: 0, Name: fieldName, Type: influxql.Float},
 			},
-			Delete: false,
+			ChangeType: tsdb.AddMeasurementField,
 		}
 
 		err := mf.Save(tsdb.FieldChanges{&change})
@@ -1860,7 +1860,7 @@ func testFieldMaker(t *testing.T, wg *sync.WaitGroup, mf *tsdb.MeasurementFieldS
 		}
 		_, err = os.Stat(mf.ChangesPath())
 		if err != nil {
-			t.Logf("unexpected error for field.iidx change file %s: %s", mf.ChangesPath(), err)
+			t.Logf("unexpected error for field.idxl change file %s: %s", mf.ChangesPath(), err)
 			t.Fail()
 		}
 	}
