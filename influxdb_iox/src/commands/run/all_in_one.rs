@@ -24,7 +24,7 @@ use ioxd_querier::{create_querier_server_type, QuerierServerTypeArgs};
 use ioxd_router::create_router_server_type;
 use object_store::DynObjectStore;
 use observability_deps::tracing::*;
-use std::{path::PathBuf, sync::Arc};
+use std::sync::Arc;
 use thiserror::Error;
 use trace_exporters::TracingConfig;
 use trogging::cli::LoggingConfig;
@@ -166,10 +166,8 @@ pub struct Config {
     )]
     pub max_http_request_size: usize,
 
-    /// The location InfluxDB IOx will use to store files locally. If not specified, will run in
-    /// ephemeral mode.
-    #[clap(long = "--data-dir", env = "INFLUXDB_IOX_DB_DIR", action)]
-    pub database_directory: Option<PathBuf>,
+    #[clap(flatten)]
+    object_store_config: ObjectStoreConfig,
 
     /// Postgres connection string. If not specified, will use an in-memory catalog.
     #[clap(long = "--catalog-dsn", env = "INFLUXDB_IOX_CATALOG_DSN", action)]
@@ -342,7 +340,7 @@ impl Config {
             logging_config,
             tracing_config,
             max_http_request_size,
-            database_directory,
+            object_store_config,
             dsn,
             postgres_schema_name,
             pause_ingest_size_bytes,
@@ -361,7 +359,16 @@ impl Config {
             querier_max_table_query_bytes,
         } = self;
 
-        let object_store_config = ObjectStoreConfig::new(database_directory.clone());
+        let database_directory = object_store_config.database_directory.clone();
+        // If dir location is provided and no object store type is provided, use it also as file object store.
+        let object_store_config = {
+            if object_store_config.object_store.is_none() && database_directory.is_some() {
+                ObjectStoreConfig::new(database_directory.clone())
+            } else {
+                object_store_config
+            }
+        };
+
         let write_buffer_config = WriteBufferConfig::new(QUERY_POOL_NAME, database_directory);
         let catalog_dsn = dsn
             .map(|postgres_url| CatalogDsnConfig::new_postgres(postgres_url, postgres_schema_name))
