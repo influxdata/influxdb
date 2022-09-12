@@ -2182,10 +2182,12 @@ mod tests {
 
         let db_info = org_and_bucket();
         let chunk1 = TestChunk::new("table_a")
+            .with_time_column()
             .with_id(0)
             .with_tag_column("state")
             .with_one_row_of_data();
         let chunk2 = TestChunk::new("table_b")
+            .with_time_column()
             .with_id(1)
             .with_tag_column("state")
             .with_one_row_of_data();

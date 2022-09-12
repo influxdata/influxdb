@@ -16,6 +16,7 @@ use arrow::{
         ArrayRef, DictionaryArray, Int64Array, StringArray, TimestampNanosecondArray, UInt64Array,
     },
     datatypes::{DataType, Int32Type, TimeUnit},
+    error::ArrowError,
     record_batch::RecordBatch,
 };
 use async_trait::async_trait;
@@ -919,14 +920,24 @@ impl QueryChunk for TestChunk {
         &self,
         _ctx: IOxSessionContext,
         predicate: &Predicate,
-        _selection: Selection<'_>,
+        selection: Selection<'_>,
     ) -> Result<SendableRecordBatchStream, QueryChunkError> {
         self.check_error()?;
 
         // save the predicate
         self.predicates.lock().push(predicate.clone());
 
-        let batches = self.table_data.clone();
+        let batches = match self.schema.df_projection(selection)? {
+            None => self.table_data.clone(),
+            Some(projection) => self
+                .table_data
+                .iter()
+                .map(|batch| {
+                    let batch = batch.project(&projection)?;
+                    Ok(Arc::new(batch))
+                })
+                .collect::<std::result::Result<Vec<_>, ArrowError>>()?,
+        };
         Ok(stream_from_batches(batches))
     }
 
