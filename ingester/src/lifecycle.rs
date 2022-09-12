@@ -13,7 +13,7 @@ use crate::{
 use data_types::{PartitionId, SequenceNumber, ShardId};
 use iox_time::{Time, TimeProvider};
 use metric::{Metric, U64Counter};
-use observability_deps::tracing::{error, info};
+use observability_deps::tracing::{error, info, warn};
 use parking_lot::Mutex;
 use std::{collections::BTreeMap, sync::Arc, time::Duration};
 use tokio_util::sync::CancellationToken;
@@ -303,35 +303,102 @@ impl LifecycleManager {
             Vec<PartitionLifecycleStats>,
             Vec<PartitionLifecycleStats>,
         ) = partition_stats.into_iter().partition(|s| {
-            let aged_out = now
-                .checked_duration_since(s.first_write)
-                .map(|age| age > self.config.partition_age_threshold)
-                .unwrap_or(false);
-            if aged_out {
-                self.persist_age_counter.inc(1);
-            }
+            //
+            // Log the partitions that are marked for persistence using
+            // consistent fields across all trigger types.
+            //
 
-            let is_cold = now
-                .checked_duration_since(s.last_write)
-                .map(|age| age > self.config.partition_cold_threshold)
-                .unwrap_or(false);
-            if is_cold {
-                self.persist_cold_counter.inc(1);
-            }
+            // Check if this partition's first write occurred long enough ago
+            // that the data is considered "old" and can be flushed.
+            let aged_out = match now.checked_duration_since(s.first_write) {
+                Some(age) if age > self.config.partition_age_threshold => {
+                    info!(
+                        shard_id=%s.shard_id,
+                        partition_id=%s.partition_id,
+                        first_write=%s.first_write,
+                        last_write=%s.last_write,
+                        bytes_written=s.bytes_written,
+                        rows_written=s.rows_written,
+                        first_sequence_number=?s.first_sequence_number,
+                        age=?age,
+                        "partition is over age threshold, persisting"
+                    );
+                    self.persist_age_counter.inc(1);
+                    true
+                }
+                None => {
+                    warn!(
+                        shard_id=%s.shard_id,
+                        partition_id=%s.partition_id,
+                        "unable to calculate partition age"
+                    );
+                    false
+                }
+                _ => false,
+            };
 
+            // Check if this partition's most recent write was long enough ago
+            // that the partition is considered "cold" and is unlikely to see
+            // new writes imminently.
+            let is_cold = match now.checked_duration_since(s.last_write) {
+                Some(age) if age > self.config.partition_cold_threshold => {
+                    info!(
+                        shard_id=%s.shard_id,
+                        partition_id=%s.partition_id,
+                        first_write=%s.first_write,
+                        last_write=%s.last_write,
+                        bytes_written=s.bytes_written,
+                        rows_written=s.rows_written,
+                        first_sequence_number=?s.first_sequence_number,
+                        no_writes_for=?age,
+                        "partition is cold, persisting"
+                    );
+                    self.persist_cold_counter.inc(1);
+                    true
+                }
+                None => {
+                    warn!(
+                        shard_id=%s.shard_id,
+                        partition_id=%s.partition_id,
+                        "unable to calculate partition cold duration"
+                    );
+                    false
+                }
+                _ => false,
+            };
+
+            // If this partition contains more rows than it is permitted, flush
+            // it.
             let exceeded_max_rows = s.rows_written >= self.config.partition_row_max;
             if exceeded_max_rows {
+                info!(
+                    shard_id=%s.shard_id,
+                    partition_id=%s.partition_id,
+                    first_write=%s.first_write,
+                    last_write=%s.last_write,
+                    bytes_written=s.bytes_written,
+                    rows_written=s.rows_written,
+                    first_sequence_number=?s.first_sequence_number,
+                    "partition is over max row, persisting"
+                );
                 self.persist_rows_counter.inc(1);
             }
 
+            // If the partition's in-memory buffer is larger than the configured
+            // maximum byte size, flush it.
             let sized_out = s.bytes_written > self.config.partition_size_threshold;
             if sized_out {
+                info!(
+                    shard_id=%s.shard_id,
+                    partition_id=%s.partition_id,
+                    first_write=%s.first_write,
+                    last_write=%s.last_write,
+                    bytes_written=s.bytes_written,
+                    rows_written=s.rows_written,
+                    first_sequence_number=?s.first_sequence_number,
+                    "partition exceeded byte size threshold, persisting"
+                );
                 self.persist_size_counter.inc(1);
-                info!(shard_id=%s.shard_id,
-                      partition_id=%s.partition_id,
-                      bytes_written=s.bytes_written,
-                      partition_size_threshold=self.config.partition_size_threshold,
-                      "Partition is over size threshold, persisting");
             }
 
             aged_out || sized_out || is_cold || exceeded_max_rows
