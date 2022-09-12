@@ -26,7 +26,7 @@ func NewBucketManifestWriter(ts *tenant.Service, mc *meta.Client) BucketManifest
 // It is intended to be used to write to an HTTP response after appropriate measures have been taken
 // to ensure that the request is authorized.
 func (b BucketManifestWriter) WriteManifest(ctx context.Context, w io.Writer) error {
-	bkts, err := b.getAllBuckets(ctx)
+	bkts, _, err := b.ts.FindBuckets(ctx, influxdb.BucketFilter{})
 	if err != nil {
 		return err
 	}
@@ -58,27 +58,6 @@ func (b BucketManifestWriter) WriteManifest(ctx context.Context, w io.Writer) er
 	}
 
 	return json.NewEncoder(w).Encode(&l)
-}
-
-func (b BucketManifestWriter) getAllBuckets(ctx context.Context) ([]*influxdb.Bucket, error) {
-	var numBuckets int
-	var offset int
-	buckets := make([]*influxdb.Bucket, 0)
-
-	// Loop until we get a number of buckets back less than the max page size
-	// indicating that we have hit the last page and gotten all buckets
-	for do := true; do; do = numBuckets >= influxdb.MaxPageSize {
-		opts := influxdb.FindOptions{Offset: offset, Limit: influxdb.MaxPageSize}
-		bkts, _, err := b.ts.FindBuckets(ctx, influxdb.BucketFilter{}, opts)
-		if err != nil {
-			return nil, err
-		}
-		buckets = append(buckets, bkts...)
-		numBuckets = len(bkts)
-		offset += numBuckets
-	}
-
-	return buckets, nil
 }
 
 // retentionPolicyToManifest and the various similar functions that follow are for converting
