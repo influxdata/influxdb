@@ -10,12 +10,10 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"strings"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/cmd/flux/cmd"
-	"github.com/influxdata/flux/execute/table"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/flux/parser"
 	"github.com/influxdata/influxdb/v2"
@@ -78,7 +76,7 @@ func (t *testExecutor) Close() error {
 	return nil
 }
 
-func (t *testExecutor) Run(pkg *ast.Package) error {
+func (t *testExecutor) Run(pkg *ast.Package, fn cmd.TestResultFunc) error {
 	l := t.l.Launcher
 	b := &influxdb.Bucket{
 		OrgID: t.l.Org.ID,
@@ -108,7 +106,18 @@ func (t *testExecutor) Run(pkg *ast.Package) error {
 
 	// During the first execution, we are performing the writes
 	// that are in the testcase.
-	err := t.executeWithOptions(bucketOpt, orgOpt, t.writeOptAST, pkg)
+	err := t.executeWithOptions(bucketOpt, orgOpt, t.writeOptAST, pkg, func(ctx context.Context, results flux.ResultIterator) error {
+		for results.More() {
+			res := results.Next()
+			if err := res.Tables().Do(func(table flux.Table) error {
+				table.Done()
+				return nil
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 	if err != nil {
 		// Some test assertions can fail in the first pass, so those errors do not fail the test case.
 		// However those errors can be useful when the error is unexpected, therefore we simply log the error here.
@@ -116,7 +125,7 @@ func (t *testExecutor) Run(pkg *ast.Package) error {
 	}
 
 	// Execute the read pass.
-	err = t.executeWithOptions(bucketOpt, orgOpt, t.readOptAST, pkg)
+	err = t.executeWithOptions(bucketOpt, orgOpt, t.readOptAST, pkg, fn)
 	if flags.wait {
 		// TODO(nathanielc): When the executor is given access to the test name,
 		// make the configName a function of the test name.
@@ -148,7 +157,7 @@ func (t *testExecutor) Run(pkg *ast.Package) error {
 	return err
 }
 
-func (t *testExecutor) executeWithOptions(bucketOpt, orgOpt *ast.OptionStatement, optionsAST *ast.File, pkg *ast.Package) error {
+func (t *testExecutor) executeWithOptions(bucketOpt, orgOpt *ast.OptionStatement, optionsAST *ast.File, pkg *ast.Package, fn cmd.TestResultFunc) error {
 	options := optionsAST.Copy().(*ast.File)
 	options.Body = append([]ast.Statement{bucketOpt, orgOpt}, options.Body...)
 
@@ -172,26 +181,7 @@ func (t *testExecutor) executeWithOptions(bucketOpt, orgOpt *ast.OptionStatement
 	}
 	defer r.Release()
 
-	var output strings.Builder
-	for r.More() {
-		v := r.Next()
-
-		if err := v.Tables().Do(func(tbl flux.Table) error {
-			// The data returned here is the result of `testing.diff`, so any result means that
-			// a comparison of two tables showed inequality. Capture that inequality as part of the error.
-			// XXX: rockstar (08 Dec 2020) - This could use some ergonomic work, as the diff testOutput
-			// is not exactly "human readable."
-			_, _ = fmt.Fprint(&output, table.Stringify(tbl))
-			return nil
-		}); err != nil {
-			return err
-		}
-	}
-	if output.Len() > 0 {
-		return errors.New(output.String())
-	}
-	r.Release()
-	return r.Err()
+	return fn(t.ctx, r)
 }
 
 // This options definition puts to() in the path of the CSV input. The tests
@@ -201,9 +191,6 @@ const writeOptSource = `
 import "testing"
 import c "csv"
 
-option testing.loadStorage = (csv) => {
-	return c.from(csv: csv) |> to(bucket: bucket, org: org)
-}
 option testing.load = (tables=<-) => {
 	return tables |> to(bucket: bucket, org: org)
 }
@@ -216,9 +203,6 @@ const readOptSource = `
 import "testing"
 import c "csv"
 
-option testing.loadStorage = (csv) => {
-	return from(bucket: bucket)
-}
 option testing.load = (tables=<-) => {
 	return from(bucket: bucket)
 }

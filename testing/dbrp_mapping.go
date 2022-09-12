@@ -331,7 +331,9 @@ func CreateDBRPMappingV2(
 						}
 						return nil, nil
 					},
-				},
+					FindBucketsFn: func(ctx context.Context, bf influxdb.BucketFilter, fo ...influxdb.FindOptions) ([]*influxdb.Bucket, int, error) {
+						return []*influxdb.Bucket{}, 0, nil
+					}},
 				DBRPMappingsV2: []*influxdb.DBRPMapping{{
 					ID:              100,
 					Database:        "database1",
@@ -618,6 +620,210 @@ func FindManyDBRPMappingsV2(
 						Default:         true,
 						OrganizationID:  MustIDBase16(dbrpOrg3ID),
 						BucketID:        MustIDBase16(dbrpBucketBID),
+					},
+				},
+			},
+		},
+		{
+			name: "find virtual by orgID",
+			fields: DBRPMappingFields{
+				BucketSvc: &mock.BucketService{
+					FindBucketByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Bucket, error) {
+						if id == MustIDBase16(dbrpBucket2ID) {
+							return nil, &errors2.Error{
+								Code: errors2.ENotFound,
+								Msg:  "bucket not found",
+							}
+						}
+						return nil, nil
+					},
+					FindBucketsFn: func(ctx context.Context, bf influxdb.BucketFilter, fo ...influxdb.FindOptions) ([]*influxdb.Bucket, int, error) {
+						return []*influxdb.Bucket{
+							// org 3
+							{ID: 100, Name: "testdb", OrgID: MustIDBase16(dbrpOrg3ID)},
+							{ID: 200, Name: "testdb2/testrp2", OrgID: MustIDBase16(dbrpOrg3ID)},
+							// org 2
+							{ID: 300, Name: "testdb3", OrgID: MustIDBase16(dbrpOrg2ID)},
+							{ID: 400, Name: "testdb4/testrp4", OrgID: MustIDBase16(dbrpOrg2ID)},
+						}, 0, nil
+					}},
+				DBRPMappingsV2: []*influxdb.DBRPMapping{},
+			},
+			args: args{
+				filter: influxdb.DBRPMappingFilter{
+					OrgID: MustIDBase16Ptr(dbrpOrg3ID),
+				},
+			},
+			wants: wants{
+				dbrpMappings: []*influxdb.DBRPMapping{
+					{
+						ID:              100,
+						Database:        "testdb",
+						RetentionPolicy: "autogen",
+						Default:         true,
+						Virtual:         true,
+						OrganizationID:  MustIDBase16(dbrpOrg3ID),
+						BucketID:        100,
+					},
+					{
+						ID:              200,
+						Database:        "testdb2",
+						RetentionPolicy: "testrp2",
+						Default:         false,
+						Virtual:         true,
+						OrganizationID:  MustIDBase16(dbrpOrg3ID),
+						BucketID:        200,
+					},
+				},
+			},
+		},
+		{
+			name: "find virtual by database",
+			fields: DBRPMappingFields{
+				BucketSvc: &mock.BucketService{
+					FindBucketByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Bucket, error) {
+						if id == MustIDBase16(dbrpBucket2ID) {
+							return nil, &errors2.Error{
+								Code: errors2.ENotFound,
+								Msg:  "bucket not found",
+							}
+						}
+						return nil, nil
+					},
+					FindBucketsFn: func(ctx context.Context, bf influxdb.BucketFilter, fo ...influxdb.FindOptions) ([]*influxdb.Bucket, int, error) {
+						return []*influxdb.Bucket{
+							// org 3
+							{ID: 100, Name: "testdb", OrgID: MustIDBase16(dbrpOrg3ID)},
+							{ID: 200, Name: "testdb2/testrp2", OrgID: MustIDBase16(dbrpOrg3ID)},
+							// org 2
+							{ID: 300, Name: "testdb3", OrgID: MustIDBase16(dbrpOrg2ID)},
+							{ID: 400, Name: "testdb4/testrp4", OrgID: MustIDBase16(dbrpOrg2ID)},
+							{ID: 500, Name: "testdb4", OrgID: MustIDBase16(dbrpOrg2ID)},
+						}, 0, nil
+					}},
+				DBRPMappingsV2: []*influxdb.DBRPMapping{},
+			},
+			args: args{
+				filter: influxdb.DBRPMappingFilter{
+					Database: strPtr("testdb4"),
+				},
+			},
+			wants: wants{
+				dbrpMappings: []*influxdb.DBRPMapping{
+					{
+						ID:              500,
+						Database:        "testdb4",
+						RetentionPolicy: "autogen",
+						Default:         true,
+						Virtual:         true,
+						OrganizationID:  MustIDBase16(dbrpOrg2ID),
+						BucketID:        500,
+					},
+					{
+						ID:              400,
+						Database:        "testdb4",
+						RetentionPolicy: "testrp4",
+						Default:         false,
+						Virtual:         true,
+						OrganizationID:  MustIDBase16(dbrpOrg2ID),
+						BucketID:        400,
+					},
+				},
+			},
+		},
+		{
+			name: "find virtual by database autogen",
+			fields: DBRPMappingFields{
+				BucketSvc: &mock.BucketService{
+					FindBucketByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Bucket, error) {
+						if id == MustIDBase16(dbrpBucket2ID) {
+							return nil, &errors2.Error{
+								Code: errors2.ENotFound,
+								Msg:  "bucket not found",
+							}
+						}
+						return nil, nil
+					},
+					FindBucketsFn: func(ctx context.Context, bf influxdb.BucketFilter, fo ...influxdb.FindOptions) ([]*influxdb.Bucket, int, error) {
+						return []*influxdb.Bucket{
+							// org 3
+							{ID: 100, Name: "testdb", OrgID: MustIDBase16(dbrpOrg3ID)},
+							{ID: 200, Name: "testdb2/testrp2", OrgID: MustIDBase16(dbrpOrg3ID)},
+							// org 2
+							{ID: 300, Name: "testdb3", OrgID: MustIDBase16(dbrpOrg2ID)},
+							{ID: 400, Name: "testdb4/testrp4", OrgID: MustIDBase16(dbrpOrg2ID)},
+						}, 0, nil
+					}},
+				DBRPMappingsV2: []*influxdb.DBRPMapping{},
+			},
+			args: args{
+				filter: influxdb.DBRPMappingFilter{
+					Database: strPtr("testdb"),
+				},
+			},
+			wants: wants{
+				dbrpMappings: []*influxdb.DBRPMapping{
+					{
+						ID:              100,
+						Database:        "testdb",
+						RetentionPolicy: "autogen",
+						Default:         true,
+						Virtual:         true,
+						OrganizationID:  MustIDBase16(dbrpOrg3ID),
+						BucketID:        100,
+					},
+				},
+			},
+		},
+		{
+			name: "find virtual by rp",
+			fields: DBRPMappingFields{
+				BucketSvc: &mock.BucketService{
+					FindBucketByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Bucket, error) {
+						if id == MustIDBase16(dbrpBucket2ID) {
+							return nil, &errors2.Error{
+								Code: errors2.ENotFound,
+								Msg:  "bucket not found",
+							}
+						}
+						return nil, nil
+					},
+					FindBucketsFn: func(ctx context.Context, bf influxdb.BucketFilter, fo ...influxdb.FindOptions) ([]*influxdb.Bucket, int, error) {
+						return []*influxdb.Bucket{
+							// org 3
+							{ID: 100, Name: "testdb", OrgID: MustIDBase16(dbrpOrg3ID)},
+							{ID: 200, Name: "testdb2/testrp2", OrgID: MustIDBase16(dbrpOrg3ID)},
+							// org 2
+							{ID: 300, Name: "testdb3", OrgID: MustIDBase16(dbrpOrg2ID)},
+							{ID: 400, Name: "testdb4/testrp4", OrgID: MustIDBase16(dbrpOrg2ID)},
+						}, 0, nil
+					}},
+				DBRPMappingsV2: []*influxdb.DBRPMapping{},
+			},
+			args: args{
+				filter: influxdb.DBRPMappingFilter{
+					RetentionPolicy: stringPtr("autogen"),
+				},
+			},
+			wants: wants{
+				dbrpMappings: []*influxdb.DBRPMapping{
+					{
+						ID:              100,
+						Database:        "testdb",
+						RetentionPolicy: "autogen",
+						Default:         true,
+						Virtual:         true,
+						OrganizationID:  MustIDBase16(dbrpOrg3ID),
+						BucketID:        100,
+					},
+					{
+						ID:              300,
+						Database:        "testdb3",
+						RetentionPolicy: "autogen",
+						Default:         true,
+						Virtual:         true,
+						OrganizationID:  MustIDBase16(dbrpOrg2ID),
+						BucketID:        300,
 					},
 				},
 			},
@@ -989,6 +1195,19 @@ func FindDBRPMappingByIDV2(
 		{
 			name: "find non existing dbrp",
 			fields: DBRPMappingFields{
+				BucketSvc: &mock.BucketService{
+					FindBucketByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Bucket, error) {
+						if id == MustIDBase16(dbrpBucketAID) {
+							return &influxdb.Bucket{ID: id}, nil
+						}
+						return nil, &errors2.Error{
+							Code: errors2.ENotFound,
+							Msg:  "bucket not found",
+						}
+					},
+					FindBucketsFn: func(ctx context.Context, bf influxdb.BucketFilter, fo ...influxdb.FindOptions) ([]*influxdb.Bucket, int, error) {
+						return []*influxdb.Bucket{}, 0, nil
+					}},
 				DBRPMappingsV2: []*influxdb.DBRPMapping{
 					{
 						ID:              100,
@@ -1009,8 +1228,89 @@ func FindDBRPMappingByIDV2(
 			},
 		},
 		{
+			name: "find virtual dbrp with slash",
+			fields: DBRPMappingFields{
+				BucketSvc: &mock.BucketService{
+					FindBucketByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Bucket, error) {
+						if id == MustIDBase16(dbrpBucketAID) {
+							return &influxdb.Bucket{ID: id, Name: "testdb/testrp", OrgID: MustIDBase16(dbrpOrg3ID)}, nil
+						}
+						return nil, &errors2.Error{
+							Code: errors2.ENotFound,
+							Msg:  "bucket not found",
+						}
+					},
+					FindBucketsFn: func(ctx context.Context, bf influxdb.BucketFilter, fo ...influxdb.FindOptions) ([]*influxdb.Bucket, int, error) {
+						return []*influxdb.Bucket{}, 0, nil
+					}},
+				DBRPMappingsV2: []*influxdb.DBRPMapping{},
+			},
+			args: args{
+				OrgID: MustIDBase16(dbrpOrg3ID),
+				ID:    MustIDBase16(dbrpBucketAID),
+			},
+			wants: wants{
+				dbrpMapping: &influxdb.DBRPMapping{
+					ID:              MustIDBase16(dbrpBucketAID),
+					Database:        "testdb",
+					RetentionPolicy: "testrp",
+					Default:         false,
+					Virtual:         true,
+					OrganizationID:  MustIDBase16(dbrpOrg3ID),
+					BucketID:        MustIDBase16(dbrpBucketAID),
+				},
+			},
+		},
+		{
+			name: "find virtual dbrp",
+			fields: DBRPMappingFields{
+				BucketSvc: &mock.BucketService{
+					FindBucketByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Bucket, error) {
+						if id == MustIDBase16(dbrpBucketAID) {
+							return &influxdb.Bucket{ID: id, Name: "testdb", OrgID: MustIDBase16(dbrpOrg3ID)}, nil
+						}
+						return nil, &errors2.Error{
+							Code: errors2.ENotFound,
+							Msg:  "bucket not found",
+						}
+					},
+					FindBucketsFn: func(ctx context.Context, bf influxdb.BucketFilter, fo ...influxdb.FindOptions) ([]*influxdb.Bucket, int, error) {
+						return []*influxdb.Bucket{}, 0, nil
+					}},
+				DBRPMappingsV2: []*influxdb.DBRPMapping{},
+			},
+			args: args{
+				OrgID: MustIDBase16(dbrpOrg3ID),
+				ID:    MustIDBase16(dbrpBucketAID),
+			},
+			wants: wants{
+				dbrpMapping: &influxdb.DBRPMapping{
+					ID:              MustIDBase16(dbrpBucketAID),
+					Database:        "testdb",
+					RetentionPolicy: "autogen",
+					Default:         true,
+					Virtual:         true,
+					OrganizationID:  MustIDBase16(dbrpOrg3ID),
+					BucketID:        MustIDBase16(dbrpBucketAID),
+				},
+			},
+		},
+		{
 			name: "find existing dbrp but wrong orgID",
 			fields: DBRPMappingFields{
+				BucketSvc: &mock.BucketService{
+					FindBucketByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Bucket, error) {
+						if id == MustIDBase16(dbrpBucketAID) {
+							return &influxdb.Bucket{ID: id}, nil
+						}
+						return nil, &errors2.Error{
+							Code: errors2.ENotFound,
+							Msg:  "bucket not found",
+						}
+					},
+					FindBucketsFn: func(ctx context.Context, bf influxdb.BucketFilter, fo ...influxdb.FindOptions) ([]*influxdb.Bucket, int, error) {
+						return []*influxdb.Bucket{}, 0, nil
+					}},
 				DBRPMappingsV2: []*influxdb.DBRPMapping{
 					{
 						ID:              100,
@@ -1146,6 +1446,19 @@ func UpdateDBRPMappingV2(
 		{
 			name: "error dbrp not found",
 			fields: DBRPMappingFields{
+				BucketSvc: &mock.BucketService{
+					FindBucketByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Bucket, error) {
+						if id == MustIDBase16(dbrpBucket1ID) {
+							return &influxdb.Bucket{ID: id}, nil
+						}
+						return nil, &errors2.Error{
+							Code: errors2.ENotFound,
+							Msg:  "bucket not found",
+						}
+					},
+					FindBucketsFn: func(ctx context.Context, bf influxdb.BucketFilter, fo ...influxdb.FindOptions) ([]*influxdb.Bucket, int, error) {
+						return []*influxdb.Bucket{}, 0, nil
+					}},
 				DBRPMappingsV2: []*influxdb.DBRPMapping{{
 					ID:              100,
 					Database:        "database1",
@@ -1631,7 +1944,7 @@ func DeleteDBRPMappingV2(
 			},
 			args: args{
 				OrgID: MustIDBase16(dbrpOrg2ID),
-				ID:    100,
+				ID:    150,
 			},
 			wants: wants{
 				dbrpMappings: []*influxdb.DBRPMapping{

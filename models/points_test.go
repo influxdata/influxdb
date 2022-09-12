@@ -2209,7 +2209,7 @@ func TestNewPointsWithBytesWithCorruptData(t *testing.T) {
 
 func TestNewPointsWithShortBuffer(t *testing.T) {
 	_, err := models.NewPointFromBytes([]byte{0, 0, 0, 3, 4})
-	if err != io.ErrShortBuffer {
+	if !errors.Is(err, io.ErrShortBuffer) {
 		t.Fatalf("NewPointFromBytes: got: (%v, %v), expected: (nil, error)", p, err)
 	}
 }

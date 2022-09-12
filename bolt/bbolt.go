@@ -102,6 +102,8 @@ func (c *Client) initialize(ctx context.Context) error {
 			scraperBucket,
 			telegrafBucket,
 			telegrafPluginsBucket,
+			remoteBucket,
+			replicationBucket,
 			userBucket,
 		}
 		for _, bktName := range bkts {

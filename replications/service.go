@@ -38,7 +38,7 @@ func errLocalBucketNotFound(id platform.ID, cause error) error {
 	}
 }
 
-func NewService(sqlStore *sqlite.SqlStore, bktSvc BucketService, localWriter storage.PointsWriter, log *zap.Logger, enginePath string) (*service, *metrics.ReplicationsMetrics) {
+func NewService(sqlStore *sqlite.SqlStore, bktSvc BucketService, localWriter storage.PointsWriter, log *zap.Logger, enginePath string, instanceID string) (*service, *metrics.ReplicationsMetrics) {
 	metrs := metrics.NewReplicationsMetrics()
 	store := internal.NewStore(sqlStore)
 
@@ -57,6 +57,7 @@ func NewService(sqlStore *sqlite.SqlStore, bktSvc BucketService, localWriter sto
 		),
 		maxRemoteWriteBatchSize: maxRemoteWriteBatchSize,
 		maxRemoteWritePointSize: maxRemoteWritePointSize,
+		instanceID:              instanceID,
 	}, metrs
 }
 
@@ -104,6 +105,7 @@ type service struct {
 	log                     *zap.Logger
 	maxRemoteWriteBatchSize int
 	maxRemoteWritePointSize int
+	instanceID              string
 }
 
 func (s *service) ListReplications(ctx context.Context, filter influxdb.ReplicationListFilter) (*influxdb.Replications, error) {
@@ -137,6 +139,10 @@ func (s *service) CreateReplication(ctx context.Context, request influxdb.Create
 
 	s.store.Lock()
 	defer s.store.Unlock()
+
+	if request.RemoteID == platform.ID(0) && request.RemoteBucketName == "" {
+		return nil, fmt.Errorf("please supply one of: remoteBucketID, remoteBucketName")
+	}
 
 	if _, err := s.bucketService.FindBucketByID(ctx, request.LocalBucketID); err != nil {
 		return nil, errLocalBucketNotFound(request.LocalBucketID, err)
@@ -315,6 +321,12 @@ func (s *service) WritePoints(ctx context.Context, orgID platform.ID, bucketID p
 	// If there are no registered replications, all we need to do is a local write.
 	if len(replications) == 0 {
 		return s.localWriter.WritePoints(ctx, orgID, bucketID, points)
+	}
+
+	if s.instanceID != "" {
+		for i := range points {
+			points[i].AddTag("_instance_id", s.instanceID)
+		}
 	}
 
 	// Concurrently...

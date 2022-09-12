@@ -177,7 +177,7 @@ func TestServer_Query_ShowDatabases(t *testing.T) {
 		&Query{
 			name:    "show databases does not return duplicates",
 			command: "SHOW DATABASES",
-			exp:     `{"results":[{"statement_id":0,"series":[{"name":"databases","columns":["name"],"values":[["my-bucket"],["telegraf"]]}]}]}`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"databases","columns":["name"],"values":[["my-bucket"],["telegraf"],["_monitoring"],["_tasks"],["db"]]}]}]}`,
 		},
 	)
 

@@ -2613,7 +2613,8 @@ from(bucket: params.bucket)
     |> filter(fn: (r) => r.floater == params.floatVal)
     |> filter(fn: (r) => r._value > params.minVal)
     |> aggregateWindow(every: v.windowPeriod, fn: max)
-    |> yield(name: params.name)`
+    |> yield(name: params.name)
+`
 
 				q := props.Queries[0]
 				assert.Equal(t, queryText, q.Text)
@@ -3610,7 +3611,8 @@ from(bucket: params.bucket)
     |> filter(fn: (r) => r.floater == params.floatVal)
     |> filter(fn: (r) => r._value > params.minVal)
     |> aggregateWindow(every: v.windowPeriod, fn: max)
-    |> yield(name: params.name)`
+    |> yield(name: params.name)
+`
 
 				assert.Equal(t, queryText, actual.Query)
 
@@ -3730,7 +3732,8 @@ from(bucket: "rucket_1")
     |> filter(fn: (r) => r._measurement == "cpu")
     |> filter(fn: (r) => r._field == "usage_idle")
     |> aggregateWindow(every: 1m, fn: mean)
-    |> yield(name: "mean")`
+    |> yield(name: "mean")
+`
 
 				assert.Equal(t, queryText, actual[0].Query)
 
@@ -3759,7 +3762,8 @@ from(bucket: "rucket_1")
     |> filter(fn: (r) => r._measurement == params.this)
     |> filter(fn: (r) => r._field == "usage_idle")
     |> aggregateWindow(every: 1m, fn: mean)
-    |> yield(name: "mean")`
+    |> yield(name: "mean")
+`
 
 				assert.Equal(t, queryText, actual[0].Query)
 

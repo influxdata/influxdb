@@ -213,6 +213,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		zap.String("version", info.Version),
 		zap.String("commit", info.Commit),
 		zap.String("build_date", info.Date),
+		zap.String("log_level", opts.LogLevel.String()),
 	)
 	m.initTracing(opts)
 
@@ -363,11 +364,11 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 
 	remotesSvc := remotes.NewService(m.sqlStore)
 	remotesServer := remotesTransport.NewInstrumentedRemotesHandler(
-		m.log.With(zap.String("handler", "remotes")), m.reg, remotesSvc)
+		m.log.With(zap.String("handler", "remotes")), m.reg, m.kvStore, remotesSvc)
 
-	replicationSvc, replicationsMetrics := replications.NewService(m.sqlStore, ts, pointsWriter, m.log.With(zap.String("service", "replications")), opts.EnginePath)
+	replicationSvc, replicationsMetrics := replications.NewService(m.sqlStore, ts, pointsWriter, m.log.With(zap.String("service", "replications")), opts.EnginePath, opts.InstanceID)
 	replicationServer := replicationTransport.NewInstrumentedReplicationHandler(
-		m.log.With(zap.String("handler", "replications")), m.reg, replicationSvc)
+		m.log.With(zap.String("handler", "replications")), m.reg, m.kvStore, replicationSvc)
 	ts.BucketService = replications.NewBucketService(
 		m.log.With(zap.String("service", "replication_buckets")), ts.BucketService, replicationSvc)
 

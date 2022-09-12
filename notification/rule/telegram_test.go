@@ -133,7 +133,8 @@ all_statuses
                         silent: if r["_level"] == "crit" then true else if r["_level"] == "warn" then true else false,
                     }),
             ),
-    )`,
+    )
+`,
 		},
 		{
 			name: "with DisableWebPagePreview and ParseMode",
@@ -208,7 +209,8 @@ all_statuses
                         silent: if r["_level"] == "crit" then true else if r["_level"] == "warn" then true else false,
                     }),
             ),
-    )`,
+    )
+`,
 		},
 	}
 
@@ -222,7 +224,7 @@ all_statuses
 				return
 			}
 
-			if got, want := script, tt.script; got != want {
+			if got, want := script, influxTesting.FormatFluxString(t, tt.script); got != want {
 				t.Errorf("\n\nStrings do not match:\n\n%s", diff.LineDiff(got, want))
 			}
 		})

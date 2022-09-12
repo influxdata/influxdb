@@ -38,7 +38,7 @@ var (
 		Description:       &desc,
 		RemoteID:          platform.ID(100),
 		LocalBucketID:     platform.ID(1000),
-		RemoteBucketID:    platform.ID(99999),
+		RemoteBucketID:    idPointer(99999),
 		MaxQueueSizeBytes: 3 * influxdb.DefaultReplicationMaxQueueSizeBytes,
 	}
 	replication2 = influxdb.Replication{
@@ -48,7 +48,7 @@ var (
 		Description:       &desc,
 		RemoteID:          platform.ID(100),
 		LocalBucketID:     platform.ID(1000),
-		RemoteBucketID:    platform.ID(99999),
+		RemoteBucketID:    idPointer(99999),
 		MaxQueueSizeBytes: 3 * influxdb.DefaultReplicationMaxQueueSizeBytes,
 	}
 	createReq = influxdb.CreateReplicationRequest{
@@ -57,7 +57,7 @@ var (
 		Description:       replication1.Description,
 		RemoteID:          replication1.RemoteID,
 		LocalBucketID:     replication1.LocalBucketID,
-		RemoteBucketID:    replication1.RemoteBucketID,
+		RemoteBucketID:    *replication1.RemoteBucketID,
 		MaxQueueSizeBytes: replication1.MaxQueueSizeBytes,
 	}
 	newRemoteID          = platform.ID(200)
@@ -94,9 +94,14 @@ var (
 		RemoteToken:      replication1.RemoteID.String(),
 		RemoteOrgID:      platform.ID(888888),
 		AllowInsecureTLS: true,
-		RemoteBucketID:   replication1.RemoteBucketID,
+		RemoteBucketID:   *replication1.RemoteBucketID,
 	}
 )
+
+func idPointer(id int) *platform.ID {
+	p := platform.ID(id)
+	return &p
+}
 
 func TestListReplications(t *testing.T) {
 	t.Parallel()
@@ -769,6 +774,57 @@ disk,host=C value=1.3 1000000000`)
 			require.NoError(t, svc.WritePoints(ctx, orgID, id1, points))
 		})
 	}
+}
+
+func TestWritePointsInstanceID(t *testing.T) {
+	t.Parallel()
+
+	svc, mocks := newTestService(t)
+	svc.instanceID = "hello-edge"
+	replications := make([]platform.ID, 2)
+	replications[0] = replication1.ID
+	replications[1] = replication2.ID
+
+	mocks.durableQueueManager.EXPECT().GetReplications(orgID, id1).Return(replications)
+
+	writePoints, err := models.ParsePointsString(`
+cpu,host=0 value=1.1 6000000000
+cpu,host=A value=1.2 2000000000
+cpu,host=A value=1.3 3000000000
+cpu,host=B value=1.3 4000000000
+cpu,host=B value=1.3 5000000000
+cpu,host=C value=1.3 1000000000
+mem,host=C value=1.3 1000000000
+disk,host=C value=1.3 1000000000`)
+	require.NoError(t, err)
+
+	expectedPoints, err := models.ParsePointsString(`
+cpu,host=0,_instance_id=hello-edge value=1.1 6000000000
+cpu,host=A,_instance_id=hello-edge value=1.2 2000000000
+cpu,host=A,_instance_id=hello-edge value=1.3 3000000000
+cpu,host=B,_instance_id=hello-edge value=1.3 4000000000
+cpu,host=B,_instance_id=hello-edge value=1.3 5000000000
+cpu,host=C,_instance_id=hello-edge value=1.3 1000000000
+mem,host=C,_instance_id=hello-edge value=1.3 1000000000
+disk,host=C,_instance_id=hello-edge value=1.3 1000000000`)
+	require.NoError(t, err)
+
+	// Points should successfully write to local TSM.
+	mocks.pointWriter.EXPECT().WritePoints(gomock.Any(), orgID, id1, writePoints).Return(nil)
+
+	// Points should successfully be enqueued in the 2 replications associated with the local bucket.
+	for _, id := range replications {
+		mocks.durableQueueManager.EXPECT().
+			EnqueueData(id, gomock.Any(), len(writePoints)).
+			DoAndReturn(func(_ platform.ID, data []byte, numPoints int) error {
+				require.Equal(t, len(writePoints), numPoints)
+				checkCompressedData(t, data, expectedPoints)
+				return nil
+			})
+	}
+
+	require.NoError(t, svc.WritePoints(ctx, orgID, id1, writePoints))
+
 }
 
 func TestWritePoints_LocalFailure(t *testing.T) {

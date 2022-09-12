@@ -1576,7 +1576,7 @@ func TestMeasurementFieldSet_Corrupt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("stat error: %v", err)
 	}
-	// Truncate the file to simulate a a corrupted file
+	// Truncate the file to simulate a corrupted file
 	if err := os.Truncate(path, stat.Size()-3); err != nil {
 		t.Fatalf("truncate error: %v", err)
 	}

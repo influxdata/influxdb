@@ -23,6 +23,9 @@ func initDBRPMappingService(f itesting.DBRPMappingFields, t *testing.T) (influxd
 					Name: fmt.Sprintf("bucket-%v", id),
 				}, nil
 			},
+			FindBucketsFn: func(ctx context.Context, bf influxdb.BucketFilter, fo ...influxdb.FindOptions) ([]*influxdb.Bucket, int, error) {
+				return []*influxdb.Bucket{}, 0, nil
+			},
 		}
 	}
 

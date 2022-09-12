@@ -88,7 +88,7 @@ func (e *encoder) reduce() (max, divisor uint64, rle bool, deltas []uint64) {
 	// Starting values for a max and divisor
 	max, divisor = 0, 1e12
 
-	// Indicates whether the the deltas can be run-length encoded
+	// Indicates whether the deltas can be run-length encoded
 	rle = true
 
 	// Iterate in reverse so we can apply deltas in place

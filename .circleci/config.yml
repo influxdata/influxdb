@@ -1,14 +1,20 @@
 version: "2.1"
 
 orbs:
+  aws-s3:    circleci/aws-s3@2.0.0
   terraform: circleci/terraform@2.1.0
+
+parameters:
+  cross-container-tag:
+    type: string
+    default: go1.18.5-81cd97477f9a6c9f2db03dc56f560bf54f8da8bb
 
 executors:
   cross-builder:
     docker:
       # NOTE: To upgrade the Go version, first push the upgrade to the cross-builder Dockerfile
       # in the edge repo, then update the version here to match.
-      - image: quay.io/influxdb/cross-builder:go1.18.3-c75d304717395a43913dcc3d576d4f3545375253
+      - image: quay.io/influxdb/cross-builder:<< pipeline.parameters.cross-container-tag >>
     resource_class: large
   linux-amd64:
     machine:
@@ -20,7 +26,7 @@ executors:
       resource_class: arm.large
   darwin:
     macos:
-      xcode: 12.4.0
+      xcode: 12.5.1
       resource_class: medium
     shell: /bin/bash -eo pipefail
   windows:
@@ -29,96 +35,147 @@ executors:
       resource_class: windows.medium
     shell: bash.exe -eo pipefail
 
+# Unlike when a commit is pushed to a branch, CircleCI does not automatically
+# execute a workflow when a tag is pushed to a repository. These filters
+# allow the corresponding workflow to execute on any branch or tag.
+any_filter: &any_filter
+  filters:
+    tags:
+      only: /.*/
+    branches:
+      only: /.*/
+
+release_filter: &release_filter
+  filters:
+    tags:
+      # This regex matches what is found in 'scripts/get-version' with the
+      # '[[:digit:]]' transformed into '\d'. This also excludes release
+      # candidate detection, because this filter only matches against
+      # full releases.
+      only: /^v(\d+)(?:\.(\d+))?(?:\.(\d+))?$/
+    branches:
+      ignore: /.*/
+
+nofork_filter: &nofork_filter
+  filters:
+    branches:
+      ignore: /pull\/[0-9]+/
+
 workflows:
   version: 2
   build:
     jobs:
-      - test-race
+      - test-race:
+          <<: *any_filter
       - test-build:
+          <<: *any_filter
           name: test-build-<< matrix.os >>-<< matrix.arch >>
           matrix:
             parameters:
               os: [ linux, darwin, windows ]
               arch: [ amd64, arm64 ]
             exclude:
-              - os: darwin
-                arch: arm64
-              - os: windows
-                arch: arm64
+              - { os: darwin,  arch: arm64 }
+              - { os: windows, arch: arm64 }
               # linux/amd64 can be tested directly from our cross-builder image
               # to save time & enable running with the race detector.
-              - os: linux
-                arch: amd64
+              - { os: linux,   arch: amd64 }
       - test-prebuilt:
+          <<: *any_filter
           name: test-linux-arm64
           executor: linux-arm64
           requires:
             - test-build-linux-arm64
       - test-prebuilt:
+          <<: *any_filter
           name: test-darwin
           executor: darwin
           requires:
             - test-build-darwin-amd64
       - test-prebuilt:
+          <<: *any_filter
           name: test-windows
           executor: windows
           requires:
             - test-build-windows-amd64
-      - fluxtest
-      - tlstest
-      - lint
+      - fluxtest:
+          <<: *any_filter
+      - tlstest:
+          <<: *any_filter
+      - lint:
+          <<: *any_filter
       - build:
-          name: build-snapshot-<< matrix.os >>-<< matrix.arch >>
+          <<: *any_filter
+          name: build-<< matrix.os >>-<< matrix.arch >>
           build-type: snapshot
           matrix:
             parameters:
-              os: [ linux, darwin, windows ]
+              os:   [ linux, darwin, windows ]
               arch: [ amd64, arm64 ]
             exclude:
-              - os: darwin
-                arch: arm64
-              - os: windows
-                arch: arm64
-      - package-and-release:
-          name: package-snapshot
-          build-type: snapshot
-          filters:
-            branches:
-              ignore: /pull\/[0-9]+/
+              - { os: darwin,  arch: arm64 }
+              - { os: windows, arch: arm64 }
+      - build-package:
+          <<: *any_filter
+          name: build-package-<< matrix.os >>-<< matrix.arch >>
           requires:
-            - build
+            - build-<< matrix.os >>-<< matrix.arch >>
+          matrix:
+            parameters:
+              os:   [ linux, darwin, windows ]
+              arch: [ amd64, arm64 ]
+            exclude:
+              - { os: darwin,  arch: arm64 }
+              - { os: windows, arch: arm64 }
       - test-downgrade:
+          <<: *any_filter
           requires:
-            - build-snapshot-linux-amd64
+            - build-linux-amd64
       - e2e-monitor-ci:
-          filters:
-            branches:
-              ignore: /pull\/[0-9]+/
+          <<: *nofork_filter
           requires:
-            - build-snapshot-linux-amd64
+            - build-linux-amd64
       - test-linux-packages:
-          filters:
-            branches:
-              ignore: /pull\/[0-9]+/
+          <<: *nofork_filter
           requires:
-            - package-snapshot
+            - build-package-linux-amd64
+      - changelog:
+          <<: *any_filter
+      - s3-publish-packages:
+          <<: *release_filter
+          requires:
+            - test-linux-packages
+            - build-package-darwin-amd64
+            - build-package-linux-amd64
+            - build-package-linux-arm64
+            - build-package-windows-amd64
+      - s3-publish-changelog:
+          <<: *release_filter
+          publish-type: release
+          requires:
+            - changelog
       - perf-test:
           record_results: true
           requires:
-            - package-snapshot
+            - build-package-darwin-amd64
+            - build-package-linux-amd64
+            - build-package-linux-arm64
+            - build-package-windows-amd64
           filters:
             branches:
               only:
                 - master
       - grace-test:
+          <<: *any_filter
           requires:
-            - build-snapshot-linux-amd64
+            - build-linux-amd64
       - litmus-smoke-test:
+          <<: *any_filter
           requires:
-            - build-snapshot-linux-amd64
+            - build-linux-amd64
       - litmus-full-test:
           requires:
-            - build-snapshot-linux-amd64
+            - build-linux-amd64
           filters:
             branches:
               only: master
@@ -152,22 +209,23 @@ workflows:
                 - master
     jobs:
       - changelog
+      - s3-publish-changelog:
+          publish-type: nightly
+          requires:
+            - changelog
       - test-race
       - test-build:
           name: test-build-<< matrix.os >>-<< matrix.arch >>
           matrix:
             parameters:
-              os: [ linux, darwin, windows ]
+              os:   [ linux, darwin, windows ]
               arch: [ amd64, arm64 ]
             exclude:
-              - os: darwin
-                arch: arm64
-              - os: windows
-                arch: arm64
+              - { os: darwin,  arch: arm64 }
+              - { os: windows, arch: arm64 }
               # linux/amd64 can be tested directly from our cross-builder image
               # to save time & enable running with the race detector.
-              - os: linux
-                arch: amd64
+              - { os: linux,   arch: amd64 }
       - test-prebuilt:
           name: test-linux-arm64
           executor: linux-arm64
@@ -191,19 +249,41 @@ workflows:
           build-type: nightly
           matrix:
             parameters:
-              os: [ linux, darwin, windows ]
+              os:   [ linux, darwin, windows ]
               arch: [ amd64, arm64 ]
             exclude:
-              - os: darwin
-                arch: arm64
-              - os: windows
-                arch: arm64
-      - package-and-release:
-          name: package-and-upload-nightly
-          build-type: nightly
+              - { os: darwin,  arch: arm64 }
+              - { os: windows, arch: arm64 }
+      - build-docker-nightly:
+          name:           build-docker-nightly-arm64
+          resource_class: arm.medium
+          arch:           arm64
+          arch_docker:    arm64v8
           requires:
-            - build
+            - build-nightly-linux-arm64
+      - build-docker-nightly:
+          name:           build-docker-nightly-amd64
+          resource_class: medium
+          arch:           amd64
+          arch_docker:    amd64
+          requires:
+            - build-nightly-linux-amd64
+      - docker-nightly-manifest:
+          requires:
+            - build-docker-nightly-amd64
+            - build-docker-nightly-arm64
+      - build-package:
+          name: build-package-<< matrix.os >>-<< matrix.arch >>
+          requires:
+            - build-nightly-<< matrix.os >>-<< matrix.arch >>
             - changelog
+          matrix:
+            parameters:
+              os:   [ linux, darwin, windows ]
+              arch: [ amd64, arm64 ]
+            exclude:
+              - { os: darwin,  arch: arm64 }
+              - { os: windows, arch: arm64 }
       - litmus-full-test:
           requires:
             - build-nightly-linux-amd64
@@ -287,7 +367,7 @@ jobs:
       - persist_to_workspace:
           root: .
           paths:
-            - ./test-bin
+            - test-bin
 
   test-prebuilt:
     parameters:
@@ -332,14 +412,38 @@ jobs:
     steps:
       - checkout
       - run:
+          name: Install Package Dependencies
+          command: |
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update
+            apt-get install --yes git
+      - run:
+          name: Get InfluxDB Version
+          command: |
+            PREFIX=2.x .circleci/scripts/get-version
+      - run:
           name: Generate UI assets
           command: make generate-web-assets
       - run:
           name: Build binaries
           command: |
+            build_type="<< parameters.build-type >>"
+
+            # release builds occur from the "build" pipeline
+            if [[ ${build_type} == snapshot ]]
+            then
+              # `get-version` determines whether this is a release build. If
+              # this is a release build, ensure that the proper version is
+              # templated into the go binary.
+              if [[ ${RELEASE:-} ]]
+              then
+                build_type=release
+              fi
+            fi
+
             export GOOS=<< parameters.os >>
             export GOARCH=<< parameters.arch >>
-            ./scripts/ci/build.sh "bin/influxd_$(go env GOOS)_$(go env GOARCH)" "<< parameters.build-type >>" ./cmd/influxd
+            ./scripts/ci/build.sh "bin/influxd_$(go env GOOS)_$(go env GOARCH)" "${build_type}" ./cmd/influxd
       - store_artifacts:
           path: bin
       - persist_to_workspace:
@@ -347,61 +451,162 @@ jobs:
           paths:
             - bin
 
-  package-and-release:
-    executor: cross-builder
+  build-package:
+    executor: linux-amd64
     parameters:
-      build-type:
+      os:
+        type: string
+      arch:
         type: string
     steps:
       - checkout
       - attach_workspace:
           at: .
       - run:
-          name: Compute artifact version
-          command: echo "export GORELEASER_CURRENT_TAG='$(build-version.sh << parameters.build-type >>)'" >> $BASH_ENV
-      - unless:
-          condition:
-            equal: [ release, << parameters.build-type >> ]
-          steps:
-            - run:
-                name: Tag commit locally to pass goreleaser validation
-                command: git tag "$GORELEASER_CURRENT_TAG"
-      - run:
-          name: Import GPG key
+          name: Install Package Dependencies
           command: |
-            echo -e "$GPG_PRIVATE_KEY" > private.key
-            gpg --batch --import private.key
+            export DEBIAN_FRONTEND=noninteractive
+            sudo apt-get update
+            sudo apt-get install --yes \
+              build-essential          \
+              git                      \
+              rpm                      \
+              ruby-dev
+
+            gem install fpm
       - run:
-          name: Install goreleaser-pro
-          environment:
-            GORELEASER_VERSION: 0.184.0
-            # checksum from `checksums.txt` file at https://github.com/goreleaser/goreleaser-pro/releases
-            GORELEASER_SHA: def0b9882e0fbb91727c73bcc033917c4562aa5f9e89317884faff2b114c6b9c
+          name: Get InfluxDB Version
           command: |
-            curl --proto '=https' --tlsv1.2 -sSfL --max-redirs 1 -O \
-              https://github.com/goreleaser/goreleaser-pro/releases/download/v${GORELEASER_VERSION}-pro/goreleaser-pro_Linux_x86_64.tar.gz
-            echo "${GORELEASER_SHA}  goreleaser-pro_Linux_x86_64.tar.gz" | sha256sum --check -
-            # Extract goreleaser binary only.
-            tar --extract --file=goreleaser-pro_Linux_x86_64.tar.gz goreleaser
-            rm goreleaser-pro_Linux_x86_64.tar.gz
-            # Move goreleaser binary out of project dir so it doesn't dirty the git state.
-            mv goreleaser /go/bin/
+            PREFIX=2.x .circleci/scripts/get-version
       - run:
-          name: Run goreleaser
-          command: goreleaser --debug release --config .goreleaser/<< parameters.build-type >>.yml
-      # goreleaser generates some temp files in the dist/
-      # directory alongside the artifacts we want to save.
-      - run:
-          name: Clean up artifacts
+          name: Build Package
           command: |
-            mkdir artifacts
-            mv dist/influx* artifacts/
-      - store_artifacts:
-          path: artifacts
+            export PLAT=<< parameters.os >>
+            export ARCH=<< parameters.arch >>
+            .circleci/scripts/build-package
       - persist_to_workspace:
-          root: .
+          root: /
           paths:
             - artifacts
+      - store_artifacts:
+          path: /artifacts
+          destination: artifacts
+
+  s3-publish-packages:
+    docker:
+      - image: ubuntu:latest
+    steps:
+      - attach_workspace:
+          at: /tmp/workspace
+      - checkout
+      - run:
+          name: Publish Packages to S3
+          command: |
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update
+            apt-get install --yes awscli git
+
+            PREFIX=2.x .circleci/scripts/get-version
+            source "${BASH_ENV}"
+
+            # required for sha256sum generate the correct paths
+            pushd /tmp/workspace/artifacts
+
+            # Since the artifacts are generated in parallel, the checksums
+            # cannot be calculated until all artifacts are complete. This
+            # excludes `CHANGELOG.md`. Historically, `CHANGELOG.md` was
+            # not included in the checksums.
+            sha256sum * | tee influxdb.${VERSION}.sha256
+
+            aws s3 sync . 's3://dl.influxdata.com/influxdb/releases'
+
+  s3-publish-changelog:
+    parameters:
+      publish-type:
+        type: string
+    docker:
+      - image: ubuntu:latest
+    steps:
+      - attach_workspace:
+          at: /tmp/workspace
+      - checkout
+      - run:
+          name: Publish Changelog to S3
+          command: |
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update
+            apt-get install --yes awscli git
+
+            PREFIX=2.x .circleci/scripts/get-version
+            source "${BASH_ENV}"
+
+            pushd /tmp/workspace/changelog_artifacts
+
+            case "<< parameters.publish-type >>"
+            in
+              release)
+                aws s3 cp CHANGELOG.md "s3://dl.influxdata.com/influxdb/releases/CHANGELOG.${VERSION}.md"
+              ;;
+              nightly)
+                aws s3 cp CHANGELOG.md "s3://dl.influxdata.com/platform/nightlies/<< pipeline.git.branch >>/CHANGELOG.md"
+              ;;
+            esac
+
+  build-docker-nightly:
+    parameters:
+      resource_class:
+        type: string
+      arch:
+        type: string
+      arch_docker:
+        type: string
+    machine:
+      image: ubuntu-2004:current
+    resource_class: << parameters.resource_class >>
+    steps:
+      - attach_workspace:
+          at: /tmp/workspace
+      - checkout
+      - quay_login
+      - run:
+          name: Install Dependencies
+          command: |
+            export DEBIAN_FRONTEND=noninteractive
+            sudo apt-get update
+            sudo apt-get install -y docker
+      - run:
+          name: Build Docker Container
+          command: |
+            # The Dockerfile requires `influxd` to build the container. This
+            # is written into `/tmp/workspace/bin/` by `build-binaries`. For
+            # the Dockerfile to build successfully, copy `influxd` to
+            # the current directory.
+            cp /tmp/workspace/bin/influxd_linux_<< parameters.arch >>/influxd .
+
+            docker build -f docker/influxd/Dockerfile -t quay.io/influxdb/influxdb-<< parameters.arch_docker >>:nightly .
+
+            docker push quay.io/influxdb/influxdb-<< parameters.arch_docker >>:nightly
+
+  docker-nightly-manifest:
+    machine:
+      image: ubuntu-2004:current
+    steps:
+      - run:
+          name: Install Dependencies
+          command: |
+            export DEBIAN_FRONTEND=noninteractive
+            sudo apt-get update
+            sudo apt-get install -y docker
+      - quay_login
+      - run:
+          name: Update Docker Manifests
+          command: |
+            docker manifest create                    \
+              quay.io/influxdb/influxdb:nightly       \
+              quay.io/influxdb/influxdb-amd64:nightly \
+              quay.io/influxdb/influxdb-arm64v8:nightly
+            docker manifest push \
+              quay.io/influxdb/influxdb:nightly
 
   test-linux-packages:
     executor: terraform/default
@@ -455,7 +660,7 @@ jobs:
 
   perf-test:
     docker:
-      - image: cimg/base:2021.04
+      - image: cimg/base:2022.04
     resource_class: small
     parameters:
       record_results:
@@ -602,7 +807,17 @@ jobs:
               fi
               sleep 1
             done
-      - run: docker run --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project/results:/grace/test-results/grace-results quay.io/influxdb/grace:daily
+      - run:
+          name: Run grace test driver
+          command: |
+            docker run -v ~/project/results:/grace/test-results/grace-results \
+              --env GRACE_BASE_URL="http://172.17.0.1:8086" \
+              --env GRACE_ORG_NAME="daily-org" \
+              --env GRACE_BUCKET_NAME="daily-bucket" \
+              --env GRACE_USER="daily@influxdata.com" \
+              --env GRACE_PASS="dailyPassword" \
+              --env GRACE_VALIDATE_OPENAPI=1 \
+              quay.io/influxdb/grace:latest-cd
       - store_artifacts:
           path: ~/project/results
       - store_test_results:
@@ -634,41 +849,21 @@ jobs:
 
   changelog:
     docker:
-      - image: quay.io/influxdb/changelogger:903e73f266155f9bcd78356ea7fdb051b6db74b3
+      - image: quay.io/influxdb/changelogger:d7093c409adedd8837ef51fa84be0d0f8319177a
     steps:
       - checkout
       - run:
           name: Generate changelog
           command: |
-            BRANCH="<< pipeline.git.branch >>"
-            VERSION="v$BRANCH"
-            DOCS_LINKS_VERSION="$VERSION"
+            PREFIX=2.x .circleci/scripts/get-version
+            source "${BASH_ENV}"
 
-            # Runs triggered by pushed tags do not have the pipeline.git.branch parameter available.
-            if [ -n "<< pipeline.git.tag >>" ]; then
-              VERSION="<< pipeline.git.tag >>"
-              DOCS_LINKS_VERSION="$(echo "$VERSION" | sed 's/\.[^.]*$//')"
-              BRANCH="$(echo "$DOCS_LINKS_VERSION" | sed 's/v//' )"
+            if [[ "${RELEASE:-}" ]]
+            then
+              export DESCRIPTION="In addition to the list of changes below, please also see the [official release notes](https://docs.influxdata.com/influxdb/${VERSION}/reference/release-notes/influxdb/) for other important information about this release."
             fi
 
-            mkdir changelog_artifacts
-
-            echo -e "CHANGELOG for InfluxDB OSS $VERSION commit ${CIRCLE_SHA1}\n" > changelog_artifacts/CHANGELOG.md
-
-            if [[ ! "$BRANCH" == "master" ]] ;  then
-              echo -e "In addition to the list of changes below, please also see the [official release notes](https://docs.influxdata.com/influxdb/$DOCS_LINKS_VERSION/reference/release-notes/influxdb/) for other important information about this release.\n" >> changelog_artifacts/CHANGELOG.md
-            fi
-
-            if [[ "$BRANCH" == "master" ]] ;  then
-               LATEST_21X="$(git tag | grep '^v2\.1\.[0-9]*$' | sort -V | tail -1)"
-               # build 2.1.0 to 2.1.x changelog, plus unreleased from master
-               build-multibranch-changelog.sh HEAD "$LATEST_21X" v2.1.0 >> changelog_artifacts/CHANGELOG.md
-            elif [[ "$BRANCH" == "2.1" ]] ;  then
-               # build 2.1.0 to current 2.1 changelog
-               build-simple-changelog.sh HEAD v2.1.0 >> changelog_artifacts/CHANGELOG.md
-            fi
-
-            cat ./scripts/ci/CHANGELOG_frozen.md >> changelog_artifacts/CHANGELOG.md
+            PRODUCT="OSS" changelogger
       - store_artifacts:
           path: changelog_artifacts/
       - persist_to_workspace:

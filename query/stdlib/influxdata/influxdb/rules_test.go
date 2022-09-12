@@ -1167,6 +1167,13 @@ func meanProcedureSpec() *universe.MeanProcedureSpec {
 // Window Aggregate Testing
 //
 func TestPushDownWindowAggregateRule(t *testing.T) {
+	rules := []plan.Rule{
+		universe.AggregateWindowRule{},
+		influxdb.PushDownWindowAggregateRule{},
+		influxdb.PushDownWindowAggregateByTimeRule{},
+		influxdb.PushDownAggregateWindowRule{},
+	}
+
 	createRangeSpec := func() *influxdb.ReadRangePhysSpec {
 		return &influxdb.ReadRangePhysSpec{
 			Bucket: "my-bucket",
@@ -1252,7 +1259,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 	tests = append(tests, plantest.RuleTestCase{
 		Context: context.Background(),
 		Name:    "SimplePassMin",
-		Rules:   []plan.Rule{influxdb.PushDownWindowAggregateRule{}},
+		Rules:   rules,
 		Before:  simplePlanWithWindowAgg(window1m, universe.MinKind, minProcedureSpec()),
 		After:   simpleResult(universe.MinKind, false),
 	})
@@ -1261,7 +1268,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 	tests = append(tests, plantest.RuleTestCase{
 		Context: context.Background(),
 		Name:    "SimplePassMax",
-		Rules:   []plan.Rule{influxdb.PushDownWindowAggregateRule{}},
+		Rules:   rules,
 		Before:  simplePlanWithWindowAgg(window1m, universe.MaxKind, maxProcedureSpec()),
 		After:   simpleResult(universe.MaxKind, false),
 	})
@@ -1270,7 +1277,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 	tests = append(tests, plantest.RuleTestCase{
 		Context: context.Background(),
 		Name:    "SimplePassMean",
-		Rules:   []plan.Rule{influxdb.PushDownWindowAggregateRule{}},
+		Rules:   rules,
 		Before:  simplePlanWithWindowAgg(window1m, universe.MeanKind, meanProcedureSpec()),
 		After:   simpleResult(universe.MeanKind, false),
 	})
@@ -1279,7 +1286,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 	tests = append(tests, plantest.RuleTestCase{
 		Context: context.Background(),
 		Name:    "SimplePassCount",
-		Rules:   []plan.Rule{influxdb.PushDownWindowAggregateRule{}},
+		Rules:   rules,
 		Before:  simplePlanWithWindowAgg(window1m, universe.CountKind, countProcedureSpec()),
 		After:   simpleResult(universe.CountKind, false),
 	})
@@ -1288,7 +1295,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 	tests = append(tests, plantest.RuleTestCase{
 		Context: context.Background(),
 		Name:    "SimplePassSum",
-		Rules:   []plan.Rule{influxdb.PushDownWindowAggregateRule{}},
+		Rules:   rules,
 		Before:  simplePlanWithWindowAgg(window1m, universe.SumKind, sumProcedureSpec()),
 		After:   simpleResult(universe.SumKind, false),
 	})
@@ -1297,7 +1304,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 	tests = append(tests, plantest.RuleTestCase{
 		Context: context.Background(),
 		Name:    "SimplePassFirst",
-		Rules:   []plan.Rule{influxdb.PushDownWindowAggregateRule{}},
+		Rules:   rules,
 		Before:  simplePlanWithWindowAgg(window1m, universe.FirstKind, firstProcedureSpec()),
 		After:   simpleResult(universe.FirstKind, false),
 	})
@@ -1306,7 +1313,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 	tests = append(tests, plantest.RuleTestCase{
 		Context: context.Background(),
 		Name:    "SimplePassLast",
-		Rules:   []plan.Rule{influxdb.PushDownWindowAggregateRule{}},
+		Rules:   rules,
 		Before:  simplePlanWithWindowAgg(window1m, universe.LastKind, lastProcedureSpec()),
 		After:   simpleResult(universe.LastKind, false),
 	})
@@ -1316,7 +1323,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 	tests = append(tests, plantest.RuleTestCase{
 		Context: context.Background(),
 		Name:    "WithSuccessor",
-		Rules:   []plan.Rule{influxdb.PushDownWindowAggregateRule{}},
+		Rules:   rules,
 		Before: &plantest.PlanSpec{
 			Nodes: []plan.Node{
 				plan.CreateLogicalNode("ReadRange", createRangeSpec()),
@@ -1353,7 +1360,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 	tests = append(tests, plantest.RuleTestCase{
 		Context: context.Background(),
 		Name:    "WindowPositiveOffset",
-		Rules:   []plan.Rule{influxdb.PushDownWindowAggregateRule{}},
+		Rules:   rules,
 		Before: simplePlanWithWindowAgg(universe.WindowProcedureSpec{
 			Window: plan.WindowSpec{
 				Every:  dur2m,
@@ -1383,7 +1390,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 	tests = append(tests, plantest.RuleTestCase{
 		Context: context.Background(),
 		Name:    "WindowByMonth",
-		Rules:   []plan.Rule{influxdb.PushDownWindowAggregateRule{}},
+		Rules:   rules,
 		Before:  simplePlanWithWindowAgg(window1mo, universe.LastKind, lastProcedureSpec()),
 		After: &plantest.PlanSpec{
 			Nodes: []plan.Node{
@@ -1400,7 +1407,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 	tests = append(tests, plantest.RuleTestCase{
 		Context: context.Background(),
 		Name:    "WindowByYear",
-		Rules:   []plan.Rule{influxdb.PushDownWindowAggregateRule{}},
+		Rules:   rules,
 		Before:  simplePlanWithWindowAgg(window1y, universe.LastKind, lastProcedureSpec()),
 		After: &plantest.PlanSpec{
 			Nodes: []plan.Node{
@@ -1417,7 +1424,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 	tests = append(tests, plantest.RuleTestCase{
 		Context: context.Background(),
 		Name:    "WindowMonthlyOffset",
-		Rules:   []plan.Rule{influxdb.PushDownWindowAggregateRule{}},
+		Rules:   rules,
 		Before: simplePlanWithWindowAgg(func() universe.WindowProcedureSpec {
 			spec := window1y
 			spec.Window.Offset = dur1mo
@@ -1439,7 +1446,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 	tests = append(tests, plantest.RuleTestCase{
 		Context: context.Background(),
 		Name:    "WindowMixedOffset",
-		Rules:   []plan.Rule{influxdb.PushDownWindowAggregateRule{}},
+		Rules:   rules,
 		Before: simplePlanWithWindowAgg(func() universe.WindowProcedureSpec {
 			spec := window1y
 			spec.Window.Offset = durMixed
@@ -1512,7 +1519,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 	tests = append(tests, plantest.RuleTestCase{
 		Context: context.Background(),
 		Name:    "CreateEmptyPassMin",
-		Rules:   []plan.Rule{influxdb.PushDownWindowAggregateRule{}},
+		Rules:   rules,
 		Before:  simplePlanWithWindowAgg(windowCreateEmpty1m, "min", minProcedureSpec()),
 		After:   simpleResult("min", true),
 	})
@@ -1525,7 +1532,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 	tests = append(tests, plantest.RuleTestCase{
 		Name:    "BadMinCol",
 		Context: context.Background(),
-		Rules:   []plan.Rule{influxdb.PushDownWindowAggregateRule{}},
+		Rules:   rules,
 		Before: simplePlanWithWindowAgg(window1m, "min", &universe.MinProcedureSpec{
 			SelectorConfig: execute.SelectorConfig{Column: "_valmoo"},
 		}),
@@ -1537,7 +1544,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 	tests = append(tests, plantest.RuleTestCase{
 		Name:    "BadMaxCol",
 		Context: context.Background(),
-		Rules:   []plan.Rule{influxdb.PushDownWindowAggregateRule{}},
+		Rules:   rules,
 		Before: simplePlanWithWindowAgg(window1m, "max", &universe.MaxProcedureSpec{
 			SelectorConfig: execute.SelectorConfig{Column: "_valmoo"},
 		}),
@@ -1549,7 +1556,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 	tests = append(tests, plantest.RuleTestCase{
 		Name:    "BadMeanCol1",
 		Context: context.Background(),
-		Rules:   []plan.Rule{influxdb.PushDownWindowAggregateRule{}},
+		Rules:   rules,
 		Before: simplePlanWithWindowAgg(window1m, "mean", &universe.MeanProcedureSpec{
 			SimpleAggregateConfig: execute.SimpleAggregateConfig{Columns: []string{"_valmoo"}},
 		}),
@@ -1558,7 +1565,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 	tests = append(tests, plantest.RuleTestCase{
 		Name:    "BadMeanCol2",
 		Context: context.Background(),
-		Rules:   []plan.Rule{influxdb.PushDownWindowAggregateRule{}},
+		Rules:   rules,
 		Before: simplePlanWithWindowAgg(window1m, "mean", &universe.MeanProcedureSpec{
 			SimpleAggregateConfig: execute.SimpleAggregateConfig{Columns: []string{"_value", "_valmoo"}},
 		}),
@@ -1571,7 +1578,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 	tests = append(tests, plantest.RuleTestCase{
 		Name:    "CollapsedWithSuccessor1",
 		Context: context.Background(),
-		Rules:   []plan.Rule{influxdb.PushDownWindowAggregateRule{}},
+		Rules:   rules,
 		Before: &plantest.PlanSpec{
 			Nodes: []plan.Node{
 				plan.CreateLogicalNode("ReadRange", createRangeSpec()),
@@ -1594,7 +1601,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 	tests = append(tests, plantest.RuleTestCase{
 		Name:    "CollapsedWithSuccessor2",
 		Context: context.Background(),
-		Rules:   []plan.Rule{influxdb.PushDownWindowAggregateRule{}},
+		Rules:   rules,
 		Before: &plantest.PlanSpec{
 			Nodes: []plan.Node{
 				plan.CreateLogicalNode("ReadRange", createRangeSpec()),
@@ -1641,7 +1648,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 	tests = append(tests, plantest.RuleTestCase{
 		Name:     "NoPatternMatch1",
 		Context:  context.Background(),
-		Rules:    []plan.Rule{influxdb.PushDownWindowAggregateRule{}},
+		Rules:    rules,
 		Before:   noPatternMatch1(),
 		NoChange: true,
 	})
@@ -1668,7 +1675,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 	tests = append(tests, plantest.RuleTestCase{
 		Name:     "NoPatternMatch2",
 		Context:  context.Background(),
-		Rules:    []plan.Rule{influxdb.PushDownWindowAggregateRule{}},
+		Rules:    rules,
 		Before:   noPatternMatch2(),
 		NoChange: true,
 	})
@@ -1725,47 +1732,35 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 	tests = append(tests, plantest.RuleTestCase{
 		Context: context.Background(),
 		Name:    "AggregateWindowCount",
-		Rules: []plan.Rule{
-			influxdb.PushDownWindowAggregateRule{},
-			influxdb.PushDownWindowAggregateByTimeRule{},
-		},
-		Before: aggregateWindowPlan(window1m, "count", countProcedureSpec(), "_stop"),
-		After:  aggregateWindowResult("count", false, "_stop"),
+		Rules:   rules,
+		Before:  aggregateWindowPlan(window1m, "count", countProcedureSpec(), "_stop"),
+		After:   aggregateWindowResult("count", false, "_stop"),
 	})
 
 	// Push down the duplicate |> window(every: inf) using _start column
 	tests = append(tests, plantest.RuleTestCase{
 		Context: context.Background(),
 		Name:    "AggregateWindowCount",
-		Rules: []plan.Rule{
-			influxdb.PushDownWindowAggregateRule{},
-			influxdb.PushDownWindowAggregateByTimeRule{},
-		},
-		Before: aggregateWindowPlan(window1m, "count", countProcedureSpec(), "_start"),
-		After:  aggregateWindowResult("count", false, "_start"),
+		Rules:   rules,
+		Before:  aggregateWindowPlan(window1m, "count", countProcedureSpec(), "_start"),
+		After:   aggregateWindowResult("count", false, "_start"),
 	})
 
 	// Push down duplicate |> window(every: inf) with create empty.
 	tests = append(tests, plantest.RuleTestCase{
 		Context: context.Background(),
 		Name:    "AggregateWindowCountCreateEmpty",
-		Rules: []plan.Rule{
-			influxdb.PushDownWindowAggregateRule{},
-			influxdb.PushDownWindowAggregateByTimeRule{},
-		},
-		Before: aggregateWindowPlan(windowCreateEmpty1m, "count", countProcedureSpec(), "_stop"),
-		After:  aggregateWindowResult("count", true, "_stop"),
+		Rules:   rules,
+		Before:  aggregateWindowPlan(windowCreateEmpty1m, "count", countProcedureSpec(), "_stop"),
+		After:   aggregateWindowResult("count", true, "_stop"),
 	})
 
 	// Invalid duplicate column.
 	tests = append(tests, plantest.RuleTestCase{
 		Context: context.Background(),
 		Name:    "AggregateWindowCountInvalidDuplicateColumn",
-		Rules: []plan.Rule{
-			influxdb.PushDownWindowAggregateRule{},
-			influxdb.PushDownWindowAggregateByTimeRule{},
-		},
-		Before: aggregateWindowPlan(window1m, "count", countProcedureSpec(), "_value"),
+		Rules:   rules,
+		Before:  aggregateWindowPlan(window1m, "count", countProcedureSpec(), "_value"),
 		After: simpleResult("count", false,
 			plan.CreatePhysicalNode("duplicate", duplicate("_value", "_time")),
 			plan.CreatePhysicalNode("window2", &windowInf),
@@ -1776,10 +1771,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 	tests = append(tests, plantest.RuleTestCase{
 		Context: context.Background(),
 		Name:    "AggregateWindowCountInvalidDuplicateAs",
-		Rules: []plan.Rule{
-			influxdb.PushDownWindowAggregateRule{},
-			influxdb.PushDownWindowAggregateByTimeRule{},
-		},
+		Rules:   rules,
 		Before: &plantest.PlanSpec{
 			Nodes: []plan.Node{
 				plan.CreateLogicalNode("ReadRange", createRangeSpec()),
@@ -1805,10 +1797,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 	tests = append(tests, plantest.RuleTestCase{
 		Context: context.Background(),
 		Name:    "AggregateWindowCountInvalidClosingWindow",
-		Rules: []plan.Rule{
-			influxdb.PushDownWindowAggregateRule{},
-			influxdb.PushDownWindowAggregateByTimeRule{},
-		},
+		Rules:   rules,
 		Before: &plantest.PlanSpec{
 			Nodes: []plan.Node{
 				plan.CreateLogicalNode("ReadRange", createRangeSpec()),
@@ -1834,10 +1823,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 	tests = append(tests, plantest.RuleTestCase{
 		Context: context.Background(),
 		Name:    "AggregateWindowCountInvalidClosingWindowMultiple",
-		Rules: []plan.Rule{
-			influxdb.PushDownWindowAggregateRule{},
-			influxdb.PushDownWindowAggregateByTimeRule{},
-		},
+		Rules:   rules,
 		Before: &plantest.PlanSpec{
 			Nodes: []plan.Node{
 				plan.CreateLogicalNode("ReadRange", createRangeSpec()),
@@ -1863,10 +1849,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 	tests = append(tests, plantest.RuleTestCase{
 		Context: context.Background(),
 		Name:    "AggregateWindowCountInvalidClosingWindowCreateEmpty",
-		Rules: []plan.Rule{
-			influxdb.PushDownWindowAggregateRule{},
-			influxdb.PushDownWindowAggregateByTimeRule{},
-		},
+		Rules:   rules,
 		Before: &plantest.PlanSpec{
 			Nodes: []plan.Node{
 				plan.CreateLogicalNode("ReadRange", createRangeSpec()),
@@ -1892,10 +1875,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 	tests = append(tests, plantest.RuleTestCase{
 		Context: context.Background(),
 		Name:    "AggregateWindowCountMultipleMatches",
-		Rules: []plan.Rule{
-			influxdb.PushDownWindowAggregateRule{},
-			influxdb.PushDownWindowAggregateByTimeRule{},
-		},
+		Rules:   rules,
 		Before: &plantest.PlanSpec{
 			Nodes: []plan.Node{
 				plan.CreateLogicalNode("ReadRange", createRangeSpec()),
@@ -1933,10 +1913,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 	tests = append(tests, plantest.RuleTestCase{
 		Context: context.Background(),
 		Name:    "AggregateWindowCountWrongSchemaMutator",
-		Rules: []plan.Rule{
-			influxdb.PushDownWindowAggregateRule{},
-			influxdb.PushDownWindowAggregateByTimeRule{},
-		},
+		Rules:   rules,
 		Before: &plantest.PlanSpec{
 			Nodes: []plan.Node{
 				plan.CreateLogicalNode("ReadRange", createRangeSpec()),
@@ -1972,6 +1949,7 @@ func TestPushDownWindowForceAggregateRule(t *testing.T) {
 		influxdb.PushDownWindowAggregateRule{},
 		influxdb.PushDownWindowForceAggregateRule{},
 		influxdb.PushDownWindowAggregateByTimeRule{},
+		influxdb.PushDownAggregateWindowRule{},
 	}
 
 	createRangeSpec := func() *influxdb.ReadRangePhysSpec {

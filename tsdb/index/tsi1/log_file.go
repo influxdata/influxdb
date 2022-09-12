@@ -156,10 +156,10 @@ func (f *LogFile) open() error {
 	for buf := f.data; len(buf) > 0; {
 		// Read next entry. Truncate partial writes.
 		var e LogEntry
-		if err := e.UnmarshalBinary(buf); err == io.ErrShortBuffer || err == ErrLogEntryChecksumMismatch {
+		if err := e.UnmarshalBinary(buf); errors.Is(err, io.ErrShortBuffer) || errors.Is(err, ErrLogEntryChecksumMismatch) {
 			break
 		} else if err != nil {
-			return err
+			return fmt.Errorf("%q: %w", f.path, err)
 		}
 
 		// Execute entry against in-memory index.

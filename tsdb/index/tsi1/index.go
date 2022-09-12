@@ -21,6 +21,7 @@ import (
 	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/influxdata/influxql"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 )
 
 // IndexName is the name of the index.
@@ -252,7 +253,7 @@ func (i *Index) SeriesIDSet() *tsdb.SeriesIDSet {
 }
 
 // Open opens the index.
-func (i *Index) Open() error {
+func (i *Index) Open() (rErr error) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 
@@ -281,29 +282,16 @@ func (i *Index) Open() error {
 	partitionN := len(i.partitions)
 	n := i.availableThreads()
 
-	// Store results.
-	errC := make(chan error, partitionN)
-
 	// Run fn on each partition using a fixed number of goroutines.
-	var pidx uint32 // Index of maximum Partition being worked on.
-	for k := 0; k < n; k++ {
-		go func(k int) {
-			for {
-				idx := int(atomic.AddUint32(&pidx, 1) - 1) // Get next partition to work on.
-				if idx >= partitionN {
-					return // No more work.
-				}
-				err := i.partitions[idx].Open()
-				errC <- err
-			}
-		}(k)
+	g := new(errgroup.Group)
+	g.SetLimit(n)
+	for idx := 0; idx < partitionN; idx++ {
+		g.Go(i.partitions[idx].Open)
 	}
-
-	// Check for error
-	for i := 0; i < partitionN; i++ {
-		if err := <-errC; err != nil {
-			return err
-		}
+	err := g.Wait()
+	defer i.cleanUpFail(&rErr)
+	if err != nil {
+		return err
 	}
 
 	// Refresh cached sketches.
@@ -317,6 +305,12 @@ func (i *Index) Open() error {
 	i.opened = true
 	i.logger.Info(fmt.Sprintf("index opened with %d partitions", partitionN))
 	return nil
+}
+
+func (i *Index) cleanUpFail(err *error) {
+	if nil != *err {
+		i.close()
+	}
 }
 
 // Compact requests a compaction of partitions.
@@ -352,16 +346,24 @@ func (i *Index) Close() error {
 	// Lock index and close partitions.
 	i.mu.Lock()
 	defer i.mu.Unlock()
+	return i.close()
+}
 
+// close closes the index without locking
+func (i *Index) close() (rErr error) {
 	for _, p := range i.partitions {
-		if err := p.Close(); err != nil {
-			return err
+		if (p != nil) && p.IsOpen() {
+			if pErr := p.Close(); pErr != nil {
+				i.logger.Warn("Failed to clean up partition", zap.String("path", p.Path()))
+				if rErr == nil {
+					rErr = pErr
+				}
+			}
 		}
 	}
-
 	// Mark index as closed.
 	i.opened = false
-	return nil
+	return rErr
 }
 
 // Path returns the path the index was opened with.
@@ -1009,6 +1011,7 @@ func (i *Index) TagValueSeriesIDIterator(name, key, value []byte) (tsdb.SeriesID
 	for _, p := range i.partitions {
 		itr, err := p.TagValueSeriesIDIterator(name, key, value)
 		if err != nil {
+			tsdb.SeriesIDIterators(a).Close()
 			return nil, err
 		} else if itr != nil {
 			a = append(a, itr)

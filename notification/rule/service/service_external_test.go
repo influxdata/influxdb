@@ -20,6 +20,7 @@ import (
 	"github.com/influxdata/influxdb/v2/notification/rule"
 	"github.com/influxdata/influxdb/v2/pkg/pointer"
 	"github.com/influxdata/influxdb/v2/task/taskmodel"
+	itesting "github.com/influxdata/influxdb/v2/testing"
 )
 
 const (
@@ -295,7 +296,7 @@ func CreateNotificationRule(
 					OwnerID:        MustIDBase16("020f755c3c082005"),
 					Name:           "name2",
 					Status:         "active",
-					Flux: `import "influxdata/influxdb/monitor"
+					Flux: itesting.FormatFluxString(t, `import "influxdata/influxdb/monitor"
 import "slack"
 import "influxdata/influxdb/secrets"
 import "experimental"
@@ -332,7 +333,8 @@ all_statuses
                                 "good",
                     }),
             ),
-    )`,
+    )
+`),
 					Every: "1h",
 				},
 			},

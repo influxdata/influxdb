@@ -1,19 +1,21 @@
 # Contributing to InfluxDB v2
 
 ## Bug reports
+
 Before you file an issue, please search existing issues in case it has already been filed, or perhaps even fixed.
 If you file an issue, please include the following.
-* Full details of your operating system (or distribution) e.g. `64bit Ubuntu 18.04`.
-* The version of InfluxDB you are running
-* Whether you installed it using a pre-built package, or built it from source.
-* Clear steps to reproduce the issue described, if at all possible.
+
+- Full details of your operating system (or distribution) e.g. `64bit Ubuntu 18.04`.
+- The version of InfluxDB you are running
+- Whether you installed it using a pre-built package, or built it from source.
+- Clear steps to reproduce the issue described, if at all possible.
 
 The easier it is for us to reproduce the problem, the easier it is for us to fix it.
 If you have never written a bug report before, or if you want to brush up on your bug reporting skills, we recommend reading [Simon Tatham's essay "How to Report Bugs Effectively."](http://www.chiark.greenend.org.uk/~sgtatham/bugs.html)
 
-
 Ideally, test cases would be in the form of `curl` commands.
 For example:
+
 ```bash
 # write data
 curl -XPOST "http://localhost:8086/api/v2/write?org=YOUR_ORG&bucket=YOUR_BUCKET&precision=s" \
@@ -34,6 +36,7 @@ curl http://localhost:8086/api/v2/query?org=my-org -XPOST -sS \
 
 Test cases with `influx` commands are also helpful.
 For example:
+
 ```
 # write data
 influx write -o YOUR_ORG -b YOUR_BUCKET -p s -t YOURAUTHTOKEN \
@@ -50,18 +53,20 @@ influx query -o YOUR_ORG -t YOURAUTHTOKEN 'from(bucket:"example-bucket")
 If you don't include a clear test case like this it will be very difficult for us to investigate your issue.
 If writing the data is too difficult, please zip up your data directory and include a link to it in your bug report.
 
-Please note that issues are *not the place to file general support requests* such as "how do I use collectd with InfluxDB?"
+Please note that issues are _not the place to file general support requests_ such as "how do I use collectd with InfluxDB?"
 Questions of this nature should be sent to the [InfluxData Community](https://community.influxdata.com/), not filed as issues.
 
 ## Feature requests
+
 We really like to receive feature requests as it helps us prioritize our work.
 Please be clear about your requirements and goals, help us to understand what you would like to see added to InfluxD with examples and the reasons why it is important to you.
 If you find your feature request already exists as a Github issue please indicate your support for that feature by using the "thumbs up" reaction.
 
 ## Submitting a pull request
+
 To submit a pull request you should fork the InfluxDB repository, and make your change on a feature branch of your fork.
-Then generate a pull request from your branch against *master* of the InfluxDB repository.
-Include in your pull request details of your change -- the why *and* the how -- as well as the testing your performed.
+Then generate a pull request from your branch against _master_ of the InfluxDB repository.
+Include in your pull request details of your change -- the why _and_ the how -- as well as the testing your performed.
 Also, be sure to run the test suite with your change in place.
 Changes that cause tests to fail cannot be merged.
 
@@ -77,6 +82,7 @@ To assist in review for the PR, please add the following to your pull request co
 ```
 
 ## Security Vulnerability Reporting
+
 InfluxData takes security and our users' trust very seriously.
 If you believe you have found a security issue in any of our open source projects, please responsibly disclose it by contacting security@influxdata.com.
 More details about security vulnerability reporting, including our GPG key, [can be found here](https://www.influxdata.com/how-to-report-security-vulnerabilities/).
@@ -89,15 +95,16 @@ If you are going to be contributing back to InfluxDB please take a second to sig
 
 ### Installing Go
 
-InfluxDB requires Go 1.17.
+InfluxDB requires Go 1.18.
 
 At InfluxData we find `gvm`, a Go version manager, useful for installing Go.
 For instructions on how to install it see [the gvm page on github](https://github.com/moovweb/gvm).
 
 After installing gvm you can install and set the default go version by running the following:
+
 ```bash
-$ gvm install go1.17
-$ gvm use go1.17 --default
+$ gvm install go1.18
+$ gvm use go1.18 --default
 ```
 
 InfluxDB requires Go module support. Set `GO111MODULE=on` or build the project outside of your `GOPATH` for it to succeed. For information about modules, please refer to the [wiki](https://github.com/golang/go/wiki/Modules).
@@ -108,20 +115,24 @@ Go has the ability to import remote packages via revision control systems with t
 To ensure that you can retrieve any remote package, be sure to install the following rcs software to your system.
 Currently the project only depends on `git` and `bzr`.
 
- * [Install Git](http://git-scm.com/book/en/Getting-Started-Installing-Git)
- * [Install Bazaar](http://doc.bazaar.canonical.com/latest/en/user-guide/installing_bazaar.html)
+- [Install Git](http://git-scm.com/book/en/Getting-Started-Installing-Git)
+- [Install Bazaar](http://doc.bazaar.canonical.com/latest/en/user-guide/installing_bazaar.html)
 
 ### Additional Dependencies
 
 You need a recent stable version of Rust. We recommend using [rustup](https://rustup.rs/) to install Rust.
 
+We recommend 1.60 or higher.
+
 You also need `clang`, `make`, `pkg-config`, and `protobuf` installed.
 
+The go protobuf plugin should be installed `go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28`
+
 - OSX: `brew install pkg-config protobuf`
-    - For OSX, you must have [HomeBrew](https://brew.sh) installed.
-    - You will also need the [Developer Tools](https://webkit.org/build-tools/), which includes `make`.
+  - For OSX, you must have [HomeBrew](https://brew.sh) installed.
+  - You will also need the [Developer Tools](https://webkit.org/build-tools/), which includes `make`.
 - Linux (Arch): `pacman -S clang make pkgconf protobuf`
-- Linux (Ubuntu): `sudo apt install make clang pkg-config protobuf-compiler libprotobuf-dev`
+- Linux (Ubuntu): `sudo apt install make clang pkg-config protobuf-compiler libprotobuf-dev build-essential`
 - Linux (RHEL): See below
 
 #### RedHat-specific instructions
@@ -156,6 +167,10 @@ follow these steps to build `influxd` from source and start the service:
 
    `influxd` logs to stdout by default.
 
+**Troubleshooting**
+
+- If you've changed go or rust versions and are having trouble building, consider running `go clean -r -x -cache -testcache -modcache ./`. This will clear out any old build artifacts that may be incompatible.
+
 ### Testing
 
 This project is built from various languages. To run test for all languages and components use:
@@ -170,26 +185,25 @@ To run tests for just the Go/Rust components use:
 $ make test-go
 ```
 
-
 ## Generated Google Protobuf code
 
 Most changes to the source do not require that the generated protocol buffer code be changed.
 But if you need to modify the protocol buffer code, you'll first need to install the protocol buffers toolchain.
 
-First install the [protocol buffer compiler](https://developers.google.com/protocol-buffers/
-) 3.17.3 or later for your OS.
+First install the [protocol buffer compiler](https://developers.google.com/protocol-buffers/) 3.17.3 or later for your OS.
 
 Then run `go generate` after updating any `*.proto` file:
 
 ```bash
 $ go generate ./...
 ```
+
 **Troubleshooting**
 
 If generating the protobuf code is failing for you, check each of the following:
-* Ensure the protobuf library can be found. Make sure that `LD_LIBRARY_PATH` includes the directory in which the library `libprotoc.so` has been installed.
-* Ensure the command `protoc-gen-go`, found in `GOPATH/bin`, is on your path. This can be done by adding `GOPATH/bin` to `PATH`.
 
+- Ensure the protobuf library can be found. Make sure that `LD_LIBRARY_PATH` includes the directory in which the library `libprotoc.so` has been installed.
+- Ensure the command `protoc-gen-go`, found in `GOPATH/bin`, is on your path. This can be done by adding `GOPATH/bin` to `PATH`.
 
 ## Generated Go Templates
 
@@ -231,7 +245,8 @@ $ go tool pprof ./influxd influxd.prof
 # once inside run "web", opens up browser with the CPU graph
 # can also run "web <function name>" to zoom in. Or "list <function name>" to see specific lines
 ```
-Note that when you pass the binary to `go tool pprof` *you must specify the path to the binary*.
+
+Note that when you pass the binary to `go tool pprof` _you must specify the path to the binary_.
 
 If you are profiling benchmarks built with the `testing` package, you may wish
 to use the [`github.com/pkg/profile`](github.com/pkg/profile) package to limit

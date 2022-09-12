@@ -335,7 +335,7 @@ func (a *args) walkShardDirs(root string, fn func(db, rp, id, path string) error
 	return nil
 }
 
-// counter abstracts a a method of counting keys.
+// counter abstracts a method of counting keys.
 type counter interface {
 	Add(key []byte)
 	Count() uint64

@@ -2,9 +2,11 @@ package tsi1_test
 
 import (
 	"compress/gzip"
+	"errors"
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"reflect"
 	"regexp"
@@ -16,6 +18,8 @@ import (
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/influxdata/influxdb/v2/tsdb/index/tsi1"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // Bloom filter settings used in tests.
@@ -208,6 +212,30 @@ func TestIndex_DropMeasurement(t *testing.T) {
 	})
 }
 
+func TestIndex_OpenFail(t *testing.T) {
+	idx := NewDefaultIndex()
+	require.NoError(t, idx.Open())
+	idx.Index.Close()
+	// mess up the index:
+	tslPath := path.Join(idx.Index.Path(), "3", "L0-00000001.tsl")
+	tslFile, err := os.OpenFile(tslPath, os.O_RDWR, 0666)
+	require.NoError(t, err)
+	require.NoError(t, tslFile.Truncate(0))
+	// write poisonous TSL file - first byte doesn't matter, remaining bytes are an invalid uvarint
+	_, err = tslFile.Write([]byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff})
+	require.NoError(t, err)
+	require.NoError(t, tslFile.Close())
+	idx.Index = tsi1.NewIndex(idx.SeriesFile.SeriesFile, "db0", tsi1.WithPath(idx.Index.Path()))
+	err = idx.Index.Open()
+	require.Error(t, err, "expected an error on opening the index")
+	require.Contains(t, err.Error(), ".tsl\": parsing binary-encoded uint64 value failed; binary.Uvarint() returned -11")
+	// ensure each partition is closed:
+	for i := 0; i < int(idx.Index.PartitionN); i++ {
+		assert.Equal(t, idx.Index.PartitionAt(i).FileN(), 0)
+	}
+	require.NoError(t, idx.Close())
+}
+
 func TestIndex_Open(t *testing.T) {
 	// Opening a fresh index should set the MANIFEST version to current version.
 	idx := NewDefaultIndex()
@@ -270,7 +298,7 @@ func TestIndex_Open(t *testing.T) {
 			// Opening this index should return an error because the MANIFEST has an
 			// incompatible version.
 			err = idx.Open()
-			if err != tsi1.ErrIncompatibleVersion {
+			if !errors.Is(err, tsi1.ErrIncompatibleVersion) {
 				idx.Close()
 				t.Fatalf("got error %v, expected %v", err, tsi1.ErrIncompatibleVersion)
 			}

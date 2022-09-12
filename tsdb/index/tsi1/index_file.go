@@ -170,15 +170,15 @@ func (f *IndexFile) Compacting() bool {
 func (f *IndexFile) UnmarshalBinary(data []byte) error {
 	// Ensure magic number exists at the beginning.
 	if len(data) < len(FileSignature) {
-		return io.ErrShortBuffer
+		return fmt.Errorf("%q: %w", f.path, io.ErrShortBuffer)
 	} else if !bytes.Equal(data[:len(FileSignature)], []byte(FileSignature)) {
-		return ErrInvalidIndexFile
+		return fmt.Errorf("%q: %w", f.path, ErrInvalidIndexFile)
 	}
 
 	// Read index file trailer.
 	t, err := ReadIndexFileTrailer(data)
 	if err != nil {
-		return err
+		return fmt.Errorf("%q: %w", f.path, err)
 	}
 
 	// Slice series sketch data.
@@ -191,7 +191,7 @@ func (f *IndexFile) UnmarshalBinary(data []byte) error {
 
 	// Unmarshal measurement block.
 	if err := f.mblk.UnmarshalBinary(data[t.MeasurementBlock.Offset:][:t.MeasurementBlock.Size]); err != nil {
-		return err
+		return fmt.Errorf("%q: %w", f.path, err)
 	}
 
 	// Unmarshal each tag block.
@@ -208,7 +208,7 @@ func (f *IndexFile) UnmarshalBinary(data []byte) error {
 		// Unmarshal measurement block.
 		var tblk TagBlock
 		if err := tblk.UnmarshalBinary(buf); err != nil {
-			return err
+			return fmt.Errorf("%q: %w", f.path, err)
 		}
 		f.tblks[string(e.name)] = &tblk
 	}

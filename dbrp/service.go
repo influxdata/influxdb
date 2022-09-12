@@ -28,6 +28,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"strings"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/platform"
@@ -231,9 +232,26 @@ func (s *Service) FindByID(ctx context.Context, orgID, id platform.ID) (*influxd
 		}
 		return nil
 	}); err != nil {
+		// if not found, fallback to virtual DBRP search
+		if err == ErrDBRPNotFound {
+			b, err := s.bucketSvc.FindBucketByID(ctx, id)
+			if err != nil || b == nil {
+				return nil, ErrDBRPNotFound
+			}
+			return bucketToMapping(b), nil
+		}
 		return nil, err
 	}
 	return m, nil
+}
+
+// parseDBRP parses DB and RP strings out of a bucket name
+func parseDBRP(bucketName string) (string, string) {
+	db, rp, isCut := strings.Cut(bucketName, "/")
+	if isCut {
+		return db, rp
+	}
+	return bucketName, "autogen"
 }
 
 // FindMany returns a list of mappings that match filter and the total count of matching dbrp mappings.
@@ -334,8 +352,61 @@ func (s *Service) FindMany(ctx context.Context, filter influxdb.DBRPMappingFilte
 		}
 		return nil
 	})
+	if err != nil {
+		return ms, len(ms), err
+	}
 
-	return ms, len(ms), err
+	// a very general search, because if we search for database name of "hello",
+	// the bucket name could be "hello" (with autogen rp) or "hello/foo" which we wouldn't find
+	buckets, _, err := s.bucketSvc.FindBuckets(ctx, influxdb.BucketFilter{
+		ID:             filter.BucketID,
+		OrganizationID: filter.OrgID,
+	}, opts...)
+	if err != nil {
+		// we were unable to find any virtual mappings, so return what physical mappings we have
+		return ms, len(ms), nil
+	}
+	for _, bucket := range buckets {
+		if bucket == nil {
+			continue
+		}
+		newMapping := bucketToMapping(bucket)
+		// if any bucket already exists that is default for this database,
+		// this virtual mapping should not be the default
+		if newMapping.Default {
+			for _, m := range ms {
+				if m.Database == newMapping.Database && m.Default {
+					newMapping.Default = false
+					break
+				}
+			}
+		}
+		if filterFunc(newMapping, filter) {
+			ms = append(ms, newMapping)
+		}
+	}
+
+	return ms, len(ms), nil
+}
+
+// bucketToMapping converts a bucket to a DBRP mapping.
+// Default if bucket name does not contain a slash (foo/bar)
+func bucketToMapping(bucket *influxdb.Bucket) *influxdb.DBRPMapping {
+	if bucket == nil {
+		return nil
+	}
+	// for now, virtual DBRPs will use the same ID as their bucket to be able to find them by ID
+	dbrpID := bucket.ID
+	db, rp := parseDBRP(bucket.Name)
+	return &influxdb.DBRPMapping{
+		ID:              dbrpID,
+		Default:         bucket.Name == db,
+		Database:        db,
+		RetentionPolicy: rp,
+		OrganizationID:  bucket.OrgID,
+		BucketID:        bucket.ID,
+		Virtual:         true,
+	}
 }
 
 // Create creates a new mapping.
@@ -354,7 +425,7 @@ func (s *Service) Create(ctx context.Context, dbrp *influxdb.DBRPMapping) error 
 	}
 
 	// If a dbrp with this particular ID already exists an error is returned.
-	if _, err := s.FindByID(ctx, dbrp.OrganizationID, dbrp.ID); err == nil {
+	if d, err := s.FindByID(ctx, dbrp.OrganizationID, dbrp.ID); err == nil && !d.Virtual {
 		return ErrDBRPAlreadyExists("dbrp already exist for this particular ID. If you are trying an update use the right function .Update")
 	}
 	// If a dbrp with this orgID, db, and rp exists an error is returned.
@@ -529,5 +600,7 @@ func filterFunc(dbrp *influxdb.DBRPMapping, filter influxdb.DBRPMappingFilter) b
 		(filter.BucketID == nil || (*filter.BucketID) == dbrp.BucketID) &&
 		(filter.Database == nil || (*filter.Database) == dbrp.Database) &&
 		(filter.RetentionPolicy == nil || (*filter.RetentionPolicy) == dbrp.RetentionPolicy) &&
-		(filter.Default == nil || (*filter.Default) == dbrp.Default)
+		(filter.Default == nil || (*filter.Default) == dbrp.Default) &&
+		(filter.Virtual == nil || (*filter.Virtual) == dbrp.Virtual)
+
 }

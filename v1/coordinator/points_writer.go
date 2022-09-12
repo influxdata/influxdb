@@ -441,7 +441,7 @@ func (w *PointsWriter) writeToShard(ctx context.Context, shard *meta.ShardInfo, 
 	// If we've written to shard that should exist on the current node, but the store has
 	// not actually created this shard, tell it to create it and retry the write
 	if err = w.TSDBStore.CreateShard(ctx, database, retentionPolicy, shard.ID, true); err != nil {
-		w.Logger.Info("Write failed", zap.Uint64("shard", shard.ID), zap.Error(err))
+		w.Logger.Warn("Write failed creating shard", zap.Uint64("shard", shard.ID), zap.Error(err))
 		return err
 	}
 

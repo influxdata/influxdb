@@ -38,13 +38,7 @@ func (fs *FileSet) bytes() int {
 
 // Close closes all the files in the file set.
 func (fs FileSet) Close() error {
-	var err error
-	for _, f := range fs.files {
-		if e := f.Close(); e != nil && err == nil {
-			err = e
-		}
-	}
-	return err
+	return Files(fs.files).Close()
 }
 
 // Retain adds a reference count to all files.
@@ -454,6 +448,16 @@ func (a Files) IDs() []int {
 		ids[i] = a[i].ID()
 	}
 	return ids
+}
+
+func (a Files) Close() error {
+	var err error
+	for _, f := range a {
+		if e := f.Close(); e != nil && err == nil {
+			err = e
+		}
+	}
+	return err
 }
 
 // fileSetSeriesIDIterator attaches a fileset to an iterator that is released on close.

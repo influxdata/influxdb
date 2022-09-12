@@ -13,6 +13,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/kv/migration/all"
+	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
@@ -154,4 +155,14 @@ func influxErrsEqual(t *testing.T, expected *errors.Error, actual error) {
 	require.True(t, ok)
 	assert.Equal(t, expected.Code, iErr.Code)
 	assert.Truef(t, strings.HasPrefix(iErr.Error(), expected.Error()), "expected: %s got err: %s", expected.Error(), actual.Error())
+}
+
+func FormatFluxString(t *testing.T, script string) string {
+	svc := fluxlang.DefaultService
+
+	astPkg, err := svc.Parse(script)
+	require.NoError(t, err)
+	formatted, err := svc.Format(astPkg.Files[0])
+	require.NoError(t, err)
+	return formatted
 }

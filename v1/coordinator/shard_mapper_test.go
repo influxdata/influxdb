@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/influxdata/influx-cli/v2/api"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/dbrp/mocks"
 	"github.com/influxdata/influxdb/v2/influxql/query"
@@ -27,7 +28,7 @@ func TestLocalShardMapper(t *testing.T) {
 	bucketID := platform.ID(0xffee)
 	db := "db0"
 	rp := "rp0"
-	filt := influxdb.DBRPMappingFilter{OrgID: &orgID, Database: &db, RetentionPolicy: &rp}
+	filt := influxdb.DBRPMappingFilter{OrgID: &orgID, Database: &db, RetentionPolicy: &rp, Virtual: api.PtrBool(false)}
 	res := []*influxdb.DBRPMapping{{Database: db, RetentionPolicy: rp, OrganizationID: orgID, BucketID: bucketID}}
 	dbrp.EXPECT().
 		FindMany(gomock.Any(), filt).

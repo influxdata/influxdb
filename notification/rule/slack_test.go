@@ -10,6 +10,7 @@ import (
 	"github.com/influxdata/influxdb/v2/notification"
 	"github.com/influxdata/influxdb/v2/notification/endpoint"
 	"github.com/influxdata/influxdb/v2/notification/rule"
+	itesting "github.com/influxdata/influxdb/v2/testing"
 )
 
 func mustDuration(d string) *notification.Duration {
@@ -75,7 +76,8 @@ all_statuses
                                 "good",
                     }),
             ),
-    )`,
+    )
+`,
 			rule: &rule.Slack{
 				Channel:         "bar",
 				MessageTemplate: "blah",
@@ -157,7 +159,8 @@ all_statuses
                                 "good",
                     }),
             ),
-    )`,
+    )
+`,
 			rule: &rule.Slack{
 				Channel:         "bar",
 				MessageTemplate: "blah",
@@ -244,7 +247,8 @@ all_statuses
                                 "good",
                     }),
             ),
-    )`,
+    )
+`,
 			rule: &rule.Slack{
 				Channel:         "bar",
 				MessageTemplate: "blah",
@@ -333,7 +337,8 @@ all_statuses
                                 "good",
                     }),
             ),
-    )`,
+    )
+`,
 			rule: &rule.Slack{
 				Channel:         "bar",
 				MessageTemplate: "blah",
@@ -389,7 +394,7 @@ all_statuses
 				t.Fatal(err)
 			}
 
-			if f != tt.want {
+			if f != itesting.FormatFluxString(t, tt.want) {
 				t.Errorf("scripts did not match. want:\n%v\n\ngot:\n%v", tt.want, f)
 			}
 		})

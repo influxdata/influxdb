@@ -12,7 +12,9 @@ import (
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"github.com/influxdata/influxdb/v2/pkg/pointer"
+	"github.com/influxdata/influxdb/v2/tenant"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -222,6 +224,91 @@ func TestAuth(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestAuthBucketNotExists(t *testing.T) {
+	store := inmem.NewKVStore()
+	if err := all.Up(context.Background(), zaptest.NewLogger(t), store); err != nil {
+		t.Fatal(err)
+	}
+
+	ts, err := NewStore(store)
+	require.NoError(t, err)
+
+	bucketID := platform.ID(1)
+	tenant := tenant.NewStore(store)
+	err = tenant.Update(context.Background(), func(tx kv.Tx) error {
+		err := tenant.CreateBucket(context.Background(), tx, &influxdb.Bucket{
+			ID:    bucketID,
+			OrgID: platform.ID(10),
+			Name:  "testbucket",
+		})
+		if err != nil {
+			return err
+		}
+
+		b, err := tenant.GetBucketByName(context.Background(), tx, platform.ID(10), "testbucket")
+		if err != nil {
+			return err
+		}
+
+		bucketID = b.ID
+
+		return nil
+	})
+	require.NoError(t, err)
+
+	perm1, err := influxdb.NewPermissionAtID(
+		bucketID,
+		influxdb.ReadAction,
+		influxdb.BucketsResourceType,
+		platform.ID(10),
+	)
+	require.NoError(t, err)
+
+	perm2, err := influxdb.NewPermissionAtID(
+		platform.ID(2),
+		influxdb.ReadAction,
+		influxdb.BucketsResourceType,
+		platform.ID(10),
+	)
+	require.NoError(t, err)
+
+	err = ts.Update(context.Background(), func(tx kv.Tx) error {
+		err = ts.CreateAuthorization(context.Background(), tx, &influxdb.Authorization{
+			ID:     platform.ID(1),
+			Token:  "buckettoken",
+			OrgID:  platform.ID(10),
+			UserID: platform.ID(4),
+			Status: influxdb.Active,
+			Permissions: []influxdb.Permission{
+				*perm1,
+			},
+		})
+
+		return err
+	})
+
+	require.NoErrorf(t, err, "Authorization creating should have succeeded")
+
+	err = ts.Update(context.Background(), func(tx kv.Tx) error {
+		err = ts.CreateAuthorization(context.Background(), tx, &influxdb.Authorization{
+			ID:     platform.ID(1),
+			Token:  "buckettoken",
+			OrgID:  platform.ID(10),
+			UserID: platform.ID(4),
+			Status: influxdb.Active,
+			Permissions: []influxdb.Permission{
+				*perm2,
+			},
+		})
+
+		return err
+	})
+
+	if err == nil || err != ErrBucketNotFound {
+		t.Fatalf("Authorization creating should have failed with ErrBucketNotFound [Error]: %v", err)
 	}
 }
 

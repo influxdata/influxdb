@@ -9,12 +9,13 @@ import (
 	"github.com/influxdata/influxdb/v2/notification"
 	"github.com/influxdata/influxdb/v2/notification/endpoint"
 	"github.com/influxdata/influxdb/v2/notification/rule"
+	itesting "github.com/influxdata/influxdb/v2/testing"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestHTTP_GenerateFlux(t *testing.T) {
-	want := `import "influxdata/influxdb/monitor"
+	want := itesting.FormatFluxString(t, `import "influxdata/influxdb/monitor"
 import "http"
 import "json"
 import "experimental"
@@ -44,7 +45,8 @@ all_statuses
                     return {headers: headers, data: json["encode"](v: body)}
                 },
             ),
-    )`
+    )
+`)
 
 	s := &rule.HTTP{
 		Base: rule.Base{
@@ -82,7 +84,7 @@ all_statuses
 }
 
 func TestHTTP_GenerateFlux_basicAuth(t *testing.T) {
-	want := `import "influxdata/influxdb/monitor"
+	want := itesting.FormatFluxString(t, `import "influxdata/influxdb/monitor"
 import "http"
 import "json"
 import "experimental"
@@ -120,7 +122,8 @@ all_statuses
                     return {headers: headers, data: json["encode"](v: body)}
                 },
             ),
-    )`
+    )
+`)
 	s := &rule.HTTP{
 		Base: rule.Base{
 			ID:         1,
@@ -164,7 +167,7 @@ all_statuses
 }
 
 func TestHTTP_GenerateFlux_bearer(t *testing.T) {
-	want := `import "influxdata/influxdb/monitor"
+	want := itesting.FormatFluxString(t, `import "influxdata/influxdb/monitor"
 import "http"
 import "json"
 import "experimental"
@@ -198,7 +201,8 @@ all_statuses
                     return {headers: headers, data: json["encode"](v: body)}
                 },
             ),
-    )`
+    )
+`)
 
 	s := &rule.HTTP{
 		Base: rule.Base{
@@ -240,7 +244,7 @@ all_statuses
 }
 
 func TestHTTP_GenerateFlux_bearer_every_second(t *testing.T) {
-	want := `import "influxdata/influxdb/monitor"
+	want := itesting.FormatFluxString(t, `import "influxdata/influxdb/monitor"
 import "http"
 import "json"
 import "experimental"
@@ -274,7 +278,8 @@ all_statuses
                     return {headers: headers, data: json["encode"](v: body)}
                 },
             ),
-    )`
+    )
+`)
 
 	s := &rule.HTTP{
 		Base: rule.Base{

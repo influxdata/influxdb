@@ -353,10 +353,10 @@ func shutdown(t *testing.T, qm *durableQueueManager) {
 }
 
 type testRemoteWriter struct {
-	writeFn func([]byte, int) (time.Duration, bool, error)
+	writeFn func([]byte, int) (time.Duration, error)
 }
 
-func (tw *testRemoteWriter) Write(data []byte, attempt int) (time.Duration, bool, error) {
+func (tw *testRemoteWriter) Write(data []byte, attempt int) (time.Duration, error) {
 	return tw.writeFn(data, attempt)
 }
 
@@ -364,7 +364,7 @@ func getTestRemoteWriterSequenced(t *testing.T, expected []string, returning err
 	t.Helper()
 
 	count := 0
-	writeFn := func(b []byte, attempt int) (time.Duration, bool, error) {
+	writeFn := func(b []byte, attempt int) (time.Duration, error) {
 		if count >= len(expected) {
 			t.Fatalf("count larger than expected len, %d > %d", count, len(expected))
 		}
@@ -377,7 +377,7 @@ func getTestRemoteWriterSequenced(t *testing.T, expected []string, returning err
 		if returning == nil {
 			count++
 		}
-		return time.Second, true, returning
+		return time.Second, returning
 	}
 
 	writer := &testRemoteWriter{}
@@ -391,9 +391,9 @@ func getTestRemoteWriter(t *testing.T, expected string) remoteWriter {
 	t.Helper()
 
 	writer := &testRemoteWriter{
-		writeFn: func(b []byte, i int) (time.Duration, bool, error) {
+		writeFn: func(b []byte, i int) (time.Duration, error) {
 			require.Equal(t, expected, string(b))
-			return time.Second, true, nil
+			return time.Second, nil
 		},
 	}
 
@@ -435,6 +435,82 @@ func TestEnqueueData(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, data, string(written))
+}
+
+// this test ensures that data does not get incorrectly dropped from the Queue on remote write failures
+func TestSendWrite(t *testing.T) {
+	t.Parallel()
+
+	// data points to test
+	var pointIndex int
+	points := []string{
+		"this is some data",
+		"this is also some data",
+		"this is even more data",
+	}
+
+	path, qm := initQueueManager(t)
+	defer os.RemoveAll(path)
+	require.NoError(t, qm.InitializeQueue(id1, maxQueueSizeBytes, orgID1, localBucketID1, 0))
+	require.DirExists(t, filepath.Join(path, id1.String()))
+
+	// close the scanner goroutine to test SendWrite() with more granularity
+	rq, ok := qm.replicationQueues[id1]
+	require.True(t, ok)
+	closeRq(rq)
+	go func() { <-rq.receive }() // absorb the receive to avoid testcase deadlock
+
+	// Create custom remote writer that does some expected behavior
+	// Will periodically fail to simulate a timeout
+	shouldFailThisWrite := false
+	writer := &testRemoteWriter{}
+	writer.writeFn = func(data []byte, attempt int) (time.Duration, error) {
+		require.Equal(t, []byte(points[pointIndex]), data)
+		if shouldFailThisWrite {
+			return 100, errors.New("remote timeout")
+		}
+		return 0, nil // current "success" return values
+	}
+	rq.remoteWriter = writer
+
+	// Write first point
+	require.NoError(t, qm.EnqueueData(id1, []byte(points[pointIndex]), 1))
+	// Make sure the data is in the queue
+	scan, err := rq.queue.NewScanner()
+	require.NoError(t, err)
+	require.True(t, scan.Next())
+	require.Equal(t, []byte(points[pointIndex]), scan.Bytes())
+	require.NoError(t, scan.Err())
+	// Send the write to the "remote" with a success
+	rq.SendWrite()
+	// Make sure the data is no longer in the queue
+	_, err = rq.queue.NewScanner()
+	require.Equal(t, io.EOF, err)
+
+	// Write second point
+	pointIndex++
+	require.NoError(t, qm.EnqueueData(id1, []byte(points[pointIndex]), 1))
+	// Make sure the data is in the queue
+	scan, err = rq.queue.NewScanner()
+	require.NoError(t, err)
+	require.True(t, scan.Next())
+	require.Equal(t, []byte(points[pointIndex]), scan.Bytes())
+	require.NoError(t, scan.Err())
+	// Send the write to the "remote" with a FAILURE
+	shouldFailThisWrite = true
+	rq.SendWrite()
+	// Make sure the data is still in the queue
+	scan, err = rq.queue.NewScanner()
+	require.NoError(t, err)
+	require.True(t, scan.Next())
+	require.Equal(t, []byte(points[pointIndex]), scan.Bytes())
+	require.NoError(t, scan.Err())
+	// Send the write to the "remote" again, with a SUCCESS
+	shouldFailThisWrite = false
+	rq.SendWrite()
+	// Make sure the data is no longer in the queue
+	_, err = rq.queue.NewScanner()
+	require.Equal(t, io.EOF, err)
 }
 
 func TestEnqueueData_WithMetrics(t *testing.T) {

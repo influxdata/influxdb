@@ -10,6 +10,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/kv"
 	jsonp "github.com/influxdata/influxdb/v2/pkg/jsonparser"
+	"github.com/influxdata/influxdb/v2/tenant"
 )
 
 func authIndexKey(n string) []byte {
@@ -66,6 +67,17 @@ func (s *Store) CreateAuthorization(ctx context.Context, tx kv.Tx, a *influxdb.A
 			return nil
 		}
 		a.ID = id
+	}
+
+	ts := tenant.NewStore(s.kvStore)
+	for _, p := range a.Permissions {
+		if p.Resource.ID == nil || p.Resource.Type != influxdb.BucketsResourceType {
+			continue
+		}
+		_, err := ts.GetBucket(ctx, tx, *p.Resource.ID)
+		if err == tenant.ErrBucketNotFound {
+			return ErrBucketNotFound
+		}
 	}
 
 	if err := s.uniqueAuthToken(ctx, tx, a); err != nil {

@@ -223,6 +223,8 @@ func (c *{{.name}}MultiShardArrayCursor) reset(cur cursors.{{.Name}}ArrayCursor,
 	if cond != nil {
 		if c.filter == nil {
 			c.filter = new{{.Name}}FilterArrayCursor(cond)
+		} else {
+			c.filter.cond = cond
 		}
 		c.filter.reset(cur)
 		cur = c.filter

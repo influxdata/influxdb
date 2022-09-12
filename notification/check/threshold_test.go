@@ -7,6 +7,7 @@ import (
 	"github.com/influxdata/influxdb/v2/notification"
 	"github.com/influxdata/influxdb/v2/notification/check"
 	"github.com/influxdata/influxdb/v2/query/fluxlang"
+	itesting "github.com/influxdata/influxdb/v2/testing"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -104,7 +105,8 @@ data
         info: info,
         warn: warn,
         crit: crit,
-    )`,
+    )
+`,
 			},
 		},
 		{
@@ -184,7 +186,8 @@ data
         info: info,
         warn: warn,
         crit: crit,
-    )`,
+    )
+`,
 			},
 		},
 		{
@@ -264,7 +267,8 @@ data
         info: info,
         warn: warn,
         crit: crit,
-    )`,
+    )
+`,
 			},
 		},
 		{
@@ -344,7 +348,8 @@ data
         info: info,
         warn: warn,
         crit: crit,
-    )`,
+    )
+`,
 			},
 		},
 	}
@@ -353,7 +358,7 @@ data
 		t.Run(tt.name, func(t *testing.T) {
 			s, err := tt.args.threshold.GenerateFlux(fluxlang.DefaultService)
 			require.NoError(t, err)
-			assert.Equal(t, tt.wants.script, s)
+			assert.Equal(t, itesting.FormatFluxString(t, tt.wants.script), s)
 		})
 	}
 

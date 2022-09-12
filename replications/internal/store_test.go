@@ -27,7 +27,7 @@ var (
 		Description:       &desc,
 		RemoteID:          platform.ID(100),
 		LocalBucketID:     platform.ID(1000),
-		RemoteBucketID:    platform.ID(99999),
+		RemoteBucketID:    idPointer(99999),
 		MaxQueueSizeBytes: 3 * influxdb.DefaultReplicationMaxQueueSizeBytes,
 		MaxAgeSeconds:     0,
 	}
@@ -37,7 +37,7 @@ var (
 		Description:       replication.Description,
 		RemoteID:          replication.RemoteID,
 		LocalBucketID:     replication.LocalBucketID,
-		RemoteBucketID:    replication.RemoteBucketID,
+		RemoteBucketID:    *replication.RemoteBucketID,
 		MaxQueueSizeBytes: replication.MaxQueueSizeBytes,
 		MaxAgeSeconds:     replication.MaxAgeSeconds,
 	}
@@ -46,7 +46,7 @@ var (
 		RemoteToken:      replication.RemoteID.String(),
 		RemoteOrgID:      platform.ID(888888),
 		AllowInsecureTLS: true,
-		RemoteBucketID:   replication.RemoteBucketID,
+		RemoteBucketID:   *replication.RemoteBucketID,
 	}
 	newRemoteID  = platform.ID(200)
 	newQueueSize = influxdb.MinReplicationMaxQueueSizeBytes
@@ -68,6 +68,11 @@ var (
 		MaxAgeSeconds:        replication.MaxAgeSeconds,
 	}
 )
+
+func idPointer(id int) *platform.ID {
+	p := platform.ID(id)
+	return &p
+}
 
 func TestCreateAndGetReplication(t *testing.T) {
 	t.Parallel()
@@ -91,6 +96,91 @@ func TestCreateAndGetReplication(t *testing.T) {
 	got, err = testStore.GetReplication(ctx, created.ID)
 	require.NoError(t, err)
 	require.Equal(t, replication, *got)
+}
+
+func TestCreateAndGetReplicationName(t *testing.T) {
+	t.Parallel()
+
+	testStore, clean := newTestStore(t)
+	defer clean(t)
+
+	insertRemote(t, testStore, replication.RemoteID)
+
+	// Getting an invalid ID should return an error.
+	got, err := testStore.GetReplication(ctx, initID)
+	require.Equal(t, errReplicationNotFound, err)
+	require.Nil(t, got)
+
+	req := createReq
+	req.RemoteBucketID = platform.ID(0)
+	req.RemoteBucketName = "testbucket"
+	expected := replication
+	expected.RemoteBucketName = "testbucket"
+	expected.RemoteBucketID = nil
+
+	// Create a replication, check the results.
+	created, err := testStore.CreateReplication(ctx, initID, req)
+	require.NoError(t, err)
+	require.Equal(t, expected, *created)
+
+	// Read the created replication and assert it matches the creation response.
+	got, err = testStore.GetReplication(ctx, created.ID)
+	require.NoError(t, err)
+	require.Equal(t, expected, *got)
+}
+
+func TestCreateAndGetReplicationNameAndID(t *testing.T) {
+	t.Parallel()
+
+	testStore, clean := newTestStore(t)
+	defer clean(t)
+
+	insertRemote(t, testStore, replication.RemoteID)
+
+	// Getting an invalid ID should return an error.
+	got, err := testStore.GetReplication(ctx, initID)
+	require.Equal(t, errReplicationNotFound, err)
+	require.Nil(t, got)
+
+	req := createReq
+	req.RemoteBucketID = platform.ID(100)
+	req.RemoteBucketName = "testbucket"
+	expected := replication
+	expected.RemoteBucketName = ""
+	expected.RemoteBucketID = idPointer(100)
+
+	// Create a replication, check the results.
+	created, err := testStore.CreateReplication(ctx, initID, req)
+	require.NoError(t, err)
+	require.Equal(t, expected, *created)
+
+	// Read the created replication and assert it matches the creation response.
+	got, err = testStore.GetReplication(ctx, created.ID)
+	require.NoError(t, err)
+	require.Equal(t, expected, *got)
+}
+
+func TestCreateAndGetReplicationNameError(t *testing.T) {
+	t.Parallel()
+
+	testStore, clean := newTestStore(t)
+	defer clean(t)
+
+	insertRemote(t, testStore, replication.RemoteID)
+
+	// Getting an invalid ID should return an error.
+	got, err := testStore.GetReplication(ctx, initID)
+	require.Equal(t, errReplicationNotFound, err)
+	require.Nil(t, got)
+
+	req := createReq
+	req.RemoteBucketID = platform.ID(0)
+	req.RemoteBucketName = ""
+
+	// Create a replication, should fail due to missing params
+	created, err := testStore.CreateReplication(ctx, initID, req)
+	require.Equal(t, errMissingIDName, err)
+	require.Nil(t, created)
 }
 
 func TestCreateMissingRemote(t *testing.T) {
@@ -379,6 +469,52 @@ func TestListReplications(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, influxdb.Replications{}, *listed)
 	})
+}
+
+func TestMigrateDownFromReplicationsWithName(t *testing.T) {
+	t.Parallel()
+
+	testStore, clean := newTestStore(t)
+	defer clean(t)
+
+	insertRemote(t, testStore, replication.RemoteID)
+
+	req := createReq
+	req.RemoteBucketID = platform.ID(100)
+	_, err := testStore.CreateReplication(ctx, platform.ID(10), req)
+	require.NoError(t, err)
+
+	req.RemoteBucketID = platform.ID(0)
+	req.RemoteBucketName = "testbucket"
+	req.Name = "namedrepl"
+	_, err = testStore.CreateReplication(ctx, platform.ID(20), req)
+	require.NoError(t, err)
+
+	replications, err := testStore.ListReplications(context.Background(), influxdb.ReplicationListFilter{OrgID: replication.OrgID})
+	require.NoError(t, err)
+	require.Equal(t, 2, len(replications.Replications))
+
+	logger := zaptest.NewLogger(t)
+	sqliteMigrator := sqlite.NewMigrator(testStore.sqlStore, logger)
+	require.NoError(t, sqliteMigrator.Down(ctx, 6, migrations.AllDown))
+
+	// Can't use ListReplications because it expects the `remote_bucket_name` column to be there in this version of influx.
+	q := sq.Select(
+		"id", "org_id", "name", "description", "remote_id", "local_bucket_id", "remote_bucket_id",
+		"max_queue_size_bytes", "latest_response_code", "latest_error_message", "drop_non_retryable_data",
+		"max_age_seconds").
+		From("replications")
+
+	q = q.Where(sq.Eq{"org_id": replication.OrgID})
+
+	query, args, err := q.ToSql()
+	require.NoError(t, err)
+	var rs influxdb.Replications
+	if err := testStore.sqlStore.DB.SelectContext(ctx, &rs.Replications, query, args...); err != nil {
+		require.NoError(t, err)
+	}
+	require.Equal(t, 1, len(rs.Replications))
+	require.Equal(t, platform.ID(10), rs.Replications[0].ID)
 }
 
 func TestGetFullHTTPConfig(t *testing.T) {
