@@ -361,7 +361,7 @@ mod test {
     #[test]
     fn size() {
         let v = Bool::from(vec![None, None, Some(true), Some(false)].as_slice());
-        assert_eq!(v.size(), 448);
+        assert_eq!(v.size(), 472);
     }
 
     #[test]

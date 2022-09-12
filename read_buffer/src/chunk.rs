@@ -705,9 +705,9 @@ mod test {
                 kind: MetricKind::U64Gauge,
                 observations: vec![
                     (Attributes::from(&[("db_name", "mydb"), ("encoding", "BT_U32-FIXED"), ("log_data_type", "i64")]), Observation::U64Gauge(192)),
-                    (Attributes::from(&[("db_name", "mydb"), ("encoding", "FBT_U8-FIXEDN"), ("log_data_type", "f64")]), Observation::U64Gauge(1002)),
+                    (Attributes::from(&[("db_name", "mydb"), ("encoding", "FBT_U8-FIXEDN"), ("log_data_type", "f64")]), Observation::U64Gauge(1050)),
                     (Attributes::from(&[("db_name", "mydb"), ("encoding", "FIXED"), ("log_data_type", "f64")]), Observation::U64Gauge(186)),
-                    (Attributes::from(&[("db_name", "mydb"), ("encoding", "FIXEDN"), ("log_data_type", "bool")]), Observation::U64Gauge(768)),
+                    (Attributes::from(&[("db_name", "mydb"), ("encoding", "FIXEDN"), ("log_data_type", "bool")]), Observation::U64Gauge(816)),
                     (Attributes::from(&[("db_name", "mydb"), ("encoding", "RLE"), ("log_data_type", "string")]), Observation::U64Gauge(688)),
                 ]
             },
@@ -734,9 +734,9 @@ mod test {
                 kind: MetricKind::U64Gauge,
                 observations: vec![
                     (Attributes::from(&[("db_name", "mydb"), ("encoding", "BT_U32-FIXED"), ("log_data_type", "i64")]), Observation::U64Gauge(192)),
-                    (Attributes::from(&[("db_name", "mydb"), ("encoding", "FBT_U8-FIXEDN"), ("log_data_type", "f64")]), Observation::U64Gauge(1002)),
+                    (Attributes::from(&[("db_name", "mydb"), ("encoding", "FBT_U8-FIXEDN"), ("log_data_type", "f64")]), Observation::U64Gauge(1050)),
                     (Attributes::from(&[("db_name", "mydb"), ("encoding", "FIXED"), ("log_data_type", "f64")]), Observation::U64Gauge(186)),
-                    (Attributes::from(&[("db_name", "mydb"), ("encoding", "FIXEDN"), ("log_data_type", "bool")]), Observation::U64Gauge(768)),
+                    (Attributes::from(&[("db_name", "mydb"), ("encoding", "FIXEDN"), ("log_data_type", "bool")]), Observation::U64Gauge(816)),
                     (Attributes::from(&[("db_name", "mydb"), ("encoding", "RLE"), ("log_data_type", "string")]), Observation::U64Gauge(352)),
                 ]
             },

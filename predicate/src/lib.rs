@@ -69,7 +69,7 @@ pub const EMPTY_PREDICATE: Predicate = Predicate {
 ///   "Predicate range: [1 - 100] exprs: [#foo = Int32(42)]"
 /// );
 /// ```
-#[derive(Clone, Debug, Default, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd)]
 pub struct Predicate {
     /// Optional field (aka "column") restriction. If present,
     /// restricts the results to only tables which have *at least one*
@@ -554,7 +554,7 @@ impl Predicate {
 
 // Wrapper around `Expr::BinaryExpr` where left input is known to be
 // single Column reference to the `_value` column
-#[derive(Clone, Debug, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd)]
 pub struct ValueExpr {
     expr: Expr,
 }

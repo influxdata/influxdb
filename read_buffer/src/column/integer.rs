@@ -971,19 +971,19 @@ mod test {
 
         // Input data containing NULL will be stored in an Arrow array encoding
         let cases = vec![
-            (vec![None, Some(0_i64)], 508_usize),         // u8 Arrow array
-            (vec![None, Some(-120_i64)], 508),            // i8
-            (vec![None, Some(399_i64)], 509),             // u16
-            (vec![None, Some(-399_i64)], 509),            // i16
-            (vec![None, Some(u32::MAX as i64)], 509),     // u32
-            (vec![None, Some(i32::MIN as i64)], 509),     // i32
-            (vec![None, Some(u32::MAX as i64 + 1)], 502), // u64
+            (vec![None, Some(0_i64)], 532_usize, "u8 Arrow array"),
+            (vec![None, Some(-120_i64)], 532, "i8"),
+            (vec![None, Some(399_i64)], 533, "u16"),
+            (vec![None, Some(-399_i64)], 533, "i16"),
+            (vec![None, Some(u32::MAX as i64)], 533, "u32"),
+            (vec![None, Some(i32::MIN as i64)], 533, "i32"),
+            (vec![None, Some(u32::MAX as i64 + 1)], 526, "u64"),
         ];
 
-        for (case, name) in cases.iter().cloned() {
+        for (case, expected_sz, name) in cases.iter().cloned() {
             let arr = Int64Array::from(case);
             let enc = IntegerEncoding::from(arr);
-            assert_eq!(enc.size(false), name, "failed: {:?}", enc);
+            assert_eq!(enc.size(false), expected_sz, "failed {}: {:?}", name, enc);
         }
     }
 
@@ -1163,10 +1163,10 @@ mod test {
 
         // Input data containing NULL will be stored in an Arrow array encoding
         let cases = vec![
-            (vec![None, Some(0_u64)], 508_usize),
-            (vec![None, Some(399_u64)], 509),
-            (vec![None, Some(u32::MAX as u64)], 509),
-            (vec![None, Some(u64::MAX)], 502),
+            (vec![None, Some(0_u64)], 532_usize),
+            (vec![None, Some(399_u64)], 533),
+            (vec![None, Some(u32::MAX as u64)], 533),
+            (vec![None, Some(u64::MAX)], 526),
         ];
 
         for (case, size) in cases.iter().cloned() {

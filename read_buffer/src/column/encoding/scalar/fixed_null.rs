@@ -544,8 +544,8 @@ mod test {
     #[test]
     fn size() {
         let (v, _) = new_mock_encoding(vec![None, None, Some(100), Some(2222)]);
-        assert_eq!(v.size(false), 456);
-        assert_eq!(v.size(true), 456); // no difference in reported size
+        assert_eq!(v.size(false), 480);
+        assert_eq!(v.size(true), 480); // no difference in reported size
     }
 
     #[test]

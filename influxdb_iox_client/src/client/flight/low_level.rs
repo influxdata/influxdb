@@ -28,6 +28,7 @@ use tonic::Streaming;
 
 use arrow::{
     array::ArrayRef,
+    buffer::Buffer,
     datatypes::Schema,
     ipc::{self, reader},
     record_batch::RecordBatch,
@@ -237,8 +238,9 @@ where
                         return Err(Error::NoSchema);
                     };
 
+                    let buffer: Buffer = data.data_body.into();
                     reader::read_dictionary(
-                        &data.data_body,
+                        &buffer,
                         message
                             .header_as_dictionary_batch()
                             .ok_or(Error::CouldNotGetDictionaryBatch)?,
