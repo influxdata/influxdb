@@ -966,7 +966,7 @@ mod tests {
         // --------------------------------------
         // Case 3: no new recent writes (within the last 8 hours) --> return that partition
         //
-        // partition2 has a cold (more than 24 hours ago) non-deleted level 0 file
+        // partition2 has a cold (more than 8 hours ago) non-deleted level 0 file
         let mut txn = catalog.catalog.start_transaction().await.unwrap();
         let p3 = ParquetFileParams {
             object_store_id: Uuid::new_v4(),
