@@ -501,9 +501,14 @@ fn determine_tag_columns(frames: &[Data]) -> BTreeMap<Vec<u8>, TableColumns> {
         if let Data::Series(sf) = frame {
             assert!(!sf.tags.is_empty(), "expected _measurement and _field tags");
 
-            assert!(tag_key_is_measurement(&sf.tags[0].key));
             // PERF: avoid clone of value
-            let measurement_name = sf.tags[0].value.clone();
+            let measurement_name = sf
+                .tags
+                .iter()
+                .find(|t| tag_key_is_measurement(&t.key))
+                .expect("measurement name not found")
+                .value
+                .clone();
             let table = schema.entry(measurement_name).or_default();
 
             for Tag { key, value } in sf.tags.iter().skip(1) {

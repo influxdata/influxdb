@@ -7,7 +7,9 @@ use std::time::Duration;
 use snafu::{ResultExt, Snafu};
 use tonic::Status;
 
-use generated_types::{aggregate::AggregateType, Predicate};
+use generated_types::{
+    aggregate::AggregateType, influxdata::platform::storage::read_group_request::Group, Predicate,
+};
 use influxdb_storage_client::{connection::Connection, Client, OrgAndBucket};
 use influxrpc_parser::predicate;
 use iox_time;
@@ -37,6 +39,9 @@ pub enum ParseError {
 
     #[snafu(display("unsupported aggregate type: '{:?}'", agg))]
     Aggregate { agg: String },
+
+    #[snafu(display("unsupported group: '{:?}'", group))]
+    Group { group: String },
 }
 
 pub type Result<T, E = ParseError> = std::result::Result<T, E>;
@@ -165,6 +170,7 @@ pub enum Format {
 enum Command {
     MeasurementFields(MeasurementFields),
     ReadFilter,
+    ReadGroup(ReadGroup),
     ReadWindowAggregate(ReadWindowAggregate),
     TagValues(TagValues),
 }
@@ -173,6 +179,24 @@ enum Command {
 struct MeasurementFields {
     #[clap(action)]
     measurement: String,
+}
+
+#[derive(Debug, clap::Parser)]
+struct ReadGroup {
+    #[clap(
+        long,
+        value_parser = parse_aggregate,
+    )]
+    aggregate: Option<AggregateType>,
+
+    #[clap(
+        long,
+        value_parser = parse_group,
+    )]
+    group: Group,
+
+    #[clap(long, action)]
+    group_keys: Vec<String>,
 }
 
 #[derive(Debug, clap::Parser)]
@@ -208,6 +232,14 @@ fn parse_aggregate(aggs: &str) -> Result<AggregateType, ParseError> {
         "first" => Ok(AggregateType::First),
         "last" => Ok(AggregateType::Last),
         _ => AggregateSnafu { agg: aggs }.fail(),
+    }
+}
+
+fn parse_group(g: &str) -> Result<Group, ParseError> {
+    match g.to_lowercase().as_str() {
+        "0" | "none" => Ok(Group::None),
+        "2" | "by" => Ok(Group::By),
+        _ => GroupSnafu { group: g }.fail(),
     }
 }
 
@@ -251,6 +283,24 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
                     config.start,
                     config.stop,
                     predicate,
+                ))
+                .await
+                .context(ServerSnafu)?;
+            match config.format {
+                Format::Pretty => response::pretty_print_frames(&result).context(ResponseSnafu)?,
+                Format::Quiet => {}
+            }
+        }
+        Command::ReadGroup(rg) => {
+            let result = client
+                .read_group(request::read_group(
+                    source,
+                    config.start,
+                    config.stop,
+                    predicate,
+                    rg.aggregate,
+                    rg.group,
+                    rg.group_keys,
                 ))
                 .await
                 .context(ServerSnafu)?;
