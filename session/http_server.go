@@ -164,11 +164,49 @@ func decodeSignoutRequest(ctx context.Context, r *http.Request) (*signoutRequest
 const cookieSessionName = "influxdb-oss-session"
 
 func encodeCookieSession(w http.ResponseWriter, s *influxdb.Session) {
+	// We only need the session cookie for accesses to "/api/...", so limit
+	// it to that using "Path".
+	//
+	// Since the cookie is limited to "/api/..." and we don't expect any
+	// links directly into /api/..., use SameSite=Strict as a hardening
+	// measure. This works because external links into the UI have the form
+	// https://<url>/orgs/<origid>/..., https://<url>/signin, etc and don't
+	// need the cookie sent. By the time the UI itself calls out to
+	// /api/..., the location bar matches the cookie's domain and
+	// everything is 1st party and Strict's restriction work fine.
+	//
+	// SameSite=Lax would also be safe to use (modern browser's default if
+	// unset) since it only sends the cookie with GET requests when the
+	// location bar matches the domain of the cookie and we know that our
+	// APIs do not perform state-changing actions with GET. Using
+	// SameSite=Strict helps future-proof us against that changing (ie, we
+	// add a state-changing GET API).
+	//
+	// Note: it's generally recommended that SameSite should not be relied
+	// upon (particularly Lax) because:
+	// a) SameSite doesn't work with (cookie-less) Basic Auth. We don't
+	//    share browser session BasicAuth with accesses to to /api/... so
+	//    this isn't a problem
+	// b) SameSite=lax allows GET and some services might allow
+	//    state-changing requests via GET. Our API doesn't support
+	//    state-changing GETs and SameSite=strict doesn't allow GETs from
+	//    3rd party sites at all, so this isn't a problem
+	// c) similar to 'b', some frameworks will accept HTTP methods for
+	//    other handlers. Eg, the application is designed for POST but it
+	//    will accept requests converted to the GET method. Golang does not
+	//    do this itself and our route mounts explicitly map the HTTP
+	//    method to the specific handler and thus we are not susceptible to
+	//    this
+	// d) SameSite could be bypassed if the attacker were able to
+	//    manipulate the location bar in the browser (a serious browser
+	//    bug; it is reasonable for us to expect browsers to enforce their
+	//    SameSite restrictions)
 	c := &http.Cookie{
-		Name:    cookieSessionName,
-		Value:   s.Key,
-		Path:    "/api/",
-		Expires: s.ExpiresAt,
+		Name:     cookieSessionName,
+		Value:    s.Key,
+		Path:     "/api/", // since UI doesn't need it, limit cookie usage to API requests
+		Expires:  s.ExpiresAt,
+		SameSite: http.SameSiteStrictMode,
 	}
 
 	http.SetCookie(w, c)

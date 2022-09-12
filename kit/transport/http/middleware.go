@@ -20,6 +20,18 @@ import (
 // Middleware constructor.
 type Middleware func(http.Handler) http.Handler
 
+// SetCORS configures various headers to relax CORS browser checks
+//
+// Browsers implement Cross-Origin Resource Sharing (CORS) checks to limit
+// cross-origin accesses in HTTP requests. Various CORS headers can be used to
+// relax the standard, strict browser behavior. For details on CORS, see:
+// https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS
+//
+// IMPORTANT: default CORS checks disallows attaching credentials (eg, session
+// cookie) with cross-origin requests (even when Access-Control-Allow-Origin is
+// set to the Origin) and we omit the 'Access-Control-Allow-Credentials' header
+// here to preserve this behavior. Omitting this header provides security
+// defense-in-depth.
 func SetCORS(next http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		if origin := r.Header.Get("Origin"); origin != "" {
