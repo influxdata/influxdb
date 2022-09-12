@@ -905,11 +905,11 @@ mod tests {
         );
 
         // Some times in the past to set to created_at of the files
-        let time_five_hour_ago = Timestamp::new(
+        let time_5_hour_ago = Timestamp::new(
             (compactor.time_provider.now() - Duration::from_secs(60 * 60 * 5)).timestamp_nanos(),
         );
-        let time_18_hour_ago = Timestamp::new(
-            (compactor.time_provider.now() - Duration::from_secs(60 * 60 * 18)).timestamp_nanos(),
+        let time_9_hour_ago = Timestamp::new(
+            (compactor.time_provider.now() - Duration::from_secs(60 * 60 * 9)).timestamp_nanos(),
         );
 
         // Basic parquet info
@@ -925,7 +925,7 @@ mod tests {
             file_size_bytes: 1337,
             row_count: 0,
             compaction_level: CompactionLevel::Initial, // level of file of new writes
-            created_at: time_18_hour_ago,               // create cold files by default
+            created_at: time_9_hour_ago,                // create cold files by default
             column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
         };
 
@@ -1019,14 +1019,14 @@ mod tests {
         let p3_hot = ParquetFileParams {
             object_store_id: Uuid::new_v4(),
             partition_id: partition3.id,
-            created_at: time_five_hour_ago,
+            created_at: time_5_hour_ago,
             ..p1.clone()
         };
         let _pf3_hot = txn.parquet_files().create(p3_hot).await.unwrap();
         let p5_hot = ParquetFileParams {
             object_store_id: Uuid::new_v4(),
             partition_id: partition5.id,
-            created_at: time_five_hour_ago,
+            created_at: time_5_hour_ago,
             ..p1.clone()
         };
         let _pf5_hot = txn.parquet_files().create(p5_hot).await.unwrap();
@@ -1058,7 +1058,7 @@ mod tests {
             shard_id: another_shard.id,
             table_id: another_table.id,
             partition_id: another_partition.id,
-            created_at: time_18_hour_ago,
+            created_at: time_9_hour_ago,
             ..p1.clone()
         };
         let _pf6 = txn.parquet_files().create(p6).await.unwrap();
