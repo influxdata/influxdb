@@ -500,13 +500,11 @@ impl TableSchema {
     /// # Panics
     ///
     /// This method panics if a column of the same name already exists in
-    /// `self`, or the provided [`Column`] cannot be converted into a valid
-    /// [`ColumnSchema`].
+    /// `self`.
     pub fn add_column(&mut self, col: &Column) {
-        let old = self.columns.insert(
-            col.name.clone(),
-            ColumnSchema::try_from(col).expect("column is invalid"),
-        );
+        let old = self
+            .columns
+            .insert(col.name.clone(), ColumnSchema::from(col));
         assert!(old.is_none());
     }
 
@@ -593,14 +591,16 @@ impl ColumnSchema {
     }
 }
 
-impl TryFrom<&Column> for ColumnSchema {
-    type Error = Box<dyn std::error::Error>;
+impl From<&Column> for ColumnSchema {
+    fn from(c: &Column) -> Self {
+        let Column {
+            id, column_type, ..
+        } = c;
 
-    fn try_from(c: &Column) -> Result<Self, Self::Error> {
-        Ok(Self {
-            id: c.id,
-            column_type: ColumnType::try_from(c.column_type)?,
-        })
+        Self {
+            id: *id,
+            column_type: *column_type,
+        }
     }
 }
 
