@@ -527,7 +527,7 @@ impl ColumnRepo for MemTxn {
             .find(|t| t.name == name && t.table_id == table_id)
         {
             Some(c) => {
-                if column_type as i16 != c.column_type {
+                if column_type != c.column_type {
                     return Err(Error::ColumnTypeMismatch {
                         name: name.to_string(),
                         existing: ColumnType::try_from(c.column_type).unwrap().to_string(),
@@ -542,7 +542,7 @@ impl ColumnRepo for MemTxn {
                     id: ColumnId::new(stage.columns.len() as i64 + 1),
                     table_id,
                     name: name.to_string(),
-                    column_type: column_type as i16,
+                    column_type,
                 };
                 stage.columns.push(column);
                 stage.columns.last().unwrap()
