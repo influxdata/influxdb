@@ -253,7 +253,7 @@ impl Persister for IngesterData {
                     partition_info.namespace_name, partition_info.partition.shard_id
                 )
             });
-        debug!(?partition_id, ?partition_info, "Persisting");
+        debug!(?partition_id, ?partition_info, "persisting partition");
 
         // lookup column IDs from catalog
         // TODO: this can be removed once the ingester uses column IDs internally as well
@@ -299,11 +299,6 @@ impl Persister for IngesterData {
                 iox_metadata,
                 sort_key_update,
             } = compacted_stream;
-            debug!(
-                ?partition_id,
-                ?sort_key_update,
-                "Adjusted sort key during compacting the persting batch"
-            );
 
             // Save the compacted data to a parquet file in object storage.
             //
@@ -324,22 +319,21 @@ impl Persister for IngesterData {
                 Backoff::new(&self.backoff_config)
                     .retry_all_errors("update_sort_key", || async {
                         let mut repos = self.catalog.repositories().await;
-                        let partition = repos
+                        let _partition = repos
                             .partitions()
                             .update_sort_key(partition_id, &sort_key)
                             .await?;
-
-                        debug!(
-                            partition_id=?partition.id,
-                            table_id=?partition.table_id,
-                            sort_key=?partition.sort_key,
-                            "Updated sort key in catalog"
-                        );
                         // compiler insisted on getting told the type of the error :shrug:
                         Ok(()) as Result<(), iox_catalog::interface::Error>
                     })
                     .await
                     .expect("retry forever");
+                debug!(
+                    ?partition_id,
+                    table = partition_info.table_name,
+                    ?new_sort_key,
+                    "adjusted sort key during batch compact & persist"
+                );
             }
 
             // Add the parquet file to the catalog until succeed
@@ -373,13 +367,6 @@ impl Persister for IngesterData {
                 .record(file_size as u64);
 
             // and remove the persisted data from memory
-            debug!(
-                ?partition_id,
-                table_name=%partition_info.table_name,
-                partition_key=%partition_info.partition.partition_key,
-                max_sequence_number=%iox_metadata.max_sequence_number.get(),
-                "mark_persisted"
-            );
             namespace
                 .mark_persisted(
                     &partition_info.table_name,
@@ -387,6 +374,13 @@ impl Persister for IngesterData {
                     iox_metadata.max_sequence_number,
                 )
                 .await;
+            debug!(
+                ?partition_id,
+                table_name=%partition_info.table_name,
+                partition_key=%partition_info.partition.partition_key,
+                max_sequence_number=%iox_metadata.max_sequence_number.get(),
+                "marked partition as persisted"
+            );
         }
     }
 
