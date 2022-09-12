@@ -66,11 +66,11 @@ pub enum Error {
     },
 
     #[snafu(display(
-        "Error getting the most level 0 file partitions for shard {}. {}",
+        "Error getting the most level 0 + level 1 file cold partitions for shard {}. {}",
         shard_id,
         source
     ))]
-    MostL0Partitions {
+    MostColdPartitions {
         source: iox_catalog::interface::Error,
         shard_id: ShardId,
     },
@@ -324,9 +324,10 @@ impl Compactor {
 
     /// Return a list of partitions that:
     ///
-    /// - Have not received any writes in 24 hours (determined by all parquet files having a
-    ///   created_at time older than 24 hours ago)
-    /// - Have some level 0 parquet files that need to be upgraded or compacted
+    /// - Have not received any writes in 8 hours (determined by all level 0 and level 1 parquet
+    ///   files having a created_at time older than 8 hours ago)
+    /// - Have some level 0 or level 1 parquet files that need to be upgraded or compacted
+    /// - Sorted by the number of level 0 files + number of level 1 files descending
     pub async fn cold_partitions_to_compact(
         &self,
         // Max number of cold partitions per shard we want to compact
@@ -341,19 +342,19 @@ impl Compactor {
                 ("partition_type", "cold".into()),
             ]);
 
-            let time_24_hours_ago = Timestamp::new(
-                (self.time_provider.now() - Duration::from_secs(60 * 60 * 24)).timestamp_nanos(),
+            let time_8_hours_ago = Timestamp::new(
+                (self.time_provider.now() - Duration::from_secs(60 * 60 * 8)).timestamp_nanos(),
             );
 
             let mut partitions = repos
                 .parquet_files()
-                .most_level_0_files_partitions(
+                .most_cold_files_partitions(
                     *shard_id,
-                    time_24_hours_ago,
+                    time_8_hours_ago,
                     max_num_partitions_per_shard,
                 )
                 .await
-                .context(MostL0PartitionsSnafu {
+                .context(MostColdPartitionsSnafu {
                     shard_id: *shard_id,
                 })?;
 
@@ -398,7 +399,7 @@ impl Compactor {
     pub async fn add_info_to_partitions(
         &self,
         partitions: &[PartitionParam],
-    ) -> Result<VecDeque<PartitionCompactionCandidateWithInfo>> {
+    ) -> Result<VecDeque<Arc<PartitionCompactionCandidateWithInfo>>> {
         let mut repos = self.catalog.repositories().await;
 
         let table_ids: HashSet<_> = partitions.iter().map(|p| p.table_id).collect();
@@ -456,7 +457,7 @@ impl Compactor {
                 let (table, table_schema) = tables.get(&p.table_id).expect("just queried");
                 let part = parts.get(&p.partition_id).expect("just queried");
 
-                PartitionCompactionCandidateWithInfo {
+                Arc::new(PartitionCompactionCandidateWithInfo {
                     table: Arc::clone(table),
                     table_schema: Arc::clone(table_schema),
                     namespace: Arc::clone(
@@ -465,7 +466,7 @@ impl Compactor {
                     candidate: *p,
                     sort_key: part.sort_key(),
                     partition_key: part.partition_key.clone(),
-                }
+                })
             })
             .collect::<VecDeque<_>>())
     }
@@ -677,7 +678,7 @@ mod tests {
         };
         let pf2 = txn.parquet_files().create(p2).await.unwrap();
         txn.parquet_files()
-            .update_to_level_1(&[pf2.id])
+            .update_compaction_level(&[pf2.id], CompactionLevel::FileNonOverlapped)
             .await
             .unwrap();
         txn.commit().await.unwrap();
@@ -689,7 +690,7 @@ mod tests {
         // Case 3: no new recent writes (within the last 24 hours) --> no partition candidates
         // (the cold case will pick them up)
         //
-        // partition2 has an old (more than 24 hours ago) non-deleted level 0 file
+        // partition2 has an old (more than 8 hours ago) non-deleted level 0 file
         let mut txn = catalog.catalog.start_transaction().await.unwrap();
         let p3 = ParquetFileParams {
             object_store_id: Uuid::new_v4(),
@@ -799,11 +800,8 @@ mod tests {
             max_desired_file_size_bytes: 10_000,
             percentage_max_file_size: 30,
             split_percentage: 80,
-            max_cold_concurrent_size_bytes: 90_000,
             max_number_partitions_per_shard: 1,
             min_number_recent_ingested_files_per_partition: 1,
-            cold_input_size_threshold_bytes: 600 * 1024 * 1024,
-            cold_input_file_count_threshold: 100,
             hot_multiple: 4,
             memory_budget_bytes: 10 * 1024 * 1024,
         }
@@ -907,11 +905,11 @@ mod tests {
         );
 
         // Some times in the past to set to created_at of the files
-        let time_five_hour_ago = Timestamp::new(
+        let time_5_hour_ago = Timestamp::new(
             (compactor.time_provider.now() - Duration::from_secs(60 * 60 * 5)).timestamp_nanos(),
         );
-        let time_38_hour_ago = Timestamp::new(
-            (compactor.time_provider.now() - Duration::from_secs(60 * 60 * 38)).timestamp_nanos(),
+        let time_9_hour_ago = Timestamp::new(
+            (compactor.time_provider.now() - Duration::from_secs(60 * 60 * 9)).timestamp_nanos(),
         );
 
         // Basic parquet info
@@ -927,7 +925,7 @@ mod tests {
             file_size_bytes: 1337,
             row_count: 0,
             compaction_level: CompactionLevel::Initial, // level of file of new writes
-            created_at: time_38_hour_ago,               // create cold files by default
+            created_at: time_9_hour_ago,                // create cold files by default
             column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
         };
 
@@ -952,26 +950,23 @@ mod tests {
         let pf1 = txn.parquet_files().create(p1.clone()).await.unwrap();
         txn.parquet_files().flag_for_delete(pf1.id).await.unwrap();
         //
-        // partition2 has a cold non-L0 file
+        // partition2 has a cold L2 file
         let p2 = ParquetFileParams {
             object_store_id: Uuid::new_v4(),
             partition_id: partition2.id,
+            compaction_level: CompactionLevel::Final,
             ..p1.clone()
         };
-        let pf2 = txn.parquet_files().create(p2).await.unwrap();
-        txn.parquet_files()
-            .update_to_level_1(&[pf2.id])
-            .await
-            .unwrap();
+        let _pf2 = txn.parquet_files().create(p2).await.unwrap();
         txn.commit().await.unwrap();
         // No non-deleted level 0 files yet --> no candidates
         let candidates = compactor.cold_partitions_to_compact(1).await.unwrap();
         assert!(candidates.is_empty());
 
         // --------------------------------------
-        // Case 3: no new recent writes (within the last 24 hours) --> return that partition
+        // Case 3: no new recent writes (within the last 8 hours) --> return that partition
         //
-        // partition2 has a cold (more than 24 hours ago) non-deleted level 0 file
+        // partition2 has a cold (more than 8 hours ago) non-deleted level 0 file
         let mut txn = catalog.catalog.start_transaction().await.unwrap();
         let p3 = ParquetFileParams {
             object_store_id: Uuid::new_v4(),
@@ -1024,14 +1019,14 @@ mod tests {
         let p3_hot = ParquetFileParams {
             object_store_id: Uuid::new_v4(),
             partition_id: partition3.id,
-            created_at: time_five_hour_ago,
+            created_at: time_5_hour_ago,
             ..p1.clone()
         };
         let _pf3_hot = txn.parquet_files().create(p3_hot).await.unwrap();
         let p5_hot = ParquetFileParams {
             object_store_id: Uuid::new_v4(),
             partition_id: partition5.id,
-            created_at: time_five_hour_ago,
+            created_at: time_5_hour_ago,
             ..p1.clone()
         };
         let _pf5_hot = txn.parquet_files().create(p5_hot).await.unwrap();
@@ -1056,14 +1051,14 @@ mod tests {
         // --------------------------------------
         // Case 6: has partition candidates for 2 shards
         //
-        // The another_shard now has non-deleted level-0 file ingested 38 hours ago
+        // The another_shard now has non-deleted level-0 file ingested 18 hours ago
         let mut txn = catalog.catalog.start_transaction().await.unwrap();
         let p6 = ParquetFileParams {
             object_store_id: Uuid::new_v4(),
             shard_id: another_shard.id,
             table_id: another_table.id,
             partition_id: another_partition.id,
-            created_at: time_38_hour_ago,
+            created_at: time_9_hour_ago,
             ..p1.clone()
         };
         let _pf6 = txn.parquet_files().create(p6).await.unwrap();

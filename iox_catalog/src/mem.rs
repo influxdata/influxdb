@@ -1232,7 +1232,7 @@ impl ParquetFileRepo for MemTxn {
         Ok(partitions)
     }
 
-    async fn most_level_0_files_partitions(
+    async fn most_cold_files_partitions(
         &mut self,
         shard_id: ShardId,
         time_in_the_past: Timestamp,
@@ -1244,7 +1244,8 @@ impl ParquetFileRepo for MemTxn {
             .iter()
             .filter(|f| {
                 f.shard_id == shard_id
-                    && f.compaction_level == CompactionLevel::Initial
+                    && (f.compaction_level == CompactionLevel::Initial
+                        || f.compaction_level == CompactionLevel::FileNonOverlapped)
                     && f.to_delete.is_none()
             })
             .collect::<Vec<_>>();
@@ -1311,9 +1312,10 @@ impl ParquetFileRepo for MemTxn {
             .collect())
     }
 
-    async fn update_to_level_1(
+    async fn update_compaction_level(
         &mut self,
         parquet_file_ids: &[ParquetFileId],
+        compaction_level: CompactionLevel,
     ) -> Result<Vec<ParquetFileId>> {
         let stage = self.stage();
 
@@ -1324,7 +1326,7 @@ impl ParquetFileRepo for MemTxn {
             .iter_mut()
             .filter(|p| parquet_file_ids.contains(&p.id))
         {
-            f.compaction_level = CompactionLevel::FileNonOverlapped;
+            f.compaction_level = compaction_level;
             updated.push(f.id);
         }
 
