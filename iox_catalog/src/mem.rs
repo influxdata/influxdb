@@ -3,10 +3,10 @@
 
 use crate::{
     interface::{
-        sealed::TransactionFinalize, Catalog, ColumnRepo, ColumnUpsertRequest, Error,
-        NamespaceRepo, ParquetFileRepo, PartitionRepo, ProcessedTombstoneRepo, QueryPoolRepo,
-        RepoCollection, Result, ShardRepo, TablePersistInfo, TableRepo, TombstoneRepo,
-        TopicMetadataRepo, Transaction,
+        sealed::TransactionFinalize, Catalog, ColumnRepo, ColumnTypeMismatchSnafu,
+        ColumnUpsertRequest, Error, NamespaceRepo, ParquetFileRepo, PartitionRepo,
+        ProcessedTombstoneRepo, QueryPoolRepo, RepoCollection, Result, ShardRepo, TablePersistInfo,
+        TableRepo, TombstoneRepo, TopicMetadataRepo, Transaction,
     },
     metrics::MetricDecorator,
 };
@@ -20,6 +20,7 @@ use data_types::{
 };
 use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::warn;
+use snafu::ensure;
 use sqlx::types::Uuid;
 use std::{
     collections::{HashMap, HashSet},
@@ -527,14 +528,14 @@ impl ColumnRepo for MemTxn {
             .find(|t| t.name == name && t.table_id == table_id)
         {
             Some(c) => {
-                if column_type != c.column_type {
-                    return Err(Error::ColumnTypeMismatch {
-                        name: name.to_string(),
-                        existing: ColumnType::try_from(c.column_type).unwrap().to_string(),
-                        new: column_type.to_string(),
-                    });
-                }
-
+                ensure!(
+                    column_type == c.column_type,
+                    ColumnTypeMismatchSnafu {
+                        name,
+                        existing: c.column_type,
+                        new: column_type
+                    }
+                );
                 c
             }
             None => {

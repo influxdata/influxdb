@@ -33,8 +33,8 @@ pub enum Error {
     #[snafu(display("column {} is type {} but write has type {}", name, existing, new))]
     ColumnTypeMismatch {
         name: String,
-        existing: String,
-        new: String,
+        existing: ColumnType,
+        new: ColumnType,
     },
 
     #[snafu(display(
