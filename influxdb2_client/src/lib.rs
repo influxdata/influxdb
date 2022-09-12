@@ -43,7 +43,9 @@
 //!
 //!     let client = Client::new("http://localhost:8888", "some-token");
 //!
-//!     client.create_bucket(Some(PostBucketRequest::new(org_id.to_string(), bucket.to_string()))).await?;
+//!     client.create_bucket(
+//!         Some(PostBucketRequest::new(org_id.to_string(), bucket.to_string()))
+//!     ).await?;
 //!
 //!     let points = vec![
 //!         DataPoint::builder("cpu")
@@ -128,7 +130,8 @@ pub struct Client {
 }
 
 impl Client {
-    /// Default [jaeger debug header](Self::with_jaeger_debug) that should work in many environments.
+    /// Default [jaeger debug header](Self::with_jaeger_debug) that should work in many
+    /// environments.
     pub const DEFAULT_JAEGER_DEBUG_HEADER: &'static str = "jaeger-debug-id";
 
     /// Create a new client pointing to the URL specified in

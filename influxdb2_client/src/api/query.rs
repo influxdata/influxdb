@@ -61,8 +61,8 @@ impl Client {
         }
     }
 
-    /// Query
-    pub async fn query(&self, org: &str, query: Option<Query>) -> Result<String, RequestError> {
+    /// Query and return the raw string data from the server
+    pub async fn query_raw(&self, org: &str, query: Option<Query>) -> Result<String, RequestError> {
         let req_url = format!("{}/api/v2/query", self.url);
 
         let response = self
@@ -78,17 +78,7 @@ impl Client {
         match response.status() {
             StatusCode::OK => {
                 let bytes = response.bytes().await.context(ResponseBytesSnafu)?;
-
-                let json_result = serde_json::from_slice::<String>(&bytes);
-                match json_result {
-                    Ok(json) => Ok(json),
-                    Err(source) => {
-                        let text =
-                            String::from_utf8(bytes.to_vec()).context(ResponseStringSnafu)?;
-
-                        Err(RequestError::DeserializingJsonResponse { source, text })
-                    }
-                }
+                String::from_utf8(bytes.to_vec()).context(ResponseStringSnafu)
             }
             status => {
                 let text = response.text().await.context(ReqwestProcessingSnafu)?;
@@ -199,7 +189,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn query() {
+    async fn query_raw() {
         let token = "some-token";
         let org = "some-org";
         let query: Option<Query> = Some(Query::new("some-influx-query-string".to_string()));
@@ -217,13 +207,13 @@ mod tests {
 
         let client = Client::new(&mockito::server_url(), token);
 
-        let _result = client.query(org, query).await;
+        let _result = client.query_raw(org, query).await;
 
         mock_server.assert();
     }
 
     #[tokio::test]
-    async fn query_opt() {
+    async fn query_raw_opt() {
         let token = "some-token";
         let org = "some-org";
         let query: Option<Query> = None;
@@ -242,7 +232,7 @@ mod tests {
 
         let client = Client::new(&mockito::server_url(), token);
 
-        let _result = client.query(org, None).await;
+        let _result = client.query_raw(org, None).await;
 
         mock_server.assert();
     }
@@ -328,6 +318,32 @@ mod tests {
         let client = Client::new(&mockito::server_url(), token);
 
         let _result = client.query_ast(language_request).await;
+
+        mock_server.assert();
+    }
+
+    #[tokio::test]
+    async fn query_raw_no_results() {
+        let token = "some-token";
+        let org = "some-org";
+        let query: Option<Query> = Some(Query::new("some-influx-query-string".to_string()));
+        let mock_server = mock("POST", "/api/v2/query")
+            .match_header("Authorization", format!("Token {}", token).as_str())
+            .match_header("Accepting-Encoding", "identity")
+            .match_header("Content-Type", "application/json")
+            .match_query(Matcher::UrlEncoded("org".into(), org.into()))
+            .match_body(
+                serde_json::to_string(&query.clone().unwrap_or_default())
+                    .unwrap()
+                    .as_str(),
+            )
+            .with_body("")
+            .create();
+
+        let client = Client::new(&mockito::server_url(), token);
+
+        let result = client.query_raw(org, query).await.expect("request success");
+        assert_eq!(result, "");
 
         mock_server.assert();
     }
