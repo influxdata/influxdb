@@ -713,6 +713,7 @@ mod tests {
         let candidate_partition = Arc::new(PartitionCompactionCandidateWithInfo {
             table: Arc::new(table.table.clone()),
             table_schema: Arc::new(table_schema),
+            column_type_counts: Vec::new(), // not relevant
             namespace: Arc::new(ns.namespace.clone()),
             candidate: PartitionParam {
                 partition_id: partition.partition.id,

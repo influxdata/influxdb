@@ -5,50 +5,9 @@ use crate::{
     compact::PartitionCompactionCandidateWithInfo, parquet_file::CompactorParquetFile,
     parquet_file_lookup::ParquetFilesForCompaction,
 };
-use data_types::{ColumnType, ColumnTypeCount};
 use metric::{Attributes, Metric, U64Gauge, U64Histogram};
 use observability_deps::tracing::*;
 use std::sync::Arc;
-
-const AVERAGE_TAG_VALUE_LENGTH: i64 = 200;
-const STRING_LENGTH: i64 = 1000;
-const DICTIONARY_BYTE: i64 = 8;
-const VALUE_BYTE: i64 = 8;
-const BOOL_BYTE: i64 = 1;
-const AVERAGE_ROW_COUNT_CARDINALITY_RATIO: i64 = 2;
-
-fn estimate_arrow_bytes_for_file(columns: &[ColumnTypeCount], row_count: i64) -> u64 {
-    let average_cardinality = row_count / AVERAGE_ROW_COUNT_CARDINALITY_RATIO;
-
-    // Bytes needed for number columns
-    let mut value_bytes = 0;
-    let mut string_bytes = 0;
-    let mut bool_bytes = 0;
-    let mut dictionary_key_bytes = 0;
-    let mut dictionary_value_bytes = 0;
-    for c in columns {
-        match c.col_type {
-            ColumnType::I64 | ColumnType::U64 | ColumnType::F64 | ColumnType::Time => {
-                value_bytes += c.count * row_count * VALUE_BYTE;
-            }
-            ColumnType::String => {
-                string_bytes += row_count * STRING_LENGTH;
-            }
-            ColumnType::Bool => {
-                bool_bytes += row_count * BOOL_BYTE;
-            }
-            ColumnType::Tag => {
-                dictionary_key_bytes += average_cardinality * AVERAGE_TAG_VALUE_LENGTH;
-                dictionary_value_bytes = row_count * DICTIONARY_BYTE;
-            }
-        }
-    }
-
-    let estimated_arrow_bytes_for_file =
-        value_bytes + string_bytes + bool_bytes + dictionary_key_bytes + dictionary_value_bytes;
-
-    estimated_arrow_bytes_for_file as u64
-}
 
 /// Files and the budget in bytes neeeded to compact them
 #[derive(Debug)]
@@ -120,8 +79,6 @@ pub(crate) fn filter_parquet_files(
     // Stop considering level 0 files when the total size of all files selected for compaction so
     // far exceeds this value
     max_bytes: u64,
-    // column types and their counts of the table of this partition
-    column_types: &[ColumnTypeCount],
     // Gauge for the number of Parquet file candidates
     parquet_file_candidate_gauge: &Metric<U64Gauge>,
     // Histogram for the number of bytes of Parquet file candidates
@@ -161,8 +118,7 @@ pub(crate) fn filter_parquet_files(
     let mut total_estimated_budget = 0;
     for level_0_file in level_0 {
         // Estimate memory needed for this L0 file
-        let l0_estimated_file_bytes =
-            estimate_arrow_bytes_for_file(column_types, level_0_file.row_count());
+        let l0_estimated_file_bytes = partition.estimated_arrow_bytes(level_0_file.row_count());
 
         // Note: even though we can stop here if the l0_estimated_file_bytes is larger than the
         // given budget,we still continue estimated the memory needed for its overlapped L1 to
@@ -174,11 +130,10 @@ pub(crate) fn filter_parquet_files(
             .partition(|level_1_file| overlaps_in_time(level_1_file, &level_0_file));
 
         // Estimate memory needed for each of L1
-        let mut current_l1_estimated_file_bytes = Vec::with_capacity(overlaps.len());
-        for file in &overlaps {
-            let estimated_bytes = estimate_arrow_bytes_for_file(column_types, file.row_count());
-            current_l1_estimated_file_bytes.push(estimated_bytes);
-        }
+        let current_l1_estimated_file_bytes: Vec<_> = overlaps
+            .iter()
+            .map(|file| partition.estimated_arrow_bytes(file.row_count()))
+            .collect();
         let estimated_file_bytes =
             l0_estimated_file_bytes + current_l1_estimated_file_bytes.iter().sum::<u64>();
 
@@ -330,9 +285,9 @@ fn record_byte_metrics(
 mod tests {
     use super::*;
     use data_types::{
-        ColumnSet, CompactionLevel, Namespace, NamespaceId, ParquetFile, ParquetFileId,
-        PartitionId, PartitionParam, QueryPoolId, SequenceNumber, ShardId, Table, TableId,
-        TableSchema, Timestamp, TopicId,
+        ColumnSet, ColumnType, ColumnTypeCount, CompactionLevel, Namespace, NamespaceId,
+        ParquetFile, ParquetFileId, PartitionId, PartitionParam, QueryPoolId, SequenceNumber,
+        ShardId, Table, TableId, TableSchema, Timestamp, TopicId,
     };
     use metric::U64HistogramOptions;
     use std::{collections::BTreeMap, sync::Arc};
@@ -419,49 +374,6 @@ mod tests {
         (parquet_file_candidate_gauge, parquet_file_candidate_bytes)
     }
 
-    #[test]
-    fn test_estimate_arrow_bytes_for_file() {
-        let row_count = 11;
-
-        // Time, U64, I64, F64
-        let columns = vec![
-            ColumnTypeCount::new(ColumnType::Time, 1),
-            ColumnTypeCount::new(ColumnType::U64, 2),
-            ColumnTypeCount::new(ColumnType::F64, 3),
-            ColumnTypeCount::new(ColumnType::I64, 4),
-        ];
-        let bytes = estimate_arrow_bytes_for_file(&columns, row_count);
-        assert_eq!(bytes, 880); // 11 * (1+2+3+4) * 8
-
-        // Tag
-        let columns = vec![ColumnTypeCount::new(ColumnType::Tag, 1)];
-        let bytes = estimate_arrow_bytes_for_file(&columns, row_count);
-        assert_eq!(bytes, 1088); // 5 * 200 + 11 * 8
-
-        // String
-        let columns = vec![ColumnTypeCount::new(ColumnType::String, 1)];
-        let bytes = estimate_arrow_bytes_for_file(&columns, row_count);
-        assert_eq!(bytes, 11000); // 11 * 1000
-
-        // Bool
-        let columns = vec![ColumnTypeCount::new(ColumnType::Bool, 1)];
-        let bytes = estimate_arrow_bytes_for_file(&columns, row_count);
-        assert_eq!(bytes, 11); // 11 * 1
-
-        // all types
-        let columns = vec![
-            ColumnTypeCount::new(ColumnType::Time, 1),
-            ColumnTypeCount::new(ColumnType::U64, 2),
-            ColumnTypeCount::new(ColumnType::F64, 3),
-            ColumnTypeCount::new(ColumnType::I64, 4),
-            ColumnTypeCount::new(ColumnType::Tag, 1),
-            ColumnTypeCount::new(ColumnType::String, 1),
-            ColumnTypeCount::new(ColumnType::Bool, 1),
-        ];
-        let bytes = estimate_arrow_bytes_for_file(&columns, row_count);
-        assert_eq!(bytes, 12979); // 880 + 1088 + 11000 + 11
-    }
-
     mod hot {
         use super::*;
 
@@ -482,13 +394,11 @@ mod tests {
                     .id(1)
                     .build_partition_with_extra_info(),
             );
-            let table_columns = vec![];
 
             let to_compact = filter_parquet_files(
                 partition,
                 parquet_files_for_compaction,
                 MEMORY_BUDGET,
-                &table_columns,
                 &files_metric,
                 &bytes_metric,
             );
@@ -511,13 +421,11 @@ mod tests {
                     .id(1)
                     .build_partition_with_extra_info(),
             );
-            let table_columns = one_tag_one_time_cols();
 
             let to_compact = filter_parquet_files(
                 partition,
                 parquet_files_for_compaction,
                 0,
-                &table_columns,
                 &files_metric,
                 &bytes_metric,
             );
@@ -540,9 +448,6 @@ mod tests {
                     .id(1)
                     .build_partition_with_extra_info(),
             );
-            // 2 columns including a tag and 11 rows will have budget over 1000 bytes
-            let table_columns = one_tag_one_time_cols();
-
             // One tag and one time, the budget will be as below for a file of 11 rows
             // time_bytes = 1 * 11 * 8 = 88
             // tag:
@@ -554,7 +459,6 @@ mod tests {
                 partition,
                 parquet_files_for_compaction,
                 1000,
-                &table_columns,
                 &files_metric,
                 &bytes_metric,
             );
@@ -600,13 +504,11 @@ mod tests {
                     .id(1)
                     .build_partition_with_extra_info(),
             );
-            let table_columns = one_tag_one_time_cols();
 
             let to_compact = filter_parquet_files(
                 partition,
                 parquet_files_for_compaction,
                 MEMORY_BUDGET,
-                &table_columns,
                 &files_metric,
                 &bytes_metric,
             );
@@ -708,13 +610,11 @@ mod tests {
                     .id(1)
                     .build_partition_with_extra_info(),
             );
-            let table_columns = one_tag_one_time_cols();
 
             let to_compact = filter_parquet_files(
                 Arc::clone(&partition),
                 parquet_files_for_compaction.clone(),
                 1176 * 3 + 5, // enough for 3 files
-                &table_columns,
                 &files_metric,
                 &bytes_metric,
             );
@@ -737,15 +637,14 @@ mod tests {
                 }
             );
 
-            // Increase budget to more than 6 files; 1st two level 0 files & their overlapping level 1 files get
-            // returned
+            // Increase budget to more than 6 files; 1st two level 0 files & their overlapping
+            // level 1 files get returned
             let (files_metric, bytes_metric) = metrics();
 
             let to_compact = filter_parquet_files(
                 partition,
                 parquet_files_for_compaction,
                 1176 * 6 + 5,
-                &table_columns,
                 &files_metric,
                 &bytes_metric,
             );
@@ -868,11 +767,6 @@ mod tests {
                     namespace_id: p.namespace_id(),
                     table_id: p.table_id(),
                 },
-                table: Arc::new(Table {
-                    id: p.table_id(),
-                    namespace_id: p.namespace_id(),
-                    name: "table_name".to_string(),
-                }),
                 namespace: Arc::new(Namespace {
                     id: p.namespace_id(),
                     name: "namespace_name".to_string(),
@@ -882,10 +776,16 @@ mod tests {
                     max_tables: 100,
                     max_columns_per_table: 100,
                 }),
+                table: Arc::new(Table {
+                    id: p.table_id(),
+                    namespace_id: p.namespace_id(),
+                    name: "table_name".to_string(),
+                }),
                 table_schema: Arc::new(TableSchema {
                     id: p.table_id(),
                     columns: BTreeMap::new(),
                 }),
+                column_type_counts: one_tag_one_time_cols(),
                 sort_key: None,
                 partition_key: "partition_key".into(),
             }

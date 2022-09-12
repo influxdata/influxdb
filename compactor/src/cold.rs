@@ -22,7 +22,7 @@ pub async fn compact(compactor: Arc<Compactor>) -> usize {
     debug!(compaction_type, "start collecting partitions to compact");
     let attributes = Attributes::from(&[("partition_type", compaction_type)]);
     let start_time = compactor.time_provider.now();
-    let (candidates, table_columns) = Backoff::new(&compactor.backoff_config)
+    let candidates = Backoff::new(&compactor.backoff_config)
         .retry_all_errors("cold_partitions_to_compact", || async {
             compactor
                 .cold_partitions_to_compact(compactor.config.max_number_partitions_per_shard)
@@ -57,7 +57,6 @@ pub async fn compact(compactor: Arc<Compactor>) -> usize {
         compaction_type,
         compact_in_parallel,
         candidates.into(),
-        table_columns,
     )
     .await;
 
@@ -191,7 +190,7 @@ mod tests {
     use ::parquet_file::storage::ParquetStorage;
     use arrow_util::assert_batches_sorted_eq;
     use backoff::BackoffConfig;
-    use data_types::{ColumnType, ColumnTypeCount, CompactionLevel};
+    use data_types::{ColumnType, CompactionLevel};
     use iox_query::exec::Executor;
     use iox_tests::util::{TestCatalog, TestParquetFileBuilder};
     use iox_time::{SystemProvider, TimeProvider};
@@ -291,20 +290,6 @@ mod tests {
         table.create_column("tag2", ColumnType::Tag).await;
         table.create_column("tag3", ColumnType::Tag).await;
         table.create_column("time", ColumnType::Time).await;
-        let table_column_types = vec![
-            ColumnTypeCount {
-                col_type: ColumnType::Tag,
-                count: 3,
-            },
-            ColumnTypeCount {
-                col_type: ColumnType::I64,
-                count: 1,
-            },
-            ColumnTypeCount {
-                col_type: ColumnType::Time,
-                count: 1,
-            },
-        ];
 
         let partition = table.with_shard(&shard).create_partition("part").await;
         let time = Arc::new(SystemProvider::new());
@@ -396,7 +381,7 @@ mod tests {
 
         // ------------------------------------------------
         // Compact
-        let (mut candidates, _table_columns) = compactor
+        let mut candidates = compactor
             .cold_partitions_to_compact(compactor.config.max_number_partitions_per_shard)
             .await
             .unwrap();
@@ -417,7 +402,6 @@ mod tests {
             c,
             parquet_files_for_compaction,
             compactor.config.memory_budget_bytes,
-            &table_column_types,
             &compactor.parquet_file_candidate_gauge,
             &compactor.parquet_file_candidate_bytes,
         );
@@ -531,20 +515,6 @@ mod tests {
         table.create_column("tag2", ColumnType::Tag).await;
         table.create_column("tag3", ColumnType::Tag).await;
         table.create_column("time", ColumnType::Time).await;
-        let table_column_types = vec![
-            ColumnTypeCount {
-                col_type: ColumnType::Tag,
-                count: 3,
-            },
-            ColumnTypeCount {
-                col_type: ColumnType::I64,
-                count: 1,
-            },
-            ColumnTypeCount {
-                col_type: ColumnType::Time,
-                count: 1,
-            },
-        ];
 
         let partition = table.with_shard(&shard).create_partition("part").await;
         let time = Arc::new(SystemProvider::new());
@@ -592,7 +562,7 @@ mod tests {
 
         // ------------------------------------------------
         // Compact
-        let (mut candidates, _table_columns) = compactor
+        let mut candidates = compactor
             .cold_partitions_to_compact(compactor.config.max_number_partitions_per_shard)
             .await
             .unwrap();
@@ -613,7 +583,6 @@ mod tests {
             Arc::clone(&c),
             parquet_files_for_compaction,
             compactor.config.memory_budget_bytes,
-            &table_column_types,
             &compactor.parquet_file_candidate_gauge,
             &compactor.parquet_file_candidate_bytes,
         );
