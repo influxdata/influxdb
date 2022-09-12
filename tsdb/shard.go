@@ -47,8 +47,8 @@ const (
 	statWriteBytes         = "writeBytes"
 	statDiskBytes          = "diskBytes"
 
-	changeFile   = "fields.idxl"
-	bytesInInt64 = 8
+	FieldsChangeFile = "fields.idxl"
+	bytesInInt64     = 8
 )
 
 var (
@@ -1850,7 +1850,7 @@ func (fs *MeasurementFieldSet) SetMeasurementFieldSetWriter(queueLength int, log
 	defer fs.mu.Unlock()
 	fs.changeMgr = &measurementFieldSetChangeMgr{
 		writeRequests: make(chan writeRequest, queueLength),
-		Path:          filepath.Join(filepath.Dir(fs.path), changeFile),
+		Path:          filepath.Join(filepath.Dir(fs.path), FieldsChangeFile),
 		Logger:        logger,
 		goodSize:      int64(0),
 	}

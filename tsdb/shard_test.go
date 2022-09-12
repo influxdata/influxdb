@@ -1675,7 +1675,7 @@ func TestMeasurementFieldSet_Corrupt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("stat error: %v", err)
 	}
-	// Truncate the file to simulate a a corrupted file
+	// Truncate the file to simulate a corrupted file
 	if err := os.Truncate(path, stat.Size()-3); err != nil {
 		t.Fatalf("truncate error: %v", err)
 	}
@@ -1690,6 +1690,90 @@ func TestMeasurementFieldSet_Corrupt(t *testing.T) {
 		t.Fatal("expecte fields to be nil")
 	}
 }
+
+func TestMeasurementFieldSet_CorruptChangeFile(t *testing.T) {
+	dir, cleanup := MustTempDir()
+	defer cleanup()
+
+	testFields := []struct {
+		Measurement string
+		Field       string
+		FieldType   influxql.DataType
+	}{
+		{
+			Measurement: "cpu",
+			Field:       "value_1",
+			FieldType:   influxql.Float,
+		},
+		{
+			Measurement: "cpu",
+			Field:       "value_2",
+			FieldType:   influxql.String,
+		},
+		{
+			Measurement: "cpu",
+			Field:       "value_3",
+			FieldType:   influxql.Integer,
+		},
+	}
+
+	path := filepath.Join(dir, "fields.idx")
+	var mf *tsdb.MeasurementFieldSet
+	var err error
+	mf, err = tsdb.NewMeasurementFieldSet(path, nil)
+	if err != nil {
+		t.Fatalf("NewMeasurementFieldSet error: %v", err)
+	}
+	defer checkMeasurementFieldSetClose(t, mf)
+	for _, f := range testFields {
+		fields := mf.CreateFieldsIfNotExists([]byte(f.Measurement))
+		if err := fields.CreateFieldIfNotExists([]byte(f.Field), f.FieldType); err != nil {
+			t.Fatalf("create field error: %v", err)
+		}
+		change := tsdb.FieldChange{
+			FieldCreate: tsdb.FieldCreate{
+				Measurement: []byte(f.Measurement),
+				Field:       &tsdb.Field{ID: 0, Name: f.Field, Type: f.FieldType},
+			},
+			ChangeType: tsdb.AddMeasurementField,
+		}
+
+		if err := mf.Save(tsdb.FieldChanges{&change}); err != nil {
+			t.Fatalf("save error: %v", err)
+		}
+	}
+	changeFile := filepath.Join(dir, tsdb.FieldsChangeFile)
+	stat, err := os.Stat(changeFile)
+	if err != nil {
+		t.Fatalf("stat error: %v", err)
+	}
+	// Truncate the file to simulate a corrupted file
+	if err := os.Truncate(changeFile, stat.Size()-3); err != nil {
+		t.Fatalf("truncate error: %v", err)
+	}
+	mf2, err := tsdb.NewMeasurementFieldSet(path, nil)
+	assert.NoError(t, err, "failed creating second MeasurementFieldSet")
+	defer checkMeasurementFieldSetClose(t, mf2)
+
+	for i := 0; i < len(testFields)-1; i++ {
+		fields := mf2.FieldsByString(testFields[i].Measurement)
+		if fields == nil {
+			t.Fatalf("nil fields map for %s", testFields[i].Measurement)
+		} else if f := fields.Field(testFields[i].Field); f == nil {
+			t.Fatalf("%s not found in %s fields", testFields[i].Field, testFields[i].Measurement)
+		} else if f.Type != testFields[i].FieldType {
+			t.Fatalf("%s.%s wrong type: expected %v, got %v", testFields[i].Measurement, testFields[i].Field, testFields[i].FieldType, f.Type)
+		}
+	}
+	i := len(testFields) - 1
+	fields := mf2.FieldsByString(testFields[i].Measurement)
+	if fields == nil {
+		t.Fatalf("nil fields map for %s", testFields[i].Measurement)
+	} else if f := fields.Field(testFields[i].Field); f != nil {
+		t.Fatalf("%s found in %s fields, should have not been present", testFields[i].Field, testFields[i].Measurement)
+	}
+}
+
 func TestMeasurementFieldSet_DeleteEmpty(t *testing.T) {
 	const measurement = "cpu"
 	const fieldName = "value"
