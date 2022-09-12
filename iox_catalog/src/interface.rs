@@ -3021,7 +3021,8 @@ pub(crate) mod test_helpers {
             another_partition.id
         );
 
-        // The DB now has 4 partitions, one of which has 3 non-deleted L1 files
+        // The DB now has 4 partitions, one of which has 3 non-deleted L1 files, another_partition
+        // should still be skipped
         let fourth_partition = repos
             .partitions()
             .create_or_get("four".into(), shard.id, table.id)
@@ -3049,8 +3050,6 @@ pub(crate) mod test_helpers {
         assert_eq!(partitions.len(), 2);
         // the first one should now be the one with the most files, which happen to be L1
         assert_eq!(partitions[0].partition_id, fourth_partition.id);
-        // the second one should be the one with 2 files
-        assert_eq!(partitions[1].partition_id, another_partition.id);
     }
 
     async fn test_recent_highest_throughput_partitions(catalog: Arc<dyn Catalog>) {
