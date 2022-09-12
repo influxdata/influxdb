@@ -124,7 +124,7 @@ pub(crate) enum Error {
 
     #[snafu(display("{}", source))]
     Combining {
-        source: parquet_file_combining::Error,
+        source: Box<parquet_file_combining::Error>,
     },
 
     #[snafu(display("{}", source))]
@@ -186,7 +186,9 @@ async fn full_compaction(
                 &compactor.compaction_input_file_bytes,
             )
             .await
-            .context(CombiningSnafu)?;
+            .map_err(|e| Error::Combining {
+                source: Box::new(e),
+            })?;
         }
     }
 
