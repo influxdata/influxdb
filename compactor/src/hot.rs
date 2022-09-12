@@ -326,12 +326,6 @@ mod tests {
         // * Round 3: 1 candidate [P3] and total needed budget 11,250
         //
         // P4 is not compacted due to overbudget.
-        // Debug info shows all 3 rounds.
-        //
-        // Todo next: So conveniently, debug log shows this is also a reproducer of
-        // https://github.com/influxdata/conductor/issues/1130
-        // "hot compaction failed: 1, "Could not serialize and persist record batches failed to
-        // peek record stream schema"
         compact_candidates_with_memory_budget(
             Arc::clone(&compactor),
             "hot",
