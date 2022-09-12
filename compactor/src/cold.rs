@@ -370,9 +370,9 @@ mod tests {
             .with_min_time(10)
             .with_max_time(20)
             .with_creation_time(time_38_hour_ago);
-        let f = partition.create_parquet_file(builder).await;
+        let pf1_no_overlap = partition.create_parquet_file(builder).await;
         size_overrides.insert(
-            f.parquet_file.id,
+            pf1_no_overlap.parquet_file.id,
             compactor.config.max_desired_file_size_bytes as i64 + 10,
         );
 
@@ -383,8 +383,8 @@ mod tests {
             .with_min_time(8_000)
             .with_max_time(20_000)
             .with_creation_time(time_38_hour_ago);
-        let f = partition.create_parquet_file(builder).await;
-        size_overrides.insert(f.parquet_file.id, 100); // small file
+        let pf2 = partition.create_parquet_file(builder).await;
+        size_overrides.insert(pf2.parquet_file.id, 100); // small file
 
         // pf3 overlaps with pf2
         let builder = TestParquetFileBuilder::default()
@@ -393,8 +393,8 @@ mod tests {
             .with_min_time(6_000)
             .with_max_time(25_000)
             .with_creation_time(time_38_hour_ago);
-        let f = partition.create_parquet_file(builder).await;
-        size_overrides.insert(f.parquet_file.id, 100); // small file
+        let pf3 = partition.create_parquet_file(builder).await;
+        size_overrides.insert(pf3.parquet_file.id, 100); // small file
 
         // pf4 does not overlap with any but is small
         let builder = TestParquetFileBuilder::default()
@@ -403,8 +403,8 @@ mod tests {
             .with_min_time(26_000)
             .with_max_time(28_000)
             .with_creation_time(time_38_hour_ago);
-        let f = partition.create_parquet_file(builder).await;
-        size_overrides.insert(f.parquet_file.id, 100); // small file
+        let pf4 = partition.create_parquet_file(builder).await;
+        size_overrides.insert(pf4.parquet_file.id, 100); // small file
 
         // pf5 was created in a previous compaction cycle; overlaps with pf1
         let builder = TestParquetFileBuilder::default()
@@ -414,8 +414,8 @@ mod tests {
             .with_max_time(25)
             .with_creation_time(time_38_hour_ago)
             .with_compaction_level(CompactionLevel::FileNonOverlapped);
-        let f = partition.create_parquet_file(builder).await;
-        size_overrides.insert(f.parquet_file.id, 100); // small file
+        let pf5 = partition.create_parquet_file(builder).await;
+        size_overrides.insert(pf5.parquet_file.id, 100); // small file
 
         // pf6 was created in a previous compaction cycle; does not overlap with any
         let builder = TestParquetFileBuilder::default()
@@ -425,8 +425,8 @@ mod tests {
             .with_max_time(91000)
             .with_creation_time(time_38_hour_ago)
             .with_compaction_level(CompactionLevel::FileNonOverlapped);
-        let f = partition.create_parquet_file(builder).await;
-        size_overrides.insert(f.parquet_file.id, 100); // small file
+        let pf6 = partition.create_parquet_file(builder).await;
+        size_overrides.insert(pf6.parquet_file.id, 100); // small file
 
         // should have 4 level-0 files before compacting
         let count = catalog.count_level_0_files(shard.shard.id).await;
@@ -467,7 +467,7 @@ mod tests {
 
         // Should have 3 non-soft-deleted files:
         //
-        // - the level 1 file that didn't overlap with anything
+        // - pf6, the level 1 file that didn't overlap with anything
         // - the two newly created after compacting and splitting pf1, pf2, pf3, pf4, pf5
         let mut files = catalog.list_by_table_not_to_delete(table.table.id).await;
         assert_eq!(files.len(), 3);
@@ -478,7 +478,10 @@ mod tests {
         assert_eq!(
             files_and_levels,
             vec![
-                (6, CompactionLevel::FileNonOverlapped),
+                (
+                    pf6.parquet_file.id.get(),
+                    CompactionLevel::FileNonOverlapped
+                ),
                 (7, CompactionLevel::FileNonOverlapped),
                 (8, CompactionLevel::FileNonOverlapped),
             ]
@@ -487,9 +490,9 @@ mod tests {
         // ------------------------------------------------
         // Verify the parquet file content
 
-        // Later compacted file
-        let file1 = files.pop().unwrap();
-        let batches = table.read_parquet_file(file1).await;
+        // Data from pf3 and pf4, later times
+        let file2 = files.pop().unwrap();
+        let batches = table.read_parquet_file(file2).await;
         assert_batches_sorted_eq!(
             &[
                 "+-----------+------+------+------+-----------------------------+",
@@ -503,9 +506,9 @@ mod tests {
             &batches
         );
 
-        // Earlier compacted file
-        let file0 = files.pop().unwrap();
-        let batches = table.read_parquet_file(file0).await;
+        // Data from pf1, pf2, pf3, and pf5, earlier times
+        let file1 = files.pop().unwrap();
+        let batches = table.read_parquet_file(file1).await;
         assert_batches_sorted_eq!(
             &[
                 "+-----------+------+------+------+--------------------------------+",
@@ -520,6 +523,21 @@ mod tests {
                 "| 21        |      | OH   | 21   | 1970-01-01T00:00:00.000000025Z |",
                 "| 70        | UT   |      |      | 1970-01-01T00:00:00.000020Z    |",
                 "+-----------+------+------+------+--------------------------------+",
+            ],
+            &batches
+        );
+
+        // Data from pf6 that didn't overlap with anything, left unchanged
+        let file0 = files.pop().unwrap();
+        let batches = table.read_parquet_file(file0).await;
+        assert_batches_sorted_eq!(
+            &[
+                "+-----------+------+------+-----------------------------+",
+                "| field_int | tag2 | tag3 | time                        |",
+                "+-----------+------+------+-----------------------------+",
+                "| 421       | OH   | 21   | 1970-01-01T00:00:00.000091Z |",
+                "| 81601     | PA   | 15   | 1970-01-01T00:00:00.000090Z |",
+                "+-----------+------+------+-----------------------------+",
             ],
             &batches
         );
@@ -593,8 +611,8 @@ mod tests {
             .with_min_time(10)
             .with_max_time(20)
             .with_creation_time(time_38_hour_ago);
-        let f = partition.create_parquet_file(builder).await;
-        size_overrides.insert(f.parquet_file.id, 100); // small file
+        let pf1 = partition.create_parquet_file(builder).await;
+        size_overrides.insert(pf1.parquet_file.id, 100); // small file
 
         // pf6 was created in a previous compaction cycle; does not overlap with any
         let builder = TestParquetFileBuilder::default()
@@ -604,8 +622,8 @@ mod tests {
             .with_max_time(91000)
             .with_creation_time(time_38_hour_ago)
             .with_compaction_level(CompactionLevel::FileNonOverlapped);
-        let f = partition.create_parquet_file(builder).await;
-        size_overrides.insert(f.parquet_file.id, 100); // small file
+        let pf6 = partition.create_parquet_file(builder).await;
+        size_overrides.insert(pf6.parquet_file.id, 100); // small file
 
         // should have 1 level-0 file before compacting
         let count = catalog.count_level_0_files(shard.shard.id).await;
@@ -646,8 +664,8 @@ mod tests {
 
         // Should have 2 non-soft-deleted files:
         //
-        // - the level 1 file that didn't overlap with anything
-        // - the newly created level 1 file that was only upgraded from level 0
+        // - pf1, the newly created level 1 file that was only upgraded from level 0
+        // - pf6, the level 1 file that didn't overlap with anything
         let mut files = catalog.list_by_table_not_to_delete(table.table.id).await;
         assert_eq!(files.len(), 2);
         let files_and_levels: Vec<_> = files
@@ -657,15 +675,21 @@ mod tests {
         assert_eq!(
             files_and_levels,
             vec![
-                (1, CompactionLevel::FileNonOverlapped),
-                (2, CompactionLevel::FileNonOverlapped),
+                (
+                    pf1.parquet_file.id.get(),
+                    CompactionLevel::FileNonOverlapped
+                ),
+                (
+                    pf6.parquet_file.id.get(),
+                    CompactionLevel::FileNonOverlapped
+                ),
             ]
         );
 
         // ------------------------------------------------
         // Verify the parquet file content
 
-        // Later compacted file
+        // pf6
         let file1 = files.pop().unwrap();
         let batches = table.read_parquet_file(file1).await;
         assert_batches_sorted_eq!(
@@ -680,7 +704,7 @@ mod tests {
             &batches
         );
 
-        // Earlier compacted file
+        // pf1
         let file0 = files.pop().unwrap();
         let batches = table.read_parquet_file(file0).await;
         assert_batches_sorted_eq!(
@@ -897,9 +921,9 @@ mod tests {
             .with_min_time(10)
             .with_max_time(20)
             .with_creation_time(time_38_hour_ago);
-        let f = partition.create_parquet_file(builder).await;
+        let pf1 = partition.create_parquet_file(builder).await;
         size_overrides.insert(
-            f.parquet_file.id,
+            pf1.parquet_file.id,
             compactor.config.max_desired_file_size_bytes as i64 + 10,
         );
 
@@ -910,9 +934,9 @@ mod tests {
             .with_min_time(8_000)
             .with_max_time(20_000)
             .with_creation_time(time_38_hour_ago);
-        let f = partition.create_parquet_file(builder).await;
+        let pf2 = partition.create_parquet_file(builder).await;
         size_overrides.insert(
-            f.parquet_file.id,
+            pf2.parquet_file.id,
             100, // small file
         );
 
@@ -923,9 +947,9 @@ mod tests {
             .with_min_time(6_000)
             .with_max_time(25_000)
             .with_creation_time(time_38_hour_ago);
-        let f = partition.create_parquet_file(builder).await;
+        let pf3 = partition.create_parquet_file(builder).await;
         size_overrides.insert(
-            f.parquet_file.id,
+            pf3.parquet_file.id,
             100, // small file
         );
 
@@ -936,9 +960,9 @@ mod tests {
             .with_min_time(26_000)
             .with_max_time(28_000)
             .with_creation_time(time_38_hour_ago);
-        let f = partition.create_parquet_file(builder).await;
+        let pf4 = partition.create_parquet_file(builder).await;
         size_overrides.insert(
-            f.parquet_file.id,
+            pf4.parquet_file.id,
             100, // small file
         );
 
@@ -950,9 +974,9 @@ mod tests {
             .with_max_time(25)
             .with_creation_time(time_38_hour_ago)
             .with_compaction_level(CompactionLevel::FileNonOverlapped);
-        let f = partition.create_parquet_file(builder).await;
+        let pf5 = partition.create_parquet_file(builder).await;
         size_overrides.insert(
-            f.parquet_file.id,
+            pf5.parquet_file.id,
             100, // small file
         );
 
@@ -964,9 +988,9 @@ mod tests {
             .with_max_time(91000)
             .with_creation_time(time_38_hour_ago)
             .with_compaction_level(CompactionLevel::FileNonOverlapped);
-        let f = partition.create_parquet_file(builder).await;
+        let pf6 = partition.create_parquet_file(builder).await;
         size_overrides.insert(
-            f.parquet_file.id,
+            pf6.parquet_file.id,
             100, // small file
         );
 
@@ -986,10 +1010,16 @@ mod tests {
             .iter()
             .map(|f| (f.id.get(), f.compaction_level))
             .collect();
-        assert_eq!(files_and_levels, vec![
-            (6, CompactionLevel::FileNonOverlapped),
-            (7, CompactionLevel::FileNonOverlapped),
-            (8, CompactionLevel::FileNonOverlapped),
-        ]);
+        assert_eq!(
+            files_and_levels,
+            vec![
+                (
+                    pf6.parquet_file.id.get(),
+                    CompactionLevel::FileNonOverlapped
+                ),
+                (7, CompactionLevel::FileNonOverlapped),
+                (8, CompactionLevel::FileNonOverlapped),
+            ]
+        );
     }
 }
