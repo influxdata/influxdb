@@ -28,7 +28,7 @@ schema = { path = "../schema" }
 workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies] # In alphabetical order
-criterion = "0.4.0"
+criterion = { version = "0.4", default-features = false, features = ["rayon"]}
 packers = { path = "../packers" }
 proptest = { version = "1.0.0", default_features = false, features = ["std"] }
 rand = "0.8.3"

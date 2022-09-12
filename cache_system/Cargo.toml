@@ -17,7 +17,7 @@ trace = { path = "../trace"}
 workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies]
-criterion = "0.4"
+criterion = { version = "0.4", default-features = false, features = ["rayon"]}
 proptest = { version = "1", default_features = false, features = ["std"] }
 rand = "0.8.3"
 

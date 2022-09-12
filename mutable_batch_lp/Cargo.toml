@@ -15,7 +15,7 @@ workspace-hack = { path = "../workspace-hack"}
 [dev-dependencies]
 arrow_util = { path = "../arrow_util" }
 assert_matches = "1.5.0"
-criterion = "0.4"
+criterion = { version = "0.4", default-features = false, features = ["rayon"]}
 
 [[bench]]
 name = "parse_lp"

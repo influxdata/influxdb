@@ -13,7 +13,7 @@ parquet = "21.0.0"
 workspace-hack = { path = "../workspace-hack"}
 
 [dev-dependencies] # In alphabetical order
-criterion = "0.4.0"
+criterion = { version = "0.4", default-features = false, features = ["rayon"]}
 rand = "0.8.3"
 
 [[bench]]

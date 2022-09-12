@@ -15,7 +15,7 @@ prost = "0.11"
 
 [dev-dependencies]
 bytes = "1.2"
-criterion = "0.4"
+criterion = { version = "0.4", default-features = false, features = ["rayon"]}
 
 [[bench]]
 name = "write_lp"
