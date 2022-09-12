@@ -7,11 +7,11 @@ use crate::interface::{
 };
 use async_trait::async_trait;
 use data_types::{
-    Column, ColumnType, ColumnTypeCount, Namespace, NamespaceId, ParquetFile, ParquetFileId,
-    ParquetFileParams, Partition, PartitionId, PartitionInfo, PartitionKey, PartitionParam,
-    ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Shard, ShardId, ShardIndex,
-    SkippedCompaction, Table, TableId, TablePartition, Timestamp, Tombstone, TombstoneId, TopicId,
-    TopicMetadata,
+    Column, ColumnType, ColumnTypeCount, CompactionLevel, Namespace, NamespaceId, ParquetFile,
+    ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionInfo, PartitionKey,
+    PartitionParam, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Shard, ShardId,
+    ShardIndex, SkippedCompaction, Table, TableId, TablePartition, Timestamp, Tombstone,
+    TombstoneId, TopicId, TopicMetadata,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use metric::{DurationHistogram, Metric};
@@ -277,14 +277,14 @@ decorate!(
         "parquet_list_by_partition_not_to_delete" = list_by_partition_not_to_delete(&mut self, partition_id: PartitionId) -> Result<Vec<ParquetFile>>;
         "parquet_level_0" = level_0(&mut self, shard_id: ShardId) -> Result<Vec<ParquetFile>>;
         "parquet_level_1" = level_1(&mut self, table_partition: TablePartition, min_time: Timestamp, max_time: Timestamp) -> Result<Vec<ParquetFile>>;
-        "parquet_update_to_level_1" = update_to_level_1(&mut self, parquet_file_ids: &[ParquetFileId]) -> Result<Vec<ParquetFileId>>;
+        "parquet_update_compaction_level" = update_compaction_level(&mut self, parquet_file_ids: &[ParquetFileId], compaction_level: CompactionLevel) -> Result<Vec<ParquetFileId>>;
         "parquet_exist" = exist(&mut self, id: ParquetFileId) -> Result<bool>;
         "parquet_count" = count(&mut self) -> Result<i64>;
         "parquet_count_by_overlaps_with_level_0" = count_by_overlaps_with_level_0(&mut self, table_id: TableId, shard_id: ShardId, min_time: Timestamp, max_time: Timestamp, sequence_number: SequenceNumber) -> Result<i64>;
         "parquet_count_by_overlaps_with_level_1" = count_by_overlaps_with_level_1(&mut self, table_id: TableId, shard_id: ShardId, min_time: Timestamp, max_time: Timestamp) -> Result<i64>;
         "parquet_get_by_object_store_id" = get_by_object_store_id(&mut self, object_store_id: Uuid) -> Result<Option<ParquetFile>>;
         "recent_highest_throughput_partitions" = recent_highest_throughput_partitions(&mut self, shard_id: ShardId, time_in_the_past: Timestamp, min_num_files: usize, num_partitions: usize) -> Result<Vec<PartitionParam>>;
-        "most_level_0_files_partitions" =  most_level_0_files_partitions(&mut self, shard_id: ShardId, time_in_the_past: Timestamp, num_partitions: usize) -> Result<Vec<PartitionParam>>;
+        "most_cold_files_partitions" =  most_cold_files_partitions(&mut self, shard_id: ShardId, time_in_the_past: Timestamp, num_partitions: usize) -> Result<Vec<PartitionParam>>;
     ]
 );
 

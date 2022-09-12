@@ -10,10 +10,11 @@
     clippy::clone_on_ref_ptr
 )]
 
+pub(crate) mod cold;
 pub mod compact;
-pub(crate) mod compact_hot_partitions;
 pub mod garbage_collector;
 pub mod handler;
+pub(crate) mod hot;
 mod parquet_file;
 pub(crate) mod parquet_file_combining;
 pub(crate) mod parquet_file_filtering;
@@ -22,23 +23,263 @@ pub mod query;
 pub mod server;
 pub mod utils;
 
-use crate::compact::{Compactor, PartitionCompactionCandidateWithInfo};
-use data_types::{CompactionLevel, ParquetFileId};
+use crate::{
+    compact::{Compactor, PartitionCompactionCandidateWithInfo},
+    parquet_file_filtering::{FilterResult, FilteredFiles},
+};
+use data_types::{ColumnTypeCount, CompactionLevel, TableId};
 use metric::Attributes;
+use observability_deps::tracing::*;
 use snafu::{ResultExt, Snafu};
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{HashMap, VecDeque},
+    sync::Arc,
+};
+
+// For a given list of partition candidates and a memory budget, estimate memory needed to compact
+// each partition candidate and compact as many of them in parallel as possible until all
+// candidates are compacted.
+//
+// The way this function works is the estimated memory to compact each partition will be
+// accumulated until the running total hits over 90% of the compactor's `memory_budget_bytes`. Then
+// those partitions are compacted in parallel. The process repeats until all partitions are
+// compacted.
+//
+// If the partial remaining budget isn't enough to compact the current partition but the full
+// budget is enough, the current partition will be pushed back as the last item of the list to be
+// considered later with a full memory budget.
+async fn compact_candidates_with_memory_budget<C, Fut>(
+    compactor: Arc<Compactor>,
+    compaction_type: &'static str,
+    compact_function: C,
+    mut candidates: VecDeque<Arc<PartitionCompactionCandidateWithInfo>>,
+    table_columns: HashMap<TableId, Vec<ColumnTypeCount>>,
+) where
+    C: Fn(Arc<Compactor>, Vec<FilteredFiles>, &'static str) -> Fut + Send + Sync + 'static,
+    Fut: futures::Future<Output = ()> + Send,
+{
+    let mut remaining_budget_bytes = compactor.config.memory_budget_bytes;
+    let mut parallel_compacting_candidates = Vec::with_capacity(candidates.len());
+    let mut num_remaining_candidates = candidates.len();
+    let mut count = 0;
+    while !candidates.is_empty() {
+        // Algorithm:
+        // 1. Remove the first candidate from the list
+        // 2. Check if the candidate can be compacted fully (all files) or partially (some files)
+        //    under the remaining memory budget
+        // 3. If yes, add the candidate and its full or partial list of files into the
+        //    `parallel_compacting_candidates` list.
+        //    Otherwise:
+        //      - if the remaining budget is not the full budget and this partition's estimate is
+        //        less than the full budget, push the candidate back into the `candidates`
+        //        to consider compacting with larger budget.
+        //      - otherwise, log that the partition is too large to compact and skip it.
+        // 4. If the budget is hit, compact all candidates in the `parallel_compacting_candidates`
+        //    list in parallel.
+        // 5. Repeat
+
+        // --------------------------------------------------------------------
+        // 1. Pop first candidate from the list. Since it is not empty, there must be at least one
+        let partition = candidates.pop_front().unwrap();
+        count += 1;
+        let partition_id = partition.candidate.partition_id;
+        let table_id = partition.candidate.table_id;
+
+        // Get column types and their counts for the table of the partition
+        let columns = table_columns.get(&table_id);
+        let to_compact = match columns {
+            None => {
+                warn!(
+                    ?partition_id,
+                    ?table_id,
+                    compaction_type,
+                    "skipped due to missing column types of its table"
+                );
+
+                let mut repos = compactor.catalog.repositories().await;
+                let record_skip = repos
+                    .partitions()
+                    .record_skipped_compaction(partition_id, "missing column types")
+                    .await;
+                if let Err(e) = record_skip {
+                    warn!(?partition_id, %e, "could not log skipped compaction");
+                }
+
+                None
+            }
+            Some(columns) => {
+                // --------------------------------------------------------------------
+                // 2. Check if the candidate can be compacted fully or partially under the
+                //    remaining_budget_bytes
+                // Get parquet_file info for this partition
+                let parquet_files_for_compaction =
+                    parquet_file_lookup::ParquetFilesForCompaction::for_partition(
+                        Arc::clone(&compactor.catalog),
+                        partition_id,
+                    )
+                    .await;
+                match parquet_files_for_compaction {
+                    Err(e) => {
+                        // This may just be a hiccup reading object store, skip compacting it in
+                        // this cycle
+                        warn!(
+                            ?e,
+                            ?partition_id,
+                            compaction_type,
+                            "failed due to error in reading parquet files"
+                        );
+                        None
+                    }
+                    Ok(parquet_files_for_compaction) => {
+                        // Return only files under the `remaining_budget_bytes` that should be
+                        // compacted
+                        let to_compact = parquet_file_filtering::filter_parquet_files(
+                            Arc::clone(&partition),
+                            parquet_files_for_compaction,
+                            remaining_budget_bytes,
+                            columns,
+                            &compactor.parquet_file_candidate_gauge,
+                            &compactor.parquet_file_candidate_bytes,
+                        );
+                        Some(to_compact)
+                    }
+                }
+            }
+        };
+
+        // --------------------------------------------------------------------
+        // 3. Check the compactable status and perform the action
+        if let Some(to_compact) = to_compact {
+            match to_compact.filter_result() {
+                FilterResult::NothingToCompact => {
+                    debug!(?partition_id, compaction_type, "nothing to compact");
+                }
+                FilterResult::ErrorEstimatingBudget => {
+                    warn!(
+                        ?partition_id,
+                        ?table_id,
+                        compaction_type,
+                        "skipped; error in estimating compacting memory"
+                    );
+
+                    let mut repos = compactor.catalog.repositories().await;
+                    let record_skip = repos
+                        .partitions()
+                        .record_skipped_compaction(
+                            partition_id,
+                            "error in estimating compacting memory",
+                        )
+                        .await;
+                    if let Err(e) = record_skip {
+                        warn!(?partition_id, %e, "could not log skipped compaction");
+                    }
+                }
+                FilterResult::OverBudget => {
+                    if to_compact.budget_bytes() <= compactor.config.memory_budget_bytes {
+                        // Required budget is larger than the remaining budget but smaller than
+                        // full budget, add this partition back to the end of the list to compact
+                        // with full budget later
+                        candidates.push_back(partition);
+                    } else {
+                        // Even with max budget, we cannot compact this partition, log it
+                        warn!(
+                            ?partition_id,
+                            ?table_id,
+                            compaction_type,
+                            "skipped; over memory budget"
+                        );
+                        let mut repos = compactor.catalog.repositories().await;
+                        let record_skip = repos
+                            .partitions()
+                            .record_skipped_compaction(partition_id, "over memory budget")
+                            .await;
+                        if let Err(e) = record_skip {
+                            warn!(?partition_id, %e, "could not log skipped compaction");
+                        }
+                    }
+                }
+                FilterResult::Proceeed => {
+                    remaining_budget_bytes -= to_compact.budget_bytes();
+                    parallel_compacting_candidates.push(to_compact);
+                }
+            }
+        }
+
+        // --------------------------------------------------------------------
+        // 4. Almost hitting max budget (only 10% left)
+        //    OR no more candidates
+        //    OR already considered all remaining candidates.
+        if (!parallel_compacting_candidates.is_empty())
+            && ((remaining_budget_bytes <= (compactor.config.memory_budget_bytes / 10) as u64)
+                || (candidates.is_empty())
+                || (count == num_remaining_candidates))
+        {
+            debug!(
+                num_parallel_compacting_candidates = parallel_compacting_candidates.len(),
+                total_needed_memory_budget_bytes =
+                    compactor.config.memory_budget_bytes - remaining_budget_bytes,
+                compaction_type,
+                "parallel compacting candidate"
+            );
+            compact_function(
+                Arc::clone(&compactor),
+                parallel_compacting_candidates,
+                compaction_type,
+            )
+            .await;
+
+            // Reset to start adding new set of parallel candidates
+            parallel_compacting_candidates = Vec::with_capacity(candidates.len());
+            remaining_budget_bytes = compactor.config.memory_budget_bytes;
+            num_remaining_candidates = candidates.len();
+            count = 0;
+        }
+    }
+}
+
+// Compact given partitions in parallel.
+//
+// This function assumes its caller knows there are enough resources to run all partitions
+// concurrently
+async fn compact_in_parallel(
+    compactor: Arc<Compactor>,
+    partitions: Vec<FilteredFiles>,
+    compaction_type: &'static str,
+) {
+    let mut handles = Vec::with_capacity(partitions.len());
+    for p in partitions {
+        let comp = Arc::clone(&compactor);
+        let handle = tokio::task::spawn(async move {
+            let partition_id = p.partition.candidate.partition_id;
+            debug!(?partition_id, compaction_type, "compaction starting");
+            let compaction_result = compact_one_partition(&comp, p, compaction_type).await;
+            match compaction_result {
+                Err(e) => {
+                    warn!(?e, ?partition_id, compaction_type, "compaction failed");
+                }
+                Ok(_) => {
+                    debug!(?partition_id, compaction_type, "compaction complete");
+                }
+            };
+        });
+        handles.push(handle);
+    }
+
+    let compactions_run = handles.len();
+    debug!(
+        ?compactions_run,
+        compaction_type, "Number of concurrent partitions are being compacted"
+    );
+
+    let _ = futures::future::join_all(handles).await;
+}
 
 #[derive(Debug, Snafu)]
 #[allow(missing_copy_implementations, missing_docs)]
-pub(crate) enum Error {
-    #[snafu(display("{}", source))]
-    Lookup {
-        source: parquet_file_lookup::PartitionFilesFromPartitionError,
-    },
-
+pub(crate) enum CompactOnePartitionError {
     #[snafu(display("{}", source))]
     Combining {
-        source: parquet_file_combining::Error,
+        source: Box<parquet_file_combining::Error>,
     },
 
     #[snafu(display("{}", source))]
@@ -47,69 +288,60 @@ pub(crate) enum Error {
     },
 }
 
-/// One compaction operation of one cold partition
+/// One compaction operation of one partition.
 ///
-/// Takes a hash-map `size_overrides` that mocks the size of the detected [`CompactorParquetFile`]s. This will
-/// influence the size calculation of the compactor (i.e. when/how to compact files), but leave the actual physical
-/// size of the file as it is (i.e. file deserialization can still rely on the original value).
+/// Takes a hash-map `size_overrides` that mocks the size of the detected
+/// [`CompactorParquetFile`]s. This will influence the size calculation of the compactor (i.e.
+/// when/how to compact files), but leave the actual physical size of the file as it is (i.e. file
+/// deserialization can still rely on the original value).
 ///
 /// [`CompactorParquetFile`]: crate::parquet_file::CompactorParquetFile
-pub(crate) async fn compact_cold_partition(
+pub(crate) async fn compact_one_partition(
     compactor: &Compactor,
-    partition: PartitionCompactionCandidateWithInfo,
-    size_overrides: &HashMap<ParquetFileId, i64>,
-) -> Result<(), Error> {
+    to_compact: FilteredFiles,
+    compaction_type: &'static str,
+) -> Result<(), CompactOnePartitionError> {
     let start_time = compactor.time_provider.now();
+
+    let partition = to_compact.partition;
     let shard_id = partition.shard_id();
 
-    let parquet_files_for_compaction =
-        parquet_file_lookup::ParquetFilesForCompaction::for_partition(
-            Arc::clone(&compactor.catalog),
-            partition.id(),
-            size_overrides,
-        )
-        .await
-        .context(LookupSnafu)?;
+    if to_compact.files.len() == 1
+        && to_compact.files[0].compaction_level() == CompactionLevel::Initial
+    {
+        // upgrade the one l0 file to l1, don't run compaction
+        let mut repos = compactor.catalog.repositories().await;
 
-    let to_compact = parquet_file_filtering::filter_cold_parquet_files(
-        parquet_files_for_compaction,
-        compactor.config.cold_input_size_threshold_bytes,
-        compactor.config.cold_input_file_count_threshold,
-        &compactor.parquet_file_candidate_gauge,
-        &compactor.parquet_file_candidate_bytes,
-    );
-
-    let compact_result =
-        if to_compact.len() == 1 && to_compact[0].compaction_level() == CompactionLevel::Initial {
-            // upgrade the one l0 file to l1, don't run compaction
-            let mut repos = compactor.catalog.repositories().await;
-
-            repos
-                .parquet_files()
-                .update_to_level_1(&[to_compact[0].id()])
-                .await
-                .context(UpgradingSnafu)?;
-            Ok(())
-        } else {
-            parquet_file_combining::compact_parquet_files(
-                to_compact,
-                partition,
-                Arc::clone(&compactor.catalog),
-                compactor.store.clone(),
-                Arc::clone(&compactor.exec),
-                Arc::clone(&compactor.time_provider),
-                &compactor.compaction_input_file_bytes,
-                compactor.config.max_desired_file_size_bytes,
-                compactor.config.percentage_max_file_size,
-                compactor.config.split_percentage,
+        repos
+            .parquet_files()
+            .update_compaction_level(
+                &[to_compact.files[0].id()],
+                CompactionLevel::FileNonOverlapped,
             )
             .await
-            .context(CombiningSnafu)
-        };
+            .context(UpgradingSnafu)?;
+    } else {
+        parquet_file_combining::compact_parquet_files(
+            to_compact.files,
+            partition,
+            Arc::clone(&compactor.catalog),
+            compactor.store.clone(),
+            Arc::clone(&compactor.exec),
+            Arc::clone(&compactor.time_provider),
+            &compactor.compaction_input_file_bytes,
+            compactor.config.max_desired_file_size_bytes,
+            compactor.config.percentage_max_file_size,
+            compactor.config.split_percentage,
+        )
+        .await
+        .map_err(|e| CompactOnePartitionError::Combining {
+            source: Box::new(e),
+        })?;
+    }
 
     let attributes = Attributes::from([
         ("shard_id", format!("{}", shard_id).into()),
-        ("partition_type", "cold".into()),
+        ("partition_type", compaction_type.into()),
     ]);
     if let Some(delta) = compactor
         .time_provider
@@ -120,395 +352,220 @@ pub(crate) async fn compact_cold_partition(
         duration.record(delta);
     }
 
-    compact_result
+    Ok(())
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use super::*;
-    use crate::handler::CompactorConfig;
+    use crate::{compact::Compactor, handler::CompactorConfig};
     use ::parquet_file::storage::ParquetStorage;
-    use arrow_util::assert_batches_sorted_eq;
     use backoff::BackoffConfig;
     use data_types::{ColumnType, CompactionLevel};
     use iox_query::exec::Executor;
-    use iox_tests::util::{TestCatalog, TestParquetFileBuilder};
-    use iox_time::{SystemProvider, TimeProvider};
-    use std::time::Duration;
+    use iox_tests::util::{
+        TestCatalog, TestNamespace, TestParquetFileBuilder, TestShard, TestTable,
+    };
+    use iox_time::SystemProvider;
+    use std::{
+        collections::{HashMap, VecDeque},
+        pin::Pin,
+        sync::{Arc, Mutex},
+        time::Duration,
+    };
 
     #[tokio::test]
-    async fn test_compact_cold_partition_many_files() {
+    async fn empty_candidates_compacts_nothing() {
         test_helpers::maybe_start_logging();
-        let catalog = TestCatalog::new();
 
-        // lp1 does not overlap with any other level 0
-        let lp1 = vec![
-            "table,tag1=WA field_int=1000i 10",
-            "table,tag1=VT field_int=10i 20",
-        ]
-        .join("\n");
+        let TestSetup {
+            compactor,
+            mock_compactor,
+            ..
+        } = test_setup().await;
 
-        // lp2 overlaps with lp3
-        let lp2 = vec![
-            "table,tag1=WA field_int=1000i 8000", // will be eliminated due to duplicate
-            "table,tag1=VT field_int=10i 10000",
-            "table,tag1=UT field_int=70i 20000",
-        ]
-        .join("\n");
+        let sorted_candidates = VecDeque::new();
+        let table_columns = HashMap::new();
 
-        // lp3 overlaps with lp2
-        let lp3 = vec![
-            "table,tag1=WA field_int=1500i 8000", // latest duplicate and kept
-            "table,tag1=VT field_int=10i 6000",
-            "table,tag1=UT field_int=270i 25000",
-        ]
-        .join("\n");
+        compact_candidates_with_memory_budget(
+            Arc::clone(&compactor),
+            "hot",
+            mock_compactor.compaction_function(),
+            sorted_candidates,
+            table_columns,
+        )
+        .await;
 
-        // lp4 does not overlap with any
-        let lp4 = vec![
-            "table,tag2=WA,tag3=10 field_int=1600i 28000",
-            "table,tag2=VT,tag3=20 field_int=20i 26000",
-        ]
-        .join("\n");
-
-        // lp5 overlaps with lp1
-        let lp5 = vec![
-            "table,tag2=PA,tag3=15 field_int=1601i 9",
-            "table,tag2=OH,tag3=21 field_int=21i 25",
-        ]
-        .join("\n");
-
-        // lp6 does not overlap with any
-        let lp6 = vec![
-            "table,tag2=PA,tag3=15 field_int=81601i 90000",
-            "table,tag2=OH,tag3=21 field_int=421i 91000",
-        ]
-        .join("\n");
-
-        let ns = catalog.create_namespace("ns").await;
-        let shard = ns.create_shard(1).await;
-        let table = ns.create_table("table").await;
-        table.create_column("field_int", ColumnType::I64).await;
-        table.create_column("tag1", ColumnType::Tag).await;
-        table.create_column("tag2", ColumnType::Tag).await;
-        table.create_column("tag3", ColumnType::Tag).await;
-        table.create_column("time", ColumnType::Time).await;
-        let partition = table.with_shard(&shard).create_partition("part").await;
-        let time = Arc::new(SystemProvider::new());
-        let time_38_hour_ago = (time.now() - Duration::from_secs(60 * 60 * 38)).timestamp_nanos();
-        let config = make_compactor_config();
-        let metrics = Arc::new(metric::Registry::new());
-        let compactor = Compactor::new(
-            vec![shard.shard.id],
-            Arc::clone(&catalog.catalog),
-            ParquetStorage::new(Arc::clone(&catalog.object_store)),
-            Arc::new(Executor::new(1)),
-            Arc::new(SystemProvider::new()),
-            BackoffConfig::default(),
-            config,
-            Arc::clone(&metrics),
-        );
-
-        // parquet files that are all in the same partition
-        let mut size_overrides = HashMap::<ParquetFileId, i64>::default();
-
-        // pf1 does not overlap with any other level 0
-        let builder = TestParquetFileBuilder::default()
-            .with_line_protocol(&lp1)
-            .with_max_seq(3)
-            .with_min_time(10)
-            .with_max_time(20)
-            .with_creation_time(time_38_hour_ago);
-        let f = partition.create_parquet_file(builder).await;
-        size_overrides.insert(
-            f.parquet_file.id,
-            compactor.config.max_desired_file_size_bytes as i64 + 10,
-        );
-
-        // pf2 overlaps with pf3
-        let builder = TestParquetFileBuilder::default()
-            .with_line_protocol(&lp2)
-            .with_max_seq(5)
-            .with_min_time(8_000)
-            .with_max_time(20_000)
-            .with_creation_time(time_38_hour_ago);
-        let f = partition.create_parquet_file(builder).await;
-        size_overrides.insert(f.parquet_file.id, 100); // small file
-
-        // pf3 overlaps with pf2
-        let builder = TestParquetFileBuilder::default()
-            .with_line_protocol(&lp3)
-            .with_max_seq(10)
-            .with_min_time(6_000)
-            .with_max_time(25_000)
-            .with_creation_time(time_38_hour_ago);
-        let f = partition.create_parquet_file(builder).await;
-        size_overrides.insert(f.parquet_file.id, 100); // small file
-
-        // pf4 does not overlap with any but is small
-        let builder = TestParquetFileBuilder::default()
-            .with_line_protocol(&lp4)
-            .with_max_seq(18)
-            .with_min_time(26_000)
-            .with_max_time(28_000)
-            .with_creation_time(time_38_hour_ago);
-        let f = partition.create_parquet_file(builder).await;
-        size_overrides.insert(f.parquet_file.id, 100); // small file
-
-        // pf5 was created in a previous compaction cycle; overlaps with pf1
-        let builder = TestParquetFileBuilder::default()
-            .with_line_protocol(&lp5)
-            .with_max_seq(1)
-            .with_min_time(9)
-            .with_max_time(25)
-            .with_creation_time(time_38_hour_ago)
-            .with_compaction_level(CompactionLevel::FileNonOverlapped);
-        let f = partition.create_parquet_file(builder).await;
-        size_overrides.insert(f.parquet_file.id, 100); // small file
-
-        // pf6 was created in a previous compaction cycle; does not overlap with any
-        let builder = TestParquetFileBuilder::default()
-            .with_line_protocol(&lp6)
-            .with_max_seq(20)
-            .with_min_time(90000)
-            .with_max_time(91000)
-            .with_creation_time(time_38_hour_ago)
-            .with_compaction_level(CompactionLevel::FileNonOverlapped);
-        let f = partition.create_parquet_file(builder).await;
-        size_overrides.insert(f.parquet_file.id, 100); // small file
-
-        // should have 4 level-0 files before compacting
-        let count = catalog.count_level_0_files(shard.shard.id).await;
-        assert_eq!(count, 4);
-
-        // ------------------------------------------------
-        // Compact
-        let candidates = compactor
-            .cold_partitions_to_compact(compactor.config.max_number_partitions_per_shard)
-            .await
-            .unwrap();
-        let mut candidates = compactor.add_info_to_partitions(&candidates).await.unwrap();
-
-        assert_eq!(candidates.len(), 1);
-        let c = candidates.pop_front().unwrap();
-
-        compact_cold_partition(&compactor, c, &size_overrides)
-            .await
-            .unwrap();
-
-        // Should have 3 non-soft-deleted files:
-        //
-        // - the level 1 file that didn't overlap with anything
-        // - the two newly created after compacting and splitting pf1, pf2, pf3, pf4, pf5
-        let mut files = catalog.list_by_table_not_to_delete(table.table.id).await;
-        assert_eq!(files.len(), 3);
-        let files_and_levels: Vec<_> = files
-            .iter()
-            .map(|f| (f.id.get(), f.compaction_level))
-            .collect();
-        assert_eq!(
-            files_and_levels,
-            vec![
-                (6, CompactionLevel::FileNonOverlapped),
-                (7, CompactionLevel::FileNonOverlapped),
-                (8, CompactionLevel::FileNonOverlapped),
-            ]
-        );
-
-        // ------------------------------------------------
-        // Verify the parquet file content
-
-        // Later compacted file
-        let file1 = files.pop().unwrap();
-        let batches = table.read_parquet_file(file1).await;
-        assert_batches_sorted_eq!(
-            &[
-                "+-----------+------+------+------+-----------------------------+",
-                "| field_int | tag1 | tag2 | tag3 | time                        |",
-                "+-----------+------+------+------+-----------------------------+",
-                "| 1600      |      | WA   | 10   | 1970-01-01T00:00:00.000028Z |",
-                "| 20        |      | VT   | 20   | 1970-01-01T00:00:00.000026Z |",
-                "| 270       | UT   |      |      | 1970-01-01T00:00:00.000025Z |",
-                "+-----------+------+------+------+-----------------------------+",
-            ],
-            &batches
-        );
-
-        // Earlier compacted file
-        let file0 = files.pop().unwrap();
-        let batches = table.read_parquet_file(file0).await;
-        assert_batches_sorted_eq!(
-            &[
-                "+-----------+------+------+------+--------------------------------+",
-                "| field_int | tag1 | tag2 | tag3 | time                           |",
-                "+-----------+------+------+------+--------------------------------+",
-                "| 10        | VT   |      |      | 1970-01-01T00:00:00.000000020Z |",
-                "| 10        | VT   |      |      | 1970-01-01T00:00:00.000006Z    |",
-                "| 10        | VT   |      |      | 1970-01-01T00:00:00.000010Z    |",
-                "| 1000      | WA   |      |      | 1970-01-01T00:00:00.000000010Z |",
-                "| 1500      | WA   |      |      | 1970-01-01T00:00:00.000008Z    |",
-                "| 1601      |      | PA   | 15   | 1970-01-01T00:00:00.000000009Z |",
-                "| 21        |      | OH   | 21   | 1970-01-01T00:00:00.000000025Z |",
-                "| 70        | UT   |      |      | 1970-01-01T00:00:00.000020Z    |",
-                "+-----------+------+------+------+--------------------------------+",
-            ],
-            &batches
-        );
+        let compaction_groups = mock_compactor.results();
+        assert!(compaction_groups.is_empty());
     }
 
     #[tokio::test]
-    async fn test_compact_cold_partition_one_level_0_without_overlap() {
+    async fn compacting_table_without_columns_does_nothing() {
         test_helpers::maybe_start_logging();
-        let catalog = TestCatalog::new();
 
-        // lp1 does not overlap with any other level 0 or level 1
-        let lp1 = vec![
-            "table,tag1=WA field_int=1000i 10",
-            "table,tag1=VT field_int=10i 20",
-        ]
-        .join("\n");
+        let TestSetup {
+            compactor,
+            mock_compactor,
+            namespace,
+            shard,
+            ..
+        } = test_setup().await;
 
-        // lp6 does not overlap with any
-        let lp6 = vec![
-            "table,tag2=PA,tag3=15 field_int=81601i 90000",
-            "table,tag2=OH,tag3=21 field_int=421i 91000",
-        ]
-        .join("\n");
+        let table_without_columns = namespace.create_table("test_table").await;
 
-        let ns = catalog.create_namespace("ns").await;
-        let shard = ns.create_shard(1).await;
-        let table = ns.create_table("table").await;
-        table.create_column("field_int", ColumnType::I64).await;
-        table.create_column("tag1", ColumnType::Tag).await;
-        table.create_column("tag2", ColumnType::Tag).await;
-        table.create_column("tag3", ColumnType::Tag).await;
-        table.create_column("time", ColumnType::Time).await;
-        let partition = table.with_shard(&shard).create_partition("part").await;
-        let time = Arc::new(SystemProvider::new());
-        let time_38_hour_ago = (time.now() - Duration::from_secs(60 * 60 * 38)).timestamp_nanos();
-        let config = make_compactor_config();
-        let metrics = Arc::new(metric::Registry::new());
-        let compactor = Compactor::new(
-            vec![shard.shard.id],
-            Arc::clone(&catalog.catalog),
-            ParquetStorage::new(Arc::clone(&catalog.object_store)),
-            Arc::new(Executor::new(1)),
-            Arc::new(SystemProvider::new()),
-            BackoffConfig::default(),
-            config,
-            Arc::clone(&metrics),
-        );
+        let partition1 = table_without_columns
+            .with_shard(&shard)
+            .create_partition("one")
+            .await;
 
-        // parquet files that are all in the same partition
-        let mut size_overrides = HashMap::<ParquetFileId, i64>::default();
+        let hot_time_one_hour_ago =
+            (compactor.time_provider.now() - Duration::from_secs(60 * 60)).timestamp_nanos();
 
-        // pf1 does not overlap with any other level 0
-        let builder = TestParquetFileBuilder::default()
-            .with_line_protocol(&lp1)
-            .with_max_seq(3)
-            .with_min_time(10)
-            .with_max_time(20)
-            .with_creation_time(time_38_hour_ago);
-        let f = partition.create_parquet_file(builder).await;
-        size_overrides.insert(
-            f.parquet_file.id,
-            compactor.config.max_desired_file_size_bytes as i64 + 10,
-        );
+        let pf1_1 = TestParquetFileBuilder::default()
+            .with_min_time(1)
+            .with_max_time(5)
+            .with_row_count(2)
+            .with_compaction_level(CompactionLevel::Initial)
+            .with_creation_time(hot_time_one_hour_ago);
+        partition1.create_parquet_file_catalog_record(pf1_1).await;
 
-        // pf6 was created in a previous compaction cycle; does not overlap with any
-        let builder = TestParquetFileBuilder::default()
-            .with_line_protocol(&lp6)
-            .with_max_seq(20)
-            .with_min_time(90000)
-            .with_max_time(91000)
-            .with_creation_time(time_38_hour_ago)
-            .with_compaction_level(CompactionLevel::FileNonOverlapped);
-        let f = partition.create_parquet_file(builder).await;
-        size_overrides.insert(f.parquet_file.id, 100); // small file
-
-        // should have 1 level-0 file before compacting
-        let count = catalog.count_level_0_files(shard.shard.id).await;
-        assert_eq!(count, 1);
-
-        // ------------------------------------------------
-        // Compact
         let candidates = compactor
-            .cold_partitions_to_compact(compactor.config.max_number_partitions_per_shard)
+            .hot_partitions_to_compact(
+                compactor.config.max_number_partitions_per_shard,
+                compactor
+                    .config
+                    .min_number_recent_ingested_files_per_partition,
+            )
             .await
             .unwrap();
-        let mut candidates = compactor.add_info_to_partitions(&candidates).await.unwrap();
-
         assert_eq!(candidates.len(), 1);
-        let c = candidates.pop_front().unwrap();
 
-        compact_cold_partition(&compactor, c, &size_overrides)
-            .await
-            .unwrap();
+        let candidates = compactor.add_info_to_partitions(&candidates).await.unwrap();
+        let mut sorted_candidates = candidates.into_iter().collect::<Vec<_>>();
+        sorted_candidates.sort_by_key(|c| c.candidate.partition_id);
+        let sorted_candidates = sorted_candidates.into_iter().collect::<VecDeque<_>>();
+        let table_columns = HashMap::new();
 
-        // Should have 2 non-soft-deleted files:
-        //
-        // - the level 1 file that didn't overlap with anything
-        // - the newly created level 1 file that was only upgraded from level 0
-        let mut files = catalog.list_by_table_not_to_delete(table.table.id).await;
-        assert_eq!(files.len(), 2);
-        let files_and_levels: Vec<_> = files
-            .iter()
-            .map(|f| (f.id.get(), f.compaction_level))
-            .collect();
-        assert_eq!(
-            files_and_levels,
-            vec![
-                (1, CompactionLevel::FileNonOverlapped),
-                (2, CompactionLevel::FileNonOverlapped),
-            ]
-        );
+        compact_candidates_with_memory_budget(
+            Arc::clone(&compactor),
+            "hot",
+            mock_compactor.compaction_function(),
+            sorted_candidates,
+            table_columns,
+        )
+        .await;
 
-        // ------------------------------------------------
-        // Verify the parquet file content
+        let compaction_groups = mock_compactor.results();
+        assert!(compaction_groups.is_empty());
+    }
 
-        // Later compacted file
-        let file1 = files.pop().unwrap();
-        let batches = table.read_parquet_file(file1).await;
-        assert_batches_sorted_eq!(
-            &[
-                "+-----------+------+------+-----------------------------+",
-                "| field_int | tag2 | tag3 | time                        |",
-                "+-----------+------+------+-----------------------------+",
-                "| 421       | OH   | 21   | 1970-01-01T00:00:00.000091Z |",
-                "| 81601     | PA   | 15   | 1970-01-01T00:00:00.000090Z |",
-                "+-----------+------+------+-----------------------------+",
-            ],
-            &batches
-        );
+    #[derive(Default)]
+    pub(crate) struct MockCompactor {
+        compaction_groups: Arc<Mutex<Vec<Vec<FilteredFiles>>>>,
+    }
 
-        // Earlier compacted file
-        let file0 = files.pop().unwrap();
-        let batches = table.read_parquet_file(file0).await;
-        assert_batches_sorted_eq!(
-            &[
-                "+-----------+------+--------------------------------+",
-                "| field_int | tag1 | time                           |",
-                "+-----------+------+--------------------------------+",
-                "| 10        | VT   | 1970-01-01T00:00:00.000000020Z |",
-                "| 1000      | WA   | 1970-01-01T00:00:00.000000010Z |",
-                "+-----------+------+--------------------------------+",
-            ],
-            &batches
-        );
+    type CompactorFunctionFactory = Box<
+        dyn Fn(
+                Arc<Compactor>,
+                Vec<FilteredFiles>,
+                &'static str,
+            ) -> Pin<Box<dyn futures::Future<Output = ()> + Send>>
+            + Send
+            + Sync
+            + 'static,
+    >;
+
+    impl MockCompactor {
+        pub(crate) fn compaction_function(&self) -> CompactorFunctionFactory {
+            let compaction_groups_for_closure = Arc::clone(&self.compaction_groups);
+            Box::new(
+                move |_compactor: Arc<Compactor>,
+                      parallel_compacting_candidates: Vec<FilteredFiles>,
+                      _compaction_type: &'static str| {
+                    let compaction_groups_for_async = Arc::clone(&compaction_groups_for_closure);
+                    Box::pin(async move {
+                        compaction_groups_for_async
+                            .lock()
+                            .unwrap()
+                            .push(parallel_compacting_candidates);
+                    })
+                },
+            )
+        }
+
+        pub(crate) fn results(self) -> Vec<Vec<FilteredFiles>> {
+            let Self { compaction_groups } = self;
+            Arc::try_unwrap(compaction_groups)
+                .unwrap()
+                .into_inner()
+                .unwrap()
+        }
     }
 
     fn make_compactor_config() -> CompactorConfig {
         CompactorConfig {
-            max_desired_file_size_bytes: 10_000,
-            percentage_max_file_size: 30,
-            split_percentage: 80,
-            max_cold_concurrent_size_bytes: 90_000,
-            max_number_partitions_per_shard: 1,
+            max_desired_file_size_bytes: 100_000_000,
+            percentage_max_file_size: 90,
+            split_percentage: 100,
+            max_number_partitions_per_shard: 100,
             min_number_recent_ingested_files_per_partition: 1,
-            cold_input_size_threshold_bytes: 600 * 1024 * 1024,
-            cold_input_file_count_threshold: 100,
             hot_multiple: 4,
-            memory_budget_bytes: 100_000_000,
+            memory_budget_bytes: 12 * 1125, // 13,500 bytes
+        }
+    }
+
+    pub(crate) struct TestSetup {
+        pub(crate) compactor: Arc<Compactor>,
+        pub(crate) mock_compactor: MockCompactor,
+        pub(crate) namespace: Arc<TestNamespace>,
+        pub(crate) shard: Arc<TestShard>,
+        pub(crate) table: Arc<TestTable>,
+    }
+
+    pub(crate) async fn test_setup() -> TestSetup {
+        let catalog = TestCatalog::new();
+        let namespace = catalog
+            .create_namespace("namespace_hot_partitions_to_compact")
+            .await;
+        let shard = namespace.create_shard(1).await;
+
+        // Create a scenario of a table of 5 columns: tag, time, field int, field string, field
+        // bool. Thus, each file will have estimated memory bytes = 1125 * row_count (for even
+        // row_counts).
+        let table = namespace.create_table("test_table").await;
+
+        table.create_column("tag", ColumnType::Tag).await;
+        table.create_column("time", ColumnType::Time).await;
+        table.create_column("field_int", ColumnType::I64).await;
+        table
+            .create_column("field_string", ColumnType::String)
+            .await;
+        table.create_column("field_bool", ColumnType::Bool).await;
+
+        // Create a compactor
+        // Compactor budget : 13,500
+        let time_provider = Arc::new(SystemProvider::new());
+        let config = make_compactor_config();
+        let compactor = Arc::new(Compactor::new(
+            vec![shard.shard.id],
+            Arc::clone(&catalog.catalog),
+            ParquetStorage::new(Arc::clone(&catalog.object_store)),
+            Arc::new(Executor::new(1)),
+            time_provider,
+            BackoffConfig::default(),
+            config,
+            Arc::new(metric::Registry::new()),
+        ));
+
+        let mock_compactor = MockCompactor::default();
+
+        TestSetup {
+            compactor,
+            mock_compactor,
+            namespace,
+            shard,
+            table,
         }
     }
 }

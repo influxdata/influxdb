@@ -41,6 +41,9 @@ pub enum CompactionLevel {
     Initial = 0,
     /// Level of files persisted by a Compactor that do not overlap with non-level-0 files.
     FileNonOverlapped = 1,
+    /// Level of files persisted by a Compactor that are fully compacted and should not be
+    /// recompacted unless a new overlapping Initial level file arrives
+    Final = 2,
 }
 
 impl TryFrom<i32> for CompactionLevel {

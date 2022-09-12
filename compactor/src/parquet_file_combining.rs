@@ -3,10 +3,10 @@ use crate::{
     query::QueryableParquetChunk,
 };
 use data_types::{
-    CompactionLevel, ParquetFile, ParquetFileId, ParquetFileParams, PartitionId, TableSchema,
-    TimestampMinMax,
+    CompactionLevel, ParquetFile, ParquetFileId, ParquetFileParams, PartitionId, SequenceNumber,
+    TableSchema, TimestampMinMax,
 };
-use datafusion::error::DataFusionError;
+use datafusion::{error::DataFusionError, logical_plan::LogicalPlan};
 use futures::{stream::FuturesOrdered, StreamExt, TryStreamExt};
 use iox_catalog::interface::Catalog;
 use iox_query::{
@@ -74,7 +74,7 @@ pub(crate) enum Error {
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn compact_parquet_files(
     files: Vec<CompactorParquetFile>,
-    partition: PartitionCompactionCandidateWithInfo,
+    partition: Arc<PartitionCompactionCandidateWithInfo>,
     // The global catalog for schema, parquet files and tombstones
     catalog: Arc<dyn Catalog>,
     // Object store for reading input parquet files and writing compacted parquet files
@@ -95,7 +95,7 @@ pub(crate) async fn compact_parquet_files(
     // 1 - `split_percentage` in the later compacted file.
     percentage_max_file_size: u16,
     // When data is between a "small" and "large" amount, split the compacted files at roughly this
-    // percentage in the earlier compacted file, and the remainder .in the later compacted file.
+    // percentage in the earlier compacted file, and the remainder in the later compacted file.
     split_percentage: u16,
 ) -> Result<(), Error> {
     let partition_id = partition.id();
@@ -235,13 +235,184 @@ pub(crate) async fn compact_parquet_files(
         }
     };
 
+    let compacted_parquet_files = compact_with_plan(
+        store,
+        exec,
+        time_provider,
+        plan,
+        sort_key,
+        Arc::clone(&partition),
+        partition_id,
+        max_sequence_number,
+        CompactionLevel::FileNonOverlapped,
+    )
+    .await?;
+
+    update_catalog(
+        catalog,
+        partition_id,
+        compacted_parquet_files,
+        &original_parquet_file_ids,
+    )
+    .await
+    .context(CatalogSnafu { partition_id })?;
+
+    info!(?partition_id, "compaction complete");
+
+    let attributes = Attributes::from([("shard_id", format!("{}", partition.shard_id()).into())]);
+    let compaction_input_file_bytes = compaction_input_file_bytes.recorder(attributes);
+    for size in file_sizes {
+        compaction_input_file_bytes.record(size as u64);
+    }
+
+    Ok(())
+}
+
+/// Compact all files given, no matter their size, into one level 2 file. When this is called by
+/// `full_compaction`, it should only receive a group of level 1 files that has already been
+/// selected to be an appropriate size.
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn compact_final_no_splits(
+    files: Vec<CompactorParquetFile>,
+    partition: Arc<PartitionCompactionCandidateWithInfo>,
+    // The global catalog for schema, parquet files and tombstones
+    catalog: Arc<dyn Catalog>,
+    // Object store for reading input parquet files and writing compacted parquet files
+    store: ParquetStorage,
+    // Executor for running queries, compacting, and persisting
+    exec: Arc<Executor>,
+    time_provider: Arc<dyn TimeProvider>,
+    // Histogram for the sizes of the files compacted
+    compaction_input_file_bytes: &Metric<U64Histogram>,
+) -> Result<(), Error> {
+    let partition_id = partition.id();
+
+    let num_files = files.len();
+    ensure!(
+        num_files > 0,
+        NotEnoughParquetFilesSnafu {
+            num_files,
+            partition_id
+        }
+    );
+
+    // Save all file sizes for recording metrics if this compaction succeeds.
+    let file_sizes: Vec<_> = files.iter().map(|f| f.file_size_bytes()).collect();
+
+    debug!(
+        ?partition_id,
+        num_files, "final compaction of files to level 2"
+    );
+
+    // Collect all the parquet file IDs, to be able to set their catalog records to be
+    // deleted. These should already be unique, no need to dedupe.
+    let original_parquet_file_ids: Vec<_> = files.iter().map(|f| f.id()).collect();
+
+    // Convert the input files into QueryableParquetChunk for making query plan
+    let query_chunks: Vec<_> = files
+        .into_iter()
+        .map(|file| {
+            to_queryable_parquet_chunk(
+                file,
+                store.clone(),
+                partition.table.name.clone(),
+                &partition.table_schema,
+                partition.sort_key.clone(),
+            )
+        })
+        .collect();
+
+    trace!(
+        n_query_chunks = query_chunks.len(),
+        "gathered parquet data to compact"
+    );
+
+    // Compute max sequence numbers and min/max time
+    // unwrap here will work because the len of the query_chunks already >= 1
+    let (head, tail) = query_chunks.split_first().unwrap();
+    let mut max_sequence_number = head.max_sequence_number();
+    let mut min_time = head.min_time();
+    let mut max_time = head.max_time();
+    for c in tail {
+        max_sequence_number = max(max_sequence_number, c.max_sequence_number());
+        min_time = min(min_time, c.min_time());
+        max_time = max(max_time, c.max_time());
+    }
+
+    // Merge schema of the compacting chunks
+    let query_chunks: Vec<_> = query_chunks
+        .into_iter()
+        .map(|c| Arc::new(c) as Arc<dyn QueryChunk>)
+        .collect();
+    let merged_schema = QueryableParquetChunk::merge_schemas(&query_chunks);
+    debug!(
+        num_cols = merged_schema.as_arrow().fields().len(),
+        "Number of columns in the merged schema to build query plan"
+    );
+
+    // All partitions in the catalog MUST contain a sort key.
+    let sort_key = partition
+        .sort_key
+        .as_ref()
+        .expect("no partition sort key in catalog")
+        .filter_to(&merged_schema.primary_key());
+
+    let ctx = exec.new_context(ExecutorType::Reorg);
+    // Compact everything into one file
+    let plan = ReorgPlanner::new(ctx.child_ctx("ReorgPlanner"))
+        .compact_plan(Arc::clone(&merged_schema), query_chunks, sort_key.clone())
+        .context(CompactLogicalPlanSnafu)?;
+
+    let compacted_parquet_files = compact_with_plan(
+        store,
+        exec,
+        time_provider,
+        plan,
+        sort_key,
+        Arc::clone(&partition),
+        partition_id,
+        max_sequence_number,
+        CompactionLevel::Final,
+    )
+    .await?;
+
+    update_catalog(
+        catalog,
+        partition_id,
+        compacted_parquet_files,
+        &original_parquet_file_ids,
+    )
+    .await
+    .context(CatalogSnafu { partition_id })?;
+
+    info!(?partition_id, "compaction complete");
+
+    let attributes = Attributes::from([("shard_id", format!("{}", partition.shard_id()).into())]);
+    let compaction_input_file_bytes = compaction_input_file_bytes.recorder(attributes);
+    for size in file_sizes {
+        compaction_input_file_bytes.record(size as u64);
+    }
+
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn compact_with_plan(
+    store: ParquetStorage,
+    exec: Arc<Executor>,
+    time_provider: Arc<dyn TimeProvider>,
+    plan: LogicalPlan,
+    sort_key: SortKey,
+    partition: Arc<PartitionCompactionCandidateWithInfo>,
+    partition_id: PartitionId,
+    max_sequence_number: SequenceNumber,
+    compaction_level: CompactionLevel,
+) -> Result<Vec<ParquetFileParams>, Error> {
     let ctx = exec.new_context(ExecutorType::Reorg);
     let physical_plan = ctx
         .create_physical_plan(&plan)
         .await
         .context(CompactPhysicalPlanSnafu)?;
-
-    let partition = Arc::new(partition);
 
     // Run to collect each stream of the plan
     let stream_count = physical_plan.output_partitioning().partition_count();
@@ -255,7 +426,7 @@ pub(crate) async fn compact_parquet_files(
     //
     // https://github.com/influxdata/influxdb_iox/issues/4306
     // https://github.com/influxdata/influxdb_iox/issues/4324
-    let compacted_parquet_files = (0..stream_count)
+    (0..stream_count)
         .map(|i| {
             // Prepare variables to pass to the closure
             let ctx = exec.new_context(ExecutorType::Reorg);
@@ -285,7 +456,7 @@ pub(crate) async fn compact_parquet_files(
                     partition_id,
                     partition_key: partition.partition_key.clone(),
                     max_sequence_number,
-                    compaction_level: CompactionLevel::FileNonOverlapped,
+                    compaction_level,
                     sort_key: Some(sort_key.clone()),
                 };
 
@@ -342,26 +513,7 @@ pub(crate) async fn compact_parquet_files(
         .try_filter_map(|v| future::ready(Ok(v)))
         // Collect all the persisted parquet files together.
         .try_collect::<Vec<_>>()
-        .await?;
-
-    update_catalog(
-        catalog,
-        partition_id,
-        compacted_parquet_files,
-        &original_parquet_file_ids,
-    )
-    .await
-    .context(CatalogSnafu { partition_id })?;
-
-    info!(?partition_id, "compaction complete");
-
-    let attributes = Attributes::from([("shard_id", format!("{}", partition.shard_id()).into())]);
-    let compaction_input_file_bytes = compaction_input_file_bytes.recorder(attributes);
-    for size in file_sizes {
-        compaction_input_file_bytes.record(size as u64);
-    }
-
-    Ok(())
+        .await
 }
 
 /// Convert ParquetFile to a QueryableParquetChunk
@@ -530,7 +682,7 @@ mod tests {
     struct TestSetup {
         catalog: Arc<TestCatalog>,
         table: Arc<TestTable>,
-        candidate_partition: PartitionCompactionCandidateWithInfo,
+        candidate_partition: Arc<PartitionCompactionCandidateWithInfo>,
         parquet_files: Vec<CompactorParquetFile>,
     }
 
@@ -556,7 +708,7 @@ mod tests {
         let sort_key = SortKey::from_columns(["tag1", "tag2", "tag3", "time"]);
         let partition = partition.update_sort_key(sort_key.clone()).await;
 
-        let candidate_partition = PartitionCompactionCandidateWithInfo {
+        let candidate_partition = Arc::new(PartitionCompactionCandidateWithInfo {
             table: Arc::new(table.table.clone()),
             table_schema: Arc::new(table_schema),
             namespace: Arc::new(ns.namespace.clone()),
@@ -568,7 +720,7 @@ mod tests {
             },
             sort_key: partition.partition.sort_key(),
             partition_key: partition.partition.partition_key.clone(),
-        };
+        });
 
         let lp = vec![
             "table,tag2=PA,tag3=15 field_int=1601i 30000",
@@ -1164,6 +1316,75 @@ mod tests {
                 "| 1500      | WA   |      |      | 1970-01-01T00:00:00.000008Z |",
                 "| 1601      |      | PA   | 15   | 1970-01-01T00:00:00.000030Z |",
                 "| 21        |      | OH   | 21   | 1970-01-01T00:00:00.000036Z |",
+                "| 270       | UT   |      |      | 1970-01-01T00:00:00.000025Z |",
+                "| 70        | UT   |      |      | 1970-01-01T00:00:00.000020Z |",
+                "| 99        | OR   |      |      | 1970-01-01T00:00:00.000012Z |",
+                "+-----------+------+------+------+-----------------------------+",
+            ],
+            &batches
+        );
+    }
+
+    #[tokio::test]
+    async fn compact_final_no_splits_creates_one_level_2_file() {
+        test_helpers::maybe_start_logging();
+
+        let TestSetup {
+            catalog,
+            table,
+            candidate_partition,
+            parquet_files,
+        } = test_setup().await;
+        let compaction_input_file_bytes = metrics();
+        let shard_id = candidate_partition.shard_id();
+
+        // Even though in the real cold compaction code, we'll usually pass a list of level 1 files
+        // selected by size, nothing in this function checks any of that -- it will compact all
+        // files it's given together into one level 2 file.
+        compact_final_no_splits(
+            parquet_files,
+            candidate_partition,
+            Arc::clone(&catalog.catalog),
+            ParquetStorage::new(Arc::clone(&catalog.object_store)),
+            Arc::clone(&catalog.exec),
+            Arc::clone(&catalog.time_provider) as Arc<dyn TimeProvider>,
+            &compaction_input_file_bytes,
+        )
+        .await
+        .unwrap();
+
+        // Should have 1 level 2 file, not split at all
+        let mut files = catalog.list_by_table_not_to_delete(table.table.id).await;
+        assert_eq!(files.len(), 1);
+        let file = files.pop().unwrap();
+        assert_eq!(file.id.get(), 7);
+        assert_eq!(file.compaction_level, CompactionLevel::Final);
+
+        // Verify the metrics
+        assert_eq!(
+            extract_byte_metrics(&compaction_input_file_bytes, shard_id),
+            ExtractedByteMetrics {
+                sample_count: 6,
+                buckets_with_counts: vec![(BUCKET_500_KB, 4), (u64::MAX, 2)],
+            }
+        );
+
+        // ------------------------------------------------
+        // Verify the parquet file content
+
+        let batches = read_parquet_file(&table, file).await;
+        assert_batches_sorted_eq!(
+            &[
+                "+-----------+------+------+------+-----------------------------+",
+                "| field_int | tag1 | tag2 | tag3 | time                        |",
+                "+-----------+------+------+------+-----------------------------+",
+                "| 10        | VT   |      |      | 1970-01-01T00:00:00.000006Z |",
+                "| 10        | VT   |      |      | 1970-01-01T00:00:00.000010Z |",
+                "| 10        | VT   |      |      | 1970-01-01T00:00:00.000068Z |",
+                "| 1500      | WA   |      |      | 1970-01-01T00:00:00.000008Z |",
+                "| 1601      |      | PA   | 15   | 1970-01-01T00:00:00.000030Z |",
+                "| 21        |      | OH   | 21   | 1970-01-01T00:00:00.000036Z |",
+                "| 210       |      | OH   | 21   | 1970-01-01T00:00:00.000136Z |",
                 "| 270       | UT   |      |      | 1970-01-01T00:00:00.000025Z |",
                 "| 70        | UT   |      |      | 1970-01-01T00:00:00.000020Z |",
                 "| 99        | OR   |      |      | 1970-01-01T00:00:00.000012Z |",
