@@ -213,11 +213,6 @@ pub(crate) async fn query(
     // Build logical plan for filtering data
     // Note that this query will also apply the delete predicates that go with the QueryableBatch
 
-    let mut expr = vec![];
-    if let Some(filter_expr) = predicate.filter_expr() {
-        expr.push(filter_expr);
-    }
-
     // TODO: Since we have different type of servers (router,
     // ingester, compactor, and querier), we may want to add more
     // types into the ExecutorType to have better log and resource

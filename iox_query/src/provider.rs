@@ -239,7 +239,7 @@ impl TableProvider for ChunkTableProvider {
         // the scan for the plans to be correct, they are an extra
         // optimization for providers which can offer them
         let predicate = Predicate::default().with_pushdown_exprs(filters);
-        let mut deduplicate = Deduplicater::new(self.ctx.child_ctx("deduplicator"));
+        let deduplicate = Deduplicater::new(self.ctx.child_ctx("deduplicator"));
         let plan = deduplicate.build_scan_plan(
             Arc::clone(&self.table_name),
             scan_schema,
@@ -268,13 +268,13 @@ impl TableProvider for ChunkTableProvider {
 /// A deduplicater that deduplicate the duplicated data during scan execution
 pub(crate) struct Deduplicater {
     /// a vector of a vector of overlapped chunks
-    pub overlapped_chunks_set: Vec<Vec<Arc<dyn QueryChunk>>>,
+    overlapped_chunks_set: Vec<Vec<Arc<dyn QueryChunk>>>,
 
     /// a vector of non-overlapped chunks each have duplicates in itself
-    pub in_chunk_duplicates_chunks: Vec<Arc<dyn QueryChunk>>,
+    in_chunk_duplicates_chunks: Vec<Arc<dyn QueryChunk>>,
 
     /// a vector of non-overlapped and non-duplicates chunks
-    pub no_duplicates_chunks: Vec<Arc<dyn QueryChunk>>,
+    no_duplicates_chunks: Vec<Arc<dyn QueryChunk>>,
 
     /// schema interner
     schema_interner: SchemaInterner,
@@ -370,7 +370,7 @@ impl Deduplicater {
     ///
     ///```
     pub(crate) fn build_scan_plan(
-        &mut self,
+        mut self,
         table_name: Arc<str>,
         output_schema: Arc<Schema>,
         chunks: Vec<Arc<dyn QueryChunk>>,
@@ -2303,7 +2303,7 @@ mod test {
         ];
         assert_batches_sorted_eq!(&expected, &raw_data(&chunks).await);
 
-        let mut deduplicator = Deduplicater::new(IOxSessionContext::with_testing());
+        let deduplicator = Deduplicater::new(IOxSessionContext::with_testing());
         let plan = deduplicator
             .build_scan_plan(Arc::from("t"), schema, chunks, Predicate::default(), None)
             .unwrap();
@@ -2360,7 +2360,7 @@ mod test {
         ];
         assert_batches_eq!(&expected, &raw_data(&chunks).await);
 
-        let mut deduplicator = Deduplicater::new(IOxSessionContext::with_testing());
+        let deduplicator = Deduplicater::new(IOxSessionContext::with_testing());
         let plan = deduplicator
             .build_scan_plan(Arc::from("t"), schema, chunks, Predicate::default(), None)
             .unwrap();
@@ -2434,7 +2434,7 @@ mod test {
             .build()
             .unwrap();
 
-        let mut deduplicator = Deduplicater::new(IOxSessionContext::with_testing());
+        let deduplicator = Deduplicater::new(IOxSessionContext::with_testing());
         let plan = deduplicator
             .build_scan_plan(
                 Arc::from("t"),
@@ -2534,7 +2534,7 @@ mod test {
         ];
         assert_batches_eq!(&expected, &raw_data(&chunks).await);
 
-        let mut deduplicator = Deduplicater::new(IOxSessionContext::with_testing());
+        let deduplicator = Deduplicater::new(IOxSessionContext::with_testing());
         let plan = deduplicator
             .build_scan_plan(Arc::from("t"), schema, chunks, Predicate::default(), None)
             .unwrap();
@@ -2686,7 +2686,7 @@ mod test {
         assert_batches_eq!(&expected, &raw_data(&chunks).await);
 
         // Create scan plan whose output data is only partially sorted
-        let mut deduplicator = Deduplicater::new(IOxSessionContext::with_testing());
+        let deduplicator = Deduplicater::new(IOxSessionContext::with_testing());
         let plan = deduplicator
             .build_scan_plan(Arc::from("t"), schema, chunks, Predicate::default(), None)
             .unwrap();
@@ -2889,7 +2889,7 @@ mod test {
         assert_batches_eq!(&expected, &raw_data(&chunks).await);
 
         let sort_key = compute_sort_key_for_chunks(&schema, &chunks);
-        let mut deduplicator = Deduplicater::new(IOxSessionContext::with_testing());
+        let deduplicator = Deduplicater::new(IOxSessionContext::with_testing());
         let plan = deduplicator
             .build_scan_plan(
                 Arc::from("t"),
@@ -3022,7 +3022,7 @@ mod test {
 
         let schema = chunk1.schema();
         let chunks = vec![chunk1, chunk2, chunk3, chunk4];
-        let mut deduplicator = Deduplicater::new(IOxSessionContext::with_testing());
+        let deduplicator = Deduplicater::new(IOxSessionContext::with_testing());
         let plan = deduplicator
             .build_scan_plan(
                 Arc::from("t"),
@@ -3209,7 +3209,7 @@ mod test {
             chunk1_1, chunk1_2, chunk1_3, chunk1_4, chunk2_1, chunk2_2, chunk2_3, chunk2_4,
             chunk2_5, chunk2_6,
         ];
-        let mut deduplicator = Deduplicater::new(IOxSessionContext::with_testing());
+        let deduplicator = Deduplicater::new(IOxSessionContext::with_testing());
         let plan = deduplicator
             .build_scan_plan(
                 Arc::from("t"),
