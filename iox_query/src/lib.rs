@@ -50,7 +50,7 @@ pub trait QueryChunkMeta {
     fn partition_sort_key(&self) -> Option<&SortKey>;
 
     /// Return partition id for this chunk
-    fn partition_id(&self) -> Option<PartitionId>;
+    fn partition_id(&self) -> PartitionId;
 
     /// return a reference to the sort key if any
     fn sort_key(&self) -> Option<&SortKey>;
@@ -271,7 +271,7 @@ where
         self.as_ref().schema()
     }
 
-    fn partition_id(&self) -> Option<PartitionId> {
+    fn partition_id(&self) -> PartitionId {
         self.as_ref().partition_id()
     }
 
@@ -304,7 +304,7 @@ impl QueryChunkMeta for Arc<dyn QueryChunk> {
         self.as_ref().schema()
     }
 
-    fn partition_id(&self) -> Option<PartitionId> {
+    fn partition_id(&self) -> PartitionId {
         self.as_ref().partition_id()
     }
 

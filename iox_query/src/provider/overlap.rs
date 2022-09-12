@@ -45,8 +45,8 @@ impl QueryChunkMeta for ParquetFile {
         unimplemented!()
     }
 
-    fn partition_id(&self) -> Option<PartitionId> {
-        Some(self.partition_id)
+    fn partition_id(&self) -> PartitionId {
+        self.partition_id
     }
 
     fn sort_key(&self) -> Option<&SortKey> {

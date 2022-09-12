@@ -190,7 +190,7 @@ pub struct TestChunk {
 
     id: ChunkId,
 
-    partition_id: Option<PartitionId>,
+    partition_id: PartitionId,
 
     /// Set the flag if this chunk might contain duplicates
     may_contain_pk_duplicates: bool,
@@ -299,7 +299,7 @@ impl TestChunk {
             sort_key: None,
             partition_sort_key: None,
             timestamp_min_max: None,
-            partition_id: None,
+            partition_id: PartitionId::new(0),
         }
     }
 
@@ -309,7 +309,7 @@ impl TestChunk {
     }
 
     pub fn with_partition_id(mut self, id: i64) -> Self {
-        self.partition_id = Some(PartitionId::new(id));
+        self.partition_id = PartitionId::new(id);
         self
     }
 
@@ -1014,7 +1014,7 @@ impl QueryChunkMeta for TestChunk {
         self.partition_sort_key.as_ref()
     }
 
-    fn partition_id(&self) -> Option<PartitionId> {
+    fn partition_id(&self) -> PartitionId {
         self.partition_id
     }
 

@@ -220,7 +220,7 @@ impl Reconciler {
         // collect columns
         let chunk_schemas: Vec<_> = chunks
             .iter()
-            .filter_map(|c| c.partition_id().map(|id| (id, c.schema())))
+            .map(|c| (c.partition_id(), c.schema()))
             .collect();
         let mut all_columns: HashMap<PartitionId, Vec<&str>> = HashMap::new();
         for (partition_id, schema) in &chunk_schemas {
@@ -250,14 +250,11 @@ impl Reconciler {
         chunks
             .into_iter()
             .map(|chunk| {
-                if let Some(partition_id) = chunk.partition_id() {
-                    let sort_key = sort_keys
-                        .get(&partition_id)
-                        .expect("sort key for this partition should be fetched by now");
-                    chunk.update_partition_sort_key(Arc::clone(sort_key))
-                } else {
-                    chunk
-                }
+                let partition_id = chunk.partition_id();
+                let sort_key = sort_keys
+                    .get(&partition_id)
+                    .expect("sort key for this partition should be fetched by now");
+                chunk.update_partition_sort_key(Arc::clone(sort_key))
             })
             .collect()
     }

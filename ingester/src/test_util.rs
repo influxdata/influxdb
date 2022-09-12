@@ -154,8 +154,13 @@ pub fn make_persisting_batch(
     batches: Vec<Arc<RecordBatch>>,
     tombstones: Vec<Tombstone>,
 ) -> Arc<PersistingBatch> {
-    let queryable_batch =
-        make_queryable_batch_with_deletes(table_name, seq_num_start, batches, tombstones);
+    let queryable_batch = make_queryable_batch_with_deletes(
+        table_name,
+        partition_id,
+        seq_num_start,
+        batches,
+        tombstones,
+    );
 
     Arc::new(PersistingBatch {
         shard_id: ShardId::new(shard_id),
@@ -168,14 +173,16 @@ pub fn make_persisting_batch(
 
 pub fn make_queryable_batch(
     table_name: &str,
+    partition_id: i64,
     seq_num_start: i64,
     batches: Vec<Arc<RecordBatch>>,
 ) -> Arc<QueryableBatch> {
-    make_queryable_batch_with_deletes(table_name, seq_num_start, batches, vec![])
+    make_queryable_batch_with_deletes(table_name, partition_id, seq_num_start, batches, vec![])
 }
 
 pub fn make_queryable_batch_with_deletes(
     table_name: &str,
+    partition_id: i64,
     seq_num_start: i64,
     batches: Vec<Arc<RecordBatch>>,
     tombstones: Vec<Tombstone>,
@@ -189,7 +196,12 @@ pub fn make_queryable_batch_with_deletes(
         seq_num += 1;
     }
 
-    Arc::new(QueryableBatch::new(table_name, snapshots, tombstones))
+    Arc::new(QueryableBatch::new(
+        table_name,
+        PartitionId::new(partition_id),
+        snapshots,
+        tombstones,
+    ))
 }
 
 pub fn make_snapshot_batch(

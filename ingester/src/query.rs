@@ -47,12 +47,18 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 impl QueryableBatch {
     /// Initilaize a QueryableBatch
-    pub fn new(table_name: &str, data: Vec<Arc<SnapshotBatch>>, deletes: Vec<Tombstone>) -> Self {
+    pub fn new(
+        table_name: &str,
+        partition_id: PartitionId,
+        data: Vec<Arc<SnapshotBatch>>,
+        deletes: Vec<Tombstone>,
+    ) -> Self {
         let delete_predicates = tombstones_to_delete_predicates(&deletes);
         Self {
             data,
             delete_predicates,
             table_name: table_name.to_string(),
+            partition_id,
         }
     }
 
@@ -112,10 +118,8 @@ impl QueryChunkMeta for QueryableBatch {
         None // Ingester data has not persisted yet and should not be attached to any partition
     }
 
-    fn partition_id(&self) -> Option<PartitionId> {
-        // Ingetser data is not officially attached to any parittion id yet.
-        // Only persisting & persisted data has partition id and we want to keep it that way
-        None
+    fn partition_id(&self) -> PartitionId {
+        self.partition_id
     }
 
     fn sort_key(&self) -> Option<&SortKey> {
@@ -294,7 +298,8 @@ mod tests {
         ];
 
         // This new queryable batch will convert tombstone to delete predicates
-        let query_batch = QueryableBatch::new("test_table", vec![], tombstones);
+        let query_batch =
+            QueryableBatch::new("test_table", PartitionId::new(0), vec![], tombstones);
         let predicates = query_batch.delete_predicates();
         let expected = vec![
             Arc::new(DeletePredicate {

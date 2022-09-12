@@ -775,7 +775,7 @@ mod tests {
         let batches = create_one_row_record_batch_with_influxtype().await;
 
         // build queryable batch from the input batches
-        let compact_batch = make_queryable_batch("test_table", 1, batches);
+        let compact_batch = make_queryable_batch("test_table", 0, 1, batches);
 
         // verify PK
         let schema = compact_batch.schema();
@@ -819,7 +819,8 @@ mod tests {
         let tombstones = vec![create_tombstone(1, 1, 1, 1, 0, 200000, "tag1=UT")];
 
         // build queryable batch from the input batches
-        let compact_batch = make_queryable_batch_with_deletes("test_table", 1, batches, tombstones);
+        let compact_batch =
+            make_queryable_batch_with_deletes("test_table", 0, 1, batches, tombstones);
 
         // verify PK
         let schema = compact_batch.schema();
@@ -863,7 +864,7 @@ mod tests {
         let batches = create_one_record_batch_with_influxtype_duplicates().await;
 
         // build queryable batch from the input batches
-        let compact_batch = make_queryable_batch("test_table", 1, batches);
+        let compact_batch = make_queryable_batch("test_table", 0, 1, batches);
 
         // verify PK
         let schema = compact_batch.schema();
@@ -912,7 +913,7 @@ mod tests {
         let batches = create_batches_with_influxtype().await;
 
         // build queryable batch from the input batches
-        let compact_batch = make_queryable_batch("test_table", 1, batches);
+        let compact_batch = make_queryable_batch("test_table", 0, 1, batches);
 
         // verify PK
         let schema = compact_batch.schema();
@@ -958,7 +959,7 @@ mod tests {
         let batches = create_batches_with_influxtype_different_columns().await;
 
         // build queryable batch from the input batches
-        let compact_batch = make_queryable_batch("test_table", 1, batches);
+        let compact_batch = make_queryable_batch("test_table", 0, 1, batches);
 
         // verify PK
         let schema = compact_batch.schema();
@@ -1018,7 +1019,8 @@ mod tests {
         )];
 
         // build queryable batch from the input batches
-        let compact_batch = make_queryable_batch_with_deletes("test_table", 1, batches, tombstones);
+        let compact_batch =
+            make_queryable_batch_with_deletes("test_table", 0, 1, batches, tombstones);
 
         // verify PK
         let schema = compact_batch.schema();
@@ -1086,7 +1088,8 @@ mod tests {
         ];
 
         // build queryable batch from the input batches
-        let compact_batch = make_queryable_batch_with_deletes("test_table", 1, batches, tombstones);
+        let compact_batch =
+            make_queryable_batch_with_deletes("test_table", 0, 1, batches, tombstones);
 
         // verify PK
         let schema = compact_batch.schema();
@@ -1147,7 +1150,8 @@ mod tests {
         ];
 
         // build queryable batch from the input batches
-        let compact_batch = make_queryable_batch_with_deletes("test_table", 1, batches, tombstones);
+        let compact_batch =
+            make_queryable_batch_with_deletes("test_table", 0, 1, batches, tombstones);
 
         // verify PK
         let schema = compact_batch.schema();
@@ -1206,7 +1210,7 @@ mod tests {
         let batches = create_batches_with_influxtype_same_columns_different_type().await;
 
         // build queryable batch from the input batches
-        let compact_batch = make_queryable_batch("test_table", 1, batches);
+        let compact_batch = make_queryable_batch("test_table", 0, 1, batches);
 
         // the schema merge will thorw a panic
         compact_batch.schema();

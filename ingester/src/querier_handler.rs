@@ -184,7 +184,14 @@ async fn prepare_data_to_querier_for_partition(
     // figure out what batches
     let queryable_batch = unpersisted_partition_data
         .persisting
-        .unwrap_or_else(|| QueryableBatch::new(&request.table, vec![], vec![]))
+        .unwrap_or_else(|| {
+            QueryableBatch::new(
+                &request.table,
+                unpersisted_partition_data.partition_id,
+                vec![],
+                vec![],
+            )
+        })
         .with_data(unpersisted_partition_data.non_persisted);
 
     // No data!
@@ -299,7 +306,7 @@ mod tests {
         let batches = create_one_record_batch_with_influxtype_no_duplicates().await;
 
         // build queryable batch from the input batches
-        let batch = make_queryable_batch("test_table", 1, batches);
+        let batch = make_queryable_batch("test_table", 0, 1, batches);
 
         // query without filters
         let exc = Executor::new(1);
@@ -333,7 +340,7 @@ mod tests {
         let batches = create_one_record_batch_with_influxtype_no_duplicates().await;
 
         // build queryable batch from the input batches
-        let batch = make_queryable_batch("test_table", 1, batches);
+        let batch = make_queryable_batch("test_table", 0, 1, batches);
 
         // make filters
         // Only read 2 columns: "tag1" and "time"
@@ -371,7 +378,7 @@ mod tests {
         let tombstones = vec![create_tombstone(1, 1, 1, 1, 0, 200000, "tag1=UT")];
 
         // build queryable batch from the input batches
-        let batch = make_queryable_batch_with_deletes("test_table", 1, batches, tombstones);
+        let batch = make_queryable_batch_with_deletes("test_table", 0, 1, batches, tombstones);
 
         // make filters
         // Only read 2 columns: "tag1" and "time"

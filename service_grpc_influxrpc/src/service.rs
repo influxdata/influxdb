@@ -1629,7 +1629,7 @@ mod tests {
         num::NonZeroU64,
         sync::Arc,
     };
-    use test_helpers::{assert_contains, tracing::TracingCapture};
+    use test_helpers::{assert_contains, maybe_start_logging, tracing::TracingCapture};
     use tokio::{pin, task::JoinHandle};
     use tokio_stream::wrappers::TcpListenerStream;
 
@@ -3264,6 +3264,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_query_semaphore() {
+        maybe_start_logging();
         let semaphore_size = 2;
         let test_storage = Arc::new(TestDatabaseStore::new_with_semaphore_size(semaphore_size));
 

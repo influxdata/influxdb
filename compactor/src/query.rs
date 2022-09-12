@@ -125,8 +125,8 @@ impl QueryChunkMeta for QueryableParquetChunk {
         self.partition_sort_key.as_ref()
     }
 
-    fn partition_id(&self) -> Option<PartitionId> {
-        Some(self.partition_id)
+    fn partition_id(&self) -> PartitionId {
+        self.partition_id
     }
 
     fn sort_key(&self) -> Option<&SortKey> {

@@ -79,8 +79,8 @@ impl QueryChunkMeta for QuerierChunk {
         self.partition_sort_key.as_ref().as_ref()
     }
 
-    fn partition_id(&self) -> Option<PartitionId> {
-        Some(self.meta().partition_id())
+    fn partition_id(&self) -> PartitionId {
+        self.meta().partition_id()
     }
 
     fn sort_key(&self) -> Option<&SortKey> {

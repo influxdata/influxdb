@@ -634,18 +634,11 @@ impl Deduplicater {
         // Group chunks by partition first
         // Chunks in different partition are guarantee not to overlap
 
-        // Chunks without assigned partition id should be treated overlapped
-        // This is the case of ingester data
-        if chunks.iter().any(|c| c.partition_id().is_none()) {
-            self.overlapped_chunks_set.push(chunks);
-            return Ok(());
-        }
-
         // Group chunks by partition
         let mut partition_groups = HashMap::with_capacity(chunks.len());
         for chunk in chunks {
             let chunks = partition_groups
-                .entry(chunk.partition_id().expect("Chunk must have partition id"))
+                .entry(chunk.partition_id())
                 .or_insert_with(Vec::new);
             chunks.push(chunk);
         }
@@ -1318,54 +1311,6 @@ mod test {
         assert_eq!(
             chunk_ids(&deduplicator.no_duplicates_chunks),
             "00000000-0000-0000-0000-000000000001"
-        );
-    }
-
-    #[test]
-    fn chunk_grouping_no_partition() {
-        // At least one chunk without assigned partition, all chunks are considered overlapped even if their time ranges do not
-
-        // c1: no time-range overlaps
-        let c1 = Arc::new(
-            TestChunk::new("t")
-                .with_id(1)
-                .with_partition_id(10)
-                .with_time_column_with_stats(Some(1), Some(10)),
-        );
-
-        // c2: time-range overlap with c3
-        let c2 = Arc::new(
-            TestChunk::new("t")
-                .with_id(2)
-                .with_partition_id(10)
-                .with_time_column_with_stats(Some(15), Some(20)),
-        );
-
-        // c3: time-range overlap with c2
-        // no partition provided
-        let c3 = Arc::new(
-            TestChunk::new("t")
-                .with_id(3)
-                .with_time_column_with_stats(Some(17), Some(23)),
-        );
-
-        // c4: time-range self overlap
-        let c4 = Arc::new(
-            TestChunk::new("t")
-                .with_id(4)
-                .with_partition_id(10)
-                .with_time_column_with_stats(Some(30), Some(40))
-                .with_may_contain_pk_duplicates(true),
-        );
-
-        let mut deduplicator = Deduplicater::new(IOxSessionContext::with_testing());
-        deduplicator
-            .split_overlapped_chunks(vec![c1, c2, c3, c4])
-            .expect("split chunks");
-
-        assert_eq!(
-            chunk_group_ids(&deduplicator.overlapped_chunks_set),
-            vec!["Group 0: 00000000-0000-0000-0000-000000000001, 00000000-0000-0000-0000-000000000002, 00000000-0000-0000-0000-000000000003, 00000000-0000-0000-0000-000000000004"]
         );
     }
 

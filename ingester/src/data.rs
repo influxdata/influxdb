@@ -1146,10 +1146,11 @@ impl PartitionData {
         // First apply the tombstone on all in-memory & non-persisting data
         // Make a QueryableBatch for all buffer + snapshots + the given tombstone
         let max_sequence_number = tombstone.sequence_number;
-        let query_batch = match self
-            .data
-            .snapshot_to_queryable_batch(table_name, Some(tombstone.clone()))
-        {
+        let query_batch = match self.data.snapshot_to_queryable_batch(
+            table_name,
+            self.id,
+            Some(tombstone.clone()),
+        ) {
             Some(query_batch) if !query_batch.is_empty() => query_batch,
             _ => {
                 // No need to proceed further
@@ -1317,6 +1318,7 @@ impl DataBuffer {
     pub fn snapshot_to_queryable_batch(
         &mut self,
         table_name: &str,
+        partition_id: PartitionId,
         tombstone: Option<Tombstone>,
     ) -> Option<QueryableBatch> {
         self.snapshot()
@@ -1334,7 +1336,12 @@ impl DataBuffer {
         if data.is_empty() {
             None
         } else {
-            Some(QueryableBatch::new(table_name, data, tombstones))
+            Some(QueryableBatch::new(
+                table_name,
+                partition_id,
+                data,
+                tombstones,
+            ))
         }
     }
 
@@ -1369,7 +1376,9 @@ impl DataBuffer {
             panic!("Unable to snapshot while persisting. This is an unexpected state.")
         }
 
-        if let Some(queryable_batch) = self.snapshot_to_queryable_batch(table_name, None) {
+        if let Some(queryable_batch) =
+            self.snapshot_to_queryable_batch(table_name, partition_id, None)
+        {
             let persisting_batch = Arc::new(PersistingBatch {
                 shard_id,
                 table_id,
@@ -1529,6 +1538,9 @@ pub struct QueryableBatch {
 
     /// This is needed to return a reference for a trait function
     pub(crate) table_name: String,
+
+    /// Partition ID
+    pub(crate) partition_id: PartitionId,
 }
 
 /// Status of a partition that has unpersisted data.
