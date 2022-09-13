@@ -169,12 +169,18 @@ impl Compactor {
         );
 
         let file_size_buckets = U64HistogramOptions::new([
-            500 * 1024,       // 500 KB
-            1024 * 1024,      // 1 MB
-            3 * 1024 * 1024,  // 3 MB
-            10 * 1024 * 1024, // 10 MB
-            30 * 1024 * 1024, // 30 MB
-            u64::MAX,         // Inf
+            50 * 1024,         // 50KB
+            100 * 1024,        // 100KB
+            300 * 1024,        // 300KB
+            500 * 1024,        // 500 KB
+            1024 * 1024,       // 1 MB
+            3 * 1024 * 1024,   // 3 MB
+            10 * 1024 * 1024,  // 10 MB
+            30 * 1024 * 1024,  // 30 MB
+            100 * 1024 * 1024, // 100 MB
+            300 * 1024 * 1024, // 300 MB
+            500 * 1024 * 1024, // 500 MB
+            u64::MAX,          // Inf
         ]);
 
         let parquet_file_candidate_bytes = registry.register_metric_with_options(
@@ -198,6 +204,10 @@ impl Compactor {
             Duration::from_millis(30_000),
             Duration::from_millis(60_000), // 1 minute
             Duration::from_millis(5 * 60_000),
+            Duration::from_millis(10 * 60_000),
+            Duration::from_millis(20 * 60_000),
+            Duration::from_millis(40 * 60_000),
+            Duration::from_millis(60 * 60_000),
             DURATION_MAX,
         ]);
         let compaction_duration: Metric<DurationHistogram> = registry.register_metric_with_options(
@@ -206,15 +216,18 @@ impl Compactor {
             || duration_histogram_options.clone(),
         );
 
-        let candidate_selection_duration: Metric<DurationHistogram> = registry.register_metric(
-            "compactor_candidate_selection_duration",
-            "Duration to select compaction partition candidates",
-        );
+        let candidate_selection_duration: Metric<DurationHistogram> = registry
+            .register_metric_with_options(
+                "compactor_candidate_selection_duration",
+                "Duration to select compaction partition candidates",
+                || duration_histogram_options.clone(),
+            );
 
         let partitions_extra_info_reading_duration: Metric<DurationHistogram> = registry
-            .register_metric(
+            .register_metric_with_options(
                 "compactor_partitions_extra_info_reading_duration",
                 "Duration to read and add extra information into selected partition candidates",
+                || duration_histogram_options.clone(),
             );
 
         let compaction_cycle_duration: Metric<DurationHistogram> = registry
