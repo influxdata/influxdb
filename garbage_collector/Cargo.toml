@@ -9,7 +9,7 @@ chrono-english = "0.1.4"
 clap = { version = "3", features = ["derive", "env"] }
 futures = "0.3"
 iox_catalog = { path = "../iox_catalog" }
-object_store = { version = "0.4.0" }
+object_store = { version = "0.5.0" }
 observability_deps = { path = "../observability_deps" }
 snafu = "0.7"
 tokio = { version = "1", features = ["macros", "rt", "sync"] }

@@ -42,7 +42,7 @@ memchr = { version = "2", features = ["std"] }
 nom = { version = "7", features = ["alloc", "std"] }
 num-integer = { version = "0.1", default-features = false, features = ["i128", "std"] }
 num-traits = { version = "0.2", features = ["i128", "libm", "std"] }
-object_store = { git = "https://github.com/tustvold/arrow-rs.git", rev = "b167e3318cea81946a3c35e8d2e2baea69252303", default-features = false, features = ["aws", "azure", "base64", "cloud", "gcp", "quick-xml", "rand", "reqwest", "ring", "rustls-pemfile", "serde", "serde_json"] }
+object_store = { version = "0.5", default-features = false, features = ["aws", "azure", "base64", "cloud", "gcp", "quick-xml", "rand", "reqwest", "ring", "rustls-pemfile", "serde", "serde_json"] }
 once_cell = { version = "1", features = ["alloc", "parking_lot", "parking_lot_core", "race", "std"] }
 parking_lot = { version = "0.12", features = ["arc_lock"] }
 parquet = { version = "22", features = ["arrow", "async", "base64", "brotli", "experimental", "flate2", "futures", "lz4", "snap", "tokio", "zstd"] }

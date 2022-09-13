@@ -1035,15 +1035,15 @@ dependencies = [
 name = "datafusion"
 version = "0.1.0"
 dependencies = [
- "datafusion 11.0.0",
+ "datafusion 12.0.0",
  "datafusion-proto",
  "workspace-hack",
 ]
 
 [[package]]
 name = "datafusion"
-version = "11.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=42587518f2899dbca102c97ad93873d25d906aad#42587518f2899dbca102c97ad93873d25d906aad"
+version = "12.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=97b3a4b37f54aaa52f8705db3e57b15ee98c24a7#97b3a4b37f54aaa52f8705db3e57b15ee98c24a7"
 dependencies = [
  "ahash 0.8.0",
  "arrow",
@@ -1071,7 +1071,7 @@ dependencies = [
  "pin-project-lite",
  "rand",
  "smallvec",
- "sqlparser 0.22.0",
+ "sqlparser",
  "tempfile",
  "tokio",
  "tokio-stream",
@@ -1081,32 +1081,32 @@ dependencies = [
 
 [[package]]
 name = "datafusion-common"
-version = "11.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=42587518f2899dbca102c97ad93873d25d906aad#42587518f2899dbca102c97ad93873d25d906aad"
+version = "12.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=97b3a4b37f54aaa52f8705db3e57b15ee98c24a7#97b3a4b37f54aaa52f8705db3e57b15ee98c24a7"
 dependencies = [
  "arrow",
  "object_store",
  "ordered-float 3.0.0",
  "parquet",
  "serde_json",
- "sqlparser 0.22.0",
+ "sqlparser",
 ]
 
 [[package]]
 name = "datafusion-expr"
-version = "11.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=42587518f2899dbca102c97ad93873d25d906aad#42587518f2899dbca102c97ad93873d25d906aad"
+version = "12.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=97b3a4b37f54aaa52f8705db3e57b15ee98c24a7#97b3a4b37f54aaa52f8705db3e57b15ee98c24a7"
 dependencies = [
  "ahash 0.8.0",
  "arrow",
  "datafusion-common",
- "sqlparser 0.22.0",
+ "sqlparser",
 ]
 
 [[package]]
 name = "datafusion-optimizer"
-version = "11.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=42587518f2899dbca102c97ad93873d25d906aad#42587518f2899dbca102c97ad93873d25d906aad"
+version = "12.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=97b3a4b37f54aaa52f8705db3e57b15ee98c24a7#97b3a4b37f54aaa52f8705db3e57b15ee98c24a7"
 dependencies = [
  "arrow",
  "async-trait",
@@ -1120,8 +1120,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-physical-expr"
-version = "11.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=42587518f2899dbca102c97ad93873d25d906aad#42587518f2899dbca102c97ad93873d25d906aad"
+version = "12.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=97b3a4b37f54aaa52f8705db3e57b15ee98c24a7#97b3a4b37f54aaa52f8705db3e57b15ee98c24a7"
 dependencies = [
  "ahash 0.8.0",
  "arrow",
@@ -1144,11 +1144,11 @@ dependencies = [
 
 [[package]]
 name = "datafusion-proto"
-version = "11.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=42587518f2899dbca102c97ad93873d25d906aad#42587518f2899dbca102c97ad93873d25d906aad"
+version = "12.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=97b3a4b37f54aaa52f8705db3e57b15ee98c24a7#97b3a4b37f54aaa52f8705db3e57b15ee98c24a7"
 dependencies = [
  "arrow",
- "datafusion 11.0.0",
+ "datafusion 12.0.0",
  "datafusion-common",
  "datafusion-expr",
  "prost 0.11.0",
@@ -1157,8 +1157,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-row"
-version = "11.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=42587518f2899dbca102c97ad93873d25d906aad#42587518f2899dbca102c97ad93873d25d906aad"
+version = "12.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=97b3a4b37f54aaa52f8705db3e57b15ee98c24a7#97b3a4b37f54aaa52f8705db3e57b15ee98c24a7"
 dependencies = [
  "arrow",
  "datafusion-common",
@@ -1168,15 +1168,15 @@ dependencies = [
 
 [[package]]
 name = "datafusion-sql"
-version = "11.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=42587518f2899dbca102c97ad93873d25d906aad#42587518f2899dbca102c97ad93873d25d906aad"
+version = "12.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=97b3a4b37f54aaa52f8705db3e57b15ee98c24a7#97b3a4b37f54aaa52f8705db3e57b15ee98c24a7"
 dependencies = [
  "ahash 0.8.0",
  "arrow",
  "datafusion-common",
  "datafusion-expr",
  "hashbrown",
- "sqlparser 0.22.0",
+ "sqlparser",
  "tokio",
 ]
 
@@ -1979,7 +1979,7 @@ dependencies = [
  "log",
  "num-format",
  "once_cell",
- "quick-xml",
+ "quick-xml 0.23.1",
  "rgb",
  "str_stack",
 ]
@@ -2149,7 +2149,7 @@ version = "0.1.0"
 dependencies = [
  "generated_types",
  "snafu",
- "sqlparser 0.23.0",
+ "sqlparser",
  "workspace-hack",
 ]
 
@@ -3087,8 +3087,9 @@ dependencies = [
 
 [[package]]
 name = "object_store"
-version = "0.4.0"
-source = "git+https://github.com/tustvold/arrow-rs.git?rev=b167e3318cea81946a3c35e8d2e2baea69252303#b167e3318cea81946a3c35e8d2e2baea69252303"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2168fee79ee3e7695905bc3a48777d807f82d956f821186fa7a2601c1295a73e"
 dependencies = [
  "async-trait",
  "base64",
@@ -3098,7 +3099,7 @@ dependencies = [
  "itertools",
  "parking_lot 0.12.1",
  "percent-encoding",
- "quick-xml",
+ "quick-xml 0.24.1",
  "rand",
  "reqwest",
  "ring",
@@ -3525,7 +3526,7 @@ dependencies = [
  "schema",
  "serde_json",
  "snafu",
- "sqlparser 0.23.0",
+ "sqlparser",
  "test_helpers",
  "workspace-hack",
 ]
@@ -3880,6 +3881,15 @@ name = "quick-xml"
 version = "0.23.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "11bafc859c6815fbaffbbbf4229ecb767ac913fecb27f9ad4343662e9ef099ea"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
+name = "quick-xml"
+version = "0.24.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "37dddbbe9df96afafcb8027fcf263971b726530e12f0787f620a7ba5b4846081"
 dependencies = [
  "memchr",
  "serde",
@@ -4659,15 +4669,6 @@ dependencies = [
  "itertools",
  "nom",
  "unicode_categories",
-]
-
-[[package]]
-name = "sqlparser"
-version = "0.22.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6483de5881514f11fe570f53fcee3cd9194e91eb43659cb356df69f99ef0f83e"
-dependencies = [
- "log",
 ]
 
 [[package]]

@@ -120,7 +120,3 @@ inherits = "release"
 codegen-units = 16
 lto = false
 incremental = true
-
-[patch.crates-io]
-# remove and bump object_store dep version once this revision is released.
-object_store = { git = 'https://github.com/tustvold/arrow-rs.git', rev = "b167e3318cea81946a3c35e8d2e2baea69252303", package = "object_store" }

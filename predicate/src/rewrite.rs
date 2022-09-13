@@ -78,6 +78,9 @@ fn is_comparison(op: Operator) -> bool {
     match op {
         Operator::BitwiseAnd => false,
         Operator::BitwiseOr => false,
+        Operator::BitwiseShiftLeft => false,
+        Operator::BitwiseShiftRight => false,
+        Operator::BitwiseXor => false,
         Operator::Eq => true,
         Operator::NotEq => true,
         Operator::Lt => true,
@@ -100,8 +103,6 @@ fn is_comparison(op: Operator) -> bool {
         Operator::RegexNotMatch => true,
         Operator::RegexNotIMatch => true,
         Operator::StringConcat => false,
-        Operator::BitwiseShiftLeft => false,
-        Operator::BitwiseShiftRight => false,
     }
 }
 
