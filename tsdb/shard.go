@@ -1903,6 +1903,8 @@ func (fs *MeasurementFieldSet) WriteToFileNoLock() error {
 			err = fmt.Errorf("failed removing saved field changes - %s: %w", fs.changeMgr.Path, e)
 		}
 	}()
+	fs.mu.RLock()
+	defer fs.mu.RUnlock()
 	isEmpty, err := func() (isEmpty bool, err error) {
 		// ensure temp file closed before rename (for Windows)
 		defer func() {
@@ -1915,7 +1917,7 @@ func (fs *MeasurementFieldSet) WriteToFileNoLock() error {
 		}
 
 		// Lock, copy, and marshal the in-memory index
-		b, err := fs.marshalMeasurementFieldSet()
+		b, err := fs.marshalMeasurementFieldSetNoLock()
 		if err != nil {
 			return true, fmt.Errorf("failed marshaling fields for %s: %w", fs.path, err)
 		}
@@ -1939,7 +1941,7 @@ func (fs *MeasurementFieldSet) WriteToFileNoLock() error {
 		}
 	}
 
-	return fs.renameFile(path)
+	return fs.renameFileNoLock(path)
 }
 
 // writeChangesToFile: Write a change file for fields.idx
@@ -2045,10 +2047,7 @@ func readSizePlusBuffer(r io.Reader, b []byte) ([]byte, error) {
 	return b, nil
 }
 
-func (fs *MeasurementFieldSet) renameFile(path string) error {
-	fs.mu.Lock()
-	defer fs.mu.Unlock()
-
+func (fs *MeasurementFieldSet) renameFileNoLock(path string) error {
 	if err := file.RenameFile(path, fs.path); err != nil {
 		return fmt.Errorf("cannot rename %s to %s: %w", path, fs.path, err)
 	}
@@ -2061,12 +2060,10 @@ func (fs *MeasurementFieldSet) renameFile(path string) error {
 	return nil
 }
 
-// marshalMeasurementFieldSet: remove the fields.idx file if no fields
+// marshalMeasurementFieldSetNoLock: remove the fields.idx file if no fields
 // otherwise, copy the in-memory version into a protobuf to write to
 // disk
-func (fs *MeasurementFieldSet) marshalMeasurementFieldSet() (marshalled []byte, err error) {
-	fs.mu.RLock()
-	defer fs.mu.RUnlock()
+func (fs *MeasurementFieldSet) marshalMeasurementFieldSetNoLock() (marshalled []byte, err error) {
 	if len(fs.fields) == 0 {
 		// If no fields left, remove the fields index file
 		return nil, nil
