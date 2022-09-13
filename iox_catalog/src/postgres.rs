@@ -2093,6 +2093,7 @@ mod tests {
     use super::*;
     use crate::create_or_get_default_records;
     use assert_matches::assert_matches;
+    use data_types::{ColumnId, ColumnSet};
     use metric::{Attributes, DurationHistogram, Metric};
     use rand::Rng;
     use sqlx::migrate::MigrateDatabase;
@@ -2793,4 +2794,138 @@ mod tests {
         },
         want = Err(Error::SqlxError{ .. })
     );
+
+    #[tokio::test]
+    async fn test_billing_summary_on_parqet_file_creation() {
+        // If running an integration test on your laptop, this requires that you have Postgres running
+        //
+        // This is a command to run this test on your laptop
+        //    TEST_INTEGRATION=1 TEST_INFLUXDB_IOX_CATALOG_DSN=postgres:postgres://$USER@localhost/iox_shared RUST_BACKTRACE=1 cargo test --package iox_catalog --lib -- postgres::tests::test_billing_summary_on_parqet_file_creation --exact --nocapture
+        //
+        // If you do not have Postgres's iox_shared db, here are commands to install Postgres (on mac) and create iox_shared db
+        //    brew install postgresql
+        //    initdb pg
+        //    createdb iox_shared
+        //
+        // Or if you're on Linux or otherwise don't mind using Docker:
+        //    ./scripts/docker_catalog.sh
+
+        maybe_skip_integration!();
+
+        let postgres = setup_db().await;
+        let pool = postgres.pool.clone();
+
+        let postgres: Arc<dyn Catalog> = Arc::new(postgres);
+        let mut txn = postgres.start_transaction().await.expect("txn start");
+        let (kafka, query, shards) = create_or_get_default_records(1, txn.deref_mut())
+            .await
+            .expect("db init failed");
+        txn.commit().await.expect("txn commit");
+
+        let namespace_id = postgres
+            .repositories()
+            .await
+            .namespaces()
+            .create("ns4", crate::INFINITE_RETENTION_POLICY, kafka.id, query.id)
+            .await
+            .expect("namespace create failed")
+            .id;
+        let table_id = postgres
+            .repositories()
+            .await
+            .tables()
+            .create_or_get("table", namespace_id)
+            .await
+            .expect("create table failed")
+            .id;
+
+        let key = "bananas";
+        let shard_id = *shards.keys().next().expect("no shard");
+
+        let partition_id = postgres
+            .repositories()
+            .await
+            .partitions()
+            .create_or_get(key.into(), shard_id, table_id)
+            .await
+            .expect("should create OK")
+            .id;
+
+        // parquet file to create- all we care about here is the size, the rest is to satisfy DB
+        // constraints
+        let time_provider = Arc::new(SystemProvider::new());
+        let time_now = Timestamp::new(time_provider.now().timestamp_nanos());
+        let mut p1 = ParquetFileParams {
+            shard_id,
+            namespace_id,
+            table_id,
+            partition_id,
+            object_store_id: Uuid::new_v4(),
+            max_sequence_number: SequenceNumber::new(100),
+            min_time: Timestamp::new(1),
+            max_time: Timestamp::new(5),
+            file_size_bytes: 1337,
+            row_count: 0,
+            compaction_level: CompactionLevel::Initial, // level of file of new writes
+            created_at: time_now,
+            column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
+        };
+        let f1 = postgres
+            .repositories()
+            .await
+            .parquet_files()
+            .create(p1.clone())
+            .await
+            .expect("create parquet file should succeed");
+        // insert the same again with a different size; we should then have 3x1337 as total file size
+        p1.object_store_id = Uuid::new_v4();
+        p1.file_size_bytes *= 2;
+        let _f2 = postgres
+            .repositories()
+            .await
+            .parquet_files()
+            .create(p1.clone())
+            .await
+            .expect("create parquet file should succeed");
+
+        // after adding two files we should have 3x1337 in the summary
+        let total_file_size_bytes: i64 =
+            sqlx::query_scalar("SELECT total_file_size_bytes FROM billing_summary;")
+                .fetch_one(&pool)
+                .await
+                .expect("fetch total file size failed");
+        assert_eq!(total_file_size_bytes, 1337 * 3);
+
+        // flag f1 for deletion and assert that the total file size is reduced accordingly.
+        postgres
+            .repositories()
+            .await
+            .parquet_files()
+            .flag_for_delete(f1.id)
+            .await
+            .expect("flag parquet file for deletion should succeed");
+        let total_file_size_bytes: i64 =
+            sqlx::query_scalar("SELECT total_file_size_bytes FROM billing_summary;")
+                .fetch_one(&pool)
+                .await
+                .expect("fetch total file size failed");
+        // we marked the first file of size 1337 for deletion leaving only the second that was 2x that
+        assert_eq!(total_file_size_bytes, 1337 * 2);
+
+        // actually deleting shouldn't change the total
+        let now = Timestamp::new((time_provider.now()).timestamp_nanos());
+        postgres
+            .repositories()
+            .await
+            .parquet_files()
+            .delete_old(now)
+            .await
+            .expect("parquet file deletion should succeed");
+        let total_file_size_bytes: i64 =
+            sqlx::query_scalar("SELECT total_file_size_bytes FROM billing_summary;")
+                .fetch_one(&pool)
+                .await
+                .expect("fetch total file size failed");
+        assert_eq!(total_file_size_bytes, 1337 * 2);
+    }
 }
