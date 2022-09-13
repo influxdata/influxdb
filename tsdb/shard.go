@@ -1836,7 +1836,7 @@ type writeRequest struct {
 
 type measurementFieldSetChangeMgr struct {
 	mu            sync.Mutex
-	Wg            sync.WaitGroup
+	wg            sync.WaitGroup
 	writeRequests chan writeRequest
 	Path          string
 	Logger        *zap.Logger
@@ -1854,14 +1854,14 @@ func (fs *MeasurementFieldSet) SetMeasurementFieldSetWriter(queueLength int, log
 		Logger:        logger,
 		goodSize:      int64(0),
 	}
-	fs.changeMgr.Wg.Add(1)
+	fs.changeMgr.wg.Add(1)
 	go fs.changeMgr.SaveWriter()
 }
 
 func (fscm *measurementFieldSetChangeMgr) Close() {
 	if fscm != nil {
 		close(fscm.writeRequests)
-		fscm.Wg.Wait()
+		fscm.wg.Wait()
 	}
 }
 
@@ -1876,7 +1876,7 @@ func (fscm *measurementFieldSetChangeMgr) RequestSave(changes FieldChanges) erro
 }
 
 func (fscm *measurementFieldSetChangeMgr) SaveWriter() {
-	defer fscm.Wg.Done()
+	defer fscm.wg.Done()
 	// Block until someone modifies the MeasurementFieldSet, and
 	// it needs to be written to disk. Exit when the channel is closed
 	for wr, ok := <-fscm.writeRequests; ok; wr, ok = <-fscm.writeRequests {
